@@ -1,0 +1,11 @@
+# SysAdminSuite Python Dependencies
+# Core dependencies for version management and release tools
+
+# No external dependencies required for basic functionality
+# All tools use Python standard library
+
+# Optional dependencies for enhanced functionality:
+# requests>=2.25.0          # For HTTP requests (if needed)
+# psutil>=5.8.0             # For system information (if needed)
+# paramiko>=2.7.0           # For SSH operations (if needed)
+# pywin32>=300              # For Windows-specific operations (Windows only)
