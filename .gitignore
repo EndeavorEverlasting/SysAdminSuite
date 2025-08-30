@@ -1,0 +1,10 @@
+# Windows/VS Code
+Thumbs.db
+.DS_Store
+.vscode/
+*.code-workspace
+
+# Python/PowerShell logs
+__pycache__/
+*.log
+*.ps1xml
