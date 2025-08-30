@@ -1,59 +1,29 @@
-' Printer script.vbs — maps shared print queues for NY135-NEU site
-' BUG-FIX: Removed global ON ERROR RESUME NEXT; replaced with localized error handling
-' BUG-FIX: Updated comment block — SetDefaultPrinter is not called in this script (by design)
-Option Explicit
+ON ERROR RESUME NEXT
+Set objNetwork = WScript.CreateObject("WScript.Network") 
 
-Dim objNetwork, q, failCount, printers
-Dim i
 
-' BUG-FIX: Localized error handling around CreateObject
-On Error Resume Next
-Err.Clear
-Set objNetwork = WScript.CreateObject("WScript.Network")
-If Err.Number <> 0 Then
-  WScript.Echo "FATAL: Could not create WScript.Network (" & Err.Number & "): " & Err.Description
-  WScript.Quit 1
-End If
-On Error GoTo 0
+objNetwork.AddWindowsPrinterConnection "\\SWBPNSHPS01V\NY135-NEU01"
+objNetwork.AddWindowsPrinterConnection "\\SWBPNSHPS01V\NY135-NEU03"
+objNetwork.AddWindowsPrinterConnection "\\SWBPNSHPS01V\NY135-NEU04"
+objNetwork.AddWindowsPrinterConnection "\\SWBPNSHPS01V\NY135-NEU05"
+objNetwork.AddWindowsPrinterConnection "\\SWBPNSHPS01V\NY135-NEU06"
+objNetwork.AddWindowsPrinterConnection "\\SWBPNSHPS01V\NY135-NEU07"
+objNetwork.AddWindowsPrinterConnection "\\SWBPNSHPS01V\NY135-NEU08"
+objNetwork.AddWindowsPrinterConnection "\\SWBPNSHPS01V\NY135-NEU09"
+objNetwork.AddWindowsPrinterConnection "\\SWBPNSHPS01V\NY135-NEU11"
 
-printers = Array( _
-  "\\SWBPNSHPS01V\NY135-NEU01", _
-  "\\SWBPNSHPS01V\NY135-NEU03", _
-  "\\SWBPNSHPS01V\NY135-NEU04", _
-  "\\SWBPNSHPS01V\NY135-NEU05", _
-  "\\SWBPNSHPS01V\NY135-NEU06", _
-  "\\SWBPNSHPS01V\NY135-NEU07", _
-  "\\SWBPNSHPS01V\NY135-NEU08", _
-  "\\SWBPNSHPS01V\NY135-NEU09", _
-  "\\SWBPNSHPS01V\NY135-NEU11" _
-)
 
-failCount = 0
-For i = 0 To UBound(printers)
-  q = printers(i)
-  On Error Resume Next
-  Err.Clear
-  objNetwork.AddWindowsPrinterConnection q
-  If Err.Number <> 0 Then
-    WScript.Echo "ERROR: Failed to add '" & q & "' (" & Err.Number & "): " & Err.Description
-    failCount = failCount + 1
-    Err.Clear
-  End If
-  On Error GoTo 0
-Next
+'Most of the time, Project Managers do not want a default printer set
+'It is best to allow users to set their own default printer
+'But if there is a need, remove the single-quote at the beginning of the line
+'and enter the proper print server and queue between the double-quotes
+'wscript.echo "Done!"
 
-' Most of the time, Project Managers do not want a default printer set.
-' It is best to allow users to set their own default printer.
-' To set a default, uncomment and update the line below:
-' objNetwork.SetDefaultPrinter "\\SWBPNSHPS01V\NY135-NEU01"
 
-If failCount > 0 Then
-  WScript.Echo failCount & " printer(s) failed to map."
-  WScript.Quit 1
-End If
-
-WScript.Quit 0
+WScript.quit
 
 'Update list of print queues in objNetwork.AddWindowsPrinterConnection statements
+'Also update SetDefaultPrinter statement
+
 'To deploy to other machines over the network, copy to
 '    \\{computername}\c$\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup

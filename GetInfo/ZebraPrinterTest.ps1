@@ -1,15 +1,4 @@
-﻿# Runs SNMP/live checks for Zebra printers.
-param(
-    [string[]]$PrinterIPs,
-    [ValidateNotNullOrEmpty()]
-    [string]$Community = $env:SNMP_COMMUNITY,
-    [ValidateSet('1','2c','3')]
-    [string]$SnmpVersion = '1'
-)
-
-if ([string]::IsNullOrWhiteSpace($Community)) {
-    throw "SNMP community is required. Pass -Community or set SNMP_COMMUNITY."
-}
+# Importing your previous SNMP/WMI/Live Check logic
 function Get-PrinterInfoFromIP {
     param (
         [Parameter(Mandatory = $true)]
@@ -32,10 +21,10 @@ function Get-PrinterInfoFromIP {
 
     $snmpAvailable = Get-Command snmpget -ErrorAction SilentlyContinue
     if ($snmpAvailable) {
-        $macRaw = snmpget -v $SnmpVersion -c $Community $IPAddress $macOID 2>&1
-        $serialRaw = snmpget -v $SnmpVersion -c $Community $IPAddress $serialOID 2>&1
+        $macRaw = snmpget -v 1 -c public $IPAddress $macOID 2>&1
+        $serialRaw = snmpget -v 1 -c public $IPAddress $serialOID 2>&1
 
-        $mac = if ($macRaw -match "(?i)Hex-STRING:\s*([0-9A-Fa-fxX ]+)") {
+        $mac = if ($macRaw -match "Hex-STRING: ([\dA-Fx ]+)") {
             ($matches[1] -split ' ') -join ':'
         } else { "Not Found (SNMP)" }
 
@@ -62,36 +51,23 @@ function Get-PrinterInfoFromIP {
     }
 }
 
-if (-not $PrinterIPs -or $PrinterIPs.Count -eq 0) {
-    $ipsPath = Join-Path $PSScriptRoot 'ZebraPrinterIPs.txt'
-    if (Test-Path -Path $ipsPath) {
-        $PrinterIPs = Get-Content -Path $ipsPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() }
-    } else {
-        throw "No printer IPs provided. Pass -PrinterIPs or create $ipsPath."
-    }
-}
-$invalidIps = $PrinterIPs | Where-Object { $_ -notmatch '^(?:\d{1,3}\.){3}\d{1,3}$' }
-if ($invalidIps) {
-    throw "Invalid printer IP(s): $($invalidIps -join ', ')"
-}
+# === Test the two Zebra printers ===
+$zebraIPs = @(
+    "10.202.46.169",
+    "10.202.46.168",
+    "10.202.46.170",
+    "10.202.47.142",
+    "10.202.47.144",
+    "10.202.47.111",
+    "10.202.47.45",
+    "10.202.47.134",
+    "10.202.46.172"
+)
 
-$results = $PrinterIPs | ForEach-Object { Get-PrinterInfoFromIP -IPAddress $_ }
+$results = $zebraIPs | ForEach-Object { Get-PrinterInfoFromIP -IPAddress $_ }
 
 # Show in console
 $results | Format-Table -AutoSize
 
-# Export to CSV
-$zebraOutDir = Join-Path $PSScriptRoot 'Output\ZebraTest'
-if (-not (Test-Path $zebraOutDir)) { New-Item -ItemType Directory -Path $zebraOutDir -Force | Out-Null }
-$zebraOutCsv = Join-Path $zebraOutDir 'ZebraTest_Output.csv'
-$results | Export-Csv $zebraOutCsv -NoTypeInformation
-Write-Host "Saved: $zebraOutCsv" -ForegroundColor Green
-
-# ── HTML output ─────────────────────────────────────────────────────
-$suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
-if (Test-Path -LiteralPath $suiteHtmlHelper) {
-    . $suiteHtmlHelper
-    $htmlPath = [IO.Path]::ChangeExtension($zebraOutCsv, '.html')
-    $results | ConvertTo-Html -Fragment -PreContent '<h2>Zebra Printer Test</h2>' |
-        ConvertTo-SuiteHtml -Title 'Zebra Printer Test' -Subtitle "$($results.Count) printer(s)" -OutputPath $htmlPath
-}
+# Optional: Export to CSV
+$results | Export-Csv ".\ZebraPrinterTestResults.csv" -NoTypeInformation

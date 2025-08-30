@@ -92,23 +92,13 @@ End Sub
 
 Function TailNumber(s)
   ' Return the integer suffix at end of string (e.g., "WEL082MST055" -> 55).
-  ' If none found, or input is empty/non-numeric, returns -1.
-  ' BUG-FIX: Added guard for empty input and IsNumeric checks before CInt.
-  If Len(s) = 0 Then
-    TailNumber = -1
-    Exit Function
-  End If
+  ' If none found, returns -1.
   Dim i, ch
   For i = Len(s) To 1 Step -1
     ch = Mid(s, i, 1)
     If ch < "0" Or ch > "9" Then
       If i < Len(s) Then
-        Dim tail : tail = Mid(s, i+1)
-        If IsNumeric(tail) Then
-          TailNumber = CInt(tail)
-        Else
-          TailNumber = -1
-        End If
+        TailNumber = CInt(Mid(s, i+1))
       Else
         TailNumber = -1
       End If
@@ -116,9 +106,5 @@ Function TailNumber(s)
     End If
   Next
   ' String ended with digits only
-  If IsNumeric(s) Then
-    TailNumber = CInt(s)
-  Else
-    TailNumber = -1
-  End If
+  TailNumber = CInt(s)
 End Function

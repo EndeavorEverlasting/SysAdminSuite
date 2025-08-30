@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Proof-of-concept: Take printer queues, resolve to IPs, grab SNMP info, export.
 
@@ -9,11 +9,7 @@
 param(
     [string]$PrintServer = "SWBPNSHPS01V",
     [string[]]$Queues = @("PV522-PED01","PV522-PED02","PV522-PED03","PV522-PED04"),
-    [string]$OutputPath = (Join-Path $PSScriptRoot 'Output\QueueInventory\QueueInventory_Output.csv'),
-    [ValidateNotNullOrEmpty()]
-    [string]$Community = "public",
-    [ValidateSet('1','2c','3')]
-    [string]$SnmpVersion = '1'
+    [string]$OutputPath = "C:\Temp\QueueInventory.csv"
 )
 
 function Get-PrinterIPFromQueue {
@@ -50,8 +46,8 @@ function Get-PrinterInfoFromIP {
 
     $snmpAvailable = Get-Command snmpget -ErrorAction SilentlyContinue
     if ($snmpAvailable) {
-        $macRaw    = snmpget -v $SnmpVersion -c $Community $IPAddress $macOID 2>&1
-        $serialRaw = snmpget -v $SnmpVersion -c $Community $IPAddress $serialOID 2>&1
+        $macRaw    = snmpget -v 1 -c public $IPAddress $macOID 2>&1
+        $serialRaw = snmpget -v 1 -c public $IPAddress $serialOID 2>&1
 
         $mac = if ($macRaw -match "Hex-STRING: ([\dA-Fx ]+)") {
             ($matches[1] -split ' ') -join ':'
@@ -105,20 +101,6 @@ $results = foreach ($q in $Queues) {
 }
 
 # Export results
-$outDir = Split-Path -Path $OutputPath -Parent
-if ([string]::IsNullOrWhiteSpace($outDir)) { $outDir = (Get-Location).Path }
-if (-not (Test-Path -Path $outDir)) {
-    New-Item -ItemType Directory -Path $outDir -Force | Out-Null
-}
 $results | Tee-Object -Variable r | Format-Table -AutoSize
 $results | Export-Csv -Path $OutputPath -NoTypeInformation
 Write-Host "`nDone. Results saved to $OutputPath" -ForegroundColor Green
-
-# ── HTML output ─────────────────────────────────────────────────────
-$suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
-if (Test-Path -LiteralPath $suiteHtmlHelper) {
-    . $suiteHtmlHelper
-    $htmlPath = [IO.Path]::ChangeExtension($OutputPath, '.html')
-    $results | ConvertTo-Html -Fragment -PreContent '<h2>Queue Inventory</h2>' |
-        ConvertTo-SuiteHtml -Title 'Queue Inventory' -Subtitle "$PrintServer - $($results.Count) queue(s)" -OutputPath $htmlPath
-}

@@ -64,12 +64,10 @@ End Sub
 
 Function AddNetworkPrinter(printerPath)
     On Error Resume Next
-    ' BUG-FIX: Call Err.Clear before the operation so prior errors don't cause false failures
-    Err.Clear
-
+    
     WScript.Echo "Adding printer: " & printerPath
     networkObj.AddWindowsPrinterConnection printerPath
-
+    
     If Err.Number = 0 Then
         WScript.Echo "Successfully added: " & printerPath
         AddNetworkPrinter = True
@@ -77,25 +75,21 @@ Function AddNetworkPrinter(printerPath)
         WScript.Echo "Error adding printer " & printerPath & ": " & Err.Description
         AddNetworkPrinter = False
     End If
-    Err.Clear
-
+    
     On Error GoTo 0
 End Function
 
 Sub SetDefaultPrinter(printerPath)
     On Error Resume Next
-    ' BUG-FIX: Call Err.Clear before the operation so prior errors don't cause false failures
-    Err.Clear
-
+    
     WScript.Echo "Setting default printer: " & printerPath
     networkObj.SetDefaultPrinter printerPath
-
+    
     If Err.Number = 0 Then
         WScript.Echo "Default printer set successfully"
     Else
         WScript.Echo "Error setting default printer: " & Err.Description
     End If
-    Err.Clear
-
+    
     On Error GoTo 0
 End Sub

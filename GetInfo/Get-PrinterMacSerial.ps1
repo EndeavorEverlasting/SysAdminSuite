@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
   # Provide IPs inline: -IPs 10.202.46.169,10.202.46.168 ...
   [string[]]$IPs,
@@ -7,7 +7,7 @@ param(
   [string]$ListPath,
 
   # Where to drop results
-  [string]$OutCsv = (Join-Path $PSScriptRoot 'Output\PrinterProbe\PrinterProbe_Output.csv'),
+  [string]$OutCsv = ".\PrinterProbe.csv",
 
   # Optional: add or change community strings to try (first winner wins)
   [string[]]$Communities = @('public','private','northwell','zebra','netadmin'),
@@ -87,7 +87,7 @@ function Parse-SNMPValue {
   # ... = STRING: "ZBR12345"
   # ... = Hex-STRING: 00 11 22 33 44 55
   if ($line -match 'STRING:\s*"([^"]+)"') { return $Matches[1] }
-  if ($line -match 'Hex-STRING:\s*([0-9A-Fa-f\s:]+)') {
+  if ($line -match 'Hex-STRING:\s*([0-9A-Fa-f\h:]+)') {
     return ($Matches[1] -replace '\s','' -replace ':','')
   }
   if ($line -match '=\s*([^\r\n]+)$') { return $Matches[1].Trim() }
@@ -102,7 +102,7 @@ function Try-SNMP-Mac {
       $res = Try-SNMPGet -IP $IP -oid "$OID_IfPhys.$i" -communities $communities
       if ($res) {
         $val = Normalize-Mac (Parse-SNMPValue $res.value)
-        if ($val -and $val -notmatch '^00(?:[:]?00){5}$') {
+        if ($val -and $val -notmatch '^00(:?[:]?00){5}$') {
           return @{ MAC = $val; Source = "SNMP ifPhysAddress.$i ($($res.community)/v$($res.version))" }
         }
       }
@@ -117,7 +117,7 @@ function Try-SNMP-Mac {
         $lines = $out -split "`r?`n" | Where-Object { $_ -match ' = ' }
         foreach ($ln in $lines) {
           $candidate = Normalize-Mac (Parse-SNMPValue $ln)
-          if ($candidate -and $candidate -notmatch '^00(?:[:]?00){5}$') {
+          if ($candidate -and $candidate -notmatch '^00(:?[:]?00){5}$') {
             return @{ MAC = $candidate; Source = "SNMP ifPhysAddress ($comm/v$ver)" }
           }
         }
@@ -175,7 +175,7 @@ function Try-HTTP-Scrape {
 }
 
 # -------------------------------
-# Zebra raw port (9100) probe -- ZPL dump of settings
+# Zebra raw port (9100) probe — ZPL dump of settings
 # -------------------------------
 function Try-9100-ZPL {
   param([string]$IP)
@@ -251,7 +251,7 @@ function Get-Targets {
 }
 
 $targets = Get-Targets
-Write-Log "----- Run start: $($targets -join ', ') -----"
+Write-Log "----- Run start: ${($targets -join ', ')} -----"
 
 $rows = foreach ($ip in $targets) {
   $status   = 'Unknown'
@@ -340,13 +340,3 @@ $rows | Tee-Object -Variable Results | Format-Table -AutoSize
 $Results | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $OutCsv
 Write-Log "Wrote CSV: $OutCsv"
 Write-Host "`nSaved: $OutCsv"
-
-# ── HTML output ─────────────────────────────────────────────────────
-$suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
-if (Test-Path -LiteralPath $suiteHtmlHelper) {
-  . $suiteHtmlHelper
-  $htmlPath = [IO.Path]::ChangeExtension($OutCsv, '.html')
-  $Results | Select-Object IP,Status,MAC,Serial,Source,Notes |
-    ConvertTo-Html -Fragment -PreContent '<h2>Printer Probe Results</h2>' |
-    ConvertTo-SuiteHtml -Title 'Printer MAC / Serial Probe' -Subtitle "$($Results.Count) target(s)" -OutputPath $htmlPath
-}
