@@ -1,4 +1,4 @@
-# 1) Log in to GitHub (if not already)
+﻿# 1) Log in to GitHub (if not already)
 gh auth login
 
 # 2) Set your identity (once)
