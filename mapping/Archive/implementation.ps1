@@ -1,7 +1,3 @@
-# implementation.ps1 — Usage examples for Publish-EL082-Pack.ps1
-# This file is a reference template. Uncomment one of the invocations below
-# to run it, or copy the command into your terminal.
-#
 # In the folder that contains this script + CSVs (+ helper scripts if needed):
 # 1) Push CSVs only (most lightweight):
 .\Publish-EL082-Pack.ps1 -PauseAtEnd

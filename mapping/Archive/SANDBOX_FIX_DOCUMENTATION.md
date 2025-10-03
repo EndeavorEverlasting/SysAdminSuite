@@ -37,16 +37,12 @@ The original script only supports these parameters:
 
 ## Solution Implemented
 
-### Option 1: Quick Fix (Applied First — Temporary)
+### Option 1: Quick Fix (Applied)
 - **File Modified:** `Run-EL082-Sandbox.ps1`
 - **Change:** Removed the `-SandboxRoot $root` parameter from the script call
 - **Result:** Script now works with remote deployment only
-- **Status:** This was a stop-gap to restore remote-only deployment immediately.
 
-### Option 2: Full Sandbox Support (Created — Long-Term Solution)
-> Option 2 supersedes Option 1. `Run-EL082-Sandbox.ps1` now invokes
-> `Publish-EL082-Pack-Sandbox.ps1`, which handles both remote and local sandbox modes.
-
+### Option 2: Full Sandbox Support (Created)
 - **New File:** `Publish-EL082-Pack-Sandbox.ps1`
 - **Features Added:**
   - New `-SandboxRoot` parameter for local sandbox mode

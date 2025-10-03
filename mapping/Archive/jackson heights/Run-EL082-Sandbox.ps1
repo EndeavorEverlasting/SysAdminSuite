@@ -7,8 +7,7 @@ $hosts = @(
 $root = "$PSScriptRoot\sandbox"
 New-Item -ItemType Directory -Path $root -Force | Out-Null
 
-# BUG-FIX: Use $PSScriptRoot-rooted path so the script always resolves correctly
-& "$PSScriptRoot\Publish-EL082-Pack-Sandbox.ps1" `
+.\Publish-EL082-Pack-Sandbox.ps1 `
   -ComputerName $hosts `
   -PrintersCsv "$PSScriptRoot\EL082_el082_printers.csv" `
   -DefaultsCsv "$PSScriptRoot\EL082_el082_defaults.csv" `

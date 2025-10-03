@@ -58,16 +58,15 @@ function Ensure-Dir($p) { if (-not (Test-Path -LiteralPath $p)) { New-Item -Item
 # Normalize input CSV & derive per-host rows
 function Get-HostRows {
   param(
-    # BUG-FIX: Renamed from $Host to $TargetHost to avoid shadowing the automatic $Host variable
-    [Parameter(Mandatory=$true)][string]$TargetHost,
+    [Parameter(Mandatory=$true)][string]$Host,
     [Parameter(Mandatory=$true)][System.Object[]]$MasterRows
   )
 
-  $rows = $MasterRows | Where-Object { $_.Host -eq $TargetHost }
+  $rows = $MasterRows | Where-Object { $_.Host -eq $Host }
   $out  = New-Object System.Collections.Generic.List[object]
 
   foreach ($r in $rows) {
-    $rowHost = $r.Host
+    $host = $r.Host
     $unc  = $r.PrinterUNC
     $ip   = $r.IP
     $pname = $r.PrinterName
@@ -108,7 +107,7 @@ function Get-HostRows {
       continue
     }
 
-    throw "Row for host '$rowHost' has neither UNC nor IP: $($r | ConvertTo-Csv -NoTypeInformation | Select-Object -Skip 1)"
+    throw "Row for host '$host' has neither UNC nor IP: $($r | ConvertTo-Csv -NoTypeInformation | Select-Object -Skip 1)"
   }
 
   return $out
@@ -160,13 +159,6 @@ foreach ($c in $targets) {
       continue
     }
 
-    # BUG-FIX: $PlanOnly was declared but never used; skip remote execution when set
-    if ($PlanOnly) {
-      $hostRows = if ($master) { Get-HostRows -TargetHost $c -MasterRows $master } else { @() }
-      Write-Host "[PlanOnly] $c — would push worker, schedule task, map $($hostRows.Count) printer(s)."
-      continue
-    }
-
     # Ensure remote roots
     cmd /c "mkdir \\$c\C$\ProgramData\SysAdminSuite\Mapping" | Out-Null
     cmd /c "mkdir \\$c\C$\ProgramData\SysAdminSuite\Mapping\logs" | Out-Null
@@ -177,7 +169,7 @@ foreach ($c in $targets) {
     if (!(Test-Path -LiteralPath $workerSrc)) { throw "Worker not found: $workerSrc" }
     Copy-Item -LiteralPath $workerSrc -Destination "\\$c\C$\ProgramData\SysAdminSuite\Mapping" -Force
 
-    $hostRows = if ($master) { Get-HostRows -TargetHost $c -MasterRows $master } else { @() }
+    $hostRows = if ($master) { Get-HostRows -Host $c -MasterRows $master } else { @() }
     if (-not $ListOnly -and $hostRows.Count -gt 0) {
       $tmpCsv = Join-Path $sessionRoot "$c.csv"
       $hostRows | Export-Csv -LiteralPath $tmpCsv -NoTypeInformation -Encoding UTF8
@@ -206,16 +198,9 @@ foreach ($c in $targets) {
     
 
     # --- Robust schedule+run as SYSTEM (ONCE trigger with explicit start date) ---
-    # BUG-FIX: Validate $c against a strict hostname pattern to prevent command injection
-    if ($c -notmatch '^[A-Za-z0-9\-\.]+$') {
-      Write-Error "[$c] Invalid hostname — skipping to prevent command injection."
-      continue
-    }
-
     $when   = (Get-Date).AddMinutes(1)
     $stTime = $when.ToString('HH:mm')          # 24h time
-    # BUG-FIX: Use culture-aware short date format so schtasks receives the correct format on non-US locales
-    $stDate = $when.ToShortDateString()
+    $stDate = $when.ToString('MM/dd/yyyy')     # US-style date expected by schtasks
     $taskName = 'SysAdminSuite_PrinterMap'
 
     # Use full path to Windows PowerShell for broad compatibility on endpoints
@@ -224,25 +209,17 @@ foreach ($c in $targets) {
     # Create the task (drop /Z to avoid EndBoundary XML requirement)
     $create = cmd /c "schtasks /Create /S $c /RU SYSTEM /SC ONCE /SD $stDate /ST $stTime /TN $taskName /TR `"$pwsh -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command $psCmd`" /RL HIGHEST /F"
     Write-Host "[$c] schtasks /Create → $create"
-    if ($LASTEXITCODE -ne 0) {
-      Write-Error "[$c] schtasks /Create failed (exit $LASTEXITCODE). Skipping."
-      continue
-    }
 
     # Start it
     $run = cmd /c "schtasks /Run /S $c /TN $taskName"
     Write-Host "[$c] schtasks /Run → $run"
-    if ($LASTEXITCODE -ne 0) {
-      Write-Error "[$c] schtasks /Run failed (exit $LASTEXITCODE)."
-    }
 
     # Poll for artifacts (move on as soon as we see output; max 45s)
-    # BUG-FIX: Removed unused $found variable
-    $maxWait = 45; $waited = 0
+    $maxWait = 45; $waited = 0; $found = $false
     while ($waited -lt $maxWait) {
       if (Test-Path $remoteLogs) {
         $latest = Get-ChildItem -Path $remoteLogs -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
-        if ($latest) { break }
+        if ($latest) { $found = $true; break }
       }
       Start-Sleep -Seconds 3; $waited += 3
     }
@@ -254,8 +231,7 @@ foreach ($c in $targets) {
       if ($latest) {
         $hostOut = Join-Path $sessionRoot $c
         New-Item -ItemType Directory -Path $hostOut -Force | Out-Null
-        # BUG-FIX: Changed '*.*' to '*' so files without extensions are also copied
-        Copy-Item -Path (Join-Path $latest.FullName '*') -Destination $hostOut -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path (Join-Path $latest.FullName '*.*') -Destination $hostOut -Force -ErrorAction SilentlyContinue
         Get-ChildItem -Path $latest.FullName -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $latest.FullName -Force -ErrorAction SilentlyContinue
         Write-Host "Collected → $hostOut (wiped remote)."

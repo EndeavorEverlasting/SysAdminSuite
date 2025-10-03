@@ -152,22 +152,10 @@ foreach ($c in $ComputerName) {
         $row.Notes = 'sandbox mode - task file created'
       } else {
         # Real deployment mode
-        # BUG-FIX: Validate hostname, call schtasks.exe directly, check exit codes
-        if ($c -notmatch '^[A-Za-z0-9\-\.]+$') {
-          throw "Invalid hostname '$c' — skipping to prevent command injection."
-        }
-        $tr = "powershell -NoProfile -ExecutionPolicy Bypass -File '$remoteMap'"
-        $createOut = & schtasks.exe /Create /S $c /RU SYSTEM /SC ONCE /ST 00:00 /RL HIGHEST /TN EL082_MapAll /TR $tr /F /Z 2>&1
-        if ($LASTEXITCODE -ne 0) {
-          Write-Error "schtasks /Create failed on $c (exit $LASTEXITCODE): $createOut"
-        } else {
-          $runOut = & schtasks.exe /Run /S $c /TN EL082_MapAll 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "schtasks /Run failed on $c (exit $LASTEXITCODE): $runOut"
-          } else {
-            $row.MapTask = $true
-          }
-        }
+        $tr = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$remoteMap`""
+        cmd /c "schtasks /Create /S $c /RU SYSTEM /SC ONCE /ST 00:00 /RL HIGHEST /TN EL082_MapAll /TR `"$tr`" /F /Z" | Out-Null
+        cmd /c "schtasks /Run /S $c /TN EL082_MapAll" | Out-Null
+        $row.MapTask = $true
       }
     }
 

@@ -5,7 +5,7 @@
 ### The Problem
 You're getting this error:
 ```
-Missing required file: C:\Users\<username>\<repo_root>\mapping\el082_printers.csv
+Missing required file: C:\Users\pa_rperez26\OneDrive - Northwell Health\Desktop\dev\remote repo\mapping\el082_printers.csv
 ```
 
 ### The Root Cause
@@ -111,6 +111,7 @@ Get-ChildItem *.csv
 ### Verify Target Connectivity:
 ```powershell
 Test-Connection -ComputerName "WEL082MST051" -Count 1
+```
 ```
 
 ## Summary

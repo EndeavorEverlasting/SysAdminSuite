@@ -90,7 +90,7 @@ def extract_points(bgr, ranges, expected_min=None, expected_max=None, min_r=10, 
             continue
         try:
             num = int(txt)
-        except:
+        except ValueError:
             continue
         # normalize to expected range
         if expected_min is not None and expected_max is not None:
@@ -127,6 +127,8 @@ def extract_points(bgr, ranges, expected_min=None, expected_max=None, min_r=10, 
     return points
 
 def nearest(ws_points, pr_points):
+    if not pr_points:
+        return []
     rows = []
     for wid, wx, wy in ws_points:
         best = None

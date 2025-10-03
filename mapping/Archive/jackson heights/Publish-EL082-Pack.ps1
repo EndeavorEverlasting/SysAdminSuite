@@ -55,8 +55,7 @@ function _ProgDataEL082([string]$c){ "\\$c\C$\ProgramData\EL082" }
 function _StartupPath([string]$c){ "\\$c\C$\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup" }
 
 function _CopyIfChanged($src, $dst) {
-  # BUG-FIX: Use -LiteralPath for Test-Path to match Copy-Item/Get-FileHash behavior
-  if (!(Test-Path -LiteralPath $dst)) { Copy-Item -LiteralPath $src -Destination $dst -Force; return $true }
+  if (!(Test-Path $dst)) { Copy-Item -LiteralPath $src -Destination $dst -Force; return $true }
   try {
     $h1 = (Get-FileHash -Algorithm SHA256 -LiteralPath $src).Hash
     $h2 = (Get-FileHash -Algorithm SHA256 -LiteralPath $dst).Hash
@@ -93,9 +92,8 @@ foreach ($c in $ComputerName) {
     $row.Reachable = $true
 
     # Ensure C:\ProgramData\EL082\ exists
-    # BUG-FIX: Use -LiteralPath for Test-Path and New-Item to handle UNC paths correctly
     $pd = _ProgDataEL082 $c
-    if (!(Test-Path -LiteralPath $pd)) { New-Item -ItemType Directory -LiteralPath $pd -Force | Out-Null }
+    if (!(Test-Path $pd)) { New-Item -ItemType Directory -Path $pd -Force | Out-Null }
 
     # Push CSVs (only if changed)
     $pushed1 = _CopyIfChanged $PrintersCsv (Join-Path $pd 'el082_printers.csv')
@@ -112,24 +110,11 @@ foreach ($c in $ComputerName) {
 
     # Trigger machine-wide /ga now (one-shot SYSTEM task; auto-deletes with /Z)
     if ($MapNow) {
-      # BUG-FIX: Validate $c against a strict hostname pattern to prevent command injection
-      if ($c -notmatch '^[A-Za-z0-9\-\.]+$') {
-        throw "Invalid hostname '$c' — skipping to prevent command injection."
-      }
       $remoteMap = 'C:\ProgramData\EL082\Map-EL082-MachineWide.ps1'
       _CopyIfChanged $MapScript (Join-Path $pd 'Map-EL082-MachineWide.ps1') | Out-Null
-      # BUG-FIX: Use single quotes for -File path to avoid nested double-quote parsing errors
-      $tr = "powershell -NoProfile -ExecutionPolicy Bypass -File '$remoteMap'"
-      # BUG-FIX: Call schtasks.exe directly (not via cmd /c) and check exit codes
-      $createOut = & schtasks.exe /Create /S $c /RU SYSTEM /SC ONCE /ST 00:00 /RL HIGHEST /TN EL082_MapAll /TR $tr /F /Z 2>&1
-      if ($LASTEXITCODE -ne 0) {
-        throw "schtasks /Create failed (exit $LASTEXITCODE): $createOut"
-      }
-      # BUG-FIX: Only set MapTask = $true when both Create and Run succeed
-      $runOut = & schtasks.exe /Run /S $c /TN EL082_MapAll 2>&1
-      if ($LASTEXITCODE -ne 0) {
-        throw "schtasks /Run failed (exit $LASTEXITCODE): $runOut"
-      }
+      $tr = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$remoteMap`""
+      cmd /c "schtasks /Create /S $c /RU SYSTEM /SC ONCE /ST 00:00 /RL HIGHEST /TN EL082_MapAll /TR `"$tr`" /F /Z" | Out-Null
+      cmd /c "schtasks /Run /S $c /TN EL082_MapAll" | Out-Null
       $row.MapTask = $true
     }
 

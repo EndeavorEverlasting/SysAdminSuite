@@ -9,11 +9,7 @@ $ErrorActionPreference = 'Stop'
 function _Join($root, $rel) { Join-Path $root $rel }
 
 # Resolve CSV path (supports sandbox when -RemoteRoot is used)
-# BUG-FIX: When -Simulate is set, respect $PrintersCsv if provided; only fall back to RemoteRoot path if not
-$CsvPath = if ($Simulate) {
-  if (-not [string]::IsNullOrEmpty($PrintersCsv)) { $PrintersCsv }
-  else { _Join $RemoteRoot 'ProgramData\EL082\el082_printers.csv' }
-} else { $PrintersCsv }
+$CsvPath = if ($Simulate) { _Join $RemoteRoot 'ProgramData\EL082\el082_printers.csv' } else { $PrintersCsv }
 if (!(Test-Path -LiteralPath $CsvPath)) { if ($Simulate) { exit 0 } else { throw "Missing $CsvPath" } }
 
 $rows = Import-Csv -LiteralPath $CsvPath
@@ -68,37 +64,21 @@ foreach ($unc in $targets) {
 }
 
 # Optional prune (real)
-# BUG-FIX: Build a lookup table of share->server from the CSV rows so the correct
-#           server is used when removing each stale printer (was always using rows[0].Server).
-# BUG-FIX: Replaced bare catch {} with a catch that logs the error.
-if ($PrunePrefix) {
-  try {
-    # Build share->server map from CSV
-    $shareServerMap = @{}
-    foreach ($r in $rows) {
-      $srv = $r.Server.Trim(); $shr = $r.Share.Trim()
-      if ($srv -and $shr) { $shareServerMap[$shr] = $srv }
-    }
-
-    $installed = Get-Printer -ErrorAction SilentlyContinue |
-                 Where-Object { $_.Name -like "$PrunePrefix*" } |
-                 Select-Object -ExpandProperty Name
+try {
+  if ($PrunePrefix) {
+    $installed = Get-Printer | Where-Object { $_.Name -like "$PrunePrefix*" } | Select-Object -ExpandProperty Name
     foreach ($name in $installed) {
-      $inTargets = $false
+      $match = $false
       foreach ($unc in $targets) {
-        if ($unc.Split('\')[-1] -eq $name) { $inTargets = $true; break }
+        if ($unc.Split('\')[-1] -eq $name) { $match = $true; break }
       }
-      if (-not $inTargets) {
-        # BUG-FIX: Look up the correct server for this share; fall back to first row only if not found
-        $srv = if ($shareServerMap.ContainsKey($name)) { $shareServerMap[$name] } else { $rows[0].Server.Trim() }
-        Write-Host "PRUNE: removing \\$srv\$name"
-        Start-Process cmd.exe "/c rundll32 printui.dll,PrintUIEntry /gd /q /n `"\\$srv\$name`"" -WindowStyle Hidden -Wait
+      if (-not $match) {
+        $server = $rows[0].Server
+        Start-Process cmd.exe "/c rundll32 printui.dll,PrintUIEntry /gd /q /n `"`\\$server\$name`"" -WindowStyle Hidden -Wait
       }
     }
-  } catch {
-    Write-Warning "Prune step failed: $($_.Exception.Message)"
   }
-}
+} catch {}
 
 Start-Process cmd.exe "/c net stop spooler & net start spooler" -WindowStyle Hidden -Wait
 

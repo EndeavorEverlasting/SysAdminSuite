@@ -54,10 +54,8 @@ function Start-MachineQueryJob {
           MACAddress     = ($macs  -join ';')
           MonitorSerials = ($monSer -join ';')
           Status         = 'OK'
-          ErrorMessage   = ''
         }
       } catch {
-        $errMsg = $_.Exception.Message
         [pscustomobject]@{
           Timestamp      = $timestamp
           HostName       = $Computer
@@ -65,8 +63,7 @@ function Start-MachineQueryJob {
           IPAddress      = ''
           MACAddress     = ''
           MonitorSerials = ''
-          Status         = 'Query Failed'
-          ErrorMessage   = $errMsg
+          Status         = 'Firewall Blocked'
         }
       }
     } else {
@@ -78,7 +75,6 @@ function Start-MachineQueryJob {
         MACAddress     = ''
         MonitorSerials = ''
         Status         = 'Offline'
-        ErrorMessage   = ''
       }
     }
   } -ArgumentList $Computer
@@ -86,11 +82,8 @@ function Start-MachineQueryJob {
 
 $jobs = @()
 foreach ($c in $Computers) {
-  # BUG-FIX: Filter by our own jobs only so unrelated session jobs don't affect throttling
-  $running = $jobs | Where-Object { $_.State -eq 'Running' }
-  while (($running | Measure-Object).Count -ge $Throttle) {
-    Wait-Job -Any $running | Out-Null
-    $running = $jobs | Where-Object { $_.State -eq 'Running' }
+  while ((Get-Job -State Running).Count -ge $Throttle) {
+    Wait-Job -Any (Get-Job -State Running) | Out-Null
   }
   $jobs += Start-MachineQueryJob -Computer $c
 }
@@ -99,7 +92,6 @@ if ($jobs) { Wait-Job -Job $jobs | Out-Null }
 
 $results = $jobs | Receive-Job
 $dir = Split-Path -Path $OutputPath -Parent
-if ([string]::IsNullOrWhiteSpace($dir)) { $dir = (Get-Location).Path }
 if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
 $results | Sort-Object HostName | Export-Csv -Path $OutputPath -NoTypeInformation
 
