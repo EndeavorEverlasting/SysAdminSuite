@@ -17,16 +17,12 @@ param(
   [int]$MaxParallel = 12,
 
   [Parameter(ParameterSetName='Default')]
-  [int]$MaxWaitSeconds = 180,
+  [int]$MaxWaitSeconds = 60,
 
   [Parameter(ParameterSetName='Default')]
   [int]$PollSeconds = 3
 )
 
-
-# Optional: seed CentralResults/index when nothing returns
-[switch]$SeedIfEmpty
-)
 $ErrorActionPreference = 'Stop'
 
 # --- Resolve paths / prerequisites ----------------------------------------
@@ -139,8 +135,7 @@ try {
       $remoteWorker = Join-Path $remoteRoot ([IO.Path]::GetFileName($localWorker))
       $psArgs       = "`"$remoteWorker`" -ListOnly -Preflight"
       $tr           = "$pwshWin -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $psArgs"
-      $now    = Get-Date
-$when   = if ($now.Second -ge 50) { $now.AddMinutes(2) } else { $now.AddMinutes(1) }
+      $when   = (Get-Date).AddMinutes(1)
       $stTime = $when.ToString('HH:mm')
       $stDate = $when.ToString('MM/dd/yyyy')
 
@@ -215,16 +210,6 @@ $when   = if ($now.Second -ge 50) { $now.AddMinutes(2) } else { $now.AddMinutes(
   }
   if ($union.Count -gt 0) {
     $union | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $centralCsv
-    $centralCsvExists = $true
-  }
-
-  if (-not $centralCsvExists -and $SeedIfEmpty) {
-    $seed = @(
-      @{ Timestamp=(Get-Date).ToString('s'); ComputerName='WLS111WCC001'; Type='UNC'; Target='(no data)'; Driver=''; Port=''; Status='Seed'; Scope='UNKNOWN' },
-      @{ Timestamp=(Get-Date).ToString('s'); ComputerName='WLS111WCC002'; Type='UNC'; Target='(no data)'; Driver=''; Port=''; Status='Seed'; Scope='UNKNOWN' },
-      @{ Timestamp=(Get-Date).ToString('s'); ComputerName='WLS111WCC003'; Type='UNC'; Target='(no data)'; Driver=''; Port=''; Status='Seed'; Scope='UNKNOWN' }
-    ) | ForEach-Object { [pscustomobject]$_ }
-    $seed | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $centralCsv
     $centralCsvExists = $true
   }
 

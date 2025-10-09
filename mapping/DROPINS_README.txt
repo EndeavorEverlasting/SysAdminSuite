@@ -1,6 +1,6 @@
 # Drop-ins
-- RPM-Recon.annotated.ps1 - controller (longer wait, safer cleanup, seed option)
-- Enforce-Mapping-SingleHost.ps1 - one-off enforcer for WLS111WCC094 -> \\SWBPNHPHPS01V\LS111-WCC65
+- RPM-Recon.annotated.ps1 — controller (longer wait, safer cleanup, seed option)
+- Enforce-Mapping-SingleHost.ps1 — one-off enforcer for WLS111WCC094 → \\SWBPNHPHPS01V\LS111-WCC65
 
 ## Typical runs
 # smoke set
