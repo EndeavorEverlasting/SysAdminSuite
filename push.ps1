@@ -48,6 +48,45 @@ if (-not $BranchName -or [string]::IsNullOrWhiteSpace($BranchName)) {
 }
 Write-Host "Target branch: $BranchName"
 
+# --- 1b) Ensure .gitattributes and .gitignore are in place ---
+$gitAttrPath  = Join-Path $Root ".gitattributes"
+$gitIgnorePath = Join-Path $Root ".gitignore"
+
+# Create or repair .gitattributes
+$gitattributes = @"
+* text=auto
+*.ps1  text eol=crlf
+*.psm1 text eol=crlf
+*.cmd  text eol=crlf
+*.md   text eol=lf
+*.csv  text eol=lf
+"@
+if (-not (Test-Path $gitAttrPath) -or -not (Select-String -Quiet "ps1" $gitAttrPath)) {
+    $gitattributes | Set-Content $gitAttrPath -Encoding UTF8 -NoNewline
+    Write-Host "Created or refreshed .gitattributes"
+    git add .gitattributes
+}
+
+# Create or patch .gitignore
+$ignoreRules = @"
+# runtime artifacts
+mapping/logs/
+config/exports/
+*.log
+.vscode/
+"@
+if (-not (Test-Path $gitIgnorePath) -or -not (Select-String -Quiet "mapping/logs" $gitIgnorePath)) {
+    $ignoreRules | Add-Content $gitIgnorePath -Encoding UTF8
+    Write-Host "Created or refreshed .gitignore"
+    git add .gitignore
+}
+
+# Optionally untrack already-committed logs/exports (safe to re-run)
+try {
+    git rm -r --cached mapping/logs config/exports 2>$null
+} catch {}
+
+
 # --- 3) Stage + commit if there are changes ---
 git status --porcelain | Out-Null
 $hasChanges = $LASTEXITCODE -eq 0 -and (git status --porcelain)  # non-empty if changes
