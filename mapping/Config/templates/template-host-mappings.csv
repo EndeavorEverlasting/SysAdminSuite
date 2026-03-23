@@ -1,0 +1,9 @@
+﻿∩╗┐# Host + UNC
+Host,UNC,FriendlyName
+NWH-OR-WS-001,\\PRINTSRV01\OR_HP_Main,OR Main HP
+NWH-OR-WS-001,\\PRINTSRV02\OR_HP_Backup,OR Backup HP
+
+# Host + IP (DriverName optional; RPM Worker will correlate ΓåÆ PCL6 fallback)
+Host,IP,PrinterName,PortName,Protocol,Port,SNMP,DriverName
+NWH-ER-WS-010,10.55.21.202,ER-HP-202,IP_10.55.21.202,RAW,9100,false,HP Universal Printing PCL 6
+NWH-ER-WS-010,10.55.21.203,ER-HP-203,IP_10.55.21.203,RAW,9100,false,

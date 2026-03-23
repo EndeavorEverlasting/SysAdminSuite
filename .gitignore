@@ -1,0 +1,29 @@
+# Runtime log output — never commit live run logs
+Mapping/Logs/*
+!Mapping/Logs/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# PowerShell transcript leftovers
+*.log
+
+# Windows artifacts
+Thumbs.db
+desktop.ini
+
+# Temporary / editor
+*.tmp
+*.bak
+*.beforeSafeProps.bak
+.vscode/settings.json
+
+# Sensitive exports (CSV results from live runs)
+Mapping/Config/runs/*.txt.live
+Config/exports/
+
+# Node (if any tooling gets added)
+node_modules/
+
