@@ -46,6 +46,10 @@
    [switch]$EnableUndoRedo,
    [string]$UndoRedoLogPath,
 
+   # Raw worker argument fragment appended when invoking the payload.
+   # Example: -Queues '\\PRINTSRV\Q01','\\PRINTSRV\Q02' -ListOnly -Preflight
+   [string]$WorkerArgumentLine,
+
    # GUI-friendly stop + live status contract
    [string]$StopSignalPath,
    [string]$StatusPath
@@ -272,6 +276,42 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
   "\\{0}\C$\{1}" -f $Computer, ((($SubPath -replace '^[cC]:\\', '') -replace '^[\\]+',''))
  }
 
+ function ConvertTo-SingleQuotedPowerShellLiteral {
+   param([AllowNull()][string]$Value)
+
+   if ($null -eq $Value) { return "''" }
+   return "'{0}'" -f ($Value -replace "'", "''")
+ }
+
+ function Write-WorkerLauncherScript {
+   param(
+     [Parameter(Mandatory)][string]$Path,
+     [Parameter(Mandatory)][string]$RemoteScriptPath,
+     [string]$RemoteStopSignalPath,
+     [string]$RemoteStatusPath
+   )
+
+   $invocation = '& {0}' -f (ConvertTo-SingleQuotedPowerShellLiteral -Value $RemoteScriptPath)
+   if ($script:payloadSupportsStopSignal) {
+     $invocation += (' -StopSignalPath {0} -StatusPath {1}' -f 
+       (ConvertTo-SingleQuotedPowerShellLiteral -Value $RemoteStopSignalPath),
+       (ConvertTo-SingleQuotedPowerShellLiteral -Value $RemoteStatusPath))
+   }
+   if ($script:undoRedoEnabled) {
+     $invocation += ' -EnableUndoRedo'
+   }
+   if ($WorkerArgumentLine -and $WorkerArgumentLine.Trim()) {
+     $invocation += ' ' + $WorkerArgumentLine.Trim()
+   }
+
+   $launcherContent = @(
+     '$ErrorActionPreference = ''Stop''',
+     $invocation
+   ) -join [Environment]::NewLine
+
+   Set-Content -LiteralPath $Path -Value $launcherContent -Encoding UTF8
+ }
+
  function New-ControllerTaskAction {
    param(
      [Parameter(Mandatory)][string]$Computer,
@@ -362,6 +402,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
    $remoteScript  = Join-Path $remoteBase (Split-Path -Leaf $LocalScriptPath)
    $remoteUndoRedo = Join-Path $remoteBase 'Invoke-UndoRedo.ps1'
    $remoteRunControl = Join-Path $remoteBase 'Invoke-RunControl.ps1'
+   $remoteLauncher = Join-Path $remoteBase 'Start-Worker.ps1'
    $remoteStopSignal = Join-Path $remoteBase 'Stop.json'
    $remoteStatusPath = Join-Path $remoteBase 'status.json'
  
@@ -370,6 +411,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
    $adminScript   = Join-AdminShare -Computer $Computer -SubPath $remoteScript
    $adminUndoRedo = Join-AdminShare -Computer $Computer -SubPath $remoteUndoRedo
    $adminRunControl = Join-AdminShare -Computer $Computer -SubPath $remoteRunControl
+   $adminLauncher = Join-AdminShare -Computer $Computer -SubPath $remoteLauncher
    $adminStopSignal = Join-AdminShare -Computer $Computer -SubPath $remoteStopSignal
    $adminStatusPath = Join-AdminShare -Computer $Computer -SubPath $remoteStatusPath
 
@@ -396,7 +438,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
  
    # Copy payload script
    try {
-     Remove-Item -LiteralPath $adminStopSignal,$adminStatusPath -Force -ErrorAction SilentlyContinue
+     Remove-Item -LiteralPath $adminStopSignal,$adminStatusPath,$adminLauncher -Force -ErrorAction SilentlyContinue
      Copy-Item -Path $LocalScriptPath -Destination $adminScript -Force
     Write-Log "[$Computer] Copied script -> $adminScript"
      if ($script:undoRedoEnabled) {
@@ -407,6 +449,8 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
        Copy-Item -Path $script:runControlUtilityPath -Destination $adminRunControl -Force
        Write-Log "[$Computer] Copied run-control utility -> $adminRunControl"
      }
+     Write-WorkerLauncherScript -Path $adminLauncher -RemoteScriptPath $remoteScript -RemoteStopSignalPath $remoteStopSignal -RemoteStatusPath $remoteStatusPath
+     Write-Log "[$Computer] Wrote launcher -> $adminLauncher"
    } catch {
      Write-Log "[$Computer] ERROR copying script: $($_.Exception.Message)"
     return $false
@@ -417,14 +461,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
    $stTime = $when.ToString('HH:mm')        # 24h
   $dateFmt = [System.Globalization.CultureInfo]::CurrentCulture.DateTimeFormat.ShortDatePattern
   $stDate = $when.ToString($dateFmt)
-   $taskArgs = @()
-   if ($script:payloadSupportsStopSignal) {
-     $taskArgs += (' -StopSignalPath "{0}" -StatusPath "{1}"' -f $remoteStopSignal, $remoteStatusPath)
-   }
-   if ($script:undoRedoEnabled) {
-     $taskArgs += ' -EnableUndoRedo'
-   }
-   $taskCommand = ('"{0}" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{1}"{2}' -f $RemotePwshPath, $remoteScript, ($taskArgs -join ''))
+   $taskCommand = ('"{0}" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{1}"' -f $RemotePwshPath, $remoteLauncher)
  
    # Build schtasks /Create (drop /Z; add /SD; -File keeps /TR short)
    $createCmd = @(
@@ -526,7 +563,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
        cmd /c ("schtasks /Delete /S {0} /TN {1} /F" -f $Computer, $TaskName) | Out-Null
        Write-Log "[$Computer] Deleted task $TaskName."
      }
-     Remove-Item -LiteralPath $adminStopSignal,$adminStatusPath -Force -ErrorAction SilentlyContinue
+     Remove-Item -LiteralPath $adminStopSignal,$adminStatusPath,$adminLauncher -Force -ErrorAction SilentlyContinue
    } catch {
      Write-Log "[$Computer] Cleanup warning: $($_.Exception.Message)"
    }

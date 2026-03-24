@@ -1,4 +1,4 @@
-#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+#Requires -Modules Pester
 <#
 .SYNOPSIS
     Offline unit tests for Mapping\ scripts.
@@ -6,150 +6,112 @@
     No real printers, no AD, no network required.
 #>
 
-BeforeAll {
-    $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $workerPath = Join-Path $repoRoot 'Mapping\Workers\Map-MachineWide.NoWinRM.ps1'
-    $machineWideWorkerPath = Join-Path $repoRoot 'Mapping\Workers\Map-MachineWide.ps1'
-    $controllerPath = Join-Path $repoRoot 'Mapping\Controllers\Map-Run-Controller.ps1'
-    $reconPath  = Join-Path $repoRoot 'Mapping\Controllers\RPM-Recon.ps1'
-}
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$workerPath = Join-Path $repoRoot 'Mapping\Workers\Map-MachineWide.NoWinRM.ps1'
+$machineWideWorkerPath = Join-Path $repoRoot 'Mapping\Workers\Map-MachineWide.ps1'
+$controllerPath = Join-Path $repoRoot 'Mapping\Controllers\Map-Run-Controller.ps1'
+$reconPath  = Join-Path $repoRoot 'Mapping\Controllers\RPM-Recon.ps1'
 
 Describe 'Mapping\Config CSV files' {
-    Context 'host-mappings.csv structure' {
-        BeforeAll {
-            $csvPath = Join-Path $repoRoot 'Mapping\Config\host-mappings.csv'
-            $script:rows = Import-Csv -Path $csvPath -ErrorAction Stop
-        }
+    It 'host-mappings.csv loads without error and exposes the expected columns' {
+        $csvPath = Join-Path $repoRoot 'Mapping\Config\host-mappings.csv'
+        $rows = Import-Csv -Path $csvPath -ErrorAction Stop
+        $rows | Should Not BeNullOrEmpty
 
-        It 'Loads without error' {
-            $script:rows | Should -Not -BeNullOrEmpty
-        }
+        $cols = $rows[0].PSObject.Properties.Name |
+                ForEach-Object { ($_ -replace '^\xEF\xBB\xBF','').TrimStart([char]0xFEFF).Trim() }
 
-        It 'Has required columns: Host, UNC, FriendlyName' {
-            # Actual schema: Host (may have UTF-8 BOM prefix as string artifact), UNC, FriendlyName
-            # Strip any leading BOM characters (U+FEFF) that survive CSV import
-            $cols = $script:rows[0].PSObject.Properties.Name |
-                    ForEach-Object { ($_ -replace '^\xEF\xBB\xBF','').TrimStart([char]0xFEFF).Trim() }
-            # At least one column should end with 'Host' (handles BOM prefix)
-            ($cols | Where-Object { $_ -match 'Host$' }).Count | Should -BeGreaterThan 0
-            $cols | Should -Contain 'UNC'
-            $cols | Should -Contain 'FriendlyName'
-        }
-
-        It 'All PrinterUNC values start with \\' {
-            $bad = $script:rows | Where-Object { $_.PrinterUNC -and -not $_.PrinterUNC.StartsWith('\\') }
-            $bad | Should -BeNullOrEmpty
-        }
+        ($cols | Where-Object { $_ -match 'Host$' }).Count | Should BeGreaterThan 0
+        (@($cols) -contains 'UNC') | Should Be $true
+        (@($cols) -contains 'FriendlyName') | Should Be $true
     }
 
-    Context 'wcc_printers.csv structure' {
-        BeforeAll {
-            $csvPath = Join-Path $repoRoot 'Mapping\Config\wcc_printers.csv'
-            $script:printers = Import-Csv -Path $csvPath -ErrorAction Stop
-        }
-
-        It 'Loads without error' {
-            $script:printers | Should -Not -BeNullOrEmpty
-        }
-
-        It 'Has at least one row' {
-            $script:printers.Count | Should -BeGreaterThan 0
-        }
+    It 'wcc_printers.csv loads with at least one row' {
+        $csvPath = Join-Path $repoRoot 'Mapping\Config\wcc_printers.csv'
+        $printers = @(Import-Csv -Path $csvPath -ErrorAction Stop)
+        $printers | Should Not BeNullOrEmpty
+        $printers.Count | Should BeGreaterThan 0
     }
 
-    Context 'hosts.txt' {
-        BeforeAll {
-            $hostsPath = Join-Path $repoRoot 'Mapping\Config\hosts.txt'
-            $script:hosts = Get-Content -Path $hostsPath |
-                Where-Object { $_ -and $_.Trim() -notlike '#*' }
-        }
-
-        It 'Contains at least one non-comment host entry' {
-            $script:hosts.Count | Should -BeGreaterThan 0
-        }
-
-        It 'No entry is blank or whitespace-only' {
-            $blank = $script:hosts | Where-Object { -not $_.Trim() }
-            $blank | Should -BeNullOrEmpty
-        }
+    It 'hosts.txt contains non-comment host entries and no blanks' {
+        $hostsPath = Join-Path $repoRoot 'Mapping\Config\hosts.txt'
+        $hosts = Get-Content -Path $hostsPath | Where-Object { $_ -and $_.Trim() -notlike '#*' }
+        $hosts.Count | Should BeGreaterThan 0
+        ($hosts | Where-Object { -not $_.Trim() }) | Should BeNullOrEmpty
     }
 }
 
 Describe 'Map-MachineWide.NoWinRM.ps1 — script-level checks' {
     It 'Script file exists' {
-        $workerPath | Should -Exist
+        $workerPath | Should Exist
     }
 
     It 'Contains SupportsShouldProcess or -WhatIf support' {
         $content = Get-Content -Path $workerPath -Raw
-        $content | Should -Match 'SupportsShouldProcess|WhatIf'
+        $content | Should Match 'SupportsShouldProcess|WhatIf'
     }
 
     It 'Does not use $Host as a variable name (Bug-Log fix)' {
         $content = Get-Content -Path $workerPath -Raw
-        # $Host as a standalone variable (not $HostName, $HostList, etc.)
-        $content | Should -Not -Match '\$Host\b(?!Name|List|Path|File|Entry|s\b)'
+        $content | Should Not Match '\$Host\b(?!Name|List|Path|File|Entry|s\b)'
     }
 
     It 'Uses $PSScriptRoot only inside script body (not in param block)' {
         $lines = Get-Content -Path $workerPath
         $paramBlock = $false
+        $foundInParamBlock = $false
         foreach ($line in $lines) {
             if ($line -match '^\s*param\s*\(') { $paramBlock = $true }
-            if ($paramBlock -and $line -match '\$PSScriptRoot') {
-                $false | Should -Be $true -Because '$PSScriptRoot must not appear in param block'
-            }
+            if ($paramBlock -and $line -match '\$PSScriptRoot') { $foundInParamBlock = $true }
             if ($paramBlock -and $line -match '^\s*\)') { $paramBlock = $false }
         }
-        $true | Should -Be $true
+        $foundInParamBlock | Should Be $false
     }
 }
 
 Describe 'RPM-Recon.ps1 — script-level checks' {
     It 'Script file exists' {
-        $reconPath | Should -Exist
+        $reconPath | Should Exist
     }
 
-    It 'Requires -HostsPath parameter' {
+    It 'Requires -HostsPath parameter and resolves worker paths without hard-coding' {
         $content = Get-Content -Path $reconPath -Raw
-        $content | Should -Match '\$HostsPath'
-    }
-
-    It 'Has a fallback worker path resolution (not hard-coded)' {
-        $content = Get-Content -Path $reconPath -Raw
-        $content | Should -Match 'Workers'
+        $content | Should Match '\$HostsPath'
+        $content | Should Match 'Workers'
     }
 }
 
 Describe 'Undo/redo integration plumbing' {
     It 'Machine-wide worker exposes undo/redo switches' {
         $content = Get-Content -Path $machineWideWorkerPath -Raw
-        $content | Should -Match '\$EnableUndoRedo'
-        $content | Should -Match '\$UndoRedoLogPath'
-        $content | Should -Match 'Export-UndoRedoSessionSummary'
+        $content | Should Match '\$EnableUndoRedo'
+        $content | Should Match '\$UndoRedoLogPath'
+        $content | Should Match 'Export-UndoRedoSessionSummary'
     }
 
     It 'Machine-wide worker exposes GUI stop and status hooks' {
         $content = Get-Content -Path $machineWideWorkerPath -Raw
-        $content | Should -Match '\$StopSignalPath'
-        $content | Should -Match '\$StatusPath'
-        $content | Should -Match 'Export-WorkerStatus'
-        $content | Should -Match 'Test-WorkerStopRequested'
+        $content | Should Match '\$StopSignalPath'
+        $content | Should Match '\$StatusPath'
+        $content | Should Match 'Export-WorkerStatus'
+        $content | Should Match 'Test-WorkerStopRequested'
     }
 
-    It 'Controller exposes undo/redo switches and task wrapping hooks' {
+    It 'Controller exposes undo/redo switches, task wrapping hooks, and launcher-based worker argument passthrough' {
         $content = Get-Content -Path $controllerPath -Raw
-        $content | Should -Match '\$EnableUndoRedo'
-        $content | Should -Match 'New-ControllerTaskAction'
-        $content | Should -Match 'UndoRedo\.Controller\.json'
+        $content | Should Match '\$EnableUndoRedo'
+        $content | Should Match 'New-ControllerTaskAction'
+        $content | Should Match 'UndoRedo\.Controller\.json'
+        $content | Should Match '\$WorkerArgumentLine'
+        $content | Should Match 'Write-WorkerLauncherScript'
+        $content | Should Match 'Start-Worker\.ps1'
     }
 
     It 'Controller exposes GUI stop and status hooks' {
         $content = Get-Content -Path $controllerPath -Raw
-        $content | Should -Match '\$StopSignalPath'
-        $content | Should -Match '\$StatusPath'
-        $content | Should -Match 'Export-ControllerStatus'
-        $content | Should -Match 'Test-ControllerStopRequested'
+        $content | Should Match '\$StopSignalPath'
+        $content | Should Match '\$StatusPath'
+        $content | Should Match 'Export-ControllerStatus'
+        $content | Should Match 'Test-ControllerStopRequested'
     }
 }
-

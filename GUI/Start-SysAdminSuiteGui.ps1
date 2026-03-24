@@ -15,6 +15,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $repoRoot 'Utilities\Invoke-RunControl.ps1')
 . (Join-Path $repoRoot 'Utilities\Invoke-UndoRedo.ps1')
 $kronosScript = Join-Path $repoRoot 'GetInfo\Get-KronosClockInfo.ps1'
+$workerScript = Join-Path $repoRoot 'Mapping\Workers\Map-MachineWide.ps1'
+$controllerScript = Join-Path $repoRoot 'Mapping\Controllers\Map-Run-Controller.ps1'
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -23,7 +25,13 @@ function Format-ObjectText {
   param([object]$InputObject)
   if ($null -eq $InputObject) { return 'No data loaded.' }
   if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string]) {
-    return (($InputObject | Select-Object QueryInput,IPAddress,HostName,DeviceName,MACAddress,SerialNumber,Model,Reachable | Format-Table -AutoSize | Out-String).Trim())
+    $items = @($InputObject)
+    if (-not $items.Count) { return 'No data loaded.' }
+    $props = @($items[0].PSObject.Properties.Name)
+    if ($props -contains 'QueryInput') {
+      return (($items | Select-Object QueryInput,IPAddress,HostName,DeviceName,MACAddress,SerialNumber,Model,Reachable | Format-Table -AutoSize | Out-String).Trim())
+    }
+    return (($items | Format-Table -AutoSize | Out-String).Trim())
   }
   return (($InputObject | ConvertTo-Json -Depth 8) | Out-String).Trim()
 }
@@ -52,10 +60,115 @@ function Format-UndoRedoText {
   return ($lines -join [Environment]::NewLine)
 }
 
+function ConvertTo-SingleQuotedPowerShellLiteral {
+  param([AllowNull()][string]$Value)
+  if ($null -eq $Value) { return "''" }
+  return "'{0}'" -f ($Value -replace "'", "''")
+}
+
+function Get-TrimmedLines {
+  param([string[]]$Lines)
+  return @($Lines | Where-Object { $_ -and $_.Trim() } | ForEach-Object { $_.Trim() })
+}
+
+function New-GuiRunSession {
+  param([ValidateSet('Worker','Controller')][string]$Kind)
+
+  $sessionRoot = Join-Path $repoRoot (Join-Path 'Mapping\Output\GuiRuns' ('{0}-{1}' -f $Kind, (Get-Date -Format 'yyyyMMdd-HHmmss')))
+  New-Item -ItemType Directory -Force -Path $sessionRoot | Out-Null
+
+  [pscustomobject]@{
+    Kind     = $Kind
+    Root     = $sessionRoot
+    Stop     = Join-Path $sessionRoot 'Stop.json'
+    Status   = Join-Path $sessionRoot ($(if ($Kind -eq 'Controller') { 'Controller.Status.json' } else { 'Worker.Status.json' }))
+    Undo     = Join-Path $sessionRoot ($(if ($Kind -eq 'Controller') { 'UndoRedo.Controller.json' } else { 'UndoRedo.Worker.json' }))
+    Launcher = Join-Path $sessionRoot ('Start-{0}.ps1' -f $Kind)
+  }
+}
+
+function Refresh-RunStatusView {
+  if (-not $txtStatus.Text -or -not (Test-Path -LiteralPath $txtStatus.Text)) { return }
+  try { $txtStatusView.Text = Format-ObjectText (Import-RunStatusSnapshot -Path $txtStatus.Text) }
+  catch { $txtStatusView.Text = $_.Exception.Message }
+}
+
+function Refresh-RunHistoryView {
+  if (-not $txtUndo.Text -or -not (Test-Path -LiteralPath $txtUndo.Text)) { return }
+  try {
+    $script:LoadedSession = Import-UndoRedoSession -Path $txtUndo.Text
+    $txtHistoryView.Text = Format-UndoRedoText $script:LoadedSession
+  } catch {
+    $txtHistoryView.Text = $_.Exception.Message
+  }
+}
+
+function Start-GuiRun {
+  param([ValidateSet('Worker','Controller')][string]$Mode)
+
+  if (-not (Test-Path -LiteralPath $workerScript)) { throw "Worker script not found: $workerScript" }
+  if ($Mode -eq 'Controller' -and -not (Test-Path -LiteralPath $controllerScript)) { throw "Controller script not found: $controllerScript" }
+
+  $session = New-GuiRunSession -Kind $Mode
+  $workerOptions = if ($txtWorkerOptions.Text) { $txtWorkerOptions.Text.Trim() } else { '' }
+
+  if ($Mode -eq 'Controller') {
+    $targets = Get-TrimmedLines -Lines $txtRunTargets.Lines
+    if (-not $targets.Count) { throw 'Enter at least one controller target.' }
+    $targetLiteral = ($targets | ForEach-Object { ConvertTo-SingleQuotedPowerShellLiteral -Value $_ }) -join ','
+    $launchCommand = @(
+      '& ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $controllerScript),
+      '-Computers ' + $targetLiteral,
+      '-LocalScriptPath ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $workerScript),
+      '-SessionRoot ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $session.Root),
+      '-StopSignalPath ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $session.Stop),
+      '-StatusPath ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $session.Status),
+      '-EnableUndoRedo',
+      '-UndoRedoLogPath ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $session.Undo)
+    ) -join ' '
+    if ($workerOptions) {
+      $launchCommand += ' -WorkerArgumentLine ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $workerOptions)
+    }
+  } else {
+    $launchCommand = @(
+      '& ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $workerScript),
+      '-StopSignalPath ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $session.Stop),
+      '-StatusPath ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $session.Status),
+      '-EnableUndoRedo',
+      '-UndoRedoLogPath ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $session.Undo),
+      '-OutputRoot ' + (ConvertTo-SingleQuotedPowerShellLiteral -Value $session.Root)
+    ) -join ' '
+    if ($workerOptions) {
+      $launchCommand += ' ' + $workerOptions
+    }
+  }
+
+  $launcherContent = @(
+    '$ErrorActionPreference = ''Stop''',
+    $launchCommand
+  ) -join [Environment]::NewLine
+
+  Set-Content -LiteralPath $session.Launcher -Value $launcherContent -Encoding UTF8
+  $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$session.Launcher) -PassThru -WindowStyle Minimized
+
+  $txtStop.Text = $session.Stop
+  $txtStatus.Text = $session.Status
+  $txtUndo.Text = $session.Undo
+  $script:LoadedSession = $null
+  $txtHistoryView.Text = 'Waiting for undo/redo history...'
+  $txtStatusView.Text = (@(
+    "Started $Mode run.",
+    "PID: $($proc.Id)",
+    "Session root: $($session.Root)",
+    "Launcher: $($session.Launcher)",
+    ('Worker options: {0}' -f $(if ($workerOptions) { $workerOptions } else { '<none>' }))
+  ) -join [Environment]::NewLine)
+}
+
 $script:LoadedSession = $null
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'SysAdminSuite GUI Harness'
-$form.Size = New-Object System.Drawing.Size(980,720)
+$form.Size = New-Object System.Drawing.Size(1000,790)
 $form.StartPosition = 'CenterScreen'
 
 $tabs = New-Object System.Windows.Forms.TabControl
@@ -93,12 +206,31 @@ $btnUndo.Location = '680,112'; $btnUndo.Size = '130,28'; $btnUndo.Text = 'Undo T
 $btnRedo = New-Object System.Windows.Forms.Button
 $btnRedo.Location = '820,112'; $btnRedo.Size = '130,28'; $btnRedo.Text = 'Redo Top'
 
-$txtStatusView = New-Object System.Windows.Forms.TextBox
-$txtStatusView.Location = '12,150'; $txtStatusView.Size = '938,200'; $txtStatusView.Multiline = $true; $txtStatusView.ScrollBars = 'Vertical'; $txtStatusView.ReadOnly = $true
-$txtHistoryView = New-Object System.Windows.Forms.TextBox
-$txtHistoryView.Location = '12,370'; $txtHistoryView.Size = '938,280'; $txtHistoryView.Multiline = $true; $txtHistoryView.ScrollBars = 'Vertical'; $txtHistoryView.ReadOnly = $true
+$lblRunTargets = New-Object System.Windows.Forms.Label
+$lblRunTargets.Location = '12,150'; $lblRunTargets.Size = '160,20'; $lblRunTargets.Text = 'Controller targets (one/line)'
+$txtRunTargets = New-Object System.Windows.Forms.TextBox
+$txtRunTargets.Location = '12,175'; $txtRunTargets.Size = '280,120'; $txtRunTargets.Multiline = $true; $txtRunTargets.ScrollBars = 'Vertical'
+$lblWorkerOptions = New-Object System.Windows.Forms.Label
+$lblWorkerOptions.Location = '310,150'; $lblWorkerOptions.Size = '170,20'; $lblWorkerOptions.Text = 'Worker options passthrough'
+$txtWorkerOptions = New-Object System.Windows.Forms.TextBox
+$txtWorkerOptions.Location = '310,175'; $txtWorkerOptions.Size = '640,120'; $txtWorkerOptions.Multiline = $true; $txtWorkerOptions.ScrollBars = 'Vertical'; $txtWorkerOptions.Text = "-ListOnly -Preflight"
+$lblLaunchHint = New-Object System.Windows.Forms.Label
+$lblLaunchHint.Location = '12,302'; $lblLaunchHint.Size = '590,32'; $lblLaunchHint.Text = "Example: -Queues '\\PRINTSRV\Q01','\\PRINTSRV\Q02' -ListOnly -Preflight"
+$btnStartWorker = New-Object System.Windows.Forms.Button
+$btnStartWorker.Location = '620,300'; $btnStartWorker.Size = '150,30'; $btnStartWorker.Text = 'Start Local Worker'
+$btnStartController = New-Object System.Windows.Forms.Button
+$btnStartController.Location = '800,300'; $btnStartController.Size = '150,30'; $btnStartController.Text = 'Start Controller'
 
-$runTab.Controls.AddRange(@($lblStop,$txtStop,$btnStop,$lblStatus,$txtStatus,$btnStatus,$lblUndo,$txtUndo,$btnLoad,$chkWhatIf,$btnUndo,$btnRedo,$txtStatusView,$txtHistoryView))
+$txtStatusView = New-Object System.Windows.Forms.TextBox
+$txtStatusView.Location = '12,340'; $txtStatusView.Size = '938,150'; $txtStatusView.Multiline = $true; $txtStatusView.ScrollBars = 'Vertical'; $txtStatusView.ReadOnly = $true
+$txtHistoryView = New-Object System.Windows.Forms.TextBox
+$txtHistoryView.Location = '12,505'; $txtHistoryView.Size = '938,220'; $txtHistoryView.Multiline = $true; $txtHistoryView.ScrollBars = 'Vertical'; $txtHistoryView.ReadOnly = $true
+
+$runTab.Controls.AddRange(@(
+  $lblStop,$txtStop,$btnStop,$lblStatus,$txtStatus,$btnStatus,$lblUndo,$txtUndo,$btnLoad,$chkWhatIf,$btnUndo,$btnRedo,
+  $lblRunTargets,$txtRunTargets,$lblWorkerOptions,$txtWorkerOptions,$lblLaunchHint,$btnStartWorker,$btnStartController,
+  $txtStatusView,$txtHistoryView
+))
 
 $lblTargets = New-Object System.Windows.Forms.Label
 $lblTargets.Location = '12,15'; $lblTargets.Size = '120,20'; $lblTargets.Text = 'Targets (one/line)'
@@ -141,19 +273,8 @@ $btnStop.Add_Click({
   }
 })
 
-$btnStatus.Add_Click({
-  try { $txtStatusView.Text = Format-ObjectText (Import-RunStatusSnapshot -Path $txtStatus.Text) }
-  catch { $txtStatusView.Text = $_.Exception.Message }
-})
-
-$btnLoad.Add_Click({
-  try {
-    $script:LoadedSession = Import-UndoRedoSession -Path $txtUndo.Text
-    $txtHistoryView.Text = Format-UndoRedoText $script:LoadedSession
-  } catch {
-    $txtHistoryView.Text = $_.Exception.Message
-  }
-})
+$btnStatus.Add_Click({ Refresh-RunStatusView })
+$btnLoad.Add_Click({ Refresh-RunHistoryView })
 
 $btnUndo.Add_Click({
   try {
@@ -173,6 +294,16 @@ $btnRedo.Add_Click({
   } catch {
     [System.Windows.Forms.MessageBox]::Show($_.Exception.Message,'Redo failed') | Out-Null
   }
+})
+
+$btnStartWorker.Add_Click({
+  try { Start-GuiRun -Mode Worker }
+  catch { [System.Windows.Forms.MessageBox]::Show($_.Exception.Message,'Local worker start failed') | Out-Null }
+})
+
+$btnStartController.Add_Click({
+  try { Start-GuiRun -Mode Controller }
+  catch { [System.Windows.Forms.MessageBox]::Show($_.Exception.Message,'Controller start failed') | Out-Null }
 })
 
 $btnProbe.Add_Click({
@@ -201,5 +332,15 @@ $btnFind.Add_Click({
     $txtClockResults.Text = $_.Exception.Message
   }
 })
+
+$refreshTimer = New-Object System.Windows.Forms.Timer
+$refreshTimer.Interval = 3000
+$refreshTimer.Add_Tick({
+  if ($tabs.SelectedTab -ne $runTab) { return }
+  Refresh-RunStatusView
+  Refresh-RunHistoryView
+})
+$refreshTimer.Start()
+$form.Add_FormClosed({ $refreshTimer.Stop() })
 
 [void]$form.ShowDialog()
