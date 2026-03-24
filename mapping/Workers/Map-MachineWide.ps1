@@ -68,6 +68,7 @@ $script:runControlUtilityPath = $null
 $script:stopSignalPath = $null
 $script:statusPath = $null
 $script:stopRequested = $false
+$script:TranscriptActive = $false
 # ----------------- Utilities -----------------
 function New-StampedDir([string]$root){
   if (!(Test-Path $root)) { New-Item -ItemType Directory -Path $root -Force | Out-Null }
@@ -82,7 +83,11 @@ function W([string]$m){
   $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
   $line = "[{0}] {1}" -f $ts,$m
   Write-Host $line
-  if ($script:doIO -and $script:logPath) { Add-Content -LiteralPath $script:logPath -Value $line }
+  # When Start-Transcript is active it already captures Write-Host output to Run.log.
+  # Using Add-Content on the same file would fail with a sharing-violation lock error.
+  if ($script:doIO -and $script:logPath -and -not $script:TranscriptActive) {
+    Add-Content -LiteralPath $script:logPath -Value $line
+  }
 }
 function Get-GlobalUNCs {
   $key = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections'
@@ -374,7 +379,7 @@ if ($doIO) {
   $preflightCsv = Join-Path $outDir 'Preflight.csv'
   $resultsCsv   = Join-Path $outDir 'Results.csv'
   $htmlPath     = Join-Path $outDir 'Results.html'
-  try { Start-Transcript -Path $logPath -Force | Out-Null; $TranscriptStarted=$true } catch {}
+  try { Start-Transcript -Path $logPath -Force | Out-Null; $TranscriptStarted=$true; $script:TranscriptActive=$true } catch {}
 }
 
 Initialize-RunControl
@@ -398,7 +403,7 @@ Export-WorkerStatus -State 'Running' -Stage 'Startup' -Message 'Worker initializ
 # ----------------- Preflight -----------------
 if ($Preflight) {
   $svc = Get-Service -Name Spooler -ErrorAction SilentlyContinue
-  if (-not $svc) { if($TranscriptStarted){Stop-Transcript|Out-Null}; throw "Spooler service not found." }
+  if (-not $svc) { if($TranscriptStarted){Stop-Transcript|Out-Null; $script:TranscriptActive=$false}; throw "Spooler service not found." }
   W "Spooler: $($svc.Status)"
   $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
   if (-not $isAdmin) { W "WARN: Not elevated; machine-wide actions may fail." }
@@ -444,7 +449,7 @@ if ($ListOnly) {
   if ($doIO) { Write-ResultArtifacts -Rows $rows -ListOnlyMode }
   Export-UndoRedoArtifacts
   Export-WorkerStatus -State 'Completed' -Stage 'ListOnly' -Message 'ListOnly inventory completed.'
-  if ($TranscriptStarted) { try { Stop-Transcript | Out-Null } catch {} }
+  if ($TranscriptStarted) { try { Stop-Transcript | Out-Null; $script:TranscriptActive=$false } catch {} }
   Unregister-Event -SourceIdentifier 'Worker.CancelKeyPress' -ErrorAction SilentlyContinue
   W "=== Completed (ListOnly) ==="
   return
@@ -504,6 +509,6 @@ if ($doIO) { Write-ResultArtifacts -Rows $rows }
 Export-UndoRedoArtifacts
 Export-WorkerStatus -State ($(if ($script:stopRequested) { 'Stopped' } else { 'Completed' })) -Stage 'Complete' -Message ($(if ($script:stopRequested) { 'Stop requested; partial artifacts emitted.' } else { 'Worker completed successfully.' }))
 
-if ($TranscriptStarted) { try { Stop-Transcript | Out-Null } catch {} }
+if ($TranscriptStarted) { try { Stop-Transcript | Out-Null; $script:TranscriptActive=$false } catch {} }
 Unregister-Event -SourceIdentifier 'Worker.CancelKeyPress' -ErrorAction SilentlyContinue
 W "=== Completed ==="

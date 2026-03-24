@@ -114,4 +114,24 @@ Describe 'Undo/redo integration plumbing' {
         $content | Should Match 'Export-ControllerStatus'
         $content | Should Match 'Test-ControllerStopRequested'
     }
+
+    It 'Controller keeps session-scoped artifacts together for GUI-driven runs' {
+        $content = Get-Content -Path $controllerPath -Raw
+        $content | Should Match '\$SessionRoot'
+        $content | Should Match 'Controller\.Status\.json'
+        $content | Should Match 'Stop\.json'
+        $content | Should Match 'Join-Path \$SessionRoot \$Computer'
+        $content | Should Match 'Worker\.Status\.json'
+    }
+
+    It 'Machine-wide worker defaults to an output root and emits lifecycle status for the GUI' {
+        $content = Get-Content -Path $machineWideWorkerPath -Raw
+        $content | Should Match '\$OutputRoot = ''C:\\ProgramData\\SysAdminSuite\\Mapping'''
+        $content | Should Match 'Export-WorkerStatus -State ''Running'' -Stage ''Startup'''
+        $content | Should Match 'Export-WorkerStatus -State ''Completed'' -Stage ''ListOnly'''
+        $content | Should Match 'Export-WorkerStatus -State .* -Stage ''Complete'''
+        $content | Should Match '\$script:stopRequested'
+        $content | Should Match '''Stopped'''
+        $content | Should Match '''Completed'''
+    }
 }

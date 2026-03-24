@@ -211,8 +211,40 @@ function Refresh-RunStatusView {
   }
 
   try {
-    $txtStatusView.Text = Format-ObjectText (Import-RunStatusSnapshot -Path $txtStatus.Text)
-    Set-StatusBarText -Category 'Refreshed' -Message "Loaded status snapshot from $($txtStatus.Text)"
+    $snapshot = Import-RunStatusSnapshot -Path $txtStatus.Text
+    $statusText = Format-ObjectText $snapshot
+
+    # When the run is finished, append an artifact summary so users know exactly where the output landed.
+    $finished = $snapshot.State -in @('Completed','Stopped','Error','Failed')
+    if ($finished -and $snapshot.Data) {
+      $d = $snapshot.Data
+      $artifactLines = @()
+      $artifactLines += ''
+      $artifactLines += '─── Artifacts ───'
+      if ($d.OutputDirectory -and (Test-Path -LiteralPath $d.OutputDirectory)) {
+        $artifactLines += "  Folder:      $($d.OutputDirectory)"
+        $files = Get-ChildItem -LiteralPath $d.OutputDirectory -File -ErrorAction SilentlyContinue
+        foreach ($f in $files) { $artifactLines += "    $($f.Name)  ($([math]::Round($f.Length/1KB,1)) KB)" }
+      } elseif ($d.OutputRoot) {
+        $artifactLines += "  Output root: $($d.OutputRoot)"
+      }
+      if ($d.ResultsPath -and (Test-Path -LiteralPath $d.ResultsPath)) {
+        $artifactLines += "  Results CSV: $($d.ResultsPath)"
+      }
+      if ($d.HtmlPath -and (Test-Path -LiteralPath $d.HtmlPath)) {
+        $artifactLines += "  HTML Report: $($d.HtmlPath)"
+      }
+      $artifactLines += ''
+      $artifactLines += 'Click  Open Session Folder  to view these files.'
+      $statusText += [Environment]::NewLine + ($artifactLines -join [Environment]::NewLine)
+    }
+
+    $txtStatusView.Text = $statusText
+    if ($finished) {
+      Set-StatusBarText -Category 'Done' -Message "Run $($snapshot.State). Artifacts ready — click Open Session Folder."
+    } else {
+      Set-StatusBarText -Category 'Refreshed' -Message "Loaded status snapshot from $($txtStatus.Text)"
+    }
   } catch {
     $txtStatusView.Text = $_.Exception.Message
     Set-StatusBarText -Category 'Error' -Message 'Failed to load the status snapshot.'
