@@ -58,6 +58,7 @@ function Start-MachineQueryJob {
           MACAddress     = ($macs  -join ';')
           MonitorSerials = ($monSer -join ';')
           Status         = 'OK'
+          ErrorMessage   = ''
         }
       } catch {
         $errMsg = $_.Exception.Message
@@ -81,6 +82,7 @@ function Start-MachineQueryJob {
         MACAddress     = ''
         MonitorSerials = ''
         Status         = 'Offline'
+        ErrorMessage   = ''
       }
     }
   } -ArgumentList $Computer
