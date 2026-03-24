@@ -8,6 +8,7 @@
 BeforeAll {
     $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $machineInfoPath = Join-Path $repoRoot 'GetInfo\Get-MachineInfo.ps1'
+    $kronosInfoPath = Join-Path $repoRoot 'GetInfo\Get-KronosClockInfo.ps1'
 }
 
 Describe 'Get-MachineInfo.ps1 — script-level checks' {
@@ -84,6 +85,43 @@ Describe 'QueueInventory.ps1 — script-level checks' {
 
     It 'References printer queue enumeration (Win32_Printer or Get-Printer)' {
         $script:queueContent | Should -Match 'Win32_Printer|Get-Printer'
+    }
+}
+
+Describe 'Get-KronosClockInfo.ps1 — script-level checks' {
+    It 'Script file exists' {
+        $kronosInfoPath | Should -Exist
+    }
+
+    It 'Parses without PowerShell syntax errors' {
+        $tokens = $null
+        $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($kronosInfoPath, [ref]$tokens, [ref]$errors) | Out-Null
+        $errors | Should -BeNullOrEmpty
+    }
+
+    It 'Supports lookup mode by inventory and identifier' {
+        $content = Get-Content -Path $kronosInfoPath -Raw
+        $content | Should -Match '\$InventoryPath'
+        $content | Should -Match '\$LookupValue'
+        $content | Should -Match '\$LookupBy'
+    }
+
+    It 'Collects clock identity fields useful for Kronos onboarding' {
+        $content = Get-Content -Path $kronosInfoPath -Raw
+        $content | Should -Match 'SerialNumber'
+        $content | Should -Match 'MACAddress'
+        $content | Should -Match 'IPAddress'
+        $content | Should -Match 'Model'
+        $content | Should -Match 'SysDescr'
+        $content | Should -Match 'SysObjectID'
+    }
+
+    It 'Uses safe protocol fallbacks instead of assuming one vendor API' {
+        $content = Get-Content -Path $kronosInfoPath -Raw
+        $content | Should -Match 'snmpget|snmpwalk'
+        $content | Should -Match 'Invoke-WebRequest'
+        $content | Should -Match 'arp -a'
     }
 }
 

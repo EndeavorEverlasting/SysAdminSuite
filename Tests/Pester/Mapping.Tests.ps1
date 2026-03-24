@@ -9,6 +9,8 @@
 BeforeAll {
     $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $workerPath = Join-Path $repoRoot 'Mapping\Workers\Map-MachineWide.NoWinRM.ps1'
+    $machineWideWorkerPath = Join-Path $repoRoot 'Mapping\Workers\Map-MachineWide.ps1'
+    $controllerPath = Join-Path $repoRoot 'Mapping\Controllers\Map-Run-Controller.ps1'
     $reconPath  = Join-Path $repoRoot 'Mapping\Controllers\RPM-Recon.ps1'
 }
 
@@ -116,6 +118,38 @@ Describe 'RPM-Recon.ps1 — script-level checks' {
     It 'Has a fallback worker path resolution (not hard-coded)' {
         $content = Get-Content -Path $reconPath -Raw
         $content | Should -Match 'Workers'
+    }
+}
+
+Describe 'Undo/redo integration plumbing' {
+    It 'Machine-wide worker exposes undo/redo switches' {
+        $content = Get-Content -Path $machineWideWorkerPath -Raw
+        $content | Should -Match '\$EnableUndoRedo'
+        $content | Should -Match '\$UndoRedoLogPath'
+        $content | Should -Match 'Export-UndoRedoSessionSummary'
+    }
+
+    It 'Machine-wide worker exposes GUI stop and status hooks' {
+        $content = Get-Content -Path $machineWideWorkerPath -Raw
+        $content | Should -Match '\$StopSignalPath'
+        $content | Should -Match '\$StatusPath'
+        $content | Should -Match 'Export-WorkerStatus'
+        $content | Should -Match 'Test-WorkerStopRequested'
+    }
+
+    It 'Controller exposes undo/redo switches and task wrapping hooks' {
+        $content = Get-Content -Path $controllerPath -Raw
+        $content | Should -Match '\$EnableUndoRedo'
+        $content | Should -Match 'New-ControllerTaskAction'
+        $content | Should -Match 'UndoRedo\.Controller\.json'
+    }
+
+    It 'Controller exposes GUI stop and status hooks' {
+        $content = Get-Content -Path $controllerPath -Raw
+        $content | Should -Match '\$StopSignalPath'
+        $content | Should -Match '\$StatusPath'
+        $content | Should -Match 'Export-ControllerStatus'
+        $content | Should -Match 'Test-ControllerStopRequested'
     }
 }
 

@@ -46,13 +46,28 @@ param(
   [switch]$Preflight,
   [switch]$PruneNotInList,
   [switch]$RestartSpoolerIfNeeded,
+  [switch]$EnableUndoRedo,
+  [string]$UndoRedoLogPath,
+  [string]$StopSignalPath,
+  [string]$StatusPath,
 
   # Output root for artifacts
   [string]$OutputRoot = 'C:\ProgramData\SysAdminSuite\Mapping'
 )
 
 $ErrorActionPreference = 'Stop'
-
+$script:undoRedoEnabled = $false
+$script:undoRedoSession = $null
+$script:undoRedoLogPath = $null
+$script:runControlUtilityPath = $null
+$script:stopSignalPath = $null
+$script:statusPath = $null
+$script:stopRequested = $false
+$script:undoRedoLogPath = $null
+$script:runControlUtilityPath = $null
+$script:stopSignalPath = $null
+$script:statusPath = $null
+$script:stopRequested = $false
 # ----------------- Utilities -----------------
 function New-StampedDir([string]$root){
   if (!(Test-Path $root)) { New-Item -ItemType Directory -Path $root -Force | Out-Null }
@@ -81,7 +96,227 @@ function Get-GlobalUNCs {
 }
 function Get-LocalPrinters { try { Get-Printer -ErrorAction Stop } catch { @() } }
 
+function Initialize-RunControl {
+  $candidatePaths = @(
+    (Join-Path $PSScriptRoot 'Invoke-RunControl.ps1'),
+    (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'Utilities\Invoke-RunControl.ps1')
+  ) | Select-Object -Unique
+
+  $script:runControlUtilityPath = $candidatePaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+  if (-not $script:runControlUtilityPath) {
+    throw 'Invoke-RunControl.ps1 could not be located.'
+  }
+
+  . $script:runControlUtilityPath
+  $script:stopSignalPath = if ($StopSignalPath) { $StopSignalPath } else { Join-Path $OutputRoot 'Stop.json' }
+  $script:statusPath = if ($StatusPath) { $StatusPath } else { Join-Path $OutputRoot 'status.json' }
+}
+
+function Export-WorkerStatus {
+  param(
+    [string]$State = 'Running',
+    [string]$Stage = 'Worker',
+    [string]$Message = ''
+  )
+
+  if (-not $script:statusPath) { return }
+
+  try {
+    Export-RunStatusSnapshot -Path $script:statusPath -State $State -Stage $Stage -Message $Message -Data @{
+      ComputerName     = $env:COMPUTERNAME
+      OutputRoot       = $OutputRoot
+      OutputDirectory  = $script:outDir
+      LogPath          = $script:logPath
+      ResultsPath      = $script:resultsCsv
+      HtmlPath         = $script:htmlPath
+      PreflightPath    = $script:preflightCsv
+      StopSignalPath   = $script:stopSignalPath
+      StopRequested    = [bool]$script:stopRequested
+      EnableUndoRedo   = [bool]$script:undoRedoEnabled
+      UndoRedoLogPath  = $script:undoRedoLogPath
+      DesiredQueues    = @($Queues)
+      RemoveQueues     = @($RemoveQueues)
+      ListOnly         = [bool]$ListOnly
+      PlanOnly         = [bool]$PlanOnly
+    } | Out-Null
+  } catch {
+    W "WARN: Failed to export worker status: $($_.Exception.Message)"
+  }
+}
+
+function Test-WorkerStopRequested {
+  param([string]$Stage = 'WorkerLoop')
+
+  $signal = $null
+  if ($script:stopRequested) {
+    $signal = [pscustomobject]@{ RequestedAt = Get-Date; Reason = 'Stop already requested.' }
+  } elseif ($script:stopSignalPath) {
+    $signal = Test-RunStopRequested -Path $script:stopSignalPath
+  }
+
+  if (-not $signal) { return $false }
+
+  if (-not $script:stopRequested) {
+    $script:stopRequested = $true
+    W "Stop requested during $Stage. Flushing current artifacts and status."
+  }
+
+  Export-WorkerStatus -State 'Stopping' -Stage $Stage -Message 'Stop requested; skipping remaining queued operations.'
+  return $true
+}
+
+function New-ResultRows {
+  param(
+    [string[]]$BeforeUNC,
+    [string[]]$AfterUNC,
+    [string[]]$DesiredUNC,
+    [string[]]$RemoveQueueList,
+    [object[]]$AfterLocalPrinters
+  )
+
+  $rows = New-Object System.Collections.Generic.List[object]
+  $now  = (Get-Date).ToString('s')
+  $universeUNC = ($BeforeUNC + $AfterUNC + $DesiredUNC + $RemoveQueueList) | Where-Object { $_ } | Sort-Object -Unique
+
+  foreach($u in $universeUNC){
+    $status = if ($PlanOnly) {
+      if ($DesiredUNC -contains $u -and $BeforeUNC -notcontains $u) { 'PlannedAdd' }
+      elseif ($RemoveQueueList -contains $u -or ($PruneNotInList -and $DesiredUNC -notcontains $u -and $BeforeUNC -contains $u)) { 'PlannedRemove' }
+      elseif ($AfterUNC -contains $u) { 'PresentAfter' }
+      elseif ($BeforeUNC -contains $u) { 'GoneAfter' } else { 'NotPresent' }
+    } else {
+      if (($AfterUNC -contains $u) -and ($BeforeUNC -notcontains $u)) { 'AddedNow' }
+      elseif (($AfterUNC -notcontains $u) -and ($BeforeUNC -contains $u)) { 'RemovedNow' }
+      elseif ($AfterUNC -contains $u) { 'PresentAfter' } else { 'NotPresent' }
+    }
+
+    $rows.Add([pscustomobject]@{ Timestamp=$now; ComputerName=$env:COMPUTERNAME; Type='UNC'; Target=$u; Driver=''; Port=''; Status=$status })
+  }
+
+  foreach($p in ($AfterLocalPrinters | Sort-Object Name)){
+    $rows.Add([pscustomobject]@{ Timestamp=$now; ComputerName=$env:COMPUTERNAME; Type='LOCAL'; Target=$p.Name; Driver=$p.DriverName; Port=$p.PortName; Status='PresentAfter' })
+  }
+
+  return $rows
+}
+
+function Write-ResultArtifacts {
+  param(
+    [Parameter(Mandatory)][System.Collections.Generic.List[object]]$Rows,
+    [switch]$ListOnlyMode
+  )
+
+  if (-not $script:doIO) { return }
+
+  $Rows | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $script:resultsCsv
+  $table = $Rows | Select-Object Timestamp,Type,Target,Driver,Port,Status |
+    ConvertTo-Html -Fragment -PreContent ($(if ($ListOnlyMode) { '<h3>Current Printers (UNC + Local)</h3>' } else { '<h3>Per-Target Detail</h3>' }))
+  $logFrag = if ($script:logPath -and (Test-Path -LiteralPath $script:logPath)) { "<h3>Run Log</h3><pre>" + [System.Net.WebUtility]::HtmlEncode((Get-Content -Raw -LiteralPath $script:logPath)) + "</pre>" } else { '' }
+  $heading = if ($ListOnlyMode) { "Printer Mappings - $env:COMPUTERNAME (ListOnly)" } else { "Printer Mapping Results - $env:COMPUTERNAME" }
+  $doc = @"
+<!DOCTYPE html><html><head><meta charset="utf-8"/><title>$heading</title>
+<style>body{font-family:Segoe UI,Arial;background:#101014;color:#ececf1;padding:20px}
+table{border-collapse:collapse;width:100%}th,td{border:1px solid #2a2a33;padding:6px 8px;font-size:12px}
+th{background:#171720}tr:nth-child(even){background:#0f0f16}</style></head><body>
+<h2>$heading</h2>$table$logFrag</body></html>
+"@
+  Set-Content -LiteralPath $script:htmlPath -Value $doc -Encoding UTF8
+  W "Artifacts:`n  $script:preflightCsv`n  $script:resultsCsv`n  $script:htmlPath`n  $script:logPath"
+}
+
+function Initialize-UndoRedo {
+  if (-not $EnableUndoRedo) { return }
+
+  $candidatePaths = @(
+    (Join-Path $PSScriptRoot 'Invoke-UndoRedo.ps1'),
+    (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'Utilities\Invoke-UndoRedo.ps1')
+  ) | Select-Object -Unique
+
+  $utilityPath = $candidatePaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+  if (-not $utilityPath) {
+    throw 'EnableUndoRedo was requested, but Invoke-UndoRedo.ps1 could not be located.'
+  }
+
+  . $utilityPath
+  $script:undoRedoSession = New-UndoRedoSession
+  $script:undoRedoEnabled = $true
+  $script:undoRedoLogPath = if ($UndoRedoLogPath) {
+    $UndoRedoLogPath
+  } elseif ($outDir) {
+    Join-Path $outDir 'UndoRedo.json'
+  } else {
+    Join-Path $OutputRoot ('UndoRedo-{0:yyyyMMdd-HHmmss}.json' -f (Get-Date))
+  }
+}
+
+function Export-UndoRedoArtifacts {
+  if (-not $script:undoRedoEnabled -or -not $script:undoRedoSession -or -not $script:undoRedoLogPath) { return }
+
+  try {
+    Export-UndoRedoSessionSummary -Session $script:undoRedoSession -Path $script:undoRedoLogPath | Out-Null
+    W "Undo/redo summary -> $script:undoRedoLogPath"
+  } catch {
+    W "WARN: Failed to export undo/redo summary: $($_.Exception.Message)"
+  }
+}
+
+function Invoke-UNCAction {
+  param(
+    [Parameter(Mandatory)][ValidateSet('Add','Remove')][string]$Operation,
+    [Parameter(Mandatory)][string]$Queue,
+    [string]$Source = 'Direct'
+  )
+
+  $normalizedQueue = $Queue.Trim().ToLower()
+  if (-not $script:undoRedoEnabled) {
+    return $false
+  }
+
+  $probe = {
+    param($ctx)
+    [pscustomobject]@{
+      Target  = $ctx.Target
+      Present = ((Get-GlobalUNCs) -contains $ctx.Target)
+    }
+  }
+
+  if ($Operation -eq 'Add') {
+    $do = {
+      param($ctx)
+      Start-Process rundll32.exe -ArgumentList @('printui.dll,PrintUIEntry','/ga','/n',$ctx.Target) -NoNewWindow -Wait
+      W "ADD (/ga) -> $($ctx.Target)"
+    }
+    $undo = {
+      param($ctx)
+      Start-Process rundll32.exe -ArgumentList @('printui.dll,PrintUIEntry','/gd','/n',$ctx.Target) -NoNewWindow -Wait
+      W "UNDO REMOVE (/gd) -> $($ctx.Target)"
+    }
+  } else {
+    $do = {
+      param($ctx)
+      Start-Process rundll32.exe -ArgumentList @('printui.dll,PrintUIEntry','/gd','/n',$ctx.Target) -NoNewWindow -Wait
+      W "REMOVE (/gd) -> $($ctx.Target)"
+    }
+    $undo = {
+      param($ctx)
+      Start-Process rundll32.exe -ArgumentList @('printui.dll,PrintUIEntry','/ga','/n',$ctx.Target) -NoNewWindow -Wait
+      W "UNDO ADD (/ga) -> $($ctx.Target)"
+    }
+  }
+
+  $action = New-UndoRedoActionRecord -Name "$Operation machine-wide printer" -Target $normalizedQueue -Do $do -Undo $undo -Probe $probe -Metadata @{
+    Kind      = 'Printer'
+    Mode      = 'MachineWide'
+    Operation = $Operation
+    Source    = $Source
+  }
+
+  Invoke-UndoRedo -Session $script:undoRedoSession -Action $action -WhatIf:$WhatIfPreference | Out-Null
+  return $true
+}
+
 function Add-UNC([string]$unc){
+  if (Invoke-UNCAction -Operation Add -Queue $unc -Source 'DesiredQueue') { return }
   $printArgs = @('printui.dll,PrintUIEntry','/ga','/n',"$unc")
   if ($PSCmdlet.ShouldProcess($unc,"Add machine-wide (/ga)")) {
     Start-Process rundll32.exe -ArgumentList $printArgs -NoNewWindow -Wait
@@ -89,6 +324,7 @@ function Add-UNC([string]$unc){
   }
 }
 function Remove-UNC([string]$unc){
+  if (Invoke-UNCAction -Operation Remove -Queue $unc -Source 'RemovalQueue') { return }
   $removeArgs = @('printui.dll,PrintUIEntry','/gd','/n',"$unc")
   if ($PSCmdlet.ShouldProcess($unc,"Remove machine-wide (/gd)")) {
     Start-Process rundll32.exe -ArgumentList $removeArgs -NoNewWindow -Wait
@@ -128,7 +364,8 @@ try {
 }
 
 # ----------------- Artifact wiring -----------------
-$doIO = $ListOnly -or $PlanOnly -or $Queues.Count -or $RemoveQueues.Count -or $DefaultQueue
+$script:doIO = $ListOnly -or $PlanOnly -or $Queues.Count -or $RemoveQueues.Count -or $DefaultQueue
+$doIO = $script:doIO
 $outDir=$null; $logPath=$null; $preflightCsv=$null; $resultsCsv=$null; $htmlPath=$null
 $TranscriptStarted=$false
 if ($doIO) {
@@ -140,8 +377,23 @@ if ($doIO) {
   try { Start-Transcript -Path $logPath -Force | Out-Null; $TranscriptStarted=$true } catch {}
 }
 
+Initialize-RunControl
+$script:outDir = $outDir
+$script:logPath = $logPath
+$script:preflightCsv = $preflightCsv
+$script:resultsCsv = $resultsCsv
+$script:htmlPath = $htmlPath
+Initialize-UndoRedo
+
+$null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress -SourceIdentifier 'Worker.CancelKeyPress' -Action {
+  $Event.SourceEventArgs.Cancel = $true
+  $script:stopRequested = $true
+}
+
 W "=== Printer Map start @ $env:COMPUTERNAME as $([Security.Principal.WindowsIdentity]::GetCurrent().Name) ==="
 if ($doIO) { W "Artifacts -> $outDir" }
+if ($script:undoRedoEnabled) { W "Undo/redo capture enabled -> $script:undoRedoLogPath" }
+Export-WorkerStatus -State 'Running' -Stage 'Startup' -Message 'Worker initialized.'
 
 # ----------------- Preflight -----------------
 if ($Preflight) {
@@ -177,6 +429,8 @@ if ($doIO) {
   $pf | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $preflightCsv
 }
 
+Export-WorkerStatus -State 'Running' -Stage 'Preflight' -Message 'Preflight snapshot captured.'
+
 # Short-circuit: ListOnly -> write Results + HTML and exit
 if ($ListOnly) {
   $rows = New-Object System.Collections.Generic.List[object]
@@ -187,22 +441,11 @@ if ($ListOnly) {
   foreach($p in $beforeLP){
     $rows.Add([pscustomobject]@{ Timestamp=$now; ComputerName=$env:COMPUTERNAME; Type='LOCAL'; Target=$p.Name; Driver=$p.DriverName; Port=$p.PortName; Status='PresentNow' })
   }
-  if ($doIO) {
-    $rows | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $resultsCsv
-    $table = $rows | Select-Object Timestamp,Type,Target,Driver,Port,Status |
-      ConvertTo-Html -Fragment -PreContent '<h3>Current Printers (UNC + Local)</h3>'
-    $logFrag = if (Test-Path $logPath) { "<h3>Run Log</h3><pre>" + [System.Net.WebUtility]::HtmlEncode((Get-Content -Raw -LiteralPath $logPath)) + "</pre>" } else { '' }
-    $doc = @"
-<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Printer Mappings - $env:COMPUTERNAME (ListOnly)</title>
-<style>body{font-family:Segoe UI,Arial;background:#101014;color:#ececf1;padding:20px}
-table{border-collapse:collapse;width:100%}th,td{border:1px solid #2a2a33;padding:6px 8px;font-size:12px}
-th{background:#171720}tr:nth-child(even){background:#0f0f16}</style></head><body>
-<h2>Printer Mappings - $env:COMPUTERNAME (ListOnly)</h2>$table$logFrag</body></html>
-"@
-    Set-Content -LiteralPath $htmlPath -Value $doc -Encoding UTF8
-    W "Artifacts:`n  $preflightCsv`n  $resultsCsv`n  $htmlPath`n  $logPath"
-  }
+  if ($doIO) { Write-ResultArtifacts -Rows $rows -ListOnlyMode }
+  Export-UndoRedoArtifacts
+  Export-WorkerStatus -State 'Completed' -Stage 'ListOnly' -Message 'ListOnly inventory completed.'
   if ($TranscriptStarted) { try { Stop-Transcript | Out-Null } catch {} }
+  Unregister-Event -SourceIdentifier 'Worker.CancelKeyPress' -ErrorAction SilentlyContinue
   W "=== Completed (ListOnly) ==="
   return
 }
@@ -216,27 +459,37 @@ $changed = $false
 # PlanOnly just reports intent; real run executes
 if ($PlanOnly) {
   W "PLAN-ONLY: Adds => $($desiredUNC.Count); Removes => $($RemoveQueues.Count); PruneNotInList => $PruneNotInList"
+  Export-WorkerStatus -State 'Running' -Stage 'PlanOnly' -Message 'Plan-only mode; no changes executed.'
 } else {
-  # Adds
   foreach($u in $desiredUNC){
-    if ($beforeUNC -notcontains $u) { Add-UNC $u; $changed = $true }
-    else { W "SKIP add; already present -> $u" }
+    if (Test-WorkerStopRequested -Stage 'AddQueue') { break }
+    if ($beforeUNC -notcontains $u) { Add-UNC $u; $changed = $true } else { W "SKIP add; already present -> $u" }
+    Export-WorkerStatus -State 'Running' -Stage 'AddQueue' -Message "Processed add candidate $u"
   }
-  # Removes (explicit)
   foreach($u in $RemoveQueues){
+    if (Test-WorkerStopRequested -Stage 'RemoveQueue') { break }
     Remove-UNC $u; $changed = $true
+    Export-WorkerStatus -State 'Running' -Stage 'RemoveQueue' -Message "Processed removal candidate $u"
   }
-  # Prune anything not in the desired list (if requested)
-  if ($PruneNotInList -and $desiredUNC.Count -gt 0) {
+  if (-not $script:stopRequested -and $PruneNotInList -and $desiredUNC.Count -gt 0) {
     foreach($u in $beforeUNC){
-      if ($desiredUNC -notcontains $u) { Remove-UNC $u; $changed = $true }
+      if (Test-WorkerStopRequested -Stage 'PruneQueue') { break }
+      if ($desiredUNC -notcontains $u) {
+        if ($script:undoRedoEnabled) { Invoke-UNCAction -Operation Remove -Queue $u -Source 'PruneNotInList' | Out-Null } else { Remove-UNC $u }
+        $changed = $true
+        Export-WorkerStatus -State 'Running' -Stage 'PruneQueue' -Message "Pruned queue $u"
+      }
     }
   }
-  # Default printer at next logon
-  if ($DefaultQueue) { Register-SetDefaultPrinterOnce -queue $DefaultQueue }
-  # Group policy refresh helps machine-wide additions show up faster
-  Force-GPUpdateComputer
-  if ($changed -and $RestartSpoolerIfNeeded) {
+  if (-not $script:stopRequested -and $DefaultQueue) {
+    Register-SetDefaultPrinterOnce -queue $DefaultQueue
+    Export-WorkerStatus -State 'Running' -Stage 'DefaultQueue' -Message "Registered default queue task for $DefaultQueue"
+  }
+  if (-not $script:stopRequested) {
+    Force-GPUpdateComputer
+    Export-WorkerStatus -State 'Running' -Stage 'GPUpdate' -Message 'gpupdate completed.'
+  }
+  if (-not $script:stopRequested -and $changed -and $RestartSpoolerIfNeeded) {
     try { Restart-Service Spooler -Force -ErrorAction Stop; W "Spooler restarted." } catch { W "WARN: Spooler restart failed: $($_.Exception.Message)" }
   }
 }
@@ -245,61 +498,12 @@ if ($PlanOnly) {
 $afterUNC = Get-GlobalUNCs
 $afterLP  = Get-LocalPrinters
 
-$rows = New-Object System.Collections.Generic.List[object]
-$now  = (Get-Date).ToString('s')
+$rows = New-ResultRows -BeforeUNC $beforeUNC -AfterUNC $afterUNC -DesiredUNC $desiredUNC -RemoveQueueList $RemoveQueues -AfterLocalPrinters $afterLP
+if ($doIO) { Write-ResultArtifacts -Rows $rows }
 
-$universeUNC = ($beforeUNC + $afterUNC + $desiredUNC + $RemoveQueues) | Sort-Object -Unique
-foreach($u in $universeUNC){
-  $status = if ($PlanOnly) {
-    if ($desiredUNC -contains $u -and $beforeUNC -notcontains $u) { 'PlannedAdd' }
-    elseif ($RemoveQueues -contains $u -or ($PruneNotInList -and $desiredUNC -notcontains $u -and $beforeUNC -contains $u)) { 'PlannedRemove' }
-    elseif ($afterUNC -contains $u) { 'PresentAfter' }
-    elseif ($beforeUNC -contains $u) { 'GoneAfter' } else { 'NotPresent' }
-  } else {
-    if (($afterUNC -contains $u) -and ($beforeUNC -notcontains $u)) { 'AddedNow' }
-    elseif (($afterUNC -notcontains $u) -and ($beforeUNC -contains $u)) { 'RemovedNow' }
-    elseif ($afterUNC -contains $u) { 'PresentAfter' } else { 'NotPresent' }
-  }
-  $rows.Add([pscustomobject]@{
-    Timestamp=$now; ComputerName=$env:COMPUTERNAME; Type='UNC'; Target=$u; Driver=''; Port=''; Status=$status
-  })
-}
-
-# local printers table included for visibility (not changed by UNC ops)
-foreach($p in ($afterLP | Sort-Object Name)){
-  $rows.Add([pscustomobject]@{
-    Timestamp=$now; ComputerName=$env:COMPUTERNAME; Type='LOCAL'; Target=$p.Name; Driver=$p.DriverName; Port=$p.PortName; Status='PresentAfter'
-  })
-}
-
-if ($doIO) {
-  $rows | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $resultsCsv
-  $table = $rows | Select-Object Timestamp,Type,Target,Driver,Port,Status |
-    ConvertTo-Html -Fragment -PreContent '<h3>Per-Target Detail</h3>'
-
-  $doc = @"
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Printer Mapping - $env:COMPUTERNAME</title>
-  <style>
-    body{font-family:Segoe UI,Arial;background:#101014;color:#ececf1;padding:20px}
-    table{border-collapse:collapse;width:100%}
-    th,td{border:1px solid #2a2a33;padding:6px 8px;font-size:12px}
-    th{background:#171720}
-    tr:nth-child(even){background:#0f0f16}
-  </style>
-</head>
-<body>
-  <h2>Printer Mapping Results - $env:COMPUTERNAME</h2>
-  $table
-</body>
-</html>
-"@
-  Set-Content -LiteralPath $htmlPath -Value $doc -Encoding UTF8
-  W "Artifacts:`n  $preflightCsv`n  $resultsCsv`n  $htmlPath`n  $logPath"
-}
+Export-UndoRedoArtifacts
+Export-WorkerStatus -State ($(if ($script:stopRequested) { 'Stopped' } else { 'Completed' })) -Stage 'Complete' -Message ($(if ($script:stopRequested) { 'Stop requested; partial artifacts emitted.' } else { 'Worker completed successfully.' }))
 
 if ($TranscriptStarted) { try { Stop-Transcript | Out-Null } catch {} }
+Unregister-Event -SourceIdentifier 'Worker.CancelKeyPress' -ErrorAction SilentlyContinue
 W "=== Completed ==="

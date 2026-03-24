@@ -40,11 +40,33 @@
    [string]$TaskName = "SysAdminSuite_PrinterMap",
  
    # Max seconds to wait for artifacts before moving on
-   [int]$MaxWaitSeconds = 45
+   [int]$MaxWaitSeconds = 45,
+
+   # Opt-in reversible action capture for controller + worker operations
+   [switch]$EnableUndoRedo,
+   [string]$UndoRedoLogPath,
+
+   # GUI-friendly stop + live status contract
+   [string]$StopSignalPath,
+   [string]$StatusPath
  )
  
  Set-StrictMode -Version Latest
  $ErrorActionPreference = 'Stop'
+ $script:undoRedoEnabled = $false
+ $script:undoRedoSession = $null
+ $script:undoRedoUtilityPath = $null
+ $script:undoRedoLogPath = $null
+ $script:runControlUtilityPath = $null
+ $script:stopSignalPath = $null
+ $script:statusPath = $null
+ $script:payloadSupportsStopSignal = $false
+ $script:currentHost = $null
+ $script:currentRemoteStopAdminPath = $null
+ $script:currentRemoteStatusAdminPath = $null
+ $script:remoteStopForwarded = $false
+ $script:success = 0
+ $script:fail = 0
  
  # ---------------------------
  # Setup output directories
@@ -58,6 +80,141 @@
    $stamp = "[{0}] {1}" -f (Get-Date -Format s), $Message
    Write-Host $stamp
    $stamp | Out-File -FilePath $ControllerLog -Encoding utf8 -Append
+ }
+
+ function Initialize-ControllerRunControl {
+   $candidatePaths = @(
+     (Join-Path $PSScriptRoot 'Invoke-RunControl.ps1'),
+     (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'Utilities\Invoke-RunControl.ps1')
+   ) | Select-Object -Unique
+
+   $script:runControlUtilityPath = $candidatePaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+   if (-not $script:runControlUtilityPath) {
+     throw 'Invoke-RunControl.ps1 could not be located.'
+   }
+
+   . $script:runControlUtilityPath
+   $script:stopSignalPath = if ($StopSignalPath) { $StopSignalPath } else { Join-Path $SessionRoot 'Stop.json' }
+   $script:statusPath = if ($StatusPath) { $StatusPath } else { Join-Path $SessionRoot 'Controller.Status.json' }
+ }
+
+ function Get-RemoteStatusSummary {
+   if (-not $script:currentRemoteStatusAdminPath -or -not (Test-Path -LiteralPath $script:currentRemoteStatusAdminPath)) {
+     return $null
+   }
+
+   try {
+     $remote = Import-RunStatusSnapshot -Path $script:currentRemoteStatusAdminPath
+     return [pscustomobject]@{
+       State   = $remote.State
+       Stage   = $remote.Stage
+       Message = $remote.Message
+     }
+   } catch {
+     return $null
+   }
+ }
+
+ function Export-ControllerStatus {
+   param(
+     [string]$State = 'Running',
+     [string]$Stage = 'Controller',
+     [string]$Message = ''
+   )
+
+   if (-not $script:statusPath) { return }
+
+   try {
+     Export-RunStatusSnapshot -Path $script:statusPath -State $State -Stage $Stage -Message $Message -Data @{
+       SessionRoot         = $SessionRoot
+       ControllerLog       = $ControllerLog
+       StopSignalPath      = $script:stopSignalPath
+       StopRequested       = [bool]($script:StopRequested)
+       CurrentHost         = $script:currentHost
+       SuccessCount        = $script:success
+       FailCount           = $script:fail
+       HostsTotal          = $Computers.Count
+       EnableUndoRedo      = [bool]$script:undoRedoEnabled
+       UndoRedoLogPath     = $script:undoRedoLogPath
+       RemoteStatusSummary = Get-RemoteStatusSummary
+     } | Out-Null
+   } catch {
+     Write-Log "WARN: Failed to export controller status: $($_.Exception.Message)"
+   }
+ }
+
+ function Request-RemoteWorkerStop {
+   param([string]$Reason = 'Controller stop requested.')
+
+   if ($script:remoteStopForwarded -or -not $script:currentRemoteStopAdminPath) { return }
+
+   try {
+     Request-RunStop -Path $script:currentRemoteStopAdminPath -Reason $Reason -RequestedBy 'Map-Run-Controller' | Out-Null
+     $script:remoteStopForwarded = $true
+     Write-Log "[$($script:currentHost)] Forwarded stop signal -> $($script:currentRemoteStopAdminPath)"
+   } catch {
+     Write-Log "[$($script:currentHost)] WARN forwarding stop signal: $($_.Exception.Message)"
+   }
+ }
+
+ function Test-ControllerStopRequested {
+   param([string]$Context = 'controller loop')
+
+   $signal = $null
+   if ($script:StopRequested) {
+     $signal = [pscustomobject]@{
+       RequestedAt = Get-Date
+       RequestedBy = 'Console'
+       Reason      = 'CTRL+C detected.'
+     }
+   } elseif ($script:stopSignalPath) {
+     $signal = Test-RunStopRequested -Path $script:stopSignalPath
+   }
+
+   if (-not $signal) { return $false }
+
+   if (-not $script:StopRequested) {
+     $script:StopRequested = $true
+     Write-Log "Stop requested during $Context. Will stop after current host."
+   }
+
+   if ($script:currentRemoteStopAdminPath) {
+     Request-RemoteWorkerStop -Reason "Stop requested during $Context."
+   }
+
+   Export-ControllerStatus -State 'Stopping' -Stage 'StopRequested' -Message "Stop requested during $Context."
+   return $true
+ }
+
+ function Initialize-ControllerUndoRedo {
+   if (-not $EnableUndoRedo) { return }
+
+   $candidatePaths = @(
+     (Join-Path $PSScriptRoot 'Invoke-UndoRedo.ps1'),
+     (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'Utilities\Invoke-UndoRedo.ps1')
+   ) | Select-Object -Unique
+
+   $script:undoRedoUtilityPath = $candidatePaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+   if (-not $script:undoRedoUtilityPath) {
+     throw 'EnableUndoRedo was requested, but Invoke-UndoRedo.ps1 could not be located.'
+   }
+
+   . $script:undoRedoUtilityPath
+   $script:undoRedoSession = New-UndoRedoSession
+   $script:undoRedoEnabled = $true
+   $script:undoRedoLogPath = if ($UndoRedoLogPath) { $UndoRedoLogPath } else { Join-Path $SessionRoot 'UndoRedo.Controller.json' }
+   Write-Log "Undo/redo capture enabled -> $script:undoRedoLogPath"
+ }
+
+ function Export-ControllerUndoRedoSummary {
+   if (-not $script:undoRedoEnabled -or -not $script:undoRedoSession -or -not $script:undoRedoLogPath) { return }
+
+   try {
+     Export-UndoRedoSessionSummary -Session $script:undoRedoSession -Path $script:undoRedoLogPath | Out-Null
+     Write-Log "Undo/redo controller summary exported -> $script:undoRedoLogPath"
+   } catch {
+     Write-Log "WARN: Failed to export controller undo/redo summary: $($_.Exception.Message)"
+   }
  }
  
  # ---------------------------
@@ -84,6 +241,19 @@
  if (-not (Test-Path $LocalScriptPath)) {
    throw "LocalScriptPath not found: $LocalScriptPath"
  }
+
+ $payloadCommand = Get-Command $LocalScriptPath -ErrorAction Stop
+ $script:payloadSupportsStopSignal = ($payloadCommand.Parameters.Keys -contains 'StopSignalPath' -and $payloadCommand.Parameters.Keys -contains 'StatusPath')
+
+ if ($EnableUndoRedo) {
+   if ($payloadCommand.Parameters.Keys -notcontains 'EnableUndoRedo') {
+     throw "LocalScriptPath does not expose -EnableUndoRedo: $LocalScriptPath"
+   }
+ }
+
+ Initialize-ControllerRunControl
+ Initialize-ControllerUndoRedo
+ Export-ControllerStatus -State 'Running' -Stage 'Startup' -Message 'Controller initialized.'
  
  # ---------------------------
  # Ctrl+C graceful handling
@@ -101,6 +271,83 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
    param([string]$Computer, [string]$SubPath)
   "\\{0}\C$\{1}" -f $Computer, ((($SubPath -replace '^[cC]:\\', '') -replace '^[\\]+',''))
  }
+
+ function New-ControllerTaskAction {
+   param(
+     [Parameter(Mandatory)][string]$Computer,
+     [Parameter(Mandatory)][string]$TaskName,
+     [Parameter(Mandatory)][string]$TaskCommand,
+     [Parameter(Mandatory)][datetime]$StartTime,
+     [Parameter(Mandatory)][ValidateSet('Create','Delete')][string]$Operation
+   )
+
+   $stTime = $StartTime.ToString('HH:mm')
+   $stDate = $StartTime.ToString([System.Globalization.CultureInfo]::CurrentCulture.DateTimeFormat.ShortDatePattern)
+   $actionTarget = ('{0}::{1}' -f $Computer, $TaskName)
+   $createCmd = @(
+     'schtasks',
+     '/Create',
+     '/S', $Computer,
+     '/RU', 'SYSTEM',
+     '/SC', 'ONCE',
+     '/SD', $stDate,
+     '/ST', $stTime,
+     '/TN', $TaskName,
+     '/TR', $TaskCommand,
+     '/RL', 'HIGHEST',
+     '/F'
+   ) -join ' '
+   $deleteCmd = ('schtasks /Delete /S {0} /TN {1} /F' -f $Computer, $TaskName)
+
+   $probe = {
+     param($ctx)
+     $m = $ctx.Metadata
+     $out = cmd /c ("schtasks /Query /S {0} /TN {1} /FO LIST" -f $m.ComputerName, $m.TaskName) 2>$null
+     [pscustomobject]@{
+       ComputerName = $m.ComputerName
+       TaskName     = $m.TaskName
+       Exists       = ($LASTEXITCODE -eq 0)
+       QueryOutput  = if ($LASTEXITCODE -eq 0) { $out -join [Environment]::NewLine } else { $null }
+     }
+   }
+   $createDo = {
+     param($ctx)
+     $m = $ctx.Metadata
+     $out = cmd /c $m.CreateCommand 2>&1
+     $exitCode = $LASTEXITCODE
+     Write-Log "[$($m.ComputerName)] schtasks /Create output:`n$out"
+     if ($exitCode -ne 0) {
+       throw "schtasks /Create failed for $($m.TaskName) on $($m.ComputerName). ExitCode=$exitCode"
+     }
+   }
+   $deleteDo = {
+     param($ctx)
+     $m = $ctx.Metadata
+     $out = cmd /c $m.DeleteCommand 2>&1
+     $exitCode = $LASTEXITCODE
+     Write-Log "[$($m.ComputerName)] schtasks /Delete output:`n$out"
+     if ($exitCode -ne 0) {
+       throw "schtasks /Delete failed for $($m.TaskName) on $($m.ComputerName). ExitCode=$exitCode"
+     }
+   }
+
+   $metadata = @{
+     Kind          = 'ScheduledTask'
+     ComputerName  = $Computer
+     TaskName      = $TaskName
+     TaskCommand   = $TaskCommand
+     CreateCommand = $createCmd
+     DeleteCommand = $deleteCmd
+     StartDate     = $stDate
+     StartTime     = $stTime
+   }
+
+   if ($Operation -eq 'Create') {
+     New-UndoRedoActionRecord -Name 'Create scheduled task' -Target $actionTarget -Do $createDo -Undo $deleteDo -Probe $probe -Metadata $metadata
+   } else {
+     New-UndoRedoActionRecord -Name 'Delete scheduled task' -Target $actionTarget -Do $deleteDo -Undo $createDo -Probe $probe -Metadata $metadata
+   }
+ }
  
  # ---------------------------
  # Core per-host routine
@@ -113,10 +360,24 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
    $remoteBase    = $RemoteBase
    $remoteLogsDir = Join-Path $remoteBase 'logs'
    $remoteScript  = Join-Path $remoteBase (Split-Path -Leaf $LocalScriptPath)
+   $remoteUndoRedo = Join-Path $remoteBase 'Invoke-UndoRedo.ps1'
+   $remoteRunControl = Join-Path $remoteBase 'Invoke-RunControl.ps1'
+   $remoteStopSignal = Join-Path $remoteBase 'Stop.json'
+   $remoteStatusPath = Join-Path $remoteBase 'status.json'
  
    $adminBase     = Join-AdminShare -Computer $Computer -SubPath $remoteBase
    $adminLogs     = Join-AdminShare -Computer $Computer -SubPath $remoteLogsDir
    $adminScript   = Join-AdminShare -Computer $Computer -SubPath $remoteScript
+   $adminUndoRedo = Join-AdminShare -Computer $Computer -SubPath $remoteUndoRedo
+   $adminRunControl = Join-AdminShare -Computer $Computer -SubPath $remoteRunControl
+   $adminStopSignal = Join-AdminShare -Computer $Computer -SubPath $remoteStopSignal
+   $adminStatusPath = Join-AdminShare -Computer $Computer -SubPath $remoteStatusPath
+
+   $script:currentHost = $Computer
+   $script:currentRemoteStopAdminPath = $adminStopSignal
+   $script:currentRemoteStatusAdminPath = $adminStatusPath
+   $script:remoteStopForwarded = $false
+   Export-ControllerStatus -State 'Running' -Stage 'HostStart' -Message "Starting host $Computer."
  
    # Ensure remote folders exist via admin share
    try {
@@ -135,8 +396,17 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
  
    # Copy payload script
    try {
+     Remove-Item -LiteralPath $adminStopSignal,$adminStatusPath -Force -ErrorAction SilentlyContinue
      Copy-Item -Path $LocalScriptPath -Destination $adminScript -Force
     Write-Log "[$Computer] Copied script -> $adminScript"
+     if ($script:undoRedoEnabled) {
+       Copy-Item -Path $script:undoRedoUtilityPath -Destination $adminUndoRedo -Force
+       Write-Log "[$Computer] Copied undo/redo utility -> $adminUndoRedo"
+     }
+     if ($script:payloadSupportsStopSignal) {
+       Copy-Item -Path $script:runControlUtilityPath -Destination $adminRunControl -Force
+       Write-Log "[$Computer] Copied run-control utility -> $adminRunControl"
+     }
    } catch {
      Write-Log "[$Computer] ERROR copying script: $($_.Exception.Message)"
     return $false
@@ -147,6 +417,14 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
    $stTime = $when.ToString('HH:mm')        # 24h
   $dateFmt = [System.Globalization.CultureInfo]::CurrentCulture.DateTimeFormat.ShortDatePattern
   $stDate = $when.ToString($dateFmt)
+   $taskArgs = @()
+   if ($script:payloadSupportsStopSignal) {
+     $taskArgs += (' -StopSignalPath "{0}" -StatusPath "{1}"' -f $remoteStopSignal, $remoteStatusPath)
+   }
+   if ($script:undoRedoEnabled) {
+     $taskArgs += ' -EnableUndoRedo'
+   }
+   $taskCommand = ('"{0}" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{1}"{2}' -f $RemotePwshPath, $remoteScript, ($taskArgs -join ''))
  
    # Build schtasks /Create (drop /Z; add /SD; -File keeps /TR short)
    $createCmd = @(
@@ -158,18 +436,28 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
      '/SD', $stDate,
      '/ST', $stTime,
      '/TN', $TaskName,
-     '/TR', ('"{0} -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File {1}"' -f $RemotePwshPath, $remoteScript),
+     '/TR', $taskCommand,
      '/RL', 'HIGHEST',
      '/F'
    ) -join ' '
- 
-   $createOut = cmd /c $createCmd 2>&1
-  $createExit = $LASTEXITCODE
-   Write-Log "[$Computer] schtasks /Create output:`n$createOut"
-  if ($createExit -ne 0) {
-    Write-Log "[$Computer] ERROR creating task. ExitCode=$createExit"
-    return $false
-  }
+
+   if ($script:undoRedoEnabled) {
+     $createAction = New-ControllerTaskAction -Computer $Computer -TaskName $TaskName -TaskCommand $taskCommand -StartTime $when -Operation Create
+     try {
+       Invoke-UndoRedo -Session $script:undoRedoSession -Action $createAction | Out-Null
+     } catch {
+       Write-Log "[$Computer] ERROR creating task via undo/redo action: $($_.Exception.Message)"
+       return $false
+     }
+   } else {
+     $createOut = cmd /c $createCmd 2>&1
+    $createExit = $LASTEXITCODE
+     Write-Log "[$Computer] schtasks /Create output:`n$createOut"
+    if ($createExit -ne 0) {
+      Write-Log "[$Computer] ERROR creating task. ExitCode=$createExit"
+      return $false
+    }
+   }
  
    # Start it
    $runOut = cmd /c ("schtasks /Run /S {0} /TN {1}" -f $Computer, $TaskName) 2>&1
@@ -185,6 +473,12 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
    $waited  = 0
    $latest  = $null
    while ($waited -lt $maxWait) {
+     if (Test-ControllerStopRequested -Context "polling $Computer") {
+       Export-ControllerStatus -State 'Stopping' -Stage 'Polling' -Message "Waiting for $Computer to flush artifacts after stop request."
+     } else {
+       Export-ControllerStatus -State 'Running' -Stage 'Polling' -Message "Waiting for $Computer artifacts."
+     }
+
      try {
        if (Test-Path $adminLogs) {
          $latest = Get-ChildItem -Path $adminLogs -Directory -ErrorAction SilentlyContinue |
@@ -203,6 +497,9 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
      # Copy artifacts down
      try {
        Copy-Item -Path (Join-Path $latest.FullName '*') -Destination $hostOut -Force -ErrorAction SilentlyContinue
+       if (Test-Path -LiteralPath $adminStatusPath) {
+         Copy-Item -LiteralPath $adminStatusPath -Destination (Join-Path $hostOut 'Worker.Status.json') -Force -ErrorAction SilentlyContinue
+       }
       Write-Log "[$Computer] Collected artifacts -> $hostOut"
      } catch {
        Write-Log "[$Computer] WARNING copying artifacts: $($_.Exception.Message)"
@@ -222,8 +519,14 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
  
    # Cleanup the scheduled task
    try {
-     cmd /c ("schtasks /Delete /S {0} /TN {1} /F" -f $Computer, $TaskName) | Out-Null
-     Write-Log "[$Computer] Deleted task $TaskName."
+     if ($script:undoRedoEnabled) {
+       $deleteAction = New-ControllerTaskAction -Computer $Computer -TaskName $TaskName -TaskCommand $taskCommand -StartTime $when -Operation Delete
+       Invoke-UndoRedo -Session $script:undoRedoSession -Action $deleteAction | Out-Null
+     } else {
+       cmd /c ("schtasks /Delete /S {0} /TN {1} /F" -f $Computer, $TaskName) | Out-Null
+       Write-Log "[$Computer] Deleted task $TaskName."
+     }
+     Remove-Item -LiteralPath $adminStopSignal,$adminStatusPath -Force -ErrorAction SilentlyContinue
    } catch {
      Write-Log "[$Computer] Cleanup warning: $($_.Exception.Message)"
    }
@@ -235,21 +538,25 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
  # ---------------------------
  # Main loop
  # ---------------------------
- $success = 0
- $fail    = 0
- 
  foreach ($c in $Computers) {
-   if ($script:StopRequested) { break }
+   if (Test-ControllerStopRequested -Context 'main loop') { break }
    try {
     $ok = Invoke-Host -Computer $c
-    if ($ok) { $success++ } else { $fail++ }
+    if ($ok) { $script:success++ } else { $script:fail++ }
    } catch {
-     $fail++
+     $script:fail++
      Write-Log "[$c] FATAL: $($_.Exception.Message)"
    }
+   $script:currentHost = $null
+   $script:currentRemoteStopAdminPath = $null
+   $script:currentRemoteStatusAdminPath = $null
+   $script:remoteStopForwarded = $false
+   Export-ControllerStatus -State ($(if ($script:StopRequested) { 'Stopping' } else { 'Running' })) -Stage 'HostComplete' -Message "Finished host $c."
  }
  
- Write-Log "Session complete. Success: $success  Failed: $fail  Hosts total: $($Computers.Count)"
+ Write-Log "Session complete. Success: $($script:success)  Failed: $($script:fail)  Hosts total: $($Computers.Count)"
+ Export-ControllerUndoRedoSummary
+ Export-ControllerStatus -State ($(if ($script:StopRequested) { 'Stopped' } else { 'Completed' })) -Stage 'Complete' -Message 'Controller session finalized.'
  
  # Final reminder for PS7 targets (optional)
  Write-Log "Note: If some targets only have PowerShell 7, set -RemotePwshPath 'C:\Program Files\PowerShell\7\pwsh.exe'."
