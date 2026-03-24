@@ -16,7 +16,12 @@ rem Parse arguments (/SOURCEDIR=, /PREFIX=, /START=, /END=, /LIST=, /WHATIF)
 rem ------------------------------------------------------------------------------
 for %%A in (%*) do (
   set "ARG=%%~A"
-  set "KV=!ARG:~1!"  rem strip leading slash
+  rem Validate that the argument starts with '/'
+  if "!ARG:~0,1!" NEQ "/" (
+    echo ERROR: Argument "!ARG!" does not start with '/'. Expected format: /KEY=VALUE
+    exit /b 1
+  )
+  set "KV=!ARG:~1!"
   for /f "tokens=1,2 delims==" %%K in ("!KV!") do (
     set "K=%%~K"
     set "V=%%~L"
@@ -61,9 +66,7 @@ call :FindSource "%SOURCEDIR%" "Welcome to Cerner*.lnk" "Welcome to Cerner*.url"
 set "SRC2=!RET!" & set "SRC2NAME=!RETNAME!"
 
 if defined SRC1 (
-  for %%Z in ("!SRC1!") do (
-    for %%S in (%%~z) do set "SRC1SIZE=%%~z"
-  )
+  for %%Z in ("!SRC1!") do set "SRC1SIZE=%%~zZ"
   call :LogLine "FOUND source for 'Nuance Powershare': !SRC1NAME!"
 ) else (
   call :LogLine "MISSING source for 'Nuance Powershare' in %SOURCEDIR% - will SKIP."
@@ -71,9 +74,7 @@ if defined SRC1 (
 )
 
 if defined SRC2 (
-  for %%Z in ("!SRC2!") do (
-    for %%S in (%%~z) do set "SRC2SIZE=%%~z"
-  )
+  for %%Z in ("!SRC2!") do set "SRC2SIZE=%%~zZ"
   call :LogLine "FOUND source for 'Welcome to Cerner': !SRC2NAME!"
 ) else (
   call :LogLine "MISSING source for 'Welcome to Cerner' in %SOURCEDIR% - will SKIP."
@@ -217,11 +218,18 @@ goto :eof
 
 :CsvLog
 rem Args: host, file, status, detail
+rem All fields are double-quoted; internal double-quotes are doubled for CSV safety.
 for /f "tokens=1-3 delims=:" %%h in ("%time%") do set "_h=%%h" & set "_m=%%i" & set "_s=%%j"
 set "_now=%date% %_h%:%_m%:%_s%"
+set "_host=%~1"
+set "_host=%_host:"=""%"
+set "_file=%~2"
+set "_file=%_file:"=""%"
+set "_status=%~3"
+set "_status=%_status:"=""%"
 set "_detail=%~4"
-set "_detail=%_detail:""="%"
->> "%LOGCSV%" echo %_now%,%~1,"%~2",%~3,"%_detail%"
+set "_detail=%_detail:"=""%"
+>> "%LOGCSV%" echo "%_now%","%_host%","%_file%","%_status%","%_detail%"
 goto :eof
 
 :Tail

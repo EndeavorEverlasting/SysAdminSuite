@@ -1,4 +1,4 @@
-﻿∩╗┐<#  Inventory-Software.ps1
+<#  Inventory-Software.ps1
     Export installed software from HKLM (32/64) to CSV+HTML per host.
     Defaults to local machine; supports remoting.
     Writes to: <RepoRoot>\inventory\<HOST>\installed_software_<HOST>.csv|html
@@ -52,7 +52,7 @@ $scriptBlock = {
       }
     }
   }
-  $rows | Sort-Object DisplayName, DisplayVersion -Descending `
+  $rows | Sort-Object DisplayName, @{ Expression = { try { [version]$_.DisplayVersion } catch { [version]'0.0' } }; Descending = $true } `
        | Group-Object DisplayName `
        | ForEach-Object { $_.Group | Select-Object -First 1 }
 }

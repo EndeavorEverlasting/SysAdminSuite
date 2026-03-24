@@ -1,9 +1,10 @@
-﻿function Get-NativeResolution {
+function Get-NativeResolution {
     param([Parameter(Mandatory)][string]$InstanceName)
 
+    $escapedInstance = $InstanceName -replace '\\','\\\\' -replace "'","''"
     try {
         $raw = (Get-CimInstance -Namespace root\wmi -Class WmiMonitorDescriptorMethods `
-                -Filter "InstanceName='$InstanceName'" -ErrorAction Stop).GetMonitorDescriptor(0,0).Descriptor
+                -Filter "InstanceName='$escapedInstance'" -ErrorAction Stop).GetMonitorDescriptor(0,0).Descriptor
 
         if ($raw.Count -lt 18) { return "Unknown" }
 
@@ -38,10 +39,13 @@ function Get-ConnectionType {
 
         if ($tech -eq 'DISPLAYPORT') {
             try {
+                $escapedDeviceId = $InstanceName -replace '\\','\\\\' -replace "'","''"
                 $locationInfo = (Get-CimInstance Win32_PnPEntity `
-                               -Filter "DeviceID='$InstanceName'" -ErrorAction Stop).LocationInformation
+                               -Filter "DeviceID='$escapedDeviceId'" -ErrorAction Stop).LocationInformation
                 if ($locationInfo -match 'USB|TYPEC|TBT') { return 'USB-C (DP-Alt)' }
-            } catch {}
+            } catch {
+                Write-Verbose ("Failed PnPEntity lookup for '{0}': {1}" -f $InstanceName, $_.Exception.Message)
+            }
         }
         return $tech
     }

@@ -1,6 +1,6 @@
-﻿<#
+<#
   Enforce-Mapping-SingleHost.ps1
-  One-off enforcer: WLS111WCC094 ΓåÆ \\SWBPNHPHPS01V\LS111-WCC65
+  One-off enforcer: WLS111WCC094 -> \\SWBPNHPHPS01V\LS111-WCC65
 
   Usage (run from mapping\ as admin):
     .\Enforce-Mapping-SingleHost.ps1 -MaxWaitSeconds 180
@@ -21,7 +21,7 @@ $shareName  = "$target.nslijhs.net"
 $remoteRoot = "\\$shareName\C$\ProgramData\SysAdminSuite\Mapping"
 $remoteLogs = Join-Path $remoteRoot "logs"
 
-Write-Host "[ENF] Target: $target ΓåÆ $queue"
+Write-Host "[ENF] Target: $target -> $queue"
 
 # Drop worker+runner on remote
 New-Item -ItemType Directory -Path $remoteRoot -Force | Out-Null
@@ -38,15 +38,16 @@ New-Item -ItemType Directory -Path `$logDir -Force | Out-Null
 
 # Add machine-wide if missing
 try {
-  `$present = Get-Printer -Name '*LS111-WCC65*' -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'LS111-WCC65' }
-} catch { `$present = $null }
+  `$present = Get-Printer -Name '*LS111-WCC65*' -ErrorAction SilentlyContinue | Where-Object { `$_.Name -eq 'LS111-WCC65' }
+} catch { `$present = `$null }
 
 if (-not `$present) {
   Start-Process rundll32.exe -ArgumentList @('printui.dll,PrintUIEntry','/ga','/n','$queue') -NoNewWindow -Wait
 }
 
 # Snapshot artifacts (ListOnly)
-$src = Join-Path `$PSScriptRoot 'Map-Remote-MachineWide-Printers.ps1'
+# BUG-FIX: Escape $src so it is evaluated at runner time, not controller time
+`$src = Join-Path `$PSScriptRoot 'Map-Remote-MachineWide-Printers.ps1'
 powershell.exe -NoProfile -File `$src -ListOnly -OutputRoot `$outRoot | Out-Null
 "@
 
@@ -60,10 +61,19 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Map-Remote-MachineWide-Printers
 $now    = Get-Date
 $when   = if ($now.Second -ge 50) { $now.AddMinutes(2) } else { $now.AddMinutes(1) }
 $stTime = $when.ToString('HH:mm')
-$stDate = $when.ToString('MM/dd/yyyy')
+$stDate = $when.ToString('yyyy-MM-dd')
 $tr     = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$runnerPath`""
-$create = (cmd /c "schtasks /Create /S $shareName /RU SYSTEM /SC ONCE /SD $stDate /ST $stTime /TN $taskName /TR `"$tr`" /RL HIGHEST /F") 2>&1
-$run    = (cmd /c "schtasks /Run /S $shareName /TN $taskName") 2>&1
+# BUG-FIX: Call schtasks.exe directly and check exit codes
+$create = & schtasks.exe /Create /S $shareName /RU SYSTEM /SC ONCE /SD $stDate /ST $stTime /TN $taskName /TR $tr /RL HIGHEST /F 2>&1
+if ($LASTEXITCODE -ne 0) {
+  Write-Error "schtasks /Create failed (exit $LASTEXITCODE): $create"
+  exit 1
+}
+$run = & schtasks.exe /Run /S $shareName /TN $taskName 2>&1
+if ($LASTEXITCODE -ne 0) {
+  Write-Error "schtasks /Run failed (exit $LASTEXITCODE): $run"
+  exit 1
+}
 
 Write-Host "[ENF] TASK CREATED ($stDate $stTime)"
 Write-Host "[ENF] POLLING for artifacts..."
@@ -85,11 +95,11 @@ if ($latest) {
   New-Item -ItemType Directory -Path $session -Force | Out-Null
   $hostOut = Join-Path $session $target
   New-Item -ItemType Directory -Path $hostOut -Force | Out-Null
-  Copy-Item -Path (Join-Path $latest.FullName '*.*') -Destination $hostOut -Force -ErrorAction SilentlyContinue
-  Write-Host "[ENF] COLLECTED ΓåÆ $hostOut"
+  Copy-Item -Path (Join-Path $latest.FullName '*') -Destination $hostOut -Force -ErrorAction SilentlyContinue
+  Write-Host "[ENF] COLLECTED -> $hostOut"
 } else {
   Write-Host "[ENF] NO ARTIFACTS (${MaxWaitSeconds}s)"
 }
 
 # Cleanup task (best-effort)
-cmd /c "schtasks /Delete /S $shareName /TN $taskName /F" | Out-Null
+& schtasks.exe /Delete /S $shareName /TN $taskName /F 2>&1 | Out-Null

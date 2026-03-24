@@ -1,13 +1,13 @@
-﻿∩╗┐<#
+<#
   Map-Remote-MachineWide-Printers.ps1
   Machine-wide printer mapping worker (runs LOCALLY on the endpoint).
 
   Supports:
-    ΓÇó Snapshot-only (ListOnly) ΓåÆ writes artifacts for recon/triage
-    ΓÇó Machine-wide ADD (/ga) & REMOVE (/gd) of UNC queues
-    ΓÇó Optional one-shot default-printer at next user logon (SYSTEM task)
-    ΓÇó PlanOnly (no changes), Preflight checks, optional Spooler restart
-    ΓÇó PruneNotInList: remove machine-wide UNC connections NOT in provided list
+    - Snapshot-only (ListOnly) -> writes artifacts for recon/triage
+    - Machine-wide ADD (/ga) and REMOVE (/gd) of UNC queues
+    - Optional one-shot default-printer at next user logon
+    - PlanOnly (no changes), Preflight checks, optional Spooler restart
+    - PruneNotInList: remove machine-wide UNC connections NOT in provided list
 
   Artifacts (when I/O is enabled: ListOnly, PlanOnly, or real run):
     C:\ProgramData\SysAdminSuite\Mapping\logs\<yyyyMMdd-HHmmss>\
@@ -82,17 +82,17 @@ function Get-GlobalUNCs {
 function Get-LocalPrinters { try { Get-Printer -ErrorAction Stop } catch { @() } }
 
 function Add-UNC([string]$unc){
-  $args = @('printui.dll,PrintUIEntry','/ga','/n',"$unc")
+  $printArgs = @('printui.dll,PrintUIEntry','/ga','/n',"$unc")
   if ($PSCmdlet.ShouldProcess($unc,"Add machine-wide (/ga)")) {
-    Start-Process rundll32.exe -ArgumentList $args -NoNewWindow -Wait
-    W "ADD (/ga) ΓåÆ $unc"
+    Start-Process rundll32.exe -ArgumentList $printArgs -NoNewWindow -Wait
+    W "ADD (/ga) -> $unc"
   }
 }
 function Remove-UNC([string]$unc){
-  $args = @('printui.dll,PrintUIEntry','/gd','/n',"$unc")
+  $removeArgs = @('printui.dll,PrintUIEntry','/gd','/n',"$unc")
   if ($PSCmdlet.ShouldProcess($unc,"Remove machine-wide (/gd)")) {
-    Start-Process rundll32.exe -ArgumentList $args -NoNewWindow -Wait
-    W "REMOVE (/gd) ΓåÆ $unc"
+    Start-Process rundll32.exe -ArgumentList $removeArgs -NoNewWindow -Wait
+    W "REMOVE (/gd) -> $unc"
   }
 }
 function Force-GPUpdateComputer {
@@ -112,12 +112,15 @@ try {
   Add-Printer -ConnectionName '$quoted' -ErrorAction SilentlyContinue | Out-Null
   \$p = Get-CimInstance Win32_Printer -Filter "Name='$escaped'"
   if (\$p) { \$null = \$p | Invoke-CimMethod -MethodName SetDefaultPrinter }
+  Unregister-ScheduledTask -TaskName 'SetDefaultPrinterOnce' -Confirm:\$false -ErrorAction SilentlyContinue
 } catch {}
 "@
   try {
     $action  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -Command $cmd"
     $trigger = New-ScheduledTaskTrigger -AtLogOn
-    Register-ScheduledTask -TaskName 'SetDefaultPrinterOnce' -Action $action -Trigger $trigger -RunLevel Highest -User 'NT AUTHORITY\SYSTEM' -Force | Out-Null
+    # BUG-FIX: SYSTEM cannot set per-user default printer; run as interactive user instead
+    $principal = New-ScheduledTaskPrincipal -UserId 'BUILTIN\Users' -LogonType Interactive -RunLevel Highest
+    Register-ScheduledTask -TaskName 'SetDefaultPrinterOnce' -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
     W "Registered one-shot default printer task for '$queue'"
   } catch {
     W "ERROR: Failed to register default-printer task: $($_.Exception.Message)"
@@ -138,7 +141,7 @@ if ($doIO) {
 }
 
 W "=== Printer Map start @ $env:COMPUTERNAME as $([Security.Principal.WindowsIdentity]::GetCurrent().Name) ==="
-if ($doIO) { W "Artifacts ΓåÆ $outDir" }
+if ($doIO) { W "Artifacts -> $outDir" }
 
 # ----------------- Preflight -----------------
 if ($Preflight) {
@@ -174,7 +177,7 @@ if ($doIO) {
   $pf | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $preflightCsv
 }
 
-# Short-circuit: ListOnly ΓåÆ write Results + HTML and exit
+# Short-circuit: ListOnly -> write Results + HTML and exit
 if ($ListOnly) {
   $rows = New-Object System.Collections.Generic.List[object]
   $now = (Get-Date).ToString('s')
@@ -188,13 +191,13 @@ if ($ListOnly) {
     $rows | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $resultsCsv
     $table = $rows | Select-Object Timestamp,Type,Target,Driver,Port,Status |
       ConvertTo-Html -Fragment -PreContent '<h3>Current Printers (UNC + Local)</h3>'
-    $logFrag = if (Test-Path $logPath) { "<h3>Run Log</h3><pre>" + [System.Web.HttpUtility]::HtmlEncode((Get-Content -Raw -LiteralPath $logPath)) + "</pre>" } else { '' }
+    $logFrag = if (Test-Path $logPath) { "<h3>Run Log</h3><pre>" + [System.Net.WebUtility]::HtmlEncode((Get-Content -Raw -LiteralPath $logPath)) + "</pre>" } else { '' }
     $doc = @"
-<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Printer Mappings ΓÇö $env:COMPUTERNAME (ListOnly)</title>
+<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Printer Mappings - $env:COMPUTERNAME (ListOnly)</title>
 <style>body{font-family:Segoe UI,Arial;background:#101014;color:#ececf1;padding:20px}
 table{border-collapse:collapse;width:100%}th,td{border:1px solid #2a2a33;padding:6px 8px;font-size:12px}
 th{background:#171720}tr:nth-child(even){background:#0f0f16}</style></head><body>
-<h2>Printer Mappings ΓÇö $env:COMPUTERNAME (ListOnly)</h2>$table$logFrag</body></html>
+<h2>Printer Mappings - $env:COMPUTERNAME (ListOnly)</h2>$table$logFrag</body></html>
 "@
     Set-Content -LiteralPath $htmlPath -Value $doc -Encoding UTF8
     W "Artifacts:`n  $preflightCsv`n  $resultsCsv`n  $htmlPath`n  $logPath"
@@ -217,7 +220,7 @@ if ($PlanOnly) {
   # Adds
   foreach($u in $desiredUNC){
     if ($beforeUNC -notcontains $u) { Add-UNC $u; $changed = $true }
-    else { W "SKIP add; already present ΓåÆ $u" }
+    else { W "SKIP add; already present -> $u" }
   }
   # Removes (explicit)
   foreach($u in $RemoveQueues){
@@ -279,7 +282,7 @@ if ($doIO) {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Printer Mapping ΓÇö $env:COMPUTERNAME</title>
+  <title>Printer Mapping - $env:COMPUTERNAME</title>
   <style>
     body{font-family:Segoe UI,Arial;background:#101014;color:#ececf1;padding:20px}
     table{border-collapse:collapse;width:100%}
@@ -289,7 +292,7 @@ if ($doIO) {
   </style>
 </head>
 <body>
-  <h2>Printer Mapping Results ΓÇö $env:COMPUTERNAME</h2>
+  <h2>Printer Mapping Results - $env:COMPUTERNAME</h2>
   $table
 </body>
 </html>

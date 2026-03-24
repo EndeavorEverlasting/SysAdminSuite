@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Tests access to a UNC share and lists its top-level contents.
 
@@ -8,7 +8,7 @@
     checks before deploying files to remote hosts.
 
 .PARAMETER SharePath
-    UNC path to the share (e.g. \\HOST\C$). Default: \\LPW003ASI037\C$.
+    UNC path to the share (e.g. \\HOST\C$). Defaults to FILE_SHARE_PATH env var when set.
 
 .EXAMPLE
     Invoke-FileShare -SharePath '\\PRINTSRV\C$'
@@ -17,7 +17,8 @@
 function Invoke-FileShare {
     [CmdletBinding()]
     param(
-        [string]$SharePath = '\\LPW003ASI037\C$'
+        [ValidateNotNullOrEmpty()]
+        [string]$SharePath = $env:FILE_SHARE_PATH
     )
 
     if (-not (Test-Path -LiteralPath $SharePath)) {

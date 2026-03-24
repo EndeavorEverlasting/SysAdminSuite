@@ -1,5 +1,5 @@
-﻿∩╗┐<#
-Fetch-Installers.ps1 ΓÇö vendor-only fetcher with backbone.
+<#
+Fetch-Installers.ps1 - vendor-only fetcher with backbone.
 Reads fetch-map.csv -> downloads installers -> writes checksums -> updates packages.csv.
 No winget. Parallel, retried, verified, and loud.
 
@@ -50,7 +50,7 @@ New-Item -ItemType Directory -Force -Path $Installers,$Checksums | Out-Null
 
 # write-test
 $testFile = Join-Path $Installers ".write-test"
-try { "ok" | Out-File $testFile -Encoding ascii ; Remove-Item $testFile -Force } catch { Fail "No write access to $Installers ΓÇö fix perms or run elevated." }
+try { "ok" | Out-File $testFile -Encoding ascii ; Remove-Item $testFile -Force } catch { Fail "No write access to $Installers - fix perms or run elevated." }
 
 # --- Load plan --------------------------------------------------------------
 if (-not (Test-Path $FetchMap)) { Fail "Missing fetch-map: $FetchMap" }
@@ -65,15 +65,15 @@ $UA = "SysAdminSuite-Fetch/1.1 (+PowerShell)"
 
 function Check-AllowList([string]$url, [string[]]$rowAllow){
   try {
-    $host = ([uri]$url).Host.ToLower()
+    $uriHost = ([uri]$url).Host.ToLower()
   } catch { Fail "Bad URL: $url" }
   $ok = $false
   foreach($dom in ($rowAllow + $AllowList)){
     if ($null -eq $dom -or $dom -eq "") { continue }
     $d = $dom.ToLower()
-    if ($host -eq $d -or $host.EndsWith(".$d")) { $ok = $true; break }
+    if ($uriHost -eq $d -or $uriHost.EndsWith(".$d")) { $ok = $true; break }
   }
-  if (-not $ok) { Fail "Blocked by allow-list: $host  (URL: $url)" }
+  if (-not $ok) { Fail "Blocked by allow-list: $uriHost  (URL: $url)" }
 }
 
 # Build job list
@@ -108,12 +108,10 @@ $throttle = [Math]::Max(1,[Math]::Min($MaxParallel,16))
 $results =
   $jobs |
   ForEach-Object -Parallel {
-    param($item)
-
     $out = [pscustomobject]@{
-      Name       = $item.Name
-      File       = $item.Dest
-      Url        = $item.Url
+      Name       = $_.Name
+      File       = $_.Dest
+      Url        = $_.Url
       Ok         = $false
       Hash       = $null
       Sig        = $null
@@ -122,38 +120,40 @@ $results =
     }
 
     try {
-      $destDir = [System.IO.Path]::GetDirectoryName($item.Dest)
+      $destDir = [System.IO.Path]::GetDirectoryName($_.Dest)
       if (!(Test-Path $destDir)) { New-Item -ItemType Directory -Force -Path $destDir | Out-Null }
 
       # atomic download with retries
-      $tmp = "$($item.Dest).part"
+      $tmp = "$($_.Dest).part"
       for($i=1; $i -le $using:MaxRetries; $i++){
+        $wc = $null
         try{
           if (Test-Path $tmp) { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
           $wc = New-Object System.Net.WebClient
           $wc.Headers['User-Agent'] = $using:UA
-          $wc.DownloadFile($item.Url, $tmp)
-          $wc.Dispose()
+          $wc.DownloadFile($_.Url, $tmp)
 
           $len = (Get-Item $tmp).Length
           if ($len -lt $using:MinBytes) { throw "size $len < $($using:MinBytes)" }
 
-          Move-Item $tmp $item.Dest -Force
+          Move-Item $tmp $_.Dest -Force
           break
         } catch {
           if ($i -eq $using:MaxRetries) { throw }
           Start-Sleep -Seconds ([math]::Min(30, [math]::Pow(2,$i)))
+        } finally {
+          if ($wc) { $wc.Dispose() }
         }
       }
 
       # checksum
-      $hash = (Get-FileHash -Algorithm SHA256 -Path $item.Dest).Hash
-      $chk  = Join-Path $using:Checksums ((Split-Path $item.Dest -Leaf) + ".sha256")
+      $hash = (Get-FileHash -Algorithm SHA256 -Path $_.Dest).Hash
+      $chk  = Join-Path $using:Checksums ((Split-Path $_.Dest -Leaf) + ".sha256")
       $hash | Out-File $chk -Encoding ascii -NoNewline
 
       # signature (best-effort)
       try{
-        $sig = Get-AuthenticodeSignature -FilePath $item.Dest
+        $sig = Get-AuthenticodeSignature -FilePath $_.Dest
         $out.Sig = $sig.Status.ToString()
         $out.SigSubject = $sig.SignerCertificate.Subject
       } catch { $out.Sig = 'Unknown' }

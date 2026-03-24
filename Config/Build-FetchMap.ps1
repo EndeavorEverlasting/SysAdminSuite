@@ -1,5 +1,5 @@
-﻿∩╗┐<#
-Build-FetchMap.ps1 ΓÇö resolves versions & URLs into fetch-map.csv for the hardened fetcher.
+<#
+Build-FetchMap.ps1 - resolves versions and URLs into fetch-map.csv for the hardened fetcher.
 - Supports Source=github (Repo "owner/name") or Source=url.
 - Strategy = latest | pinned
 - Uses AssetRegex to choose a GitHub release asset.
@@ -9,7 +9,7 @@ Build-FetchMap.ps1 ΓÇö resolves versions & URLs into fetch-map.csv for the ha
 param(
   [string]$SourcesCsv = ".\sources.csv",
   [string]$OutCsv     = ".\fetch-map.csv",
-  [string]$RepoRoot   = "\\LPW003ASI037\C$\SoftwareRepo", # optional: write directly there
+  [string]$RepoRoot   = $(if ($env:REPO_ROOT) { $env:REPO_ROOT } else { Join-Path $PSScriptRoot 'SoftwareRepo' }), # optional: write directly there
   [string[]]$AllowList = @("api.github.com","github.com","objects.githubusercontent.com","dl.google.com","download.visualstudio.microsoft.com","aka.ms","python.org","www.python.org","obsidian.md","githubusercontent.com"),
   [switch]$WhatIf
 )
@@ -78,6 +78,9 @@ foreach($r in $src){
       $tmpl = $r.UrlTemplate
       if (-not $tmpl -and $r.Url) { $tmpl = $r.Url }  # optional Url passthrough
       if (-not $tmpl) { Fail "Row '$name': UrlTemplate (or Url) required for Source=url" }
+      if ((($tmpl -match '\{\{version\}\}') -or ($r.FileNameTemplate -match '\{\{version\}\}')) -and [string]::IsNullOrEmpty($ver)) {
+        Fail "Row '$name': Version is required because template contains {{version}}."
+      }
       $resolvedVer = $ver
       $url  = ($tmpl -replace '\{\{version\}\}', $resolvedVer)
       $file = ($r.FileNameTemplate) ? ($r.FileNameTemplate -replace '\{\{version\}\}', $resolvedVer) : (Split-Path $url -Leaf)
@@ -86,7 +89,7 @@ foreach($r in $src){
   }
 
   if (-not (AllowedHost $url ($r.AllowDomains -split ';'))) {
-    Fail "Row '$name': URL host blocked by allow-list ΓåÆ $url"
+    Fail "Row '$name': URL host blocked by allow-list -> $url"
   }
 
   $rows += [pscustomobject]@{

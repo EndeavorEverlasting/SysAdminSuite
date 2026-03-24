@@ -1,4 +1,4 @@
-﻿∩╗┐# Fetch-DRYRUN.ps1
+# Fetch-DRYRUN.ps1
 # --- bootstrap ---
 $ErrorActionPreference = 'Stop'
 $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
@@ -11,8 +11,17 @@ $tools = Join-Path $here 'GoLiveTools.ps1'
 if (-not (Test-Path $tools)) { throw "Missing GoLiveTools.ps1 at $tools" }
 $repoHost = $env:REPO_HOST
 $hostFile = Join-Path $here 'RepoHost.txt'
-if (-not $repoHost -and (Test-Path $hostFile)) { $repoHost = (Get-Content $hostFile | Select-Object -First 1).Trim() }
+if (-not $repoHost -and (Test-Path $hostFile)) {
+  $line = Get-Content $hostFile | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
+  if ($line) { $repoHost = $line.Trim() }
+}
+if ([string]::IsNullOrWhiteSpace($repoHost)) {
+  throw "Repo host is empty. Set REPO_HOST or provide a non-empty value in $hostFile before running $tools."
+}
 . $tools -RepoHost $repoHost
-
-Invoke-Fetch -RepoRoot $RepoRoot -DryRun -MaxParallel 4
-Stop-Transcript | Out-Null
+try {
+  Invoke-Fetch -RepoRoot $RepoRoot -DryRun -MaxParallel 4
+}
+finally {
+  Stop-Transcript | Out-Null
+}

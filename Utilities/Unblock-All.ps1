@@ -1,4 +1,4 @@
-﻿∩╗┐<# Unblock every file in and below the repo. Safe to re-run. #>
+<# Unblock every file in and below the repo. Safe to re-run. #>
 param(
   [string]$Path = (Get-Location).Path
 )

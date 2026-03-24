@@ -1,4 +1,4 @@
-﻿∩╗┐# Stage-To-Clients.ps1
+# Stage-To-Clients.ps1
 # Mirrors the depot to target PCs (uses Clients.txt)
 # --- bootstrap ---
 $ErrorActionPreference = 'Stop'
@@ -12,11 +12,23 @@ $tools = Join-Path $here 'GoLiveTools.ps1'
 if (-not (Test-Path $tools)) { throw "Missing GoLiveTools.ps1 at $tools" }
 $repoHost = $env:REPO_HOST
 $hostFile = Join-Path $here 'RepoHost.txt'
-if (-not $repoHost -and (Test-Path $hostFile)) { $repoHost = (Get-Content $hostFile | Select-Object -First 1).Trim() }
+if (-not $repoHost -and (Test-Path $hostFile)) {
+  $line = Get-Content $hostFile | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
+  if ($line) { $repoHost = $line.Trim() }
+}
+if ([string]::IsNullOrWhiteSpace($repoHost)) {
+  throw "Repo host is empty. Set REPO_HOST or provide a non-empty value in $hostFile."
+}
 . $tools -RepoHost $repoHost
-
-$clientsPath = Join-Path $here 'Clients.txt'
-if (-not (Test-Path $clientsPath)) { throw "Missing Clients.txt at $clientsPath" }
-$pcs = Get-Content $clientsPath | Where-Object { $_ -and $_.Trim() -ne '' } | ForEach-Object { $_.Trim() }
-Copy-SoftwareToClients -RepoRoot $RepoRoot -ComputerName $pcs -MaxParallel 8
-Stop-Transcript | Out-Null
+try {
+  $clientsPath = Join-Path $here 'Clients.txt'
+  if (-not (Test-Path $clientsPath)) { throw "Missing Clients.txt at $clientsPath" }
+  $pcs = Get-Content $clientsPath | Where-Object { $_ -and $_.Trim() -ne '' } | ForEach-Object { $_.Trim() }
+  if (-not $pcs -or $pcs.Count -eq 0) {
+    throw "No valid client names were found in $clientsPath. `$pcs is empty."
+  }
+  Copy-SoftwareToClients -RepoRoot $RepoRoot -ComputerName $pcs -MaxParallel 8
+}
+finally {
+  Stop-Transcript | Out-Null
+}

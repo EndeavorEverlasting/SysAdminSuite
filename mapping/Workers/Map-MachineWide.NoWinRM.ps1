@@ -1,4 +1,4 @@
-﻿∩╗┐<#
+<#
 Map-Remote-MachineWide-Printers.NoWinRM.ps1  (v1.1)
 Controller: PS7 (your box). Targets: Win10/11 PS5. No WinRM required.
 Transport: SMB (\\HOST\C$) + SCHTASKS (/S HOST). Optional remote REG verify.
@@ -90,14 +90,16 @@ try {
   foreach ($q in $queuesRemove) {
     try {
       Write-Log "REMOVE $q"
-      Start-Process -FilePath 'rundll32.exe' -ArgumentList @('printui.dll,PrintUIEntry','/gd',"/n$q") -Wait -WindowStyle Hidden
+      $p = Start-Process -FilePath 'rundll32.exe' -ArgumentList @('printui.dll,PrintUIEntry','/gd',"/n$q") -Wait -WindowStyle Hidden -PassThru
+      if ($p.ExitCode -ne 0) { throw "rundll32 exit code: $($p.ExitCode)" }
     } catch { Write-Log "REMOVE FAIL $q :: $($_.Exception.Message)" }
   }
 
   foreach ($q in $queuesAdd) {
     try {
       Write-Log "ADD $q"
-      Start-Process -FilePath 'rundll32.exe' -ArgumentList @('printui.dll,PrintUIEntry','/ga',"/n$q") -Wait -WindowStyle Hidden
+      $p = Start-Process -FilePath 'rundll32.exe' -ArgumentList @('printui.dll,PrintUIEntry','/ga',"/n$q") -Wait -WindowStyle Hidden -PassThru
+      if ($p.ExitCode -ne 0) { throw "rundll32 exit code: $($p.ExitCode)" }
     } catch { Write-Log "ADD FAIL $q :: $($_.Exception.Message)" }
   }
 
@@ -109,14 +111,17 @@ try {
   if ($defaultQ) {
     try {
       Write-Log "Schedule default at next logon: $defaultQ"
+      $connNameEsc = $defaultQ.Replace("'","''")
+      $filterEsc = $defaultQ.Replace("'","''").Replace('\','\\')
       $ps = @"
-Add-Printer -ConnectionName '$defaultQ' -ErrorAction SilentlyContinue
-\$p = Get-CimInstance Win32_Printer -Filter "Name='$($defaultQ.Replace('\','\\'))'"
+Add-Printer -ConnectionName '$connNameEsc' -ErrorAction SilentlyContinue
+\$p = Get-CimInstance Win32_Printer -Filter "Name='$filterEsc'"
 if (\$p) { \$null = \$p | Invoke-CimMethod -MethodName SetDefaultPrinter }
 "@
       $act  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -Command $ps"
       $trg  = New-ScheduledTaskTrigger -AtLogOn
-      Register-ScheduledTask -TaskName 'SetDefaultPrinterOnce' -Action $act -Trigger $trg -RunLevel Highest -User 'NT AUTHORITY\SYSTEM' -Force | Out-Null
+      $principal = New-ScheduledTaskPrincipal -UserId 'BUILTIN\Users' -LogonType Interactive -RunLevel Highest
+      Register-ScheduledTask -TaskName 'SetDefaultPrinterOnce' -Action $act -Trigger $trg -Principal $principal -Force | Out-Null
     } catch { Write-Log "DEFAULT TASK FAIL :: $($_.Exception.Message)" }
   }
 
@@ -175,6 +180,9 @@ if (-not (Test-Path "\\$fqdn0\C$")) {
 }
 try {
   $q = & schtasks.exe /Query /S $fqdn0 /FO LIST 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warning "SCHTASKS RPC may be blocked to $fqdn0 (135/445). Script will attempt anyway."
+  }
 } catch {
   Write-Warning "SCHTASKS RPC may be blocked to $fqdn0 (135/445). Script will attempt anyway."
 }
@@ -281,7 +289,8 @@ $hosts | ForEach-Object -ThrottleLimit $MaxParallel -Parallel {
     }
   }
 
-  $using:bag.Add([pscustomobject]$result)
+  $bagRef = $using:bag
+  $bagRef.Add([pscustomobject]$result)
 }
 
 # Emit results

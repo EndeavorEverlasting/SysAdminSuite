@@ -1,10 +1,11 @@
-﻿<#
+<#
 .SYNOPSIS
     Tests network connectivity to one or more target hosts.
 
 .DESCRIPTION
-    Sends ICMP echo requests to each target. Returns $true per host that
-    responds, $false otherwise. Safe to call offline — never throws.
+    Sends ICMP echo requests to each target and returns one object per host
+    with ComputerName and Reachable (boolean). Safe to call offline and
+    designed not to throw for unreachable targets.
 
 .PARAMETER ComputerName
     One or more hostnames or IP addresses to ping. Default: 8.8.8.8.

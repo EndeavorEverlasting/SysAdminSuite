@@ -1,4 +1,4 @@
-﻿∩╗┐# Test-Links.ps1
+# Test-Links.ps1
 # HEAD checks every URL in fetch-map.csv
 # --- bootstrap ---
 $ErrorActionPreference = 'Stop'
@@ -12,10 +12,19 @@ $tools = Join-Path $here 'GoLiveTools.ps1'
 if (-not (Test-Path $tools)) { throw "Missing GoLiveTools.ps1 at $tools" }
 $repoHost = $env:REPO_HOST
 $hostFile = Join-Path $here 'RepoHost.txt'
-if (-not $repoHost -and (Test-Path $hostFile)) { $repoHost = (Get-Content $hostFile | Select-Object -First 1).Trim() }
+if (-not $repoHost -and (Test-Path $hostFile)) {
+  $line = Get-Content $hostFile | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
+  if ($line) { $repoHost = $line.Trim() }
+}
+if ([string]::IsNullOrWhiteSpace($repoHost)) {
+  throw "Repo host is empty. Set REPO_HOST or provide a non-empty value in $hostFile."
+}
 . $tools -RepoHost $repoHost
-
-$r = Test-FetchMap -RepoRoot $RepoRoot -HeadOnly
-$r.Results | Sort-Object Status | Format-Table Name,Status,FinalUrl,Error -Auto
-$r.Results | Export-Csv (Join-Path $logs "Test-Links-Results-$stamp.csv") -NoType
-Stop-Transcript | Out-Null
+try {
+  $r = Test-FetchMap -RepoRoot $RepoRoot -HeadOnly
+  $r.Results | Sort-Object Status | Format-Table Name,Status,FinalUrl,Error -Auto
+  $r.Results | Export-Csv (Join-Path $logs "Test-Links-Results-$stamp.csv") -NoType
+}
+finally {
+  Stop-Transcript | Out-Null
+}

@@ -1,4 +1,4 @@
-﻿∩╗┐<#  RPM-Recon.ps1 ΓÇö Zero-risk printer mapping recon (ListOnly + Preflight)
+<#  RPM-Recon.ps1 - Zero-risk printer mapping recon (ListOnly + Preflight)
     Streams progress live to console + Controller.log, survives Ctrl+C and
     finalizes outputs with whatever results were collected so far.
 
@@ -58,7 +58,9 @@ $drain = {
 }
 $timer = New-Object System.Timers.Timer 500
 $timer.AutoReset = $true
-$timer.add_Elapsed({ & $drain $queue $ctrlLog })
+$null = Register-ObjectEvent -InputObject $timer -EventName Elapsed -SourceIdentifier 'RPMRecon.TimerElapsed' -Action {
+  & $using:drain $using:queue $using:ctrlLog
+}
 $timer.Start()
 
 function Enq([string]$msg,[string]$tag='CTL') { $queue.Enqueue([pscustomobject]@{Tag=$tag;Msg=$msg}) }
@@ -66,55 +68,6 @@ function Enq([string]$msg,[string]$tag='CTL') { $queue.Enqueue([pscustomobject]@
 Enq "Recon session: $sessionRoot"
 Enq ("Hosts: {0}" -f $Targets.Count)
 Enq ("Open: {0}" -f (Join-Path $sessionRoot 'index.html'))
-
-# ===== HANDOFF: schedule the worker on the remote host (no logic changes) =====
-
-# Build remote worker path and command
-$remoteWorker = Join-Path $remoteRoot ([IO.Path]::GetFileName($localWorker))
-$psArgs       = '"{0}" -ListOnly -Preflight' -f $remoteWorker
-$pshWin       = 'powershell.exe'  # SYSTEM always has Windows PowerShell
-$tr           = '{0} -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File {1}' -f $pshWin, $psArgs
-
-# When to run (avoid EndBoundary XML issues by setting both date & time)
-$when   = (Get-Date).AddMinutes(1)
-$stTime = $when.ToString('HH:mm')
-$stDate = $when.ToString('MM/dd/yyyy')
-
-# Early breadcrumbs so you know weΓÇÖre past staging and into scheduler territory
-EnqRun "[${target}] HANDOFF ΓåÆ scheduler (TR len: $($tr.Length))"
-EnqRun "[${target}] TR: $tr"
-EnqRun "[${target}] SD/ST: $stDate $stTime"
-
-# Create
-$createCmd = "schtasks /Create /S $schedTarget /RU SYSTEM /SC ONCE /SD $stDate /ST $stTime /TN $taskName /TR `"$tr`" /RL HIGHEST"
-$createOut = (cmd /c $createCmd) 2>&1
-EnqRun "[${target}] CREATE OUT: $($createOut -join ' ' | ForEach-Object { $_ })"
-
-# Run
-$runCmd = "schtasks /Run /S $schedTarget /TN $taskName"
-$runOut = (cmd /c $runCmd) 2>&1
-EnqRun "[${target}] RUN OUT: $($runOut -join ' ' | ForEach-Object { $_ })"
-
-# Confirm what the target thinks it will execute
-$queryCmd = "schtasks /Query /S $schedTarget /TN $taskName /V /FO LIST"
-$queryOut = (cmd /c $queryCmd) 2>&1
-$actionLine = ($queryOut | Select-String -Pattern '^\s*Actions:\s*(.+)$' -AllMatches).Matches | Select-Object -Last 1
-$lastRunRes = ($queryOut | Select-String -Pattern '^\s*Last Run Result:\s*(.+)$' -AllMatches).Matches | Select-Object -Last 1
-if ($actionLine) { EnqRun "[${target}] TASK ACTION: $($actionLine.Groups[1].Value.Trim())" }
-if ($lastRunRes) { EnqRun "[${target}] LAST RUN RESULT: $($lastRunRes.Groups[1].Value.Trim())" }
-
-# First, verify the remote logs root exists; if not, log it explicitly.
-$remoteLogs = Join-Path $remoteRoot 'logs'
-try {
-  if (-not (Test-Path -LiteralPath $remoteLogs)) {
-    EnqRun "[${target}] REMOTE LOGS DIR MISSING: $remoteLogs (will poll anyway)"
-  }
-} catch {
-  EnqRun "[${target}] REMOTE LOGS DIR CHECK ERROR: $remoteLogs ΓÇö $($_.Exception.Message)"
-}
-
-# ===== continue into your existing POLLING loop unchanged =====
-
 
 # --- Remote scheduling constants ----------------------------------------------
 $remoteRootRel = "C$\ProgramData\SysAdminSuite\Mapping"
@@ -162,7 +115,7 @@ try {
       # Stage worker (terminating errors)
       New-Item -ItemType Directory -Path $dstShare -Force -ErrorAction Stop | Out-Null
       Copy-Item -LiteralPath $localWorker -Destination $dstShare -Force -ErrorAction Stop
-      EnqRun "[$target] COPY OK ΓåÆ $dstShare"
+      EnqRun "[$target] COPY OK -> $dstShare"
 
       # Schedule ONCE
       $remoteWorker = Join-Path $remoteRoot ([IO.Path]::GetFileName($localWorker))
@@ -172,17 +125,26 @@ try {
 
       $when   = (Get-Date).AddMinutes(1)
       $stTime = $when.ToString('HH:mm')
-      $stDate = $when.ToString('MM/dd/yyyy')
+      $dateFmt = [System.Globalization.CultureInfo]::CurrentCulture.DateTimeFormat.ShortDatePattern
+      $stDate = $when.ToString($dateFmt)
 
-      $createOut = (cmd /c "schtasks /Create /S $schedTarget /RU SYSTEM /SC ONCE /SD $stDate /ST $stTime /TN $taskName /TR `"$tr`" /RL HIGHEST") 2>&1
+      $createOut = & schtasks.exe /Create /S $schedTarget /RU SYSTEM /SC ONCE /SD $stDate /ST $stTime /TN $taskName /TR $tr /RL HIGHEST /F 2>&1
+      if ($LASTEXITCODE -ne 0) {
+        EnqRun "[$target] ERROR schtasks /Create failed (exit $LASTEXITCODE): $createOut"
+        $status = "Create failed"; throw "schtasks /Create failed"
+      }
       EnqRun "[${target}] TASK CREATED ($stDate $stTime)"
 
-      $runOut = (cmd /c "schtasks /Run /S $schedTarget /TN $taskName") 2>&1
+      $runOut = & schtasks.exe /Run /S $schedTarget /TN $taskName 2>&1
+      if ($LASTEXITCODE -ne 0) {
+        EnqRun "[$target] ERROR schtasks /Run failed (exit $LASTEXITCODE): $runOut"
+        $status = "Run failed"; throw "schtasks /Run failed"
+      }
       EnqRun "[${target}] TASK STARTED"
 
 
       # Poll for artifacts
-      EnqRun "[$target] POLLING ΓÇª"
+      EnqRun "[$target] POLLING ..."
       $latest = $null
       $elapsed = 0
       while ($elapsed -lt $MaxWaitSeconds) {
@@ -199,34 +161,35 @@ try {
       if ($latest) {
         $hostOut = Join-Path $sessionRoot $target
         New-Item -ItemType Directory -Path $hostOut -Force | Out-Null
-        Copy-Item -Path (Join-Path $latest.FullName '*.*') -Destination $hostOut -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path (Join-Path $latest.FullName '*') -Destination $hostOut -Force -ErrorAction SilentlyContinue
         Get-ChildItem -Path $latest.FullName -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $latest.FullName -Force -ErrorAction SilentlyContinue
         EnqRun "[$target] COLLECTED"
-        $status = "Collected ΓåÆ $hostOut"
+        $status = "Collected -> $hostOut"
       } else {
         EnqRun "[$target] NO ARTIFACTS (${MaxWaitSeconds}s)"
         $status = "No artifacts after ${MaxWaitSeconds}s"
       }
 
       # Cleanup (best-effort)
-      cmd /c "schtasks /Delete /S $schedTarget /TN $taskName /F" | Out-Null
+      & schtasks.exe /Delete /S $schedTarget /TN $taskName /F 2>&1 | Out-Null
       Remove-Item -LiteralPath "\\$shareName\C$\ProgramData\SysAdminSuite\Mapping" -Recurse -Force -ErrorAction SilentlyContinue
 
       $sw.Stop()
-      EnqRun "[$target] SUMMARY | Create: $createOut | Run: $runOut | $status | ${($sw.Elapsed)}"
+      EnqRun "[$target] SUMMARY | Create: $createOut | Run: $runOut | $status | $($sw.Elapsed)"
 
     } catch {
       $sw.Stop()
-      EnqRun "[$target] ERROR: $($_.Exception.Message) | ${($sw.Elapsed)}"
+      EnqRun "[$target] ERROR: $($_.Exception.Message) | $($sw.Elapsed)"
     }
   } -ThrottleLimit $MaxParallel
 
 } catch [System.Management.Automation.PipelineStoppedException] {
-  Enq "Ctrl+C detected ΓÇö finalizing with partial resultsΓÇª" "CTL"
+  Enq "Ctrl+C detected - finalizing with partial results..." "CTL"
 } finally {
   # Stop timer, drain queue
   $timer.Stop()
+  Unregister-Event -SourceIdentifier 'RPMRecon.TimerElapsed' -ErrorAction SilentlyContinue
   & $drain $queue $ctrlLog
 
   # Roll-up CentralResults.csv (whatever we have)

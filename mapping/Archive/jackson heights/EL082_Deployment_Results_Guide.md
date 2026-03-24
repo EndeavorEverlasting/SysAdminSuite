@@ -1,4 +1,4 @@
-# EL082 Deployment Results Guide
+﻿# EL082 Deployment Results Guide
 
 ## Overview
 
@@ -14,7 +14,7 @@ This guide explains the results table shown when running the EL082 deployment sc
 ### Reachable
 - **Description**: Whether the script could establish connectivity to the target host
 - **Values**: `True` or `False`
-- **What it means**: 
+- **What it means**:
   - `True`: Script successfully connected to the host (or sandbox mode is enabled)
   - `False`: Host is offline, unreachable, or has network connectivity issues
 
@@ -125,4 +125,4 @@ This directory contains:
 - Check network connectivity
 - Verify administrative permissions
 - Review Windows Event Logs on target systems
-- Use sandbox mode to isolate issues 
+- Use sandbox mode to isolate issues

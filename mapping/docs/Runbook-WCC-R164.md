@@ -1,8 +1,8 @@
-﻿
-# Runbook ΓÇö Implement Recon Across 164 Devices (No config changes)
+
+# Runbook - Implement Recon Across 164 Devices (No config changes)
 
 This runbook drives your existing **RPM-Recon.ps1** in safe batches and gives you
-a predictable audit trail. It does **not** change the recon logicΓÇöonly orchestration.
+a predictable audit trail. It does **not** change the recon logic - only orchestration.
 
 ## 0) Preconditions (once)
 - PowerShell **7+**, elevated
@@ -11,7 +11,9 @@ a predictable audit trail. It does **not** change the recon logicΓÇöonly orch
 - `mapping\csv\hosts.txt` contains **all 164 hosts**, one per line (`#` for comments)
 
 ## 1) Download the helper
+- Source `Run-164.ps1` from this repo path: `mapping/controllers/Run-164.ps1` (or your approved internal artifact mirror of that exact file).
 - Save **Run-164.ps1** next to `mapping/` (repo root or inside `mapping/` both OK).
+- If you cannot access that path, request the current signed copy from the platform/automation owner before running.
 
 ## 2) Dry-run sanity (3 hosts)
 ```powershell
@@ -28,7 +30,7 @@ Recommended starting values: **BatchSize=24**, **MaxParallel=12**, **Delay=20s**
 ```
 
 What this does:
-- Splits the 164 hosts into ~7 batches (`hosts_batch-001.txt`, ΓÇª).
+- Splits the 164 hosts into ~7 batches (`hosts_batch-001.txt`, ...).
 - Calls your **RPM-Recon.ps1** for each batch.
 - Rolls up any per-batch `CentralResults.csv` into **logs\MasterResults.csv**.
 - Prints a summary and where to find session folders.
@@ -47,9 +49,9 @@ What this does:
 - If Kerberos/SPN errors show up, swap short names for FQDNs in `hosts.txt`.
 
 ## 6) Tuning heuristics
-- Lots of 'OFFLINE' or `COPY` errors ΓåÆ drop `-MaxParallel` to 8 and add delay (30ΓÇô45s).
-- Busy endpoints, slow artifact writes ΓåÆ raise `-MaxWaitSeconds` to 60ΓÇô90.
-- Controller CPU pinned ΓåÆ lower `-MaxParallel` per batch.
+- Lots of 'OFFLINE' or `COPY` errors -> drop `-MaxParallel` to 8 and add delay (30-45s).
+- Busy endpoints, slow artifact writes -> raise `-MaxWaitSeconds` to 60-90.
+- Controller CPU pinned -> lower `-MaxParallel` per batch.
 
 ---
 

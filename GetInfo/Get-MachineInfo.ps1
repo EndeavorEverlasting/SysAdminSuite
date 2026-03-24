@@ -1,8 +1,12 @@
-﻿param(
+param(
   [string]$ListPath   = "C:\Temp\hostlist.txt",
   [string]$OutputPath = "C:\Temp\MachineInfo.csv",
   [int]$Throttle      = 15
 )
+
+if (-not (Test-Path -Path $ListPath)) {
+  throw "List file not found: $ListPath"
+}
 
 $Computers = Get-Content -Path $ListPath |
   Where-Object { $_ -and $_.Trim() -ne "" } |
@@ -56,6 +60,7 @@ function Start-MachineQueryJob {
           Status         = 'OK'
         }
       } catch {
+        $errMsg = $_.Exception.Message
         [pscustomobject]@{
           Timestamp      = $timestamp
           HostName       = $Computer
@@ -63,7 +68,8 @@ function Start-MachineQueryJob {
           IPAddress      = ''
           MACAddress     = ''
           MonitorSerials = ''
-          Status         = 'Firewall Blocked'
+          Status         = 'Query Failed'
+          ErrorMessage   = $errMsg
         }
       }
     } else {
@@ -82,8 +88,11 @@ function Start-MachineQueryJob {
 
 $jobs = @()
 foreach ($c in $Computers) {
-  while ((Get-Job -State Running).Count -ge $Throttle) {
-    Wait-Job -Any (Get-Job -State Running) | Out-Null
+  # BUG-FIX: Filter by job name prefix so unrelated session jobs don't affect throttling
+  $runningJobs = $jobs | Where-Object { $_.State -eq 'Running' }
+  while ($runningJobs.Count -ge $Throttle) {
+    Wait-Job -Any $runningJobs | Out-Null
+    $runningJobs = $jobs | Where-Object { $_.State -eq 'Running' }
   }
   $jobs += Start-MachineQueryJob -Computer $c
 }
@@ -92,6 +101,9 @@ if ($jobs) { Wait-Job -Job $jobs | Out-Null }
 
 $results = $jobs | Receive-Job
 $dir = Split-Path -Path $OutputPath -Parent
+if ([string]::IsNullOrWhiteSpace($dir)) {
+  $dir = (Get-Location).Path
+}
 if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
 $results | Sort-Object HostName | Export-Csv -Path $OutputPath -NoTypeInformation
 

@@ -1,6 +1,6 @@
-﻿∩╗┐<#
+<#
 Map-Remote-MachineWide-Printers.v5Compat.ps1
-PS7 admin ΓåÆ PS5 endpoints (200+ boxes) via WSMan, no agent installs.
+PS7 admin -> PS5 endpoints (200+ boxes) via WSMan, no agent installs.
 Machine-wide adds (/ga), removals (/gd), optional per-user default via one-shot task, and verify.
 Creates a pooled set of PS5 sessions (-ConfigurationName Microsoft.PowerShell) and fans out in parallel.
 
@@ -62,7 +62,7 @@ function New-CompatSessions {
   )
 
   $opt = New-PSSessionOption -OperationTimeout (1000 * 90) -IdleTimeout 7200000
-  $args = @{
+  $sessionArgs = @{
     ComputerName      = $Computers
     ConfigurationName = 'Microsoft.PowerShell'   # <-- PS5 endpoint
     Authentication    = 'Negotiate'
@@ -71,10 +71,10 @@ function New-CompatSessions {
     ErrorAction       = 'SilentlyContinue'
     ThrottleLimit     = $Throttle
   }
-  if ($Cred) { $args.Credential = $Cred }
+  if ($Cred) { $sessionArgs.Credential = $Cred }
 
   Write-Verbose "Opening sessions to $($Computers.Count) endpoints (PS5) ..."
-  $sessions = New-PSSession @args
+  $sessions = New-PSSession @sessionArgs
 
   # Report failures explicitly
   $failed = $Computers | Where-Object { $c = $_; -not ($sessions.ComputerName -contains $c) }
@@ -90,8 +90,8 @@ $sbAdd = {
   $added = @()
   foreach ($q in $Queues) {
     try {
-      Start-Process -FilePath 'rundll32.exe' -ArgumentList @('printui.dll,PrintUIEntry','/ga',"/n$q") -Wait -WindowStyle Hidden
-      $added += $q
+      $p = Start-Process -FilePath 'rundll32.exe' -ArgumentList @('printui.dll,PrintUIEntry','/ga',"/n$q") -Wait -WindowStyle Hidden -PassThru
+      if ($p.ExitCode -eq 0) { $added += $q } else { Write-Error "Add failed: $q :: exit code $($p.ExitCode)" }
     } catch { Write-Error "Add failed: $q :: $($_.Exception.Message)" }
   }
   try { Start-Process gpupdate.exe -ArgumentList '/target:computer','/force' -WindowStyle Hidden -Wait } catch {}
@@ -103,8 +103,8 @@ $sbRemove = {
   $removed = @()
   foreach ($q in $Queues) {
     try {
-      Start-Process -FilePath 'rundll32.exe' -ArgumentList @('printui.dll,PrintUIEntry','/gd',"/n$q") -Wait -WindowStyle Hidden
-      $removed += $q
+      $p = Start-Process -FilePath 'rundll32.exe' -ArgumentList @('printui.dll,PrintUIEntry','/gd',"/n$q") -Wait -WindowStyle Hidden -PassThru
+      if ($p.ExitCode -eq 0) { $removed += $q } else { Write-Error "Remove failed: $q :: exit code $($p.ExitCode)" }
     } catch { Write-Error "Remove failed: $q :: $($_.Exception.Message)" }
   }
   try { Start-Process gpupdate.exe -ArgumentList '/target:computer','/force' -WindowStyle Hidden -Wait } catch {}
@@ -113,15 +113,21 @@ $sbRemove = {
 
 $sbDefaultOnce = {
   param([string]$Queue)
+  if ($Queue -notmatch "^[A-Za-z0-9 _\-\\]+$") {
+    throw "Queue contains unsupported characters: $Queue"
+  }
+  $connEsc = $Queue.Replace("'","''")
+  $filterEsc = $Queue.Replace("'","''").Replace('\','\\')
   $ps = @"
-Add-Printer -ConnectionName '$Queue' -ErrorAction SilentlyContinue
-\$p = Get-CimInstance Win32_Printer -Filter "Name='$($Queue.Replace('\','\\'))'"
+Add-Printer -ConnectionName '$connEsc' -ErrorAction SilentlyContinue
+\$p = Get-CimInstance Win32_Printer -Filter "Name='$filterEsc'"
 if (\$p) { \$null = \$p | Invoke-CimMethod -MethodName SetDefaultPrinter }
 "@
   try {
     $act  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -Command $ps"
     $trg  = New-ScheduledTaskTrigger -AtLogOn
-    Register-ScheduledTask -TaskName 'SetDefaultPrinterOnce' -Action $act -Trigger $trg -RunLevel Highest -User 'NT AUTHORITY\SYSTEM' -Force | Out-Null
+    $principal = New-ScheduledTaskPrincipal -UserId 'BUILTIN\Users' -LogonType Interactive -RunLevel Highest
+    Register-ScheduledTask -TaskName 'SetDefaultPrinterOnce' -Action $act -Trigger $trg -Principal $principal -Force | Out-Null
     'DEFAULT_TASK_REGISTERED'
   } catch { Write-Error $_ }
 }
@@ -133,7 +139,7 @@ $sbVerify = {
 
 # ---- Main --------------------------------------------------------------------
 
-$hosts = Get-HostList -Path $HostsPath
+$hosts = @(Get-HostList -Path $HostsPath)
 if (-not $hosts.Count) { throw "No hosts in $HostsPath" }
 
 # Open a session pool to PS5 endpoints once, reuse for all actions
@@ -145,7 +151,7 @@ function Invoke-Pool {
   param(
     [System.Management.Automation.Runspaces.PSSession[]]$Sess,
     [scriptblock]$ScriptBlock,
-    [object[]]$Args = @(),
+    [object[]]$InvokeArgs = @(),
     [int]$Max = 32,
     [int]$Timeout = 120,
     [string]$Action = 'RUN'
@@ -153,21 +159,21 @@ function Invoke-Pool {
   $bag = [System.Collections.Concurrent.ConcurrentBag[object]]::new()
   $null = $Sess | ForEach-Object -ThrottleLimit $Max -Parallel {
     $sb      = $using:ScriptBlock
-    $args    = $using:Args
+    $argList = $using:InvokeArgs
     $timeout = $using:Timeout
     $act     = $using:Action
     try {
-      $job = Invoke-Command -Session $_ -ScriptBlock $sb -ArgumentList $args -AsJob -ErrorAction Stop
+      $job = Invoke-Command -Session $_ -ScriptBlock $sb -ArgumentList $argList -AsJob -ErrorAction Stop
       if (-not ($job | Wait-Job -Timeout $timeout)) {
         try { $job | Stop-Job -Force | Out-Null } catch {}
-        $bag.Add([pscustomobject]@{ Computer=$_.ComputerName; Action=$act; Ok=$false; Message="Timeout ${timeout}s" })
+        $using:bag.Add([pscustomobject]@{ Computer=$_.ComputerName; Action=$act; Ok=$false; Message="Timeout ${timeout}s" })
       } else {
         $out = $job | Receive-Job -ErrorAction SilentlyContinue
         $job | Remove-Job | Out-Null
-        $bag.Add([pscustomobject]@{ Computer=$_.ComputerName; Action=$act; Ok=$true;  Message=($out | Out-String).Trim() })
+        $using:bag.Add([pscustomobject]@{ Computer=$_.ComputerName; Action=$act; Ok=$true;  Message=($out | Out-String).Trim() })
       }
     } catch {
-      $bag.Add([pscustomobject]@{ Computer=$_.ComputerName; Action=$act; Ok=$false; Message=$_.Exception.Message })
+      $using:bag.Add([pscustomobject]@{ Computer=$_.ComputerName; Action=$act; Ok=$false; Message=$_.Exception.Message })
     }
   }
   $bag.ToArray()
@@ -176,15 +182,15 @@ function Invoke-Pool {
 $results = @()
 
 if ($Queues.Count) {
-  $results += Invoke-Pool -Sess $sessions -ScriptBlock $sbAdd -Args @($Queues) -Max $MaxParallel -Timeout $TimeoutSeconds -Action 'ADD'
+  $results += Invoke-Pool -Sess $sessions -ScriptBlock $sbAdd -InvokeArgs @($Queues) -Max $MaxParallel -Timeout $TimeoutSeconds -Action 'ADD'
 }
 
 if ($RemoveQueues.Count) {
-  $results += Invoke-Pool -Sess $sessions -ScriptBlock $sbRemove -Args @($RemoveQueues) -Max $MaxParallel -Timeout $TimeoutSeconds -Action 'REMOVE'
+  $results += Invoke-Pool -Sess $sessions -ScriptBlock $sbRemove -InvokeArgs @($RemoveQueues) -Max $MaxParallel -Timeout $TimeoutSeconds -Action 'REMOVE'
 }
 
 if ($DefaultQueue) {
-  $results += Invoke-Pool -Sess $sessions -ScriptBlock $sbDefaultOnce -Args @($DefaultQueue) -Max $MaxParallel -Timeout $TimeoutSeconds -Action 'DEFAULT'
+  $results += Invoke-Pool -Sess $sessions -ScriptBlock $sbDefaultOnce -InvokeArgs @($DefaultQueue) -Max $MaxParallel -Timeout $TimeoutSeconds -Action 'DEFAULT'
 }
 
 if ($Verify) {

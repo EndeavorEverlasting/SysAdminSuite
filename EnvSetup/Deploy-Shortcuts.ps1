@@ -1,4 +1,4 @@
-﻿∩╗┐<#
+∩╗┐<#
  Deploy two shortcuts to Public Desktop on WLS111WCC001-164
  Source share: \\LPW003ASI037\C$\Shortcuts
 
@@ -43,9 +43,12 @@ function LogLine([string]$msg) {
   "$stamp $msg" | Out-File $logTxt -Append -Encoding UTF8
 }
 function CsvLog($hostName,$file,$status,$detail) {
-  # escape internal quotes for CSV safety
-  $safeDetail = ($detail -replace '"','""')
-  $line = ('{0},{1},"{2}",{3},"{4}"' -f (Get-Date).ToString("s"), $hostName, $file, $status, $safeDetail)
+  # escape internal quotes for CSV safety (all fields)
+  $safeHost   = ($hostName -replace '"','""')
+  $safeFile   = ($file     -replace '"','""')
+  $safeStatus = ($status   -replace '"','""')
+  $safeDetail = ($detail   -replace '"','""')
+  $line = ('"{0}","{1}","{2}","{3}","{4}"' -f (Get-Date).ToString("s"), $safeHost, $safeFile, $safeStatus, $safeDetail)
   $line | Out-File $logCsv -Append -Encoding UTF8
 }
 "Time,Hostname,File,Status,Detail" | Out-File $logCsv -Encoding UTF8
@@ -84,16 +87,16 @@ $script:ConnectedHosts = @()
 
 function Invoke-NetUseIpc([string]$targetHost, [string]$password, [string]$user) {
   # Returns @{ ExitCode = int; Output = string }
-  $args = @("use", "\\$targetHost\IPC$", $password, "/user:$user", "/persistent:no")
-  $output = & net.exe $args 2>&1
+  $netArgs = @("use", "\\$targetHost\IPC$", $password, "/user:$user", "/persistent:no")
+  $output = & net.exe $netArgs 2>&1
   $code = $LASTEXITCODE
   return @{ ExitCode = $code; Output = ($output -join "`n") }
 }
 
 function Remove-NetUse([string]$targetHost) {
   try {
-    $args = @("use", "\\$targetHost\IPC$", "/delete", "/y")
-    & net.exe $args 2>&1 | Out-Null
+    $netArgs = @("use", "\\$targetHost\IPC$", "/delete", "/y")
+    & net.exe $netArgs 2>&1 | Out-Null
   } catch { }
 }
 

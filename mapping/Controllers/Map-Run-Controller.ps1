@@ -1,4 +1,4 @@
-﻿<# =========================
+<# =========================
  SysAdminSuite - Printer Map Controller
  Robust remote scheduler + artifact collector
  - Fixes schtasks EndBoundary error (/SC ONCE + /Z) by removing /Z and adding /SD
@@ -27,7 +27,7 @@
    # Local path to the remote payload script you want to run on each host:
    [string]$LocalScriptPath = ".\Map-Remote-MachineWide-Printers.ps1",
  
-   # Where to store this runΓÇÖs outputs on the controller:
+  # Where to store this run's outputs on the controller:
    [string]$SessionRoot = (Join-Path -Path (Get-Location) -ChildPath ("SysAdminSuite-Session-{0:yyyyMMdd-HHmmss}" -f (Get-Date))),
  
    # PowerShell path on endpoints (PS5.1 is broadly available on enterprise images)
@@ -51,7 +51,7 @@
  # ---------------------------
  New-Item -ItemType Directory -Force -Path $SessionRoot | Out-Null
  $ControllerLog = Join-Path $SessionRoot 'controller-log.txt'
- "[$(Get-Date -Format s)] Session start ΓåÆ $SessionRoot" | Out-File -FilePath $ControllerLog -Encoding utf8
+"[$(Get-Date -Format s)] Session start -> $SessionRoot" | Out-File -FilePath $ControllerLog -Encoding utf8
  
  function Write-Log {
    param([string]$Message)
@@ -89,16 +89,17 @@
  # Ctrl+C graceful handling
  # ---------------------------
  $script:StopRequested = $false
- $null = Register-EngineEvent -SourceIdentifier Console_CancelKeyPress -Action {
+$null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress -SourceIdentifier 'Console.CancelKeyPress' -Action {
+  $Event.SourceEventArgs.Cancel = $true
    $script:StopRequested = $true
    'CTRL+C detected. Will stop after current host.' | Out-File -FilePath $ControllerLog -Append -Encoding utf8
-   Write-Host "`nCTRL+C detected ΓÇö finishing current host, then exitingΓÇª`n"
+  Write-Host "`nCTRL+C detected - finishing current host, then exiting...`n"
  }
  
  # Utility: join admin share path
  function Join-AdminShare {
    param([string]$Computer, [string]$SubPath)
-   "\\{0}\C$\{1}" -f $Computer, ($SubPath -replace '^[cC]:\\', '') -replace '^[\\]+',''
+  "\\{0}\C$\{1}" -f $Computer, ((($SubPath -replace '^[cC]:\\', '') -replace '^[\\]+',''))
  }
  
  # ---------------------------
@@ -129,22 +130,23 @@
      }
    } catch {
      Write-Log "[$Computer] ERROR creating remote folders: $($_.Exception.Message)"
-     return
+    return $false
    }
  
    # Copy payload script
    try {
      Copy-Item -Path $LocalScriptPath -Destination $adminScript -Force
-     Write-Log "[$Computer] Copied script ΓåÆ $adminScript"
+    Write-Log "[$Computer] Copied script -> $adminScript"
    } catch {
      Write-Log "[$Computer] ERROR copying script: $($_.Exception.Message)"
-     return
+    return $false
    }
  
    # ----- Robust schedule + run + poll + collect + cleanup -----
    $when   = (Get-Date).AddMinutes(1)
    $stTime = $when.ToString('HH:mm')        # 24h
-   $stDate = $when.ToString('MM/dd/yyyy')   # schtasks likes US dates
+  $dateFmt = [System.Globalization.CultureInfo]::CurrentCulture.DateTimeFormat.ShortDatePattern
+  $stDate = $when.ToString($dateFmt)
  
    # Build schtasks /Create (drop /Z; add /SD; -File keeps /TR short)
    $createCmd = @(
@@ -162,11 +164,21 @@
    ) -join ' '
  
    $createOut = cmd /c $createCmd 2>&1
+  $createExit = $LASTEXITCODE
    Write-Log "[$Computer] schtasks /Create output:`n$createOut"
+  if ($createExit -ne 0) {
+    Write-Log "[$Computer] ERROR creating task. ExitCode=$createExit"
+    return $false
+  }
  
    # Start it
    $runOut = cmd /c ("schtasks /Run /S {0} /TN {1}" -f $Computer, $TaskName) 2>&1
+  $runExit = $LASTEXITCODE
    Write-Log "[$Computer] schtasks /Run output:`n$runOut"
+  if ($runExit -ne 0) {
+    Write-Log "[$Computer] ERROR running task. ExitCode=$runExit"
+    return $false
+  }
  
    # Poll for newest log bundle
    $maxWait = [Math]::Max(5, $MaxWaitSeconds)
@@ -191,7 +203,7 @@
      # Copy artifacts down
      try {
        Copy-Item -Path (Join-Path $latest.FullName '*') -Destination $hostOut -Force -ErrorAction SilentlyContinue
-       Write-Log "[$Computer] Collected artifacts ΓåÆ $hostOut"
+      Write-Log "[$Computer] Collected artifacts -> $hostOut"
      } catch {
        Write-Log "[$Computer] WARNING copying artifacts: $($_.Exception.Message)"
      }
@@ -217,6 +229,7 @@
    }
  
    Write-Log "==== [$Computer] End ===="
+  return $true
  }
  
  # ---------------------------
@@ -228,8 +241,8 @@
  foreach ($c in $Computers) {
    if ($script:StopRequested) { break }
    try {
-     Invoke-Host -Computer $c
-     $success++
+    $ok = Invoke-Host -Computer $c
+    if ($ok) { $success++ } else { $fail++ }
    } catch {
      $fail++
      Write-Log "[$c] FATAL: $($_.Exception.Message)"

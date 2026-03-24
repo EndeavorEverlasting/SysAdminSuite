@@ -1,5 +1,5 @@
-﻿<#
-Add-Computers-To-Group.ps1  ΓÇö standalone AD tool
+<#
+Add-Computers-To-Group.ps1  — standalone AD tool
 
 New behavior:
 - -PlanOnly writes artifacts and plans actions without touching AD
@@ -19,8 +19,11 @@ param(
 
   [string]$Server,  # domain or DC FQDN
   [string]$OutputRoot = "$($env:USERPROFILE)\Documents\ADGroupEnroll",
+  [ValidateRange(1, [int]::MaxValue)]
   [int]$ChunkSize = 50,
+  [ValidateRange(1, [int]::MaxValue)]
   [int]$RetryCount = 2,
+  [ValidateRange(1, [int]::MaxValue)]
   [int]$RetryDelaySeconds = 2,
 
   [switch]$PlanOnly      # <-- new: create reports, no AD changes
@@ -50,7 +53,7 @@ $logPath      = Join-Path $outDir 'Run.log'
 $preflightCsv = Join-Path $outDir 'Preflight.csv'
 $resultsCsv   = Join-Path $outDir 'Results.csv'
 $htmlPath     = Join-Path $outDir 'Results.html'
-$restorePs1   = Join-Path $outDir 'Restore-OU.ps1'
+$undoPs1      = Join-Path $outDir 'Undo-GroupMembership.ps1'
 
 # Only start transcript when we are doing IO (PlanOnly or real)
 $TranscriptStarted = $false
@@ -151,7 +154,7 @@ foreach ($h in $Hosts) {
       sAMAccountName    = $c.sAMAccountName
     })
 
-    $restore.Add("Move-ADObject -Identity `"$($c.DistinguishedName)`" -TargetPath `"$($row.OUPath)`" -Confirm:\$false")
+    $restore.Add("Remove-ADGroupMember -Identity `"$($Group.Name)`" -Members `"$($c.SamAccountName)`" -Confirm:`$false")
 
     $already = In-Group -ComputerDN $c.DistinguishedName
     $row.AlreadyMember = $already
@@ -171,9 +174,9 @@ foreach ($h in $Hosts) {
 # Write snapshot + restore when IO is enabled (PlanOnly or real)
 if ($doIO) {
   $preflight | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $preflightCsv
-  @("# Restore original OU placements (generated $(Get-Date -Format s))",
+  @("# Undo group membership changes (generated $(Get-Date -Format s))",
     "Import-Module ActiveDirectory",
-    $restore) -join [Environment]::NewLine | Set-Content -Path $restorePs1 -Encoding UTF8
+    $restore) -join [Environment]::NewLine | Set-Content -Path $undoPs1 -Encoding UTF8
 }
 
 # Execute changes (skip if PlanOnly or WhatIf)
@@ -222,7 +225,7 @@ Write-Host "`nDone."
 Write-Host "Local Machine: $env:COMPUTERNAME"
 if ($doIO) {
   Write-Host "Preflight: $preflightCsv"
-  Write-Host "Restore  : $restorePs1"
+  Write-Host "Undo     : $undoPs1"
   Write-Host "Results  : $resultsCsv"
   Write-Host "HTML     : $htmlPath"
   Write-Host "Log      : $logPath"

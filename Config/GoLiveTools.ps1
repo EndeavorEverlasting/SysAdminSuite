@@ -1,4 +1,4 @@
-﻿∩╗┐<# ========================== GoLiveTools.ps1 ==========================
+<# ========================== GoLiveTools.ps1 ==========================
 Utility cmdlets for go-live:
 - Resolve-RepoRoot        : pick a working repo path (UNC or local)
 - Preflight-Repo          : warn on missing files, create folders
@@ -41,7 +41,7 @@ function Resolve-RepoRoot {
   if ($Local -and (Test-Path $Local)) { $candidates += $Local }
   foreach ($p in $candidates) { if (Test-Path $p) { return $p } }
   if ($candidates.Count -gt 0) { return $candidates[0] }  # let later code create it
-  throw "No repo candidatesΓÇöpass -RepoHost HOSTNAME or create $Local"
+  throw "No repo candidates - pass -RepoHost HOSTNAME or create $Local"
 }
 
 $RepoRoot = Resolve-RepoRoot -RepoServer $RepoHost -Share $ShareName -Local $LocalFallback
@@ -62,9 +62,9 @@ function Preflight-Repo {
   }
 
   $warns = @()
-  if (-not (Test-Path $sourcesCsv)) { $warns += "Missing sources.csv ΓåÆ $sourcesCsv (run: New-SourcesTemplate -RepoRoot `"$RepoRoot`")" }
-  if (-not (Test-Path $fetchMap))   { $warns += "Missing fetch-map.csv ΓåÆ $fetchMap (run: Rebuild-FetchMap -RepoRoot `"$RepoRoot`")" }
-  if (-not (Test-Path $pkgCsv))     { $warns += "Missing packages.csv ΓåÆ $pkgCsv (will be created by Fetch-Installers merge)" }
+  if (-not (Test-Path $sourcesCsv)) { $warns += "Missing sources.csv -> $sourcesCsv (run: New-SourcesTemplate -RepoRoot `"$RepoRoot`")" }
+  if (-not (Test-Path $fetchMap))   { $warns += "Missing fetch-map.csv -> $fetchMap (run: Rebuild-FetchMap -RepoRoot `"$RepoRoot`")" }
+  if (-not (Test-Path $pkgCsv))     { $warns += "Missing packages.csv -> $pkgCsv (will be created by Fetch-Installers merge)" }
 
   if ($warns.Count) {
     Write-Warning ("Preflight warnings:`n - " + ($warns -join "`n - "))
@@ -216,7 +216,7 @@ function Rebuild-FetchMap {
     # allow-list
     $h = ([uri]$url).Host.ToLower()
     if (-not ($AllowList | Where-Object { $h -eq $_ -or $h.EndsWith(".$_") })) {
-      throw "Row '$name': URL host not in allow-list ΓåÆ $url"
+      throw "Row '$name': URL host not in allow-list -> $url"
     }
 
     [pscustomobject]@{
@@ -241,9 +241,9 @@ function Invoke-Fetch {
   )
   $script = Join-Path $PSScriptRoot 'Fetch-Installers.ps1'
   if (-not (Test-Path $script)) { throw "Fetch-Installers.ps1 not found next to GoLiveTools.ps1" }
-  $args = @('-RepoRoot', $RepoRoot, '-MaxParallel', $MaxParallel)
-  if ($DryRun) { $args += '-DryRun' }
-  & $script @args
+  $fetchArgs = @('-RepoRoot', $RepoRoot, '-MaxParallel', $MaxParallel)
+  if ($DryRun) { $fetchArgs += '-DryRun' }
+  & $script @fetchArgs
 }
 
 function New-RepoChecksums {
@@ -322,9 +322,9 @@ function Copy-SoftwareToClients {
     $dst = "\\$comp\$TargetPath"
     Start-ThreadJob -ScriptBlock {
       param($comp,$src,$dst)
-      if (-not (Test-Path "\\$comp\")) { throw "Host unreachable: $comp" }
-      $args = @($src, $dst, '/MIR','/Z','/W:2','/R:2','/NFL','/NDL','/NP','/XO','/FFT')
-      $rc = Start-Process -FilePath 'robocopy.exe' -ArgumentList $args -NoNewWindow -Wait -PassThru
+      if (-not (Test-Path "\\$comp\C$")) { throw "Host unreachable: $comp" }
+      $robocopyArgs = @($src, $dst, '/MIR','/Z','/W:2','/R:2','/NFL','/NDL','/NP','/XO','/FFT')
+      $rc = Start-Process -FilePath 'robocopy.exe' -ArgumentList $robocopyArgs -NoNewWindow -Wait -PassThru
       [pscustomobject]@{ Computer=$comp; ExitCode=$rc.ExitCode; Dest=$dst }
     } -ArgumentList $comp,$src,$dst
   }
@@ -372,7 +372,9 @@ function Get-ImpactS {
           }
         }
       }
-    }catch{}
+    } catch {
+      Write-Error ("ImpactS shortcut scan failed. Roots: {0}. Error: {1}" -f ($roots -join '; '), $_.Exception.Message)
+    }
     [pscustomobject]@{ ARP=$hits; Shortcuts=$lnkHits }
   }
 
@@ -397,16 +399,32 @@ function Fix-ImpactSShortcuts {
       foreach($root in $roots){
         if (-not (Test-Path $root)) { continue }
         Get-ChildItem $root -Recurse -Filter *.lnk -ErrorAction SilentlyContinue | ForEach-Object {
-          $lnk = $W.CreateShortcut($_.FullName)
-          if ($lnk.TargetPath -and $lnk.TargetPath -like "$OldDir*") {
-            $old = $lnk.TargetPath
-            $newTarget = ($old -replace [Regex]::Escape($OldDir), $NewDir)
-            if (-not $WhatIf) { $lnk.TargetPath = $newTarget; $lnk.Save() }
-            $edited += [pscustomobject]@{ Shortcut=$_.FullName; Old=$old; New=$newTarget }
+          try {
+            $lnk = $W.CreateShortcut($_.FullName)
+            if ($lnk.TargetPath -and $lnk.TargetPath -like "$OldDir*") {
+              $old = $lnk.TargetPath
+              $newTarget = ($old -replace [Regex]::Escape($OldDir), $NewDir)
+              if (-not $WhatIf) { $lnk.TargetPath = $newTarget; $lnk.Save() }
+              $edited += [pscustomobject]@{ Shortcut=$_.FullName; Old=$old; New=$newTarget }
+            }
+          } catch {
+            $edited += [pscustomobject]@{
+              Shortcut = $_.FullName
+              Error    = $_.Exception.Message
+              Root     = $root
+              OldTarget= $OldDir
+            }
           }
         }
       }
-    }catch{}
+    } catch {
+      $edited += [pscustomobject]@{
+        Shortcut = $null
+        Error    = $_.Exception.Message
+        Root     = ($roots -join '; ')
+        OldTarget= $OldDir
+      }
+    }
     $edited
   }
   Invoke-Command -ComputerName $ComputerName -ScriptBlock $script -ArgumentList $OldDir,$NewDir,$WhatIf |

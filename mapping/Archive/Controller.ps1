@@ -30,8 +30,8 @@ $targets = $targets | Sort-Object -Unique
 # -------------------------
 # 2. Define local paths
 # -------------------------
-# Where your scripts/CSVs live on your dev box
-$localRoot   = "C:\Users\pa_rperez26\OneDrive - Northwell Health\Desktop\dev\SysAdminSuite\mapping"
+# Where your scripts/CSVs live — resolved relative to this script's directory
+$localRoot   = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
 $localScript = Join-Path $localRoot "Map-MachineWide-FromFile.ps1"
 $localCsv    = Join-Path $localRoot "wcc_printers.csv"
 
@@ -79,10 +79,18 @@ foreach ($c in $targets) {
     $tr = 'powershell -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\SysAdminSuite\Mapping\Map-MachineWide-FromFile.ps1"'
 
     # Create the scheduled task
-    cmd /c "schtasks /Create /S $c /RU SYSTEM /SC ONCE /ST $start /RL HIGHEST /TN SysAdminSuite_MapFromFile /TR `"$tr`" /F /Z" | Out-Null
+    $createOut = cmd /c "schtasks /Create /S $c /RU SYSTEM /SC ONCE /ST $start /RL HIGHEST /TN SysAdminSuite_MapFromFile /TR `"$tr`" /F /Z" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+      Write-Error "schtasks /Create failed on $c (exit $LASTEXITCODE): $createOut"
+      continue
+    }
 
     # Run it immediately (don’t wait for the trigger time)
-    cmd /c "schtasks /Run /S $c /TN SysAdminSuite_MapFromFile" | Out-Null
+    $runOut = cmd /c "schtasks /Run /S $c /TN SysAdminSuite_MapFromFile" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+      Write-Error "schtasks /Run failed on $c (exit $LASTEXITCODE): $runOut"
+      continue
+    }
     Write-Host "Triggered $c"
 
     # ---- wait briefly for task to execute ----

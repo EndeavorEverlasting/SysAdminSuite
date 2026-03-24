@@ -28,7 +28,7 @@ Describe 'Test-Network' {
 
         It 'Returns one result object per target' {
             # Mock Test-Connection so no real network call is made
-            Mock Test-Connection { $true } -ModuleName '' -Verifiable
+            Mock Test-Connection { $true }
 
             $results = Test-Network -ComputerName 'fake-host-1','fake-host-2'
             $results.Count | Should -Be 2

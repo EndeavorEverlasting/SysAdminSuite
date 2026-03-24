@@ -1,4 +1,4 @@
-﻿∩╗┐<# Inventory-Software.v1.1.4-DisplayNameSafe+Preflight.ps1
+<# Inventory-Software.v1.1.4-DisplayNameSafe+Preflight.ps1
 CHANGES:
 - Superset discovery: use -Recurse + -Filter from $inventoryRoot (no wildcard Join-Path).
 - Keep $TargetHost (avoid $Host collision) and context-aware Resolve-SASContext.
@@ -54,6 +54,7 @@ function Normalize-Row {
 
 function TryVersion { param([string]$v) try{[version]$v}catch{$null} }
 function Pick-Best { param([Parameter(Mandatory)][object[]]$Rows)
+  if (-not $Rows -or $Rows.Count -eq 0) { return $null }
   $withParsed=foreach($r in $Rows){[pscustomobject]@{Row=$r;Parsed=(TryVersion $r.Version)}}
   $c=$withParsed|Where-Object Parsed|Sort-Object Parsed -Descending
   if($c){return $c[0].Row}; $w=$Rows|Where-Object Version; if($w){return $w[0]}; return $Rows[0]
@@ -75,17 +76,27 @@ $arpRoots=@(
 # Collector (avoid $Host collision)
 $collector={
   param([string[]]$arpRoots,[string]$TargetHost)
-  $ErrorActionPreference='SilentlyContinue'
+  $script:InventoryErrorCount = 0
   foreach($root in $arpRoots){
-    Get-ChildItem -Path $root | ForEach-Object {
-      $p=$_.PSPath; $it=Get-ItemProperty -Path $p
-      if($null -ne $it.DisplayName -and "$($it.DisplayName)".Trim()){
-        [pscustomobject]@{
-          Name="$($it.DisplayName)".Trim(); Version="$($it.DisplayVersion)".Trim(); Publisher="$($it.Publisher)".Trim()
-          UninstallString="$($it.UninstallString)".Trim(); InstallLocation="$($it.InstallLocation)".Trim(); InstallDate="$($it.InstallDate)".Trim()
-          DetectType='RegKey'; DetectValue=$_.Name; Host=$TargetHost; Timestamp=(Get-Date).ToString('s')
+    try {
+      Get-ChildItem -Path $root -ErrorAction Stop | ForEach-Object {
+        try {
+          $p=$_.PSPath; $it=Get-ItemProperty -Path $p -ErrorAction Stop
+          if($null -ne $it.DisplayName -and "$($it.DisplayName)".Trim()){
+            [pscustomobject]@{
+              Name="$($it.DisplayName)".Trim(); Version="$($it.DisplayVersion)".Trim(); Publisher="$($it.Publisher)".Trim()
+              UninstallString="$($it.UninstallString)".Trim(); InstallLocation="$($it.InstallLocation)".Trim(); InstallDate="$($it.InstallDate)".Trim()
+              DetectType='RegKey'; DetectValue=$_.Name; Host=$TargetHost; Timestamp=(Get-Date).ToString('s')
+            }
+          }
+        } catch {
+          $script:InventoryErrorCount++
+          Write-Warning ("[{0}] Failed reading registry item {1}: {2}" -f $TargetHost, $_.Exception.TargetObject, $_.Exception.Message)
         }
       }
+    } catch {
+      $script:InventoryErrorCount++
+      Write-Warning ("[{0}] Failed reading hive {1}: {2}" -f $TargetHost, $root, $_.Exception.Message)
     }
   }
 }
@@ -100,10 +111,19 @@ foreach($cn in $ComputerName){
   $data= if($TargetHost -in @('localhost','127.0.0.1',$env:COMPUTERNAME)){ & $collector -arpRoots $arpRoots -TargetHost $TargetHost }
          else{ Invoke-Command -ComputerName $TargetHost -ScriptBlock $collector -ArgumentList (,$arpRoots),$TargetHost }
 
-  $norm=$data|Normalize-Row -HostName $TargetHost
-  $norm|Sort-Object Name|Export-Csv -Path $csv -NoTypeInformation -Encoding UTF8
-  $norm|Select-Object Name,Version,Publisher,Host|Sort-Object Name|
-    ConvertTo-Html -Title "Installed Software - $TargetHost" | Set-Content -Path $html -Encoding UTF8
+  if (-not $data) {
+    $norm = @()
+  } else {
+    $norm=@($data|Normalize-Row -HostName $TargetHost)
+  }
+  if ($norm.Count -gt 0) {
+    $norm|Sort-Object Name|Export-Csv -Path $csv -NoTypeInformation -Encoding UTF8
+    $norm|Select-Object Name,Version,Publisher,Host|Sort-Object Name|
+      ConvertTo-Html -Title "Installed Software - $TargetHost" | Set-Content -Path $html -Encoding UTF8
+  } else {
+    @() | Export-Csv -Path $csv -NoTypeInformation -Encoding UTF8
+    "<html><body><h3>No inventory data for $TargetHost</h3></body></html>" | Set-Content -Path $html -Encoding UTF8
+  }
   Write-Host ("Wrote {0} items => {1}" -f ($norm.Count), $csv) -ForegroundColor Green
 }
 

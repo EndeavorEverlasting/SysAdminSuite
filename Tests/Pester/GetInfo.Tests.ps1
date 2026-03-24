@@ -50,7 +50,10 @@ Describe 'Get-MachineInfo.ps1 — script-level checks' {
 Describe 'Get-MonitorInfo.psm1 — module checks' {
     BeforeAll {
         $modulePath = Join-Path $repoRoot 'GetInfo\Get-MonitorInfo.psm1'
-        $script:moduleContent = Get-Content -Path $modulePath -Raw -ErrorAction Stop
+        $script:moduleContent = $null
+        if (Test-Path -Path $modulePath) {
+            $script:moduleContent = Get-Content -Path $modulePath -Raw -ErrorAction Stop
+        }
     }
 
     It 'Module file exists' {
@@ -69,7 +72,10 @@ Describe 'Get-MonitorInfo.psm1 — module checks' {
 Describe 'QueueInventory.ps1 — script-level checks' {
     BeforeAll {
         $queuePath = Join-Path $repoRoot 'GetInfo\QueueInventory.ps1'
-        $script:queueContent = Get-Content -Path $queuePath -Raw -ErrorAction Stop
+        $script:queueContent = $null
+        if (Test-Path -Path $queuePath) {
+            $script:queueContent = Get-Content -Path $queuePath -Raw -ErrorAction Stop
+        }
     }
 
     It 'Script file exists' {
