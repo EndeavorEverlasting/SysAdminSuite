@@ -41,8 +41,8 @@ SysAdminSuite/
 │   ├── QueueInventory.ps1          ← List all queues on a print server
 │   └── ZebraPrinterTest.ps1        ← Zebra label printer connectivity test
 │
-├── GUI/                        # Simple WinForms launcher for testing backend contracts
-│   └── Start-SysAdminSuiteGui.ps1  ← Stop/status/history harness + Kronos lookup
+├── GUI/                        # WinForms control center (start here)
+│   └── Start-SysAdminSuiteGui.ps1  ← Printer mapping launcher, Kronos lookup, guided tutorial
 │
 ├── Config/                     # Environment setup & software inventory
 │   ├── Inventory-Software.ps1      ← ARP registry scan → CSV + HTML report
@@ -90,6 +90,36 @@ SysAdminSuite/
 ---
 
 ## Quick Start
+
+### Launch the GUI (recommended starting point)
+
+The GUI is the easiest way to use the suite. Open PowerShell, `cd` to the repo root, and run:
+
+```powershell
+powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
+```
+
+> **Why `-STA`?** WinForms requires Single Threaded Apartment mode. Without it the window won't render.
+
+On first launch an interactive tutorial walks you through every feature. You can also reopen it anytime with **Ctrl+T** or the **Tutorial** button in the status bar.
+
+**What can I do from the GUI?**
+
+| Tab | What it does |
+|-----|-------------|
+| **Run Control** | Configure and launch printer-mapping runs (Recon, Plan, Full Run), monitor live status, undo/redo changes |
+| **Kronos Lookup** | Probe network clocks by IP, collect MAC/serial/model, search saved inventories |
+
+**First-time walkthrough:**
+1. Click **Load Safe Example** (Ctrl+E) — pre-fills a conservative Recon + Preflight config
+2. Review the Generated Options line at the bottom of Launch Configuration
+3. Click **Start Local Worker** to run a read-only snapshot of printers on your own machine
+4. Watch the **Run Status** pane update with results
+5. Switch to the **Kronos Lookup** tab and try probing a known IP address
+
+All path fields (Stop signal, Status, History, CSV paths) are clickable — click them to open a file browser.
+
+---
 
 ### Dry-run / Offline Validation (safe on any machine)
 ```powershell
@@ -148,13 +178,14 @@ powershell.exe -File .\GetInfo\Get-KronosClockInfo.ps1 `
 - The clock inventory script attempts reverse DNS, ARP, SNMP system identifiers, and HTTP page metadata so you can hand Kronos/UKG a stable packet of details after DHCP reservation.
 - Inventory CSVs can be re-used for cross-lookup workflows such as `MAC -> serial/hostname`, `serial -> MAC/IP`, or `hostname -> serial/MAC`.
 
-### Launch the test GUI
+### Launch the GUI (see Quick Start above for full walkthrough)
 ```powershell
 powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
 ```
 
-- The GUI is safe-by-default for replay: the Undo/Redo buttons start in `WhatIf` mode.
-- It exposes the new Stop/status/history hooks and a simple Kronos lookup panel so you can test the plumbing on an admin box without building a larger front end first.
+- The GUI is safe-by-default: WhatIf is ON, Run Mode defaults to Recon Only, and Preflight is checked.
+- An interactive tutorial auto-launches on first open and at key checkpoints (e.g., switching to the Kronos tab). Reopen it anytime with **Ctrl+T**.
+- All path fields are clickable — click them to open a file browser, or use the **[...]** buttons.
 
 ### Printer Mapping — Live Run (WhatIf first!)
 ```powershell
