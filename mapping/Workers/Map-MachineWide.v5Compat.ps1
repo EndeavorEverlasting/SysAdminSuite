@@ -1,4 +1,4 @@
-<#
+﻿<#
 Map-Remote-MachineWide-Printers.v5Compat.ps1
 PS7 admin -> PS5 endpoints (200+ boxes) via WSMan, no agent installs.
 Machine-wide adds (/ga), removals (/gd), optional per-user default via one-shot task, and verify.

@@ -1,4 +1,4 @@
-# Run-Preflight.ps1
+﻿# Run-Preflight.ps1
 # Checks depot structure and warns on missing files
 # [see bootstrap above]
 # --- bootstrap ---

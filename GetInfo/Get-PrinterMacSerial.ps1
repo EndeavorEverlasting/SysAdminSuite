@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   # Provide IPs inline: -IPs 10.202.46.169,10.202.46.168 ...
   [string[]]$IPs,
@@ -175,7 +175,7 @@ function Try-HTTP-Scrape {
 }
 
 # -------------------------------
-# Zebra raw port (9100) probe ΓÇö ZPL dump of settings
+# Zebra raw port (9100) probe -- ZPL dump of settings
 # -------------------------------
 function Try-9100-ZPL {
   param([string]$IP)

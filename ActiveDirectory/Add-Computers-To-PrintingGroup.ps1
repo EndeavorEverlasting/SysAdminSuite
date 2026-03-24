@@ -1,5 +1,5 @@
-<#
-Add-Computers-To-Group.ps1  — standalone AD tool
+﻿<#
+Add-Computers-To-Group.ps1  -- standalone AD tool
 
 New behavior:
 - -PlanOnly writes artifacts and plans actions without touching AD

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Proof-of-concept: Take printer queues, resolve to IPs, grab SNMP info, export.
 

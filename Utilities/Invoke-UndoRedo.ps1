@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Foundation for reversible admin actions with in-memory undo/redo stacks.
 

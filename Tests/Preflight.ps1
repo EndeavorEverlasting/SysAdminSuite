@@ -1,4 +1,4 @@
-<# 
+﻿<# 
 .SYNOPSIS
   Preflight permissions & connectivity checks before remote admin tasks.
 

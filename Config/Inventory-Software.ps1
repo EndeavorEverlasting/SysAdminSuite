@@ -1,4 +1,4 @@
-<# Inventory-Software.v1.1.4-DisplayNameSafe+Preflight.ps1
+﻿<# Inventory-Software.v1.1.4-DisplayNameSafe+Preflight.ps1
 CHANGES:
 - Superset discovery: use -Recurse + -Filter from $inventoryRoot (no wildcard Join-Path).
 - Keep $TargetHost (avoid $Host collision) and context-aware Resolve-SASContext.

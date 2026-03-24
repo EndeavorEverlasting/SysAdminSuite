@@ -1,4 +1,4 @@
-﻿∩╗┐# Fetch-Cycle.ps1
+﻿# Fetch-Cycle.ps1
 # Rebuild -> test -> fetch -> hash -> fill types
 # --- bootstrap ---
 $ErrorActionPreference = 'Stop'

@@ -1,4 +1,4 @@
-<# Run-WCC-Mapping.ps1
+﻿<# Run-WCC-Mapping.ps1
 PS7 -> PS5 endpoints. Case-by-case mapping for WCC today.
 Assumes the compat mapper is in the same folder:
   .\Map-Remote-MachineWide-Printers.v5Compat.ps1

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     File-based stop-signal and status-snapshot helpers for GUI-safe long runs.
 #>

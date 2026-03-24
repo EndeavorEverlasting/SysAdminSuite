@@ -1,4 +1,4 @@
-<#
+﻿<#
 Map-Remote-MachineWide-Printers.NoWinRM.ps1  (v1.1)
 Controller: PS7 (your box). Targets: Win10/11 PS5. No WinRM required.
 Transport: SMB (\\HOST\C$) + SCHTASKS (/S HOST). Optional remote REG verify.

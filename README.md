@@ -1,4 +1,4 @@
-# SysAdminSuite — Consolidated v2.0
+# SysAdminSuite -- Consolidated v2.0
 
 > **Branch:** `consolidate/v2.0`
 > **Merged from:** 8 branches across the full history of this repo.
@@ -42,7 +42,7 @@ SysAdminSuite/
 │   └── ZebraPrinterTest.ps1        ← Zebra label printer connectivity test
 │
 ├── GUI/                        # WinForms control center (start here)
-│   └── Start-SysAdminSuiteGui.ps1  ← Printer mapping launcher, Kronos lookup, guided tutorial
+│   └── Start-SysAdminSuiteGui.ps1  ← Printer mapping, Kronos lookup, Machine Info probe, guided tutorial
 │
 ├── Config/                     # Environment setup & software inventory
 │   ├── Inventory-Software.ps1      ← ARP registry scan → CSV + HTML report
@@ -71,6 +71,12 @@ SysAdminSuite/
 │   ├── Take-Screenshot.ps1         ← Screen capture utility
 │   └── Unblock-All.ps1             ← Unblock downloaded PS files
 │
+├── tools/                      # Repo maintenance utilities
+│   ├── Invoke-RepoFileHealth.ps1   ← BOM enforcement, lock removal, line-ending normalisation
+│   ├── Add-Utf8Bom.ps1             ← Standalone UTF-8 BOM enforcement tool
+│   ├── Test-ScriptHealth.ps1       ← Parse check + BOM check + non-ASCII scan
+│   └── Resolve-PSRuntime.ps1       ← PS version detection and pivot (5.1 vs 7+)
+│
 ├── OCR/                        # Python OCR tools for printer label extraction
 │   ├── locus_mapping_ocr.py
 │   ├── build_host_unc_csv.py
@@ -84,6 +90,7 @@ SysAdminSuite/
 │       ├── GetInfo.Tests.ps1       ← Get-MachineInfo, QueueInventory, Kronos lookup contracts
 │       └── Gui.Tests.ps1           ← GUI entry-point contract checks
 │
+├── Launch-SysAdminSuite.bat     ← Double-click to open the GUI (no command to memorize)
 └── Bug-Log.md                  ← Known bugs and fixes (coding standard)
 ```
 
@@ -93,7 +100,13 @@ SysAdminSuite/
 
 ### Launch the GUI (recommended starting point)
 
-The GUI is the easiest way to use the suite. Open PowerShell, `cd` to the repo root, and run:
+The easiest way to launch the GUI is to **double-click** the batch file at the repo root:
+
+```
+Launch-SysAdminSuite.bat
+```
+
+Or from PowerShell:
 
 ```powershell
 powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
@@ -101,18 +114,23 @@ powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
 
 > **Why `-STA`?** WinForms requires Single Threaded Apartment mode. Without it the window won't render.
 
-On first launch a **menu-based tutorial** appears with 6 use-case tracks. Pick the one you need and follow 3–5 focused steps that end with real example output. Reopen anytime with **Ctrl+T** or the **Tutorial** button in the status bar.
+On first launch a **menu-based tutorial** appears with 12 use-case tracks. Pick the one you need and follow 3-5 focused steps that end with real example output. Reopen anytime with **Ctrl+T** or the **Tutorial** button in the status bar.
 
 **Tutorial tracks:**
 
 | Track | What it teaches |
 |-------|----------------|
-| **Printer Mapping** | Load example → run Recon → see Results.csv output |
-| **Kronos Clock** | Probe a clock IP → read MAC/serial table → search inventory |
-| **Neuron MachineInfo** | Run Get-MachineInfo.ps1 → get serial/IP/MAC CSV for Neuron PCs |
-| **Printer MachineInfo** | Run Get-PrinterMacSerial.ps1 → get printer MAC/serial via SNMP |
-| **Cybernet / Workstation Info** | Same as Neuron but for Cybernet or any Windows PC |
+| **Printer Mapping** | Load example, run Recon, see Results.csv output |
+| **Kronos Clock** | Probe a clock IP, read MAC/serial table, search inventory |
+| **Neuron MachineInfo** | Use the Machine Info tab, probe Neuron PCs, get serial/IP/MAC CSV |
+| **Printer MachineInfo** | Use the Machine Info tab, probe printers, get MAC/serial via SNMP |
+| **Cybernet / Workstation Info** | Same as Neuron but for Cybernet or any Windows PC (all in the GUI) |
 | **Printer Layout (Recon)** | Snapshot existing printers before deciding what to map |
+| **Repo File Health** | Fix BOM, encoding, locks, and line endings across the repo |
+| **Software Inventory** | Audit installed software across machines with CSV output |
+| **Network Testing** | Test connectivity, DNS, and ports before running probes |
+| **AD Printing Group** | Bulk-add computers to AD printing security groups |
+| **PS Version Pivot** | How tools detect and switch between PS 5.1 and PS 7 |
 
 **GUI tabs:**
 
@@ -120,6 +138,8 @@ On first launch a **menu-based tutorial** appears with 6 use-case tracks. Pick t
 |-----|-------------|
 | **Run Control** | Configure and launch printer-mapping runs (Recon, Plan, Full Run), monitor live status, undo/redo changes |
 | **Kronos Lookup** | Probe network clocks by IP, collect MAC/serial/model, search saved inventories |
+| **Machine Info** | Run Get-MachineInfo or Get-PrinterMacSerial from the GUI — enter targets, pick output path, view results inline |
+| **UTF-8 BOM Sync** | Scan repo for files with/without UTF-8 BOM, move files between panels, and sync to apply BOM to all selected files |
 
 All path fields (Stop signal, Status, History, CSV paths) are clickable — click them to open a file browser.
 
@@ -239,6 +259,66 @@ Need to map printers on remote machines?
        Uses: SMB (\\HOST\C$) + SCHTASKS /S HOST
        Requires: Admin share access + RPC port 135/445
        Offline-safe: drops agent, polls for status.json
+```
+
+---
+
+### Repo File-Health Tools
+
+```powershell
+# All-in-one: dry-run (safe, read-only)
+.\tools\Invoke-RepoFileHealth.ps1
+
+# All-in-one: apply fixes (BOM + locks + line endings)
+.\tools\Invoke-RepoFileHealth.ps1 -Fix
+
+# BOM only: dry-run
+.\tools\Add-Utf8Bom.ps1
+
+# BOM only: apply
+.\tools\Add-Utf8Bom.ps1 -Fix
+
+# Validate scripts: parse errors + BOM + non-ASCII scan
+.\tools\Test-ScriptHealth.ps1
+
+# Target LF line endings instead of CRLF
+.\tools\Invoke-RepoFileHealth.ps1 -Fix -LineEnding LF
+```
+
+| Tool | Purpose |
+|------|---------|
+| **Invoke-RepoFileHealth.ps1** | All-in-one: BOM, locks, line endings, non-ASCII scan |
+| **Add-Utf8Bom.ps1** | Standalone BOM enforcement (fast, targeted) |
+| **Test-ScriptHealth.ps1** | Validation only: parse check + BOM check + non-ASCII scan |
+| **Resolve-PSRuntime.ps1** | Dot-source in scripts to detect PS version and pivot when needed |
+
+What Invoke-RepoFileHealth checks:
+
+| Check | Extensions | Action |
+|-------|-----------|--------|
+| **UTF-8 BOM** | `.ps1`, `.psm1`, `.psd1`, `.csv` | Prepends `EF BB BF` so PowerShell 5.1 and Excel read them correctly |
+| **Zone.Identifier lock** | all scanned | Calls `Unblock-File` and removes the ADS so Windows stops showing security warnings |
+| **Line endings** | all scanned | Normalises to CRLF (default) or LF to prevent mixed-ending diffs |
+| **Non-ASCII chars** | `.ps1`, `.psm1`, `.psd1` | Flags characters > U+007F that break PS 5.1 without BOM |
+
+### PowerShell Version Pivot
+
+Scripts that need a specific PS version can dot-source `Resolve-PSRuntime.ps1`:
+
+```powershell
+. "$PSScriptRoot\..\tools\Resolve-PSRuntime.ps1"
+
+# Check which engine we are on
+if ($PSRuntimeIs5) { Write-Host "Running on Windows PowerShell 5.1" }
+if ($PSRuntimeIs7) { Write-Host "Running on PowerShell 7+" }
+
+# Auto-pivot to PS7 if needed
+Invoke-PSPivot -RequiredVersion 7 -ScriptPath $PSCommandPath -Arguments $PSBoundParameters
+```
+
+When a pivot occurs, the user sees a magenta log line:
+```
+[Resolve-PSRuntime] PIVOT: PS 5 -> PS 7 | Script: C:\...\MyScript.ps1 | Engine: C:\...\pwsh.exe
 ```
 
 ---

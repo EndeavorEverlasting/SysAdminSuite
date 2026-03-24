@@ -1,4 +1,4 @@
-# Test-Links.ps1
+﻿# Test-Links.ps1
 # HEAD checks every URL in fetch-map.csv
 # --- bootstrap ---
 $ErrorActionPreference = 'Stop'

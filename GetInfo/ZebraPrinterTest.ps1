@@ -1,4 +1,4 @@
-# Runs SNMP/live checks for Zebra printers.
+﻿# Runs SNMP/live checks for Zebra printers.
 param(
     [string[]]$PrinterIPs,
     [ValidateNotNullOrEmpty()]

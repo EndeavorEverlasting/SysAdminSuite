@@ -1,4 +1,4 @@
-<# =========================
+﻿<# =========================
  SysAdminSuite - Printer Map Controller
  Robust remote scheduler + artifact collector
  - Fixes schtasks EndBoundary error (/SC ONCE + /Z) by removing /Z and adding /SD

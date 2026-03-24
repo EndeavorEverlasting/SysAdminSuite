@@ -1,4 +1,4 @@
-∩╗┐<#
+﻿<#
  Deploy two shortcuts to Public Desktop on WLS111WCC001-164
  Source share: \\LPW003ASI037\C$\Shortcuts
 

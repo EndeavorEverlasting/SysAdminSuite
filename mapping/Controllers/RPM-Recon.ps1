@@ -1,4 +1,4 @@
-<#  RPM-Recon.ps1 - Zero-risk printer mapping recon (ListOnly + Preflight)
+﻿<#  RPM-Recon.ps1 - Zero-risk printer mapping recon (ListOnly + Preflight)
     Streams progress live to console + Controller.log, survives Ctrl+C and
     finalizes outputs with whatever results were collected so far.
 

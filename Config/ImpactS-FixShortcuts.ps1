@@ -1,4 +1,4 @@
-# ImpactS-FixShortcuts.ps1
+﻿# ImpactS-FixShortcuts.ps1
 # --- bootstrap ---
 $ErrorActionPreference = 'Stop'
 $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'

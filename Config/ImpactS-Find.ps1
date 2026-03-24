@@ -1,4 +1,4 @@
-﻿∩╗┐# ImpactS-Find.ps1
+﻿# ImpactS-Find.ps1
 # --- bootstrap ---
 $ErrorActionPreference = 'Stop'
 $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'

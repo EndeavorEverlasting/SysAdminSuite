@@ -1,4 +1,4 @@
-<#
+﻿<#
   Enforce-Mapping-SingleHost.ps1
   One-off enforcer: WLS111WCC094 -> \\SWBPNHPHPS01V\LS111-WCC65
 

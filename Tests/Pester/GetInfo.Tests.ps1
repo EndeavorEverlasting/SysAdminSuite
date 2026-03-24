@@ -1,4 +1,4 @@
-#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
 <#
 .SYNOPSIS
     Offline unit tests for GetInfo\ scripts.
@@ -11,7 +11,7 @@ BeforeAll {
     $kronosInfoPath = Join-Path $repoRoot 'GetInfo\Get-KronosClockInfo.ps1'
 }
 
-Describe 'Get-MachineInfo.ps1 — script-level checks' {
+Describe 'Get-MachineInfo.ps1 -- script-level checks' {
     BeforeAll {
         $script:machineInfoContent = Get-Content -Path $machineInfoPath -Raw
     }
@@ -52,7 +52,7 @@ Describe 'Get-MachineInfo.ps1 — script-level checks' {
     }
 }
 
-Describe 'Get-MonitorInfo.psm1 — module checks' {
+Describe 'Get-MonitorInfo.psm1 -- module checks' {
     BeforeAll {
         $modulePath = Join-Path $repoRoot 'GetInfo\Get-MonitorInfo.psm1'
         $script:moduleContent = $null
@@ -74,7 +74,7 @@ Describe 'Get-MonitorInfo.psm1 — module checks' {
     }
 }
 
-Describe 'QueueInventory.ps1 — script-level checks' {
+Describe 'QueueInventory.ps1 -- script-level checks' {
     BeforeAll {
         $queuePath = Join-Path $repoRoot 'GetInfo\QueueInventory.ps1'
         $script:queueContent = $null
@@ -92,7 +92,7 @@ Describe 'QueueInventory.ps1 — script-level checks' {
     }
 }
 
-Describe 'Get-KronosClockInfo.ps1 — script-level checks' {
+Describe 'Get-KronosClockInfo.ps1 -- script-level checks' {
     BeforeAll {
         $script:kronosInfoContent = Get-Content -Path $kronosInfoPath -Raw
     }

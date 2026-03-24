@@ -1,4 +1,4 @@
-<# ========================== GoLiveTools.ps1 ==========================
+﻿<# ========================== GoLiveTools.ps1 ==========================
 Utility cmdlets for go-live:
 - Resolve-RepoRoot        : pick a working repo path (UNC or local)
 - Preflight-Repo          : warn on missing files, create folders

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Tests network connectivity to one or more target hosts.
 
@@ -24,7 +24,7 @@
 function Test-Network {
     [CmdletBinding()]
     param(
-        # BUG-FIX: was [string]$Host — $Host is a PowerShell built-in automatic
+        # BUG-FIX: was [string]$Host -- $Host is a PowerShell built-in automatic
         # variable (case-insensitive). Renamed to $ComputerName to avoid collision.
         [string[]]$ComputerName = '8.8.8.8',
         [int]$Count = 2

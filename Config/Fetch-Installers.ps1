@@ -1,4 +1,4 @@
-<#
+﻿<#
 Fetch-Installers.ps1 - vendor-only fetcher with backbone.
 Reads fetch-map.csv -> downloads installers -> writes checksums -> updates packages.csv.
 No winget. Parallel, retried, verified, and loud.

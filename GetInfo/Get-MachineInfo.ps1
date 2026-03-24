@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$ListPath   = "C:\Temp\hostlist.txt",
   [string]$OutputPath = "C:\Temp\MachineInfo.csv",
   [int]$Throttle      = 15

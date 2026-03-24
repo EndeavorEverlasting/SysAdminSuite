@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Tests access to a UNC share and lists its top-level contents.
 
@@ -22,7 +22,7 @@ function Invoke-FileShare {
     )
 
     if (-not (Test-Path -LiteralPath $SharePath)) {
-        throw "Cannot access share: $SharePath — check network/firewall/credentials."
+        throw "Cannot access share: $SharePath -- check network/firewall/credentials."
     }
 
     Get-ChildItem -LiteralPath $SharePath

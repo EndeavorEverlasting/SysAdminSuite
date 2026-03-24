@@ -1,4 +1,4 @@
-function Take-Screenshot {
+﻿function Take-Screenshot {
     [CmdletBinding()]
     param(
         [string]$Path = "$env:USERPROFILE\screenshot.png"

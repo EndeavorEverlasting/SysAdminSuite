@@ -1,4 +1,4 @@
-<#
+﻿<#
   Map-Remote-MachineWide-Printers.ps1
   Machine-wide printer mapping worker (runs LOCALLY on the endpoint).
 

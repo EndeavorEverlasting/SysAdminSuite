@@ -1,4 +1,4 @@
-<#
+﻿<#
 Build-FetchMap.ps1 - resolves versions and URLs into fetch-map.csv for the hardened fetcher.
 - Supports Source=github (Repo "owner/name") or Source=url.
 - Strategy = latest | pinned

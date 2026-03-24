@@ -1,4 +1,4 @@
-# Stage-To-Clients.ps1
+﻿# Stage-To-Clients.ps1
 # Mirrors the depot to target PCs (uses Clients.txt)
 # --- bootstrap ---
 $ErrorActionPreference = 'Stop'

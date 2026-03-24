@@ -1,9 +1,9 @@
-#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
 <#
 .SYNOPSIS
     Offline unit tests for Utilities\ scripts.
     All tests run without network access, AD, or real printers.
-    Safe to run on any machine — no side effects.
+    Safe to run on any machine -- no side effects.
 #>
 
 BeforeAll {

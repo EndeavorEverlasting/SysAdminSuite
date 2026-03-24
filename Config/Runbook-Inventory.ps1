@@ -1,4 +1,4 @@
-<# Runbook-Inventory.ps1
+﻿<# Runbook-Inventory.ps1
    Inventory installed software on source/target -> Repo\inventory\<HOST>\*.csv|html + software_superset.csv
 #>
 
@@ -57,6 +57,6 @@ foreach ($c in $ComputerName) {
 }
 $paths += Join-Path $invRoot 'software_superset.csv'
 $paths | ForEach-Object {
-  if (Test-Path $_) { Write-Host "✓ $_" -ForegroundColor Green } else { Write-Warning "Missing: $_" }
+  if (Test-Path $_) { Write-Host "[OK] $_" -ForegroundColor Green } else { Write-Warning "Missing: $_" }
 }
 Write-Host "Transcript: $ts"
