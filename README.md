@@ -101,23 +101,37 @@ powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
 
 > **Why `-STA`?** WinForms requires Single Threaded Apartment mode. Without it the window won't render.
 
-On first launch an interactive tutorial walks you through every feature. You can also reopen it anytime with **Ctrl+T** or the **Tutorial** button in the status bar.
+On first launch a **menu-based tutorial** appears with 6 use-case tracks. Pick the one you need and follow 3–5 focused steps that end with real example output. Reopen anytime with **Ctrl+T** or the **Tutorial** button in the status bar.
 
-**What can I do from the GUI?**
+**Tutorial tracks:**
+
+| Track | What it teaches |
+|-------|----------------|
+| **Printer Mapping** | Load example → run Recon → see Results.csv output |
+| **Kronos Clock** | Probe a clock IP → read MAC/serial table → search inventory |
+| **Neuron MachineInfo** | Run Get-MachineInfo.ps1 → get serial/IP/MAC CSV for Neuron PCs |
+| **Printer MachineInfo** | Run Get-PrinterMacSerial.ps1 → get printer MAC/serial via SNMP |
+| **Cybernet / Workstation Info** | Same as Neuron but for Cybernet or any Windows PC |
+| **Printer Layout (Recon)** | Snapshot existing printers before deciding what to map |
+
+**GUI tabs:**
 
 | Tab | What it does |
 |-----|-------------|
 | **Run Control** | Configure and launch printer-mapping runs (Recon, Plan, Full Run), monitor live status, undo/redo changes |
 | **Kronos Lookup** | Probe network clocks by IP, collect MAC/serial/model, search saved inventories |
 
-**First-time walkthrough:**
-1. Click **Load Safe Example** (Ctrl+E) — pre-fills a conservative Recon + Preflight config
-2. Review the Generated Options line at the bottom of Launch Configuration
-3. Click **Start Local Worker** to run a read-only snapshot of printers on your own machine
-4. Watch the **Run Status** pane update with results
-5. Switch to the **Kronos Lookup** tab and try probing a known IP address
-
 All path fields (Stop signal, Status, History, CSV paths) are clickable — click them to open a file browser.
+
+### Tutorial Architecture (for contributors)
+
+The tutorial system lives in `GUI/Start-SysAdminSuiteGui.ps1` and is designed for easy extension:
+
+- **`$script:TutorialTracks`** — ordered hashtable of track definitions. Each key maps to `Label`, `Desc`, `Color`, and `Steps` (array of step hashtables).
+- **Each step** has `Title`, `Body`, and `Highlights` (array of control variable names to pulse).
+- **`Show-TutorialMenu`** renders the track picker. **`Start-TutorialTrack`** loads a track's steps.
+- **Highlight system** pulses gold/yellow on most controls; green START and red STOP buttons keep their identity color and pulse text instead.
+- To **add a new track**: add an entry to `$script:TutorialTracks` with the same structure. The menu rebuilds automatically.
 
 ---
 

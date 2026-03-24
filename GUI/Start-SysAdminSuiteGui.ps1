@@ -308,36 +308,94 @@ function Start-GuiRun {
   Update-RunActionState
 }
 
-# ── Tutorial System ──
-$script:TutorialSteps = @(
-  @{ Title = 'Welcome to SysAdminSuite'; Highlights = @(); Body = "SysAdminSuite is a portable toolkit for Windows sysadmins. It includes:`n`n- Printer Mapping: push/remove machine-wide printer queues across hosts`n- Kronos Clock Inventory: probe network clocks by IP, get MAC/serial/model`n- Software Inventory: scan ARP registry for installed apps (Config folder)`n- Shortcut Deployment: push desktop shortcuts to workstations (EnvSetup)`n- OCR Tools: extract printer labels from photos (OCR folder, Python)`n- AD Group Management: bulk-add computers to print groups`n`nThis GUI covers Printer Mapping and Kronos. Use arrow keys or buttons to continue." }
-  @{ Title = 'How to Launch This GUI'; Highlights = @(); Body = "You are already running the GUI! For future reference, open PowerShell and run:`n`n  powershell.exe -STA -File .\\GUI\\Start-SysAdminSuiteGui.ps1`n`nThe -STA flag is required for WinForms. Run from the repo root so all paths resolve correctly.`n`nTip: Pin this shortcut to your taskbar on every admin box, then git pull to stay current." }
-  @{ Title = 'Quick Start: Your First Recon Run'; Highlights = @('btnExampleOptions'); Body = "Let's do a safe dry run right now. Click the highlighted Load Safe Example button.`n`nThis pre-fills Recon Only + Preflight mode, which snapshots existing printers without making any changes. It is completely safe to run on production machines.`n`nTry it now, then click Next to continue." }
-  @{ Title = 'Session Paths - Click to Browse'; Highlights = @('grpPaths','txtStop','txtStatus','txtUndo'); Body = "These three paths point to your run session files:`n`n- Stop signal: write here to gracefully stop a running job`n- Status path: the live status snapshot from the worker`n- History path: the undo/redo change log`n`nClick any highlighted text field to open a file browser, or use the [...] buttons on the right. Defaults point to Mapping\\Output in the repo." }
-  @{ Title = 'Session Paths - Stop and Refresh'; Highlights = @('btnStop','btnBrowseStop','btnStatus','btnLoad'); Body = "The action buttons on the right side of each row:`n`n- Stop Run (Ctrl+S): writes a stop signal so a running worker exits gracefully`n- Refresh Now (F5): reloads the status snapshot from disk`n- Load History (Ctrl+L): imports the undo/redo session for replay`n`nTry clicking Refresh Now -- it is safe even with no active run." }
-  @{ Title = 'Run Options - Safety First'; Highlights = @('grpOptions','chkWhatIf','chkAutoRefresh'); Body = "WhatIf replay (highlighted) keeps undo/redo in dry-run mode. Leave it checked until you have reviewed the output and are confident in the changes.`n`nAuto refresh polls status and history on a timer so you do not have to keep clicking Refresh.`n`nRule of thumb: always start with WhatIf ON. Turn it off only when you are ready to commit." }
-  @{ Title = 'Undo and Redo'; Highlights = @('btnUndo','btnRedo'); Body = "After loading a history file, these buttons let you step through changes:`n`n- Undo Top (Ctrl+Z): reverses the most recent action`n- Redo Top (Ctrl+Y): re-applies it`n`nWith WhatIf checked, undo/redo only previews what would happen. Uncheck WhatIf to execute for real.`n`nTry it: Load History first, then click Undo Top to see a preview." }
-  @{ Title = 'Launch Config - Run Mode'; Highlights = @('cmbRunMode','chkPreflight','chkRestartSpooler'); Body = "The Run Mode dropdown controls what the worker does:`n`n- Recon Only (-ListOnly): snapshot printers, zero changes`n- Plan Only (-PlanOnly): report what would change, no execution`n- Full Run: execute adds and removes`n- Full Run + Prune: also remove queues not in your list`n`nPreflight runs pre-checks. Restart Spooler restarts the print spooler after changes (use sparingly)." }
-  @{ Title = 'Launch Config - Targets and Queues'; Highlights = @('txtRunTargets','txtQueuesAdd','txtQueuesRemove','txtDefaultQueue'); Body = "Fill in the highlighted fields to define your run:`n`n- Controller targets (left): hostnames to push to, one per line`n  Example: WKS001`n- Queues to Add: UNC paths like \\\\PRINTSRV\\QueueName`n- Queues to Remove: UNC paths to delete machine-wide`n- Default Queue: optionally set a user default at next logon`n`nThe Generated Options line at the bottom auto-builds the CLI string." }
-  @{ Title = 'Launch Config - Start the Run'; Highlights = @('btnStartWorker','btnStartController'); Body = "Two ways to launch:`n`n- Start Local Worker (blue): runs the mapping on THIS machine only. Good for testing on your own box.`n- Start Controller (green): fans out to every host listed in the targets box via SMB + scheduled tasks. This is the production path.`n`nBoth will ask for confirmation before starting. Output appears in the Status pane below.`n`nTry it: with Recon Only selected, click Start Local Worker to see your own printers." }
-  @{ Title = 'Status and History Panes'; Highlights = @('txtStatusView','txtHistoryView','btnCopyStatus','btnCopyHistory'); Body = "After a run starts, live data appears here:`n`n- Run Status: the latest worker status snapshot`n- Undo/Redo History: a timestamped change log`n`nClick Copy Status or Copy History to grab text for tickets or reports.`n`nTip: Open Session Folder opens the run output directory in Explorer so you can inspect CSV/HTML artifacts directly." }
-  @{ Title = 'Example: Recon Run Output'; Highlights = @('txtStatusView'); Body = "After clicking Start Local Worker with Recon Only, the Status pane shows:`n`n  {`n    ""State"":  ""Completed"",`n    ""Stage"":  ""ListOnly"",`n    ""Message"": ""ListOnly inventory completed."",`n    ""Data"": {`n      ""ComputerName"": ""YOURPC"",`n      ""ListOnly"": true,`n      ""DesiredQueues"": []`n    }`n  }`n`nThis confirms the worker ran, found your printers, and wrote artifacts to disk. No changes were made." }
-  @{ Title = 'Example: Recon Results on Disk'; Highlights = @('btnOpenSession'); Body = "Click Open Session Folder to see the artifacts the worker wrote:`n`n  Mapping\\Output\\20260324-143022\\`n    Run.log          - full transcript of the worker run`n    Preflight.csv    - snapshot of printers before any changes`n    Results.csv      - final state (Type, Target, Status)`n    Results.html     - browser-friendly report with a dark theme`n`nOpen Results.html in a browser for a quick visual audit. The CSV columns are:`n`n  Timestamp | ComputerName | Type | Target | Driver | Port | Status`n  (UNC and LOCAL rows, all marked PresentNow in Recon mode)" }
-  @{ Title = 'Example: Full Run Output'; Highlights = @('txtStatusView'); Body = "If you switch Run Mode to Full Run and add a queue like:`n`n  \\\\PRINTSRV\\Lobby-HP4050`n`nthe Results.csv will show rows like:`n`n  Type   Target                     Status`n  ----   ------                     ------`n  UNC    \\\\printsrv\\lobby-hp4050   Added`n  UNC    \\\\printsrv\\office-hp5550  PresentBefore`n  LOCAL  Microsoft Print to PDF     PresentAfter`n`nAdded = newly mapped. PresentBefore = already existed. Removed = deleted by you.`nAlways run Recon first, review Results.csv, then switch to Full Run." }
-  @{ Title = 'Kronos - Enter Targets and Probe'; Highlights = @('txtTargets','btnProbe','txtClockOut'); Body = "Switch to the Kronos Lookup tab to inventory network clocks.`n`n1. Type IP addresses or hostnames in the Targets box, one per line`n   Example: 10.1.2.50`n2. Set the Output CSV path (click the field to browse)`n3. Click Probe Targets to scan via ICMP, SNMP, ARP, HTTP, and DNS`n`nThe probe collects MAC, serial, model, firmware, and hostname for each device." }
-  @{ Title = 'Example: Kronos Probe Output'; Highlights = @('txtClockResults'); Body = "After probing, the Results pane shows a table like:`n`n  QueryInput  IPAddress   HostName       MACAddress         Serial   Reachable`n  ----------  ---------   --------       ----------         ------   ---------`n  10.1.2.50   10.1.2.50   KRON-CLK-01    00:1A:2B:3C:4D:5E  KRN4401  True`n  10.1.2.51   10.1.2.51   KRON-CLK-02    00:1A:2B:3C:4D:5F  KRN4402  True`n  badhost     (none)      badhost        (none)             (none)   False`n`nReachable=True means the clock responded to ICMP. MAC/Serial come from SNMP and ARP.`nThe same data is saved to the Output CSV for use in Excel or DHCP reservation forms." }
-  @{ Title = 'Kronos - Load and Search Inventory'; Highlights = @('btnInventory','cmbLookup','txtLookup','btnFind'); Body = "Already have a saved CSV? Click Load Inventory to import it without re-probing.`n`nTo search the loaded data:`n1. Pick a field from the dropdown: IP, MAC, Serial, HostName, DeviceName, or Any`n2. Type a value in the search box (partial matches work with Any)`n3. Click Find Match`n`nTry it: after probing, type a known IP and click Find Match to look it up." }
-  @{ Title = 'Example: Kronos Search Result'; Highlights = @('txtClockResults','btnCopyClockResults'); Body = "After searching by MAC for 00:1A:2B:3C:4D:5E, the Results pane narrows to:`n`n  QueryInput  IPAddress   HostName       MACAddress         Serial   Reachable`n  ----------  ---------   --------       ----------         ------   ---------`n  10.1.2.50   10.1.2.50   KRON-CLK-01    00:1A:2B:3C:4D:5E  KRN4401  True`n`nThis is the cross-lookup workflow: start with one identifier (MAC, serial, IP, or hostname) and get back the full identity record.`n`nClick Copy Results to paste into a ticket or DHCP reservation form." }
-  @{ Title = 'Kronos - Results and Export'; Highlights = @('txtClockResults','btnCopyClockResults'); Body = "All probe, inventory, and search results appear in the Results pane.`n`nClick Copy Results to copy the full text to your clipboard for pasting into tickets, spreadsheets, or DHCP reservation forms.`n`nThe Output CSV is also saved to disk automatically after each probe, so you can open it in Excel or re-import it later." }
-  @{ Title = 'Beyond This GUI'; Highlights = @(); Body = "This GUI covers Printer Mapping and Kronos, but the suite has more:`n`n- Config\\Inventory-Software.ps1: scan installed apps across hosts`n- Config\\Fetch-Installers.ps1: download vendor installers from sources.csv`n- Config\\Stage-To-Clients.ps1: push a software repo to client PCs`n- EnvSetup\\Deploy-Shortcuts.ps1: deploy desktop shortcuts to workstations`n- OCR\\locus_mapping_ocr.py: extract printer labels from photos`n- ActiveDirectory\\Add-Computers-To-PrintingGroup.ps1: bulk AD updates`n`nRun any script with -WhatIf or -DryRun first. Check README.md for full docs." }
-  @{ Title = 'Keyboard Shortcuts'; Highlights = @(); Body = "Speed up your workflow with these shortcuts:`n`n  Ctrl+S  -  Send stop signal`n  F5  -  Refresh status`n  Ctrl+L  -  Load history`n  Ctrl+Z / Ctrl+Y  -  Undo / Redo`n  Ctrl+E  -  Load safe example options`n  Ctrl+T  -  Show/hide this tutorial`n`nYou are all set! Close this tutorial and try a Recon run to get started." }
-)
+# ── Tutorial System — Menu-Based Tracks ──
+# Each track is a short, focused walkthrough (3-6 steps) for a specific use case.
+# The menu screen lets the user pick which track to follow.
+# Architecture note for future contributors:
+#   - To add a new track, add an entry to $script:TutorialTracks and a matching step array.
+#   - Each step has: Title, Body, Highlights (array of control variable names).
+#   - The menu rebuilds automatically from $script:TutorialTracks.
+
+$script:TutorialTracks = [ordered]@{
+  'PrinterMapping' = @{
+    Label = [char]0x2399 + '  Printer Mapping'
+    Desc  = 'Map or remove printers across workstations'
+    Color = [System.Drawing.Color]::FromArgb(30,150,30)
+    Steps = @(
+      @{ Title = 'Printer Mapping: Load a Safe Example'; Highlights = @('btnExampleOptions'); Body = "Let's do a safe dry run right now.`n`nClick the highlighted Load Safe Example button (or press Ctrl+E).`n`nThis pre-fills Recon Only + Preflight mode, which takes a snapshot of your existing printers without making any changes. Completely safe on production machines.`n`nClick it now, then press Next." }
+      @{ Title = 'Printer Mapping: Hit the Green GO Button'; Highlights = @('btnStartWorker'); Body = "Now click the big green START Local Worker button at the bottom.`n`nThis runs a Recon scan on THIS machine only:`n- Reads your current printers`n- Writes Results.csv and Results.html`n- Makes ZERO changes`n`nA confirmation dialog will appear -- click Yes.`nIf anything goes wrong, the big red STOP button at the top right stops it immediately." }
+      @{ Title = 'Printer Mapping: Check Your Output'; Highlights = @('txtStatusView','btnOpenSession'); Body = "Look at the Status pane below. It should say Completed.`n`nClick Open Session Folder to see what was created:`n`n  Run.log        - full transcript`n  Preflight.csv  - printers before changes`n  Results.csv    - final state`n  Results.html   - visual report`n`nOpen Results.html in a browser for a quick audit." }
+      @{ Title = 'Example: What Success Looks Like'; Highlights = @('txtStatusView'); Body = "The Status pane shows something like:`n`n  {`n    ""State"":  ""Completed"",`n    ""Stage"":  ""ListOnly"",`n    ""Message"": ""ListOnly inventory completed.""`n  }`n`nAnd Results.csv has rows like:`n`n  Type   Target                     Status`n  UNC    \\\\printsrv\\lobby-hp4050   PresentBefore`n  LOCAL  Microsoft Print to PDF     PresentAfter`n`nTo actually map printers, switch Run Mode to Full Run and add queue paths in Queues to Add." }
+      @{ Title = 'Printer Mapping: Done!'; Highlights = @(); Body = "You just completed a Printer Mapping recon!`n`nNext steps for real work:`n1. Change Run Mode to Full Run`n2. Type queue paths in Queues to Add (e.g. \\\\PRINTSRV\\Lobby-HP4050)`n3. For multiple PCs, type hostnames in Controller Targets and use Start Controller`n`nAlways Recon first, review, then Full Run.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+  'KronosClock' = @{
+    Label = [char]0x23F0 + '  Kronos Clock'
+    Desc  = 'Probe network clocks for MAC, serial, model'
+    Color = [System.Drawing.Color]::FromArgb(0,120,180)
+    Steps = @(
+      @{ Title = 'Kronos: Switch to the Kronos Tab'; Highlights = @(); Body = "Click the Kronos Lookup tab at the top of the window.`n`nThis tab lets you probe network time clocks (Kronos, UKG, etc.) to collect their MAC address, serial number, model, and hostname.`n`nSwitch to that tab now, then press Next." }
+      @{ Title = 'Kronos: Enter a Target and Probe'; Highlights = @('txtTargets','btnProbe'); Body = "In the Targets box, type an IP address or hostname of a clock.`nExample: 10.1.2.50`n`nThen click Probe Targets. The tool will scan via ICMP, SNMP, ARP, HTTP, and DNS to collect identity info.`n`nIf you do not have a real clock handy, type any IP -- the probe will report Reachable=False, which is still useful to see." }
+      @{ Title = 'Kronos: Read the Results'; Highlights = @('txtClockResults','btnCopyClockResults'); Body = "The Results pane shows a table like:`n`n  QueryInput  IPAddress   HostName       MAC               Serial  Reachable`n  10.1.2.50   10.1.2.50   KRON-CLK-01    00:1A:2B:3C:4D:5E KRN4401 True`n`nClick Copy Results to paste into a ticket or DHCP form.`nThe Output CSV is also saved to disk for Excel." }
+      @{ Title = 'Kronos: Search a Saved Inventory'; Highlights = @('btnInventory','cmbLookup','txtLookup','btnFind'); Body = "Already have a saved CSV? Click Load Inventory to import it.`n`nTo search:`n1. Pick a field: IP, MAC, Serial, HostName, or Any`n2. Type a value in the search box`n3. Click Find Match`n`nThis is the cross-lookup workflow: start with one identifier and get back the full record." }
+      @{ Title = 'Kronos: Done!'; Highlights = @(); Body = "You now know how to probe clocks and search inventories!`n`nTip: Save the Output CSV after each probe. You can re-import it later without re-probing the network.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+  'NeuronMachineInfo' = @{
+    Label = [char]0x2328 + '  Neuron MachineInfo'
+    Desc  = 'Get serial, IP, MAC for Neuron workstations'
+    Color = [System.Drawing.Color]::FromArgb(120,80,180)
+    Steps = @(
+      @{ Title = 'Neuron MachineInfo: Overview'; Highlights = @(); Body = "Get-MachineInfo.ps1 queries workstations via WMI to collect:`n- Serial number (BIOS)`n- IP address and MAC address`n- Monitor serial numbers`n`nThis runs from the command line (not yet in the GUI).`nThe tutorial will show you exactly how." }
+      @{ Title = 'Neuron MachineInfo: Prepare a Host List'; Highlights = @(); Body = "Create a text file with one hostname per line:`n`n  C:\\Temp\\neuron_hosts.txt`n  -------------------------`n  NEURON-WKS001`n  NEURON-WKS002`n  NEURON-WKS003`n`nSave it anywhere you like. The script reads this file to know which machines to query." }
+      @{ Title = 'Neuron MachineInfo: Run the Script'; Highlights = @(); Body = "Open PowerShell and run:`n`n  powershell -File .\\GetInfo\\Get-MachineInfo.ps1 ```n    -ListPath C:\\Temp\\neuron_hosts.txt ```n    -OutputPath C:\\Temp\\NeuronInfo.csv`n`nThe script queries each host in parallel (up to 15 at a time) and writes a CSV." }
+      @{ Title = 'Example: MachineInfo Output'; Highlights = @(); Body = "The output CSV has these columns:`n`n  Timestamp | HostName | Serial | IPAddress | MACAddress | MonitorSerials | Status`n`n  2026-03-24  NEURON-WKS001  5CG123  10.1.5.20  AA:BB:CC:DD:EE:FF  SN12345  OK`n  2026-03-24  NEURON-WKS002  Offline                                          Offline`n`nOpen it in Excel to sort, filter, or paste into asset tracking.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+  'PrinterMachineInfo' = @{
+    Label = [char]0x2316 + '  Printer MachineInfo'
+    Desc  = 'Get MAC and serial from network printers'
+    Color = [System.Drawing.Color]::FromArgb(180,100,30)
+    Steps = @(
+      @{ Title = 'Printer MachineInfo: Overview'; Highlights = @(); Body = "Get-PrinterMacSerial.ps1 probes network printers to collect:`n- MAC address (SNMP, HTTP, ARP)`n- Serial number (SNMP, HTTP scrape)`n`nThis is useful for asset tagging, warranty lookups, and DHCP reservations.`nRuns from the command line." }
+      @{ Title = 'Printer MachineInfo: Run the Script'; Highlights = @(); Body = "Open PowerShell and run:`n`n  powershell -File .\\GetInfo\\Get-PrinterMacSerial.ps1 ```n    -Targets 10.1.3.100,10.1.3.101 ```n    -OutCsv C:\\Temp\\PrinterInfo.csv`n`nOr use a file of IPs:`n  -ListPath C:\\Temp\\printer_ips.txt`n`nThe script tries SNMP first, then HTTP scraping, then ARP as a fallback." }
+      @{ Title = 'Example: Printer MachineInfo Output'; Highlights = @(); Body = "The output CSV has these columns:`n`n  IP | Status | MAC | Serial | Source | Notes`n`n  10.1.3.100  Online   AA:BB:CC:DD:EE:FF  VNB1234567  SNMP serial + SNMP MAC`n  10.1.3.101  Online   11:22:33:44:55:66  (none)      SNMP MAC; Serial unavailable`n  10.1.3.102  Offline  (none)             (none)      Host unreachable (ICMP)`n`nUse this for asset inventory or to fill in DHCP reservation forms.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+  'CybernetMachineInfo' = @{
+    Label = [char]0x2395 + '  Cybernet / Workstation Info'
+    Desc  = 'Get serial, IP, MAC for Cybernet PCs'
+    Color = [System.Drawing.Color]::FromArgb(50,130,130)
+    Steps = @(
+      @{ Title = 'Cybernet MachineInfo: Overview'; Highlights = @(); Body = "This uses the same Get-MachineInfo.ps1 script as Neuron, but for Cybernet or any Windows workstation.`n`nIt collects: Serial, IP, MAC, and Monitor Serials via WMI.`n`nThe only difference is the host list you provide." }
+      @{ Title = 'Cybernet MachineInfo: Prepare and Run'; Highlights = @(); Body = "Create a host list with Cybernet hostnames:`n`n  C:\\Temp\\cybernet_hosts.txt`n  -------------------------`n  CYBER-WKS001`n  CYBER-WKS002`n`nThen run:`n`n  powershell -File .\\GetInfo\\Get-MachineInfo.ps1 ```n    -ListPath C:\\Temp\\cybernet_hosts.txt ```n    -OutputPath C:\\Temp\\CybernetInfo.csv`n`nSame parallel WMI queries, same CSV output format." }
+      @{ Title = 'Example: Cybernet Output'; Highlights = @(); Body = "Output CSV columns:`n`n  Timestamp | HostName | Serial | IPAddress | MACAddress | MonitorSerials | Status`n`n  2026-03-24  CYBER-WKS001  MXL987  10.2.1.10  AA:BB:CC:DD:EE:FF  MON-SN1  OK`n  2026-03-24  CYBER-WKS002  MXL988  10.2.1.11  11:22:33:44:55:66  MON-SN2  OK`n`nTip: Use -Throttle 30 to speed up large lists.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+  'PrinterLayout' = @{
+    Label = [char]0x2637 + '  Printer Layout (Recon)'
+    Desc  = 'See what printers are on a PC before mapping'
+    Color = [System.Drawing.Color]::FromArgb(100,60,150)
+    Steps = @(
+      @{ Title = 'Printer Layout: What Is It?'; Highlights = @(); Body = "Before you map new printers, you need to know what is already there.`n`nPrinter Layout = running a Recon Only scan to list every printer (UNC network queues and local printers) on a machine.`n`nThis is the safest first step before any mapping changes." }
+      @{ Title = 'Printer Layout: Load and Run Recon'; Highlights = @('btnExampleOptions','btnStartWorker'); Body = "1. Click Load Safe Example (or Ctrl+E) to pre-fill Recon mode`n2. Click the big green START Local Worker button`n3. Confirm with Yes`n`nThis snapshots your printers without changing anything." }
+      @{ Title = 'Printer Layout: Read the Layout'; Highlights = @('btnOpenSession'); Body = "Click Open Session Folder and open Results.csv or Results.html.`n`nYou will see every printer on this machine:`n`n  Type   Target                        Status`n  UNC    \\\\printsrv\\lobby-hp4050      PresentNow`n  UNC    \\\\printsrv\\office-hp5550     PresentNow`n  LOCAL  Microsoft Print to PDF        PresentNow`n  LOCAL  Fax                           PresentNow`n`nThis is your baseline. Use it to decide what to add or remove." }
+      @{ Title = 'Printer Layout: Done!'; Highlights = @(); Body = "You now have a complete printer inventory for this machine!`n`nFor other PCs: type their hostnames in Controller Targets, then use Start Controller with Recon Only mode.`n`nThe Results.csv from each host tells you exactly what is mapped before you make changes.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+}
+
+# The active tutorial steps array — starts as the menu (set by Show-TutorialMenu)
+$script:TutorialSteps = @()
 $script:TutorialIndex = 0
 $script:TutorialActive = $false
 $script:TutorialShownOnce = $false
 $script:TutorialCheckpoints = @{}
-$script:HighlightColor = [System.Drawing.Color]::FromArgb(70,130,240)
 $script:HighlightedControls = @()
+$script:TutorialInMenu = $true  # true = showing the menu, false = in a track
+$script:GlowOn = $true
+$script:GlowColorA = [System.Drawing.Color]::FromArgb(255,215,0)   # Gold
+$script:GlowColorB = [System.Drawing.Color]::FromArgb(255,255,120) # Bright yellow
 
 function Clear-TutorialHighlight {
   foreach ($entry in $script:HighlightedControls) {
@@ -348,40 +406,95 @@ function Clear-TutorialHighlight {
   $script:HighlightedControls = @()
 }
 
+# Highlight controls — preserves green/red identity on Start/Stop buttons by pulsing ForeColor instead
 function Apply-TutorialHighlights {
   param([string[]]$Names)
   Clear-TutorialHighlight
   if (-not $Names -or $Names.Count -eq 0) { return }
   $list = [System.Collections.Generic.List[psobject]]::new()
+  $identityButtons = @('btnStartWorker','btnStartController','btnStop')
   foreach ($name in $Names) {
     if (-not $name) { continue }
     $ctrl = Get-Variable -Name $name -ValueOnly -ErrorAction SilentlyContinue
     if (-not $ctrl) { continue }
-    $entry = [pscustomobject]@{ Control = $ctrl; BackColor = $ctrl.BackColor; ForeColor = $ctrl.ForeColor }
+    $entry = [pscustomobject]@{ Control = $ctrl; BackColor = $ctrl.BackColor; ForeColor = $ctrl.ForeColor; IsIdentity = ($identityButtons -contains $name) }
     $list.Add($entry)
-    if ($ctrl -is [System.Windows.Forms.GroupBox]) {
-      $ctrl.BackColor = [System.Drawing.Color]::FromArgb(220,232,255)
-      $ctrl.ForeColor = $script:HighlightColor
-    } elseif ($ctrl -is [System.Windows.Forms.Button]) {
-      $ctrl.BackColor = [System.Drawing.Color]::FromArgb(180,210,255)
-    } elseif ($ctrl -is [System.Windows.Forms.TextBox]) {
-      $ctrl.BackColor = [System.Drawing.Color]::FromArgb(230,240,255)
-    } elseif ($ctrl -is [System.Windows.Forms.ComboBox]) {
-      $ctrl.BackColor = [System.Drawing.Color]::FromArgb(230,240,255)
-    } elseif ($ctrl -is [System.Windows.Forms.CheckBox]) {
-      $ctrl.BackColor = [System.Drawing.Color]::FromArgb(220,232,255)
+    if ($identityButtons -contains $name) {
+      # Don't change BackColor on green GO / red STOP — pulse ForeColor instead
+      $ctrl.ForeColor = $script:GlowColorA
     } else {
-      $ctrl.BackColor = [System.Drawing.Color]::FromArgb(220,232,255)
+      $ctrl.BackColor = $script:GlowColorA
+      if ($ctrl -is [System.Windows.Forms.GroupBox] -or $ctrl -is [System.Windows.Forms.Label]) {
+        $ctrl.ForeColor = [System.Drawing.Color]::FromArgb(140,80,0)
+      } elseif ($ctrl -is [System.Windows.Forms.Button]) {
+        $ctrl.ForeColor = [System.Drawing.Color]::Black
+      }
     }
   }
   $script:HighlightedControls = $list.ToArray()
+  $script:GlowOn = $true
+}
+
+# Timer that pulses highlighted controls
+$script:GlowTimer = New-Object System.Windows.Forms.Timer
+$script:GlowTimer.Interval = 600
+$script:GlowTimer.Add_Tick({
+  if ($script:HighlightedControls.Count -eq 0) { return }
+  $script:GlowOn = -not $script:GlowOn
+  $colorA = $script:GlowColorA; $colorB = $script:GlowColorB
+  $color = if ($script:GlowOn) { $colorA } else { $colorB }
+  foreach ($entry in $script:HighlightedControls) {
+    if ($entry.IsIdentity) {
+      $entry.Control.ForeColor = $color  # pulse text color, keep green/red background
+    } else {
+      $entry.Control.BackColor = $color
+    }
+  }
+})
+$script:GlowTimer.Start()
+
+# Show the tutorial menu (track picker) inside the tutorial panel
+function Show-TutorialMenu {
+  $script:TutorialInMenu = $true
+  $script:TutorialSteps = @()
+  $script:TutorialIndex = 0
+  Clear-TutorialHighlight
+  # Hide step navigation, show menu buttons
+  $script:TutorialTitleLabel.Text = 'Choose a Tutorial'
+  $script:TutorialBodyLabel.Text = "Pick a use case below to get a short, guided walkthrough.`nEach tutorial is 3-5 steps and shows you real output at the end."
+  $script:TutorialBodyLabel.Font = New-Object System.Drawing.Font('Segoe UI',9.5)
+  $script:TutorialCounter.Text = ''
+  $script:TutorialBtnPrev.Visible = $false
+  $script:TutorialBtnNext.Visible = $false
+  $script:TutorialBtnMenu.Visible = $false
+  # Show track buttons
+  foreach ($btn in $script:TrackButtons) { $btn.Visible = $true }
+}
+
+function Start-TutorialTrack {
+  param([string]$TrackKey)
+  $track = $script:TutorialTracks[$TrackKey]
+  if (-not $track) { return }
+  $script:TutorialSteps = $track.Steps
+  $script:TutorialIndex = 0
+  $script:TutorialInMenu = $false
+  # Hide track buttons, show step navigation
+  foreach ($btn in $script:TrackButtons) { $btn.Visible = $false }
+  $script:TutorialBtnPrev.Visible = $true
+  $script:TutorialBtnNext.Visible = $true
+  $script:TutorialBtnMenu.Visible = $true
+  Update-TutorialView
 }
 
 function Show-Tutorial {
   param([int]$StepIndex = -1)
-  if ($StepIndex -ge 0 -and $StepIndex -lt $script:TutorialSteps.Count) { $script:TutorialIndex = $StepIndex }
   $script:TutorialActive = $true
-  Update-TutorialView
+  if ($script:TutorialInMenu -or $script:TutorialSteps.Count -eq 0) {
+    Show-TutorialMenu
+  } elseif ($StepIndex -ge 0 -and $StepIndex -lt $script:TutorialSteps.Count) {
+    $script:TutorialIndex = $StepIndex
+    Update-TutorialView
+  }
   $script:TutorialPanel.Visible = $true
   $script:TutorialPanel.BringToFront()
 }
@@ -393,13 +506,13 @@ function Hide-Tutorial {
 }
 
 function Update-TutorialView {
+  if ($script:TutorialInMenu) { return }
   $step = $script:TutorialSteps[$script:TutorialIndex]
   $script:TutorialTitleLabel.Text = $step.Title
   $script:TutorialBodyLabel.Text = $step.Body
   $script:TutorialCounter.Text = "Step $($script:TutorialIndex + 1) of $($script:TutorialSteps.Count)"
   $script:TutorialBtnPrev.Enabled = $script:TutorialIndex -gt 0
   $script:TutorialBtnNext.Enabled = $script:TutorialIndex -lt ($script:TutorialSteps.Count - 1)
-  # Use monospace font for example-output steps so tables align
   if ($step.Title -match '^Example:') {
     $script:TutorialBodyLabel.Font = New-Object System.Drawing.Font('Consolas',8.5)
   } else {
@@ -454,11 +567,16 @@ $grpPaths.Text = 'Session File Paths'; $grpPaths.Location = '6,6'; $grpPaths.Siz
 $lblStop = New-Object System.Windows.Forms.Label
 $lblStop.Location = '10,22'; $lblStop.Size = '100,20'; $lblStop.Text = 'Stop signal path'; $lblStop.Font = $emphasisFont
 $txtStop = New-Object System.Windows.Forms.TextBox
-$txtStop.Location = '115,19'; $txtStop.Size = '650,24'; $txtStop.Text = (Join-Path $repoRoot 'Mapping\Output\Stop.json'); $txtStop.Anchor = 'Top, Left, Right'; $txtStop.Font = $uiFont; $txtStop.ReadOnly = $true; $txtStop.Cursor = 'Hand'; $txtStop.BackColor = [System.Drawing.Color]::White
+$txtStop.Location = '115,19'; $txtStop.Size = '575,24'; $txtStop.Text = (Join-Path $repoRoot 'Mapping\Output\Stop.json'); $txtStop.Anchor = 'Top, Left, Right'; $txtStop.Font = $uiFont; $txtStop.ReadOnly = $true; $txtStop.Cursor = 'Hand'; $txtStop.BackColor = [System.Drawing.Color]::White
 $btnBrowseStop = New-Object System.Windows.Forms.Button
-$btnBrowseStop.Location = '772,18'; $btnBrowseStop.Size = '30,26'; $btnBrowseStop.Text = [char]0x2026; $btnBrowseStop.Anchor = 'Top, Right'; $btnBrowseStop.FlatStyle = 'Flat'; $btnBrowseStop.Font = $uiFont
+$btnBrowseStop.Location = '696,18'; $btnBrowseStop.Size = '30,26'; $btnBrowseStop.Text = [char]0x2026; $btnBrowseStop.Anchor = 'Top, Right'; $btnBrowseStop.FlatStyle = 'Flat'; $btnBrowseStop.Font = $uiFont
 $btnStop = New-Object System.Windows.Forms.Button
-$btnStop.Location = '810,18'; $btnStop.Size = '130,26'; $btnStop.Text = 'Stop Run  (Ctrl+S)'; $btnStop.Anchor = 'Top, Right'; $btnStop.FlatStyle = 'Flat'; $btnStop.BackColor = [System.Drawing.Color]::FromArgb(255,235,235); $btnStop.Font = $uiFont
+$btnStop.Location = '732,14'; $btnStop.Size = '210,34'; $btnStop.Anchor = 'Top, Right'
+$btnStop.Text = [char]0x25A0 + '  STOP Run  (Ctrl+S)'
+$btnStop.Font = New-Object System.Drawing.Font('Segoe UI Bold',10); $btnStop.Cursor = 'Hand'
+$btnStop.BackColor = [System.Drawing.Color]::FromArgb(200,30,30)
+$btnStop.ForeColor = [System.Drawing.Color]::White
+$btnStop.FlatStyle = 'Popup'
 
 $lblStatus = New-Object System.Windows.Forms.Label
 $lblStatus.Location = '10,52'; $lblStatus.Size = '100,20'; $lblStatus.Text = 'Status path'; $lblStatus.Font = $emphasisFont
@@ -501,7 +619,7 @@ $grpOptions.Controls.AddRange(@($chkWhatIf,$chkAutoRefresh,$lblRefreshEvery,$nud
 
 # ── Run Tab: GroupBox — Launch Configuration ──
 $grpLaunch = New-Object System.Windows.Forms.GroupBox
-$grpLaunch.Text = 'Launch Configuration'; $grpLaunch.Location = '6,172'; $grpLaunch.Size = '952,200'; $grpLaunch.Anchor = 'Top, Left, Right'; $grpLaunch.Font = $emphasisFont
+$grpLaunch.Text = 'Launch Configuration'; $grpLaunch.Location = '6,172'; $grpLaunch.Size = '952,232'; $grpLaunch.Anchor = 'Top, Left, Right'; $grpLaunch.Font = $emphasisFont
 
 $lblRunTargets = New-Object System.Windows.Forms.Label
 $lblRunTargets.Location = '10,20'; $lblRunTargets.Size = '260,18'; $lblRunTargets.Text = 'Controller targets (one per line)'; $lblRunTargets.Font = $emphasisFont
@@ -552,27 +670,41 @@ $txtDefaultQueue.Add_TextChanged($rebuildHandler)
 $btnExampleOptions = New-Object System.Windows.Forms.Button
 $btnExampleOptions.Location = '10,146'; $btnExampleOptions.Size = '135,26'; $btnExampleOptions.Text = 'Load Safe Example'; $btnExampleOptions.FlatStyle = 'Flat'; $btnExampleOptions.BackColor = [System.Drawing.Color]::White; $btnExampleOptions.Font = $uiFont
 $btnOpenSession = New-Object System.Windows.Forms.Button
-$btnOpenSession.Location = '152,168'; $btnOpenSession.Size = '140,26'; $btnOpenSession.Text = 'Open Session Folder'; $btnOpenSession.FlatStyle = 'Flat'; $btnOpenSession.BackColor = [System.Drawing.Color]::White; $btnOpenSession.Font = $uiFont
+$btnOpenSession.Location = '152,146'; $btnOpenSession.Size = '140,26'; $btnOpenSession.Text = 'Open Session Folder'; $btnOpenSession.FlatStyle = 'Flat'; $btnOpenSession.BackColor = [System.Drawing.Color]::White; $btnOpenSession.Font = $uiFont
 $btnCopyStatus = New-Object System.Windows.Forms.Button
-$btnCopyStatus.Location = '300,168'; $btnCopyStatus.Size = '110,26'; $btnCopyStatus.Text = 'Copy Status'; $btnCopyStatus.FlatStyle = 'Flat'; $btnCopyStatus.BackColor = [System.Drawing.Color]::White; $btnCopyStatus.Font = $uiFont
+$btnCopyStatus.Location = '300,146'; $btnCopyStatus.Size = '110,26'; $btnCopyStatus.Text = 'Copy Status'; $btnCopyStatus.FlatStyle = 'Flat'; $btnCopyStatus.BackColor = [System.Drawing.Color]::White; $btnCopyStatus.Font = $uiFont
 $btnCopyHistory = New-Object System.Windows.Forms.Button
-$btnCopyHistory.Location = '418,168'; $btnCopyHistory.Size = '110,26'; $btnCopyHistory.Text = 'Copy History'; $btnCopyHistory.FlatStyle = 'Flat'; $btnCopyHistory.BackColor = [System.Drawing.Color]::White; $btnCopyHistory.Font = $uiFont
+$btnCopyHistory.Location = '418,146'; $btnCopyHistory.Size = '110,26'; $btnCopyHistory.Text = 'Copy History'; $btnCopyHistory.FlatStyle = 'Flat'; $btnCopyHistory.BackColor = [System.Drawing.Color]::White; $btnCopyHistory.Font = $uiFont
+
+# ── Big green GO and red STOP buttons ──
+$bigBtnFont = New-Object System.Drawing.Font('Segoe UI Bold',11)
 $btnStartWorker = New-Object System.Windows.Forms.Button
-$btnStartWorker.Location = '660,168'; $btnStartWorker.Size = '140,26'; $btnStartWorker.Text = 'Start Local Worker'; $btnStartWorker.Anchor = 'Top, Right'; $btnStartWorker.FlatStyle = 'Flat'; $btnStartWorker.BackColor = [System.Drawing.Color]::FromArgb(225,240,255); $btnStartWorker.Font = $emphasisFont
+$btnStartWorker.Location = '10,180'; $btnStartWorker.Size = '310,42'; $btnStartWorker.Anchor = 'Top, Left, Right'
+$btnStartWorker.Text = [char]0x25B6 + '  START Local Worker  (this PC only)'
+$btnStartWorker.Font = $bigBtnFont; $btnStartWorker.Cursor = 'Hand'
+$btnStartWorker.BackColor = [System.Drawing.Color]::FromArgb(30,150,30)
+$btnStartWorker.ForeColor = [System.Drawing.Color]::White
+$btnStartWorker.FlatStyle = 'Popup'
+
 $btnStartController = New-Object System.Windows.Forms.Button
-$btnStartController.Location = '808,168'; $btnStartController.Size = '134,26'; $btnStartController.Text = 'Start Controller'; $btnStartController.Anchor = 'Top, Right'; $btnStartController.FlatStyle = 'Flat'; $btnStartController.BackColor = [System.Drawing.Color]::FromArgb(225,248,236); $btnStartController.Font = $emphasisFont
+$btnStartController.Location = '328,180'; $btnStartController.Size = '310,42'; $btnStartController.Anchor = 'Top, Left, Right'
+$btnStartController.Text = [char]0x25B6 + '  START Controller  (push to targets)'
+$btnStartController.Font = $bigBtnFont; $btnStartController.Cursor = 'Hand'
+$btnStartController.BackColor = [System.Drawing.Color]::FromArgb(30,150,30)
+$btnStartController.ForeColor = [System.Drawing.Color]::White
+$btnStartController.FlatStyle = 'Popup'
 
 $grpLaunch.Controls.AddRange(@($lblRunTargets,$txtRunTargets,$lblRunMode,$cmbRunMode,$chkPreflight,$chkRestartSpooler,$lblQueuesAdd,$txtQueuesAdd,$lblQueuesRemove,$txtQueuesRemove,$lblDefaultQueue,$txtDefaultQueue,$lblGeneratedOpts,$txtWorkerOptions,$btnExampleOptions,$btnOpenSession,$btnCopyStatus,$btnCopyHistory,$btnStartWorker,$btnStartController))
 
 # ── Run Tab: Status & History panes ──
 $lblStatusPane = New-Object System.Windows.Forms.Label
-$lblStatusPane.Location = '8,377'; $lblStatusPane.Size = '120,18'; $lblStatusPane.Text = 'Run Status'; $lblStatusPane.Font = $emphasisFont
+$lblStatusPane.Location = '8,409'; $lblStatusPane.Size = '120,18'; $lblStatusPane.Text = 'Run Status'; $lblStatusPane.Font = $emphasisFont
 $txtStatusView = New-Object System.Windows.Forms.TextBox
-$txtStatusView.Location = '6,396'; $txtStatusView.Size = '952,110'; $txtStatusView.Multiline = $true; $txtStatusView.ScrollBars = 'Both'; $txtStatusView.ReadOnly = $true; $txtStatusView.Anchor = 'Top, Left, Right'; $txtStatusView.Font = $monoFont; $txtStatusView.WordWrap = $false; $txtStatusView.BackColor = [System.Drawing.Color]::White; $txtStatusView.Text = 'Launch a run or click Refresh Now to inspect a status snapshot.'
+$txtStatusView.Location = '6,428'; $txtStatusView.Size = '952,95'; $txtStatusView.Multiline = $true; $txtStatusView.ScrollBars = 'Both'; $txtStatusView.ReadOnly = $true; $txtStatusView.Anchor = 'Top, Left, Right'; $txtStatusView.Font = $monoFont; $txtStatusView.WordWrap = $false; $txtStatusView.BackColor = [System.Drawing.Color]::White; $txtStatusView.Text = 'Launch a run or click Refresh Now to inspect a status snapshot.'
 $lblHistoryPane = New-Object System.Windows.Forms.Label
-$lblHistoryPane.Location = '8,510'; $lblHistoryPane.Size = '120,18'; $lblHistoryPane.Text = 'Undo / Redo History'; $lblHistoryPane.Font = $emphasisFont
+$lblHistoryPane.Location = '8,527'; $lblHistoryPane.Size = '120,18'; $lblHistoryPane.Text = 'Undo / Redo History'; $lblHistoryPane.Font = $emphasisFont
 $txtHistoryView = New-Object System.Windows.Forms.TextBox
-$txtHistoryView.Location = '6,530'; $txtHistoryView.Size = '952,195'; $txtHistoryView.Multiline = $true; $txtHistoryView.ScrollBars = 'Both'; $txtHistoryView.ReadOnly = $true; $txtHistoryView.Anchor = 'Top, Bottom, Left, Right'; $txtHistoryView.Font = $monoFont; $txtHistoryView.WordWrap = $false; $txtHistoryView.BackColor = [System.Drawing.Color]::White; $txtHistoryView.Text = 'Launch a run or load a history file to inspect undo/redo details.'
+$txtHistoryView.Location = '6,547'; $txtHistoryView.Size = '952,178'; $txtHistoryView.Multiline = $true; $txtHistoryView.ScrollBars = 'Both'; $txtHistoryView.ReadOnly = $true; $txtHistoryView.Anchor = 'Top, Bottom, Left, Right'; $txtHistoryView.Font = $monoFont; $txtHistoryView.WordWrap = $false; $txtHistoryView.BackColor = [System.Drawing.Color]::White; $txtHistoryView.Text = 'Launch a run or load a history file to inspect undo/redo details.'
 
 $runTab.Controls.AddRange(@($grpPaths,$grpOptions,$grpLaunch,$lblStatusPane,$txtStatusView,$lblHistoryPane,$txtHistoryView))
 
@@ -643,11 +775,40 @@ $form.Controls.Add($statusStrip)
 
 # ── Tutorial Overlay Panel ──
 $script:TutorialPanel = New-Object System.Windows.Forms.Panel
-$script:TutorialPanel.Size = New-Object System.Drawing.Size(520,420)
+$script:TutorialPanel.Size = New-Object System.Drawing.Size(520,468)
 $script:TutorialPanel.BackColor = [System.Drawing.Color]::FromArgb(30,42,56)
 $script:TutorialPanel.BorderStyle = 'FixedSingle'
 $script:TutorialPanel.Visible = $false
 $script:TutorialPanel.Anchor = 'None'
+$script:TutorialPanel.Cursor = [System.Windows.Forms.Cursors]::SizeAll
+
+# ── Drag support for tutorial panel (works from any child control) ──
+$script:TutDragging = $false
+$script:TutDragStart = [System.Drawing.Point]::Empty
+$script:TutDragHandler_Down = {
+  param($s,$e)
+  if ($e.Button -eq 'Left') {
+    $script:TutDragging = $true
+    # Convert click point to panel-relative coords so any child can start a drag
+    $script:TutDragStart = $script:TutorialPanel.PointToClient($s.PointToScreen($e.Location))
+  }
+}
+$script:TutDragHandler_Move = {
+  param($s,$e)
+  if ($script:TutDragging) {
+    $current = $script:TutorialPanel.PointToClient($s.PointToScreen($e.Location))
+    $script:TutorialPanel.Left += $current.X - $script:TutDragStart.X
+    $script:TutorialPanel.Top  += $current.Y - $script:TutDragStart.Y
+  }
+}
+$script:TutDragHandler_Up = {
+  param($s,$e)
+  $script:TutDragging = $false
+}
+# Attach to the panel itself
+$script:TutorialPanel.Add_MouseDown($script:TutDragHandler_Down)
+$script:TutorialPanel.Add_MouseMove($script:TutDragHandler_Move)
+$script:TutorialPanel.Add_MouseUp($script:TutDragHandler_Up)
 
 $script:TutorialTitleLabel = New-Object System.Windows.Forms.Label
 $script:TutorialTitleLabel.Location = '18,14'
@@ -655,6 +816,10 @@ $script:TutorialTitleLabel.Size = '440,28'
 $script:TutorialTitleLabel.Font = New-Object System.Drawing.Font('Segoe UI Semibold',13)
 $script:TutorialTitleLabel.ForeColor = [System.Drawing.Color]::FromArgb(230,240,255)
 $script:TutorialTitleLabel.Text = ''
+$script:TutorialTitleLabel.Cursor = [System.Windows.Forms.Cursors]::SizeAll
+$script:TutorialTitleLabel.Add_MouseDown($script:TutDragHandler_Down)
+$script:TutorialTitleLabel.Add_MouseMove($script:TutDragHandler_Move)
+$script:TutorialTitleLabel.Add_MouseUp($script:TutDragHandler_Up)
 
 $btnTutorialClose = New-Object System.Windows.Forms.Button
 $btnTutorialClose.Location = '480,8'
@@ -670,13 +835,45 @@ $btnTutorialClose.Add_Click({ Hide-Tutorial })
 
 $script:TutorialBodyLabel = New-Object System.Windows.Forms.Label
 $script:TutorialBodyLabel.Location = '18,50'
-$script:TutorialBodyLabel.Size = '484,310'
+$script:TutorialBodyLabel.Size = '484,260'
 $script:TutorialBodyLabel.Font = New-Object System.Drawing.Font('Segoe UI',9.5)
 $script:TutorialBodyLabel.ForeColor = [System.Drawing.Color]::FromArgb(210,220,235)
 $script:TutorialBodyLabel.Text = ''
+$script:TutorialBodyLabel.Cursor = [System.Windows.Forms.Cursors]::SizeAll
+$script:TutorialBodyLabel.Add_MouseDown($script:TutDragHandler_Down)
+$script:TutorialBodyLabel.Add_MouseMove($script:TutDragHandler_Move)
+$script:TutorialBodyLabel.Add_MouseUp($script:TutDragHandler_Up)
 
+# ── Track selection buttons (visible only on the menu screen) ──
+$script:TrackButtons = @()
+$trackBtnFont = New-Object System.Drawing.Font('Segoe UI Semibold',9.5)
+$trackIdx = 0
+foreach ($key in $script:TutorialTracks.Keys) {
+  $track = $script:TutorialTracks[$key]
+  $btn = New-Object System.Windows.Forms.Button
+  $col = if ($trackIdx % 2 -eq 0) { 18 } else { 260 }
+  $row = [Math]::Floor($trackIdx / 2)
+  $btn.Location = New-Object System.Drawing.Point($col, (100 + $row * 52))
+  $btn.Size = '232,44'
+  $btn.Text = $track.Label + "`n" + $track.Desc
+  $btn.TextAlign = 'MiddleLeft'
+  $btn.Font = $trackBtnFont
+  $btn.FlatStyle = 'Flat'
+  $btn.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(80,100,130)
+  $btn.BackColor = $track.Color
+  $btn.ForeColor = [System.Drawing.Color]::White
+  $btn.Cursor = 'Hand'
+  $btn.Visible = $false
+  $btn.Tag = $key
+  $btn.Add_Click({ Start-TutorialTrack -TrackKey $this.Tag })
+  $script:TrackButtons += $btn
+  $script:TutorialPanel.Controls.Add($btn)
+  $trackIdx++
+}
+
+# ── Step navigation buttons ──
 $script:TutorialBtnPrev = New-Object System.Windows.Forms.Button
-$script:TutorialBtnPrev.Location = '18,372'
+$script:TutorialBtnPrev.Location = '18,420'
 $script:TutorialBtnPrev.Size = '60,32'
 $script:TutorialBtnPrev.Text = [char]0x2190 + ' Prev'
 $script:TutorialBtnPrev.FlatStyle = 'Flat'
@@ -685,19 +882,38 @@ $script:TutorialBtnPrev.ForeColor = [System.Drawing.Color]::White
 $script:TutorialBtnPrev.BackColor = [System.Drawing.Color]::FromArgb(50,65,85)
 $script:TutorialBtnPrev.Font = $uiFont
 $script:TutorialBtnPrev.Cursor = 'Hand'
+$script:TutorialBtnPrev.Visible = $false
 $script:TutorialBtnPrev.Add_Click({
   if ($script:TutorialIndex -gt 0) { $script:TutorialIndex--; Update-TutorialView }
 })
 
 $script:TutorialCounter = New-Object System.Windows.Forms.Label
-$script:TutorialCounter.Location = '180,378'
-$script:TutorialCounter.Size = '160,20'
+$script:TutorialCounter.Location = '140,426'
+$script:TutorialCounter.Size = '120,20'
 $script:TutorialCounter.TextAlign = 'MiddleCenter'
 $script:TutorialCounter.Font = $uiFont
 $script:TutorialCounter.ForeColor = [System.Drawing.Color]::FromArgb(160,175,195)
+$script:TutorialCounter.Cursor = [System.Windows.Forms.Cursors]::SizeAll
+$script:TutorialCounter.Add_MouseDown($script:TutDragHandler_Down)
+$script:TutorialCounter.Add_MouseMove($script:TutDragHandler_Move)
+$script:TutorialCounter.Add_MouseUp($script:TutDragHandler_Up)
+
+# Menu button — returns to the track picker from inside a track
+$script:TutorialBtnMenu = New-Object System.Windows.Forms.Button
+$script:TutorialBtnMenu.Location = '270,420'
+$script:TutorialBtnMenu.Size = '80,32'
+$script:TutorialBtnMenu.Text = [char]0x2302 + ' Menu'
+$script:TutorialBtnMenu.FlatStyle = 'Flat'
+$script:TutorialBtnMenu.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(80,100,130)
+$script:TutorialBtnMenu.ForeColor = [System.Drawing.Color]::White
+$script:TutorialBtnMenu.BackColor = [System.Drawing.Color]::FromArgb(70,85,110)
+$script:TutorialBtnMenu.Font = $uiFont
+$script:TutorialBtnMenu.Cursor = 'Hand'
+$script:TutorialBtnMenu.Visible = $false
+$script:TutorialBtnMenu.Add_Click({ Show-TutorialMenu })
 
 $script:TutorialBtnNext = New-Object System.Windows.Forms.Button
-$script:TutorialBtnNext.Location = '440,372'
+$script:TutorialBtnNext.Location = '440,420'
 $script:TutorialBtnNext.Size = '60,32'
 $script:TutorialBtnNext.Text = 'Next ' + [char]0x2192
 $script:TutorialBtnNext.FlatStyle = 'Flat'
@@ -706,13 +922,14 @@ $script:TutorialBtnNext.ForeColor = [System.Drawing.Color]::White
 $script:TutorialBtnNext.BackColor = [System.Drawing.Color]::FromArgb(50,65,85)
 $script:TutorialBtnNext.Font = $uiFont
 $script:TutorialBtnNext.Cursor = 'Hand'
+$script:TutorialBtnNext.Visible = $false
 $script:TutorialBtnNext.Add_Click({
   if ($script:TutorialIndex -lt ($script:TutorialSteps.Count - 1)) { $script:TutorialIndex++; Update-TutorialView }
 })
 
 $script:TutorialPanel.Controls.AddRange(@(
   $script:TutorialTitleLabel, $btnTutorialClose, $script:TutorialBodyLabel,
-  $script:TutorialBtnPrev, $script:TutorialCounter, $script:TutorialBtnNext
+  $script:TutorialBtnPrev, $script:TutorialCounter, $script:TutorialBtnMenu, $script:TutorialBtnNext
 ))
 $form.Controls.Add($script:TutorialPanel)
 $script:TutorialPanel.BringToFront()
@@ -733,7 +950,7 @@ $btnShowTutorial = New-Object System.Windows.Forms.ToolStripButton
 $btnShowTutorial.Text = 'Tutorial (Ctrl+T)'
 $btnShowTutorial.DisplayStyle = 'Text'
 $btnShowTutorial.Alignment = 'Right'
-$btnShowTutorial.Add_Click({ if ($script:TutorialActive) { Hide-Tutorial } else { Show-Tutorial -StepIndex 0 } })
+$btnShowTutorial.Add_Click({ if ($script:TutorialActive) { Hide-Tutorial } else { Show-Tutorial } })
 $statusStrip.Items.Add($btnShowTutorial) | Out-Null
 
 $toolTip.SetToolTip($btnStop,'Request a graceful stop using the selected stop-signal file. (Ctrl+S)')
@@ -785,13 +1002,15 @@ $txtInv.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select inventory CSV file
 $form.Add_KeyDown({
   param($formSender, $e)
   # Tutorial navigation takes priority when active
-  if ($script:TutorialActive) {
+  if ($script:TutorialActive -and -not $script:TutorialInMenu) {
     if ($e.KeyCode -eq 'Left')   { $script:TutorialBtnPrev.PerformClick(); $e.Handled = $true; $e.SuppressKeyPress = $true; return }
     if ($e.KeyCode -eq 'Right')  { $script:TutorialBtnNext.PerformClick(); $e.Handled = $true; $e.SuppressKeyPress = $true; return }
+    if ($e.KeyCode -eq 'Escape') { Show-TutorialMenu; $e.Handled = $true; $e.SuppressKeyPress = $true; return }
+  } elseif ($script:TutorialActive -and $script:TutorialInMenu) {
     if ($e.KeyCode -eq 'Escape') { Hide-Tutorial; $e.Handled = $true; $e.SuppressKeyPress = $true; return }
   }
   if ($e.Control -and $e.KeyCode -eq 'T') {
-    if ($script:TutorialActive) { Hide-Tutorial } else { Show-Tutorial -StepIndex 0 }
+    if ($script:TutorialActive) { Hide-Tutorial } else { Show-Tutorial }
     $e.Handled = $true; $e.SuppressKeyPress = $true
   }
   elseif ($e.Control -and $e.KeyCode -eq 'S') { $btnStop.PerformClick(); $e.Handled = $true; $e.SuppressKeyPress = $true }
@@ -955,11 +1174,6 @@ $refreshTimer.Start()
 $form.Add_FormClosed({ $refreshTimer.Stop() })
 Update-RunActionState
 
-# ── Tutorial checkpoint on tab change ──
-$tabs.Add_SelectedIndexChanged({
-  if ($tabs.SelectedTab -eq $kronosTab) {
-    Show-TutorialAtCheckpoint -CheckpointName 'KronosTab' -StepIndex 14
-  }
-})
+# ── Tutorial checkpoint on tab change (menu-based: no auto-jump) ──
 
 [void]$form.ShowDialog()
