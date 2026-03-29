@@ -349,6 +349,17 @@ function Start-GuiRun {
 #   - The menu rebuilds automatically from $script:TutorialTracks.
 
 $script:TutorialTracks = [ordered]@{
+  'PrinterLayout' = @{
+    Label = [char]0x2637 + '  Printer Layout (Recon)'
+    Desc  = 'See what printers are on a PC before mapping'
+    Color = [System.Drawing.Color]::FromArgb(100,60,150)
+    Steps = @(
+      @{ Title = 'Printer Layout: What Is It?'; Highlights = @(); Body = "Before you map new printers, you need to know what is already there.`n`nPrinter Layout = running a Recon Only scan to list every printer (UNC network queues and local printers) on a machine.`n`nThis is the safest first step before any mapping changes." }
+      @{ Title = 'Printer Layout: Load and Run Recon'; Highlights = @('btnExampleOptions','btnStartWorker'); Body = "1. Click Load Safe Example (or Ctrl+E) to pre-fill Recon mode`n2. Click the big green START Local Worker button`n3. Confirm with Yes`n`nThis snapshots your printers without changing anything." }
+      @{ Title = 'Printer Layout: Read the Layout'; Highlights = @('btnOpenSession'); Body = "Click Open Session Folder and open Results.csv or Results.html.`n`nYou will see every printer on this machine:`n`n  Type   Target                        Status`n  UNC    \\\\printsrv\\lobby-hp4050      PresentNow`n  UNC    \\\\printsrv\\office-hp5550     PresentNow`n  LOCAL  Microsoft Print to PDF        PresentNow`n  LOCAL  Fax                           PresentNow`n`nThis is your baseline. Use it to decide what to add or remove." }
+      @{ Title = 'Printer Layout: Done!'; Highlights = @(); Body = "You now have a complete printer inventory for this machine!`n`nFor other PCs: type their hostnames in Controller Targets, then use Start Controller with Recon Only mode.`n`nThe Results.csv from each host tells you exactly what is mapped before you make changes.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
   'PrinterMapping' = @{
     Label = [char]0x2399 + '  Printer Mapping'
     Desc  = 'Map or remove printers across workstations'
@@ -403,17 +414,6 @@ $script:TutorialTracks = [ordered]@{
       @{ Title = 'Cybernet MachineInfo: Overview'; Highlights = @(); Body = "This uses the same Get-MachineInfo.ps1 script as Neuron, but for Cybernet or any Windows workstation.`n`nIt collects: Serial, IP, MAC, and Monitor Serials via WMI.`n`nThe only difference is the host list you provide." }
       @{ Title = 'Cybernet MachineInfo: Use the Machine Info Tab'; Highlights = @('txtMITargets','cmbMIMode'); Body = "Click the Machine Info tab. Make sure the Script dropdown is set to:`n  Get-MachineInfo  (workstation serial/IP/MAC)`n`nType Cybernet hostnames in the Targets box:`n  CYBER-WKS001`n  CYBER-WKS002`n`nOr load a host list file using the [...] button.`n`nTip: Increase Throttle to 30 for large lists." }
       @{ Title = 'Cybernet MachineInfo: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. Results appear in the pane below.`n`nOutput CSV columns:`n`n  Timestamp | HostName | Serial | IPAddress | MACAddress | MonitorSerials | Status`n`n  2026-03-24  CYBER-WKS001  MXL987  10.2.1.10  AA:BB:CC:DD:EE:FF  MON-SN1  OK`n  2026-03-24  CYBER-WKS002  MXL988  10.2.1.11  11:22:33:44:55:66  MON-SN2  OK`n`nClick Copy Results or Open Output Folder.`n`nPress the Menu button below to try another tutorial." }
-    )
-  }
-  'PrinterLayout' = @{
-    Label = [char]0x2637 + '  Printer Layout (Recon)'
-    Desc  = 'See what printers are on a PC before mapping'
-    Color = [System.Drawing.Color]::FromArgb(100,60,150)
-    Steps = @(
-      @{ Title = 'Printer Layout: What Is It?'; Highlights = @(); Body = "Before you map new printers, you need to know what is already there.`n`nPrinter Layout = running a Recon Only scan to list every printer (UNC network queues and local printers) on a machine.`n`nThis is the safest first step before any mapping changes." }
-      @{ Title = 'Printer Layout: Load and Run Recon'; Highlights = @('btnExampleOptions','btnStartWorker'); Body = "1. Click Load Safe Example (or Ctrl+E) to pre-fill Recon mode`n2. Click the big green START Local Worker button`n3. Confirm with Yes`n`nThis snapshots your printers without changing anything." }
-      @{ Title = 'Printer Layout: Read the Layout'; Highlights = @('btnOpenSession'); Body = "Click Open Session Folder and open Results.csv or Results.html.`n`nYou will see every printer on this machine:`n`n  Type   Target                        Status`n  UNC    \\\\printsrv\\lobby-hp4050      PresentNow`n  UNC    \\\\printsrv\\office-hp5550     PresentNow`n  LOCAL  Microsoft Print to PDF        PresentNow`n  LOCAL  Fax                           PresentNow`n`nThis is your baseline. Use it to decide what to add or remove." }
-      @{ Title = 'Printer Layout: Done!'; Highlights = @(); Body = "You now have a complete printer inventory for this machine!`n`nFor other PCs: type their hostnames in Controller Targets, then use Start Controller with Recon Only mode.`n`nThe Results.csv from each host tells you exactly what is mapped before you make changes.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'RepoHealth' = @{
@@ -503,6 +503,18 @@ $script:TutorialTracks = [ordered]@{
     Steps = @(
       @{ Title = 'OCR Floor Plan: Overview'; Highlights = @(); Body = "The OCR folder contains Python tools for extracting workstation and printer positions from annotated floor plan images.`n`n  locus_mapping_ocr.py  -- detect red (workstation) and green (printer) circles, OCR their labels, compute nearest-printer mapping`n  build_host_unc_csv.py -- build a host-to-UNC mapping CSV from OCR output`n  printer_lookup.csv    -- reference data for printer queue names`n`nRequires: Python 3, opencv-python-headless, pillow, pytesseract, numpy, pandas, and Tesseract OCR engine." }
       @{ Title = 'OCR Floor Plan: Run It'; Highlights = @(); Body = "From the OCR folder:`n`n  python locus_mapping_ocr.py --workstations ws.png --printers pr.png --out-prefix ls111`n`nOutputs:`n  ls111-workstations.csv  (WorkstationID, x, y)`n  ls111-printers.csv      (PrinterID, x, y)`n  ls111-nearest.csv       (WorkstationID, PrinterID, DistancePx)`n  ls111-overlay-ws.png    (debug overlay)`n  ls111-overlay-pr.png    (debug overlay)`n`nThen run build_host_unc_csv.py to generate the mapping CSV for the Printer Mapping workflow.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+  'MonitorIdentification' = @{
+    Label = [char]0x2316 + '  Monitor Identification'
+    Desc  = 'Identify displays, diagnose dock phantoms, export HTML'
+    Color = [System.Drawing.Color]::FromArgb(60,120,180)
+    Steps = @(
+      @{ Title = 'Monitor ID: Overview'; Highlights = @(); Body = "GetInfo\Get-MonitorInfo.psm1 bridges WMI monitor hardware data (model, serial, manufacturer) with the Windows display topology (Settings display number, primary status, screen coordinates).`n`nFour exported functions:`n  Get-MonitorInfo           -- live inventory`n  Invoke-MonitorDiff        -- before/after cable-swap diff`n  Reset-DisplayDeviceCache  -- flush dock EDID cache`n  Export-MonitorInfoHtml    -- dark-themed HTML report`n`nNo network required -- all data comes from the local machine." }
+      @{ Title = 'Monitor ID: Quick Start'; Highlights = @(); Body = "Open a PowerShell terminal and run:`n`n  Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force`n  Get-MonitorInfo | Format-List`n`nEach object includes:`n  DisplayNumber, IsPrimary, Model, Serial,`n  Manufacturer, Resolution, ScreenBounds,`n  Connection, DevicePath, Adapter`n`nThe DisplayNumber matches what you see in`nSettings > System > Display (the circled numbers)." }
+      @{ Title = 'Monitor ID: Cable-Swap Diff'; Highlights = @(); Body = "To compare before and after swapping cables or docks:`n`n  Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force`n  Invoke-MonitorDiff`n`nThis captures a snapshot, prompts you to make your change, then captures a second snapshot and shows what Appeared, Disappeared, Changed, or stayed Unchanged.`n`nFor scripted pipelines:`n  `$before = Get-MonitorInfo`n  # ... swap cables ...`n  Invoke-MonitorDiff -BeforeSnapshot `$before -NonInteractive" }
+      @{ Title = 'Monitor ID: Dock Phantom Displays'; Highlights = @(); Body = "DisplayLink docks (like the ThinkPad Hybrid USB-C) cache EDID from the last-connected monitor in firmware. WMI reports these phantoms as Active/OK/Present even when nothing is plugged in.`n`nTo flush the cache (requires elevation):`n`n  Reset-DisplayDeviceCache`n  Get-MonitorInfo | Format-List`n`nNow only physically-connected monitors appear.`n`nKey insight: UIDs on the dock are port-bound, not monitor-bound. Swapping cables swaps which monitor gets which UID and display number." }
+      @{ Title = 'Monitor ID: HTML Report'; Highlights = @(); Body = "Generate a dark-themed HTML report (same style as RPM-Recon):`n`n  Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force`n  Export-MonitorInfoHtml -Open`n`nWith diff data:`n  `$before = Get-MonitorInfo`n  # ... swap cables ...`n  `$diff = Invoke-MonitorDiff -BeforeSnapshot `$before -NonInteractive`n  Export-MonitorInfoHtml -DiffResults `$diff -Open`n`nThe report includes summary chips, a monitor table with PRIMARY/DISCONNECTED badges, phantom row highlighting, and a Dock Insights panel.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'UtilitiesOverview' = @{

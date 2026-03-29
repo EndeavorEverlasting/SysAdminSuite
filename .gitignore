@@ -2,6 +2,9 @@
 Mapping/Logs/*
 !Mapping/Logs/.gitkeep
 
+# GUI worker run sessions (contain PII: usernames, paths, PIDs)
+Mapping/Output/GuiRuns/
+
 # Python
 __pycache__/
 *.py[cod]

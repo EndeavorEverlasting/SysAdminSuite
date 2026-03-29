@@ -35,8 +35,9 @@ SysAdminSuite/
 │
 ├── GetInfo/                    # Hardware & printer inventory
 │   ├── Get-MachineInfo.ps1         ← Parallel WMI: serial, IP, MAC, monitors
+│   ├── Get-RamInfo.ps1             ← Parallel CIM: per-DIMM capacity, speed, type, form factor, voltages
 │   ├── Get-KronosClockInfo.ps1     ← Probe/lookup Kronos or other clocks by IP, MAC, serial, hostname
-│   ├── Get-MonitorInfo.psm1        ← Monitor serial via WmiMonitorID
+│   ├── Get-MonitorInfo.psm1        ← Monitor identity, display number, dock EDID cache tools
 │   ├── Get-PrinterMacSerial.ps1    ← Printer MAC + serial via SNMP/WMI
 │   ├── QueueInventory.ps1          ← List all queues on a print server
 │   └── ZebraPrinterTest.ps1        ← Zebra label printer connectivity test
@@ -87,7 +88,7 @@ SysAdminSuite/
 │   └── Pester/                     ← Automated offline unit tests
 │       ├── Utilities.Tests.ps1     ← Test-Network, Map-Printer, Invoke-FileShare
 │       ├── Mapping.Tests.ps1       ← CSV schema, worker script contracts
-│       ├── GetInfo.Tests.ps1       ← Get-MachineInfo, QueueInventory, Kronos lookup contracts
+│       ├── GetInfo.Tests.ps1       ← Get-MachineInfo, Get-RamInfo, QueueInventory, Kronos lookup contracts
 │       └── Gui.Tests.ps1           ← GUI entry-point contract checks
 │
 ├── Launch-SysAdminSuite.bat     ← Double-click to open the GUI (no command to memorize)
@@ -130,6 +131,7 @@ On first launch a **menu-based tutorial** appears with 12 use-case tracks. Pick 
 | **Software Inventory** | Audit installed software across machines with CSV output |
 | **Network Testing** | Test connectivity, DNS, and ports before running probes |
 | **AD Printing Group** | Bulk-add computers to AD printing security groups |
+| **Monitor Identification** | Identify displays, diagnose dock phantom monitors, export HTML report |
 | **PS Version Pivot** | How tools detect and switch between PS 5.1 and PS 7 |
 
 **GUI tabs:**
@@ -194,6 +196,95 @@ Replay-UndoRedoAction -Session $session -Operation Undo -WhatIf
 
 - Running work now polls a file-based stop signal, similar to `Ctrl+C`, and emits the latest available `status.json`, results, and undo/redo artifacts before exiting.
 - GUI clients can load `UndoRedo.json` / `UndoRedo.Controller.json` to display reversible history and drive top-of-stack undo/redo actions.
+
+### RAM Info — Per-DIMM Hardware Inventory
+
+```powershell
+# Probe all machines in a host list and export a per-DIMM CSV
+powershell.exe -File .\GetInfo\Get-RamInfo.ps1 `
+    -ListPath .\hosts.txt `
+    -OutputPath C:\Temp\RamInfo.csv
+
+# Run against a single machine by putting just that name in a temp file
+'WKS-001' | Set-Content C:\Temp\single.txt
+powershell.exe -File .\GetInfo\Get-RamInfo.ps1 `
+    -ListPath C:\Temp\single.txt `
+    -OutputPath C:\Temp\RamInfo.csv
+```
+
+Each row in the CSV represents **one physical memory stick**. Every machine always appears in the output — offline and unreachable hosts land as placeholder rows so nothing is silently skipped.
+
+**Output columns:**
+
+| Column | Description |
+|--------|-------------|
+| `Timestamp` | Date/time the query ran |
+| `HostName` | Machine name from the host list |
+| `DeviceLocator` | Slot label (e.g. `DIMM_A1`, `ChannelA-DIMM0`) |
+| `BankLabel` | Bank label reported by firmware |
+| `Manufacturer` | DIMM manufacturer (e.g. Samsung, Micron, Hynix) |
+| `PartNumber` | Manufacturer part number |
+| `SerialNumber` | DIMM serial number |
+| `CapacityGB` | Stick size rounded to 2 decimal places |
+| `Speed` | Rated speed in MHz |
+| `ConfiguredClockSpeed` | Actual running clock speed in MHz |
+| `MemoryType` | Human-readable type (DDR4, DDR5, LPDDR4, etc.) |
+| `FormFactor` | Physical form (DIMM, SODIMM, etc.) |
+| `TotalWidth` | Total bus width in bits (data + ECC) |
+| `DataWidth` | Data bus width in bits |
+| `ConfiguredVoltage` | Running voltage in millivolts |
+| `MinVoltage` / `MaxVoltage` | Supported voltage range in millivolts |
+| `InterleavePosition` / `InterleaveDataDepth` | Memory interleave configuration |
+| `PositionInRow` | Position within the memory row |
+| `Attributes` | Firmware attribute flags |
+| `Status` | `OK`, `Offline`, `Query Failed`, or `No Sticks Reported` |
+| `ErrorMessage` | Exception detail when `Status` is `Query Failed`, empty otherwise |
+
+**Parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `-ListPath` | `C:\Temp\hostlist.txt` | Plain-text file, one hostname per line |
+| `-OutputPath` | `C:\Temp\RamInfo.csv` | Destination CSV (directory is created if missing) |
+| `-Throttle` | `15` | Maximum concurrent background jobs |
+
+### Monitor Identification & Dock EDID Analysis
+
+```powershell
+# See which physical monitor is Display 1 / 2 / 3 in Windows Settings
+Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force
+Get-MonitorInfo | Format-List
+
+# Before/after diff — interactive: prompts you to swap cables, then compares
+Invoke-MonitorDiff
+
+# Flush stale EDID from a DisplayLink dock (requires elevation)
+Reset-DisplayDeviceCache
+Get-MonitorInfo | Format-List   # now reflects only physically-connected monitors
+```
+
+`Get-MonitorInfo` bridges WMI monitor hardware data (model, serial, manufacturer) with the Windows display topology (Settings display number, primary status, screen coordinates) by calling `QueryDisplayConfig` via P/Invoke.
+
+**Functions in `Get-MonitorInfo.psm1`:**
+
+| Function | Purpose |
+|----------|---------|
+| `Get-MonitorInfo` | Returns per-monitor objects with `DisplayNumber`, `IsPrimary`, `Model`, `Serial`, `Manufacturer`, `Resolution`, `ScreenBounds`, `Connection`, `DevicePath`, `Adapter` |
+| `Reset-DisplayDeviceCache` | Cycles DisplayLink PnP adapters (disable → enable → rescan) to flush cached EDID. Requires elevation |
+| `Invoke-MonitorDiff` | Captures before/after snapshots and outputs structured diff (`Appeared` / `Disappeared` / `Changed` / `Unchanged`). Accepts `-Reset` for automated cache flush or `-BeforeSnapshot` for scripted pipelines |
+
+#### ThinkPad Hybrid USB-C Dock — EDID Caching Behaviour
+
+The **Lenovo ThinkPad Hybrid USB-C with USB-A Dock** (DisplayLink `VID_17E9&PID_6015`) exposes two display adapter interfaces (`MI_00`, `MI_01`) as separate video controllers. Cable-swap analysis revealed the following driver behaviour:
+
+| Observation | Detail |
+|-------------|--------|
+| **Phantom monitors** | The dock's `MI_00` interface retains the EDID identity of the last-connected monitor even after it is physically unplugged. WMI reports it as `Active=True`, `Status=OK`, `Present=True`. Only cycling the adapter via `Reset-DisplayDeviceCache` (or physically reconnecting the dock) clears the phantom |
+| **UIDs are port-bound** | Each physical output on the dock has a fixed UID (e.g. `UID256`, `UID257`). Swapping cables between ports swaps which monitor receives which UID — the UID follows the port, not the monitor |
+| **Display numbers follow ports** | Windows assigns Settings display numbers (1, 2, 3) by `QueryDisplayConfig` source-ID order, which is tied to the GDI device name (e.g. `\\.\DISPLAY40`). After a cable swap, the display number stays with the port and the monitor identity behind it changes |
+| **Primary follows the monitor** | Windows tracks the "main display" preference by monitor hardware identity (PnP Device ID), not by port. After a cable swap, the primary designation moves with the monitor to its new display number |
+
+> **Practical impact:** If your dock is holding a phantom Display 1 from a previously-connected TV, run `Reset-DisplayDeviceCache` in an elevated session to force re-enumeration. Then `Get-MonitorInfo` will show only what is physically present.
 
 ### Kronos Clock Identity Inventory + Lookup
 ```powershell

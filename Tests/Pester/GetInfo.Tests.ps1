@@ -72,6 +72,94 @@ Describe 'Get-MonitorInfo.psm1 -- module checks' {
     It 'Uses WmiMonitorID or CIM for monitor data' {
         $script:moduleContent | Should -Match 'WmiMonitorID|Get-CimInstance|Get-WmiObject'
     }
+
+    It 'Exports DisplayNumber for Windows display identification' {
+        $script:moduleContent | Should -Match 'DisplayNumber'
+    }
+
+    It 'Exports IsPrimary to identify the main display' {
+        $script:moduleContent | Should -Match 'IsPrimary'
+    }
+
+    It 'Exports ScreenBounds for display position and size' {
+        $script:moduleContent | Should -Match 'ScreenBounds'
+    }
+
+    It 'Exports DevicePath for adapter-to-monitor mapping' {
+        $script:moduleContent | Should -Match 'DevicePath'
+    }
+
+    It 'Contains Get-DisplayDeviceMap helper for Win32 display enumeration' {
+        $script:moduleContent | Should -Match 'function\s+Get-DisplayDeviceMap'
+    }
+
+    It 'Uses QueryDisplayConfig to resolve display numbers' {
+        $script:moduleContent | Should -Match 'QueryDisplayConfig'
+    }
+
+    It 'Contains Reset-DisplayDeviceCache for flushing stale EDID data' {
+        $script:moduleContent | Should -Match 'function\s+Reset-DisplayDeviceCache'
+    }
+
+    It 'Reset-DisplayDeviceCache requires elevation' {
+        $script:moduleContent | Should -Match 'IsInRole.*Administrator'
+    }
+
+    It 'Reset-DisplayDeviceCache cycles DisplayLink adapters via pnputil' {
+        $script:moduleContent | Should -Match 'pnputil\s+/disable-device'
+        $script:moduleContent | Should -Match 'pnputil\s+/enable-device'
+        $script:moduleContent | Should -Match 'pnputil\s+/scan-devices'
+    }
+
+    It 'Reset-DisplayDeviceCache has a SettleSeconds parameter' {
+        $script:moduleContent | Should -Match '\$SettleSeconds'
+    }
+
+    It 'Contains Invoke-MonitorDiff for before/after analysis' {
+        $script:moduleContent | Should -Match 'function\s+Invoke-MonitorDiff'
+    }
+
+    It 'Invoke-MonitorDiff accepts a BeforeSnapshot parameter' {
+        $script:moduleContent | Should -Match '\$BeforeSnapshot'
+    }
+
+    It 'Invoke-MonitorDiff outputs Appeared, Disappeared, Changed, Unchanged statuses' {
+        $script:moduleContent | Should -Match "'Disappeared'"
+        $script:moduleContent | Should -Match "'Appeared'"
+        $script:moduleContent | Should -Match "'Changed'"
+        $script:moduleContent | Should -Match "'Unchanged'"
+    }
+
+    It 'Contains Export-MonitorInfoHtml for HTML report generation' {
+        $script:moduleContent | Should -Match 'function\s+Export-MonitorInfoHtml'
+    }
+
+    It 'Export-MonitorInfoHtml accepts MonitorInfo, DiffResults, OutputPath, and Open parameters' {
+        $script:moduleContent | Should -Match '\$MonitorInfo'
+        $script:moduleContent | Should -Match '\$DiffResults'
+        $script:moduleContent | Should -Match '\$OutputPath'
+        $script:moduleContent | Should -Match '\[switch\]\$Open'
+    }
+
+    It 'Export-MonitorInfoHtml generates dark-themed HTML with RPM-Recon styling' {
+        $script:moduleContent | Should -Match 'background:\s*#0b0b0f'
+        $script:moduleContent | Should -Match 'Segoe UI'
+        $script:moduleContent | Should -Match '\.phantom-row'
+        $script:moduleContent | Should -Match '\.primary\s*\{'
+    }
+
+    It 'Export-MonitorInfoHtml detects phantom monitors and dock adapters' {
+        $script:moduleContent | Should -Match 'phantom'
+        $script:moduleContent | Should -Match 'VID_17E9'
+        $script:moduleContent | Should -Match 'Reset-DisplayDeviceCache'
+    }
+
+    It 'Export-MonitorInfoHtml includes a diff section when DiffResults are provided' {
+        $script:moduleContent | Should -Match 'diffSection'
+        $script:moduleContent | Should -Match 'diff-gone'
+        $script:moduleContent | Should -Match 'diff-new'
+        $script:moduleContent | Should -Match 'diff-changed'
+    }
 }
 
 Describe 'QueueInventory.ps1 -- script-level checks' {
@@ -175,3 +263,107 @@ KRONOS-CLOCK-01,True,10.10.40.25,KRONOS-CLOCK-01.domain.local,KRONOS-CLOCK-01,Cl
     }
 }
 
+
+
+Describe 'Get-RamInfo.ps1 -- script-level checks' {
+    BeforeAll {
+        $ramInfoPath = Join-Path $repoRoot 'GetInfo\Get-RamInfo.ps1'
+        $script:ramInfoContent = Get-Content -Path $ramInfoPath -Raw
+    }
+
+    It 'Script file exists' {
+        (Join-Path $repoRoot 'GetInfo\Get-RamInfo.ps1') | Should -Exist
+    }
+
+    It 'Parses without PowerShell syntax errors' {
+        $tokens = $null
+        $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $repoRoot 'GetInfo\Get-RamInfo.ps1'),
+            [ref]$tokens, [ref]$errors
+        ) | Out-Null
+        $errors | Should -BeNullOrEmpty
+    }
+
+    It 'Has a -ListPath parameter' {
+        $script:ramInfoContent | Should -Match '\$ListPath'
+    }
+
+    It 'Has a -OutputPath parameter' {
+        $script:ramInfoContent | Should -Match '\$OutputPath'
+    }
+
+    It 'Has a -Throttle parameter' {
+        $script:ramInfoContent | Should -Match '\$Throttle'
+    }
+
+    It 'Uses Start-Job for parallelism' {
+        $script:ramInfoContent | Should -Match 'Start-Job'
+    }
+
+    It 'Queries Win32_PhysicalMemory via CIM' {
+        $script:ramInfoContent | Should -Match 'Win32_PhysicalMemory'
+        $script:ramInfoContent | Should -Match 'Get-CimInstance'
+    }
+
+    It 'Exports results to CSV' {
+        $script:ramInfoContent | Should -Match 'Export-Csv'
+    }
+
+    It 'Resolves human-readable MemoryType labels' {
+        $script:ramInfoContent | Should -Match 'SMBIOSMemoryType'
+        $script:ramInfoContent | Should -Match "'DDR4'"
+        $script:ramInfoContent | Should -Match "'DDR5'"
+    }
+
+    It 'Resolves human-readable FormFactor labels' {
+        $script:ramInfoContent | Should -Match "'DIMM'"
+        $script:ramInfoContent | Should -Match "'SODIMM'"
+    }
+
+    It 'Captures CapacityGB as a rounded value' {
+        $script:ramInfoContent | Should -Match 'CapacityGB'
+        $script:ramInfoContent | Should -Match '\[math\]::Round'
+    }
+
+    It 'Includes all expected output columns' {
+        $expectedColumns = @(
+            'Timestamp', 'HostName', 'DeviceLocator', 'BankLabel',
+            'Manufacturer', 'PartNumber', 'SerialNumber', 'CapacityGB',
+            'Speed', 'ConfiguredClockSpeed', 'MemoryType', 'FormFactor',
+            'TotalWidth', 'DataWidth', 'ConfiguredVoltage',
+            'MinVoltage', 'MaxVoltage', 'InterleavePosition',
+            'InterleaveDataDepth', 'PositionInRow', 'Attributes',
+            'Status', 'ErrorMessage'
+        )
+        foreach ($col in $expectedColumns) {
+            $script:ramInfoContent | Should -Match $col -Because "column '$col' must appear in all output rows"
+        }
+    }
+
+    It 'Has an OK row shape with an empty ErrorMessage' {
+        $script:ramInfoContent | Should -Match "Status\s*=\s*'OK'"
+        $script:ramInfoContent | Should -Match "ErrorMessage\s*=\s*''"
+    }
+
+    It 'Has a Query Failed row shape that captures the exception message' {
+        $script:ramInfoContent | Should -Match "Status\s*=\s*'Query Failed'"
+        $script:ramInfoContent | Should -Match 'ErrorMessage\s*=\s*\$_\.Exception\.Message'
+    }
+
+    It 'Has an Offline row shape with an empty ErrorMessage' {
+        $script:ramInfoContent | Should -Match "Status\s*=\s*'Offline'"
+    }
+
+    It 'Has a No Sticks Reported row shape for reachable hosts with no DIMMs' {
+        $script:ramInfoContent | Should -Match "'No Sticks Reported'"
+    }
+
+    It 'Sorts output by HostName then DeviceLocator before exporting' {
+        $script:ramInfoContent | Should -Match 'Sort-Object\s+HostName,?\s*DeviceLocator'
+    }
+
+    It 'Does not use the deprecated Get-WmiObject cmdlet' {
+        $script:ramInfoContent | Should -Not -Match 'Get-WmiObject'
+    }
+}
