@@ -40,7 +40,8 @@ SysAdminSuite/
 │   ├── Get-MonitorInfo.psm1        ← Monitor identity, display number, dock EDID cache tools
 │   ├── Get-PrinterMacSerial.ps1    ← Printer MAC + serial via SNMP/WMI
 │   ├── QueueInventory.ps1          ← List all queues on a print server
-│   └── ZebraPrinterTest.ps1        ← Zebra label printer connectivity test
+│   ├── ZebraPrinterTest.ps1        ← Zebra label printer connectivity test
+│   └── Get-WindowsKey.ps1          ← Pull Windows product key (WMI + registry fallback)
 │
 ├── GUI/                        # WinForms control center (start here)
 │   └── Start-SysAdminSuiteGui.ps1  ← Printer mapping, Kronos lookup, Machine Info probe, guided tutorial
@@ -78,6 +79,13 @@ SysAdminSuite/
 │   ├── Test-ScriptHealth.ps1       ← Parse check + BOM check + non-ASCII scan
 │   └── Resolve-PSRuntime.ps1       ← PS version detection and pivot (5.1 vs 7+)
 │
+├── QRTasks/                    # QR-friendly task runner (scan-to-run extension)
+│   ├── Invoke-TechTask.ps1        ← Central dispatcher: QR points here with -Task name
+│   ├── Get-RAMProfile.ps1         ← Local per-DIMM RAM snapshot → Desktop txt
+│   ├── Get-ModelInfo.ps1          ← Local manufacturer/model/serial → Desktop txt
+│   ├── Get-NetworkInfo.ps1        ← Local adapter/IP/MAC/DNS snapshot → Desktop txt
+│   └── Get-Serials.ps1            ← BIOS + product + monitor serials → Desktop txt
+│
 ├── OCR/                        # Python OCR tools for printer label extraction
 │   ├── locus_mapping_ocr.py
 │   ├── build_host_unc_csv.py
@@ -88,7 +96,8 @@ SysAdminSuite/
 │   └── Pester/                     ← Automated offline unit tests
 │       ├── Utilities.Tests.ps1     ← Test-Network, Map-Printer, Invoke-FileShare
 │       ├── Mapping.Tests.ps1       ← CSV schema, worker script contracts
-│       ├── GetInfo.Tests.ps1       ← Get-MachineInfo, Get-RamInfo, QueueInventory, Kronos lookup contracts
+│       ├── GetInfo.Tests.ps1       ← Get-MachineInfo, Get-RamInfo, QueueInventory, Kronos lookup, Windows key contracts
+│       ├── ActiveDirectory.Tests.ps1 ← OU analysis, Preflight OU checks, Add-Computers-To-PrintingGroup contracts
 │       └── Gui.Tests.ps1           ← GUI entry-point contract checks
 │
 ├── Launch-SysAdminSuite.bat     ← Double-click to open the GUI (no command to memorize)
@@ -328,6 +337,26 @@ powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
 ```
 
 ---
+
+### QR Tasks — Scan-to-Run Field Scripts
+
+The `QRTasks/` module separates **launcher from payload**. QR codes encode a
+short launch string (~100 chars); the real scripts live on a central share or
+in this repo.
+
+```powershell
+# QR payload for RAM profile (fits in a small QR code):
+powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
+
+# Other tasks: ModelInfo, NetworkInfo, Serials
+powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task ModelInfo
+
+# List available tasks:
+.\QRTasks\Invoke-TechTask.ps1 -Task ?
+```
+
+Each task script runs locally, prints results to console, and saves a
+timestamped text file to the tech's Desktop — no terminal smoke.
 
 ## Known Bugs Fixed (see Bug-Log.md)
 
