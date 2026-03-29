@@ -21,6 +21,56 @@ $controllerScript = Join-Path $repoRoot 'Mapping\Controllers\Map-Run-Controller.
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# Must be called BEFORE any controls are created on the thread.
+[System.Windows.Forms.Application]::SetUnhandledExceptionMode(
+  [System.Windows.Forms.UnhandledExceptionMode]::CatchException)
+
+# -- Load the Harold splash image and derive a window icon from it --
+$script:HaroldImagePath = Join-Path $repoRoot 'happy-sad-guy-meme-6-206777197.jpg'
+$script:HaroldIcon = $null
+if (Test-Path -LiteralPath $script:HaroldImagePath) {
+  try {
+    $splashImg = [System.Drawing.Image]::FromFile($script:HaroldImagePath)
+    $iconBmp = New-Object System.Drawing.Bitmap($splashImg, 64, 64)
+    $script:HaroldIcon = [System.Drawing.Icon]::FromHandle($iconBmp.GetHicon())
+
+    # Show a splash screen for ~2.5 seconds
+    $splash = New-Object System.Windows.Forms.Form
+    $splash.FormBorderStyle = 'None'
+    $splash.StartPosition = 'CenterScreen'
+    $splash.TopMost = $true
+    $splash.BackColor = [System.Drawing.Color]::Black
+    $splash.Size = New-Object System.Drawing.Size(480, 420)
+    $splash.ShowInTaskbar = $false
+
+    $picBox = New-Object System.Windows.Forms.PictureBox
+    $picBox.Dock = 'Fill'
+    $picBox.Image = $splashImg
+    $picBox.SizeMode = 'Zoom'
+    $splash.Controls.Add($picBox)
+
+    $splashLabel = New-Object System.Windows.Forms.Label
+    $splashLabel.Text = 'SysAdminSuite  –  Loading...'
+    $splashLabel.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 13)
+    $splashLabel.ForeColor = [System.Drawing.Color]::White
+    $splashLabel.BackColor = [System.Drawing.Color]::FromArgb(180, 0, 0, 0)
+    $splashLabel.TextAlign = 'MiddleCenter'
+    $splashLabel.Dock = 'Bottom'
+    $splashLabel.Height = 38
+    $splash.Controls.Add($splashLabel)
+    $splashLabel.BringToFront()
+
+    $splashTimer = New-Object System.Windows.Forms.Timer
+    $splashTimer.Interval = 2500
+    $splashTimer.Add_Tick({ $splashTimer.Stop(); $splash.Close() })
+    $splashTimer.Start()
+    $splash.ShowDialog() | Out-Null
+    $splash.Dispose()
+  } catch {
+    Write-Verbose "Splash screen skipped: $_"
+  }
+}
+
 function Format-ObjectText {
   param([object]$InputObject)
   if ($null -eq $InputObject) { return 'No data loaded.' }
@@ -416,6 +466,16 @@ $script:TutorialTracks = [ordered]@{
       @{ Title = 'Cybernet MachineInfo: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. Results appear in the pane below.`n`nOutput CSV columns:`n`n  Timestamp | HostName | Serial | IPAddress | MACAddress | MonitorSerials | Status`n`n  2026-03-24  CYBER-WKS001  MXL987  10.2.1.10  AA:BB:CC:DD:EE:FF  MON-SN1  OK`n  2026-03-24  CYBER-WKS002  MXL988  10.2.1.11  11:22:33:44:55:66  MON-SN2  OK`n`nClick Copy Results or Open Output Folder.`n`nPress the Menu button below to try another tutorial." }
     )
   }
+  'RamInfo' = @{
+    Label = [char]0x2616 + '  RAM Info'
+    Desc  = 'Get per-stick RAM detail from remote hosts'
+    Color = [System.Drawing.Color]::FromArgb(60,130,170)
+    Steps = @(
+      @{ Title = 'RAM Info: Overview'; Highlights = @(); Body = "Get-RamInfo.ps1 queries Win32_PhysicalMemory via CIM to collect per-stick detail:`n- Manufacturer, Part Number, Speed, Capacity`n- Slot (DeviceLocator), Form Factor`n`nResults are exported to a CSV with one row per DIMM per host." }
+      @{ Title = 'RAM Info: Use the Machine Info Tab'; Highlights = @('txtMITargets','cmbMIMode'); Body = "Click the Machine Info tab at the top.`n`nChange the Script dropdown to:`n  Get-RamInfo  (RAM stick detail per host)`n`nType hostnames in the Targets box, one per line.`nOr click [...] next to Host List File to load a text file." }
+      @{ Title = 'RAM Info: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. The script queries each host in parallel.`n`nOutput CSV columns:`n  HostName | Status | Slot | Manufacturer | PartNumber | Speed_MHz | Capacity_GB | FormFactor`n`nClick Copy Results or Open Output Folder for the CSV.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
   'RepoHealth' = @{
     Label = [char]0x2692 + '  Repo File Health'
     Desc  = 'Fix BOM, encoding, locks, and line endings'
@@ -690,6 +750,7 @@ $form.AutoScaleMode = 'Font'
 $form.Font = $uiFont
 $form.BackColor = [System.Drawing.Color]::FromArgb(245,247,250)
 $form.KeyPreview = $true
+if ($script:HaroldIcon) { $form.Icon = $script:HaroldIcon }
 
 $tabs = New-Object System.Windows.Forms.TabControl
 $tabs.Dock = 'Fill'
@@ -910,6 +971,9 @@ $machineInfoTab.BackColor = [System.Drawing.Color]::WhiteSmoke
 
 $machineInfoScript = Join-Path $repoRoot 'GetInfo\Get-MachineInfo.ps1'
 $printerMacScript  = Join-Path $repoRoot 'GetInfo\Get-PrinterMacSerial.ps1'
+$ramInfoScript     = Join-Path $repoRoot 'GetInfo\Get-RamInfo.ps1'
+$monitorInfoModule = Join-Path $repoRoot 'GetInfo\Get-MonitorInfo.psm1'
+$zebraTestScript   = Join-Path $repoRoot 'GetInfo\ZebraPrinterTest.ps1'
 
 # -- Machine Info: GroupBox -- Script Picker & Inputs --
 $grpMI = New-Object System.Windows.Forms.GroupBox
@@ -919,7 +983,13 @@ $lblMIMode = New-Object System.Windows.Forms.Label
 $lblMIMode.Location = '10,22'; $lblMIMode.Size = '70,18'; $lblMIMode.Text = 'Script'; $lblMIMode.Font = $emphasisFont
 $cmbMIMode = New-Object System.Windows.Forms.ComboBox
 $cmbMIMode.Location = '80,19'; $cmbMIMode.Size = '280,24'; $cmbMIMode.DropDownStyle = 'DropDownList'; $cmbMIMode.Font = $uiFont
-@('Get-MachineInfo  (workstation serial/IP/MAC)','Get-PrinterMacSerial  (printer MAC/serial via SNMP)') | ForEach-Object { [void]$cmbMIMode.Items.Add($_) }
+@(
+  'Get-MachineInfo  (workstation serial/IP/MAC)',
+  'Get-PrinterMacSerial  (printer MAC/serial via SNMP)',
+  'Get-RamInfo  (RAM stick detail per host)',
+  'Get-MonitorInfo  (display adapters & monitors)',
+  'ZebraPrinterTest  (Zebra SNMP live check)'
+) | ForEach-Object { [void]$cmbMIMode.Items.Add($_) }
 $cmbMIMode.SelectedIndex = 0
 
 $lblMITargets = New-Object System.Windows.Forms.Label
@@ -979,10 +1049,12 @@ $machineInfoTab.Controls.AddRange(@($grpMI,$grpMIArtifacts,$lblMIResults,$txtMIR
 
 # -- Machine Info: dynamic default output path --
 $cmbMIMode.Add_SelectedIndexChanged({
-  if ($cmbMIMode.SelectedIndex -eq 0) {
-    $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\MachineInfo_Output.csv')
-  } else {
-    $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\PrinterProbe_Output.csv')
+  switch ($cmbMIMode.SelectedIndex) {
+    0 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\MachineInfo_Output.csv') }
+    1 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\PrinterProbe_Output.csv') }
+    2 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\RamInfo_Output.csv') }
+    3 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\MonitorInfo_Output.csv') }
+    4 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\ZebraTest_Output.csv') }
   }
 })
 
@@ -1004,44 +1076,82 @@ $btnMIRun.Add_Click({
     $txtMIResults.Text = 'Running...'
     [System.Windows.Forms.Application]::DoEvents()
 
-    if ($cmbMIMode.SelectedIndex -eq 0) {
-      # Get-MachineInfo -- requires a list file, so write inline targets to a temp file if needed
-      $tempList = $null
-      if ($hasListFile) {
-        $actualListPath = $listFile
-      } else {
-        $tempList = Join-Path $env:TEMP ('MachineInfoTargets_{0}.txt' -f (Get-Date -Format 'yyyyMMddHHmmss'))
-        $inlineTargets | Set-Content -LiteralPath $tempList -Encoding UTF8
-        $actualListPath = $tempList
+    # Helper: write inline targets to a temp list file when the script needs -ListPath
+    function local:New-TempListIfNeeded {
+      if ($hasListFile) { return $listFile }
+      $script:_tempMIList = Join-Path $env:TEMP ('MITargets_{0}.txt' -f (Get-Date -Format 'yyyyMMddHHmmss'))
+      $inlineTargets | Set-Content -LiteralPath $script:_tempMIList -Encoding UTF8
+      return $script:_tempMIList
+    }
+    function local:Remove-TempList {
+      if ($script:_tempMIList -and (Test-Path $script:_tempMIList)) {
+        Remove-Item $script:_tempMIList -Force -ErrorAction SilentlyContinue
       }
-      try {
-        & $machineInfoScript -ListPath $actualListPath -OutputPath $outPath -Throttle ([int]$nudMIThrottle.Value) 2>&1 | Out-Null
-      } finally {
-        if ($tempList -and (Test-Path $tempList)) { Remove-Item $tempList -Force -ErrorAction SilentlyContinue }
+    }
+
+    switch ($cmbMIMode.SelectedIndex) {
+      0 {
+        # Get-MachineInfo
+        $actualListPath = New-TempListIfNeeded
+        try {
+          & $machineInfoScript -ListPath $actualListPath -OutputPath $outPath -Throttle ([int]$nudMIThrottle.Value) 2>&1 | Out-Null
+        } finally { Remove-TempList }
+        if (Test-Path -LiteralPath $outPath) {
+          $results = Import-Csv -LiteralPath $outPath
+          $txtMIResults.Text = ($results | Format-Table -AutoSize | Out-String).Trim()
+        } else {
+          $txtMIResults.Text = 'Script completed but output CSV was not created. Check targets are reachable.'
+        }
       }
-      if (Test-Path -LiteralPath $outPath) {
-        $results = Import-Csv -LiteralPath $outPath
-        $txtMIResults.Text = ($results | Format-Table -AutoSize | Out-String).Trim()
-      } else {
-        $txtMIResults.Text = 'Script completed but output CSV was not created. Check targets are reachable.'
+      1 {
+        # Get-PrinterMacSerial
+        $pmsArgs = @{}
+        if ($hasListFile) { $pmsArgs['ListPath'] = $listFile } else { $pmsArgs['IPs'] = $inlineTargets }
+        $pmsArgs['OutCsv'] = $outPath
+        $pmsResults = & $printerMacScript @pmsArgs
+        if ($pmsResults) {
+          $txtMIResults.Text = ($pmsResults | Format-Table -AutoSize | Out-String).Trim()
+        } elseif (Test-Path -LiteralPath $outPath) {
+          $rows = Import-Csv -LiteralPath $outPath
+          $txtMIResults.Text = ($rows | Format-Table -AutoSize | Out-String).Trim()
+        } else {
+          $txtMIResults.Text = 'Script completed but no results returned. Check targets are reachable.'
+        }
       }
-    } else {
-      # Get-PrinterMacSerial
-      $pmsArgs = @{}
-      if ($hasListFile) {
-        $pmsArgs['ListPath'] = $listFile
-      } else {
-        $pmsArgs['IPs'] = $inlineTargets
+      2 {
+        # Get-RamInfo
+        $actualListPath = New-TempListIfNeeded
+        try {
+          & $ramInfoScript -ListPath $actualListPath -OutputPath $outPath -Throttle ([int]$nudMIThrottle.Value) 2>&1 | Out-Null
+        } finally { Remove-TempList }
+        if (Test-Path -LiteralPath $outPath) {
+          $results = Import-Csv -LiteralPath $outPath
+          $txtMIResults.Text = ($results | Format-Table -AutoSize | Out-String).Trim()
+        } else {
+          $txtMIResults.Text = 'Script completed but output CSV was not created. Check targets are reachable.'
+        }
       }
-      $pmsArgs['OutCsv'] = $outPath
-      $pmsResults = & $printerMacScript @pmsArgs
-      if ($pmsResults) {
-        $txtMIResults.Text = ($pmsResults | Format-Table -AutoSize | Out-String).Trim()
-      } elseif (Test-Path -LiteralPath $outPath) {
-        $rows = Import-Csv -LiteralPath $outPath
-        $txtMIResults.Text = ($rows | Format-Table -AutoSize | Out-String).Trim()
-      } else {
-        $txtMIResults.Text = 'Script completed but no results returned. Check targets are reachable.'
+      3 {
+        # Get-MonitorInfo (module -- import and call Get-MonitorInfo)
+        Import-Module $monitorInfoModule -Force -ErrorAction Stop
+        $monResults = Get-MonitorInfo 2>&1
+        if ($monResults) {
+          $txtMIResults.Text = ($monResults | Format-Table -AutoSize | Out-String).Trim()
+          $monResults | Export-Csv -LiteralPath $outPath -NoTypeInformation -Force
+        } else {
+          $txtMIResults.Text = 'Get-MonitorInfo returned no data. Are monitors connected?'
+        }
+      }
+      4 {
+        # ZebraPrinterTest
+        $zebraArgs = @{ PrinterIPs = $inlineTargets }
+        $zebraResults = & $zebraTestScript @zebraArgs
+        if ($zebraResults) {
+          $txtMIResults.Text = ($zebraResults | Format-Table -AutoSize | Out-String).Trim()
+          $zebraResults | Export-Csv -LiteralPath $outPath -NoTypeInformation -Force
+        } else {
+          $txtMIResults.Text = 'ZebraPrinterTest returned no results. Check IPs and SNMP community.'
+        }
       }
     }
 
@@ -1695,7 +1805,5 @@ Update-RunActionState
     [System.Windows.Forms.MessageBoxButtons]::OK,
     [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
 })
-[System.Windows.Forms.Application]::SetUnhandledExceptionMode(
-  [System.Windows.Forms.UnhandledExceptionMode]::CatchException)
 
 [void]$form.ShowDialog()
