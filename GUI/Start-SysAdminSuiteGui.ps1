@@ -583,17 +583,19 @@ function Apply-TutorialHighlights {
 $script:GlowTimer = New-Object System.Windows.Forms.Timer
 $script:GlowTimer.Interval = 600
 $script:GlowTimer.Add_Tick({
-  if ($script:HighlightedControls.Count -eq 0) { return }
-  $script:GlowOn = -not $script:GlowOn
-  $colorA = $script:GlowColorA; $colorB = $script:GlowColorB
-  $color = if ($script:GlowOn) { $colorA } else { $colorB }
-  foreach ($entry in $script:HighlightedControls) {
-    if ($entry.IsIdentity) {
-      $entry.Control.ForeColor = $color  # pulse text color, keep green/red background
-    } else {
-      $entry.Control.BackColor = $color
+  try {
+    if ($script:HighlightedControls.Count -eq 0) { return }
+    $script:GlowOn = -not $script:GlowOn
+    $colorA = $script:GlowColorA; $colorB = $script:GlowColorB
+    $color = if ($script:GlowOn) { $colorA } else { $colorB }
+    foreach ($entry in $script:HighlightedControls) {
+      if ($entry.IsIdentity) {
+        $entry.Control.ForeColor = $color  # pulse text color, keep green/red background
+      } else {
+        $entry.Control.BackColor = $color
+      }
     }
-  }
+  } catch [System.Management.Automation.PipelineStoppedException] { <# Ctrl+C in host — ignore #> }
 })
 $script:GlowTimer.Start()
 
@@ -1666,19 +1668,34 @@ $btnCopyClockResults.Add_Click({
 $refreshTimer = New-Object System.Windows.Forms.Timer
 $refreshTimer.Interval = [int]$nudRefreshSeconds.Value * 1000
 $refreshTimer.Add_Tick({
-  if (-not $chkAutoRefresh.Checked) { return }
-  if ($tabs.SelectedTab -ne $runTab) { return }
-  Refresh-RunStatusView
-  Refresh-RunHistoryView
+  try {
+    if (-not $chkAutoRefresh.Checked) { return }
+    if ($tabs.SelectedTab -ne $runTab) { return }
+    Refresh-RunStatusView
+    Refresh-RunHistoryView
+  } catch [System.Management.Automation.PipelineStoppedException] { <# Ctrl+C in host — ignore #> }
 })
 $nudRefreshSeconds.Add_ValueChanged({
   $refreshTimer.Interval = [int]$nudRefreshSeconds.Value * 1000
   Set-StatusBarText -Category 'Auto refresh' -Message "Auto refresh interval set to $($nudRefreshSeconds.Value) second(s)."
 })
 $refreshTimer.Start()
-$form.Add_FormClosed({ $refreshTimer.Stop() })
+$form.Add_FormClosed({ $refreshTimer.Stop(); $script:GlowTimer.Stop() })
 Update-RunActionState
 
 # -- Tutorial checkpoint on tab change (menu-based: no auto-jump) --
+
+# Defense-in-depth: swallow PipelineStoppedException so Ctrl+C in the host
+# console never surfaces the .NET unhandled-exception dialog.
+[System.Windows.Forms.Application]::add_ThreadException({
+  param($eventSender, $e)
+  if ($e.Exception -is [System.Management.Automation.PipelineStoppedException]) { return }
+  [System.Windows.Forms.MessageBox]::Show(
+    $e.Exception.Message, 'SysAdminSuite Error',
+    [System.Windows.Forms.MessageBoxButtons]::OK,
+    [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+})
+[System.Windows.Forms.Application]::SetUnhandledExceptionMode(
+  [System.Windows.Forms.UnhandledExceptionMode]::CatchException)
 
 [void]$form.ShowDialog()

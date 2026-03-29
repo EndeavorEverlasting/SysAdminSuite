@@ -1,6 +1,7 @@
 @echo off
 :: Launch-SysAdminSuite.bat — double-click to open the GUI
-:: Starts PowerShell in STA mode with execution policy bypass
+:: Uses START /B so the CMD window closes immediately, preventing
+:: Ctrl+C from sending PipelineStoppedException into the WinForms GUI.
 
-powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0GUI\Start-SysAdminSuiteGui.ps1"
-
+start "" /B powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0GUI\Start-SysAdminSuiteGui.ps1"
+exit

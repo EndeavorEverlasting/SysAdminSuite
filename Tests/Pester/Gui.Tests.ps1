@@ -138,6 +138,13 @@ Describe 'Start-SysAdminSuiteGui.ps1 -- script-level checks' {
         $content = Get-Content -Path $script:guiPath -Raw
         $content | Should -Match 'Confirm BOM Sync'
     }
+
+    It 'Catches PipelineStoppedException in timer callbacks (Ctrl+C hardening)' {
+        $content = Get-Content -Path $script:guiPath -Raw
+        $content | Should -Match 'PipelineStoppedException'
+        $content | Should -Match 'add_ThreadException'
+        $content | Should -Match 'UnhandledExceptionMode'
+    }
 }
 
 Describe 'Launch-SysAdminSuite.bat -- launcher checks' {
@@ -154,5 +161,11 @@ Describe 'Launch-SysAdminSuite.bat -- launcher checks' {
         $content | Should -Match '-STA'
         $content | Should -Match 'Start-SysAdminSuiteGui\.ps1'
         $content | Should -Match '-ExecutionPolicy Bypass'
+    }
+
+    It 'Uses START /B so the CMD window closes immediately (Ctrl+C hardening)' {
+        $content = Get-Content -Path $script:launcherPath -Raw
+        $content | Should -Match 'start\s+""'
+        $content | Should -Match '/B'
     }
 }
