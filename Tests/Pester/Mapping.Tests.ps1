@@ -83,6 +83,13 @@ Describe 'RPM-Recon.ps1 -- script-level checks' {
     }
 }
 
+Describe 'Map-MachineWide.ps1 -- HTML report output' {
+    It 'Generates HTML report via ConvertTo-SuiteHtml' {
+        $content = Get-Content -Path $script:machineWideWorkerPath -Raw
+        $content | Should -Match 'ConvertTo-SuiteHtml'
+    }
+}
+
 Describe 'Undo/redo integration plumbing' {
     It 'Machine-wide worker exposes undo/redo switches' {
         $content = Get-Content -Path $script:machineWideWorkerPath -Raw

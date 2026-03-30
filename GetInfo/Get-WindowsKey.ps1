@@ -139,5 +139,16 @@ $parent = Split-Path -Parent $OutputPath
 if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
 $results | Export-Csv -LiteralPath $OutputPath -NoTypeInformation -Encoding UTF8
 Write-Host "Saved: $OutputPath" -ForegroundColor Green
+
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+  . $suiteHtmlHelper
+  $htmlPath = [IO.Path]::ChangeExtension($OutputPath, '.html')
+  $results | Select-Object HostName,ProductKey,KeySource,Edition,Status,ErrorMessage |
+    ConvertTo-Html -Fragment -PreContent '<h2>Windows Product Keys</h2>' |
+    ConvertTo-SuiteHtml -Title 'Windows Key Report' -Subtitle "$($results.Count) target(s)" -OutputPath $htmlPath
+}
+
 $results
 

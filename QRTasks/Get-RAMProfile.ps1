@@ -27,6 +27,21 @@ function Resolve-MemoryType {
     }
 }
 
+function Resolve-FormFactor {
+    param([int]$Code)
+    switch ($Code) {
+        0  { 'Unknown' }  1  { 'Other' }    2  { 'SIP' }
+        3  { 'DIP' }      4  { 'ZIP' }       5  { 'SOJ' }
+        6  { 'Proprietary' } 7  { 'SIMM' }   8  { 'DIMM' }
+        9  { 'TSOP' }     10 { 'PGA' }       11 { 'RIMM' }
+        12 { 'SODIMM' }   13 { 'SRIMM' }     14 { 'SMD' }
+        15 { 'SSMP' }     16 { 'QFP' }       17 { 'TQFP' }
+        18 { 'SOIC' }     19 { 'LCC' }       20 { 'PLCC' }
+        21 { 'BGA' }      22 { 'FPBGA' }     23 { 'LGA' }
+        default { "Unknown ($Code)" }
+    }
+}
+
 try {
     $sticks = Get-CimInstance Win32_PhysicalMemory -ErrorAction Stop
 } catch {
@@ -50,6 +65,7 @@ $result = $sticks | ForEach-Object {
         Speed                = $_.Speed
         ConfiguredClockSpeed = $_.ConfiguredClockSpeed
         MemoryType           = Resolve-MemoryType $_.SMBIOSMemoryType
+        FormFactor           = Resolve-FormFactor $_.FormFactor
     }
 }
 
@@ -68,4 +84,13 @@ $divider = '-' * $header.Length
 $result | Format-Table -AutoSize | Out-File -FilePath $outFile -Append -Encoding UTF8
 
 Write-Host "  Saved to: $outFile" -ForegroundColor Green
+
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $htmlPath = [IO.Path]::ChangeExtension($outFile, '.html')
+    $result | ConvertTo-Html -Fragment -PreContent "<h2>Total: ${totalGB} GB across $($result.Count) stick(s)</h2>" |
+        ConvertTo-SuiteHtml -Title "RAM Profile - $env:COMPUTERNAME" -Subtitle $env:COMPUTERNAME -OutputPath $htmlPath
+}
 

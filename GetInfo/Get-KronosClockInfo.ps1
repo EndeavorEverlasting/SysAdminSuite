@@ -345,4 +345,15 @@ $parent = Split-Path -Parent $OutCsv
 if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
 $results | Export-Csv -LiteralPath $OutCsv -NoTypeInformation -Encoding UTF8
 Write-Host "Saved: $OutCsv" -ForegroundColor Green
+
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+  . $suiteHtmlHelper
+  $htmlPath = [IO.Path]::ChangeExtension($OutCsv, '.html')
+  $results | Select-Object QueryInput,IPAddress,HostName,DeviceName,MACAddress,SerialNumber,Model,Manufacturer,Reachable,Notes |
+    ConvertTo-Html -Fragment -PreContent '<h2>Kronos Clock Inventory</h2>' |
+    ConvertTo-SuiteHtml -Title 'Kronos Clock Info' -Subtitle "$($results.Count) target(s)" -OutputPath $htmlPath
+}
+
 $results

@@ -340,3 +340,13 @@ $rows | Tee-Object -Variable Results | Format-Table -AutoSize
 $Results | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $OutCsv
 Write-Log "Wrote CSV: $OutCsv"
 Write-Host "`nSaved: $OutCsv"
+
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+  . $suiteHtmlHelper
+  $htmlPath = [IO.Path]::ChangeExtension($OutCsv, '.html')
+  $Results | Select-Object IP,Status,MAC,Serial,Source,Notes |
+    ConvertTo-Html -Fragment -PreContent '<h2>Printer Probe Results</h2>' |
+    ConvertTo-SuiteHtml -Title 'Printer MAC / Serial Probe' -Subtitle "$($Results.Count) target(s)" -OutputPath $htmlPath
+}

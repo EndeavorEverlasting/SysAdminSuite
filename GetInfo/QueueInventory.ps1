@@ -113,3 +113,12 @@ if (-not (Test-Path -Path $outDir)) {
 $results | Tee-Object -Variable r | Format-Table -AutoSize
 $results | Export-Csv -Path $OutputPath -NoTypeInformation
 Write-Host "`nDone. Results saved to $OutputPath" -ForegroundColor Green
+
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $htmlPath = [IO.Path]::ChangeExtension($OutputPath, '.html')
+    $results | ConvertTo-Html -Fragment -PreContent '<h2>Queue Inventory</h2>' |
+        ConvertTo-SuiteHtml -Title 'Queue Inventory' -Subtitle "$PrintServer - $($results.Count) queue(s)" -OutputPath $htmlPath
+}

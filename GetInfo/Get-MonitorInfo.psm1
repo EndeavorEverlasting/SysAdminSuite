@@ -478,7 +478,7 @@ function Export-MonitorInfoHtml {
     .SYNOPSIS
         Generates a styled HTML report from Get-MonitorInfo and optional Invoke-MonitorDiff output.
     .DESCRIPTION
-        Produces a dark-themed HTML report (matching the RPM-Recon style) containing:
+        Produces a dark-themed HTML report via ConvertTo-SuiteHtml containing:
           - A timestamped header with machine name
           - A monitor summary table with display numbers, models, bounds, connection types
           - An optional diff section showing Appeared / Disappeared / Changed / Unchanged monitors
@@ -514,9 +514,6 @@ function Export-MonitorInfoHtml {
         $OutputPath = Join-Path $_monOutDir "MonitorInfo_$stamp.html"
     }
 
-    $outDir = Split-Path $OutputPath -Parent
-    if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
-
     # --- Detect dock adapters ---
     $dlAdapters = @()
     try {
@@ -527,11 +524,9 @@ function Export-MonitorInfoHtml {
     $phantoms = @($MonitorInfo | Where-Object { -not $_.DisplayNumber -or $_.ScreenBounds -eq 'Unknown' })
     $active   = @($MonitorInfo | Where-Object { $_.DisplayNumber -and $_.ScreenBounds -ne 'Unknown' })
 
-    # --- Build HTML ---
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    $hostname  = $env:COMPUTERNAME
+    $hostname = $env:COMPUTERNAME
 
-    # Monitor table rows
+    # --- Monitor table rows ---
     $monitorRows = ''
     foreach ($m in ($MonitorInfo | Sort-Object { if ($_.DisplayNumber) { [int]$_.DisplayNumber } else { 999 } })) {
         $numDisplay = if ($m.DisplayNumber) { $m.DisplayNumber } else { '<span class="phantom">&#x2013;</span>' }
@@ -561,7 +556,18 @@ function Export-MonitorInfoHtml {
 "@
     }
 
-    # Diff section
+    $monitorTable = @"
+<h2>&#x1F4BB; Connected Displays</h2>
+<table>
+    <thead><tr>
+        <th>#</th><th>Model</th><th>Mfg</th><th>Serial</th><th>Resolution</th>
+        <th>Bounds</th><th>Connection</th><th>Device</th><th>Status</th>
+    </tr></thead>
+    <tbody>$monitorRows</tbody>
+</table>
+"@
+
+    # --- Diff section ---
     $diffSection = ''
     if ($DiffResults) {
         $diffRows = ''
@@ -591,15 +597,15 @@ function Export-MonitorInfoHtml {
 "@
         }
         $diffSection = @"
-    <h2>&#x1F504; Cable-Swap / Configuration Diff</h2>
-    <table>
-        <thead><tr><th>Status</th><th>Model</th><th>Before</th><th>After</th><th>Changes</th></tr></thead>
-        <tbody>$diffRows</tbody>
-    </table>
+<h2>&#x1F504; Cable-Swap / Configuration Diff</h2>
+<table>
+    <thead><tr><th>Status</th><th>Model</th><th>Before</th><th>After</th><th>Changes</th></tr></thead>
+    <tbody>$diffRows</tbody>
+</table>
 "@
     }
 
-    # Dock insights panel
+    # --- Dock insights panel ---
     $dockPanel = ''
     $dockEntries = ''
     if ($dlAdapters.Count -gt 0) {
@@ -616,90 +622,47 @@ function Export-MonitorInfoHtml {
     }
     if ($dockEntries -or $phantomEntries) {
         $dockPanel = @"
-    <h2>&#x1F50C; Dock &amp; Adapter Insights</h2>
-    <div class="insights">
+<h2>&#x1F50C; Dock &amp; Adapter Insights</h2>
+<div class="insights">
 "@
         if ($dockEntries) {
             $dockPanel += @"
-        <h3>DisplayLink Adapters</h3>
-        <ul>$dockEntries</ul>
+    <h3>DisplayLink Adapters</h3>
+    <ul>$dockEntries</ul>
 "@
         }
         if ($phantomEntries) {
             $dockPanel += @"
-        <h3>&#x26A0; Phantom Monitors (cached EDID)</h3>
-        <ul class="phantom-list">$phantomEntries</ul>
-        <p class="hint">Run <code>Reset-DisplayDeviceCache</code> in an elevated session to flush stale EDID, or disconnect the phantom display in Windows Settings.</p>
+    <h3>&#x26A0; Phantom Monitors (cached EDID)</h3>
+    <ul class="phantom-list">$phantomEntries</ul>
+    <p class="hint">Run <code>Reset-DisplayDeviceCache</code> in an elevated session to flush stale EDID, or disconnect the phantom display in Windows Settings.</p>
 "@
         }
-        $dockPanel += '    </div>'
+        $dockPanel += '</div>'
     }
 
-    $html = @"
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<title>Monitor Report - $hostname</title>
-<style>
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0b0b0f; color: #eaeaf0; padding: 24px; margin: 0; }
-  h1 { color: #8ed0ff; margin-bottom: 4px; }
-  h2 { color: #c0c0d0; border-bottom: 1px solid #2a2a34; padding-bottom: 6px; margin-top: 28px; }
-  h3 { color: #a0a0b8; }
-  .meta { color: #888; font-size: 13px; margin-bottom: 18px; }
-  .chip { display: inline-block; background: #1a1a22; border: 1px solid #2a2a34; padding: 3px 10px; border-radius: 999px; margin-right: 8px; font-size: 12px; }
-  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-  th, td { border: 1px solid #2a2a34; padding: 7px 10px; font-size: 13px; text-align: left; }
-  th { background: #171720; color: #b0b0c0; font-weight: 600; }
-  tr:nth-child(even) { background: #0f0f16; }
-  tr:hover { background: #1a1a28; }
-  .phantom-row { opacity: 0.5; background: #1a0a0a; }
-  .phantom-row:hover { opacity: 0.8; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-  .primary { background: #1a3a1a; color: #6fdf6f; border: 1px solid #2a5a2a; }
-  .disconnected { background: #3a1a1a; color: #df6f6f; border: 1px solid #5a2a2a; }
-  .phantom { color: #ff6666; font-weight: bold; }
-  .diff-gone { background: #2a0a0a; }
-  .diff-new { background: #0a2a0a; }
-  .diff-changed { background: #2a2a0a; }
-  .diff-same { opacity: 0.6; }
-  .insights { background: #12121a; border: 1px solid #2a2a34; border-radius: 8px; padding: 12px 18px; margin-top: 8px; }
-  .phantom-list li { color: #ff9966; }
-  .hint { color: #888; font-size: 12px; font-style: italic; margin-top: 8px; }
-  code { background: #1a1a28; padding: 1px 5px; border-radius: 3px; font-size: 12px; color: #c0d0ff; }
-  .summary-bar { margin: 12px 0; }
-</style>
-</head>
-<body>
-<h1>&#x1F5B5; Monitor Identification Report</h1>
-<p class="meta">$hostname &mdash; $timestamp</p>
-<div class="summary-bar">
-    <span class="chip">Active: $($active.Count)</span>
-    <span class="chip">Phantom: $($phantoms.Count)</span>
-    <span class="chip">Total in WMI: $($MonitorInfo.Count)</span>
-    <span class="chip">DisplayLink adapters: $($dlAdapters.Count)</span>
-</div>
-
-<h2>&#x1F4BB; Connected Displays</h2>
-<table>
-    <thead><tr>
-        <th>#</th><th>Model</th><th>Mfg</th><th>Serial</th><th>Resolution</th>
-        <th>Bounds</th><th>Connection</th><th>Device</th><th>Status</th>
-    </tr></thead>
-    <tbody>$monitorRows</tbody>
-</table>
-$diffSection
-$dockPanel
-</body>
-</html>
-"@
-
-    Set-Content -LiteralPath $OutputPath -Value $html -Encoding UTF8
-    Write-Host "HTML report written: $OutputPath" -ForegroundColor Green
-
-    if ($Open) {
-        Start-Process $OutputPath
+    # --- Assemble body and delegate to ConvertTo-SuiteHtml ---
+    $suiteHtmlHelper = Join-Path (Split-Path $PSScriptRoot) 'tools\ConvertTo-SuiteHtml.ps1'
+    if (-not (Test-Path -LiteralPath $suiteHtmlHelper)) {
+        $suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
     }
+    . $suiteHtmlHelper
+
+    $bodyFragments = @($monitorTable, $diffSection, $dockPanel) | Where-Object { $_ }
+
+    $chips = @(
+        "Active: $($active.Count)"
+        "Phantom: $($phantoms.Count)"
+        "Total in WMI: $($MonitorInfo.Count)"
+        "DisplayLink adapters: $($dlAdapters.Count)"
+    )
+
+    ($bodyFragments -join "`n") | ConvertTo-SuiteHtml `
+        -Title "&#x1F5B5; Monitor Identification Report" `
+        -Subtitle $hostname `
+        -SummaryChips $chips `
+        -OutputPath $OutputPath `
+        -Open:$Open | Out-Null
 
     return $OutputPath
 }

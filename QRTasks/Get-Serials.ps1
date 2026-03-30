@@ -88,3 +88,22 @@ if ($monitorSerials.Count -gt 0) {
 
 Write-Host "`n  Saved to: $outFile" -ForegroundColor Green
 
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $htmlPath = [IO.Path]::ChangeExtension($outFile, '.html')
+    $systemInfo = [PSCustomObject]@{
+        BIOSSerial  = $biosSerial
+        ProductID   = $productID
+        ProductName = $productName
+    }
+    $bodyParts = @()
+    $bodyParts += $systemInfo | ConvertTo-Html -Fragment -PreContent '<h2>System Serials</h2>'
+    if ($monitorSerials.Count -gt 0) {
+        $bodyParts += $monitorSerials | ConvertTo-Html -Fragment -PreContent '<h2>Monitor Serials</h2>'
+    }
+    ($bodyParts -join "`n") |
+        ConvertTo-SuiteHtml -Title "Serials - $env:COMPUTERNAME" -Subtitle $env:COMPUTERNAME -OutputPath $htmlPath
+}
+

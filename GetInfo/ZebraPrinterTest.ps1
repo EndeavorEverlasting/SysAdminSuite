@@ -86,3 +86,12 @@ if (-not (Test-Path $zebraOutDir)) { New-Item -ItemType Directory -Path $zebraOu
 $zebraOutCsv = Join-Path $zebraOutDir 'ZebraTest_Output.csv'
 $results | Export-Csv $zebraOutCsv -NoTypeInformation
 Write-Host "Saved: $zebraOutCsv" -ForegroundColor Green
+
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $htmlPath = [IO.Path]::ChangeExtension($zebraOutCsv, '.html')
+    $results | ConvertTo-Html -Fragment -PreContent '<h2>Zebra Printer Test</h2>' |
+        ConvertTo-SuiteHtml -Title 'Zebra Printer Test' -Subtitle "$($results.Count) printer(s)" -OutputPath $htmlPath
+}

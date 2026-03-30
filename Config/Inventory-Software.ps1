@@ -172,8 +172,20 @@ if(-not $NoMerge){
 
   $superset = $rows | Group-Object -Property Name,Publisher | ForEach-Object { Pick-Best -Rows $_.Group }
   $supCsv = Join-Path $inventoryRoot 'software_superset.csv'
-  $superset | Sort-Object Name | Export-Csv -Path $supCsv -NoTypeInformation -Encoding UTF8
+  $sorted = $superset | Sort-Object Name
+  $sorted | Export-Csv -Path $supCsv -NoTypeInformation -Encoding UTF8
   Write-Host "Wrote superset => $supCsv" -ForegroundColor Green
+
+  # ── HTML output for superset ───────────────────────────────────────
+  $suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+  if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $supHtml = [IO.Path]::ChangeExtension($supCsv, '.html')
+    $sorted | Select-Object Name,Version,Publisher,Host |
+      ConvertTo-Html -Fragment -PreContent '<h2>Software Superset</h2>' |
+      ConvertTo-SuiteHtml -Title 'Software Superset' -Subtitle "$($sorted.Count) unique title(s)" -OutputPath $supHtml
+    Write-Host "Wrote superset HTML => $supHtml" -ForegroundColor Green
+  }
 }
 
 Write-Host "Inventory complete." -ForegroundColor Green

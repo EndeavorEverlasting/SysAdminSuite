@@ -227,3 +227,14 @@ $results | Sort-Object HostName, DeviceLocator | Export-Csv -Path $OutputPath -N
 $jobs | Remove-Job -Force | Out-Null
 Write-Host "Done. Output saved to $OutputPath" -ForegroundColor Green
 
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $htmlPath = [IO.Path]::ChangeExtension($OutputPath, '.html')
+    $results | Sort-Object HostName, DeviceLocator |
+        Select-Object HostName,Status,DeviceLocator,Manufacturer,PartNumber,CapacityGB,Speed,MemoryType,FormFactor,ErrorMessage |
+        ConvertTo-Html -Fragment -PreContent '<h2>RAM Inventory</h2>' |
+        ConvertTo-SuiteHtml -Title 'RAM Info' -Subtitle "$(($results | Select-Object -ExpandProperty HostName -Unique).Count) host(s)" -OutputPath $htmlPath
+}
+

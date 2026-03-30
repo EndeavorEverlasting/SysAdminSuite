@@ -64,3 +64,12 @@ $lines = @(
 $lines | Out-File -FilePath $outFile -Encoding UTF8
 Write-Host "  Saved to: $outFile" -ForegroundColor Green
 
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $htmlPath = [IO.Path]::ChangeExtension($outFile, '.html')
+    $result | ConvertTo-Html -Fragment -PreContent '<h2>System Identity</h2>' |
+        ConvertTo-SuiteHtml -Title "Model Info - $($result.ComputerName)" -Subtitle $result.ComputerName -OutputPath $htmlPath
+}
+

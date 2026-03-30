@@ -59,3 +59,12 @@ $result | Format-List | Out-File -FilePath $outFile -Append -Encoding UTF8
 
 Write-Host "  Saved to: $outFile" -ForegroundColor Green
 
+# ── HTML output ─────────────────────────────────────────────────────
+$suiteHtmlHelper = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ConvertTo-SuiteHtml.ps1'
+if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $htmlPath = [IO.Path]::ChangeExtension($outFile, '.html')
+    $result | ConvertTo-Html -Fragment -PreContent "<h2>Active adapters: $($result.Count)</h2>" |
+        ConvertTo-SuiteHtml -Title "Network Info - $env:COMPUTERNAME" -Subtitle $env:COMPUTERNAME -OutputPath $htmlPath
+}
+
