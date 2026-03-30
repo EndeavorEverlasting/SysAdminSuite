@@ -18,8 +18,12 @@
     Defaults to the same directory as this dispatcher.
 
 .EXAMPLE
-    # QR payload (fits in a small QR code):
-    powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
+    # Run locally from the repo:
+    .\QRTasks\Invoke-TechTask.ps1 -Task RAMProfile
+
+.EXAMPLE
+    # QR payload pointing to a central share (replace <YOUR-HOST> with your file server):
+    powershell.exe -NoP -EP Bypass -File "\\<YOUR-HOST>\c$\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
 
 .EXAMPLE
     # List all available tasks:
@@ -27,7 +31,10 @@
 
 .NOTES
     Part of SysAdminSuite — QRTasks extension module.
-    See QRTasks\README-QRTasks.md for the full approach and QR catalog.
+
+    QR design principle: QR = pointer, not payload.
+    The QR code encodes a short launch string (~100 chars).
+    The real scripts live here or on a central share.
 #>
 param(
     [Parameter(Position = 0)]

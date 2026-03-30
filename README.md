@@ -345,14 +345,17 @@ short launch string (~100 chars); the real scripts live on a central share or
 in this repo.
 
 ```powershell
-# QR payload for RAM profile (fits in a small QR code):
-powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
-
-# Other tasks: ModelInfo, NetworkInfo, Serials
-powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task ModelInfo
+# Run locally from the repo:
+.\QRTasks\Invoke-TechTask.ps1 -Task RAMProfile
 
 # List available tasks:
 .\QRTasks\Invoke-TechTask.ps1 -Task ?
+
+# QR payload pointing to a central share (replace <YOUR-HOST> with your file server):
+powershell.exe -NoP -EP Bypass -File "\\<YOUR-HOST>\c$\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
+powershell.exe -NoP -EP Bypass -File "\\<YOUR-HOST>\c$\Scripts\QRTasks\Invoke-TechTask.ps1" -Task ModelInfo
+powershell.exe -NoP -EP Bypass -File "\\<YOUR-HOST>\c$\Scripts\QRTasks\Invoke-TechTask.ps1" -Task NetworkInfo
+powershell.exe -NoP -EP Bypass -File "\\<YOUR-HOST>\c$\Scripts\QRTasks\Invoke-TechTask.ps1" -Task Serials
 ```
 
 Each task script runs locally, prints results to console, and saves a
