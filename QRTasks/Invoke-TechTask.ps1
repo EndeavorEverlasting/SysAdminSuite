@@ -40,7 +40,9 @@ param(
     [Parameter(Position = 0)]
     [string]$Task,
 
-    [string]$ScriptRoot = $PSScriptRoot
+    [string]$ScriptRoot = $PSScriptRoot,
+
+    [string]$LocalFallback = (Join-Path $env:COMPUTERNAME 'c$\Scripts\QRTasks')
 )
 
 # ── Task registry ────────────────────────────────────────────────────
@@ -52,9 +54,49 @@ $TaskMap = [ordered]@{
     Serials     = 'Get-Serials.ps1'
 }
 
+# ── Resolve script root with localhost fallback ──────────────────────
+# If the network ScriptRoot is unreachable (share down, VPN off, etc.)
+# fall back to: \\localhost\c$\Scripts\QRTasks, then $PSScriptRoot.
+function Resolve-ScriptRoot {
+    param([string]$Primary, [string]$Fallback)
+
+    if ($Primary -and (Test-Path -LiteralPath $Primary -ErrorAction SilentlyContinue)) {
+        return $Primary
+    }
+
+    if ($Primary -and $Primary -ne $PSScriptRoot) {
+        Write-Warning "Network path unreachable: $Primary"
+    }
+
+    # Try localhost UNC — works even when the original share host is down
+    $localhostPath = "\\localhost\c`$\Scripts\QRTasks"
+    if (Test-Path -LiteralPath $localhostPath -ErrorAction SilentlyContinue) {
+        Write-Host "  Falling back to localhost: $localhostPath" -ForegroundColor Yellow
+        return $localhostPath
+    }
+
+    # Try \\<COMPUTERNAME>\c$\Scripts\QRTasks
+    $compPath = "\\$env:COMPUTERNAME\c`$\Scripts\QRTasks"
+    if ($compPath -ne $localhostPath -and (Test-Path -LiteralPath $compPath -ErrorAction SilentlyContinue)) {
+        Write-Host "  Falling back to local host: $compPath" -ForegroundColor Yellow
+        return $compPath
+    }
+
+    # Last resort: the directory this script lives in
+    if ($PSScriptRoot -and (Test-Path -LiteralPath $PSScriptRoot -ErrorAction SilentlyContinue)) {
+        Write-Host "  Falling back to script directory: $PSScriptRoot" -ForegroundColor Yellow
+        return $PSScriptRoot
+    }
+
+    return $Primary  # let it fail with a clear error downstream
+}
+
+$ScriptRoot = Resolve-ScriptRoot -Primary $ScriptRoot -Fallback $LocalFallback
+
 # ── Help / list mode ────────────────────────────────────────────────
 if (-not $Task -or $Task -eq '?') {
     Write-Host "`n  Available tasks:`n" -ForegroundColor Cyan
+    Write-Host "  Script root: $ScriptRoot`n" -ForegroundColor DarkGray
     foreach ($key in $TaskMap.Keys) {
         $path = Join-Path $ScriptRoot $TaskMap[$key]
         $exists = if (Test-Path -LiteralPath $path) { '' } else { ' [MISSING]' }
