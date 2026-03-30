@@ -9,7 +9,7 @@
 param(
     [string]$PrintServer = "SWBPNSHPS01V",
     [string[]]$Queues = @("PV522-PED01","PV522-PED02","PV522-PED03","PV522-PED04"),
-    [string]$OutputPath = "C:\Temp\QueueInventory.csv",
+    [string]$OutputPath = (Join-Path $PSScriptRoot 'Output\QueueInventory\QueueInventory_Output.csv'),
     [ValidateNotNullOrEmpty()]
     [string]$Community = "public",
     [ValidateSet('1','2c','3')]

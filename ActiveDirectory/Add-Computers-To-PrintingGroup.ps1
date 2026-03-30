@@ -5,6 +5,20 @@ New behavior:
 - -PlanOnly writes artifacts and plans actions without touching AD
 - -WhatIf remains a pure simulation (no file I/O, no AD changes)
 - Artifacts saved locally on the machine running the script
+
+OU PLACEMENT POLICY  (Security / Alex Lent  2025-07-08)
+────────────────────────────────────────────────────────
+  FORBIDDEN (legacy, phased out since 2017):
+    \_Workstations\Workstations\
+    \_Workstations\Shared_Workstations\
+
+  CORRECT placement:
+    Normal laptops & desktops  → subfolders of \_Workstations\Managed\
+    Auto-logon / shared kiosks → subfolders of \_Workstations\Managed_Shared\
+
+  This script does NOT move computers between OUs. It only adds them to
+  security groups. Any OU placement issues found during preflight are
+  flagged for manual review -- do NOT automate OU moves.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
@@ -111,6 +125,12 @@ function Add-WithRetry {
   }
 }
 
+# Forbidden legacy OUs -- flag for human review, never auto-move (Security policy 2025-07-08)
+$ForbiddenOUPatterns = @(
+  'OU=Workstations,OU=_Workstations'
+  'OU=Shared_Workstations,OU=_Workstations'
+)
+
 # Preflight + results collectors
 $preflight = New-Object System.Collections.Generic.List[Object]
 $results   = New-Object System.Collections.Generic.List[Object]
@@ -125,6 +145,7 @@ foreach ($h in $Hosts) {
     Enabled            = $null
     DistinguishedName  = $null
     OUPath             = $null
+    OUPolicyWarning    = $null
     DNSHostName        = $null
     AlreadyMember      = $null
     Action             = 'None'
@@ -138,6 +159,15 @@ foreach ($h in $Hosts) {
     $row.DistinguishedName = $c.DistinguishedName
     $row.DNSHostName       = $c.DNSHostName
     $row.OUPath            = ($c.DistinguishedName -split '(?<!\\),',2)[1]
+
+    # Flag forbidden legacy OUs (read-only analysis -- never auto-move)
+    foreach ($pattern in $ForbiddenOUPatterns) {
+      if ($row.OUPath -match [regex]::Escape($pattern)) {
+        $row.OUPolicyWarning = "LEGACY OU -- must be moved to \_Workstations\Managed\ or \_Workstations\Managed_Shared\ per Security policy"
+        Write-Warning "$h is in a FORBIDDEN legacy OU: $($row.OUPath)"
+        break
+      }
+    }
 
     $preflight.Add([pscustomobject]@{
       SnapshotTime      = (Get-Date).ToString('s')
@@ -216,9 +246,17 @@ if (-not $PlanOnly -and -not $PSBoundParameters.ContainsKey('WhatIf')) {
 # Results + HTML when IO is enabled
 if ($doIO) {
   $results | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $resultsCsv
-  ($results | Select-Object Timestamp,Hostname,Found,Enabled,AlreadyMember,Action,Outcome,Error |
-    ConvertTo-Html -Title "Add to $GroupName results" |
-    Out-String) | Set-Content -Path $htmlPath -Encoding UTF8
+  $suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+  if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $results | Select-Object Timestamp,Hostname,Found,Enabled,AlreadyMember,Action,Outcome,Error |
+      ConvertTo-Html -Fragment -PreContent '<h2>Results</h2>' |
+      ConvertTo-SuiteHtml -Title "Add to $GroupName results" -Subtitle "$env:COMPUTERNAME" -OutputPath $htmlPath
+  } else {
+    ($results | Select-Object Timestamp,Hostname,Found,Enabled,AlreadyMember,Action,Outcome,Error |
+      ConvertTo-Html -Title "Add to $GroupName results" |
+      Out-String) | Set-Content -Path $htmlPath -Encoding UTF8
+  }
 }
 
 Write-Host "`nDone."

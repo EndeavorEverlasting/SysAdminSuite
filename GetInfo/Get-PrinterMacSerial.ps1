@@ -7,7 +7,7 @@ param(
   [string]$ListPath,
 
   # Where to drop results
-  [string]$OutCsv = ".\PrinterProbe.csv",
+  [string]$OutCsv = (Join-Path $PSScriptRoot 'Output\PrinterProbe\PrinterProbe_Output.csv'),
 
   # Optional: add or change community strings to try (first winner wins)
   [string[]]$Communities = @('public','private','northwell','zebra','netadmin'),

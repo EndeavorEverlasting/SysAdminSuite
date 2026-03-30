@@ -509,7 +509,9 @@ function Export-MonitorInfoHtml {
     if (-not $MonitorInfo) { $MonitorInfo = Get-MonitorInfo }
     if (-not $OutputPath) {
         $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-        $OutputPath = Join-Path $PWD "MonitorInfo_$stamp.html"
+        $_monOutDir = Join-Path $PSScriptRoot 'Output\MonitorInfo'
+        if (-not (Test-Path $_monOutDir)) { $_monOutDir = $PWD }
+        $OutputPath = Join-Path $_monOutDir "MonitorInfo_$stamp.html"
     }
 
     $outDir = Split-Path $OutputPath -Parent

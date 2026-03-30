@@ -50,6 +50,21 @@ Describe 'Get-MachineInfo.ps1 -- script-level checks' {
         $script:machineInfoContent | Should -Match 'Status\s*=\s*''Query Failed''[\s\S]*?ErrorMessage\s*=\s*\$errMsg'
         $script:machineInfoContent | Should -Match 'Status\s*=\s*''Offline''[\s\S]*?ErrorMessage\s*=\s*'''''
     }
+
+    It 'Detects local machine to avoid remote WMI paths (local fallback)' {
+        $script:machineInfoContent | Should -Match '\$isLocal'
+        $script:machineInfoContent | Should -Match 'localhost'
+        $script:machineInfoContent | Should -Match '127\.0\.0\.1'
+    }
+
+    It 'Skips Test-Connection for local targets' {
+        $script:machineInfoContent | Should -Match 'if\s*\(\$isLocal\)\s*\{\s*\$true'
+    }
+
+    It 'Calls Get-WmiObject without -ComputerName for local targets' {
+        # The local branch should call Get-WmiObject -Class Win32_BIOS without -ComputerName
+        $script:machineInfoContent | Should -Match 'if\s*\(\$isLocal\)\s*\{[\s\S]*?Get-WmiObject\s+-Class\s+Win32_BIOS\s+-ErrorAction'
+    }
 }
 
 Describe 'Get-MonitorInfo.psm1 -- module checks' {
@@ -264,6 +279,69 @@ KRONOS-CLOCK-01,True,10.10.40.25,KRONOS-CLOCK-01.domain.local,KRONOS-CLOCK-01,Cl
 }
 
 
+
+Describe 'Get-WindowsKey.ps1 -- script-level checks' {
+    BeforeAll {
+        $windowsKeyPath = Join-Path $repoRoot 'GetInfo\Get-WindowsKey.ps1'
+        $script:windowsKeyContent = Get-Content -Path $windowsKeyPath -Raw
+    }
+
+    It 'Script file exists' {
+        (Join-Path $repoRoot 'GetInfo\Get-WindowsKey.ps1') | Should -Exist
+    }
+
+    It 'Parses without PowerShell syntax errors' {
+        $tokens = $null; $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $repoRoot 'GetInfo\Get-WindowsKey.ps1'),
+            [ref]$tokens, [ref]$errors
+        ) | Out-Null
+        $errors | Should -BeNullOrEmpty
+    }
+
+    It 'Has a -Targets parameter defaulting to the local machine' {
+        $script:windowsKeyContent | Should -Match '\$Targets'
+        $script:windowsKeyContent | Should -Match '\$env:COMPUTERNAME'
+    }
+
+    It 'Has a -OutputPath parameter' {
+        $script:windowsKeyContent | Should -Match '\$OutputPath'
+    }
+
+    It 'Uses WMI SoftwareLicensingService for key retrieval' {
+        $script:windowsKeyContent | Should -Match 'SoftwareLicensingService'
+        $script:windowsKeyContent | Should -Match 'Get-CimInstance'
+    }
+
+    It 'Falls back to registry OA3xOriginalProductKey' {
+        $script:windowsKeyContent | Should -Match 'OA3xOriginalProductKey'
+    }
+
+    It 'Reports the key source in output' {
+        $script:windowsKeyContent | Should -Match 'KeySource'
+    }
+
+    It 'Includes all expected output columns' {
+        foreach ($col in @('Timestamp','HostName','ProductKey','KeySource','Edition','Status','ErrorMessage')) {
+            $script:windowsKeyContent | Should -Match $col -Because "column '$col' must appear in output"
+        }
+    }
+
+    It 'Exports results to CSV' {
+        $script:windowsKeyContent | Should -Match 'Export-Csv'
+    }
+
+    It 'Retrieves the local Windows key without errors' {
+        $results = @(& (Join-Path $repoRoot 'GetInfo\Get-WindowsKey.ps1') -Targets $env:COMPUTERNAME -OutputPath (Join-Path $env:TEMP 'WindowsKeyTest.csv'))
+        $results.Count | Should -BeGreaterOrEqual 1
+        $results[0].HostName | Should -Be $env:COMPUTERNAME
+        $results[0].Status | Should -BeIn @('OK','NoKey')
+        $results[0].PSObject.Properties.Name | Should -Contain 'ProductKey'
+        if (Test-Path (Join-Path $env:TEMP 'WindowsKeyTest.csv')) {
+            Remove-Item (Join-Path $env:TEMP 'WindowsKeyTest.csv') -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
 
 Describe 'Get-RamInfo.ps1 -- script-level checks' {
     BeforeAll {

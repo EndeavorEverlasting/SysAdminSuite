@@ -1,19 +1,21 @@
-<#
+﻿<#
 .SYNOPSIS
     Quick local machine identity: manufacturer, model, name, serial, motherboard.
 
 .DESCRIPTION
     QR-optimized task script. Runs locally, no parameters needed.
     Pulls system identity from Win32_ComputerSystem, Win32_ComputerSystemProduct,
-    and Win32_BaseBoard via CIM. Outputs to console and saves to Desktop.
+    and Win32_BaseBoard via CIM. Outputs to console and saves to GetInfo\Output\QRTasks.
 
 .NOTES
-    Part of SysAdminSuite — QRTasks extension module.
+    Part of SysAdminSuite -- QRTasks extension module.
     Designed for PowerShell 5.1+.
 #>
 
 $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-$outFile   = Join-Path $env:USERPROFILE "Desktop\ModelInfo_$($env:COMPUTERNAME).txt"
+$_outDir   = Join-Path (Split-Path -Parent $PSScriptRoot) 'GetInfo\Output\QRTasks'
+if (-not (Test-Path $_outDir)) { New-Item -ItemType Directory -Path $_outDir -Force | Out-Null }
+$outFile   = Join-Path $_outDir "ModelInfo_$($env:COMPUTERNAME).txt"
 
 try {
     $cs   = Get-CimInstance Win32_ComputerSystem       | Select-Object Manufacturer, Model, Name
@@ -45,7 +47,7 @@ Write-Host "`n  === Model / Identity Info ===" -ForegroundColor Cyan
 $result | Format-List | Out-Host
 
 $lines = @(
-    "Model / Identity Info — $timestamp"
+    "Model / Identity Info -- $timestamp"
     "Computer Name       : $($result.ComputerName)"
     "Manufacturer        : $($result.Manufacturer)"
     "Model               : $($result.Model)"

@@ -1,8 +1,11 @@
 ﻿function Take-Screenshot {
     [CmdletBinding()]
     param(
-        [string]$Path = "$env:USERPROFILE\screenshot.png"
+        [string]$Path = (Join-Path (Split-Path -Parent $PSScriptRoot) 'GetInfo\Output\Screenshots\screenshot.png')
     )
+
+    $outDir = Split-Path -Parent $Path
+    if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
 
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing

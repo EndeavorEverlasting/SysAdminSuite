@@ -1,20 +1,22 @@
-<#
+﻿<#
 .SYNOPSIS
     Quick local RAM profile: per-DIMM capacity, speed, type, part number.
 
 .DESCRIPTION
     QR-optimized task script. Runs locally, no parameters needed.
     Pulls Win32_PhysicalMemory via CIM. Outputs a table to console
-    and saves a text file to the Desktop.
+    and saves a text file to GetInfo\Output\QRTasks.
 
 .NOTES
-    Part of SysAdminSuite — QRTasks extension module.
+    Part of SysAdminSuite -- QRTasks extension module.
     Designed for PowerShell 5.1+.
     For multi-machine parallel RAM inventory, use GetInfo\Get-RamInfo.ps1 instead.
 #>
 
 $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-$outFile   = Join-Path $env:USERPROFILE "Desktop\RAMProfile_$($env:COMPUTERNAME).txt"
+$_outDir   = Join-Path (Split-Path -Parent $PSScriptRoot) 'GetInfo\Output\QRTasks'
+if (-not (Test-Path $_outDir)) { New-Item -ItemType Directory -Path $_outDir -Force | Out-Null }
+$outFile   = Join-Path $_outDir "RAMProfile_$($env:COMPUTERNAME).txt"
 
 function Resolve-MemoryType {
     param([int]$Code)
@@ -54,12 +56,12 @@ $result = $sticks | ForEach-Object {
 # ── Console output ───────────────────────────────────────────────────
 $totalGB = ($result | Measure-Object -Property CapacityGB -Sum).Sum
 
-Write-Host "`n  === RAM Profile — $env:COMPUTERNAME ===" -ForegroundColor Cyan
+Write-Host "`n  === RAM Profile -- $env:COMPUTERNAME ===" -ForegroundColor Cyan
 Write-Host "  Total: ${totalGB} GB across $($result.Count) stick(s)`n" -ForegroundColor White
 $result | Format-Table -AutoSize | Out-Host
 
-# ── Desktop file ─────────────────────────────────────────────────────
-$header = "RAM Profile — $env:COMPUTERNAME — $timestamp"
+# ── Output file ──────────────────────────────────────────────────────
+$header = "RAM Profile -- $env:COMPUTERNAME -- $timestamp"
 $divider = '-' * $header.Length
 @($header, $divider, "Total: ${totalGB} GB across $($result.Count) stick(s)", '') |
     Out-File -FilePath $outFile -Encoding UTF8

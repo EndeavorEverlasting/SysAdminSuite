@@ -7,7 +7,7 @@ param(
   [string]$ListPath,
 
   [Parameter(ParameterSetName='Probe')]
-  [string]$OutCsv = '.\KronosClockInventory.csv',
+  [string]$OutCsv = (Join-Path $PSScriptRoot 'Output\KronosClock\KronosClockInventory.csv'),
 
   [Parameter(ParameterSetName='Lookup', Mandatory)]
   [string]$InventoryPath,

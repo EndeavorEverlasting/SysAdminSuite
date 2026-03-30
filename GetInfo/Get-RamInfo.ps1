@@ -25,7 +25,7 @@
 #>
 param(
     [string]$ListPath   = 'C:\Temp\hostlist.txt',
-    [string]$OutputPath = 'C:\Temp\RamInfo.csv',
+    [string]$OutputPath = (Join-Path $PSScriptRoot 'Output\RamInfo\RamInfo_Output.csv'),
     [int]$Throttle      = 15
 )
 
@@ -77,10 +77,17 @@ function Start-RamQueryJob {
             }
         }
 
-        if (Test-Connection -ComputerName $Computer -Count 1 -Quiet) {
+        # Detect local machine to avoid WinRM loopback issues
+        $isLocal = ($Computer -eq $env:COMPUTERNAME) -or
+                   ($Computer -eq 'localhost') -or
+                   ($Computer -eq '127.0.0.1') -or
+                   ($Computer -eq '.')
+
+        if ($isLocal -or (Test-Connection -ComputerName $Computer -Count 1 -Quiet)) {
             try {
-                $sticks = Get-CimInstance -ClassName Win32_PhysicalMemory `
-                    -ComputerName $Computer -ErrorAction Stop
+                $cimParams = @{ ClassName = 'Win32_PhysicalMemory'; ErrorAction = 'Stop' }
+                if (-not $isLocal) { $cimParams['ComputerName'] = $Computer }
+                $sticks = Get-CimInstance @cimParams
 
                 if (-not $sticks) {
                     # Reachable but no sticks reported

@@ -1,6 +1,7 @@
-﻿<# 
+﻿<#
 .SYNOPSIS
   Preflight permissions & connectivity checks before remote admin tasks.
+  This is an ANALYSIS-ONLY tool. It does NOT move computers between OUs.
 
 .PARAMETER Computers
   One or more target computers to probe.
@@ -12,10 +13,22 @@
   One or more AD groups you intend to modify (add/remove members).
 
 .PARAMETER TargetOU
-  An OU you intend to add/move computers into.
+  An OU to ANALYZE for delegation/placement accuracy.
+  This script verifies whether you have the correct rights and flags
+  computers that may be in forbidden legacy OUs. It never moves objects.
 
 .PARAMETER OutputPath
   Folder to write CSV/JSON reports (default C:\Temp).
+
+.NOTES
+  OU PLACEMENT POLICY  (Security / Alex Lent  2025-07-08)
+  ────────────────────────────────────────────────────────
+  FORBIDDEN (legacy, phased out since 2017):
+    \_Workstations\Workstations\
+    \_Workstations\Shared_Workstations\
+  CORRECT placement:
+    Normal laptops & desktops  -> subfolders of \_Workstations\Managed\
+    Auto-logon / shared kiosks -> subfolders of \_Workstations\Managed_Shared\
 #>
 
 [CmdletBinding()]
@@ -125,8 +138,22 @@ process {
     }
   }
 
-  # === AD OU Placement Check ===
+  # === AD OU Placement Analysis (read-only -- never moves objects) ===
+  # Forbidden legacy OUs per Security policy (2025-07-08)
+  $ForbiddenOUPatterns = @(
+    'OU=Workstations,OU=_Workstations'
+    'OU=Shared_Workstations,OU=_Workstations'
+  )
+
   if ($TargetOU) {
+    # Check whether the target OU itself is a forbidden legacy OU
+    foreach ($fp in $ForbiddenOUPatterns) {
+      if ($TargetOU -match [regex]::Escape($fp)) {
+        Add-Result -Area 'AD / OU Policy' -Target $TargetOU -Check 'Legacy OU check' -Result 'Fail' `
+          -Detail "FORBIDDEN: This OU is a legacy path phased out since 2017. Use \_Workstations\Managed\ or \_Workstations\Managed_Shared\ subfolders instead."
+      }
+    }
+
     if (Get-Module -ListAvailable -Name ActiveDirectory) {
       try {
         Import-Module ActiveDirectory -ErrorAction SilentlyContinue
@@ -145,12 +172,12 @@ process {
         $hasWrite = $rules | Where-Object { $_.ActiveDirectoryRights -match "CreateChild|WriteProperty" -and $_.AccessControlType -eq "Allow" }
 
         if ($hasWrite) {
-          Add-Result -Area 'AD / Rights' -Target $TargetOU -Check 'Can add/move computer objects' -Result 'Pass' -Detail "Delegated rights detected for CreateChild/WriteProperty."
+          Add-Result -Area 'AD / Rights' -Target $TargetOU -Check 'Delegation analysis (read-only)' -Result 'Pass' -Detail "Delegated rights detected for CreateChild/WriteProperty."
         } else {
-          Add-Result -Area 'AD / Rights' -Target $TargetOU -Check 'Can add/move computer objects' -Result 'Warn' -Detail "No delegation found; requires elevated rights."
+          Add-Result -Area 'AD / Rights' -Target $TargetOU -Check 'Delegation analysis (read-only)' -Result 'Warn' -Detail "No delegation found; requires elevated rights."
         }
       } catch {
-        Add-Result -Area 'AD / Rights' -Target $TargetOU -Check 'Can add/move computer objects' -Result 'Fail' -Detail "Could not read OU: $($_.Exception.Message)"
+        Add-Result -Area 'AD / Rights' -Target $TargetOU -Check 'Delegation analysis (read-only)' -Result 'Fail' -Detail "Could not read OU: $($_.Exception.Message)"
       }
     } else {
       Add-Result -Area 'AD / Rights' -Target $TargetOU -Check 'AD Module' -Result 'Info' -Detail 'ActiveDirectory module not available'

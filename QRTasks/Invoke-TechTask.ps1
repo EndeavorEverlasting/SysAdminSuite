@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     QR-friendly task dispatcher. One runner, many tasks.
 
@@ -26,7 +26,7 @@
     .\Invoke-TechTask.ps1 -Task ?
 
 .NOTES
-    Part of SysAdminSuite — QRTasks extension module.
+    Part of SysAdminSuite -- QRTasks extension module.
     See QRTasks\README-QRTasks.md for the full approach and QR catalog.
 #>
 param(

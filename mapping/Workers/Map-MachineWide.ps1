@@ -214,18 +214,27 @@ function Write-ResultArtifacts {
   if (-not $script:doIO) { return }
 
   $Rows | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $script:resultsCsv
+  $preContent = if ($ListOnlyMode) { '<h2>Current Printers (UNC + Local)</h2>' } else { '<h2>Per-Target Detail</h2>' }
   $table = $Rows | Select-Object Timestamp,Type,Target,Driver,Port,Status |
-    ConvertTo-Html -Fragment -PreContent ($(if ($ListOnlyMode) { '<h3>Current Printers (UNC + Local)</h3>' } else { '<h3>Per-Target Detail</h3>' }))
-  $logFrag = if ($script:logPath -and (Test-Path -LiteralPath $script:logPath)) { "<h3>Run Log</h3><pre>" + [System.Net.WebUtility]::HtmlEncode((Get-Content -Raw -LiteralPath $script:logPath)) + "</pre>" } else { '' }
+    ConvertTo-Html -Fragment -PreContent $preContent
+  $logFrag = if ($script:logPath -and (Test-Path -LiteralPath $script:logPath)) { "<h2>Run Log</h2><pre>" + [System.Net.WebUtility]::HtmlEncode((Get-Content -Raw -LiteralPath $script:logPath)) + "</pre>" } else { '' }
   $heading = if ($ListOnlyMode) { "Printer Mappings - $env:COMPUTERNAME (ListOnly)" } else { "Printer Mapping Results - $env:COMPUTERNAME" }
-  $doc = @"
+  $suiteHtmlHelper = Join-Path (Split-Path $PSScriptRoot) 'tools\ConvertTo-SuiteHtml.ps1'
+  if (-not (Test-Path -LiteralPath $suiteHtmlHelper)) { $suiteHtmlHelper = Join-Path (Split-Path (Split-Path $PSScriptRoot)) 'tools\ConvertTo-SuiteHtml.ps1' }
+  if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    ($table + $logFrag) | ConvertTo-SuiteHtml -Title $heading -Subtitle $env:COMPUTERNAME -OutputPath $script:htmlPath
+  } else {
+    # Fallback: inline dark theme
+    $doc = @"
 <!DOCTYPE html><html><head><meta charset="utf-8"/><title>$heading</title>
 <style>body{font-family:Segoe UI,Arial;background:#101014;color:#ececf1;padding:20px}
 table{border-collapse:collapse;width:100%}th,td{border:1px solid #2a2a33;padding:6px 8px;font-size:12px}
 th{background:#171720}tr:nth-child(even){background:#0f0f16}</style></head><body>
 <h2>$heading</h2>$table$logFrag</body></html>
 "@
-  Set-Content -LiteralPath $script:htmlPath -Value $doc -Encoding UTF8
+    Set-Content -LiteralPath $script:htmlPath -Value $doc -Encoding UTF8
+  }
   W "Artifacts:`n  $script:preflightCsv`n  $script:resultsCsv`n  $script:htmlPath`n  $script:logPath"
 }
 

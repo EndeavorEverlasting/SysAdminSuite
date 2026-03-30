@@ -80,5 +80,9 @@ $results = $PrinterIPs | ForEach-Object { Get-PrinterInfoFromIP -IPAddress $_ }
 # Show in console
 $results | Format-Table -AutoSize
 
-# Optional: Export to CSV
-$results | Export-Csv ".\ZebraPrinterTestResults.csv" -NoTypeInformation
+# Export to CSV
+$zebraOutDir = Join-Path $PSScriptRoot 'Output\ZebraTest'
+if (-not (Test-Path $zebraOutDir)) { New-Item -ItemType Directory -Path $zebraOutDir -Force | Out-Null }
+$zebraOutCsv = Join-Path $zebraOutDir 'ZebraTest_Output.csv'
+$results | Export-Csv $zebraOutCsv -NoTypeInformation
+Write-Host "Saved: $zebraOutCsv" -ForegroundColor Green

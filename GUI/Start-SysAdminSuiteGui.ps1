@@ -21,6 +21,14 @@ $controllerScript = Join-Path $repoRoot 'Mapping\Controllers\Map-Run-Controller.
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# -- Load QRCoder library for QR code generation in the results pane --
+$script:QRCoderAvailable = $false
+$qrCoderDll = Join-Path $repoRoot 'lib\QRCoder.dll'
+if (Test-Path -LiteralPath $qrCoderDll) {
+  try { Add-Type -Path $qrCoderDll -ErrorAction Stop; $script:QRCoderAvailable = $true }
+  catch { Write-Warning "QRCoder DLL failed to load: $_" }
+}
+
 # Must be called BEFORE any controls are created on the thread.
 [System.Windows.Forms.Application]::SetUnhandledExceptionMode(
   [System.Windows.Forms.UnhandledExceptionMode]::CatchException)
@@ -84,6 +92,74 @@ function Format-ObjectText {
     return (($items | Format-Table -AutoSize | Out-String).Trim())
   }
   return (($InputObject | ConvertTo-Json -Depth 8) | Out-String).Trim()
+}
+
+# -- Machine Info results cache for resize-aware rendering --
+$script:LastMIResultObjects = $null
+$script:LastMISelectColumns = $null
+
+function Render-MIResultsToPane {
+  <# Re-renders the cached MI results into $txtMIResults using the current
+     pane width so the table fills the available space on resize. #>
+  if (-not $script:LastMIResultObjects) { return }
+  $charWidth = [System.Windows.Forms.TextRenderer]::MeasureText('M', $txtMIResults.Font).Width
+  $paneChars = [math]::Max(80, [math]::Floor($txtMIResults.Width / $charWidth))
+  $data = $script:LastMIResultObjects
+  if ($script:LastMISelectColumns) {
+    $data = $data | Select-Object $script:LastMISelectColumns
+  }
+  $txtMIResults.Text = ($data | Format-Table -AutoSize | Out-String -Width $paneChars).Trim()
+}
+
+# -- QR Code helpers --------------------------------------------------------
+function New-QRBitmap {
+  <# Generates a System.Drawing.Bitmap QR code from a string.
+     Returns $null if QRCoder is not available or the string is empty. #>
+  param([string]$Text, [int]$PixelsPerModule = 8)
+  if (-not $script:QRCoderAvailable -or [string]::IsNullOrWhiteSpace($Text)) { return $null }
+  try {
+    $qrGen  = New-Object QRCoder.QRCodeGenerator
+    $qrData = $qrGen.CreateQrCode($Text, [QRCoder.QRCodeGenerator+ECCLevel]::Q)
+    $qrCode = New-Object QRCoder.QRCode($qrData)
+    $bmp    = $qrCode.GetGraphic($PixelsPerModule)
+    $qrCode.Dispose(); $qrGen.Dispose()
+    return $bmp
+  } catch { return $null }
+}
+
+function Format-MIResultsForQR {
+  <# Builds a compact, scanner-friendly string from the last MI result objects.
+     Keeps it under ~120 chars when possible so the QR stays small/scannable. #>
+  if (-not $script:LastMIResultObjects) { return '' }
+  $rows = @($script:LastMIResultObjects)
+  if ($rows.Count -eq 0) { return '' }
+
+  # Build tab-separated lines (scanner → spreadsheet paste)
+  $props = @($rows[0].PSObject.Properties.Name)
+  $lines = @()
+  foreach ($r in $rows) {
+    $vals = $props | ForEach-Object { "$($r.$_)" }
+    $lines += ($vals -join "`t")
+  }
+  return ($lines -join "`n")
+}
+
+function Update-MIQRCode {
+  <# Refreshes the QR PictureBox with current MI result data. #>
+  if (-not $script:QRCoderAvailable) { return }
+  $qrText = Format-MIResultsForQR
+  if (-not $qrText) {
+    $picMIQR.Image = $null; $picMIQR.Visible = $false; return
+  }
+  # Truncate very long payloads to keep QR scannable
+  if ($qrText.Length -gt 2000) { $qrText = $qrText.Substring(0, 2000) }
+  $bmp = New-QRBitmap -Text $qrText -PixelsPerModule 4
+  if ($bmp) {
+    if ($picMIQR.Image) { $picMIQR.Image.Dispose() }
+    $picMIQR.Image = $bmp; $picMIQR.Visible = $true
+  } else {
+    $picMIQR.Image = $null; $picMIQR.Visible = $false
+  }
 }
 
 function Format-UndoRedoText {
@@ -404,10 +480,10 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'See what printers are on a PC before mapping'
     Color = [System.Drawing.Color]::FromArgb(100,60,150)
     Steps = @(
-      @{ Title = 'Printer Layout: What Is It?'; Highlights = @(); Body = "Before you map new printers, you need to know what is already there.`n`nPrinter Layout = running a Recon Only scan to list every printer (UNC network queues and local printers) on a machine.`n`nThis is the safest first step before any mapping changes." }
-      @{ Title = 'Printer Layout: Load and Run Recon'; Highlights = @('btnExampleOptions','btnStartWorker'); Body = "1. Click Load Safe Example (or Ctrl+E) to pre-fill Recon mode`n2. Click the big green START Local Worker button`n3. Confirm with Yes`n`nThis snapshots your printers without changing anything." }
-      @{ Title = 'Printer Layout: Read the Layout'; Highlights = @('btnOpenSession'); Body = "Click Open Session Folder and open Results.csv or Results.html.`n`nYou will see every printer on this machine:`n`n  Type   Target                        Status`n  UNC    \\\\printsrv\\lobby-hp4050      PresentNow`n  UNC    \\\\printsrv\\office-hp5550     PresentNow`n  LOCAL  Microsoft Print to PDF        PresentNow`n  LOCAL  Fax                           PresentNow`n`nThis is your baseline. Use it to decide what to add or remove." }
-      @{ Title = 'Printer Layout: Done!'; Highlights = @(); Body = "You now have a complete printer inventory for this machine!`n`nFor other PCs: type their hostnames in Controller Targets, then use Start Controller with Recon Only mode.`n`nThe Results.csv from each host tells you exactly what is mapped before you make changes.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Printer Layout: What Is It?'; Highlights = @('runTab'); Body = "Before you map new printers, you need to know what is already there.`n`nPrinter Layout = running a Recon Only scan to list every printer (UNC network queues and local printers) on a machine.`n`nThis is the safest first step before any mapping changes." }
+      @{ Title = 'Printer Layout: Load and Run Recon'; Highlights = @('runTab','btnExampleOptions','btnStartWorker'); Body = "1. Click Load Safe Example (or Ctrl+E) to pre-fill Recon mode`n2. Click the big green START Local Worker button`n3. Confirm with Yes`n`nThis snapshots your printers without changing anything." }
+      @{ Title = 'Printer Layout: Read the Layout'; Highlights = @('btnOpenSession'); Body = "Click Open Session Folder and open Results.csv or Results.html.`n`nYou will see every printer on this machine:`n`n  Type   Target                        Status`n  UNC    \\printsrv\lobby-hp4050        PresentNow`n  UNC    \\printsrv\office-hp5550       PresentNow`n  LOCAL  Microsoft Print to PDF        PresentNow`n  LOCAL  Fax                           PresentNow`n`nThis is your baseline. Use it to decide what to add or remove." }
+      @{ Title = 'Printer Layout: Done!'; Highlights = @('btnOpenSession'); Body = "You now have a complete printer inventory for this machine!`n`nFor other PCs: type their hostnames in Controller Targets, then use Start Controller with Recon Only mode.`n`nThe Results.csv from each host tells you exactly what is mapped before you make changes.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'PrinterMapping' = @{
@@ -415,11 +491,11 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Map or remove printers across workstations'
     Color = [System.Drawing.Color]::FromArgb(30,150,30)
     Steps = @(
-      @{ Title = 'Printer Mapping: Load a Safe Example'; Highlights = @('btnExampleOptions'); Body = "Let's do a safe dry run right now.`n`nClick the highlighted Load Safe Example button (or press Ctrl+E).`n`nThis pre-fills Recon Only + Preflight mode, which takes a snapshot of your existing printers without making any changes. Completely safe on production machines.`n`nClick it now, then press Next." }
+      @{ Title = 'Printer Mapping: Load a Safe Example'; Highlights = @('runTab','btnExampleOptions'); Body = "Let's do a safe dry run right now.`n`nClick the highlighted Load Safe Example button (or press Ctrl+E).`n`nThis pre-fills Recon Only + Preflight mode, which takes a snapshot of your existing printers without making any changes. Completely safe on production machines.`n`nClick it now, then press Next." }
       @{ Title = 'Printer Mapping: Hit the Green GO Button'; Highlights = @('btnStartWorker'); Body = "Now click the big green START Local Worker button at the bottom.`n`nThis runs a Recon scan on THIS machine only:`n- Reads your current printers`n- Writes Results.csv and Results.html`n- Makes ZERO changes`n`nA confirmation dialog will appear -- click Yes.`nIf anything goes wrong, the big red STOP button at the top right stops it immediately." }
       @{ Title = 'Printer Mapping: Check Your Output'; Highlights = @('txtStatusView','btnOpenSession'); Body = "Look at the Status pane below. It should say Completed.`n`nClick Open Session Folder to see what was created:`n`n  Run.log        - full transcript`n  Preflight.csv  - printers before changes`n  Results.csv    - final state`n  Results.html   - visual report`n`nOpen Results.html in a browser for a quick audit." }
-      @{ Title = 'Example: What Success Looks Like'; Highlights = @('txtStatusView'); Body = "The Status pane shows something like:`n`n  {`n    ""State"":  ""Completed"",`n    ""Stage"":  ""ListOnly"",`n    ""Message"": ""ListOnly inventory completed.""`n  }`n`nAnd Results.csv has rows like:`n`n  Type   Target                     Status`n  UNC    \\\\printsrv\\lobby-hp4050   PresentBefore`n  LOCAL  Microsoft Print to PDF     PresentAfter`n`nTo actually map printers, switch Run Mode to Full Run and add queue paths in Queues to Add." }
-      @{ Title = 'Printer Mapping: Done!'; Highlights = @(); Body = "You just completed a Printer Mapping recon!`n`nNext steps for real work:`n1. Change Run Mode to Full Run`n2. Type queue paths in Queues to Add (e.g. \\\\PRINTSRV\\Lobby-HP4050)`n3. For multiple PCs, type hostnames in Controller Targets and use Start Controller`n`nAlways Recon first, review, then Full Run.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Example: What Success Looks Like'; Highlights = @('txtStatusView'); Body = "The Status pane shows something like:`n`n  {`n    ""State"":  ""Completed"",`n    ""Stage"":  ""ListOnly"",`n    ""Message"": ""ListOnly inventory completed.""`n  }`n`nAnd Results.csv has rows like:`n`n  Type   Target                     Status`n  UNC    \\printsrv\lobby-hp4050     PresentBefore`n  LOCAL  Microsoft Print to PDF     PresentAfter`n`nTo actually map printers, switch Run Mode to Full Run and add queue paths in Queues to Add." }
+      @{ Title = 'Printer Mapping: Done!'; Highlights = @('runTab','btnOpenSession'); Body = "You just completed a Printer Mapping recon!`n`nNext steps for real work:`n1. Change Run Mode to Full Run`n2. Type queue paths in Queues to Add (e.g. \\PRINTSRV\Lobby-HP4050)`n3. For multiple PCs, type hostnames in Controller Targets and use Start Controller`n`nAlways Recon first, review, then Full Run.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'KronosClock' = @{
@@ -427,11 +503,11 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Probe network clocks for MAC, serial, model'
     Color = [System.Drawing.Color]::FromArgb(0,120,180)
     Steps = @(
-      @{ Title = 'Kronos: Switch to the Kronos Tab'; Highlights = @(); Body = "Click the Kronos Lookup tab at the top of the window.`n`nThis tab lets you probe network time clocks (Kronos, UKG, etc.) to collect their MAC address, serial number, model, and hostname.`n`nSwitch to that tab now, then press Next." }
+      @{ Title = 'Kronos: Switch to the Kronos Tab'; Highlights = @('kronosTab'); Body = "Click the Kronos Lookup tab at the top of the window.`n`nThis tab lets you probe network time clocks (Kronos, UKG, etc.) to collect their MAC address, serial number, model, and hostname.`n`nSwitch to that tab now, then press Next." }
       @{ Title = 'Kronos: Enter a Target and Probe'; Highlights = @('txtTargets','btnProbe'); Body = "In the Targets box, type an IP address or hostname of a clock.`nExample: 10.1.2.50`n`nThen click Probe Targets. The tool will scan via ICMP, SNMP, ARP, HTTP, and DNS to collect identity info.`n`nIf you do not have a real clock handy, type any IP -- the probe will report Reachable=False, which is still useful to see." }
       @{ Title = 'Kronos: Read the Results'; Highlights = @('txtClockResults','btnCopyClockResults'); Body = "The Results pane shows a table like:`n`n  QueryInput  IPAddress   HostName       MAC               Serial  Reachable`n  10.1.2.50   10.1.2.50   KRON-CLK-01    00:1A:2B:3C:4D:5E KRN4401 True`n`nClick Copy Results to paste into a ticket or DHCP form.`nThe Output CSV is also saved to disk for Excel." }
       @{ Title = 'Kronos: Search a Saved Inventory'; Highlights = @('btnInventory','cmbLookup','txtLookup','btnFind'); Body = "Already have a saved CSV? Click Load Inventory to import it.`n`nTo search:`n1. Pick a field: IP, MAC, Serial, HostName, or Any`n2. Type a value in the search box`n3. Click Find Match`n`nThis is the cross-lookup workflow: start with one identifier and get back the full record." }
-      @{ Title = 'Kronos: Done!'; Highlights = @(); Body = "You now know how to probe clocks and search inventories!`n`nTip: Save the Output CSV after each probe. You can re-import it later without re-probing the network.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Kronos: Done!'; Highlights = @('kronosTab','btnCopyClockResults'); Body = "You now know how to probe clocks and search inventories!`n`nTip: Save the Output CSV after each probe. You can re-import it later without re-probing the network.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'NeuronMachineInfo' = @{
@@ -439,8 +515,8 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Get serial, IP, MAC for Neuron workstations'
     Color = [System.Drawing.Color]::FromArgb(120,80,180)
     Steps = @(
-      @{ Title = 'Neuron MachineInfo: Overview'; Highlights = @(); Body = "Get-MachineInfo.ps1 queries workstations via WMI to collect:`n- Serial number (BIOS)`n- IP address and MAC address`n- Monitor serial numbers`n`nYou can run this directly from the Machine Info tab in this GUI.`nNo command line needed!" }
-      @{ Title = 'Neuron MachineInfo: Switch to Machine Info Tab'; Highlights = @('txtMITargets','cmbMIMode'); Body = "Click the Machine Info tab at the top of the window.`n`nMake sure the Script dropdown is set to:`n  Get-MachineInfo  (workstation serial/IP/MAC)`n`nThen type your Neuron hostnames in the Targets box, one per line:`n  NEURON-WKS001`n  NEURON-WKS002`n  NEURON-WKS003`n`nOr click the [...] next to Host List File to load a .txt file." }
+      @{ Title = 'Neuron MachineInfo: Overview'; Highlights = @('machineInfoTab'); Body = "Get-MachineInfo.ps1 queries workstations via WMI to collect:`n- Serial number (BIOS)`n- IP address and MAC address`n- Monitor serial numbers`n`nYou can run this directly from the Machine Info tab in this GUI.`nNo command line needed!" }
+      @{ Title = 'Neuron MachineInfo: Switch to Machine Info Tab'; Highlights = @('machineInfoTab','txtMITargets'); ComboSelect = @{ cmbMIMode = 0 }; Body = "We have switched you to the Machine Info tab and selected Get-MachineInfo in the dropdown.`n`nType your Neuron hostnames in the Targets box, one per line:`n  NEURON-WKS001`n  NEURON-WKS002`n  NEURON-WKS003`n`nOr click the [...] next to Host List File to load a .txt file." }
       @{ Title = 'Neuron MachineInfo: Run the Probe'; Highlights = @('btnMIRun','txtMIOutCsv'); Body = "Set the Output CSV path (a default is pre-filled).`nAdjust Throttle if you have many hosts (default: 15 at a time).`n`nClick the Run Probe button.`n`nThe script queries each host in parallel and writes the CSV.`nResults appear in the pane below, and the Output Artifacts bar shows the file path and size." }
       @{ Title = 'Example: MachineInfo Output'; Highlights = @('txtMIResults'); Body = "The output CSV has these columns:`n`n  Timestamp | HostName | Serial | IPAddress | MACAddress | MonitorSerials | Status`n`n  2026-03-24  NEURON-WKS001  5CG123  10.1.5.20  AA:BB:CC:DD:EE:FF  SN12345  OK`n  2026-03-24  NEURON-WKS002  Offline                                          Offline`n`nClick Copy Results to paste into a ticket, or Open Output Folder to find the CSV.`n`nPress the Menu button below to try another tutorial." }
     )
@@ -450,8 +526,8 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Get MAC and serial from network printers'
     Color = [System.Drawing.Color]::FromArgb(180,100,30)
     Steps = @(
-      @{ Title = 'Printer MachineInfo: Overview'; Highlights = @(); Body = "Get-PrinterMacSerial.ps1 probes network printers to collect:`n- MAC address (SNMP, HTTP, ARP)`n- Serial number (SNMP, HTTP scrape)`n`nUseful for asset tagging, warranty lookups, and DHCP reservations.`nRun this from the Machine Info tab. No command line needed." }
-      @{ Title = 'Printer MachineInfo: Switch to Machine Info Tab'; Highlights = @('txtMITargets','cmbMIMode'); Body = "Click the Machine Info tab at the top.`n`nChange the Script dropdown to:`n  Get-PrinterMacSerial  (printer MAC/serial via SNMP)`n`nType printer IPs in the Targets box:`n  10.1.3.100`n  10.1.3.101`n`nOr click [...] next to Host List File to load a text file of IPs." }
+      @{ Title = 'Printer MachineInfo: Overview'; Highlights = @('machineInfoTab'); Body = "Get-PrinterMacSerial.ps1 probes network printers to collect:`n- MAC address (SNMP, HTTP, ARP)`n- Serial number (SNMP, HTTP scrape)`n`nUseful for asset tagging, warranty lookups, and DHCP reservations.`nRun this from the Machine Info tab. No command line needed." }
+      @{ Title = 'Printer MachineInfo: Switch to Machine Info Tab'; Highlights = @('machineInfoTab','txtMITargets'); ComboSelect = @{ cmbMIMode = 1 }; Body = "We have switched you to the Machine Info tab and selected Get-PrinterMacSerial in the dropdown.`n`nType printer IPs in the Targets box:`n  10.1.3.100`n  10.1.3.101`n`nOr click [...] next to Host List File to load a text file of IPs." }
       @{ Title = 'Printer MachineInfo: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. The script tries SNMP first, then HTTP scraping, then ARP as a fallback.`n`nResults appear in the pane below and the CSV is saved to the Output CSV path.`n`nThe Output Artifacts bar shows exactly where the file landed and its size." }
       @{ Title = 'Example: Printer MachineInfo Output'; Highlights = @('txtMIResults'); Body = "The output CSV has these columns:`n`n  IP | Status | MAC | Serial | Source | Notes`n`n  10.1.3.100  Online   AA:BB:CC:DD:EE:FF  VNB1234567  SNMP serial + SNMP MAC`n  10.1.3.101  Online   11:22:33:44:55:66  (none)      SNMP MAC; Serial unavailable`n  10.1.3.102  Offline  (none)             (none)      Host unreachable (ICMP)`n`nClick Copy Results or Open Output Folder for the CSV.`n`nPress the Menu button below to try another tutorial." }
     )
@@ -461,8 +537,8 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Get serial, IP, MAC for Cybernet PCs'
     Color = [System.Drawing.Color]::FromArgb(50,130,130)
     Steps = @(
-      @{ Title = 'Cybernet MachineInfo: Overview'; Highlights = @(); Body = "This uses the same Get-MachineInfo.ps1 script as Neuron, but for Cybernet or any Windows workstation.`n`nIt collects: Serial, IP, MAC, and Monitor Serials via WMI.`n`nThe only difference is the host list you provide." }
-      @{ Title = 'Cybernet MachineInfo: Use the Machine Info Tab'; Highlights = @('txtMITargets','cmbMIMode'); Body = "Click the Machine Info tab. Make sure the Script dropdown is set to:`n  Get-MachineInfo  (workstation serial/IP/MAC)`n`nType Cybernet hostnames in the Targets box:`n  CYBER-WKS001`n  CYBER-WKS002`n`nOr load a host list file using the [...] button.`n`nTip: Increase Throttle to 30 for large lists." }
+      @{ Title = 'Cybernet MachineInfo: Overview'; Highlights = @('machineInfoTab'); Body = "This uses the same Get-MachineInfo.ps1 script as Neuron, but for Cybernet or any Windows workstation.`n`nIt collects: Serial, IP, MAC, and Monitor Serials via WMI.`n`nThe only difference is the host list you provide." }
+      @{ Title = 'Cybernet MachineInfo: Use the Machine Info Tab'; Highlights = @('machineInfoTab','txtMITargets'); ComboSelect = @{ cmbMIMode = 0 }; Body = "We have switched you to the Machine Info tab and selected Get-MachineInfo in the dropdown.`n`nType Cybernet hostnames in the Targets box:`n  CYBER-WKS001`n  CYBER-WKS002`n`nOr load a host list file using the [...] button.`n`nTip: Increase Throttle to 30 for large lists." }
       @{ Title = 'Cybernet MachineInfo: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. Results appear in the pane below.`n`nOutput CSV columns:`n`n  Timestamp | HostName | Serial | IPAddress | MACAddress | MonitorSerials | Status`n`n  2026-03-24  CYBER-WKS001  MXL987  10.2.1.10  AA:BB:CC:DD:EE:FF  MON-SN1  OK`n  2026-03-24  CYBER-WKS002  MXL988  10.2.1.11  11:22:33:44:55:66  MON-SN2  OK`n`nClick Copy Results or Open Output Folder.`n`nPress the Menu button below to try another tutorial." }
     )
   }
@@ -471,9 +547,9 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Get per-stick RAM detail from remote hosts'
     Color = [System.Drawing.Color]::FromArgb(60,130,170)
     Steps = @(
-      @{ Title = 'RAM Info: Overview'; Highlights = @(); Body = "Get-RamInfo.ps1 queries Win32_PhysicalMemory via CIM to collect per-stick detail:`n- Manufacturer, Part Number, Speed, Capacity`n- Slot (DeviceLocator), Form Factor`n`nResults are exported to a CSV with one row per DIMM per host." }
-      @{ Title = 'RAM Info: Use the Machine Info Tab'; Highlights = @('txtMITargets','cmbMIMode'); Body = "Click the Machine Info tab at the top.`n`nChange the Script dropdown to:`n  Get-RamInfo  (RAM stick detail per host)`n`nType hostnames in the Targets box, one per line.`nOr click [...] next to Host List File to load a text file." }
-      @{ Title = 'RAM Info: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. The script queries each host in parallel.`n`nOutput CSV columns:`n  HostName | Status | Slot | Manufacturer | PartNumber | Speed_MHz | Capacity_GB | FormFactor`n`nClick Copy Results or Open Output Folder for the CSV.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'RAM Info: Overview'; Highlights = @('machineInfoTab'); ComboSelect = @{ cmbMIMode = 2 }; Body = "Get-RamInfo.ps1 queries Win32_PhysicalMemory via CIM to collect per-stick detail:`n- Manufacturer, Part Number, Speed, Capacity`n- Slot (DeviceLocator), Form Factor`n`nResults are exported to a CSV with one row per DIMM per host.`n`nWe have switched you to the Machine Info tab and selected Get-RamInfo in the dropdown." }
+      @{ Title = 'RAM Info: Enter Targets'; Highlights = @('txtMITargets'); Body = "The Script dropdown is already set to Get-RamInfo.`n`nType hostnames in the Targets box, one per line.`nOr click [...] next to Host List File to load a text file.`n`nTip: Type your own machine name to test locally." }
+      @{ Title = 'RAM Info: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. The script queries each host in parallel.`n`nThe Results pane shows key columns:`n  HostName | Status | Slot | Manufacturer | PartNumber | CapacityGB | Speed | MemoryType`n`nThe full CSV (all 22 columns) is saved to the Output CSV path.`n`nClick Copy Results or Open Output Folder for the CSV.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'RepoHealth' = @{
@@ -481,10 +557,10 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Fix BOM, encoding, locks, and line endings'
     Color = [System.Drawing.Color]::FromArgb(60,140,100)
     Steps = @(
-      @{ Title = 'Repo Health: Why It Matters'; Highlights = @(); Body = "PowerShell 5.1 cannot parse scripts with non-ASCII characters (em-dashes, checkmarks, box-drawing) unless the file has a UTF-8 BOM (Byte Order Mark).`n`nDownloaded files may also have Zone.Identifier locks that block execution.`n`nThe tools/ folder has three utilities to keep the repo healthy:`n  - Invoke-RepoFileHealth.ps1  (all-in-one)`n  - Add-Utf8Bom.ps1            (BOM only)`n  - Test-ScriptHealth.ps1      (validation)" }
-      @{ Title = 'Repo Health: Dry-Run First'; Highlights = @(); Body = "Open a PowerShell terminal and run:`n`n  .\\tools\\Invoke-RepoFileHealth.ps1`n`nThis is a DRY-RUN by default. It scans every file and reports:`n  - Missing UTF-8 BOM`n  - Zone.Identifier locks`n  - Wrong line endings`n  - Non-ASCII characters that may break PS 5.1`n`nNo files are changed until you add -Fix." }
-      @{ Title = 'Repo Health: Apply Fixes'; Highlights = @(); Body = "When you are ready, run:`n`n  .\\tools\\Invoke-RepoFileHealth.ps1 -Fix`n`nThis will:`n  1. Remove Zone.Identifier locks (unblock files)`n  2. Add UTF-8 BOM to .ps1, .psm1, .psd1, .csv files`n  3. Normalize line endings to CRLF`n`nFor BOM-only fixes:`n  .\\tools\\Add-Utf8Bom.ps1 -Fix`n`nTo validate without fixing:`n  .\\tools\\Test-ScriptHealth.ps1" }
-      @{ Title = 'Repo Health: Done!'; Highlights = @(); Body = "Run these tools after pulling new code or adding scripts.`n`nTip: Add Test-ScriptHealth.ps1 to your CI pipeline to catch encoding issues before they break PS 5.1 users.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Repo Health: Why It Matters'; Highlights = @('bomTab'); Body = "PowerShell 5.1 cannot parse scripts with non-ASCII characters (em-dashes, checkmarks, box-drawing) unless the file has a UTF-8 BOM (Byte Order Mark).`n`nDownloaded files may also have Zone.Identifier locks that block execution.`n`nThe tools/ folder has three utilities to keep the repo healthy:`n  - Invoke-RepoFileHealth.ps1  (all-in-one)`n  - Add-Utf8Bom.ps1            (BOM only)`n  - Test-ScriptHealth.ps1      (validation)" }
+      @{ Title = 'Repo Health: Dry-Run First'; Highlights = @('bomTab'); Body = "Open a PowerShell terminal and run:`n`n  .\\tools\\Invoke-RepoFileHealth.ps1`n`nThis is a DRY-RUN by default. It scans every file and reports:`n  - Missing UTF-8 BOM`n  - Zone.Identifier locks`n  - Wrong line endings`n  - Non-ASCII characters that may break PS 5.1`n`nNo files are changed until you add -Fix." }
+      @{ Title = 'Repo Health: Apply Fixes'; Highlights = @('bomTab'); Body = "When you are ready, run:`n`n  .\\tools\\Invoke-RepoFileHealth.ps1 -Fix`n`nThis will:`n  1. Remove Zone.Identifier locks (unblock files)`n  2. Add UTF-8 BOM to .ps1, .psm1, .psd1, .csv files`n  3. Normalize line endings to CRLF`n`nFor BOM-only fixes:`n  .\\tools\\Add-Utf8Bom.ps1 -Fix`n`nTo validate without fixing:`n  .\\tools\\Test-ScriptHealth.ps1" }
+      @{ Title = 'Repo Health: Done!'; Highlights = @('bomTab'); Body = "Run these tools after pulling new code or adding scripts.`n`nTip: Add Test-ScriptHealth.ps1 to your CI pipeline to catch encoding issues before they break PS 5.1 users.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'SoftwareInventory' = @{
@@ -492,9 +568,10 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Audit installed software across machines'
     Color = [System.Drawing.Color]::FromArgb(140,100,40)
     Steps = @(
-      @{ Title = 'Software Inventory: Overview'; Highlights = @(); Body = "Config\\Inventory-Software.ps1 collects installed software from workstations and builds a superset CSV.`n`nUse it to:`n  - Audit what is installed before a migration`n  - Compare machines for consistency`n  - Feed into Runbook-Inventory.ps1 for go-live checklists" }
-      @{ Title = 'Software Inventory: Run It'; Highlights = @(); Body = "Open a PowerShell terminal and run:`n`n  .\\Config\\Inventory-Software.ps1`n`nThe script queries Win32_Product via WMI on each target and writes a CSV.`n`nFor a dry run (plan only):`n  .\\Config\\Inventory-Software.ps1 -WhatIf`n`nOutput lands in the Config\\Output folder by default." }
-      @{ Title = 'Software Inventory: Review Output'; Highlights = @(); Body = "The output CSV contains:`n`n  HostName | Name | Version | Vendor | InstallDate`n`nOpen it in Excel or import with:`n  Import-Csv .\\Config\\Output\\software_superset.csv`n`nUse Runbook-Inventory.ps1 to cross-check against your expected software list.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Software Inventory: Overview'; Highlights = @('machineInfoTab','cmbMIMode'); ComboSelect = @{ cmbMIMode = 7 }; Body = "Inventory-Software.ps1 scans the Windows registry (HKLM Uninstall keys) on one or more workstations and exports:`n`n  - Per-host CSV + HTML under <RepoRoot>\inventory\<HOST>\`n  - A merged superset CSV across all hosts`n`nUse it to audit installs before a migration, compare machines, or feed go-live checklists.`n`nWe have switched the Script dropdown to Inventory-Software for you." }
+      @{ Title = 'Software Inventory: Enter Targets'; Highlights = @('machineInfoTab','txtMITargets','btnMIRun'); Body = "Type hostnames in the Targets box, one per line.`nOr click [...] next to Host List File to load a text file.`n`nTip: Type your own machine name (or leave it as default) to test locally.`n`nThe script reads the registry ARP hives (32-bit + 64-bit) on each target.`nFor remote machines it uses Invoke-Command, so WinRM must be enabled." }
+      @{ Title = 'Software Inventory: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. The script inventories each host and displays results in the pane below.`n`nKey columns:`n  Name | Version | Publisher | Host`n`nThe full CSV is saved to the Output CSV path shown above.`n`nClick Copy Results to grab the table, or Open Output Folder for the file." }
+      @{ Title = 'Software Inventory: Superset Merge'; Highlights = @('txtMIResults','btnOpenMIOutput'); Body = "After inventorying multiple hosts, run from PowerShell:`n`n  .\\Config\\Inventory-Software.ps1 -ComputerName Host1,Host2`n`n(without -NoMerge) to build a superset CSV that picks the best version of each product across all hosts.`n`nUse Runbook-Inventory.ps1 to cross-check the superset against your expected software list.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'NetworkTest' = @{
@@ -502,9 +579,9 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Test connectivity, DNS, and ports'
     Color = [System.Drawing.Color]::FromArgb(40,100,160)
     Steps = @(
-      @{ Title = 'Network Test: Overview'; Highlights = @(); Body = "Utilities\\Test-Network.ps1 is a quick connectivity checker.`n`nIt tests:`n  - ICMP ping (reachability)`n  - DNS resolution`n  - TCP port connectivity`n`nUseful before running probes or mapping to verify the network path is clear." }
-      @{ Title = 'Network Test: Run It'; Highlights = @(); Body = "Open a PowerShell terminal and run:`n`n  .\\Utilities\\Test-Network.ps1 -ComputerName 10.1.2.50`n`nOr test multiple hosts:`n  .\\Utilities\\Test-Network.ps1 -ComputerName '10.1.2.50','10.1.2.51'`n`nThe output shows reachability, latency, and DNS results for each target." }
-      @{ Title = 'Network Test: Done!'; Highlights = @(); Body = "Run this before any probe or mapping job to verify connectivity.`n`nTip: Pipe the output to Export-Csv for a record:`n  .\\Utilities\\Test-Network.ps1 -ComputerName (Get-Content hosts.txt) | Export-Csv net-check.csv`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Network Test: Overview'; Highlights = @('runTab','grpLaunch'); Body = "Utilities\\Test-Network.ps1 is a quick connectivity checker.`n`nIt tests:`n  - ICMP ping (reachability)`n  - DNS resolution`n  - TCP port connectivity`n`nUseful before running probes or mapping to verify the network path is clear." }
+      @{ Title = 'Network Test: Run It'; Highlights = @('runTab','txtRunTargets'); Body = "Open a PowerShell terminal and run:`n`n  .\\Utilities\\Test-Network.ps1 -ComputerName 10.1.2.50`n`nOr test multiple hosts:`n  .\\Utilities\\Test-Network.ps1 -ComputerName '10.1.2.50','10.1.2.51'`n`nThe output shows reachability, latency, and DNS results for each target." }
+      @{ Title = 'Network Test: Done!'; Highlights = @('runTab','btnStartWorker'); Body = "Run this before any probe or mapping job to verify connectivity.`n`nTip: Pipe the output to Export-Csv for a record:`n  .\\Utilities\\Test-Network.ps1 -ComputerName (Get-Content hosts.txt) | Export-Csv net-check.csv`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'ADPrintingGroup' = @{
@@ -512,9 +589,9 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Add computers to AD printing security groups'
     Color = [System.Drawing.Color]::FromArgb(160,60,60)
     Steps = @(
-      @{ Title = 'AD Printing Group: Overview'; Highlights = @(); Body = "ActiveDirectory\\Add-Computers-To-PrintingGroup.ps1 bulk-adds computer accounts to an AD security group used for printer deployment.`n`nIt supports:`n  - -PlanOnly mode (writes artifacts, touches nothing in AD)`n  - Logging of every action`n  - Reading targets from a hosts.txt file" }
-      @{ Title = 'AD Printing Group: Plan First'; Highlights = @(); Body = "Always start with a plan:`n`n  .\\ActiveDirectory\\Add-Computers-To-PrintingGroup.ps1 -PlanOnly`n`nThis reads ActiveDirectory\\hosts.txt and reports which machines would be added to the group, without making changes.`n`nReview the plan output before proceeding." }
-      @{ Title = 'AD Printing Group: Apply'; Highlights = @(); Body = "When the plan looks correct:`n`n  .\\ActiveDirectory\\Add-Computers-To-PrintingGroup.ps1`n`nThe script adds each computer from hosts.txt to the target AD group and logs every action.`n`nRequires: AD PowerShell module and appropriate permissions.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'AD Printing Group: Overview'; Highlights = @('runTab','txtRunTargets'); Body = "ActiveDirectory\\Add-Computers-To-PrintingGroup.ps1 bulk-adds computer accounts to an AD security group used for printer deployment.`n`nIt supports:`n  - -PlanOnly mode (writes artifacts, touches nothing in AD)`n  - Logging of every action`n  - Reading targets from a hosts.txt file" }
+      @{ Title = 'AD Printing Group: Plan First'; Highlights = @('runTab','chkWhatIf'); Body = "Always start with a plan:`n`n  .\\ActiveDirectory\\Add-Computers-To-PrintingGroup.ps1 -PlanOnly`n`nThis reads ActiveDirectory\\hosts.txt and reports which machines would be added to the group, without making changes.`n`nReview the plan output before proceeding." }
+      @{ Title = 'AD Printing Group: Apply'; Highlights = @('runTab','btnStartController'); Body = "When the plan looks correct:`n`n  .\\ActiveDirectory\\Add-Computers-To-PrintingGroup.ps1`n`nThe script adds each computer from hosts.txt to the target AD group and logs every action.`n`nRequires: AD PowerShell module and appropriate permissions.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'PSVersionPivot' = @{
@@ -522,9 +599,9 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'How tools handle PS 5.1 vs PS 7 differences'
     Color = [System.Drawing.Color]::FromArgb(100,100,100)
     Steps = @(
-      @{ Title = 'PS Version Pivot: The Problem'; Highlights = @(); Body = "Some features need PowerShell 7 (pwsh), others need 5.1 (powershell.exe).`n`nExamples:`n  - PS 5.1: WMI cmdlets (Get-WmiObject), some AD modules`n  - PS 7: Parallel ForEach, newer .NET APIs, better JSON handling`n`nIf a script runs on the wrong version, it may fail silently or crash." }
-      @{ Title = 'PS Version Pivot: The Solution'; Highlights = @(); Body = "The suite includes tools\\Resolve-PSRuntime.ps1.`n`nDot-source it at the top of any script:`n`n  . `"$PSScriptRoot\\..\\tools\\Resolve-PSRuntime.ps1`"`n`nIt exposes:`n  `$PSRuntimeIs5  -- true on Windows PowerShell`n  `$PSRuntimeIs7  -- true on PowerShell 7+`n  Invoke-PSPivot  -- re-launches the script on the required engine`n`nWhen a pivot occurs, it logs the transition in magenta so you know exactly what happened." }
-      @{ Title = 'PS Version Pivot: Example'; Highlights = @(); Body = "In your script:`n`n  . `"$PSScriptRoot\\..\\tools\\Resolve-PSRuntime.ps1`"`n  if (`$PSRuntimeIs5 -and `$needsPS7) {`n      Invoke-PSPivot -RequiredVersion 7 ``\n          -ScriptPath `$PSCommandPath ``\n          -Arguments `$PSBoundParameters`n  }`n`nThe user sees:`n  [Resolve-PSRuntime] PIVOT: PS 5 -> PS 7 | Script: ...`n`nAnd the script continues on the correct engine.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'PS Version Pivot: The Problem'; Highlights = @('runTab','grpOptions'); Body = "Some features need PowerShell 7 (pwsh), others need 5.1 (powershell.exe).`n`nExamples:`n  - PS 5.1: WMI cmdlets (Get-WmiObject), some AD modules`n  - PS 7: Parallel ForEach, newer .NET APIs, better JSON handling`n`nIf a script runs on the wrong version, it may fail silently or crash." }
+      @{ Title = 'PS Version Pivot: The Solution'; Highlights = @('runTab','grpOptions'); Body = "The suite includes tools\\Resolve-PSRuntime.ps1.`n`nDot-source it at the top of any script:`n`n  . `"$PSScriptRoot\\..\\tools\\Resolve-PSRuntime.ps1`"`n`nIt exposes:`n  `$PSRuntimeIs5  -- true on Windows PowerShell`n  `$PSRuntimeIs7  -- true on PowerShell 7+`n  Invoke-PSPivot  -- re-launches the script on the required engine`n`nWhen a pivot occurs, it logs the transition in magenta so you know exactly what happened." }
+      @{ Title = 'PS Version Pivot: Example'; Highlights = @('runTab','grpOptions'); Body = "In your script:`n`n  . `"$PSScriptRoot\\..\\tools\\Resolve-PSRuntime.ps1`"`n  if (`$PSRuntimeIs5 -and `$needsPS7) {`n      Invoke-PSPivot -RequiredVersion 7 ``\n          -ScriptPath `$PSCommandPath ``\n          -Arguments `$PSBoundParameters`n  }`n`nThe user sees:`n  [Resolve-PSRuntime] PIVOT: PS 5 -> PS 7 | Script: ...`n`nAnd the script continues on the correct engine.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'GoLivePipeline' = @{
@@ -532,9 +609,9 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Fetch installers, stage to clients, run preflight'
     Color = [System.Drawing.Color]::FromArgb(180,50,50)
     Steps = @(
-      @{ Title = 'Go-Live Pipeline: Overview'; Highlights = @(); Body = "The Config folder contains a full go-live pipeline:`n`n  GoLiveTools.ps1       -- shared cmdlets (fetch, hash, stage)`n  Fetch-Cycle.ps1       -- rebuild + test + fetch + hash`n  Fetch-Installers.ps1  -- download installers from sources.csv`n  Stage-To-Clients.ps1  -- robocopy repo to client PCs`n  Run-Preflight.ps1     -- pre-deployment checks`n  Runbook-Inventory.ps1 -- cross-check installed vs expected`n`nRequires PowerShell 7+ for parallel fetch." }
-      @{ Title = 'Go-Live Pipeline: Fetch Cycle'; Highlights = @(); Body = "The main entry point is:`n`n  .\\Config\\Fetch-Cycle.ps1`n`nThis runs the full pipeline in order:`n  1. Preflight-Repo   (validate repo structure)`n  2. Rebuild-FetchMap (build fetch-map.csv from sources.csv)`n  3. Test-FetchMap    (HEAD-check all URLs)`n  4. Invoke-Fetch     (download installers)`n  5. New-RepoChecksums (SHA256 hashes)`n  6. Fill-PackagesTypes (detect MSI/NSIS/Inno/etc.)`n`nSet REPO_HOST env var or create Config\\RepoHost.txt with the server name." }
-      @{ Title = 'Go-Live Pipeline: Stage and Preflight'; Highlights = @(); Body = "After fetching, stage to client PCs:`n`n  .\\Config\\Stage-To-Clients.ps1`n`nThis uses robocopy to push the repo to target machines.`n`nBefore deploying, run preflight:`n`n  .\\Config\\Run-Preflight.ps1`n`nThis checks that all expected files are present and hashes match.`n`nUse Runbook-Inventory.ps1 to compare installed software against the expected list.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Go-Live Pipeline: Overview'; Highlights = @('runTab','grpLaunch'); Body = "The Config folder contains a full go-live pipeline:`n`n  GoLiveTools.ps1       -- shared cmdlets (fetch, hash, stage)`n  Fetch-Cycle.ps1       -- rebuild + test + fetch + hash`n  Fetch-Installers.ps1  -- download installers from sources.csv`n  Stage-To-Clients.ps1  -- robocopy repo to client PCs`n  Run-Preflight.ps1     -- pre-deployment checks`n  Runbook-Inventory.ps1 -- cross-check installed vs expected`n`nRequires PowerShell 7+ for parallel fetch." }
+      @{ Title = 'Go-Live Pipeline: Fetch Cycle'; Highlights = @('runTab','txtRunTargets'); Body = "The main entry point is:`n`n  .\\Config\\Fetch-Cycle.ps1`n`nThis runs the full pipeline in order:`n  1. Preflight-Repo   (validate repo structure)`n  2. Rebuild-FetchMap (build fetch-map.csv from sources.csv)`n  3. Test-FetchMap    (HEAD-check all URLs)`n  4. Invoke-Fetch     (download installers)`n  5. New-RepoChecksums (SHA256 hashes)`n  6. Fill-PackagesTypes (detect MSI/NSIS/Inno/etc.)`n`nSet REPO_HOST env var or create Config\\RepoHost.txt with the server name." }
+      @{ Title = 'Go-Live Pipeline: Stage and Preflight'; Highlights = @('runTab','btnStartController'); Body = "After fetching, stage to client PCs:`n`n  .\\Config\\Stage-To-Clients.ps1`n`nThis uses robocopy to push the repo to target machines.`n`nBefore deploying, run preflight:`n`n  .\\Config\\Run-Preflight.ps1`n`nThis checks that all expected files are present and hashes match.`n`nUse Runbook-Inventory.ps1 to compare installed software against the expected list.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'DeployShortcuts' = @{
@@ -542,9 +619,9 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Push desktop shortcuts to workstations'
     Color = [System.Drawing.Color]::FromArgb(80,130,60)
     Steps = @(
-      @{ Title = 'Deploy Shortcuts: Overview'; Highlights = @(); Body = "EnvSetup\\Deploy-Shortcuts.ps1 copies shortcut files (.lnk) to the Public Desktop on remote workstations.`n`nFeatures:`n  - Authenticates via net.exe (handles 1219/3775 multi-connection errors)`n  - Detects bad passwords (1326) and re-prompts once`n  - Never overwrites existing files (logs EXISTS_DIFFERENT or UPTODATE)`n  - Supports -WhatIf for dry runs`n  - Writes structured CSV + human-readable log + transcript" }
-      @{ Title = 'Deploy Shortcuts: Dry Run'; Highlights = @(); Body = "Always start with a dry run:`n`n  .\\EnvSetup\\Deploy-Shortcuts.ps1 -WhatIf`n`nThis shows what would be copied without touching any machines.`n`nTo target specific machines instead of the default range:`n  .\\EnvSetup\\Deploy-Shortcuts.ps1 -ComputerList 'PC001','PC002' -WhatIf`n`nLogs are written to C:\\ShortcutDeployLogs." }
-      @{ Title = 'Deploy Shortcuts: Apply'; Highlights = @(); Body = "When the dry run looks correct:`n`n  .\\EnvSetup\\Deploy-Shortcuts.ps1`n`nYou will be prompted for credentials. The script handles SMB auth automatically.`n`nCheck the logs folder for:`n  - DeployShortcuts_*.csv  (per-host, per-file status)`n  - DeployShortcuts_*.txt  (human-readable summary)`n  - Transcript_*.txt       (full console output)`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Deploy Shortcuts: Overview'; Highlights = @('runTab','txtRunTargets'); Body = "EnvSetup\\Deploy-Shortcuts.ps1 copies shortcut files (.lnk) to the Public Desktop on remote workstations.`n`nFeatures:`n  - Authenticates via net.exe (handles 1219/3775 multi-connection errors)`n  - Detects bad passwords (1326) and re-prompts once`n  - Never overwrites existing files (logs EXISTS_DIFFERENT or UPTODATE)`n  - Supports -WhatIf for dry runs`n  - Writes structured CSV + human-readable log + transcript" }
+      @{ Title = 'Deploy Shortcuts: Dry Run'; Highlights = @('runTab','chkWhatIf'); Body = "Always start with a dry run:`n`n  .\\EnvSetup\\Deploy-Shortcuts.ps1 -WhatIf`n`nThis shows what would be copied without touching any machines.`n`nTo target specific machines instead of the default range:`n  .\\EnvSetup\\Deploy-Shortcuts.ps1 -ComputerList 'PC001','PC002' -WhatIf`n`nLogs are written to C:\\ShortcutDeployLogs." }
+      @{ Title = 'Deploy Shortcuts: Apply'; Highlights = @('runTab','btnStartController'); Body = "When the dry run looks correct:`n`n  .\\EnvSetup\\Deploy-Shortcuts.ps1`n`nYou will be prompted for credentials. The script handles SMB auth automatically.`n`nCheck the logs folder for:`n  - DeployShortcuts_*.csv  (per-host, per-file status)`n  - DeployShortcuts_*.txt  (human-readable summary)`n  - Transcript_*.txt       (full console output)`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'QueueInventory' = @{
@@ -552,8 +629,9 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Inventory print queues with SNMP details'
     Color = [System.Drawing.Color]::FromArgb(100,80,160)
     Steps = @(
-      @{ Title = 'Queue Inventory: Overview'; Highlights = @(); Body = "GetInfo\\QueueInventory.ps1 takes printer queue names from a print server, resolves them to IP addresses, and collects SNMP info (MAC, serial, model).`n`nUseful for:`n  - Building a printer asset database`n  - Cross-referencing queue names with physical devices`n  - Feeding into the Printer Mapping workflow" }
-      @{ Title = 'Queue Inventory: Run It'; Highlights = @(); Body = "Open a PowerShell terminal and run:`n`n  .\\GetInfo\\QueueInventory.ps1 -PrintServer YOURSERVER -Queues 'Queue1','Queue2'`n`nOr let it use the defaults and edit the script parameters.`n`nThe output CSV lands at the -OutputPath (default: C:\\Temp\\QueueInventory.csv).`n`nColumns: QueueName, IPAddress, MAC, Serial, Model, Status`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Queue Inventory: Overview'; Highlights = @('machineInfoTab'); ComboSelect = @{ cmbMIMode = 5 }; Body = "GetInfo\\QueueInventory.ps1 takes printer queue names from a print server, resolves them to IP addresses, and collects SNMP info (MAC, serial, model).`n`nUseful for:`n  - Building a printer asset database`n  - Cross-referencing queue names with physical devices`n  - Feeding into the Printer Mapping workflow`n`nWe have switched you to the Machine Info tab and selected QueueInventory in the dropdown." }
+      @{ Title = 'Queue Inventory: Enter Targets'; Highlights = @('txtMITargets'); Body = "In the Targets box, type the print server name on the first line, then queue names on the following lines:`n  YOURPRINTSERVER`n  Queue1`n  Queue2`n`nOr run directly from PowerShell:`n  .\\GetInfo\\QueueInventory.ps1 -PrintServer YOURSERVER -Queues 'Queue1','Queue2'" }
+      @{ Title = 'Queue Inventory: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. The script resolves each queue to an IP and probes via SNMP.`n`nOutput CSV columns:`n  QueueName | PrinterIP | Status | MACAddress | SerialNumber | Source`n`nClick Copy Results or Open Output Folder for the CSV.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'OCRFloorPlan' = @{
@@ -561,8 +639,8 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Extract workstation/printer positions from floor plans'
     Color = [System.Drawing.Color]::FromArgb(140,60,120)
     Steps = @(
-      @{ Title = 'OCR Floor Plan: Overview'; Highlights = @(); Body = "The OCR folder contains Python tools for extracting workstation and printer positions from annotated floor plan images.`n`n  locus_mapping_ocr.py  -- detect red (workstation) and green (printer) circles, OCR their labels, compute nearest-printer mapping`n  build_host_unc_csv.py -- build a host-to-UNC mapping CSV from OCR output`n  printer_lookup.csv    -- reference data for printer queue names`n`nRequires: Python 3, opencv-python-headless, pillow, pytesseract, numpy, pandas, and Tesseract OCR engine." }
-      @{ Title = 'OCR Floor Plan: Run It'; Highlights = @(); Body = "From the OCR folder:`n`n  python locus_mapping_ocr.py --workstations ws.png --printers pr.png --out-prefix ls111`n`nOutputs:`n  ls111-workstations.csv  (WorkstationID, x, y)`n  ls111-printers.csv      (PrinterID, x, y)`n  ls111-nearest.csv       (WorkstationID, PrinterID, DistancePx)`n  ls111-overlay-ws.png    (debug overlay)`n  ls111-overlay-pr.png    (debug overlay)`n`nThen run build_host_unc_csv.py to generate the mapping CSV for the Printer Mapping workflow.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'OCR Floor Plan: Overview'; Highlights = @('runTab','grpLaunch'); Body = "The OCR folder contains Python tools for extracting workstation and printer positions from annotated floor plan images.`n`n  locus_mapping_ocr.py  -- detect red (workstation) and green (printer) circles, OCR their labels, compute nearest-printer mapping`n  build_host_unc_csv.py -- build a host-to-UNC mapping CSV from OCR output`n  printer_lookup.csv    -- reference data for printer queue names`n`nRequires: Python 3, opencv-python-headless, pillow, pytesseract, numpy, pandas, and Tesseract OCR engine." }
+      @{ Title = 'OCR Floor Plan: Run It'; Highlights = @('runTab','txtQueuesAdd'); Body = "From the OCR folder:`n`n  python locus_mapping_ocr.py --workstations ws.png --printers pr.png --out-prefix ls111`n`nOutputs:`n  ls111-workstations.csv  (WorkstationID, x, y)`n  ls111-printers.csv      (PrinterID, x, y)`n  ls111-nearest.csv       (WorkstationID, PrinterID, DistancePx)`n  ls111-overlay-ws.png    (debug overlay)`n  ls111-overlay-pr.png    (debug overlay)`n`nThen run build_host_unc_csv.py to generate the mapping CSV for the Printer Mapping workflow.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'MonitorIdentification' = @{
@@ -570,11 +648,24 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Identify displays, diagnose dock phantoms, export HTML'
     Color = [System.Drawing.Color]::FromArgb(60,120,180)
     Steps = @(
-      @{ Title = 'Monitor ID: Overview'; Highlights = @(); Body = "GetInfo\Get-MonitorInfo.psm1 bridges WMI monitor hardware data (model, serial, manufacturer) with the Windows display topology (Settings display number, primary status, screen coordinates).`n`nFour exported functions:`n  Get-MonitorInfo           -- live inventory`n  Invoke-MonitorDiff        -- before/after cable-swap diff`n  Reset-DisplayDeviceCache  -- flush dock EDID cache`n  Export-MonitorInfoHtml    -- dark-themed HTML report`n`nNo network required -- all data comes from the local machine." }
-      @{ Title = 'Monitor ID: Quick Start'; Highlights = @(); Body = "Open a PowerShell terminal and run:`n`n  Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force`n  Get-MonitorInfo | Format-List`n`nEach object includes:`n  DisplayNumber, IsPrimary, Model, Serial,`n  Manufacturer, Resolution, ScreenBounds,`n  Connection, DevicePath, Adapter`n`nThe DisplayNumber matches what you see in`nSettings > System > Display (the circled numbers)." }
-      @{ Title = 'Monitor ID: Cable-Swap Diff'; Highlights = @(); Body = "To compare before and after swapping cables or docks:`n`n  Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force`n  Invoke-MonitorDiff`n`nThis captures a snapshot, prompts you to make your change, then captures a second snapshot and shows what Appeared, Disappeared, Changed, or stayed Unchanged.`n`nFor scripted pipelines:`n  `$before = Get-MonitorInfo`n  # ... swap cables ...`n  Invoke-MonitorDiff -BeforeSnapshot `$before -NonInteractive" }
-      @{ Title = 'Monitor ID: Dock Phantom Displays'; Highlights = @(); Body = "DisplayLink docks (like the ThinkPad Hybrid USB-C) cache EDID from the last-connected monitor in firmware. WMI reports these phantoms as Active/OK/Present even when nothing is plugged in.`n`nTo flush the cache (requires elevation):`n`n  Reset-DisplayDeviceCache`n  Get-MonitorInfo | Format-List`n`nNow only physically-connected monitors appear.`n`nKey insight: UIDs on the dock are port-bound, not monitor-bound. Swapping cables swaps which monitor gets which UID and display number." }
-      @{ Title = 'Monitor ID: HTML Report'; Highlights = @(); Body = "Generate a dark-themed HTML report (same style as RPM-Recon):`n`n  Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force`n  Export-MonitorInfoHtml -Open`n`nWith diff data:`n  `$before = Get-MonitorInfo`n  # ... swap cables ...`n  `$diff = Invoke-MonitorDiff -BeforeSnapshot `$before -NonInteractive`n  Export-MonitorInfoHtml -DiffResults `$diff -Open`n`nThe report includes summary chips, a monitor table with PRIMARY/DISCONNECTED badges, phantom row highlighting, and a Dock Insights panel.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Monitor ID: Overview'; Highlights = @('machineInfoTab'); ComboSelect = @{ cmbMIMode = 3 }; Body = "GetInfo\Get-MonitorInfo.psm1 bridges WMI monitor hardware data (model, serial, manufacturer) with the Windows display topology (Settings display number, primary status, screen coordinates).`n`nFour exported functions:`n  Get-MonitorInfo           -- live inventory`n  Invoke-MonitorDiff        -- before/after cable-swap diff`n  Reset-DisplayDeviceCache  -- flush dock EDID cache`n  Export-MonitorInfoHtml    -- dark-themed HTML report`n`nNo network required -- all data comes from the local machine." }
+      @{ Title = 'Monitor ID: Quick Start'; Highlights = @('machineInfoTab','txtMITargets','btnMIRun'); Body = "Open a PowerShell terminal and run:`n`n  Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force`n  Get-MonitorInfo | Format-List`n`nEach object includes:`n  DisplayNumber, IsPrimary, Model, Serial,`n  Manufacturer, Resolution, ScreenBounds,`n  Connection, DevicePath, Adapter`n`nThe DisplayNumber matches what you see in`nSettings > System > Display (the circled numbers)." }
+      @{ Title = 'Monitor ID: Cable-Swap Diff'; Highlights = @('txtMIResults'); Body = "To compare before and after swapping cables or docks:`n`n  Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force`n  Invoke-MonitorDiff`n`nThis captures a snapshot, prompts you to make your change, then captures a second snapshot and shows what Appeared, Disappeared, Changed, or stayed Unchanged.`n`nFor scripted pipelines:`n  `$before = Get-MonitorInfo`n  # ... swap cables ...`n  Invoke-MonitorDiff -BeforeSnapshot `$before -NonInteractive" }
+      @{ Title = 'Monitor ID: Dock Phantom Displays'; Highlights = @('txtMIResults'); Body = "DisplayLink docks (like the ThinkPad Hybrid USB-C) cache EDID from the last-connected monitor in firmware. WMI reports these phantoms as Active/OK/Present even when nothing is plugged in.`n`nTo flush the cache (requires elevation):`n`n  Reset-DisplayDeviceCache`n  Get-MonitorInfo | Format-List`n`nNow only physically-connected monitors appear.`n`nKey insight: UIDs on the dock are port-bound, not monitor-bound. Swapping cables swaps which monitor gets which UID and display number." }
+      @{ Title = 'Monitor ID: HTML Report'; Highlights = @('btnOpenMIOutput'); Body = "Generate a dark-themed HTML report (same style as RPM-Recon):`n`n  Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force`n  Export-MonitorInfoHtml -Open`n`nWith diff data:`n  `$before = Get-MonitorInfo`n  # ... swap cables ...`n  `$diff = Invoke-MonitorDiff -BeforeSnapshot `$before -NonInteractive`n  Export-MonitorInfoHtml -DiffResults `$diff -Open`n`nThe report includes summary chips, a monitor table with PRIMARY/DISCONNECTED badges, phantom row highlighting, and a Dock Insights panel.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+  'QRTasks' = @{
+    Label = [char]0x25A3 + '  QR Scan-to-Run Tasks'
+    Desc  = 'Run field diagnostics by scanning a QR code'
+    Color = [System.Drawing.Color]::FromArgb(50,140,110)
+    Steps = @(
+      @{ Title = 'QR Tasks: What Is It?'; Highlights = @('machineInfoTab','cmbMIMode'); ComboSelect = @{ cmbMIMode = 8 }; Body = "QR Tasks let field techs scan a label on a workstation and instantly run a diagnostic.`n`nDesign: QR = pointer, not payload. The QR code holds a short one-liner that calls a dispatcher script. The real logic lives in sibling scripts.`n`nYou can also run these tasks right here in the GUI.`nWe have switched the Script dropdown to QR Task Runner for you." }
+      @{ Title = 'QR Tasks: See Available Tasks'; Highlights = @('txtMITargets','btnMIRun'); Body = "Leave the Targets box empty (or clear it) and click Run Probe.`n`nThe Results pane will list every available task:`n  RAMProfile, ModelInfo, NetworkInfo, Serials`n`nYou can also type ? for the same list." }
+      @{ Title = 'QR Tasks: Run One Now'; Highlights = @('txtMITargets','btnMIRun'); Body = "Clear the Targets box and type a task name:`n`n  RAMProfile`n`nThen click Run Probe.`n`nThe task runs locally on this machine. Output appears in the Results pane below, and a timestamped .txt file is saved to GetInfo\Output\QRTasks." }
+      @{ Title = 'QR Tasks: Check Your Output'; Highlights = @('txtMIResults','btnOpenMIOutput'); Body = "The Results pane shows the task output.`n`nClick Open Output Folder to see the .txt file in GetInfo\Output\QRTasks.`n`nEvery QR task works the same way:`n  - Runs locally, no parameters`n  - Prints to the Results pane`n  - Saves a .txt to GetInfo\Output\QRTasks`n  - Works on PowerShell 5.1+" }
+      @{ Title = 'QR Tasks: Field Deployment'; Highlights = @('machineInfoTab','btnCopyMIResults'); Body = "To deploy for field use:`n`n1. Copy the QRTasks folder to a network share`n2. Generate a QR code encoding this one-liner:`n   powershell.exe -NoP -EP Bypass -File`n   \\SERVER\Scripts\QRTasks\Invoke-TechTask.ps1`n   -Task RAMProfile`n3. Print the QR label and stick it on the machine`n4. Techs scan with any barcode scanner app`n`nKeep QR strings under 120 chars for reliable scanning." }
+      @{ Title = 'QR Tasks: Adding New Tasks'; Highlights = @('machineInfoTab','txtMIResults'); Body = "To add a custom task:`n`n1. Write a script in QRTasks\ that queries locally and saves output to GetInfo\Output\QRTasks`n`n2. Register it in Invoke-TechTask.ps1:`n   `$TaskMap['MyNewTask'] = 'Get-MyNewThing.ps1'`n`n3. Generate a QR code for the new task name`n`nThe new task will appear in the GUI runner and work from QR labels.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'UtilitiesOverview' = @{
@@ -582,9 +673,9 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Screenshot, file share, unblock, and more'
     Color = [System.Drawing.Color]::FromArgb(90,90,140)
     Steps = @(
-      @{ Title = 'Utilities: What Is Available'; Highlights = @(); Body = "The Utilities folder contains standalone helpers:`n`n  Take-Screenshot.ps1    -- capture the primary screen to PNG`n  Unblock-All.ps1        -- remove Zone.Identifier locks from downloaded files`n  Invoke-FileShare.ps1   -- open/map/test file shares`n  Test-Network.ps1       -- ICMP, DNS, TCP port checks`n  Map-Printer.ps1        -- quick single-printer map/remove`n  Invoke-RunControl.ps1  -- run control hooks for the GUI`n  Invoke-UndoRedo.ps1    -- undo/redo support for mapping" }
-      @{ Title = 'Utilities: Take-Screenshot'; Highlights = @(); Body = "Capture the primary monitor to a PNG file:`n`n  . .\\Utilities\\Take-Screenshot.ps1`n  Take-Screenshot -Path C:\\Temp\\screen.png`n`nUseful for documenting before/after states during deployments." }
-      @{ Title = 'Utilities: Unblock-All'; Highlights = @(); Body = "When you download scripts from the internet, Windows adds a Zone.Identifier stream that blocks execution.`n`n  .\\Utilities\\Unblock-All.ps1`n`nThis removes the lock from all files in the repo. The tools\\Invoke-RepoFileHealth.ps1 also does this as part of its full scan.`n`nPress the Menu button below to try another tutorial." }
+      @{ Title = 'Utilities: What Is Available'; Highlights = @('runTab','grpPaths'); Body = "The Utilities folder contains standalone helpers:`n`n  Take-Screenshot.ps1    -- capture the primary screen to PNG`n  Unblock-All.ps1        -- remove Zone.Identifier locks from downloaded files`n  Invoke-FileShare.ps1   -- open/map/test file shares`n  Test-Network.ps1       -- ICMP, DNS, TCP port checks`n  Map-Printer.ps1        -- quick single-printer map/remove`n  Invoke-RunControl.ps1  -- run control hooks for the GUI`n  Invoke-UndoRedo.ps1    -- undo/redo support for mapping" }
+      @{ Title = 'Utilities: Take-Screenshot'; Highlights = @('runTab','btnOpenSession'); Body = "Capture the primary monitor to a PNG file:`n`n  . .\\Utilities\\Take-Screenshot.ps1`n  Take-Screenshot -Path C:\\Temp\\screen.png`n`nUseful for documenting before/after states during deployments." }
+      @{ Title = 'Utilities: Unblock-All'; Highlights = @('bomTab'); Body = "When you download scripts from the internet, Windows adds a Zone.Identifier stream that blocks execution.`n`n  .\\Utilities\\Unblock-All.ps1`n`nThis removes the lock from all files in the repo. The tools\\Invoke-RepoFileHealth.ps1 also does this as part of its full scan.`n`nPress the Menu button below to try another tutorial." }
     )
   }
 }
@@ -611,6 +702,7 @@ function Clear-TutorialHighlight {
 }
 
 # Highlight controls -- preserves green/red identity on Start/Stop buttons by pulsing ForeColor instead
+# Tab-aware: when a TabPage variable is in the list, auto-selects that tab so the user lands on the right page.
 function Apply-TutorialHighlights {
   param([string[]]$Names)
   Clear-TutorialHighlight
@@ -619,8 +711,15 @@ function Apply-TutorialHighlights {
   $identityButtons = @('btnStartWorker','btnStartController','btnStop')
   foreach ($name in $Names) {
     if (-not $name) { continue }
-    $ctrl = Get-Variable -Name $name -ValueOnly -ErrorAction SilentlyContinue
+    $ctrl = Get-Variable -Name $name -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+    if (-not $ctrl) { $ctrl = Get-Variable -Name $name -ValueOnly -ErrorAction SilentlyContinue }
     if (-not $ctrl) { continue }
+    # Auto-select tab pages so the user is navigated to the right tab
+    if ($ctrl -is [System.Windows.Forms.TabPage]) {
+      $parent = $ctrl.Parent
+      if ($parent -is [System.Windows.Forms.TabControl]) { $parent.SelectedTab = $ctrl }
+      continue  # TabPage headers can't be color-pulsed in standard WinForms; selection is the highlight
+    }
     $entry = [pscustomobject]@{ Control = $ctrl; BackColor = $ctrl.BackColor; ForeColor = $ctrl.ForeColor; IsIdentity = ($identityButtons -contains $name) }
     $list.Add($entry)
     if ($identityButtons -contains $name) {
@@ -659,6 +758,30 @@ $script:GlowTimer.Add_Tick({
 })
 $script:GlowTimer.Start()
 
+# -- Tutorial menu pagination state --
+$script:MenuPage = 0
+$script:MenuPerPage = 12   # 6 rows x 2 columns
+
+function Show-TutorialMenuPage {
+  # Hide all track buttons first, then show only the current page
+  foreach ($btn in $script:TrackButtons) { $btn.Visible = $false }
+  $start = $script:MenuPage * $script:MenuPerPage
+  $end   = [Math]::Min($start + $script:MenuPerPage, $script:TrackButtons.Count) - 1
+  $pageIdx = 0
+  for ($i = $start; $i -le $end; $i++) {
+    $col = if ($pageIdx % 2 -eq 0) { 18 } else { 260 }
+    $row = [Math]::Floor($pageIdx / 2)
+    $script:TrackButtons[$i].Location = New-Object System.Drawing.Point($col, (100 + $row * 52))
+    $script:TrackButtons[$i].Visible = $true
+    $pageIdx++
+  }
+  $totalPages = [Math]::Ceiling($script:TrackButtons.Count / $script:MenuPerPage)
+  $script:TutorialCounter.Text = "Page $($script:MenuPage + 1) of $totalPages"
+  # Show/hide page nav buttons
+  if ($script:MenuPagePrev) { $script:MenuPagePrev.Visible = ($script:MenuPage -gt 0) }
+  if ($script:MenuPageNext) { $script:MenuPageNext.Visible = ($script:MenuPage -lt $totalPages - 1) }
+}
+
 # Show the tutorial menu (track picker) inside the tutorial panel
 function Show-TutorialMenu {
   $script:TutorialInMenu = $true
@@ -669,12 +792,11 @@ function Show-TutorialMenu {
   $script:TutorialTitleLabel.Text = 'Choose a Tutorial'
   $script:TutorialBodyLabel.Text = "Pick a use case below to get a short, guided walkthrough.`nEach tutorial is 3-5 steps and shows you real output at the end."
   $script:TutorialBodyLabel.Font = New-Object System.Drawing.Font('Segoe UI',9.5)
-  $script:TutorialCounter.Text = ''
   $script:TutorialBtnPrev.Visible = $false
   $script:TutorialBtnNext.Visible = $false
   $script:TutorialBtnMenu.Visible = $false
-  # Show track buttons
-  foreach ($btn in $script:TrackButtons) { $btn.Visible = $true }
+  # Show paginated track buttons
+  Show-TutorialMenuPage
 }
 
 function Start-TutorialTrack {
@@ -684,8 +806,10 @@ function Start-TutorialTrack {
   $script:TutorialSteps = $track.Steps
   $script:TutorialIndex = 0
   $script:TutorialInMenu = $false
-  # Hide track buttons, show step navigation
+  # Hide track buttons and page nav, show step navigation
   foreach ($btn in $script:TrackButtons) { $btn.Visible = $false }
+  if ($script:MenuPagePrev) { $script:MenuPagePrev.Visible = $false }
+  if ($script:MenuPageNext) { $script:MenuPageNext.Visible = $false }
   $script:TutorialBtnPrev.Visible = $true
   $script:TutorialBtnNext.Visible = $true
   $script:TutorialBtnMenu.Visible = $true
@@ -725,6 +849,16 @@ function Update-TutorialView {
     $script:TutorialBodyLabel.Font = New-Object System.Drawing.Font('Segoe UI',9.5)
   }
   Apply-TutorialHighlights -Names $step.Highlights
+  # Auto-select ComboBox items when the step specifies ComboSelect (hashtable: VariableName -> Index)
+  if ($step.ComboSelect -and $step.ComboSelect -is [hashtable]) {
+    foreach ($kv in $step.ComboSelect.GetEnumerator()) {
+      $combo = Get-Variable -Name $kv.Key -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+      if (-not $combo) { $combo = Get-Variable -Name $kv.Key -ValueOnly -ErrorAction SilentlyContinue }
+      if ($combo -is [System.Windows.Forms.ComboBox] -and $kv.Value -ge 0 -and $kv.Value -lt $combo.Items.Count) {
+        $combo.SelectedIndex = $kv.Value
+      }
+    }
+  }
 }
 
 function Show-TutorialAtCheckpoint {
@@ -927,7 +1061,7 @@ $txtTargets.Location = '10,42'; $txtTargets.Size = '280,165'; $txtTargets.Multil
 $lblClockOut = New-Object System.Windows.Forms.Label
 $lblClockOut.Location = '310,22'; $lblClockOut.Size = '90,18'; $lblClockOut.Text = 'Output CSV'; $lblClockOut.Font = $emphasisFont
 $txtClockOut = New-Object System.Windows.Forms.TextBox
-$txtClockOut.Location = '310,42'; $txtClockOut.Size = '590,24'; $txtClockOut.Text = (Join-Path $repoRoot 'GetInfo\KronosClockInventory.csv'); $txtClockOut.Anchor = 'Top, Left, Right'; $txtClockOut.Font = $uiFont; $txtClockOut.ReadOnly = $true; $txtClockOut.Cursor = 'Hand'; $txtClockOut.BackColor = [System.Drawing.Color]::White
+$txtClockOut.Location = '310,42'; $txtClockOut.Size = '590,24'; $txtClockOut.Text = (Join-Path $repoRoot 'GetInfo\Output\KronosClock\KronosClockInventory.csv'); $txtClockOut.Anchor = 'Top, Left, Right'; $txtClockOut.Font = $uiFont; $txtClockOut.ReadOnly = $true; $txtClockOut.Cursor = 'Hand'; $txtClockOut.BackColor = [System.Drawing.Color]::White
 $btnBrowseClockOut = New-Object System.Windows.Forms.Button
 $btnBrowseClockOut.Location = '906,41'; $btnBrowseClockOut.Size = '30,26'; $btnBrowseClockOut.Text = [char]0x2026; $btnBrowseClockOut.Anchor = 'Top, Right'; $btnBrowseClockOut.FlatStyle = 'Flat'; $btnBrowseClockOut.Font = $uiFont
 
@@ -969,11 +1103,15 @@ $machineInfoTab = New-Object System.Windows.Forms.TabPage
 $machineInfoTab.Text = 'Machine Info'
 $machineInfoTab.BackColor = [System.Drawing.Color]::WhiteSmoke
 
-$machineInfoScript = Join-Path $repoRoot 'GetInfo\Get-MachineInfo.ps1'
-$printerMacScript  = Join-Path $repoRoot 'GetInfo\Get-PrinterMacSerial.ps1'
-$ramInfoScript     = Join-Path $repoRoot 'GetInfo\Get-RamInfo.ps1'
-$monitorInfoModule = Join-Path $repoRoot 'GetInfo\Get-MonitorInfo.psm1'
-$zebraTestScript   = Join-Path $repoRoot 'GetInfo\ZebraPrinterTest.ps1'
+$machineInfoScript    = Join-Path $repoRoot 'GetInfo\Get-MachineInfo.ps1'
+$printerMacScript     = Join-Path $repoRoot 'GetInfo\Get-PrinterMacSerial.ps1'
+$ramInfoScript        = Join-Path $repoRoot 'GetInfo\Get-RamInfo.ps1'
+$monitorInfoModule    = Join-Path $repoRoot 'GetInfo\Get-MonitorInfo.psm1'
+$zebraTestScript      = Join-Path $repoRoot 'GetInfo\ZebraPrinterTest.ps1'
+$queueInventoryScript = Join-Path $repoRoot 'GetInfo\QueueInventory.ps1'
+$windowsKeyScript     = Join-Path $repoRoot 'GetInfo\Get-WindowsKey.ps1'
+$inventorySoftScript  = Join-Path $repoRoot 'Config\Inventory-Software.ps1'
+$qrTasksDir           = Join-Path $repoRoot 'QRTasks'
 
 # -- Machine Info: GroupBox -- Script Picker & Inputs --
 $grpMI = New-Object System.Windows.Forms.GroupBox
@@ -988,7 +1126,11 @@ $cmbMIMode.Location = '80,19'; $cmbMIMode.Size = '280,24'; $cmbMIMode.DropDownSt
   'Get-PrinterMacSerial  (printer MAC/serial via SNMP)',
   'Get-RamInfo  (RAM stick detail per host)',
   'Get-MonitorInfo  (display adapters & monitors)',
-  'ZebraPrinterTest  (Zebra SNMP live check)'
+  'ZebraPrinterTest  (Zebra SNMP live check)',
+  'QueueInventory  (print server queue SNMP probe)',
+  'Get-WindowsKey  (pull Windows product key)',
+  'Inventory-Software  (installed software audit)',
+  'QR Task Runner  (run a QR diagnostic task locally)'
 ) | ForEach-Object { [void]$cmbMIMode.Items.Add($_) }
 $cmbMIMode.SelectedIndex = 0
 
@@ -1001,7 +1143,7 @@ $lblMIOutCsv = New-Object System.Windows.Forms.Label
 $lblMIOutCsv.Location = '380,22'; $lblMIOutCsv.Size = '80,18'; $lblMIOutCsv.Text = 'Output CSV'; $lblMIOutCsv.Font = $emphasisFont
 $txtMIOutCsv = New-Object System.Windows.Forms.TextBox
 $txtMIOutCsv.Location = '380,42'; $txtMIOutCsv.Size = '500,24'; $txtMIOutCsv.Anchor = 'Top, Left, Right'; $txtMIOutCsv.Font = $uiFont
-$txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\MachineInfo_Output.csv')
+$txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\MachineInfo_Output.csv')
 $btnBrowseMIOut = New-Object System.Windows.Forms.Button
 $btnBrowseMIOut.Location = '886,41'; $btnBrowseMIOut.Size = '30,26'; $btnBrowseMIOut.Text = [char]0x2026; $btnBrowseMIOut.Anchor = 'Top, Right'; $btnBrowseMIOut.FlatStyle = 'Flat'; $btnBrowseMIOut.Font = $uiFont
 $btnBrowseMIOut.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select output CSV path' -Filter 'CSV files (*.csv)|*.csv|All files (*.*)|*.*'; if ($p) { $txtMIOutCsv.Text = $p } })
@@ -1042,19 +1184,37 @@ $grpMIArtifacts.Controls.Add($lblMIArtifactSummary)
 $lblMIResults = New-Object System.Windows.Forms.Label
 $lblMIResults.Location = '8,275'; $lblMIResults.Size = '140,18'; $lblMIResults.Text = 'Results'; $lblMIResults.Font = $emphasisFont
 $txtMIResults = New-Object System.Windows.Forms.TextBox
-$txtMIResults.Location = '6,295'; $txtMIResults.Size = '952,380'; $txtMIResults.Multiline = $true; $txtMIResults.ScrollBars = 'Both'; $txtMIResults.ReadOnly = $true; $txtMIResults.Anchor = 'Top, Bottom, Left, Right'; $txtMIResults.Font = $monoFont; $txtMIResults.WordWrap = $false; $txtMIResults.BackColor = [System.Drawing.Color]::White
-$txtMIResults.Text = 'Enter targets above and click Run Probe, or load a host list file.'
+$txtMIResults.Location = '6,295'; $txtMIResults.Size = '720,380'; $txtMIResults.Multiline = $true; $txtMIResults.ScrollBars = 'Both'; $txtMIResults.ReadOnly = $true; $txtMIResults.Anchor = 'Top, Bottom, Left, Right'; $txtMIResults.Font = $monoFont; $txtMIResults.WordWrap = $false; $txtMIResults.BackColor = [System.Drawing.Color]::White
+$txtMITargets.Text = $env:COMPUTERNAME
+$txtMIResults.Text = 'Enter targets above and click Run Probe, or load a host list file. Your local machine is pre-loaded as an example.'
 
-$machineInfoTab.Controls.AddRange(@($grpMI,$grpMIArtifacts,$lblMIResults,$txtMIResults))
+# -- Machine Info: QR Code pane (right of results) --
+$lblMIQR = New-Object System.Windows.Forms.Label
+$lblMIQR.Location = '734,275'; $lblMIQR.Size = '220,18'; $lblMIQR.Text = 'QR Code  (scan to capture)'; $lblMIQR.Font = $emphasisFont; $lblMIQR.Anchor = 'Top, Right'
+$picMIQR = New-Object System.Windows.Forms.PictureBox
+$picMIQR.Location = '734,295'; $picMIQR.Size = '224,224'; $picMIQR.Anchor = 'Top, Right'
+$picMIQR.SizeMode = 'Zoom'; $picMIQR.BackColor = [System.Drawing.Color]::White
+$picMIQR.BorderStyle = 'FixedSingle'; $picMIQR.Visible = $false
+# Tooltip on the QR so the tech knows what it contains
+$qrToolTip = New-Object System.Windows.Forms.ToolTip
+$qrToolTip.SetToolTip($picMIQR, 'Scan this QR with a barcode scanner to paste result data into any input field.')
+
+$machineInfoTab.Controls.AddRange(@($grpMI,$grpMIArtifacts,$lblMIResults,$txtMIResults,$lblMIQR,$picMIQR))
+# Re-render results table when the pane is resized so columns fill the new width
+$txtMIResults.Add_SizeChanged({ Render-MIResultsToPane })
 
 # -- Machine Info: dynamic default output path --
 $cmbMIMode.Add_SelectedIndexChanged({
   switch ($cmbMIMode.SelectedIndex) {
-    0 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\MachineInfo_Output.csv') }
-    1 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\PrinterProbe_Output.csv') }
-    2 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\RamInfo_Output.csv') }
-    3 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\MonitorInfo_Output.csv') }
-    4 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\ZebraTest_Output.csv') }
+    0 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\MachineInfo\MachineInfo_Output.csv') }
+    1 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\PrinterProbe\PrinterProbe_Output.csv') }
+    2 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\RamInfo\RamInfo_Output.csv') }
+    3 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\MonitorInfo\MonitorInfo_Output.csv') }
+    4 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\ZebraTest\ZebraTest_Output.csv') }
+    5 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\QueueInventory\QueueInventory_Output.csv') }
+    6 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\WindowsKey\WindowsKey_Output.csv') }
+    7 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\SoftwareInventory\SoftwareInventory_Output.csv') }
+    8 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\QRTasks\QRTask_Output.txt') }
   }
 })
 
@@ -1065,12 +1225,16 @@ $btnMIRun.Add_Click({
     $inlineTargets = @($txtMITargets.Lines | Where-Object { $_ -and $_.Trim() } | ForEach-Object { $_.Trim() })
     $listFile = $txtMIListPath.Text
     $hasListFile = ($listFile -and (Test-Path -LiteralPath $listFile))
-    if (-not $inlineTargets.Count -and -not $hasListFile) { throw 'Enter at least one target or select a host list file.' }
+    # QR Task Runner (index 8) can run with empty targets to list tasks
+    if ($cmbMIMode.SelectedIndex -ne 8 -and -not $inlineTargets.Count -and -not $hasListFile) { throw 'Enter at least one target or select a host list file.' }
 
     $outPath = $txtMIOutCsv.Text
-    if ([string]::IsNullOrWhiteSpace($outPath)) { throw 'Select an output CSV path.' }
-    $outDir = Split-Path -Parent $outPath
-    if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+    # QR Task Runner doesn't need a CSV path -- it writes to Desktop
+    if ($cmbMIMode.SelectedIndex -ne 8 -and [string]::IsNullOrWhiteSpace($outPath)) { throw 'Select an output CSV path.' }
+    if (-not [string]::IsNullOrWhiteSpace($outPath)) {
+      $outDir = Split-Path -Parent $outPath
+      if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+    }
 
     Set-StatusBarText -Category 'Running' -Message 'Machine Info probe in progress...'
     $txtMIResults.Text = 'Running...'
@@ -1089,6 +1253,22 @@ $btnMIRun.Add_Click({
       }
     }
 
+    # Helper: cache results and render into the pane at the current width
+    function local:Set-MIResults {
+      param([object[]]$Data, [string[]]$Columns, [string]$EmptyMessage)
+      if (-not $Data -or $Data.Count -eq 0) {
+        $script:LastMIResultObjects = $null; $script:LastMISelectColumns = $null
+        $txtMIResults.Text = $EmptyMessage
+        # Clear the QR code when there are no results
+        $picMIQR.Image = $null; $picMIQR.Visible = $false
+        return
+      }
+      $script:LastMIResultObjects = $Data
+      $script:LastMISelectColumns = $Columns
+      Render-MIResultsToPane
+      Update-MIQRCode
+    }
+
     switch ($cmbMIMode.SelectedIndex) {
       0 {
         # Get-MachineInfo
@@ -1097,10 +1277,9 @@ $btnMIRun.Add_Click({
           & $machineInfoScript -ListPath $actualListPath -OutputPath $outPath -Throttle ([int]$nudMIThrottle.Value) 2>&1 | Out-Null
         } finally { Remove-TempList }
         if (Test-Path -LiteralPath $outPath) {
-          $results = Import-Csv -LiteralPath $outPath
-          $txtMIResults.Text = ($results | Format-Table -AutoSize | Out-String).Trim()
+          Set-MIResults -Data (Import-Csv -LiteralPath $outPath) -EmptyMessage 'Script completed but output CSV was not created. Check targets are reachable.'
         } else {
-          $txtMIResults.Text = 'Script completed but output CSV was not created. Check targets are reachable.'
+          Set-MIResults -EmptyMessage 'Script completed but output CSV was not created. Check targets are reachable.'
         }
       }
       1 {
@@ -1110,12 +1289,11 @@ $btnMIRun.Add_Click({
         $pmsArgs['OutCsv'] = $outPath
         $pmsResults = & $printerMacScript @pmsArgs
         if ($pmsResults) {
-          $txtMIResults.Text = ($pmsResults | Format-Table -AutoSize | Out-String).Trim()
+          Set-MIResults -Data $pmsResults -EmptyMessage 'No results.'
         } elseif (Test-Path -LiteralPath $outPath) {
-          $rows = Import-Csv -LiteralPath $outPath
-          $txtMIResults.Text = ($rows | Format-Table -AutoSize | Out-String).Trim()
+          Set-MIResults -Data (Import-Csv -LiteralPath $outPath) -EmptyMessage 'Script completed but no results returned. Check targets are reachable.'
         } else {
-          $txtMIResults.Text = 'Script completed but no results returned. Check targets are reachable.'
+          Set-MIResults -EmptyMessage 'Script completed but no results returned. Check targets are reachable.'
         }
       }
       2 {
@@ -1125,10 +1303,11 @@ $btnMIRun.Add_Click({
           & $ramInfoScript -ListPath $actualListPath -OutputPath $outPath -Throttle ([int]$nudMIThrottle.Value) 2>&1 | Out-Null
         } finally { Remove-TempList }
         if (Test-Path -LiteralPath $outPath) {
-          $results = Import-Csv -LiteralPath $outPath
-          $txtMIResults.Text = ($results | Format-Table -AutoSize | Out-String).Trim()
+          Set-MIResults -Data (Import-Csv -LiteralPath $outPath) `
+            -Columns @('HostName','Status','DeviceLocator','Manufacturer','PartNumber','CapacityGB','Speed','MemoryType','FormFactor','ErrorMessage') `
+            -EmptyMessage 'Script completed but output CSV was not created. Check targets are reachable.'
         } else {
-          $txtMIResults.Text = 'Script completed but output CSV was not created. Check targets are reachable.'
+          Set-MIResults -EmptyMessage 'Script completed but output CSV was not created. Check targets are reachable.'
         }
       }
       3 {
@@ -1136,33 +1315,137 @@ $btnMIRun.Add_Click({
         Import-Module $monitorInfoModule -Force -ErrorAction Stop
         $monResults = Get-MonitorInfo 2>&1
         if ($monResults) {
-          $txtMIResults.Text = ($monResults | Format-Table -AutoSize | Out-String).Trim()
           $monResults | Export-Csv -LiteralPath $outPath -NoTypeInformation -Force
-        } else {
-          $txtMIResults.Text = 'Get-MonitorInfo returned no data. Are monitors connected?'
         }
+        Set-MIResults -Data $monResults -EmptyMessage 'Get-MonitorInfo returned no data. Are monitors connected?'
       }
       4 {
         # ZebraPrinterTest
         $zebraArgs = @{ PrinterIPs = $inlineTargets }
         $zebraResults = & $zebraTestScript @zebraArgs
         if ($zebraResults) {
-          $txtMIResults.Text = ($zebraResults | Format-Table -AutoSize | Out-String).Trim()
           $zebraResults | Export-Csv -LiteralPath $outPath -NoTypeInformation -Force
+        }
+        Set-MIResults -Data $zebraResults -EmptyMessage 'ZebraPrinterTest returned no results. Check IPs and SNMP community.'
+      }
+      5 {
+        # QueueInventory -- targets are treated as queue names; first line is the print server
+        $qiArgs = @{ OutputPath = $outPath }
+        if ($inlineTargets.Count -ge 1) {
+          $qiArgs['PrintServer'] = $inlineTargets[0]
+          if ($inlineTargets.Count -ge 2) { $qiArgs['Queues'] = $inlineTargets[1..($inlineTargets.Count - 1)] }
+        }
+        & $queueInventoryScript @qiArgs 2>&1 | Out-Null
+        if (Test-Path -LiteralPath $outPath) {
+          Set-MIResults -Data (Import-Csv -LiteralPath $outPath) -EmptyMessage 'Script completed but output CSV was not created. Check print server name and queue names.'
         } else {
-          $txtMIResults.Text = 'ZebraPrinterTest returned no results. Check IPs and SNMP community.'
+          Set-MIResults -EmptyMessage 'Script completed but output CSV was not created. Check print server name and queue names.'
+        }
+      }
+      6 {
+        # Get-WindowsKey
+        $wkTargets = if ($hasListFile) { @(Get-Content -LiteralPath $listFile | Where-Object { $_ -and $_.Trim() } | ForEach-Object { $_.Trim() }) } else { $inlineTargets }
+        $wkResults = & $windowsKeyScript -Targets $wkTargets -OutputPath $outPath
+        if ($wkResults) {
+          Set-MIResults -Data $wkResults -Columns @('HostName','ProductKey','KeySource','Edition','Status') -EmptyMessage 'Get-WindowsKey completed but no results returned.'
+        } elseif (Test-Path -LiteralPath $outPath) {
+          Set-MIResults -Data (Import-Csv -LiteralPath $outPath) -Columns @('HostName','ProductKey','KeySource','Edition','Status') -EmptyMessage 'Get-WindowsKey completed but no results returned.'
+        } else {
+          Set-MIResults -EmptyMessage 'Get-WindowsKey completed but no results returned.'
+        }
+      }
+      7 {
+        # Inventory-Software
+        $swTargets = if ($hasListFile) { @(Get-Content -LiteralPath $listFile | Where-Object { $_ -and $_.Trim() } | ForEach-Object { $_.Trim() }) } else { $inlineTargets }
+        $swOutDir = Split-Path -Parent $outPath
+        if ($swOutDir -and -not (Test-Path $swOutDir)) { New-Item -ItemType Directory -Path $swOutDir -Force | Out-Null }
+        & $inventorySoftScript -ComputerName $swTargets -NoMerge 2>&1 | Out-Null
+        # The script writes per-host CSVs under <RepoRoot>\inventory\<HOST>\; copy results to our output path
+        # Try to resolve repo root used by Inventory-Software
+        $ctxRoot = $null
+        try {
+          $cur = Get-Item -LiteralPath (Split-Path -Parent $inventorySoftScript)
+          while ($cur -and -not (Test-Path (Join-Path $cur.FullName 'config'))) { $cur = $cur.Parent }
+          if ($cur) { $ctxRoot = $cur.FullName }
+        } catch {}
+        $swResults = @()
+        foreach ($t in $swTargets) {
+          $hostCsv = if ($ctxRoot) {
+            $rr = if (Test-Path (Join-Path $ctxRoot 'SoftwareRepo')) { Join-Path $ctxRoot 'SoftwareRepo' } else { 'C:\SoftwareRepo' }
+            Join-Path $rr "inventory\$t\installed_software_$t.csv"
+          } else { $null }
+          if ($hostCsv -and (Test-Path -LiteralPath $hostCsv)) {
+            $swResults += @(Import-Csv -LiteralPath $hostCsv)
+          }
+        }
+        if ($swResults.Count -gt 0) {
+          $swResults | Export-Csv -LiteralPath $outPath -NoTypeInformation -Force
+          Set-MIResults -Data $swResults -Columns @('Name','Version','Publisher','Host') -EmptyMessage 'Inventory-Software completed but no results returned.'
+        } else {
+          Set-MIResults -EmptyMessage 'Inventory-Software completed but no results returned. Check targets are reachable.'
+        }
+      }
+      8 {
+        # QR Task Runner -- run a QR diagnostic task locally
+        $taskName = if ($inlineTargets.Count) { $inlineTargets[0] } else { '' }
+        $qrOutputDir = Join-Path $repoRoot 'GetInfo\Output\QRTasks'
+
+        if (-not $taskName -or $taskName -eq '?') {
+          # List available tasks
+          $taskScripts = Get-ChildItem -Path $qrTasksDir -Filter 'Get-*.ps1' -ErrorAction SilentlyContinue
+          $listing = @("Available QR Tasks:`n")
+          foreach ($ts in $taskScripts) {
+            $shortName = $ts.BaseName -replace '^Get-', ''
+            $listing += "  $shortName"
+          }
+          $listing += "`nType a task name in the Targets box and click Run Probe."
+          $script:LastMIResultObjects = $null; $script:LastMISelectColumns = $null
+          $txtMIResults.Text = $listing -join "`n"
+          $picMIQR.Image = $null; $picMIQR.Visible = $false
+        } else {
+          # Resolve task script
+          $taskScript = Join-Path $qrTasksDir "Get-$taskName.ps1"
+          if (-not (Test-Path -LiteralPath $taskScript)) {
+            throw "Unknown QR task: '$taskName'. Type ? to list available tasks."
+          }
+          # Run the task script
+          & $taskScript *>&1 | Out-Null
+          # Read the output file the task wrote to GetInfo\Output
+          $qrOut = Get-ChildItem -Path $qrOutputDir -Filter "${taskName}_*.txt" -ErrorAction SilentlyContinue |
+                   Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($qrOut) {
+            $outPath = $qrOut.FullName
+            $txtMIOutCsv.Text = $outPath
+            $script:LastMIResultObjects = $null; $script:LastMISelectColumns = $null
+            $qrTaskText = (Get-Content -LiteralPath $qrOut.FullName -Raw).TrimEnd()
+            $txtMIResults.Text = $qrTaskText
+            # Generate QR from the raw task output text
+            if ($script:QRCoderAvailable -and $qrTaskText) {
+              $qrPayload = if ($qrTaskText.Length -gt 2000) { $qrTaskText.Substring(0, 2000) } else { $qrTaskText }
+              $bmp = New-QRBitmap -Text $qrPayload -PixelsPerModule 4
+              if ($bmp) { if ($picMIQR.Image) { $picMIQR.Image.Dispose() }; $picMIQR.Image = $bmp; $picMIQR.Visible = $true }
+            }
+          } else {
+            $script:LastMIResultObjects = $null; $script:LastMISelectColumns = $null
+            $txtMIResults.Text = "Task '$taskName' completed but no output file found in GetInfo\Output."
+            $picMIQR.Image = $null; $picMIQR.Visible = $false
+          }
         }
       }
     }
 
-    $lblMIArtifactSummary.Text = "CSV: $outPath"
-    if (Test-Path -LiteralPath $outPath) {
+    if ($outPath -and (Test-Path -LiteralPath $outPath)) {
       $sz = [math]::Round((Get-Item $outPath).Length / 1KB, 1)
-      $lblMIArtifactSummary.Text += "  ($sz KB)"
+      $lblMIArtifactSummary.Text = "Output: $outPath  ($sz KB)"
+    } elseif ($outPath) {
+      $lblMIArtifactSummary.Text = "Output: $outPath"
+    } else {
+      $lblMIArtifactSummary.Text = ''
     }
-    Set-StatusBarText -Category 'Done' -Message "Machine Info probe complete. Output: $outPath"
+    Set-StatusBarText -Category 'Done' -Message "Probe complete.$(if ($outPath) { " Output: $outPath" })"
   } catch {
     $txtMIResults.Text = $_.Exception.Message
+    $picMIQR.Image = $null; $picMIQR.Visible = $false
     Set-StatusBarText -Category 'Error' -Message 'Machine Info probe failed.'
   }
 })
@@ -1481,6 +1764,38 @@ foreach ($key in $script:TutorialTracks.Keys) {
   $script:TutorialPanel.Controls.Add($btn)
   $trackIdx++
 }
+
+# -- Menu page navigation buttons (for paginated track picker) --
+$script:MenuPagePrev = New-Object System.Windows.Forms.Button
+$script:MenuPagePrev.Location = '18,420'
+$script:MenuPagePrev.Size = '80,32'
+$script:MenuPagePrev.Text = [char]0x2190 + ' Prev'
+$script:MenuPagePrev.FlatStyle = 'Flat'
+$script:MenuPagePrev.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(80,100,130)
+$script:MenuPagePrev.ForeColor = [System.Drawing.Color]::White
+$script:MenuPagePrev.BackColor = [System.Drawing.Color]::FromArgb(50,65,85)
+$script:MenuPagePrev.Font = $uiFont
+$script:MenuPagePrev.Cursor = 'Hand'
+$script:MenuPagePrev.Visible = $false
+$script:MenuPagePrev.Add_Click({ if ($script:MenuPage -gt 0) { $script:MenuPage--; Show-TutorialMenuPage } })
+$script:TutorialPanel.Controls.Add($script:MenuPagePrev)
+
+$script:MenuPageNext = New-Object System.Windows.Forms.Button
+$script:MenuPageNext.Location = '410,420'
+$script:MenuPageNext.Size = '80,32'
+$script:MenuPageNext.Text = 'Next ' + [char]0x2192
+$script:MenuPageNext.FlatStyle = 'Flat'
+$script:MenuPageNext.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(80,100,130)
+$script:MenuPageNext.ForeColor = [System.Drawing.Color]::White
+$script:MenuPageNext.BackColor = [System.Drawing.Color]::FromArgb(50,65,85)
+$script:MenuPageNext.Font = $uiFont
+$script:MenuPageNext.Cursor = 'Hand'
+$script:MenuPageNext.Visible = $false
+$script:MenuPageNext.Add_Click({
+  $totalPages = [Math]::Ceiling($script:TrackButtons.Count / $script:MenuPerPage)
+  if ($script:MenuPage -lt $totalPages - 1) { $script:MenuPage++; Show-TutorialMenuPage }
+})
+$script:TutorialPanel.Controls.Add($script:MenuPageNext)
 
 # -- Step navigation buttons --
 $script:TutorialBtnPrev = New-Object System.Windows.Forms.Button

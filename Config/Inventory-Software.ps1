@@ -74,24 +74,35 @@ $arpRoots=@(
 )
 
 # Collector (avoid $Host collision)
+# NOTE: Uses foreach loop (not ForEach-Object pipeline) so that individual
+# item errors under StrictMode -Version Latest + ErrorActionPreference Stop
+# do not terminate the entire pipeline.  Property access is guarded with
+# PSObject.Properties checks to avoid "property not found" strict-mode errors.
 $collector={
   param([string[]]$arpRoots,[string]$TargetHost)
   $script:InventoryErrorCount = 0
   foreach($root in $arpRoots){
     try {
-      Get-ChildItem -Path $root -ErrorAction Stop | ForEach-Object {
+      $regItems = @(Get-ChildItem -Path $root -ErrorAction Stop)
+      foreach ($regItem in $regItems) {
         try {
-          $p=$_.PSPath; $it=Get-ItemProperty -Path $p -ErrorAction Stop
-          if($null -ne $it.DisplayName -and "$($it.DisplayName)".Trim()){
+          $it = Get-ItemProperty -Path $regItem.PSPath -ErrorAction Stop
+          $dn = if ($it.PSObject.Properties['DisplayName']) { "$($it.DisplayName)".Trim() } else { '' }
+          if ($dn) {
+            $dv  = if ($it.PSObject.Properties['DisplayVersion'])  { "$($it.DisplayVersion)".Trim() }  else { '' }
+            $pub = if ($it.PSObject.Properties['Publisher'])        { "$($it.Publisher)".Trim() }        else { '' }
+            $us  = if ($it.PSObject.Properties['UninstallString'])  { "$($it.UninstallString)".Trim() }  else { '' }
+            $il  = if ($it.PSObject.Properties['InstallLocation'])  { "$($it.InstallLocation)".Trim() }  else { '' }
+            $id  = if ($it.PSObject.Properties['InstallDate'])      { "$($it.InstallDate)".Trim() }      else { '' }
             [pscustomobject]@{
-              Name="$($it.DisplayName)".Trim(); Version="$($it.DisplayVersion)".Trim(); Publisher="$($it.Publisher)".Trim()
-              UninstallString="$($it.UninstallString)".Trim(); InstallLocation="$($it.InstallLocation)".Trim(); InstallDate="$($it.InstallDate)".Trim()
-              DetectType='RegKey'; DetectValue=$_.Name; Host=$TargetHost; Timestamp=(Get-Date).ToString('s')
+              Name=$dn; Version=$dv; Publisher=$pub
+              UninstallString=$us; InstallLocation=$il; InstallDate=$id
+              DetectType='RegKey'; DetectValue=$regItem.Name; Host=$TargetHost; Timestamp=(Get-Date).ToString('s')
             }
           }
         } catch {
           $script:InventoryErrorCount++
-          Write-Warning ("[{0}] Failed reading registry item {1}: {2}" -f $TargetHost, $_.Exception.TargetObject, $_.Exception.Message)
+          Write-Warning ("[{0}] Failed reading registry item: {1}" -f $TargetHost, $_.Exception.Message)
         }
       }
     } catch {
@@ -118,11 +129,26 @@ foreach($cn in $ComputerName){
   }
   if ($norm.Count -gt 0) {
     $norm|Sort-Object Name|Export-Csv -Path $csv -NoTypeInformation -Encoding UTF8
-    $norm|Select-Object Name,Version,Publisher,Host|Sort-Object Name|
-      ConvertTo-Html -Title "Installed Software - $TargetHost" | Set-Content -Path $html -Encoding UTF8
+    $suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+    if (Test-Path -LiteralPath $suiteHtmlHelper) {
+      . $suiteHtmlHelper
+      $norm|Select-Object Name,Version,Publisher,Host|Sort-Object Name|
+        ConvertTo-Html -Fragment -PreContent '<h2>Installed Software</h2>' |
+        ConvertTo-SuiteHtml -Title "Installed Software - $TargetHost" -Subtitle $TargetHost -OutputPath $html
+    } else {
+      $norm|Select-Object Name,Version,Publisher,Host|Sort-Object Name|
+        ConvertTo-Html -Title "Installed Software - $TargetHost" | Set-Content -Path $html -Encoding UTF8
+    }
   } else {
     @() | Export-Csv -Path $csv -NoTypeInformation -Encoding UTF8
-    "<html><body><h3>No inventory data for $TargetHost</h3></body></html>" | Set-Content -Path $html -Encoding UTF8
+    $suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+    if (Test-Path -LiteralPath $suiteHtmlHelper) {
+      . $suiteHtmlHelper
+      '<h3>No inventory data for ' + [System.Net.WebUtility]::HtmlEncode($TargetHost) + '</h3>' |
+        ConvertTo-SuiteHtml -Title "Installed Software - $TargetHost" -Subtitle $TargetHost -OutputPath $html
+    } else {
+      "<html><body><h3>No inventory data for $TargetHost</h3></body></html>" | Set-Content -Path $html -Encoding UTF8
+    }
   }
   Write-Host ("Wrote {0} items => {1}" -f ($norm.Count), $csv) -ForegroundColor Green
 }

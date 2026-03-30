@@ -1,20 +1,22 @@
-<#
+﻿<#
 .SYNOPSIS
     Quick local serial number collector: BIOS, system product, monitors.
 
 .DESCRIPTION
     QR-optimized task script. Runs locally, no parameters needed.
     Pulls BIOS serial, system product identifying number, and monitor
-    serials (via WmiMonitorID). Outputs to console and saves to Desktop.
+    serials (via WmiMonitorID). Outputs to console and saves to GetInfo\Output\QRTasks.
 
 .NOTES
-    Part of SysAdminSuite — QRTasks extension module.
+    Part of SysAdminSuite -- QRTasks extension module.
     Designed for PowerShell 5.1+.
     For multi-machine parallel serial collection, use GetInfo\Get-MachineInfo.ps1 instead.
 #>
 
 $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-$outFile   = Join-Path $env:USERPROFILE "Desktop\Serials_$($env:COMPUTERNAME).txt"
+$_outDir   = Join-Path (Split-Path -Parent $PSScriptRoot) 'GetInfo\Output\QRTasks'
+if (-not (Test-Path $_outDir)) { New-Item -ItemType Directory -Path $_outDir -Force | Out-Null }
+$outFile   = Join-Path $_outDir "Serials_$($env:COMPUTERNAME).txt"
 
 # ── BIOS serial ──────────────────────────────────────────────────────
 try {
@@ -53,7 +55,7 @@ try {
 } catch { }
 
 # ── Output ───────────────────────────────────────────────────────────
-Write-Host "`n  === Serials — $env:COMPUTERNAME ===" -ForegroundColor Cyan
+Write-Host "`n  === Serials -- $env:COMPUTERNAME ===" -ForegroundColor Cyan
 Write-Host "  BIOS Serial    : $biosSerial" -ForegroundColor White
 Write-Host "  Product ID     : $productID" -ForegroundColor White
 Write-Host "  Product Name   : $productName" -ForegroundColor White
@@ -65,9 +67,9 @@ if ($monitorSerials.Count -gt 0) {
     Write-Host "  Monitors       : none detected or no serials" -ForegroundColor DarkGray
 }
 
-# ── Desktop file ─────────────────────────────────────────────────────
+# ── Output file ──────────────────────────────────────────────────────
 $lines = @(
-    "Serials — $env:COMPUTERNAME — $timestamp"
+    "Serials -- $env:COMPUTERNAME -- $timestamp"
     ('-' * 50)
     "BIOS Serial    : $biosSerial"
     "Product ID     : $productID"

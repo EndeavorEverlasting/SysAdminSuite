@@ -1,19 +1,21 @@
-<#
+﻿<#
 .SYNOPSIS
     Quick local network snapshot: active adapters, IPs, MACs, gateway, DNS.
 
 .DESCRIPTION
     QR-optimized task script. Runs locally, no parameters needed.
     Queries Win32_NetworkAdapterConfiguration for IP-enabled adapters.
-    Outputs to console and saves to Desktop.
+    Outputs to console and saves to GetInfo\Output\QRTasks.
 
 .NOTES
-    Part of SysAdminSuite — QRTasks extension module.
+    Part of SysAdminSuite -- QRTasks extension module.
     Designed for PowerShell 5.1+.
 #>
 
 $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-$outFile   = Join-Path $env:USERPROFILE "Desktop\NetworkInfo_$($env:COMPUTERNAME).txt"
+$_outDir   = Join-Path (Split-Path -Parent $PSScriptRoot) 'GetInfo\Output\QRTasks'
+if (-not (Test-Path $_outDir)) { New-Item -ItemType Directory -Path $_outDir -Force | Out-Null }
+$outFile   = Join-Path $_outDir "NetworkInfo_$($env:COMPUTERNAME).txt"
 
 try {
     $nics = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction Stop
@@ -45,12 +47,12 @@ $result = $nics | ForEach-Object {
 }
 
 # ── Console output ───────────────────────────────────────────────────
-Write-Host "`n  === Network Info — $env:COMPUTERNAME ===" -ForegroundColor Cyan
+Write-Host "`n  === Network Info -- $env:COMPUTERNAME ===" -ForegroundColor Cyan
 Write-Host "  Active adapters: $($result.Count)`n" -ForegroundColor White
 $result | Format-List | Out-Host
 
-# ── Desktop file ─────────────────────────────────────────────────────
-$header = "Network Info — $env:COMPUTERNAME — $timestamp"
+# ── Output file ──────────────────────────────────────────────────────
+$header = "Network Info -- $env:COMPUTERNAME -- $timestamp"
 $divider = '-' * $header.Length
 @($header, $divider, '') | Out-File -FilePath $outFile -Encoding UTF8
 $result | Format-List | Out-File -FilePath $outFile -Append -Encoding UTF8

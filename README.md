@@ -141,6 +141,7 @@ On first launch a **menu-based tutorial** appears with 12 use-case tracks. Pick 
 | **Network Testing** | Test connectivity, DNS, and ports before running probes |
 | **AD Printing Group** | Bulk-add computers to AD printing security groups |
 | **Monitor Identification** | Identify displays, diagnose dock phantom monitors, export HTML report |
+| **QR Scan-to-Run Tasks** | Run field diagnostics by scanning a QR code — available tasks, deployment, adding new tasks |
 | **PS Version Pivot** | How tools detect and switch between PS 5.1 and PS 7 |
 
 **GUI tabs:**

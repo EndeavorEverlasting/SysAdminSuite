@@ -1,6 +1,6 @@
 ﻿param(
   [string]$ListPath   = "C:\Temp\hostlist.txt",
-  [string]$OutputPath = "C:\Temp\MachineInfo.csv",
+  [string]$OutputPath = (Join-Path $PSScriptRoot 'Output\MachineInfo\MachineInfo_Output.csv'),
   [int]$Throttle      = 15
 )
 
@@ -21,10 +21,21 @@ function Start-MachineQueryJob {
   Start-Job -Name "MI_$Computer" -ScriptBlock {
     param($Computer)
 
+    # Detect whether the target is the local machine so we can skip
+    # remote WMI/DCOM paths that fail when ICMP or RPC is blocked.
+    $isLocal = $Computer -eq $env:COMPUTERNAME -or
+               $Computer -eq 'localhost' -or
+               $Computer -eq '127.0.0.1' -or
+               $Computer -eq '.'
+
     function Get-MonitorSerials {
-      param([string]$Computer)
+      param([string]$Computer, [bool]$Local)
       try {
-        $eds = Get-WmiObject -Namespace root\wmi -Class WmiMonitorID -ComputerName $Computer -ErrorAction Stop
+        $eds = if ($Local) {
+          Get-WmiObject -Namespace root\wmi -Class WmiMonitorID -ErrorAction Stop
+        } else {
+          Get-WmiObject -Namespace root\wmi -Class WmiMonitorID -ComputerName $Computer -ErrorAction Stop
+        }
         if ($eds) {
           $eds | ForEach-Object {
             ($_.SerialNumberID | Where-Object { $_ -ne 0 } | ForEach-Object { [char]$_ }) -join ''
@@ -35,11 +46,24 @@ function Start-MachineQueryJob {
 
     $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
 
-    if (Test-Connection -ComputerName $Computer -Count 1 -Quiet) {
-      try {
-        $serial = (Get-WmiObject -Class Win32_BIOS -ComputerName $Computer -ErrorAction Stop).SerialNumber
+    # Local machine is always "reachable" — skip Test-Connection
+    $reachable = if ($isLocal) { $true } else {
+      Test-Connection -ComputerName $Computer -Count 1 -Quiet
+    }
 
-        $nics   = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -ComputerName $Computer -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+    if ($reachable) {
+      try {
+        $serial = if ($isLocal) {
+          (Get-WmiObject -Class Win32_BIOS -ErrorAction Stop).SerialNumber
+        } else {
+          (Get-WmiObject -Class Win32_BIOS -ComputerName $Computer -ErrorAction Stop).SerialNumber
+        }
+
+        $nics = if ($isLocal) {
+          Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+        } else {
+          Get-WmiObject -Class Win32_NetworkAdapterConfiguration -ComputerName $Computer -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+        }
         $ipv4s  = @()
         $macs   = @()
         foreach ($n in $nics) {
@@ -48,7 +72,7 @@ function Start-MachineQueryJob {
           if ($n.MACAddress) { $macs += $n.MACAddress }
         }
 
-        $monSer = Get-MonitorSerials -Computer $Computer
+        $monSer = Get-MonitorSerials -Computer $Computer -Local $isLocal
 
         [pscustomobject]@{
           Timestamp      = $timestamp
