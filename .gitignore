@@ -27,6 +27,12 @@ desktop.ini
 Mapping/Config/runs/*.txt.live
 Config/exports/
 
+# GetInfo output artifacts (generated at runtime per probe)
+GetInfo/Output/
+
+# Temp diagnostic / scratch scripts at repo root
+_*
+
 # Node (if any tooling gets added)
 node_modules/
 
