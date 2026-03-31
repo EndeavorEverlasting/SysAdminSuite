@@ -166,6 +166,14 @@ Describe 'Get-MonitorInfo.psm1 -- module checks' {
         $script:moduleContent | Should -Match 'badge primary'
     }
 
+    It 'Export-MonitorInfoHtml only builds HTML fragments after the suite helper exists' {
+        $script:moduleContent | Should -Match 'if\s*\(Test-Path -LiteralPath \$suiteHtmlHelper\)\s*\{[\s\S]*?\.\s+\$suiteHtmlHelper[\s\S]*?\$bodyFragments[\s\S]*?\$chips[\s\S]*?ConvertTo-SuiteHtml'
+    }
+
+    It 'Export-MonitorInfoHtml warns and skips generation when the suite helper is missing' {
+        $script:moduleContent | Should -Match 'Write-Warning\s+"ConvertTo-SuiteHtml helper not found'
+    }
+
     It 'Export-MonitorInfoHtml detects phantom monitors and dock adapters' {
         $script:moduleContent | Should -Match 'phantom'
         $script:moduleContent | Should -Match 'VID_17E9'
@@ -328,6 +336,17 @@ Describe 'Get-WindowsKey.ps1 -- script-level checks' {
 
     It 'Falls back to registry OA3xOriginalProductKey' {
         $script:windowsKeyContent | Should -Match 'OA3xOriginalProductKey'
+    }
+
+    It 'Uses the OA3 registry fallback without an unused regPath alias' {
+        $script:windowsKeyContent | Should -Match '\$regOA3\s*=\s*''HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion'''
+        $script:windowsKeyContent | Should -Match 'Get-ItemProperty -Path \$regOA3 -Name ''OA3xOriginalProductKey'''
+        $script:windowsKeyContent | Should -Not -Match '\$regPath\b'
+    }
+
+    It 'Does not query a DigitalProductId registry value before the OA3 fallback' {
+        $script:windowsKeyContent | Should -Not -Match "-Name 'DigitalProductId'"
+        $script:windowsKeyContent | Should -Not -Match 'Name\s+"DigitalProductId"'
     }
 
     It 'Reports the key source in output' {

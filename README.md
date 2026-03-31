@@ -359,6 +359,30 @@ powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.p
 Each task script runs locally, prints results to console, and saves a
 timestamped text file to the tech's Desktop — no terminal smoke.
 
+#### File-share deployment + ready-to-send launcher snippets
+
+If you publish the repo to a central share such as `\\server\Scripts\SysAdminSuite`,
+you can send a tech a single copy/paste command that works on any workstation
+with PowerShell 5.1+.
+
+```powershell
+# Launch the full GUI from a file share
+powershell.exe -STA -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\GUI\Start-SysAdminSuiteGui.ps1"
+
+# Run a QR-style local diagnostic without typing script paths
+powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
+powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task ModelInfo
+powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task NetworkInfo
+powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task Serials
+```
+
+Practical uses:
+
+- send a **RAMProfile** snippet when a user reports slowness or upgrade questions
+- send a **NetworkInfo** snippet before printer, DNS, or Kronos troubleshooting
+- send a **Serials** snippet when you need BIOS/product/monitor identifiers for asset work
+- send the **GUI launcher** when you want the user or a tech to work through guided tabs instead of raw commands
+
 ## Known Bugs Fixed (see Bug-Log.md)
 
 | # | Bug | Fix |

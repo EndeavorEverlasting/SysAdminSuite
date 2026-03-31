@@ -646,23 +646,27 @@ function Export-MonitorInfoHtml {
     if (-not (Test-Path -LiteralPath $suiteHtmlHelper)) {
         $suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
     }
-    . $suiteHtmlHelper
+    if (Test-Path -LiteralPath $suiteHtmlHelper) {
+        . $suiteHtmlHelper
 
-    $bodyFragments = @($monitorTable, $diffSection, $dockPanel) | Where-Object { $_ }
+        $bodyFragments = @($monitorTable, $diffSection, $dockPanel) | Where-Object { $_ }
 
-    $chips = @(
-        "Active: $($active.Count)"
-        "Phantom: $($phantoms.Count)"
-        "Total in WMI: $($MonitorInfo.Count)"
-        "DisplayLink adapters: $($dlAdapters.Count)"
-    )
+        $chips = @(
+            "Active: $($active.Count)"
+            "Phantom: $($phantoms.Count)"
+            "Total in WMI: $($MonitorInfo.Count)"
+            "DisplayLink adapters: $($dlAdapters.Count)"
+        )
 
-    ($bodyFragments -join "`n") | ConvertTo-SuiteHtml `
-        -Title "&#x1F5B5; Monitor Identification Report" `
-        -Subtitle $hostname `
-        -SummaryChips $chips `
-        -OutputPath $OutputPath `
-        -Open:$Open | Out-Null
+        ($bodyFragments -join "`n") | ConvertTo-SuiteHtml `
+            -Title "&#x1F5B5; Monitor Identification Report" `
+            -Subtitle $hostname `
+            -SummaryChips $chips `
+            -OutputPath $OutputPath `
+            -Open:$Open | Out-Null
+    } else {
+        Write-Warning "ConvertTo-SuiteHtml helper not found at '$suiteHtmlHelper'; skipping HTML report generation."
+    }
 
     return $OutputPath
 }

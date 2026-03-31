@@ -4,7 +4,7 @@
 
 .DESCRIPTION
   Pulls the OEM/retail product key from SoftwareLicensingService (WMI) and
-  falls back to the registry OA3 Digital Product Id when the WMI class
+  falls back to the registry value OA3xOriginalProductKey when the WMI class
   returns a blank value (common on OEM installs activated with a digital
   entitlement).
 
@@ -36,20 +36,14 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Get-KeyFromRegistry {
-  <# Try OA3 digital product ID stored by BIOS/UEFI (OEM machines). #>
+  <# Try OA3 OEM key from registry (OEM machines). DigitalProductId is raw bytes and is not decoded here. #>
   param([string]$Computer)
-  $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareLicensingTokens'
-  $regOA3  = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+  $regOA3 = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 
-  $key = $null
   if ($Computer -eq $env:COMPUTERNAME -or $Computer -eq 'localhost' -or $Computer -eq '127.0.0.1') {
-    # Local registry
-    $key = (Get-ItemProperty -Path $regOA3 -Name 'DigitalProductId' -ErrorAction SilentlyContinue).DigitalProductId
-    if (-not $key) {
-      # Fallback: OA3xOriginalProductKey (populated on OEM UEFI installs)
-      $key = (Get-ItemProperty -Path $regOA3 -Name 'OA3xOriginalProductKey' -ErrorAction SilentlyContinue).OA3xOriginalProductKey
-      if ($key) { return @{ Key = $key; Source = 'Registry OA3xOriginalProductKey' } }
-    }
+    # Local registry — OA3xOriginalProductKey (OEM UEFI installs)
+    $key = (Get-ItemProperty -Path $regOA3 -Name 'OA3xOriginalProductKey' -ErrorAction SilentlyContinue).OA3xOriginalProductKey
+    if ($key) { return @{ Key = $key; Source = 'Registry OA3xOriginalProductKey' } }
   } else {
     # Remote via WinRM
     $key = Invoke-Command -ComputerName $Computer -ScriptBlock {
