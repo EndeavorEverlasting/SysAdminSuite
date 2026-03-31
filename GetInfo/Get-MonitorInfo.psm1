@@ -1,4 +1,4 @@
-﻿function Get-NativeResolution {
+function Get-NativeResolution {
     param([Parameter(Mandatory)][string]$InstanceName)
 
     $escapedInstance = $InstanceName -replace '\\','\\\\' -replace "'","''"
@@ -664,9 +664,13 @@ function Export-MonitorInfoHtml {
             -SummaryChips $chips `
             -OutputPath $OutputPath `
             -Open:$Open | Out-Null
+
+        if (Test-Path -LiteralPath $OutputPath) {
+            return $OutputPath
+        }
     } else {
-        Write-Warning "ConvertTo-SuiteHtml helper not found at '$suiteHtmlHelper'; skipping HTML report generation."
+        Write-Warning "ConvertTo-SuiteHtml helper not found at '$suiteHtmlHelper'; skipping HTML report generation and returning null."
     }
 
-    return $OutputPath
+    return $null
 }
