@@ -589,6 +589,44 @@ Describe 'QR Code -- cross-mode coverage and edge cases' {
     It 'Set-MIResults clears QR when data is empty' {
         $script:guiContent | Should -Match 'Set-MIResults[\s\S]*?picMIQR\.Image = \$null'
     }
+
+    It 'Machine Info Show QR button refreshes QR before switching views' {
+        $script:guiContent | Should -Match 'btnMIQRView\.Add_Click\(\{[\s\S]*?Update-MIQRCode[\s\S]*?Set-OutputViewMode\s+-Mode\s+''QR'''
+    }
+
+    It 'Machine Info Show Results button restores results pane visibility' {
+        $script:guiContent | Should -Match 'btnMIResultsView\.Add_Click\(\{[\s\S]*?Set-OutputViewMode\s+-Mode\s+''Results'''
+    }
+}
+
+Describe 'QR Task Runner -- GUI scan workflow contracts' {
+    BeforeAll {
+        $script:guiContent = Get-Content -Path $script:guiPath -Raw
+    }
+
+    It 'Treats first target line as QR task name and supports ? for task listing' {
+        $script:guiContent | Should -Match '\$taskName\s*=\s*if\s*\(\$inlineTargets\.Count\)\s*\{\s*\$inlineTargets\[0\]\s*\}\s*else\s*\{\s*''''\s*\}'
+        $script:guiContent | Should -Match '\$taskName\s*-eq\s*''\?'''
+    }
+
+    It 'Shows available task guidance and keeps QR hidden when listing tasks' {
+        $script:guiContent | Should -Match 'Available QR Tasks'
+        $script:guiContent | Should -Match 'Type a task name in the Targets box and click Run Probe'
+        $script:guiContent | Should -Match 'Available QR Tasks[\s\S]*?picMIQR\.Image\s*=\s*\$null'
+        $script:guiContent | Should -Match 'Available QR Tasks[\s\S]*?picMIQR\.Visible\s*=\s*\$false'
+    }
+
+    It 'Throws a clear unknown task error when target does not map to a QR task script' {
+        $script:guiContent | Should -Match 'Unknown QR task:.*Type \? to list available tasks'
+    }
+
+    It 'On successful task run, updates output path, results text, and QR image visibility' {
+        $script:guiContent | Should -Match 'txtMIOutCsv\.Text = \$outPath'
+        $script:guiContent | Should -Match 'qrTaskText = \(Get-Content -LiteralPath \$qrOut\.FullName -Raw\)\.TrimEnd\(\)'
+        $script:guiContent | Should -Match 'New-QRBitmap -Text \$qrPayload -PixelsPerModule 4'
+        $script:guiContent | Should -Match 'if\s*\(\$bmp\)[\s\S]*?picMIQR\.Image\s*=\s*\$bmp'
+        $script:guiContent | Should -Match 'if\s*\(\$bmp\)[\s\S]*?picMIQR\.Visible\s*=\s*\$true'
+    }
 }
 
 Describe 'QR Code -- Format-MIResultsForQR output conventions' {
