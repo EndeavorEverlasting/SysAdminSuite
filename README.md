@@ -474,3 +474,33 @@ When a pivot occurs, the user sees a magenta log line:
 - **Target machines:** Windows 10/11, PowerShell 5.1+ (no WinRM required with NoWinRM worker)
 - **Tests:** Pester 5.0+ (`Install-Module Pester -Scope CurrentUser`)
 - **OCR tools:** Python 3.8+, `pytesseract`, `Pillow`
+
+### OCR Fixture Notes
+
+- `OCR/Jude's 2026 Buildout Project.pdf` is a **known-bad OCR sample** kept for negative testing.
+- The fixture is intentionally unsuitable for practical extraction quality in `OCR/locus_mapping_ocr.py`.
+- For production OCR mapping, use higher-resolution annotated source maps (clear labels, readable circle IDs, no heavy compression).
+- To replace this fixture later, add a new sample under `OCR/` and update the OCR fixture tests to validate positive extraction behavior for that file.
+
+### Experimental PDF Map Parsers
+
+Use these parsers to prototype workstation/printer extraction from PDF or image maps:
+
+```powershell
+# Workstation map parser (red markers -> WorkstationID,x,y)
+python .\OCR\parse_workstation_map.py `
+  --map ".\OCR\Jude's 2026 Buildout Project.pdf" `
+  --out-csv .\OCR\workstations.csv `
+  --out-overlay .\OCR\workstations_overlay.png
+
+# Printer map parser (green markers -> PrinterID,x,y)
+python .\OCR\parse_printer_map.py `
+  --map ".\OCR\Jude's 2026 Buildout Project.pdf" `
+  --out-csv .\OCR\printers.csv `
+  --out-overlay .\OCR\printers_overlay.png
+```
+
+Notes:
+- PDF input requires `pypdfium2` to render pages (`pip install pypdfium2`).
+- OCR still relies on `pytesseract`; quality is constrained by source-map resolution.
+- These are starter engines for layout-aware parsing and can be tuned per site map style.
