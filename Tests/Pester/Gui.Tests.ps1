@@ -456,6 +456,80 @@ Describe 'GUI script -- QR code integration contracts' {
     }
 }
 
+Describe 'GUI script -- results versus QR toggle contracts' {
+    BeforeAll {
+        $script:guiContent = Get-Content -Path $script:guiPath -Raw
+    }
+
+    It 'Defines reusable QR payload and toggle helpers' {
+        $script:guiContent | Should -Match 'function Get-QRPayload'
+        $script:guiContent | Should -Match 'function Set-OutputViewMode'
+        $script:guiContent | Should -Match 'function Set-QRCodeImage'
+        $script:guiContent | Should -Match 'function Get-MIResultsSummaryText'
+    }
+
+    It 'Adds Results and QR toggle controls for Run Control' {
+        $script:guiContent | Should -Match 'btnRunResultsView'
+        $script:guiContent | Should -Match 'btnRunQRView'
+        $script:guiContent | Should -Match 'lblRunQRPayload'
+        $script:guiContent | Should -Match 'cmbRunQRPayload'
+        $script:guiContent | Should -Match 'picRunQR'
+    }
+
+    It 'Adds Results and QR toggle controls for Kronos' {
+        $script:guiContent | Should -Match 'btnKronosResultsView'
+        $script:guiContent | Should -Match 'btnKronosQRView'
+        $script:guiContent | Should -Match 'lblKronosQRPayload'
+        $script:guiContent | Should -Match 'cmbKronosQRPayload'
+        $script:guiContent | Should -Match 'picKronosQR'
+    }
+
+    It 'Adds Results and QR toggle controls for Machine Info' {
+        $script:guiContent | Should -Match 'btnMIResultsView'
+        $script:guiContent | Should -Match 'btnMIQRView'
+        $script:guiContent | Should -Match 'lblMIQRPayload'
+        $script:guiContent | Should -Match 'cmbMIQRPayload'
+        $script:guiContent | Should -Match 'pnlMIQRView'
+    }
+
+    It 'Adds Results and QR toggle controls for BOM Sync' {
+        $script:guiContent | Should -Match 'btnBomResultsView'
+        $script:guiContent | Should -Match 'btnBomQRView'
+        $script:guiContent | Should -Match 'lblBomQRPayload'
+        $script:guiContent | Should -Match 'cmbBomQRPayload'
+        $script:guiContent | Should -Match 'picBomQR'
+    }
+
+    It 'Defines QR update helpers beyond Machine Info' {
+        $script:guiContent | Should -Match 'function Update-RunQRCode'
+        $script:guiContent | Should -Match 'function Update-KronosQRCode'
+        $script:guiContent | Should -Match 'function Update-BomQRCode'
+    }
+
+    It 'Wires the toggle buttons through Set-OutputViewMode' {
+        $script:guiContent | Should -Match 'btnRunQRView\.Add_Click\([\s\S]*?Set-OutputViewMode'
+        $script:guiContent | Should -Match 'btnKronosQRView\.Add_Click\([\s\S]*?Set-OutputViewMode'
+        $script:guiContent | Should -Match 'btnMIQRView\.Add_Click\([\s\S]*?Set-OutputViewMode'
+        $script:guiContent | Should -Match 'btnBomQRView\.Add_Click\([\s\S]*?Set-OutputViewMode'
+    }
+
+    It 'Offers payload selectors for the QR view modes' {
+        $script:guiContent | Should -Match 'Status \+ History'
+        $script:guiContent | Should -Match 'Results \+ Summary'
+        $script:guiContent | Should -Match 'Results Summary'
+        $script:guiContent | Should -Match 'Results \+ Output Summary'
+        $script:guiContent | Should -Match 'Summary \+ Files'
+    }
+
+    It 'Uses clearer Show QR labels and tooltips for discoverability' {
+        $script:guiContent | Should -Match "Text = 'Show QR'"
+        $script:guiContent | Should -Match 'toolTip\.SetToolTip\(\$btnMIQRView'
+        $script:guiContent | Should -Match 'toolTip\.SetToolTip\(\$btnRunQRView'
+        $script:guiContent | Should -Match 'toolTip\.SetToolTip\(\$btnKronosQRView'
+        $script:guiContent | Should -Match 'toolTip\.SetToolTip\(\$btnBomQRView'
+    }
+}
+
 Describe 'QR Code -- cross-mode coverage and edge cases' {
     BeforeAll {
         $script:guiContent = Get-Content -Path $script:guiPath -Raw

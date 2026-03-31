@@ -127,6 +127,68 @@ function New-QRBitmap {
   } catch { return $null }
 }
 
+function Get-QRPayload {
+  param([AllowEmptyString()][string]$Text, [int]$MaxLength = 2000)
+  if ([string]::IsNullOrWhiteSpace($Text)) { return '' }
+  $payload = $Text.Trim()
+  if ($payload.Length -gt $MaxLength) { $payload = $payload.Substring(0, $MaxLength) }
+  return $payload
+}
+
+function Clear-QRCode {
+  param([System.Windows.Forms.PictureBox]$PictureBox)
+  if (-not $PictureBox) { return }
+  if ($PictureBox.Image) { $PictureBox.Image.Dispose() }
+  $PictureBox.Image = $null
+  $PictureBox.Visible = $false
+}
+
+function Set-QRCodeImage {
+  param(
+    [System.Windows.Forms.PictureBox]$PictureBox,
+    [string]$Text,
+    [int]$PixelsPerModule = 4
+  )
+
+  if (-not $script:QRCoderAvailable) { Clear-QRCode -PictureBox $PictureBox; return }
+  $qrText = Get-QRPayload -Text $Text
+  if (-not $qrText) { Clear-QRCode -PictureBox $PictureBox; return }
+
+  $bmp = New-QRBitmap -Text $qrText -PixelsPerModule $PixelsPerModule
+  if ($bmp) {
+    if ($PictureBox.Image) { $PictureBox.Image.Dispose() }
+    $PictureBox.Image = $bmp
+    $PictureBox.Visible = $true
+  } else {
+    Clear-QRCode -PictureBox $PictureBox
+  }
+}
+
+function Set-OutputViewMode {
+  param(
+    [ValidateSet('Results','QR')][string]$Mode,
+    [System.Windows.Forms.Control[]]$ResultsControls,
+    [System.Windows.Forms.Control[]]$QrControls,
+    [System.Windows.Forms.Button]$ResultsButton,
+    [System.Windows.Forms.Button]$QrButton
+  )
+
+  $showResults = $Mode -eq 'Results'
+  foreach ($control in @($ResultsControls)) {
+    if ($control) { $control.Visible = $showResults }
+  }
+  foreach ($control in @($QrControls)) {
+    if ($control) { $control.Visible = -not $showResults }
+  }
+
+  if ($ResultsButton) {
+    $ResultsButton.BackColor = if ($showResults) { [System.Drawing.Color]::FromArgb(225,240,255) } else { [System.Drawing.Color]::White }
+  }
+  if ($QrButton) {
+    $QrButton.BackColor = if ($showResults) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(227,248,227) }
+  }
+}
+
 function Format-MIResultsForQR {
   <# Builds a compact, scanner-friendly string from the last MI result objects.
      Keeps it under ~120 chars when possible so the QR stays small/scannable. #>
@@ -144,15 +206,131 @@ function Format-MIResultsForQR {
   return ($lines -join "`n")
 }
 
+function Get-MIResultsText {
+  if ($script:LastMIResultObjects) {
+    return (Format-MIResultsForQR)
+  }
+
+  if ($txtMIResults -and $txtMIResults.Text) {
+    $candidate = $txtMIResults.Text.Trim()
+    if ($candidate -and $candidate -notmatch '^Available QR Tasks:' -and $candidate -notmatch '^Enter targets above and click Run Probe') {
+      return $candidate
+    }
+  }
+
+  return ''
+}
+
+function Get-ObjectPreviewText {
+  param(
+    [object[]]$Rows,
+    [string[]]$PreferredFields,
+    [int]$MaxRows = 4,
+    [int]$MaxFields = 4,
+    [int]$MaxValueLength = 48
+  )
+
+  $rowList = @($Rows)
+  if (-not $rowList.Count) { return '' }
+
+  $allFields = @($rowList[0].PSObject.Properties.Name)
+  $fields = @($PreferredFields | Where-Object { $allFields -contains $_ })
+  if (-not $fields.Count) { $fields = @($allFields | Select-Object -First $MaxFields) }
+  if ($fields.Count -gt $MaxFields) { $fields = @($fields | Select-Object -First $MaxFields) }
+  if (-not $fields.Count) { return '' }
+
+  $lines = New-Object System.Collections.Generic.List[string]
+  $lines.Add(($fields -join "`t"))
+  foreach ($row in ($rowList | Select-Object -First $MaxRows)) {
+    $vals = foreach ($field in $fields) {
+      $text = "$($row.$field)"
+      if ($text.Length -gt $MaxValueLength) { $text = $text.Substring(0, $MaxValueLength - 3) + '...' }
+      $text
+    }
+    $lines.Add(($vals -join "`t"))
+  }
+  if ($rowList.Count -gt $MaxRows) { $lines.Add("... +$($rowList.Count - $MaxRows) more row(s)") }
+  return ($lines -join "`n")
+}
+
+function Get-MIResultsSummaryText {
+  $summaryLines = New-Object System.Collections.Generic.List[string]
+  $summaryLines.Add('Machine Info')
+  if ($cmbMIMode -and $cmbMIMode.SelectedItem) { $summaryLines.Add("Mode`t$($cmbMIMode.SelectedItem)") }
+
+  $targets = if ($txtMITargets) { Get-TrimmedLines -Lines $txtMITargets.Lines } else { @() }
+  if ($targets.Count) {
+    $targetPreview = if ($targets.Count -gt 6) { (@($targets | Select-Object -First 6) + "... +$($targets.Count - 6) more") -join ', ' } else { $targets -join ', ' }
+    $summaryLines.Add("Targets`t$targetPreview")
+  }
+
+  if ($script:LastMIResultObjects) {
+    $rows = @($script:LastMIResultObjects)
+    $summaryLines.Add("Rows`t$($rows.Count)")
+    $preferredFields = switch ($cmbMIMode.SelectedIndex) {
+      0 { @('HostName','Status','Serial','IPAddress') }
+      1 { @('IP','Status','MAC','Serial') }
+      2 { @('HostName','Status','DeviceLocator','PartNumber') }
+      3 { @('DisplayNumber','IsPrimary','Model','Serial') }
+      4 { @('PrinterIP','Status','Model','SerialNumber') }
+      5 { @('QueueName','PrinterIP','Status','SerialNumber') }
+      6 { @('HostName','Edition','Status','KeySource') }
+      7 { @('Host','Name','Version','Publisher') }
+      default { @('Name','Status','Value','HostName') }
+    }
+    $preview = Get-ObjectPreviewText -Rows $rows -PreferredFields $preferredFields
+    if ($preview) {
+      $summaryLines.Add('Preview')
+      $summaryLines.Add($preview)
+    }
+  } else {
+    $resultsText = Get-MIResultsText
+    if ($resultsText) {
+      $lines = Get-TrimmedLines -Lines ($resultsText -split "\r?\n")
+      if ($lines.Count) {
+        $summaryLines.Add("Lines`t$($lines.Count)")
+        $summaryLines.Add('Preview')
+        foreach ($line in ($lines | Select-Object -First 6)) {
+          $previewLine = if ($line.Length -gt 100) { $line.Substring(0, 97) + '...' } else { $line }
+          $summaryLines.Add($previewLine)
+        }
+        if ($lines.Count -gt 6) { $summaryLines.Add("... +$($lines.Count - 6) more line(s)") }
+      }
+    }
+  }
+
+  return ($summaryLines -join "`n")
+}
+
+function Get-MIQRPayloadText {
+  $resultsText = Get-MIResultsText
+  $summaryText = Get-MIResultsSummaryText
+
+  $artifactText = ''
+  if ($lblMIArtifactSummary -and $lblMIArtifactSummary.Text -and $lblMIArtifactSummary.Text -notmatch '^No run yet') {
+    $artifactText = $lblMIArtifactSummary.Text.Trim()
+  }
+
+  $selected = if ($cmbMIQRPayload -and $cmbMIQRPayload.SelectedItem) { "$($cmbMIQRPayload.SelectedItem)" } else { 'Results Summary' }
+  switch ($selected) {
+    'Results Summary' { return $summaryText }
+    'Output Summary' { return $artifactText }
+    'Results + Output Summary' {
+      return (@($artifactText, $resultsText) | Where-Object { $_ }) -join "`n`n"
+    }
+    default { return $resultsText }
+  }
+}
+
 function Update-MIQRCode {
   <# Refreshes the QR PictureBox with current MI result data. #>
   if (-not $script:QRCoderAvailable) { return }
-  $qrText = Format-MIResultsForQR
+  $qrText = Get-MIQRPayloadText
   if (-not $qrText) {
     $picMIQR.Image = $null; $picMIQR.Visible = $false; return
   }
   # Truncate very long payloads to keep QR scannable
-  if ($qrText.Length -gt 2000) { $qrText = $qrText.Substring(0, 2000) }
+  $qrText = Get-QRPayload -Text $qrText
   $bmp = New-QRBitmap -Text $qrText -PixelsPerModule 4
   if ($bmp) {
     if ($picMIQR.Image) { $picMIQR.Image.Dispose() }
@@ -160,6 +338,101 @@ function Update-MIQRCode {
   } else {
     $picMIQR.Image = $null; $picMIQR.Visible = $false
   }
+}
+
+function Get-RunQRPayloadText {
+  $defaultStatus = 'Launch a run or click Refresh Now to inspect a status snapshot.'
+  $waitingStatus = 'Status file not found yet. Launch a run or wait for the worker/controller to publish status.'
+  $defaultHistory = 'Launch a run or load a history file to inspect undo/redo details.'
+  $waitingHistory = 'Undo/redo history not found yet. Launch a run or load a session history file first.'
+
+  $statusText = if ($txtStatusView -and $txtStatusView.Text) { $txtStatusView.Text.Trim() } else { '' }
+  $historyText = if ($txtHistoryView -and $txtHistoryView.Text) { $txtHistoryView.Text.Trim() } else { '' }
+  if ($statusText -in @('', $defaultStatus, $waitingStatus)) { $statusText = '' }
+  if ($historyText -in @('', $defaultHistory, $waitingHistory)) { $historyText = '' }
+
+  $summaryLines = New-Object System.Collections.Generic.List[string]
+  $summaryLines.Add('Run Control')
+  if ($cmbRunMode -and $cmbRunMode.SelectedItem) { $summaryLines.Add("Mode`t$($cmbRunMode.SelectedItem)") }
+  $targets = if ($txtRunTargets) { Get-TrimmedLines -Lines $txtRunTargets.Lines } else { @() }
+  if ($targets.Count) {
+    $targetPreview = if ($targets.Count -gt 6) { (@($targets | Select-Object -First 6) + "... +$($targets.Count - 6) more") -join ', ' } else { $targets -join ', ' }
+    $summaryLines.Add("Targets`t$targetPreview")
+  }
+  if ($txtStatus -and $txtStatus.Text) { $summaryLines.Add("Status File`t$($txtStatus.Text.Trim())") }
+  if ($txtUndo -and $txtUndo.Text) { $summaryLines.Add("History File`t$($txtUndo.Text.Trim())") }
+  $summaryText = $summaryLines -join "`n"
+
+  $selected = if ($cmbRunQRPayload -and $cmbRunQRPayload.SelectedItem) { "$($cmbRunQRPayload.SelectedItem)" } else { 'Status + History' }
+  switch ($selected) {
+    'Status Snapshot' { return $statusText }
+    'History Summary' { return $historyText }
+    'Session Summary' { return $summaryText }
+    default {
+      return (@($summaryText, $statusText, $historyText) | Where-Object { $_ }) -join "`n`n"
+    }
+  }
+}
+
+function Update-RunQRCode {
+  Set-QRCodeImage -PictureBox $picRunQR -Text (Get-RunQRPayloadText) -PixelsPerModule 4
+}
+
+function Get-KronosQRPayloadText {
+  $resultsText = if ($txtClockResults -and $txtClockResults.Text) { $txtClockResults.Text.Trim() } else { '' }
+  if ($resultsText -eq 'Probe live clocks or search a saved inventory CSV.') { $resultsText = '' }
+
+  $summaryLines = New-Object System.Collections.Generic.List[string]
+  $summaryLines.Add('Kronos Clock Results')
+  if ($cmbLookup -and $cmbLookup.SelectedItem) { $summaryLines.Add("Lookup Mode`t$($cmbLookup.SelectedItem)") }
+  if ($txtLookup -and $txtLookup.Text.Trim()) { $summaryLines.Add("Lookup Value`t$($txtLookup.Text.Trim())") }
+  if ($txtInv -and $txtInv.Text) { $summaryLines.Add("Inventory`t$($txtInv.Text.Trim())") }
+  $summaryText = $summaryLines -join "`n"
+
+  $selected = if ($cmbKronosQRPayload -and $cmbKronosQRPayload.SelectedItem) { "$($cmbKronosQRPayload.SelectedItem)" } else { 'Results + Summary' }
+  switch ($selected) {
+    'Lookup Summary' { return $summaryText }
+    'Results Text' { return $resultsText }
+    default { return (@($summaryText, $resultsText) | Where-Object { $_ }) -join "`n`n" }
+  }
+}
+
+function Update-KronosQRCode {
+  Set-QRCodeImage -PictureBox $picKronosQR -Text (Get-KronosQRPayloadText) -PixelsPerModule 4
+}
+
+function Get-BomQRPayloadText {
+  if (-not $lstBomNeed -or -not $lstBomHave) { return '' }
+  $total = $lstBomNeed.Items.Count + $lstBomHave.Items.Count
+  if ($total -eq 0) { return '' }
+
+  $summaryLines = New-Object System.Collections.Generic.List[string]
+  $summaryLines.Add('UTF-8 BOM Sync')
+  if ($script:BomScanRoot) { $summaryLines.Add("Root`t$($script:BomScanRoot)") }
+  $summaryLines.Add("Without BOM`t$($lstBomNeed.Items.Count)")
+  $summaryLines.Add("With BOM`t$($lstBomHave.Items.Count)")
+  $summaryText = $summaryLines -join "`n"
+
+  $selectedItems = @()
+  if ($lstBomNeed.SelectedItems.Count) {
+    $selectedItems = @($lstBomNeed.SelectedItems | ForEach-Object { "$_" })
+  } elseif ($lstBomHave.SelectedItems.Count) {
+    $selectedItems = @($lstBomHave.SelectedItems | ForEach-Object { "$_" })
+  } elseif ($lstBomNeed.Items.Count) {
+    $selectedItems = @($lstBomNeed.Items | Select-Object -First 8 | ForEach-Object { "$_" })
+  }
+  $selectionText = if ($selectedItems.Count) { (@('Selected Files') + $selectedItems) -join "`n" } else { '' }
+
+  $selected = if ($cmbBomQRPayload -and $cmbBomQRPayload.SelectedItem) { "$($cmbBomQRPayload.SelectedItem)" } else { 'Summary + Files' }
+  switch ($selected) {
+    'Selected Files' { return $selectionText }
+    'Scan Summary' { return $summaryText }
+    default { return (@($summaryText, $selectionText) | Where-Object { $_ }) -join "`n`n" }
+  }
+}
+
+function Update-BomQRCode {
+  Set-QRCodeImage -PictureBox $picBomQR -Text (Get-BomQRPayloadText) -PixelsPerModule 4
 }
 
 function Format-UndoRedoText {
@@ -1040,14 +1313,38 @@ $grpLaunch.Controls.AddRange(@($lblRunTargets,$txtRunTargets,$lblRunMode,$cmbRun
 # -- Run Tab: Status & History panes --
 $lblStatusPane = New-Object System.Windows.Forms.Label
 $lblStatusPane.Location = '8,409'; $lblStatusPane.Size = '120,18'; $lblStatusPane.Text = 'Run Status'; $lblStatusPane.Font = $emphasisFont
+$lblRunView = New-Object System.Windows.Forms.Label
+$lblRunView.Location = '560,404'; $lblRunView.Size = '74,24'; $lblRunView.Text = 'Output View'; $lblRunView.Anchor = 'Top, Right'; $lblRunView.TextAlign = 'MiddleLeft'; $lblRunView.Font = $uiFont
+$btnRunResultsView = New-Object System.Windows.Forms.Button
+$btnRunResultsView.Location = '640,402'; $btnRunResultsView.Size = '82,28'; $btnRunResultsView.Text = 'Results'; $btnRunResultsView.Anchor = 'Top, Right'; $btnRunResultsView.FlatStyle = 'Flat'; $btnRunResultsView.BackColor = [System.Drawing.Color]::FromArgb(225,240,255); $btnRunResultsView.Font = $uiFont
+$btnRunQRView = New-Object System.Windows.Forms.Button
+$btnRunQRView.Location = '727,402'; $btnRunQRView.Size = '86,28'; $btnRunQRView.Text = 'Show QR'; $btnRunQRView.Anchor = 'Top, Right'; $btnRunQRView.FlatStyle = 'Flat'; $btnRunQRView.BackColor = [System.Drawing.Color]::White; $btnRunQRView.Font = $uiFont
+$lblRunQRPayload = New-Object System.Windows.Forms.Label
+$lblRunQRPayload.Location = '818,406'; $lblRunQRPayload.Size = '34,20'; $lblRunQRPayload.Text = 'Data'; $lblRunQRPayload.Anchor = 'Top, Right'; $lblRunQRPayload.TextAlign = 'MiddleLeft'; $lblRunQRPayload.Font = $uiFont; $lblRunQRPayload.Visible = $false
+$cmbRunQRPayload = New-Object System.Windows.Forms.ComboBox
+$cmbRunQRPayload.Location = '856,404'; $cmbRunQRPayload.Size = '102,24'; $cmbRunQRPayload.DropDownStyle = 'DropDownList'; $cmbRunQRPayload.Anchor = 'Top, Right'; $cmbRunQRPayload.Font = $uiFont
+@('Status + History','Status Snapshot','History Summary','Session Summary') | ForEach-Object { [void]$cmbRunQRPayload.Items.Add($_) }
+$cmbRunQRPayload.SelectedItem = 'Session Summary'
+$cmbRunQRPayload.Visible = $false
 $txtStatusView = New-Object System.Windows.Forms.TextBox
 $txtStatusView.Location = '6,428'; $txtStatusView.Size = '952,95'; $txtStatusView.Multiline = $true; $txtStatusView.ScrollBars = 'Both'; $txtStatusView.ReadOnly = $true; $txtStatusView.Anchor = 'Top, Left, Right'; $txtStatusView.Font = $monoFont; $txtStatusView.WordWrap = $false; $txtStatusView.BackColor = [System.Drawing.Color]::White; $txtStatusView.Text = 'Launch a run or click Refresh Now to inspect a status snapshot.'
 $lblHistoryPane = New-Object System.Windows.Forms.Label
 $lblHistoryPane.Location = '8,527'; $lblHistoryPane.Size = '120,18'; $lblHistoryPane.Text = 'Undo / Redo History'; $lblHistoryPane.Font = $emphasisFont
 $txtHistoryView = New-Object System.Windows.Forms.TextBox
 $txtHistoryView.Location = '6,547'; $txtHistoryView.Size = '952,178'; $txtHistoryView.Multiline = $true; $txtHistoryView.ScrollBars = 'Both'; $txtHistoryView.ReadOnly = $true; $txtHistoryView.Anchor = 'Top, Bottom, Left, Right'; $txtHistoryView.Font = $monoFont; $txtHistoryView.WordWrap = $false; $txtHistoryView.BackColor = [System.Drawing.Color]::White; $txtHistoryView.Text = 'Launch a run or load a history file to inspect undo/redo details.'
+$pnlRunQRView = New-Object System.Windows.Forms.Panel
+$pnlRunQRView.Location = '6,428'; $pnlRunQRView.Size = '952,297'; $pnlRunQRView.Anchor = 'Top, Bottom, Left, Right'; $pnlRunQRView.BackColor = [System.Drawing.Color]::White; $pnlRunQRView.BorderStyle = 'FixedSingle'; $pnlRunQRView.Visible = $false
+$lblRunQR = New-Object System.Windows.Forms.Label
+$lblRunQR.Location = '10,10'; $lblRunQR.Size = '220,20'; $lblRunQR.Text = 'QR Code (scan to capture)'; $lblRunQR.Font = $emphasisFont
+$picRunQR = New-Object System.Windows.Forms.PictureBox
+$picRunQR.Location = '364,38'; $picRunQR.Size = '224,224'; $picRunQR.SizeMode = 'Zoom'; $picRunQR.BorderStyle = 'FixedSingle'; $picRunQR.BackColor = [System.Drawing.Color]::White; $picRunQR.Visible = $false
+$lblRunQRHint = New-Object System.Windows.Forms.Label
+$lblRunQRHint.Location = '240,266'; $lblRunQRHint.Size = '470,24'; $lblRunQRHint.Text = 'Toggle to QR mode, choose the payload, then scan to paste the run snapshot.'; $lblRunQRHint.TextAlign = 'MiddleCenter'; $lblRunQRHint.Font = $uiFont
+$toolTip.SetToolTip($picRunQR, 'Scan this code to capture the selected Run Control payload in a ticket, spreadsheet, or chat.')
+$toolTip.SetToolTip($cmbRunQRPayload, 'Pick which run data set the QR code should encode.')
+$pnlRunQRView.Controls.AddRange(@($lblRunQR,$picRunQR,$lblRunQRHint))
 
-$runTab.Controls.AddRange(@($grpPaths,$grpOptions,$grpLaunch,$lblStatusPane,$txtStatusView,$lblHistoryPane,$txtHistoryView))
+$runTab.Controls.AddRange(@($grpPaths,$grpOptions,$grpLaunch,$lblStatusPane,$lblRunView,$btnRunResultsView,$btnRunQRView,$lblRunQRPayload,$cmbRunQRPayload,$txtStatusView,$lblHistoryPane,$txtHistoryView,$pnlRunQRView))
 
 # -- Kronos Tab: GroupBox -- Probe & Inventory --
 $grpKronos = New-Object System.Windows.Forms.GroupBox
@@ -1093,10 +1390,34 @@ $grpKronos.Controls.AddRange(@($lblTargets,$txtTargets,$lblClockOut,$txtClockOut
 # -- Kronos Tab: Results pane --
 $lblKronosResults = New-Object System.Windows.Forms.Label
 $lblKronosResults.Location = '8,230'; $lblKronosResults.Size = '140,18'; $lblKronosResults.Text = 'Results'; $lblKronosResults.Font = $emphasisFont
+$lblKronosView = New-Object System.Windows.Forms.Label
+$lblKronosView.Location = '550,225'; $lblKronosView.Size = '74,24'; $lblKronosView.Text = 'Output View'; $lblKronosView.Anchor = 'Top, Right'; $lblKronosView.TextAlign = 'MiddleLeft'; $lblKronosView.Font = $uiFont
+$btnKronosResultsView = New-Object System.Windows.Forms.Button
+$btnKronosResultsView.Location = '630,223'; $btnKronosResultsView.Size = '82,28'; $btnKronosResultsView.Text = 'Results'; $btnKronosResultsView.Anchor = 'Top, Right'; $btnKronosResultsView.FlatStyle = 'Flat'; $btnKronosResultsView.BackColor = [System.Drawing.Color]::FromArgb(225,240,255); $btnKronosResultsView.Font = $uiFont
+$btnKronosQRView = New-Object System.Windows.Forms.Button
+$btnKronosQRView.Location = '717,223'; $btnKronosQRView.Size = '86,28'; $btnKronosQRView.Text = 'Show QR'; $btnKronosQRView.Anchor = 'Top, Right'; $btnKronosQRView.FlatStyle = 'Flat'; $btnKronosQRView.BackColor = [System.Drawing.Color]::White; $btnKronosQRView.Font = $uiFont
+$lblKronosQRPayload = New-Object System.Windows.Forms.Label
+$lblKronosQRPayload.Location = '808,227'; $lblKronosQRPayload.Size = '44,20'; $lblKronosQRPayload.Text = 'Data'; $lblKronosQRPayload.Anchor = 'Top, Right'; $lblKronosQRPayload.TextAlign = 'MiddleLeft'; $lblKronosQRPayload.Font = $uiFont; $lblKronosQRPayload.Visible = $false
+$cmbKronosQRPayload = New-Object System.Windows.Forms.ComboBox
+$cmbKronosQRPayload.Location = '856,225'; $cmbKronosQRPayload.Size = '102,24'; $cmbKronosQRPayload.DropDownStyle = 'DropDownList'; $cmbKronosQRPayload.Anchor = 'Top, Right'; $cmbKronosQRPayload.Font = $uiFont
+@('Results + Summary','Results Text','Lookup Summary') | ForEach-Object { [void]$cmbKronosQRPayload.Items.Add($_) }
+$cmbKronosQRPayload.SelectedItem = 'Lookup Summary'
+$cmbKronosQRPayload.Visible = $false
 $txtClockResults = New-Object System.Windows.Forms.TextBox
 $txtClockResults.Location = '6,250'; $txtClockResults.Size = '952,400'; $txtClockResults.Multiline = $true; $txtClockResults.ScrollBars = 'Both'; $txtClockResults.ReadOnly = $true; $txtClockResults.Anchor = 'Top, Bottom, Left, Right'; $txtClockResults.Font = $monoFont; $txtClockResults.WordWrap = $false; $txtClockResults.BackColor = [System.Drawing.Color]::White; $txtClockResults.Text = 'Probe live clocks or search a saved inventory CSV.'
+$pnlKronosQRView = New-Object System.Windows.Forms.Panel
+$pnlKronosQRView.Location = '6,250'; $pnlKronosQRView.Size = '952,400'; $pnlKronosQRView.Anchor = 'Top, Bottom, Left, Right'; $pnlKronosQRView.BackColor = [System.Drawing.Color]::White; $pnlKronosQRView.BorderStyle = 'FixedSingle'; $pnlKronosQRView.Visible = $false
+$lblKronosQR = New-Object System.Windows.Forms.Label
+$lblKronosQR.Location = '10,10'; $lblKronosQR.Size = '220,20'; $lblKronosQR.Text = 'QR Code (scan to capture)'; $lblKronosQR.Font = $emphasisFont
+$picKronosQR = New-Object System.Windows.Forms.PictureBox
+$picKronosQR.Location = '364,52'; $picKronosQR.Size = '224,224'; $picKronosQR.SizeMode = 'Zoom'; $picKronosQR.BorderStyle = 'FixedSingle'; $picKronosQR.BackColor = [System.Drawing.Color]::White; $picKronosQR.Visible = $false
+$lblKronosQRHint = New-Object System.Windows.Forms.Label
+$lblKronosQRHint.Location = '220,292'; $lblKronosQRHint.Size = '510,24'; $lblKronosQRHint.Text = 'Pick a Kronos payload, then scan to paste lookup data into a form or ticket.'; $lblKronosQRHint.TextAlign = 'MiddleCenter'; $lblKronosQRHint.Font = $uiFont
+$toolTip.SetToolTip($picKronosQR, 'Scan this code to capture Kronos results or lookup details.')
+$toolTip.SetToolTip($cmbKronosQRPayload, 'Pick which Kronos data set the QR code should encode.')
+$pnlKronosQRView.Controls.AddRange(@($lblKronosQR,$picKronosQR,$lblKronosQRHint))
 
-$kronosTab.Controls.AddRange(@($grpKronos,$lblKronosResults,$txtClockResults))
+$kronosTab.Controls.AddRange(@($grpKronos,$lblKronosResults,$lblKronosView,$btnKronosResultsView,$btnKronosQRView,$lblKronosQRPayload,$cmbKronosQRPayload,$txtClockResults,$pnlKronosQRView))
 
 # -- Machine Info Tab --
 $machineInfoTab = New-Object System.Windows.Forms.TabPage
@@ -1183,23 +1504,42 @@ $grpMIArtifacts.Controls.Add($lblMIArtifactSummary)
 # -- Machine Info: Results pane --
 $lblMIResults = New-Object System.Windows.Forms.Label
 $lblMIResults.Location = '8,275'; $lblMIResults.Size = '140,18'; $lblMIResults.Text = 'Results'; $lblMIResults.Font = $emphasisFont
+$lblMIView = New-Object System.Windows.Forms.Label
+$lblMIView.Location = '550,270'; $lblMIView.Size = '74,24'; $lblMIView.Text = 'Output View'; $lblMIView.Anchor = 'Top, Right'; $lblMIView.TextAlign = 'MiddleLeft'; $lblMIView.Font = $uiFont
+$btnMIResultsView = New-Object System.Windows.Forms.Button
+$btnMIResultsView.Location = '630,268'; $btnMIResultsView.Size = '82,28'; $btnMIResultsView.Text = 'Results'; $btnMIResultsView.Anchor = 'Top, Right'; $btnMIResultsView.FlatStyle = 'Flat'; $btnMIResultsView.BackColor = [System.Drawing.Color]::FromArgb(225,240,255); $btnMIResultsView.Font = $uiFont
+$btnMIQRView = New-Object System.Windows.Forms.Button
+$btnMIQRView.Location = '717,268'; $btnMIQRView.Size = '86,28'; $btnMIQRView.Text = 'Show QR'; $btnMIQRView.Anchor = 'Top, Right'; $btnMIQRView.FlatStyle = 'Flat'; $btnMIQRView.BackColor = [System.Drawing.Color]::White; $btnMIQRView.Font = $uiFont
+$lblMIQRPayload = New-Object System.Windows.Forms.Label
+$lblMIQRPayload.Location = '808,272'; $lblMIQRPayload.Size = '44,20'; $lblMIQRPayload.Text = 'Data'; $lblMIQRPayload.Anchor = 'Top, Right'; $lblMIQRPayload.TextAlign = 'MiddleLeft'; $lblMIQRPayload.Font = $uiFont; $lblMIQRPayload.Visible = $false
+$cmbMIQRPayload = New-Object System.Windows.Forms.ComboBox
+$cmbMIQRPayload.Location = '856,270'; $cmbMIQRPayload.Size = '102,24'; $cmbMIQRPayload.DropDownStyle = 'DropDownList'; $cmbMIQRPayload.Anchor = 'Top, Right'; $cmbMIQRPayload.Font = $uiFont
+@('Results Summary','Results Text','Output Summary','Results + Output Summary') | ForEach-Object { [void]$cmbMIQRPayload.Items.Add($_) }
+$cmbMIQRPayload.SelectedItem = 'Results Summary'
+$cmbMIQRPayload.Visible = $false
 $txtMIResults = New-Object System.Windows.Forms.TextBox
-$txtMIResults.Location = '6,295'; $txtMIResults.Size = '720,380'; $txtMIResults.Multiline = $true; $txtMIResults.ScrollBars = 'Both'; $txtMIResults.ReadOnly = $true; $txtMIResults.Anchor = 'Top, Bottom, Left, Right'; $txtMIResults.Font = $monoFont; $txtMIResults.WordWrap = $false; $txtMIResults.BackColor = [System.Drawing.Color]::White
+$txtMIResults.Location = '6,295'; $txtMIResults.Size = '952,380'; $txtMIResults.Multiline = $true; $txtMIResults.ScrollBars = 'Both'; $txtMIResults.ReadOnly = $true; $txtMIResults.Anchor = 'Top, Bottom, Left, Right'; $txtMIResults.Font = $monoFont; $txtMIResults.WordWrap = $false; $txtMIResults.BackColor = [System.Drawing.Color]::White
 $txtMITargets.Text = $env:COMPUTERNAME
 $txtMIResults.Text = 'Enter targets above and click Run Probe, or load a host list file. Your local machine is pre-loaded as an example.'
 
-# -- Machine Info: QR Code pane (right of results) --
+# -- Machine Info: QR Code pane --
+$pnlMIQRView = New-Object System.Windows.Forms.Panel
+$pnlMIQRView.Location = '6,295'; $pnlMIQRView.Size = '952,380'; $pnlMIQRView.Anchor = 'Top, Bottom, Left, Right'; $pnlMIQRView.BackColor = [System.Drawing.Color]::White; $pnlMIQRView.BorderStyle = 'FixedSingle'; $pnlMIQRView.Visible = $false
 $lblMIQR = New-Object System.Windows.Forms.Label
-$lblMIQR.Location = '734,275'; $lblMIQR.Size = '220,18'; $lblMIQR.Text = 'QR Code  (scan to capture)'; $lblMIQR.Font = $emphasisFont; $lblMIQR.Anchor = 'Top, Right'
+$lblMIQR.Location = '10,10'; $lblMIQR.Size = '220,18'; $lblMIQR.Text = 'QR Code  (scan to capture)'; $lblMIQR.Font = $emphasisFont
 $picMIQR = New-Object System.Windows.Forms.PictureBox
-$picMIQR.Location = '734,295'; $picMIQR.Size = '224,224'; $picMIQR.Anchor = 'Top, Right'
+$picMIQR.Location = '364,52'; $picMIQR.Size = '224,224'
 $picMIQR.SizeMode = 'Zoom'; $picMIQR.BackColor = [System.Drawing.Color]::White
 $picMIQR.BorderStyle = 'FixedSingle'; $picMIQR.Visible = $false
+$lblMIQRHint = New-Object System.Windows.Forms.Label
+$lblMIQRHint.Location = '225,292'; $lblMIQRHint.Size = '500,24'; $lblMIQRHint.Text = 'Pick a Machine Info payload, then scan to paste the selected output directly.'; $lblMIQRHint.TextAlign = 'MiddleCenter'; $lblMIQRHint.Font = $uiFont
 # Tooltip on the QR so the tech knows what it contains
 $qrToolTip = New-Object System.Windows.Forms.ToolTip
 $qrToolTip.SetToolTip($picMIQR, 'Scan this QR with a barcode scanner to paste result data into any input field.')
+$qrToolTip.SetToolTip($cmbMIQRPayload, 'Pick which Machine Info data set the QR code should encode.')
+$pnlMIQRView.Controls.AddRange(@($lblMIQR,$picMIQR,$lblMIQRHint))
 
-$machineInfoTab.Controls.AddRange(@($grpMI,$grpMIArtifacts,$lblMIResults,$txtMIResults,$lblMIQR,$picMIQR))
+$machineInfoTab.Controls.AddRange(@($grpMI,$grpMIArtifacts,$lblMIResults,$lblMIView,$btnMIResultsView,$btnMIQRView,$lblMIQRPayload,$cmbMIQRPayload,$txtMIResults,$pnlMIQRView))
 # Re-render results table when the pane is resized so columns fill the new width
 $txtMIResults.Add_SizeChanged({ Render-MIResultsToPane })
 
@@ -1519,6 +1859,7 @@ function Invoke-BomScan {
 
   $lblBomNeedCount.Text = "Without BOM ($($lstBomNeed.Items.Count))"
   $lblBomHaveCount.Text = "With BOM ($($lstBomHave.Items.Count))"
+  Update-BomQRCode
   Set-StatusBarText -Category 'BOM Scan' -Message "Scanned $($lstBomNeed.Items.Count + $lstBomHave.Items.Count) file(s): $($lstBomNeed.Items.Count) need BOM, $($lstBomHave.Items.Count) already have BOM."
 }
 
@@ -1566,6 +1907,19 @@ $grpBom.Controls.AddRange(@($lblBomRoot,$txtBomRoot,$btnBrowseBomRoot,$btnBomSca
 # -- BOM Tab: Left (Need BOM) and Right (Have BOM) panels --
 $lblBomNeedCount = New-Object System.Windows.Forms.Label
 $lblBomNeedCount.Location = '8,68'; $lblBomNeedCount.Size = '380,20'; $lblBomNeedCount.Text = 'Without BOM (0)'; $lblBomNeedCount.Font = $emphasisFont
+$lblBomView = New-Object System.Windows.Forms.Label
+$lblBomView.Location = '550,64'; $lblBomView.Size = '74,24'; $lblBomView.Text = 'Output View'; $lblBomView.Anchor = 'Top, Right'; $lblBomView.TextAlign = 'MiddleLeft'; $lblBomView.Font = $uiFont
+$btnBomResultsView = New-Object System.Windows.Forms.Button
+$btnBomResultsView.Location = '630,62'; $btnBomResultsView.Size = '82,28'; $btnBomResultsView.Text = 'Results'; $btnBomResultsView.Anchor = 'Top, Right'; $btnBomResultsView.FlatStyle = 'Flat'; $btnBomResultsView.BackColor = [System.Drawing.Color]::FromArgb(225,240,255); $btnBomResultsView.Font = $uiFont
+$btnBomQRView = New-Object System.Windows.Forms.Button
+$btnBomQRView.Location = '717,62'; $btnBomQRView.Size = '86,28'; $btnBomQRView.Text = 'Show QR'; $btnBomQRView.Anchor = 'Top, Right'; $btnBomQRView.FlatStyle = 'Flat'; $btnBomQRView.BackColor = [System.Drawing.Color]::White; $btnBomQRView.Font = $uiFont
+$lblBomQRPayload = New-Object System.Windows.Forms.Label
+$lblBomQRPayload.Location = '808,66'; $lblBomQRPayload.Size = '44,20'; $lblBomQRPayload.Text = 'Data'; $lblBomQRPayload.Anchor = 'Top, Right'; $lblBomQRPayload.TextAlign = 'MiddleLeft'; $lblBomQRPayload.Font = $uiFont; $lblBomQRPayload.Visible = $false
+$cmbBomQRPayload = New-Object System.Windows.Forms.ComboBox
+$cmbBomQRPayload.Location = '856,64'; $cmbBomQRPayload.Size = '102,24'; $cmbBomQRPayload.DropDownStyle = 'DropDownList'; $cmbBomQRPayload.Anchor = 'Top, Right'; $cmbBomQRPayload.Font = $uiFont
+@('Summary + Files','Scan Summary','Selected Files') | ForEach-Object { [void]$cmbBomQRPayload.Items.Add($_) }
+$cmbBomQRPayload.SelectedItem = 'Scan Summary'
+$cmbBomQRPayload.Visible = $false
 $lstBomNeed = New-Object System.Windows.Forms.ListBox
 $lstBomNeed.Location = '6,90'; $lstBomNeed.Size = '405,560'; $lstBomNeed.Anchor = 'Top, Bottom, Left'; $lstBomNeed.Font = $monoFont; $lstBomNeed.SelectionMode = 'MultiExtended'; $lstBomNeed.HorizontalScrollbar = $true
 
@@ -1582,6 +1936,18 @@ $btnBomMoveLeft.Location = '418,264'; $btnBomMoveLeft.Size = '118,36'; $btnBomMo
 $btnBomMoveAllRight = New-Object System.Windows.Forms.Button
 $btnBomMoveAllRight.Location = '418,316'; $btnBomMoveAllRight.Size = '118,36'; $btnBomMoveAllRight.Text = 'Move All  ' + [char]0x25B6 + [char]0x25B6; $btnBomMoveAllRight.Font = $emphasisFont; $btnBomMoveAllRight.FlatStyle = 'Flat'; $btnBomMoveAllRight.BackColor = [System.Drawing.Color]::FromArgb(200,230,255); $btnBomMoveAllRight.Cursor = 'Hand'
 
+$pnlBomQRView = New-Object System.Windows.Forms.Panel
+$pnlBomQRView.Location = '6,90'; $pnlBomQRView.Size = '952,560'; $pnlBomQRView.Anchor = 'Top, Bottom, Left, Right'; $pnlBomQRView.BackColor = [System.Drawing.Color]::White; $pnlBomQRView.BorderStyle = 'FixedSingle'; $pnlBomQRView.Visible = $false
+$lblBomQR = New-Object System.Windows.Forms.Label
+$lblBomQR.Location = '10,10'; $lblBomQR.Size = '220,20'; $lblBomQR.Text = 'QR Code (scan to capture)'; $lblBomQR.Font = $emphasisFont
+$picBomQR = New-Object System.Windows.Forms.PictureBox
+$picBomQR.Location = '364,88'; $picBomQR.Size = '224,224'; $picBomQR.SizeMode = 'Zoom'; $picBomQR.BorderStyle = 'FixedSingle'; $picBomQR.BackColor = [System.Drawing.Color]::White; $picBomQR.Visible = $false
+$lblBomQRHint = New-Object System.Windows.Forms.Label
+$lblBomQRHint.Location = '210,338'; $lblBomQRHint.Size = '530,24'; $lblBomQRHint.Text = 'Pick a BOM payload, then scan to capture the scan summary or selected file list.'; $lblBomQRHint.TextAlign = 'MiddleCenter'; $lblBomQRHint.Font = $uiFont
+$toolTip.SetToolTip($picBomQR, 'Scan this code to capture the BOM scan summary or selected file list.')
+$toolTip.SetToolTip($cmbBomQRPayload, 'Pick which BOM data set the QR code should encode.')
+$pnlBomQRView.Controls.AddRange(@($lblBomQR,$picBomQR,$lblBomQRHint))
+
 # -- Move selected items right (need → have) --
 $btnBomMoveRight.Add_Click({
   $selected = @($lstBomNeed.SelectedIndices | Sort-Object -Descending)
@@ -1596,6 +1962,7 @@ $btnBomMoveRight.Add_Click({
   }
   $lblBomNeedCount.Text = "Without BOM ($($lstBomNeed.Items.Count))"
   $lblBomHaveCount.Text = "With BOM ($($lstBomHave.Items.Count))"
+  Update-BomQRCode
 })
 
 # -- Move selected items left (have → need) --
@@ -1612,6 +1979,7 @@ $btnBomMoveLeft.Add_Click({
   }
   $lblBomNeedCount.Text = "Without BOM ($($lstBomNeed.Items.Count))"
   $lblBomHaveCount.Text = "With BOM ($($lstBomHave.Items.Count))"
+  Update-BomQRCode
 })
 
 # -- Move ALL left → right --
@@ -1626,6 +1994,7 @@ $btnBomMoveAllRight.Add_Click({
   }
   $lblBomNeedCount.Text = "Without BOM ($($lstBomNeed.Items.Count))"
   $lblBomHaveCount.Text = "With BOM ($($lstBomHave.Items.Count))"
+  Update-BomQRCode
 })
 
 # -- Scan & Sync handlers --
@@ -1649,7 +2018,7 @@ $btnBomSync.Add_Click({
   }
 })
 
-$bomTab.Controls.AddRange(@($grpBom,$lblBomNeedCount,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight))
+$bomTab.Controls.AddRange(@($grpBom,$lblBomNeedCount,$lblBomView,$btnBomResultsView,$btnBomQRView,$lblBomQRPayload,$cmbBomQRPayload,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight,$pnlBomQRView))
 
 $tabs.TabPages.AddRange(@($runTab,$kronosTab,$machineInfoTab,$bomTab))
 $form.Controls.Add($tabs)
@@ -1901,6 +2270,14 @@ $toolTip.SetToolTip($btnBrowseStop,'Browse for a stop-signal JSON file.')
 $toolTip.SetToolTip($btnBrowseStatus,'Browse for a status snapshot JSON file.')
 $toolTip.SetToolTip($btnBrowseHistory,'Browse for an undo/redo history JSON file.')
 $toolTip.SetToolTip($btnBrowseClockOut,'Browse for an output CSV path.')
+$toolTip.SetToolTip($btnRunQRView,'Replace the results panes with a scannable QR code for the selected run payload.')
+$toolTip.SetToolTip($btnKronosQRView,'Replace the results pane with a scannable QR code for the selected Kronos payload.')
+$toolTip.SetToolTip($btnMIQRView,'Replace the results pane with a scannable QR code for the selected Machine Info payload.')
+$toolTip.SetToolTip($btnBomQRView,'Replace the BOM lists with a scannable QR code for the selected BOM payload.')
+$toolTip.SetToolTip($btnRunResultsView,'Switch back to the normal written results view.')
+$toolTip.SetToolTip($btnKronosResultsView,'Switch back to the normal written results view.')
+$toolTip.SetToolTip($btnMIResultsView,'Switch back to the normal written results view.')
+$toolTip.SetToolTip($btnBomResultsView,'Switch back to the normal written results view.')
 $toolTip.SetToolTip($txtStop,'Click to browse for a stop-signal file.')
 $toolTip.SetToolTip($txtStatus,'Click to browse for a status snapshot file.')
 $toolTip.SetToolTip($txtUndo,'Click to browse for an undo/redo history file.')
@@ -1915,6 +2292,63 @@ $toolTip.SetToolTip($btnBomMoveRight,'Move selected files from the left panel (n
 $toolTip.SetToolTip($btnBomMoveLeft,'Move selected files back to the left panel (will not get BOM on sync).')
 $toolTip.SetToolTip($btnBomMoveAllRight,'Move ALL files from left to right so they all get BOM on sync.')
 $toolTip.SetToolTip($txtBomRoot,'Root directory to scan for PowerShell and CSV files.')
+
+# -- Results / QR toggle handlers --
+$btnRunResultsView.Add_Click({
+  Set-OutputViewMode -Mode 'Results' -ResultsControls @($txtStatusView,$lblHistoryPane,$txtHistoryView) -QrControls @($pnlRunQRView,$lblRunQRPayload,$cmbRunQRPayload) -ResultsButton $btnRunResultsView -QrButton $btnRunQRView
+})
+$btnRunQRView.Add_Click({
+  Update-RunQRCode
+  Set-OutputViewMode -Mode 'QR' -ResultsControls @($txtStatusView,$lblHistoryPane,$txtHistoryView) -QrControls @($pnlRunQRView,$lblRunQRPayload,$cmbRunQRPayload) -ResultsButton $btnRunResultsView -QrButton $btnRunQRView
+})
+$cmbRunQRPayload.Add_SelectedIndexChanged({ Update-RunQRCode })
+$txtStatusView.Add_TextChanged({ Update-RunQRCode })
+$txtHistoryView.Add_TextChanged({ Update-RunQRCode })
+$txtRunTargets.Add_TextChanged({ Update-RunQRCode })
+$txtStatus.Add_TextChanged({ Update-RunQRCode })
+$txtUndo.Add_TextChanged({ Update-RunQRCode })
+$cmbRunMode.Add_SelectedIndexChanged({ Update-RunQRCode })
+
+$btnKronosResultsView.Add_Click({
+  Set-OutputViewMode -Mode 'Results' -ResultsControls @($txtClockResults) -QrControls @($pnlKronosQRView,$lblKronosQRPayload,$cmbKronosQRPayload) -ResultsButton $btnKronosResultsView -QrButton $btnKronosQRView
+})
+$btnKronosQRView.Add_Click({
+  Update-KronosQRCode
+  Set-OutputViewMode -Mode 'QR' -ResultsControls @($txtClockResults) -QrControls @($pnlKronosQRView,$lblKronosQRPayload,$cmbKronosQRPayload) -ResultsButton $btnKronosResultsView -QrButton $btnKronosQRView
+})
+$cmbKronosQRPayload.Add_SelectedIndexChanged({ Update-KronosQRCode })
+$txtClockResults.Add_TextChanged({ Update-KronosQRCode })
+$cmbLookup.Add_SelectedIndexChanged({ Update-KronosQRCode })
+$txtLookup.Add_TextChanged({ Update-KronosQRCode })
+$txtInv.Add_TextChanged({ Update-KronosQRCode })
+
+$btnMIResultsView.Add_Click({
+  Set-OutputViewMode -Mode 'Results' -ResultsControls @($txtMIResults) -QrControls @($pnlMIQRView,$lblMIQRPayload,$cmbMIQRPayload) -ResultsButton $btnMIResultsView -QrButton $btnMIQRView
+})
+$btnMIQRView.Add_Click({
+  Update-MIQRCode
+  Set-OutputViewMode -Mode 'QR' -ResultsControls @($txtMIResults) -QrControls @($pnlMIQRView,$lblMIQRPayload,$cmbMIQRPayload) -ResultsButton $btnMIResultsView -QrButton $btnMIQRView
+})
+$cmbMIQRPayload.Add_SelectedIndexChanged({ Update-MIQRCode })
+$txtMIResults.Add_TextChanged({ Update-MIQRCode })
+$lblMIArtifactSummary.Add_TextChanged({ Update-MIQRCode })
+
+$btnBomResultsView.Add_Click({
+  Set-OutputViewMode -Mode 'Results' -ResultsControls @($lblBomNeedCount,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight) -QrControls @($pnlBomQRView,$lblBomQRPayload,$cmbBomQRPayload) -ResultsButton $btnBomResultsView -QrButton $btnBomQRView
+})
+$btnBomQRView.Add_Click({
+  Update-BomQRCode
+  Set-OutputViewMode -Mode 'QR' -ResultsControls @($lblBomNeedCount,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight) -QrControls @($pnlBomQRView,$lblBomQRPayload,$cmbBomQRPayload) -ResultsButton $btnBomResultsView -QrButton $btnBomQRView
+})
+$cmbBomQRPayload.Add_SelectedIndexChanged({ Update-BomQRCode })
+$txtBomRoot.Add_TextChanged({ Update-BomQRCode })
+$lstBomNeed.Add_SelectedIndexChanged({ Update-BomQRCode })
+$lstBomHave.Add_SelectedIndexChanged({ Update-BomQRCode })
+
+Set-OutputViewMode -Mode 'Results' -ResultsControls @($txtStatusView,$lblHistoryPane,$txtHistoryView) -QrControls @($pnlRunQRView,$lblRunQRPayload,$cmbRunQRPayload) -ResultsButton $btnRunResultsView -QrButton $btnRunQRView
+Set-OutputViewMode -Mode 'Results' -ResultsControls @($txtClockResults) -QrControls @($pnlKronosQRView,$lblKronosQRPayload,$cmbKronosQRPayload) -ResultsButton $btnKronosResultsView -QrButton $btnKronosQRView
+Set-OutputViewMode -Mode 'Results' -ResultsControls @($txtMIResults) -QrControls @($pnlMIQRView,$lblMIQRPayload,$cmbMIQRPayload) -ResultsButton $btnMIResultsView -QrButton $btnMIQRView
+Set-OutputViewMode -Mode 'Results' -ResultsControls @($lblBomNeedCount,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight) -QrControls @($pnlBomQRView,$lblBomQRPayload,$cmbBomQRPayload) -ResultsButton $btnBomResultsView -QrButton $btnBomQRView
 
 # -- Browse button handlers --
 $btnBrowseStop.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select stop-signal file'; if ($p) { $txtStop.Text = $p } })
