@@ -491,16 +491,30 @@ Use these parsers to prototype workstation/printer extraction from PDF or image 
 python .\OCR\parse_workstation_map.py `
   --map ".\OCR\Jude's 2026 Buildout Project.pdf" `
   --out-csv .\OCR\workstations.csv `
-  --out-overlay .\OCR\workstations_overlay.png
+  --out-html .\OCR\workstations.html `
+  --out-overlay .\OCR\workstations_overlay.png `
+  --out-summary-json .\OCR\workstations_summary.json `
+  --confidence-threshold 0.75 `
+  --legend-keyword workstation
 
 # Printer map parser (green markers -> PrinterID,x,y)
 python .\OCR\parse_printer_map.py `
   --map ".\OCR\Jude's 2026 Buildout Project.pdf" `
   --out-csv .\OCR\printers.csv `
-  --out-overlay .\OCR\printers_overlay.png
+  --out-html .\OCR\printers.html `
+  --out-overlay .\OCR\printers_overlay.png `
+  --out-summary-json .\OCR\printers_summary.json `
+  --confidence-threshold 0.75 `
+  --legend-keyword printer
 ```
 
 Notes:
 - PDF input requires `pypdfium2` to render pages (`pip install pypdfium2`).
 - OCR still relies on `pytesseract`; quality is constrained by source-map resolution.
 - These are starter engines for layout-aware parsing and can be tuned per site map style.
+- Each parser now emits per-point confidence (`confidence`, `status`) so uncertain detections can be triaged (`status=ambiguous`).
+- Parsers OCR the right-side legend region, derive legend totals for `--legend-keyword`, and compare engine totals vs legend counts (`mismatch` in summary JSON).
+- Parsers generate a suite-style universal HTML report paired with CSV output (`--out-html` optional; defaults to same base name as `--out-csv`).
+- Confidence interpretation:
+  - `certain`: confidence >= threshold (default `0.75`)
+  - `ambiguous`: confidence < threshold and should be reviewed manually

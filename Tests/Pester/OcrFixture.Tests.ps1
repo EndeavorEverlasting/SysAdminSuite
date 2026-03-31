@@ -94,5 +94,30 @@ Describe 'OCR parser engine contracts' {
         $content | Should -Match 'def load_map_bgr'
         $content | Should -Match 'pypdfium2'
         $content | Should -Match 'def summarize_quality'
+        $content | Should -Match 'if mask is None'
+        $content | Should -Match 'np\.zeros\(hsv\.shape\[:2\], dtype=np\.uint8\)'
+        $content | Should -Match 'cv2\.morphologyEx'
+        $content | Should -Match 'def compare_detected_to_legend'
+        $content | Should -Match 'def ocr_digits_with_confidence'
+    }
+
+    It 'Parsers expose confidence and legend comparison arguments' {
+        $wsContent = Get-Content -Path $script:wsParserPath -Raw
+        $prContent = Get-Content -Path $script:prParserPath -Raw
+        $coreContent = Get-Content -Path $script:corePath -Raw
+
+        $coreContent | Should -Match '--out-html'
+        $wsContent | Should -Match '--confidence-threshold'
+        $wsContent | Should -Match '--legend-right-ratio'
+        $wsContent | Should -Match '--legend-keyword'
+        $wsContent | Should -Match '--out-summary-json'
+        $wsContent | Should -Match 'write_universal_html_report'
+
+        $coreContent | Should -Match '--out-html'
+        $prContent | Should -Match '--confidence-threshold'
+        $prContent | Should -Match '--legend-right-ratio'
+        $prContent | Should -Match '--legend-keyword'
+        $prContent | Should -Match '--out-summary-json'
+        $prContent | Should -Match 'write_universal_html_report'
     }
 }
