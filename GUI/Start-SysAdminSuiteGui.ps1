@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param()
 
 $runningOnWindows = if ($PSVersionTable.PSVersion.Major -ge 6) { $IsWindows } else { $env:OS -eq 'Windows_NT' }
@@ -813,6 +813,17 @@ $script:TutorialTracks = [ordered]@{
       @{ Title = 'Cybernet MachineInfo: Overview'; Highlights = @('machineInfoTab'); Body = "This uses the same Get-MachineInfo.ps1 script as Neuron, but for Cybernet or any Windows workstation.`n`nIt collects: Serial, IP, MAC, and Monitor Serials via WMI.`n`nThe only difference is the host list you provide." }
       @{ Title = 'Cybernet MachineInfo: Use the Machine Info Tab'; Highlights = @('machineInfoTab','txtMITargets'); ComboSelect = @{ cmbMIMode = 0 }; Body = "We have switched you to the Machine Info tab and selected Get-MachineInfo in the dropdown.`n`nType Cybernet hostnames in the Targets box:`n  CYBER-WKS001`n  CYBER-WKS002`n`nOr load a host list file using the [...] button.`n`nTip: Increase Throttle to 30 for large lists." }
       @{ Title = 'Cybernet MachineInfo: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. Results appear in the pane below.`n`nOutput CSV columns:`n`n  Timestamp | HostName | Serial | IPAddress | MACAddress | MonitorSerials | Status`n`n  2026-03-24  CYBER-WKS001  MXL987  10.2.1.10  AA:BB:CC:DD:EE:FF  MON-SN1  OK`n  2026-03-24  CYBER-WKS002  MXL988  10.2.1.11  11:22:33:44:55:66  MON-SN2  OK`n`nClick Copy Results or Open Output Folder.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+  'CybernetsNeuronCapsule' = @{
+    Label = [char]0x25CE + '  Cybernets Neuron Capsule'
+    Desc  = 'Guide techs to view a Cybernets neuron capsule'
+    Color = [System.Drawing.Color]::FromArgb(75,105,180)
+    Steps = @(
+      @{ Title = 'Neuron Capsule: Overview'; Highlights = @('machineInfoTab','cmbMIMode'); ComboSelect = @{ cmbMIMode = 8 }; Body = "This tutorial shows technicians how to view a Cybernets-associated neuron capsule from the GUI.`n`nWe use the QR Task Runner mode so a short task name maps to a local diagnostic script.`n`nYou should already be on the Machine Info tab with QR Task Runner selected." }
+      @{ Title = 'Neuron Capsule: Enter the Task'; Highlights = @('txtMITargets'); Body = "In the Targets box, clear existing text and type exactly:`n`n  NeuronTrace`n`nThis task is used as the neuron capsule view workflow in Cybernets support." }
+      @{ Title = 'Neuron Capsule: Run from GUI'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe.`n`nThe GUI calls Invoke-TechTask.ps1 with the task name you entered and runs the task locally.`n`nThe Results pane should populate with capsule/trace output for quick technician review." }
+      @{ Title = 'Neuron Capsule: Verify and Save'; Highlights = @('btnOpenMIOutput','txtMIResults'); Body = "Review the Results pane for the expected capsule output, then click Open Output Folder.`n`nThe run writes a timestamped .txt artifact to GetInfo\Output\QRTasks so you can attach it to tickets or escalations.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'RamInfo' = @{
