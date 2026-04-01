@@ -363,11 +363,14 @@ in this repo.
 # QR payload for RAM profile (fits in a small QR code):
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
 
-# Other tasks: ModelInfo, NetworkInfo, Serials
+# Other tasks: ModelInfo, NetworkInfo, Serials, NeuronTrace
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task ModelInfo
 
 # List available tasks:
 .\QRTasks\Invoke-TechTask.ps1 -Task ?
+
+# Safety timeout (force-stop a hung probe after 90 seconds):
+.\QRTasks\Invoke-TechTask.ps1 -Task NeuronTrace -TaskTimeoutSec 90
 ```
 
 Each task script runs locally, prints results to console, and saves a
@@ -388,6 +391,7 @@ powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Inv
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task ModelInfo
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task NetworkInfo
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task Serials
+powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task NeuronTrace
 ```
 
 Practical uses:

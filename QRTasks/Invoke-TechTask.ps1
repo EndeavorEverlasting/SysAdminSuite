@@ -33,8 +33,16 @@ param(
     [Parameter(Position = 0)]
     [string]$Task,
 
-    [string]$ScriptRoot = $PSScriptRoot
+    [string]$ScriptRoot = '',
+
+    [int]$TaskTimeoutSec = 180,
+
+    [switch]$DisableTaskTimeout
 )
+
+if ([string]::IsNullOrWhiteSpace($ScriptRoot)) {
+    $ScriptRoot = Split-Path -Parent $PSCommandPath
+}
 
 # ── Task registry ────────────────────────────────────────────────────
 # Map short names to script filenames (relative to $ScriptRoot).
@@ -43,6 +51,7 @@ $TaskMap = [ordered]@{
     ModelInfo   = 'Get-ModelInfo.ps1'
     NetworkInfo = 'Get-NetworkInfo.ps1'
     Serials     = 'Get-Serials.ps1'
+    NeuronTrace = 'Get-NeuronTrace.ps1'
 }
 
 # ── Help / list mode ────────────────────────────────────────────────
@@ -75,5 +84,37 @@ if (-not (Test-Path -LiteralPath $targetScript)) {
 Write-Host "`n  Running task: $Task" -ForegroundColor Cyan
 Write-Host "  Script:       $targetScript`n" -ForegroundColor DarkGray
 
-& $targetScript
+if (-not $DisableTaskTimeout -and $TaskTimeoutSec -lt 5) {
+    Write-Warning "TaskTimeoutSec must be >= 5. Using 5 seconds."
+    $TaskTimeoutSec = 5
+}
+
+$script:CurrentTaskJob = $null
+trap [System.Management.Automation.PipelineStoppedException] {
+    if ($script:CurrentTaskJob -and $script:CurrentTaskJob.State -eq 'Running') {
+        Stop-Job -Job $script:CurrentTaskJob -ErrorAction SilentlyContinue | Out-Null
+        Remove-Job -Job $script:CurrentTaskJob -ErrorAction SilentlyContinue | Out-Null
+    }
+    Write-Warning 'Task interrupted (Ctrl+C). Running probe job has been stopped.'
+    break
+}
+
+if ($DisableTaskTimeout) {
+    & $targetScript
+    return
+}
+
+$script:CurrentTaskJob = Start-Job -ScriptBlock {
+    param([string]$ScriptPath)
+    & $ScriptPath
+} -ArgumentList $targetScript
+
+if (Wait-Job -Job $script:CurrentTaskJob -Timeout $TaskTimeoutSec) {
+    Receive-Job -Job $script:CurrentTaskJob
+    Remove-Job -Job $script:CurrentTaskJob -ErrorAction SilentlyContinue | Out-Null
+} else {
+    Stop-Job -Job $script:CurrentTaskJob -ErrorAction SilentlyContinue | Out-Null
+    Remove-Job -Job $script:CurrentTaskJob -ErrorAction SilentlyContinue | Out-Null
+    throw "Task '$Task' exceeded timeout ($TaskTimeoutSec s) and was force-stopped."
+}
 
