@@ -36,3 +36,5 @@ _*
 # Node (if any tooling gets added)
 node_modules/
 
+# Local OCR reference PDF (not tracked)
+OCR/Jude's 2026 Buildout Project.pdf
