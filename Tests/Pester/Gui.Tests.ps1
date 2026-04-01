@@ -257,6 +257,10 @@ Describe 'Tutorial coverage -- every use case has a tutorial track' {
     It 'QR Task Runner appears in the Machine Info dropdown' {
         $script:guiContent | Should -Match 'QR Task Runner.*run a QR diagnostic task locally'
     }
+
+    It 'QR Text Generator appears in the Machine Info dropdown' {
+        $script:guiContent | Should -Match 'QR Text Generator.*offline text to QR image'
+    }
 }
 
 Describe 'Tutorial text quality -- no AI slop' {
@@ -626,6 +630,35 @@ Describe 'QR Task Runner -- GUI scan workflow contracts' {
         $script:guiContent | Should -Match 'New-QRBitmap -Text \$qrPayload -PixelsPerModule 4'
         $script:guiContent | Should -Match 'if\s*\(\$bmp\)[\s\S]*?picMIQR\.Image\s*=\s*\$bmp'
         $script:guiContent | Should -Match 'if\s*\(\$bmp\)[\s\S]*?picMIQR\.Visible\s*=\s*\$true'
+    }
+}
+
+Describe 'Offline QR Text Generator contracts' {
+    BeforeAll {
+        $script:guiContent = Get-Content -Path $script:guiPath -Raw
+    }
+
+    It 'Adds Machine Info mode index 9 for offline text-to-QR generation' {
+        $script:guiContent | Should -Match 'SelectedIndex\s*-eq\s*9'
+        $script:guiContent | Should -Match 'QRGenerator\\QRGenerator_Output\.txt'
+    }
+
+    It 'Switches labels and action text when QR Text Generator mode is selected' {
+        $script:guiContent | Should -Match 'Text to encode into QR'
+        $script:guiContent | Should -Match 'Generate QR'
+    }
+
+    It 'Writes text artifact and QR PNG locally without internet dependencies' {
+        $script:guiContent | Should -Match 'Set-Content -LiteralPath \$outPath'
+        $script:guiContent | Should -Match '\[System\.IO\.Path\]::ChangeExtension\(\$outPath, ''\.png''\)'
+        $script:guiContent | Should -Match '\$bmp\.Save\(\$pngPath,\s*\[System\.Drawing\.Imaging\.ImageFormat\]::Png\)'
+        $script:guiContent | Should -Match 'QRCoder\.dll is not available'
+    }
+
+    It 'Shows generated QR in the Machine Info QR pane after generation' {
+        $script:guiContent | Should -Match 'picMIQR\.Image = \$bmp'
+        $script:guiContent | Should -Match 'picMIQR\.Visible = \$true'
+        $script:guiContent | Should -Match 'Offline QR generated successfully'
     }
 }
 

@@ -150,10 +150,24 @@ On first launch a **menu-based tutorial** appears with 12 use-case tracks. Pick 
 |-----|-------------|
 | **Run Control** | Configure and launch printer-mapping runs (Recon, Plan, Full Run), monitor live status, undo/redo changes |
 | **Kronos Lookup** | Probe network clocks by IP, collect MAC/serial/model, search saved inventories |
-| **Machine Info** | Run Get-MachineInfo or Get-PrinterMacSerial from the GUI — enter targets, pick output path, view results inline |
+| **Machine Info** | Run GetInfo probes or use Offline QR Text Generator — enter targets/text, pick output path, view results inline/QR |
 | **UTF-8 BOM Sync** | Scan repo for files with/without UTF-8 BOM, move files between panels, and sync to apply BOM to all selected files |
 
 All path fields (Stop signal, Status, History, CSV paths) are clickable — click them to open a file browser.
+
+### Offline QR Generation In GUI
+
+No internet service is required for QR generation. In the **Machine Info** tab:
+
+1. Set **Script** to `QR Text Generator  (offline text to QR image)`.
+2. Paste any text payload into the **Targets** box.
+3. Click **Generate QR**.
+
+The app generates and saves both:
+- a UTF-8 text artifact (`...QRGenerator_Output.txt`)
+- a local PNG QR image (`...QRGenerator_Output.png`)
+
+The generated QR also appears in the built-in QR pane for immediate screen scanning by technicians.
 
 ### Tutorial Architecture (for contributors)
 

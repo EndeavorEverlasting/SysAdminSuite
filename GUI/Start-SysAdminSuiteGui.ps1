@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param()
 
 $runningOnWindows = if ($PSVersionTable.PSVersion.Major -ge 6) { $IsWindows } else { $env:OS -eq 'Windows_NT' }
@@ -58,7 +58,7 @@ if (Test-Path -LiteralPath $script:HaroldImagePath) {
     $splash.Controls.Add($picBox)
 
     $splashLabel = New-Object System.Windows.Forms.Label
-    $splashLabel.Text = 'SysAdminSuite  –  Loading...'
+    $splashLabel.Text = 'SysAdminSuite - Loading...'
     $splashLabel.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 13)
     $splashLabel.ForeColor = [System.Drawing.Color]::White
     $splashLabel.BackColor = [System.Drawing.Color]::FromArgb(180, 0, 0, 0)
@@ -1451,7 +1451,8 @@ $cmbMIMode.Location = '80,19'; $cmbMIMode.Size = '280,24'; $cmbMIMode.DropDownSt
   'QueueInventory  (print server queue SNMP probe)',
   'Get-WindowsKey  (pull Windows product key)',
   'Inventory-Software  (installed software audit)',
-  'QR Task Runner  (run a QR diagnostic task locally)'
+  'QR Task Runner  (run a QR diagnostic task locally)',
+  'QR Text Generator  (offline text to QR image)'
 ) | ForEach-Object { [void]$cmbMIMode.Items.Add($_) }
 $cmbMIMode.SelectedIndex = 0
 
@@ -1555,6 +1556,16 @@ $cmbMIMode.Add_SelectedIndexChanged({
     6 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\WindowsKey\WindowsKey_Output.csv') }
     7 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\SoftwareInventory\SoftwareInventory_Output.csv') }
     8 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\QRTasks\QRTask_Output.txt') }
+    9 { $txtMIOutCsv.Text = (Join-Path $repoRoot 'GetInfo\Output\QRGenerator\QRGenerator_Output.txt') }
+  }
+
+  if ($cmbMIMode.SelectedIndex -eq 9) {
+    $lblMITargets.Text = 'Text to encode into QR (paste any notes, IDs, or commands)'
+    $txtMIListPath.Text = ''
+    $btnMIRun.Text = [char]0x25B6 + '  Generate QR'
+  } else {
+    $lblMITargets.Text = 'Targets (one hostname or IP per line)'
+    $btnMIRun.Text = [char]0x25B6 + '  Run Probe'
   }
 })
 
@@ -1565,11 +1576,12 @@ $btnMIRun.Add_Click({
     $inlineTargets = @($txtMITargets.Lines | Where-Object { $_ -and $_.Trim() } | ForEach-Object { $_.Trim() })
     $listFile = $txtMIListPath.Text
     $hasListFile = ($listFile -and (Test-Path -LiteralPath $listFile))
-    # QR Task Runner (index 8) can run with empty targets to list tasks
-    if ($cmbMIMode.SelectedIndex -ne 8 -and -not $inlineTargets.Count -and -not $hasListFile) { throw 'Enter at least one target or select a host list file.' }
+    # QR Task Runner (index 8) can run with empty targets to list tasks.
+    # QR Text Generator (index 9) uses the raw textbox content, not list targets.
+    if ($cmbMIMode.SelectedIndex -ne 8 -and $cmbMIMode.SelectedIndex -ne 9 -and -not $inlineTargets.Count -and -not $hasListFile) { throw 'Enter at least one target or select a host list file.' }
 
     $outPath = $txtMIOutCsv.Text
-    # QR Task Runner doesn't need a CSV path -- it writes to Desktop
+    # QR Task Runner doesn't require a CSV path. QR Text Generator writes local text+PNG artifacts.
     if ($cmbMIMode.SelectedIndex -ne 8 -and [string]::IsNullOrWhiteSpace($outPath)) { throw 'Select an output CSV path.' }
     if (-not [string]::IsNullOrWhiteSpace($outPath)) {
       $outDir = Split-Path -Parent $outPath
@@ -1770,6 +1782,47 @@ $btnMIRun.Add_Click({
             $txtMIResults.Text = "Task '$taskName' completed but no output file found in GetInfo\Output."
             $picMIQR.Image = $null; $picMIQR.Visible = $false
           }
+        }
+      }
+      9 {
+        # QR Text Generator -- offline ad-hoc text to QR bitmap + text artifact
+        $qrText = ($txtMITargets.Text | Out-String).Trim()
+        if ([string]::IsNullOrWhiteSpace($qrText)) {
+          throw 'Enter text in the Targets box to generate an offline QR code.'
+        }
+
+        if ([string]::IsNullOrWhiteSpace($outPath)) {
+          $outPath = Join-Path $repoRoot 'GetInfo\Output\QRGenerator\QRGenerator_Output.txt'
+        }
+        $outDir = Split-Path -Parent $outPath
+        if ($outDir -and -not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+
+        Set-Content -LiteralPath $outPath -Value $qrText -Encoding UTF8
+        $pngPath = [System.IO.Path]::ChangeExtension($outPath, '.png')
+
+        if (-not $script:QRCoderAvailable) {
+          throw "QRCoder.dll is not available. Ensure 'lib\QRCoder.dll' exists."
+        }
+
+        $payload = Get-QRPayload -Text $qrText
+        $bmp = New-QRBitmap -Text $payload -PixelsPerModule 6
+        if (-not $bmp) { throw 'Failed to generate QR bitmap from input text.' }
+        try {
+          $bmp.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
+          if ($picMIQR.Image) { $picMIQR.Image.Dispose() }
+          $picMIQR.Image = $bmp
+          $picMIQR.Visible = $true
+          $txtMIResults.Text = @(
+            'Offline QR generated successfully.'
+            ''
+            "Text artifact: $outPath"
+            "QR image:      $pngPath"
+            ''
+            'Tip: click Show QR to present a large scannable code.'
+          ) -join "`n"
+        } catch {
+          $bmp.Dispose()
+          throw
         }
       }
     }
