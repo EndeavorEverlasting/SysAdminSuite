@@ -30,6 +30,9 @@ Config/exports/
 # GetInfo output artifacts (generated at runtime per probe)
 GetInfo/Output/
 
+# GUI lifecycle/crash output artifacts
+GUI/Output/
+
 # Temp diagnostic / scratch scripts at repo root
 _*
 
