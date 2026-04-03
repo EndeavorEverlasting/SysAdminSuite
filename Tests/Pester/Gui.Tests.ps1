@@ -57,6 +57,14 @@ Describe 'Start-SysAdminSuiteGui.ps1 -- script-level checks' {
         $content | Should -Match 'Probe live clocks or search a saved inventory CSV'
     }
 
+    It 'Marks output buttons green when probe output exists' {
+        $content = Get-Content -Path $script:guiPath -Raw
+        $content | Should -Match 'function Set-OutputReadyButtonColor'
+        $content | Should -Match 'btnOpenMIOutput'
+        $content | Should -Match 'btnBrowseClockOut'
+        $content | Should -Match 'FromArgb\(227,248,227\)'
+    }
+
     It 'Uses GroupBox controls for visual grouping and hierarchy' {
         $content = Get-Content -Path $script:guiPath -Raw
         $content | Should -Match 'GroupBox'
@@ -64,6 +72,17 @@ Describe 'Start-SysAdminSuiteGui.ps1 -- script-level checks' {
         $content | Should -Match 'Run Options'
         $content | Should -Match 'Launch Configuration'
         $content | Should -Match 'Kronos Clock Probe / Inventory'
+    }
+
+    It 'Exposes a dedicated Compare tab for source-vs-target support/software diff runs' {
+        $content = Get-Content -Path $script:guiPath -Raw
+        $content | Should -Match 'compareTab'
+        $content | Should -Match 'Source vs Target Diff'
+        $content | Should -Match 'txtCompareSource'
+        $content | Should -Match 'txtCompareTargets'
+        $content | Should -Match 'btnCompareRun'
+        $content | Should -Match 'btnCompareOpenOutput'
+        $content | Should -Match 'Compare-HostInventory\.ps1'
     }
 
     It 'Provides browse dialogs for path text fields' {
@@ -144,6 +163,29 @@ Describe 'Start-SysAdminSuiteGui.ps1 -- script-level checks' {
         $content | Should -Match 'PipelineStoppedException'
         $content | Should -Match 'add_ThreadException'
         $content | Should -Match 'UnhandledExceptionMode'
+    }
+
+    It 'Defines GUI lifecycle crash-report plumbing and output folder' {
+        $content = Get-Content -Path $script:guiPath -Raw
+        $content | Should -Match 'ConvertTo-SuiteHtml'
+        $content | Should -Match 'Write-GuiLifecycleReport'
+        $content | Should -Match 'GUI\\Output\\CrashReports'
+        $content | Should -Match 'GuiSessionId'
+    }
+
+    It 'Writes lifecycle HTML reports on close and host-exit fallback' {
+        $content = Get-Content -Path $script:guiPath -Raw
+        $content | Should -Match 'Add_FormClosing'
+        $content | Should -Match "EventType 'FormClosing'"
+        $content | Should -Match "EventType 'HostExit'"
+    }
+
+    It 'Captures unhandled thread and AppDomain exceptions into lifecycle reports' {
+        $content = Get-Content -Path $script:guiPath -Raw
+        $content | Should -Match 'add_ThreadException'
+        $content | Should -Match 'add_UnhandledException'
+        $content | Should -Match "EventType 'ThreadException'"
+        $content | Should -Match "EventType 'DomainUnhandledException'"
     }
 
     It 'Includes Get-WindowsKey in the Machine Info script picker' {
@@ -240,6 +282,13 @@ Describe 'Tutorial coverage -- every use case has a tutorial track' {
 
     It 'Has a tutorial track for PS Version Pivot' {
         $script:guiContent | Should -Match "'PSVersionPivot'|PS Version Pivot"
+    }
+
+    It 'Has a tutorial track for Support Directory Diff workflow' {
+        $script:guiContent | Should -Match "'SupportDirectoryDiff'|Support Directory Diff"
+        $script:guiContent | Should -Match 'Compare tab'
+        $script:guiContent | Should -Match 'Compare-HostInventory\.ps1'
+        $script:guiContent | Should -Match 'support_diff_'
     }
 
     It 'Has a tutorial track for Network Testing' {

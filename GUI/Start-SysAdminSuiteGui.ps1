@@ -17,6 +17,18 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $kronosScript = Join-Path $repoRoot 'GetInfo\Get-KronosClockInfo.ps1'
 $workerScript = Join-Path $repoRoot 'Mapping\Workers\Map-MachineWide.ps1'
 $controllerScript = Join-Path $repoRoot 'Mapping\Controllers\Map-Run-Controller.ps1'
+$compareInventoryScript = Join-Path $repoRoot 'Config\Compare-HostInventory.ps1'
+$script:SuiteHtmlHelperPath = Join-Path $repoRoot 'tools\ConvertTo-SuiteHtml.ps1'
+$script:SuiteHtmlHelperLoaded = $false
+if (Test-Path -LiteralPath $script:SuiteHtmlHelperPath) {
+  . $script:SuiteHtmlHelperPath
+  $script:SuiteHtmlHelperLoaded = $true
+}
+$script:GuiStartTime = Get-Date
+$script:GuiSessionId = ([guid]::NewGuid().ToString('N')).Substring(0, 12)
+$script:GuiReportDir = Join-Path $repoRoot 'GUI\Output\CrashReports'
+$script:GuiExitReportWritten = $false
+try { New-Item -ItemType Directory -Path $script:GuiReportDir -Force | Out-Null } catch {}
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -92,6 +104,69 @@ function Format-ObjectText {
     return (($items | Format-Table -AutoSize | Out-String).Trim())
   }
   return (($InputObject | ConvertTo-Json -Depth 8) | Out-String).Trim()
+}
+
+function Write-GuiLifecycleReport {
+  param(
+    [Parameter(Mandatory)][string]$EventType,
+    [string]$Message = '',
+    [object]$ExceptionObject,
+    [string]$CloseReason = ''
+  )
+
+  try {
+    $now = Get-Date
+    $duration = [math]::Round(($now - $script:GuiStartTime).TotalSeconds, 1)
+    $statusText = ''
+    $tabName = ''
+    $runSession = ''
+
+    if ($script:statusLabel -and $script:statusLabel.Text) { $statusText = $script:statusLabel.Text }
+    if ($tabs -and $tabs.SelectedTab -and $tabs.SelectedTab.Text) { $tabName = $tabs.SelectedTab.Text }
+    if ($txtSession -and $txtSession.Text) { $runSession = $txtSession.Text }
+
+    $ex = $null
+    if ($ExceptionObject -is [System.Management.Automation.ErrorRecord]) { $ex = $ExceptionObject.Exception }
+    elseif ($ExceptionObject -is [System.Exception]) { $ex = $ExceptionObject }
+    elseif ($ExceptionObject -and $ExceptionObject.ExceptionObject -is [System.Exception]) { $ex = $ExceptionObject.ExceptionObject }
+
+    $rows = @(
+      [pscustomobject]@{ Key = 'Event'; Value = $EventType }
+      [pscustomobject]@{ Key = 'OccurredAt'; Value = $now.ToString('s') }
+      [pscustomobject]@{ Key = 'SessionId'; Value = $script:GuiSessionId }
+      [pscustomobject]@{ Key = 'RuntimeSeconds'; Value = $duration }
+      [pscustomobject]@{ Key = 'CloseReason'; Value = $CloseReason }
+      [pscustomobject]@{ Key = 'Message'; Value = $Message }
+      [pscustomobject]@{ Key = 'ActiveTab'; Value = $tabName }
+      [pscustomobject]@{ Key = 'StatusBar'; Value = $statusText }
+      [pscustomobject]@{ Key = 'CurrentRunSession'; Value = $runSession }
+      [pscustomobject]@{ Key = 'PSVersion'; Value = "$($PSVersionTable.PSVersion)" }
+    )
+
+    $exDetails = ''
+    if ($ex) {
+      $exDetails = @"
+<h2>Exception</h2>
+<pre>$([System.Net.WebUtility]::HtmlEncode(($ex | Format-List * -Force | Out-String)))</pre>
+"@
+    }
+
+    $tableFragment = $rows | ConvertTo-Html -Fragment -PreContent '<h2>GUI Lifecycle Report</h2>'
+    $body = @($tableFragment, $exDetails) -join "`n"
+
+    $baseName = "GuiReport_{0}_{1}_{2}" -f $EventType, $script:GuiSessionId, $now.ToString('yyyyMMdd_HHmmss')
+    $outPath = Join-Path $script:GuiReportDir ($baseName + '.html')
+
+    if ($script:SuiteHtmlHelperLoaded) {
+      ConvertTo-SuiteHtml -Title "SysAdminSuite GUI - $EventType" -Subtitle $env:COMPUTERNAME -SummaryChips @("Session: $($script:GuiSessionId)", "Runtime(s): $duration") -BodyFragment $body -OutputPath $outPath
+    } else {
+      $fallback = "<html><body><h1>SysAdminSuite GUI - $EventType</h1>$body</body></html>"
+      Set-Content -LiteralPath $outPath -Value $fallback -Encoding UTF8
+    }
+    if ($EventType -eq 'FormClosing' -or $EventType -eq 'HostExit') { $script:GuiExitReportWritten = $true }
+  } catch {
+    # Do not let lifecycle reporting crash the GUI.
+  }
 }
 
 # -- Machine Info results cache for resize-aware rendering --
@@ -480,6 +555,16 @@ function Set-StatusBarText {
   if ($script:StatusMessageLabel) { $script:StatusMessageLabel.Text = if ($Message) { $Message } else { '' } }
 }
 
+function Set-OutputReadyButtonColor {
+  param(
+    [System.Windows.Forms.Button]$Button,
+    [bool]$IsReady
+  )
+
+  if (-not $Button) { return }
+  $Button.BackColor = if ($IsReady) { [System.Drawing.Color]::FromArgb(227,248,227) } else { [System.Drawing.Color]::White }
+}
+
 function Copy-TextToClipboard {
   param(
     [string]$Value,
@@ -856,6 +941,17 @@ $script:TutorialTracks = [ordered]@{
       @{ Title = 'Software Inventory: Enter Targets'; Highlights = @('machineInfoTab','txtMITargets','btnMIRun'); Body = "Type hostnames in the Targets box, one per line.`nOr click [...] next to Host List File to load a text file.`n`nTip: Type your own machine name (or leave it as default) to test locally.`n`nThe script reads the registry ARP hives (32-bit + 64-bit) on each target.`nFor remote machines it uses Invoke-Command, so WinRM must be enabled." }
       @{ Title = 'Software Inventory: Run and Review'; Highlights = @('btnMIRun','txtMIResults'); Body = "Click Run Probe. The script inventories each host and displays results in the pane below.`n`nKey columns:`n  Name | Version | Publisher | Host`n`nThe full CSV is saved to the Output CSV path shown above.`n`nClick Copy Results to grab the table, or Open Output Folder for the file." }
       @{ Title = 'Software Inventory: Superset Merge'; Highlights = @('txtMIResults','btnOpenMIOutput'); Body = "After inventorying multiple hosts, run from PowerShell:`n`n  .\\Config\\Inventory-Software.ps1 -ComputerName Host1,Host2`n`n(without -NoMerge) to build a superset CSV that picks the best version of each product across all hosts.`n`nUse Runbook-Inventory.ps1 to cross-check the superset against your expected software list.`n`nPress the Menu button below to try another tutorial." }
+    )
+  }
+  'SupportDirectoryDiff' = @{
+    Label = [char]0x2260 + '  Support Directory Diff'
+    Desc  = 'Compare \\HOST\c$\support files and software'
+    Color = [System.Drawing.Color]::FromArgb(70,110,150)
+    Steps = @(
+      @{ Title = 'Support Diff: Open the Compare Tab'; Highlights = @('compareTab'); Body = "Use this workflow when SIS support files must match a known-good workstation.`n`nGo to the Compare tab in the GUI. It compares a source host to one or more targets for:`n  - \\HOST\c$\support file inventory + diffs`n  - installed software inventory + diffs`n`nEach run writes CSV + HTML reports." }
+      @{ Title = 'Support Diff: Enter Source and Targets'; Highlights = @('txtCompareSource','txtCompareTargets','btnCompareRun'); Body = "In Source Host, enter the known-good workstation.`nIn Target Hosts, enter one hostname per line.`n`nThen click Run Compare.`nOptional toggles let you skip support files, skip software, or skip file hashing for speed." }
+      @{ Title = 'Support Diff: Open Output Folder'; Highlights = @('btnCompareOpenOutput','txtCompareResults'); Body = "After a successful run, click Open Output Folder.`n`nReports are under:`n  <RepoRoot>\\inventory\\comparisons\\run_YYYYMMDD_HHMMSS`n`nKey files:`n  support_diff_SOURCE_vs_TARGET.html`n  software_diff_SOURCE_vs_TARGET.html" }
+      @{ Title = 'Support Diff: Review and Action'; Highlights = @('txtCompareResults'); Body = "Focus on Status values in the HTML reports:`n  MissingOnTarget, ExtraOnTarget, Changed, Match`n`nUse these differences to confirm SIS support directory readiness before deployment.`n`nPress the Menu button below to try another tutorial." }
     )
   }
   'NetworkTest' = @{
@@ -1430,6 +1526,64 @@ $pnlKronosQRView.Controls.AddRange(@($lblKronosQR,$picKronosQR,$lblKronosQRHint)
 
 $kronosTab.Controls.AddRange(@($grpKronos,$lblKronosResults,$lblKronosView,$btnKronosResultsView,$btnKronosQRView,$lblKronosQRPayload,$cmbKronosQRPayload,$txtClockResults,$pnlKronosQRView))
 
+# -- Compare Tab --
+$compareTab = New-Object System.Windows.Forms.TabPage
+$compareTab.Text = 'Compare'
+$compareTab.BackColor = [System.Drawing.Color]::WhiteSmoke
+$script:LastCompareRunFolder = $null
+
+$grpCompare = New-Object System.Windows.Forms.GroupBox
+$grpCompare.Text = 'Source vs Target Diff (Support + Software)'; $grpCompare.Location = '6,6'; $grpCompare.Size = '952,220'; $grpCompare.Anchor = 'Top, Left, Right'; $grpCompare.Font = $emphasisFont
+
+$lblCompareSource = New-Object System.Windows.Forms.Label
+$lblCompareSource.Location = '10,22'; $lblCompareSource.Size = '90,18'; $lblCompareSource.Text = 'Source Host'; $lblCompareSource.Font = $emphasisFont
+$txtCompareSource = New-Object System.Windows.Forms.TextBox
+$txtCompareSource.Location = '10,42'; $txtCompareSource.Size = '280,24'; $txtCompareSource.Font = $uiFont; $txtCompareSource.Text = $env:COMPUTERNAME
+
+$lblCompareTargets = New-Object System.Windows.Forms.Label
+$lblCompareTargets.Location = '10,74'; $lblCompareTargets.Size = '200,18'; $lblCompareTargets.Text = 'Target Hosts (one per line)'; $lblCompareTargets.Font = $emphasisFont
+$txtCompareTargets = New-Object System.Windows.Forms.TextBox
+$txtCompareTargets.Location = '10,94'; $txtCompareTargets.Size = '280,112'; $txtCompareTargets.Multiline = $true; $txtCompareTargets.ScrollBars = 'Vertical'; $txtCompareTargets.AcceptsReturn = $true; $txtCompareTargets.Font = $uiFont
+
+$lblCompareRepoHost = New-Object System.Windows.Forms.Label
+$lblCompareRepoHost.Location = '310,22'; $lblCompareRepoHost.Size = '90,18'; $lblCompareRepoHost.Text = 'Repo Host'; $lblCompareRepoHost.Font = $emphasisFont
+$txtCompareRepoHost = New-Object System.Windows.Forms.TextBox
+$txtCompareRepoHost.Location = '310,42'; $txtCompareRepoHost.Size = '260,24'; $txtCompareRepoHost.Font = $uiFont; $txtCompareRepoHost.Text = if ($env:REPO_HOST) { $env:REPO_HOST } else { $env:COMPUTERNAME }
+
+$lblCompareRepoRoot = New-Object System.Windows.Forms.Label
+$lblCompareRepoRoot.Location = '580,22'; $lblCompareRepoRoot.Size = '85,18'; $lblCompareRepoRoot.Text = 'Repo Root'; $lblCompareRepoRoot.Font = $emphasisFont
+$txtCompareRepoRoot = New-Object System.Windows.Forms.TextBox
+$txtCompareRepoRoot.Location = '580,42'; $txtCompareRepoRoot.Size = '325,24'; $txtCompareRepoRoot.Font = $uiFont; $txtCompareRepoRoot.ReadOnly = $true; $txtCompareRepoRoot.Cursor = 'Hand'; $txtCompareRepoRoot.BackColor = [System.Drawing.Color]::White
+$btnBrowseCompareRepoRoot = New-Object System.Windows.Forms.Button
+$btnBrowseCompareRepoRoot.Location = '911,41'; $btnBrowseCompareRepoRoot.Size = '30,26'; $btnBrowseCompareRepoRoot.Text = [char]0x2026; $btnBrowseCompareRepoRoot.Anchor = 'Top, Right'; $btnBrowseCompareRepoRoot.FlatStyle = 'Flat'; $btnBrowseCompareRepoRoot.Font = $uiFont
+
+$chkCompareSkipSupport = New-Object System.Windows.Forms.CheckBox
+$chkCompareSkipSupport.Location = '310,80'; $chkCompareSkipSupport.Size = '180,22'; $chkCompareSkipSupport.Text = 'Skip support file diff'; $chkCompareSkipSupport.Font = $uiFont
+$chkCompareSkipSoftware = New-Object System.Windows.Forms.CheckBox
+$chkCompareSkipSoftware.Location = '500,80'; $chkCompareSkipSoftware.Size = '170,22'; $chkCompareSkipSoftware.Text = 'Skip software diff'; $chkCompareSkipSoftware.Font = $uiFont
+$chkCompareSkipHash = New-Object System.Windows.Forms.CheckBox
+$chkCompareSkipHash.Location = '680,80'; $chkCompareSkipHash.Size = '210,22'; $chkCompareSkipHash.Text = 'Skip support file hashing'; $chkCompareSkipHash.Font = $uiFont
+
+$btnCompareRun = New-Object System.Windows.Forms.Button
+$btnCompareRun.Location = '310,112'; $btnCompareRun.Size = '220,40'; $btnCompareRun.Text = [char]0x25B6 + '  Run Compare'; $btnCompareRun.Font = New-Object System.Drawing.Font('Segoe UI Bold',11); $btnCompareRun.Cursor = 'Hand'; $btnCompareRun.BackColor = [System.Drawing.Color]::FromArgb(30,130,160); $btnCompareRun.ForeColor = [System.Drawing.Color]::White; $btnCompareRun.FlatStyle = 'Popup'
+$btnCompareOpenOutput = New-Object System.Windows.Forms.Button
+$btnCompareOpenOutput.Location = '540,112'; $btnCompareOpenOutput.Size = '170,40'; $btnCompareOpenOutput.Text = 'Open Output Folder'; $btnCompareOpenOutput.Font = $uiFont; $btnCompareOpenOutput.FlatStyle = 'Flat'; $btnCompareOpenOutput.BackColor = [System.Drawing.Color]::White
+
+$lblCompareRunSummary = New-Object System.Windows.Forms.Label
+$lblCompareRunSummary.Location = '310,162'; $lblCompareRunSummary.Size = '630,46'; $lblCompareRunSummary.Anchor = 'Top, Left, Right'; $lblCompareRunSummary.Font = $monoFont; $lblCompareRunSummary.Text = 'No compare run yet.'
+
+$grpCompare.Controls.AddRange(@($lblCompareSource,$txtCompareSource,$lblCompareTargets,$txtCompareTargets,$lblCompareRepoHost,$txtCompareRepoHost,$lblCompareRepoRoot,$txtCompareRepoRoot,$btnBrowseCompareRepoRoot,$chkCompareSkipSupport,$chkCompareSkipSoftware,$chkCompareSkipHash,$btnCompareRun,$btnCompareOpenOutput,$lblCompareRunSummary))
+
+$lblCompareResults = New-Object System.Windows.Forms.Label
+$lblCompareResults.Location = '8,232'; $lblCompareResults.Size = '140,18'; $lblCompareResults.Text = 'Results'; $lblCompareResults.Font = $emphasisFont
+$txtCompareResults = New-Object System.Windows.Forms.TextBox
+$txtCompareResults.Location = '6,252'; $txtCompareResults.Size = '952,398'; $txtCompareResults.Multiline = $true; $txtCompareResults.ScrollBars = 'Both'; $txtCompareResults.ReadOnly = $true; $txtCompareResults.Anchor = 'Top, Bottom, Left, Right'; $txtCompareResults.Font = $monoFont; $txtCompareResults.WordWrap = $false; $txtCompareResults.BackColor = [System.Drawing.Color]::White; $txtCompareResults.Text = 'Enter source + targets, then click Run Compare.'
+
+$defaultCompareRepoRoot = Join-Path $repoRoot 'SoftwareRepo'
+if (Test-Path -LiteralPath $defaultCompareRepoRoot) { $txtCompareRepoRoot.Text = $defaultCompareRepoRoot }
+
+$compareTab.Controls.AddRange(@($grpCompare,$lblCompareResults,$txtCompareResults))
+
 # -- Machine Info Tab --
 $machineInfoTab = New-Object System.Windows.Forms.TabPage
 $machineInfoTab.Text = 'Machine Info'
@@ -1846,10 +2000,12 @@ $btnMIRun.Add_Click({
     } else {
       $lblMIArtifactSummary.Text = ''
     }
+    Set-OutputReadyButtonColor -Button $btnOpenMIOutput -IsReady ($outPath -and (Test-Path -LiteralPath $outPath))
     Set-StatusBarText -Category 'Done' -Message "Probe complete.$(if ($outPath) { " Output: $outPath" })"
   } catch {
     $txtMIResults.Text = $_.Exception.Message
     $picMIQR.Image = $null; $picMIQR.Visible = $false
+    Set-OutputReadyButtonColor -Button $btnOpenMIOutput -IsReady $false
     Set-StatusBarText -Category 'Error' -Message 'Machine Info probe failed.'
   }
 })
@@ -2084,7 +2240,7 @@ $btnBomSync.Add_Click({
 
 $bomTab.Controls.AddRange(@($grpBom,$lblBomNeedCount,$lblBomView,$btnBomResultsView,$btnBomQRView,$lblBomQRPayload,$cmbBomQRPayload,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight,$pnlBomQRView))
 
-$tabs.TabPages.AddRange(@($runTab,$kronosTab,$machineInfoTab,$bomTab))
+$tabs.TabPages.AddRange(@($runTab,$kronosTab,$compareTab,$machineInfoTab,$bomTab))
 $form.Controls.Add($tabs)
 
 $statusStrip = New-Object System.Windows.Forms.StatusStrip
@@ -2348,6 +2504,13 @@ $toolTip.SetToolTip($txtUndo,'Click to browse for an undo/redo history file.')
 $toolTip.SetToolTip($txtClockOut,'Click to browse for an output CSV path.')
 $toolTip.SetToolTip($txtInv,'Click to browse for an inventory CSV file.')
 $toolTip.SetToolTip($btnBrowseInv,'Browse for an inventory CSV file.')
+$toolTip.SetToolTip($txtCompareSource,'Known-good source workstation hostname for baseline comparison.')
+$toolTip.SetToolTip($txtCompareTargets,'One target hostname per line to compare against the source.')
+$toolTip.SetToolTip($txtCompareRepoHost,'Optional repo host used when resolving SoftwareRepo path.')
+$toolTip.SetToolTip($txtCompareRepoRoot,'Optional explicit SoftwareRepo root. Leave empty to auto-resolve.')
+$toolTip.SetToolTip($btnBrowseCompareRepoRoot,'Browse for an explicit SoftwareRepo root folder.')
+$toolTip.SetToolTip($btnCompareRun,'Run source-vs-target support and software comparisons.')
+$toolTip.SetToolTip($btnCompareOpenOutput,'Open the latest compare run output folder.')
 $toolTip.SetToolTip($btnUndo,'Replay the top undo action. (Ctrl+Z)')
 $toolTip.SetToolTip($btnRedo,'Replay the top redo action. (Ctrl+Y)')
 $toolTip.SetToolTip($btnBomScan,'Scan the root directory for files with and without UTF-8 BOM.')
@@ -2413,6 +2576,9 @@ Set-OutputViewMode -Mode 'Results' -ResultsControls @($txtStatusView,$lblHistory
 Set-OutputViewMode -Mode 'Results' -ResultsControls @($txtClockResults) -QrControls @($pnlKronosQRView,$lblKronosQRPayload,$cmbKronosQRPayload) -ResultsButton $btnKronosResultsView -QrButton $btnKronosQRView
 Set-OutputViewMode -Mode 'Results' -ResultsControls @($txtMIResults) -QrControls @($pnlMIQRView,$lblMIQRPayload,$cmbMIQRPayload) -ResultsButton $btnMIResultsView -QrButton $btnMIQRView
 Set-OutputViewMode -Mode 'Results' -ResultsControls @($lblBomNeedCount,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight) -QrControls @($pnlBomQRView,$lblBomQRPayload,$cmbBomQRPayload) -ResultsButton $btnBomResultsView -QrButton $btnBomQRView
+Set-OutputReadyButtonColor -Button $btnBrowseClockOut -IsReady (Test-Path -LiteralPath $txtClockOut.Text)
+Set-OutputReadyButtonColor -Button $btnOpenMIOutput -IsReady (Test-Path -LiteralPath $txtMIOutCsv.Text)
+Set-OutputReadyButtonColor -Button $btnCompareOpenOutput -IsReady $false
 
 # -- Browse button handlers --
 $btnBrowseStop.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select stop-signal file'; if ($p) { $txtStop.Text = $p } })
@@ -2420,6 +2586,7 @@ $btnBrowseStatus.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select status sn
 $btnBrowseHistory.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select undo/redo history file'; if ($p) { $txtUndo.Text = $p } })
 $btnBrowseClockOut.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select output CSV path' -Filter 'CSV files (*.csv)|*.csv|All files (*.*)|*.*'; if ($p) { $txtClockOut.Text = $p } })
 $btnBrowseInv.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select inventory CSV file' -Filter 'CSV files (*.csv)|*.csv|All files (*.*)|*.*'; if ($p) { $txtInv.Text = $p } })
+$btnBrowseCompareRepoRoot.Add_Click({ $p = Show-BrowseFolderDialog -Description 'Select SoftwareRepo root folder'; if ($p) { $txtCompareRepoRoot.Text = $p } })
 
 # -- Click-to-browse on path text fields --
 $txtStop.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select stop-signal file'; if ($p) { $txtStop.Text = $p } })
@@ -2427,6 +2594,9 @@ $txtStatus.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select status snapshot
 $txtUndo.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select undo/redo history file'; if ($p) { $txtUndo.Text = $p } })
 $txtClockOut.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select output CSV path' -Filter 'CSV files (*.csv)|*.csv|All files (*.*)|*.*'; if ($p) { $txtClockOut.Text = $p } })
 $txtInv.Add_Click({ $p = Show-BrowseFileDialog -Title 'Select inventory CSV file' -Filter 'CSV files (*.csv)|*.csv|All files (*.*)|*.*'; if ($p) { $txtInv.Text = $p } })
+$txtClockOut.Add_TextChanged({ Set-OutputReadyButtonColor -Button $btnBrowseClockOut -IsReady (Test-Path -LiteralPath $txtClockOut.Text) })
+$txtMIOutCsv.Add_TextChanged({ Set-OutputReadyButtonColor -Button $btnOpenMIOutput -IsReady (Test-Path -LiteralPath $txtMIOutCsv.Text) })
+$txtCompareRepoRoot.Add_TextChanged({ Set-OutputReadyButtonColor -Button $btnCompareOpenOutput -IsReady ($script:LastCompareRunFolder -and (Test-Path -LiteralPath $script:LastCompareRunFolder)) })
 
 # -- Keyboard shortcuts (KeyDown on the form with KeyPreview) --
 $form.Add_KeyDown({
@@ -2551,9 +2721,11 @@ $btnProbe.Add_Click({
     $results = & $kronosScript -Targets $targets -OutCsv $txtClockOut.Text
     $txtInv.Text = $txtClockOut.Text
     $txtClockResults.Text = Format-ObjectText @($results)
+    Set-OutputReadyButtonColor -Button $btnBrowseClockOut -IsReady (Test-Path -LiteralPath $txtClockOut.Text)
     Set-StatusBarText -Category 'Probe' -Message "Probed $($targets.Count) target(s) and refreshed the inventory path."
   } catch {
     $txtClockResults.Text = $_.Exception.Message
+    Set-OutputReadyButtonColor -Button $btnBrowseClockOut -IsReady $false
     Set-StatusBarText -Category 'Error' -Message 'Kronos probe failed.'
   }
 })
@@ -2588,6 +2760,97 @@ $btnCopyClockResults.Add_Click({
   }
 })
 
+$btnCompareRun.Add_Click({
+  try {
+    if (-not (Test-Path -LiteralPath $compareInventoryScript)) { throw "Compare script not found: $compareInventoryScript" }
+
+    $sourceHost = if ($txtCompareSource.Text) { $txtCompareSource.Text.Trim() } else { '' }
+    if ([string]::IsNullOrWhiteSpace($sourceHost)) { throw 'Enter a source host.' }
+
+    $targets = @($txtCompareTargets.Lines | Where-Object { $_ -and $_.Trim() } | ForEach-Object { $_.Trim() } | Select-Object -Unique)
+    if (-not $targets.Count) { throw 'Enter at least one target host.' }
+
+    $repoHost = if ($txtCompareRepoHost.Text) { $txtCompareRepoHost.Text.Trim() } else { '' }
+    $explicitRepoRoot = if ($txtCompareRepoRoot.Text) { $txtCompareRepoRoot.Text.Trim() } else { '' }
+
+    Set-StatusBarText -Category 'Running' -Message "Running compare: $sourceHost vs $($targets.Count) target(s)..."
+    $txtCompareResults.Text = 'Running compare...'
+    [System.Windows.Forms.Application]::DoEvents()
+
+    $args = @{
+      SourceHost       = $sourceHost
+      TargetHost       = $targets
+      SkipSupportFiles = $chkCompareSkipSupport.Checked
+      SkipSoftware     = $chkCompareSkipSoftware.Checked
+      SkipFileHash     = $chkCompareSkipHash.Checked
+    }
+    if (-not [string]::IsNullOrWhiteSpace($repoHost)) { $args['RepoHost'] = $repoHost }
+    if (-not [string]::IsNullOrWhiteSpace($explicitRepoRoot)) { $args['RepoRoot'] = $explicitRepoRoot }
+
+    $runOutput = & $compareInventoryScript @args 2>&1
+
+    $resolvedRepoRoot = $null
+    if (-not [string]::IsNullOrWhiteSpace($explicitRepoRoot)) {
+      $resolvedRepoRoot = $explicitRepoRoot
+    } elseif (Test-Path -LiteralPath (Join-Path $repoRoot 'SoftwareRepo')) {
+      $resolvedRepoRoot = Join-Path $repoRoot 'SoftwareRepo'
+    } elseif (-not [string]::IsNullOrWhiteSpace($repoHost)) {
+      $resolvedRepoRoot = "\\$repoHost\SoftwareRepo"
+    } else {
+      $resolvedRepoRoot = 'C:\SoftwareRepo'
+    }
+
+    $compareRoot = Join-Path $resolvedRepoRoot 'inventory\comparisons'
+    $latestRun = if (Test-Path -LiteralPath $compareRoot) {
+      Get-ChildItem -Path $compareRoot -Directory -Filter 'run_*' -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
+    } else { $null }
+
+    if ($latestRun) {
+      $script:LastCompareRunFolder = $latestRun.FullName
+      $lblCompareRunSummary.Text = "Latest run: $($latestRun.FullName)"
+      Set-OutputReadyButtonColor -Button $btnCompareOpenOutput -IsReady $true
+      $artifacts = Get-ChildItem -Path $latestRun.FullName -File -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -ExpandProperty Name
+      $txtCompareResults.Text = @(
+        "Compare completed."
+        "Source: $sourceHost"
+        "Targets: $($targets -join ', ')"
+        "Run folder: $($latestRun.FullName)"
+        ''
+        'Artifacts:'
+        ($artifacts | ForEach-Object { "  $_" })
+        ''
+        'Console output:'
+        (($runOutput | Out-String).Trim())
+      ) -join "`n"
+      Set-StatusBarText -Category 'Done' -Message "Compare completed. Output: $($latestRun.FullName)"
+    } else {
+      $script:LastCompareRunFolder = $null
+      $lblCompareRunSummary.Text = 'Compare finished but no run folder was discovered.'
+      Set-OutputReadyButtonColor -Button $btnCompareOpenOutput -IsReady $false
+      $txtCompareResults.Text = (($runOutput | Out-String).Trim())
+      Set-StatusBarText -Category 'Warning' -Message 'Compare completed but no output run folder was found.'
+    }
+  } catch {
+    $script:LastCompareRunFolder = $null
+    $lblCompareRunSummary.Text = 'Compare failed.'
+    Set-OutputReadyButtonColor -Button $btnCompareOpenOutput -IsReady $false
+    $txtCompareResults.Text = $_.Exception.Message
+    Set-StatusBarText -Category 'Error' -Message 'Compare run failed.'
+  }
+})
+
+$btnCompareOpenOutput.Add_Click({
+  try {
+    if (-not $script:LastCompareRunFolder -or -not (Test-Path -LiteralPath $script:LastCompareRunFolder)) {
+      throw 'No compare run folder found yet. Run Compare first.'
+    }
+    Start-Process -FilePath 'explorer.exe' -ArgumentList @($script:LastCompareRunFolder) | Out-Null
+    Set-StatusBarText -Category 'Opened' -Message "Opened compare output folder: $($script:LastCompareRunFolder)"
+  } catch {
+    Set-StatusBarText -Category 'Error' -Message $_.Exception.Message
+  }
+})
+
 $refreshTimer = New-Object System.Windows.Forms.Timer
 $refreshTimer.Interval = [int]$nudRefreshSeconds.Value * 1000
 $refreshTimer.Add_Tick({
@@ -2603,6 +2866,11 @@ $nudRefreshSeconds.Add_ValueChanged({
   Set-StatusBarText -Category 'Auto refresh' -Message "Auto refresh interval set to $($nudRefreshSeconds.Value) second(s)."
 })
 $refreshTimer.Start()
+$form.Add_FormClosing({
+  param($sender, $e)
+  $reason = if ($e -and $e.CloseReason) { "$($e.CloseReason)" } else { 'Unknown' }
+  Write-GuiLifecycleReport -EventType 'FormClosing' -Message 'GUI window is closing.' -CloseReason $reason
+})
 $form.Add_FormClosed({ $refreshTimer.Stop(); $script:GlowTimer.Stop() })
 Update-RunActionState
 
@@ -2612,11 +2880,31 @@ Update-RunActionState
 # console never surfaces the .NET unhandled-exception dialog.
 [System.Windows.Forms.Application]::add_ThreadException({
   param($eventSender, $e)
-  if ($e.Exception -is [System.Management.Automation.PipelineStoppedException]) { return }
+  if ($e.Exception -is [System.Management.Automation.PipelineStoppedException]) {
+    Write-GuiLifecycleReport -EventType 'PipelineStopped' -Message 'Pipeline stop detected (Ctrl+C or host interruption).' -ExceptionObject $e.Exception
+    return
+  }
+  Write-GuiLifecycleReport -EventType 'ThreadException' -Message 'Unhandled UI thread exception.' -ExceptionObject $e.Exception
   [System.Windows.Forms.MessageBox]::Show(
     $e.Exception.Message, 'SysAdminSuite Error',
     [System.Windows.Forms.MessageBoxButtons]::OK,
     [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
 })
 
-[void]$form.ShowDialog()
+[System.AppDomain]::CurrentDomain.add_UnhandledException({
+  param($eventSender, $eventArgs)
+  Write-GuiLifecycleReport -EventType 'DomainUnhandledException' -Message 'Unhandled AppDomain exception.' -ExceptionObject $eventArgs.ExceptionObject
+})
+
+try {
+  [void]$form.ShowDialog()
+} catch [System.Management.Automation.PipelineStoppedException] {
+  Write-GuiLifecycleReport -EventType 'PipelineStopped' -Message 'Pipeline stop detected while GUI was running.' -ExceptionObject $_
+} catch {
+  Write-GuiLifecycleReport -EventType 'ShowDialogException' -Message 'Unhandled exception escaped ShowDialog.' -ExceptionObject $_
+  throw
+} finally {
+  if (-not $script:GuiExitReportWritten) {
+    Write-GuiLifecycleReport -EventType 'HostExit' -Message 'GUI host process is exiting.'
+  }
+}

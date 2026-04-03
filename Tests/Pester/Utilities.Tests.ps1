@@ -8,6 +8,8 @@
 
 BeforeAll {
     $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $script:compareInventoryPath = Join-Path $repoRoot 'Config\Compare-HostInventory.ps1'
+    $script:compareRunbookPath = Join-Path $repoRoot 'Config\Runbook-Compare-Inventory.ps1'
     . (Join-Path $repoRoot 'Utilities\Test-Network.ps1')
     . (Join-Path $repoRoot 'Utilities\Map-Printer.ps1')
     . (Join-Path $repoRoot 'Utilities\Invoke-FileShare.ps1')
@@ -264,6 +266,40 @@ Describe 'Invoke-RunControl' {
             $snapshot.Data.Host | Should -Be 'WKS001'
             $snapshot.Data.Percent | Should -Be 50
         }
+    }
+}
+
+Describe 'Config inventory comparison scripts' {
+    It 'Compare-HostInventory script exists and parses cleanly' {
+        $script:compareInventoryPath | Should -Exist
+        $tokens = $null
+        $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($script:compareInventoryPath, [ref]$tokens, [ref]$errors) | Out-Null
+        @($errors).Count | Should -Be 0
+    }
+
+    It 'Runbook-Compare-Inventory script exists and parses cleanly' {
+        $script:compareRunbookPath | Should -Exist
+        $tokens = $null
+        $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($script:compareRunbookPath, [ref]$tokens, [ref]$errors) | Out-Null
+        @($errors).Count | Should -Be 0
+    }
+
+    It 'Compare module emits both support and software diff HTML reports' {
+        $content = Get-Content -Path $script:compareInventoryPath -Raw
+        $content | Should -Match 'support_diff_'
+        $content | Should -Match 'software_diff_'
+        $content | Should -Match 'ConvertTo-SuiteHtml'
+        $content | Should -Match 'Support File Diff'
+        $content | Should -Match 'Software Diff'
+    }
+
+    It 'Runbook wrapper invokes compare module with source and target parameters' {
+        $content = Get-Content -Path $script:compareRunbookPath -Raw
+        $content | Should -Match '\$SourceHost'
+        $content | Should -Match '\$TargetHost'
+        $content | Should -Match 'Compare-HostInventory\.ps1'
     }
 }
 

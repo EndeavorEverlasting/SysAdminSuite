@@ -81,6 +81,13 @@ Describe 'RPM-Recon.ps1 -- script-level checks' {
         $content | Should -Match '\$HostsPath'
         $content | Should -Match 'Workers'
     }
+
+    It 'Generates index HTML through ConvertTo-SuiteHtml helper' {
+        $content = Get-Content -Path $script:reconPath -Raw
+        $content | Should -Match 'ConvertTo-SuiteHtml'
+        $content | Should -Match 'suiteHtmlHelper'
+        $content | Should -Match 'index\.html'
+    }
 }
 
 Describe 'Map-MachineWide.ps1 -- HTML report output' {

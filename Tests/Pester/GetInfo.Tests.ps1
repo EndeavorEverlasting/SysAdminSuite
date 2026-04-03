@@ -230,6 +230,7 @@ Describe 'Get-KronosClockInfo.ps1 -- script-level checks' {
         $script:kronosInfoContent | Should -Match '\$InventoryPath'
         $script:kronosInfoContent | Should -Match '\$LookupValue'
         $script:kronosInfoContent | Should -Match '\$LookupBy'
+        $script:kronosInfoContent | Should -Match '\$OutHtml'
     }
 
     It 'Collects clock identity fields useful for Kronos onboarding' {
@@ -290,6 +291,51 @@ KRONOS-CLOCK-01,True,10.10.40.25,KRONOS-CLOCK-01.domain.local,KRONOS-CLOCK-01,Cl
             $results[0].HostName | Should -Be 'KRONOS-CLOCK-01'
             $results[0].MACAddress | Should -Be '00-11-22-33-44-55'
             $results[0].SerialNumber | Should -Be 'SN12345'
+        }
+        finally {
+            if (Test-Path -LiteralPath $tempRoot) {
+                Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    It 'Writes a default lookup HTML report when running in lookup mode' {
+        $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
+        $tempCsv = Join-Path $tempRoot 'KronosClockInventory.csv'
+        New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+
+@'
+QueryInput,Reachable,IPAddress,ReverseDns,HostName,DeviceName,MACAddress,SerialNumber,Model,Manufacturer,Firmware,SysName,SysDescr,SysObjectID,DeviceID,Source,Notes
+KRONOS-CLOCK-01,True,10.10.40.25,KRONOS-CLOCK-01.domain.local,KRONOS-CLOCK-01,Clock-FrontDesk,00-11-22-33-44-55,SN12345,InTouch DX,Kronos/UKG,1.0,KRONOS-CLOCK-01,UKG Clock,1.3.6.1.4.1.999,DX-01,SNMP,
+'@ | Set-Content -Path $tempCsv -Encoding UTF8
+
+        try {
+            $null = @(& $kronosInfoPath -InventoryPath $tempCsv -LookupBy Serial -LookupValue 'SN12345')
+            $html = Get-ChildItem -LiteralPath $tempRoot -Filter 'KronosClockLookup_*.html' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            $html | Should -Not -BeNullOrEmpty
+            $html.FullName | Should -Exist
+        }
+        finally {
+            if (Test-Path -LiteralPath $tempRoot) {
+                Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    It 'Honors -OutHtml for lookup report path' {
+        $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
+        $tempCsv = Join-Path $tempRoot 'KronosClockInventory.csv'
+        $outHtml = Join-Path $tempRoot 'custom_lookup_report.html'
+        New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+
+@'
+QueryInput,Reachable,IPAddress,ReverseDns,HostName,DeviceName,MACAddress,SerialNumber,Model,Manufacturer,Firmware,SysName,SysDescr,SysObjectID,DeviceID,Source,Notes
+KRONOS-CLOCK-02,True,10.10.40.26,KRONOS-CLOCK-02.domain.local,KRONOS-CLOCK-02,Clock-BackDesk,AA-BB-CC-DD-EE-FF,SN56789,InTouch DX,Kronos/UKG,1.1,KRONOS-CLOCK-02,UKG Clock,1.3.6.1.4.1.999,DX-02,SNMP,
+'@ | Set-Content -Path $tempCsv -Encoding UTF8
+
+        try {
+            $null = @(& $kronosInfoPath -InventoryPath $tempCsv -LookupBy HostName -LookupValue 'KRONOS-CLOCK-02' -OutHtml $outHtml)
+            $outHtml | Should -Exist
         }
         finally {
             if (Test-Path -LiteralPath $tempRoot) {

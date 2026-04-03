@@ -18,6 +18,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$suiteHtmlHelper = Join-Path $PSScriptRoot "..\..\tools\ConvertTo-SuiteHtml.ps1"
+if (-not (Test-Path -LiteralPath $suiteHtmlHelper)) {
+  throw "Missing ConvertTo-SuiteHtml helper at: $suiteHtmlHelper"
+}
+. $suiteHtmlHelper
+
 # --- Resolve paths / prerequisites --------------------------------------------
 # NOTE (Bug-Log): $PSScriptRoot is only valid when this file is run as a script
 # (pwsh -File or & .\RPM-Recon.ps1). It is empty when dot-sourced from the console.
@@ -201,35 +207,49 @@ try {
   }
   if ($rows.Count -gt 0) { $rows | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $centralCsv }
 
-  # index.html (always)
-  $index = @"
-<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>RPM Recon</title>
-<style>
-  body{font-family:Segoe UI,Arial;background:#0b0b0f;color:#eaeaf0;padding:24px}
-  a{color:#8ed0ff;text-decoration:none}
-  .host{margin:10px 0 18px 0}
-  .chip{display:inline-block;background:#1a1a22;border:1px solid #2a2a34;padding:3px 8px;border-radius:999px;margin-right:6px;font-size:12px}
-  pre{white-space:pre-wrap;background:#13131a;border:1px solid #232330;border-radius:8px;padding:8px}
-</style></head><body>
-<h1>RPM Recon @ $(Get-Date)</h1>
-<p><span class="chip">Hosts: $($Targets.Count)</span>
-   <span class="chip">Central CSV: $(Split-Path $centralCsv -Leaf)</span></p>
-<p><a href="./$(Split-Path $centralCsv -Leaf)">Download CentralResults.csv</a></p>
-<h2>Controller Log</h2>
-<pre>$(Get-Content $ctrlLog -Raw)</pre>
-<hr/>
-"@
+  # index.html (always) via shared Suite HTML renderer
+  $indexPath = Join-Path $sessionRoot 'index.html'
+  $centralCsvLeaf = Split-Path $centralCsv -Leaf
+  $centralCsvLink = if (Test-Path -LiteralPath $centralCsv) {
+    "<p><a href='./$centralCsvLeaf'>Download CentralResults.csv</a></p>"
+  } else {
+    "<p><em>CentralResults.csv was not generated (no host artifacts collected).</em></p>"
+  }
+
+  $ctrlLogText = if (Test-Path -LiteralPath $ctrlLog) { Get-Content -LiteralPath $ctrlLog -Raw } else { '' }
+  $logFragment = "<h2>Controller Log</h2><pre>$([System.Net.WebUtility]::HtmlEncode($ctrlLogText))</pre>"
+
+  $hostBlocks = New-Object System.Collections.Generic.List[string]
   Get-ChildItem -Path $sessionRoot -Directory -ErrorAction SilentlyContinue | Sort-Object Name | ForEach-Object {
-    $index += "<div class='host'><h3>$($_.Name)</h3><ul>"
+    $hostNameEsc = [System.Net.WebUtility]::HtmlEncode($_.Name)
+    $listItems = New-Object System.Collections.Generic.List[string]
     foreach ($f in Get-ChildItem -Path $_.FullName -File -ErrorAction SilentlyContinue | Sort-Object Name) {
       $rel = $f.FullName.Replace($sessionRoot,'').TrimStart('\').Replace('\','/')
-      $index += "<li><a href='$rel'>$($f.Name)</a></li>"
+      $href = [System.Net.WebUtility]::HtmlEncode($rel)
+      $nameEsc = [System.Net.WebUtility]::HtmlEncode($f.Name)
+      $listItems.Add("<li><a href='$href'>$nameEsc</a></li>")
     }
-    $index += "</ul></div>"
+    if ($listItems.Count -eq 0) { $listItems.Add('<li><em>No files collected.</em></li>') }
+    $hostBlocks.Add("<h3>$hostNameEsc</h3><ul>$($listItems -join '')</ul>")
   }
-  $index += "</body></html>"
-  Set-Content -LiteralPath (Join-Path $sessionRoot 'index.html') -Value $index -Encoding UTF8
+
+  $body = @(
+    "<h2>Artifacts</h2>"
+    $centralCsvLink
+    ($hostBlocks -join "`n")
+    $logFragment
+  ) -join "`n"
+
+  ConvertTo-SuiteHtml `
+    -Title 'RPM Recon' `
+    -Subtitle $sessionRoot `
+    -SummaryChips @(
+      "Hosts: $($Targets.Count)"
+      "Central rows: $($rows.Count)"
+      "Controller log: $(Split-Path $ctrlLog -Leaf)"
+    ) `
+    -BodyFragment $body `
+    -OutputPath $indexPath
 
   # Final drain to ensure last line hits
   & $drain $queue $ctrlLog

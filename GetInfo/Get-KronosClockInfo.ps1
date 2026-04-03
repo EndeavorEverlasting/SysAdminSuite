@@ -19,6 +19,8 @@ param(
   [ValidateSet('Any','IP','MAC','Serial','HostName','DeviceName')]
   [string]$LookupBy = 'Any',
 
+  [string]$OutHtml,
+
   [string[]]$Communities = @('public','private','northwell','netadmin')
 )
 
@@ -248,6 +250,20 @@ if ($PSCmdlet.ParameterSetName -eq 'Lookup') {
     $results | Format-Table QueryInput,IPAddress,HostName,DeviceName,MACAddress,SerialNumber,Model -AutoSize | Out-Host
   } else {
     Write-Warning 'No matching inventory rows found.'
+  }
+  $suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
+  if (Test-Path -LiteralPath $suiteHtmlHelper) {
+    . $suiteHtmlHelper
+    $lookupHtml = if ($OutHtml) {
+      $OutHtml
+    } else {
+      $lookupDir = Split-Path -Parent $InventoryPath
+      Join-Path $lookupDir ("KronosClockLookup_{0}.html" -f (Get-Date -Format 'yyyyMMdd_HHmmss'))
+    }
+    $results | Select-Object QueryInput,IPAddress,HostName,DeviceName,MACAddress,SerialNumber,Model,Manufacturer,Reachable,Notes |
+      ConvertTo-Html -Fragment -PreContent '<h2>Kronos Clock Lookup Results</h2>' |
+      ConvertTo-SuiteHtml -Title 'Kronos Clock Lookup' -Subtitle "$($results.Count) matching row(s)" -OutputPath $lookupHtml
+    Write-Host "Saved HTML: $lookupHtml" -ForegroundColor Green
   }
   return $results
 }
