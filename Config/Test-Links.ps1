@@ -8,6 +8,9 @@ $logs   = Join-Path $here 'Logs'; New-Item -ItemType Directory -Force -Path $log
 $stamp  = (Get-Date -Format 'yyyyMMdd_HHmmss')
 $log    = Join-Path $logs ("{0}-{1}.log" -f ($MyInvocation.MyCommand.Name -replace '\.ps1$',''), $stamp)
 Start-Transcript -Path $log -Append | Out-Null
+$suiteHtml = Join-Path $here '..\tools\ConvertTo-SuiteHtml.ps1'
+if (-not (Test-Path -LiteralPath $suiteHtml)) { throw "Missing ConvertTo-SuiteHtml.ps1 at $suiteHtml" }
+. $suiteHtml
 $tools = Join-Path $here 'GoLiveTools.ps1'
 if (-not (Test-Path $tools)) { throw "Missing GoLiveTools.ps1 at $tools" }
 $repoHost = $env:REPO_HOST
@@ -23,7 +26,14 @@ if ([string]::IsNullOrWhiteSpace($repoHost)) {
 try {
   $r = Test-FetchMap -RepoRoot $RepoRoot -HeadOnly
   $r.Results | Sort-Object Status | Format-Table Name,Status,FinalUrl,Error -Auto
-  $r.Results | Export-Csv (Join-Path $logs "Test-Links-Results-$stamp.csv") -NoType
+  $csv = Join-Path $logs "Test-Links-Results-$stamp.csv"
+  $html = [IO.Path]::ChangeExtension($csv, '.html')
+  $rows = @($r.Results | Sort-Object Status,Name)
+  $rows | Export-Csv -Path $csv -NoType
+  $frag = $rows | Select-Object Name,Status,FinalUrl,Error | ConvertTo-Html -Fragment -PreContent '<h2>Fetch Map Link Validation</h2>'
+  ConvertTo-SuiteHtml -Title 'Test Links' -Subtitle "RepoRoot: $RepoRoot" -SummaryChips @("Total: $($r.Total)", "Bad: $($r.Bad)") -BodyFragment $frag -OutputPath $html
+  Write-Host "Wrote CSV: $csv" -ForegroundColor Green
+  Write-Host "Wrote HTML: $html" -ForegroundColor Green
 }
 finally {
   Stop-Transcript | Out-Null

@@ -8,6 +8,9 @@ $logs   = Join-Path $here 'Logs'; New-Item -ItemType Directory -Force -Path $log
 $stamp  = (Get-Date -Format 'yyyyMMdd_HHmmss')
 $log    = Join-Path $logs ("{0}-{1}.log" -f ($MyInvocation.MyCommand.Name -replace '\.ps1$',''), $stamp)
 Start-Transcript -Path $log -Append | Out-Null
+$suiteHtml = Join-Path $here '..\tools\ConvertTo-SuiteHtml.ps1'
+if (-not (Test-Path -LiteralPath $suiteHtml)) { throw "Missing ConvertTo-SuiteHtml.ps1 at $suiteHtml" }
+. $suiteHtml
 $tools = Join-Path $here 'GoLiveTools.ps1'
 if (-not (Test-Path $tools)) { throw "Missing GoLiveTools.ps1 at $tools" }
 $repoHost = $env:REPO_HOST
@@ -27,7 +30,16 @@ try {
   if (-not $pcs -or $pcs.Count -eq 0) {
     throw "No valid client names were found in $clientsPath. `$pcs is empty."
   }
-  Copy-SoftwareToClients -RepoRoot $RepoRoot -ComputerName $pcs -MaxParallel 8
+  $copyResults = @(Copy-SoftwareToClients -RepoRoot $RepoRoot -ComputerName $pcs -MaxParallel 8)
+
+  $csv = Join-Path $logs ("Stage-To-Clients-Results-{0}.csv" -f $stamp)
+  $html = [IO.Path]::ChangeExtension($csv, '.html')
+  $copyResults | Sort-Object Computer | Export-Csv -Path $csv -NoType
+  $frag = $copyResults | Select-Object Computer,ExitCode,Dest | Sort-Object Computer |
+    ConvertTo-Html -Fragment -PreContent '<h2>Stage To Clients Results</h2>'
+  ConvertTo-SuiteHtml -Title 'Stage To Clients' -Subtitle "RepoRoot: $RepoRoot" -SummaryChips @("Targets: $($pcs.Count)", "Results: $($copyResults.Count)") -BodyFragment $frag -OutputPath $html
+  Write-Host "Wrote stage results CSV: $csv" -ForegroundColor Green
+  Write-Host "Wrote stage results HTML: $html" -ForegroundColor Green
 }
 finally {
   Stop-Transcript | Out-Null

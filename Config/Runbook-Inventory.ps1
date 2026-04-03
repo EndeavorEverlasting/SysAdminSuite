@@ -17,6 +17,9 @@ Set-Location $here
 . .\GoLiveTools.ps1 -RepoHost $RepoHost
 Preflight-Repo -RepoRoot $RepoRoot | Out-Null
 "Using RepoRoot: $RepoRoot"
+$suiteHtml = Join-Path $here '..\tools\ConvertTo-SuiteHtml.ps1'
+if (-not (Test-Path -LiteralPath $suiteHtml)) { throw "Missing ConvertTo-SuiteHtml.ps1 at $suiteHtml" }
+. $suiteHtml
 
 # 1) Hygiene
 Get-ChildItem *.ps1 | Unblock-File | Out-Null
@@ -59,4 +62,17 @@ $paths += Join-Path $invRoot 'software_superset.csv'
 $paths | ForEach-Object {
   if (Test-Path $_) { Write-Host "[OK] $_" -ForegroundColor Green } else { Write-Warning "Missing: $_" }
 }
+$summaryRows = foreach ($p in $paths) {
+  [pscustomobject]@{
+    Path   = $p
+    Exists = (Test-Path -LiteralPath $p)
+  }
+}
+$summaryCsv = Join-Path $invRoot ("runbook_inventory_summary_{0}.csv" -f (Get-Date -Format 'yyyyMMdd_HHmmss'))
+$summaryHtml = [IO.Path]::ChangeExtension($summaryCsv, '.html')
+$summaryRows | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $summaryCsv
+$summaryFrag = $summaryRows | ConvertTo-Html -Fragment -PreContent '<h2>Runbook Inventory Output Check</h2>'
+ConvertTo-SuiteHtml -Title 'Runbook Inventory Summary' -Subtitle "Targets: $($ComputerName -join ', ')" -SummaryChips @("Total paths: $($summaryRows.Count)", "Missing: $(($summaryRows | Where-Object { -not $_.Exists }).Count)") -BodyFragment $summaryFrag -OutputPath $summaryHtml
+Write-Host "[OK] $summaryCsv" -ForegroundColor Green
+Write-Host "[OK] $summaryHtml" -ForegroundColor Green
 Write-Host "Transcript: $ts"
