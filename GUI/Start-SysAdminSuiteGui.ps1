@@ -1068,9 +1068,107 @@ $script:TutorialShownOnce = $false
 $script:TutorialCheckpoints = @{}
 $script:HighlightedControls = @()
 $script:TutorialInMenu = $true  # true = showing the menu, false = in a track
+$script:TrackButtonsByKey = @{}
+$script:TrackButtonBaseColors = @{}
 $script:GlowOn = $true
 $script:GlowColorA = [System.Drawing.Color]::FromArgb(255,215,0)   # Gold
 $script:GlowColorB = [System.Drawing.Color]::FromArgb(255,255,120) # Bright yellow
+
+function Get-GreenOverlayColor {
+  param(
+    [System.Drawing.Color]$BaseColor,
+    [double]$OverlayRatio = 0.32
+  )
+
+  $overlay = [System.Drawing.Color]::FromArgb(72,190,92)
+  $r = [int]([Math]::Round(($BaseColor.R * (1 - $OverlayRatio)) + ($overlay.R * $OverlayRatio)))
+  $g = [int]([Math]::Round(($BaseColor.G * (1 - $OverlayRatio)) + ($overlay.G * $OverlayRatio)))
+  $b = [int]([Math]::Round(($BaseColor.B * (1 - $OverlayRatio)) + ($overlay.B * $OverlayRatio)))
+  return [System.Drawing.Color]::FromArgb($r, $g, $b)
+}
+
+function Test-TextHasOutput {
+  param(
+    [AllowNull()][string]$Text,
+    [string[]]$Placeholders
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Text)) { return $false }
+  $trimmed = $Text.Trim()
+  foreach ($placeholder in $Placeholders) {
+    if ($trimmed -eq $placeholder) { return $false }
+  }
+  return $true
+}
+
+function Get-TutorialTrackHasOutput {
+  param([string]$TrackKey)
+
+  $runOutputReady = (Test-TextHasOutput -Text $txtStatusView.Text -Placeholders @(
+    'Launch a run or click Refresh Now to inspect a status snapshot.',
+    'Status file not found yet. Launch a run or wait for the worker/controller to publish status.'
+  ))
+
+  $kronosOutputReady = (Test-TextHasOutput -Text $txtClockResults.Text -Placeholders @(
+    'Probe live clocks or search a saved inventory CSV.'
+  )) -or ($txtClockOut -and (Test-Path -LiteralPath $txtClockOut.Text))
+
+  $miOutputReady = (Test-TextHasOutput -Text $txtMIResults.Text -Placeholders @(
+    'Enter targets above and click Run Probe, or load a host list file. Your local machine is pre-loaded as an example.',
+    'Running...'
+  )) -or ($txtMIOutCsv -and (Test-Path -LiteralPath $txtMIOutCsv.Text))
+
+  $compareOutputReady = (Test-TextHasOutput -Text $txtCompareResults.Text -Placeholders @(
+    'Enter source + targets, then click Run Compare.'
+  )) -or ($script:LastCompareRunFolder -and (Test-Path -LiteralPath $script:LastCompareRunFolder))
+
+  $bomOutputReady = (($lstBomNeed.Items.Count + $lstBomHave.Items.Count) -gt 0)
+  $anyOutputReady = ($runOutputReady -or $kronosOutputReady -or $miOutputReady -or $compareOutputReady -or $bomOutputReady)
+
+  switch ($TrackKey) {
+    'KronosClock' { return $kronosOutputReady }
+    'SupportDirectoryDiff' { return $compareOutputReady }
+    'RepoHealth' { return $bomOutputReady }
+    'NeuronMachineInfo' { return $miOutputReady }
+    'PrinterMachineInfo' { return $miOutputReady }
+    'CybernetMachineInfo' { return $miOutputReady }
+    'CybernetsNeuronCapsule' { return $miOutputReady }
+    'RamInfo' { return $miOutputReady }
+    'SoftwareInventory' { return $miOutputReady }
+    'QueueInventory' { return $miOutputReady }
+    'MonitorIdentification' { return $miOutputReady }
+    'QRTasks' { return $miOutputReady }
+    'PrinterLayout' { return $runOutputReady }
+    'PrinterMapping' { return $runOutputReady }
+    'NetworkTest' { return $runOutputReady }
+    'ADPrintingGroup' { return $runOutputReady }
+    'PSVersionPivot' { return $runOutputReady }
+    'GoLivePipeline' { return $runOutputReady }
+    'DeployShortcuts' { return $runOutputReady }
+    'OCRFloorPlan' { return $runOutputReady }
+    default { return $anyOutputReady }
+  }
+}
+
+function Refresh-TutorialTrackButtonOverlays {
+  foreach ($key in $script:TrackButtonsByKey.Keys) {
+    $btn = $script:TrackButtonsByKey[$key]
+    if (-not $btn) { continue }
+
+    $baseColor = $script:TrackButtonBaseColors[$key]
+    if (-not $baseColor) { $baseColor = [System.Drawing.Color]::FromArgb(70,90,120) }
+    $ready = Get-TutorialTrackHasOutput -TrackKey $key
+    if ($ready) {
+      $btn.BackColor = Get-GreenOverlayColor -BaseColor $baseColor
+      $btn.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(140,240,160)
+      $btn.FlatAppearance.BorderSize = 2
+    } else {
+      $btn.BackColor = $baseColor
+      $btn.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(80,100,130)
+      $btn.FlatAppearance.BorderSize = 1
+    }
+  }
+}
 
 function Clear-TutorialHighlight {
   foreach ($entry in $script:HighlightedControls) {
@@ -1160,6 +1258,7 @@ function Show-TutorialMenuPage {
   # Show/hide page nav buttons
   if ($script:MenuPagePrev) { $script:MenuPagePrev.Visible = ($script:MenuPage -gt 0) }
   if ($script:MenuPageNext) { $script:MenuPageNext.Visible = ($script:MenuPage -lt $totalPages - 1) }
+  Refresh-TutorialTrackButtonOverlays
 }
 
 # Show the tutorial menu (track picker) inside the tutorial panel
@@ -2350,9 +2449,13 @@ foreach ($key in $script:TutorialTracks.Keys) {
   $btn.Tag = $key
   $btn.Add_Click({ Start-TutorialTrack -TrackKey $this.Tag })
   $script:TrackButtons += $btn
+  $script:TrackButtonsByKey[$key] = $btn
+  $script:TrackButtonBaseColors[$key] = $track.Color
   $script:TutorialPanel.Controls.Add($btn)
   $trackIdx++
 }
+
+Refresh-TutorialTrackButtonOverlays
 
 # -- Menu page navigation buttons (for paginated track picker) --
 $script:MenuPagePrev = New-Object System.Windows.Forms.Button
@@ -2529,7 +2632,7 @@ $btnRunQRView.Add_Click({
   Set-OutputViewMode -Mode 'QR' -ResultsControls @($txtStatusView,$lblHistoryPane,$txtHistoryView) -QrControls @($pnlRunQRView,$lblRunQRPayload,$cmbRunQRPayload) -ResultsButton $btnRunResultsView -QrButton $btnRunQRView
 })
 $cmbRunQRPayload.Add_SelectedIndexChanged({ Update-RunQRCode })
-$txtStatusView.Add_TextChanged({ Update-RunQRCode })
+$txtStatusView.Add_TextChanged({ Update-RunQRCode; Refresh-TutorialTrackButtonOverlays })
 $txtHistoryView.Add_TextChanged({ Update-RunQRCode })
 $txtRunTargets.Add_TextChanged({ Update-RunQRCode })
 $txtStatus.Add_TextChanged({ Update-RunQRCode })
@@ -2544,7 +2647,7 @@ $btnKronosQRView.Add_Click({
   Set-OutputViewMode -Mode 'QR' -ResultsControls @($txtClockResults) -QrControls @($pnlKronosQRView,$lblKronosQRPayload,$cmbKronosQRPayload) -ResultsButton $btnKronosResultsView -QrButton $btnKronosQRView
 })
 $cmbKronosQRPayload.Add_SelectedIndexChanged({ Update-KronosQRCode })
-$txtClockResults.Add_TextChanged({ Update-KronosQRCode })
+$txtClockResults.Add_TextChanged({ Update-KronosQRCode; Refresh-TutorialTrackButtonOverlays })
 $cmbLookup.Add_SelectedIndexChanged({ Update-KronosQRCode })
 $txtLookup.Add_TextChanged({ Update-KronosQRCode })
 $txtInv.Add_TextChanged({ Update-KronosQRCode })
@@ -2557,8 +2660,9 @@ $btnMIQRView.Add_Click({
   Set-OutputViewMode -Mode 'QR' -ResultsControls @($txtMIResults) -QrControls @($pnlMIQRView,$lblMIQRPayload,$cmbMIQRPayload) -ResultsButton $btnMIResultsView -QrButton $btnMIQRView
 })
 $cmbMIQRPayload.Add_SelectedIndexChanged({ Update-MIQRCode })
-$txtMIResults.Add_TextChanged({ Update-MIQRCode })
+$txtMIResults.Add_TextChanged({ Update-MIQRCode; Refresh-TutorialTrackButtonOverlays })
 $lblMIArtifactSummary.Add_TextChanged({ Update-MIQRCode })
+$txtCompareResults.Add_TextChanged({ Refresh-TutorialTrackButtonOverlays })
 
 $btnBomResultsView.Add_Click({
   Set-OutputViewMode -Mode 'Results' -ResultsControls @($lblBomNeedCount,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight) -QrControls @($pnlBomQRView,$lblBomQRPayload,$cmbBomQRPayload) -ResultsButton $btnBomResultsView -QrButton $btnBomQRView
