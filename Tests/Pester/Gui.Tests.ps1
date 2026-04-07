@@ -95,6 +95,16 @@ Describe 'Start-SysAdminSuiteGui.ps1 -- script-level checks' {
         $content | Should -Match 'Compare-DeploymentToAd\.ps1'
     }
 
+    It 'Includes a tutorial track for Deployment vs AD reconcile with output overlay wiring' {
+        $content = Get-Content -Path $script:guiPath -Raw
+        $content | Should -Match "'DeploymentAdReconcile'"
+        $content | Should -Match 'DeploymentAdReconcile'
+        $content | Should -Match 'DupDeployedCalculated'
+        $content | Should -Match 'Cybernet_OnNetwork'
+        $content | Should -Match 'ImportExcel'
+        $content | Should -Match 'deployReconcileOutputReady'
+    }
+
     It 'Provides browse dialogs for path text fields' {
         $content = Get-Content -Path $script:guiPath -Raw
         $content | Should -Match 'Show-BrowseFileDialog'

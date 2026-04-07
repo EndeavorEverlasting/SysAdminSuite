@@ -955,6 +955,21 @@ $script:TutorialTracks = [ordered]@{
       @{ Title = 'Support Diff: Review and Action'; Highlights = @('txtCompareResults'); Body = "Focus on Status values in the HTML reports:`n  MissingOnTarget, ExtraOnTarget, Changed, Match`n`nUse these differences to confirm SIS support directory readiness before deployment.`n`nPress the Menu button below to try another tutorial." }
     )
   }
+  'DeploymentAdReconcile' = @{
+    Label = [char]0x2248 + '  Deployment vs AD'
+    Desc  = 'Reconcile deployment tracker with tickets and AD'
+    Color = [System.Drawing.Color]::FromArgb(55,125,145)
+    Steps = @(
+      @{ Title = 'Deploy vs AD: What It Does'; Highlights = @('deployTrackTab'); Body = "Open the Deploy vs AD tab (we switch you there automatically when this step highlights).`n`nCompare-DeploymentToAd.ps1 reads the Deployments sheet from your Active Deployment Tracker, keeps rows where Deployed = `$Yes, and enriches them with:`n`n  - Duplicate detection aligned with the workbook (DupDeployedCalculated) and location-based clashes (DuplicateProblematicColumns)`n  - Ticket crosswalk: General sheet, Hostname Used column (split on newlines) for Cybernet attribution`n  - Optional Active Directory: Get-ADComputer for Cybernet hostnames only`n`nNeurons: your tracker is the source of truth for configured neurons; they are not looked up as AD computer objects. Peripherals: rows can be flagged when the site is outside the LIJ four-site allowlist." }
+      @{ Title = 'Deploy vs AD: Prerequisites'; Highlights = @('deployTrackTab','txtDepWorkbook'); Body = "For .xlsx workbooks in this GUI you need the ImportExcel module:`n`n  Install-Module ImportExcel -Scope CurrentUser`n`nIf Skip AD is unchecked, you need the RSAT Active Directory PowerShell module and permission to run Get-ADComputer.`n`nNo Excel module? Run from a shell with CSV exports instead:`n`n  .\\DeploymentTracker\\Compare-DeploymentToAd.ps1 -DeploymentCsv deployments.csv -TicketCsv tickets.csv -SkipAd`n`nSame columns as the workbook exports." }
+      @{ Title = 'Deploy vs AD: Choose Workbooks'; Highlights = @('deployTrackTab','txtDepWorkbook','btnBrowseDepWorkbook','txtTixWorkbook','btnBrowseTixWorkbook'); Body = "Click the ellipsis or the path box for each file.`n`n1. Deployment workbook = Active Deployment Tracker xlsx file. Data is read from the Deployments sheet by default.`n2. Ticket workbook = Active Ticket Tracker xlsx file. Host names from the General tab, Hostname Used column, are parsed; multiple hostnames per cell can be separated by line breaks.`n`nThose ticket hostnames are used for Cybernet matching only, not for proving neuron configuration." }
+      @{ Title = 'Deploy vs AD: Output Folder'; Highlights = @('txtDepOut','btnBrowseDepOut'); Body = "By default, reports go to DeploymentTracker\\Output under the repo root.`n`nUse Browse to point somewhere else if you prefer, such as a network share.`n`nEach run writes timestamped files whose names start with DeploymentAdReconcile- and end in .csv or .html.`n`nThe HTML uses the same dark SysAdminSuite report theme as other tools." }
+      @{ Title = 'Deploy vs AD: Options'; Highlights = @('chkDepSkipAd','txtDepDeviceType','txtDepAdServer'); Body = "Skip AD, checked by default, means no ActiveDirectory module and no Get-ADComputer. You still get parsing, duplicates, peripherals-site flags, and ticket joins.`n`nDevice type = optional filter. Leave blank for all deployed rows. Examples: Neuron, Peripherals, Cybernet, Cybernet-Neuron; spelling must match the tracker.`n`nAD server = optional domain controller FQDN passed as -Server when Skip AD is off.`n`nCybernet hostnames sent to AD are the union of Cybernet Hostname values from deployed rows plus every hostname parsed from ticket Hostname Used." }
+      @{ Title = 'Deploy vs AD: Run'; Highlights = @('btnDepRun','txtDepResults'); Body = "Click Run reconcile.`n`nThe Console output pane fills with script stdout/stderr. On success you should see lines like Wrote plus the full path to the .csv and .html files.`n`nThe summary line above the pane updates with the latest CSV file name.`n`nIf ImportExcel is missing or a path is wrong, the error appears here and in a message box." }
+      @{ Title = 'Deploy vs AD: Read the CSV Columns'; Highlights = @('btnDepOpenOutput','btnDepCopyResults','lblDepSummary','txtDepResults'); Body = "Click Open output folder to open Explorer on the report directory. Use Copy results to grab the console pane for a ticket.`n`nImportant CSV columns added by the tool:`n`n  DupDeployedCalculated     Yes if a tracked ID repeats on another Deployed=`$Yes row, same idea as the workbook DupDeployed column.`n  DuplicateProblematicColumns  Which ID columns appear in more than one location fingerprint such as building or room.`n  IsNeuronOnly              True when Deployed=`$Yes and Device Type is Neuron only.`n  PeripheralsAllowedSite    For Peripherals rows: True if location matches LIJ Valley Stream, Forest Hills, Syosset, or Plainview.`n  Cybernet_InDeployment     Cybernet Hostname present on this row.`n  Cybernet_InTicketHostnameUsed  That hostname appeared in ticket Hostname Used.`n  Cybernet_Ours             In deployment column or in tickets.`n  Cybernet_InAd             Found via Get-ADComputer when an AD run was performed.`n  Cybernet_OnNetwork      Ours and in AD.`n  Cybernet_AdNote         Enabled/DNS/OU snippet, or NOT_FOUND.`n  Neuron_AdLookupSkipped  Reminder that neurons are not AD-queried in v1.`n`nOpen the HTML for a capped sample table plus summary chips." }
+      @{ Title = 'Deploy vs AD: Done'; Highlights = @('deployTrackTab','btnDepOpenOutput'); Body = "You are ready to run this on live trackers.`n`nWorkflow tip: run once with Skip AD for a fast duplicate/ticket pass, then clear Skip AD when you need Cybernet_OnNetwork.`n`nPress the Menu button below to pick another tutorial." }
+    )
+  }
   'NetworkTest' = @{
     Label = [char]0x2301 + '  Network Testing'
     Desc  = 'Test connectivity, DNS, and ports'
@@ -1123,12 +1138,29 @@ function Get-TutorialTrackHasOutput {
     'Enter source + targets, then click Run Compare.'
   )) -or ($script:LastCompareRunFolder -and (Test-Path -LiteralPath $script:LastCompareRunFolder))
 
+  $depOutDir = if ($txtDepOut -and $txtDepOut.Text) { $txtDepOut.Text.Trim() } else { '' }
+  $deployCsvOnDisk = $false
+  if ($depOutDir -and (Test-Path -LiteralPath $depOutDir)) {
+    $anyDepCsv = @(Get-ChildItem -LiteralPath $depOutDir -Filter 'DeploymentAdReconcile-*.csv' -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $deployCsvOnDisk = $anyDepCsv.Count -gt 0
+  }
+  $depTxtReady = Test-TextHasOutput -Text $txtDepResults.Text -Placeholders @(
+    'Choose both Excel workbooks (ImportExcel required) or use Compare-DeploymentToAd.ps1 with -DeploymentCsv / -TicketCsv from a shell for offline CSV runs.',
+    'Running...'
+  )
+  $deployReconcileOutputReady = (
+    ($script:LastDeploymentReconcileCsv -and (Test-Path -LiteralPath $script:LastDeploymentReconcileCsv)) -or
+    $deployCsvOnDisk -or
+    $depTxtReady
+  )
+
   $bomOutputReady = (($lstBomNeed.Items.Count + $lstBomHave.Items.Count) -gt 0)
-  $anyOutputReady = ($runOutputReady -or $kronosOutputReady -or $miOutputReady -or $compareOutputReady -or $bomOutputReady)
+  $anyOutputReady = ($runOutputReady -or $kronosOutputReady -or $miOutputReady -or $compareOutputReady -or $bomOutputReady -or $deployReconcileOutputReady)
 
   switch ($TrackKey) {
     'KronosClock' { return $kronosOutputReady }
     'SupportDirectoryDiff' { return $compareOutputReady }
+    'DeploymentAdReconcile' { return $deployReconcileOutputReady }
     'RepoHealth' { return $bomOutputReady }
     'NeuronMachineInfo' { return $miOutputReady }
     'PrinterMachineInfo' { return $miOutputReady }
