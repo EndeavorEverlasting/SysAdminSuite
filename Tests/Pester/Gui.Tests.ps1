@@ -85,6 +85,16 @@ Describe 'Start-SysAdminSuiteGui.ps1 -- script-level checks' {
         $content | Should -Match 'Compare-HostInventory\.ps1'
     }
 
+    It 'Exposes a Deploy vs AD tab wired to Compare-DeploymentToAd.ps1' {
+        $content = Get-Content -Path $script:guiPath -Raw
+        $content | Should -Match 'deployTrackTab'
+        $content | Should -Match 'Deploy vs AD'
+        $content | Should -Match 'txtDepWorkbook'
+        $content | Should -Match 'txtTixWorkbook'
+        $content | Should -Match 'btnDepRun'
+        $content | Should -Match 'Compare-DeploymentToAd\.ps1'
+    }
+
     It 'Provides browse dialogs for path text fields' {
         $content = Get-Content -Path $script:guiPath -Raw
         $content | Should -Match 'Show-BrowseFileDialog'

@@ -18,6 +18,7 @@ $kronosScript = Join-Path $repoRoot 'GetInfo\Get-KronosClockInfo.ps1'
 $workerScript = Join-Path $repoRoot 'Mapping\Workers\Map-MachineWide.ps1'
 $controllerScript = Join-Path $repoRoot 'Mapping\Controllers\Map-Run-Controller.ps1'
 $compareInventoryScript = Join-Path $repoRoot 'Config\Compare-HostInventory.ps1'
+$deploymentReconcileScript = Join-Path $repoRoot 'DeploymentTracker\Compare-DeploymentToAd.ps1'
 $script:SuiteHtmlHelperPath = Join-Path $repoRoot 'tools\ConvertTo-SuiteHtml.ps1'
 $script:SuiteHtmlHelperLoaded = $false
 if (Test-Path -LiteralPath $script:SuiteHtmlHelperPath) {
@@ -1683,6 +1684,174 @@ if (Test-Path -LiteralPath $defaultCompareRepoRoot) { $txtCompareRepoRoot.Text =
 
 $compareTab.Controls.AddRange(@($grpCompare,$lblCompareResults,$txtCompareResults))
 
+# -- Deployment vs AD Tab --
+$deployTrackTab = New-Object System.Windows.Forms.TabPage
+$deployTrackTab.Text = 'Deploy vs AD'
+$deployTrackTab.BackColor = [System.Drawing.Color]::WhiteSmoke
+$script:LastDeploymentReconcileFolder = $null
+$script:LastDeploymentReconcileCsv = $null
+
+$grpDeployTrack = New-Object System.Windows.Forms.GroupBox
+$grpDeployTrack.Text = 'Deployment tracker vs tickets / AD (Cybernets only in AD)'
+$grpDeployTrack.Location = '6,6'
+$grpDeployTrack.Size = '952,248'
+$grpDeployTrack.Anchor = 'Top, Left, Right'
+$grpDeployTrack.Font = $emphasisFont
+
+$lblDepWorkbook = New-Object System.Windows.Forms.Label
+$lblDepWorkbook.Location = '10,22'
+$lblDepWorkbook.Size = '200,18'
+$lblDepWorkbook.Text = 'Deployment workbook (.xlsx)'
+$lblDepWorkbook.Font = $emphasisFont
+$txtDepWorkbook = New-Object System.Windows.Forms.TextBox
+$txtDepWorkbook.Location = '10,42'
+$txtDepWorkbook.Size = '780,24'
+$txtDepWorkbook.Anchor = 'Top, Left, Right'
+$txtDepWorkbook.Font = $uiFont
+$txtDepWorkbook.ReadOnly = $true
+$txtDepWorkbook.Cursor = 'Hand'
+$txtDepWorkbook.BackColor = [System.Drawing.Color]::White
+$btnBrowseDepWorkbook = New-Object System.Windows.Forms.Button
+$btnBrowseDepWorkbook.Location = '796,41'
+$btnBrowseDepWorkbook.Size = '30,26'
+$btnBrowseDepWorkbook.Text = [char]0x2026
+$btnBrowseDepWorkbook.Anchor = 'Top, Right'
+$btnBrowseDepWorkbook.FlatStyle = 'Flat'
+$btnBrowseDepWorkbook.Font = $uiFont
+$toolTip.SetToolTip($txtDepWorkbook, 'Active Deployment Tracker workbook. Requires the ImportExcel module (Install-Module ImportExcel).')
+
+$lblTixWorkbook = New-Object System.Windows.Forms.Label
+$lblTixWorkbook.Location = '10,72'
+$lblTixWorkbook.Size = '200,18'
+$lblTixWorkbook.Text = 'Ticket workbook (.xlsx)'
+$lblTixWorkbook.Font = $emphasisFont
+$txtTixWorkbook = New-Object System.Windows.Forms.TextBox
+$txtTixWorkbook.Location = '10,92'
+$txtTixWorkbook.Size = '780,24'
+$txtTixWorkbook.Anchor = 'Top, Left, Right'
+$txtTixWorkbook.Font = $uiFont
+$txtTixWorkbook.ReadOnly = $true
+$txtTixWorkbook.Cursor = 'Hand'
+$txtTixWorkbook.BackColor = [System.Drawing.Color]::White
+$btnBrowseTixWorkbook = New-Object System.Windows.Forms.Button
+$btnBrowseTixWorkbook.Location = '796,91'
+$btnBrowseTixWorkbook.Size = '30,26'
+$btnBrowseTixWorkbook.Text = [char]0x2026
+$btnBrowseTixWorkbook.Anchor = 'Top, Right'
+$btnBrowseTixWorkbook.FlatStyle = 'Flat'
+$btnBrowseTixWorkbook.Font = $uiFont
+$toolTip.SetToolTip($txtTixWorkbook, 'Active Ticket Tracker workbook (General sheet, Hostname Used column).')
+
+$lblDepOut = New-Object System.Windows.Forms.Label
+$lblDepOut.Location = '10,122'
+$lblDepOut.Size = '120,18'
+$lblDepOut.Text = 'Output folder'
+$lblDepOut.Font = $emphasisFont
+$txtDepOut = New-Object System.Windows.Forms.TextBox
+$txtDepOut.Location = '10,142'
+$txtDepOut.Size = '780,24'
+$txtDepOut.Anchor = 'Top, Left, Right'
+$txtDepOut.Font = $uiFont
+$txtDepOut.Text = (Join-Path $repoRoot 'DeploymentTracker\Output')
+$btnBrowseDepOut = New-Object System.Windows.Forms.Button
+$btnBrowseDepOut.Location = '796,141'
+$btnBrowseDepOut.Size = '30,26'
+$btnBrowseDepOut.Text = [char]0x2026
+$btnBrowseDepOut.Anchor = 'Top, Right'
+$btnBrowseDepOut.FlatStyle = 'Flat'
+$btnBrowseDepOut.Font = $uiFont
+
+$chkDepSkipAd = New-Object System.Windows.Forms.CheckBox
+$chkDepSkipAd.Location = '10,176'
+$chkDepSkipAd.Size = '220,22'
+$chkDepSkipAd.Text = 'Skip AD (parse + tickets + duplicates only)'
+$chkDepSkipAd.Checked = $true
+$chkDepSkipAd.Font = $uiFont
+$toolTip.SetToolTip($chkDepSkipAd, 'When unchecked, loads the ActiveDirectory module and runs Get-ADComputer for Cybernet hostnames only. Neurons are never queried in AD.')
+
+$lblDepDeviceType = New-Object System.Windows.Forms.Label
+$lblDepDeviceType.Location = '240,178'
+$lblDepDeviceType.Size = '80,18'
+$lblDepDeviceType.Text = 'Device type'
+$lblDepDeviceType.Font = $uiFont
+$txtDepDeviceType = New-Object System.Windows.Forms.TextBox
+$txtDepDeviceType.Location = '325,175'
+$txtDepDeviceType.Size = '140,24'
+$txtDepDeviceType.Font = $uiFont
+$toolTip.SetToolTip($txtDepDeviceType, 'Optional: filter to one Device Type (e.g. Cybernet-Neuron, Peripherals). Leave blank for all deployed rows.')
+
+$lblDepServer = New-Object System.Windows.Forms.Label
+$lblDepServer.Location = '480,178'
+$lblDepServer.Size = '70,18'
+$lblDepServer.Text = 'AD server'
+$lblDepServer.Font = $uiFont
+$txtDepAdServer = New-Object System.Windows.Forms.TextBox
+$txtDepAdServer.Location = '555,175'
+$txtDepAdServer.Size = '235,24'
+$txtDepAdServer.Anchor = 'Top, Left, Right'
+$txtDepAdServer.Font = $uiFont
+$toolTip.SetToolTip($txtDepAdServer, 'Optional domain controller FQDN for Get-ADComputer -Server (only when Skip AD is off).')
+
+$btnDepRun = New-Object System.Windows.Forms.Button
+$btnDepRun.Location = '10,206'
+$btnDepRun.Size = '240,36'
+$btnDepRun.Text = [char]0x25B6 + '  Run reconcile'
+$btnDepRun.Font = New-Object System.Drawing.Font('Segoe UI Bold',11)
+$btnDepRun.Cursor = 'Hand'
+$btnDepRun.BackColor = [System.Drawing.Color]::FromArgb(30,130,160)
+$btnDepRun.ForeColor = [System.Drawing.Color]::White
+$btnDepRun.FlatStyle = 'Popup'
+
+$btnDepOpenOutput = New-Object System.Windows.Forms.Button
+$btnDepOpenOutput.Location = '258,206'
+$btnDepOpenOutput.Size = '160,36'
+$btnDepOpenOutput.Text = 'Open output folder'
+$btnDepOpenOutput.Font = $uiFont
+$btnDepOpenOutput.FlatStyle = 'Flat'
+$btnDepOpenOutput.BackColor = [System.Drawing.Color]::White
+
+$btnDepCopyResults = New-Object System.Windows.Forms.Button
+$btnDepCopyResults.Location = '426,206'
+$btnDepCopyResults.Size = '120,36'
+$btnDepCopyResults.Text = 'Copy results'
+$btnDepCopyResults.Font = $uiFont
+$btnDepCopyResults.FlatStyle = 'Flat'
+$btnDepCopyResults.BackColor = [System.Drawing.Color]::White
+
+$lblDepSummary = New-Object System.Windows.Forms.Label
+$lblDepSummary.Location = '560,210'
+$lblDepSummary.Size = '380,28'
+$lblDepSummary.Anchor = 'Top, Left, Right'
+$lblDepSummary.Font = $monoFont
+$lblDepSummary.Text = 'Select workbooks, then run. CSV + HTML are written to the output folder.'
+
+$grpDeployTrack.Controls.AddRange(@(
+  $lblDepWorkbook, $txtDepWorkbook, $btnBrowseDepWorkbook,
+  $lblTixWorkbook, $txtTixWorkbook, $btnBrowseTixWorkbook,
+  $lblDepOut, $txtDepOut, $btnBrowseDepOut,
+  $chkDepSkipAd, $lblDepDeviceType, $txtDepDeviceType, $lblDepServer, $txtDepAdServer,
+  $btnDepRun, $btnDepOpenOutput, $btnDepCopyResults, $lblDepSummary
+))
+
+$lblDepResults = New-Object System.Windows.Forms.Label
+$lblDepResults.Location = '8,258'
+$lblDepResults.Size = '200,18'
+$lblDepResults.Text = 'Console output'
+$lblDepResults.Font = $emphasisFont
+$txtDepResults = New-Object System.Windows.Forms.TextBox
+$txtDepResults.Location = '6,278'
+$txtDepResults.Size = '952,372'
+$txtDepResults.Multiline = $true
+$txtDepResults.ScrollBars = 'Both'
+$txtDepResults.ReadOnly = $true
+$txtDepResults.Anchor = 'Top, Bottom, Left, Right'
+$txtDepResults.Font = $monoFont
+$txtDepResults.WordWrap = $false
+$txtDepResults.BackColor = [System.Drawing.Color]::White
+$txtDepResults.Text = 'Choose both Excel workbooks (ImportExcel required) or use Compare-DeploymentToAd.ps1 with -DeploymentCsv / -TicketCsv from a shell for offline CSV runs.'
+
+$deployTrackTab.Controls.AddRange(@($grpDeployTrack, $lblDepResults, $txtDepResults))
+
 # -- Machine Info Tab --
 $machineInfoTab = New-Object System.Windows.Forms.TabPage
 $machineInfoTab.Text = 'Machine Info'
@@ -2339,7 +2508,7 @@ $btnBomSync.Add_Click({
 
 $bomTab.Controls.AddRange(@($grpBom,$lblBomNeedCount,$lblBomView,$btnBomResultsView,$btnBomQRView,$lblBomQRPayload,$cmbBomQRPayload,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight,$pnlBomQRView))
 
-$tabs.TabPages.AddRange(@($runTab,$kronosTab,$compareTab,$machineInfoTab,$bomTab))
+$tabs.TabPages.AddRange(@($runTab,$kronosTab,$compareTab,$deployTrackTab,$machineInfoTab,$bomTab))
 $form.Controls.Add($tabs)
 
 $statusStrip = New-Object System.Windows.Forms.StatusStrip
@@ -2952,6 +3121,131 @@ $btnCompareOpenOutput.Add_Click({
     Set-StatusBarText -Category 'Opened' -Message "Opened compare output folder: $($script:LastCompareRunFolder)"
   } catch {
     Set-StatusBarText -Category 'Error' -Message $_.Exception.Message
+  }
+})
+
+$xlsxFilter = 'Excel workbook (*.xlsx)|*.xlsx|All files (*.*)|*.*'
+$btnBrowseDepWorkbook.Add_Click({
+  $p = Show-BrowseFileDialog -Title 'Select Active Deployment Tracker workbook' -Filter $xlsxFilter -InitialDirectory $env:USERPROFILE
+  if ($p) { $txtDepWorkbook.Text = $p }
+})
+$txtDepWorkbook.Add_Click({
+  $p = Show-BrowseFileDialog -Title 'Select Active Deployment Tracker workbook' -Filter $xlsxFilter -InitialDirectory $env:USERPROFILE
+  if ($p) { $txtDepWorkbook.Text = $p }
+})
+$btnBrowseTixWorkbook.Add_Click({
+  $p = Show-BrowseFileDialog -Title 'Select Active Ticket Tracker workbook' -Filter $xlsxFilter -InitialDirectory $env:USERPROFILE
+  if ($p) { $txtTixWorkbook.Text = $p }
+})
+$txtTixWorkbook.Add_Click({
+  $p = Show-BrowseFileDialog -Title 'Select Active Ticket Tracker workbook' -Filter $xlsxFilter -InitialDirectory $env:USERPROFILE
+  if ($p) { $txtTixWorkbook.Text = $p }
+})
+$btnBrowseDepOut.Add_Click({
+  $p = Show-BrowseFolderDialog -Description 'Select folder for reconcile CSV/HTML output'
+  if ($p) { $txtDepOut.Text = $p }
+})
+
+$btnDepRun.Add_Click({
+  try {
+    if (-not (Test-Path -LiteralPath $deploymentReconcileScript)) {
+      throw "Reconcile script not found: $deploymentReconcileScript"
+    }
+    $depWb = if ($txtDepWorkbook.Text) { $txtDepWorkbook.Text.Trim() } else { '' }
+    $tixWb = if ($txtTixWorkbook.Text) { $txtTixWorkbook.Text.Trim() } else { '' }
+    if ([string]::IsNullOrWhiteSpace($depWb)) { throw 'Select the deployment tracker workbook (.xlsx).' }
+    if ([string]::IsNullOrWhiteSpace($tixWb)) { throw 'Select the ticket tracker workbook (.xlsx).' }
+    if (-not (Test-Path -LiteralPath $depWb)) { throw "Deployment workbook not found: $depWb" }
+    if (-not (Test-Path -LiteralPath $tixWb)) { throw "Ticket workbook not found: $tixWb" }
+
+    $outDir = if ($txtDepOut.Text) { $txtDepOut.Text.Trim() } else { '' }
+    if ([string]::IsNullOrWhiteSpace($outDir)) {
+      $outDir = Join-Path $repoRoot 'DeploymentTracker\Output'
+    }
+    if (-not (Test-Path -LiteralPath $outDir)) {
+      New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+    }
+
+    $runArgs = @{
+      DeploymentWorkbook = $depWb
+      TicketWorkbook     = $tixWb
+      OutputDirectory    = $outDir
+    }
+    if ($chkDepSkipAd.Checked) { $runArgs['SkipAd'] = $true }
+    $dtFilter = if ($txtDepDeviceType.Text) { $txtDepDeviceType.Text.Trim() } else { '' }
+    if ($dtFilter) { $runArgs['DeviceType'] = $dtFilter }
+    $adSrv = if ($txtDepAdServer.Text) { $txtDepAdServer.Text.Trim() } else { '' }
+    if ($adSrv -and -not $chkDepSkipAd.Checked) { $runArgs['Server'] = $adSrv }
+
+    Set-StatusBarText -Category 'Running' -Message 'Running deployment vs AD reconcile...'
+    $txtDepResults.Text = "Running...`n"
+    [System.Windows.Forms.Application]::DoEvents()
+
+    $runOutput = & $deploymentReconcileScript @runArgs 2>&1
+    $outText = ($runOutput | Out-String).Trim()
+
+    $script:LastDeploymentReconcileFolder = $outDir
+    $latestCsv = Get-ChildItem -LiteralPath $outDir -Filter 'DeploymentAdReconcile-*.csv' -ErrorAction SilentlyContinue |
+      Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($latestCsv) {
+      $script:LastDeploymentReconcileCsv = $latestCsv.FullName
+      $lblDepSummary.Text = "Latest CSV: $($latestCsv.Name)"
+      Set-OutputReadyButtonColor -Button $btnDepOpenOutput -IsReady $true
+      $txtDepResults.Text = @(
+        "Output folder: $outDir"
+        "Latest CSV: $($latestCsv.FullName)"
+        ''
+        'Console output:'
+        $outText
+      ) -join "`n"
+      Set-StatusBarText -Category 'Done' -Message "Deployment reconcile finished. CSV: $($latestCsv.Name)"
+    }
+    else {
+      $script:LastDeploymentReconcileCsv = $null
+      $lblDepSummary.Text = 'Finished but no DeploymentAdReconcile-*.csv found in output folder.'
+      Set-OutputReadyButtonColor -Button $btnDepOpenOutput -IsReady $false
+      $txtDepResults.Text = @(
+        "Output folder: $outDir"
+        ''
+        'Console output:'
+        $outText
+      ) -join "`n"
+      Set-StatusBarText -Category 'Warning' -Message 'Reconcile finished but no CSV artifact was found.'
+    }
+  }
+  catch {
+    $script:LastDeploymentReconcileCsv = $null
+    $lblDepSummary.Text = 'Run failed.'
+    Set-OutputReadyButtonColor -Button $btnDepOpenOutput -IsReady $false
+    $txtDepResults.Text = $_.Exception.Message
+    Set-StatusBarText -Category 'Error' -Message 'Deployment reconcile failed.'
+    [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Deployment reconcile failed', 'OK', 'Error') | Out-Null
+  }
+})
+
+$btnDepOpenOutput.Add_Click({
+  try {
+    $folder = $script:LastDeploymentReconcileFolder
+    if (-not $folder -or -not (Test-Path -LiteralPath $folder)) {
+      $folder = if ($txtDepOut.Text) { $txtDepOut.Text.Trim() } else { Join-Path $repoRoot 'DeploymentTracker\Output' }
+    }
+    if (-not (Test-Path -LiteralPath $folder)) {
+      throw 'Output folder does not exist yet. Run reconcile first or pick a folder.'
+    }
+    Start-Process -FilePath 'explorer.exe' -ArgumentList @($folder) | Out-Null
+    Set-StatusBarText -Category 'Opened' -Message "Opened folder: $folder"
+  }
+  catch {
+    Set-StatusBarText -Category 'Error' -Message $_.Exception.Message
+    [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Open folder failed', 'OK', 'Warning') | Out-Null
+  }
+})
+
+$btnDepCopyResults.Add_Click({
+  try { Copy-TextToClipboard -Value $txtDepResults.Text -Label 'Deployment reconcile output' }
+  catch {
+    Set-StatusBarText -Category 'Error' -Message 'Unable to copy the results pane.'
+    [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Copy failed') | Out-Null
   }
 })
 
