@@ -183,9 +183,11 @@ The tutorial system lives in `GUI/Start-SysAdminSuiteGui.ps1` and is designed fo
 
 ### Dry-run / Offline Validation (safe on any machine)
 ```powershell
-# Run all Pester tests — no network, no AD, no printers needed
-Import-Module Pester -MinimumVersion 5.0
-Invoke-Pester .\Tests\Pester\ -Output Detailed
+# Canonical runner: fails fast if Pester 5 is missing
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1
+
+# Direct invocation (if Pester 5 is already loaded)
+Invoke-Pester .\Tests\Pester\
 ```
 
 ### Printer Mapping — Recon (read-only, no changes)
