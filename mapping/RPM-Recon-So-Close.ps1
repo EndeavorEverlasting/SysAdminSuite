@@ -30,25 +30,15 @@ Polling interval inside the wait window.
 #>
 
 # ---------- 1) HEADER (must be first) ----------
-[CmdletBinding(SupportsShouldProcess = $false, PositionalBinding = $false)]
+[CmdletBinding()]
 param(
-  [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
-  [ValidateNotNullOrEmpty()]
-  [Alias('HostsFile','HostList')]
+  [Parameter(Mandatory = $true)]
   [string]$HostsPath,
 
-  [ValidateRange(1,128)]
   [int]$MaxParallel    = 12,
-
-  [ValidateRange(10,600)]
   [int]$MaxWaitSeconds = 60,
-
-  [ValidateRange(1,30)]
   [int]$PollSeconds    = 3
 )
-
-# --- Normalize early: accept PathInfo or string, end up with string ---
-if ($HostsPath -isnot [string]) { $HostsPath = $HostsPath.ToString() }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -131,7 +121,7 @@ Enq ("Open: {0}" -f (Join-Path $sessionRoot 'index.html'))
 # ---------- 5) FAN-OUT ----------
 try {
   $Targets | ForEach-Object -Parallel {
-    # --- Strict + stop inside runspace ---
+    # --- Small Improvement #1: strict + stop inside runspace ---
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
@@ -152,26 +142,12 @@ try {
     try {
       EnqRun "[$target] START"
 
-      # --------- SPN-RESILIENT NAME RESOLUTION (FQDN → short → IP) ----------
+      # Prefer FQDN for SMB/Kerberos
       try { $fqdn = ([System.Net.Dns]::GetHostEntry($target)).HostName } catch { $fqdn = $target }
-      $short = $target -replace '\..*$',''
-      try { $ip = (Resolve-DnsName $fqdn -Type A -ErrorAction Stop).IPAddress | Select-Object -First 1 } catch { $ip = $null }
-
-      $namesToTry = @($fqdn, $short) + @(if ($ip) { $ip } else { $null }) | Where-Object { $_ }
-      $shareName = $null
-      foreach ($n in $namesToTry) {
-        if (Test-Path "\\$n\ADMIN$") { $shareName = $n; break }
-      }
-      if (-not $shareName) { EnqRun "[$target] ADMIN$ unavailable on all name variants"; return }
-
-      EnqRun "[$target] USING NAME VARIANT: $shareName"
-
-      # Use the chosen variant for BOTH file stage and scheduler /S target
-      $schedTarget = $shareName
+      $schedTarget = $fqdn
+      $shareName   = $fqdn
       $dstShare    = "\\$shareName\$remoteRootRel"
       $remoteLogs  = "\\$shareName\$remoteLogsRel"
-
-      # ----------------------------------------------------------------------
 
       if (-not (Test-Connection -ComputerName $target -Quiet -Count 1)) { EnqRun "[$target] OFFLINE"; return }
       EnqRun "[$target] PING OK ($shareName)"
@@ -182,7 +158,7 @@ try {
 
       $remoteWorker = Join-Path $remoteRoot ([IO.Path]::GetFileName($localWorker))
 
-      # Hardened quoting for schtasks /TR
+      # --- Small Improvement #2: hardened quoting for schtasks /TR ---
       $psArgs = '"{0}" -ListOnly -Preflight' -f $remoteWorker
       $tr     = '"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" ' +
                 '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ' + $psArgs
@@ -235,9 +211,7 @@ try {
 } catch [System.Management.Automation.PipelineStoppedException] {
   Enq "Ctrl+C detected — finalizing with partial results…"
 } finally {
-  $timer.Stop()
-  try { $timer.Dispose() } catch {}
-  Drain $queue $ctrlLog
+  $timer.Stop(); Drain $queue $ctrlLog
 
   $centralCsv = Join-Path $sessionRoot 'CentralResults.csv'
   $rows = New-Object System.Collections.Generic.List[Object]
