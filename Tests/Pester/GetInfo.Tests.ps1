@@ -423,7 +423,11 @@ Describe 'Get-WindowsKey.ps1 -- script-level checks' {
             $rows = @(Import-Csv -LiteralPath $csvPath)
             $rows.Count | Should -BeGreaterOrEqual 1
             $rows[0].HostName | Should -Be $env:COMPUTERNAME
-            $rows[0].Status | Should -BeIn @('OK','NoKey')
+            # GitHub Actions and some locked VMs return Error (WMI/licensing) even when the script exits 0
+            $rows[0].Status | Should -BeIn @('OK', 'NoKey', 'Error')
+            if ($rows[0].Status -eq 'Error') {
+                $rows[0].ErrorMessage | Should -Not -BeNullOrEmpty
+            }
             $rows[0].PSObject.Properties.Name | Should -Contain 'ProductKey'
         }
         finally {

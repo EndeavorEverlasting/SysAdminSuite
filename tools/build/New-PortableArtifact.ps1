@@ -74,5 +74,28 @@ if (Test-Path -LiteralPath $artifactPath) {
 Compress-Archive -Path (Join-Path $stagingRoot '*') -DestinationPath $artifactPath -Force
 $hash = (Get-FileHash -Path $artifactPath -Algorithm SHA256).Hash
 
+$commit = $null
+try {
+    Push-Location $repoRoot
+    $commit = (& git rev-parse HEAD 2>$null)
+} finally {
+    Pop-Location
+}
+
+$manifestPath = Join-Path $distDir "SysAdminSuite-Portable-v$Version.manifest.json"
+$manifest = [ordered]@{
+    version          = $Version
+    package          = $artifactName
+    checksumSha256   = $hash
+    publishedUtc     = (Get-Date).ToUniversalTime().ToString('o')
+    notes            = "Portable build from repository; verify checksum before deploy."
+    artifactPath     = $artifactName
+}
+if ($commit) {
+    $manifest['gitCommit'] = $commit.Trim()
+}
+($manifest | ConvertTo-Json -Depth 3) | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+
 Write-Host "Portable artifact created: $artifactPath" -ForegroundColor Green
 Write-Host "SHA256: $hash" -ForegroundColor Cyan
+Write-Host "Manifest: $manifestPath" -ForegroundColor Cyan

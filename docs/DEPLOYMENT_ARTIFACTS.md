@@ -17,7 +17,10 @@ Ship SysAdminSuite to restricted runtime endpoints as versioned artifacts, not a
 1. Build from repository checkout.
 2. Execute:
    - `pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\build\New-PortableArtifact.ps1 -Version 0.1.0`
-3. Publish produced zip from `dist/` to approved distribution location.
+3. The build writes **`dist/SysAdminSuite-Portable-v{Version}.zip`** and a matching **`dist/SysAdminSuite-Portable-v{Version}.manifest.json`** with a real SHA256 and UTC timestamp (and `gitCommit` when built inside a git repo).
+4. Publish **both** the zip and the manifest to your approved distribution location. See [releases/PUBLISH.md](releases/PUBLISH.md).
+5. Optional offline verification:
+   - `pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-PortableArtifactSmoke.ps1 -ZipPath .\dist\SysAdminSuite-Portable-v0.1.0.zip -ManifestPath .\dist\SysAdminSuite-Portable-v0.1.0.manifest.json` (adjust version paths; see [releases/PUBLISH.md](releases/PUBLISH.md)).
 
 ## Runtime Layout (Restricted Endpoint)
 - `%LocalAppData%\SysAdminSuite\app`
