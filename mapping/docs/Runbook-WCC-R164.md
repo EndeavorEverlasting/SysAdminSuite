@@ -56,3 +56,7 @@ What this does:
 ---
 
 **Tip:** Commit `hosts_batch-*.txt` and `logs\MasterResults.csv` with your CHANGELOG note for a crisp audit trail of the 164-device implementation.
+
+## Native (no PowerShell) alternative
+
+If your organization blocks `powershell.exe` on endpoints, use the **native** worker/controller pair under `mapping\native\` (see `mapping\native\README.md` and `mapping\native\CONTRACT.md`). They perform SMB staging and scheduled-task execution with **`SysAdminSuite.Mapping.Worker.exe`** instead of a `.ps1` payload. Orchestration for 164 hosts can still be batched the same way; swap in the native controller’s `-ComputerFile` / `-WorkerArgs` workflow where you would have passed `Map-Run-Controller.ps1` arguments.

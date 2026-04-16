@@ -1,0 +1,37 @@
+# Builds the native (no-CLR) printer mapping tools with MSVC on Windows.
+name: Native mapping build
+
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'mapping/native/**'
+      - '.github/workflows/native-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mapping/native/**'
+      - '.github/workflows/native-build.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CMake configure
+        run: cmake -S mapping/native -B ${{ runner.temp }}/native-build -G "Visual Studio 17 2022" -A x64
+
+      - name: CMake build (Release)
+        run: cmake --build ${{ runner.temp }}/native-build --config Release
+
+      - name: CTest (Release)
+        run: ctest --test-dir ${{ runner.temp }}/native-build -C Release --output-on-failure
+
+      - name: Smoke — Worker usage exit code
+        run: |
+          $w = Get-ChildItem -Path $env:RUNNER_TEMP\native-build -Recurse -Filter SysAdminSuite.Mapping.Worker.exe -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $w) { throw 'SysAdminSuite.Mapping.Worker.exe not found under native-build' }
+          & $w /? 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 2) { throw "Expected exit code 2 for /? on Worker, got $LASTEXITCODE" }

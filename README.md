@@ -31,6 +31,7 @@ SysAdminSuite/
 │   ├── Logs/                   ← Runtime output (git-ignored, .gitkeep present)
 │   ├── docs/
 │   │   └── Runbook-WCC-R164.md     ← Step-by-step deployment runbook
+│   ├── native/                 # C++ mapping Worker + Controller (no CLR; see native/README.md)
 │   └── CHANGELOG.md
 │
 ├── GetInfo/                    # Hardware & printer inventory
