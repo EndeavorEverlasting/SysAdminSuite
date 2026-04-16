@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs the SysAdminSuite Pester suite with a strict Pester 5 requirement.
 
@@ -31,12 +31,21 @@ Import-Module Pester -RequiredVersion $pesterModule.Version -Force
 
 $config = New-PesterConfiguration
 $config.Run.Path = $TestPath
+$config.Run.PassThru = $true
 $config.Output.Verbosity = 'Detailed'
 $config.TestResult.Enabled = $true
 $config.TestResult.OutputPath = '.\_out\pester-results.xml'
 $config.TestResult.OutputFormat = 'NUnitXml'
 
 $result = Invoke-Pester -Configuration $config
-if ($result.FailedCount -gt 0) {
+$failed = 0
+if ($null -ne $result -and $result.PSObject.Properties['FailedCount']) {
+    $failed = [int]$result.FailedCount
+} elseif ($null -ne $result -and $result.PSObject.Properties['Failed']) {
+    $failed = @($result.Failed).Count
+} elseif ($null -eq $result) {
+    $failed = 1
+}
+if ($failed -gt 0) {
     exit 1
 }

@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+﻿#Requires -Modules Pester
 <#
 .SYNOPSIS
   Offline tests for DeploymentTracker reconciliation (no AD, no ImportExcel required).

@@ -31,7 +31,7 @@ if (-not $Path) {
     else { $Path = $PWD.Path }
 }
 
-$exclude = @('.git','node_modules','__pycache__','Output','Archive')
+$exclude = @('.git','node_modules','__pycache__','Output','Archive','dist')
 
 $files = foreach ($ext in $Filter) {
     Get-ChildItem -Path $Path -Recurse -Filter $ext -File -ErrorAction SilentlyContinue

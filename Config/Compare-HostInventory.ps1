@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [Parameter(Mandatory)][string]$SourceHost,
   [Parameter(Mandatory)][string[]]$TargetHost,

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   Shared parsing, normalization, duplicate, and peripherals-site helpers for deployment vs AD reconciliation.

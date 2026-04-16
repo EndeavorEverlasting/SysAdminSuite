@@ -280,7 +280,9 @@ function Restore-UndoRedoActionRecord {
     $metadata = ConvertTo-UndoRedoHashtable -InputObject $ActionSummary.Metadata
     $replaySupported = $true
 
-    if ($metadata.Kind -eq 'Printer' -and $metadata.Mode -eq 'MachineWide') {
+    $printerMode = if ($metadata.ContainsKey('Mode')) { $metadata['Mode'] } else { $null }
+
+    if ($metadata.Kind -eq 'Printer' -and $printerMode -eq 'MachineWide') {
         $source = if ($metadata.ContainsKey('Source') -and $metadata.Source) { $metadata.Source } else { 'ImportedSession' }
         $action = New-MachineWidePrinterUndoRedoAction -Operation $metadata.Operation -PrinterPath $ActionSummary.Target -Source $source
     } elseif ($metadata.Kind -eq 'Printer') {

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Build a portable SysAdminSuite runtime artifact.
 

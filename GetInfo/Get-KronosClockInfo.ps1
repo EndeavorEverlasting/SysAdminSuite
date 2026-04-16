@@ -25,8 +25,16 @@ param(
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
-$snmpget = (Get-Command 'snmpget.exe' -ErrorAction SilentlyContinue).Source
-$snmpwalk = (Get-Command 'snmpwalk.exe' -ErrorAction SilentlyContinue).Source
+function Get-ExternalCommandPath {
+    param([string]$Name)
+    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $cmd) { return $null }
+    if ($cmd.PSObject.Properties['Source']) { return [string]$cmd.Source }
+    if ($cmd.PSObject.Properties['Path']) { return [string]$cmd.Path }
+    return $null
+}
+$snmpget = Get-ExternalCommandPath 'snmpget.exe'
+$snmpwalk = Get-ExternalCommandPath 'snmpwalk.exe'
 $oids = @{
   SysName    = '1.3.6.1.2.1.1.5.0'
   SysDescr   = '1.3.6.1.2.1.1.1.0'

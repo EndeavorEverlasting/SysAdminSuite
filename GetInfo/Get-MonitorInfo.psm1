@@ -1,4 +1,4 @@
-function Get-NativeResolution {
+﻿function Get-NativeResolution {
     param([Parameter(Mandatory)][string]$InstanceName)
 
     $escapedInstance = $InstanceName -replace '\\','\\\\' -replace "'","''"

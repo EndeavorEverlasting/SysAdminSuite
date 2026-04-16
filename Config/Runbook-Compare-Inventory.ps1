@@ -1,4 +1,4 @@
-<# Runbook-Compare-Inventory.ps1
+﻿<# Runbook-Compare-Inventory.ps1
    Compare source vs target hosts for:
    - support file share inventory (\\HOST\c$\support)
    - installed software inventory

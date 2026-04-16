@@ -23,7 +23,7 @@ Describe 'Mapping\Config CSV files' {
         $cols = $rows[0].PSObject.Properties.Name |
                 ForEach-Object { ($_ -replace '^\xEF\xBB\xBF','').TrimStart([char]0xFEFF).Trim() }
 
-        ($cols | Where-Object { $_ -match 'Host$' }).Count | Should -BeGreaterThan 0
+        @($cols | Where-Object { $_ -match 'Host$' }).Count | Should -BeGreaterThan 0
         (@($cols) -contains 'UNC') | Should -Be $true
         (@($cols) -contains 'FriendlyName') | Should -Be $true
     }

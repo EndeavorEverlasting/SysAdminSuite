@@ -53,3 +53,6 @@ node_modules/
 
 # Local OCR reference PDF (not tracked)
 OCR/Jude's 2026 Buildout Project.pdf
+
+# Portable build output (local only)
+dist/

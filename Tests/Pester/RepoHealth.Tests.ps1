@@ -115,7 +115,7 @@ Describe 'UTF-8 BOM fixing' {
 Describe 'Repo-wide BOM compliance' {
     It 'All .ps1 files in the repo have UTF-8 BOM' {
         $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $excludeDirs = @('.git','node_modules','__pycache__','Output','Archive','.vs','bin','obj')
+        $excludeDirs = @('.git','node_modules','__pycache__','Output','Archive','.vs','bin','obj','dist')
         $files = Get-ChildItem -Path $repoRoot -Recurse -Filter '*.ps1' -File -ErrorAction SilentlyContinue |
             Where-Object {
                 $rel = $_.FullName.Replace($repoRoot,'')
@@ -175,7 +175,7 @@ $PSScriptRoot is literal here
         )
         $parseIssues = @()
         $files = Get-ChildItem -Path $repoRoot -Recurse -Filter '*.ps1' -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -notmatch '[\\/](\.git|node_modules|Output|Archive|_)' }
+            Where-Object { $_.FullName -notmatch '[\\/](\.git|node_modules|Output|Archive|dist|_)' }
 
         foreach ($f in $files) {
             $rel = $f.FullName.Replace($repoRoot,'').TrimStart('\','/')

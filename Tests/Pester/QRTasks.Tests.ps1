@@ -1,4 +1,4 @@
-#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
 <#
 .SYNOPSIS
     Tests for QRTasks dispatcher safety behaviors.
@@ -12,19 +12,21 @@ BeforeAll {
 Describe 'Invoke-TechTask fallback root resolution' {
     It 'Exposes localhost and computername fallback candidates in resolver implementation' {
         $content = Get-Content -Path $script:dispatcherPath -Raw
-        $content | Should -Match '\\\\localhost\\c\$\Scripts\\QRTasks'
-        $content | Should -Match '\\\\\$env:COMPUTERNAME\\c\$\Scripts\\QRTasks'
+        # Substring checks avoid .NET regex quirks with `\c` and backslashes
+        $content.Contains('localhost\c$\Scripts\QRTasks') | Should -Be $true
+        $content.Contains('COMPUTERNAME\c$\Scripts\QRTasks') | Should -Be $true
     }
 
     It 'Uses local dispatcher fallback when requested root is missing' {
+        $qrTasksRoot = Join-Path $repoRoot 'QRTasks'
         . $script:dispatcherPath -Task '?'
         Mock Test-Path {
             param([string]$LiteralPath)
-            $LiteralPath -eq $PSScriptRoot
+            $LiteralPath -eq $qrTasksRoot
         }
 
         $resolved = Resolve-TaskScriptRoot -RequestedRoot 'C:\Missing\QRTasks'
-        $resolved.Path | Should -Be $PSScriptRoot
+        $resolved.Path | Should -Be $qrTasksRoot
         $resolved.Reason | Should -Be 'local dispatcher folder fallback'
         $resolved.Resolution | Should -Match 'unreachable: C:\\Missing\\QRTasks'
     }
