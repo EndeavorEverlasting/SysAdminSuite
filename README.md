@@ -1,6 +1,6 @@
 # SysAdminSuite -- Consolidated v2.0
 
-> **Branch:** `consolidate/v2.0`
+> **Primary development branch:** `main` (feature branches merge here; older names like `consolidate/v2.0` are historical only.)
 > **Merged from:** 8 branches across the full history of this repo.
 > **Constraint:** All tools must support offline / non-AD environments and provide dry-run capability before touching production machines.
 

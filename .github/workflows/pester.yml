@@ -1,0 +1,24 @@
+# Runs the offline Pester suite (Pester 5+) on Windows to match production tooling.
+name: Pester
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run Test-Pester5Suite.ps1
+        shell: pwsh
+        run: |
+          & "${{ github.workspace }}/tools/Test-Pester5Suite.ps1"
