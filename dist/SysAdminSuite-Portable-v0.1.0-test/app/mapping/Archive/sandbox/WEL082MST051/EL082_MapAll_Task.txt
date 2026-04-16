@@ -1,0 +1,6 @@
+# Simulated task for sandbox mode
+# Original command would be:
+# schtasks /Create /S WEL082MST051 /RU SYSTEM /SC ONCE /ST 00:00 /RL HIGHEST /TN EL082_MapAll /TR "powershell -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\EL082\Map-EL082-MachineWide.ps1"" /F /Z
+# schtasks /Run /S WEL082MST051 /TN EL082_MapAll
+
+# Task would execute: powershell -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\EL082\Map-EL082-MachineWide.ps1"
