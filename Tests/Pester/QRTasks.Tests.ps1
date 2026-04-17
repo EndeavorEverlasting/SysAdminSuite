@@ -14,6 +14,16 @@ Describe 'Invoke-TechTask task registry' {
         $content = Get-Content -Path $script:dispatcherPath -Raw
         $content | Should -Match "WinOptionalFeatures\s*=\s*'Get-WindowsOptionalFeatures\.ps1'"
     }
+
+    It 'Includes PowerComfort mapped to Set-PowerComfortDefaults.ps1' {
+        $content = Get-Content -Path $script:dispatcherPath -Raw
+        $content | Should -Match "PowerComfort\s*=\s*'Set-PowerComfortDefaults\.ps1'"
+    }
+
+    It 'Includes PowerComfortRevert mapped to Restore-PowerComfortDefaults.ps1' {
+        $content = Get-Content -Path $script:dispatcherPath -Raw
+        $content | Should -Match "PowerComfortRevert\s*=\s*'Restore-PowerComfortDefaults\.ps1'"
+    }
 }
 
 Describe 'Invoke-TechTask fallback root resolution' {
