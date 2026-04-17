@@ -9,6 +9,13 @@ BeforeAll {
     $script:dispatcherPath = Join-Path $repoRoot 'QRTasks\Invoke-TechTask.ps1'
 }
 
+Describe 'Invoke-TechTask task registry' {
+    It 'Includes WinOptionalFeatures mapped to Get-WindowsOptionalFeatures.ps1' {
+        $content = Get-Content -Path $script:dispatcherPath -Raw
+        $content | Should -Match "WinOptionalFeatures\s*=\s*'Get-WindowsOptionalFeatures\.ps1'"
+    }
+}
+
 Describe 'Invoke-TechTask fallback root resolution' {
     It 'Exposes localhost and computername fallback candidates in resolver implementation' {
         $content = Get-Content -Path $script:dispatcherPath -Raw

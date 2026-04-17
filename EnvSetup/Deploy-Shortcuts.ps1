@@ -8,13 +8,15 @@
    - Transcript_*.txt       (full console transcript)
 
  Design / future-proofing notes:
-   - Username is fixed below; password is prompted every run (changes daily).
+   - SMB username: optional -SmbUser, Deploy-Shortcuts.config.psd1 SmbUser, or DEPLOY_SHORTCUTS_SMB_USER; password is prompted every run (changes daily).
    - Uses net.exe for SMB auth; handles multiple-connection errors (1219/3775).
    - Detects 1326 (bad password), re-prompts ONCE globally, then retries.
    - Never overwrites existing files. If present and different, logs EXISTS_DIFFERENT.
    - If present and identical (hash match), logs UPTODATE and skips.
    - ASCII-only punctuation to avoid encoding parse issues.
    - Avoids $host automatic variable; uses $targetHost, $hostName, etc.
+# Optional defaults: Deploy-Shortcuts.config.psd1 next to this script, or env vars
+# (see file header below).
 #>
 
 param(
@@ -23,10 +25,46 @@ param(
   [int]   $StartNum  = 1,
   [int]   $EndNum    = 164,
   [string[]]$ComputerList,  # optional explicit list; overrides prefix/range
+  [string]$SmbUser    = '',   # optional; else config, env DEPLOY_SHORTCUTS_SMB_USER, or legacy default
   [switch]$WhatIf
 )
 
 Set-StrictMode -Version Latest
+
+$configPath = Join-Path $PSScriptRoot 'Deploy-Shortcuts.config.psd1'
+$cfg = @{}
+if (Test-Path -LiteralPath $configPath) {
+  try {
+    $cfg = Import-PowerShellDataFile -LiteralPath $configPath
+  } catch {
+    Write-Warning "Could not load ${configPath}: $($_.Exception.Message)"
+  }
+}
+
+if (-not $PSBoundParameters.ContainsKey('SourceDir')) {
+  if ($env:DEPLOY_SHORTCUTS_SOURCE_DIR) { $SourceDir = $env:DEPLOY_SHORTCUTS_SOURCE_DIR }
+  elseif ($cfg.SourceDir) { $SourceDir = $cfg.SourceDir }
+}
+if (-not $PSBoundParameters.ContainsKey('Prefix')) {
+  if ($env:DEPLOY_SHORTCUTS_PREFIX) { $Prefix = $env:DEPLOY_SHORTCUTS_PREFIX }
+  elseif ($cfg.Prefix) { $Prefix = $cfg.Prefix }
+}
+if (-not $PSBoundParameters.ContainsKey('StartNum')) {
+  if ($env:DEPLOY_SHORTCUTS_START_NUM) { $StartNum = [int]$env:DEPLOY_SHORTCUTS_START_NUM }
+  elseif ($null -ne $cfg.StartNum) { $StartNum = [int]$cfg.StartNum }
+}
+if (-not $PSBoundParameters.ContainsKey('EndNum')) {
+  if ($env:DEPLOY_SHORTCUTS_END_NUM) { $EndNum = [int]$env:DEPLOY_SHORTCUTS_END_NUM }
+  elseif ($null -ne $cfg.EndNum) { $EndNum = [int]$cfg.EndNum }
+}
+
+if ($PSBoundParameters.ContainsKey('SmbUser') -and -not [string]::IsNullOrWhiteSpace($SmbUser)) {
+  # explicit -SmbUser from command line
+} else {
+  if ($env:DEPLOY_SHORTCUTS_SMB_USER) { $SmbUser = $env:DEPLOY_SHORTCUTS_SMB_USER }
+  elseif ($cfg.SmbUser) { $SmbUser = $cfg.SmbUser }
+  else { $SmbUser = 'pa_rperez26@nslijhs.net' }
+}
 
 # ---------- logging setup ----------
 $ts      = Get-Date -Format "yyyyMMdd_HHmmss"
@@ -54,9 +92,8 @@ function CsvLog($hostName,$file,$status,$detail) {
 "Time,Hostname,File,Status,Detail" | Out-File $logCsv -Encoding UTF8
 
 # ---------- SMB credentials (daily password) ----------
-# Username is static; password is prompted each run. We convert it to plain
+# Username resolved above; password is prompted each run. We convert it to plain
 # to pass to net.exe, and we clear the variable in finally.
-$SmbUser = "pa_rperez26@nslijhs.net"
 $plainPass = $null
 $bstr = [IntPtr]::Zero
 try {
@@ -174,7 +211,8 @@ try {
   # Determine actual source files by label and allowed extensions
   $want = @(
     @{ Label = 'Nuance Powershare' ; Patterns = @('Nuance Powershare*.lnk','Nuance Powershare*.url','Nuance Powershare*.website') },
-    @{ Label = 'Welcome to Cerner' ; Patterns = @('Welcome to Cerner*.lnk','Welcome to Cerner*.url','Welcome to Cerner*.website') }
+    @{ Label = 'Welcome to Cerner' ; Patterns = @('Welcome to Cerner*.lnk','Welcome to Cerner*.url','Welcome to Cerner*.website') },
+    @{ Label = 'Microsoft Teams' ; Patterns = @('Microsoft Teams*.lnk','Microsoft Teams*.url','Teams*.lnk','ms-teams*.lnk') }
   )
 
   $filesToCopy = @()

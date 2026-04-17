@@ -96,11 +96,12 @@ if ($resolvedRoot.Resolution -ne 'primary path available') {
 # ── Task registry ────────────────────────────────────────────────────
 # Map short names to script filenames (relative to $ScriptRoot).
 $TaskMap = [ordered]@{
-    RAMProfile  = 'Get-RAMProfile.ps1'
-    ModelInfo   = 'Get-ModelInfo.ps1'
-    NetworkInfo = 'Get-NetworkInfo.ps1'
-    Serials     = 'Get-Serials.ps1'
-    NeuronTrace = 'Get-NeuronTrace.ps1'
+    RAMProfile        = 'Get-RAMProfile.ps1'
+    ModelInfo         = 'Get-ModelInfo.ps1'
+    NetworkInfo       = 'Get-NetworkInfo.ps1'
+    Serials           = 'Get-Serials.ps1'
+    NeuronTrace       = 'Get-NeuronTrace.ps1'
+    WinOptionalFeatures = 'Get-WindowsOptionalFeatures.ps1'
 }
 
 # ── Help / list mode ────────────────────────────────────────────────

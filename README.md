@@ -366,7 +366,7 @@ in this repo.
 # QR payload for RAM profile (fits in a small QR code):
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
 
-# Other tasks: ModelInfo, NetworkInfo, Serials, NeuronTrace
+# Other tasks: ModelInfo, NetworkInfo, Serials, NeuronTrace, WinOptionalFeatures
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task ModelInfo
 
 # List available tasks:
@@ -395,6 +395,7 @@ powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Inv
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task NetworkInfo
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task Serials
 powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task NeuronTrace
+powershell.exe -NoP -EP Bypass -File "\\server\Scripts\SysAdminSuite\QRTasks\Invoke-TechTask.ps1" -Task WinOptionalFeatures
 ```
 
 Practical uses:
@@ -402,6 +403,7 @@ Practical uses:
 - send a **RAMProfile** snippet when a user reports slowness or upgrade questions
 - send a **NetworkInfo** snippet before printer, DNS, or Kronos troubleshooting
 - send a **Serials** snippet when you need BIOS/product/monitor identifiers for asset work
+- send **WinOptionalFeatures** (elevated) when you need a quick list of enabled optional Windows components on the workstation
 - send the **GUI launcher** when you want the user or a tech to work through guided tabs instead of raw commands
 
 ## Known Bugs Fixed (see Bug-Log.md)

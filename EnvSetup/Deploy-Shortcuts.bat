@@ -1,6 +1,8 @@
 ﻿@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
+rem For config file support, SMB auth, hash checks, and Microsoft Teams patterns,
+rem use Deploy-Shortcuts.ps1. This batch file is a lighter CMD-only path.
 rem ------------------------------------------------------------------------------
 rem Config (defaults) - can be overridden via CLI switches
 rem ------------------------------------------------------------------------------
@@ -58,12 +60,16 @@ rem Discover source files (first match for each label and extension)
 rem ------------------------------------------------------------------------------
 set "SRC1=" & set "SRC1NAME="
 set "SRC2=" & set "SRC2NAME="
+set "SRC3=" & set "SRC3NAME="
 
 call :FindSource "%SOURCEDIR%" "Nuance Powershare*.lnk" "Nuance Powershare*.url" "Nuance Powershare*.website"
 set "SRC1=!RET!" & set "SRC1NAME=!RETNAME!"
 
 call :FindSource "%SOURCEDIR%" "Welcome to Cerner*.lnk" "Welcome to Cerner*.url" "Welcome to Cerner*.website"
 set "SRC2=!RET!" & set "SRC2NAME=!RETNAME!"
+
+call :FindSource "%SOURCEDIR%" "Microsoft Teams*.lnk" "Microsoft Teams*.url" "Teams*.lnk" "ms-teams*.lnk"
+set "SRC3=!RET!" & set "SRC3NAME=!RETNAME!"
 
 if defined SRC1 (
   for %%Z in ("!SRC1!") do set "SRC1SIZE=%%~zZ"
@@ -81,7 +87,15 @@ if defined SRC2 (
   call :CsvLog "" "Welcome to Cerner" "MISSING_SOURCE" "No matching files in %SOURCEDIR%"
 )
 
-if not defined SRC1 if not defined SRC2 (
+if defined SRC3 (
+  for %%Z in ("!SRC3!") do set "SRC3SIZE=%%~zZ"
+  call :LogLine "FOUND source for 'Microsoft Teams': !SRC3NAME!"
+) else (
+  call :LogLine "MISSING source for 'Microsoft Teams' in %SOURCEDIR% - will SKIP."
+  call :CsvLog "" "Microsoft Teams" "MISSING_SOURCE" "No matching files in %SOURCEDIR%"
+)
+
+if not defined SRC1 if not defined SRC2 if not defined SRC3 (
   call :LogLine "No source files discovered. Aborting."
   goto :Tail
 )
@@ -150,6 +164,7 @@ if exist "%DEST%\nul" (
 
 if defined SRC1 call :CopyOne "%HOST%" "%SOURCEDIR%" "%DEST%" "%SRC1NAME%"
 if defined SRC2 call :CopyOne "%HOST%" "%SOURCEDIR%" "%DEST%" "%SRC2NAME%"
+if defined SRC3 call :CopyOne "%HOST%" "%SOURCEDIR%" "%DEST%" "%SRC3NAME%"
 
 endlocal
 goto :eof
