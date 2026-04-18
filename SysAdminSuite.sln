@@ -1,0 +1,25 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SysAdminSuite.Core", "src\SysAdminSuite.Core\SysAdminSuite.Core.csproj", "{15C6C6E6-326B-4BA5-8286-8E83E0EE4702}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SysAdminSuite.Core.Tests", "managed-tests\SysAdminSuite.Core.Tests\SysAdminSuite.Core.Tests.csproj", "{025F89A7-EB8F-4435-BEF9-534D7FD0C426}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{15C6C6E6-326B-4BA5-8286-8E83E0EE4702}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15C6C6E6-326B-4BA5-8286-8E83E0EE4702}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15C6C6E6-326B-4BA5-8286-8E83E0EE4702}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15C6C6E6-326B-4BA5-8286-8E83E0EE4702}.Release|Any CPU.Build.0 = Release|Any CPU
+		{025F89A7-EB8F-4435-BEF9-534D7FD0C426}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{025F89A7-EB8F-4435-BEF9-534D7FD0C426}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{025F89A7-EB8F-4435-BEF9-534D7FD0C426}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{025F89A7-EB8F-4435-BEF9-534D7FD0C426}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
+

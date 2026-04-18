@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   Locates a built SysAdminSuite.Mapping.Worker.exe and verifies it runs (/ ? -> exit 2).

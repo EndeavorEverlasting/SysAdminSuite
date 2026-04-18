@@ -1,0 +1,33 @@
+# Managed (.NET) unit tests — primary path when PowerShell is disallowed on dev machines; CI still validates scripts via Pester separately.
+name: .NET tests
+
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'src/**'
+      - 'managed-tests/**'
+      - 'SysAdminSuite.sln'
+      - '.github/workflows/dotnet-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'managed-tests/**'
+      - 'SysAdminSuite.sln'
+      - '.github/workflows/dotnet-tests.yml'
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore and test
+        run: dotnet test SysAdminSuite.sln -c Release --verbosity normal
+

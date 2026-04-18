@@ -6,10 +6,21 @@
 
 ---
 
+## Runtime policy (C# / native first)
+
+- **Primary supported path for restricted endpoints:** **compiled** tooling — **.NET (C#)** for the GUI and most automation, and **native C++** under [`mapping/native`](mapping/native/README.md) for printer mapping where `powershell.exe` is blocked or scripting policy is strict. Artifact and CLI contracts are documented in [`mapping/native/CONTRACT.md`](mapping/native/CONTRACT.md).
+- **PowerShell scripts** (`.ps1` / `.psm1`) remain in the repository as **maintained, optional** tooling for environments that allow them (labs, build hosts, less restricted sites). They are kept for parity checks, migration reference, and future rollout — not removed.
+- **Unit tests:** managed code is covered by **`dotnet test`** on [`SysAdminSuite.sln`](SysAdminSuite.sln) (projects under [`src/`](src/) and [`managed-tests/`](managed-tests/)); script behavior continues to be covered by the **Pester** suite under [`Tests/Pester`](Tests/Pester).
+
+---
+
 ## Repository Layout
 
 ```
 SysAdminSuite/
+├── src/                        # .NET class libraries (managed tooling foundation)
+├── managed-tests/              # .NET unit tests (xUnit; separate folder — `Tests/` is reserved for Pester on Windows)
+├── SysAdminSuite.sln           # Managed solution entrypoint
 ├── Mapping/                    # Printer mapping — the primary toolset
 │   ├── Controllers/            # Orchestrators (run these)
 │   │   ├── RPM-Recon.ps1           ← Zero-risk recon: ListOnly + Preflight
@@ -94,7 +105,7 @@ SysAdminSuite/
 │
 ├── Tests/
 │   ├── Preflight.ps1               ← Manual preflight checklist
-│   └── Pester/                     ← Automated offline unit tests
+│   └── Pester/                     ← PowerShell contract tests (Invoke-Pester)
 │       ├── Utilities.Tests.ps1     ← Test-Network, Map-Printer, Invoke-FileShare
 │       ├── Mapping.Tests.ps1       ← CSV schema, worker script contracts
 │       ├── GetInfo.Tests.ps1       ← Get-MachineInfo, Get-RamInfo, QueueInventory, Kronos lookup, Windows key contracts
@@ -190,6 +201,14 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1
 # Direct invocation (if Pester 5 is already loaded)
 Invoke-Pester .\Tests\Pester\
 ```
+
+Managed (.NET) unit tests (no PowerShell required):
+
+```bat
+dotnet test SysAdminSuite.sln -c Release
+```
+
+(`managed-tests/` holds xUnit projects; `Tests/Pester/` is the PowerShell suite.)
 
 ### Printer Mapping — Recon (read-only, no changes)
 ```powershell

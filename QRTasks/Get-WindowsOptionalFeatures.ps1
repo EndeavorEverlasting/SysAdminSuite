@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Lists Windows optional features (DISM / Get-WindowsOptionalFeature) on this PC.
 
