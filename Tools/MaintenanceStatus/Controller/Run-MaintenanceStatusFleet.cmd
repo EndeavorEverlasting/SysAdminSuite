@@ -211,15 +211,24 @@ exit /b 0
 > "%REPORT_HTML%" echo ^<!doctype html^>
 >> "%REPORT_HTML%" echo ^<html^>^<head^>^<meta charset="utf-8"^>^<title^>Maintenance Status Report^</title^>
 >> "%REPORT_HTML%" echo ^<style^>
->> "%REPORT_HTML%" echo body{font-family:Segoe UI,Arial,sans-serif;background:#111;color:#eee;margin:24px;} h1{color:#9be28f;} table{border-collapse:collapse;width:100%%;margin-top:18px;} th,td{border:1px solid #444;padding:8px;text-align:left;} th{background:#222;} tr:nth-child(even){background:#181818;} .pass{color:#9be28f;font-weight:700;} .fail{color:#ff8a80;font-weight:700;} .warn{color:#ffd166;font-weight:700;} code{color:#9be28f;}
+>> "%REPORT_HTML%" echo body{font-family:Segoe UI,Arial,sans-serif;background:#0f1115;color:#eef2f5;margin:24px;} h1{color:#9be28f;margin-bottom:4px;} h2{color:#d7ffd0;margin-top:28px;} .meta{color:#b7c0c7;} .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:22px 0;} .card{background:#181d24;border:1px solid #303945;border-radius:14px;padding:14px;box-shadow:0 8px 20px rgba(0,0,0,.25);} .card .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#aeb8c2;} .card .value{font-size:30px;font-weight:800;margin-top:4px;} .ok{color:#9be28f;} .bad{color:#ff8a80;} .warn{color:#ffd166;} .neutral{color:#9ecbff;} table{border-collapse:collapse;width:100%%;margin-top:18px;} th,td{border:1px solid #384150;padding:8px;text-align:left;vertical-align:top;} th{background:#202733;color:#d7ffd0;} tr:nth-child(even){background:#161b22;} code{color:#9be28f;}
 >> "%REPORT_HTML%" echo ^</style^>^</head^>^<body^>
 >> "%REPORT_HTML%" echo ^<h1^>SysAdminSuite Maintenance Status Fleet Report^</h1^>
->> "%REPORT_HTML%" echo ^<p^>Admin Box: ^<code^>%COMPUTERNAME%^</code^>^</p^>
->> "%REPORT_HTML%" echo ^<p^>Hub: ^<code^>%AKBARNATOR_HOST% / Akbarnator^</code^>^</p^>
->> "%REPORT_HTML%" echo ^<p^>Target File: ^<code^>%TARGET_FILE%^</code^>^</p^>
->> "%REPORT_HTML%" echo ^<p^>Generated: ^<code^>%DATE% %TIME%^</code^>^</p^>
->> "%REPORT_HTML%" echo ^<p^>Share strategy: try ^<code^>\\HOST\C$\SUPPORT^</code^> first, then fallback to ^<code^>\\HOST\C$^</code^> and stage under ^<code^>C:\SUPPORT\SysAdminSuite\MaintenanceStatus^</code^>.^</p^>
->> "%REPORT_HTML%" echo ^<table^>^<thead^>^<tr^>^<th^>Hostname^</th^>^<th^>Mode^</th^>^<th^>Action^</th^>^<th^>Ping^</th^>^<th^>Share^</th^>^<th^>Share Path^</th^>^<th^>Payload^</th^>^<th^>Task^</th^>^<th^>Notes^</th^>^</tr^>^</thead^>^<tbody^>
+>> "%REPORT_HTML%" echo ^<p class="meta"^>Admin Box: ^<code^>%COMPUTERNAME%^</code^> ^| Hub: ^<code^>%AKBARNATOR_HOST% / Akbarnator^</code^> ^| Generated: ^<code^>%DATE% %TIME%^</code^>^</p^>
+>> "%REPORT_HTML%" echo ^<p class="meta"^>Target File: ^<code^>%TARGET_FILE%^</code^>^</p^>
+>> "%REPORT_HTML%" echo ^<p class="meta"^>Share strategy: try ^<code^>\\HOST\C$\SUPPORT^</code^> first, then fallback to ^<code^>\\HOST\C$^</code^> and stage under ^<code^>C:\SUPPORT\SysAdminSuite\MaintenanceStatus^</code^>.^</p^>
+>> "%REPORT_HTML%" echo ^<section class="cards" id="summaryCards"^>
+>> "%REPORT_HTML%" echo ^<div class="card"^>^<div class="label"^>Total Targets^</div^>^<div class="value neutral" id="totalTargets"^>0^</div^>^</div^>
+>> "%REPORT_HTML%" echo ^<div class="card"^>^<div class="label"^>Live^</div^>^<div class="value ok" id="liveTargets"^>0^</div^>^</div^>
+>> "%REPORT_HTML%" echo ^<div class="card"^>^<div class="label"^>Not Live^</div^>^<div class="value bad" id="notLiveTargets"^>0^</div^>^</div^>
+>> "%REPORT_HTML%" echo ^<div class="card"^>^<div class="label"^>C$\SUPPORT OK^</div^>^<div class="value ok" id="supportOk"^>0^</div^>^</div^>
+>> "%REPORT_HTML%" echo ^<div class="card"^>^<div class="label"^>C$ Fallback^</div^>^<div class="value warn" id="fallbackUsed"^>0^</div^>^</div^>
+>> "%REPORT_HTML%" echo ^<div class="card"^>^<div class="label"^>No Share^</div^>^<div class="value bad" id="noShare"^>0^</div^>^</div^>
+>> "%REPORT_HTML%" echo ^<div class="card"^>^<div class="label"^>Payload Staged^</div^>^<div class="value ok" id="payloadStaged"^>0^</div^>^</div^>
+>> "%REPORT_HTML%" echo ^<div class="card"^>^<div class="label"^>Task Registered^</div^>^<div class="value ok" id="taskRegistered"^>0^</div^>^</div^>
+>> "%REPORT_HTML%" echo ^<div class="card"^>^<div class="label"^>Task Failed^</div^>^<div class="value bad" id="taskFailed"^>0^</div^>^</div^>
+>> "%REPORT_HTML%" echo ^</section^>
+>> "%REPORT_HTML%" echo ^<table id="resultTable"^>^<thead^>^<tr^>^<th^>Hostname^</th^>^<th^>Mode^</th^>^<th^>Action^</th^>^<th^>Ping^</th^>^<th^>Share^</th^>^<th^>Share Path^</th^>^<th^>Payload^</th^>^<th^>Task^</th^>^<th^>Notes^</th^>^</tr^>^</thead^>^<tbody^>
 exit /b 0
 
 :WriteReportRow
@@ -241,5 +250,8 @@ exit /b 0
 >> "%REPORT_HTML%" echo ^<p^>RemoteReport performs admin-box reporting only. TargetDisplay actions stage payload only when explicitly requested.^</p^>
 >> "%REPORT_HTML%" echo ^<p^>For visible target display, the payload must execute in the target's interactive/autologon session. A scheduled task may not display if policy/session context prevents it.^</p^>
 >> "%REPORT_HTML%" echo ^<p^>Targets are not assumed to have SysAdminSuite. The controller stages only the maintenance payload when an action requests it.^</p^>
+>> "%REPORT_HTML%" echo ^<script^>
+>> "%REPORT_HTML%" echo (function(){var rows=[].slice.call(document.querySelectorAll('#resultTable tbody tr'));function txt(r,i){return (r.children[i].textContent||'').trim();}function count(fn){return rows.filter(fn).length;}function set(id,v){document.getElementById(id).textContent=v;}set('totalTargets',rows.length);set('liveTargets',count(function(r){return txt(r,3)==='Pass';}));set('notLiveTargets',count(function(r){return txt(r,3)!=='Pass';}));set('supportOk',count(function(r){return txt(r,4)==='C$SupportPath';}));set('fallbackUsed',count(function(r){return txt(r,4)==='AdminShareFallback';}));set('noShare',count(function(r){return txt(r,4)==='NoShare';}));set('payloadStaged',count(function(r){return txt(r,6).indexOf('Staged:')===0;}));set('taskRegistered',count(function(r){return txt(r,7).indexOf('Registered:')===0;}));set('taskFailed',count(function(r){return txt(r,7)==='RegisterFailed';}));})();
+>> "%REPORT_HTML%" echo ^</script^>
 >> "%REPORT_HTML%" echo ^</body^>^</html^>
 exit /b 0
