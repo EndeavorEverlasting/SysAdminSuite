@@ -16,7 +16,10 @@ set "STAMP=%DATE:/=-%_%TIME::=-%"
 set "STAMP=%STAMP: =0%"
 set "REPORT_HTML=%OUTPUT_DIR%\MaintenanceStatus_Report_%COMPUTERNAME%_%STAMP%.html"
 set "REPORT_CSV=%OUTPUT_DIR%\MaintenanceStatus_Report_%COMPUTERNAME%_%STAMP%.csv"
-set "DEFAULT_REMOTE_STAGE=C$\SysAdminSuite\MaintenanceStatus"
+set "SUPPORT_SHARE=SUPPORT"
+set "FALLBACK_ADMIN_SHARE=C$"
+set "REMOTE_STAGE_REL=SUPPORT\SysAdminSuite\MaintenanceStatus"
+set "REMOTE_LAUNCHER=C:\SUPPORT\SysAdminSuite\MaintenanceStatus\Run-MaintenanceStatus.cmd"
 
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%" >nul 2>nul
 
@@ -55,7 +58,7 @@ exit /b 2
 
 :ProcessTargets
 call :WriteReportHeader
-> "%REPORT_CSV%" echo Hostname,Mode,Action,PingStatus,AdminShareStatus,PayloadStatus,TaskStatus,Notes
+> "%REPORT_CSV%" echo Hostname,Mode,Action,PingStatus,ShareStatus,SharePath,PayloadStatus,TaskStatus,Notes
 
 echo Target file:
 echo   %TARGET_FILE%
@@ -90,7 +93,8 @@ set "MODE=%~2"
 set "ACTION=%~3"
 set "NOTES=%~4"
 set "PING_STATUS=Fail"
-set "ADMIN_STATUS=NotChecked"
+set "SHARE_STATUS=NotChecked"
+set "SHARE_PATH="
 set "PAYLOAD_STATUS=NotRequested"
 set "TASK_STATUS=NotRequested"
 
@@ -103,40 +107,70 @@ ping -n 1 -w 1000 "%HOST%" >nul 2>nul
 if not errorlevel 1 set "PING_STATUS=Pass"
 
 if /I "%MODE%"=="LocalConfirm" (
-    set "ADMIN_STATUS=Local"
+    set "SHARE_STATUS=Local"
+    set "SHARE_PATH=%COMPUTERNAME%"
 ) else (
-    if exist "\\%HOST%\C$\" (
-        set "ADMIN_STATUS=Pass"
-    ) else (
-        set "ADMIN_STATUS=Fail"
-    )
+    call :ResolveTargetShare "%HOST%"
 )
 
 if /I "%ACTION%"=="StageOnly" call :StagePayload "%HOST%"
 if /I "%ACTION%"=="StageAndRegister" call :StagePayload "%HOST%"
 if /I "%ACTION%"=="StageAndRegister" call :RegisterRemoteTask "%HOST%"
 
-echo Ping        : %PING_STATUS%
-echo Admin Share : %ADMIN_STATUS%
-echo Payload     : %PAYLOAD_STATUS%
-echo Task        : %TASK_STATUS%
+echo Ping      : %PING_STATUS%
+echo Share     : %SHARE_STATUS%
+echo Share Path: %SHARE_PATH%
+echo Payload   : %PAYLOAD_STATUS%
+echo Task      : %TASK_STATUS%
 
->> "%REPORT_CSV%" echo %HOST%,%MODE%,%ACTION%,%PING_STATUS%,%ADMIN_STATUS%,%PAYLOAD_STATUS%,%TASK_STATUS%,%NOTES%
-call :WriteReportRow "%HOST%" "%MODE%" "%ACTION%" "%PING_STATUS%" "%ADMIN_STATUS%" "%PAYLOAD_STATUS%" "%TASK_STATUS%" "%NOTES%"
+>> "%REPORT_CSV%" echo %HOST%,%MODE%,%ACTION%,%PING_STATUS%,%SHARE_STATUS%,%SHARE_PATH%,%PAYLOAD_STATUS%,%TASK_STATUS%,%NOTES%
+call :WriteReportRow "%HOST%" "%MODE%" "%ACTION%" "%PING_STATUS%" "%SHARE_STATUS%" "%SHARE_PATH%" "%PAYLOAD_STATUS%" "%TASK_STATUS%" "%NOTES%"
+exit /b 0
+
+:ResolveTargetShare
+set "HOST=%~1"
+set "PRIMARY=\\%HOST%\%SUPPORT_SHARE%"
+set "FALLBACK=\\%HOST%\%FALLBACK_ADMIN_SHARE%"
+set "SHARE_STATUS=Fail"
+set "SHARE_PATH="
+
+if exist "%PRIMARY%\" (
+    set "SHARE_STATUS=SupportShare"
+    set "SHARE_PATH=%PRIMARY%"
+    exit /b 0
+)
+
+if exist "%FALLBACK%\" (
+    set "SHARE_STATUS=AdminShareFallback"
+    set "SHARE_PATH=%FALLBACK%"
+    exit /b 0
+)
+
+set "SHARE_STATUS=NoShare"
 exit /b 0
 
 :StagePayload
 set "HOST=%~1"
-set "REMOTE_DIR=\\%HOST%\%DEFAULT_REMOTE_STAGE%"
 
 if /I "%HOST%"=="%COMPUTERNAME%" (
     set "PAYLOAD_STATUS=SkippedLocal"
     exit /b 0
 )
 
-if not exist "\\%HOST%\C$\" (
-    set "PAYLOAD_STATUS=NoAdminShare"
+if "%SHARE_STATUS%"=="NoShare" (
+    set "PAYLOAD_STATUS=NoShare"
     exit /b 0
+)
+
+if "%SHARE_PATH%"=="" (
+    set "PAYLOAD_STATUS=NoSharePath"
+    exit /b 0
+)
+
+if /I "%SHARE_STATUS%"=="SupportShare" (
+    set "REMOTE_DIR=%SHARE_PATH%\SysAdminSuite\MaintenanceStatus"
+) else (
+    set "REMOTE_DIR=%SHARE_PATH%\SUPPORT\SysAdminSuite\MaintenanceStatus"
 )
 
 if not exist "%REMOTE_DIR%" mkdir "%REMOTE_DIR%" >nul 2>nul
@@ -147,13 +181,12 @@ copy /Y "%PAYLOAD_DIR%\Register-MaintenanceStatus-Task.cmd" "%REMOTE_DIR%\" >nul
 if errorlevel 1 (
     set "PAYLOAD_STATUS=CopyFailed"
 ) else (
-    set "PAYLOAD_STATUS=Staged"
+    set "PAYLOAD_STATUS=Staged:%REMOTE_DIR%"
 )
 exit /b 0
 
 :RegisterRemoteTask
 set "HOST=%~1"
-set "REMOTE_LAUNCHER=C:\SysAdminSuite\MaintenanceStatus\Run-MaintenanceStatus.cmd"
 
 if /I "%HOST%"=="%COMPUTERNAME%" (
     schtasks /Create /TN "SysAdminSuite Maintenance Status" /SC ONLOGON /TR "\"%REMOTE_LAUNCHER%\"" /F >nul 2>nul
@@ -164,7 +197,7 @@ if /I "%HOST%"=="%COMPUTERNAME%" (
 if errorlevel 1 (
     set "TASK_STATUS=RegisterFailed"
 ) else (
-    set "TASK_STATUS=Registered"
+    set "TASK_STATUS=Registered:%REMOTE_LAUNCHER%"
 )
 exit /b 0
 
@@ -178,7 +211,8 @@ exit /b 0
 >> "%REPORT_HTML%" echo ^<p^>Admin Box: ^<code^>%COMPUTERNAME%^</code^>^</p^>
 >> "%REPORT_HTML%" echo ^<p^>Target File: ^<code^>%TARGET_FILE%^</code^>^</p^>
 >> "%REPORT_HTML%" echo ^<p^>Generated: ^<code^>%DATE% %TIME%^</code^>^</p^>
->> "%REPORT_HTML%" echo ^<table^>^<thead^>^<tr^>^<th^>Hostname^</th^>^<th^>Mode^</th^>^<th^>Action^</th^>^<th^>Ping^</th^>^<th^>Admin Share^</th^>^<th^>Payload^</th^>^<th^>Task^</th^>^<th^>Notes^</th^>^</tr^>^</thead^>^<tbody^>
+>> "%REPORT_HTML%" echo ^<p^>Share strategy: try ^<code^>\\HOST\C$\SUPPORT^</code^> first, then fallback to ^<code^>\\HOST\C$^</code^> and stage under ^<code^>C:\SUPPORT\SysAdminSuite\MaintenanceStatus^</code^>.^</p^>
+>> "%REPORT_HTML%" echo ^<table^>^<thead^>^<tr^>^<th^>Hostname^</th^>^<th^>Mode^</th^>^<th^>Action^</th^>^<th^>Ping^</th^>^<th^>Share^</th^>^<th^>Share Path^</th^>^<th^>Payload^</th^>^<th^>Task^</th^>^<th^>Notes^</th^>^</tr^>^</thead^>^<tbody^>
 exit /b 0
 
 :WriteReportRow
@@ -186,11 +220,12 @@ set "R_HOST=%~1"
 set "R_MODE=%~2"
 set "R_ACTION=%~3"
 set "R_PING=%~4"
-set "R_ADMIN=%~5"
-set "R_PAYLOAD=%~6"
-set "R_TASK=%~7"
-set "R_NOTES=%~8"
->> "%REPORT_HTML%" echo ^<tr^>^<td^>%R_HOST%^</td^>^<td^>%R_MODE%^</td^>^<td^>%R_ACTION%^</td^>^<td^>%R_PING%^</td^>^<td^>%R_ADMIN%^</td^>^<td^>%R_PAYLOAD%^</td^>^<td^>%R_TASK%^</td^>^<td^>%R_NOTES%^</td^>^</tr^>
+set "R_SHARE=%~5"
+set "R_SHAREPATH=%~6"
+set "R_PAYLOAD=%~7"
+set "R_TASK=%~8"
+set "R_NOTES=%~9"
+>> "%REPORT_HTML%" echo ^<tr^>^<td^>%R_HOST%^</td^>^<td^>%R_MODE%^</td^>^<td^>%R_ACTION%^</td^>^<td^>%R_PING%^</td^>^<td^>%R_SHARE%^</td^>^<td^>%R_SHAREPATH%^</td^>^<td^>%R_PAYLOAD%^</td^>^<td^>%R_TASK%^</td^>^<td^>%R_NOTES%^</td^>^</tr^>
 exit /b 0
 
 :WriteReportFooter
