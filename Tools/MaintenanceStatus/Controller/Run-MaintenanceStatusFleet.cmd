@@ -5,6 +5,10 @@ REM ============================================================
 REM SysAdminSuite Maintenance Status Fleet Controller
 REM Admin-box controller. Reads targets, probes reachability, writes
 REM local HTML/CSV output, and stages target payload only when asked.
+REM
+REM Hub assumption:
+REM   Akbarnator / WMH300OPR378 is the expected staging hub. Targets are
+REM   NOT assumed to have SysAdminSuite installed.
 REM ============================================================
 
 set "CONTROLLER_DIR=%~dp0"
@@ -16,7 +20,8 @@ set "STAMP=%DATE:/=-%_%TIME::=-%"
 set "STAMP=%STAMP: =0%"
 set "REPORT_HTML=%OUTPUT_DIR%\MaintenanceStatus_Report_%COMPUTERNAME%_%STAMP%.html"
 set "REPORT_CSV=%OUTPUT_DIR%\MaintenanceStatus_Report_%COMPUTERNAME%_%STAMP%.csv"
-set "SUPPORT_SHARE=SUPPORT"
+set "AKBARNATOR_HOST=WMH300OPR378"
+set "SUPPORT_REL=SUPPORT"
 set "FALLBACK_ADMIN_SHARE=C$"
 set "REMOTE_STAGE_REL=SUPPORT\SysAdminSuite\MaintenanceStatus"
 set "REMOTE_LAUNCHER=C:\SUPPORT\SysAdminSuite\MaintenanceStatus\Run-MaintenanceStatus.cmd"
@@ -29,6 +34,7 @@ echo          SysAdminSuite Maintenance Status Fleet
 echo ============================================================
 echo.
 echo Admin Box : %COMPUTERNAME%
+echo Hub       : %AKBARNATOR_HOST% / Akbarnator
 echo Controller: %CONTROLLER_DIR%
 echo Payload   : %PAYLOAD_DIR%
 echo Output    : %OUTPUT_DIR%
@@ -129,13 +135,13 @@ exit /b 0
 
 :ResolveTargetShare
 set "HOST=%~1"
-set "PRIMARY=\\%HOST%\%SUPPORT_SHARE%"
+set "PRIMARY=\\%HOST%\C$\%SUPPORT_REL%"
 set "FALLBACK=\\%HOST%\%FALLBACK_ADMIN_SHARE%"
 set "SHARE_STATUS=Fail"
 set "SHARE_PATH="
 
 if exist "%PRIMARY%\" (
-    set "SHARE_STATUS=SupportShare"
+    set "SHARE_STATUS=C$SupportPath"
     set "SHARE_PATH=%PRIMARY%"
     exit /b 0
 )
@@ -167,7 +173,7 @@ if "%SHARE_PATH%"=="" (
     exit /b 0
 )
 
-if /I "%SHARE_STATUS%"=="SupportShare" (
+if /I "%SHARE_STATUS%"=="C$SupportPath" (
     set "REMOTE_DIR=%SHARE_PATH%\SysAdminSuite\MaintenanceStatus"
 ) else (
     set "REMOTE_DIR=%SHARE_PATH%\SUPPORT\SysAdminSuite\MaintenanceStatus"
@@ -209,6 +215,7 @@ exit /b 0
 >> "%REPORT_HTML%" echo ^</style^>^</head^>^<body^>
 >> "%REPORT_HTML%" echo ^<h1^>SysAdminSuite Maintenance Status Fleet Report^</h1^>
 >> "%REPORT_HTML%" echo ^<p^>Admin Box: ^<code^>%COMPUTERNAME%^</code^>^</p^>
+>> "%REPORT_HTML%" echo ^<p^>Hub: ^<code^>%AKBARNATOR_HOST% / Akbarnator^</code^>^</p^>
 >> "%REPORT_HTML%" echo ^<p^>Target File: ^<code^>%TARGET_FILE%^</code^>^</p^>
 >> "%REPORT_HTML%" echo ^<p^>Generated: ^<code^>%DATE% %TIME%^</code^>^</p^>
 >> "%REPORT_HTML%" echo ^<p^>Share strategy: try ^<code^>\\HOST\C$\SUPPORT^</code^> first, then fallback to ^<code^>\\HOST\C$^</code^> and stage under ^<code^>C:\SUPPORT\SysAdminSuite\MaintenanceStatus^</code^>.^</p^>
@@ -233,5 +240,6 @@ exit /b 0
 >> "%REPORT_HTML%" echo ^<h2^>Run Guidance^</h2^>
 >> "%REPORT_HTML%" echo ^<p^>RemoteReport performs admin-box reporting only. TargetDisplay actions stage payload only when explicitly requested.^</p^>
 >> "%REPORT_HTML%" echo ^<p^>For visible target display, the payload must execute in the target's interactive/autologon session. A scheduled task may not display if policy/session context prevents it.^</p^>
+>> "%REPORT_HTML%" echo ^<p^>Targets are not assumed to have SysAdminSuite. The controller stages only the maintenance payload when an action requests it.^</p^>
 >> "%REPORT_HTML%" echo ^</body^>^</html^>
 exit /b 0
