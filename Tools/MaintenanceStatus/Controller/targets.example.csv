@@ -1,0 +1,5 @@
+Hostname,Mode,Action,Notes
+LOCALHOST,LocalConfirm,ProbeOnly,Example current workstation entry
+WNH270OPR001,RemoteReport,ProbeOnly,Admin-box report only; no target artifacts expected
+WNH270OPR002,TargetDisplay,StageOnly,Copy payload to target staging path but do not register task
+WNH270OPR003,TargetDisplay,StageAndRegister,Stage payload and register on-logon scheduled task
