@@ -1,0 +1,4 @@
+NeuronHost,ExpectedMAC,ExpectedSerial,Site,Room,Notes
+WNH270NEU001,AA:BB:CC:DD:EE:01,SN123456,NSUH,OR1,Example only
+WNH270NEU002,AA-BB-CC-DD-EE-02,,LIJ,OR8,Serial unknown
+WNH270NEU003,,SN789012,CFAM,IR11,MAC unknown
