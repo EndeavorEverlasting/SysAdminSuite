@@ -1,0 +1,43 @@
+flowchart TD
+    A[Live Deployment Tracker in Excel for Web] --> B[Download .xlsx to admin box]
+    B --> C[Convert-DeploymentTrackerToTargets.ps1]
+    C --> D{Device Type}
+    D -->|Neuron first| E[Neuron target contract CSV]
+    D -->|Future| F[Cybernet / Printer / Workstation target contracts]
+
+    E --> G[NeuronTargets.csv]
+    E --> H[NeuronTargets.unresolved.csv]
+
+    G --> I[Get-NeuronNetworkInventory.ps1]
+    I --> J[Remote WMI reads]
+    J --> K[Target hosts]
+
+    K -. no payload copied .-> I
+    K -. no scheduled task .-> I
+    K -. no target-side report .-> I
+
+    I --> L[Admin-box artifacts only]
+    L --> M[CSV reconciliation]
+    L --> N[JSON machine-readable output]
+    L --> O[HTML review report]
+
+    H --> P[Manual triage: identify missing hostnames]
+    P --> Q[Update tracker or target CSV]
+    Q --> G
+
+    M --> R[Compare expected MAC / serial to observed values]
+    N --> R
+    O --> R
+    R --> S[Validated Neuron network inventory]
+
+    subgraph Guardrails
+      T[Read-only tracker ingestion]
+      U[No Excel COM]
+      V[No ImportExcel dependency]
+      W[Artifacts stay on admin box]
+    end
+
+    C --> T
+    C --> U
+    C --> V
+    I --> W
