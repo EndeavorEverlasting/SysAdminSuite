@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "0.1.0",
+  "baselineName": "default-neuron-baseline",
+  "deviceClass": "Neuron",
+  "description": "Default Neuron maintenance and survey baseline for SysAdminSuite. This is intentionally conservative until site-specific server, port, and software data are confirmed.",
+  "sourceNotes": [
+    "Seeded from field observation of Neuron maintenance console tooling.",
+    "Observed software reference included 11.8.0.328.",
+    "Replace placeholder endpoints with confirmed site/application targets before using as pass/fail authority."
+  ],
+  "expectedSoftware": {
+    "referenceVersions": [
+      "11.8.0.328"
+    ],
+    "matchMode": "contains-any",
+    "inventorySources": [
+      "Win32_Product-disabled",
+      "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+      "HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
+    ],
+    "requiredApplications": [],
+    "optionalApplications": [],
+    "notes": "Avoid Win32_Product for routine scans because it can trigger MSI repair checks. Prefer registry uninstall keys."
+  },
+  "network": {
+    "serverTargets": [],
+    "followerTargets": [],
+    "vpnTargets": [
+      "10.8.0.1"
+    ],
+    "requiredTcpPorts": [],
+    "ping": {
+      "count": 4,
+      "acceptablePacketLossPercent": 0,
+      "warningLatencyMs": 100,
+      "criticalLatencyMs": 250
+    },
+    "dnsRequired": true,
+    "routeSnapshotRequired": true
+  },
+  "services": {
+    "requiredPatterns": [
+      "MSMQ",
+      "OpenVPN",
+      "DCIS"
+    ],
+    "observedOrCandidatePatterns": [
+      "SmartLynx",
+      "SIS",
+      "Epic",
+      "Imprivata"
+    ],
+    "expectedState": "Running",
+    "compareFields": [
+      "Name",
+      "DisplayName",
+      "State",
+      "StartMode",
+      "StartName"
+    ]
+  },
+  "firewall": {
+    "captureProfiles": true,
+    "modifyRulesByDefault": false,
+    "expectedProfiles": {
+      "Domain": "document-only",
+      "Private": "document-only",
+      "Public": "document-only"
+    }
+  },
+  "wireless": {
+    "captureProfiles": true,
+    "captureInterfaces": true,
+    "captureVisibleNetworks": true,
+    "traceEnabledByDefault": false
+  },
+  "repairActions": {
+    "allowNetworkResetByDefault": false,
+    "allowServiceChangeByDefault": false,
+    "allowFirewallChangeByDefault": false,
+    "releaseRenewRequiresExplicitSwitch": true
+  },
+  "surveyPacket": {
+    "requiredFields": [
+      "Timestamp",
+      "ComputerName",
+      "BiosSerial",
+      "Manufacturer",
+      "Model",
+      "IpAddresses",
+      "MacAddresses",
+      "DefaultGateways",
+      "DnsServers",
+      "VpnAdapterPresent",
+      "PingResults",
+      "ServiceResults",
+      "FirewallProfiles",
+      "WirelessSummary",
+      "SoftwareMatches"
+    ],
+    "outputFormats": [
+      "txt",
+      "json",
+      "csv",
+      "html"
+    ]
+  },
+  "statusRules": {
+    "pass": [
+      "Required targets reachable when configured",
+      "Required services found and running",
+      "Expected software reference found",
+      "No disruptive repair action required"
+    ],
+    "warning": [
+      "Endpoint targets not configured",
+      "Candidate service missing but not required",
+      "Latency above warning threshold",
+      "Wireless data unavailable on wired-only device"
+    ],
+    "fail": [
+      "Required service missing",
+      "Required service stopped",
+      "Required software reference missing",
+      "Packet loss above acceptable threshold",
+      "VPN target unreachable when configured as required"
+    ]
+  }
+}
