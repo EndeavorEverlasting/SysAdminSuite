@@ -22,6 +22,10 @@
     powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
 
 .EXAMPLE
+    # Disable local screensaver and power timeout behavior:
+    powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task DisableScreensaver
+
+.EXAMPLE
     # List all available tasks:
     .\Invoke-TechTask.ps1 -Task ?
 
@@ -103,6 +107,7 @@ $TaskMap = [ordered]@{
     NeuronTrace          = 'Get-NeuronTrace.ps1'
     NeuronMaintenance    = 'Get-NeuronMaintenanceSnapshot.ps1'
     WinOptionalFeatures  = 'Get-WindowsOptionalFeatures.ps1'
+    DisableScreensaver   = 'Set-DisableScreensaver.ps1'
     PowerComfort         = 'Set-PowerComfortDefaults.ps1'
     PowerComfortRevert   = 'Restore-PowerComfortDefaults.ps1'
 }
