@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # SysAdminSuite Bash deployment audit
-# Reads an XLSX deployment tab directly and reports duplicate identifier clusters.
-# It does not trust Excel conditional formatting.
+# Reads an XLSX deployment tab directly and reports real duplicate deployments.
+# Rule: a duplicate is real only when the same unique identifier appears on more than one Deployed=Yes row.
+# Optional location check marks the same identifier in different deployment locations as a real conflict.
+# This does not trust Excel conditional formatting.
 
 set -euo pipefail
 
 WORKBOOK=""
 SHEET="Deployments"
 OUTPUT_DIR="deployment-audit/output"
-MIN_SHARED=1
 PASS_THRU=0
-KEYS="Cybernet Hostname,Cybernet Serial,Neuron Hostname,Neuron MAC,Neuron S/N,Cybernet MAC,Dialysis S/N,Anesthesia S/N,Medical Device S/N,Replaced Hostname,Serial Connector Cable 1,Serial Connector Cable 2,Serial Connector Cable 3,Serial Connector Cable 4,Serial Connector Cable 5,Old Hostname"
+REQUIRE_DIFFERENT_LOCATION=1
+KEYS="Cybernet Hostname,Cybernet Serial,Neuron Hostname,Neuron MAC,Neuron S/N,Cybernet MAC,Dialysis S/N,Anesthesia S/N,Medical Device S/N,Replaced Hostname,Old Hostname"
 
 usage() {
   cat <<'USAGE'
@@ -20,19 +22,31 @@ Usage:
   ./deployment-audit/sas-audit-deployments.sh --workbook tracker.xlsx [options]
 
 Options:
-  --workbook PATH       XLSX file to inspect
-  --sheet NAME          Worksheet name. Default: Deployments
-  --keys CSV            Comma-separated identifier headers to audit
-  --output-dir PATH     Output folder. Default: deployment-audit/output
-  --min-shared N        Minimum shared identifiers for row-pair flag. Default: 1
-  --pass-thru           Print duplicate pairs after writing files
-  -h, --help            Show help
+  --workbook PATH                 XLSX file to inspect
+  --sheet NAME                    Worksheet name. Default: Deployments
+  --keys CSV                      Comma-separated unique identifier headers to audit
+  --output-dir PATH               Output folder. Default: deployment-audit/output
+  --allow-same-location-warning   Keep same-location deployed repeats as warnings instead of suppressing them
+  --pass-thru                     Print real duplicate values after writing files
+  -h, --help                      Show help
+
+Real duplicate rule:
+  1. Row must have Deployed = Yes.
+  2. Identifier must be populated and not NA/N/A/#REF!/unknown.
+  3. Same identifier must appear on more than one deployed row.
+  4. By default, the rows must be in different locations.
+
+Default unique identifiers:
+  Cybernet Hostname, Cybernet Serial, Neuron Hostname, Neuron MAC, Neuron S/N,
+  Cybernet MAC, Dialysis S/N, Anesthesia S/N, Medical Device S/N,
+  Replaced Hostname, Old Hostname
 
 Outputs:
-  records_normalized.csv
-  duplicate_values.csv
-  duplicate_pairs.csv
-  duplicate_clusters.csv
+  deployed_records_normalized.csv
+  real_duplicate_values_deployed_yes.csv
+  real_duplicate_pairs_deployed_yes.csv
+  real_duplicate_clusters.csv
+  ref_errors.csv
   audit_summary.txt
 USAGE
 }
@@ -47,7 +61,7 @@ while [[ $# -gt 0 ]]; do
     --sheet) SHEET="${2:?missing value for --sheet}"; shift 2 ;;
     --keys) KEYS="${2:?missing value for --keys}"; shift 2 ;;
     --output-dir) OUTPUT_DIR="${2:?missing value for --output-dir}"; shift 2 ;;
-    --min-shared) MIN_SHARED="${2:?missing value for --min-shared}"; shift 2 ;;
+    --allow-same-location-warning) REQUIRE_DIFFERENT_LOCATION=0; shift ;;
     --pass-thru) PASS_THRU=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "Unknown argument: $1" ;;
@@ -57,23 +71,18 @@ done
 [[ -n "$WORKBOOK" ]] || fail "--workbook is required"
 [[ -f "$WORKBOOK" ]] || fail "Workbook not found: $WORKBOOK"
 [[ "$WORKBOOK" == *.xlsx ]] || fail "Only .xlsx is supported"
-[[ "$MIN_SHARED" =~ ^[0-9]+$ && "$MIN_SHARED" -ge 1 ]] || fail "--min-shared must be >= 1"
 has_cmd python3 || fail "python3 is required"
 mkdir -p "$OUTPUT_DIR"
 
-python3 - "$WORKBOOK" "$SHEET" "$KEYS" "$OUTPUT_DIR" "$MIN_SHARED" <<'PY'
+python3 - "$WORKBOOK" "$SHEET" "$KEYS" "$OUTPUT_DIR" "$REQUIRE_DIFFERENT_LOCATION" <<'PY'
 import csv, itertools, json, os, re, sys, zipfile, xml.etree.ElementTree as ET
 from collections import Counter, defaultdict, deque
 
-workbook, sheet_name, keys_csv, output_dir, min_shared_raw = sys.argv[1:6]
-min_shared = int(min_shared_raw)
+workbook, sheet_name, keys_csv, output_dir, require_diff_raw = sys.argv[1:6]
+require_different_location = require_diff_raw == '1'
 requested_keys = [k.strip() for k in keys_csv.split(',') if k.strip()]
-ns = {
-    'main':'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
-    'rel':'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
-    'pkgrel':'http://schemas.openxmlformats.org/package/2006/relationships'
-}
-def q(n,t): return '{%s}%s' % (ns[n], t)
+ns = {'m':'http://schemas.openxmlformats.org/spreadsheetml/2006/main','r':'http://schemas.openxmlformats.org/officeDocument/2006/relationships','p':'http://schemas.openxmlformats.org/package/2006/relationships'}
+def q(k,t): return '{%s}%s' % (ns[k], t)
 def norm_header(v): return re.sub(r'\s+', ' ', str(v or '').strip()).lower()
 def col_to_idx(ref):
     letters=''.join(c for c in ref if c.isalpha()); out=0
@@ -91,16 +100,17 @@ def norm_value(header, value):
     if 'serial' in h or 's/n' in h or 'device id' in h:
         return re.sub(r'\s+', '', v).upper()
     return v.upper()
+def is_deployed_yes(value): return str(value or '').strip().upper() == 'YES'
 def shared_strings(z):
     if 'xl/sharedStrings.xml' not in z.namelist(): return []
     root=ET.fromstring(z.read('xl/sharedStrings.xml'))
-    return [''.join(t.text or '' for t in si.iter(q('main','t'))) for si in root.findall(q('main','si'))]
+    return [''.join(t.text or '' for t in si.iter(q('m','t'))) for si in root.findall(q('m','si'))]
 def cell_value(cell, shared):
     typ=cell.attrib.get('t')
     if typ == 'inlineStr':
-        node=cell.find(q('main','is'))
-        return ''.join(t.text or '' for t in node.iter(q('main','t'))) if node is not None else ''
-    v=cell.find(q('main','v'))
+        node=cell.find(q('m','is'))
+        return ''.join(t.text or '' for t in node.iter(q('m','t'))) if node is not None else ''
+    v=cell.find(q('m','v'))
     if v is None: return ''
     raw=v.text or ''
     if typ == 's':
@@ -110,30 +120,30 @@ def cell_value(cell, shared):
 def sheet_map(z):
     wb=ET.fromstring(z.read('xl/workbook.xml'))
     rels=ET.fromstring(z.read('xl/_rels/workbook.xml.rels'))
-    rid={r.attrib['Id']:r.attrib['Target'] for r in rels.findall(q('pkgrel','Relationship'))}
+    rid={r.attrib['Id']:r.attrib['Target'] for r in rels.findall(q('p','Relationship'))}
     out={}
-    for s in wb.find(q('main','sheets')).findall(q('main','sheet')):
-        target=rid[s.attrib[q('rel','id')]]
+    for s in wb.find(q('m','sheets')).findall(q('m','sheet')):
+        target=rid[s.attrib[q('r','id')]]
         if not target.startswith('xl/'): target='xl/'+target.lstrip('/')
         out[s.attrib['name']] = target
     return out
-
 def read_rows(z, path, shared):
-    root=ET.fromstring(z.read(path)); rows=[]
-    for row in root.iter(q('main','row')):
+    root=ET.fromstring(z.read(path)); rows=[]; ref_errors=[]
+    for row in root.iter(q('m','row')):
         rnum=int(row.attrib.get('r','0')); cells={}
-        for c in row.findall(q('main','c')):
-            cells[col_to_idx(c.attrib['r'])] = cell_value(c, shared)
-        if cells:
-            rows.append((rnum, [cells.get(i,'') for i in range(max(cells)+1)]))
-    return rows
+        for c in row.findall(q('m','c')):
+            idx=col_to_idx(c.attrib['r'])
+            val=cell_value(c, shared)
+            cells[idx] = val
+            if '#REF!' in str(val): ref_errors.append((rnum, idx+1, val))
+        if cells: rows.append((rnum, [cells.get(i,'') for i in range(max(cells)+1)]))
+    return rows, ref_errors
 
 with zipfile.ZipFile(workbook) as z:
     smap=sheet_map(z)
     if sheet_name not in smap:
         raise SystemExit('Sheet not found: %s. Available: %s' % (sheet_name, ', '.join(smap)))
-    rows=read_rows(z, smap[sheet_name], shared_strings(z))
-
+    rows, ref_errors = read_rows(z, smap[sheet_name], shared_strings(z))
 headers=rows[0][1]
 header_idx={norm_header(h): i for i,h in enumerate(headers) if str(h).strip()}
 key_cols=[]; missing=[]
@@ -141,97 +151,78 @@ for k in requested_keys:
     nk=norm_header(k)
     if nk in header_idx: key_cols.append((header_idx[nk], headers[header_idx[nk]]))
     else: missing.append(k)
-
-context_headers=['Device Type','Deployed','Installed','Spare','DesignationChanged','DupDeployed','Current Building','Install Building','Area/Unit/Dept','Room','PI_Result','Blocker Reason','Readiness (Auto)']
+context_headers=['Device Type','Deployed','Installed','Spare','DupDeployed','Current Building','Install Building','Area/Unit/Dept','Room','Bay','PI_Result','Blocker Reason','Readiness (Auto)']
 context_cols=[(header_idx[norm_header(h)], headers[header_idx[norm_header(h)]]) for h in context_headers if norm_header(h) in header_idx]
-records=[]; ref_errors=[]
+records=[]
 for rnum,row in rows[1:]:
     if not any(str(x).strip() for x in row): continue
     rec={'ExcelRow':rnum}
-    for idx,h in context_cols:
-        rec[h]=row[idx] if idx < len(row) else ''
+    for idx,h in context_cols: rec[h]=row[idx] if idx < len(row) else ''
+    rec['DeployedYes']=is_deployed_yes(rec.get('Deployed'))
     count=0
     for idx,h in key_cols:
         val=norm_value(h, row[idx] if idx < len(row) else '')
         rec[h]=val
         if val: count += 1
     rec['IdentifierCount']=count
+    rec['LocationKey']=' | '.join(str(rec.get(x,'')).strip() for x in ['Current Building','Install Building','Area/Unit/Dept','Room','Bay'] if str(rec.get(x,'')).strip())
     records.append(rec)
-    for idx,val in enumerate(row):
-        if '#REF!' in str(val): ref_errors.append((rnum, idx+1, headers[idx] if idx < len(headers) else '', val))
-
+deployed=[r for r in records if r['DeployedYes']]
 value_index=defaultdict(list)
-for rec in records:
+for rec in deployed:
     for _,h in key_cols:
-        v=rec.get(h,'')
-        if v: value_index[(h,v)].append(rec['ExcelRow'])
-dup_values=[(h,v,sorted(set(rs))) for (h,v),rs in value_index.items() if len(set(rs))>=2]
-pairs=defaultdict(list)
-for h,v,rs in dup_values:
-    for a,b in itertools.combinations(rs,2): pairs[(a,b)].append('%s=%s' % (h,v))
-filtered_pairs={k:v for k,v in pairs.items() if len(v) >= min_shared}
+        value=rec.get(h,'')
+        if value: value_index[(h,value)].append(rec)
+dup_values=[]; pairs=[]
+for (field,value), rows_for_value in value_index.items():
+    by_row={r['ExcelRow']:r for r in rows_for_value}
+    if len(by_row) < 2: continue
+    locs=sorted(set(r['LocationKey'] for r in by_row.values()))
+    severity='RealDuplicate' if len(locs) > 1 else 'DuplicateSameLocation'
+    if require_different_location and severity != 'RealDuplicate': continue
+    dup_values.append({'Field':field,'Value':value,'Rows':';'.join(map(str,sorted(by_row))),'Count':len(by_row),'DistinctLocations':len(locs),'Severity':severity,'Locations':' || '.join(locs)})
+    for a,b in itertools.combinations(sorted(by_row),2):
+        ra, rb = by_row[a], by_row[b]
+        different = ra['LocationKey'] != rb['LocationKey']
+        if require_different_location and not different: continue
+        pairs.append({'RowA':a,'RowB':b,'Field':field,'Value':value,'LocationA':ra['LocationKey'],'LocationB':rb['LocationKey'],'DifferentLocation':different})
 adj=defaultdict(set)
-for (a,b),hits in filtered_pairs.items(): adj[a].add(b); adj[b].add(a)
+for p in pairs:
+    adj[p['RowA']].add(p['RowB']); adj[p['RowB']].add(p['RowA'])
 clusters=[]; seen=set()
 for r in sorted(adj):
     if r in seen: continue
     qd=deque([r]); seen.add(r); comp=[]
     while qd:
-        x=qd.popleft(); comp.append(x)
-        for y in sorted(adj[x]):
-            if y not in seen: seen.add(y); qd.append(y)
+        cur=qd.popleft(); comp.append(cur)
+        for nxt in sorted(adj[cur]):
+            if nxt not in seen: seen.add(nxt); qd.append(nxt)
     clusters.append(sorted(comp))
-
-def write_csv(name, fields, rows_out):
+def write_csv(name, fields, data):
     path=os.path.join(output_dir, name)
     with open(path,'w',newline='',encoding='utf-8') as f:
         w=csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
-        w.writeheader(); w.writerows(rows_out)
+        w.writeheader(); w.writerows(data)
     return path
-
-record_fields=['ExcelRow']+[h for _,h in context_cols]+['IdentifierCount']+[h for _,h in key_cols]
-records_csv=write_csv('records_normalized.csv', record_fields, records)
-dup_values_csv=os.path.join(output_dir,'duplicate_values.csv')
-with open(dup_values_csv,'w',newline='',encoding='utf-8') as f:
-    w=csv.writer(f); w.writerow(['Field','Value','Rows','Count'])
-    for h,v,rs in sorted(dup_values): w.writerow([h,v,';'.join(map(str,rs)),len(rs)])
-dup_pairs_csv=os.path.join(output_dir,'duplicate_pairs.csv')
-with open(dup_pairs_csv,'w',newline='',encoding='utf-8') as f:
-    w=csv.writer(f); w.writerow(['RowA','RowB','SharedCount','SharedIdentifiers'])
-    for (a,b),hits in sorted(filtered_pairs.items()): w.writerow([a,b,len(hits),'; '.join(hits)])
-clusters_csv=os.path.join(output_dir,'duplicate_clusters.csv')
-with open(clusters_csv,'w',newline='',encoding='utf-8') as f:
-    w=csv.writer(f); w.writerow(['ClusterId','Rows','RowCount'])
-    for i,c in enumerate(clusters,1): w.writerow([i,';'.join(map(str,c)),len(c)])
+record_fields=['ExcelRow']+[h for _,h in context_cols]+['DeployedYes','IdentifierCount','LocationKey']+[h for _,h in key_cols]
+records_csv=write_csv('deployed_records_normalized.csv', record_fields, deployed)
+dup_values_csv=write_csv('real_duplicate_values_deployed_yes.csv', ['Field','Value','Rows','Count','DistinctLocations','Severity','Locations'], sorted(dup_values, key=lambda x:(x['Field'],x['Value'])))
+dup_pairs_csv=write_csv('real_duplicate_pairs_deployed_yes.csv', ['RowA','RowB','Field','Value','LocationA','LocationB','DifferentLocation'], sorted(pairs, key=lambda x:(x['Field'],x['Value'],x['RowA'],x['RowB'])))
+clusters_csv=write_csv('real_duplicate_clusters.csv', ['ClusterId','Rows','RowCount'], [{'ClusterId':i+1,'Rows':';'.join(map(str,c)),'RowCount':len(c)} for i,c in enumerate(clusters)])
+ref_csv=write_csv('ref_errors.csv', ['ExcelRow','ColumnIndex','Header','Value'], [{'ExcelRow':r,'ColumnIndex':c,'Header':headers[c-1] if c-1 < len(headers) else '', 'Value':v} for r,c,v in ref_errors])
 summary_txt=os.path.join(output_dir,'audit_summary.txt')
-complete=Counter(r['IdentifierCount'] for r in records)
-dup_by_field=Counter(h for h,_,_ in dup_values)
 with open(summary_txt,'w',encoding='utf-8') as f:
-    f.write('SysAdminSuite Deployment Audit\n')
-    f.write('===============================\n\n')
-    f.write(f'Workbook: {workbook}\nSheet: {sheet_name}\nRows inspected: {len(records)}\n')
-    f.write(f'Identifier columns active: {len(key_cols)}\nMissing requested keys: {missing or "None"}\n')
-    f.write(f'Duplicate identifier values: {len(dup_values)}\nDuplicate row pairs: {len(filtered_pairs)}\nDuplicate clusters: {len(clusters)}\n')
-    f.write(f'#REF! cells in deployment tab: {len(ref_errors)}\n\n')
-    f.write('Identifier completeness distribution:\n')
-    for k in sorted(complete): f.write(f'  {k}: {complete[k]} rows\n')
-    f.write('\nDuplicate values by field:\n')
-    for field,count in dup_by_field.most_common(): f.write(f'  {field}: {count}\n')
-    f.write('\n#REF! cells:\n')
-    for r,c,h,v in ref_errors: f.write(f'  row {r}, col {c}, header {h}: {v}\n')
-
-print(json.dumps({
-    'sheet': sheet_name,
-    'rows_inspected': len(records),
-    'identifier_columns': [h for _,h in key_cols],
-    'missing_keys': missing,
-    'duplicate_values': len(dup_values),
-    'duplicate_pairs': len(filtered_pairs),
-    'duplicate_clusters': len(clusters),
-    'ref_errors': len(ref_errors),
-    'outputs': [records_csv, dup_values_csv, dup_pairs_csv, clusters_csv, summary_txt]
-}, indent=2))
+    f.write('SysAdminSuite Deployment Audit - Deployed Logic\n')
+    f.write('==============================================\n\n')
+    f.write(f'Workbook: {workbook}\nSheet: {sheet_name}\nRows total: {len(records)}\nDeployed = Yes rows: {len(deployed)}\n')
+    f.write(f'Unique identifier columns: {", ".join(h for _,h in key_cols)}\nMissing requested keys: {missing or "None"}\n')
+    f.write(f'Real duplicate values: {len(dup_values)}\nReal duplicate row pairs: {len(pairs)}\nReal duplicate clusters: {len(clusters)}\n')
+    f.write(f'#REF! cells in Deployments tab: {len(ref_errors)}\n\n')
+    f.write(f'Deployed column counts: {dict(Counter(r.get("Deployed","") for r in records))}\n')
+    f.write(f'DupDeployed column counts: {dict(Counter(r.get("DupDeployed","") for r in records))}\n')
+    f.write(f'Deployed identifier completeness: {dict(Counter(r["IdentifierCount"] for r in deployed))}\n')
+print(json.dumps({'sheet':sheet_name,'rows_total':len(records),'deployed_yes_rows':len(deployed),'real_duplicate_values':len(dup_values),'real_duplicate_pairs':len(pairs),'real_duplicate_clusters':len(clusters),'ref_errors':len(ref_errors),'outputs':[records_csv,dup_values_csv,dup_pairs_csv,clusters_csv,ref_csv,summary_txt]}, indent=2))
 PY
 
 log "Audit complete: $OUTPUT_DIR"
-if [[ "$PASS_THRU" -eq 1 ]]; then cat "$OUTPUT_DIR/duplicate_pairs.csv"; fi
+if [[ "$PASS_THRU" -eq 1 ]]; then cat "$OUTPUT_DIR/real_duplicate_values_deployed_yes.csv"; fi
