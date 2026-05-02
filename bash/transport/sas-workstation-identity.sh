@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SysAdminSuite Bash workstation/Cybernet identity adapter
 # Read-only identity collection with ordered transports.
-# Current transports: DNS, ping, ARP, optional SSH. Future: WMI/RPC, SMB, WinRM, vendor/API.
+# Current transports: DNS, ping, ARP, optional SSH, optional WMI adapter.
 
 set -euo pipefail
 
@@ -10,8 +10,13 @@ TARGET_FILE=""
 OUTPUT="bash/transport/output/workstation_identity.csv"
 TIMEOUT=5
 ALLOW_SSH=0
+ALLOW_WMI=0
 SSH_USER=""
 SSH_KEY=""
+WMI_USER=""
+WMI_PASS=""
+WMI_DOMAIN=""
+WMI_ADAPTER=""
 PASS_THRU=0
 
 usage(){ cat <<'USAGE'
@@ -28,6 +33,11 @@ Options:
   --allow-ssh          Enable SSH read-only identity commands
   --ssh-user USER      SSH username, required when --allow-ssh is used
   --ssh-key PATH       Optional SSH private key
+  --allow-wmi          Enable optional read-only WMI identity adapter
+  --wmi-user USER      Optional WMI username. Prefer SAS_WMI_USER
+  --wmi-pass PASS      Optional WMI password. Prefer SAS_WMI_PASS
+  --wmi-domain DOMAIN  Optional WMI domain. Prefer SAS_WMI_DOMAIN
+  --wmi-adapter PATH   Optional WMI adapter path. Defaults to bash/transport/sas-wmi-identity.sh
   --pass-thru          Print CSV after writing
   -h, --help           Show help
 
@@ -36,11 +46,12 @@ Output columns:
 
 Safety:
   - Read-only.
-  - SSH is disabled unless explicitly enabled.
+  - SSH and WMI are disabled unless explicitly enabled.
   - No remote staging, no scheduled tasks, no registry edits, no printer mapping.
+  - Credentials are not written to output.
 
 Known limitation:
-  Bash alone cannot natively perform Windows WMI/DCOM. This adapter is structured so an approved WMI/RPC/SMB bridge can be added later without changing downstream audit tools.
+  Bash cannot natively perform Windows WMI/DCOM without an approved WMI client. Use --allow-wmi only where that client and policy are approved.
 USAGE
 }
 
@@ -49,6 +60,9 @@ log(){ printf '[workstation-identity] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
 csv_escape(){ local s="${1:-}"; s="${s//"/""}"; printf '"%s"' "$s"; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_WMI_ADAPTER="$SCRIPT_DIR/sas-wmi-identity.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -59,6 +73,11 @@ while [[ $# -gt 0 ]]; do
     --allow-ssh) ALLOW_SSH=1; shift ;;
     --ssh-user) SSH_USER="${2:?missing value for --ssh-user}"; shift 2 ;;
     --ssh-key) SSH_KEY="${2:?missing value for --ssh-key}"; shift 2 ;;
+    --allow-wmi) ALLOW_WMI=1; shift ;;
+    --wmi-user) WMI_USER="${2:?missing value for --wmi-user}"; shift 2 ;;
+    --wmi-pass) WMI_PASS="${2:?missing value for --wmi-pass}"; shift 2 ;;
+    --wmi-domain) WMI_DOMAIN="${2:?missing value for --wmi-domain}"; shift 2 ;;
+    --wmi-adapter) WMI_ADAPTER="${2:?missing value for --wmi-adapter}"; shift 2 ;;
     --pass-thru) PASS_THRU=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [[ $# -gt 0 ]]; do TARGETS+=("$1"); shift; done ;;
@@ -69,6 +88,10 @@ done
 
 [[ "$TIMEOUT" =~ ^[0-9]+$ && "$TIMEOUT" -ge 1 ]] || fail "--timeout must be positive integer"
 if [[ "$ALLOW_SSH" -eq 1 && -z "$SSH_USER" ]]; then fail "--ssh-user is required with --allow-ssh"; fi
+if [[ "$ALLOW_WMI" -eq 1 ]]; then
+  [[ -z "$WMI_ADAPTER" ]] && WMI_ADAPTER="$DEFAULT_WMI_ADAPTER"
+  [[ -f "$WMI_ADAPTER" ]] || fail "WMI adapter not found: $WMI_ADAPTER"
+fi
 if [[ -n "$TARGET_FILE" ]]; then
   [[ -f "$TARGET_FILE" ]] || fail "targets file not found: $TARGET_FILE"
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -78,6 +101,12 @@ if [[ -n "$TARGET_FILE" ]]; then
 fi
 [[ ${#TARGETS[@]} -gt 0 ]] || fail "No targets provided"
 mkdir -p "$(dirname "$OUTPUT")"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+TARGETS_TMP="$TMP_DIR/targets.txt"
+WMI_OUT="$TMP_DIR/wmi_identity.csv"
+printf '%s
+' "${TARGETS[@]}" > "$TARGETS_TMP"
 
 norm_mac(){
   local raw="${1:-}" hx out i
@@ -107,6 +136,33 @@ ssh_identity(){
   host="$(trim "${lines[0]:-}")"; serial="$(trim "${lines[1]:-}")"; macs="$(trim "${lines[2]:-}")"
   printf '%s|%s|%s|SSH' "$host" "$serial" "$macs"
 }
+
+if [[ "$ALLOW_WMI" -eq 1 ]]; then
+  wmi_args=("$WMI_ADAPTER" --targets-file "$TARGETS_TMP" --output "$WMI_OUT" --timeout "$TIMEOUT")
+  [[ -n "$WMI_USER" ]] && wmi_args+=(--wmi-user "$WMI_USER")
+  [[ -n "$WMI_PASS" ]] && wmi_args+=(--wmi-pass "$WMI_PASS")
+  [[ -n "$WMI_DOMAIN" ]] && wmi_args+=(--wmi-domain "$WMI_DOMAIN")
+  bash "${wmi_args[@]}" >/dev/null || true
+else
+  printf 'Timestamp,Target,ObservedHostName,ObservedSerial,ObservedMACs,WmiStatus,Notes\n' > "$WMI_OUT"
+fi
+
+python_join_wmi(){
+  python3 - "$WMI_OUT" <<'PY'
+import csv, json, sys
+path=sys.argv[1]
+out={}
+try:
+    with open(path, newline='', encoding='utf-8-sig') as f:
+        for row in csv.DictReader(f):
+            out[(row.get('Target') or '').upper()] = row
+except FileNotFoundError:
+    pass
+print(json.dumps(out))
+PY
+}
+WMI_JSON="$(python_join_wmi)"
+
 identity_status(){
   local ping="$1" host="$2" serial="$3" macs="$4"
   if [[ -n "$host" || -n "$serial" || -n "$macs" ]]; then printf 'IdentityCollected'; return; fi
@@ -114,12 +170,29 @@ identity_status(){
   printf 'UnreachableOrBlocked'
 }
 
+lookup_wmi_field(){
+  local target="$1" field="$2"
+  python3 - "$WMI_JSON" "$target" "$field" <<'PY'
+import json, sys
+data=json.loads(sys.argv[1]); target=sys.argv[2].upper(); field=sys.argv[3]
+print((data.get(target, {}) or {}).get(field, ''))
+PY
+}
+
 {
   printf 'Timestamp,Target,ResolvedAddress,PingStatus,DnsName,ObservedHostName,ObservedSerial,ObservedMACs,TransportUsed,IdentityStatus,Notes\n'
   for target in "${TARGETS[@]}"; do
     ip="$(resolve_ip "$target")"; dns="$(resolve_name "${ip:-$target}")"; ping="$(ping_status "${ip:-$target}")"
     observed_host=""; observed_serial=""; observed_macs=""; transport=""; notes=()
-    if [[ "$ALLOW_SSH" -eq 1 ]]; then
+    if [[ "$ALLOW_WMI" -eq 1 ]]; then
+      whost="$(lookup_wmi_field "$target" ObservedHostName)"; wserial="$(lookup_wmi_field "$target" ObservedSerial)"; wmacs="$(lookup_wmi_field "$target" ObservedMACs)"; wstatus="$(lookup_wmi_field "$target" WmiStatus)"; wnotes="$(lookup_wmi_field "$target" Notes)"
+      if [[ "$wstatus" == "WmiIdentityCollected" ]]; then
+        observed_host="$whost"; observed_serial="$wserial"; observed_macs="$wmacs"; transport="WMI"
+      elif [[ -n "$wstatus" ]]; then
+        notes+=("$wstatus${wnotes:+: $wnotes}")
+      fi
+    fi
+    if [[ -z "$observed_host$observed_serial$observed_macs" && "$ALLOW_SSH" -eq 1 ]]; then
       ssh_out="$(ssh_identity "${ip:-$target}")"
       IFS='|' read -r observed_host observed_serial observed_macs transport <<< "$ssh_out"
       [[ "$transport" == SSHFailed:* || "$transport" == SSHNotInstalled || "$transport" == SSHDisabled ]] && notes+=("$transport") && transport=""
