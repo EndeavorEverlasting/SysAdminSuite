@@ -61,6 +61,17 @@ SSH is disabled by default. If an approved SSH-capable path exists, enable it ex
   --ssh-key ~/.ssh/approved_key
 ```
 
+### 5. Reconcile evidence into a final revisit verdict
+
+```bash
+./deployment-audit/sas-reconcile-evidence.sh \
+  --duplicates data/outputs/deployment_audit_2026-05-02/real_duplicate_values_deployed_yes.csv \
+  --requests data/outputs/deployment_audit_2026-05-02/survey_requests_duplicate_resolution.csv \
+  --evidence data/outputs/deployment_audit_2026-05-02/cybernet_evidence.csv \
+  --output data/outputs/deployment_audit_2026-05-02/reconciliation_verdicts.csv \
+  --summary data/outputs/deployment_audit_2026-05-02/reconciliation_summary.txt
+```
+
 ## Outputs
 
 | Output | Purpose |
@@ -72,8 +83,10 @@ SSH is disabled by default. If an approved SSH-capable path exists, enable it ex
 | `survey_requests_duplicate_resolution.csv` | Rows that need remote Cybernet survey before any physical revisit |
 | `remote_survey_manifest.csv` | Target list generated from survey requests |
 | `cybernet_evidence.csv` | Remote evidence and revisit recommendation |
+| `reconciliation_verdicts.csv` | Management-facing final action verdicts |
+| `reconciliation_summary.txt` | Verdict counts and meaning |
 | `ref_errors.csv` | `#REF!` failures found in the deployment tab |
-| `audit_summary.txt` | Human-readable summary |
+| `audit_summary.txt` | Human-readable audit summary |
 
 ## Evidence Verdicts
 
@@ -81,8 +94,20 @@ SSH is disabled by default. If an approved SSH-capable path exists, enable it ex
 |---|---|---|
 | `Confirmed` | Expected Cybernet evidence matches collected evidence | No revisit needed |
 | `Conflict` | Collected Cybernet evidence conflicts with tracker expectation | Revisit or privileged remote review justified |
+| `IdentityCollectedNeedsComparisonData` | Identity was collected, but tracker lacks enough expected fields for a hard comparison | Fill tracker fields or use privileged survey before revisit |
 | `ReachableNeedsPrivilegedSurvey` | Device responds, but current transport cannot collect serial/MAC | Try approved remote-management path before revisit |
 | `Unreachable` | Target cannot be resolved/reached by lightweight checks | Revisit only after network/remote-management path is exhausted |
+
+## Final Reconciliation Verdicts
+
+| FinalVerdict | Meaning | Action |
+|---|---|---|
+| `NoRevisit` | Evidence supports remote reconciliation | Update/reconcile tracker remotely |
+| `NeedsPrivilegedSurvey` | More remote identity evidence is needed | Use approved stronger remote transport first |
+| `RevisitJustified` | Evidence conflict or unreachable target supports onsite work | Prepare revisit justification with row/evidence attachments |
+| `ReviewRequired` | Evidence shape is incomplete or ambiguous | Human review before action |
+
+These verdicts are decision support. They do not replace field judgment, client instructions, or patient-care urgency. They prevent weak revisits, not necessary ones.
 
 ## Risks Addressed
 
@@ -95,8 +120,9 @@ SSH is disabled by default. If an approved SSH-capable path exists, enable it ex
 | Raw tracker corruption | Data policy requires raw files to remain untouched, with backups and candidate outputs separated |
 | Public repo data leakage | `.gitignore` blocks live workbooks, CSVs, ZIPs, and output artifacts by default |
 | Human interpretation gap | Outputs include row numbers, conflict field/value, location context, and missing resolution fields |
-| Weak revisit justification | Evidence collector emits a revisit recommendation instead of leaving a vague duplicate flag |
+| Weak revisit justification | Evidence collector and reconciler emit final action recommendations instead of leaving vague duplicate flags |
 | Unsafe remote actions | Collector is read-only; SSH is disabled unless explicitly enabled |
+| Over-trusting automation | Reconciler emits `ReviewRequired` when evidence/data shape is ambiguous |
 
 ## Known Limitations
 
@@ -110,6 +136,7 @@ SSH is disabled by default. If an approved SSH-capable path exists, enable it ex
 | Remote survey may fail if host is offline or unreachable | The tool can generate targets, but cannot guarantee remote reachability | Revisit requires failed remote survey or conflicting remote evidence |
 | Lightweight probes cannot always collect serial/MAC | Ping/DNS may prove reachability without proving identity | Use approved privileged remote path before physical revisit |
 | SSH collection is environment-dependent | Many Cybernet/Windows targets will not support SSH | SSH is optional and explicit; future collectors can add WMI/RPC/SNMP/API paths |
+| Reconciler depends on input CSV contracts | Missing or stale files can produce `ReviewRequired` | Contract tests pin headers and expected verdict categories |
 | Public repo cannot safely store live trackers | Real hostnames, MACs, serials, and locations may be sensitive | Store live data locally, encrypted, or in a private repo |
 
 ## Physical Revisit Standard
