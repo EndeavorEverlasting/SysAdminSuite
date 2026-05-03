@@ -5,19 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SysAdmin Suite Dashboard</title>
   <link rel="stylesheet" href="css/style.css">
-  <!-- Static-server requirement: ES modules do not work on file:// URLs.
-       Open via: python3 -m http.server (then http://localhost:8000/)
-       or via Replit preview at /dashboard/                          -->
-  <script>
-    if (location.protocol === 'file:') {
-      document.addEventListener('DOMContentLoaded', function() {
-        var b = document.createElement('div');
-        b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;padding:12px 18px;background:#b45309;color:#fff;font-size:13px;text-align:center;line-height:1.5';
-        b.innerHTML = '<strong>Requires a static web server.</strong> From the project root: <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">python3 -m http.server 8000</code> then open <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">http://localhost:8000/dashboard/</code> — or use the Replit preview at <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">/dashboard/</code>. Browsers block ES modules on <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">file://</code> URLs.';
-        document.body.prepend(b);
-      });
-    }
-  </script>
   <!-- SheetJS — blocking load from vendored copy (deterministic: available before any
        file-drop event fires). CDN fallback only if local file is missing (404). -->
   <script src="js/vendor/xlsx.full.min.js"
@@ -51,6 +38,8 @@
       <input type="file" id="file-input" multiple accept=".csv,.json,.xlsx,.xls,.txt" style="display:none">
       <span class="ingestion-sep">or</span>
       <button class="paste-btn" id="paste-btn">📋 Paste / Type</button>
+      <span class="ingestion-sep">or</span>
+      <button class="paste-btn demo-btn" id="demo-btn" title="Populate all panels with realistic sample data — no files needed">🧪 Load Sample Data</button>
       <div class="loaded-files" id="loaded-files"></div>
     </div>
   </div>
@@ -127,6 +116,11 @@
   code { font-family: var(--mono); font-size: 11px; background: var(--bg3); padding: 1px 4px; border-radius: 3px; }
 </style>
 
-<script type="module" src="js/app.js"></script>
+<!-- sample-data.js: plain script — defines window._sasSampleStore() and window._sasSampleStatus() -->
+<script src="js/sample-data.js"></script>
+<!-- bundle.js: all dashboard JS concatenated into a single non-module script.
+     Works both when served over HTTP and when opened directly as a local file (file:// URL).
+     Regenerate with: node dashboard/build-bundle.js -->
+<script src="js/bundle.js"></script>
 </body>
 </html>

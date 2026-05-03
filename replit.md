@@ -10,7 +10,7 @@ A consolidated SysAdmin toolkit targeting Northwell environments. The project is
 - **Python scripts** (`OCR/`) — floorplan OCR, printer/workstation layout mapping
 - **.NET 8 C#** (`src/SysAdminSuite.Core`, `managed-tests/`) — shared managed library + xUnit tests
 - **PowerShell** (`mapping/`, `GetInfo/`, `GUI/`, `Config/`, `ActiveDirectory/`, `QRTasks/`, `Utilities/`, `tools/`) — active production tooling, Windows environments
-- **`dashboard/`** — SysAdmin Suite Dashboard: no build step, pure ES modules; requires a static web server (served by server.py at /dashboard/; does not run from file://)
+- **`dashboard/`** — SysAdmin Suite Dashboard: served by server.py at `/dashboard/`. The runtime entry point is `dashboard/js/bundle.js` (a generated non-module concatenation of all JS sources — works on file:// URLs too). Source modules remain in `dashboard/js/*.js` for development; regenerate the bundle after any JS change: `node dashboard/build-bundle.js`
 - **`server.py`** — Python HTTP server; serves overview at `/` and dashboard at `/dashboard/` (port 5000)
 
 ## Replit Setup

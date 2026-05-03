@@ -115,11 +115,9 @@ export function initSoftwarePanel() {
 
 // ── Render ───────────────────────────────────────────────────────────────────
 export function renderSoftwarePanel(store) {
-  if (store.software) {
-    _apps  = store.software.apps  || [];
-    _lists = store.software.lists || {};
-    populateListDropdown();
-  }
+  _apps  = store.software?.apps  || [];
+  _lists = store.software?.lists || {};
+  populateListDropdown();
   renderTable();
 }
 

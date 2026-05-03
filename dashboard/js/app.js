@@ -8,6 +8,8 @@ import { getTasksHTML, initTasksPanel, renderTasksPanel } from './panel-tasks.js
 import { getNetworkHTML, initNetworkPanel, renderNetworkPanel } from './panel-network.js';
 import { getSoftwareHTML, initSoftwarePanel, renderSoftwarePanel } from './panel-software.js';
 import { initTour } from './tour.js';
+// Sample data is loaded via a plain <script> tag in index.html (not an ES module).
+// Globals defined by that script: window._sasSampleStore(), window._sasSampleStatus()
 
 // ── State ──────────────────────────────────────────────────────────────────
 let store = {};
@@ -25,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPasteModal();
   initStatusFooter();
   initDropOverlay();
+  initSampleDataBtn();
 
   // Init panels
   initPrinterPanel();
@@ -257,13 +260,93 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
   loadedFiles.push({ id, name, type, status, parsedData });
 }
 
-function clearAllData() {
+function clearAllData(silent = false) {
   store = {};
   loadedFiles = [];
   document.getElementById('loaded-files').innerHTML = '';
   refreshAllPanels();
   updateStatusFooter(null);
-  toast('All data cleared.', 'info');
+  if (!silent) toast('All data cleared.', 'info');
+}
+
+// ── Demo / Sample Data ────────────────────────────────────────────────────
+function initSampleDataBtn() {
+  const btn = document.getElementById('demo-btn');
+  if (btn) btn.addEventListener('click', loadSampleData);
+}
+
+function loadSampleData() {
+  if (typeof window._sasSampleStore !== 'function') {
+    toast('Sample data not available — sample-data.js may not have loaded.', 'error');
+    return;
+  }
+  clearAllData(true);
+  store = window._sasSampleStore();
+  refreshAllPanels();
+  updateStatusFooter(window._sasSampleStatus());
+  updateSoftwareBadge();
+
+  // Build parsedData objects that match mergeDataStore's expected shape so that
+  // removing a sample chip triggers a correct store rebuild via rebuildStoreFromChips.
+  const chips = [
+    {
+      name: 'sample-results.csv',
+      type: 'results',
+      parsedData: { type: 'results', rows: store.results || [] }
+    },
+    {
+      name: 'sample-preflight.csv',
+      type: 'preflight',
+      parsedData: { type: 'preflight', rows: store.preflight || [] }
+    },
+    {
+      name: 'sample-printer_probe.csv',
+      type: 'printer-probe',
+      parsedData: { type: 'printer-probe', rows: store.printerProbe || [] }
+    },
+    {
+      name: 'sample-machine_info.csv',
+      type: 'machine-info',
+      parsedData: { type: 'machine-info', rows: store.machineInfo || [] }
+    },
+    {
+      name: 'sample-ram_info.csv',
+      type: 'ram-info',
+      parsedData: { type: 'ram-info', rows: store.ramInfo || [], byHost: store.ramByHost || {} }
+    },
+    {
+      name: 'sample-monitor_info.csv',
+      type: 'monitor-info',
+      parsedData: { type: 'monitor-info', rows: store.monitorInfo || [] }
+    },
+    {
+      name: 'sample-QRTask_log.json',
+      type: 'remote-task',
+      parsedData: { type: 'remote-task', rows: store.remoteTasks || [] }
+    },
+    {
+      name: 'sample-network_preflight.csv',
+      type: 'network-preflight',
+      parsedData: { type: 'network-preflight', rows: store.networkPreflight || [], rawRows: [] }
+    },
+    {
+      name: 'sample-workstation_identity.csv',
+      type: 'workstation-identity',
+      parsedData: { type: 'workstation-identity', rows: store.workstationIdentity || [] }
+    },
+    {
+      name: 'sample-sources.yaml',
+      type: 'software-tracker',
+      parsedData: { type: 'software-tracker', rows: store.software?.apps || [], data: store.software || {} }
+    },
+  ];
+
+  for (const { name, type, parsedData } of chips) {
+    const count = parsedData.rows?.length ?? 0;
+    if (count > 0) addFileChip(name, 'ok', type, count, parsedData);
+  }
+
+  toast('Sample data loaded — all panels populated with demo data.', 'success');
 }
 
 // ── Paste Modal ─────────────────────────────────────────────────────────────
