@@ -1,7 +1,0 @@
-"Device Type","Deployed","Current Building","Install Building","Area/Unit/Dept","Room","Bay","Cybernet Hostname","Neuron Hostname","Neuron MAC","Cybernet Serial","Neuron S/N","Cybernet MAC","Anesthesia S/N","Medical Device S/N"
-"Cybernet-Neuron","Yes","NSUH - PSP","NSUH - PSP","Main OR","19","n/a","HOSTDUP","N1","AA:BB:CC:DD:EE:01","SN-1","","","",
-"Cybernet-Neuron","Yes","LIJ Valley Stream","LIJ Valley Stream","ICU","2","1","HOSTDUP","N2","AA-BB-CC-DD-EE-02","SN-2","","","",
-"Neuron","Yes","NSUH","NSUH","Ward","1","n/a","","NEUONLY","11:22:33:44:55:66","","","",
-"Peripherals","Yes","NSUH","NSUH","Clinic","9","n/a","","","","","","","",
-"Peripherals","Yes","LIJ Plainview Hospital","LIJ Plainview Hospital","Clinic","3","n/a","","","","","","","",
-"Cybernet","Yes","LIJ Forest Hills","LIJ Forest Hills","OR","5","n/a","HOSTTIX","","","","","","",
