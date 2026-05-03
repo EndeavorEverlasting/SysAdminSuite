@@ -2753,6 +2753,10 @@ $script:TutorialPanel.Controls.AddRange(@(
 $form.Controls.Add($script:TutorialPanel)
 $script:TutorialPanel.BringToFront()
 
+# Path used to persist the first-run tutorial flag across sessions.
+# If the file does not exist the tutorial auto-shows once, then the file is created.
+$script:TutorialFirstRunFlagPath = Join-Path $repoRoot 'GUI\Output\tutorial_first_shown.flag'
+
 # Center the tutorial panel on form resize / load
 $centerTutorial = {
   $script:TutorialPanel.Left = [Math]::Max(0, [int](($form.ClientSize.Width - $script:TutorialPanel.Width) / 2))
@@ -2761,7 +2765,15 @@ $centerTutorial = {
 $form.Add_Resize($centerTutorial)
 $form.Add_Shown({
   & $centerTutorial
-  Show-TutorialAtCheckpoint -CheckpointName 'FirstLaunch' -StepIndex 0
+  # Auto-launch tutorial on first run only -- persisted via a flag file so it
+  # only shows once across all sessions, not just once per process.
+  if (-not (Test-Path -LiteralPath $script:TutorialFirstRunFlagPath)) {
+    try {
+      New-Item -ItemType Directory -Path (Split-Path $script:TutorialFirstRunFlagPath) -Force | Out-Null
+      [System.IO.File]::WriteAllText($script:TutorialFirstRunFlagPath, (Get-Date -Format 's'))
+    } catch {}
+    Show-Tutorial
+  }
 })
 
 # -- Tutorial Relaunch Button (on status strip) --

@@ -192,14 +192,106 @@ HTML = """<!DOCTYPE html>
       border-top: 1px solid #2d3748;
       margin-top: 20px;
     }
+    #tour-btn {
+      background: #2b6cb0;
+      color: #bee3f8;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #tour-btn:hover { background: #2c5282; }
+    #sas-ov-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 8000;
+      pointer-events: none;
+    }
+    #sas-ov-overlay.active { display: block; }
+    #sas-ov-tooltip {
+      display: none;
+      position: fixed;
+      z-index: 8100;
+      width: 360px;
+      max-width: calc(100vw - 24px);
+      background: #1a2236;
+      border: 1px solid #3a5080;
+      border-radius: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.7);
+      color: #d8e6f8;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    #sas-ov-tooltip.active { display: block; }
+    #sas-ov-header {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 0;
+    }
+    #sas-ov-counter { font-size: 11px; color: #6b8ab0; font-weight: 600; text-transform: uppercase; }
+    #sas-ov-close {
+      background: none; border: none; color: #6b8ab0;
+      font-size: 15px; cursor: pointer; padding: 0 2px;
+    }
+    #sas-ov-close:hover { color: #d8e6f8; }
+    #sas-ov-title { font-size: 15px; font-weight: 700; color: #90cdf4; padding: 6px 14px 2px; }
+    #sas-ov-body { padding: 6px 14px 14px; color: #b8ccdf; font-size: 12.5px; }
+    #sas-ov-body code {
+      background: #0d1420; color: #f6ad55; padding: 1px 5px;
+      border-radius: 3px; font-size: 11.5px; font-family: 'Courier New', monospace;
+    }
+    #sas-ov-body strong { color: #d8e6f8; }
+    #sas-ov-footer {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px 12px; border-top: 1px solid #2d4060;
+    }
+    #sas-ov-footer button {
+      border: none; border-radius: 6px; padding: 6px 14px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    #sas-ov-prev { background: #253550; color: #90cdf4; }
+    #sas-ov-prev:disabled { opacity: .35; cursor: default; }
+    #sas-ov-skip { background: transparent; color: #6b8ab0; margin-right: auto; padding-left: 4px; font-weight: 400; }
+    #sas-ov-skip:hover { color: #d8e6f8; }
+    #sas-ov-next { background: #2b6cb0; color: #fff; margin-left: auto; }
+    #sas-ov-next:hover { opacity: .85; }
+    .sas-ov-hl {
+      outline: 3px solid #4299e1 !important;
+      outline-offset: 3px;
+      border-radius: 6px;
+      position: relative;
+      z-index: 8050;
+      box-shadow: 0 0 0 6px rgba(66,153,225,.18);
+    }
   </style>
 </head>
 <body>
-  <header>
+  <div id="sas-ov-overlay"></div>
+  <div id="sas-ov-tooltip">
+    <div id="sas-ov-header">
+      <span id="sas-ov-counter"></span>
+      <button id="sas-ov-close">&#x2715;</button>
+    </div>
+    <div id="sas-ov-title"></div>
+    <div id="sas-ov-body"></div>
+    <div id="sas-ov-footer">
+      <button id="sas-ov-prev">&#x2190; Back</button>
+      <button id="sas-ov-skip">Skip tour</button>
+      <button id="sas-ov-next">Next &#x2192;</button>
+    </div>
+  </div>
+  <header id="tour-header">
     <div class="header-text">
       <h1>SysAdminSuite <span class="badge">v2.0</span></h1>
       <p>Consolidated SysAdmin toolkit &mdash; Bash-first for Northwell; PowerShell is active production tooling for Windows environments (WMI, printer mapping, AD, deployment tracking, GUI).</p>
     </div>
+    <button id="tour-btn" onclick="startOvTour()">&#x1F5FA; Tour</button>
     <span class="env-pill">Replit / Linux</span>
   </header>
   <main>
@@ -210,16 +302,16 @@ HTML = """<!DOCTYPE html>
       and <strong>.NET core library</strong> are the runnable components. See the commands below.
     </div>
 
-    <div class="section-title">Tool Directories</div>
+    <div class="section-title" id="tour-dirs">Tool Directories</div>
     <div class="grid">
-      <div class="card">
+      <div class="card" id="tour-survey">
         <h2><span class="icon">&#x1F4CB;</span>Survey Tools</h2>
         <ul>
           <li><code>sas-survey-targets.sh</code><span class="tag tag-bash">Bash</span></li>
           <li><code>sas-collect-cybernet-evidence.sh</code><span class="tag tag-bash">Bash</span></li>
         </ul>
       </div>
-      <div class="card">
+      <div class="card" id="tour-audit">
         <h2><span class="icon">&#x1F50D;</span>Deployment Audit</h2>
         <ul>
           <li><code>sas-audit-deployments.sh</code><span class="tag tag-bash">Bash</span></li>
@@ -284,8 +376,8 @@ HTML = """<!DOCTYPE html>
       </div>
     </div>
 
-    <div class="section-title">Runnable on Linux (this environment)</div>
-    <div class="cmd-block">
+    <div class="section-title" id="tour-linux-title">Runnable on Linux (this environment)</div>
+    <div class="cmd-block" id="tour-bash-cmds">
       <h2 class="section-title" style="border:none;margin-bottom:10px;">Bash Survey Tools</h2>
       <div class="cmd"><span class="comment"># Normalize Cybernet target identifiers from CSV/TXT/JSON</span><br>
 ./survey/sas-survey-targets.sh --device-type Cybernet --output ./survey/output/targets.csv WMH300OPR001</div>
@@ -295,8 +387,8 @@ HTML = """<!DOCTYPE html>
 python3 OCR/locus_mapping_ocr.py --workstations ws.png --printers pr.png --out-prefix ls111</div>
     </div>
 
-    <div class="section-title">Windows-Only (requires PowerShell / Windows)</div>
-    <div class="cmd-block">
+    <div class="section-title" id="tour-win-title">Windows-Only (requires PowerShell / Windows)</div>
+    <div class="cmd-block" id="tour-win-cmds">
       <div class="cmd"><span class="comment"># Launch WinForms GUI (Windows + PowerShell 5.1+)</span><br>
 powershell.exe -STA -File .\\GUI\\Start-SysAdminSuiteGui.ps1</div>
       <div class="cmd"><span class="comment"># Printer recon (read-only, no changes)</span><br>
@@ -327,7 +419,128 @@ dotnet test SysAdminSuite.sln -c Release</div>
       </div>
     </div>
   </main>
-  <footer>SysAdminSuite &mdash; Consolidated v2.0 &mdash; Primary branch: <code>main</code></footer>
+  <footer id="tour-footer">SysAdminSuite &mdash; Consolidated v2.0 &mdash; Primary branch: <code>main</code></footer>
+<script>
+(function(){
+  var TOUR_KEY = 'sas_ov_tour_v1_done';
+  var steps = [
+    {
+      id: 'tour-header',
+      title: 'Welcome to SysAdminSuite',
+      body: 'This overview page is your starting point. It lists every tool in the suite, shows which ones run here on Linux, and explains which require Windows. Use the <strong>Tour</strong> button in the header to replay this guide anytime.'
+    },
+    {
+      id: null,
+      title: 'Environment Note',
+      body: 'The blue banner describes the execution split: <strong>Bash scripts</strong> and <strong>Python OCR tools</strong> run directly on this Linux (Replit) environment. <strong>PowerShell scripts</strong> and the <strong>WinForms GUI</strong> require a Windows host. The tour covers both.'
+    },
+    {
+      id: 'tour-survey',
+      title: 'Survey Tools',
+      body: '<code>sas-survey-targets.sh</code> normalises device identifiers (hostname, MAC, serial) from TXT/CSV/JSON and dispatches them by device type. Supported types: <strong>Cybernet</strong>, <strong>Neuron</strong>, <strong>Workstation</strong>, <strong>Unknown</strong>. Run <code>bash/sas-tutorial.sh --topic survey</code> for a full walkthrough.'
+    },
+    {
+      id: 'tour-audit',
+      title: 'Deployment Audit',
+      body: '<code>sas-audit-deployments.sh</code> reads the Active Deployment Tracker (.xlsx) and checks every <strong>Deployed&nbsp;=&nbsp;Yes</strong> row for duplicate identifiers, location clashes, and #REF! errors. Outputs CSV reports + <code>audit_summary.txt</code>. Run <code>bash/sas-tutorial.sh --topic audit</code> for a full walkthrough.'
+    },
+    {
+      id: 'tour-dirs',
+      title: 'Tool Directories',
+      body: 'This grid shows all nine tool directories. <strong>Cyan tags</strong> = Bash, <strong>purple tags</strong> = PowerShell, <strong>green tags</strong> = Python, <strong>yellow tags</strong> = .NET. Hover any card to see the scripts it contains.'
+    },
+    {
+      id: 'tour-bash-cmds',
+      title: 'Command Reference — Linux / Bash',
+      body: 'These are ready-to-paste commands for the tools that run on this machine. Copy any command and paste it into a terminal to get started immediately. The <code>--output-dir</code> flag controls where CSVs land.'
+    },
+    {
+      id: 'tour-win-cmds',
+      title: 'Command Reference — Windows / PowerShell',
+      body: 'These commands require a Windows host with PowerShell 5.1+. The WinForms GUI (<code>Start-SysAdminSuiteGui.ps1</code>) has its own built-in tutorial — press <strong>Ctrl+T</strong> or click <strong>Tutorial (Ctrl+T)</strong> in its status bar to launch it.'
+    },
+    {
+      id: 'tour-footer',
+      title: 'Visual Dashboard',
+      body: 'For a visual interface, open the <strong>SysAdmin Suite Dashboard</strong> at <code>/dashboard/</code>. It ingests the CSV outputs produced by these scripts and displays them as searchable, filterable tables across five tabs. The dashboard also has its own interactive tour.'
+    }
+  ];
+
+  var idx = 0;
+  var prevHL = null;
+
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+  function positionTooltip(el){
+    var tt = document.getElementById('sas-ov-tooltip');
+    var tw = 360, th = tt.offsetHeight || 260;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var top, left;
+    if(el){
+      var r = el.getBoundingClientRect();
+      top = r.bottom + 12;
+      left = r.left;
+      if(top + th > vh - 12) top = r.top - th - 12;
+      if(left + tw > vw - 12) left = vw - tw - 12;
+    } else {
+      top = clamp((vh - th)/2, 12, vh - th - 12);
+      left = clamp((vw - tw)/2, 12, vw - tw - 12);
+    }
+    tt.style.top  = clamp(top,  12, vh - th - 12) + 'px';
+    tt.style.left = clamp(left, 12, vw - tw - 12) + 'px';
+  }
+
+  function clearHL(){
+    if(prevHL){ prevHL.classList.remove('sas-ov-hl'); prevHL = null; }
+  }
+
+  function showStep(i){
+    var step = steps[i];
+    var el = step.id ? document.getElementById(step.id) : null;
+    clearHL();
+    if(el){ el.classList.add('sas-ov-hl'); el.scrollIntoView({behavior:'smooth', block:'nearest'}); prevHL = el; }
+    document.getElementById('sas-ov-counter').textContent = 'Step ' + (i+1) + ' of ' + steps.length;
+    document.getElementById('sas-ov-title').textContent = step.title;
+    document.getElementById('sas-ov-body').innerHTML = step.body;
+    document.getElementById('sas-ov-prev').disabled = (i === 0);
+    document.getElementById('sas-ov-next').textContent = (i === steps.length - 1) ? 'Finish \u2713' : 'Next \u2192';
+    setTimeout(function(){ positionTooltip(el); }, 60);
+  }
+
+  function endOvTour(){
+    localStorage.setItem(TOUR_KEY, '1');
+    clearHL();
+    document.getElementById('sas-ov-overlay').classList.remove('active');
+    document.getElementById('sas-ov-tooltip').classList.remove('active');
+  }
+
+  window.startOvTour = function(){
+    idx = 0;
+    document.getElementById('sas-ov-overlay').classList.add('active');
+    document.getElementById('sas-ov-tooltip').classList.add('active');
+    showStep(idx);
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    document.getElementById('sas-ov-close').addEventListener('click', endOvTour);
+    document.getElementById('sas-ov-skip').addEventListener('click', endOvTour);
+    document.getElementById('sas-ov-prev').addEventListener('click', function(){
+      if(idx > 0){ idx--; showStep(idx); }
+    });
+    document.getElementById('sas-ov-next').addEventListener('click', function(){
+      if(idx < steps.length - 1){ idx++; showStep(idx); }
+      else { endOvTour(); }
+    });
+    window.addEventListener('resize', function(){
+      if(document.getElementById('sas-ov-tooltip').classList.contains('active')){
+        var el = steps[idx].id ? document.getElementById(steps[idx].id) : null;
+        positionTooltip(el);
+      }
+    });
+    if(!localStorage.getItem(TOUR_KEY)){ startOvTour(); }
+  });
+})();
+</script>
 </body>
 </html>
 """

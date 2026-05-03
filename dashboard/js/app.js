@@ -7,6 +7,7 @@ import { getInventoryHTML, initInventoryPanel, renderInventoryPanel } from './pa
 import { getTasksHTML, initTasksPanel, renderTasksPanel } from './panel-tasks.js';
 import { getNetworkHTML, initNetworkPanel, renderNetworkPanel } from './panel-network.js';
 import { getSoftwareHTML, initSoftwarePanel, renderSoftwarePanel } from './panel-software.js';
+import { initTour } from './tour.js';
 
 // ── State ──────────────────────────────────────────────────────────────────
 let store = {};
@@ -34,6 +35,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Render empty state on all panels
   refreshAllPanels();
+
+  // Init interactive tour (auto-shows on first visit; re-triggerable via Tour button)
+  initTour();
 });
 
 // ── Layout ─────────────────────────────────────────────────────────────────
