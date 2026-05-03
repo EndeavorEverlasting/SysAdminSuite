@@ -345,6 +345,11 @@ function loadSampleData() {
       type: 'software-tracker',
       parsedData: { type: 'software-tracker', rows: store.software?.apps || [], data: store.software || {} }
     },
+    {
+      name: 'software_hosts.csv',
+      type: 'software-superset',
+      parsedData: { type: 'software-superset', rows: store.softwareInventory || [] }
+    },
   ];
 
   for (const { name, type, parsedData } of chips) {

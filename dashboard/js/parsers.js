@@ -49,6 +49,9 @@ export function detectFileType(filename, content) {
   if (fn.includes('monitorinfo') || fn.includes('monitor_info') || fn.includes('monitor-info')) return 'monitor-info';
   if (fn.includes('neuron')) return 'neuron-inventory';
   if (fn.includes('smb')) return 'smb-recon';
+  if (fn.includes('software_superset') || fn.includes('softwaresuperset') || fn.includes('software-superset')) return 'software-superset';
+  if (fn.includes('software_hosts') || fn.includes('softwarehosts') || fn.includes('software-hosts')) return 'software-superset';
+  if (fn.startsWith('installed_software_') || fn.includes('/installed_software_') || fn.includes('\\installed_software_')) return 'software-superset';
   if (fn.includes('qrtask') || fn.includes('qr_task') || fn.includes('invoke-techtask') || fn.includes('runtask')) return 'remote-task';
   if (fn.includes('runcontrol') || fn.includes('run_control')) return 'remote-task';
   if (fn.includes('wmi_identity') || fn.includes('wmi-identity')) return 'workstation-identity';
@@ -67,6 +70,7 @@ export function detectFileType(filename, content) {
     if (firstLine.includes('targethost') && firstLine.includes('matchexpected')) return 'neuron-inventory';
     if (firstLine.includes('share') && firstLine.includes('liststatus')) return 'smb-recon';
     if (firstLine.includes('taskname') || firstLine.includes('taskid') || firstLine.includes('outcome')) return 'remote-task';
+    if (firstLine.includes('publisher') && firstLine.includes('host') && firstLine.includes('name')) return 'software-superset';
   }
 
   return 'unknown';
@@ -91,6 +95,7 @@ export function parseFileContent(type, content, filename) {
     case 'status-json': return parseStatusJson(content);
     case 'remote-task': return parseRemoteTask(content);
     case 'software-tracker': return parseSoftwareTracker(content, filename);
+    case 'software-superset': return parseSoftwareSuperset(content);
     default: return { type: 'unknown', rows: [], meta: {} };
   }
 }
@@ -223,6 +228,25 @@ function parseRemoteTask(content) {
   }
 
   return { type: 'remote-task', rows: [], meta: { count: 0 } };
+}
+
+/**
+ * Parse software_superset.csv (from Inventory-Software.ps1 or sas-populate-tracker.sh --from-host).
+ * Expected columns: Name, Version, Publisher, DetectType, DetectValue, Host, Timestamp
+ */
+function parseSoftwareSuperset(content) {
+  const rows = parseCSV(content);
+  // Normalize column names (case-insensitive)
+  const normalized = rows.map(r => ({
+    Name:        r.Name        || r.name        || '',
+    Version:     r.Version     || r.version     || '',
+    Publisher:   r.Publisher   || r.publisher   || '',
+    DetectType:  r.DetectType  || r.detect_type || r.detecttype  || 'regkey',
+    DetectValue: r.DetectValue || r.detect_value|| r.detectvalue || '',
+    Host:        r.Host        || r.host        || r.ComputerName|| r.computername || '',
+    Timestamp:   r.Timestamp   || r.timestamp   || '',
+  })).filter(r => r.Name);
+  return { type: 'software-superset', rows: normalized, meta: { count: normalized.length } };
 }
 
 /**
@@ -419,6 +443,9 @@ export function mergeDataStore(existing, incoming) {
       };
       break;
     }
+    case 'software-superset':
+      store.softwareInventory = (store.softwareInventory || []).concat(rows);
+      break;
   }
 
   return store;

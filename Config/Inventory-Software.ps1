@@ -170,6 +170,19 @@ if(-not $NoMerge){
 
   $rows = $rows | Normalize-Row -HostName '<unknown>'
 
+  # ── Host-expanded export (one row per Name+Host) for dashboard gap analysis ──
+  # Dropped into the dashboard as software_hosts.csv to power "Installed on X/N hosts"
+  # and per-host gap report rows.  Distinct from the deduplicated superset below.
+  $hostsCsv = Join-Path $inventoryRoot 'software_hosts.csv'
+  $rows |
+    Select-Object Name,Version,Publisher,DetectType,DetectValue,Host,Timestamp |
+    Where-Object { $_.Name -and $_.Host -and $_.Host -ne '<unknown>' } |
+    Sort-Object Name,Host |
+    Export-Csv -Path $hostsCsv -NoTypeInformation -Encoding UTF8
+  Write-Host "Wrote host-expanded inventory => $hostsCsv" -ForegroundColor Green
+
+  # ── Deduplicated superset (one best row per Name+Publisher) ──────────────────
+  # Used by sas-populate-tracker.sh to upsert catalog entries.
   $superset = $rows | Group-Object -Property Name,Publisher | ForEach-Object { Pick-Best -Rows $_.Group }
   $supCsv = Join-Path $inventoryRoot 'software_superset.csv'
   $sorted = $superset | Sort-Object Name

@@ -125,6 +125,55 @@
       { Target: 'WMH300OPR106', ResolvedAddress: '10.10.3.106', DnsName: 'wmh300opr106.corp.local', PingStatus: 'Reachable',   TransportUsed: 'WMI', IdentityStatus: 'Collected', ObservedHostName: 'WMH300OPR106', ObservedSerial: 'SN-00106', ObservedMACs: 'AA:BB:CC:DD:01:06', Notes: '', Timestamp: '2026-05-03T09:02:00Z' },
     ],
 
+    // ── Software Superset (install inventory from Inventory-Software.ps1) ─────
+    // One row per Name+Host — mirrors what Inventory-Software.ps1 emits.
+    // 4 surveyed hosts: OPR101, OPR102, OPR103, OPR104
+    // This lets the panel demonstrate: Installed (all 4), Partial (some), Missing (none),
+    // and Unmanaged (found on hosts but not in catalog / flagged unmanaged in catalog).
+    softwareInventory: [
+      // Chrome — all 4 hosts → Installed
+      { Name: 'Chrome',           Version: '124.0.6367.78',  Publisher: 'Google LLC',                    DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Google\\Chrome',               Host: 'WMH300OPR101', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Chrome',           Version: '124.0.6367.78',  Publisher: 'Google LLC',                    DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Google\\Chrome',               Host: 'WMH300OPR102', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Chrome',           Version: '124.0.6367.78',  Publisher: 'Google LLC',                    DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Google\\Chrome',               Host: 'WMH300OPR103', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Chrome',           Version: '124.0.6367.78',  Publisher: 'Google LLC',                    DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Google\\Chrome',               Host: 'WMH300OPR104', Timestamp: '2026-05-03T08:00:00Z' },
+      // Teams — all 4 hosts → Installed
+      { Name: 'Teams',            Version: '23293.918.2293', Publisher: 'Microsoft Corporation',         DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Microsoft\\Teams',             Host: 'WMH300OPR101', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Teams',            Version: '23293.918.2293', Publisher: 'Microsoft Corporation',         DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Microsoft\\Teams',             Host: 'WMH300OPR102', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Teams',            Version: '23293.918.2293', Publisher: 'Microsoft Corporation',         DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Microsoft\\Teams',             Host: 'WMH300OPR103', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Teams',            Version: '23293.918.2293', Publisher: 'Microsoft Corporation',         DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Microsoft\\Teams',             Host: 'WMH300OPR104', Timestamp: '2026-05-03T08:00:00Z' },
+      // Adobe Acrobat DC — 3 of 4 hosts → Partial
+      { Name: 'Adobe Acrobat DC', Version: '23.008.20470',   Publisher: 'Adobe Inc.',                    DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Adobe\\Acrobat Reader\\DC',    Host: 'WMH300OPR101', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Adobe Acrobat DC', Version: '23.008.20470',   Publisher: 'Adobe Inc.',                    DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Adobe\\Acrobat Reader\\DC',    Host: 'WMH300OPR102', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Adobe Acrobat DC', Version: '23.008.20470',   Publisher: 'Adobe Inc.',                    DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Adobe\\Acrobat Reader\\DC',    Host: 'WMH300OPR104', Timestamp: '2026-05-03T08:00:00Z' },
+      // Malwarebytes — 2 of 4 hosts → Partial
+      { Name: 'Malwarebytes',     Version: '4.6.8.287',      Publisher: 'Malwarebytes',                  DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Malwarebytes',                 Host: 'WMH300OPR101', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Malwarebytes',     Version: '4.6.8.287',      Publisher: 'Malwarebytes',                  DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Malwarebytes',                 Host: 'WMH300OPR102', Timestamp: '2026-05-03T08:00:00Z' },
+      // 7-Zip — 2 of 4 hosts → Partial
+      { Name: '7-Zip',            Version: '23.01',          Publisher: 'Igor Pavlov',                   DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\7-Zip',                         Host: 'WMH300OPR101', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: '7-Zip',            Version: '23.01',          Publisher: 'Igor Pavlov',                   DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\7-Zip',                         Host: 'WMH300OPR103', Timestamp: '2026-05-03T08:00:00Z' },
+      // Notepad++ — 1 of 4 hosts → Partial
+      { Name: 'Notepad++',        Version: '8.6.4',          Publisher: 'Notepad++ Team',                DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Notepad++',                     Host: 'WMH300OPR104', Timestamp: '2026-05-03T08:00:00Z' },
+      // Git — 2 of 4 (admin only) → Partial
+      { Name: 'Git',              Version: '2.44.0',         Publisher: 'The Git Development Community', DetectType: 'exe',    DetectValue: 'C:\\Program Files\\Git\\bin\\git.exe',            Host: 'WMH300OPR101', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'Git',              Version: '2.44.0',         Publisher: 'The Git Development Community', DetectType: 'exe',    DetectValue: 'C:\\Program Files\\Git\\bin\\git.exe',            Host: 'WMH300OPR102', Timestamp: '2026-05-03T08:00:00Z' },
+      // VS Code — 1 of 4 → Partial
+      { Name: 'VS Code',          Version: '1.89.0',         Publisher: 'Microsoft Corporation',         DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\Microsoft\\VisualStudio Code', Host: 'WMH300OPR101', Timestamp: '2026-05-03T08:00:00Z' },
+      // Firefox — 0 of 4 → Missing
+      // VLC — 0 of 4 → Missing
+      // Zoom — 0 of 4 → Missing
+      // Windows Terminal — 0 of 4 → Missing
+      // CutePDF Writer — 0 of 4 → Missing
+      // WinSCP — 0 of 4 → Missing
+      // PuTTY — 0 of 4 → Missing
+      // OldFaxTool 2.1 — in catalog as unmanaged, found on 2 hosts
+      { Name: 'OldFaxTool 2.1',   Version: '2.1',            Publisher: 'LegacySoft',                    DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\OldFaxTool',                   Host: 'WMH300OPR101', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'OldFaxTool 2.1',   Version: '2.1',            Publisher: 'LegacySoft',                    DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\OldFaxTool',                   Host: 'WMH300OPR103', Timestamp: '2026-05-03T08:00:00Z' },
+      // ScreenConnect Client — NOT in catalog, found on 3 hosts → inventory-only / Unmanaged
+      { Name: 'ScreenConnect Client', Version: '23.9.8.8811', Publisher: 'ConnectWise',                  DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\ScreenConnect Client',          Host: 'WMH300OPR101', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'ScreenConnect Client', Version: '23.9.8.8811', Publisher: 'ConnectWise',                  DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\ScreenConnect Client',          Host: 'WMH300OPR102', Timestamp: '2026-05-03T08:00:00Z' },
+      { Name: 'ScreenConnect Client', Version: '23.9.8.8811', Publisher: 'ConnectWise',                  DetectType: 'regkey', DetectValue: 'HKLM:\\Software\\ScreenConnect Client',          Host: 'WMH300OPR104', Timestamp: '2026-05-03T08:00:00Z' },
+    ],
+
     // ── Software Tracker ───────────────────────────────────────────────────
     // Fields: name, source, strategy, version, type, detect_type, detect_value, unmanaged
     software: {
