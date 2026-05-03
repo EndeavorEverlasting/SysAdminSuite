@@ -15,12 +15,16 @@ else
 fi
 
 echo "Configuring git credentials..."
-if [ -z "$GITHUB_TOKEN" ]; then
-  echo "WARNING: GITHUB_TOKEN is not set. Skipping GitHub sync."
-else
-  git config credential.helper \
-    '!f() { printf "username=x-token-auth\n"; printf "password=%s\n" "$GITHUB_TOKEN"; }; f'
+# Always write the credential helper into .git/config so it survives container
+# restarts. The helper reads $GITHUB_TOKEN from the environment at runtime,
+# so it does not need to be set at this point.
+git config credential.helper \
+  '!f() { printf "username=x-token-auth\n"; printf "password=%s\n" "$GITHUB_TOKEN"; }; f'
+echo "Credential helper configured."
 
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "WARNING: GITHUB_TOKEN is not set. Skipping initial GitHub sync (push will work once the token is available)."
+else
   echo "Syncing to GitHub..."
   if git push origin main; then
     echo "GitHub sync complete."
