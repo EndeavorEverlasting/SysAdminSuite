@@ -62,12 +62,12 @@ SysAdminSuite/
 │   ├── Inventory-Software.ps1      ← ARP registry scan → CSV + HTML report
 │   ├── Run-Preflight.ps1           ← Pre-deployment checklist runner
 │   ├── Build-FetchMap.ps1          ← Builds installer fetch manifest
-│   ├── Fetch-Installers.ps1        ← Downloads installers from sources.csv
+│   ├── Fetch-Installers.ps1        ← Downloads installers from sources.yaml
 │   ├── Fetch-DRYRUN.ps1            ← Dry-run version of Fetch-Installers
 │   ├── GoLiveTools.ps1             ← Go-live deployment helper
 │   ├── Stage-To-Clients.ps1        ← Stages files to client machines
 │   ├── ImpactS-FixShortcuts.ps1    ← Repairs ImpactS application shortcuts
-│   ├── sources.csv                 ← Installer source URLs
+│   ├── sources.yaml                ← Installer source definitions (authoritative)
 │   └── archive/                    ← Legacy versions
 │
 ├── ActiveDirectory/            # AD group management

@@ -4,8 +4,8 @@ Utility cmdlets for go-live:
 - Preflight-Repo          : warn on missing files, create folders
 - Assert-Repo             : enforce repo layout & write access
 - Test-FetchMap           : validate fetch-map.csv rows/URLs (HEAD/GET)
-- Rebuild-FetchMap        : build fetch-map.csv from sources.csv (robust tags)
-- New-SourcesTemplate     : create a starter sources.csv if missing
+- Rebuild-FetchMap        : build fetch-map.csv from sources.yaml (robust tags)
+- New-SourcesTemplate     : create a starter sources.yaml if missing
 - Invoke-Fetch            : wrapper for Fetch-Installers.ps1 (+ dry-run)
 - New-RepoChecksums       : compute SHA256 for installers
 - Guess-InstallerType     : MSI/NSIS/Inno/Squirrel/InstallShield/MSIX/ZIP
@@ -244,7 +244,6 @@ function Preflight-Repo {
   $pkgCsv      = Join-Path $RepoRoot 'packages.csv'
   $fetchMap    = Join-Path $RepoRoot 'fetch-map.csv'
   $sourcesYaml = Join-Path $RepoRoot 'sources.yaml'
-  $sourcesCsv  = Join-Path $RepoRoot 'sources.csv'  # legacy
 
   foreach($d in @($installers,$checksums)){
     if (-not (Test-Path $d)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
@@ -252,11 +251,7 @@ function Preflight-Repo {
 
   $warns = @()
   if (-not (Test-Path $sourcesYaml)) {
-    if (Test-Path $sourcesCsv) {
-      $warns += "sources.csv found but sources.yaml missing. Run: & '$PSScriptRoot\Config\sources.csv' migration or New-SourcesTemplate."
-    } else {
-      $warns += "Missing sources.yaml -> $sourcesYaml (run: New-SourcesTemplate -RepoRoot `"$RepoRoot`")"
-    }
+    $warns += "Missing sources.yaml -> $sourcesYaml (run: New-SourcesTemplate -RepoRoot `"$RepoRoot`")"
   }
   if (-not (Test-Path $fetchMap))   { $warns += "Missing fetch-map.csv -> $fetchMap (run: Rebuild-FetchMap -RepoRoot `"$RepoRoot`")" }
   if (-not (Test-Path $pkgCsv))     { $warns += "Missing packages.csv -> $pkgCsv (will be created by Fetch-Installers merge)" }
@@ -429,20 +424,20 @@ function Rebuild-FetchMap {
   param(
     [Parameter(Mandatory)][string]$RepoRoot,
     [string]$SourcesYaml = (Join-Path $RepoRoot 'sources.yaml'),
-    [string]$SourcesCsv  = (Join-Path $RepoRoot 'sources.csv'),  # legacy fallback
+    [string]$SourcesCsv  = (Join-Path $RepoRoot 'sources.csv'),  # [deprecated] sources.csv retired; use sources.yaml
     [string[]]$AllowList = @("api.github.com","github.com","objects.githubusercontent.com","dl.google.com","download.visualstudio.microsoft.com","aka.ms","python.org","www.python.org","obsidian.md","githubusercontent.com"),
     [switch]$WhatIf
   )
 
-  # Prefer sources.yaml; fall back to sources.csv with a warning
+  # Primary: sources.yaml. sources.csv is retired; the CSV fallback below is deprecated and will be removed.
   if (Test-Path $SourcesYaml) {
     $src = Import-SourcesYaml -Path $SourcesYaml
     Write-Host "Reading from sources.yaml: $SourcesYaml" -ForegroundColor Cyan
   } elseif (Test-Path $SourcesCsv) {
-    Write-Warning "sources.yaml not found — falling back to legacy sources.csv. Migrate with: cp sources.csv and update to YAML."
+    Write-Warning "[DEPRECATED] sources.csv found but sources.yaml is missing. sources.csv is retired — migrate to sources.yaml and re-run."
     $src = Import-Csv $SourcesCsv
   } else {
-    throw "Neither sources.yaml ($SourcesYaml) nor sources.csv ($SourcesCsv) found. Run: New-SourcesTemplate -RepoRoot `"$RepoRoot`""
+    throw "sources.yaml not found at $SourcesYaml. Run: New-SourcesTemplate -RepoRoot `"$RepoRoot`""
   }
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 

@@ -12,7 +12,7 @@ Legacy workflow (fetch-map.csv):
 
 Notes:
 - When -SourcesYaml is used, GitHub release URLs are resolved in real-time (latest/pinned).
-- When -FetchMap is used, URLs must already be resolved in the CSV (produced by Rebuild-FetchMap).
+- When -FetchMap is used, URLs must already be resolved in the CSV (produced by Rebuild-FetchMap, which reads sources.yaml).
 - AllowDomains (optional) is semicolon-separated and augments -AllowList.
 - Run this on a box with internet; target RepoRoot may be local path or UNC.
 
