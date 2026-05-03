@@ -1,0 +1,23 @@
+#!/bin/bash
+# Automatically push to GitHub after every commit on main.
+# Installed to .git/hooks/post-commit by scripts/post-merge.sh.
+
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "[github-sync] GITHUB_TOKEN not set — skipping GitHub push."
+  exit 0
+fi
+
+CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+if [ "$CURRENT_BRANCH" != "main" ]; then
+  exit 0
+fi
+
+git config credential.helper \
+  '!f() { printf "username=x-token-auth\n"; printf "password=%s\n" "$GITHUB_TOKEN"; }; f'
+
+echo "[github-sync] Pushing main to GitHub..."
+if git push origin main; then
+  echo "[github-sync] Push succeeded."
+else
+  echo "[github-sync] WARNING: Push to GitHub failed (remote may have diverged)."
+fi
