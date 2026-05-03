@@ -18,8 +18,8 @@ echo "Configuring git credentials..."
 if [ -z "$GITHUB_TOKEN" ]; then
   echo "WARNING: GITHUB_TOKEN is not set. Skipping GitHub sync."
 else
-  git config --global credential.helper \
-    '!f() { echo "username=x-token-auth"; printf "password=%s\n" "$GITHUB_TOKEN"; }; f'
+  git config credential.helper \
+    '!f() { printf "username=x-token-auth\n"; printf "password=%s\n" "$GITHUB_TOKEN"; }; f'
 
   echo "Syncing to GitHub..."
   if git push origin main; then
