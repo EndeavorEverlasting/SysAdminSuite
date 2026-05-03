@@ -198,7 +198,7 @@ HTML = """<!DOCTYPE html>
   <header>
     <div class="header-text">
       <h1>SysAdminSuite <span class="badge">v2.0</span></h1>
-      <p>Consolidated SysAdmin toolkit &mdash; Bash-first for Northwell, PowerShell retained as reference.</p>
+      <p>Consolidated SysAdmin toolkit &mdash; Bash-first for Northwell; PowerShell is active production tooling for Windows environments (WMI, printer mapping, AD, deployment tracking, GUI).</p>
     </div>
     <span class="env-pill">Replit / Linux</span>
   </header>
@@ -333,21 +333,95 @@ dotnet test SysAdminSuite.sln -c Release</div>
 """
 
 
+DASHBOARD_DIR = Path(__file__).parent / "dashboard"
+
+MIME_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+}
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
+        path = self.path.split("?")[0]
+
+        # Serve dashboard files under /dashboard/
+        if path == "/dashboard":
+            # Redirect to trailing slash so relative URLs resolve correctly
+            self.send_response(301)
+            self.send_header("Location", "/dashboard/")
+            self.end_headers()
+            return
+        if path == "/dashboard/":
+            self._serve_file(DASHBOARD_DIR / "index.html")
+            return
+        if path.startswith("/dashboard/"):
+            rel = path[len("/dashboard/"):]
+            # Prevent path traversal: resolve and verify containment under DASHBOARD_DIR
+            try:
+                file_path = (DASHBOARD_DIR / rel).resolve()
+                file_path.relative_to(DASHBOARD_DIR.resolve())  # raises ValueError if outside
+            except ValueError:
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b"Forbidden")
+                return
+            except Exception:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b"Bad request")
+                return
+            if file_path.is_file():
+                self._serve_file(file_path)
+                return
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b"Not found")
+            return
+
+        # Default: serve overview page
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(HTML.encode("utf-8"))
 
+    def _serve_file(self, file_path: Path):
+        if not file_path.exists():
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b"Not found")
+            return
+        ext = file_path.suffix.lower()
+        mime = MIME_TYPES.get(ext, "application/octet-stream")
+        data = file_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", mime)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(data)
+
     def log_message(self, format, *args):
         print(f"[{self.address_string()}] {format % args}")
 
 
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+    def server_bind(self):
+        import socket as _socket
+        self.socket.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEPORT, 1)
+        super().server_bind()
+
+
 if __name__ == "__main__":
     print(f"SysAdminSuite overview server starting on {HOST}:{PORT}")
-    with socketserver.TCPServer((HOST, PORT), Handler) as httpd:
-        httpd.allow_reuse_address = True
+    with ReusableTCPServer((HOST, PORT), Handler) as httpd:
         print(f"Serving at http://{HOST}:{PORT}")
         httpd.serve_forever()

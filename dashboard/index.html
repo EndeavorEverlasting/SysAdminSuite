@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SysAdmin Suite Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Static-server requirement: ES modules do not work on file:// URLs.
+       Open via: python3 -m http.server (then http://localhost:8000/)
+       or via Replit preview at /dashboard/                          -->
+  <script>
+    if (location.protocol === 'file:') {
+      document.addEventListener('DOMContentLoaded', function() {
+        var b = document.createElement('div');
+        b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;padding:12px 18px;background:#b45309;color:#fff;font-size:13px;text-align:center;line-height:1.5';
+        b.innerHTML = '<strong>Requires a static web server.</strong> From the project root: <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">python3 -m http.server 8000</code> then open <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">http://localhost:8000/dashboard/</code> — or use the Replit preview at <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">/dashboard/</code>. Browsers block ES modules on <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">file://</code> URLs.';
+        document.body.prepend(b);
+      });
+    }
+  </script>
+  <!-- SheetJS — blocking load from vendored copy (deterministic: available before any
+       file-drop event fires). CDN fallback only if local file is missing (404). -->
+  <script src="js/vendor/xlsx.full.min.js"
+          onerror="(function(){var s=document.createElement('script');s.src='https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';s.onerror=function(){window._xlsxUnavailable=true;};document.head.appendChild(s);})()"></script>
+</head>
+<body>
+<div id="app">
+
+  <!-- Drop Overlay -->
+  <div id="drop-overlay">Drop files anywhere to load</div>
+
+  <!-- Header -->
+  <div id="header">
+    <h1>SysAdmin Suite <span>Dashboard</span></h1>
+    <div id="mode-toggle">
+      <button class="mode-btn active" data-mode="log">📂 Log Mode</button>
+      <button class="mode-btn" data-mode="live">⚡ Live (Command-Gen)</button>
+    </div>
+    <div class="header-spacer"></div>
+    <button class="icon-btn" id="clear-all-btn" title="Clear all loaded data">🗑 Clear All</button>
+  </div>
+
+  <!-- Log Mode File Ingestion -->
+  <div id="panel-ingestion">
+    <div id="ingestion-inner">
+      <div class="drop-zone" id="drop-zone">
+        <span class="drop-icon">📁</span>
+        <span>Drop files here or click to browse</span>
+        <span style="font-size:10px;color:var(--text-muted)">CSV · JSON · XLSX · TXT</span>
+      </div>
+      <input type="file" id="file-input" multiple accept=".csv,.json,.xlsx,.xls,.txt" style="display:none">
+      <span class="ingestion-sep">or</span>
+      <button class="paste-btn" id="paste-btn">📋 Paste / Type</button>
+      <div class="loaded-files" id="loaded-files"></div>
+    </div>
+  </div>
+
+  <!-- Live Mode Controls -->
+  <div id="live-controls">
+    <span style="color:var(--text-dim);font-size:12px;white-space:nowrap">Targets:</span>
+    <input id="live-targets" class="live-targets" placeholder="hostname1, 192.168.1.10, … or import a file" type="text" style="flex:1;padding:7px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:var(--mono);outline:none">
+    <button class="paste-btn" id="live-file-btn">📁 Import list</button>
+    <input type="file" id="live-file-input" accept=".txt,.csv" style="display:none">
+    <button class="live-btn" id="live-start">⚡ Generate Probe Commands</button>
+    <span class="live-note">⚠ Command-generation mode — copy commands, run on an admin machine, then drag the resulting CSV files back here</span>
+  </div>
+
+  <!-- Tabs -->
+  <div id="tabs">
+    <button class="tab-btn active" data-tab="printer">🖨️ Printer Mapping<span class="tab-badge">0</span></button>
+    <button class="tab-btn" data-tab="inventory">🖥️ Hardware Inventory<span class="tab-badge">0</span></button>
+    <button class="tab-btn" data-tab="tasks">⚡ Remote Tasks<span class="tab-badge">0</span></button>
+    <button class="tab-btn" data-tab="network">📡 Network &amp; Protocol Trace<span class="tab-badge">0</span></button>
+  </div>
+
+  <!-- Main Content -->
+  <div id="content">
+    <div class="panel active" data-panel="printer" id="panel-printer"></div>
+    <div class="panel" data-panel="inventory" id="panel-inventory"></div>
+    <div class="panel" data-panel="tasks" id="panel-tasks"></div>
+    <div class="panel" data-panel="network" id="panel-network"></div>
+  </div>
+
+  <!-- Status Footer -->
+  <div id="status-footer">
+    <span class="status-dot" id="status-dot"></span>
+    <span class="status-computer" id="status-computer"></span>
+    <span class="status-text" id="status-text">No run-control status loaded — drop a status.json file to see heartbeat</span>
+    <span class="status-stage" id="status-stage"></span>
+    <span class="status-ts" id="status-ts"></span>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Paste Modal -->
+<div id="paste-modal" class="modal-backdrop hidden" style="">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Paste or Type Data</span>
+      <button class="modal-close" id="paste-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-label">
+        Filename (used for auto-detection — use known patterns like <code>Results.csv</code>, <code>workstation_identity.csv</code>, etc.)
+      </div>
+      <input type="text" id="paste-filename" value="pasted-data.csv"
+        style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;width:100%;font-family:var(--mono);outline:none;margin-bottom:4px">
+      <div class="modal-label">Paste CSV, JSON, or plain text below:</div>
+      <textarea class="paste-area" id="paste-textarea" placeholder="Paste CSV rows, JSON array, or target list here…"></textarea>
+      <div class="modal-label" style="color:var(--text-muted)">
+        Supported file types: Preflight.csv · Results.csv · workstation_identity.csv · printer_probe.csv · network_preflight.csv · MachineInfo_Output.csv · RamInfo_Output.csv · NeuronNetworkInventory.csv/.json · status.json · QRTask/RunControl logs
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="paste-cancel">Cancel</button>
+      <button class="btn-primary" id="paste-submit">Import Data</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .hidden { display: none !important; }
+  code { font-family: var(--mono); font-size: 11px; background: var(--bg3); padding: 1px 4px; border-radius: 3px; }
+</style>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

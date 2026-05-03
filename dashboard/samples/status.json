@@ -1,0 +1,13 @@
+{
+  "State": "Completed",
+  "Stage": "Results",
+  "Message": "Printer mapping run completed successfully. 9 operations processed.",
+  "Timestamp": "2024-11-15T08:35:00",
+  "Data": {
+    "ComputerName": "ADMIN-WS-001",
+    "OutputRoot": "C:\\ProgramData\\SysAdminSuite\\Mapping",
+    "DesiredQueues": ["\\\\PRINTSRV\\Q67", "\\\\PRINTSRV\\Q62"],
+    "StopRequested": false,
+    "EnableUndoRedo": true
+  }
+}

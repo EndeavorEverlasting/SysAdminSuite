@@ -1,0 +1,35 @@
+{
+  "GeneratedAt": "2026-05-03T09:00:00Z",
+  "State": "Running",
+  "Stage": "IdentityProbe",
+  "Message": "Probing 42 targets",
+  "Events": [
+    {
+      "Timestamp": "2026-05-03T08:55:00Z",
+      "ComputerName": "WMH300OPR134",
+      "TaskName": "WorkstationIdentity",
+      "TaskId": "RC-0001",
+      "Outcome": "Success",
+      "Operator": "svc-sysadmin",
+      "Notes": "WMI transport"
+    },
+    {
+      "Timestamp": "2026-05-03T08:56:30Z",
+      "ComputerName": "WMH300OPR211",
+      "TaskName": "WorkstationIdentity",
+      "TaskId": "RC-0002",
+      "Outcome": "Failed",
+      "Operator": "svc-sysadmin",
+      "Notes": "WMI access denied"
+    },
+    {
+      "Timestamp": "2026-05-03T08:58:00Z",
+      "ComputerName": "WMH300OPR099",
+      "TaskName": "WorkstationIdentity",
+      "TaskId": "RC-0003",
+      "Outcome": "Success",
+      "Operator": "svc-sysadmin",
+      "Notes": "SSH fallback"
+    }
+  ]
+}

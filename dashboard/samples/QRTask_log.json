@@ -1,0 +1,29 @@
+[
+  {
+    "Timestamp": "2026-05-03T08:10:00Z",
+    "ComputerName": "WMH300OPR134",
+    "TaskName": "RAM-Profile",
+    "TaskId": "QR-2026-0503-001",
+    "Outcome": "Success",
+    "Operator": "jsmith",
+    "Notes": ""
+  },
+  {
+    "Timestamp": "2026-05-03T08:22:00Z",
+    "ComputerName": "WMH300OPR211",
+    "TaskName": "Network-Preflight",
+    "TaskId": "QR-2026-0503-002",
+    "Outcome": "Success",
+    "Operator": "jsmith",
+    "Notes": ""
+  },
+  {
+    "Timestamp": "2026-05-03T08:45:00Z",
+    "ComputerName": "WMH300OPR099",
+    "TaskName": "Printer-Probe",
+    "TaskId": "QR-2026-0503-003",
+    "Outcome": "Failed",
+    "Operator": "jsmith",
+    "Notes": "Timeout reaching 10.10.5.22:9100"
+  }
+]
