@@ -78,3 +78,6 @@ OCR/Jude's 2026 Buildout Project.pdf
 
 # Portable build output (local only)
 dist/
+
+# Generated runtime artifacts from bash/apps scripts (timestamped logs and worker scripts)
+bash/apps/output/
