@@ -411,17 +411,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         print(f"[{self.address_string()}] {format % args}")
 
 
-class ReusableTCPServer(socketserver.TCPServer):
+class ReplitTCPServer(socketserver.TCPServer):
     allow_reuse_address = True
 
     def server_bind(self):
         import socket as _socket
-        self.socket.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEPORT, 1)
+        try:
+            self.socket.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEPORT, 1)
+        except (AttributeError, OSError):
+            pass
         super().server_bind()
 
 
 if __name__ == "__main__":
     print(f"SysAdminSuite overview server starting on {HOST}:{PORT}")
-    with ReusableTCPServer((HOST, PORT), Handler) as httpd:
+    with ReplitTCPServer((HOST, PORT), Handler) as httpd:
         print(f"Serving at http://{HOST}:{PORT}")
         httpd.serve_forever()
