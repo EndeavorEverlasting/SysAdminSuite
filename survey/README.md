@@ -5,10 +5,81 @@ This directory contains Bash-first survey tooling for SysAdminSuite.
 ## Status
 
 - **Northwell workflows:** Bash-first.
+- **Expected shell:** Bash on Windows, usually Git Bash or MSYS2 Bash.
 - **PowerShell equivalents:** deprecated for Northwell, preserved elsewhere as legacy/reference tooling.
 - **Default agent behavior:** add new survey functionality here or in another Bash-oriented path, not under `GetInfo/*.ps1`.
 
-## Current Tool
+## Runtime Smoke Test
+
+Run this first on a new workstation:
+
+```bash
+bash tests/bash/smoke-bash-windows-runtime.sh
+```
+
+Expected result:
+
+```text
+Smoke test passed. Bash-on-Windows runtime looks usable.
+```
+
+## Field Snapshot Tools
+
+### Local Device Snapshot
+
+Use this when a technician needs a quick read-only snapshot of the workstation.
+
+```bash
+bash survey/sas-device-snapshot.sh
+```
+
+Optional:
+
+```bash
+bash survey/sas-device-snapshot.sh --output-dir logs/nsuh
+bash survey/sas-device-snapshot.sh --output-file logs/device_survey.txt
+bash survey/sas-device-snapshot.sh --no-log
+```
+
+The snapshot captures:
+
+- hostname
+- current user
+- IP configuration
+- MAC addresses
+- ARP table
+- route table
+- network interface summary
+- IP interface configuration
+
+### Neuron / Cybernet Environment Survey
+
+Use this when a technician needs to probe local network context and one target hostname or IP.
+
+```bash
+bash survey/sas-neuron-environment.sh --target <hostname-or-ip>
+```
+
+Examples:
+
+```bash
+bash survey/sas-neuron-environment.sh --target WNH270OPR123
+bash survey/sas-neuron-environment.sh --target 10.10.10.25 --output-dir logs/nsuh
+```
+
+The environment survey captures:
+
+- local hostname
+- current user
+- local IP configuration
+- local MAC addresses
+- ping result for target
+- DNS lookup for target
+- ARP table after probe
+- route table
+- interface summary
+
+## Target Manifest Tool
 
 ```bash
 ./survey/sas-survey-targets.sh
@@ -97,6 +168,16 @@ The parser accepts flexible column names so field data does not have to be perfe
 | `Serial` | Normalized serial number when known |
 | `MACAddress` | Normalized MAC address when known |
 | `Source` | Where the target came from, including inventory resolution notes |
+
+## Field Rule
+
+Do not replace these with ad hoc PowerShell or Linux commands during field work.
+
+If a new probe is needed, add it to:
+
+- `docs/COMMAND_CATALOG.md`
+- the relevant Bash script
+- a smoke test when applicable
 
 ## Next Build Direction
 
