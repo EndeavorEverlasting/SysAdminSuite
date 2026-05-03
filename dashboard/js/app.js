@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initStatusFooter();
   initDropOverlay();
   initSampleDataBtn();
+  initFolderWatch();
 
   // Init relay — start connecting in background; panels react via onRelayStatus
   initRelayConnection();
@@ -592,6 +593,166 @@ function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
   modal.querySelector('#live-cmd-close').addEventListener('click', closeModal);
   modal.querySelector('#live-cmd-dismiss').addEventListener('click', closeModal);
   modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+}
+
+// ── Folder Watch (File System Access API) ────────────────────────────────────
+const WATCH_SUPPORTED = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+const WATCH_INTERVAL_MS = 3000;
+let watchDirHandle = null;
+let watchIntervalId = null;
+let watchedFileMap = {}; // filename → lastModified timestamp
+let watchScanInProgress = false;
+
+function initFolderWatch() {
+  const btn = document.getElementById('watch-folder-btn');
+  const stopBtn = document.getElementById('watch-stop-btn');
+  const unsupportedMsg = document.getElementById('watch-unsupported-msg');
+
+  if (!WATCH_SUPPORTED) {
+    if (btn) {
+      btn.disabled = true;
+      btn.title = 'Folder watching requires Chrome or Edge 86+.';
+      btn.classList.add('watch-unsupported');
+    }
+    if (unsupportedMsg) unsupportedMsg.style.display = '';
+    return;
+  }
+
+  if (btn) btn.addEventListener('click', startFolderWatch);
+  if (stopBtn) stopBtn.addEventListener('click', stopFolderWatch);
+}
+
+async function startFolderWatch() {
+  if (!WATCH_SUPPORTED) {
+    toast('Folder watching requires Chrome or Edge 86+.', 'warning');
+    return;
+  }
+
+  try {
+    watchDirHandle = await window.showDirectoryPicker({ mode: 'read' });
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      toast('Could not open folder: ' + err.message, 'error');
+    }
+    return;
+  }
+
+  watchedFileMap = {};
+  _updateWatchIndicator();
+
+  // Initial scan
+  await _scanWatchedFolder(true);
+
+  // Start polling
+  if (watchIntervalId) clearInterval(watchIntervalId);
+  watchIntervalId = setInterval(() => _scanWatchedFolder(false), WATCH_INTERVAL_MS);
+
+  toast('Now watching folder: ' + watchDirHandle.name, 'success');
+}
+
+function stopFolderWatch() {
+  if (watchIntervalId) {
+    clearInterval(watchIntervalId);
+    watchIntervalId = null;
+  }
+  watchDirHandle = null;
+  watchedFileMap = {};
+  _updateWatchIndicator();
+  toast('Folder watch stopped.', 'info');
+}
+
+// Remove all chips that were loaded from a given filename and rebuild store.
+// Called before re-processing a modified file so data is replaced, not doubled.
+function _removeWatchedFileChips(filename) {
+  const toRemove = loadedFiles.filter(f => f.name === filename);
+  if (!toRemove.length) return;
+  toRemove.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (el) el.remove();
+  });
+  loadedFiles = loadedFiles.filter(f => f.name !== filename);
+  rebuildStoreFromChips();
+}
+
+async function _scanWatchedFolder(isInitial) {
+  if (!watchDirHandle) return;
+  if (watchScanInProgress) return; // prevent overlapping scans
+  watchScanInProgress = true;
+
+  try {
+    let newCount = 0;
+    for await (const [name, handle] of watchDirHandle.entries()) {
+      if (handle.kind !== 'file') continue;
+      const ext = name.split('.').pop().toLowerCase();
+      if (!['csv', 'json', 'xlsx', 'xls', 'txt'].includes(ext)) continue;
+
+      const file = await handle.getFile();
+      const lastMod = file.lastModified;
+
+      if (!watchedFileMap[name]) {
+        // New file — process, then record timestamp only on success
+        newCount++;
+        await processFile(file);
+        watchedFileMap[name] = lastMod;
+      } else if (watchedFileMap[name] < lastMod) {
+        // Modified file — remove old chips/data first, then re-process
+        newCount++;
+        _removeWatchedFileChips(name);
+        await processFile(file);
+        watchedFileMap[name] = lastMod;
+      }
+    }
+
+    _updateWatchIndicator();
+
+    if (newCount > 0 && !isInitial) {
+      toast('Watch: loaded ' + newCount + ' new/updated file' + (newCount !== 1 ? 's' : ''), 'success');
+    }
+  } catch (err) {
+    console.warn('Folder watch scan error:', err);
+    if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
+      stopFolderWatch();
+      toast('Folder watch permission lost — watch stopped.', 'warning');
+    }
+  } finally {
+    watchScanInProgress = false;
+  }
+}
+
+function _updateWatchIndicator() {
+  const indicator = document.getElementById('watch-indicator');
+  const btn = document.getElementById('watch-folder-btn');
+  const stopBtn = document.getElementById('watch-stop-btn');
+
+  const watching = !!watchDirHandle;
+  // Count chips that were loaded from the watched folder (by matching filename)
+  const watchedNames = Object.keys(watchedFileMap);
+  const fileCount = loadedFiles.filter(f => watchedNames.includes(f.name)).length;
+
+  if (indicator) {
+    if (watching) {
+      // Build indicator safely — use textContent for user-controlled folder name
+      indicator.innerHTML = '';
+      const dot = document.createElement('span');
+      dot.className = 'watch-dot';
+      const label = document.createElement('span');
+      label.className = 'watch-label';
+      const strong = document.createElement('strong');
+      strong.textContent = watchDirHandle.name;
+      label.appendChild(document.createTextNode('Watching '));
+      label.appendChild(strong);
+      label.appendChild(document.createTextNode(' \u2014 ' + fileCount + ' file' + (fileCount !== 1 ? 's' : '') + ' loaded'));
+      indicator.appendChild(dot);
+      indicator.appendChild(label);
+      indicator.style.display = '';
+    } else {
+      indicator.innerHTML = '';
+      indicator.style.display = 'none';
+    }
+  }
+
+  if (btn) btn.style.display = watching ? 'none' : '';
+  if (stopBtn) stopBtn.style.display = watching ? '' : 'none';
 }
 
 // ── Relay header badge ────────────────────────────────────────────────────────

@@ -41,6 +41,11 @@
       <button class="paste-btn" id="paste-btn">📋 Paste / Type</button>
       <span class="ingestion-sep">or</span>
       <button class="paste-btn demo-btn" id="demo-btn" title="Populate all panels with realistic sample data — no files needed">🧪 Load Sample Data</button>
+      <span class="ingestion-sep">or</span>
+      <button class="paste-btn watch-folder-btn" id="watch-folder-btn" title="Auto-watch a folder and load new log files as they appear (Chrome/Edge 86+)">👁 Watch Folder</button>
+      <button class="paste-btn watch-stop-btn" id="watch-stop-btn" style="display:none" title="Stop watching the folder">⏹ Stop Watch</button>
+      <span class="watch-unsupported-msg" id="watch-unsupported-msg" style="display:none">⚠ Folder watch requires Chrome or Edge 86+</span>
+      <div class="watch-indicator" id="watch-indicator" style="display:none"></div>
       <div class="loaded-files" id="loaded-files"></div>
     </div>
   </div>
