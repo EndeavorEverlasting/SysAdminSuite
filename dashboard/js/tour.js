@@ -103,6 +103,17 @@ const STEPS = [
       'long mapping job without leaving this page.',
     position: 'top',
   },
+  {
+    target: '#sas-tour-launch-btn',
+    title: "You're all set!",
+    body:
+      'That covers all the main sections of the SysAdmin Suite Dashboard.<br><br>' +
+      'You can relaunch this tour at any time by clicking the <strong>🗺 Tour</strong> ' +
+      'button in the header, or by pressing <kbd style="background:#0d1420;color:#f6ad55;' +
+      'padding:1px 6px;border-radius:3px;font-size:11.5px;border:1px solid #3a5080">?</kbd> ' +
+      'anywhere on the page.',
+    position: 'bottom',
+  },
 ];
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -115,6 +126,7 @@ let activeHighlight = null;
 export function initTour() {
   injectStyles();
   addTourButton();
+  addKeyboardShortcut();
   if (!localStorage.getItem(TOUR_KEY)) {
     // Small delay so the rest of the UI finishes rendering
     setTimeout(startTour, 800);
@@ -168,10 +180,21 @@ function addTourButton() {
   const btn = document.createElement('button');
   btn.id = 'sas-tour-launch-btn';
   btn.className = 'icon-btn';
-  btn.title = 'Take the interactive tour';
+  btn.title = 'Take the interactive tour  [Shortcut: ?]';
   btn.textContent = '🗺 Tour';
   btn.addEventListener('click', startTour);
   headerSpacer.parentNode.insertBefore(btn, headerSpacer);
+}
+
+function addKeyboardShortcut() {
+  document.addEventListener('keydown', function (e) {
+    // Ignore when typing in an input, textarea, or contenteditable element
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+    if (e.key === '?') {
+      startTour();
+    }
+  });
 }
 
 // ── Step rendering ────────────────────────────────────────────────────────────
