@@ -16,6 +16,7 @@ GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[1;34m'
 MAGENTA='\033[1;35m'
+RED='\033[1;31m'
 DIM='\033[2m'
 RESET='\033[0m'
 
@@ -27,8 +28,110 @@ cmd(){ printf "  ${GREEN}\$${RESET} ${DIM}%s${RESET}\n" "$1"; }
 note(){ printf "  ${MAGENTA}Note:${RESET} %s\n" "$1"; }
 pause(){
   printf "\n  ${DIM}Press Enter to continue, or q+Enter to quit...${RESET} "
-  local ans; IFS= read -r ans
-  [[ "$ans" == q ]] && { echo; echo "  Exiting tutorial."; echo; exit 0; }
+  local ans; IFS= read -r ans || true
+  if [[ "$ans" == q ]]; then echo; echo "  Exiting tutorial."; echo; exit 0; fi
+}
+
+# ── Live-run helpers ──────────────────────────────────────────────────────────
+
+# live_run LABEL SCRIPT_PATH [extra args...]
+# Runs the script with stdout and stderr both piped to the terminal in real time.
+# stderr lines are printed in dim colour; stdout lines are indented normally.
+# Exit code is captured and non-zero exits are explained clearly.
+live_run(){
+  local label="$1"; shift
+  local script_path="$1"; shift
+  local extra_args=("$@")
+
+  printf "\n"
+  hr
+  printf "  ${BOLD}${GREEN}Running:${RESET} ${DIM}%s %s${RESET}\n" \
+    "$script_path" "${extra_args[*]:-}"
+  hr
+  printf "\n"
+
+  local exit_code=0
+
+  set +e
+  # Run from REPO_ROOT so relative default output paths in each script work
+  # correctly regardless of the directory the tutorial was launched from.
+  # stderr goes through a live filter that adds dim colour + indentation.
+  # stdout goes through a live filter that adds indentation.
+  # PIPESTATUS[0] captures the exit code of the script itself.
+  (cd "$REPO_ROOT" && bash "$script_path" "${extra_args[@]}") \
+    2> >(while IFS= read -r line; do printf "  ${DIM}%s${RESET}\n" "$line"; done >&2) \
+    | while IFS= read -r line; do printf "  %s\n" "$line"; done
+  exit_code=${PIPESTATUS[0]}
+  # Wait for the stderr filter subshell to flush before printing status
+  wait
+  set -e
+
+  echo
+  if [[ $exit_code -ne 0 ]]; then
+    printf "  ${RED}${BOLD}Error:${RESET} ${RED}%s${RESET} exited with code %d.\n" "$label" "$exit_code"
+    printf "\n  ${YELLOW}Common causes:${RESET}\n"
+    printf "    • The target is unreachable or blocked by a firewall.\n"
+    printf "    • A required tool (ping, nc, snmpget, etc.) is not installed.\n"
+    printf "    • Insufficient permissions for the operation.\n"
+    printf "    • The target file or workbook path is incorrect.\n"
+    printf "\n  ${DIM}The tutorial will continue — this is safe to ignore.${RESET}\n"
+  else
+    printf "  ${GREEN}${DIM}(Done — output above; CSV also written to disk.)${RESET}\n"
+  fi
+
+  echo
+  hr
+  echo
+}
+
+# try_prompt LABEL SCRIPT_PATH DEFAULT_TARGET_FLAG DEFAULT_TARGET [extra args...]
+# Offers y / t (custom target) / n.
+# DEFAULT_TARGET_FLAG is the flag used to pass a positional or named target,
+# e.g. "" for positional or "--target".
+try_prompt(){
+  local label="$1"; shift
+  local script_path="$1"; shift
+  local target_flag="$1"; shift
+  local default_target="$1"; shift
+  local extra_args=("$@")
+
+  echo
+  printf "  ${GREEN}${BOLD}▶ Try it now?${RESET}\n"
+  printf "  ${DIM}[y]${RESET} Run against the safe default target ${BOLD}%s${RESET}\n" "$default_target"
+  printf "  ${DIM}[t]${RESET} Enter a custom hostname or IP\n"
+  printf "  ${DIM}[n]${RESET} Skip and continue\n"
+  printf "  Your choice (y/t/n): "
+
+  local ans; IFS= read -r ans || true
+  case "$ans" in
+    y|Y)
+      if [[ -n "$target_flag" ]]; then
+        live_run "$label" "$script_path" "$target_flag" "$default_target" "${extra_args[@]}"
+      else
+        live_run "$label" "$script_path" "$default_target" "${extra_args[@]}"
+      fi
+      ;;
+    t|T)
+      printf "  Enter target hostname or IP: "
+      local tgt; IFS= read -r tgt || true
+      tgt="${tgt#"${tgt%%[![:space:]]*}"}"   # ltrim
+      tgt="${tgt%"${tgt##*[![:space:]]}"}"   # rtrim
+      if [[ -z "$tgt" ]]; then
+        printf "  ${YELLOW}No target entered — skipping.${RESET}\n"
+      elif [[ ! "$tgt" =~ ^[A-Za-z0-9._:-]+$ ]]; then
+        printf "  ${RED}Invalid target '%s'. Use a hostname, IPv4, or IPv6 address.${RESET}\n" "$tgt"
+      else
+        if [[ -n "$target_flag" ]]; then
+          live_run "$label" "$script_path" "$target_flag" "$tgt" "${extra_args[@]}"
+        else
+          live_run "$label" "$script_path" "$tgt" "${extra_args[@]}"
+        fi
+      fi
+      ;;
+    *)
+      printf "  ${DIM}Skipped.${RESET}\n"
+      ;;
+  esac
 }
 
 # ── Banner ────────────────────────────────────────────────────────────────────
@@ -74,7 +177,15 @@ tutorial_network(){
   cmd "bash/transport/sas-network-preflight.sh --ports 80,443,9100 --output /tmp/pf.csv 10.1.2.50"
   echo
   tip "Add --pass-thru to also print the CSV to stdout for piping into grep or awk."
-  pause
+
+  # ── Live run ──
+  try_prompt \
+    "sas-network-preflight.sh" \
+    "bash/transport/sas-network-preflight.sh" \
+    "" \
+    "127.0.0.1" \
+    "--ports" "80,443,22,9100" \
+    "--pass-thru"
 
   section "Network Preflight — Reading the output"
   printf "  The CSV has these columns:\n\n"
@@ -124,7 +235,15 @@ tutorial_survey(){
   printf "  ${BOLD}IdentityStatus${RESET} values: IdentityCollected | ReachableNeedsApprovedIdentityTransport | UnreachableOrBlocked\n"
   echo
   tip "The script tries WMI first, then SSH, then ARP in order — whichever succeeds first wins."
-  pause
+
+  # ── Live run ──
+  printf "\n  ${DIM}Note: This probe will use ARP only (WMI and SSH are disabled by default).${RESET}\n"
+  try_prompt \
+    "sas-workstation-identity.sh" \
+    "bash/transport/sas-workstation-identity.sh" \
+    "--target" \
+    "127.0.0.1" \
+    "--pass-thru"
 
   section "Survey — Printer probe"
   printf "  ${BOLD}Supported options:${RESET}\n"
@@ -147,7 +266,16 @@ tutorial_survey(){
   printf "  ${DIM}Timestamp | Target | ResolvedAddress | PingStatus | MAC | Serial | Source | Notes${RESET}\n"
   echo
   tip "Use --snmp-only in restricted environments where HTTP banner scraping is not approved."
-  pause
+
+  # ── Live run ──
+  printf "\n  ${DIM}Note: --skip-9100 is set for safety. SNMP will likely report no data on 127.0.0.1.${RESET}\n"
+  try_prompt \
+    "sas-printer-probe.sh" \
+    "bash/transport/sas-printer-probe.sh" \
+    "--target" \
+    "127.0.0.1" \
+    "--skip-9100" \
+    "--pass-thru"
 
   section "Survey — sas-survey-targets.sh dispatcher"
   printf "  The survey/ entry point normalises identifiers (hostname, MAC, serial) from\n"
@@ -205,7 +333,70 @@ tutorial_audit(){
   cmd "deployment-audit/sas-audit-deployments.sh --workbook data/raw/tracker.xlsx --keys 'Cybernet Hostname,Cybernet Serial,Cybernet MAC'"
   echo
   tip "Add --pass-thru to print the real duplicate values to stdout for quick review."
-  pause
+
+  # ── Live run — check for a sample workbook ──
+  echo
+  printf "  ${GREEN}${BOLD}▶ Try it now?${RESET}\n"
+  local wb_found=""
+  local wb_path=""
+  for candidate in \
+    "data/raw/tracker.xlsx" \
+    "deployment-audit/sample.xlsx" \
+    "data/tracker.xlsx"; do
+    if [[ -f "$REPO_ROOT/$candidate" ]]; then
+      wb_found="$REPO_ROOT/$candidate"
+      wb_path="$candidate"
+      break
+    fi
+  done
+
+  if [[ -n "$wb_found" ]]; then
+    printf "  ${DIM}[y]${RESET} Run audit against: ${BOLD}%s${RESET}\n" "$wb_path"
+  else
+    printf "  ${YELLOW}No .xlsx workbook found in the default locations.${RESET}\n"
+    printf "  ${DIM}Default locations checked: data/raw/tracker.xlsx, deployment-audit/sample.xlsx, data/tracker.xlsx${RESET}\n"
+  fi
+  printf "  ${DIM}[p]${RESET} Enter a custom workbook path\n"
+  printf "  ${DIM}[n]${RESET} Skip and continue\n"
+  local choice_hint="p/n"
+  if [[ -n "$wb_found" ]]; then choice_hint="y/p/n"; fi
+  printf "  Your choice (%s): " "$choice_hint"
+
+  local ans wb
+  IFS= read -r ans || true
+  case "$ans" in
+    y|Y)
+      if [[ -n "$wb_found" ]]; then
+        live_run \
+          "sas-audit-deployments.sh" \
+          "deployment-audit/sas-audit-deployments.sh" \
+          "--workbook" "$wb_path" \
+          "--pass-thru"
+      else
+        printf "  ${YELLOW}No default workbook available — use [p] to enter a path.${RESET}\n"
+      fi
+      ;;
+    p|P)
+      printf "  Enter path to .xlsx workbook: "
+      IFS= read -r wb || true
+      wb="${wb#"${wb%%[![:space:]]*}"}"   # ltrim
+      wb="${wb%"${wb##*[![:space:]]}"}"   # rtrim
+      if [[ -z "$wb" ]]; then
+        printf "  ${YELLOW}No path entered — skipping.${RESET}\n"
+      elif [[ ! -f "$wb" ]]; then
+        printf "  ${RED}File not found: %s${RESET}\n" "$wb"
+      else
+        live_run \
+          "sas-audit-deployments.sh" \
+          "deployment-audit/sas-audit-deployments.sh" \
+          "--workbook" "$wb" \
+          "--pass-thru"
+      fi
+      ;;
+    *)
+      printf "  ${DIM}Skipped.${RESET}\n"
+      ;;
+  esac
 
   section "Deployment Audit — Output files"
   printf "  The audit writes these files to the output folder:\n\n"
@@ -291,6 +482,56 @@ tutorial_transport(){
   printf "  ${DIM}#          drag pf.csv, identities.csv, printers.csv onto /dashboard/${RESET}\n"
   echo
   note "All four CSVs are auto-detected by the dashboard file parser."
+
+  # ── Live run — mini pipeline against 127.0.0.1 ──
+  echo
+  printf "  ${GREEN}${BOLD}▶ Try the mini pipeline now?${RESET}\n"
+  printf "  This will run ${BOLD}network preflight${RESET} then ${BOLD}workstation identity${RESET}\n"
+  printf "  back-to-back against a single target so you can see real output.\n"
+  printf "\n"
+  printf "  ${DIM}[y]${RESET} Run both steps against the safe default target ${BOLD}127.0.0.1${RESET}\n"
+  printf "  ${DIM}[t]${RESET} Enter a custom hostname or IP\n"
+  printf "  ${DIM}[n]${RESET} Skip and continue\n"
+  printf "  Your choice (y/t/n): "
+
+  local ans tgt
+  IFS= read -r ans || true
+  tgt="127.0.0.1"
+  case "$ans" in
+    t|T)
+      printf "  Enter target hostname or IP: "
+      IFS= read -r tgt || true
+      tgt="${tgt#"${tgt%%[![:space:]]*}"}"   # ltrim
+      tgt="${tgt%"${tgt##*[![:space:]]}"}"   # rtrim
+      if [[ -z "$tgt" ]]; then
+        printf "  ${YELLOW}No target entered — skipping pipeline.${RESET}\n"
+        ans="n"
+      elif [[ ! "$tgt" =~ ^[A-Za-z0-9._:-]+$ ]]; then
+        printf "  ${RED}Invalid target '%s'. Use a hostname, IPv4, or IPv6 address.${RESET}\n" "$tgt"
+        ans="n"
+      fi
+      ;;
+  esac
+
+  if [[ "$ans" == y || "$ans" == Y || "$ans" == t || "$ans" == T ]]; then
+    printf "\n  ${BOLD}Step 1 — Network Preflight${RESET}\n"
+    live_run \
+      "sas-network-preflight.sh" \
+      "bash/transport/sas-network-preflight.sh" \
+      "$tgt" \
+      "--ports" "22,80,443,445,9100" \
+      "--pass-thru"
+
+    printf "  ${BOLD}Step 2 — Workstation Identity${RESET}\n"
+    live_run \
+      "sas-workstation-identity.sh" \
+      "bash/transport/sas-workstation-identity.sh" \
+      "--target" "$tgt" \
+      "--pass-thru"
+  else
+    printf "  ${DIM}Skipped.${RESET}\n"
+  fi
+
   pause
 }
 
@@ -308,7 +549,7 @@ show_menu(){
   printf "  ${CYAN}[q]${RESET}  Quit\n"
   echo
   printf "  Your choice: "
-  local ans; IFS= read -r ans
+  local ans; IFS= read -r ans || true
   case "$ans" in
     1|network)   tutorial_network ;;
     2|survey)    tutorial_survey ;;
@@ -327,8 +568,8 @@ show_menu(){
   echo
   hr
   printf "\n  Topic finished. Return to the main menu? (Enter = yes, q = quit): "
-  local again; IFS= read -r again
-  [[ "$again" == q ]] && { echo; echo "  Goodbye!"; echo; exit 0; }
+  local again; IFS= read -r again || true
+  if [[ "$again" == q ]]; then echo; echo "  Goodbye!"; echo; exit 0; fi
   show_menu
 }
 

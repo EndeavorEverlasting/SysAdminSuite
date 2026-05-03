@@ -59,7 +59,7 @@ fail(){ printf '[workstation-identity] ERROR: %s\n' "$*" >&2; exit 1; }
 log(){ printf '[workstation-identity] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
-csv_escape(){ local s="${1:-}"; s="${s//"/""}"; printf '"%s"' "$s"; }
+csv_escape(){ local s="${1:-}" q='"'; s="${s//$q/$q$q}"; printf '"%s"' "$s"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_WMI_ADAPTER="$SCRIPT_DIR/sas-wmi-identity.sh"
@@ -105,8 +105,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 TARGETS_TMP="$TMP_DIR/targets.txt"
 WMI_OUT="$TMP_DIR/wmi_identity.csv"
-printf '%s
-' "${TARGETS[@]}" > "$TARGETS_TMP"
+printf '%s\n' "${TARGETS[@]}" > "$TARGETS_TMP"
 
 norm_mac(){
   local raw="${1:-}" hx out i

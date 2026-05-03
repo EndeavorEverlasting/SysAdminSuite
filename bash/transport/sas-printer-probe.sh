@@ -139,7 +139,7 @@ try_arp(){
   [[ -n "$mac" ]] && printf '%s|ARP cache' "$mac"
 }
 
-csv_escape(){ local s="${1:-}"; s="${s//"/""}"; printf '"%s"' "$s"; }
+csv_escape(){ local s="${1:-}" q='"'; s="${s//$q/$q$q}"; printf '"%s"' "$s"; }
 {
   printf 'Timestamp,Target,ResolvedAddress,PingStatus,MAC,Serial,Source,Notes\n'
   for target in "${TARGETS[@]}"; do
