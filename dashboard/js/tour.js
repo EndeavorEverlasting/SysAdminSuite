@@ -2,6 +2,8 @@
 // No external dependencies. Stores completion in localStorage.
 
 const TOUR_KEY = 'sas_tour_v1_done';
+const PANELS_VISITED_KEY = 'sas_panels_visited_v1';
+const PANEL_NAMES = ['printer', 'inventory', 'tasks', 'network', 'software'];
 
 const STEPS = [
   {
@@ -121,6 +123,71 @@ let currentStep = 0;
 let overlay = null;
 let tooltip = null;
 let activeHighlight = null;
+
+// ── Panel Visit Tracking ──────────────────────────────────────────────────────
+function _getVisited() {
+  try {
+    return JSON.parse(localStorage.getItem(PANELS_VISITED_KEY) || '{}');
+  } catch (_) {
+    return {};
+  }
+}
+
+function _getUnvisitedCount() {
+  const visited = _getVisited();
+  return PANEL_NAMES.filter(p => !visited[p]).length;
+}
+
+function _updateTabIndicators() {
+  const visited = _getVisited();
+  PANEL_NAMES.forEach(panel => {
+    const tab = document.querySelector(`.tab-btn[data-tab="${panel}"]`);
+    if (!tab) return;
+    let dot = tab.querySelector('.tab-new-dot');
+    if (!visited[panel]) {
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = 'tab-new-dot';
+        dot.title = 'Load data into this panel to explore it';
+        tab.appendChild(dot);
+      }
+    } else {
+      if (dot) dot.remove();
+    }
+  });
+}
+
+function _updateTourButtonBadge() {
+  const btn = document.getElementById('sas-tour-launch-btn');
+  if (!btn) return;
+  const count = _getUnvisitedCount();
+  let badge = btn.querySelector('.tour-unvisited-badge');
+  if (count > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'tour-unvisited-badge';
+      btn.appendChild(badge);
+    }
+    badge.textContent = count;
+  } else {
+    if (badge) badge.remove();
+  }
+}
+
+export function markPanelVisited(panelName) {
+  if (!PANEL_NAMES.includes(panelName)) return;
+  const visited = _getVisited();
+  if (visited[panelName]) return;
+  visited[panelName] = true;
+  localStorage.setItem(PANELS_VISITED_KEY, JSON.stringify(visited));
+  _updateTabIndicators();
+  _updateTourButtonBadge();
+}
+
+export function initPanelBadges() {
+  _updateTabIndicators();
+  _updateTourButtonBadge();
+}
 
 // ── Public API ────────────────────────────────────────────────────────────────
 export function initTour() {

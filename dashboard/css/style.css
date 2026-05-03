@@ -967,6 +967,41 @@ textarea.paste-area:focus { border-color: var(--accent); }
   white-space: nowrap;
 }
 
+/* ── Panel Visit Indicators ─────────────── */
+.tab-new-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  margin-left: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+  animation: new-dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes new-dot-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+  50%       { opacity: 0.65; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0); }
+}
+
+.tour-unvisited-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--amber);
+  color: #0d0d12;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 5px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
 /* ── Scrollbar ───────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

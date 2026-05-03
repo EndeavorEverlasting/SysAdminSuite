@@ -2940,6 +2940,8 @@ var getSoftwareHTML = _exports.getSoftwareHTML, initSoftwarePanel = _exports.ini
 // No external dependencies. Stores completion in localStorage.
 
 const TOUR_KEY = 'sas_tour_v1_done';
+const PANELS_VISITED_KEY = 'sas_panels_visited_v1';
+const PANEL_NAMES = ['printer', 'inventory', 'tasks', 'network', 'software'];
 
 const STEPS = [
   {
@@ -3059,6 +3061,71 @@ let currentStep = 0;
 let overlay = null;
 let tooltip = null;
 let activeHighlight = null;
+
+// ── Panel Visit Tracking ──────────────────────────────────────────────────────
+function _getVisited() {
+  try {
+    return JSON.parse(localStorage.getItem(PANELS_VISITED_KEY) || '{}');
+  } catch (_) {
+    return {};
+  }
+}
+
+function _getUnvisitedCount() {
+  const visited = _getVisited();
+  return PANEL_NAMES.filter(p => !visited[p]).length;
+}
+
+function _updateTabIndicators() {
+  const visited = _getVisited();
+  PANEL_NAMES.forEach(panel => {
+    const tab = document.querySelector(`.tab-btn[data-tab="${panel}"]`);
+    if (!tab) return;
+    let dot = tab.querySelector('.tab-new-dot');
+    if (!visited[panel]) {
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = 'tab-new-dot';
+        dot.title = 'Load data into this panel to explore it';
+        tab.appendChild(dot);
+      }
+    } else {
+      if (dot) dot.remove();
+    }
+  });
+}
+
+function _updateTourButtonBadge() {
+  const btn = document.getElementById('sas-tour-launch-btn');
+  if (!btn) return;
+  const count = _getUnvisitedCount();
+  let badge = btn.querySelector('.tour-unvisited-badge');
+  if (count > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'tour-unvisited-badge';
+      btn.appendChild(badge);
+    }
+    badge.textContent = count;
+  } else {
+    if (badge) badge.remove();
+  }
+}
+
+function markPanelVisited(panelName) {
+  if (!PANEL_NAMES.includes(panelName)) return;
+  const visited = _getVisited();
+  if (visited[panelName]) return;
+  visited[panelName] = true;
+  localStorage.setItem(PANELS_VISITED_KEY, JSON.stringify(visited));
+  _updateTabIndicators();
+  _updateTourButtonBadge();
+}
+
+function initPanelBadges() {
+  _updateTabIndicators();
+  _updateTourButtonBadge();
+}
 
 // ── Public API ────────────────────────────────────────────────────────────────
 function initTour() {
@@ -3378,10 +3445,12 @@ function injectStyles() {
 }
 
 // expose exports to bundle scope
+_exports.markPanelVisited = markPanelVisited;
+_exports.initPanelBadges = initPanelBadges;
 _exports.initTour = initTour;
 _exports.startTour = startTour;
 })();
-var initTour = _exports.initTour, startTour = _exports.startTour;
+var markPanelVisited = _exports.markPanelVisited, initPanelBadges = _exports.initPanelBadges, initTour = _exports.initTour, startTour = _exports.startTour;
 
 // ====== app.js ======
 // app.js — SysAdmin Suite Dashboard main controller
@@ -3395,6 +3464,26 @@ let store = {};
 let loadedFiles = [];
 let mode = 'log'; // 'log' | 'live'
 let activeTab = 'printer';
+
+// ── File-type → panel(s) mapping ───────────────────────────────────────────
+// Each type maps to one or more panels it populates.
+// printer-probe feeds buildPrinterRows AND buildProtocolRows (both panels get data).
+// workstation-identity feeds buildProtocolRows only (not the Inventory panel).
+const TYPE_TO_PANELS = {
+  'results':             ['printer'],
+  'preflight':           ['printer'],
+  'printer-probe':       ['printer', 'network'],
+  'machine-info':        ['inventory'],
+  'ram-info':            ['inventory'],
+  'monitor-info':        ['inventory'],
+  'workstation-identity':['network'],
+  'neuron-inventory':    ['inventory'],
+  'remote-task':         ['tasks'],
+  'network-preflight':   ['network'],
+  'smb-recon':           ['network'],
+  'software-tracker':    ['software'],
+  'software-superset':   ['software'],
+};
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -3425,6 +3514,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Init interactive tour (auto-shows on first visit; re-triggerable via Tour button)
   initTour();
+
+  // Init per-panel visit badges (shows pulsing dot on unvisited tabs)
+  initPanelBadges();
 });
 
 // ── Layout ─────────────────────────────────────────────────────────────────
@@ -3576,6 +3668,9 @@ async function processFile(file) {
     addFileChip(name, count > 0 ? 'ok' : 'warn', parsedData.type, count, parsedData);
     toast(`Loaded "${name}" — ${count} entries (${parsedData.type})`, count > 0 ? 'success' : 'warning');
     updateSoftwareBadge();
+
+    const panels = TYPE_TO_PANELS[parsedData.type];
+    if (panels && count > 0) panels.forEach(markPanelVisited);
 
   } catch (err) {
     console.error('Error processing file:', name, err);
@@ -3736,6 +3831,9 @@ function loadSampleData() {
   }
 
   toast('Sample data loaded — all panels populated with demo data.', 'success');
+
+  // Mark all data panels as visited since sample data populates every panel
+  ['printer', 'inventory', 'tasks', 'network', 'software'].forEach(markPanelVisited);
 }
 
 // ── Paste Modal ─────────────────────────────────────────────────────────────
@@ -3776,6 +3874,8 @@ function initPasteModal() {
       const count = parsedData.rows?.length ?? 0;
       addFileChip(fname, count > 0 ? 'ok' : 'warn', parsedData.type, count, parsedData);
       toast(`Imported "${fname}" — ${count} rows (${parsedData.type})`, count > 0 ? 'success' : 'warning');
+      const pastePanels = TYPE_TO_PANELS[parsedData.type];
+      if (pastePanels && count > 0) pastePanels.forEach(markPanelVisited);
     }
 
     if (textarea) textarea.value = '';

@@ -7,7 +7,7 @@ import { getInventoryHTML, initInventoryPanel, renderInventoryPanel } from './pa
 import { getTasksHTML, initTasksPanel, renderTasksPanel } from './panel-tasks.js';
 import { getNetworkHTML, initNetworkPanel, renderNetworkPanel } from './panel-network.js';
 import { getSoftwareHTML, initSoftwarePanel, renderSoftwarePanel } from './panel-software.js';
-import { initTour } from './tour.js';
+import { initTour, markPanelVisited, initPanelBadges } from './tour.js';
 import { initRelayConnection, onRelayStatus, getRelayConnected, RELAY_PORT } from './relay-client.js'; // setRelayToken used via relay-client.js in panel-network.js
 // Sample data is loaded via a plain <script> tag in index.html (not an ES module).
 // Globals defined by that script: window._sasSampleStore(), window._sasSampleStatus()
@@ -17,6 +17,26 @@ let store = {};
 let loadedFiles = [];
 let mode = 'log'; // 'log' | 'live'
 let activeTab = 'printer';
+
+// ── File-type → panel(s) mapping ───────────────────────────────────────────
+// Each type maps to one or more panels it populates.
+// printer-probe feeds buildPrinterRows AND buildProtocolRows (both panels get data).
+// workstation-identity feeds buildProtocolRows only (not the Inventory panel).
+const TYPE_TO_PANELS = {
+  'results':             ['printer'],
+  'preflight':           ['printer'],
+  'printer-probe':       ['printer', 'network'],
+  'machine-info':        ['inventory'],
+  'ram-info':            ['inventory'],
+  'monitor-info':        ['inventory'],
+  'workstation-identity':['network'],
+  'neuron-inventory':    ['inventory'],
+  'remote-task':         ['tasks'],
+  'network-preflight':   ['network'],
+  'smb-recon':           ['network'],
+  'software-tracker':    ['software'],
+  'software-superset':   ['software'],
+};
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -47,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Init interactive tour (auto-shows on first visit; re-triggerable via Tour button)
   initTour();
+
+  // Init per-panel visit badges (shows pulsing dot on unvisited tabs)
+  initPanelBadges();
 });
 
 // ── Layout ─────────────────────────────────────────────────────────────────
@@ -198,6 +221,9 @@ async function processFile(file) {
     addFileChip(name, count > 0 ? 'ok' : 'warn', parsedData.type, count, parsedData);
     toast(`Loaded "${name}" — ${count} entries (${parsedData.type})`, count > 0 ? 'success' : 'warning');
     updateSoftwareBadge();
+
+    const panels = TYPE_TO_PANELS[parsedData.type];
+    if (panels && count > 0) panels.forEach(markPanelVisited);
 
   } catch (err) {
     console.error('Error processing file:', name, err);
@@ -358,6 +384,9 @@ function loadSampleData() {
   }
 
   toast('Sample data loaded — all panels populated with demo data.', 'success');
+
+  // Mark all data panels as visited since sample data populates every panel
+  ['printer', 'inventory', 'tasks', 'network', 'software'].forEach(markPanelVisited);
 }
 
 // ── Paste Modal ─────────────────────────────────────────────────────────────
@@ -398,6 +427,8 @@ function initPasteModal() {
       const count = parsedData.rows?.length ?? 0;
       addFileChip(fname, count > 0 ? 'ok' : 'warn', parsedData.type, count, parsedData);
       toast(`Imported "${fname}" — ${count} rows (${parsedData.type})`, count > 0 ? 'success' : 'warning');
+      const pastePanels = TYPE_TO_PANELS[parsedData.type];
+      if (pastePanels && count > 0) pastePanels.forEach(markPanelVisited);
     }
 
     if (textarea) textarea.value = '';
