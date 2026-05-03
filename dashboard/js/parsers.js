@@ -11,9 +11,16 @@ import { parseCSV, parseJSON, pingToStep } from './utils.js';
 export function detectFileType(filename, content) {
   const fn = filename.toLowerCase();
 
+  // YAML detection — sources.yaml or sas-list-apps JSON output
+  if (fn.endsWith('.yaml') || fn.endsWith('.yml')) {
+    if (fn.includes('sources')) return 'software-tracker';
+    return 'software-tracker'; // treat all YAML drops as tracker
+  }
+
   // JSON detection — check filename hints first, then probe content
   if (fn.endsWith('.json')) {
     if (fn.includes('status')) return 'status-json';
+    if (fn.includes('sources') || fn.includes('software') || fn.includes('apps')) return 'software-tracker';
     if (fn.includes('neuron')) return 'neuron-inventory';
     if (fn.includes('runcontrol') || fn.includes('run_control') ||
         fn.includes('qrtask') || fn.includes('qr_task') ||
@@ -83,6 +90,7 @@ export function parseFileContent(type, content, filename) {
     case 'smb-recon': return parseSmbRecon(content);
     case 'status-json': return parseStatusJson(content);
     case 'remote-task': return parseRemoteTask(content);
+    case 'software-tracker': return parseSoftwareTracker(content, filename);
     default: return { type: 'unknown', rows: [], meta: {} };
   }
 }
@@ -218,6 +226,136 @@ function parseRemoteTask(content) {
 }
 
 /**
+ * Parse sources.yaml or sas-list-apps.sh --json output into the software tracker store.
+ * Accepts:
+ *   - YAML text (Config/sources.yaml format)
+ *   - JSON array of app objects (sas-list-apps.sh --json output)
+ *   - JSON object with { apps: [...], lists: {...} }
+ */
+function parseSoftwareTracker(content, filename) {
+  const trimmed = content.trim();
+
+  // ── JSON path ────────────────────────────────────────────────────────────
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    let parsed;
+    try { parsed = JSON.parse(trimmed); } catch { /* fall through to YAML */ }
+    if (parsed !== undefined) {
+      if (Array.isArray(parsed)) {
+        return { type: 'software-tracker', rows: parsed, data: { apps: parsed, lists: {} }, meta: { count: parsed.length } };
+      }
+      if (parsed.apps || parsed.lists) {
+        return { type: 'software-tracker', rows: parsed.apps || [], data: parsed, meta: { count: (parsed.apps || []).length } };
+      }
+    }
+  }
+
+  // ── YAML path — minimal parser matching the flat sources.yaml structure ──
+  const apps = [];
+  const lists = {};
+  const lines = trimmed.split('\n');
+  let i = 0;
+  const n = lines.length;
+
+  function stripComment(s) {
+    let inSq = false;
+    let result = '';
+    for (const ch of s) {
+      if (ch === "'" && !inSq) { inSq = true; result += ch; continue; }
+      if (ch === "'" && inSq)  { inSq = false; result += ch; continue; }
+      if (ch === '#' && !inSq) break;
+      result += ch;
+    }
+    return result.trimEnd();
+  }
+
+  function unquote(s) {
+    s = (s || '').trim();
+    if ((s.startsWith('"') && s.endsWith('"')) ||
+        (s.startsWith("'") && s.endsWith("'"))) return s.slice(1, -1);
+    return s;
+  }
+
+  function indentOf(line) { return line.length - line.trimStart().length; }
+
+  while (i < n) {
+    const raw = lines[i];
+    const line = stripComment(raw);
+    const stripped = line.trimStart();
+    if (!stripped || stripped.startsWith('#')) { i++; continue; }
+    const ind = indentOf(raw);
+
+    if (ind === 0 && stripped.includes(':')) {
+      const key = stripped.split(':')[0].trim();
+
+      if (key === 'apps') {
+        i++;
+        while (i < n) {
+          const raw2 = lines[i];
+          const s2 = stripComment(raw2).trimStart();
+          if (!s2 || s2.startsWith('#')) { i++; continue; }
+          const ind2 = indentOf(raw2);
+          if (ind2 === 0 && !s2.startsWith('-')) break;
+          if (s2.startsWith('- ') && ind2 === 2) {
+            const app = {};
+            const rest = s2.slice(2).trim();
+            if (rest.includes(':')) {
+              const [k, ...vs] = rest.split(':');
+              app[k.trim()] = unquote(vs.join(':'));
+            }
+            i++;
+            while (i < n) {
+              const raw3 = lines[i];
+              const s3 = stripComment(raw3).trimStart();
+              if (!s3 || s3.startsWith('#')) { i++; continue; }
+              const ind3 = indentOf(raw3);
+              if (ind3 <= 2 && ind3 !== 4) break;
+              if (s3.includes(':')) {
+                const [k, ...vs] = s3.split(':');
+                app[k.trim()] = unquote(vs.join(':'));
+              }
+              i++;
+            }
+            apps.push(app);
+          } else { i++; }
+        }
+        continue;
+      }
+
+      if (key === 'lists') {
+        i++;
+        let curList = null;
+        while (i < n) {
+          const raw2 = lines[i];
+          const s2 = stripComment(raw2).trimStart();
+          if (!s2 || s2.startsWith('#')) { i++; continue; }
+          const ind2 = indentOf(raw2);
+          if (ind2 === 0 && !s2.startsWith('-')) break;
+          if (ind2 === 2 && s2.includes(':') && !s2.startsWith('-')) {
+            curList = s2.replace(/:.*/, '').trim();
+            lists[curList] = [];
+            i++; continue;
+          }
+          if (ind2 === 4 && s2.startsWith('- ') && curList) {
+            lists[curList].push(s2.slice(2).trim().replace(/^['"]|['"]$/g, ''));
+            i++; continue;
+          }
+          i++;
+        }
+        continue;
+      }
+    }
+    i++;
+  }
+
+  return {
+    type: 'software-tracker',
+    rows: apps,
+    data: { apps, lists },
+    meta: { count: apps.length }
+  };
+}
+
+/**
  * Merge multiple parsed data objects into unified store for each panel.
  */
 export function mergeDataStore(existing, incoming) {
@@ -268,6 +406,19 @@ export function mergeDataStore(existing, incoming) {
     case 'remote-task':
       store.remoteTasks = (store.remoteTasks || []).concat(rows);
       break;
+    case 'software-tracker': {
+      const existingApps = (store.software?.apps || []);
+      const existingNames = new Set(existingApps.map(a => (a.name || '').toLowerCase()));
+      const newApps = (incoming.data?.apps || rows || []).filter(
+        a => !existingNames.has((a.name || '').toLowerCase())
+      );
+      const mergedLists = Object.assign({}, store.software?.lists || {}, incoming.data?.lists || {});
+      store.software = {
+        apps: [...existingApps, ...newApps],
+        lists: mergedLists
+      };
+      break;
+    }
   }
 
   return store;

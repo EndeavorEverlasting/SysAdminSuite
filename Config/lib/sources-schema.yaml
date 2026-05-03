@@ -1,0 +1,194 @@
+# =============================================================================
+# SysAdmin Suite — sources.yaml Field Reference Schema
+# Config/lib/sources-schema.yaml
+# =============================================================================
+# This file documents every field accepted in Config/sources.yaml.
+# It is a reference document only — it is not parsed at runtime.
+# =============================================================================
+
+schema_version: "1.0"
+description: >
+  SysAdmin Suite software tracker schema. Each app entry in sources.yaml
+  corresponds to one managed installer. Fields map 1-to-1 with the legacy
+  sources.csv columns, plus the new `unmanaged` flag for discovered-but-
+  uncurated entries.
+
+fields:
+  name:
+    type: string
+    required: true
+    description: >
+      Human-readable display name for the application. Used as the primary
+      key for lookups in all scripts. Must be unique across all entries.
+    example: "PowerShell 7-x64"
+
+  source:
+    type: string
+    required: true
+    allowed_values: [github, url]
+    description: >
+      Where the installer is obtained from.
+      - "github": fetch from a GitHub Releases page using the GitHub API.
+      - "url": fetch directly from a static or templated URL.
+    example: "github"
+
+  repo:
+    type: string
+    required_when: "source == github"
+    description: >
+      GitHub repository slug in "owner/repo" format. Only used when
+      source=github. Leave blank for source=url entries.
+    example: "PowerShell/PowerShell"
+
+  strategy:
+    type: string
+    required: true
+    allowed_values: [latest, pinned]
+    description: >
+      Version resolution strategy.
+      - "latest": resolve to the most recent published release at fetch time.
+      - "pinned": use the exact version specified in the `version` field.
+    example: "pinned"
+
+  version:
+    type: string
+    required_when: "strategy == pinned"
+    description: >
+      Exact version string to pin to. Used to build asset_regex and
+      filename_template substitutions ({{version}}). Ignored when
+      strategy=latest.
+    example: "7.4.6"
+
+  url_template:
+    type: string
+    required_when: "source == url"
+    description: >
+      Download URL for source=url entries. May contain {{version}} which is
+      substituted with the `version` field value at fetch time. For source=url
+      with strategy=latest, this must be a stable URL that always points to the
+      latest release (e.g. Google Chrome's enterprise MSI URL).
+    example: "https://www.python.org/ftp/python/{{version}}/python-{{version}}-amd64.exe"
+
+  asset_regex:
+    type: string
+    required_when: "source == github"
+    description: >
+      Regular expression matched against GitHub release asset filenames to
+      select the correct installer. {{version}} in the pattern is substituted
+      with the resolved tag version (without leading "v") before matching.
+      Only the first matching asset is used.
+    example: 'PowerShell-{{version}}-win-x64\.msi'
+
+  filename_template:
+    type: string
+    required: false
+    description: >
+      Local filename to save the installer as inside the installers/ directory.
+      Supports two substitution tokens:
+      - {{version}} — replaced with the resolved version string.
+      - {{asset}}   — replaced with the original upstream asset filename
+                      (source=github only; falls back to asset name if omitted).
+      Leave blank to use the upstream filename as-is.
+    example: "PowerShell-{{version}}-win-x64.msi"
+
+  type:
+    type: string
+    required: true
+    allowed_values: [msi, exe, zip, msix]
+    description: >
+      Installer format. Used by the install orchestrator to select the correct
+      invocation method and default silent arguments.
+      - msi  : Windows Installer — invoked via msiexec.
+      - exe  : Self-extracting EXE — invoked directly with silent_args.
+      - zip  : Archive — extracted to a target directory (post_install handles setup).
+      - msix : MSIX / APPX bundle — invoked via Add-AppxPackage.
+    example: "msi"
+
+  silent_args:
+    type: string
+    required: false
+    description: >
+      Command-line arguments appended to the installer invocation for unattended
+      (silent) installation. For MSI type, this augments msiexec /i <file>.
+      For EXE type, these are passed directly to the installer binary.
+    example: "/qn ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ENABLE_PSREMOTING=1"
+
+  detect_type:
+    type: string
+    required: false
+    allowed_values: [regkey, file]
+    description: >
+      Method used to detect whether the application is already installed on a
+      target host.
+      - regkey : Check for existence of a registry key path.
+      - file   : Check for existence of a file at an absolute path.
+    example: "file"
+
+  detect_value:
+    type: string
+    required_when: "detect_type is set"
+    description: >
+      The registry key path or absolute file path used for installation
+      detection. Interpreted according to detect_type.
+      For regkey: HIVE\Key\SubKey path (HKLM, HKCU, etc.)
+      For file:   Absolute Windows path, e.g. C:\Program Files\Git\bin\git.exe
+    example: 'C:\Program Files\PowerShell\7\pwsh.exe'
+
+  add_to_path:
+    type: string
+    required: false
+    description: >
+      Absolute directory path to append to the system PATH environment variable
+      after successful installation. Leave blank if the installer handles PATH
+      registration itself.
+    example: 'C:\Program Files\PowerShell\7'
+
+  post_install:
+    type: string
+    required: false
+    description: >
+      Optional shell command or PowerShell snippet to execute after the
+      installer completes. Runs in the context of the install worker script
+      on the target host. Use for tasks like license activation, config file
+      placement, or service registration.
+    example: ""
+
+  allow_domains:
+    type: string
+    required: false
+    description: >
+      Semicolon-separated list of additional internet hostnames to add to the
+      per-entry URL allow-list. Augments the global allow-list in GoLiveTools.ps1
+      and Fetch-Installers.ps1. Only needed for uncommon download hosts.
+    example: "releases.myvendor.com;cdn.example.org"
+
+  unmanaged:
+    type: boolean
+    required: false
+    default: false
+    description: >
+      Set to true by sas-populate-tracker.sh when an application is discovered
+      on a host but has no matching curated entry. Unmanaged entries are shown
+      with a visual highlight in the dashboard Software Tracker panel. They
+      should be reviewed and either promoted to a curated entry (by filling in
+      source, type, silent_args, etc.) or left as discovery-only records.
+    example: true
+
+top_level_keys:
+  apps:
+    type: list
+    description: >
+      The primary list of app entries. Each item is a mapping with the fields
+      described above.
+
+  lists:
+    type: mapping
+    description: >
+      Named deployment groups. Each key is a list name (e.g. workstation-baseline)
+      and the value is an array of app `name` values. Used by sas-list-apps.sh
+      and sas-install-apps.sh to resolve which apps to stage or install.
+    example:
+      workstation-baseline:
+        - Google Chrome
+        - Git for Windows
+        - PowerShell 7-x64

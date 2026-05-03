@@ -32,6 +32,7 @@ A consolidated SysAdmin toolkit targeting Northwell environments. The project is
 - `dashboard/js/panel-inventory.js` — Hardware Inventory panel
 - `dashboard/js/panel-tasks.js` — Remote Task / QR Activity panel
 - `dashboard/js/panel-network.js` — Network & Protocol Trace panel
+- `dashboard/js/panel-software.js` — Software Tracker panel (sources.yaml / JSON drag-drop)
 - `dashboard/samples/` — sample data files for testing each panel
 - `survey/sas-survey-targets.sh` — Bash survey target resolver (Cybernet/Neuron)
 - `deployment-audit/sas-audit-deployments.sh` — deployment tracker audit
@@ -57,6 +58,8 @@ A consolidated SysAdmin toolkit targeting Northwell environments. The project is
 | `status.json` | Status Footer | State, Stage, Message, Timestamp |
 | QRTask / RunControl logs | Remote Tasks | Timestamp, Machine, TaskName, Outcome |
 | `smb_readonly_recon.csv` | Network Trace | Target, Share, Reachable, ListStatus |
+| `sources.yaml` | Software Tracker | apps list (name, source, repo, strategy, version, type, detect…) |
+| `*.json` from `sas-list-apps.sh --json` | Software Tracker | Array of app objects matching sources.yaml schema |
 
 ## Running Components in This Environment (Linux/Replit)
 

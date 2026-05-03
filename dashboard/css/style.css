@@ -509,6 +509,8 @@ td.mono { font-family: var(--mono); font-size: 11px; }
 .badge-info    { background: rgba(56, 189, 248, 0.15); color: var(--info);    border: 1px solid rgba(56, 189, 248, 0.3); }
 .badge-muted   { background: rgba(85, 85, 112, 0.2);   color: var(--text-muted); border: 1px solid rgba(85, 85, 112, 0.3); }
 .badge-accent  { background: rgba(79, 142, 247, 0.15); color: var(--accent);  border: 1px solid rgba(79, 142, 247, 0.3); }
+.badge-purple  { background: rgba(108, 99, 255, 0.15); color: var(--accent2); border: 1px solid rgba(108, 99, 255, 0.3); }
+.badge-blue    { background: rgba(56, 189, 248, 0.12); color: var(--info);    border: 1px solid rgba(56, 189, 248, 0.3); }
 
 /* ── Protocol Trace (Network Panel) ─────── */
 .protocol-accordion {

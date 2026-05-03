@@ -6,6 +6,7 @@ import { getPrinterHTML, initPrinterPanel, renderPrinterPanel } from './panel-pr
 import { getInventoryHTML, initInventoryPanel, renderInventoryPanel } from './panel-inventory.js';
 import { getTasksHTML, initTasksPanel, renderTasksPanel } from './panel-tasks.js';
 import { getNetworkHTML, initNetworkPanel, renderNetworkPanel } from './panel-network.js';
+import { getSoftwareHTML, initSoftwarePanel, renderSoftwarePanel } from './panel-software.js';
 
 // ── State ──────────────────────────────────────────────────────────────────
 let store = {};
@@ -29,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initInventoryPanel();
   initTasksPanel();
   initNetworkPanel();
+  initSoftwarePanel();
 
   // Render empty state on all panels
   refreshAllPanels();
@@ -40,11 +42,13 @@ function buildLayout() {
   const inventoryEl = document.getElementById('panel-inventory');
   const tasksEl = document.getElementById('panel-tasks');
   const networkEl = document.getElementById('panel-network');
+  const softwareEl = document.getElementById('panel-software');
 
   if (printerEl) printerEl.innerHTML = getPrinterHTML();
   if (inventoryEl) inventoryEl.innerHTML = getInventoryHTML();
   if (tasksEl) tasksEl.innerHTML = getTasksHTML();
   if (networkEl) networkEl.innerHTML = getNetworkHTML();
+  if (softwareEl) softwareEl.innerHTML = getSoftwareHTML();
 }
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
@@ -177,9 +181,10 @@ async function processFile(file) {
     store = mergeDataStore(store, parsedData);
     refreshAllPanels();
 
-    const count = parsedData.rows?.length ?? 0;
+    const count = parsedData.rows?.length ?? (parsedData.type === 'software-tracker' ? (parsedData.data?.apps?.length ?? 0) : 0);
     addFileChip(name, count > 0 ? 'ok' : 'warn', parsedData.type, count, parsedData);
-    toast(`Loaded "${name}" — ${count} rows (${parsedData.type})`, count > 0 ? 'success' : 'warning');
+    toast(`Loaded "${name}" — ${count} entries (${parsedData.type})`, count > 0 ? 'success' : 'warning');
+    updateSoftwareBadge();
 
   } catch (err) {
     console.error('Error processing file:', name, err);
@@ -223,7 +228,8 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'preflight': '📋', 'results': '✅', 'workstation-identity': '🖥️',
     'printer-probe': '🖨️', 'network-preflight': '📡', 'machine-info': '💻',
     'ram-info': '🧠', 'monitor-info': '🖥️', 'neuron-inventory': '🗂️',
-    'smb-recon': '📂', 'status-json': '💚', 'remote-task': '⚡', 'unknown': '❓'
+    'smb-recon': '📂', 'status-json': '💚', 'remote-task': '⚡',
+    'software-tracker': '📦', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
 
@@ -538,6 +544,15 @@ function refreshAllPanels() {
   try { renderInventoryPanel(store); } catch(e) { console.warn('Inventory panel error:', e); }
   try { renderTasksPanel(store); } catch(e) { console.warn('Tasks panel error:', e); }
   try { renderNetworkPanel(store); } catch(e) { console.warn('Network panel error:', e); }
+  try { renderSoftwarePanel(store); } catch(e) { console.warn('Software panel error:', e); }
+}
+
+// Update software tab badge when store changes
+function updateSoftwareBadge() {
+  const btn = document.querySelector('.tab-btn[data-tab="software"] .tab-badge');
+  if (btn && store.software) {
+    btn.textContent = (store.software.apps || []).length;
+  }
 }
 
 // Expose for debug
