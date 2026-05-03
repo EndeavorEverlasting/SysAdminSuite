@@ -14,6 +14,7 @@ const path = require('path');
 const files = [
   'dashboard/js/utils.js',
   'dashboard/js/parsers.js',
+  'dashboard/js/relay-client.js',
   'dashboard/js/panel-printer.js',
   'dashboard/js/panel-inventory.js',
   'dashboard/js/panel-tasks.js',

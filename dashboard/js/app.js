@@ -8,6 +8,7 @@ import { getTasksHTML, initTasksPanel, renderTasksPanel } from './panel-tasks.js
 import { getNetworkHTML, initNetworkPanel, renderNetworkPanel } from './panel-network.js';
 import { getSoftwareHTML, initSoftwarePanel, renderSoftwarePanel } from './panel-software.js';
 import { initTour } from './tour.js';
+import { initRelayConnection, onRelayStatus, getRelayConnected, RELAY_PORT } from './relay-client.js'; // setRelayToken used via relay-client.js in panel-network.js
 // Sample data is loaded via a plain <script> tag in index.html (not an ES module).
 // Globals defined by that script: window._sasSampleStore(), window._sasSampleStatus()
 
@@ -28,6 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initStatusFooter();
   initDropOverlay();
   initSampleDataBtn();
+
+  // Init relay — start connecting in background; panels react via onRelayStatus
+  initRelayConnection();
+  onRelayStatus(_updateHeaderRelayBadge);
 
   // Init panels
   initPrinterPanel();
@@ -587,6 +592,18 @@ function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
   modal.querySelector('#live-cmd-close').addEventListener('click', closeModal);
   modal.querySelector('#live-cmd-dismiss').addEventListener('click', closeModal);
   modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+}
+
+// ── Relay header badge ────────────────────────────────────────────────────────
+function _updateHeaderRelayBadge() {
+  const badge = document.getElementById('header-relay-badge');
+  if (!badge) return;
+  const connected = getRelayConnected();
+  badge.className = 'header-relay-badge ' + (connected ? 'relay-connected' : 'relay-disconnected');
+  badge.title = connected
+    ? `Relay connected — ws://localhost:${RELAY_PORT} — open Network panel to run live probes`
+    : `Relay offline — run: python3 dashboard/relay.py`;
+  badge.textContent = connected ? '⚡ Relay' : '○ Relay';
 }
 
 // ── Status Footer ────────────────────────────────────────────────────────────
