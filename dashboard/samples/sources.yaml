@@ -1,0 +1,101 @@
+# =============================================================================
+# SysAdmin Suite — Software Source Tracker  (SAMPLE FILE)
+# =============================================================================
+# This is a trimmed demo subset of Config/sources.yaml.
+# Drag this file into the dashboard drop zone to preview the Software Tracker
+# panel without needing a real Config/sources.yaml.
+#
+# To use your own data, drag Config/sources.yaml from your suite checkout
+# directly into the dashboard — it is accepted as-is.
+# =============================================================================
+
+lists:
+  workstation-baseline:
+    - Google Chrome
+    - Git for Windows
+    - PowerShell 7-x64
+    - Python 3.13 x64
+
+  server-baseline:
+    - PowerShell 7-x64
+
+apps:
+  - name: Google Chrome
+    source: url
+    repo: ""
+    strategy: latest
+    version: ""
+    url_template: "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi"
+    asset_regex: ""
+    filename_template: ChromeEnterprise64.msi
+    type: msi
+    silent_args: "/qn /norestart"
+    detect_type: regkey
+    detect_value: 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Google Chrome'
+    add_to_path: ""
+    post_install: ""
+    allow_domains: ""
+
+  - name: Git for Windows
+    source: github
+    repo: git-for-windows/git
+    strategy: latest
+    version: ""
+    url_template: ""
+    asset_regex: 'Git-.*-64-bit\.exe'
+    filename_template: "{{asset}}"
+    type: exe
+    silent_args: "/VERYSILENT /NORESTART"
+    detect_type: file
+    detect_value: 'C:\Program Files\Git\bin\git.exe'
+    add_to_path: 'C:\Program Files\Git\bin'
+    post_install: ""
+    allow_domains: ""
+
+  - name: GitHub CLI
+    source: github
+    repo: cli/cli
+    strategy: pinned
+    version: "2.60.1"
+    url_template: ""
+    asset_regex: 'gh_{{version}}_windows_amd64\.msi'
+    filename_template: "gh_{{version}}_windows_amd64.msi"
+    type: msi
+    silent_args: "/qn /norestart"
+    detect_type: file
+    detect_value: 'C:\Program Files\GitHub CLI\gh.exe'
+    add_to_path: ""
+    post_install: ""
+    allow_domains: ""
+
+  - name: PowerShell 7-x64
+    source: github
+    repo: PowerShell/PowerShell
+    strategy: pinned
+    version: "7.4.6"
+    url_template: ""
+    asset_regex: 'PowerShell-{{version}}-win-x64\.msi'
+    filename_template: "PowerShell-{{version}}-win-x64.msi"
+    type: msi
+    silent_args: "/qn ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ENABLE_PSREMOTING=1"
+    detect_type: file
+    detect_value: 'C:\Program Files\PowerShell\7\pwsh.exe'
+    add_to_path: 'C:\Program Files\PowerShell\7'
+    post_install: ""
+    allow_domains: ""
+
+  - name: Python 3.13 x64
+    source: url
+    repo: ""
+    strategy: pinned
+    version: "3.13.1"
+    url_template: "https://www.python.org/ftp/python/{{version}}/python-{{version}}-amd64.exe"
+    asset_regex: ""
+    filename_template: "python-{{version}}-amd64.exe"
+    type: exe
+    silent_args: '/quiet InstallAllUsers=1 PrependPath=1 Include_test=0 Include_pip=1 TargetDir="C:\Python313"'
+    detect_type: file
+    detect_value: 'C:\Python313\python.exe'
+    add_to_path: 'C:\Python313'
+    post_install: ""
+    allow_domains: ""

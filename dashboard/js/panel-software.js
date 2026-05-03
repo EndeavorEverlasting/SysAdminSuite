@@ -66,8 +66,11 @@ export function getSoftwareHTML() {
     <div class="empty-icon">📦</div>
     <div class="empty-title">No software tracker data loaded</div>
     <div class="empty-desc">
-      Drop <code>sources.yaml</code> or a JSON export from
-      <code>sas-list-apps.sh --json</code> into the dashboard to populate this panel.<br>
+      Drop <code>Config/sources.yaml</code> from your suite checkout into the dashboard
+      to populate this panel. A ready-to-use demo file is available at
+      <code>dashboard/samples/sources.yaml</code> — drag it in to preview the panel
+      with sample data.<br>
+      A JSON export from <code>sas-list-apps.sh --json</code> is also accepted.<br>
       For per-host gap analysis, drop <code>software_hosts.csv</code> or one or more
       <code>installed_software_&lt;HOST&gt;.csv</code> files produced by
       <code>Inventory-Software.ps1</code> (one row per app per host).

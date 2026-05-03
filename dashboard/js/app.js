@@ -568,7 +568,8 @@ function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
         ${section('ps-cmds',   '2 — POWERSHELL  (Windows WMI / printer mapping)', '150px')}
         ${section('linux-cmds','3 — LINUX NATIVE  (quick check — no suite required)', '150px')}
         <div style="font-size:11px;color:var(--text-muted)">
-          Load back: network_preflight.csv · workstation_identity.csv · printer_probe.csv · MachineInfo_Output.csv · RamInfo_Output.csv
+          Load back: network_preflight.csv · workstation_identity.csv · printer_probe.csv · MachineInfo_Output.csv · RamInfo_Output.csv<br>
+          Software Tracker: drag <strong>Config/sources.yaml</strong> (or the sample at <code>dashboard/samples/sources.yaml</code>) into the drop zone to populate the 📦 Software Tracker panel.
         </div>
       </div>
       <div class="modal-footer">
