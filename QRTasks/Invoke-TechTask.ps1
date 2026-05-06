@@ -22,6 +22,10 @@
     powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
 
 .EXAMPLE
+    # Disable local screensaver and power timeout behavior:
+    powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task DisableScreensaver
+
+.EXAMPLE
     # List all available tasks:
     .\Invoke-TechTask.ps1 -Task ?
 
@@ -96,14 +100,16 @@ if ($resolvedRoot.Resolution -ne 'primary path available') {
 # ── Task registry ────────────────────────────────────────────────────
 # Map short names to script filenames (relative to $ScriptRoot).
 $TaskMap = [ordered]@{
-    RAMProfile        = 'Get-RAMProfile.ps1'
-    ModelInfo         = 'Get-ModelInfo.ps1'
-    NetworkInfo       = 'Get-NetworkInfo.ps1'
-    Serials           = 'Get-Serials.ps1'
-    NeuronTrace       = 'Get-NeuronTrace.ps1'
-    WinOptionalFeatures = 'Get-WindowsOptionalFeatures.ps1'
-    PowerComfort        = 'Set-PowerComfortDefaults.ps1'
-    PowerComfortRevert  = 'Restore-PowerComfortDefaults.ps1'
+    RAMProfile           = 'Get-RAMProfile.ps1'
+    ModelInfo            = 'Get-ModelInfo.ps1'
+    NetworkInfo          = 'Get-NetworkInfo.ps1'
+    Serials              = 'Get-Serials.ps1'
+    NeuronTrace          = 'Get-NeuronTrace.ps1'
+    NeuronMaintenance    = 'Get-NeuronMaintenanceSnapshot.ps1'
+    WinOptionalFeatures  = 'Get-WindowsOptionalFeatures.ps1'
+    DisableScreensaver   = 'Set-DisableScreensaver.ps1'
+    PowerComfort         = 'Set-PowerComfortDefaults.ps1'
+    PowerComfortRevert   = 'Restore-PowerComfortDefaults.ps1'
 }
 
 # ── Help / list mode ────────────────────────────────────────────────
