@@ -1,5 +1,51 @@
 # Agent Instructions for SysAdminSuite
 
+## Billing Pipeline Directional Contract
+
+SysAdminSuite must support three distinct billing/task-tracking workflow directions. Agents MUST identify the requested direction before generating scripts, workbooks, summaries, or corrections.
+
+### 1. Roster Log → Admin Sheet
+
+High-priority submission workflow.
+
+The roster log is processed into an admin-facing Project Team sheet for Friday billing/submission review. This is a one-shot output path. It must use resolved worked-project logic, including assignments and overrides, but must not expose internal exception machinery, confidence fields, private notes, or task-tracker context.
+
+Required posture: clean submission artifact.
+
+### 2. Roster Log → Task Tracker
+
+Medium-priority contextualization workflow.
+
+The roster log is used to contextualize hours inside the task tracker. This path explains what the hours supported: configuration, deployment, logistics, project coordination, exceptions, and documented contributions. This is internal context, not a submission artifact.
+
+Required posture: internal hours context and contribution mapping.
+
+### 3. Task Tracker → Roster Log
+
+Low-priority reviewed backfill workflow.
+
+The task tracker may surface noted contributions that imply the roster log needs an update. This direction must be review-gated. It should propose roster updates such as project overrides, assignment clarifications, or notes, but it must not silently mutate the roster log.
+
+Required posture: proposed roster updates only unless explicitly approved.
+
+### Priority Order
+
+1. Roster Log → Admin Sheet
+2. Roster Log → Task Tracker
+3. Task Tracker → Roster Log
+
+Recommended script names:
+
+```text
+roster_to_admin_submission.py
+roster_to_task_context.py
+task_tracker_to_roster_backfill.py
+```
+
+See `docs/BILLING_PIPELINE_DIRECTIONAL_CONTRACT.md` for the fuller workflow diagrams and implementation rules.
+
+---
+
 ## Language Hierarchy
 
 SysAdminSuite targets both Northwell-specific Linux environments and general Windows corporate
