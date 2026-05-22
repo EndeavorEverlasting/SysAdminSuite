@@ -1,6 +1,6 @@
 param(
   [string]$ListPath   = "C:\Temp\hostlist.txt",
-  [string]$OutputPath = (Join-Path $PSScriptRoot 'Output\MachineInfo\MachineInfo_Output.csv'),
+  [string]$OutputPath = (Join-Path $PSScriptRoot 'Output\MachineInfo\MachineInfo_HostnameFirst_Output.csv'),
   [int]$Throttle      = 15
 )
 
@@ -21,21 +21,68 @@ function Start-MachineQueryJob {
   Start-Job -Name "MI_$Computer" -ScriptBlock {
     param($Computer)
 
-    # Detect whether the target is the local machine so we can skip
-    # remote WMI/DCOM paths that fail when ICMP or RPC is blocked.
+    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+
+    # This hostname-first copy intentionally does not pre-resolve hostnames to IPs,
+    # does not gate collection on ping, and does not export IP addresses. In large
+    # routed organizations, stale DNS/DHCP records can cause one IP to appear tied
+    # to multiple computer names. Serial number, MAC address, and the remote-reported
+    # computer name are treated as stronger identity evidence than IP address.
     $isLocal = $Computer -eq $env:COMPUTERNAME -or
                $Computer -eq 'localhost' -or
                $Computer -eq '127.0.0.1' -or
                $Computer -eq '.'
 
+    function New-MachineInfoRecord {
+      param(
+        [string]$Status,
+        [string]$ErrorMessage = '',
+        [string]$Serial = '',
+        [string]$MACAddress = '',
+        [string]$MonitorSerials = '',
+        [string]$ReportedComputerName = '',
+        [string]$Model = '',
+        [string]$Manufacturer = '',
+        [string]$IdentityWarning = ''
+      )
+
+      [pscustomobject]@{
+        Timestamp            = $timestamp
+        HostName             = $Computer
+        ReportedComputerName = $ReportedComputerName
+        Serial               = $Serial
+        MACAddress           = $MACAddress
+        MonitorSerials       = $MonitorSerials
+        Model                = $Model
+        Manufacturer         = $Manufacturer
+        IdentityWarning      = $IdentityWarning
+        Status               = $Status
+        ErrorMessage         = $ErrorMessage
+      }
+    }
+
+    function Get-TargetWmiObject {
+      param(
+        [Parameter(Mandatory)][string]$ClassName,
+        [string]$Namespace = 'root\cimv2',
+        [string]$Filter = '',
+        [System.Management.Automation.ActionPreference]$ErrorActionValue = 'Stop'
+      )
+
+      $params = @{
+        Class       = $ClassName
+        Namespace   = $Namespace
+        ErrorAction = $ErrorActionValue
+      }
+      if ($Filter) { $params.Filter = $Filter }
+      if (-not $isLocal) { $params.ComputerName = $Computer }
+
+      Get-WmiObject @params
+    }
+
     function Get-MonitorSerials {
-      param([string]$Computer, [bool]$Local)
       try {
-        $eds = if ($Local) {
-          Get-WmiObject -Namespace root\wmi -Class WmiMonitorID -ErrorAction Stop
-        } else {
-          Get-WmiObject -Namespace root\wmi -Class WmiMonitorID -ComputerName $Computer -ErrorAction Stop
-        }
+        $eds = Get-TargetWmiObject -Namespace 'root\wmi' -ClassName 'WmiMonitorID' -ErrorActionValue 'Stop'
         if ($eds) {
           $eds | ForEach-Object {
             ($_.SerialNumberID | Where-Object { $_ -ne 0 } | ForEach-Object { [char]$_ }) -join ''
@@ -44,77 +91,48 @@ function Start-MachineQueryJob {
       } catch { @() }
     }
 
-    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    try {
+      $bios = Get-TargetWmiObject -ClassName 'Win32_BIOS' -ErrorActionValue 'Stop'
+      $serial = $bios.SerialNumber
 
-    # Local machine is always "reachable" — skip Test-Connection
-    $reachable = if ($isLocal) { $true } else {
-      Test-Connection -ComputerName $Computer -Count 1 -Quiet
-    }
+      $computerSystem = Get-TargetWmiObject -ClassName 'Win32_ComputerSystem' -ErrorActionValue 'Stop'
+      $reportedName = $computerSystem.Name
+      $manufacturer = $computerSystem.Manufacturer
+      $model = $computerSystem.Model
 
-    if ($reachable) {
-      try {
-        $serial = if ($isLocal) {
-          (Get-WmiObject -Class Win32_BIOS -ErrorAction Stop).SerialNumber
-        } else {
-          (Get-WmiObject -Class Win32_BIOS -ComputerName $Computer -ErrorAction Stop).SerialNumber
-        }
-
-        $nics = if ($isLocal) {
-          Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
-        } else {
-          Get-WmiObject -Class Win32_NetworkAdapterConfiguration -ComputerName $Computer -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
-        }
-        $ipv4s  = @()
-        $macs   = @()
-        foreach ($n in $nics) {
-          $ip4 = ($n.IPAddress | Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' } | Select-Object -First 1)
-          if ($ip4) { $ipv4s += $ip4 }
-          if ($n.MACAddress) { $macs += $n.MACAddress }
-        }
-
-        $monSer = Get-MonitorSerials -Computer $Computer -Local $isLocal
-
-        [pscustomobject]@{
-          Timestamp      = $timestamp
-          HostName       = $Computer
-          Serial         = $serial
-          IPAddress      = ($ipv4s -join ';')
-          MACAddress     = ($macs  -join ';')
-          MonitorSerials = ($monSer -join ';')
-          Status         = 'OK'
-          ErrorMessage   = ''
-        }
-      } catch {
-        $errMsg = $_.Exception.Message
-        [pscustomobject]@{
-          Timestamp      = $timestamp
-          HostName       = $Computer
-          Serial         = 'Error'
-          IPAddress      = ''
-          MACAddress     = ''
-          MonitorSerials = ''
-          Status         = 'Query Failed'
-          ErrorMessage   = $errMsg
-        }
+      $nics = Get-TargetWmiObject -ClassName 'Win32_NetworkAdapterConfiguration' -Filter "IPEnabled=TRUE" -ErrorActionValue 'SilentlyContinue'
+      $macs = @()
+      foreach ($n in @($nics)) {
+        if ($n.MACAddress) { $macs += $n.MACAddress }
       }
-    } else {
-      [pscustomobject]@{
-        Timestamp      = $timestamp
-        HostName       = $Computer
-        Serial         = 'Offline'
-        IPAddress      = ''
-        MACAddress     = ''
-        MonitorSerials = ''
-        Status         = 'Offline'
-        ErrorMessage   = ''
+
+      $monSer = Get-MonitorSerials
+
+      $identityWarning = ''
+      $requestedShortName = $Computer.Split('.')[0]
+      if ($reportedName -and $Computer -notin @('localhost','127.0.0.1','.') -and $reportedName.ToUpperInvariant() -ne $requestedShortName.ToUpperInvariant()) {
+        $identityWarning = "Requested host '$Computer' reported itself as '$reportedName'. Check DNS or the host list before trusting this row."
       }
+
+      New-MachineInfoRecord \
+        -Status 'OK' \
+        -Serial $serial \
+        -MACAddress (($macs | Sort-Object -Unique) -join ';') \
+        -MonitorSerials (($monSer | Sort-Object -Unique) -join ';') \
+        -ReportedComputerName $reportedName \
+        -Model $model \
+        -Manufacturer $manufacturer \
+        -IdentityWarning $identityWarning
+    } catch {
+      $errMsg = $_.Exception.Message
+      New-MachineInfoRecord -Status 'Query Failed' -Serial 'Error' -ErrorMessage $errMsg
     }
   } -ArgumentList $Computer
 }
 
 $jobs = @()
 foreach ($c in $Computers) {
-  # BUG-FIX: Filter by job name prefix so unrelated session jobs don't affect throttling
+  # Filter by this run's job collection so unrelated session jobs do not affect throttling.
   $runningJobs = $jobs | Where-Object { $_.State -eq 'Running' }
   while ($runningJobs.Count -ge $Throttle) {
     Wait-Job -Any $runningJobs | Out-Null
@@ -142,7 +160,7 @@ if (Test-Path -LiteralPath $suiteHtmlHelper) {
   . $suiteHtmlHelper
   $htmlPath = [IO.Path]::ChangeExtension($OutputPath, '.html')
   $results | Sort-Object HostName |
-    Select-Object HostName,Serial,IPAddress,MACAddress,MonitorSerials,Status,ErrorMessage |
-    ConvertTo-Html -Fragment -PreContent '<h2>Machine Info</h2>' |
-    ConvertTo-SuiteHtml -Title 'Machine Info' -Subtitle "$(($results | Select-Object -ExpandProperty HostName -Unique).Count) host(s)" -OutputPath $htmlPath
+    Select-Object HostName,ReportedComputerName,Serial,MACAddress,MonitorSerials,Model,Manufacturer,IdentityWarning,Status,ErrorMessage |
+    ConvertTo-Html -Fragment -PreContent '<h2>Machine Info - Hostname First</h2>' |
+    ConvertTo-SuiteHtml -Title 'Machine Info - Hostname First' -Subtitle "$(($results | Select-Object -ExpandProperty HostName -Unique).Count) host(s)" -OutputPath $htmlPath
 }
