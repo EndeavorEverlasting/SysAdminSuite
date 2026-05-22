@@ -51,6 +51,34 @@ $wmicPath = Get-NativeToolPath -ToolName 'wmic.exe'
 Write-Host "[ORDER] Starting hostname probe-order checks for $($hosts.Count) host(s)." -ForegroundColor Cyan
 Write-Host "[ORDER] Required host order: 01_NMAP -> 02_ACTIVE_DIRECTORY -> 03_SCCM -> 04_OTHER_NATIVE_PROBES" -ForegroundColor Cyan
 
+# Expensive/shared checks are resolved once, not repeated 211 times.
+if ($nmapPath) {
+  Write-Host "[ORDER] nmap.exe found: $nmapPath" -ForegroundColor Green
+} else {
+  Write-Warning "[ORDER] nmap.exe not available. Per-host Nmap stage will be recorded as WARN without wasting time."
+}
+
+if ($nltestPath) {
+  $ad = Invoke-NativeCommand -FilePath $nltestPath -Arguments @('/dsgetdc:nslijhs.net')
+  if ($ad.ExitCode -eq 0 -and $ad.Text -match 'nslijhs\.net') {
+    $adProbeCached = '02_ACTIVE_DIRECTORY: nslijhs.net domain controller reachable'
+    $adWarn = $false
+  } else {
+    $adProbeCached = '02_ACTIVE_DIRECTORY_WARN: domain controller not confirmed'
+    $adWarn = $true
+  }
+} else {
+  $adProbeCached = '02_ACTIVE_DIRECTORY_WARN: nltest.exe not available'
+  $adWarn = $true
+}
+Write-Host "[ORDER] Cached AD result: $adProbeCached" -ForegroundColor Gray
+
+$sccmGlobalUnavailable = $false
+if (-not $wmicPath) {
+  $sccmGlobalUnavailable = $true
+  Write-Warning "[ORDER] wmic.exe not available. Per-host SCCM check will be recorded as WARN without wasting time."
+}
+
 $rows = @()
 $total = $hosts.Count
 $index = 0
@@ -60,40 +88,33 @@ foreach ($hostName in $hosts) {
   Write-Progress -Activity 'Hostname probe-order checks' -Status "[$index/$total] $hostName" -PercentComplete $percent
   Write-Host "[ORDER][$index/$total] Checking $hostName" -ForegroundColor Cyan
 
-  $nmapProbe = ''
-  $adProbe = ''
-  $sccmProbe = ''
   $reasons = @()
 
-  Write-Host "  [01_NMAP] $hostName" -ForegroundColor Gray
   if ($nmapPath) {
-    $nmap = Invoke-NativeCommand -FilePath $nmapPath -Arguments @('-sT','-Pn','--system-dns','-p','135,139,445,3389,5985,5986', $hostName)
+    Write-Host "  [01_NMAP] $hostName" -ForegroundColor Gray
+    $nmap = Invoke-NativeCommand -FilePath $nmapPath -Arguments @('-sT','-Pn','--system-dns','--max-retries','1','--host-timeout','15s','-p','135,139,445,3389,5985,5986', $hostName)
     $summary = Get-NmapPortSummary -Lines $nmap.Output
     if ($summary) { $nmapProbe = "01_NMAP: $summary" } else { $nmapProbe = '01_NMAP_FAIL: no parseable port states'; $reasons += $nmapProbe }
   } else {
-    $nmapProbe = '01_NMAP_FAIL: nmap.exe not available'
+    $nmapProbe = '01_NMAP_WARN: nmap.exe not available; skipped fast'
     $reasons += $nmapProbe
   }
   Write-Host "    $nmapProbe" -ForegroundColor DarkGray
 
+  $adProbe = $adProbeCached
+  if ($adWarn) { $reasons += $adProbe }
   Write-Host "  [02_ACTIVE_DIRECTORY] $hostName" -ForegroundColor Gray
-  if ($nltestPath) {
-    $ad = Invoke-NativeCommand -FilePath $nltestPath -Arguments @('/dsgetdc:nslijhs.net')
-    if ($ad.ExitCode -eq 0 -and $ad.Text -match 'nslijhs\.net') { $adProbe = '02_ACTIVE_DIRECTORY: nslijhs.net domain controller reachable' }
-    else { $adProbe = '02_ACTIVE_DIRECTORY_WARN: domain controller not confirmed'; $reasons += $adProbe }
-  } else {
-    $adProbe = '02_ACTIVE_DIRECTORY_WARN: nltest.exe not available'
-    $reasons += $adProbe
-  }
   Write-Host "    $adProbe" -ForegroundColor DarkGray
 
   Write-Host "  [03_SCCM] $hostName" -ForegroundColor Gray
-  if ($wmicPath) {
+  if ($sccmGlobalUnavailable) {
+    $sccmProbe = '03_SCCM_WARN: wmic.exe not available for SCCM check; skipped fast'
+  } elseif ($wmicPath) {
     $sccm = Invoke-NativeCommand -FilePath $wmicPath -Arguments @("/node:$hostName", 'service', 'where', "name='ccmexec'", 'get', 'Name,State', '/value')
     if ($sccm.Text -match 'Name\s*=\s*ccmexec') { $sccmProbe = '03_SCCM: ccmexec service evidence present' }
     else { $sccmProbe = '03_SCCM_WARN: ccmexec not confirmed; continue with caution' }
   } else {
-    $sccmProbe = '03_SCCM_WARN: wmic.exe not available for SCCM check'
+    $sccmProbe = '03_SCCM_WARN: SCCM check unavailable'
   }
   Write-Host "    $sccmProbe" -ForegroundColor DarkGray
 
