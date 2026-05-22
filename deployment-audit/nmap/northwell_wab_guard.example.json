@@ -1,0 +1,14 @@
+{
+  "allowed_terms": [
+    "wab"
+  ],
+  "blocked_terms": [
+    "guest",
+    "northwell guest",
+    "nh guest",
+    "public wifi",
+    "visitor"
+  ],
+  "allowed_ipv4_cidrs": [],
+  "require_allowed_indicator": true
+}
