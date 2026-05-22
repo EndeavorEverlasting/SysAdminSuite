@@ -5,6 +5,7 @@ REM Non-PowerShell workflow for Cybernet/Neuron target verification.
 REM Offline workbook analysis is allowed anywhere.
 REM Live probing is blocked unless the WAB network guard passes.
 REM Live probing is progress-aware and writes resumable per-target logs.
+REM A local HTML dashboard is generated after offline analysis and after live probe completion/interruption.
 REM
 REM Usage:
 REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx"
@@ -79,6 +80,7 @@ exit /b 2
 :args_done
 set "SCRIPT_DIR=%~dp0"
 set "OUT_DIR=%SCRIPT_DIR%output\cybernet-nmap-audit"
+set "HTML_REPORT=%OUT_DIR%\audit_report.html"
 set "WAB_GUARD_CONFIG=%SCRIPT_DIR%northwell_wab_guard.local.json"
 set "WAB_GUARD_EVIDENCE=%OUT_DIR%\network-guard-evidence.txt"
 set "PYTHON_CMD="
@@ -103,6 +105,10 @@ echo Running offline workbook analysis...
 %PYTHON_CMD% "%SCRIPT_DIR%cybernet_target_audit.py" --source-xlsx "%SOURCE_XLSX%" --out-dir "%OUT_DIR%"
 if errorlevel 1 exit /b %errorlevel%
 
+echo Generating local HTML dashboard...
+%PYTHON_CMD% "%SCRIPT_DIR%html_report.py" --out-dir "%OUT_DIR%"
+echo HTML dashboard: "%HTML_REPORT%"
+
 echo Checking approved Northwell WAB network before live probe...
 if exist "%WAB_GUARD_CONFIG%" (
   %PYTHON_CMD% "%SCRIPT_DIR%northwell_wab_guard.py" --config "%WAB_GUARD_CONFIG%" --write-evidence "%WAB_GUARD_EVIDENCE%"
@@ -113,6 +119,7 @@ if errorlevel 1 (
   echo Live probe skipped. This machine did not pass the approved WAB network guard.
   echo Offline reports are still available in: "%OUT_DIR%"
   echo Network evidence saved to: "%WAB_GUARD_EVIDENCE%"
+  echo Open HTML dashboard: "%HTML_REPORT%"
   exit /b 0
 )
 
@@ -125,10 +132,16 @@ if "%NMAP_CMD%"=="" if exist "C:\Program Files\Nmap\nmap.exe" set "NMAP_CMD=C:\P
 
 if "%NMAP_CMD%"=="" (
   echo Nmap was not found. Live probe skipped.
+  echo Open HTML dashboard: "%HTML_REPORT%"
   exit /b 0
 )
 
 echo Runner options:%RUNNER_EXTRA_ARGS%
 echo Running progress-aware live probe from approved WAB network...
 %PYTHON_CMD% "%SCRIPT_DIR%nmap_probe_runner.py" --source-xlsx "%SOURCE_XLSX%" --out-dir "%OUT_DIR%" --nmap-exe "%NMAP_CMD%" %RUNNER_EXTRA_ARGS%
-exit /b %errorlevel%
+set "RUN_EXIT=%ERRORLEVEL%"
+
+echo Refreshing local HTML dashboard after probe run...
+%PYTHON_CMD% "%SCRIPT_DIR%html_report.py" --out-dir "%OUT_DIR%"
+echo Open HTML dashboard: "%HTML_REPORT%"
+exit /b %RUN_EXIT%
