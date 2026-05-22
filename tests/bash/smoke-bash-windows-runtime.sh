@@ -37,6 +37,10 @@ if [[ "$missing" -gt 0 ]]; then
   echo
   echo "Smoke test failed. Missing command count: $missing"
   echo "Expected runtime: Bash on Windows, usually Git Bash or MSYS2 Bash."
+  echo
+  echo "Classification: runtime mismatch unless this was run from Git Bash/MSYS2 on Windows."
+  echo "If running in Replit, Linux, CI, WSL, or macOS, missing Windows executables are expected."
+  echo "Do not rewrite Bash-on-Windows survey tooling to Linux defaults to satisfy this environment."
   exit 1
 fi
 
