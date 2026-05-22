@@ -13,6 +13,8 @@ Key guarantees:
 - nmap_probe_matches.csv and probe_run_summary.json are refreshed after every
   completed target, not only at the end.
 - Ctrl+C / premature termination triggers best-effort analysis of completed XML.
+- Resume mode preserves completed targets as completed; --fresh clears previous
+  probe artifacts and starts over cleanly.
 
 No third-party Python packages are required.
 """
@@ -23,6 +25,7 @@ import asyncio
 import csv
 import json
 import re
+import shutil
 import sys
 import time
 from datetime import datetime
@@ -50,6 +53,18 @@ STATUS_FIELDS = [
     "error",
 ]
 
+PROBE_ARTIFACTS_TO_CLEAR = [
+    "probe_status.csv",
+    "probe_progress.jsonl",
+    "nmap_probe_matches.csv",
+    "probe_run_summary.json",
+]
+
+PROBE_DIRS_TO_CLEAR = [
+    "probe_xml",
+    "probe_logs",
+]
+
 
 def now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
@@ -59,6 +74,18 @@ def safe_name(value: str, max_len: int = 80) -> str:
     value = re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip())
     value = value.strip("._-") or "target"
     return value[:max_len]
+
+
+def clear_probe_artifacts(out_dir: Path) -> None:
+    """Delete only live-probe artifacts. Keep workbook analysis outputs."""
+    for name in PROBE_ARTIFACTS_TO_CLEAR:
+        path = out_dir / name
+        if path.exists():
+            path.unlink()
+    for name in PROBE_DIRS_TO_CLEAR:
+        path = out_dir / name
+        if path.exists():
+            shutil.rmtree(path)
 
 
 def read_target_rows(out_dir: Path) -> List[Dict[str, str]]:
@@ -119,15 +146,17 @@ def analyze_current(inventory: Sequence[Dict[str, str]], out_dir: Path, source_x
     completed = sum(1 for row in status_rows if row.get("status") == "completed")
     failed = sum(1 for row in status_rows if row.get("status") == "failed")
     skipped = sum(1 for row in status_rows if row.get("status") == "skipped")
+    resumed = sum(1 for row in status_rows if row.get("status") == "resumed_completed")
     running = sum(1 for row in status_rows if row.get("status") == "running")
     total = int(status_rows[0].get("total", "0") or 0) if status_rows else 0
-    percent_complete = (completed + failed + skipped) / total * 100 if total else 0.0
+    percent_complete = (completed + failed + skipped + resumed) / total * 100 if total else 0.0
 
     summary = {
         "source": str(source_xlsx),
         "sheet": sheet,
         "total_targets": total,
         "completed_targets": completed,
+        "resumed_completed_targets": resumed,
         "failed_targets": failed,
         "skipped_targets": skipped,
         "running_or_interrupted_targets": running,
@@ -216,6 +245,11 @@ async def run_nmap_target(
 async def run_probe_async(args: argparse.Namespace) -> int:
     source_xlsx = Path(args.source_xlsx)
     out_dir = Path(args.out_dir)
+
+    if args.fresh and not args.analyze_only:
+        print("Fresh run requested: clearing previous live-probe artifacts only.", flush=True)
+        clear_probe_artifacts(out_dir)
+
     xml_dir = out_dir / "probe_xml"
     log_dir = out_dir / "probe_logs"
     status_csv = out_dir / "probe_status.csv"
@@ -241,7 +275,7 @@ async def run_probe_async(args: argparse.Namespace) -> int:
     queue: asyncio.Queue[Optional[Dict[str, object]]] = asyncio.Queue()
     logger_task = asyncio.create_task(event_logger(queue, progress_jsonl))
 
-    await log_event(queue, {"event": "run_started", "total_targets": total, "async_logging": True, "incremental_analysis": True})
+    await log_event(queue, {"event": "run_started", "total_targets": total, "async_logging": True, "incremental_analysis": True, "fresh": bool(args.fresh), "force": bool(args.force)})
 
     try:
         for idx, row in enumerate(targets, start=1):
@@ -253,22 +287,26 @@ async def run_probe_async(args: argparse.Namespace) -> int:
             stderr_path = log_dir / f"{base}.stderr.log"
 
             existing = statuses.get(target, {})
-            if not args.force and existing.get("status") == "completed" and xml_path.exists():
+            if not args.force and existing.get("status") in {"completed", "resumed_completed"} and xml_path.exists():
+                # Resume mode: do not relabel a completed target as skipped. Keep it accounted for.
                 statuses[target] = {
                     **existing,
                     "index": str(idx),
                     "total": str(total),
                     "percent": f"{percent:.2f}",
-                    "status": "skipped",
+                    "status": "resumed_completed",
+                    "xml_path": str(xml_path),
+                    "stdout_log": str(stdout_path),
+                    "stderr_log": str(stderr_path),
                 }
                 write_status(status_csv, statuses)
                 summary = analyze_current(inventory, out_dir, source_xlsx, args.sheet)
                 print(
-                    f"[{idx}/{total} | {percent:6.2f}%] skipping completed: {target} | "
-                    f"matches={summary['nmap_matches']} hosts={summary['parsed_probe_hosts']}",
+                    f"[{idx}/{total} | {percent:6.2f}%] resume: already completed: {target} | "
+                    f"matches={summary['nmap_matches']} hosts={summary['parsed_probe_hosts']} analyzed={summary['percent_accounted_for']}%",
                     flush=True,
                 )
-                await log_event(queue, {"event": "target_skipped", "index": idx, "total": total, "percent": round(percent, 2), "target": target, "summary": summary})
+                await log_event(queue, {"event": "target_resumed_completed", "index": idx, "total": total, "percent": round(percent, 2), "target": target, "summary": summary})
                 continue
 
             print(f"[{idx}/{total} | {percent:6.2f}%] probing: {target}", flush=True)
@@ -359,6 +397,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--host-timeout", default="45s", help="Nmap host timeout per target, default: 45s")
     parser.add_argument("--process-timeout", type=int, default=90, help="Python subprocess timeout per target in seconds")
     parser.add_argument("--force", action="store_true", help="Rescan targets even if completed XML already exists")
+    parser.add_argument("--fresh", action="store_true", help="Clear previous live-probe artifacts before starting")
     parser.add_argument("--analyze-only", action="store_true", help="Do not probe. Analyze completed XML/logs only")
     args = parser.parse_args(argv)
     return asyncio.run(run_probe_async(args))
