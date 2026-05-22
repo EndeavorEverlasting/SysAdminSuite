@@ -98,8 +98,11 @@ foreach ($hostName in $hosts) {
   Write-Host "    $sccmProbe" -ForegroundColor DarkGray
 
   $status = if ($reasons.Count -eq 0) { 'ORDER_PROBE_OK' } else { 'ORDER_PROBE_WARN' }
-  if ($status -eq 'ORDER_PROBE_OK') { Write-Host "[ORDER][$index/$total] Completed $hostName: $status" -ForegroundColor Green }
-  else { Write-Warning "[ORDER][$index/$total] Completed $hostName: $status - $($reasons -join ' || ')" }
+  if ($status -eq 'ORDER_PROBE_OK') {
+    Write-Host "[ORDER][$index/$total] Completed ${hostName}: $status" -ForegroundColor Green
+  } else {
+    Write-Warning "[ORDER][$index/$total] Completed ${hostName}: $status - $($reasons -join ' || ')"
+  }
 
   $rows += [pscustomobject]@{
     HostName = $hostName
