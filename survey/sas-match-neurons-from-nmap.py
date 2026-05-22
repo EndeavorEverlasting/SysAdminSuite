@@ -137,6 +137,33 @@ def load_nmap_index(paths: list[Path]) -> dict[str, list[dict[str, str]]]:
     return index
 
 
+def review_row(
+    *,
+    site: str,
+    room: str,
+    expected_mac: str,
+    expected_serial: str,
+    candidate_ip: str,
+    observed_hostname: str,
+    observed_mac: str,
+    match_status: str,
+    evidence_source: str,
+    notes: str,
+) -> dict[str, str]:
+    return {
+        "Site": site,
+        "Room": room,
+        "ExpectedMAC": expected_mac,
+        "ExpectedSerial": expected_serial,
+        "CandidateIP": candidate_ip,
+        "ObservedHostname": observed_hostname,
+        "ObservedMAC": observed_mac,
+        "MatchStatus": match_status,
+        "EvidenceSource": evidence_source,
+        "Notes": notes,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Resolve Neuron targets by matching expected MACs against nmap XML evidence."
@@ -189,20 +216,40 @@ def main() -> int:
 
             expected_macs = parse_expected_macs(expected_mac_raw)
 
+            if not expected_macs and not expected_serial:
+                review.append(
+                    review_row(
+                        site=site,
+                        room=room,
+                        expected_mac="",
+                        expected_serial="",
+                        candidate_ip="",
+                        observed_hostname="",
+                        observed_mac="",
+                        match_status="NO_USABLE_IDENTIFIER",
+                        evidence_source=str(manifest_path),
+                        notes=f"Row={source_row}; no MAC or serial available for Neuron probe. {notes}".strip(),
+                    )
+                )
+                continue
+
             if not expected_macs:
                 review.append(
-                    {
-                        "Site": site,
-                        "Room": room,
-                        "ExpectedMAC": "",
-                        "ExpectedSerial": expected_serial,
-                        "CandidateIP": "",
-                        "ObservedHostname": "",
-                        "ObservedMAC": "",
-                        "MatchStatus": "SERIAL_ONLY_NO_MAC",
-                        "EvidenceSource": str(manifest_path),
-                        "Notes": f"Row={source_row}; serial present but nmap cannot match BIOS serial by itself. {notes}".strip(),
-                    }
+                    review_row(
+                        site=site,
+                        room=room,
+                        expected_mac="",
+                        expected_serial=expected_serial,
+                        candidate_ip="",
+                        observed_hostname="",
+                        observed_mac="",
+                        match_status="SERIAL_ONLY_NO_MAC",
+                        evidence_source=str(manifest_path),
+                        notes=(
+                            f"Row={source_row}; serial present but nmap cannot match BIOS serial by itself. "
+                            f"Use AD, vendor evidence, or WMI after IP resolution. {notes}"
+                        ).strip(),
+                    )
                 )
                 continue
 
@@ -231,18 +278,18 @@ def main() -> int:
                     )
 
                     review.append(
-                        {
-                            "Site": site,
-                            "Room": room,
-                            "ExpectedMAC": expected_mac,
-                            "ExpectedSerial": expected_serial,
-                            "CandidateIP": hit["ip"],
-                            "ObservedHostname": hit["hostname"],
-                            "ObservedMAC": hit["mac"],
-                            "MatchStatus": "MAC_MATCH_RESOLVED",
-                            "EvidenceSource": hit["source"],
-                            "Notes": f"Row={source_row}; target={target}",
-                        }
+                        review_row(
+                            site=site,
+                            room=room,
+                            expected_mac=expected_mac,
+                            expected_serial=expected_serial,
+                            candidate_ip=hit["ip"],
+                            observed_hostname=hit["hostname"],
+                            observed_mac=hit["mac"],
+                            match_status="MAC_MATCH_RESOLVED",
+                            evidence_source=hit["source"],
+                            notes=f"Row={source_row}; target={target}",
+                        )
                     )
                     matched_any = True
 
@@ -252,38 +299,38 @@ def main() -> int:
                     sources = ";".join(sorted({h["source"] for h in hits}))
 
                     review.append(
-                        {
-                            "Site": site,
-                            "Room": room,
-                            "ExpectedMAC": expected_mac,
-                            "ExpectedSerial": expected_serial,
-                            "CandidateIP": ips,
-                            "ObservedHostname": hostnames,
-                            "ObservedMAC": expected_mac,
-                            "MatchStatus": "MAC_CONFLICT_MULTIPLE_IPS",
-                            "EvidenceSource": sources,
-                            "Notes": f"Row={source_row}; MAC appeared on multiple IPs. Manual review required.",
-                        }
+                        review_row(
+                            site=site,
+                            room=room,
+                            expected_mac=expected_mac,
+                            expected_serial=expected_serial,
+                            candidate_ip=ips,
+                            observed_hostname=hostnames,
+                            observed_mac=expected_mac,
+                            match_status="MAC_CONFLICT_MULTIPLE_IPS",
+                            evidence_source=sources,
+                            notes=f"Row={source_row}; MAC appeared on multiple IPs. Manual review required.",
+                        )
                     )
                     matched_any = True
 
             if not matched_any:
                 review.append(
-                    {
-                        "Site": site,
-                        "Room": room,
-                        "ExpectedMAC": expected_mac_raw,
-                        "ExpectedSerial": expected_serial,
-                        "CandidateIP": "",
-                        "ObservedHostname": "",
-                        "ObservedMAC": "",
-                        "MatchStatus": "MAC_NOT_FOUND_IN_NMAP",
-                        "EvidenceSource": ";".join(str(p) for p in nmap_paths),
-                        "Notes": (
+                    review_row(
+                        site=site,
+                        room=room,
+                        expected_mac=expected_mac_raw,
+                        expected_serial=expected_serial,
+                        candidate_ip="",
+                        observed_hostname="",
+                        observed_mac="",
+                        match_status="MAC_NOT_FOUND_IN_NMAP",
+                        evidence_source=";".join(str(p) for p in nmap_paths),
+                        notes=(
                             f"Row={source_row}; no nmap XML MAC match. "
                             f"Check subnet, VLAN, local segment, device power, or network state. {notes}"
                         ).strip(),
-                    }
+                    )
                 )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
