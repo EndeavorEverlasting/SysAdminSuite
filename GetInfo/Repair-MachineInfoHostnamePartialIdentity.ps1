@@ -54,7 +54,11 @@ function Test-UsableIdentityValue {
   param([string]$Value)
   if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
   $v = $Value.Trim().ToLowerInvariant()
-  $badValues = @('0','00000000','unknown','none','n/a','na','null','default string','system serial number','to be filled by o.e.m.','to be filled by oem','not specified','error','offline')
+  $badValues = @(
+    '0','00000000','unknown','none','n/a','na','null','default string',
+    'system serial number','to be filled by o.e.m.','to be filled by oem',
+    'not specified','error','offline'
+  )
   return ($badValues -notcontains $v)
 }
 
@@ -121,27 +125,101 @@ function Resolve-HostnameLastResortIp {
   return ''
 }
 
+function Try-GetSerialByPowerShellWmi {
+  param([Parameter(Mandatory)][string]$Target)
+
+  $errors = @()
+
+  try {
+    $bios = Get-CimInstance -ClassName Win32_BIOS -ComputerName $Target -ErrorAction Stop
+    if ($bios -and (Test-UsableIdentityValue $bios.SerialNumber)) {
+      return [pscustomobject]@{ Serial = $bios.SerialNumber; Source = "last-resort:PowerShell CIM Win32_BIOS via $Target"; Error = '' }
+    }
+  } catch {
+    $errors += "CIM Win32_BIOS failed for ${Target}: $($_.Exception.Message)"
+  }
+
+  try {
+    $product = Get-CimInstance -ClassName Win32_ComputerSystemProduct -ComputerName $Target -ErrorAction Stop
+    if ($product -and (Test-UsableIdentityValue $product.IdentifyingNumber)) {
+      return [pscustomobject]@{ Serial = $product.IdentifyingNumber; Source = "last-resort:PowerShell CIM CSProduct via $Target"; Error = '' }
+    }
+  } catch {
+    $errors += "CIM CSProduct failed for ${Target}: $($_.Exception.Message)"
+  }
+
+  try {
+    $biosWmi = Get-WmiObject -Class Win32_BIOS -ComputerName $Target -ErrorAction Stop
+    if ($biosWmi -and (Test-UsableIdentityValue $biosWmi.SerialNumber)) {
+      return [pscustomobject]@{ Serial = $biosWmi.SerialNumber; Source = "last-resort:PowerShell WMI Win32_BIOS via $Target"; Error = '' }
+    }
+  } catch {
+    $errors += "WMI Win32_BIOS failed for ${Target}: $($_.Exception.Message)"
+  }
+
+  [pscustomobject]@{ Serial = ''; Source = ''; Error = ($errors -join ' || ') }
+}
+
 function Try-GetSerialByTarget {
   param(
     [Parameter(Mandatory)][string]$Target,
-    [Parameter(Mandatory)][string]$WmicPath
+    [string]$WmicPath
   )
 
-  if (-not $WmicPath) { return [pscustomobject]@{ Serial = ''; Source = ''; Error = 'wmic.exe unavailable' } }
+  $errors = @()
 
-  $bios = Invoke-NativeCommand -FilePath $WmicPath -Arguments @("/node:$Target", 'bios', 'get', 'SerialNumber', '/value')
-  $serials = @(Get-WmicValues -Probe $bios -Key 'SerialNumber' | Where-Object { Test-UsableIdentityValue $_ })
-  if ($serials.Count -gt 0) {
-    return [pscustomobject]@{ Serial = $serials[0]; Source = "last-resort-ip:wmic BIOS via $Target"; Error = '' }
+  if ($WmicPath) {
+    $bios = Invoke-NativeCommand -FilePath $WmicPath -Arguments @("/node:$Target", 'bios', 'get', 'SerialNumber', '/value')
+    $serials = @(Get-WmicValues -Probe $bios -Key 'SerialNumber' | Where-Object { Test-UsableIdentityValue $_ })
+    if ($serials.Count -gt 0) {
+      return [pscustomobject]@{ Serial = $serials[0]; Source = "last-resort:wmic BIOS via $Target"; Error = '' }
+    }
+    $errors += "WMIC BIOS serial failed for ${Target}: $($bios.Text)"
+
+    $product = Invoke-NativeCommand -FilePath $WmicPath -Arguments @("/node:$Target", 'csproduct', 'get', 'IdentifyingNumber', '/value')
+    $serials = @(Get-WmicValues -Probe $product -Key 'IdentifyingNumber' | Where-Object { Test-UsableIdentityValue $_ })
+    if ($serials.Count -gt 0) {
+      return [pscustomobject]@{ Serial = $serials[0]; Source = "last-resort:wmic CSProduct via $Target"; Error = '' }
+    }
+    $errors += "WMIC CSProduct serial failed for ${Target}: $($product.Text)"
+  } else {
+    $errors += 'wmic.exe unavailable'
   }
 
-  $product = Invoke-NativeCommand -FilePath $WmicPath -Arguments @("/node:$Target", 'csproduct', 'get', 'IdentifyingNumber', '/value')
-  $serials = @(Get-WmicValues -Probe $product -Key 'IdentifyingNumber' | Where-Object { Test-UsableIdentityValue $_ })
-  if ($serials.Count -gt 0) {
-    return [pscustomobject]@{ Serial = $serials[0]; Source = "last-resort-ip:wmic CSProduct via $Target"; Error = '' }
+  $psProbe = Try-GetSerialByPowerShellWmi -Target $Target
+  if (Test-UsableIdentityValue $psProbe.Serial) {
+    return $psProbe
+  }
+  if ($psProbe.Error) { $errors += $psProbe.Error }
+
+  return [pscustomobject]@{ Serial = ''; Source = ''; Error = ($errors -join ' || ') }
+}
+
+function Try-GetMacByPowerShellWmi {
+  param([Parameter(Mandatory)][string]$Target)
+
+  $errors = @()
+  try {
+    $nics = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -ComputerName $Target -Filter 'IPEnabled=True' -ErrorAction Stop
+    $found = @($nics | ForEach-Object { ConvertTo-StandardMac $_.MACAddress } | Where-Object { $_ } | Sort-Object -Unique)
+    if ($found.Count -gt 0) {
+      return [pscustomobject]@{ MACAddress = ($found -join ';'); Source = "last-resort:PowerShell CIM NICConfig via $Target"; Error = '' }
+    }
+  } catch {
+    $errors += "CIM NICConfig failed for ${Target}: $($_.Exception.Message)"
   }
 
-  return [pscustomobject]@{ Serial = ''; Source = ''; Error = "No serial returned by WMIC for $Target. BIOS: $($bios.Text) CSProduct: $($product.Text)" }
+  try {
+    $nicsWmi = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -ComputerName $Target -Filter 'IPEnabled=True' -ErrorAction Stop
+    $found = @($nicsWmi | ForEach-Object { ConvertTo-StandardMac $_.MACAddress } | Where-Object { $_ } | Sort-Object -Unique)
+    if ($found.Count -gt 0) {
+      return [pscustomobject]@{ MACAddress = ($found -join ';'); Source = "last-resort:PowerShell WMI NICConfig via $Target"; Error = '' }
+    }
+  } catch {
+    $errors += "WMI NICConfig failed for ${Target}: $($_.Exception.Message)"
+  }
+
+  [pscustomobject]@{ MACAddress = ''; Source = ''; Error = ($errors -join ' || ') }
 }
 
 function Try-GetMacByTarget {
@@ -161,35 +239,43 @@ function Try-GetMacByTarget {
   if ($WmicPath) {
     $nic = Invoke-NativeCommand -FilePath $WmicPath -Arguments @("/node:$Target", 'nicconfig', 'where', 'IPEnabled=TRUE', 'get', 'MACAddress', '/value')
     $found = @(Get-WmicValues -Probe $nic -Key 'MACAddress' | ForEach-Object { ConvertTo-StandardMac $_ } | Where-Object { $_ })
-    if ($found.Count -gt 0) { $macs += $found; $sources += "last-resort-ip:wmic NICConfig via $Target" }
-    else { $errors += "WMIC MAC failed for $Target: $($nic.Text)" }
+    if ($found.Count -gt 0) { $macs += $found; $sources += "last-resort:wmic NICConfig via $Target" }
+    else { $errors += "WMIC MAC failed for ${Target}: $($nic.Text)" }
+  }
+
+  $psMac = Try-GetMacByPowerShellWmi -Target $Target
+  if (Test-UsableIdentityValue $psMac.MACAddress) {
+    $macs += ($psMac.MACAddress -split ';')
+    $sources += $psMac.Source
+  } elseif ($psMac.Error) {
+    $errors += $psMac.Error
   }
 
   if ($NbtstatPath) {
     $args = if ($TargetIsIp) { @('-A', $Target) } else { @('-a', $Target) }
     $nbt = Invoke-NativeCommand -FilePath $NbtstatPath -Arguments $args
     $found = @(Get-MacAddressesFromText -Lines $nbt.Output)
-    if ($found.Count -gt 0) { $macs += $found; $sources += "last-resort-ip:nbtstat via $Target" }
-    else { $errors += "NBTSTAT MAC failed for $Target: $($nbt.Text)" }
+    if ($found.Count -gt 0) { $macs += $found; $sources += "last-resort:nbtstat via $Target" }
+    else { $errors += "NBTSTAT MAC failed for ${Target}: $($nbt.Text)" }
   }
 
   if ($GetmacPath) {
     $gm = Invoke-NativeCommand -FilePath $GetmacPath -Arguments @('/s', $Target, '/fo', 'csv', '/nh')
     $found = @(Get-MacAddressesFromText -Lines $gm.Output)
-    if ($found.Count -gt 0) { $macs += $found; $sources += "last-resort-ip:getmac via $Target" }
-    else { $errors += "GETMAC failed for $Target: $($gm.Text)" }
+    if ($found.Count -gt 0) { $macs += $found; $sources += "last-resort:getmac via $Target" }
+    else { $errors += "GETMAC failed for ${Target}: $($gm.Text)" }
   }
 
   if ($TargetIsIp -and $ArpPath) {
     $arp = Invoke-NativeCommand -FilePath $ArpPath -Arguments @('-a', $Target)
     $found = @(Get-MacAddressesFromText -Lines $arp.Output)
-    if ($found.Count -gt 0) { $macs += $found; $sources += "last-resort-ip:arp via $Target" }
-    else { $errors += "ARP failed for $Target: $($arp.Text)" }
+    if ($found.Count -gt 0) { $macs += $found; $sources += "last-resort:arp via $Target" }
+    else { $errors += "ARP failed for ${Target}: $($arp.Text)" }
   }
 
   [pscustomobject]@{
-    MACAddress = (($macs | Sort-Object -Unique) -join ';')
-    Source     = (($sources | Sort-Object -Unique) -join ';')
+    MACAddress = (($macs | Where-Object { $_ } | Sort-Object -Unique) -join ';')
+    Source     = (($sources | Where-Object { $_ } | Sort-Object -Unique) -join ';')
     Error      = (($errors | Where-Object { $_ }) -join ' || ')
   }
 }
@@ -200,9 +286,9 @@ $nbtstatPath = Get-NativeToolPath -ToolName 'nbtstat.exe'
 $getmacPath = Get-NativeToolPath -ToolName 'getmac.exe'
 $arpPath = Get-NativeToolPath -ToolName 'arp.exe'
 
-Write-Host "[REPAIR] Last-resort IP repair starting for $($rows.Count) row(s)." -ForegroundColor Cyan
+Write-Host "[REPAIR] Last-resort repair starting for $($rows.Count) row(s)." -ForegroundColor Cyan
 Write-Host "[REPAIR] Rule: hostname evidence stays primary; IP is only used when serial or MAC is missing." -ForegroundColor Yellow
-if (-not $wmicPath) { Write-Warning '[REPAIR] wmic.exe is unavailable. IP fallback may recover MAC, but cannot recover BIOS serial without a WMIC/WMI-capable path.' }
+if (-not $wmicPath) { Write-Warning '[REPAIR] wmic.exe is unavailable. Trying PowerShell CIM/WMI as last-resort serial path.' }
 
 $total = $rows.Count
 $index = 0
