@@ -29,6 +29,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 import xml.etree.ElementTree as ET
 
+try:
+    from html_report import generate_report
+except Exception:  # pragma: no cover - report generation must never block audit data output
+    generate_report = None  # type: ignore[assignment]
+
 TARGET_COLUMNS = ["Neuron IP", "Neuron Hostname", "Cybernet Hostname"]
 HOSTNAME_COLUMNS = ["Neuron Hostname", "Cybernet Hostname"]
 MAC_COLUMNS = ["Neuron MAC", "Cybernet MAC"]
@@ -156,17 +161,10 @@ def is_target(value: str) -> bool:
     value = clean(value)
     if not value:
         return False
-
-    # Nmap treats slash as CIDR/netmask syntax. Values like
-    # AKBARANATOR/WMH300OPR378 are workbook notes or combined labels, not a
-    # single scannable hostname, so keep them out of targets.txt.
     if any(ch in value for ch in " ;,|/\\\"'<>[]{}()"):
         return False
-
-    # Avoid malformed hostnames that Nmap will reject or misinterpret.
     if value.startswith(("-", ".", ":")) or value.endswith(("-", ".", ":")):
         return False
-
     return bool(TARGET_RE.fullmatch(value))
 
 
@@ -286,12 +284,7 @@ def build_targets(inventory: Sequence[Dict[str, str]]) -> List[Dict[str, str]]:
                 continue
             key = value.lower()
             if key not in seen:
-                seen[key] = {
-                    "target": value,
-                    "source_column": col,
-                    "first_source_row": rec["source_row"],
-                    "source_rows": rec["source_row"],
-                }
+                seen[key] = {"target": value, "source_column": col, "first_source_row": rec["source_row"], "source_rows": rec["source_row"]}
             else:
                 rows = set(seen[key]["source_rows"].split(";"))
                 rows.add(rec["source_row"])
@@ -317,7 +310,6 @@ def classify_duplicate_group(hits: Sequence[Tuple[Dict[str, str], str]]) -> Tupl
     deployed_recs = [rec for rec in all_recs if rec.get("dupe_deployed_yes") == "yes"]
     deployed_rows = {rec["source_row"] for rec in deployed_recs}
     deployed_locations = {rec.get("location_signature", "UNKNOWN_LOCATION") for rec in deployed_recs}
-
     if len(deployed_rows) >= 2 and len(deployed_locations) >= 2:
         return "real_deployed_duplicate", "Dupe Deployed is Yes on two or more rows and those rows are at different locations.", deployed_recs
     if len(deployed_rows) < 2:
@@ -353,14 +345,6 @@ def duplicate_rows(inventory: Sequence[Dict[str, str]], columns: Sequence[str], 
                 base[ctx] = rec.get(ctx, "")
             out.append(base)
     return out
-
-
-def real_deployed_duplicate_rows(inventory: Sequence[Dict[str, str]]) -> List[Dict[str, str]]:
-    rows: List[Dict[str, str]] = []
-    rows.extend(duplicate_rows(inventory, MAC_COLUMNS, "mac"))
-    rows.extend(duplicate_rows(inventory, SERIAL_COLUMNS, "serial"))
-    rows.extend(duplicate_rows(inventory, HOSTNAME_COLUMNS, "hostname"))
-    return [row for row in rows if row.get("duplicate_class") == "real_deployed_duplicate"]
 
 
 def write_csv(path: Path, rows: Sequence[Dict[str, str]], fields: Optional[Sequence[str]] = None) -> None:
@@ -439,6 +423,15 @@ def match_nmap(hosts: Sequence[Dict[str, str]], inventory: Sequence[Dict[str, st
     return matches
 
 
+def safe_generate_html(out_dir: Path) -> str:
+    if generate_report is None:
+        return ""
+    try:
+        return str(generate_report(out_dir))
+    except Exception as exc:
+        return f"html_report_failed: {exc}"
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Build Nmap targets and deployment-aware duplicate identity reports from a Cybernet workbook.")
     parser.add_argument("--source-xlsx", required=True, help="Path to the source deployment workbook")
@@ -458,8 +451,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     dup_macs = duplicate_rows(inventory, MAC_COLUMNS, "mac")
     dup_serials = duplicate_rows(inventory, SERIAL_COLUMNS, "serial")
     dup_hostnames = duplicate_rows(inventory, HOSTNAME_COLUMNS, "hostname")
-    real_dupes = [row for row in [*dup_macs, *dup_serials, *dup_hostnames] if row.get("duplicate_class") == "real_deployed_duplicate"]
-    false_positive_dupes = [row for row in [*dup_macs, *dup_serials, *dup_hostnames] if row.get("duplicate_class") != "real_deployed_duplicate"]
+    all_dupes = [*dup_macs, *dup_serials, *dup_hostnames]
+    real_dupes = [row for row in all_dupes if row.get("duplicate_class") == "real_deployed_duplicate"]
+    false_positive_dupes = [row for row in all_dupes if row.get("duplicate_class") != "real_deployed_duplicate"]
 
     fields = ["source_row"] + TARGET_COLUMNS + MAC_COLUMNS + SERIAL_COLUMNS + CONTEXT_COLUMNS + [
         "dupe_deployed_value",
@@ -510,6 +504,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         },
     }
     (out_dir / "audit_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    html_report = safe_generate_html(out_dir)
+    if html_report:
+        summary["outputs"]["html_report"] = html_report
+        (out_dir / "audit_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     print(json.dumps(summary, indent=2))
     if args.fail_on_duplicates and real_dupes:
