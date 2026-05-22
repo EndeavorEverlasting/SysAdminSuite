@@ -1,0 +1,34 @@
+{
+  "referenceId": "11.8.0.328",
+  "source": "Manual baseline from Capsule Command Console screen capture, 2026-04-29",
+  "notes": "Expected Neuron firmware and DDI package set for survey comparison. Keep this file as the local offline reference so field techs do not need to log into the command console just to identify the expected package set.",
+  "firmware": [
+    {
+      "name": "Application binaries packages",
+      "version": "11.8.0.328"
+    },
+    {
+      "name": "Capsule Neuron 3 certificate compatibility version 2025",
+      "version": "1.0.0.0"
+    }
+  ],
+  "ddi": [
+    { "name": "AspectA", "version": "5.1.3.10" },
+    { "name": "BaxterIFMout", "version": "5.4.6.48" },
+    { "name": "DatexA", "version": "5.3.20.34" },
+    { "name": "DatexOhmedaCom", "version": "5.3.14.11" },
+    { "name": "DragerMedibus", "version": "5.3.23.8" },
+    { "name": "FreseniusF", "version": "5.4.5.49" },
+    { "name": "InvivoB", "version": "5.1.8.2" },
+    { "name": "IRadimedA", "version": "5.2.2.5" },
+    { "name": "MarquetteA5", "version": "5.3.9.11" },
+    { "name": "MindrayB", "version": "5.3.1.4" },
+    { "name": "MindrayD", "version": "5.3.6.22" },
+    { "name": "MindrayE", "version": "5.3.5.22" },
+    { "name": "NoninA", "version": "5.0.1.7" },
+    { "name": "PhilipsDataExport", "version": "5.3.19.21" },
+    { "name": "SorinA", "version": "5.3.3.1" },
+    { "name": "SorinC", "version": "5.4.0.30" },
+    { "name": "TerumoD", "version": "5.2.2.2" }
+  ]
+}
