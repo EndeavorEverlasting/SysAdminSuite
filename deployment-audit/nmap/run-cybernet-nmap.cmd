@@ -3,7 +3,8 @@ setlocal EnableExtensions
 
 REM Non-PowerShell workflow for Cybernet/Neuron target verification.
 REM Offline workbook analysis is allowed anywhere.
-REM Live Nmap probing is blocked unless the WAB network guard passes.
+REM Live probing is blocked unless the WAB network guard passes.
+REM Live probing is progress-aware and writes resumable per-target logs.
 
 set "SOURCE_XLSX=%~1"
 if "%SOURCE_XLSX%"=="" (
@@ -13,7 +14,6 @@ if "%SOURCE_XLSX%"=="" (
 
 set "SCRIPT_DIR=%~dp0"
 set "OUT_DIR=%SCRIPT_DIR%output\cybernet-nmap-audit"
-set "NMAP_XML=%OUT_DIR%\nmap-discovery.xml"
 set "WAB_GUARD_CONFIG=%SCRIPT_DIR%northwell_wab_guard.local.json"
 set "WAB_GUARD_EVIDENCE=%OUT_DIR%\network-guard-evidence.txt"
 set "PYTHON_CMD="
@@ -63,10 +63,6 @@ if "%NMAP_CMD%"=="" (
   exit /b 0
 )
 
-echo Running live probe from approved WAB network...
-"%NMAP_CMD%" -sn -n --reason -iL "%OUT_DIR%\targets.txt" -oX "%NMAP_XML%"
-if errorlevel 1 exit /b %errorlevel%
-
-echo Matching live probe XML back to source inventory...
-%PYTHON_CMD% "%SCRIPT_DIR%cybernet_target_audit.py" --source-xlsx "%SOURCE_XLSX%" --out-dir "%OUT_DIR%" --nmap-xml "%NMAP_XML%" --fail-on-duplicates
+echo Running progress-aware live probe from approved WAB network...
+%PYTHON_CMD% "%SCRIPT_DIR%nmap_probe_runner.py" --source-xlsx "%SOURCE_XLSX%" --out-dir "%OUT_DIR%" --nmap-exe "%NMAP_CMD%"
 exit /b %errorlevel%
