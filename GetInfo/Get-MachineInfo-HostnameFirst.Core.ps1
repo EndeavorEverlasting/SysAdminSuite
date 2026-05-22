@@ -47,6 +47,14 @@ if (-not (Test-Path -LiteralPath $implementationScript)) {
 & $implementationScript -ListPath $ListPath -OutputPath $OutputPath -Throttle $Throttle
 $scriptExitCode = $LASTEXITCODE
 
+$htmlRefreshScript = Join-Path $PSScriptRoot 'Update-MachineInfoHostnameHtml.ps1'
+if (Test-Path -LiteralPath $htmlRefreshScript) {
+  Write-Host "[CORE] Refreshing HTML report so Serial and MACAddress are visible up front." -ForegroundColor Cyan
+  & $htmlRefreshScript -CsvPath $OutputPath
+} else {
+  Write-Warning "HTML refresh helper not found: $htmlRefreshScript"
+}
+
 Write-Host "[CORE] Phase 2 complete. Main output: $OutputPath" -ForegroundColor Green
 Write-Host "[CORE] Protected core finished." -ForegroundColor Green
 
