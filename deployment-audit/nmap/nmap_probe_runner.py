@@ -1,27 +1,54 @@
 #!/usr/bin/env python3
 """
-Progress-aware Nmap probe runner for Cybernet / Neuron audits.
+Async, progress-aware Nmap probe runner for Cybernet / Neuron audits.
 
-This runner intentionally scans one target at a time so the console and logs show
-exactly what target is being probed, how far through the target list the run is,
-and what completed before any premature termination.
+The runner scans one target at a time by default, but it is implemented with
+async subprocess execution and an async event logger so artifacts are updated
+continuously while the probe is running.
+
+Key guarantees:
+- Console shows target, index, percent, elapsed time, and analysis counts.
+- probe_progress.jsonl is flushed after every event.
+- probe_status.csv is rewritten after every state change.
+- nmap_probe_matches.csv and probe_run_summary.json are refreshed after every
+  completed target, not only at the end.
+- Ctrl+C / premature termination triggers best-effort analysis of completed XML.
 
 No third-party Python packages are required.
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import csv
 import json
 import re
-import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from cybernet_target_audit import build_inventory, match_nmap, parse_nmap_xml, read_xlsx_rows, write_csv
+
+STATUS_FIELDS = [
+    "target",
+    "index",
+    "total",
+    "percent",
+    "status",
+    "started_at",
+    "ended_at",
+    "duration_seconds",
+    "return_code",
+    "xml_path",
+    "stdout_log",
+    "stderr_log",
+    "source_column",
+    "first_source_row",
+    "source_rows",
+    "error",
+]
 
 
 def now_iso() -> str:
@@ -47,39 +74,16 @@ def read_target_rows(out_dir: Path) -> List[Dict[str, str]]:
     raise FileNotFoundError(f"No targets found in {out_dir}. Run cybernet_target_audit.py first.")
 
 
-def append_jsonl(path: Path, event: Dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
-
-
-def write_status(path: Path, statuses: Dict[str, Dict[str, str]]) -> None:
-    fields = [
-        "target",
-        "index",
-        "total",
-        "percent",
-        "status",
-        "started_at",
-        "ended_at",
-        "duration_seconds",
-        "return_code",
-        "xml_path",
-        "stdout_log",
-        "stderr_log",
-        "source_column",
-        "first_source_row",
-        "source_rows",
-        "error",
-    ]
-    write_csv(path, list(statuses.values()), fields)
-
-
 def read_status(path: Path) -> Dict[str, Dict[str, str]]:
     if not path.exists():
         return {}
     with path.open("r", newline="", encoding="utf-8") as f:
         return {row["target"]: row for row in csv.DictReader(f) if row.get("target")}
+
+
+def write_status(path: Path, statuses: Dict[str, Dict[str, str]]) -> None:
+    rows = sorted(statuses.values(), key=lambda r: int(r.get("index") or 0))
+    write_csv(path, rows, STATUS_FIELDS)
 
 
 def parse_all_xml(xml_dir: Path) -> List[Dict[str, str]]:
@@ -106,9 +110,7 @@ def parse_all_xml(xml_dir: Path) -> List[Dict[str, str]]:
     return hosts
 
 
-def analyze_partial(source_xlsx: Path, sheet: str, out_dir: Path) -> Dict[str, object]:
-    rows = read_xlsx_rows(source_xlsx, sheet)
-    inventory = build_inventory(rows)
+def analyze_current(inventory: Sequence[Dict[str, str]], out_dir: Path, source_xlsx: Path, sheet: str) -> Dict[str, object]:
     hosts = parse_all_xml(out_dir / "probe_xml")
     matches = match_nmap(hosts, inventory)
     write_csv(out_dir / "nmap_probe_matches.csv", matches)
@@ -119,6 +121,7 @@ def analyze_partial(source_xlsx: Path, sheet: str, out_dir: Path) -> Dict[str, o
     skipped = sum(1 for row in status_rows if row.get("status") == "skipped")
     running = sum(1 for row in status_rows if row.get("status") == "running")
     total = int(status_rows[0].get("total", "0") or 0) if status_rows else 0
+    percent_complete = (completed + failed + skipped) / total * 100 if total else 0.0
 
     summary = {
         "source": str(source_xlsx),
@@ -128,20 +131,89 @@ def analyze_partial(source_xlsx: Path, sheet: str, out_dir: Path) -> Dict[str, o
         "failed_targets": failed,
         "skipped_targets": skipped,
         "running_or_interrupted_targets": running,
+        "percent_accounted_for": round(percent_complete, 2),
         "parsed_probe_hosts": len(hosts),
         "nmap_matches": len(matches),
+        "last_updated": now_iso(),
         "outputs": {
             "probe_status_csv": str(out_dir / "probe_status.csv"),
             "probe_progress_jsonl": str(out_dir / "probe_progress.jsonl"),
             "nmap_probe_matches_csv": str(out_dir / "nmap_probe_matches.csv"),
+            "probe_run_summary_json": str(out_dir / "probe_run_summary.json"),
             "probe_xml_dir": str(out_dir / "probe_xml"),
+            "probe_logs_dir": str(out_dir / "probe_logs"),
         },
     }
     (out_dir / "probe_run_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
 
-def run_probe(args: argparse.Namespace) -> int:
+async def event_logger(queue: asyncio.Queue[Optional[Dict[str, object]]], progress_path: Path) -> None:
+    progress_path.parent.mkdir(parents=True, exist_ok=True)
+    with progress_path.open("a", encoding="utf-8") as f:
+        while True:
+            event = await queue.get()
+            try:
+                if event is None:
+                    return
+                f.write(json.dumps(event, ensure_ascii=False) + "\n")
+                f.flush()
+            finally:
+                queue.task_done()
+
+
+async def log_event(queue: asyncio.Queue[Optional[Dict[str, object]]], event: Dict[str, object]) -> None:
+    event.setdefault("time", now_iso())
+    await queue.put(event)
+
+
+async def run_nmap_target(
+    nmap_exe: str,
+    target: str,
+    xml_path: Path,
+    stdout_path: Path,
+    stderr_path: Path,
+    host_timeout: str,
+    process_timeout: int,
+) -> Tuple[str, int, str, float]:
+    command = [nmap_exe, "-sn", "-n", "--reason", "--host-timeout", host_timeout, "-oX", str(xml_path), target]
+    start = time.monotonic()
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=process_timeout)
+    except asyncio.TimeoutError:
+        process.kill()
+        stdout_b, stderr_b = await process.communicate()
+        stdout_path.write_text((stdout_b or b"").decode("utf-8", errors="replace"), encoding="utf-8", errors="replace")
+        stderr_path.write_text((stderr_b or b"").decode("utf-8", errors="replace"), encoding="utf-8", errors="replace")
+        return "failed", 124, f"Process timeout after {process_timeout} seconds", time.monotonic() - start
+    except asyncio.CancelledError:
+        process.terminate()
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=5)
+        except Exception:
+            process.kill()
+            stdout_b, stderr_b = await process.communicate()
+        stdout_path.write_text((stdout_b or b"").decode("utf-8", errors="replace"), encoding="utf-8", errors="replace")
+        stderr_path.write_text((stderr_b or b"").decode("utf-8", errors="replace"), encoding="utf-8", errors="replace")
+        raise
+
+    stdout = (stdout_b or b"").decode("utf-8", errors="replace")
+    stderr = (stderr_b or b"").decode("utf-8", errors="replace")
+    stdout_path.write_text(stdout, encoding="utf-8", errors="replace")
+    stderr_path.write_text(stderr, encoding="utf-8", errors="replace")
+
+    rc = process.returncode if process.returncode is not None else 1
+    status = "completed" if rc == 0 else "failed"
+    error = "" if rc == 0 else (stderr or stdout or "Nmap returned non-zero exit code").strip()[:500]
+    return status, rc, error, time.monotonic() - start
+
+
+async def run_probe_async(args: argparse.Namespace) -> int:
     source_xlsx = Path(args.source_xlsx)
     out_dir = Path(args.out_dir)
     xml_dir = out_dir / "probe_xml"
@@ -151,20 +223,25 @@ def run_probe(args: argparse.Namespace) -> int:
     xml_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
 
+    rows = read_xlsx_rows(source_xlsx, args.sheet)
+    inventory = build_inventory(rows)
     targets = read_target_rows(out_dir)
     total = len(targets)
     statuses = read_status(status_csv)
 
     if args.analyze_only:
-        print(json.dumps(analyze_partial(source_xlsx, args.sheet, out_dir), indent=2))
+        summary = analyze_current(inventory, out_dir, source_xlsx, args.sheet)
+        print(json.dumps(summary, indent=2))
         return 0
 
     if total == 0:
         print("No targets to probe.")
         return 0
 
-    started_run = now_iso()
-    append_jsonl(progress_jsonl, {"event": "run_started", "time": started_run, "total_targets": total})
+    queue: asyncio.Queue[Optional[Dict[str, object]]] = asyncio.Queue()
+    logger_task = asyncio.create_task(event_logger(queue, progress_jsonl))
+
+    await log_event(queue, {"event": "run_started", "total_targets": total, "async_logging": True, "incremental_analysis": True})
 
     try:
         for idx, row in enumerate(targets, start=1):
@@ -177,14 +254,24 @@ def run_probe(args: argparse.Namespace) -> int:
 
             existing = statuses.get(target, {})
             if not args.force and existing.get("status") == "completed" and xml_path.exists():
-                print(f"[{idx}/{total} | {percent:6.2f}%] skipping completed: {target}", flush=True)
-                existing.update({"index": str(idx), "total": str(total), "percent": f"{percent:.2f}", "status": "skipped"})
-                statuses[target] = existing
+                statuses[target] = {
+                    **existing,
+                    "index": str(idx),
+                    "total": str(total),
+                    "percent": f"{percent:.2f}",
+                    "status": "skipped",
+                }
                 write_status(status_csv, statuses)
+                summary = analyze_current(inventory, out_dir, source_xlsx, args.sheet)
+                print(
+                    f"[{idx}/{total} | {percent:6.2f}%] skipping completed: {target} | "
+                    f"matches={summary['nmap_matches']} hosts={summary['parsed_probe_hosts']}",
+                    flush=True,
+                )
+                await log_event(queue, {"event": "target_skipped", "index": idx, "total": total, "percent": round(percent, 2), "target": target, "summary": summary})
                 continue
 
             print(f"[{idx}/{total} | {percent:6.2f}%] probing: {target}", flush=True)
-            start = time.monotonic()
             started_at = now_iso()
             statuses[target] = {
                 "target": target,
@@ -205,25 +292,19 @@ def run_probe(args: argparse.Namespace) -> int:
                 "error": "",
             }
             write_status(status_csv, statuses)
-            append_jsonl(progress_jsonl, {"event": "target_started", "time": started_at, "index": idx, "total": total, "percent": round(percent, 2), "target": target})
+            await log_event(queue, {"event": "target_started", "index": idx, "total": total, "percent": round(percent, 2), "target": target})
 
-            command = [args.nmap_exe, "-sn", "-n", "--reason", "--host-timeout", args.host_timeout, "-oX", str(xml_path), target]
-            try:
-                completed = subprocess.run(command, capture_output=True, text=True, timeout=args.process_timeout, shell=False)
-                stdout_path.write_text(completed.stdout or "", encoding="utf-8", errors="replace")
-                stderr_path.write_text(completed.stderr or "", encoding="utf-8", errors="replace")
-                status = "completed" if completed.returncode == 0 else "failed"
-                error = "" if completed.returncode == 0 else (completed.stderr or completed.stdout or "Nmap returned non-zero exit code").strip()[:500]
-                rc = completed.returncode
-            except subprocess.TimeoutExpired as exc:
-                stdout_path.write_text(exc.stdout or "", encoding="utf-8", errors="replace")
-                stderr_path.write_text(exc.stderr or "", encoding="utf-8", errors="replace")
-                status = "failed"
-                error = f"Process timeout after {args.process_timeout} seconds"
-                rc = 124
+            status, rc, error, duration = await run_nmap_target(
+                args.nmap_exe,
+                target,
+                xml_path,
+                stdout_path,
+                stderr_path,
+                args.host_timeout,
+                args.process_timeout,
+            )
 
             ended_at = now_iso()
-            duration = time.monotonic() - start
             statuses[target].update({
                 "status": status,
                 "ended_at": ended_at,
@@ -232,23 +313,45 @@ def run_probe(args: argparse.Namespace) -> int:
                 "error": error,
             })
             write_status(status_csv, statuses)
-            append_jsonl(progress_jsonl, {"event": f"target_{status}", "time": ended_at, "index": idx, "total": total, "percent": round(percent, 2), "target": target, "return_code": rc, "duration_seconds": round(duration, 2)})
+
+            summary = analyze_current(inventory, out_dir, source_xlsx, args.sheet)
+            print(
+                f"[{idx}/{total} | {percent:6.2f}%] {status}: {target} | "
+                f"rc={rc} elapsed={duration:.1f}s hosts={summary['parsed_probe_hosts']} "
+                f"matches={summary['nmap_matches']} analyzed={summary['percent_accounted_for']}%",
+                flush=True,
+            )
+            await log_event(queue, {
+                "event": f"target_{status}",
+                "index": idx,
+                "total": total,
+                "percent": round(percent, 2),
+                "target": target,
+                "return_code": rc,
+                "duration_seconds": round(duration, 2),
+                "summary": summary,
+            })
 
     except KeyboardInterrupt:
-        print("\nProbe interrupted. Analyzing completed probe XML files...", flush=True)
-        append_jsonl(progress_jsonl, {"event": "run_interrupted", "time": now_iso()})
-        summary = analyze_partial(source_xlsx, args.sheet, out_dir)
+        print("\nProbe interrupted. Refreshing analysis artifacts from completed XML files...", flush=True)
+        await log_event(queue, {"event": "run_interrupted"})
+        summary = analyze_current(inventory, out_dir, source_xlsx, args.sheet)
         print(json.dumps(summary, indent=2))
         return 130
+    finally:
+        final_summary = analyze_current(inventory, out_dir, source_xlsx, args.sheet)
+        await log_event(queue, {"event": "analysis_refreshed", "summary": final_summary})
+        await queue.put(None)
+        await queue.join()
+        await logger_task
 
-    summary = analyze_partial(source_xlsx, args.sheet, out_dir)
-    append_jsonl(progress_jsonl, {"event": "run_finished", "time": now_iso(), "summary": summary})
+    summary = analyze_current(inventory, out_dir, source_xlsx, args.sheet)
     print(json.dumps(summary, indent=2))
     return 0
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Run or analyze a progress-aware Nmap probe.")
+    parser = argparse.ArgumentParser(description="Run or analyze an async progress-aware Nmap probe.")
     parser.add_argument("--source-xlsx", required=True, help="Path to the source deployment workbook")
     parser.add_argument("--sheet", default="Deployments", help="Worksheet name, default: Deployments")
     parser.add_argument("--out-dir", required=True, help="Audit output folder containing targets.txt/nmap_targets.csv")
@@ -258,7 +361,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--force", action="store_true", help="Rescan targets even if completed XML already exists")
     parser.add_argument("--analyze-only", action="store_true", help="Do not probe. Analyze completed XML/logs only")
     args = parser.parse_args(argv)
-    return run_probe(args)
+    return asyncio.run(run_probe_async(args))
 
 
 if __name__ == "__main__":
