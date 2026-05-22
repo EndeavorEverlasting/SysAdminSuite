@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun scanner="nmap" start="1779439200">
+  <host>
+    <status state="up" reason="syn-ack" />
+    <address addr="10.10.10.338" addrtype="ipv4" />
+    <address addr="00:11:22:33:44:55" addrtype="mac" vendor="ExampleVendor" />
+    <hostnames>
+      <hostname name="OPR338.example.local" type="PTR" />
+    </hostnames>
+    <ports>
+      <port protocol="tcp" portid="445">
+        <state state="open" reason="syn-ack" />
+        <service name="microsoft-ds" product="Windows SMB" />
+        <script id="smb-os-discovery" output="Computer name: OPR338&#10;Workgroup: EXAMPLE" />
+      </port>
+    </ports>
+    <os>
+      <osmatch name="Microsoft Windows" accuracy="90" />
+    </os>
+  </host>
+</nmaprun>

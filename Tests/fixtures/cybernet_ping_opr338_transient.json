@@ -1,0 +1,10 @@
+{
+  "10.10.10.338": {
+    "CmdPingStatus": "FailedThenSucceeded",
+    "PingAttemptCount": 2,
+    "FirstPingTimestamp": "2026-05-22T05:58:00Z",
+    "LastPingTimestamp": "2026-05-22T05:59:00Z",
+    "NameResolutionStatus": "Resolved",
+    "Notes": "OPR338 initially failed cmd ping, then succeeded on retry. Identity artifact existed before successful ping."
+  }
+}
