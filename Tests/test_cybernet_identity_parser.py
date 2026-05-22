@@ -30,11 +30,11 @@ def test_opr338_identity_artifact_keeps_ping_separate(tmp_path):
     assert record.IdentityArtifactStatus == "IdentityArtifactPresent"
     assert record.CmdPingStatus == "FailedThenSucceeded"
     assert record.PingAttemptCount == "2"
-    assert record.Classification == "OK_IDENTITY_ARTIFACT_PARSED"
+    assert record.Classification == "INCONCLUSIVE_TRANSIENT_REACHABILITY"
     assert "initially failed cmd ping" in record.Notes
 
 
-def test_cli_writes_csv_json_and_html(tmp_path):
+def test_cli_writes_csv_json_and_deploy_axis_html(tmp_path):
     parser = load_parser_module()
     repo_root = Path(__file__).resolve().parents[1]
     xml_path = repo_root / "Tests" / "fixtures" / "cybernet_identity_opr338_sample.xml"
@@ -61,7 +61,14 @@ def test_cli_writes_csv_json_and_html(tmp_path):
         rows = list(csv.DictReader(f))
     assert rows[0]["HostIdentity"] == "OPR338"
     assert rows[0]["CmdPingStatus"] == "FailedThenSucceeded"
+    assert rows[0]["Classification"] == "INCONCLUSIVE_TRANSIENT_REACHABILITY"
 
     data = json.loads(out_json.read_text(encoding="utf-8"))
     assert data[0]["HostAddress"] == "10.10.10.338"
-    assert "Identity artifact evidence and cmd ping evidence are separate signals" in out_html.read_text(encoding="utf-8")
+
+    html = out_html.read_text(encoding="utf-8")
+    assert "Deploy Axis / Cybernet Identity" in html
+    assert "Artifact Intelligence Dashboard" in html
+    assert "Classification Mix" in html
+    assert "Ping Evidence" in html
+    assert "Identity artifact evidence and cmd ping evidence are separate signals" in html
