@@ -8,3 +8,5 @@ output/
 *.xml
 *.json
 !README.md
+!northwell_wab_guard.example.json
+northwell_wab_guard.local.json
