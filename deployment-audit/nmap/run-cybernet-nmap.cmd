@@ -9,8 +9,9 @@ REM
 REM Usage:
 REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx"
 REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --fresh
-REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --force
-REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --fresh --max-concurrency 2
+REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --fast-stable
+REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --fresh --fast-stable
+REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --max-concurrency 2
 REM
 REM Safety rule:
 REM   All modes still run the WAB guard before any live probe starts.
@@ -20,7 +21,7 @@ set "RUNNER_EXTRA_ARGS="
 shift /1
 
 if "%SOURCE_XLSX%"=="" (
-  echo Usage: %~nx0 "C:\path\to\CybernetWorkbook.xlsx" [--fresh] [--force] [--max-concurrency N]
+  echo Usage: %~nx0 "C:\path\to\CybernetWorkbook.xlsx" [--fresh] [--force] [--fast-stable] [--max-concurrency N]
   exit /b 2
 )
 
@@ -36,6 +37,11 @@ if /I "%~1"=="--force" (
   shift /1
   goto parse_args
 )
+if /I "%~1"=="--fast-stable" (
+  set "RUNNER_EXTRA_ARGS=%RUNNER_EXTRA_ARGS% --fast-stable"
+  shift /1
+  goto parse_args
+)
 if /I "%~1"=="--max-concurrency" (
   if "%~2"=="" (
     echo Missing value for --max-concurrency
@@ -46,8 +52,28 @@ if /I "%~1"=="--max-concurrency" (
   shift /1
   goto parse_args
 )
+if /I "%~1"=="--analysis-interval" (
+  if "%~2"=="" (
+    echo Missing value for --analysis-interval
+    exit /b 2
+  )
+  set "RUNNER_EXTRA_ARGS=%RUNNER_EXTRA_ARGS% --analysis-interval %~2"
+  shift /1
+  shift /1
+  goto parse_args
+)
+if /I "%~1"=="--heartbeat-interval" (
+  if "%~2"=="" (
+    echo Missing value for --heartbeat-interval
+    exit /b 2
+  )
+  set "RUNNER_EXTRA_ARGS=%RUNNER_EXTRA_ARGS% --heartbeat-interval %~2"
+  shift /1
+  shift /1
+  goto parse_args
+)
 echo Invalid option: %~1
-echo Allowed options: --fresh, --force, --max-concurrency N
+echo Allowed options: --fresh, --force, --fast-stable, --max-concurrency N, --analysis-interval N, --heartbeat-interval N
 exit /b 2
 
 :args_done
