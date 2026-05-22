@@ -1,10 +1,10 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
   Surveys Neuron hosts from an admin workstation and writes inventory artifacts locally.
 
 .DESCRIPTION
-  Reads a target list of known or partially tracked Neuron hosts, queries each host remotely for BIOS serial, model, IP, and MAC data, then exports CSV, JSON, and optional HTML artifacts on the admin box.
+  Reads a target list of known or partially tracked Neuron hosts, queries each host remotely for BIOS serial, model, OS, domain, IP, and MAC data, then exports CSV, JSON, and optional HTML artifacts on the admin box.
 
   This script does not copy payloads, create scheduled tasks, or write artifacts on target machines.
 #>
@@ -134,6 +134,17 @@ function Start-NeuronInventoryJob {
       return @($Value -split '[;, ]+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     }
 
+    function Convert-WmiDateInner {
+      param([string]$Value)
+      if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
+      try {
+        return ([System.Management.ManagementDateTimeConverter]::ToDateTime($Value)).ToString('yyyy-MM-dd HH:mm:ss')
+      }
+      catch {
+        return [string]$Value
+      }
+    }
+
     function New-ResultRow {
       param(
         [string]$Status,
@@ -147,6 +158,14 @@ function Start-NeuronInventoryJob {
         [string]$UUID,
         [string]$Manufacturer,
         [string]$Model,
+        [string]$DNSHostName,
+        [string]$Domain,
+        [string]$LoggedOnUser,
+        [string]$OSCaption,
+        [string]$OSVersion,
+        [string]$OSBuildNumber,
+        [string]$OSArchitecture,
+        [string]$LastBootUpTime,
         [string]$AdapterNames,
         [string]$MatchExpectedMac,
         [string]$MatchExpectedSerial
@@ -155,6 +174,9 @@ function Start-NeuronInventoryJob {
         Timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
         TargetHost = $Target.HostName
         ResolvedName = $ResolvedName
+        DNSHostName = $DNSHostName
+        Domain = $Domain
+        LoggedOnUser = $LoggedOnUser
         Site = $Target.Site
         Room = $Target.Room
         ExpectedMAC = $Target.ExpectedMAC
@@ -167,6 +189,11 @@ function Start-NeuronInventoryJob {
         UUID = $UUID
         Manufacturer = $Manufacturer
         Model = $Model
+        OSCaption = $OSCaption
+        OSVersion = $OSVersion
+        OSBuildNumber = $OSBuildNumber
+        OSArchitecture = $OSArchitecture
+        LastBootUpTime = $LastBootUpTime
         NetworkAdapterNames = $AdapterNames
         MatchExpectedMAC = $MatchExpectedMac
         MatchExpectedSerial = $MatchExpectedSerial
@@ -206,13 +233,14 @@ function Start-NeuronInventoryJob {
     }
 
     if (-not $reachable) {
-      return New-ResultRow -Status 'Offline' -ErrorMessage '' -ResolvedName $resolvedName -IPAddress '' -MACAddress '' -PrimaryMAC '' -SerialNumber '' -SystemSerialNumber '' -UUID '' -Manufacturer '' -Model '' -AdapterNames '' -MatchExpectedMac 'NotChecked' -MatchExpectedSerial 'NotChecked'
+      return New-ResultRow -Status 'Offline' -ErrorMessage '' -ResolvedName $resolvedName -IPAddress '' -MACAddress '' -PrimaryMAC '' -SerialNumber '' -SystemSerialNumber '' -UUID '' -Manufacturer '' -Model '' -DNSHostName '' -Domain '' -LoggedOnUser '' -OSCaption '' -OSVersion '' -OSBuildNumber '' -OSArchitecture '' -LastBootUpTime '' -AdapterNames '' -MatchExpectedMac 'NotChecked' -MatchExpectedSerial 'NotChecked'
     }
 
     try {
       $bios = Invoke-WmiQuery -ClassName 'Win32_BIOS' -ComputerName $computerName -Local $isLocal
       $system = Invoke-WmiQuery -ClassName 'Win32_ComputerSystem' -ComputerName $computerName -Local $isLocal
       $product = Invoke-WmiQuery -ClassName 'Win32_ComputerSystemProduct' -ComputerName $computerName -Local $isLocal
+      $os = Invoke-WmiQuery -ClassName 'Win32_OperatingSystem' -ComputerName $computerName -Local $isLocal
       $nics = @(Invoke-WmiQuery -ClassName 'Win32_NetworkAdapterConfiguration' -ComputerName $computerName -Local $isLocal -Filter 'IPEnabled=TRUE')
 
       $ipv4s = @()
@@ -264,12 +292,20 @@ function Start-NeuronInventoryJob {
         -UUID $uuid `
         -Manufacturer ([string]$system.Manufacturer) `
         -Model ([string]$system.Model) `
+        -DNSHostName ([string]$system.DNSHostName) `
+        -Domain ([string]$system.Domain) `
+        -LoggedOnUser ([string]$system.UserName) `
+        -OSCaption ([string]$os.Caption) `
+        -OSVersion ([string]$os.Version) `
+        -OSBuildNumber ([string]$os.BuildNumber) `
+        -OSArchitecture ([string]$os.OSArchitecture) `
+        -LastBootUpTime (Convert-WmiDateInner ([string]$os.LastBootUpTime)) `
         -AdapterNames (($adapterNames | Sort-Object -Unique) -join ';') `
         -MatchExpectedMac $matchMac `
         -MatchExpectedSerial $matchSerial
     }
     catch {
-      return New-ResultRow -Status 'Query Failed' -ErrorMessage $_.Exception.Message -ResolvedName $resolvedName -IPAddress '' -MACAddress '' -PrimaryMAC '' -SerialNumber '' -SystemSerialNumber '' -UUID '' -Manufacturer '' -Model '' -AdapterNames '' -MatchExpectedMac 'NotChecked' -MatchExpectedSerial 'NotChecked'
+      return New-ResultRow -Status 'Query Failed' -ErrorMessage $_.Exception.Message -ResolvedName $resolvedName -IPAddress '' -MACAddress '' -PrimaryMAC '' -SerialNumber '' -SystemSerialNumber '' -UUID '' -Manufacturer '' -Model '' -DNSHostName '' -Domain '' -LoggedOnUser '' -OSCaption '' -OSVersion '' -OSBuildNumber '' -OSArchitecture '' -LastBootUpTime '' -AdapterNames '' -MatchExpectedMac 'NotChecked' -MatchExpectedSerial 'NotChecked'
     }
   } -ArgumentList $Target, $PingCountValue, $SkipPingValue, $CredentialValue
 }
@@ -310,9 +346,9 @@ if (-not $NoHtml) {
     . $suiteHtmlHelper
     $subtitle = ('{0} target(s). Artifacts written on admin box only.' -f $sorted.Count)
     $sorted |
-      Select-Object TargetHost,Site,Room,IPAddress,PrimaryMAC,MACAddress,SerialNumber,SystemSerialNumber,Model,MatchExpectedMAC,MatchExpectedSerial,Status,ErrorMessage,TargetSideArtifacts |
-      ConvertTo-Html -Fragment -PreContent '<h2>Neuron Network Inventory</h2>' |
-      ConvertTo-SuiteHtml -Title 'Neuron Network Inventory' -Subtitle $subtitle -OutputPath $htmlPath
+      Select-Object TargetHost,ResolvedName,DNSHostName,Domain,LoggedOnUser,Site,Room,IPAddress,PrimaryMAC,MACAddress,SerialNumber,SystemSerialNumber,UUID,Manufacturer,Model,OSCaption,OSVersion,OSBuildNumber,OSArchitecture,LastBootUpTime,MatchExpectedMAC,MatchExpectedSerial,Status,ErrorMessage,TargetSideArtifacts |
+      ConvertTo-Html -Fragment -PreContent '<h2>Neuron Machine Info Inventory</h2>' |
+      ConvertTo-SuiteHtml -Title 'Neuron Machine Info Inventory' -Subtitle $subtitle -OutputPath $htmlPath
   }
 }
 
