@@ -1,0 +1,4 @@
+ AGENTS.md                   |  93 ++++++++++++++++++++++++++-
+ docs/AI_RUNTIME_CONTRACT.md | 122 +++++++++++++++++++++++++++++++++++
+ docs/COMMAND_CATALOG.md     | 151 ++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 363 insertions(+), 3 deletions(-)

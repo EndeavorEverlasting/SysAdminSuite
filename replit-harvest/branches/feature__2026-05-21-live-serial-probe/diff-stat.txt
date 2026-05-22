@@ -1,0 +1,14 @@
+ AGENTS.md                                          |  93 ++++-
+ deployment-audit/docs/LIVE_SERIAL_PROBE_SPRINT.md  | 114 ++++++
+ .../sas-render-live-serial-dashboard.py            | 338 ++++++++++++++++++
+ .../tests/test_live_serial_probe_contracts.sh      |  31 ++
+ docs/AI_RUNTIME_CONTRACT.md                        | 122 +++++++
+ docs/COMMAND_CATALOG.md                            | 151 ++++++++
+ survey/README.md                                   |  83 ++++-
+ survey/fixtures/live_serial_identity.sample.csv    |   6 +
+ survey/fixtures/live_serial_manifest.sample.csv    |   6 +
+ survey/sas-device-snapshot.sh                      | 125 +++++++
+ survey/sas-live-serial-probe.sh                    | 384 +++++++++++++++++++++
+ survey/sas-neuron-environment.sh                   | 143 ++++++++
+ tests/bash/smoke-bash-windows-runtime.sh           |  44 +++
+ 13 files changed, 1636 insertions(+), 4 deletions(-)

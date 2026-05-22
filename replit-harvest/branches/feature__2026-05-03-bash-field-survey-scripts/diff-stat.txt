@@ -1,0 +1,8 @@
+ AGENTS.md                                |  93 ++++++++++++++++++-
+ docs/AI_RUNTIME_CONTRACT.md              | 122 +++++++++++++++++++++++++
+ docs/COMMAND_CATALOG.md                  | 151 +++++++++++++++++++++++++++++++
+ survey/README.md                         |  83 ++++++++++++++++-
+ survey/sas-device-snapshot.sh            | 125 +++++++++++++++++++++++++
+ survey/sas-neuron-environment.sh         | 143 +++++++++++++++++++++++++++++
+ tests/bash/smoke-bash-windows-runtime.sh |  44 +++++++++
+ 7 files changed, 757 insertions(+), 4 deletions(-)

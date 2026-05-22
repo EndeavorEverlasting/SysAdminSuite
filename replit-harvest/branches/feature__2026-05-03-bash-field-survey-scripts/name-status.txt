@@ -1,0 +1,7 @@
+M	AGENTS.md
+A	docs/AI_RUNTIME_CONTRACT.md
+A	docs/COMMAND_CATALOG.md
+M	survey/README.md
+A	survey/sas-device-snapshot.sh
+A	survey/sas-neuron-environment.sh
+A	tests/bash/smoke-bash-windows-runtime.sh

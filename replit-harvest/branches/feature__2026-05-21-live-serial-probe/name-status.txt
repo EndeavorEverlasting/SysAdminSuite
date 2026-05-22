@@ -1,0 +1,13 @@
+M	AGENTS.md
+A	deployment-audit/docs/LIVE_SERIAL_PROBE_SPRINT.md
+A	deployment-audit/sas-render-live-serial-dashboard.py
+A	deployment-audit/tests/test_live_serial_probe_contracts.sh
+A	docs/AI_RUNTIME_CONTRACT.md
+A	docs/COMMAND_CATALOG.md
+M	survey/README.md
+A	survey/fixtures/live_serial_identity.sample.csv
+A	survey/fixtures/live_serial_manifest.sample.csv
+A	survey/sas-device-snapshot.sh
+A	survey/sas-live-serial-probe.sh
+A	survey/sas-neuron-environment.sh
+A	tests/bash/smoke-bash-windows-runtime.sh
