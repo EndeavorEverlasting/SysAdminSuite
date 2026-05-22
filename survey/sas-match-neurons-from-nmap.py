@@ -9,6 +9,7 @@ Reads:
 Writes:
   - A Neuron target CSV compatible with GetInfo/Get-NeuronNetworkInventory.ps1
   - A review CSV for unresolved, serial-only, or conflicting rows
+  - Optional HTML dashboard for operator review
 
 This script does not run nmap. It parses saved nmap XML evidence.
 Generated outputs may contain operational identifiers. Do not commit them.
@@ -18,6 +19,7 @@ from __future__ import annotations
 import argparse
 import csv
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -164,6 +166,17 @@ def review_row(
     }
 
 
+def render_dashboard(review_csv: Path, dashboard_path: Path) -> None:
+    renderer = Path(__file__).resolve().parents[1] / "deployment-audit" / "sas-render-neuron-nmap-dashboard.py"
+    if not renderer.exists():
+        print(f"WARNING: dashboard renderer not found: {renderer}", file=sys.stderr)
+        return
+    subprocess.run(
+        [sys.executable, str(renderer), "--input", str(review_csv), "--output", str(dashboard_path)],
+        check=True,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Resolve Neuron targets by matching expected MACs against nmap XML evidence."
@@ -179,6 +192,11 @@ def main() -> int:
         "--review-output",
         default="survey/output/neuron_probe_review.csv",
         help="Review CSV for unresolved/conflict rows",
+    )
+    parser.add_argument(
+        "--dashboard",
+        default="",
+        help="Optional HTML dashboard output path for review CSV",
     )
     parser.add_argument(
         "--prefer-hostname",
@@ -348,6 +366,10 @@ def main() -> int:
 
     print(f"Wrote {len(targets)} resolved Neuron target row(s) to {output_path}")
     print(f"Wrote {len(review)} review row(s) to {review_path}")
+
+    if args.dashboard:
+        render_dashboard(review_path, Path(args.dashboard))
+
     return 0
 
 
