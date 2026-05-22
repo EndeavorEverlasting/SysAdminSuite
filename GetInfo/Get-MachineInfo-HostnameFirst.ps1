@@ -488,6 +488,78 @@ function Start-MachineQueryJob {
   } -ArgumentList $Computer
 }
 
+function Get-MachineInfoFailureReason {
+  param([Parameter(Mandatory)][object]$Row)
+
+  $parts = @()
+
+  if ($Row.IdentityWarning) {
+    $parts += "Identity mismatch: $($Row.IdentityWarning)"
+  }
+
+  switch ($Row.ErrorCategory) {
+    'ACCESS_DENIED' {
+      $parts += 'Remote identity probe reached the host, but credentials or permissions were denied. Use an account allowed to query remote WMI/RPC or an approved inventory path.'
+    }
+    'WMIC_NOT_AVAILABLE' {
+      $parts += 'wmic.exe is not available on the probe workstation, so native WMIC serial/MAC collection cannot run from here.'
+    }
+    'HOSTNAME_UNRESOLVED_OR_UNREACHABLE' {
+      $parts += 'The hostname could not be resolved or reached by the native probe. Check hostlist spelling, DNS, stale records, and network path.'
+    }
+    'RPC_PORT_BLOCKED' {
+      $parts += 'RPC endpoint mapper appears blocked or closed. Remote BIOS serial collection cannot work until RPC/WMI is allowed or another approved inventory source is used.'
+    }
+    'SMB_PORT_BLOCKED' {
+      $parts += 'RPC endpoint mapper may be reachable, but SMB/admin-share support appears blocked. Remote WMI may fail because the management path is incomplete.'
+    }
+    'WMI_RPC_PATH_FAILED_AFTER_ENDPOINT_MAPPER' {
+      $parts += 'TCP 135 appears open, but the WMI/RPC session still failed after endpoint mapping. Likely causes: dynamic RPC firewall range, target WMI service issue, DCOM policy, endpoint security, or permissions.'
+    }
+    'RPC_UNAVAILABLE_OR_FILTERED' {
+      $parts += 'The target returned an RPC unavailable condition. This usually means firewall, VLAN ACL, endpoint policy, or WMI/RPC service availability is blocking the query.'
+    }
+    'WMI_SERVICE_OR_REPOSITORY_PROBLEM' {
+      $parts += 'The host was contacted, but WMI provider/namespace/repository returned a problem. Check Winmgmt/WMI health on the endpoint.'
+    }
+    'TIMEOUT' {
+      $parts += 'The probe timed out. The host may be slow, filtered, overloaded, or partially reachable.'
+    }
+    'SERIAL_NOT_RETURNED' {
+      $parts += 'No usable BIOS/product serial was returned. Serial requires WMIC/WMI/RPC or an approved inventory agent path.'
+    }
+    'MAC_NOT_RETURNED' {
+      $parts += 'No usable MAC address was returned by WMIC, NBTSTAT, GETMAC, or the fallback probe.'
+    }
+    'REMOTE_IDENTITY_PROBE_FAILED' {
+      $parts += 'The native hostname-based identity probe failed, but the returned error did not match a more specific category. Review ErrorMessage and probe columns.'
+    }
+    default {
+      if ($Row.Status -ne 'OK') {
+        $parts += 'The machine did not return complete identity data. Review ErrorMessage, RPC/SMB/WinRM probe columns, and hostname identity warning.'
+      }
+    }
+  }
+
+  if ($Row.Status -eq 'Partial Identity') {
+    $parts += 'Partial Identity means at least one strong identifier was found, but serial or MAC is still missing.'
+  }
+  if ($Row.Status -eq 'Query Failed') {
+    $parts += 'Query Failed means neither the required serial+MAC identity set nor a complete fallback identity was collected.'
+  }
+  if (-not $Row.Serial) {
+    $parts += 'Serial missing.'
+  }
+  if (-not $Row.MACAddress) {
+    $parts += 'MAC missing.'
+  }
+  if ($Row.RpcProbe) { $parts += "RPC probe: $($Row.RpcProbe)." }
+  if ($Row.SmbProbe) { $parts += "SMB probe: $($Row.SmbProbe)." }
+  if ($Row.WinRmProbe) { $parts += "WinRM probe: $($Row.WinRmProbe)." }
+
+  (($parts | Where-Object { $_ }) -join ' ')
+}
+
 $jobs = @()
 foreach ($c in $Computers) {
   # Filter by this run's job collection so unrelated session jobs do not affect throttling.
@@ -501,7 +573,16 @@ foreach ($c in $Computers) {
 
 if ($jobs) { Wait-Job -Job $jobs | Out-Null }
 
-$results = $jobs | Receive-Job
+$results = @($jobs | Receive-Job)
+foreach ($row in $results) {
+  $failureReason = Get-MachineInfoFailureReason -Row $row
+  if ($row.PSObject.Properties.Name -contains 'FailureReason') {
+    $row.FailureReason = $failureReason
+  } else {
+    $row | Add-Member -NotePropertyName FailureReason -NotePropertyValue $failureReason
+  }
+}
+
 $dir = Split-Path -Path $OutputPath -Parent
 if ([string]::IsNullOrWhiteSpace($dir)) {
   $dir = (Get-Location).Path
@@ -517,8 +598,40 @@ $suiteHtmlHelper = Join-Path $PSScriptRoot '..\tools\ConvertTo-SuiteHtml.ps1'
 if (Test-Path -LiteralPath $suiteHtmlHelper) {
   . $suiteHtmlHelper
   $htmlPath = [IO.Path]::ChangeExtension($OutputPath, '.html')
-  $results | Sort-Object HostName |
-    Select-Object HostName,ReportedComputerName,Serial,SerialSource,MACAddress,MACSource,Model,Manufacturer,ReportedNameSource,IdentityWarning,RpcProbe,SmbProbe,WinRmProbe,FallbackProbe,Status,ErrorCategory,ErrorMessage,ProbeSummary |
-    ConvertTo-Html -Fragment -PreContent '<h2>Machine Info - Hostname First Native Probe</h2>' |
-    ConvertTo-SuiteHtml -Title 'Machine Info - Hostname First Native Probe' -Subtitle "$(($results | Select-Object -ExpandProperty HostName -Unique).Count) host(s)" -OutputPath $htmlPath
+  $sortedResults = @($results | Sort-Object HostName)
+  $failureRows = @($sortedResults | Where-Object { $_.Status -ne 'OK' -or $_.IdentityWarning })
+  $okCount = @($sortedResults | Where-Object { $_.Status -eq 'OK' }).Count
+  $partialCount = @($sortedResults | Where-Object { $_.Status -eq 'Partial Identity' }).Count
+  $failedCount = @($sortedResults | Where-Object { $_.Status -eq 'Query Failed' }).Count
+  $warningCount = @($sortedResults | Where-Object { $_.IdentityWarning }).Count
+
+  $summaryRows = @(
+    [pscustomobject]@{ Metric = 'Total hosts'; Count = $sortedResults.Count }
+    [pscustomobject]@{ Metric = 'OK'; Count = $okCount }
+    [pscustomobject]@{ Metric = 'Partial Identity'; Count = $partialCount }
+    [pscustomobject]@{ Metric = 'Query Failed'; Count = $failedCount }
+    [pscustomobject]@{ Metric = 'Identity Warnings'; Count = $warningCount }
+  )
+
+  $bodyParts = @()
+  $bodyParts += $summaryRows | ConvertTo-Html -Fragment -PreContent '<h2>Run Summary</h2>'
+
+  if ($failureRows.Count -gt 0) {
+    $bodyParts += $failureRows |
+      Select-Object HostName,ReportedComputerName,Status,ErrorCategory,FailureReason,RpcProbe,SmbProbe,WinRmProbe,IdentityWarning,ErrorMessage |
+      ConvertTo-Html -Fragment -PreContent '<h2>Failures and Warnings - Reason for Failure</h2>'
+  } else {
+    $bodyParts += '<h2>Failures and Warnings - Reason for Failure</h2><p>No failed hosts or identity warnings were detected in this run.</p>'
+  }
+
+  $bodyParts += $sortedResults |
+    Select-Object HostName,ReportedComputerName,Serial,SerialSource,MACAddress,MACSource,Model,Manufacturer,ReportedNameSource,IdentityWarning,RpcProbe,SmbProbe,WinRmProbe,FallbackProbe,Status,ErrorCategory,FailureReason,ErrorMessage,ProbeSummary |
+    ConvertTo-Html -Fragment -PreContent '<h2>Machine Info - Hostname First Native Probe</h2>'
+
+  ($bodyParts -join "`n") |
+    ConvertTo-SuiteHtml `
+      -Title 'Machine Info - Hostname First Native Probe' `
+      -Subtitle "$(($sortedResults | Select-Object -ExpandProperty HostName -Unique).Count) host(s)" `
+      -SummaryChips @("OK: $okCount", "Partial: $partialCount", "Failed: $failedCount", "Warnings: $warningCount") `
+      -OutputPath $htmlPath
 }
