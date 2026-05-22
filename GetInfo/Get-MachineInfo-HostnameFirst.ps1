@@ -31,11 +31,11 @@ function Invoke-NativeCommand {
 }
 
 function Test-NorthwellWabConnection {
-  # Preflight order is intentional and mirrors the Cybernet/WAB field rule:
-  #   1. Nmap first: prove the network path with a read-only port check.
-  #   2. Active Directory second: prove nslijhs.net/DC context.
-  #   3. SCCM third: collect client-management evidence when present.
-  #   4. Other network probes last: DNS suffix, ipconfig, and smoke DNS lookups.
+  # Required WAB gate order:
+  # 1. Nmap first
+  # 2. Active Directory second
+  # 3. SCCM third
+  # 4. Other network probes last
   $reasons = @()
   $evidence = @()
   $softWarnings = @()
@@ -47,7 +47,6 @@ function Test-NorthwellWabConnection {
   $ipconfigPath = (Get-Command ipconfig.exe -ErrorAction SilentlyContinue).Source
   $nslookupPath = (Get-Command nslookup.exe -ErrorAction SilentlyContinue).Source
 
-  # 1. Nmap first.
   if ($nmapPath) {
     $portProbe = Invoke-NativeCommand -FilePath $nmapPath -Arguments @('-sT','-Pn','--system-dns','-p','445','SWBPNHPHPS01V')
     if ($portProbe.Text -match '445/tcp\s+open') {
@@ -61,7 +60,6 @@ function Test-NorthwellWabConnection {
     $reasons += '01_NMAP_FAIL: nmap.exe is required for this WAB guard and was not found in PATH'
   }
 
-  # 2. Active Directory second.
   if ($nltestPath) {
     $nltest = Invoke-NativeCommand -FilePath $nltestPath -Arguments @('/dsgetdc:nslijhs.net')
     if ($nltest.ExitCode -eq 0 -and $nltest.Text -match 'nslijhs\.net') {
@@ -73,9 +71,6 @@ function Test-NorthwellWabConnection {
     $reasons += '02_AD_FAIL: nltest.exe is not available for Active Directory preflight'
   }
 
-  # 3. SCCM third. This is a management-evidence probe, not a hard network gate.
-  # Some workstations may not expose SCCM client evidence to non-admin shells, so
-  # missing SCCM evidence is captured as a warning unless Nmap/AD also failed.
   $sccmEvidenceFound = $false
   if ($scPath) {
     $ccmService = Invoke-NativeCommand -FilePath $scPath -Arguments @('query','ccmexec')
@@ -83,7 +78,7 @@ function Test-NorthwellWabConnection {
       $evidence += '03_SCCM: ccmexec service is present'
       $sccmEvidenceFound = $true
     } else {
-      $softWarnings += "03_SCCM_WARN: ccmexec service was not confirmed. Output: $($ccmService.Text)"
+      $softWarnings += '03_SCCM_WARN: ccmexec service was not confirmed'
     }
   } else {
     $softWarnings += '03_SCCM_WARN: sc.exe is not available for SCCM service preflight'
@@ -95,17 +90,14 @@ function Test-NorthwellWabConnection {
       $evidence += '03_SCCM: SCCM AssignedSiteCode registry value is present'
       $sccmEvidenceFound = $true
     } else {
-      $softWarnings += "03_SCCM_WARN: SCCM AssignedSiteCode was not confirmed. Output: $($ccmReg.Text)"
+      $softWarnings += '03_SCCM_WARN: SCCM AssignedSiteCode was not confirmed'
     }
   } else {
     $softWarnings += '03_SCCM_WARN: reg.exe is not available for SCCM registry preflight'
   }
 
-  if (-not $sccmEvidenceFound) {
-    $softWarnings += '03_SCCM_WARN: SCCM evidence was not confirmed; continuing only if Nmap and AD passed'
-  }
+  if (-not $sccmEvidenceFound) { $softWarnings += '03_SCCM_WARN: SCCM evidence was not confirmed; continuing only if Nmap and AD passed' }
 
-  # 4. Other network probes last.
   if ($ipconfigPath) {
     $ipconfig = Invoke-NativeCommand -FilePath $ipconfigPath -Arguments @('/all')
     $ipText = $ipconfig.Text
@@ -114,30 +106,23 @@ function Test-NorthwellWabConnection {
     } else {
       $reasons += '04_NETWORK_FAIL: ipconfig did not show a Northwell/nslijhs DNS suffix or network context'
     }
-    if ($ipText -match '(?i)guest') {
-      $reasons += '04_NETWORK_FAIL: ipconfig appears to show guest network context'
-    }
+    if ($ipText -match '(?i)guest') { $reasons += '04_NETWORK_FAIL: ipconfig appears to show guest network context' }
   } else {
     $reasons += '04_NETWORK_FAIL: ipconfig.exe is not available for network preflight'
   }
 
   if ($nslookupPath) {
     $dnsProbe = Invoke-NativeCommand -FilePath $nslookupPath -Arguments @('SWBPNHPHPS01V')
-    if ($dnsProbe.ExitCode -eq 0 -and $dnsProbe.Text -match '(?i)nslijhs\.net|Address') {
+    if ($dnsProbe.ExitCode -eq 0 -and $dnsProbe.Text -match '(?i)nslijhs\.net') {
       $evidence += '04_NETWORK: nslookup resolved internal Northwell smoke target SWBPNHPHPS01V'
     } else {
-      $reasons += "04_NETWORK_FAIL: nslookup could not resolve internal smoke target SWBPNHPHPS01V. Output: $($dnsProbe.Text)"
+      $reasons += "04_NETWORK_FAIL: nslookup did not confirm nslijhs.net for SWBPNHPHPS01V. Output: $($dnsProbe.Text)"
     }
   } else {
     $reasons += '04_NETWORK_FAIL: nslookup.exe is not available for DNS preflight'
   }
 
-  $isConnected = (
-    ($evidence -match '^01_NMAP:').Count -ge 1 -and
-    ($evidence -match '^02_AD:').Count -ge 1 -and
-    ($evidence -match '^04_NETWORK:').Count -ge 1 -and
-    $reasons.Count -eq 0
-  )
+  $isConnected = (($evidence -match '^01_NMAP:').Count -ge 1 -and ($evidence -match '^02_AD:').Count -ge 1 -and ($evidence -match '^04_NETWORK:').Count -ge 1 -and $reasons.Count -eq 0)
 
   [pscustomobject]@{
     IsConnected = $isConnected
@@ -172,14 +157,9 @@ Use -Force only for approved lab testing when you intentionally want to bypass t
 if ($Force -and -not $wabCheck.IsConnected) {
   Write-Warning "Northwell WAB preflight failed but -Force was supplied. Reason(s): $($wabCheck.Reasons) Warning(s): $($wabCheck.Warnings)"
 }
-
-if ($wabCheck.Warnings) {
-  Write-Warning "Northwell WAB preflight warnings: $($wabCheck.Warnings)"
-}
+if ($wabCheck.Warnings) { Write-Warning "Northwell WAB preflight warnings: $($wabCheck.Warnings)" }
 
 $coreScript = Join-Path $PSScriptRoot 'Get-MachineInfo-HostnameFirst.Core.ps1'
-if (-not (Test-Path -LiteralPath $coreScript)) {
-  throw "Core script not found: $coreScript"
-}
+if (-not (Test-Path -LiteralPath $coreScript)) { throw "Core script not found: $coreScript" }
 
-& $coreScript -ListPath $ListPath -OutputPath $OutputPath -Throttle $Throttle
+& $coreScript -ListPath $ListPath -OutputPath $OutputPath -Throttle $Throttle -PreflightPassed
