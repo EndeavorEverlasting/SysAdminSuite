@@ -14,6 +14,17 @@ PowerShell is known blocked in this path and must not be treated as the primary 
 - Treat PowerShell-derived evidence as secondary or lab-only unless the field path proves it is available.
 - Keep discovery read-only unless the user explicitly approves a mutating workflow.
 
+## Hostname probe order
+
+For hostname-based identity discovery, use this order before trusting any serial or MAC result:
+
+1. **Nmap first** — prove the hostname has the expected network/service posture before using heavier management queries.
+2. **Active Directory second** — confirm the domain path or computer identity evidence after the network path is proven.
+3. **SCCM third** — check management-client or inventory evidence when available.
+4. **Other native network probes last** — proceed to WMIC, NBTSTAT, GETMAC, or similar native collection only after the earlier evidence stages are recorded.
+
+Do not let IP resolution become the trusted identity source. In large routed environments, stale DNS or DHCP can make one IP appear associated with multiple computer names. Prefer hostname evidence, reported computer name, serial, MAC, and management-system evidence.
+
 ## Expected identity evidence
 
 When available through the approved network path, Cybernet identity evidence may include:
