@@ -15,6 +15,7 @@ set "SCRIPT_DIR=%~dp0"
 set "OUT_DIR=%SCRIPT_DIR%output\cybernet-nmap-audit"
 set "NMAP_XML=%OUT_DIR%\nmap-discovery.xml"
 set "PYTHON_CMD="
+set "NMAP_CMD="
 
 where python >nul 2>nul
 if not errorlevel 1 set "PYTHON_CMD=python"
@@ -32,20 +33,28 @@ if "%PYTHON_CMD%"=="" (
   exit /b 2
 )
 
+where nmap >nul 2>nul
+if not errorlevel 1 set "NMAP_CMD=nmap"
+
+if "%NMAP_CMD%"=="" if exist "%ProgramFiles(x86)%\Nmap\nmap.exe" set "NMAP_CMD=%ProgramFiles(x86)%\Nmap\nmap.exe"
+if "%NMAP_CMD%"=="" if exist "%ProgramFiles%\Nmap\nmap.exe" set "NMAP_CMD=%ProgramFiles%\Nmap\nmap.exe"
+if "%NMAP_CMD%"=="" if exist "C:\Program Files (x86)\Nmap\nmap.exe" set "NMAP_CMD=C:\Program Files (x86)\Nmap\nmap.exe"
+if "%NMAP_CMD%"=="" if exist "C:\Program Files\Nmap\nmap.exe" set "NMAP_CMD=C:\Program Files\Nmap\nmap.exe"
+
 if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"
 
 %PYTHON_CMD% "%SCRIPT_DIR%cybernet_target_audit.py" --source-xlsx "%SOURCE_XLSX%" --out-dir "%OUT_DIR%"
 if errorlevel 1 exit /b %errorlevel%
 
-where nmap >nul 2>nul
-if errorlevel 1 (
-  echo Nmap was not found in PATH. Install Nmap or add nmap.exe to PATH, then rerun the command below:
+if "%NMAP_CMD%"=="" (
+  echo Nmap was not found in PATH or the normal install folders.
+  echo Install Nmap, add nmap.exe to PATH, or run this manually using your full nmap.exe path:
   echo nmap -sn -n --reason -iL "%OUT_DIR%\targets.txt" -oX "%NMAP_XML%"
   exit /b 0
 )
 
 echo Running host discovery scan from generated target list...
-nmap -sn -n --reason -iL "%OUT_DIR%\targets.txt" -oX "%NMAP_XML%"
+"%NMAP_CMD%" -sn -n --reason -iL "%OUT_DIR%\targets.txt" -oX "%NMAP_XML%"
 if errorlevel 1 exit /b %errorlevel%
 
 echo Matching Nmap XML results back to source inventory...
