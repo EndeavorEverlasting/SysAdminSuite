@@ -18,7 +18,7 @@ EOF
 }
 fail() { echo "ERROR: $*" >&2; exit 1; }
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g; s/\r/\\r/g; s/\n/\\n/g'; }
-csv_escape() { local v="$1"; v="${v//"/""}"; printf '"%s"' "$v"; }
+csv_escape() { local v="$1"; v="${v//\"/\"\"}"; printf '"%s"' "$v"; }
 now_iso() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
 while [[ $# -gt 0 ]]; do
@@ -95,17 +95,9 @@ Source run:
 
 \`$RUN_DIR\`
 
-| Target | Classification | Confidence | Signals | Recommended Next Action |
-|---|---|---|---|---|
-EOF
+Classification CSV:
 
-tail -n +2 "$CLASS_CSV" | while IFS= read -r row || [[ -n "$row" ]]; do
-  clean="${row#\"}"; clean="${clean%\"}"; clean="${clean//\",\"/|}"; clean="${clean//\"\"/\"}"
-  IFS='|' read -r target classification confidence signals action <<< "$clean"
-  printf '| %s | %s | %s | %s | %s |\n' "$target" "$classification" "$confidence" "$signals" "$action" >> "$ACTIONS_MD"
-done
-
-cat >> "$ACTIONS_MD" <<'EOF'
+\`$CLASS_CSV\`
 
 These classifications are advisory. They do not prove ownership, role, authorization, or health.
 EOF
