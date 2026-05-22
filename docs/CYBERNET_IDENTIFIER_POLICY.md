@@ -6,6 +6,8 @@ Cybernet unique identifier discovery is **Nmap-first** for the current WAB field
 
 PowerShell is known blocked in this path and must not be treated as the primary method for Cybernet identity discovery unless field conditions change and the user explicitly restores that method.
 
+For the broader cross-use-case posture, see `docs/NMAP_USE_CASE_POSTURE.md`.
+
 ## Policy
 
 - Use Nmap-derived evidence as the primary identity source for Cybernet discovery.
@@ -40,3 +42,5 @@ When available through the approved network path, Cybernet identity evidence may
 ## Agent rule
 
 Future agents must not default Cybernet identity discovery back to PowerShell. The current field reality is that PowerShell is blocked. Use the working evidence path first, then build parsers and tracker reconciliation around that artifact layer.
+
+Do not bury Nmap as a Cybernet-only exception. For network-facing identity, reachability, and service posture, Nmap is a first-class evidence lane across SysAdminSuite.
