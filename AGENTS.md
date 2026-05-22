@@ -66,6 +66,21 @@ Do not assume:
 
 Bash scripts may call Windows-native executables such as `cmd.exe`, `hostname.exe`, `ping.exe`, `nslookup.exe`, and `netsh.exe`.
 
+## WAB Test Evidence Guardrail
+
+When the user reports that SysAdminSuite is `running` on the WAB path, do not treat that as full validation.
+
+Agents must classify field evidence before proposing product fixes:
+
+- `running` proves only process startup or script invocation.
+- Guest network results are not valid evidence for printer mapping, UNC access, RPC, AD, internal DNS, or print-server reachability.
+- If all network targets return offline while the machine is on guest network, classify the result as `ENVIRONMENT_BLOCKED_GUEST_NETWORK`, not `PRODUCT_FAILURE`.
+- Before changing network-feature code, require or document a preflight check for network posture, DNS resolution, SMB/445, RPC/135, and the exact command that produced the result.
+- Preserve local smoke-test evidence separately from network-feature validation.
+- Link WAB/network field testing to `docs/WAB_TEST_READINESS.md` and result triage to `docs/TEST_RESULT_CLASSIFICATION.md`.
+
+No agent should chase network ghosts created by the wrong network segment. First prove the field path. Then fix the product.
+
 ## Hard Rule for Agents
 
 When asked to add, modify, or extend Northwell-targeted SysAdminSuite functionality:
