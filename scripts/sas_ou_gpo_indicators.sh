@@ -22,7 +22,7 @@ EOF
 }
 fail() { echo "ERROR: $*" >&2; exit 1; }
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g; s/\r/\\r/g; s/\n/\\n/g'; }
-csv_escape() { local v="$1"; v="${v//"/""}"; printf '"%s"' "$v"; }
+csv_escape() { local v="$1"; v="${v//\"/\"\"}"; printf '"%s"' "$v"; }
 now_iso() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 portable_hostname() { hostname.exe 2>/dev/null || hostname 2>/dev/null || echo unknown-host; }
 portable_whoami() { whoami.exe 2>/dev/null || whoami 2>/dev/null || echo unknown-user; }
@@ -59,9 +59,11 @@ capture() {
   { echo "# $label"; echo "# command: $*"; echo "# captured_at: $(now_iso)"; echo; } > "$out"
   printf '%s\n' "$*" >> "$PLAN"
   if [[ "$DRY_RUN" -eq 1 ]]; then echo "DRY RUN" >> "$out"; echo "# exit_code: 0" >> "$out"; return 0; fi
-  set +e; "$@" >> "$out" 2>&1; code=$?; set -e
-  echo; echo "# exit_code: $code"
-  } >> "$out"
+  set +e
+  "$@" >> "$out" 2>&1
+  code=$?
+  set -e
+  { echo; echo "# exit_code: $code"; } >> "$out"
 }
 
 extract_env() { normalize_file "$1" | awk -F '=' -v k="$2" 'tolower($1)==tolower(k){print $2; exit}' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' || true; }
