@@ -25,7 +25,7 @@ $hostCount = @(
 ).Count
 
 Write-Host "[CORE] Loaded $hostCount hostname(s)." -ForegroundColor Cyan
-Write-Host "[CORE] Phase 1 of 2: hostname probe-order checks." -ForegroundColor Cyan
+Write-Host "[CORE] Phase 1 of 3: hostname probe-order checks." -ForegroundColor Cyan
 
 $probeOrderScript = Join-Path $PSScriptRoot 'Test-MachineInfoHostnameProbeOrder.ps1'
 if (Test-Path -LiteralPath $probeOrderScript) {
@@ -36,7 +36,7 @@ if (Test-Path -LiteralPath $probeOrderScript) {
   Write-Warning "Probe-order helper not found: $probeOrderScript"
 }
 
-Write-Host "[CORE] Phase 2 of 2: machine identity collection." -ForegroundColor Cyan
+Write-Host "[CORE] Phase 2 of 3: machine identity collection." -ForegroundColor Cyan
 Write-Host "[CORE] Some hosts may take longer when remote management ports do not respond." -ForegroundColor Yellow
 
 $implementationScript = Join-Path $PSScriptRoot 'Get-MachineInfo-HostnameFirst.Implementation.ps1'
@@ -47,6 +47,14 @@ if (-not (Test-Path -LiteralPath $implementationScript)) {
 & $implementationScript -ListPath $ListPath -OutputPath $OutputPath -Throttle $Throttle
 $scriptExitCode = $LASTEXITCODE
 
+Write-Host "[CORE] Phase 3 of 3: repairing partial identities with last-resort hostname/IP fallback." -ForegroundColor Cyan
+$repairScript = Join-Path $PSScriptRoot 'Repair-MachineInfoHostnamePartialIdentity.ps1'
+if (Test-Path -LiteralPath $repairScript) {
+  & $repairScript -CsvPath $OutputPath
+} else {
+  Write-Warning "Repair helper not found: $repairScript"
+}
+
 $htmlRefreshScript = Join-Path $PSScriptRoot 'Update-MachineInfoHostnameHtml.ps1'
 if (Test-Path -LiteralPath $htmlRefreshScript) {
   Write-Host "[CORE] Refreshing HTML report so Serial and MACAddress are visible up front." -ForegroundColor Cyan
@@ -55,7 +63,7 @@ if (Test-Path -LiteralPath $htmlRefreshScript) {
   Write-Warning "HTML refresh helper not found: $htmlRefreshScript"
 }
 
-Write-Host "[CORE] Phase 2 complete. Main output: $OutputPath" -ForegroundColor Green
+Write-Host "[CORE] Phase 3 complete. Main output: $OutputPath" -ForegroundColor Green
 Write-Host "[CORE] Protected core finished." -ForegroundColor Green
 
 if ($scriptExitCode -and $scriptExitCode -ne 0) { exit $scriptExitCode }
