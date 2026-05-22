@@ -281,6 +281,15 @@ function Try-GetMacByTarget {
 }
 
 $rows = @(Import-Csv -LiteralPath $CsvPath)
+$repairColumns = @('LastResortIPAddress','IPFallbackSource','RepairActions','RepairErrors')
+foreach ($row in $rows) {
+  foreach ($column in $repairColumns) {
+    if ($row.PSObject.Properties.Name -notcontains $column) {
+      $row | Add-Member -NotePropertyName $column -NotePropertyValue ''
+    }
+  }
+}
+
 $wmicPath = Get-NativeToolPath -ToolName 'wmic.exe'
 $nbtstatPath = Get-NativeToolPath -ToolName 'nbtstat.exe'
 $getmacPath = Get-NativeToolPath -ToolName 'getmac.exe'
@@ -309,8 +318,6 @@ foreach ($row in $rows) {
   $lastIp = Resolve-HostnameLastResortIp -HostName $hostName
   if ($lastIp) {
     $actions += "Resolved last-resort IP $lastIp from hostname"
-    if ($row.PSObject.Properties.Name -notcontains 'LastResortIPAddress') { $row | Add-Member -NotePropertyName LastResortIPAddress -NotePropertyValue '' }
-    if ($row.PSObject.Properties.Name -notcontains 'IPFallbackSource') { $row | Add-Member -NotePropertyName IPFallbackSource -NotePropertyValue '' }
     $row.LastResortIPAddress = $lastIp
     $row.IPFallbackSource = 'ping/nslookup last-resort only'
   } else {
@@ -363,8 +370,6 @@ foreach ($row in $rows) {
     if (-not $row.ErrorCategory) { $row.ErrorCategory = 'LAST_RESORT_IDENTITY_FAILED' }
   }
 
-  if ($row.PSObject.Properties.Name -notcontains 'RepairActions') { $row | Add-Member -NotePropertyName RepairActions -NotePropertyValue '' }
-  if ($row.PSObject.Properties.Name -notcontains 'RepairErrors') { $row | Add-Member -NotePropertyName RepairErrors -NotePropertyValue '' }
   $row.RepairActions = ($actions -join ' || ')
   $row.RepairErrors = (($repairErrors | Where-Object { $_ }) -join ' || ')
 
