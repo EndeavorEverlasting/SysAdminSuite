@@ -4,7 +4,15 @@ Cybernet / Neuron target audit for Nmap workflows.
 
 This script does not use PowerShell. It reads the deployment workbook as the
 source of truth, creates a unique Nmap target list, detects duplicate identity
-records by MAC/serial, and optionally matches Nmap XML results back to inventory.
+records by MAC / serial / hostname, and optionally matches Nmap XML results back
+to inventory.
+
+Duplicate handling is deployment-aware:
+- Raw duplicate reports still show repeated MAC / serial / hostname values.
+- Real deployed duplicates require the workbook's Dupe Deployed field to be Yes.
+- Real deployed duplicates must also appear at different physical locations.
+- Duplicate values that do not meet that formula are classified as false-positive
+  candidates instead of being treated as confirmed deployment duplicates.
 
 No third-party Python packages are required.
 """
@@ -22,6 +30,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import xml.etree.ElementTree as ET
 
 TARGET_COLUMNS = ["Neuron IP", "Neuron Hostname", "Cybernet Hostname"]
+HOSTNAME_COLUMNS = ["Neuron Hostname", "Cybernet Hostname"]
 MAC_COLUMNS = ["Neuron MAC", "Cybernet MAC"]
 SERIAL_COLUMNS = [
     "Cybernet Serial",
@@ -29,6 +38,21 @@ SERIAL_COLUMNS = [
     "Anesthesia S/N",
     "Medical Device S/N",
     "Dialysis S/N",
+]
+DUPE_DEPLOYED_COLUMNS = [
+    "Dupe Deployed",
+    "Dupe Deployed?",
+    "Duplicate Deployed",
+    "Duplicate Deployed?",
+    "Deployed Duplicate",
+    "Deployed Duplicate?",
+]
+LOCATION_COLUMNS = [
+    "Current Building",
+    "Install Building",
+    "Area/Unit/Dept",
+    "Room",
+    "Bay",
 ]
 CONTEXT_COLUMNS = [
     "Device Type",
@@ -43,8 +67,10 @@ CONTEXT_COLUMNS = [
     "IT Device Status",
     "Ready for Deployment",
     "Readiness (Auto)",
+    *DUPE_DEPLOYED_COLUMNS,
 ]
 EMPTY = {"", "N/A", "NA", "NONE", "NULL", "-", "--", "TBD", "UNKNOWN"}
+YES_VALUES = {"Y", "YES", "TRUE", "1", "DEPLOYED", "X"}
 MAC_RE = re.compile(r"(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}|[0-9a-f]{12}")
 TARGET_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 
@@ -56,6 +82,31 @@ def clean(value: object) -> str:
     if text.upper() in EMPTY:
         return ""
     return text
+
+
+def first_present(row: Dict[str, str], columns: Sequence[str]) -> str:
+    for col in columns:
+        value = clean(row.get(col, ""))
+        if value:
+            return value
+    return ""
+
+
+def is_yes(value: str) -> bool:
+    value = clean(value).strip().upper()
+    return value in YES_VALUES
+
+
+def normalize_location(value: str) -> str:
+    value = clean(value).upper()
+    value = re.sub(r"\s+", " ", value)
+    return value
+
+
+def location_signature(rec: Dict[str, str]) -> str:
+    parts = [normalize_location(rec.get(col, "")) for col in LOCATION_COLUMNS]
+    parts = [p for p in parts if p]
+    return " | ".join(parts) if parts else "UNKNOWN_LOCATION"
 
 
 def normalize_mac(value: str) -> str:
@@ -80,6 +131,25 @@ def normalize_serial(value: str) -> str:
     if value.upper() in EMPTY or len(value) < 3:
         return ""
     return value
+
+
+def normalize_hostname(value: str) -> str:
+    value = clean(value)
+    if not value:
+        return ""
+    if not is_target(value):
+        return ""
+    return value.upper()
+
+
+def normalize_identity(value: str, kind: str) -> str:
+    if kind == "mac":
+        return normalize_mac(value)
+    if kind == "serial":
+        return normalize_serial(value)
+    if kind == "hostname":
+        return normalize_hostname(value)
+    return ""
 
 
 def is_target(value: str) -> bool:
@@ -197,8 +267,12 @@ def build_inventory(rows: Sequence[Dict[str, str]]) -> List[Dict[str, str]]:
         rec: Dict[str, str] = {"source_row": str(i)}
         for col in TARGET_COLUMNS + MAC_COLUMNS + SERIAL_COLUMNS + CONTEXT_COLUMNS:
             rec[col] = clean(row.get(col, ""))
+        rec["dupe_deployed_value"] = first_present(row, DUPE_DEPLOYED_COLUMNS)
+        rec["dupe_deployed_yes"] = "yes" if is_yes(rec["dupe_deployed_value"]) else "no"
+        rec["location_signature"] = location_signature(rec)
         rec["normalized_macs"] = ";".join(sorted({normalize_mac(rec[c]) for c in MAC_COLUMNS if normalize_mac(rec[c])}))
         rec["normalized_serials"] = ";".join(sorted({normalize_serial(rec[c]) for c in SERIAL_COLUMNS if normalize_serial(rec[c])}))
+        rec["normalized_hostnames"] = ";".join(sorted({normalize_hostname(rec[c]) for c in HOSTNAME_COLUMNS if normalize_hostname(rec[c])}))
         inventory.append(rec)
     return inventory
 
@@ -225,32 +299,68 @@ def build_targets(inventory: Sequence[Dict[str, str]]) -> List[Dict[str, str]]:
     return sorted(seen.values(), key=lambda r: r["target"].lower())
 
 
-def duplicate_rows(inventory: Sequence[Dict[str, str]], columns: Sequence[str], kind: str) -> List[Dict[str, str]]:
+def group_duplicate_index(inventory: Sequence[Dict[str, str]], columns: Sequence[str], kind: str) -> Dict[str, List[Tuple[Dict[str, str], str]]]:
     index: Dict[str, List[Tuple[Dict[str, str], str]]] = defaultdict(list)
     for rec in inventory:
         row_values = set()
         for col in columns:
-            value = normalize_mac(rec.get(col, "")) if kind == "mac" else normalize_serial(rec.get(col, ""))
+            value = normalize_identity(rec.get(col, ""), kind)
             if value:
                 row_values.add((value, col))
         for value, col in row_values:
             index[value].append((rec, col))
+    return {value: hits for value, hits in index.items() if len({hit[0]["source_row"] for hit in hits}) >= 2}
+
+
+def classify_duplicate_group(hits: Sequence[Tuple[Dict[str, str], str]]) -> Tuple[str, str, List[Dict[str, str]]]:
+    all_recs = [rec for rec, _ in hits]
+    deployed_recs = [rec for rec in all_recs if rec.get("dupe_deployed_yes") == "yes"]
+    deployed_rows = {rec["source_row"] for rec in deployed_recs}
+    deployed_locations = {rec.get("location_signature", "UNKNOWN_LOCATION") for rec in deployed_recs}
+
+    if len(deployed_rows) >= 2 and len(deployed_locations) >= 2:
+        return "real_deployed_duplicate", "Dupe Deployed is Yes on two or more rows and those rows are at different locations.", deployed_recs
+    if len(deployed_rows) < 2:
+        return "false_positive_not_dupe_deployed", "Duplicate value repeats, but fewer than two rows have Dupe Deployed marked Yes.", all_recs
+    return "false_positive_same_location", "Duplicate value repeats and Dupe Deployed is Yes, but the deployed duplicate rows are not at different locations.", all_recs
+
+
+def duplicate_rows(inventory: Sequence[Dict[str, str]], columns: Sequence[str], kind: str) -> List[Dict[str, str]]:
     out: List[Dict[str, str]] = []
-    for value, hits in sorted(index.items()):
-        unique_rows = {h[0]["source_row"] for h in hits}
-        if len(unique_rows) < 2:
-            continue
+    for value, hits in sorted(group_duplicate_index(inventory, columns, kind).items()):
+        duplicate_class, duplicate_reason, class_recs = classify_duplicate_group(hits)
+        included_rows = {rec["source_row"] for rec in class_recs}
+        duplicate_locations = sorted({rec.get("location_signature", "UNKNOWN_LOCATION") for rec in class_recs})
+        deployed_yes_rows = sorted({rec["source_row"] for rec, _ in hits if rec.get("dupe_deployed_yes") == "yes"}, key=lambda x: int(x))
         for rec, col in hits:
+            if duplicate_class == "real_deployed_duplicate" and rec["source_row"] not in included_rows:
+                continue
             base = {
                 "duplicate_type": kind,
                 "duplicate_value": value,
+                "duplicate_class": duplicate_class,
+                "duplicate_reason": duplicate_reason,
                 "source_column": col,
                 "source_row": rec["source_row"],
+                "dupe_deployed_value": rec.get("dupe_deployed_value", ""),
+                "dupe_deployed_yes": rec.get("dupe_deployed_yes", "no"),
+                "location_signature": rec.get("location_signature", "UNKNOWN_LOCATION"),
+                "duplicate_location_count": str(len(duplicate_locations)),
+                "duplicate_locations": ";".join(duplicate_locations),
+                "dupe_deployed_yes_rows": ";".join(deployed_yes_rows),
             }
             for ctx in CONTEXT_COLUMNS + TARGET_COLUMNS + MAC_COLUMNS + SERIAL_COLUMNS:
                 base[ctx] = rec.get(ctx, "")
             out.append(base)
     return out
+
+
+def real_deployed_duplicate_rows(inventory: Sequence[Dict[str, str]]) -> List[Dict[str, str]]:
+    rows: List[Dict[str, str]] = []
+    rows.extend(duplicate_rows(inventory, MAC_COLUMNS, "mac"))
+    rows.extend(duplicate_rows(inventory, SERIAL_COLUMNS, "serial"))
+    rows.extend(duplicate_rows(inventory, HOSTNAME_COLUMNS, "hostname"))
+    return [row for row in rows if row.get("duplicate_class") == "real_deployed_duplicate"]
 
 
 def write_csv(path: Path, rows: Sequence[Dict[str, str]], fields: Optional[Sequence[str]] = None) -> None:
@@ -322,17 +432,20 @@ def match_nmap(hosts: Sequence[Dict[str, str]], inventory: Sequence[Dict[str, st
             row = {**host, "match_type": match_type, "source_row": rec["source_row"]}
             for col in TARGET_COLUMNS + MAC_COLUMNS + SERIAL_COLUMNS + CONTEXT_COLUMNS:
                 row[col] = rec.get(col, "")
+            row["dupe_deployed_value"] = rec.get("dupe_deployed_value", "")
+            row["dupe_deployed_yes"] = rec.get("dupe_deployed_yes", "no")
+            row["location_signature"] = rec.get("location_signature", "UNKNOWN_LOCATION")
             matches.append(row)
     return matches
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Build Nmap targets and duplicate identity reports from a Cybernet workbook.")
+    parser = argparse.ArgumentParser(description="Build Nmap targets and deployment-aware duplicate identity reports from a Cybernet workbook.")
     parser.add_argument("--source-xlsx", required=True, help="Path to the source deployment workbook")
     parser.add_argument("--sheet", default="Deployments", help="Worksheet name, default: Deployments")
     parser.add_argument("--out-dir", required=True, help="Output folder")
     parser.add_argument("--nmap-xml", default="", help="Optional Nmap XML file to match back to inventory")
-    parser.add_argument("--fail-on-duplicates", action="store_true", help="Exit 1 if duplicate MAC or serial values are found")
+    parser.add_argument("--fail-on-duplicates", action="store_true", help="Exit 1 if real deployed duplicate MAC / serial / hostname values are found")
     args = parser.parse_args(argv)
 
     source = Path(args.source_xlsx)
@@ -344,11 +457,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     targets = build_targets(inventory)
     dup_macs = duplicate_rows(inventory, MAC_COLUMNS, "mac")
     dup_serials = duplicate_rows(inventory, SERIAL_COLUMNS, "serial")
+    dup_hostnames = duplicate_rows(inventory, HOSTNAME_COLUMNS, "hostname")
+    real_dupes = [row for row in [*dup_macs, *dup_serials, *dup_hostnames] if row.get("duplicate_class") == "real_deployed_duplicate"]
+    false_positive_dupes = [row for row in [*dup_macs, *dup_serials, *dup_hostnames] if row.get("duplicate_class") != "real_deployed_duplicate"]
 
-    fields = ["source_row"] + TARGET_COLUMNS + MAC_COLUMNS + SERIAL_COLUMNS + CONTEXT_COLUMNS + ["normalized_macs", "normalized_serials"]
+    fields = ["source_row"] + TARGET_COLUMNS + MAC_COLUMNS + SERIAL_COLUMNS + CONTEXT_COLUMNS + [
+        "dupe_deployed_value",
+        "dupe_deployed_yes",
+        "location_signature",
+        "normalized_macs",
+        "normalized_serials",
+        "normalized_hostnames",
+    ]
     write_csv(out_dir / "unique_targets.csv", inventory, fields)
     write_csv(out_dir / "duplicate_macs.csv", dup_macs)
     write_csv(out_dir / "duplicate_serials.csv", dup_serials)
+    write_csv(out_dir / "duplicate_hostnames.csv", dup_hostnames)
+    write_csv(out_dir / "real_deployed_duplicates.csv", real_dupes)
+    write_csv(out_dir / "duplicate_false_positive_candidates.csv", false_positive_dupes)
     write_csv(out_dir / "nmap_targets.csv", targets, ["target", "source_column", "first_source_row", "source_rows"])
 
     with (out_dir / "targets.txt").open("w", encoding="utf-8") as f:
@@ -365,21 +491,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "sheet": args.sheet,
         "inventory_rows": len(inventory),
         "unique_nmap_targets": len(targets),
-        "duplicate_mac_rows": len(dup_macs),
-        "duplicate_serial_rows": len(dup_serials),
+        "raw_duplicate_mac_rows": len(dup_macs),
+        "raw_duplicate_serial_rows": len(dup_serials),
+        "raw_duplicate_hostname_rows": len(dup_hostnames),
+        "real_deployed_duplicate_rows": len(real_dupes),
+        "false_positive_candidate_rows": len(false_positive_dupes),
         "nmap_matches": len(matches),
+        "real_duplicate_formula": "same MAC, serial, or hostname across different locations with Dupe Deployed marked Yes on at least two deployed rows",
         "outputs": {
             "targets_txt": str(out_dir / "targets.txt"),
             "unique_targets_csv": str(out_dir / "unique_targets.csv"),
             "duplicate_macs_csv": str(out_dir / "duplicate_macs.csv"),
             "duplicate_serials_csv": str(out_dir / "duplicate_serials.csv"),
+            "duplicate_hostnames_csv": str(out_dir / "duplicate_hostnames.csv"),
+            "real_deployed_duplicates_csv": str(out_dir / "real_deployed_duplicates.csv"),
+            "duplicate_false_positive_candidates_csv": str(out_dir / "duplicate_false_positive_candidates.csv"),
             "nmap_probe_matches_csv": str(out_dir / "nmap_probe_matches.csv"),
         },
     }
     (out_dir / "audit_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     print(json.dumps(summary, indent=2))
-    if args.fail_on_duplicates and (dup_macs or dup_serials):
+    if args.fail_on_duplicates and real_dupes:
         return 1
     return 0
 
