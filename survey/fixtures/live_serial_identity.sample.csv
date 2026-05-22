@@ -1,0 +1,6 @@
+Target,reachability_status,observed_hostname,observed_serial,observed_mac,serial_probe_status,notes
+SAS-CYB-SAMPLE-001,reachable,SAS-CYB-SAMPLE-001,SAMPLE-CYB-SN-0001,02:00:00:00:A0:01,serial_observed,
+SAS-CYB-SAMPLE-002,reachable,SAS-CYB-SAMPLE-002,SAMPLE-CYB-SN-0002,02:00:00:00:A0:02,serial_observed,
+SAS-NEU-SAMPLE-003,reachable,SAS-NEU-SAMPLE-003,,02:00:00:00:A0:03,identity_observed_no_serial,
+SAS-CYB-SAMPLE-004,reachable,SAS-CYB-SAMPLE-004,SAMPLE-CONFLICT-SN,02:00:00:00:A0:04,serial_observed,
+SAS-CYB-SAMPLE-005,unreachable,,,,serial_probe_failed,Offline fixture simulates endpoint unavailable or blocked
