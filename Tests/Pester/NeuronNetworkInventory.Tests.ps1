@@ -1,4 +1,4 @@
-﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
 
 BeforeAll {
     $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -44,6 +44,18 @@ Describe 'Get-NeuronNetworkInventory.ps1 -- admin-box survey contract' {
         }
     }
 
+    It 'Collects richer machine info fields for Neuron review' {
+        foreach ($field in @('DNSHostName','Domain','LoggedOnUser','OSCaption','OSVersion','OSBuildNumber','OSArchitecture','LastBootUpTime')) {
+            $script:content | Should -Match $field
+        }
+    }
+
+    It 'Queries Win32_OperatingSystem and converts WMI boot time safely' {
+        $script:content | Should -Match 'Win32_OperatingSystem'
+        $script:content | Should -Match 'Convert-WmiDateInner'
+        $script:content | Should -Match 'ManagementDateTimeConverter'
+    }
+
     It 'Compares observed MAC and serial values against tracked target data' {
         $script:content | Should -Match 'MatchExpectedMAC'
         $script:content | Should -Match 'MatchExpectedSerial'
@@ -63,6 +75,7 @@ Describe 'Get-NeuronNetworkInventory.ps1 -- admin-box survey contract' {
 
     It 'Generates suite HTML when the helper exists' {
         $script:content | Should -Match 'ConvertTo-SuiteHtml'
+        $script:content | Should -Match 'Neuron Machine Info Inventory'
     }
 }
 
