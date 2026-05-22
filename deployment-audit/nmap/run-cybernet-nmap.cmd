@@ -5,11 +5,32 @@ REM Non-PowerShell workflow for Cybernet/Neuron target verification.
 REM Offline workbook analysis is allowed anywhere.
 REM Live probing is blocked unless the WAB network guard passes.
 REM Live probing is progress-aware and writes resumable per-target logs.
+REM
+REM Usage:
+REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx"
+REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --fresh
+REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --force
+REM
+REM Safety rule:
+REM   --fresh and --force still run the WAB guard before any live probe starts.
 
 set "SOURCE_XLSX=%~1"
+set "RUN_MODE=%~2"
+set "RUNNER_EXTRA_ARGS="
+
 if "%SOURCE_XLSX%"=="" (
-  echo Usage: %~nx0 "C:\path\to\CybernetWorkbook.xlsx"
+  echo Usage: %~nx0 "C:\path\to\CybernetWorkbook.xlsx" [--fresh^|--force]
   exit /b 2
+)
+
+if not "%RUN_MODE%"=="" (
+  if /I "%RUN_MODE%"=="--fresh" set "RUNNER_EXTRA_ARGS=--fresh"
+  if /I "%RUN_MODE%"=="--force" set "RUNNER_EXTRA_ARGS=--force"
+  if "%RUNNER_EXTRA_ARGS%"=="" (
+    echo Invalid option: %RUN_MODE%
+    echo Allowed options: --fresh or --force
+    exit /b 2
+  )
 )
 
 set "SCRIPT_DIR=%~dp0"
@@ -63,6 +84,9 @@ if "%NMAP_CMD%"=="" (
   exit /b 0
 )
 
+if /I "%RUN_MODE%"=="--fresh" echo Fresh mode selected. Previous live-probe artifacts will be cleared only after WAB guard has passed.
+if /I "%RUN_MODE%"=="--force" echo Force mode selected. Existing completed targets will be rescanned only after WAB guard has passed.
+
 echo Running progress-aware live probe from approved WAB network...
-%PYTHON_CMD% "%SCRIPT_DIR%nmap_probe_runner.py" --source-xlsx "%SOURCE_XLSX%" --out-dir "%OUT_DIR%" --nmap-exe "%NMAP_CMD%"
+%PYTHON_CMD% "%SCRIPT_DIR%nmap_probe_runner.py" --source-xlsx "%SOURCE_XLSX%" --out-dir "%OUT_DIR%" --nmap-exe "%NMAP_CMD%" %RUNNER_EXTRA_ARGS%
 exit /b %errorlevel%
