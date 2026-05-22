@@ -2,19 +2,17 @@
 """
 Async, progress-aware Nmap probe runner for Cybernet / Neuron audits.
 
-This module is intentionally more than a thin wrapper around nmap. It owns the
-live-probe lifecycle:
-
+This module owns the live-probe lifecycle:
 - queue-based async target execution
 - async JSONL event logging
+- heartbeat logging while the run is active
 - atomic artifact writes so partial files are less likely
 - resumable status tracking
-- incremental analysis after every completed target
-- Ctrl+C / premature-stop recovery
+- periodic analysis refresh during the run
+- best-effort final artifact refresh on complete, Ctrl+C, SIGTERM, or incomplete runs
 
-Default concurrency is 1 to avoid aggressive scanning. The implementation is
-async so the logger, status writer, subprocess handling, and analysis refreshes
-stay responsive and structured even when concurrency remains conservative.
+Default concurrency is 1. Use --fast-stable or --max-concurrency 2 for a faster
+but still conservative probe. Concurrency is capped at 8.
 
 No third-party Python packages are required.
 """
@@ -26,12 +24,13 @@ import csv
 import json
 import re
 import shutil
+import signal
 import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from cybernet_target_audit import build_inventory, match_nmap, parse_nmap_xml, read_xlsx_rows
 
@@ -59,14 +58,10 @@ PROBE_ARTIFACTS_TO_CLEAR = [
     "probe_progress.jsonl",
     "nmap_probe_matches.csv",
     "probe_run_summary.json",
+    "probe_final_state.json",
 ]
 
-PROBE_DIRS_TO_CLEAR = [
-    "probe_xml",
-    "probe_logs",
-]
-
-TERMINAL_STATUSES = {"completed", "failed", "skipped", "resumed_completed"}
+PROBE_DIRS_TO_CLEAR = ["probe_xml", "probe_logs"]
 
 
 def now_iso() -> str:
@@ -81,7 +76,7 @@ def safe_name(value: str, max_len: int = 80) -> str:
 
 def atomic_write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(content, encoding="utf-8")
     tmp.replace(path)
 
@@ -92,7 +87,7 @@ def atomic_write_json(path: Path, payload: object) -> None:
 
 def atomic_write_csv(path: Path, rows: Sequence[Dict[str, str]], fields: Sequence[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = path.with_name(path.name + ".tmp")
     with tmp.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(fields), extrasaction="ignore")
         writer.writeheader()
@@ -166,6 +161,7 @@ class ProbePaths:
     progress_jsonl: Path
     matches_csv: Path
     summary_json: Path
+    final_state_json: Path
 
     @classmethod
     def from_out_dir(cls, out_dir: Path) -> "ProbePaths":
@@ -177,6 +173,7 @@ class ProbePaths:
             progress_jsonl=out_dir / "probe_progress.jsonl",
             matches_csv=out_dir / "nmap_probe_matches.csv",
             summary_json=out_dir / "probe_run_summary.json",
+            final_state_json=out_dir / "probe_final_state.json",
         )
 
     def ensure(self) -> None:
@@ -219,7 +216,7 @@ class AsyncEventLogger:
 
     async def start(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.task = asyncio.create_task(self._run())
+        self.task = asyncio.create_task(self._run(), name="event_logger")
 
     async def _run(self) -> None:
         with self.path.open("a", encoding="utf-8") as f:
@@ -264,7 +261,74 @@ class ArtifactStore:
             rows = sorted(self.statuses.values(), key=lambda r: int(r.get("index") or 0))
             await asyncio.to_thread(atomic_write_csv, self.paths.status_csv, rows, STATUS_FIELDS)
 
-    async def refresh_analysis(self) -> Dict[str, object]:
+    async def mark_running_interrupted(self) -> None:
+        async with self.status_lock:
+            changed = False
+            ended = now_iso()
+            for row in self.statuses.values():
+                if row.get("status") == "running":
+                    row["status"] = "interrupted"
+                    row["ended_at"] = ended
+                    row["return_code"] = "130"
+                    row["error"] = "Probe terminated before this target completed."
+                    changed = True
+            if changed:
+                rows = sorted(self.statuses.values(), key=lambda r: int(r.get("index") or 0))
+                await asyncio.to_thread(atomic_write_csv, self.paths.status_csv, rows, STATUS_FIELDS)
+
+    async def mark_queued_not_run(self, targets: Sequence[ProbeTarget]) -> None:
+        async with self.status_lock:
+            changed = False
+            existing_targets = set(self.statuses)
+            ended = now_iso()
+            for target in targets:
+                if target.target in existing_targets:
+                    continue
+                self.statuses[target.target] = {
+                    "target": target.target,
+                    "index": str(target.index),
+                    "total": str(target.total),
+                    "percent": f"{target.percent:.2f}",
+                    "status": "not_run_interrupted",
+                    "started_at": "",
+                    "ended_at": ended,
+                    "duration_seconds": "",
+                    "return_code": "130",
+                    "xml_path": "",
+                    "stdout_log": "",
+                    "stderr_log": "",
+                    "source_column": target.source_column,
+                    "first_source_row": target.first_source_row,
+                    "source_rows": target.source_rows,
+                    "error": "Probe terminated before this target started.",
+                }
+                changed = True
+            if changed:
+                rows = sorted(self.statuses.values(), key=lambda r: int(r.get("index") or 0))
+                await asyncio.to_thread(atomic_write_csv, self.paths.status_csv, rows, STATUS_FIELDS)
+
+    async def quick_summary(self) -> Dict[str, object]:
+        async with self.status_lock:
+            rows = list(self.statuses.values())
+
+        counts = {status: 0 for status in ["completed", "resumed_completed", "failed", "skipped", "running", "interrupted", "not_run_interrupted"]}
+        for row in rows:
+            status = row.get("status", "")
+            if status in counts:
+                counts[status] += 1
+
+        total = int(rows[0].get("total", "0") or 0) if rows else 0
+        accounted = sum(counts[s] for s in counts if s != "running")
+        percent = accounted / total * 100 if total else 0.0
+        return {
+            "total_targets": total,
+            "accounted_targets": accounted,
+            "percent_accounted_for": round(percent, 2),
+            **{f"{key}_targets": value for key, value in counts.items()},
+            "last_updated": now_iso(),
+        }
+
+    async def refresh_analysis(self, reason: str = "manual") -> Dict[str, object]:
         async with self.analysis_lock:
             hosts = await asyncio.to_thread(parse_all_xml, self.paths.xml_dir)
             matches = await asyncio.to_thread(match_nmap, hosts, self.inventory)
@@ -281,43 +345,30 @@ class ArtifactStore:
             ]
             await asyncio.to_thread(atomic_write_csv, self.paths.matches_csv, matches, match_fields)
 
-            async with self.status_lock:
-                status_rows = list(self.statuses.values())
-
-            completed = sum(1 for row in status_rows if row.get("status") == "completed")
-            failed = sum(1 for row in status_rows if row.get("status") == "failed")
-            skipped = sum(1 for row in status_rows if row.get("status") == "skipped")
-            resumed = sum(1 for row in status_rows if row.get("status") == "resumed_completed")
-            running = sum(1 for row in status_rows if row.get("status") == "running")
-            total = int(status_rows[0].get("total", "0") or 0) if status_rows else 0
-            accounted = completed + failed + skipped + resumed
-            percent_complete = accounted / total * 100 if total else 0.0
-
+            quick = await self.quick_summary()
             summary = {
                 "source": str(self.source_xlsx),
                 "sheet": self.sheet,
-                "total_targets": total,
-                "completed_targets": completed,
-                "resumed_completed_targets": resumed,
-                "failed_targets": failed,
-                "skipped_targets": skipped,
-                "running_or_interrupted_targets": running,
-                "accounted_targets": accounted,
-                "percent_accounted_for": round(percent_complete, 2),
+                "analysis_reason": reason,
+                **quick,
                 "parsed_probe_hosts": len(hosts),
                 "nmap_matches": len(matches),
-                "last_updated": now_iso(),
                 "outputs": {
                     "probe_status_csv": str(self.paths.status_csv),
                     "probe_progress_jsonl": str(self.paths.progress_jsonl),
                     "nmap_probe_matches_csv": str(self.paths.matches_csv),
                     "probe_run_summary_json": str(self.paths.summary_json),
+                    "probe_final_state_json": str(self.paths.final_state_json),
                     "probe_xml_dir": str(self.paths.xml_dir),
                     "probe_logs_dir": str(self.paths.log_dir),
                 },
             }
             await asyncio.to_thread(atomic_write_json, self.paths.summary_json, summary)
             return summary
+
+    async def write_final_state(self, state: str, reason: str, summary: Dict[str, object]) -> None:
+        payload = {"state": state, "reason": reason, "timestamp": now_iso(), "summary": summary}
+        await asyncio.to_thread(atomic_write_json, self.paths.final_state_json, payload)
 
 
 class ProbeOrchestrator:
@@ -329,10 +380,32 @@ class ProbeOrchestrator:
         self.logger = AsyncEventLogger(paths.progress_jsonl)
         self.print_lock = asyncio.Lock()
         self.target_queue: asyncio.Queue[ProbeTarget] = asyncio.Queue()
+        self.stop_requested = asyncio.Event()
+        self.terminal_events_since_analysis = 0
+        self.analysis_counter_lock = asyncio.Lock()
+        self.shutdown_reason = "completed"
 
     async def print_line(self, text: str) -> None:
         async with self.print_lock:
             print(text, flush=True)
+
+    def request_stop(self, reason: str) -> None:
+        if not self.stop_requested.is_set():
+            self.shutdown_reason = reason
+            self.stop_requested.set()
+
+    def install_signal_handlers(self) -> None:
+        def handler(signum: int, _frame: object) -> None:
+            self.request_stop(f"signal_{signum}")
+
+        for sig_name in ("SIGINT", "SIGTERM", "SIGBREAK"):
+            sig = getattr(signal, sig_name, None)
+            if sig is None:
+                continue
+            try:
+                signal.signal(sig, handler)
+            except Exception:
+                continue
 
     def target_paths(self, target: ProbeTarget) -> Tuple[Path, Path, Path]:
         xml_path = self.paths.xml_dir / f"{target.base_name}.xml"
@@ -348,34 +421,37 @@ class ProbeOrchestrator:
             "--reason",
             "--host-timeout",
             self.args.host_timeout,
+            "--max-retries",
+            str(self.args.max_retries),
             "-oX",
             str(xml_path),
             target.target,
         ]
         start = time.monotonic()
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        try:
-            stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=self.args.process_timeout)
-        except asyncio.TimeoutError:
-            process.kill()
-            stdout_b, stderr_b = await process.communicate()
-            await asyncio.to_thread(atomic_write_text, stdout_path, (stdout_b or b"").decode("utf-8", errors="replace"))
-            await asyncio.to_thread(atomic_write_text, stderr_path, (stderr_b or b"").decode("utf-8", errors="replace"))
-            return ProbeResult("failed", 124, f"Process timeout after {self.args.process_timeout} seconds", time.monotonic() - start)
-        except asyncio.CancelledError:
-            process.terminate()
+        process = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+
+        while True:
+            if self.stop_requested.is_set():
+                process.terminate()
+                try:
+                    stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=5)
+                except Exception:
+                    process.kill()
+                    stdout_b, stderr_b = await process.communicate()
+                await asyncio.to_thread(atomic_write_text, stdout_path, (stdout_b or b"").decode("utf-8", errors="replace"))
+                await asyncio.to_thread(atomic_write_text, stderr_path, (stderr_b or b"").decode("utf-8", errors="replace"))
+                return ProbeResult("interrupted", 130, "Probe terminated before this target completed.", time.monotonic() - start)
+
             try:
-                stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=5)
-            except Exception:
-                process.kill()
-                stdout_b, stderr_b = await process.communicate()
-            await asyncio.to_thread(atomic_write_text, stdout_path, (stdout_b or b"").decode("utf-8", errors="replace"))
-            await asyncio.to_thread(atomic_write_text, stderr_path, (stderr_b or b"").decode("utf-8", errors="replace"))
-            raise
+                stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=1)
+                break
+            except asyncio.TimeoutError:
+                if time.monotonic() - start > self.args.process_timeout:
+                    process.kill()
+                    stdout_b, stderr_b = await process.communicate()
+                    await asyncio.to_thread(atomic_write_text, stdout_path, (stdout_b or b"").decode("utf-8", errors="replace"))
+                    await asyncio.to_thread(atomic_write_text, stderr_path, (stderr_b or b"").decode("utf-8", errors="replace"))
+                    return ProbeResult("failed", 124, f"Process timeout after {self.args.process_timeout} seconds", time.monotonic() - start)
 
         stdout = (stdout_b or b"").decode("utf-8", errors="replace")
         stderr = (stderr_b or b"").decode("utf-8", errors="replace")
@@ -386,6 +462,22 @@ class ProbeOrchestrator:
         status = "completed" if rc == 0 else "failed"
         error = "" if rc == 0 else (stderr or stdout or "Nmap returned non-zero exit code").strip()[:500]
         return ProbeResult(status, rc, error, time.monotonic() - start)
+
+    async def maybe_refresh_analysis(self, reason: str, force: bool = False) -> Dict[str, object]:
+        async with self.analysis_counter_lock:
+            if not force:
+                self.terminal_events_since_analysis += 1
+                if self.terminal_events_since_analysis < self.args.analysis_interval:
+                    return await self.store.quick_summary()
+            self.terminal_events_since_analysis = 0
+
+        summary = await self.store.refresh_analysis(reason=reason)
+        await self.logger.emit({"event": "analysis_refreshed", "reason": reason, "summary": summary})
+        await self.print_line(
+            f"analysis refreshed ({reason}) | hosts={summary.get('parsed_probe_hosts', 0)} "
+            f"matches={summary.get('nmap_matches', 0)} accounted={summary.get('percent_accounted_for', 0)}%"
+        )
+        return summary
 
     async def mark_resumed(self, target: ProbeTarget, xml_path: Path, stdout_path: Path, stderr_path: Path, existing: Dict[str, str]) -> None:
         await self.store.update_status(target.target, {
@@ -399,14 +491,17 @@ class ProbeOrchestrator:
             "stdout_log": str(stdout_path),
             "stderr_log": str(stderr_path),
         })
-        summary = await self.store.refresh_analysis()
+        summary = await self.maybe_refresh_analysis("resume", force=False)
         await self.print_line(
             f"[{target.index}/{target.total} | {target.percent:6.2f}%] resume: already completed: {target.target} | "
-            f"matches={summary['nmap_matches']} hosts={summary['parsed_probe_hosts']} analyzed={summary['percent_accounted_for']}%"
+            f"accounted={summary.get('percent_accounted_for', 0)}%"
         )
         await self.logger.emit({"event": "target_resumed_completed", "target": target.target, "index": target.index, "total": target.total, "percent": round(target.percent, 2), "summary": summary})
 
     async def probe_one(self, target: ProbeTarget) -> None:
+        if self.stop_requested.is_set():
+            return
+
         xml_path, stdout_path, stderr_path = self.target_paths(target)
         existing = self.store.statuses.get(target.target, {})
         if not self.args.force and existing.get("status") in {"completed", "resumed_completed"} and xml_path.exists():
@@ -444,11 +539,10 @@ class ProbeOrchestrator:
             "error": result.error,
         })
 
-        summary = await self.store.refresh_analysis()
+        summary = await self.maybe_refresh_analysis("target_terminal", force=False)
         await self.print_line(
             f"[{target.index}/{target.total} | {target.percent:6.2f}%] {result.status}: {target.target} | "
-            f"rc={result.return_code} elapsed={result.duration_seconds:.1f}s hosts={summary['parsed_probe_hosts']} "
-            f"matches={summary['nmap_matches']} analyzed={summary['percent_accounted_for']}%"
+            f"rc={result.return_code} elapsed={result.duration_seconds:.1f}s accounted={summary.get('percent_accounted_for', 0)}%"
         )
         await self.logger.emit({
             "event": f"target_{result.status}",
@@ -462,8 +556,14 @@ class ProbeOrchestrator:
         })
 
     async def worker(self, worker_id: int) -> None:
-        while True:
-            target = await self.target_queue.get()
+        while not self.stop_requested.is_set():
+            try:
+                target = await asyncio.wait_for(self.target_queue.get(), timeout=0.5)
+            except asyncio.TimeoutError:
+                if self.target_queue.empty():
+                    return
+                continue
+
             try:
                 await self.probe_one(target)
             except Exception as exc:
@@ -478,56 +578,131 @@ class ProbeOrchestrator:
                     "return_code": "1",
                     "error": str(exc)[:500],
                 })
-                await self.store.refresh_analysis()
+                await self.maybe_refresh_analysis("target_exception", force=True)
                 await self.logger.emit({"event": "target_exception", "target": target.target, "index": target.index, "error": str(exc)})
             finally:
                 self.target_queue.task_done()
 
+    async def heartbeat(self) -> None:
+        while not self.stop_requested.is_set():
+            await asyncio.sleep(self.args.heartbeat_interval)
+            summary = await self.store.quick_summary()
+            await self.logger.emit({"event": "heartbeat", "summary": summary})
+            await self.print_line(
+                f"heartbeat | accounted={summary.get('accounted_targets', 0)}/{summary.get('total_targets', 0)} "
+                f"({summary.get('percent_accounted_for', 0)}%) running={summary.get('running_targets', 0)} "
+                f"failed={summary.get('failed_targets', 0)}"
+            )
+
+    async def drain_not_started(self) -> List[ProbeTarget]:
+        not_started: List[ProbeTarget] = []
+        while True:
+            try:
+                target = self.target_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            not_started.append(target)
+            self.target_queue.task_done()
+        return not_started
+
+    async def finalize(self, state: str, reason: str) -> Dict[str, object]:
+        await self.store.mark_running_interrupted()
+        remaining = await self.drain_not_started()
+        if remaining:
+            await self.store.mark_queued_not_run(remaining)
+        summary = await self.store.refresh_analysis(reason=f"finalize_{reason}")
+        await self.store.write_final_state(state, reason, summary)
+        await self.logger.emit({"event": "finalized", "state": state, "reason": reason, "summary": summary})
+        await self.print_line(
+            f"finalized: {state} ({reason}) | accounted={summary.get('accounted_targets', 0)}/"
+            f"{summary.get('total_targets', 0)} hosts={summary.get('parsed_probe_hosts', 0)} "
+            f"matches={summary.get('nmap_matches', 0)}"
+        )
+        return summary
+
     async def run(self) -> int:
+        self.install_signal_handlers()
         await self.logger.start()
         await self.logger.emit({
             "event": "run_started",
             "total_targets": len(self.targets),
             "async_logging": True,
-            "incremental_analysis": True,
+            "periodic_analysis": True,
+            "heartbeat_interval": self.args.heartbeat_interval,
+            "analysis_interval": self.args.analysis_interval,
             "fresh": bool(self.args.fresh),
             "force": bool(self.args.force),
             "max_concurrency": self.args.max_concurrency,
+            "host_timeout": self.args.host_timeout,
+            "process_timeout": self.args.process_timeout,
+            "max_retries": self.args.max_retries,
         })
 
         for target in self.targets:
             await self.target_queue.put(target)
 
-        workers = [asyncio.create_task(self.worker(i + 1)) for i in range(self.args.max_concurrency)]
+        workers = [asyncio.create_task(self.worker(i + 1), name=f"probe_worker_{i + 1}") for i in range(self.args.max_concurrency)]
+        heartbeat_task = asyncio.create_task(self.heartbeat(), name="heartbeat")
+
+        state = "completed"
+        reason = "queue_drained"
+        exit_code = 0
         try:
-            await self.target_queue.join()
+            join_task = asyncio.create_task(self.target_queue.join(), name="queue_join")
+            stop_task = asyncio.create_task(self.stop_requested.wait(), name="stop_wait")
+            done, pending = await asyncio.wait({join_task, stop_task}, return_when=asyncio.FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+
+            if stop_task in done and self.stop_requested.is_set():
+                state = "incomplete"
+                reason = self.shutdown_reason
+                exit_code = 130
+            elif join_task in done:
+                state = "completed"
+                reason = "queue_drained"
+                exit_code = 0
+
         except KeyboardInterrupt:
-            await self.print_line("\nProbe interrupted. Refreshing analysis artifacts from completed XML files...")
-            await self.logger.emit({"event": "run_interrupted"})
-            summary = await self.store.refresh_analysis()
-            print(json.dumps(summary, indent=2))
-            return 130
+            self.request_stop("keyboard_interrupt")
+            state = "incomplete"
+            reason = "keyboard_interrupt"
+            exit_code = 130
         finally:
             for worker in workers:
                 worker.cancel()
-            await asyncio.gather(*workers, return_exceptions=True)
-            final_summary = await self.store.refresh_analysis()
-            await self.logger.emit({"event": "analysis_refreshed", "summary": final_summary})
+            heartbeat_task.cancel()
+            await asyncio.gather(*workers, heartbeat_task, return_exceptions=True)
+            await self.finalize(state, reason)
             await self.logger.stop()
 
-        summary = await self.store.refresh_analysis()
-        print(json.dumps(summary, indent=2))
-        return 0
+        return exit_code
 
 
 async def run_probe_async(args: argparse.Namespace) -> int:
     source_xlsx = Path(args.source_xlsx)
     out_dir = Path(args.out_dir)
 
+    if args.fast_stable:
+        if args.max_concurrency == 1:
+            args.max_concurrency = 2
+        if args.host_timeout == "45s":
+            args.host_timeout = "20s"
+        if args.process_timeout == 90:
+            args.process_timeout = 45
+        if args.analysis_interval == 1:
+            args.analysis_interval = 10
+        if args.heartbeat_interval == 30:
+            args.heartbeat_interval = 15
+
     if args.max_concurrency < 1:
         raise ValueError("--max-concurrency must be at least 1")
     if args.max_concurrency > 8:
         raise ValueError("--max-concurrency is capped at 8 for safety")
+    if args.analysis_interval < 1:
+        raise ValueError("--analysis-interval must be at least 1")
+    if args.heartbeat_interval < 5:
+        raise ValueError("--heartbeat-interval must be at least 5 seconds")
 
     if args.fresh and not args.analyze_only:
         print("Fresh run requested: clearing previous live-probe artifacts only.", flush=True)
@@ -554,16 +729,26 @@ async def run_probe_async(args: argparse.Namespace) -> int:
     store = ArtifactStore(paths, inventory, source_xlsx, args.sheet)
 
     if args.analyze_only:
-        summary = await store.refresh_analysis()
+        summary = await store.refresh_analysis(reason="analyze_only")
+        await store.write_final_state("analyze_only", "manual", summary)
         print(json.dumps(summary, indent=2))
         return 0
 
     if not targets:
         print("No targets to probe.")
+        summary = await store.refresh_analysis(reason="no_targets")
+        await store.write_final_state("completed", "no_targets", summary)
         return 0
 
     if args.max_concurrency > 1:
         print(f"Concurrent probing enabled: {args.max_concurrency} workers. Use only when approved for the network segment.", flush=True)
+
+    print(
+        f"Probe settings: concurrency={args.max_concurrency}, host_timeout={args.host_timeout}, "
+        f"process_timeout={args.process_timeout}s, analysis_interval={args.analysis_interval}, "
+        f"heartbeat_interval={args.heartbeat_interval}s",
+        flush=True,
+    )
 
     orchestrator = ProbeOrchestrator(args, paths, store, targets)
     return await orchestrator.run()
@@ -577,12 +762,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--nmap-exe", default="nmap", help="Path to nmap.exe or command name")
     parser.add_argument("--host-timeout", default="45s", help="Nmap host timeout per target, default: 45s")
     parser.add_argument("--process-timeout", type=int, default=90, help="Python subprocess timeout per target in seconds")
+    parser.add_argument("--max-retries", type=int, default=1, help="Nmap max retries per target, default: 1")
     parser.add_argument("--max-concurrency", type=int, default=1, help="Number of async probe workers. Default 1; capped at 8.")
+    parser.add_argument("--analysis-interval", type=int, default=1, help="Refresh matched analysis every N terminal target events. Default 1.")
+    parser.add_argument("--heartbeat-interval", type=int, default=30, help="Print/log heartbeat every N seconds. Minimum 5.")
+    parser.add_argument("--fast-stable", action="store_true", help="Conservative faster mode: concurrency 2, shorter timeouts, periodic analysis.")
     parser.add_argument("--force", action="store_true", help="Rescan targets even if completed XML already exists")
     parser.add_argument("--fresh", action="store_true", help="Clear previous live-probe artifacts before starting")
     parser.add_argument("--analyze-only", action="store_true", help="Do not probe. Analyze completed XML/logs only")
     args = parser.parse_args(argv)
-    return asyncio.run(run_probe_async(args))
+    try:
+        return asyncio.run(run_probe_async(args))
+    except KeyboardInterrupt:
+        print("Interrupted before graceful finalization could complete. Re-run analyze-cybernet-probe.cmd to refresh artifacts.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":
