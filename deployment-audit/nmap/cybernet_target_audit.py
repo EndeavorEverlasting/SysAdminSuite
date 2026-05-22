@@ -18,7 +18,7 @@ import sys
 import zipfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 import xml.etree.ElementTree as ET
 
 TARGET_COLUMNS = ["Neuron IP", "Neuron Hostname", "Cybernet Hostname"]
@@ -46,6 +46,7 @@ CONTEXT_COLUMNS = [
 ]
 EMPTY = {"", "N/A", "NA", "NONE", "NULL", "-", "--", "TBD", "UNKNOWN"}
 MAC_RE = re.compile(r"(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}|[0-9a-f]{12}")
+TARGET_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 
 
 def clean(value: object) -> str:
@@ -85,9 +86,18 @@ def is_target(value: str) -> bool:
     value = clean(value)
     if not value:
         return False
-    if any(ch in value for ch in " ;,|"):
+
+    # Nmap treats slash as CIDR/netmask syntax. Values like
+    # AKBARANATOR/WMH300OPR378 are workbook notes or combined labels, not a
+    # single scannable hostname, so keep them out of targets.txt.
+    if any(ch in value for ch in " ;,|/\\\"'<>[]{}()"):
         return False
-    return True
+
+    # Avoid malformed hostnames that Nmap will reject or misinterpret.
+    if value.startswith(("-", ".", ":")) or value.endswith(("-", ".", ":")):
+        return False
+
+    return bool(TARGET_RE.fullmatch(value))
 
 
 def col_letter_to_index(ref: str) -> int:
