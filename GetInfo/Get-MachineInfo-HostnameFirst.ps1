@@ -31,117 +31,76 @@ function Invoke-NativeCommand {
 }
 
 function Test-NorthwellWabConnection {
-  # Required WAB gate order:
-  # 1. Nmap first
-  # 2. Active Directory second
-  # 3. SCCM third
-  # 4. Other network probes last
+  # This preflight only decides whether the script is allowed to run from the
+  # Northwell/WAB enterprise path. It does NOT enforce the hostname probe order.
+  # Hostname probing still follows: Nmap -> AD -> SCCM -> other native probes.
   $reasons = @()
   $evidence = @()
-  $softWarnings = @()
+  $warnings = @()
 
-  $nmapPath = (Get-Command nmap.exe -ErrorAction SilentlyContinue).Source
-  $nltestPath = (Get-Command nltest.exe -ErrorAction SilentlyContinue).Source
-  $scPath = (Get-Command sc.exe -ErrorAction SilentlyContinue).Source
-  $regPath = (Get-Command reg.exe -ErrorAction SilentlyContinue).Source
   $ipconfigPath = (Get-Command ipconfig.exe -ErrorAction SilentlyContinue).Source
   $nslookupPath = (Get-Command nslookup.exe -ErrorAction SilentlyContinue).Source
-
-  if ($nmapPath) {
-    $portProbe = Invoke-NativeCommand -FilePath $nmapPath -Arguments @('-sT','-Pn','--system-dns','-p','445','SWBPNHPHPS01V')
-    if ($portProbe.Text -match '445/tcp\s+open') {
-      $evidence += '01_NMAP: SMB/445 reachable to Northwell smoke target SWBPNHPHPS01V'
-    } elseif ($portProbe.Text -match '445/tcp\s+(filtered|closed)') {
-      $reasons += "01_NMAP_FAIL: SMB/445 to Northwell smoke target is not open. Output: $($portProbe.Text)"
-    } else {
-      $reasons += "01_NMAP_FAIL: nmap did not return a clear SMB/445 result for SWBPNHPHPS01V. Output: $($portProbe.Text)"
-    }
-  } else {
-    $reasons += '01_NMAP_FAIL: nmap.exe is required for this WAB guard and was not found in PATH'
-  }
-
-  if ($nltestPath) {
-    $nltest = Invoke-NativeCommand -FilePath $nltestPath -Arguments @('/dsgetdc:nslijhs.net')
-    if ($nltest.ExitCode -eq 0 -and $nltest.Text -match 'nslijhs\.net') {
-      $evidence += '02_AD: nltest found a domain controller for nslijhs.net'
-    } else {
-      $reasons += "02_AD_FAIL: nltest could not locate a nslijhs.net domain controller. Output: $($nltest.Text)"
-    }
-  } else {
-    $reasons += '02_AD_FAIL: nltest.exe is not available for Active Directory preflight'
-  }
-
-  $sccmEvidenceFound = $false
-  if ($scPath) {
-    $ccmService = Invoke-NativeCommand -FilePath $scPath -Arguments @('query','ccmexec')
-    if ($ccmService.Text -match 'SERVICE_NAME:\s+ccmexec' -and $ccmService.Text -match 'STATE') {
-      $evidence += '03_SCCM: ccmexec service is present'
-      $sccmEvidenceFound = $true
-    } else {
-      $softWarnings += '03_SCCM_WARN: ccmexec service was not confirmed'
-    }
-  } else {
-    $softWarnings += '03_SCCM_WARN: sc.exe is not available for SCCM service preflight'
-  }
-
-  if ($regPath) {
-    $ccmReg = Invoke-NativeCommand -FilePath $regPath -Arguments @('query','HKLM\SOFTWARE\Microsoft\SMS\Mobile Client','/v','AssignedSiteCode')
-    if ($ccmReg.ExitCode -eq 0 -and $ccmReg.Text -match 'AssignedSiteCode') {
-      $evidence += '03_SCCM: SCCM AssignedSiteCode registry value is present'
-      $sccmEvidenceFound = $true
-    } else {
-      $softWarnings += '03_SCCM_WARN: SCCM AssignedSiteCode was not confirmed'
-    }
-  } else {
-    $softWarnings += '03_SCCM_WARN: reg.exe is not available for SCCM registry preflight'
-  }
-
-  if (-not $sccmEvidenceFound) { $softWarnings += '03_SCCM_WARN: SCCM evidence was not confirmed; continuing only if Nmap and AD passed' }
+  $nltestPath = (Get-Command nltest.exe -ErrorAction SilentlyContinue).Source
 
   if ($ipconfigPath) {
     $ipconfig = Invoke-NativeCommand -FilePath $ipconfigPath -Arguments @('/all')
     $ipText = $ipconfig.Text
-    if ($ipText -match 'nslijhs\.net' -or $ipText -match 'northwell') {
-      $evidence += '04_NETWORK: ipconfig shows Northwell/nslijhs network context'
-    } else {
-      $reasons += '04_NETWORK_FAIL: ipconfig did not show a Northwell/nslijhs DNS suffix or network context'
+
+    if ($ipText -match '(?i)nslijhs\.net|northwell|wab') {
+      $evidence += 'ipconfig shows Northwell/WAB/nslijhs network context'
     }
-    if ($ipText -match '(?i)guest') { $reasons += '04_NETWORK_FAIL: ipconfig appears to show guest network context' }
+    if ($ipText -match '(?i)guest') {
+      $reasons += 'ipconfig appears to show guest network context'
+    }
   } else {
-    $reasons += '04_NETWORK_FAIL: ipconfig.exe is not available for network preflight'
+    $warnings += 'ipconfig.exe is not available for WAB preflight'
   }
 
   if ($nslookupPath) {
     $dnsProbe = Invoke-NativeCommand -FilePath $nslookupPath -Arguments @('SWBPNHPHPS01V')
     if ($dnsProbe.ExitCode -eq 0 -and $dnsProbe.Text -match '(?i)nslijhs\.net') {
-      $evidence += '04_NETWORK: nslookup resolved internal Northwell smoke target SWBPNHPHPS01V'
+      $evidence += 'nslookup resolved internal Northwell smoke target SWBPNHPHPS01V'
     } else {
-      $reasons += "04_NETWORK_FAIL: nslookup did not confirm nslijhs.net for SWBPNHPHPS01V. Output: $($dnsProbe.Text)"
+      $warnings += "nslookup did not confirm SWBPNHPHPS01V as nslijhs.net. Output: $($dnsProbe.Text)"
     }
   } else {
-    $reasons += '04_NETWORK_FAIL: nslookup.exe is not available for DNS preflight'
+    $warnings += 'nslookup.exe is not available for WAB DNS preflight'
   }
 
-  $isConnected = (($evidence -match '^01_NMAP:').Count -ge 1 -and ($evidence -match '^02_AD:').Count -ge 1 -and ($evidence -match '^04_NETWORK:').Count -ge 1 -and $reasons.Count -eq 0)
+  if ($nltestPath) {
+    $adProbe = Invoke-NativeCommand -FilePath $nltestPath -Arguments @('/dsgetdc:nslijhs.net')
+    if ($adProbe.ExitCode -eq 0 -and $adProbe.Text -match '(?i)nslijhs\.net') {
+      $evidence += 'nltest found a nslijhs.net domain controller'
+    } else {
+      $warnings += "nltest did not confirm nslijhs.net domain-controller access. Output: $($adProbe.Text)"
+    }
+  } else {
+    $warnings += 'nltest.exe is not available for WAB AD evidence'
+  }
+
+  if ($evidence.Count -eq 0) {
+    $reasons += 'No Northwell/WAB evidence was found. Expected one of: nslijhs.net DNS suffix, internal smoke-host DNS, or nslijhs.net domain-controller evidence.'
+  }
 
   [pscustomobject]@{
-    IsConnected = $isConnected
+    IsConnected = ($reasons.Count -eq 0 -and $evidence.Count -gt 0)
     Evidence    = ($evidence -join ' || ')
-    Warnings    = ($softWarnings -join ' || ')
+    Warnings    = ($warnings -join ' || ')
     Reasons     = ($reasons -join ' || ')
   }
 }
+
+Write-Host "[START] Get-MachineInfo-HostnameFirst launcher" -ForegroundColor Cyan
+Write-Host "[INFO] ListPath: $ListPath" -ForegroundColor Gray
+Write-Host "[INFO] OutputPath: $OutputPath" -ForegroundColor Gray
+Write-Host "[INFO] Running Northwell/WAB network preflight. This only blocks guest/wrong-network use." -ForegroundColor Cyan
 
 $wabCheck = Test-NorthwellWabConnection
 if (-not $wabCheck.IsConnected -and -not $Force) {
   $message = @"
 Northwell WAB preflight failed. Get-MachineInfo-HostnameFirst did not run.
 
-Required probe order:
-1. Nmap first
-2. Active Directory second
-3. SCCM third
-4. Other network probes last
+This preflight does NOT require Nmap/AD/SCCM order. That order is only enforced during hostname probing.
 
 Reason(s): $($wabCheck.Reasons)
 Warning(s): $($wabCheck.Warnings)
@@ -157,9 +116,14 @@ Use -Force only for approved lab testing when you intentionally want to bypass t
 if ($Force -and -not $wabCheck.IsConnected) {
   Write-Warning "Northwell WAB preflight failed but -Force was supplied. Reason(s): $($wabCheck.Reasons) Warning(s): $($wabCheck.Warnings)"
 }
+
+Write-Host "[PASS] WAB preflight passed or was forced." -ForegroundColor Green
+if ($wabCheck.Evidence) { Write-Host "[EVIDENCE] $($wabCheck.Evidence)" -ForegroundColor Green }
 if ($wabCheck.Warnings) { Write-Warning "Northwell WAB preflight warnings: $($wabCheck.Warnings)" }
 
 $coreScript = Join-Path $PSScriptRoot 'Get-MachineInfo-HostnameFirst.Core.ps1'
 if (-not (Test-Path -LiteralPath $coreScript)) { throw "Core script not found: $coreScript" }
 
+Write-Host "[INFO] Handing off to protected core script..." -ForegroundColor Cyan
 & $coreScript -ListPath $ListPath -OutputPath $OutputPath -Throttle $Throttle -PreflightPassed
+Write-Host "[DONE] Get-MachineInfo-HostnameFirst finished." -ForegroundColor Green
