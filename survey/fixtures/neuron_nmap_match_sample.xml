@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<nmaprun scanner="nmap" args="nmap -sn 192.0.2.0/24 -oX neuron_nmap_match_sample.xml" start="1760000000" version="7.95" xmloutputversion="1.05">
+  <host>
+    <status state="up" reason="arp-response" reason_ttl="0"/>
+    <address addr="192.0.2.10" addrtype="ipv4"/>
+    <address addr="AA:BB:CC:DD:EE:10" addrtype="mac" vendor="Sample Vendor"/>
+    <hostnames>
+      <hostname name="renamed-neuron-sample-01.example.invalid" type="PTR"/>
+    </hostnames>
+  </host>
+  <host>
+    <status state="up" reason="arp-response" reason_ttl="0"/>
+    <address addr="192.0.2.11" addrtype="ipv4"/>
+    <address addr="AA:BB:CC:DD:EE:11" addrtype="mac" vendor="Sample Vendor"/>
+  </host>
+  <runstats>
+    <finished time="1760000001" elapsed="1.00" summary="Nmap done" exit="success"/>
+    <hosts up="2" down="0" total="2"/>
+  </runstats>
+</nmaprun>
