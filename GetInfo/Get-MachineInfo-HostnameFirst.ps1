@@ -30,6 +30,21 @@ function Invoke-NativeCommand {
   }
 }
 
+function Get-ConnectedWifiSsids {
+  $ssids = @()
+  $netshPath = (Get-Command netsh.exe -ErrorAction SilentlyContinue).Source
+  if (-not $netshPath) { return $ssids }
+
+  $wlan = Invoke-NativeCommand -FilePath $netshPath -Arguments @('wlan','show','interfaces')
+  foreach ($line in @($wlan.Output)) {
+    if ($line -match '^\s*SSID\s+:\s*(.+?)\s*$' -and $line -notmatch '^\s*BSSID\s+:') {
+      $ssid = $matches[1].Trim()
+      if ($ssid) { $ssids += $ssid }
+    }
+  }
+  $ssids | Sort-Object -Unique
+}
+
 function Test-NorthwellWabConnection {
   # This preflight only decides whether the script is allowed to run from the
   # Northwell/WAB enterprise path. It does NOT enforce the hostname probe order.
@@ -42,6 +57,19 @@ function Test-NorthwellWabConnection {
   $nslookupPath = (Get-Command nslookup.exe -ErrorAction SilentlyContinue).Source
   $nltestPath = (Get-Command nltest.exe -ErrorAction SilentlyContinue).Source
 
+  $ssids = @(Get-ConnectedWifiSsids)
+  if ($ssids.Count -gt 0) {
+    $evidence += "Connected Wi-Fi SSID(s): $($ssids -join ', ')"
+    if (($ssids -join ' ') -match '(?i)guest') {
+      $reasons += "Connected Wi-Fi appears to be Guest: $($ssids -join ', ')"
+    }
+    if (($ssids -join ' ') -match '(?i)wab|northwell') {
+      $evidence += 'Wi-Fi SSID appears to be Northwell/WAB'
+    }
+  } else {
+    $warnings += 'Could not read connected Wi-Fi SSID with netsh; using DNS/domain evidence instead'
+  }
+
   if ($ipconfigPath) {
     $ipconfig = Invoke-NativeCommand -FilePath $ipconfigPath -Arguments @('/all')
     $ipText = $ipconfig.Text
@@ -49,8 +77,12 @@ function Test-NorthwellWabConnection {
     if ($ipText -match '(?i)nslijhs\.net|northwell|wab') {
       $evidence += 'ipconfig shows Northwell/WAB/nslijhs network context'
     }
+
+    # Do not block just because the word Guest appears somewhere in ipconfig.
+    # Windows can keep old adapter names/profiles in output. The hard block is
+    # the connected SSID check above. This is only a warning.
     if ($ipText -match '(?i)guest') {
-      $reasons += 'ipconfig appears to show guest network context'
+      $warnings += 'ipconfig contains the word Guest somewhere; connected SSID check is used as the deciding evidence'
     }
   } else {
     $warnings += 'ipconfig.exe is not available for WAB preflight'
@@ -78,12 +110,13 @@ function Test-NorthwellWabConnection {
     $warnings += 'nltest.exe is not available for WAB AD evidence'
   }
 
-  if ($evidence.Count -eq 0) {
-    $reasons += 'No Northwell/WAB evidence was found. Expected one of: nslijhs.net DNS suffix, internal smoke-host DNS, or nslijhs.net domain-controller evidence.'
+  $strongEvidence = @($evidence | Where-Object { $_ -match '(?i)Northwell/WAB|nslijhs|domain controller|smoke target' })
+  if ($strongEvidence.Count -eq 0) {
+    $reasons += 'No strong Northwell/WAB evidence was found. Expected WAB/Northwell SSID, nslijhs.net DNS suffix, internal smoke-host DNS, or nslijhs.net domain-controller evidence.'
   }
 
   [pscustomobject]@{
-    IsConnected = ($reasons.Count -eq 0 -and $evidence.Count -gt 0)
+    IsConnected = ($reasons.Count -eq 0 -and $strongEvidence.Count -gt 0)
     Evidence    = ($evidence -join ' || ')
     Warnings    = ($warnings -join ' || ')
     Reasons     = ($reasons -join ' || ')
@@ -93,7 +126,7 @@ function Test-NorthwellWabConnection {
 Write-Host "[START] Get-MachineInfo-HostnameFirst launcher" -ForegroundColor Cyan
 Write-Host "[INFO] ListPath: $ListPath" -ForegroundColor Gray
 Write-Host "[INFO] OutputPath: $OutputPath" -ForegroundColor Gray
-Write-Host "[INFO] Running Northwell/WAB network preflight. This only blocks guest/wrong-network use." -ForegroundColor Cyan
+Write-Host "[INFO] Running Northwell/WAB network preflight. This only blocks connected Guest/wrong-network use." -ForegroundColor Cyan
 
 $wabCheck = Test-NorthwellWabConnection
 if (-not $wabCheck.IsConnected -and -not $Force) {
