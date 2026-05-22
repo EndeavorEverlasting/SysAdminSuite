@@ -1,0 +1,2 @@
+Target,ADHostname,ADSerial,ADMAC,ADEnabled,DirectoryPath,ADStatus,Notes
+SAMPLENEURON009,SAMPLEHOST009,SAMPLENEURON009,SAMPLEMAC009,true,SAMPLE_DIRECTORY_PATH,ad_object_found,AD fixture resolves sample serial to hostname

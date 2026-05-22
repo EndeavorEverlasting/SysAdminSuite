@@ -1,0 +1,8 @@
+# Nmap sample fixture for SysAdminSuite parser tests only
+Nmap scan report for SAMPLEHOST001 (192.0.2.10)
+Host is up (0.0030s latency).
+MAC Address: AA:BB:CC:DD:EE:10 (Sample Vendor)
+
+Nmap scan report for 192.0.2.11
+Host is up (0.0040s latency).
+MAC Address: AA:BB:CC:DD:EE:11 (Sample Vendor)

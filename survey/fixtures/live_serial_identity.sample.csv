@@ -1,6 +1,8 @@
 Target,reachability_status,observed_hostname,observed_serial,observed_mac,serial_probe_status,notes
-WMH300OPR001,reachable,WMH300OPR001,MEDSG2425F-0001,00:0D:05:0A:A0:01,serial_observed,
-WMH300OPR002,reachable,WMH300OPR002,MEDSG2425F-0002,00:0D:05:0A:A0:02,serial_observed,
-WNH270OPR003,reachable,WNH270OPR003,,A0:F5:09:7B:AA:03,identity_observed_no_serial,
-WMH300OPR004,reachable,WMH300OPR004,DIFFERENT-SERIAL,00:0D:05:0A:A0:04,serial_observed,
-WMH300OPR005,unreachable,,,,serial_probe_failed,ICMP failed or blocked
+SAMPLEHOST001,reachable,SAMPLEHOST001,SAMPLESERIAL001,SAMPLEMAC001,serial_observed,
+SAMPLEHOST002,reachable,SAMPLEHOST002,SAMPLESERIAL002,SAMPLEMAC002,serial_observed,
+SAMPLEHOST003,reachable,SAMPLEHOST003,,SAMPLEMAC003,identity_observed_no_serial,
+SAMPLEHOST004,reachable,SAMPLEHOST004,DIFFERENT_SAMPLE_SERIAL,SAMPLEMAC004,serial_observed,
+SAMPLEHOST005,unreachable,,,,serial_probe_failed,ICMP failed or blocked
+SAMPLEHOST099,reachable,SAMPLEHOST099,SAMPLESERIAL099,SAMPLEMAC099,serial_observed,serial-to-hostname fixture
+SAMPLEHOST008,reachable,SAMPLEHOST108,SAMPLESERIAL008,SAMPLEMAC008,serial_observed,hostname drift fixture
