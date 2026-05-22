@@ -93,9 +93,11 @@ capture() {
   local label="$1" out="$2"; shift 2
   { echo "# $label"; echo "# command: $*"; echo "# captured_at: $(now_iso)"; echo; } > "$out"
   if [[ "$DRY_RUN" -eq 1 ]]; then echo "DRY RUN" >> "$out"; echo "# exit_code: 0" >> "$out"; return 0; fi
-  set +e; "$@" >> "$out" 2>&1; code=$?; set -e
-  echo; echo "# exit_code: $code"
-  } >> "$out"
+  set +e
+  "$@" >> "$out" 2>&1
+  code=$?
+  set -e
+  { echo; echo "# exit_code: $code"; } >> "$out"
 }
 
 log_event START INFO "Nmap baseline started"
