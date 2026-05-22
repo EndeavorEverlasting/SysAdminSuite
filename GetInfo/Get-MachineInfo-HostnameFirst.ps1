@@ -30,9 +30,10 @@ function Start-MachineQueryJob {
     #   - wmic.exe for BIOS serial, system identity, model, and NIC MACs
     #   - nbtstat.exe as a MAC/name fallback
     #   - getmac.exe as a MAC fallback
+    #   - nmap.exe, when available, only as a failure-diagnostic probe
     # Serial collection still requires a working remote WMI/RPC path on the target.
     # If the network, firewall, endpoint policy, or permissions block that path,
-    # the row reports a specific error category instead of pretending the host is OK.
+    # the row reports a specific error category and diagnostic detail.
 
     $isLocal = $Computer -eq $env:COMPUTERNAME -or
                $Computer -eq 'localhost' -or
@@ -53,6 +54,10 @@ function Start-MachineQueryJob {
         [string]$Model = '',
         [string]$Manufacturer = '',
         [string]$IdentityWarning = '',
+        [string]$RpcProbe = '',
+        [string]$SmbProbe = '',
+        [string]$WinRmProbe = '',
+        [string]$FallbackProbe = '',
         [string]$ProbeSummary = ''
       )
 
@@ -68,6 +73,10 @@ function Start-MachineQueryJob {
         Manufacturer         = $Manufacturer
         ReportedNameSource   = $ReportedNameSource
         IdentityWarning      = $IdentityWarning
+        RpcProbe             = $RpcProbe
+        SmbProbe             = $SmbProbe
+        WinRmProbe           = $WinRmProbe
+        FallbackProbe        = $FallbackProbe
         Status               = $Status
         ErrorCategory        = $ErrorCategory
         ErrorMessage         = $ErrorMessage
@@ -180,24 +189,127 @@ function Start-MachineQueryJob {
       return ''
     }
 
-    function Get-ErrorCategory {
-      param([string[]]$Messages)
+    function Get-NmapPortStates {
+      param([string[]]$Lines)
+      $states = @{}
+      foreach ($line in @($Lines)) {
+        if ($line -match '^\s*(135|139|445|3389|5985|5986)/tcp\s+(open|closed|filtered|unfiltered|open\|filtered|closed\|filtered)\b') {
+          $states[$matches[1]] = $matches[2]
+        }
+      }
+      $states
+    }
+
+    function Convert-PortStateSummary {
+      param([hashtable]$States)
+      if (-not $States -or $States.Count -eq 0) { return '' }
+      $orderedPorts = @('135','139','445','3389','5985','5986')
+      $parts = @()
+      foreach ($port in $orderedPorts) {
+        if ($States.ContainsKey($port)) { $parts += ("{0}:{1}" -f $port, $States[$port]) }
+      }
+      $parts -join ';'
+    }
+
+    function Get-FailureProbeCategory {
+      param(
+        [hashtable]$States,
+        [string[]]$Messages
+      )
+
       $text = ((@($Messages) | Where-Object { $_ }) -join ' ').ToLowerInvariant()
-      if (-not $text) { return 'UNKNOWN' }
-      if ($text -match 'wmic.*not.*found|not recognized|could not find.*wmic') { return 'WMIC_NOT_AVAILABLE' }
       if ($text -match 'access is denied|access denied|logon failure|privilege') { return 'ACCESS_DENIED' }
-      if ($text -match 'rpc server is unavailable|0x800706ba|rpc unavailable') { return 'RPC_UNAVAILABLE_OR_FILTERED' }
+      if ($text -match 'wmic.*not.*found|not recognized|could not find.*wmic') { return 'WMIC_NOT_AVAILABLE' }
       if ($text -match 'network path was not found|0x80070035|host not found|could not be found|no such host|unknown host|node.*error') { return 'HOSTNAME_UNRESOLVED_OR_UNREACHABLE' }
+
+      if ($States -and $States.ContainsKey('135')) {
+        if ($States['135'] -in @('filtered','closed','closed|filtered')) { return 'RPC_PORT_BLOCKED' }
+        if ($States['135'] -eq 'open') {
+          if ($States.ContainsKey('445') -and $States['445'] -in @('filtered','closed','closed|filtered')) { return 'SMB_PORT_BLOCKED' }
+          return 'WMI_RPC_PATH_FAILED_AFTER_ENDPOINT_MAPPER'
+        }
+      }
+
+      if ($text -match 'rpc server is unavailable|0x800706ba|rpc unavailable') { return 'RPC_UNAVAILABLE_OR_FILTERED' }
       if ($text -match 'invalid namespace|provider load failure|wmi|winmgmt|repository') { return 'WMI_SERVICE_OR_REPOSITORY_PROBLEM' }
       if ($text -match 'timed out|timeout') { return 'TIMEOUT' }
-      if ($text -match 'no serial') { return 'SERIAL_NOT_RETURNED' }
-      if ($text -match 'no mac') { return 'MAC_NOT_RETURNED' }
+      if ($text -match 'no usable bios|no serial') { return 'SERIAL_NOT_RETURNED' }
+      if ($text -match 'no usable mac|no mac') { return 'MAC_NOT_RETURNED' }
       return 'REMOTE_IDENTITY_PROBE_FAILED'
+    }
+
+    function Invoke-WmiRpcFailureProbe {
+      param(
+        [string]$Computer,
+        [bool]$Local,
+        [string]$NmapPath,
+        [string]$NbtstatPath
+      )
+
+      $summary = @()
+      $states = @{}
+      $rpcProbe = ''
+      $smbProbe = ''
+      $winRmProbe = ''
+      $fallbackProbe = ''
+      $extraMacs = @()
+      $extraName = ''
+
+      if ($NmapPath -and -not $Local) {
+        # Nmap is called with the hostname supplied by the user. The script does not
+        # pre-resolve the hostname or export resolved IP addresses.
+        $nmapProbe = Invoke-NativeCommand -FilePath $NmapPath -Arguments @('-sT','-Pn','--system-dns','-p','135,139,445,3389,5985,5986', $Computer)
+        $states = Get-NmapPortStates -Lines $nmapProbe.Output
+        $portSummary = Convert-PortStateSummary -States $states
+        if ($portSummary) {
+          $summary += "Nmap port probe: $portSummary"
+          if ($states.ContainsKey('135')) { $rpcProbe = "135/tcp $($states['135'])" }
+          if ($states.ContainsKey('445')) { $smbProbe = "445/tcp $($states['445'])" }
+          $wrm = @()
+          if ($states.ContainsKey('5985')) { $wrm += "5985/tcp $($states['5985'])" }
+          if ($states.ContainsKey('5986')) { $wrm += "5986/tcp $($states['5986'])" }
+          $winRmProbe = ($wrm -join ';')
+        } else {
+          $summary += "Nmap ran but did not return parseable port states. Output: $($nmapProbe.Text)"
+        }
+        $nmapMacs = @(Get-MacAddressesFromText -Lines $nmapProbe.Output)
+        if ($nmapMacs.Count -gt 0) {
+          $extraMacs += $nmapMacs
+          $summary += 'Nmap returned MAC evidence'
+        }
+      } else {
+        $summary += 'Nmap not available or local target; skipped port fallback probe'
+      }
+
+      if ($NbtstatPath) {
+        $nbtArgs = if ($Local) { @('-n') } else { @('-a', $Computer) }
+        $nbtProbe = Invoke-NativeCommand -FilePath $NbtstatPath -Arguments $nbtArgs
+        $extraName = Get-NetBiosNameFromNbtstat -Lines $nbtProbe.Output
+        $nbtMacs = @(Get-MacAddressesFromText -Lines $nbtProbe.Output)
+        if ($nbtMacs.Count -gt 0) {
+          $extraMacs += $nbtMacs
+          $summary += 'NBTSTAT returned MAC evidence during failure probe'
+        } else {
+          $summary += "NBTSTAT failure probe returned no MAC. Output: $($nbtProbe.Text)"
+        }
+      }
+
+      $fallbackProbe = ($summary -join ' || ')
+      [pscustomobject]@{
+        RpcProbe      = $rpcProbe
+        SmbProbe      = $smbProbe
+        WinRmProbe    = $winRmProbe
+        FallbackProbe = $fallbackProbe
+        PortStates    = $states
+        MACAddress    = (($extraMacs | Where-Object { $_ } | Sort-Object -Unique) -join ';')
+        ReportedName  = $extraName
+      }
     }
 
     $wmicPath = Get-NativeToolPath -ToolName 'wmic.exe'
     $nbtstatPath = Get-NativeToolPath -ToolName 'nbtstat.exe'
     $getmacPath = Get-NativeToolPath -ToolName 'getmac.exe'
+    $nmapPath = Get-NativeToolPath -ToolName 'nmap.exe'
 
     $serial = ''
     $serialSource = ''
@@ -209,6 +321,10 @@ function Start-MachineQueryJob {
     $macSource = @()
     $errors = @()
     $probeSummary = @()
+    $rpcProbe = ''
+    $smbProbe = ''
+    $winRmProbe = ''
+    $fallbackProbe = ''
 
     if ($wmicPath) {
       $nodeArgs = @()
@@ -300,16 +416,43 @@ function Start-MachineQueryJob {
     $macs = @($macs | Where-Object { $_ } | Sort-Object -Unique)
     $macSource = @($macSource | Where-Object { $_ } | Sort-Object -Unique)
 
+    $serialOk = Test-UsableIdentityValue $serial
+    $macOk = $macs.Count -gt 0
+
+    # If WMI/RPC-backed identity collection fails or only partially works, run a
+    # separate native failure probe. This does not magically recover serials when
+    # WMI/RPC is blocked; it explains whether RPC/SMB/WinRM appears blocked/open
+    # and tries one last hostname-based MAC/name fallback.
+    $shouldRunFailureProbe = (-not $serialOk) -or (-not $macOk) -or ((@($errors) -join ' ') -match 'rpc|0x800706ba|access denied|network path|wmi')
+    $failureProbe = $null
+    if ($shouldRunFailureProbe) {
+      $failureProbe = Invoke-WmiRpcFailureProbe -Computer $Computer -Local $isLocal -NmapPath $nmapPath -NbtstatPath $nbtstatPath
+      $rpcProbe = $failureProbe.RpcProbe
+      $smbProbe = $failureProbe.SmbProbe
+      $winRmProbe = $failureProbe.WinRmProbe
+      $fallbackProbe = $failureProbe.FallbackProbe
+      if (-not $reportedName -and $failureProbe.ReportedName) {
+        $reportedName = $failureProbe.ReportedName
+        $reportedNameSource = 'failure-probe:nbtstat:NetBIOS <00>'
+      }
+      if (-not $macOk -and $failureProbe.MACAddress) {
+        $macs += ($failureProbe.MACAddress -split ';')
+        $macs = @($macs | Where-Object { $_ } | Sort-Object -Unique)
+        $macSource += 'failure-probe:nmap/nbtstat'
+        $macSource = @($macSource | Where-Object { $_ } | Sort-Object -Unique)
+        $macOk = $macs.Count -gt 0
+      }
+      if ($fallbackProbe) { $probeSummary += 'Failure probe completed' }
+    }
+
     $identityWarning = ''
     $requestedShortName = $Computer.Split('.')[0]
     if ($reportedName -and $Computer -notin @('localhost','127.0.0.1','.') -and $reportedName.ToUpperInvariant() -ne $requestedShortName.ToUpperInvariant()) {
       $identityWarning = "Requested host '$Computer' reported itself as '$reportedName'. Check DNS or the host list before trusting this row."
     }
 
-    $serialOk = Test-UsableIdentityValue $serial
-    $macOk = $macs.Count -gt 0
-    if (-not $serialOk) { $errors += 'No usable BIOS/product serial was returned by WMIC.' }
-    if (-not $macOk) { $errors += 'No usable MAC address was returned by WMIC, NBTSTAT, or GETMAC.' }
+    if (-not $serialOk) { $errors += 'No usable BIOS/product serial was returned by WMIC. Serial cannot be collected remotely unless WMI/RPC or an approved inventory agent path is available.' }
+    if (-not $macOk) { $errors += 'No usable MAC address was returned by WMIC, NBTSTAT, GETMAC, or the failure probe.' }
 
     $status = 'Query Failed'
     if ($serialOk -and $macOk) {
@@ -320,7 +463,8 @@ function Start-MachineQueryJob {
 
     $errorCategory = ''
     if ($status -ne 'OK') {
-      $errorCategory = Get-ErrorCategory -Messages $errors
+      $states = if ($failureProbe) { $failureProbe.PortStates } else { @{} }
+      $errorCategory = Get-FailureProbeCategory -States $states -Messages $errors
     }
 
     New-MachineInfoRecord `
@@ -336,6 +480,10 @@ function Start-MachineQueryJob {
       -Model $model `
       -Manufacturer $manufacturer `
       -IdentityWarning $identityWarning `
+      -RpcProbe $rpcProbe `
+      -SmbProbe $smbProbe `
+      -WinRmProbe $winRmProbe `
+      -FallbackProbe $fallbackProbe `
       -ProbeSummary ((@($probeSummary) | Where-Object { $_ }) -join '; ')
   } -ArgumentList $Computer
 }
@@ -370,7 +518,7 @@ if (Test-Path -LiteralPath $suiteHtmlHelper) {
   . $suiteHtmlHelper
   $htmlPath = [IO.Path]::ChangeExtension($OutputPath, '.html')
   $results | Sort-Object HostName |
-    Select-Object HostName,ReportedComputerName,Serial,SerialSource,MACAddress,MACSource,Model,Manufacturer,ReportedNameSource,IdentityWarning,Status,ErrorCategory,ErrorMessage,ProbeSummary |
+    Select-Object HostName,ReportedComputerName,Serial,SerialSource,MACAddress,MACSource,Model,Manufacturer,ReportedNameSource,IdentityWarning,RpcProbe,SmbProbe,WinRmProbe,FallbackProbe,Status,ErrorCategory,ErrorMessage,ProbeSummary |
     ConvertTo-Html -Fragment -PreContent '<h2>Machine Info - Hostname First Native Probe</h2>' |
     ConvertTo-SuiteHtml -Title 'Machine Info - Hostname First Native Probe' -Subtitle "$(($results | Select-Object -ExpandProperty HostName -Unique).Count) host(s)" -OutputPath $htmlPath
 }
