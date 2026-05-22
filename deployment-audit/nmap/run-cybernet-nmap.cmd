@@ -10,29 +10,47 @@ REM Usage:
 REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx"
 REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --fresh
 REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --force
+REM   run-cybernet-nmap.cmd "C:\path\to\CybernetWorkbook.xlsx" --fresh --max-concurrency 2
 REM
 REM Safety rule:
-REM   --fresh and --force still run the WAB guard before any live probe starts.
+REM   All modes still run the WAB guard before any live probe starts.
 
 set "SOURCE_XLSX=%~1"
-set "RUN_MODE=%~2"
 set "RUNNER_EXTRA_ARGS="
+shift /1
 
 if "%SOURCE_XLSX%"=="" (
-  echo Usage: %~nx0 "C:\path\to\CybernetWorkbook.xlsx" [--fresh^|--force]
+  echo Usage: %~nx0 "C:\path\to\CybernetWorkbook.xlsx" [--fresh] [--force] [--max-concurrency N]
   exit /b 2
 )
 
-if not "%RUN_MODE%"=="" (
-  if /I "%RUN_MODE%"=="--fresh" set "RUNNER_EXTRA_ARGS=--fresh"
-  if /I "%RUN_MODE%"=="--force" set "RUNNER_EXTRA_ARGS=--force"
-  if "%RUNNER_EXTRA_ARGS%"=="" (
-    echo Invalid option: %RUN_MODE%
-    echo Allowed options: --fresh or --force
+:parse_args
+if "%~1"=="" goto args_done
+if /I "%~1"=="--fresh" (
+  set "RUNNER_EXTRA_ARGS=%RUNNER_EXTRA_ARGS% --fresh"
+  shift /1
+  goto parse_args
+)
+if /I "%~1"=="--force" (
+  set "RUNNER_EXTRA_ARGS=%RUNNER_EXTRA_ARGS% --force"
+  shift /1
+  goto parse_args
+)
+if /I "%~1"=="--max-concurrency" (
+  if "%~2"=="" (
+    echo Missing value for --max-concurrency
     exit /b 2
   )
+  set "RUNNER_EXTRA_ARGS=%RUNNER_EXTRA_ARGS% --max-concurrency %~2"
+  shift /1
+  shift /1
+  goto parse_args
 )
+echo Invalid option: %~1
+echo Allowed options: --fresh, --force, --max-concurrency N
+exit /b 2
 
+:args_done
 set "SCRIPT_DIR=%~dp0"
 set "OUT_DIR=%SCRIPT_DIR%output\cybernet-nmap-audit"
 set "WAB_GUARD_CONFIG=%SCRIPT_DIR%northwell_wab_guard.local.json"
@@ -84,9 +102,7 @@ if "%NMAP_CMD%"=="" (
   exit /b 0
 )
 
-if /I "%RUN_MODE%"=="--fresh" echo Fresh mode selected. Previous live-probe artifacts will be cleared only after WAB guard has passed.
-if /I "%RUN_MODE%"=="--force" echo Force mode selected. Existing completed targets will be rescanned only after WAB guard has passed.
-
+echo Runner options:%RUNNER_EXTRA_ARGS%
 echo Running progress-aware live probe from approved WAB network...
 %PYTHON_CMD% "%SCRIPT_DIR%nmap_probe_runner.py" --source-xlsx "%SOURCE_XLSX%" --out-dir "%OUT_DIR%" --nmap-exe "%NMAP_CMD%" %RUNNER_EXTRA_ARGS%
 exit /b %errorlevel%
