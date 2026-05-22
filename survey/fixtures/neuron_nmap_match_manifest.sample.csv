@@ -1,0 +1,5 @@
+Site,Room,ExpectedMAC,ExpectedSerial,Notes
+SAMPLESITE,OR-01,AA-BB-CC-DD-EE-10,SAMPLE-SERIAL-001,Expected MAC should resolve to sample IP
+SAMPLESITE,OR-02,AA:BB:CC:DD:EE:99,SAMPLE-SERIAL-002,Expected MAC should not be found
+SAMPLESITE,OR-03,,SAMPLE-SERIAL-003,Serial-only row should be review-only
+SAMPLESITE,OR-04,,,No usable identifier row should be review-only
