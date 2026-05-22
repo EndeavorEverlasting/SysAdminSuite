@@ -6,7 +6,80 @@ Probe live Cybernet and Neuron workstation targets for serial and MAC evidence, 
 
 The audit report is the triage lens. The live probe is the confirmation layer.
 
-## Primary Command
+## Start Here: Get To Repo Root And Update
+
+The commands below assume you are standing in the SysAdminSuite repo root.
+
+In a perfect field flow:
+
+1. Clone or download the repo.
+2. Open Git Bash in the repo folder.
+3. Run the bootstrap helper.
+4. Run the test mode or live probe command.
+
+### If this is a git clone
+
+```bash
+cd /c/Users/$USERNAME/Downloads/SysAdminSuite
+bash tools/sas-bootstrap-field-session.sh
+```
+
+The bootstrap helper will run:
+
+```bash
+git pull --ff-only
+```
+
+when `.git` exists and `git` is available.
+
+### If this was downloaded as a ZIP
+
+Open Git Bash inside the extracted `SysAdminSuite` folder and run:
+
+```bash
+bash tools/sas-bootstrap-field-session.sh
+```
+
+ZIP downloads do not have a `.git` folder, so automatic pull is skipped. In that case, update by downloading a fresh copy.
+
+## One-Command Field Bootstrap
+
+From anywhere inside the repo, run:
+
+```bash
+bash tools/sas-bootstrap-field-session.sh
+```
+
+It will:
+
+- resolve the repo root
+- move execution context to the repo root
+- pull latest `main` if the folder is a git clone
+- print the exact test and live probe commands
+
+## Safe Offline/Test Mode
+
+Use `--identity-csv` to test classification and dashboard rendering without touching live endpoints.
+
+From repo root:
+
+```bash
+bash survey/sas-live-serial-probe.sh \
+  --manifest survey/fixtures/live_serial_manifest.sample.csv \
+  --identity-csv survey/fixtures/live_serial_identity.sample.csv \
+  --output survey/output/live_serial_probe_results.csv \
+  --dashboard survey/output/live_serial_probe_dashboard.html
+```
+
+Open the generated dashboard:
+
+```bash
+explorer.exe survey\\output\\live_serial_probe_dashboard.html
+```
+
+## Primary Live Command
+
+From repo root:
 
 ```bash
 bash survey/sas-live-serial-probe.sh \
@@ -15,16 +88,12 @@ bash survey/sas-live-serial-probe.sh \
   --dashboard survey/output/live_serial_probe_dashboard.html
 ```
 
-## Safe Offline/Test Mode
+## Contract Test
 
-Use `--identity-csv` to test classification and dashboard rendering without touching live endpoints.
+From repo root:
 
 ```bash
-bash survey/sas-live-serial-probe.sh \
-  --manifest survey/fixtures/live_serial_manifest.sample.csv \
-  --identity-csv survey/fixtures/live_serial_identity.sample.csv \
-  --output survey/output/live_serial_probe_results.csv \
-  --dashboard survey/output/live_serial_probe_dashboard.html
+bash deployment-audit/tests/test_live_serial_probe_contracts.sh
 ```
 
 ## Output Classifications
