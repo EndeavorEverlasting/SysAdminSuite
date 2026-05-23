@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<nmaprun scanner="nmap" args="nmap -sn 192.0.2.0/24 -oX neuron_name_availability_sample.xml" start="1760000000" version="7.95" xmloutputversion="1.05">
+  <host>
+    <status state="up" reason="arp-response" reason_ttl="0"/>
+    <address addr="192.0.2.10" addrtype="ipv4"/>
+    <hostnames><hostname name="LIJ-MACH-A.example.invalid" type="PTR"/></hostnames>
+  </host>
+  <host>
+    <status state="up" reason="arp-response" reason_ttl="0"/>
+    <address addr="192.0.2.11" addrtype="ipv4"/>
+    <hostnames><hostname name="LIJ-MACH-B.example.invalid" type="PTR"/></hostnames>
+  </host>
+  <host>
+    <status state="up" reason="arp-response" reason_ttl="0"/>
+    <address addr="192.0.2.13" addrtype="ipv4"/>
+    <hostnames><hostname name="LIJ-MACH-D.example.invalid" type="PTR"/></hostnames>
+  </host>
+  <host>
+    <status state="up" reason="arp-response" reason_ttl="0"/>
+    <address addr="192.0.2.26" addrtype="ipv4"/>
+    <hostnames><hostname name="LIJ-MACH-Z.example.invalid" type="PTR"/></hostnames>
+  </host>
+  <host>
+    <status state="up" reason="arp-response" reason_ttl="0"/>
+    <address addr="192.0.2.27" addrtype="ipv4"/>
+    <hostnames><hostname name="LIJ-MACH-AA.example.invalid" type="PTR"/></hostnames>
+  </host>
+  <host>
+    <status state="up" reason="arp-response" reason_ttl="0"/>
+    <address addr="192.0.2.50" addrtype="ipv4"/>
+    <hostnames><hostname name="CCMC-MACH-A.example.invalid" type="PTR"/></hostnames>
+  </host>
+  <host>
+    <status state="up" reason="arp-response" reason_ttl="0"/>
+    <address addr="192.0.2.51" addrtype="ipv4"/>
+    <hostnames><hostname name="CCMC-MACH-C.example.invalid" type="PTR"/></hostnames>
+  </host>
+</nmaprun>
