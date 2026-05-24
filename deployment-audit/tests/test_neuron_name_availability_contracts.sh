@@ -6,6 +6,7 @@ OUT_DIR="$ROOT/survey/output/test-neuron-name-availability"
 SUMMARY_OUT="$OUT_DIR/neuron_name_availability_summary.csv"
 DETAIL_OUT="$OUT_DIR/neuron_name_availability_detail.csv"
 DASHBOARD_OUT="$OUT_DIR/neuron_name_availability.html"
+WRAP_OUT_DIR="$OUT_DIR/wrapper"
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
@@ -39,5 +40,20 @@ done
 for dash_text in 'SysAdminSuite Neuron Name Availability' 'First gap' 'Next after highest' 'Local operational artifact'; do
   grep -q "$dash_text" "$DASHBOARD_OUT" || { echo "FAIL: missing dashboard text $dash_text" >&2; exit 1; }
 done
+
+bash "$ROOT/survey/sas-survey-neuron-name-availability.sh" \
+  --convention LIJ-MACH- \
+  --convention CCMC-MACH- \
+  --used-names "$ROOT/survey/fixtures/neuron_name_availability_sample.xml" \
+  --skip-nmap \
+  --run-id testwrapper \
+  --output-dir "$WRAP_OUT_DIR" \
+  --candidate-count 5
+
+[[ -f "$WRAP_OUT_DIR/testwrapper_neuron_name_availability_summary.csv" ]] || { echo "FAIL: wrapper missing summary" >&2; exit 1; }
+[[ -f "$WRAP_OUT_DIR/testwrapper_neuron_name_availability_detail.csv" ]] || { echo "FAIL: wrapper missing detail" >&2; exit 1; }
+[[ -f "$WRAP_OUT_DIR/testwrapper_neuron_name_availability.html" ]] || { echo "FAIL: wrapper missing dashboard" >&2; exit 1; }
+
+grep -q 'LIJ-MACH-C' "$WRAP_OUT_DIR/testwrapper_neuron_name_availability_summary.csv" || { echo "FAIL: wrapper expected LIJ first gap" >&2; exit 1; }
 
 echo "PASS: neuron name availability contracts"
