@@ -1,0 +1,4 @@
+site_code,subnet_cidr,gateway,source,confidence,last_seen,enabled,notes
+NSUH,192.0.2.0/29,192.0.2.1,example,low,,false,Documentation-only example range
+LIJMC,198.51.100.0/29,198.51.100.1,example,low,,false,Documentation-only example range
+CCMC,203.0.113.0/29,203.0.113.1,example,low,,false,Documentation-only example range
