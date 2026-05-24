@@ -35,6 +35,14 @@ GetInfo/Output/
 # GUI lifecycle/crash output artifacts
 GUI/Output/
 
+# Survey runtime artifacts (may contain live hostnames, MACs, serials, sites, or discovery evidence)
+survey/input/*
+survey/output/*
+survey/artifacts/*
+!survey/input/.gitkeep
+!survey/output/.gitkeep
+!survey/artifacts/.gitkeep
+
 # Deployment tracker reconcile outputs
 DeploymentTracker/Output/*
 !DeploymentTracker/Output/.gitkeep
