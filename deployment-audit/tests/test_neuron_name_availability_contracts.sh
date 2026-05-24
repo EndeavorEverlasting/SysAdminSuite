@@ -7,6 +7,7 @@ SUMMARY_OUT="$OUT_DIR/neuron_name_availability_summary.csv"
 DETAIL_OUT="$OUT_DIR/neuron_name_availability_detail.csv"
 DASHBOARD_OUT="$OUT_DIR/neuron_name_availability.html"
 WRAP_OUT_DIR="$OUT_DIR/wrapper"
+GUARD_ERR="$OUT_DIR/authorization_guard.err"
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
@@ -55,5 +56,16 @@ bash "$ROOT/survey/sas-survey-neuron-name-availability.sh" \
 [[ -f "$WRAP_OUT_DIR/testwrapper_neuron_name_availability.html" ]] || { echo "FAIL: wrapper missing dashboard" >&2; exit 1; }
 
 grep -q 'LIJ-MACH-C' "$WRAP_OUT_DIR/testwrapper_neuron_name_availability_summary.csv" || { echo "FAIL: wrapper expected LIJ first gap" >&2; exit 1; }
+
+if bash "$ROOT/survey/sas-survey-neuron-name-availability.sh" \
+  --convention LIJ-MACH- \
+  --target 192.0.2.1 \
+  --output-dir "$OUT_DIR/guard" \
+  2>"$GUARD_ERR"; then
+  echo "FAIL: live discovery should require --authorized-discovery" >&2
+  exit 1
+fi
+
+grep -q -- '--authorized-discovery' "$GUARD_ERR" || { echo "FAIL: authorization guard message missing" >&2; exit 1; }
 
 echo "PASS: neuron name availability contracts"
