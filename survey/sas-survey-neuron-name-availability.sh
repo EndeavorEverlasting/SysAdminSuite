@@ -12,32 +12,42 @@ CANDIDATE_COUNT=10
 MAX_GAP_SCAN=5000
 SKIP_NMAP=0
 PASS_THRU=0
+AUTHORIZED_DISCOVERY=0
 
 usage(){ cat <<'USAGE'
 SysAdminSuite Neuron Name Availability Survey
 
-Usage:
+Usage, saved evidence mode:
   bash survey/sas-survey-neuron-name-availability.sh \
     --convention LIJ-MACH- \
-    --target 10.10.20.0/24
+    --used-names exports/ad_neuron_names.csv \
+    --skip-nmap
+
+Usage, live discovery mode for approved targets only:
+  bash survey/sas-survey-neuron-name-availability.sh \
+    --convention LIJ-MACH- \
+    --target APPROVED_TARGET_OR_CIDR \
+    --authorized-discovery
 
 Options:
-  --convention PREFIX     Naming prefix, e.g. LIJ-MACH- or CCMC-MACH-. Repeatable.
-  --target CIDR_OR_HOST   Approved nmap target/CIDR. Repeatable.
-  --target-file PATH      File containing approved targets/CIDRs, one per line. # comments allowed.
-  --used-names PATH       Existing text/CSV evidence containing known names. Repeatable.
-  --output-dir PATH       Output folder for summary/detail/dashboard.
-  --artifact-dir PATH     Folder for preserved nmap XML/text artifacts.
-  --run-id VALUE          Run identifier used in artifact names. Default timestamp.
-  --candidate-count N     Candidate names to report per convention. Default 10.
-  --max-gap-scan N        Max ordinal to scan for gaps. Default 5000. Use 0 through highest observed.
-  --skip-nmap             Do not run nmap. Use --used-names only.
-  --pass-thru             Print summary CSV after writing.
-  -h, --help              Show help.
+  --convention PREFIX       Naming prefix, e.g. LIJ-MACH- or CCMC-MACH-. Repeatable.
+  --target CIDR_OR_HOST     Approved discovery target/CIDR. Repeatable.
+  --target-file PATH        File containing approved targets/CIDRs, one per line. # comments allowed.
+  --used-names PATH         Existing text/CSV/XML evidence containing known names. Repeatable.
+  --output-dir PATH         Output folder for summary/detail/dashboard.
+  --artifact-dir PATH       Folder for preserved discovery artifacts.
+  --run-id VALUE            Run identifier used in artifact names. Default timestamp.
+  --candidate-count N       Candidate names to report per convention. Default 10.
+  --max-gap-scan N          Max ordinal to scan for gaps. Default 5000. Use 0 through highest observed.
+  --skip-nmap               Do not run nmap. Use saved evidence only.
+  --authorized-discovery    Required before live nmap host discovery will run.
+  --pass-thru               Print summary CSV after writing.
+  -h, --help                Show help.
 
 Safety:
-  This wrapper runs nmap -sn only against explicit approved targets.
-  It preserves XML/text artifacts and then parses them. It does not rename devices.
+  Default recommended mode is --skip-nmap with saved evidence.
+  Live discovery mode runs nmap -sn only and requires --authorized-discovery.
+  This wrapper preserves artifacts and then parses them. It does not rename devices.
   Generated outputs may contain operational hostnames or site data. Do not commit them.
 USAGE
 }
@@ -57,6 +67,7 @@ while [[ $# -gt 0 ]]; do
     --candidate-count) CANDIDATE_COUNT="${2:?missing --candidate-count value}"; shift 2 ;;
     --max-gap-scan) MAX_GAP_SCAN="${2:?missing --max-gap-scan value}"; shift 2 ;;
     --skip-nmap) SKIP_NMAP=1; shift ;;
+    --authorized-discovery) AUTHORIZED_DISCOVERY=1; shift ;;
     --pass-thru) PASS_THRU=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "Unknown argument: $1" ;;
@@ -88,6 +99,10 @@ if [[ "$SKIP_NMAP" -eq 1 && "${#USED_NAMES[@]}" -eq 0 ]]; then
   fail "--skip-nmap requires at least one --used-names evidence file"
 fi
 
+if [[ "$SKIP_NMAP" -eq 0 && "$AUTHORIZED_DISCOVERY" -ne 1 ]]; then
+  fail "Live discovery requires --authorized-discovery. Use --skip-nmap for saved evidence mode."
+fi
+
 mkdir -p "$OUTPUT_DIR" "$ARTIFACT_DIR"
 
 NMAP_XMLS=()
@@ -99,7 +114,7 @@ if [[ "$SKIP_NMAP" -eq 0 ]]; then
     base="$ARTIFACT_DIR/${RUN_ID}_${idx}_${safe_target}"
     xml_path="${base}.xml"
     normal_path="${base}.nmap"
-    log "Running nmap host discovery for approved target: $target"
+    log "Running approved nmap host discovery for target: $target"
     nmap -sn "$target" -oX "$xml_path" -oN "$normal_path"
     NMAP_XMLS+=("$xml_path")
     idx=$((idx + 1))
