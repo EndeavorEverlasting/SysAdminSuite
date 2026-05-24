@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "remediation_id": "REM-EXAMPLE-0001",
+  "software_id": "EXAMPLE-SOFTWARE-ID",
+  "target_scope": "localhost",
+  "target_key": "HKLM:\\Software\\ExampleVendor\\ExampleApp",
+  "value_name": "EnforceSetting",
+  "value_type": "dword",
+  "desired_value": 1,
+  "reason": "Example remediation for post-install drift verification only.",
+  "approved_by": "APPROVER-PLACEHOLDER",
+  "approved_at": "2026-01-15T12:00:00Z",
+  "rollback_required": true,
+  "rollback_plan": {
+    "steps": [
+      "Capture current value into evidence bundle.",
+      "Reapply prior known-good value from baseline manifest.",
+      "Capture post-rollback snapshot and attach to evidence bundle."
+    ],
+    "evidence_refs": [
+      "evidence://before-value.json",
+      "evidence://rollback-run.log",
+      "evidence://after-value.json"
+    ]
+  },
+  "risk_level": "Medium",
+  "evidence_required": true,
+  "mode": "ApprovedRemediation",
+  "before_value_evidence_ref": "evidence://before-value.json",
+  "after_value_evidence_ref": "evidence://after-value.json",
+  "review_after": "2026-02-01T00:00:00Z",
+  "expires_at": "2026-06-01T00:00:00Z"
+}

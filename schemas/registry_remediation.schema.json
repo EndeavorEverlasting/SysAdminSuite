@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/registry_remediation.schema.json",
+  "title": "Approved Registry Remediation Manifest",
+  "description": "Explicit non-default remediation lane. Registry edits are only allowed with ApprovedRemediation mode and rollback evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "remediation_id",
+    "software_id",
+    "target_scope",
+    "target_key",
+    "value_name",
+    "value_type",
+    "desired_value",
+    "reason",
+    "approved_by",
+    "approved_at",
+    "rollback_required",
+    "risk_level",
+    "evidence_required",
+    "mode"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "remediation_id": { "type": "string" },
+    "software_id": { "type": "string" },
+    "target_scope": { "type": "string", "enum": ["localhost", "remote", "batch"] },
+    "target_key": { "type": "string" },
+    "value_name": { "type": ["string", "null"] },
+    "value_type": { "type": "string" },
+    "desired_value": { "type": ["string", "number", "boolean", "array", "object", "null"] },
+    "reason": { "type": "string" },
+    "approved_by": { "type": "string" },
+    "approved_at": { "type": "string", "format": "date-time" },
+    "rollback_required": { "type": "boolean" },
+    "rollback_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps", "evidence_refs"],
+      "properties": {
+        "steps": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "evidence_refs": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "risk_level": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+    "evidence_required": { "type": "boolean" },
+    "mode": { "type": "string", "const": "ApprovedRemediation" },
+    "before_value_evidence_ref": { "type": "string" },
+    "after_value_evidence_ref": { "type": "string" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "review_after": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "rollback_required": { "const": true } },
+        "required": ["rollback_required"]
+      },
+      "then": { "required": ["rollback_plan", "before_value_evidence_ref", "after_value_evidence_ref"] }
+    }
+  ]
+}

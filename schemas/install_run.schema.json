@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/install_run.schema.json",
+  "title": "Installer Run Metadata",
+  "description": "Execution metadata tied to tracked installer runs and evidence capture.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "software_id",
+    "target",
+    "mode",
+    "dry_run",
+    "installer",
+    "started_at",
+    "ended_at",
+    "duration_ms",
+    "exit_code",
+    "status",
+    "log_path",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "run_id": { "type": "string" },
+    "software_id": { "type": "string" },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostname", "scope"],
+      "properties": {
+        "hostname": { "type": "string" },
+        "scope": { "type": "string", "enum": ["localhost", "remote", "unresolved"] }
+      }
+    },
+    "mode": { "type": "string", "enum": ["Recon", "Decide", "Act", "Log", "Export"] },
+    "dry_run": { "type": "boolean" },
+    "installer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installer_path",
+        "installer_type",
+        "silent_args",
+        "source_config_path",
+        "source_config_key",
+        "resolved_from_sources_yaml",
+        "expected_registry_keys",
+        "expected_files",
+        "requires_reboot"
+      ],
+      "properties": {
+        "installer_path": { "type": "string" },
+        "installer_type": { "type": "string", "enum": ["exe", "msi", "msix", "batch", "powershell", "unknown"] },
+        "silent_args": { "type": "array", "items": { "type": "string" } },
+        "source_config_path": { "type": "string" },
+        "source_config_key": { "type": "string" },
+        "resolved_from_sources_yaml": { "type": "boolean" },
+        "expected_registry_keys": { "type": "array", "items": { "type": "string" } },
+        "expected_files": { "type": "array", "items": { "type": "string" } },
+        "requires_reboot": { "type": "boolean" }
+      }
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "ended_at": { "type": "string", "format": "date-time" },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "exit_code": { "type": ["integer", "null"] },
+    "status": {
+      "type": "string",
+      "enum": ["NotStarted", "DryRun", "Started", "Succeeded", "Failed", "Skipped", "Unknown"]
+    },
+    "log_path": { "type": "string" },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}
