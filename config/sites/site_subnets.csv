@@ -1,0 +1,4 @@
+site_code,subnet_cidr,gateway,source,confidence,last_seen,enabled,notes
+NSUH,192.0.2.0/29,,example,low,,false,Documentation placeholder; replace with approved observed subnet
+LIJMC,192.0.2.8/29,,example,low,,false,Documentation placeholder; replace with approved observed subnet
+CCMC,192.0.2.16/29,,example,low,,false,Documentation placeholder; replace with approved observed subnet
