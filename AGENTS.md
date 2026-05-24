@@ -66,6 +66,36 @@ Do not assume:
 
 Bash scripts may call Windows-native executables such as `cmd.exe`, `hostname.exe`, `ping.exe`, `nslookup.exe`, and `netsh.exe`.
 
+## QR Field Command Capsule Doctrine
+
+A QR code in SysAdminSuite is a **field command capsule**.
+
+Agents MUST NOT reduce this idea to "QR equals shortcut." A QR field command capsule is a compact, scannable trigger for an approved profile-driven field workflow. It can launch a survey lane for a machine, room, subnet slice, cart, or device class such as Neurons.
+
+The model is:
+
+```text
+QR -> profile -> approved survey lane -> evidence package
+```
+
+The QR should contain a short launcher command, not a giant script body:
+
+```bash
+bash scripts/sas_qr_run.sh --profile neuron-hostname-survey
+```
+
+The profile declares intent. The survey lane performs the work. The export package preserves evidence.
+
+For Neuron workflows, QR field command capsules may support surveying a set of Neurons for current IP/hostname using expected MAC evidence and saved discovery artifacts. Hostname is a label. MAC is network evidence. Serial is hardware evidence.
+
+All QR field command capsule work must preserve:
+
+```text
+Recon -> Decide -> Act -> Log -> Export
+```
+
+Default posture is read-only/advisory unless a later mutation workflow is explicitly approved with its own dry-run and guardrails.
+
 ## WAB Test Evidence Guardrail
 
 When the user reports that SysAdminSuite is `running` on the WAB path, do not treat that as full validation.
@@ -205,11 +235,18 @@ or:
 bash scripts/survey_neuron_environment.sh <hostname-or-ip>
 ```
 
+For QR workflows, good field guidance uses the field command capsule launcher:
+
+```bash
+bash scripts/sas_qr_run.sh --profile neuron-hostname-survey
+```
+
 ## Language Precision
 
 - Bash has commands, functions, and scripts.
 - PowerShell has cmdlets.
 - Do not call Bash commands "cmdlets."
+- QR field command capsule means profile-driven field workflow, not merely a shortcut.
 
 Precision is operational safety. Loose language becomes broken field work.
 
