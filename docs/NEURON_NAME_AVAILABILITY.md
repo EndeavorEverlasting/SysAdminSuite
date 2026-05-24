@@ -22,8 +22,9 @@ This workflow analyzes saved naming evidence and reports:
 | File | Role |
 |---|---|
 | `survey/sas-neuron-name-availability.py` | Main analyzer for naming convention availability |
-| `survey/fixtures/neuron_name_availability_sample.xml` | Sample-safe nmap XML fixture |
-| `deployment-audit/tests/test_neuron_name_availability_contracts.sh` | Contract test for suffix logic and dashboard output |
+| `survey/sas-survey-neuron-name-availability.sh` | Field wrapper that preserves approved discovery artifacts and calls the analyzer |
+| `survey/fixtures/neuron_name_availability_sample.xml` | Sample-safe network evidence fixture |
+| `deployment-audit/tests/test_neuron_name_availability_contracts.sh` | Contract test for suffix logic, dashboard output, and wrapper safe mode |
 
 ## Evidence posture
 
@@ -31,9 +32,11 @@ The analyzer does not scan the network.
 
 It consumes saved evidence, such as:
 
-- nmap XML files containing hostnames
+- XML discovery artifacts containing hostnames
 - text lists of known names
 - CSV exports from AD, DNS, tracker, or machine-info inventory
+
+The wrapper is for authorized field use only. It requires explicit target evidence or saved-name inputs and preserves artifacts before analysis.
 
 This preserves the existing SysAdminSuite pattern:
 
@@ -43,18 +46,29 @@ Preserve artifacts
 Parse many times
 ```
 
-## Example command
+## Parser-safe example
 
 ```bash
 python3 survey/sas-neuron-name-availability.py \
   --convention LIJ-MACH- \
   --convention CCMC-MACH- \
-  --nmap-xml survey/artifacts/site_neuron_discovery.xml \
   --used-names exports/ad_neuron_names.csv \
   --summary-output survey/output/neuron_name_availability_summary.csv \
   --detail-output survey/output/neuron_name_availability_detail.csv \
   --dashboard survey/output/neuron_name_availability.html \
   --candidate-count 10
+```
+
+## Wrapper safe mode
+
+Use wrapper safe mode when you already have saved evidence and do not need fresh discovery:
+
+```bash
+bash survey/sas-survey-neuron-name-availability.sh \
+  --convention LIJ-MACH- \
+  --convention CCMC-MACH- \
+  --used-names exports/ad_neuron_names.csv \
+  --skip-nmap
 ```
 
 ## Output files
@@ -64,6 +78,7 @@ python3 survey/sas-neuron-name-availability.py \
 | Summary CSV | One row per naming convention with first gap and next-after-highest recommendation |
 | Detail CSV | Occupied names and computed available candidates |
 | Dashboard HTML | Local review dashboard with cards and filterable detail table |
+| Discovery artifacts | Saved evidence generated or supplied for the run |
 
 ## Recommendation fields
 
@@ -110,13 +125,15 @@ The test verifies:
 - CCMC next-after-highest detection
 - occupied/detail records
 - dashboard rendering
+- wrapper safe mode using saved evidence
 
 ## Privacy / artifact handling
 
 Generated outputs may contain real hostnames and site information. Do not commit live outputs.
 
-Keep generated CSV and HTML files under ignored output directories such as:
+Keep generated CSV, HTML, and discovery artifacts under ignored output/artifact directories such as:
 
 ```text
 survey/output/
+survey/artifacts/
 ```
