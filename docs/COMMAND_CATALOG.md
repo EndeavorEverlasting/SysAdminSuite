@@ -160,6 +160,38 @@ bash survey/sas-survey-hostname-availability.sh \
 
 See `docs/HOSTNAME_AVAILABILITY.md` for AD export, tracker union, and DNS check options.
 
+## Auto-logon Workstation Assessment
+
+Remote batch assessment (HTML dashboard primary):
+
+```bash
+bash survey/sas-assess-autologon.sh \
+  --manifest ./survey/output/wbs_targets.csv \
+  --preflight \
+  --ad-live \
+  --output survey/output/autologon_assessment.csv \
+  --dashboard survey/output/autologon_dashboard.html \
+  --open
+```
+
+See `docs/AUTOLOGON_ASSESSMENT.md`.
+
+## Registry Install Diff (read-only pipeline)
+
+Field entry via Bash wrapper:
+
+```bash
+bash scripts/sas_registry_install_diff.sh --help
+```
+
+Target readiness (used by auto-logon `--preflight`):
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/Test-TargetReadiness.ps1 -TargetsCsv Config/target_batch.example.csv
+```
+
+See `docs/REGISTRY_INSTALL_DIFF_PIPELINE.md`.
+
 ## Rule For New Commands
 
 If a needed command is not listed here, add it to this catalog and wrap it in a script before sending it to a technician.

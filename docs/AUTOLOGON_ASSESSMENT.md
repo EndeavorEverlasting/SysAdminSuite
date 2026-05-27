@@ -14,7 +14,7 @@ Read-only batch assessment for Northwell shared-workstation auto-logon posture. 
 
 ## Assessment Lifecycle
 
-1. **Reachability** — ping + admin share (`\\HOST\c$`) or `bash/transport/sas-network-preflight.sh`.
+1. **Reachability** — with `--preflight`, `scripts/powershell/Test-TargetReadiness.ps1` (registry install-diff pipeline); otherwise ping + admin share (`\\HOST\c$`).
 2. **PostInstall intent** — `HKLM\SOFTWARE\NSLIJHS\PostInstall\SetAutoLogon` contains `Autologon_YES`.
    - No intent → `shared_device`.
 3. **When intent present**
@@ -49,31 +49,28 @@ Fixture input manifest: `survey/fixtures/autologon_manifest.sample.csv` (fake ho
 
 ## Commands
 
-### Batch assessment (WBS manifest)
+### Remote batch (primary — WBS or site manifest)
+
+Normalize targets first when needed:
+
+```bash
+./survey/sas-survey-targets.sh --device-type Workstation --txt ./private/wbs_hosts.txt \
+  --output ./survey/output/wbs_targets.csv
+```
+
+Assess with readiness preflight, AD evidence, and HTML dashboard:
 
 ```bash
 bash survey/sas-assess-autologon.sh \
-  --manifest survey/fixtures/autologon_manifest.sample.csv \
+  --manifest ./survey/output/wbs_targets.csv \
+  --preflight \
+  --ad-live \
   --output survey/output/autologon_assessment.csv \
   --dashboard survey/output/autologon_dashboard.html \
   --open
 ```
 
-### With live AD evidence
-
-```bash
-bash survey/sas-assess-autologon.sh \
-  --manifest ./survey/output/wbs_targets.csv \
-  --ad-live \
-  --output survey/output/autologon_assessment.csv \
-  --dashboard survey/output/autologon_dashboard.html
-```
-
-### Local workstation (technician on-box)
-
-```bash
-bash survey/sas-assess-autologon.sh --local --output survey/output/autologon_local.csv --open
-```
+Review `autologon_dashboard.html` in the browser; CSV is the machine-readable artifact.
 
 ### CI / contract tests (no reg.exe required)
 
@@ -102,5 +99,14 @@ bash deployment-audit/tests/test_autologon_assessment_contracts.sh
 | `survey/sas-assess-autologon.sh` | Batch orchestrator |
 | `deployment-audit/sas-render-autologon-dashboard.py` | HTML dashboard |
 | `survey/sas-ad-identity-export.ps1` | Optional AD user + computer OU export |
-| `bash/transport/sas-network-preflight.sh` | Optional network preflight |
+| `scripts/powershell/Test-TargetReadiness.ps1` | Optional `--preflight` transport gate (see `docs/REGISTRY_INSTALL_DIFF_PIPELINE.md`) |
+| `bash/transport/sas-network-preflight.sh` | Standalone network preflight (if not using `--preflight`) |
 | `deployment-audit/tests/test_autologon_assessment_contracts.sh` | Contract tests |
+
+### Break-glass: local on-box only
+
+Use only when remote admin share is unavailable and you are at the console:
+
+```bash
+bash survey/sas-assess-autologon.sh --local --output survey/output/autologon_local.csv --open
+```

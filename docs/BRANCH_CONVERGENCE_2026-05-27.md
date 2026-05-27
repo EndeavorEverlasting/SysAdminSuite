@@ -19,7 +19,11 @@ Always verify: `git fetch origin && git rev-parse --short origin/main`
 
 ## Open pull requests
 
-None as of convergence completion (2026-05-27). New work branches from `origin/main` only.
+| PR | Branch | Lane |
+|----|--------|------|
+| (pending) | `feature/autologon-workstation-assessment` | Auto-logon remote batch + HTML dashboard |
+
+New work branches from `origin/main` only. Do not stack unrelated features on an open PR branch.
 
 ## Recently settled (convergence sprint)
 
