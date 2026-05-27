@@ -12,16 +12,17 @@ AD_OUTPUT=""
 AD_CSV=""
 LOCAL=0
 FIXTURE_DRY_RUN=0
+PREFLIGHT=0
+READINESS_JSON=""
 
 usage(){ cat <<'USAGE'
 SysAdminSuite Auto-logon Workstation Assessment
 
 Usage:
   bash survey/sas-assess-autologon.sh --manifest targets.csv [options]
-  bash survey/sas-assess-autologon.sh --local [options]
 
 Options:
-  --manifest PATH         Input manifest CSV (HostName column)
+  --manifest PATH         Input manifest CSV (HostName column) — required for remote batch
   --output PATH           Output assessment CSV
   --dashboard PATH        Output dashboard HTML (default: sibling of CSV)
   --no-dashboard          Skip dashboard rendering
@@ -29,17 +30,28 @@ Options:
   --open                  Open dashboard HTML when rendering completes
   --ad-live               Query AD via survey/sas-ad-identity-export.ps1
   --ad-output PATH        Path for generated AD evidence CSV
-  --local                 Assess local workstation registry only
+  --preflight             Run scripts/powershell/Test-TargetReadiness.ps1 before registry probes
   --fixture-dry-run       Deterministic fixture output for CI (no reg.exe)
+  --local                 Break-glass: assess only the current workstation (not batch)
   -h, --help              Show help
 
 Safety:
   Read-only. No endpoint or AD mutation.
+
+Remote batch (recommended):
+  bash survey/sas-assess-autologon.sh --manifest hosts.csv --preflight --ad-live --open
 USAGE
 }
 
 fail(){ echo "[autologon-assess] ERROR: $*" >&2; exit 1; }
 log(){ echo "[autologon-assess] $*" >&2; }
+
+resolve_ps_exe(){
+  if command -v pwsh >/dev/null 2>&1; then echo pwsh; return; fi
+  if command -v powershell.exe >/dev/null 2>&1; then echo powershell.exe; return; fi
+  if command -v powershell >/dev/null 2>&1; then echo powershell; return; fi
+  echo ""
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -52,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --ad-live) AD_LIVE=1; shift ;;
     --ad-output) AD_OUTPUT="${2:?missing --ad-output value}"; shift 2 ;;
     --local) LOCAL=1; shift ;;
+    --preflight) PREFLIGHT=1; shift ;;
     --fixture-dry-run) FIXTURE_DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "Unknown argument: $1" ;;
@@ -73,7 +86,22 @@ if [[ -n "$MANIFEST" && ! -f "$MANIFEST" ]]; then
 fi
 
 PROBE_JSON="$(mktemp "${TMPDIR:-/tmp}/sas-autologon-probes.XXXXXX")"
-trap 'rm -f "$PROBE_JSON"' EXIT
+trap 'rm -f "$PROBE_JSON" "$READINESS_JSON"' EXIT
+
+if [[ "$PREFLIGHT" -eq 1 && "$FIXTURE_DRY_RUN" -eq 0 && "$LOCAL" -eq 0 ]]; then
+  READINESS_SCRIPT="scripts/powershell/Test-TargetReadiness.ps1"
+  [[ -f "$READINESS_SCRIPT" ]] || fail "Preflight script not found: $READINESS_SCRIPT"
+  PS_EXE="$(resolve_ps_exe)"
+  [[ -n "$PS_EXE" ]] || fail "--preflight requires pwsh or powershell on PATH"
+  READINESS_JSON="$(mktemp "${TMPDIR:-/tmp}/sas-autologon-readiness.XXXXXX")"
+  log "Running target readiness preflight via $READINESS_SCRIPT"
+  if ! "$PS_EXE" -NoProfile -ExecutionPolicy Bypass -File "$READINESS_SCRIPT" \
+    -TargetsCsv "$MANIFEST" -OutputJson "$READINESS_JSON"; then
+    log "Preflight helper failed. Continuing without readiness evidence."
+    rm -f "$READINESS_JSON"
+    READINESS_JSON=""
+  fi
+fi
 
 if [[ "$FIXTURE_DRY_RUN" -eq 1 ]]; then
   log "Fixture dry-run mode — skipping live registry probes"
@@ -132,10 +160,55 @@ with open(out, "w", encoding="utf-8") as handle:
 PY
 else
   log "Remote registry assessment for manifest: $MANIFEST"
-  python3 - "$MANIFEST" "$PROBE_JSON" <<'PY'
+  python3 - "$MANIFEST" "$PROBE_JSON" "$READINESS_JSON" <<'PY'
 import csv, json, subprocess, sys
+from pathlib import Path
 
-manifest, out = sys.argv[1:3]
+manifest, out, readiness_path = sys.argv[1:4]
+
+def short_host(hostname):
+    return (hostname or "").strip().split(".")[0].upper()
+
+def load_readiness_index(path):
+    if not path or not Path(path).exists():
+        return {}
+    with open(path, encoding="utf-8") as handle:
+        payload = json.load(handle)
+    items = payload if isinstance(payload, list) else [payload]
+    index = {}
+    for item in items:
+        target = (item.get("target") or "").strip()
+        if not target:
+            continue
+        checks = {c.get("name"): c for c in (item.get("checks") or []) if isinstance(c, dict)}
+        index[short_host(target)] = {
+            "overall_status": item.get("overall_status", "Unknown"),
+            "checks": checks,
+        }
+    return index
+
+def readiness_transport(readiness):
+    if not readiness:
+        return None
+    overall = readiness.get("overall_status", "Unknown")
+    checks = readiness.get("checks", {})
+    admin = checks.get("AdminShareAccess", {})
+    reach = checks.get("Reachability", {})
+    admin_status = (admin.get("status") if isinstance(admin, dict) else "") or ""
+    reach_status = (reach.get("status") if isinstance(reach, dict) else "") or ""
+    if overall in {"NotReady", "Unknown"} or admin_status == "Fail" or reach_status == "Fail":
+        reachable = "offline" if reach_status == "Fail" else "online"
+        admin_ok = "no" if admin_status == "Fail" or overall == "NotReady" else "yes"
+        if overall == "NotReady" and admin_status != "Pass":
+            admin_ok = "no"
+        return {
+            "Reachability": reachable,
+            "AdminShareOk": admin_ok,
+            "ProbeMethod": "readiness_preflight",
+            "ProbeError": overall,
+            "skip_reg": True,
+        }
+    return {"skip_reg": False}
 
 def first(row, names):
     lower = {str(k).strip().lower(): (v or "").strip() for k, v in row.items() if k is not None}
@@ -187,11 +260,27 @@ def reg_query(host, subkey, value):
     except Exception as exc:
         return "", str(exc), "reg_exception"
 
+readiness_index = load_readiness_index(readiness_path)
+
 rows = []
 with open(manifest, newline="", encoding="utf-8-sig") as handle:
     for raw in csv.DictReader(handle):
         host = first(raw, ["HostName", "Hostname", "Host", "Target", "ComputerName"])
         if not host:
+            continue
+        preflight = readiness_transport(readiness_index.get(short_host(host)))
+        if preflight and preflight.get("skip_reg"):
+            rows.append({
+                "HostName": host,
+                "Reachability": preflight["Reachability"],
+                "AdminShareOk": preflight["AdminShareOk"],
+                "PostInstall_SetAutoLogon": "",
+                "PostInstall_Raw": "",
+                "Winlogon_AutoAdminLogon": "",
+                "Winlogon_DefaultUserName": "",
+                "ProbeMethod": preflight["ProbeMethod"],
+                "ProbeError": preflight["ProbeError"],
+            })
             continue
         reachable = "online" if ping_ok(host) else "offline"
         admin_ok = "yes" if reachable == "online" and admin_share_ok(host) else "no"
@@ -231,10 +320,7 @@ if [[ "$AD_LIVE" -eq 1 && -z "$AD_CSV" ]]; then
   AD_HELPER="survey/sas-ad-identity-export.ps1"
   [[ -f "$AD_HELPER" ]] || fail "AD helper not found: $AD_HELPER"
   [[ -z "$AD_OUTPUT" ]] && AD_OUTPUT="$(dirname "$OUTPUT")/autologon_ad_evidence.csv"
-  PS_EXE=""
-  if command -v powershell.exe >/dev/null 2>&1; then PS_EXE="powershell.exe"; fi
-  if [[ -z "$PS_EXE" ]] && command -v pwsh >/dev/null 2>&1; then PS_EXE="pwsh"; fi
-  if [[ -z "$PS_EXE" ]] && command -v powershell >/dev/null 2>&1; then PS_EXE="powershell"; fi
+  PS_EXE="$(resolve_ps_exe)"
   if [[ -z "$PS_EXE" ]]; then
     log "AD live requested, but no PowerShell runtime is available. Continuing without AD evidence."
   else
