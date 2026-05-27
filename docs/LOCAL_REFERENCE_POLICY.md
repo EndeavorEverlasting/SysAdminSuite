@@ -6,8 +6,9 @@ never be committed, pushed, or named in public docs, PR descriptions, or issue c
 
 ## Rules
 
-1. **Gitignore only** — Keep reference material in the gitignored directory (default name on disk:
-   `local-reference/`; legacy folder names may exist locally). Do not add paths to the index.
+1. **Gitignore only** — Keep reference material in the gitignored directory at repo root (exact
+   folder name is local and must not appear in tracked docs). Legacy folder names may exist on disk
+   until renamed. Do not add paths to the index.
 2. **No revealing paths in public artifacts** — Do not commit absolute Windows paths, Windows
    usernames, hostnames from your workstation, or the local reference folder name in tracked
    `docs/`, `README`, PR bodies, or runbooks.

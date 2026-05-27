@@ -89,8 +89,8 @@ OCR/Jude's 2026 Buildout Project.pdf
 # Portable build output (local only)
 dist/
 
-# Operator-local reference tree (install scripts, shortcuts, installers — not product code)
-local-reference/
+# Local reference tree (install scripts, shortcuts, installers — not product code; never commit)
+tech emulation/
 Alex Emulation/
 
 # Generated runtime artifacts from bash/apps scripts (timestamped logs and worker scripts)
