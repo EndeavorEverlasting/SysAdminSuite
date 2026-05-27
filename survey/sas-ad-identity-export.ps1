@@ -21,7 +21,11 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Output,
 
-    [switch]$SearchDescription
+    [switch]$SearchDescription,
+
+    [switch]$IncludeComputerOU,
+
+    [switch]$LookupHostnameAsUser
 )
 
 Set-StrictMode -Version Latest
@@ -86,6 +90,11 @@ function New-EvidenceRow {
         [string]$ADMAC = '',
         [string]$ADEnabled = '',
         [string]$DirectoryPath = '',
+        [string]$ComputerOU = '',
+        [string]$LegacyOUWarning = '',
+        [string]$ADUserFound = '',
+        [string]$ADUserSamAccountName = '',
+        [string]$ADUserStatus = '',
         [string]$ADStatus = '',
         [string]$ADProbeMethod = '',
         [string]$Notes = ''
@@ -99,6 +108,11 @@ function New-EvidenceRow {
         ADMAC = $ADMAC
         ADEnabled = $ADEnabled
         DirectoryPath = $DirectoryPath
+        ComputerOU = $ComputerOU
+        LegacyOUWarning = $LegacyOUWarning
+        ADUserFound = $ADUserFound
+        ADUserSamAccountName = $ADUserSamAccountName
+        ADUserStatus = $ADUserStatus
         ADStatus = $ADStatus
         ADProbeMethod = $ADProbeMethod
         Notes = $Notes
@@ -114,6 +128,70 @@ function Get-ManifestIdentifier {
         'MACAddress', 'MAC'
     )
     return $target
+}
+
+function Get-ShortHostname {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
+    $short = ($Value.Trim() -split '\.')[0]
+    return $short.ToUpperInvariant()
+}
+
+function Get-ComputerOUPath {
+    param([string]$DistinguishedName)
+    if ([string]::IsNullOrWhiteSpace($DistinguishedName)) { return '' }
+    $parts = $DistinguishedName -split '(?<!\\),', 2
+    if ($parts.Count -lt 2) { return '' }
+    return $parts[1]
+}
+
+function Get-LegacyOUWarning {
+    param([string]$OUPath)
+    if ([string]::IsNullOrWhiteSpace($OUPath)) { return '' }
+    $forbidden = @(
+        '\_Workstations\Legacy',
+        '\_Workstations\Old',
+        'FORBIDDEN',
+        'LEGACY'
+    )
+    foreach ($pattern in $forbidden) {
+        if ($OUPath -match [regex]::Escape($pattern)) {
+            return 'LEGACY OU -- must be moved to \_Workstations\Managed\ or \_Workstations\Managed_Shared\ per Security policy'
+        }
+    }
+    if ($OUPath -notmatch 'Managed_Shared' -and $OUPath -match 'Workstations') {
+        return 'Computer OU is not under Managed_Shared'
+    }
+    return ''
+}
+
+function Find-ADUserByShortHostname {
+    param([string]$Hostname)
+    $short = Get-ShortHostname $Hostname
+    if (-not $short) {
+        return @{
+            Found = 'no'
+            SamAccountName = ''
+            Status = 'ad_user_missing'
+            Notes = 'Hostname empty; cannot lookup AD user.'
+        }
+    }
+    try {
+        $user = Get-ADUser -Identity $short -Properties SamAccountName, Enabled, DistinguishedName -ErrorAction Stop
+        return @{
+            Found = 'yes'
+            SamAccountName = [string]$user.SamAccountName
+            Status = 'ad_user_found'
+            Notes = ("Enabled={0}; DN={1}" -f $user.Enabled, $user.DistinguishedName)
+        }
+    } catch {
+        return @{
+            Found = 'no'
+            SamAccountName = ''
+            Status = 'ad_user_missing'
+            Notes = $_.Exception.Message
+        }
+    }
 }
 
 function Find-WithADModule {
@@ -219,6 +297,43 @@ function Find-WithDsquery {
     }
 }
 
+function Enrich-EvidenceRow {
+    param(
+        [pscustomobject]$Row,
+        [string]$Identifier,
+        [switch]$WantComputerOU,
+        [switch]$WantUserLookup
+    )
+
+    $computerOU = ''
+    $legacyWarning = ''
+    if ($WantComputerOU -and $Row.DirectoryPath) {
+        $computerOU = Get-ComputerOUPath $Row.DirectoryPath
+        $legacyWarning = Get-LegacyOUWarning $computerOU
+    }
+
+    $userFound = ''
+    $userSam = ''
+    $userStatus = ''
+    $userNotes = $Row.Notes
+    if ($WantUserLookup) {
+        $userLookup = Find-ADUserByShortHostname -Hostname $Identifier
+        $userFound = $userLookup.Found
+        $userSam = $userLookup.SamAccountName
+        $userStatus = $userLookup.Status
+        if ($userLookup.Notes) {
+            $userNotes = if ($userNotes) { "$userNotes | $($userLookup.Notes)" } else { $userLookup.Notes }
+        }
+    }
+
+    return New-EvidenceRow -Target $Row.Target -IdentifierType $Row.IdentifierType `
+        -ADHostname $Row.ADHostname -DNSHostName $Row.DNSHostName `
+        -ADSerial $Row.ADSerial -ADMAC $Row.ADMAC -ADEnabled $Row.ADEnabled `
+        -DirectoryPath $Row.DirectoryPath -ComputerOU $computerOU -LegacyOUWarning $legacyWarning `
+        -ADUserFound $userFound -ADUserSamAccountName $userSam -ADUserStatus $userStatus `
+        -ADStatus $Row.ADStatus -ADProbeMethod $Row.ADProbeMethod -Notes $userNotes
+}
+
 if (-not (Test-Path -LiteralPath $Manifest)) {
     throw "Manifest not found: $Manifest"
 }
@@ -242,20 +357,24 @@ $results = foreach ($raw in $manifestRows) {
         continue
     }
 
+    $evidence = $null
     if ($hasADModule) {
-        Find-WithADModule -Identifier $identifier -IdentifierType $identifierType -AllowDescriptionSearch:$SearchDescription
-        continue
+        $evidence = Find-WithADModule -Identifier $identifier -IdentifierType $identifierType -AllowDescriptionSearch:$SearchDescription
+    } elseif ($hasDsquery) {
+        $evidence = Find-WithDsquery -Identifier $identifier -IdentifierType $identifierType
+    } else {
+        $evidence = New-EvidenceRow -Target $identifier -IdentifierType $identifierType `
+            -ADStatus 'ad_probe_unavailable' `
+            -ADProbeMethod 'none' `
+            -Notes 'Neither ActiveDirectory PowerShell module nor dsquery.exe is available in this runtime.'
     }
 
-    if ($hasDsquery) {
-        Find-WithDsquery -Identifier $identifier -IdentifierType $identifierType
-        continue
+    if ($IncludeComputerOU -or $LookupHostnameAsUser) {
+        Enrich-EvidenceRow -Row $evidence -Identifier $identifier `
+            -WantComputerOU:$IncludeComputerOU -WantUserLookup:$LookupHostnameAsUser
+    } else {
+        $evidence
     }
-
-    New-EvidenceRow -Target $identifier -IdentifierType $identifierType `
-        -ADStatus 'ad_probe_unavailable' `
-        -ADProbeMethod 'none' `
-        -Notes 'Neither ActiveDirectory PowerShell module nor dsquery.exe is available in this runtime.'
 }
 
 $results | Export-Csv -LiteralPath $Output -NoTypeInformation -Encoding UTF8
