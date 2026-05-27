@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Example registry watchlist for install diff evidence collection and classification.",
+  "registry_paths": [
+    "HKLM:\\Software",
+    "HKLM:\\Software\\WOW6432Node",
+    "HKLM:\\System\\CurrentControlSet\\Services",
+    "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
+  ],
+  "exclude_patterns": [
+    "HKLM:\\Software\\Classes\\Installer\\Products\\*",
+    "HKLM:\\Software\\Microsoft\\Cryptography\\*"
+  ],
+  "noise_patterns": [
+    {
+      "id": "noise-lastwrite-time",
+      "pattern": "*LastWriteTime*",
+      "reason": "Timestamp churn not tied to meaningful install state"
+    }
+  ],
+  "expected_change_rules": [
+    {
+      "id": "expected-exampleapp-uninstall",
+      "software_id": "EXAMPLE-SOFTWARE-ID",
+      "path_pattern": "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ExampleApp",
+      "value_name": "DisplayVersion",
+      "classification": "ExpectedChange"
+    }
+  ],
+  "suspicious_change_rules": [
+    {
+      "id": "suspicious-run-key",
+      "path_pattern": "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run*",
+      "reason": "New autorun entries require operator review",
+      "default_classification": "SuspiciousChange"
+    }
+  ],
+  "remediation_candidate_rules": [
+    {
+      "id": "candidate-service-start",
+      "path_pattern": "HKLM:\\System\\CurrentControlSet\\Services\\ExampleAppService",
+      "value_name": "Start",
+      "reason": "Unexpected service start mode may need approved remediation",
+      "default_classification": "RemediationCandidate"
+    },
+    {
+      "id": "candidate-examplevendor-policy",
+      "path_pattern": "HKLM:\\Software\\ExampleVendor\\ExampleApp\\Policy",
+      "reason": "Policy drift from baseline",
+      "default_classification": "RemediationCandidate"
+    }
+  ]
+}

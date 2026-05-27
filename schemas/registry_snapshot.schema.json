@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/registry_snapshot.schema.json",
+  "title": "Registry Snapshot",
+  "description": "Read-only registry snapshot evidence captured before or after install activity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "target",
+    "captured_at",
+    "source",
+    "registry_paths",
+    "entries",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostname", "scope"],
+      "properties": {
+        "hostname": { "type": "string", "minLength": 1 },
+        "scope": { "type": "string", "enum": ["localhost", "remote", "unresolved"] },
+        "notes": { "type": "string" }
+      }
+    },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "mode"],
+      "properties": {
+        "tool": { "type": "string" },
+        "mode": { "type": "string", "enum": ["Recon", "Act", "Log", "Export", "Unknown"] },
+        "operator": { "type": "string" }
+      }
+    },
+    "registry_paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key_path",
+          "value_name",
+          "value_type",
+          "value_data_kind",
+          "captured_at",
+          "access_status"
+        ],
+        "properties": {
+          "key_path": { "type": "string", "minLength": 1 },
+          "value_name": {
+            "description": "Use empty string for default value; use null when key has no values.",
+            "type": ["string", "null"]
+          },
+          "value_type": { "type": ["string", "null"] },
+          "value_data": {
+            "description": "Can be null for key-only placeholder entries.",
+            "type": ["string", "number", "integer", "boolean", "array", "object", "null"]
+          },
+          "value_data_kind": {
+            "type": "string",
+            "enum": [
+              "string",
+              "dword",
+              "qword",
+              "binary",
+              "multi_string",
+              "expandable_string",
+              "unknown"
+            ]
+          },
+          "captured_at": { "type": "string", "format": "date-time" },
+          "access_status": {
+            "type": "string",
+            "enum": ["Captured", "AccessDenied", "NotFound", "Error"]
+          },
+          "error_message": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "key_path": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+target,scope,software_id,mode,notes
+localhost,localhost,EXAMPLE-SOFTWARE-ID,DryRun,"Local validation before remote execution"
+LAB-PC-001,remote,EXAMPLE-SOFTWARE-ID,DryRun,"Lab target for readiness checks only"
+LAB-PC-002,remote,EXAMPLE-SOFTWARE-ID,Recon,"Inventory and snapshot-only run"
