@@ -1,12 +1,12 @@
 # Auto-logon Workstation Assessment
 
-Read-only batch assessment for Northwell shared-workstation auto-logon posture. Maps legacy Alex install gates to SysAdminSuite evidence checks using fake sample hostnames only in committed fixtures.
+Read-only batch assessment for Northwell shared-workstation auto-logon posture. Maps legacy reference install gates to SysAdminSuite evidence checks using fake sample hostnames only in committed fixtures.
 
-## Alex Reference Mapping
+## Legacy reference mapping
 
-| Alex artifact | Signal | SysAdminSuite check |
+| Reference artifact | Signal | SysAdminSuite check |
 |---|---|---|
-| `Alex Emulation/Alex/SSUH_Pavilion_Install.cmd` lines 9–18 | `reg query HKLM\SOFTWARE\NSLIJHS\PostInstall /v SetAutoLogon` contains `Autologon_YES` | Remote `reg.exe` PostInstall probe → `PostInstall_SetAutoLogon`, `PostInstall_Raw` |
+| Gitignored local reference install script (pavilion variant), lines 9–18 | `reg query HKLM\SOFTWARE\NSLIJHS\PostInstall /v SetAutoLogon` contains `Autologon_YES` | Remote `reg.exe` PostInstall probe → `PostInstall_SetAutoLogon`, `PostInstall_Raw` |
 | Same script | Else branch → "No Auto-Logon needed" | `OverallStatus=shared_device` when intent marker absent |
 | Same script | Launches `NW_AutoLogon_Setup_x64.exe` when intent present | Winlogon keys must match hostname after setup → `Winlogon_AutoAdminLogon`, `Winlogon_DefaultUserName`, `Hostname_User_Match` |
 | Northwell OU policy (`Managed_Shared`) | Shared kiosks live under `\_Workstations\Managed_Shared\` | `AD_Computer_OU`, `Legacy_OU_Warning`, `ou_mismatch` when intent + wrong OU |
@@ -90,7 +90,7 @@ bash deployment-audit/tests/test_autologon_assessment_contracts.sh
 
 - Read-only. No registry writes, no auto-logon setup, no AD mutations.
 - Do not commit CSV/HTML outputs from live runs — they may contain real hostnames, usernames, and OU paths.
-- `Alex Emulation/` is reference-only and gitignored.
+- Operator-local reference material is gitignored; see `docs/LOCAL_REFERENCE_POLICY.md`.
 
 ## Related Files
 

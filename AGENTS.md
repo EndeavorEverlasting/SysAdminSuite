@@ -213,6 +213,22 @@ bash scripts/survey_neuron_environment.sh <hostname-or-ip>
 
 Precision is operational safety. Loose language becomes broken field work.
 
+## Gitignored local reference directory
+
+A **gitignored local reference tree** may exist at the repo root (install scripts, shortcuts, installers). It is not product code. Agents MUST NOT commit its contents, put its path or folder name in public markdown or PR bodies, or assume it exists in CI.
+
 ## Why This Exists
 
 Earlier documentation overemphasized PowerShell and compiled tooling. That is now stale for Northwell-targeted work. Future agents should not infer from old files that new work belongs in PowerShell.
+
+## Local Reference Material
+
+Some operators keep a **gitignored local reference tree** (install scripts, shortcuts, legacy
+field bundles) beside the repo. It is never product code.
+
+- Do **not** commit reference-tree paths, Windows usernames, or absolute `C:\Users\...` paths in
+  docs, PR text, or comments.
+- Do **not** name the on-disk reference folder in public docs; use generic terms and point to
+  `docs/LOCAL_REFERENCE_POLICY.md`.
+- When harvesting behavior from reference scripts, promote probes and contracts into `survey/`,
+  `scripts/`, or `docs/` without copying the tree.
