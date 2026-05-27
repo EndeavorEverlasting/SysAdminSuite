@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/registry_diff.schema.json",
+  "title": "Registry Diff",
+  "description": "Comparison evidence between before/after registry snapshots.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "target",
+    "software_id",
+    "compared_at",
+    "before_snapshot",
+    "after_snapshot",
+    "summary",
+    "changes",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "run_id": { "type": "string" },
+    "target": { "type": "string" },
+    "software_id": { "type": "string" },
+    "compared_at": { "type": "string", "format": "date-time" },
+    "before_snapshot": { "type": "string" },
+    "after_snapshot": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_changes", "by_classification"],
+      "properties": {
+        "total_changes": { "type": "integer", "minimum": 0 },
+        "by_classification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "CreatedKey",
+            "DeletedKey",
+            "CreatedValue",
+            "DeletedValue",
+            "ModifiedValue",
+            "ExpectedChange",
+            "Noise",
+            "SuspiciousChange",
+            "RemediationCandidate"
+          ],
+          "properties": {
+            "CreatedKey": { "type": "integer", "minimum": 0 },
+            "DeletedKey": { "type": "integer", "minimum": 0 },
+            "CreatedValue": { "type": "integer", "minimum": 0 },
+            "DeletedValue": { "type": "integer", "minimum": 0 },
+            "ModifiedValue": { "type": "integer", "minimum": 0 },
+            "ExpectedChange": { "type": "integer", "minimum": 0 },
+            "Noise": { "type": "integer", "minimum": 0 },
+            "SuspiciousChange": { "type": "integer", "minimum": 0 },
+            "RemediationCandidate": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["classification", "key_path", "requires_review"],
+        "properties": {
+          "classification": {
+            "type": "string",
+            "enum": [
+              "CreatedKey",
+              "DeletedKey",
+              "CreatedValue",
+              "DeletedValue",
+              "ModifiedValue",
+              "ExpectedChange",
+              "Noise",
+              "SuspiciousChange",
+              "RemediationCandidate"
+            ]
+          },
+          "key_path": { "type": "string" },
+          "value_name": { "type": ["string", "null"] },
+          "before": { "type": ["object", "string", "number", "boolean", "array", "null"] },
+          "after": { "type": ["object", "string", "number", "boolean", "array", "null"] },
+          "reason": { "type": "string" },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "matched_rule_id": { "type": ["string", "null"] },
+          "requires_review": { "type": "boolean" }
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}
