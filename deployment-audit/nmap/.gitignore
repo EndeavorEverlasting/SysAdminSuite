@@ -1,0 +1,12 @@
+# Keep real hospital inventory/probe data out of git.
+input/
+output/
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+*.xml
+*.json
+!README.md
+!northwell_wab_guard.example.json
+northwell_wab_guard.local.json
