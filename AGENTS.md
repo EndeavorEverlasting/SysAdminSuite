@@ -226,7 +226,7 @@ Earlier documentation overemphasized PowerShell and compiled tooling. That is no
 Some operators keep a **gitignored local reference tree** (install scripts, shortcuts, legacy
 field bundles) beside the repo. It is never product code.
 
-- Do **not** commit reference-tree paths, Windows usernames, or absolute `C:\Users\...` paths in
+- Do **not** commit reference-tree paths, Windows usernames, or absolute user-profile paths in
   docs, PR text, or comments.
 - Do **not** name the on-disk reference folder in public docs; use generic terms and point to
   `docs/LOCAL_REFERENCE_POLICY.md`.

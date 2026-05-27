@@ -1,6 +1,6 @@
 # Local Reference Policy
 
-SysAdminSuite may use an **operator-local emulation archive** at the repo root: install scripts,
+SysAdminSuite may use a **gitignored local reference tree** at the repo root: install scripts,
 shortcuts, and installers copied from field practice. That tree is **not product code** and must
 never be committed, pushed, or named in public docs, PR descriptions, or issue comments.
 
@@ -22,7 +22,7 @@ never be committed, pushed, or named in public docs, PR descriptions, or issue c
 ## For agents
 
 - Default new docs to **“gitignored local reference tree”** or **“operator-local reference
-  install script”** — not folder names, usernames, or `C:\Users\...` paths.
+  install script”** — not folder names, usernames, or absolute user-profile paths.
 - Before opening a PR, search the diff for `Users\`, personal names used as directory labels, and
-  emulation-folder strings; redact before push.
+  on-disk reference folder names; redact before push.
 - See also `AGENTS.md` (local reference guardrail).
