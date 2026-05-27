@@ -5,7 +5,9 @@ Mapping/logs/*
 
 # GUI worker run sessions (contain PII: usernames, paths, PIDs)
 Mapping/Output/GuiRuns/
+mapping/Output/GuiRuns/
 Mapping/Output/*.json
+mapping/Output/*.json
 
 # Python
 __pycache__/
@@ -87,7 +89,8 @@ OCR/Jude's 2026 Buildout Project.pdf
 # Portable build output (local only)
 dist/
 
-# Alex Emulation reference tree (local install scripts, shortcuts, installers — not product code)
+# Local reference tree (install scripts, shortcuts, installers — not product code; never commit)
+tech emulation/
 Alex Emulation/
 
 # Generated runtime artifacts from bash/apps scripts (timestamped logs and worker scripts)
