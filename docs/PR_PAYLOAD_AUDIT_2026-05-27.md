@@ -46,7 +46,7 @@ Commit message references REMOTE_WORKFLOW and convergence ledger; **`git show --
 | PowerShell pipeline | `scripts/powershell/Compare-RegistrySnapshots.ps1`, `Get-RegistrySnapshot.ps1`, `Invoke-RegistryInstallDiff.ps1`, `Invoke-TrackedInstall.ps1`, `Test-TargetReadiness.ps1` |
 | Bash wrapper | `scripts/sas_registry_install_diff.sh` |
 | Schemas / config | `schemas/*.schema.json`, `config/registry_*.example.json`, `config/target_batch.example.csv` |
-| Docs (registry) | `docs/REGISTRY_INSTALL_DIFF_PIPELINE.md`, `REGISTRY_DIFF_SAFETY_RULES.md`, etc. |
+| Docs (registry) | `docs/REGISTRY_INSTALL_DIFF_PIPELINE.md`, `docs/REGISTRY_DIFF_SAFETY_RULES.md`, etc. |
 | Tests | `Tests/Pester/Registry*.ps1`, `tests/bash/test_registry_install_diff_wrapper_contracts.sh` |
 
 ### Where docs actually landed

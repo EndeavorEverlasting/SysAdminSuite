@@ -10,26 +10,26 @@ Authoritative snapshot of `origin/main` after the 2026-05-27 convergence sprint 
 | Full SHA | `6d828657b86d509b406ee9093137d25abd5a8c68` |
 | Short SHA | `6d82865` |
 | Branch | `main` |
-| `origin/main` sync | Up to date after `git fetch --all --prune && git pull origin main` |
+| `origin/main` sync | Up to date after `git fetch origin && git switch main && git reset --hard origin/main` |
 | Top commit message | `docs: add remote-first workflow guide for GitHub-centric development` |
 
-Verify locally:
+Verify locally (use `origin/main`, not ambiguous `HEAD`):
 
 ```bash
-git fetch origin && git rev-parse HEAD && git rev-parse --short HEAD
+git fetch origin && git switch main && git reset --hard origin/main && git rev-parse origin/main
 ```
 
 ## 2. Commands cited (2026-05-27)
 
-### `git rev-parse HEAD`
+### `git rev-parse origin/main` (audit snapshot)
 
-```
+```text
 6d828657b86d509b406ee9093137d25abd5a8c68
 ```
 
 ### `git log --oneline --decorate --max-count=40`
 
-```
+```text
 6d82865 (HEAD -> main, origin/main, origin/HEAD) docs: add remote-first workflow guide for GitHub-centric development
 3ad472e Merge pull request #38 from EndeavorEverlasting/feature/autologon-preflight-2026-05-27
 c0b4a1f feat(survey): wire autologon preflight and remote-first docs
@@ -74,7 +74,7 @@ d2d67a3 Add Nmap baseline and classifier workflow
 
 ### `git tag -l 'archive/*'`
 
-```
+```text
 archive/convergence-2026-05-27
 ```
 
@@ -98,7 +98,7 @@ Note: PR #34 branch tip `35db948` is an empty docs-only commit message; the regi
 
 ## 4. Presence check (`git merge-base --is-ancestor <sha> HEAD`)
 
-All convergence anchors are ancestors of current `HEAD` (`6d82865`):
+All convergence anchors are ancestors of audit snapshot `6d82865` (verify with `git merge-base --is-ancestor <sha> origin/main` after sync):
 
 | SHA | Status |
 |-----|--------|
@@ -108,7 +108,7 @@ All convergence anchors are ancestors of current `HEAD` (`6d82865`):
 | `955563e` | ancestor |
 | `8440e93` | ancestor |
 | `3ad472e` | ancestor |
-| `6d82865` | ancestor (HEAD) |
+| `6d82865` | ancestor (audit snapshot tip) |
 
 ## 5. Product lanes on main (post-convergence)
 
@@ -159,3 +159,12 @@ Use this tag as the convergence-sprint checkpoint before autologon preflight (#3
 - [PR_PAYLOAD_AUDIT_2026-05-27.md](PR_PAYLOAD_AUDIT_2026-05-27.md) — title/body vs files for #33–#38
 - [REMOTE_WORKFLOW.md](REMOTE_WORKFLOW.md) — operator workflow (main @ `6d82865`)
 - Control issue: [#13](https://github.com/EndeavorEverlasting/SysAdminSuite/issues/13)
+
+## Post-audit merge (#40)
+
+| Field | Value |
+|-------|--------|
+| PR | [#40](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/40) — local reference privacy redaction |
+| Merge SHA | `a99124c88467f9f6adef3db53bc6de118e537149` (`a99124c`) |
+
+After #40, `origin/main` is ahead of the convergence snapshot in §1; re-run the verify block against `origin/main`.
