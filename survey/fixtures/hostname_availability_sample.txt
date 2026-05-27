@@ -1,0 +1,6 @@
+# Sample-safe hostname evidence (not operational data)
+WNH270OPR001
+WNH270OPR002
+WNH270OPR005
+WNH270OPR010
+WMH300OPR134

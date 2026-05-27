@@ -146,6 +146,20 @@ systemctl status
 journalctl
 ```
 
+## Hostname Availability
+
+Read-only naming sequence analysis for conventions such as `WNH270OPR###`:
+
+```bash
+bash survey/sas-survey-hostname-availability.sh \
+  --convention WNH270OPR \
+  --suffix-mode numeric \
+  --width 3 \
+  --used-names survey/fixtures/hostname_availability_sample.txt
+```
+
+See `docs/HOSTNAME_AVAILABILITY.md` for AD export, tracker union, and DNS check options.
+
 ## Rule For New Commands
 
 If a needed command is not listed here, add it to this catalog and wrap it in a script before sending it to a technician.
