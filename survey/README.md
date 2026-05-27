@@ -189,3 +189,44 @@ sas-survey report  --manifest ./survey/output/neuron_targets_resolved.csv
 ```
 
 Keep this separation. A clean manifest first. Probe second. Report third. No mud wrestling.
+
+## Auto-logon Workstation Assessment (WBS batch)
+
+Read-only batch assessment for shared-workstation auto-logon posture. Maps the Alex `SSUH_Pavilion_Install.cmd` PostInstall gate to registry + optional AD evidence.
+
+```bash
+bash survey/sas-assess-autologon.sh \
+  --manifest ./survey/output/wbs_targets.csv \
+  --output survey/output/autologon_assessment.csv \
+  --dashboard survey/output/autologon_dashboard.html \
+  --open
+```
+
+With live AD user + computer OU evidence:
+
+```bash
+bash survey/sas-assess-autologon.sh \
+  --manifest ./survey/output/wbs_targets.csv \
+  --ad-live \
+  --output survey/output/autologon_assessment.csv \
+  --dashboard survey/output/autologon_dashboard.html \
+  --open
+```
+
+Local technician on-box check:
+
+```bash
+bash survey/sas-assess-autologon.sh --local --output survey/output/autologon_local.csv --open
+```
+
+Contract fixture / CI dry-run:
+
+```bash
+bash survey/sas-assess-autologon.sh \
+  --manifest survey/fixtures/autologon_manifest.sample.csv \
+  --fixture-dry-run \
+  --output survey/output/autologon_assessment.csv \
+  --dashboard survey/output/autologon_dashboard.html
+```
+
+See `docs/AUTOLOGON_ASSESSMENT.md` for lifecycle rules, OverallStatus values, and evidence columns.
