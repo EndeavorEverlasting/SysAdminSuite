@@ -168,3 +168,15 @@ Use this tag as the convergence-sprint checkpoint before autologon preflight (#3
 | Merge SHA | `a99124c88467f9f6adef3db53bc6de118e537149` (`a99124c`) |
 
 After #40, `origin/main` is ahead of the convergence snapshot in §1; re-run the verify block against `origin/main`.
+
+## Post-audit merge (#39)
+
+| Field | Value |
+|-------|--------|
+| PR | [#39](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/39) — post-convergence mainline + payload audit |
+| Merge SHA | `9ec89e44fb2fe24458dbdb799ac64d8b4f796bdf` (`9ec89e4`) |
+
+`#39` is the current `origin/main` tip and lands:
+
+- `docs/MAINLINE_STATE_2026-05-27.md` updates
+- `docs/PR_PAYLOAD_AUDIT_2026-05-27.md`
