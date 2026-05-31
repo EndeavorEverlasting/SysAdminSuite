@@ -103,6 +103,12 @@ dist/
 bin/*
 !bin/.gitkeep
 
+# .NET build output (managed projects under src/ and managed-tests/)
+**/bin/
+**/obj/
+# Published host output staging (see docs/GUI_HOST_MIGRATION.md)
+tools/publish/
+
 # Local reference tree (install scripts, shortcuts, installers — not product code; never commit)
 tech emulation/
 Alex Emulation/

@@ -31,3 +31,13 @@ jobs:
       - name: Restore and test
         run: dotnet test SysAdminSuite.sln -c Release --verbosity normal
 
+      - name: Publish DashboardHost (framework-dependent)
+        run: dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost
+
+      - name: Verify DashboardHost publish artifact
+        shell: pwsh
+        run: |
+          $exe = 'tools/publish/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "Missing publish artifact: $exe" }
+          Write-Host "DashboardHost publish artifact OK: $exe"
+

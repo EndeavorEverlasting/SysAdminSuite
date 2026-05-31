@@ -48,6 +48,18 @@ try {
     if (-not $hasRuntime) {
         throw "Archive missing Launch-SysAdminSuite-Runtime.bat at repo root of package."
     }
+    $hasDashboardIndex = $names | Where-Object { $_ -match 'app[/\\]dashboard[/\\]index\.html' }
+    if (-not $hasDashboardIndex) {
+        throw "Archive missing app/dashboard/index.html (required for PS-independent dashboard host)."
+    }
+    $hasHostLauncher = $names | Where-Object { $_ -match 'Launch-SysAdminSuiteDashboard\.Host\.bat' }
+    if (-not $hasHostLauncher) {
+        throw "Archive missing Launch-SysAdminSuiteDashboard.Host.bat at repo root of package."
+    }
+    $hasHostExe = $names | Where-Object { $_ -match 'app[/\\]bin[/\\]SysAdminSuite\.DashboardHost\.exe' }
+    if (-not $hasHostExe) {
+        Write-Warning "Archive missing app/bin/SysAdminSuite.DashboardHost.exe; PS-independent dashboard path will be unavailable until 'dotnet publish' output is staged before packaging."
+    }
 } finally {
     $zip.Dispose()
 }
