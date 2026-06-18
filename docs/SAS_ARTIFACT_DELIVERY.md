@@ -176,6 +176,15 @@ Use `workbook_import_notes.md` to update the working workbook manually.
 
 Manual means manual. No script should write into the workbook.
 
+## Hardening behavior
+
+- Validation and review queue CSV writers prefix spreadsheet-formula-like cells with an apostrophe before writing output.
+- Dashboard rendering fails when required inputs are missing instead of silently creating an empty dashboard.
+- Package creation fails when required inputs are missing instead of producing an incomplete handoff.
+- Raw Nmap output is excluded unless `--include-raw` is passed.
+- When raw Nmap output is included, it is copied with a raw-specific filename such as `02_nmap_workstation_evidence_raw.txt` instead of being mislabeled as CSV.
+- Dashboard review tables include `SourceFile`, `SourceRow`, and `Owner` for provenance and assignment.
+
 ## Template descriptions
 
 Templates live under:
@@ -554,3 +563,5 @@ Run the artifact delivery tests with:
 ```bash
 python -m unittest discover tests/survey
 ```
+
+Current focused coverage includes source extraction, validation, formula-safe CSV writing, review queue generation, package failure behavior, raw-output naming, dashboard rendering, and input immutability.
