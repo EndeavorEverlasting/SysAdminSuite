@@ -37,6 +37,20 @@ REVIEW_QUEUE_HEADERS = [
 ]
 
 
+DANGEROUS_CSV_PREFIXES = ("=", "+", "-", "@")
+
+
+def csv_safe(value: object) -> str:
+    text = "" if value is None else str(value)
+    if text and text[0] in DANGEROUS_CSV_PREFIXES:
+        return "'" + text
+    return text
+
+
+def csv_safe_row(row: dict[str, str], headers: list[str]) -> dict[str, str]:
+    return {header: csv_safe(row.get(header, "")) for header in headers}
+
+
 def clean(value: object) -> str:
     return "" if value is None else str(value).strip()
 
@@ -118,7 +132,7 @@ def expected_cybernet_related(row: dict[str, str]) -> bool:
 
 def windows_like_endpoint(row: dict[str, str]) -> bool:
     text = device_text(row)
-    hostname = get(row, "Hostname", "ComputerName")
+    hostname = get(row, "Hostname", "HostName", "ComputerName", "Computer")
     return "windows" in text or "workstation" in text or bool(re.match(r"^SAMPLE-(WS|CYB)-", hostname.upper()))
 
 
@@ -195,7 +209,7 @@ def build_reviews(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 
         reachable = get(row, "Reachable", "IsReachable")
         if falsey(reachable) or contains_any(text, ["surveyed unreachable", "unreachable", "timeout"]):
-            add_review(reviews, ctx, "Surveyed unreachable", "medium", "Target was surveyed or expected but could not be reached.", "Confirm power, network, location, hostname, and IP before rerun.")
+            add_review(reviews, ctx, "Surveyed unreachable", "medium", "Target was surveyed or expected but could not be reached.", "Confirm power, network, location, hostname, and IP. Record documented preflight checks and exact command text before rerun.")
 
         if not ctx["Hostname"] or not ctx["IPAddress"]:
             add_review(reviews, ctx, "Hostname/IP missing", "medium", "Hostname or IP address is missing.", "Fill the missing network identifier from source evidence before survey or workbook import.")
@@ -253,7 +267,7 @@ def write_csv(path: Path, rows: list[dict[str, str]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=REVIEW_QUEUE_HEADERS, extrasaction="ignore")
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(csv_safe_row(row, REVIEW_QUEUE_HEADERS) for row in rows)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
