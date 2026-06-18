@@ -1,0 +1,3 @@
+REQ #,Hostname Used,Ticket Type,Host to Copy,Ticket State,Client Name,Location,Department,Notes
+REQ0000001,"sample-cyb-010
+sample-cyb-011",AutoLogon,SAMPLE-COPY-001,Open,Sample Client,SAMPLE-SITE,Sample Dept,Fake multiline hostname list
