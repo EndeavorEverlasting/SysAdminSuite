@@ -1,0 +1,3 @@
+ReviewID,SourceFile,SourceRow,SiteCode,Location,Room,Workstation,Hostname,IPAddress,MACAddress,SerialNumber,IssueType,Severity,EvidenceSummary,RecommendedAction,Owner,ReviewStatus,Notes
+RQ-00001,sample_manifest.csv,2,LAB,Sample OR,OR-01,Anesthesia 1,SAMPLE-CYB-001,192.0.2.10,AA:BB:CC:DD:EE:01,,Missing serial evidence,high,No serial number was present in the reconciliation row.,Collect local field capture or verify against an approved source artifact before workbook update.,,New,
+RQ-00002,sample_manifest.csv,2,LAB,Sample OR,OR-01,Anesthesia 1,SAMPLE-CYB-001,192.0.2.10,AA:BB:CC:DD:EE:01,,Needs field capture,high,Reconciliation indicates local/manual capture is needed.,"Assign a technician to capture serial, MAC, computer name, and location locally.",,New,
