@@ -119,6 +119,20 @@ STATUS_NORMALIZATION = {
 }
 
 
+DANGEROUS_CSV_PREFIXES = ("=", "+", "-", "@")
+
+
+def csv_safe(value: object) -> str:
+    text = "" if value is None else str(value)
+    if text and text[0] in DANGEROUS_CSV_PREFIXES:
+        return "'" + text
+    return text
+
+
+def csv_safe_row(row: dict[str, str], headers: list[str]) -> dict[str, str]:
+    return {header: csv_safe(row.get(header, "")) for header in headers}
+
+
 def clean_text(value: object) -> str:
     return "" if value is None else str(value).strip()
 
@@ -457,7 +471,7 @@ def write_csv(path: Path, headers: list[str], rows: list[dict[str, str]]) -> Non
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(csv_safe_row(row, headers) for row in rows)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
