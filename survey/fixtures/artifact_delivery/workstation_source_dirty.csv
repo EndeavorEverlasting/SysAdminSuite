@@ -1,0 +1,4 @@
+SourceFile,SourceRow,SiteCode,SiteName,Location,Room,Workstation,Hostname,IPAddress,MACAddress,SerialNumber,DeviceType,AssociatedNeuron,Notes
+sample_extract.pdf,12,LAB,Sample Hospital,Sample OR,OR-01,Anesthesia 1,sample-cyb-001,192.0.2.10,aa-bb-cc-dd-ee-01, cyb fake 001 ,Cybernet,SAMPLE-NEURON-001,fake fixture row
+sample_notes.csv,4,,Sample Hospital,Sample PACU,,PACU 2,,192.0.2.11,AABBCCDDEE02,,Workstation,,missing site and room warning fixture
+sample_bad_rows.csv,9,LAB,,,,,,,,,,,expected missing identifier error
