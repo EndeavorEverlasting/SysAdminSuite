@@ -811,3 +811,71 @@ Describe 'QRCoder -- edge case QR generation' {
         $bmp.Dispose(); $qr.Dispose(); $gen.Dispose()
     }
 }
+
+Describe 'GUI script -- dedicated QR Generator tab' {
+    BeforeAll {
+        $script:guiContent = Get-Content -Path $script:guiPath -Raw
+    }
+
+    It 'Adds a dedicated QR Generator tab before BOM Sync' {
+        $script:guiContent | Should -Match '\$qrTab\s*=\s*New-Object\s+System\.Windows\.Forms\.TabPage'
+        $script:guiContent | Should -Match "Text = 'QR Generator'"
+        $script:guiContent | Should -Match '\$tabs\.TabPages\.AddRange\(@\(\$runTab,\$kronosTab,\$compareTab,\$deployTrackTab,\$machineInfoTab,\$qrTab,\$bomTab\)\)'
+    }
+
+    It 'Defines QR task catalog and payload helpers' {
+        $script:guiContent | Should -Match 'function Get-QRTaskCatalog'
+        $script:guiContent | Should -Match 'function Get-QRTaskLaunchPayload'
+        $script:guiContent | Should -Match 'function Get-QRGeneratorPayloadText'
+        $script:guiContent | Should -Match 'function Update-QRGeneratorPreview'
+        $script:guiContent | Should -Match 'function Save-QRGeneratorArtifacts'
+        $script:guiContent | Should -Match 'function Show-LargeQRDialog'
+        $script:guiContent | Should -Match 'function Resolve-QRPayloadForEncoding'
+    }
+
+    It 'Provides a QR category/task picker with ad hoc option' {
+        $script:guiContent | Should -Match '\$cmbQRCategory'
+        $script:guiContent | Should -Match 'Ad Hoc Text / Command Payload'
+        $script:guiContent | Should -Match 'Get-QRTaskCatalog'
+        $script:guiContent | Should -Match 'QR Task:'
+    }
+
+    It 'Provides a read-only payload preview and truncation warning' {
+        $script:guiContent | Should -Match '\$txtQRPayloadPreview'
+        $script:guiContent | Should -Match '\$lblQRTruncWarning'
+        $script:guiContent | Should -Match 'Payload truncated from'
+    }
+
+    It 'Provides Generate QR and Show Large QR actions' {
+        $script:guiContent | Should -Match '\$btnQRGenerate'
+        $script:guiContent | Should -Match '\$btnQRShowLarge'
+        $script:guiContent | Should -Match 'Generate QR'
+        $script:guiContent | Should -Match 'Show Large QR'
+    }
+
+    It 'Shows explicit legacy posture label on the QR tab' {
+        $script:guiContent | Should -Match 'Acceptable in PowerShell-enabled environments\. Deprecated for Northwell-targeted workflows\. Prefer Bash QR runners for new Northwell development\.'
+    }
+
+    It 'Uses explicit local-generation status text' {
+        $script:guiContent | Should -Match 'QR generated locally\. Scan to paste selected payload\.'
+    }
+
+    It 'Builds task launch payloads without execution-policy bypass theater' {
+        $script:guiContent | Should -Match 'function Get-QRTaskLaunchPayload'
+        if ($script:guiContent -match '(?s)function Get-QRTaskLaunchPayload\s*\{(.*?)\n\}') {
+            $block = $Matches[1]
+            $block | Should -Match '-NoProfile -File'
+            $block | Should -Not -Match '-EP Bypass'
+            $block | Should -Not -Match 'ExecutionPolicy Bypass'
+            $block | Should -Not -Match 'EncodedCommand'
+        } else {
+            throw 'Get-QRTaskLaunchPayload function block not found for contract check.'
+        }
+    }
+
+    It 'Writes txt and png artifacts from the QR Generator tab' {
+        $script:guiContent | Should -Match 'Save-QRGeneratorArtifacts'
+        $script:guiContent | Should -Match 'ChangeExtension\(\$OutputTxtPath, ''\.png''\)'
+    }
+}

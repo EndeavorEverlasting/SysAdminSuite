@@ -211,6 +211,190 @@ function Get-QRPayload {
   return $payload
 }
 
+function Resolve-QRPayloadForEncoding {
+  param([AllowEmptyString()][string]$Text, [int]$MaxLength = 2000)
+  $original = if ([string]::IsNullOrWhiteSpace($Text)) { '' } else { $Text.Trim() }
+  return [pscustomobject]@{
+    Payload        = (Get-QRPayload -Text $original -MaxLength $MaxLength)
+    WasTruncated   = ($original.Length -gt $MaxLength)
+    OriginalLength = $original.Length
+    MaxLength      = $MaxLength
+  }
+}
+
+function Get-QRTaskCatalog {
+  $dispatcherPath = Join-Path $repoRoot 'QRTasks\Invoke-TechTask.ps1'
+  if (-not (Test-Path -LiteralPath $dispatcherPath)) { return @() }
+  $content = Get-Content -LiteralPath $dispatcherPath -Raw
+  if ($content -notmatch '(?s)\$TaskMap\s*=\s*\[ordered\]@\{(.*?)\n\}') { return @() }
+  $taskBlock = $Matches[1]
+  $tasks = @()
+  foreach ($match in [regex]::Matches($taskBlock, '(?m)^\s*(\w+)\s*=')) {
+    $tasks += $match.Groups[1].Value
+  }
+  return @($tasks | Sort-Object -Unique)
+}
+
+function Get-QRTaskLaunchPayload {
+  param([Parameter(Mandatory = $true)][string]$TaskName)
+  $dispatcherPath = Join-Path $repoRoot 'QRTasks\Invoke-TechTask.ps1'
+  return "powershell.exe -NoProfile -File `"$dispatcherPath`" -Task $TaskName"
+}
+
+function Get-QRGeneratorPayloadText {
+  param(
+    [string]$CategorySelection,
+    [string]$AdHocText
+  )
+
+  if ($CategorySelection -eq 'Ad Hoc Text / Command Payload') {
+    return ($AdHocText | Out-String).Trim()
+  }
+  if ($CategorySelection -match '^QR Task:\s*(.+)$') {
+    return (Get-QRTaskLaunchPayload -TaskName $Matches[1].Trim())
+  }
+  return ''
+}
+
+function Save-QRGeneratorArtifacts {
+  param(
+    [Parameter(Mandatory = $true)][string]$PayloadText,
+    [Parameter(Mandatory = $true)][string]$OutputTxtPath,
+    [int]$PixelsPerModule = 8
+  )
+
+  if (-not $script:QRCoderAvailable) {
+    throw "QRCoder.dll is not available. Ensure 'lib\QRCoder.dll' exists."
+  }
+  if ([string]::IsNullOrWhiteSpace($PayloadText)) {
+    throw 'Enter or select a QR payload before generating.'
+  }
+
+  $resolved = Resolve-QRPayloadForEncoding -Text $PayloadText
+  $payload = $resolved.Payload
+  if ([string]::IsNullOrWhiteSpace($payload)) {
+    throw 'QR payload is empty after trimming.'
+  }
+
+  $outDir = Split-Path -Parent $OutputTxtPath
+  if ($outDir -and -not (Test-Path -LiteralPath $outDir)) {
+    New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+  }
+
+  Set-Content -LiteralPath $OutputTxtPath -Value $payload -Encoding UTF8
+  $pngPath = [System.IO.Path]::ChangeExtension($OutputTxtPath, '.png')
+
+  $bmp = New-QRBitmap -Text $payload -PixelsPerModule $PixelsPerModule
+  if (-not $bmp) { throw 'Failed to generate QR bitmap from payload text.' }
+  try {
+    $bmp.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
+  } catch {
+    $bmp.Dispose()
+    throw
+  }
+
+  return [pscustomobject]@{
+    Payload        = $payload
+    TxtPath        = $OutputTxtPath
+    PngPath        = $pngPath
+    Bitmap         = $bmp
+    WasTruncated   = $resolved.WasTruncated
+    OriginalLength = $resolved.OriginalLength
+    MaxLength      = $resolved.MaxLength
+  }
+}
+
+function Show-LargeQRDialog {
+  param(
+    [Parameter(Mandatory = $true)][string]$PayloadText,
+    [System.Drawing.Bitmap]$Bitmap,
+    [string]$DefaultPngPath = ''
+  )
+
+  if (-not $Bitmap) {
+    throw 'No QR image is available yet. Click Generate QR first.'
+  }
+
+  $dialog = New-Object System.Windows.Forms.Form
+  $dialog.Text = 'SysAdminSuite - Large QR Code'
+  $dialog.StartPosition = 'CenterParent'
+  $dialog.Size = New-Object System.Drawing.Size(620, 720)
+  $dialog.MinimizeBox = $false
+  $dialog.MaximizeBox = $true
+  $dialog.BackColor = [System.Drawing.Color]::White
+  if ($script:HaroldIcon) { $dialog.Icon = $script:HaroldIcon }
+
+  $summary = New-Object System.Windows.Forms.Label
+  $summary.Location = '12,12'
+  $summary.Size = '580,48'
+  $summary.Anchor = 'Top, Left, Right'
+  $summary.Font = $uiFont
+  $previewSnippet = if ($PayloadText.Length -gt 180) { $PayloadText.Substring(0, 180) + '...' } else { $PayloadText }
+  $summary.Text = "Payload preview:`n$previewSnippet"
+
+  $pic = New-Object System.Windows.Forms.PictureBox
+  $pic.Location = '40,70'
+  $pic.Size = '540,540'
+  $pic.Anchor = 'Top, Bottom, Left, Right'
+  $pic.SizeMode = 'Zoom'
+  $pic.BorderStyle = 'FixedSingle'
+  $pic.Image = $Bitmap
+
+  $btnCopy = New-Object System.Windows.Forms.Button
+  $btnCopy.Location = '12,628'
+  $btnCopy.Size = '140,32'
+  $btnCopy.Anchor = 'Bottom, Left'
+  $btnCopy.Text = 'Copy Payload'
+  $btnCopy.FlatStyle = 'Flat'
+  $btnCopy.Font = $uiFont
+  $btnCopy.Add_Click({
+    try {
+      Copy-TextToClipboard -Value $PayloadText -Label 'QR payload'
+    } catch {
+      [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Copy Payload', 'OK', 'Warning') | Out-Null
+    }
+  })
+
+  $btnSave = New-Object System.Windows.Forms.Button
+  $btnSave.Location = '160,628'
+  $btnSave.Size = '140,32'
+  $btnSave.Anchor = 'Bottom, Left'
+  $btnSave.Text = 'Save PNG...'
+  $btnSave.FlatStyle = 'Flat'
+  $btnSave.Font = $uiFont
+  $btnSave.Add_Click({
+    $saveDialog = New-Object System.Windows.Forms.SaveFileDialog
+    $saveDialog.Filter = 'PNG image (*.png)|*.png'
+    $saveDialog.FileName = if ($DefaultPngPath) { [System.IO.Path]::GetFileName($DefaultPngPath) } else { 'QRCode.png' }
+    if ($DefaultPngPath) { $saveDialog.InitialDirectory = Split-Path -Parent $DefaultPngPath }
+    if ($saveDialog.ShowDialog() -eq 'OK') {
+      try {
+        $Bitmap.Save($saveDialog.FileName, [System.Drawing.Imaging.ImageFormat]::Png)
+        Set-StatusBarText -Category 'Saved' -Message "QR image saved: $($saveDialog.FileName)"
+      } catch {
+        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Save PNG', 'OK', 'Warning') | Out-Null
+      }
+    }
+  })
+
+  $btnClose = New-Object System.Windows.Forms.Button
+  $btnClose.Location = '492,628'
+  $btnClose.Size = '100,32'
+  $btnClose.Anchor = 'Bottom, Right'
+  $btnClose.Text = 'Close'
+  $btnClose.FlatStyle = 'Flat'
+  $btnClose.Font = $uiFont
+  $btnClose.Add_Click({ $dialog.Close() })
+
+  $dialog.Controls.AddRange(@($summary, $pic, $btnCopy, $btnSave, $btnClose))
+  $dialog.Add_FormClosed({
+    if ($pic.Image) {
+      $pic.Image = $null
+    }
+  })
+  [void]$dialog.ShowDialog()
+}
+
 function Clear-QRCode {
   param([System.Windows.Forms.PictureBox]$PictureBox)
   if (-not $PictureBox) { return }
@@ -1056,7 +1240,7 @@ $script:TutorialTracks = [ordered]@{
     Desc  = 'Run field diagnostics by scanning a QR code'
     Color = [System.Drawing.Color]::FromArgb(50,140,110)
     Steps = @(
-      @{ Title = 'QR Tasks: What Is It?'; Highlights = @('machineInfoTab','cmbMIMode'); ComboSelect = @{ cmbMIMode = 8 }; Body = "QR Tasks let field techs scan a label on a workstation and instantly run a diagnostic.`n`nDesign: QR = pointer, not payload. The QR code holds a short one-liner that calls a dispatcher script. The real logic lives in sibling scripts.`n`nYou can also run these tasks right here in the GUI.`nWe have switched the Script dropdown to QR Task Runner for you." }
+      @{ Title = 'QR Tasks: What Is It?'; Highlights = @('qrTab','cmbQRCategory'); Body = "QR Tasks let field techs scan a label on a workstation and instantly run a diagnostic.`n`nUse the dedicated QR Generator tab to pick a task, preview the exact payload, and open a large scannable QR.`n`nDesign: QR = pointer, not payload. The QR code holds a short one-liner that calls a dispatcher script. The real logic lives in sibling scripts.`n`nMachine Info still offers QR Task Runner for backward compatibility." }
       @{ Title = 'QR Tasks: See Available Tasks'; Highlights = @('txtMITargets','btnMIRun'); Body = "Leave the Targets box empty (or clear it) and click Run Probe.`n`nThe Results pane will list every available task:`n  RAMProfile, ModelInfo, NetworkInfo, Serials, NeuronTrace, WinOptionalFeatures, PowerComfort, PowerComfortRevert`n`nYou can also type ? for the same list." }
       @{ Title = 'QR Tasks: Run One Now'; Highlights = @('txtMITargets','btnMIRun'); Body = "Clear the Targets box and type a task name:`n`n  RAMProfile`n`nThen click Run Probe.`n`nThe task runs locally on this machine. Output appears in the Results pane below, and a timestamped .txt file is saved to GetInfo\Output\QRTasks." }
       @{ Title = 'QR Tasks: Check Your Output'; Highlights = @('txtMIResults','btnOpenMIOutput'); Body = "The Results pane shows the task output.`n`nClick Open Output Folder to see the .txt file in GetInfo\Output\QRTasks.`n`nEvery QR task works the same way:`n  - Runs locally, no parameters`n  - Prints to the Results pane`n  - Saves a .txt to GetInfo\Output\QRTasks`n  - Works on PowerShell 5.1+" }
@@ -2326,6 +2510,239 @@ $btnOpenMIOutput.Add_Click({
   }
 })
 
+# -- QR Generator Tab --
+$script:LastQRGeneratorPayload = ''
+$script:LastQRGeneratorPngPath = ''
+$script:LastQRGeneratorBitmap = $null
+
+$qrTab = New-Object System.Windows.Forms.TabPage
+$qrTab.Text = 'QR Generator'
+$qrTab.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+$lblQRLegacyNotice = New-Object System.Windows.Forms.Label
+$lblQRLegacyNotice.Location = '10,10'
+$lblQRLegacyNotice.Size = '940,36'
+$lblQRLegacyNotice.Anchor = 'Top, Left, Right'
+$lblQRLegacyNotice.Font = $uiFont
+$lblQRLegacyNotice.ForeColor = [System.Drawing.Color]::FromArgb(90, 70, 20)
+$lblQRLegacyNotice.Text = 'Acceptable in PowerShell-enabled environments. Deprecated for Northwell-targeted workflows. Prefer Bash QR runners for new Northwell development.'
+
+$lblQRCategory = New-Object System.Windows.Forms.Label
+$lblQRCategory.Location = '10,52'
+$lblQRCategory.Size = '120,20'
+$lblQRCategory.Text = 'QR payload'
+$lblQRCategory.Font = $emphasisFont
+
+$cmbQRCategory = New-Object System.Windows.Forms.ComboBox
+$cmbQRCategory.Location = '130,49'
+$cmbQRCategory.Size = '320,24'
+$cmbQRCategory.DropDownStyle = 'DropDownList'
+$cmbQRCategory.Font = $uiFont
+[void]$cmbQRCategory.Items.Add('Ad Hoc Text / Command Payload')
+foreach ($taskName in (Get-QRTaskCatalog)) {
+  [void]$cmbQRCategory.Items.Add("QR Task: $taskName")
+}
+$cmbQRCategory.SelectedIndex = 0
+
+$lblQRAdHoc = New-Object System.Windows.Forms.Label
+$lblQRAdHoc.Location = '10,82'
+$lblQRAdHoc.Size = '940,20'
+$lblQRAdHoc.Anchor = 'Top, Left, Right'
+$lblQRAdHoc.Text = 'Ad hoc text or command payload (used when Ad Hoc is selected)'
+$lblQRAdHoc.Font = $emphasisFont
+
+$txtQRAdHoc = New-Object System.Windows.Forms.TextBox
+$txtQRAdHoc.Location = '10,104'
+$txtQRAdHoc.Size = '940,90'
+$txtQRAdHoc.Anchor = 'Top, Left, Right'
+$txtQRAdHoc.Multiline = $true
+$txtQRAdHoc.ScrollBars = 'Vertical'
+$txtQRAdHoc.Font = $monoFont
+$txtQRAdHoc.WordWrap = $true
+
+$lblQRPayloadPreview = New-Object System.Windows.Forms.Label
+$lblQRPayloadPreview.Location = '10,200'
+$lblQRPayloadPreview.Size = '940,20'
+$lblQRPayloadPreview.Anchor = 'Top, Left, Right'
+$lblQRPayloadPreview.Text = 'Exact QR payload preview (read-only)'
+$lblQRPayloadPreview.Font = $emphasisFont
+
+$txtQRPayloadPreview = New-Object System.Windows.Forms.TextBox
+$txtQRPayloadPreview.Location = '10,222'
+$txtQRPayloadPreview.Size = '940,120'
+$txtQRPayloadPreview.Anchor = 'Top, Left, Right'
+$txtQRPayloadPreview.Multiline = $true
+$txtQRPayloadPreview.ReadOnly = $true
+$txtQRPayloadPreview.ScrollBars = 'Vertical'
+$txtQRPayloadPreview.Font = $monoFont
+$txtQRPayloadPreview.BackColor = [System.Drawing.Color]::FromArgb(248, 248, 248)
+$txtQRPayloadPreview.WordWrap = $true
+
+$lblQRTruncWarning = New-Object System.Windows.Forms.Label
+$lblQRTruncWarning.Location = '10,346'
+$lblQRTruncWarning.Size = '940,20'
+$lblQRTruncWarning.Anchor = 'Top, Left, Right'
+$lblQRTruncWarning.Font = $uiFont
+$lblQRTruncWarning.ForeColor = [System.Drawing.Color]::DarkRed
+$lblQRTruncWarning.Visible = $false
+
+$lblQROutputPath = New-Object System.Windows.Forms.Label
+$lblQROutputPath.Location = '10,372'
+$lblQROutputPath.Size = '80,20'
+$lblQROutputPath.Text = 'Output .txt'
+$lblQROutputPath.Font = $emphasisFont
+
+$txtQROutputPath = New-Object System.Windows.Forms.TextBox
+$txtQROutputPath.Location = '90,369'
+$txtQROutputPath.Size = '780,24'
+$txtQROutputPath.Anchor = 'Top, Left, Right'
+$txtQROutputPath.Font = $uiFont
+$txtQROutputPath.Text = (Join-Path $repoRoot 'GetInfo\Output\QRGenerator\QRGenerator_Output.txt')
+
+$btnBrowseQROutput = New-Object System.Windows.Forms.Button
+$btnBrowseQROutput.Location = '876,367'
+$btnBrowseQROutput.Size = '74,28'
+$btnBrowseQROutput.Anchor = 'Top, Right'
+$btnBrowseQROutput.Text = 'Browse...'
+$btnBrowseQROutput.FlatStyle = 'Flat'
+$btnBrowseQROutput.Font = $uiFont
+$btnBrowseQROutput.Add_Click({
+  $saveDialog = New-Object System.Windows.Forms.SaveFileDialog
+  $saveDialog.Filter = 'Text payload (*.txt)|*.txt'
+  $saveDialog.FileName = 'QRGenerator_Output.txt'
+  $saveDialog.InitialDirectory = Split-Path -Parent $txtQROutputPath.Text
+  if ($saveDialog.ShowDialog() -eq 'OK') { $txtQROutputPath.Text = $saveDialog.FileName }
+})
+
+$btnQRGenerate = New-Object System.Windows.Forms.Button
+$btnQRGenerate.Location = '10,404'
+$btnQRGenerate.Size = '150,34'
+$btnQRGenerate.Text = [char]0x25B6 + '  Generate QR'
+$btnQRGenerate.FlatStyle = 'Popup'
+$btnQRGenerate.Font = New-Object System.Drawing.Font('Segoe UI Bold', 10)
+$btnQRGenerate.BackColor = [System.Drawing.Color]::FromArgb(30, 130, 160)
+$btnQRGenerate.ForeColor = [System.Drawing.Color]::White
+$btnQRGenerate.Cursor = 'Hand'
+
+$btnQRShowLarge = New-Object System.Windows.Forms.Button
+$btnQRShowLarge.Location = '170,404'
+$btnQRShowLarge.Size = '150,34'
+$btnQRShowLarge.Text = 'Show Large QR'
+$btnQRShowLarge.FlatStyle = 'Popup'
+$btnQRShowLarge.Font = New-Object System.Drawing.Font('Segoe UI Bold', 10)
+$btnQRShowLarge.BackColor = [System.Drawing.Color]::FromArgb(30, 150, 30)
+$btnQRShowLarge.ForeColor = [System.Drawing.Color]::White
+$btnQRShowLarge.Cursor = 'Hand'
+
+$picQRPreview = New-Object System.Windows.Forms.PictureBox
+$picQRPreview.Location = '760,404'
+$picQRPreview.Size = '180,180'
+$picQRPreview.Anchor = 'Top, Right'
+$picQRPreview.SizeMode = 'Zoom'
+$picQRPreview.BorderStyle = 'FixedSingle'
+$picQRPreview.BackColor = [System.Drawing.Color]::White
+$picQRPreview.Visible = $false
+
+$lblQRPreviewHint = New-Object System.Windows.Forms.Label
+$lblQRPreviewHint.Location = '330,412'
+$lblQRPreviewHint.Size = '420,48'
+$lblQRPreviewHint.Anchor = 'Top, Left, Right'
+$lblQRPreviewHint.Font = $uiFont
+$lblQRPreviewHint.Text = 'Review the payload preview, then click Generate QR. QR generated locally. Scan to paste selected payload.'
+
+function Update-QRGeneratorPreview {
+  $previewText = Get-QRGeneratorPayloadText -CategorySelection "$($cmbQRCategory.SelectedItem)" -AdHocText $txtQRAdHoc.Text
+  $txtQRPayloadPreview.Text = $previewText
+  $resolved = Resolve-QRPayloadForEncoding -Text $previewText
+  if ($resolved.WasTruncated) {
+    $lblQRTruncWarning.Text = "Payload truncated from $($resolved.OriginalLength) to $($resolved.MaxLength) characters for scannability."
+    $lblQRTruncWarning.Visible = $true
+  } else {
+    $lblQRTruncWarning.Text = ''
+    $lblQRTruncWarning.Visible = $false
+  }
+
+  $isAdHoc = ($cmbQRCategory.SelectedItem -eq 'Ad Hoc Text / Command Payload')
+  $txtQRAdHoc.Enabled = $isAdHoc
+  $lblQRAdHoc.Visible = $isAdHoc
+
+  if (-not $isAdHoc -and $cmbQRCategory.SelectedItem -match '^QR Task:\s*(.+)$') {
+    $taskSlug = $Matches[1].Trim()
+    $txtQROutputPath.Text = Join-Path $repoRoot "GetInfo\Output\QRGenerator\QRTask_${taskSlug}_Output.txt"
+  } elseif ($isAdHoc) {
+    if ($txtQROutputPath.Text -match 'QRTask_.*_Output\.txt$') {
+      $txtQROutputPath.Text = Join-Path $repoRoot 'GetInfo\Output\QRGenerator\QRGenerator_Output.txt'
+    }
+  }
+}
+
+$cmbQRCategory.Add_SelectedIndexChanged({ Update-QRGeneratorPreview })
+$txtQRAdHoc.Add_TextChanged({ Update-QRGeneratorPreview })
+
+$btnQRGenerate.Add_Click({
+  try {
+    Update-QRGeneratorPreview
+    $previewText = $txtQRPayloadPreview.Text
+    if ([string]::IsNullOrWhiteSpace($previewText)) {
+      throw 'Select a QR task or enter ad hoc text before generating.'
+    }
+
+    if ($script:LastQRGeneratorBitmap) {
+      if ($picQRPreview.Image -eq $script:LastQRGeneratorBitmap) { $picQRPreview.Image = $null }
+      $script:LastQRGeneratorBitmap.Dispose()
+      $script:LastQRGeneratorBitmap = $null
+    }
+    if ($picQRPreview.Image) {
+      $picQRPreview.Image.Dispose()
+      $picQRPreview.Image = $null
+    }
+
+    $artifact = Save-QRGeneratorArtifacts -PayloadText $previewText -OutputTxtPath $txtQROutputPath.Text -PixelsPerModule 8
+    $script:LastQRGeneratorPayload = $artifact.Payload
+    $script:LastQRGeneratorPngPath = $artifact.PngPath
+    $script:LastQRGeneratorBitmap = $artifact.Bitmap
+    $picQRPreview.Image = $artifact.Bitmap
+    $picQRPreview.Visible = $true
+
+    if ($artifact.WasTruncated) {
+      $lblQRTruncWarning.Text = "Payload truncated from $($artifact.OriginalLength) to $($artifact.MaxLength) characters for scannability."
+      $lblQRTruncWarning.Visible = $true
+    }
+
+    Set-StatusBarText -Category 'Done' -Message 'QR generated locally. Scan to paste selected payload.'
+  } catch {
+    Set-StatusBarText -Category 'Error' -Message $_.Exception.Message
+    [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Generate QR', 'OK', 'Warning') | Out-Null
+  }
+})
+
+$btnQRShowLarge.Add_Click({
+  try {
+    if (-not $script:LastQRGeneratorBitmap) {
+      $previewText = $txtQRPayloadPreview.Text
+      if ([string]::IsNullOrWhiteSpace($previewText)) { throw 'Generate a QR code before opening the large display.' }
+      $resolved = Resolve-QRPayloadForEncoding -Text $previewText
+      $script:LastQRGeneratorBitmap = New-QRBitmap -Text $resolved.Payload -PixelsPerModule 10
+      $script:LastQRGeneratorPayload = $resolved.Payload
+      if (-not $script:LastQRGeneratorBitmap) { throw 'Unable to build QR image from the current payload preview.' }
+    }
+    Show-LargeQRDialog -PayloadText $script:LastQRGeneratorPayload -Bitmap $script:LastQRGeneratorBitmap -DefaultPngPath $script:LastQRGeneratorPngPath
+  } catch {
+    Set-StatusBarText -Category 'Error' -Message $_.Exception.Message
+    [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Show Large QR', 'OK', 'Warning') | Out-Null
+  }
+})
+
+$qrTab.Controls.AddRange(@(
+  $lblQRLegacyNotice,
+  $lblQRCategory, $cmbQRCategory,
+  $lblQRAdHoc, $txtQRAdHoc,
+  $lblQRPayloadPreview, $txtQRPayloadPreview, $lblQRTruncWarning,
+  $lblQROutputPath, $txtQROutputPath, $btnBrowseQROutput,
+  $btnQRGenerate, $btnQRShowLarge, $lblQRPreviewHint, $picQRPreview
+))
+Update-QRGeneratorPreview
+
 # -- UTF-8 BOM Sync Tab --
 $bomTab = New-Object System.Windows.Forms.TabPage
 $bomTab.Text = 'UTF-8 BOM Sync'
@@ -2540,7 +2957,7 @@ $btnBomSync.Add_Click({
 
 $bomTab.Controls.AddRange(@($grpBom,$lblBomNeedCount,$lblBomView,$btnBomResultsView,$btnBomQRView,$lblBomQRPayload,$cmbBomQRPayload,$lstBomNeed,$lblBomHaveCount,$lstBomHave,$btnBomMoveRight,$btnBomMoveLeft,$btnBomMoveAllRight,$pnlBomQRView))
 
-$tabs.TabPages.AddRange(@($runTab,$kronosTab,$compareTab,$deployTrackTab,$machineInfoTab,$bomTab))
+$tabs.TabPages.AddRange(@($runTab,$kronosTab,$compareTab,$deployTrackTab,$machineInfoTab,$qrTab,$bomTab))
 $form.Controls.Add($tabs)
 
 $statusStrip = New-Object System.Windows.Forms.StatusStrip
@@ -2814,6 +3231,10 @@ $toolTip.SetToolTip($btnRunResultsView,'Switch back to the normal written result
 $toolTip.SetToolTip($btnKronosResultsView,'Switch back to the normal written results view.')
 $toolTip.SetToolTip($btnMIResultsView,'Switch back to the normal written results view.')
 $toolTip.SetToolTip($btnBomResultsView,'Switch back to the normal written results view.')
+$toolTip.SetToolTip($btnQRGenerate,'Build local .txt and .png QR artifacts from the payload preview.')
+$toolTip.SetToolTip($btnQRShowLarge,'Open a large scannable QR dialog with copy and save actions.')
+$toolTip.SetToolTip($cmbQRCategory,'Pick a registered QR task or ad hoc text/command payload.')
+$toolTip.SetToolTip($txtQRPayloadPreview,'Exact string that will be encoded into the QR code.')
 $toolTip.SetToolTip($txtStop,'Click to browse for a stop-signal file.')
 $toolTip.SetToolTip($txtStatus,'Click to browse for a status snapshot file.')
 $toolTip.SetToolTip($txtUndo,'Click to browse for an undo/redo history file.')

@@ -181,6 +181,8 @@ The app generates and saves both:
 
 The generated QR also appears in the built-in QR pane for immediate screen scanning by technicians.
 
+**Preferred path:** open the **QR Generator** tab for task picking, payload preview, large modal display, and `.txt`/`.png` artifacts. Machine Info modes **QR Task Runner** and **QR Text Generator** remain for backward compatibility. See [`docs/QR_GUI_AND_RUNNER_POLICY.md`](docs/QR_GUI_AND_RUNNER_POLICY.md).
+
 ### Tutorial Architecture (for contributors)
 
 The tutorial system lives in `GUI/Start-SysAdminSuiteGui.ps1` and is designed for easy extension:
