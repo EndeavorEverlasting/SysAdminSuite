@@ -878,4 +878,11 @@ Describe 'GUI script -- dedicated QR Generator tab' {
         $script:guiContent | Should -Match 'Save-QRGeneratorArtifacts'
         $script:guiContent | Should -Match 'ChangeExtension\(\$OutputTxtPath, ''\.png''\)'
     }
+
+    It 'Points QR Tasks tutorial steps at the QR Generator tab' {
+        $script:guiContent | Should -Match "QR Tasks: Generate a Task QR.*btnQRGenerate"
+        $script:guiContent | Should -Match "QR Tasks: Large Scannable Display.*btnQRShowLarge"
+        $script:guiContent | Should -Match "QR Tasks: Field Deployment.*-NoProfile -File"
+        $script:guiContent | Should -Not -Match "QR Tasks: Field Deployment[\s\S]*-EP Bypass"
+    }
 }

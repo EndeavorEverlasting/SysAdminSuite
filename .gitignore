@@ -89,6 +89,11 @@ OCR/Jude's 2026 Buildout Project.pdf
 # Portable build output (local only)
 dist/
 
+# .NET build output (managed projects under src/ and managed-tests/)
+**/bin/
+**/obj/
+tools/publish/
+
 # Local reference tree (install scripts, shortcuts, installers — not product code; never commit)
 tech emulation/
 Alex Emulation/
