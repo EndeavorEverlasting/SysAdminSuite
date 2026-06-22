@@ -60,6 +60,41 @@
     <span class="live-note">⚠ Command-generation mode — copy commands, run on an admin machine, then drag the resulting CSV files back here</span>
   </div>
 
+
+
+  <!-- Cybernet Target Acquisition Tutorial -->
+  <section id="cybernet-tutorial" class="cybernet-tutorial" aria-label="Cybernet target acquisition tutorial">
+    <div class="cybernet-tutorial-head">
+      <div>
+        <div class="eyebrow">Newbie guided workflow</div>
+        <h2>Acquire Cybernet targets without guessing</h2>
+        <p>Click through a safe, Bash-first workflow: prepare a target list, prove network posture, collect identity evidence, then load CSV output back into this dashboard.</p>
+      </div>
+      <div class="cybernet-tutorial-actions">
+        <button class="paste-btn" id="cybernet-tutorial-start">▶ Start tutorial</button>
+        <button class="paste-btn" id="cybernet-tutorial-copy">📋 Copy current command</button>
+      </div>
+    </div>
+    <div class="cybernet-stepper" id="cybernet-stepper" role="tablist" aria-label="Cybernet acquisition steps"></div>
+    <div class="cybernet-step-card">
+      <div class="cybernet-step-content">
+        <div class="cybernet-step-kicker" id="cybernet-step-kicker">Step 1</div>
+        <h3 id="cybernet-step-title">Prepare your target list</h3>
+        <p id="cybernet-step-body"></p>
+        <ul id="cybernet-step-checks"></ul>
+      </div>
+      <div class="cybernet-command-panel">
+        <div class="command-panel-title">Copy/paste command</div>
+        <textarea id="cybernet-step-command" readonly spellcheck="false"></textarea>
+        <div class="command-panel-note" id="cybernet-step-note"></div>
+      </div>
+    </div>
+    <div class="cybernet-tutorial-nav">
+      <button class="btn-secondary" id="cybernet-prev">← Back</button>
+      <button class="btn-primary" id="cybernet-next">Next →</button>
+    </div>
+  </section>
+
   <!-- Tabs -->
   <div id="tabs">
     <button class="tab-btn active" data-tab="printer">🖨️ Printer Mapping<span class="tab-badge">0</span></button>
