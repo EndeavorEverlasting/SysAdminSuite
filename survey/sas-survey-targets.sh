@@ -5,13 +5,14 @@
 
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.1.1"
 DEVICE_TYPE="Unknown"
 OUTPUT_PATH="survey/output/device_survey_targets.csv"
 INVENTORY_PATHS=()
 TARGETS=()
 INPUT_FILES=()
 PASS_THRU=0
+PYTHON_CMD=()
 
 usage() {
   cat <<'USAGE'
@@ -109,8 +110,16 @@ identifier_type() {
 
 csv_escape() {
   local s="${1:-}"
-  s="${s//"/""}"
+  s="${s//\"/\"\"}"
   printf '"%s"' "$s"
+}
+
+find_python() {
+  if [[ ${#PYTHON_CMD[@]} -gt 0 ]]; then return 0; fi
+  if command -v python3 >/dev/null 2>&1; then PYTHON_CMD=(python3); return 0; fi
+  if command -v python >/dev/null 2>&1; then PYTHON_CMD=(python); return 0; fi
+  if command -v py >/dev/null 2>&1; then PYTHON_CMD=(py -3); return 0; fi
+  fail "Python 3 is required for CSV/JSON parsing. Install Python or add python3/python/py to PATH."
 }
 
 emit_record() {
@@ -142,8 +151,6 @@ emit_record() {
   }
 }
 
-has_cmd() { command -v "$1" >/dev/null 2>&1; }
-
 import_txt() {
   local path="$1"
   [[ -f "$path" ]] || fail "Text file not found: $path"
@@ -163,13 +170,13 @@ import_txt() {
 import_csv() {
   local path="$1" source_prefix="${2:-CSV}"
   [[ -f "$path" ]] || fail "CSV file not found: $path"
-  if ! has_cmd python3; then fail "python3 is required for CSV parsing in this Bash implementation."; fi
-  python3 - "$path" "$DEVICE_TYPE" "$source_prefix" <<'PY'
+  find_python
+  "${PYTHON_CMD[@]}" - "$path" "$DEVICE_TYPE" "$source_prefix" <<'PY'
 import csv, re, sys
 path, device_type, source_prefix = sys.argv[1], sys.argv[2], sys.argv[3]
 
 def first(row, names):
-    lower = {k.lower(): v for k, v in row.items()}
+    lower = {str(k).lower(): v for k, v in row.items() if k is not None}
     for name in names:
         v = lower.get(name.lower())
         if v and str(v).strip(): return str(v).strip()
@@ -208,8 +215,8 @@ PY
 import_json() {
   local path="$1"
   [[ -f "$path" ]] || fail "JSON file not found: $path"
-  if ! has_cmd python3; then fail "python3 is required for JSON parsing."; fi
-  python3 - "$path" "$DEVICE_TYPE" <<'PY'
+  find_python
+  "${PYTHON_CMD[@]}" - "$path" "$DEVICE_TYPE" <<'PY'
 import csv, json, re, sys
 path, device_type = sys.argv[1], sys.argv[2]
 
@@ -259,9 +266,9 @@ resolve_with_inventory() {
     { printf 'Identifier,IdentifierType,DeviceType,HostName,Serial,MACAddress,Source\n'; cat "$manifest"; } > "$output"
     return
   fi
-  if ! has_cmd python3; then fail "python3 is required for inventory resolution."; fi
+  find_python
   { for inv in "${INVENTORY_PATHS[@]}"; do import_csv "$inv" "Inventory"; done; } > "$inventory_combined"
-  python3 - "$manifest" "$inventory_combined" "$output" <<'PY'
+  "${PYTHON_CMD[@]}" - "$manifest" "$inventory_combined" "$output" <<'PY'
 import csv, sys
 manifest, inventory, output = sys.argv[1], sys.argv[2], sys.argv[3]
 fields = ['Identifier','IdentifierType','DeviceType','HostName','Serial','MACAddress','Source']
@@ -336,4 +343,6 @@ done
 resolve_with_inventory "$raw_manifest" "$inventory_manifest" "$resolved_manifest"
 cp "$resolved_manifest" "$OUTPUT_PATH"
 log "Wrote target survey manifest: $OUTPUT_PATH"
-[[ "$PASS_THRU" -eq 1 ]] && cat "$OUTPUT_PATH"
+if [[ "$PASS_THRU" -eq 1 ]]; then
+  cat "$OUTPUT_PATH"
+fi
