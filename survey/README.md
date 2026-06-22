@@ -2,6 +2,25 @@
 
 This directory contains Bash-first survey tooling for SysAdminSuite.
 
+## Primary Field Tutorial: Cybernet / Neuron Network Survey
+
+The current priority tutorial for field technicians is:
+
+- [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md)
+- [`../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md)
+
+Use that path when a technician needs to survey an approved site subnet for Cybernet or Neuron targets from deployment documentation. The workflow is:
+
+1. Copy approved local target CSVs into `survey/input/`.
+2. Run the Bash runtime smoke test.
+3. Normalize targets with `sas-survey-targets.sh`.
+4. Capture local network context with `sas-device-snapshot.sh`.
+5. Run conservative approved Nmap discovery.
+6. Resolve Nmap output with `sas-resolve-nmap-evidence.sh`.
+7. Package local evidence from `survey/output/`, `survey/artifacts/`, and `logs/nmap/`.
+
+Field rule: this is read-only asset discovery. Do not commit live CSVs, scan output, dashboards, ZIPs, hostnames, MACs, serials, or site evidence.
+
 ## Status
 
 - **Northwell workflows:** Bash-first.
@@ -168,6 +187,19 @@ The parser accepts flexible column names so field data does not have to be perfe
 | `Serial` | Normalized serial number when known |
 | `MACAddress` | Normalized MAC address when known |
 | `Source` | Where the target came from, including inventory resolution notes |
+
+## Nmap Evidence Resolver
+
+Use this after an approved Nmap run already exists. This wrapper does not run Nmap. It converts existing Nmap XML or normal output into resolver evidence, then compares it with the target manifest.
+
+```bash
+bash survey/sas-resolve-nmap-evidence.sh \
+  --manifest survey/output/cybernet_targets_resolved.csv \
+  --nmap-output logs/nmap/site_discovery_dns.xml \
+  --nmap-format xml \
+  --output survey/output/site_cybernet_nmap_identity_resolver.csv \
+  --dashboard survey/output/site_cybernet_nmap_identity_resolver.html
+```
 
 ## Field Rule
 
