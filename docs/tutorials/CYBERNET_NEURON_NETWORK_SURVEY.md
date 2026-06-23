@@ -183,8 +183,12 @@ Only run against a **small host list** from discovery output. **Naabu** is accep
 ```bash
 HOSTS="survey/output/cybernet_subnet_survey/${SITE}_${RUN_ID}/hosts/<safe_cidr>_up.txt"
 bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode confirm-windows --host-file "$HOSTS"
-bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode confirm-windows --host-file "$HOSTS" --confirm-tool naabu --rate 50
+bash survey/sas-ensure-naabu.sh
+bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode confirm-windows \
+  --host-file "$HOSTS" --confirm-tool naabu --pipe-followup
 ```
+
+Naabu defaults: `-p 80,443 -ec -silent` (CDN-safe key ports). JSON evidence: `--naabu-profile keyports_cdn_json`.
 
 Appendix — underlying nmap command:
 

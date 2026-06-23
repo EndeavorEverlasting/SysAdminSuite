@@ -64,7 +64,7 @@ bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode confirm-windows \
   --pipe-followup
 ```
 
-Profiles: [`Config/cybernet-naabu-profiles.json`](../Config/cybernet-naabu-profiles.json). Go normalizer: [`probe/packet-expenditure/README.md`](../probe/packet-expenditure/README.md).
+Profiles: [`Config/cybernet-naabu-profiles.json`](../Config/cybernet-naabu-profiles.json). Field guide: [`docs/NAABU_CYBERNET_PROFILES.md`](../docs/NAABU_CYBERNET_PROFILES.md). Go normalizer: [`probe/packet-expenditure/README.md`](../probe/packet-expenditure/README.md).
 
 See [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) for the correlated `--run-id` example.
 
