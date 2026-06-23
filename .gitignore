@@ -95,3 +95,9 @@ Alex Emulation/
 
 # Generated runtime artifacts from bash/apps scripts (timestamped logs and worker scripts)
 bash/apps/output/
+
+# Cybernet subnet survey runtime evidence (local only)
+logs/network_context/*
+logs/nmap/*
+!logs/network_context/.gitkeep
+!logs/nmap/.gitkeep

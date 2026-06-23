@@ -1,0 +1,3 @@
+Identifier,IdentifierType,DeviceType,HostName,Serial,MACAddress,Source
+CYBER-SAMPLE-001,HostName,Cybernet,CYBER-SAMPLE-001,SAMPLE-SN-001,00:11:22:33:44:55,fixture
+CYBER-SAMPLE-002,Serial,Cybernet,,SAMPLE-SN-002,,fixture
