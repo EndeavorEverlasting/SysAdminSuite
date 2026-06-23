@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SysAdmin Suite Dashboard</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/tutorial-polish.css">
   <!-- SheetJS — blocking load from vendored copy (deterministic: available before any
        file-drop event fires). CDN fallback only if local file is missing (404). -->
   <script src="js/vendor/xlsx.full.min.js"
@@ -75,7 +76,7 @@
         <button class="paste-btn" id="cybernet-tutorial-copy">📋 Copy current command</button>
       </div>
     </div>
-    <div class="cybernet-stepper" id="cybernet-stepper" role="tablist" aria-label="Cybernet acquisition steps"></div>
+    <div class="cybernet-stepper" id="cybernet-stepper" aria-label="Cybernet acquisition steps"></div>
     <div class="cybernet-step-card">
       <div class="cybernet-step-content">
         <div class="cybernet-step-kicker" id="cybernet-step-kicker">Step 1</div>
@@ -163,5 +164,6 @@
      Works both when served over HTTP and when opened directly as a local file (file:// URL).
      Regenerate with: node dashboard/build-bundle.js -->
 <script src="js/bundle.js"></script>
+<script src="js/tutorial-polish.js"></script>
 </body>
 </html>
