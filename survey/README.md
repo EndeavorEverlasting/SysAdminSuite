@@ -46,8 +46,25 @@ Windows launcher: `survey\sas-cybernet-subnet-survey.cmd` (requires Git Bash `ba
 Contract test:
 
 ```bash
-bash tests/bash/test-cybernet-subnet-survey-contracts.sh
+bash Tests/bash/test-cybernet-subnet-survey-contracts.sh
+bash Tests/bash/test_naabu_pipeline_contracts.sh
 ```
+
+## Naabu CDN-Safe Pipeline
+
+CDN/cloud-aware port confirmation using naabu `-ec -silent`. Auto-installs naabu to `bin/naabu.exe` from GitHub releases when missing.
+
+```bash
+bash survey/sas-run-naabu-pipeline.sh --site nsuh --profile keyports_cdn \
+  --list survey/fixtures/naabu_pipeline/targets.sample.txt \
+  --out logs/nmap/nsuh_keyports.txt --pipe-followup
+
+bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode confirm-windows \
+  --confirm-tool naabu --host-file survey/output/cybernet_subnet_survey/nsuh_<run-id>/hosts/<cidr>_up.txt \
+  --pipe-followup
+```
+
+Profiles: [`Config/cybernet-naabu-profiles.json`](../Config/cybernet-naabu-profiles.json). Go normalizer: [`probe/packet-expenditure/README.md`](../probe/packet-expenditure/README.md).
 
 See [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) for the correlated `--run-id` example.
 

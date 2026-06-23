@@ -89,6 +89,10 @@ OCR/Jude's 2026 Buildout Project.pdf
 # Portable build output (local only)
 dist/
 
+# Local tool binaries (naabu, normalizers — downloaded/built at runtime)
+bin/*
+!bin/.gitkeep
+
 # Local reference tree (install scripts, shortcuts, installers — not product code; never commit)
 tech emulation/
 Alex Emulation/

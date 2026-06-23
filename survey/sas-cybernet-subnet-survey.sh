@@ -20,6 +20,10 @@ RESOLVER_DASHBOARD=""
 CONFIRM_TOOL="nmap"
 PORTS="135,445,3389"
 RATE="50"
+NAABU_PROFILE="keyports_cdn_json"
+PIPE_FOLLOWUP=0
+ALLOW_FULL_PORTS=0
+NAABU_HOST=""
 CIDRS=()
 ALLOW_WIDE=0
 ALLOW_PUBLIC=0
@@ -62,7 +66,12 @@ Options:
   --logs-root DIR      Default: logs/nmap
   --run-id ID          Correlate multi-step runs. Default: timestamp
   --confirm-tool TOOL  nmap or naabu. Default: nmap
-  --ports PORTS        Default: 135,445,3389
+  --naabu-profile NAME Naabu profile when --confirm-tool naabu. Default: keyports_cdn_json
+  --pipe-followup      Pipe naabu silent stdout into sas-cybernet-packet-followup.sh
+  --udp-services       Use udp_infrastructure profile (DNS/SNMP UDP)
+  --allow-full-ports   Permit naabu full_ports_cdn_guarded profile (-p - -ec)
+  --host URL           Hostname/URL for naabu -sa scans (hostname_all_ips profile)
+  --ports PORTS        Default: 135,445,3389 (nmap confirm only)
   --rate N             Naabu rate. Default: 50
   --nmap-xml PATH      Override Nmap XML for resolve-only
   --resolver-output PATH
@@ -204,6 +213,9 @@ nmap_bin() {
 }
 
 naabu_bin() {
+  local vend="$REPO_ROOT/bin/naabu.exe"
+  [[ -x "$vend" ]] && { printf '%s' "$vend"; return; }
+  [[ -f "$vend" ]] && { printf '%s' "$vend"; return; }
   if command -v naabu.exe >/dev/null 2>&1; then command -v naabu.exe; return; fi
   command -v naabu 2>/dev/null || true
 }
@@ -342,10 +354,28 @@ mode_confirm_windows() {
       run_cmd "confirm-windows nmap" "$nmap" -sT -Pn -p "$PORTS" --reason --open -iL "$HOST_FILE" -oA "$out"
       ;;
     naabu)
-      naabu="$(naabu_bin)"
-      [[ -n "$naabu" || "$DRY_RUN" -eq 1 ]] || fail "naabu not found on PATH"
-      out="$LOGS_ROOT/${SITE}_${safe}_windows_ports_naabu.csv"
-      run_cmd "confirm-windows naabu" "$naabu" -list "$HOST_FILE" -p "$PORTS" -rate "$RATE" -csv -o "$out"
+      local ext="txt"
+      [[ "$NAABU_PROFILE" == *json* ]] && ext="json"
+      out="$LOGS_ROOT/${SITE}_${safe}_windows_ports_naabu.${ext}"
+      local pipeline_args=(
+        bash survey/sas-run-naabu-pipeline.sh
+        --site "$SITE"
+        --profile "$NAABU_PROFILE"
+        --out "$out"
+        --planned-file "$PLANNED_FILE"
+      )
+      [[ -n "$NAABU_HOST" ]] && pipeline_args+=(--host "$NAABU_HOST")
+      [[ -z "$NAABU_HOST" ]] && pipeline_args+=(--list "$HOST_FILE")
+      [[ "$PIPE_FOLLOWUP" -eq 1 ]] && pipeline_args+=(--pipe-followup)
+      [[ "$ALLOW_FULL_PORTS" -eq 1 ]] && pipeline_args+=(--allow-full-ports)
+      [[ "$ALLOW_PUBLIC" -eq 1 ]] && pipeline_args+=(--allow-public)
+      [[ "$DRY_RUN" -eq 1 ]] && pipeline_args+=(--dry-run)
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        run_cmd "confirm-windows naabu pipeline" "${pipeline_args[@]}"
+      else
+        (cd "$REPO_ROOT" && "${pipeline_args[@]}")
+      fi
+      append_summary "$RUN_DIR" "confirm-windows naabu profile=$NAABU_PROFILE out=$out followup=${PIPE_FOLLOWUP:+yes}"
       ;;
     *) fail "Unsupported --confirm-tool: $CONFIRM_TOOL (use nmap or naabu)" ;;
   esac
@@ -460,6 +490,11 @@ while [[ $# -gt 0 ]]; do
     --logs-root) LOGS_ROOT="${2:?missing --logs-root value}"; shift 2 ;;
     --run-id) RUN_ID="${2:?missing --run-id value}"; shift 2 ;;
     --confirm-tool) CONFIRM_TOOL="${2:?missing --confirm-tool value}"; shift 2 ;;
+    --naabu-profile) NAABU_PROFILE="${2:?missing --naabu-profile value}"; shift 2 ;;
+    --pipe-followup) PIPE_FOLLOWUP=1; shift ;;
+    --udp-services) NAABU_PROFILE="udp_infrastructure"; shift ;;
+    --allow-full-ports) ALLOW_FULL_PORTS=1; shift ;;
+    --host) NAABU_HOST="${2:?missing --host value}"; shift 2 ;;
     --ports) PORTS="${2:?missing --ports value}"; shift 2 ;;
     --rate) RATE="${2:?missing --rate value}"; shift 2 ;;
     --nmap-xml) NMAP_XML="${2:?missing --nmap-xml value}"; shift 2 ;;
