@@ -94,7 +94,7 @@ function New-CybernetScannerCommands {
 
     if (-not $PortProfilePath) {
         $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $PortProfilePath = Join-Path $repoRoot 'config/cybernet-port-profile.json'
+        $PortProfilePath = Join-Path $repoRoot 'Config/cybernet-port-profile.json'
     }
 
     $profile = Get-CybernetPortProfile -ProfilePath $PortProfilePath

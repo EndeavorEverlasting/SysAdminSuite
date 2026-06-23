@@ -208,7 +208,7 @@ Describe 'New-CybernetSubnetDiscoveryReport' {
 
 Describe 'New-CybernetScannerCommand' {
     It 'Generates deterministic Naabu command' {
-        $profilePath = Join-Path $script:repoRoot 'config\cybernet-port-profile.json'
+        $profilePath = Join-Path $script:repoRoot 'Config\cybernet-port-profile.json'
         $profile = Get-CybernetPortProfile -ProfilePath $profilePath
         $cmd = New-CybernetNaabuCommand -TargetFile '.\targets.txt' -OutputFile '.\out.jsonl' -Profile $profile
         $cmd.Command | Should -Be 'naabu -list .\targets.txt -p 135,139,445,3389,5985,5986,80,443,8080,8443 -rate 50 -c 10 -retries 1 -timeout 1000 -json -silent -duc -o .\out.jsonl'
@@ -220,7 +220,7 @@ Describe 'New-CybernetScannerCommand' {
     }
 
     It 'Generates deterministic Nmap selected-port command' {
-        $profilePath = Join-Path $script:repoRoot 'config\cybernet-port-profile.json'
+        $profilePath = Join-Path $script:repoRoot 'Config\cybernet-port-profile.json'
         $profile = Get-CybernetPortProfile -ProfilePath $profilePath
         $cmd = New-CybernetNmapSelectedPortCommand -TargetFile '.\targets.txt' -OutputFile '.\out.xml' -Profile $profile
         $cmd.Command | Should -Be 'nmap -p 135,139,445,3389,5985,5986,80,443,8080,8443 --open -iL .\targets.txt -oX .\out.xml'

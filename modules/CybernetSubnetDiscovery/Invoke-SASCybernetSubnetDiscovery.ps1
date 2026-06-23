@@ -51,8 +51,8 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $moduleRoot)
 . (Join-Path $moduleRoot 'Resolve-CybernetDnsIdentity.ps1')
 . (Join-Path $moduleRoot 'New-CybernetSubnetDiscoveryReport.ps1')
 
-$rulesPath = Join-Path $repoRoot 'config/cybernet-subnet-rules.json'
-$portProfilePath = Join-Path $repoRoot 'config/cybernet-port-profile.json'
+$rulesPath = Join-Path $repoRoot 'Config/cybernet-subnet-rules.json'
+$portProfilePath = Join-Path $repoRoot 'Config/cybernet-port-profile.json'
 $rules = Get-Content -LiteralPath $rulesPath -Raw | ConvertFrom-Json
 $requireApprovedSubnet = [bool]$rules.subnetInference.requireApprovedSubnet
 $whatIfMode = [bool]$WhatIfPreference
