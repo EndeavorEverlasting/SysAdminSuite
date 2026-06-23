@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "CybernetWindowsEndpoint": {
+      "ports": [135, 139, 445, 3389, 5985, 5986, 80, 443, 8080, 8443],
+      "defaultRate": 50,
+      "defaultConcurrency": 10,
+      "timeoutMs": 1000,
+      "retries": 1,
+      "requireApprovedSubnet": true,
+      "allowServiceVersionScan": false,
+      "allowFullPortScan": false
+    }
+  }
+}

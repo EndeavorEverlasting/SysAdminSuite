@@ -68,6 +68,8 @@ data/updated/*
 *.xls
 *.csv
 *.tsv
+!input/cybernet-serials.example.csv
+!input/site-subnets.example.csv
 *.zip
 !**/.gitkeep
 
