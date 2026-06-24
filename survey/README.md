@@ -56,7 +56,7 @@ bash Tests/bash/test_naabu_package_contracts.sh
 CDN/cloud-aware port confirmation using naabu `-ec -silent`. Auto-installs naabu to `bin/naabu.exe` from GitHub releases when missing.
 
 ```bash
-bash survey/sas-run-naabu-pipeline.sh --site nsuh --profile keyports_cdn \
+bash survey/sas-run-naabu-pipeline.sh --site nsuh --profile keyports_cybernet_pipe \
   --list survey/fixtures/naabu_pipeline/targets.sample.txt \
   --out logs/nmap/nsuh_keyports.txt --pipe-followup
 
@@ -65,7 +65,7 @@ bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode confirm-windows \
   --pipe-followup
 ```
 
-Profiles: [`Config/cybernet-naabu-profiles.json`](../Config/cybernet-naabu-profiles.json). Field guide: [`docs/NAABU_CYBERNET_PROFILES.md`](../docs/NAABU_CYBERNET_PROFILES.md). Go normalizer: [`probe/packet-expenditure/README.md`](../probe/packet-expenditure/README.md).
+Profiles are doctrine-defined in [`survey/naabu_profiles.json`](naabu_profiles.json) and generated into the runtime config [`Config/cybernet-naabu-profiles.json`](../Config/cybernet-naabu-profiles.json) via [`survey/sas-generate-naabu-runtime-profiles.sh`](sas-generate-naabu-runtime-profiles.sh). Default profile: `keyports_cybernet_json`. Field guide: [`docs/NAABU_CYBERNET_PROFILES.md`](../docs/NAABU_CYBERNET_PROFILES.md). Doctrine: [`docs/LOW_NOISE_SURVEY_DOCTRINE.md`](../docs/LOW_NOISE_SURVEY_DOCTRINE.md). Go normalizer: [`probe/packet-expenditure/README.md`](../probe/packet-expenditure/README.md).
 
 See [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) for the correlated `--run-id` example.
 

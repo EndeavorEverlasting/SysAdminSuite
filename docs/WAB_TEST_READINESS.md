@@ -108,8 +108,8 @@ After Phase 2 passes, validate the naabu pipeline on an **approved small host li
 
 ```bash
 bash survey/sas-ensure-naabu.sh
-bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile keyports_cdn_json \
-  --list targets.txt --out logs/nmap/SSUH_confirm.json --pipe-followup
+bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile keyports_cybernet_json \
+  --list logs/targets/SSUH_confirm_hosts.txt --out logs/nmap/SSUH_confirm.json --pipe-followup
 bash survey/sas-cybernet-subnet-survey.sh --site SSUH --run-id <run-id> --mode parse-naabu-only
 bash survey/sas-cybernet-subnet-survey.sh --site SSUH --run-id <run-id> --mode package-only --manifest survey/output/cybernet_targets_resolved.csv
 ```

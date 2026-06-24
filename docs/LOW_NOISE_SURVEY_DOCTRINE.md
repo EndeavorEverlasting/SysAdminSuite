@@ -159,7 +159,31 @@ Do not commit live JSON, TXT, CSV, ZIP, or XLSX evidence.
 - WAB field gate (Phase 2b): [`docs/WAB_TEST_READINESS.md`](WAB_TEST_READINESS.md)
 
 The runtime pipeline ([`survey/sas-run-naabu-pipeline.sh`](../survey/sas-run-naabu-pipeline.sh))
-currently reads its execution profiles from `Config/cybernet-naabu-profiles.json`.
-The doctrine contract in `survey/naabu_profiles.json` is the reference shape for a
-future integration lane; it is not yet wired into the orchestrator. See the
-known-gaps note in the Agent F handoff.
+reads its execution profiles from `Config/cybernet-naabu-profiles.json`, which is
+**generated** from this doctrine contract by
+[`survey/sas-generate-naabu-runtime-profiles.sh`](../survey/sas-generate-naabu-runtime-profiles.sh).
+Doctrine (`survey/naabu_profiles.json`) is the single source of truth; do not hand-edit
+the runtime config. Regenerate and verify:
+
+```bash
+bash survey/sas-generate-naabu-runtime-profiles.sh
+bash survey/sas-generate-naabu-runtime-profiles.sh --check   # fails if runtime is stale
+```
+
+### Evidence vs pipeline output
+
+- `keyports_cybernet_json` is the **default**: full Windows key ports
+  (`80,443,135,445,3389,5985,5986`) with `-json` for durable, parseable, packageable
+  evidence. Use it for `confirm-windows`, `parse-naabu-only`, and the package path.
+- `keyports_cybernet_pipe` is the **raw local pipeline** profile: same ports, `-silent -ec`,
+  no `-json`. Use it only to stream `host:port` into local enrichment
+  (`sas-cybernet-packet-followup.sh`). It is not durable evidence.
+- `web_reachability_only*` are narrow 80/443 profiles for deliberate web-only checks.
+- `udp_dns_snmp_json` and `allports_low_noise_json` require justification
+  (`--profile-justified`, or `--allow-full-ports` for all-ports). UDP is never default.
+- `host_discovery_web_syn_txt` requires `--approved-subnet-scope` and is never a
+  population source. AD remains population authority.
+
+Legacy runtime profile names (`keyports_cdn`, `keyports_cdn_json`, `windows_selected`,
+`host_discovery_tcp80`, `udp_infrastructure`, `hostname_all_ips`,
+`full_ports_cdn_guarded`) remain available as backward-compatible aliases.
