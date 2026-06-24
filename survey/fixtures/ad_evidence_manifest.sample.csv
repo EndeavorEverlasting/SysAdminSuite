@@ -1,0 +1,3 @@
+HostName,DeviceType,Serial,Source
+CYBTEST001,Cybernet,SERIAL-CYB-001,deployment_tracker_fixture
+CYBTEST999,Cybernet,SERIAL-CYB-999,manual_list_fixture

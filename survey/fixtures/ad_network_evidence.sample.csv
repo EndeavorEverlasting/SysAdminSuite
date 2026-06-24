@@ -1,0 +1,3 @@
+HostName,Reachability,Source
+CYBTEST001,reachable,naabu_fixture
+CYBTEST002,silent,naabu_fixture

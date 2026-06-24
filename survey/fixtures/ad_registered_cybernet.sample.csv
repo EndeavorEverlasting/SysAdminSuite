@@ -1,0 +1,7 @@
+Name,DNSHostName,Enabled,OperatingSystem,LastLogonDate,Description,DistinguishedName
+CYBTEST001,CYBTEST001.sample.local,True,Windows 10 Enterprise,2026-06-01,Cybernet synthetic fixture CYBTEST001,CN=CYBTEST001,OU=Cybernet,DC=sample,DC=local
+CYBTEST002,,True,Windows 10 Enterprise,2026-06-15,Cybernet missing DNS fixture,CN=CYBTEST002,OU=Cybernet,DC=sample,DC=local
+CYBTEST003,CYBTEST003.sample.local,False,Windows 10 Enterprise,2025-01-01,Disabled cybernet fixture,CN=CYBTEST003,OU=Cybernet,DC=sample,DC=local
+CYBTEST004,CYBTEST004-a.sample.local,True,Windows 10 Enterprise,2026-06-01,Duplicate hostname key fixture A,CN=CYBTEST004,OU=Cybernet,DC=sample,DC=local
+CYBTEST004,CYBTEST004-b.sample.local,True,Windows 10 Enterprise,2026-06-01,Duplicate hostname key fixture B,CN=CYBTEST004-B,OU=Cybernet,DC=sample,DC=local
+WNH000TEST001,WNH000TEST001.sample.local,True,Windows 10 IoT Enterprise,2024-01-01,Stale neuron synthetic fixture,CN=WNH000TEST001,OU=Neuron,DC=sample,DC=local

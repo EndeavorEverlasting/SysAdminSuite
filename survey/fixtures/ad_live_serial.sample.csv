@@ -1,0 +1,3 @@
+HostName,Serial,ProbeStatus,Source
+CYBTEST001,SERIAL-CYB-001,matched,identity_fixture
+CYBTEST002,,unavailable,identity_fixture
