@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.1.1"
 SITE=""
 MODE=""
 RUN_ID="$(date +%Y%m%d_%H%M%S)"
@@ -44,7 +44,7 @@ SysAdminSuite Cybernet Subnet Survey Runner
 
 Authorized internal asset discovery only.
 Read-only. No endpoint mutation.
-No evasion, spoofing, decoys, NSE/vuln scripts, brute force, credential attacks, or version detection in discovery modes.
+Use approved discovery and confirmation modes only.
 
 Usage:
   bash survey/sas-cybernet-subnet-survey.sh --site SITE --mode MODE [options]
@@ -53,7 +53,7 @@ Modes:
   local-context-only   Run local subnet finder and copy network context
   dns-list-only        Nmap -sL list/DNS sanity check per CIDR (not host proof)
   discover             Nmap -sn discovery (no-DNS + system-DNS) per CIDR
-  confirm-windows      Narrow Windows port confirmation against a host file only
+  confirm-windows      Narrow Windows port confirmation against a host file, or approved Naabu --host mode
   resolve-only         Resolve manifest against existing Nmap XML evidence
   parse-naabu-only     Parse existing naabu JSON/txt + followup into resolver CSV
   package-only         Package run outputs into survey/artifacts/
@@ -66,7 +66,7 @@ Options:
   --manifest PATH      Target manifest CSV (resolve-only, package-only)
   --cidr CIDR          Approved IPv4 CIDR. Repeatable
   --subnet-file PATH   Plain-text CIDR list (e.g. subnet_candidates.txt)
-  --host-file PATH     Host list for confirm-windows (required for that mode)
+  --host-file PATH     Host list for confirm-windows (required except Naabu --host mode)
   --output-root DIR    Default: survey/output/cybernet_subnet_survey
   --logs-root DIR      Default: logs/nmap
   --run-id ID          Correlate multi-step runs. Default: timestamp
@@ -191,6 +191,7 @@ output_root=$OUTPUT_ROOT
 dry_run=$DRY_RUN
 manifest=${MANIFEST:-}
 host_file=${HOST_FILE:-}
+naabu_host=${NAABU_HOST:-}
 nmap_xml=${NMAP_XML:-}
 started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 EOF
@@ -265,6 +266,7 @@ run_parse_naabu_evidence() {
     return 0
   fi
   [[ -f "$naabu_out" ]] || fail "Naabu output not found for parse: $naabu_out"
+  [[ -z "$followup_out" || -f "$followup_out" ]] || fail "Followup output not found for parse: $followup_out"
   mkdir -p "$(dirname "$csv_out")"
   (cd "$REPO_ROOT" && "${parse_args[@]}")
 }
@@ -391,10 +393,13 @@ mode_discover() {
 }
 
 mode_confirm_windows() {
-  validate_host_file
+  if [[ "$CONFIRM_TOOL" == "nmap" || -z "$NAABU_HOST" ]]; then
+    validate_host_file
+  fi
   ensure_run_dir
-  local safe out nmap naabu
-  safe="$(safe_cidr_token "$(basename "$HOST_FILE")")"
+  local safe out nmap naabu target_label
+  target_label="${HOST_FILE:-$NAABU_HOST}"
+  safe="$(safe_cidr_token "$(basename "$target_label")")"
   case "$CONFIRM_TOOL" in
     nmap)
       nmap="$(nmap_bin)"
@@ -403,7 +408,7 @@ mode_confirm_windows() {
       run_cmd "confirm-windows nmap" "$nmap" -sT -Pn -p "$PORTS" --reason --open -iL "$HOST_FILE" -oA "$out"
       ;;
     naabu)
-      local ext="txt"
+      local ext="txt" followup_label="no"
       [[ "$NAABU_PROFILE" == *json* ]] && ext="json"
       out="$LOGS_ROOT/${SITE}_${safe}_windows_ports_naabu.${ext}"
       local pipeline_args=(
@@ -412,6 +417,7 @@ mode_confirm_windows() {
         --profile "$NAABU_PROFILE"
         --out "$out"
         --planned-file "$PLANNED_FILE"
+        --rate "$RATE"
       )
       [[ -n "$NAABU_HOST" ]] && pipeline_args+=(--host "$NAABU_HOST")
       [[ -z "$NAABU_HOST" ]] && pipeline_args+=(--list "$HOST_FILE")
@@ -427,16 +433,20 @@ mode_confirm_windows() {
       local followup_out csv_out
       followup_out="$(naabu_followup_path "$out")"
       csv_out="$RESOLVER_DIR/${SITE}_naabu_reachability.csv"
-      if [[ "$PIPE_FOLLOWUP" -eq 1 || -f "$followup_out" ]]; then
+      if [[ "$PIPE_FOLLOWUP" -eq 1 ]]; then
+        followup_label="yes"
+        run_parse_naabu_evidence "$out" "$followup_out" "$csv_out"
+      elif [[ -f "$followup_out" ]]; then
+        followup_label="existing"
         run_parse_naabu_evidence "$out" "$followup_out" "$csv_out"
       else
         run_parse_naabu_evidence "$out" "" "$csv_out"
       fi
-      append_summary "$RUN_DIR" "confirm-windows naabu profile=$NAABU_PROFILE out=$out followup=${PIPE_FOLLOWUP:+yes} parser=$csv_out"
+      append_summary "$RUN_DIR" "confirm-windows naabu profile=$NAABU_PROFILE out=$out followup=$followup_label parser=$csv_out"
       ;;
     *) fail "Unsupported --confirm-tool: $CONFIRM_TOOL (use nmap or naabu)" ;;
   esac
-  append_summary "$RUN_DIR" "confirm-windows via $CONFIRM_TOOL using host file $HOST_FILE"
+  append_summary "$RUN_DIR" "confirm-windows via $CONFIRM_TOOL using ${HOST_FILE:-$NAABU_HOST}"
   log "confirm-windows complete"
 }
 
