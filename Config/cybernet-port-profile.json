@@ -1,7 +1,9 @@
 {
+  "_doctrine": "Canonical scan doctrine lives in Config/cybernet-naabu-profiles.json (windows_selected). This profile mirrors that port set and CDN-exclude posture for PowerShell handoff string generation only; PowerShell never executes scans. PowerShell is deprecated for Northwell-targeted workflows; Bash-first AD-export pipelines remain the Northwell-forward path.",
   "profiles": {
     "CybernetWindowsEndpoint": {
-      "ports": [135, 139, 445, 3389, 5985, 5986, 80, 443, 8080, 8443],
+      "ports": [135, 139, 445, 3389, 5985, 5986, 80, 443],
+      "excludeCdn": true,
       "defaultRate": 50,
       "defaultConcurrency": 10,
       "timeoutMs": 1000,

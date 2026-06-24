@@ -8,6 +8,13 @@
   maps IPs to approved site subnets, and emits technician-readable artifacts plus
   deterministic Naabu/Nmap command strings (recorded only, never executed).
 
+  PowerShell support is retained for PowerShell-enabled environments and as a reference
+  implementation. For Northwell-targeted workflows, PowerShell is deprecated. Prefer
+  Bash-first workflows that consume approved AD exports and write local evidence only.
+
+  Scanner handoff strings are reference only. Bash survey orchestration and Naabu/Nmap
+  pipelines remain the execution authority for Northwell field work.
+
 .EXAMPLE
   .\Invoke-SASCybernetSubnetDiscovery.ps1 `
     -Site "SSUH" `

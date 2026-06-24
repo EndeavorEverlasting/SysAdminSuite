@@ -127,3 +127,14 @@ Optional Go normalizer: `probe/packet-expenditure/` (`sas-naabu-normalize`).
 bash Tests/bash/test_naabu_pipeline_contracts.sh
 bash Tests/bash/test_naabu_package_contracts.sh
 ```
+
+## Legacy / PowerShell-enabled environments
+
+PowerShell support is retained for PowerShell-enabled environments and as a reference implementation.
+For Northwell-targeted workflows, PowerShell is deprecated. Prefer Bash-first workflows that consume approved AD exports and write local evidence only.
+
+`Invoke-SASCybernetSubnetDiscovery` (PR #49 module under `modules/CybernetSubnetDiscovery/`) may emit
+`evidence/CybernetSubnetDiscovery/<site>/CybernetSubnetDiscovery_TargetIPs.txt` for optional handoff.
+That output is not required for Northwell WAB Phase 2b or Bash orchestrator workflows.
+PS-generated Naabu/Nmap strings are record-only reference commands; execute scans through Bash
+(`survey/sas-run-naabu-pipeline.sh`, `survey/sas-cybernet-subnet-survey.sh`) instead.

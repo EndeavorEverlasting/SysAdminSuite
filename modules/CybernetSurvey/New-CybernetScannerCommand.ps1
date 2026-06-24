@@ -29,7 +29,16 @@ function New-CybernetNaabuCommand {
     )
 
     $ports = ($Profile.ports | ForEach-Object { [string]$_ }) -join ','
-    $command = "naabu -list $TargetFile -p $ports -rate $($Profile.defaultRate) -c $($Profile.defaultConcurrency) -retries $($Profile.retries) -timeout $($Profile.timeoutMs) -json -silent -duc -o $OutputFile"
+
+    # CDN exclusion (-ec) mirrors Config/cybernet-naabu-profiles.json windows_selected doctrine:
+    # it caps CDN/cloud-edge hosts to avoid wasteful probing. Record-only; never executed here.
+    $excludeCdn = $false
+    if ($Profile.PSObject.Properties.Name -contains 'excludeCdn') {
+        $excludeCdn = [bool]$Profile.excludeCdn
+    }
+    $ecFlag = if ($excludeCdn) { ' -ec' } else { '' }
+
+    $command = "naabu -list $TargetFile -p $ports -rate $($Profile.defaultRate) -c $($Profile.defaultConcurrency) -retries $($Profile.retries) -timeout $($Profile.timeoutMs)$ecFlag -json -silent -duc -o $OutputFile"
 
     return [pscustomobject]@{
         Scanner    = 'Naabu'
