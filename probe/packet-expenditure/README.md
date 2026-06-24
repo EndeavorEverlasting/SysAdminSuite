@@ -23,7 +23,7 @@ bin/sas-naabu-normalize \
 
 | OS | Requirement |
 |---|---|
-| Windows WAB | **Npcap** for SYN scans; naabu auto-installed to `bin/naabu.exe` via `survey/sas-ensure-naabu.sh` |
+| Windows WAB | **Npcap** for SYN scans; naabu auto-installed to `bin/naabu.exe` via `survey/sas-ensure-naabu.sh` (GitHub release — **not winget** on Northwell) |
 | Linux | libpcap-dev |
 | macOS | libpcap via Homebrew |
 

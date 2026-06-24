@@ -12,6 +12,10 @@ bash scripts/sas-ensure-naabu.sh
 
 Downloads pinned `naabu.exe` to `bin/naabu.exe` from [ProjectDiscovery naabu releases](https://github.com/projectdiscovery/naabu/releases) when not on PATH.
 
+**Northwell field:** use only `sas-ensure-naabu.sh` (GitHub release zip). **Do not use winget** — it is not available on Northwell workstations.
+
+**Other environments:** `winget install projectdiscovery.naabu` (or vendor PATH install) is acceptable when Git Bash ensure is not used; the suite still prefers the pinned GitHub download for reproducible versions.
+
 ## Profiles (`Config/cybernet-naabu-profiles.json`)
 
 | Profile | Equivalent naabu flags | Use |
