@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Cybernet packet follow-up — httpx placeholder. Reads naabu -silent stdout (host:port).
+# Enrichment only under low-noise survey doctrine. See docs/LOW_NOISE_SURVEY_DOCTRINE.md.
 set -euo pipefail
 
 SITE=""

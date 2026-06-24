@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "doctrine": "AD-derived targets first; Naabu validates reachability only.",
+  "profiles": {
+    "keyports_cybernet": {
+      "description": "Default Cybernet reachability validation profile.",
+      "ports": "80,443,135,445,3389,5985,5986",
+      "flags": ["-json", "-silent", "-ec"],
+      "output": "json",
+      "default": true
+    },
+    "allports_low_noise": {
+      "description": "All TCP ports against approved AD-derived hosts only.",
+      "ports": "-",
+      "flags": ["-json", "-silent", "-ec"],
+      "output": "json",
+      "requiresJustification": true
+    },
+    "udp_dns_snmp": {
+      "description": "UDP DNS/SNMP probe where Cybernet survey requires UDP evidence.",
+      "ports": "u:53,u:161",
+      "flags": ["-uP", "-json", "-silent", "-ec"],
+      "output": "json",
+      "requiresJustification": true
+    },
+    "host_discovery_web_syn": {
+      "description": "Approved subnet host discovery using web-like SYN path. Not a population source.",
+      "mode": "host-discovery",
+      "flags": ["-sn", "-pe", "-ps", "80", "-silent", "-ec"],
+      "output": "txt",
+      "requiresApprovedSubnetScope": true
+    },
+    "load_balanced_hostname_all_ips": {
+      "description": "Resolve and scan all IPs for load-balanced hostnames.",
+      "flags": ["-sa", "-json", "-silent", "-ec"],
+      "output": "json",
+      "requiresHostnameInput": true
+    }
+  }
+}
