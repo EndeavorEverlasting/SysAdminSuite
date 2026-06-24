@@ -2,6 +2,20 @@
 
 Read-only, offline ingester that converts Alejandro-style Cybernet workbooks plus optional enrichment trackers into the normalized survey manifest schema used by SysAdminSuite Bash tooling.
 
+## Targets intake doctrine
+
+| Location | Role |
+|----------|------|
+| `targets/` | Official tracked intake hub (docs, schemas, sanitized fixtures only) |
+| `targets/local/` | Preferred **gitignored** local intake beside the hub |
+| `logs/targets/` | Preserved historical local evidence — **do not delete, move, or commit** |
+| `survey/input/` | Runtime staging (gitignored) |
+| `survey/output/` | Generated manifests and reports (gitignored) |
+
+- The ingester reads **explicit workbook paths** wherever they live locally.
+- You do **not** need to migrate existing `logs/targets/` files; point `--workbook` and `--enrichment` at their current paths.
+- Outputs are target **manifests**, not network evidence. Do not treat them as proof of reachability.
+
 ## Prerequisites
 
 - Python 3 with `openpyxl` (`pip install openpyxl`)
@@ -33,15 +47,26 @@ Pass each enrichment file with `--enrichment`. The ingester merges by normalized
 
 ## Command
 
+Example using ignored local intake under `targets/local/` (preferred for new work):
+
 ```bash
 bash survey/sas-cybernet-xlsx-targets.sh \
-  --workbook /path/to/local/alejandro-workbook.xlsx \
-  --enrichment /path/to/local/active-deployment-tracker.xlsx \
-  --enrichment /path/to/local/all-wave-anesthesia-machines.xlsx \
+  --workbook "targets/local/Cybernet sources/Alejandro's list of Cybernets.xlsx" \
+  --enrichment "targets/local/Cybernet sources/Active Deployment Tracker 2026-05-17 (1).xlsx" \
+  --enrichment "targets/local/Cybernet sources/ALL WAVE ANESTHESIA MACHINES (1).xlsx" \
   --output survey/output/cybernet_alejandro_targets.csv \
   --report survey/output/cybernet_alejandro_enrichment_report.csv \
   --gaps survey/output/cybernet_alejandro_gaps.csv \
   --device-type Cybernet
+```
+
+Historical local evidence under `logs/targets/` remains valid — pass those paths instead if you have not migrated:
+
+```bash
+bash survey/sas-cybernet-xlsx-targets.sh \
+  --workbook "/path/to/logs/targets/Cybernet sources/Alejandro's list of Cybernets.xlsx" \
+  --enrichment "/path/to/logs/targets/Cybernet sources/Active Deployment Tracker 2026-05-17 (1).xlsx" \
+  --output survey/output/cybernet_alejandro_targets.csv
 ```
 
 Defaults write to `survey/output/cybernet_alejandro_*.csv` when `--output`, `--report`, or `--gaps` are omitted.
