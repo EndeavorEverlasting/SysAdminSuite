@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0.0",
+  "profile": "default",
+  "surveyIntent": "baseline Neuron maintenance review",
+  "remoteIntent": "remote emulation evidence only; no target-side mutation",
+  "maintenance": {
+    "serverTargets": [],
+    "followerTargets": [],
+    "vpnTargets": [],
+    "serviceNamePatterns": ["MSMQ", "OpenVPN", "DCIS", "SmartLynx", "SIS", "Epic", "Imprivata"]
+  }
+}
