@@ -1,0 +1,4 @@
+Target,ResolvedAddress,PingStatus,MAC,Serial,Source,Timestamp,Notes
+10.10.1.67,10.10.1.67,Reachable,00:1B:A9:2F:5C:01,CNBCJ12345,SNMP,2026-05-03T08:00:00Z,
+10.10.2.11,10.10.2.11,Reachable,00:07:4D:AB:CD:01,ZBR-00123,9100/ZPL,2026-05-03T08:00:00Z,
+10.10.2.12,,Unreachable,,,ARP,2026-05-03T08:00:00Z,Ping failed

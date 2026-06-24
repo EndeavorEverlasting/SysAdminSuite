@@ -1,0 +1,4 @@
+Target,ResolvedAddress,DnsName,PingStatus,TransportUsed,IdentityStatus,ObservedHostName,ObservedSerial,ObservedMACs,Notes,Timestamp
+WMH300OPR101,10.10.3.101,wmh300opr101.corp.local,Reachable,WMI,Collected,WMH300OPR101,SN-00101,AA:BB:CC:DD:01:01,,2026-05-03T08:55:00Z
+WMH300OPR102,10.10.3.102,wmh300opr102.corp.local,Reachable,SSH,Failed,,,,WMI access denied,2026-05-03T08:56:30Z
+WMH300OPR105,,,Unreachable,None,Unreachable,,,,Host unreachable,2026-05-03T09:01:00Z
