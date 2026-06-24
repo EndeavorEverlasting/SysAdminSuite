@@ -74,6 +74,15 @@ Use `subnet_candidates.txt` as the fast approved CIDR shortlist for the rest of 
 5. Build manifests with `bash survey/sas-survey-targets.sh`
 6. Contract tests: `bash tests/bash/test-cybernet-subnet-survey-contracts.sh`
 
+## Low-noise survey discipline
+
+This workflow follows low-noise survey discipline (authorized, scoped, no-target-mutation,
+local evidence only). The subnet orchestrator path above is for discovery context; it is
+**not** the registered Cybernet population source. For Phase 2b reachability confirmation,
+prefer an AD-derived host list placed in the local gitignored `logs/targets/` store and
+validate reachability against that list only. See
+[`docs/LOW_NOISE_SURVEY_DOCTRINE.md`](docs/LOW_NOISE_SURVEY_DOCTRINE.md).
+
 ## Evidence notes
 
 - **Nmap** helps find live hosts, DNS names, MACs on local L2, and XML evidence for resolver tooling.

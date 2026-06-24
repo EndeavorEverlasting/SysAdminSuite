@@ -104,7 +104,7 @@ Do not mark it as a SysAdminSuite failure.
 
 ### Phase 2b: Naabu CDN-safe reachability (authorized network only)
 
-After Phase 2 passes, validate the naabu pipeline on an **approved small host list** (not guest network). See [`NAABU_CYBERNET_PROFILES.md`](NAABU_CYBERNET_PROFILES.md).
+After Phase 2 passes, validate the naabu pipeline on an **approved small host list** (not guest network). Follow low-noise survey discipline: AD-derived targets first, `-silent` for local output hygiene, `-ec` to avoid CDN/cloud edge waste, JSON for parser-facing output, no target-side writes. See [`NAABU_CYBERNET_PROFILES.md`](NAABU_CYBERNET_PROFILES.md), [`LOW_NOISE_SURVEY_DOCTRINE.md`](LOW_NOISE_SURVEY_DOCTRINE.md), and the doctrine profile contract [`../survey/naabu_profiles.json`](../survey/naabu_profiles.json).
 
 ```bash
 bash survey/sas-ensure-naabu.sh
@@ -156,6 +156,19 @@ Every WAB/network test issue should include:
 - Raw output.
 - Artifact paths created.
 - Result classification from the table above.
+
+## Agent F — Low-Noise Survey Doctrine
+
+Purpose:
+Codifies low-noise Naabu/Cybernet survey profiles:
+- AD-derived targets first
+- -silent always for local output hygiene
+- -ec to avoid CDN/cloud firewall waste where appropriate
+- JSON for parser-facing outputs
+- TXT/stdout only for raw pipeline handoff
+- UDP only by justified profile
+- no target-side writes or scripts
+- no live field execution in this lane
 
 ## Do not skip this
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Convert naabu TXT/JSON + optional followup JSONL into resolver-ready CSV.
+# Local evidence transformation only under low-noise survey doctrine.
+# See docs/LOW_NOISE_SURVEY_DOCTRINE.md.
 set -euo pipefail
 
 NAABU_OUTPUT=""
