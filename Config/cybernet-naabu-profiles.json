@@ -1,0 +1,91 @@
+{
+  "naabuVersion": "2.6.1",
+  "defaultProfile": "keyports_cdn",
+  "installDir": "bin",
+  "profiles": {
+    "keyports_cdn": {
+      "description": "CDN-safe key ports (80,443) — default confirm lane",
+      "ports": "80,443",
+      "excludeCdn": true,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "txt",
+      "maxTargets": 256,
+      "allowFullPorts": false,
+      "pipelineFollowup": true,
+      "hostDiscoveryOnly": false,
+      "udpProbes": false
+    },
+    "keyports_cdn_json": {
+      "description": "Same as keyports_cdn with JSON audit output",
+      "ports": "80,443",
+      "excludeCdn": true,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "json",
+      "maxTargets": 256,
+      "allowFullPorts": false,
+      "pipelineFollowup": true,
+      "hostDiscoveryOnly": false,
+      "udpProbes": false
+    },
+    "host_discovery_tcp80": {
+      "description": "Host discovery only — ICMP echo + TCP SYN ping on port 80",
+      "hostDiscoveryOnly": true,
+      "probeIcmpEcho": true,
+      "probeTcpSynPorts": ["80"],
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "txt",
+      "maxTargets": 256,
+      "allowFullPorts": false,
+      "pipelineFollowup": false
+    },
+    "udp_infrastructure": {
+      "description": "UDP DNS/SNMP with protocol probes (lab-only, elevated privileges)",
+      "ports": "u:53,u:161",
+      "udpProbes": true,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "txt",
+      "maxTargets": 64,
+      "allowFullPorts": false,
+      "pipelineFollowup": false
+    },
+    "hostname_all_ips": {
+      "description": "Hostname/URL with -sa (all DNS A records) and CDN-safe ports",
+      "ports": "80,443",
+      "excludeCdn": true,
+      "scanAllIps": true,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "txt",
+      "maxTargets": 1,
+      "allowFullPorts": false,
+      "pipelineFollowup": true,
+      "requiresHost": true
+    },
+    "full_ports_cdn_guarded": {
+      "description": "Full port scan with -ec (CDN hosts still capped to 80/443). Opt-in only.",
+      "ports": "-",
+      "excludeCdn": true,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "txt",
+      "maxTargets": 32,
+      "allowFullPorts": true,
+      "pipelineFollowup": false
+    },
+    "windows_selected": {
+      "description": "Narrow Windows endpoint ports on approved host list",
+      "ports": "135,139,445,3389,5985,5986,80,443",
+      "excludeCdn": true,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "txt",
+      "maxTargets": 256,
+      "allowFullPorts": false,
+      "pipelineFollowup": true
+    }
+  }
+}

@@ -89,13 +89,9 @@ OCR/Jude's 2026 Buildout Project.pdf
 # Portable build output (local only)
 dist/
 
-# Local tool binaries (downloaded/built at runtime)
+# Local tool binaries (naabu, normalizers — downloaded/built at runtime)
 bin/*
 !bin/.gitkeep
-
-# Field discovery runtime evidence (serials, IPs, DNS — live field data)
-evidence/*
-!evidence/.gitkeep
 
 # Local reference tree (install scripts, shortcuts, installers — not product code; never commit)
 tech emulation/
@@ -103,3 +99,13 @@ Alex Emulation/
 
 # Generated runtime artifacts from bash/apps scripts (timestamped logs and worker scripts)
 bash/apps/output/
+
+# Cybernet subnet survey runtime evidence (local only)
+logs/network_context/*
+logs/nmap/*
+!logs/network_context/.gitkeep
+!logs/nmap/.gitkeep
+
+# Cybernet subnet discovery runtime evidence (serials, IPs, DNS — live field data)
+evidence/*
+!evidence/.gitkeep
