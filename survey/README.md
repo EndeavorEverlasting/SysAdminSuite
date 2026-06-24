@@ -19,6 +19,8 @@ Use that path when a technician needs to survey an approved site subnet for Cybe
 
 Field rule: this is read-only asset discovery. Do not commit live CSVs, scan output, dashboards, ZIPs, hostnames, MACs, serials, or site evidence.
 
+**AD-derived targets:** place approved Cybernet population exports and derived confirm host lists in [`logs/targets/`](../logs/targets/README.md). That directory is gitignored except for its README. AD defines the registered device population; naabu/nmap validate reachability against that list only.
+
 ## Cybernet Subnet Survey Runner
 
 Bash-first orchestrator for the urgent field path. Read-only. No endpoint mutation.

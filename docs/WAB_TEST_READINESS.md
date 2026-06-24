@@ -102,17 +102,49 @@ If these fail while the host is on guest network, mark the result as:
 
 Do not mark it as a SysAdminSuite failure.
 
+#### Hard stop — guest or non-corp network
+
+If Phase 2 preflight fails while the host is on guest Wi-Fi or another non-corp network:
+
+```text
+Classification: ENVIRONMENT_BLOCKED_GUEST_NETWORK
+Action: stop, do not scan
+```
+
+Do not run naabu, nmap confirm-windows, subnet discovery, or CIDR sweeps until the host is on an authorized enterprise wired, enterprise Wi-Fi, VPN, or lab segment and preflight passes.
+
 ### Phase 2b: Naabu CDN-safe reachability (authorized network only)
 
-After Phase 2 passes, validate the naabu pipeline on an **approved small host list** (not guest network). See [`NAABU_CYBERNET_PROFILES.md`](NAABU_CYBERNET_PROFILES.md).
+After Phase 2 passes, validate the naabu pipeline on an **AD-derived small host list** (not guest network). See [`NAABU_CYBERNET_PROFILES.md`](NAABU_CYBERNET_PROFILES.md) and [`../logs/targets/README.md`](../logs/targets/README.md).
+
+**Target population doctrine:**
+
+```text
+AD registered Cybernet population = target population source
+logs/targets/                     = local gitignored AD-derived target store
+confirm-windows host file         = derived subset from AD export
+naabu/nmap                        = reachability validation only
+followup/CIM/WMI/SCCM/manual      = identity/serial proof where approved
+```
+
+Place AD exports under `logs/targets/`. Derive a plain-text confirm list (one host per line, no CIDR). Do not use naabu/nmap discovery as population truth.
 
 ```bash
 bash survey/sas-ensure-naabu.sh
-bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile keyports_cdn_json \
-  --list targets.txt --out logs/nmap/SSUH_confirm.json --pipe-followup
+
+# AD export → logs/targets/SSUH_cybernet_registered.* → logs/targets/SSUH_confirm_hosts.txt
+
+bash survey/sas-cybernet-subnet-survey.sh --site SSUH --run-id <run-id> \
+  --mode confirm-windows --confirm-tool naabu \
+  --host-file logs/targets/SSUH_confirm_hosts.txt --pipe-followup
+
 bash survey/sas-cybernet-subnet-survey.sh --site SSUH --run-id <run-id> --mode parse-naabu-only
-bash survey/sas-cybernet-subnet-survey.sh --site SSUH --run-id <run-id> --mode package-only --manifest survey/output/cybernet_targets_resolved.csv
+
+bash survey/sas-cybernet-subnet-survey.sh --site SSUH --run-id <run-id> --mode package-only \
+  --manifest survey/fixtures/cybernet_subnet_survey/cybernet_targets_resolved.sample.csv
 ```
+
+Use a site-specific resolved manifest from field output when available; the fixture path above is synthetic for contract/dev prep only.
 
 Pass criteria:
 
