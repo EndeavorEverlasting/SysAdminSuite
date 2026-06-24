@@ -3898,14 +3898,14 @@ const CYBERNET_TUTORIAL_STEPS = [
   {
     title: 'Prove network posture first',
     body: 'Before blaming the product, prove the machine is on the right network path. This catches guest-network and segmented-network failures early.',
-    command: 'bash bash/transport/sas-network-preflight.sh \\\n  --file /tmp/sas-cybernet/targets.txt \\\n  --ports 135,445,3389,9100 \\\n  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru',
+    command: 'bash bash/transport/sas-network-preflight.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --ports 135,445,3389,9100 \\\n  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru',
     checks: ['DNS should resolve internal hostnames when you expect internal reachability.', 'SMB/445 and RPC/135 failures on every target often mean network posture, not code failure.', 'Classify guest-network blocking separately from product defects.'],
     note: 'Load network_preflight.csv into the Network tab after the command finishes.'
   },
   {
     title: 'Acquire Cybernet identity evidence',
     body: 'Collect read-only workstation identity evidence. The adapter records what it can safely observe, such as DNS, ping, ARP/MAC hints, and optional transport notes.',
-    command: 'bash bash/transport/sas-workstation-identity.sh \\\n  --file /tmp/sas-cybernet/targets.txt \\\n  --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru',
+    command: 'bash bash/transport/sas-workstation-identity.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru',
     checks: ['Treat hostname, MAC, serial, and IP as separate evidence fields.', 'Do not use reachability alone as Cybernet identity proof.', 'Preserve unknown or partial rows; they are useful triage evidence.'],
     note: 'Load workstation_identity.csv back into the dashboard for searchable protocol evidence.'
   },
@@ -3914,14 +3914,18 @@ const CYBERNET_TUTORIAL_STEPS = [
     body: 'Turn raw target identifiers into a clean Cybernet survey CSV that downstream audit and reconciliation tools can consume.',
     command: './survey/sas-survey-targets.sh --device-type Cybernet \\\n  --output ./survey/output/cybernet_targets.csv \\\n  --file /tmp/sas-cybernet/targets.txt',
     checks: ['Keep the original target list and the normalized output.', 'Use Cybernet as the device type for this workflow.', 'Review the output CSV before using it in audit or reconciliation steps.'],
-    note: 'This is the acquisition handoff artifact for the rest of the suite.'
+    note: 'This output is a handoff artifact for the rest of the suite. It is not currently a dashboard import artifact.'
   },
   {
     title: 'Load, review, then decide',
-    body: 'Drag the generated CSV files into this dashboard. New technicians should review the Network and Hardware Inventory tabs before deciding whether the evidence is valid, blocked, or incomplete.',
-    command: '# Drag these files into the dashboard drop zone:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# ./survey/output/cybernet_targets.csv',
-    checks: ['If every target is offline on guest Wi-Fi, mark it ENVIRONMENT_BLOCKED_GUEST_NETWORK.', 'Keep smoke-test evidence separate from network-feature validation.', 'Use docs/WAB_TEST_READINESS.md and docs/TEST_RESULT_CLASSIFICATION.md for field triage.'],
-    note: 'The dashboard is a review surface; it does not perform browser-side network probing.'
+    body: 'Drag only dashboard-recognized evidence CSVs into this dashboard, then review before classifying the result.',
+    command: '# Drag these files into the dashboard drop zone:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n\n# Review the normalized manifest separately until dashboard parsing is added for it.',
+    checks: [
+      'Classify environment blocks separately from product defects.',
+      'Keep smoke-test evidence separate from feature validation.',
+      'Do not treat the normalized manifest as a dashboard import until a parser is added for that schema.'
+    ],
+    note: 'The dashboard is a review surface. It does not perform browser-side probing or ingest the normalized manifest yet.'
   }
 ];
 
@@ -3953,11 +3957,17 @@ function initCybernetTutorial() {
     note.textContent = step.note;
     prev.disabled = idx === 0;
     next.textContent = idx === CYBERNET_TUTORIAL_STEPS.length - 1 ? 'Finish ✓' : 'Next →';
-    stepper.querySelectorAll('.cybernet-step-pill').forEach((btn, i) => btn.classList.toggle('active', i === idx));
+    stepper.querySelectorAll('.cybernet-step-pill').forEach((btn, i) => {
+      const active = i === idx;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      if (active) btn.setAttribute('aria-current', 'step');
+      else btn.removeAttribute('aria-current');
+    });
   }
 
   stepper.innerHTML = CYBERNET_TUTORIAL_STEPS.map((step, i) => (
-    `<button class="cybernet-step-pill" type="button" data-step="${i}" role="tab">${i + 1}. ${sanitize(step.title)}</button>`
+    `<button class="cybernet-step-pill" type="button" data-step="${i}">${i + 1}. ${sanitize(step.title)}</button>`
   )).join('');
 
   stepper.addEventListener('click', e => {
@@ -3974,9 +3984,28 @@ function initCybernetTutorial() {
   });
   start?.addEventListener('click', () => { idx = 0; render(); root.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   copy?.addEventListener('click', () => {
-    navigator.clipboard?.writeText(command.value)
-      .then(() => toast('Cybernet tutorial command copied.', 'success'))
-      .catch(() => toast('Select and copy the command manually.', 'warning'));
+    const text = command.value || '';
+    const originalNote = note?.textContent || '';
+    const write = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
+      ? navigator.clipboard.writeText(text)
+      : new Promise((resolve, reject) => {
+          command.focus();
+          command.select();
+          try { document.execCommand('copy') ? resolve() : reject(new Error('copy unavailable')); }
+          catch (err) { reject(err); }
+        });
+    write
+      .then(() => {
+        toast('Cybernet tutorial command copied.', 'success');
+        if (note) note.textContent = 'Command copied.';
+      })
+      .catch(() => {
+        toast('Select and copy the command manually.', 'warning');
+        if (note) note.textContent = `${originalNote} Select the command text and copy it manually if clipboard access is blocked.`;
+      })
+      .finally(() => {
+        if (note) window.setTimeout(() => { note.textContent = originalNote; }, 2200);
+      });
   });
 
   render();

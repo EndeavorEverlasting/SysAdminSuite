@@ -1018,6 +1018,8 @@ textarea.paste-area:focus { border-color: var(--accent); }
 /* ── Cybernet target acquisition tutorial ───────────────────── */
 .cybernet-tutorial {
   flex-shrink: 0;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 10px 18px 12px;
   padding: 14px;
   border: 1px solid rgba(79, 142, 247, 0.28);
@@ -1061,17 +1063,26 @@ textarea.paste-area:focus { border-color: var(--accent); }
   cursor: pointer;
 }
 .cybernet-step-pill.active { border-color: var(--accent); color: #fff; background: rgba(79,142,247,0.35); }
-.cybernet-step-card { background: rgba(13,13,18,.55); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
-.cybernet-step-content { flex: 1 1 44%; min-width: 260px; }
+.cybernet-step-card {
+  background: rgba(13,13,18,.55);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.cybernet-step-content { flex: 1 1 44%; min-width: 0; box-sizing: border-box; }
 .cybernet-step-kicker { color: var(--info); font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .cybernet-step-content h3 { font-size: 14px; margin: 4px 0 6px; }
 .cybernet-step-content ul { margin: 8px 0 0 18px; color: var(--text-dim); font-size: 12px; }
-.cybernet-command-panel { flex: 1 1 56%; min-width: 320px; }
+.cybernet-command-panel { flex: 1 1 56%; min-width: 0; box-sizing: border-box; }
 .command-panel-title { font-size: 11px; font-weight: 700; color: var(--text-dim); margin-bottom: 6px; }
 #cybernet-step-command {
   width: 100%; height: 112px; resize: vertical;
   padding: 10px; border: 1px solid var(--border); border-radius: 8px;
   background: var(--bg3); color: var(--text); font-family: var(--mono); font-size: 10.5px;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 .command-panel-note { margin-top: 6px; color: var(--warning); font-size: 11px; }
 .cybernet-tutorial-nav { margin-top: 10px; justify-content: flex-end; }
@@ -1079,4 +1090,22 @@ textarea.paste-area:focus { border-color: var(--accent); }
 @media (max-width: 900px) {
   .cybernet-tutorial-head, .cybernet-step-card { flex-direction: column; }
   .cybernet-tutorial-actions { flex-wrap: wrap; }
+}
+
+@media (max-width: 480px) {
+  .cybernet-tutorial {
+    margin-left: 8px;
+    margin-right: 8px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .cybernet-step-card,
+  .cybernet-tutorial-head,
+  .cybernet-tutorial-actions,
+  .cybernet-stepper,
+  .cybernet-tutorial-nav,
+  .cybernet-command-panel {
+    width: 100%;
+  }
 }
