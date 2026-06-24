@@ -29,7 +29,7 @@ bin/sas-naabu-normalize \
 
 ## CDN-safe defaults
 
-Default profile `keyports_cdn` uses `-p 80,443 -ec -silent -duc`. Full port `-p - -ec` requires `--allow-full-ports`.
+Default profile `keyports_cybernet_json` uses `-p 80,443,135,445,3389,5985,5986 -ec -silent -duc -json`. Full port `-p - -ec` (`allports_low_noise_json`) requires `--allow-full-ports`.
 
 ## WAB note
 
