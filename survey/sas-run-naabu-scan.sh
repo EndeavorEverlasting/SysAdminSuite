@@ -18,5 +18,5 @@ while [[ $# -gt 0 ]]; do
     *) args+=("$1"); shift ;;
   esac
 done
-[[ "$pipe" -eq 1 ]] && args+=(--pipe-followup --profile keyports_cdn)
+[[ "$pipe" -eq 1 ]] && args+=(--pipe-followup --profile keyports_cybernet_pipe)
 exec bash "$SCRIPT_DIR/sas-run-naabu-pipeline.sh" "${args[@]}"

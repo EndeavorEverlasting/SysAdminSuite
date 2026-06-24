@@ -1,37 +1,61 @@
 {
   "version": 1,
-  "doctrine": "AD-derived targets first; Naabu validates reachability only.",
+  "doctrine": "AD-derived targets first; Naabu validates reachability only. Low-noise survey discipline: authorized, scoped, no-target-mutation. Evidence is written locally only.",
+  "defaultProfile": "keyports_cybernet_json",
   "profiles": {
-    "keyports_cybernet": {
-      "description": "Default Cybernet reachability validation profile.",
+    "keyports_cybernet_json": {
+      "description": "Default Cybernet reachability validation profile. Durable JSON evidence for parser/package paths.",
       "ports": "80,443,135,445,3389,5985,5986",
       "flags": ["-json", "-silent", "-ec"],
       "output": "json",
+      "pipelineFollowup": true,
       "default": true
     },
-    "allports_low_noise": {
-      "description": "All TCP ports against approved AD-derived hosts only.",
+    "keyports_cybernet_pipe": {
+      "description": "Raw host:port stdout stream for local pipeline handoff into cybernet-detect enrichment. Not durable evidence.",
+      "ports": "80,443,135,445,3389,5985,5986",
+      "flags": ["-silent", "-ec"],
+      "output": "txt",
+      "pipelineFollowup": true
+    },
+    "web_reachability_only_json": {
+      "description": "Narrow web reachability (80,443) JSON evidence. CDN-safe key ports only.",
+      "ports": "80,443",
+      "flags": ["-json", "-silent", "-ec"],
+      "output": "json",
+      "pipelineFollowup": true
+    },
+    "web_reachability_only": {
+      "description": "Narrow web reachability (80,443) txt output for local pipeline handoff.",
+      "ports": "80,443",
+      "flags": ["-silent", "-ec"],
+      "output": "txt",
+      "pipelineFollowup": true
+    },
+    "allports_low_noise_json": {
+      "description": "All TCP ports against approved AD-derived hosts only. Justification required.",
       "ports": "-",
       "flags": ["-json", "-silent", "-ec"],
       "output": "json",
       "requiresJustification": true
     },
-    "udp_dns_snmp": {
-      "description": "UDP DNS/SNMP probe where Cybernet survey requires UDP evidence.",
+    "udp_dns_snmp_json": {
+      "description": "UDP DNS/SNMP probe where the Cybernet survey requires UDP evidence. Justification required. Not default Phase 2b.",
       "ports": "u:53,u:161",
       "flags": ["-uP", "-json", "-silent", "-ec"],
       "output": "json",
       "requiresJustification": true
     },
-    "host_discovery_web_syn": {
-      "description": "Approved subnet host discovery using web-like SYN path. Not a population source.",
+    "host_discovery_web_syn_txt": {
+      "description": "Approved subnet host discovery using web-like SYN path. Not a population source; AD remains population authority.",
       "mode": "host-discovery",
       "flags": ["-sn", "-pe", "-ps", "80", "-silent", "-ec"],
       "output": "txt",
       "requiresApprovedSubnetScope": true
     },
-    "load_balanced_hostname_all_ips": {
-      "description": "Resolve and scan all IPs for load-balanced hostnames.",
+    "load_balanced_hostname_all_ips_json": {
+      "description": "Resolve and scan all IPs for load-balanced hostnames. Use example.invalid in docs and tests.",
+      "ports": "80,443",
       "flags": ["-sa", "-json", "-silent", "-ec"],
       "output": "json",
       "requiresHostnameInput": true
