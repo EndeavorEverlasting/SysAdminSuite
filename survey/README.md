@@ -48,6 +48,7 @@ Contract test:
 ```bash
 bash Tests/bash/test-cybernet-subnet-survey-contracts.sh
 bash Tests/bash/test_naabu_pipeline_contracts.sh
+bash Tests/bash/test_naabu_package_contracts.sh
 ```
 
 ## Naabu CDN-Safe Pipeline
