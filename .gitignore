@@ -70,6 +70,11 @@ data/updated/*
 *.tsv
 !input/cybernet-serials.example.csv
 !input/site-subnets.example.csv
+!survey/fixtures/ad_registered_cybernet.sample.csv
+!survey/fixtures/ad_evidence_manifest.sample.csv
+!survey/fixtures/ad_network_evidence.sample.csv
+!survey/fixtures/ad_live_serial.sample.csv
+!dashboard/samples/*.csv
 *.zip
 !**/.gitkeep
 
@@ -110,6 +115,8 @@ logs/network_context/*
 logs/nmap/*
 !logs/network_context/.gitkeep
 !logs/nmap/.gitkeep
+logs/targets/*
+!logs/targets/.gitkeep
 
 # Cybernet subnet discovery runtime evidence (serials, IPs, DNS — live field data)
 evidence/*
