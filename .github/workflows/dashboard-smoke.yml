@@ -1,0 +1,29 @@
+name: Dashboard Smoke
+
+on:
+  pull_request:
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/dashboard-smoke.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/dashboard-smoke.yml'
+
+jobs:
+  dashboard-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: JavaScript syntax checks
+        run: |
+          node --check dashboard/js/parsers.js
+          node --check dashboard/js/app.js
+          node --check dashboard/js/bundle.js
+      - name: Dashboard parser smoke test
+        run: node dashboard/smoke-test.js
