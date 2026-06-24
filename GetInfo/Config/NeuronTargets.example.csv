@@ -1,0 +1,2 @@
+NeuronHost,ExpectedMAC,ExpectedSerial,Site,Room,Notes
+example-neuron.local,001122334455,EXAMPLE-SERIAL,ExampleSite,ExampleRoom,Template row for offline tests
