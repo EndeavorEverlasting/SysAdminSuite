@@ -14,6 +14,21 @@ Build a Cybernet presence report from:
 
 Nmap is only confirmation evidence. DNS, AD, DHCP, endpoint tools, and tracker data are usually better sources for where a Cybernet should be.
 
+## Agent F — Low-Noise Survey Doctrine
+
+Purpose:
+Codifies low-noise Naabu/Cybernet survey profiles:
+- AD-derived targets first
+- -silent always for local output hygiene
+- -ec to avoid CDN/cloud firewall waste where appropriate
+- JSON for parser-facing outputs
+- TXT/stdout only for raw pipeline handoff
+- UDP only by justified profile
+- no target-side writes or scripts
+- no live field execution in this lane
+
+See [`LOW_NOISE_SURVEY_DOCTRINE.md`](LOW_NOISE_SURVEY_DOCTRINE.md) and the profile contract [`../survey/naabu_profiles.json`](../survey/naabu_profiles.json).
+
 ## Safety model
 
 These tools are local-output-only and read-only.
