@@ -14,7 +14,7 @@ Usage: bash survey/sas-parse-naabu-evidence.sh --naabu-output PATH [options]
 Options:
   --naabu-output PATH   naabu -o file (.txt host:port or .json / JSONL)
   --followup PATH       Optional followup JSONL from sas-cybernet-packet-followup.sh
-  --manifest PATH       Optional manifest CSV to join (best-effort host match)
+  --manifest PATH       Optional manifest CSV to join (best-effort normalized host/IP/MAC/serial match)
   --output PATH         Output CSV. Default: survey/output/naabu_identity_resolver.csv
   -h, --help            Show help
 USAGE
@@ -26,6 +26,7 @@ log(){ echo "[naabu-parser] $*" >&2; }
 find_python() {
   if command -v python3 >/dev/null 2>&1; then echo python3; return 0; fi
   if command -v python >/dev/null 2>&1; then echo python; return 0; fi
+  if command -v py >/dev/null 2>&1; then echo "py -3"; return 0; fi
   fail "Python 3 required"
 }
 
@@ -42,25 +43,79 @@ done
 
 [[ -n "$NAABU_OUTPUT" ]] || fail "--naabu-output is required"
 [[ -f "$NAABU_OUTPUT" ]] || fail "Naabu output not found: $NAABU_OUTPUT"
+if [[ -n "$FOLLOWUP" && ! -f "$FOLLOWUP" ]]; then
+  fail "Followup file not found: $FOLLOWUP"
+fi
+if [[ -n "$MANIFEST" && ! -f "$MANIFEST" ]]; then
+  fail "Manifest file not found: $MANIFEST"
+fi
 
 py="$(find_python)"
 $py - "$NAABU_OUTPUT" "$FOLLOWUP" "$MANIFEST" "$OUTPUT" <<'PY'
-import csv, json, sys
+import csv, ipaddress, json, re, sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 naabu_path, followup_path, manifest_path, out_path = sys.argv[1:5]
 rows = []
 
+HOST_COLS = {"hostname", "host", "computername", "computer", "name", "target", "identifier"}
+IP_COLS = {"ip", "ipaddress", "address", "resolvedaddress", "dnsips"}
+MAC_COLS = {"mac", "macaddress", "ethernetmac", "wifimac"}
+SERIAL_COLS = {"serial", "serialnumber", "servicetag", "assetserial"}
+
+def clean(value):
+    return str(value or "").strip()
+
+def strip_url(value):
+    text = clean(value)
+    if "://" in text:
+        parsed = urlparse(text)
+        text = parsed.hostname or text
+    return text.strip("[]")
+
+def short_host(value):
+    text = strip_url(value).lower()
+    return text.split(".", 1)[0] if text else ""
+
+def norm_mac(value):
+    hx = re.sub(r"[^0-9A-Fa-f]", "", clean(value)).upper()
+    if len(hx) == 12:
+        return ":".join(hx[i:i+2] for i in range(0, 12, 2))
+    return clean(value).upper()
+
+def norm_serial(value):
+    return re.sub(r"\s+", "", clean(value)).upper()
+
 def add_row(host, port, source):
+    host = strip_url(host)
+    port = clean(port)
     if host and port:
-        rows.append({"host": host, "port": str(port), "source": source})
+        rows.append({"host": host, "port": port, "source": source})
+
+def split_host_port(line):
+    line = clean(line)
+    if not line:
+        return "", ""
+    if line.startswith("[") and "]:" in line:
+        host, port = line.rsplit(":", 1)
+        return host.strip("[]"), port
+    if ":" not in line:
+        return line, ""
+    try:
+        ipaddress.ip_address(line)
+        return line, ""
+    except ValueError:
+        pass
+    host, port = line.rsplit(":", 1)
+    return host, port
 
 def load_txt(path):
     for raw in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        host, _, port = line.partition(":")
+        host, port = split_host_port(line)
         add_row(host, port, "naabu_txt")
 
 def load_json(path):
@@ -81,12 +136,14 @@ def load_json(path):
             except json.JSONDecodeError:
                 continue
     for item in items:
+        if not isinstance(item, dict):
+            continue
         host = item.get("host") or item.get("ip") or ""
         port = item.get("port", "")
         add_row(host, port, "naabu_json")
 
 followup_meta = {}
-if followup_path and Path(followup_path).is_file():
+if followup_path:
     for line in Path(followup_path).read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if not line:
@@ -95,8 +152,8 @@ if followup_path and Path(followup_path).is_file():
             item = json.loads(line)
         except json.JSONDecodeError:
             continue
-        host = str(item.get("host", ""))
-        port = str(item.get("port", ""))
+        host = strip_url(item.get("host", ""))
+        port = clean(item.get("port", ""))
         key = f"{host}:{port}"
         followup_meta[key] = {
             "cybernet_signal": item.get("cybernet_signal", ""),
@@ -104,14 +161,30 @@ if followup_path and Path(followup_path).is_file():
             "timestamp": item.get("timestamp", ""),
         }
 
-manifest_hosts = set()
-if manifest_path and Path(manifest_path).is_file():
-    with open(manifest_path, newline="", encoding="utf-8", errors="replace") as fh:
+manifest_tokens = set()
+if manifest_path:
+    with open(manifest_path, newline="", encoding="utf-8-sig", errors="replace") as fh:
         reader = csv.DictReader(fh)
         for row in reader:
-            for col in row.values():
-                if col:
-                    manifest_hosts.add(col.strip().lower())
+            for key, value in row.items():
+                value = clean(value)
+                if not value:
+                    continue
+                col = clean(key).lower()
+                values = re.split(r"[;,| ]+", value) if col in IP_COLS else [value]
+                for item in values:
+                    item = clean(item)
+                    if not item:
+                        continue
+                    if col in HOST_COLS:
+                        manifest_tokens.add(strip_url(item).lower())
+                        manifest_tokens.add(short_host(item))
+                    elif col in IP_COLS:
+                        manifest_tokens.add(item.lower())
+                    elif col in MAC_COLS:
+                        manifest_tokens.add(norm_mac(item))
+                    elif col in SERIAL_COLS:
+                        manifest_tokens.add(norm_serial(item))
 
 p = Path(naabu_path)
 if p.suffix.lower() in (".json", ".jsonl"):
@@ -130,7 +203,8 @@ with open(out_path, "w", newline="", encoding="utf-8") as fh:
         row["cybernet_signal"] = meta.get("cybernet_signal", "")
         row["site"] = meta.get("site", "")
         row["timestamp"] = meta.get("timestamp", "")
-        row["manifest_match"] = "yes" if row["host"].lower() in manifest_hosts else ""
+        host_tokens = {row["host"].lower(), short_host(row["host"])}
+        row["manifest_match"] = "yes" if host_tokens & manifest_tokens else ""
         w.writerow(row)
 
 print(f"Wrote {len(rows)} row(s) to {out_path}")
