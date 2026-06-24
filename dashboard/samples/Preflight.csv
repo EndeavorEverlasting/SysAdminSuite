@@ -1,0 +1,4 @@
+ComputerName,Target,Type,PresentNow,InDesired,SnapshotTime,Notes
+WMH300OPR108,\\PRINTSRV01\HP-LJ-Q67,Network,True,True,2026-05-03T08:00:00Z,
+WMH300OPR109,\\PRINTSRV01\ZEBRA-ZPL-01,Network,False,True,2026-05-03T08:00:00Z,Driver missing
+WMH300OPR110,\\PRINTSRV01\HP-LJ-Q62,Network,True,True,2026-05-03T08:00:00Z,
