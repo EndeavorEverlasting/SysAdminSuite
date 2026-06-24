@@ -2,6 +2,26 @@
 
 This directory contains Bash-first survey tooling for SysAdminSuite.
 
+## Primary Field Tutorial: Cybernet / Neuron Network Survey
+
+The current priority tutorial for field technicians is:
+
+- [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md)
+- [`../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md)
+
+Use that path when a technician needs to survey an approved site subnet for Cybernet or Neuron targets from deployment documentation. The workflow is:
+
+1. Copy approved local target CSVs into `survey/input/`.
+2. Run the Bash runtime smoke test.
+3. Find local candidate subnets with `sas-find-local-subnets.sh`.
+4. Normalize targets with `sas-survey-targets.sh`.
+5. Capture local network context with `sas-device-snapshot.sh`.
+6. Run conservative approved Nmap discovery.
+7. Resolve Nmap output with `sas-resolve-nmap-evidence.sh`.
+8. Package local evidence from `survey/output/`, `survey/artifacts/`, and `logs/nmap/`.
+
+Field rule: this is read-only asset discovery. Do not commit live CSVs, scan output, dashboards, ZIPs, hostnames, MACs, serials, or site evidence.
+
 ## Status
 
 - **Northwell workflows:** Bash-first.
@@ -21,6 +41,52 @@ Expected result:
 
 ```text
 Smoke test passed. Bash-on-Windows runtime looks usable.
+```
+
+## Fast Subnet Finder
+
+Use this when you need the likely local CIDRs from the connected admin workstation before the broader Cybernet / Neuron workflow.
+
+```bash
+bash survey/sas-find-local-subnets.sh --site <site-code>
+```
+
+Example:
+
+```bash
+bash survey/sas-find-local-subnets.sh --site nsuh
+```
+
+The finder writes a timestamped run under:
+
+```text
+survey/output/local_subnet_finder/<site>_<timestamp>/
+```
+
+Key outputs:
+
+| File | Purpose |
+|---|---|
+| `subnet_candidates.txt` | Plain candidate CIDR list for the next approved discovery step |
+| `subnet_candidates.csv` | Candidate CIDRs with adapter/source notes |
+| `context/ipconfig_all.txt` | Local adapter configuration evidence |
+| `context/route_print.txt` | Local route table evidence |
+| `context/arp_initial.txt` | Starting ARP table evidence |
+| `SUMMARY.md` | Human-readable run summary |
+
+You can also normalize explicit approved CIDRs without relying on local adapter detection:
+
+```bash
+bash survey/sas-find-local-subnets.sh \
+  --site nsuh \
+  --cidr 10.10.10.0/24 \
+  --cidr 10.10.11.0/24
+```
+
+Contract test:
+
+```bash
+bash tests/bash/test-local-subnet-finder-contracts.sh
 ```
 
 ## Field Snapshot Tools
@@ -169,6 +235,19 @@ The parser accepts flexible column names so field data does not have to be perfe
 | `MACAddress` | Normalized MAC address when known |
 | `Source` | Where the target came from, including inventory resolution notes |
 
+## Nmap Evidence Resolver
+
+Use this after an approved Nmap run already exists. This wrapper does not run Nmap. It converts existing Nmap XML or normal output into resolver evidence, then compares it with the target manifest.
+
+```bash
+bash survey/sas-resolve-nmap-evidence.sh \
+  --manifest survey/output/cybernet_targets_resolved.csv \
+  --nmap-output logs/nmap/site_discovery_dns.xml \
+  --nmap-format xml \
+  --output survey/output/site_cybernet_nmap_identity_resolver.csv \
+  --dashboard survey/output/site_cybernet_nmap_identity_resolver.html
+```
+
 ## Field Rule
 
 Do not replace these with ad hoc PowerShell or Linux commands during field work.
@@ -187,31 +266,3 @@ This script currently normalizes and resolves targets. The next Bash layer shoul
 sas-survey collect --manifest ./survey/output/neuron_targets_resolved.csv
 sas-survey report  --manifest ./survey/output/neuron_targets_resolved.csv
 ```
-
-Keep this separation. A clean manifest first. Probe second. Report third. No mud wrestling.
-
-## Auto-logon Workstation Assessment (remote batch)
-
-Read-only remote assessment for shared-workstation auto-logon posture. Primary output is HTML (`--dashboard`); CSV is for downstream tools.
-
-```bash
-bash survey/sas-assess-autologon.sh \
-  --manifest ./survey/output/wbs_targets.csv \
-  --preflight \
-  --ad-live \
-  --output survey/output/autologon_assessment.csv \
-  --dashboard survey/output/autologon_dashboard.html \
-  --open
-```
-
-Contract fixture / CI dry-run:
-
-```bash
-bash survey/sas-assess-autologon.sh \
-  --manifest survey/fixtures/autologon_manifest.sample.csv \
-  --fixture-dry-run \
-  --output survey/output/autologon_assessment.csv \
-  --dashboard survey/output/autologon_dashboard.html
-```
-
-See `docs/AUTOLOGON_ASSESSMENT.md` for lifecycle rules, OverallStatus values, and evidence columns.
