@@ -1,0 +1,3 @@
+Host,UNC,FriendlyName
+WS-EXAMPLE-01,\\PRINTSRV-EXAMPLE\Queue-Example-01,Example Clinic Front Desk
+WS-EXAMPLE-02,\\PRINTSRV-EXAMPLE\Queue-Example-02,Example Clinic Back Office

@@ -1,5 +1,7 @@
 Describe 'Get-RegistrySnapshot Script' {
-    $scriptPath = Join-Path $PSScriptRoot '..\..\scripts\powershell\Get-RegistrySnapshot.ps1'
+    BeforeAll {
+        $scriptPath = Join-Path $PSScriptRoot '..\..\scripts\powershell\Get-RegistrySnapshot.ps1'
+    }
 
     It 'script exists' {
         Test-Path -LiteralPath $scriptPath | Should -BeTrue

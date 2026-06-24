@@ -1,8 +1,10 @@
 Set-StrictMode -Version Latest
 
 Describe 'Test-TargetReadiness script' {
-    $scriptPath = Join-Path $PSScriptRoot '..' '..' 'scripts' 'powershell' 'Test-TargetReadiness.ps1'
-    $scriptPath = (Resolve-Path $scriptPath).Path
+    BeforeAll {
+        $scriptPath = Join-Path $PSScriptRoot '..' '..' 'scripts' 'powershell' 'Test-TargetReadiness.ps1'
+        $scriptPath = (Resolve-Path $scriptPath).Path
+    }
 
     It 'exists' {
         Test-Path -LiteralPath $scriptPath | Should -BeTrue

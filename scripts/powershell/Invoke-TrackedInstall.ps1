@@ -122,10 +122,10 @@ function Read-SourcesYaml {
     }
 
     $match = $apps | Where-Object {
-        ($_ .software_id -eq $SoftwareId) -or
-        ($_ .id -eq $SoftwareId) -or
-        ($_ .name -eq $SoftwareId) -or
-        ($_ .display_name -eq $SoftwareId)
+        ($_.software_id -eq $SoftwareId) -or
+        ($_.id -eq $SoftwareId) -or
+        ($_.name -eq $SoftwareId) -or
+        ($_.display_name -eq $SoftwareId)
     } | Select-Object -First 1
 
     if (-not $match) {

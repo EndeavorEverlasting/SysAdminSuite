@@ -70,6 +70,13 @@ data/updated/*
 *.tsv
 !input/cybernet-serials.example.csv
 !input/site-subnets.example.csv
+# Synthetic Pester test fixtures (no live data) -- must stay tracked for CI
+!Tests/Fixtures/DeploymentTracker/deployments.csv
+!Tests/Fixtures/DeploymentTracker/tickets.csv
+!Mapping/Config/host-mappings.csv
+!Mapping/Config/wcc_printers.csv
+!GetInfo/Config/NeuronTargets.example.csv
+!GetInfo/Config/NeuronObservedPackages.example.csv
 *.zip
 !**/.gitkeep
 

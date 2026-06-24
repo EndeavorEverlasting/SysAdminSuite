@@ -1,5 +1,7 @@
 Describe 'Compare-RegistrySnapshots script' {
-    $scriptPath = Join-Path $PSScriptRoot '..\..\scripts\powershell\Compare-RegistrySnapshots.ps1'
+    BeforeAll {
+        $scriptPath = Join-Path $PSScriptRoot '..\..\scripts\powershell\Compare-RegistrySnapshots.ps1'
+    }
 
     It 'exists' {
         Test-Path -LiteralPath $scriptPath | Should -BeTrue

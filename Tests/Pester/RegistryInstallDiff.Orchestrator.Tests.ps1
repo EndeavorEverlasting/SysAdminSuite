@@ -1,5 +1,7 @@
 Describe 'Registry Install Diff Orchestrator' {
-    $scriptPath = Join-Path $PSScriptRoot '..\..\scripts\powershell\Invoke-RegistryInstallDiff.ps1'
+    BeforeAll {
+        $scriptPath = Join-Path $PSScriptRoot '..\..\scripts\powershell\Invoke-RegistryInstallDiff.ps1'
+    }
 
     It 'exists' {
         Test-Path -LiteralPath $scriptPath | Should -BeTrue

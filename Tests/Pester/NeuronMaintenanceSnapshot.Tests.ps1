@@ -59,7 +59,7 @@ Describe 'Get-NeuronMaintenanceSnapshot.ps1 -- script contract' {
             'Wireless Interfaces',
             'Wireless Networks'
         )) {
-            $script:snapshotContent | Should -Match [regex]::Escape($section)
+            $script:snapshotContent | Should -Match ([regex]::Escape($section))
         }
     }
 

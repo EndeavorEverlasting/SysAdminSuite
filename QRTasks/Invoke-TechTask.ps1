@@ -101,6 +101,7 @@ $TaskMap = [ordered]@{
     NetworkInfo       = 'Get-NetworkInfo.ps1'
     Serials           = 'Get-Serials.ps1'
     NeuronTrace       = 'Get-NeuronTrace.ps1'
+    NeuronMaintenance = 'Get-NeuronMaintenanceSnapshot.ps1'
     WinOptionalFeatures = 'Get-WindowsOptionalFeatures.ps1'
     PowerComfort        = 'Set-PowerComfortDefaults.ps1'
     PowerComfortRevert  = 'Restore-PowerComfortDefaults.ps1'
