@@ -1,15 +1,19 @@
+﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+
 Set-StrictMode -Version Latest
 
 Describe 'Test-TargetReadiness script' {
-    $scriptPath = Join-Path $PSScriptRoot '..' '..' 'scripts' 'powershell' 'Test-TargetReadiness.ps1'
-    $scriptPath = (Resolve-Path $scriptPath).Path
+    BeforeAll {
+        $script:scriptPath = Join-Path $PSScriptRoot '..' '..' 'scripts' 'powershell' 'Test-TargetReadiness.ps1'
+        $script:scriptPath = (Resolve-Path -LiteralPath $script:scriptPath -ErrorAction Stop).Path
+    }
 
     It 'exists' {
-        Test-Path -LiteralPath $scriptPath | Should -BeTrue
+        Test-Path -LiteralPath $script:scriptPath | Should -BeTrue
     }
 
     It 'contains comment-based help sections' {
-        $content = Get-Content -LiteralPath $scriptPath -Raw
+        $content = Get-Content -LiteralPath $script:scriptPath -Raw
         $content | Should -Match '\.SYNOPSIS'
         $content | Should -Match '\.DESCRIPTION'
         $content | Should -Match '\.PARAMETER\s+Target'
@@ -19,7 +23,7 @@ Describe 'Test-TargetReadiness script' {
 
     It 'can run localhost mode without remote dependency' {
         $outRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-readiness-' + [guid]::NewGuid().Guid)
-        $results = & $scriptPath -Target 'localhost' -OutputRoot $outRoot
+        $results = @(& $script:scriptPath -Target 'localhost' -OutputRoot $outRoot)
 
         $results | Should -Not -BeNullOrEmpty
         $results[0].target | Should -Be 'localhost'
@@ -37,7 +41,7 @@ Describe 'Test-TargetReadiness script' {
             [pscustomobject]@{ ComputerName = 'example.invalid' }
         ) | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 
-        $results = & $scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir
+        $results = @(& $script:scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir)
 
         ($results | Measure-Object).Count | Should -Be 2
         ($results.target) | Should -Contain 'localhost'
@@ -51,7 +55,7 @@ Describe 'Test-TargetReadiness script' {
         $csvPath = Join-Path $tmpDir 'targets.csv'
         @([pscustomobject]@{ Target = 'example.invalid' }) | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 
-        $results = & $scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir
+        $results = @(& $script:scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir)
 
         $results | Should -Not -BeNullOrEmpty
         $results[0].overall_status | Should -Match 'Ready|PartiallyReady|NotReady|Unknown'
@@ -64,7 +68,7 @@ Describe 'Test-TargetReadiness script' {
     }
 
     It 'does not contain forbidden registry or remoting mutation commands' {
-        $content = Get-Content -LiteralPath $scriptPath -Raw
+        $content = Get-Content -LiteralPath $script:scriptPath -Raw
         @(
             'Set-ItemProperty',
             'New-ItemProperty',
