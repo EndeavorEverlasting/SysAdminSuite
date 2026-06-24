@@ -1,0 +1,3 @@
+Site,Serial,ExpectedHostname,ExpectedMAC,ExpectedRoom,ExpectedStatus,Notes
+SSUH,CN12345678,WNH269OPR009,00-11-22-33-44-55,OR-2,Configured,
+SSUH,CN87654321,,,,Configured,Serial known only

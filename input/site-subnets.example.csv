@@ -1,0 +1,3 @@
+Site,Subnet,Description,ApprovedForScan
+SSUH,10.20.30.0/24,OR Cybernet VLAN,true
+SSUH,10.20.31.0/24,Staging VLAN,true

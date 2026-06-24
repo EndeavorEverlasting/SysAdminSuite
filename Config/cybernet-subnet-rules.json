@@ -1,0 +1,39 @@
+{
+  "subnetInference": {
+    "requireApprovedSubnet": true,
+    "allowDnsOnlyIpCandidate": true,
+    "allowRouteTableCandidate": false,
+    "allowDhcpScopeCandidate": false,
+    "allowArpCandidate": false,
+    "defaultPrefixLengthWhenUnknown": 24,
+    "neverAssumePrefixWithoutEvidence": true
+  },
+  "confidenceRules": {
+    "confirmed": [
+      "SerialMatched",
+      "HostnameMatchedOrMacMatched",
+      "IpResolved",
+      "SubnetApproved"
+    ],
+    "high": [
+      "HostnameMatched",
+      "IpResolved",
+      "SubnetApproved"
+    ],
+    "medium": [
+      "MacMatchedOrIpObserved",
+      "SubnetApproved"
+    ],
+    "weak": [
+      "IpObserved",
+      "SubnetInferred"
+    ],
+    "blocked": [
+      "IpOrSubnetFound",
+      "SubnetNotApproved"
+    ],
+    "missing": [
+      "SerialOnlyNoIdentityBridge"
+    ]
+  }
+}

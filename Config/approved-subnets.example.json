@@ -1,0 +1,16 @@
+{
+  "subnets": [
+    {
+      "site": "SSUH",
+      "cidr": "10.20.30.0/24",
+      "approvedForScan": true,
+      "description": "OR Cybernet VLAN"
+    },
+    {
+      "site": "SSUH",
+      "cidr": "10.20.31.0/24",
+      "approvedForScan": true,
+      "description": "Staging VLAN"
+    }
+  ]
+}
