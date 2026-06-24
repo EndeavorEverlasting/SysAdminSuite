@@ -1087,6 +1087,18 @@ textarea.paste-area:focus { border-color: var(--accent); }
 }
 .command-panel-note { margin-top: 6px; color: var(--warning); font-size: 11px; }
 .cybernet-tutorial-nav { margin-top: 10px; justify-content: flex-end; }
+.cybernet-manifest-summary {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(79, 142, 247, 0.08);
+}
+.cybernet-manifest-stats {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
 
 @media (max-width: 900px) {
   .cybernet-tutorial-head, .cybernet-step-card { flex-direction: column; }

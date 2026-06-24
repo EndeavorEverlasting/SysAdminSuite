@@ -263,8 +263,62 @@ function contentLooksLikeNaabuReachability(content) {
  * Detect the log type from filename and/or CSV headers.
  * Returns one of: 'preflight', 'results', 'workstation-identity',
  *   'printer-probe', 'network-preflight', 'machine-info', 'ram-info',
- *   'monitor-info', 'neuron-inventory', 'status-json', 'smb-recon', 'naabu-reachability', 'unknown'
+ *   'monitor-info', 'neuron-inventory', 'cybernet-target-manifest',
+ *   'status-json', 'smb-recon', 'naabu-reachability', 'unknown'
  */
+function csvBasename(filename) {
+  const parts = filename.replace(/\\/g, '/').split('/');
+  return parts[parts.length - 1].toLowerCase();
+}
+
+const CYBERNET_MANIFEST_FILENAMES = new Set([
+  'cybernet_targets.csv',
+  'cybernet-targets.csv',
+  'targets_resolved.csv',
+  'cybernet_targets_resolved.csv',
+]);
+
+function isCybernetManifestHeader(firstLine) {
+  const h = firstLine.toLowerCase();
+  const cybernetCols = [
+    'hostname', 'dnshostname', 'ipaddress', 'serial', 'serialnumber',
+    'site', 'location', 'neuron', 'workstation', 'mac',
+  ];
+  const hasCybernetCol = cybernetCols.some(c => h.includes(c));
+  if (!hasCybernetCol) return false;
+  if (h.includes('pingstatus') && (h.includes('port') || h.includes('mac'))) return false;
+  if (h.includes('transportused') && h.includes('identitystatus')) return false;
+  if (h.includes('targethost') && h.includes('matchexpected')) return false;
+  if (h.includes('driver') && h.includes('port') && h.includes('status')) return false;
+  if (h.includes('identifiertype') && h.includes('devicetype')) return true;
+  return hasCybernetCol;
+}
+
+function normalizeCybernetHost(value) {
+  const v = String(value || '').trim();
+  if (!v) return '';
+  return v.split('.')[0].toUpperCase();
+}
+
+function pickManifestField(row, names) {
+  const lowered = {};
+  for (const [k, v] of Object.entries(row)) {
+    const key = String(k).replace(/^\uFEFF/, '').toLowerCase();
+    lowered[key] = v;
+  }
+  for (const name of names) {
+    const val = lowered[name.toLowerCase()];
+    if (val != null && String(val).trim()) return String(val).trim();
+  }
+  return '';
+}
+
+function firstIpAddress(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return raw.split(/[;,|\s]+/).map(s => s.trim()).find(Boolean) || '';
+}
+
 function detectFileType(filename, content) {
   const fn = filename.toLowerCase();
 
@@ -315,6 +369,7 @@ function detectFileType(filename, content) {
   if (fn.includes('machineinfo') || fn.includes('machine_info') || fn.includes('machine-info')) return 'machine-info';
   if (fn.includes('raminfo') || fn.includes('ram_info') || fn.includes('ram-info')) return 'ram-info';
   if (fn.includes('monitorinfo') || fn.includes('monitor_info') || fn.includes('monitor-info')) return 'monitor-info';
+  if (CYBERNET_MANIFEST_FILENAMES.has(csvBasename(filename))) return 'cybernet-target-manifest';
   if (fn.includes('neuron')) return 'neuron-inventory';
   if (fn.includes('smb')) return 'smb-recon';
   if (fn.includes('software_superset') || fn.includes('softwaresuperset') || fn.includes('software-superset')) return 'software-superset';
@@ -336,6 +391,7 @@ function detectFileType(filename, content) {
     if (firstLine.includes('capacitygb') || firstLine.includes('memorytype')) return 'ram-info';
     if (firstLine.includes('displaynumber') || firstLine.includes('isprimary')) return 'monitor-info';
     if (firstLine.includes('targethost') && firstLine.includes('matchexpected')) return 'neuron-inventory';
+    if (isCybernetManifestHeader(firstLine)) return 'cybernet-target-manifest';
     if (firstLine.includes('share') && firstLine.includes('liststatus')) return 'smb-recon';
     if (firstLine.includes('taskname') || firstLine.includes('taskid') || firstLine.includes('outcome')) return 'remote-task';
     if (firstLine.includes('publisher') && firstLine.includes('host') && firstLine.includes('name')) return 'software-superset';
@@ -359,6 +415,7 @@ function parseFileContent(type, content, filename) {
     case 'ram-info': return parseRamInfo(content);
     case 'monitor-info': return parseMonitorInfo(content);
     case 'neuron-inventory': return parseNeuronInventory(content);
+    case 'cybernet-target-manifest': return parseCybernetTargetManifest(content);
     case 'smb-recon': return parseSmbRecon(content);
     case 'status-json': return parseStatusJson(content);
     case 'remote-task': return parseRemoteTask(content);
@@ -503,6 +560,68 @@ function parseNeuronInventory(content) {
   }
   const rows = parseCSV(content);
   return { type: 'neuron-inventory', rows, meta: { count: rows.length } };
+}
+
+/**
+ * Parse Cybernet target manifest CSV (sas-survey-targets output or resolved manifests).
+ * Distinct from network-preflight, workstation-identity, and AD population exports.
+ */
+function parseCybernetTargetManifest(content) {
+  const rawRows = parseCSV(content);
+  const rows = rawRows.map(row => {
+    const identifierType = pickManifestField(row, ['IdentifierType', 'Identifier Type']);
+    const identifier = pickManifestField(row, ['Identifier', 'Target', 'KnownIdentifier']);
+    let hostname = pickManifestField(row, [
+      'HostName', 'Hostname', 'Host', 'ComputerName', 'Computer', 'Name',
+    ]);
+    if (!hostname && identifierType.toLowerCase() === 'hostname') hostname = identifier;
+
+    const dnsHostName = pickManifestField(row, ['DNSHostName', 'DNS Host Name', 'FQDN']);
+    const ipAddress = firstIpAddress(pickManifestField(row, [
+      'IPAddress', 'IP Address', 'IPAddresses', 'IP', 'ResolvedAddress',
+    ]));
+    const serial = pickManifestField(row, [
+      'Serial', 'SerialNumber', 'Serial Number', 'ServiceTag', 'AssetSerial',
+    ]);
+    const site = pickManifestField(row, ['Site']);
+    const location = pickManifestField(row, ['Location', 'Room']);
+    const neuron = pickManifestField(row, [
+      'Neuron', 'Neuron Hostname', 'NeuronHostName', 'Neuron Host',
+    ]);
+    const workstation = pickManifestField(row, ['Workstation', 'Workstation Hostname']);
+    const mac = pickManifestField(row, [
+      'MAC', 'MACAddress', 'MacAddress', 'Mac', 'EthernetMAC', 'WifiMAC',
+    ]);
+    const normalizedHost = normalizeCybernetHost(hostname || dnsHostName);
+
+    return {
+      type: 'cybernet-target-manifest',
+      sourceType: 'cybernet-target-manifest',
+      hostname,
+      normalizedHost,
+      dnsHostName,
+      ipAddress,
+      serial,
+      site,
+      location,
+      neuron,
+      workstation,
+      mac,
+    };
+  }).filter(r =>
+    r.hostname || r.dnsHostName || r.ipAddress || r.serial || r.mac || r.neuron || r.workstation
+  );
+
+  return {
+    type: 'cybernet-target-manifest',
+    rows,
+    meta: {
+      count: rows.length,
+      withSerial: rows.filter(r => r.serial).length,
+      withIp: rows.filter(r => r.ipAddress).length,
+      missingDnsHost: rows.filter(r => !r.hostname && !r.dnsHostName).length,
+    },
+  };
 }
 
 function parseSmbRecon(content) {
@@ -749,6 +868,9 @@ function mergeDataStore(existing, incoming) {
       break;
     case 'neuron-inventory':
       store.neuronInventory = (store.neuronInventory || []).concat(rows);
+      break;
+    case 'cybernet-target-manifest':
+      store.cybernetTargetManifest = (store.cybernetTargetManifest || []).concat(rows);
       break;
     case 'smb-recon':
       store.smbRecon = (store.smbRecon || []).concat(rows);
@@ -3603,6 +3725,7 @@ const TYPE_SECTION_LABELS = {
   'network-preflight': 'Network review',
   'smb-recon': 'Network review',
   'naabu-reachability': 'Reachability evidence',
+  'cybernet-target-manifest': 'Target manifest',
   'remote-task': 'Remote tasks',
   'software-tracker': 'Software tracker',
   'software-superset': 'Software tracker',
@@ -3919,7 +4042,7 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'ram-info': '🧠', 'monitor-info': '🖥️', 'neuron-inventory': '🗂️',
     'smb-recon': '📂', 'status-json': '💚', 'remote-task': '⚡',
     'naabu-reachability': '🔌',
-    'software-tracker': '📦', 'unknown': '❓'
+    'software-tracker': '📦', 'cybernet-target-manifest': '🎯', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
 
@@ -4148,12 +4271,12 @@ const CYBERNET_TUTORIAL_STEPS = [
   {
     title: 'Load evidence and review',
     railLabel: 'Review package',
-    body: 'Drag recognized evidence CSVs into Load Evidence, then review the summary. Do not expect the dashboard to import normalized target manifests until parser support is added.',
-    command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)',
+    body: 'Drag recognized evidence CSVs into Load Evidence, then review the summary. Normalized target manifests (cybernet_targets.csv) are imported separately from network or identity evidence.',
+    command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)\n# survey/output/cybernet_*_targets.csv (manifest, not evidence)',
     checks: [
       'Classify environment blocks separately from product defects.',
       'Keep smoke-test evidence separate from feature validation.',
-      'cybernet_targets.csv from sas-survey-targets.sh is not a dashboard import yet.'
+      'Treat manifest rows as target lists, not reachability or identity proof.'
     ],
     note: 'Click Load resulting evidence below, or use Load Evidence on the hero card.',
     optional: false
@@ -4682,6 +4805,7 @@ function refreshAllPanels() {
   try { renderNetworkPanel(store); } catch(e) { console.warn('Network panel error:', e); }
   try { renderSoftwarePanel(store); } catch(e) { console.warn('Software panel error:', e); }
   updateCybernetReview();
+  updateCybernetManifestSummary();
 }
 
 function _countUniqueTargets(rows, field = 'Target') {
@@ -4749,6 +4873,35 @@ function updateCybernetReview() {
     ${guestWarn ? `<p class="cybernet-review-warn">⚠ ${sanitize(guestWarn)}</p>` : ''}
     <p class="cybernet-review-next"><strong>Next:</strong> ${sanitize(nextAction)}</p>
   `;
+}
+
+function updateCybernetManifestSummary() {
+  const root = document.getElementById('cybernet-manifest-summary');
+  const stats = document.getElementById('cybernet-manifest-stats');
+  if (!root || !stats) return;
+
+  const rows = store.cybernetTargetManifest || [];
+  if (!rows.length) {
+    root.style.display = 'none';
+    stats.textContent = '';
+    return;
+  }
+
+  const withHostname = rows.filter(r => r.hostname || r.dnsHostName).length;
+  const withSerial = rows.filter(r => r.serial).length;
+  const withMac = rows.filter(r => r.mac).length;
+  const missingDnsHost = rows.filter(r => !r.hostname && !r.dnsHostName).length;
+  const missingSerial = rows.filter(r => !r.serial).length;
+
+  stats.innerHTML = [
+    `<span><strong>${rows.length}</strong> manifest rows</span>`,
+    `<span><strong>${withHostname}</strong> with hostname/DNS</span>`,
+    `<span><strong>${withSerial}</strong> with serial</span>`,
+    `<span><strong>${withMac}</strong> with MAC</span>`,
+    `<span><strong>${missingDnsHost}</strong> missing hostname/DNS</span>`,
+    `<span><strong>${missingSerial}</strong> missing serial</span>`,
+  ].join(' · ');
+  root.style.display = '';
 }
 
 // Update software tab badge when store changes
