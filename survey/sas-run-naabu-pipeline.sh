@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # CDN-safe naabu pipeline — approved targets only, silent output, local artifacts.
+# Low-noise survey doctrine: AD-derived targets first, -silent/-ec defaults, JSON for
+# parsers, no target-side writes. See docs/LOW_NOISE_SURVEY_DOCTRINE.md. Runtime profiles
+# live in Config/cybernet-naabu-profiles.json (doctrine contract: survey/naabu_profiles.json).
 set -euo pipefail
 
 VERSION="0.1.0"
