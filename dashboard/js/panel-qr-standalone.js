@@ -8,7 +8,8 @@
   const QR_MAX_PAYLOAD = 2000;
   const TARGET_DIR_STANDARD = 'SysAdminSuite/dashboard/targets';
   const QR_LOCAL_LIB = 'js/vendor/qrcode.min.js';
-  const QR_CDN_LIB = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
+  // qrcode@1.5.4 npm tarball does not ship build/qrcode.min.js; 1.5.1 is the last CDN build artifact.
+  const QR_CDN_LIB = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js';
 
   let selectedTargets = [];
   let directoryHandle = null;

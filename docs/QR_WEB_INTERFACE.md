@@ -67,8 +67,10 @@ The standalone QR builder attempts to load a QR rendering library in this order:
 
 ```text
 js/vendor/qrcode.min.js
-https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js
+https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js
 ```
+
+The vendored file is a browser bundle built from `qrcode@1.5.4` (MIT). The CDN fallback uses `1.5.1` because newer npm releases no longer publish `build/qrcode.min.js`.
 
 For offline use, vendor the local file at:
 
