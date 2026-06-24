@@ -1,0 +1,4 @@
+Device Type,Deployed,Current Building,Install Building,Area/Unit/Dept,Room,Bay,Cybernet Hostname,Neuron Hostname,Neuron MAC,Cybernet Serial,Neuron S/N,Cybernet MAC,Anesthesia S/N,Medical Device S/N
+Neuron,Yes,LIJ Plainview Hospital,,OR,101,,NEURONONLY,NONLY01,00:11:22:33:44:55,S-CYB-001,S-NEU-001,00:AA:BB:CC:DD:EE,,
+Peripherals,Yes,NSUH - PSP,,OR,102,,BADPERIPH,N2,00:11:22:33:44:66,S-CYB-002,S-NEU-002,00:AA:BB:CC:DD:EF,,
+Cybernet-Neuron,Yes,LIJ Plainview Hospital,,OR,103,,HOSTTIX,N3,00:11:22:33:44:77,S-CYB-003,S-NEU-003,00:AA:BB:CC:DD:F0,,
