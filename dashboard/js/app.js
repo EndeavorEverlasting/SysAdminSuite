@@ -31,6 +31,7 @@ const TYPE_SECTION_LABELS = {
   'network-preflight': 'Network review',
   'smb-recon': 'Network review',
   'naabu-reachability': 'Reachability evidence',
+  'ad-registered-population': 'AD registered population',
   'remote-task': 'Remote tasks',
   'software-tracker': 'Software tracker',
   'software-superset': 'Software tracker',
@@ -56,6 +57,7 @@ const TYPE_TO_PANELS = {
   'naabu-reachability':  ['network'],
   'software-tracker':    ['software'],
   'software-superset':   ['software'],
+  'ad-registered-population': ['inventory', 'network'],
 };
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
@@ -347,6 +349,7 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'ram-info': '🧠', 'monitor-info': '🖥️', 'neuron-inventory': '🗂️',
     'smb-recon': '📂', 'status-json': '💚', 'remote-task': '⚡',
     'naabu-reachability': '🔌',
+    'ad-registered-population': '🏢',
     'software-tracker': '📦', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
@@ -576,12 +579,12 @@ const CYBERNET_TUTORIAL_STEPS = [
   {
     title: 'Load evidence and review',
     railLabel: 'Review package',
-    body: 'Drag recognized evidence CSVs into Load Evidence, then review the summary. Do not expect the dashboard to import normalized target manifests until parser support is added.',
-    command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)',
+    body: 'Drag recognized evidence CSVs into Load Evidence, then review the summary. AD registered population CSVs show candidate targets — not serial or reachability proof.',
+    command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)\n# survey/output/ad_reconcile/<run>/ad_registered_normalized.csv',
     checks: [
       'Classify environment blocks separately from product defects.',
       'Keep smoke-test evidence separate from feature validation.',
-      'cybernet_targets.csv from sas-survey-targets.sh is not a dashboard import yet.'
+      'Treat AD rows as registered computer accounts, not confirmed Cybernet identity.'
     ],
     note: 'Click Load resulting evidence below, or use Load Evidence on the hero card.',
     optional: false
@@ -1110,6 +1113,7 @@ function refreshAllPanels() {
   try { renderNetworkPanel(store); } catch(e) { console.warn('Network panel error:', e); }
   try { renderSoftwarePanel(store); } catch(e) { console.warn('Software panel error:', e); }
   updateCybernetReview();
+  updateCybernetAdPopulationSummary();
 }
 
 function _countUniqueTargets(rows, field = 'Target') {
@@ -1177,6 +1181,52 @@ function updateCybernetReview() {
     ${guestWarn ? `<p class="cybernet-review-warn">⚠ ${sanitize(guestWarn)}</p>` : ''}
     <p class="cybernet-review-next"><strong>Next:</strong> ${sanitize(nextAction)}</p>
   `;
+}
+
+function updateCybernetAdPopulationSummary() {
+  const root = document.getElementById('cybernet-ad-population-summary');
+  const stats = document.getElementById('cybernet-ad-population-stats');
+  if (!root || !stats) return;
+
+  const rows = store.adRegisteredPopulation || [];
+  if (!rows.length) {
+    root.classList.add('hidden');
+    stats.textContent = '';
+    return;
+  }
+
+  const enabled = rows.filter(r => {
+    const bucket = (r.ReconcileBucket || '').toLowerCase();
+    const en = String(r.Enabled ?? '').toLowerCase();
+    return bucket !== 'disabled' && en !== 'false' && bucket !== 'ad_disabled';
+  }).length;
+  const disabled = rows.filter(r => {
+    const bucket = (r.ReconcileBucket || '').toLowerCase();
+    const en = String(r.Enabled ?? '').toLowerCase();
+    return bucket === 'disabled' || bucket === 'ad_disabled' || en === 'false';
+  }).length;
+  const stale = rows.filter(r => (r.ReconcileBucket || '').toLowerCase() === 'stale').length;
+  const missingDns = rows.filter(r => !(r.DNSHostName || r.dnsHostName)).length;
+  const hostCounts = new Map();
+  for (const r of rows) {
+    const h = (r.HostName || '').toUpperCase();
+    if (h) hostCounts.set(h, (hostCounts.get(h) || 0) + 1);
+  }
+  const duplicates = [...hostCounts.values()].filter(n => n > 1).length;
+  const matchedManifest = rows.filter(r => (r.ReconcileBucket || '').toLowerCase() === 'matched').length;
+  const adOnly = rows.filter(r => (r.ReconcileBucket || '').toLowerCase() === 'ad_only').length;
+
+  stats.innerHTML = [
+    `<span><strong>${rows.length}</strong> registered computer accounts</span>`,
+    `<span><strong>${enabled}</strong> enabled candidates</span>`,
+    `<span><strong>${disabled}</strong> disabled</span>`,
+    `<span><strong>${stale}</strong> stale</span>`,
+    `<span><strong>${missingDns}</strong> missing DNS</span>`,
+    `<span><strong>${duplicates}</strong> duplicate names</span>`,
+    `<span><strong>${matchedManifest}</strong> matched manifest</span>`,
+    `<span><strong>${adOnly}</strong> AD-only</span>`,
+  ].join(' · ');
+  root.classList.remove('hidden');
 }
 
 // Update software tab badge when store changes

@@ -1,0 +1,8 @@
+HostName,DNSHostName,Enabled,ADStatus,ReconcileBucket,PopulationAuthority,LastLogonDate,Description
+CYBTEST001,CYBTEST001.sample.local,true,AD_REGISTERED,matched,ad_registered,2026-06-01,enabled matched fixture
+CYBTEST002,disabled.sample.local,false,AD_DISABLED,disabled,ad_registered,2026-06-01,disabled fixture
+CYBTEST003,stale.sample.local,true,AD_REGISTERED,stale,ad_registered,2024-01-01,stale fixture
+CYBTEST004,,true,AD_REGISTERED,missing_dns,ad_registered,2026-06-01,missing DNS fixture
+CYBTEST005,dup.sample.local,true,AD_REGISTERED,registered,ad_registered,2026-06-01,duplicate name A
+CYBTEST005,dup-b.sample.local,true,AD_REGISTERED,registered,ad_registered,2026-06-01,duplicate name B
+CYBTEST006,adonly.sample.local,true,AD_REGISTERED,ad_only,ad_registered,2026-06-01,AD-only fixture

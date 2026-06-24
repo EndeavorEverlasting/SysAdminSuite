@@ -28,6 +28,8 @@ const cases = [
   { file: 'status.json',                           expectedType: 'status-json',         minRows: null },
   { file: 'QRTask_log.json',                       expectedType: 'remote-task',         minRows: 3 },
   { file: 'RunControl_events.json',                expectedType: 'remote-task',         minRows: 3 },
+  { file: 'ad_registered_normalized.csv',            expectedType: 'ad-registered-population', minRows: 1 },
+  { file: 'ad_registered_population.sample.csv',    expectedType: 'ad-registered-population', minRows: 6 },
 ];
 
 // ── Naabu reachability parser cases (synthetic samples only) ────────────────
@@ -161,7 +163,16 @@ const contractChecks = [
   ['--targets-file /tmp/sas-cybernet/targets.txt', 'preflight/identity --targets-file'],
   ['--file /tmp/sas-cybernet/targets.txt', 'normalize --file reference'],
   ['keyports_cybernet_json', 'low-noise reachability profile'],
-  ['not a dashboard import yet', 'no false manifest import claim'],
+  ['ad-registered-population', 'AD parser type wired'],
+  ['store.adRegisteredPopulation', 'AD store wiring'],
+];
+
+const adContractChecks = [
+  ['cybernet-ad-population-summary', 'AD summary container in HTML'],
+  ['AD Registered Population', 'AD summary heading'],
+  ['registered computer accounts', 'AD population row label'],
+  ['not serial or reachability proof', 'no false AD proof claim'],
+  ['AD registered population', 'AD section label'],
 ];
 
 // ── Naabu reachability Cybernet review contracts (app.js) ───────────────────
@@ -204,6 +215,17 @@ for (const [needle, label] of naabuContractChecks) {
     shellFailed++;
   } else {
     console.log(`PASS [naabu-contract:${label}]`);
+    shellPassed++;
+  }
+}
+
+for (const [needle, label] of adContractChecks) {
+  const src = needle === 'cybernet-ad-population-summary' ? indexHtml : appJs;
+  if (!src.includes(needle)) {
+    console.error(`FAIL [ad-contract:${label}]: missing "${needle}"`);
+    shellFailed++;
+  } else {
+    console.log(`PASS [ad-contract:${label}]`);
     shellPassed++;
   }
 }
