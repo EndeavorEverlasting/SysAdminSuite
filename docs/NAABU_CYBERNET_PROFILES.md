@@ -86,7 +86,26 @@ bash survey/sas-cybernet-subnet-survey.sh --site SSUH --mode confirm-windows \
   --pipe-followup
 ```
 
-## Post-run parsing
+After confirm, the orchestrator auto-runs `sas-parse-naabu-evidence.sh` and writes:
+
+- `run_dir/resolver/<site>_naabu_reachability.csv`
+
+Re-parse without rescan:
+
+```bash
+bash survey/sas-cybernet-subnet-survey.sh --site SSUH --run-id <run-id> --mode parse-naabu-only
+```
+
+## Packaged artifacts (`package-only`)
+
+| Artifact | Typical path in bundle |
+|----------|------------------------|
+| Naabu JSON/txt | `logs/<site>_*_windows_ports_naabu.json` |
+| Followup JSONL | `logs/<site>_*_followup.jsonl` |
+| Reachability CSV | `resolver/<site>_naabu_reachability.csv` |
+| Manifest index | `PACKAGE_MANIFEST.txt` |
+
+## Post-run parsing (manual)
 
 ```bash
 bash survey/sas-parse-naabu-evidence.sh \
@@ -106,4 +125,5 @@ Optional Go normalizer: `probe/packet-expenditure/` (`sas-naabu-normalize`).
 
 ```bash
 bash Tests/bash/test_naabu_pipeline_contracts.sh
+bash Tests/bash/test_naabu_package_contracts.sh
 ```

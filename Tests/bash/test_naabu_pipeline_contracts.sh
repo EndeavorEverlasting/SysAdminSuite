@@ -74,10 +74,14 @@ grep -q 'sas-cybernet-packet-followup.sh' "$PLANNED" || { echo 'expected followu
 printf '10.10.10.1:443\n10.10.10.2:445\n' | bash "$FOLLOWUP" --site testsite --stdin --cybernet-detect > "$TMP/followup.jsonl"
 grep -q 'windows_endpoint' "$TMP/followup.jsonl" || { echo 'expected windows signal'; exit 1; }
 
-# Parse stub
-printf '10.10.10.1:80\n' > "$TMP/naabu.txt"
-bash "$PARSE" --naabu-output "$TMP/naabu.txt" --followup "$TMP/followup.jsonl" --output "$TMP/parsed.csv"
+# Parse with followup columns
+bash "$PARSE" --naabu-output "$FIX/naabu.sample.jsonl" --followup "$FIX/followup.sample.jsonl" --output "$TMP/parsed.csv"
 grep -q '10.10.10.1' "$TMP/parsed.csv" || { echo 'parse failed'; exit 1; }
+grep -q 'cybernet_signal' "$TMP/parsed.csv" || { echo 'parse missing cybernet_signal'; exit 1; }
+grep -q 'web_reachability' "$TMP/parsed.csv" || { echo 'parse missing followup signal'; exit 1; }
+
+# WinRM signal in followup
+printf '10.10.10.3:5985\n' | bash "$FOLLOWUP" --site testsite --stdin --cybernet-detect | grep -q 'winrm' || { echo 'expected winrm signal'; exit 1; }
 
 # Ensure naabu dry-run
 bash "$ENSURE" --dry-run >/dev/null || true
@@ -88,5 +92,12 @@ bash survey/sas-cybernet-subnet-survey.sh --site testsite --mode confirm-windows
   --output-root "$TMP/out" --logs-root "$TMP/logs" --run-id naabu001 --dry-run >/dev/null
 [[ -f "$TMP/out/testsite_naabu001/planned_commands.txt" ]]
 grep -q 'sas-run-naabu-pipeline.sh' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'survey runner missing pipeline'; exit 1; }
+grep -q 'sas-parse-naabu-evidence.sh' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'survey runner missing parse step'; exit 1; }
+
+# parse-naabu-only dry-run plans parse against latest artifact
+cp "$FIX/naabu.sample.jsonl" "$TMP/logs/testsite_latest_windows_ports_naabu.json"
+bash survey/sas-cybernet-subnet-survey.sh --site testsite --mode parse-naabu-only \
+  --output-root "$TMP/out2" --logs-root "$TMP/logs" --run-id parse001 --dry-run >/dev/null
+grep -q 'sas-parse-naabu-evidence.sh' "$TMP/out2/testsite_parse001/planned_commands.txt" || { echo 'parse-naabu-only missing parse'; exit 1; }
 
 printf 'Naabu pipeline contracts passed.\n'

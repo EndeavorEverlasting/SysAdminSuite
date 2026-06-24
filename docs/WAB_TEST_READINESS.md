@@ -102,6 +102,28 @@ If these fail while the host is on guest network, mark the result as:
 
 Do not mark it as a SysAdminSuite failure.
 
+### Phase 2b: Naabu CDN-safe reachability (authorized network only)
+
+After Phase 2 passes, validate the naabu pipeline on an **approved small host list** (not guest network). See [`NAABU_CYBERNET_PROFILES.md`](NAABU_CYBERNET_PROFILES.md).
+
+```bash
+bash survey/sas-ensure-naabu.sh
+bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile keyports_cdn_json \
+  --list targets.txt --out logs/nmap/SSUH_confirm.json --pipe-followup
+bash survey/sas-cybernet-subnet-survey.sh --site SSUH --run-id <run-id> --mode parse-naabu-only
+bash survey/sas-cybernet-subnet-survey.sh --site SSUH --run-id <run-id> --mode package-only --manifest survey/output/cybernet_targets_resolved.csv
+```
+
+Pass criteria:
+
+- `bin/naabu.exe` installs via GitHub release (Northwell: no winget).
+- `logs/nmap/SSUH_*_windows_ports_naabu.json` non-empty on live internal host.
+- `*_followup.jsonl` contains `cybernet_signal` when `--pipe-followup` used.
+- `run_dir/resolver/<site>_naabu_reachability.csv` exists after parse.
+- `PACKAGE_MANIFEST.txt` lists naabu logs + reachability CSV.
+
+Fail posture on guest network: `ENVIRONMENT_BLOCKED_GUEST_NETWORK`. Npcap/admin failures: `ENVIRONMENT_BLOCKED_POLICY`.
+
 ### Phase 3: Read-only network recon
 
 Only after Phase 2 passes:

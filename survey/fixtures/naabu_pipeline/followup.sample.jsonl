@@ -1,0 +1,2 @@
+{"timestamp":"2026-06-23T12:00:00Z","site":"testsite","host":"10.10.10.1","port":443,"protocol":"tcp","reachability":"open","cybernet_signal":"web_reachability","source":"naabu_silent_pipe"}
+{"timestamp":"2026-06-23T12:00:01Z","site":"testsite","host":"10.10.10.2","port":445,"protocol":"tcp","reachability":"open","cybernet_signal":"windows_endpoint","source":"naabu_silent_pipe"}

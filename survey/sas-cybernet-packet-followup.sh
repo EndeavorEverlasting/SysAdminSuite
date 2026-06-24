@@ -57,8 +57,12 @@ def signal(port_s, host):
         return "unknown"
     if not detect:
         return "open"
-    if port in (445, 139, 135):
+    if port in (445, 139):
         return "windows_endpoint"
+    if port == 135:
+        return "rpc_reachability"
+    if port in (5985, 5986):
+        return "winrm"
     if port == 3389:
         return "rdp"
     if port in (80, 443, 8080, 8443):

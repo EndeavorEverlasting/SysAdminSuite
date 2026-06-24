@@ -51,6 +51,7 @@ Modes:
   discover             Nmap -sn discovery (no-DNS + system-DNS) per CIDR
   confirm-windows      Narrow Windows port confirmation against a host file only
   resolve-only         Resolve manifest against existing Nmap XML evidence
+  parse-naabu-only     Parse existing naabu JSON/txt + followup into resolver CSV
   package-only         Package run outputs into survey/artifacts/
 
 Required:
@@ -88,7 +89,8 @@ Urgent path:
   3. discover
   4. resolve-only (--manifest)
   5. confirm-windows (--host-file) optional
-  6. package-only
+  6. parse-naabu-only (re-parse naabu artifacts without rescan)
+  7. package-only
 
 Generated output may contain operational network details. Do not commit it.
 USAGE
@@ -218,6 +220,49 @@ naabu_bin() {
   [[ -f "$vend" ]] && { printf '%s' "$vend"; return; }
   if command -v naabu.exe >/dev/null 2>&1; then command -v naabu.exe; return; fi
   command -v naabu 2>/dev/null || true
+}
+
+naabu_followup_path() {
+  local out="$1"
+  if [[ "$out" == *.json ]]; then
+    printf '%s' "${out%.json}_followup.jsonl"
+  else
+    printf '%s' "${out%.*}_followup.jsonl"
+  fi
+}
+
+pick_latest_naabu_output() {
+  local candidate
+  shopt -s nullglob
+  local -a matches=("$LOGS_ROOT"/${SITE}_*_windows_ports_naabu.json "$LOGS_ROOT"/${SITE}_*_windows_ports_naabu.txt)
+  shopt -u nullglob
+  if [[ ${#matches[@]} -eq 0 ]]; then
+    fail "No naabu output found under $LOGS_ROOT for site $SITE"
+  fi
+  candidate="$(ls -t "${matches[@]}" 2>/dev/null | head -n 1 || true)"
+  [[ -n "$candidate" ]] || fail "No naabu output found under $LOGS_ROOT for site $SITE"
+  printf '%s' "$candidate"
+}
+
+run_parse_naabu_evidence() {
+  local naabu_out="$1"
+  local followup_out="$2"
+  local csv_out="$3"
+  local -a parse_args=(
+    bash survey/sas-parse-naabu-evidence.sh
+    --naabu-output "$naabu_out"
+    --output "$csv_out"
+  )
+  [[ -n "$followup_out" ]] && parse_args+=(--followup "$followup_out")
+  [[ -n "$MANIFEST" && -f "$MANIFEST" ]] && parse_args+=(--manifest "$MANIFEST")
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '%s\n' "${parse_args[@]}" >> "$PLANNED_FILE"
+    log "DRY-RUN: ${parse_args[*]}"
+    return 0
+  fi
+  [[ -f "$naabu_out" ]] || fail "Naabu output not found for parse: $naabu_out"
+  mkdir -p "$(dirname "$csv_out")"
+  (cd "$REPO_ROOT" && "${parse_args[@]}")
 }
 
 ensure_run_dir() {
@@ -375,7 +420,15 @@ mode_confirm_windows() {
       else
         (cd "$REPO_ROOT" && "${pipeline_args[@]}")
       fi
-      append_summary "$RUN_DIR" "confirm-windows naabu profile=$NAABU_PROFILE out=$out followup=${PIPE_FOLLOWUP:+yes}"
+      local followup_out csv_out
+      followup_out="$(naabu_followup_path "$out")"
+      csv_out="$RESOLVER_DIR/${SITE}_naabu_reachability.csv"
+      if [[ "$PIPE_FOLLOWUP" -eq 1 || -f "$followup_out" ]]; then
+        run_parse_naabu_evidence "$out" "$followup_out" "$csv_out"
+      else
+        run_parse_naabu_evidence "$out" "" "$csv_out"
+      fi
+      append_summary "$RUN_DIR" "confirm-windows naabu profile=$NAABU_PROFILE out=$out followup=${PIPE_FOLLOWUP:+yes} parser=$csv_out"
       ;;
     *) fail "Unsupported --confirm-tool: $CONFIRM_TOOL (use nmap or naabu)" ;;
   esac
@@ -420,6 +473,18 @@ resolver_html=$RESOLVER_DASHBOARD"
   log "resolve-only complete"
 }
 
+mode_parse_naabu_only() {
+  ensure_run_dir
+  local naabu_out followup_out csv_out
+  naabu_out="$(pick_latest_naabu_output)"
+  followup_out="$(naabu_followup_path "$naabu_out")"
+  csv_out="$RESOLVER_DIR/${SITE}_naabu_reachability.csv"
+  [[ -f "$followup_out" ]] || followup_out=""
+  run_parse_naabu_evidence "$naabu_out" "$followup_out" "$csv_out"
+  append_summary "$RUN_DIR" "parse-naabu-only naabu=$naabu_out followup=${followup_out:-none} csv=$csv_out"
+  log "parse-naabu-only complete"
+}
+
 mode_package_only() {
   ensure_run_dir
   local artifact_dir="$REPO_ROOT/survey/artifacts/${SITE}_${RUN_ID}"
@@ -459,6 +524,7 @@ mode_package_only() {
   for f in \
     "$RESOLVER_OUTPUT" \
     "$RESOLVER_DASHBOARD" \
+    "$RUN_DIR/resolver/${SITE}_naabu_reachability.csv" \
     "$RUN_DIR/resolver/${SITE}_nmap_identity_resolver.csv" \
     "$RUN_DIR/resolver/${SITE}_nmap_identity_resolver.html" \
     "$REPO_ROOT/survey/output/${SITE}_nmap_identity_resolver.csv" \
@@ -520,6 +586,7 @@ case "$MODE" in
   discover) mode_discover ;;
   confirm-windows) mode_confirm_windows ;;
   resolve-only) mode_resolve_only ;;
+  parse-naabu-only) mode_parse_naabu_only ;;
   package-only) mode_package_only ;;
   *) fail "Unknown mode: $MODE" ;;
 esac
