@@ -1,4 +1,5 @@
-﻿<#
+﻿#Requires -Version 5.1
+<#
 .SYNOPSIS
     QR-friendly task dispatcher. One runner, many tasks.
 
@@ -19,7 +20,7 @@
 
 .EXAMPLE
     # QR payload (fits in a small QR code):
-    powershell.exe -NoP -EP Bypass -File "\\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
+    powershell.exe -NoP -EP Bypass -File "\server\Scripts\QRTasks\Invoke-TechTask.ps1" -Task RAMProfile
 
 .EXAMPLE
     # List all available tasks:
@@ -41,35 +42,21 @@ param(
 )
 
 function Resolve-TaskScriptRoot {
-    param(
-        [string]$RequestedRoot
-    )
+    param([string]$RequestedRoot)
 
     $fallbackReasons = @()
     $candidates = @()
     $localDispatcherRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $PSCommandPath }
 
     if (-not [string]::IsNullOrWhiteSpace($RequestedRoot)) {
-        $candidates += [pscustomobject]@{
-            Path   = $RequestedRoot
-            Reason = 'requested ScriptRoot'
-        }
+        $candidates += [pscustomobject]@{ Path = $RequestedRoot; Reason = 'requested ScriptRoot' }
     } else {
         $fallbackReasons += 'ScriptRoot not provided'
     }
 
-    $candidates += [pscustomobject]@{
-        Path   = '\\localhost\c$\Scripts\QRTasks'
-        Reason = 'localhost admin share fallback'
-    }
-    $candidates += [pscustomobject]@{
-        Path   = "\\$env:COMPUTERNAME\c$\Scripts\QRTasks"
-        Reason = 'computer admin share fallback'
-    }
-    $candidates += [pscustomobject]@{
-        Path   = $localDispatcherRoot
-        Reason = 'local dispatcher folder fallback'
-    }
+    $candidates += [pscustomobject]@{ Path = '\localhost\c$\Scripts\QRTasks'; Reason = 'localhost admin share fallback' }
+    $candidates += [pscustomobject]@{ Path = "\$env:COMPUTERNAME\c$\Scripts\QRTasks"; Reason = 'computer admin share fallback' }
+    $candidates += [pscustomobject]@{ Path = $localDispatcherRoot; Reason = 'local dispatcher folder fallback' }
 
     foreach ($candidate in $candidates) {
         if (Test-Path -LiteralPath $candidate.Path) {
@@ -96,11 +83,12 @@ if ($resolvedRoot.Resolution -ne 'primary path available') {
 # ── Task registry ────────────────────────────────────────────────────
 # Map short names to script filenames (relative to $ScriptRoot).
 $TaskMap = [ordered]@{
-    RAMProfile        = 'Get-RAMProfile.ps1'
-    ModelInfo         = 'Get-ModelInfo.ps1'
-    NetworkInfo       = 'Get-NetworkInfo.ps1'
-    Serials           = 'Get-Serials.ps1'
-    NeuronTrace       = 'Get-NeuronTrace.ps1'
+    RAMProfile          = 'Get-RAMProfile.ps1'
+    ModelInfo           = 'Get-ModelInfo.ps1'
+    NetworkInfo         = 'Get-NetworkInfo.ps1'
+    Serials             = 'Get-Serials.ps1'
+    NeuronTrace         = 'Get-NeuronTrace.ps1'
+    NeuronMaintenance   = 'Get-NeuronMaintenanceSnapshot.ps1'
     WinOptionalFeatures = 'Get-WindowsOptionalFeatures.ps1'
     PowerComfort        = 'Set-PowerComfortDefaults.ps1'
     PowerComfortRevert  = 'Restore-PowerComfortDefaults.ps1'
@@ -127,7 +115,6 @@ if (-not $TaskMap.Contains($Task)) {
 }
 
 $targetScript = Join-Path $ScriptRoot $TaskMap[$Task]
-
 if (-not (Test-Path -LiteralPath $targetScript)) {
     Write-Warning "Task script not found: $targetScript"
     return
@@ -169,4 +156,3 @@ if (Wait-Job -Job $script:CurrentTaskJob -Timeout $TaskTimeoutSec) {
     Remove-Job -Job $script:CurrentTaskJob -ErrorAction SilentlyContinue | Out-Null
     throw "Task '$Task' exceeded timeout ($TaskTimeoutSec s) and was force-stopped."
 }
-
