@@ -89,6 +89,14 @@ OCR/Jude's 2026 Buildout Project.pdf
 # Portable build output (local only)
 dist/
 
+# Local tool binaries (downloaded/built at runtime)
+bin/*
+!bin/.gitkeep
+
+# Field discovery runtime evidence (serials, IPs, DNS — live field data)
+evidence/*
+!evidence/.gitkeep
+
 # Local reference tree (install scripts, shortcuts, installers — not product code; never commit)
 tech emulation/
 Alex Emulation/
