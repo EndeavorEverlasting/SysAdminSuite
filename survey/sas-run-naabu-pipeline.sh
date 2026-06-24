@@ -7,7 +7,7 @@ set -euo pipefail
 
 VERSION="0.1.0"
 SITE=""
-PROFILE="keyports_cdn"
+PROFILE="keyports_cybernet_json"
 LIST=""
 HOST=""
 OUT=""
@@ -15,6 +15,8 @@ PROFILE_JSON=""
 PIPE_FOLLOWUP=0
 ALLOW_FULL_PORTS=0
 ALLOW_PUBLIC=0
+PROFILE_JUSTIFIED=0
+APPROVED_SUBNET_SCOPE=0
 DRY_RUN=0
 VERBOSE=0
 PLANNED_FILE=""
@@ -43,18 +45,25 @@ Target input (one required unless --dry-run with --host):
   --host URL               Hostname/URL for -sa multi-A scan (hostname_all_ips profile)
 
 Options:
-  --profile NAME           Profile from Config/cybernet-naabu-profiles.json. Default: keyports_cdn
+  --profile NAME           Profile from Config/cybernet-naabu-profiles.json. Default: keyports_cybernet_json
   --out PATH               Output file (txt or json per profile)
   --pipe-followup          Pipe naabu -silent stdout into sas-cybernet-packet-followup.sh
-  --allow-full-ports       Permit full_ports_cdn_guarded profile (-p - -ec)
+  --allow-full-ports       Permit allports_low_noise_json profile (-p - -ec)
+  --profile-justified      Acknowledge justification for justification-required profiles (UDP, all-ports)
+  --approved-subnet-scope  Acknowledge approved subnet scope for host-discovery profiles
   --allow-public           Permit public IPs in target list
   --dry-run                Write planned command only; no packets
   --planned-file PATH      Append planned command to file
   --verbose                Log resolved argv
   -h, --help               Show help
 
-Profiles: keyports_cdn, keyports_cdn_json, host_discovery_tcp80, udp_infrastructure,
-          hostname_all_ips, full_ports_cdn_guarded, windows_selected
+Profiles (doctrine: survey/naabu_profiles.json):
+  keyports_cybernet_json (default), keyports_cybernet_pipe, web_reachability_only_json,
+  web_reachability_only, allports_low_noise_json, udp_dns_snmp_json,
+  host_discovery_web_syn_txt, load_balanced_hostname_all_ips_json
+
+Backward-compatible aliases: keyports_cdn, keyports_cdn_json, windows_selected,
+  host_discovery_tcp80, udp_infrastructure, hostname_all_ips, full_ports_cdn_guarded
 
 Generated output may contain operational network details. Do not commit it.
 USAGE
@@ -120,13 +129,16 @@ build_naabu_argv() {
   local py tmp
   py="$(find_python)"
   tmp="$(mktemp)"
-  $py - "$PROFILE_JSON" "$PROFILE" "$LIST" "$HOST" "$OUT" "$ALLOW_FULL_PORTS" <<'PY' > "$tmp"
+  $py - "$PROFILE_JSON" "$PROFILE" "$LIST" "$HOST" "$OUT" "$ALLOW_FULL_PORTS" "$PROFILE_JUSTIFIED" "$APPROVED_SUBNET_SCOPE" <<'PY' > "$tmp"
 import json, sys
 
-profile_path, profile_id, list_path, host, out_path, allow_full = sys.argv[1:7]
+profile_path, profile_id, list_path, host, out_path, allow_full, justified, subnet_scope = sys.argv[1:9]
 allow_full = allow_full == "1"
+justified = justified == "1"
+subnet_scope = subnet_scope == "1"
 with open(profile_path, encoding="utf-8") as fh:
     cfg = json.load(fh)
+profile_id = cfg.get("profileAliases", {}).get(profile_id, profile_id)
 profiles = cfg.get("profiles", {})
 if profile_id not in profiles:
     print(f"unknown profile: {profile_id}", file=sys.stderr)
@@ -136,6 +148,17 @@ p = profiles[profile_id]
 if p.get("allowFullPorts") and not allow_full:
     print(f"profile {profile_id} requires --allow-full-ports", file=sys.stderr)
     sys.exit(3)
+
+# Justification-required profiles (UDP, all-ports). --allow-full-ports counts as the
+# explicit justification for the all-ports profile.
+if p.get("requiresJustification") and not (justified or (p.get("allowFullPorts") and allow_full)):
+    print(f"profile {profile_id} requires --profile-justified (justification required)", file=sys.stderr)
+    sys.exit(6)
+
+# Host-discovery against a subnet requires an explicit approved-scope acknowledgement.
+if p.get("requiresApprovedSubnetScope") and not subnet_scope:
+    print(f"profile {profile_id} requires --approved-subnet-scope (approved subnet scope required)", file=sys.stderr)
+    sys.exit(7)
 
 argv = []
 if p.get("requiresHost"):
@@ -237,6 +260,8 @@ while [[ $# -gt 0 ]]; do
     --out) OUT="${2:?}"; shift 2 ;;
     --pipe-followup) PIPE_FOLLOWUP=1; shift ;;
     --allow-full-ports) ALLOW_FULL_PORTS=1; shift ;;
+    --profile-justified) PROFILE_JUSTIFIED=1; shift ;;
+    --approved-subnet-scope) APPROVED_SUBNET_SCOPE=1; shift ;;
     --allow-public) ALLOW_PUBLIC=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --planned-file) PLANNED_FILE="${2:?}"; shift 2 ;;
@@ -251,8 +276,22 @@ done
 safe_site
 [[ -f "$PROFILE_JSON" ]] || fail "Missing $PROFILE_JSON"
 
-if [[ "$PROFILE" == "full_ports_cdn_guarded" && "$ALLOW_FULL_PORTS" -eq 0 ]]; then
-  fail "Profile full_ports_cdn_guarded requires --allow-full-ports"
+resolve_profile_alias() {
+  local py resolved
+  py="$(find_python)"
+  resolved="$($py - "$PROFILE_JSON" "$PROFILE" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    cfg = json.load(fh)
+print(cfg.get("profileAliases", {}).get(sys.argv[2], sys.argv[2]))
+PY
+)"
+  [[ -n "$resolved" ]] && PROFILE="$resolved"
+}
+resolve_profile_alias
+
+if [[ "$PROFILE" == "allports_low_noise_json" && "$ALLOW_FULL_PORTS" -eq 0 ]]; then
+  fail "Profile allports_low_noise_json requires --allow-full-ports"
 fi
 
 run_pipeline

@@ -1,91 +1,129 @@
 {
+  "_generated": "DO NOT EDIT BY HAND. Generated from survey/naabu_profiles.json by survey/sas-generate-naabu-runtime-profiles.sh. Edit the doctrine contract and re-run the generator.",
   "naabuVersion": "2.6.1",
-  "defaultProfile": "keyports_cdn",
+  "defaultProfile": "keyports_cybernet_json",
   "installDir": "bin",
+  "profileAliases": {
+    "keyports_cdn": "web_reachability_only",
+    "keyports_cdn_json": "web_reachability_only_json",
+    "windows_selected": "keyports_cybernet_json",
+    "host_discovery_tcp80": "host_discovery_web_syn_txt",
+    "udp_infrastructure": "udp_dns_snmp_json",
+    "hostname_all_ips": "load_balanced_hostname_all_ips_json",
+    "full_ports_cdn_guarded": "allports_low_noise_json"
+  },
   "profiles": {
-    "keyports_cdn": {
-      "description": "CDN-safe key ports (80,443) — default confirm lane",
-      "ports": "80,443",
-      "excludeCdn": true,
-      "silent": true,
-      "disableUpdateCheck": true,
-      "outputFormat": "txt",
-      "maxTargets": 256,
-      "allowFullPorts": false,
-      "pipelineFollowup": true,
+    "keyports_cybernet_json": {
+      "description": "Default Cybernet reachability validation profile. Durable JSON evidence for parser/package paths.",
       "hostDiscoveryOnly": false,
-      "udpProbes": false
-    },
-    "keyports_cdn_json": {
-      "description": "Same as keyports_cdn with JSON audit output",
-      "ports": "80,443",
+      "ports": "80,443,135,445,3389,5985,5986",
       "excludeCdn": true,
+      "udpProbes": false,
       "silent": true,
       "disableUpdateCheck": true,
       "outputFormat": "json",
       "maxTargets": 256,
       "allowFullPorts": false,
-      "pipelineFollowup": true,
+      "pipelineFollowup": true
+    },
+    "keyports_cybernet_pipe": {
+      "description": "Raw host:port stdout stream for local pipeline handoff into cybernet-detect enrichment. Not durable evidence.",
       "hostDiscoveryOnly": false,
-      "udpProbes": false
-    },
-    "host_discovery_tcp80": {
-      "description": "Host discovery only — ICMP echo + TCP SYN ping on port 80",
-      "hostDiscoveryOnly": true,
-      "probeIcmpEcho": true,
-      "probeTcpSynPorts": ["80"],
-      "silent": true,
-      "disableUpdateCheck": true,
-      "outputFormat": "txt",
-      "maxTargets": 256,
-      "allowFullPorts": false,
-      "pipelineFollowup": false
-    },
-    "udp_infrastructure": {
-      "description": "UDP DNS/SNMP with protocol probes (lab-only, elevated privileges)",
-      "ports": "u:53,u:161",
-      "udpProbes": true,
-      "silent": true,
-      "disableUpdateCheck": true,
-      "outputFormat": "txt",
-      "maxTargets": 64,
-      "allowFullPorts": false,
-      "pipelineFollowup": false
-    },
-    "hostname_all_ips": {
-      "description": "Hostname/URL with -sa (all DNS A records) and CDN-safe ports",
-      "ports": "80,443",
+      "ports": "80,443,135,445,3389,5985,5986",
       "excludeCdn": true,
-      "scanAllIps": true,
-      "silent": true,
-      "disableUpdateCheck": true,
-      "outputFormat": "txt",
-      "maxTargets": 1,
-      "allowFullPorts": false,
-      "pipelineFollowup": true,
-      "requiresHost": true
-    },
-    "full_ports_cdn_guarded": {
-      "description": "Full port scan with -ec (CDN hosts still capped to 80/443). Opt-in only.",
-      "ports": "-",
-      "excludeCdn": true,
-      "silent": true,
-      "disableUpdateCheck": true,
-      "outputFormat": "txt",
-      "maxTargets": 32,
-      "allowFullPorts": true,
-      "pipelineFollowup": false
-    },
-    "windows_selected": {
-      "description": "Narrow Windows endpoint ports on approved host list",
-      "ports": "135,139,445,3389,5985,5986,80,443",
-      "excludeCdn": true,
+      "udpProbes": false,
       "silent": true,
       "disableUpdateCheck": true,
       "outputFormat": "txt",
       "maxTargets": 256,
       "allowFullPorts": false,
       "pipelineFollowup": true
+    },
+    "web_reachability_only_json": {
+      "description": "Narrow web reachability (80,443) JSON evidence. CDN-safe key ports only.",
+      "hostDiscoveryOnly": false,
+      "ports": "80,443",
+      "excludeCdn": true,
+      "udpProbes": false,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "json",
+      "maxTargets": 256,
+      "allowFullPorts": false,
+      "pipelineFollowup": true
+    },
+    "web_reachability_only": {
+      "description": "Narrow web reachability (80,443) txt output for local pipeline handoff.",
+      "hostDiscoveryOnly": false,
+      "ports": "80,443",
+      "excludeCdn": true,
+      "udpProbes": false,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "txt",
+      "maxTargets": 256,
+      "allowFullPorts": false,
+      "pipelineFollowup": true
+    },
+    "allports_low_noise_json": {
+      "description": "All TCP ports against approved AD-derived hosts only. Justification required.",
+      "hostDiscoveryOnly": false,
+      "ports": "-",
+      "excludeCdn": true,
+      "udpProbes": false,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "json",
+      "maxTargets": 32,
+      "allowFullPorts": true,
+      "pipelineFollowup": false,
+      "requiresJustification": true
+    },
+    "udp_dns_snmp_json": {
+      "description": "UDP DNS/SNMP probe where the Cybernet survey requires UDP evidence. Justification required. Not default Phase 2b.",
+      "hostDiscoveryOnly": false,
+      "ports": "u:53,u:161",
+      "excludeCdn": true,
+      "udpProbes": true,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "json",
+      "maxTargets": 64,
+      "allowFullPorts": false,
+      "pipelineFollowup": false,
+      "requiresJustification": true
+    },
+    "host_discovery_web_syn_txt": {
+      "description": "Approved subnet host discovery using web-like SYN path. Not a population source; AD remains population authority.",
+      "hostDiscoveryOnly": true,
+      "probeIcmpEcho": true,
+      "probeTcpSynPorts": [
+        "80"
+      ],
+      "excludeCdn": true,
+      "udpProbes": false,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "txt",
+      "maxTargets": 256,
+      "allowFullPorts": false,
+      "pipelineFollowup": false,
+      "requiresApprovedSubnetScope": true
+    },
+    "load_balanced_hostname_all_ips_json": {
+      "description": "Resolve and scan all IPs for load-balanced hostnames. Use example.invalid in docs and tests.",
+      "hostDiscoveryOnly": false,
+      "ports": "80,443",
+      "excludeCdn": true,
+      "scanAllIps": true,
+      "udpProbes": false,
+      "silent": true,
+      "disableUpdateCheck": true,
+      "outputFormat": "json",
+      "maxTargets": 1,
+      "allowFullPorts": false,
+      "pipelineFollowup": false,
+      "requiresHost": true
     }
   }
 }
