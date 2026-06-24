@@ -114,9 +114,56 @@ norm_mac(){
     out=""; for ((i=0;i<12;i+=2)); do [[ -n "$out" ]] && out+=":"; out+="${hx:i:2}"; done; printf '%s' "$out"
   else printf '%s' "$(trim "$raw")"; fi
 }
-resolve_ip(){ if has_cmd getent; then getent ahostsv4 "$1" 2>/dev/null | awk 'NR==1{print $1; exit}'; else printf ''; fi; }
-resolve_name(){ if has_cmd getent; then getent hosts "$1" 2>/dev/null | awk 'NR==1{print $2; exit}'; else printf ''; fi; }
-ping_status(){ if ping -c 1 -W "$TIMEOUT" "$1" >/dev/null 2>&1; then printf 'Reachable'; else printf 'NoPing'; fi; }
+
+win_ping_cmd(){
+  for p in /c/Windows/System32/ping.exe /mnt/c/Windows/System32/ping.exe "${WINDIR:-}/System32/ping.exe"; do
+    [[ -n "$p" && -x "$p" ]] && { printf '%s' "$p"; return; }
+  done
+  return 1
+}
+
+win_ping_output(){
+  local target="$1" cmd
+  cmd="$(win_ping_cmd 2>/dev/null || true)"
+  [[ -n "$cmd" ]] || return 1
+  "$cmd" -n 1 -w "$(( TIMEOUT * 1000 ))" "$target" 2>&1
+}
+
+extract_ipv4(){
+  grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -n1 || true
+}
+
+resolve_ip(){
+  local out ip
+  if has_cmd getent; then
+    ip="$(getent ahostsv4 "$1" 2>/dev/null | awk 'NR==1{print $1; exit}')"
+    [[ -n "$ip" ]] && { printf '%s' "$ip"; return; }
+  fi
+  if out="$(win_ping_output "$1" 2>/dev/null)"; then
+    printf '%s\n' "$out" | extract_ipv4
+  fi
+}
+
+resolve_name(){
+  if has_cmd getent; then
+    getent hosts "$1" 2>/dev/null | awk 'NR==1{print $2; exit}'
+  else
+    printf ''
+  fi
+}
+
+ping_status(){
+  if ping -c 1 -W "$TIMEOUT" "$1" >/dev/null 2>&1; then
+    printf 'Reachable'
+    return
+  fi
+  if win_ping_output "$1" >/dev/null 2>&1; then
+    printf 'Reachable'
+  else
+    printf 'NoPing'
+  fi
+}
+
 arp_mac(){ local out mac; out="$(arp -a "$1" 2>/dev/null || true)"; mac="$(printf '%s' "$out" | grep -Eio '([0-9a-f]{2}[:-]){5}[0-9a-f]{2}' | head -n1 || true)"; norm_mac "$mac"; }
 ssh_identity(){
   local target="$1" dest cmd result lines host serial macs note
