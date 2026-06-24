@@ -2,7 +2,7 @@
 # CDN-safe naabu pipeline — approved targets only, silent output, local artifacts.
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.1.1"
 SITE=""
 PROFILE="keyports_cdn"
 LIST=""
@@ -14,7 +14,9 @@ ALLOW_FULL_PORTS=0
 ALLOW_PUBLIC=0
 DRY_RUN=0
 VERBOSE=0
+RATE=""
 PLANNED_FILE=""
+NAABU_ARGS=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -45,6 +47,7 @@ Options:
   --pipe-followup          Pipe naabu -silent stdout into sas-cybernet-packet-followup.sh
   --allow-full-ports       Permit full_ports_cdn_guarded profile (-p - -ec)
   --allow-public           Permit public IPs in target list
+  --rate N                 Optional naabu -rate value
   --dry-run                Write planned command only; no packets
   --planned-file PATH      Append planned command to file
   --verbose                Log resolved argv
@@ -64,6 +67,7 @@ vlog() { [[ "$VERBOSE" -eq 1 ]] && log "$@"; return 0; }
 find_python() {
   if command -v python3 >/dev/null 2>&1; then echo python3; return 0; fi
   if command -v python >/dev/null 2>&1; then echo python; return 0; fi
+  if command -v py >/dev/null 2>&1; then echo "py -3"; return 0; fi
   fail "Python 3 required"
 }
 
@@ -117,10 +121,10 @@ build_naabu_argv() {
   local py tmp
   py="$(find_python)"
   tmp="$(mktemp)"
-  $py - "$PROFILE_JSON" "$PROFILE" "$LIST" "$HOST" "$OUT" "$ALLOW_FULL_PORTS" <<'PY' > "$tmp"
+  $py - "$PROFILE_JSON" "$PROFILE" "$LIST" "$HOST" "$OUT" "$ALLOW_FULL_PORTS" "$RATE" <<'PY' > "$tmp"
 import json, sys
 
-profile_path, profile_id, list_path, host, out_path, allow_full = sys.argv[1:7]
+profile_path, profile_id, list_path, host, out_path, allow_full, rate = sys.argv[1:8]
 allow_full = allow_full == "1"
 with open(profile_path, encoding="utf-8") as fh:
     cfg = json.load(fh)
@@ -165,6 +169,11 @@ if p.get("silent", True):
     argv += ["-silent"]
 if p.get("disableUpdateCheck", True):
     argv += ["-duc"]
+if rate:
+    if not str(rate).isdigit() or int(rate) <= 0:
+        print("--rate must be a positive integer", file=sys.stderr)
+        sys.exit(6)
+    argv += ["-rate", str(rate)]
 
 fmt = p.get("outputFormat", "txt")
 if out_path:
@@ -186,7 +195,9 @@ PY
 
 run_pipeline() {
   local naabu_bin followup_out count
-  naabu_bin="$(bash "$ENSURE_SCRIPT" ${DRY_RUN:+--dry-run})"
+  local -a ensure_args=()
+  [[ "$DRY_RUN" -eq 1 ]] && ensure_args+=(--dry-run)
+  naabu_bin="$(bash "$ENSURE_SCRIPT" "${ensure_args[@]}")"
   vlog "naabu binary: $naabu_bin"
 
   if [[ -n "$LIST" ]]; then
@@ -197,15 +208,22 @@ run_pipeline() {
 
   build_naabu_argv
 
+  if [[ -n "$OUT" ]]; then
+    mkdir -p "$(dirname "$OUT")"
+  fi
+
   local cmd_display="$naabu_bin ${NAABU_ARGS[*]}"
   if [[ "$PIPE_FOLLOWUP" -eq 1 ]]; then
+    [[ -f "$FOLLOWUP_SCRIPT" ]] || fail "followup script not found: $FOLLOWUP_SCRIPT"
     followup_out="${OUT%.txt}_followup.jsonl"
     [[ "$OUT" == *.json ]] && followup_out="${OUT%.json}_followup.jsonl"
     [[ -z "$OUT" ]] && followup_out="logs/nmap/${SITE}_followup.jsonl"
+    mkdir -p "$(dirname "$followup_out")"
     cmd_display="${cmd_display} | bash ${FOLLOWUP_SCRIPT} --site ${SITE} --stdin --cybernet-detect > ${followup_out}"
   fi
 
   if [[ -n "$PLANNED_FILE" ]]; then
+    mkdir -p "$(dirname "$PLANNED_FILE")"
     printf '%s\n' "$cmd_display" >> "$PLANNED_FILE"
   fi
 
@@ -216,7 +234,6 @@ run_pipeline() {
 
   log "Running: $naabu_bin ${NAABU_ARGS[*]}"
   if [[ "$PIPE_FOLLOWUP" -eq 1 ]]; then
-    mkdir -p "$(dirname "$followup_out")"
     "$naabu_bin" "${NAABU_ARGS[@]}" | bash "$FOLLOWUP_SCRIPT" --site "$SITE" --stdin --cybernet-detect > "$followup_out"
     log "Followup JSONL: $followup_out"
   else
@@ -235,6 +252,7 @@ while [[ $# -gt 0 ]]; do
     --pipe-followup) PIPE_FOLLOWUP=1; shift ;;
     --allow-full-ports) ALLOW_FULL_PORTS=1; shift ;;
     --allow-public) ALLOW_PUBLIC=1; shift ;;
+    --rate) RATE="${2:?}"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --planned-file) PLANNED_FILE="${2:?}"; shift 2 ;;
     --verbose) VERBOSE=1; shift ;;
@@ -247,6 +265,7 @@ done
 [[ -n "$SITE" ]] || fail "--site is required"
 safe_site
 [[ -f "$PROFILE_JSON" ]] || fail "Missing $PROFILE_JSON"
+[[ -f "$ENSURE_SCRIPT" ]] || fail "Missing $ENSURE_SCRIPT"
 
 if [[ "$PROFILE" == "full_ports_cdn_guarded" && "$ALLOW_FULL_PORTS" -eq 0 ]]; then
   fail "Profile full_ports_cdn_guarded requires --allow-full-ports"
