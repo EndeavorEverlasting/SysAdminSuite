@@ -4,7 +4,8 @@ Set-StrictMode -Version Latest
 
 Describe 'Test-TargetReadiness script' {
     BeforeAll {
-        $script:scriptPath = Join-Path $PSScriptRoot '..' '..' 'scripts' 'powershell' 'Test-TargetReadiness.ps1'
+        $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        $script:scriptPath = [System.IO.Path]::Combine($repoRoot, 'scripts', 'powershell', 'Test-TargetReadiness.ps1')
         $script:scriptPath = (Resolve-Path -LiteralPath $script:scriptPath -ErrorAction Stop).Path
     }
 
