@@ -77,6 +77,12 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
     localStorage.setItem(STORAGE_KEY, value);
   }
 
+  function syncTutorialVisibility(root) {
+    const liveControls = document.getElementById('live-controls');
+    const liveActive = liveControls && liveControls.classList.contains('active');
+    root.style.display = liveActive ? '' : 'none';
+  }
+
   function ensureOsCard(root) {
     if (!root || document.getElementById('cybernet-os-preflight')) return;
     const card = document.createElement('div');
@@ -143,6 +149,10 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
     if (!root) return;
     ensureOsCard(root);
     patchCurrentStep();
+    syncTutorialVisibility(root);
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => setTimeout(() => syncTutorialVisibility(root), 0));
+    });
     root.addEventListener('click', () => setTimeout(patchCurrentStep, 0));
     const observer = new MutationObserver(() => patchCurrentStep());
     const titleEl = document.getElementById('cybernet-step-title');
