@@ -13,14 +13,43 @@ Use that path when a technician needs to survey an approved site subnet for Cybe
 
 1. Copy approved local target CSVs into `survey/input/`.
 2. Run the Bash runtime smoke test.
-3. Find local candidate subnets with `sas-find-local-subnets.sh`.
+3. Run `sas-cybernet-subnet-survey.sh` modes (or individual scripts below).
 4. Normalize targets with `sas-survey-targets.sh`.
-5. Capture local network context with `sas-device-snapshot.sh`.
-6. Run conservative approved Nmap discovery.
-7. Resolve Nmap output with `sas-resolve-nmap-evidence.sh`.
-8. Package local evidence from `survey/output/`, `survey/artifacts/`, and `logs/nmap/`.
+5. Package local evidence from `survey/artifacts/` and `logs/nmap/`.
 
 Field rule: this is read-only asset discovery. Do not commit live CSVs, scan output, dashboards, ZIPs, hostnames, MACs, serials, or site evidence.
+
+## Cybernet Subnet Survey Runner
+
+Bash-first orchestrator for the urgent field path. Read-only. No endpoint mutation.
+
+```bash
+bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode local-context-only
+bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode dns-list-only --subnet-file survey/output/local_subnet_finder/nsuh_<run-id>/subnet_candidates.txt
+bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode discover --cidr 10.10.10.0/24
+bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode resolve-only --manifest survey/output/cybernet_targets_resolved.csv
+bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode confirm-windows --host-file survey/output/cybernet_subnet_survey/nsuh_<run-id>/hosts/<cidr>_up.txt
+bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode package-only --manifest survey/output/cybernet_targets_resolved.csv
+```
+
+| Mode | Purpose |
+|---|---|
+| `local-context-only` | Subnet finder + copy context to `logs/network_context/` |
+| `dns-list-only` | `nmap -sL` DNS/list sanity (not host proof) |
+| `discover` | Dual `nmap -sn` discovery (no-DNS + system-DNS) |
+| `confirm-windows` | Narrow TCP/Naabu ports against a host file only |
+| `resolve-only` | Manifest + Nmap XML via `sas-resolve-nmap-evidence.sh` |
+| `package-only` | Bundle artifacts under `survey/artifacts/<site>_<run-id>/` |
+
+Windows launcher: `survey\sas-cybernet-subnet-survey.cmd` (requires Git Bash `bash` on PATH).
+
+Contract test:
+
+```bash
+bash tests/bash/test-cybernet-subnet-survey-contracts.sh
+```
+
+See [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) for the correlated `--run-id` example.
 
 ## Status
 

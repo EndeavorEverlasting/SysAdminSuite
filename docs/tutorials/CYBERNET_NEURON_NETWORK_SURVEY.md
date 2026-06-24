@@ -126,13 +126,19 @@ Do not proceed if the target list is empty or mostly `Unknown` unless the lead e
 
 ## Step 4 - Capture local network context
 
-Run this before Nmap so the lead can prove where the admin box was connected.
+Preferred: use the orchestrator (copies context to `logs/network_context/<site>_<run-id>/`):
+
+```bash
+bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode local-context-only
+```
+
+Manual alternative:
 
 ```bash
 bash survey/sas-device-snapshot.sh --output-dir logs/network_context
-ipconfig /all > logs/network_context/ipconfig_all.txt
-route print > logs/network_context/route_print.txt
-arp -a > logs/network_context/arp_initial.txt
+cmd.exe /c ipconfig /all > logs/network_context/ipconfig_all.txt
+cmd.exe /c route print > logs/network_context/route_print.txt
+cmd.exe /c arp -a > logs/network_context/arp_initial.txt
 ```
 
 Look for:
@@ -145,52 +151,62 @@ Look for:
 
 Do not guess the scan scope from vibes. Confirm the CIDR with the lead or network source.
 
-## Step 5 - Run the smallest useful Nmap discovery
+## Step 5 - DNS/list sanity and Nmap discovery
 
-Start with one approved `/24` unless a lead explicitly approves a different CIDR.
-
-No-DNS host discovery:
+Preferred orchestrator path:
 
 ```bash
-SITE="SITEKEY"
-CIDR="10.x.y.0/24"
-SAFE_NAME="${SITE}_10_x_y_0_24"
+SUBNET_FILE="survey/output/local_subnet_finder/${SITE}_${RUN_ID}/subnet_candidates.txt"
 
-nmap -sn -n --reason \
-  -oA "logs/nmap/${SAFE_NAME}_discovery_nodns" \
-  "$CIDR"
+bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode dns-list-only --subnet-file "$SUBNET_FILE"
+bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode discover --subnet-file "$SUBNET_FILE"
 ```
 
-DNS-aware host discovery:
+**Nmap can help with:** live hosts, DNS names, MACs on local L2, and XML evidence for the resolver.
+
+**Nmap does not provide serial numbers by itself.** Serial matching comes from manifests, trackers, AD/CMDB exports, or approved identity probes.
+
+Appendix — commands the runner executes per CIDR:
 
 ```bash
-nmap -sn --system-dns --reason \
-  -oA "logs/nmap/${SAFE_NAME}_discovery_dns" \
-  "$CIDR"
+nmap -sL "$CIDR" -oN "logs/nmap/${SITE}_<safe>_list_dns.txt"
+nmap -sn -n --reason -oA "logs/nmap/${SITE}_<safe>_discovery_no_dns" "$CIDR"
+nmap -sn --system-dns --reason -oA "logs/nmap/${SITE}_<safe>_discovery_dns" "$CIDR"
 ```
 
-Use the DNS-aware output for hostname matching when possible. Use the no-DNS output when DNS is stale, slow, or misleading.
+Start with one approved `/24` unless a lead explicitly approves a different CIDR. CIDRs broader than `/24` require `--allow-wide`. Public/non-RFC1918 CIDRs require `--allow-public`.
 
 ## Step 6 - Optional Windows service confirmation
 
-Only run this against live hosts found during discovery. This confirms likely Windows endpoints without running vulnerability scripts.
-
-Create a live host list from the discovery output if needed, then run:
+Only run against a **small host list** from discovery output. **Naabu** is acceptable only for narrow port reachability confirmation on that list — not for subnet-wide discovery.
 
 ```bash
-nmap -sT -Pn -p 135,139,445,3389 --reason --open \
-  -oA "logs/nmap/${SAFE_NAME}_windows_ports" \
-  -iL logs/nmap/live_hosts.txt
+HOSTS="survey/output/cybernet_subnet_survey/${SITE}_${RUN_ID}/hosts/<safe_cidr>_up.txt"
+bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode confirm-windows --host-file "$HOSTS"
+bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode confirm-windows --host-file "$HOSTS" --confirm-tool naabu --rate 50
 ```
 
-If you do not have `live_hosts.txt`, skip this step. Do not hand-build a huge list because you are impatient. Impatience is how garbage evidence gets born.
+Appendix — underlying nmap command:
+
+```bash
+nmap -sT -Pn -p 135,445,3389 --reason --open -iL "$HOSTS" -oA "logs/nmap/${SITE}_<safe>_windows_ports"
+```
+
+Do not pass a raw CIDR to confirm mode. Do not hand-build a huge list because you are impatient.
 
 ## Step 7 - Resolve Nmap evidence against the target manifest
 
-Use the DNS XML first:
-
 ```bash
-bash survey/sas-resolve-nmap-evidence.sh \
+bash survey/sas-cybernet-subnet-survey.sh \
+  --site "$SITE" \
+  --run-id "$RUN_ID" \
+  --mode resolve-only \
+  --manifest survey/output/cybernet_targets_resolved.csv
+```
+
+Optional `--nmap-xml PATH` overrides auto-picked `*_discovery_no_dns.xml`.
+
+Manual alternative (same resolver the runner calls):
   --manifest survey/output/cybernet_targets_resolved.csv \
   --nmap-output "logs/nmap/${SAFE_NAME}_discovery_dns.xml" \
   --nmap-format xml \
@@ -243,17 +259,26 @@ Do not mark a device found just because the subnet feels right. The judge reject
 
 ## Step 9 - Package the local evidence for the lead
 
-Recommended local handoff folder:
+Preferred:
 
 ```bash
-RUN_ID="$(date +%Y%m%d_%H%M%S)_${SAFE_NAME}"
-mkdir -p "survey/artifacts/${RUN_ID}"
-cp survey/output/*"${SAFE_NAME}"* "survey/artifacts/${RUN_ID}/" 2>/dev/null || true
-cp logs/network_context/* "survey/artifacts/${RUN_ID}/" 2>/dev/null || true
-cp logs/nmap/*"${SAFE_NAME}"* "survey/artifacts/${RUN_ID}/" 2>/dev/null || true
+bash survey/sas-cybernet-subnet-survey.sh \
+  --site "$SITE" \
+  --run-id "$RUN_ID" \
+  --mode package-only \
+  --manifest survey/output/cybernet_targets_resolved.csv
 ```
 
-Then zip the artifact folder locally using Windows Explorer or an approved internal method.
+Artifact directory: `survey/artifacts/${SITE}_${RUN_ID}/` with `PACKAGE_MANIFEST.txt`.
+
+Manual alternative:
+
+```bash
+mkdir -p "survey/artifacts/${SITE}_${RUN_ID}"
+cp survey/output/cybernet_targets_resolved.csv "survey/artifacts/${SITE}_${RUN_ID}/" 2>/dev/null || true
+cp logs/network_context/"${SITE}_${RUN_ID}"/* "survey/artifacts/${SITE}_${RUN_ID}/" 2>/dev/null || true
+cp logs/nmap/${SITE}_* "survey/artifacts/${SITE}_${RUN_ID}/" 2>/dev/null || true
+```
 
 Before you leave the admin box:
 
@@ -282,10 +307,8 @@ Stop and escalate when:
 2. Run Bash smoke test.
 3. Copy approved target CSVs into survey/input.
 4. Build manifest with sas-survey-targets.sh.
-5. Capture local network context.
-6. Run one approved Nmap -sn /24 discovery.
-7. Resolve Nmap XML against the manifest.
-8. Review exact/prefix/MAC/IP/missing results.
-9. Package local artifacts.
-10. Do not commit live data.
+5. Run sas-cybernet-subnet-survey.sh modes (local-context, dns-list, discover, resolve, optional confirm, package).
+6. Review exact/prefix/MAC/IP/missing results.
+7. Package local artifacts under survey/artifacts/.
+8. Do not commit live data.
 ```
