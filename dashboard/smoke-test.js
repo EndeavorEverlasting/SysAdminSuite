@@ -220,7 +220,9 @@ for (const [needle, label] of naabuContractChecks) {
 }
 
 for (const [needle, label] of adContractChecks) {
-  const src = needle === 'cybernet-ad-population-summary' ? indexHtml : appJs;
+  const src = (needle === 'cybernet-ad-population-summary' || needle === 'AD Registered Population')
+    ? indexHtml
+    : appJs;
   if (!src.includes(needle)) {
     console.error(`FAIL [ad-contract:${label}]: missing "${needle}"`);
     shellFailed++;
