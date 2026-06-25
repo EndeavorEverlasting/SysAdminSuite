@@ -100,6 +100,9 @@ def observed_host(row):
 def has_hard_identity(row):
     return bool(observed_serial(row) or observed_mac(row))
 
+def has_hostname_drift(row):
+    return first(row, ["identity_drift_status"]) == "hostname_drift" or first(row, ["log_status"]) == "hostname_drift"
+
 def has_populate_evidence(row):
     return bool(
         (first(row, ["can_populate_serial"]) == "yes" and observed_serial(row))
@@ -110,7 +113,6 @@ def has_populate_evidence(row):
 def cleanup_status(row):
     cls = first(row, ["classification"])
     log = first(row, ["log_status"])
-    drift = first(row, ["identity_drift_status"])
     can_serial = first(row, ["can_populate_serial"])
     can_mac = first(row, ["can_populate_mac"])
     exp_host = expected_host(row)
@@ -120,7 +122,7 @@ def cleanup_status(row):
 
     if cls == "manual_review" or log in {"serial_conflict", "mac_conflict"}:
         return "manual_review_required", "Do not update tracker automatically; verify source tracker and device evidence."
-    if drift == "hostname_drift" or log == "hostname_drift":
+    if has_hostname_drift(row) and has_hard_identity(row):
         extra = []
         if can_serial == "yes" and obs_serial:
             extra.append(f"populate serial {obs_serial}")
@@ -128,6 +130,8 @@ def cleanup_status(row):
             extra.append(f"populate MAC {observed_mac(row)}")
         suffix = f" Also {' and '.join(extra)}." if extra else ""
         return "hostname_drift", f"Update tracker hostname from {exp_host or '<blank>'} to {obs_host or '<blank>'}; keep serial as identity.{suffix}"
+    if has_hostname_drift(row) and not has_hard_identity(row):
+        return "no_tracker_update", "Hold tracker hostname change until serial or MAC evidence is collected."
     if can_serial == "yes" and obs_serial:
         return "populate_missing_serial", f"Populate tracker Cybernet serial with {obs_serial}."
     if can_mac == "yes" and observed_mac(row):
@@ -139,15 +143,16 @@ def cleanup_status(row):
 def priority(row):
     cls = first(row, ["classification"])
     log = first(row, ["log_status"])
-    drift = first(row, ["identity_drift_status"])
     reach = first(row, ["reachability_status"])
     evidence = first(row, ["evidence_source"])
     notes = first(row, ["notes","evidence_detail"])
 
     if cls == "manual_review" or log in {"serial_conflict", "mac_conflict"}:
         return "P0_manual_review", "Serial/MAC conflict", "Stop automation; verify tracker/source data and physical device evidence."
-    if drift == "hostname_drift" or log == "hostname_drift":
+    if has_hostname_drift(row) and has_hard_identity(row):
         return "P1_tracker_cleanup_only", "Serial identity resolved but hostname drifted", "Update tracker hostname; no physical revisit needed from this evidence alone."
+    if has_hostname_drift(row) and not has_hard_identity(row):
+        return "P3_wmi_or_network_retry", "Hostname drift was reported without serial or MAC evidence", "Collect serial or MAC evidence before updating tracker or clearing revisit."
     if has_populate_evidence(row):
         return "P1_tracker_cleanup_only", "Missing tracker fields can be populated", "Update tracker fields from observed evidence; no physical revisit needed from this evidence alone."
     if cls in {"identity_resolved", "live_serial_confirmed"} and has_hard_identity(row):
