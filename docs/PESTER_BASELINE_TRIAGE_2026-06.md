@@ -4,15 +4,16 @@ Read-only historical classification of the **46 failing tests** observed on the 
 
 ## Current status
 
-This triage is now historical. PR #46 was merged after the runs below and changed the Pester baseline materially.
+This triage is now historical. PR #46 was merged after the older runs below and changed the Pester baseline materially.
 
-Latest known post-PR #46 local validation:
+Latest known post-PR #46 validation:
 
 | Branch / context | Passed | Failed | Skipped | Source |
 |---|---:|---:|---:|---|
+| `main` (`9067787`) | 418 | **0** | 2 | Local Windows PowerShell run 2026-06-24 after fast-forward pull |
 | PR #46 branch, before merge | 418 | **0** | 2 | Local Windows PowerShell run 2026-06-24 |
 
-Do not use the old **46 failures** count as the current `main` baseline without rerunning the suite on current `main`.
+The old **46 failures** count is no longer the current `main` baseline. Current `main` is locally clean as of the run above.
 
 ## Entry point
 
@@ -30,7 +31,7 @@ Do not use the old **46 failures** count as the current `main` baseline without 
 
 **Historical conclusion:** The same **46 failures** appeared on old `main`, PR #61, and PR #62 at the time of this triage. They were **not introduced** by the Cybernet xlsx ingester (G) or targets-folder guard (X) when compared against that old baseline.
 
-**Current conclusion:** Rebase or refresh PR #61, PR #62, and PR #58 against current `main`, then rerun Pester before using this document as merge evidence.
+**Current conclusion:** Current `main` has since been locally validated clean. Rebase or refresh PR #61, PR #62, and PR #58 against current `main`, then rerun Pester before using their old CI results as merge evidence.
 
 ## Classification key
 
@@ -42,7 +43,7 @@ Do not use the old **46 failures** count as the current `main` baseline without 
 
 ## Historical failing tests (46)
 
-The following failures were observed before PR #46 merged. Treat this list as historical evidence only until it is remeasured on current `main`.
+The following failures were observed before PR #46 merged. Treat this list as historical evidence only.
 
 ### Deployment / mapping fixtures
 
@@ -117,7 +118,6 @@ The following failures were observed before PR #46 merged. Treat this list as hi
 
 ## Known gaps
 
-- This document has not yet been remeasured on current `main` after PR #46 merged.
 - PR #61 and PR #62 results cited here are pre-PR #46 measurements.
 - PR #58 may overlap with fixes already merged through PR #46 and must be reassessed before merge.
 - Bot review coverage on this PR was limited by external review rate limits.
@@ -125,16 +125,15 @@ The following failures were observed before PR #46 merged. Treat this list as hi
 ## Risks
 
 - Treating the historical **46 failures** count as current truth can create false blockers or hide newly introduced regressions.
-- Merging this document without the historical qualifier could mislead future PR review.
 - PR #58, PR #61, and PR #62 may need rebase/refresh work before their old validation claims remain valid.
+- This document preserves historical context only; it should not replace fresh validation for future feature PRs.
 
 ## Recommended next steps
 
-1. Pull current `main` and rerun `tools/Test-Pester5Suite.ps1`.
-2. Record the current `main` pass/fail/skip count in a new dated row or follow-up note.
-3. Rebase or update PR #58, PR #61, and PR #62 on current `main`.
-4. Rerun their validation after rebase.
-5. Use this document only as historical context unless those reruns confirm the same failures still exist.
+1. Rebase or update PR #58, PR #61, and PR #62 on current `main`.
+2. Rerun their validation after rebase.
+3. Use this document as historical context when explaining why old PR #61/#62 failures were not feature-caused.
+4. Do not use old pre-PR #46 CI counts as current merge evidence.
 
 ## Local reproduction
 
