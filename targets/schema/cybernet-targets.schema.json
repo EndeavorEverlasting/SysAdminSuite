@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CybernetTargetManifestRow",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "Identifier",
+    "IdentifierType",
+    "DeviceType",
+    "HostName",
+    "Serial",
+    "MACAddress",
+    "Source"
+  ],
+  "properties": {
+    "Identifier": { "type": "string", "minLength": 1 },
+    "IdentifierType": {
+      "type": "string",
+      "enum": ["HostName", "Serial", "MAC", "Unknown"]
+    },
+    "DeviceType": { "type": "string" },
+    "HostName": { "type": "string" },
+    "Serial": { "type": "string" },
+    "MACAddress": { "type": "string" },
+    "Source": { "type": "string" }
+  }
+}

@@ -1,52 +1,49 @@
-# Targets
+# Targets intake hub
 
-This folder is the intake hub for target-source handling in SysAdminSuite.
+`targets/` is the **official tracked intake hub** for target-list documentation, schemas, and **sanitized fixtures only**.
 
-Use this folder as the first place to document, stage locally, or reason about approved target sources before a workflow normalizes them, surveys them, or packages evidence.
+## What belongs here (tracked in git)
 
-## What belongs here
+- This README and other `*.md` policy or schema docs
+- `targets/schema/*.schema.json` — machine-readable manifest schemas
+- `targets/sanitized/**/*.{sample,example,fixture}.{csv,json}` — synthetic demo fixtures for tests and docs
+- `.gitkeep` files that preserve directory structure
 
-Tracked content should be documentation-first:
+## What does NOT belong here (local only)
 
-- README and policy notes
-- schema explanations
-- sanitized examples only when explicitly safe
-- instructions for local operators
-- notes that map target-source types to downstream workflows
+Live operational target material must **never** be committed:
 
-Local-only content may include approved live sources while an operator is actively working, but those files must not be committed.
+- Workbooks (`.xlsx`, `.xlsm`, `.xls`)
+- Raw CSV/TSV target exports with real hostnames, serials, MACs, or sites
+- ZIP archives of field evidence
+- Alejandro lists, deployment trackers, wave spreadsheets, or site-specific serial/MAC lists
 
-## What does not belong in git
+Place live files under **gitignored** local paths, for example:
 
-Do not commit live target files, including:
+- `targets/local/` — preferred local intake beside the hub (ignored)
+- `logs/targets/` — preserved historical local evidence store (ignored)
 
-- production target CSVs or tracker exports
-- serial-number lists
-- MAC-address lists
-- IP or subnet lists tied to a real site
-- raw AD, CMDB, SCCM, deployment tracker, Nmap, Naabu, preflight, or workstation identity evidence
-- dashboard exports or packaged survey ZIPs
+## Target manifest vs evidence
 
-## Intake versus runtime staging
+| Artifact | Role | Dashboard import |
+|----------|------|------------------|
+| Target manifest (`Identifier,IdentifierType,DeviceType,HostName,Serial,MACAddress,Source`) | Acquisition handoff / survey input | Only when parser support exists (PR #54) |
+| Network preflight CSV | Live posture evidence | Yes (recognized) |
+| Workstation identity CSV | Live identity evidence | Yes (recognized) |
 
-`targets/` is the intake hub. Runtime folders are still used by tools.
+Target manifests are **not** network evidence. Do not treat them as proof of reachability or identity.
 
-Typical flow:
+## Enforcement
 
-1. Put or describe the approved source under `targets/` locally.
-2. Normalize the source into a target manifest when needed.
-3. Stage tool-specific runtime inputs under `survey/input/` only when a workflow requires it.
-4. Keep generated outputs under `survey/output/`, `survey/artifacts/`, `logs/`, or `evidence/`.
-5. Commit only documentation, safe schemas, and sanitized examples.
+Run the mechanical guard before committing anything under `targets/`:
 
-## Target manifest versus evidence
+```bash
+python scripts/validate-targets-folder-policy.py
+bash Tests/bash/test-targets-folder-policy-contracts.sh
+```
 
-A target manifest says what the operator intends to check.
+## Related tooling
 
-Evidence says what a tool actually observed.
-
-Keep them separate. A dashboard should not be documented as importing a target manifest unless parser support for that exact schema exists.
-
-## Related policy
-
-See [`../docs/TARGETS_FOLDER_POLICY.md`](../docs/TARGETS_FOLDER_POLICY.md).
+- `survey/sas-cybernet-xlsx-targets.sh` — offline xlsx → manifest (explicit local workbook paths)
+- `survey/sas-survey-targets.sh` — normalize manifests for survey/audit workflows
+- `survey/input/` — runtime staging (gitignored)
