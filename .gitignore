@@ -124,6 +124,10 @@ logs/nmap/*
 logs/targets/*
 !logs/targets/.gitkeep
 
+# Northwell registry-first verification evidence (raw reg.exe output — live field data)
+logs/registry/*
+!logs/registry/.gitkeep
+
 # Cybernet subnet discovery runtime evidence (serials, IPs, DNS — live field data)
 evidence/*
 !evidence/.gitkeep
