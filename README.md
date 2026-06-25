@@ -10,6 +10,16 @@
 
 For most users, do not start with command-line tools.
 
+First, get the repo. Choose the parent folder where you want SysAdminSuite to live, then run:
+
+```bash
+git clone https://github.com/EndeavorEverlasting/SysAdminSuite.git
+```
+
+This creates the `SysAdminSuite` folder. Then open that folder and double-click `START-HERE-SysAdminSuite-Dashboard.bat`.
+
+Do not create a `SysAdminSuite` folder first and then clone inside it. That can create `SysAdminSuite\SysAdminSuite` and the launcher will not be at the top level.
+
 Double-click:
 
 `START-HERE-SysAdminSuite-Dashboard.bat`

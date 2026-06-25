@@ -14,6 +14,26 @@ This opens the local dashboard and tutorial page.
 
 Use CLI tools only when the dashboard or a runbook gives you a specific command.
 
+## How do I download SysAdminSuite?
+
+Choose the parent folder where you want SysAdminSuite to live (for example, your Desktop or a `dev` folder).
+
+Run:
+
+```bash
+git clone https://github.com/EndeavorEverlasting/SysAdminSuite.git
+```
+
+This creates the `SysAdminSuite` folder.
+
+Then open the `SysAdminSuite` folder and double-click:
+
+`START-HERE-SysAdminSuite-Dashboard.bat`
+
+**Do not** create a `SysAdminSuite` folder first and then clone inside it. That can create `SysAdminSuite\SysAdminSuite` and the launcher will not be at the top level where you expect it.
+
+No Git? Use the green **Code** button on the GitHub page, choose **Download ZIP**, then extract it. The extracted folder contains `START-HERE-SysAdminSuite-Dashboard.bat`.
+
 ## I just downloaded or cloned the repo. What do I click?
 
 Double-click **`START-HERE-SysAdminSuite-Dashboard.bat`** at the repo root.

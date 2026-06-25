@@ -10,6 +10,18 @@
 
 Compatibility aliases (same behavior, not the documented primary): **`START-HERE-SysAdminSuite-Dashboard.cmd`** and **`SysAdminSuite Dashboard.cmd`**.
 
+## Get the repo first (clone / download)
+
+Field users must clone or download before they can double-click. Tell them to pick a parent folder, then:
+
+```bash
+git clone https://github.com/EndeavorEverlasting/SysAdminSuite.git
+```
+
+This creates the `SysAdminSuite` folder; they then open it and double-click `START-HERE-SysAdminSuite-Dashboard.bat`.
+
+Warn against the common mistake: do **not** create a `SysAdminSuite` folder first and clone inside it, which produces `SysAdminSuite\SysAdminSuite` and hides the launcher one level deep. ZIP download via the GitHub **Code** button is an equivalent no-Git path.
+
 ## Launcher matrix
 
 | File | Audience | What it does |

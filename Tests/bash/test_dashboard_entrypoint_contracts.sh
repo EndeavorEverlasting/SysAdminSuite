@@ -64,6 +64,16 @@ grep -Fq 'http://127.0.0.1:5000/dashboard/' "$start_md" \
 grep -Fq 'flowchart TD' "$start_md" \
   || fail "START-HERE-SysAdminSuite.md is missing the Mermaid workflow diagram"
 
+# Clone/download wording: field users must be told where to clone from and warned
+# against the nested SysAdminSuite\SysAdminSuite mistake. Assert in the lay-user
+# front doors (README + START-HERE) and the agent canonical reference.
+for clone_doc in "$readme" "$start_md" "$entry_doc"; do
+  grep -Fq 'git clone https://github.com/EndeavorEverlasting/SysAdminSuite.git' "$clone_doc" \
+    || fail "$(basename "$clone_doc") is missing the git clone instruction"
+  grep -Fq 'SysAdminSuite\SysAdminSuite' "$clone_doc" \
+    || fail "$(basename "$clone_doc") is missing the nested-folder (SysAdminSuite\\SysAdminSuite) warning"
+done
+
 # Canonical docs must not present a .cmd as the primary field instruction.
 # grep is line-based, so .* matches "same line"; alternation covers both .cmd
 # aliases. A nearby alias mention on its own line (e.g. "...are compatibility
