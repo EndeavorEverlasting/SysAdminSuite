@@ -280,18 +280,26 @@ const CYBERNET_MANIFEST_FILENAMES = new Set([
 
 function isCybernetManifestHeader(firstLine) {
   const h = firstLine.toLowerCase();
-  const cybernetCols = [
-    'hostname', 'dnshostname', 'ipaddress', 'serial', 'serialnumber',
-    'site', 'location', 'neuron', 'workstation', 'mac',
-  ];
-  const hasCybernetCol = cybernetCols.some(c => h.includes(c));
-  if (!hasCybernetCol) return false;
-  if (h.includes('pingstatus') && (h.includes('port') || h.includes('mac'))) return false;
+
+  // Reject inventory / evidence schemas (defense in depth; detectFileType routes most of these first)
+  if (h.includes('monitorserials')) return false;
   if (h.includes('transportused') && h.includes('identitystatus')) return false;
   if (h.includes('targethost') && h.includes('matchexpected')) return false;
   if (h.includes('driver') && h.includes('port') && h.includes('status')) return false;
+  if (h.includes('pingstatus') && (h.includes('port') || h.includes('mac'))) return false;
+  if (h.includes('populationauthority') || h.includes('reconcilebucket')) return false;
+  if (h.includes('displaynumber') || h.includes('isprimary')) return false;
+  if (h.includes('capacitygb') || h.includes('memorytype')) return false;
+  if (h.includes('observedhostname') || h.includes('observedserial')) return false;
+  if (h.includes('lastseen') || h.includes('evidencesource')) return false;
+
+  // Manifest-specific positive signals only — avoid broad hostname/serial/site inventory CSVs
   if (h.includes('identifiertype') && h.includes('devicetype')) return true;
-  return hasCybernetCol;
+  if (h.includes('dnshostname')) return true;
+  if (h.includes('neuron')) return true;
+  if (h.includes('workstation') && !h.includes('identitystatus')) return true;
+
+  return false;
 }
 
 function normalizeCybernetHost(value) {

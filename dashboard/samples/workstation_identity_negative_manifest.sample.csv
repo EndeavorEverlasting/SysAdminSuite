@@ -1,0 +1,3 @@
+Target,ResolvedAddress,DnsName,PingStatus,TransportUsed,IdentityStatus,ObservedHostName,ObservedSerial,ObservedMACs,Notes,Timestamp
+SYNNEG101,10.10.10.101,synneg101.sample.local,Reachable,WMI,Collected,SYNNEG101,SN-NEG-101,AA:BB:CC:DD:01:01,,2026-06-25T08:00:00Z
+SYNNEG102,10.10.10.102,synneg102.sample.local,Reachable,SSH,Failed,,,,WMI access denied,2026-06-25T08:01:00Z

@@ -41,6 +41,13 @@ const naabuCases = [
   { file: 'cybernet_naabu.invalid.sample.jsonl',  expectedType: 'naabu-reachability', minRows: 1, minWarnings: 1 },
 ];
 
+// Generic filenames whose headers resemble manifest columns but must NOT classify as manifest
+const manifestNegativeCases = [
+  { file: 'machine_info_negative_manifest.sample.csv',      expectedType: 'machine-info' },
+  { file: 'workstation_identity_negative_manifest.sample.csv', expectedType: 'workstation-identity' },
+  { file: 'broad_inventory_negative_manifest.sample.csv',   expectedType: 'unknown' },
+];
+
 let passed = 0;
 let failed = 0;
 
@@ -99,6 +106,26 @@ for (const { file, expectedType, minRows, minWarnings } of naabuCases) {
 
   const warnNote = parsed.meta?.warnings?.length ? `, warnings=${parsed.meta.warnings.length}` : '';
   console.log(`PASS [${file}]: type="${detected}"${parsed.rows ? ', rows=' + parsed.rows.length : ''}${warnNote}`);
+  passed++;
+}
+
+for (const { file, expectedType } of manifestNegativeCases) {
+  const content = readFileSync(join(samplesDir, file), 'utf8');
+  const detected = detectFileType(file, content);
+
+  if (detected === 'cybernet-target-manifest') {
+    console.error(`FAIL [${file}]: must NOT classify as cybernet-target-manifest`);
+    failed++;
+    continue;
+  }
+
+  if (detected !== expectedType) {
+    console.error(`FAIL [${file}]: expected type="${expectedType}" got="${detected}" (not manifest)`);
+    failed++;
+    continue;
+  }
+
+  console.log(`PASS [${file}]: not manifest, type="${detected}"`);
   passed++;
 }
 
