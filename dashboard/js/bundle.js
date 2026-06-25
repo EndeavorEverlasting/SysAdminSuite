@@ -2948,95 +2948,81 @@ const STEPS = [
     target: '#header',
     title: 'Welcome to SysAdmin Suite Dashboard',
     body:
-      'This dashboard visualises output from SysAdminSuite scripts — printer mapping, ' +
-      'hardware inventory, network scans, remote tasks, and software tracking. ' +
-      "Let's walk through each section.",
+      'This dashboard guides Cybernet field surveys — find targets, verify network posture, ' +
+      'collect identity evidence, and package results for review. ' +
+      "Let's walk through the Cybernet-first workflow.",
     position: 'bottom',
   },
   {
-    target: '#mode-toggle',
-    title: 'Log Mode vs Live (Command-Gen) Mode',
+    target: '#hero-start-survey',
+    title: 'Start here',
     body:
-      '<strong>Log Mode</strong> lets you drag-and-drop CSV / JSON / XLSX files produced ' +
-      'by the suite scripts and visualise the results instantly.<br><br>' +
-      '<strong>Live Mode</strong> accepts a list of hostnames and generates the exact ' +
-      'probe commands to run on an admin Windows machine — copy, run, then drag the ' +
-      'resulting CSVs back here.',
+      'Tap <strong>Start Cybernet Survey</strong> to open the step-by-step wizard. ' +
+      'It walks you through target prep, network checks, identity evidence, reachability, ' +
+      'and packaging — with copy-ready commands for each step.',
     position: 'bottom',
   },
   {
-    target: '#panel-ingestion',
-    title: 'Loading Data',
+    target: '#cybernet-progress-rail',
+    title: 'Survey progress',
     body:
-      'Drop <strong>CSV, JSON, XLSX, or TXT</strong> files onto the drop zone, or click ' +
-      'it to browse. You can also use the <em>Paste / Type</em> button to paste raw CSV ' +
-      'or JSON directly.<br><br>' +
-      'The dashboard auto-detects file type by filename pattern ' +
-      '(e.g. <code>Results.csv</code>, <code>network_preflight.csv</code>, ' +
-      '<code>status.json</code>).',
+      'The progress rail shows where you are in the five-step survey: ' +
+      '<em>Targets</em> → <em>Network posture</em> → <em>Identity evidence</em> → ' +
+      '<em>Reachability</em> → <em>Review package</em>. ' +
+      'Labels update as you advance through the wizard.',
     position: 'bottom',
   },
   {
-    target: '[data-tab="printer"]',
-    title: 'Printer Mapping Tab',
+    target: '#drop-zone',
+    title: 'Load evidence',
     body:
-      'Shows the output of printer mapping runs — what queues are present, their status ' +
-      '(<em>PresentNow</em>, <em>PresentBefore</em>, <em>Added</em>, <em>Removed</em>), ' +
-      'and any preflight check results.<br><br>' +
-      'Load a <code>Results.csv</code> or <code>Preflight.csv</code> from a ' +
-      '<strong>Map-MachineWide</strong> run to populate this panel.',
+      'After running survey commands on an admin workstation, load the output here. ' +
+      'Drop <strong>CSV, JSON, XLSX, or TXT</strong> files onto the drop zone, or click to browse. ' +
+      'Use <em>Paste data</em> to paste raw CSV or JSON directly.<br><br>' +
+      'You can also open this panel from <strong>Load Evidence</strong> on the hero.',
     position: 'bottom',
-    clickTarget: '[data-tab="printer"]',
+    reveal: () => {
+      document.getElementById('evidence-loader')?.classList.remove('hidden');
+    },
   },
   {
-    target: '[data-tab="inventory"]',
-    title: 'Hardware Inventory Tab',
+    target: '#cybernet-review',
+    title: 'Review results',
     body:
-      'Displays machine identity data — serial numbers, IP addresses, MAC addresses, ' +
-      'RAM DIMMs, and monitor details collected by the <strong>Get-MachineInfo</strong>, ' +
-      '<strong>Get-RamInfo</strong>, and <strong>Get-MonitorInfo</strong> scripts.<br><br>' +
-      'Load a <code>MachineInfo_Output.csv</code>, <code>RamInfo_Output.csv</code>, or ' +
-      '<code>workstation_identity.csv</code> to see rows here.',
+      'Once recognized evidence is loaded, the review summary appears here — ' +
+      'a consolidated readout of your Cybernet survey package. ' +
+      'Use the link below to open detailed network evidence when you need more depth.',
     position: 'bottom',
-    clickTarget: '[data-tab="inventory"]',
+    reveal: () => {
+      document.getElementById('cybernet-review')?.classList.remove('hidden');
+    },
   },
   {
-    target: '[data-tab="tasks"]',
-    title: 'Remote Tasks Tab',
+    target: '#advanced-tools-toggle',
+    title: 'Advanced tools',
     body:
-      'Shows the run-control status and undo/redo history from controller and worker ' +
-      'sessions.<br><br>' +
-      'Load a <code>status.json</code> from a mapping run, or drag in a ' +
-      '<code>QRTask</code> log file to see task output here.',
+      'When you need capabilities beyond the Cybernet wizard — reviewing raw evidence, ' +
+      'generating survey commands, or opening detailed panels — use ' +
+      '<strong>Advanced Tools</strong> in the header.',
     position: 'bottom',
-    clickTarget: '[data-tab="tasks"]',
   },
   {
-    target: '[data-tab="network"]',
-    title: 'Network & Protocol Trace Tab',
+    target: '#advanced-section',
+    title: 'Details if needed',
     body:
-      'Visualises output from the network preflight and printer probe scripts — ' +
-      'reachability, DNS resolution, and per-port TCP status for every target.<br><br>' +
-      'Load a <code>network_preflight.csv</code> or <code>printer_probe.csv</code> ' +
-      'produced by <code>sas-network-preflight.sh</code> or <code>sas-printer-probe.sh</code>.',
+      'Inside Advanced Tools you can switch between <strong>Review Evidence</strong> and ' +
+      '<strong>Generate Survey Commands</strong>, import target lists, and open ' +
+      '<em>Advanced Review Panels</em> for printer mapping, hardware inventory, ' +
+      'remote tasks, network detail, and software tracking.',
     position: 'bottom',
-    clickTarget: '[data-tab="network"]',
-  },
-  {
-    target: '[data-tab="software"]',
-    title: 'Software Tracker Tab',
-    body:
-      'Cross-checks installed software against a known-good manifest from ' +
-      '<code>sources.yaml</code>. Highlights apps that are missing, out of date, or ' +
-      'present but not in the manifest.<br><br>' +
-      'Load a <code>software_tracker.csv</code> or a merged superset CSV from an ' +
-      '<strong>Inventory-Software</strong> run.',
-    position: 'bottom',
-    clickTarget: '[data-tab="software"]',
+    reveal: () => {
+      document.getElementById('advanced-section')?.classList.remove('hidden');
+      document.getElementById('advanced-tools-toggle')?.setAttribute('aria-expanded', 'true');
+    },
   },
   {
     target: '#status-footer',
-    title: 'Status Footer',
+    title: 'Status footer',
     body:
       'When a run-control <code>status.json</code> is loaded the footer shows a live ' +
       'heartbeat dot, the current stage, and the last timestamp — so you can monitor a ' +
@@ -3047,12 +3033,17 @@ const STEPS = [
     target: '#sas-tour-launch-btn',
     title: "You're all set!",
     body:
-      'That covers all the main sections of the SysAdmin Suite Dashboard.<br><br>' +
-      'You can relaunch this tour at any time by clicking the <strong>🗺 Tour</strong> ' +
-      'button in the header, or by pressing <kbd style="background:#0d1420;color:#f6ad55;' +
+      'That covers the Cybernet-first workflow on the SysAdmin Suite Dashboard.<br><br>' +
+      'You can relaunch this tour from <strong>Interactive tour</strong> inside ' +
+      '<strong>Advanced Tools</strong>, or by pressing ' +
+      '<kbd style="background:#0d1420;color:#f6ad55;' +
       'padding:1px 6px;border-radius:3px;font-size:11.5px;border:1px solid #3a5080">?</kbd> ' +
       'anywhere on the page.',
     position: 'bottom',
+    reveal: () => {
+      document.getElementById('advanced-section')?.classList.remove('hidden');
+      document.getElementById('advanced-tools-toggle')?.setAttribute('aria-expanded', 'true');
+    },
   },
 ];
 
@@ -3213,6 +3204,11 @@ function showStep(index) {
     if (clickEl) clickEl.click();
   }
 
+  // Reveal hidden sections before measuring target geometry
+  if (step.reveal) {
+    step.reveal();
+  }
+
   // Highlight target element
   clearHighlight();
   const targetEl = document.querySelector(step.target);
@@ -3245,6 +3241,10 @@ function showStep(index) {
   positionTooltip(targetEl, step.position || 'bottom');
 }
 
+function _isZeroSizeRect(rect) {
+  return !rect || (rect.width === 0 && rect.height === 0);
+}
+
 function positionTooltip(targetEl, position) {
   tooltip.style.left = '';
   tooltip.style.top = '';
@@ -3262,6 +3262,13 @@ function positionTooltip(targetEl, position) {
   // Wait one frame for the tooltip to be visible so we can read its size
   requestAnimationFrame(() => {
     const rect = targetEl.getBoundingClientRect();
+    if (_isZeroSizeRect(rect)) {
+      tooltip.style.top = '50%';
+      tooltip.style.left = '50%';
+      tooltip.style.transform = 'translate(-50%, -50%)';
+      return;
+    }
+
     const tw = tooltip.offsetWidth || 340;
     const th = tooltip.offsetHeight || 220;
     const vw = window.innerWidth;

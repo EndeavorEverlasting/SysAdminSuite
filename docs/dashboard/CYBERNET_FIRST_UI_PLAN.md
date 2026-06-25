@@ -82,3 +82,7 @@ All parsers, panels, Live Mode command generation (including low-noise naabu fro
 ## Unsupported import claims
 
 The normalized `cybernet_targets.csv` from `sas-survey-targets.sh` is **not** claimed as dashboard-importable until manifest parser support lands (PR #54). Wizard step 5 directs users to load recognized evidence CSVs only.
+
+## Interactive tour (Cybernet-first)
+
+The dashboard tour (`dashboard/js/tour.js`) follows the Cybernet-first DOM: hero CTA, progress rail, load evidence, review results, advanced tools, and status footer. Auto-launch is suppressed on first load (`sas_tour_v1_done` set in `app.js` before `initTour()`); relaunch via **Interactive tour** inside Advanced Tools or the `?` shortcut.
