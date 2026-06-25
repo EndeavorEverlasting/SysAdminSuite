@@ -1,0 +1,3 @@
+HostName,Serial,Site,Status,LastSeen,EvidenceSource
+SYNNEG201,SN-NEG-201,NSUH,Online,2026-06-01,survey/fixtures/broad_inventory_negative_manifest.sample.csv
+SYNNEG202,SN-NEG-202,NSUH,Offline,2026-05-15,survey/fixtures/broad_inventory_negative_manifest.sample.csv
