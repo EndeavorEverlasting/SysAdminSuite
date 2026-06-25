@@ -5,6 +5,7 @@
 
   const STORAGE_KEY = 'sasCybernetTutorialOs';
   const WINDOWS = 'windows-powershell';
+  const GIT_BASH = 'windows-gitbash';
   const BASH = 'bash-posix';
 
   const WINDOWS_PREFLIGHT = String.raw`$targets = Get-Content C:\Temp\sas-cybernet\targets.txt | Where-Object { $_.Trim() }
@@ -55,9 +56,16 @@ $rows = foreach ($target in $targets) {
 }
 $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
 
+  const GIT_BASH_PREFLIGHT = String.raw`bash bash/transport/sas-network-preflight.sh \
+  --targets-file /tmp/sas-cybernet/targets.txt \
+  --ports 135,445,3389,9100 \
+  --ping-mode windows \
+  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru`;
+
   const BASH_PREFLIGHT = String.raw`bash bash/transport/sas-network-preflight.sh \
   --targets-file /tmp/sas-cybernet/targets.txt \
   --ports 135,445,3389,9100 \
+  --ping-mode linux \
   --output /tmp/sas-cybernet/network_preflight.csv --pass-thru`;
 
   const BASH_IDENTITY = String.raw`bash bash/transport/sas-workstation-identity.sh \
@@ -65,12 +73,13 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
   --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru`;
 
   const notes = {
-    [WINDOWS]: 'Windows PowerShell mode avoids Git Bash ping/getent differences by using Resolve-DnsName, Test-Connection, and Test-NetConnection.',
-    [BASH]: 'Bash mode is for Linux, macOS, WSL, or a Bash environment where ping/getent behave like the scripts expect.'
+    [WINDOWS]: 'Windows PowerShell mode uses Resolve-DnsName, Test-Connection, and Test-NetConnection.',
+    [GIT_BASH]: 'Windows Git Bash mode keeps Bash output paths but forces Windows ping.exe syntax to avoid false NoPing results.',
+    [BASH]: 'Linux/macOS/WSL Bash mode uses POSIX ping flags. Do not use this for Git Bash on a Windows admin box.'
   };
 
   function normalizeOs(value) {
-    return value === WINDOWS || value === BASH ? value : WINDOWS;
+    return value === WINDOWS || value === GIT_BASH || value === BASH ? value : WINDOWS;
   }
 
   function selectedOs() {
@@ -105,6 +114,7 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
       <label for="cybernet-os-select">Choose the OS/shell that will run the commands:</label>
       <select id="cybernet-os-select">
         <option value="windows-powershell">Windows PowerShell / Windows admin box</option>
+        <option value="windows-gitbash">Windows Git Bash / Windows ping.exe</option>
         <option value="bash-posix">Linux/macOS/WSL Bash</option>
       </select>
       <div class="cybernet-os-note" id="cybernet-os-note"></div>
@@ -132,6 +142,12 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
     });
   }
 
+  function preflightCommandFor(os) {
+    if (os === WINDOWS) return WINDOWS_PREFLIGHT;
+    if (os === GIT_BASH) return GIT_BASH_PREFLIGHT;
+    return BASH_PREFLIGHT;
+  }
+
   function patchCurrentStep() {
     const titleEl = document.getElementById('cybernet-step-title');
     const commandEl = document.getElementById('cybernet-step-command');
@@ -144,7 +160,7 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
     if (osNoteEl) osNoteEl.textContent = notes[os] || notes[WINDOWS];
 
     if (title === 'Prove network posture first') {
-      commandEl.value = os === WINDOWS ? WINDOWS_PREFLIGHT : BASH_PREFLIGHT;
+      commandEl.value = preflightCommandFor(os);
       if (noteEl) noteEl.textContent = os === WINDOWS
         ? 'Run this in Windows PowerShell, then drag C:\\Temp\\sas-cybernet\\network_preflight.csv into the dashboard.'
         : 'Load network_preflight.csv into the Network tab after the command finishes.';
