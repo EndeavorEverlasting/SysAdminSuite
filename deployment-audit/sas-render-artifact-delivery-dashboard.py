@@ -17,13 +17,17 @@ from pathlib import Path
 SURVEY_RENDERER = Path(__file__).resolve().parents[1] / "survey" / "sas-render-artifact-delivery-dashboard.py"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     if not SURVEY_RENDERER.exists():
         print(f"Required renderer not found: {SURVEY_RENDERER}", file=sys.stderr)
         return 1
-    runpy.run_path(str(SURVEY_RENDERER), run_name="__main__")
-    return 0
+    namespace = runpy.run_path(str(SURVEY_RENDERER))
+    renderer_main = namespace.get("main")
+    if not callable(renderer_main):
+        print(f"Renderer main() not found: {SURVEY_RENDERER}", file=sys.stderr)
+        return 1
+    return int(renderer_main(argv))
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
