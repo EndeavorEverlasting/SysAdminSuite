@@ -58,7 +58,7 @@ function ConvertTo-Hashtable {
     return $h
 }
 
-function Normalize-Identifier {
+function ConvertTo-NormalizedIdentifier {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
     return ($Value.Trim() -replace '\s+', '').ToUpperInvariant()
@@ -66,7 +66,7 @@ function Normalize-Identifier {
 
 function Get-IdentifierType {
     param([string]$Value)
-    $v = Normalize-Identifier $Value
+    $v = ConvertTo-NormalizedIdentifier $Value
     if (-not $v) { return 'missing' }
     if ($v -match '^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$') { return 'mac' }
     if ($v -match 'HOST|OPR|PC|WKST|WKS') { return 'hostname' }
@@ -74,7 +74,7 @@ function Get-IdentifierType {
     return 'identifier'
 }
 
-function Escape-LdapValue {
+function ConvertTo-LdapEscapedValue {
     param([string]$Value)
     if ($null -eq $Value) { return '' }
     return ($Value -replace '\\','\5c' -replace '\*','\2a' -replace '\(','\28' -replace '\)','\29' -replace "`0",'\00')
@@ -219,7 +219,7 @@ function Find-WithADModule {
         }
     }
 
-    $safe = Escape-LdapValue $Identifier
+    $safe = ConvertTo-LdapEscapedValue $Identifier
     $filter = "(|(name=*$safe*)(dNSHostName=*$safe*)"
     if ($AllowDescriptionSearch) {
         $filter += "(description=*$safe*)"
@@ -227,9 +227,9 @@ function Find-WithADModule {
     $filter += ")"
 
     try {
-        $matches = @(Get-ADComputer -LDAPFilter $filter -Properties $props -ResultSetSize 5 -ErrorAction Stop)
-        if ($matches.Count -eq 1) {
-            $m = $matches[0]
+        $adMatches = @(Get-ADComputer -LDAPFilter $filter -Properties $props -ResultSetSize 5 -ErrorAction Stop)
+        if ($adMatches.Count -eq 1) {
+            $m = $adMatches[0]
             return New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType `
                 -ADHostname ([string]$m.Name) `
                 -DNSHostName ([string]$m.DNSHostName) `
@@ -239,11 +239,11 @@ function Find-WithADModule {
                 -ADProbeMethod 'active_directory_module_attribute_search' `
                 -Notes ("Matched one AD computer object. whenChanged={0}" -f $m.whenChanged)
         }
-        if ($matches.Count -gt 1) {
+        if ($adMatches.Count -gt 1) {
             return New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType `
                 -ADStatus 'ad_multiple_matches' `
                 -ADProbeMethod 'active_directory_module_attribute_search' `
-                -Notes ("Multiple candidate AD computer objects found: {0}" -f (($matches | Select-Object -ExpandProperty Name) -join ';'))
+                -Notes ("Multiple candidate AD computer objects found: {0}" -f (($adMatches | Select-Object -ExpandProperty Name) -join ';'))
         }
     } catch {
         return New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType `
@@ -275,11 +275,11 @@ function Find-WithDsquery {
         $raw = & dsquery.exe computer -name $Identifier 2>&1
         if ($LASTEXITCODE -eq 0 -and $raw) {
             $line = @($raw | Where-Object { $_ -and $_.ToString().Trim() } | Select-Object -First 1)[0]
-            $host = ''
-            if ($line -match '^"CN=([^,"]+)') { $host = $matches[1] }
-            elseif ($line -match '^CN=([^,]+)') { $host = $matches[1] }
+            $resolvedHost = ''
+            if ($line -match '^"CN=([^,"]+)') { $resolvedHost = $matches[1] }
+            elseif ($line -match '^CN=([^,]+)') { $resolvedHost = $matches[1] }
             return New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType `
-                -ADHostname $host `
+                -ADHostname $resolvedHost `
                 -DirectoryPath ([string]$line) `
                 -ADStatus 'ad_object_found' `
                 -ADProbeMethod 'dsquery_computer_name' `
@@ -297,7 +297,7 @@ function Find-WithDsquery {
     }
 }
 
-function Enrich-EvidenceRow {
+function Expand-EvidenceRow {
     param(
         [pscustomobject]$Row,
         [string]$Identifier,
@@ -370,7 +370,7 @@ $results = foreach ($raw in $manifestRows) {
     }
 
     if ($IncludeComputerOU -or $LookupHostnameAsUser) {
-        Enrich-EvidenceRow -Row $evidence -Identifier $identifier `
+        Expand-EvidenceRow -Row $evidence -Identifier $identifier `
             -WantComputerOU:$IncludeComputerOU -WantUserLookup:$LookupHostnameAsUser
     } else {
         $evidence
