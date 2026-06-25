@@ -92,7 +92,7 @@ function Read-JsonFile {
         $Errors.Value += "File not found: $Path"
         return $null
     }
-    try { return (Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -Depth 50) }
+    try { return (Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json) }
     catch {
         $Errors.Value += "Failed to parse JSON file '$Path': $($_.Exception.Message)"
         return $null
