@@ -81,7 +81,10 @@ def norm_mac(v):
     return ':'.join(hx[i:i+2] for i in range(0, 12, 2)) if len(hx) == 12 else (v or '').strip().upper()
 
 def choose_target(row, known):
-    for key in ['cybernet hostname', 'cybernet serial', 'cybernet mac']:
+    # Prefer immutable identity first. Hostname remains available as HostName and
+    # can be used by downstream tools as a transport hint when serial cannot be
+    # resolved directly.
+    for key in ['cybernet serial', 'cybernet hostname', 'cybernet mac']:
         if known.get(key):
             return known[key]
     return row.get('SurveyTargetHint') or row.get('ConflictValue') or ''
@@ -101,7 +104,7 @@ with open(requests_path, newline='', encoding='utf-8-sig') as src, open(output_p
         host = known.get('cybernet hostname', '')
         serial = known.get('cybernet serial', '')
         mac = norm_mac(known.get('cybernet mac', '')) if known.get('cybernet mac') else ''
-        identifier = target or host or serial or mac or row.get('ConflictValue', '')
+        identifier = serial or target or host or mac or row.get('ConflictValue', '')
         key = (identifier, row.get('ExcelRow'), row.get('ConflictField'), row.get('ConflictValue'))
         if key in seen:
             continue

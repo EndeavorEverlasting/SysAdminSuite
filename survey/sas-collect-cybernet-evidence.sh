@@ -11,6 +11,11 @@ TIMEOUT_SEC=5
 SSH_USER=""
 SSH_KEY=""
 ALLOW_SSH=0
+ALLOW_WMI=0
+WMI_USER=""
+WMI_PASS=""
+WMI_DOMAIN=""
+WMI_ADAPTER=""
 PASS_THRU=0
 IDENTITY_ADAPTER=""
 
@@ -29,13 +34,18 @@ Options:
   --ssh-user USER          Optional SSH username for SSH-capable targets
   --ssh-key PATH           Optional SSH private key
   --allow-ssh              Permit SSH read-only commands through the identity adapter
+  --allow-wmi              Permit read-only WMI identity collection through the identity adapter
+  --wmi-user USER          Optional WMI username. Prefer SAS_WMI_USER
+  --wmi-pass PASS          Optional WMI password. Prefer SAS_WMI_PASS
+  --wmi-domain DOMAIN      Optional WMI domain. Prefer SAS_WMI_DOMAIN
+  --wmi-adapter PATH       Optional WMI adapter path used by the identity adapter
   --pass-thru              Print evidence CSV after writing
   -h, --help               Show help
 
 Safety:
   - Read-only.
   - Does not change devices.
-  - SSH is disabled unless --allow-ssh is passed.
+  - SSH and WMI are disabled unless --allow-ssh/--allow-wmi are passed.
   - If no trusted transport is available, the tool still emits an evidence row with a clear status.
 
 Output columns:
@@ -61,6 +71,11 @@ while [[ $# -gt 0 ]]; do
     --ssh-user) SSH_USER="${2:?missing value for --ssh-user}"; shift 2 ;;
     --ssh-key) SSH_KEY="${2:?missing value for --ssh-key}"; shift 2 ;;
     --allow-ssh) ALLOW_SSH=1; shift ;;
+    --allow-wmi) ALLOW_WMI=1; shift ;;
+    --wmi-user) WMI_USER="${2:?missing value for --wmi-user}"; shift 2 ;;
+    --wmi-pass) WMI_PASS="${2:?missing value for --wmi-pass}"; shift 2 ;;
+    --wmi-domain) WMI_DOMAIN="${2:?missing value for --wmi-domain}"; shift 2 ;;
+    --wmi-adapter) WMI_ADAPTER="${2:?missing value for --wmi-adapter}"; shift 2 ;;
     --pass-thru) PASS_THRU=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "Unknown argument: $1" ;;
@@ -82,16 +97,23 @@ IDENTITY_CSV="$TMP_DIR/workstation_identity.csv"
 python3 - "$MANIFEST" "$TARGETS_FILE" <<'PY'
 import csv, sys
 manifest, out = sys.argv[1:3]
+
 def first(row, names):
-    lower={k.lower():v for k,v in row.items()}
+    lower={str(k).lower():v for k,v in row.items() if k is not None}
     for name in names:
         v=lower.get(name.lower())
         if v and str(v).strip(): return str(v).strip()
     return ''
+
 seen=[]
 with open(manifest, newline='', encoding='utf-8-sig') as f:
     for row in csv.DictReader(f):
-        target=first(row, ['HostName','Target','Identifier','SurveyTargetHint'])
+        # Serial is the stable identity, but live network collection still needs
+        # a transport hint such as hostname/IP. Prefer explicit probe hints and
+        # hostnames for the adapter. If no probe hint exists, fall back to serial
+        # so the adapter emits an unreachable/blocked evidence row instead of
+        # failing before the manifest can be reported.
+        target=first(row, ['ProbeTarget','SurveyTargetHint','HostName','Hostname','ComputerName','Computer','Name','Target','Identifier','MACAddress','ExpectedMAC','Serial','SerialNumber','ServiceTag','AssetSerial','ExpectedSerial','Cybernet Serial','Cybernet S/N'])
         if target and target not in seen: seen.append(target)
 with open(out, 'w', encoding='utf-8') as f:
     for target in seen: f.write(target+'\n')
@@ -104,6 +126,13 @@ if [[ -n "$IDENTITY_ADAPTER" ]]; then
     [[ -n "$SSH_USER" ]] && adapter_args+=(--ssh-user "$SSH_USER")
     [[ -n "$SSH_KEY" ]] && adapter_args+=(--ssh-key "$SSH_KEY")
   fi
+  if [[ "$ALLOW_WMI" -eq 1 ]]; then
+    adapter_args+=(--allow-wmi)
+    [[ -n "$WMI_USER" ]] && adapter_args+=(--wmi-user "$WMI_USER")
+    [[ -n "$WMI_PASS" ]] && adapter_args+=(--wmi-pass "$WMI_PASS")
+    [[ -n "$WMI_DOMAIN" ]] && adapter_args+=(--wmi-domain "$WMI_DOMAIN")
+    [[ -n "$WMI_ADAPTER" ]] && adapter_args+=(--wmi-adapter "$WMI_ADAPTER")
+  fi
   bash "${adapter_args[@]}" >/dev/null
 else
   printf 'Timestamp,Target,ResolvedAddress,PingStatus,DnsName,ObservedHostName,ObservedSerial,ObservedMACs,TransportUsed,IdentityStatus,Notes\n' > "$IDENTITY_CSV"
@@ -113,16 +142,26 @@ python3 - "$MANIFEST" "$OUTPUT" "$IDENTITY_CSV" <<'PY'
 import csv, datetime as dt, re, sys
 manifest, output, identity_csv = sys.argv[1:4]
 fields = ['Timestamp','ExcelRow','ConflictField','ConflictValue','InputIdentifier','Target','HostName','ExpectedSerial','ExpectedMAC','ResolvedAddress','PingStatus','DnsName','ObservedHostName','ObservedSerial','ObservedMACs','TransportUsed','EvidenceStatus','RevisitRecommendation','Notes']
+
 def first(row, names):
-    lower={k.lower():v for k,v in row.items()}
+    lower={str(k).lower():v for k,v in row.items() if k is not None}
     for name in names:
         v=lower.get(name.lower())
         if v and str(v).strip(): return str(v).strip()
     return ''
+
 def norm_mac(v):
     hx=re.sub(r'[^0-9A-Fa-f]','',v or '').upper()
     return ':'.join(hx[i:i+2] for i in range(0,12,2)) if len(hx)==12 else (v or '').strip().upper()
+
 def norm_serial(v): return re.sub(r'\s+','',(v or '').strip()).upper()
+
+def stable_target(row):
+    return first(row, ['Serial','SerialNumber','ServiceTag','AssetSerial','ExpectedSerial','Cybernet Serial','Cybernet S/N','Identifier','Target','HostName','Hostname','SurveyTargetHint','MACAddress','ExpectedMAC'])
+
+def probe_target(row):
+    return first(row, ['ProbeTarget','SurveyTargetHint','HostName','Hostname','ComputerName','Computer','Name','Target','Identifier','MACAddress','ExpectedMAC','Serial','SerialNumber','ServiceTag','AssetSerial','ExpectedSerial','Cybernet Serial','Cybernet S/N'])
+
 def verdict(ping_status, expected_serial, expected_mac, observed_serial, observed_macs, identity_status):
     evidence=[]
     if expected_serial and observed_serial:
@@ -135,6 +174,7 @@ def verdict(ping_status, expected_serial, expected_mac, observed_serial, observe
     if identity_status == 'IdentityCollected': return 'IdentityCollectedNeedsComparisonData','Collected identity, but tracker lacks expected serial/MAC for hard comparison'
     if ping_status == 'Reachable': return 'ReachableNeedsPrivilegedSurvey','Try approved identity transport before revisit'
     return 'Unreachable','Revisit justified only after network/remote-management path is exhausted'
+
 identity={}
 with open(identity_csv, newline='', encoding='utf-8-sig') as f:
     for row in csv.DictReader(f):
@@ -143,11 +183,12 @@ with open(identity_csv, newline='', encoding='utf-8-sig') as f:
 rows=[]
 with open(manifest, newline='', encoding='utf-8-sig') as f:
     for row in csv.DictReader(f):
-        target=first(row, ['HostName','Target','Identifier','SurveyTargetHint'])
-        host=first(row, ['HostName'])
-        expected_serial=first(row, ['Serial','ExpectedSerial','Cybernet Serial'])
+        target=stable_target(row)
+        probe=probe_target(row)
+        host=first(row, ['HostName','Hostname','ComputerName','Computer','Name'])
+        expected_serial=first(row, ['Serial','SerialNumber','ServiceTag','AssetSerial','ExpectedSerial','Cybernet Serial','Cybernet S/N'])
         expected_mac=norm_mac(first(row, ['MACAddress','ExpectedMAC','Cybernet MAC']))
-        ident=identity.get((host or target).upper(), identity.get(target.upper(), {}))
+        ident=identity.get((probe or '').upper(), identity.get((host or '').upper(), identity.get((target or '').upper(), {})))
         ping_status=first(ident, ['PingStatus'])
         identity_status=first(ident, ['IdentityStatus'])
         observed_serial=first(ident, ['ObservedSerial'])

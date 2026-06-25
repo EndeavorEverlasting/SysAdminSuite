@@ -192,13 +192,20 @@ def load_index(path, source):
 def lookup(index, value):
     return (index.get(key(value)) or [None])[0]
 
+def serial_from_manifest(row):
+    return first(row, [
+        "expected_cybernet_serial","ExpectedCybernetSerial","ExpectedSerial","Expected Serial",
+        "Serial","SerialNumber","ServiceTag","AssetSerial","Cybernet Serial","Cybernet S/N",
+    ])
+
 def manifest_record(row):
     cyber_host = first(row, ["Cybernet Hostname","CybernetHostName","Cybernet Host","HostName","Hostname"])
     neuron_host = first(row, ["Neuron Hostname","NeuronHostName","Neuron Host"])
-    cyber_serial = first(row, ["expected_cybernet_serial","ExpectedCybernetSerial","Cybernet Serial","Cybernet S/N"])
+    cyber_serial = serial_from_manifest(row)
     neuron_serial = first(row, ["expected_neuron_serial","ExpectedNeuronSerial","Neuron S/N","Neuron Serial"])
-    mac = norm_mac(first(row, ["expected_mac","ExpectedMAC","MACAddress","MAC"]))
-    target = first(row, ["target","Target","SurveyTargetHint","Identifier","HostName","Hostname","Cybernet Serial","Neuron S/N","MACAddress"]) or cyber_host or neuron_host or cyber_serial or neuron_serial or mac
+    mac = norm_mac(first(row, ["expected_mac","ExpectedMAC","MACAddress","MAC"] ))
+    stable_serial = cyber_serial or neuron_serial
+    target = stable_serial or first(row, ["target","Target","SurveyTargetHint","Identifier","HostName","Hostname","MACAddress"]) or cyber_host or neuron_host or mac
     typ = ident_type(target)
     expected_host = cyber_host or neuron_host or (target if typ == "hostname" else "")
     return {
@@ -212,6 +219,21 @@ def manifest_record(row):
         "expected_neuron_serial": neuron_serial,
         "expected_mac": mac,
     }
+
+def lookup_candidates(rec):
+    # Serial is the primary identity. Hostname is only a fallback because it can drift.
+    values = [
+        rec["expected_cybernet_serial"],
+        rec["expected_neuron_serial"],
+        rec["input_identifier"],
+        rec["expected_mac"],
+        rec["expected_hostname"],
+    ]
+    out = []
+    for value in values:
+        if value and value not in out:
+            out.append(value)
+    return out
 
 def drift(expected, resolved, typ):
     expected, resolved = norm_id(expected), norm_id(resolved)
@@ -285,12 +307,19 @@ with open(manifest, newline="", encoding="utf-8-sig") as handle:
         rec = manifest_record(raw)
         attempted = ["manifest_match"]
         ev = None
+        candidates = lookup_candidates(rec)
         if identity_csv:
             attempted.append("identity_csv_lookup")
-            ev = lookup(identity, rec["input_identifier"])
+            for candidate in candidates:
+                ev = lookup(identity, candidate)
+                if ev is not None:
+                    break
         if ev is None and ad_csv:
             attempted.append("ad_csv_lookup")
-            ev = lookup(ad, rec["input_identifier"])
+            for candidate in candidates:
+                ev = lookup(ad, candidate)
+                if ev is not None:
+                    break
         if ev is None:
             ev = empty("Identifier is not resolved by supplied evidence sources")
 
