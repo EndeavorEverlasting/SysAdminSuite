@@ -4,6 +4,8 @@ Date: 2026-06-24
 Branch: `feature/qr-dashboard-convergence-plan-2026-06`
 Base: `origin/main` at `2f526ed` or newer after fetch
 
+Implementation gate: [QR Implementation Readiness](./QR_IMPLEMENTATION_READINESS.md) (`plan/qr-advanced-tools-readiness-2026-06`).
+
 ## Scope
 
 This is a planning-only handoff for converging the open QR work after the Cybernet-first dashboard UI from PR #66. Do not merge PR #47 or PR #43 as part of this plan, and do not modify dashboard UI in this branch.
