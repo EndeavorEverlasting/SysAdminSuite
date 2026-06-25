@@ -60,7 +60,8 @@ grep -Fq 'flowchart TD' "$start_md" \
   || fail "START-HERE-SysAdminSuite.md is missing the Mermaid workflow diagram"
 
 # Canonical docs must not present a .cmd as the primary field instruction.
-grep -Eq 'Double-click[^\n]*START-HERE-SysAdminSuite-Dashboard\.cmd' "$start_md" \
+# grep is line-based, so .* (not a newline-excluding class) matches "same line".
+grep -Eq 'Double-click.*START-HERE-SysAdminSuite-Dashboard\.cmd' "$start_md" \
   && fail "START-HERE-SysAdminSuite.md must not present .cmd as the primary double-click"
 grep -Fq 'rel="icon"' "$index" \
   || fail "dashboard/index.html missing favicon link"
