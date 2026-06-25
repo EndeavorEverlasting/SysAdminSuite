@@ -100,6 +100,13 @@ def observed_host(row):
 def has_hard_identity(row):
     return bool(observed_serial(row) or observed_mac(row))
 
+def has_populate_evidence(row):
+    return bool(
+        (first(row, ["can_populate_serial"]) == "yes" and observed_serial(row))
+        or (first(row, ["can_populate_mac"]) == "yes" and observed_mac(row))
+        or (first(row, ["log_status"]) == "populate_missing_fields" and has_hard_identity(row))
+    )
+
 def cleanup_status(row):
     cls = first(row, ["classification"])
     log = first(row, ["log_status"])
@@ -141,7 +148,7 @@ def priority(row):
         return "P0_manual_review", "Serial/MAC conflict", "Stop automation; verify tracker/source data and physical device evidence."
     if drift == "hostname_drift" or log == "hostname_drift":
         return "P1_tracker_cleanup_only", "Serial identity resolved but hostname drifted", "Update tracker hostname; no physical revisit needed from this evidence alone."
-    if log == "populate_missing_fields" or first(row, ["can_populate_serial"]) == "yes" or first(row, ["can_populate_mac"]) == "yes":
+    if has_populate_evidence(row):
         return "P1_tracker_cleanup_only", "Missing tracker fields can be populated", "Update tracker fields from observed evidence; no physical revisit needed from this evidence alone."
     if cls in {"identity_resolved", "live_serial_confirmed"} and has_hard_identity(row):
         return "P2_no_revisit_needed", "Identity confirmed by serial or MAC evidence", "No revisit needed based on supplied evidence."
