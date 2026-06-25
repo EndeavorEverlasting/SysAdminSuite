@@ -17,6 +17,23 @@ This hierarchy exists now and will grow. Agents MUST NOT rearrange or collapse i
 
 ---
 
+## Dashboard field entry (web UI)
+
+For lay users opening the **web dashboard**, the front door is a double-click launcher — not CLI.
+
+| User type | Double-click |
+|-----------|--------------|
+| Field user | `START-HERE-SysAdminSuite-Dashboard.cmd` or `SysAdminSuite Dashboard.cmd` |
+| IT / developer | `Launch-SysAdminSuiteDashboard.Host.bat` |
+
+Canonical agent reference: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).
+
+Planned `.exe` shortcut sprint: [`docs/DASHBOARD_EXE_FUTURE_SPRINT.md`](docs/DASHBOARD_EXE_FUTURE_SPRINT.md).
+
+Do **not** direct field users to `python3 -m http.server`, raw `dotnet` commands, or Bash survey scripts as the default dashboard path.
+
+---
+
 ## CRITICAL — PowerShell Is NOT Dead Code
 
 **PowerShell scripts in this repository are active, production-relevant tooling.**

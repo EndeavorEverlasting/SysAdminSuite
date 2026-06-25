@@ -19,6 +19,10 @@ public sealed class DashboardStaticServerTests : IDisposable
         File.WriteAllText(Path.Combine(jsDir, "app.js"), "console.log('ok');");
         File.WriteAllText(Path.Combine(_root, "style.css"), "body{}");
         File.WriteAllText(Path.Combine(_root, "sample.json"), "{}");
+        var assetsDir = Path.Combine(_root, "assets");
+        Directory.CreateDirectory(assetsDir);
+        File.WriteAllText(Path.Combine(assetsDir, "harold.jpg"), "jpegbytes");
+        File.WriteAllText(Path.Combine(assetsDir, "harold.jpeg"), "jpegbytes");
     }
 
     public void Dispose()
@@ -54,6 +58,8 @@ public sealed class DashboardStaticServerTests : IDisposable
     [Theory]
     [InlineData("/dashboard/style.css", "text/css; charset=utf-8")]
     [InlineData("/dashboard/sample.json", "application/json; charset=utf-8")]
+    [InlineData("/dashboard/assets/harold.jpg", "image/jpeg")]
+    [InlineData("/dashboard/assets/harold.jpeg", "image/jpeg")]
     public void Resolve_KnownMimeTypes_AreApplied(string url, string expectedMime)
     {
         var result = DashboardStaticServer.Resolve(url, _root);
