@@ -1,8 +1,8 @@
 # PR66 Browser QA Status
 
-Branch: `feature/cybernet-first-dashboard-ui-2026-06`  
-SHA: `376f5da7c231c2bc89d443c758f046195d299b7d` (QA run; branch advances with this QA doc commit)
-Date: 2026-06-24  
+Branch: `feature/cybernet-first-dashboard-ui-2026-06` (merged to `main` via PR #66)
+QA doc commits: `376f5da` (blocker note) → `8c5fbf8` / `1b1557f` (PASS); merged on `main` @ `9e51130`
+Date: 2026-06-24
 Browser: Microsoft Edge 149.0.4022.80 (Playwright `msedge` channel, headless)
 OS: Windows 10.0.26200
 
@@ -92,11 +92,41 @@ Verified with `cybernet-os-preflight.js` OS selector set to **Linux/macOS/WSL Ba
 
 ## Recommended PR action
 
-1. Merge PR #65 (low-noise doctrine) first.
-2. Rebase or update PR #66 onto updated `main`.
-3. Merge PR #66 — browser QA **PASS**.
+**Completed (2026-06-25):** PR #65 merged, PR #66 rebased and merged to `main` @ `9e51130`. Browser QA **PASS** stands.
 
 ## Follow-up (non-blocking)
 
-- Naabu JSON parser for review summary (filename match today).
-- Tour refresh for Cybernet-first DOM (`tour.js`).
+- Naabu JSON parser for review summary — **PR #68** (`feature/dashboard-naabu-json-review-2026-06`).
+- Tour refresh for Cybernet-first DOM — **PR #67** (`feature/dashboard-tour-refresh-2026-06`).
+
+## Agent harness notes
+
+### Playwright first-run failure (resolved before PASS)
+
+An early background browser-QA attempt **failed with exit code 2** before the recorded PASS:
+
+- The QA harness copied the Playwright script into a **temp directory** and lost the **repo root**.
+- The static file server could not serve `dashboard/index.html`; the run **timed out waiting for `#app`**.
+- **Fix:** run the harness from the repo (or set repo root explicitly for the file server), correct clipboard mocking and wizard contract assertions, then re-run Edge headless.
+- The successful PASS is recorded above; do not treat the first failed background task as the final QA verdict.
+
+### Background terminal: `gh pr checks` exit code 8
+
+When agents poll GitHub CI in a **background shell** (example: `Start-Sleep 50; gh pr checks 68`), the task may report **`exit_code: 8`** even though CI is still healthy:
+
+| Observation | Meaning |
+|-------------|---------|
+| `gh pr checks` exit code **8** | One or more checks are **pending or failed** — not a PowerShell crash |
+| `test` line shows `pending` | Job still running; wait and poll again |
+| `dashboard-smoke` `pass` | Required dashboard smoke already green |
+| `CodeRabbit` `pending` | Non-blocking review bot; does not block merge |
+
+**Example (2026-06-25, PR #68):** after a 50s background poll, `test` was still `pending` while `dashboard-smoke` had passed. The background task exited **8** and was surfaced as `status: error`. **`test` completed PASS** ~1m50s later on re-check.
+
+**Agent rule:** do not treat `gh pr checks` exit code 8 alone as CI failure. Read per-check status lines or re-run `gh pr checks <n>` until required jobs show `pass`.
+
+### PR #66 body checklist alignment
+
+- PR #66 test plan: **Manual QA at 1366px and 320px** — checked, with pointer to this doc.
+- PR #66 QA comment on GitHub documents Edge 149 headless PASS at `8c5fbf8`.
+- This file and the PR body are **aligned**; PR #66 is **merged**.
