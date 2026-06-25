@@ -69,12 +69,24 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
     [BASH]: 'Bash mode is for Linux, macOS, WSL, or a Bash environment where ping/getent behave like the scripts expect.'
   };
 
+  function normalizeOs(value) {
+    return value === WINDOWS || value === BASH ? value : WINDOWS;
+  }
+
   function selectedOs() {
-    return localStorage.getItem(STORAGE_KEY) || WINDOWS;
+    try {
+      return normalizeOs(localStorage.getItem(STORAGE_KEY));
+    } catch (_) {
+      return WINDOWS;
+    }
   }
 
   function setSelectedOs(value) {
-    localStorage.setItem(STORAGE_KEY, value);
+    try {
+      localStorage.setItem(STORAGE_KEY, normalizeOs(value));
+    } catch (_) {
+      // Storage can be unavailable for local files or locked-down browsers.
+    }
   }
 
   function syncTutorialVisibility(root) {
@@ -113,7 +125,9 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
     const select = document.getElementById('cybernet-os-select');
     select.value = selectedOs();
     select.addEventListener('change', () => {
-      setSelectedOs(select.value);
+      const os = normalizeOs(select.value);
+      select.value = os;
+      setSelectedOs(os);
       patchCurrentStep();
     });
   }
@@ -127,7 +141,7 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
 
     const os = selectedOs();
     const title = titleEl.textContent.trim();
-    if (osNoteEl) osNoteEl.textContent = notes[os] || '';
+    if (osNoteEl) osNoteEl.textContent = notes[os] || notes[WINDOWS];
 
     if (title === 'Prove network posture first') {
       commandEl.value = os === WINDOWS ? WINDOWS_PREFLIGHT : BASH_PREFLIGHT;
