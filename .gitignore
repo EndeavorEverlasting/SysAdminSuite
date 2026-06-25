@@ -124,6 +124,10 @@ logs/nmap/*
 logs/targets/*
 !logs/targets/.gitkeep
 
+# Mini-probe/WMI batch runtime evidence (hostnames, serials, IPs, debug traces — live field data)
+logs/mini-probe/*
+!logs/mini-probe/.gitkeep
+
 # Northwell registry-first verification evidence (raw reg.exe output — live field data)
 logs/registry/*
 !logs/registry/.gitkeep
