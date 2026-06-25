@@ -84,6 +84,18 @@ def is_unreachable(value: str) -> bool:
     return status_token(value) in UNREACHABLE_TOKENS
 
 
+def has_open_port(row: dict[str, str]) -> bool:
+    return is_reachable(cell(row, "PortStatus", "TcpStatus", "Status"))
+
+
+def is_preflight_reachable(row: dict[str, str]) -> bool:
+    return is_reachable(cell(row, "PingStatus", "Reachability", "Status")) or has_open_port(row)
+
+
+def is_preflight_unreachable(row: dict[str, str]) -> bool:
+    return is_unreachable(cell(row, "PingStatus", "Reachability", "Status")) and not has_open_port(row)
+
+
 def is_identity_collected(value: str) -> bool:
     return "IDENTITYCOLLECTED" in status_token(value)
 
@@ -111,7 +123,9 @@ def expand_csv_paths(paths: list[str], patterns: list[str]) -> list[Path]:
     seen: set[Path] = set()
     for value in paths:
         path = Path(value)
-        if path.is_file() and path not in seen:
+        if not path.is_file():
+            raise FileNotFoundError(value)
+        if path not in seen:
             expanded.append(path)
             seen.add(path)
     for pattern in patterns:
@@ -358,17 +372,17 @@ def build_reconciliation(
             continue
         ping_status = cell(row, "PingStatus", "Reachability", "Status")
         source = row.get("_source", "")
-        if is_reachable(ping_status):
+        if is_preflight_reachable(row):
             categories["ReachableNeedsIdentity"].append(rec_row(
                 "ReachableNeedsIdentity",
                 target,
                 "",
                 target,
                 "reachable_needs_identity",
-                "Reachable in preflight, but no identity evidence row was supplied.",
+                "Reachable or open-port preflight evidence exists, but no identity evidence row was supplied.",
                 source,
             ))
-        elif is_unreachable(ping_status):
+        elif is_preflight_unreachable(row):
             categories["Unreachable"].append(rec_row(
                 "Unreachable",
                 target,
@@ -685,8 +699,12 @@ def main() -> int:
         print("[sas-cybernet-reconcile-report] ERROR: --header-scan-rows must be positive", file=sys.stderr)
         return 1
 
-    identity_paths = expand_csv_paths(args.identity_csv, args.identity_glob)
-    preflight_paths = expand_csv_paths(args.preflight_csv, [])
+    try:
+        identity_paths = expand_csv_paths(args.identity_csv, args.identity_glob)
+        preflight_paths = expand_csv_paths(args.preflight_csv, [])
+    except FileNotFoundError as exc:
+        print(f"[sas-cybernet-reconcile-report] ERROR: evidence CSV not found: {exc.filename}", file=sys.stderr)
+        return 1
 
     try:
         alejandro = TD.parse_alejandro(alejandro_path)

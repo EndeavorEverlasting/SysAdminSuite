@@ -116,6 +116,7 @@ with open(preflight_path, "w", newline="", encoding="utf-8") as handle:
     writer.writeheader()
     writer.writerow({"Timestamp": "2026-06-25T12:07:00Z", "Target": "WTS001OPR008", "PingStatus": "Reachable", "Port": "135", "PortStatus": "Open"})
     writer.writerow({"Timestamp": "2026-06-25T12:08:00Z", "Target": "WTS001OPR009", "PingStatus": "NoPing", "Port": "135", "PortStatus": "ClosedOrFiltered"})
+    writer.writerow({"Timestamp": "2026-06-25T12:09:00Z", "Target": "WTS001OPR012", "PingStatus": "NoPing", "Port": "445", "PortStatus": "Open"})
 PY
 
 bash "$RUNNER" \
@@ -159,6 +160,17 @@ done
 
 grep -q "Cybernet reconciliation" "$REPORT_DIR/index.html" || fail "index page missing title"
 grep -q "neon" "$REPORT_DIR/style.css" || grep -q "glow" "$REPORT_DIR/style.css" || fail "style should preserve glow aesthetic"
+grep -q "WTS001OPR012" "$REPORT_DIR/data.js" || fail "open preflight port should count as reachable-needs-identity evidence"
+
+MISSING_ERR="$TMP_DIR/missing.err"
+if bash "$RUNNER" \
+  --alejandro "$ALEJANDRO" \
+  --tracker "$TRACKER" \
+  --identity-csv "$TMP_DIR/missing_identity.csv" \
+  --output-dir "$TMP_DIR/missing_report" 2>"$MISSING_ERR"; then
+  fail "missing explicit evidence CSV path should fail"
+fi
+grep -q "evidence CSV not found" "$MISSING_ERR" || fail "missing explicit evidence CSV should produce actionable error"
 
 git check-ignore -q survey/output/cybernet_reconciliation_report/index.html || {
   fail "survey/output report path must remain gitignored"
