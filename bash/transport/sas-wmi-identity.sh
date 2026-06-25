@@ -57,7 +57,7 @@ fail(){ printf '[wmi-identity] ERROR: %s\n' "$*" >&2; exit 1; }
 log(){ printf '[wmi-identity] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
-csv_escape(){ local s="${1:-}"; s="${s//"/""}"; printf '"%s"' "$s"; }
+csv_escape(){ local s="${1:-}" q='"'; s="${s//$q/$q$q}"; printf '"%s"' "$s"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
