@@ -12,7 +12,7 @@ The current priority tutorial for field technicians is:
 - [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) — advanced CLI orchestrator path
 - [`../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md) — full step-by-step runbook
 
-Use the CLI path below only when the dashboard or a lead explicitly asks for Bash orchestration. The workflow is:
+Use the CLI path below only when the dashboard or a lead explicitly asks for Bash orchestration. Start with the workflow diagram in `../START-HERE-CYBERNET-NEURON-SURVEY.md` when you need the one-page field path before the command details. Mermaid source: [`../docs/diagrams/cybernet-neuron-survey-flow.mmd`](../docs/diagrams/cybernet-neuron-survey-flow.mmd). The workflow is:
 
 1. Copy approved local target CSVs into `survey/input/`.
 2. Run the Bash runtime smoke test.
