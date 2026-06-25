@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "description": "Public-safe sample catalog for registry-first software installation verification. Do not place real customer package names or live evidence in this file.",
+  "software": [
+    {
+      "software_id": "sample-viewer",
+      "display_name": "Sample Viewer",
+      "registry": {
+        "uninstall_display_name_patterns": [
+          "Sample Viewer"
+        ],
+        "uninstall_publisher_patterns": [
+          "Sample Vendor"
+        ],
+        "custom_keys": [
+          {
+            "root": "HKLM",
+            "path": "SOFTWARE\\SampleVendor\\SampleViewer",
+            "value": "Version",
+            "expected_pattern": "*"
+          }
+        ]
+      },
+      "fallback": {
+        "files": [
+          {
+            "path": "C:\\Program Files\\SampleVendor\\SampleViewer\\Viewer.exe",
+            "version_min": "1.0.0"
+          }
+        ],
+        "services": [
+          {
+            "name": "SampleViewerService",
+            "required": false
+          }
+        ]
+      }
+    }
+  ]
+}
