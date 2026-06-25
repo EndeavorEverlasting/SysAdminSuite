@@ -30,6 +30,7 @@ const TYPE_SECTION_LABELS = {
   'workstation-identity': 'Network review',
   'network-preflight': 'Network review',
   'smb-recon': 'Network review',
+  'naabu-reachability': 'Reachability evidence',
   'remote-task': 'Remote tasks',
   'software-tracker': 'Software tracker',
   'software-superset': 'Software tracker',
@@ -52,6 +53,7 @@ const TYPE_TO_PANELS = {
   'remote-task':         ['tasks'],
   'network-preflight':   ['network'],
   'smb-recon':           ['network'],
+  'naabu-reachability':  ['network'],
   'software-tracker':    ['software'],
   'software-superset':   ['software'],
 };
@@ -344,6 +346,7 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'printer-probe': '🖨️', 'network-preflight': '📡', 'machine-info': '💻',
     'ram-info': '🧠', 'monitor-info': '🖥️', 'neuron-inventory': '🗂️',
     'smb-recon': '📂', 'status-json': '💚', 'remote-task': '⚡',
+    'naabu-reachability': '🔌',
     'software-tracker': '📦', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
@@ -1142,8 +1145,14 @@ function updateCybernetReview() {
   const preflightRows = store.networkPreflight?.length || 0;
   const identityRows = store.workstationIdentity?.length || 0;
   const targetCount = Math.max(_countUniqueTargets(store.networkPreflight), _countUniqueTargets(store.workstationIdentity));
-  const reachFiles = loadedFiles.filter(f => /naabu/i.test(f.name)).length;
-  const hasEvidence = preflightRows > 0 || identityRows > 0 || reachFiles > 0 || loadedFiles.some(f => f.type === 'network-preflight' || f.type === 'workstation-identity');
+  const reachRows = store.naabuReachability || [];
+  const reachabilityCount = reachRows.length;
+  const openPortsCount = reachRows.filter(r => {
+    const rv = (r.reachability || 'open').toLowerCase();
+    return rv === 'open' || rv === '';
+  }).length;
+  const hasEvidence = preflightRows > 0 || identityRows > 0 || reachabilityCount > 0 ||
+    loadedFiles.some(f => f.type === 'network-preflight' || f.type === 'workstation-identity' || f.type === 'naabu-reachability');
 
   if (!hasEvidence) {
     section.classList.add('hidden');
@@ -1162,7 +1171,8 @@ function updateCybernetReview() {
       <li><strong>Targets in evidence:</strong> ${targetCount || '—'}</li>
       <li><strong>Preflight rows:</strong> ${preflightRows}</li>
       <li><strong>Identity rows:</strong> ${identityRows}</li>
-      <li><strong>Reachability files:</strong> ${reachFiles || 'none loaded'}</li>
+      <li><strong>Open ports observed:</strong> ${reachabilityCount > 0 ? openPortsCount : '—'}</li>
+      <li><strong>Reachability rows:</strong> ${reachabilityCount > 0 ? reachabilityCount : '—'}</li>
     </ul>
     ${guestWarn ? `<p class="cybernet-review-warn">⚠ ${sanitize(guestWarn)}</p>` : ''}
     <p class="cybernet-review-next"><strong>Next:</strong> ${sanitize(nextAction)}</p>

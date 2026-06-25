@@ -30,6 +30,14 @@ const cases = [
   { file: 'RunControl_events.json',                expectedType: 'remote-task',         minRows: 3 },
 ];
 
+// ── Naabu reachability parser cases (synthetic samples only) ────────────────
+
+const naabuCases = [
+  { file: 'cybernet_naabu.sample.jsonl',          expectedType: 'naabu-reachability', minRows: 3 },
+  { file: 'cybernet_naabu.sample.json',           expectedType: 'naabu-reachability', minRows: 3 },
+  { file: 'cybernet_naabu.invalid.sample.jsonl',  expectedType: 'naabu-reachability', minRows: 1, minWarnings: 1 },
+];
+
 let passed = 0;
 let failed = 0;
 
@@ -59,6 +67,35 @@ for (const { file, expectedType, minRows } of cases) {
   }
 
   console.log(`PASS [${file}]: type="${detected}"${parsed.rows ? ', rows=' + parsed.rows.length : ''}`);
+  passed++;
+}
+
+for (const { file, expectedType, minRows, minWarnings } of naabuCases) {
+  const content = readFileSync(join(samplesDir, file), 'utf8');
+  const detected = detectFileType(file, content);
+
+  if (detected !== expectedType) {
+    console.error(`FAIL [${file}]: expected type="${expectedType}" got="${detected}"`);
+    failed++;
+    continue;
+  }
+
+  const parsed = parseFileContent(detected, content, file);
+
+  if (minRows !== null && (parsed.rows?.length ?? 0) < minRows) {
+    console.error(`FAIL [${file}]: expected >= ${minRows} rows, got ${parsed.rows?.length ?? 0}`);
+    failed++;
+    continue;
+  }
+
+  if (minWarnings != null && (parsed.meta?.warnings?.length ?? 0) < minWarnings) {
+    console.error(`FAIL [${file}]: expected >= ${minWarnings} warnings, got ${parsed.meta?.warnings?.length ?? 0}`);
+    failed++;
+    continue;
+  }
+
+  const warnNote = parsed.meta?.warnings?.length ? `, warnings=${parsed.meta.warnings.length}` : '';
+  console.log(`PASS [${file}]: type="${detected}"${parsed.rows ? ', rows=' + parsed.rows.length : ''}${warnNote}`);
   passed++;
 }
 
@@ -127,6 +164,16 @@ const contractChecks = [
   ['not a dashboard import yet', 'no false manifest import claim'],
 ];
 
+// ── Naabu reachability Cybernet review contracts (app.js) ───────────────────
+
+const naabuContractChecks = [
+  ['naabu-reachability', 'naabu reachability file type'],
+  ['Reachability evidence', 'reachability section label'],
+  ['Open ports observed:', 'cybernet review open ports metric'],
+  ['Reachability rows:', 'cybernet review reachability rows metric'],
+  ['store.naabuReachability', 'parsed naabu store wiring'],
+];
+
 let shellPassed = 0;
 let shellFailed = 0;
 
@@ -147,6 +194,16 @@ for (const [needle, label] of contractChecks) {
     shellFailed++;
   } else {
     console.log(`PASS [wizard-contract:${label}]`);
+    shellPassed++;
+  }
+}
+
+for (const [needle, label] of naabuContractChecks) {
+  if (!appJs.includes(needle)) {
+    console.error(`FAIL [naabu-contract:${label}]: missing "${needle}"`);
+    shellFailed++;
+  } else {
+    console.log(`PASS [naabu-contract:${label}]`);
     shellPassed++;
   }
 }

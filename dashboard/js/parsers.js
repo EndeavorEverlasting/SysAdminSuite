@@ -2,11 +2,41 @@
 
 import { parseCSV, parseJSON, pingToStep } from './utils.js';
 
+function isNaabuReachabilityObject(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+  const hasHost = !!(obj.host || obj.ip || obj.Host || obj.IP || obj.Ip);
+  const port = obj.port ?? obj.Port;
+  return hasHost && port !== undefined && port !== null && String(port).trim() !== '';
+}
+
+function contentLooksLikeNaabuReachability(content) {
+  if (typeof content !== 'string') return false;
+  const trimmed = content.trim();
+  if (!trimmed) return false;
+  const snip = trimmed.slice(0, 800).toLowerCase();
+  if (!snip.includes('port') || (!snip.includes('host') && !snip.includes('ip'))) return false;
+
+  try {
+    const data = JSON.parse(trimmed);
+    const items = Array.isArray(data) ? data : [data];
+    return items.some(isNaabuReachabilityObject);
+  } catch {
+    for (const raw of trimmed.split('\n')) {
+      const line = raw.trim();
+      if (!line) continue;
+      try {
+        if (isNaabuReachabilityObject(JSON.parse(line))) return true;
+      } catch { /* invalid JSONL line */ }
+    }
+  }
+  return false;
+}
+
 /**
  * Detect the log type from filename and/or CSV headers.
  * Returns one of: 'preflight', 'results', 'workstation-identity',
  *   'printer-probe', 'network-preflight', 'machine-info', 'ram-info',
- *   'monitor-info', 'neuron-inventory', 'status-json', 'smb-recon', 'unknown'
+ *   'monitor-info', 'neuron-inventory', 'status-json', 'smb-recon', 'naabu-reachability', 'unknown'
  */
 export function detectFileType(filename, content) {
   const fn = filename.toLowerCase();
@@ -15,6 +45,11 @@ export function detectFileType(filename, content) {
   if (fn.endsWith('.yaml') || fn.endsWith('.yml')) {
     if (fn.includes('sources')) return 'software-tracker';
     return 'software-tracker'; // treat all YAML drops as tracker
+  }
+
+  // Naabu reachability JSON / JSONL — filename hint
+  if ((fn.endsWith('.json') || fn.endsWith('.jsonl')) && fn.includes('naabu')) {
+    return 'naabu-reachability';
   }
 
   // JSON detection — check filename hints first, then probe content
@@ -32,7 +67,13 @@ export function detectFileType(filename, content) {
       if (snip.includes('"taskname"') || snip.includes('"outcome"') ||
           snip.includes('"taskid"') || snip.includes('"events"')) return 'remote-task';
     }
+    if (contentLooksLikeNaabuReachability(content)) return 'naabu-reachability';
     return 'status-json'; // fallback: attempt parse as status snapshot
+  }
+
+  if (fn.endsWith('.jsonl')) {
+    if (contentLooksLikeNaabuReachability(content)) return 'naabu-reachability';
+    return 'unknown';
   }
 
   // XLSX detection
@@ -96,8 +137,69 @@ export function parseFileContent(type, content, filename) {
     case 'remote-task': return parseRemoteTask(content);
     case 'software-tracker': return parseSoftwareTracker(content, filename);
     case 'software-superset': return parseSoftwareSuperset(content);
+    case 'naabu-reachability': return parseNaabuReachability(content, filename);
     default: return { type: 'unknown', rows: [], meta: {} };
   }
+}
+
+function normalizeNaabuRow(item, sourceFile) {
+  const host = String(item.host || item.Host || '').trim();
+  const ip = String(item.ip || item.IP || item.Ip || '').trim();
+  const portRaw = item.port ?? item.Port;
+  const port = portRaw !== undefined && portRaw !== null ? String(portRaw).trim() : '';
+  const reachRaw = item.reachability ?? item.Reachability ?? 'open';
+  return {
+    host: host || ip,
+    ip: ip || host,
+    port,
+    protocol: String(item.protocol || item.Protocol || 'tcp').trim() || 'tcp',
+    timestamp: String(item.timestamp || item.Timestamp || item.time || '').trim(),
+    tls: !!(item.tls ?? item.TLS),
+    service: String(item.service || item.Service || '').trim(),
+    sourceFile: sourceFile || '',
+    reachability: String(reachRaw).trim().toLowerCase() || 'open',
+  };
+}
+
+function parseNaabuReachability(content, filename) {
+  const warnings = [];
+  const rows = [];
+  const sourceFile = filename || '';
+  const trimmed = (content || '').replace(/^\uFEFF/, '').trim();
+
+  if (!trimmed) {
+    return { type: 'naabu-reachability', rows, meta: { count: 0, warnings } };
+  }
+
+  const ingestItem = (item, lineNo) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      if (lineNo != null) warnings.push(`Line ${lineNo}: not a JSON object`);
+      return;
+    }
+    if (!isNaabuReachabilityObject(item)) {
+      if (lineNo != null) warnings.push(`Line ${lineNo}: missing host/ip or port`);
+      return;
+    }
+    rows.push(normalizeNaabuRow(item, sourceFile));
+  };
+
+  try {
+    const data = JSON.parse(trimmed);
+    const items = Array.isArray(data) ? data : [data];
+    items.forEach((item, i) => ingestItem(item, items.length > 1 ? i + 1 : null));
+  } catch {
+    trimmed.split('\n').forEach((raw, idx) => {
+      const line = raw.trim();
+      if (!line) return;
+      try {
+        ingestItem(JSON.parse(line), idx + 1);
+      } catch {
+        warnings.push(`Line ${idx + 1}: invalid JSON`);
+      }
+    });
+  }
+
+  return { type: 'naabu-reachability', rows, meta: { count: rows.length, warnings } };
 }
 
 function parsePreflight(content) {
@@ -446,6 +548,9 @@ export function mergeDataStore(existing, incoming) {
     case 'software-superset':
       store.softwareInventory = (store.softwareInventory || []).concat(rows);
       break;
+    case 'naabu-reachability':
+      store.naabuReachability = (store.naabuReachability || []).concat(rows);
+      break;
   }
 
   return store;
@@ -699,6 +804,19 @@ export function buildProtocolRows(store) {
     if (hostMap[t].steps.Ping === 'success' && !row.MAC && !row.Serial) {
       if (!hostMap[t].steps.SNMP) hostMap[t].steps.SNMP = 'failed';
     }
+  }
+
+  // Naabu reachability — merge open ports only; never set identity fields from reachability alone
+  for (const row of (store.naabuReachability || [])) {
+    const t = row.host || row.ip || '';
+    if (!t) continue;
+    if (!hostMap[t]) {
+      hostMap[t] = { Target: t, ports: {}, steps: {} };
+    }
+    const port = String(row.port || '').trim();
+    if (!port) continue;
+    const reach = (row.reachability || 'open').toLowerCase();
+    hostMap[t].ports[port] = reach === 'open' ? 'Open' : reach;
   }
 
   return Object.values(hostMap).sort((a, b) => (a.Target || '').localeCompare(b.Target || ''));
