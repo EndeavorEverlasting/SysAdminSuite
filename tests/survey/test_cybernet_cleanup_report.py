@@ -27,23 +27,40 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, cwd=REPO_ROOT, check=True)
 
 
+FIELDS = [
+    "input_identifier","target","source_row","device_type",
+    "expected_hostname","expected_cybernet_serial","expected_neuron_serial","expected_mac",
+    "resolved_hostname","resolved_serial","resolved_mac",
+    "observed_hostname","observed_serial","observed_mac",
+    "reachability_status","serial_probe_status","classification","follow_up_system",
+    "probe_methods_attempted","probe_method_success","probe_confidence",
+    "evidence_source","evidence_detail","identity_drift_status",
+    "already_had_serial","already_had_mac","can_populate_serial","can_populate_mac",
+    "log_status","notes","probed_at",
+]
+
+
+def build_reports(resolver: Path, cleanup: Path, revisit: Path) -> None:
+    run(
+        [
+            "bash",
+            "survey/sas-build-cybernet-cleanup-report.sh",
+            "--resolver-csv",
+            str(resolver),
+            "--output-cleanup",
+            str(cleanup),
+            "--output-revisit",
+            str(revisit),
+        ]
+    )
+
+
 def test_cleanup_report_splits_tracker_cleanup_from_revisit_work() -> None:
     with tempfile.TemporaryDirectory() as tmp_raw:
         tmp = Path(tmp_raw)
         resolver = tmp / "resolver.csv"
         cleanup = tmp / "cleanup.csv"
         revisit = tmp / "revisit.csv"
-        fields = [
-            "input_identifier","target","source_row","device_type",
-            "expected_hostname","expected_cybernet_serial","expected_neuron_serial","expected_mac",
-            "resolved_hostname","resolved_serial","resolved_mac",
-            "observed_hostname","observed_serial","observed_mac",
-            "reachability_status","serial_probe_status","classification","follow_up_system",
-            "probe_methods_attempted","probe_method_success","probe_confidence",
-            "evidence_source","evidence_detail","identity_drift_status",
-            "already_had_serial","already_had_mac","can_populate_serial","can_populate_mac",
-            "log_status","notes","probed_at",
-        ]
         write_csv(
             resolver,
             [
@@ -147,21 +164,10 @@ def test_cleanup_report_splits_tracker_cleanup_from_revisit_work() -> None:
                     "probed_at": "2026-06-25 00:00:00",
                 },
             ],
-            fields,
+            FIELDS,
         )
 
-        run(
-            [
-                "bash",
-                "survey/sas-build-cybernet-cleanup-report.sh",
-                "--resolver-csv",
-                str(resolver),
-                "--output-cleanup",
-                str(cleanup),
-                "--output-revisit",
-                str(revisit),
-            ]
-        )
+        build_reports(resolver, cleanup, revisit)
 
         cleanup_rows = read_rows(cleanup)
         revisit_rows = read_rows(revisit)
@@ -171,7 +177,10 @@ def test_cleanup_report_splits_tracker_cleanup_from_revisit_work() -> None:
             "manual_review_required",
             "no_tracker_update",
         ]
-        assert cleanup_rows[0]["RecommendedAction"] == "Update tracker hostname from OLD-HOST to NEW-HOST; keep serial as identity."
+        assert cleanup_rows[0]["RecommendedAction"].startswith(
+            "Update tracker hostname from OLD-HOST to NEW-HOST; keep serial as identity."
+        )
+        assert "populate MAC AA:BB:CC:DD:EE:10" in cleanup_rows[0]["RecommendedAction"]
         assert cleanup_rows[1]["RecommendedAction"].startswith("Do not update tracker automatically")
 
         assert [row["PriorityBucket"] for row in revisit_rows] == [
@@ -184,6 +193,62 @@ def test_cleanup_report_splits_tracker_cleanup_from_revisit_work() -> None:
         assert revisit_rows[2]["RecommendedAction"] == "Check AD/Vision/tracker mapping before scheduling a physical revisit."
 
 
+def test_cleanup_report_does_not_treat_hostname_target_as_serial() -> None:
+    with tempfile.TemporaryDirectory() as tmp_raw:
+        tmp = Path(tmp_raw)
+        resolver = tmp / "resolver.csv"
+        cleanup = tmp / "cleanup.csv"
+        revisit = tmp / "revisit.csv"
+        write_csv(
+            resolver,
+            [
+                {
+                    "input_identifier": "HOST-ONLY-001",
+                    "target": "HOST-ONLY-001",
+                    "source_row": "400",
+                    "device_type": "Cybernet",
+                    "expected_hostname": "HOST-ONLY-001",
+                    "expected_cybernet_serial": "",
+                    "expected_neuron_serial": "",
+                    "expected_mac": "",
+                    "resolved_hostname": "HOST-ONLY-001",
+                    "resolved_serial": "",
+                    "resolved_mac": "",
+                    "observed_hostname": "HOST-ONLY-001",
+                    "observed_serial": "",
+                    "observed_mac": "",
+                    "reachability_status": "offline_identity",
+                    "serial_probe_status": "IdentityCollectedNeedsComparisonData",
+                    "classification": "identity_resolved",
+                    "follow_up_system": "None",
+                    "probe_methods_attempted": "manifest_match;identity_csv_lookup",
+                    "probe_method_success": "identity_csv_match",
+                    "probe_confidence": "low",
+                    "evidence_source": "identity_csv",
+                    "evidence_detail": "hostname only fixture",
+                    "identity_drift_status": "hostname_match",
+                    "already_had_serial": "no",
+                    "already_had_mac": "no",
+                    "can_populate_serial": "no",
+                    "can_populate_mac": "no",
+                    "log_status": "already_confirmed",
+                    "notes": "hostname-only evidence",
+                    "probed_at": "2026-06-25 00:00:00",
+                }
+            ],
+            FIELDS,
+        )
+
+        build_reports(resolver, cleanup, revisit)
+
+        cleanup_row = read_rows(cleanup)[0]
+        revisit_row = read_rows(revisit)[0]
+        assert cleanup_row["CybernetSerial"] == ""
+        assert revisit_row["CybernetSerial"] == ""
+        assert revisit_row["Target"] == "HOST-ONLY-001"
+
+
 if __name__ == "__main__":
     test_cleanup_report_splits_tracker_cleanup_from_revisit_work()
+    test_cleanup_report_does_not_treat_hostname_target_as_serial()
     print("offline cybernet cleanup report tests passed")
