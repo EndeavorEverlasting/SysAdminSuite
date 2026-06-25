@@ -49,6 +49,8 @@ Contract test:
 bash Tests/bash/test-cybernet-subnet-survey-contracts.sh
 bash Tests/bash/test_naabu_pipeline_contracts.sh
 bash Tests/bash/test_naabu_package_contracts.sh
+bash Tests/bash/test_packet_probe_contracts.sh
+bash Tests/bash/test_repo_naabu_doctrine_conformance.sh
 ```
 
 ## Naabu CDN-Safe Pipeline
@@ -59,6 +61,10 @@ CDN/cloud-aware port confirmation using naabu `-ec -silent`. Auto-installs naabu
 bash survey/sas-run-naabu-pipeline.sh --site nsuh --profile keyports_cybernet_pipe \
   --list survey/fixtures/naabu_pipeline/targets.sample.txt \
   --out logs/nmap/nsuh_keyports.txt --pipe-followup
+
+bash survey/sas-run-packet-probe.sh --site nsuh \
+  --list survey/fixtures/naabu_pipeline/targets.sample.txt \
+  --out logs/nmap/nsuh_packet_probe.json --dry-run
 
 bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode confirm-windows \
   --confirm-tool naabu --host-file survey/output/cybernet_subnet_survey/nsuh_<run-id>/hosts/<cidr>_up.txt \

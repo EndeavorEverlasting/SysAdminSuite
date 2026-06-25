@@ -1,12 +1,17 @@
-# Packet expenditure / naabu evidence normalizer (stdlib-only v1)
+# Packet expenditure / naabu evidence tooling
 
-This module normalizes naabu TXT/JSON and followup JSONL into unified JSONL + summary JSON.
-Bash field execution uses `survey/sas-run-naabu-pipeline.sh`; this Go tool is for post-run consolidation.
+This module contains stdlib-only Go helpers for low-noise Naabu evidence:
+
+- `sas-naabu-normalize` normalizes naabu TXT/JSON and followup JSONL into unified JSONL + summary JSON.
+- `sas-packet-probe` is an enforced Naabu CLI wrapper for approved host files. It records
+  `-ec -silent -json -duc -tp 1000 -c 50 -rate 3000 -ss -pt 20` in the audit string and
+  rejects empty, CIDR, oversized, or public-IP target lists unless explicitly allowed.
 
 ## Build
 
 ```bash
 go build -o ../../bin/sas-naabu-normalize ./cmd/sas-naabu-normalize
+go build -o ../../bin/sas-packet-probe ./cmd/sas-packet-probe
 ```
 
 ## Usage
@@ -17,6 +22,13 @@ bin/sas-naabu-normalize \
   -followup logs/nmap/SSUH_keyports_followup.jsonl \
   -out logs/nmap/SSUH_keyports_normalized.jsonl \
   -summary logs/nmap/SSUH_keyports_summary.json
+
+bash ../../survey/sas-run-packet-probe.sh \
+  --site SSUH \
+  --list ../../survey/fixtures/naabu_pipeline/targets.sample.txt \
+  --out ../../logs/nmap/SSUH_packet_probe.json \
+  --summary ../../logs/nmap/SSUH_packet_probe.summary.json \
+  --dry-run
 ```
 
 ## Prerequisites (naabu CLI scanning)
@@ -31,9 +43,11 @@ bin/sas-naabu-normalize \
 
 Default profile `keyports_cybernet_json` uses `-p 80,443,135,445,3389,5985,5986 -ec -silent -duc -json`. Full port `-p - -ec` (`allports_low_noise_json`) requires `--allow-full-ports`.
 
-## Future Go packet probe lane (`feature/packet-expenditure-naabu-probe`)
+## Packet probe doctrine
 
-When merging the Go `sas-packet-probe` runner (naabu library wrapper), the profile **must** include `excludeCdn: true` mapped to Naabu `ExcludeCDN` / CLI `-ec`. The audit CLI string must record `-ec -silent -json -duc`. Top-1000 (`-tp 1000`) scans require the same small-list and `--allow-full-ports`-style gates as `allports_low_noise_json`.
+`Config/cybernet-packet-profile.json` must keep `excludeCdn: true`, `output.silent: true`,
+JSON output, update-check disabled, and smart scan mutually exclusive with stream/passive modes.
+The Bash wrapper is the field entrypoint; CI uses dry-run and unit tests only, never live scans.
 
 ## WAB note
 

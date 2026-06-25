@@ -1,0 +1,50 @@
+name: Survey doctrine
+
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'AGENTS.md'
+      - '.cursor/rules/**'
+      - 'Config/cybernet-naabu-profiles.json'
+      - 'Config/cybernet-packet-profile.json'
+      - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
+      - 'docs/NAABU_CYBERNET_PROFILES.md'
+      - 'probe/packet-expenditure/**'
+      - 'survey/**'
+      - 'Tests/bash/*naabu*'
+      - 'Tests/bash/test_packet_probe_contracts.sh'
+      - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
+      - '.github/workflows/survey-doctrine.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'AGENTS.md'
+      - '.cursor/rules/**'
+      - 'Config/cybernet-naabu-profiles.json'
+      - 'Config/cybernet-packet-profile.json'
+      - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
+      - 'docs/NAABU_CYBERNET_PROFILES.md'
+      - 'probe/packet-expenditure/**'
+      - 'survey/**'
+      - 'Tests/bash/*naabu*'
+      - 'Tests/bash/test_packet_probe_contracts.sh'
+      - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
+      - '.github/workflows/survey-doctrine.yml'
+
+jobs:
+  doctrine:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Naabu doctrine contract tests
+        shell: bash
+        run: |
+          bash Tests/bash/test_repo_naabu_doctrine_conformance.sh
+
+      - name: Go packet expenditure tests
+        shell: bash
+        run: |
+          cd probe/packet-expenditure
+          go test ./...

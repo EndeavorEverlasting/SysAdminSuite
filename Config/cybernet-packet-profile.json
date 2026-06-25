@@ -1,0 +1,20 @@
+{
+  "portMode": "top",
+  "topPorts": "1000",
+  "threads": 50,
+  "rate": 3000,
+  "smartScan": true,
+  "predictionThreshold": 20,
+  "scanType": "s",
+  "maxTargets": 256,
+  "requireApprovedTargetFile": true,
+  "allowPublicTargets": false,
+  "excludeCdn": true,
+  "disableUpdateCheck": true,
+  "stream": false,
+  "passive": false,
+  "output": {
+    "jsonl": true,
+    "silent": true
+  }
+}

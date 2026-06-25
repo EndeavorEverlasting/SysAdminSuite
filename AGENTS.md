@@ -66,6 +66,34 @@ Do not assume:
 
 Bash scripts may call Windows-native executables such as `cmd.exe`, `hostname.exe`, `ping.exe`, `nslookup.exe`, and `netsh.exe`.
 
+## Low-Noise Survey / Naabu Doctrine
+
+Naabu and related packet probes are for authorized reachability validation only. They are not a
+population source, identity proof, stealth technique, or target-side collection mechanism.
+
+Agents MUST preserve these rules across docs, scripts, dashboards, generated commands, and tests:
+
+- Treat AD-derived target lists as the registered Cybernet population authority.
+- Treat Naabu/Nmap output as reachability evidence only.
+- Use `survey/naabu_profiles.json` as the doctrine source of truth and
+  `Config/cybernet-naabu-profiles.json` as generated runtime config.
+- Prefer `survey/sas-run-naabu-pipeline.sh` or `survey/sas-run-packet-probe.sh` for execution.
+- Do not emit raw `naabu -list` or `naabu -host` guidance unless reachability commands include `-silent` and `-ec`, and structured evidence commands include JSON output where parser-facing.
+- Keep `-silent` on every Naabu pipeline to avoid banners/logos in machine-readable output.
+- Keep `-ec` on reachability profiles to avoid wasting probes on CDN/cloud firewall edges unless
+  a profile explicitly documents why CDN edges are in scope.
+- Use `-sa` for load-balanced hostnames only when every resolved IP is intentionally in scope.
+- Require explicit justification gates for UDP, all-port, public-target, or subnet host-discovery
+  profiles (`--profile-justified`, `--allow-full-ports`, `--allow-public`,
+  `--approved-subnet-scope`).
+- Keep all evidence local in gitignored output paths such as `logs/nmap/`, `survey/output/`, or
+  `survey/artifacts/`; never write logs or artifacts to target workstations.
+- Use "low-noise survey discipline" language. Do not describe this work as stealth, evasion,
+  hiding, bypassing monitoring, or defeating logs.
+- Classify guest-network failures as `ENVIRONMENT_BLOCKED_GUEST_NETWORK`, not product failure.
+- Treat `feature/naabu-docs-consolidation` as superseded by current `main` doctrine. Do not
+  revive or merge it without explicit user authorization.
+
 ## WAB Test Evidence Guardrail
 
 When the user reports that SysAdminSuite is `running` on the WAB path, do not treat that as full validation.
