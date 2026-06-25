@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SysAdminSuite optional WMI identity adapter
-# Read-only Windows identity collection through an approved wmic-compatible client.
+# Read-only Windows identity collection through an approved WMI transport.
 # This is disabled unless called directly or wired via --allow-wmi from sas-workstation-identity.sh.
 
 set -euo pipefail
@@ -12,6 +12,7 @@ TIMEOUT=8
 WMI_USER=""
 WMI_PASS=""
 WMI_DOMAIN=""
+WMI_CLIENT="${SAS_WMI_CLIENT:-auto}"
 PASS_THRU=0
 
 usage(){ cat <<'USAGE'
@@ -28,6 +29,7 @@ Options:
   --wmi-user USER      Optional WMI username. Prefer environment variable SAS_WMI_USER.
   --wmi-pass PASS      Optional WMI password. Prefer environment variable SAS_WMI_PASS.
   --wmi-domain DOMAIN  Optional domain. Prefer environment variable SAS_WMI_DOMAIN.
+  --wmi-client MODE    WMI client: auto, wmic, or powershell. Default: auto.
   --pass-thru          Print CSV after writing
   -h, --help           Show help
 
@@ -35,6 +37,7 @@ Environment variables:
   SAS_WMI_USER
   SAS_WMI_PASS
   SAS_WMI_DOMAIN
+  SAS_WMI_CLIENT
 
 Output columns:
   Timestamp,Target,ObservedHostName,ObservedSerial,ObservedMACs,WmiStatus,Notes
@@ -47,7 +50,8 @@ Safety:
   - No credentials are written to output.
 
 Known limitations:
-  - Requires an approved `wmic`/Samba WMI client on the Bash host.
+  - `wmic` mode requires an approved `wmic`/Samba WMI client on the Bash host.
+  - `powershell` mode uses local Windows PowerShell WMI cmdlets from Git Bash.
   - Firewalls, DCOM/RPC policy, and permissions may block collection.
   - This adapter is optional. Failure should produce NeedsPrivilegedSurvey, not silent confidence.
 USAGE
@@ -68,6 +72,7 @@ while [[ $# -gt 0 ]]; do
     --wmi-user) WMI_USER="${2:?missing value for --wmi-user}"; shift 2 ;;
     --wmi-pass) WMI_PASS="${2:?missing value for --wmi-pass}"; shift 2 ;;
     --wmi-domain) WMI_DOMAIN="${2:?missing value for --wmi-domain}"; shift 2 ;;
+    --wmi-client) WMI_CLIENT="${2:?missing value for --wmi-client}"; shift 2 ;;
     --pass-thru) PASS_THRU=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [[ $# -gt 0 ]]; do TARGETS+=("$1"); shift; done ;;
@@ -80,6 +85,10 @@ WMI_USER="${WMI_USER:-${SAS_WMI_USER:-}}"
 WMI_PASS="${WMI_PASS:-${SAS_WMI_PASS:-}}"
 WMI_DOMAIN="${WMI_DOMAIN:-${SAS_WMI_DOMAIN:-}}"
 [[ "$TIMEOUT" =~ ^[0-9]+$ && "$TIMEOUT" -ge 1 ]] || fail "--timeout must be positive integer"
+case "$WMI_CLIENT" in
+  auto|wmic|powershell) ;;
+  *) fail "--wmi-client must be auto, wmic, or powershell" ;;
+esac
 if [[ -n "$TARGET_FILE" ]]; then
   [[ -f "$TARGET_FILE" ]] || fail "targets file not found: $TARGET_FILE"
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -90,12 +99,74 @@ fi
 [[ ${#TARGETS[@]} -gt 0 ]] || fail "No targets provided"
 mkdir -p "$(dirname "$OUTPUT")"
 
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+PS_WMI_SCRIPT="$TMP_DIR/sas-wmi-query.ps1"
+
+cat > "$PS_WMI_SCRIPT" <<'PS1'
+param(
+  [Parameter(Mandatory=$true)][string]$Target
+)
+$ErrorActionPreference = 'Stop'
+function New-Result {
+  param(
+    [string]$Status,
+    [string]$HostName = '',
+    [string]$Serial = '',
+    [string]$Macs = '',
+    [string]$Notes = ''
+  )
+  [pscustomobject]@{
+    Status = $Status
+    ObservedHostName = $HostName
+    ObservedSerial = $Serial
+    ObservedMACs = $Macs
+    Notes = $Notes
+  } | ConvertTo-Json -Compress
+}
+try {
+  $user = $env:SAS_WMI_USER
+  $pass = $env:SAS_WMI_PASS
+  $domain = $env:SAS_WMI_DOMAIN
+  $credential = $null
+  if ($user) {
+    $account = if ($domain) { "$domain\$user" } else { $user }
+    $secure = ConvertTo-SecureString ($pass | ForEach-Object { $_ }) -AsPlainText -Force
+    $credential = New-Object System.Management.Automation.PSCredential($account, $secure)
+  }
+  $base = @{ ComputerName = $Target; ErrorAction = 'Stop' }
+  if ($credential) { $base.Credential = $credential }
+  $computer = Get-WmiObject @base -Class Win32_ComputerSystem | Select-Object -First 1
+  $bios = Get-WmiObject @base -Class Win32_BIOS | Select-Object -First 1
+  $nics = Get-WmiObject @base -Class Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -eq $true }
+  $macs = @($nics | ForEach-Object { $_.MACAddress } | Where-Object { $_ }) -join ';'
+  if ($computer.Name -or $bios.SerialNumber -or $macs) {
+    New-Result -Status 'WmiIdentityCollected' -HostName ([string]$computer.Name) -Serial ([string]$bios.SerialNumber) -Macs ([string]$macs) -Notes 'PowerShellWMI'
+  } else {
+    New-Result -Status 'WmiNoIdentityReturned' -Notes 'PowerShellWMI returned no host, serial, or MAC values'
+  }
+} catch {
+  $message = $_.Exception.Message
+  if ($message.Length -gt 220) { $message = $message.Substring(0,220) }
+  New-Result -Status 'WmiQueryFailed' -Notes ("PowerShellWMI: " + $message)
+}
+PS1
+
 norm_mac(){
   local raw="${1:-}" hx out i
   hx="$(printf '%s' "$raw" | tr -cd '[:xdigit:]' | tr '[:lower:]' '[:upper:]')"
   if [[ ${#hx} -eq 12 ]]; then
     out=""; for ((i=0;i<12;i+=2)); do [[ -n "$out" ]] && out+=":"; out+="${hx:i:2}"; done; printf '%s' "$out"
   else printf ''; fi
+}
+
+powershell_cmd(){
+  local candidate
+  for candidate in powershell.exe /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe; do
+    if command -v "$candidate" >/dev/null 2>&1; then command -v "$candidate"; return; fi
+    [[ -x "$candidate" ]] && { printf '%s' "$candidate"; return; }
+  done
+  return 1
 }
 
 wmi_base_args(){
@@ -131,29 +202,75 @@ extract_macs(){
   grep -Eio '([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}' | while read -r m; do norm_mac "$m"; done | awk 'NF' | sort -u | paste -sd ';' -
 }
 
+json_field(){
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+try:
+    data=json.loads(sys.argv[1])
+except Exception:
+    data={}
+print(data.get(sys.argv[2], '') or '')
+PY
+}
+
+run_powershell_wmi(){
+  local target="$1" ps
+  ps="$(powershell_cmd 2>/dev/null || true)"
+  [[ -n "$ps" ]] || { printf '{"Status":"WmiClientMissing","Notes":"powershell.exe not found"}'; return; }
+  "$ps" -NoProfile -NonInteractive -File "$PS_WMI_SCRIPT" -Target "$target" 2>/dev/null || printf '{"Status":"WmiQueryFailed","Notes":"PowerShellWMI execution failed"}'
+}
+
+collect_with_wmic(){
+  local target="$1" host_raw serial_raw mac_raw host serial macs status notes
+  host_raw="$(run_wmic_query "$target" 'SELECT Name FROM Win32_ComputerSystem')"
+  serial_raw="$(run_wmic_query "$target" 'SELECT SerialNumber FROM Win32_BIOS')"
+  mac_raw="$(run_wmic_query "$target" 'SELECT MACAddress FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled=True')"
+  if printf '%s%s%s' "$host_raw" "$serial_raw" "$mac_raw" | grep -Eiq 'NT_STATUS|ERROR|failed|denied|timed out|timeout'; then
+    printf 'WmiQueryFailed||||WMI query failed or denied'
+    return
+  fi
+  host="$(printf '%s
+' "$host_raw" | extract_first_value | head -n1)"
+  serial="$(printf '%s
+' "$serial_raw" | extract_first_value | head -n1)"
+  macs="$(printf '%s
+' "$mac_raw" | extract_macs)"
+  if [[ -n "$host" || -n "$serial" || -n "$macs" ]]; then status="WmiIdentityCollected"; notes="wmic"; else status="WmiNoIdentityReturned"; notes="wmic returned no host, serial, or MAC values"; fi
+  printf '%s|%s|%s|%s|%s' "$status" "$host" "$serial" "$macs" "$notes"
+}
+
+collect_with_powershell(){
+  local target="$1" raw status host serial macs notes
+  raw="$(run_powershell_wmi "$target")"
+  status="$(json_field "$raw" Status)"
+  host="$(json_field "$raw" ObservedHostName)"
+  serial="$(json_field "$raw" ObservedSerial)"
+  macs="$(json_field "$raw" ObservedMACs)"
+  notes="$(json_field "$raw" Notes)"
+  printf '%s|%s|%s|%s|%s' "${status:-WmiQueryFailed}" "$host" "$serial" "$macs" "$notes"
+}
+
+collect_identity(){
+  local target="$1"
+  case "$WMI_CLIENT" in
+    wmic)
+      if has_cmd wmic; then collect_with_wmic "$target"; else printf 'WmiClientMissing||||wmic client not installed'; fi
+      ;;
+    powershell)
+      collect_with_powershell "$target"
+      ;;
+    auto)
+      if has_cmd wmic; then collect_with_wmic "$target"; else collect_with_powershell "$target"; fi
+      ;;
+  esac
+}
+
 {
   printf 'Timestamp,Target,ObservedHostName,ObservedSerial,ObservedMACs,WmiStatus,Notes\n'
   for target in "${TARGETS[@]}"; do
-    notes=(); status="NotChecked"; host=""; serial=""; macs=""
-    if ! has_cmd wmic; then
-      status="WmiClientMissing"; notes+=("wmic client not installed")
-    else
-      host_raw="$(run_wmic_query "$target" 'SELECT Name FROM Win32_ComputerSystem')"
-      serial_raw="$(run_wmic_query "$target" 'SELECT SerialNumber FROM Win32_BIOS')"
-      mac_raw="$(run_wmic_query "$target" 'SELECT MACAddress FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled=True')"
-      if printf '%s%s%s' "$host_raw" "$serial_raw" "$mac_raw" | grep -Eiq 'NT_STATUS|ERROR|failed|denied|timed out|timeout'; then
-        status="WmiQueryFailed"; notes+=("WMI query failed or denied")
-      else
-        host="$(printf '%s
-' "$host_raw" | extract_first_value | head -n1)"
-        serial="$(printf '%s
-' "$serial_raw" | extract_first_value | head -n1)"
-        macs="$(printf '%s
-' "$mac_raw" | extract_macs)"
-        if [[ -n "$host" || -n "$serial" || -n "$macs" ]]; then status="WmiIdentityCollected"; else status="WmiNoIdentityReturned"; fi
-      fi
-    fi
-    csv_escape "$(date '+%Y-%m-%d %H:%M:%S')"; printf ','; csv_escape "$target"; printf ','; csv_escape "$host"; printf ','; csv_escape "$serial"; printf ','; csv_escape "$macs"; printf ','; csv_escape "$status"; printf ','; csv_escape "$(IFS='; '; echo "${notes[*]:-}")"; printf '\n'
+    result="$(collect_identity "$target")"
+    IFS='|' read -r status host serial macs notes <<< "$result"
+    csv_escape "$(date '+%Y-%m-%d %H:%M:%S')"; printf ','; csv_escape "$target"; printf ','; csv_escape "$host"; printf ','; csv_escape "$serial"; printf ','; csv_escape "$macs"; printf ','; csv_escape "$status"; printf ','; csv_escape "$notes"; printf '\n'
   done
 } > "$OUTPUT"
 log "Wrote WMI identity CSV: $OUTPUT"
