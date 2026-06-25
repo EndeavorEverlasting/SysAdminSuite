@@ -57,16 +57,24 @@
   var shownAt = Date.now();
   var MIN_VISIBLE_MS = 900;
   var hideTimer = null;
+  var hiddenTimer = null;
+  var bootSafetyTimer = null;
 
   function doHide() {
     el.classList.add('harold-hidden');
-    window.setTimeout(function () { el.setAttribute('hidden', ''); }, 400);
+    if (hiddenTimer) { window.clearTimeout(hiddenTimer); hiddenTimer = null; }
+    hiddenTimer = window.setTimeout(function () {
+      el.setAttribute('hidden', '');
+      hiddenTimer = null;
+    }, 400);
   }
 
   // Reusable hook so any loading / wait state can summon Harold.
   window.SASHarold = {
     show: function (message) {
+      if (bootSafetyTimer) { window.clearTimeout(bootSafetyTimer); bootSafetyTimer = null; }
       if (hideTimer) { window.clearTimeout(hideTimer); hideTimer = null; }
+      if (hiddenTimer) { window.clearTimeout(hiddenTimer); hiddenTimer = null; }
       if (message && caption) caption.textContent = message;
       el.removeAttribute('hidden');
       // force reflow so the opacity transition replays after a prior hide
@@ -88,7 +96,7 @@
   } else {
     window.SASHarold.hide();
   }
-  window.setTimeout(doHide, 8000);
+  bootSafetyTimer = window.setTimeout(doHide, 8000);
 })();
 </script>
 

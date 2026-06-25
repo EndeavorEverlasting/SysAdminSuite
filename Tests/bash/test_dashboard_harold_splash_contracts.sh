@@ -27,7 +27,9 @@ grep -Fq 'SASHarold' "$app" || fail "app.js does not call the SASHarold hook"
 grep -Fq 'SASHarold' "$bundle" || fail "bundle.js is stale — run: node dashboard/build-bundle.js"
 
 # JPEG MIME parity between the .NET host and the Python launcher.
-grep -Fq '".jpg"' "$host_mime" || fail "DashboardStaticServer.cs missing .jpg MIME type"
-grep -Fq '".jpg"' "$server_py" || fail "server.py missing .jpg MIME type"
+grep -Eq '\["\.jpg"\]\s*=\s*"image/jpeg"' "$host_mime" \
+  || fail "DashboardStaticServer.cs missing .jpg=image/jpeg MIME type"
+grep -Eq '"\.jpg"\s*:\s*"image/jpeg"' "$server_py" \
+  || fail "server.py missing .jpg=image/jpeg MIME type"
 
 echo "PASS: dashboard Harold splash contracts"
