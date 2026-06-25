@@ -55,7 +55,8 @@ $KeySentinelName = '__REGISTRY_KEY_ONLY__'
 function Get-ObjectPropertyValue {
     param($InputObject, [string]$Name, $Default = $null)
     if ($null -eq $InputObject) { return $Default }
-    if ($InputObject.PSObject.Properties.Name -contains $Name) { return $InputObject.$Name }
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($null -ne $property) { return $property.Value }
     return $Default
 }
 
@@ -103,7 +104,8 @@ function Get-SnapshotEntries {
     if ($null -eq $Snapshot) { return @() }
     if ($Snapshot -is [array]) { return @($Snapshot) }
     foreach ($candidate in @('entries', 'items', 'snapshot_entries', 'data')) {
-        if ($Snapshot.PSObject.Properties.Name -contains $candidate) { return @($Snapshot.$candidate) }
+        $property = $Snapshot.PSObject.Properties[$candidate]
+        if ($null -ne $property) { return @($property.Value) }
     }
     return @()
 }
@@ -111,8 +113,12 @@ function Get-SnapshotEntries {
 function Get-RuleSection {
     param($RuleDoc, [string]$PrimaryName, [string]$AliasName)
     if ($null -eq $RuleDoc) { return @() }
-    if ($RuleDoc.PSObject.Properties.Name -contains $PrimaryName) { return @($RuleDoc.$PrimaryName) }
-    if ($AliasName -and ($RuleDoc.PSObject.Properties.Name -contains $AliasName)) { return @($RuleDoc.$AliasName) }
+    $primary = $RuleDoc.PSObject.Properties[$PrimaryName]
+    if ($null -ne $primary) { return @($primary.Value) }
+    if ($AliasName) {
+        $alias = $RuleDoc.PSObject.Properties[$AliasName]
+        if ($null -ne $alias) { return @($alias.Value) }
+    }
     return @()
 }
 
@@ -161,7 +167,11 @@ foreach ($item in $afterEntries) {
     $afterMap["$normKey|$normValue"] = [pscustomobject]@{ key_path = $keyPath; value_name = $valueName; is_key_only = ($valueName -eq $KeySentinelName); state = New-ValueState -Item $item }
 }
 
-$allIds = @($beforeMap.Keys + $afterMap.Keys | Sort-Object -Unique)
+$allIds = @()
+$allIds += @($beforeMap.Keys)
+$allIds += @($afterMap.Keys)
+$allIds = @($allIds | Sort-Object -Unique)
+
 $changes = @()
 foreach ($id in $allIds) {
     $before = if ($beforeMap.ContainsKey($id)) { $beforeMap[$id] } else { $null }
