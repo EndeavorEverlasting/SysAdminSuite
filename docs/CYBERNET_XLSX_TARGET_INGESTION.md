@@ -231,6 +231,13 @@ Note: `sas-collect-cybernet-evidence.sh` delegates to the workstation identity a
 
 Further correlation (DNS, AD, DHCP, approved Nmap) is documented in [`CYBERNET_EVIDENCE_CORRELATION.md`](CYBERNET_EVIDENCE_CORRELATION.md).
 
+## Hostname recall errors
+
+When a manifest `HostName` may carry a human recollection or typing error (wrong site prefix,
+WNH/WMH confusion, number transposition, O/0 swap), expand it into bounded AD candidates per
+[`CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md`](CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md) before AD
+enrichment. Variant matches are discovery candidates only and never serial proof.
+
 ## Contract test
 
 ```bash

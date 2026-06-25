@@ -6,6 +6,8 @@ Active Directory registered population is the **population authority** for Cyber
 
 When an authorized AD computer export is available, treat AD as the authoritative registered population. Deployment trackers, subnet scans, and port probes are **evidence layers** that confirm or challenge AD records — they do not replace AD as the population source.
 
+Bounded hostname variant expansion (see [`CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md`](CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md)) is **candidate discovery** for locating an AD record despite a recall/typing error. A variant match is not population membership and not serial proof.
+
 ## Approved input store
 
 Place authorized, scoped AD-derived exports in:
