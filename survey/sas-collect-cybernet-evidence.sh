@@ -110,8 +110,10 @@ with open(manifest, newline='', encoding='utf-8-sig') as f:
     for row in csv.DictReader(f):
         # Serial is the stable identity, but live network collection still needs
         # a transport hint such as hostname/IP. Prefer explicit probe hints and
-        # hostnames for the adapter, while downstream comparison remains serial-first.
-        target=first(row, ['ProbeTarget','SurveyTargetHint','HostName','Hostname','ComputerName','Computer','Name','Target','Identifier','MACAddress','ExpectedMAC'])
+        # hostnames for the adapter. If no probe hint exists, fall back to serial
+        # so the adapter emits an unreachable/blocked evidence row instead of
+        # failing before the manifest can be reported.
+        target=first(row, ['ProbeTarget','SurveyTargetHint','HostName','Hostname','ComputerName','Computer','Name','Target','Identifier','MACAddress','ExpectedMAC','Serial','SerialNumber','ServiceTag','AssetSerial','ExpectedSerial','Cybernet Serial','Cybernet S/N'])
         if target and target not in seen: seen.append(target)
 with open(out, 'w', encoding='utf-8') as f:
     for target in seen: f.write(target+'\n')
@@ -158,7 +160,7 @@ def stable_target(row):
     return first(row, ['Serial','SerialNumber','ServiceTag','AssetSerial','ExpectedSerial','Cybernet Serial','Cybernet S/N','Identifier','Target','HostName','Hostname','SurveyTargetHint','MACAddress','ExpectedMAC'])
 
 def probe_target(row):
-    return first(row, ['ProbeTarget','SurveyTargetHint','HostName','Hostname','ComputerName','Computer','Name','Target','Identifier','MACAddress','ExpectedMAC'])
+    return first(row, ['ProbeTarget','SurveyTargetHint','HostName','Hostname','ComputerName','Computer','Name','Target','Identifier','MACAddress','ExpectedMAC','Serial','SerialNumber','ServiceTag','AssetSerial','ExpectedSerial','Cybernet Serial','Cybernet S/N'])
 
 def verdict(ping_status, expected_serial, expected_mac, observed_serial, observed_macs, identity_status):
     evidence=[]
