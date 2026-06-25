@@ -3586,8 +3586,6 @@ function initCybernetShell() {
   document.getElementById('hero-load-evidence')?.addEventListener('click', openEvidence);
   document.getElementById('cybernet-load-evidence-end')?.addEventListener('click', openEvidence);
 
-  const openAdvanced = () => openAdvancedSection(true);
-  document.getElementById('hero-open-advanced')?.addEventListener('click', openAdvanced);
   document.getElementById('advanced-tools-toggle')?.addEventListener('click', () => {
     const section = document.getElementById('advanced-section');
     const open = section?.classList.contains('hidden');
