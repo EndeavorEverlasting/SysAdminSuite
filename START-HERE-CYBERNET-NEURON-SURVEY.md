@@ -4,6 +4,19 @@ This is the current priority field workflow for SysAdminSuite technicians.
 
 Use it when you need to locate Cybernet or Neuron devices from approved deployment documentation using a local admin workstation, target manifests, and conservative approved network discovery.
 
+## Dashboard quick path
+
+Use the Cybernet-first dashboard when you want a guided wizard instead of memorizing CLI steps. Live Mode is **not** the front door — it lives under **Advanced Tools → Generate Survey Commands**.
+
+1. **Open the dashboard** — from the repo root: `python3 -m http.server 8000`, then browse to `http://localhost:8000/dashboard/` (see [`dashboard/README.md`](dashboard/README.md)).
+2. **Start Cybernet Survey** — opens the wizard (progress rail: Targets → Network posture → Identity evidence → Reachability → Review package).
+3. **Copy posture and identity commands** — run network preflight and workstation identity on the admin box; keep output local.
+4. **Optional reachability** — wizard step 4 is skippable; uses profile `keyports_cybernet_json` when you need low-noise port confirmation.
+5. **Load Evidence** — drop `network_preflight.csv`, `workstation_identity.csv`, and optional reachability JSON.
+6. **Review Results** — use the Cybernet review summary; open **Advanced Tools** only for detailed panels or legacy command generation.
+
+For subnet discovery and Nmap orchestration, use the CLI path below.
+
 ## Urgent path (orchestrator)
 
 Use one correlated `--site` and `--run-id` across steps:

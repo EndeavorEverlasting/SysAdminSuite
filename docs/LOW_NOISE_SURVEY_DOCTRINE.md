@@ -175,6 +175,8 @@ bash survey/sas-generate-naabu-runtime-profiles.sh --check   # fails if runtime 
 - `keyports_cybernet_json` is the **default**: full Windows key ports
   (`80,443,135,445,3389,5985,5986`) with `-json` for durable, parseable, packageable
   evidence. Use it for `confirm-windows`, `parse-naabu-only`, and the package path.
+  The dashboard presents optional reachability as **Optional reachability check** with
+  profile `keyports_cybernet_json` in the wizard step details.
 - `keyports_cybernet_pipe` is the **raw local pipeline** profile: same ports, `-silent -ec`,
   no `-json`. Use it only to stream `host:port` into local enrichment
   (`sas-cybernet-packet-followup.sh`). It is not durable evidence.

@@ -5,115 +5,144 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SysAdmin Suite Dashboard</title>
   <link rel="stylesheet" href="css/style.css">
-  <!-- SheetJS — blocking load from vendored copy (deterministic: available before any
-       file-drop event fires). CDN fallback only if local file is missing (404). -->
   <script src="js/vendor/xlsx.full.min.js"
           onerror="(function(){var s=document.createElement('script');s.src='https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';s.onerror=function(){window._xlsxUnavailable=true;};document.head.appendChild(s);})()"></script>
 </head>
 <body>
 <div id="app">
 
-  <!-- Drop Overlay -->
   <div id="drop-overlay">Drop files anywhere to load</div>
 
-  <!-- Header -->
   <div id="header">
     <h1>SysAdmin Suite <span>Dashboard</span></h1>
-    <div id="mode-toggle">
-      <button class="mode-btn active" data-mode="log">📂 Log Mode</button>
-      <button class="mode-btn" data-mode="live">⚡ Live (Command-Gen)</button>
-    </div>
     <div class="header-spacer"></div>
-    <button class="icon-btn" id="clear-all-btn" title="Clear all loaded data">🗑 Clear All</button>
     <span class="header-relay-badge relay-disconnected" id="header-relay-badge" title="Relay offline — run: python3 dashboard/relay.py">○ Relay</span>
+    <button class="btn-secondary btn-compact" id="advanced-tools-toggle" type="button" aria-expanded="false" aria-controls="advanced-section">Advanced Tools</button>
   </div>
 
-  <!-- Log Mode File Ingestion -->
-  <div id="panel-ingestion">
-    <div id="ingestion-inner">
-      <div class="drop-zone" id="drop-zone">
-        <span class="drop-icon">📁</span>
-        <span>Drop files here or click to browse</span>
-        <span style="font-size:10px;color:var(--text-muted)">CSV · JSON · XLSX · TXT</span>
-      </div>
-      <input type="file" id="file-input" multiple accept=".csv,.json,.xlsx,.xls,.txt" style="display:none">
-      <span class="ingestion-sep">or</span>
-      <button class="paste-btn" id="paste-btn">📋 Paste / Type</button>
-      <span class="ingestion-sep">or</span>
-      <button class="paste-btn demo-btn" id="demo-btn" title="Populate all panels with realistic sample data — no files needed">🧪 Load Sample Data</button>
-      <span class="ingestion-sep">or</span>
-      <button class="paste-btn watch-folder-btn" id="watch-folder-btn" title="Auto-watch a folder and load new log files as they appear (Chrome/Edge 86+)">👁 Watch Folder</button>
-      <button class="paste-btn watch-stop-btn" id="watch-stop-btn" style="display:none" title="Stop watching the folder">⏹ Stop Watch</button>
-      <span class="watch-unsupported-msg" id="watch-unsupported-msg" style="display:none">⚠ Folder watch requires Chrome or Edge 86+</span>
-      <div class="watch-indicator" id="watch-indicator" style="display:none"></div>
-      <div class="loaded-files" id="loaded-files"></div>
-    </div>
-  </div>
-
-  <!-- Live Mode Controls -->
-  <div id="live-controls">
-    <span style="color:var(--text-dim);font-size:12px;white-space:nowrap">Targets:</span>
-    <input id="live-targets" class="live-targets" placeholder="hostname1, 192.168.1.10, … or import a file" type="text" style="flex:1;padding:7px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:var(--mono);outline:none">
-    <button class="paste-btn" id="live-file-btn">📁 Import list</button>
-    <input type="file" id="live-file-input" accept=".txt,.csv" style="display:none">
-    <button class="live-btn" id="live-start">⚡ Generate Probe Commands</button>
-    <span class="live-note">⚠ Command-generation mode — copy commands, run on an admin machine, then drag the resulting CSV files back here</span>
-  </div>
-
-
-
-  <!-- Cybernet Target Acquisition Tutorial -->
-  <section id="cybernet-tutorial" class="cybernet-tutorial" aria-label="Cybernet target acquisition tutorial">
-    <div class="cybernet-tutorial-head">
-      <div>
-        <div class="eyebrow">Newbie guided workflow</div>
-        <h2>Acquire Cybernet targets without guessing</h2>
-        <p>Click through a safe command workflow: prepare a list, prove path posture, collect identity evidence, then review CSV output locally.</p>
-      </div>
-      <div class="cybernet-tutorial-actions">
-        <button class="paste-btn" id="cybernet-tutorial-start">▶ Start tutorial</button>
-        <button class="paste-btn" id="cybernet-tutorial-copy">📋 Copy current command</button>
+  <section id="cybernet-hero" class="cybernet-hero" aria-label="Cybernet Survey">
+    <div class="cybernet-hero-inner">
+      <h2>Cybernet Survey</h2>
+      <p class="cybernet-hero-subtitle">Find, verify, and package Cybernet targets from approved target sources.</p>
+      <ol class="cybernet-progress-rail" id="cybernet-progress-rail" aria-label="Survey progress">
+        <li data-step="0">Targets</li>
+        <li data-step="1">Network posture</li>
+        <li data-step="2">Identity evidence</li>
+        <li data-step="3">Reachability</li>
+        <li data-step="4">Review package</li>
+      </ol>
+      <div class="cybernet-hero-actions" id="cybernet-hero-actions">
+        <button class="btn-primary" id="hero-start-survey" type="button">Start Cybernet Survey</button>
+        <button class="btn-secondary" id="hero-load-evidence" type="button">Load Evidence</button>
       </div>
     </div>
-    <div class="cybernet-stepper" id="cybernet-stepper" aria-label="Cybernet acquisition steps"></div>
+  </section>
+
+  <section id="cybernet-tutorial" class="cybernet-tutorial hidden" aria-label="Cybernet survey wizard">
+    <div class="cybernet-step-kicker" id="cybernet-step-kicker">Step 1 of 5</div>
+    <div class="cybernet-step-progress" id="cybernet-step-progress" aria-hidden="true"></div>
     <div class="cybernet-step-card">
       <div class="cybernet-step-content">
-        <div class="cybernet-step-kicker" id="cybernet-step-kicker">Step 1</div>
         <h3 id="cybernet-step-title">Prepare your target list</h3>
         <p id="cybernet-step-body"></p>
-        <ul id="cybernet-step-checks"></ul>
+        <details class="cybernet-step-details" id="cybernet-step-details">
+          <summary>Show details</summary>
+          <ul id="cybernet-step-checks"></ul>
+        </details>
       </div>
-      <div class="cybernet-command-panel">
-        <div class="command-panel-title">Copy/paste command</div>
+      <div class="cybernet-command-panel" id="cybernet-command-panel">
+        <div class="command-panel-title">Command</div>
         <textarea id="cybernet-step-command" readonly spellcheck="false"></textarea>
         <div class="command-panel-note" id="cybernet-step-note"></div>
       </div>
     </div>
     <div class="cybernet-tutorial-nav">
-      <button class="btn-secondary" id="cybernet-prev">← Back</button>
-      <button class="btn-primary" id="cybernet-next">Next →</button>
+      <button class="btn-secondary" id="cybernet-prev" type="button">← Back</button>
+      <button class="btn-secondary hidden" id="cybernet-copy" type="button">Copy Command</button>
+      <button class="btn-primary" id="cybernet-next" type="button">Next →</button>
+    </div>
+    <div class="cybernet-wizard-footer hidden" id="cybernet-wizard-footer">
+      <button class="btn-secondary" id="cybernet-load-evidence-end" type="button">Load resulting evidence</button>
     </div>
   </section>
 
-  <!-- Tabs -->
-  <div id="tabs">
-    <button class="tab-btn active" data-tab="printer">🖨️ Printer Mapping<span class="tab-badge">0</span></button>
-    <button class="tab-btn" data-tab="inventory">🖥️ Hardware Inventory<span class="tab-badge">0</span></button>
-    <button class="tab-btn" data-tab="tasks">⚡ Remote Tasks<span class="tab-badge">0</span></button>
-    <button class="tab-btn" data-tab="network">📡 Network &amp; Protocol Trace<span class="tab-badge">0</span></button>
-    <button class="tab-btn" data-tab="software">📦 Software Tracker<span class="tab-badge">0</span></button>
-  </div>
+  <section id="evidence-loader" class="evidence-loader hidden" aria-label="Load evidence">
+    <div class="evidence-loader-head">
+      <h3>Load Evidence</h3>
+      <p>Drop survey output files here after running commands on an admin workstation.</p>
+    </div>
+    <div id="panel-ingestion">
+      <div id="ingestion-inner">
+        <div class="drop-zone" id="drop-zone">
+          <span class="drop-icon">📁</span>
+          <span>Drop files here or click to browse</span>
+          <span class="drop-hint">network_preflight.csv · workstation_identity.csv · reachability JSON</span>
+        </div>
+        <input type="file" id="file-input" multiple accept=".csv,.json,.xlsx,.xls,.txt" style="display:none">
+        <div class="evidence-loader-actions">
+          <button class="paste-btn" id="paste-btn" type="button">Paste data</button>
+          <button class="icon-btn evidence-clear-btn" id="clear-all-btn" type="button" title="Clear all loaded evidence">Clear evidence</button>
+        </div>
+        <details class="evidence-advanced-ingest">
+          <summary>More import options</summary>
+          <div class="evidence-advanced-inner">
+            <button class="paste-btn demo-btn" id="demo-btn" type="button" title="Populate panels with sample data">Load sample data</button>
+            <button class="paste-btn watch-folder-btn" id="watch-folder-btn" type="button" title="Auto-watch a folder (Chrome/Edge 86+)">Watch folder</button>
+            <button class="paste-btn watch-stop-btn" id="watch-stop-btn" style="display:none" type="button">Stop watch</button>
+            <span class="watch-unsupported-msg" id="watch-unsupported-msg" style="display:none">Folder watch requires Chrome or Edge 86+</span>
+            <div class="watch-indicator" id="watch-indicator" style="display:none"></div>
+          </div>
+        </details>
+        <details class="evidence-formats">
+          <summary>Supported formats</summary>
+          <p class="formats-list">Preflight.csv · Results.csv · workstation_identity.csv · printer_probe.csv · network_preflight.csv · MachineInfo_Output.csv · RamInfo_Output.csv · NeuronNetworkInventory · status.json · QRTask/RunControl logs · sources.yaml</p>
+        </details>
+        <div class="loaded-files" id="loaded-files"></div>
+      </div>
+    </div>
+  </section>
 
-  <!-- Main Content -->
-  <div id="content">
-    <div class="panel active" data-panel="printer" id="panel-printer"></div>
+  <section id="cybernet-review" class="cybernet-review hidden" aria-label="Cybernet survey review">
+    <h3>Review Results</h3>
+    <div id="cybernet-review-body" class="cybernet-review-body"></div>
+    <button class="btn-link" id="review-open-network" type="button">Open network evidence details →</button>
+  </section>
+
+  <section id="advanced-section" class="advanced-section hidden" aria-label="Advanced tools">
+    <div class="advanced-section-head">
+      <h3>Advanced Tools</h3>
+      <p>Review evidence, generate survey commands, and open detailed panels.</p>
+    </div>
+    <div id="mode-toggle" class="mode-toggle-advanced">
+      <button class="mode-btn active" data-mode="log" type="button">Review Evidence</button>
+      <button class="mode-btn" data-mode="live" type="button">Generate Survey Commands</button>
+    </div>
+    <div id="live-controls">
+      <span class="live-label">Targets:</span>
+      <input id="live-targets" class="live-targets" placeholder="hostname1, 192.168.1.10, …" type="text">
+      <button class="paste-btn" id="live-file-btn" type="button">Import list</button>
+      <input type="file" id="live-file-input" accept=".txt,.csv" style="display:none">
+      <button class="live-btn" id="live-start" type="button">Generate Survey Commands</button>
+      <span class="live-note">Copy commands, run on an admin machine, then load resulting files via Load Evidence.</span>
+    </div>
+    <div class="advanced-panels-label">Advanced Review Panels</div>
+    <div id="tabs">
+      <button class="tab-btn" data-tab="network" type="button">📡 Network &amp; Protocol<span class="tab-badge">0</span></button>
+      <button class="tab-btn" data-tab="printer" type="button">🖨️ Printer Mapping<span class="tab-badge">0</span></button>
+      <button class="tab-btn" data-tab="inventory" type="button">🖥️ Hardware Inventory<span class="tab-badge">0</span></button>
+      <button class="tab-btn" data-tab="tasks" type="button">⚡ Remote Tasks<span class="tab-badge">0</span></button>
+      <button class="tab-btn" data-tab="software" type="button">📦 Software Tracker<span class="tab-badge">0</span></button>
+    </div>
+  </section>
+
+  <div id="content" class="hidden">
+    <div class="panel" data-panel="network" id="panel-network"></div>
+    <div class="panel" data-panel="printer" id="panel-printer"></div>
     <div class="panel" data-panel="inventory" id="panel-inventory"></div>
     <div class="panel" data-panel="tasks" id="panel-tasks"></div>
-    <div class="panel" data-panel="network" id="panel-network"></div>
     <div class="panel" data-panel="software" id="panel-software"></div>
   </div>
 
-  <!-- Status Footer -->
   <div id="status-footer">
     <span class="status-dot" id="status-dot"></span>
     <span class="status-computer" id="status-computer"></span>
@@ -123,31 +152,26 @@
   </div>
 </div>
 
-<!-- Toast Container -->
 <div id="toast-container"></div>
 
-<!-- Paste Modal -->
-<div id="paste-modal" class="modal-backdrop hidden" style="">
+<div id="paste-modal" class="modal-backdrop hidden">
   <div class="modal">
     <div class="modal-header">
       <span class="modal-title">Paste or Type Data</span>
-      <button class="modal-close" id="paste-modal-close">×</button>
+      <button class="modal-close" id="paste-modal-close" type="button">×</button>
     </div>
     <div class="modal-body">
       <div class="modal-label">
-        Filename (used for auto-detection — use known patterns like <code>Results.csv</code>, <code>workstation_identity.csv</code>, etc.)
+        Filename (use known patterns like <code>network_preflight.csv</code>, <code>workstation_identity.csv</code>)
       </div>
-      <input type="text" id="paste-filename" value="pasted-data.csv"
+      <input type="text" id="paste-filename" value="network_preflight.csv"
         style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;width:100%;font-family:var(--mono);outline:none;margin-bottom:4px">
       <div class="modal-label">Paste CSV, JSON, or plain text below:</div>
       <textarea class="paste-area" id="paste-textarea" placeholder="Paste CSV rows, JSON array, or target list here…"></textarea>
-      <div class="modal-label" style="color:var(--text-muted)">
-        Supported file types: Preflight.csv · Results.csv · workstation_identity.csv · printer_probe.csv · network_preflight.csv · MachineInfo_Output.csv · RamInfo_Output.csv · NeuronNetworkInventory.csv/.json · status.json · QRTask/RunControl logs
-      </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-secondary" id="paste-cancel">Cancel</button>
-      <button class="btn-primary" id="paste-submit">Import Data</button>
+      <button class="btn-secondary" id="paste-cancel" type="button">Cancel</button>
+      <button class="btn-primary" id="paste-submit" type="button">Import Data</button>
     </div>
   </div>
 </div>
@@ -157,11 +181,7 @@
   code { font-family: var(--mono); font-size: 11px; background: var(--bg3); padding: 1px 4px; border-radius: 3px; }
 </style>
 
-<!-- sample-data.js: plain script — defines window._sasSampleStore() and window._sasSampleStatus() -->
 <script src="js/sample-data.js"></script>
-<!-- bundle.js: all dashboard JS concatenated into a single non-module script.
-     Works both when served over HTTP and when opened directly as a local file (file:// URL).
-     Regenerate with: node dashboard/build-bundle.js -->
 <script src="js/bundle.js"></script>
 <script src="js/cybernet-os-preflight.js"></script>
 </body>

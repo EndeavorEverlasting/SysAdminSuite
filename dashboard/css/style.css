@@ -34,8 +34,9 @@ html, body {
 #app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 #header {
@@ -1108,4 +1109,129 @@ textarea.paste-area:focus { border-color: var(--accent); }
   .cybernet-command-panel {
     width: 100%;
   }
+}
+
+/* ── Cybernet-first shell ───────────────────────────────────── */
+.cybernet-hero {
+  flex-shrink: 0;
+  margin: 14px 18px 0;
+  padding: 20px 22px;
+  border: 1px solid rgba(79, 142, 247, 0.28);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(79,142,247,0.14), rgba(108,99,255,0.06));
+}
+
+.cybernet-hero h2 { font-size: 20px; margin-bottom: 6px; }
+.cybernet-hero-subtitle { color: var(--text-dim); font-size: 13px; max-width: 52rem; }
+
+.cybernet-progress-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 14px 0 16px;
+  padding: 0;
+}
+
+.cybernet-progress-rail li {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--bg3);
+}
+
+.cybernet-progress-rail li.active {
+  border-color: var(--accent);
+  color: #fff;
+  background: rgba(79,142,247,0.35);
+}
+
+.cybernet-progress-rail li.done {
+  border-color: rgba(34, 197, 94, 0.35);
+  color: var(--success);
+}
+
+.cybernet-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-compact { padding: 6px 12px; font-size: 12px; }
+.btn-link {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: underline;
+  padding: 6px 4px;
+}
+
+.evidence-loader,
+.cybernet-review,
+.advanced-section {
+  flex-shrink: 0;
+  margin: 12px 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+}
+
+.evidence-loader-head h3,
+.cybernet-review h3,
+.advanced-section-head h3 { font-size: 14px; margin-bottom: 4px; }
+.evidence-loader-head p,
+.advanced-section-head p { color: var(--text-dim); font-size: 12px; margin-bottom: 10px; }
+
+#panel-ingestion { border: none; background: transparent; }
+#ingestion-inner {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  gap: 10px;
+}
+
+.drop-hint { font-size: 10px; color: var(--text-muted); display: block; }
+.evidence-loader-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.evidence-advanced-ingest summary,
+.evidence-formats summary { cursor: pointer; color: var(--text-dim); font-size: 12px; }
+.evidence-advanced-inner { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.formats-list { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+
+.file-chip .chip-meta { display: flex; flex-direction: column; gap: 1px; }
+.file-chip .chip-name { font-weight: 500; color: var(--text); }
+.file-chip .chip-type { font-size: 10px; color: var(--text-muted); }
+
+.cybernet-review-stats { list-style: none; padding: 0; margin: 0 0 8px; }
+.cybernet-review-stats li { font-size: 12px; margin-bottom: 4px; color: var(--text-dim); }
+.cybernet-review-warn { color: var(--warning); font-size: 12px; margin: 8px 0; }
+.cybernet-review-next { font-size: 12px; color: var(--text-dim); }
+
+.mode-toggle-advanced { margin-bottom: 10px; }
+.advanced-panels-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 10px 0 6px;
+}
+
+.live-label { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+
+.cybernet-wizard-footer { margin-top: 10px; }
+
+@media (max-width: 480px) {
+  .cybernet-hero { margin-left: 8px; margin-right: 8px; padding: 14px; }
+  .cybernet-hero-actions { flex-direction: column; align-items: stretch; }
+  .cybernet-hero-actions .btn-primary,
+  .cybernet-hero-actions .btn-secondary { width: 100%; }
+  #header { flex-wrap: wrap; padding: 8px 10px; }
+  #tabs { overflow-x: auto; padding: 0 8px; }
+  .evidence-loader, .cybernet-review, .advanced-section { margin-left: 8px; margin-right: 8px; }
 }

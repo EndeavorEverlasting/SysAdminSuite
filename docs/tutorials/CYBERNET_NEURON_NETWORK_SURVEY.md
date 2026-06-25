@@ -14,6 +14,19 @@ Use this when you have approved target documentation, a local admin workstation,
 | No evasion | Do not use decoys, spoofing, stealth flags, vuln scripts, brute force, or credential attacks. This is inventory discovery, not magic ninja theater. |
 | Nmap is not a serial oracle | Nmap can help with live hosts, DNS, MACs, and open ports. Device serial matching comes from trackers, AD/CMDB exports, known manifests, or approved host probes. |
 
+## Dashboard quick path (Cybernet-first UI)
+
+The dashboard leads with **Start Cybernet Survey**, not Live Mode. Use this path when you already have a target list and want posture, identity, and optional reachability evidence reviewed in one place.
+
+1. Open `http://localhost:8000/dashboard/` (see [`dashboard/README.md`](../../dashboard/README.md)).
+2. Click **Start Cybernet Survey** and walk the wizard: Targets → Network posture → Identity evidence → optional Reachability → Review package.
+3. Copy and run the posture and identity commands on the admin workstation.
+4. Optionally run step 4 (**Optional reachability check**; profile `keyports_cybernet_json` in step details) when port confirmation is justified.
+5. Click **Load Evidence** and import the resulting CSVs/JSON.
+6. Read **Review Results**; use **Advanced Tools** for detailed panels or **Generate Survey Commands** (legacy Live Mode) only when needed.
+
+The CLI steps below cover the full subnet-discovery orchestrator path (local context, DNS list, Nmap, resolve, package). Use that path when you need approved CIDR discovery, not just a guided target-list survey.
+
 ## What you should produce
 
 At the end of a clean run, you should have:
@@ -305,6 +318,10 @@ Stop and escalate when:
 - a scan would exceed the approved site scope
 
 ## Technician summary
+
+**Dashboard path:** Start Cybernet Survey → copy posture/identity commands → optional reachability → Load Evidence → Review Results.
+
+**CLI orchestrator path:**
 
 ```text
 1. Pull repo.
