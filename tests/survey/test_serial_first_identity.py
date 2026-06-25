@@ -8,7 +8,6 @@ identity while hostname remains only a mutable transport hint.
 from __future__ import annotations
 
 import csv
-import os
 import stat
 import subprocess
 import tempfile
@@ -40,7 +39,6 @@ def test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint() 
         manifest = tmp / "manifest.csv"
         output = tmp / "cybernet_evidence.csv"
         fake_adapter = tmp / "fake_identity_adapter.sh"
-        captured_targets = tmp / "captured_targets.txt"
 
         write_csv(
             manifest,
@@ -85,9 +83,13 @@ def test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint() 
             "    *) shift ;;\n"
             "  esac\n"
             "done\n"
-            f"cp \"$targets_file\" {captured_targets!s}\n"
+            "probe=$(head -n 1 \"$targets_file\")\n"
             "printf '%s\\n' 'Timestamp,Target,ResolvedAddress,PingStatus,DnsName,ObservedHostName,ObservedSerial,ObservedMACs,TransportUsed,IdentityStatus,Notes' > \"$output\"\n"
-            "printf '%s\\n' '\"2026-06-25 00:00:00\",\"OLD-CYBERNET-HOST\",\"10.10.10.10\",\"Reachable\",\"OLD-CYBERNET-HOST\",\"RENAMED-CYBERNET-HOST\",\"CYB-SERIAL-001\",\"AA:BB:CC:DD:EE:FF\",\"WMI\",\"IdentityCollected\",\"offline fixture\"' >> \"$output\"\n",
+            "if [[ \"$probe\" == 'OLD-CYBERNET-HOST' ]]; then\n"
+            "  printf '\"2026-06-25 00:00:00\",\"%s\",\"10.10.10.10\",\"Reachable\",\"%s\",\"RENAMED-CYBERNET-HOST\",\"CYB-SERIAL-001\",\"AA:BB:CC:DD:EE:FF\",\"WMI\",\"IdentityCollected\",\"probe=%s\"\\n' \"$probe\" \"$probe\" \"$probe\" >> \"$output\"\n"
+            "else\n"
+            "  printf '\"2026-06-25 00:00:00\",\"%s\",\"\",\"NoPing\",\"\",\"\",\"\",\"\",\"\",\"UnreachableOrBlocked\",\"probe=%s\"\\n' \"$probe\" \"$probe\" >> \"$output\"\n"
+            "fi\n",
             encoding="utf-8",
         )
         fake_adapter.chmod(fake_adapter.stat().st_mode | stat.S_IXUSR)
@@ -105,10 +107,6 @@ def test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint() 
             ]
         )
 
-        # The adapter should be asked to probe by hostname, not by serial, because
-        # serial is not directly reachable on the network.
-        assert captured_targets.read_text(encoding="utf-8").strip() == "OLD-CYBERNET-HOST"
-
         row = read_first_row(output)
         assert row["Target"] == "CYB-SERIAL-001"
         assert row["HostName"] == "OLD-CYBERNET-HOST"
@@ -116,6 +114,7 @@ def test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint() 
         assert row["ObservedHostName"] == "RENAMED-CYBERNET-HOST"
         assert row["ObservedSerial"] == "CYB-SERIAL-001"
         assert row["EvidenceStatus"] == "Confirmed"
+        assert row["Notes"] == "probe=OLD-CYBERNET-HOST"
 
 
 def test_live_serial_probe_resolves_by_serial_before_hostname() -> None:
