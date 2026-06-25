@@ -64,6 +64,10 @@
     <div class="cybernet-wizard-footer hidden" id="cybernet-wizard-footer">
       <button class="btn-secondary" id="cybernet-load-evidence-end" type="button">Load resulting evidence</button>
     </div>
+    <div id="cybernet-manifest-summary" class="cybernet-manifest-summary cybernet-manifest-summary-empty" role="status" aria-live="polite" aria-atomic="true">
+      <div class="eyebrow">Cybernet Target Manifest</div>
+      <div id="cybernet-manifest-stats" class="cybernet-manifest-stats"></div>
+    </div>
   </section>
 
   <section id="evidence-loader" class="evidence-loader hidden" aria-label="Load evidence">
@@ -185,10 +189,25 @@
 <style>
   .hidden { display: none !important; }
   code { font-family: var(--mono); font-size: 11px; background: var(--bg3); padding: 1px 4px; border-radius: 3px; }
+  .cybernet-manifest-summary-empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; margin: -1px; padding: 0; border: 0; }
 </style>
 
 <script src="js/sample-data.js"></script>
 <script src="js/bundle.js"></script>
+<script>
+(function(){
+  const root = document.getElementById('cybernet-manifest-summary');
+  const stats = document.getElementById('cybernet-manifest-stats');
+  if (!root || !stats) return;
+  const updateState = () => {
+    if (root.style.display === 'none') root.style.display = '';
+    root.classList.toggle('cybernet-manifest-summary-empty', !stats.textContent.trim());
+  };
+  updateState();
+  new MutationObserver(updateState).observe(stats, { childList: true, subtree: true, characterData: true });
+  new MutationObserver(updateState).observe(root, { attributes: true, attributeFilter: ['style'] });
+})();
+</script>
 <script src="js/cybernet-os-preflight.js"></script>
 </body>
 </html>

@@ -1087,6 +1087,29 @@ textarea.paste-area:focus { border-color: var(--accent); }
 }
 .command-panel-note { margin-top: 6px; color: var(--warning); font-size: 11px; }
 .cybernet-tutorial-nav { margin-top: 10px; justify-content: flex-end; }
+.cybernet-manifest-summary {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(79, 142, 247, 0.08);
+}
+.cybernet-manifest-stats {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.cybernet-ad-population-summary {
+  flex-shrink: 0;
+  margin: 12px 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+}
+.cybernet-ad-population-note { color: var(--text-dim); font-size: 12px; margin: 0 0 8px; }
+.cybernet-ad-population-stats { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
 
 @media (max-width: 900px) {
   .cybernet-tutorial-head, .cybernet-step-card { flex-direction: column; }
@@ -1173,7 +1196,6 @@ textarea.paste-area:focus { border-color: var(--accent); }
 
 .evidence-loader,
 .cybernet-review,
-.cybernet-ad-population-summary,
 .advanced-section {
   flex-shrink: 0;
   margin: 12px 18px;
@@ -1185,7 +1207,6 @@ textarea.paste-area:focus { border-color: var(--accent); }
 
 .evidence-loader-head h3,
 .cybernet-review h3,
-.cybernet-ad-population-summary h3,
 .advanced-section-head h3 { font-size: 14px; margin-bottom: 4px; }
 .evidence-loader-head p,
 .advanced-section-head p { color: var(--text-dim); font-size: 12px; margin-bottom: 10px; }
@@ -1213,9 +1234,6 @@ textarea.paste-area:focus { border-color: var(--accent); }
 .cybernet-review-stats li { font-size: 12px; margin-bottom: 4px; color: var(--text-dim); }
 .cybernet-review-warn { color: var(--warning); font-size: 12px; margin: 8px 0; }
 .cybernet-review-next { font-size: 12px; color: var(--text-dim); }
-
-.cybernet-ad-population-note { color: var(--text-dim); font-size: 12px; margin: 0 0 8px; }
-.cybernet-ad-population-stats { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
 
 .mode-toggle-advanced { margin-bottom: 10px; }
 .advanced-panels-label {

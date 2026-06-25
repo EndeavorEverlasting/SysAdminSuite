@@ -1,0 +1,4 @@
+Hostname,DNSHostName,IPAddress,Serial,Site,Location,Neuron,Workstation,MAC
+WMH300OPR001,WMH300OPR001.example.local,10.1.2.3,SN-SAMPLE-001,NSUH,Room 101,NEU-01,WS-01,00:11:22:33:44:55
+WMH300OPR002,,,SN-SAMPLE-002,NSUH,Room 102,,,
+,,10.1.2.5,SN-SAMPLE-003,NSUH,Room 103,,,
