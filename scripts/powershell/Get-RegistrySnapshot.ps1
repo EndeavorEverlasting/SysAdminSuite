@@ -1,3 +1,4 @@
+﻿# Requires PowerShell 5.1+
 <#
 .SYNOPSIS
 Captures a read-only registry snapshot for install-diff evidence collection.
@@ -36,20 +37,7 @@ Multiple wildcard exclusion patterns applied to registry key paths.
 Optional JSON output path for persisted snapshot evidence.
 
 .EXAMPLE
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/Get-RegistrySnapshot.ps1 -Target localhost
-Captures default watch areas on localhost and returns structured output.
-
-.EXAMPLE
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/Get-RegistrySnapshot.ps1 -Target localhost -RegistryPath "HKLM:\Software\ExampleVendor"
-Captures a single explicit key path.
-
-.EXAMPLE
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/Get-RegistrySnapshot.ps1 -Target localhost -RegistryPaths "HKLM:\Software","HKLM:\Software\WOW6432Node" -ExcludePatterns "*\RecentDocs*","*\SessionInformation*"
-Captures selected paths while skipping excluded patterns.
-
-.EXAMPLE
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/Get-RegistrySnapshot.ps1 -Target localhost -RegistryPath "HKLM:\Software" -OutputPath "exports/registry-install-diff/test/registry_before.json"
-Captures snapshot and writes structured JSON to the requested file.
+powershell.exe -File scripts/powershell/Get-RegistrySnapshot.ps1 -Target localhost
 
 .NOTES
 Safety notes:
@@ -90,19 +78,18 @@ $defaultRegistryPaths = @(
 $effectiveRegistryPaths = @()
 if ($RegistryPath) { $effectiveRegistryPaths += $RegistryPath }
 if ($RegistryPaths) { $effectiveRegistryPaths += $RegistryPaths }
-if (-not $effectiveRegistryPaths -or $effectiveRegistryPaths.Count -eq 0) {
+if (-not $effectiveRegistryPaths -or @($effectiveRegistryPaths).Count -eq 0) {
     $effectiveRegistryPaths = $defaultRegistryPaths
 }
-$effectiveRegistryPaths = $effectiveRegistryPaths | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+$effectiveRegistryPaths = @($effectiveRegistryPaths | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
 
 $effectiveExcludePatterns = @()
 if ($ExcludePattern) { $effectiveExcludePatterns += $ExcludePattern }
 if ($ExcludePatterns) { $effectiveExcludePatterns += $ExcludePatterns }
-$effectiveExcludePatterns = $effectiveExcludePatterns | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+$effectiveExcludePatterns = @($effectiveExcludePatterns | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
 function Get-ValueDataKind {
     param([object]$Value)
-
     if ($null -eq $Value) { return 'unknown' }
     if ($Value -is [string]) {
         if ($Value -match '%[^%]+%') { return 'expandable_string' }
@@ -117,10 +104,7 @@ function Get-ValueDataKind {
 
 function Convert-ValueData {
     param([object]$Value)
-
-    if ($Value -is [byte[]]) {
-        return [Convert]::ToBase64String($Value)
-    }
+    if ($Value -is [byte[]]) { return [Convert]::ToBase64String($Value) }
     return $Value
 }
 
@@ -129,11 +113,8 @@ function Test-IsExcluded {
         [string]$Path,
         [string[]]$Patterns
     )
-
-    foreach ($pattern in $Patterns) {
-        if ($Path -like $pattern) {
-            return $true
-        }
+    foreach ($pattern in @($Patterns)) {
+        if ($Path -like $pattern) { return $true }
     }
     return $false
 }
@@ -167,7 +148,7 @@ $result = [ordered]@{
     entries        = @()
     errors         = @()
     summary        = [ordered]@{
-        roots_requested = $effectiveRegistryPaths.Count
+        roots_requested = @($effectiveRegistryPaths).Count
         keys_scanned    = 0
         entries_total   = 0
         captured        = 0
@@ -191,7 +172,7 @@ if ($scope -ne 'localhost') {
     $result.summary.errors = 1
 }
 else {
-    foreach ($rootPath in $effectiveRegistryPaths) {
+    foreach ($rootPath in @($effectiveRegistryPaths)) {
         if (Test-IsExcluded -Path $rootPath -Patterns $effectiveExcludePatterns) {
             $result.summary.excluded++
             continue
@@ -228,9 +209,8 @@ else {
 
             try {
                 $item = Get-Item -LiteralPath $currentPath -ErrorAction Stop
-
                 $valueNames = @($item.GetValueNames())
-                if ($valueNames.Count -eq 0) {
+                if (@($valueNames).Count -eq 0) {
                     $result.entries += [ordered]@{
                         key_path        = $currentPath
                         value_name      = $null
@@ -245,12 +225,11 @@ else {
                     $result.summary.captured++
                 }
                 else {
-                    foreach ($valueName in $valueNames) {
+                    foreach ($valueName in @($valueNames)) {
                         $rawValue = $item.GetValue($valueName, $null)
                         $kind = Get-ValueDataKind -Value $rawValue
                         $valueData = Convert-ValueData -Value $rawValue
                         $valueKind = $item.GetValueKind($valueName).ToString()
-
                         $result.entries += [ordered]@{
                             key_path        = $currentPath
                             value_name      = if ([string]::IsNullOrEmpty($valueName)) { '(Default)' } else { $valueName }
@@ -267,10 +246,11 @@ else {
                 }
 
                 try {
-                    $children = Get-ChildItem -LiteralPath $currentPath -ErrorAction Stop
-                    foreach ($child in $children) {
-                        if (-not (Test-IsExcluded -Path $child.PSPath.Replace('Microsoft.PowerShell.Core\Registry::', '') -Patterns $effectiveExcludePatterns)) {
-                            $pending.Enqueue($child.PSPath.Replace('Microsoft.PowerShell.Core\Registry::', ''))
+                    $children = @(Get-ChildItem -LiteralPath $currentPath -ErrorAction Stop)
+                    foreach ($child in @($children)) {
+                        $childPath = $child.PSPath.Replace('Microsoft.PowerShell.Core\Registry::', '')
+                        if (-not (Test-IsExcluded -Path $childPath -Patterns $effectiveExcludePatterns)) {
+                            $pending.Enqueue($childPath)
                         }
                         else {
                             $result.summary.excluded++
@@ -290,7 +270,6 @@ else {
             catch {
                 $message = $_.Exception.Message
                 $status = if ($message -match 'denied') { 'AccessDenied' } else { 'Error' }
-
                 $result.entries += [ordered]@{
                     key_path        = $currentPath
                     value_name      = $null
@@ -302,12 +281,8 @@ else {
                     error_message   = $message
                 }
                 $result.summary.entries_total++
-                if ($status -eq 'AccessDenied') {
-                    $result.summary.access_denied++
-                }
-                else {
-                    $result.summary.errors++
-                }
+                if ($status -eq 'AccessDenied') { $result.summary.access_denied++ }
+                else { $result.summary.errors++ }
             }
         }
     }
