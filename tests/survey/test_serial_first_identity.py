@@ -33,12 +33,89 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, cwd=REPO_ROOT, check=True)
 
 
+def fake_identity_adapter(path: Path) -> None:
+    path.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "targets_file=''\n"
+        "output=''\n"
+        "while [[ $# -gt 0 ]]; do\n"
+        "  case \"$1\" in\n"
+        "    --targets-file) targets_file=\"$2\"; shift 2 ;;\n"
+        "    --output) output=\"$2\"; shift 2 ;;\n"
+        "    --timeout) shift 2 ;;\n"
+        "    *) shift ;;\n"
+        "  esac\n"
+        "done\n"
+        "probe=$(head -n 1 \"$targets_file\" || true)\n"
+        "printf '%s\\n' 'Timestamp,Target,ResolvedAddress,PingStatus,DnsName,ObservedHostName,ObservedSerial,ObservedMACs,TransportUsed,IdentityStatus,Notes' > \"$output\"\n"
+        "if [[ \"$probe\" == 'OLD-CYBERNET-HOST' ]]; then\n"
+        "  printf '\"2026-06-25 00:00:00\",\"%s\",\"10.10.10.10\",\"Reachable\",\"%s\",\"RENAMED-CYBERNET-HOST\",\"CYB-SERIAL-001\",\"AA:BB:CC:DD:EE:FF\",\"WMI\",\"IdentityCollected\",\"probe=%s\"\\n' \"$probe\" \"$probe\" \"$probe\" >> \"$output\"\n"
+        "elif [[ \"$probe\" == 'CYB-SERIAL-003' ]]; then\n"
+        "  printf '\"2026-06-25 00:00:00\",\"%s\",\"\",\"NoPing\",\"\",\"\",\"\",\"\",\"\",\"UnreachableOrBlocked\",\"probe=%s\"\\n' \"$probe\" \"$probe\" >> \"$output\"\n"
+        "else\n"
+        "  printf '\"2026-06-25 00:00:00\",\"%s\",\"\",\"NoPing\",\"\",\"\",\"\",\"\",\"\",\"UnreachableOrBlocked\",\"probe=%s\"\\n' \"$probe\" \"$probe\" >> \"$output\"\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    path.chmod(path.stat().st_mode | stat.S_IXUSR)
+
+
+def test_manifest_builder_prefers_serial_over_hostname() -> None:
+    with tempfile.TemporaryDirectory() as tmp_raw:
+        tmp = Path(tmp_raw)
+        requests = tmp / "survey_requests_duplicate_resolution.csv"
+        output = tmp / "remote_survey_manifest.csv"
+
+        write_csv(
+            requests,
+            [
+                {
+                    "KnownResolutionIdentifiers": "cybernet hostname=OLD-CYBERNET-HOST; cybernet serial=CYB-SERIAL-000; cybernet mac=AA-BB-CC-DD-EE-00",
+                    "SurveyTargetHint": "OLD-CYBERNET-HOST",
+                    "ConflictValue": "OLD-CYBERNET-HOST",
+                    "MissingResolutionIdentifiers": "Neuron Serial",
+                    "ExcelRow": "41",
+                    "ConflictField": "Cybernet Hostname",
+                    "LocationKey": "NSUH-TEST",
+                }
+            ],
+            [
+                "KnownResolutionIdentifiers",
+                "SurveyTargetHint",
+                "ConflictValue",
+                "MissingResolutionIdentifiers",
+                "ExcelRow",
+                "ConflictField",
+                "LocationKey",
+            ],
+        )
+
+        run(
+            [
+                "bash",
+                "deployment-audit/sas-build-survey-manifest.sh",
+                "--requests",
+                str(requests),
+                "--output",
+                str(output),
+            ]
+        )
+
+        row = read_first_row(output)
+        assert row["Identifier"] == "CYB-SERIAL-000"
+        assert row["Target"] == "CYB-SERIAL-000"
+        assert row["HostName"] == "OLD-CYBERNET-HOST"
+        assert row["Serial"] == "CYB-SERIAL-000"
+        assert row["MACAddress"] == "AA:BB:CC:DD:EE:00"
+
+
 def test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint() -> None:
     with tempfile.TemporaryDirectory() as tmp_raw:
         tmp = Path(tmp_raw)
         manifest = tmp / "manifest.csv"
         output = tmp / "cybernet_evidence.csv"
-        fake_adapter = tmp / "fake_identity_adapter.sh"
+        adapter = tmp / "fake_identity_adapter.sh"
 
         write_csv(
             manifest,
@@ -69,30 +146,7 @@ def test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint() 
                 "ConflictValue",
             ],
         )
-
-        fake_adapter.write_text(
-            "#!/usr/bin/env bash\n"
-            "set -euo pipefail\n"
-            "targets_file=''\n"
-            "output=''\n"
-            "while [[ $# -gt 0 ]]; do\n"
-            "  case \"$1\" in\n"
-            "    --targets-file) targets_file=\"$2\"; shift 2 ;;\n"
-            "    --output) output=\"$2\"; shift 2 ;;\n"
-            "    --timeout) shift 2 ;;\n"
-            "    *) shift ;;\n"
-            "  esac\n"
-            "done\n"
-            "probe=$(head -n 1 \"$targets_file\")\n"
-            "printf '%s\\n' 'Timestamp,Target,ResolvedAddress,PingStatus,DnsName,ObservedHostName,ObservedSerial,ObservedMACs,TransportUsed,IdentityStatus,Notes' > \"$output\"\n"
-            "if [[ \"$probe\" == 'OLD-CYBERNET-HOST' ]]; then\n"
-            "  printf '\"2026-06-25 00:00:00\",\"%s\",\"10.10.10.10\",\"Reachable\",\"%s\",\"RENAMED-CYBERNET-HOST\",\"CYB-SERIAL-001\",\"AA:BB:CC:DD:EE:FF\",\"WMI\",\"IdentityCollected\",\"probe=%s\"\\n' \"$probe\" \"$probe\" \"$probe\" >> \"$output\"\n"
-            "else\n"
-            "  printf '\"2026-06-25 00:00:00\",\"%s\",\"\",\"NoPing\",\"\",\"\",\"\",\"\",\"\",\"UnreachableOrBlocked\",\"probe=%s\"\\n' \"$probe\" \"$probe\" >> \"$output\"\n"
-            "fi\n",
-            encoding="utf-8",
-        )
-        fake_adapter.chmod(fake_adapter.stat().st_mode | stat.S_IXUSR)
+        fake_identity_adapter(adapter)
 
         run(
             [
@@ -101,7 +155,7 @@ def test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint() 
                 "--manifest",
                 str(manifest),
                 "--identity-adapter",
-                str(fake_adapter),
+                str(adapter),
                 "--output",
                 str(output),
             ]
@@ -115,6 +169,65 @@ def test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint() 
         assert row["ObservedSerial"] == "CYB-SERIAL-001"
         assert row["EvidenceStatus"] == "Confirmed"
         assert row["Notes"] == "probe=OLD-CYBERNET-HOST"
+
+
+def test_cybernet_collector_reports_serial_only_rows_without_crashing() -> None:
+    with tempfile.TemporaryDirectory() as tmp_raw:
+        tmp = Path(tmp_raw)
+        manifest = tmp / "serial_only_manifest.csv"
+        output = tmp / "cybernet_evidence.csv"
+        adapter = tmp / "fake_identity_adapter.sh"
+
+        write_csv(
+            manifest,
+            [
+                {
+                    "Identifier": "",
+                    "Target": "",
+                    "HostName": "",
+                    "Serial": "CYB-SERIAL-003",
+                    "MACAddress": "",
+                    "DeviceType": "Cybernet",
+                    "Source": "offline-test",
+                    "ExcelRow": "44",
+                    "ConflictField": "Cybernet Serial",
+                    "ConflictValue": "CYB-SERIAL-003",
+                }
+            ],
+            [
+                "Identifier",
+                "Target",
+                "HostName",
+                "Serial",
+                "MACAddress",
+                "DeviceType",
+                "Source",
+                "ExcelRow",
+                "ConflictField",
+                "ConflictValue",
+            ],
+        )
+        fake_identity_adapter(adapter)
+
+        run(
+            [
+                "bash",
+                "survey/sas-collect-cybernet-evidence.sh",
+                "--manifest",
+                str(manifest),
+                "--identity-adapter",
+                str(adapter),
+                "--output",
+                str(output),
+            ]
+        )
+
+        row = read_first_row(output)
+        assert row["Target"] == "CYB-SERIAL-003"
+        assert row["ExpectedSerial"] == "CYB-SERIAL-003"
+        assert row["PingStatus"] == "NoPing"
+        assert row["EvidenceStatus"] == "Unreachable"
+        assert row["Notes"] == "probe=CYB-SERIAL-003"
 
 
 def test_live_serial_probe_resolves_by_serial_before_hostname() -> None:
@@ -196,6 +309,8 @@ def test_live_serial_probe_resolves_by_serial_before_hostname() -> None:
 
 
 if __name__ == "__main__":
+    test_manifest_builder_prefers_serial_over_hostname()
     test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint()
+    test_cybernet_collector_reports_serial_only_rows_without_crashing()
     test_live_serial_probe_resolves_by_serial_before_hostname()
     print("offline serial-first identity tests passed")
