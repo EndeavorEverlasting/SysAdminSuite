@@ -138,6 +138,14 @@ SysAdminSuite/
 
 ## Quick Start
 
+### Field Survey — Cybernet / Neuron (Bash-first)
+
+For approved Cybernet or Neuron site surveys, start with the field workflow diagram and urgent CLI path:
+
+- [`START-HERE-CYBERNET-NEURON-SURVEY.md`](START-HERE-CYBERNET-NEURON-SURVEY.md) — workflow diagram plus orchestrator commands
+- [`docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md) — full step-by-step tutorial
+- [`survey/README.md`](survey/README.md) — script reference and contract tests
+
 ### Launch the GUI (recommended starting point)
 
 The easiest way to launch the GUI is to **double-click** the batch file at the repo root:

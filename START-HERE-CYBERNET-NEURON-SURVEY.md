@@ -4,6 +4,60 @@ This is the current priority field workflow for SysAdminSuite technicians.
 
 Use it when you need to locate Cybernet or Neuron devices from approved deployment documentation using a local admin workstation, target manifests, and conservative approved network discovery.
 
+## Workflow at a glance
+
+Use this diagram to keep the field path straight: approved population first, local context and reachability second, local evidence package last. Mermaid source: [`docs/diagrams/cybernet-neuron-survey-flow.mmd`](docs/diagrams/cybernet-neuron-survey-flow.mmd).
+
+Each orchestrator mode is a separate `--mode` run, not a single chained pipeline. The numbered order below is the typical progression, but you invoke one mode at a time.
+
+```mermaid
+flowchart TD
+    subgraph entryPaths [Entry Paths]
+        dashboard["Dashboard: Start Cybernet Survey"]
+        cli["CLI: survey/sas-cybernet-subnet-survey.sh --mode MODE"]
+    end
+
+    subgraph populationAuthority [Population Authority]
+        approvedInputs["AD export or approved manifests"]
+        adReconcile["survey/sas-ad-reconcile.sh"]
+        manifests["Resolved target manifests (survey/output/ad_reconcile)"]
+        approvedInputs --> adReconcile --> manifests
+    end
+
+    subgraph orchestratorModes [Orchestrator modes: pick one --mode per run]
+        localContext["local-context-only"]
+        dnsList["dns-list-only"]
+        discover["discover"]
+        resolveOnly["resolve-only"]
+        confirmWindows["confirm-windows (optional)"]
+        parseNaabu["parse-naabu-only"]
+        packageOnly["package-only"]
+    end
+
+    typicalOrder["Typical order: local-context-only -> dns-list-only -> discover -> resolve-only -> confirm-windows (optional) -> parse-naabu-only -> package-only"]
+
+    subgraph localEvidence [Local Evidence Only]
+        surveyOutputs["survey/output and survey/artifacts"]
+        networkLogs["logs/nmap and logs/network_context"]
+    end
+
+    subgraph guardrails [Guardrails]
+        populationRule["AD or approved manifests define population"]
+        reachabilityRule["Nmap and Naabu validate reachability only"]
+        evidenceRule["Do not commit live evidence"]
+    end
+
+    dashboard --> manifests
+    cli --> orchestratorModes
+    orchestratorModes --> typicalOrder
+    manifests --> resolveOnly
+    packageOnly --> surveyOutputs
+    packageOnly --> networkLogs
+    populationRule --> approvedInputs
+    reachabilityRule --> confirmWindows
+    evidenceRule --> localEvidence
+```
+
 ## Dashboard quick path
 
 Use the Cybernet-first dashboard when you want a guided wizard instead of memorizing CLI steps. Live Mode is **not** the front door — it lives under **Advanced Tools → Generate Survey Commands**.
