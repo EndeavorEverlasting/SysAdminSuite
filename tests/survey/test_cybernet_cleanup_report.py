@@ -251,7 +251,65 @@ def test_cleanup_report_does_not_clear_hostname_only_evidence() -> None:
         assert revisit_row["RecommendedAction"] == "Collect serial or MAC evidence before clearing revisit."
 
 
+def test_cleanup_report_requires_hard_identity_for_hostname_drift() -> None:
+    with tempfile.TemporaryDirectory() as tmp_raw:
+        tmp = Path(tmp_raw)
+        resolver = tmp / "resolver.csv"
+        cleanup = tmp / "cleanup.csv"
+        revisit = tmp / "revisit.csv"
+        write_csv(
+            resolver,
+            [
+                {
+                    "input_identifier": "HOST-DRIFT-ONLY",
+                    "target": "HOST-DRIFT-ONLY",
+                    "source_row": "500",
+                    "device_type": "Cybernet",
+                    "expected_hostname": "OLD-HOST-ONLY",
+                    "expected_cybernet_serial": "",
+                    "expected_neuron_serial": "",
+                    "expected_mac": "",
+                    "resolved_hostname": "NEW-HOST-ONLY",
+                    "resolved_serial": "",
+                    "resolved_mac": "",
+                    "observed_hostname": "NEW-HOST-ONLY",
+                    "observed_serial": "",
+                    "observed_mac": "",
+                    "reachability_status": "offline_identity",
+                    "serial_probe_status": "IdentityCollectedNeedsComparisonData",
+                    "classification": "identity_resolved",
+                    "follow_up_system": "None",
+                    "probe_methods_attempted": "manifest_match;identity_csv_lookup",
+                    "probe_method_success": "identity_csv_match",
+                    "probe_confidence": "low",
+                    "evidence_source": "identity_csv",
+                    "evidence_detail": "hostname drift only fixture",
+                    "identity_drift_status": "hostname_drift",
+                    "already_had_serial": "no",
+                    "already_had_mac": "no",
+                    "can_populate_serial": "no",
+                    "can_populate_mac": "no",
+                    "log_status": "hostname_drift",
+                    "notes": "hostname drift without hard identity evidence",
+                    "probed_at": "2026-06-25 00:00:00",
+                }
+            ],
+            FIELDS,
+        )
+
+        build_reports(resolver, cleanup, revisit)
+
+        cleanup_row = read_rows(cleanup)[0]
+        revisit_row = read_rows(revisit)[0]
+        assert cleanup_row["CleanupStatus"] == "no_tracker_update"
+        assert cleanup_row["RecommendedAction"] == "Hold tracker hostname change until serial or MAC evidence is collected."
+        assert revisit_row["PriorityBucket"] == "P3_wmi_or_network_retry"
+        assert revisit_row["Reason"] == "Hostname drift was reported without serial or MAC evidence"
+        assert revisit_row["RecommendedAction"] == "Collect serial or MAC evidence before updating tracker or clearing revisit."
+
+
 if __name__ == "__main__":
     test_cleanup_report_splits_tracker_cleanup_from_revisit_work()
     test_cleanup_report_does_not_clear_hostname_only_evidence()
+    test_cleanup_report_requires_hard_identity_for_hostname_drift()
     print("offline cybernet cleanup report tests passed")
