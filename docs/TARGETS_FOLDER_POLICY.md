@@ -1,12 +1,12 @@
 # Targets Folder Policy
 
-`targets/` is the one-stop shop for target intake across SysAdminSuite.
+`targets/` is the intake hub for SysAdminSuite target-source documentation, local placement guidance, schemas, and sanitized examples.
 
-This policy exists so agents and developers do not scatter target sources across `survey/input/`, dashboard folders, ad hoc scratch paths, or feature-specific directories.
+This policy keeps target-source intake from being scattered across runtime folders such as `survey/input/`, dashboard folders, scratch paths, or feature-specific directories.
 
 ## Rule
 
-All workflows that start from a known list of devices, hostnames, serials, MAC addresses, subnets, or deployment-tracker rows should treat `targets/` as the intake root.
+Workflows that begin from an approved list of devices or deployment rows should document `targets/` as the first intake location.
 
 Use `targets/` for:
 
@@ -17,26 +17,17 @@ Use `targets/` for:
 - local operator instructions for where to place real target exports
 - handoff notes explaining which downstream workflow consumes the target set
 
-Do not use `targets/` for committed live field data.
+Do not commit real field target data to `targets/`.
 
-## Live data boundary
+## Data boundary
 
-Live target files may contain hostnames, serials, MAC addresses, IPs, subnet hints, site names, or deployment context. Those files are local operator material unless explicitly sanitized.
+Real target files are local operator material unless explicitly sanitized.
 
-Do not commit:
+Do not commit real exports, site-specific lists, raw inventory extracts, generated survey output, or generated evidence packages.
 
-- live CSV, TSV, XLSX, ZIP, or dashboard exports
-- site-specific target lists
-- serial-number inventories
-- MAC-address inventories
-- raw AD, CMDB, SCCM, deployment tracker, or Nmap evidence
-- generated survey output
-
-The repo already ignores common live-data formats such as CSV, TSV, XLS/XLSX, and ZIP. Keep that safety posture intact.
+The repo already ignores common local-data formats such as CSV, TSV, XLS/XLSX, and ZIP. Keep that safety posture intact.
 
 ## Folder contract
-
-`targets/` is the intake hub. Tool-specific folders are runtime or processing destinations.
 
 | Folder | Role |
 |---|---|
@@ -44,7 +35,7 @@ The repo already ignores common live-data formats such as CSV, TSV, XLS/XLSX, an
 | `survey/input/` | Runtime staging area for survey scripts |
 | `survey/output/` | Generated local survey output |
 | `survey/artifacts/` | Generated local evidence packages |
-| `logs/nmap/` | Generated local Nmap or Naabu evidence |
+| `logs/nmap/` | Generated local discovery evidence |
 | `evidence/` | Generated or collected field evidence |
 
 New workflows should reference `targets/` first, then copy, derive, or point to runtime files as needed.
@@ -52,9 +43,9 @@ New workflows should reference `targets/` first, then copy, derive, or point to 
 ## Approved pattern
 
 1. Operator receives or prepares an approved target source.
-2. Operator places the local live source under `targets/` or a local ignored subfolder under `targets/`.
+2. Operator places the local real source in a local ignored subfolder beneath `targets/` or another local-only path.
 3. Operator runs a normalizer or workflow that reads from that target source.
-4. Runtime artifacts are written to `survey/input/`, `survey/output/`, `logs/`, or `survey/artifacts/`.
+4. Runtime artifacts are written to the workflow-specific runtime/output folders.
 5. Only documentation, schemas, and sanitized fixtures are committed.
 
 ## Agent requirements
@@ -65,7 +56,7 @@ Agents working in this repo must:
 - avoid introducing new ad hoc target-source folders
 - avoid telling technicians to start in `survey/input/` unless the command specifically requires runtime staging there
 - distinguish target manifests from evidence files
-- keep normalized target manifests separate from Nmap, Naabu, preflight, or identity evidence
+- keep normalized target manifests separate from discovery, preflight, or identity evidence
 - state clearly when a dashboard can or cannot import a given target-manifest schema
 
 ## Dashboard and tutorial wording
@@ -73,7 +64,7 @@ Agents working in this repo must:
 Dashboard tutorials should use this distinction:
 
 - **Target source / manifest:** what the operator intends to survey or reconcile.
-- **Evidence:** what the network, identity, or inventory workflow actually observed.
+- **Evidence:** what the workflow actually observed.
 - **Review artifact:** a human-readable or dashboard-readable output used to make a decision.
 
 Do not imply that every target manifest is dashboard-importable. Parser support must exist before the dashboard is documented as accepting that file.
