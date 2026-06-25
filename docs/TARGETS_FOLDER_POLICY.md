@@ -1,76 +1,70 @@
-# Targets Folder Policy
+# Targets folder policy
 
-`targets/` is the intake hub for SysAdminSuite target-source documentation, local placement guidance, schemas, and sanitized examples.
+Mechanical enforcement for tracked files under `targets/`.
 
-This policy keeps target-source intake from being scattered across runtime folders such as `survey/input/`, dashboard folders, scratch paths, or feature-specific directories.
+## Purpose
 
-## Rule
+`targets/` is the official **intake hub** in git: docs, schemas, and sanitized fixtures only. Live Cybernet workbooks, serial lists, MAC exports, and field evidence stay **local and gitignored**.
 
-Workflows that begin from an approved list of devices or deployment rows should document `targets/` as the first intake location.
+`logs/targets/` remains a preserved local evidence store. This policy does **not** delete, move, or modify `logs/targets/`.
 
-Use `targets/` for:
+## Guard command
 
-- target intake notes
-- approved source descriptions
-- schema references
-- sanitized examples, when explicitly safe to track
-- local operator instructions for where to place real target exports
-- handoff notes explaining which downstream workflow consumes the target set
+```bash
+python scripts/validate-targets-folder-policy.py
+```
 
-Do not commit real field target data to `targets/`.
+Inspects `git ls-files targets/` only. Untracked local files are out of scope (and should stay ignored).
 
-## Data boundary
+## Guard boundary
 
-Real target files are local operator material unless explicitly sanitized.
+This guard is a **tracked-file policy check**, not full content DLP.
 
-Do not commit real exports, site-specific lists, raw inventory extracts, generated survey output, or generated evidence packages.
+It blocks committed files under `targets/` by path, extension, folder, and evidence-like names. It does not inspect every cell inside an approved `.sample`, `.example`, or `.fixture` file for real serials, MAC addresses, IP addresses, hostnames, or site identifiers. Keep sanitized fixtures synthetic and small. Treat any real target workbook, export, or evidence CSV as local-only data under ignored paths such as `targets/local/`, `logs/targets/`, or `survey/output/`.
 
-The repo already ignores common local-data formats such as CSV, TSV, XLS/XLSX, and ZIP. Keep that safety posture intact.
+## Allowed (tracked)
 
-## Folder contract
+| Pattern | Example |
+|---------|---------|
+| `targets/README.md` | Hub readme |
+| `targets/**/*.md` | Policy docs |
+| `targets/**/*.schema.json` | `targets/schema/cybernet-targets.schema.json` |
+| `targets/sanitized/**/*.{sample,example,fixture}.{csv,json}` | Synthetic fixtures |
+| `targets/**/.gitkeep` | Structure placeholders |
 
-| Folder | Role |
-|---|---|
-| `targets/` | Human-facing intake hub for target-source doctrine, local placement instructions, schemas, and sanitized examples |
-| `survey/input/` | Runtime staging area for survey scripts |
-| `survey/output/` | Generated local survey output |
-| `survey/artifacts/` | Generated local evidence packages |
-| `logs/nmap/` | Generated local discovery evidence |
-| `evidence/` | Generated or collected field evidence |
+Sanitized fixture names must **not** imply live data (e.g. `active_deployment_tracker.csv` is rejected even under `sanitized/`).
 
-New workflows should reference `targets/` first, then copy, derive, or point to runtime files as needed.
+## Rejected (tracked)
 
-## Approved pattern
+- Office workbooks: `.xlsx`, `.xlsm`, `.xls`
+- Archives: `.zip`
+- CSV/TSV outside `targets/sanitized/` with approved suffix
+- `.txt` unless under approved sanitized naming
+- Anything under `targets/live/`, `targets/local/`, `targets/incoming/`, `targets/raw/`
+- Filenames suggesting live evidence: Alejandro, Cybernet sources, wave, SSUH, NSUH, serial, mac, nmap, naabu, workstation identity, preflight, active deployment tracker
 
-1. Operator receives or prepares an approved target source.
-2. Operator places the local real source in a local ignored subfolder beneath `targets/` or another local-only path.
-3. Operator runs a normalizer or workflow that reads from that target source.
-4. Runtime artifacts are written to the workflow-specific runtime/output folders.
-5. Only documentation, schemas, and sanitized fixtures are committed.
+## Local-only intake (gitignored)
 
-## Agent requirements
+| Path | Role |
+|------|------|
+| `targets/local/` | Preferred ignored intake beside the hub |
+| `logs/targets/` | Preserved historical local evidence |
+| `survey/input/` | Runtime staging |
+| `survey/output/` | Generated manifests and reports |
 
-Agents working in this repo must:
+## Target manifest vs evidence
 
-- keep `targets/` as the first documented destination for target-source intake
-- avoid introducing new ad hoc target-source folders
-- avoid telling technicians to start in `survey/input/` unless the command specifically requires runtime staging there
-- distinguish target manifests from evidence files
-- keep normalized target manifests separate from discovery, preflight, or identity evidence
-- state clearly when a dashboard can or cannot import a given target-manifest schema
+- **Target manifest** — acquisition handoff (`Identifier,IdentifierType,DeviceType,HostName,Serial,MACAddress,Source`). Not network evidence.
+- **Evidence CSVs** — network preflight, workstation identity, printer probe, etc. Dashboard-recognized when parsers exist.
 
-## Dashboard and tutorial wording
+## Contract test
 
-Dashboard tutorials should use this distinction:
+```bash
+bash Tests/bash/test-targets-folder-policy-contracts.sh
+```
 
-- **Target source / manifest:** what the operator intends to survey or reconcile.
-- **Evidence:** what the workflow actually observed.
-- **Review artifact:** a human-readable or dashboard-readable output used to make a decision.
+## Related lanes
 
-Do not imply that every target manifest is dashboard-importable. Parser support must exist before the dashboard is documented as accepting that file.
-
-## Migration note
-
-Older documentation may still mention placing approved target CSVs directly in `survey/input/`. Treat that as runtime staging language, not intake doctrine.
-
-Going forward, document target intake through `targets/`, then document how each workflow stages or consumes those targets.
+- PR #46 — dashboard tutorial (does not import manifests until PR #54)
+- PR #61 — offline xlsx ingester (explicit local workbook paths)
+- PR #54 — dashboard manifest parser (after this guard lands)
