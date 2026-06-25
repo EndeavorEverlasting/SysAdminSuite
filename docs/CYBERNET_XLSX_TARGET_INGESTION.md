@@ -17,7 +17,7 @@ Use this lane when Alejandro's workbook defines the **field population** and the
 
 - Alejandro rows and tracker enrichment define **registered population** — not reachability proof.
 - Naabu/Nmap and other network probes are **reachability validation only** after population is fixed. See [`LOW_NOISE_SURVEY_DOCTRINE.md`](LOW_NOISE_SURVEY_DOCTRINE.md).
-- All CSV outputs stay on the admin box in gitignored paths (`survey/output/`, `targets/local/`). Do not commit live workbooks or generated CSVs.
+- Generated operational CSVs stay on the admin box in gitignored paths (`survey/output/`, `targets/local/`). Do not commit live workbooks or generated operational CSVs; sanitized fixture CSVs may still be tracked per repo `.gitignore` policy.
 - Assume authorized traffic may be monitored. Do not describe this workflow as stealth, evasion, or log bypass.
 
 **Evidence classification (identity transport)**
@@ -89,10 +89,13 @@ When Alejandro's workbook is the authoritative Cybernet serial source, compare i
 
 ```bash
 bash survey/sas-cybernet-tracker-diff.sh \
-  --alejandro "logs/targets/Cybernet sources/Alejandro's list of Cybernets.xlsx" \
-  --tracker "logs/targets/Cybernet sources/Active Deployment Tracker 2026-05-17 - 6-25-2026.xlsx" \
+  --alejandro "<alejandro-workbook>.xlsx" \
+  --tracker "<deployment-tracker-workbook>.xlsx" \
   --output-prefix survey/output/cybernet
 ```
+
+Point `--alejandro` and `--tracker` at your local workbook paths. Keep live workbooks out of
+git and follow [`LOCAL_REFERENCE_POLICY.md`](LOCAL_REFERENCE_POLICY.md) for local file handling.
 
 The diff is read-only against both workbooks and writes local operational CSVs:
 
@@ -107,32 +110,34 @@ Comparison rules:
 - Normalize serials by trimming whitespace and uppercasing.
 - Treat Alejandro rows as a unique serial inventory; duplicate Alejandro rows collapse into one serial with a row count.
 - Exclude an Alejandro serial from the untracked manifest when that serial already appears in the deployment tracker.
-- Emit duplicate exceptions only when the same normalized hostname, serial, or MAC appears in more than one tracker row marked `Deployed = Yes`.
+- Emit duplicate exceptions only when the same normalized identifier appears in more than one tracker row marked `Deployed = Yes`. Identifier classes checked are Cybernet hostname, Cybernet serial, Cybernet MAC, Neuron MAC, and Neuron S/N.
 - Repeated non-deployed tracker identifiers are planning history, not duplicate exceptions.
 
-`cybernet_alejandro_untracked.csv` uses the same manifest schema as the ingester. Serial-only rows are retained for tracking, but only rows with a resolved `HostName` are ready for live WMI/ping identity checks.
+`cybernet_alejandro_untracked.csv` uses the same manifest schema as the ingester. Serial-only rows are retained for tracking, but only rows with a resolved `HostName` are ready for live WMI/ping identity checks. When one Alejandro serial maps to more than one hostname, the row stays serial-keyed (not probe-ready) and the candidate hostnames are preserved in `Source` as `review:ambiguous_hostnames=...`; the tool does not arbitrarily pick one hostname.
 
 ## Command
 
-Example using ignored local intake under `targets/local/` (preferred for new work):
+Example using ignored local intake under `targets/local/` (preferred for new work). Replace the
+placeholders with your local workbook paths; see [`LOCAL_REFERENCE_POLICY.md`](LOCAL_REFERENCE_POLICY.md)
+for local file handling:
 
 ```bash
 bash survey/sas-cybernet-xlsx-targets.sh \
-  --workbook "targets/local/Cybernet sources/Alejandro's list of Cybernets.xlsx" \
-  --enrichment "targets/local/Cybernet sources/Active Deployment Tracker 2026-05-17 (1).xlsx" \
-  --enrichment "targets/local/Cybernet sources/ALL WAVE ANESTHESIA MACHINES (1).xlsx" \
+  --workbook "<alejandro-workbook>.xlsx" \
+  --enrichment "<deployment-tracker-workbook>.xlsx" \
+  --enrichment "<wave-supplement-workbook>.xlsx" \
   --output survey/output/cybernet_alejandro_targets.csv \
   --report survey/output/cybernet_alejandro_enrichment_report.csv \
   --gaps survey/output/cybernet_alejandro_gaps.csv \
   --device-type Cybernet
 ```
 
-Historical local evidence under `logs/targets/` remains valid — pass those paths instead if you have not migrated:
+Historical local evidence under `logs/targets/` remains valid — pass those local paths instead if you have not migrated:
 
 ```bash
 bash survey/sas-cybernet-xlsx-targets.sh \
-  --workbook "/path/to/logs/targets/Cybernet sources/Alejandro's list of Cybernets.xlsx" \
-  --enrichment "/path/to/logs/targets/Cybernet sources/Active Deployment Tracker 2026-05-17 (1).xlsx" \
+  --workbook "<local-alejandro-workbook>.xlsx" \
+  --enrichment "<local-deployment-tracker-workbook>.xlsx" \
   --output survey/output/cybernet_alejandro_targets.csv
 ```
 
@@ -250,7 +255,7 @@ Builds tiny fixture workbooks, runs the ingester and tracker diff wrappers, and 
 
 - Read-only: does not modify source `.xlsx` files
 - Offline: no network calls during ingestion
-- Treat output CSVs as operational data; keep them out of git (repo ignores `*.csv` / `survey/output/*`)
+- Treat generated operational outputs under `survey/output/` (and similar evidence paths) as local-only; they are gitignored. The repo ignores `*.csv` by default, but sanitized fixture CSVs (for example `*.sample.csv` / `*.example.csv` / `*.fixture.csv` under `survey/fixtures/` or `targets/sanitized/`) are intentionally tracked — do not assume every CSV must stay out of git.
 - Identity transports are read-only; no target-side writes, staging, or scheduled tasks
 
 ## Related docs

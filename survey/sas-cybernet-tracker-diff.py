@@ -17,6 +17,16 @@ except ImportError:
 
 EMPTY = {"", "N/A", "NA", "NONE", "NULL", "-", "--", "TBD", "UNKNOWN", "#N/A", "#REF!"}
 MAC_RE = re.compile(r"(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}|[0-9a-f]{12}")
+HOSTNAME_RE = re.compile(r"^[A-Za-z]{2,6}\d{2,}[A-Za-z0-9_-]*$|^[A-Za-z0-9]+[-_][A-Za-z0-9]+")
+HEADER_TOKENS = {
+    "serial", "serial number", "cybernet serial", "cybernet serial number",
+    "pc / cybernet serial no", "service tag",
+    "host", "hostname", "host name", "cybernet host", "cybernet hostname",
+    "computer name", "pc name",
+    "mac", "mac address", "cybernet mac", "cybernet mac address",
+    "neuron mac", "neuron mac address", "neuron s/n", "neuron serial", "neuron serial number",
+    "device type", "deployed",
+}
 MANIFEST_FIELDS = ["Identifier", "IdentifierType", "DeviceType", "HostName", "Serial", "MACAddress", "Source"]
 ALEJANDRO_FIELDS = ["Serial", "RowCount", "HostNames", "Sources", "ProbeReady"]
 TRACKER_FIELDS = ["Serial", "TrackerRowCount", "DeployedYesCount", "HostNames", "MACAddresses", "Sources"]
@@ -26,8 +36,9 @@ TRACKED_FIELDS = [
 ]
 DUP_FIELDS = [
     "IdentifierKind", "Identifier", "DeployedYesCount", "TrackerRowCount",
-    "HostNames", "Serials", "MACAddresses", "Sources",
+    "HostNames", "Serials", "MACAddresses", "NeuronMACAddresses", "NeuronSerials", "Sources",
 ]
+DUP_IDENTIFIER_KINDS = ("host", "serial", "mac", "neuron_mac", "neuron_sn")
 
 
 def clean(value: object) -> str:
@@ -43,7 +54,8 @@ def norm_serial(value: object) -> str:
 
 
 def norm_host(value: object) -> str:
-    return re.sub(r"\s+", "", clean(value)).upper()
+    text = re.sub(r"\s+", "", clean(value)).upper()
+    return text if text and HOSTNAME_RE.search(text) else ""
 
 
 def norm_mac(value: object) -> str:
@@ -56,6 +68,10 @@ def norm_mac(value: object) -> str:
 
 def norm_header(value: object) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip()).lower()
+
+
+def is_header_label(value: object) -> bool:
+    return norm_header(value) in HEADER_TOKENS
 
 
 def joined(values: set[str]) -> str:
@@ -79,13 +95,20 @@ def parse_alejandro(path: Path) -> dict[str, dict[str, object]]:
             upper = title.upper()
             if "AKBAR WAVE" in upper:
                 for row_index, row in enumerate(ws.iter_rows(values_only=True), start=1):
-                    serial = norm_serial(row[0] if row else "")
+                    cell = row[0] if row else ""
+                    if is_header_label(cell):
+                        continue
+                    serial = norm_serial(cell)
                     if serial:
                         add_alejandro(serials, serial, "", f"{path.name}:{title}:R{row_index}")
             elif upper.startswith("PO"):
                 for row_index, row in enumerate(ws.iter_rows(values_only=True), start=1):
-                    host = norm_host(row[0] if len(row) > 0 else "")
-                    serial = norm_serial(row[1] if len(row) > 1 else "")
+                    host_cell = row[0] if len(row) > 0 else ""
+                    serial_cell = row[1] if len(row) > 1 else ""
+                    if is_header_label(host_cell) or is_header_label(serial_cell):
+                        continue
+                    host = norm_host(host_cell)
+                    serial = norm_serial(serial_cell)
                     if serial:
                         add_alejandro(serials, serial, host, f"{path.name}:{title}:R{row_index}")
     finally:
@@ -116,6 +139,11 @@ def find_header_row(rows: list[tuple[object, ...]], scan_limit: int) -> tuple[in
         "cybernet mac address": "mac",
         "mac address": "mac",
         "mac": "mac",
+        "neuron mac": "neuron_mac",
+        "neuron mac address": "neuron_mac",
+        "neuron s/n": "neuron_sn",
+        "neuron serial": "neuron_sn",
+        "neuron serial number": "neuron_sn",
     }
     for index, row in enumerate(rows[:scan_limit]):
         mapped: dict[str, int] = {}
@@ -152,13 +180,19 @@ def parse_tracker(path: Path, sheet_name: str, header_scan_rows: int) -> tuple[d
         host = norm_host(row_value(row, columns.get("host")))
         serial = norm_serial(row_value(row, columns.get("serial")))
         mac = norm_mac(row_value(row, columns.get("mac")))
+        neuron_mac = norm_mac(row_value(row, columns.get("neuron_mac")))
+        neuron_sn = norm_serial(row_value(row, columns.get("neuron_sn")))
         deployed = row_value(row, columns.get("deployed")).upper() == "YES"
-        if not (host or serial or mac):
+        if not (host or serial or mac or neuron_mac or neuron_sn):
             continue
         source = f"{path.name}:{sheet_name}:R{offset}"
         if serial:
             add_tracker_serial(serials, serial, host, mac, deployed, source)
-        identifier_rows.append({"host": host, "serial": serial, "mac": mac, "deployed": "YES" if deployed else "NO", "source": source})
+        identifier_rows.append({
+            "host": host, "serial": serial, "mac": mac,
+            "neuron_mac": neuron_mac, "neuron_sn": neuron_sn,
+            "deployed": "YES" if deployed else "NO", "source": source,
+        })
     return serials, identifier_rows
 
 
@@ -174,8 +208,8 @@ def add_tracker_serial(serials: dict[str, dict[str, object]], serial: str, host:
 def duplicate_exceptions(identifier_rows: list[dict[str, str]]) -> list[dict[str, str]]:
     grouped: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
     for row in identifier_rows:
-        for kind in ("host", "serial", "mac"):
-            value = row[kind]
+        for kind in DUP_IDENTIFIER_KINDS:
+            value = row.get(kind, "")
             if value:
                 grouped[(kind, value)].append(row)
 
@@ -192,6 +226,8 @@ def duplicate_exceptions(identifier_rows: list[dict[str, str]]) -> list[dict[str
             "HostNames": joined({row["host"] for row in rows}),
             "Serials": joined({row["serial"] for row in rows}),
             "MACAddresses": joined({row["mac"] for row in rows}),
+            "NeuronMACAddresses": joined({row.get("neuron_mac", "") for row in rows}),
+            "NeuronSerials": joined({row.get("neuron_sn", "") for row in rows}),
             "Sources": joined({row["source"] for row in rows}),
         })
     return exceptions
@@ -200,13 +236,15 @@ def duplicate_exceptions(identifier_rows: list[dict[str, str]]) -> list[dict[str
 def alejandro_rows(alejandro: dict[str, dict[str, object]]) -> list[dict[str, str]]:
     rows = []
     for serial, rec in sorted(alejandro.items()):
-        hosts = rec["hosts"]
+        hosts = sorted(h for h in rec["hosts"] if h)
         rows.append({
             "Serial": serial,
             "RowCount": str(rec["count"]),
-            "HostNames": joined(hosts),
+            "HostNames": joined(set(hosts)),
             "Sources": joined(rec["sources"]),
-            "ProbeReady": "Yes" if any(hosts) else "No",
+            # probe-ready only when exactly one resolved hostname; multiple
+            # hostnames stay review-required rather than crowning one.
+            "ProbeReady": "Yes" if len(hosts) == 1 else "No",
         })
     return rows
 
@@ -243,16 +281,27 @@ def untracked_manifest(alejandro: dict[str, dict[str, object]], tracker: dict[st
     rows = []
     for serial in sorted(set(alejandro) - set(tracker)):
         rec = alejandro[serial]
-        host = sorted(h for h in rec["hosts"] if h)
-        hostname = host[0] if host else ""
+        hosts = sorted(h for h in rec["hosts"] if h)
+        source = joined(rec["sources"])
+        if len(hosts) == 1:
+            # exactly one resolved hostname: probe-ready
+            hostname = hosts[0]
+            identifier, identifier_type = hostname, "HostName"
+        else:
+            # zero or multiple hostnames: do not crown one; keep serial-keyed and
+            # not probe-ready. Surface ambiguous candidates for human review.
+            hostname = ""
+            identifier, identifier_type = serial, "Serial"
+            if len(hosts) > 1:
+                source = f"{source};review:ambiguous_hostnames={'|'.join(hosts)}"
         rows.append({
-            "Identifier": hostname or serial,
-            "IdentifierType": "HostName" if hostname else "Serial",
+            "Identifier": identifier,
+            "IdentifierType": identifier_type,
             "DeviceType": device_type,
             "HostName": hostname,
             "Serial": serial,
             "MACAddress": "",
-            "Source": joined(rec["sources"]),
+            "Source": source,
         })
     return rows
 

@@ -26,6 +26,15 @@ SERIAL_HEADERS = (
 HOST_HEADERS = ("cybernet hostname", "pc name", "hostname", "host name", "host", "computer name")
 MAC_HEADERS = ("cybernet mac", "mac address", "mac")
 IDENTIFIER_FIELDS = ("Cybernet Serial", "Cybernet Hostname", "Cybernet MAC", "Neuron MAC", "Neuron S/N")
+HEADER_TOKENS = {
+    "serial", "serial number", "cybernet serial", "cybernet serial number",
+    "pc / cybernet serial no", "service tag",
+    "host", "hostname", "host name", "cybernet host", "cybernet hostname",
+    "computer name", "pc name",
+    "mac", "mac address", "cybernet mac", "cybernet mac address",
+    "neuron mac", "neuron mac address", "neuron s/n", "neuron serial", "neuron serial number",
+    "device type", "deployed",
+}
 
 
 def clean(value: object) -> str:
@@ -55,6 +64,14 @@ def norm_mac(value: object) -> str:
         return ""
     raw = re.sub(r"[^0-9A-Fa-f]", "", match.group(0)).upper()
     return ":".join(raw[i : i + 2] for i in range(0, 12, 2)) if len(raw) == 12 else ""
+
+
+def norm_header(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip()).lower()
+
+
+def is_header_label(value: object) -> bool:
+    return norm_header(value) in HEADER_TOKENS
 
 
 def norm_identifier(field: str, value: object) -> str:
@@ -98,11 +115,18 @@ def parse_alejandro_serials(path: Path) -> list[str]:
             upper = ws.title.strip().upper()
             if "AKBAR WAVE" in upper:
                 for row in ws.iter_rows(values_only=True):
-                    if serial := norm_serial(row[0] if row else ""):
+                    cell = row[0] if row else ""
+                    if is_header_label(cell):
+                        continue
+                    if serial := norm_serial(cell):
                         serials.append(serial)
             elif upper.startswith("PO"):
                 for row in ws.iter_rows(values_only=True):
-                    if serial := norm_serial(row[1] if len(row) > 1 else ""):
+                    host_cell = row[0] if len(row) > 0 else ""
+                    serial_cell = row[1] if len(row) > 1 else ""
+                    if is_header_label(host_cell) or is_header_label(serial_cell):
+                        continue
+                    if serial := norm_serial(serial_cell):
                         serials.append(serial)
     finally:
         wb.close()
@@ -223,12 +247,12 @@ def build_diff_fixture(primary: Path, tracker: Path) -> None:
     ewb = Workbook()
     dep = ewb.active
     dep.title = "Deployments"
-    dep.append(["Device Type", "Cybernet Hostname", "Cybernet Serial", "Cybernet MAC", "Deployed"])
-    dep.append(["Cybernet-Neuron", "WTS001OPR101", "MEDTEST24-TRACKED01", "000D050AA101", "Yes"])
-    dep.append(["Cybernet-Neuron", "WTS001OPR201", "MEDTEST24-DUPYES01", "000D050AA201", "Yes"])
-    dep.append(["Cybernet-Neuron", "WTS001OPR202", "MEDTEST24-DUPYES01", "000D050AA202", "Yes"])
-    dep.append(["Cybernet-Neuron", "WTS001OPR103", "MEDTEST24-HIST01", "000D050AA103", "No"])
-    dep.append(["Cybernet-Neuron", "WTS001OPR104", "MEDTEST24-HIST01", "000D050AA104", "No"])
+    dep.append(["Device Type", "Cybernet Hostname", "Cybernet Serial", "Cybernet MAC", "Neuron S/N", "Deployed"])
+    dep.append(["Cybernet-Neuron", "WTS001OPR101", "MEDTEST24-TRACKED01", "000D050AA101", "NEU-UNIQ01", "Yes"])
+    dep.append(["Cybernet-Neuron", "WTS001OPR201", "MEDTEST24-DUPYES01", "000D050AA201", "NEU-DUP01", "Yes"])
+    dep.append(["Cybernet-Neuron", "WTS001OPR202", "MEDTEST24-DUPYES01", "000D050AA202", "NEU-DUP01", "Yes"])
+    dep.append(["Cybernet-Neuron", "WTS001OPR103", "MEDTEST24-HIST01", "000D050AA103", "NEU-HIST01", "No"])
+    dep.append(["Cybernet-Neuron", "WTS001OPR104", "MEDTEST24-HIST01", "000D050AA104", "NEU-HIST01", "No"])
     ewb.save(tracker)
 
 
@@ -240,6 +264,33 @@ def build_serial_only_fixture(path: Path) -> None:
     wb.save(path)
 
 
+def build_header_row_fixture(path: Path) -> None:
+    """Alejandro workbook whose first rows are header labels, not serials."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "AKBAR WAVE 1"
+    ws["A1"] = "Cybernet Serial"
+    ws["A2"] = "MEDTEST24-HDR01"
+    po = wb.create_sheet("PO 1")
+    po["A1"] = "Cybernet Hostname"
+    po["B1"] = "Cybernet Serial"
+    po["A2"] = "WTS001OPR301"
+    po["B2"] = "MEDTEST24-HDR02"
+    wb.save(path)
+
+
+def build_ambiguous_host_fixture(path: Path) -> None:
+    """One Alejandro serial mapped to two distinct hostnames (review-required)."""
+    wb = Workbook()
+    po = wb.active
+    po.title = "PO 1"
+    po["A1"] = "WTS001OPR401"
+    po["B1"] = "MEDTEST24-AMBIG01"
+    po["A2"] = "WTS001OPR402"
+    po["B2"] = "MEDTEST24-AMBIG01"
+    wb.save(path)
+
+
 def emit_fixtures(output_dir: Path) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = {
@@ -247,10 +298,14 @@ def emit_fixtures(output_dir: Path) -> dict[str, str]:
         "primary_diff": str(output_dir / "alejandro-diff.xlsx"),
         "tracker_diff": str(output_dir / "tracker-diff.xlsx"),
         "primary_serial_only": str(output_dir / "alejandro-serial-only.xlsx"),
+        "primary_header_rows": str(output_dir / "alejandro-header-rows.xlsx"),
+        "primary_ambiguous": str(output_dir / "alejandro-ambiguous-host.xlsx"),
     }
     build_duplicate_fixture(Path(paths["primary_dup"]))
     build_diff_fixture(Path(paths["primary_diff"]), Path(paths["tracker_diff"]))
     build_serial_only_fixture(Path(paths["primary_serial_only"]))
+    build_header_row_fixture(Path(paths["primary_header_rows"]))
+    build_ambiguous_host_fixture(Path(paths["primary_ambiguous"]))
     return paths
 
 

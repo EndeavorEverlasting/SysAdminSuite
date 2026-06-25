@@ -118,6 +118,8 @@ PRIMARY_DUP="$(printf '%s' "$FIXTURE_JSON" | "${PYTHON_CMD[@]}" -c 'import json,
 PRIMARY_DIFF="$(printf '%s' "$FIXTURE_JSON" | "${PYTHON_CMD[@]}" -c 'import json,sys; print(json.load(sys.stdin)["primary_diff"])')"
 TRACKER_DIFF="$(printf '%s' "$FIXTURE_JSON" | "${PYTHON_CMD[@]}" -c 'import json,sys; print(json.load(sys.stdin)["tracker_diff"])')"
 PRIMARY_SERIAL_ONLY="$(printf '%s' "$FIXTURE_JSON" | "${PYTHON_CMD[@]}" -c 'import json,sys; print(json.load(sys.stdin)["primary_serial_only"])')"
+PRIMARY_HEADER_ROWS="$(printf '%s' "$FIXTURE_JSON" | "${PYTHON_CMD[@]}" -c 'import json,sys; print(json.load(sys.stdin)["primary_header_rows"])')"
+PRIMARY_AMBIGUOUS="$(printf '%s' "$FIXTURE_JSON" | "${PYTHON_CMD[@]}" -c 'import json,sys; print(json.load(sys.stdin)["primary_ambiguous"])')"
 
 # --- Alejandro duplicate serial collapse ---
 MANIFEST_DUP="$TMP_DIR/manifest_dup.csv"
@@ -194,8 +196,12 @@ if not any(item["identifier"] == "MEDTEST24-DUPYES01" and item["deployed_yes_cou
     raise SystemExit("repeated Deployed=Yes identifier must emit duplicate exception")
 if non_deployed.get("MEDTEST24-HIST01", 0) < 2:
     raise SystemExit("fixture must include repeated non-deployed tracker identifier")
+if not any(item["identifier"] == "NEU-DUP01" and item["identifier_field"] == "Neuron S/N" for item in exceptions):
+    raise SystemExit("repeated Deployed=Yes Neuron S/N must emit duplicate exception")
+if any(item["identifier"] == "NEU-HIST01" for item in exceptions):
+    raise SystemExit("repeated non-deployed Neuron S/N must not emit duplicate exception")
 '
-pass "deployed-yes duplicate exception contract"
+pass "deployed-yes duplicate exception contract (incl. Neuron identifiers)"
 
 # --- tracker diff runner outputs ---
 DIFF_PREFIX="$TMP_DIR/diff/cybernet"
@@ -219,6 +225,48 @@ grep -q 'MEDTEST24-NEW01' "$UNTRACKED_CSV" || fail "diff untracked csv missing n
 grep -q 'MEDTEST24-TRACKED01' "$UNTRACKED_CSV" && fail "diff untracked csv must exclude tracked serial"
 grep -q 'MEDTEST24-DUPYES01' "$DUP_EXCEPTIONS_CSV" || fail "duplicate exceptions csv missing deployed-yes duplicate"
 grep -q 'MEDTEST24-HIST01' "$DUP_EXCEPTIONS_CSV" && fail "duplicate exceptions csv must ignore non-deployed repeats"
+grep -q 'NEU-DUP01' "$DUP_EXCEPTIONS_CSV" || fail "duplicate exceptions csv missing deployed-yes Neuron S/N duplicate"
+grep -q 'NEU-HIST01' "$DUP_EXCEPTIONS_CSV" && fail "duplicate exceptions csv must ignore non-deployed Neuron repeats"
 pass "tracker diff runner csv contract"
+
+# --- Alejandro header rows must not become fake serial inventory ---
+HDR_PREFIX="$TMP_DIR/hdr/cybernet"
+bash "$DIFF_RUNNER" \
+  --alejandro "$PRIMARY_HEADER_ROWS" \
+  --tracker "$TRACKER_DIFF" \
+  --output-prefix "$HDR_PREFIX" \
+  --device-type Cybernet >/dev/null
+HDR_UNIQUE_CSV="${HDR_PREFIX}_alejandro_unique_serials.csv"
+grep -q 'MEDTEST24-HDR01' "$HDR_UNIQUE_CSV" || fail "real serial after header row must be retained"
+grep -q 'MEDTEST24-HDR02' "$HDR_UNIQUE_CSV" || fail "real PO serial after header row must be retained"
+# Header labels like "Cybernet Serial" / "Cybernet Hostname" must not normalize into fake serials.
+grep -qiE 'CYBERNETSERIAL|CYBERNETHOSTNAME' "$HDR_UNIQUE_CSV" && fail "header labels must not become fake serial identifiers"
+pass "Alejandro header rows skipped (no fake serial identifiers)"
+
+# --- multiple Alejandro hostnames for one serial stay review-required ---
+AMB_PREFIX="$TMP_DIR/amb/cybernet"
+bash "$DIFF_RUNNER" \
+  --alejandro "$PRIMARY_AMBIGUOUS" \
+  --tracker "$TRACKER_DIFF" \
+  --output-prefix "$AMB_PREFIX" \
+  --device-type Cybernet >/dev/null
+AMB_UNTRACKED_CSV="${AMB_PREFIX}_alejandro_untracked.csv"
+"${PYTHON_CMD[@]}" - "$AMB_UNTRACKED_CSV" <<'PY'
+import csv, sys
+path = sys.argv[1]
+rows = [r for r in csv.DictReader(open(path, newline="", encoding="utf-8")) if r.get("Serial") == "MEDTEST24-AMBIG01"]
+if len(rows) != 1:
+    raise SystemExit(f"expected one ambiguous serial row, got {len(rows)}")
+row = rows[0]
+if row.get("HostName", "").strip():
+    raise SystemExit("ambiguous multi-hostname serial must not crown a HostName")
+if row.get("IdentifierType") != "Serial":
+    raise SystemExit("ambiguous multi-hostname serial must stay Serial-keyed (not probe-ready)")
+if "ambiguous_hostnames" not in row.get("Source", ""):
+    raise SystemExit("ambiguous multi-hostname serial must surface review candidates in Source")
+if "WTS001OPR401" not in row.get("Source", "") or "WTS001OPR402" not in row.get("Source", ""):
+    raise SystemExit("both candidate hostnames must be preserved for review")
+PY
+pass "multiple Alejandro hostnames stay review-required (no arbitrary host pick)"
 
 printf 'Cybernet xlsx target ingester contracts passed (baseline + serial comparison rules).\n'
