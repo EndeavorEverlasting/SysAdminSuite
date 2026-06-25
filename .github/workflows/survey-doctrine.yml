@@ -14,6 +14,7 @@ on:
       - 'survey/**'
       - 'Tests/bash/*naabu*'
       - 'Tests/bash/test_cybernet_detect_contracts.sh'
+      - 'Tests/bash/test_northwell_registry_verification_contracts.sh'
       - 'Tests/bash/test_packet_probe_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - '.github/workflows/survey-doctrine.yml'
@@ -30,6 +31,7 @@ on:
       - 'survey/**'
       - 'Tests/bash/*naabu*'
       - 'Tests/bash/test_cybernet_detect_contracts.sh'
+      - 'Tests/bash/test_northwell_registry_verification_contracts.sh'
       - 'Tests/bash/test_packet_probe_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - '.github/workflows/survey-doctrine.yml'
@@ -44,6 +46,11 @@ jobs:
         shell: bash
         run: |
           bash Tests/bash/test_repo_naabu_doctrine_conformance.sh
+
+      - name: Northwell registry verification contracts
+        shell: bash
+        run: |
+          bash Tests/bash/test_northwell_registry_verification_contracts.sh
 
       - name: Go packet expenditure tests
         shell: bash
