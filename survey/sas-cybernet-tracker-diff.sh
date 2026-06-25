@@ -16,6 +16,10 @@ Options:
   --output-prefix PREFIX    Default: survey/output/cybernet
   --device-type TYPE        Default: Cybernet
   --header-scan-rows N      Default: 40
+  --identity-csv PATH       Optional workstation_identity.csv (enrichment evidence)
+  --preflight-csv PATH      Optional network_preflight.csv (ping reachability)
+  --ad-serial-csv PATH      Optional AD live-serial export (enrichment candidates)
+  --no-progress             Suppress the tech-visible progress bar line
   -h, --help                Show help
 
 Outputs:
@@ -24,6 +28,8 @@ Outputs:
   PREFIX_alejandro_already_tracked.csv
   PREFIX_alejandro_untracked.csv
   PREFIX_tracker_duplicate_exceptions.csv
+  PREFIX_progress_summary.json
+  PREFIX_progress_summary.csv
 USAGE
 }
 
@@ -33,6 +39,10 @@ TRACKER_SHEET="Deployments"
 OUTPUT_PREFIX="survey/output/cybernet"
 DEVICE_TYPE="Cybernet"
 HEADER_SCAN_ROWS="40"
+IDENTITY_CSV=""
+PREFLIGHT_CSV=""
+AD_SERIAL_CSV=""
+NO_PROGRESS=""
 PYTHON_CMD=()
 
 find_python() {
@@ -52,6 +62,10 @@ while [[ $# -gt 0 ]]; do
     --output-prefix) OUTPUT_PREFIX="${2:?}"; shift 2 ;;
     --device-type) DEVICE_TYPE="${2:?}"; shift 2 ;;
     --header-scan-rows) HEADER_SCAN_ROWS="${2:?}"; shift 2 ;;
+    --identity-csv) IDENTITY_CSV="${2:?}"; shift 2 ;;
+    --preflight-csv) PREFLIGHT_CSV="${2:?}"; shift 2 ;;
+    --ad-serial-csv) AD_SERIAL_CSV="${2:?}"; shift 2 ;;
+    --no-progress) NO_PROGRESS="1"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "[sas-cybernet-tracker-diff] ERROR: unknown option: $1" >&2; usage; exit 1 ;;
   esac
@@ -66,10 +80,16 @@ done
 
 find_python
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-"${PYTHON_CMD[@]}" "$SCRIPT_DIR/sas-cybernet-tracker-diff.py" \
-  --alejandro "$ALEJANDRO" \
-  --tracker "$TRACKER" \
-  --tracker-sheet "$TRACKER_SHEET" \
-  --output-prefix "$OUTPUT_PREFIX" \
-  --device-type "$DEVICE_TYPE" \
+DIFF_ARGS=(
+  --alejandro "$ALEJANDRO"
+  --tracker "$TRACKER"
+  --tracker-sheet "$TRACKER_SHEET"
+  --output-prefix "$OUTPUT_PREFIX"
+  --device-type "$DEVICE_TYPE"
   --header-scan-rows "$HEADER_SCAN_ROWS"
+)
+[[ -n "$IDENTITY_CSV" ]] && DIFF_ARGS+=(--identity-csv "$IDENTITY_CSV")
+[[ -n "$PREFLIGHT_CSV" ]] && DIFF_ARGS+=(--preflight-csv "$PREFLIGHT_CSV")
+[[ -n "$AD_SERIAL_CSV" ]] && DIFF_ARGS+=(--ad-serial-csv "$AD_SERIAL_CSV")
+[[ -n "$NO_PROGRESS" ]] && DIFF_ARGS+=(--no-progress)
+"${PYTHON_CMD[@]}" "$SCRIPT_DIR/sas-cybernet-tracker-diff.py" "${DIFF_ARGS[@]}"
