@@ -2,6 +2,35 @@
 
 Read-only, offline ingester that converts Alejandro-style Cybernet workbooks plus optional enrichment trackers into the normalized survey manifest schema used by SysAdminSuite Bash tooling.
 
+## Field handoff
+
+Use this lane when Alejandro's workbook defines the **field population** and the latest **Active Deployment Tracker** supplies the **unique serial inventory** for cross-check.
+
+| Step | Input | Output (local, gitignored) |
+|------|-------|----------------------------|
+| 1. Diff | Alejandro workbook + latest tracker workbook | Unique serial inventories, already tracked, untracked manifest under `survey/output/` |
+| 2. Ingest | Alejandro workbook + tracker `--enrichment` | Manifest, enrichment report, gaps CSV under `survey/output/` |
+| 3. Resolve hosts | Manifest with `HostName` populated | Optional pass through `sas-survey-targets.sh` |
+| 4. Identity (host-resolved only) | Ping, then approved WMI; SSH last | `workstation_identity.csv`, optional `cybernet_evidence.csv` |
+
+**Posture**
+
+- Alejandro rows and tracker enrichment define **registered population** — not reachability proof.
+- Naabu/Nmap and other network probes are **reachability validation only** after population is fixed. See [`LOW_NOISE_SURVEY_DOCTRINE.md`](LOW_NOISE_SURVEY_DOCTRINE.md).
+- All CSV outputs stay on the admin box in gitignored paths (`survey/output/`, `targets/local/`). Do not commit live workbooks or generated CSVs.
+- Assume authorized traffic may be monitored. Do not describe this workflow as stealth, evasion, or log bypass.
+
+**Evidence classification (identity transport)**
+
+| Observation | Classification | Meaning |
+|-------------|----------------|---------|
+| WMI returns host, serial, or MAC | `IdentityCollected` (adapter: `WmiIdentityCollected`) | Approved identity transport succeeded |
+| Ping/DNS OK, no identity transport | `ReachableNeedsApprovedIdentityTransport` | Reachable; enable approved WMI before revisiting |
+| SSH disabled or connection refused | Notes: `SSHFailed:*` / policy block | **Environment/policy evidence** — not proof the Cybernet is offline |
+| Guest or wrong network segment | `ENVIRONMENT_BLOCKED_GUEST_NETWORK` | Retest from correct network before product triage |
+
+See [`TEST_RESULT_CLASSIFICATION.md`](TEST_RESULT_CLASSIFICATION.md) for full triage rules.
+
 ## Targets intake doctrine
 
 | Location | Role |
@@ -30,9 +59,13 @@ Expected sheets:
 | `AKBAR WAVE …` | A = serial | Serial-only wave rows |
 | `PO …` | A = hostname, B = serial | Blank rows skipped |
 
-## Enrichment workbooks (optional, repeatable)
+Alejandro serial-only rows are the baseline population. Hostname and MAC fields may be empty until enrichment.
 
-Recognized sheets:
+## Enrichment — latest tracker unique serial inventory
+
+Pass the **most recent** Active Deployment Tracker (and any wave/supplement workbooks) with `--enrichment`. The ingester merges enrichment rows by **normalized serial** or **hostname** and emits a before/after comparison in the enrichment report.
+
+Recognized tracker sheets:
 
 | Sheet | Purpose |
 |---|---|
@@ -43,7 +76,41 @@ Recognized sheets:
 | `SSUH Host` | Hostname list (column A) |
 | `Neuron Cybernet` | PC name + Cybernet serial (+ Neuron MAC when present) |
 
-Pass each enrichment file with `--enrichment`. The ingester merges by normalized serial or hostname.
+**How to read the comparison**
+
+- **`enrichment_report.csv`** — each Alejandro row with `InputSerial` / `InputHostName` vs `ResolvedHostName` / `ResolvedSerial` / `ResolvedMACAddress` after tracker merge.
+- **`ResolutionStatus`** — `FULL` (host + serial + MAC), `PARTIAL` (two of three), `MINIMAL` (one or none).
+- **`gaps.csv`** — rows that did not reach `FULL`; use for technician follow-up (stale hostname, serial-only wave row, tracker drift).
+- Tracker serials that never appear in the Alejandro workbook are **not** auto-added to the manifest; reconcile gaps manually or extend enrichment sources.
+
+## Alejandro vs deployment tracker diff
+
+When Alejandro's workbook is the authoritative Cybernet serial source, compare its unique serial inventory against the latest deployment tracker before probing anything live:
+
+```bash
+bash survey/sas-cybernet-tracker-diff.sh \
+  --alejandro "logs/targets/Cybernet sources/Alejandro's list of Cybernets.xlsx" \
+  --tracker "logs/targets/Cybernet sources/Active Deployment Tracker 2026-05-17 - 6-25-2026.xlsx" \
+  --output-prefix survey/output/cybernet
+```
+
+The diff is read-only against both workbooks and writes local operational CSVs:
+
+- `survey/output/cybernet_alejandro_unique_serials.csv`
+- `survey/output/cybernet_tracker_unique_serials.csv`
+- `survey/output/cybernet_alejandro_already_tracked.csv`
+- `survey/output/cybernet_alejandro_untracked.csv`
+- `survey/output/cybernet_tracker_duplicate_exceptions.csv`
+
+Comparison rules:
+
+- Normalize serials by trimming whitespace and uppercasing.
+- Treat Alejandro rows as a unique serial inventory; duplicate Alejandro rows collapse into one serial with a row count.
+- Exclude an Alejandro serial from the untracked manifest when that serial already appears in the deployment tracker.
+- Emit duplicate exceptions only when the same normalized hostname, serial, or MAC appears in more than one tracker row marked `Deployed = Yes`.
+- Repeated non-deployed tracker identifiers are planning history, not duplicate exceptions.
+
+`cybernet_alejandro_untracked.csv` uses the same manifest schema as the ingester. Serial-only rows are retained for tracking, but only rows with a resolved `HostName` are ready for live WMI/ping identity checks.
 
 ## Command
 
@@ -71,38 +138,6 @@ bash survey/sas-cybernet-xlsx-targets.sh \
 
 Defaults write to `survey/output/cybernet_alejandro_*.csv` when `--output`, `--report`, or `--gaps` are omitted.
 
-## Alejandro vs deployment tracker diff
-
-When Alejandro's workbook is the authoritative Cybernet serial source, compare its unique serial
-inventory against the latest deployment tracker before probing anything live:
-
-```bash
-bash survey/sas-cybernet-tracker-diff.sh \
-  --alejandro "logs/targets/Cybernet sources/Alejandro's list of Cybernets.xlsx" \
-  --tracker "logs/targets/Cybernet sources/Active Deployment Tracker 2026-05-17 - 6-25-2026.xlsx" \
-  --output-prefix survey/output/cybernet
-```
-
-The diff is read-only against both workbooks and writes local operational CSVs:
-
-- `survey/output/cybernet_alejandro_unique_serials.csv`
-- `survey/output/cybernet_tracker_unique_serials.csv`
-- `survey/output/cybernet_alejandro_already_tracked.csv`
-- `survey/output/cybernet_alejandro_untracked.csv`
-- `survey/output/cybernet_tracker_duplicate_exceptions.csv`
-
-Comparison rules:
-
-- Normalize serials by trimming whitespace and uppercasing.
-- Treat Alejandro rows as a unique serial inventory; duplicate Alejandro rows collapse into one serial with a row count.
-- Exclude an Alejandro serial from the untracked manifest when that serial already appears in the deployment tracker.
-- Emit duplicate exceptions only when the same normalized hostname, serial, or MAC appears in more than one tracker row marked `Deployed = Yes`.
-- Repeated non-deployed tracker identifiers are planning history, not duplicate exceptions.
-
-`cybernet_alejandro_untracked.csv` uses the same manifest schema as the ingester. Serial-only rows
-are retained for tracking, but only rows with a resolved `HostName` are ready for live WMI/ping
-identity checks.
-
 ## Outputs
 
 ### Manifest CSV
@@ -127,34 +162,74 @@ Subset of targets that did not reach `FULL` resolution, with `GapReason` (for ex
 
 ## Next step — survey manifest resolver
 
-After ingestion, optionally pass the manifest through the Bash resolver:
+After ingestion or diff, optionally pass the manifest through the Bash resolver:
 
 ```bash
 bash survey/sas-survey-targets.sh \
   --device-type Cybernet \
-  --csv survey/output/cybernet_alejandro_targets.csv \
+  --csv survey/output/cybernet_alejandro_untracked.csv \
   --output survey/output/cybernet_targets_resolved.csv
 ```
 
-For host-resolved untracked rows, prefer the read-only WMI/ping identity path before considering
-SSH. SSH is disabled by default in the transport adapter and a blocked SSH path is environment or
-policy evidence, not a product failure:
+## Host-resolved candidates — ping and WMI before SSH
+
+Run identity collection only for targets with a resolved hostname in `cybernet_alejandro_untracked.csv` or the enriched manifest.
+
+**1. Build a host-only target list**
 
 ```bash
-python - <<'PY'
-import csv
-with open("survey/output/cybernet_alejandro_untracked.csv", newline="", encoding="utf-8-sig") as src, \
-     open("survey/output/cybernet_untracked_host_targets.txt", "w", encoding="utf-8") as dst:
-    for row in csv.DictReader(src):
-        if row.get("HostName"):
-            dst.write(row["HostName"].strip() + "\n")
+python3 - survey/output/cybernet_alejandro_untracked.csv survey/output/cybernet_host_resolved.txt <<'PY'
+import csv, sys
+manifest, out = sys.argv[1:3]
+seen = []
+with open(manifest, newline='', encoding='utf-8-sig') as f:
+    for row in csv.DictReader(f):
+        host = (row.get('HostName') or '').strip()
+        if host and host not in seen:
+            seen.append(host)
+with open(out, 'w', encoding='utf-8') as f:
+    f.write('\n'.join(seen) + ('\n' if seen else ''))
+print(f'Wrote {len(seen)} host-resolved target(s) to {out}')
 PY
+```
+
+**2. Network preflight (DNS + ping + optional TCP)**
+
+```bash
+bash bash/transport/sas-network-preflight.sh \
+  --targets-file survey/output/cybernet_host_resolved.txt \
+  --ports 135,445 \
+  --output survey/output/cybernet_host_preflight.csv
+```
+
+**3. Workstation identity — ping first, WMI when approved, SSH only if explicitly enabled**
+
+The identity adapter always resolves DNS and runs ping before any optional transport. With `--allow-wmi`, WMI runs **before** SSH. Do not enable SSH for Cybernet field paths unless policy explicitly allows it.
+
+```bash
+export SAS_WMI_USER='approved_user'
+export SAS_WMI_PASS='from-secret-store'
+export SAS_WMI_DOMAIN='NSLIJHS'
 
 bash bash/transport/sas-workstation-identity.sh \
-  --targets-file survey/output/cybernet_untracked_host_targets.txt \
+  --targets-file survey/output/cybernet_host_resolved.txt \
   --allow-wmi \
-  --output survey/output/cybernet_untracked_wmi_identity.csv
+  --output survey/output/cybernet_workstation_identity.csv
 ```
+
+When WMI succeeds, expect `TransportUsed=WMI` and `IdentityStatus=IdentityCollected`. SSH failure notes (`SSHFailed:*`) indicate policy or environment blocks — classify per [`TEST_RESULT_CLASSIFICATION.md`](TEST_RESULT_CLASSIFICATION.md), not as device absence.
+
+**4. Optional — correlate identity against manifest expectations**
+
+```bash
+bash survey/sas-collect-cybernet-evidence.sh \
+  --manifest survey/output/cybernet_alejandro_untracked.csv \
+  --output survey/output/cybernet_evidence.csv
+```
+
+Note: `sas-collect-cybernet-evidence.sh` delegates to the workstation identity adapter but does not yet expose `--allow-wmi`. Run step 3 directly when WMI is required; use the evidence collector for manifest merge and tracker serial/MAC comparison when ping-only or SSH paths were used.
+
+Further correlation (DNS, AD, DHCP, approved Nmap) is documented in [`CYBERNET_EVIDENCE_CORRELATION.md`](CYBERNET_EVIDENCE_CORRELATION.md).
 
 ## Contract test
 
@@ -162,10 +237,18 @@ bash bash/transport/sas-workstation-identity.sh \
 bash Tests/bash/test-cybernet-xlsx-targets-contracts.sh
 ```
 
-Builds tiny fixture workbooks, runs the wrapper, and verifies manifest/report/gap outputs.
+Builds tiny fixture workbooks, runs the ingester and tracker diff wrappers, and verifies manifest/report/gap and serial-comparison outputs.
 
 ## Safety
 
 - Read-only: does not modify source `.xlsx` files
-- Offline: no network calls
+- Offline: no network calls during ingestion
 - Treat output CSVs as operational data; keep them out of git (repo ignores `*.csv` / `survey/output/*`)
+- Identity transports are read-only; no target-side writes, staging, or scheduled tasks
+
+## Related docs
+
+- [`targets/README.md`](../targets/README.md) — intake hub and gitignore policy
+- [`bash/transport/README.md`](../bash/transport/README.md) — identity adapter transports and status codes
+- [`CYBERNET_EVIDENCE_CORRELATION.md`](CYBERNET_EVIDENCE_CORRELATION.md) — multi-source presence merge
+- [`LOW_NOISE_SURVEY_DOCTRINE.md`](LOW_NOISE_SURVEY_DOCTRINE.md) — reachability validation discipline
