@@ -19,6 +19,7 @@ bash -n "$DIFF_RUNNER"
 PYTHON_CMD=(python3)
 command -v python3 >/dev/null 2>&1 || PYTHON_CMD=(python)
 command -v "${PYTHON_CMD[0]}" >/dev/null 2>&1 || { echo "python required for progress contract test"; exit 1; }
+"${PYTHON_CMD[@]}" -c 'import openpyxl' >/dev/null 2>&1 || { echo "openpyxl required for progress contract test (pip install openpyxl)"; exit 1; }
 
 fail() { printf '[cybernet-progress-contracts] FAIL: %s\n' "$*" >&2; exit 1; }
 pass() { printf '[cybernet-progress-contracts] PASS: %s\n' "$*"; }
@@ -31,6 +32,7 @@ ALEJANDRO="$TMP_DIR/alejandro-progress.xlsx"
 TRACKER="$TMP_DIR/tracker-progress.xlsx"
 IDENTITY_CSV="$TMP_DIR/workstation_identity.csv"
 PREFLIGHT_CSV="$TMP_DIR/network_preflight.csv"
+AD_CSV="$TMP_DIR/ad_live_serial.csv"
 
 # --- build synthetic fixtures ---
 "${PYTHON_CMD[@]}" - "$ALEJANDRO" "$TRACKER" "$IDENTITY_CSV" "$PREFLIGHT_CSV" <<'PY'
@@ -68,6 +70,15 @@ with open(preflight_csv, "w", newline="", encoding="utf-8") as fh:
     fh.write("Target,ResolvedAddress,PingStatus,Port,PortStatus,Timestamp\n")
     fh.write("WTS001OPR501,10.0.0.5,Reachable,445,Open,2026-06-25T00:00:00Z\n")
 PY
+
+# AD live-serial export evidence uses the exporter's real columns
+# (ADHostname/DNSHostName/ADSerial). Row 1 resolves a host only from an FQDN
+# DNSHostName; row 2 matches purely on ADSerial.
+cat > "$AD_CSV" <<'CSV'
+ADHostname,DNSHostName,ADSerial,ADMAC,ADEnabled,Notes
+,WTS001OPR501.med.example.com,,,True,synthetic-ad-host
+,,MEDTEST24-AMB01,,True,synthetic-ad-serial
+CSV
 
 json_field() {
   local path="$1" field="$2"
@@ -154,6 +165,18 @@ C_JSON="${C_PREFIX}_progress_summary.json"
 [[ "$(json_field "$C_JSON" SurveyedSerials)" == "1" ]] || fail "ping reachability alone must not mark a serial surveyed"
 [[ "$(json_field "$C_JSON" PercentComplete)" == "25.0" ]] || fail "ping-only evidence must not raise percent complete"
 pass "ping reachability stays candidate-only (not serial proof)"
+
+# --- Case D: AD live-serial export feeds ADCandidateSerials (exporter columns) ---
+D_PREFIX="$TMP_DIR/e/cybernet"
+bash "$DIFF_RUNNER" --alejandro "$ALEJANDRO" --tracker "$TRACKER" --output-prefix "$D_PREFIX" \
+  --device-type Cybernet --ad-serial-csv "$AD_CSV" >/dev/null
+D_JSON="${D_PREFIX}_progress_summary.json"
+# ADHostname/DNSHostName/ADSerial aliases must be read (host from FQDN + serial)
+[[ "$(json_field "$D_JSON" ADCandidateSerials)" == "2" ]] || fail "AD evidence (ADHostname/DNSHostName/ADSerial) must yield 2 AD candidate serials"
+# AD evidence is candidate-only and must never confirm a serial as surveyed
+[[ "$(json_field "$D_JSON" SurveyedSerials)" == "1" ]] || fail "AD candidates must not mark a serial surveyed"
+[[ "$(json_field "$D_JSON" PercentComplete)" == "25.0" ]] || fail "AD candidate evidence must not raise percent complete"
+pass "AD live-serial export populates AD candidates (exporter schema, candidate-only)"
 
 # 8. generated operational progress output is gitignored under survey/output/
 OUT_PREFIX="survey/output/progress_contract_cybernet"

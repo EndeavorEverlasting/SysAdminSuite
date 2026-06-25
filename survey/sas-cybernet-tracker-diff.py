@@ -74,6 +74,9 @@ def norm_serial(value: object) -> str:
 
 def norm_host(value: object) -> str:
     text = re.sub(r"\s+", "", clean(value)).upper()
+    if "." in text:
+        # Accept FQDNs (e.g. AD DNSHostName) by comparing on the leading label.
+        text = text.split(".", 1)[0]
     return text if text and HOSTNAME_RE.search(text) else ""
 
 
@@ -350,7 +353,10 @@ def is_reachable(value: str) -> bool:
 
 
 def is_identity_collected(value: str) -> bool:
-    return "IDENTITYCOLLECTED" in re.sub(r"\s+", "", value).upper()
+    # Match exact identity-collected tokens only. A substring test would
+    # misclassify negatives such as "NotIdentityCollected" as collected.
+    token = re.sub(r"[\s_\-]+", "", value).upper()
+    return token in {"IDENTITYCOLLECTED", "COLLECTED"}
 
 
 def render_progress_bar(percent: float, width: int = 20) -> str:
@@ -368,24 +374,23 @@ def build_progress_summary(
     total = len(alejandro)
     tracked = set(alejandro) & set(tracker)
 
-    observed_serials: set[str] = set()
     reachable_hosts: set[str] = set()
-    identity_collected_hosts: set[str] = set()
+    identity_confirmed_serials: set[str] = set()
     for row in identity_rows:
         host = norm_host(cell(row, "ObservedHostName", "HostName", "DnsName"))
         target_host = norm_host(cell(row, "Target", "HostName"))
         ping = cell(row, "PingStatus")
         status = cell(row, "IdentityStatus")
         observed_serial = norm_serial(cell(row, "ObservedSerial", "Serial"))
-        for key in {host, target_host}:
-            if not key:
-                continue
-            if is_reachable(ping):
-                reachable_hosts.add(key)
-            if is_identity_collected(status):
-                identity_collected_hosts.add(key)
-        if observed_serial:
-            observed_serials.add(observed_serial)
+        collected = is_identity_collected(status)
+        if is_reachable(ping):
+            for key in {host, target_host}:
+                if key:
+                    reachable_hosts.add(key)
+        # Serial-first doctrine: only an identity-collected row whose observed
+        # serial matches can confirm that serial as surveyed.
+        if observed_serial and collected:
+            identity_confirmed_serials.add(observed_serial)
 
     for row in preflight_rows:
         host = norm_host(cell(row, "Target", "HostName"))
@@ -395,8 +400,8 @@ def build_progress_summary(
     ad_serials: set[str] = set()
     ad_hosts: set[str] = set()
     for row in ad_rows:
-        ad_serial = norm_serial(cell(row, "Serial", "ObservedSerial", "ExpectedSerial"))
-        ad_host = norm_host(cell(row, "HostName", "Host", "Name", "DNSHostName"))
+        ad_serial = norm_serial(cell(row, "ADSerial", "Serial", "ObservedSerial", "ExpectedSerial"))
+        ad_host = norm_host(cell(row, "ADHostname", "HostName", "Host", "Name", "DNSHostName"))
         if ad_serial:
             ad_serials.add(ad_serial)
         if ad_host:
@@ -415,9 +420,11 @@ def build_progress_summary(
         else:
             ambiguous += 1
 
-        # Identity is the only optional signal that can mark an untracked serial
-        # surveyed; ping/AD raise candidate confidence but never confirm.
-        confirmed = serial in observed_serials or any(h in identity_collected_hosts for h in hosts)
+        # Serial-first doctrine: only a matching observed serial on an
+        # identity-collected row can mark an untracked serial surveyed. Host
+        # identity alone cannot confirm (reimaged/tracker-drift hosts), and
+        # ping/AD only raise candidate confidence.
+        confirmed = serial in identity_confirmed_serials
         if serial not in tracker and confirmed:
             surveyed.add(serial)
 
