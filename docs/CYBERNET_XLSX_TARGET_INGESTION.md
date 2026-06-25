@@ -104,6 +104,13 @@ bash survey/sas-survey-targets.sh \
   --output survey/output/cybernet_targets_resolved.csv
 ```
 
+## Hostname recall errors
+
+When a manifest `HostName` may carry a human recollection or typing error (wrong site prefix,
+WNH/WMH confusion, number transposition, O/0 swap), expand it into bounded AD candidates per
+[`CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md`](CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md) before AD
+enrichment. Variant matches are discovery candidates only and never serial proof.
+
 ## Contract test
 
 ```bash

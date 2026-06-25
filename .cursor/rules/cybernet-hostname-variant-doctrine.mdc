@@ -1,0 +1,27 @@
+---
+alwaysApply: true
+---
+
+# Cybernet Hostname Variant Doctrine
+
+When expanding a Cybernet hostname into AD discovery candidates, follow the bounded variant
+doctrine. This is naming-doctrine fuzzing driven by known human mistakes, not generic fuzzy search.
+
+Hard caps:
+
+- No broad fuzzy AD search; generate candidates only from approved target manifests
+  (`ExpectedSerial`, `ExpectedHostname`, `Site`).
+- Do not query outside the bounded candidate set.
+- An AD variant match is a discovery candidate only. It can never become serial-confirmed; serial
+  proof requires a privileged identity check.
+- WNH <-> WMH is a controlled site-affinity substitution, not a generic typo. If `Site` conflicts
+  with the substituted prefix, classify as `ad_prefix_site_mismatch` + `needs_site_context_review`.
+- Numeric block transposition is hard-bounded (adjacent single-swap only); discovery candidates only.
+- Any multiple-match result stays review-required and never auto-resolves.
+- Use transparency/scope-control language; this is not stealth, evasion, or log suppression.
+
+Every emitted candidate must carry a confidence tier and a next action.
+
+Canonical reference:
+
+- `docs/CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md`

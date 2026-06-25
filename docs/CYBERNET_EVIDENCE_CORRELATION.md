@@ -50,6 +50,13 @@ bash survey/sas-survey-targets.sh \
   --output survey/output/cybernet_targets_resolved.csv
 ```
 
+## 1b. Optional: expand hostname variants for recall errors
+
+If a manifest hostname may carry a human recall or typing error, generate bounded AD candidates
+per [`CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md`](CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md) before DNS/AD
+correlation. Keep expansion bounded (no broad fuzzy search); variant matches are discovery
+candidates only and never serial proof.
+
 ## 2. Resolve manifest hostnames in DNS
 
 ```bash
