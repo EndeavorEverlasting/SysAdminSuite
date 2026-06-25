@@ -247,8 +247,15 @@ function initDropOverlay() {
 
 async function handleFiles(files) {
   if (files.length) document.getElementById('evidence-loader')?.classList.remove('hidden');
-  for (const file of files) {
-    await processFile(file);
+  // Spreadsheets can take a moment to parse — keep the tech company with Harold.
+  const hasHeavy = files.some(f => /\.(xlsx|xls)$/i.test(f.name));
+  if (hasHeavy) window.SASHarold?.show('Reading your spreadsheet… hang tight.');
+  try {
+    for (const file of files) {
+      await processFile(file);
+    }
+  } finally {
+    if (hasHeavy) window.SASHarold?.hide();
   }
 }
 

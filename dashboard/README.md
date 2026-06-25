@@ -20,6 +20,29 @@ Then open `http://localhost:8000/dashboard/` in your browser.
 > `file://` capable. ES modules require HTTP/HTTPS. The app will display a banner
 > if accidentally opened from `file://`.
 
+## Loading experience (Hide the Pain Harold)
+
+Whenever the dashboard makes the user wait, it shows a friendly Harold splash so the tech
+stays engrossed instead of staring at a blank screen.
+
+- **Boot splash:** `index.html` paints a full-screen Harold overlay immediately on load and
+  hides it once the app wires up (after `DOMContentLoaded`, with a minimum visible time and an
+  8s safety timeout). It is self-contained — no module/bundle dependency.
+- **In-app waits:** a reusable global hook is exposed:
+
+  ```js
+  window.SASHarold.show('Reading your spreadsheet… hang tight.');
+  // ... do slow work ...
+  window.SASHarold.hide();
+  ```
+
+  It is already wired into spreadsheet (`.xlsx` / `.xls`) import in `js/app.js`. Call it from any
+  future long-running operation to keep the wait friendly.
+- **Asset:** `dashboard/assets/harold.jpg`, served as `image/jpeg` by both the .NET host
+  (`DashboardStaticServer`) and `server.py`.
+- The legacy PowerShell launcher (`Launch-SysAdminSuiteDashboard.ps1`) shows its own Harold
+  WinForms splash while `server.py` starts.
+
 ## Live Mode — command-generation workflow
 
 Live Mode does **not** perform browser-side network probing (DNS/ping/TCP/WMI/SNMP
