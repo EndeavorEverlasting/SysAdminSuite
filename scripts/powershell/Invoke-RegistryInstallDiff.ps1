@@ -1,3 +1,4 @@
+﻿# Requires PowerShell 5.1+
 <#
 .SYNOPSIS
 Orchestrates evidence-first registry install diff runs.
@@ -50,19 +51,7 @@ For DiffOnly mode: path to post-install snapshot JSON.
 Reserved switch. Not implemented in this sprint slice.
 
 .EXAMPLE
-pwsh -File scripts/powershell/Invoke-RegistryInstallDiff.ps1 -Mode ReconOnly -Target localhost
-
-.EXAMPLE
-pwsh -File scripts/powershell/Invoke-RegistryInstallDiff.ps1 -Mode SnapshotOnly -Target localhost
-
-.EXAMPLE
-pwsh -File scripts/powershell/Invoke-RegistryInstallDiff.ps1 -Mode AnalyzeInstall -Target localhost -SoftwareId EXAMPLE-SOFTWARE-ID -DryRun
-
-.EXAMPLE
-pwsh -File scripts/powershell/Invoke-RegistryInstallDiff.ps1 -Mode DiffOnly -Target localhost -PreSnapshotPath .\before.json -PostSnapshotPath .\after.json
-
-.EXAMPLE
-pwsh -File scripts/powershell/Invoke-RegistryInstallDiff.ps1 -Mode ReconOnly -Target localhost -OutputRoot exports/registry-install-diff/custom
+powershell.exe -File scripts/powershell/Invoke-RegistryInstallDiff.ps1 -Mode ReconOnly -Target localhost
 
 .NOTES
 Safety: registry writes are forbidden in this slice. ApprovedRemediation always returns Unsupported.
@@ -121,15 +110,15 @@ $targets = @()
 if ($Target) { $targets += $Target }
 if ($TargetsCsv -and (Test-Path -LiteralPath $TargetsCsv)) {
     try {
-        $csvTargets = Import-Csv -LiteralPath $TargetsCsv | ForEach-Object { $_.Target }
+        $csvTargets = @(Import-Csv -LiteralPath $TargetsCsv | ForEach-Object { $_.Target })
         $targets += $csvTargets
     } catch {}
 }
-$targets = $targets | Where-Object { $_ } | Select-Object -Unique
-if ($targets.Count -eq 0) { $targets = @('localhost') }
+$targets = @($targets | Where-Object { $_ } | Select-Object -Unique)
+if (@($targets).Count -eq 0) { $targets = @('localhost') }
 
-$nonLocal = $targets | Where-Object { $_ -ne 'localhost' -and $_ -ne '.' -and $_ -ne $env:COMPUTERNAME }
-if ($nonLocal.Count -gt 0) {
+$nonLocal = @($targets | Where-Object { $_ -ne 'localhost' -and $_ -ne '.' -and $_ -ne $env:COMPUTERNAME })
+if (@($nonLocal).Count -gt 0) {
     throw "Unsupported: remote target execution is not implemented in this agent slice. Targets: $($nonLocal -join ', ')"
 }
 
@@ -150,7 +139,7 @@ $manifest = [ordered]@{
     source_config_path = $SourceConfigPath
     registry_watchlist_path = $RegistryWatchlistPath
     output_root = $OutputRoot
-    target_count = $targets.Count
+    target_count = @($targets).Count
     targets = $targets
     dependency_scripts = @{}
     phases = @()
@@ -168,7 +157,6 @@ foreach ($k in $dependencyScripts.Keys) {
 }
 
 if ($ApprovedRemediation) {
-    $manifest.phases += [pscustomobject]@{ name='ApprovedRemediation'; status='Unsupported'; reason='ApprovedRemediationNotImplemented' }
     Write-JsonFile -Path (Join-Path $runDir 'run_manifest.json') -InputObject $manifest
     "Unsupported: ApprovedRemediationNotImplemented"
     exit 2
@@ -199,7 +187,7 @@ foreach ($t in $targets) {
             $row.notes = ($row.notes + ' MissingDependency: ' + $dependencyScripts.snapshot).Trim()
         } else {
             $manifest.phases += Invoke-Phase -Name "SnapshotBefore:$t" -Action {
-                & $dependencyScripts.snapshot -Target $t -WatchlistPath $RegistryWatchlistPath | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $targetDir 'registry_before.json') -Encoding UTF8
+                & $dependencyScripts.snapshot -Target $t | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $targetDir 'registry_before.json') -Encoding UTF8
             }
         }
     }
@@ -223,7 +211,7 @@ foreach ($t in $targets) {
 
         if (Test-Path $dependencyScripts.snapshot) {
             $manifest.phases += Invoke-Phase -Name "SnapshotAfter:$t" -Action {
-                & $dependencyScripts.snapshot -Target $t -WatchlistPath $RegistryWatchlistPath | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $targetDir 'registry_after.json') -Encoding UTF8
+                & $dependencyScripts.snapshot -Target $t | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $targetDir 'registry_after.json') -Encoding UTF8
             }
         }
 
@@ -235,7 +223,7 @@ foreach ($t in $targets) {
             $afterPath = Join-Path $targetDir 'registry_after.json'
             if ((Test-Path $beforePath) -and (Test-Path $afterPath)) {
                 $diffPhase = Invoke-Phase -Name "Diff:$t" -Action {
-                    & $dependencyScripts.diff -BeforePath $beforePath -AfterPath $afterPath -WatchlistPath $RegistryWatchlistPath | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $targetDir 'registry_diff.json') -Encoding UTF8
+                    & $dependencyScripts.diff -BeforeSnapshotPath $beforePath -AfterSnapshotPath $afterPath -WatchlistPath $RegistryWatchlistPath | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $targetDir 'registry_diff.json') -Encoding UTF8
                 }
                 $manifest.phases += $diffPhase
                 $row.diff_status = $diffPhase.status
@@ -257,7 +245,7 @@ foreach ($t in $targets) {
             $row.notes = 'DiffOnly requires -PreSnapshotPath and -PostSnapshotPath'
         } else {
             $diffPhase = Invoke-Phase -Name "Diff:$t" -Action {
-                & $dependencyScripts.diff -BeforePath $beforePath -AfterPath $afterPath -WatchlistPath $RegistryWatchlistPath | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $targetDir 'registry_diff.json') -Encoding UTF8
+                & $dependencyScripts.diff -BeforeSnapshotPath $beforePath -AfterSnapshotPath $afterPath -WatchlistPath $RegistryWatchlistPath | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $targetDir 'registry_diff.json') -Encoding UTF8
             }
             $manifest.phases += $diffPhase
             $row.diff_status = $diffPhase.status
@@ -271,8 +259,9 @@ Write-JsonFile -Path (Join-Path $runDir 'run_manifest.json') -InputObject $manif
 $summaryCsvPath = Join-Path $runDir 'summary.csv'
 $summaryRows | Export-Csv -Path $summaryCsvPath -NoTypeInformation -Encoding UTF8
 
-$phaseBullets = if ($manifest.phases.Count -gt 0) {
-    ($manifest.phases | ForEach-Object { "- $($_.name): $($_.status)" }) -join "`n"
+$phaseList = @($manifest.phases)
+$phaseBullets = if ($phaseList.Count -gt 0) {
+    ($phaseList | ForEach-Object { "- $($_.name): $($_.status)" }) -join "`n"
 } else {
     '- No phases executed.'
 }

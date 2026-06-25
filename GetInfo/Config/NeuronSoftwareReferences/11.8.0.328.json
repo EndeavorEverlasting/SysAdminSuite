@@ -1,0 +1,19 @@
+{
+  "referenceId": "11.8.0.328",
+  "firmware": [
+    { "name": "Neuron", "version": "11.8.0.328" },
+    { "name": "Capsule", "version": "11.8.0.328" }
+  ],
+  "ddi": [
+    { "name": "AspectA", "version": "1.0" },
+    { "name": "DatexA", "version": "1.0" },
+    { "name": "DragerMedibus", "version": "1.0" },
+    { "name": "PhilipsDataExport", "version": "1.0" },
+    { "name": "TerumoD", "version": "1.0" },
+    { "name": "Mindray", "version": "1.0" },
+    { "name": "GEUnity", "version": "1.0" },
+    { "name": "Masimo", "version": "1.0" },
+    { "name": "Nellcor", "version": "1.0" },
+    { "name": "Baxter", "version": "1.0" }
+  ]
+}

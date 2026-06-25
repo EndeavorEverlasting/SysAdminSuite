@@ -1,24 +1,29 @@
+﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+
 Describe 'Registry Install Diff Orchestrator' {
-    $scriptPath = Join-Path $PSScriptRoot '..\..\scripts\powershell\Invoke-RegistryInstallDiff.ps1'
+    BeforeAll {
+        $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        $script:scriptPath = [System.IO.Path]::Combine($repoRoot, 'scripts', 'powershell', 'Invoke-RegistryInstallDiff.ps1')
+    }
 
     It 'exists' {
-        Test-Path -LiteralPath $scriptPath | Should -BeTrue
+        Test-Path -LiteralPath $script:scriptPath | Should -BeTrue
     }
 
     It 'has comment based help synopsis' {
-        $content = Get-Content -LiteralPath $scriptPath -Raw
+        $content = Get-Content -LiteralPath $script:scriptPath -Raw
         $content | Should -Match '\.SYNOPSIS'
         $content | Should -Match '\.DESCRIPTION'
     }
 
     It 'blocks approved remediation as unsupported' {
         $outRoot = Join-Path $env:TEMP ('rid-approved-' + [guid]::NewGuid())
-        $result = & $scriptPath -Mode ReconOnly -Target localhost -OutputRoot $outRoot -ApprovedRemediation 2>&1
+        $result = & $script:scriptPath -Mode ReconOnly -Target localhost -OutputRoot $outRoot -ApprovedRemediation 2>&1
         ($result | Out-String) | Should -Match 'ApprovedRemediationNotImplemented|Unsupported'
     }
 
     It 'does not contain forbidden registry write or remoting patterns' {
-        $content = Get-Content -LiteralPath $scriptPath -Raw
+        $content = Get-Content -LiteralPath $script:scriptPath -Raw
         $forbidden = @(
             'Set-ItemProperty','New-ItemProperty','Remove-ItemProperty','reg add','reg delete','reg import','reg restore',
             'Start-Service\s+RemoteRegistry','Stop-Service\s+RemoteRegistry','Set-Service\s+RemoteRegistry','Enable-PSRemoting','PsExec'
@@ -30,7 +35,7 @@ Describe 'Registry Install Diff Orchestrator' {
 
     It 'recononly runs or records missing dependency gracefully' {
         $outRoot = Join-Path $env:TEMP ('rid-recon-' + [guid]::NewGuid())
-        $null = & $scriptPath -Mode ReconOnly -Target localhost -OutputRoot $outRoot 2>&1
+        $null = & $script:scriptPath -Mode ReconOnly -Target localhost -OutputRoot $outRoot 2>&1
         $runDir = Get-ChildItem -LiteralPath $outRoot -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         $manifest = Join-Path $runDir.FullName 'run_manifest.json'
         Test-Path $manifest | Should -BeTrue
@@ -40,7 +45,7 @@ Describe 'Registry Install Diff Orchestrator' {
 
     It 'analyzeinstall dry-run emits manifest and summary' {
         $outRoot = Join-Path $env:TEMP ('rid-analyze-' + [guid]::NewGuid())
-        $null = & $scriptPath -Mode AnalyzeInstall -Target localhost -SoftwareId TEST-SW -DryRun -OutputRoot $outRoot 2>&1
+        $null = & $script:scriptPath -Mode AnalyzeInstall -Target localhost -SoftwareId TEST-SW -DryRun -OutputRoot $outRoot 2>&1
         $runDir = Get-ChildItem -LiteralPath $outRoot -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         Test-Path (Join-Path $runDir.FullName 'run_manifest.json') | Should -BeTrue
         Test-Path (Join-Path $runDir.FullName 'summary.md') | Should -BeTrue

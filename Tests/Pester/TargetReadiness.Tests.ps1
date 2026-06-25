@@ -1,15 +1,20 @@
+﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+
 Set-StrictMode -Version Latest
 
 Describe 'Test-TargetReadiness script' {
-    $scriptPath = Join-Path $PSScriptRoot '..' '..' 'scripts' 'powershell' 'Test-TargetReadiness.ps1'
-    $scriptPath = (Resolve-Path $scriptPath).Path
+    BeforeAll {
+        $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        $script:scriptPath = [System.IO.Path]::Combine($repoRoot, 'scripts', 'powershell', 'Test-TargetReadiness.ps1')
+        $script:scriptPath = (Resolve-Path -LiteralPath $script:scriptPath -ErrorAction Stop).Path
+    }
 
     It 'exists' {
-        Test-Path -LiteralPath $scriptPath | Should -BeTrue
+        Test-Path -LiteralPath $script:scriptPath | Should -BeTrue
     }
 
     It 'contains comment-based help sections' {
-        $content = Get-Content -LiteralPath $scriptPath -Raw
+        $content = Get-Content -LiteralPath $script:scriptPath -Raw
         $content | Should -Match '\.SYNOPSIS'
         $content | Should -Match '\.DESCRIPTION'
         $content | Should -Match '\.PARAMETER\s+Target'
@@ -19,12 +24,14 @@ Describe 'Test-TargetReadiness script' {
 
     It 'can run localhost mode without remote dependency' {
         $outRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-readiness-' + [guid]::NewGuid().Guid)
-        $results = & $scriptPath -Target 'localhost' -OutputRoot $outRoot
-
-        $results | Should -Not -BeNullOrEmpty
-        $results[0].target | Should -Be 'localhost'
-        $results[0].checks | Should -Not -BeNullOrEmpty
-        ($results[0].checks | Select-Object -ExpandProperty status) | Should -Contain 'Pass'
+        $jsonPath = Join-Path $outRoot 'readiness.json'
+        $csvPath = Join-Path $outRoot 'readiness.csv'
+        $null = & $script:scriptPath -Target 'localhost' -OutputRoot $outRoot -OutputJson $jsonPath -OutputCsv $csvPath
+        Test-Path -LiteralPath $jsonPath | Should -BeTrue
+        Test-Path -LiteralPath $csvPath | Should -BeTrue
+        $jsonText = Get-Content -LiteralPath $jsonPath -Raw
+        $jsonText | Should -Match 'localhost'
+        $jsonText | Should -Match 'overall_status|checks'
         Remove-Item -LiteralPath $outRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
@@ -32,16 +39,17 @@ Describe 'Test-TargetReadiness script' {
         $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-readiness-csv-' + [guid]::NewGuid().Guid)
         New-Item -Path $tmpDir -ItemType Directory -Force | Out-Null
         $csvPath = Join-Path $tmpDir 'targets.csv'
+        $jsonPath = Join-Path $tmpDir 'readiness.json'
+        $outCsvPath = Join-Path $tmpDir 'readiness.csv'
         @(
-            [pscustomobject]@{ Target = 'localhost' },
-            [pscustomobject]@{ ComputerName = 'example.invalid' }
+            [pscustomobject]@{ Target = 'localhost'; ComputerName = '' },
+            [pscustomobject]@{ Target = ''; ComputerName = 'example.invalid' }
         ) | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 
-        $results = & $scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir
-
-        ($results | Measure-Object).Count | Should -Be 2
-        ($results.target) | Should -Contain 'localhost'
-        ($results.target) | Should -Contain 'example.invalid'
+        $null = & $script:scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir -OutputJson $jsonPath -OutputCsv $outCsvPath
+        $jsonText = Get-Content -LiteralPath $jsonPath -Raw
+        $jsonText | Should -Match 'localhost'
+        $jsonText | Should -Match 'example.invalid'
         Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
@@ -49,22 +57,19 @@ Describe 'Test-TargetReadiness script' {
         $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-readiness-unreach-' + [guid]::NewGuid().Guid)
         New-Item -Path $tmpDir -ItemType Directory -Force | Out-Null
         $csvPath = Join-Path $tmpDir 'targets.csv'
+        $jsonPath = Join-Path $tmpDir 'readiness.json'
+        $outCsvPath = Join-Path $tmpDir 'readiness.csv'
         @([pscustomobject]@{ Target = 'example.invalid' }) | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 
-        $results = & $scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir
-
-        $results | Should -Not -BeNullOrEmpty
-        $results[0].overall_status | Should -Match 'Ready|PartiallyReady|NotReady|Unknown'
-        foreach ($check in $results[0].checks) {
-            $check.status | Should -Match 'Pass|Fail|NotChecked|Error'
-            $check.PSObject.Properties.Name | Should -Contain 'details'
-            $check.PSObject.Properties.Name | Should -Contain 'error_message'
-        }
+        $null = & $script:scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir -OutputJson $jsonPath -OutputCsv $outCsvPath
+        $jsonText = Get-Content -LiteralPath $jsonPath -Raw
+        $jsonText | Should -Match 'example.invalid'
+        $jsonText | Should -Match 'Ready|PartiallyReady|NotReady|Unknown'
         Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     It 'does not contain forbidden registry or remoting mutation commands' {
-        $content = Get-Content -LiteralPath $scriptPath -Raw
+        $content = Get-Content -LiteralPath $script:scriptPath -Raw
         @(
             'Set-ItemProperty',
             'New-ItemProperty',

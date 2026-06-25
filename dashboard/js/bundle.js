@@ -3492,6 +3492,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initIngestion();
   initModeToggle();
   initLiveMode();
+  initCybernetTutorial();
   initPasteModal();
   initStatusFooter();
   initDropOverlay();
@@ -3881,6 +3882,133 @@ function initPasteModal() {
     if (textarea) textarea.value = '';
     modal.classList.add('hidden');
   });
+}
+
+
+
+// ── Cybernet Target Acquisition Tutorial ───────────────────────────────────
+const CYBERNET_TUTORIAL_STEPS = [
+  {
+    title: 'Prepare your target list',
+    body: 'Start with one hostname or IP address per line. Keep this file boring and repeatable so a new technician can rerun the same workflow without hand-editing commands.',
+    command: "mkdir -p /tmp/sas-cybernet\nprintf '%s\\n' 'WMH300OPR001' 'WMH300OPR002' > /tmp/sas-cybernet/targets.txt",
+    checks: ['Use hostnames, IPv4 addresses, or IPv6 addresses only.', 'Do not paste passwords, usernames, or ticket notes into the target file.', 'If you import a CSV, the dashboard reads the first comma-separated field as the target.'],
+    note: 'This step is local-only; it does not touch target devices.'
+  },
+  {
+    title: 'Prove network posture first',
+    body: 'Before blaming the product, prove the machine is on the right network path. This catches guest-network and segmented-network failures early.',
+    command: 'bash bash/transport/sas-network-preflight.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --ports 135,445,3389,9100 \\\n  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru',
+    checks: ['DNS should resolve internal hostnames when you expect internal reachability.', 'SMB/445 and RPC/135 failures on every target often mean network posture, not code failure.', 'Classify guest-network blocking separately from product defects.'],
+    note: 'Load network_preflight.csv into the Network tab after the command finishes.'
+  },
+  {
+    title: 'Acquire Cybernet identity evidence',
+    body: 'Collect read-only workstation identity evidence. The adapter records what it can safely observe, such as DNS, ping, ARP/MAC hints, and optional transport notes.',
+    command: 'bash bash/transport/sas-workstation-identity.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru',
+    checks: ['Treat hostname, MAC, serial, and IP as separate evidence fields.', 'Do not use reachability alone as Cybernet identity proof.', 'Preserve unknown or partial rows; they are useful triage evidence.'],
+    note: 'Load workstation_identity.csv back into the dashboard for searchable protocol evidence.'
+  },
+  {
+    title: 'Normalize the acquisition list',
+    body: 'Turn raw target identifiers into a clean Cybernet survey CSV that downstream audit and reconciliation tools can consume.',
+    command: './survey/sas-survey-targets.sh --device-type Cybernet \\\n  --output ./survey/output/cybernet_targets.csv \\\n  --file /tmp/sas-cybernet/targets.txt',
+    checks: ['Keep the original target list and the normalized output.', 'Use Cybernet as the device type for this workflow.', 'Review the output CSV before using it in audit or reconciliation steps.'],
+    note: 'This output is a handoff artifact for the rest of the suite. It is not currently a dashboard import artifact.'
+  },
+  {
+    title: 'Load, review, then decide',
+    body: 'Drag only dashboard-recognized evidence CSVs into this dashboard, then review before classifying the result.',
+    command: '# Drag these files into the dashboard drop zone:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n\n# Review the normalized manifest separately until dashboard parsing is added for it.',
+    checks: [
+      'Classify environment blocks separately from product defects.',
+      'Keep smoke-test evidence separate from feature validation.',
+      'Do not treat the normalized manifest as a dashboard import until a parser is added for that schema.'
+    ],
+    note: 'The dashboard is a review surface. It does not perform browser-side probing or ingest the normalized manifest yet.'
+  }
+];
+
+function initCybernetTutorial() {
+  const root = document.getElementById('cybernet-tutorial');
+  if (!root) return;
+
+  let idx = 0;
+  const stepper = document.getElementById('cybernet-stepper');
+  const title = document.getElementById('cybernet-step-title');
+  const body = document.getElementById('cybernet-step-body');
+  const kicker = document.getElementById('cybernet-step-kicker');
+  const checks = document.getElementById('cybernet-step-checks');
+  const command = document.getElementById('cybernet-step-command');
+  const note = document.getElementById('cybernet-step-note');
+  const prev = document.getElementById('cybernet-prev');
+  const next = document.getElementById('cybernet-next');
+  const start = document.getElementById('cybernet-tutorial-start');
+  const copy = document.getElementById('cybernet-tutorial-copy');
+
+  function render() {
+    const step = CYBERNET_TUTORIAL_STEPS[idx];
+    if (!step) return;
+    kicker.textContent = `Step ${idx + 1} of ${CYBERNET_TUTORIAL_STEPS.length}`;
+    title.textContent = step.title;
+    body.textContent = step.body;
+    checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
+    command.value = step.command;
+    note.textContent = step.note;
+    prev.disabled = idx === 0;
+    next.textContent = idx === CYBERNET_TUTORIAL_STEPS.length - 1 ? 'Finish ✓' : 'Next →';
+    stepper.querySelectorAll('.cybernet-step-pill').forEach((btn, i) => {
+      const active = i === idx;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      if (active) btn.setAttribute('aria-current', 'step');
+      else btn.removeAttribute('aria-current');
+    });
+  }
+
+  stepper.innerHTML = CYBERNET_TUTORIAL_STEPS.map((step, i) => (
+    `<button class="cybernet-step-pill" type="button" data-step="${i}">${i + 1}. ${sanitize(step.title)}</button>`
+  )).join('');
+
+  stepper.addEventListener('click', e => {
+    const btn = e.target.closest('.cybernet-step-pill');
+    if (!btn) return;
+    idx = Number(btn.dataset.step || 0);
+    render();
+  });
+  prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
+  next?.addEventListener('click', () => {
+    if (idx < CYBERNET_TUTORIAL_STEPS.length - 1) idx++;
+    else idx = 0;
+    render();
+  });
+  start?.addEventListener('click', () => { idx = 0; render(); root.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  copy?.addEventListener('click', () => {
+    const text = command.value || '';
+    const originalNote = note?.textContent || '';
+    const write = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
+      ? navigator.clipboard.writeText(text)
+      : new Promise((resolve, reject) => {
+          command.focus();
+          command.select();
+          try { document.execCommand('copy') ? resolve() : reject(new Error('copy unavailable')); }
+          catch (err) { reject(err); }
+        });
+    write
+      .then(() => {
+        toast('Cybernet tutorial command copied.', 'success');
+        if (note) note.textContent = 'Command copied.';
+      })
+      .catch(() => {
+        toast('Select and copy the command manually.', 'warning');
+        if (note) note.textContent = `${originalNote} Select the command text and copy it manually if clipboard access is blocked.`;
+      })
+      .finally(() => {
+        if (note) window.setTimeout(() => { note.textContent = originalNote; }, 2200);
+      });
+  });
+
+  render();
 }
 
 // ── Live Mode ────────────────────────────────────────────────────────────────

@@ -1,64 +1,14 @@
-<#
-.SYNOPSIS
-Runs a tracked installer in dry-run or local execution mode for evidence-oriented install workflows.
-
-.DESCRIPTION
-Invoke-TrackedInstall resolves installer metadata from Config/sources.yaml (when possible) and/or
-explicit parameter overrides, builds the command, and optionally executes it locally.
-
-This command is designed for Registry Install Diff pipeline orchestration where installer activity
-must be tracked and exported as structured evidence. This script does not edit registry values,
-does not capture registry snapshots, and does not perform registry diffs.
-
-.PARAMETER SoftwareId
-Software identifier to resolve from the software source configuration.
-Matches `software_id`, `id`, `name`, or `display_name` when present.
-
-.PARAMETER SourceConfigPath
-Path to source tracking YAML file (default: Config/sources.yaml).
-
-.PARAMETER Target
-Execution target. Only localhost is implemented in this slice.
-
-.PARAMETER DryRun
-When set, command construction is performed but no installer process is executed.
-
-.PARAMETER InstallerPath
-Explicit installer path override for controlled testing or local execution.
-
-.PARAMETER InstallerType
-Explicit installer type override (exe, msi, msix, batch, powershell, unknown).
-
-.PARAMETER SilentArgs
-Explicit silent arguments override.
-
-.PARAMETER OutputPath
-Optional path to write structured JSON output.
-
-.PARAMETER LogPath
-Optional path to append execution log lines.
-
-.EXAMPLE
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/Invoke-TrackedInstall.ps1 -Target localhost -DryRun -SoftwareId "Git for Windows" -SourceConfigPath "Config/sources.yaml"
-Dry-run using SoftwareId and Config/sources.yaml.
-
-.EXAMPLE
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/Invoke-TrackedInstall.ps1 -Target localhost -DryRun -SoftwareId EXAMPLE-SOFTWARE-ID -InstallerPath "C:\Installers\ExampleApp\setup.exe" -InstallerType exe -SilentArgs "/quiet /norestart"
-Dry-run using direct InstallerPath.
-
-.EXAMPLE
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/Invoke-TrackedInstall.ps1 -Target localhost -SoftwareId EXAMPLE-SOFTWARE-ID -InstallerPath "C:\Installers\ExampleApp\setup.exe" -InstallerType exe -SilentArgs "/quiet /norestart"
-Localhost execution with explicit installer path.
-
-.EXAMPLE
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/powershell/Invoke-TrackedInstall.ps1 -Target localhost -DryRun -SoftwareId EXAMPLE-SOFTWARE-ID -InstallerPath "C:\Installers\ExampleApp\setup.exe" -InstallerType exe -SilentArgs "/quiet /norestart" -OutputPath "exports/registry-install-diff/test/installer_result.json"
-Writes installer_result.json for evidence review.
-
-.NOTES
-Safety notes:
-- Default behavior is read-first and dry-run friendly.
-- No registry write operations are performed.
-- Remote install is not implemented; non-local targets return Unsupported.
+﻿#
+# .SYNOPSIS
+# Runs a tracked installer in dry-run or local execution mode for evidence-oriented install workflows.
+#
+# .DESCRIPTION
+# Invoke-TrackedInstall resolves installer metadata from Config/sources.yaml when possible and/or
+# explicit parameter overrides, builds the command, and optionally executes it locally.
+#
+# This command is designed for Registry Install Diff pipeline orchestration where installer activity
+# must be tracked and exported as structured evidence. This script does not edit registry values,
+# does not capture registry snapshots, and does not perform registry diffs.
 #>
 [CmdletBinding()]
 param(
@@ -111,8 +61,6 @@ function Read-SourcesYaml {
         return $result
     }
 
-    # Narrow adapter for current sources.yaml model.
-    # Supports top-level `apps` array with keys such as name/type/silent_args.
     $apps = @()
     if ($yamlData -and $yamlData.apps) { $apps = @($yamlData.apps) }
 
@@ -122,10 +70,10 @@ function Read-SourcesYaml {
     }
 
     $match = $apps | Where-Object {
-        ($_ .software_id -eq $SoftwareId) -or
-        ($_ .id -eq $SoftwareId) -or
-        ($_ .name -eq $SoftwareId) -or
-        ($_ .display_name -eq $SoftwareId)
+        ($_.software_id -eq $SoftwareId) -or
+        ($_.id -eq $SoftwareId) -or
+        ($_.name -eq $SoftwareId) -or
+        ($_.display_name -eq $SoftwareId)
     } | Select-Object -First 1
 
     if (-not $match) {

@@ -1,4 +1,4 @@
-#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
 <#
 .SYNOPSIS
     Offline contract tests for the Neuron maintenance snapshot QR task.
@@ -59,7 +59,8 @@ Describe 'Get-NeuronMaintenanceSnapshot.ps1 -- script contract' {
             'Wireless Interfaces',
             'Wireless Networks'
         )) {
-            $script:snapshotContent | Should -Match [regex]::Escape($section)
+            $pattern = [regex]::Escape($section)
+            $script:snapshotContent | Should -Match $pattern -Because $section
         }
     }
 
