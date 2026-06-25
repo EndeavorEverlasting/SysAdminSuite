@@ -32,8 +32,13 @@ grep -Fq 'http://127.0.0.1:5000/dashboard/' "$bat" \
   || fail ".bat launcher does not mention dashboard URL"
 grep -Fq 'tutorial=cybernet' "$bat" \
   || fail ".bat launcher does not open Cybernet tutorial entry"
+# Pause-on-failure: the host-missing branch must both emit its error and pause.
+# "Press any key to close" also appears on the success path, so assert the
+# failure message exists alongside a pause rather than the pause text alone.
+grep -Fq 'Could not find Launch-SysAdminSuiteDashboard.Host.bat' "$bat" \
+  || fail ".bat launcher does not report the missing host launcher on failure"
 grep -Fq 'Press any key to close' "$bat" \
-  || fail ".bat launcher does not pause on failure"
+  || fail ".bat launcher does not pause before closing"
 
 # .cmd files are compatibility aliases that delegate to the canonical .bat.
 grep -Fq 'START-HERE-SysAdminSuite-Dashboard.bat' "$cmd" \
@@ -60,9 +65,12 @@ grep -Fq 'flowchart TD' "$start_md" \
   || fail "START-HERE-SysAdminSuite.md is missing the Mermaid workflow diagram"
 
 # Canonical docs must not present a .cmd as the primary field instruction.
-# grep is line-based, so .* (not a newline-excluding class) matches "same line".
-grep -Eq 'Double-click.*START-HERE-SysAdminSuite-Dashboard\.cmd' "$start_md" \
-  && fail "START-HERE-SysAdminSuite.md must not present .cmd as the primary double-click"
+# grep is line-based, so .* matches "same line"; alternation covers both .cmd
+# aliases. A nearby alias mention on its own line (e.g. "...are compatibility
+# aliases") is intentionally allowed; only a same-line "Double-click <x>.cmd"
+# primary instruction is forbidden.
+grep -Eq 'Double-click.*(START-HERE-SysAdminSuite-Dashboard|SysAdminSuite Dashboard)\.cmd' "$start_md" \
+  && fail "START-HERE-SysAdminSuite.md must not present a .cmd as the primary double-click"
 grep -Fq 'rel="icon"' "$index" \
   || fail "dashboard/index.html missing favicon link"
 grep -Fq 'assets/harold.jpg' "$index" \
