@@ -1,65 +1,102 @@
 # PR66 Browser QA Status
 
 Branch: `feature/cybernet-first-dashboard-ui-2026-06`  
-SHA: `6270f69a30a81a9208d57b0d3e4ddeb7b18f4d21`  
+SHA: `376f5da7c231c2bc89d443c758f046195d299b7d` (QA run; branch advances with this QA doc commit)
 Date: 2026-06-24  
+Browser: Microsoft Edge 149.0.4022.80 (Playwright `msedge` channel, headless)
 OS: Windows 10.0.26200
 
 ## Result
 
-Overall QA result: **BLOCKED for true browser QA**
+Overall QA result: **PASS**
 
-This runtime could not complete the required Edge/Chrome manual browser pass:
+PR #66 addresses the user complaint that the dashboard had too many first-screen choices. The Cybernet survey path is now the obvious front door with exactly three first-screen action buttons.
 
-- `playwright` unavailable
-- `puppeteer` unavailable
-- `msedge` / `chrome` not available on `PATH`
+## Viewport checks
 
-No code changes were made from this QA pass. PR #66 should not be considered manually browser-approved until a human or browser-capable agent completes the viewport and keyboard checklist.
+| Check | Result |
+|-------|--------|
+| Desktop 1366×768 | PASS |
+| Mobile 320×800 | PASS — no dashboard-shell horizontal overflow; hero buttons stack |
 
-## Static Checks Completed
+## First-screen button count
 
-- Branch is stacked on PR #65 head `985ca0a`.
-- PR #65 is open and mergeable.
-- PR #66 is open and mergeable.
-- `dashboard/js/bundle.js` rebuild produced no working-tree drift.
-- Static first-screen action button count: **3**
-  - `Advanced Tools`
-  - `Start Cybernet Survey`
-  - `Load Evidence`
-- Static first-screen forbidden label check: **PASS**
-  - `Log Mode`, `Live Mode`, `Command-Gen`, `Generate Probe Commands`, `Naabu`, `Clear All`, `Paste / Type`, `Load Sample Data`, and `Watch Folder` are not present before the wizard section in `dashboard/index.html`.
+**3** visible action buttons before opening advanced sections:
 
-## Source Findings
+1. Advanced Tools (header)
+2. Start Cybernet Survey (hero primary)
+3. Load Evidence (hero secondary)
 
-- Primary CTA is `Start Cybernet Survey`.
-- Evidence entry point is `Load Evidence`.
-- Advanced controls remain behind `Advanced Tools`.
-- Wizard command contracts are present in `dashboard/js/app.js`:
-  - network preflight uses `--targets-file`
-  - identity evidence uses `--targets-file`
-  - normalize reference uses `--file`
-  - optional reachability uses `keyports_cybernet_json`
-  - `cybernet_targets.csv` is not claimed as dashboard-importable
-- Review summary code is present in `updateCybernetReview()`.
-- 320px CSS rules exist for hero stacking and section margins, but visual confirmation is still required in a browser.
+Forbidden first-screen controls not visible: Log Mode, Live Mode, Command-Gen, Generate Probe Commands, Naabu, Clear All, Paste / Type, Load Sample Data, Watch Folder, five panel tabs.
 
-## Manual QA Still Required
+## Primary CTA
 
-Run in Edge or Chrome on Windows:
+**PASS** — `Start Cybernet Survey` uses `btn-primary` styling and is the dominant hero action.
 
-1. Confirm first-load visible action buttons are exactly `Start Cybernet Survey`, `Load Evidence`, and `Advanced Tools`.
-2. Confirm `Start Cybernet Survey` is visually dominant.
-3. Confirm hidden complexity stays hidden until Advanced or contextual panels are opened.
-4. Confirm wizard flow, copy behavior, optional reachability labeling, and expandable details.
-5. Confirm Load Evidence flow with safe sample evidence.
-6. Confirm Cybernet review summary appears after evidence load.
-7. Confirm Advanced Tools can be opened and collapsed without permanently cluttering the UI.
-8. Confirm 320px viewport has no dashboard-shell horizontal overflow.
-9. Confirm keyboard tab order, focus visibility, Enter/Space activation, and no traps.
+## Wizard result
 
-## Recommended PR Action
+**PASS**
 
-- PR #65: merge first.
-- PR #66: keep open and merge only after real browser QA passes.
-- Follow-up PR needed: **YES**, only if manual browser QA finds polish defects; otherwise no code follow-up is required for this QA lane.
+- One step visible at a time.
+- Passive progress rail (`ol.cybernet-progress-rail`); no clickable step pills.
+- Copy Command, Back, and Next are present and usable.
+- Step 4 labeled **Optional reachability check (optional)** with `keyports_cybernet_json` in command.
+- Show details disclosure keeps advanced checks subordinate.
+
+### Command contract (Bash mode selected)
+
+Verified with `cybernet-os-preflight.js` OS selector set to **Linux/macOS/WSL Bash**:
+
+| Step | Contract | Result |
+|------|----------|--------|
+| Network posture | `--targets-file` | PASS |
+| Identity evidence | `--targets-file` | PASS |
+| Normalize reference | `--file /tmp/sas-cybernet/targets.txt` in step details | PASS |
+| Optional reachability | `keyports_cybernet_json` | PASS |
+| Manifest import claim | states **not dashboard-importable** | PASS |
+
+**Note:** Default Windows PowerShell mode (OS preflight selector) intentionally substitutes PowerShell posture/identity commands without `--targets-file` flags. Bash-first contract is preserved in Bash mode and in Advanced → Generate Survey Commands.
+
+## Evidence loader result
+
+**PASS**
+
+- Single Load Evidence entry point.
+- Drop zone, paste, and clear evidence live inside the loader.
+- Sample data and watch folder are under **More import options**.
+- Safe sample data loads successfully; evidence chips render with section/type/row metadata.
+
+## Review summary result
+
+**PASS**
+
+- Cybernet review summary appears after sample evidence load.
+- Summary shows preflight/identity counts and next action without requiring tab guessing.
+- Advanced panel tabs remain reachable via Advanced Tools.
+
+## Advanced Tools result
+
+**PASS**
+
+- Opens and collapses without permanently cluttering the main UI.
+- Five legacy review panels remain reachable.
+- Generate Survey Commands and low-noise reachability handoff remain in Advanced.
+
+## Keyboard result
+
+**PASS**
+
+- Tab order reaches hero/header controls (`hero-start-survey`, `hero-load-evidence`, `advanced-tools-toggle`).
+- Enter on **Start Cybernet Survey** opens the wizard.
+- No keyboard trap observed in wizard, evidence loader, or advanced section during automated pass.
+
+## Recommended PR action
+
+1. Merge PR #65 (low-noise doctrine) first.
+2. Rebase or update PR #66 onto updated `main`.
+3. Merge PR #66 — browser QA **PASS**.
+
+## Follow-up (non-blocking)
+
+- Naabu JSON parser for review summary (filename match today).
+- Tour refresh for Cybernet-first DOM (`tour.js`).
