@@ -8,6 +8,8 @@ Ship SysAdminSuite to restricted runtime endpoints as versioned artifacts, not a
 - Version source: explicit script parameter (`-Version`).
 - Artifact root layout:
   - `app/` - runtime scripts and launchers
+    - `app/dashboard/` - vanilla web dashboard assets (Log Mode + Live Mode)
+    - `app/bin/` - published `SysAdminSuite.DashboardHost.exe` and its runtime dependencies (PS-independent dashboard host)
   - `data/` - endpoint-local mutable data
   - `logs/` - runtime logs
   - `manifest/` - update manifest snapshot bundled with release
@@ -15,11 +17,14 @@ Ship SysAdminSuite to restricted runtime endpoints as versioned artifacts, not a
 
 ## Build Path (Trusted Build Machine)
 1. Build from repository checkout.
-2. Execute:
+2. (Optional, recommended) Publish the PS-independent dashboard host so the portable zip includes `app/bin/SysAdminSuite.DashboardHost.exe`:
+   - `dotnet publish src/SysAdminSuite.DashboardHost -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost`
+   - See [GUI_HOST_MIGRATION.md](GUI_HOST_MIGRATION.md) for context.
+3. Execute:
    - `pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\build\New-PortableArtifact.ps1 -Version 0.1.0`
-3. The build writes **`dist/SysAdminSuite-Portable-v{Version}.zip`** and a matching **`dist/SysAdminSuite-Portable-v{Version}.manifest.json`** with a real SHA256 and UTC timestamp (and `gitCommit` when built inside a git repo).
-4. Publish **both** the zip and the manifest to your approved distribution location. See [releases/PUBLISH.md](releases/PUBLISH.md).
-5. Optional offline verification:
+4. The build writes **`dist/SysAdminSuite-Portable-v{Version}.zip`** and a matching **`dist/SysAdminSuite-Portable-v{Version}.manifest.json`** with a real SHA256 and UTC timestamp (and `gitCommit` when built inside a git repo).
+5. Publish **both** the zip and the manifest to your approved distribution location. See [releases/PUBLISH.md](releases/PUBLISH.md).
+6. Optional offline verification:
    - `pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-PortableArtifactSmoke.ps1 -ZipPath .\dist\SysAdminSuite-Portable-v0.1.0.zip -ManifestPath .\dist\SysAdminSuite-Portable-v0.1.0.manifest.json` (adjust version paths; see [releases/PUBLISH.md](releases/PUBLISH.md)).
 
 ## Runtime Layout (Restricted Endpoint)

@@ -37,6 +37,7 @@ New-Item -ItemType Directory -Path (Join-Path $stagingRoot 'manifest') -Force | 
 $appTargets = @(
     'ActiveDirectory',
     'Config',
+    'dashboard',
     'DeploymentTracker',
     'EnvSetup',
     'GetInfo',
@@ -48,7 +49,11 @@ $appTargets = @(
     'tools',
     'Utilities',
     'Launch-SysAdminSuite.bat',
-    'Launch-SysAdminSuite-Runtime.bat'
+    'Launch-SysAdminSuite-Runtime.bat',
+    'Launch-SysAdminSuiteDashboard.bat',
+    'Launch-SysAdminSuiteDashboard.ps1',
+    'Launch-SysAdminSuiteDashboard.Host.bat',
+    'server.py'
 )
 
 foreach ($target in $appTargets) {
@@ -60,6 +65,17 @@ foreach ($target in $appTargets) {
 
     $destination = Join-Path (Join-Path $stagingRoot 'app') $target
     Copy-Item -Path $source -Destination $destination -Recurse -Force
+}
+
+$publishSource = Join-Path $repoRoot 'tools\publish\SysAdminSuite.DashboardHost'
+if (Test-Path -LiteralPath $publishSource) {
+    $binDest = Join-Path $stagingRoot 'app\bin'
+    if (-not (Test-Path -LiteralPath $binDest)) {
+        New-Item -ItemType Directory -Path $binDest -Force | Out-Null
+    }
+    Copy-Item -Path (Join-Path $publishSource '*') -Destination $binDest -Recurse -Force
+} else {
+    Write-Warning "DashboardHost publish output not found at $publishSource. Run 'dotnet publish src/SysAdminSuite.DashboardHost -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost' before building the portable artifact to include the PS-independent dashboard host."
 }
 
 $manifestSource = Join-Path $repoRoot 'Config\update-manifest.sample.json'

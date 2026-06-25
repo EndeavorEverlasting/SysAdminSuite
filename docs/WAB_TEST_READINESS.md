@@ -63,6 +63,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\QRTasks\Invoke-TechTas
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\QRTasks\Invoke-TechTask.ps1 -Task NetworkInfo
 ```
 
+PS-independent dashboard host (no `powershell.exe`, no Python; see [GUI_HOST_MIGRATION.md](GUI_HOST_MIGRATION.md)):
+
+```bat
+:: Direct
+Launch-SysAdminSuiteDashboard.Host.bat
+
+:: Via runtime menu option [3]
+Launch-SysAdminSuite-Runtime.bat
+```
+
+Expected smoke result: tray icon appears, browser opens `http://127.0.0.1:5000/dashboard/`, Stop from tray frees the port. Classify success as `OK_LOCAL_SMOKE`.
+
 Evidence to save:
 
 - Screenshot showing the GUI opened.

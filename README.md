@@ -136,6 +136,22 @@ powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
 
 > **Why `-STA`?** WinForms requires Single Threaded Apartment mode. Without it the window won't render.
 
+### Launch the Web Dashboard (no PowerShell)
+
+For endpoints where `powershell.exe` is blocked or constrained, the dashboard ships
+as a standalone .NET 8 tray host. Double-click:
+
+```
+Launch-SysAdminSuiteDashboard.Host.bat
+```
+
+Or pick `[3]` in `Launch-SysAdminSuite-Runtime.bat`. The host serves
+`http://127.0.0.1:5000/dashboard/` and shows a NotifyIcon with Open / Copy URL /
+Stop. The original PowerShell + Python dashboard launcher
+(`Launch-SysAdminSuiteDashboard.bat`) is preserved for permissive sites. See
+[`docs/GUI_HOST_MIGRATION.md`](docs/GUI_HOST_MIGRATION.md) for the lane diagram,
+launcher matrix, and host CLI flags.
+
 On first launch a **menu-based tutorial** appears with 12 use-case tracks. Pick the one you need and follow 3-5 focused steps that end with real example output. Reopen anytime with **Ctrl+T** or the **Tutorial** button in the status bar.
 
 **Tutorial tracks:**
