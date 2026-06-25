@@ -64,7 +64,7 @@ Describe 'Compare-RegistrySnapshots script' {
         $rules | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $rulesPath -Encoding UTF8
 
         $resultRaw = & $script:scriptPath -BeforeSnapshotPath $beforePath -AfterSnapshotPath $afterPath -SoftwareId 'EXAMPLE-SOFTWARE-ID' -ExpectedRulesPath $rulesPath -WatchlistPath $rulesPath -OutputJson $outJson -OutputCsv $outCsv
-        $result = $resultRaw | ConvertFrom-Json -Depth 20
+        $result = $resultRaw | ConvertFrom-Json
 
         $result.summary.created_keys | Should -BeGreaterThan 0
         $result.summary.deleted_keys | Should -BeGreaterThan 0
