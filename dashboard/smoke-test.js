@@ -28,6 +28,7 @@ const cases = [
   { file: 'status.json',                           expectedType: 'status-json',         minRows: null },
   { file: 'QRTask_log.json',                       expectedType: 'remote-task',         minRows: 3 },
   { file: 'RunControl_events.json',                expectedType: 'remote-task',         minRows: 3 },
+  { file: 'cybernet_targets.sample.csv',           expectedType: 'cybernet-target-manifest', minRows: 2 },
   { file: 'ad_registered_normalized.csv',            expectedType: 'ad-registered-population', minRows: 1 },
   { file: 'ad_registered_population.sample.csv',    expectedType: 'ad-registered-population', minRows: 6 },
 ];
@@ -163,16 +164,10 @@ const contractChecks = [
   ['--targets-file /tmp/sas-cybernet/targets.txt', 'preflight/identity --targets-file'],
   ['--file /tmp/sas-cybernet/targets.txt', 'normalize --file reference'],
   ['keyports_cybernet_json', 'low-noise reachability profile'],
+  ['cybernet-target-manifest', 'manifest parser type wired'],
+  ['store.cybernetTargetManifest', 'manifest store wiring'],
   ['ad-registered-population', 'AD parser type wired'],
   ['store.adRegisteredPopulation', 'AD store wiring'],
-];
-
-const adContractChecks = [
-  ['cybernet-ad-population-summary', 'AD summary container in HTML'],
-  ['AD Registered Population', 'AD summary heading'],
-  ['registered computer accounts', 'AD population row label'],
-  ['not serial or reachability proof', 'no false AD proof claim'],
-  ['AD registered population', 'AD section label'],
 ];
 
 // ── Naabu reachability Cybernet review contracts (app.js) ───────────────────
@@ -219,8 +214,34 @@ for (const [needle, label] of naabuContractChecks) {
   }
 }
 
+const manifestContractChecks = [
+  ['cybernet-manifest-summary', 'manifest summary container in HTML'],
+  ['manifest rows', 'manifest summary row count label'],
+  ['missing hostname/DNS', 'manifest missing hostname metric'],
+  ['Target manifest', 'manifest section label'],
+];
+
+for (const [needle, label] of manifestContractChecks) {
+  const src = needle === 'cybernet-manifest-summary' ? indexHtml : appJs;
+  if (!src.includes(needle)) {
+    console.error(`FAIL [manifest-contract:${label}]: missing "${needle}"`);
+    shellFailed++;
+  } else {
+    console.log(`PASS [manifest-contract:${label}]`);
+    shellPassed++;
+  }
+}
+
+const adContractChecks = [
+  ['cybernet-ad-population-summary', 'AD summary container in HTML'],
+  ['AD Registered Population', 'AD summary heading'],
+  ['registered computer accounts', 'AD population row label'],
+  ['not serial or reachability proof', 'no false AD proof claim'],
+  ['AD registered population', 'AD section label'],
+];
+
 for (const [needle, label] of adContractChecks) {
-  const src = (needle === 'cybernet-ad-population-summary' || needle === 'AD Registered Population')
+  const src = (needle === 'cybernet-ad-population-summary' || needle === 'AD Registered Population' || needle === 'not serial or reachability proof')
     ? indexHtml
     : appJs;
   if (!src.includes(needle)) {

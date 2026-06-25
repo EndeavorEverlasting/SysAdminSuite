@@ -31,6 +31,7 @@ const TYPE_SECTION_LABELS = {
   'network-preflight': 'Network review',
   'smb-recon': 'Network review',
   'naabu-reachability': 'Reachability evidence',
+  'cybernet-target-manifest': 'Target manifest',
   'ad-registered-population': 'AD registered population',
   'remote-task': 'Remote tasks',
   'software-tracker': 'Software tracker',
@@ -55,9 +56,10 @@ const TYPE_TO_PANELS = {
   'network-preflight':   ['network'],
   'smb-recon':           ['network'],
   'naabu-reachability':  ['network'],
+  'cybernet-target-manifest': ['inventory'],
+  'ad-registered-population': ['inventory', 'network'],
   'software-tracker':    ['software'],
   'software-superset':   ['software'],
-  'ad-registered-population': ['inventory', 'network'],
 };
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
@@ -350,7 +352,7 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'smb-recon': '📂', 'status-json': '💚', 'remote-task': '⚡',
     'naabu-reachability': '🔌',
     'ad-registered-population': '🏢',
-    'software-tracker': '📦', 'unknown': '❓'
+    'software-tracker': '📦', 'cybernet-target-manifest': '🎯', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
 
@@ -579,12 +581,12 @@ const CYBERNET_TUTORIAL_STEPS = [
   {
     title: 'Load evidence and review',
     railLabel: 'Review package',
-    body: 'Drag recognized evidence CSVs into Load Evidence, then review the summary. AD registered population CSVs show candidate targets — not serial or reachability proof.',
-    command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)\n# survey/output/ad_reconcile/<run>/ad_registered_normalized.csv',
+    body: 'Drag recognized evidence CSVs into Load Evidence, then review the summary. Normalized target manifests (cybernet_targets.csv) are imported separately from network or identity evidence.',
+    command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)\n# survey/output/cybernet_*_targets.csv (manifest, not evidence)',
     checks: [
       'Classify environment blocks separately from product defects.',
       'Keep smoke-test evidence separate from feature validation.',
-      'Treat AD rows as registered computer accounts, not confirmed Cybernet identity.'
+      'Treat manifest rows as target lists, not reachability or identity proof.'
     ],
     note: 'Click Load resulting evidence below, or use Load Evidence on the hero card.',
     optional: false
@@ -1113,6 +1115,7 @@ function refreshAllPanels() {
   try { renderNetworkPanel(store); } catch(e) { console.warn('Network panel error:', e); }
   try { renderSoftwarePanel(store); } catch(e) { console.warn('Software panel error:', e); }
   updateCybernetReview();
+  updateCybernetManifestSummary();
   updateCybernetAdPopulationSummary();
 }
 
@@ -1181,6 +1184,35 @@ function updateCybernetReview() {
     ${guestWarn ? `<p class="cybernet-review-warn">⚠ ${sanitize(guestWarn)}</p>` : ''}
     <p class="cybernet-review-next"><strong>Next:</strong> ${sanitize(nextAction)}</p>
   `;
+}
+
+function updateCybernetManifestSummary() {
+  const root = document.getElementById('cybernet-manifest-summary');
+  const stats = document.getElementById('cybernet-manifest-stats');
+  if (!root || !stats) return;
+
+  const rows = store.cybernetTargetManifest || [];
+  if (!rows.length) {
+    root.style.display = 'none';
+    stats.textContent = '';
+    return;
+  }
+
+  const withHostname = rows.filter(r => r.hostname || r.dnsHostName).length;
+  const withSerial = rows.filter(r => r.serial).length;
+  const withMac = rows.filter(r => r.mac).length;
+  const missingDnsHost = rows.filter(r => !r.hostname && !r.dnsHostName).length;
+  const missingSerial = rows.filter(r => !r.serial).length;
+
+  stats.innerHTML = [
+    `<span><strong>${rows.length}</strong> manifest rows</span>`,
+    `<span><strong>${withHostname}</strong> with hostname/DNS</span>`,
+    `<span><strong>${withSerial}</strong> with serial</span>`,
+    `<span><strong>${withMac}</strong> with MAC</span>`,
+    `<span><strong>${missingDnsHost}</strong> missing hostname/DNS</span>`,
+    `<span><strong>${missingSerial}</strong> missing serial</span>`,
+  ].join(' · ');
+  root.style.display = '';
 }
 
 function updateCybernetAdPopulationSummary() {
