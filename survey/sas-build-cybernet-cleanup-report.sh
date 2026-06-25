@@ -97,6 +97,9 @@ def expected_host(row):
 def observed_host(row):
     return first(row, ["resolved_hostname","observed_hostname","ObservedHostName"])
 
+def has_hard_identity(row):
+    return bool(observed_serial(row) or observed_mac(row))
+
 def cleanup_status(row):
     cls = first(row, ["classification"])
     log = first(row, ["log_status"])
@@ -140,8 +143,10 @@ def priority(row):
         return "P1_tracker_cleanup_only", "Serial identity resolved but hostname drifted", "Update tracker hostname; no physical revisit needed from this evidence alone."
     if log == "populate_missing_fields" or first(row, ["can_populate_serial"]) == "yes" or first(row, ["can_populate_mac"]) == "yes":
         return "P1_tracker_cleanup_only", "Missing tracker fields can be populated", "Update tracker fields from observed evidence; no physical revisit needed from this evidence alone."
-    if cls in {"identity_resolved", "live_serial_confirmed"}:
-        return "P2_no_revisit_needed", "Identity confirmed", "No revisit needed based on supplied evidence."
+    if cls in {"identity_resolved", "live_serial_confirmed"} and has_hard_identity(row):
+        return "P2_no_revisit_needed", "Identity confirmed by serial or MAC evidence", "No revisit needed based on supplied evidence."
+    if cls in {"identity_resolved", "live_serial_confirmed"} and not has_hard_identity(row):
+        return "P3_wmi_or_network_retry", "Hostname-only evidence is not enough to confirm Cybernet identity", "Collect serial or MAC evidence before clearing revisit."
     if cls == "needs_ad_lookup":
         return "P3_ad_vision_lookup_needed", "No identity evidence resolved from supplied CSVs", "Check AD/Vision/tracker mapping before scheduling a physical revisit."
     if cls == "unreachable_mark_off":
