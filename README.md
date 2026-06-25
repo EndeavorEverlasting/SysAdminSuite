@@ -6,6 +6,22 @@
 
 ---
 
+## Start here
+
+For most users, do not start with command-line tools.
+
+Double-click:
+
+`START-HERE-SysAdminSuite-Dashboard.bat`
+
+This opens the local dashboard and tutorial page at `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
+
+Read [`START-HERE-SysAdminSuite.md`](START-HERE-SysAdminSuite.md) for plain-language steps, troubleshooting, and when CLI is appropriate.
+
+Use CLI tools only when the dashboard tells you to copy a specific command or when a runbook specifically asks for it.
+
+---
+
 ## Runtime policy (C# / native first)
 
 - **Primary supported path for restricted endpoints:** **compiled** tooling — **.NET (C#)** for the GUI and most automation, and **native C++** under [`mapping/native`](mapping/native/README.md) for printer mapping where `powershell.exe` is blocked or scripting policy is strict. Artifact and CLI contracts are documented in [`mapping/native/CONTRACT.md`](mapping/native/CONTRACT.md).
@@ -120,6 +136,16 @@ SysAdminSuite/
 
 ## Quick Start
 
+### Field Survey — Cybernet / Neuron (advanced CLI)
+
+When a lead or runbook asks for Bash subnet orchestration:
+
+- [`START-HERE-CYBERNET-NEURON-SURVEY.md`](START-HERE-CYBERNET-NEURON-SURVEY.md) — urgent CLI orchestrator commands
+- [`docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md) — full step-by-step tutorial
+- [`survey/README.md`](survey/README.md) — script reference and contract tests
+
+Most field users should start with [`START-HERE-SysAdminSuite-Dashboard.bat`](START-HERE-SysAdminSuite-Dashboard.bat) instead.
+
 ### Launch the GUI (recommended starting point)
 
 The easiest way to launch the GUI is to **double-click** the batch file at the repo root:
@@ -139,7 +165,11 @@ powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
 ### Launch the Web Dashboard (no PowerShell)
 
 For endpoints where `powershell.exe` is blocked or constrained, the dashboard ships
-as a standalone .NET 8 tray host. Double-click:
+as a standalone .NET 8 tray host.
+
+**Field users:** double-click [`START-HERE-SysAdminSuite-Dashboard.bat`](START-HERE-SysAdminSuite-Dashboard.bat).
+
+**IT / developers:** double-click:
 
 ```
 Launch-SysAdminSuiteDashboard.Host.bat
@@ -149,7 +179,8 @@ Or pick `[3]` in `Launch-SysAdminSuite-Runtime.bat`. The host serves
 `http://127.0.0.1:5000/dashboard/` and shows a NotifyIcon with Open / Copy URL /
 Stop. The original PowerShell + Python dashboard launcher
 (`Launch-SysAdminSuiteDashboard.bat`) is preserved for permissive sites. See
-[`docs/GUI_HOST_MIGRATION.md`](docs/GUI_HOST_MIGRATION.md) for the lane diagram,
+[`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md) and
+[`docs/GUI_HOST_MIGRATION.md`](docs/GUI_HOST_MIGRATION.md) for the entry-point guide,
 launcher matrix, and host CLI flags.
 
 On first launch a **menu-based tutorial** appears with 12 use-case tracks. Pick the one you need and follow 3-5 focused steps that end with real example output. Reopen anytime with **Ctrl+T** or the **Tutorial** button in the status bar.
