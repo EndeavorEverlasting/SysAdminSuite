@@ -68,6 +68,7 @@ data/updated/*
 *.xls
 *.csv
 *.tsv
+!Config/cybernet_location_prefixes.example.csv
 !input/cybernet-serials.example.csv
 !input/site-subnets.example.csv
 !survey/fixtures/ad_registered_cybernet.sample.csv

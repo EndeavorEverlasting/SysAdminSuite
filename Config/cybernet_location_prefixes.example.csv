@@ -1,0 +1,6 @@
+LocationCode,LocationLabel,Region,SiteAffinity,AllowMixedWith,Notes
+WNH,Example LIJ Lineage Prefix (Synthetic),REGION-EAST-A,EX-LIJ,WMH,Synthetic generalized mapping only. Hostname lead prefix WNH loosely associates with EX-LIJ lineage in fixtures. WNH<->WMH is a controlled site-affinity review pair per hostname variant doctrine; never auto-resolves identity or serial proof.
+WMH,Example NSUH Lineage Prefix (Synthetic),REGION-EAST-A,EX-NSUH,WNH,Synthetic generalized mapping only. Hostname lead prefix WMH loosely associates with EX-NSUH lineage in fixtures. Prefix substitution with WNH requires needs_site_context_review when SiteAffinity conflicts; not serial-confirmed.
+WTS,Example Test Lab Hostname Prefix (Synthetic),REGION-DEV,TEST-SITE,,Synthetic WTS hostname prefix used in contract fixtures (e.g. WTS001OPR001). Not a production facility or subnet authority mapping.
+MEDTEST,Example Serial Fixture Prefix (Synthetic),REGION-DEV,TEST-SITE,,Synthetic serial-prefix pattern for fixture rows (e.g. MEDTEST24-00001). Marks serial-side enrichment examples only; not a hostname location prefix or live inventory mapping.
+WNH000TEST,Example Stale Neuron Fixture Prefix (Synthetic),REGION-DEV,TEST-SITE,,Synthetic neuron AD fixture prefix (e.g. WNH000TEST001). Read-only reconciliation example; not operational site data.

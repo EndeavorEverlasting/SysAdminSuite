@@ -204,6 +204,16 @@ requires a privileged identity check.
 - This is transparent, low-noise survey discipline and scope control. It is not stealth, evasion,
   log suppression, or detection avoidance. Authorized traffic may be monitored; that is expected.
 
+## Subnet location inference (WNH / WMH mixing)
+
+Subnet/location inference ([`CYBERNET_SUBNET_LOCATION_INFERENCE.md`](CYBERNET_SUBNET_LOCATION_INFERENCE.md)) may show **WNH** and **WMH** hostnames sharing the same mechanical subnet. That is **review-required enrichment**, not variant auto-resolution.
+
+- Do not treat a mixed subnet map as proof that prefix substitution was correct.
+- Do not promote mixed subnet evidence to serial-confirmed or to approved scan scope.
+- Hold for `needs_site_context_review` / `subnet_location_mixed` and reconcile site context separately from AD variant candidate discovery.
+
+Hostname variant expansion and subnet location inference are complementary read-only lanes. Neither replaces privileged serial proof.
+
 ## Relationship to Existing Doctrine
 
 - AD remains the registered population authority per
@@ -214,6 +224,8 @@ requires a privileged identity check.
 - Manifest ingestion and identity transport context live in
   [`CYBERNET_XLSX_TARGET_INGESTION.md`](CYBERNET_XLSX_TARGET_INGESTION.md) and
   [`CYBERNET_EVIDENCE_CORRELATION.md`](CYBERNET_EVIDENCE_CORRELATION.md).
+- Subnet/location enrichment from hostname/IP evidence is documented in
+  [`CYBERNET_SUBNET_LOCATION_INFERENCE.md`](CYBERNET_SUBNET_LOCATION_INFERENCE.md).
 
 ## Repo-agent addendum
 

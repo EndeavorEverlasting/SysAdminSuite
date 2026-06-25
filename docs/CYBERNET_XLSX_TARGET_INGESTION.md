@@ -236,6 +236,21 @@ Note: `sas-collect-cybernet-evidence.sh` delegates to the workstation identity a
 
 Further correlation (DNS, AD, DHCP, approved Nmap) is documented in [`CYBERNET_EVIDENCE_CORRELATION.md`](CYBERNET_EVIDENCE_CORRELATION.md).
 
+## Subnet / location enrichment (optional)
+
+After ingestion, DNS resolution, or preflight, optionally map hostname/IP evidence to likely site subnets. This is read-only enrichment — it narrows review scope and does **not** authorize broader scanning by itself. Serial identity remains the device truth; hostnames and IPs are routing/location evidence only.
+
+```bash
+bash survey/sas-cybernet-subnet-location-map.sh \
+  --tracker-csv survey/output/cybernet_alejandro_targets.csv \
+  --preflight-csv survey/output/cybernet_host_preflight.csv \
+  --identity-csv survey/output/cybernet_dns_resolution_report.csv \
+  --prefix-config Config/cybernet_location_prefixes.example.csv \
+  --output-prefix survey/output/cybernet_subnet_location
+```
+
+Run this **before** any approved subnet survey or Naabu/Nmap handoff so operators know which subnets need human review (for example mixed WNH/WMH in one `/24`). Full runbook: [`CYBERNET_SUBNET_LOCATION_INFERENCE.md`](CYBERNET_SUBNET_LOCATION_INFERENCE.md).
+
 ## Hostname recall errors
 
 When a manifest `HostName` may carry a human recollection or typing error (wrong site prefix,
