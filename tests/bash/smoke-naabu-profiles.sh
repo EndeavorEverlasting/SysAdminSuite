@@ -103,6 +103,19 @@ for name, prof in profiles.items():
     if is_host_discovery and prof.get("requiresApprovedSubnetScope") is not True:
         errors.append(f"profile {name} (host-discovery) must set requiresApprovedSubnetScope:true")
 
+    # Pipe profile: silent stream for local enrichment, no -json in flags.
+    if name == "keyports_cybernet_pipe":
+        if "-json" in flags:
+            errors.append("keyports_cybernet_pipe must not include -json")
+        if "-silent" not in flags or "-ec" not in flags:
+            errors.append("keyports_cybernet_pipe must include -silent and -ec")
+        if prof.get("pipelineFollowup") is not True:
+            errors.append("keyports_cybernet_pipe must set pipelineFollowup:true")
+
+    # Pipeline-capable profiles must be silent.
+    if prof.get("pipelineFollowup") is True and "-silent" not in flags:
+        errors.append(f"profile {name} with pipelineFollowup must include -silent")
+
     # No live-looking domains or real private/corp targets in any field.
     for token in iter_strings(prof):
         for match in DOMAIN_RE.findall(token):

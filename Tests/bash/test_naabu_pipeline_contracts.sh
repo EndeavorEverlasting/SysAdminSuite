@@ -85,6 +85,7 @@ bash "$PIPE" --site testsite --profile host_discovery_web_syn_txt --approved-sub
   --list "$FIX/targets.sample.txt" --out "$OUT" --dry-run --planned-file "$PLANNED" >/dev/null
 grep -q '\-sn' "$PLANNED" || { echo 'expected -sn'; exit 1; }
 grep -q '\-ps' "$PLANNED" || { echo 'expected -ps'; exit 1; }
+grep -q '\-ec' "$PLANNED" || { echo 'expected -ec on host-discovery'; exit 1; }
 # Legacy alias host_discovery_tcp80 still resolves and honors scope gate
 bash "$PIPE" --site testsite --profile host_discovery_tcp80 --approved-subnet-scope \
   --list "$FIX/targets.sample.txt" --out "$OUT" --dry-run --planned-file "$PLANNED" >/dev/null
@@ -101,6 +102,7 @@ bash "$PIPE" --site testsite --profile udp_dns_snmp_json --profile-justified \
   --list "$FIX/targets.sample.txt" --out "$OUT" --dry-run --planned-file "$PLANNED" >/dev/null
 grep -q 'u:53' "$PLANNED" || { echo 'expected u:53'; exit 1; }
 grep -q '\-uP' "$PLANNED" || { echo 'expected -uP'; exit 1; }
+grep -q '\-ec' "$PLANNED" || { echo 'expected -ec on UDP profile'; exit 1; }
 # UDP must not be the runtime default profile
 DEFAULT_PROFILE="$($PYTHON_BIN - "$CFG" <<'PY'
 import json,sys
@@ -138,8 +140,10 @@ bash survey/sas-cybernet-subnet-survey.sh --site testsite --mode confirm-windows
   --confirm-tool naabu --host-file "$FIX/targets.sample.txt" \
   --output-root "$TMP/out" --logs-root "$TMP/logs" --run-id naabu001 --dry-run >/dev/null
 [[ -f "$TMP/out/testsite_naabu001/planned_commands.txt" ]]
-grep -q 'sas-run-naabu-pipeline.sh' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'survey runner missing pipeline'; exit 1; }
+grep -qE 'sas-run-naabu-pipeline\.sh|naabu.*-ec' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'survey runner missing naabu pipeline plan'; exit 1; }
 grep -q 'sas-parse-naabu-evidence.sh' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'survey runner missing parse step'; exit 1; }
+
+grep -q '80,443,135,445,3389,5985,5986' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'orchestrator missing full keyports'; exit 1; }
 
 # parse-naabu-only dry-run plans parse against latest artifact
 cp "$FIX/naabu.sample.jsonl" "$TMP/logs/testsite_latest_windows_ports_naabu.json"

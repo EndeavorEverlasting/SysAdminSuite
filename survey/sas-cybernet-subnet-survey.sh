@@ -76,6 +76,8 @@ Options:
   --naabu-profile NAME Naabu profile when --confirm-tool naabu. Default: keyports_cybernet_json
   --pipe-followup      Pipe naabu silent stdout into sas-cybernet-packet-followup.sh
   --udp-services       Use udp_dns_snmp_json profile (DNS/SNMP UDP, justification ack'd)
+  --host-discovery     Use host_discovery_web_syn_txt (-sn -pe -ps 80 -ec; subnet scope ack'd)
+  --all-ports          Use allports_low_noise_json (-p - -ec; requires --allow-full-ports)
   --allow-full-ports   Permit naabu allports_low_noise_json profile (-p - -ec)
   --profile-justified  Acknowledge justification for justification-required naabu profiles
   --approved-subnet-scope Acknowledge approved subnet scope for host-discovery naabu profiles
@@ -432,10 +434,9 @@ mode_confirm_windows() {
       [[ "$ALLOW_PUBLIC" -eq 1 ]] && pipeline_args+=(--allow-public)
       [[ "$DRY_RUN" -eq 1 ]] && pipeline_args+=(--dry-run)
       if [[ "$DRY_RUN" -eq 1 ]]; then
-        run_cmd "confirm-windows naabu pipeline" "${pipeline_args[@]}"
-      else
-        (cd "$REPO_ROOT" && "${pipeline_args[@]}")
+        log "DRY-RUN: ${pipeline_args[*]}"
       fi
+      (cd "$REPO_ROOT" && "${pipeline_args[@]}")
       local followup_out csv_out
       followup_out="$(naabu_followup_path "$out")"
       csv_out="$RESOLVER_DIR/${SITE}_naabu_reachability.csv"
@@ -579,6 +580,8 @@ while [[ $# -gt 0 ]]; do
     --naabu-profile) NAABU_PROFILE="${2:?missing --naabu-profile value}"; shift 2 ;;
     --pipe-followup) PIPE_FOLLOWUP=1; shift ;;
     --udp-services) NAABU_PROFILE="udp_dns_snmp_json"; NAABU_PROFILE_JUSTIFIED=1; shift ;;
+    --host-discovery) NAABU_PROFILE="host_discovery_web_syn_txt"; NAABU_APPROVED_SUBNET_SCOPE=1; shift ;;
+    --all-ports) NAABU_PROFILE="allports_low_noise_json"; ALLOW_FULL_PORTS=1; NAABU_PROFILE_JUSTIFIED=1; shift ;;
     --allow-full-ports) ALLOW_FULL_PORTS=1; shift ;;
     --profile-justified) NAABU_PROFILE_JUSTIFIED=1; shift ;;
     --approved-subnet-scope) NAABU_APPROVED_SUBNET_SCOPE=1; shift ;;
