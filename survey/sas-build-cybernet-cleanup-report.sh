@@ -77,15 +77,6 @@ def first(row, names):
 def norm(value):
     return re.sub(r"\s+", "", value or "").upper()
 
-def looks_like_serial(value):
-    value = (value or "").strip()
-    if not value:
-        return False
-    upper = value.upper()
-    if "HOST" in upper or "OPR" in upper or ":" in value:
-        return False
-    return any(c.isalpha() for c in value) and any(c.isdigit() for c in value)
-
 def expected_serial(row):
     return first(row, ["expected_cybernet_serial","ExpectedSerial","CybernetSerial","Serial","SerialNumber","ServiceTag","AssetSerial"])
 
@@ -93,8 +84,9 @@ def observed_serial(row):
     return first(row, ["resolved_serial","observed_serial","ObservedSerial"])
 
 def cybernet_serial(row):
-    value = expected_serial(row) or observed_serial(row)
-    return value if looks_like_serial(value) else ""
+    # Use only explicit serial evidence columns. Never infer a serial from target,
+    # input identifier, or hostname because hostnames are mutable probe hints.
+    return expected_serial(row) or observed_serial(row)
 
 def observed_mac(row):
     return first(row, ["resolved_mac","observed_mac","ObservedMAC","ObservedMACs"])
