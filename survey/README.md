@@ -54,6 +54,27 @@ bash Tests/bash/test_packet_probe_contracts.sh
 bash Tests/bash/test_repo_naabu_doctrine_conformance.sh
 ```
 
+## Cybernet Subnet Location Inference Map
+
+Read-only enrichment: maps approved hostname/IP CSV evidence to likely site subnets. **Not** the subnet survey runner above — no Naabu, Nmap, ping sweeps, or host discovery.
+
+```bash
+bash survey/sas-cybernet-subnet-location-map.sh \
+  --identity-csv survey/output/ad_computers_normalized.csv \
+  --tracker-csv survey/output/cybernet_alejandro_targets.csv \
+  --prefix-config Config/cybernet_location_prefixes.example.csv \
+  --output-prefix survey/output/cybernet_subnet_location \
+  --html
+```
+
+Subnet/location inference narrows review scope; it does not authorize broader scanning by itself. The host evidence output includes serial-first fallback fields so hostname/IP/subnet clues never silently count as serial proof. Runbook: [`docs/CYBERNET_SUBNET_LOCATION_INFERENCE.md`](../docs/CYBERNET_SUBNET_LOCATION_INFERENCE.md).
+
+Contract test:
+
+```bash
+bash Tests/bash/test-cybernet-subnet-location-contracts.sh
+```
+
 ## Naabu CDN-Safe Pipeline
 
 CDN/cloud-aware port confirmation using naabu `-ec -silent`. Auto-installs naabu to `bin/naabu.exe` from GitHub releases when missing.
