@@ -124,7 +124,11 @@ def expand_csv_paths(paths: list[str], patterns: list[str]) -> list[Path]:
     for value in paths:
         path = Path(value)
         if not path.is_file():
-            raise FileNotFoundError(value)
+            # Explicit (non-glob) CSV arguments must fail fast with the path,
+            # not be silently dropped. Set .filename so the handler can show it.
+            err = FileNotFoundError(f"explicit evidence CSV not found: {value}")
+            err.filename = value
+            raise err
         if path not in seen:
             expanded.append(path)
             seen.add(path)
@@ -176,7 +180,10 @@ def best_identity_rows(paths: list[Path]) -> dict[str, dict[str, str]]:
 
 
 def best_preflight_rows(paths: list[Path]) -> dict[str, dict[str, str]]:
-    best: dict[str, dict[str, str]] = {}
+    # network_preflight.csv is per-target *per-port*. Group all rows per target
+    # and prefer one that shows reachability (open port or reachable ping) so an
+    # earlier Open-port row is not dropped in favour of a later NoPing row.
+    grouped: dict[str, list[dict[str, str]]] = {}
     for path in paths:
         for index, row in enumerate(read_csv(path), start=1):
             target = norm_host(cell(row, "Target", "HostName", "DnsName"))
@@ -185,9 +192,19 @@ def best_preflight_rows(paths: list[Path]) -> dict[str, dict[str, str]]:
             if not target:
                 continue
             row["_source"] = f"{path.name}:R{index}"
-            current = best.get(target)
-            if current is None or parse_timestamp(cell(row, "Timestamp")) >= parse_timestamp(cell(current, "Timestamp")):
-                best[target] = row
+            grouped.setdefault(target, []).append(row)
+
+    best: dict[str, dict[str, str]] = {}
+    for target, rows in grouped.items():
+        best[target] = sorted(
+            rows,
+            key=lambda item: (
+                1 if is_preflight_reachable(item) else 0,
+                parse_timestamp(cell(item, "Timestamp")),
+                clean(item.get("_source", "")),
+            ),
+            reverse=True,
+        )[0]
     return best
 
 
@@ -393,7 +410,9 @@ def build_reconciliation(
                 source,
             ))
 
-    for serial in sorted(set(alejandro) - set(tracker)):
+    # Skip serials already classified as InAlejandroNotDeployed via the observed
+    # path above to avoid double-counting and inflated page counts.
+    for serial in sorted((set(alejandro) - set(tracker)) - observed_serials):
         rec = alejandro[serial]
         categories["InAlejandroNotDeployed"].append(rec_row(
             "InAlejandroNotDeployed",

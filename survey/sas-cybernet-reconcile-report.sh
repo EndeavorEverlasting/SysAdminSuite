@@ -46,9 +46,18 @@ PYTHON_CMD=()
 
 find_python() {
   if [[ ${#PYTHON_CMD[@]} -gt 0 ]]; then return 0; fi
-  if command -v python3 >/dev/null 2>&1; then PYTHON_CMD=(python3); return 0; fi
-  if command -v python >/dev/null 2>&1; then PYTHON_CMD=(python); return 0; fi
-  if command -v py >/dev/null 2>&1; then PYTHON_CMD=(py -3); return 0; fi
+  # Prefer python3, then the py launcher, then bare python. Each candidate is
+  # validated by actually running Python 3 so the Windows Store stub (which
+  # answers `command -v python` but is not a real interpreter) is skipped.
+  local cand
+  for cand in "python3" "py -3" "python"; do
+    # shellcheck disable=SC2086
+    if $cand -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+      # shellcheck disable=SC2206
+      PYTHON_CMD=($cand)
+      return 0
+    fi
+  done
   echo "[sas-cybernet-reconcile-report] ERROR: Python 3 required" >&2
   exit 1
 }

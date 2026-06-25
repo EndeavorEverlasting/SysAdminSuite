@@ -179,7 +179,8 @@ JSON/CSV in a later sprint.
 
 After tracker diffing and approved identity collection, build a local offline report that reconciles
 the Alejandro serial population, the latest deployment tracker, `workstation_identity*.csv`, and
-`network_preflight*.csv` evidence:
+`network_preflight.csv` evidence. Identity evidence accepts a glob via `--identity-glob`; preflight
+evidence is supplied with repeatable explicit `--preflight-csv` paths (no glob expansion):
 
 ```bash
 bash survey/sas-cybernet-reconcile-report.sh \

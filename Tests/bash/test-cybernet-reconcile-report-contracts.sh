@@ -14,13 +14,16 @@ pass() { printf '[cybernet-reconcile-report-contracts] PASS: %s\n' "$*"; }
 [[ -f "$RUNNER" ]] || fail "missing runner: $RUNNER"
 [[ -f "$PY" ]] || fail "missing python generator: $PY"
 bash -n "$RUNNER"
-python3 -m py_compile "$PY"
 
-command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || {
+# Reuse the wrapper's interpreter-selection contract (python3 -> python -> py -3)
+# so this test does not fail in Git Bash/MSYS2 where only `py -3` is present.
+command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || command -v py >/dev/null 2>&1 || {
   fail "python required for contract test"
 }
 PYTHON_CMD=(python3)
 command -v python3 >/dev/null 2>&1 || PYTHON_CMD=(python)
+command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || PYTHON_CMD=(py -3)
+"${PYTHON_CMD[@]}" -m py_compile "$PY"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -160,7 +163,18 @@ done
 
 grep -q "Cybernet reconciliation" "$REPORT_DIR/index.html" || fail "index page missing title"
 grep -q "neon" "$REPORT_DIR/style.css" || grep -q "glow" "$REPORT_DIR/style.css" || fail "style should preserve glow aesthetic"
-grep -q "WTS001OPR012" "$REPORT_DIR/data.js" || fail "open preflight port should count as reachable-needs-identity evidence"
+# Open-port-but-NoPing host must be classified ReachableNeedsIdentity, not Unreachable.
+"${PYTHON_CMD[@]}" - "$REPORT_DIR/data.js" <<'PY' || fail "open preflight port must classify as ReachableNeedsIdentity (not Unreachable)"
+import json, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+marker = "window.RECONCILE_DATA = "
+data, _ = json.JSONDecoder().raw_decode(text, text.index(marker) + len(marker))
+cats = data["categories"]
+def hosts(cat):
+    return {r.get("Target", "") for r in cats.get(cat, [])}
+assert "WTS001OPR012" in hosts("ReachableNeedsIdentity"), "open-port host missing from ReachableNeedsIdentity"
+assert "WTS001OPR012" not in hosts("Unreachable"), "open-port host wrongly marked Unreachable"
+PY
 
 MISSING_ERR="$TMP_DIR/missing.err"
 if bash "$RUNNER" \
