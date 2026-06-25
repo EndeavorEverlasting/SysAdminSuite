@@ -104,6 +104,8 @@ The diff is read-only against both workbooks and writes local operational CSVs:
 - `survey/output/cybernet_alejandro_already_tracked.csv`
 - `survey/output/cybernet_alejandro_untracked.csv`
 - `survey/output/cybernet_tracker_duplicate_exceptions.csv`
+- `survey/output/cybernet_progress_summary.json`
+- `survey/output/cybernet_progress_summary.csv`
 
 Comparison rules:
 
@@ -114,6 +116,99 @@ Comparison rules:
 - Repeated non-deployed tracker identifiers are planning history, not duplicate exceptions.
 
 `cybernet_alejandro_untracked.csv` uses the same manifest schema as the ingester. Serial-only rows are retained for tracking, but only rows with a resolved `HostName` are ready for live WMI/ping identity checks. When one Alejandro serial maps to more than one hostname, the row stays serial-keyed (not probe-ready) and the candidate hostnames are preserved in `Source` as `review:ambiguous_hostnames=...`; the tool does not arbitrarily pick one hostname.
+
+## Serial-first progress summary
+
+Every diff run also emits a serial-first progress summary so a technician can answer
+"how many Cybernets are left?" without reading raw logs. The **denominator is always unique
+Alejandro serials**, never hostname rows. A console progress bar prints by default:
+
+```text
+[sas-cybernet-tracker-diff] [##########----------] 52.4% 129/246 serials surveyed | 117 remaining | 38 need identity | 12 ambiguous
+```
+
+The same numbers are written to machine-readable files (gitignored under `survey/output/`):
+
+- `cybernet_progress_summary.json`
+- `cybernet_progress_summary.csv`
+
+Stable fields (documented; safe for a future dashboard to consume):
+
+| Field | Meaning |
+|---|---|
+| `TotalSerialTargets` | Unique Alejandro serials (the survey population denominator) |
+| `SurveyedSerials` | Serials present in the deployment tracker, plus untracked serials confirmed by identity evidence |
+| `RemainingSerials` | `TotalSerialTargets - SurveyedSerials` |
+| `HostResolvedSerials` | Serials with exactly one validated hostname (probe-ready) |
+| `SerialOnlyReviewRequired` | Serials with zero hostnames (stay serial-keyed, review-required) |
+| `AmbiguousHostnameSerials` | Serials with two or more hostnames (never auto-picked) |
+| `ADCandidateSerials` | Serials with an AD candidate hostname/serial (enrichment only, not proof) |
+| `PingReachableCandidates` | Serials whose hostname is ping-reachable (reachability only, not proof) |
+| `NeedsPrivilegedIdentity` | Reachable serials still lacking identity confirmation |
+| `PercentComplete` | `100 * SurveyedSerials / TotalSerialTargets` (one decimal) |
+| `PopulationAuthority` | Always `alejandro_serials` |
+| `GeneratedAt` | UTC ISO-8601 timestamp |
+
+Doctrine guardrails baked into these counts:
+
+- A serial with exactly one validated hostname is probe-ready; zero or multiple hostnames stay
+  serial-keyed and review-required.
+- Only `IdentityCollected` evidence (via `--identity-csv`) can mark an **untracked** serial surveyed.
+  Ping reachability (`--preflight-csv`) and AD candidates (`--ad-serial-csv`) raise candidate
+  confidence but never confirm a serial.
+- Optional evidence inputs are read-only and enrichment-only; the population authority is the
+  Alejandro serial inventory.
+
+Flags:
+
+```bash
+bash survey/sas-cybernet-tracker-diff.sh \
+  --alejandro "<alejandro-workbook>.xlsx" \
+  --tracker "<deployment-tracker-workbook>.xlsx" \
+  --output-prefix survey/output/cybernet \
+  --identity-csv survey/output/cybernet_workstation_identity.csv \
+  --preflight-csv survey/output/cybernet_network_preflight.csv \
+  --ad-serial-csv survey/output/cybernet_ad_serials.csv
+```
+
+Use `--no-progress` to suppress the console bar (summary files are still written). All progress
+outputs are operational and remain gitignored under `survey/output/`; a dashboard can consume the
+JSON/CSV in a later sprint.
+
+## Cybernet reconciliation HTML report
+
+After tracker diffing and approved identity collection, build a local offline report that reconciles
+the Alejandro serial population, the latest deployment tracker, `workstation_identity*.csv`, and
+`network_preflight.csv` evidence. Identity evidence accepts a glob via `--identity-glob`; preflight
+evidence is supplied with repeatable explicit `--preflight-csv` paths (no glob expansion):
+
+```bash
+bash survey/sas-cybernet-reconcile-report.sh \
+  --alejandro "<alejandro-workbook>.xlsx" \
+  --tracker "<deployment-tracker-workbook>.xlsx" \
+  --identity-glob "survey/output/SysAdminSuite_Artifacts/workstation_identity*.csv" \
+  --preflight-csv "survey/output/SysAdminSuite_Artifacts/network_preflight.csv" \
+  --output-dir survey/output/cybernet_reconciliation_report
+```
+
+The report is read-only against workbook and CSV inputs. It writes a self-contained site under
+`survey/output/cybernet_reconciliation_report/`, which is ignored by repo policy:
+
+- `index.html` for overview tiles and coverage context
+- `confirmations.html` for `ConfirmedInTracker`
+- `duplicates.html` for observed duplicate serials and tracker duplicate exceptions
+- `conflicts.html` for serial and MAC conflicts
+- `drift.html` for serial match with hostname drift
+- `unaccounted.html` for observed serials missing from both Alejandro and tracker
+- `coverage.html` for reachable-needs-identity and unreachable gaps
+- `remaining.html` for tracker or Alejandro serials not observed in supplied identity evidence
+- `anomalies.html` for bounded hostname typo/site-affinity review candidates
+- `style.css` and `data.js` for offline rendering with relative links only
+
+The generated HTML and `data.js` may contain live hostnames, serials, MACs, and reachability
+evidence. Keep those files local under `survey/output/`; commit only the generator, wrapper, tests,
+and docs. The report uses scope control and evidence minimization: no network probes are launched,
+no credentials are used, and no target systems are mutated.
 
 ## Command
 
