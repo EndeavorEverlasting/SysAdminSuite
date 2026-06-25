@@ -77,11 +77,24 @@ def first(row, names):
 def norm(value):
     return re.sub(r"\s+", "", value or "").upper()
 
-def serial(row):
-    return first(row, ["expected_cybernet_serial","ExpectedSerial","CybernetSerial","target","Target"])
+def looks_like_serial(value):
+    value = (value or "").strip()
+    if not value:
+        return False
+    upper = value.upper()
+    if "HOST" in upper or "OPR" in upper or ":" in value:
+        return False
+    return any(c.isalpha() for c in value) and any(c.isdigit() for c in value)
+
+def expected_serial(row):
+    return first(row, ["expected_cybernet_serial","ExpectedSerial","CybernetSerial","Serial","SerialNumber","ServiceTag","AssetSerial"])
 
 def observed_serial(row):
     return first(row, ["resolved_serial","observed_serial","ObservedSerial"])
+
+def cybernet_serial(row):
+    value = expected_serial(row) or observed_serial(row)
+    return value if looks_like_serial(value) else ""
 
 def observed_mac(row):
     return first(row, ["resolved_mac","observed_mac","ObservedMAC","ObservedMACs"])
@@ -100,13 +113,19 @@ def cleanup_status(row):
     can_mac = first(row, ["can_populate_mac"])
     exp_host = expected_host(row)
     obs_host = observed_host(row)
-    exp_serial = serial(row)
+    exp_serial = expected_serial(row)
     obs_serial = observed_serial(row)
 
     if cls == "manual_review" or log in {"serial_conflict", "mac_conflict"}:
         return "manual_review_required", "Do not update tracker automatically; verify source tracker and device evidence."
     if drift == "hostname_drift" or log == "hostname_drift":
-        return "hostname_drift", f"Update tracker hostname from {exp_host or '<blank>'} to {obs_host or '<blank>'}; keep serial as identity."
+        extra = []
+        if can_serial == "yes" and obs_serial:
+            extra.append(f"populate serial {obs_serial}")
+        if can_mac == "yes" and observed_mac(row):
+            extra.append(f"populate MAC {observed_mac(row)}")
+        suffix = f" Also {' and '.join(extra)}." if extra else ""
+        return "hostname_drift", f"Update tracker hostname from {exp_host or '<blank>'} to {obs_host or '<blank>'}; keep serial as identity.{suffix}"
     if can_serial == "yes" and obs_serial:
         return "populate_missing_serial", f"Populate tracker Cybernet serial with {obs_serial}."
     if can_mac == "yes" and observed_mac(row):
@@ -150,7 +169,7 @@ with open(resolver_csv, newline="", encoding="utf-8-sig") as handle:
         cleanup_rows.append({
             "GeneratedAt": now,
             "SourceRow": first(row, ["source_row","SourceRow","ExcelRow"]),
-            "CybernetSerial": serial(row),
+            "CybernetSerial": cybernet_serial(row),
             "OldHostName": expected_host(row),
             "ObservedHostName": observed_host(row),
             "ObservedMAC": observed_mac(row),
@@ -165,7 +184,7 @@ with open(resolver_csv, newline="", encoding="utf-8-sig") as handle:
             "GeneratedAt": now,
             "PriorityBucket": bucket,
             "Target": first(row, ["target","Target","input_identifier"]),
-            "CybernetSerial": serial(row),
+            "CybernetSerial": cybernet_serial(row),
             "HostName": expected_host(row),
             "ObservedHostName": observed_host(row),
             "ObservedSerial": observed_serial(row),
