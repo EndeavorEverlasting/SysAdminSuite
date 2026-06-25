@@ -4,7 +4,7 @@ This directory contains Bash-first survey tooling for SysAdminSuite.
 
 ## Primary Field Tutorial: Cybernet / Neuron Network Survey
 
-**Default front door:** double-click [`../START-HERE-SysAdminSuite-Dashboard.cmd`](../START-HERE-SysAdminSuite-Dashboard.cmd) and use **Start Cybernet Survey** in the dashboard.
+**Default front door:** double-click [`../START-HERE-SysAdminSuite-Dashboard.bat`](../START-HERE-SysAdminSuite-Dashboard.bat) and use **Start Cybernet Survey** in the dashboard. CLI is available for specific advanced survey use cases only.
 
 The current priority tutorial for field technicians is:
 

@@ -4,19 +4,19 @@
 
 ## Field user answer (plain language)
 
-> Double-click **`START-HERE-SysAdminSuite-Dashboard.cmd`** at the repo root.
+> Double-click **`START-HERE-SysAdminSuite-Dashboard.bat`** at the repo root.
 > Your browser opens `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
 > CLI tools are optional — use them only when the dashboard or a runbook says so.
 
-Friendly shortcut name: **`SysAdminSuite Dashboard.cmd`** (same behavior).
+Compatibility aliases (same behavior, not the documented primary): **`START-HERE-SysAdminSuite-Dashboard.cmd`** and **`SysAdminSuite Dashboard.cmd`**.
 
 ## Launcher matrix
 
 | File | Audience | What it does |
 |------|----------|--------------|
-| `START-HERE-SysAdminSuite-Dashboard.cmd` | **Field users (primary)** | Friendly console, starts host, opens browser + Cybernet tutorial |
-| `SysAdminSuite Dashboard.cmd` | Field desktops / shortcuts | Alias of the START-HERE `.cmd` |
-| `START-HERE-SysAdminSuite-Dashboard.bat` | Compatibility | Calls the `.cmd` launcher |
+| `START-HERE-SysAdminSuite-Dashboard.bat` | **Field users (primary)** | Friendly console, starts host, opens browser + Cybernet tutorial |
+| `START-HERE-SysAdminSuite-Dashboard.cmd` | Compatibility alias | Calls the `.bat` launcher |
+| `SysAdminSuite Dashboard.cmd` | Field desktops / shortcuts | Alias of the START-HERE `.bat` |
 | `Launch-SysAdminSuiteDashboard.Host.bat` | IT / developers | Spawns tray host only (no extra messaging) |
 | `Launch-SysAdminSuite-Runtime.bat` `[3]` | Portable zip | Menu entry for .NET host |
 | `Launch-SysAdminSuiteDashboard.bat` | Permissive sites | Legacy PS + Python path |
@@ -26,7 +26,7 @@ Friendly shortcut name: **`SysAdminSuite Dashboard.cmd`** (same behavior).
 
 | Phase | Status | User action |
 |-------|--------|-------------|
-| **Now (shipped)** | `.cmd` double-click launchers | Double-click `START-HERE-SysAdminSuite-Dashboard.cmd` |
+| **Now (shipped)** | `.bat` double-click launcher | Double-click `START-HERE-SysAdminSuite-Dashboard.bat` |
 | **Now (local build)** | `tools/publish-dashboard-entrypoint.ps1` | IT runs once per machine; output under `dist/` (gitignored) |
 | **Future sprint** | Committed or portable-shipped `.exe` | See [`DASHBOARD_EXE_FUTURE_SPRINT.md`](DASHBOARD_EXE_FUTURE_SPRINT.md) |
 
@@ -64,9 +64,9 @@ See [`dashboard/README.md`](../dashboard/README.md) — **Loading experience (Hi
 | Symptom | Action |
 |---------|--------|
 | Browser did not open | Paste `http://127.0.0.1:5000/dashboard/?tutorial=cybernet` |
-| Host exe not found | Run `tools/publish-dashboard-entrypoint.ps1`, retry `.cmd` |
+| Host exe not found | Run `tools/publish-dashboard-entrypoint.ps1`, retry `.bat` |
 | Port 5000 in use | Stop prior instance from tray icon |
-| User asks "do I run code?" | Point to `.cmd` double-click; read [`START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) |
+| User asks "do I run code?" | Point to `START-HERE-SysAdminSuite-Dashboard.bat` double-click; read [`START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) |
 
 ## Related docs
 
@@ -77,7 +77,8 @@ See [`dashboard/README.md`](../dashboard/README.md) — **Loading experience (Hi
 
 ## Agent guardrails
 
-- Do not delete or demote the `.cmd` launchers in favor of CLI-only docs.
+- Do not delete or demote the `.bat`/`.cmd` launchers in favor of CLI-only docs.
+- `START-HERE-SysAdminSuite-Dashboard.bat` is the documented primary; keep the `.cmd` files as compatibility aliases, not as equal field-user choices.
 - Do not commit `dist/` or live operational evidence.
 - Do not edit PowerShell survey scripts unless explicitly requested.
 - Preserve `Launch-SysAdminSuiteDashboard.Host.bat` for IT paths.

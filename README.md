@@ -12,11 +12,11 @@ For most users, do not start with command-line tools.
 
 Double-click:
 
-`START-HERE-SysAdminSuite-Dashboard.cmd`
-
-Shortcut-friendly alias: `SysAdminSuite Dashboard.cmd`
+`START-HERE-SysAdminSuite-Dashboard.bat`
 
 This opens the local dashboard and tutorial at `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
+
+(`START-HERE-SysAdminSuite-Dashboard.cmd` and `SysAdminSuite Dashboard.cmd` are compatibility aliases for sites that prefer a `.cmd` shortcut.)
 
 Read [`START-HERE-SysAdminSuite.md`](START-HERE-SysAdminSuite.md) for plain-language steps. Agents and IT staff: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).
 
@@ -167,7 +167,7 @@ powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
 For endpoints where `powershell.exe` is blocked or constrained, the dashboard ships
 as a standalone .NET 8 tray host.
 
-**Field users:** double-click [`START-HERE-SysAdminSuite-Dashboard.cmd`](START-HERE-SysAdminSuite-Dashboard.cmd) or [`SysAdminSuite Dashboard.cmd`](SysAdminSuite%20Dashboard.cmd).
+**Field users:** double-click [`START-HERE-SysAdminSuite-Dashboard.bat`](START-HERE-SysAdminSuite-Dashboard.bat). (`.cmd` aliases exist for sites that prefer them.)
 
 **IT / developers:** double-click:
 

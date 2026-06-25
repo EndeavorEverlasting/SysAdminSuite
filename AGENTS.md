@@ -23,7 +23,7 @@ For lay users opening the **web dashboard**, the front door is a double-click la
 
 | User type | Double-click |
 |-----------|--------------|
-| Field user | `START-HERE-SysAdminSuite-Dashboard.cmd` or `SysAdminSuite Dashboard.cmd` |
+| Field user | `START-HERE-SysAdminSuite-Dashboard.bat` (canonical; `.cmd` aliases exist for compatibility) |
 | IT / developer | `Launch-SysAdminSuiteDashboard.Host.bat` |
 
 Canonical agent reference: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).
