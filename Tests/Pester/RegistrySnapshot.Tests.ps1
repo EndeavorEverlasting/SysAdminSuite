@@ -18,12 +18,15 @@ Describe 'Get-RegistrySnapshot Script' {
     }
 
     It 'accepts localhost invocation with narrow key and parses output' {
-        $result = & $script:scriptPath -Target localhost -RegistryPath 'HKLM:\SOFTWARE\Microsoft' -ExcludePattern '*\DoesNotMatch*'
+        $tempPath = Join-Path $env:TEMP "registry-snapshot-test-$([guid]::NewGuid().ToString()).json"
+        $null = & $script:scriptPath -Target localhost -RegistryPath 'HKLM:\SOFTWARE\Microsoft' -ExcludePattern '*\DoesNotMatch*' -OutputPath $tempPath
+        $result = Get-Content -LiteralPath $tempPath -Raw | ConvertFrom-Json
         $result | Should -Not -BeNullOrEmpty
         $result.target.scope | Should -Be 'localhost'
-        $result.entries.Count | Should -BeGreaterOrEqual 1
-        $result.entries[0].PSObject.Properties.Name | Should -Contain 'key_path'
-        $result.entries[0].PSObject.Properties.Name | Should -Contain 'access_status'
+        @($result.entries).Count | Should -BeGreaterOrEqual 1
+        @($result.entries)[0].PSObject.Properties.Name | Should -Contain 'key_path'
+        @($result.entries)[0].PSObject.Properties.Name | Should -Contain 'access_status'
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
     }
 
     It 'creates output JSON when OutputPath is supplied' {
@@ -39,14 +42,19 @@ Describe 'Get-RegistrySnapshot Script' {
     }
 
     It 'handles missing paths without fatal crash' {
-        $result = & $script:scriptPath -Target localhost -RegistryPath 'HKLM:\SOFTWARE\DefinitelyMissingPath_ForRegistrySnapshotTests'
-        $result | Should -Not -BeNullOrEmpty
-        ($result.entries | Where-Object { $_.access_status -eq 'NotFound' }).Count | Should -BeGreaterThan 0
+        $tempPath = Join-Path $env:TEMP "registry-snapshot-test-$([guid]::NewGuid().ToString()).json"
+        $null = & $script:scriptPath -Target localhost -RegistryPath 'HKLM:\SOFTWARE\DefinitelyMissingPath_ForRegistrySnapshotTests' -OutputPath $tempPath
+        $result = Get-Content -LiteralPath $tempPath -Raw | ConvertFrom-Json
+        @($result.entries | Where-Object { $_.access_status -eq 'NotFound' }).Count | Should -BeGreaterThan 0
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
     }
 
     It 'accepts exclude patterns array' {
-        $result = & $script:scriptPath -Target localhost -RegistryPaths 'HKLM:\SOFTWARE\Microsoft' -ExcludePatterns '*\Volatile*','*\RecentDocs*'
+        $tempPath = Join-Path $env:TEMP "registry-snapshot-test-$([guid]::NewGuid().ToString()).json"
+        $null = & $script:scriptPath -Target localhost -RegistryPaths 'HKLM:\SOFTWARE\Microsoft' -ExcludePatterns '*\Volatile*','*\RecentDocs*' -OutputPath $tempPath
+        $result = Get-Content -LiteralPath $tempPath -Raw | ConvertFrom-Json
         $result.summary.PSObject.Properties.Name | Should -Contain 'excluded'
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
     }
 
     It 'does not include forbidden write or remoting commands' {
