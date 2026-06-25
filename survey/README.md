@@ -47,6 +47,7 @@ Contract test:
 
 ```bash
 bash Tests/bash/test-cybernet-subnet-survey-contracts.sh
+bash Tests/bash/test_cybernet_detect_contracts.sh
 bash Tests/bash/test_naabu_pipeline_contracts.sh
 bash Tests/bash/test_naabu_package_contracts.sh
 bash Tests/bash/test_packet_probe_contracts.sh
@@ -72,6 +73,18 @@ bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode confirm-windows \
 ```
 
 Profiles are doctrine-defined in [`survey/naabu_profiles.json`](naabu_profiles.json) and generated into the runtime config [`Config/cybernet-naabu-profiles.json`](../Config/cybernet-naabu-profiles.json) via [`survey/sas-generate-naabu-runtime-profiles.sh`](sas-generate-naabu-runtime-profiles.sh). Default profile: `keyports_cybernet_json`. Field guide: [`docs/NAABU_CYBERNET_PROFILES.md`](../docs/NAABU_CYBERNET_PROFILES.md). Doctrine: [`docs/LOW_NOISE_SURVEY_DOCTRINE.md`](../docs/LOW_NOISE_SURVEY_DOCTRINE.md). Go normalizer: [`probe/packet-expenditure/README.md`](../probe/packet-expenditure/README.md).
+
+## Cybernet-detect enrichment
+
+Canonical local enrichment for naabu `-silent` host:port pipelines:
+
+```bash
+naabu -list logs/targets/nsuh_confirm_hosts.txt -silent -ec \
+  | bash survey/sas-cybernet-detect.sh --site nsuh --stdin --jsonl \
+  > logs/nmap/nsuh_<runid>_cybernet_detect.jsonl
+```
+
+Contract test: `bash Tests/bash/test_cybernet_detect_contracts.sh`
 
 See [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) for the correlated `--run-id` example.
 

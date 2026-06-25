@@ -92,7 +92,8 @@ naabu -list targets.txt -p 80,443,135,445,3389,5985,5986 -ec -silent -duc -json 
 ### Raw pipeline (txt → Cybernet followup)
 
 ```text
-naabu -list targets.txt -p 80,443,135,445,3389,5985,5986 -ec -silent -duc | sas-cybernet-packet-followup.sh --stdin --cybernet-detect
+naabu -list targets.txt -p 80,443,135,445,3389,5985,5986 -ec -silent -duc \
+  | bash survey/sas-cybernet-detect.sh --site <site> --stdin --jsonl
 ```
 
 ```bash
@@ -100,7 +101,7 @@ bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile keyports_cybernet_pi
   --list targets.txt --out logs/nmap/SSUH_ports.txt --pipe-followup
 ```
 
-`httpx` is optional via `--use-httpx` on the followup script when installed.
+`httpx` is optional via `--use-httpx` on `sas-cybernet-detect.sh` or the followup script when installed.
 
 ### Narrow web reachability only (80,443)
 

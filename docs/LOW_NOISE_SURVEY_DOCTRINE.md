@@ -84,8 +84,9 @@ host list for reachability validation.
 
 The commands below are templates, not commands to run blindly. Replace
 `<site>` and `<runid>` and confirm the target list is an approved AD-derived host
-list. `cybernet-detect` is a project placeholder for the local enrichment step;
-do not depend on `httpx` unless the repo already provides that dependency.
+list. Use `bash survey/sas-cybernet-detect.sh` for the canonical local enrichment step.
+Do not depend on `httpx` unless the repo already provides that dependency; keep optional
+`httpx` behind `survey/sas-cybernet-packet-followup.sh --use-httpx`.
 
 ### TCP structured JSON
 
@@ -96,7 +97,9 @@ naabu -list logs/targets/<site>_confirm_hosts.txt -json -silent -ec -o logs/nmap
 ### TCP raw pipeline
 
 ```bash
-naabu -list logs/targets/<site>_confirm_hosts.txt -silent -ec | cybernet-detect --stdin --jsonl > logs/nmap/<site>_<runid>_cybernet_detect.jsonl
+naabu -list logs/targets/<site>_confirm_hosts.txt -silent -ec \
+  | bash survey/sas-cybernet-detect.sh --site <site> --stdin --jsonl \
+  > logs/nmap/<site>_<runid>_cybernet_detect.jsonl
 ```
 
 When `httpx` is available on the local box, keep it behind the SysAdminSuite

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Cybernet packet follow-up — httpx placeholder. Reads naabu -silent stdout (host:port).
+# Cybernet packet follow-up implementation. Prefer survey/sas-cybernet-detect.sh at the CLI edge.
+# Reads naabu -silent stdout (host:port). Optional httpx delegation stays behind --use-httpx.
 # Enrichment only under low-noise survey doctrine. See docs/LOW_NOISE_SURVEY_DOCTRINE.md.
 set -euo pipefail
 
