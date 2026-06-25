@@ -193,7 +193,7 @@ def test_cleanup_report_splits_tracker_cleanup_from_revisit_work() -> None:
         assert revisit_rows[2]["RecommendedAction"] == "Check AD/Vision/tracker mapping before scheduling a physical revisit."
 
 
-def test_cleanup_report_does_not_treat_hostname_target_as_serial() -> None:
+def test_cleanup_report_does_not_clear_hostname_only_evidence() -> None:
     with tempfile.TemporaryDirectory() as tmp_raw:
         tmp = Path(tmp_raw)
         resolver = tmp / "resolver.csv"
@@ -246,9 +246,12 @@ def test_cleanup_report_does_not_treat_hostname_target_as_serial() -> None:
         assert cleanup_row["CybernetSerial"] == ""
         assert revisit_row["CybernetSerial"] == ""
         assert revisit_row["Target"] == "HOST-ONLY-001"
+        assert revisit_row["PriorityBucket"] == "P3_wmi_or_network_retry"
+        assert revisit_row["Reason"] == "Hostname-only evidence is not enough to confirm Cybernet identity"
+        assert revisit_row["RecommendedAction"] == "Collect serial or MAC evidence before clearing revisit."
 
 
 if __name__ == "__main__":
     test_cleanup_report_splits_tracker_cleanup_from_revisit_work()
-    test_cleanup_report_does_not_treat_hostname_target_as_serial()
+    test_cleanup_report_does_not_clear_hostname_only_evidence()
     print("offline cybernet cleanup report tests passed")
