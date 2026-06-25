@@ -153,3 +153,61 @@ for (const [needle, label] of contractChecks) {
 
 console.log(`\nShell: ${shellPassed} passed, ${shellFailed} failed`);
 if (shellFailed > 0) process.exit(1);
+
+// ── tourChecks — dashboard tour DOM / copy contract (END) ─────────────────────
+
+const tourJs = readFileSync(join(__dir, 'js', 'tour.js'), 'utf8');
+
+let tourPassed = 0;
+let tourFailed = 0;
+
+function tourAssert(ok, label, detail) {
+  if (ok) {
+    console.log(`PASS [tour:${label}]`);
+    tourPassed++;
+  } else {
+    console.error(`FAIL [tour:${label}]${detail ? ': ' + detail : ''}`);
+    tourFailed++;
+  }
+}
+
+// Extract tour.js target selectors; each must exist in index.html or be #sas-tour-*
+const tourTargetMatches = [...tourJs.matchAll(/target:\s*'([^']+)'/g)];
+for (const [, selector] of tourTargetMatches) {
+  if (selector.startsWith('#sas-tour-')) {
+    tourAssert(true, `dynamic-target:${selector}`);
+    continue;
+  }
+  const idMatch = selector.match(/^#([\w-]+)$/);
+  if (idMatch) {
+    const id = idMatch[1];
+    tourAssert(indexHtml.includes(`id="${id}"`), `target-in-html:${selector}`, `missing id="${id}"`);
+  } else {
+    tourAssert(indexHtml.includes(selector) || tourJs.includes(selector), `target-in-html:${selector}`);
+  }
+}
+
+// app.js must suppress auto-launch before initTour()
+const doneBeforeInit = /localStorage\.setItem\(\s*['"]sas_tour_v1_done['"][\s\S]*?\n[\s\S]*?initTour\s*\(\s*\)/.test(appJs);
+tourAssert(doneBeforeInit, 'auto-launch-suppressed-before-initTour');
+
+// Cybernet-first tour targets
+for (const needle of ['#hero-start-survey', '#cybernet-review', '#advanced-tools-toggle']) {
+  tourAssert(tourJs.includes(`target: '${needle}'`), `cybernet-target:${needle}`);
+}
+
+// Stale pre-refactor copy must not appear
+const staleCopy = [
+  ['Log Mode vs Live', 'mode-toggle step title'],
+  ['Protocol Trace Tab', 'per-tab network step'],
+  ['#mode-toggle', 'mode-toggle target'],
+  ['#panel-ingestion', 'standalone ingestion step target'],
+];
+for (const [needle, label] of staleCopy) {
+  tourAssert(!tourJs.includes(needle), `no-stale:${label}`, `found "${needle}"`);
+}
+
+tourAssert(indexHtml.includes('class="advanced-section-head"'), 'advanced-section-head-in-html');
+
+console.log(`\nTour: ${tourPassed} passed, ${tourFailed} failed`);
+if (tourFailed > 0) process.exit(1);
