@@ -3463,7 +3463,25 @@ var markPanelVisited = _exports.markPanelVisited, initPanelBadges = _exports.ini
 let store = {};
 let loadedFiles = [];
 let mode = 'log'; // 'log' | 'live'
-let activeTab = 'printer';
+let activeTab = 'network';
+
+// Human-readable review section for evidence chips
+const TYPE_SECTION_LABELS = {
+  'preflight': 'Printer mapping',
+  'results': 'Printer mapping',
+  'printer-probe': 'Printer · Network',
+  'machine-info': 'Hardware inventory',
+  'ram-info': 'Hardware inventory',
+  'monitor-info': 'Hardware inventory',
+  'neuron-inventory': 'Hardware inventory',
+  'workstation-identity': 'Network review',
+  'network-preflight': 'Network review',
+  'smb-recon': 'Network review',
+  'remote-task': 'Remote tasks',
+  'software-tracker': 'Software tracker',
+  'software-superset': 'Software tracker',
+  'status-json': 'Status',
+};
 
 // ── File-type → panel(s) mapping ───────────────────────────────────────────
 // Each type maps to one or more panels it populates.
@@ -3488,6 +3506,7 @@ const TYPE_TO_PANELS = {
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   buildLayout();
+  initCybernetShell();
   initTabs();
   initIngestion();
   initModeToggle();
@@ -3499,24 +3518,23 @@ document.addEventListener('DOMContentLoaded', () => {
   initSampleDataBtn();
   initFolderWatch();
 
-  // Init relay — start connecting in background; panels react via onRelayStatus
   initRelayConnection();
   onRelayStatus(_updateHeaderRelayBadge);
 
-  // Init panels
   initPrinterPanel();
   initInventoryPanel();
   initTasksPanel();
   initNetworkPanel();
   initSoftwarePanel();
 
-  // Render empty state on all panels
   refreshAllPanels();
+  updateCybernetReview();
 
-  // Init interactive tour (auto-shows on first visit; re-triggerable via Tour button)
+  // Tour available via Advanced; do not auto-launch on Cybernet-first front door
+  try { localStorage.setItem('sas_tour_v1_done', '1'); } catch (_) { /* ignore */ }
   initTour();
+  _relocateTourButton();
 
-  // Init per-panel visit badges (shows pulsing dot on unvisited tabs)
   initPanelBadges();
 });
 
@@ -3549,6 +3567,63 @@ function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === tab));
+  const content = document.getElementById('content');
+  if (content) content.classList.remove('hidden');
+}
+
+// ── Cybernet-first shell ─────────────────────────────────────────────────────
+function initCybernetShell() {
+  document.getElementById('hero-start-survey')?.addEventListener('click', () => {
+    document.getElementById('cybernet-tutorial')?.classList.remove('hidden');
+    document.getElementById('cybernet-hero-actions')?.classList.add('hidden');
+    document.getElementById('cybernet-tutorial')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  const openEvidence = () => {
+    document.getElementById('evidence-loader')?.classList.remove('hidden');
+    document.getElementById('evidence-loader')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  document.getElementById('hero-load-evidence')?.addEventListener('click', openEvidence);
+  document.getElementById('cybernet-load-evidence-end')?.addEventListener('click', openEvidence);
+
+  const openAdvanced = () => openAdvancedSection(true);
+  document.getElementById('hero-open-advanced')?.addEventListener('click', openAdvanced);
+  document.getElementById('advanced-tools-toggle')?.addEventListener('click', () => {
+    const section = document.getElementById('advanced-section');
+    const open = section?.classList.contains('hidden');
+    if (open) openAdvancedSection(true);
+    else closeAdvancedSection();
+  });
+
+  document.getElementById('review-open-network')?.addEventListener('click', () => {
+    openAdvancedSection(true);
+    switchTab('network');
+  });
+}
+
+function openAdvancedSection(scroll) {
+  const section = document.getElementById('advanced-section');
+  section?.classList.remove('hidden');
+  document.getElementById('advanced-tools-toggle')?.setAttribute('aria-expanded', 'true');
+  switchTab('network');
+  if (scroll) section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeAdvancedSection() {
+  document.getElementById('advanced-section')?.classList.add('hidden');
+  document.getElementById('advanced-tools-toggle')?.setAttribute('aria-expanded', 'false');
+  document.getElementById('content')?.classList.add('hidden');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+}
+
+function _relocateTourButton() {
+  const tourBtn = document.getElementById('sas-tour-launch-btn');
+  const advancedHead = document.querySelector('.advanced-section-head');
+  if (tourBtn && advancedHead && !advancedHead.contains(tourBtn)) {
+    tourBtn.textContent = 'Interactive tour';
+    tourBtn.className = 'paste-btn';
+    advancedHead.appendChild(tourBtn);
+  }
 }
 
 // ── Mode Toggle ─────────────────────────────────────────────────────────────
@@ -3557,9 +3632,7 @@ function initModeToggle() {
     btn.addEventListener('click', () => {
       mode = btn.dataset.mode;
       document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-      const logSection = document.getElementById('panel-ingestion');
       const liveSection = document.getElementById('live-controls');
-      if (logSection) logSection.style.display = mode === 'log' ? '' : 'none';
       if (liveSection) liveSection.classList.toggle('active', mode === 'live');
     });
   });
@@ -3616,6 +3689,7 @@ function initDropOverlay() {
 }
 
 async function handleFiles(files) {
+  if (files.length) document.getElementById('evidence-loader')?.classList.remove('hidden');
   for (const file of files) {
     await processFile(file);
   }
@@ -3673,6 +3747,9 @@ async function processFile(file) {
     const panels = TYPE_TO_PANELS[parsedData.type];
     if (panels && count > 0) panels.forEach(markPanelVisited);
 
+    document.getElementById('evidence-loader')?.classList.remove('hidden');
+    updateCybernetReview();
+
   } catch (err) {
     console.error('Error processing file:', name, err);
     toast(`Error loading "${name}": ${err.message}`, 'error');
@@ -3720,12 +3797,18 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
   };
   const icon = iconMap[type] || '📄';
 
+  const sectionLabel = TYPE_SECTION_LABELS[type] || 'Review';
+  const typeLabel = type === 'unknown' ? 'unknown format' : type;
+
   const chip = document.createElement('div');
   chip.className = `file-chip chip-${status}`;
   chip.id = id;
   chip.innerHTML = `
     <span class="chip-icon">${icon}</span>
-    <span title="${sanitize(name)} (${type})">${sanitize(name.length > 24 ? name.slice(0, 22) + '…' : name)}${count !== '' ? ` (${count})` : ''}</span>
+    <span class="chip-meta">
+      <span class="chip-name" title="${sanitize(name)}">${sanitize(name.length > 28 ? name.slice(0, 26) + '…' : name)}</span>
+      <span class="chip-type">${sanitize(sectionLabel)} · ${sanitize(typeLabel)}${count !== '' ? ` · ${count} rows` : ''}</span>
+    </span>
     <span class="chip-remove" data-id="${id}">×</span>
   `;
 
@@ -3746,7 +3829,8 @@ function clearAllData(silent = false) {
   document.getElementById('loaded-files').innerHTML = '';
   refreshAllPanels();
   updateStatusFooter(null);
-  if (!silent) toast('All data cleared.', 'info');
+  updateCybernetReview();
+  if (!silent) toast('All evidence cleared.', 'info');
 }
 
 // ── Demo / Sample Data ────────────────────────────────────────────────────
@@ -3832,6 +3916,7 @@ function loadSampleData() {
   }
 
   toast('Sample data loaded — all panels populated with demo data.', 'success');
+  document.getElementById('evidence-loader')?.classList.remove('hidden');
 
   // Mark all data panels as visited since sample data populates every panel
   ['printer', 'inventory', 'tasks', 'network', 'software'].forEach(markPanelVisited);
@@ -3877,6 +3962,8 @@ function initPasteModal() {
       toast(`Imported "${fname}" — ${count} rows (${parsedData.type})`, count > 0 ? 'success' : 'warning');
       const pastePanels = TYPE_TO_PANELS[parsedData.type];
       if (pastePanels && count > 0) pastePanels.forEach(markPanelVisited);
+      document.getElementById('evidence-loader')?.classList.remove('hidden');
+      updateCybernetReview();
     }
 
     if (textarea) textarea.value = '';
@@ -3886,46 +3973,64 @@ function initPasteModal() {
 
 
 
-// ── Cybernet Target Acquisition Tutorial ───────────────────────────────────
+// ── Cybernet Survey Wizard ───────────────────────────────────────────────────
 const CYBERNET_TUTORIAL_STEPS = [
   {
     title: 'Prepare your target list',
-    body: 'Start with one hostname or IP address per line. Keep this file boring and repeatable so a new technician can rerun the same workflow without hand-editing commands.',
+    railLabel: 'Targets',
+    body: 'Start with one hostname or IP per line. Keep this file boring and repeatable so a new technician can rerun the same workflow without hand-editing commands.',
     command: "mkdir -p /tmp/sas-cybernet\nprintf '%s\\n' 'WMH300OPR001' 'WMH300OPR002' > /tmp/sas-cybernet/targets.txt",
-    checks: ['Use hostnames, IPv4 addresses, or IPv6 addresses only.', 'Do not paste passwords, usernames, or ticket notes into the target file.', 'If you import a CSV, the dashboard reads the first comma-separated field as the target.'],
-    note: 'This step is local-only; it does not touch target devices.'
+    checks: [
+      'Use hostnames, IPv4 addresses, or IPv6 addresses only.',
+      'Do not paste passwords, usernames, or ticket notes into the target file.',
+      'Optional: normalize with ./survey/sas-survey-targets.sh --device-type Cybernet --file /tmp/sas-cybernet/targets.txt (output is not dashboard-importable yet).'
+    ],
+    note: 'This step is local-only; it does not touch target devices.',
+    optional: false
   },
   {
     title: 'Prove network posture first',
+    railLabel: 'Network posture',
     body: 'Before blaming the product, prove the machine is on the right network path. This catches guest-network and segmented-network failures early.',
     command: 'bash bash/transport/sas-network-preflight.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --ports 135,445,3389,9100 \\\n  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru',
     checks: ['DNS should resolve internal hostnames when you expect internal reachability.', 'SMB/445 and RPC/135 failures on every target often mean network posture, not code failure.', 'Classify guest-network blocking separately from product defects.'],
-    note: 'Load network_preflight.csv into the Network tab after the command finishes.'
+    note: 'Load network_preflight.csv via Load Evidence after the command finishes.',
+    optional: false
   },
   {
     title: 'Acquire Cybernet identity evidence',
+    railLabel: 'Identity evidence',
     body: 'Collect read-only workstation identity evidence. The adapter records what it can safely observe, such as DNS, ping, ARP/MAC hints, and optional transport notes.',
     command: 'bash bash/transport/sas-workstation-identity.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru',
     checks: ['Treat hostname, MAC, serial, and IP as separate evidence fields.', 'Do not use reachability alone as Cybernet identity proof.', 'Preserve unknown or partial rows; they are useful triage evidence.'],
-    note: 'Load workstation_identity.csv back into the dashboard for searchable protocol evidence.'
+    note: 'Load workstation_identity.csv back via Load Evidence for searchable protocol evidence.',
+    optional: false
   },
   {
-    title: 'Normalize the acquisition list',
-    body: 'Turn raw target identifiers into a clean Cybernet survey CSV that downstream audit and reconciliation tools can consume.',
-    command: './survey/sas-survey-targets.sh --device-type Cybernet \\\n  --output ./survey/output/cybernet_targets.csv \\\n  --file /tmp/sas-cybernet/targets.txt',
-    checks: ['Keep the original target list and the normalized output.', 'Use Cybernet as the device type for this workflow.', 'Review the output CSV before using it in audit or reconciliation steps.'],
-    note: 'This output is a handoff artifact for the rest of the suite. It is not currently a dashboard import artifact.'
+    title: 'Optional reachability check',
+    railLabel: 'Reachability',
+    body: 'Low-noise port confirmation on an approved target list. Skip this step if posture and identity evidence are already sufficient.',
+    command: 'mkdir -p logs/targets logs/nmap\ncp /tmp/sas-cybernet/targets.txt logs/targets/cybernet_confirm_hosts.txt\nbash survey/sas-run-naabu-pipeline.sh --site cybernet \\\n  --profile keyports_cybernet_json \\\n  --list logs/targets/cybernet_confirm_hosts.txt \\\n  --out logs/nmap/cybernet_naabu.json',
+    checks: [
+      'Profile: keyports_cybernet_json (-ec -silent -json).',
+      'Doctrine: docs/LOW_NOISE_SURVEY_DOCTRINE.md — local evidence only, no target-side writes.',
+      'This step is optional; do not treat it as mandatory for every survey.'
+    ],
+    note: 'Advanced: keyports_cybernet_json · output logs/nmap/cybernet_naabu.json',
+    optional: true
   },
   {
-    title: 'Load, review, then decide',
-    body: 'Drag only dashboard-recognized evidence CSVs into this dashboard, then review before classifying the result.',
-    command: '# Drag these files into the dashboard drop zone:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n\n# Review the normalized manifest separately until dashboard parsing is added for it.',
+    title: 'Load evidence and review',
+    railLabel: 'Review package',
+    body: 'Drag recognized evidence CSVs into Load Evidence, then review the summary. Do not expect the dashboard to import normalized target manifests until parser support is added.',
+    command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)',
     checks: [
       'Classify environment blocks separately from product defects.',
       'Keep smoke-test evidence separate from feature validation.',
-      'Do not treat the normalized manifest as a dashboard import until a parser is added for that schema.'
+      'cybernet_targets.csv from sas-survey-targets.sh is not a dashboard import yet.'
     ],
-    note: 'The dashboard is a review surface. It does not perform browser-side probing or ingest the normalized manifest yet.'
+    note: 'Click Load resulting evidence below, or use Load Evidence on the hero card.',
+    optional: false
   }
 ];
 
@@ -3934,57 +4039,49 @@ function initCybernetTutorial() {
   if (!root) return;
 
   let idx = 0;
-  const stepper = document.getElementById('cybernet-stepper');
+  let copiedThisStep = false;
   const title = document.getElementById('cybernet-step-title');
   const body = document.getElementById('cybernet-step-body');
   const kicker = document.getElementById('cybernet-step-kicker');
   const checks = document.getElementById('cybernet-step-checks');
   const command = document.getElementById('cybernet-step-command');
   const note = document.getElementById('cybernet-step-note');
+  const commandPanel = document.getElementById('cybernet-command-panel');
   const prev = document.getElementById('cybernet-prev');
   const next = document.getElementById('cybernet-next');
-  const start = document.getElementById('cybernet-tutorial-start');
-  const copy = document.getElementById('cybernet-tutorial-copy');
+  const copy = document.getElementById('cybernet-copy');
+  const wizardFooter = document.getElementById('cybernet-wizard-footer');
+  const progressRail = document.getElementById('cybernet-progress-rail');
+
+  function updateProgressRail() {
+    progressRail?.querySelectorAll('li').forEach((li, i) => {
+      li.classList.toggle('active', i === idx);
+      li.classList.toggle('done', i < idx);
+    });
+  }
 
   function render() {
     const step = CYBERNET_TUTORIAL_STEPS[idx];
     if (!step) return;
-    kicker.textContent = `Step ${idx + 1} of ${CYBERNET_TUTORIAL_STEPS.length}`;
-    title.textContent = step.title;
+    copiedThisStep = false;
+    kicker.textContent = `Step ${idx + 1} of ${CYBERNET_TUTORIAL_STEPS.length} — ${step.railLabel}`;
+    title.textContent = step.title + (step.optional ? ' (optional)' : '');
     body.textContent = step.body;
     checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
-    command.value = step.command;
-    note.textContent = step.note;
+    const hasCommand = !!(step.command && !step.command.startsWith('# Use Load Evidence'));
+    if (commandPanel) commandPanel.classList.toggle('hidden', !hasCommand);
+    if (command) command.value = hasCommand ? step.command : '';
+    if (note) note.textContent = step.note;
     prev.disabled = idx === 0;
     next.textContent = idx === CYBERNET_TUTORIAL_STEPS.length - 1 ? 'Finish ✓' : 'Next →';
-    stepper.querySelectorAll('.cybernet-step-pill').forEach((btn, i) => {
-      const active = i === idx;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-      if (active) btn.setAttribute('aria-current', 'step');
-      else btn.removeAttribute('aria-current');
-    });
+    copy?.classList.toggle('hidden', !hasCommand);
+    wizardFooter?.classList.toggle('hidden', idx !== CYBERNET_TUTORIAL_STEPS.length - 1);
+    updateProgressRail();
   }
 
-  stepper.innerHTML = CYBERNET_TUTORIAL_STEPS.map((step, i) => (
-    `<button class="cybernet-step-pill" type="button" data-step="${i}">${i + 1}. ${sanitize(step.title)}</button>`
-  )).join('');
-
-  stepper.addEventListener('click', e => {
-    const btn = e.target.closest('.cybernet-step-pill');
-    if (!btn) return;
-    idx = Number(btn.dataset.step || 0);
-    render();
-  });
-  prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
-  next?.addEventListener('click', () => {
-    if (idx < CYBERNET_TUTORIAL_STEPS.length - 1) idx++;
-    else idx = 0;
-    render();
-  });
-  start?.addEventListener('click', () => { idx = 0; render(); root.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-  copy?.addEventListener('click', () => {
-    const text = command.value || '';
+  function copyCommand() {
+    const text = command?.value || '';
+    if (!text) return;
     const originalNote = note?.textContent || '';
     const write = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
       ? navigator.clipboard.writeText(text)
@@ -3996,7 +4093,8 @@ function initCybernetTutorial() {
         });
     write
       .then(() => {
-        toast('Cybernet tutorial command copied.', 'success');
+        copiedThisStep = true;
+        toast('Command copied.', 'success');
         if (note) note.textContent = 'Command copied.';
       })
       .catch(() => {
@@ -4004,9 +4102,28 @@ function initCybernetTutorial() {
         if (note) note.textContent = `${originalNote} Select the command text and copy it manually if clipboard access is blocked.`;
       })
       .finally(() => {
-        if (note) window.setTimeout(() => { note.textContent = originalNote; }, 2200);
+        if (note) window.setTimeout(() => { if (note.textContent === 'Command copied.') note.textContent = originalNote; }, 2200);
       });
+  }
+
+  prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
+  next?.addEventListener('click', () => {
+    const step = CYBERNET_TUTORIAL_STEPS[idx];
+    const hasCommand = !!(step?.command && !step?.command.startsWith('# Use Load Evidence'));
+    if (hasCommand && !copiedThisStep && !step.optional) {
+      toast('Copy the command first, or use Show details if you need to skip.', 'warning');
+      return;
+    }
+    if (idx < CYBERNET_TUTORIAL_STEPS.length - 1) {
+      idx++;
+      render();
+    } else {
+      document.getElementById('evidence-loader')?.classList.remove('hidden');
+      document.getElementById('evidence-loader')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toast('Survey steps complete — load your evidence files.', 'success');
+    }
   });
+  copy?.addEventListener('click', copyCommand);
 
   render();
 }
@@ -4177,8 +4294,8 @@ function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
   modal.innerHTML = `
     <div class="modal" style="width:740px;max-width:98vw">
       <div class="modal-header">
-        <span class="modal-title">⚡ Live Mode — Probe Commands for ${targetCount} Target(s)</span>
-        <p class="modal-subtitle">Copy and run these commands on a machine with network access to your targets. When complete, drag the generated CSV files back into the dashboard drop zone to populate all panels.</p>
+        <span class="modal-title">Generate Survey Commands — ${targetCount} Target(s)</span>
+        <p class="modal-subtitle">Copy and run these commands on a machine with network access to your targets. When complete, use Load Evidence to import the resulting files.</p>
         <button class="modal-close" id="live-cmd-close">×</button>
       </div>
       <div class="modal-body" style="gap:14px">
@@ -4186,12 +4303,12 @@ function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
           ⚠ Browser security prevents direct network probing from a web page.
           Copy the commands below, run them from an admin machine, then drag the resulting CSV files back into the dashboard.
         </div>
-        ${section('bash-cmds', '1 — BASH  (primary — suite scripts + low-noise naabu)', '220px')}
+        ${section('bash-cmds', '1 — BASH  (primary — suite scripts + optional low-noise reachability)', '220px')}
         ${section('ps-cmds',   '2 — POWERSHELL  (Windows WMI / printer mapping)', '150px')}
         ${section('linux-cmds','3 — LINUX NATIVE  (quick check — no suite required)', '150px')}
         <div style="font-size:11px;color:var(--text-muted)">
-          Load back: network_preflight.csv · workstation_identity.csv · printer_probe.csv · logs/nmap/*_naabu.json<br>
-          Low-noise doctrine: <code>docs/LOW_NOISE_SURVEY_DOCTRINE.md</code> · Software Tracker: drag <strong>Config/sources.yaml</strong> (or <code>dashboard/samples/sources.yaml</code>)
+          Load back via Load Evidence: network_preflight.csv · workstation_identity.csv · printer_probe.csv · logs/nmap/*_naabu.json<br>
+          Optional reachability profile: <code>keyports_cybernet_json</code> · Doctrine: <code>docs/LOW_NOISE_SURVEY_DOCTRINE.md</code>
         </div>
       </div>
       <div class="modal-footer">
@@ -4438,6 +4555,67 @@ function refreshAllPanels() {
   try { renderTasksPanel(store); } catch(e) { console.warn('Tasks panel error:', e); }
   try { renderNetworkPanel(store); } catch(e) { console.warn('Network panel error:', e); }
   try { renderSoftwarePanel(store); } catch(e) { console.warn('Software panel error:', e); }
+  updateCybernetReview();
+}
+
+function _countUniqueTargets(rows, field = 'Target') {
+  const set = new Set();
+  for (const row of rows || []) {
+    const t = row[field] || row.target || row.HostName || row.hostname;
+    if (t) set.add(String(t).trim());
+  }
+  return set.size;
+}
+
+function _detectGuestNetworkWarning() {
+  const rows = store.networkPreflight || [];
+  if (!rows.length) return null;
+  const byTarget = new Map();
+  for (const row of rows) {
+    const t = row.Target || row.target;
+    if (!t) continue;
+    if (!byTarget.has(t)) byTarget.set(t, false);
+    const ping = String(row.PingStatus || row.pingstatus || '').toLowerCase();
+    if (ping.includes('reach')) byTarget.set(t, true);
+  }
+  if (!byTarget.size) return null;
+  const allDown = [...byTarget.values()].every(v => !v);
+  return allDown ? 'All preflight targets appear unreachable — check guest network or wrong segment before blaming the product.' : null;
+}
+
+function updateCybernetReview() {
+  const section = document.getElementById('cybernet-review');
+  const body = document.getElementById('cybernet-review-body');
+  if (!section || !body) return;
+
+  const preflightRows = store.networkPreflight?.length || 0;
+  const identityRows = store.workstationIdentity?.length || 0;
+  const targetCount = Math.max(_countUniqueTargets(store.networkPreflight), _countUniqueTargets(store.workstationIdentity));
+  const reachFiles = loadedFiles.filter(f => /naabu/i.test(f.name)).length;
+  const hasEvidence = preflightRows > 0 || identityRows > 0 || reachFiles > 0 || loadedFiles.some(f => f.type === 'network-preflight' || f.type === 'workstation-identity');
+
+  if (!hasEvidence) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+  const guestWarn = _detectGuestNetworkWarning();
+  let nextAction = 'Review the summary, then open network evidence details if you need row-level triage.';
+  if (!preflightRows) nextAction = 'Load network_preflight.csv to prove network posture.';
+  else if (!identityRows) nextAction = 'Load workstation_identity.csv for identity evidence.';
+  else if (guestWarn) nextAction = 'Fix network posture (segment/VPN) before running more probes.';
+
+  body.innerHTML = `
+    <ul class="cybernet-review-stats">
+      <li><strong>Targets in evidence:</strong> ${targetCount || '—'}</li>
+      <li><strong>Preflight rows:</strong> ${preflightRows}</li>
+      <li><strong>Identity rows:</strong> ${identityRows}</li>
+      <li><strong>Reachability files:</strong> ${reachFiles || 'none loaded'}</li>
+    </ul>
+    ${guestWarn ? `<p class="cybernet-review-warn">⚠ ${sanitize(guestWarn)}</p>` : ''}
+    <p class="cybernet-review-next"><strong>Next:</strong> ${sanitize(nextAction)}</p>
+  `;
 }
 
 // Update software tab badge when store changes
