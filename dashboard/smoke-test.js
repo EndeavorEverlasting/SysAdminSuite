@@ -101,3 +101,55 @@ if (bomRows.length !== 1 || Object.keys(bomRows[0])[0] !== 'HostName') {
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
+
+// ── Cybernet-first dashboard shell assertions (HTML text, no DOM) ─────────────
+
+const indexHtml = readFileSync(join(__dir, 'index.html'), 'utf8');
+
+const shellChecks = [
+  ['cybernet-hero', 'Cybernet-first hero'],
+  ['id="hero-start-survey"', 'Primary CTA Start Cybernet Survey'],
+  ['Start Cybernet Survey', 'Start Cybernet Survey label'],
+  ['id="hero-load-evidence"', 'Load Evidence entry'],
+  ['id="advanced-tools-toggle"', 'Advanced Tools toggle'],
+  ['id="advanced-section"', 'Advanced section container'],
+  ['data-tab="network"', 'Network panel tab reachable'],
+  ['data-tab="printer"', 'Printer panel tab reachable'],
+  ['--targets-file', 'Wizard uses --targets-file in bundle/app'],
+];
+
+// Wizard command contracts live in app.js (bundled); verify source for CI without loading bundle
+const appJs = readFileSync(join(__dir, 'js', 'app.js'), 'utf8');
+const contractChecks = [
+  ['--targets-file /tmp/sas-cybernet/targets.txt', 'preflight/identity --targets-file'],
+  ['--file /tmp/sas-cybernet/targets.txt', 'normalize --file reference'],
+  ['keyports_cybernet_json', 'low-noise reachability profile'],
+  ['not a dashboard import yet', 'no false manifest import claim'],
+];
+
+let shellPassed = 0;
+let shellFailed = 0;
+
+for (const [needle, label] of shellChecks) {
+  const src = needle.startsWith('--') ? appJs : indexHtml;
+  if (!src.includes(needle)) {
+    console.error(`FAIL [shell:${label}]: missing "${needle}"`);
+    shellFailed++;
+  } else {
+    console.log(`PASS [shell:${label}]`);
+    shellPassed++;
+  }
+}
+
+for (const [needle, label] of contractChecks) {
+  if (!appJs.includes(needle)) {
+    console.error(`FAIL [wizard-contract:${label}]: missing "${needle}"`);
+    shellFailed++;
+  } else {
+    console.log(`PASS [wizard-contract:${label}]`);
+    shellPassed++;
+  }
+}
+
+console.log(`\nShell: ${shellPassed} passed, ${shellFailed} failed`);
+if (shellFailed > 0) process.exit(1);
