@@ -103,9 +103,7 @@ function Get-SnapshotEntries {
     if ($null -eq $Snapshot) { return @() }
     if ($Snapshot -is [array]) { return @($Snapshot) }
     foreach ($candidate in @('entries', 'items', 'snapshot_entries', 'data')) {
-        if ($Snapshot.PSObject.Properties.Name -contains $candidate) {
-            return @($Snapshot.$candidate)
-        }
+        if ($Snapshot.PSObject.Properties.Name -contains $candidate) { return @($Snapshot.$candidate) }
     }
     return @()
 }
@@ -132,7 +130,7 @@ function Test-RuleMatch {
     if ($match -and $ruleClass -and ([string]$ruleClass -ne [string]$Change.classification)) { $match = $false }
     if ($match -and $keyRegex -and (-not ([string]$Change.key_path -match [string]$keyRegex))) { $match = $false }
     if ($match -and $valueRegex -and (-not ([string]$Change.value_name -match [string]$valueRegex))) { $match = $false }
-    if ($match -and $reasonContains -and (-not ([string]$Change.reason -like "*$reasonContains*")) { $match = $false }
+    if ($match -and $reasonContains -and (-not ([string]$Change.reason -like "*$reasonContains*"))) { $match = $false }
     return $match
 }
 
