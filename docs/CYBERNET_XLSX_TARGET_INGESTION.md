@@ -71,6 +71,38 @@ bash survey/sas-cybernet-xlsx-targets.sh \
 
 Defaults write to `survey/output/cybernet_alejandro_*.csv` when `--output`, `--report`, or `--gaps` are omitted.
 
+## Alejandro vs deployment tracker diff
+
+When Alejandro's workbook is the authoritative Cybernet serial source, compare its unique serial
+inventory against the latest deployment tracker before probing anything live:
+
+```bash
+bash survey/sas-cybernet-tracker-diff.sh \
+  --alejandro "logs/targets/Cybernet sources/Alejandro's list of Cybernets.xlsx" \
+  --tracker "logs/targets/Cybernet sources/Active Deployment Tracker 2026-05-17 - 6-25-2026.xlsx" \
+  --output-prefix survey/output/cybernet
+```
+
+The diff is read-only against both workbooks and writes local operational CSVs:
+
+- `survey/output/cybernet_alejandro_unique_serials.csv`
+- `survey/output/cybernet_tracker_unique_serials.csv`
+- `survey/output/cybernet_alejandro_already_tracked.csv`
+- `survey/output/cybernet_alejandro_untracked.csv`
+- `survey/output/cybernet_tracker_duplicate_exceptions.csv`
+
+Comparison rules:
+
+- Normalize serials by trimming whitespace and uppercasing.
+- Treat Alejandro rows as a unique serial inventory; duplicate Alejandro rows collapse into one serial with a row count.
+- Exclude an Alejandro serial from the untracked manifest when that serial already appears in the deployment tracker.
+- Emit duplicate exceptions only when the same normalized hostname, serial, or MAC appears in more than one tracker row marked `Deployed = Yes`.
+- Repeated non-deployed tracker identifiers are planning history, not duplicate exceptions.
+
+`cybernet_alejandro_untracked.csv` uses the same manifest schema as the ingester. Serial-only rows
+are retained for tracking, but only rows with a resolved `HostName` are ready for live WMI/ping
+identity checks.
+
 ## Outputs
 
 ### Manifest CSV
@@ -102,6 +134,26 @@ bash survey/sas-survey-targets.sh \
   --device-type Cybernet \
   --csv survey/output/cybernet_alejandro_targets.csv \
   --output survey/output/cybernet_targets_resolved.csv
+```
+
+For host-resolved untracked rows, prefer the read-only WMI/ping identity path before considering
+SSH. SSH is disabled by default in the transport adapter and a blocked SSH path is environment or
+policy evidence, not a product failure:
+
+```bash
+python - <<'PY'
+import csv
+with open("survey/output/cybernet_alejandro_untracked.csv", newline="", encoding="utf-8-sig") as src, \
+     open("survey/output/cybernet_untracked_host_targets.txt", "w", encoding="utf-8") as dst:
+    for row in csv.DictReader(src):
+        if row.get("HostName"):
+            dst.write(row["HostName"].strip() + "\n")
+PY
+
+bash bash/transport/sas-workstation-identity.sh \
+  --targets-file survey/output/cybernet_untracked_host_targets.txt \
+  --allow-wmi \
+  --output survey/output/cybernet_untracked_wmi_identity.csv
 ```
 
 ## Contract test
