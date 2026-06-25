@@ -175,6 +175,41 @@ Use `--no-progress` to suppress the console bar (summary files are still written
 outputs are operational and remain gitignored under `survey/output/`; a dashboard can consume the
 JSON/CSV in a later sprint.
 
+## Cybernet reconciliation HTML report
+
+After tracker diffing and approved identity collection, build a local offline report that reconciles
+the Alejandro serial population, the latest deployment tracker, `workstation_identity*.csv`, and
+`network_preflight.csv` evidence. Identity evidence accepts a glob via `--identity-glob`; preflight
+evidence is supplied with repeatable explicit `--preflight-csv` paths (no glob expansion):
+
+```bash
+bash survey/sas-cybernet-reconcile-report.sh \
+  --alejandro "<alejandro-workbook>.xlsx" \
+  --tracker "<deployment-tracker-workbook>.xlsx" \
+  --identity-glob "survey/output/SysAdminSuite_Artifacts/workstation_identity*.csv" \
+  --preflight-csv "survey/output/SysAdminSuite_Artifacts/network_preflight.csv" \
+  --output-dir survey/output/cybernet_reconciliation_report
+```
+
+The report is read-only against workbook and CSV inputs. It writes a self-contained site under
+`survey/output/cybernet_reconciliation_report/`, which is ignored by repo policy:
+
+- `index.html` for overview tiles and coverage context
+- `confirmations.html` for `ConfirmedInTracker`
+- `duplicates.html` for observed duplicate serials and tracker duplicate exceptions
+- `conflicts.html` for serial and MAC conflicts
+- `drift.html` for serial match with hostname drift
+- `unaccounted.html` for observed serials missing from both Alejandro and tracker
+- `coverage.html` for reachable-needs-identity and unreachable gaps
+- `remaining.html` for tracker or Alejandro serials not observed in supplied identity evidence
+- `anomalies.html` for bounded hostname typo/site-affinity review candidates
+- `style.css` and `data.js` for offline rendering with relative links only
+
+The generated HTML and `data.js` may contain live hostnames, serials, MACs, and reachability
+evidence. Keep those files local under `survey/output/`; commit only the generator, wrapper, tests,
+and docs. The report uses scope control and evidence minimization: no network probes are launched,
+no credentials are used, and no target systems are mutated.
+
 ## Command
 
 Example using ignored local intake under `targets/local/` (preferred for new work). Replace the
