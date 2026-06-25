@@ -1,0 +1,3 @@
+HostName,DNSHostName,ADStatus,Enabled,OperatingSystem,LastLogonDate,Description,DistinguishedName,SourceFile,PopulationAuthority,ReconcileBucket
+CYBTEST001,CYBTEST001.sample.local,AD_REGISTERED,true,Windows 10 Enterprise,2026-06-01,Cybernet synthetic fixture,CN=CYBTEST001,OU=Cybernet,DC=sample,DC=local,survey/fixtures/ad_registered_cybernet.sample.csv,ad_registered,matched
+CYBTEST002,,AD_REGISTERED,true,Windows 10 Enterprise,2026-06-15,Cybernet missing DNS fixture,CN=CYBTEST002,OU=Cybernet,DC=sample,DC=local,survey/fixtures/ad_registered_cybernet.sample.csv,ad_registered,missing_dns

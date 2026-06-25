@@ -12,10 +12,21 @@ Use the Cybernet-first dashboard when you want a guided wizard instead of memori
 2. **Start Cybernet Survey** — opens the wizard (progress rail: Targets → Network posture → Identity evidence → Reachability → Review package).
 3. **Copy posture and identity commands** — run network preflight and workstation identity on the admin box; keep output local.
 4. **Optional reachability** — wizard step 4 is skippable; uses profile `keyports_cybernet_json` when you need low-noise port confirmation.
-5. **Load Evidence** — drop `network_preflight.csv`, `workstation_identity.csv`, and optional reachability JSON.
+5. **Load Evidence** — drop `network_preflight.csv`, `workstation_identity.csv`, optional reachability JSON, normalized target manifests, and AD population CSVs.
 6. **Review Results** — use the Cybernet review summary; open **Advanced Tools** only for detailed panels or legacy command generation.
 
 For subnet discovery and Nmap orchestration, use the CLI path below.
+
+## AD-first warning
+
+**Active Directory registered population is the population authority.** When an authorized AD computer export is available, reconcile AD before building scan candidate lists.
+
+1. Place the approved export locally (do not commit live CSVs). Use `targets/local/` or `logs/targets/` per [`docs/TARGETS_FOLDER_POLICY.md`](docs/TARGETS_FOLDER_POLICY.md).
+2. Run `bash survey/sas-ad-reconcile.sh --ad-csv <local-export.csv> --output-dir survey/output/ad_reconcile/<run-id>`.
+3. Use `ad_targets_hostnames.txt` and `ad_evidence_matches.csv` to drive manifests and downstream validation.
+4. Treat Naabu/Nmap as **reachability validation only** against AD-derived targets — not as the population source.
+
+See [`docs/AD_REGISTERED_POPULATION.md`](docs/AD_REGISTERED_POPULATION.md) and [`docs/AD_CYBERNET_EXPORT_CONTRACT.md`](docs/AD_CYBERNET_EXPORT_CONTRACT.md).
 
 ## Urgent path (orchestrator)
 

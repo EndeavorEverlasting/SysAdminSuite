@@ -36,7 +36,8 @@ function contentLooksLikeNaabuReachability(content) {
  * Detect the log type from filename and/or CSV headers.
  * Returns one of: 'preflight', 'results', 'workstation-identity',
  *   'printer-probe', 'network-preflight', 'machine-info', 'ram-info',
- *   'monitor-info', 'neuron-inventory', 'status-json', 'smb-recon', 'naabu-reachability', 'unknown'
+ *   'monitor-info', 'neuron-inventory', 'status-json', 'smb-recon',
+ *   'ad-registered-population', 'naabu-reachability', 'unknown'
  */
 export function detectFileType(filename, content) {
   const fn = filename.toLowerCase();
@@ -95,7 +96,11 @@ export function detectFileType(filename, content) {
   if (fn.startsWith('installed_software_') || fn.includes('/installed_software_') || fn.includes('\\installed_software_')) return 'software-superset';
   if (fn.includes('qrtask') || fn.includes('qr_task') || fn.includes('invoke-techtask') || fn.includes('runtask')) return 'remote-task';
   if (fn.includes('runcontrol') || fn.includes('run_control')) return 'remote-task';
-  if (fn.includes('wmi_identity') || fn.includes('wmi-identity')) return 'workstation-identity';
+  if (fn.includes('ad_registered') || fn.includes('ad-registered') || fn.includes('ad_evidence') ||
+      fn.includes('ad_only') || fn.includes('ad_disabled') || fn.includes('ad_stale') ||
+      fn.includes('ad_missing_dns') || fn.includes('ad_duplicates') || fn.includes('evidence_only')) {
+    return 'ad-registered-population';
+  }
 
   // Detect by headers if content is provided
   if (typeof content === 'string' && content.includes(',')) {
@@ -111,7 +116,9 @@ export function detectFileType(filename, content) {
     if (firstLine.includes('targethost') && firstLine.includes('matchexpected')) return 'neuron-inventory';
     if (firstLine.includes('share') && firstLine.includes('liststatus')) return 'smb-recon';
     if (firstLine.includes('taskname') || firstLine.includes('taskid') || firstLine.includes('outcome')) return 'remote-task';
-    if (firstLine.includes('publisher') && firstLine.includes('host') && firstLine.includes('name')) return 'software-superset';
+    if (firstLine.includes('populationauthority') && firstLine.includes('reconcilebucket')) return 'ad-registered-population';
+    if (firstLine.includes('populationauthority') && firstLine.includes('adstatus')) return 'ad-registered-population';
+    if (firstLine.includes('reconcilebucket') && firstLine.includes('hostname')) return 'ad-registered-population';
   }
 
   return 'unknown';
@@ -138,6 +145,7 @@ export function parseFileContent(type, content, filename) {
     case 'software-tracker': return parseSoftwareTracker(content, filename);
     case 'software-superset': return parseSoftwareSuperset(content);
     case 'naabu-reachability': return parseNaabuReachability(content, filename);
+    case 'ad-registered-population': return parseAdRegisteredPopulation(content, filename);
     default: return { type: 'unknown', rows: [], meta: {} };
   }
 }
@@ -330,6 +338,38 @@ function parseRemoteTask(content) {
   }
 
   return { type: 'remote-task', rows: [], meta: { count: 0 } };
+}
+
+/**
+ * Parse AD registered population reconcile CSVs.
+ * Expected columns include HostName, PopulationAuthority, ReconcileBucket / Bucket.
+ */
+function parseAdRegisteredPopulation(content, filename) {
+  const rows = parseCSV(content);
+  const normalized = rows.map(r => ({
+    HostName:        r.HostName        || r.hostname        || r.ComputerName || '',
+    DNSHostName:     r.DNSHostName     || r.dnshostname     || r.FQDN         || '',
+    ADStatus:        r.ADStatus        || r.adstatus        || '',
+    Enabled:         r.Enabled         || r.enabled         || '',
+    OperatingSystem: r.OperatingSystem || r.operatingsystem || r.OS           || '',
+    LastLogonDate:   r.LastLogonDate   || r.lastlogondate   || '',
+    Description:     r.Description     || r.description     || '',
+    ReconcileBucket: r.ReconcileBucket || r.reconcilebucket || r.Bucket       || '',
+    PopulationAuthority: r.PopulationAuthority || r.populationauthority || 'ad_registered',
+    MatchStatus:     r.MatchStatus     || r.matchstatus     || '',
+    EvidenceSerial:  r.EvidenceSerial  || r.evidenceserial  || r.Serial       || '',
+    EvidenceSource:  r.EvidenceSource  || r.evidencesource  || r.Source       || '',
+    Reachability:    r.Reachability    || r.reachability    || '',
+    ProbeStatus:     r.ProbeStatus     || r.probestatus     || '',
+    Reason:          r.Reason          || r.reason          || '',
+    _sourceFile:     filename || '',
+  })).filter(r => r.HostName);
+  const buckets = {};
+  for (const row of normalized) {
+    const b = row.ReconcileBucket || 'registered';
+    buckets[b] = (buckets[b] || 0) + 1;
+  }
+  return { type: 'ad-registered-population', rows: normalized, meta: { count: normalized.length, buckets } };
 }
 
 /**
@@ -551,6 +591,9 @@ export function mergeDataStore(existing, incoming) {
     case 'naabu-reachability':
       store.naabuReachability = (store.naabuReachability || []).concat(rows);
       break;
+    case 'ad-registered-population':
+      store.adRegisteredPopulation = (store.adRegisteredPopulation || []).concat(rows);
+      break;
   }
 
   return store;
@@ -601,6 +644,18 @@ export function buildInventoryRows(store) {
       Room: row.Room || '',
       Status: row.Status || hostMap[key]?.Status || '',
       _neuron: row
+    });
+  }
+
+  for (const row of (store.adRegisteredPopulation || [])) {
+    const h = row.HostName || '';
+    if (!h) continue;
+    const key = h.toUpperCase();
+    addHost(h, {
+      Status: row.ReconcileBucket || row.ADStatus || hostMap[key]?.Status || '',
+      Site: row.PopulationAuthority || 'ad_registered',
+      Serial: row.EvidenceSerial || hostMap[key]?.Serial || '',
+      _adPopulation: row
     });
   }
 
@@ -817,6 +872,28 @@ export function buildProtocolRows(store) {
     if (!port) continue;
     const reach = (row.reachability || 'open').toLowerCase();
     hostMap[t].ports[port] = reach === 'open' ? 'Open' : reach;
+  }
+
+  // AD registered population — reconcile buckets; do not treat AD as serial or reachability proof
+  for (const row of (store.adRegisteredPopulation || [])) {
+    const t = row.HostName || '';
+    if (!t) continue;
+    if (!hostMap[t]) {
+      hostMap[t] = {
+        Target: t,
+        ResolvedAddress: row.DNSHostName || '',
+        ports: {},
+        steps: {}
+      };
+    }
+    hostMap[t].ADStatus = row.ADStatus || '';
+    hostMap[t].ReconcileBucket = row.ReconcileBucket || '';
+    hostMap[t].PopulationAuthority = row.PopulationAuthority || 'ad_registered';
+    if (row.Reachability) {
+      hostMap[t].steps.Ping = (row.Reachability || '').toLowerCase().includes('reach') ? 'success' : 'failed';
+    }
+    if (row.EvidenceSerial) hostMap[t].ObservedSerial = row.EvidenceSerial;
+    hostMap[t].Notes = [row.Reason, row.EvidenceSource, row.ProbeStatus].filter(Boolean).join(' | ');
   }
 
   return Object.values(hostMap).sort((a, b) => (a.Target || '').localeCompare(b.Target || ''));
