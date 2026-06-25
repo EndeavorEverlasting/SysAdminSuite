@@ -417,26 +417,44 @@ mode_confirm_windows() {
       local ext="txt" followup_label="no"
       [[ "$NAABU_PROFILE" == *json* ]] && ext="json"
       out="$LOGS_ROOT/${SITE}_${safe}_windows_ports_naabu.${ext}"
-      local pipeline_args=(
-        bash survey/sas-run-naabu-pipeline.sh
-        --site "$SITE"
-        --profile "$NAABU_PROFILE"
-        --out "$out"
-        --planned-file "$PLANNED_FILE"
-        --rate "$RATE"
-      )
-      [[ -n "$NAABU_HOST" ]] && pipeline_args+=(--host "$NAABU_HOST")
-      [[ -z "$NAABU_HOST" ]] && pipeline_args+=(--list "$HOST_FILE")
-      [[ "$PIPE_FOLLOWUP" -eq 1 ]] && pipeline_args+=(--pipe-followup)
-      [[ "$ALLOW_FULL_PORTS" -eq 1 ]] && pipeline_args+=(--allow-full-ports)
-      [[ "$NAABU_PROFILE_JUSTIFIED" -eq 1 ]] && pipeline_args+=(--profile-justified)
-      [[ "$NAABU_APPROVED_SUBNET_SCOPE" -eq 1 ]] && pipeline_args+=(--approved-subnet-scope)
-      [[ "$ALLOW_PUBLIC" -eq 1 ]] && pipeline_args+=(--allow-public)
-      [[ "$DRY_RUN" -eq 1 ]] && pipeline_args+=(--dry-run)
-      if [[ "$DRY_RUN" -eq 1 ]]; then
-        log "DRY-RUN: ${pipeline_args[*]}"
+      if [[ -n "$NAABU_HOST" || "$PIPE_FOLLOWUP" -eq 1 ]]; then
+        local pipeline_args=(
+          bash survey/sas-run-naabu-pipeline.sh
+          --site "$SITE"
+          --profile "$NAABU_PROFILE"
+          --out "$out"
+          --planned-file "$PLANNED_FILE"
+          --rate "$RATE"
+        )
+        [[ -n "$NAABU_HOST" ]] && pipeline_args+=(--host "$NAABU_HOST")
+        [[ -z "$NAABU_HOST" ]] && pipeline_args+=(--list "$HOST_FILE")
+        [[ "$PIPE_FOLLOWUP" -eq 1 ]] && pipeline_args+=(--pipe-followup)
+        [[ "$ALLOW_FULL_PORTS" -eq 1 ]] && pipeline_args+=(--allow-full-ports)
+        [[ "$NAABU_PROFILE_JUSTIFIED" -eq 1 ]] && pipeline_args+=(--profile-justified)
+        [[ "$NAABU_APPROVED_SUBNET_SCOPE" -eq 1 ]] && pipeline_args+=(--approved-subnet-scope)
+        [[ "$ALLOW_PUBLIC" -eq 1 ]] && pipeline_args+=(--allow-public)
+        [[ "$DRY_RUN" -eq 1 ]] && pipeline_args+=(--dry-run)
+        if [[ "$DRY_RUN" -eq 1 ]]; then
+          log "DRY-RUN: ${pipeline_args[*]}"
+        fi
+        (cd "$REPO_ROOT" && "${pipeline_args[@]}")
+      else
+        out="$LOGS_ROOT/${SITE}_${safe}_windows_ports_naabu.json"
+        local packet_args=(
+          bash survey/sas-run-packet-probe.sh
+          --site "$SITE"
+          --list "$HOST_FILE"
+          --out "$out"
+          --summary "${out}.summary.json"
+          --planned-file "$PLANNED_FILE"
+        )
+        [[ "$ALLOW_PUBLIC" -eq 1 ]] && packet_args+=(--allow-public)
+        [[ "$DRY_RUN" -eq 1 ]] && packet_args+=(--dry-run)
+        if [[ "$DRY_RUN" -eq 1 ]]; then
+          log "DRY-RUN: ${packet_args[*]}"
+        fi
+        (cd "$REPO_ROOT" && "${packet_args[@]}")
       fi
-      (cd "$REPO_ROOT" && "${pipeline_args[@]}")
       local followup_out csv_out
       followup_out="$(naabu_followup_path "$out")"
       csv_out="$RESOLVER_DIR/${SITE}_naabu_reachability.csv"

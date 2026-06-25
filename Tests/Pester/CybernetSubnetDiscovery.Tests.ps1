@@ -158,11 +158,11 @@ Describe 'New-CybernetSubnetDiscoveryReport' {
             [pscustomobject]@{ Site='SSUH'; Serial='CN3'; ExpectedHostname=''; ExpectedMAC=''; IP=''; Evidence='' }
         )
 
-        $matches = foreach ($row in $inventory) {
+        $subnetMatches = foreach ($row in $inventory) {
             Convert-IpToSubnetCandidate -IPv4 $row.IP -ApprovedSubnets $subnets
         }
 
-        $identity = New-CybernetIdentityMapRows -InventoryRows $inventory -SubnetMatches $matches
+        $identity = New-CybernetIdentityMapRows -InventoryRows $inventory -SubnetMatches $subnetMatches
         $targets = New-CybernetTargetIpList -IdentityMapRows $identity
         $targets | Should -Contain '10.20.30.10'
         $targets | Should -Not -Contain '8.8.8.8'
@@ -209,9 +209,11 @@ Describe 'New-CybernetSubnetDiscoveryReport' {
 Describe 'New-CybernetScannerCommand' {
     It 'Generates deterministic Naabu command' {
         $profilePath = Join-Path $script:repoRoot 'Config\cybernet-port-profile.json'
-        $profile = Get-CybernetPortProfile -ProfilePath $profilePath
-        $cmd = New-CybernetNaabuCommand -TargetFile '.\targets.txt' -OutputFile '.\out.jsonl' -Profile $profile
-        $cmd.Command | Should -Be 'naabu -list .\targets.txt -p 135,139,445,3389,5985,5986,80,443 -rate 50 -c 10 -retries 1 -timeout 1000 -ec -json -silent -duc -o .\out.jsonl'
+        $portProfile = Get-CybernetPortProfile -ProfilePath $profilePath
+        $cmd = New-CybernetNaabuCommand -TargetFile '.\targets.txt' -OutputFile '.\out.jsonl' -PortProfile $portProfile
+        $cmd.Scanner | Should -Be 'PacketProbe'
+        $cmd.Command | Should -Be 'bash survey/sas-run-packet-probe.sh --site cybernet --list .\targets.txt --out .\out.jsonl --summary .\out.jsonl.summary.json'
+        $cmd.AuditCommand | Should -Be 'naabu -list .\targets.txt -p 135,139,445,3389,5985,5986,80,443 -rate 50 -c 10 -retries 1 -timeout 1000 -ec -json -silent -duc -o .\out.jsonl'
     }
 
     It 'Generates deterministic Nmap host discovery command' {
@@ -221,8 +223,8 @@ Describe 'New-CybernetScannerCommand' {
 
     It 'Generates deterministic Nmap selected-port command' {
         $profilePath = Join-Path $script:repoRoot 'Config\cybernet-port-profile.json'
-        $profile = Get-CybernetPortProfile -ProfilePath $profilePath
-        $cmd = New-CybernetNmapSelectedPortCommand -TargetFile '.\targets.txt' -OutputFile '.\out.xml' -Profile $profile
+        $portProfile = Get-CybernetPortProfile -ProfilePath $profilePath
+        $cmd = New-CybernetNmapSelectedPortCommand -TargetFile '.\targets.txt' -OutputFile '.\out.xml' -PortProfile $portProfile
         $cmd.Command | Should -Be 'nmap -p 135,139,445,3389,5985,5986,80,443 --open -iL .\targets.txt -oX .\out.xml'
     }
 }
@@ -260,7 +262,7 @@ Describe 'Invoke-SASCybernetSubnetDiscovery.ps1 integration' {
         }
 
         $log = Get-Content -LiteralPath (Join-Path $outDir 'CybernetSubnetDiscovery_EvidenceLog.jsonl') -Raw
-        $log | Should -Match 'naabu -list'
+        $log | Should -Match 'sas-run-packet-probe.sh'
         $log | Should -Match 'nmap -sn'
         $log | Should -Match 'not executed'
 

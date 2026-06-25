@@ -20,6 +20,10 @@ Downloads pinned `naabu.exe` to `bin/naabu.exe` from [ProjectDiscovery naabu rel
 
 Doctrine is the single source of truth. The runtime config is generated from it:
 
+> Supersession note (2026-06-25): `feature/naabu-docs-consolidation` is retired.
+> Current `main` doctrine keeps `survey/naabu_profiles.json` as the source of truth and
+> `Config/cybernet-naabu-profiles.json` as generated runtime config.
+
 ```text
 survey/naabu_profiles.json            (doctrine contract — edit here)
         |  bash survey/sas-generate-naabu-runtime-profiles.sh

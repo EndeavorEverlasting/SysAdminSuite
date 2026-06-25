@@ -9,12 +9,12 @@ function Get-CybernetPortProfile {
     }
 
     $json = Get-Content -LiteralPath $ProfilePath -Raw | ConvertFrom-Json
-    $profile = $json.profiles.CybernetWindowsEndpoint
-    if (-not $profile) {
+    $portProfile = $json.profiles.CybernetWindowsEndpoint
+    if (-not $portProfile) {
         throw 'CybernetWindowsEndpoint profile missing from port profile JSON'
     }
 
-    return $profile
+    return $portProfile
 }
 
 function New-CybernetNaabuCommand {
@@ -25,26 +25,29 @@ function New-CybernetNaabuCommand {
         [Parameter(Mandatory = $true)]
         [string]$OutputFile,
 
-        [object]$Profile
+        [object]$PortProfile
     )
 
-    $ports = ($Profile.ports | ForEach-Object { [string]$_ }) -join ','
+    $ports = ($PortProfile.ports | ForEach-Object { [string]$_ }) -join ','
 
     # CDN exclusion (-ec) mirrors Config/cybernet-naabu-profiles.json windows_selected doctrine:
     # it caps CDN/cloud-edge hosts to avoid wasteful probing. Record-only; never executed here.
     $excludeCdn = $false
-    if ($Profile.PSObject.Properties.Name -contains 'excludeCdn') {
-        $excludeCdn = [bool]$Profile.excludeCdn
+    if ($PortProfile.PSObject.Properties.Name -contains 'excludeCdn') {
+        $excludeCdn = [bool]$PortProfile.excludeCdn
     }
     $ecFlag = if ($excludeCdn) { ' -ec' } else { '' }
 
-    $command = "naabu -list $TargetFile -p $ports -rate $($Profile.defaultRate) -c $($Profile.defaultConcurrency) -retries $($Profile.retries) -timeout $($Profile.timeoutMs)$ecFlag -json -silent -duc -o $OutputFile"
+    $summaryFile = "$OutputFile.summary.json"
+    $command = "bash survey/sas-run-packet-probe.sh --site cybernet --list $TargetFile --out $OutputFile --summary $summaryFile"
+    $auditCommand = "naabu -list $TargetFile -p $ports -rate $($PortProfile.defaultRate) -c $($PortProfile.defaultConcurrency) -retries $($PortProfile.retries) -timeout $($PortProfile.timeoutMs)$ecFlag -json -silent -duc -o $OutputFile"
 
     return [pscustomobject]@{
-        Scanner    = 'Naabu'
-        Command    = $command
-        TargetFile = $TargetFile
-        OutputFile = $OutputFile
+        Scanner      = 'PacketProbe'
+        Command      = $command
+        AuditCommand = $auditCommand
+        TargetFile   = $TargetFile
+        OutputFile   = $OutputFile
     }
 }
 
@@ -75,10 +78,10 @@ function New-CybernetNmapSelectedPortCommand {
         [Parameter(Mandatory = $true)]
         [string]$OutputFile,
 
-        [object]$Profile
+        [object]$PortProfile
     )
 
-    $ports = ($Profile.ports | ForEach-Object { [string]$_ }) -join ','
+    $ports = ($PortProfile.ports | ForEach-Object { [string]$_ }) -join ','
     $command = "nmap -p $ports --open -iL $TargetFile -oX $OutputFile"
 
     return [pscustomobject]@{
@@ -106,15 +109,15 @@ function New-CybernetScannerCommands {
         $PortProfilePath = Join-Path $repoRoot 'Config/cybernet-port-profile.json'
     }
 
-    $profile = Get-CybernetPortProfile -ProfilePath $PortProfilePath
+    $portProfile = Get-CybernetPortProfile -ProfilePath $PortProfilePath
 
     $naabuOut = Join-Path $SurveyOutDir 'CybernetSurvey_Naabu.jsonl'
     $nmapSnOut = Join-Path $SurveyOutDir 'CybernetSurvey_NmapHostDiscovery.xml'
     $nmapPortOut = Join-Path $SurveyOutDir 'CybernetSurvey_NmapPorts.xml'
 
     return @(
-        (New-CybernetNaabuCommand -TargetFile $TargetFile -OutputFile $naabuOut -Profile $profile)
+        (New-CybernetNaabuCommand -TargetFile $TargetFile -OutputFile $naabuOut -PortProfile $portProfile)
         (New-CybernetNmapHostDiscoveryCommand -TargetFile $TargetFile -OutputFile $nmapSnOut)
-        (New-CybernetNmapSelectedPortCommand -TargetFile $TargetFile -OutputFile $nmapPortOut -Profile $profile)
+        (New-CybernetNmapSelectedPortCommand -TargetFile $TargetFile -OutputFile $nmapPortOut -PortProfile $portProfile)
     )
 }

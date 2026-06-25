@@ -135,15 +135,15 @@ printf '10.10.10.3:5985\n' | bash "$FOLLOWUP" --site testsite --stdin --cybernet
 # Ensure naabu dry-run
 bash "$ENSURE" --dry-run >/dev/null || true
 
-# Survey runner naabu dry-run uses pipeline
+# Survey runner naabu dry-run uses packet probe for approved host files.
 bash survey/sas-cybernet-subnet-survey.sh --site testsite --mode confirm-windows \
   --confirm-tool naabu --host-file "$FIX/targets.sample.txt" \
   --output-root "$TMP/out" --logs-root "$TMP/logs" --run-id naabu001 --dry-run >/dev/null
 [[ -f "$TMP/out/testsite_naabu001/planned_commands.txt" ]]
-grep -qE 'sas-run-naabu-pipeline\.sh|naabu.*-ec' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'survey runner missing naabu pipeline plan'; exit 1; }
+grep -q '\-ec' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'survey runner missing -ec'; exit 1; }
 grep -q 'sas-parse-naabu-evidence.sh' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'survey runner missing parse step'; exit 1; }
 
-grep -q '80,443,135,445,3389,5985,5986' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'orchestrator missing full keyports'; exit 1; }
+grep -q '\-tp 1000' "$TMP/out/testsite_naabu001/planned_commands.txt" || { echo 'orchestrator missing packet profile top ports'; exit 1; }
 
 # parse-naabu-only dry-run plans parse against latest artifact
 cp "$FIX/naabu.sample.jsonl" "$TMP/logs/testsite_latest_windows_ports_naabu.json"

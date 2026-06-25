@@ -99,6 +99,16 @@ naabu -list logs/targets/<site>_confirm_hosts.txt -json -silent -ec -o logs/nmap
 naabu -list logs/targets/<site>_confirm_hosts.txt -silent -ec | cybernet-detect --stdin --jsonl > logs/nmap/<site>_<runid>_cybernet_detect.jsonl
 ```
 
+When `httpx` is available on the local box, keep it behind the SysAdminSuite
+followup wrapper so banners, logs, and enrichment output stay local and
+machine-readable:
+
+```bash
+naabu -list logs/targets/<site>_confirm_hosts.txt -silent -ec \
+  | bash survey/sas-cybernet-packet-followup.sh --site <site> --stdin --use-httpx --cybernet-detect \
+  > logs/nmap/<site>_<runid>_enrichment.jsonl
+```
+
 ### Key ports
 
 ```bash

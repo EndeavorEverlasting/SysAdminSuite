@@ -1,0 +1,25 @@
+---
+alwaysApply: true
+---
+
+# Naabu Doctrine
+
+For SysAdminSuite Cybernet/Neuron survey work, preserve the low-noise Naabu doctrine:
+
+- AD-derived target lists define population; Naabu/Nmap only validate reachability.
+- Prefer `survey/sas-run-naabu-pipeline.sh` or `survey/sas-run-packet-probe.sh`.
+- Do not add raw `naabu -list` or `naabu -host` commands unless reachability commands include
+  `-silent` and `-ec`.
+- Parser-facing evidence should use JSON or JSONL; raw txt is only for clean local pipe handoff.
+- UDP, all-port, public-target, and host-discovery paths require explicit gate flags.
+- `-sa` is only for intentionally scanning all resolved IPs for load-balanced hostnames.
+- Evidence stays local in gitignored paths (`logs/nmap/`, `survey/output/`, `survey/artifacts/`).
+- Use "low-noise survey discipline"; do not frame this as stealth, evasion, or log bypass.
+- `feature/naabu-docs-consolidation` is superseded by `main`; do not revive it by default.
+
+Canonical references:
+
+- `AGENTS.md`
+- `survey/naabu_profiles.json`
+- `docs/LOW_NOISE_SURVEY_DOCTRINE.md`
+- `docs/NAABU_CYBERNET_PROFILES.md`
