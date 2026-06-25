@@ -251,6 +251,8 @@ bash survey/sas-cybernet-subnet-location-map.sh \
 
 Run this **before** any approved subnet survey or Naabu/Nmap handoff so operators know which subnets need human review (for example mixed WNH/WMH in one `/24`). Full runbook: [`CYBERNET_SUBNET_LOCATION_INFERENCE.md`](CYBERNET_SUBNET_LOCATION_INFERENCE.md).
 
+The subnet/location mapper keeps serial-first posture visible in its host evidence output. Tracker-only or hostname/IP-only evidence emits `FallbackUsed=Yes`; rows become `SurveyAuthority=serial` only when approved identity evidence supplies serial proof.
+
 ## Hostname recall errors
 
 When a manifest `HostName` may carry a human recollection or typing error (wrong site prefix,

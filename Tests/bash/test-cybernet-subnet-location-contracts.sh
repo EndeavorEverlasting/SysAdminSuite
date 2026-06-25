@@ -89,6 +89,24 @@ run_map() {
   bash "$RUNNER" "${args[@]}" >/dev/null
 }
 
+run_map_capture() {
+  local out_prefix="$1"
+  local prefix_config="$2"
+  local stdout_file="$3"
+  shift 3
+  local -a args=(
+    --prefix-config "$prefix_config"
+    --prefix-len 24
+    --output-prefix "$out_prefix"
+    --format csv,json
+  )
+  while [[ $# -gt 0 ]]; do
+    args+=("$1")
+    shift
+  done
+  bash "$RUNNER" "${args[@]}" >"$stdout_file"
+}
+
 map_csv_for() {
   local prefix="$1"
   if [[ -f "${prefix}_map.csv" ]]; then
@@ -335,4 +353,180 @@ else
   pass "case 10: fixtures use WTS*/WNH*/WMH* hostnames and 10.10.x.x only"
 fi
 
-printf 'Cybernet subnet location inference contracts passed (10 synthetic cases).\n'
+# --- 11-13) invalid identity IP falls back to valid preflight IP ---
+CASE11_ID="$TMP_DIR/case11_identity.csv"
+cat >"$CASE11_ID" <<'CSV'
+HostName,IPv4Address
+WTS011OPR001,#N/A
+CSV
+CASE11_PREFLIGHT="$TMP_DIR/case11_preflight.csv"
+cat >"$CASE11_PREFLIGHT" <<'CSV'
+Target,ResolvedIP,PingStatus
+WTS011OPR001,10.10.70.11,Reachable
+CSV
+assert_synthetic_fixtures "$CASE11_ID" "$CASE11_PREFLIGHT"
+CASE11_OUT="$TMP_DIR/case11/cybernet_subnet_location"
+CASE11_STDOUT="$TMP_DIR/case11_stdout.txt"
+mkdir -p "$(dirname "$CASE11_OUT")"
+run_map_capture "$CASE11_OUT" "$PREFIX_CFG" "$CASE11_STDOUT" --identity-csv "$CASE11_ID" --preflight-csv "$CASE11_PREFLIGHT"
+CASE11_MAP="$(map_csv_for "$CASE11_OUT")"
+CASE11_HOSTS="$(hosts_csv_for "$CASE11_OUT")"
+"${PYTHON_CMD[@]}" - "$CASE11_HOSTS" "$CASE11_MAP" <<'PY'
+import csv, sys
+hosts = list(csv.DictReader(open(sys.argv[1], newline="", encoding="utf-8")))
+maps = list(csv.DictReader(open(sys.argv[2], newline="", encoding="utf-8")))
+row = next(r for r in hosts if r["NormalizedHostName"] == "WTS011OPR001")
+if row["IPAddress"] != "10.10.70.11" or row.get("IPSource") != "preflight":
+    raise SystemExit(f"expected preflight IP fallback, got {row}")
+if row["Status"] == "ip_invalid":
+    raise SystemExit("valid preflight fallback must not emit ip_invalid")
+if not any(r["Subnet"] == "10.10.70.0/24" for r in maps):
+    raise SystemExit("expected subnet 10.10.70.0/24 from preflight fallback")
+PY
+pass "case 11-13: invalid identity IP falls back to valid preflight IP without ip_invalid"
+
+# --- 12) ResolvedAddress from preflight becomes subnet evidence ---
+CASE12_PREFLIGHT="$TMP_DIR/case12_preflight.csv"
+cat >"$CASE12_PREFLIGHT" <<'CSV'
+Target,ResolvedAddress,PingStatus
+WTS012OPR001,10.10.71.11,Reachable
+CSV
+assert_synthetic_fixtures "$CASE12_PREFLIGHT"
+CASE12_OUT="$TMP_DIR/case12/cybernet_subnet_location"
+mkdir -p "$(dirname "$CASE12_OUT")"
+run_map_capture "$CASE12_OUT" "$PREFIX_CFG" "$TMP_DIR/case12_stdout.txt" --preflight-csv "$CASE12_PREFLIGHT"
+CASE12_MAP="$(map_csv_for "$CASE12_OUT")"
+"${PYTHON_CMD[@]}" - "$CASE12_MAP" <<'PY'
+import csv, sys
+rows = list(csv.DictReader(open(sys.argv[1], newline="", encoding="utf-8")))
+if not any(r["Subnet"] == "10.10.71.0/24" for r in rows):
+    raise SystemExit("expected ResolvedAddress to produce 10.10.71.0/24")
+PY
+pass "case 12: ResolvedAddress becomes subnet evidence"
+
+# --- 14) all invalid IPs produce ip_invalid ---
+CASE14_ID="$TMP_DIR/case14_identity.csv"
+cat >"$CASE14_ID" <<'CSV'
+HostName,IPv4Address
+WTS014OPR001,not_an_ip
+CSV
+CASE14_PREFLIGHT="$TMP_DIR/case14_preflight.csv"
+cat >"$CASE14_PREFLIGHT" <<'CSV'
+Target,ResolvedIP,PingStatus
+WTS014OPR001,bad_ip,Reachable
+CSV
+assert_synthetic_fixtures "$CASE14_ID" "$CASE14_PREFLIGHT"
+CASE14_OUT="$TMP_DIR/case14/cybernet_subnet_location"
+mkdir -p "$(dirname "$CASE14_OUT")"
+run_map_capture "$CASE14_OUT" "$PREFIX_CFG" "$TMP_DIR/case14_stdout.txt" --identity-csv "$CASE14_ID" --preflight-csv "$CASE14_PREFLIGHT"
+CASE14_HOSTS="$(hosts_csv_for "$CASE14_OUT")"
+"${PYTHON_CMD[@]}" - "$CASE14_HOSTS" <<'PY'
+import csv, sys
+rows = list(csv.DictReader(open(sys.argv[1], newline="", encoding="utf-8")))
+row = next(r for r in rows if r["NormalizedHostName"] == "WTS014OPR001")
+if row["Status"] != "ip_invalid":
+    raise SystemExit(f"expected ip_invalid, got {row['Status']}")
+PY
+pass "case 14: all invalid IPs produce ip_invalid"
+
+# --- 15) aggregate LocationCodes contains no blank tokens ---
+CASE15_ID="$TMP_DIR/case15_identity.csv"
+cat >"$CASE15_ID" <<'CSV'
+HostName,IPv4Address
+12345,10.10.72.11
+CSV
+assert_synthetic_fixtures "$CASE15_ID"
+CASE15_OUT="$TMP_DIR/case15/cybernet_subnet_location"
+mkdir -p "$(dirname "$CASE15_OUT")"
+run_map_capture "$CASE15_OUT" "$PREFIX_CFG" "$TMP_DIR/case15_stdout.txt" --identity-csv "$CASE15_ID"
+CASE15_MAP="$(map_csv_for "$CASE15_OUT")"
+"${PYTHON_CMD[@]}" - "$CASE15_MAP" <<'PY'
+import csv, sys
+for row in csv.DictReader(open(sys.argv[1], newline="", encoding="utf-8")):
+    value = row.get("LocationCodes", "")
+    if value.startswith(";") or value.endswith(";") or ";;" in value:
+        raise SystemExit(f"blank LocationCodes token leaked: {value!r}")
+PY
+pass "case 15: aggregate LocationCodes has no blank tokens"
+
+# --- 16-17) wrapper help matches supported inputs and format ---
+HELP_TEXT="$(bash "$RUNNER" --help)"
+[[ "$HELP_TEXT" == *"csv,json"* ]] || fail "help must document --format csv,json"
+[[ "$HELP_TEXT" != *"required unless --identity-glob"* ]] || fail "help must not claim identity input is mandatory"
+[[ "$HELP_TEXT" == *"--preflight-csv"* && "$HELP_TEXT" == *"--tracker-csv"* ]] || fail "help must show non-identity evidence inputs"
+pass "case 16-17: wrapper help documents csv,json and non-mandatory identity inputs"
+
+# --- 18-20) hostname fallback emits visible fallback fields and no serial confirmation ---
+CASE18_ID="$TMP_DIR/case18_identity.csv"
+write_identity_csv "$CASE18_ID" WTS018OPR001 10.10.73.11
+assert_synthetic_fixtures "$CASE18_ID"
+CASE18_OUT="$TMP_DIR/case18/cybernet_subnet_location"
+mkdir -p "$(dirname "$CASE18_OUT")"
+run_map_capture "$CASE18_OUT" "$PREFIX_CFG" "$TMP_DIR/case18_stdout.txt" --identity-csv "$CASE18_ID"
+CASE18_HOSTS="$(hosts_csv_for "$CASE18_OUT")"
+"${PYTHON_CMD[@]}" - "$CASE18_HOSTS" <<'PY'
+import csv, sys
+row = next(r for r in csv.DictReader(open(sys.argv[1], newline="", encoding="utf-8")) if r["NormalizedHostName"] == "WTS018OPR001")
+if row.get("FallbackUsed") != "Yes":
+    raise SystemExit(f"expected FallbackUsed=Yes, got {row.get('FallbackUsed')!r}")
+if not row.get("FallbackReason"):
+    raise SystemExit("expected non-empty FallbackReason")
+if row.get("SerialEvidenceStatus") == "serial_confirmed":
+    raise SystemExit("hostname fallback must not emit serial_confirmed")
+PY
+pass "case 18-20: hostname fallback is visible and not serial-confirmed"
+
+# --- 21-22) serial-authority row and console fallback summary ---
+CASE21_ID="$TMP_DIR/case21_identity.csv"
+cat >"$CASE21_ID" <<'CSV'
+HostName,IPv4Address,SerialNumber,IdentityStatus
+WTS021OPR001,10.10.74.11,MEDTEST24-0001,IdentityCollected
+CSV
+assert_synthetic_fixtures "$CASE21_ID"
+CASE21_OUT="$TMP_DIR/case21/cybernet_subnet_location"
+CASE21_STDOUT="$TMP_DIR/case21_stdout.txt"
+mkdir -p "$(dirname "$CASE21_OUT")"
+run_map_capture "$CASE21_OUT" "$PREFIX_CFG" "$CASE21_STDOUT" --identity-csv "$CASE21_ID"
+CASE21_HOSTS="$(hosts_csv_for "$CASE21_OUT")"
+"${PYTHON_CMD[@]}" - "$CASE21_HOSTS" "$CASE21_STDOUT" <<'PY'
+import csv, sys
+row = next(r for r in csv.DictReader(open(sys.argv[1], newline="", encoding="utf-8")) if r["NormalizedHostName"] == "WTS021OPR001")
+if row.get("SurveyAuthority") != "serial" or row.get("FallbackUsed") != "No":
+    raise SystemExit(f"expected serial authority with no fallback, got {row}")
+if row.get("SerialEvidenceStatus") != "serial_confirmed":
+    raise SystemExit(f"expected serial_confirmed, got {row.get('SerialEvidenceStatus')!r}")
+stdout = open(sys.argv[2], encoding="utf-8").read()
+if "serial-first:" not in stdout:
+    raise SystemExit("expected console serial-first summary")
+PY
+pass "case 21-22: serial authority and console fallback summary"
+
+# --- 23) AllowMixedWith produces visible allowed-mixed status ---
+CASE23_CFG="$TMP_DIR/case23_prefixes.csv"
+cat >"$CASE23_CFG" <<'CSV'
+LocationCode,LocationLabel,Region,SiteAffinity,AllowMixedWith,Notes
+WNH,WNH Example Site,Synthetic Region B,WNH,WMH,Synthetic allowed mixed pair only
+WMH,WMH Example Site,Synthetic Region C,WMH,WNH,Synthetic allowed mixed pair only
+CSV
+CASE23_ID="$TMP_DIR/case23_identity.csv"
+write_identity_csv "$CASE23_ID" \
+  WNH023OPR001 10.10.75.11 \
+  WMH023OPR001 10.10.75.12
+assert_synthetic_fixtures "$CASE23_CFG" "$CASE23_ID"
+CASE23_OUT="$TMP_DIR/case23/cybernet_subnet_location"
+mkdir -p "$(dirname "$CASE23_OUT")"
+run_map_capture "$CASE23_OUT" "$CASE23_CFG" "$TMP_DIR/case23_stdout.txt" --identity-csv "$CASE23_ID"
+CASE23_MAP="$(map_csv_for "$CASE23_OUT")"
+"${PYTHON_CMD[@]}" - "$CASE23_MAP" <<'PY'
+import csv, sys
+row = next(r for r in csv.DictReader(open(sys.argv[1], newline="", encoding="utf-8")) if r["Subnet"] == "10.10.75.0/24")
+if row.get("Status") != "subnet_location_allowed_mixed":
+    raise SystemExit(f"expected subnet_location_allowed_mixed, got {row.get('Status')!r}")
+if row.get("Confidence") != "medium":
+    raise SystemExit(f"expected medium confidence, got {row.get('Confidence')!r}")
+if "Allowed mixed prefix pairing" not in row.get("ReviewReason", ""):
+    raise SystemExit("expected explicit allowed mixed ReviewReason")
+PY
+pass "case 23: AllowMixedWith emits subnet_location_allowed_mixed"
+
+printf 'Cybernet subnet location inference contracts passed (23 synthetic cases).\n'

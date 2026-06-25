@@ -10,6 +10,44 @@ Read-only, offline enrichment that maps approved hostname and IP evidence to lik
 
 Treat inferred subnets as confidence evidence for reconciliation and handoff. Approved scan scope still requires explicit operator authorization, approved subnet lists, and the low-noise survey doctrine — not inference output alone.
 
+## Serial-First Fallback Audit
+
+If the tool falls back from serial to hostname, IP, or subnet evidence, the output says so. This is how operators separate “we surveyed the device” from “we found a route-shaped clue.”
+
+This mapper does **not** run WMI, privileged identity transport, live AD queries, ping sweeps, Naabu, or Nmap. It consumes serial and identity-proof columns when they are already present in approved CSV evidence.
+
+Serial handling is conservative:
+
+1. A usable serial plus identity-proof status (`IdentityCollected`, `WmiIdentityCollected`, `serial_confirmed`, `match`, `confirm`, or similar) emits `SurveyAuthority=serial`, `FallbackUsed=No`, and `SerialEvidenceStatus=serial_confirmed`.
+2. A serial without identity proof remains `serial_candidate`; hostname/IP output still uses fallback fields and `Blocker=needs_privileged_identity`.
+3. Rows without usable serials emit `FallbackUsed=Yes` and `SerialEvidenceStatus=not_serial_proof`.
+4. Hostname/IP/subnet inference can guide review scope, but it never becomes serial confirmation.
+
+Fallback output fields in `{prefix}_hosts.csv`:
+
+| Field | Purpose |
+|-------|---------|
+| `SurveyAuthority` | `serial`, `hostname_fallback`, `subnet_inference_only`, or `blocked` |
+| `PrimaryKey` / `PrimaryKeyType` | Best available key: serial first, then hostname, then IP |
+| `FallbackUsed` | `Yes` when the row is not serial-confirmed authority |
+| `FallbackType` | Machine-readable fallback class such as `serial_missing`, `serial_unresolved`, `hostname_only_evidence`, or `ip_only_evidence` |
+| `FallbackReason` | Why fallback happened, for example `serial_missing_hostname_ip_used` |
+| `SerialEvidenceStatus` | `serial_confirmed`, `serial_candidate`, `serial_missing`, or `not_serial_proof` |
+| `HostnameEvidenceStatus` | `hostname_validated`, `hostname_candidate`, `hostname_missing`, or `hostname_unresolved` |
+| `Blocker` | Blocking condition such as `missing_serial`, `missing_dns_ip`, `invalid_ip`, `unknown_prefix`, `mixed_subnet_prefixes`, or `needs_privileged_identity` |
+| `NextAction` | Operator-facing next step |
+
+Common blocker actions:
+
+| Blocker | Typical next action |
+|---------|---------------------|
+| `missing_serial` | Collect approved privileged identity evidence when serial proof is needed |
+| `needs_privileged_identity` | Run approved identity transport; do not treat hostname/IP evidence as serial proof |
+| `missing_dns_ip` | Supply DNS resolution or preflight CSV evidence |
+| `invalid_ip` | Fix placeholder or malformed IP evidence in the source CSV |
+| `unknown_prefix` | Review hostname source or local prefix config |
+| `mixed_subnet_prefixes` | Review site context and prefix pairing before survey handoff |
+
 ## Purpose
 
 Field and inventory teams often hold hostname and IP evidence from AD exports, DNS resolution, preflight checks, and tracker manifests — but not a single subnet-to-site map. This tool ingests those **approved, local** CSV inputs and produces:
@@ -38,15 +76,15 @@ The engine merges flexible CSV inputs. Column names are tolerant (case-insensiti
 
 Authorized AD or identity exports with hostname and IP fields. See [`AD_CYBERNET_EXPORT_CONTRACT.md`](AD_CYBERNET_EXPORT_CONTRACT.md).
 
-Accepted columns include: `HostName`, `DNSHostName`, `Name`, `IPv4Address`, `IPAddress`, `Serial`, `MACAddress`.
+Accepted columns include: `HostName`, `DNSHostName`, `Name`, `IPv4Address`, `IPAddress`, `Serial`, `SerialNumber`, `ObservedSerial`, `IdentityStatus`, `EvidenceStatus`, `SerialProbeStatus`, and `MACAddress`.
 
-**Precedence:** when the same hostname appears in identity and preflight sources, identity/AD export wins for IP selection.
+**Precedence:** when the same hostname appears in identity and preflight sources, a valid identity/AD export IP wins. If identity has a placeholder or malformed IP and preflight has a valid IP, the valid preflight IP is used and the fallback is visible in the host row.
 
 ### 2. Preflight CSV
 
 Output from [`bash/transport/sas-network-preflight.sh`](../bash/transport/sas-network-preflight.sh) or equivalent read-only reachability checks.
 
-Accepted columns include: `Target`, `HostName`, `ResolvedIP`, `IPAddress`, `PingStatus`, `PortStatus`.
+Accepted columns include: `Target`, `HostName`, `ResolvedIP`, `ResolvedAddress`, `IPAddress`, `Address`, `PingStatus`, `PortStatus`, and `EvidenceStatus`.
 
 Preflight is supplementary evidence. It does not prove serial identity.
 
@@ -54,7 +92,7 @@ Preflight is supplementary evidence. It does not prove serial identity.
 
 Manifest or tracker-derived rows from ingestion or diff lanes.
 
-Accepted columns include: `HostName`, `ExpectedHostname`, `CandidateHostname`, `Identifier`, `Site`, `Practice`, `Source`, `Serial`.
+Accepted columns include: `HostName`, `ExpectedHostname`, `CandidateHostname`, `Identifier`, `IdentifierType`, `Site`, `Practice`, `Source`, `Serial`, `ExpectedSerial`, and `ObservedSerial`.
 
 Tracker hostname fields carry **expected** naming, not proof of current network placement.
 
@@ -72,10 +110,11 @@ Per hostname:
 
 1. Normalize FQDN → short host (strip domain suffix, uppercase, bounded token cleanup).
 2. Parse location prefix from hostname via bounded `PREFIX_RE` and the prefix config.
-3. Resolve IP from the first valid field across sources; prefer identity/AD over preflight when both exist.
+3. Resolve IP from the first valid field across sources; check identity/AD, then preflight, then tracker. Invalid placeholders are skipped so lower-precedence valid IPs can still map a subnet.
 4. Derive mechanical subnet with `ipaddress` and `--prefix-len` (default `24`).
 5. Never invent IP or subnet for hosts without address evidence.
 6. Deduplicate by `NormalizedHostName`; join provenance into `EvidenceSources` (semicolon-separated).
+7. Emit fallback audit fields for every host row so serial, hostname, IP, and subnet authority are never confused.
 
 ## Confidence scoring
 
@@ -97,7 +136,7 @@ Scoring is transparent and explainable. Points are capped into tiers.
 | Tier | Typical status | Meaning |
 |------|----------------|---------|
 | High | `subnet_location_strong` | Multiple consistent hosts; strong prefix + subnet cohesion |
-| Medium | `subnet_location_candidate` | Plausible mapping; operator should confirm |
+| Medium | `subnet_location_candidate`, `subnet_location_allowed_mixed` | Plausible mapping; operator should confirm |
 | Low | `subnet_location_candidate` (`Confidence=low`) | Weak support; do not treat as site truth |
 | Review | `subnet_location_mixed`, `needs_manual_review`, `needs_network_team_confirmation` | Conflicts or policy holds |
 
@@ -107,6 +146,7 @@ Scoring is transparent and explainable. Points are capped into tiers.
 |--------|---------|
 | `subnet_location_strong` | High-confidence subnet → location association |
 | `subnet_location_candidate` | Medium/low candidate; confirm before scope decisions |
+| `subnet_location_allowed_mixed` | Configured mixed-prefix pairing, visible as medium confidence with review notes |
 | `subnet_location_mixed` | Conflicting location codes share a subnet (see mixed-subnet handling) |
 | `location_spans_multiple_subnets` | One location code appears across multiple subnets |
 | `hostname_unresolved` | Hostname could not be normalized or matched |
@@ -120,13 +160,14 @@ Scoring is transparent and explainable. Points are capped into tiers.
 
 When **WNH** and **WMH** (or other configured location codes) appear in the **same** mechanical subnet:
 
-- Classify as `subnet_location_mixed` and cap confidence at **review**.
+- If `AllowMixedWith` explicitly allows the pair in the local prefix config, classify as `subnet_location_allowed_mixed`, set `Confidence=medium`, and include a `ReviewReason` naming the allowed pairing.
+- Without an allowed pairing, classify as `subnet_location_mixed` and cap confidence at **review**.
 - Do **not** auto-resolve to a single site or facility.
 - Do **not** treat mixed evidence as serial proof or variant auto-resolution.
 
 This is enrichment for human review, aligned with [`CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md`](CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md). Prefix substitution doctrine and subnet mixing are separate concerns; both require operator judgment.
 
-Unless `AllowMixedWith` in a **local, operator-owned** prefix config explicitly documents an approved pairing, default posture is review-required.
+`AllowMixedWith` is not silent approval. It exists so configured mixed-prefix evidence remains visible and distinguishable from unapproved conflicts.
 
 When one location code spans multiple `/24` subnets, emit `location_spans_multiple_subnets` so technicians do not assume a single VLAN.
 
@@ -161,14 +202,14 @@ bash survey/sas-cybernet-subnet-location-map.sh \
 
 | Flag | Purpose |
 |------|---------|
-| `--identity-csv PATH` | Identity/AD export CSV (repeatable; fails fast if missing) |
+| `--identity-csv PATH` | Identity/AD export CSV (repeatable; optional if other evidence inputs are supplied) |
 | `--identity-glob PATTERN` | Glob for multiple identity CSVs (Git Bash; prefer explicit paths in automation) |
 | `--preflight-csv PATH` | Preflight reachability CSV |
 | `--tracker-csv PATH` | Tracker/manifest/diff CSV |
 | `--prefix-config PATH` | Local prefix mapping CSV (start from example schema) |
 | `--prefix-len N` | Mechanical subnet prefix length (default `24`) |
 | `--output-prefix PATH` | Base path for generated artifacts (default under `survey/output/`) |
-| `--format csv,json` | Output formats |
+| `--format csv,json` | Output formats: `csv`, `json`, `csv,json`, or `all` |
 | `--html` | Emit offline HTML report under `survey/output/cybernet_subnet_location_report/` |
 
 Identity-only example after DNS resolution:
@@ -187,7 +228,7 @@ All paths stay local under `survey/output/` (or your `--output-prefix`). **Do no
 | Output | Purpose |
 |--------|---------|
 | `{prefix}_map.csv` | Aggregated subnet → location rows with confidence and status |
-| `{prefix}_hosts.csv` | Per-host evidence, provenance, and parsed prefix |
+| `{prefix}_hosts.csv` | Per-host evidence, provenance, parsed prefix, and serial-first fallback audit fields |
 | `{prefix}_map.json` | Machine-readable map for dashboards or downstream merge |
 | `cybernet_subnet_location_report/index.html` | Optional offline review site (`--html`) |
 
@@ -203,14 +244,16 @@ git check-ignore -v survey/output/cybernet_subnet_location_map.json
 1. **Fix population** — ingest or diff manifests per [`CYBERNET_XLSX_TARGET_INGESTION.md`](CYBERNET_XLSX_TARGET_INGESTION.md).
 2. **Collect approved evidence** — normalized AD export, DNS resolution report, optional preflight (read-only).
 3. **Run subnet location inference** — local CSV in, local CSV/JSON/HTML out.
-4. **Review mixed and low-confidence rows** — especially WNH/WMH shared subnets and `location_spans_multiple_subnets`.
-5. **Confirm serial identity separately** — WMI or approved privileged transport when hostname/IP placement is insufficient.
-6. **Only then** — if policy allows, hand approved subnets and target IPs to the subnet survey runner or targeted Naabu/Nmap profiles.
+4. **Review fallback rows** — filter `FallbackUsed=Yes` before treating output as population truth.
+5. **Review mixed and low-confidence rows** — distinguish `subnet_location_allowed_mixed` from `subnet_location_mixed`, and check `location_spans_multiple_subnets`.
+6. **Confirm serial identity separately** — WMI or approved privileged transport when hostname/IP placement is insufficient.
+7. **Only then** — if policy allows, hand approved subnets and target IPs to the subnet survey runner or targeted Naabu/Nmap profiles.
 
 Console summary example:
 
 ```text
 [sas-cybernet-subnet-location-map] 8 subnets mapped | 5 strong | 2 review | 1 unresolved
+[sas-cybernet-subnet-location-map] serial-first: 184 serial-authority | 37 hostname fallback | 12 ip/subnet fallback | 9 blockers
 [sas-cybernet-subnet-location-map] Top mappings:
   10.41.22.0/24 -> WNH / LIJ-like | 37 hosts | high
   10.52.18.0/24 -> WMH / NSUH-like | 24 hosts | high
@@ -223,7 +266,7 @@ Console summary example:
 bash Tests/bash/test-cybernet-subnet-location-contracts.sh
 ```
 
-Synthetic fixtures only (`WTS*`, `WMH*`, `MEDTEST*`, `10.10.x.x`). No live identifiers.
+Synthetic fixtures only (`WTS*`, `WNH*`, `WMH*`, `MEDTEST*`, `10.10.x.x`). Cases cover subnet scoring, IP fallback, `ResolvedAddress`, serial-first fallback fields, and allowed mixed-prefix handling. No live identifiers.
 
 ## Related docs
 

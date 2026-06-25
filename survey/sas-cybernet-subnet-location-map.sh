@@ -5,19 +5,22 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Cybernet subnet/location inference from approved hostname and IP CSV evidence.
+Provide one or more evidence inputs such as --identity-csv, --identity-glob,
+--preflight-csv, or --tracker-csv. This is read-only inference only; no broad
+scanning is performed.
 
 Usage:
   ./survey/sas-cybernet-subnet-location-map.sh [options]
 
 Options:
-  --identity-csv PATH       Identity or AD export CSV (repeatable; required unless --identity-glob)
+  --identity-csv PATH       Identity or AD export CSV (repeatable)
   --identity-glob PATTERN   Glob for identity CSV files (Git Bash)
   --preflight-csv PATH      Preflight CSV (repeatable)
   --tracker-csv PATH        Tracker or diff CSV (repeatable)
   --prefix-config PATH      Hostname prefix to location mapping CSV
   --prefix-len N            IPv4 prefix length for subnet grouping (default: 24)
   --output-prefix PATH      Output prefix (default: survey/output/cybernet_subnet_location)
-  --format MODE             csv | json | all (default: all)
+  --format MODE             csv | json | csv,json | all (default: all)
   --html                    Write offline HTML report directory
   -h, --help                Show help
 USAGE

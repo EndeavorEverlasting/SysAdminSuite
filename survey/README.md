@@ -67,7 +67,7 @@ bash survey/sas-cybernet-subnet-location-map.sh \
   --html
 ```
 
-Subnet/location inference narrows review scope; it does not authorize broader scanning by itself. Runbook: [`docs/CYBERNET_SUBNET_LOCATION_INFERENCE.md`](../docs/CYBERNET_SUBNET_LOCATION_INFERENCE.md).
+Subnet/location inference narrows review scope; it does not authorize broader scanning by itself. The host evidence output includes serial-first fallback fields so hostname/IP/subnet clues never silently count as serial proof. Runbook: [`docs/CYBERNET_SUBNET_LOCATION_INFERENCE.md`](../docs/CYBERNET_SUBNET_LOCATION_INFERENCE.md).
 
 Contract test:
 

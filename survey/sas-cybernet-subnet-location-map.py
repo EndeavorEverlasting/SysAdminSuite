@@ -30,6 +30,17 @@ HOST_FIELDS = [
     "Confidence",
     "Score",
     "ReviewReason",
+    "IPSource",
+    "SurveyAuthority",
+    "PrimaryKey",
+    "PrimaryKeyType",
+    "FallbackUsed",
+    "FallbackType",
+    "FallbackReason",
+    "SerialEvidenceStatus",
+    "HostnameEvidenceStatus",
+    "Blocker",
+    "NextAction",
     "EvidenceSources",
     "Site",
     "SourceFiles",
@@ -49,6 +60,37 @@ MAP_FIELDS = [
 ]
 
 FACILITY_PAIR_REVIEW = frozenset({"WNH", "WMH"})
+SERIAL_ALIASES = [
+    "ObservedSerial",
+    "Serial",
+    "SerialNumber",
+    "SystemSerialNumber",
+    "BiosSerial",
+    "ResolvedSerial",
+    "ExpectedSerial",
+    "ExpectedCybernetSerial",
+    "Cybernet Serial",
+    "Cybernet S/N",
+]
+PROOF_STATUS_ALIASES = [
+    "IdentityStatus",
+    "EvidenceStatus",
+    "SerialProbeStatus",
+    "ProbeStatus",
+    "WmiStatus",
+    "serial_probe_status",
+]
+SERIAL_PROOF_TOKENS = (
+    "identitycollected",
+    "wmiidentitycollected",
+    "serial_confirmed",
+    "live_serial_confirmed",
+    "identity_resolved",
+    "identitycollected",
+    "confirmed",
+    "match",
+    "found",
+)
 
 
 def clean(value: object) -> str:
@@ -66,6 +108,27 @@ def first(row: dict[str, str], names: Iterable[str]) -> str:
         if key in lowered and lowered[key]:
             return lowered[key]
     return ""
+
+
+def is_empty_value(value: str) -> bool:
+    return clean(value).upper() in EMPTY
+
+
+def is_serial_identifier(row: dict[str, str]) -> bool:
+    ident_type = first(row, ["IdentifierType", "Type", "KeyType"]).lower()
+    return "serial" in ident_type or ident_type in {"sn", "s/n", "service_tag", "servicetag"}
+
+
+def usable_serial(value: str) -> str:
+    text = clean(value).upper()
+    if not text or text in EMPTY:
+        return ""
+    return text
+
+
+def status_has_serial_proof(value: str) -> bool:
+    text = re.sub(r"[^a-z0-9_]+", "", clean(value).lower())
+    return any(token in text for token in SERIAL_PROOF_TOKENS)
 
 
 def normalize_host(value: str) -> str:
@@ -229,7 +292,10 @@ def score_subnet_location(
         score -= 30
         signals.append("only_one_host:-30")
 
-    if len(location_codes) > 1:
+    allowed_mixed_pairing = len(facilities & FACILITY_PAIR_REVIEW) >= 2 and mixed_pairing_allowed(
+        facilities, prefix_config
+    )
+    if len(location_codes) > 1 and not allowed_mixed_pairing:
         score -= 40
         signals.append("conflicting_location_codes:-40")
 
@@ -246,7 +312,15 @@ def score_subnet_location(
         status = "prefix_unknown"
         confidence = "low"
         review_reason = "Hostname facility prefix not present in prefix config"
-    elif len(facilities & FACILITY_PAIR_REVIEW) >= 2 and not mixed_pairing_allowed(facilities, prefix_config):
+    elif allowed_mixed_pairing:
+        status = "subnet_location_allowed_mixed"
+        confidence = "medium"
+        review_reason = (
+            "Allowed mixed prefix pairing WNH<->WMH from prefix config; verify with "
+            "network/site context before expanding survey scope."
+        )
+        signals.append("allowed_mixed_pairing:review")
+    elif len(facilities & FACILITY_PAIR_REVIEW) >= 2:
         status = "subnet_location_mixed"
         confidence = "low"
         review_reason = "WNH and WMH share subnet; pairing requires explicit config allowance"
@@ -281,12 +355,17 @@ class HostRecord:
         self.hostname = normalized
         self.ip = ""
         self.ip_status = "missing"
+        self.ip_source = ""
         self.site = ""
         self.sources: set[str] = set()
         self.source_files: set[str] = set()
         self.identity_ip = ""
         self.preflight_ip = ""
         self.tracker_ip = ""
+        self.identity_serial = ""
+        self.preflight_serial = ""
+        self.tracker_serial = ""
+        self.proof_statuses: set[str] = set()
 
     def add_source(self, source: str, path: Path, row: dict[str, str]) -> None:
         host = normalize_host(
@@ -311,7 +390,7 @@ class HostRecord:
         site = first(row, ["Site", "SiteCode", "Practice", "Location"])
         if site:
             self.site = site
-        ip = first(row, ["IPv4Address", "IPAddress", "IP", "ResolvedIP", "Address"])
+        ip = first(row, ["IPv4Address", "IPAddress", "IP", "ResolvedIP", "ResolvedAddress", "Address"])
         if ip:
             if source == "identity":
                 self.identity_ip = ip
@@ -319,23 +398,53 @@ class HostRecord:
                 self.preflight_ip = ip
             elif source == "tracker":
                 self.tracker_ip = ip
+        serial = usable_serial(first(row, SERIAL_ALIASES))
+        if not serial and is_serial_identifier(row):
+            serial = usable_serial(first(row, ["Identifier", "Target", "AssetTag"]))
+        if serial:
+            if source == "identity":
+                self.identity_serial = serial
+            elif source == "preflight":
+                self.preflight_serial = serial
+            elif source == "tracker":
+                self.tracker_serial = serial
+        proof_status = first(row, PROOF_STATUS_ALIASES)
+        if proof_status:
+            self.proof_statuses.add(proof_status)
         self.sources.add(source)
         self.source_files.add(str(path))
 
     def finalize_ip(self) -> None:
-        for candidate in (self.identity_ip, self.preflight_ip, self.tracker_ip):
-            if not candidate:
+        invalid_seen = False
+        invalid_candidate = ""
+        for source, candidate in (
+            ("identity", self.identity_ip),
+            ("preflight", self.preflight_ip),
+            ("tracker", self.tracker_ip),
+        ):
+            if not candidate or is_empty_value(candidate):
                 continue
             if usable_ipv4(candidate):
                 self.ip = candidate
                 self.ip_status = "ok"
+                self.ip_source = source
                 return
             if clean(candidate):
-                self.ip = candidate
-                self.ip_status = "invalid"
-                return
-        self.ip = ""
-        self.ip_status = "missing"
+                invalid_seen = True
+                invalid_candidate = invalid_candidate or candidate
+        self.ip = invalid_candidate if invalid_seen else ""
+        self.ip_status = "invalid" if invalid_seen else "missing"
+        self.ip_source = ""
+
+    def serial_value(self) -> str:
+        for candidate in (self.identity_serial, self.preflight_serial, self.tracker_serial):
+            serial = usable_serial(candidate)
+            if serial:
+                return serial
+        return ""
+
+    def has_serial_proof(self) -> bool:
+        return any(status_has_serial_proof(status) for status in self.proof_statuses)
 
 
 def ingest_rows(
@@ -366,6 +475,106 @@ def ingest_rows(
             continue
         rec = hosts.setdefault(normalized, HostRecord(normalized))
         rec.add_source(source, path, row)
+
+
+def fallback_audit_fields(rec: HostRecord) -> dict[str, str]:
+    serial = rec.serial_value()
+    has_host = bool(normalize_host(rec.hostname))
+    has_valid_ip = rec.ip_status == "ok"
+    has_proof = rec.has_serial_proof()
+
+    hostname_status = "hostname_validated" if has_host and has_valid_ip else "hostname_candidate" if has_host else "hostname_missing"
+
+    if serial and has_proof:
+        return {
+            "SurveyAuthority": "serial",
+            "PrimaryKey": serial,
+            "PrimaryKeyType": "Serial",
+            "FallbackUsed": "No",
+            "FallbackType": "none",
+            "FallbackReason": "serial_confirmed_by_identity_status",
+            "SerialEvidenceStatus": "serial_confirmed",
+            "HostnameEvidenceStatus": hostname_status,
+            "Blocker": "none",
+            "NextAction": "Use serial authority",
+        }
+
+    if serial:
+        if has_host:
+            return {
+                "SurveyAuthority": "hostname_fallback",
+                "PrimaryKey": rec.hostname,
+                "PrimaryKeyType": "HostName",
+                "FallbackUsed": "Yes",
+                "FallbackType": "serial_unresolved",
+                "FallbackReason": "serial_present_without_identity_proof",
+                "SerialEvidenceStatus": "serial_candidate",
+                "HostnameEvidenceStatus": hostname_status,
+                "Blocker": "needs_privileged_identity",
+                "NextAction": "Collect approved privileged identity evidence",
+            }
+        if has_valid_ip:
+            return {
+                "SurveyAuthority": "subnet_inference_only",
+                "PrimaryKey": rec.ip,
+                "PrimaryKeyType": "IP",
+                "FallbackUsed": "Yes",
+                "FallbackType": "ip_only_evidence",
+                "FallbackReason": "serial_present_ip_used_without_identity_proof",
+                "SerialEvidenceStatus": "serial_candidate",
+                "HostnameEvidenceStatus": hostname_status,
+                "Blocker": "needs_privileged_identity",
+                "NextAction": "Collect approved privileged identity evidence",
+            }
+
+    if has_host:
+        blocker = "invalid_ip" if rec.ip_status == "invalid" else "missing_dns_ip" if rec.ip_status == "missing" else "missing_serial"
+        next_action = (
+            "Fix IP evidence"
+            if blocker == "invalid_ip"
+            else "Resolve hostname or provide approved IP evidence"
+            if blocker == "missing_dns_ip"
+            else "Collect approved privileged identity evidence"
+        )
+        return {
+            "SurveyAuthority": "hostname_fallback",
+            "PrimaryKey": rec.hostname,
+            "PrimaryKeyType": "HostName",
+            "FallbackUsed": "Yes",
+            "FallbackType": "hostname_only_evidence" if not has_valid_ip else "serial_missing",
+            "FallbackReason": "serial_missing_hostname_ip_used" if has_valid_ip else "hostname_resolved_no_serial_proof",
+            "SerialEvidenceStatus": "not_serial_proof",
+            "HostnameEvidenceStatus": hostname_status,
+            "Blocker": blocker,
+            "NextAction": next_action,
+        }
+
+    if has_valid_ip:
+        return {
+            "SurveyAuthority": "subnet_inference_only",
+            "PrimaryKey": rec.ip,
+            "PrimaryKeyType": "IP",
+            "FallbackUsed": "Yes",
+            "FallbackType": "ip_only_evidence",
+            "FallbackReason": "subnet_inferred_from_hostname_ip",
+            "SerialEvidenceStatus": "not_serial_proof",
+            "HostnameEvidenceStatus": "hostname_missing",
+            "Blocker": "missing_serial",
+            "NextAction": "Collect approved hostname and serial evidence",
+        }
+
+    return {
+        "SurveyAuthority": "blocked",
+        "PrimaryKey": "",
+        "PrimaryKeyType": "None",
+        "FallbackUsed": "Yes",
+        "FallbackType": "blocked_no_key",
+        "FallbackReason": "missing_hostname_and_ip",
+        "SerialEvidenceStatus": "serial_missing",
+        "HostnameEvidenceStatus": "hostname_missing",
+        "Blocker": "missing_dns_ip",
+        "NextAction": "Resolve hostname or provide approved IP evidence",
+    }
 
 
 def build_host_rows(
@@ -421,6 +630,20 @@ def build_host_rows(
                     confidence = "low"
                     review = f"Location code {location_code} appears across multiple subnets"
 
+        audit = fallback_audit_fields(rec)
+        if status == "subnet_location_mixed":
+            audit["Blocker"] = "mixed_subnet_prefixes"
+            audit["NextAction"] = "Review hostname prefix and site context"
+        elif status == "prefix_unknown":
+            audit["Blocker"] = "unknown_prefix"
+            audit["NextAction"] = "Review prefix config or hostname source"
+        elif status == "ip_invalid":
+            audit["Blocker"] = "invalid_ip"
+            audit["NextAction"] = "Fix IP evidence"
+        elif status == "ip_missing":
+            audit["Blocker"] = "missing_dns_ip"
+            audit["NextAction"] = "Resolve hostname or provide approved IP evidence"
+
         out.append(
             {
                 "NormalizedHostName": normalized,
@@ -434,6 +657,8 @@ def build_host_rows(
                 "Confidence": confidence,
                 "Score": str(score),
                 "ReviewReason": review,
+                "IPSource": rec.ip_source,
+                **audit,
                 "EvidenceSources": ";".join(sorted(rec.sources)),
                 "Site": rec.site,
                 "SourceFiles": ";".join(sorted(rec.source_files)),
@@ -493,7 +718,14 @@ def build_subnet_rows(
             review = review or "Mapped location appears across multiple subnets"
         subnet_scores[subnet] = (score, status, confidence, review, signals)
         facilities = sorted({str(h.get("facility_prefix") or "") for h in host_bucket if h.get("facility_prefix")})
-        codes = sorted({str(h.get("inference_location_key") or h.get("location_code") or "") for h in host_bucket})
+        codes = sorted(
+            {
+                code
+                for h in host_bucket
+                for code in [str(h.get("inference_location_key") or h.get("location_code") or "").strip()]
+                if code
+            }
+        )
         labels = []
         for facility in facilities:
             if facility in prefix_config:
@@ -626,15 +858,19 @@ input { width: min(360px, 100%); background: #020b07; color: var(--text); border
     const subnets = data.subnets || [];
     const hosts = data.hosts || [];
     const reviewStatuses = new Set([
-      'subnet_location_mixed', 'location_spans_multiple_subnets', 'hostname_unresolved',
-      'ip_missing', 'ip_invalid', 'prefix_unknown', 'needs_manual_review', 'needs_network_team_confirmation'
+      'subnet_location_mixed', 'subnet_location_allowed_mixed', 'location_spans_multiple_subnets',
+      'hostname_unresolved', 'ip_missing', 'ip_invalid', 'prefix_unknown', 'needs_manual_review',
+      'needs_network_team_confirmation'
     ]);
-    const reviewHosts = hosts.filter((row) => reviewStatuses.has(row.Status));
+    const reviewHosts = hosts.filter((row) => reviewStatuses.has(row.Status) || row.FallbackUsed === 'Yes');
     document.getElementById('tiles').innerHTML = [
       ['Subnets mapped', summary.subnet_count || 0],
       ['Strong mappings', summary.strong_count || 0],
       ['Review rows', summary.review_count || 0],
       ['Unresolved hosts', summary.unresolved_count || 0],
+      ['Serial authority', summary.serial_authority_count || 0],
+      ['Fallback rows', summary.fallback_used_count || 0],
+      ['Blockers', summary.blocker_count || 0],
     ].map(([label, value]) => `<div class="tile"><strong>${value}</strong><span>${label}</span></div>`).join('');
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -663,8 +899,8 @@ input { width: min(360px, 100%); background: #020b07; color: var(--text); border
       draw();
     }
     renderTable('subnet-table', subnets, ['Subnet', 'LocationCodes', 'HostCount', 'Status', 'Confidence', 'Score'], 'subnet-filter');
-    renderTable('host-table', hosts, ['NormalizedHostName', 'IPAddress', 'Subnet', 'LocationCode', 'Status', 'Confidence'], 'host-filter');
-    renderTable('review-table', reviewHosts, ['NormalizedHostName', 'Subnet', 'Status', 'ReviewReason'], 'review-filter');
+    renderTable('host-table', hosts, ['NormalizedHostName', 'IPAddress', 'Subnet', 'LocationCode', 'Status', 'Confidence', 'SurveyAuthority', 'FallbackUsed', 'SerialEvidenceStatus', 'Blocker'], 'host-filter');
+    renderTable('review-table', reviewHosts, ['NormalizedHostName', 'Subnet', 'Status', 'ReviewReason', 'FallbackReason', 'Blocker', 'NextAction'], 'review-filter');
   </script>
 </body>
 </html>
@@ -680,6 +916,7 @@ def print_summary(subnet_rows: list[dict[str, str]], host_rows: list[dict[str, s
         if row["Status"]
         in {
             "subnet_location_mixed",
+            "subnet_location_allowed_mixed",
             "location_spans_multiple_subnets",
             "needs_manual_review",
             "needs_network_team_confirmation",
@@ -693,6 +930,15 @@ def print_summary(subnet_rows: list[dict[str, str]], host_rows: list[dict[str, s
     print(
         f"[sas-cybernet-subnet-location-map] {len(subnet_rows)} subnets mapped | "
         f"{strong} strong | {review} review | {unresolved} unresolved"
+    )
+    serial_authority = sum(1 for row in host_rows if row.get("SurveyAuthority") == "serial")
+    hostname_fallback = sum(1 for row in host_rows if row.get("SurveyAuthority") == "hostname_fallback")
+    subnet_fallback = sum(1 for row in host_rows if row.get("SurveyAuthority") == "subnet_inference_only")
+    blockers = sum(1 for row in host_rows if row.get("Blocker") not in {"", "none"})
+    print(
+        "[sas-cybernet-subnet-location-map] serial-first: "
+        f"{serial_authority} serial-authority | {hostname_fallback} hostname fallback | "
+        f"{subnet_fallback} ip/subnet fallback | {blockers} blockers"
     )
     print("[sas-cybernet-subnet-location-map] Top mappings:")
     top = sorted(subnet_rows, key=lambda row: (-int(row.get("Score") or 0), row.get("Subnet", "")))[:5]
@@ -779,6 +1025,16 @@ def main() -> int:
         "unresolved_count": sum(
             1 for row in host_rows if row["Status"] in {"hostname_unresolved", "ip_missing", "ip_invalid"}
         ),
+        "serial_authority_count": sum(1 for row in host_rows if row.get("SurveyAuthority") == "serial"),
+        "hostname_fallback_count": sum(1 for row in host_rows if row.get("SurveyAuthority") == "hostname_fallback"),
+        "subnet_inference_only_count": sum(
+            1 for row in host_rows if row.get("SurveyAuthority") == "subnet_inference_only"
+        ),
+        "fallback_used_count": sum(1 for row in host_rows if row.get("FallbackUsed") == "Yes"),
+        "serial_not_proof_count": sum(
+            1 for row in host_rows if row.get("SerialEvidenceStatus") == "not_serial_proof"
+        ),
+        "blocker_count": sum(1 for row in host_rows if row.get("Blocker") not in {"", "none"}),
     }
     payload: dict[str, object] = {"summary": summary, "subnets": subnet_rows, "hosts": host_rows}
 
