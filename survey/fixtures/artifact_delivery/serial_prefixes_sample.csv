@@ -1,0 +1,4 @@
+PrefixName,SerialPrefix,DeviceType,Confidence,Notes
+Sample Cybernet,cyb,Cybernet,high,fake prefix
+Sample Cybernet Duplicate,CYB,Cybernet,medium,duplicate warning fixture
+Placeholder,REPLACE_WITH_PREFIX,Cybernet,low,placeholder production failure fixture

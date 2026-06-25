@@ -1,0 +1,3 @@
+CapturedAt,CaptureMethod,TechInitials,SiteCode,SiteName,Location,Room,Workstation,ComputerName,IPAddress,MACAddress,SerialNumber,Manufacturer,Model,AssociatedNeuron,Notes
+2026-06-18T09:00:00,Manual,RP,LAB,Sample Hospital,Sample OR,OR-01,Anesthesia 1,sample-cyb-001,192.0.2.10,aa:bb:cc:dd:ee:01, cyb fake 001 ,Cybernet,Sample Model,SAMPLE-NEURON-001,fake fixture
+not a date,Photo,,LAB,Sample Hospital,Sample PACU,PACU-02,PACU 2,sample-ws-002,192.0.2.11,aa-bb-cc-dd-ee-02,,Sample,Windows Endpoint,,missing serial warning fixture

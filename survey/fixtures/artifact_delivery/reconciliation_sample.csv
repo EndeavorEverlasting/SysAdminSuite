@@ -1,0 +1,6 @@
+SourceFile,SourceRow,SiteCode,SiteName,Location,Room,Workstation,Hostname,IPAddress,MACAddress,SerialNumber,DeviceType,SurveyStatus,Reachable,NeedsFieldCapture,Confidence,SerialPrefixConflict,MACConflict,Notes
+sample_manifest.csv,2,LAB,Sample Hospital,Sample OR,OR-01,Anesthesia 1,SAMPLE-CYB-001,192.0.2.10,AA:BB:CC:DD:EE:01,,Cybernet Workstation,seen,yes,yes,low,,,serial missing
+sample_manifest.csv,3,LAB,Sample Hospital,Sample OR,OR-02,Anesthesia 2,SAMPLE-CYB-002,192.0.2.12,AA:BB:CC:DD:EE:02,CYBFAKE002,Cybernet,surveyed unreachable,no,,medium,,,
+sample_manifest.csv,4,LAB,Sample Hospital,Sample OR,OR-03,Anesthesia 3,SAMPLE-CYB-003,192.0.2.13,AA:BB:CC:DD:EE:03,CYBFAKE003,Cybernet,conflict,yes,,conflict,yes,,needs manual review
+sample_manifest.csv,5,LAB,Sample Hospital,Sample OR,OR-04,Anesthesia 4,SAMPLE-CYB-004,192.0.2.14,AA:BB:CC:DD:EE:04,CYBFAKE004,Cybernet,seen,yes,,high,,yes,
+sample_manifest.csv,6,,Sample Hospital,Sample OR,,Anesthesia 5,,,AA:BB:CC:DD:EE:05,CYBFAKE004,Cybernet,seen,yes,,none,,,TODO cleanup
