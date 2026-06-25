@@ -79,7 +79,7 @@ IFS=',' read -r -a PORT_ARRAY <<< "$PORTS"
 
 win_ping_cmd(){
   local candidate
-  for candidate in /c/Windows/System32/ping.exe /mnt/c/Windows/System32/ping.exe "${WINDIR:-}/System32/ping.exe" ping.exe; do
+  for candidate in /c/Windows/System32/ping.exe "${WINDIR:-}/System32/ping.exe" ping.exe; do
     [[ -n "$candidate" && -x "$candidate" ]] && { printf '%s' "$candidate"; return; }
     if command -v "$candidate" >/dev/null 2>&1; then command -v "$candidate"; return; fi
   done
@@ -107,9 +107,9 @@ resolve_ip(){
     ip="$(nslookup "$t" 2>/dev/null | awk '/^Address: /{print $2}' | tail -n 1)"
     [[ -n "$ip" ]] && { printf '%s' "$ip"; return; }
   fi
-  if out="$(win_ping_output "$t" 2>/dev/null)"; then
-    printf '%s\n' "$out" | extract_ipv4
-    return
+  if [[ "$PING_MODE" != "linux" ]] && out="$(win_ping_output "$t" 2>/dev/null)"; then
+    ip="$(printf '%s\n' "$out" | extract_ipv4)"
+    [[ -n "$ip" ]] && { printf '%s' "$ip"; return; }
   fi
   printf ''
 }
@@ -120,8 +120,12 @@ linux_ping_status(){
 }
 
 windows_ping_status(){
-  local t="$1"
-  if win_ping_output "$t" >/dev/null 2>&1; then printf 'Reachable'; else printf 'NoPing'; fi
+  local t="$1" out
+  if out="$(win_ping_output "$t" 2>/dev/null)" && printf '%s\n' "$out" | grep -Eiq 'TTL='; then
+    printf 'Reachable'
+  else
+    printf 'NoPing'
+  fi
 }
 
 ping_status(){
