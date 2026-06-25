@@ -6,6 +6,24 @@
 
 ---
 
+## Start here
+
+For most users, do not start with command-line tools.
+
+Double-click:
+
+`START-HERE-SysAdminSuite-Dashboard.cmd`
+
+Shortcut-friendly alias: `SysAdminSuite Dashboard.cmd`
+
+This opens the local dashboard and tutorial at `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
+
+Read [`START-HERE-SysAdminSuite.md`](START-HERE-SysAdminSuite.md) for plain-language steps. Agents and IT staff: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).
+
+Use CLI tools only when the dashboard tells you to copy a specific command or when a runbook specifically asks for it.
+
+---
+
 ## Runtime policy (C# / native first)
 
 - **Primary supported path for restricted endpoints:** **compiled** tooling — **.NET (C#)** for the GUI and most automation, and **native C++** under [`mapping/native`](mapping/native/README.md) for printer mapping where `powershell.exe` is blocked or scripting policy is strict. Artifact and CLI contracts are documented in [`mapping/native/CONTRACT.md`](mapping/native/CONTRACT.md).
@@ -139,7 +157,11 @@ powershell.exe -STA -File .\GUI\Start-SysAdminSuiteGui.ps1
 ### Launch the Web Dashboard (no PowerShell)
 
 For endpoints where `powershell.exe` is blocked or constrained, the dashboard ships
-as a standalone .NET 8 tray host. Double-click:
+as a standalone .NET 8 tray host.
+
+**Field users:** double-click [`START-HERE-SysAdminSuite-Dashboard.cmd`](START-HERE-SysAdminSuite-Dashboard.cmd) or [`SysAdminSuite Dashboard.cmd`](SysAdminSuite%20Dashboard.cmd).
+
+**IT / developers:** double-click:
 
 ```
 Launch-SysAdminSuiteDashboard.Host.bat
@@ -149,7 +171,8 @@ Or pick `[3]` in `Launch-SysAdminSuite-Runtime.bat`. The host serves
 `http://127.0.0.1:5000/dashboard/` and shows a NotifyIcon with Open / Copy URL /
 Stop. The original PowerShell + Python dashboard launcher
 (`Launch-SysAdminSuiteDashboard.bat`) is preserved for permissive sites. See
-[`docs/GUI_HOST_MIGRATION.md`](docs/GUI_HOST_MIGRATION.md) for the lane diagram,
+[`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md) and
+[`docs/GUI_HOST_MIGRATION.md`](docs/GUI_HOST_MIGRATION.md) for the entry-point guide,
 launcher matrix, and host CLI flags.
 
 On first launch a **menu-based tutorial** appears with 12 use-case tracks. Pick the one you need and follow 3-5 focused steps that end with real example output. Reopen anytime with **Ctrl+T** or the **Tutorial** button in the status bar.

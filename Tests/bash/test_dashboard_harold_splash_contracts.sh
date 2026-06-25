@@ -19,6 +19,7 @@ fail() {
 
 grep -Fq 'id="harold-loading"' "$index" || fail "index.html missing Harold loading splash element"
 grep -Fq 'assets/harold.jpg' "$index" || fail "index.html does not reference the Harold image"
+grep -Fq 'rel="icon"' "$index" || fail "index.html missing Harold favicon link"
 grep -Fq 'window.SASHarold' "$index" || fail "index.html does not define the reusable SASHarold hook"
 
 # In-app loading wait (xlsx) should summon Harold in both source and built bundle.

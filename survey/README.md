@@ -4,12 +4,15 @@ This directory contains Bash-first survey tooling for SysAdminSuite.
 
 ## Primary Field Tutorial: Cybernet / Neuron Network Survey
 
+**Default front door:** double-click [`../START-HERE-SysAdminSuite-Dashboard.cmd`](../START-HERE-SysAdminSuite-Dashboard.cmd) and use **Start Cybernet Survey** in the dashboard.
+
 The current priority tutorial for field technicians is:
 
-- [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md)
-- [`../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md)
+- [`../START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) — what to double-click and what opens
+- [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) — advanced CLI orchestrator path
+- [`../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md) — full step-by-step runbook
 
-Use that path when a technician needs to survey an approved site subnet for Cybernet or Neuron targets from deployment documentation. The workflow is:
+Use the CLI path below only when the dashboard or a lead explicitly asks for Bash orchestration. The workflow is:
 
 1. Copy approved local target CSVs into `survey/input/`.
 2. Run the Bash runtime smoke test.
