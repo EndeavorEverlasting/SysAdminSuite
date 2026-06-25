@@ -29,8 +29,10 @@ bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mo
 # 4. Resolve manifest against Nmap XML evidence
 bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode resolve-only --manifest "$MANIFEST"
 
-# 5. Optional Windows port confirmation (small host list only)
-bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode confirm-windows --host-file "$HOSTS"
+# 5. Optional Windows port confirmation (small AD-derived or discovery host list)
+# Prefer logs/targets/<site>_confirm_hosts.txt for Phase 2b reachability (not subnet-wide discovery)
+bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode confirm-windows \
+  --confirm-tool naabu --host-file "$HOSTS" --pipe-followup
 
 # 6. Package local artifacts
 bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode package-only --manifest "$MANIFEST"

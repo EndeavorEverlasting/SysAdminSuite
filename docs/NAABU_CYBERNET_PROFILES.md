@@ -16,66 +16,117 @@ Downloads pinned `naabu.exe` to `bin/naabu.exe` from [ProjectDiscovery naabu rel
 
 **Other environments:** `winget install projectdiscovery.naabu` (or vendor PATH install) is acceptable when Git Bash ensure is not used; the suite still prefers the pinned GitHub download for reproducible versions.
 
-## Profiles (`Config/cybernet-naabu-profiles.json`)
+## Profile truth model
+
+Doctrine is the single source of truth. The runtime config is generated from it:
+
+```text
+survey/naabu_profiles.json            (doctrine contract — edit here)
+        |  bash survey/sas-generate-naabu-runtime-profiles.sh
+        v
+Config/cybernet-naabu-profiles.json   (runtime — generated, do not hand-edit)
+        |
+        v
+survey/sas-run-naabu-pipeline.sh      (execution)
+```
+
+Regenerate after editing the doctrine contract:
+
+```bash
+bash survey/sas-generate-naabu-runtime-profiles.sh
+# verify in CI / pre-commit:
+bash survey/sas-generate-naabu-runtime-profiles.sh --check
+```
+
+## Profiles (doctrine: `survey/naabu_profiles.json`)
 
 | Profile | Equivalent naabu flags | Use |
 |---------|------------------------|-----|
-| `keyports_cdn` | `-p 80,443 -ec -silent -duc` | Default web reachability (txt out) |
-| `keyports_cdn_json` | same + `-json -o FILE` | Audit JSON evidence |
-| `host_discovery_tcp80` | `-sn -pe -ps 80 -silent` | Ping + TCP/80 instead of full port scan |
-| `udp_infrastructure` | `-p u:53,u:161 -uP -silent` | DNS/SNMP UDP (elevated) |
-| `hostname_all_ips` | `-host URL -sa -p 80,443 -ec` | All A records behind load balancers |
-| `full_ports_cdn_guarded` | `-p - -ec` (requires `--allow-full-ports`) | Opt-in full range |
-| `windows_selected` | `135,139,445,3389,5985,5986,80,443` + `-ec` | Narrow Windows endpoint set |
+| `keyports_cybernet_json` | `-p 80,443,135,445,3389,5985,5986 -ec -silent -duc -json -o FILE` | **Default.** Durable Cybernet key-port JSON evidence |
+| `keyports_cybernet_pipe` | `-p 80,443,135,445,3389,5985,5986 -ec -silent -duc` | Raw txt/stdout stream for local pipeline handoff |
+| `web_reachability_only_json` | `-p 80,443 -ec -silent -duc -json -o FILE` | Narrow web reachability JSON evidence |
+| `web_reachability_only` | `-p 80,443 -ec -silent -duc` | Narrow web reachability txt out |
+| `allports_low_noise_json` | `-p - -ec -json` (requires `--allow-full-ports`) | Opt-in full range, justification required |
+| `udp_dns_snmp_json` | `-p u:53,u:161 -uP -ec -silent -json` (requires `--profile-justified`) | DNS/SNMP UDP, justification required |
+| `host_discovery_web_syn_txt` | `-sn -pe -ps 80 -ec -silent` (requires `--approved-subnet-scope`) | Subnet host discovery; not a population source |
+| `load_balanced_hostname_all_ips_json` | `-host URL -sa -p 80,443 -ec -silent -json` | All A records behind load balancers |
+
+### Backward-compatible aliases
+
+Old profile names still resolve so existing scripts and runbooks keep working:
+
+| Legacy alias | Resolves to |
+|--------------|-------------|
+| `keyports_cdn` | `web_reachability_only` (80,443 txt) |
+| `keyports_cdn_json` | `web_reachability_only_json` (80,443 json) |
+| `windows_selected` | `keyports_cybernet_json` |
+| `host_discovery_tcp80` | `host_discovery_web_syn_txt` |
+| `udp_infrastructure` | `udp_dns_snmp_json` |
+| `hostname_all_ips` | `load_balanced_hostname_all_ips_json` |
+| `full_ports_cdn_guarded` | `allports_low_noise_json` |
+
+**Default change:** the runtime default is now `keyports_cybernet_json` (full Windows key
+ports, JSON evidence), not the old 80,443-only `keyports_cdn`. Use `web_reachability_only*`
+when you deliberately want a narrow 80/443 check.
 
 ## Field commands
 
-### CDN-safe key ports (JSON evidence)
+### Cybernet key ports (default JSON evidence)
 
 ```bash
-bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile keyports_cdn_json \
-  --list evidence/CybernetSubnetDiscovery/SSUH/CybernetSubnetDiscovery_TargetIPs.txt \
-  --out logs/nmap/SSUH_web_confirm.json
+bash survey/sas-run-naabu-pipeline.sh --site SSUH \
+  --list logs/targets/SSUH_confirm_hosts.txt \
+  --out logs/nmap/SSUH_keyports_cybernet.json
 ```
 
 Raw equivalent:
 
 ```text
-naabu -list targets.txt -p 80,443 -ec -silent -duc -json -o results.json
+naabu -list targets.txt -p 80,443,135,445,3389,5985,5986 -ec -silent -duc -json -o results.json
 ```
 
-### Silent pipeline (txt → Cybernet followup)
+### Raw pipeline (txt → Cybernet followup)
 
 ```text
-naabu -list targets.txt -silent -duc | sas-cybernet-packet-followup.sh --stdin --cybernet-detect
+naabu -list targets.txt -p 80,443,135,445,3389,5985,5986 -ec -silent -duc | sas-cybernet-packet-followup.sh --stdin --cybernet-detect
 ```
 
 ```bash
-bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile keyports_cdn \
+bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile keyports_cybernet_pipe \
   --list targets.txt --out logs/nmap/SSUH_ports.txt --pipe-followup
 ```
 
 `httpx` is optional via `--use-httpx` on the followup script when installed.
 
-### Host discovery (subnets)
+### Narrow web reachability only (80,443)
 
 ```bash
-bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile host_discovery_tcp80 \
-  --list subnet_candidates.txt --out logs/nmap/SSUH_hostdisc.txt
+bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile web_reachability_only_json \
+  --list logs/targets/SSUH_confirm_hosts.txt --out logs/nmap/SSUH_web_confirm.json
 ```
 
-### UDP (Cybernet-adjacent)
+### Host discovery (approved subnet scope)
 
 ```bash
-bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile udp_infrastructure \
-  --list targets.txt --out logs/nmap/SSUH_udp.txt
+bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile host_discovery_web_syn_txt \
+  --approved-subnet-scope --list logs/targets/SSUH_approved_subnets.txt \
+  --out logs/nmap/SSUH_hostdisc.txt
+```
+
+Host discovery is not a population source. AD remains population authority.
+
+### UDP (justification required)
+
+```bash
+bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile udp_dns_snmp_json \
+  --profile-justified --list targets.txt --out logs/nmap/SSUH_udp.json
 ```
 
 ### Load-balanced hostname (`-sa`)
 
 ```bash
-bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile hostname_all_ips \
-  --host 'https://fleet-api.example.com' --out logs/nmap/SSUH_lb.txt
+bash survey/sas-run-naabu-pipeline.sh --site SSUH --profile load_balanced_hostname_all_ips_json \
+  --host 'https://example.invalid' --out logs/nmap/SSUH_lb.json
 ```
 
 ## Orchestrator integration
@@ -124,7 +175,9 @@ Optional Go normalizer: `probe/packet-expenditure/` (`sas-naabu-normalize`).
 ## Contract tests
 
 ```bash
-bash Tests/bash/test_naabu_pipeline_contracts.sh
+bash tests/bash/smoke-naabu-profiles.sh          # doctrine contract parses + low-noise invariants
+bash Tests/bash/test_naabu_profile_sync.sh       # runtime config is not stale vs doctrine
+bash Tests/bash/test_naabu_pipeline_contracts.sh # runtime rendering (-silent/-ec/-json, gates)
 bash Tests/bash/test_naabu_package_contracts.sh
 ```
 

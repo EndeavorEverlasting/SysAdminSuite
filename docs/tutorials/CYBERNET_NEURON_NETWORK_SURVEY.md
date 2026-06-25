@@ -188,7 +188,7 @@ bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mo
   --host-file "$HOSTS" --confirm-tool naabu --pipe-followup
 ```
 
-Naabu defaults: `-p 80,443 -ec -silent` (CDN-safe key ports). JSON evidence: `--naabu-profile keyports_cdn_json`.
+Naabu defaults: full Cybernet key ports via `keyports_cybernet_json` (`-p 80,443,135,445,3389,5985,5986 -ec -silent -json`). Narrow web-only: `--naabu-profile web_reachability_only_json`. UDP: `--udp-services`. Host discovery: `--host-discovery` (approved subnet scope). All ports: `--all-ports --allow-full-ports`.
 
 Appendix — underlying nmap command:
 
