@@ -24,12 +24,15 @@ Describe 'Test-TargetReadiness script' {
 
     It 'can run localhost mode without remote dependency' {
         $outRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-readiness-' + [guid]::NewGuid().Guid)
-        $results = @(& $script:scriptPath -Target 'localhost' -OutputRoot $outRoot)
+        $jsonPath = Join-Path $outRoot 'readiness.json'
+        $csvPath = Join-Path $outRoot 'readiness.csv'
+        $null = & $script:scriptPath -Target 'localhost' -OutputRoot $outRoot -OutputJson $jsonPath -OutputCsv $csvPath
+        $results = @(Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json)
 
         $results | Should -Not -BeNullOrEmpty
         $results[0].target | Should -Be 'localhost'
-        $results[0].checks | Should -Not -BeNullOrEmpty
-        ($results[0].checks | Select-Object -ExpandProperty status) | Should -Contain 'Pass'
+        @($results[0].checks) | Should -Not -BeNullOrEmpty
+        (@($results[0].checks) | Select-Object -ExpandProperty status) | Should -Contain 'Pass'
         Remove-Item -LiteralPath $outRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
@@ -37,12 +40,15 @@ Describe 'Test-TargetReadiness script' {
         $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-readiness-csv-' + [guid]::NewGuid().Guid)
         New-Item -Path $tmpDir -ItemType Directory -Force | Out-Null
         $csvPath = Join-Path $tmpDir 'targets.csv'
+        $jsonPath = Join-Path $tmpDir 'readiness.json'
+        $outCsvPath = Join-Path $tmpDir 'readiness.csv'
         @(
-            [pscustomobject]@{ Target = 'localhost' },
-            [pscustomobject]@{ ComputerName = 'example.invalid' }
+            [pscustomobject]@{ Target = 'localhost'; ComputerName = '' },
+            [pscustomobject]@{ Target = ''; ComputerName = 'example.invalid' }
         ) | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 
-        $results = @(& $script:scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir)
+        $null = & $script:scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir -OutputJson $jsonPath -OutputCsv $outCsvPath
+        $results = @(Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json)
 
         ($results | Measure-Object).Count | Should -Be 2
         ($results.target) | Should -Contain 'localhost'
@@ -54,13 +60,16 @@ Describe 'Test-TargetReadiness script' {
         $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-readiness-unreach-' + [guid]::NewGuid().Guid)
         New-Item -Path $tmpDir -ItemType Directory -Force | Out-Null
         $csvPath = Join-Path $tmpDir 'targets.csv'
+        $jsonPath = Join-Path $tmpDir 'readiness.json'
+        $outCsvPath = Join-Path $tmpDir 'readiness.csv'
         @([pscustomobject]@{ Target = 'example.invalid' }) | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 
-        $results = @(& $script:scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir)
+        $null = & $script:scriptPath -TargetsCsv $csvPath -OutputRoot $tmpDir -OutputJson $jsonPath -OutputCsv $outCsvPath
+        $results = @(Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json)
 
         $results | Should -Not -BeNullOrEmpty
         $results[0].overall_status | Should -Match 'Ready|PartiallyReady|NotReady|Unknown'
-        foreach ($check in $results[0].checks) {
+        foreach ($check in @($results[0].checks)) {
             $check.status | Should -Match 'Pass|Fail|NotChecked|Error'
             $check.PSObject.Properties.Name | Should -Contain 'details'
             $check.PSObject.Properties.Name | Should -Contain 'error_message'
