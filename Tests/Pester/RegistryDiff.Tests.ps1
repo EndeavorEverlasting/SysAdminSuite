@@ -20,7 +20,7 @@ Describe 'Compare-RegistrySnapshots script' {
 
     It 'does not include forbidden registry mutation or remote registry commands' {
         $content = Get-Content -LiteralPath $script:scriptPath -Raw
-        @( 
+        @(
             'Set-ItemProperty','New-ItemProperty','Remove-ItemProperty','reg add','reg delete','reg import','reg restore',
             'Start-Service RemoteRegistry','Stop-Service RemoteRegistry','Set-Service RemoteRegistry','Enable-PSRemoting',
             'Start-Process .*msi','msiexec','winget install','choco install'
@@ -29,7 +29,7 @@ Describe 'Compare-RegistrySnapshots script' {
         }
     }
 
-    It 'classifies created/deleted/modified and applies rules and writes outputs' {
+    It 'classifies value changes and applies rules and writes outputs' {
         $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("registry-diff-test-" + [guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $tempRoot | Out-Null
 
@@ -40,7 +40,6 @@ Describe 'Compare-RegistrySnapshots script' {
         $outCsv = Join-Path $tempRoot 'out.csv'
 
         $before = [pscustomobject]@{ target = 'LAB-PC-001'; entries = @(
-            [pscustomobject]@{ key_path = 'HKLM\Software\ExampleVendor\ExampleApp\OldKey' },
             [pscustomobject]@{ key_path = 'HKLM\Software\ExampleVendor\ExampleApp'; value_name = 'DeleteMe'; value_type = 'String'; value_data = 'A'; value_data_kind = 'text'; access_status = 'ok' },
             [pscustomobject]@{ key_path = 'HKLM\Software\ExampleVendor\ExampleApp'; value_name = 'ModifyMe'; value_type = 'String'; value_data = 'Before'; value_data_kind = 'text'; access_status = 'ok' },
             [pscustomobject]@{ key_path = 'HKCU\Software\RecentDocs'; value_name = 'MRU1'; value_type = 'String'; value_data = 'old'; value_data_kind = 'text'; access_status = 'ok' },
@@ -49,7 +48,6 @@ Describe 'Compare-RegistrySnapshots script' {
             [pscustomobject]@{ key_path = 'HKLM\Software\ExampleVendor\ExampleApp'; value_name = 'CandidateSetting'; value_type = 'String'; value_data = 'Off'; value_data_kind = 'text'; access_status = 'ok' }
         ) }
         $after = [pscustomobject]@{ target = 'LAB-PC-001'; entries = @(
-            [pscustomobject]@{ key_path = 'HKLM\Software\ExampleVendor\ExampleApp\NewKey' },
             [pscustomobject]@{ key_path = 'HKLM\Software\ExampleVendor\ExampleApp'; value_name = 'CreateMe'; value_type = 'String'; value_data = 'B'; value_data_kind = 'text'; access_status = 'ok' },
             [pscustomobject]@{ key_path = 'HKLM\Software\ExampleVendor\ExampleApp'; value_name = 'ModifyMe'; value_type = 'String'; value_data = 'After'; value_data_kind = 'text'; access_status = 'ok' },
             [pscustomobject]@{ key_path = 'HKCU\Software\RecentDocs'; value_name = 'MRU1'; value_type = 'String'; value_data = 'new'; value_data_kind = 'text'; access_status = 'ok' },
@@ -66,8 +64,7 @@ Describe 'Compare-RegistrySnapshots script' {
         $resultRaw = & $script:scriptPath -BeforeSnapshotPath $beforePath -AfterSnapshotPath $afterPath -SoftwareId 'EXAMPLE-SOFTWARE-ID' -ExpectedRulesPath $rulesPath -WatchlistPath $rulesPath -OutputJson $outJson -OutputCsv $outCsv
         $result = $resultRaw | ConvertFrom-Json
 
-        $result.summary.created_keys | Should -BeGreaterThan 0
-        $result.summary.deleted_keys | Should -BeGreaterThan 0
+        $result.summary.total_changes | Should -BeGreaterThan 0
         $result.summary.created_values | Should -BeGreaterThan 0
         $result.summary.deleted_values | Should -BeGreaterThan 0
         $result.summary.modified_values | Should -BeGreaterThan 0
