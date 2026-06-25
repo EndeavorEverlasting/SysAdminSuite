@@ -92,7 +92,22 @@ def registry_match(blocks: list[dict[str, str]], software: dict[str, Any]) -> tu
     return "none", None, "none"
 
 
-def fallback_file_check(software: dict[str, Any]) -> tuple[bool, str]:
+def is_local_target(target: str) -> bool:
+    normalized = (target or "").strip().lower()
+    return normalized in {"", "localhost", ".", "127.0.0.1"}
+
+
+def target_from_raw_header(text: str) -> str | None:
+    for line in text.splitlines()[:30]:
+        match = re.match(r"^#\s*target=(.+)$", line.strip(), re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def fallback_file_check(software: dict[str, Any], *, allow_local_fallback: bool) -> tuple[bool, str]:
+    if not allow_local_fallback:
+        return False, ""
     for item in software.get("fallback", {}).get("files", []):
         path = item.get("path", "")
         if path and Path(path).exists():
@@ -100,12 +115,12 @@ def fallback_file_check(software: dict[str, Any]) -> tuple[bool, str]:
     return False, ""
 
 
-def classify(target: str, software_id: str, software: dict[str, Any], raw_path: Path) -> EvidenceResult:
+def classify(default_target: str, software_id: str, software: dict[str, Any], raw_path: Path) -> EvidenceResult:
     try:
         text = raw_path.read_text(encoding="utf-8", errors="replace")
     except Exception as exc:
         return EvidenceResult(
-            target=target,
+            target=default_target,
             software_id=software_id,
             status="verification_failed",
             evidence_strength="none",
@@ -113,6 +128,9 @@ def classify(target: str, software_id: str, software: dict[str, Any], raw_path: 
             detail=str(exc),
             revisit_recommendation="Verify raw evidence path and permissions.",
         )
+
+    target = target_from_raw_header(text) or default_target
+    allow_local_fallback = is_local_target(target)
 
     lower = text.lower()
     if "access is denied" in lower or "network path was not found" in lower or "unable to find" in lower:
@@ -155,7 +173,7 @@ def classify(target: str, software_id: str, software: dict[str, Any], raw_path: 
             revisit_recommendation="Review catalog patterns or product naming.",
         )
 
-    fallback_ok, fallback_path = fallback_file_check(software)
+    fallback_ok, fallback_path = fallback_file_check(software, allow_local_fallback=allow_local_fallback)
     if fallback_ok:
         return EvidenceResult(
             target=target,
@@ -163,7 +181,7 @@ def classify(target: str, software_id: str, software: dict[str, Any], raw_path: 
             status="installed_fallback_confirmed",
             evidence_strength="fallback_file",
             evidence_source=fallback_path,
-            detail="Registry proof missing; configured fallback file exists on the current machine.",
+            detail="Registry proof missing; configured fallback file exists on the local operator machine.",
             revisit_recommendation="Treat as fallback evidence; confirm registry catalog if possible.",
         )
 
@@ -194,12 +212,15 @@ def main() -> int:
     parser.add_argument("--raw", required=True, nargs="+", help="Raw reg.exe evidence files")
     parser.add_argument("--output", required=True)
     parser.add_argument("--json", required=True)
-    parser.add_argument("--target", default="localhost")
+    parser.add_argument("--target", default="localhost", help="Default target when raw header omits # target=")
     args = parser.parse_args()
 
     catalog = load_catalog(Path(args.catalog))
     software = find_software(catalog, args.software_id)
-    rows = [classify(args.target, args.software_id, software, Path(raw)) for raw in args.raw]
+    rows = [
+        classify(args.target, args.software_id, software, Path(raw))
+        for raw in args.raw
+    ]
 
     out_csv = Path(args.output)
     out_json = Path(args.json)

@@ -39,6 +39,18 @@ grep -q "parse_registry_install_evidence.py" "$WRAPPER" || fail "Bash wrapper mu
 grep -q "installed_registry_confirmed" "$PARSER" || fail "parser must emit installed_registry_confirmed"
 grep -q "installed_fallback_confirmed" "$PARSER" || fail "parser must emit installed_fallback_confirmed"
 grep -q "environment_blocked" "$PARSER" || fail "parser must emit environment_blocked"
+grep -q "target_from_raw_header" "$PARSER" || fail "parser must read # target= from raw evidence headers"
+grep -q "is_local_target" "$PARSER" || fail "parser must gate local fallback checks to localhost targets"
+
+runtime_files=("$CMD_HELPER" "$WRAPPER" "$PARSER")
+for f in "${runtime_files[@]}"; do
+  if grep -viE '^[[:space:]]*rem[[:space:]]' "$f" | grep -Eiq 'reg\.exe[[:space:]]+(ADD|DELETE|IMPORT|RESTORE)'; then
+    fail "forbidden reg.exe mutation verb in $f"
+  fi
+  if grep -Eiq 'Set-ItemProperty|New-ItemProperty|Remove-ItemProperty' "$f"; then
+    fail "forbidden registry mutation cmdlet in $f"
+  fi
+done
 
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
@@ -71,6 +83,30 @@ python3 "$PARSER" \
 [[ -f "$OUT_JSON" ]] || fail "parser did not write JSON"
 grep -q "installed_registry_confirmed" "$OUT_CSV" || fail "fixture should classify as installed_registry_confirmed"
 grep -q "registry_uninstall_key" "$OUT_CSV" || fail "fixture should label registry_uninstall_key evidence"
+grep -q "SAMPLEHOST001" "$OUT_CSV" || fail "fixture should preserve # target= from raw header"
+
+REMOTE_RAW="$TMPDIR/remote_no_install.txt"
+OUT_REMOTE_CSV="$TMPDIR/remote_install_evidence.csv"
+OUT_REMOTE_JSON="$TMPDIR/remote_install_evidence.json"
+cat > "$REMOTE_RAW" <<'EOF'
+# SysAdminSuite registry evidence raw output
+# target=REMOTEHOST001
+# software_id=sample-viewer
+# command_family=reg_query_read_only
+
+### UNINSTALL_64
+EOF
+
+python3 "$PARSER" \
+  --catalog "$CATALOG" \
+  --software-id sample-viewer \
+  --target localhost \
+  --raw "$REMOTE_RAW" \
+  --output "$OUT_REMOTE_CSV" \
+  --json "$OUT_REMOTE_JSON" >/dev/null
+
+grep -q "REMOTEHOST001" "$OUT_REMOTE_CSV" || fail "remote raw header should set target attribution"
+grep -q "not_installed" "$OUT_REMOTE_CSV" || fail "remote host without registry proof should be not_installed, not local fallback"
 
 if git -C "$ROOT" check-ignore -q survey/output/example_registry_output.csv; then
   :
