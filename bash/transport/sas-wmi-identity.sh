@@ -13,6 +13,8 @@ WMI_USER=""
 WMI_PASS=""
 WMI_DOMAIN=""
 WMI_CLIENT="${SAS_WMI_CLIENT:-auto}"
+DEBUG="${SAS_WMI_DEBUG:-${SAS_DEBUG:-0}}"
+LOG_FILE="${SAS_WMI_LOG_FILE:-}"
 PASS_THRU=0
 
 usage(){ cat <<'USAGE'
@@ -30,6 +32,8 @@ Options:
   --wmi-pass PASS      Optional WMI password. Prefer environment variable SAS_WMI_PASS.
   --wmi-domain DOMAIN  Optional domain. Prefer environment variable SAS_WMI_DOMAIN.
   --wmi-client MODE    WMI client: auto, wmic, or powershell. Default: auto.
+  --debug              Print safe diagnostic logging to stderr.
+  --log-file PATH      Write safe diagnostic logging to a local file.
   --pass-thru          Print CSV after writing
   -h, --help           Show help
 
@@ -38,6 +42,8 @@ Environment variables:
   SAS_WMI_PASS
   SAS_WMI_DOMAIN
   SAS_WMI_CLIENT
+  SAS_WMI_DEBUG
+  SAS_WMI_LOG_FILE
 
 Output columns:
   Timestamp,Target,ObservedHostName,ObservedSerial,ObservedMACs,WmiStatus,Notes
@@ -47,7 +53,7 @@ Safety:
   - No remote staging.
   - No scheduled tasks.
   - No registry edits.
-  - No credentials are written to output.
+  - No credentials are written to output or diagnostic logs.
 
 Known limitations:
   - `wmic` mode requires an approved `wmic`/Samba WMI client on the Bash host.
@@ -62,6 +68,19 @@ log(){ printf '[wmi-identity] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
 csv_escape(){ local s="${1:-}" q='"'; s="${s//$q/$q$q}"; printf '"%s"' "$s"; }
+flag_state(){ [[ -n "${1:-}" ]] && printf 'set' || printf 'unset'; }
+debug_enabled(){ [[ "$DEBUG" == "1" || "$DEBUG" == "true" || "$DEBUG" == "yes" || -n "$LOG_FILE" ]]; }
+diagnostic(){
+  local line
+  debug_enabled || return 0
+  line="$(date '+%Y-%m-%d %H:%M:%S') [wmi-identity] $*"
+  printf '%s\n' "$line" >&2
+  if [[ -n "$LOG_FILE" ]]; then
+    mkdir -p "$(dirname "$LOG_FILE")"
+    printf '%s\n' "$line" >> "$LOG_FILE"
+  fi
+}
+sanitize_field(){ local s="${1:-}"; s="${s//$'\r'/ }"; s="${s//$'\n'/ }"; s="${s//|/ }"; printf '%s' "$s"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -73,6 +92,8 @@ while [[ $# -gt 0 ]]; do
     --wmi-pass) WMI_PASS="${2:?missing value for --wmi-pass}"; shift 2 ;;
     --wmi-domain) WMI_DOMAIN="${2:?missing value for --wmi-domain}"; shift 2 ;;
     --wmi-client) WMI_CLIENT="${2:?missing value for --wmi-client}"; shift 2 ;;
+    --debug) DEBUG=1; shift ;;
+    --log-file) LOG_FILE="${2:?missing value for --log-file}"; shift 2 ;;
     --pass-thru) PASS_THRU=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [[ $# -gt 0 ]]; do TARGETS+=("$1"); shift; done ;;
@@ -214,19 +235,35 @@ PY
 }
 
 run_powershell_wmi(){
-  local target="$1" ps
+  local target="$1" ps err raw rc err_text
   ps="$(powershell_cmd 2>/dev/null || true)"
-  [[ -n "$ps" ]] || { printf '{"Status":"WmiClientMissing","Notes":"powershell.exe not found"}'; return; }
-  "$ps" -NoProfile -NonInteractive -File "$PS_WMI_SCRIPT" -Target "$target" 2>/dev/null || printf '{"Status":"WmiQueryFailed","Notes":"PowerShellWMI execution failed"}'
+  if [[ -z "$ps" ]]; then
+    diagnostic "target=$target client=powershell status=WmiClientMissing reason=powershell.exe_not_found"
+    printf '{"Status":"WmiClientMissing","Notes":"powershell.exe not found"}'
+    return
+  fi
+  diagnostic "target=$target client=powershell path=$ps action=start"
+  err="$TMP_DIR/powershell_${target//[^A-Za-z0-9_.-]/_}.err"
+  raw="$($ps -NoProfile -NonInteractive -File "$PS_WMI_SCRIPT" -Target "$target" 2>"$err")"
+  rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    err_text="$(head -c 220 "$err" 2>/dev/null || true)"
+    err_text="$(sanitize_field "$err_text")"
+    diagnostic "target=$target client=powershell status=WmiQueryFailed rc=$rc stderr=${err_text:-none}"
+    printf '{"Status":"WmiQueryFailed","Notes":"PowerShellWMI execution failed"}'
+    return
+  fi
+  printf '%s' "$raw"
 }
 
 collect_with_wmic(){
   local target="$1" host_raw serial_raw mac_raw host serial macs status notes
+  diagnostic "target=$target client=wmic action=start"
   host_raw="$(run_wmic_query "$target" 'SELECT Name FROM Win32_ComputerSystem')"
   serial_raw="$(run_wmic_query "$target" 'SELECT SerialNumber FROM Win32_BIOS')"
   mac_raw="$(run_wmic_query "$target" 'SELECT MACAddress FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled=True')"
   if printf '%s%s%s' "$host_raw" "$serial_raw" "$mac_raw" | grep -Eiq 'NT_STATUS|ERROR|failed|denied|timed out|timeout'; then
-    printf 'WmiQueryFailed||||WMI query failed or denied'
+    printf 'WmiQueryFailed||||WMI query failed or denied|wmic'
     return
   fi
   host="$(printf '%s
@@ -236,7 +273,7 @@ collect_with_wmic(){
   macs="$(printf '%s
 ' "$mac_raw" | extract_macs)"
   if [[ -n "$host" || -n "$serial" || -n "$macs" ]]; then status="WmiIdentityCollected"; notes="wmic"; else status="WmiNoIdentityReturned"; notes="wmic returned no host, serial, or MAC values"; fi
-  printf '%s|%s|%s|%s|%s' "$status" "$host" "$serial" "$macs" "$notes"
+  printf '%s|%s|%s|%s|%s|wmic' "$status" "$(sanitize_field "$host")" "$(sanitize_field "$serial")" "$(sanitize_field "$macs")" "$(sanitize_field "$notes")"
 }
 
 collect_with_powershell(){
@@ -247,14 +284,14 @@ collect_with_powershell(){
   serial="$(json_field "$raw" ObservedSerial)"
   macs="$(json_field "$raw" ObservedMACs)"
   notes="$(json_field "$raw" Notes)"
-  printf '%s|%s|%s|%s|%s' "${status:-WmiQueryFailed}" "$host" "$serial" "$macs" "$notes"
+  printf '%s|%s|%s|%s|%s|powershell' "$(sanitize_field "${status:-WmiQueryFailed}")" "$(sanitize_field "$host")" "$(sanitize_field "$serial")" "$(sanitize_field "$macs")" "$(sanitize_field "$notes")"
 }
 
 collect_identity(){
   local target="$1"
   case "$WMI_CLIENT" in
     wmic)
-      if has_cmd wmic; then collect_with_wmic "$target"; else printf 'WmiClientMissing||||wmic client not installed'; fi
+      if has_cmd wmic; then collect_with_wmic "$target"; else printf 'WmiClientMissing||||wmic client not installed|wmic'; fi
       ;;
     powershell)
       collect_with_powershell "$target"
@@ -265,11 +302,15 @@ collect_identity(){
   esac
 }
 
+diagnostic "start output=$OUTPUT target_count=${#TARGETS[@]} timeout=$TIMEOUT wmi_client=$WMI_CLIENT wmi_user=$(flag_state "$WMI_USER") wmi_pass=$(flag_state "$WMI_PASS") wmi_domain=$(flag_state "$WMI_DOMAIN")"
+diagnostic "tooling wmic=$(if has_cmd wmic; then printf found; else printf missing; fi) powershell=$(powershell_cmd 2>/dev/null || printf missing)"
+
 {
   printf 'Timestamp,Target,ObservedHostName,ObservedSerial,ObservedMACs,WmiStatus,Notes\n'
   for target in "${TARGETS[@]}"; do
     result="$(collect_identity "$target")"
-    IFS='|' read -r status host serial macs notes <<< "$result"
+    IFS='|' read -r status host serial macs notes client <<< "$result"
+    diagnostic "target=$target client=${client:-unknown} status=${status:-unknown} host_collected=$([[ -n "$host" ]] && printf yes || printf no) serial_collected=$([[ -n "$serial" ]] && printf yes || printf no) macs_collected=$([[ -n "$macs" ]] && printf yes || printf no) notes=$(sanitize_field "$notes")"
     csv_escape "$(date '+%Y-%m-%d %H:%M:%S')"; printf ','; csv_escape "$target"; printf ','; csv_escape "$host"; printf ','; csv_escape "$serial"; printf ','; csv_escape "$macs"; printf ','; csv_escape "$status"; printf ','; csv_escape "$notes"; printf '\n'
   done
 } > "$OUTPUT"
