@@ -64,6 +64,7 @@ const {
   getRunEvents,
   getRunState,
   initRunControl,
+  isRunStoppable,
   requestStop,
   setRunStopHandler,
   subscribeRunEvents,
@@ -165,6 +166,41 @@ assert(!stopBtn.classList.contains('hidden'), 'global-stop-visible', 'global Sto
 stopBtn.click();
 assert(bannerStopCalled, 'global-stop-dispatches', 'global Stop did not dispatch requestStop');
 assert(getRunState(run.runId).state === 'stopping', 'global-stop-stopping', 'global Stop did not move state to stopping');
+
+// Command-generation runs are external-only and never expose Stop.
+_resetRunControlForTests();
+initRunControl();
+run = createRun({
+  kind: 'Command generation',
+  source: 'ui',
+  targetsSummary: '2 target(s)',
+  total: 2,
+  externalOnly: true,
+});
+emitRunEvent(run.runId, 'CommandGenerated', {
+  source: 'ui',
+  summary: 'Survey commands generated',
+});
+emitRunEvent(run.runId, 'AwaitingExternalResults', {
+  source: 'ui',
+  summary: 'Awaiting external shell results',
+});
+assert(getRunState(run.runId).state === 'running', 'command-gen-running', 'command gen should await external results');
+assert(isRunStoppable(getRunState(run.runId)) === false, 'command-gen-not-stoppable', 'external command runs must not be stoppable');
+assert(stopBtn.classList.contains('hidden'), 'command-gen-stop-hidden', 'Stop must stay hidden for command-generation runs');
+emitRunEvent(run.runId, 'EvidenceLoaded', {
+  source: 'dashboard-parser',
+  summary: 'Evidence loaded: network_preflight.csv',
+});
+emitRunEvent(run.runId, 'RunEvidenceWritten', {
+  source: 'dashboard-parser',
+  summary: 'Loaded evidence preserved locally',
+});
+emitRunEvent(run.runId, 'RunCompleted', {
+  source: 'dashboard-parser',
+  summary: 'External command evidence loaded',
+});
+assert(getRunState(run.runId).state === 'completed', 'command-gen-completed', 'evidence load should complete command-gen run');
 
 _resetRunControlForTests();
 

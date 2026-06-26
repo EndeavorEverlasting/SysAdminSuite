@@ -6,6 +6,8 @@ const ACTIVE_STATES = new Set(['requested', 'approved', 'starting', 'running', '
 const STOPPABLE_STATES = new Set(['requested', 'approved', 'starting', 'running', 'stopping']);
 const TERMINAL_STATES = new Set(['stopped', 'completed', 'failed', 'aborted', 'disconnected']);
 const VALID_SOURCES = new Set(['ui', 'relay-client', 'relay-server', 'script', 'dashboard-parser']);
+const EXTERNAL_COMMAND_KINDS = new Set(['Command generation']);
+const CTRL_C_STOP_HINT = 'To stop a copied command, press Ctrl+C in the terminal where it is running.';
 
 let _runs = new Map();
 let _events = [];
@@ -48,9 +50,16 @@ function _initialRun(runId, details) {
     progress: { completed: 0, total: details.total || null },
     current: { target: '', step: '' },
     partialResultsPreserved: false,
+    externalOnly: !!details.externalOnly || EXTERNAL_COMMAND_KINDS.has(details.kind),
     lastEvent: null,
     lastError: '',
   };
+}
+
+export function isRunStoppable(run) {
+  if (!run || !STOPPABLE_STATES.has(run.state)) return false;
+  if (run.externalOnly || EXTERNAL_COMMAND_KINDS.has(run.kind)) return false;
+  return true;
 }
 
 function _reduce(run, event) {
@@ -127,6 +136,19 @@ function _reduce(run, event) {
       break;
     case 'RunEvidenceWritten':
       break;
+    case 'CommandGenerated':
+      next.state = 'approved';
+      next.externalOnly = true;
+      break;
+    case 'CommandCopied':
+    case 'AwaitingExternalResults':
+      if (!TERMINAL_STATES.has(next.state)) next.state = 'running';
+      next.externalOnly = true;
+      next.startedAt = next.startedAt || event.timestamp;
+      break;
+    case 'EvidenceLoaded':
+      if (!TERMINAL_STATES.has(next.state)) next.state = 'running';
+      break;
     default:
       break;
   }
@@ -142,9 +164,16 @@ function _notify(event, run) {
   }
 }
 
-export function createRun({ kind, source = 'ui', targetsSummary = '', total = null, stopHandler = null } = {}) {
+export function createRun({
+  kind,
+  source = 'ui',
+  targetsSummary = '',
+  total = null,
+  stopHandler = null,
+  externalOnly = false,
+} = {}) {
   const runId = _genRunId();
-  const run = _initialRun(runId, { kind, source, targetsSummary, total });
+  const run = _initialRun(runId, { kind, source, targetsSummary, total, externalOnly });
   _runs.set(runId, run);
   if (stopHandler) _stopHandlers.set(runId, stopHandler);
   emitRunEvent(runId, 'RunCreated', {
@@ -239,6 +268,22 @@ function _formatElapsed(run) {
 
 function _bannerText(run) {
   if (!run) return '';
+  if (run.kind === 'Command generation') {
+    if (run.state === 'approved') {
+      return 'Survey commands generated. Copy and run them in an external terminal.';
+    }
+    if (run.state === 'running') {
+      if (run.lastEvent === 'CommandCopied') {
+        return `Command copied. ${CTRL_C_STOP_HINT}`;
+      }
+      if (run.lastEvent === 'AwaitingExternalResults' || run.lastEvent === 'EvidenceLoaded') {
+        return `Awaiting external results. ${CTRL_C_STOP_HINT}`;
+      }
+      return `Command-generation workflow active. ${CTRL_C_STOP_HINT}`;
+    }
+    if (run.state === 'completed') return 'Evidence loaded from external command run.';
+    if (run.state === 'failed') return `Command-generation workflow failed: ${run.lastError || run.summary}`;
+  }
   const kind = run.kind || 'Run';
   const total = run.progress && run.progress.total;
   const completed = run.progress && run.progress.completed;
@@ -275,7 +320,7 @@ function _updateRunBanner() {
   if (text) text.textContent = run ? _bannerText(run) : '';
   if (meta) meta.textContent = run ? `source: ${run.source} - state: ${run.state}` : '';
   if (stopBtn) {
-    const stoppable = !!run && STOPPABLE_STATES.has(run.state);
+    const stoppable = isRunStoppable(run);
     stopBtn.classList.toggle('hidden', !stoppable);
     stopBtn.disabled = !!run && run.state === 'stopping';
     stopBtn.textContent = run && run.state === 'stopping' ? 'Stopping...' : 'Stop';

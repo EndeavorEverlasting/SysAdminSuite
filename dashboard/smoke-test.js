@@ -587,6 +587,12 @@ bsAssert(indexHtml.includes('id="run-control-stop"'), 'global-run-stop',
   'index.html missing global Run Control Stop button');
 bsAssert(runControlJs.includes('RunRequested') && runControlJs.includes('StopAcknowledged'),
   'run-control-lifecycle-events', 'run-control.js missing lifecycle event reducer');
+bsAssert(runControlJs.includes('CommandGenerated') && runControlJs.includes('AwaitingExternalResults'),
+  'run-control-command-gen-events', 'run-control.js missing command-generation lifecycle events');
+bsAssert(runControlJs.includes('isRunStoppable'), 'run-control-stoppable-helper',
+  'run-control.js missing external-only stoppable guard');
+bsAssert(appJs.includes('_startCommandGenerationRun') && appJs.includes('CommandCopied'),
+  'app-command-gen-lifecycle', 'app.js does not emit command-generation lifecycle events');
 bsAssert(runControlJs.includes('Buttons express intent'), 'intent-vs-truth-doctrine',
   'run-control.js missing intent-vs-truth doctrine comment');
 bsAssert(relayClientJs.includes('StopSent') && relayClientJs.includes('StopAcknowledged'),
@@ -601,6 +607,8 @@ bsAssert(indexHtml.includes('id="net-stop-probe-btn"') || panelNetworkJs.include
   'panel-stop-button', 'no persistent Stop button on the network panel');
 bsAssert(panelNetworkJs.includes('requestStop') && panelNetworkJs.includes('createRun'),
   'panel-uses-run-control', 'panel-network.js still lacks central Run Control integration');
+bsAssert(panelNetworkJs.includes('subscribeRunEvents') && panelNetworkJs.includes('_probeStatusFromRun'),
+  'panel-listens-lifecycle', 'panel-network.js does not derive probe status from lifecycle events');
 bsAssert(panelNetworkJs.includes('Partial results preserved'), 'partial-results-msg',
   'panel-network.js does not report preserved partial results');
 bsAssert(bundleJs.includes('net-stop-probe-btn'), 'panel-stop-bundled',

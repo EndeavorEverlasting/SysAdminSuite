@@ -166,10 +166,43 @@ export function initNetworkPanel() {
   const stopBtn = document.getElementById('net-stop-probe-btn');
   if (stopBtn) stopBtn.addEventListener('click', () => stopLiveProbe());
 
-  subscribeRunEvents((_event, run) => {
+  subscribeRunEvents((event, run) => {
     if (!run || run.kind !== 'Network probe') return;
+    _setProbeStatus(_probeStatusFromRun(run, event));
     updateRelayIndicator();
   });
+}
+
+function _probeStatusFromRun(run, event) {
+  if (!run) return '';
+  if (run.state === 'stopping') return 'Stopping probe…';
+  if (run.state === 'stopped') {
+    const completed = run.progress && run.progress.completed;
+    const total = run.progress && run.progress.total;
+    if (completed != null && total != null) {
+      return `Probe stopped. Partial results preserved (${completed} of ${total} target(s) completed).`;
+    }
+    return 'Probe stopped. Partial results preserved.';
+  }
+  if (run.state === 'disconnected') {
+    if (event && event.summary && /timed out/i.test(event.summary)) {
+      return 'Probe stop acknowledgement timed out. Partial results preserved; relay state may be incomplete.';
+    }
+    return 'Relay disconnected — probe aborted. Partial results preserved.';
+  }
+  if (run.state === 'completed') {
+    const total = run.progress && run.progress.total;
+    return `Probe complete — ${total || '?'} target(s) done.`;
+  }
+  if (run.state === 'failed') return `Error: ${run.lastError || run.summary}`;
+  if (run.state === 'running') {
+    const total = run.progress && run.progress.total;
+    const target = run.current && run.current.target;
+    const step = run.current && run.current.step;
+    if (target && step) return `Probing ${total || '?'} target(s) — ${target} / ${step}`;
+    return `Probing ${total || '?'} target(s)…`;
+  }
+  return '';
 }
 
 // Update the probe status line on the panel (and mirror it into the modal
@@ -393,22 +426,6 @@ function _finishProbe(doneMsg, totalTargets, modalEls) {
   activeProbeRunId = null;
   updateRelayIndicator();
 
-  let label;
-  if (doneMsg && doneMsg.aborted) {
-    label = 'Relay disconnected — probe aborted. Partial results preserved.';
-  } else if (doneMsg && doneMsg.ackTimeout) {
-    label = 'Probe stop acknowledgement timed out. Partial results preserved; relay state may be incomplete.';
-  } else if (doneMsg && doneMsg.cancelled) {
-    const completed = typeof doneMsg.completed === 'number' ? doneMsg.completed : null;
-    const total = typeof doneMsg.total === 'number' ? doneMsg.total : totalTargets;
-    label = completed !== null
-      ? `Probe stopped. Partial results preserved (${completed} of ${total} target(s) completed).`
-      : 'Probe stopped. Partial results preserved.';
-  } else {
-    label = `Probe complete — ${totalTargets} target(s) done.`;
-  }
-  _setProbeStatus(label);
-
   const startBtn = modalEls && modalEls.startBtn;
   const cancelBtn = modalEls && modalEls.cancelBtn;
   if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
@@ -457,19 +474,13 @@ function startLiveProbe(targets, ports, community, timeout, modal) {
     (msg) => {
       if (msg.type === 'step_result') {
         _applyStepResult(msg);
-        if (!_isProbeStopping()) {
-          _setProbeStatus(`Probing ${targets.length} target(s) — ${msg.target} / ${msg.step}`);
-        }
         _refreshLive();
-      } else if (msg.type === 'probe_start') {
-        _setProbeStatus(`Probing ${msg.total} target(s)…`);
       }
     },
     (doneMsg) => { _finishProbe(doneMsg, targets.length, modalEls); },
     (err) => {
       activeProbeRunId = null;
       updateRelayIndicator();
-      _setProbeStatus(`Error: ${err}`);
       if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
     },
   );
