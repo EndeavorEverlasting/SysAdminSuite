@@ -174,10 +174,17 @@ if (failed > 0) process.exit(1);
 const indexHtml = readFileSync(join(__dir, 'index.html'), 'utf8');
 
 const shellChecks = [
+  ['repo-setup-hero', 'Repo Setup hero'],
+  ['id="hero-start-setup"', 'Primary CTA Start Repo Setup'],
+  ['id="repo-setup-tutorial"', 'Repo Setup tutorial container'],
+  ['id="hero-open-cybernet"', 'Repo setup handoff to Cybernet'],
   ['cybernet-hero', 'Cybernet-first hero'],
   ['software-tracker-hero', 'Software Tracker install hero'],
   ['id="hero-start-install"', 'Primary CTA Start Software Tracker Install'],
   ['workflow-tutorial', 'Shared workflow tutorial CSS class'],
+  ['Start', 'Cybernet Start rail label'],
+  ['Load targets', 'Cybernet Load targets rail label'],
+  ['Review results', 'Cybernet Review results rail label'],
   ['id="hero-start-survey"', 'Primary CTA Start Cybernet Survey'],
   ['Start Cybernet Survey', 'Start Cybernet Survey label'],
   ['id="hero-load-evidence"', 'Load Evidence entry'],
@@ -191,6 +198,9 @@ const shellChecks = [
 // Wizard command contracts live in app.js (bundled); verify source for CI without loading bundle
 const appJs = readFileSync(join(__dir, 'js', 'app.js'), 'utf8');
 const contractChecks = [
+  ['initRepoSetupTutorial', 'Repo Setup tutorial init'],
+  ['initRepoSetupShell', 'Repo Setup hero shell'],
+  ['window.startRepoSetupTutorial', 'Repo Setup transition exposed'],
   ['software-tracker-install-plan', 'install plan parser type wired'],
   ['setSoftwareInstallPlan', 'install plan state wiring'],
   ['initSoftwareTrackerTutorial', 'Software Tracker tutorial init'],
@@ -345,9 +355,9 @@ for (const [, selector] of tourTargetMatches) {
 const doneBeforeInit = /localStorage\.setItem\(\s*['"]sas_tour_v1_done['"][\s\S]*?\n[\s\S]*?initTour\s*\(\s*\)/.test(appJs);
 tourAssert(doneBeforeInit, 'auto-launch-suppressed-before-initTour');
 
-// Cybernet-first tour targets
-for (const needle of ['#hero-start-survey', '#cybernet-review', '#advanced-tools-toggle']) {
-  tourAssert(tourJs.includes(`target: '${needle}'`), `cybernet-target:${needle}`);
+// Dashboard map tour targets
+for (const needle of ['#repo-setup-hero', '#hero-start-survey', '#cybernet-review', '#advanced-tools-toggle']) {
+  tourAssert(tourJs.includes(`target: '${needle}'`), `dashboard-map-target:${needle}`);
 }
 
 // Stale pre-refactor copy must not appear
@@ -373,6 +383,7 @@ if (tourFailed > 0) process.exit(1);
 const bundleJs = readFileSync(join(__dir, 'js', 'bundle.js'), 'utf8');
 const preflightJs = readFileSync(join(__dir, 'js', 'cybernet-os-preflight.js'), 'utf8');
 const launchJs = readFileSync(join(__dir, 'js', 'launch-cybernet-tutorial.js'), 'utf8');
+const launchSetupJs = readFileSync(join(__dir, 'js', 'launch-repo-setup-tutorial.js'), 'utf8');
 
 let startPassed = 0;
 let startFailed = 0;
@@ -382,8 +393,11 @@ function startAssert(ok, label, detail) {
 }
 
 startAssert(indexHtml.includes('id="cybernet-hero-status"'), 'hero-status-in-html', 'missing cybernet-hero-status');
+startAssert(indexHtml.includes('id="repo-setup-hero-status"'), 'setup-hero-status-in-html', 'missing repo-setup-hero-status');
 startAssert(appJs.includes('startCybernetTutorial'), 'explicit-transition', 'app.js missing startCybernetTutorial');
 startAssert(appJs.includes('window.startCybernetTutorial'), 'transition-exposed', 'app.js does not expose startCybernetTutorial');
+startAssert(appJs.includes('startRepoSetupTutorial'), 'setup-explicit-transition', 'app.js missing startRepoSetupTutorial');
+startAssert(appJs.includes('window.startRepoSetupTutorial'), 'setup-transition-exposed', 'app.js does not expose startRepoSetupTutorial');
 startAssert(appJs.includes('getComputedStyle'), 'verifies-visibility', 'app.js does not verify tutorial visibility');
 startAssert(appJs.includes("tutorial.style.display = ''"), 'clears-inline-none', 'app.js does not clear a stale inline display:none');
 startAssert(/Restart Cybernet Survey/.test(appJs), 'recovery-control', 'app.js missing Restart recovery control');
@@ -395,8 +409,14 @@ startAssert(!preflightJs.includes('syncTutorialVisibility'), 'preflight-not-gati
   'cybernet-os-preflight.js still forces the wizard hidden');
 startAssert(launchJs.includes('window.startCybernetTutorial'), 'auto-start-uses-transition',
   'launch-cybernet-tutorial.js does not use the verified transition');
+startAssert(launchSetupJs.includes('window.startRepoSetupTutorial'), 'setup-auto-start-uses-transition',
+  'launch-repo-setup-tutorial.js does not use the verified transition');
+startAssert(launchSetupJs.includes("tutorial === 'setup'"), 'setup-query-supported',
+  'launch-repo-setup-tutorial.js does not support ?tutorial=setup');
 startAssert(bundleJs.includes('initSoftwareTrackerTutorial'), 'bundle-software-tutorial',
   'bundle.js is stale — missing Software Tracker tutorial; rebuild with: node dashboard/build-bundle.js');
+startAssert(bundleJs.includes('initRepoSetupTutorial'), 'bundle-repo-setup-tutorial',
+  'bundle.js is stale — missing Repo Setup tutorial; rebuild with: node dashboard/build-bundle.js');
 startAssert(bundleJs.includes('startCybernetTutorial'), 'bundle-not-stale',
   'bundle.js is stale — rebuild with: node dashboard/build-bundle.js');
 

@@ -24,11 +24,11 @@ Double-click:
 
 `START-HERE-SysAdminSuite-Dashboard.bat`
 
-This opens the local dashboard and tutorial at `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
+This opens the local dashboard and Repo Setup tutorial at `http://127.0.0.1:5000/dashboard/?tutorial=setup`.
 
-On first run, the launcher may **automatically prepare (build) the dashboard app** before opening the browser. Field users do not run any command by hand. If the workstation cannot build it (for example, no .NET SDK), the launcher asks for the packaged SysAdminSuite Dashboard **field release** or IT/admin preparation.
+On first run, the launcher may **automatically prepare the dashboard app** before opening the browser. If Microsoft .NET 8 dependencies are missing, it uses official Microsoft installers with checksum verification, then builds the local dashboard host when needed. Field users do not run any command by hand.
 
-**No .NET SDK on the machine?** Use the pre-built field release ZIP ([`docs/DASHBOARD_FIELD_RELEASE.md`](docs/DASHBOARD_FIELD_RELEASE.md)), not a raw git clone.
+If downloads or administrator approval are blocked, use the pre-built field release ZIP ([`docs/DASHBOARD_FIELD_RELEASE.md`](docs/DASHBOARD_FIELD_RELEASE.md)) or have IT/admin prepare the workstation. Bootstrap details: [`docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md).
 
 Updates are opt-in. If a newer `main` or field package is available, the
 launcher prompts before applying it. See [`docs/APPROVED_UPDATE_FLOW.md`](docs/APPROVED_UPDATE_FLOW.md).

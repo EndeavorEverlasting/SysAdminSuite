@@ -5,12 +5,14 @@
 ## Field user answer (plain language)
 
 > Double-click **`START-HERE-SysAdminSuite-Dashboard.bat`** at the repo root.
-> Your browser opens `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
+> Your browser opens `http://127.0.0.1:5000/dashboard/?tutorial=setup`.
 > CLI tools are optional — use them only when the dashboard or a runbook says so.
 
-On first run the launcher will **automatically prepare (build) the dashboard host** if it is missing — it runs `tools/publish-dashboard-entrypoint.ps1` for the user, waits for the host to respond on port 5000, and only then opens the browser. Field users are never told to run the publish command by hand. If the build cannot run (no .NET SDK), the launcher shows a field-safe message directing the user to the **field release package** or IT/admin preparation.
+On first run the launcher will **automatically prepare the dashboard host** if dependencies or the host are missing — it runs `scripts/ensure-dashboard-host.sh` through Git Bash, installs official Microsoft .NET 8 dependencies system-wide when needed, waits for the host to respond on port 5000, and only then opens the browser. Field users are never told to run the publish command by hand. If Microsoft downloads, installer approval, or the build cannot run, the launcher shows a field-safe message directing the user to the **field release package** or IT/admin preparation.
 
 **Field release package (no SDK):** [`DASHBOARD_FIELD_RELEASE.md`](DASHBOARD_FIELD_RELEASE.md) — pre-built zip with `app/bin/SysAdminSuite.DashboardHost.exe`.
+
+**Dependency bootstrap:** [`DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](DASHBOARD_DEPENDENCY_BOOTSTRAP.md) — pinned Microsoft installers, SHA512 verification, ignored local cache.
 
 **Updates:** launcher checks are opt-in and must prompt before applying changes. Source clones use a clean `main` fast-forward; ZIP/field packages use checksum-verified manifests. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
 
@@ -26,23 +28,24 @@ git clone https://github.com/EndeavorEverlasting/SysAdminSuite.git
 
 This creates the `SysAdminSuite` folder; they then open it and double-click `START-HERE-SysAdminSuite-Dashboard.bat`.
 
-Warn against the common mistake: do **not** create a `SysAdminSuite` folder first and clone inside it, which produces `SysAdminSuite\SysAdminSuite` and hides the launcher one level deep. ZIP download via the GitHub **Code** button is an equivalent no-Git path for developers; **field users without the .NET SDK** should use the dashboard field release package instead ([`DASHBOARD_FIELD_RELEASE.md`](DASHBOARD_FIELD_RELEASE.md)).
+Warn against the common mistake: do **not** create a `SysAdminSuite` folder first and clone inside it, which produces `SysAdminSuite\SysAdminSuite` and hides the launcher one level deep. ZIP download via the GitHub **Code** button is an equivalent no-Git path for developers. Locked-down field PCs where Microsoft downloads or admin installs are blocked should use the dashboard field release package instead ([`DASHBOARD_FIELD_RELEASE.md`](DASHBOARD_FIELD_RELEASE.md)).
 
 ## Launcher matrix
 
 | File | Audience | What it does |
 |------|----------|--------------|
-| `START-HERE-SysAdminSuite-Dashboard.bat` | **Field users (primary)** | Friendly console, starts host, opens browser; Cybernet + Software Tracker front-door workflows |
+| `START-HERE-SysAdminSuite-Dashboard.bat` | **Field users (primary)** | Friendly console, starts host, opens browser; Repo Setup, Cybernet, and Software Tracker front-door workflows |
 
-After the dashboard loads, field users see two front-door heroes:
+After the dashboard loads, field users see three front-door heroes:
 
+- **Repo Setup** — `Start Repo Setup` (clone/download, update approval, and launcher basics)
 - **Cybernet Survey** — `Start Cybernet Survey` (target acquisition wizard)
 - **Software Tracker Install** — `Start Software Tracker Install` (dry-run → approve → guarded execute tutorial)
 
 Software Tracker install details: [`SOFTWARE_TRACKER_INSTALLS.md`](SOFTWARE_TRACKER_INSTALLS.md).
 | `START-HERE-SysAdminSuite-Dashboard.cmd` | Compatibility alias | Calls the `.bat` launcher |
 | `SysAdminSuite Dashboard.cmd` | Field desktops / shortcuts | Alias of the START-HERE `.bat` |
-| `Launch-SysAdminSuiteDashboard.Host.bat` | IT / developers | Spawns tray host only (no extra messaging) |
+| `Launch-SysAdminSuiteDashboard.Host.bat` | IT / developers | Ensures dependencies/host via Bash bootstrap, then spawns tray host |
 | `Launch-SysAdminSuite-Runtime.bat` `[3]` | Portable zip | Menu entry for .NET host |
 | `Launch-SysAdminSuiteDashboard.bat` | Permissive sites | Legacy PS + Python path |
 | `dist/SysAdminSuiteDashboard/SysAdminSuite Dashboard.exe` | **Local build only** | Not committed; see publish script below |
@@ -67,13 +70,18 @@ Agents must **not** tell lay users to run `python3 -m http.server`, raw `dotnet`
 4. `src/SysAdminSuite.DashboardHost/bin/Release/net8.0-windows/...`
 5. `src/SysAdminSuite.DashboardHost/bin/Debug/net8.0-windows/...`
 
+If no host exists, `scripts/ensure-dashboard-host.sh` ensures the .NET 8 SDK
+and publishes to ignored `app/bin/` so later launches reuse the packaged layout.
+If a framework-dependent host exists, the same bootstrap ensures
+`Microsoft.AspNetCore.App` and `Microsoft.WindowsDesktop.App` 8.x are installed.
+
 ## Build local EXE (developer / IT)
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\publish-dashboard-entrypoint.ps1
 ```
 
-Requires .NET 8 SDK to build; .NET 8 runtime on the target to run (framework-dependent publish).
+Manual publish remains available for IT, but it is no longer the first-run field path. Requires .NET 8 SDK to build; the launched host requires .NET 8 ASP.NET Core and Windows Desktop runtimes when framework-dependent.
 
 ## Browser tab icon (Harold)
 
@@ -88,14 +96,16 @@ See [`dashboard/README.md`](../dashboard/README.md) — **Loading experience (Hi
 
 | Symptom | Action |
 |---------|--------|
-| Browser did not open | Paste `http://127.0.0.1:5000/dashboard/?tutorial=cybernet` |
-| Host exe not found | The `.bat` builds it automatically on first run. If the build fails, get the packaged release or have IT/admin prepare the machine (do not tell field users to run publish by hand) |
+| Browser did not open | If the host is already running, paste `http://127.0.0.1:5000/dashboard/?tutorial=setup`; if nothing is listening, run `START-HERE-SysAdminSuite-Dashboard.bat` first |
+| Host exe not found | The `.bat` prepares it automatically on first run. If bootstrap fails, get the packaged release or have IT/admin prepare the machine (do not tell field users to run publish by hand) |
+| Dependency bootstrap failed | Check Git Bash, Microsoft download access, checksum verification, and administrator approval; see `DASHBOARD_DEPENDENCY_BOOTSTRAP.md` |
 | Port 5000 in use | Stop prior instance from tray icon |
 | User asks "do I run code?" | Point to `START-HERE-SysAdminSuite-Dashboard.bat` double-click; read [`START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) |
 
 ## Related docs
 
 - [`START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) — lay user guide
+- [`docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](DASHBOARD_DEPENDENCY_BOOTSTRAP.md) — first-run .NET dependency bootstrap
 - [`docs/GUI_HOST_MIGRATION.md`](GUI_HOST_MIGRATION.md) — launcher technical matrix
 - [`docs/DASHBOARD_EXE_FUTURE_SPRINT.md`](DASHBOARD_EXE_FUTURE_SPRINT.md) — planned EXE sprint
 - [`START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) — advanced CLI path

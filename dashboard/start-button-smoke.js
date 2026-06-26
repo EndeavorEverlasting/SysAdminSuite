@@ -13,6 +13,7 @@
 //   3. Rogue inline display:none on the wizard (the original bug) — opening must
 //      clear it so the wizard still shows.
 //   4. ?tutorial=cybernet auto-start — routes through the same verified path.
+//   5. ?tutorial=setup auto-start — routes through the Repo Setup verified path.
 
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -100,6 +101,12 @@ const startBtn = seed('hero-start-survey');
 startBtn.textContent = 'Start Cybernet Survey';
 seed('cybernet-hero-actions');
 seed('cybernet-hero-status', ['hidden']);
+const setupTutorial = seed('repo-setup-tutorial', ['hidden']);
+const setupStartBtn = seed('hero-start-setup');
+setupStartBtn.textContent = 'Start Repo Setup';
+seed('repo-setup-hero-actions');
+seed('repo-setup-hero-status', ['hidden']);
+seed('hero-open-cybernet');
 seed('toast-container');
 
 const document = {
@@ -192,6 +199,7 @@ fireDomReady();
 assert(!isVisible(tutorial), 'initial-wizard-hidden', 'wizard should start hidden');
 assert(startBtn.textContent === 'Start Cybernet Survey', 'initial-start-label', `was "${startBtn.textContent}"`);
 assert(typeof window.startCybernetTutorial === 'function', 'transition-exposed', 'window.startCybernetTutorial missing');
+assert(typeof window.startRepoSetupTutorial === 'function', 'setup-transition-exposed', 'window.startRepoSetupTutorial missing');
 
 // State 3 (the original bug): a rogue inline display:none must not survive open.
 tutorial.style.display = 'none';
@@ -219,6 +227,17 @@ runScript('js/launch-cybernet-tutorial.js');
 assert(isVisible(tutorial), 'auto-start-opens-wizard', 'auto-start left the wizard hidden');
 assert(/restart/i.test(startBtn.textContent), 'auto-start-transforms-start',
   `auto-start did not transform Start (was "${startBtn.textContent}")`);
+
+// State 5: ?tutorial=setup auto-start uses the Repo Setup verified path.
+setupTutorial.classList.add('hidden');
+setupTutorial.style.display = 'none';
+setupStartBtn.textContent = 'Start Repo Setup';
+window.location.search = '?tutorial=setup';
+document.readyState = 'complete';
+runScript('js/launch-repo-setup-tutorial.js');
+assert(isVisible(setupTutorial), 'setup-auto-start-opens-wizard', 'setup auto-start left the wizard hidden');
+assert(/restart/i.test(setupStartBtn.textContent), 'setup-auto-start-transforms-start',
+  `setup auto-start did not transform Start (was "${setupStartBtn.textContent}")`);
 
 console.log(`\nStart button: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
