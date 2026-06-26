@@ -1477,6 +1477,8 @@ const ACTIVE_STATES = new Set(['requested', 'approved', 'starting', 'running', '
 const STOPPABLE_STATES = new Set(['requested', 'approved', 'starting', 'running', 'stopping']);
 const TERMINAL_STATES = new Set(['stopped', 'completed', 'failed', 'aborted', 'disconnected']);
 const VALID_SOURCES = new Set(['ui', 'relay-client', 'relay-server', 'script', 'dashboard-parser']);
+const EXTERNAL_COMMAND_KINDS = new Set(['Command generation']);
+const CTRL_C_STOP_HINT = 'To stop a copied command, press Ctrl+C in the terminal where it is running.';
 
 let _runs = new Map();
 let _events = [];
@@ -1519,9 +1521,16 @@ function _initialRun(runId, details) {
     progress: { completed: 0, total: details.total || null },
     current: { target: '', step: '' },
     partialResultsPreserved: false,
+    externalOnly: !!details.externalOnly || EXTERNAL_COMMAND_KINDS.has(details.kind),
     lastEvent: null,
     lastError: '',
   };
+}
+
+function isRunStoppable(run) {
+  if (!run || !STOPPABLE_STATES.has(run.state)) return false;
+  if (run.externalOnly || EXTERNAL_COMMAND_KINDS.has(run.kind)) return false;
+  return true;
 }
 
 function _reduce(run, event) {
@@ -1598,6 +1607,19 @@ function _reduce(run, event) {
       break;
     case 'RunEvidenceWritten':
       break;
+    case 'CommandGenerated':
+      next.state = 'approved';
+      next.externalOnly = true;
+      break;
+    case 'CommandCopied':
+    case 'AwaitingExternalResults':
+      if (!TERMINAL_STATES.has(next.state)) next.state = 'running';
+      next.externalOnly = true;
+      next.startedAt = next.startedAt || event.timestamp;
+      break;
+    case 'EvidenceLoaded':
+      if (!TERMINAL_STATES.has(next.state)) next.state = 'running';
+      break;
     default:
       break;
   }
@@ -1613,9 +1635,16 @@ function _notify(event, run) {
   }
 }
 
-function createRun({ kind, source = 'ui', targetsSummary = '', total = null, stopHandler = null } = {}) {
+function createRun({
+  kind,
+  source = 'ui',
+  targetsSummary = '',
+  total = null,
+  stopHandler = null,
+  externalOnly = false,
+} = {}) {
   const runId = _genRunId();
-  const run = _initialRun(runId, { kind, source, targetsSummary, total });
+  const run = _initialRun(runId, { kind, source, targetsSummary, total, externalOnly });
   _runs.set(runId, run);
   if (stopHandler) _stopHandlers.set(runId, stopHandler);
   emitRunEvent(runId, 'RunCreated', {
@@ -1710,6 +1739,22 @@ function _formatElapsed(run) {
 
 function _bannerText(run) {
   if (!run) return '';
+  if (run.kind === 'Command generation') {
+    if (run.state === 'approved') {
+      return 'Survey commands generated. Copy and run them in an external terminal.';
+    }
+    if (run.state === 'running') {
+      if (run.lastEvent === 'CommandCopied') {
+        return `Command copied. ${CTRL_C_STOP_HINT}`;
+      }
+      if (run.lastEvent === 'AwaitingExternalResults' || run.lastEvent === 'EvidenceLoaded') {
+        return `Awaiting external results. ${CTRL_C_STOP_HINT}`;
+      }
+      return `Command-generation workflow active. ${CTRL_C_STOP_HINT}`;
+    }
+    if (run.state === 'completed') return 'Evidence loaded from external command run.';
+    if (run.state === 'failed') return `Command-generation workflow failed: ${run.lastError || run.summary}`;
+  }
   const kind = run.kind || 'Run';
   const total = run.progress && run.progress.total;
   const completed = run.progress && run.progress.completed;
@@ -1746,7 +1791,7 @@ function _updateRunBanner() {
   if (text) text.textContent = run ? _bannerText(run) : '';
   if (meta) meta.textContent = run ? `source: ${run.source} - state: ${run.state}` : '';
   if (stopBtn) {
-    const stoppable = !!run && STOPPABLE_STATES.has(run.state);
+    const stoppable = isRunStoppable(run);
     stopBtn.classList.toggle('hidden', !stoppable);
     stopBtn.disabled = !!run && run.state === 'stopping';
     stopBtn.textContent = run && run.state === 'stopping' ? 'Stopping...' : 'Stop';
@@ -1783,6 +1828,7 @@ function _resetRunControlForTests() {
 }
 
 // expose exports to bundle scope
+_exports.isRunStoppable = isRunStoppable;
 _exports.createRun = createRun;
 _exports.emitRunEvent = emitRunEvent;
 _exports.subscribeRunEvents = subscribeRunEvents;
@@ -1794,7 +1840,7 @@ _exports.requestStop = requestStop;
 _exports.initRunControl = initRunControl;
 _exports._resetRunControlForTests = _resetRunControlForTests;
 })();
-var createRun = _exports.createRun, emitRunEvent = _exports.emitRunEvent, subscribeRunEvents = _exports.subscribeRunEvents, getRunState = _exports.getRunState, getRunEvents = _exports.getRunEvents, getActiveRun = _exports.getActiveRun, setRunStopHandler = _exports.setRunStopHandler, requestStop = _exports.requestStop, initRunControl = _exports.initRunControl, _resetRunControlForTests = _exports._resetRunControlForTests;
+var isRunStoppable = _exports.isRunStoppable, createRun = _exports.createRun, emitRunEvent = _exports.emitRunEvent, subscribeRunEvents = _exports.subscribeRunEvents, getRunState = _exports.getRunState, getRunEvents = _exports.getRunEvents, getActiveRun = _exports.getActiveRun, setRunStopHandler = _exports.setRunStopHandler, requestStop = _exports.requestStop, initRunControl = _exports.initRunControl, _resetRunControlForTests = _exports._resetRunControlForTests;
 
 // ====== relay-client.js ======
 (function () {
@@ -1991,6 +2037,14 @@ function sendRelayProbe(req, onMessage, onDone, onError) {
             step: msg.step || '',
             status: msg.status || '',
             value: msg.value || '',
+          },
+        });
+        emitRunEvent(runId, 'RunProgress', {
+          source: 'relay-server',
+          summary: `Probe progress: ${msg.target || 'target'} / ${msg.step || 'step'}`,
+          payload: {
+            target: msg.target || '',
+            step: msg.step || '',
           },
         });
       } else if (msg.type === 'probe_done') {
@@ -2881,10 +2935,43 @@ function initNetworkPanel() {
   const stopBtn = document.getElementById('net-stop-probe-btn');
   if (stopBtn) stopBtn.addEventListener('click', () => stopLiveProbe());
 
-  subscribeRunEvents((_event, run) => {
+  subscribeRunEvents((event, run) => {
     if (!run || run.kind !== 'Network probe') return;
+    _setProbeStatus(_probeStatusFromRun(run, event));
     updateRelayIndicator();
   });
+}
+
+function _probeStatusFromRun(run, event) {
+  if (!run) return '';
+  if (run.state === 'stopping') return 'Stopping probe…';
+  if (run.state === 'stopped') {
+    const completed = run.progress && run.progress.completed;
+    const total = run.progress && run.progress.total;
+    if (completed != null && total != null) {
+      return `Probe stopped. Partial results preserved (${completed} of ${total} target(s) completed).`;
+    }
+    return 'Probe stopped. Partial results preserved.';
+  }
+  if (run.state === 'disconnected') {
+    if (event && event.summary && /timed out/i.test(event.summary)) {
+      return 'Probe stop acknowledgement timed out. Partial results preserved; relay state may be incomplete.';
+    }
+    return 'Relay disconnected — probe aborted. Partial results preserved.';
+  }
+  if (run.state === 'completed') {
+    const total = run.progress && run.progress.total;
+    return `Probe complete — ${total || '?'} target(s) done.`;
+  }
+  if (run.state === 'failed') return `Error: ${run.lastError || run.summary}`;
+  if (run.state === 'running') {
+    const total = run.progress && run.progress.total;
+    const target = run.current && run.current.target;
+    const step = run.current && run.current.step;
+    if (target && step) return `Probing ${total || '?'} target(s) — ${target} / ${step}`;
+    return `Probing ${total || '?'} target(s)…`;
+  }
+  return '';
 }
 
 // Update the probe status line on the panel (and mirror it into the modal
@@ -3108,22 +3195,6 @@ function _finishProbe(doneMsg, totalTargets, modalEls) {
   activeProbeRunId = null;
   updateRelayIndicator();
 
-  let label;
-  if (doneMsg && doneMsg.aborted) {
-    label = 'Relay disconnected — probe aborted. Partial results preserved.';
-  } else if (doneMsg && doneMsg.ackTimeout) {
-    label = 'Probe stop acknowledgement timed out. Partial results preserved; relay state may be incomplete.';
-  } else if (doneMsg && doneMsg.cancelled) {
-    const completed = typeof doneMsg.completed === 'number' ? doneMsg.completed : null;
-    const total = typeof doneMsg.total === 'number' ? doneMsg.total : totalTargets;
-    label = completed !== null
-      ? `Probe stopped. Partial results preserved (${completed} of ${total} target(s) completed).`
-      : 'Probe stopped. Partial results preserved.';
-  } else {
-    label = `Probe complete — ${totalTargets} target(s) done.`;
-  }
-  _setProbeStatus(label);
-
   const startBtn = modalEls && modalEls.startBtn;
   const cancelBtn = modalEls && modalEls.cancelBtn;
   if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
@@ -3172,19 +3243,13 @@ function startLiveProbe(targets, ports, community, timeout, modal) {
     (msg) => {
       if (msg.type === 'step_result') {
         _applyStepResult(msg);
-        if (!_isProbeStopping()) {
-          _setProbeStatus(`Probing ${targets.length} target(s) — ${msg.target} / ${msg.step}`);
-        }
         _refreshLive();
-      } else if (msg.type === 'probe_start') {
-        _setProbeStatus(`Probing ${msg.total} target(s)…`);
       }
     },
     (doneMsg) => { _finishProbe(doneMsg, targets.length, modalEls); },
     (err) => {
       activeProbeRunId = null;
       updateRelayIndicator();
-      _setProbeStatus(`Error: ${err}`);
       if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
     },
   );
@@ -5702,6 +5767,7 @@ let store = {};
 let loadedFiles = [];
 let mode = 'log'; // 'log' | 'live'
 let activeTab = 'network';
+let commandGenRunId = null;
 
 // Human-readable review section for evidence chips
 const TYPE_SECTION_LABELS = {
@@ -6343,6 +6409,7 @@ async function processFile(file) {
 
     document.getElementById('evidence-loader')?.classList.remove('hidden');
     updateCybernetReview();
+    _noteEvidenceLoadedForCommandRun(name, parsedData.type, count);
 
   } catch (err) {
     console.error('Error processing file:', name, err);
@@ -6925,6 +6992,8 @@ function showLiveCommands() {
   // PS single-quote here-strings do not expand variables, so this is safe.
   const targetLines = safeTargets.join('\n');
 
+  const runId = _startCommandGenerationRun(safeTargets.length);
+
   const bashCmds = `#!/usr/bin/env bash
 # SysAdmin Suite — Network preflight + identity probe
 # Generated by dashboard Live Mode for ${targets.length} target(s)
@@ -7009,10 +7078,58 @@ while IFS= read -r T; do
   echo ""
 done < /tmp/sas-live/targets.txt`;
 
-  showCommandModal(targets.length, bashCmds, psCmds, linuxCmds);
+  showCommandModal(safeTargets.length, bashCmds, psCmds, linuxCmds, runId);
 }
 
-function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
+function _startCommandGenerationRun(targetCount) {
+  const run = createRun({
+    kind: 'Command generation',
+    source: 'ui',
+    targetsSummary: `${targetCount} target(s)`,
+    total: targetCount,
+    externalOnly: true,
+  });
+  commandGenRunId = run.runId;
+  emitRunEvent(run.runId, 'CommandGenerated', {
+    source: 'ui',
+    summary: `Survey commands generated for ${targetCount} scoped target(s)`,
+    payload: { total: targetCount },
+  });
+  return run.runId;
+}
+
+function _noteCommandCopied(runId, shellLabel) {
+  if (!runId) return;
+  emitRunEvent(runId, 'CommandCopied', {
+    source: 'ui',
+    summary: `${shellLabel} commands copied to clipboard`,
+  });
+}
+
+function _noteEvidenceLoadedForCommandRun(fileName, fileType, rowCount) {
+  if (!commandGenRunId) return;
+  const run = getRunState(commandGenRunId);
+  if (!run || run.kind !== 'Command generation') return;
+  if (!['approved', 'running'].includes(run.state)) return;
+  emitRunEvent(commandGenRunId, 'EvidenceLoaded', {
+    source: 'dashboard-parser',
+    summary: `Evidence loaded: ${fileName}`,
+    payload: { fileName, fileType, rowCount },
+  });
+  emitRunEvent(commandGenRunId, 'RunEvidenceWritten', {
+    source: 'dashboard-parser',
+    summary: 'Loaded evidence preserved locally',
+    payload: { fileName, fileType, rowCount },
+  });
+  emitRunEvent(commandGenRunId, 'RunCompleted', {
+    source: 'dashboard-parser',
+    summary: 'External command evidence loaded into dashboard',
+    payload: { rowCount },
+  });
+  commandGenRunId = null;
+}
+
+function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds, runId) {
   const existing = document.getElementById('live-cmd-modal');
   if (existing) existing.remove();
 
@@ -7057,6 +7174,13 @@ function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
 
   document.body.appendChild(modal);
 
+  if (runId) {
+    emitRunEvent(runId, 'AwaitingExternalResults', {
+      source: 'ui',
+      summary: 'Awaiting external shell results — dashboard cannot stop copied commands',
+    });
+  }
+
   modal.querySelector('#bash-cmds').value = bashCmds;
   modal.querySelector('#ps-cmds').value = psCmds;
   modal.querySelector('#linux-cmds').value = linuxCmds;
@@ -7068,7 +7192,10 @@ function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
     btn.addEventListener('click', () => {
       const id = btn.dataset.target;
       navigator.clipboard?.writeText(cmdMap[id])
-        .then(() => toast(`${labelMap[id]} commands copied!`, 'success'))
+        .then(() => {
+          toast(`${labelMap[id]} commands copied!`, 'success');
+          _noteCommandCopied(runId, labelMap[id]);
+        })
         .catch(() => toast('Select and copy the text manually.', 'warning'));
     });
   });

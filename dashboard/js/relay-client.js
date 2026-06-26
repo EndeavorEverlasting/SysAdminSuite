@@ -195,6 +195,14 @@ export function sendRelayProbe(req, onMessage, onDone, onError) {
             value: msg.value || '',
           },
         });
+        emitRunEvent(runId, 'RunProgress', {
+          source: 'relay-server',
+          summary: `Probe progress: ${msg.target || 'target'} / ${msg.step || 'step'}`,
+          payload: {
+            target: msg.target || '',
+            step: msg.step || '',
+          },
+        });
       } else if (msg.type === 'probe_done') {
         if (msg.cancelled) {
           emitRunEvent(runId, 'StopAcknowledged', {
