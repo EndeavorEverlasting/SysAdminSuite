@@ -1477,6 +1477,20 @@ const RELAY_PORT = 7823;
 const RELAY_HOST = 'localhost';
 const RELAY_TOKEN_KEY = 'sas_relay_token';
 const RECONNECT_DELAY = 5000;
+// How long to wait for the relay to acknowledge a cancel before the client
+// falls back to a local cancelled state (so Start re-enables even if the relay
+// is slow to answer). The relay normally answers within one step boundary.
+const CANCEL_ACK_TIMEOUT = 6000;
+
+/** Generate a per-probe id so cancel requests target the right probe. */
+function _genProbeId() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch (e) { /* fall through to manual id */ }
+  return 'probe-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
 
 let _ws = null;
 let _connected = false;
@@ -1595,7 +1609,7 @@ function initRelayConnection() {
  * @param {function} onMessage — called with each parsed JSON message
  * @param {function} onDone    — called when probe_done received or WS closes mid-probe
  * @param {function} onError   — called with an error string
- * @returns {function} cancel  — call to abort early
+ * @returns {function} cancel  — call to stop the probe; sends a real cancel to the relay
  */
 function sendRelayProbe(req, onMessage, onDone, onError) {
   if (!_connected || !_ws) {
@@ -1604,45 +1618,69 @@ function sendRelayProbe(req, onMessage, onDone, onError) {
   }
 
   let active = true;
+  let cancelTimer = null;
   const ws = _ws;
+  const probeId = _genProbeId();
+
+  function cleanup() {
+    active = false;
+    ws.removeEventListener('message', listener);
+    ws.removeEventListener('close', closeListener);
+    if (cancelTimer) { clearTimeout(cancelTimer); cancelTimer = null; }
+  }
 
   function listener(event) {
     if (!active) return;
     let msg;
     try { msg = JSON.parse(event.data); } catch (e) { return; }
+    // If the relay tags messages with a probeId, ignore ones for other probes.
+    if (msg.probeId && msg.probeId !== probeId) return;
     if (onMessage) onMessage(msg);
     if (msg.type === 'probe_done' || msg.type === 'error') {
-      active = false;
-      ws.removeEventListener('message', listener);
-      ws.removeEventListener('close', closeListener);
+      cleanup();
       if (onDone) onDone(msg);
     }
   }
 
   function closeListener() {
     if (!active) return;
-    active = false;
-    ws.removeEventListener('message', listener);
-    if (onDone) onDone({ type: 'probe_done', aborted: true });
+    cleanup();
+    // The relay socket dropped mid-probe: classify as aborted/disconnected,
+    // never as a successful completion.
+    if (onDone) onDone({ type: 'probe_done', probeId, aborted: true });
   }
 
   ws.addEventListener('message', listener);
   ws.addEventListener('close', closeListener);
 
   try {
-    ws.send(JSON.stringify(Object.assign({ type: 'probe' }, req)));
+    ws.send(JSON.stringify(Object.assign({ type: 'probe', probeId }, req)));
   } catch (e) {
-    active = false;
-    ws.removeEventListener('message', listener);
-    ws.removeEventListener('close', closeListener);
+    cleanup();
     if (onError) onError(String(e));
   }
 
   return function cancel() {
-    active = false;
-    ws.removeEventListener('message', listener);
-    ws.removeEventListener('close', closeListener);
-    if (onDone) onDone({ type: 'probe_done', cancelled: true });
+    if (!active) return;
+    // Tell the relay to stop issuing network checks. UI-only cancellation is not
+    // enough — without this message the relay keeps probing every target.
+    try {
+      ws.send(JSON.stringify({ type: 'probe_cancel', probeId }));
+    } catch (e) {
+      // Socket is already gone — classify as aborted/disconnected, not success.
+      cleanup();
+      if (onDone) onDone({ type: 'probe_done', probeId, aborted: true });
+      return;
+    }
+    // Wait for the relay's authoritative probe_done (cancelled:true). If it does
+    // not arrive in time, fall back to a local cancelled state so the UI re-enables.
+    if (!cancelTimer) {
+      cancelTimer = setTimeout(() => {
+        if (!active) return;
+        cleanup();
+        if (onDone) onDone({ type: 'probe_done', probeId, cancelled: true, ackTimeout: true });
+      }, CANCEL_ACK_TIMEOUT);
+    }
   };
 }
 
@@ -2259,6 +2297,7 @@ let sortDir = 'asc';
 let liveRows = {};       // keyed by target — accumulated step results
 let probeCancel = null;  // cancel function returned by sendRelayProbe
 let probeRunning = false;
+let probeStopping = false; // true between a Stop request and the relay's ack
 
 const PROTOCOL_STEPS = [
   { key: 'DNS',  label: 'DNS',     port: null },
@@ -2386,6 +2425,33 @@ function initNetworkPanel() {
   // Live probe button
   const probeBtn = document.getElementById('net-live-probe-btn');
   if (probeBtn) probeBtn.addEventListener('click', openProbeModal);
+
+  // Persistent Stop control on the panel header — always available while a probe
+  // runs, even if the probe modal was closed. This stops real network activity
+  // (it sends a cancel to the relay), not just the browser view.
+  const stopBtn = document.getElementById('net-stop-probe-btn');
+  if (stopBtn) stopBtn.addEventListener('click', () => stopLiveProbe());
+}
+
+// Update the probe status line on the panel (and mirror it into the modal
+// progress line when the modal is open).
+function _setProbeStatus(text) {
+  const panelStatus = document.getElementById('net-probe-status');
+  if (panelStatus) {
+    panelStatus.textContent = text || '';
+    panelStatus.classList.toggle('hidden', !text);
+  }
+  const modalProgress = document.getElementById('probe-progress');
+  if (modalProgress && text) modalProgress.textContent = text;
+}
+
+// Shared Stop path used by both the panel Stop button and the modal Stop button.
+// Sends a real cancellation to the relay so server-side probing halts.
+function stopLiveProbe() {
+  if (!probeRunning || !probeCancel) return;
+  probeStopping = true;
+  _setProbeStatus('Stopping probe…');
+  probeCancel();
 }
 
 // ── Relay indicator ───────────────────────────────────────────────────────────
@@ -2394,6 +2460,7 @@ function updateRelayIndicator() {
   const dot = document.getElementById('relay-dot');
   const label = document.getElementById('relay-label');
   const probeBtn = document.getElementById('net-live-probe-btn');
+  const stopBtn = document.getElementById('net-stop-probe-btn');
   const tokenInput = document.getElementById('relay-token-input');
   const connectBtn = document.getElementById('relay-connect-btn');
 
@@ -2417,6 +2484,13 @@ function updateRelayIndicator() {
     probeBtn.title = connected
       ? 'Run live network probe via local relay'
       : 'Relay offline — shows setup instructions and command-gen fallback';
+  }
+  if (stopBtn) {
+    // Visible only while a probe is running, regardless of whether the modal is
+    // open — so closing the modal never strands the user without a Stop control.
+    stopBtn.classList.toggle('hidden', !probeRunning);
+    stopBtn.disabled = probeStopping;
+    stopBtn.textContent = probeStopping ? '■ Stopping…' : '■ Stop Probe';
   }
   // Hide token input once connected (token is saved); show when disconnected
   if (tokenInput) tokenInput.style.display = connected ? 'none' : '';
@@ -2495,7 +2569,7 @@ function openProbeModal() {
     <div class="modal" style="width:560px;max-width:98vw">
       <div class="modal-header">
         <span class="modal-title">📡 Live Network Probe</span>
-        <p class="modal-subtitle">Targets are probed via the local relay. Results stream into the Network panel in real time.</p>
+        <p class="modal-subtitle">Targets are probed via the local relay. Results stream into the Network panel in real time. A running probe can be stopped here or from the Stop button on the Network panel — closing this window does not stop the probe.</p>
         <button class="modal-close" id="probe-modal-close">×</button>
       </div>
       <div class="modal-body" style="gap:12px">
@@ -2523,17 +2597,28 @@ function openProbeModal() {
         <div id="probe-progress" style="display:none;font-size:11px;color:var(--text-dim);font-family:var(--mono)"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" id="probe-modal-cancel">Cancel</button>
-        <button class="btn-primary" id="probe-modal-start">▶ Start Probe</button>
+        <button class="btn-secondary" id="probe-modal-back" type="button">← Back to dashboard</button>
+        <button class="btn-secondary" id="probe-modal-cancel" type="button">Cancel</button>
+        <button class="btn-primary" id="probe-modal-start" type="button">▶ Start Probe</button>
       </div>
     </div>`;
 
   document.body.appendChild(modal);
 
+  // Closing the modal only dismisses the window. If a probe is running it keeps
+  // running and the panel Stop button remains available, so the user is never
+  // stranded without a way to stop it.
   const close = () => modal.remove();
   modal.querySelector('#probe-modal-close').addEventListener('click', close);
-  modal.querySelector('#probe-modal-cancel').addEventListener('click', close);
+  modal.querySelector('#probe-modal-back').addEventListener('click', close);
   modal.addEventListener('click', e => { if (e.target === modal) close(); });
+
+  // Single persistent handler: before a probe starts this Cancels (closes the
+  // window); once a probe is running it Stops the probe (real relay cancel).
+  modal.querySelector('#probe-modal-cancel').addEventListener('click', () => {
+    if (probeRunning) stopLiveProbe();
+    else close();
+  });
 
   modal.querySelector('#probe-modal-start').addEventListener('click', () => {
     const targetsRaw = modal.querySelector('#probe-targets-input').value;
@@ -2560,21 +2645,54 @@ function openProbeModal() {
   });
 }
 
+// Re-enable controls and report the final probe outcome. Works whether or not
+// the modal is still open: the panel status always reflects the result, and any
+// captured (possibly detached) modal buttons are updated harmlessly.
+function _finishProbe(doneMsg, totalTargets, modalEls) {
+  probeRunning = false;
+  probeStopping = false;
+  probeCancel = null;
+  updateRelayIndicator();
+
+  let label;
+  if (doneMsg && doneMsg.aborted) {
+    label = 'Relay disconnected — probe aborted. Partial results preserved.';
+  } else if (doneMsg && doneMsg.cancelled) {
+    const completed = typeof doneMsg.completed === 'number' ? doneMsg.completed : null;
+    const total = typeof doneMsg.total === 'number' ? doneMsg.total : totalTargets;
+    label = completed !== null
+      ? `Probe stopped. Partial results preserved (${completed} of ${total} target(s) completed).`
+      : 'Probe stopped. Partial results preserved.';
+  } else {
+    label = `Probe complete — ${totalTargets} target(s) done.`;
+  }
+  _setProbeStatus(label);
+
+  const startBtn = modalEls && modalEls.startBtn;
+  const cancelBtn = modalEls && modalEls.cancelBtn;
+  if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
+  if (cancelBtn) cancelBtn.textContent = 'Close';
+  _refreshLive();
+}
+
 function startLiveProbe(targets, ports, community, timeout, modal) {
   if (!getRelayConnected()) return;
   if (probeRunning && probeCancel) probeCancel();
 
   liveRows = {};
   probeRunning = true;
+  probeStopping = false;
   updateRelayIndicator();
 
-  const startBtn = modal.querySelector('#probe-modal-start');
-  const cancelBtn = modal.querySelector('#probe-modal-cancel');
-  const progress = modal.querySelector('#probe-progress');
+  const startBtn = modal ? modal.querySelector('#probe-modal-start') : null;
+  const cancelBtn = modal ? modal.querySelector('#probe-modal-cancel') : null;
+  const progress = modal ? modal.querySelector('#probe-progress') : null;
+  const modalEls = { startBtn, cancelBtn };
 
   if (startBtn) { startBtn.disabled = true; startBtn.textContent = '⏳ Probing…'; }
   if (cancelBtn) cancelBtn.textContent = 'Stop';
-  if (progress) { progress.style.display = ''; progress.textContent = `Probing ${targets.length} target(s)…`; }
+  if (progress) progress.style.display = '';
+  _setProbeStatus(`Probing ${targets.length} target(s)…`);
 
   // Initialise live rows for each target so they appear immediately
   for (const t of targets) {
@@ -2587,46 +2705,24 @@ function startLiveProbe(targets, ports, community, timeout, modal) {
     (msg) => {
       if (msg.type === 'step_result') {
         _applyStepResult(msg);
-        if (progress) {
-          progress.textContent = `Probing ${targets.length} target(s) — ${msg.target} / ${msg.step}`;
+        if (!probeStopping) {
+          _setProbeStatus(`Probing ${targets.length} target(s) — ${msg.target} / ${msg.step}`);
         }
         _refreshLive();
       } else if (msg.type === 'probe_start') {
-        if (progress) progress.textContent = `Probing ${msg.total} target(s)…`;
+        _setProbeStatus(`Probing ${msg.total} target(s)…`);
       }
     },
-    (doneMsg) => {
-      probeRunning = false;
-      probeCancel = null;
-      updateRelayIndicator();
-      if (progress) {
-        const label = doneMsg.cancelled ? 'Probe cancelled.' : doneMsg.aborted ? 'Relay disconnected.' : `Probe complete — ${targets.length} target(s) done.`;
-        progress.textContent = label;
-      }
-      if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
-      if (cancelBtn) cancelBtn.textContent = 'Close';
-      _refreshLive();
-    },
+    (doneMsg) => { _finishProbe(doneMsg, targets.length, modalEls); },
     (err) => {
       probeRunning = false;
+      probeStopping = false;
       probeCancel = null;
       updateRelayIndicator();
-      if (progress) progress.textContent = `Error: ${err}`;
+      _setProbeStatus(`Error: ${err}`);
       if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
     },
   );
-
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      if (probeRunning && probeCancel) {
-        probeCancel();
-        probeRunning = false;
-        probeCancel = null;
-        updateRelayIndicator();
-      }
-      modal.remove();
-    }, { once: true });
-  }
 }
 
 function _makeLiveRow(target) {
@@ -2897,6 +2993,8 @@ function getNetworkHTML() {
         title="Paste the token printed by: python3 dashboard/relay.py">
       <button class="icon-btn relay-connect-btn" id="relay-connect-btn" title="Connect to relay with this token">Connect</button>
       <button class="icon-btn relay-probe-btn" id="net-live-probe-btn" title="Run live probe or get setup instructions">📡 Probe / Commands</button>
+      <button class="icon-btn relay-stop-btn hidden" id="net-stop-probe-btn" title="Stop the running probe — halts further network checks on the relay">■ Stop Probe</button>
+      <span class="relay-probe-status hidden" id="net-probe-status" role="status" aria-live="polite"></span>
     </div>
     <div class="table-wrapper" id="net-accordion"></div>`;
 }
@@ -5260,6 +5358,36 @@ function switchTab(tab) {
   if (content) content.classList.remove('hidden');
 }
 
+// ── Shared workflow exit control ─────────────────────────────────────────────
+// A durable, state-independent way to leave any open wizard and return to its
+// hero/start action. This never depends on step index or probe state, so a field
+// user is never trapped inside a tutorial. It does NOT clear loaded evidence,
+// manifests, or live rows — only the visible wizard chrome is closed.
+function closeWorkflowTutorial(opts) {
+  if (!opts) return;
+  const tutorial = opts.tutorialId ? document.getElementById(opts.tutorialId) : null;
+  if (tutorial) {
+    tutorial.classList.add('hidden');
+    tutorial.style.display = ''; // drop any stale inline display so .hidden wins
+  }
+  const startBtn = opts.startBtnId ? document.getElementById(opts.startBtnId) : null;
+  if (startBtn) {
+    if (opts.startLabel) startBtn.textContent = opts.startLabel;
+    startBtn.removeAttribute('aria-label');
+  }
+  const statusEl = opts.heroStatusId ? document.getElementById(opts.heroStatusId) : null;
+  if (statusEl) {
+    statusEl.textContent = opts.neutralStatus || '';
+    statusEl.classList.remove('is-busy', 'is-open', 'is-error');
+    statusEl.classList.toggle('hidden', !opts.neutralStatus);
+  }
+  const hero = opts.heroId ? document.getElementById(opts.heroId) : null;
+  if (hero && opts.scroll !== false) {
+    try { hero.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) { /* non-fatal */ }
+  }
+}
+window.closeWorkflowTutorial = closeWorkflowTutorial;
+
 // ── Cybernet-first shell ─────────────────────────────────────────────────────
 function initRepoSetupShell() {
   const startBtn = document.getElementById('hero-start-setup');
@@ -5315,6 +5443,13 @@ function initRepoSetupShell() {
   };
 
   startBtn?.addEventListener('click', () => startRepoSetupTutorial({ source: 'manual' }));
+  document.getElementById('repo-setup-exit')?.addEventListener('click', () => {
+    closeWorkflowTutorial({
+      tutorialId: 'repo-setup-tutorial', heroId: 'repo-setup-hero',
+      startBtnId: 'hero-start-setup', startLabel: 'Start Repo Setup',
+      heroStatusId: 'repo-setup-hero-status',
+    });
+  });
   document.getElementById('hero-open-cybernet')?.addEventListener('click', () => {
     if (typeof window.startCybernetTutorial === 'function') window.startCybernetTutorial({ source: 'manual' });
     else document.getElementById('hero-start-survey')?.click();
@@ -5379,6 +5514,13 @@ function initToolboxShell() {
   };
 
   startBtn?.addEventListener('click', () => startToolboxTutorial({ source: 'manual', status: window.__sasLastToolboxStatus }));
+  document.getElementById('toolbox-exit')?.addEventListener('click', () => {
+    closeWorkflowTutorial({
+      tutorialId: 'toolbox-tutorial', heroId: 'toolbox-hero',
+      startBtnId: 'hero-start-toolbox', startLabel: 'Start Toolbox Check',
+      heroStatusId: 'toolbox-hero-status',
+    });
+  });
   window.startToolboxTutorial = startToolboxTutorial;
   window.renderToolboxChecklist = renderToolboxChecklist;
   window.updateToolboxBanner = updateToolboxBanner;
@@ -5450,6 +5592,13 @@ function initCybernetShell() {
   };
 
   startBtn?.addEventListener('click', () => startCybernetTutorial({ source: 'manual' }));
+  document.getElementById('cybernet-exit')?.addEventListener('click', () => {
+    closeWorkflowTutorial({
+      tutorialId: 'cybernet-tutorial', heroId: 'cybernet-hero',
+      startBtnId: 'hero-start-survey', startLabel: 'Start Cybernet Survey',
+      heroStatusId: 'cybernet-hero-status',
+    });
+  });
 
   // Expose the same verified transition for the ?tutorial=cybernet auto-launch
   // path so it cannot diverge from the manual click behavior.
@@ -5529,6 +5678,13 @@ function initSoftwareTrackerShell() {
   };
 
   startBtn?.addEventListener('click', () => startSoftwareTrackerTutorial({ source: 'manual' }));
+  document.getElementById('sw-exit')?.addEventListener('click', () => {
+    closeWorkflowTutorial({
+      tutorialId: 'software-tracker-tutorial', heroId: 'software-tracker-hero',
+      startBtnId: 'hero-start-install', startLabel: 'Start Software Tracker Install',
+      heroStatusId: 'software-tracker-hero-status',
+    });
+  });
   window.startSoftwareTrackerTutorial = startSoftwareTrackerTutorial;
 
   document.getElementById('hero-start-install-evidence')?.addEventListener('click', () => {
@@ -6410,6 +6566,8 @@ function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
         <div style="padding:8px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:6px;font-size:11px;color:var(--warning)">
           ⚠ Browser security prevents direct network probing from a web page.
           Copy the commands below, run them from an admin machine, then drag the resulting CSV files back into the dashboard.
+          <br><strong>To stop a copied command, use Ctrl+C in the terminal where it is running.</strong>
+          The dashboard cannot stop a command already running in an external shell, and it does not hide or evade normal OS, network, or security telemetry.
         </div>
         ${section('bash-cmds', '1 — BASH  (primary — suite scripts + optional low-noise reachability)', '220px')}
         ${section('ps-cmds',   '2 — POWERSHELL  (Windows WMI / printer mapping)', '150px')}

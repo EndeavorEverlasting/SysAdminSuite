@@ -861,6 +861,30 @@ textarea.paste-area:focus { border-color: var(--accent); }
   font-size: 11px;
 }
 
+/* Persistent Stop control + status shown on the Network panel while a live
+   probe runs, independent of the probe modal. */
+.relay-stop-btn {
+  color: var(--danger, #ef4444);
+  border-color: rgba(239, 68, 68, 0.4);
+  font-weight: 600;
+}
+.relay-stop-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: var(--danger, #ef4444);
+}
+.relay-stop-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.relay-probe-status {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .relay-token-input {
   padding: 4px 8px;
   background: var(--bg3);
@@ -1267,6 +1291,37 @@ textarea.paste-area:focus { border-color: var(--accent); }
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+/* Persistent, state-independent escape control shown at the top of every
+   wizard. Unlike step-level "Previous Step", this never disables and never
+   disappears, so a field user can always return to the dashboard. */
+.workflow-exit-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.workflow-exit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.workflow-exit-btn:hover,
+.workflow-exit-btn:focus-visible {
+  color: var(--text);
+  border-color: var(--info);
+  background: rgba(79, 142, 247, 0.08);
 }
 
 .repo-setup-hero-status,

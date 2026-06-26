@@ -29,22 +29,35 @@ Protocol
 
   Client  → Server  (JSON):
     { "type": "probe",
+      "probeId":        "abc123",            # optional; relay generates one if absent
       "targets":        ["192.168.1.1", "printer.local"],
       "ports":          [135, 139, 445, 515, 631, 3389, 9100],
       "snmp_community": "public",
       "timeout":        2 }
 
+    { "type": "probe_cancel", "probeId": "abc123" }   # stop the running probe
+
+  Cancellation
+  ------------
+  A probe runs as a background task while the connection keeps reading messages,
+  so a "probe_cancel" can interrupt it. The relay checks the cancel flag before
+  each target and before each major step (DNS, ping, TCP batch, SNMP), so in-flight
+  network activity stops promptly and remaining targets are never probed. Partial
+  results already streamed to the client are preserved. This is scope control, not
+  log evasion — normal OS/network telemetry is unaffected.
+
   Server  → Client  (JSON, streaming, one message per event):
-    { "type": "probe_start",  "total": N }
-    { "type": "step_result",  "target": "...", "step": "dns",
+    { "type": "probe_start",  "probeId": "...", "total": N }
+    { "type": "step_result",  "probeId": "...", "target": "...", "step": "dns",
       "status": "ok|failed|skipped", "value": "..." }
-    { "type": "step_result",  "target": "...", "step": "ping",
+    { "type": "step_result",  "probeId": "...", "target": "...", "step": "ping",
       "status": "ok|failed",  "value": "Reachable|NoPing" }
-    { "type": "step_result",  "target": "...", "step": "tcp_PORT",
+    { "type": "step_result",  "probeId": "...", "target": "...", "step": "tcp_PORT",
       "status": "ok|failed",  "value": "open|closed|filtered" }
-    { "type": "step_result",  "target": "...", "step": "snmp",
+    { "type": "step_result",  "probeId": "...", "target": "...", "step": "snmp",
       "status": "ok|failed|skipped", "value": "..." }
-    { "type": "probe_done",   "total": N }
+    { "type": "probe_done",   "probeId": "...", "total": N, "completed": M,
+      "cancelled": true|false }
     { "type": "error",        "message": "..." }
 """
 
@@ -271,17 +284,30 @@ async def probe_snmp(target: str, community: str, timeout: int) -> dict:
 
 # ── Per-target probe orchestrator ─────────────────────────────────────────────
 
-async def probe_target(ws, target: str, ports: list, snmp_community: str, timeout: int):
-    """Run all probe steps for one target and stream results over ws."""
+async def probe_target(ws, target: str, ports: list, snmp_community: str, timeout: int,
+                       cancel_event=None, probe_id=None):
+    """Run all probe steps for one target and stream results over ws.
+
+    If ``cancel_event`` is set at any checkpoint (before ping, before the TCP
+    batch, before SNMP) the probe stops early and no further network activity is
+    issued for this target. Results already sent are preserved by the client.
+    """
+
+    def cancelled():
+        return cancel_event is not None and cancel_event.is_set()
 
     async def send(step, status, value):
         await ws.send(json.dumps({
             "type": "step_result",
+            "probeId": probe_id,
             "target": target,
             "step": step,
             "status": status,
             "value": value,
         }))
+
+    if cancelled():
+        return
 
     # DNS
     dns = await probe_dns(target, timeout)
@@ -289,9 +315,15 @@ async def probe_target(ws, target: str, ports: list, snmp_community: str, timeou
     # Use resolved IP for lower-level probes to avoid repeated DNS lookups
     probe_addr = dns["value"] if dns["status"] == "ok" else target
 
+    if cancelled():
+        return
+
     # Ping
     ping = await probe_ping(probe_addr, timeout)
     await send("ping", ping["status"], ping["value"])
+
+    if cancelled():
+        return
 
     # TCP ports (run concurrently for speed)
     port_coros = {str(p): probe_tcp(probe_addr, p, timeout) for p in ports}
@@ -302,9 +334,57 @@ async def probe_target(ws, target: str, ports: list, snmp_community: str, timeou
         else:
             await send(f"tcp_{port_str}", result["status"], result["value"])
 
+    if cancelled():
+        return
+
     # SNMP
     snmp = await probe_snmp(probe_addr, snmp_community, timeout)
     await send("snmp", snmp["status"], snmp["value"])
+
+
+# ── Probe orchestration (cancellable) ─────────────────────────────────────────
+
+async def run_probe(ws, probe_id, targets, ports, community, timeout, cancel_event):
+    """Probe every target sequentially while honoring ``cancel_event``.
+
+    Checks for cancellation before each target so a Stop request halts further
+    network activity instead of merely hiding the browser UI. Streams a
+    ``probe_done`` with ``cancelled`` and ``completed`` counts. Returns the
+    ``(completed, cancelled)`` tuple so callers/tests can assert behavior.
+    """
+    await ws.send(json.dumps({
+        "type": "probe_start", "probeId": probe_id, "total": len(targets),
+    }))
+
+    completed = 0
+    for target in targets:
+        if cancel_event.is_set():
+            break
+        try:
+            await probe_target(ws, target, ports, community, timeout, cancel_event, probe_id)
+        except Exception as exc:
+            log.warning("Error probing %s: %s", target, exc)
+            await ws.send(json.dumps({
+                "type": "step_result", "probeId": probe_id, "target": target,
+                "step": "error", "status": "failed", "value": str(exc),
+            }))
+        # If cancellation arrived during this target, treat it as not completed
+        # (partial results already streamed are preserved on the client).
+        if cancel_event.is_set():
+            break
+        completed += 1
+
+    cancelled = cancel_event.is_set()
+    await ws.send(json.dumps({
+        "type": "probe_done", "probeId": probe_id,
+        "total": len(targets), "completed": completed, "cancelled": cancelled,
+    }))
+    if cancelled:
+        log.info("Probe %s cancelled — %d of %d target(s) completed",
+                 probe_id, completed, len(targets))
+    else:
+        log.info("Probe %s complete — %d target(s)", probe_id, len(targets))
+    return completed, cancelled
 
 
 # ── WebSocket connection handler ──────────────────────────────────────────────
@@ -342,6 +422,21 @@ async def handle_connection(ws, secret_token: str):
     remote = getattr(ws, "remote_address", ("?", "?"))
     log.info("Authenticated client connected from %s:%s", *remote)
 
+    # Per-connection probe state. The probe runs as a background task so the
+    # connection keeps reading messages and can honor a "probe_cancel".
+    state = {"probe_id": None, "task": None, "cancel_event": None}
+
+    async def cancel_current():
+        ev = state["cancel_event"]
+        task = state["task"]
+        if ev is not None:
+            ev.set()
+        if task is not None and not task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=15)
+            except Exception:
+                pass
+
     try:
         async for raw in ws:
             try:
@@ -350,10 +445,22 @@ async def handle_connection(ws, secret_token: str):
                 await ws.send(json.dumps({"type": "error", "message": "Invalid JSON"}))
                 continue
 
-            if msg.get("type") != "probe":
+            mtype = msg.get("type")
+
+            # Cancellation request — stop the running probe (if the id matches or
+            # no id was supplied). Safe to receive at any time.
+            if mtype == "probe_cancel":
+                pid = msg.get("probeId")
+                if state["probe_id"] and (pid is None or pid == state["probe_id"]):
+                    log.info("Cancellation requested for probe %s", state["probe_id"])
+                    if state["cancel_event"] is not None:
+                        state["cancel_event"].set()
+                continue
+
+            if mtype != "probe":
                 await ws.send(json.dumps({
                     "type": "error",
-                    "message": f"Unknown message type: {msg.get('type')}",
+                    "message": f"Unknown message type: {mtype}",
                 }))
                 continue
 
@@ -379,25 +486,35 @@ async def handle_connection(ws, secret_token: str):
                 ports = ports[:MAX_PORTS]
                 log.warning("Port list truncated to %d (max %d)", MAX_PORTS, MAX_PORTS)
 
-            log.info("Probing %d target(s): %s", len(targets), ", ".join(targets[:5]))
-            await ws.send(json.dumps({"type": "probe_start", "total": len(targets)}))
+            # If a probe is already running, cancel it before starting a new one.
+            await cancel_current()
 
-            for target in targets:
+            probe_id = str(msg.get("probeId") or secrets.token_hex(8))
+            cancel_event = asyncio.Event()
+            state["probe_id"] = probe_id
+            state["cancel_event"] = cancel_event
+            log.info("Probing %d target(s) [probe %s]: %s",
+                     len(targets), probe_id, ", ".join(targets[:5]))
+
+            async def _runner(pid=probe_id, t=targets, p=ports, c=community,
+                              to=timeout, ev=cancel_event):
                 try:
-                    await probe_target(ws, target, ports, community, timeout)
+                    await run_probe(ws, pid, t, p, c, to, ev)
                 except Exception as exc:
-                    log.warning("Error probing %s: %s", target, exc)
-                    await ws.send(json.dumps({
-                        "type": "step_result", "target": target,
-                        "step": "error", "status": "failed", "value": str(exc),
-                    }))
+                    log.warning("Probe %s ended unexpectedly: %s", pid, exc)
+                finally:
+                    if state["probe_id"] == pid:
+                        state["probe_id"] = None
+                        state["task"] = None
+                        state["cancel_event"] = None
 
-            await ws.send(json.dumps({"type": "probe_done", "total": len(targets)}))
-            log.info("Probe complete — %d target(s)", len(targets))
+            state["task"] = asyncio.create_task(_runner())
 
     except Exception as exc:
         log.warning("Connection closed unexpectedly: %s", exc)
     finally:
+        # Never leave a probe task running after the connection ends.
+        await cancel_current()
         log.info("Client disconnected from %s:%s", *remote)
 
 

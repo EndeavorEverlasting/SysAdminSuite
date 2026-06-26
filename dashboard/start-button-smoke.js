@@ -239,5 +239,24 @@ assert(isVisible(setupTutorial), 'setup-auto-start-opens-wizard', 'setup auto-st
 assert(/restart/i.test(setupStartBtn.textContent), 'setup-auto-start-transforms-start',
   `setup auto-start did not transform Start (was "${setupStartBtn.textContent}")`);
 
+// State 6: the persistent "Back to dashboard" exit closes the wizard, keeps the
+// hero/start action visible, and restores the Start label — the user is never
+// trapped inside an open wizard.
+tutorial.classList.add('hidden');
+tutorial.style.display = '';
+startBtn.textContent = 'Start Cybernet Survey';
+window.location.search = '';
+startBtn.click();
+assert(isVisible(tutorial), 'exit-precondition-open', 'wizard not open before exit test');
+const cybernetExit = document.getElementById('cybernet-exit');
+assert(typeof window.closeWorkflowTutorial === 'function', 'exit-helper-exposed',
+  'window.closeWorkflowTutorial missing');
+cybernetExit.click();
+assert(!isVisible(tutorial), 'exit-closes-wizard', 'exit control did not hide the wizard');
+assert(isVisible(document.getElementById('cybernet-hero-actions')), 'exit-keeps-hero-actions',
+  'hero actions hidden after exit, stranding the user');
+assert(startBtn.textContent === 'Start Cybernet Survey', 'exit-restores-start-label',
+  `Start label not restored on exit (was "${startBtn.textContent}")`);
+
 console.log(`\nStart button: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

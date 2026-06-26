@@ -333,3 +333,30 @@ Stop and escalate when:
 7. Package local artifacts under survey/artifacts/.
 8. Do not commit live data.
 ```
+
+## Dashboard controls: Back and Stop
+
+Every dashboard wizard (Cybernet Survey, Repo Setup, Toolbox Check, Software
+Tracker Install) shows a persistent **← Back to dashboard** control at the top.
+It is always available and never depends on the step you are on or whether a
+probe is running, so you can always leave a wizard. The step-level **← Previous
+Step** button is separate and may be disabled on the first step; the Back to
+dashboard control is not. Closing a wizard keeps your loaded evidence — it only
+hides the wizard chrome.
+
+Live relay probes can be stopped from the dashboard. While a live probe is
+running, a **■ Stop Probe** button appears on the Network panel (and in the live
+probe window). Stop sends a real cancellation to the local relay, which stops
+issuing further network checks — it is not a browser-only action. Stopping
+preserves partial results: rows already collected stay in the Network panel, and
+the status line reads `Probe stopped. Partial results preserved.` Closing the
+probe window does not stop the probe; use Stop. If the relay disconnects mid
+probe, the result is classified as aborted/disconnected, never as success.
+
+Command-generation scripts (the relay-offline fallback) run in your own
+terminal, so the dashboard cannot stop them. Command-generation scripts must be
+stopped in the terminal with **Ctrl+C** in the window where they are running.
+
+The dashboard does not hide or evade normal OS, network, or security telemetry;
+Stop is scope control, not log suppression. Keep probes scoped to approved
+target manifests.

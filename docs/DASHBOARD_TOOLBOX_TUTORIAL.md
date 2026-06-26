@@ -30,6 +30,16 @@ tool is missing, outdated, blocked, or requires update review.
 4. `dashboard/js/launch-toolbox-tutorial.js` fetches that JSON. If
    `actionNeeded` is true, the Toolbox wizard opens before Repo Setup.
 
+## Leaving a wizard
+
+Every dashboard wizard (Toolbox Check, Repo Setup, Cybernet Survey, Software
+Tracker Install) carries a persistent **← Back to dashboard** control at the top
+of the wizard. It is always visible and never depends on the current step, so a
+field user can always close the wizard and return to its hero/start action. The
+step-level **← Previous Step** button is a separate control and may be disabled
+on the first step; the Back to dashboard control is not. Closing a wizard hides
+only the wizard chrome and does not clear loaded evidence.
+
 ## Probe Contract
 
 The committed manifest is

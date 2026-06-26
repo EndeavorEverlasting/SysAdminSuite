@@ -6,6 +6,20 @@ export const RELAY_PORT = 7823;
 export const RELAY_HOST = 'localhost';
 const RELAY_TOKEN_KEY = 'sas_relay_token';
 const RECONNECT_DELAY = 5000;
+// How long to wait for the relay to acknowledge a cancel before the client
+// falls back to a local cancelled state (so Start re-enables even if the relay
+// is slow to answer). The relay normally answers within one step boundary.
+const CANCEL_ACK_TIMEOUT = 6000;
+
+/** Generate a per-probe id so cancel requests target the right probe. */
+function _genProbeId() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch (e) { /* fall through to manual id */ }
+  return 'probe-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
 
 let _ws = null;
 let _connected = false;
@@ -124,7 +138,7 @@ export function initRelayConnection() {
  * @param {function} onMessage — called with each parsed JSON message
  * @param {function} onDone    — called when probe_done received or WS closes mid-probe
  * @param {function} onError   — called with an error string
- * @returns {function} cancel  — call to abort early
+ * @returns {function} cancel  — call to stop the probe; sends a real cancel to the relay
  */
 export function sendRelayProbe(req, onMessage, onDone, onError) {
   if (!_connected || !_ws) {
@@ -133,44 +147,68 @@ export function sendRelayProbe(req, onMessage, onDone, onError) {
   }
 
   let active = true;
+  let cancelTimer = null;
   const ws = _ws;
+  const probeId = _genProbeId();
+
+  function cleanup() {
+    active = false;
+    ws.removeEventListener('message', listener);
+    ws.removeEventListener('close', closeListener);
+    if (cancelTimer) { clearTimeout(cancelTimer); cancelTimer = null; }
+  }
 
   function listener(event) {
     if (!active) return;
     let msg;
     try { msg = JSON.parse(event.data); } catch (e) { return; }
+    // If the relay tags messages with a probeId, ignore ones for other probes.
+    if (msg.probeId && msg.probeId !== probeId) return;
     if (onMessage) onMessage(msg);
     if (msg.type === 'probe_done' || msg.type === 'error') {
-      active = false;
-      ws.removeEventListener('message', listener);
-      ws.removeEventListener('close', closeListener);
+      cleanup();
       if (onDone) onDone(msg);
     }
   }
 
   function closeListener() {
     if (!active) return;
-    active = false;
-    ws.removeEventListener('message', listener);
-    if (onDone) onDone({ type: 'probe_done', aborted: true });
+    cleanup();
+    // The relay socket dropped mid-probe: classify as aborted/disconnected,
+    // never as a successful completion.
+    if (onDone) onDone({ type: 'probe_done', probeId, aborted: true });
   }
 
   ws.addEventListener('message', listener);
   ws.addEventListener('close', closeListener);
 
   try {
-    ws.send(JSON.stringify(Object.assign({ type: 'probe' }, req)));
+    ws.send(JSON.stringify(Object.assign({ type: 'probe', probeId }, req)));
   } catch (e) {
-    active = false;
-    ws.removeEventListener('message', listener);
-    ws.removeEventListener('close', closeListener);
+    cleanup();
     if (onError) onError(String(e));
   }
 
   return function cancel() {
-    active = false;
-    ws.removeEventListener('message', listener);
-    ws.removeEventListener('close', closeListener);
-    if (onDone) onDone({ type: 'probe_done', cancelled: true });
+    if (!active) return;
+    // Tell the relay to stop issuing network checks. UI-only cancellation is not
+    // enough — without this message the relay keeps probing every target.
+    try {
+      ws.send(JSON.stringify({ type: 'probe_cancel', probeId }));
+    } catch (e) {
+      // Socket is already gone — classify as aborted/disconnected, not success.
+      cleanup();
+      if (onDone) onDone({ type: 'probe_done', probeId, aborted: true });
+      return;
+    }
+    // Wait for the relay's authoritative probe_done (cancelled:true). If it does
+    // not arrive in time, fall back to a local cancelled state so the UI re-enables.
+    if (!cancelTimer) {
+      cancelTimer = setTimeout(() => {
+        if (!active) return;
+        cleanup();
+        if (onDone) onDone({ type: 'probe_done', probeId, cancelled: true, ackTimeout: true });
+      }, CANCEL_ACK_TIMEOUT);
+    }
   };
 }
