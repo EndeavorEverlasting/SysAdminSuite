@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - 'dashboard/**'
+      - 'Tests/bash/test_dashboard_*.sh'
       - '.github/workflows/dashboard-smoke.yml'
   push:
     branches:
       - main
     paths:
       - 'dashboard/**'
+      - 'Tests/bash/test_dashboard_*.sh'
       - '.github/workflows/dashboard-smoke.yml'
 
 jobs:
@@ -34,6 +36,7 @@ jobs:
           node --check dashboard/js/launch-cybernet-tutorial.js
           node --check dashboard/js/launch-repo-setup-tutorial.js
           node --check dashboard/js/repo-setup-tutorial.js
+          node --check dashboard/test_relay_abort_e2e.js
       - name: Relay syntax check
         run: python -m py_compile dashboard/relay.py
       - name: Dashboard parser smoke test
@@ -46,9 +49,15 @@ jobs:
         run: python dashboard/test_relay_cancel.py
       - name: Relay cancel loopback E2E test
         run: python dashboard/test_relay_cancel_e2e.py
+      - name: Relay abort loopback E2E test
+        run: |
+          npm install --no-save --no-package-lock ws@8
+          node dashboard/test_relay_abort_e2e.js
       - name: Dashboard tutorial launcher contracts
         run: bash Tests/bash/test_dashboard_tutorial_launcher_contracts.sh
       - name: Dashboard wizard exit + probe stop contracts
         run: bash Tests/bash/test_dashboard_wizard_exit_contracts.sh
       - name: Dashboard relay cancel E2E contracts
         run: bash Tests/bash/test_dashboard_relay_cancel_e2e_contracts.sh
+      - name: Dashboard relay abort E2E contracts
+        run: bash Tests/bash/test_dashboard_relay_abort_e2e_contracts.sh
