@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import ipaddress
 import json
 import re
@@ -17,6 +18,19 @@ from typing import Iterable
 
 PREFIX_RE = re.compile(r"^([A-Z]{2,4})(\d{2,4})([A-Z]{2,6})(\d*)$")
 EMPTY = {"", "N/A", "NA", "NONE", "NULL", "-", "--", "TBD", "UNKNOWN", "#N/A"}
+
+
+def _load_classifier():
+    module_path = Path(__file__).with_name("sas-survey-device-classify.py")
+    spec = importlib.util.spec_from_file_location("sas_survey_device_classify", module_path)
+    if not spec or not spec.loader:
+        raise RuntimeError(f"could not load classifier module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_CLASSIFY = _load_classifier()
 
 HOST_FIELDS = [
     "NormalizedHostName",
@@ -44,6 +58,10 @@ HOST_FIELDS = [
     "EvidenceSources",
     "Site",
     "SourceFiles",
+    "DeviceRole",
+    "RoleConfidence",
+    "RoleSignals",
+    "CountsTowardCybernetPopulation",
 ]
 
 MAP_FIELDS = [
@@ -644,6 +662,14 @@ def build_host_rows(
             audit["Blocker"] = "missing_dns_ip"
             audit["NextAction"] = "Resolve hostname or provide approved IP evidence"
 
+        cls = _CLASSIFY.classify_device(
+            hostname=rec.hostname,
+            survey_lane="subnet_discovery",
+            in_manifest=False,
+            identifier_type=audit.get("PrimaryKeyType", ""),
+            serial=rec.serial_value(),
+        )
+
         out.append(
             {
                 "NormalizedHostName": normalized,
@@ -662,6 +688,10 @@ def build_host_rows(
                 "EvidenceSources": ";".join(sorted(rec.sources)),
                 "Site": rec.site,
                 "SourceFiles": ";".join(sorted(rec.source_files)),
+                "DeviceRole": cls.device_role,
+                "RoleConfidence": cls.role_confidence,
+                "RoleSignals": cls.role_signals,
+                "CountsTowardCybernetPopulation": cls.counts_toward_cybernet_population,
             }
         )
     return out

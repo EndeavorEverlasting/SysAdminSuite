@@ -366,15 +366,26 @@ Network context copy: $ctx_dest"
 mode_dns_list_only() {
   collect_cidrs_for_scan
   ensure_run_dir
-  local nmap c safe out
+  local nmap c safe out py classify_out classify_args
   nmap="$(nmap_bin)"
   [[ -n "$nmap" || "$DRY_RUN" -eq 1 ]] || fail "nmap not found on PATH"
+  classify_out="$RUN_DIR/dns_infrastructure_classification.csv"
+  classify_args=()
   for c in "${CIDRS[@]}"; do
     safe="$(safe_cidr_token "$c")"
     out="$LOGS_ROOT/${SITE}_${safe}_list_dns.txt"
     run_cmd "dns-list $c" "$nmap" -sL "$c" -oN "$out"
     append_summary "$RUN_DIR" "dns-list-only $c -> $out (DNS/list sanity check, not host proof)"
+    if [[ "$DRY_RUN" -eq 0 && -f "$out" ]]; then
+      classify_args+=(--input "$out" --subnet "$c")
+    fi
   done
+  if [[ "$DRY_RUN" -eq 0 && ${#classify_args[@]} -gt 0 ]]; then
+    py="$(find_python)"
+    classify_script="$SCRIPT_DIR/sas-classify-dns-list-output.py"
+    run_cmd "classify dns-list" $py "$classify_script" "${classify_args[@]}" --output "$classify_out"
+    append_summary "$RUN_DIR" "dns-list classification -> $classify_out"
+  fi
   log "dns-list-only complete"
 }
 

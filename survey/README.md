@@ -10,6 +10,7 @@ The current priority tutorial for field technicians is:
 
 - [`../START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) — what to double-click and what opens
 - [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) — advanced CLI orchestrator path
+- [`../docs/SURVEY_LANES.md`](../docs/SURVEY_LANES.md) — manifest lane vs subnet lane; serial vs hostname vs MAC
 - [`../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md) — full step-by-step runbook
 
 Use the CLI path below only when the dashboard or a lead explicitly asks for Bash orchestration. Start with the workflow diagram in `../START-HERE-CYBERNET-NEURON-SURVEY.md` when you need the one-page field path before the command details. Mermaid source: [`../docs/diagrams/cybernet-neuron-survey-flow.mmd`](../docs/diagrams/cybernet-neuron-survey-flow.mmd). The workflow is:

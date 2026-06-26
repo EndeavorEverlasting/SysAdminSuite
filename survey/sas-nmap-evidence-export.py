@@ -13,10 +13,24 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+
+def _load_classifier():
+    module_path = Path(__file__).with_name("sas-survey-device-classify.py")
+    spec = importlib.util.spec_from_file_location("sas_survey_device_classify", module_path)
+    if not spec or not spec.loader:
+        raise RuntimeError(f"could not load classifier module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_CLASSIFY = _load_classifier()
 
 FIELDS = [
     "Target",
@@ -28,6 +42,10 @@ FIELDS = [
     "ProbeMethod",
     "EvidenceSource",
     "Notes",
+    "SurveyLane",
+    "DeviceRole",
+    "RoleSignals",
+    "CountsTowardCybernetPopulation",
 ]
 
 
@@ -180,6 +198,12 @@ def main() -> int:
 
     fmt = infer_format(input_path, args.format)
     rows = parse_xml(input_path) if fmt == "xml" else parse_normal_text(input_path)
+    for row in rows:
+        cls = _CLASSIFY.classify_from_nmap_row(row, survey_lane="cybernet_manifest")
+        row["SurveyLane"] = cls.get("SurveyLane", "cybernet_manifest")
+        row["DeviceRole"] = cls.get("DeviceRole", "")
+        row["RoleSignals"] = cls.get("RoleSignals", "")
+        row["CountsTowardCybernetPopulation"] = cls.get("CountsTowardCybernetPopulation", "")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=FIELDS, quoting=csv.QUOTE_ALL, lineterminator="\n")

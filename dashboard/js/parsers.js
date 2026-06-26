@@ -171,6 +171,10 @@ export function detectFileType(filename, content) {
       fn.includes('ad_missing_dns') || fn.includes('ad_duplicates') || fn.includes('evidence_only')) {
     return 'ad-registered-population';
   }
+  if (fn.includes('dns_infrastructure_classification') || fn.includes('dns_infrastructure') ||
+      fn.includes('cybernet_dns_resolution') || fn.includes('cybernet_master_presence')) {
+    return 'survey-classification';
+  }
   if (fn.includes('wmi_identity') || fn.includes('wmi-identity')) return 'workstation-identity';
 
   // Detect by headers if content is provided
@@ -192,6 +196,8 @@ export function detectFileType(filename, content) {
     if (firstLine.includes('populationauthority') && firstLine.includes('reconcilebucket')) return 'ad-registered-population';
     if (firstLine.includes('populationauthority') && firstLine.includes('adstatus')) return 'ad-registered-population';
     if (firstLine.includes('reconcilebucket') && firstLine.includes('hostname')) return 'ad-registered-population';
+    if (firstLine.includes('devicerole') && firstLine.includes('surveylane')) return 'survey-classification';
+    if (firstLine.includes('devicerole') && firstLine.includes('countstowardcybernetpopulation')) return 'survey-classification';
   }
 
   return 'unknown';
@@ -222,6 +228,7 @@ export function parseFileContent(type, content, filename) {
     case 'software-superset': return parseSoftwareSuperset(content);
     case 'naabu-reachability': return parseNaabuReachability(content, filename);
     case 'ad-registered-population': return parseAdRegisteredPopulation(content, filename);
+    case 'survey-classification': return parseSurveyClassification(content, filename);
     default: return { type: 'unknown', rows: [], meta: {} };
   }
 }
@@ -284,6 +291,25 @@ function parseNaabuReachability(content, filename) {
   }
 
   return { type: 'naabu-reachability', rows, meta: { count: rows.length, warnings } };
+}
+
+/**
+ * Parse survey classification CSVs (DNS resolution, subnet dns-list, merged evidence).
+ */
+function parseSurveyClassification(content, filename) {
+  const rows = parseCSV(content);
+  const normalized = rows.map(r => ({
+    hostName: r.HostName || r.hostname || r.Target || '',
+    deviceRole: r.DeviceRole || r.devicerole || '',
+    surveyLane: r.SurveyLane || r.surveylane || '',
+    identifierType: r.IdentifierType || r.identifiertype || '',
+    countsToward: r.CountsTowardCybernetPopulation || r.countstowardcybernetpopulation || '',
+    roleSignals: r.RoleSignals || r.rolesignals || '',
+    nextAction: r.NextAction || r.nextaction || '',
+    overallStatus: r.OverallStatus || r.overallstatus || r.Status || '',
+    sourceFile: filename || '',
+  }));
+  return { type: 'survey-classification', rows: normalized, meta: { count: normalized.length } };
 }
 
 /**
@@ -438,6 +464,7 @@ function parseCybernetTargetManifest(content) {
       neuron,
       workstation,
       mac,
+      identifierType,
     };
   }).filter(r =>
     r.hostname || r.dnsHostName || r.ipAddress || r.serial || r.mac || r.neuron || r.workstation
@@ -769,6 +796,9 @@ export function mergeDataStore(existing, incoming) {
       break;
     case 'ad-registered-population':
       store.adRegisteredPopulation = (store.adRegisteredPopulation || []).concat(rows);
+      break;
+    case 'survey-classification':
+      store.surveyClassification = (store.surveyClassification || []).concat(rows);
       break;
   }
 

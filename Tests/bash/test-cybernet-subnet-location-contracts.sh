@@ -529,4 +529,7 @@ if "Allowed mixed prefix pairing" not in row.get("ReviewReason", ""):
 PY
 pass "case 23: AllowMixedWith emits subnet_location_allowed_mixed"
 
+grep -q '"DeviceRole"' "$PY" || fail "subnet location map missing DeviceRole column"
+pass "shared classifier DeviceRole column present in subnet location map"
+
 printf 'Cybernet subnet location inference contracts passed (23 synthetic cases).\n'
