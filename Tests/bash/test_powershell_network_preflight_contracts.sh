@@ -6,6 +6,9 @@ preflight="$repo_root/survey/sas-network-preflight.ps1"
 runbook="$repo_root/docs/FIELD_NETWORK_PREFLIGHT.md"
 start_here="$repo_root/START-HERE-CYBERNET-NEURON-SURVEY.md"
 dashboard_patch="$repo_root/dashboard/js/cybernet-os-preflight.js"
+ps_module="$repo_root/scripts/SasTargetIntake.psm1"
+dispatch="$repo_root/survey/sas-target-intake-dispatch.ps1"
+bash_helper="$repo_root/survey/lib/sas-target-intake.sh"
 field_files=("$runbook" "$start_here" "$dashboard_patch")
 
 fail(){ echo "FAIL: $*" >&2; exit 1; }
@@ -13,9 +16,11 @@ contains(){ grep -Fq -- "$1" "$2" || fail "$3"; }
 not_contains(){ if grep -Fq -- "$1" "$2"; then fail "$3"; fi; }
 not_matches(){ if grep -Eq -- "$1" "$2"; then fail "$3"; fi; }
 
-for f in "$preflight" "$runbook" "$start_here" "$dashboard_patch"; do
+for f in "$preflight" "$runbook" "$start_here" "$dashboard_patch" "$ps_module" "$dispatch" "$bash_helper"; do
   [[ -f "$f" ]] || fail "missing file: $f"
 done
+
+bash -n "$bash_helper"
 
 win_temp_re='C:[\\]Temp'
 posix_tmp='/'tmp
@@ -46,13 +51,19 @@ contains 'Test-NetConnection' "$preflight" 'missing TCP hook'
 contains '-WarningAction SilentlyContinue' "$preflight" 'missing quiet warning handling'
 contains 'Export-Csv' "$preflight" 'missing CSV export'
 
-contains 'targets/local' "$preflight" 'missing targets/local input root'
-contains 'logs/targets' "$preflight" 'missing logs/targets input root'
-contains 'survey/input' "$preflight" 'missing survey/input staging root'
+contains 'Import-Module $targetIntakeModule -Force' "$preflight" 'preflight must import shared target intake module'
+contains 'Get-SasTargetIntakeRoots' "$preflight" 'preflight must consume shared root set'
+contains 'Test-SasPathUnderAnyRoot' "$preflight" 'preflight must validate through shared path helper'
+
+for f in "$preflight" "$ps_module" "$bash_helper" "$dispatch"; do
+  contains 'targets/local' "$f" "$f missing targets/local input root"
+  contains 'logs/targets' "$f" "$f missing logs/targets input root"
+  contains 'survey/input' "$f" "$f missing survey/input staging root"
+  contains 'survey/output' "$f" "$f missing survey/output output root"
+  contains 'logs/nmap' "$f" "$f missing logs/nmap output root"
+  contains 'survey/artifacts' "$f" "$f missing survey/artifacts output root"
+done
 contains 'Normalized runtime staging only' "$runbook" 'runbook missing staging doctrine'
-contains 'survey/output' "$preflight" 'missing survey/output output root'
-contains 'logs/nmap' "$preflight" 'missing logs/nmap output root'
-contains 'survey/artifacts' "$preflight" 'missing survey/artifacts output root'
 contains '`survey/output/` is generated output' "$start_here" 'start-here must classify survey/output as generated output'
 
 contains 'Write-Progress' "$preflight" 'missing Write-Progress'
@@ -74,10 +85,17 @@ for col in HostName Hostname Target Identifier ComputerName DeviceName Name; do
 done
 contains 'Serial-only rows must be normalized or enriched' "$preflight" 'must refuse serial-only material clearly'
 
+for mode in ListCandidates NetworkPreflight NaabuPlan ADRegisteredPlan SubnetConfirmPlan; do
+  contains "$mode" "$dispatch" "dispatcher missing mode $mode"
+done
+contains 'Assert-SasApprovedInputPath' "$dispatch" 'dispatcher must validate selected target files'
+contains 'sas_target_require_input_file' "$bash_helper" 'Bash helper missing reusable input validator'
+contains 'sas_target_require_output_path' "$bash_helper" 'Bash helper missing reusable output validator'
+
 contains 'Export or copy the approved spreadsheet' "$runbook" 'runbook missing source export/copy step'
 contains 'Run the PowerShell network preflight' "$runbook" 'runbook missing PowerShell preflight step'
 contains 'Review the generated CSV under `survey/output/network_preflight/`' "$runbook" 'runbook missing output review step'
-contains '.\survey\sas-network-preflight.ps1' "$dashboard_patch" 'dashboard patch missing PowerShell entrypoint'
+contains '.\survey\sas-network-preflight.ps1' "$dashboard_patch" 'dashboard patch missing PowerShell preflight entrypoint'
 contains 'survey\output\network_preflight' "$dashboard_patch" 'dashboard patch missing generated output folder'
 
 echo 'PASS: PowerShell network preflight contracts'
