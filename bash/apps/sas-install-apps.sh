@@ -4,6 +4,7 @@
 # For each target: verifies admin-share access, drops a generated PowerShell
 # worker script (sas-install-worker.ps1), then creates and triggers a scheduled
 # task mirroring the pattern in mapping/Controllers/Map-Run-Controller.ps1.
+# Legacy deployment lane: requires --allow-legacy or SAS_ALLOW_LEGACY_TOOLS=1.
 #
 # Usage:
 #   ./bash/apps/sas-install-apps.sh --targets HOST1,HOST2 --list LIST_NAME [options]
@@ -27,6 +28,8 @@ SMB_PASS="${SAS_SMB_PASS:-}"
 SMB_DOMAIN="${SAS_SMB_DOMAIN:-}"
 TIMEOUT=10
 DRY_RUN=0
+ALLOW_LEGACY=0
+NO_TEARDOWN=0
 LOG_DIR="bash/apps/output"
 
 usage() {
@@ -50,6 +53,8 @@ Options:
   --smb-domain DOM    SMB domain (or set SAS_SMB_DOMAIN)
   --timeout SEC       SMB timeout seconds (default: 10)
   --dry-run           Generate worker script and print schtasks commands without executing
+  --allow-legacy      Enable this preserved legacy deployment lane for this run
+  --no-teardown       Debug only: leave transient worker/launcher/task artifacts on targets
   --log-dir PATH      Output log directory (default: bash/apps/output)
   -h, --help          Show help
 
@@ -83,6 +88,8 @@ while [[ $# -gt 0 ]]; do
     --smb-domain)  SMB_DOMAIN="${2:?missing value for --smb-domain}"; shift 2 ;;
     --timeout)     TIMEOUT="${2:?missing value for --timeout}"; shift 2 ;;
     --dry-run)     DRY_RUN=1; shift ;;
+    --allow-legacy) ALLOW_LEGACY=1; shift ;;
+    --no-teardown) NO_TEARDOWN=1; shift ;;
     --log-dir)     LOG_DIR="${2:?missing value for --log-dir}"; shift 2 ;;
     -h|--help)     usage; exit 0 ;;
     --) shift; break ;;
@@ -90,6 +97,13 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unexpected argument: $1" ;;
   esac
 done
+
+LEGACY_GATE_ARGS=(--tool "bash/apps/sas-install-apps.sh")
+[[ "$ALLOW_LEGACY" -eq 1 ]] && LEGACY_GATE_ARGS+=(--allow-legacy)
+bash scripts/sas-legacy-gate.sh "${LEGACY_GATE_ARGS[@]}" || exit $?
+if [[ "$NO_TEARDOWN" -eq 1 && "$ALLOW_LEGACY" -ne 1 && "${SAS_ALLOW_LEGACY_TOOLS:-0}" != "1" ]]; then
+  fail "--no-teardown requires --allow-legacy or SAS_ALLOW_LEGACY_TOOLS=1"
+fi
 
 [[ -n "$TARGETS_RAW" ]] || fail "--targets is required"
 [[ -n "$LIST_NAME" ]]   || fail "--list is required"
@@ -366,6 +380,30 @@ fi
 
 log "Worker script written: $WORKER_SCRIPT_PATH"
 
+if [[ "$NO_TEARDOWN" -eq 0 ]]; then
+  cat >> "$WORKER_SCRIPT_PATH" <<EOF
+
+# Best-effort teardown of transient SysAdminSuite deployment payloads.
+try {
+  schtasks.exe /Delete /TN "$TASK_NAME" /F | Out-Null
+} catch {
+  Write-Warning "Teardown warning deleting scheduled task: \$($_.Exception.Message)"
+}
+foreach (\$path in @((Join-Path \$PSScriptRoot 'Start-Installer.ps1'), \$PSCommandPath)) {
+  try {
+    if (\$path -and (Test-Path -LiteralPath \$path)) {
+      Remove-Item -LiteralPath \$path -Force -ErrorAction SilentlyContinue
+    }
+  } catch {
+    Write-Warning "Teardown warning removing transient payload \$path: \$($_.Exception.Message)"
+  }
+}
+EOF
+  log "Worker teardown enabled for transient payloads and scheduled task."
+else
+  log "WARN: --no-teardown requested; transient target payloads may remain for debugging."
+fi
+
 # ---------------------------------------------------------------------------
 # SMB helper
 # ---------------------------------------------------------------------------
@@ -438,6 +476,11 @@ for TARGET in "${TARGETS[@]}"; do
       echo "[DRY-RUN] Would copy worker to \\\\${TARGET}\\${SHARE}\\${REMOTE_BASE_SMB}\\sas-install-worker.ps1"
       echo "[DRY-RUN] schtasks /Create /S ${TARGET} /RU SYSTEM /SC ONCE /ST HH:MM /TN ${TASK_NAME} /TR \"${REMOTE_PWSH} -File ${REMOTE_WORKER_REMOTE}\" /RL HIGHEST /F"
       echo "[DRY-RUN] schtasks /Run /S ${TARGET} /TN ${TASK_NAME}"
+      if [[ "$NO_TEARDOWN" -eq 0 ]]; then
+        echo "[DRY-RUN] Worker self-teardown would delete task ${TASK_NAME}, Start-Installer.ps1, and sas-install-worker.ps1"
+      else
+        echo "[DRY-RUN] --no-teardown would leave worker artifacts for debugging"
+      fi
       echo "DRY_RUN_OK"
     elif ! has_cmd smbclient; then
       echo "ERROR: smbclient not found — cannot push to $TARGET"

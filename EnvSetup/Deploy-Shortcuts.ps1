@@ -26,10 +26,19 @@ param(
   [int]   $EndNum    = 164,
   [string[]]$ComputerList,  # optional explicit list; overrides prefix/range
   [string]$SmbUser    = '',   # optional; else config, env DEPLOY_SHORTCUTS_SMB_USER, or legacy default
-  [switch]$WhatIf
+  [switch]$WhatIf,
+  [switch]$AllowLegacy
 )
 
 Set-StrictMode -Version Latest
+$legacyGatePath = Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\Invoke-SasLegacyGate.ps1'
+if (-not (Test-Path -LiteralPath $legacyGatePath)) {
+  throw "Legacy gate helper not found: $legacyGatePath"
+}
+. $legacyGatePath
+if (-not (Invoke-SasLegacyGate -ToolPath 'EnvSetup/Deploy-Shortcuts.ps1' -AllowLegacy:$AllowLegacy)) {
+  exit 42
+}
 
 $configPath = Join-Path $PSScriptRoot 'Deploy-Shortcuts.config.psd1'
 $cfg = @{}

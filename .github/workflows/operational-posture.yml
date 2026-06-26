@@ -1,0 +1,59 @@
+name: Operational posture
+
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'AGENTS.md'
+      - '.cursor/rules/operational-posture.mdc'
+      - 'Config/operational-posture.json'
+      - 'docs/OPERATIONAL_POSTURE.md'
+      - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
+      - 'docs/DEPENDENCIES.md'
+      - 'scripts/sas-legacy-gate.sh'
+      - 'scripts/Invoke-SasLegacyGate.ps1'
+      - 'bash/apps/sas-install-apps.sh'
+      - 'bash/apps/sas-stage-fileshare.sh'
+      - 'mapping/Controllers/Map-Run-Controller.ps1'
+      - 'EnvSetup/Deploy-Shortcuts.ps1'
+      - 'survey/sas-run-naabu-pipeline.sh'
+      - 'survey/sas-cybernet-subnet-survey.sh'
+      - 'Tests/bash/test_operational_posture_contracts.sh'
+      - 'Tests/bash/test_naabu_pipeline_contracts.sh'
+      - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
+      - '.github/workflows/operational-posture.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'AGENTS.md'
+      - '.cursor/rules/operational-posture.mdc'
+      - 'Config/operational-posture.json'
+      - 'docs/OPERATIONAL_POSTURE.md'
+      - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
+      - 'docs/DEPENDENCIES.md'
+      - 'scripts/sas-legacy-gate.sh'
+      - 'scripts/Invoke-SasLegacyGate.ps1'
+      - 'bash/apps/sas-install-apps.sh'
+      - 'bash/apps/sas-stage-fileshare.sh'
+      - 'mapping/Controllers/Map-Run-Controller.ps1'
+      - 'EnvSetup/Deploy-Shortcuts.ps1'
+      - 'survey/sas-run-naabu-pipeline.sh'
+      - 'survey/sas-cybernet-subnet-survey.sh'
+      - 'Tests/bash/test_operational_posture_contracts.sh'
+      - 'Tests/bash/test_naabu_pipeline_contracts.sh'
+      - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
+      - '.github/workflows/operational-posture.yml'
+
+jobs:
+  posture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Operational posture contracts
+        shell: bash
+        run: bash Tests/bash/test_operational_posture_contracts.sh

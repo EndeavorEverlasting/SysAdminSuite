@@ -116,6 +116,30 @@ Agents MUST preserve these rules across docs, scripts, dashboards, generated com
 - Treat `feature/naabu-docs-consolidation` as superseded by current `main` doctrine. Do not
   revive or merge it without explicit user authorization.
 
+## Operational Posture / Legacy Gates
+
+`Config/operational-posture.json` and `docs/OPERATIONAL_POSTURE.md` are the cross-lane posture
+authority for low-waste SysAdminSuite work.
+
+Agents MUST preserve these boundaries:
+
+- Survey and dashboard probes are read-only toward target machines. They write evidence locally only.
+- Deployment, mapping, staging, and shortcut tools are authorized mutation lanes, not survey lanes.
+- Preserved legacy deployment/mapping tools must be disabled by default and require an explicit
+  legacy gate such as `--allow-legacy`, `-AllowLegacy`, or `SAS_ALLOW_LEGACY_TOOLS=1`.
+- Legacy enablement does not expand target scope, grant credentials, or remove the need for
+  approved deployment intent.
+- Deployment payload scripts, launchers, stop/status files, scheduled tasks, and transient staging
+  folders require teardown unless they are documented as intentional retained payloads.
+- Cleanup means reducing residual operational clutter. Do not describe cleanup as bypassing logs,
+  suppressing telemetry, hiding activity, stealth, or evasion.
+
+Canonical references:
+
+- `Config/operational-posture.json`
+- `docs/OPERATIONAL_POSTURE.md`
+- `docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md`
+
 ## WAB Test Evidence Guardrail
 
 When the user reports that SysAdminSuite is `running` on the WAB path, do not treat that as full validation.

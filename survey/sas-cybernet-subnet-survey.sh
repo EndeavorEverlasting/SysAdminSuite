@@ -3,8 +3,8 @@
 # Authorized internal asset discovery only. Read-only. Local output only.
 # Low-noise survey doctrine: this subnet path is discovery context, NOT the registered
 # Cybernet population source. Prefer AD-derived host lists for confirm-windows reachability.
-# See docs/LOW_NOISE_SURVEY_DOCTRINE.md. Note: default --naabu-profile keyports_cdn_json
-# validates web ports (80,443); the doctrine keyports contract covers full Cybernet ports.
+# See docs/LOW_NOISE_SURVEY_DOCTRINE.md. Default --naabu-profile keyports_cybernet_json
+# validates full Cybernet key ports; web-only checks use the explicit web reachability profiles.
 
 set -euo pipefail
 
