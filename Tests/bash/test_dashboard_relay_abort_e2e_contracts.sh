@@ -47,5 +47,9 @@ fi
 
 # CI must actually run the relay abort test so the loop stays closed.
 grep -q "test_relay_abort_e2e.js" "$workflow" || fail "dashboard-smoke.yml does not run the relay abort E2E test"
+grep -q "node --check dashboard/test_relay_abort_e2e.js" "$workflow" \
+  || fail "dashboard-smoke.yml does not syntax-check the relay abort E2E test"
+grep -q "npm install --no-save --no-package-lock ws@8" "$workflow" \
+  || fail "dashboard-smoke.yml does not install ws for the relay abort E2E test"
 
 echo "PASS: dashboard relay abort E2E contracts"
