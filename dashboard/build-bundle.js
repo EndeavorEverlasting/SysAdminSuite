@@ -21,6 +21,7 @@ const files = [
   'dashboard/js/panel-network.js',
   'dashboard/js/panel-software.js',
   'dashboard/js/tour.js',
+  'dashboard/js/repo-freshness.js',
   'dashboard/js/app.js',
 ];
 

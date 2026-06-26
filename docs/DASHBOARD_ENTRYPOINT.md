@@ -12,7 +12,7 @@ On first run the launcher will **automatically prepare (build) the dashboard hos
 
 **Field release package (no SDK):** [`DASHBOARD_FIELD_RELEASE.md`](DASHBOARD_FIELD_RELEASE.md) — pre-built zip with `app/bin/SysAdminSuite.DashboardHost.exe`.
 
-**Updates:** launcher checks are opt-in and must prompt before applying changes. Source clones use a clean `main` fast-forward; ZIP/field packages use checksum-verified manifests. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
+**Updates:** launcher checks are opt-in and must prompt before applying changes. Source clones use a clean `main` fast-forward; ZIP/field packages use checksum-verified manifests. If local `main` is behind `origin/main`, the launcher warns first and the dashboard shows a persistent freshness banner until the local copy is updated. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
 
 Compatibility aliases (same behavior, not the documented primary): **`START-HERE-SysAdminSuite-Dashboard.cmd`** and **`SysAdminSuite Dashboard.cmd`**.
 

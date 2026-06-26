@@ -17,13 +17,15 @@ set "ROOT=%~dp0"
 cd /d "%ROOT%"
 set "HEALTH_URL=http://127.0.0.1:5000/dashboard/"
 set "UPDATE_HELPER=%ROOT%tools\update\Invoke-SysAdminSuiteUpdate.ps1"
+set "FRESHNESS_JSON=%ROOT%dashboard\repo-freshness.json"
 
 if exist "%UPDATE_HELPER%" (
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%UPDATE_HELPER%" -CheckOnly -Quiet
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%UPDATE_HELPER%" -CheckOnly -StateJsonPath "%FRESHNESS_JSON%"
     set "UPDATE_RC=!errorlevel!"
     if "!UPDATE_RC!"=="10" (
         echo.
-        echo A SysAdminSuite update is available.
+        echo Your local SysAdminSuite copy is behind the latest main.
+        echo Applying the update is recommended before surveying.
         choice /C YN /N /M "Apply the update before opening the dashboard? [Y/N] "
         if "!errorlevel!"=="1" (
             powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%UPDATE_HELPER%" -Apply -Approved
@@ -33,6 +35,7 @@ if exist "%UPDATE_HELPER%" (
                 echo Continuing with the current local copy.
                 echo.
             ) else (
+                powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%UPDATE_HELPER%" -CheckOnly -Quiet -StateJsonPath "%FRESHNESS_JSON%" >nul 2>nul
                 echo.
                 echo Update applied. Continuing with the dashboard.
                 echo.
@@ -44,7 +47,15 @@ if exist "%UPDATE_HELPER%" (
         )
     ) else if "!UPDATE_RC!"=="20" (
         echo.
-        echo Update check needs manual review, so the dashboard will continue with the current local copy.
+        echo Repo freshness check needs manual review.
+        echo If the message above says origin/main is ahead, update this repo before field work.
+        echo Fix the blocker, then use: git pull --ff-only origin main
+        echo You can also re-clone the latest repo from GitHub.
+        echo Continuing with the current local copy.
+        echo.
+    ) else if "!UPDATE_RC!"=="1" (
+        echo.
+        echo Repo freshness could not be checked. Continuing with the current local copy.
         echo.
     )
 )

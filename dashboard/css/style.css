@@ -63,6 +63,33 @@ html, body {
 
 .header-spacer { flex: 1; }
 
+.repo-freshness-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 18px;
+  background: rgba(245, 158, 11, 0.16);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.45);
+  color: #ffe7b0;
+  flex-shrink: 0;
+}
+
+.repo-freshness-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.repo-freshness-copy strong {
+  color: #fff2cc;
+}
+
+.repo-freshness-detail {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
 #mode-toggle {
   display: flex;
   align-items: center;

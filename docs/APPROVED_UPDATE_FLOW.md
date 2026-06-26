@@ -10,21 +10,24 @@ user approves the update first, similar to an app update prompt.
 | Source clone (`.git` present) | Compare local `main` with `origin/main`; update with `git pull --ff-only` after approval | Only clean local `main` can auto-update |
 | ZIP / field package (`.git` absent) | Read a trusted update manifest, verify the package SHA256, then replace package content after approval | Only checksum-verified packages can apply |
 
-The launcher may check for updates before opening the dashboard. If an update is
-available, it asks the user before applying it. If the check fails, the dashboard
-continues with the current local copy.
+The launcher may check for updates before opening the dashboard. If local `main`
+is behind `origin/main`, it warns the user and explains the update path. If the
+clean-main fast-forward gates pass, it asks before applying the update. If the
+user skips, the check fails, or the repo needs manual review, the dashboard
+continues with the current local copy and shows a local freshness banner.
 
 ## Source Clone Rules
 
 For developer and IT git clones:
 
 1. Run `git fetch origin`.
-2. Confirm the current branch is `main`.
-3. Confirm `git status --short` is clean.
-4. Confirm there are no local-only commits.
-5. Confirm the update can be applied with `git pull --ff-only origin main`.
-6. Ask the user for approval.
-7. Apply the fast-forward update only after approval.
+2. Compare local `main` with `origin/main` and record the behind/ahead counts.
+3. Confirm the current branch is `main`.
+4. Confirm `git status --short` is clean.
+5. Confirm there are no local-only commits.
+6. Confirm the update can be applied with `git pull --ff-only origin main`.
+7. Ask the user for approval.
+8. Apply the fast-forward update only after approval.
 
 The updater must not run `git reset --hard`, delete branches, or update feature
 branches automatically.
@@ -52,6 +55,15 @@ The shared helper is:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\update\Invoke-SysAdminSuiteUpdate.ps1 -CheckOnly
 ```
 
+Machine-readable state for launchers and the dashboard:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\update\Invoke-SysAdminSuiteUpdate.ps1 -CheckOnly -Json
+```
+
+Launchers write the same state to `dashboard/repo-freshness.json`. That file is
+runtime-only and ignored by git.
+
 Apply only after user approval:
 
 ```powershell
@@ -69,9 +81,11 @@ Exit codes:
 
 ## Launcher Behavior
 
-`START-HERE-SysAdminSuite-Dashboard.bat` checks with the helper. It only prompts
-when the helper reports an available update. If the user says no, or if the
-check needs manual review, the dashboard opens from the current local copy.
+`START-HERE-SysAdminSuite-Dashboard.bat` checks with the helper. It warns when
+the local source clone is behind `origin/main`, and only prompts to apply when a
+clean `main` fast-forward is safe. If the user says no, or if the check needs
+manual review, the dashboard opens from the current local copy and reads
+`dashboard/repo-freshness.json` to show a persistent behind-main banner.
 
 ## Related Docs
 

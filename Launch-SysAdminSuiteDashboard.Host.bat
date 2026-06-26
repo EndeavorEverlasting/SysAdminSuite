@@ -15,6 +15,12 @@
 
 setlocal enabledelayedexpansion
 set "ROOT=%~dp0"
+set "UPDATE_HELPER=%ROOT%tools\update\Invoke-SysAdminSuiteUpdate.ps1"
+set "FRESHNESS_JSON=%ROOT%dashboard\repo-freshness.json"
+
+if exist "%UPDATE_HELPER%" (
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%UPDATE_HELPER%" -CheckOnly -Quiet -StateJsonPath "%FRESHNESS_JSON%" >nul 2>nul
+)
 
 call :find_host
 if defined HOST_EXE goto :start_host

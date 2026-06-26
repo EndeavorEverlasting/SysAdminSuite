@@ -30,6 +30,8 @@ param(
 
     [string]$InstallRoot,
     [string]$ManifestPath,
+    [string]$StateJsonPath,
+    [switch]$Json,
     [switch]$Quiet
 )
 
@@ -45,6 +47,38 @@ function Write-UpdateMessage {
     param([string]$Message)
     if (-not $Quiet) {
         Write-Host $Message
+    }
+}
+
+function Write-UpdateState {
+    param([object]$State)
+
+    $jsonState = [ordered]@{
+        mode               = $State.Mode
+        installRoot        = $State.InstallRoot
+        branch             = $State.Branch
+        ahead              = $State.Ahead
+        behind             = $State.Behind
+        safe               = $State.Safe
+        canAutoUpdate      = $State.CanAutoUpdate
+        updateAvailable    = $State.UpdateAvailable
+        manualReviewReason = $State.ManualReviewReason
+        reason             = $State.Reason
+        generatedAt        = $State.GeneratedAt
+    }
+    $jsonText = $jsonState | ConvertTo-Json -Compress
+    if ($StateJsonPath) {
+        $stateDir = Split-Path -Parent $StateJsonPath
+        if ($stateDir -and -not (Test-Path -LiteralPath $stateDir)) {
+            New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+        }
+        Set-Content -LiteralPath $StateJsonPath -Value $jsonText -Encoding UTF8
+    }
+
+    if ($Json) {
+        Write-Host $jsonText
+    } elseif ($State.UpdateAvailable -or -not $State.Safe) {
+        Write-UpdateMessage $State.Reason
     }
 }
 
@@ -78,65 +112,117 @@ function Get-GitUpdateState {
 
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         return [pscustomobject]@{
+            Mode            = 'git'
+            InstallRoot     = $Root
+            Branch          = $null
+            Ahead           = 0
+            Behind          = 0
             Safe            = $false
+            CanAutoUpdate   = $false
             UpdateAvailable = $false
+            ManualReviewReason = 'git is not available on PATH.'
             Reason          = 'git is not available on PATH.'
+            GeneratedAt     = (Get-Date).ToString('o')
         }
     }
 
     $fetch = Invoke-Git -Root $Root -Arguments @('fetch', 'origin')
     if ($fetch.ExitCode -ne 0) {
         return [pscustomobject]@{
+            Mode            = 'git'
+            InstallRoot     = $Root
+            Branch          = $null
+            Ahead           = 0
+            Behind          = 0
             Safe            = $false
+            CanAutoUpdate   = $false
             UpdateAvailable = $false
+            ManualReviewReason = "git fetch origin failed. $($fetch.Output)"
             Reason          = "git fetch origin failed. $($fetch.Output)"
+            GeneratedAt     = (Get-Date).ToString('o')
         }
     }
 
     $branch = (Invoke-Git -Root $Root -Arguments @('branch', '--show-current')).Output.Trim()
-    if ($branch -ne 'main') {
+    $countsResult = Invoke-Git -Root $Root -Arguments @('rev-list', '--left-right', '--count', 'main...origin/main')
+    if ($countsResult.ExitCode -ne 0) {
         return [pscustomobject]@{
+            Mode            = 'git'
+            InstallRoot     = $Root
+            Branch          = $branch
+            Ahead           = 0
+            Behind          = 0
             Safe            = $false
+            CanAutoUpdate   = $false
             UpdateAvailable = $false
-            Reason          = "Current branch is '$branch'. Switch to main before updating."
+            ManualReviewReason = "Could not compare local main with origin/main. $($countsResult.Output)"
+            Reason          = "Could not compare local main with origin/main. $($countsResult.Output)"
+            GeneratedAt     = (Get-Date).ToString('o')
         }
+    }
+
+    $parts = $countsResult.Output.Trim() -split '\s+'
+    if ($parts.Count -lt 2) {
+        return [pscustomobject]@{
+            Mode            = 'git'
+            InstallRoot     = $Root
+            Branch          = $branch
+            Ahead           = 0
+            Behind          = 0
+            Safe            = $false
+            CanAutoUpdate   = $false
+            UpdateAvailable = $false
+            ManualReviewReason = "Could not parse git rev-list output: $($countsResult.Output)"
+            Reason          = "Could not parse git rev-list output: $($countsResult.Output)"
+            GeneratedAt     = (Get-Date).ToString('o')
+        }
+    }
+
+    $ahead = [int]$parts[0]
+    $behind = [int]$parts[1]
+    $manualReasons = @()
+
+    if ($branch -ne 'main') {
+        $manualReasons += "Current branch is '$branch'. Switch to main before updating."
     }
 
     $status = (Invoke-Git -Root $Root -Arguments @('status', '--short')).Output.Trim()
     if ($status) {
-        return [pscustomobject]@{
-            Safe            = $false
-            UpdateAvailable = $false
-            Reason          = 'Working tree has local changes. Commit, stash, or discard them before updating.'
-        }
+        $manualReasons += 'Working tree has local changes. Commit, stash, or discard them before updating.'
     }
 
     $localOnly = (Invoke-Git -Root $Root -Arguments @('log', '--branches', '--not', '--remotes', '--oneline')).Output.Trim()
     if ($localOnly) {
-        return [pscustomobject]@{
-            Safe            = $false
-            UpdateAvailable = $false
-            Reason          = 'Local-only commits exist. Push or preserve them before updating.'
-        }
+        $manualReasons += 'Local-only commits exist. Push or preserve them before updating.'
     }
 
-    $counts = (Invoke-Git -Root $Root -Arguments @('rev-list', '--left-right', '--count', 'main...origin/main')).Output.Trim()
-    $parts = $counts -split '\s+'
-    $ahead = [int]$parts[0]
-    $behind = [int]$parts[1]
-
     if ($ahead -gt 0) {
-        return [pscustomobject]@{
-            Safe            = $false
-            UpdateAvailable = $false
-            Reason          = 'Local main is ahead of origin/main. Manual review required.'
-        }
+        $manualReasons += 'Local main is ahead of origin/main. Manual review required.'
+    }
+
+    $canAutoUpdate = ($manualReasons.Count -eq 0)
+    $manualReviewReason = if ($manualReasons.Count -gt 0) { $manualReasons -join ' ' } else { $null }
+    $reason = 'Already up to date.'
+    if ($behind -gt 0 -and $canAutoUpdate) {
+        $reason = "origin/main is $behind commit(s) ahead of your local main. Update before surveying so you are using the latest SysAdminSuite code."
+    } elseif ($behind -gt 0) {
+        $reason = "origin/main is $behind commit(s) ahead of your local main, but automatic update needs manual review: $manualReviewReason"
+    } elseif (-not $canAutoUpdate) {
+        $reason = $manualReviewReason
     }
 
     return [pscustomobject]@{
-        Safe            = $true
+        Mode            = 'git'
+        InstallRoot     = $Root
+        Branch          = $branch
+        Ahead           = $ahead
+        Behind          = $behind
+        Safe            = $canAutoUpdate
+        CanAutoUpdate   = $canAutoUpdate
         UpdateAvailable = ($behind -gt 0)
-        Reason          = if ($behind -gt 0) { "origin/main is $behind commit(s) ahead." } else { 'Already up to date.' }
+        ManualReviewReason = $manualReviewReason
+        Reason          = $reason
+        GeneratedAt     = (Get-Date).ToString('o')
     }
 }
 
@@ -221,15 +307,31 @@ function Test-PackageUpdateAvailable {
     param([object]$Manifest)
     if (-not $Manifest) {
         return [pscustomobject]@{
+            Mode            = 'package'
+            InstallRoot     = $null
+            Branch          = $null
+            Ahead           = 0
+            Behind          = 0
             Safe            = $true
+            CanAutoUpdate   = $true
             UpdateAvailable = $false
+            ManualReviewReason = $null
             Reason          = 'No update manifest configured.'
+            GeneratedAt     = (Get-Date).ToString('o')
         }
     }
     return [pscustomobject]@{
+        Mode            = 'package'
+        InstallRoot     = $null
+        Branch          = $null
+        Ahead           = 0
+        Behind          = 0
         Safe            = $true
+        CanAutoUpdate   = $true
         UpdateAvailable = $true
+        ManualReviewReason = $null
         Reason          = "Package update available: $($Manifest.version)"
+        GeneratedAt     = (Get-Date).ToString('o')
     }
 }
 
@@ -297,7 +399,7 @@ try {
 
     if ($mode -eq 'Git') {
         $state = Get-GitUpdateState -Root $root
-        Write-UpdateMessage $state.Reason
+        Write-UpdateState $state
         if (-not $state.Safe) {
             exit $script:ExitManualReview
         }
@@ -314,7 +416,7 @@ try {
     $manifestSource = if ($ManifestPath) { $ManifestPath } else { Resolve-DefaultManifest -Root $root }
     $manifest = Read-Manifest -Manifest $manifestSource
     $state = Test-PackageUpdateAvailable -Manifest $manifest
-    Write-UpdateMessage $state.Reason
+    Write-UpdateState $state
     if (-not $state.UpdateAvailable) {
         exit $script:ExitNoUpdate
     }

@@ -25,6 +25,10 @@ grep -Fq -- '-Apply' "$helper" \
   || fail "helper is missing Apply mode"
 grep -Fq -- '-Approved' "$helper" \
   || fail "helper is missing Approved guard"
+grep -Fq -- '-Json' "$helper" \
+  || fail "helper is missing Json output mode"
+grep -Fq 'StateJsonPath' "$helper" \
+  || fail "helper is missing StateJsonPath runtime state output"
 grep -Fq 'Refusing to apply update without -Approved' "$helper" \
   || fail "helper does not refuse apply without approval"
 
@@ -39,6 +43,12 @@ grep -Fq "'branch', '--show-current'" "$helper" \
   || fail "git clone update path does not verify current branch"
 grep -Fq "'log', '--branches', '--not', '--remotes', '--oneline'" "$helper" \
   || fail "git clone update path does not check for local-only commits"
+grep -Fq "'rev-list', '--left-right', '--count', 'main...origin/main'" "$helper" \
+  || fail "git clone update path does not compare local main with origin/main"
+grep -Fq 'Behind' "$helper" \
+  || fail "git clone update path does not expose behind count"
+grep -Fq 'CanAutoUpdate' "$helper" \
+  || fail "git clone update path does not expose auto-update safety"
 grep -Fq 'reset --hard' "$helper" \
   && fail "helper must not use git reset --hard"
 
@@ -57,8 +67,10 @@ grep -Fq '"checksumSha256"' "$manifest" \
 # Launcher must check and prompt; it must not apply silently.
 grep -Fq 'Invoke-SysAdminSuiteUpdate.ps1' "$launcher" \
   || fail "launcher does not call update helper"
-grep -Fq -- '-CheckOnly -Quiet' "$launcher" \
-  || fail "launcher does not check quietly before prompting"
+grep -Fq 'repo-freshness.json' "$launcher" \
+  || fail "launcher does not write dashboard freshness state"
+grep -Fq 'Your local SysAdminSuite copy is behind the latest main' "$launcher" \
+  || fail "launcher does not explain behind-main update state"
 grep -Fq 'Apply the update before opening the dashboard' "$launcher" \
   || fail "launcher does not prompt for update approval"
 grep -Fq -- '-Apply -Approved' "$launcher" \

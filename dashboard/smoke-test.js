@@ -187,6 +187,8 @@ const shellChecks = [
 
 // Wizard command contracts live in app.js (bundled); verify source for CI without loading bundle
 const appJs = readFileSync(join(__dir, 'js', 'app.js'), 'utf8');
+const repoFreshnessJs = readFileSync(join(__dir, 'js', 'repo-freshness.js'), 'utf8');
+const styleCss = readFileSync(join(__dir, 'css', 'style.css'), 'utf8');
 const contractChecks = [
   ['--targets-file /tmp/sas-cybernet/targets.txt', 'preflight/identity --targets-file'],
   ['--file /tmp/sas-cybernet/targets.txt', 'normalize --file reference'],
@@ -237,6 +239,24 @@ for (const [needle, label] of naabuContractChecks) {
     shellFailed++;
   } else {
     console.log(`PASS [naabu-contract:${label}]`);
+    shellPassed++;
+  }
+}
+
+const freshnessContractChecks = [
+  [appJs, 'initRepoFreshnessBanner', 'freshness init wired in app.js'],
+  [repoFreshnessJs, 'repo-freshness.json', 'freshness JSON fetched by banner module'],
+  [repoFreshnessJs, 'Local copy is behind the latest main', 'freshness warning copy'],
+  [repoFreshnessJs, 'git pull --ff-only origin main', 'approved manual update command copy'],
+  [styleCss, 'repo-freshness-banner', 'freshness banner CSS'],
+];
+
+for (const [src, needle, label] of freshnessContractChecks) {
+  if (!src.includes(needle)) {
+    console.error(`FAIL [freshness-contract:${label}]: missing "${needle}"`);
+    shellFailed++;
+  } else {
+    console.log(`PASS [freshness-contract:${label}]`);
     shellPassed++;
   }
 }

@@ -4,12 +4,28 @@ on:
   pull_request:
     paths:
       - 'dashboard/**'
+      - 'tools/update/**'
+      - 'tools/sas-check-repo-freshness.sh'
+      - 'START-HERE-SysAdminSuite-Dashboard.bat'
+      - 'Launch-SysAdminSuiteDashboard.Host.bat'
+      - 'Tests/bash/test_update_flow_contracts.sh'
+      - 'Tests/bash/test_repo_freshness_contracts.sh'
+      - 'docs/APPROVED_UPDATE_FLOW.md'
+      - 'docs/DASHBOARD_ENTRYPOINT.md'
       - '.github/workflows/dashboard-smoke.yml'
   push:
     branches:
       - main
     paths:
       - 'dashboard/**'
+      - 'tools/update/**'
+      - 'tools/sas-check-repo-freshness.sh'
+      - 'START-HERE-SysAdminSuite-Dashboard.bat'
+      - 'Launch-SysAdminSuiteDashboard.Host.bat'
+      - 'Tests/bash/test_update_flow_contracts.sh'
+      - 'Tests/bash/test_repo_freshness_contracts.sh'
+      - 'docs/APPROVED_UPDATE_FLOW.md'
+      - 'docs/DASHBOARD_ENTRYPOINT.md'
       - '.github/workflows/dashboard-smoke.yml'
 
 jobs:
@@ -24,6 +40,7 @@ jobs:
         run: |
           node --check dashboard/js/parsers.js
           node --check dashboard/js/app.js
+          node --check dashboard/js/repo-freshness.js
           node --check dashboard/js/bundle.js
           node --check dashboard/js/cybernet-os-preflight.js
           node --check dashboard/js/launch-cybernet-tutorial.js
@@ -33,3 +50,7 @@ jobs:
         run: node dashboard/start-button-smoke.js
       - name: Dashboard tutorial launcher contracts
         run: bash Tests/bash/test_dashboard_tutorial_launcher_contracts.sh
+      - name: Approved update flow contracts
+        run: bash Tests/bash/test_update_flow_contracts.sh
+      - name: Repo freshness contracts
+        run: bash Tests/bash/test_repo_freshness_contracts.sh
