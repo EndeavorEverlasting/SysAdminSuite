@@ -4,6 +4,7 @@
   'use strict';
 
   const STORAGE_KEY = 'sasCybernetTutorialOs';
+  const AUTO = 'auto-mixed';
   const WINDOWS = 'windows-powershell';
   const GIT_BASH = 'windows-gitbash';
   const BASH = 'bash-posix';
@@ -73,20 +74,21 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
   --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru`;
 
   const notes = {
+    [AUTO]: 'Auto / mixed mode: do not choose target OS up front. Use the section for the admin shell you are standing at; the results will tell you what the target looks like.',
     [WINDOWS]: 'Windows PowerShell mode uses Resolve-DnsName, Test-Connection, and Test-NetConnection.',
     [GIT_BASH]: 'Windows Git Bash mode keeps Bash output paths but forces Windows ping.exe syntax to avoid false NoPing results.',
     [BASH]: 'Linux/macOS/WSL Bash mode uses POSIX ping flags. Do not use this for Git Bash on a Windows admin box.'
   };
 
   function normalizeOs(value) {
-    return value === WINDOWS || value === GIT_BASH || value === BASH ? value : WINDOWS;
+    return value === AUTO || value === WINDOWS || value === GIT_BASH || value === BASH ? value : AUTO;
   }
 
   function selectedOs() {
     try {
       return normalizeOs(localStorage.getItem(STORAGE_KEY));
     } catch (_) {
-      return WINDOWS;
+      return AUTO;
     }
   }
 
@@ -104,9 +106,10 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
     card.id = 'cybernet-os-preflight';
     card.className = 'cybernet-os-preflight';
     card.innerHTML = `
-      <div class="cybernet-os-title">Preflight environment</div>
-      <label for="cybernet-os-select">Choose the OS/shell that will run the commands:</label>
+      <div class="cybernet-os-title">Optional command filter</div>
+      <label for="cybernet-os-select">Leave this on Auto for mixed sites. Pick one only if you already know which admin shell will run the command:</label>
       <select id="cybernet-os-select">
+        <option value="auto-mixed">Auto / mixed environment — show Windows PowerShell + Bash</option>
         <option value="windows-powershell">Windows PowerShell / Windows admin box</option>
         <option value="windows-gitbash">Windows Git Bash / Windows ping.exe</option>
         <option value="bash-posix">Linux/macOS/WSL Bash</option>
@@ -137,9 +140,40 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
   }
 
   function preflightCommandFor(os) {
+    if (os === AUTO) {
+      return [
+        '# Auto / mixed site: do not choose target OS yet.',
+        '# Copy and run ONE section below from the admin shell you are using.',
+        '',
+        '# --- Windows PowerShell admin box ---',
+        WINDOWS_PREFLIGHT,
+        '',
+        '# --- Windows Git Bash admin box ---',
+        GIT_BASH_PREFLIGHT,
+        '',
+        '# --- Linux/macOS/WSL Bash admin box ---',
+        BASH_PREFLIGHT
+      ].join('\n');
+    }
     if (os === WINDOWS) return WINDOWS_PREFLIGHT;
     if (os === GIT_BASH) return GIT_BASH_PREFLIGHT;
     return BASH_PREFLIGHT;
+  }
+
+  function identityCommandFor(os) {
+    if (os === AUTO) {
+      return [
+        '# Auto / mixed site: do not choose target OS yet.',
+        '# Copy and run ONE section below from the admin shell you are using.',
+        '',
+        '# --- Windows PowerShell admin box ---',
+        WINDOWS_IDENTITY,
+        '',
+        '# --- Bash admin box ---',
+        BASH_IDENTITY
+      ].join('\n');
+    }
+    return os === WINDOWS ? WINDOWS_IDENTITY : BASH_IDENTITY;
   }
 
   function patchCurrentStep() {
@@ -151,18 +185,22 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
 
     const os = selectedOs();
     const title = titleEl.textContent.trim();
-    if (osNoteEl) osNoteEl.textContent = notes[os] || notes[WINDOWS];
+    if (osNoteEl) osNoteEl.textContent = notes[os] || notes[AUTO];
 
     if (title === 'Prove network posture first') {
       commandEl.value = preflightCommandFor(os);
-      if (noteEl) noteEl.textContent = os === WINDOWS
+      if (noteEl) noteEl.textContent = os === AUTO
+        ? 'Run one matching section outside the dashboard, then drag network_preflight.csv back into Load Evidence.'
+        : os === WINDOWS
         ? 'Run this in Windows PowerShell, then drag C:\\Temp\\sas-cybernet\\network_preflight.csv into the dashboard.'
         : 'Load network_preflight.csv into the Network tab after the command finishes.';
     }
 
     if (title === 'Acquire Cybernet identity evidence') {
-      commandEl.value = os === WINDOWS ? WINDOWS_IDENTITY : BASH_IDENTITY;
-      if (noteEl) noteEl.textContent = os === WINDOWS
+      commandEl.value = identityCommandFor(os);
+      if (noteEl) noteEl.textContent = os === AUTO
+        ? 'Run one matching section outside the dashboard, then drag workstation_identity.csv back into Load Evidence.'
+        : os === WINDOWS
         ? 'Run this in Windows PowerShell to avoid Git Bash ping/DNS mismatch, then drag C:\\Temp\\sas-cybernet\\workstation_identity.csv into the dashboard.'
         : 'Load workstation_identity.csv back into the dashboard for searchable protocol evidence.';
     }
