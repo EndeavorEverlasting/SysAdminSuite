@@ -27,6 +27,10 @@ if not exist "%SAS_PYTHON_SHIM%" mkdir "%SAS_PYTHON_SHIM%" >nul 2>&1
 >>"%SAS_PYTHON_SHIM%\python3.cmd" echo %SAS_PYTHON_LAUNCHER% %%*
 >"%SAS_PYTHON_SHIM%\python.cmd" echo @echo off
 >>"%SAS_PYTHON_SHIM%\python.cmd" echo %SAS_PYTHON_LAUNCHER% %%*
+>"%SAS_PYTHON_SHIM%\python3" echo #!/usr/bin/env bash
+>>"%SAS_PYTHON_SHIM%\python3" echo exec %SAS_PYTHON_LAUNCHER% "$@"
+>"%SAS_PYTHON_SHIM%\python" echo #!/usr/bin/env bash
+>>"%SAS_PYTHON_SHIM%\python" echo exec %SAS_PYTHON_LAUNCHER% "$@"
 set "PATH=%SAS_PYTHON_SHIM%;%PATH%"
 
 exit /b 0
