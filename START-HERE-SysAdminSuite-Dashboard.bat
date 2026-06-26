@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 title SysAdminSuite Dashboard
 
 echo.
@@ -9,13 +9,13 @@ echo ==========================================
 echo.
 echo Double-click launcher - no commands to memorize.
 echo This opens the local dashboard and tutorial.
-echo No internet is required after the repo is downloaded.
-echo.
-echo Starting the local dashboard at http://127.0.0.1:5000/dashboard/
+echo The first run may take a minute while the dashboard app is prepared.
+echo No internet is required to use the dashboard after that.
 echo.
 
 set "ROOT=%~dp0"
 cd /d "%ROOT%"
+set "HEALTH_URL=http://127.0.0.1:5000/dashboard/"
 
 if not exist "%ROOT%Launch-SysAdminSuiteDashboard.Host.bat" (
     echo Could not find Launch-SysAdminSuiteDashboard.Host.bat.
@@ -26,29 +26,64 @@ if not exist "%ROOT%Launch-SysAdminSuiteDashboard.Host.bat" (
     exit /b 1
 )
 
-echo Starting dashboard host...
+echo Starting the dashboard host^.^.^.
+echo If this is the first run, the dashboard app will be prepared automatically now.
 call "%ROOT%Launch-SysAdminSuiteDashboard.Host.bat" --no-browser
-if errorlevel 1 (
+set "RC=%errorlevel%"
+
+if "%RC%"=="2" (
     echo.
-    echo The dashboard host could not start.
+    echo The .NET SDK ^(dotnet^) was not found on this machine.
     echo.
-    echo A developer can build the host once on this machine:
-    echo   powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\publish-dashboard-entrypoint.ps1
+    echo The dashboard app could not be built on this machine.
     echo.
-    echo That creates a local SysAdminSuite Dashboard.exe under dist\SysAdminSuiteDashboard\
-    echo ^(not committed to git - built on your machine only^).
+    echo This usually means the .NET SDK is missing or blocked.
     echo.
-    echo Then double-click this file again.
+    echo Ask for the packaged SysAdminSuite Dashboard release, or have IT/admin prepare this workstation.
     echo.
-    echo Shortcut tip: right-click this .bat file ^> Send to ^> Desktop ^(create shortcut^).
+    echo Do not use CLI survey commands unless the dashboard or runbook gives you one.
     echo.
     echo Press any key to close...
     pause >nul
     exit /b 1
 )
 
-echo Waiting for the dashboard host to start...
-timeout /t 3 /nobreak >nul
+if not "%RC%"=="0" (
+    echo.
+    echo The dashboard app could not be built on this machine.
+    echo.
+    echo This usually means the .NET SDK is missing or blocked.
+    echo.
+    echo Ask for the packaged SysAdminSuite Dashboard release, or have IT/admin prepare this workstation.
+    echo.
+    echo Do not use CLI survey commands unless the dashboard or runbook gives you one.
+    echo.
+    echo Press any key to close...
+    pause >nul
+    exit /b 1
+)
+
+echo Waiting for the dashboard to be ready^.^.^.
+set "HOST_UP=0"
+for /L %%i in (1,1,20) do (
+    if "!HOST_UP!"=="0" (
+        curl.exe -s -o nul --max-time 2 "%HEALTH_URL%" >nul 2>nul && set "HOST_UP=1"
+        if "!HOST_UP!"=="0" timeout /t 1 /nobreak >nul
+    )
+)
+
+if not "!HOST_UP!"=="1" (
+    echo.
+    echo The dashboard host did not respond on http://127.0.0.1:5000 .
+    echo.
+    echo Ask for the packaged SysAdminSuite Dashboard release, or have IT/admin prepare this workstation.
+    echo.
+    echo Do not use CLI survey commands unless the dashboard or runbook gives you one.
+    echo.
+    echo Press any key to close...
+    pause >nul
+    exit /b 1
+)
 
 echo Opening dashboard and Cybernet tutorial in your browser...
 start "" "http://127.0.0.1:5000/dashboard/?tutorial=cybernet"

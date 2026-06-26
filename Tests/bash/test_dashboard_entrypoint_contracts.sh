@@ -10,6 +10,7 @@ start_md="$repo_root/START-HERE-SysAdminSuite.md"
 entry_doc="$repo_root/docs/DASHBOARD_ENTRYPOINT.md"
 exe_sprint="$repo_root/docs/DASHBOARD_EXE_FUTURE_SPRINT.md"
 readme="$repo_root/README.md"
+survey_readme="$repo_root/survey/README.md"
 agents="$repo_root/AGENTS.md"
 index="$repo_root/dashboard/index.html"
 
@@ -81,6 +82,46 @@ done
 # primary instruction is forbidden.
 grep -Eq 'Double-click.*(START-HERE-SysAdminSuite-Dashboard|SysAdminSuite Dashboard)\.cmd' "$start_md" \
   && fail "START-HERE-SysAdminSuite.md must not present a .cmd as the primary double-click"
+# Auto-publish on first run: the host launcher must build the dashboard host
+# automatically (via the publish script) when it is missing, and must check for
+# the .NET SDK first so a clean failure path exists.
+[[ -f "$host_bat" ]] || fail "Launch-SysAdminSuiteDashboard.Host.bat is missing"
+grep -Fq 'publish-dashboard-entrypoint.ps1' "$host_bat" \
+  || fail "host launcher does not auto-invoke publish-dashboard-entrypoint.ps1"
+grep -Fq 'powershell.exe' "$host_bat" \
+  || fail "host launcher does not run the publish script via powershell.exe"
+grep -Fq 'dotnet' "$host_bat" \
+  || fail "host launcher does not check for dotnet before building"
+
+# The root .bat must NOT instruct field users to run the publish command by hand
+# as the normal path, and must not tell them to double-click again as a routine.
+grep -Fq -- '-File tools\publish-dashboard-entrypoint.ps1' "$bat" \
+  && fail "root .bat must not instruct field users to run publish manually"
+grep -Fiq 'double-click this file again' "$bat" \
+  && fail "root .bat must not tell users to double-click again as the normal path"
+
+# The root .bat must health-check before opening the browser (no dead tab).
+grep -Fq 'curl' "$bat" \
+  || fail "root .bat has no health check (curl) before opening the browser"
+health_line=$(grep -n 'HOST_UP=1' "$bat" | head -1 | cut -d: -f1)
+browser_line=$(grep -n 'start "" "http' "$bat" | head -1 | cut -d: -f1)
+[[ -n "$health_line" && -n "$browser_line" && "$health_line" -lt "$browser_line" ]] \
+  || fail "root .bat opens the browser before the host health check"
+
+# Field-safe build-failure messaging in the root .bat.
+grep -Fq 'The dashboard app could not be built on this machine' "$bat" \
+  || fail "root .bat missing field-safe build-failure message"
+grep -Fq 'Ask for the packaged SysAdminSuite Dashboard release' "$bat" \
+  || fail "root .bat missing packaged-release / IT-admin guidance"
+
+# Docs must mention automatic first-run preparation and keep CLI non-default.
+for prep_doc in "$readme" "$start_md" "$entry_doc" "$survey_readme"; do
+  grep -Fq 'automatically prepare' "$prep_doc" \
+    || fail "$(basename "$prep_doc") does not mention automatic first-run preparation"
+done
+grep -Fq 'Use CLI tools only' "$start_md" \
+  || fail "START-HERE-SysAdminSuite.md must keep CLI as non-default"
+
 grep -Fq 'rel="icon"' "$index" \
   || fail "dashboard/index.html missing favicon link"
 grep -Fq 'assets/harold.jpg' "$index" \

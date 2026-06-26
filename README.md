@@ -26,6 +26,8 @@ Double-click:
 
 This opens the local dashboard and tutorial at `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
 
+On first run, the launcher may **automatically prepare (build) the dashboard app** before opening the browser. Field users do not run any command by hand. If the workstation cannot build it (for example, no .NET SDK), the launcher asks for the packaged SysAdminSuite Dashboard release or IT/admin preparation.
+
 (`START-HERE-SysAdminSuite-Dashboard.cmd` and `SysAdminSuite Dashboard.cmd` are compatibility aliases for sites that prefer a `.cmd` shortcut.)
 
 Read [`START-HERE-SysAdminSuite.md`](START-HERE-SysAdminSuite.md) for plain-language steps. Agents and IT staff: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).
