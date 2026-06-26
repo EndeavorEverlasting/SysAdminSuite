@@ -175,6 +175,9 @@ const indexHtml = readFileSync(join(__dir, 'index.html'), 'utf8');
 
 const shellChecks = [
   ['cybernet-hero', 'Cybernet-first hero'],
+  ['software-tracker-hero', 'Software Tracker install hero'],
+  ['id="hero-start-install"', 'Primary CTA Start Software Tracker Install'],
+  ['workflow-tutorial', 'Shared workflow tutorial CSS class'],
   ['id="hero-start-survey"', 'Primary CTA Start Cybernet Survey'],
   ['Start Cybernet Survey', 'Start Cybernet Survey label'],
   ['id="hero-load-evidence"', 'Load Evidence entry'],
@@ -188,6 +191,10 @@ const shellChecks = [
 // Wizard command contracts live in app.js (bundled); verify source for CI without loading bundle
 const appJs = readFileSync(join(__dir, 'js', 'app.js'), 'utf8');
 const contractChecks = [
+  ['software-tracker-install-plan', 'install plan parser type wired'],
+  ['setSoftwareInstallPlan', 'install plan state wiring'],
+  ['initSoftwareTrackerTutorial', 'Software Tracker tutorial init'],
+  ['initSoftwareTrackerShell', 'Software Tracker hero shell'],
   ['--targets-file /tmp/sas-cybernet/targets.txt', 'preflight/identity --targets-file'],
   ['--file /tmp/sas-cybernet/targets.txt', 'normalize --file reference'],
   ['keyports_cybernet_json', 'low-noise reachability profile'],
@@ -207,8 +214,26 @@ const naabuContractChecks = [
   ['store.naabuReachability', 'parsed naabu store wiring'],
 ];
 
+const panelSoftwareJs = readFileSync(join(__dir, 'js', 'panel-software.js'), 'utf8');
+
+const softwareInstallChecks = [
+  ['Preview Install Plan', 'Preview Install Plan workflow label'],
+  ['Run Approved Installs', 'Run Approved Installs workflow label'],
+  ['SOFTWARE_TRACKER_PATHS.offlineWorkbook', 'offline workbook path in panel'],
+];
+
 let shellPassed = 0;
 let shellFailed = 0;
+
+for (const [needle, label] of softwareInstallChecks) {
+  if (!panelSoftwareJs.includes(needle)) {
+    console.error(`FAIL [software-install:${label}]: missing "${needle}"`);
+    shellFailed++;
+  } else {
+    console.log(`PASS [software-install:${label}]`);
+    shellPassed++;
+  }
+}
 
 for (const [needle, label] of shellChecks) {
   const src = needle.startsWith('--') ? appJs : indexHtml;
@@ -370,6 +395,8 @@ startAssert(!preflightJs.includes('syncTutorialVisibility'), 'preflight-not-gati
   'cybernet-os-preflight.js still forces the wizard hidden');
 startAssert(launchJs.includes('window.startCybernetTutorial'), 'auto-start-uses-transition',
   'launch-cybernet-tutorial.js does not use the verified transition');
+startAssert(bundleJs.includes('initSoftwareTrackerTutorial'), 'bundle-software-tutorial',
+  'bundle.js is stale — missing Software Tracker tutorial; rebuild with: node dashboard/build-bundle.js');
 startAssert(bundleJs.includes('startCybernetTutorial'), 'bundle-not-stale',
   'bundle.js is stale — rebuild with: node dashboard/build-bundle.js');
 

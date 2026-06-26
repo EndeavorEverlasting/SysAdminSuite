@@ -135,3 +135,34 @@ data/private/
 Do not commit live Software Tracker workbooks, private config, install reports,
 credentials, or endpoint evidence. Use local-only ignored output paths for
 generated reports.
+
+## Offline Workbook (Guest / Segmented Network)
+
+When the network share is unavailable, place the current workbook locally:
+
+```text
+logs/targets/software/Software Tracker 6-26-2026.xlsx
+```
+
+Canonical path metadata lives in `Config/software-tracker.paths.json`. The
+dashboard tutorial and install commands reference this path by default. The
+workbook stays gitignored under `logs/targets/*`.
+
+## Dashboard Install Workflow
+
+The web dashboard teaches the full dry-run → approve → execute path. Open the
+dashboard via `START-HERE-SysAdminSuite-Dashboard.bat`, then use **Start
+Software Tracker Install** on the front door hero.
+
+Seven-step workflow (labels match the Software panel rail):
+
+1. **Load tracker** — confirm the offline workbook path above.
+2. **Choose target** — optional `--list` or `--software` filters.
+3. **Preview Install Plan** — dry-run command (default; no installs).
+4. **Review Plan** — load `survey/output/software-tracker-install/install-summary.json`.
+5. **Approve Live Run** — explicit checkbox after reviewing blockers.
+6. **Run Approved Installs** — copy guarded `--execute` command; run outside the browser.
+7. **Export Report** — export the loaded plan from the Software panel.
+
+The browser never runs installers. It generates Bash commands, you run them on
+an admin workstation, then drop `install-summary.json` back into the dashboard.
