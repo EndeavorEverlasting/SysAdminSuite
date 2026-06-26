@@ -207,18 +207,40 @@ if (bomRows.length !== 1 || Object.keys(bomRows[0])[0] !== 'HostName') {
 {
   const content = readFileSync(join(samplesDir, 'dns_infrastructure_classification.sample.csv'), 'utf8');
   const parsed = parseFileContent('survey-classification', content, 'dns_infrastructure_classification.sample.csv');
+  const appSourceForBuckets = readFileSync(join(__dir, 'js', 'app.js'), 'utf8');
+  const bucketStart = appSourceForBuckets.indexOf('function _classificationRole');
+  const bucketEnd = appSourceForBuckets.indexOf('function humanizeClassificationWhy');
   const infra = parsed.rows.filter(r => (r.deviceRole || '').startsWith('infrastructure_'));
   const targets = parsed.rows.filter(r => (r.countsToward || '').toLowerCase() === 'yes');
-  const needsReview = parsed.rows.filter(r => (r.deviceRole || '') === 'discovery_only');
   const withReason = parsed.rows.filter(r => r.roleSignals && r.nextAction);
+  let buckets = null;
+  if (bucketStart >= 0 && bucketEnd > bucketStart) {
+    const bucketSource = appSourceForBuckets.slice(bucketStart, bucketEnd);
+    ({ bucketClassificationRows: buckets } = new Function(`${bucketSource}; return { bucketClassificationRows };`)());
+    buckets = buckets(parsed.rows);
+  }
+  const needsReviewHosts = new Set((buckets?.needsReview || []).map(r => r.hostName));
+  const expectedNeedsReviewHosts = [
+    'SYN-NO-HOST-001',
+    'SYN-NO-DNS-001',
+    'SYN-REVIEW-ONLY-001',
+    'SYN-DISCOVERY-ONLY-001',
+    'SYN-INFRA-UNKNOWN-001',
+  ];
   if (infra.length < 1) {
     console.error('FAIL [classification]: expected at least one infrastructure row');
     failed++;
   } else if (targets.length < 1) {
     console.error('FAIL [classification]: expected at least one Cybernet target row');
     failed++;
-  } else if (needsReview.length < 1) {
-    console.error('FAIL [classification]: expected at least one needs-review row');
+  } else if (!buckets) {
+    console.error('FAIL [classification]: could not load bucketClassificationRows from app.js');
+    failed++;
+  } else if (!expectedNeedsReviewHosts.every(host => needsReviewHosts.has(host))) {
+    console.error('FAIL [classification]: expected all synthetic review triggers in needsReview bucket');
+    failed++;
+  } else if (needsReviewHosts.has('WTS001OPR001')) {
+    console.error('FAIL [classification]: resolved target row should not require review');
     failed++;
   } else if (withReason.length !== parsed.rows.length) {
     console.error('FAIL [classification]: every row should carry roleSignals and nextAction');
@@ -227,7 +249,7 @@ if (bomRows.length !== 1 || Object.keys(bomRows[0])[0] !== 'HostName') {
     console.error('FAIL [classification]: row-level SourceFile column should be preserved');
     failed++;
   } else {
-    console.log('PASS [classification]: targets, infrastructure, needs-review, and reasons parsed');
+    console.log('PASS [classification]: targets, infrastructure, needs-review buckets, and reasons parsed');
     passed++;
   }
 }

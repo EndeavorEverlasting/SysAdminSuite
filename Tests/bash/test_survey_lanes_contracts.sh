@@ -35,7 +35,8 @@ grep -q 'targets/local/' START-HERE-SysAdminSuite.md || fail "START-HERE missing
 grep -q 'logs/targets/' START-HERE-SysAdminSuite.md || fail "START-HERE missing logs/targets local store guidance"
 grep -q 'TARGETS_FOLDER_POLICY.md' START-HERE-SysAdminSuite.md || fail "START-HERE missing targets folder policy link"
 
-python tests/survey/test_survey_device_classify.py
-python tests/survey/test_nmap_evidence_export.py
+python Tests/survey/test_survey_device_classify.py
+python Tests/survey/test_nmap_evidence_export.py
+python Tests/survey/test_resolve_manifest_dns_offline.py
 
 pass "survey lanes contracts"

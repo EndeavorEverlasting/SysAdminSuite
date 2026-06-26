@@ -11,18 +11,21 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXPORTER = REPO_ROOT / "survey" / "sas-nmap-evidence-export.py"
+CLASSIFIER = REPO_ROOT / "survey" / "sas-survey-device-classify.py"
 FIXTURE = REPO_ROOT / "survey" / "fixtures" / "nmap_sample_output.txt"
 
-REQUIRED_CLASSIFICATION_COLUMNS = [
-    "RoleConfidence",
-    "NextAction",
-    "IdentifierType",
-    "SurveyAuthority",
-    "CountsTowardCybernetPopulation",
-    "SurveyLane",
-    "DeviceRole",
-    "RoleSignals",
-]
+
+def load_classifier():
+    spec = importlib.util.spec_from_file_location("sas_survey_device_classify", CLASSIFIER)
+    if not spec or not spec.loader:
+        raise RuntimeError(f"could not load {CLASSIFIER}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+CLASSIFICATION_FIELDS = load_classifier().CLASSIFICATION_FIELDS
 
 
 def run_export(output_path: Path) -> None:
@@ -43,7 +46,8 @@ def test_nmap_export_includes_classification_columns() -> None:
         with out.open(newline="", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
             header = reader.fieldnames or []
-            for column in REQUIRED_CLASSIFICATION_COLUMNS:
+            assert "SourceFile" not in CLASSIFICATION_FIELDS
+            for column in CLASSIFICATION_FIELDS:
                 assert column in header, f"missing column {column} in export header"
             rows = list(reader)
         assert len(rows) >= 2, "fixture should produce hostname and IP-only rows"
@@ -58,6 +62,7 @@ def test_nmap_export_includes_classification_columns() -> None:
         assert ip_only_row.get("RoleConfidence") == "needs_review"
         assert "nmap:no-hostname" in (ip_only_row.get("RoleSignals") or "")
         assert ip_only_row.get("NextAction")
+        assert ip_only_row.get("SourceFile") == FIXTURE.name
 
 
 def main() -> int:
