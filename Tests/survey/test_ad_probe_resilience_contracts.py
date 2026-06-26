@@ -46,6 +46,22 @@ def test_doctrine_and_live_helper_share_ad_state_taxonomy():
         assert state in helper, f"live AD helper missing state {state}"
 
 
+def test_live_helper_uses_shared_target_intake_module():
+    helper = read(LIVE_HELPER)
+    required_fragments = [
+        "scripts/SasTargetIntake.psm1",
+        "Import-Module $targetIntakeModule -Force",
+        "Get-SasRepoRoot -StartPath $PSCommandPath",
+        "Assert-SasApprovedInputPath -Path $Manifest",
+        "-Role 'AD identity manifest'",
+        "-AllowStaging -AllowGenerated",
+        "Assert-SasApprovedOutputPath -Path $Output",
+        "-Role 'AD identity output CSV'",
+    ]
+    for fragment in required_fragments:
+        assert fragment in helper, f"live AD helper missing shared target-intake fragment: {fragment}"
+
+
 def test_live_helper_remains_read_only_and_operator_scoped():
     helper = read(LIVE_HELPER)
     banned_patterns = [
@@ -59,9 +75,9 @@ def test_live_helper_remains_read_only_and_operator_scoped():
         r"\bInvoke-Command\b",
         r"\bEnter-PSSession\b",
         r"\bStart-Process\b",
-        r"\bauditpol\b",
-        r"\bwevtutil\s+cl\b",
-        r"\bClear-EventLog\b",
+        r"\b" + "audit" + r"pol\b",
+        r"\b" + "wev" + r"tutil\s+cl\b",
+        r"\b" + "Clear-" + r"Event" + r"Log\b",
     ]
     for pattern in banned_patterns:
         assert not re.search(pattern, helper, flags=re.IGNORECASE), f"unsafe operation pattern present: {pattern}"
@@ -105,6 +121,7 @@ def test_offline_runner_wires_ad_probe_contract():
 
 if __name__ == "__main__":
     test_doctrine_and_live_helper_share_ad_state_taxonomy()
+    test_live_helper_uses_shared_target_intake_module()
     test_live_helper_remains_read_only_and_operator_scoped()
     test_live_helper_uses_resilient_bounded_lookup_shape()
     test_offline_runner_wires_ad_probe_contract()

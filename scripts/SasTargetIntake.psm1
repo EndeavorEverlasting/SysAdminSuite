@@ -113,6 +113,7 @@ function Assert-SasApprovedInputPath {
         [string]$RepoRoot,
         [string]$Role = 'target input',
         [switch]$AllowStaging,
+        [switch]$AllowGenerated,
         [switch]$AllowFixtures,
         [switch]$AllowNonstandard
     )
@@ -125,6 +126,7 @@ function Assert-SasApprovedInputPath {
     $roots = Get-SasTargetIntakeRoots -RepoRoot $RepoRoot
     $approved = @($roots.SourceRoots)
     if ($AllowStaging) { $approved += $roots.StagingRoot }
+    if ($AllowGenerated) { $approved += $roots.OutputRoots }
     if ($AllowFixtures) { $approved += $roots.FixtureRoots }
 
     if (-not (Test-SasPathUnderAnyRoot -Path (Resolve-Path -LiteralPath $Path).Path -Roots $approved)) {
@@ -132,7 +134,7 @@ function Assert-SasApprovedInputPath {
             Write-Warning "NONSTANDARD INPUT OVERRIDE: $Role is outside codified target intake roots: $Path"
             return
         }
-        throw "$Role is outside approved target intake roots. Use targets/local/ or logs/targets/ first; survey/input/ only after normalization. Refusing: $Path"
+        throw "$Role is outside approved target intake roots. Use targets/local/ or logs/targets/ first; survey/input/ only after normalization. Use survey/output/, logs/nmap/, or survey/artifacts/ only for generated SysAdminSuite manifests. Refusing: $Path"
     }
 }
 
