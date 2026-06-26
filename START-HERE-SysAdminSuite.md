@@ -63,9 +63,16 @@ flowchart TD
 
 3. The browser tab shows the Harold icon. Click **Start Cybernet Survey** to follow the guided tutorial.
 
-On first run, the launcher may **automatically prepare (build) the dashboard app** for a minute before the browser opens. You do not need to run any command yourself. If this machine cannot build it (for example, no .NET SDK), the launcher will tell you to ask for the packaged SysAdminSuite Dashboard release or have IT/admin prepare the workstation.
+On first run, the launcher may **automatically prepare (build) the dashboard app** for a minute before the browser opens. You do not need to run any command yourself. If this machine cannot build it (for example, no .NET SDK), the launcher will tell you to ask for the packaged SysAdminSuite Dashboard **field release** or have IT/admin prepare the workstation.
 
-No internet is required after the repo is on your machine.
+### Source clone vs field release package
+
+| You have | Do this |
+|----------|---------|
+| Git + optional .NET SDK (developer/IT) | Clone the repo, double-click `START-HERE-SysAdminSuite-Dashboard.bat` |
+| No .NET SDK (typical field PC) | Get the **field release ZIP** — see [`docs/DASHBOARD_FIELD_RELEASE.md`](docs/DASHBOARD_FIELD_RELEASE.md) — extract it, then double-click the `.bat` |
+
+No internet is required after the repo or package is on your machine.
 
 ## What if the dashboard does not open?
 

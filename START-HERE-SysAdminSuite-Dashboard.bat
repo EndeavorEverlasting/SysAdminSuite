@@ -17,6 +17,17 @@ set "ROOT=%~dp0"
 cd /d "%ROOT%"
 set "HEALTH_URL=http://127.0.0.1:5000/dashboard/"
 
+if exist "%ROOT%app\bin\SysAdminSuite.DashboardHost.exe" (
+    echo Packaged field release detected - dashboard app is already included.
+    echo No build step is required on this machine.
+    echo.
+) else (
+    echo Source checkout detected - the dashboard app may be prepared on first run.
+    echo If this machine has the .NET SDK, the launcher will build it automatically.
+    echo If not, ask for the packaged SysAdminSuite Dashboard field release instead.
+    echo.
+)
+
 if not exist "%ROOT%Launch-SysAdminSuiteDashboard.Host.bat" (
     echo Could not find Launch-SysAdminSuiteDashboard.Host.bat.
     echo Make sure you are running this from the SysAdminSuite repo root.
@@ -33,13 +44,14 @@ set "RC=%errorlevel%"
 
 if "%RC%"=="2" (
     echo.
-    echo The .NET SDK ^(dotnet^) was not found on this machine.
+    echo Source checkout without the .NET SDK ^(dotnet^).
     echo.
     echo The dashboard app could not be built on this machine.
     echo.
     echo This usually means the .NET SDK is missing or blocked.
     echo.
-    echo Ask for the packaged SysAdminSuite Dashboard release, or have IT/admin prepare this workstation.
+    echo Ask for the packaged SysAdminSuite Dashboard field release ^(pre-built host under app\bin^),
+    echo or have IT/admin prepare this workstation.
     echo.
     echo Do not use CLI survey commands unless the dashboard or runbook gives you one.
     echo.
@@ -52,9 +64,10 @@ if not "%RC%"=="0" (
     echo.
     echo The dashboard app could not be built on this machine.
     echo.
-    echo This usually means the .NET SDK is missing or blocked.
+    echo This usually means the .NET SDK is missing or blocked on a source checkout.
     echo.
-    echo Ask for the packaged SysAdminSuite Dashboard release, or have IT/admin prepare this workstation.
+    echo Ask for the packaged SysAdminSuite Dashboard field release ^(pre-built host under app\bin^),
+    echo or have IT/admin prepare this workstation.
     echo.
     echo Do not use CLI survey commands unless the dashboard or runbook gives you one.
     echo.

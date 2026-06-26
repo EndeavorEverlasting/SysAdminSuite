@@ -1,0 +1,74 @@
+# Build the dashboard field-release ZIP on demand or when release tooling changes.
+# Uploads dist/*.zip as a CI artifact — does NOT commit binaries to git.
+name: Dashboard field release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version label for the package (e.g. 0.1.0)'
+        required: true
+        default: '0.1.0'
+  push:
+    branches: [main]
+    paths:
+      - 'src/SysAdminSuite.DashboardHost/**'
+      - 'dashboard/**'
+      - 'START-HERE-SysAdminSuite-Dashboard.bat'
+      - 'Launch-SysAdminSuiteDashboard.Host.bat'
+      - 'tools/publish-dashboard-entrypoint.ps1'
+      - 'tools/build/New-DashboardFieldRelease.ps1'
+      - '.github/workflows/dashboard-field-release.yml'
+
+jobs:
+  build-field-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build dashboard field-release ZIP
+        shell: pwsh
+        run: |
+          $version = '${{ github.event.inputs.version }}'
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = 'ci-' + (Get-Date -Format 'yyyyMMdd-HHmm')
+          }
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools/build/New-DashboardFieldRelease.ps1 -Version $version
+
+      - name: Verify package layout
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Path dist -Filter 'SysAdminSuite-Dashboard-Field-*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $zip) { throw 'No field-release zip produced under dist/' }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip.FullName)
+          try {
+            $required = @(
+              'START-HERE-SysAdminSuite-Dashboard.bat',
+              'Launch-SysAdminSuiteDashboard.Host.bat',
+              'dashboard/index.html',
+              'app/bin/SysAdminSuite.DashboardHost.exe',
+              'app/bin/SysAdminSuite.DashboardHost.dll'
+            )
+            foreach ($entry in $required) {
+              $found = $archive.Entries | Where-Object { $_.FullName -replace '\\','/' -eq $entry }
+              if (-not $found) { throw "Missing zip entry: $entry" }
+            }
+          } finally {
+            $archive.Dispose()
+          }
+          Write-Host "Package layout OK: $($zip.Name)"
+
+      - name: Upload field-release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sysadminsuite-dashboard-field-release
+          path: |
+            dist/SysAdminSuite-Dashboard-Field-*.zip
+            dist/SysAdminSuite-Dashboard-Field-*.manifest.json
+          if-no-files-found: error

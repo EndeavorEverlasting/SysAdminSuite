@@ -19,8 +19,9 @@ set "ROOT=%~dp0"
 call :find_host
 if defined HOST_EXE goto :start_host
 
-:: Host missing: prepare it automatically. No manual command for the user.
-echo Preparing the dashboard app for first use. This can take a minute...
+:: Host missing on a source checkout: prepare automatically. Packaged field
+:: releases ship app\bin\SysAdminSuite.DashboardHost.exe and skip this path.
+echo Source checkout: preparing the dashboard app for first use. This can take a minute...
 where dotnet >nul 2>nul
 if errorlevel 1 exit /b 2
 
@@ -31,6 +32,13 @@ call :find_host
 if not defined HOST_EXE exit /b 3
 
 :start_host
+if exist "%ROOT%app\bin\SysAdminSuite.DashboardHost.exe" (
+    if /i not "%HOST_EXE%"=="%ROOT%app\bin\SysAdminSuite.DashboardHost.exe" (
+        rem other host path won; packaged layout not primary
+    ) else (
+        echo Using packaged dashboard host from app\bin.
+    )
+)
 start "" /B "%HOST_EXE%" %*
 exit /b 0
 
