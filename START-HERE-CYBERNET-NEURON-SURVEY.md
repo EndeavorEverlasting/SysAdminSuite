@@ -1,179 +1,157 @@
 # Start Here: Cybernet / Neuron Network Survey
 
-This is the current priority field workflow for SysAdminSuite technicians.
+This is the field-facing entrypoint for Cybernet / Neuron network survey work.
 
-Use it when you need to locate Cybernet or Neuron devices from approved deployment documentation using a local admin workstation, target manifests, and conservative approved network discovery.
+Use it when you need to validate network posture from an approved target population using a local admin workstation. The dashboard guides the workflow. The operator runs approved commands outside the dashboard and loads the resulting local files back into **Load Evidence**.
+
+## Field shell doctrine
+
+**PowerShell first.**
+
+- Run PowerShell command blocks in **Windows PowerShell**.
+- Do not use Git Bash / MINGW64 for the field-tech path.
+- Do not use CMD for PowerShell blocks.
+- Do not paste Bash commands into the field workflow.
+- Do not type demo hostnames manually for live work.
+- Do not use `C:\Temp` as the live workflow.
+
+CMD is only for simple Windows launcher actions, such as double-clicking `START-HERE-SysAdminSuite-Dashboard.bat`.
+
+## Folder doctrine
+
+| Path | Purpose |
+|---|---|
+| `targets/` | Tracked policy, schemas, and sanitized fixtures only |
+| `targets/local/` | Preferred ignored live intake for approved source workbooks, AD exports, tracker CSVs, and raw target material before normalization |
+| `logs/targets/` | Preserved ignored local target and evidence store |
+| `survey/input/` | Normalized runtime staging generated from approved intake |
+| `survey/output/` | Generated survey outputs and reports |
+| `logs/nmap/` | Generated network probe output |
+| `survey/artifacts/` | Generated local artifacts |
+
+Live field preflight reads from `targets/local/` and `logs/targets/` first. `survey/input/` is staging only after an approved normalization step. `survey/output/` is generated output, not the place to invent live targets.
 
 ## Workflow at a glance
 
-Use this diagram to keep the field path straight: approved population first, local context and reachability second, local evidence package last. Mermaid source: [`docs/diagrams/cybernet-neuron-survey-flow.mmd`](docs/diagrams/cybernet-neuron-survey-flow.mmd).
+1. Export or copy the approved spreadsheet, AD export, tracker tab, or target source to `targets/local/` or `logs/targets/`.
+2. Normalize if the selected source is not already a `.txt` or `.csv` with probe-ready hostnames/IPs.
+3. Run the PowerShell network preflight.
+4. Review the CSV under `survey/output/network_preflight/`.
+5. Load the CSV into the dashboard with **Load Evidence**.
 
-Each orchestrator mode is a separate `--mode` run, not a single chained pipeline. The numbered order below is the typical progression, but you invoke one mode at a time.
-
-```mermaid
-flowchart TD
-    subgraph entryPaths [Entry Paths]
-        dashboard["Dashboard: Start Cybernet Survey"]
-        cli["CLI: survey/sas-cybernet-subnet-survey.sh --mode MODE"]
-    end
-
-    subgraph populationAuthority [Population Authority]
-        approvedInputs["AD export or approved manifests"]
-        adReconcile["survey/sas-ad-reconcile.sh"]
-        manifests["Resolved target manifests (survey/output/ad_reconcile)"]
-        approvedInputs --> adReconcile --> manifests
-    end
-
-    subgraph orchestratorModes [Orchestrator modes: pick one --mode per run]
-        localContext["local-context-only"]
-        dnsList["dns-list-only"]
-        discover["discover"]
-        resolveOnly["resolve-only"]
-        confirmWindows["confirm-windows (optional)"]
-        parseNaabu["parse-naabu-only"]
-        packageOnly["package-only"]
-    end
-
-    typicalOrder["Typical order: local-context-only -> dns-list-only -> discover -> resolve-only -> confirm-windows (optional) -> parse-naabu-only -> package-only"]
-
-    subgraph localEvidence [Local Evidence Only]
-        surveyOutputs["survey/output and survey/artifacts"]
-        networkLogs["logs/nmap and logs/network_context"]
-    end
-
-    subgraph guardrails [Guardrails]
-        populationRule["AD or approved manifests define population"]
-        reachabilityRule["Nmap and Naabu validate reachability only"]
-        evidenceRule["Do not commit live evidence"]
-    end
-
-    dashboard --> manifests
-    cli --> orchestratorModes
-    orchestratorModes --> typicalOrder
-    manifests --> resolveOnly
-    packageOnly --> surveyOutputs
-    packageOnly --> networkLogs
-    populationRule --> approvedInputs
-    reachabilityRule --> confirmWindows
-    evidenceRule --> localEvidence
-```
+Network preflight is reachability and posture evidence only. It does not prove serial identity, AD registration, ownership, or deployment completion.
 
 ## Dashboard quick path
 
-Use the Cybernet-first dashboard when you want a guided wizard instead of memorizing CLI steps. Live Mode is **not** the front door — it lives under **Advanced Tools → Generate Survey Commands**.
+1. Double-click `START-HERE-SysAdminSuite-Dashboard.bat`.
+2. Click **Start Cybernet Survey**.
+3. Use the tutorial to select the PowerShell field path.
+4. Run the displayed PowerShell command outside the dashboard.
+5. Drop the resulting `network_preflight_*.csv` back into **Load Evidence**.
 
-1. **Open the dashboard** — double-click [`START-HERE-SysAdminSuite-Dashboard.bat`](START-HERE-SysAdminSuite-Dashboard.bat) at the repo root. This starts the local host and opens `http://127.0.0.1:5000/dashboard/?tutorial=setup`; from there click **Start Cybernet Survey**. For a direct survey deep link, use [`Start-CybernetSurveyTutorial.cmd`](Start-CybernetSurveyTutorial.cmd). See [`START-HERE-SysAdminSuite.md`](START-HERE-SysAdminSuite.md) and [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).
-2. **Start Cybernet Survey** — opens the wizard (progress rail: Start → Load targets → Network posture → Identity evidence → Reachability → Review results).
-3. **Copy posture and identity commands** — run network preflight and workstation identity on the admin box; keep output local.
-4. **Optional reachability** — wizard step 4 is skippable; uses profile `keyports_cybernet_json` when you need low-noise port confirmation.
-5. **Load Evidence** — drop `network_preflight.csv`, `workstation_identity.csv`, optional reachability JSON, normalized target manifests, and AD population CSVs.
-6. **Review Results** — use the Cybernet review summary; open **Advanced Tools** only for detailed panels or legacy command generation.
+The dashboard never runs probes by itself. It teaches the operator what to run and reads the evidence files afterward.
 
-For subnet discovery and Nmap orchestration, use the CLI path below. For **manifest lane vs subnet lane** and **serial vs hostname vs MAC** guidance, see [`docs/SURVEY_LANES.md`](docs/SURVEY_LANES.md).
+## Select an approved target file
 
-## AD-first warning
+Run in Windows PowerShell:
 
-**Active Directory registered population is the population authority.** When an authorized AD computer export is available, reconcile AD before building scan candidate lists.
-
-1. Place the approved export locally (do not commit live CSVs). Use `targets/local/` or `logs/targets/` per [`docs/TARGETS_FOLDER_POLICY.md`](docs/TARGETS_FOLDER_POLICY.md).
-2. Run `bash survey/sas-ad-reconcile.sh --ad-csv <local-export.csv> --output-dir survey/output/ad_reconcile/<run-id>`.
-3. Use `ad_targets_hostnames.txt` and `ad_evidence_matches.csv` to drive manifests and downstream validation.
-4. Treat Naabu/Nmap as **reachability validation only** against AD-derived targets — not as the population source.
-
-See [`docs/AD_REGISTERED_POPULATION.md`](docs/AD_REGISTERED_POPULATION.md) and [`docs/AD_CYBERNET_EXPORT_CONTRACT.md`](docs/AD_CYBERNET_EXPORT_CONTRACT.md).
-
-## Urgent path (orchestrator)
-
-Use one correlated `--site` and `--run-id` across steps:
-
-```bash
-SITE=nsuh
-RUN_ID="$(date +%Y%m%d_%H%M%S)"
-SUBNET_FILE=survey/output/local_subnet_finder/${SITE}_${RUN_ID}/subnet_candidates.txt
-MANIFEST=survey/output/cybernet_targets_resolved.csv
-HOSTS=survey/output/cybernet_subnet_survey/${SITE}_${RUN_ID}/hosts/10_10_10_0_24_up.txt
+```powershell
+Set-Location <SysAdminSuite repo root>
+.\survey\sas-network-preflight.ps1
 ```
 
-```bash
-# 1. Local subnet finder + network context
-bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode local-context-only
+With no `-TargetFile`, the script lists candidate `.txt` and `.csv` files from:
 
-# 2. DNS/list sanity check (not host proof)
-bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode dns-list-only --subnet-file "$SUBNET_FILE"
+- `targets/local/`
+- `logs/targets/`
 
-# 3. Nmap -sn discovery (no-DNS + system-DNS)
-bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode discover --subnet-file "$SUBNET_FILE"
+Then it stops without probing. This is deliberate. The operator must select the approved target file.
 
-# 4. Resolve manifest against Nmap XML evidence
-bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode resolve-only --manifest "$MANIFEST"
+## Run network preflight
 
-# 5. Optional Windows port confirmation (small AD-derived or discovery host list)
-# Prefer logs/targets/<site>_confirm_hosts.txt for Phase 2b reachability (not subnet-wide discovery)
-bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode confirm-windows \
-  --confirm-tool naabu --host-file "$HOSTS" --pipe-followup
+Run in Windows PowerShell:
 
-# 6. Package local artifacts
-bash survey/sas-cybernet-subnet-survey.sh --site "$SITE" --run-id "$RUN_ID" --mode package-only --manifest "$MANIFEST"
+```powershell
+Set-Location <SysAdminSuite repo root>
+.\survey\sas-network-preflight.ps1 -TargetFile .\targets\local\approved_targets.csv -Ports 135,445,3389,9100
 ```
 
-Windows double-click launcher (Git Bash on PATH):
+Alternative approved source root:
 
-```bat
-survey\sas-cybernet-subnet-survey.cmd --site nsuh --mode local-context-only
+```powershell
+Set-Location <SysAdminSuite repo root>
+.\survey\sas-network-preflight.ps1 -TargetFile .\logs\targets\approved_confirm_hosts.txt -Ports 135,445,3389,9100
 ```
 
-## Need subnets first (standalone)
+The script prints:
 
-Run this from Git Bash/MSYS2 Bash on the connected admin workstation:
+- selected target file
+- target count
+- selected ports
+- output path
+- current stage
+- `[n/total]`
+- percent complete
+- final CSV path
 
-```bash
-bash survey/sas-find-local-subnets.sh --site <site-code>
+Default output:
+
+```text
+survey/output/network_preflight/network_preflight_<timestamp>.csv
 ```
 
-Example:
+## Accepted target files
 
-```bash
-bash survey/sas-find-local-subnets.sh --site nsuh
-```
+### Text target files
 
-The command produces:
+Rules:
 
-- `survey/output/local_subnet_finder/<site>_<timestamp>/subnet_candidates.txt`
-- `survey/output/local_subnet_finder/<site>_<timestamp>/subnet_candidates.csv`
-- local context under `context/`
-- `SUMMARY.md`
+- one hostname, IP address, or probe-ready identifier per line
+- blank lines ignored
+- lines beginning with `#` ignored
+- whitespace trimmed
 
-Use `subnet_candidates.txt` as the fast approved CIDR shortlist for the rest of the survey workflow.
+### CSV target files
 
-## Full fast path
+Preferred columns:
 
-1. Read the full tutorial: [`docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md)
-2. Put approved local target CSVs in `survey/input/`
-3. Run `bash tests/bash/smoke-bash-windows-runtime.sh`
-4. Run the orchestrator steps above (or individual scripts documented in the tutorial)
-5. Build manifests with `bash survey/sas-survey-targets.sh`
-6. Contract tests: `bash tests/bash/test-cybernet-subnet-survey-contracts.sh`
+- `HostName`
+- `Hostname`
+- `ComputerName`
+- `DeviceName`
+- `Name`
 
-## Low-noise survey discipline
+Also accepted when probe-ready or explicitly typed as hostname/IP:
 
-This workflow follows low-noise survey discipline (authorized, scoped, no-target-mutation,
-local evidence only). The subnet orchestrator path above is for discovery context; it is
-**not** the registered Cybernet population source. For Phase 2b reachability confirmation,
-prefer an AD-derived host list placed in the local gitignored `logs/targets/` store and
-validate reachability against that list only. See
-[`docs/LOW_NOISE_SURVEY_DOCTRINE.md`](docs/LOW_NOISE_SURVEY_DOCTRINE.md).
+- `Target`
+- `Identifier`
+
+Prefer hostnames over serial-only values when both exist. Serial-only rows are not network targets. Enrich or normalize serial-only material before preflight.
+
+## Spreadsheet source on X:\
+
+Do not probe a spreadsheet directly from `X:\` unless a tested SysAdminSuite ingestion path explicitly supports that source.
+
+Preferred field flow:
+
+1. Export the approved spreadsheet or target tab to CSV.
+2. Place the CSV under `targets/local/` or `logs/targets/`.
+3. Normalize if needed.
+4. Run PowerShell network preflight against the selected CSV.
 
 ## Evidence notes
 
-- **Nmap** helps find live hosts, DNS names, MACs on local L2, and XML evidence for resolver tooling.
-- **Serial matching** comes from manifests, trackers, AD/CMDB exports, or approved identity probes — not from Nmap alone.
-- **Naabu** is only for narrow port reachability confirmation against already-small candidate host lists.
+- DNS and ping failures may indicate guest network, wrong VLAN, DNS scope, firewall policy, or offline hosts.
+- TCP port results are `Open`, `Closed`, or `NotChecked` when the PowerShell runtime lacks the needed command.
+- AD exports define registered population, not live reachability.
+- Nmap / Naabu remain reachability validation tools, not population authority.
+- Serial matching comes from approved identity sources, trackers, AD/CMDB exports, SCCM/MDM, or operator evidence, not from network preflight alone.
 
 ## Hard rules
 
 - Do not commit live target CSVs, scan output, dashboards, ZIPs, serials, MACs, or site evidence.
 - Do not run broad scans without approved scope.
 - Do not use spoofing, decoys, stealth flags, vuln scripts, brute force, or credential attacks.
-- Do not claim Nmap found a serial unless an approved serial evidence source actually produced it.
+- Do not claim network preflight found a serial unless an approved serial evidence source actually produced it.
 
-This workflow is for asset discovery and reconciliation. Keep it boring, clean, and provable.
+This workflow is boring on purpose. Boring survives the field.

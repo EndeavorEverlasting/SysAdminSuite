@@ -7,17 +7,21 @@ on:
       - 'Tests/bash/test_dashboard_*.sh'
       - 'Tests/bash/test_update_flow_contracts.sh'
       - 'Tests/bash/test_field_tech_update_contracts.sh'
+      - 'Tests/bash/test_powershell_network_preflight_contracts.sh'
       - 'START-HERE-SysAdminSuite.md'
+      - 'START-HERE-CYBERNET-NEURON-SURVEY.md'
       - 'START-HERE-SysAdminSuite-Dashboard.bat'
       - 'START-HERE-SysAdminSuite-Dashboard.cmd'
       - 'SysAdminSuite Dashboard.cmd'
       - 'Launch-SysAdminSuiteDashboard.Host.bat'
       - 'Update-SysAdminSuite.ps1'
       - 'Update-SysAdminSuite.bat'
+      - 'survey/sas-network-preflight.ps1'
       - 'tools/update/**'
       - 'docs/APPROVED_UPDATE_FLOW.md'
       - 'docs/DASHBOARD_ENTRYPOINT.md'
       - 'docs/FIELD_TECH_UPDATE.md'
+      - 'docs/FIELD_NETWORK_PREFLIGHT.md'
       - '.github/workflows/dashboard-smoke.yml'
   push:
     branches:
@@ -27,17 +31,21 @@ on:
       - 'Tests/bash/test_dashboard_*.sh'
       - 'Tests/bash/test_update_flow_contracts.sh'
       - 'Tests/bash/test_field_tech_update_contracts.sh'
+      - 'Tests/bash/test_powershell_network_preflight_contracts.sh'
       - 'START-HERE-SysAdminSuite.md'
+      - 'START-HERE-CYBERNET-NEURON-SURVEY.md'
       - 'START-HERE-SysAdminSuite-Dashboard.bat'
       - 'START-HERE-SysAdminSuite-Dashboard.cmd'
       - 'SysAdminSuite Dashboard.cmd'
       - 'Launch-SysAdminSuiteDashboard.Host.bat'
       - 'Update-SysAdminSuite.ps1'
       - 'Update-SysAdminSuite.bat'
+      - 'survey/sas-network-preflight.ps1'
       - 'tools/update/**'
       - 'docs/APPROVED_UPDATE_FLOW.md'
       - 'docs/DASHBOARD_ENTRYPOINT.md'
       - 'docs/FIELD_TECH_UPDATE.md'
+      - 'docs/FIELD_NETWORK_PREFLIGHT.md'
       - '.github/workflows/dashboard-smoke.yml'
 
 jobs:
@@ -97,3 +105,5 @@ jobs:
         run: bash Tests/bash/test_update_flow_contracts.sh
       - name: Field tech update contracts
         run: bash Tests/bash/test_field_tech_update_contracts.sh
+      - name: PowerShell network preflight contracts
+        run: bash Tests/bash/test_powershell_network_preflight_contracts.sh
