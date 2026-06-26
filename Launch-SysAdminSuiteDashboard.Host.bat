@@ -28,6 +28,10 @@ set "ENSURE_RC=%errorlevel%"
 if "%ENSURE_RC%"=="2" exit /b 2
 if not "%ENSURE_RC%"=="0" exit /b 3
 
+if defined BASH_EXE (
+    "%BASH_EXE%" -lc "cd '%ROOT:\=/%' && export SAS_UPDATE_STATE='%SAS_UPDATE_STATE%' SAS_UPDATE_MODE='%SAS_UPDATE_MODE%' && bash scripts/sas-write-toolbox-status.sh" 2>nul
+)
+
 call :find_host
 if not defined HOST_EXE exit /b 3
 

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-06-26T12:00:00Z",
+  "repo": { "updateState": "current", "updateMode": "check_only" },
+  "actionNeeded": true,
+  "summary": { "total": 14, "ok": 12, "needsAction": 1, "missing": 1, "outdated": 0 },
+  "tools": [
+    { "id": "repo", "displayName": "SysAdminSuite repo", "tier": "required", "status": "ok", "found": true, "version": "", "path": "", "pinnedVersion": null, "nextAction": "" },
+    { "id": "git_bash", "displayName": "Git Bash", "tier": "required", "status": "ok", "found": true, "version": "", "path": "C:/Program Files/Git/bin/bash.exe", "pinnedVersion": null, "nextAction": "" },
+    { "id": "naabu", "displayName": "naabu", "tier": "workflow", "status": "missing", "found": false, "version": "", "path": "", "pinnedVersion": "2.6.1", "nextAction": "bash survey/sas-ensure-naabu.sh", "installDoc": "docs/NAABU_CYBERNET_PROFILES.md" },
+    { "id": "nmap", "displayName": "nmap", "tier": "workflow", "status": "ok", "found": true, "version": "7.94", "path": "nmap", "pinnedVersion": null, "nextAction": "" }
+  ]
+}

@@ -1,0 +1,193 @@
+{
+  "schema": 1,
+  "generatedFrom": [
+    "Config/sources.yaml",
+    "Config/dotnet-bootstrap.json",
+    "survey/naabu_profiles.json",
+    "Config/cybernet-naabu-profiles.json"
+  ],
+  "tools": [
+    {
+      "id": "repo",
+      "displayName": "SysAdminSuite repo",
+      "tier": "required",
+      "workflows": ["dashboard"],
+      "pinnedVersion": null,
+      "probe": { "type": "env", "keys": ["SAS_UPDATE_STATE", "SAS_UPDATE_MODE"] },
+      "ensure": { "action": "Re-run START-HERE-SysAdminSuite-Dashboard.bat and approve the update when prompted." },
+      "installDoc": "docs/APPROVED_UPDATE_FLOW.md",
+      "statusHints": {
+        "available": "A newer clean main or package is available. The dashboard does not update itself; approve the launcher prompt when ready.",
+        "manual_review": "The update helper found a state that needs human review. Keep using the current copy until IT reviews it."
+      }
+    },
+    {
+      "id": "git_bash",
+      "displayName": "Git Bash",
+      "tier": "required",
+      "workflows": ["dashboard", "cybernet", "neuron", "install-apps"],
+      "pinnedVersion": null,
+      "probe": { "type": "file", "paths": ["%ProgramFiles%/Git/bin/bash.exe"], "fallback": "where bash" },
+      "ensure": { "action": "Install Git for Windows or use the packaged dashboard field release.", "note": "Git Bash is a launcher-side hard gate." },
+      "installDoc": "docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md",
+      "statusHints": {
+        "missing": "Git Bash is required before the Bash-first dashboard bootstrap can run."
+      }
+    },
+    {
+      "id": "cmd",
+      "displayName": "CMD",
+      "tier": "required",
+      "workflows": ["dashboard"],
+      "pinnedVersion": null,
+      "probe": { "type": "command", "command": "where cmd.exe" },
+      "ensure": null,
+      "installDoc": null,
+      "statusHints": { "missing": "CMD is expected on Windows and is used by field launchers." }
+    },
+    {
+      "id": "powershell",
+      "displayName": "Windows PowerShell",
+      "tier": "required",
+      "workflows": ["dashboard"],
+      "pinnedVersion": null,
+      "probe": { "type": "command", "command": "where powershell.exe" },
+      "ensure": null,
+      "installDoc": null,
+      "statusHints": { "missing": "Windows PowerShell is expected on Windows and is used by the update helper." }
+    },
+    {
+      "id": "pwsh",
+      "displayName": "PowerShell 7",
+      "tier": "recommended",
+      "workflows": ["software-tracker", "install-apps"],
+      "pinnedVersion": "7.4.6",
+      "probe": { "type": "version", "command": "pwsh -Version", "fallback": "file:%ProgramFiles%/PowerShell/7/pwsh.exe" },
+      "ensure": { "script": "bash/apps/sas-install-apps.sh", "note": "Managed install via approved sources manifest." },
+      "installDoc": "docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md",
+      "statusHints": {
+        "missing": "PowerShell 7 is recommended for Windows app management workflows.",
+        "outdated": "PowerShell 7 is present but below the pinned manifest version."
+      }
+    },
+    {
+      "id": "python",
+      "displayName": "Python 3",
+      "tier": "recommended",
+      "workflows": ["dashboard", "cybernet"],
+      "pinnedVersion": "3.13.1",
+      "probe": { "type": "version", "command": "python3 --version", "fallback": "python --version" },
+      "ensure": { "script": "bash/apps/sas-install-apps.sh", "note": "Managed install via approved sources manifest." },
+      "installDoc": "docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md",
+      "statusHints": {
+        "missing": "Python is required for several local parsers and probe helpers.",
+        "outdated": "Python is present but below the pinned manifest version."
+      }
+    },
+    {
+      "id": "dotnet_aspnet",
+      "displayName": ".NET 8 ASP.NET Core Runtime",
+      "tier": "required",
+      "workflows": ["dashboard"],
+      "pinnedVersion": "8.0.28",
+      "probe": { "type": "dotnet_runtime", "framework": "Microsoft.AspNetCore.App", "versionPrefix": "8." },
+      "ensure": { "script": "scripts/ensure-dotnet-runtime.sh", "dryRunFlag": "--dry-run" },
+      "installDoc": "docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md",
+      "statusHints": {
+        "missing": "The dashboard host needs the ASP.NET Core runtime.",
+        "outdated": "The ASP.NET Core runtime is present but below the pinned Microsoft release."
+      }
+    },
+    {
+      "id": "dotnet_desktop",
+      "displayName": ".NET 8 Windows Desktop Runtime",
+      "tier": "required",
+      "workflows": ["dashboard"],
+      "pinnedVersion": "8.0.28",
+      "probe": { "type": "dotnet_runtime", "framework": "Microsoft.WindowsDesktop.App", "versionPrefix": "8." },
+      "ensure": { "script": "scripts/ensure-dotnet-runtime.sh", "dryRunFlag": "--dry-run" },
+      "installDoc": "docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md",
+      "statusHints": {
+        "missing": "The Windows tray dashboard host needs the Windows Desktop runtime.",
+        "outdated": "The Windows Desktop runtime is present but below the pinned Microsoft release."
+      }
+    },
+    {
+      "id": "dotnet_sdk",
+      "displayName": ".NET 8 SDK",
+      "tier": "workflow",
+      "workflows": ["dashboard"],
+      "pinnedVersion": "8.0.422",
+      "probe": { "type": "dotnet_sdk", "versionPrefix": "8." },
+      "ensure": { "script": "scripts/ensure-dotnet-sdk.sh", "dryRunFlag": "--dry-run" },
+      "installDoc": "docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md",
+      "fieldReleaseNotApplicable": true,
+      "statusHints": {
+        "missing": "Source checkouts need the SDK to publish the dashboard host; field releases do not.",
+        "outdated": "The SDK is present but below the pinned Microsoft release."
+      }
+    },
+    {
+      "id": "dashboard_host",
+      "displayName": "Dashboard host",
+      "tier": "required",
+      "workflows": ["dashboard"],
+      "pinnedVersion": null,
+      "probe": { "type": "dashboard_host" },
+      "ensure": { "action": "Re-run START-HERE-SysAdminSuite-Dashboard.bat or Launch-SysAdminSuiteDashboard.Host.bat." },
+      "installDoc": "docs/DASHBOARD_ENTRYPOINT.md",
+      "statusHints": {
+        "missing": "The host executable was not found. Re-run the launcher so it can prepare or locate the host."
+      }
+    },
+    {
+      "id": "naabu",
+      "displayName": "naabu",
+      "tier": "workflow",
+      "workflows": ["cybernet", "neuron"],
+      "pinnedVersion": "2.6.1",
+      "probe": { "type": "command", "command": "naabu -version", "fallback": "bin/naabu.exe" },
+      "ensure": { "script": "survey/sas-ensure-naabu.sh", "dryRunFlag": "--dry-run" },
+      "installDoc": "docs/NAABU_CYBERNET_PROFILES.md",
+      "statusHints": {
+        "missing": "naabu is used for authorized reachability validation only. Install it with the suite wrapper.",
+        "outdated": "naabu is present but below the profile pin."
+      }
+    },
+    {
+      "id": "nmap",
+      "displayName": "nmap",
+      "tier": "workflow",
+      "workflows": ["cybernet", "neuron"],
+      "pinnedVersion": null,
+      "probe": { "type": "version", "command": "nmap --version", "fallback": "where nmap" },
+      "ensure": { "action": "Install nmap manually per docs/NAABU_CYBERNET_PROFILES.md. No auto-download on Northwell workstations." },
+      "installDoc": "docs/NAABU_CYBERNET_PROFILES.md",
+      "statusHints": {
+        "missing": "nmap is detect-and-guide only on Northwell workstations; install manually when that workflow requires it."
+      }
+    },
+    {
+      "id": "curl",
+      "displayName": "curl",
+      "tier": "required",
+      "workflows": ["dashboard", "cybernet"],
+      "pinnedVersion": null,
+      "probe": { "type": "command", "command": "command -v curl" },
+      "ensure": { "note": "Bundled with Git for Windows. Install or repair Git Bash if missing." },
+      "installDoc": "docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md",
+      "statusHints": { "missing": "curl is normally bundled with Git Bash; repair Git for Windows if this is missing." }
+    },
+    {
+      "id": "unzip",
+      "displayName": "unzip",
+      "tier": "required",
+      "workflows": ["dashboard", "cybernet"],
+      "pinnedVersion": null,
+      "probe": { "type": "command", "command": "command -v unzip" },
+      "ensure": { "note": "Bundled with Git for Windows. Install or repair Git Bash if missing." },
+      "installDoc": "docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md",
+      "statusHints": { "missing": "unzip is normally bundled with Git Bash; repair Git for Windows if this is missing." }
+    }
+  ]
+}

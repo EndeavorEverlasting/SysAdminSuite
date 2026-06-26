@@ -23,6 +23,7 @@ const files = [
   'dashboard/js/software-tracker-state.js',
   'dashboard/js/software-tracker-tutorial.js',
   'dashboard/js/repo-setup-tutorial.js',
+  'dashboard/js/toolbox-tutorial.js',
   'dashboard/js/panel-software.js',
   'dashboard/js/tour.js',
   'dashboard/js/app.js',

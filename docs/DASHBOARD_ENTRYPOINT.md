@@ -14,6 +14,8 @@ On first run the launcher will **automatically prepare the dashboard host** if d
 
 **Dependency bootstrap:** [`DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](DASHBOARD_DEPENDENCY_BOOTSTRAP.md) — pinned Microsoft installers, SHA512 verification, ignored local cache.
 
+**Toolbox status + glowing fix wizard:** [`DASHBOARD_TOOLBOX_TUTORIAL.md`](DASHBOARD_TOOLBOX_TUTORIAL.md) — live probe of Git Bash, .NET, naabu, nmap, and more; auto-opens when something needs action.
+
 **Updates:** launcher checks are opt-in and must prompt before applying changes. Source clones use a clean `main` fast-forward; ZIP/field packages use checksum-verified manifests. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
 
 Compatibility aliases (same behavior, not the documented primary): **`START-HERE-SysAdminSuite-Dashboard.cmd`** and **`SysAdminSuite Dashboard.cmd`**.

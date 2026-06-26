@@ -111,6 +111,53 @@
     <button class="btn-secondary btn-compact" id="advanced-tools-toggle" type="button" aria-expanded="false" aria-controls="advanced-section">Advanced Tools</button>
   </div>
 
+  <div id="toolbox-status-banner" class="toolbox-status-banner hidden" role="alert" aria-live="polite"></div>
+
+  <section id="toolbox-hero" class="workflow-hero toolbox-hero" aria-label="Toolbox Check">
+    <div class="toolbox-hero-inner">
+      <h2>Toolbox Check</h2>
+      <p class="toolbox-hero-subtitle">Live status for Git Bash, .NET, Python, naabu, nmap, and the rest of the suite toolchain.</p>
+      <ol class="workflow-progress-rail toolbox-progress-rail" id="toolbox-progress-rail" aria-label="Toolbox progress">
+        <li data-step="0">Probe</li>
+        <li data-step="1">Fix</li>
+        <li data-step="2">Re-check</li>
+        <li data-step="3">Ready</li>
+      </ol>
+      <div class="toolbox-hero-actions" id="toolbox-hero-actions">
+        <button class="btn-primary" id="hero-start-toolbox" type="button">Start Toolbox Check</button>
+      </div>
+      <div id="toolbox-checklist" class="toolbox-checklist" aria-label="Toolbox tool status"></div>
+      <p id="toolbox-hero-status" class="toolbox-hero-status hidden" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section id="toolbox-tutorial" class="workflow-tutorial toolbox-tutorial hidden" aria-label="Toolbox fix wizard">
+    <div class="workflow-step-kicker" id="toolbox-step-kicker">Step 1</div>
+    <div class="workflow-step-card">
+      <div class="workflow-step-content">
+        <h3 id="toolbox-step-title">Toolbox</h3>
+        <p id="toolbox-step-body"></p>
+        <ul id="toolbox-step-checks"></ul>
+      </div>
+      <div class="workflow-command-panel" id="toolbox-command-panel">
+        <div class="command-panel-title">Command or action outside the dashboard</div>
+        <div class="command-panel-runner" id="toolbox-command-runner">
+          Use this only when the step tells you to. The dashboard never installs tools without your approval.
+        </div>
+        <textarea id="toolbox-step-command" readonly spellcheck="false"></textarea>
+        <div class="command-panel-note" id="toolbox-step-note"></div>
+      </div>
+    </div>
+    <div class="workflow-tutorial-nav">
+      <button class="btn-secondary" id="toolbox-prev" type="button">← Back</button>
+      <button class="btn-secondary hidden" id="toolbox-copy" type="button">Copy Command</button>
+      <button class="btn-primary" id="toolbox-next" type="button">Next →</button>
+    </div>
+    <div class="toolbox-wizard-footer hidden" id="toolbox-wizard-footer">
+      <button class="btn-primary" id="toolbox-recheck" type="button">Re-check toolbox</button>
+    </div>
+  </section>
+
   <section id="repo-setup-hero" class="workflow-hero repo-setup-hero" aria-label="Repo Setup">
     <div class="repo-setup-hero-inner">
       <h2>Repo Setup</h2>
@@ -407,6 +454,7 @@
 })();
 </script>
 <script src="js/cybernet-os-preflight.js"></script>
+<script src="js/launch-toolbox-tutorial.js"></script>
 <script src="js/launch-repo-setup-tutorial.js"></script>
 <script src="js/launch-cybernet-tutorial.js"></script>
 </body>

@@ -9,6 +9,7 @@ import { getNetworkHTML, initNetworkPanel, renderNetworkPanel } from './panel-ne
 import { getSoftwareHTML, initSoftwarePanel, renderSoftwarePanel } from './panel-software.js';
 import { initSoftwareTrackerTutorial } from './software-tracker-tutorial.js';
 import { initRepoSetupTutorial } from './repo-setup-tutorial.js';
+import { initToolboxTutorial, renderToolboxChecklist, updateToolboxBanner } from './toolbox-tutorial.js';
 import {
   setSoftwareInstallPlan,
   clearSoftwareInstallPlan,
@@ -74,6 +75,7 @@ const TYPE_TO_PANELS = {
 document.addEventListener('DOMContentLoaded', () => {
   buildLayout();
   initRepoSetupShell();
+  initToolboxShell();
   initCybernetShell();
   initSoftwareTrackerShell();
   initTabs();
@@ -81,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initModeToggle();
   initLiveMode();
   initRepoSetupTutorial();
+  initToolboxTutorial();
   initCybernetTutorial();
   initSoftwareTrackerTutorial();
   initPasteModal();
@@ -202,6 +205,68 @@ function initRepoSetupShell() {
     else document.getElementById('hero-start-survey')?.click();
   });
   window.startRepoSetupTutorial = startRepoSetupTutorial;
+}
+
+function initToolboxShell() {
+  const startBtn = document.getElementById('hero-start-toolbox');
+  const tutorial = document.getElementById('toolbox-tutorial');
+  const statusEl = document.getElementById('toolbox-hero-status');
+
+  const setHeroStatus = (msg, kind) => {
+    if (!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.classList.remove('is-busy', 'is-open', 'is-error');
+    if (kind) statusEl.classList.add(kind);
+    statusEl.classList.toggle('hidden', !msg);
+  };
+
+  const tutorialIsVisible = () => {
+    if (!tutorial) return false;
+    if (tutorial.classList.contains('hidden')) return false;
+    const cs = window.getComputedStyle(tutorial);
+    return cs.display !== 'none' && cs.visibility !== 'hidden';
+  };
+
+  const startToolboxTutorial = (opts) => {
+    const source = (opts && opts.source) || 'manual';
+    const status = (opts && opts.status) || window.__sasLastToolboxStatus;
+    if (!tutorial || !startBtn) {
+      setHeroStatus('Could not open toolbox check. Reload the dashboard.', 'is-error');
+      toast('Toolbox tutorial is unavailable. Reload the dashboard.', 'error');
+      return false;
+    }
+
+    setHeroStatus('Opening toolbox check…', 'is-busy');
+    tutorial.style.display = '';
+    tutorial.classList.remove('hidden');
+    if (status && typeof window.__sasApplyToolboxStatus === 'function') {
+      window.__sasApplyToolboxStatus(status);
+    } else if (typeof window.__sasResetToolboxWizard === 'function') {
+      window.__sasResetToolboxWizard();
+    }
+
+    if (!tutorialIsVisible()) {
+      tutorial.classList.add('hidden');
+      setHeroStatus('Could not open toolbox check. Try again.', 'is-error');
+      toast('Could not open toolbox check. Try again.', 'error');
+      return false;
+    }
+
+    startBtn.textContent = 'Restart Toolbox Check';
+    startBtn.setAttribute('aria-label', 'Restart toolbox check from step 1');
+    setHeroStatus('Toolbox check open below.', 'is-open');
+    if (source !== 'silent') {
+      window.setTimeout(() => {
+        tutorial.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 30);
+    }
+    return true;
+  };
+
+  startBtn?.addEventListener('click', () => startToolboxTutorial({ source: 'manual', status: window.__sasLastToolboxStatus }));
+  window.startToolboxTutorial = startToolboxTutorial;
+  window.renderToolboxChecklist = renderToolboxChecklist;
+  window.updateToolboxBanner = updateToolboxBanner;
 }
 
 function initCybernetShell() {
