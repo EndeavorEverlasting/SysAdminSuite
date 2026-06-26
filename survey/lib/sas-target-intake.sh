@@ -11,11 +11,18 @@ sas_target_repo_root() {
 }
 
 sas_target_abs_path() {
-  local path="$1"
-  python3 - "$path" <<'PY' 2>/dev/null || python - "$path" <<'PY'
-import os, sys
-print(os.path.abspath(sys.argv[1]))
-PY
+  local path="$1" dir base
+  if [[ -d "$path" ]]; then
+    (cd "$path" 2>/dev/null && pwd) || return 1
+    return 0
+  fi
+  dir="$(dirname "$path")"
+  base="$(basename "$path")"
+  if [[ -d "$dir" ]]; then
+    (cd "$dir" 2>/dev/null && printf '%s/%s\n' "$(pwd)" "$base") || return 1
+  else
+    printf '%s\n' "$path"
+  fi
 }
 
 sas_target_is_under_any_root() {
