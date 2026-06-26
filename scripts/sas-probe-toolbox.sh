@@ -213,6 +213,8 @@ update_mode = os.environ.get("SAS_UPDATE_MODE") or "unknown"
 tools = []
 
 for tool in manifest.get("tools", []):
+    if tool.get("registryOnly"):
+        continue
     tool_id = tool.get("id", "")
     pinned = tool.get("pinnedVersion")
     if not pinned:
