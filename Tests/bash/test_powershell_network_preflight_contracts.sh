@@ -10,8 +10,8 @@ field_files=("$runbook" "$start_here" "$dashboard_patch")
 
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 contains(){ grep -Fq -- "$1" "$2" || fail "$3"; }
-not_contains(){ grep -Fq -- "$1" "$2" && fail "$3"; }
-not_matches(){ grep -Eq -- "$1" "$2" && fail "$3"; }
+not_contains(){ if grep -Fq -- "$1" "$2"; then fail "$3"; fi; }
+not_matches(){ if grep -Eq -- "$1" "$2"; then fail "$3"; fi; }
 
 for f in "$preflight" "$runbook" "$start_here" "$dashboard_patch"; do
   [[ -f "$f" ]] || fail "missing file: $f"
