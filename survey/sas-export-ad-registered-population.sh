@@ -7,6 +7,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RECONCILE="$ROOT/survey/sas-ad-reconcile.sh"
 OUTPUT_DIR="$ROOT/survey/output/ad_registered_population"
+TARGET_INTAKE_HELPER="$ROOT/survey/lib/sas-target-intake.sh"
+[[ -f "$TARGET_INTAKE_HELPER" ]] || { echo "[ad-registered-population] ERROR: Missing target intake helper: $TARGET_INTAKE_HELPER" >&2; exit 1; }
+# shellcheck source=survey/lib/sas-target-intake.sh
+source "$TARGET_INTAKE_HELPER"
 
 usage() {
   cat <<'USAGE'
@@ -17,7 +21,7 @@ export. AD is the registered-device authority; network and identity evidence are
 optional comparison layers, not proof supplied by AD.
 
 Options mirror sas-ad-reconcile.sh:
-  --ad-csv PATH         Required approved AD computer CSV export
+  --ad-csv PATH         Required approved AD computer CSV export from targets/local/ or logs/targets/
   --evidence-csv PATH   Optional approved manifest/tracker evidence CSV
   --network-csv PATH    Optional pre-validated reachability evidence CSV
   --serial-csv PATH     Optional live-serial / identity evidence CSV
@@ -47,20 +51,33 @@ find_python() {
 # underlying script never receives a duplicate --output-dir flag.
 args=()
 have_ad_csv=0
+AD_CSV=""
+EVIDENCE_CSV=""
+NETWORK_CSV=""
+SERIAL_CSV=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
-    --ad-csv) have_ad_csv=1; args+=("$1" "${2:?}"); shift 2 ;;
+    --ad-csv) have_ad_csv=1; AD_CSV="${2:?}"; args+=("$1" "$AD_CSV"); shift 2 ;;
     --output-dir) OUTPUT_DIR="${2:?}"; shift 2 ;;
-    --evidence-csv|--network-csv|--serial-csv|--prefix|--stale-days)
+    --evidence-csv) EVIDENCE_CSV="${2:?}"; args+=("$1" "$EVIDENCE_CSV"); shift 2 ;;
+    --network-csv) NETWORK_CSV="${2:?}"; args+=("$1" "$NETWORK_CSV"); shift 2 ;;
+    --serial-csv) SERIAL_CSV="${2:?}"; args+=("$1" "$SERIAL_CSV"); shift 2 ;;
+    --prefix|--stale-days)
       args+=("$1" "${2:?}"); shift 2 ;;
     --pass-thru|--version) args+=("$1"); shift ;;
     *) fail "Unknown argument: $1 (run with --help)" ;;
   esac
 done
 
-[[ "$have_ad_csv" -eq 1 ]] || fail "--ad-csv is required; place approved exports in logs/targets/ or pass an explicit scoped CSV"
+[[ "$have_ad_csv" -eq 1 ]] || fail "--ad-csv is required; place approved exports in targets/local/ or logs/targets/"
 [[ -f "$RECONCILE" ]] || fail "Missing reconcile script: $RECONCILE"
+
+sas_target_require_input_file "$AD_CSV" "AD registered population CSV export" 0 "$ROOT" || exit 1
+[[ -n "$EVIDENCE_CSV" ]] && sas_target_require_manifest_file "$EVIDENCE_CSV" "AD evidence CSV" "$ROOT"
+[[ -n "$NETWORK_CSV" ]] && sas_target_require_manifest_file "$NETWORK_CSV" "AD network evidence CSV" "$ROOT"
+[[ -n "$SERIAL_CSV" ]] && sas_target_require_manifest_file "$SERIAL_CSV" "AD serial evidence CSV" "$ROOT"
+sas_target_require_output_path "$OUTPUT_DIR/ad_registered_normalized.csv" "AD registered population output" "$ROOT" || exit 1
 
 log "Building AD registered population roster from approved CSV input"
 bash "$RECONCILE" "${args[@]}" --output-dir "$OUTPUT_DIR"
