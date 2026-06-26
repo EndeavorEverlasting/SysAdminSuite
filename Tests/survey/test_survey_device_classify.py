@@ -146,6 +146,77 @@ def test_classify_from_dns_row():
     assert "DeviceRole" in out
 
 
+def test_classify_from_nmap_row_with_hostname():
+    row = {
+        "Target": "SAMPLEHOST001",
+        "observed_hostname": "SAMPLEHOST001",
+        "observed_mac": "AA:BB:CC:DD:EE:10",
+        "Notes": "ip=192.0.2.10",
+    }
+    out = MOD.classify_from_nmap_row(row)
+    assert out["DeviceRole"] == "target_workstation"
+    assert out["RoleConfidence"] in {"low", "medium", "high"}
+    assert out["NextAction"]
+    assert out["IdentifierType"] == "HostName"
+
+
+def test_classify_from_nmap_row_ip_only():
+    row = {
+        "Target": "192.0.2.11",
+        "observed_hostname": "",
+        "observed_mac": "AA:BB:CC:DD:EE:11",
+        "Notes": "ip=192.0.2.11",
+    }
+    out = MOD.classify_from_nmap_row(row)
+    assert out["RoleConfidence"] == "needs_review"
+    assert "nmap:no-hostname" in out["RoleSignals"]
+    assert out["NextAction"]
+    assert out["IdentifierType"] == "MAC"
+
+
+def test_unresolved_serial_no_hostname():
+    row = {
+        "Serial": "CYB-SERIAL-999",
+        "Identifier": "CYB-SERIAL-999",
+        "MACAddress": "",
+        "DeviceType": "Cybernet",
+    }
+    out = MOD.classify_from_unresolved_manifest_row(row)
+    assert out["DeviceRole"] == "target_workstation"
+    assert out["RoleConfidence"] == "needs_review"
+    assert out["IdentifierType"] == "Serial"
+    assert out["CountsTowardCybernetPopulation"] == "Yes"
+    assert "serial-first" in out["NextAction"].lower() or "identity" in out["NextAction"].lower()
+
+
+def test_unresolved_mac_no_hostname():
+    row = {
+        "Serial": "",
+        "Identifier": "02:00:00:00:00:01",
+        "MACAddress": "02:00:00:00:00:01",
+        "IdentifierType": "MAC",
+        "DeviceType": "Cybernet",
+    }
+    out = MOD.classify_from_unresolved_manifest_row(row)
+    assert out["RoleConfidence"] == "needs_review"
+    assert out["CountsTowardCybernetPopulation"] == "No"
+    assert out["IdentifierType"] == "MAC"
+
+
+def test_unresolved_ambiguous_identifier():
+    row = {
+        "Serial": "",
+        "Identifier": "UNKNOWN-REF",
+        "MACAddress": "",
+        "IdentifierType": "Other",
+        "DeviceType": "Cybernet",
+    }
+    out = MOD.classify_from_unresolved_manifest_row(row)
+    assert out["DeviceRole"] == "discovery_only"
+    assert out["RoleConfidence"] == "needs_review"
+    assert out["CountsTowardCybernetPopulation"] == "No"
+
+
 def main() -> int:
     tests = [
         test_ap_reverse_dns,
@@ -158,6 +229,11 @@ def main() -> int:
         test_discovery_only_subnet_lane,
         test_aruba_vendor_ap,
         test_classify_from_dns_row,
+        test_classify_from_nmap_row_with_hostname,
+        test_classify_from_nmap_row_ip_only,
+        test_unresolved_serial_no_hostname,
+        test_unresolved_mac_no_hostname,
+        test_unresolved_ambiguous_identifier,
     ]
     failed = 0
     for test in tests:

@@ -117,6 +117,17 @@ Only when the dashboard tells you to copy a command, or a runbook explicitly ask
 
 Live target CSVs, scan output, packaged ZIPs, serials, MACs, and site evidence. Keep them on your admin workstation only.
 
+### Where to put local Cybernet sources
+
+Keep live operational files out of git. Use ignored local paths only:
+
+| Path | Use |
+|------|-----|
+| `targets/local/` | Approved manifest CSVs, AD exports, and other intake files you load into the dashboard |
+| `logs/targets/` | Local target-store copies the dashboard or survey scripts reference during a run |
+
+Policy and naming rules: [`docs/TARGETS_FOLDER_POLICY.md`](docs/TARGETS_FOLDER_POLICY.md). Survey lane map: [`docs/SURVEY_LANES.md`](docs/SURVEY_LANES.md).
+
 ## More help
 
 - Agent/IT canonical reference: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md)

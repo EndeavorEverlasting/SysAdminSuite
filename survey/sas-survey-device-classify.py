@@ -369,20 +369,102 @@ def classify_from_dns_row(row: dict[str, str], survey_lane: str = "cybernet_mani
     return result.as_dict()
 
 
+def classify_from_unresolved_manifest_row(row: dict[str, str], survey_lane: str = "cybernet_manifest") -> dict[str, str]:
+    """Classify manifest rows with no resolvable hostname (NO_HOSTNAME path)."""
+    lane = clean(survey_lane).lower() or "cybernet_manifest"
+    if lane not in {"cybernet_manifest", "subnet_discovery"}:
+        lane = "cybernet_manifest"
+
+    serial = clean(row.get("Serial") or row.get("SerialNumber"))
+    mac = clean(row.get("MACAddress") or row.get("MacAddress") or row.get("MAC"))
+    identifier = clean(row.get("Identifier") or row.get("Target"))
+    identifier_type = clean(row.get("IdentifierType") or row.get("Type"))
+
+    if serial:
+        return ClassificationResult(
+            survey_lane=lane,
+            identifier_type="Serial",
+            survey_authority="serial",
+            device_role="target_workstation",
+            role_confidence="needs_review",
+            role_signals="manifest:no-hostname;identifier:serial",
+            counts_toward_cybernet_population="Yes",
+            next_action="Manifest serial without hostname — verify hostname against AD and collect serial-first identity evidence.",
+        ).as_dict()
+
+    if mac or identifier_type.lower() == "mac":
+        return ClassificationResult(
+            survey_lane=lane,
+            identifier_type="MAC",
+            survey_authority="mac_supporting",
+            device_role="target_workstation",
+            role_confidence="needs_review",
+            role_signals="manifest:no-hostname;identifier:mac",
+            counts_toward_cybernet_population="No",
+            next_action="Manifest MAC without hostname — resolve hostname via DHCP or AD before treating as confirmed target.",
+        ).as_dict()
+
+    if identifier:
+        id_type = _identifier_type_from_row(identifier_type, "", identifier, mac)
+        return ClassificationResult(
+            survey_lane=lane,
+            identifier_type=id_type,
+            survey_authority=_survey_authority(id_type, lane, True),
+            device_role="discovery_only",
+            role_confidence="needs_review",
+            role_signals="manifest:no-hostname;identifier:ambiguous",
+            counts_toward_cybernet_population="No",
+            next_action="Unresolved manifest identifier — confirm serial or hostname before adding to probe list.",
+        ).as_dict()
+
+    return ClassificationResult(
+        survey_lane=lane,
+        identifier_type="HostName",
+        survey_authority="hostname_fallback",
+        device_role="infrastructure_unknown",
+        role_confidence="needs_review",
+        role_signals="manifest:no-hostname;identifier:none",
+        counts_toward_cybernet_population="No",
+        next_action="Manifest row lacks hostname and usable identifier — review source file and fix manifest row.",
+    ).as_dict()
+
+
 def classify_from_nmap_row(row: dict[str, str], survey_lane: str = "cybernet_manifest") -> dict[str, str]:
     """Classify from an Nmap evidence export row."""
-    hostname = clean(row.get("observed_hostname") or row.get("HostName") or row.get("Target"))
+    observed_hostname = clean(row.get("observed_hostname") or row.get("HostName"))
+    target = clean(row.get("Target"))
+    hostname = observed_hostname or (target if observed_hostname == "" and target and not re.match(r"^\d+\.\d+\.\d+\.\d+$", target) else "")
     notes = clean(row.get("Notes"))
     port_match = re.findall(r"(\d+)/tcp", notes)
+    mac = clean(row.get("observed_mac") or row.get("MACAddress"))
+    serial = clean(row.get("observed_serial") or row.get("Serial"))
+    id_type = _identifier_type_from_row("", serial, hostname, mac)
+
     result = classify_device(
         hostname=hostname,
         reverse_dns_names=hostname,
         open_ports=port_match,
-        mac=clean(row.get("observed_mac") or row.get("MACAddress")),
+        mac=mac,
+        serial=serial,
+        identifier_type=id_type,
         survey_lane=survey_lane,
         in_manifest=True,
     )
-    return result.as_dict()
+    out = result.as_dict()
+
+    if not observed_hostname:
+        signals = [s for s in out.get("RoleSignals", "").split(";") if s]
+        signals.append("nmap:no-hostname")
+        out["RoleSignals"] = ";".join(signals)
+        if result.device_role == "target_workstation":
+            out["RoleConfidence"] = "needs_review"
+            out["NextAction"] = (
+                "Nmap observed IP or MAC without hostname — confirm hostname via AD or DHCP before serial proof."
+            )
+        elif result.device_role in {"discovery_only", "infrastructure_unknown"}:
+            out["RoleConfidence"] = "needs_review"
+
+    return out
 
 
 CLASSIFICATION_FIELDS = [

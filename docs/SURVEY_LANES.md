@@ -100,6 +100,34 @@ Each drill-down row exposes `SurveyLane`, `IdentifierType`, `DeviceRole`, `Count
 
 Infrastructure is separated because DNS and subnet discovery can legitimately surface access points, switches, routers, printers, and appliances. These findings are useful for location review but are not serial-confirmed Cybernet workstations.
 
+## Export column set (classification completeness)
+
+DNS resolution (`survey/sas-resolve-manifest-dns.py`), DNS-list classification (`survey/sas-classify-dns-list-output.py`), and Nmap evidence export (`survey/sas-nmap-evidence-export.py`) all emit the shared classifier columns:
+
+| Column | Meaning |
+|--------|---------|
+| `SurveyLane` | `cybernet_manifest` or `subnet_discovery` |
+| `IdentifierType` | `Serial`, `HostName`, or `MAC` — which key drove this row |
+| `SurveyAuthority` | Whether serial, MAC, hostname fallback, or subnet inference is authoritative |
+| `DeviceRole` | Workstation vs infrastructure vs discovery-only |
+| `RoleConfidence` | `high`, `medium`, `low`, or `needs_review` for unresolved/ambiguous rows |
+| `RoleSignals` | Semicolon-separated classifier signals (for example `nmap:no-hostname`, `manifest:no-hostname`) |
+| `CountsTowardCybernetPopulation` | `Yes` only for confirmed manifest workstation targets |
+| `NextAction` | Field-readable next step for the technician |
+
+Nmap export also includes probe evidence columns (`Target`, `observed_hostname`, `observed_serial`, `observed_mac`, reachability/probe fields, `Notes`, `EvidenceSource`, `SourceFile`).
+
+### Unresolved manifest rows (`NO_HOSTNAME`)
+
+When a manifest row has serial, MAC, or identifier values but no hostname-like value, the DNS resolver emits `Status=NO_HOSTNAME` and classifies the row via `classify_from_unresolved_manifest_row()`:
+
+- Serial-only rows → `target_workstation`, `RoleConfidence=needs_review`, population `Yes`
+- MAC-only rows → `target_workstation`, `RoleConfidence=needs_review`, population `No` until hostname is confirmed
+- Ambiguous identifier-only rows → `discovery_only`, `needs_review`, population `No`
+- Empty identifier rows → `infrastructure_unknown`, `needs_review`, population `No`
+
+IP-only Nmap rows (no reverse DNS hostname) receive `RoleConfidence=needs_review` and a `nmap:no-hostname` signal. Infrastructure rows (AP, network gear, printer) always keep `CountsTowardCybernetPopulation=No`.
+
 ## Field validation safety
 
 Use approved target manifests or approved narrow subnet lists only. Keep survey scope narrow and transparent. Normal operating-system, network, endpoint-protection, or application telemetry may occur during local verification; do not attempt to suppress it. Do not broaden scans beyond approved scope. Do not use credentials unless explicitly authorized and appropriate for the identity check. Do not commit live operational evidence; keep outputs in ignored local paths such as `targets/local/`, `logs/targets/`, `survey/output/`, `survey/artifacts/`, or `logs/nmap/`.

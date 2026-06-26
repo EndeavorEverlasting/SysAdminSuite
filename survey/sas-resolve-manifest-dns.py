@@ -31,6 +31,7 @@ def _load_classifier():
 _CLASSIFY = _load_classifier()
 CLASSIFICATION_FIELDS = _CLASSIFY.CLASSIFICATION_FIELDS
 classify_from_dns_row = _CLASSIFY.classify_from_dns_row
+classify_from_unresolved_manifest_row = _CLASSIFY.classify_from_unresolved_manifest_row
 
 OUTPUT_FIELDS = [
     "Status",
@@ -177,23 +178,24 @@ def build_rows(input_rows: list[dict[str, str]], suffixes: list[str]) -> list[di
         seen.add(key)
 
         if not host:
-            output.append(
-                {
-                    "Status": "NO_HOSTNAME",
-                    "HostName": "",
-                    "Identifier": identifier,
-                    "Serial": serial,
-                    "MACAddress": mac,
-                    "DeviceType": dtype,
-                    "FQDN": "",
-                    "IPAddresses": "",
-                    "ReverseNames": "",
-                    "Subnets24": "",
-                    "ResolvedBy": "",
-                    "Error": "No hostname-like value was present in the manifest row.",
-                    "Source": source,
-                }
-            )
+            row_out = {
+                "Status": "NO_HOSTNAME",
+                "HostName": "",
+                "Identifier": identifier,
+                "Serial": serial,
+                "MACAddress": mac,
+                "DeviceType": dtype,
+                "IdentifierType": identifier_type,
+                "FQDN": "",
+                "IPAddresses": "",
+                "ReverseNames": "",
+                "Subnets24": "",
+                "ResolvedBy": "",
+                "Error": "No hostname-like value was present in the manifest row.",
+                "Source": source,
+            }
+            row_out.update(classify_from_unresolved_manifest_row(row_out, survey_lane="cybernet_manifest"))
+            output.append(row_out)
             continue
 
         status, fqdn, ips, resolved_by, error = resolve_host(host, suffixes)

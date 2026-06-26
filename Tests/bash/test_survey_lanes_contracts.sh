@@ -28,6 +28,14 @@ grep -q 'humanizeClassificationWhy' dashboard/js/app.js || fail "dashboard missi
 grep -q 'cybernet-classification-drilldown' dashboard/js/app.js || fail "dashboard missing classification drilldown rendering"
 grep -q 'roleConfidence' dashboard/js/parsers.js || fail "parser missing roleConfidence field"
 
+grep -q 'classify_from_unresolved_manifest_row' survey/sas-resolve-manifest-dns.py || fail "DNS resolver missing unresolved manifest classifier wiring"
+grep -q 'CLASSIFICATION_FIELDS' survey/sas-nmap-evidence-export.py || fail "Nmap exporter missing full classification column wiring"
+grep -q 'SourceFile' survey/sas-nmap-evidence-export.py || fail "Nmap exporter missing SourceFile column"
+grep -q 'targets/local/' START-HERE-SysAdminSuite.md || fail "START-HERE missing targets/local local intake guidance"
+grep -q 'logs/targets/' START-HERE-SysAdminSuite.md || fail "START-HERE missing logs/targets local store guidance"
+grep -q 'TARGETS_FOLDER_POLICY.md' START-HERE-SysAdminSuite.md || fail "START-HERE missing targets folder policy link"
+
 python tests/survey/test_survey_device_classify.py
+python tests/survey/test_nmap_evidence_export.py
 
 pass "survey lanes contracts"
