@@ -27,8 +27,8 @@ classify_device = MOD.classify_device
 
 def test_ap_reverse_dns():
     result = classify_device(
-        hostname="NSUH-AP-12",
-        reverse_dns_names="ap-nsuh-floor3.example.org",
+        hostname="SYN-AP-12",
+        reverse_dns_names="ap-synthetic-floor3.example.org",
         survey_lane="subnet_discovery",
         in_manifest=False,
     )
@@ -38,7 +38,7 @@ def test_ap_reverse_dns():
 
 def test_cybernet_manifest_workstation():
     result = classify_device(
-        hostname="NSUH12WMH01",
+        hostname="WTS001OPR001",
         device_type="Cybernet",
         serial="CYB-SERIAL-001",
         identifier_type="Serial",
@@ -51,10 +51,59 @@ def test_cybernet_manifest_workstation():
     assert result.survey_authority == "serial"
 
 
+def test_hostname_first_manifest_row():
+    result = classify_device(
+        hostname="WTS002OPR001",
+        device_type="Cybernet",
+        identifier_type="HostName",
+        survey_lane="cybernet_manifest",
+        in_manifest=True,
+    )
+    assert result.device_role == "target_workstation"
+    assert result.identifier_type == "HostName"
+    assert result.survey_authority == "hostname_fallback"
+    assert result.counts_toward_cybernet_population == "Yes"
+
+
+def test_mac_only_manifest_row_needs_identity():
+    result = classify_device(
+        mac="02:00:00:00:00:01",
+        identifier_type="MAC",
+        survey_lane="cybernet_manifest",
+        in_manifest=True,
+    )
+    assert result.device_role == "target_workstation"
+    assert result.identifier_type == "MAC"
+    assert result.survey_authority == "mac_supporting"
+    assert result.role_confidence == "low"
+    assert "serial-first" in result.next_action.lower() or "identity" in result.next_action.lower()
+
+
+def test_dns_infrastructure_network_row():
+    result = classify_device(
+        hostname="SYN-CORE-SWITCH-01",
+        reverse_dns_names="core-switch-01.example.org",
+        survey_lane="subnet_discovery",
+        in_manifest=False,
+    )
+    assert result.device_role == "infrastructure_network"
+    assert result.counts_toward_cybernet_population == "No"
+
+
 def test_printer_ports():
     result = classify_device(
         hostname="10.10.10.50",
         open_ports=["9100", "445"],
+        survey_lane="subnet_discovery",
+        in_manifest=False,
+    )
+    assert result.device_role == "infrastructure_print"
+    assert result.counts_toward_cybernet_population == "No"
+
+
+def test_printer_like_hostname():
+    result = classify_device(
+        hostname="SYN-PRINTER-01",
         survey_lane="subnet_discovery",
         in_manifest=False,
     )
@@ -85,7 +134,7 @@ def test_aruba_vendor_ap():
 
 def test_classify_from_dns_row():
     row = {
-        "HostName": "NSUH12WMH02",
+        "HostName": "WTS003OPR001",
         "DeviceType": "Cybernet",
         "Serial": "ABC123",
         "ReverseNames": "",
@@ -101,7 +150,11 @@ def main() -> int:
     tests = [
         test_ap_reverse_dns,
         test_cybernet_manifest_workstation,
+        test_hostname_first_manifest_row,
+        test_mac_only_manifest_row_needs_identity,
+        test_dns_infrastructure_network_row,
         test_printer_ports,
+        test_printer_like_hostname,
         test_discovery_only_subnet_lane,
         test_aruba_vendor_ap,
         test_classify_from_dns_row,

@@ -203,20 +203,31 @@ if (bomRows.length !== 1 || Object.keys(bomRows[0])[0] !== 'HostName') {
 // dashboard and confirm it appears in the Hardware Inventory or Printer Mapping
 // panel (whichever schema it matches) as a manual verification step.
 
-// Survey classification: infrastructure rows must not count as manifest targets
+// Survey classification: parser fields and buckets must stay visible for drill-down
 {
   const content = readFileSync(join(samplesDir, 'dns_infrastructure_classification.sample.csv'), 'utf8');
   const parsed = parseFileContent('survey-classification', content, 'dns_infrastructure_classification.sample.csv');
   const infra = parsed.rows.filter(r => (r.deviceRole || '').startsWith('infrastructure_'));
   const targets = parsed.rows.filter(r => (r.countsToward || '').toLowerCase() === 'yes');
+  const needsReview = parsed.rows.filter(r => (r.deviceRole || '') === 'discovery_only');
+  const withReason = parsed.rows.filter(r => r.roleSignals && r.nextAction);
   if (infra.length < 1) {
     console.error('FAIL [classification]: expected at least one infrastructure row');
     failed++;
-  } else if (targets.length > 0) {
-    console.error('FAIL [classification]: sample infrastructure CSV should not have counts-toward=yes rows');
+  } else if (targets.length < 1) {
+    console.error('FAIL [classification]: expected at least one Cybernet target row');
+    failed++;
+  } else if (needsReview.length < 1) {
+    console.error('FAIL [classification]: expected at least one needs-review row');
+    failed++;
+  } else if (withReason.length !== parsed.rows.length) {
+    console.error('FAIL [classification]: every row should carry roleSignals and nextAction');
+    failed++;
+  } else if (!parsed.rows.some(r => r.sourceFile === 'synthetic_list_dns.txt')) {
+    console.error('FAIL [classification]: row-level SourceFile column should be preserved');
     failed++;
   } else {
-    console.log('PASS [classification]: infrastructure separated from manifest targets');
+    console.log('PASS [classification]: targets, infrastructure, needs-review, and reasons parsed');
     passed++;
   }
 }
@@ -290,6 +301,11 @@ const contractChecks = [
   ['store.cybernetTargetManifest', 'manifest store wiring'],
   ['ad-registered-population', 'AD parser type wired'],
   ['store.adRegisteredPopulation', 'AD store wiring'],
+  ['bucketClassificationRows', 'classification bucket helper'],
+  ['humanizeClassificationWhy', 'classification why helper'],
+  ['cybernet-classification-drilldown', 'classification drilldown container'],
+  ['Network / AP', 'classification network AP section'],
+  ['Needs Review', 'classification needs-review section'],
 ];
 
 // ── Naabu reachability Cybernet review contracts (app.js) ───────────────────

@@ -301,14 +301,21 @@ function parseSurveyClassification(content, filename) {
   const rows = parseCSV(content);
   const normalized = rows.map(r => ({
     hostName: r.HostName || r.hostname || r.Target || '',
+    ipAddress: r.IPAddress || r.ipaddress || r.IP || r.ip || '',
+    subnet: r.Subnet || r.subnet || r.Subnet24 || '',
     deviceRole: r.DeviceRole || r.devicerole || '',
     surveyLane: r.SurveyLane || r.surveylane || '',
     identifierType: r.IdentifierType || r.identifiertype || '',
+    surveyAuthority: r.SurveyAuthority || r.surveyauthority || '',
+    roleConfidence: r.RoleConfidence || r.roleconfidence || '',
     countsToward: r.CountsTowardCybernetPopulation || r.countstowardcybernetpopulation || '',
     roleSignals: r.RoleSignals || r.rolesignals || '',
     nextAction: r.NextAction || r.nextaction || '',
     overallStatus: r.OverallStatus || r.overallstatus || r.Status || '',
-    sourceFile: filename || '',
+    reviewReason: r.ReviewReason || r.reviewreason || '',
+    sourceLane: r.SourceLane || r.sourcelane || r.Source || r.source || '',
+    sourceFile: r.SourceFile || r.sourcefile || filename || '',
+    importFile: filename || '',
   }));
   return { type: 'survey-classification', rows: normalized, meta: { count: normalized.length } };
 }

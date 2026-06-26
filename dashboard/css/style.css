@@ -1627,6 +1627,47 @@ textarea.paste-area:focus { border-color: var(--accent); }
 .cybernet-review-stats li { font-size: 12px; margin-bottom: 4px; color: var(--text-dim); }
 .cybernet-review-warn { color: var(--warning); font-size: 12px; margin: 8px 0; }
 .cybernet-review-next { font-size: 12px; color: var(--text-dim); }
+.classification-drilldown { margin-top: 12px; }
+.classification-drilldown h4 { font-size: 13px; margin: 0 0 4px; }
+.classification-drilldown p { font-size: 12px; color: var(--text-dim); margin: 0 0 8px; }
+.classification-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 8px 0;
+  background: var(--bg);
+}
+.classification-section summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.classification-section summary span {
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-left: 4px;
+}
+.classification-table-wrap { overflow-x: auto; padding: 0 10px 10px; }
+.classification-row-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.classification-row-table th,
+.classification-row-table td {
+  border-top: 1px solid var(--border);
+  padding: 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.classification-row-table th {
+  color: var(--text-muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.classification-row-table td { color: var(--text-dim); }
+.classification-more { padding: 8px 0 0; }
 
 .mode-toggle-advanced { margin-bottom: 10px; }
 .advanced-panels-label {
