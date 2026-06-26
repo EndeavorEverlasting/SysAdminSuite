@@ -4,7 +4,7 @@ PowerShell-first SysAdminSuite field network preflight.
 
 .DESCRIPTION
 Runs read-only DNS, ping, and selected TCP port checks against an explicit approved target file.
-Live target intake is read from codified local roots only:
+Live target intake is read from centralized SysAdminSuite target roots:
 - targets/local
 - logs/targets
 
@@ -31,41 +31,20 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
+$repoGuess = Split-Path -Parent $PSScriptRoot
+$targetIntakeModule = Join-Path $repoGuess 'scripts/SasTargetIntake.psm1'
+if (-not (Test-Path -LiteralPath $targetIntakeModule)) {
+    throw "Missing shared target intake module: $targetIntakeModule"
+}
+Import-Module $targetIntakeModule -Force
+
 function Resolve-SasRepoRoot {
-    $start = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
-    $cursor = [System.IO.Path]::GetFullPath($start)
-
-    while ($cursor) {
-        $targetsReadme = Join-Path $cursor 'targets/README.md'
-        $surveyDir = Join-Path $cursor 'survey'
-        if ((Test-Path -LiteralPath $targetsReadme) -and (Test-Path -LiteralPath $surveyDir)) {
-            return $cursor
-        }
-
-        $parent = Split-Path -Parent $cursor
-        if (-not $parent -or $parent -eq $cursor) { break }
-        $cursor = $parent
-    }
-
-    $cursor = [System.IO.Path]::GetFullPath((Get-Location).Path)
-    while ($cursor) {
-        $targetsReadme = Join-Path $cursor 'targets/README.md'
-        $surveyDir = Join-Path $cursor 'survey'
-        if ((Test-Path -LiteralPath $targetsReadme) -and (Test-Path -LiteralPath $surveyDir)) {
-            return $cursor
-        }
-
-        $parent = Split-Path -Parent $cursor
-        if (-not $parent -or $parent -eq $cursor) { break }
-        $cursor = $parent
-    }
-
-    throw 'Unable to resolve SysAdminSuite repo root from script path or current directory.'
+    return Get-SasRepoRoot -StartPath $PSScriptRoot
 }
 
 function Get-FullPathSafe {
     param([Parameter(Mandatory = $true)][string]$Path)
-    return [System.IO.Path]::GetFullPath($Path)
+    return ConvertTo-SasFullPath -Path $Path
 }
 
 function Test-IsUnderRoot {
@@ -73,16 +52,7 @@ function Test-IsUnderRoot {
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Root
     )
-
-    if (-not (Test-Path -LiteralPath $Root)) { return $false }
-
-    $fullPath = Get-FullPathSafe -Path $Path
-    $fullRoot = Get-FullPathSafe -Path $Root
-    if (-not $fullRoot.EndsWith([System.IO.Path]::DirectorySeparatorChar)) {
-        $fullRoot = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
-    }
-
-    return $fullPath.StartsWith($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)
+    return Test-SasPathUnderRoot -Path $Path -Root $Root
 }
 
 function Write-SasStageProgress {
@@ -101,12 +71,15 @@ function Write-SasStageProgress {
 
 function Get-CandidateTargetFiles {
     param([Parameter(Mandatory = $true)][string[]]$Roots)
-
-    foreach ($root in $Roots) {
-        if (-not (Test-Path -LiteralPath $root)) { continue }
-        Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension -in @('.txt', '.csv') } |
-            Sort-Object FullName
+    $repo = Resolve-SasRepoRoot
+    $all = @(Get-SasCandidateTargetFile -RepoRoot $repo)
+    foreach ($candidate in $all) {
+        foreach ($root in $Roots) {
+            if (Test-SasPathUnderRoot -Path $candidate.FullName -Root $root) {
+                $candidate
+                break
+            }
+        }
     }
 }
 
@@ -286,12 +259,13 @@ function Test-PortStatus {
 }
 
 $repoRoot = Resolve-SasRepoRoot
-$targetsLocalRoot = Join-Path $repoRoot 'targets/local'
-$logsTargetsRoot = Join-Path $repoRoot 'logs/targets'
-$surveyInputRoot = Join-Path $repoRoot 'survey/input'
-$surveyOutputRoot = Join-Path $repoRoot 'survey/output'
-$logsNmapRoot = Join-Path $repoRoot 'logs/nmap'
-$surveyArtifactsRoot = Join-Path $repoRoot 'survey/artifacts'
+$rootSet = Get-SasTargetIntakeRoots -RepoRoot $repoRoot
+$targetsLocalRoot = $rootSet.SourceRoots[0]
+$logsTargetsRoot = $rootSet.SourceRoots[1]
+$surveyInputRoot = $rootSet.StagingRoot
+$surveyOutputRoot = $rootSet.OutputRoots[0]
+$logsNmapRoot = $rootSet.OutputRoots[1]
+$surveyArtifactsRoot = $rootSet.OutputRoots[2]
 
 $candidateRoots = @($targetsLocalRoot, $logsTargetsRoot)
 $allowedInputRoots = @($targetsLocalRoot, $logsTargetsRoot, $surveyInputRoot)
@@ -307,14 +281,7 @@ if (-not (Test-Path -LiteralPath $TargetFile -PathType Leaf)) {
 }
 
 $selectedTargetFile = Get-FullPathSafe -Path (Resolve-Path -LiteralPath $TargetFile).Path
-$inputIsCodified = $false
-foreach ($root in $allowedInputRoots) {
-    if (Test-IsUnderRoot -Path $selectedTargetFile -Root $root) {
-        $inputIsCodified = $true
-        break
-    }
-}
-
+$inputIsCodified = Test-SasPathUnderAnyRoot -Path $selectedTargetFile -Roots $allowedInputRoots
 if (-not $inputIsCodified) {
     if (-not $AllowNonstandardInput) {
         throw "Selected target file is outside codified intake roots. Use targets/local, logs/targets, or normalized survey/input. Refusing: $selectedTargetFile"
@@ -327,14 +294,7 @@ if (-not $OutputDirectory) {
 }
 
 $outputDirectoryFull = Get-FullPathSafe -Path $OutputDirectory
-$outputIsCodified = $false
-foreach ($root in $allowedOutputRoots) {
-    if (Test-IsUnderRoot -Path $outputDirectoryFull -Root $root) {
-        $outputIsCodified = $true
-        break
-    }
-}
-
+$outputIsCodified = Test-SasPathUnderAnyRoot -Path $outputDirectoryFull -Roots $allowedOutputRoots
 if (-not $outputIsCodified) {
     if (-not $AllowNonstandardInput) {
         throw "Output directory is outside codified output roots. Use survey/output, logs/nmap, or survey/artifacts. Refusing: $outputDirectoryFull"
