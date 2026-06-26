@@ -132,11 +132,75 @@ function switchTab(tab) {
 
 // ── Cybernet-first shell ─────────────────────────────────────────────────────
 function initCybernetShell() {
-  document.getElementById('hero-start-survey')?.addEventListener('click', () => {
-    document.getElementById('cybernet-tutorial')?.classList.remove('hidden');
-    document.getElementById('cybernet-hero-actions')?.classList.add('hidden');
-    document.getElementById('cybernet-tutorial')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+  const startBtn = document.getElementById('hero-start-survey');
+  const tutorial = document.getElementById('cybernet-tutorial');
+  const statusEl = document.getElementById('cybernet-hero-status');
+
+  const setHeroStatus = (msg, kind) => {
+    if (!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.classList.remove('is-busy', 'is-open', 'is-error');
+    if (kind) statusEl.classList.add(kind);
+    statusEl.classList.toggle('hidden', !msg);
+  };
+
+  // Effective visibility check: catches a none from the class, an inline style,
+  // or a rule set by another script (e.g. the OS-preflight helper).
+  const tutorialIsVisible = () => {
+    if (!tutorial) return false;
+    if (tutorial.classList.contains('hidden')) return false;
+    const cs = window.getComputedStyle(tutorial);
+    return cs.display !== 'none' && cs.visibility !== 'hidden';
+  };
+
+  // Explicit, verified state transition. A press of Start must always leave the
+  // user in a visible state: tutorial open, or a clear recovery message — never a
+  // vanished button with nothing showing.
+  const startCybernetTutorial = (opts) => {
+    const source = (opts && opts.source) || 'manual';
+    if (!tutorial || !startBtn) {
+      setHeroStatus('Could not open the tutorial. Reload the dashboard or use Load Evidence.', 'is-error');
+      toast('Survey tutorial is unavailable. Reload the dashboard.', 'error');
+      return false;
+    }
+
+    setHeroStatus('Opening tutorial…', 'is-busy');
+
+    // Show the wizard. Clear any inline display another script may have set so a
+    // stale inline none cannot silently keep the wizard hidden.
+    tutorial.style.display = '';
+    tutorial.classList.remove('hidden');
+    if (typeof window.__sasResetCybernetWizard === 'function') {
+      try { window.__sasResetCybernetWizard(); } catch (_) { /* non-fatal */ }
+    }
+
+    // Verify the wizard is actually visible before transforming the hero. If it
+    // is not, restore the obvious action instead of stranding the user.
+    if (!tutorialIsVisible()) {
+      tutorial.classList.add('hidden');
+      setHeroStatus('Could not open the tutorial. Try again or use Load Evidence.', 'is-error');
+      toast('Could not open the survey tutorial. Try again or load evidence.', 'error');
+      return false;
+    }
+
+    // Keep the hero action visible and turn it into a recovery control rather
+    // than hiding the only obvious button.
+    startBtn.textContent = 'Restart Cybernet Survey';
+    startBtn.setAttribute('aria-label', 'Restart the Cybernet survey from step 1');
+    setHeroStatus('Tutorial open below.', 'is-open');
+    if (source !== 'silent') {
+      window.setTimeout(() => {
+        tutorial.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 30);
+    }
+    return true;
+  };
+
+  startBtn?.addEventListener('click', () => startCybernetTutorial({ source: 'manual' }));
+
+  // Expose the same verified transition for the ?tutorial=cybernet auto-launch
+  // path so it cannot diverge from the manual click behavior.
+  window.startCybernetTutorial = startCybernetTutorial;
 
   const openEvidence = () => {
     document.getElementById('evidence-loader')?.classList.remove('hidden');
@@ -690,6 +754,9 @@ function initCybernetTutorial() {
     }
   });
   copy?.addEventListener('click', copyCommand);
+
+  // Allow the hero "Restart Cybernet Survey" control to reset to step 1.
+  window.__sasResetCybernetWizard = () => { idx = 0; copiedThisStep = false; render(); };
 
   render();
 }

@@ -340,3 +340,38 @@ tourAssert(indexHtml.includes('class="advanced-section-head"'), 'advanced-sectio
 
 console.log(`\nTour: ${tourPassed} passed, ${tourFailed} failed`);
 if (tourFailed > 0) process.exit(1);
+
+// ── Start-button visible-failure contracts ───────────────────────────────────
+// Source-level guards that a press of Start can never strand the user. The full
+// runtime behavior is exercised by dashboard/start-button-smoke.js.
+
+const bundleJs = readFileSync(join(__dir, 'js', 'bundle.js'), 'utf8');
+const preflightJs = readFileSync(join(__dir, 'js', 'cybernet-os-preflight.js'), 'utf8');
+const launchJs = readFileSync(join(__dir, 'js', 'launch-cybernet-tutorial.js'), 'utf8');
+
+let startPassed = 0;
+let startFailed = 0;
+function startAssert(ok, label, detail) {
+  if (ok) { console.log(`PASS [start-button:${label}]`); startPassed++; }
+  else { console.error(`FAIL [start-button:${label}]${detail ? ': ' + detail : ''}`); startFailed++; }
+}
+
+startAssert(indexHtml.includes('id="cybernet-hero-status"'), 'hero-status-in-html', 'missing cybernet-hero-status');
+startAssert(appJs.includes('startCybernetTutorial'), 'explicit-transition', 'app.js missing startCybernetTutorial');
+startAssert(appJs.includes('window.startCybernetTutorial'), 'transition-exposed', 'app.js does not expose startCybernetTutorial');
+startAssert(appJs.includes('getComputedStyle'), 'verifies-visibility', 'app.js does not verify tutorial visibility');
+startAssert(appJs.includes("tutorial.style.display = ''"), 'clears-inline-none', 'app.js does not clear a stale inline display:none');
+startAssert(/Restart Cybernet Survey/.test(appJs), 'recovery-control', 'app.js missing Restart recovery control');
+startAssert(appJs.includes('cybernet-hero-status'), 'drives-status', 'app.js does not drive the hero status');
+// Guard the old strand pattern: Start must not simply hide the hero actions.
+startAssert(!/cybernet-hero-actions'\)\?\.classList\.add\('hidden'\)/.test(appJs), 'no-strand-pattern',
+  'app.js still hides cybernet-hero-actions on Start');
+startAssert(!preflightJs.includes('syncTutorialVisibility'), 'preflight-not-gating-wizard',
+  'cybernet-os-preflight.js still forces the wizard hidden');
+startAssert(launchJs.includes('window.startCybernetTutorial'), 'auto-start-uses-transition',
+  'launch-cybernet-tutorial.js does not use the verified transition');
+startAssert(bundleJs.includes('startCybernetTutorial'), 'bundle-not-stale',
+  'bundle.js is stale — rebuild with: node dashboard/build-bundle.js');
+
+console.log(`\nStart button: ${startPassed} passed, ${startFailed} failed`);
+if (startFailed > 0) process.exit(1);
