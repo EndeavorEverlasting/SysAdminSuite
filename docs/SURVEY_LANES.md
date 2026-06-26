@@ -84,6 +84,26 @@ The shared classifier (`survey/sas-survey-device-classify.py`) labels probe find
 
 Dashboard review separates **manifest targets**, **infrastructure discovered**, and **needs review** buckets.
 
+## Dashboard classification review
+
+When you load a survey classification CSV, the Cybernet review panel shows counts and row-level drill-down sections:
+
+| Section | Meaning | Technician action |
+|---------|---------|-------------------|
+| **Cybernet Targets** | Rows classified as `target_workstation` or explicitly marked `CountsTowardCybernetPopulation=Yes` | Continue serial-first identity review and approved reachability checks |
+| **Infrastructure** | Access points, network gear, printers, or unknown infrastructure-like rows | Keep visible for subnet/location context; do not count as Cybernet population |
+| **Network / AP** | `infrastructure_access_point` and `infrastructure_network` rows | Validate site/subnet context if needed; do not treat as missing Cybernet workstations |
+| **Printers** | `infrastructure_print` rows | Validate print queue or driver path separately from Cybernet workstation survey |
+| **Needs Review** | Conflicts, discovery-only rows, infrastructure matches from manifest rows, or unknown low-confidence rows | Read the row's `Why` and `Next action`; collect approved identity evidence before changing target lists |
+
+Each drill-down row exposes `SurveyLane`, `IdentifierType`, `DeviceRole`, `CountsTowardCybernetPopulation`, classifier signals, next action, and source file. The `Why` text translates classifier signals such as `reverse_dns:ap-pattern`, `hostname:cybernet-prefix`, and `port:9100` into field-readable explanations.
+
+Infrastructure is separated because DNS and subnet discovery can legitimately surface access points, switches, routers, printers, and appliances. These findings are useful for location review but are not serial-confirmed Cybernet workstations.
+
+## Field validation safety
+
+Use approved target manifests or approved narrow subnet lists only. Keep survey scope narrow and transparent. Normal operating-system, network, endpoint-protection, or application telemetry may occur during local verification; do not attempt to suppress it. Do not broaden scans beyond approved scope. Do not use credentials unless explicitly authorized and appropriate for the identity check. Do not commit live operational evidence; keep outputs in ignored local paths such as `targets/local/`, `logs/targets/`, `survey/output/`, `survey/artifacts/`, or `logs/nmap/`.
+
 ## Related doctrine
 
 - [`LOW_NOISE_SURVEY_DOCTRINE.md`](LOW_NOISE_SURVEY_DOCTRINE.md) — reachability validation only; AD defines population

@@ -23,6 +23,18 @@ Place live files under **gitignored** local paths, for example:
 - `targets/local/` — preferred local intake beside the hub (ignored)
 - `logs/targets/` — preserved historical local evidence store (ignored)
 
+## Local source and target folders
+
+Use both local folders deliberately:
+
+| Path | Role | Use it for |
+|------|------|------------|
+| `targets/local/` | Preferred source intake | Approved source workbooks, AD exports, tracker CSVs, and raw target material before normalization |
+| `logs/targets/` | Preserved local target/evidence store | Existing local stores, confirm-host lists, historical source folders such as `Cybernet sources/`, and target handoff files |
+| `targets/sanitized/` | Tracked examples only | Synthetic fixtures safe for tests and docs |
+
+Files under `targets/local/` and `logs/targets/` are ignored on purpose. A clone from GitHub will not contain your live local source files. If the folder looks empty in the IDE, check File Explorer or run `git status --short --ignored -- targets/local logs/targets` to confirm the ignored local tree exists.
+
 ## Target manifest vs evidence
 
 | Artifact | Role | Dashboard import |

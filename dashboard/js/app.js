@@ -1580,6 +1580,124 @@ function _detectGuestNetworkWarning() {
   return allDown ? 'All preflight targets appear unreachable — check guest network or wrong segment before blaming the product.' : null;
 }
 
+function _classificationRole(row) {
+  return String(row?.deviceRole || '').toLowerCase();
+}
+
+function _countsTowardCybernet(row) {
+  return String(row?.countsToward || '').toLowerCase() === 'yes';
+}
+
+function _isNeedsReviewClassification(row) {
+  const role = _classificationRole(row);
+  const status = String(row?.overallStatus || '').toUpperCase();
+  return status.includes('REVIEW') || status.includes('CONFLICT') || role === 'discovery_only' || role === 'infrastructure_unknown';
+}
+
+function bucketClassificationRows(rows) {
+  const buckets = {
+    targets: [],
+    infrastructure: [],
+    networkAp: [],
+    printers: [],
+    needsReview: [],
+  };
+
+  for (const row of rows || []) {
+    const role = _classificationRole(row);
+    if (role === 'target_workstation' || _countsTowardCybernet(row)) buckets.targets.push(row);
+    if (role.startsWith('infrastructure_')) buckets.infrastructure.push(row);
+    if (role === 'infrastructure_access_point' || role === 'infrastructure_network') buckets.networkAp.push(row);
+    if (role === 'infrastructure_print') buckets.printers.push(row);
+    if (_isNeedsReviewClassification(row)) buckets.needsReview.push(row);
+  }
+
+  return buckets;
+}
+
+function humanizeClassificationWhy(row) {
+  const signals = String(row?.roleSignals || '').split(';').map(s => s.trim()).filter(Boolean);
+  const reason = String(row?.reviewReason || '').trim();
+  const next = String(row?.nextAction || '').trim();
+  const parts = [];
+
+  for (const signal of signals) {
+    const lower = signal.toLowerCase();
+    if (lower.includes('reverse_dns:ap')) parts.push('Infrastructure-like DNS name');
+    else if (lower.includes('reverse_dns:network')) parts.push('Network device name pattern');
+    else if (lower.includes('hostname:cybernet-prefix')) parts.push('Cybernet hostname pattern');
+    else if (lower.includes('port:9100') || lower.includes('port:515') || lower.includes('port:631')) parts.push('Printer port observed');
+    else if (lower.includes('vendor:')) parts.push(`Vendor signal: ${signal.split(':').slice(1).join(':')}`);
+    else if (lower.includes('lane:subnet_discovery')) parts.push('Subnet discovery only');
+    else if (lower.includes('manifest:present')) parts.push('Manifest row present');
+  }
+
+  if (!parts.length && reason) parts.push(reason);
+  if (!parts.length && next) parts.push(next);
+  if (!parts.length && signals.length) parts.push(signals.join('; '));
+  return parts.length ? [...new Set(parts)].join('; ') : 'No classifier reason supplied.';
+}
+
+function _classificationRowHtml(row) {
+  const host = row.hostName || row.ipAddress || 'unknown';
+  const source = row.sourceFile || row.sourceLane || '';
+  return `
+    <tr>
+      <td>${sanitize(host)}</td>
+      <td>${sanitize(row.surveyLane || '—')}</td>
+      <td>${sanitize(row.identifierType || '—')}</td>
+      <td>${sanitize(row.deviceRole || '—')}</td>
+      <td>${sanitize(row.countsToward || '—')}</td>
+      <td>${sanitize(humanizeClassificationWhy(row))}</td>
+      <td>${sanitize(row.nextAction || row.reviewReason || 'Review row details.')}</td>
+      <td>${sanitize(source || '—')}</td>
+    </tr>
+  `;
+}
+
+function _classificationSectionHtml(label, rows, open = false) {
+  if (!rows.length) return '';
+  return `
+    <details class="classification-section" ${open ? 'open' : ''}>
+      <summary>${sanitize(label)} <span>${rows.length}</span></summary>
+      <div class="classification-table-wrap">
+        <table class="classification-row-table">
+          <thead>
+            <tr>
+              <th>Host</th>
+              <th>Lane</th>
+              <th>ID Type</th>
+              <th>Role</th>
+              <th>Counts</th>
+              <th>Why</th>
+              <th>Next action</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>${rows.slice(0, 50).map(_classificationRowHtml).join('')}</tbody>
+        </table>
+        ${rows.length > 50 ? `<p class="classification-more">Showing first 50 of ${rows.length} rows. Filter the source CSV for the full set.</p>` : ''}
+      </div>
+    </details>
+  `;
+}
+
+function renderClassificationDrilldown(buckets) {
+  const total = buckets.targets.length + buckets.infrastructure.length + buckets.needsReview.length;
+  if (!total) return '';
+  return `
+    <div id="cybernet-classification-drilldown" class="classification-drilldown">
+      <h4>Classification drill-down</h4>
+      <p>Open a section to see why each row is a Cybernet target, infrastructure, or needs review.</p>
+      ${_classificationSectionHtml('Cybernet Targets', buckets.targets, true)}
+      ${_classificationSectionHtml('Infrastructure', buckets.infrastructure)}
+      ${_classificationSectionHtml('Network / AP', buckets.networkAp)}
+      ${_classificationSectionHtml('Printers', buckets.printers)}
+      ${_classificationSectionHtml('Needs Review', buckets.needsReview, buckets.needsReview.length > 0)}
+    </div>
+  `;
+}
+
 function updateCybernetReview() {
   const section = document.getElementById('cybernet-review');
   const body = document.getElementById('cybernet-review-body');
@@ -1605,21 +1723,10 @@ function updateCybernetReview() {
 
   section.classList.remove('hidden');
   const guestWarn = _detectGuestNetworkWarning();
-
-  const manifestTargets = classificationRows.filter(r => {
-    const role = (r.deviceRole || '').toLowerCase();
-    const counts = (r.countsToward || '').toLowerCase();
-    return role === 'target_workstation' || counts === 'yes';
-  }).length;
-  const infrastructure = classificationRows.filter(r => {
-    const role = (r.deviceRole || '').toLowerCase();
-    return role.startsWith('infrastructure_');
-  }).length;
-  const needsReview = classificationRows.filter(r => {
-    const role = (r.deviceRole || '').toLowerCase();
-    const status = (r.overallStatus || '').toUpperCase();
-    return status.includes('REVIEW') || status.includes('CONFLICT') || role === 'discovery_only';
-  }).length;
+  const classificationBuckets = bucketClassificationRows(classificationRows);
+  const manifestTargets = classificationBuckets.targets.length;
+  const infrastructure = classificationBuckets.infrastructure.length;
+  const needsReview = classificationBuckets.needsReview.length;
 
   let nextAction = 'Review the summary, then open network evidence details if you need row-level triage.';
   if (!preflightRows) nextAction = 'Load network_preflight.csv to prove network posture.';
@@ -1647,6 +1754,7 @@ function updateCybernetReview() {
       <li><strong>Reachability rows:</strong> ${reachabilityCount > 0 ? reachabilityCount : '—'}</li>
     </ul>
     ${classificationBlock}
+    ${renderClassificationDrilldown(classificationBuckets)}
     ${guestWarn ? `<p class="cybernet-review-warn">⚠ ${sanitize(guestWarn)}</p>` : ''}
     <p class="cybernet-review-next"><strong>Next:</strong> ${sanitize(nextAction)}</p>
   `;

@@ -20,6 +20,30 @@ This creates the `SysAdminSuite` folder. Then open that folder and double-click 
 
 Do not create a `SysAdminSuite` folder first and then clone inside it. That can create `SysAdminSuite\SysAdminSuite` and the launcher will not be at the top level.
 
+### Clone, then populate local source and target folders
+
+Cloning gets the product code and sanitized examples. It does **not** copy live source workbooks, deployment trackers, host lists, serial lists, MAC exports, or field evidence. Those files are intentionally local-only and gitignored.
+
+After cloning, use these local folders:
+
+| Path | Role | What goes there | Committed to git? |
+|------|------|-----------------|-------------------|
+| `targets/local/` | Preferred local source intake | Approved Cybernet source workbooks, AD exports, tracker CSVs, or raw target material before normalization | No |
+| `logs/targets/` | Preserved local target/evidence store | Existing local target stores, confirm-host lists, and historical folders such as `Cybernet sources/` | No |
+| `targets/sanitized/` | Tracked examples only | Synthetic `.sample`, `.example`, or `.fixture` files for tests and docs | Yes |
+| `survey/input/` | Runtime staging | Normalized manifests when a runbook or dashboard command asks for them | No |
+
+If you expect to see source Cybernet workbooks and they do not appear in GitHub or in `git status`, that is normal: ignored files are not uploaded, reviewed, or merged. They may also be hidden by the IDE. Check them in File Explorer under `targets/local/` or `logs/targets/`; older local stores under `logs/targets/Cybernet sources/` are valid and should stay local.
+
+To verify that a local source file is protected from commits:
+
+```bash
+git check-ignore -v "logs/targets/your-local-file.xlsx"
+git check-ignore -v "targets/local/your-local-file.xlsx"
+```
+
+Do not commit live target material. See [`targets/README.md`](targets/README.md), [`docs/TARGETS_FOLDER_POLICY.md`](docs/TARGETS_FOLDER_POLICY.md), and [`docs/SURVEY_LANES.md`](docs/SURVEY_LANES.md).
+
 Double-click:
 
 `START-HERE-SysAdminSuite-Dashboard.bat`
