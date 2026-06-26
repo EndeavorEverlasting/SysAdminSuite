@@ -360,3 +360,20 @@ stopped in the terminal with **Ctrl+C** in the window where they are running.
 The dashboard does not hide or evade normal OS, network, or security telemetry;
 Stop is scope control, not log suppression. Keep probes scoped to approved
 target manifests.
+
+### Automated relay cancel test
+
+`dashboard/test_relay_cancel_e2e.py` is an end-to-end check that the Stop path
+actually halts server-side probing. It starts the real relay
+(`dashboard/relay.py`) on a loopback-only ephemeral port, authenticates with the
+token the relay prints, runs a probe against three loopback targets
+(`127.0.0.1`, `127.0.0.2`, `127.0.0.3`), sends `probe_cancel` after the first
+target's first evidence arrives, and asserts the relay reports `cancelled: true`,
+completed at most one target, and emits no results for the remaining targets.
+
+The test is loopback-only: every probe stays on this host, so no remote target
+is contacted and no target-box telemetry is produced. The WebSocket is only the
+control channel between the test and the relay. Run it with
+`python dashboard/test_relay_cancel_e2e.py` (requires `pip install websockets`);
+it also runs in the Dashboard Smoke CI workflow alongside the relay cancel unit
+test and the client `probe-stop-smoke.js`.
