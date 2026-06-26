@@ -4,6 +4,8 @@
   'use strict';
 
   var pollTimer = null;
+  window.__sasToolboxStatusPending = true;
+  window.__sasToolboxActionNeeded = false;
 
   function shouldStartSetup() {
     var params = new URLSearchParams(window.location.search || '');
@@ -25,11 +27,11 @@
   }
 
   function applyStatus(status) {
-    if (typeof window.renderToolboxChecklist === 'function') {
-      window.renderToolboxChecklist(status);
+    if (typeof window.__sasRenderToolboxChecklist === 'function') {
+      window.__sasRenderToolboxChecklist(status);
     }
-    if (typeof window.updateToolboxBanner === 'function') {
-      window.updateToolboxBanner(status);
+    if (typeof window.__sasUpdateToolboxBanner === 'function') {
+      window.__sasUpdateToolboxBanner(status);
     }
     if (typeof window.__sasApplyToolboxStatus === 'function') {
       window.__sasApplyToolboxStatus(status);
@@ -69,6 +71,9 @@
   function handleStatus(status) {
     applyStatus(status);
     window.__sasLastToolboxStatus = status;
+    window.__sasFetchedToolboxStatus = status;
+    window.__sasToolboxStatusPending = false;
+    window.__sasToolboxActionNeeded = !!status.actionNeeded;
 
     if (shouldStartToolbox()) {
       startToolboxWhenReady(status, 25);
@@ -89,6 +94,8 @@
     fetchStatus()
       .then(handleStatus)
       .catch(function () {
+        window.__sasToolboxStatusPending = false;
+        window.__sasToolboxActionNeeded = false;
         if (shouldStartToolbox()) {
           startToolboxWhenReady({ tools: [], actionNeeded: false }, 25);
         } else if (shouldStartSetup()) {
@@ -102,6 +109,7 @@
       .then(function (status) {
         applyStatus(status);
         window.__sasLastToolboxStatus = status;
+        window.__sasFetchedToolboxStatus = status;
         toastIfNeeded(status);
       })
       .catch(function () {

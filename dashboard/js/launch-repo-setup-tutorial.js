@@ -18,6 +18,11 @@
 
   function startTutorial(attemptsRemaining) {
     if (!shouldStart()) return;
+    if (window.__sasToolboxStatusPending && attemptsRemaining > 0) {
+      window.setTimeout(function () { startTutorial(attemptsRemaining - 1); }, 100);
+      return;
+    }
+    if (window.__sasToolboxActionNeeded) return;
 
     const startButton = document.getElementById('hero-start-setup');
     const tutorial = document.getElementById('repo-setup-tutorial');

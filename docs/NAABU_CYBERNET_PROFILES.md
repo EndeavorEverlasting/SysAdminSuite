@@ -16,6 +16,10 @@ Downloads pinned `naabu.exe` to `bin/naabu.exe` from [ProjectDiscovery naabu rel
 
 **Other environments:** `winget install projectdiscovery.naabu` (or vendor PATH install) is acceptable when Git Bash ensure is not used; the suite still prefers the pinned GitHub download for reproducible versions.
 
+The dashboard Toolbox Status tutorial detects naabu/nmap readiness and points
+Northwell users back to this bootstrap path. See
+[`DASHBOARD_TOOLBOX_TUTORIAL.md`](DASHBOARD_TOOLBOX_TUTORIAL.md).
+
 ## Profile truth model
 
 Doctrine is the single source of truth. The runtime config is generated from it:

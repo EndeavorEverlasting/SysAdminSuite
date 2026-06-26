@@ -12,6 +12,7 @@ config="$repo_root/Config/dotnet-bootstrap.json"
 runtime_script="$repo_root/scripts/ensure-dotnet-runtime.sh"
 sdk_script="$repo_root/scripts/ensure-dotnet-sdk.sh"
 host_script="$repo_root/scripts/ensure-dashboard-host.sh"
+toolbox_writer="$repo_root/scripts/sas-write-toolbox-status.sh"
 host_bat="$repo_root/Launch-SysAdminSuiteDashboard.Host.bat"
 start_bat="$repo_root/START-HERE-SysAdminSuite-Dashboard.bat"
 gitignore="$repo_root/.gitignore"
@@ -20,6 +21,7 @@ gitignore="$repo_root/.gitignore"
 [[ -f "$runtime_script" ]] || fail "missing ensure-dotnet-runtime.sh"
 [[ -f "$sdk_script" ]] || fail "missing ensure-dotnet-sdk.sh"
 [[ -f "$host_script" ]] || fail "missing ensure-dashboard-host.sh"
+[[ -f "$toolbox_writer" ]] || fail "missing toolbox status writer"
 
 grep -Fq 'dotnetcli.blob.core.windows.net/dotnet/release-metadata/8.0/releases.json' "$config" \
   || fail "bootstrap config does not cite official .NET release metadata"
@@ -64,6 +66,8 @@ grep -Fq 'ensure-dashboard-host.sh' "$host_bat" \
   || fail "host launcher does not call dashboard bootstrap"
 grep -Fq 'Git\bin\bash.exe' "$host_bat" \
   || fail "host launcher does not prefer Git Bash"
+grep -Fq 'sas-write-toolbox-status.sh' "$host_bat" \
+  || fail "host launcher does not write dashboard toolbox status"
 grep -Fq 'Microsoft .NET dependencies' "$start_bat" \
   || fail "root launcher does not tell users about Microsoft .NET bootstrap"
 grep -Fq 'administrator approval' "$start_bat" \

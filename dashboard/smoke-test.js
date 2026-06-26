@@ -174,6 +174,11 @@ if (failed > 0) process.exit(1);
 const indexHtml = readFileSync(join(__dir, 'index.html'), 'utf8');
 
 const shellChecks = [
+  ['toolbox-status-banner', 'Toolbox status banner'],
+  ['toolbox-hero', 'Toolbox hero'],
+  ['id="hero-start-toolbox"', 'Primary CTA Start Toolbox Check'],
+  ['id="toolbox-checklist"', 'Toolbox checklist'],
+  ['id="toolbox-tutorial"', 'Toolbox tutorial container'],
   ['repo-setup-hero', 'Repo Setup hero'],
   ['id="hero-start-setup"', 'Primary CTA Start Repo Setup'],
   ['id="repo-setup-tutorial"', 'Repo Setup tutorial container'],
@@ -198,6 +203,11 @@ const shellChecks = [
 // Wizard command contracts live in app.js (bundled); verify source for CI without loading bundle
 const appJs = readFileSync(join(__dir, 'js', 'app.js'), 'utf8');
 const contractChecks = [
+  ['initToolboxTutorial', 'Toolbox tutorial init'],
+  ['initToolboxShell', 'Toolbox hero shell'],
+  ['window.startToolboxTutorial', 'Toolbox transition exposed'],
+  ['toolbox-status', 'Toolbox parser type wired'],
+  ['__sasFetchedToolboxStatus', 'Toolbox fetched status preserved'],
   ['initRepoSetupTutorial', 'Repo Setup tutorial init'],
   ['initRepoSetupShell', 'Repo Setup hero shell'],
   ['window.startRepoSetupTutorial', 'Repo Setup transition exposed'],
@@ -384,6 +394,7 @@ const bundleJs = readFileSync(join(__dir, 'js', 'bundle.js'), 'utf8');
 const preflightJs = readFileSync(join(__dir, 'js', 'cybernet-os-preflight.js'), 'utf8');
 const launchJs = readFileSync(join(__dir, 'js', 'launch-cybernet-tutorial.js'), 'utf8');
 const launchSetupJs = readFileSync(join(__dir, 'js', 'launch-repo-setup-tutorial.js'), 'utf8');
+const launchToolboxJs = readFileSync(join(__dir, 'js', 'launch-toolbox-tutorial.js'), 'utf8');
 
 let startPassed = 0;
 let startFailed = 0;
@@ -413,6 +424,14 @@ startAssert(launchSetupJs.includes('window.startRepoSetupTutorial'), 'setup-auto
   'launch-repo-setup-tutorial.js does not use the verified transition');
 startAssert(launchSetupJs.includes("tutorial === 'setup'"), 'setup-query-supported',
   'launch-repo-setup-tutorial.js does not support ?tutorial=setup');
+startAssert(launchToolboxJs.includes('toolbox-status.json?ts='), 'toolbox-fetches-status',
+  'launch-toolbox-tutorial.js does not fetch toolbox-status.json');
+startAssert(launchToolboxJs.includes('__sasToolboxActionNeeded'), 'toolbox-first-flag',
+  'launch-toolbox-tutorial.js does not set the toolbox-first flag');
+startAssert(launchSetupJs.includes('__sasToolboxActionNeeded'), 'setup-defers-to-toolbox',
+  'repo setup launcher does not defer when toolbox action is needed');
+startAssert(bundleJs.includes('initToolboxTutorial'), 'bundle-toolbox-tutorial',
+  'bundle.js is stale — missing Toolbox tutorial; rebuild with: node dashboard/build-bundle.js');
 startAssert(bundleJs.includes('initSoftwareTrackerTutorial'), 'bundle-software-tutorial',
   'bundle.js is stale — missing Software Tracker tutorial; rebuild with: node dashboard/build-bundle.js');
 startAssert(bundleJs.includes('initRepoSetupTutorial'), 'bundle-repo-setup-tutorial',

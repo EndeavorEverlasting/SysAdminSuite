@@ -578,6 +578,20 @@ async function processFile(file) {
       return;
     }
 
+    if (parsedData.type === 'toolbox-status') {
+      if (typeof window.__sasApplyToolboxStatus === 'function') {
+        window.__sasLastToolboxStatus = parsedData.data;
+        window.__sasApplyToolboxStatus(parsedData.data);
+      }
+      const count = parsedData.rows?.length ?? 0;
+      addFileChip(name, count > 0 ? 'ok' : 'warn', parsedData.type, count, parsedData);
+      toast(`Loaded toolbox status — ${parsedData.data?.summary?.needsAction ?? 0} item(s) need attention.`, 'success');
+      if (parsedData.data?.actionNeeded && typeof window.startToolboxTutorial === 'function') {
+        window.startToolboxTutorial({ source: 'loaded-file', status: parsedData.data });
+      }
+      return;
+    }
+
     store = mergeDataStore(store, parsedData);
     refreshAllPanels();
 
@@ -619,6 +633,25 @@ function rebuildInstallPlanFromChips() {
   else clearSoftwareInstallPlan();
 }
 
+function rebuildToolboxStatusFromChips() {
+  let latest = null;
+  for (const f of loadedFiles) {
+    if (f.parsedData?.type === 'toolbox-status') {
+      latest = f.parsedData.data;
+    }
+  }
+  if (latest && typeof window.__sasApplyToolboxStatus === 'function') {
+    window.__sasLastToolboxStatus = latest;
+    window.__sasApplyToolboxStatus(latest);
+  } else if (window.__sasFetchedToolboxStatus && typeof window.__sasApplyToolboxStatus === 'function') {
+    window.__sasLastToolboxStatus = window.__sasFetchedToolboxStatus;
+    window.__sasApplyToolboxStatus(window.__sasFetchedToolboxStatus);
+  } else if (typeof window.__sasApplyToolboxStatus === 'function') {
+    window.__sasLastToolboxStatus = null;
+    window.__sasApplyToolboxStatus({ tools: [], actionNeeded: false, summary: { needsAction: 0 } });
+  }
+}
+
 function rebuildStoreFromChips() {
   store = {};
   let latestStatus = null;
@@ -631,6 +664,7 @@ function rebuildStoreFromChips() {
     }
   }
   rebuildInstallPlanFromChips();
+  rebuildToolboxStatusFromChips();
   updateStatusFooter(latestStatus); // null clears footer if no status chip remains
   refreshAllPanels();
 }
@@ -650,6 +684,7 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'naabu-reachability': '🔌',
     'ad-registered-population': '🏢',
     'software-tracker': '📦', 'software-tracker-install-plan': '📋',
+    'toolbox-status': '🧰',
     'cybernet-target-manifest': '🎯', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
@@ -686,6 +721,11 @@ function clearAllData(silent = false) {
   document.getElementById('loaded-files').innerHTML = '';
   refreshAllPanels();
   updateStatusFooter(null);
+  if (typeof window.__sasApplyToolboxStatus === 'function') {
+    const status = window.__sasFetchedToolboxStatus || { tools: [], actionNeeded: false, summary: { needsAction: 0 } };
+    window.__sasLastToolboxStatus = window.__sasFetchedToolboxStatus || null;
+    window.__sasApplyToolboxStatus(status);
+  }
   updateCybernetReview();
   if (!silent) toast('All evidence cleared.', 'info');
 }
