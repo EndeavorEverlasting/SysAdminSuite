@@ -2,7 +2,7 @@ name: Survey doctrine
 
 on:
   push:
-    branches: [main, 'feat/**']
+    branches: [main, 'feat/**', 'feature/**']
     paths:
       - 'AGENTS.md'
       - '.cursor/rules/**'
@@ -12,11 +12,14 @@ on:
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'probe/packet-expenditure/**'
       - 'survey/**'
+      - 'scripts/SasTargetIntake.psm1'
+      - 'targets/README.md'
       - 'Tests/bash/*naabu*'
       - 'Tests/bash/test_cybernet_detect_contracts.sh'
       - 'Tests/bash/test_northwell_registry_verification_contracts.sh'
       - 'Tests/bash/test_packet_probe_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
+      - 'Tests/bash/test_target_intake_centralization_contracts.sh'
       - '.github/workflows/survey-doctrine.yml'
   pull_request:
     branches: [main]
@@ -29,11 +32,14 @@ on:
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'probe/packet-expenditure/**'
       - 'survey/**'
+      - 'scripts/SasTargetIntake.psm1'
+      - 'targets/README.md'
       - 'Tests/bash/*naabu*'
       - 'Tests/bash/test_cybernet_detect_contracts.sh'
       - 'Tests/bash/test_northwell_registry_verification_contracts.sh'
       - 'Tests/bash/test_packet_probe_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
+      - 'Tests/bash/test_target_intake_centralization_contracts.sh'
       - '.github/workflows/survey-doctrine.yml'
 
 jobs:
@@ -50,6 +56,11 @@ jobs:
         shell: bash
         run: |
           bash Tests/bash/test_repo_naabu_doctrine_conformance.sh
+
+      - name: Central target intake contracts
+        shell: bash
+        run: |
+          bash Tests/bash/test_target_intake_centralization_contracts.sh
 
       - name: Northwell registry verification contracts
         shell: bash
