@@ -5,7 +5,7 @@
 # live in Config/cybernet-naabu-profiles.json (doctrine contract: survey/naabu_profiles.json).
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.1.1"
 SITE=""
 PROFILE="keyports_cybernet_json"
 LIST=""
@@ -27,6 +27,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROFILE_JSON="${REPO_ROOT}/Config/cybernet-naabu-profiles.json"
 FOLLOWUP_SCRIPT="${SCRIPT_DIR}/sas-cybernet-packet-followup.sh"
 ENSURE_SCRIPT="${SCRIPT_DIR}/sas-ensure-naabu.sh"
+TARGET_INTAKE_HELPER="${SCRIPT_DIR}/lib/sas-target-intake.sh"
+[[ -f "$TARGET_INTAKE_HELPER" ]] || { echo "[naabu-pipeline] ERROR: Missing target intake helper: $TARGET_INTAKE_HELPER" >&2; exit 1; }
+# shellcheck source=survey/lib/sas-target-intake.sh
+source "$TARGET_INTAKE_HELPER"
 
 usage() {
   cat <<'USAGE'
@@ -42,12 +46,12 @@ Required:
   --site SITE              Site label
 
 Target input (one required unless --dry-run with --host):
-  --list PATH              Approved target file (one IP/hostname per line)
+  --list PATH              Approved target file from targets/local, logs/targets, or normalized survey/input
   --host URL               Hostname/URL for -sa multi-A scan (hostname_all_ips profile)
 
 Options:
   --profile NAME           Profile from Config/cybernet-naabu-profiles.json. Default: keyports_cybernet_json
-  --out PATH               Output file (txt or json per profile)
+  --out PATH               Output file (txt or json per profile; generated roots only)
   --pipe-followup          Pipe naabu -silent stdout into sas-cybernet-packet-followup.sh
   --allow-full-ports       Permit allports_low_noise_json profile (-p - -ec)
   --profile-justified      Acknowledge justification for justification-required profiles (UDP, all-ports)
@@ -55,7 +59,7 @@ Options:
   --allow-public           Permit public IPs in target list
   --rate N                 Optional naabu -rate value
   --dry-run                Write planned command only; no packets
-  --planned-file PATH      Append planned command to file
+  --planned-file PATH      Append planned command to file (generated roots only)
   --verbose                Log resolved argv
   -h, --help               Show help
 
@@ -86,9 +90,18 @@ safe_site() {
   [[ -n "$SITE" ]] || fail "--site is required"
 }
 
+validate_output_paths() {
+  if [[ -n "$OUT" ]]; then
+    sas_target_require_output_path "$OUT" "Naabu output file" "$REPO_ROOT" || exit 1
+  fi
+  if [[ -n "$PLANNED_FILE" ]]; then
+    sas_target_require_output_path "$PLANNED_FILE" "Naabu planned command file" "$REPO_ROOT" || exit 1
+  fi
+}
+
 validate_target_file() {
   local file="$1" line n=0
-  [[ -f "$file" ]] || fail "Target list not found: $file"
+  sas_target_require_input_file "$file" "Naabu target list" 1 "$REPO_ROOT" || exit 1
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%%#*}"
     line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
@@ -228,6 +241,7 @@ PY
 
 run_pipeline() {
   local naabu_bin followup_out count
+  validate_output_paths
   naabu_bin="$(bash "$ENSURE_SCRIPT" ${DRY_RUN:+--dry-run})"
   vlog "naabu binary: $naabu_bin"
 
