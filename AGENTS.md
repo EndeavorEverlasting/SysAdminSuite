@@ -28,6 +28,8 @@ For lay users opening the **web dashboard**, the front door is a double-click la
 
 Canonical agent reference: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).
 
+First-run dependency bootstrap reference: [`docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md).
+
 Planned `.exe` shortcut sprint: [`docs/DASHBOARD_EXE_FUTURE_SPRINT.md`](docs/DASHBOARD_EXE_FUTURE_SPRINT.md).
 
 Do **not** direct field users to `python3 -m http.server`, raw `dotnet` commands, or Bash survey scripts as the default dashboard path.

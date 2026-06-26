@@ -4,7 +4,7 @@ This directory contains Bash-first survey tooling for SysAdminSuite.
 
 ## Primary Field Tutorial: Cybernet / Neuron Network Survey
 
-**Default front door:** double-click [`../START-HERE-SysAdminSuite-Dashboard.bat`](../START-HERE-SysAdminSuite-Dashboard.bat) and use **Start Cybernet Survey** in the dashboard. On first run the launcher may **automatically prepare (build) the dashboard app** before opening the browser; field users do not run any command by hand. Machines **without the .NET SDK** should use the dashboard field release package ([`../docs/DASHBOARD_FIELD_RELEASE.md`](../docs/DASHBOARD_FIELD_RELEASE.md)), not a source clone. CLI is available for specific advanced survey use cases only.
+**Default front door:** double-click [`../START-HERE-SysAdminSuite-Dashboard.bat`](../START-HERE-SysAdminSuite-Dashboard.bat) and use **Start Cybernet Survey** in the dashboard. On first run the launcher may **automatically prepare the dashboard app** before opening the browser; field users do not run any command by hand. Source clones can bootstrap official Microsoft .NET dependencies when downloads and administrator approval are available. Locked-down PCs should use the dashboard field release package ([`../docs/DASHBOARD_FIELD_RELEASE.md`](../docs/DASHBOARD_FIELD_RELEASE.md)). CLI is available for specific advanced survey use cases only.
 
 The current priority tutorial for field technicians is:
 

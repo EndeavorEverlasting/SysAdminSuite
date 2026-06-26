@@ -27,6 +27,8 @@ jobs:
           node --check dashboard/js/bundle.js
           node --check dashboard/js/cybernet-os-preflight.js
           node --check dashboard/js/launch-cybernet-tutorial.js
+          node --check dashboard/js/launch-repo-setup-tutorial.js
+          node --check dashboard/js/repo-setup-tutorial.js
       - name: Dashboard parser smoke test
         run: node dashboard/smoke-test.js
       - name: Dashboard Start-button runtime smoke test

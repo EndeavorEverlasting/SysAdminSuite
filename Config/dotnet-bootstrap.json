@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "source": "https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/8.0/releases.json",
+  "channel": "8.0",
+  "release": "8.0.28",
+  "sdkVersion": "8.0.422",
+  "cacheDir": "tools/cache/dotnet",
+  "installMode": "system-wide",
+  "components": {
+    "aspnetcoreRuntime": {
+      "displayName": ".NET 8 ASP.NET Core Runtime",
+      "sharedFramework": "Microsoft.AspNetCore.App",
+      "versionPrefix": "8.",
+      "fileName": "aspnetcore-runtime-8.0.28-win-x64.exe",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/8.0.28/aspnetcore-runtime-8.0.28-win-x64.exe",
+      "sha512": "b8bccd46b5b167c4250882105b8c01c46e5ea96dcb9c2de1d35add26afeab86fc499003822fc8341d5e8855283a5c615e81c6a851f7f721aed535eaeb2e19077",
+      "silentArgs": "/install /quiet /norestart"
+    },
+    "windowsDesktopRuntime": {
+      "displayName": ".NET 8 Windows Desktop Runtime",
+      "sharedFramework": "Microsoft.WindowsDesktop.App",
+      "versionPrefix": "8.",
+      "fileName": "windowsdesktop-runtime-8.0.28-win-x64.exe",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.28/windowsdesktop-runtime-8.0.28-win-x64.exe",
+      "sha512": "931e5463994ae1d4984bcc05baf940979511185ec1a9bca0a5c0e5963d290fbfe3b348e5bd804fecbe698669374a34cee20e6d1e220e275e1536d55c848fc068",
+      "silentArgs": "/install /quiet /norestart"
+    },
+    "sdk": {
+      "displayName": ".NET 8 SDK",
+      "sdkVersionPrefix": "8.",
+      "fileName": "dotnet-sdk-8.0.422-win-x64.exe",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/8.0.422/dotnet-sdk-8.0.422-win-x64.exe",
+      "sha512": "13572cb985ca2feb08c093c4f0070ba6c5f75ff67013626e857926e4f870aed87f06db5738a377a3f2f5cdae8093a6b7046b2492a1f5e0bc51261e0cec4e9418",
+      "silentArgs": "/install /quiet /norestart"
+    }
+  }
+}

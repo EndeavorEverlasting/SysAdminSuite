@@ -109,6 +109,8 @@ bin/*
 **/obj/
 # Published host output staging (see docs/GUI_HOST_MIGRATION.md)
 tools/publish/
+# Downloaded Microsoft .NET bootstrap installers (system-wide install cache)
+tools/cache/
 
 # Local reference tree (install scripts, shortcuts, installers — not product code; never commit)
 tech emulation/

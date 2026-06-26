@@ -8,6 +8,7 @@ import { getTasksHTML, initTasksPanel, renderTasksPanel } from './panel-tasks.js
 import { getNetworkHTML, initNetworkPanel, renderNetworkPanel } from './panel-network.js';
 import { getSoftwareHTML, initSoftwarePanel, renderSoftwarePanel } from './panel-software.js';
 import { initSoftwareTrackerTutorial } from './software-tracker-tutorial.js';
+import { initRepoSetupTutorial } from './repo-setup-tutorial.js';
 import {
   setSoftwareInstallPlan,
   clearSoftwareInstallPlan,
@@ -72,12 +73,14 @@ const TYPE_TO_PANELS = {
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   buildLayout();
+  initRepoSetupShell();
   initCybernetShell();
   initSoftwareTrackerShell();
   initTabs();
   initIngestion();
   initModeToggle();
   initLiveMode();
+  initRepoSetupTutorial();
   initCybernetTutorial();
   initSoftwareTrackerTutorial();
   initPasteModal();
@@ -140,6 +143,67 @@ function switchTab(tab) {
 }
 
 // ── Cybernet-first shell ─────────────────────────────────────────────────────
+function initRepoSetupShell() {
+  const startBtn = document.getElementById('hero-start-setup');
+  const tutorial = document.getElementById('repo-setup-tutorial');
+  const statusEl = document.getElementById('repo-setup-hero-status');
+
+  const setHeroStatus = (msg, kind) => {
+    if (!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.classList.remove('is-busy', 'is-open', 'is-error');
+    if (kind) statusEl.classList.add(kind);
+    statusEl.classList.toggle('hidden', !msg);
+  };
+
+  const tutorialIsVisible = () => {
+    if (!tutorial) return false;
+    if (tutorial.classList.contains('hidden')) return false;
+    const cs = window.getComputedStyle(tutorial);
+    return cs.display !== 'none' && cs.visibility !== 'hidden';
+  };
+
+  const startRepoSetupTutorial = (opts) => {
+    const source = (opts && opts.source) || 'manual';
+    if (!tutorial || !startBtn) {
+      setHeroStatus('Could not open repo setup. Reload the dashboard or start Cybernet Survey directly.', 'is-error');
+      toast('Repo setup tutorial is unavailable. Reload the dashboard.', 'error');
+      return false;
+    }
+
+    setHeroStatus('Opening repo setup…', 'is-busy');
+    tutorial.style.display = '';
+    tutorial.classList.remove('hidden');
+    if (typeof window.__sasResetRepoSetupWizard === 'function') {
+      try { window.__sasResetRepoSetupWizard(); } catch (_) { /* non-fatal */ }
+    }
+
+    if (!tutorialIsVisible()) {
+      tutorial.classList.add('hidden');
+      setHeroStatus('Could not open repo setup. Try again or start Cybernet Survey.', 'is-error');
+      toast('Could not open repo setup. Try again.', 'error');
+      return false;
+    }
+
+    startBtn.textContent = 'Restart Repo Setup';
+    startBtn.setAttribute('aria-label', 'Restart repo setup from step 1');
+    setHeroStatus('Repo setup open below.', 'is-open');
+    if (source !== 'silent') {
+      window.setTimeout(() => {
+        tutorial.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 30);
+    }
+    return true;
+  };
+
+  startBtn?.addEventListener('click', () => startRepoSetupTutorial({ source: 'manual' }));
+  document.getElementById('hero-open-cybernet')?.addEventListener('click', () => {
+    if (typeof window.startCybernetTutorial === 'function') window.startCybernetTutorial({ source: 'manual' });
+    else document.getElementById('hero-start-survey')?.click();
+  });
+  window.startRepoSetupTutorial = startRepoSetupTutorial;
+}
+
 function initCybernetShell() {
   const startBtn = document.getElementById('hero-start-survey');
   const tutorial = document.getElementById('cybernet-tutorial');
@@ -704,13 +768,28 @@ function initPasteModal() {
 // ── Cybernet Survey Wizard ───────────────────────────────────────────────────
 const CYBERNET_TUTORIAL_STEPS = [
   {
-    title: 'Prepare your target list',
-    railLabel: 'Targets',
-    body: 'First, make a simple list of the computers you want to check. Put one computer name or IP address on each line. This only prepares a local file for the next steps.',
+    title: 'Start the Cybernet survey',
+    railLabel: 'Start',
+    body: 'This tutorial teaches the field survey from beginning to end. You will load approved targets, run read-only checks from an admin machine, bring the files back, and review the dashboard results.',
+    command: '',
+    checks: [
+      'The dashboard does not run probes by itself.',
+      'You copy commands when the tutorial gives them, run them on an admin machine, then load the output files back here.',
+      'Use approved target sources only; do not broaden the survey from guessed hosts.'
+    ],
+    nextAction: 'Read this, then click Next to load or prepare your targets.',
+    note: 'Start here for Cybernet field work. Repo setup is a separate tutorial above.',
+    optional: false
+  },
+  {
+    title: 'Load your targets',
+    railLabel: 'Load targets',
+    body: 'Make the list of Cybernet computers you are allowed to check. Put one computer name or IP address on each line. This creates the target file used by the next checks.',
     command: "mkdir -p /tmp/sas-cybernet\nprintf '%s\\n' 'WMH300OPR001' 'WMH300OPR002' > /tmp/sas-cybernet/targets.txt",
     checks: [
       'Use only computer names, IPv4 addresses, or IPv6 addresses.',
       'Do not paste passwords, usernames, tickets, or notes into this file.',
+      'AD registered population is the source of registered Cybernet population; the target list is not proof by itself.',
       'If the list came from another source, you can normalize with ./survey/sas-survey-targets.sh --device-type Cybernet --file /tmp/sas-cybernet/targets.txt (output is not dashboard-importable yet).'
     ],
     nextAction: 'Copy this local setup command, run it on your admin machine, then come back and click Next.',
@@ -718,7 +797,7 @@ const CYBERNET_TUTORIAL_STEPS = [
     optional: false
   },
   {
-    title: 'Prove network posture first',
+    title: 'Check network posture',
     railLabel: 'Network posture',
     body: 'Now check whether your admin machine can see the targets at all. This catches guest Wi-Fi, wrong VLAN, DNS, SMB, and RPC problems before anyone blames the tool.',
     command: 'bash bash/transport/sas-network-preflight.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --ports 135,445,3389,9100 \\\n  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru',
@@ -732,7 +811,7 @@ const CYBERNET_TUTORIAL_STEPS = [
     optional: false
   },
   {
-    title: 'Acquire Cybernet identity evidence',
+    title: 'Collect identity evidence',
     railLabel: 'Identity evidence',
     body: 'Collect read-only identity clues from each target. The command records what it can safely observe, such as DNS, ping status, MAC hints, and transport notes.',
     command: 'bash bash/transport/sas-workstation-identity.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru',
@@ -748,10 +827,11 @@ const CYBERNET_TUTORIAL_STEPS = [
   {
     title: 'Optional reachability check',
     railLabel: 'Reachability',
-    body: 'This is an extra confirmation pass for approved targets. Use it only when you need low-noise port evidence after the posture and identity checks.',
+    body: 'This is an extra confirmation pass for approved targets. Use it only when you need low-noise survey discipline for port evidence after the posture and identity checks.',
     command: 'mkdir -p logs/targets logs/nmap\ncp /tmp/sas-cybernet/targets.txt logs/targets/cybernet_confirm_hosts.txt\nbash survey/sas-run-naabu-pipeline.sh --site cybernet \\\n  --profile keyports_cybernet_json \\\n  --list logs/targets/cybernet_confirm_hosts.txt \\\n  --out logs/nmap/cybernet_naabu.json',
     checks: [
       'Profile: keyports_cybernet_json (-ec -silent -json).',
+      'Naabu/Nmap output is reachability validation only.',
       'Doctrine: docs/LOW_NOISE_SURVEY_DOCTRINE.md — local evidence only, no target-side writes.',
       'This step is optional. Skip it when the earlier evidence is enough.'
     ],
@@ -760,16 +840,18 @@ const CYBERNET_TUTORIAL_STEPS = [
     optional: true
   },
   {
-    title: 'Load evidence and review',
-    railLabel: 'Review package',
-    body: 'Bring the files back to this dashboard. Drag the CSV or JSON outputs into Load Evidence, then review the summary before calling the result good or bad.',
+    title: 'Finish and review results',
+    railLabel: 'Review results',
+    body: 'Bring the files back to this dashboard. Drop the CSV or JSON outputs into Load Evidence, then read Review Results for the survey summary and next action.',
     command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)\n# survey/output/cybernet_*_targets.csv (manifest, not evidence)',
     checks: [
+      'Load Evidence is where files go in.',
+      'Review Results is where the Cybernet summary appears after evidence is loaded.',
+      'Open network evidence details when you need row-level DNS, ping, protocol, or reachability detail.',
       'Classify environment blocks separately from product defects.',
-      'Keep smoke-test evidence separate from feature validation.',
       'Treat manifest rows as target lists, not reachability or identity proof.'
     ],
-    nextAction: 'Click Load resulting evidence, then drop the files into the highlighted box.',
+    nextAction: 'Click Load resulting evidence, drop the files into the highlighted box, then read Review Results.',
     note: 'Click Load resulting evidence below, or use Load Evidence on the hero card.',
     optional: false
   }

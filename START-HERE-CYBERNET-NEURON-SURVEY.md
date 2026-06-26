@@ -62,8 +62,8 @@ flowchart TD
 
 Use the Cybernet-first dashboard when you want a guided wizard instead of memorizing CLI steps. Live Mode is **not** the front door — it lives under **Advanced Tools → Generate Survey Commands**.
 
-1. **Open the dashboard** — double-click [`START-HERE-SysAdminSuite-Dashboard.bat`](START-HERE-SysAdminSuite-Dashboard.bat) at the repo root. This starts the local host and opens `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`. See [`START-HERE-SysAdminSuite.md`](START-HERE-SysAdminSuite.md) and [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).
-2. **Start Cybernet Survey** — opens the wizard (progress rail: Targets → Network posture → Identity evidence → Reachability → Review package).
+1. **Open the dashboard** — double-click [`START-HERE-SysAdminSuite-Dashboard.bat`](START-HERE-SysAdminSuite-Dashboard.bat) at the repo root. This starts the local host and opens `http://127.0.0.1:5000/dashboard/?tutorial=setup`; from there click **Start Cybernet Survey**. For a direct survey deep link, use [`Start-CybernetSurveyTutorial.cmd`](Start-CybernetSurveyTutorial.cmd). See [`START-HERE-SysAdminSuite.md`](START-HERE-SysAdminSuite.md) and [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).
+2. **Start Cybernet Survey** — opens the wizard (progress rail: Start → Load targets → Network posture → Identity evidence → Reachability → Review results).
 3. **Copy posture and identity commands** — run network preflight and workstation identity on the admin box; keep output local.
 4. **Optional reachability** — wizard step 4 is skippable; uses profile `keyports_cybernet_json` when you need low-noise port confirmation.
 5. **Load Evidence** — drop `network_preflight.csv`, `workstation_identity.csv`, optional reachability JSON, normalized target manifests, and AD population CSVs.

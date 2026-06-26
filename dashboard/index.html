@@ -111,16 +111,63 @@
     <button class="btn-secondary btn-compact" id="advanced-tools-toggle" type="button" aria-expanded="false" aria-controls="advanced-section">Advanced Tools</button>
   </div>
 
+  <section id="repo-setup-hero" class="workflow-hero repo-setup-hero" aria-label="Repo Setup">
+    <div class="repo-setup-hero-inner">
+      <h2>Repo Setup</h2>
+      <p class="repo-setup-hero-subtitle">Clone or update SysAdminSuite, open the dashboard, then pick the workflow you need.</p>
+      <ol class="workflow-progress-rail repo-setup-progress-rail" id="repo-setup-progress-rail" aria-label="Repo setup progress">
+        <li data-step="0">Get repo</li>
+        <li data-step="1">Open dashboard</li>
+        <li data-step="2">Update safely</li>
+        <li data-step="3">Pick workflow</li>
+        <li data-step="4">Ready</li>
+      </ol>
+      <div class="repo-setup-hero-actions" id="repo-setup-hero-actions">
+        <button class="btn-primary" id="hero-start-setup" type="button">Start Repo Setup</button>
+        <button class="btn-secondary" id="hero-open-cybernet" type="button">I'm ready — open Cybernet Survey</button>
+      </div>
+      <p id="repo-setup-hero-status" class="repo-setup-hero-status hidden" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section id="repo-setup-tutorial" class="workflow-tutorial repo-setup-tutorial hidden" aria-label="Repo setup wizard">
+    <div class="workflow-step-kicker" id="repo-setup-step-kicker">Step 1 of 5</div>
+    <div class="workflow-step-card">
+      <div class="workflow-step-content">
+        <h3 id="repo-setup-step-title">Get SysAdminSuite</h3>
+        <p id="repo-setup-step-body"></p>
+        <ul id="repo-setup-step-checks"></ul>
+      </div>
+      <div class="workflow-command-panel" id="repo-setup-command-panel">
+        <div class="command-panel-title">Command or action outside the dashboard</div>
+        <div class="command-panel-runner" id="repo-setup-command-runner">
+          Use this only when the step tells you to. The dashboard never updates the repo without approval.
+        </div>
+        <textarea id="repo-setup-step-command" readonly spellcheck="false"></textarea>
+        <div class="command-panel-note" id="repo-setup-step-note"></div>
+      </div>
+    </div>
+    <div class="workflow-tutorial-nav">
+      <button class="btn-secondary" id="repo-setup-prev" type="button">← Back</button>
+      <button class="btn-secondary hidden" id="repo-setup-copy" type="button">Copy Command</button>
+      <button class="btn-primary" id="repo-setup-next" type="button">Next →</button>
+    </div>
+    <div class="repo-setup-wizard-footer hidden" id="repo-setup-wizard-footer">
+      <button class="btn-primary" id="repo-setup-open-cybernet" type="button">Open Cybernet Survey</button>
+    </div>
+  </section>
+
   <section id="cybernet-hero" class="workflow-hero cybernet-hero" aria-label="Cybernet Survey">
     <div class="cybernet-hero-inner">
       <h2>Cybernet Survey</h2>
-      <p class="cybernet-hero-subtitle">Find, verify, and package Cybernet targets from approved target sources.</p>
+      <p class="cybernet-hero-subtitle">Start the survey, load approved targets, run read-only checks, finish, and review the results.</p>
       <ol class="workflow-progress-rail cybernet-progress-rail" id="cybernet-progress-rail" aria-label="Survey progress">
-        <li data-step="0">Targets</li>
-        <li data-step="1">Network posture</li>
-        <li data-step="2">Identity evidence</li>
-        <li data-step="3">Reachability</li>
-        <li data-step="4">Review package</li>
+        <li data-step="0">Start</li>
+        <li data-step="1">Load targets</li>
+        <li data-step="2">Network posture</li>
+        <li data-step="3">Identity evidence</li>
+        <li data-step="4">Reachability</li>
+        <li data-step="5">Review results</li>
       </ol>
       <div class="cybernet-hero-actions" id="cybernet-hero-actions">
         <button class="btn-primary" id="hero-start-survey" type="button">Start Cybernet Survey</button>
@@ -131,7 +178,7 @@
   </section>
 
   <section id="cybernet-tutorial" class="workflow-tutorial cybernet-tutorial hidden" aria-label="Cybernet survey wizard">
-    <div class="workflow-step-kicker" id="cybernet-step-kicker">Step 1 of 5</div>
+    <div class="workflow-step-kicker" id="cybernet-step-kicker">Step 1 of 6</div>
     <div class="cybernet-step-progress" id="cybernet-step-progress" aria-hidden="true"></div>
     <div class="workflow-step-card cybernet-step-card">
       <div class="workflow-step-content cybernet-step-content">
@@ -360,6 +407,7 @@
 })();
 </script>
 <script src="js/cybernet-os-preflight.js"></script>
+<script src="js/launch-repo-setup-tutorial.js"></script>
 <script src="js/launch-cybernet-tutorial.js"></script>
 </body>
 </html>

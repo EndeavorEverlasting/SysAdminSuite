@@ -1098,6 +1098,7 @@ textarea.paste-area:focus { border-color: var(--accent); }
 .workflow-command-panel,
 .cybernet-command-panel { flex: 1 1 56%; min-width: 0; box-sizing: border-box; }
 
+#repo-setup-step-command,
 #cybernet-step-command,
 #sw-step-command {
   width: 100%; height: 112px; resize: vertical;
@@ -1111,6 +1112,7 @@ textarea.paste-area:focus { border-color: var(--accent); }
 .cybernet-tutorial-nav { margin-top: 10px; justify-content: flex-end; }
 
 .workflow-hero,
+.repo-setup-hero,
 .cybernet-hero,
 .software-tracker-hero {
   flex-shrink: 0;
@@ -1126,14 +1128,22 @@ textarea.paste-area:focus { border-color: var(--accent); }
   background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(79,142,247,0.05));
 }
 
+.repo-setup-hero {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: linear-gradient(135deg, rgba(245,158,11,0.14), rgba(79,142,247,0.06));
+}
+
 .workflow-hero h2,
+.repo-setup-hero h2,
 .cybernet-hero h2,
 .software-tracker-hero h2 { font-size: 20px; margin-bottom: 6px; }
 
+.repo-setup-hero-subtitle,
 .cybernet-hero-subtitle,
 .software-tracker-hero-subtitle { color: var(--text-dim); font-size: 13px; max-width: 52rem; }
 
 .workflow-progress-rail,
+.repo-setup-progress-rail,
 .cybernet-progress-rail,
 .software-tracker-progress-rail {
   display: flex;
@@ -1145,6 +1155,7 @@ textarea.paste-area:focus { border-color: var(--accent); }
 }
 
 .workflow-progress-rail li,
+.repo-setup-progress-rail li,
 .cybernet-progress-rail li,
 .software-tracker-progress-rail li {
   font-size: 11px;
@@ -1156,6 +1167,7 @@ textarea.paste-area:focus { border-color: var(--accent); }
 }
 
 .workflow-progress-rail li.active,
+.repo-setup-progress-rail li.active,
 .cybernet-progress-rail li.active,
 .software-tracker-progress-rail li.active {
   border-color: var(--accent);
@@ -1171,13 +1183,21 @@ textarea.paste-area:focus { border-color: var(--accent); }
   box-shadow: 0 0 18px rgba(34, 197, 94, 0.35);
 }
 
+.repo-setup-progress-rail li.active {
+  border-color: rgba(245, 158, 11, 0.75);
+  background: rgba(245, 158, 11, 0.26);
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.4);
+}
+
 .workflow-progress-rail li.done,
+.repo-setup-progress-rail li.done,
 .cybernet-progress-rail li.done,
 .software-tracker-progress-rail li.done {
   border-color: rgba(34, 197, 94, 0.35);
   color: var(--success);
 }
 
+.repo-setup-hero-actions,
 .software-tracker-hero-actions,
 .cybernet-hero-actions {
   display: flex;
@@ -1186,6 +1206,7 @@ textarea.paste-area:focus { border-color: var(--accent); }
   align-items: center;
 }
 
+.repo-setup-hero-status,
 .software-tracker-hero-status,
 .cybernet-hero-status {
   margin: 10px 0 0;
@@ -1194,12 +1215,15 @@ textarea.paste-area:focus { border-color: var(--accent); }
   color: var(--text-dim);
 }
 
+.repo-setup-hero-status.is-busy,
 .software-tracker-hero-status.is-busy,
 .cybernet-hero-status.is-busy { color: var(--info); }
 
+.repo-setup-hero-status.is-open,
 .software-tracker-hero-status.is-open,
 .cybernet-hero-status.is-open { color: var(--success); }
 
+.repo-setup-hero-status.is-error,
 .software-tracker-hero-status.is-error,
 .cybernet-hero-status.is-error { color: var(--error); }
 

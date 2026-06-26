@@ -10,27 +10,33 @@ const STEPS = [
     target: '#header',
     title: 'Welcome to SysAdmin Suite Dashboard',
     body:
-      'This dashboard guides Cybernet field surveys — find targets, verify network posture, ' +
-      'collect identity evidence, and package results for review. ' +
-      "Let's walk through the Cybernet-first workflow.",
+      'This dashboard has two different tutorials: <strong>Repo Setup</strong> teaches clone, update, and opening the app; ' +
+      '<strong>Cybernet Survey</strong> teaches field survey work from targets to results.',
+    position: 'bottom',
+  },
+  {
+    target: '#repo-setup-hero',
+    title: 'Repo setup tutorial',
+    body:
+      'Start here when someone needs to get the repo, avoid nested folders, understand approved updates, ' +
+      'and learn which launcher opens the dashboard.',
     position: 'bottom',
   },
   {
     target: '#hero-start-survey',
-    title: 'Start here',
+    title: 'Cybernet survey tutorial',
     body:
       'Tap <strong>Start Cybernet Survey</strong> to open the step-by-step wizard. ' +
-      'It walks you through target prep, network checks, identity evidence, reachability, ' +
-      'and packaging — with copy-ready commands for each step.',
+      'It teaches how to start, load targets, run network and identity checks, finish, and read results.',
     position: 'bottom',
   },
   {
     target: '#cybernet-progress-rail',
     title: 'Survey progress',
     body:
-      'The progress rail shows where you are in the five-step survey: ' +
-      '<em>Targets</em> → <em>Network posture</em> → <em>Identity evidence</em> → ' +
-      '<em>Reachability</em> → <em>Review package</em>. ' +
+      'The progress rail shows where you are in the six-step survey: ' +
+      '<em>Start</em> → <em>Load targets</em> → <em>Network posture</em> → ' +
+      '<em>Identity evidence</em> → <em>Reachability</em> → <em>Review results</em>. ' +
       'Labels update as you advance through the wizard.',
     position: 'bottom',
   },
@@ -53,7 +59,7 @@ const STEPS = [
     body:
       'Once recognized evidence is loaded, the review summary appears here — ' +
       'a consolidated readout of your Cybernet survey package. ' +
-      'Use the link below to open detailed network evidence when you need more depth.',
+      'Use <strong>Open network evidence details</strong> when you need row-level DNS, ping, port, or identity detail.',
     position: 'bottom',
     reveal: () => {
       document.getElementById('cybernet-review')?.classList.remove('hidden');
@@ -95,7 +101,7 @@ const STEPS = [
     target: '#sas-tour-launch-btn',
     title: "You're all set!",
     body:
-      'That covers the Cybernet-first workflow on the SysAdmin Suite Dashboard.<br><br>' +
+      'That covers the dashboard map: setup first, then the workflow tutorial for the work at hand.<br><br>' +
       'You can relaunch this tour from <strong>Interactive tour</strong> inside ' +
       '<strong>Advanced Tools</strong>, or by pressing ' +
       '<kbd style="background:#0d1420;color:#f6ad55;' +

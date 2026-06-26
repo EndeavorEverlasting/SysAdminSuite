@@ -14,16 +14,16 @@ Use this when you have approved target documentation, a local admin workstation,
 | No evasion | Do not use decoys, spoofing, stealth flags, vuln scripts, brute force, or credential attacks. This is inventory discovery, not magic ninja theater. |
 | Nmap is not a serial oracle | Nmap can help with live hosts, DNS, MACs, and open ports. Device serial matching comes from trackers, AD/CMDB exports, known manifests, or approved host probes. |
 
-## Dashboard quick path (Cybernet-first UI)
+## Dashboard quick path (Cybernet Survey UI)
 
-The dashboard leads with **Start Cybernet Survey**, not Live Mode. Use this path when you already have a target list and want posture, identity, and optional reachability evidence reviewed in one place.
+The dashboard opens Repo Setup first, then lets you choose **Start Cybernet Survey**. Use the survey path when you already have or can prepare an approved target list and want posture, identity, and optional reachability evidence reviewed in one place.
 
-1. Open `http://localhost:8000/dashboard/` (see [`dashboard/README.md`](../../dashboard/README.md)).
-2. Click **Start Cybernet Survey** and walk the wizard: Targets → Network posture → Identity evidence → optional Reachability → Review package.
+1. Open `http://127.0.0.1:5000/dashboard/?tutorial=setup` (see [`dashboard/README.md`](../../dashboard/README.md)).
+2. Click **Start Cybernet Survey** and walk the wizard: Start → Load targets → Network posture → Identity evidence → optional Reachability → Review results.
 3. Copy and run the posture and identity commands on the admin workstation.
-4. Optionally run step 4 (**Optional reachability check**; profile `keyports_cybernet_json` in step details) when port confirmation is justified.
+4. Optionally run **Optional reachability check**; profile `keyports_cybernet_json` in step details when port confirmation is justified.
 5. Click **Load Evidence** and import the resulting CSVs/JSON.
-6. Read **Review Results**; use **Advanced Tools** for detailed panels or **Generate Survey Commands** (legacy Live Mode) only when needed.
+6. Read **Review Results**; use **Open network evidence details** or **Advanced Tools** for detailed panels only when needed.
 
 The CLI steps below cover the full subnet-discovery orchestrator path (local context, DNS list, Nmap, resolve, package). Use that path when you need approved CIDR discovery, not just a guided target-list survey.
 

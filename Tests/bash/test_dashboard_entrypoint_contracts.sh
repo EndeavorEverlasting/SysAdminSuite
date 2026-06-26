@@ -34,8 +34,8 @@ grep -Fq 'Launch-SysAdminSuiteDashboard.Host.bat' "$bat" \
   || fail ".bat launcher does not reference Launch-SysAdminSuiteDashboard.Host.bat"
 grep -Fq 'http://127.0.0.1:5000/dashboard/' "$bat" \
   || fail ".bat launcher does not mention dashboard URL"
-grep -Fq 'tutorial=cybernet' "$bat" \
-  || fail ".bat launcher does not open Cybernet tutorial entry"
+grep -Fq 'tutorial=setup' "$bat" \
+  || fail ".bat launcher does not open Repo Setup tutorial entry"
 # Pause-on-failure: the host-missing branch must both emit its error and pause.
 # "Press any key to close" also appears on the success path, so assert the
 # failure message exists alongside a pause rather than the pause text alone.
@@ -85,16 +85,16 @@ done
 # primary instruction is forbidden.
 grep -Eq 'Double-click.*(START-HERE-SysAdminSuite-Dashboard|SysAdminSuite Dashboard)\.cmd' "$start_md" \
   && fail "START-HERE-SysAdminSuite.md must not present a .cmd as the primary double-click"
-# Auto-publish on first run: the host launcher must build the dashboard host
-# automatically (via the publish script) when it is missing, and must check for
-# the .NET SDK first so a clean failure path exists.
+# Auto-prepare on first run: the host launcher must call the Bash bootstrap,
+# which ensures Microsoft .NET dependencies and builds the dashboard host when
+# it is missing.
 [[ -f "$host_bat" ]] || fail "Launch-SysAdminSuiteDashboard.Host.bat is missing"
-grep -Fq 'publish-dashboard-entrypoint.ps1' "$host_bat" \
-  || fail "host launcher does not auto-invoke publish-dashboard-entrypoint.ps1"
-grep -Fq 'powershell.exe' "$host_bat" \
-  || fail "host launcher does not run the publish script via powershell.exe"
-grep -Fq 'dotnet' "$host_bat" \
-  || fail "host launcher does not check for dotnet before building"
+grep -Fq 'ensure-dashboard-host.sh' "$host_bat" \
+  || fail "host launcher does not call scripts/ensure-dashboard-host.sh"
+grep -Fq 'Git\bin\bash.exe' "$host_bat" \
+  || fail "host launcher does not prefer Git Bash for bootstrap"
+grep -Fq 'Microsoft .NET 8' "$host_bat" \
+  || fail "host launcher does not describe Microsoft .NET bootstrap"
 
 # The root .bat must NOT instruct field users to run the publish command by hand
 # as the normal path, and must not tell them to double-click again as a routine.
@@ -112,10 +112,12 @@ browser_line=$(grep -n 'start "" "http' "$bat" | head -1 | cut -d: -f1)
   || fail "root .bat opens the browser before the host health check"
 
 # Field-safe build-failure messaging in the root .bat.
-grep -Fq 'The dashboard app could not be built on this machine' "$bat" \
-  || fail "root .bat missing field-safe build-failure message"
+grep -Fq 'The dashboard app could not be prepared on this machine' "$bat" \
+  || fail "root .bat missing field-safe prepare-failure message"
 grep -Fq 'packaged SysAdminSuite Dashboard field release' "$bat" \
   || fail "root .bat missing field-release / IT-admin guidance"
+grep -Fq 'official Microsoft installers' "$bat" \
+  || fail "root .bat missing official Microsoft installer guidance"
 
 # Launcher must distinguish packaged field release vs source checkout paths.
 grep -Fq 'Packaged field release detected' "$bat" \

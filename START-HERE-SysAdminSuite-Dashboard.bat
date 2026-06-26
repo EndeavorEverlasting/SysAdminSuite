@@ -9,8 +9,9 @@ echo ==========================================
 echo.
 echo Double-click launcher - no commands to memorize.
 echo This opens the local dashboard and tutorial.
-echo The first run may take a minute while the dashboard app is prepared.
-echo No internet is required to use the dashboard after that.
+echo The first run may take a minute while Microsoft .NET dependencies
+echo and the dashboard app are prepared.
+echo No internet is required after the dashboard dependencies are installed.
 echo.
 
 set "ROOT=%~dp0"
@@ -55,8 +56,10 @@ if exist "%ROOT%app\bin\SysAdminSuite.DashboardHost.exe" (
     echo.
 ) else (
     echo Source checkout detected - the dashboard app may be prepared on first run.
-    echo If this machine has the .NET SDK, the launcher will build it automatically.
-    echo If not, ask for the packaged SysAdminSuite Dashboard field release instead.
+    echo If Microsoft .NET 8 is missing, the launcher can download the official Microsoft installers
+    echo and build the dashboard automatically.
+    echo If downloads or administrator approval are blocked, ask for the packaged
+    echo SysAdminSuite Dashboard field release instead.
     echo.
 )
 
@@ -70,17 +73,18 @@ if not exist "%ROOT%Launch-SysAdminSuiteDashboard.Host.bat" (
 )
 
 echo Starting the dashboard host^.^.^.
-echo If this is the first run, the dashboard app will be prepared automatically now.
+echo If this is the first run, dependencies and the dashboard app will be prepared automatically now.
 call "%ROOT%Launch-SysAdminSuiteDashboard.Host.bat" --no-browser
 set "RC=%errorlevel%"
 
 if "%RC%"=="2" (
     echo.
-    echo Source checkout without the .NET SDK ^(dotnet^).
+    echo The dashboard dependency download or verification could not complete.
     echo.
-    echo The dashboard app could not be built on this machine.
+    echo The dashboard app could not be prepared on this machine.
     echo.
-    echo This usually means the .NET SDK is missing or blocked.
+    echo This usually means Git Bash, curl, internet access, or Microsoft installer
+    echo checksum verification was blocked.
     echo.
     echo Ask for the packaged SysAdminSuite Dashboard field release ^(pre-built host under app\bin^),
     echo or have IT/admin prepare this workstation.
@@ -94,9 +98,10 @@ if "%RC%"=="2" (
 
 if not "%RC%"=="0" (
     echo.
-    echo The dashboard app could not be built on this machine.
+    echo The dashboard app could not be prepared on this machine.
     echo.
-    echo This usually means the .NET SDK is missing or blocked on a source checkout.
+    echo This usually means the Microsoft .NET install or dashboard build needs
+    echo IT/admin approval, or the workstation blocks the required Microsoft download.
     echo.
     echo Ask for the packaged SysAdminSuite Dashboard field release ^(pre-built host under app\bin^),
     echo or have IT/admin prepare this workstation.
@@ -130,12 +135,12 @@ if not "!HOST_UP!"=="1" (
     exit /b 1
 )
 
-echo Opening dashboard and Cybernet tutorial in your browser...
-start "" "http://127.0.0.1:5000/dashboard/?tutorial=cybernet"
+echo Opening dashboard and Repo Setup tutorial in your browser...
+start "" "http://127.0.0.1:5000/dashboard/?tutorial=setup"
 
 echo.
 echo If the page did not open, paste this into your browser:
-echo   http://127.0.0.1:5000/dashboard/?tutorial=cybernet
+echo   http://127.0.0.1:5000/dashboard/?tutorial=setup
 echo.
 echo A tray icon should appear. Right-click it for Open Dashboard, Copy URL, or Stop.
 echo.

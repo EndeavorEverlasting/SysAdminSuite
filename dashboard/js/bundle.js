@@ -3147,6 +3147,212 @@ _exports.SOFTWARE_TRACKER_TUTORIAL_STEPS = SOFTWARE_TRACKER_TUTORIAL_STEPS;
 })();
 var initSoftwareTrackerTutorial = _exports.initSoftwareTrackerTutorial, SOFTWARE_TRACKER_TUTORIAL_STEPS = _exports.SOFTWARE_TRACKER_TUTORIAL_STEPS;
 
+// ====== repo-setup-tutorial.js ======
+(function () {
+// repo-setup-tutorial.js — dashboard front-door tutorial for clone/update/open.
+
+const REPO_SETUP_TUTORIAL_STEPS = [
+  {
+    title: 'Get SysAdminSuite',
+    railLabel: 'Get repo',
+    body: 'Start by getting one clean copy of SysAdminSuite. Pick a parent folder such as Desktop or dev, then clone into it. Do not create a SysAdminSuite folder first.',
+    command: 'git clone https://github.com/EndeavorEverlasting/SysAdminSuite.git',
+    checks: [
+      'The command creates the SysAdminSuite folder for you.',
+      'Avoid the common nested path: SysAdminSuite\\SysAdminSuite.',
+      'No Git available? Use the approved field release package instead of a raw source clone.'
+    ],
+    nextAction: 'Copy this only if you need to clone. After the folder exists, open it and click Next.',
+    note: 'Source clones are for IT/developer machines. Field PCs without the .NET SDK should use the field release ZIP.',
+    hasCommand: true
+  },
+  {
+    title: 'Open the dashboard',
+    railLabel: 'Open dashboard',
+    body: 'Open the SysAdminSuite folder and double-click the dashboard launcher. The launcher starts the local dashboard host and opens this browser page.',
+    command: 'START-HERE-SysAdminSuite-Dashboard.bat',
+    checks: [
+      'Run it from the repo root, not from a subfolder.',
+      'First launch may take a minute while the dashboard app is prepared.',
+      'If the machine cannot build the app, ask for the packaged field release or IT preparation.'
+    ],
+    nextAction: 'Find the launcher at the top of the repo and double-click it. Then click Next.',
+    note: 'The .cmd shortcuts are aliases, but the .bat launcher is the documented front door.',
+    hasCommand: false
+  },
+  {
+    title: 'Update safely',
+    railLabel: 'Update safely',
+    body: 'Updates are opt-in. If a newer clean main or field package is available, the launcher asks before applying it. Nothing should silently update underneath a technician.',
+    command: '# Source clone rule: approve first, then fast-forward clean main only.\n# ZIP / field package rule: approve first, then apply a checksum-verified package.',
+    checks: [
+      'Source clones update only from clean main with a fast-forward.',
+      'Field packages update only from a checksum-verified package.',
+      'Never use reset, branch deletion, or silent updates as the field path.'
+    ],
+    nextAction: 'Read this once. If the launcher asks to update, approve only when you are ready.',
+    note: 'Approved update flow is documented in docs/APPROVED_UPDATE_FLOW.md.',
+    hasCommand: false
+  },
+  {
+    title: 'Pick the workflow',
+    railLabel: 'Pick workflow',
+    body: 'Now choose what you came here to do. Cybernet Survey teaches target loading, network posture, identity evidence, optional reachability, and where results appear.',
+    command: '# Click Start Cybernet Survey for Cybernet field work.\n# Click Start Software Tracker Install only for the guarded install workflow.',
+    checks: [
+      'Use Cybernet Survey for Cybernet / Neuron target work.',
+      'Use Software Tracker Install for dry-run install planning and guarded execute.',
+      'Use Load Evidence when you already have output files to review.'
+    ],
+    nextAction: 'Click Next to finish setup, then choose the workflow button the dashboard highlights.',
+    note: 'Most Cybernet field work starts with Start Cybernet Survey.',
+    hasCommand: false
+  },
+  {
+    title: 'Ready for Cybernet Survey',
+    railLabel: 'Ready',
+    body: 'Setup is done. The next tutorial teaches the Cybernet survey from start to finish: start, load targets, run checks, finish, and review results.',
+    command: '# No command here. Click Open Cybernet Survey below.',
+    checks: [
+      'You know where the repo lives.',
+      'You know which launcher opens the dashboard.',
+      'You know updates require approval before changes are applied.'
+    ],
+    nextAction: 'Click Open Cybernet Survey to start the field survey tutorial.',
+    note: 'The Cybernet tutorial is separate so setup does not get mixed with field survey work.',
+    hasCommand: false,
+    finalAction: true
+  }
+];
+
+function initRepoSetupTutorial() {
+  const root = document.getElementById('repo-setup-tutorial');
+  if (!root) return;
+
+  let idx = 0;
+  let copiedThisStep = false;
+  const title = document.getElementById('repo-setup-step-title');
+  const body = document.getElementById('repo-setup-step-body');
+  const kicker = document.getElementById('repo-setup-step-kicker');
+  const checks = document.getElementById('repo-setup-step-checks');
+  const command = document.getElementById('repo-setup-step-command');
+  const runner = document.getElementById('repo-setup-command-runner');
+  const note = document.getElementById('repo-setup-step-note');
+  const commandPanel = document.getElementById('repo-setup-command-panel');
+  const prev = document.getElementById('repo-setup-prev');
+  const next = document.getElementById('repo-setup-next');
+  const copy = document.getElementById('repo-setup-copy');
+  const footer = document.getElementById('repo-setup-wizard-footer');
+  const openCybernet = document.getElementById('repo-setup-open-cybernet');
+  const cybernetStart = document.getElementById('hero-start-survey');
+  const progressRail = document.getElementById('repo-setup-progress-rail');
+
+  function updateProgressRail() {
+    progressRail?.querySelectorAll('li').forEach((li, i) => {
+      li.classList.toggle('active', i === idx);
+      li.classList.toggle('done', i < idx);
+    });
+  }
+
+  function updateGuideState(hasCommand) {
+    const finalStep = idx === REPO_SETUP_TUTORIAL_STEPS.length - 1;
+    copy?.classList.toggle('sas-guide-glow', hasCommand && !copiedThisStep);
+    next?.classList.toggle('sas-guide-glow', (hasCommand && copiedThisStep) || (!hasCommand && !finalStep));
+    openCybernet?.classList.toggle('sas-guide-glow', finalStep);
+    cybernetStart?.classList.toggle('sas-guide-glow', finalStep);
+    commandPanel?.classList.toggle('sas-guide-panel', hasCommand && !copiedThisStep);
+  }
+
+  function render() {
+    const step = REPO_SETUP_TUTORIAL_STEPS[idx];
+    if (!step) return;
+    copiedThisStep = false;
+    const hasCommand = !!step.hasCommand;
+    kicker.textContent = `Step ${idx + 1} of ${REPO_SETUP_TUTORIAL_STEPS.length} — ${step.railLabel}`;
+    title.textContent = step.title;
+    body.textContent = step.body;
+    checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
+    commandPanel?.classList.toggle('hidden', !hasCommand);
+    if (command) command.value = hasCommand ? step.command : '';
+    if (runner) runner.textContent = step.nextAction || 'Read the step, then click Next.';
+    if (note) note.textContent = step.note || '';
+    if (prev) prev.disabled = idx === 0;
+    if (next) next.textContent = step.finalAction ? 'Finish setup' : hasCommand ? 'Next after cloning →' : 'Next →';
+    copy?.classList.toggle('hidden', !hasCommand);
+    footer?.classList.toggle('hidden', !step.finalAction);
+    updateProgressRail();
+    updateGuideState(hasCommand);
+  }
+
+  function copyCommand() {
+    const text = command?.value || '';
+    if (!text) return;
+    const originalNote = note?.textContent || '';
+    const write = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
+      ? navigator.clipboard.writeText(text)
+      : new Promise((resolve, reject) => {
+          command.focus();
+          command.select();
+          try { document.execCommand('copy') ? resolve() : reject(new Error('copy unavailable')); }
+          catch (err) { reject(err); }
+        });
+    write
+      .then(() => {
+        copiedThisStep = true;
+        toast('Repo setup command copied.', 'success');
+        if (note) note.textContent = 'Command copied.';
+        updateGuideState(true);
+      })
+      .catch(() => {
+        toast('Select and copy the command manually.', 'warning');
+        if (note) note.textContent = `${originalNote} Select the command text and copy it manually if clipboard access is blocked.`;
+      })
+      .finally(() => {
+        if (note) window.setTimeout(() => { if (note.textContent === 'Command copied.') note.textContent = originalNote; }, 2200);
+      });
+  }
+
+  function openCybernetSurvey() {
+    cybernetStart?.classList.remove('sas-guide-glow');
+    openCybernet?.classList.remove('sas-guide-glow');
+    if (typeof window.startCybernetTutorial === 'function') {
+      window.startCybernetTutorial({ source: 'manual' });
+    } else {
+      cybernetStart?.click();
+    }
+  }
+
+  prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
+  next?.addEventListener('click', () => {
+    const step = REPO_SETUP_TUTORIAL_STEPS[idx];
+    const hasCommand = !!step?.hasCommand;
+    if (hasCommand && step.requireCopy && !copiedThisStep) {
+      toast('Copy the clone command first, or continue only if the repo already exists.', 'warning');
+      return;
+    }
+    if (idx < REPO_SETUP_TUTORIAL_STEPS.length - 1) {
+      idx++;
+      render();
+    } else {
+      toast('Repo setup complete — choose Cybernet Survey when ready.', 'success');
+      document.getElementById('cybernet-hero')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      render();
+    }
+  });
+  copy?.addEventListener('click', copyCommand);
+  openCybernet?.addEventListener('click', openCybernetSurvey);
+
+  window.__sasResetRepoSetupWizard = () => { idx = 0; copiedThisStep = false; render(); };
+
+  render();
+}
+
+// expose exports to bundle scope
+_exports.initRepoSetupTutorial = initRepoSetupTutorial;
+_exports.REPO_SETUP_TUTORIAL_STEPS = REPO_SETUP_TUTORIAL_STEPS;
+})();
+var initRepoSetupTutorial = _exports.initRepoSetupTutorial, REPO_SETUP_TUTORIAL_STEPS = _exports.REPO_SETUP_TUTORIAL_STEPS;
+
 // ====== panel-software.js ======
 (function () {
 // panel-software.js — SysAdmin Suite Software Tracker panel
@@ -3846,27 +4052,33 @@ const STEPS = [
     target: '#header',
     title: 'Welcome to SysAdmin Suite Dashboard',
     body:
-      'This dashboard guides Cybernet field surveys — find targets, verify network posture, ' +
-      'collect identity evidence, and package results for review. ' +
-      "Let's walk through the Cybernet-first workflow.",
+      'This dashboard has two different tutorials: <strong>Repo Setup</strong> teaches clone, update, and opening the app; ' +
+      '<strong>Cybernet Survey</strong> teaches field survey work from targets to results.',
+    position: 'bottom',
+  },
+  {
+    target: '#repo-setup-hero',
+    title: 'Repo setup tutorial',
+    body:
+      'Start here when someone needs to get the repo, avoid nested folders, understand approved updates, ' +
+      'and learn which launcher opens the dashboard.',
     position: 'bottom',
   },
   {
     target: '#hero-start-survey',
-    title: 'Start here',
+    title: 'Cybernet survey tutorial',
     body:
       'Tap <strong>Start Cybernet Survey</strong> to open the step-by-step wizard. ' +
-      'It walks you through target prep, network checks, identity evidence, reachability, ' +
-      'and packaging — with copy-ready commands for each step.',
+      'It teaches how to start, load targets, run network and identity checks, finish, and read results.',
     position: 'bottom',
   },
   {
     target: '#cybernet-progress-rail',
     title: 'Survey progress',
     body:
-      'The progress rail shows where you are in the five-step survey: ' +
-      '<em>Targets</em> → <em>Network posture</em> → <em>Identity evidence</em> → ' +
-      '<em>Reachability</em> → <em>Review package</em>. ' +
+      'The progress rail shows where you are in the six-step survey: ' +
+      '<em>Start</em> → <em>Load targets</em> → <em>Network posture</em> → ' +
+      '<em>Identity evidence</em> → <em>Reachability</em> → <em>Review results</em>. ' +
       'Labels update as you advance through the wizard.',
     position: 'bottom',
   },
@@ -3889,7 +4101,7 @@ const STEPS = [
     body:
       'Once recognized evidence is loaded, the review summary appears here — ' +
       'a consolidated readout of your Cybernet survey package. ' +
-      'Use the link below to open detailed network evidence when you need more depth.',
+      'Use <strong>Open network evidence details</strong> when you need row-level DNS, ping, port, or identity detail.',
     position: 'bottom',
     reveal: () => {
       document.getElementById('cybernet-review')?.classList.remove('hidden');
@@ -3931,7 +4143,7 @@ const STEPS = [
     target: '#sas-tour-launch-btn',
     title: "You're all set!",
     body:
-      'That covers the Cybernet-first workflow on the SysAdmin Suite Dashboard.<br><br>' +
+      'That covers the dashboard map: setup first, then the workflow tutorial for the work at hand.<br><br>' +
       'You can relaunch this tour from <strong>Interactive tour</strong> inside ' +
       '<strong>Advanced Tools</strong>, or by pressing ' +
       '<kbd style="background:#0d1420;color:#f6ad55;' +
@@ -4419,12 +4631,14 @@ const TYPE_TO_PANELS = {
 // ── Bootstrap ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   buildLayout();
+  initRepoSetupShell();
   initCybernetShell();
   initSoftwareTrackerShell();
   initTabs();
   initIngestion();
   initModeToggle();
   initLiveMode();
+  initRepoSetupTutorial();
   initCybernetTutorial();
   initSoftwareTrackerTutorial();
   initPasteModal();
@@ -4487,6 +4701,67 @@ function switchTab(tab) {
 }
 
 // ── Cybernet-first shell ─────────────────────────────────────────────────────
+function initRepoSetupShell() {
+  const startBtn = document.getElementById('hero-start-setup');
+  const tutorial = document.getElementById('repo-setup-tutorial');
+  const statusEl = document.getElementById('repo-setup-hero-status');
+
+  const setHeroStatus = (msg, kind) => {
+    if (!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.classList.remove('is-busy', 'is-open', 'is-error');
+    if (kind) statusEl.classList.add(kind);
+    statusEl.classList.toggle('hidden', !msg);
+  };
+
+  const tutorialIsVisible = () => {
+    if (!tutorial) return false;
+    if (tutorial.classList.contains('hidden')) return false;
+    const cs = window.getComputedStyle(tutorial);
+    return cs.display !== 'none' && cs.visibility !== 'hidden';
+  };
+
+  const startRepoSetupTutorial = (opts) => {
+    const source = (opts && opts.source) || 'manual';
+    if (!tutorial || !startBtn) {
+      setHeroStatus('Could not open repo setup. Reload the dashboard or start Cybernet Survey directly.', 'is-error');
+      toast('Repo setup tutorial is unavailable. Reload the dashboard.', 'error');
+      return false;
+    }
+
+    setHeroStatus('Opening repo setup…', 'is-busy');
+    tutorial.style.display = '';
+    tutorial.classList.remove('hidden');
+    if (typeof window.__sasResetRepoSetupWizard === 'function') {
+      try { window.__sasResetRepoSetupWizard(); } catch (_) { /* non-fatal */ }
+    }
+
+    if (!tutorialIsVisible()) {
+      tutorial.classList.add('hidden');
+      setHeroStatus('Could not open repo setup. Try again or start Cybernet Survey.', 'is-error');
+      toast('Could not open repo setup. Try again.', 'error');
+      return false;
+    }
+
+    startBtn.textContent = 'Restart Repo Setup';
+    startBtn.setAttribute('aria-label', 'Restart repo setup from step 1');
+    setHeroStatus('Repo setup open below.', 'is-open');
+    if (source !== 'silent') {
+      window.setTimeout(() => {
+        tutorial.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 30);
+    }
+    return true;
+  };
+
+  startBtn?.addEventListener('click', () => startRepoSetupTutorial({ source: 'manual' }));
+  document.getElementById('hero-open-cybernet')?.addEventListener('click', () => {
+    if (typeof window.startCybernetTutorial === 'function') window.startCybernetTutorial({ source: 'manual' });
+    else document.getElementById('hero-start-survey')?.click();
+  });
+  window.startRepoSetupTutorial = startRepoSetupTutorial;
+}
+
 function initCybernetShell() {
   const startBtn = document.getElementById('hero-start-survey');
   const tutorial = document.getElementById('cybernet-tutorial');
@@ -5051,13 +5326,28 @@ function initPasteModal() {
 // ── Cybernet Survey Wizard ───────────────────────────────────────────────────
 const CYBERNET_TUTORIAL_STEPS = [
   {
-    title: 'Prepare your target list',
-    railLabel: 'Targets',
-    body: 'First, make a simple list of the computers you want to check. Put one computer name or IP address on each line. This only prepares a local file for the next steps.',
+    title: 'Start the Cybernet survey',
+    railLabel: 'Start',
+    body: 'This tutorial teaches the field survey from beginning to end. You will load approved targets, run read-only checks from an admin machine, bring the files back, and review the dashboard results.',
+    command: '',
+    checks: [
+      'The dashboard does not run probes by itself.',
+      'You copy commands when the tutorial gives them, run them on an admin machine, then load the output files back here.',
+      'Use approved target sources only; do not broaden the survey from guessed hosts.'
+    ],
+    nextAction: 'Read this, then click Next to load or prepare your targets.',
+    note: 'Start here for Cybernet field work. Repo setup is a separate tutorial above.',
+    optional: false
+  },
+  {
+    title: 'Load your targets',
+    railLabel: 'Load targets',
+    body: 'Make the list of Cybernet computers you are allowed to check. Put one computer name or IP address on each line. This creates the target file used by the next checks.',
     command: "mkdir -p /tmp/sas-cybernet\nprintf '%s\\n' 'WMH300OPR001' 'WMH300OPR002' > /tmp/sas-cybernet/targets.txt",
     checks: [
       'Use only computer names, IPv4 addresses, or IPv6 addresses.',
       'Do not paste passwords, usernames, tickets, or notes into this file.',
+      'AD registered population is the source of registered Cybernet population; the target list is not proof by itself.',
       'If the list came from another source, you can normalize with ./survey/sas-survey-targets.sh --device-type Cybernet --file /tmp/sas-cybernet/targets.txt (output is not dashboard-importable yet).'
     ],
     nextAction: 'Copy this local setup command, run it on your admin machine, then come back and click Next.',
@@ -5065,7 +5355,7 @@ const CYBERNET_TUTORIAL_STEPS = [
     optional: false
   },
   {
-    title: 'Prove network posture first',
+    title: 'Check network posture',
     railLabel: 'Network posture',
     body: 'Now check whether your admin machine can see the targets at all. This catches guest Wi-Fi, wrong VLAN, DNS, SMB, and RPC problems before anyone blames the tool.',
     command: 'bash bash/transport/sas-network-preflight.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --ports 135,445,3389,9100 \\\n  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru',
@@ -5079,7 +5369,7 @@ const CYBERNET_TUTORIAL_STEPS = [
     optional: false
   },
   {
-    title: 'Acquire Cybernet identity evidence',
+    title: 'Collect identity evidence',
     railLabel: 'Identity evidence',
     body: 'Collect read-only identity clues from each target. The command records what it can safely observe, such as DNS, ping status, MAC hints, and transport notes.',
     command: 'bash bash/transport/sas-workstation-identity.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru',
@@ -5095,10 +5385,11 @@ const CYBERNET_TUTORIAL_STEPS = [
   {
     title: 'Optional reachability check',
     railLabel: 'Reachability',
-    body: 'This is an extra confirmation pass for approved targets. Use it only when you need low-noise port evidence after the posture and identity checks.',
+    body: 'This is an extra confirmation pass for approved targets. Use it only when you need low-noise survey discipline for port evidence after the posture and identity checks.',
     command: 'mkdir -p logs/targets logs/nmap\ncp /tmp/sas-cybernet/targets.txt logs/targets/cybernet_confirm_hosts.txt\nbash survey/sas-run-naabu-pipeline.sh --site cybernet \\\n  --profile keyports_cybernet_json \\\n  --list logs/targets/cybernet_confirm_hosts.txt \\\n  --out logs/nmap/cybernet_naabu.json',
     checks: [
       'Profile: keyports_cybernet_json (-ec -silent -json).',
+      'Naabu/Nmap output is reachability validation only.',
       'Doctrine: docs/LOW_NOISE_SURVEY_DOCTRINE.md — local evidence only, no target-side writes.',
       'This step is optional. Skip it when the earlier evidence is enough.'
     ],
@@ -5107,16 +5398,18 @@ const CYBERNET_TUTORIAL_STEPS = [
     optional: true
   },
   {
-    title: 'Load evidence and review',
-    railLabel: 'Review package',
-    body: 'Bring the files back to this dashboard. Drag the CSV or JSON outputs into Load Evidence, then review the summary before calling the result good or bad.',
+    title: 'Finish and review results',
+    railLabel: 'Review results',
+    body: 'Bring the files back to this dashboard. Drop the CSV or JSON outputs into Load Evidence, then read Review Results for the survey summary and next action.',
     command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)\n# survey/output/cybernet_*_targets.csv (manifest, not evidence)',
     checks: [
+      'Load Evidence is where files go in.',
+      'Review Results is where the Cybernet summary appears after evidence is loaded.',
+      'Open network evidence details when you need row-level DNS, ping, protocol, or reachability detail.',
       'Classify environment blocks separately from product defects.',
-      'Keep smoke-test evidence separate from feature validation.',
       'Treat manifest rows as target lists, not reachability or identity proof.'
     ],
-    nextAction: 'Click Load resulting evidence, then drop the files into the highlighted box.',
+    nextAction: 'Click Load resulting evidence, drop the files into the highlighted box, then read Review Results.',
     note: 'Click Load resulting evidence below, or use Load Evidence on the hero card.',
     optional: false
   }

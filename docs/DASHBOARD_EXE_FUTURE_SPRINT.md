@@ -26,7 +26,7 @@ Give field users an `.exe` they can pin, shortcut, or receive in a portable zip 
    - Optional: copy into portable zip `app/bin/` via `New-PortableArtifact.ps1`
 
 2. **Root shortcut**
-   - Either commit a small bootstrap `.exe` that shells the host, or document that portable zip includes the exe at a fixed path
+   - Either commit a small native bootstrap `.exe` that runs the dashboard dependency bootstrap before shelling the host, or document that portable zip includes a self-contained exe at a fixed path
    - Keep the `.bat` launcher (and `.cmd` aliases) as fallback for git clones
 
 3. **Signing / trust**
@@ -49,6 +49,7 @@ Give field users an `.exe` they can pin, shortcut, or receive in a portable zip 
 ## Acceptance criteria
 
 - [ ] Field tech double-clicks one obvious `.exe` (or portable zip entry) with no dotnet/SDK on machine (if self-contained) or documented runtime prerequisite (if framework-dependent)
+- [ ] EXE-first path is honest about bootstrap limits: framework-dependent .NET EXEs cannot install a missing runtime before process startup; use self-contained publish or a native bootstrapper for no-runtime machines
 - [ ] Browser opens `http://127.0.0.1:5000/dashboard/` with Harold favicon
 - [ ] Tray icon works (Open / Copy URL / Stop)
 - [ ] `START-HERE-SysAdminSuite-Dashboard.bat` (and `.cmd` aliases) still work for git-clone workflows

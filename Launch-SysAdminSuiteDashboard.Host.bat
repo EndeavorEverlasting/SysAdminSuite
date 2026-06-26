@@ -2,31 +2,31 @@
 :: Launch-SysAdminSuiteDashboard.Host.bat
 :: Field-safe dashboard host launcher.
 ::
-:: Discovers the SysAdminSuite dashboard host executable. On first run, if the
-:: host is missing, this AUTOMATICALLY builds it via
-:: tools\publish-dashboard-entrypoint.ps1 so the field user never has to run a
-:: publish command by hand. It then starts the tray host which serves
-:: http://127.0.0.1:5000 (Open Dashboard, Copy URL, Stop).
+:: Discovers the SysAdminSuite dashboard host executable. On first run this
+:: calls the Bash bootstrap, which can install the official Microsoft .NET 8
+:: dependencies system-wide and build the host when it is missing. It then
+:: starts the tray host which serves http://127.0.0.1:5000 (Open Dashboard,
+:: Copy URL, Stop).
 ::
 :: Exit codes (consumed by START-HERE-SysAdminSuite-Dashboard.bat):
 ::   0  host found or built, and started
-::   2  .NET SDK (dotnet) missing - cannot build on this machine
-::   3  auto-publish ran but the host could not be built or located
+::   2  Git Bash, curl, download, or checksum verification failed
+::   3  Microsoft .NET install/build failed or needs IT/admin attention
 
 setlocal enabledelayedexpansion
 set "ROOT=%~dp0"
 
-call :find_host
-if defined HOST_EXE goto :start_host
+call :find_bash
+if not defined BASH_EXE (
+    echo Git Bash was not found. Install Git for Windows or use the packaged dashboard field release.
+    exit /b 2
+)
 
-:: Host missing on a source checkout: prepare automatically. Packaged field
-:: releases ship app\bin\SysAdminSuite.DashboardHost.exe and skip this path.
-echo Source checkout: preparing the dashboard app for first use. This can take a minute...
-where dotnet >nul 2>nul
-if errorlevel 1 exit /b 2
-
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\publish-dashboard-entrypoint.ps1"
-if errorlevel 1 exit /b 3
+echo Preparing dashboard dependencies and host for first use...
+"%BASH_EXE%" -lc "cd '%ROOT:\=/%' && bash scripts/ensure-dashboard-host.sh"
+set "ENSURE_RC=%errorlevel%"
+if "%ENSURE_RC%"=="2" exit /b 2
+if not "%ENSURE_RC%"=="0" exit /b 3
 
 call :find_host
 if not defined HOST_EXE exit /b 3
@@ -49,4 +49,13 @@ if not defined HOST_EXE if exist "%ROOT%dist\SysAdminSuiteDashboard\SysAdminSuit
 if not defined HOST_EXE if exist "%ROOT%tools\publish\SysAdminSuite.DashboardHost\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%tools\publish\SysAdminSuite.DashboardHost\SysAdminSuite.DashboardHost.exe"
 if not defined HOST_EXE if exist "%ROOT%src\SysAdminSuite.DashboardHost\bin\Release\net8.0-windows\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%src\SysAdminSuite.DashboardHost\bin\Release\net8.0-windows\SysAdminSuite.DashboardHost.exe"
 if not defined HOST_EXE if exist "%ROOT%src\SysAdminSuite.DashboardHost\bin\Debug\net8.0-windows\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%src\SysAdminSuite.DashboardHost\bin\Debug\net8.0-windows\SysAdminSuite.DashboardHost.exe"
+exit /b 0
+
+:find_bash
+set "BASH_EXE="
+if exist "%ProgramFiles%\Git\bin\bash.exe" set "BASH_EXE=%ProgramFiles%\Git\bin\bash.exe"
+if defined BASH_EXE exit /b 0
+for /f "delims=" %%B in ('where bash 2^>nul') do (
+    if not defined BASH_EXE set "BASH_EXE=%%B"
+)
 exit /b 0

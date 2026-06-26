@@ -59,20 +59,20 @@ flowchart TD
 1. A small dashboard host starts on your computer (look for a tray icon near the clock).
 2. Your browser opens the local dashboard at:
 
-   `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`
+   `http://127.0.0.1:5000/dashboard/?tutorial=setup`
 
-3. The browser tab shows the Harold icon. Click **Start Cybernet Survey** to follow the guided tutorial.
+3. The browser tab shows the Harold icon. Follow **Repo Setup** first, then click **Start Cybernet Survey** for field survey work.
 
-On first run, the launcher may **automatically prepare (build) the dashboard app** for a minute before the browser opens. You do not need to run any command yourself. If this machine cannot build it (for example, no .NET SDK), the launcher will tell you to ask for the packaged SysAdminSuite Dashboard **field release** or have IT/admin prepare the workstation.
+On first run, the launcher may **automatically prepare the dashboard app** for a minute before the browser opens. If Microsoft .NET 8 dependencies are missing, it can download official Microsoft installers, verify them, and build the local dashboard host. You do not need to run any command yourself.
 
 ### Source clone vs field release package
 
 | You have | Do this |
 |----------|---------|
-| Git + optional .NET SDK (developer/IT) | Clone the repo, double-click `START-HERE-SysAdminSuite-Dashboard.bat` |
-| No .NET SDK (typical field PC) | Get the **field release ZIP** — see [`docs/DASHBOARD_FIELD_RELEASE.md`](docs/DASHBOARD_FIELD_RELEASE.md) — extract it, then double-click the `.bat` |
+| Git + internet/admin approval for Microsoft installers | Clone the repo, double-click `START-HERE-SysAdminSuite-Dashboard.bat` |
+| Locked-down PC where downloads or installs are blocked | Get the **field release ZIP** — see [`docs/DASHBOARD_FIELD_RELEASE.md`](docs/DASHBOARD_FIELD_RELEASE.md) — extract it, then double-click the `.bat` |
 
-No internet is required after the repo or package is on your machine.
+No internet is required after the dashboard dependencies are installed or the field release package is extracted. Bootstrap details: [`docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md).
 
 ## How do updates work?
 
@@ -85,8 +85,8 @@ anything changes. See [`docs/APPROVED_UPDATE_FLOW.md`](docs/APPROVED_UPDATE_FLOW
 
 1. Run `START-HERE-SysAdminSuite-Dashboard.bat` from the **repo root**, not from inside a subfolder.
 2. The window will not close on its own — read any message it prints, then press a key to close it.
-3. Paste into your browser: `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`
-4. The launcher tries to prepare the dashboard app automatically. If it reports that the app could not be built on this machine, ask for the packaged SysAdminSuite Dashboard release or have IT/admin prepare the workstation. You should not run the build command yourself.
+3. Paste into your browser: `http://127.0.0.1:5000/dashboard/?tutorial=setup`
+4. The launcher tries to prepare the dashboard app automatically. If it reports that dependency download, Microsoft .NET installation, or build preparation failed, ask for the packaged SysAdminSuite Dashboard release or have IT/admin prepare the workstation. You should not run the build command yourself.
 5. Read [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md) for IT troubleshooting.
 
 ## What about an EXE?

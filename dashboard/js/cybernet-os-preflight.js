@@ -181,13 +181,16 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
     const commandEl = document.getElementById('cybernet-step-command');
     const noteEl = document.getElementById('cybernet-step-note');
     const osNoteEl = document.getElementById('cybernet-os-note');
+    const cardEl = document.getElementById('cybernet-os-preflight');
     if (!titleEl || !commandEl) return;
 
     const os = selectedOs();
     const title = titleEl.textContent.trim();
+    const shouldShow = title === 'Check network posture' || title === 'Collect identity evidence';
+    if (cardEl) cardEl.classList.toggle('hidden', !shouldShow);
     if (osNoteEl) osNoteEl.textContent = notes[os] || notes[AUTO];
 
-    if (title === 'Prove network posture first') {
+    if (title === 'Check network posture') {
       commandEl.value = preflightCommandFor(os);
       if (noteEl) noteEl.textContent = os === AUTO
         ? 'Run one matching section outside the dashboard, then drag network_preflight.csv back into Load Evidence.'
@@ -196,7 +199,7 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
         : 'Load network_preflight.csv into the Network tab after the command finishes.';
     }
 
-    if (title === 'Acquire Cybernet identity evidence') {
+    if (title === 'Collect identity evidence') {
       commandEl.value = identityCommandFor(os);
       if (noteEl) noteEl.textContent = os === AUTO
         ? 'Run one matching section outside the dashboard, then drag workstation_identity.csv back into Load Evidence.'

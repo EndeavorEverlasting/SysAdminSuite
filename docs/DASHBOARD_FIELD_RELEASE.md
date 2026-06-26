@@ -1,15 +1,18 @@
 # Dashboard Field Release Package
 
-**Agent canonical reference** for how field users get the dashboard **without** the .NET SDK.
+**Agent canonical reference** for how field users get the dashboard when source
+checkout dependency bootstrap is not appropriate or is blocked.
 
 ## Two delivery paths
 
 | Path | Who | What you get | .NET SDK on target? | Launcher behavior |
 |------|-----|--------------|---------------------|-------------------|
-| **Source clone** | Developers, IT building from git | Full repository | Helpful on first run (auto-build) | Prepares `dist/` or `tools/publish/` on first double-click if SDK present |
-| **Field release package** | Technicians, lay users | Pre-built ZIP with host under `app/bin/` | **Not required** (runtime only) | Double-click starts immediately; no build step |
+| **Source clone** | Developers, IT building from git | Full repository | Can be installed by bootstrap if missing | Downloads official Microsoft .NET dependencies if needed, then prepares `app/bin/` |
+| **Field release package** | Technicians, lay users on locked-down PCs | Pre-built ZIP with host under `app/bin/` | **Not required** | Double-click starts included host; runtime bootstrap may still run if framework-dependent runtimes are missing |
 
-Field users on locked-down PCs should receive the **field release package**, not a raw git clone.
+Field users on locked-down PCs where Microsoft downloads or administrator
+installer approval are blocked should receive the **field release package**, not
+a raw git clone.
 
 Updates are also package-based for this path. The launcher may prompt when a
 trusted manifest says a newer field package is available; it uses a
@@ -44,7 +47,7 @@ FIELD-RELEASE-README.txt
 1. Copy the zip (and manifest) to an approved channel (internal share, GitHub Release asset, Software Center).
 2. Field user extracts the zip to a folder of their choice.
 3. Field user double-clicks `START-HERE-SysAdminSuite-Dashboard.bat`.
-4. Browser opens `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
+4. Browser opens `http://127.0.0.1:5000/dashboard/?tutorial=setup`.
 
 No git, no dotnet SDK, no manual publish command.
 
@@ -59,18 +62,19 @@ The root `.bat` tells the user which path applies:
 | Situation | User sees |
 |-----------|-----------|
 | Packaged release (`app/bin/` host present) | “Packaged field release detected — no build step required” |
-| Source clone, SDK available | “Source checkout — may be prepared on first run” then auto-build |
-| Source clone, no SDK | Field-safe error: ask for field release package or IT prep |
+| Source clone, dependencies missing | “Source checkout — may be prepared on first run” then Microsoft .NET bootstrap and auto-build |
+| Source clone, bootstrap blocked | Field-safe error: ask for field release package or IT prep |
 
 ## Requirements on target workstation
 
 - Windows 10 or later
-- .NET 8 **runtime** (framework-dependent publish; SDK not required for field package)
-- No internet required after the package is extracted
+- .NET 8 ASP.NET Core and Windows Desktop runtimes for framework-dependent packages
+- No internet required after dependencies are installed or the package is extracted
 
 ## Related docs
 
 - [`DASHBOARD_ENTRYPOINT.md`](DASHBOARD_ENTRYPOINT.md) — launcher matrix and troubleshooting
+- [`DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](DASHBOARD_DEPENDENCY_BOOTSTRAP.md) — source checkout dependency bootstrap
 - [`START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) — lay-user guide (applies inside both clone and field package)
 - [`DEPLOYMENT_ARTIFACTS.md`](DEPLOYMENT_ARTIFACTS.md) — full portable runtime zip (broader than dashboard-only)
 - [`releases/PUBLISH.md`](releases/PUBLISH.md) — publishing checksums and channels
