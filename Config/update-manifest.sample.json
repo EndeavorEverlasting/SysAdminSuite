@@ -1,7 +1,13 @@
 {
+  "manifestVersion": 1,
+  "channel": "stable",
   "version": "0.1.0",
   "package": "SysAdminSuite-Portable-v0.1.0.zip",
+  "packageUrl": "https://example.invalid/SysAdminSuite-Portable-v0.1.0.zip",
   "checksumSha256": "REPLACE_WITH_REAL_SHA256",
   "publishedUtc": "2026-04-16T00:00:00Z",
+  "gitCommit": "REPLACE_WITH_SOURCE_COMMIT",
+  "minimumRuntime": "Windows 10; .NET 8 runtime for dashboard host",
+  "releaseNotesUrl": "https://example.invalid/SysAdminSuite/releases/v0.1.0",
   "notes": "Initial portable artifact manifest sample."
 }

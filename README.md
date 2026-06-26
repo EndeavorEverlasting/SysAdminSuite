@@ -30,6 +30,9 @@ On first run, the launcher may **automatically prepare (build) the dashboard app
 
 **No .NET SDK on the machine?** Use the pre-built field release ZIP ([`docs/DASHBOARD_FIELD_RELEASE.md`](docs/DASHBOARD_FIELD_RELEASE.md)), not a raw git clone.
 
+Updates are opt-in. If a newer `main` or field package is available, the
+launcher prompts before applying it. See [`docs/APPROVED_UPDATE_FLOW.md`](docs/APPROVED_UPDATE_FLOW.md).
+
 (`START-HERE-SysAdminSuite-Dashboard.cmd` and `SysAdminSuite Dashboard.cmd` are compatibility aliases for sites that prefer a `.cmd` shortcut.)
 
 Read [`START-HERE-SysAdminSuite.md`](START-HERE-SysAdminSuite.md) for plain-language steps. Agents and IT staff: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md).

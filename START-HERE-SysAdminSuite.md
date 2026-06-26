@@ -74,6 +74,13 @@ On first run, the launcher may **automatically prepare (build) the dashboard app
 
 No internet is required after the repo or package is on your machine.
 
+## How do updates work?
+
+Updates are opt-in. If this is a git clone, the launcher can offer to fast-forward
+clean `main` from `origin/main`. If this is a ZIP or field package, updates come
+from a checksum-verified package manifest. In both cases, you approve before
+anything changes. See [`docs/APPROVED_UPDATE_FLOW.md`](docs/APPROVED_UPDATE_FLOW.md).
+
 ## What if the dashboard does not open?
 
 1. Run `START-HERE-SysAdminSuite-Dashboard.bat` from the **repo root**, not from inside a subfolder.
