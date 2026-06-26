@@ -20,6 +20,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install relay test dependency
+        run: pip install websockets
       - name: JavaScript syntax checks
         run: |
           node --check dashboard/js/parsers.js
@@ -29,9 +34,21 @@ jobs:
           node --check dashboard/js/launch-cybernet-tutorial.js
           node --check dashboard/js/launch-repo-setup-tutorial.js
           node --check dashboard/js/repo-setup-tutorial.js
+      - name: Relay syntax check
+        run: python -m py_compile dashboard/relay.py
       - name: Dashboard parser smoke test
         run: node dashboard/smoke-test.js
       - name: Dashboard Start-button runtime smoke test
         run: node dashboard/start-button-smoke.js
+      - name: Relay cancel client smoke test
+        run: node dashboard/probe-stop-smoke.js
+      - name: Relay cancel unit test
+        run: python dashboard/test_relay_cancel.py
+      - name: Relay cancel loopback E2E test
+        run: python dashboard/test_relay_cancel_e2e.py
       - name: Dashboard tutorial launcher contracts
         run: bash Tests/bash/test_dashboard_tutorial_launcher_contracts.sh
+      - name: Dashboard wizard exit + probe stop contracts
+        run: bash Tests/bash/test_dashboard_wizard_exit_contracts.sh
+      - name: Dashboard relay cancel E2E contracts
+        run: bash Tests/bash/test_dashboard_relay_cancel_e2e_contracts.sh
