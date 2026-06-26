@@ -15,6 +15,7 @@ const files = [
   'dashboard/js/utils.js',
   'dashboard/js/wizard-command-help.js',
   'dashboard/js/parsers.js',
+  'dashboard/js/run-control.js',
   'dashboard/js/relay-client.js',
   'dashboard/js/panel-printer.js',
   'dashboard/js/panel-inventory.js',

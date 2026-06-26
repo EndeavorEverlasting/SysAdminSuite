@@ -10,6 +10,7 @@ index="$repo_root/dashboard/index.html"
 app="$repo_root/dashboard/js/app.js"
 bundle="$repo_root/dashboard/js/bundle.js"
 panel="$repo_root/dashboard/js/panel-network.js"
+run_control="$repo_root/dashboard/js/run-control.js"
 relay_client="$repo_root/dashboard/js/relay-client.js"
 relay_py="$repo_root/dashboard/relay.py"
 
@@ -18,7 +19,7 @@ fail() {
   exit 1
 }
 
-for f in "$index" "$app" "$bundle" "$panel" "$relay_client" "$relay_py"; do
+for f in "$index" "$app" "$bundle" "$panel" "$run_control" "$relay_client" "$relay_py"; do
   [[ -f "$f" ]] || fail "missing required file: $f"
 done
 
@@ -41,7 +42,14 @@ for id in cybernet-exit repo-setup-exit toolbox-exit sw-exit; do
 done
 
 # ── Real Stop: relay cancellation protocol ───────────────────────────────────
+grep -q "run-control-banner" "$index" || fail "global Run Control banner is missing from index.html"
+grep -q "run-control-stop" "$index" || fail "global Run Control Stop is missing from index.html"
+grep -q "RunRequested" "$run_control" || fail "run-control.js does not reduce RunRequested events"
+grep -q "StopAcknowledged" "$run_control" || fail "run-control.js does not distinguish Stop acknowledgement"
+grep -q "requestStop" "$panel" || fail "panel-network.js does not dispatch Stop through Run Control"
 grep -q "probe_cancel" "$relay_client" || fail "relay-client.js does not send probe_cancel (UI-only Stop is a defect)"
+grep -q "StopSent" "$relay_client" || fail "relay-client.js does not emit StopSent lifecycle events"
+grep -q "StopAcknowledged" "$relay_client" || fail "relay-client.js does not emit StopAcknowledged lifecycle events"
 grep -q "probeId" "$relay_client" || fail "relay-client.js does not tag probes with a probeId"
 grep -q "probe_cancel" "$relay_py" || fail "relay.py does not handle probe_cancel"
 grep -q "cancel_event" "$relay_py" || fail "relay.py has no cancellation token"

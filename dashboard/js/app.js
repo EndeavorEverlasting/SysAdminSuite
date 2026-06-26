@@ -17,6 +17,7 @@ import {
 } from './software-tracker-state.js';
 import { initTour, markPanelVisited, initPanelBadges } from './tour.js';
 import { initRelayConnection, onRelayStatus, getRelayConnected, RELAY_PORT } from './relay-client.js'; // setRelayToken used via relay-client.js in panel-network.js
+import { initRunControl } from './run-control.js';
 // Sample data is loaded via a plain <script> tag in index.html (not an ES module).
 // Globals defined by that script: window._sasSampleStore(), window._sasSampleStatus()
 
@@ -96,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initRelayConnection();
   onRelayStatus(_updateHeaderRelayBadge);
+  initRunControl();
 
   initPrinterPanel();
   initInventoryPanel();

@@ -111,6 +111,15 @@
     <button class="btn-secondary btn-compact" id="advanced-tools-toggle" type="button" aria-expanded="false" aria-controls="advanced-section">Advanced Tools</button>
   </div>
 
+  <div id="run-control-banner" class="run-control-banner hidden" role="status" aria-live="polite">
+    <div class="run-control-main">
+      <span class="run-control-label">Run Control</span>
+      <span id="run-control-text">No active run.</span>
+    </div>
+    <span class="run-control-meta" id="run-control-meta"></span>
+    <button class="btn-secondary btn-compact hidden" id="run-control-stop" type="button">Stop</button>
+  </div>
+
   <div id="toolbox-status-banner" class="toolbox-status-banner hidden" role="alert" aria-live="polite"></div>
 
   <section id="toolbox-hero" class="workflow-hero toolbox-hero" aria-label="Toolbox Check">
@@ -478,6 +487,11 @@
 <style>
   .hidden { display: none !important; }
   code { font-family: var(--mono); font-size: 11px; background: var(--bg3); padding: 1px 4px; border-radius: 3px; }
+  .run-control-banner { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 9px 12px; border: 1px solid rgba(79,142,247,0.35); border-radius: 8px; background: rgba(79,142,247,0.08); color: var(--text); }
+  .run-control-main { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+  .run-control-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+  .run-control-meta { font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
+  .run-control-terminal { border-color: rgba(148,163,184,0.3); background: rgba(148,163,184,0.08); }
   .cybernet-manifest-summary-empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; margin: -1px; padding: 0; border: 0; }
 </style>
 
