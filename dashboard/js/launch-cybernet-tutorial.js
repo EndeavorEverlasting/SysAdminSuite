@@ -18,6 +18,14 @@
     const startButton = document.getElementById('hero-start-survey');
     const tutorial = document.getElementById('cybernet-tutorial');
 
+    // Prefer the dashboard's verified state transition so the auto-launch path
+    // cannot diverge from the manual click (visible tutorial or visible recovery).
+    if (typeof window.startCybernetTutorial === 'function' && tutorial) {
+      window.startCybernetTutorial({ source: 'query' });
+      return;
+    }
+
+    // Fallback for older shells: click the button directly.
     if (startButton && tutorial) {
       startButton.click();
       window.setTimeout(function () {

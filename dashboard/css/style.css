@@ -1183,6 +1183,17 @@ textarea.paste-area:focus { border-color: var(--accent); }
   align-items: center;
 }
 
+.cybernet-hero-status {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.cybernet-hero-status.is-busy { color: var(--info); }
+.cybernet-hero-status.is-open { color: var(--success); }
+.cybernet-hero-status.is-error { color: var(--error); }
+
 .btn-compact { padding: 6px 12px; font-size: 12px; }
 .btn-link {
   background: transparent;

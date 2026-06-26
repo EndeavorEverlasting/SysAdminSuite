@@ -25,5 +25,11 @@ jobs:
           node --check dashboard/js/parsers.js
           node --check dashboard/js/app.js
           node --check dashboard/js/bundle.js
+          node --check dashboard/js/cybernet-os-preflight.js
+          node --check dashboard/js/launch-cybernet-tutorial.js
       - name: Dashboard parser smoke test
         run: node dashboard/smoke-test.js
+      - name: Dashboard Start-button runtime smoke test
+        run: node dashboard/start-button-smoke.js
+      - name: Dashboard tutorial launcher contracts
+        run: bash Tests/bash/test_dashboard_tutorial_launcher_contracts.sh
