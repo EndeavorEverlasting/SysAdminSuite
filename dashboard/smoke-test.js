@@ -31,6 +31,7 @@ const cases = [
   { file: 'cybernet_targets.sample.csv',           expectedType: 'cybernet-target-manifest', minRows: 2 },
   { file: 'ad_registered_normalized.csv',            expectedType: 'ad-registered-population', minRows: 1 },
   { file: 'ad_registered_population.sample.csv',    expectedType: 'ad-registered-population', minRows: 6 },
+  { file: 'dns_infrastructure_classification.sample.csv', expectedType: 'survey-classification', minRows: 2 },
 ];
 
 // ── Naabu reachability parser cases (synthetic samples only) ────────────────
@@ -165,6 +166,24 @@ if (bomRows.length !== 1 || Object.keys(bomRows[0])[0] !== 'HostName') {
 // available in Node without additional polyfills.  Drop an *.xlsx file onto the
 // dashboard and confirm it appears in the Hardware Inventory or Printer Mapping
 // panel (whichever schema it matches) as a manual verification step.
+
+// Survey classification: infrastructure rows must not count as manifest targets
+{
+  const content = readFileSync(join(samplesDir, 'dns_infrastructure_classification.sample.csv'), 'utf8');
+  const parsed = parseFileContent('survey-classification', content, 'dns_infrastructure_classification.sample.csv');
+  const infra = parsed.rows.filter(r => (r.deviceRole || '').startsWith('infrastructure_'));
+  const targets = parsed.rows.filter(r => (r.countsToward || '').toLowerCase() === 'yes');
+  if (infra.length < 1) {
+    console.error('FAIL [classification]: expected at least one infrastructure row');
+    failed++;
+  } else if (targets.length > 0) {
+    console.error('FAIL [classification]: sample infrastructure CSV should not have counts-toward=yes rows');
+    failed++;
+  } else {
+    console.log('PASS [classification]: infrastructure separated from manifest targets');
+    passed++;
+  }
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

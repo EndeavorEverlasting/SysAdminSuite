@@ -113,6 +113,7 @@ See [`dashboard/README.md`](../dashboard/README.md) — **Loading experience (Hi
 - [`docs/GUI_HOST_MIGRATION.md`](GUI_HOST_MIGRATION.md) — launcher technical matrix
 - [`docs/DASHBOARD_EXE_FUTURE_SPRINT.md`](DASHBOARD_EXE_FUTURE_SPRINT.md) — planned EXE sprint
 - [`START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) — advanced CLI path
+- [`SURVEY_LANES.md`](SURVEY_LANES.md) — manifest vs subnet survey lanes; identifier keys
 
 ## Agent guardrails
 

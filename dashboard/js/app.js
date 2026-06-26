@@ -39,6 +39,7 @@ const TYPE_SECTION_LABELS = {
   'smb-recon': 'Network review',
   'naabu-reachability': 'Reachability evidence',
   'cybernet-target-manifest': 'Target manifest',
+  'survey-classification': 'Survey classification',
   'ad-registered-population': 'AD registered population',
   'remote-task': 'Remote tasks',
   'software-tracker': 'Software tracker',
@@ -685,7 +686,7 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'ad-registered-population': '🏢',
     'software-tracker': '📦', 'software-tracker-install-plan': '📋',
     'toolbox-status': '🧰',
-    'cybernet-target-manifest': '🎯', 'unknown': '❓'
+    'cybernet-target-manifest': '🎯', 'survey-classification': '🏷️', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
 
@@ -1538,6 +1539,7 @@ function updateCybernetReview() {
 
   const preflightRows = store.networkPreflight?.length || 0;
   const identityRows = store.workstationIdentity?.length || 0;
+  const classificationRows = store.surveyClassification || [];
   const targetCount = Math.max(_countUniqueTargets(store.networkPreflight), _countUniqueTargets(store.workstationIdentity));
   const reachRows = store.naabuReachability || [];
   const reachabilityCount = reachRows.length;
@@ -1545,8 +1547,8 @@ function updateCybernetReview() {
     const rv = (r.reachability || 'open').toLowerCase();
     return rv === 'open' || rv === '';
   }).length;
-  const hasEvidence = preflightRows > 0 || identityRows > 0 || reachabilityCount > 0 ||
-    loadedFiles.some(f => f.type === 'network-preflight' || f.type === 'workstation-identity' || f.type === 'naabu-reachability');
+  const hasEvidence = preflightRows > 0 || identityRows > 0 || reachabilityCount > 0 || classificationRows.length > 0 ||
+    loadedFiles.some(f => f.type === 'network-preflight' || f.type === 'workstation-identity' || f.type === 'naabu-reachability' || f.type === 'survey-classification');
 
   if (!hasEvidence) {
     section.classList.add('hidden');
@@ -1555,12 +1557,40 @@ function updateCybernetReview() {
 
   section.classList.remove('hidden');
   const guestWarn = _detectGuestNetworkWarning();
+
+  const manifestTargets = classificationRows.filter(r => {
+    const role = (r.deviceRole || '').toLowerCase();
+    const counts = (r.countsToward || '').toLowerCase();
+    return role === 'target_workstation' || counts === 'yes';
+  }).length;
+  const infrastructure = classificationRows.filter(r => {
+    const role = (r.deviceRole || '').toLowerCase();
+    return role.startsWith('infrastructure_');
+  }).length;
+  const needsReview = classificationRows.filter(r => {
+    const role = (r.deviceRole || '').toLowerCase();
+    const status = (r.overallStatus || '').toUpperCase();
+    return status.includes('REVIEW') || status.includes('CONFLICT') || role === 'discovery_only';
+  }).length;
+
   let nextAction = 'Review the summary, then open network evidence details if you need row-level triage.';
   if (!preflightRows) nextAction = 'Load network_preflight.csv to prove network posture.';
   else if (!identityRows) nextAction = 'Load workstation_identity.csv for identity evidence.';
   else if (guestWarn) nextAction = 'Fix network posture (segment/VPN) before running more probes.';
+  else if (infrastructure > 0 && manifestTargets === 0) nextAction = 'Infrastructure hosts found — review subnet lane output; not Cybernet target failures.';
+
+  const laneCallout = `<p class="cybernet-review-lane"><strong>Which survey lane?</strong> Manifest survey (serial-first AD rows) vs subnet discovery (approved CIDRs). See <code>docs/SURVEY_LANES.md</code>.</p>`;
+
+  const classificationBlock = classificationRows.length ? `
+    <ul class="cybernet-review-stats cybernet-review-buckets">
+      <li><strong>Manifest targets:</strong> ${manifestTargets}</li>
+      <li><strong>Infrastructure discovered:</strong> ${infrastructure}</li>
+      <li><strong>Needs review:</strong> ${needsReview}</li>
+    </ul>
+  ` : '';
 
   body.innerHTML = `
+    ${laneCallout}
     <ul class="cybernet-review-stats">
       <li><strong>Targets in evidence:</strong> ${targetCount || '—'}</li>
       <li><strong>Preflight rows:</strong> ${preflightRows}</li>
@@ -1568,6 +1598,7 @@ function updateCybernetReview() {
       <li><strong>Open ports observed:</strong> ${reachabilityCount > 0 ? openPortsCount : '—'}</li>
       <li><strong>Reachability rows:</strong> ${reachabilityCount > 0 ? reachabilityCount : '—'}</li>
     </ul>
+    ${classificationBlock}
     ${guestWarn ? `<p class="cybernet-review-warn">⚠ ${sanitize(guestWarn)}</p>` : ''}
     <p class="cybernet-review-next"><strong>Next:</strong> ${sanitize(nextAction)}</p>
   `;
@@ -1588,17 +1619,22 @@ function updateCybernetManifestSummary() {
   const withHostname = rows.filter(r => r.hostname || r.dnsHostName).length;
   const withSerial = rows.filter(r => r.serial).length;
   const withMac = rows.filter(r => r.mac).length;
+  const serialIdRows = rows.filter(r => (r.identifierType || '').toLowerCase() === 'serial').length;
+  const hostIdRows = rows.filter(r => (r.identifierType || '').toLowerCase() === 'hostname').length;
+  const macIdRows = rows.filter(r => (r.identifierType || '').toLowerCase() === 'mac').length;
   const missingDnsHost = rows.filter(r => !r.hostname && !r.dnsHostName).length;
   const missingSerial = rows.filter(r => !r.serial).length;
 
   stats.innerHTML = [
     `<span><strong>${rows.length}</strong> manifest rows</span>`,
+    `<span class="cybernet-id-chip"><strong>${withSerial}</strong> Serial</span>`,
+    `<span class="cybernet-id-chip"><strong>${withHostname}</strong> HostName</span>`,
+    `<span class="cybernet-id-chip"><strong>${withMac}</strong> MAC</span>`,
     `<span><strong>${withHostname}</strong> with hostname/DNS</span>`,
-    `<span><strong>${withSerial}</strong> with serial</span>`,
-    `<span><strong>${withMac}</strong> with MAC</span>`,
     `<span><strong>${missingDnsHost}</strong> missing hostname/DNS</span>`,
     `<span><strong>${missingSerial}</strong> missing serial</span>`,
-  ].join(' · ');
+    serialIdRows || hostIdRows || macIdRows ? `<span>ID lane: ${serialIdRows} Serial / ${hostIdRows} HostName / ${macIdRows} MAC</span>` : '',
+  ].filter(Boolean).join(' · ');
   root.style.display = '';
 }
 

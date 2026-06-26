@@ -69,7 +69,7 @@ Use the Cybernet-first dashboard when you want a guided wizard instead of memori
 5. **Load Evidence** — drop `network_preflight.csv`, `workstation_identity.csv`, optional reachability JSON, normalized target manifests, and AD population CSVs.
 6. **Review Results** — use the Cybernet review summary; open **Advanced Tools** only for detailed panels or legacy command generation.
 
-For subnet discovery and Nmap orchestration, use the CLI path below.
+For subnet discovery and Nmap orchestration, use the CLI path below. For **manifest lane vs subnet lane** and **serial vs hostname vs MAC** guidance, see [`docs/SURVEY_LANES.md`](docs/SURVEY_LANES.md).
 
 ## AD-first warning
 

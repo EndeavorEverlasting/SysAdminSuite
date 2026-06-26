@@ -9,10 +9,24 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import re
 import sys
 from pathlib import Path
 from typing import Iterable
+
+
+def _load_classifier():
+    module_path = Path(__file__).with_name("sas-survey-device-classify.py")
+    spec = importlib.util.spec_from_file_location("sas_survey_device_classify", module_path)
+    if not spec or not spec.loader:
+        raise RuntimeError(f"could not load classifier module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_CLASSIFY = _load_classifier()
 
 FIELDS = [
     "OverallStatus",
@@ -36,9 +50,26 @@ FIELDS = [
     "NmapEvidence",
     "EvidenceSources",
     "Source",
+    "SurveyLane",
+    "IdentifierType",
+    "SurveyAuthority",
+    "DeviceRole",
+    "RoleConfidence",
+    "RoleSignals",
+    "CountsTowardCybernetPopulation",
+    "NextAction",
 ]
 
-REVIEW_STATUSES = {"REVIEW_CONFLICT", "MANIFEST_ONLY", "DNS_ONLY", "AD_ONLY"}
+REVIEW_STATUSES = {"REVIEW_CONFLICT", "MANIFEST_ONLY", "DNS_ONLY", "AD_ONLY", "REVIEW_INFRASTRUCTURE_NOT_TARGET"}
+
+INFRASTRUCTURE_ROLES = frozenset(
+    {
+        "infrastructure_access_point",
+        "infrastructure_network",
+        "infrastructure_print",
+        "infrastructure_unknown",
+    }
+)
 
 
 def clean(value: object) -> str:
@@ -320,6 +351,53 @@ def main() -> int:
         nmap_status, nmap_targets, nmap_evidence = summarize_nmap(matched_nmap)
         overall, confidence, review_reason = classify(matched_dns, matched_ad, matched_dhcp, matched_nmap, conflict_reasons)
 
+        # Device role from DNS classification (first matched DNS row with DeviceRole)
+        device_role = ""
+        role_signals = ""
+        counts_toward = ""
+        survey_lane = "cybernet_manifest"
+        identifier_type = ""
+        survey_authority = ""
+        role_confidence = ""
+        next_action = ""
+        for dns_row in matched_dns:
+            role = first(dns_row, ["DeviceRole"])
+            if role:
+                device_role = role
+                role_signals = first(dns_row, ["RoleSignals"])
+                counts_toward = first(dns_row, ["CountsTowardCybernetPopulation"])
+                survey_lane = first(dns_row, ["SurveyLane"]) or survey_lane
+                identifier_type = first(dns_row, ["IdentifierType"])
+                survey_authority = first(dns_row, ["SurveyAuthority"])
+                role_confidence = first(dns_row, ["RoleConfidence"])
+                next_action = first(dns_row, ["NextAction"])
+                break
+
+        if not device_role and host:
+            cls = _CLASSIFY.classify_device(
+                hostname=host,
+                reverse_dns_names=joined(first(r, ["ReverseNames"]) for r in matched_dns),
+                device_type=dtype,
+                serial=serial,
+                mac=mac,
+                survey_lane="cybernet_manifest",
+                in_manifest=True,
+            )
+            device_role = cls.device_role
+            role_signals = cls.role_signals
+            counts_toward = cls.counts_toward_cybernet_population
+            survey_lane = cls.survey_lane
+            identifier_type = cls.identifier_type
+            survey_authority = cls.survey_authority
+            role_confidence = cls.role_confidence
+            next_action = cls.next_action
+
+        if device_role in INFRASTRUCTURE_ROLES:
+            overall = "REVIEW_INFRASTRUCTURE_NOT_TARGET"
+            if confidence == "HIGH":
+                confidence = "MEDIUM"
+            review_reason = f"Manifest row resolves to infrastructure role ({device_role}). {review_reason}"
+
         evidence_sources = []
         if matched_dns:
             evidence_sources.append("DNS")
@@ -353,6 +431,14 @@ def main() -> int:
                 "NmapEvidence": nmap_evidence,
                 "EvidenceSources": joined(evidence_sources),
                 "Source": source,
+                "SurveyLane": survey_lane,
+                "IdentifierType": identifier_type,
+                "SurveyAuthority": survey_authority,
+                "DeviceRole": device_role,
+                "RoleConfidence": role_confidence,
+                "RoleSignals": role_signals,
+                "CountsTowardCybernetPopulation": counts_toward,
+                "NextAction": next_action,
             }
         )
 

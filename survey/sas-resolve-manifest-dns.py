@@ -9,12 +9,28 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import ipaddress
 import socket
 import sys
 from collections import Counter
 from pathlib import Path
 from typing import Iterable
+
+
+def _load_classifier():
+    module_path = Path(__file__).with_name("sas-survey-device-classify.py")
+    spec = importlib.util.spec_from_file_location("sas_survey_device_classify", module_path)
+    if not spec or not spec.loader:
+        raise RuntimeError(f"could not load classifier module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_CLASSIFY = _load_classifier()
+CLASSIFICATION_FIELDS = _CLASSIFY.CLASSIFICATION_FIELDS
+classify_from_dns_row = _CLASSIFY.classify_from_dns_row
 
 OUTPUT_FIELDS = [
     "Status",
@@ -30,6 +46,7 @@ OUTPUT_FIELDS = [
     "ResolvedBy",
     "Error",
     "Source",
+    *CLASSIFICATION_FIELDS,
 ]
 
 
@@ -183,23 +200,23 @@ def build_rows(input_rows: list[dict[str, str]], suffixes: list[str]) -> list[di
         reverse_names = reverse_lookup(ips) if ips else []
         subnets = sorted(set(filter(None, (subnet24(ip) for ip in ips))))
 
-        output.append(
-            {
-                "Status": status,
-                "HostName": host,
-                "Identifier": identifier,
-                "Serial": serial,
-                "MACAddress": mac,
-                "DeviceType": dtype,
-                "FQDN": fqdn,
-                "IPAddresses": ";".join(ips),
-                "ReverseNames": ";".join(reverse_names),
-                "Subnets24": ";".join(subnets),
-                "ResolvedBy": resolved_by,
-                "Error": error,
-                "Source": source,
-            }
-        )
+        row_out = {
+            "Status": status,
+            "HostName": host,
+            "Identifier": identifier,
+            "Serial": serial,
+            "MACAddress": mac,
+            "DeviceType": dtype,
+            "FQDN": fqdn,
+            "IPAddresses": ";".join(ips),
+            "ReverseNames": ";".join(reverse_names),
+            "Subnets24": ";".join(subnets),
+            "ResolvedBy": resolved_by,
+            "Error": error,
+            "Source": source,
+        }
+        row_out.update(classify_from_dns_row(row_out, survey_lane="cybernet_manifest"))
+        output.append(row_out)
 
     return output
 
