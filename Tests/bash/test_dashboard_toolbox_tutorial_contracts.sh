@@ -34,6 +34,8 @@ grep -Fq '__sasToolboxActionNeeded' "$launch_js" || fail "toolbox launcher missi
 grep -Fq '__sasToolboxActionNeeded' "$repo_setup_launch_js" || fail "repo setup launcher does not respect toolbox-first precedence"
 grep -Fq 'initToolboxTutorial' "$app_js" || fail "app.js does not initialize toolbox tutorial"
 grep -Fq 'startToolboxTutorial' "$app_js" || fail "app.js missing toolbox hero shell"
+grep -Fq '__sasFetchedToolboxStatus' "$app_js" || fail "app.js does not preserve fetched toolbox status"
+grep -Fq '__sasFetchedToolboxStatus' "$launch_js" || fail "toolbox launcher does not record fetched toolbox status"
 grep -Fq 'toolbox-status' "$parsers_js" || fail "parsers missing toolbox-status type"
 grep -Fq 'dashboard/js/toolbox-tutorial.js' "$build_bundle" || fail "bundle build missing toolbox tutorial"
 grep -Fq 'sas-write-toolbox-status.sh' "$host_bat" || fail "host launcher does not write toolbox status"

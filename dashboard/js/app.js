@@ -643,6 +643,9 @@ function rebuildToolboxStatusFromChips() {
   if (latest && typeof window.__sasApplyToolboxStatus === 'function') {
     window.__sasLastToolboxStatus = latest;
     window.__sasApplyToolboxStatus(latest);
+  } else if (window.__sasFetchedToolboxStatus && typeof window.__sasApplyToolboxStatus === 'function') {
+    window.__sasLastToolboxStatus = window.__sasFetchedToolboxStatus;
+    window.__sasApplyToolboxStatus(window.__sasFetchedToolboxStatus);
   } else if (typeof window.__sasApplyToolboxStatus === 'function') {
     window.__sasLastToolboxStatus = null;
     window.__sasApplyToolboxStatus({ tools: [], actionNeeded: false, summary: { needsAction: 0 } });
@@ -719,8 +722,9 @@ function clearAllData(silent = false) {
   refreshAllPanels();
   updateStatusFooter(null);
   if (typeof window.__sasApplyToolboxStatus === 'function') {
-    window.__sasLastToolboxStatus = null;
-    window.__sasApplyToolboxStatus({ tools: [], actionNeeded: false, summary: { needsAction: 0 } });
+    const status = window.__sasFetchedToolboxStatus || { tools: [], actionNeeded: false, summary: { needsAction: 0 } };
+    window.__sasLastToolboxStatus = window.__sasFetchedToolboxStatus || null;
+    window.__sasApplyToolboxStatus(status);
   }
   updateCybernetReview();
   if (!silent) toast('All evidence cleared.', 'info');

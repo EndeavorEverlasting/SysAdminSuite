@@ -207,6 +207,7 @@ const contractChecks = [
   ['initToolboxShell', 'Toolbox hero shell'],
   ['window.startToolboxTutorial', 'Toolbox transition exposed'],
   ['toolbox-status', 'Toolbox parser type wired'],
+  ['__sasFetchedToolboxStatus', 'Toolbox fetched status preserved'],
   ['initRepoSetupTutorial', 'Repo Setup tutorial init'],
   ['initRepoSetupShell', 'Repo Setup hero shell'],
   ['window.startRepoSetupTutorial', 'Repo Setup transition exposed'],

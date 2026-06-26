@@ -71,6 +71,7 @@
   function handleStatus(status) {
     applyStatus(status);
     window.__sasLastToolboxStatus = status;
+    window.__sasFetchedToolboxStatus = status;
     window.__sasToolboxStatusPending = false;
     window.__sasToolboxActionNeeded = !!status.actionNeeded;
 
@@ -108,6 +109,7 @@
       .then(function (status) {
         applyStatus(status);
         window.__sasLastToolboxStatus = status;
+        window.__sasFetchedToolboxStatus = status;
         toastIfNeeded(status);
       })
       .catch(function () {
