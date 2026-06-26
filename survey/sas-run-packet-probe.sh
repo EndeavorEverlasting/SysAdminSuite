@@ -7,6 +7,7 @@ LIST=""
 OUT=""
 SUMMARY=""
 PROFILE="Config/cybernet-packet-profile.json"
+ENGINE="cli"
 PLANNED_FILE=""
 DRY_RUN=0
 VERBOSE=0
@@ -25,6 +26,7 @@ Options:
   --out PATH        Naabu JSONL output path (required)
   --summary PATH    Summary JSON path. Default: OUT.summary.json
   --profile PATH    Packet profile JSON. Default: Config/cybernet-packet-profile.json
+  --engine NAME     cli (default) or library (requires SAS_PACKET_PROBE_TAGS=naabu_lib build)
   --planned-file PATH
                     Append dry-run planned command to PATH
   --allow-public    Permit public IP targets (explicit override)
@@ -44,6 +46,7 @@ while [[ $# -gt 0 ]]; do
     --out) OUT="${2:?}"; shift 2 ;;
     --summary) SUMMARY="${2:?}"; shift 2 ;;
     --profile) PROFILE="${2:?}"; shift 2 ;;
+    --engine) ENGINE="${2:?}"; shift 2 ;;
     --planned-file) PLANNED_FILE="${2:?}"; shift 2 ;;
     --allow-public) ALLOW_PUBLIC=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -58,15 +61,20 @@ done
 [[ -n "$OUT" ]] || fail "--out is required"
 [[ -f "$LIST" ]] || fail "target list not found: $LIST"
 [[ -f "$PROFILE" ]] || fail "profile not found: $PROFILE"
+case "$ENGINE" in
+  cli|library) ;;
+  *) fail "--engine must be cli or library" ;;
+esac
 [[ -n "$SUMMARY" ]] || SUMMARY="${OUT}.summary.json"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROBE_BIN="$REPO_ROOT/bin/sas-packet-probe"
 [[ "${OS:-}" == "Windows_NT" ]] && PROBE_BIN="${PROBE_BIN}.exe"
+BUILD_SCRIPT="$REPO_ROOT/scripts/build-packet-probe.sh"
 
 log "building sas-packet-probe"
-(cd "$REPO_ROOT/probe/packet-expenditure" && go build -o "$PROBE_BIN" ./cmd/sas-packet-probe)
+bash "$BUILD_SCRIPT"
 
 args=(
   "$PROBE_BIN"
@@ -75,6 +83,7 @@ args=(
   -out "$OUT"
   -summary "$SUMMARY"
   -profile "$PROFILE"
+  -engine "$ENGINE"
 )
 [[ "$ALLOW_PUBLIC" -eq 1 ]] && args+=(-allow-public)
 [[ "$DRY_RUN" -eq 1 ]] && args+=(-dry-run)
