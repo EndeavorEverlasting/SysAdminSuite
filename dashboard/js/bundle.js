@@ -4386,57 +4386,70 @@ const CYBERNET_TUTORIAL_STEPS = [
   {
     title: 'Prepare your target list',
     railLabel: 'Targets',
-    body: 'Start with one hostname or IP per line. Keep this file boring and repeatable so a new technician can rerun the same workflow without hand-editing commands.',
+    body: 'First, make a simple list of the computers you want to check. Put one computer name or IP address on each line. This only prepares a local file for the next steps.',
     command: "mkdir -p /tmp/sas-cybernet\nprintf '%s\\n' 'WMH300OPR001' 'WMH300OPR002' > /tmp/sas-cybernet/targets.txt",
     checks: [
-      'Use hostnames, IPv4 addresses, or IPv6 addresses only.',
-      'Do not paste passwords, usernames, or ticket notes into the target file.',
-      'Optional: normalize with ./survey/sas-survey-targets.sh --device-type Cybernet --file /tmp/sas-cybernet/targets.txt (output is not dashboard-importable yet).'
+      'Use only computer names, IPv4 addresses, or IPv6 addresses.',
+      'Do not paste passwords, usernames, tickets, or notes into this file.',
+      'If the list came from another source, you can normalize with ./survey/sas-survey-targets.sh --device-type Cybernet --file /tmp/sas-cybernet/targets.txt (output is not dashboard-importable yet).'
     ],
-    note: 'This step is local-only; it does not touch target devices.',
+    nextAction: 'Copy this local setup command, run it on your admin machine, then come back and click Next.',
+    note: 'This step only creates a local targets file. It does not touch target devices.',
     optional: false
   },
   {
     title: 'Prove network posture first',
     railLabel: 'Network posture',
-    body: 'Before blaming the product, prove the machine is on the right network path. This catches guest-network and segmented-network failures early.',
+    body: 'Now check whether your admin machine can see the targets at all. This catches guest Wi-Fi, wrong VLAN, DNS, SMB, and RPC problems before anyone blames the tool.',
     command: 'bash bash/transport/sas-network-preflight.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --ports 135,445,3389,9100 \\\n  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru',
-    checks: ['DNS should resolve internal hostnames when you expect internal reachability.', 'SMB/445 and RPC/135 failures on every target often mean network posture, not code failure.', 'Classify guest-network blocking separately from product defects.'],
+    checks: [
+      'If internal names do not resolve, the machine is probably not on the right network path.',
+      'If SMB/445 and RPC/135 fail for every target, treat that as a network posture problem first.',
+      'Classify guest-network blocking separately from product defects.'
+    ],
+    nextAction: 'Run the matching command outside the dashboard. When it finishes, drop network_preflight.csv into Load Evidence.',
     note: 'Load network_preflight.csv via Load Evidence after the command finishes.',
     optional: false
   },
   {
     title: 'Acquire Cybernet identity evidence',
     railLabel: 'Identity evidence',
-    body: 'Collect read-only workstation identity evidence. The adapter records what it can safely observe, such as DNS, ping, ARP/MAC hints, and optional transport notes.',
+    body: 'Collect read-only identity clues from each target. The command records what it can safely observe, such as DNS, ping status, MAC hints, and transport notes.',
     command: 'bash bash/transport/sas-workstation-identity.sh \\\n  --targets-file /tmp/sas-cybernet/targets.txt \\\n  --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru',
-    checks: ['Treat hostname, MAC, serial, and IP as separate evidence fields.', 'Do not use reachability alone as Cybernet identity proof.', 'Preserve unknown or partial rows; they are useful triage evidence.'],
+    checks: [
+      'Hostname, MAC, serial, and IP are separate clues; do not mix them together.',
+      'Do not use reachability alone as Cybernet identity proof.',
+      'Keep unknown or partial rows; they are useful triage evidence.'
+    ],
+    nextAction: 'Run the matching command outside the dashboard. When it finishes, drop workstation_identity.csv into Load Evidence.',
     note: 'Load workstation_identity.csv back via Load Evidence for searchable protocol evidence.',
     optional: false
   },
   {
     title: 'Optional reachability check',
     railLabel: 'Reachability',
-    body: 'Low-noise port confirmation on an approved target list. Skip this step if posture and identity evidence are already sufficient.',
+    body: 'This is an extra confirmation pass for approved targets. Use it only when you need low-noise port evidence after the posture and identity checks.',
     command: 'mkdir -p logs/targets logs/nmap\ncp /tmp/sas-cybernet/targets.txt logs/targets/cybernet_confirm_hosts.txt\nbash survey/sas-run-naabu-pipeline.sh --site cybernet \\\n  --profile keyports_cybernet_json \\\n  --list logs/targets/cybernet_confirm_hosts.txt \\\n  --out logs/nmap/cybernet_naabu.json',
     checks: [
       'Profile: keyports_cybernet_json (-ec -silent -json).',
       'Doctrine: docs/LOW_NOISE_SURVEY_DOCTRINE.md — local evidence only, no target-side writes.',
-      'This step is optional; do not treat it as mandatory for every survey.'
+      'This step is optional. Skip it when the earlier evidence is enough.'
     ],
+    nextAction: 'Run this only if the target list is approved for reachability confirmation, then load cybernet_naabu.json as optional evidence.',
     note: 'Advanced: keyports_cybernet_json · output logs/nmap/cybernet_naabu.json',
     optional: true
   },
   {
     title: 'Load evidence and review',
     railLabel: 'Review package',
-    body: 'Drag recognized evidence CSVs into Load Evidence, then review the summary. Normalized target manifests (cybernet_targets.csv) are imported separately from network or identity evidence.',
+    body: 'Bring the files back to this dashboard. Drag the CSV or JSON outputs into Load Evidence, then review the summary before calling the result good or bad.',
     command: '# Use Load Evidence in the dashboard for:\n# /tmp/sas-cybernet/network_preflight.csv\n# /tmp/sas-cybernet/workstation_identity.csv\n# logs/nmap/cybernet_naabu.json (optional)\n# survey/output/cybernet_*_targets.csv (manifest, not evidence)',
     checks: [
       'Classify environment blocks separately from product defects.',
       'Keep smoke-test evidence separate from feature validation.',
       'Treat manifest rows as target lists, not reachability or identity proof.'
     ],
+    nextAction: 'Click Load resulting evidence, then drop the files into the highlighted box.',
     note: 'Click Load resulting evidence below, or use Load Evidence on the hero card.',
     optional: false
   }
@@ -4453,12 +4466,15 @@ function initCybernetTutorial() {
   const kicker = document.getElementById('cybernet-step-kicker');
   const checks = document.getElementById('cybernet-step-checks');
   const command = document.getElementById('cybernet-step-command');
+  const runner = document.getElementById('cybernet-command-runner');
   const note = document.getElementById('cybernet-step-note');
   const commandPanel = document.getElementById('cybernet-command-panel');
   const prev = document.getElementById('cybernet-prev');
   const next = document.getElementById('cybernet-next');
   const copy = document.getElementById('cybernet-copy');
   const wizardFooter = document.getElementById('cybernet-wizard-footer');
+  const loadEvidenceEnd = document.getElementById('cybernet-load-evidence-end');
+  const dropZone = document.getElementById('drop-zone');
   const progressRail = document.getElementById('cybernet-progress-rail');
 
   function updateProgressRail() {
@@ -4466,6 +4482,15 @@ function initCybernetTutorial() {
       li.classList.toggle('active', i === idx);
       li.classList.toggle('done', i < idx);
     });
+  }
+
+  function updateGuideState(hasCommand) {
+    const finalStep = idx === CYBERNET_TUTORIAL_STEPS.length - 1;
+    copy?.classList.toggle('sas-guide-glow', hasCommand && !copiedThisStep);
+    next?.classList.toggle('sas-guide-glow', (hasCommand && copiedThisStep) || (!hasCommand && !finalStep));
+    loadEvidenceEnd?.classList.toggle('sas-guide-glow', finalStep);
+    dropZone?.classList.toggle('sas-guide-drop', finalStep);
+    commandPanel?.classList.toggle('sas-guide-panel', hasCommand && !copiedThisStep);
   }
 
   function render() {
@@ -4479,12 +4504,14 @@ function initCybernetTutorial() {
     const hasCommand = !!(step.command && !step.command.startsWith('# Use Load Evidence'));
     if (commandPanel) commandPanel.classList.toggle('hidden', !hasCommand);
     if (command) command.value = hasCommand ? step.command : '';
+    if (runner) runner.textContent = step.nextAction || 'Copy the command, run it outside the dashboard, then load the output file here.';
     if (note) note.textContent = step.note;
     prev.disabled = idx === 0;
-    next.textContent = idx === CYBERNET_TUTORIAL_STEPS.length - 1 ? 'Finish ✓' : 'Next →';
+    next.textContent = idx === CYBERNET_TUTORIAL_STEPS.length - 1 ? 'Finish: Load Evidence' : hasCommand ? 'Next after running it →' : 'Next →';
     copy?.classList.toggle('hidden', !hasCommand);
     wizardFooter?.classList.toggle('hidden', idx !== CYBERNET_TUTORIAL_STEPS.length - 1);
     updateProgressRail();
+    updateGuideState(hasCommand);
   }
 
   function copyCommand() {
@@ -4504,6 +4531,7 @@ function initCybernetTutorial() {
         copiedThisStep = true;
         toast('Command copied.', 'success');
         if (note) note.textContent = 'Command copied.';
+        updateGuideState(true);
       })
       .catch(() => {
         toast('Select and copy the command manually.', 'warning');
@@ -4519,7 +4547,7 @@ function initCybernetTutorial() {
     const step = CYBERNET_TUTORIAL_STEPS[idx];
     const hasCommand = !!(step?.command && !step?.command.startsWith('# Use Load Evidence'));
     if (hasCommand && !copiedThisStep && !step.optional) {
-      toast('Copy the command first, or use Show details if you need to skip.', 'warning');
+      toast('Copy the command first, run it outside the dashboard, then come back for Next.', 'warning');
       return;
     }
     if (idx < CYBERNET_TUTORIAL_STEPS.length - 1) {
