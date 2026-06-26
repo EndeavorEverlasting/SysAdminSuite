@@ -30,6 +30,9 @@ Canonical agent reference: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRY
 
 First-run dependency bootstrap reference: [`docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md).
 
+Canonical dependency authority: [`Config/toolbox-dependencies.json`](Config/toolbox-dependencies.json) and
+[`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md).
+
 Planned `.exe` shortcut sprint: [`docs/DASHBOARD_EXE_FUTURE_SPRINT.md`](docs/DASHBOARD_EXE_FUTURE_SPRINT.md).
 
 Do **not** direct field users to `python3 -m http.server`, raw `dotnet` commands, or Bash survey scripts as the default dashboard path.

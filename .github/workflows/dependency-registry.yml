@@ -1,0 +1,51 @@
+name: Dependency registry
+
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'AGENTS.md'
+      - 'Config/toolbox-dependencies.json'
+      - 'Config/dotnet-bootstrap.json'
+      - 'Config/cybernet-naabu-profiles.json'
+      - 'Config/sources.yaml'
+      - 'probe/packet-expenditure/go.mod'
+      - 'scripts/sas-probe-toolbox.sh'
+      - 'scripts/sas-write-toolbox-status.sh'
+      - 'Tests/bash/test_dependency_registry_contracts.sh'
+      - 'Tests/bash/test_toolbox_probe_contracts.sh'
+      - 'docs/DEPENDENCIES.md'
+      - '.github/workflows/dependency-registry.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'AGENTS.md'
+      - 'Config/toolbox-dependencies.json'
+      - 'Config/dotnet-bootstrap.json'
+      - 'Config/cybernet-naabu-profiles.json'
+      - 'Config/sources.yaml'
+      - 'probe/packet-expenditure/go.mod'
+      - 'scripts/sas-probe-toolbox.sh'
+      - 'scripts/sas-write-toolbox-status.sh'
+      - 'Tests/bash/test_dependency_registry_contracts.sh'
+      - 'Tests/bash/test_toolbox_probe_contracts.sh'
+      - 'docs/DEPENDENCIES.md'
+      - '.github/workflows/dependency-registry.yml'
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Dependency registry drift contracts
+        shell: bash
+        run: bash Tests/bash/test_dependency_registry_contracts.sh
+
+      - name: Toolbox probe contracts
+        shell: bash
+        run: bash Tests/bash/test_toolbox_probe_contracts.sh
