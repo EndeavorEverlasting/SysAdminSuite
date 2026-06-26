@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-06-26T12:00:00Z",
+  "repo": { "updateState": "available", "updateMode": "skipped" },
+  "actionNeeded": true,
+  "summary": { "total": 14, "ok": 13, "needsAction": 1, "missing": 0, "outdated": 0 },
+  "tools": [
+    { "id": "repo", "displayName": "SysAdminSuite repo", "tier": "required", "status": "available", "found": true, "version": "", "path": "", "pinnedVersion": null, "nextAction": "Re-run START-HERE-SysAdminSuite-Dashboard.bat and approve the update when prompted.", "installDoc": "docs/APPROVED_UPDATE_FLOW.md" },
+    { "id": "git_bash", "displayName": "Git Bash", "tier": "required", "status": "ok", "found": true, "version": "", "path": "C:/Program Files/Git/bin/bash.exe", "pinnedVersion": null, "nextAction": "" },
+    { "id": "naabu", "displayName": "naabu", "tier": "workflow", "status": "ok", "found": true, "version": "2.6.1", "path": "bin/naabu.exe", "pinnedVersion": "2.6.1", "nextAction": "" }
+  ]
+}

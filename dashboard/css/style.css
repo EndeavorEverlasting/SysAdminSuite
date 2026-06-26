@@ -1113,6 +1113,7 @@ textarea.paste-area:focus { border-color: var(--accent); }
 
 .workflow-hero,
 .repo-setup-hero,
+.toolbox-hero,
 .cybernet-hero,
 .software-tracker-hero {
   flex-shrink: 0;
@@ -1131,6 +1132,62 @@ textarea.paste-area:focus { border-color: var(--accent); }
 .repo-setup-hero {
   border-color: rgba(245, 158, 11, 0.34);
   background: linear-gradient(135deg, rgba(245,158,11,0.14), rgba(79,142,247,0.06));
+}
+
+.toolbox-hero {
+  border-color: rgba(56, 189, 248, 0.38);
+  background: linear-gradient(135deg, rgba(56,189,248,0.16), rgba(79,142,247,0.06));
+}
+
+.toolbox-status-banner {
+  margin: 12px 18px 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.toolbox-checklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.toolbox-checklist-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg2);
+  font-size: 12px;
+}
+
+.toolbox-checklist-row.needs-action {
+  border-color: rgba(56, 189, 248, 0.75);
+}
+
+.toolbox-checklist-chip.ok { color: var(--success); }
+.toolbox-checklist-chip.warn { color: #fbbf24; }
+
+.toolbox-hero-subtitle { color: var(--text-dim); font-size: 13px; max-width: 52rem; }
+.toolbox-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.toolbox-hero-status { font-size: 12px; margin-top: 10px; color: var(--text-dim); }
+.toolbox-hero-status.is-busy { color: var(--accent); }
+.toolbox-hero-status.is-open { color: var(--success); }
+.toolbox-hero-status.is-error { color: var(--danger); }
+.toolbox-wizard-footer { margin-top: 12px; display: flex; justify-content: flex-end; }
+
+.toolbox-progress-rail li.active {
+  border-color: rgba(56, 189, 248, 0.75);
+  background: rgba(56, 189, 248, 0.26);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.4);
 }
 
 .workflow-hero h2,

@@ -16,6 +16,9 @@ Pinned installer metadata lives in [`Config/dotnet-bootstrap.json`](../Config/do
 Downloaded installers are cached under `tools/cache/dotnet/`, which is ignored
 by git.
 
+Live toolbox probe output is written to `dashboard/toolbox-status.json` (also
+gitignored). See [`DASHBOARD_TOOLBOX_TUTORIAL.md`](DASHBOARD_TOOLBOX_TUTORIAL.md).
+
 ## First-Run Flow
 
 ```mermaid

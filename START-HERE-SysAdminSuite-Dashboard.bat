@@ -20,34 +20,46 @@ set "HEALTH_URL=http://127.0.0.1:5000/dashboard/"
 set "UPDATE_HELPER=%ROOT%tools\update\Invoke-SysAdminSuiteUpdate.ps1"
 
 if exist "%UPDATE_HELPER%" (
+    set "SAS_UPDATE_STATE=current"
+    set "SAS_UPDATE_MODE=check_only"
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%UPDATE_HELPER%" -CheckOnly -Quiet
     set "UPDATE_RC=!errorlevel!"
     if "!UPDATE_RC!"=="10" (
+        set "SAS_UPDATE_STATE=available"
         echo.
         echo A SysAdminSuite update is available.
         choice /C YN /N /M "Apply the update before opening the dashboard? [Y/N] "
         if "!errorlevel!"=="1" (
+            set "SAS_UPDATE_MODE=applied"
             powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%UPDATE_HELPER%" -Apply -Approved
             if errorlevel 1 (
                 echo.
                 echo The update could not be applied automatically.
                 echo Continuing with the current local copy.
                 echo.
+                set "SAS_UPDATE_MODE=apply_failed"
             ) else (
                 echo.
                 echo Update applied. Continuing with the dashboard.
                 echo.
+                set "SAS_UPDATE_STATE=current"
             )
         ) else (
+            set "SAS_UPDATE_MODE=skipped"
             echo.
             echo Update skipped. Continuing with the current local copy.
             echo.
         )
     ) else if "!UPDATE_RC!"=="20" (
+        set "SAS_UPDATE_STATE=manual_review"
+        set "SAS_UPDATE_MODE=manual_review"
         echo.
         echo Update check needs manual review, so the dashboard will continue with the current local copy.
         echo.
     )
+) else (
+    set "SAS_UPDATE_STATE=unknown"
+    set "SAS_UPDATE_MODE=unknown"
 )
 
 if exist "%ROOT%app\bin\SysAdminSuite.DashboardHost.exe" (

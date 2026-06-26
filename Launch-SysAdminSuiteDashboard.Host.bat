@@ -40,6 +40,9 @@ if exist "%ROOT%app\bin\SysAdminSuite.DashboardHost.exe" (
     )
 )
 start "" /B "%HOST_EXE%" %*
+if defined BASH_EXE (
+    "%BASH_EXE%" -lc "cd '%ROOT:\=/%' && export SAS_UPDATE_STATE='%SAS_UPDATE_STATE%' SAS_UPDATE_MODE='%SAS_UPDATE_MODE%' && bash scripts/sas-write-toolbox-status.sh" 2>nul
+)
 exit /b 0
 
 :find_host
