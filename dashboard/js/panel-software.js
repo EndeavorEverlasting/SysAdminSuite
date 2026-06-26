@@ -5,10 +5,43 @@
 // missing apps, and unmanaged software discovered on hosts but not yet in the catalog.
 
 import { sanitize, toast } from './utils.js';
+import {
+  buildSoftwareTrackerDryRunCommand,
+  buildSoftwareTrackerExecuteCommand,
+  SOFTWARE_TRACKER_PATHS,
+} from './software-tracker-paths.js';
+import {
+  getSoftwareInstallPlan,
+  getSoftwareSelection,
+  setSoftwareSelection,
+  setLiveRunApproved,
+  clearSoftwareInstallPlan,
+  summarizeInstallBlockers,
+  isLiveRunApproved,
+  canRunLiveInstall,
+  liveRunDisabledReason,
+} from './software-tracker-state.js';
 
 // ── HTML skeleton ────────────────────────────────────────────────────────────
 export function getSoftwareHTML() {
   return `
+<div id="sw-install-workflow" class="sw-install-workflow panel-section">
+  <div class="sw-install-workflow-head">
+    <span class="section-title">Software Tracker Install Workflow</span>
+    <p class="sw-install-workflow-lead">Dry-run first, review blockers, approve, then run guarded execute. Offline workbook: <code>${SOFTWARE_TRACKER_PATHS.offlineWorkbook}</code></p>
+  </div>
+  <div class="sw-install-workflow-actions">
+    <button class="btn-primary" id="sw-preview-plan" type="button">Preview Install Plan</button>
+    <button class="btn-secondary" id="sw-review-plan" type="button">Review Plan</button>
+    <label class="sw-approve-live-label"><input type="checkbox" id="sw-approve-live"> Approve Live Run</label>
+    <button class="btn-secondary" id="sw-run-approved" type="button" disabled>Run Approved Installs</button>
+    <button class="btn-secondary" id="sw-back-dryrun" type="button">Back to dry-run</button>
+    <button class="icon-btn" id="sw-export-report" type="button" title="Export loaded install plan as CSV">Export Report</button>
+  </div>
+  <label class="sw-allow-folder-label"><input type="checkbox" id="sw-allow-folder"> Allow discovered folder installs (requires execute)</label>
+  <p id="sw-live-disabled-reason" class="sw-live-disabled-reason" role="status"></p>
+  <div id="sw-blocker-summary" class="sw-blocker-summary hidden" role="status"></div>
+</div>
 <div class="panel-section">
   <div class="section-header">
     <span class="section-title">📦 Software Tracker</span>
@@ -118,6 +151,8 @@ export function initSoftwarePanel() {
   if (exportBtn) {
     exportBtn.addEventListener('click', exportGapReport);
   }
+
+  initSoftwareInstallWorkflowRail();
 
   // Column sort
   document.querySelectorAll('#sw-table th.sortable').forEach(th => {
@@ -541,4 +576,118 @@ function exportGapReport() {
   const missingRows   = gapRows.filter(r => r.includes(',missing,')).length;
   const unmanagedRows = gapRows.filter(r => /,unmanaged[^,]*,/.test(r)).length;
   toast(`Gap report exported — ${missingRows} missing and ${unmanagedRows} unmanaged host-app gaps.`, 'success');
+}
+
+function renderInstallWorkflowRail() {
+  const reasonEl = document.getElementById('sw-live-disabled-reason');
+  const runBtn = document.getElementById('sw-run-approved');
+  const approveBox = document.getElementById('sw-approve-live');
+  const summaryEl = document.getElementById('sw-blocker-summary');
+  const plan = getSoftwareInstallPlan();
+
+  if (approveBox) approveBox.checked = isLiveRunApproved();
+
+  const disabledReason = liveRunDisabledReason();
+  if (reasonEl) reasonEl.textContent = disabledReason;
+  if (runBtn) runBtn.disabled = !canRunLiveInstall();
+
+  if (!summaryEl) return;
+  if (!plan) {
+    summaryEl.classList.add('hidden');
+    summaryEl.textContent = '';
+    return;
+  }
+
+  const summary = summarizeInstallBlockers(plan);
+  summaryEl.classList.remove('hidden');
+  summaryEl.innerHTML = [
+    '<strong>Review Plan:</strong>',
+    `${sanitize(String(summary.total))} row(s)`,
+    `Blocked: ${sanitize(String(summary.blocked.length))}`,
+    `Manual review: ${sanitize(String(summary.manual.length))}`,
+    `Dry-run / planned: ${sanitize(String(summary.planned.length))}`,
+  ].join(' · ');
+}
+
+function initSoftwareInstallWorkflowRail() {
+  const previewBtn = document.getElementById('sw-preview-plan');
+  const reviewBtn = document.getElementById('sw-review-plan');
+  const runBtn = document.getElementById('sw-run-approved');
+  const backBtn = document.getElementById('sw-back-dryrun');
+  const exportBtn = document.getElementById('sw-export-report');
+  const approveBox = document.getElementById('sw-approve-live');
+  const allowFolder = document.getElementById('sw-allow-folder');
+
+  const copyText = (text) => {
+    const write = navigator.clipboard?.writeText
+      ? navigator.clipboard.writeText(text)
+      : Promise.reject(new Error('clipboard unavailable'));
+    return write.then(() => toast('Command copied.', 'success'))
+      .catch(() => toast('Select and copy the command manually.', 'warning'));
+  };
+
+  previewBtn?.addEventListener('click', () => {
+    copyText(buildSoftwareTrackerDryRunCommand(getSoftwareSelection()));
+  });
+
+  reviewBtn?.addEventListener('click', () => {
+    const plan = getSoftwareInstallPlan();
+    if (!plan) {
+      toast(`Load ${SOFTWARE_TRACKER_PATHS.reportJson} after dry-run.`, 'warning');
+      return;
+    }
+    renderInstallWorkflowRail();
+    document.getElementById('sw-blocker-summary')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  approveBox?.addEventListener('change', () => {
+    setLiveRunApproved(approveBox.checked);
+    renderInstallWorkflowRail();
+  });
+
+  runBtn?.addEventListener('click', () => {
+    if (!canRunLiveInstall()) {
+      toast(liveRunDisabledReason(), 'warning');
+      return;
+    }
+    copyText(buildSoftwareTrackerExecuteCommand({
+      ...getSoftwareSelection(),
+      allowFolder: allowFolder?.checked,
+    }));
+  });
+
+  backBtn?.addEventListener('click', () => {
+    clearSoftwareInstallPlan();
+    setLiveRunApproved(false);
+    if (approveBox) approveBox.checked = false;
+    renderInstallWorkflowRail();
+    toast('Cleared loaded plan. Run Preview Install Plan again.', 'info');
+  });
+
+  exportBtn?.addEventListener('click', exportInstallPlanReport);
+  allowFolder?.addEventListener('change', () => renderInstallWorkflowRail());
+  window.addEventListener('sas-software-install-state', renderInstallWorkflowRail);
+  renderInstallWorkflowRail();
+}
+
+function exportInstallPlanReport() {
+  const plan = getSoftwareInstallPlan();
+  if (!plan?.items?.length) {
+    toast('Load install-summary.json before exporting.', 'warning');
+    return;
+  }
+  const headers = ['software_name', 'status', 'reason', 'path_kind', 'normalized_path'];
+  const rows = plan.items.map(item => headers.map(h => {
+    const s = String(item[h] ?? '');
+    return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `software_install_plan_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Install plan exported.', 'success');
 }

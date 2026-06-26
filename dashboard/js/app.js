@@ -7,6 +7,11 @@ import { getInventoryHTML, initInventoryPanel, renderInventoryPanel } from './pa
 import { getTasksHTML, initTasksPanel, renderTasksPanel } from './panel-tasks.js';
 import { getNetworkHTML, initNetworkPanel, renderNetworkPanel } from './panel-network.js';
 import { getSoftwareHTML, initSoftwarePanel, renderSoftwarePanel } from './panel-software.js';
+import { initSoftwareTrackerTutorial } from './software-tracker-tutorial.js';
+import {
+  setSoftwareInstallPlan,
+  clearSoftwareInstallPlan,
+} from './software-tracker-state.js';
 import { initTour, markPanelVisited, initPanelBadges } from './tour.js';
 import { initRelayConnection, onRelayStatus, getRelayConnected, RELAY_PORT } from './relay-client.js'; // setRelayToken used via relay-client.js in panel-network.js
 // Sample data is loaded via a plain <script> tag in index.html (not an ES module).
@@ -35,6 +40,7 @@ const TYPE_SECTION_LABELS = {
   'ad-registered-population': 'AD registered population',
   'remote-task': 'Remote tasks',
   'software-tracker': 'Software tracker',
+  'software-tracker-install-plan': 'Software install plan',
   'software-superset': 'Software tracker',
   'status-json': 'Status',
 };
@@ -59,6 +65,7 @@ const TYPE_TO_PANELS = {
   'cybernet-target-manifest': ['inventory'],
   'ad-registered-population': ['inventory', 'network'],
   'software-tracker':    ['software'],
+  'software-tracker-install-plan': ['software'],
   'software-superset':   ['software'],
 };
 
@@ -66,11 +73,13 @@ const TYPE_TO_PANELS = {
 document.addEventListener('DOMContentLoaded', () => {
   buildLayout();
   initCybernetShell();
+  initSoftwareTrackerShell();
   initTabs();
   initIngestion();
   initModeToggle();
   initLiveMode();
   initCybernetTutorial();
+  initSoftwareTrackerTutorial();
   initPasteModal();
   initStatusFooter();
   initDropOverlay();
@@ -222,6 +231,68 @@ function initCybernetShell() {
   });
 }
 
+function initSoftwareTrackerShell() {
+  const startBtn = document.getElementById('hero-start-install');
+  const tutorial = document.getElementById('software-tracker-tutorial');
+  const statusEl = document.getElementById('software-tracker-hero-status');
+
+  const setHeroStatus = (msg, kind) => {
+    if (!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.classList.remove('is-busy', 'is-open', 'is-error');
+    if (kind) statusEl.classList.add(kind);
+    statusEl.classList.toggle('hidden', !msg);
+  };
+
+  const tutorialIsVisible = () => {
+    if (!tutorial) return false;
+    if (tutorial.classList.contains('hidden')) return false;
+    const cs = window.getComputedStyle(tutorial);
+    return cs.display !== 'none' && cs.visibility !== 'hidden';
+  };
+
+  const startSoftwareTrackerTutorial = (opts) => {
+    const source = (opts && opts.source) || 'manual';
+    if (!tutorial || !startBtn) {
+      setHeroStatus('Could not open the install tutorial. Reload the dashboard or use Load Evidence.', 'is-error');
+      toast('Software Tracker tutorial is unavailable. Reload the dashboard.', 'error');
+      return false;
+    }
+
+    setHeroStatus('Opening install workflow…', 'is-busy');
+    tutorial.style.display = '';
+    tutorial.classList.remove('hidden');
+    if (typeof window.__sasResetSoftwareTrackerWizard === 'function') {
+      try { window.__sasResetSoftwareTrackerWizard(); } catch (_) { /* non-fatal */ }
+    }
+
+    if (!tutorialIsVisible()) {
+      tutorial.classList.add('hidden');
+      setHeroStatus('Could not open the tutorial. Try again or use Load Evidence.', 'is-error');
+      toast('Could not open the Software Tracker tutorial. Try again or load evidence.', 'error');
+      return false;
+    }
+
+    startBtn.textContent = 'Restart Software Tracker Install';
+    startBtn.setAttribute('aria-label', 'Restart the Software Tracker install workflow from step 1');
+    setHeroStatus('Install workflow open below.', 'is-open');
+    if (source !== 'silent') {
+      window.setTimeout(() => {
+        tutorial.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 30);
+    }
+    return true;
+  };
+
+  startBtn?.addEventListener('click', () => startSoftwareTrackerTutorial({ source: 'manual' }));
+  window.startSoftwareTrackerTutorial = startSoftwareTrackerTutorial;
+
+  document.getElementById('hero-start-install-evidence')?.addEventListener('click', () => {
+    document.getElementById('evidence-loader')?.classList.remove('hidden');
+    document.getElementById('evidence-loader')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
 function openAdvancedSection(scroll) {
   const section = document.getElementById('advanced-section');
   section?.classList.remove('hidden');
@@ -364,6 +435,20 @@ async function processFile(file) {
       return;
     }
 
+    if (parsedData.type === 'software-tracker-install-plan') {
+      setSoftwareInstallPlan(parsedData.data);
+      store = mergeDataStore(store, parsedData);
+      refreshAllPanels();
+      const count = parsedData.data?.items?.length ?? 0;
+      addFileChip(name, count > 0 ? 'ok' : 'warn', parsedData.type, count, parsedData);
+      toast(`Loaded install plan — ${count} row(s). Review blockers before live run.`, count > 0 ? 'success' : 'warning');
+      updateSoftwareBadge();
+      markPanelVisited('software');
+      switchTab('software');
+      document.getElementById('evidence-loader')?.classList.remove('hidden');
+      return;
+    }
+
     store = mergeDataStore(store, parsedData);
     refreshAllPanels();
 
@@ -394,6 +479,17 @@ function readFileAsText(file) {
   });
 }
 
+function rebuildInstallPlanFromChips() {
+  let latest = null;
+  for (const f of loadedFiles) {
+    if (f.parsedData?.type === 'software-tracker-install-plan') {
+      latest = f.parsedData.data;
+    }
+  }
+  if (latest) setSoftwareInstallPlan(latest);
+  else clearSoftwareInstallPlan();
+}
+
 function rebuildStoreFromChips() {
   store = {};
   let latestStatus = null;
@@ -405,6 +501,7 @@ function rebuildStoreFromChips() {
       store = mergeDataStore(store, f.parsedData);
     }
   }
+  rebuildInstallPlanFromChips();
   updateStatusFooter(latestStatus); // null clears footer if no status chip remains
   refreshAllPanels();
 }
@@ -423,7 +520,8 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'smb-recon': '📂', 'status-json': '💚', 'remote-task': '⚡',
     'naabu-reachability': '🔌',
     'ad-registered-population': '🏢',
-    'software-tracker': '📦', 'cybernet-target-manifest': '🎯', 'unknown': '❓'
+    'software-tracker': '📦', 'software-tracker-install-plan': '📋',
+    'cybernet-target-manifest': '🎯', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
 

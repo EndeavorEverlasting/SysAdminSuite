@@ -116,6 +116,7 @@ export function detectFileType(filename, content) {
 
   // JSON detection — check filename hints first, then probe content
   if (fn.endsWith('.json')) {
+    if (fn.includes('install-summary') || fn.includes('install_summary')) return 'software-tracker-install-plan';
     if (fn.includes('status')) return 'status-json';
     if (fn.includes('sources') || fn.includes('software') || fn.includes('apps')) return 'software-tracker';
     if (fn.includes('neuron')) return 'neuron-inventory';
@@ -126,6 +127,9 @@ export function detectFileType(filename, content) {
     // Probe raw content: if it contains task-event keys treat as task log
     if (typeof content === 'string') {
       const snip = content.slice(0, 400).toLowerCase();
+      if (snip.includes('"items"') && snip.includes('"summary"') && snip.includes('"status"')) {
+        return 'software-tracker-install-plan';
+      }
       if (snip.includes('"taskname"') || snip.includes('"outcome"') ||
           snip.includes('"taskid"') || snip.includes('"events"')) return 'remote-task';
     }
@@ -209,6 +213,7 @@ export function parseFileContent(type, content, filename) {
     case 'status-json': return parseStatusJson(content);
     case 'remote-task': return parseRemoteTask(content);
     case 'software-tracker': return parseSoftwareTracker(content, filename);
+    case 'software-tracker-install-plan': return parseSoftwareTrackerInstallPlan(content, filename);
     case 'software-superset': return parseSoftwareSuperset(content);
     case 'naabu-reachability': return parseNaabuReachability(content, filename);
     case 'ad-registered-population': return parseAdRegisteredPopulation(content, filename);
@@ -518,6 +523,23 @@ function parseSoftwareSuperset(content) {
   return { type: 'software-superset', rows: normalized, meta: { count: normalized.length } };
 }
 
+function parseSoftwareTrackerInstallPlan(content, filename) {
+  let parsed;
+  try {
+    parsed = typeof content === 'string' ? JSON.parse(content) : content;
+  } catch (err) {
+    return { type: 'software-tracker-install-plan', rows: [], data: { items: [], summary: {} }, meta: { error: err.message, filename } };
+  }
+  const items = Array.isArray(parsed?.items) ? parsed.items : [];
+  const summary = parsed?.summary && typeof parsed.summary === 'object' ? parsed.summary : {};
+  return {
+    type: 'software-tracker-install-plan',
+    rows: items,
+    data: { items, summary },
+    meta: { count: items.length, filename },
+  };
+}
+
 /**
  * Parse sources.yaml or sas-list-apps.sh --json output into the software tracker store.
  * Accepts:
@@ -717,6 +739,9 @@ export function mergeDataStore(existing, incoming) {
     }
     case 'software-superset':
       store.softwareInventory = (store.softwareInventory || []).concat(rows);
+      break;
+    case 'software-tracker-install-plan':
+      store.softwareInstallPlan = data;
       break;
     case 'naabu-reachability':
       store.naabuReachability = (store.naabuReachability || []).concat(rows);

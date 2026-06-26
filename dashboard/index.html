@@ -111,11 +111,11 @@
     <button class="btn-secondary btn-compact" id="advanced-tools-toggle" type="button" aria-expanded="false" aria-controls="advanced-section">Advanced Tools</button>
   </div>
 
-  <section id="cybernet-hero" class="cybernet-hero" aria-label="Cybernet Survey">
+  <section id="cybernet-hero" class="workflow-hero cybernet-hero" aria-label="Cybernet Survey">
     <div class="cybernet-hero-inner">
       <h2>Cybernet Survey</h2>
       <p class="cybernet-hero-subtitle">Find, verify, and package Cybernet targets from approved target sources.</p>
-      <ol class="cybernet-progress-rail" id="cybernet-progress-rail" aria-label="Survey progress">
+      <ol class="workflow-progress-rail cybernet-progress-rail" id="cybernet-progress-rail" aria-label="Survey progress">
         <li data-step="0">Targets</li>
         <li data-step="1">Network posture</li>
         <li data-step="2">Identity evidence</li>
@@ -130,11 +130,11 @@
     </div>
   </section>
 
-  <section id="cybernet-tutorial" class="cybernet-tutorial hidden" aria-label="Cybernet survey wizard">
-    <div class="cybernet-step-kicker" id="cybernet-step-kicker">Step 1 of 5</div>
+  <section id="cybernet-tutorial" class="workflow-tutorial cybernet-tutorial hidden" aria-label="Cybernet survey wizard">
+    <div class="workflow-step-kicker" id="cybernet-step-kicker">Step 1 of 5</div>
     <div class="cybernet-step-progress" id="cybernet-step-progress" aria-hidden="true"></div>
-    <div class="cybernet-step-card">
-      <div class="cybernet-step-content">
+    <div class="workflow-step-card cybernet-step-card">
+      <div class="workflow-step-content cybernet-step-content">
         <h3 id="cybernet-step-title">Prepare your target list</h3>
         <p id="cybernet-step-body"></p>
         <details class="cybernet-step-details" id="cybernet-step-details">
@@ -142,7 +142,7 @@
           <ul id="cybernet-step-checks"></ul>
         </details>
       </div>
-      <div class="cybernet-command-panel" id="cybernet-command-panel">
+      <div class="workflow-command-panel cybernet-command-panel" id="cybernet-command-panel">
         <div class="command-panel-title">Command to run outside the dashboard</div>
         <div class="command-panel-runner" id="cybernet-command-runner">
           You run this on an admin machine. The dashboard does not run commands; it only reads the files you drop back in.
@@ -151,7 +151,7 @@
         <div class="command-panel-note" id="cybernet-step-note"></div>
       </div>
     </div>
-    <div class="cybernet-tutorial-nav">
+    <div class="workflow-tutorial-nav cybernet-tutorial-nav">
       <button class="btn-secondary" id="cybernet-prev" type="button">← Back</button>
       <button class="btn-secondary hidden" id="cybernet-copy" type="button">Copy Command</button>
       <button class="btn-primary" id="cybernet-next" type="button">Next →</button>
@@ -162,6 +162,62 @@
     <div id="cybernet-manifest-summary" class="cybernet-manifest-summary cybernet-manifest-summary-empty" role="status" aria-live="polite" aria-atomic="true">
       <div class="eyebrow">Cybernet Target Manifest</div>
       <div id="cybernet-manifest-stats" class="cybernet-manifest-stats"></div>
+    </div>
+  </section>
+
+  <section id="software-tracker-hero" class="workflow-hero software-tracker-hero" aria-label="Software Tracker Install">
+    <div class="software-tracker-hero-inner">
+      <h2>Software Tracker Install</h2>
+      <p class="software-tracker-hero-subtitle">Preview install plans from the offline workbook, review blockers, approve, then run guarded execute outside the dashboard.</p>
+      <ol class="workflow-progress-rail software-tracker-progress-rail" id="software-tracker-progress-rail" aria-label="Install workflow progress">
+        <li data-step="0">Load tracker</li>
+        <li data-step="1">Choose target</li>
+        <li data-step="2">Dry-run preview</li>
+        <li data-step="3">Review blockers</li>
+        <li data-step="4">Approve live run</li>
+        <li data-step="5">Run execute</li>
+        <li data-step="6">Save results</li>
+      </ol>
+      <div class="software-tracker-hero-actions" id="software-tracker-hero-actions">
+        <button class="btn-primary" id="hero-start-install" type="button">Start Software Tracker Install</button>
+        <button class="btn-secondary" id="hero-start-install-evidence" type="button">Load Evidence</button>
+      </div>
+      <p id="software-tracker-hero-status" class="software-tracker-hero-status hidden" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section id="software-tracker-tutorial" class="workflow-tutorial software-tracker-tutorial hidden" aria-label="Software Tracker install wizard">
+    <div class="workflow-step-kicker" id="sw-step-kicker">Step 1 of 7</div>
+    <div class="workflow-step-card">
+      <div class="workflow-step-content">
+        <h3 id="sw-step-title">Load Software Tracker</h3>
+        <p id="sw-step-body"></p>
+        <ul id="sw-step-checks"></ul>
+        <div id="sw-selection-panel" class="sw-selection-panel hidden">
+          <label>List name <input type="text" id="sw-tutorial-list" placeholder="optional list name"></label>
+          <label>Software name <input type="text" id="sw-tutorial-software" placeholder="optional software name"></label>
+        </div>
+        <div id="sw-approval-panel" class="sw-approval-panel hidden">
+          <label><input type="checkbox" id="sw-tutorial-approve-live"> Approve Live Run</label>
+        </div>
+        <div id="sw-execute-options-panel" class="sw-execute-options-panel hidden">
+          <label><input type="checkbox" id="sw-tutorial-allow-folder"> Allow discovered folder installs (requires execute)</label>
+        </div>
+        <p id="sw-tutorial-plan-summary" class="sw-tutorial-plan-summary hidden" role="status"></p>
+      </div>
+      <div class="workflow-command-panel" id="sw-command-panel">
+        <div class="command-panel-title">Command to run outside the dashboard</div>
+        <div class="command-panel-runner" id="sw-command-runner">
+          You run this on an admin machine. The dashboard does not run installs; it only reads install-summary.json back in.
+        </div>
+        <textarea id="sw-step-command" readonly spellcheck="false"></textarea>
+        <div class="command-panel-note" id="sw-step-note"></div>
+      </div>
+    </div>
+    <div class="workflow-tutorial-nav">
+      <button class="btn-secondary" id="sw-prev" type="button">← Back</button>
+      <button class="btn-secondary hidden" id="sw-copy" type="button">Copy Command</button>
+      <button class="btn-primary" id="sw-next" type="button">Next →</button>
     </div>
   </section>
 

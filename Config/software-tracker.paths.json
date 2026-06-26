@@ -1,0 +1,16 @@
+{
+  "offlineWorkbook": {
+    "relativePath": "logs/targets/software/Software Tracker 6-26-2026.xlsx",
+    "windowsPathExample": "logs\\targets\\software\\Software Tracker 6-26-2026.xlsx",
+    "purpose": "Local offline Software Tracker workbook when the network share is unavailable for live software catalog probing.",
+    "namingPattern": "Software Tracker M-D-YYYY.xlsx",
+    "setupNote": "Place the current workbook in logs/targets/software/ before starting the Software Tracker install tutorial. This path is gitignored and stays on the workstation."
+  },
+  "reportOutputDir": "survey/output/software-tracker-install",
+  "exampleConfig": "Config/software-tracker.example.json",
+  "reports": {
+    "json": "survey/output/software-tracker-install/install-summary.json",
+    "csv": "survey/output/software-tracker-install/install-summary.csv",
+    "text": "survey/output/software-tracker-install/install-log.txt"
+  }
+}

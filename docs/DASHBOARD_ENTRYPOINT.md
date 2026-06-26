@@ -32,7 +32,14 @@ Warn against the common mistake: do **not** create a `SysAdminSuite` folder firs
 
 | File | Audience | What it does |
 |------|----------|--------------|
-| `START-HERE-SysAdminSuite-Dashboard.bat` | **Field users (primary)** | Friendly console, starts host, opens browser + Cybernet tutorial |
+| `START-HERE-SysAdminSuite-Dashboard.bat` | **Field users (primary)** | Friendly console, starts host, opens browser; Cybernet + Software Tracker front-door workflows |
+
+After the dashboard loads, field users see two front-door heroes:
+
+- **Cybernet Survey** — `Start Cybernet Survey` (target acquisition wizard)
+- **Software Tracker Install** — `Start Software Tracker Install` (dry-run → approve → guarded execute tutorial)
+
+Software Tracker install details: [`SOFTWARE_TRACKER_INSTALLS.md`](SOFTWARE_TRACKER_INSTALLS.md).
 | `START-HERE-SysAdminSuite-Dashboard.cmd` | Compatibility alias | Calls the `.bat` launcher |
 | `SysAdminSuite Dashboard.cmd` | Field desktops / shortcuts | Alias of the START-HERE `.bat` |
 | `Launch-SysAdminSuiteDashboard.Host.bat` | IT / developers | Spawns tray host only (no extra messaging) |

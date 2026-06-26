@@ -343,6 +343,7 @@ function detectFileType(filename, content) {
 
   // JSON detection — check filename hints first, then probe content
   if (fn.endsWith('.json')) {
+    if (fn.includes('install-summary') || fn.includes('install_summary')) return 'software-tracker-install-plan';
     if (fn.includes('status')) return 'status-json';
     if (fn.includes('sources') || fn.includes('software') || fn.includes('apps')) return 'software-tracker';
     if (fn.includes('neuron')) return 'neuron-inventory';
@@ -353,6 +354,9 @@ function detectFileType(filename, content) {
     // Probe raw content: if it contains task-event keys treat as task log
     if (typeof content === 'string') {
       const snip = content.slice(0, 400).toLowerCase();
+      if (snip.includes('"items"') && snip.includes('"summary"') && snip.includes('"status"')) {
+        return 'software-tracker-install-plan';
+      }
       if (snip.includes('"taskname"') || snip.includes('"outcome"') ||
           snip.includes('"taskid"') || snip.includes('"events"')) return 'remote-task';
     }
@@ -436,6 +440,7 @@ function parseFileContent(type, content, filename) {
     case 'status-json': return parseStatusJson(content);
     case 'remote-task': return parseRemoteTask(content);
     case 'software-tracker': return parseSoftwareTracker(content, filename);
+    case 'software-tracker-install-plan': return parseSoftwareTrackerInstallPlan(content, filename);
     case 'software-superset': return parseSoftwareSuperset(content);
     case 'naabu-reachability': return parseNaabuReachability(content, filename);
     case 'ad-registered-population': return parseAdRegisteredPopulation(content, filename);
@@ -745,6 +750,23 @@ function parseSoftwareSuperset(content) {
   return { type: 'software-superset', rows: normalized, meta: { count: normalized.length } };
 }
 
+function parseSoftwareTrackerInstallPlan(content, filename) {
+  let parsed;
+  try {
+    parsed = typeof content === 'string' ? JSON.parse(content) : content;
+  } catch (err) {
+    return { type: 'software-tracker-install-plan', rows: [], data: { items: [], summary: {} }, meta: { error: err.message, filename } };
+  }
+  const items = Array.isArray(parsed?.items) ? parsed.items : [];
+  const summary = parsed?.summary && typeof parsed.summary === 'object' ? parsed.summary : {};
+  return {
+    type: 'software-tracker-install-plan',
+    rows: items,
+    data: { items, summary },
+    meta: { count: items.length, filename },
+  };
+}
+
 /**
  * Parse sources.yaml or sas-list-apps.sh --json output into the software tracker store.
  * Accepts:
@@ -944,6 +966,9 @@ function mergeDataStore(existing, incoming) {
     }
     case 'software-superset':
       store.softwareInventory = (store.softwareInventory || []).concat(rows);
+      break;
+    case 'software-tracker-install-plan':
+      store.softwareInstallPlan = data;
       break;
     case 'naabu-reachability':
       store.naabuReachability = (store.naabuReachability || []).concat(rows);
@@ -2706,6 +2731,422 @@ _exports.getNetworkHTML = getNetworkHTML;
 })();
 var renderNetworkPanel = _exports.renderNetworkPanel, initNetworkPanel = _exports.initNetworkPanel, getNetworkHTML = _exports.getNetworkHTML;
 
+// ====== software-tracker-paths.js ======
+(function () {
+// software-tracker-paths.js — canonical offline workbook + report paths for dashboard tutorials
+
+const SOFTWARE_TRACKER_PATHS = {
+  offlineWorkbook: 'logs/targets/software/Software Tracker 6-26-2026.xlsx',
+  offlineWorkbookWindows: 'logs\\targets\\software\\Software Tracker 6-26-2026.xlsx',
+  config: 'Config/software-tracker.example.json',
+  reportDir: 'survey/output/software-tracker-install',
+  reportJson: 'survey/output/software-tracker-install/install-summary.json',
+  reportCsv: 'survey/output/software-tracker-install/install-summary.csv',
+  reportText: 'survey/output/software-tracker-install/install-log.txt',
+};
+
+function buildSoftwareTrackerDryRunCommand({ list = '', software = '' } = {}) {
+  const lines = [
+    'bash scripts/sas-software-tracker-install.sh \\',
+    `  --tracker "${SOFTWARE_TRACKER_PATHS.offlineWorkbook}" \\`,
+    `  --config ${SOFTWARE_TRACKER_PATHS.config}`,
+  ];
+  if (list) lines.push(`  --list "${list}" \\`);
+  if (software) lines.push(`  --software "${software}" \\`);
+  if (lines[lines.length - 1].endsWith(' \\')) {
+    lines[lines.length - 1] = lines[lines.length - 1].slice(0, -2);
+  }
+  return lines.join('\n');
+}
+
+function buildSoftwareTrackerExecuteCommand({ list = '', software = '', allowFolder = false } = {}) {
+  let cmd = buildSoftwareTrackerDryRunCommand({ list, software });
+  cmd += ' \\\n  --execute';
+  if (allowFolder) cmd += ' \\\n  --allow-discovered-folder-installs';
+  return cmd;
+}
+
+// expose exports to bundle scope
+_exports.buildSoftwareTrackerDryRunCommand = buildSoftwareTrackerDryRunCommand;
+_exports.buildSoftwareTrackerExecuteCommand = buildSoftwareTrackerExecuteCommand;
+_exports.SOFTWARE_TRACKER_PATHS = SOFTWARE_TRACKER_PATHS;
+})();
+var buildSoftwareTrackerDryRunCommand = _exports.buildSoftwareTrackerDryRunCommand, buildSoftwareTrackerExecuteCommand = _exports.buildSoftwareTrackerExecuteCommand, SOFTWARE_TRACKER_PATHS = _exports.SOFTWARE_TRACKER_PATHS;
+
+// ====== software-tracker-state.js ======
+(function () {
+// software-tracker-state.js — shared install workflow state for tutorial + panel rail
+
+let _installPlan = null;
+let _liveApproved = false;
+let _selection = { list: '', software: '' };
+
+function getSoftwareInstallPlan() {
+  return _installPlan;
+}
+
+function setSoftwareInstallPlan(plan) {
+  _installPlan = plan;
+  _liveApproved = false;
+  window.dispatchEvent(new CustomEvent('sas-software-install-state'));
+}
+
+function clearSoftwareInstallPlan() {
+  _installPlan = null;
+  _liveApproved = false;
+  window.dispatchEvent(new CustomEvent('sas-software-install-state'));
+}
+
+function isLiveRunApproved() {
+  return _liveApproved;
+}
+
+function setLiveRunApproved(value) {
+  _liveApproved = Boolean(value);
+  window.dispatchEvent(new CustomEvent('sas-software-install-state'));
+}
+
+function getSoftwareSelection() {
+  return { ..._selection };
+}
+
+function setSoftwareSelection({ list, software } = {}) {
+  _selection = {
+    list: list ?? _selection.list,
+    software: software ?? _selection.software,
+  };
+  window.dispatchEvent(new CustomEvent('sas-software-install-state'));
+}
+
+function summarizeInstallBlockers(plan) {
+  const items = plan?.items || [];
+  const counts = {};
+  for (const item of items) {
+    counts[item.status] = (counts[item.status] || 0) + 1;
+  }
+  return {
+    total: items.length,
+    counts,
+    blocked: items.filter(i => i.status === 'Blocked'),
+    manual: items.filter(i => i.status === 'ManualReview'),
+    planned: items.filter(i => i.status === 'Planned' || i.status === 'DryRun'),
+  };
+}
+
+function canRunLiveInstall() {
+  if (!_installPlan) return false;
+  if (!_liveApproved) return false;
+  return (_installPlan.items || []).some(item => item.status === 'Planned' || item.status === 'DryRun');
+}
+
+function liveRunDisabledReason() {
+  if (!_installPlan) return 'Run Preview Install Plan first, then load install-summary.json.';
+  if (!_liveApproved) return 'Check Approve Live Run after reviewing blockers.';
+  if (!canRunLiveInstall()) return 'No planned install rows are ready for guarded execute.';
+  return '';
+}
+
+// expose exports to bundle scope
+_exports.getSoftwareInstallPlan = getSoftwareInstallPlan;
+_exports.setSoftwareInstallPlan = setSoftwareInstallPlan;
+_exports.clearSoftwareInstallPlan = clearSoftwareInstallPlan;
+_exports.isLiveRunApproved = isLiveRunApproved;
+_exports.setLiveRunApproved = setLiveRunApproved;
+_exports.getSoftwareSelection = getSoftwareSelection;
+_exports.setSoftwareSelection = setSoftwareSelection;
+_exports.summarizeInstallBlockers = summarizeInstallBlockers;
+_exports.canRunLiveInstall = canRunLiveInstall;
+_exports.liveRunDisabledReason = liveRunDisabledReason;
+})();
+var getSoftwareInstallPlan = _exports.getSoftwareInstallPlan, setSoftwareInstallPlan = _exports.setSoftwareInstallPlan, clearSoftwareInstallPlan = _exports.clearSoftwareInstallPlan, isLiveRunApproved = _exports.isLiveRunApproved, setLiveRunApproved = _exports.setLiveRunApproved, getSoftwareSelection = _exports.getSoftwareSelection, setSoftwareSelection = _exports.setSoftwareSelection, summarizeInstallBlockers = _exports.summarizeInstallBlockers, canRunLiveInstall = _exports.canRunLiveInstall, liveRunDisabledReason = _exports.liveRunDisabledReason;
+
+// ====== software-tracker-tutorial.js ======
+(function () {
+// software-tracker-tutorial.js — guarded install workflow wizard (dry-run → approve → execute)
+
+const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
+  {
+    title: 'Load Software Tracker',
+    railLabel: 'Load tracker',
+    body: 'When the network share is unavailable, use the local offline workbook stored in the repo. Do not hunt for a live server path during guest or segmented network work.',
+    command: `# Offline workbook (gitignored local copy):\n${SOFTWARE_TRACKER_PATHS.offlineWorkbook}\n\n# Windows path example:\n${SOFTWARE_TRACKER_PATHS.offlineWorkbookWindows}`,
+    checks: [
+      'Copy the current Software Tracker workbook into logs/targets/software/ before you start.',
+      'Expected filename pattern: Software Tracker M-D-YYYY.xlsx (example: Software Tracker 6-26-2026.xlsx).',
+      'This file stays local and is never committed to git.',
+    ],
+    nextAction: 'Confirm the offline workbook exists at the path above, then click Next.',
+    note: 'Canonical path is documented in Config/software-tracker.paths.json and docs/SOFTWARE_TRACKER_INSTALLS.md.',
+    optional: false,
+    hasCommand: false,
+  },
+  {
+    title: 'Choose list or software',
+    railLabel: 'Choose target',
+    body: 'Limit the install plan to one named list or one application from the Directories sheet. Leave both blank to plan the whole catalog.',
+    command: '# Use the selectors below, or add flags to the dry-run command:\n#   --list "workstation-baseline"\n#   --software "Google Chrome"',
+    checks: [
+      'List mode is best for site packages or baseline bundles.',
+      'Software mode is best for one application at a time.',
+      'You can change the selection and re-run Preview Install Plan anytime.',
+    ],
+    nextAction: 'Pick an optional list or software name using the fields below, then click Next.',
+    note: 'Selection is optional. Blank means plan all rows in scope.',
+    optional: false,
+    hasCommand: false,
+    showSelection: true,
+  },
+  {
+    title: 'Dry-run preview',
+    railLabel: 'Dry-run preview',
+    body: 'Generate the install plan first. Nothing installs during dry-run. The command writes install-summary.json, install-summary.csv, and install-log.txt locally.',
+    command: '', // filled dynamically
+    checks: [
+      'Dry-run is the default and required first step.',
+      'No installer commands run without --execute.',
+      'Reports land in survey/output/software-tracker-install/.',
+    ],
+    nextAction: 'Click Copy Command, run it on your admin machine, then load install-summary.json back into the dashboard.',
+    note: `Primary action label: Preview Install Plan. Output: ${SOFTWARE_TRACKER_PATHS.reportJson}`,
+    optional: false,
+    hasCommand: true,
+    commandKind: 'dry-run',
+  },
+  {
+    title: 'Review blockers',
+    railLabel: 'Review blockers',
+    body: 'Load install-summary.json from the dry-run output. Review blocked URLs, EXEs missing silent args, folder paths needing manual review, and missing installers before any live run.',
+    command: `# Load this file via Load Evidence or drop it on the dashboard:\n${SOFTWARE_TRACKER_PATHS.reportJson}`,
+    checks: [
+      'Blocked rows are expected safety outcomes, not parser failures.',
+      'URLs are never opened or executed.',
+      'Folder paths stay manual-review unless execute plus allow-discovered-folder-installs are both set.',
+    ],
+    nextAction: 'Drop install-summary.json, confirm the blocker summary below, then click Next.',
+    note: 'Primary action label: Review Plan.',
+    optional: false,
+    hasCommand: false,
+    showPlanSummary: true,
+  },
+  {
+    title: 'Approve live run',
+    railLabel: 'Approve live run',
+    body: 'Live execution only runs after you review the dry-run plan and explicitly approve it. This step explains what guarded execute will do.',
+    command: '# Check Approve Live Run below after you understand the planned mutations.',
+    checks: [
+      'Approve only after reviewing install-summary.json.',
+      'Live run uses --execute and still respects blocked/manual-review rows.',
+      'Relay is not required; copy and run the command on an admin workstation.',
+    ],
+    nextAction: 'Check Approve Live Run, then click Next.',
+    note: 'Primary action label: Approve Live Run.',
+    optional: false,
+    hasCommand: false,
+    showApproval: true,
+  },
+  {
+    title: 'Run guarded execute',
+    railLabel: 'Run execute',
+    body: 'Copy the guarded execute command. It adds --execute only after approval. Folder-discovered installers also need --allow-discovered-folder-installs.',
+    command: '',
+    checks: [
+      'Execute mode never runs blocked or manual-review rows.',
+      'EXE installers require explicit silent arguments.',
+      'Commands run as argv lists with shell=False in the Python tool.',
+    ],
+    nextAction: 'Click Copy Command, run it outside the dashboard, then load the updated install-summary.json.',
+    note: 'Primary action label: Run Approved Installs.',
+    optional: false,
+    hasCommand: true,
+    commandKind: 'execute',
+    requiresApproval: true,
+    showExecuteOptions: true,
+  },
+  {
+    title: 'Save results',
+    railLabel: 'Save results',
+    body: 'Keep the JSON, CSV, and text reports for handoff. Re-run dry-run any time the workbook or selection changes.',
+    command: `# Report locations:\n${SOFTWARE_TRACKER_PATHS.reportJson}\n${SOFTWARE_TRACKER_PATHS.reportCsv}\n${SOFTWARE_TRACKER_PATHS.reportText}`,
+    checks: [
+      'Do not commit live workbook files or field reports to git.',
+      'Use Export Report in the Software panel for a quick CSV copy of the loaded plan.',
+      'If results look wrong, use Back to dry-run and start over.',
+    ],
+    nextAction: 'Open the Software Tracker panel to export or review the final plan.',
+    note: 'Primary action label: Export Report.',
+    optional: false,
+    hasCommand: false,
+  },
+];
+
+function buildStepCommand(step) {
+  const sel = getSoftwareSelection();
+  if (step.commandKind === 'dry-run') {
+    return buildSoftwareTrackerDryRunCommand(sel);
+  }
+  if (step.commandKind === 'execute') {
+    const allowFolder = document.getElementById('sw-tutorial-allow-folder')?.checked
+      || document.getElementById('sw-allow-folder')?.checked;
+    return buildSoftwareTrackerExecuteCommand({ ...sel, allowFolder });
+  }
+  return step.command || '';
+}
+
+function initSoftwareTrackerTutorial() {
+  const root = document.getElementById('software-tracker-tutorial');
+  if (!root) return;
+
+  let idx = 0;
+  let copiedThisStep = false;
+  const title = document.getElementById('sw-step-title');
+  const body = document.getElementById('sw-step-body');
+  const kicker = document.getElementById('sw-step-kicker');
+  const checks = document.getElementById('sw-step-checks');
+  const command = document.getElementById('sw-step-command');
+  const runner = document.getElementById('sw-command-runner');
+  const note = document.getElementById('sw-step-note');
+  const commandPanel = document.getElementById('sw-command-panel');
+  const prev = document.getElementById('sw-prev');
+  const next = document.getElementById('sw-next');
+  const copy = document.getElementById('sw-copy');
+  const progressRail = document.getElementById('software-tracker-progress-rail');
+  const listInput = document.getElementById('sw-tutorial-list');
+  const softwareInput = document.getElementById('sw-tutorial-software');
+  const planSummary = document.getElementById('sw-tutorial-plan-summary');
+  const approveBox = document.getElementById('sw-tutorial-approve-live');
+  const selectionPanel = document.getElementById('sw-selection-panel');
+  const approvalPanel = document.getElementById('sw-approval-panel');
+  const executeOptionsPanel = document.getElementById('sw-execute-options-panel');
+  const allowFolderTutorial = document.getElementById('sw-tutorial-allow-folder');
+
+  function updateProgressRail() {
+    progressRail?.querySelectorAll('li').forEach((li, i) => {
+      li.classList.toggle('active', i === idx);
+      li.classList.toggle('done', i < idx);
+    });
+  }
+
+  function renderPlanSummary() {
+    if (!planSummary) return;
+    const plan = getSoftwareInstallPlan();
+    if (!plan) {
+      planSummary.textContent = 'No install-summary.json loaded yet. Run Preview Install Plan, then drop the JSON report here.';
+      return;
+    }
+    const summary = summarizeInstallBlockers(plan);
+    const lines = [
+      `Total rows: ${summary.total}`,
+      `Blocked: ${summary.blocked.length}`,
+      `Manual review: ${summary.manual.length}`,
+      `Dry-run / planned: ${summary.planned.length}`,
+    ];
+    if (summary.blocked.length) {
+      lines.push('Blocked examples: ' + summary.blocked.slice(0, 3).map(i => `${i.software_name} (${i.reason})`).join('; '));
+    }
+    planSummary.textContent = lines.join(' · ');
+  }
+
+  function render() {
+    const step = SOFTWARE_TRACKER_TUTORIAL_STEPS[idx];
+    if (!step) return;
+    copiedThisStep = false;
+
+    kicker.textContent = `Step ${idx + 1} of ${SOFTWARE_TRACKER_TUTORIAL_STEPS.length} — ${step.railLabel}`;
+    title.textContent = step.title;
+    body.textContent = step.body;
+    checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
+
+    selectionPanel?.classList.toggle('hidden', !step.showSelection);
+    approvalPanel?.classList.toggle('hidden', !step.showApproval);
+    executeOptionsPanel?.classList.toggle('hidden', !step.showExecuteOptions);
+    planSummary?.classList.toggle('hidden', !step.showPlanSummary);
+    if (step.showPlanSummary) renderPlanSummary();
+
+    const cmdText = buildStepCommand(step);
+    const hasCommand = !!(step.hasCommand && cmdText);
+    commandPanel?.classList.toggle('hidden', !hasCommand && !step.command);
+    if (command) command.value = hasCommand ? cmdText : (step.command || '');
+    if (runner) runner.textContent = step.nextAction;
+    if (note) note.textContent = step.note;
+
+    prev.disabled = idx === 0;
+    next.textContent = idx === SOFTWARE_TRACKER_TUTORIAL_STEPS.length - 1 ? 'Finish' : 'Next →';
+    copy?.classList.toggle('hidden', !hasCommand);
+
+    updateProgressRail();
+  }
+
+  function copyCommand() {
+    const text = command?.value || '';
+    if (!text) return;
+    const write = navigator.clipboard?.writeText
+      ? navigator.clipboard.writeText(text)
+      : Promise.reject(new Error('clipboard unavailable'));
+    write
+      .then(() => {
+        copiedThisStep = true;
+        toast('Command copied.', 'success');
+      })
+      .catch(() => toast('Select and copy the command manually.', 'warning'));
+  }
+
+  listInput?.addEventListener('input', () => {
+    setSoftwareSelection({ list: listInput.value.trim(), software: softwareInput?.value.trim() || '' });
+    render();
+  });
+  softwareInput?.addEventListener('input', () => {
+    setSoftwareSelection({ list: listInput?.value.trim() || '', software: softwareInput.value.trim() });
+    render();
+  });
+  approveBox?.addEventListener('change', () => setLiveRunApproved(approveBox.checked));
+  allowFolderTutorial?.addEventListener('change', () => render());
+  window.addEventListener('sas-software-install-state', () => {
+    if (approveBox) approveBox.checked = isLiveRunApproved();
+    renderPlanSummary();
+    render();
+  });
+
+  prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
+  next?.addEventListener('click', () => {
+    const step = SOFTWARE_TRACKER_TUTORIAL_STEPS[idx];
+    if (step.showApproval && !isLiveRunApproved()) {
+      toast('Check Approve Live Run before continuing.', 'warning');
+      return;
+    }
+    if (step.requiresApproval && !canRunLiveInstall() && !isLiveRunApproved()) {
+      toast('Load a dry-run plan and approve live run first.', 'warning');
+      return;
+    }
+    if (step.hasCommand && !copiedThisStep) {
+      toast('Copy the command first, run it outside the dashboard, then continue.', 'warning');
+      return;
+    }
+    if (step.showPlanSummary && !getSoftwareInstallPlan()) {
+      toast('Load install-summary.json before continuing.', 'warning');
+      return;
+    }
+    if (idx < SOFTWARE_TRACKER_TUTORIAL_STEPS.length - 1) {
+      idx++;
+      render();
+    } else {
+      document.getElementById('advanced-section')?.classList.remove('hidden');
+      document.getElementById('content')?.classList.remove('hidden');
+      document.querySelector('.tab-btn[data-tab="software"]')?.click();
+      toast('Software Tracker install workflow complete.', 'success');
+    }
+  });
+  copy?.addEventListener('click', copyCommand);
+
+  window.__sasResetSoftwareTrackerWizard = () => { idx = 0; copiedThisStep = false; render(); };
+  render();
+}
+
+// expose exports to bundle scope
+_exports.initSoftwareTrackerTutorial = initSoftwareTrackerTutorial;
+_exports.SOFTWARE_TRACKER_TUTORIAL_STEPS = SOFTWARE_TRACKER_TUTORIAL_STEPS;
+})();
+var initSoftwareTrackerTutorial = _exports.initSoftwareTrackerTutorial, SOFTWARE_TRACKER_TUTORIAL_STEPS = _exports.SOFTWARE_TRACKER_TUTORIAL_STEPS;
+
 // ====== panel-software.js ======
 (function () {
 // panel-software.js — SysAdmin Suite Software Tracker panel
@@ -2717,6 +3158,23 @@ var renderNetworkPanel = _exports.renderNetworkPanel, initNetworkPanel = _export
 // ── HTML skeleton ────────────────────────────────────────────────────────────
 function getSoftwareHTML() {
   return `
+<div id="sw-install-workflow" class="sw-install-workflow panel-section">
+  <div class="sw-install-workflow-head">
+    <span class="section-title">Software Tracker Install Workflow</span>
+    <p class="sw-install-workflow-lead">Dry-run first, review blockers, approve, then run guarded execute. Offline workbook: <code>${SOFTWARE_TRACKER_PATHS.offlineWorkbook}</code></p>
+  </div>
+  <div class="sw-install-workflow-actions">
+    <button class="btn-primary" id="sw-preview-plan" type="button">Preview Install Plan</button>
+    <button class="btn-secondary" id="sw-review-plan" type="button">Review Plan</button>
+    <label class="sw-approve-live-label"><input type="checkbox" id="sw-approve-live"> Approve Live Run</label>
+    <button class="btn-secondary" id="sw-run-approved" type="button" disabled>Run Approved Installs</button>
+    <button class="btn-secondary" id="sw-back-dryrun" type="button">Back to dry-run</button>
+    <button class="icon-btn" id="sw-export-report" type="button" title="Export loaded install plan as CSV">Export Report</button>
+  </div>
+  <label class="sw-allow-folder-label"><input type="checkbox" id="sw-allow-folder"> Allow discovered folder installs (requires execute)</label>
+  <p id="sw-live-disabled-reason" class="sw-live-disabled-reason" role="status"></p>
+  <div id="sw-blocker-summary" class="sw-blocker-summary hidden" role="status"></div>
+</div>
 <div class="panel-section">
   <div class="section-header">
     <span class="section-title">📦 Software Tracker</span>
@@ -2826,6 +3284,8 @@ function initSoftwarePanel() {
   if (exportBtn) {
     exportBtn.addEventListener('click', exportGapReport);
   }
+
+  initSoftwareInstallWorkflowRail();
 
   // Column sort
   document.querySelectorAll('#sw-table th.sortable').forEach(th => {
@@ -3249,6 +3709,120 @@ function exportGapReport() {
   const missingRows   = gapRows.filter(r => r.includes(',missing,')).length;
   const unmanagedRows = gapRows.filter(r => /,unmanaged[^,]*,/.test(r)).length;
   toast(`Gap report exported — ${missingRows} missing and ${unmanagedRows} unmanaged host-app gaps.`, 'success');
+}
+
+function renderInstallWorkflowRail() {
+  const reasonEl = document.getElementById('sw-live-disabled-reason');
+  const runBtn = document.getElementById('sw-run-approved');
+  const approveBox = document.getElementById('sw-approve-live');
+  const summaryEl = document.getElementById('sw-blocker-summary');
+  const plan = getSoftwareInstallPlan();
+
+  if (approveBox) approveBox.checked = isLiveRunApproved();
+
+  const disabledReason = liveRunDisabledReason();
+  if (reasonEl) reasonEl.textContent = disabledReason;
+  if (runBtn) runBtn.disabled = !canRunLiveInstall();
+
+  if (!summaryEl) return;
+  if (!plan) {
+    summaryEl.classList.add('hidden');
+    summaryEl.textContent = '';
+    return;
+  }
+
+  const summary = summarizeInstallBlockers(plan);
+  summaryEl.classList.remove('hidden');
+  summaryEl.innerHTML = [
+    '<strong>Review Plan:</strong>',
+    `${sanitize(String(summary.total))} row(s)`,
+    `Blocked: ${sanitize(String(summary.blocked.length))}`,
+    `Manual review: ${sanitize(String(summary.manual.length))}`,
+    `Dry-run / planned: ${sanitize(String(summary.planned.length))}`,
+  ].join(' · ');
+}
+
+function initSoftwareInstallWorkflowRail() {
+  const previewBtn = document.getElementById('sw-preview-plan');
+  const reviewBtn = document.getElementById('sw-review-plan');
+  const runBtn = document.getElementById('sw-run-approved');
+  const backBtn = document.getElementById('sw-back-dryrun');
+  const exportBtn = document.getElementById('sw-export-report');
+  const approveBox = document.getElementById('sw-approve-live');
+  const allowFolder = document.getElementById('sw-allow-folder');
+
+  const copyText = (text) => {
+    const write = navigator.clipboard?.writeText
+      ? navigator.clipboard.writeText(text)
+      : Promise.reject(new Error('clipboard unavailable'));
+    return write.then(() => toast('Command copied.', 'success'))
+      .catch(() => toast('Select and copy the command manually.', 'warning'));
+  };
+
+  previewBtn?.addEventListener('click', () => {
+    copyText(buildSoftwareTrackerDryRunCommand(getSoftwareSelection()));
+  });
+
+  reviewBtn?.addEventListener('click', () => {
+    const plan = getSoftwareInstallPlan();
+    if (!plan) {
+      toast(`Load ${SOFTWARE_TRACKER_PATHS.reportJson} after dry-run.`, 'warning');
+      return;
+    }
+    renderInstallWorkflowRail();
+    document.getElementById('sw-blocker-summary')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  approveBox?.addEventListener('change', () => {
+    setLiveRunApproved(approveBox.checked);
+    renderInstallWorkflowRail();
+  });
+
+  runBtn?.addEventListener('click', () => {
+    if (!canRunLiveInstall()) {
+      toast(liveRunDisabledReason(), 'warning');
+      return;
+    }
+    copyText(buildSoftwareTrackerExecuteCommand({
+      ...getSoftwareSelection(),
+      allowFolder: allowFolder?.checked,
+    }));
+  });
+
+  backBtn?.addEventListener('click', () => {
+    clearSoftwareInstallPlan();
+    setLiveRunApproved(false);
+    if (approveBox) approveBox.checked = false;
+    renderInstallWorkflowRail();
+    toast('Cleared loaded plan. Run Preview Install Plan again.', 'info');
+  });
+
+  exportBtn?.addEventListener('click', exportInstallPlanReport);
+  allowFolder?.addEventListener('change', () => renderInstallWorkflowRail());
+  window.addEventListener('sas-software-install-state', renderInstallWorkflowRail);
+  renderInstallWorkflowRail();
+}
+
+function exportInstallPlanReport() {
+  const plan = getSoftwareInstallPlan();
+  if (!plan?.items?.length) {
+    toast('Load install-summary.json before exporting.', 'warning');
+    return;
+  }
+  const headers = ['software_name', 'status', 'reason', 'path_kind', 'normalized_path'];
+  const rows = plan.items.map(item => headers.map(h => {
+    const s = String(item[h] ?? '');
+    return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `software_install_plan_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Install plan exported.', 'success');
 }
 
 // expose exports to bundle scope
@@ -3813,6 +4387,7 @@ const TYPE_SECTION_LABELS = {
   'ad-registered-population': 'AD registered population',
   'remote-task': 'Remote tasks',
   'software-tracker': 'Software tracker',
+  'software-tracker-install-plan': 'Software install plan',
   'software-superset': 'Software tracker',
   'status-json': 'Status',
 };
@@ -3837,6 +4412,7 @@ const TYPE_TO_PANELS = {
   'cybernet-target-manifest': ['inventory'],
   'ad-registered-population': ['inventory', 'network'],
   'software-tracker':    ['software'],
+  'software-tracker-install-plan': ['software'],
   'software-superset':   ['software'],
 };
 
@@ -3844,11 +4420,13 @@ const TYPE_TO_PANELS = {
 document.addEventListener('DOMContentLoaded', () => {
   buildLayout();
   initCybernetShell();
+  initSoftwareTrackerShell();
   initTabs();
   initIngestion();
   initModeToggle();
   initLiveMode();
   initCybernetTutorial();
+  initSoftwareTrackerTutorial();
   initPasteModal();
   initStatusFooter();
   initDropOverlay();
@@ -4000,6 +4578,68 @@ function initCybernetShell() {
   });
 }
 
+function initSoftwareTrackerShell() {
+  const startBtn = document.getElementById('hero-start-install');
+  const tutorial = document.getElementById('software-tracker-tutorial');
+  const statusEl = document.getElementById('software-tracker-hero-status');
+
+  const setHeroStatus = (msg, kind) => {
+    if (!statusEl) return;
+    statusEl.textContent = msg || '';
+    statusEl.classList.remove('is-busy', 'is-open', 'is-error');
+    if (kind) statusEl.classList.add(kind);
+    statusEl.classList.toggle('hidden', !msg);
+  };
+
+  const tutorialIsVisible = () => {
+    if (!tutorial) return false;
+    if (tutorial.classList.contains('hidden')) return false;
+    const cs = window.getComputedStyle(tutorial);
+    return cs.display !== 'none' && cs.visibility !== 'hidden';
+  };
+
+  const startSoftwareTrackerTutorial = (opts) => {
+    const source = (opts && opts.source) || 'manual';
+    if (!tutorial || !startBtn) {
+      setHeroStatus('Could not open the install tutorial. Reload the dashboard or use Load Evidence.', 'is-error');
+      toast('Software Tracker tutorial is unavailable. Reload the dashboard.', 'error');
+      return false;
+    }
+
+    setHeroStatus('Opening install workflow…', 'is-busy');
+    tutorial.style.display = '';
+    tutorial.classList.remove('hidden');
+    if (typeof window.__sasResetSoftwareTrackerWizard === 'function') {
+      try { window.__sasResetSoftwareTrackerWizard(); } catch (_) { /* non-fatal */ }
+    }
+
+    if (!tutorialIsVisible()) {
+      tutorial.classList.add('hidden');
+      setHeroStatus('Could not open the tutorial. Try again or use Load Evidence.', 'is-error');
+      toast('Could not open the Software Tracker tutorial. Try again or load evidence.', 'error');
+      return false;
+    }
+
+    startBtn.textContent = 'Restart Software Tracker Install';
+    startBtn.setAttribute('aria-label', 'Restart the Software Tracker install workflow from step 1');
+    setHeroStatus('Install workflow open below.', 'is-open');
+    if (source !== 'silent') {
+      window.setTimeout(() => {
+        tutorial.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 30);
+    }
+    return true;
+  };
+
+  startBtn?.addEventListener('click', () => startSoftwareTrackerTutorial({ source: 'manual' }));
+  window.startSoftwareTrackerTutorial = startSoftwareTrackerTutorial;
+
+  document.getElementById('hero-start-install-evidence')?.addEventListener('click', () => {
+    document.getElementById('evidence-loader')?.classList.remove('hidden');
+    document.getElementById('evidence-loader')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
 function openAdvancedSection(scroll) {
   const section = document.getElementById('advanced-section');
   section?.classList.remove('hidden');
@@ -4142,6 +4782,20 @@ async function processFile(file) {
       return;
     }
 
+    if (parsedData.type === 'software-tracker-install-plan') {
+      setSoftwareInstallPlan(parsedData.data);
+      store = mergeDataStore(store, parsedData);
+      refreshAllPanels();
+      const count = parsedData.data?.items?.length ?? 0;
+      addFileChip(name, count > 0 ? 'ok' : 'warn', parsedData.type, count, parsedData);
+      toast(`Loaded install plan — ${count} row(s). Review blockers before live run.`, count > 0 ? 'success' : 'warning');
+      updateSoftwareBadge();
+      markPanelVisited('software');
+      switchTab('software');
+      document.getElementById('evidence-loader')?.classList.remove('hidden');
+      return;
+    }
+
     store = mergeDataStore(store, parsedData);
     refreshAllPanels();
 
@@ -4172,6 +4826,17 @@ function readFileAsText(file) {
   });
 }
 
+function rebuildInstallPlanFromChips() {
+  let latest = null;
+  for (const f of loadedFiles) {
+    if (f.parsedData?.type === 'software-tracker-install-plan') {
+      latest = f.parsedData.data;
+    }
+  }
+  if (latest) setSoftwareInstallPlan(latest);
+  else clearSoftwareInstallPlan();
+}
+
 function rebuildStoreFromChips() {
   store = {};
   let latestStatus = null;
@@ -4183,6 +4848,7 @@ function rebuildStoreFromChips() {
       store = mergeDataStore(store, f.parsedData);
     }
   }
+  rebuildInstallPlanFromChips();
   updateStatusFooter(latestStatus); // null clears footer if no status chip remains
   refreshAllPanels();
 }
@@ -4201,7 +4867,8 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'smb-recon': '📂', 'status-json': '💚', 'remote-task': '⚡',
     'naabu-reachability': '🔌',
     'ad-registered-population': '🏢',
-    'software-tracker': '📦', 'cybernet-target-manifest': '🎯', 'unknown': '❓'
+    'software-tracker': '📦', 'software-tracker-install-plan': '📋',
+    'cybernet-target-manifest': '🎯', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
 
