@@ -314,7 +314,8 @@ function parseSurveyClassification(content, filename) {
     overallStatus: r.OverallStatus || r.overallstatus || r.Status || '',
     reviewReason: r.ReviewReason || r.reviewreason || '',
     sourceLane: r.SourceLane || r.sourcelane || r.Source || r.source || '',
-    sourceFile: filename || '',
+    sourceFile: r.SourceFile || r.sourcefile || filename || '',
+    importFile: filename || '',
   }));
   return { type: 'survey-classification', rows: normalized, meta: { count: normalized.length } };
 }

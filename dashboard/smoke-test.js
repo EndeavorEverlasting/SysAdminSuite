@@ -223,6 +223,9 @@ if (bomRows.length !== 1 || Object.keys(bomRows[0])[0] !== 'HostName') {
   } else if (withReason.length !== parsed.rows.length) {
     console.error('FAIL [classification]: every row should carry roleSignals and nextAction');
     failed++;
+  } else if (!parsed.rows.some(r => r.sourceFile === 'synthetic_list_dns.txt')) {
+    console.error('FAIL [classification]: row-level SourceFile column should be preserved');
+    failed++;
   } else {
     console.log('PASS [classification]: targets, infrastructure, needs-review, and reasons parsed');
     passed++;
