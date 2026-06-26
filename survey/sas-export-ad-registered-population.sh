@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RECONCILE="$ROOT/survey/sas-ad-reconcile.sh"
-OUTPUT_DIR="survey/output/ad_registered_population"
+OUTPUT_DIR="$ROOT/survey/output/ad_registered_population"
 
 usage() {
   cat <<'USAGE'
@@ -36,41 +36,39 @@ USAGE
 fail() { echo "[ad-registered-population] ERROR: $*" >&2; exit 1; }
 log() { echo "[ad-registered-population] $*" >&2; }
 
+find_python() {
+  if command -v python3 >/dev/null 2>&1; then echo python3; return 0; fi
+  if command -v python >/dev/null 2>&1; then echo python; return 0; fi
+  fail "Python 3 required"
+}
+
+# Capture --output-dir into OUTPUT_DIR and forward everything else verbatim.
+# The reconcile output directory is appended exactly once below, so the
+# underlying script never receives a duplicate --output-dir flag.
 args=()
+have_ad_csv=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
-    --output-dir)
-      OUTPUT_DIR="${2:?}"
-      args+=("$1" "$2")
-      shift 2
-      ;;
-    *)
-      args+=("$1")
-      if [[ $# -gt 1 && "$2" != --* ]]; then
-        args+=("$2")
-        shift 2
-      else
-        shift
-      fi
-      ;;
+    --ad-csv) have_ad_csv=1; args+=("$1" "${2:?}"); shift 2 ;;
+    --output-dir) OUTPUT_DIR="${2:?}"; shift 2 ;;
+    --evidence-csv|--network-csv|--serial-csv|--prefix|--stale-days)
+      args+=("$1" "${2:?}"); shift 2 ;;
+    --pass-thru|--version) args+=("$1"); shift ;;
+    *) fail "Unknown argument: $1 (run with --help)" ;;
   esac
 done
 
-if [[ " ${args[*]} " != *" --ad-csv "* ]]; then
-  fail "--ad-csv is required; place approved exports in logs/targets/ or pass an explicit scoped CSV"
-fi
-
-if [[ ! -x "$RECONCILE" && ! -f "$RECONCILE" ]]; then
-  fail "Missing reconcile script: $RECONCILE"
-fi
+[[ "$have_ad_csv" -eq 1 ]] || fail "--ad-csv is required; place approved exports in logs/targets/ or pass an explicit scoped CSV"
+[[ -f "$RECONCILE" ]] || fail "Missing reconcile script: $RECONCILE"
 
 log "Building AD registered population roster from approved CSV input"
 bash "$RECONCILE" "${args[@]}" --output-dir "$OUTPUT_DIR"
 
 summary="$OUTPUT_DIR/ad_summary.json"
 if [[ -f "$summary" ]]; then
-  python3 - "$summary" <<'PY'
+  py="$(find_python)"
+  "$py" - "$summary" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -79,8 +77,8 @@ summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 counts = summary.get("counts", {})
 print("AD REGISTERED POPULATION ROSTER SUMMARY:")
 print(f"- Population authority: {summary.get('population_authority', 'ad_registered')}")
-print("- Query mode used: imported approved AD CSV")
-print("- Fallback mode used: offline/static evidence")
+print(f"- Query mode used: {summary.get('query_mode_used', 'imported approved AD CSV')}")
+print(f"- Fallback mode used: {summary.get('fallback_mode_used', 'offline/static evidence')}")
 print(f"- Output directory: {summary.get('output_dir', '')}")
 print(f"- Registered rows: {counts.get('ad_registered_normalized', 0)}")
 print(f"- Enabled target hostnames: {counts.get('ad_targets_hostnames', 0)}")
