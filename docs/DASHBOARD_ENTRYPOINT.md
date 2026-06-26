@@ -8,6 +8,8 @@
 > Your browser opens `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
 > CLI tools are optional — use them only when the dashboard or a runbook says so.
 
+On first run the launcher will **automatically prepare (build) the dashboard host** if it is missing — it runs `tools/publish-dashboard-entrypoint.ps1` for the user, waits for the host to respond on port 5000, and only then opens the browser. Field users are never told to run the publish command by hand. If the build cannot run (no .NET SDK), the launcher shows a field-safe message directing the user to the packaged release or IT/admin preparation.
+
 Compatibility aliases (same behavior, not the documented primary): **`START-HERE-SysAdminSuite-Dashboard.cmd`** and **`SysAdminSuite Dashboard.cmd`**.
 
 ## Get the repo first (clone / download)
@@ -76,7 +78,7 @@ See [`dashboard/README.md`](../dashboard/README.md) — **Loading experience (Hi
 | Symptom | Action |
 |---------|--------|
 | Browser did not open | Paste `http://127.0.0.1:5000/dashboard/?tutorial=cybernet` |
-| Host exe not found | Run `tools/publish-dashboard-entrypoint.ps1`, retry `.bat` |
+| Host exe not found | The `.bat` builds it automatically on first run. If the build fails, get the packaged release or have IT/admin prepare the machine (do not tell field users to run publish by hand) |
 | Port 5000 in use | Stop prior instance from tray icon |
 | User asks "do I run code?" | Point to `START-HERE-SysAdminSuite-Dashboard.bat` double-click; read [`START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) |
 

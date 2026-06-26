@@ -63,6 +63,8 @@ flowchart TD
 
 3. The browser tab shows the Harold icon. Click **Start Cybernet Survey** to follow the guided tutorial.
 
+On first run, the launcher may **automatically prepare (build) the dashboard app** for a minute before the browser opens. You do not need to run any command yourself. If this machine cannot build it (for example, no .NET SDK), the launcher will tell you to ask for the packaged SysAdminSuite Dashboard release or have IT/admin prepare the workstation.
+
 No internet is required after the repo is on your machine.
 
 ## What if the dashboard does not open?
@@ -70,7 +72,7 @@ No internet is required after the repo is on your machine.
 1. Run `START-HERE-SysAdminSuite-Dashboard.bat` from the **repo root**, not from inside a subfolder.
 2. The window will not close on its own — read any message it prints, then press a key to close it.
 3. Paste into your browser: `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`
-4. If the host is missing, a developer/IT can build it once (see below), then double-click the `.bat` again.
+4. The launcher tries to prepare the dashboard app automatically. If it reports that the app could not be built on this machine, ask for the packaged SysAdminSuite Dashboard release or have IT/admin prepare the workstation. You should not run the build command yourself.
 5. Read [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md) for IT troubleshooting.
 
 ## What about an EXE?
