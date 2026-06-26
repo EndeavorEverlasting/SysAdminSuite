@@ -35,6 +35,18 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$scriptRoot = Split-Path -Parent $PSCommandPath
+$repoGuess = Split-Path -Parent $scriptRoot
+$targetIntakeModule = Join-Path $repoGuess 'scripts/SasTargetIntake.psm1'
+if (-not (Test-Path -LiteralPath $targetIntakeModule -PathType Leaf)) {
+    throw "Missing shared target intake module: $targetIntakeModule"
+}
+Import-Module $targetIntakeModule -Force
+$repoRoot = Get-SasRepoRoot -StartPath $PSCommandPath
+
+Assert-SasApprovedInputPath -Path $Manifest -RepoRoot $repoRoot -Role 'AD existence manifest' -AllowStaging -AllowGenerated
+Assert-SasApprovedOutputPath -Path $Output -RepoRoot $repoRoot -Role 'AD existence output CSV'
+
 function ConvertTo-LdapEscapedValue {
     param([string]$Value)
     if ($null -eq $Value) { return '' }
@@ -215,12 +227,8 @@ function Invoke-DsqueryLookup {
     }
 }
 
-if (-not (Test-Path -LiteralPath $Manifest)) {
-    throw "Manifest not found: $Manifest"
-}
-
 if ($BatchSize -lt 1) {
-    throw "BatchSize must be at least 1."
+    throw 'BatchSize must be at least 1.'
 }
 
 $outDir = Split-Path -Parent $Output
