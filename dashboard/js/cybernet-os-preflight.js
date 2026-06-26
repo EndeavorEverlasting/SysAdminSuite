@@ -1,120 +1,148 @@
-// cybernet-os-preflight.js — adds an OS selector for Cybernet tutorial commands.
-// This keeps Windows technicians from running Linux-style ping/DNS probes in Git Bash.
+// cybernet-os-preflight.js - PowerShell-first field command patcher.
+// The durable field path is repo-local PowerShell. Bash transport remains an advanced/developer lane,
+// but this Cybernet tutorial must not send Northwell field techs there.
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'sasCybernetTutorialOs';
-  const AUTO = 'auto-mixed';
-  const WINDOWS = 'windows-powershell';
-  const GIT_BASH = 'windows-gitbash';
-  const BASH = 'bash-posix';
+  const PREFLIGHT_DOC = 'docs/FIELD_NETWORK_PREFLIGHT.md';
 
-  const WINDOWS_PREFLIGHT = String.raw`$targets = Get-Content C:\Temp\sas-cybernet\targets.txt | Where-Object { $_.Trim() }
-$out = "C:\Temp\sas-cybernet\network_preflight.csv"
-$ports = 135,445,3389,9100
-New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
-$rows = foreach ($target in $targets) {
-  $ip = (Resolve-DnsName $target -ErrorAction SilentlyContinue |
-    Where-Object { $_.IPAddress -match '^\d+\.' } |
-    Select-Object -First 1 -ExpandProperty IPAddress)
-  $pingOk = Test-Connection -ComputerName $target -Count 1 -Quiet
-  foreach ($port in $ports) {
-    $tcpOk = Test-NetConnection -ComputerName $target -Port $port -InformationLevel Quiet
-    [pscustomobject]@{
-      Target = $target
-      ResolvedAddress = $ip
-      PingStatus = if ($pingOk) { 'Reachable' } else { 'NoPing' }
-      Port = $port
-      PortStatus = if ($tcpOk) { 'Open' } else { 'Closed' }
-      Timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-      Notes = if (-not $pingOk) { 'Windows ICMP blocked or no ping response' } else { '' }
-    }
-  }
-}
-$rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
+  const COMMANDS = {
+    loadTargets: String.raw`Run in Windows PowerShell
 
-  const WINDOWS_IDENTITY = String.raw`$targets = Get-Content C:\Temp\sas-cybernet\targets.txt | Where-Object { $_.Trim() }
-$out = "C:\Temp\sas-cybernet\workstation_identity.csv"
-New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
-$rows = foreach ($target in $targets) {
-  $ip = (Resolve-DnsName $target -ErrorAction SilentlyContinue |
-    Where-Object { $_.IPAddress -match '^\d+\.' } |
-    Select-Object -First 1 -ExpandProperty IPAddress)
-  $pingOk = Test-Connection -ComputerName $target -Count 1 -Quiet
-  [pscustomobject]@{
-    Timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Target = $target
-    ResolvedAddress = $ip
-    PingStatus = if ($pingOk) { 'Reachable' } else { 'NoPing' }
-    DnsName = $target
-    ObservedHostName = ''
-    ObservedSerial = ''
-    ObservedMACs = ''
-    TransportUsed = 'WindowsPing'
-    IdentityStatus = if ($pingOk) { 'ReachableNeedsApprovedIdentityTransport' } else { 'UnreachableOrBlocked' }
-    Notes = if ($pingOk) { 'Windows Test-Connection reachable; identity transport not run' } else { 'Windows Test-Connection failed or blocked' }
-  }
-}
-$rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
+Set-Location <SysAdminSuite repo root>
+.\survey\sas-network-preflight.ps1`,
 
-  const GIT_BASH_PREFLIGHT = String.raw`bash bash/transport/sas-network-preflight.sh \
-  --targets-file /tmp/sas-cybernet/targets.txt \
-  --ports 135,445,3389,9100 \
-  --ping-mode windows \
-  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru`;
+    networkPreflight: String.raw`Run in Windows PowerShell
 
-  const BASH_PREFLIGHT = String.raw`bash bash/transport/sas-network-preflight.sh \
-  --targets-file /tmp/sas-cybernet/targets.txt \
-  --ports 135,445,3389,9100 \
-  --ping-mode linux \
-  --output /tmp/sas-cybernet/network_preflight.csv --pass-thru`;
+Set-Location <SysAdminSuite repo root>
+.\survey\sas-network-preflight.ps1 -TargetFile .\targets\local\approved_targets.csv -Ports 135,445,3389,9100`,
 
-  const BASH_IDENTITY = String.raw`bash bash/transport/sas-workstation-identity.sh \
-  --targets-file /tmp/sas-cybernet/targets.txt \
-  --output /tmp/sas-cybernet/workstation_identity.csv --pass-thru`;
+    identityEvidence: String.raw`Run in Windows PowerShell
 
-  const notes = {
-    [AUTO]: 'Auto / mixed mode: do not choose target OS up front. Use the section for the admin shell you are standing at; the results will tell you what the target looks like.',
-    [WINDOWS]: 'Windows PowerShell mode uses Resolve-DnsName, Test-Connection, and Test-NetConnection.',
-    [GIT_BASH]: 'Windows Git Bash mode keeps Bash output paths but forces Windows ping.exe syntax to avoid false NoPing results.',
-    [BASH]: 'Linux/macOS/WSL Bash mode uses POSIX ping flags. Do not use this for Git Bash on a Windows admin box.'
+# Identity evidence is separate from network preflight.
+# Load an approved workstation_identity.csv only after an approved identity collection path produces it.
+# Network preflight output belongs under .\survey\output\network_preflight\ and can be loaded now.`,
+
+    optionalReachability: String.raw`Run in Windows PowerShell
+
+# Optional reachability beyond sas-network-preflight.ps1 is advanced scope.
+# Use the runbook first, then only run additional reachability tooling against an approved target file.
+Get-Content .\docs\FIELD_NETWORK_PREFLIGHT.md | Select-Object -First 40`,
+
+    finish: String.raw`Run in Windows PowerShell
+
+# Load Evidence in the dashboard accepts the generated network preflight CSV:
+# .\survey\output\network_preflight\network_preflight_<timestamp>.csv
+# Also load approved workstation_identity.csv or reachability JSON only when those files already exist.`
   };
 
-  function normalizeOs(value) {
-    return value === AUTO || value === WINDOWS || value === GIT_BASH || value === BASH ? value : AUTO;
-  }
-
-  function selectedOs() {
-    try {
-      return normalizeOs(localStorage.getItem(STORAGE_KEY));
-    } catch (_) {
-      return AUTO;
+  const PATCHES = {
+    'Load your targets': {
+      body: 'Select an approved target source. Place exported CSVs or target text files under targets/local/ or logs/targets/. Run the preflight script with no target file to list candidates and stop safely.',
+      command: COMMANDS.loadTargets,
+      checks: [
+        'Use approved target files from targets/local/ or logs/targets/.',
+        'survey/input is normalized staging only after an approved normalization step.',
+        'Do not type demo hostnames manually for live work.',
+        'Do not use CMD for this block. Do not paste non-PowerShell syntax.'
+      ],
+      note: 'This lists candidate target files and stops. Select the approved file before probing.',
+      explain: 'Runs the PowerShell entrypoint in safe selection mode so the operator can choose a codified target file.',
+      explainParts: [
+        ['Set-Location', 'Move to the SysAdminSuite repo root before running the script.'],
+        ['sas-network-preflight.ps1', 'Lists approved candidate files when no target file is supplied.'],
+        ['targets/local and logs/targets', 'Preferred ignored live intake roots.']
+      ]
+    },
+    'Check network posture': {
+      body: 'Run the repo PowerShell preflight against the selected approved target file. It performs read-only DNS, ping, and selected TCP port checks from the admin machine.',
+      command: COMMANDS.networkPreflight,
+      checks: [
+        'Run in Windows PowerShell.',
+        'Use targets/local/ or logs/targets/ for live intake.',
+        'Use survey/input/ only for normalized staging from a prior approved step.',
+        'Output is generated under survey/output/network_preflight/.',
+        'The script prints stage progress, [n/total], percent complete, and the final CSV path.'
+      ],
+      note: 'After it finishes, load the generated network_preflight CSV from survey/output/network_preflight/.',
+      explain: 'Runs read-only network posture checks against a bounded target file and writes local ignored CSV evidence.',
+      explainParts: [
+        ['-TargetFile', 'Explicit approved .txt or .csv target file.'],
+        ['-Ports', 'Selected TCP ports to check.'],
+        ['survey/output/network_preflight', 'Generated local output folder.']
+      ]
+    },
+    'Collect identity evidence': {
+      body: 'Identity evidence is not created by the network preflight script. Load an approved workstation identity CSV only when a separate approved identity collection path produced it.',
+      command: COMMANDS.identityEvidence,
+      checks: [
+        'Do not treat ping or open ports as serial identity proof.',
+        'Load workstation_identity.csv only when it came from an approved identity path.',
+        'Keep network_preflight as reachability and posture evidence only.'
+      ],
+      note: 'Skip this step unless approved identity evidence already exists.',
+      explain: 'Separates reachability posture from identity collection so serial proof does not get invented from network checks.',
+      explainParts: [
+        ['network_preflight', 'Reachability and posture evidence.'],
+        ['workstation_identity', 'Separate identity evidence, when approved and available.'],
+        ['approved identity path', 'WMI/CIM, SCCM, MDM, tracker, AD/CMDB, or operator-approved evidence.']
+      ]
+    },
+    'Optional reachability check': {
+      body: 'The PowerShell preflight already checks selected ports against the approved target file. Additional reachability tooling is advanced scope and must stay bounded to the same approved population.',
+      command: COMMANDS.optionalReachability,
+      checks: [
+        'Do not broaden scope beyond the selected approved target file.',
+        'Do not use broad subnet scans from this field tutorial.',
+        'Generated reachability evidence belongs in logs/nmap/ or survey/output/.',
+        'Read the field preflight runbook before adding optional reachability evidence.'
+      ],
+      note: 'Optional means optional. No extra probe is required when network_preflight is enough.',
+      explain: 'Keeps optional reachability separate from the default PowerShell preflight path.',
+      explainParts: [
+        ['FIELD_NETWORK_PREFLIGHT.md', 'Runbook for the durable field path.'],
+        ['approved target file', 'The only population that may be checked.'],
+        ['logs/nmap or survey/output', 'Generated local evidence folders.']
+      ]
+    },
+    'Finish and review results': {
+      body: 'Load the generated evidence files back into the dashboard. The expected network preflight output is under survey/output/network_preflight/.',
+      command: COMMANDS.finish,
+      checks: [
+        'Load network_preflight_<timestamp>.csv from survey/output/network_preflight/.',
+        'Load identity or reachability evidence only when separately approved and generated.',
+        'Do not load live source workbooks as proof of reachability.',
+        'Do not commit generated outputs.'
+      ],
+      note: 'Use Load Evidence for the generated CSV. Source files stay local and ignored.',
+      explain: 'Closes the loop by loading generated local evidence, not source target files, into the dashboard.',
+      explainParts: [
+        ['Load Evidence', 'Dashboard import area for generated CSV/JSON outputs.'],
+        ['network_preflight CSV', 'The generated result of this PowerShell preflight.'],
+        ['source target files', 'Inputs only, not evidence proof.']
+      ]
     }
+  };
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
-  function setSelectedOs(value) {
-    try {
-      localStorage.setItem(STORAGE_KEY, normalizeOs(value));
-    } catch (_) {
-      // Storage can be unavailable for local files or locked-down browsers.
-    }
-  }
-
-  function ensureOsCard(root) {
+  function ensureFieldRuleCard(root) {
     if (!root || document.getElementById('cybernet-os-preflight')) return;
     const card = document.createElement('div');
     card.id = 'cybernet-os-preflight';
     card.className = 'cybernet-os-preflight';
     card.innerHTML = `
-      <div class="cybernet-os-title">Optional command filter</div>
-      <label for="cybernet-os-select">Leave this on Auto for mixed sites. Pick one only if you already know which admin shell will run the command:</label>
-      <select id="cybernet-os-select">
-        <option value="auto-mixed">Auto / mixed environment — show Windows PowerShell + Bash</option>
-        <option value="windows-powershell">Windows PowerShell / Windows admin box</option>
-        <option value="windows-gitbash">Windows Git Bash / Windows ping.exe</option>
-        <option value="bash-posix">Linux/macOS/WSL Bash</option>
-      </select>
-      <div class="cybernet-os-note" id="cybernet-os-note"></div>
+      <div class="cybernet-os-title">Field shell rule</div>
+      <div class="cybernet-os-note" id="cybernet-os-note">
+        Run field preflight in Windows PowerShell. Use approved target files from targets/local/ or logs/targets/. See ${escapeHtml(PREFLIGHT_DOC)}.
+      </div>
     `;
     const stepCard = root.querySelector('.cybernet-step-card');
     root.insertBefore(card, stepCard || root.firstChild);
@@ -123,96 +151,54 @@ $rows | Export-Csv -NoTypeInformation -Encoding UTF8 $out`;
     style.textContent = `
       .cybernet-os-preflight { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2); display: grid; gap: 8px; }
       .cybernet-os-title { color: var(--accent); font-weight: 700; font-size: 13px; }
-      .cybernet-os-preflight label { color: var(--text-dim); font-size: 12px; }
-      .cybernet-os-preflight select { max-width: 420px; padding: 7px 10px; background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
       .cybernet-os-note { color: var(--text-muted); font-size: 12px; line-height: 1.4; }
     `;
     document.head.appendChild(style);
-
-    const select = document.getElementById('cybernet-os-select');
-    select.value = selectedOs();
-    select.addEventListener('change', () => {
-      const os = normalizeOs(select.value);
-      select.value = os;
-      setSelectedOs(os);
-      patchCurrentStep();
-    });
   }
 
-  function preflightCommandFor(os) {
-    if (os === AUTO) {
-      return [
-        '# Auto / mixed site: do not choose target OS yet.',
-        '# Copy and run ONE section below from the admin shell you are using.',
-        '',
-        '# --- Windows PowerShell admin box ---',
-        WINDOWS_PREFLIGHT,
-        '',
-        '# --- Windows Git Bash admin box ---',
-        GIT_BASH_PREFLIGHT,
-        '',
-        '# --- Linux/macOS/WSL Bash admin box ---',
-        BASH_PREFLIGHT
-      ].join('\n');
-    }
-    if (os === WINDOWS) return WINDOWS_PREFLIGHT;
-    if (os === GIT_BASH) return GIT_BASH_PREFLIGHT;
-    return BASH_PREFLIGHT;
+  function renderList(el, items) {
+    if (!el || !Array.isArray(items)) return;
+    el.innerHTML = items.map(item => `<li>${escapeHtml(item)}</li>`).join('');
   }
 
-  function identityCommandFor(os) {
-    if (os === AUTO) {
-      return [
-        '# Auto / mixed site: do not choose target OS yet.',
-        '# Copy and run ONE section below from the admin shell you are using.',
-        '',
-        '# --- Windows PowerShell admin box ---',
-        WINDOWS_IDENTITY,
-        '',
-        '# --- Bash admin box ---',
-        BASH_IDENTITY
-      ].join('\n');
-    }
-    return os === WINDOWS ? WINDOWS_IDENTITY : BASH_IDENTITY;
+  function renderExplainParts(el, parts) {
+    if (!el || !Array.isArray(parts)) return;
+    el.innerHTML = parts
+      .map(([part, meaning]) => `<li><code>${escapeHtml(part)}</code> - ${escapeHtml(meaning)}</li>`)
+      .join('');
   }
 
   function patchCurrentStep() {
     const titleEl = document.getElementById('cybernet-step-title');
+    if (!titleEl) return;
+
+    const title = titleEl.textContent.trim();
+    const patch = PATCHES[title];
+    const cardEl = document.getElementById('cybernet-os-preflight');
+    if (cardEl) cardEl.classList.toggle('hidden', !patch);
+    if (!patch) return;
+
+    const bodyEl = document.getElementById('cybernet-step-body');
     const commandEl = document.getElementById('cybernet-step-command');
     const noteEl = document.getElementById('cybernet-step-note');
-    const osNoteEl = document.getElementById('cybernet-os-note');
-    const cardEl = document.getElementById('cybernet-os-preflight');
-    if (!titleEl || !commandEl) return;
+    const checksEl = document.getElementById('cybernet-step-checks');
+    const modeEl = document.getElementById('cybernet-command-mode');
+    const explainEl = document.getElementById('cybernet-command-explain');
+    const explainPartsEl = document.getElementById('cybernet-command-explain-parts');
 
-    const os = selectedOs();
-    const title = titleEl.textContent.trim();
-    const shouldShow = title === 'Check network posture' || title === 'Collect identity evidence';
-    if (cardEl) cardEl.classList.toggle('hidden', !shouldShow);
-    if (osNoteEl) osNoteEl.textContent = notes[os] || notes[AUTO];
-
-    if (title === 'Check network posture') {
-      commandEl.value = preflightCommandFor(os);
-      if (noteEl) noteEl.textContent = os === AUTO
-        ? 'Run one matching section outside the dashboard, then drag network_preflight.csv back into Load Evidence.'
-        : os === WINDOWS
-        ? 'Run this in Windows PowerShell, then drag C:\\Temp\\sas-cybernet\\network_preflight.csv into the dashboard.'
-        : 'Load network_preflight.csv into the Network tab after the command finishes.';
-    }
-
-    if (title === 'Collect identity evidence') {
-      commandEl.value = identityCommandFor(os);
-      if (noteEl) noteEl.textContent = os === AUTO
-        ? 'Run one matching section outside the dashboard, then drag workstation_identity.csv back into Load Evidence.'
-        : os === WINDOWS
-        ? 'Run this in Windows PowerShell to avoid Git Bash ping/DNS mismatch, then drag C:\\Temp\\sas-cybernet\\workstation_identity.csv into the dashboard.'
-        : 'Load workstation_identity.csv back into the dashboard for searchable protocol evidence.';
-    }
+    if (bodyEl) bodyEl.textContent = patch.body;
+    if (commandEl) commandEl.value = patch.command;
+    if (noteEl) noteEl.textContent = patch.note;
+    if (modeEl) modeEl.textContent = 'Run in Windows PowerShell';
+    if (explainEl) explainEl.textContent = patch.explain;
+    renderList(checksEl, patch.checks);
+    renderExplainParts(explainPartsEl, patch.explainParts);
   }
 
   function init() {
     const root = document.getElementById('cybernet-tutorial');
     if (!root) return;
-    ensureOsCard(root);
+    ensureFieldRuleCard(root);
     patchCurrentStep();
     root.addEventListener('click', () => setTimeout(patchCurrentStep, 0));
     const observer = new MutationObserver(() => patchCurrentStep());
