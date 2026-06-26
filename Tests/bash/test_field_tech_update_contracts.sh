@@ -40,8 +40,8 @@ grep -Fq 'Refusing to update a drive root' "$updater" \
   || fail "updater must refuse drive roots"
 grep -Fq 'Refusing to update protected folder' "$updater" \
   || fail "updater must refuse protected folders"
-grep -Fq 'Default install path must end in SysAdminSuite' "$updater" \
-  || fail "updater must guard the default SysAdminSuite leaf"
+grep -Fq 'must end in SysAdminSuite' "$updater" \
+  || fail "updater must require SysAdminSuite install root leaf"
 grep -Fq 'Get-Command git' "$updater" \
   || fail "updater must check git availability"
 grep -Fq 'Missing progress helper' "$updater" \

@@ -63,8 +63,9 @@ function Assert-SafeInstallRoot {
         }
     }
 
-    if ((-not $ExplicitInstallRoot) -and ($leaf -ne 'SysAdminSuite')) {
-        throw "Default install path must end in SysAdminSuite: $full"
+    if ($leaf -ne 'SysAdminSuite') {
+        $pathKind = if ($ExplicitInstallRoot) { 'Install path' } else { 'Default install path' }
+        throw "$pathKind must end in SysAdminSuite: $full"
     }
 
     if ([string]::IsNullOrWhiteSpace($leaf)) {

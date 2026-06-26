@@ -30,7 +30,7 @@ Default install path:
 If your working copy lives somewhere else, pass it explicitly:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Update-SysAdminSuite.ps1 -InstallRoot "C:\Users\Cheex\Desktop\dev\SysAdminSuite"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Update-SysAdminSuite.ps1 -InstallRoot "%USERPROFILE%\Desktop\dev\SysAdminSuite"
 ```
 
 Before any destructive repo repair, the updater prints the target path and asks:
