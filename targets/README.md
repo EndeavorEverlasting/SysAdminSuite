@@ -31,9 +31,22 @@ Use both local folders deliberately:
 |------|------|------------|
 | `targets/local/` | Preferred source intake | Approved source workbooks, AD exports, tracker CSVs, and raw target material before normalization |
 | `logs/targets/` | Preserved local target/evidence store | Existing local stores, confirm-host lists, historical source folders such as `Cybernet sources/`, and target handoff files |
+| `survey/input/` | Runtime staging | Normalized target files generated from approved intake |
 | `targets/sanitized/` | Tracked examples only | Synthetic fixtures safe for tests and docs |
 
 Files under `targets/local/` and `logs/targets/` are ignored on purpose. A clone from GitHub will not contain your live local source files. If the folder looks empty in the IDE, check File Explorer or run `git status --short --ignored -- targets/local logs/targets` to confirm the ignored local tree exists.
+
+## Central target intake helpers
+
+Use these helpers instead of re-coding target-root rules in each workflow:
+
+| Surface | Helper |
+|---------|--------|
+| PowerShell | `scripts/SasTargetIntake.psm1` |
+| PowerShell dispatcher | `survey/sas-target-intake-dispatch.ps1` |
+| Bash/toolbox scripts | `survey/lib/sas-target-intake.sh` |
+
+The centralized model covers Cybernet surveys, subnet discovery, serial/host/MAC correlation, location/subnet association, AD exports, typo review, and low-noise reachability planning. Source-side target folders remain `targets/local/` and `logs/targets/`; `survey/input/` remains normalized staging only.
 
 ## Target manifest vs evidence
 
@@ -52,10 +65,13 @@ Run the mechanical guard before committing anything under `targets/`:
 ```bash
 python scripts/validate-targets-folder-policy.py
 bash Tests/bash/test-targets-folder-policy-contracts.sh
+bash Tests/bash/test_target_intake_centralization_contracts.sh
 ```
 
 ## Related tooling
 
 - `survey/sas-cybernet-xlsx-targets.sh` — offline xlsx → manifest (explicit local workbook paths)
 - `survey/sas-survey-targets.sh` — normalize manifests for survey/audit workflows
+- `survey/sas-network-preflight.ps1` — PowerShell network preflight against approved targets
+- `survey/sas-target-intake-dispatch.ps1` — central candidate listing and use-case command planning
 - `survey/input/` — runtime staging (gitignored)
