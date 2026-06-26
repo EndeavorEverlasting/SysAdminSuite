@@ -31,8 +31,9 @@ def _load_classifier():
 
 
 _CLASSIFY = _load_classifier()
+CLASSIFICATION_FIELDS = _CLASSIFY.CLASSIFICATION_FIELDS
 
-FIELDS = [
+EVIDENCE_FIELDS = [
     "Target",
     "observed_hostname",
     "observed_serial",
@@ -42,11 +43,10 @@ FIELDS = [
     "ProbeMethod",
     "EvidenceSource",
     "Notes",
-    "SurveyLane",
-    "DeviceRole",
-    "RoleSignals",
-    "CountsTowardCybernetPopulation",
+    "SourceFile",
 ]
+
+FIELDS = EVIDENCE_FIELDS + CLASSIFICATION_FIELDS
 
 
 def clean(value: object) -> str:
@@ -198,12 +198,11 @@ def main() -> int:
 
     fmt = infer_format(input_path, args.format)
     rows = parse_xml(input_path) if fmt == "xml" else parse_normal_text(input_path)
+    source_file = input_path.name
     for row in rows:
         cls = _CLASSIFY.classify_from_nmap_row(row, survey_lane="cybernet_manifest")
-        row["SurveyLane"] = cls.get("SurveyLane", "cybernet_manifest")
-        row["DeviceRole"] = cls.get("DeviceRole", "")
-        row["RoleSignals"] = cls.get("RoleSignals", "")
-        row["CountsTowardCybernetPopulation"] = cls.get("CountsTowardCybernetPopulation", "")
+        row.update({field: cls.get(field, "") for field in CLASSIFICATION_FIELDS})
+        row["SourceFile"] = source_file
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=FIELDS, quoting=csv.QUOTE_ALL, lineterminator="\n")

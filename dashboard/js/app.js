@@ -1591,7 +1591,16 @@ function _countsTowardCybernet(row) {
 function _isNeedsReviewClassification(row) {
   const role = _classificationRole(row);
   const status = String(row?.overallStatus || '').toUpperCase();
-  return status.includes('REVIEW') || status.includes('CONFLICT') || role === 'discovery_only' || role === 'infrastructure_unknown';
+  const confidence = String(row?.roleConfidence || '').toLowerCase();
+  return (
+    status.includes('REVIEW') ||
+    status.includes('CONFLICT') ||
+    status === 'NO_HOSTNAME' ||
+    status === 'DNS_NOT_FOUND' ||
+    confidence === 'needs_review' ||
+    role === 'discovery_only' ||
+    role === 'infrastructure_unknown'
+  );
 }
 
 function bucketClassificationRows(rows) {
