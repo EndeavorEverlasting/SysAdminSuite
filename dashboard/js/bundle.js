@@ -343,6 +343,7 @@ function detectFileType(filename, content) {
 
   // JSON detection — check filename hints first, then probe content
   if (fn.endsWith('.json')) {
+    if (fn.includes('toolbox-status') || fn.includes('toolbox_status')) return 'toolbox-status';
     if (fn.includes('install-summary') || fn.includes('install_summary')) return 'software-tracker-install-plan';
     if (fn.includes('status')) return 'status-json';
     if (fn.includes('sources') || fn.includes('software') || fn.includes('apps')) return 'software-tracker';
@@ -356,6 +357,9 @@ function detectFileType(filename, content) {
       const snip = content.slice(0, 400).toLowerCase();
       if (snip.includes('"items"') && snip.includes('"summary"') && snip.includes('"status"')) {
         return 'software-tracker-install-plan';
+      }
+      if (snip.includes('"tools"') && snip.includes('"actionneeded"') && snip.includes('"repo"')) {
+        return 'toolbox-status';
       }
       if (snip.includes('"taskname"') || snip.includes('"outcome"') ||
           snip.includes('"taskid"') || snip.includes('"events"')) return 'remote-task';
@@ -438,6 +442,7 @@ function parseFileContent(type, content, filename) {
     case 'cybernet-target-manifest': return parseCybernetTargetManifest(content);
     case 'smb-recon': return parseSmbRecon(content);
     case 'status-json': return parseStatusJson(content);
+    case 'toolbox-status': return parseToolboxStatus(content, filename);
     case 'remote-task': return parseRemoteTask(content);
     case 'software-tracker': return parseSoftwareTracker(content, filename);
     case 'software-tracker-install-plan': return parseSoftwareTrackerInstallPlan(content, filename);
@@ -764,6 +769,22 @@ function parseSoftwareTrackerInstallPlan(content, filename) {
     rows: items,
     data: { items, summary },
     meta: { count: items.length, filename },
+  };
+}
+
+function parseToolboxStatus(content, filename) {
+  let parsed;
+  try {
+    parsed = typeof content === 'string' ? JSON.parse(content) : content;
+  } catch (err) {
+    return { type: 'toolbox-status', rows: [], data: { tools: [], actionNeeded: false }, meta: { error: err.message, filename } };
+  }
+  const tools = Array.isArray(parsed?.tools) ? parsed.tools : [];
+  return {
+    type: 'toolbox-status',
+    rows: tools,
+    data: parsed,
+    meta: { count: tools.length, filename },
   };
 }
 
@@ -3428,7 +3449,7 @@ function initToolboxTutorial() {
   const root = document.getElementById('toolbox-tutorial');
   if (!root) return;
 
-  let steps = [];
+  let steps = buildStepsFromStatus({ tools: [], actionNeeded: false });
   let idx = 0;
   let copiedThisStep = false;
 
@@ -3467,6 +3488,13 @@ function initToolboxTutorial() {
       li.classList.toggle('active', i === idx);
       li.classList.toggle('done', i < idx);
     });
+  }
+
+  function rebuildProgressRail() {
+    if (!progressRail) return;
+    progressRail.innerHTML = steps.map((step, i) =>
+      `<li data-step="${i}" data-tool-id="${sanitize(step.toolId || '')}">${sanitize(step.railLabel || step.title)}</li>`
+    ).join('');
   }
 
   function render() {
@@ -3550,15 +3578,21 @@ function initToolboxTutorial() {
     steps = buildStepsFromStatus(status);
     idx = 0;
     copiedThisStep = false;
+    rebuildProgressRail();
+    renderToolboxChecklist(status);
+    updateToolboxBanner(status);
+    window.dispatchEvent(new CustomEvent('sas-toolbox-status', { detail: status }));
     render();
   };
 
   window.__sasResetToolboxWizard = () => {
     idx = 0;
     copiedThisStep = false;
+    rebuildProgressRail();
     render();
   };
 
+  rebuildProgressRail();
   render();
 }
 
@@ -3580,7 +3614,8 @@ function renderToolboxChecklist(status) {
 function updateToolboxBanner(status) {
   const banner = document.getElementById('toolbox-status-banner');
   if (!banner) return;
-  const count = status?.summary?.needsAction ?? 0;
+  const count = status?.summary?.needsAction ??
+    (status?.tools || []).filter(tool => ACTION_STATUSES.has(tool.status)).length;
   if (status?.actionNeeded && count > 0) {
     banner.textContent = `${count} toolbox item${count === 1 ? '' : 's'} need attention — click to open the guided fix wizard`;
     banner.classList.remove('hidden');
@@ -3590,6 +3625,9 @@ function updateToolboxBanner(status) {
     banner.classList.remove('sas-guide-glow');
   }
 }
+
+window.__sasRenderToolboxChecklist = renderToolboxChecklist;
+window.__sasUpdateToolboxBanner = updateToolboxBanner;
 
 // expose exports to bundle scope
 _exports.initToolboxTutorial = initToolboxTutorial;
@@ -5380,6 +5418,20 @@ async function processFile(file) {
       return;
     }
 
+    if (parsedData.type === 'toolbox-status') {
+      if (typeof window.__sasApplyToolboxStatus === 'function') {
+        window.__sasLastToolboxStatus = parsedData.data;
+        window.__sasApplyToolboxStatus(parsedData.data);
+      }
+      const count = parsedData.rows?.length ?? 0;
+      addFileChip(name, count > 0 ? 'ok' : 'warn', parsedData.type, count, parsedData);
+      toast(`Loaded toolbox status — ${parsedData.data?.summary?.needsAction ?? 0} item(s) need attention.`, 'success');
+      if (parsedData.data?.actionNeeded && typeof window.startToolboxTutorial === 'function') {
+        window.startToolboxTutorial({ source: 'loaded-file', status: parsedData.data });
+      }
+      return;
+    }
+
     store = mergeDataStore(store, parsedData);
     refreshAllPanels();
 
@@ -5421,6 +5473,22 @@ function rebuildInstallPlanFromChips() {
   else clearSoftwareInstallPlan();
 }
 
+function rebuildToolboxStatusFromChips() {
+  let latest = null;
+  for (const f of loadedFiles) {
+    if (f.parsedData?.type === 'toolbox-status') {
+      latest = f.parsedData.data;
+    }
+  }
+  if (latest && typeof window.__sasApplyToolboxStatus === 'function') {
+    window.__sasLastToolboxStatus = latest;
+    window.__sasApplyToolboxStatus(latest);
+  } else if (typeof window.__sasApplyToolboxStatus === 'function') {
+    window.__sasLastToolboxStatus = null;
+    window.__sasApplyToolboxStatus({ tools: [], actionNeeded: false, summary: { needsAction: 0 } });
+  }
+}
+
 function rebuildStoreFromChips() {
   store = {};
   let latestStatus = null;
@@ -5433,6 +5501,7 @@ function rebuildStoreFromChips() {
     }
   }
   rebuildInstallPlanFromChips();
+  rebuildToolboxStatusFromChips();
   updateStatusFooter(latestStatus); // null clears footer if no status chip remains
   refreshAllPanels();
 }
@@ -5452,6 +5521,7 @@ function addFileChip(name, status, type, countOrData, parsedData = null) {
     'naabu-reachability': '🔌',
     'ad-registered-population': '🏢',
     'software-tracker': '📦', 'software-tracker-install-plan': '📋',
+    'toolbox-status': '🧰',
     'cybernet-target-manifest': '🎯', 'unknown': '❓'
   };
   const icon = iconMap[type] || '📄';
@@ -5488,6 +5558,10 @@ function clearAllData(silent = false) {
   document.getElementById('loaded-files').innerHTML = '';
   refreshAllPanels();
   updateStatusFooter(null);
+  if (typeof window.__sasApplyToolboxStatus === 'function') {
+    window.__sasLastToolboxStatus = null;
+    window.__sasApplyToolboxStatus({ tools: [], actionNeeded: false, summary: { needsAction: 0 } });
+  }
   updateCybernetReview();
   if (!silent) toast('All evidence cleared.', 'info');
 }

@@ -59,10 +59,15 @@ That script:
    build the host.
 4. Publishes the host to `app/bin/`, an ignored packaged-layout path reused by
    later launches.
+5. Writes ignored `dashboard/toolbox-status.json` for the browser checklist via
+   `scripts/sas-write-toolbox-status.sh`.
 
 The browser URL cannot install dependencies on its own. If a user types
 `http://127.0.0.1:5000/dashboard/` and nothing is listening, they must run the
 launcher first.
+
+The Toolbox Status tutorial consumes the status JSON written by the launcher.
+See [`DASHBOARD_TOOLBOX_TUTORIAL.md`](DASHBOARD_TOOLBOX_TUTORIAL.md).
 
 ## Browser, CMD, And EXE Entry Points
 
@@ -81,6 +86,7 @@ launcher first.
   with SHA512 before execution.
 - `--dry-run` is available for contract tests and operator review.
 - Installer cache and publish outputs stay local and ignored.
+- `dashboard/toolbox-status.json` is runtime machine state and stays ignored.
 - System-wide installation may create normal OS, installer, and endpoint
   telemetry. The suite uses scope control and clear operator intent; it does
   not attempt to hide or suppress logs.

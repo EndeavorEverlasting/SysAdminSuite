@@ -116,6 +116,7 @@ export function detectFileType(filename, content) {
 
   // JSON detection — check filename hints first, then probe content
   if (fn.endsWith('.json')) {
+    if (fn.includes('toolbox-status') || fn.includes('toolbox_status')) return 'toolbox-status';
     if (fn.includes('install-summary') || fn.includes('install_summary')) return 'software-tracker-install-plan';
     if (fn.includes('status')) return 'status-json';
     if (fn.includes('sources') || fn.includes('software') || fn.includes('apps')) return 'software-tracker';
@@ -129,6 +130,9 @@ export function detectFileType(filename, content) {
       const snip = content.slice(0, 400).toLowerCase();
       if (snip.includes('"items"') && snip.includes('"summary"') && snip.includes('"status"')) {
         return 'software-tracker-install-plan';
+      }
+      if (snip.includes('"tools"') && snip.includes('"actionneeded"') && snip.includes('"repo"')) {
+        return 'toolbox-status';
       }
       if (snip.includes('"taskname"') || snip.includes('"outcome"') ||
           snip.includes('"taskid"') || snip.includes('"events"')) return 'remote-task';
@@ -211,6 +215,7 @@ export function parseFileContent(type, content, filename) {
     case 'cybernet-target-manifest': return parseCybernetTargetManifest(content);
     case 'smb-recon': return parseSmbRecon(content);
     case 'status-json': return parseStatusJson(content);
+    case 'toolbox-status': return parseToolboxStatus(content, filename);
     case 'remote-task': return parseRemoteTask(content);
     case 'software-tracker': return parseSoftwareTracker(content, filename);
     case 'software-tracker-install-plan': return parseSoftwareTrackerInstallPlan(content, filename);
@@ -537,6 +542,22 @@ function parseSoftwareTrackerInstallPlan(content, filename) {
     rows: items,
     data: { items, summary },
     meta: { count: items.length, filename },
+  };
+}
+
+function parseToolboxStatus(content, filename) {
+  let parsed;
+  try {
+    parsed = typeof content === 'string' ? JSON.parse(content) : content;
+  } catch (err) {
+    return { type: 'toolbox-status', rows: [], data: { tools: [], actionNeeded: false }, meta: { error: err.message, filename } };
+  }
+  const tools = Array.isArray(parsed?.tools) ? parsed.tools : [];
+  return {
+    type: 'toolbox-status',
+    rows: tools,
+    data: parsed,
+    meta: { count: tools.length, filename },
   };
 }
 

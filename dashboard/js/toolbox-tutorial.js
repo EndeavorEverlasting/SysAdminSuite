@@ -73,7 +73,7 @@ export function initToolboxTutorial() {
   const root = document.getElementById('toolbox-tutorial');
   if (!root) return;
 
-  let steps = [];
+  let steps = buildStepsFromStatus({ tools: [], actionNeeded: false });
   let idx = 0;
   let copiedThisStep = false;
 
@@ -112,6 +112,13 @@ export function initToolboxTutorial() {
       li.classList.toggle('active', i === idx);
       li.classList.toggle('done', i < idx);
     });
+  }
+
+  function rebuildProgressRail() {
+    if (!progressRail) return;
+    progressRail.innerHTML = steps.map((step, i) =>
+      `<li data-step="${i}" data-tool-id="${sanitize(step.toolId || '')}">${sanitize(step.railLabel || step.title)}</li>`
+    ).join('');
   }
 
   function render() {
@@ -195,15 +202,21 @@ export function initToolboxTutorial() {
     steps = buildStepsFromStatus(status);
     idx = 0;
     copiedThisStep = false;
+    rebuildProgressRail();
+    renderToolboxChecklist(status);
+    updateToolboxBanner(status);
+    window.dispatchEvent(new CustomEvent('sas-toolbox-status', { detail: status }));
     render();
   };
 
   window.__sasResetToolboxWizard = () => {
     idx = 0;
     copiedThisStep = false;
+    rebuildProgressRail();
     render();
   };
 
+  rebuildProgressRail();
   render();
 }
 
@@ -225,7 +238,8 @@ export function renderToolboxChecklist(status) {
 export function updateToolboxBanner(status) {
   const banner = document.getElementById('toolbox-status-banner');
   if (!banner) return;
-  const count = status?.summary?.needsAction ?? 0;
+  const count = status?.summary?.needsAction ??
+    (status?.tools || []).filter(tool => ACTION_STATUSES.has(tool.status)).length;
   if (status?.actionNeeded && count > 0) {
     banner.textContent = `${count} toolbox item${count === 1 ? '' : 's'} need attention — click to open the guided fix wizard`;
     banner.classList.remove('hidden');
@@ -235,3 +249,6 @@ export function updateToolboxBanner(status) {
     banner.classList.remove('sas-guide-glow');
   }
 }
+
+window.__sasRenderToolboxChecklist = renderToolboxChecklist;
+window.__sasUpdateToolboxBanner = updateToolboxBanner;

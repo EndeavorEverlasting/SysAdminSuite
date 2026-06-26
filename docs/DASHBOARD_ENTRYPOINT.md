@@ -14,7 +14,7 @@ On first run the launcher will **automatically prepare the dashboard host** if d
 
 **Dependency bootstrap:** [`DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](DASHBOARD_DEPENDENCY_BOOTSTRAP.md) — pinned Microsoft installers, SHA512 verification, ignored local cache.
 
-**Toolbox status + glowing fix wizard:** [`DASHBOARD_TOOLBOX_TUTORIAL.md`](DASHBOARD_TOOLBOX_TUTORIAL.md) — live probe of Git Bash, .NET, naabu, nmap, and more; auto-opens when something needs action.
+**Toolbox status:** [`DASHBOARD_TOOLBOX_TUTORIAL.md`](DASHBOARD_TOOLBOX_TUTORIAL.md) — live dependency checklist and glowing guided fixes for missing/outdated local tools.
 
 **Updates:** launcher checks are opt-in and must prompt before applying changes. Source clones use a clean `main` fast-forward; ZIP/field packages use checksum-verified manifests. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
 
@@ -36,21 +36,23 @@ Warn against the common mistake: do **not** create a `SysAdminSuite` folder firs
 
 | File | Audience | What it does |
 |------|----------|--------------|
-| `START-HERE-SysAdminSuite-Dashboard.bat` | **Field users (primary)** | Friendly console, starts host, opens browser; Repo Setup, Cybernet, and Software Tracker front-door workflows |
-
-After the dashboard loads, field users see three front-door heroes:
-
-- **Repo Setup** — `Start Repo Setup` (clone/download, update approval, and launcher basics)
-- **Cybernet Survey** — `Start Cybernet Survey` (target acquisition wizard)
-- **Software Tracker Install** — `Start Software Tracker Install` (dry-run → approve → guarded execute tutorial)
-
-Software Tracker install details: [`SOFTWARE_TRACKER_INSTALLS.md`](SOFTWARE_TRACKER_INSTALLS.md).
+| `START-HERE-SysAdminSuite-Dashboard.bat` | **Field users (primary)** | Friendly console, starts host, writes toolbox status, opens browser; Toolbox, Repo Setup, Cybernet, and Software Tracker front-door workflows |
 | `START-HERE-SysAdminSuite-Dashboard.cmd` | Compatibility alias | Calls the `.bat` launcher |
 | `SysAdminSuite Dashboard.cmd` | Field desktops / shortcuts | Alias of the START-HERE `.bat` |
 | `Launch-SysAdminSuiteDashboard.Host.bat` | IT / developers | Ensures dependencies/host via Bash bootstrap, then spawns tray host |
 | `Launch-SysAdminSuite-Runtime.bat` `[3]` | Portable zip | Menu entry for .NET host |
 | `Launch-SysAdminSuiteDashboard.bat` | Permissive sites | Legacy PS + Python path |
 | `dist/SysAdminSuiteDashboard/SysAdminSuite Dashboard.exe` | **Local build only** | Not committed; see publish script below |
+
+After the dashboard loads, field users see four front-door heroes:
+
+- **Toolbox Check** — `Start Toolbox Check` (live dependency checklist and guided fixes)
+- **Repo Setup** — `Start Repo Setup` (clone/download, update approval, and launcher basics)
+- **Cybernet Survey** — `Start Cybernet Survey` (target acquisition wizard)
+- **Software Tracker Install** — `Start Software Tracker Install` (dry-run → approve → guarded execute tutorial)
+
+Software Tracker install details: [`SOFTWARE_TRACKER_INSTALLS.md`](SOFTWARE_TRACKER_INSTALLS.md).
+Toolbox details: [`DASHBOARD_TOOLBOX_TUTORIAL.md`](DASHBOARD_TOOLBOX_TUTORIAL.md).
 
 ## EXE policy (current vs future)
 
