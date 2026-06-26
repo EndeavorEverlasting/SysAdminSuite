@@ -81,27 +81,42 @@ sas_target_list_candidates() {
   done
 }
 
-sas_target_require_input_file() {
+sas_target_roots_for_input() {
+  local allow_staging="${1:-0}" allow_generated="${2:-0}" repo="${3:-$(sas_target_repo_root)}"
+  printf '%s\n' "$repo/targets/local" "$repo/logs/targets"
+  [[ "$allow_staging" == "1" ]] && printf '%s\n' "$repo/survey/input"
+  [[ "$allow_generated" == "1" ]] && printf '%s\n' "$repo/survey/output" "$repo/logs/nmap" "$repo/survey/artifacts"
+  if [[ "${SAS_TARGET_ALLOW_TEST_FIXTURES:-0}" == "1" ]]; then
+    printf '%s\n' "$repo/survey/fixtures" "$repo/targets/sanitized"
+  fi
+}
+
+sas_target_require_file_under_roots() {
   local file="$1"
   local role="${2:-target input}"
   local allow_staging="${3:-0}"
-  local repo="${4:-$(sas_target_repo_root)}"
+  local allow_generated="${4:-0}"
+  local repo="${5:-$(sas_target_repo_root)}"
   [[ -n "$file" ]] || { echo "[target-intake] ERROR: $role path is required" >&2; return 1; }
   [[ -f "$file" ]] || { echo "[target-intake] ERROR: $role not found: $file" >&2; return 1; }
 
   local roots=()
-  roots+=("$repo/targets/local" "$repo/logs/targets")
-  [[ "$allow_staging" == "1" ]] && roots+=("$repo/survey/input")
-  if [[ "${SAS_TARGET_ALLOW_TEST_FIXTURES:-0}" == "1" ]]; then
-    roots+=("$repo/survey/fixtures" "$repo/targets/sanitized")
-  fi
-
+  while IFS= read -r root; do roots+=("$root"); done < <(sas_target_roots_for_input "$allow_staging" "$allow_generated" "$repo")
   if ! sas_target_is_under_any_root "$file" "${roots[@]}"; then
-    echo "[target-intake] ERROR: $role is outside approved target intake roots: $file" >&2
+    echo "[target-intake] ERROR: $role is outside approved SysAdminSuite target roots: $file" >&2
     echo "[target-intake] Use targets/local/ or logs/targets/ first; survey/input/ only after normalization." >&2
+    echo "[target-intake] Generated rosters/manifests may be read from survey/output/ only when explicitly produced by an earlier SysAdminSuite step." >&2
     echo "[target-intake] Set SAS_TARGET_ALLOW_TEST_FIXTURES=1 only for sanitized repo fixture tests." >&2
     return 1
   fi
+}
+
+sas_target_require_input_file() {
+  sas_target_require_file_under_roots "$1" "${2:-target input}" "${3:-0}" 0 "${4:-$(sas_target_repo_root)}"
+}
+
+sas_target_require_manifest_file() {
+  sas_target_require_file_under_roots "$1" "${2:-target manifest}" 1 1 "${3:-$(sas_target_repo_root)}"
 }
 
 sas_target_require_output_path() {
@@ -111,6 +126,10 @@ sas_target_require_output_path() {
   [[ -n "$path" ]] || { echo "[target-intake] ERROR: $role path is required" >&2; return 1; }
   local roots=("$repo/survey/output" "$repo/logs/nmap" "$repo/survey/artifacts")
   if ! sas_target_is_under_any_root "$path" "${roots[@]}"; then
+    if [[ "${SAS_TARGET_ALLOW_NONSTANDARD_OUTPUT:-0}" == "1" ]]; then
+      echo "[target-intake] WARNING: $role is outside generated output roots because SAS_TARGET_ALLOW_NONSTANDARD_OUTPUT=1: $path" >&2
+      return 0
+    fi
     echo "[target-intake] ERROR: $role is outside generated output roots: $path" >&2
     echo "[target-intake] Use survey/output/, logs/nmap/, or survey/artifacts/." >&2
     return 1
