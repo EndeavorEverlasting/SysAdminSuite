@@ -106,7 +106,7 @@ assert_contains 'Run the PowerShell network preflight' "$runbook" 'runbook missi
 assert_contains 'Review the generated CSV under `survey/output/network_preflight/`' "$runbook" 'runbook missing output review step'
 
 # The field dashboard patch must point to the durable entrypoint, not emergency snippets.
-assert_contains '.\\survey\\sas-network-preflight.ps1' "$dashboard_patch" 'dashboard patch missing PowerShell preflight entrypoint'
-assert_contains 'survey\\output\\network_preflight' "$dashboard_patch" 'dashboard patch missing generated output folder'
+assert_contains '.\survey\sas-network-preflight.ps1' "$dashboard_patch" 'dashboard patch missing PowerShell preflight entrypoint'
+assert_contains 'survey\output\network_preflight' "$dashboard_patch" 'dashboard patch missing generated output folder'
 
 echo 'PASS: PowerShell network preflight contracts'
