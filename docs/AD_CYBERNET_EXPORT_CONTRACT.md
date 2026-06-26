@@ -88,3 +88,8 @@ When AD and supplemental evidence disagree:
 ## Dashboard ingestion
 
 Drop `ad_registered_normalized.csv`, `ad_evidence_matches.csv`, or bucket CSVs into the dashboard. Files are detected as parser type `ad-registered-population`.
+
+## Related documents
+
+- [AD_PROBE_RESILIENCE.md](AD_PROBE_RESILIENCE.md) — resilient AD probe fallback ladder, ambiguity classifications, and the imported/static evidence rules that govern how this export contract is consumed when live AD is blocked.
+- [AD_REGISTERED_POPULATION.md](AD_REGISTERED_POPULATION.md) — AD as population authority.

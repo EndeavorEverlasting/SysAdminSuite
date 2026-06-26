@@ -1,0 +1,17 @@
+Target,ADState,QueryMode,FallbackMode,DNSHostName,Enabled,LastLogonDate,ComputerOU,EvidenceSource,NextAction,Notes
+CYBTEST001,AD_CONFIRMED,active_directory_module,none,CYBTEST001.sample.local,True,2026-06-20,OU=Cybernet;Managed_Shared,live_ad,proceed,Synthetic confirmed object with DNS and recent logon
+CYBTEST002,AD_OBJECT_FOUND_DNS_FOUND,active_directory_module,none,CYBTEST002.sample.local,True,2026-06-18,OU=Cybernet;Managed_Shared,live_ad,enrich_reachability,Found with forward DNS
+CYBTEST003,AD_OBJECT_FOUND_DNS_MISSING,active_directory_module,none,,True,2026-06-17,OU=Cybernet;Managed_Shared,live_ad,needs_dns_review,Object found but no DNS record
+CYBTEST004,AD_OBJECT_FOUND_DNS_MISMATCH,ldap_directorysearcher,rsat_missing,CYBTEST004-alt.sample.local,True,2026-06-16,OU=Cybernet;Managed_Shared,live_ad,needs_operator_review,DNS resolves to conflicting name
+WNH000TEST001,AD_OBJECT_FOUND_STALE,active_directory_module,none,WNH000TEST001.sample.local,True,2024-01-01,OU=Neuron;Managed_Shared,live_ad,hold_for_review,Last logon exceeds staleness threshold
+CYBTEST005,AD_OBJECT_FOUND_DISABLED,active_directory_module,none,CYBTEST005.sample.local,False,2025-02-02,OU=Cybernet;Managed_Shared,live_ad,hold_for_review,Computer account disabled
+CYBTEST006,AD_OBJECT_FOUND_WRONG_OU,active_directory_module,none,CYBTEST006.sample.local,True,2026-06-10,OU=Workstations;Legacy,live_ad,needs_operator_review,Object in forbidden legacy OU
+CYBTEST007,AD_DUPLICATE_CANDIDATES,ldap_directorysearcher,rsat_missing,CYBTEST007-a.sample.local;CYBTEST007-b.sample.local,True,2026-06-09,OU=Cybernet;Managed_Shared,live_ad,needs_operator_review,Multiple candidate objects matched
+CYBTEST008,AD_NOT_FOUND,active_directory_module,none,,,,,live_ad,manifest_data_review,Query ran successfully no matching object
+CYBTEST009,AD_QUERY_BLOCKED,active_directory_module,none,,,,,live_ad,retry_or_secondary_path,Query path raised an error distinct from not found
+CYBTEST010,DOMAIN_CONTEXT_UNKNOWN,domain_discovery,environment_check,,,,,environment,classify_environment_blocked,Domain context could not be determined
+CYBTEST011,DOMAIN_CONTROLLER_UNREACHABLE,domain_discovery,environment_check,,,,,environment,classify_environment_blocked,Domain known but no DC reachable
+CYBTEST012,PERMISSION_BLOCKED,ldap_directorysearcher,rsat_missing,,,,,live_ad,escalate_permissions,Access denied insufficient rights
+CYBTEST013,IMPORTED_STATIC_EVIDENCE,imported_manifest,live_ad_blocked,CYBTEST013.sample.local,True,2026-05-01,OU=Cybernet;Managed_Shared,approved_export,treat_as_static,From approved exported list not live AD
+CYBTEST014,NOT_AD_VERIFIED,none,no_ad_access,CYBTEST014.sample.local,,,,reachability_only,needs_ad_lookup,Reachable but AD registration unproven
+CYBTEST015,NEEDS_OPERATOR_REVIEW,ldap_directorysearcher,rsat_missing,CYBTEST015.sample.local,True,2026-06-05,OU=Cybernet;Managed_Shared,live_ad,route_to_operator,Ambiguous alias requires human reconciliation

@@ -75,6 +75,7 @@ data/updated/*
 !survey/fixtures/ad_evidence_manifest.sample.csv
 !survey/fixtures/ad_network_evidence.sample.csv
 !survey/fixtures/ad_live_serial.sample.csv
+!survey/fixtures/ad_probe_states.sample.csv
 !dashboard/samples/*.csv
 *.zip
 !**/.gitkeep
