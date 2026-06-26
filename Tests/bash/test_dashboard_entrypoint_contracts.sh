@@ -8,6 +8,9 @@ friendly="$repo_root/SysAdminSuite Dashboard.cmd"
 host_bat="$repo_root/Launch-SysAdminSuiteDashboard.Host.bat"
 start_md="$repo_root/START-HERE-SysAdminSuite.md"
 entry_doc="$repo_root/docs/DASHBOARD_ENTRYPOINT.md"
+field_release_doc="$repo_root/docs/DASHBOARD_FIELD_RELEASE.md"
+field_release_script="$repo_root/tools/build/New-DashboardFieldRelease.ps1"
+field_release_workflow="$repo_root/.github/workflows/dashboard-field-release.yml"
 exe_sprint="$repo_root/docs/DASHBOARD_EXE_FUTURE_SPRINT.md"
 readme="$repo_root/README.md"
 survey_readme="$repo_root/survey/README.md"
@@ -111,8 +114,25 @@ browser_line=$(grep -n 'start "" "http' "$bat" | head -1 | cut -d: -f1)
 # Field-safe build-failure messaging in the root .bat.
 grep -Fq 'The dashboard app could not be built on this machine' "$bat" \
   || fail "root .bat missing field-safe build-failure message"
-grep -Fq 'Ask for the packaged SysAdminSuite Dashboard release' "$bat" \
-  || fail "root .bat missing packaged-release / IT-admin guidance"
+grep -Fq 'packaged SysAdminSuite Dashboard field release' "$bat" \
+  || fail "root .bat missing field-release / IT-admin guidance"
+
+# Launcher must distinguish packaged field release vs source checkout paths.
+grep -Fq 'Packaged field release detected' "$bat" \
+  || fail "root .bat does not detect packaged field release layout"
+grep -Fq 'Source checkout detected' "$bat" \
+  || fail "root .bat does not label source-checkout path"
+
+# Field release package tooling and docs (no SDK on target).
+[[ -f "$field_release_doc" ]] || fail "docs/DASHBOARD_FIELD_RELEASE.md is missing"
+[[ -f "$field_release_script" ]] || fail "tools/build/New-DashboardFieldRelease.ps1 is missing"
+[[ -f "$field_release_workflow" ]] || fail ".github/workflows/dashboard-field-release.yml is missing"
+grep -Fq 'DASHBOARD_FIELD_RELEASE.md' "$entry_doc" \
+  || fail "DASHBOARD_ENTRYPOINT.md does not reference field release doc"
+grep -Fq 'field release package' "$start_md" \
+  || fail "START-HERE-SysAdminSuite.md does not explain field release package"
+grep -Fq 'app/bin/SysAdminSuite.DashboardHost.exe' "$field_release_doc" \
+  || fail "DASHBOARD_FIELD_RELEASE.md does not document app/bin host layout"
 
 # Docs must mention automatic first-run preparation and keep CLI non-default.
 for prep_doc in "$readme" "$start_md" "$entry_doc" "$survey_readme"; do

@@ -8,7 +8,9 @@
 > Your browser opens `http://127.0.0.1:5000/dashboard/?tutorial=cybernet`.
 > CLI tools are optional — use them only when the dashboard or a runbook says so.
 
-On first run the launcher will **automatically prepare (build) the dashboard host** if it is missing — it runs `tools/publish-dashboard-entrypoint.ps1` for the user, waits for the host to respond on port 5000, and only then opens the browser. Field users are never told to run the publish command by hand. If the build cannot run (no .NET SDK), the launcher shows a field-safe message directing the user to the packaged release or IT/admin preparation.
+On first run the launcher will **automatically prepare (build) the dashboard host** if it is missing — it runs `tools/publish-dashboard-entrypoint.ps1` for the user, waits for the host to respond on port 5000, and only then opens the browser. Field users are never told to run the publish command by hand. If the build cannot run (no .NET SDK), the launcher shows a field-safe message directing the user to the **field release package** or IT/admin preparation.
+
+**Field release package (no SDK):** [`DASHBOARD_FIELD_RELEASE.md`](DASHBOARD_FIELD_RELEASE.md) — pre-built zip with `app/bin/SysAdminSuite.DashboardHost.exe`.
 
 Compatibility aliases (same behavior, not the documented primary): **`START-HERE-SysAdminSuite-Dashboard.cmd`** and **`SysAdminSuite Dashboard.cmd`**.
 
@@ -22,7 +24,7 @@ git clone https://github.com/EndeavorEverlasting/SysAdminSuite.git
 
 This creates the `SysAdminSuite` folder; they then open it and double-click `START-HERE-SysAdminSuite-Dashboard.bat`.
 
-Warn against the common mistake: do **not** create a `SysAdminSuite` folder first and clone inside it, which produces `SysAdminSuite\SysAdminSuite` and hides the launcher one level deep. ZIP download via the GitHub **Code** button is an equivalent no-Git path.
+Warn against the common mistake: do **not** create a `SysAdminSuite` folder first and clone inside it, which produces `SysAdminSuite\SysAdminSuite` and hides the launcher one level deep. ZIP download via the GitHub **Code** button is an equivalent no-Git path for developers; **field users without the .NET SDK** should use the dashboard field release package instead ([`DASHBOARD_FIELD_RELEASE.md`](DASHBOARD_FIELD_RELEASE.md)).
 
 ## Launcher matrix
 
