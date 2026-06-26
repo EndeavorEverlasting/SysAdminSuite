@@ -22,10 +22,21 @@ gitignore="$repo_root/.gitignore"
 [[ -f "$toolbox_js" ]] || fail "missing toolbox tutorial JS"
 [[ -f "$launch_js" ]] || fail "missing toolbox launch JS"
 
-for needle in 'id="toolbox-status-banner"' 'id="toolbox-hero"' 'id="toolbox-checklist"' 'id="toolbox-tutorial"' 'id="hero-start-toolbox"'; do
+for needle in \
+  'id="toolbox-status-banner"' \
+  'id="toolbox-hero"' \
+  'id="toolbox-checklist"' \
+  'id="toolbox-tutorial"' \
+  'id="hero-start-toolbox"' \
+  'id="toolbox-command-mode"' \
+  'id="toolbox-command-explain"' \
+  'id="toolbox-command-explain-details"' \
+  'wizard-run-note'; do
   grep -Fq "$needle" "$index_html" || fail "dashboard index missing $needle"
 done
 
+grep -Fq 'applyCommandHelp' "$toolbox_js" || fail "toolbox tutorial does not use shared command helper"
+grep -Fq 'RUN IT YOURSELF' "$repo_root/dashboard/js/wizard-command-help.js" || fail "shared command helper missing run badge copy"
 grep -Fq 'sas-guide-glow' "$toolbox_js" || fail "toolbox tutorial does not apply guide glow"
 grep -Fq '__sasApplyToolboxStatus' "$toolbox_js" || fail "toolbox tutorial missing status apply hook"
 grep -Fq 'buildStepsFromStatus' "$toolbox_js" || fail "toolbox tutorial missing dynamic step builder"
@@ -37,6 +48,7 @@ grep -Fq 'startToolboxTutorial' "$app_js" || fail "app.js missing toolbox hero s
 grep -Fq '__sasFetchedToolboxStatus' "$app_js" || fail "app.js does not preserve fetched toolbox status"
 grep -Fq '__sasFetchedToolboxStatus' "$launch_js" || fail "toolbox launcher does not record fetched toolbox status"
 grep -Fq 'toolbox-status' "$parsers_js" || fail "parsers missing toolbox-status type"
+grep -Fq 'dashboard/js/wizard-command-help.js' "$build_bundle" || fail "bundle build missing shared command helper"
 grep -Fq 'dashboard/js/toolbox-tutorial.js' "$build_bundle" || fail "bundle build missing toolbox tutorial"
 grep -Fq 'sas-write-toolbox-status.sh' "$host_bat" || fail "host launcher does not write toolbox status"
 grep -Fq 'SAS_UPDATE_STATE' "$start_bat" || fail "START-HERE does not set update state"

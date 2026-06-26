@@ -225,6 +225,124 @@ _exports.debounce = debounce;
 })();
 var parseCSV = _exports.parseCSV, parseJSON = _exports.parseJSON, sanitize = _exports.sanitize, escapeCSV = _exports.escapeCSV, exportToCSV = _exports.exportToCSV, pingToStep = _exports.pingToStep, statusBadge = _exports.statusBadge, formatTimestamp = _exports.formatTimestamp, toast = _exports.toast, sortRows = _exports.sortRows, filterRows = _exports.filterRows, makeSortable = _exports.makeSortable, el = _exports.el, debounce = _exports.debounce;
 
+// ====== wizard-command-help.js ======
+(function () {
+// wizard-command-help.js — shared command-panel clarity for dashboard wizards.
+
+const RUN_MODE_COPY = {
+  run: {
+    label: 'RUN IT YOURSELF',
+    className: 'is-run',
+    runner: 'Copy this command, run it outside the dashboard, then return here. Next never runs commands.',
+    empty: '',
+    next: 'I ran it — Next →',
+  },
+  read: {
+    label: 'NOTHING TO RUN',
+    className: 'is-read',
+    runner: 'This is reference text only. Nothing runs in the dashboard; read it, then click Next.',
+    empty: 'This step shows reference text so you know what to look for. There is no command to run.',
+    next: 'Next →',
+  },
+  none: {
+    label: 'JUST CLICK NEXT',
+    className: 'is-none',
+    runner: 'There is no command for this step. Click Next when you are ready.',
+    empty: 'No outside action is required for this step. The right panel stays visible so the wizard always explains what is happening.',
+    next: 'Next →',
+  },
+};
+
+function isCommentOnly(text) {
+  const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  return lines.length > 0 && lines.every(line => line.startsWith('#'));
+}
+
+function normalizeParts(step) {
+  if (Array.isArray(step.explainParts) && step.explainParts.length > 0) {
+    return step.explainParts;
+  }
+  const parts = [];
+  if (step.command) {
+    parts.push({ part: 'Command/action', meaning: 'The exact text shown in the command box. Copy it only when the badge says RUN IT YOURSELF.' });
+  }
+  if (step.nextAction) {
+    parts.push({ part: 'Next action', meaning: step.nextAction });
+  }
+  if (Array.isArray(step.checks) && step.checks.length > 0) {
+    parts.push({ part: 'Checklist', meaning: step.checks[0] });
+  }
+  return parts;
+}
+
+function resolveRunMode(step = {}) {
+  const command = String(step.command || '').trim();
+  if (step.hasCommand === true && command) return 'run';
+  if (isCommentOnly(command)) return 'read';
+  return 'none';
+}
+
+function applyCommandHelp(els, step = {}, runMode = resolveRunMode(step), options = {}) {
+  const copy = RUN_MODE_COPY[runMode] || RUN_MODE_COPY.none;
+  const commandText = String(step.command || '');
+  const hasRunnableCommand = runMode === 'run';
+
+  els.panel?.classList.remove('hidden');
+
+  if (els.mode) {
+    els.mode.className = `command-run-mode ${copy.className}`;
+    els.mode.textContent = copy.label;
+  }
+
+  if (els.command) {
+    els.command.value = runMode === 'none' ? '' : commandText;
+    els.command.classList.toggle('hidden', runMode === 'none');
+  }
+
+  if (els.runner) {
+    els.runner.textContent = step.runnerText || copy.runner;
+  }
+
+  if (els.note) {
+    els.note.textContent = step.note || '';
+  }
+
+  if (els.explain) {
+    els.explain.textContent = step.explain || step.body || step.nextAction || copy.empty || copy.runner;
+  }
+
+  if (els.parts) {
+    const parts = normalizeParts(step);
+    els.parts.innerHTML = parts.map(item => {
+      const part = typeof item === 'string' ? item : item.part;
+      const meaning = typeof item === 'string' ? '' : item.meaning;
+      return `<li><strong>${sanitize(part || 'Step detail')}</strong>${meaning ? `: ${sanitize(meaning)}` : ''}</li>`;
+    }).join('');
+    els.details?.classList.toggle('hidden', parts.length === 0);
+  }
+
+  if (els.empty) {
+    els.empty.textContent = step.emptyText || copy.empty;
+    els.empty.classList.toggle('hidden', runMode !== 'none' && runMode !== 'read');
+  }
+
+  if (els.copy) {
+    els.copy.classList.toggle('hidden', !hasRunnableCommand);
+  }
+
+  if (els.next) {
+    els.next.textContent = options.finalLabel || copy.next;
+  }
+
+  return { hasRunnableCommand, runMode };
+}
+
+// expose exports to bundle scope
+_exports.resolveRunMode = resolveRunMode;
+_exports.applyCommandHelp = applyCommandHelp;
+})();
+var resolveRunMode = _exports.resolveRunMode, applyCommandHelp = _exports.applyCommandHelp;
+
 // ====== parsers.js ======
 (function () {
 // parsers.js — file type detection and data normalization
@@ -2927,6 +3045,12 @@ const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'This file stays local and is never committed to git.',
     ],
     nextAction: 'Confirm the offline workbook exists at the path above, then click Next.',
+    explain: 'Shows the local workbook path that the install planner reads; no workbook is opened by the dashboard.',
+    explainParts: [
+      { part: 'logs/targets/software', meaning: 'Gitignored local folder for the offline workbook copy.' },
+      { part: 'Windows path example', meaning: 'A technician-friendly form of the same local path.' },
+      { part: 'Next', meaning: 'Moves forward after you confirm the workbook exists.' },
+    ],
     note: 'Canonical path is documented in Config/software-tracker.paths.json and docs/SOFTWARE_TRACKER_INSTALLS.md.',
     optional: false,
     hasCommand: false,
@@ -2942,6 +3066,12 @@ const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'You can change the selection and re-run Preview Install Plan anytime.',
     ],
     nextAction: 'Pick an optional list or software name using the fields below, then click Next.',
+    explain: 'Narrows the later dry-run plan by list name or software name before any install command is copied.',
+    explainParts: [
+      { part: '--list', meaning: 'Limits planning to a named workbook list.' },
+      { part: '--software', meaning: 'Limits planning to one application.' },
+      { part: 'Blank fields', meaning: 'Plans every in-scope workbook row.' },
+    ],
     note: 'Selection is optional. Blank means plan all rows in scope.',
     optional: false,
     hasCommand: false,
@@ -2958,6 +3088,12 @@ const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'Reports land in survey/output/software-tracker-install/.',
     ],
     nextAction: 'Click Copy Command, run it on your admin machine, then load install-summary.json back into the dashboard.',
+    explain: 'Builds the preview command that writes local reports without installing anything.',
+    explainParts: [
+      { part: 'Dry-run', meaning: 'Default planning mode; it does not execute installers.' },
+      { part: 'install-summary.json', meaning: 'The report you load back into the dashboard for review.' },
+      { part: 'Copy Command', meaning: 'Copies text for you to run outside the browser.' },
+    ],
     note: `Primary action label: Preview Install Plan. Output: ${SOFTWARE_TRACKER_PATHS.reportJson}`,
     optional: false,
     hasCommand: true,
@@ -2974,6 +3110,12 @@ const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'Folder paths stay manual-review unless execute plus allow-discovered-folder-installs are both set.',
     ],
     nextAction: 'Drop install-summary.json, confirm the blocker summary below, then click Next.',
+    explain: 'Reviews the dry-run report and blocker summary before any live-run approval is possible.',
+    explainParts: [
+      { part: 'Load Evidence', meaning: 'Drop the dry-run JSON back into the dashboard.' },
+      { part: 'Blocked rows', meaning: 'Expected safety outcomes that should not execute.' },
+      { part: 'Next', meaning: 'Moves forward after the plan is loaded and reviewed.' },
+    ],
     note: 'Primary action label: Review Plan.',
     optional: false,
     hasCommand: false,
@@ -2990,6 +3132,12 @@ const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'Relay is not required; copy and run the command on an admin workstation.',
     ],
     nextAction: 'Check Approve Live Run, then click Next.',
+    explain: 'Records explicit operator approval before the wizard exposes the guarded execute command.',
+    explainParts: [
+      { part: 'Approve Live Run', meaning: 'A required checkbox for intentional mutation.' },
+      { part: '--execute', meaning: 'Only appears in the later command after approval.' },
+      { part: 'Next', meaning: 'Checks approval state; it still does not run installers.' },
+    ],
     note: 'Primary action label: Approve Live Run.',
     optional: false,
     hasCommand: false,
@@ -3006,6 +3154,12 @@ const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'Commands run as argv lists with shell=False in the Python tool.',
     ],
     nextAction: 'Click Copy Command, run it outside the dashboard, then load the updated install-summary.json.',
+    explain: 'Builds the approved execute command for you to copy and run on an admin workstation.',
+    explainParts: [
+      { part: '--execute', meaning: 'Turns the reviewed plan into a live guarded run.' },
+      { part: '--allow-discovered-folder-installs', meaning: 'Optional extra gate for folder-discovered installers.' },
+      { part: 'install-summary.json', meaning: 'Updated output to load back into the dashboard after the run.' },
+    ],
     note: 'Primary action label: Run Approved Installs.',
     optional: false,
     hasCommand: true,
@@ -3024,6 +3178,12 @@ const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'If results look wrong, use Back to dry-run and start over.',
     ],
     nextAction: 'Open the Software Tracker panel to export or review the final plan.',
+    explain: 'Lists the local report paths to keep for handoff after planning or execution.',
+    explainParts: [
+      { part: 'JSON', meaning: 'Structured report for dashboard review.' },
+      { part: 'CSV', meaning: 'Spreadsheet-friendly summary.' },
+      { part: 'Text log', meaning: 'Plain-language execution or dry-run log.' },
+    ],
     note: 'Primary action label: Export Report.',
     optional: false,
     hasCommand: false,
@@ -3054,6 +3214,11 @@ function initSoftwareTrackerTutorial() {
   const kicker = document.getElementById('sw-step-kicker');
   const checks = document.getElementById('sw-step-checks');
   const command = document.getElementById('sw-step-command');
+  const commandMode = document.getElementById('sw-command-mode');
+  const explain = document.getElementById('sw-command-explain');
+  const explainDetails = document.getElementById('sw-command-explain-details');
+  const explainParts = document.getElementById('sw-command-explain-parts');
+  const commandEmpty = document.getElementById('sw-command-empty');
   const runner = document.getElementById('sw-command-runner');
   const note = document.getElementById('sw-step-note');
   const commandPanel = document.getElementById('sw-command-panel');
@@ -3114,15 +3279,15 @@ function initSoftwareTrackerTutorial() {
     if (step.showPlanSummary) renderPlanSummary();
 
     const cmdText = buildStepCommand(step);
-    const hasCommand = !!(step.hasCommand && cmdText);
-    commandPanel?.classList.toggle('hidden', !hasCommand && !step.command);
-    if (command) command.value = hasCommand ? cmdText : (step.command || '');
-    if (runner) runner.textContent = step.nextAction;
-    if (note) note.textContent = step.note;
+    const stepForHelp = { ...step, command: cmdText, hasCommand: !!(step.hasCommand && cmdText) };
+    const runMode = resolveRunMode(stepForHelp);
+    const hasCommand = runMode === 'run';
+    applyCommandHelp({
+      panel: commandPanel, command, mode: commandMode, runner, note, explain,
+      details: explainDetails, parts: explainParts, empty: commandEmpty, copy, next,
+    }, stepForHelp, runMode, { finalLabel: idx === SOFTWARE_TRACKER_TUTORIAL_STEPS.length - 1 ? 'Finish' : '' });
 
     prev.disabled = idx === 0;
-    next.textContent = idx === SOFTWARE_TRACKER_TUTORIAL_STEPS.length - 1 ? 'Finish' : 'Next →';
-    copy?.classList.toggle('hidden', !hasCommand);
 
     updateProgressRail();
   }
@@ -3136,7 +3301,7 @@ function initSoftwareTrackerTutorial() {
     write
       .then(() => {
         copiedThisStep = true;
-        toast('Command copied.', 'success');
+        toast('Command copied. Run it outside the dashboard, then come back for Next.', 'success');
       })
       .catch(() => toast('Select and copy the command manually.', 'warning'));
   }
@@ -3214,6 +3379,12 @@ const REPO_SETUP_TUTORIAL_STEPS = [
       'No Git available? Use the approved field release package instead of a raw source clone.'
     ],
     nextAction: 'Copy this only if you need to clone. After the folder exists, open it and click Next.',
+    explain: 'Clones one clean SysAdminSuite copy from GitHub into the folder you are currently in.',
+    explainParts: [
+      { part: 'git clone', meaning: 'Asks Git to download a repository into a new folder.' },
+      { part: 'GitHub URL', meaning: 'The approved SysAdminSuite source repository.' },
+      { part: 'Next', meaning: 'Only advances after you have run or skipped the clone yourself.' },
+    ],
     note: 'Source clones are for IT/developer machines. Field PCs without the .NET SDK should use the field release ZIP.',
     hasCommand: true
   },
@@ -3228,6 +3399,12 @@ const REPO_SETUP_TUTORIAL_STEPS = [
       'If the machine cannot build the app, ask for the packaged field release or IT preparation.'
     ],
     nextAction: 'Find the launcher at the top of the repo and double-click it. Then click Next.',
+    explain: 'Points you to the documented double-click launcher; the dashboard does not start it from this browser page.',
+    explainParts: [
+      { part: 'START-HERE-SysAdminSuite-Dashboard.bat', meaning: 'The field-user dashboard launcher at the repo root.' },
+      { part: 'Double-click', meaning: 'Run it from Windows Explorer, not from the Next button.' },
+      { part: 'Next', meaning: 'Moves to the update guidance after you have opened the dashboard path.' },
+    ],
     note: 'The .cmd shortcuts are aliases, but the .bat launcher is the documented front door.',
     hasCommand: false
   },
@@ -3242,6 +3419,12 @@ const REPO_SETUP_TUTORIAL_STEPS = [
       'Never use reset, branch deletion, or silent updates as the field path.'
     ],
     nextAction: 'Read this once. If the launcher asks to update, approve only when you are ready.',
+    explain: 'Summarizes the safe update rules so technicians know updates are approval-gated.',
+    explainParts: [
+      { part: 'Source clone rule', meaning: 'Only fast-forward a clean main branch after approval.' },
+      { part: 'ZIP / field package rule', meaning: 'Only apply a checksum-verified package after approval.' },
+      { part: 'Nothing to run', meaning: 'This step is doctrine text, not a command.' },
+    ],
     note: 'Approved update flow is documented in docs/APPROVED_UPDATE_FLOW.md.',
     hasCommand: false
   },
@@ -3256,6 +3439,12 @@ const REPO_SETUP_TUTORIAL_STEPS = [
       'Use Load Evidence when you already have output files to review.'
     ],
     nextAction: 'Click Next to finish setup, then choose the workflow button the dashboard highlights.',
+    explain: 'Helps you choose the correct front-door workflow after setup is complete.',
+    explainParts: [
+      { part: 'Cybernet Survey', meaning: 'Use for Cybernet / Neuron target and evidence workflows.' },
+      { part: 'Software Tracker Install', meaning: 'Use for dry-run install planning and guarded execution.' },
+      { part: 'Load Evidence', meaning: 'Use when output files already exist and need review.' },
+    ],
     note: 'Most Cybernet field work starts with Start Cybernet Survey.',
     hasCommand: false
   },
@@ -3270,6 +3459,12 @@ const REPO_SETUP_TUTORIAL_STEPS = [
       'You know updates require approval before changes are applied.'
     ],
     nextAction: 'Click Open Cybernet Survey to start the field survey tutorial.',
+    explain: 'Confirms setup is done and hands you to the Cybernet tutorial button.',
+    explainParts: [
+      { part: 'Ready', meaning: 'You know where the repo and launcher are.' },
+      { part: 'Open Cybernet Survey', meaning: 'Starts the survey tutorial from the dashboard.' },
+      { part: 'No command', meaning: 'There is nothing to copy or run on this final setup step.' },
+    ],
     note: 'The Cybernet tutorial is separate so setup does not get mixed with field survey work.',
     hasCommand: false,
     finalAction: true
@@ -3287,6 +3482,11 @@ function initRepoSetupTutorial() {
   const kicker = document.getElementById('repo-setup-step-kicker');
   const checks = document.getElementById('repo-setup-step-checks');
   const command = document.getElementById('repo-setup-step-command');
+  const commandMode = document.getElementById('repo-setup-command-mode');
+  const explain = document.getElementById('repo-setup-command-explain');
+  const explainDetails = document.getElementById('repo-setup-command-explain-details');
+  const explainParts = document.getElementById('repo-setup-command-explain-parts');
+  const commandEmpty = document.getElementById('repo-setup-command-empty');
   const runner = document.getElementById('repo-setup-command-runner');
   const note = document.getElementById('repo-setup-step-note');
   const commandPanel = document.getElementById('repo-setup-command-panel');
@@ -3318,18 +3518,17 @@ function initRepoSetupTutorial() {
     const step = REPO_SETUP_TUTORIAL_STEPS[idx];
     if (!step) return;
     copiedThisStep = false;
-    const hasCommand = !!step.hasCommand;
+    const runMode = resolveRunMode(step);
+    const hasCommand = runMode === 'run';
     kicker.textContent = `Step ${idx + 1} of ${REPO_SETUP_TUTORIAL_STEPS.length} — ${step.railLabel}`;
     title.textContent = step.title;
     body.textContent = step.body;
     checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
-    commandPanel?.classList.toggle('hidden', !hasCommand);
-    if (command) command.value = hasCommand ? step.command : '';
-    if (runner) runner.textContent = step.nextAction || 'Read the step, then click Next.';
-    if (note) note.textContent = step.note || '';
+    applyCommandHelp({
+      panel: commandPanel, command, mode: commandMode, runner, note, explain,
+      details: explainDetails, parts: explainParts, empty: commandEmpty, copy, next,
+    }, step, runMode, { finalLabel: step.finalAction ? 'Finish setup' : '' });
     if (prev) prev.disabled = idx === 0;
-    if (next) next.textContent = step.finalAction ? 'Finish setup' : hasCommand ? 'Next after cloning →' : 'Next →';
-    copy?.classList.toggle('hidden', !hasCommand);
     footer?.classList.toggle('hidden', !step.finalAction);
     updateProgressRail();
     updateGuideState(hasCommand);
@@ -3350,7 +3549,7 @@ function initRepoSetupTutorial() {
     write
       .then(() => {
         copiedThisStep = true;
-        toast('Repo setup command copied.', 'success');
+        toast('Command copied. Run it outside the dashboard, then come back for Next.', 'success');
         if (note) note.textContent = 'Command copied.';
         updateGuideState(true);
       })
@@ -3376,9 +3575,9 @@ function initRepoSetupTutorial() {
   prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
   next?.addEventListener('click', () => {
     const step = REPO_SETUP_TUTORIAL_STEPS[idx];
-    const hasCommand = !!step?.hasCommand;
+    const hasCommand = resolveRunMode(step) === 'run';
     if (hasCommand && step.requireCopy && !copiedThisStep) {
-      toast('Copy the clone command first, or continue only if the repo already exists.', 'warning');
+      toast('Copy and run the command outside the dashboard first, or continue only if the repo already exists.', 'warning');
       return;
     }
     if (idx < REPO_SETUP_TUTORIAL_STEPS.length - 1) {
@@ -3422,6 +3621,8 @@ function buildStepsFromStatus(status) {
     command: tool.nextAction || '',
     checks: buildChecks(tool),
     nextAction: tool.nextAction || 'Follow the step guidance, then click Next.',
+    explain: describeAction(tool),
+    explainParts: buildExplainParts(tool),
     note: tool.installDoc ? `See ${tool.installDoc} for full guidance.` : '',
     hasCommand: !!(tool.nextAction && tool.nextAction.startsWith('bash ')),
     finalAction: false
@@ -3436,6 +3637,11 @@ function buildStepsFromStatus(status) {
       command: '',
       checks: ['Required runtimes and host are present.', 'Workflow tools you need can be installed from the steps above when missing.'],
       nextAction: 'Click Finish to continue.',
+      explain: 'The toolbox found no required fix steps, so there is no outside command to run.',
+      explainParts: [
+        { part: 'Toolbox ready', meaning: 'Required dashboard and workflow tools look usable from the last probe.' },
+        { part: 'Finish', meaning: 'Closes this wizard and lets you continue with Repo Setup or Cybernet Survey.' },
+      ],
       note: 'Re-run START-HERE-SysAdminSuite-Dashboard.bat after installing tools to refresh this checklist.',
       hasCommand: false,
       finalAction: true
@@ -3444,6 +3650,32 @@ function buildStepsFromStatus(status) {
     steps[steps.length - 1].finalAction = true;
   }
   return steps;
+}
+
+function describeAction(tool) {
+  if (tool.nextAction?.startsWith('bash ')) {
+    return `Runs the approved SysAdminSuite ensure script for ${tool.displayName || tool.id} outside the dashboard.`;
+  }
+  if (tool.nextAction) {
+    return `Shows the manual action for ${tool.displayName || tool.id}; the browser will not perform it.`;
+  }
+  return `Explains why ${tool.displayName || tool.id} needs attention and what to review next.`;
+}
+
+function buildExplainParts(tool) {
+  const parts = [];
+  if (tool.nextAction?.startsWith('bash ')) {
+    const [shell, script, ...rest] = tool.nextAction.split(/\s+/);
+    parts.push({ part: shell, meaning: 'Runs the command in Bash on Windows.' });
+    if (script) parts.push({ part: script, meaning: 'The SysAdminSuite helper script to run yourself.' });
+    if (rest.length) parts.push({ part: rest.join(' '), meaning: 'Flags or arguments passed to the helper script.' });
+  } else if (tool.nextAction) {
+    parts.push({ part: 'Manual action', meaning: tool.nextAction });
+  }
+  if (tool.pinnedVersion) parts.push({ part: 'Pinned version', meaning: `Expected version: ${tool.pinnedVersion}.` });
+  if (tool.installDoc) parts.push({ part: 'Install doc', meaning: `Full guidance lives in ${tool.installDoc}.` });
+  if (!parts.length) parts.push({ part: 'Review', meaning: 'Read the status and continue when you know the next action.' });
+  return parts;
 }
 
 function describeIssue(tool) {
@@ -3488,6 +3720,11 @@ function initToolboxTutorial() {
   const kicker = document.getElementById('toolbox-step-kicker');
   const checks = document.getElementById('toolbox-step-checks');
   const command = document.getElementById('toolbox-step-command');
+  const commandMode = document.getElementById('toolbox-command-mode');
+  const explain = document.getElementById('toolbox-command-explain');
+  const explainDetails = document.getElementById('toolbox-command-explain-details');
+  const explainParts = document.getElementById('toolbox-command-explain-parts');
+  const commandEmpty = document.getElementById('toolbox-command-empty');
   const runner = document.getElementById('toolbox-command-runner');
   const note = document.getElementById('toolbox-step-note');
   const commandPanel = document.getElementById('toolbox-command-panel');
@@ -3531,18 +3768,17 @@ function initToolboxTutorial() {
     const step = steps[idx];
     if (!step) return;
     copiedThisStep = false;
-    const hasCommand = !!step.hasCommand;
+    const runMode = resolveRunMode(step);
+    const hasCommand = runMode === 'run';
     kicker.textContent = `Step ${idx + 1} of ${steps.length} — ${step.railLabel}`;
     title.textContent = step.title;
     body.textContent = step.body;
     checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
-    commandPanel?.classList.toggle('hidden', !hasCommand);
-    if (command) command.value = hasCommand ? step.command : '';
-    if (runner) runner.textContent = step.nextAction || 'Read the step, then click Next.';
-    if (note) note.textContent = step.note || '';
+    applyCommandHelp({
+      panel: commandPanel, command, mode: commandMode, runner, note, explain,
+      details: explainDetails, parts: explainParts, empty: commandEmpty, copy, next,
+    }, step, runMode, { finalLabel: step.finalAction ? 'Finish toolbox check' : '' });
     if (prev) prev.disabled = idx === 0;
-    if (next) next.textContent = step.finalAction ? 'Finish toolbox check' : hasCommand ? 'Next after fix →' : 'Next →';
-    copy?.classList.toggle('hidden', !hasCommand);
     footer?.classList.toggle('hidden', !step.finalAction);
     highlightChecklistRow(step.toolId);
     updateProgressRail();
@@ -3564,7 +3800,7 @@ function initToolboxTutorial() {
     write
       .then(() => {
         copiedThisStep = true;
-        toast('Toolbox fix command copied.', 'success');
+        toast('Command copied. Run it outside the dashboard, then come back for Next.', 'success');
         if (note) note.textContent = 'Command copied.';
         updateGuideState(true);
       })
@@ -3588,9 +3824,9 @@ function initToolboxTutorial() {
   prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
   next?.addEventListener('click', () => {
     const step = steps[idx];
-    const hasCommand = !!step?.hasCommand;
+    const hasCommand = resolveRunMode(step) === 'run';
     if (hasCommand && !copiedThisStep) {
-      toast('Copy the fix command first, or continue only if the tool is already fixed.', 'warning');
+      toast('Copy and run the command outside the dashboard first, or continue only if the tool is already fixed.', 'warning');
       return;
     }
     if (idx < steps.length - 1) {
@@ -5754,6 +5990,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'Use approved target sources only; do not broaden the survey from guessed hosts.'
     ],
     nextAction: 'Read this, then click Next to load or prepare your targets.',
+    explain: 'Introduces the manual survey model: the dashboard teaches steps, but probes run only when you copy and run commands yourself.',
+    explainParts: [
+      { part: 'Dashboard', meaning: 'Guides the workflow and reads evidence files you load back in.' },
+      { part: 'Admin machine', meaning: 'Where approved read-only checks are run manually.' },
+      { part: 'Approved targets', meaning: 'The only population that should be surveyed.' },
+    ],
     note: 'Start here for Cybernet field work. Repo setup is a separate tutorial above.',
     optional: false
   },
@@ -5769,6 +6011,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'If the list came from another source, you can normalize with ./survey/sas-survey-targets.sh --device-type Cybernet --file /tmp/sas-cybernet/targets.txt (output is not dashboard-importable yet).'
     ],
     nextAction: 'Copy this local setup command, run it on your admin machine, then come back and click Next.',
+    explain: 'Creates a local target file from approved Cybernet names so later checks use a bounded list.',
+    explainParts: [
+      { part: 'mkdir -p', meaning: 'Creates the local temporary work folder if it does not already exist.' },
+      { part: 'printf', meaning: 'Writes one approved target per line.' },
+      { part: '/tmp/sas-cybernet/targets.txt', meaning: 'Local handoff file used by later checks.' },
+    ],
     note: 'This step only creates a local targets file. It does not touch target devices.',
     optional: false
   },
@@ -5783,6 +6031,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'Classify guest-network blocking separately from product defects.'
     ],
     nextAction: 'Run the matching command outside the dashboard. When it finishes, drop network_preflight.csv into Load Evidence.',
+    explain: 'Runs a scoped network posture check against the approved target file and writes CSV evidence locally.',
+    explainParts: [
+      { part: 'sas-network-preflight.sh', meaning: 'Checks DNS and selected ports from the admin machine.' },
+      { part: '--ports 135,445,3389,9100', meaning: 'Limits validation to the documented posture ports.' },
+      { part: 'network_preflight.csv', meaning: 'Local output file to load back into the dashboard.' },
+    ],
     note: 'Load network_preflight.csv via Load Evidence after the command finishes.',
     optional: false
   },
@@ -5797,6 +6051,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'Keep unknown or partial rows; they are useful triage evidence.'
     ],
     nextAction: 'Run the matching command outside the dashboard. When it finishes, drop workstation_identity.csv into Load Evidence.',
+    explain: 'Collects read-only identity clues for the approved target list and writes a local CSV.',
+    explainParts: [
+      { part: 'sas-workstation-identity.sh', meaning: 'Gathers observable hostname, DNS, ping, MAC, and transport clues.' },
+      { part: '--targets-file', meaning: 'Keeps collection bounded to the prepared approved list.' },
+      { part: 'workstation_identity.csv', meaning: 'Local evidence file for dashboard review.' },
+    ],
     note: 'Load workstation_identity.csv back via Load Evidence for searchable protocol evidence.',
     optional: false
   },
@@ -5812,6 +6072,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'This step is optional. Skip it when the earlier evidence is enough.'
     ],
     nextAction: 'Run this only if the target list is approved for reachability confirmation, then load cybernet_naabu.json as optional evidence.',
+    explain: 'Optionally records low-noise reachability evidence for approved targets using the documented Naabu profile.',
+    explainParts: [
+      { part: 'logs/targets', meaning: 'Local ignored folder for the approved host list handoff.' },
+      { part: 'keyports_cybernet_json', meaning: 'Profile with `-ec`, `-silent`, and JSON parser-facing output.' },
+      { part: 'logs/nmap/cybernet_naabu.json', meaning: 'Local ignored reachability evidence to load only when needed.' },
+    ],
     note: 'Advanced: keyports_cybernet_json · output logs/nmap/cybernet_naabu.json',
     optional: true
   },
@@ -5828,6 +6094,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'Treat manifest rows as target lists, not reachability or identity proof.'
     ],
     nextAction: 'Click Load resulting evidence, drop the files into the highlighted box, then read Review Results.',
+    explain: 'Shows which local outputs belong in Load Evidence and reminds you that manifests are not identity proof.',
+    explainParts: [
+      { part: 'Load Evidence', meaning: 'Dashboard drop zone for CSV and JSON output files.' },
+      { part: 'Review Results', meaning: 'Dashboard summary after evidence is loaded.' },
+      { part: 'Manifest rows', meaning: 'Target lists only; not reachability or identity proof.' },
+    ],
     note: 'Click Load resulting evidence below, or use Load Evidence on the hero card.',
     optional: false
   }
@@ -5844,6 +6116,11 @@ function initCybernetTutorial() {
   const kicker = document.getElementById('cybernet-step-kicker');
   const checks = document.getElementById('cybernet-step-checks');
   const command = document.getElementById('cybernet-step-command');
+  const commandMode = document.getElementById('cybernet-command-mode');
+  const explain = document.getElementById('cybernet-command-explain');
+  const explainDetails = document.getElementById('cybernet-command-explain-details');
+  const explainParts = document.getElementById('cybernet-command-explain-parts');
+  const commandEmpty = document.getElementById('cybernet-command-empty');
   const runner = document.getElementById('cybernet-command-runner');
   const note = document.getElementById('cybernet-step-note');
   const commandPanel = document.getElementById('cybernet-command-panel');
@@ -5879,14 +6156,17 @@ function initCybernetTutorial() {
     title.textContent = step.title + (step.optional ? ' (optional)' : '');
     body.textContent = step.body;
     checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
-    const hasCommand = !!(step.command && !step.command.startsWith('# Use Load Evidence'));
-    if (commandPanel) commandPanel.classList.toggle('hidden', !hasCommand);
-    if (command) command.value = hasCommand ? step.command : '';
-    if (runner) runner.textContent = step.nextAction || 'Copy the command, run it outside the dashboard, then load the output file here.';
-    if (note) note.textContent = step.note;
+    const stepForHelp = {
+      ...step,
+      hasCommand: !!(step.command && !step.command.startsWith('# Use Load Evidence')),
+    };
+    const runMode = resolveRunMode(stepForHelp);
+    const hasCommand = runMode === 'run';
+    applyCommandHelp({
+      panel: commandPanel, command, mode: commandMode, runner, note, explain,
+      details: explainDetails, parts: explainParts, empty: commandEmpty, copy, next,
+    }, stepForHelp, runMode, { finalLabel: idx === CYBERNET_TUTORIAL_STEPS.length - 1 ? 'Finish: Load Evidence' : '' });
     prev.disabled = idx === 0;
-    next.textContent = idx === CYBERNET_TUTORIAL_STEPS.length - 1 ? 'Finish: Load Evidence' : hasCommand ? 'Next after running it →' : 'Next →';
-    copy?.classList.toggle('hidden', !hasCommand);
     wizardFooter?.classList.toggle('hidden', idx !== CYBERNET_TUTORIAL_STEPS.length - 1);
     updateProgressRail();
     updateGuideState(hasCommand);
@@ -5907,7 +6187,7 @@ function initCybernetTutorial() {
     write
       .then(() => {
         copiedThisStep = true;
-        toast('Command copied.', 'success');
+        toast('Command copied. Run it outside the dashboard, then come back for Next.', 'success');
         if (note) note.textContent = 'Command copied.';
         updateGuideState(true);
       })
@@ -5923,9 +6203,12 @@ function initCybernetTutorial() {
   prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
   next?.addEventListener('click', () => {
     const step = CYBERNET_TUTORIAL_STEPS[idx];
-    const hasCommand = !!(step?.command && !step?.command.startsWith('# Use Load Evidence'));
+    const hasCommand = resolveRunMode({
+      ...step,
+      hasCommand: !!(step?.command && !step?.command.startsWith('# Use Load Evidence')),
+    }) === 'run';
     if (hasCommand && !copiedThisStep && !step.optional) {
-      toast('Copy the command first, run it outside the dashboard, then come back for Next.', 'warning');
+      toast('Copy and run the command outside the dashboard first, then come back for Next.', 'warning');
       return;
     }
     if (idx < CYBERNET_TUTORIAL_STEPS.length - 1) {

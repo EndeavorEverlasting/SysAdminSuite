@@ -16,6 +16,8 @@ On first run the launcher will **automatically prepare the dashboard host** if d
 
 **Toolbox status:** [`DASHBOARD_TOOLBOX_TUTORIAL.md`](DASHBOARD_TOOLBOX_TUTORIAL.md) — live dependency checklist and glowing guided fixes for missing/outdated local tools.
 
+**Wizard command model:** dashboard wizard **Next** buttons never run commands; command panels show whether to run, read, or simply continue. See [`DASHBOARD_TOOLBOX_TUTORIAL.md#how-next-works`](DASHBOARD_TOOLBOX_TUTORIAL.md#how-next-works).
+
 **Updates:** launcher checks are opt-in and must prompt before applying changes. Source clones use a clean `main` fast-forward; ZIP/field packages use checksum-verified manifests. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
 
 Compatibility aliases (same behavior, not the documented primary): **`START-HERE-SysAdminSuite-Dashboard.cmd`** and **`SysAdminSuite Dashboard.cmd`**.

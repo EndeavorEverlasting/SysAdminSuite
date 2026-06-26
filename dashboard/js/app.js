@@ -10,6 +10,7 @@ import { getSoftwareHTML, initSoftwarePanel, renderSoftwarePanel } from './panel
 import { initSoftwareTrackerTutorial } from './software-tracker-tutorial.js';
 import { initRepoSetupTutorial } from './repo-setup-tutorial.js';
 import { initToolboxTutorial, renderToolboxChecklist, updateToolboxBanner } from './toolbox-tutorial.js';
+import { applyCommandHelp, resolveRunMode } from './wizard-command-help.js';
 import {
   setSoftwareInstallPlan,
   clearSoftwareInstallPlan,
@@ -884,6 +885,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'Use approved target sources only; do not broaden the survey from guessed hosts.'
     ],
     nextAction: 'Read this, then click Next to load or prepare your targets.',
+    explain: 'Introduces the manual survey model: the dashboard teaches steps, but probes run only when you copy and run commands yourself.',
+    explainParts: [
+      { part: 'Dashboard', meaning: 'Guides the workflow and reads evidence files you load back in.' },
+      { part: 'Admin machine', meaning: 'Where approved read-only checks are run manually.' },
+      { part: 'Approved targets', meaning: 'The only population that should be surveyed.' },
+    ],
     note: 'Start here for Cybernet field work. Repo setup is a separate tutorial above.',
     optional: false
   },
@@ -899,6 +906,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'If the list came from another source, you can normalize with ./survey/sas-survey-targets.sh --device-type Cybernet --file /tmp/sas-cybernet/targets.txt (output is not dashboard-importable yet).'
     ],
     nextAction: 'Copy this local setup command, run it on your admin machine, then come back and click Next.',
+    explain: 'Creates a local target file from approved Cybernet names so later checks use a bounded list.',
+    explainParts: [
+      { part: 'mkdir -p', meaning: 'Creates the local temporary work folder if it does not already exist.' },
+      { part: 'printf', meaning: 'Writes one approved target per line.' },
+      { part: '/tmp/sas-cybernet/targets.txt', meaning: 'Local handoff file used by later checks.' },
+    ],
     note: 'This step only creates a local targets file. It does not touch target devices.',
     optional: false
   },
@@ -913,6 +926,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'Classify guest-network blocking separately from product defects.'
     ],
     nextAction: 'Run the matching command outside the dashboard. When it finishes, drop network_preflight.csv into Load Evidence.',
+    explain: 'Runs a scoped network posture check against the approved target file and writes CSV evidence locally.',
+    explainParts: [
+      { part: 'sas-network-preflight.sh', meaning: 'Checks DNS and selected ports from the admin machine.' },
+      { part: '--ports 135,445,3389,9100', meaning: 'Limits validation to the documented posture ports.' },
+      { part: 'network_preflight.csv', meaning: 'Local output file to load back into the dashboard.' },
+    ],
     note: 'Load network_preflight.csv via Load Evidence after the command finishes.',
     optional: false
   },
@@ -927,6 +946,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'Keep unknown or partial rows; they are useful triage evidence.'
     ],
     nextAction: 'Run the matching command outside the dashboard. When it finishes, drop workstation_identity.csv into Load Evidence.',
+    explain: 'Collects read-only identity clues for the approved target list and writes a local CSV.',
+    explainParts: [
+      { part: 'sas-workstation-identity.sh', meaning: 'Gathers observable hostname, DNS, ping, MAC, and transport clues.' },
+      { part: '--targets-file', meaning: 'Keeps collection bounded to the prepared approved list.' },
+      { part: 'workstation_identity.csv', meaning: 'Local evidence file for dashboard review.' },
+    ],
     note: 'Load workstation_identity.csv back via Load Evidence for searchable protocol evidence.',
     optional: false
   },
@@ -942,6 +967,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'This step is optional. Skip it when the earlier evidence is enough.'
     ],
     nextAction: 'Run this only if the target list is approved for reachability confirmation, then load cybernet_naabu.json as optional evidence.',
+    explain: 'Optionally records low-noise reachability evidence for approved targets using the documented Naabu profile.',
+    explainParts: [
+      { part: 'logs/targets', meaning: 'Local ignored folder for the approved host list handoff.' },
+      { part: 'keyports_cybernet_json', meaning: 'Profile with `-ec`, `-silent`, and JSON parser-facing output.' },
+      { part: 'logs/nmap/cybernet_naabu.json', meaning: 'Local ignored reachability evidence to load only when needed.' },
+    ],
     note: 'Advanced: keyports_cybernet_json · output logs/nmap/cybernet_naabu.json',
     optional: true
   },
@@ -958,6 +989,12 @@ const CYBERNET_TUTORIAL_STEPS = [
       'Treat manifest rows as target lists, not reachability or identity proof.'
     ],
     nextAction: 'Click Load resulting evidence, drop the files into the highlighted box, then read Review Results.',
+    explain: 'Shows which local outputs belong in Load Evidence and reminds you that manifests are not identity proof.',
+    explainParts: [
+      { part: 'Load Evidence', meaning: 'Dashboard drop zone for CSV and JSON output files.' },
+      { part: 'Review Results', meaning: 'Dashboard summary after evidence is loaded.' },
+      { part: 'Manifest rows', meaning: 'Target lists only; not reachability or identity proof.' },
+    ],
     note: 'Click Load resulting evidence below, or use Load Evidence on the hero card.',
     optional: false
   }
@@ -974,6 +1011,11 @@ function initCybernetTutorial() {
   const kicker = document.getElementById('cybernet-step-kicker');
   const checks = document.getElementById('cybernet-step-checks');
   const command = document.getElementById('cybernet-step-command');
+  const commandMode = document.getElementById('cybernet-command-mode');
+  const explain = document.getElementById('cybernet-command-explain');
+  const explainDetails = document.getElementById('cybernet-command-explain-details');
+  const explainParts = document.getElementById('cybernet-command-explain-parts');
+  const commandEmpty = document.getElementById('cybernet-command-empty');
   const runner = document.getElementById('cybernet-command-runner');
   const note = document.getElementById('cybernet-step-note');
   const commandPanel = document.getElementById('cybernet-command-panel');
@@ -1009,14 +1051,17 @@ function initCybernetTutorial() {
     title.textContent = step.title + (step.optional ? ' (optional)' : '');
     body.textContent = step.body;
     checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
-    const hasCommand = !!(step.command && !step.command.startsWith('# Use Load Evidence'));
-    if (commandPanel) commandPanel.classList.toggle('hidden', !hasCommand);
-    if (command) command.value = hasCommand ? step.command : '';
-    if (runner) runner.textContent = step.nextAction || 'Copy the command, run it outside the dashboard, then load the output file here.';
-    if (note) note.textContent = step.note;
+    const stepForHelp = {
+      ...step,
+      hasCommand: !!(step.command && !step.command.startsWith('# Use Load Evidence')),
+    };
+    const runMode = resolveRunMode(stepForHelp);
+    const hasCommand = runMode === 'run';
+    applyCommandHelp({
+      panel: commandPanel, command, mode: commandMode, runner, note, explain,
+      details: explainDetails, parts: explainParts, empty: commandEmpty, copy, next,
+    }, stepForHelp, runMode, { finalLabel: idx === CYBERNET_TUTORIAL_STEPS.length - 1 ? 'Finish: Load Evidence' : '' });
     prev.disabled = idx === 0;
-    next.textContent = idx === CYBERNET_TUTORIAL_STEPS.length - 1 ? 'Finish: Load Evidence' : hasCommand ? 'Next after running it →' : 'Next →';
-    copy?.classList.toggle('hidden', !hasCommand);
     wizardFooter?.classList.toggle('hidden', idx !== CYBERNET_TUTORIAL_STEPS.length - 1);
     updateProgressRail();
     updateGuideState(hasCommand);
@@ -1037,7 +1082,7 @@ function initCybernetTutorial() {
     write
       .then(() => {
         copiedThisStep = true;
-        toast('Command copied.', 'success');
+        toast('Command copied. Run it outside the dashboard, then come back for Next.', 'success');
         if (note) note.textContent = 'Command copied.';
         updateGuideState(true);
       })
@@ -1053,9 +1098,12 @@ function initCybernetTutorial() {
   prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
   next?.addEventListener('click', () => {
     const step = CYBERNET_TUTORIAL_STEPS[idx];
-    const hasCommand = !!(step?.command && !step?.command.startsWith('# Use Load Evidence'));
+    const hasCommand = resolveRunMode({
+      ...step,
+      hasCommand: !!(step?.command && !step?.command.startsWith('# Use Load Evidence')),
+    }) === 'run';
     if (hasCommand && !copiedThisStep && !step.optional) {
-      toast('Copy the command first, run it outside the dashboard, then come back for Next.', 'warning');
+      toast('Copy and run the command outside the dashboard first, then come back for Next.', 'warning');
       return;
     }
     if (idx < CYBERNET_TUTORIAL_STEPS.length - 1) {

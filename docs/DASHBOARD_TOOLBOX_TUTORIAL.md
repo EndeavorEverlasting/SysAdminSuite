@@ -80,6 +80,23 @@ When a required or workflow tool needs attention:
 If all probed tools are ready, the dashboard proceeds to Repo Setup when opened
 with `?tutorial=setup`.
 
+## How Next Works
+
+The dashboard wizards never run commands for the user. **Next only advances the
+wizard.** When a step needs outside action, the technician copies the command,
+runs it in the appropriate local shell, then returns to the dashboard and clicks
+Next.
+
+Every command panel shows one of three run states:
+
+- `RUN IT YOURSELF` means copy the command and run it outside the dashboard.
+- `NOTHING TO RUN` means the panel is showing reference text or file paths only.
+- `JUST CLICK NEXT` means the step has no outside command.
+
+Each panel also includes an always-visible summary and an expandable
+**Explain each part** breakdown so technicians understand what the command or
+reference text is for before moving on.
+
 ## What Gets Probed
 
 | Tool | Tier | Auto-ensure | Tutorial fix |

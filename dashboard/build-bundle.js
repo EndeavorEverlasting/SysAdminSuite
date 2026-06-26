@@ -13,6 +13,7 @@ const path = require('path');
 // Order matters: dependencies before dependents
 const files = [
   'dashboard/js/utils.js',
+  'dashboard/js/wizard-command-help.js',
   'dashboard/js/parsers.js',
   'dashboard/js/relay-client.js',
   'dashboard/js/panel-printer.js',

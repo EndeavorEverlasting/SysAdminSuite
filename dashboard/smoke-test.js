@@ -198,13 +198,26 @@ const shellChecks = [
   ['id="hero-start-toolbox"', 'Primary CTA Start Toolbox Check'],
   ['id="toolbox-checklist"', 'Toolbox checklist'],
   ['id="toolbox-tutorial"', 'Toolbox tutorial container'],
+  ['id="toolbox-command-mode"', 'Toolbox command mode badge'],
+  ['id="toolbox-command-explain"', 'Toolbox command explainer'],
+  ['id="toolbox-command-explain-details"', 'Toolbox command details'],
   ['repo-setup-hero', 'Repo Setup hero'],
   ['id="hero-start-setup"', 'Primary CTA Start Repo Setup'],
   ['id="repo-setup-tutorial"', 'Repo Setup tutorial container'],
+  ['id="repo-setup-command-mode"', 'Repo Setup command mode badge'],
+  ['id="repo-setup-command-explain"', 'Repo Setup command explainer'],
+  ['id="repo-setup-command-explain-details"', 'Repo Setup command details'],
   ['id="hero-open-cybernet"', 'Repo setup handoff to Cybernet'],
   ['cybernet-hero', 'Cybernet-first hero'],
+  ['id="cybernet-command-mode"', 'Cybernet command mode badge'],
+  ['id="cybernet-command-explain"', 'Cybernet command explainer'],
+  ['id="cybernet-command-explain-details"', 'Cybernet command details'],
   ['software-tracker-hero', 'Software Tracker install hero'],
   ['id="hero-start-install"', 'Primary CTA Start Software Tracker Install'],
+  ['id="sw-command-mode"', 'Software Tracker command mode badge'],
+  ['id="sw-command-explain"', 'Software Tracker command explainer'],
+  ['id="sw-command-explain-details"', 'Software Tracker command details'],
+  ['wizard-run-note', 'Manual Next never runs clarifier'],
   ['workflow-tutorial', 'Shared workflow tutorial CSS class'],
   ['Start', 'Cybernet Start rail label'],
   ['Load targets', 'Cybernet Load targets rail label'],
@@ -455,6 +468,8 @@ startAssert(bundleJs.includes('initSoftwareTrackerTutorial'), 'bundle-software-t
   'bundle.js is stale — missing Software Tracker tutorial; rebuild with: node dashboard/build-bundle.js');
 startAssert(bundleJs.includes('initRepoSetupTutorial'), 'bundle-repo-setup-tutorial',
   'bundle.js is stale — missing Repo Setup tutorial; rebuild with: node dashboard/build-bundle.js');
+startAssert(bundleJs.includes('applyCommandHelp'), 'bundle-command-help',
+  'bundle.js is stale — missing shared wizard command helper; rebuild with: node dashboard/build-bundle.js');
 startAssert(bundleJs.includes('startCybernetTutorial'), 'bundle-not-stale',
   'bundle.js is stale — rebuild with: node dashboard/build-bundle.js');
 
