@@ -50,7 +50,10 @@ find_host() {
     "${REPO_ROOT}/dist/SysAdminSuiteDashboard/SysAdminSuite Dashboard.exe"
     "${REPO_ROOT}/tools/publish/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.exe"
     "${REPO_ROOT}/src/SysAdminSuite.DashboardHost/bin/Release/net8.0-windows/SysAdminSuite.DashboardHost.exe"
+    "${REPO_ROOT}/src/SysAdminSuite.DashboardHost/bin/Release/net8.0-windows/win-x64/SysAdminSuite.DashboardHost.exe"
+    "${REPO_ROOT}/src/SysAdminSuite.DashboardHost/bin/Release/net8.0-windows/win-x64/publish/SysAdminSuite.DashboardHost.exe"
     "${REPO_ROOT}/src/SysAdminSuite.DashboardHost/bin/Debug/net8.0-windows/SysAdminSuite.DashboardHost.exe"
+    "${REPO_ROOT}/src/SysAdminSuite.DashboardHost/bin/Debug/net8.0-windows/win-x64/SysAdminSuite.DashboardHost.exe"
   )
   local candidate
   for candidate in "${candidates[@]}"; do

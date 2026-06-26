@@ -10,8 +10,11 @@ import os
 import subprocess
 from pathlib import Path
 
-PORT = 5000
-HOST = "0.0.0.0"
+# Bind/port are overridable so the Windows launcher can reuse this same server as
+# a local-only dashboard fallback (127.0.0.1) when the .NET host is unavailable.
+# Defaults preserve the original Replit behavior (0.0.0.0:5000).
+PORT = int(os.environ.get("SAS_DASHBOARD_PORT", "5000"))
+HOST = os.environ.get("SAS_DASHBOARD_BIND", "0.0.0.0")
 
 HTML = """<!DOCTYPE html>
 <html lang="en">
