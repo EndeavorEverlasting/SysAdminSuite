@@ -1,6 +1,6 @@
 # AD Cybernet Export Contract
 
-This contract defines the minimum CSV shape for **authorized offline AD computer exports** consumed by `survey/sas-ad-reconcile.sh` and `survey/sas-import-ad-computers.py`.
+This contract defines the minimum CSV shape for **authorized offline AD computer exports** consumed by `survey/sas-export-ad-registered-population.sh`, `survey/sas-ad-reconcile.sh`, and `survey/sas-import-ad-computers.py`.
 
 No live AD queries are performed by these tools. An administrator produces the export through approved directory tooling and places it in `logs/targets/` or passes `--ad-csv` explicitly.
 
@@ -42,6 +42,7 @@ HostName,DNSHostName,ADStatus,Enabled,OperatingSystem,LastLogonDate,Description,
 
 - `PopulationAuthority` is always `ad_registered`.
 - `ReconcileBucket` is assigned during reconcile (`registered`, `disabled`, `stale`, `missing_dns`, `duplicate`, etc.).
+- `ADStatus` from offline imports uses `AD_REGISTERED` or `AD_DISABLED`; live AD probe classifications are governed separately by `AD_PROBE_RESILIENCE.md`.
 
 ## Supplemental evidence CSVs (optional)
 

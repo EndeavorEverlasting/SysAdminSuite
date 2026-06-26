@@ -100,6 +100,7 @@ Describe 'Start-SysAdminSuiteGui.ps1 -- script-level checks' {
         $content | Should -Match "'DeploymentAdReconcile'"
         $content | Should -Match 'DeploymentAdReconcile'
         $content | Should -Match 'DupDeployedCalculated'
+        $content | Should -Match 'Cybernet_RegisteredInAd'
         $content | Should -Match 'Cybernet_OnNetwork'
         $content | Should -Match 'ImportExcel'
         $content | Should -Match 'deployReconcileOutputReady'

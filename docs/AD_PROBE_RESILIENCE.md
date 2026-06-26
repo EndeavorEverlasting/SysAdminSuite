@@ -153,6 +153,8 @@ validation.
 
 ### Offline contract coverage (this repo)
 
+- Field-facing wrapper: [`survey/sas-export-ad-registered-population.sh`](../survey/sas-export-ad-registered-population.sh)
+  — delegates to the offline reconcile contract and emits dashboard-ready roster outputs from approved AD CSV exports.
 - Fixture: [`survey/fixtures/ad_probe_states.sample.csv`](../survey/fixtures/ad_probe_states.sample.csv)
   — synthetic `CYBTEST*` / `WNH000TEST*` rows enumerating every required state.
 - Test: [`tests/survey/test_ad_probe_resilience_contracts.py`](../tests/survey/test_ad_probe_resilience_contracts.py)

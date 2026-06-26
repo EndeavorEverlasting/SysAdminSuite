@@ -8,6 +8,17 @@ When an authorized AD computer export is available, treat AD as the authoritativ
 
 Bounded hostname variant expansion (see [`CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md`](CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md)) is **candidate discovery** for locating an AD record despite a recall/typing error. A variant match is not population membership and not serial proof.
 
+Clean mental model:
+
+| Layer | Answers |
+|---|---|
+| AD | What registered computer accounts exist, whether they are enabled, and where they live in OU structure |
+| DNS | What names resolve right now |
+| Naabu / Nmap | What approved targets are reachable right now |
+| WMI / endpoint inventory | What serial/identity evidence the device reports |
+| Deployment Tracker / tickets | What was planned or operationally attributed |
+| Dashboard | Reconciliation and human review |
+
 ## Approved input store
 
 Place authorized, scoped AD-derived exports in:
@@ -22,12 +33,13 @@ This directory is for **approved local AD-derived target input** only. Do not co
 
 | Layer | Role | Mutates targets? |
 |---|---|---|
-| AD export CSV | Population authority | No |
+| AD export CSV | Registered-device roster / population authority | No |
+| `sas-export-ad-registered-population.sh` | Field-friendly wrapper for dashboard-ready roster output | No |
 | `sas-ad-reconcile.sh` | Normalize, bucket, reconcile | No |
 | Naabu / Nmap | Reachability validation only | No |
 | Live serial / identity CSV | Correlation evidence | No |
 
-`sas-ad-reconcile.sh` consumes AD CSV and optional offline evidence. It does **not** query AD live, run Naabu, or run Nmap.
+`sas-export-ad-registered-population.sh` and `sas-ad-reconcile.sh` consume AD CSV and optional offline evidence. They do **not** query AD live, run Naabu, or run Nmap.
 
 ## Required outputs
 
@@ -55,17 +67,19 @@ Each reconcile run writes a self-contained output directory:
 ## Field command
 
 ```bash
-bash survey/sas-ad-reconcile.sh \
+bash survey/sas-export-ad-registered-population.sh \
   --ad-csv logs/targets/ad_computers_export.csv \
   --evidence-csv survey/input/cybernet_manifest.csv \
   --network-csv survey/output/network_reachability.csv \
   --serial-csv survey/output/live_serial_probe_results.csv \
-  --output-dir survey/output/ad_reconcile/run_001 \
+  --output-dir survey/output/ad_registered_population/run_001 \
   --prefix CYB \
   --stale-days 90
 ```
 
 Use `--prefix` to scope hostname filters (`CYB`, `WNH`, etc.). Omit when the export is already scoped.
+
+`survey/sas-ad-reconcile.sh` remains the underlying contract script. Use it directly for lower-level automation; use the wrapper above for field-facing dashboard roster generation.
 
 ## Evidence classification
 

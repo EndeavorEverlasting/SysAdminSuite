@@ -220,6 +220,8 @@ function Set-CybernetReconcileMetadata {
     $r | Add-Member -NotePropertyName 'Cybernet_InTicketHostnameUsed' -NotePropertyValue $inTix -Force
     $r | Add-Member -NotePropertyName 'Cybernet_Ours' -NotePropertyValue $ours -Force
     $r | Add-Member -NotePropertyName 'Cybernet_InAd' -NotePropertyValue $inAd -Force
+    $r | Add-Member -NotePropertyName 'Cybernet_RegisteredInAd' -NotePropertyValue $inAd -Force
+    $r | Add-Member -NotePropertyName 'Cybernet_AdRegistered' -NotePropertyValue $inAd -Force
     $r | Add-Member -NotePropertyName 'Cybernet_OnNetwork' -NotePropertyValue $onNet -Force
     $r | Add-Member -NotePropertyName 'Cybernet_AdNote' -NotePropertyValue $adDetail -Force
     $r | Add-Member -NotePropertyName 'Neuron_AdLookupSkipped' -NotePropertyValue 'Neurons not queried in AD (hub/medical device)' -Force

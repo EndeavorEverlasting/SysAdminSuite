@@ -190,14 +190,16 @@ if (Test-Path -LiteralPath $htmlHelper) {
   $deployedCount = $work.Count
   $dupYes = @($work | Where-Object { $_.DupDeployedCalculated -eq 'Yes' }).Count
   $periphBad = @($work | Where-Object { $_.'Device Type' -match '(?i)^peripherals$' -and $_.PeripheralsAllowedSite -eq $false }).Count
+  $cyRegisteredInAd = @($work | Where-Object { $_.Cybernet_RegisteredInAd -eq $true }).Count
   $cyOnNet = @($work | Where-Object { $_.Cybernet_OnNetwork -eq $true }).Count
-  $frag1 = $work | Select-Object -First 500 'Device Type', Deployed, 'Cybernet Hostname', 'Neuron Hostname', DupDeployedCalculated, DuplicateProblematicColumns, IsNeuronOnly, PeripheralsAllowedSite, Cybernet_Ours, Cybernet_InAd, Cybernet_OnNetwork | ConvertTo-Html -Fragment
+  $frag1 = $work | Select-Object -First 500 'Device Type', Deployed, 'Cybernet Hostname', 'Neuron Hostname', DupDeployedCalculated, DuplicateProblematicColumns, IsNeuronOnly, PeripheralsAllowedSite, Cybernet_Ours, Cybernet_InAd, Cybernet_RegisteredInAd, Cybernet_AdRegistered, Cybernet_OnNetwork | ConvertTo-Html -Fragment
   $dtPart = if ($DeviceType) { ", DeviceType=$DeviceType" } else { '' }
   $summary = @(
     "Rows (Deployed=Yes$dtPart): $deployedCount"
     "DupDeployedCalculated=Yes: $dupYes"
     "Peripherals not at allowlisted site: $periphBad"
-    "Cybernet_OnNetwork (approx from rows): $cyOnNet"
+    "Cybernet_RegisteredInAd: $cyRegisteredInAd"
+    "Cybernet_OnNetwork (compatibility field; AD registration approximation, not reachability proof): $cyOnNet"
   ) -join ' | '
   $body = @(
     "<h2>Summary</h2><pre>$([System.Net.WebUtility]::HtmlEncode($summary))</pre>"

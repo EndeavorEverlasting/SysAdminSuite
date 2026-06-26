@@ -6534,6 +6534,11 @@ function loadSampleData() {
       parsedData: { type: 'workstation-identity', rows: store.workstationIdentity || [] }
     },
     {
+      name: 'sample-ad_registered_normalized.csv',
+      type: 'ad-registered-population',
+      parsedData: { type: 'ad-registered-population', rows: store.adRegisteredPopulation || [] }
+    },
+    {
       name: 'sample-sources.yaml',
       type: 'software-tracker',
       parsedData: { type: 'software-tracker', rows: store.software?.apps || [], data: store.software || {} }
@@ -7453,6 +7458,7 @@ function updateCybernetReview() {
 
   const preflightRows = store.networkPreflight?.length || 0;
   const identityRows = store.workstationIdentity?.length || 0;
+  const adRows = store.adRegisteredPopulation || [];
   const classificationRows = store.surveyClassification || [];
   const targetCount = Math.max(_countUniqueTargets(store.networkPreflight), _countUniqueTargets(store.workstationIdentity));
   const reachRows = store.naabuReachability || [];
@@ -7462,7 +7468,8 @@ function updateCybernetReview() {
     return rv === 'open' || rv === '';
   }).length;
   const hasEvidence = preflightRows > 0 || identityRows > 0 || reachabilityCount > 0 || classificationRows.length > 0 ||
-    loadedFiles.some(f => f.type === 'network-preflight' || f.type === 'workstation-identity' || f.type === 'naabu-reachability' || f.type === 'survey-classification');
+    adRows.length > 0 ||
+    loadedFiles.some(f => f.type === 'network-preflight' || f.type === 'workstation-identity' || f.type === 'naabu-reachability' || f.type === 'survey-classification' || f.type === 'ad-registered-population');
 
   if (!hasEvidence) {
     section.classList.add('hidden');
@@ -7475,14 +7482,23 @@ function updateCybernetReview() {
   const manifestTargets = classificationBuckets.targets.length;
   const infrastructure = classificationBuckets.infrastructure.length;
   const needsReview = classificationBuckets.needsReview.length;
+  const adRegistered = adRows.length;
+  const adDisabled = adRows.filter(r => {
+    const bucket = (r.ReconcileBucket || '').toLowerCase();
+    const enabled = String(r.Enabled ?? '').toLowerCase();
+    return bucket === 'disabled' || bucket === 'ad_disabled' || enabled === 'false';
+  }).length;
+  const adStale = adRows.filter(r => (r.ReconcileBucket || '').toLowerCase() === 'stale').length;
+  const adMissingDns = adRows.filter(r => !(r.DNSHostName || r.dnsHostName)).length;
 
   let nextAction = 'Review the summary, then open network evidence details if you need row-level triage.';
-  if (!preflightRows) nextAction = 'Load network_preflight.csv to prove network posture.';
+  if (adRegistered > 0 && !preflightRows && !reachabilityCount) nextAction = 'AD roster loaded; next load reachability evidence to prove attendance.';
+  else if (!preflightRows) nextAction = 'Load network_preflight.csv to prove network posture.';
   else if (!identityRows) nextAction = 'Load workstation_identity.csv for identity evidence.';
   else if (guestWarn) nextAction = 'Fix network posture (segment/VPN) before running more probes.';
   else if (infrastructure > 0 && manifestTargets === 0) nextAction = 'Infrastructure hosts found — review subnet lane output; not Cybernet target failures.';
 
-  const laneCallout = `<p class="cybernet-review-lane"><strong>Which survey lane?</strong> Manifest survey (serial-first AD rows) vs subnet discovery (approved CIDRs). See <code>docs/SURVEY_LANES.md</code>.</p>`;
+  const laneCallout = `<p class="cybernet-review-lane"><strong>Which survey lane?</strong> AD is the registered-device roster; network probes are attendance; identity evidence proves serial alignment. See <code>docs/SURVEY_LANES.md</code>.</p>`;
 
   const classificationBlock = classificationRows.length ? `
     <ul class="cybernet-review-stats cybernet-review-buckets">
@@ -7495,6 +7511,8 @@ function updateCybernetReview() {
   body.innerHTML = `
     ${laneCallout}
     <ul class="cybernet-review-stats">
+      <li><strong>AD roster rows:</strong> ${adRegistered || '—'}</li>
+      <li><strong>AD disabled / stale / missing DNS:</strong> ${adRegistered > 0 ? `${adDisabled} / ${adStale} / ${adMissingDns}` : '—'}</li>
       <li><strong>Targets in evidence:</strong> ${targetCount || '—'}</li>
       <li><strong>Preflight rows:</strong> ${preflightRows}</li>
       <li><strong>Identity rows:</strong> ${identityRows}</li>
