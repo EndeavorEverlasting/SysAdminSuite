@@ -1,6 +1,7 @@
 // software-tracker-tutorial.js — guarded install workflow wizard (dry-run → approve → execute)
 
 import { sanitize, toast } from './utils.js';
+import { applyCommandHelp, resolveRunMode } from './wizard-command-help.js';
 import {
   SOFTWARE_TRACKER_PATHS,
   buildSoftwareTrackerDryRunCommand,
@@ -28,6 +29,12 @@ export const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'This file stays local and is never committed to git.',
     ],
     nextAction: 'Confirm the offline workbook exists at the path above, then click Next.',
+    explain: 'Shows the local workbook path that the install planner reads; no workbook is opened by the dashboard.',
+    explainParts: [
+      { part: 'logs/targets/software', meaning: 'Gitignored local folder for the offline workbook copy.' },
+      { part: 'Windows path example', meaning: 'A technician-friendly form of the same local path.' },
+      { part: 'Next', meaning: 'Moves forward after you confirm the workbook exists.' },
+    ],
     note: 'Canonical path is documented in Config/software-tracker.paths.json and docs/SOFTWARE_TRACKER_INSTALLS.md.',
     optional: false,
     hasCommand: false,
@@ -43,6 +50,12 @@ export const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'You can change the selection and re-run Preview Install Plan anytime.',
     ],
     nextAction: 'Pick an optional list or software name using the fields below, then click Next.',
+    explain: 'Narrows the later dry-run plan by list name or software name before any install command is copied.',
+    explainParts: [
+      { part: '--list', meaning: 'Limits planning to a named workbook list.' },
+      { part: '--software', meaning: 'Limits planning to one application.' },
+      { part: 'Blank fields', meaning: 'Plans every in-scope workbook row.' },
+    ],
     note: 'Selection is optional. Blank means plan all rows in scope.',
     optional: false,
     hasCommand: false,
@@ -59,6 +72,12 @@ export const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'Reports land in survey/output/software-tracker-install/.',
     ],
     nextAction: 'Click Copy Command, run it on your admin machine, then load install-summary.json back into the dashboard.',
+    explain: 'Builds the preview command that writes local reports without installing anything.',
+    explainParts: [
+      { part: 'Dry-run', meaning: 'Default planning mode; it does not execute installers.' },
+      { part: 'install-summary.json', meaning: 'The report you load back into the dashboard for review.' },
+      { part: 'Copy Command', meaning: 'Copies text for you to run outside the browser.' },
+    ],
     note: `Primary action label: Preview Install Plan. Output: ${SOFTWARE_TRACKER_PATHS.reportJson}`,
     optional: false,
     hasCommand: true,
@@ -75,6 +94,12 @@ export const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'Folder paths stay manual-review unless execute plus allow-discovered-folder-installs are both set.',
     ],
     nextAction: 'Drop install-summary.json, confirm the blocker summary below, then click Next.',
+    explain: 'Reviews the dry-run report and blocker summary before any live-run approval is possible.',
+    explainParts: [
+      { part: 'Load Evidence', meaning: 'Drop the dry-run JSON back into the dashboard.' },
+      { part: 'Blocked rows', meaning: 'Expected safety outcomes that should not execute.' },
+      { part: 'Next', meaning: 'Moves forward after the plan is loaded and reviewed.' },
+    ],
     note: 'Primary action label: Review Plan.',
     optional: false,
     hasCommand: false,
@@ -91,6 +116,12 @@ export const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'Relay is not required; copy and run the command on an admin workstation.',
     ],
     nextAction: 'Check Approve Live Run, then click Next.',
+    explain: 'Records explicit operator approval before the wizard exposes the guarded execute command.',
+    explainParts: [
+      { part: 'Approve Live Run', meaning: 'A required checkbox for intentional mutation.' },
+      { part: '--execute', meaning: 'Only appears in the later command after approval.' },
+      { part: 'Next', meaning: 'Checks approval state; it still does not run installers.' },
+    ],
     note: 'Primary action label: Approve Live Run.',
     optional: false,
     hasCommand: false,
@@ -107,6 +138,12 @@ export const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'Commands run as argv lists with shell=False in the Python tool.',
     ],
     nextAction: 'Click Copy Command, run it outside the dashboard, then load the updated install-summary.json.',
+    explain: 'Builds the approved execute command for you to copy and run on an admin workstation.',
+    explainParts: [
+      { part: '--execute', meaning: 'Turns the reviewed plan into a live guarded run.' },
+      { part: '--allow-discovered-folder-installs', meaning: 'Optional extra gate for folder-discovered installers.' },
+      { part: 'install-summary.json', meaning: 'Updated output to load back into the dashboard after the run.' },
+    ],
     note: 'Primary action label: Run Approved Installs.',
     optional: false,
     hasCommand: true,
@@ -125,6 +162,12 @@ export const SOFTWARE_TRACKER_TUTORIAL_STEPS = [
       'If results look wrong, use Back to dry-run and start over.',
     ],
     nextAction: 'Open the Software Tracker panel to export or review the final plan.',
+    explain: 'Lists the local report paths to keep for handoff after planning or execution.',
+    explainParts: [
+      { part: 'JSON', meaning: 'Structured report for dashboard review.' },
+      { part: 'CSV', meaning: 'Spreadsheet-friendly summary.' },
+      { part: 'Text log', meaning: 'Plain-language execution or dry-run log.' },
+    ],
     note: 'Primary action label: Export Report.',
     optional: false,
     hasCommand: false,
@@ -155,6 +198,11 @@ export function initSoftwareTrackerTutorial() {
   const kicker = document.getElementById('sw-step-kicker');
   const checks = document.getElementById('sw-step-checks');
   const command = document.getElementById('sw-step-command');
+  const commandMode = document.getElementById('sw-command-mode');
+  const explain = document.getElementById('sw-command-explain');
+  const explainDetails = document.getElementById('sw-command-explain-details');
+  const explainParts = document.getElementById('sw-command-explain-parts');
+  const commandEmpty = document.getElementById('sw-command-empty');
   const runner = document.getElementById('sw-command-runner');
   const note = document.getElementById('sw-step-note');
   const commandPanel = document.getElementById('sw-command-panel');
@@ -215,15 +263,15 @@ export function initSoftwareTrackerTutorial() {
     if (step.showPlanSummary) renderPlanSummary();
 
     const cmdText = buildStepCommand(step);
-    const hasCommand = !!(step.hasCommand && cmdText);
-    commandPanel?.classList.toggle('hidden', !hasCommand && !step.command);
-    if (command) command.value = hasCommand ? cmdText : (step.command || '');
-    if (runner) runner.textContent = step.nextAction;
-    if (note) note.textContent = step.note;
+    const stepForHelp = { ...step, command: cmdText, hasCommand: !!(step.hasCommand && cmdText) };
+    const runMode = resolveRunMode(stepForHelp);
+    const hasCommand = runMode === 'run';
+    applyCommandHelp({
+      panel: commandPanel, command, mode: commandMode, runner, note, explain,
+      details: explainDetails, parts: explainParts, empty: commandEmpty, copy, next,
+    }, stepForHelp, runMode, { finalLabel: idx === SOFTWARE_TRACKER_TUTORIAL_STEPS.length - 1 ? 'Finish' : '' });
 
     prev.disabled = idx === 0;
-    next.textContent = idx === SOFTWARE_TRACKER_TUTORIAL_STEPS.length - 1 ? 'Finish' : 'Next →';
-    copy?.classList.toggle('hidden', !hasCommand);
 
     updateProgressRail();
   }
@@ -237,7 +285,7 @@ export function initSoftwareTrackerTutorial() {
     write
       .then(() => {
         copiedThisStep = true;
-        toast('Command copied.', 'success');
+        toast('Command copied. Run it outside the dashboard, then come back for Next.', 'success');
       })
       .catch(() => toast('Select and copy the command manually.', 'warning'));
   }

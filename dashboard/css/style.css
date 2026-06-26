@@ -1096,8 +1096,14 @@ textarea.paste-area:focus { border-color: var(--accent); }
 #sw-step-checks { margin: 8px 0 0 18px; color: var(--text-dim); font-size: 12px; }
 
 .workflow-command-panel,
-.cybernet-command-panel { flex: 1 1 56%; min-width: 0; box-sizing: border-box; }
+.cybernet-command-panel {
+  flex: 1 1 56%;
+  min-width: 0;
+  min-height: 248px;
+  box-sizing: border-box;
+}
 
+#toolbox-step-command,
 #repo-setup-step-command,
 #cybernet-step-command,
 #sw-step-command {
@@ -1378,6 +1384,33 @@ textarea.paste-area:focus { border-color: var(--accent); }
 }
 .cybernet-step-pill.active { border-color: var(--accent); color: #fff; background: rgba(79,142,247,0.35); }
 .command-panel-title { font-size: 11px; font-weight: 700; color: var(--text-dim); margin-bottom: 6px; }
+.command-run-mode {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin: 0 0 8px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+.command-run-mode.is-run {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--warning);
+}
+.command-run-mode.is-read {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--info);
+}
+.command-run-mode.is-none {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.11);
+  color: var(--success);
+}
 .command-panel-runner {
   margin: 0 0 8px;
   padding: 8px 10px;
@@ -1388,6 +1421,45 @@ textarea.paste-area:focus { border-color: var(--accent); }
   font-size: 12px;
   font-weight: 700;
   line-height: 1.4;
+}
+.command-explain,
+.command-panel-empty {
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1px solid rgba(79, 142, 247, 0.26);
+  border-radius: 8px;
+  background: rgba(79, 142, 247, 0.08);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.command-panel-empty {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(34, 197, 94, 0.08);
+}
+.command-explain-details {
+  margin-top: 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.command-explain-details summary {
+  color: var(--info);
+  cursor: pointer;
+  font-weight: 700;
+}
+.command-explain-details ul {
+  margin: 7px 0 0 18px;
+  padding: 0;
+}
+.command-explain-details li { margin: 4px 0; }
+.wizard-run-note {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(245, 158, 11, 0.32);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--text-dim);
+  font-size: 12px;
 }
 .command-panel-note { margin-top: 6px; color: var(--warning); font-size: 11px; }
 .sas-guide-panel {

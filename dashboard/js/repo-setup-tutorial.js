@@ -1,6 +1,7 @@
 // repo-setup-tutorial.js — dashboard front-door tutorial for clone/update/open.
 
 import { sanitize, toast } from './utils.js';
+import { applyCommandHelp, resolveRunMode } from './wizard-command-help.js';
 
 export const REPO_SETUP_TUTORIAL_STEPS = [
   {
@@ -14,6 +15,12 @@ export const REPO_SETUP_TUTORIAL_STEPS = [
       'No Git available? Use the approved field release package instead of a raw source clone.'
     ],
     nextAction: 'Copy this only if you need to clone. After the folder exists, open it and click Next.',
+    explain: 'Clones one clean SysAdminSuite copy from GitHub into the folder you are currently in.',
+    explainParts: [
+      { part: 'git clone', meaning: 'Asks Git to download a repository into a new folder.' },
+      { part: 'GitHub URL', meaning: 'The approved SysAdminSuite source repository.' },
+      { part: 'Next', meaning: 'Only advances after you have run or skipped the clone yourself.' },
+    ],
     note: 'Source clones are for IT/developer machines. Field PCs without the .NET SDK should use the field release ZIP.',
     hasCommand: true
   },
@@ -28,6 +35,12 @@ export const REPO_SETUP_TUTORIAL_STEPS = [
       'If the machine cannot build the app, ask for the packaged field release or IT preparation.'
     ],
     nextAction: 'Find the launcher at the top of the repo and double-click it. Then click Next.',
+    explain: 'Points you to the documented double-click launcher; the dashboard does not start it from this browser page.',
+    explainParts: [
+      { part: 'START-HERE-SysAdminSuite-Dashboard.bat', meaning: 'The field-user dashboard launcher at the repo root.' },
+      { part: 'Double-click', meaning: 'Run it from Windows Explorer, not from the Next button.' },
+      { part: 'Next', meaning: 'Moves to the update guidance after you have opened the dashboard path.' },
+    ],
     note: 'The .cmd shortcuts are aliases, but the .bat launcher is the documented front door.',
     hasCommand: false
   },
@@ -42,6 +55,12 @@ export const REPO_SETUP_TUTORIAL_STEPS = [
       'Never use reset, branch deletion, or silent updates as the field path.'
     ],
     nextAction: 'Read this once. If the launcher asks to update, approve only when you are ready.',
+    explain: 'Summarizes the safe update rules so technicians know updates are approval-gated.',
+    explainParts: [
+      { part: 'Source clone rule', meaning: 'Only fast-forward a clean main branch after approval.' },
+      { part: 'ZIP / field package rule', meaning: 'Only apply a checksum-verified package after approval.' },
+      { part: 'Nothing to run', meaning: 'This step is doctrine text, not a command.' },
+    ],
     note: 'Approved update flow is documented in docs/APPROVED_UPDATE_FLOW.md.',
     hasCommand: false
   },
@@ -56,6 +75,12 @@ export const REPO_SETUP_TUTORIAL_STEPS = [
       'Use Load Evidence when you already have output files to review.'
     ],
     nextAction: 'Click Next to finish setup, then choose the workflow button the dashboard highlights.',
+    explain: 'Helps you choose the correct front-door workflow after setup is complete.',
+    explainParts: [
+      { part: 'Cybernet Survey', meaning: 'Use for Cybernet / Neuron target and evidence workflows.' },
+      { part: 'Software Tracker Install', meaning: 'Use for dry-run install planning and guarded execution.' },
+      { part: 'Load Evidence', meaning: 'Use when output files already exist and need review.' },
+    ],
     note: 'Most Cybernet field work starts with Start Cybernet Survey.',
     hasCommand: false
   },
@@ -70,6 +95,12 @@ export const REPO_SETUP_TUTORIAL_STEPS = [
       'You know updates require approval before changes are applied.'
     ],
     nextAction: 'Click Open Cybernet Survey to start the field survey tutorial.',
+    explain: 'Confirms setup is done and hands you to the Cybernet tutorial button.',
+    explainParts: [
+      { part: 'Ready', meaning: 'You know where the repo and launcher are.' },
+      { part: 'Open Cybernet Survey', meaning: 'Starts the survey tutorial from the dashboard.' },
+      { part: 'No command', meaning: 'There is nothing to copy or run on this final setup step.' },
+    ],
     note: 'The Cybernet tutorial is separate so setup does not get mixed with field survey work.',
     hasCommand: false,
     finalAction: true
@@ -87,6 +118,11 @@ export function initRepoSetupTutorial() {
   const kicker = document.getElementById('repo-setup-step-kicker');
   const checks = document.getElementById('repo-setup-step-checks');
   const command = document.getElementById('repo-setup-step-command');
+  const commandMode = document.getElementById('repo-setup-command-mode');
+  const explain = document.getElementById('repo-setup-command-explain');
+  const explainDetails = document.getElementById('repo-setup-command-explain-details');
+  const explainParts = document.getElementById('repo-setup-command-explain-parts');
+  const commandEmpty = document.getElementById('repo-setup-command-empty');
   const runner = document.getElementById('repo-setup-command-runner');
   const note = document.getElementById('repo-setup-step-note');
   const commandPanel = document.getElementById('repo-setup-command-panel');
@@ -118,18 +154,17 @@ export function initRepoSetupTutorial() {
     const step = REPO_SETUP_TUTORIAL_STEPS[idx];
     if (!step) return;
     copiedThisStep = false;
-    const hasCommand = !!step.hasCommand;
+    const runMode = resolveRunMode(step);
+    const hasCommand = runMode === 'run';
     kicker.textContent = `Step ${idx + 1} of ${REPO_SETUP_TUTORIAL_STEPS.length} — ${step.railLabel}`;
     title.textContent = step.title;
     body.textContent = step.body;
     checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
-    commandPanel?.classList.toggle('hidden', !hasCommand);
-    if (command) command.value = hasCommand ? step.command : '';
-    if (runner) runner.textContent = step.nextAction || 'Read the step, then click Next.';
-    if (note) note.textContent = step.note || '';
+    applyCommandHelp({
+      panel: commandPanel, command, mode: commandMode, runner, note, explain,
+      details: explainDetails, parts: explainParts, empty: commandEmpty, copy, next,
+    }, step, runMode, { finalLabel: step.finalAction ? 'Finish setup' : '' });
     if (prev) prev.disabled = idx === 0;
-    if (next) next.textContent = step.finalAction ? 'Finish setup' : hasCommand ? 'Next after cloning →' : 'Next →';
-    copy?.classList.toggle('hidden', !hasCommand);
     footer?.classList.toggle('hidden', !step.finalAction);
     updateProgressRail();
     updateGuideState(hasCommand);
@@ -150,7 +185,7 @@ export function initRepoSetupTutorial() {
     write
       .then(() => {
         copiedThisStep = true;
-        toast('Repo setup command copied.', 'success');
+        toast('Command copied. Run it outside the dashboard, then come back for Next.', 'success');
         if (note) note.textContent = 'Command copied.';
         updateGuideState(true);
       })
@@ -176,9 +211,9 @@ export function initRepoSetupTutorial() {
   prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
   next?.addEventListener('click', () => {
     const step = REPO_SETUP_TUTORIAL_STEPS[idx];
-    const hasCommand = !!step?.hasCommand;
+    const hasCommand = resolveRunMode(step) === 'run';
     if (hasCommand && step.requireCopy && !copiedThisStep) {
-      toast('Copy the clone command first, or continue only if the repo already exists.', 'warning');
+      toast('Copy and run the command outside the dashboard first, or continue only if the repo already exists.', 'warning');
       return;
     }
     if (idx < REPO_SETUP_TUTORIAL_STEPS.length - 1) {

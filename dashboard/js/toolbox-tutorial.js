@@ -1,6 +1,7 @@
 // toolbox-tutorial.js — dynamic glowing wizard for missing/outdated toolbox tools.
 
 import { sanitize, toast } from './utils.js';
+import { applyCommandHelp, resolveRunMode } from './wizard-command-help.js';
 
 const ACTION_STATUSES = new Set(['missing', 'outdated', 'blocked', 'available', 'manual_review']);
 
@@ -16,6 +17,8 @@ function buildStepsFromStatus(status) {
     command: tool.nextAction || '',
     checks: buildChecks(tool),
     nextAction: tool.nextAction || 'Follow the step guidance, then click Next.',
+    explain: describeAction(tool),
+    explainParts: buildExplainParts(tool),
     note: tool.installDoc ? `See ${tool.installDoc} for full guidance.` : '',
     hasCommand: !!(tool.nextAction && tool.nextAction.startsWith('bash ')),
     finalAction: false
@@ -30,6 +33,11 @@ function buildStepsFromStatus(status) {
       command: '',
       checks: ['Required runtimes and host are present.', 'Workflow tools you need can be installed from the steps above when missing.'],
       nextAction: 'Click Finish to continue.',
+      explain: 'The toolbox found no required fix steps, so there is no outside command to run.',
+      explainParts: [
+        { part: 'Toolbox ready', meaning: 'Required dashboard and workflow tools look usable from the last probe.' },
+        { part: 'Finish', meaning: 'Closes this wizard and lets you continue with Repo Setup or Cybernet Survey.' },
+      ],
       note: 'Re-run START-HERE-SysAdminSuite-Dashboard.bat after installing tools to refresh this checklist.',
       hasCommand: false,
       finalAction: true
@@ -38,6 +46,32 @@ function buildStepsFromStatus(status) {
     steps[steps.length - 1].finalAction = true;
   }
   return steps;
+}
+
+function describeAction(tool) {
+  if (tool.nextAction?.startsWith('bash ')) {
+    return `Runs the approved SysAdminSuite ensure script for ${tool.displayName || tool.id} outside the dashboard.`;
+  }
+  if (tool.nextAction) {
+    return `Shows the manual action for ${tool.displayName || tool.id}; the browser will not perform it.`;
+  }
+  return `Explains why ${tool.displayName || tool.id} needs attention and what to review next.`;
+}
+
+function buildExplainParts(tool) {
+  const parts = [];
+  if (tool.nextAction?.startsWith('bash ')) {
+    const [shell, script, ...rest] = tool.nextAction.split(/\s+/);
+    parts.push({ part: shell, meaning: 'Runs the command in Bash on Windows.' });
+    if (script) parts.push({ part: script, meaning: 'The SysAdminSuite helper script to run yourself.' });
+    if (rest.length) parts.push({ part: rest.join(' '), meaning: 'Flags or arguments passed to the helper script.' });
+  } else if (tool.nextAction) {
+    parts.push({ part: 'Manual action', meaning: tool.nextAction });
+  }
+  if (tool.pinnedVersion) parts.push({ part: 'Pinned version', meaning: `Expected version: ${tool.pinnedVersion}.` });
+  if (tool.installDoc) parts.push({ part: 'Install doc', meaning: `Full guidance lives in ${tool.installDoc}.` });
+  if (!parts.length) parts.push({ part: 'Review', meaning: 'Read the status and continue when you know the next action.' });
+  return parts;
 }
 
 function describeIssue(tool) {
@@ -82,6 +116,11 @@ export function initToolboxTutorial() {
   const kicker = document.getElementById('toolbox-step-kicker');
   const checks = document.getElementById('toolbox-step-checks');
   const command = document.getElementById('toolbox-step-command');
+  const commandMode = document.getElementById('toolbox-command-mode');
+  const explain = document.getElementById('toolbox-command-explain');
+  const explainDetails = document.getElementById('toolbox-command-explain-details');
+  const explainParts = document.getElementById('toolbox-command-explain-parts');
+  const commandEmpty = document.getElementById('toolbox-command-empty');
   const runner = document.getElementById('toolbox-command-runner');
   const note = document.getElementById('toolbox-step-note');
   const commandPanel = document.getElementById('toolbox-command-panel');
@@ -125,18 +164,17 @@ export function initToolboxTutorial() {
     const step = steps[idx];
     if (!step) return;
     copiedThisStep = false;
-    const hasCommand = !!step.hasCommand;
+    const runMode = resolveRunMode(step);
+    const hasCommand = runMode === 'run';
     kicker.textContent = `Step ${idx + 1} of ${steps.length} — ${step.railLabel}`;
     title.textContent = step.title;
     body.textContent = step.body;
     checks.innerHTML = step.checks.map(item => `<li>${sanitize(item)}</li>`).join('');
-    commandPanel?.classList.toggle('hidden', !hasCommand);
-    if (command) command.value = hasCommand ? step.command : '';
-    if (runner) runner.textContent = step.nextAction || 'Read the step, then click Next.';
-    if (note) note.textContent = step.note || '';
+    applyCommandHelp({
+      panel: commandPanel, command, mode: commandMode, runner, note, explain,
+      details: explainDetails, parts: explainParts, empty: commandEmpty, copy, next,
+    }, step, runMode, { finalLabel: step.finalAction ? 'Finish toolbox check' : '' });
     if (prev) prev.disabled = idx === 0;
-    if (next) next.textContent = step.finalAction ? 'Finish toolbox check' : hasCommand ? 'Next after fix →' : 'Next →';
-    copy?.classList.toggle('hidden', !hasCommand);
     footer?.classList.toggle('hidden', !step.finalAction);
     highlightChecklistRow(step.toolId);
     updateProgressRail();
@@ -158,7 +196,7 @@ export function initToolboxTutorial() {
     write
       .then(() => {
         copiedThisStep = true;
-        toast('Toolbox fix command copied.', 'success');
+        toast('Command copied. Run it outside the dashboard, then come back for Next.', 'success');
         if (note) note.textContent = 'Command copied.';
         updateGuideState(true);
       })
@@ -182,9 +220,9 @@ export function initToolboxTutorial() {
   prev?.addEventListener('click', () => { if (idx > 0) { idx--; render(); } });
   next?.addEventListener('click', () => {
     const step = steps[idx];
-    const hasCommand = !!step?.hasCommand;
+    const hasCommand = resolveRunMode(step) === 'run';
     if (hasCommand && !copiedThisStep) {
-      toast('Copy the fix command first, or continue only if the tool is already fixed.', 'warning');
+      toast('Copy and run the command outside the dashboard first, or continue only if the tool is already fixed.', 'warning');
       return;
     }
     if (idx < steps.length - 1) {

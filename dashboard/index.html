@@ -141,13 +141,21 @@
       </div>
       <div class="workflow-command-panel" id="toolbox-command-panel">
         <div class="command-panel-title">Command or action outside the dashboard</div>
+        <div class="command-run-mode" id="toolbox-command-mode"></div>
         <div class="command-panel-runner" id="toolbox-command-runner">
           Use this only when the step tells you to. The dashboard never installs tools without your approval.
         </div>
         <textarea id="toolbox-step-command" readonly spellcheck="false"></textarea>
+        <div class="command-explain" id="toolbox-command-explain"></div>
+        <details class="command-explain-details" id="toolbox-command-explain-details">
+          <summary>Explain each part</summary>
+          <ul id="toolbox-command-explain-parts"></ul>
+        </details>
+        <div class="command-panel-empty hidden" id="toolbox-command-empty"></div>
         <div class="command-panel-note" id="toolbox-step-note"></div>
       </div>
     </div>
+    <p class="wizard-run-note">These wizards never run commands for you. Next only moves to the next step. When a step shows a command, copy it and run it yourself.</p>
     <div class="workflow-tutorial-nav">
       <button class="btn-secondary" id="toolbox-prev" type="button">← Back</button>
       <button class="btn-secondary hidden" id="toolbox-copy" type="button">Copy Command</button>
@@ -187,13 +195,21 @@
       </div>
       <div class="workflow-command-panel" id="repo-setup-command-panel">
         <div class="command-panel-title">Command or action outside the dashboard</div>
+        <div class="command-run-mode" id="repo-setup-command-mode"></div>
         <div class="command-panel-runner" id="repo-setup-command-runner">
           Use this only when the step tells you to. The dashboard never updates the repo without approval.
         </div>
         <textarea id="repo-setup-step-command" readonly spellcheck="false"></textarea>
+        <div class="command-explain" id="repo-setup-command-explain"></div>
+        <details class="command-explain-details" id="repo-setup-command-explain-details">
+          <summary>Explain each part</summary>
+          <ul id="repo-setup-command-explain-parts"></ul>
+        </details>
+        <div class="command-panel-empty hidden" id="repo-setup-command-empty"></div>
         <div class="command-panel-note" id="repo-setup-step-note"></div>
       </div>
     </div>
+    <p class="wizard-run-note">These wizards never run commands for you. Next only moves to the next step. When a step shows a command, copy it and run it yourself.</p>
     <div class="workflow-tutorial-nav">
       <button class="btn-secondary" id="repo-setup-prev" type="button">← Back</button>
       <button class="btn-secondary hidden" id="repo-setup-copy" type="button">Copy Command</button>
@@ -238,13 +254,21 @@
       </div>
       <div class="workflow-command-panel cybernet-command-panel" id="cybernet-command-panel">
         <div class="command-panel-title">Command to run outside the dashboard</div>
+        <div class="command-run-mode" id="cybernet-command-mode"></div>
         <div class="command-panel-runner" id="cybernet-command-runner">
           You run this on an admin machine. The dashboard does not run commands; it only reads the files you drop back in.
         </div>
         <textarea id="cybernet-step-command" readonly spellcheck="false"></textarea>
+        <div class="command-explain" id="cybernet-command-explain"></div>
+        <details class="command-explain-details" id="cybernet-command-explain-details">
+          <summary>Explain each part</summary>
+          <ul id="cybernet-command-explain-parts"></ul>
+        </details>
+        <div class="command-panel-empty hidden" id="cybernet-command-empty"></div>
         <div class="command-panel-note" id="cybernet-step-note"></div>
       </div>
     </div>
+    <p class="wizard-run-note">These wizards never run commands for you. Next only moves to the next step. When a step shows a command, copy it and run it yourself.</p>
     <div class="workflow-tutorial-nav cybernet-tutorial-nav">
       <button class="btn-secondary" id="cybernet-prev" type="button">← Back</button>
       <button class="btn-secondary hidden" id="cybernet-copy" type="button">Copy Command</button>
@@ -301,13 +325,21 @@
       </div>
       <div class="workflow-command-panel" id="sw-command-panel">
         <div class="command-panel-title">Command to run outside the dashboard</div>
+        <div class="command-run-mode" id="sw-command-mode"></div>
         <div class="command-panel-runner" id="sw-command-runner">
           You run this on an admin machine. The dashboard does not run installs; it only reads install-summary.json back in.
         </div>
         <textarea id="sw-step-command" readonly spellcheck="false"></textarea>
+        <div class="command-explain" id="sw-command-explain"></div>
+        <details class="command-explain-details" id="sw-command-explain-details">
+          <summary>Explain each part</summary>
+          <ul id="sw-command-explain-parts"></ul>
+        </details>
+        <div class="command-panel-empty hidden" id="sw-command-empty"></div>
         <div class="command-panel-note" id="sw-step-note"></div>
       </div>
     </div>
+    <p class="wizard-run-note">These wizards never run commands for you. Next only moves to the next step. When a step shows a command, copy it and run it yourself.</p>
     <div class="workflow-tutorial-nav">
       <button class="btn-secondary" id="sw-prev" type="button">← Back</button>
       <button class="btn-secondary hidden" id="sw-copy" type="button">Copy Command</button>
