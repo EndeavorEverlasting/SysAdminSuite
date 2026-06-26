@@ -16,6 +16,9 @@ readme="$repo_root/README.md"
 survey_readme="$repo_root/survey/README.md"
 agents="$repo_root/AGENTS.md"
 index="$repo_root/dashboard/index.html"
+fallback_script="$repo_root/scripts/sas-serve-dashboard-fallback.sh"
+server_py="$repo_root/server.py"
+ensure_host="$repo_root/scripts/ensure-dashboard-host.sh"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -95,6 +98,27 @@ grep -Fq 'Git\bin\bash.exe' "$host_bat" \
   || fail "host launcher does not prefer Git Bash for bootstrap"
 grep -Fq 'Microsoft .NET 8' "$host_bat" \
   || fail "host launcher does not describe Microsoft .NET bootstrap"
+
+# Local-only Python dashboard fallback: when the .NET host cannot be prepared or
+# located, the launcher must still serve the dashboard from server.py instead of
+# dead-ending technicians to manual CLI usage.
+[[ -f "$fallback_script" ]] || fail "scripts/sas-serve-dashboard-fallback.sh is missing"
+[[ -f "$server_py" ]] || fail "server.py is missing"
+[[ -f "$ensure_host" ]] || fail "scripts/ensure-dashboard-host.sh is missing"
+grep -Fq 'server.py' "$fallback_script" \
+  || fail "fallback script does not serve from server.py"
+grep -Fq '127.0.0.1' "$fallback_script" \
+  || fail "fallback script does not bind local-only (127.0.0.1)"
+grep -Fq ':start_fallback' "$host_bat" \
+  || fail "host launcher has no :start_fallback bridge routine"
+grep -Fq 'sas-serve-dashboard-fallback.sh' "$host_bat" \
+  || fail "host launcher does not invoke the dashboard fallback script"
+grep -Fq 'net8.0-windows\win-x64\SysAdminSuite.DashboardHost.exe' "$host_bat" \
+  || fail "host launcher find_host does not include the win-x64 RID build path"
+grep -Fq 'win-x64/SysAdminSuite.DashboardHost.exe' "$ensure_host" \
+  || fail "ensure-dashboard-host.sh find_host does not include the win-x64 RID build path"
+grep -Fq 'SAS_DASHBOARD_BIND' "$server_py" \
+  || fail "server.py does not honor SAS_DASHBOARD_BIND for local-only fallback binding"
 
 # The root .bat must NOT instruct field users to run the publish command by hand
 # as the normal path, and must not tell them to double-click again as a routine.

@@ -25,15 +25,29 @@ if not defined BASH_EXE (
 echo Preparing dashboard dependencies and host for first use...
 "%BASH_EXE%" -lc "cd '%ROOT:\=/%' && bash scripts/ensure-dashboard-host.sh"
 set "ENSURE_RC=%errorlevel%"
-if "%ENSURE_RC%"=="2" exit /b 2
-if not "%ENSURE_RC%"=="0" exit /b 3
 
 if defined BASH_EXE (
     "%BASH_EXE%" -lc "cd '%ROOT:\=/%' && export SAS_UPDATE_STATE='%SAS_UPDATE_STATE%' SAS_UPDATE_MODE='%SAS_UPDATE_MODE%' && bash scripts/sas-write-toolbox-status.sh" 2>nul
 )
 
+if not "%ENSURE_RC%"=="0" (
+    rem The .NET dashboard host could not be prepared on this machine. Bridge the
+    rem gap with the local-only Python dashboard fallback so a double-click still
+    rem serves the dashboard instead of dead-ending to manual CLI usage.
+    call :start_fallback
+    if defined FALLBACK_OK exit /b 0
+    if "%ENSURE_RC%"=="2" exit /b 2
+    exit /b 3
+)
+
 call :find_host
-if not defined HOST_EXE exit /b 3
+if not defined HOST_EXE (
+    rem Host preparation reported success but no executable was located. Try the
+    rem local-only Python dashboard fallback before failing.
+    call :start_fallback
+    if defined FALLBACK_OK exit /b 0
+    exit /b 3
+)
 
 :start_host
 if exist "%ROOT%app\bin\SysAdminSuite.DashboardHost.exe" (
@@ -52,8 +66,30 @@ if exist "%ROOT%app\bin\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%app
 if not defined HOST_EXE if exist "%ROOT%dist\SysAdminSuiteDashboard\SysAdminSuite Dashboard.exe" set "HOST_EXE=%ROOT%dist\SysAdminSuiteDashboard\SysAdminSuite Dashboard.exe"
 if not defined HOST_EXE if exist "%ROOT%tools\publish\SysAdminSuite.DashboardHost\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%tools\publish\SysAdminSuite.DashboardHost\SysAdminSuite.DashboardHost.exe"
 if not defined HOST_EXE if exist "%ROOT%src\SysAdminSuite.DashboardHost\bin\Release\net8.0-windows\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%src\SysAdminSuite.DashboardHost\bin\Release\net8.0-windows\SysAdminSuite.DashboardHost.exe"
+rem Runtime-identifier (win-x64) builds land in a nested RID folder; include
+rem those so an already-built host is not missed and the launcher needlessly
+rem falls back.
+if not defined HOST_EXE if exist "%ROOT%src\SysAdminSuite.DashboardHost\bin\Release\net8.0-windows\win-x64\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%src\SysAdminSuite.DashboardHost\bin\Release\net8.0-windows\win-x64\SysAdminSuite.DashboardHost.exe"
+if not defined HOST_EXE if exist "%ROOT%src\SysAdminSuite.DashboardHost\bin\Release\net8.0-windows\win-x64\publish\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%src\SysAdminSuite.DashboardHost\bin\Release\net8.0-windows\win-x64\publish\SysAdminSuite.DashboardHost.exe"
 if not defined HOST_EXE if exist "%ROOT%src\SysAdminSuite.DashboardHost\bin\Debug\net8.0-windows\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%src\SysAdminSuite.DashboardHost\bin\Debug\net8.0-windows\SysAdminSuite.DashboardHost.exe"
+if not defined HOST_EXE if exist "%ROOT%src\SysAdminSuite.DashboardHost\bin\Debug\net8.0-windows\win-x64\SysAdminSuite.DashboardHost.exe" set "HOST_EXE=%ROOT%src\SysAdminSuite.DashboardHost\bin\Debug\net8.0-windows\win-x64\SysAdminSuite.DashboardHost.exe"
 exit /b 0
+
+:start_fallback
+rem Local-only Python dashboard fallback. Keeps the double-click front door
+rem working when the .NET host is unavailable. server.py is the suite's own
+rem server (not a raw python -m http.server) and binds 127.0.0.1 only.
+set "FALLBACK_OK="
+set "PY_OK="
+where py >nul 2>nul && set "PY_OK=1"
+if not defined PY_OK where python >nul 2>nul && set "PY_OK=1"
+if not defined PY_OK where python3 >nul 2>nul && set "PY_OK=1"
+if not defined PY_OK goto :eof
+if not exist "%ROOT%server.py" goto :eof
+echo The .NET dashboard host is unavailable; starting the local Python dashboard fallback...
+start "SysAdminSuite Dashboard (fallback)" /MIN "%BASH_EXE%" -lc "cd '%ROOT:\=/%' && SAS_DASHBOARD_BIND=127.0.0.1 SAS_DASHBOARD_PORT=5000 bash scripts/sas-serve-dashboard-fallback.sh"
+set "FALLBACK_OK=1"
+goto :eof
 
 :find_bash
 set "BASH_EXE="
