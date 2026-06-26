@@ -10,6 +10,8 @@ ENSURE="survey/sas-ensure-naabu.sh"
 PARSE="survey/sas-parse-naabu-evidence.sh"
 FIX="$ROOT/survey/fixtures/naabu_pipeline"
 CFG="$ROOT/Config/cybernet-naabu-profiles.json"
+export SAS_TARGET_ALLOW_TEST_FIXTURES=1
+export SAS_TARGET_ALLOW_NONSTANDARD_OUTPUT=1
 
 if command -v python3 >/dev/null 2>&1; then PYTHON_BIN=python3; else PYTHON_BIN=python; fi
 
@@ -25,6 +27,11 @@ bash -n "$PARSE"
 HELP="$(bash "$PIPE" --help)"
 echo "$HELP" | grep -qF 'keyports_cdn' || { echo 'help missing keyports_cdn'; exit 1; }
 echo "$HELP" | grep -qF '-ec' || { echo 'help missing -ec note'; exit 1; }
+echo "$HELP" | grep -qF 'targets/local' || { echo 'help missing central target root note'; exit 1; }
+
+grep -qF 'source "$TARGET_INTAKE_HELPER"' "$PIPE" || { echo 'pipeline must source shared target intake helper'; exit 1; }
+grep -qF 'sas_target_require_input_file "$file" "Naabu target list"' "$PIPE" || { echo 'pipeline must validate --list through target helper'; exit 1; }
+grep -qF 'sas_target_require_output_path "$OUT" "Naabu output file"' "$PIPE" || { echo 'pipeline must validate --out through target helper'; exit 1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
