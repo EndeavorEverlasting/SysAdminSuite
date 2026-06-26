@@ -219,6 +219,10 @@ Hostname variant expansion and subnet location inference are complementary read-
 - AD remains the registered population authority per
   [`AD_REGISTERED_POPULATION.md`](AD_REGISTERED_POPULATION.md). Variant matches are candidate
   discovery, not population membership.
+- AD probe resilience, the fallback ladder, and the ambiguity state classifications that bounded
+  variant discovery feeds into are governed by
+  [`AD_PROBE_RESILIENCE.md`](AD_PROBE_RESILIENCE.md). A variant match is never serial-confirmed and
+  must be classified (e.g. `NEEDS_OPERATOR_REVIEW`) rather than collapsed to pass/fail.
 - Reachability validation stays governed by
   [`LOW_NOISE_SURVEY_DOCTRINE.md`](LOW_NOISE_SURVEY_DOCTRINE.md) and the Naabu/Nmap profiles.
 - Manifest ingestion and identity transport context live in

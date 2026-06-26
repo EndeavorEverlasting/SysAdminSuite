@@ -84,6 +84,7 @@ Do not invert this order. Build manifests from AD reconciliation first, then att
 
 ## Related documents
 
+- [AD_PROBE_RESILIENCE.md](AD_PROBE_RESILIENCE.md) — resilient AD probe fallback ladder and ambiguity classifications
 - [AD_CYBERNET_EXPORT_CONTRACT.md](AD_CYBERNET_EXPORT_CONTRACT.md) — CSV export contract for AD computer inventory
 - [CYBERNET_EVIDENCE_CORRELATION.md](CYBERNET_EVIDENCE_CORRELATION.md) — multi-source evidence merge (downstream)
 - [START-HERE-CYBERNET-NEURON-SURVEY.md](../START-HERE-CYBERNET-NEURON-SURVEY.md) — field workflow entry point

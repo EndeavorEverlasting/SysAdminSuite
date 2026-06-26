@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+---
+
+# Active Directory Probe Resilience and Ambiguity Doctrine
+
+AD probes are resilient, read-only discovery paths. AD registration is not proof a device is
+live, reachable, correctly subnetted, physically present, or serial-matched. Do not treat one AD
+method as authoritative by itself.
+
+When a sprint touches AD discovery, subnet discovery, Cybernet targeting, registered-device
+inventory, hostname matching, or AD-derived manifests, implement or verify this fallback ladder:
+
+1. RSAT / ActiveDirectory module (`Get-ADComputer`-style lookup).
+2. LDAP / DirectorySearcher / ADSI read-only lookup when RSAT is missing.
+3. Domain/DC discovery before blaming the query; failure is environment-blocked, not "not found".
+4. DNS enrichment (forward; reverse only when in scope); DNS mismatch is classified separately.
+5. Approved manifest fallback (exported AD list / CSV) marked imported/static, not live AD proof.
+6. No-AD fallback: emit a clear operator instruction naming the exact missing evidence/file.
+
+Classify ambiguity instead of collapsing to pass/fail. Use these states:
+
+```text
+AD_CONFIRMED  AD_OBJECT_FOUND_DNS_FOUND  AD_OBJECT_FOUND_DNS_MISSING  AD_OBJECT_FOUND_DNS_MISMATCH
+AD_OBJECT_FOUND_STALE  AD_OBJECT_FOUND_DISABLED  AD_OBJECT_FOUND_WRONG_OU  AD_DUPLICATE_CANDIDATES
+AD_NOT_FOUND  AD_QUERY_BLOCKED  DOMAIN_CONTEXT_UNKNOWN  DOMAIN_CONTROLLER_UNREACHABLE
+PERMISSION_BLOCKED  IMPORTED_STATIC_EVIDENCE  NOT_AD_VERIFIED  NEEDS_OPERATOR_REVIEW
+```
+
+Grey-area rules: AD presence is not reachability; a reachable IP is not AD registration; a DNS
+match is not serial identity; serial proof needs a separate privileged inventory source; stale
+objects are not active targets without review; duplicates/aliases surface as
+`NEEDS_OPERATOR_REVIEW`; "not found" must be distinguished from blocked/domain-unavailable/permission.
+
+Private logging means local, repo-ignored operator evidence for clarity and reproducibility. It
+never means hiding activity, suppressing telemetry, clearing logs, or evading monitoring. Write
+diagnostics only to ignored paths (`logs/`, `tmp/`, `survey/output/`, `evidence/`). Never commit
+live AD exports, host/serial lists, credentials, or tokens. Final reports summarize counts and
+classifications, not live directory contents, and must emit an `AD PROBE STATE SUMMARY`.
+
+If no real domain runtime is available, do not pretend AD validation ran: use fixtures/mocks,
+classify live validation as blocked by runtime access, and emit the exact operator command or
+evidence file needed for future authorized validation.
+
+Canonical reference: `docs/AD_PROBE_RESILIENCE.md`.
