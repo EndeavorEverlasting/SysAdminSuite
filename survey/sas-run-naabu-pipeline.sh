@@ -132,7 +132,7 @@ build_naabu_argv() {
   py="$(find_python)"
   tmp="$(mktemp)"
   $py - "$PROFILE_JSON" "$PROFILE" "$LIST" "$HOST" "$OUT" "$ALLOW_FULL_PORTS" "$PROFILE_JUSTIFIED" "$APPROVED_SUBNET_SCOPE" "$RATE" <<'PY' > "$tmp"
-import json, sys
+import json, os, sys
 
 profile_path, profile_id, list_path, host, out_path, allow_full, justified, subnet_scope, rate = sys.argv[1:10]
 allow_full = allow_full == "1"
@@ -140,6 +140,12 @@ justified = justified == "1"
 subnet_scope = subnet_scope == "1"
 with open(profile_path, encoding="utf-8") as fh:
     cfg = json.load(fh)
+posture_path = os.path.join(os.path.dirname(profile_path), "operational-posture.json")
+max_rate = 3000
+if os.path.exists(posture_path):
+    with open(posture_path, encoding="utf-8") as fh:
+        posture = json.load(fh)
+    max_rate = int(posture.get("defaults", {}).get("naabuMaxRate", max_rate))
 profile_id = cfg.get("profileAliases", {}).get(profile_id, profile_id)
 profiles = cfg.get("profiles", {})
 if profile_id not in profiles:
@@ -197,6 +203,9 @@ if rate:
     if not str(rate).isdigit() or int(rate) <= 0:
         print("--rate must be a positive integer", file=sys.stderr)
         sys.exit(8)
+    if int(rate) > max_rate:
+        print(f"--rate must be <= {max_rate} per operational posture", file=sys.stderr)
+        sys.exit(9)
     argv += ["-rate", str(rate)]
 
 fmt = p.get("outputFormat", "txt")

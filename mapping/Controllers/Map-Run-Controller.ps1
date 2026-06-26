@@ -6,6 +6,7 @@
  - Uses absolute path to powershell.exe (PS5.1) by default
  - Polls remote logs and collects immediately when ready
  - Best-effort cleanup of task and remote crumbs
+ - Legacy deployment lane: requires -AllowLegacy or SAS_ALLOW_LEGACY_TOOLS=1
  - Graceful Ctrl+C: partial results kept, summary printed
 
  Usage examples:
@@ -52,11 +53,25 @@
 
    # GUI-friendly stop + live status contract
    [string]$StopSignalPath,
-   [string]$StatusPath
+   [string]$StatusPath,
+
+   # Explicit opt-in for preserved legacy deployment/mapping lane
+   [switch]$AllowLegacy,
+
+   # Debug only: leave transient remote payloads for inspection
+   [switch]$NoTeardown
  )
  
  Set-StrictMode -Version Latest
  $ErrorActionPreference = 'Stop'
+$legacyGatePath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'scripts\Invoke-SasLegacyGate.ps1'
+if (-not (Test-Path -LiteralPath $legacyGatePath)) {
+  throw "Legacy gate helper not found: $legacyGatePath"
+}
+. $legacyGatePath
+if (-not (Invoke-SasLegacyGate -ToolPath 'mapping/Controllers/Map-Run-Controller.ps1' -AllowLegacy:$AllowLegacy)) {
+  exit 42
+}
  $script:undoRedoEnabled = $false
  $script:undoRedoSession = $null
  $script:undoRedoUtilityPath = $null
@@ -85,6 +100,40 @@
    Write-Host $stamp
    $stamp | Out-File -FilePath $ControllerLog -Encoding utf8 -Append
  }
+
+function Invoke-RemoteTransientCleanup {
+  param(
+    [string]$Computer,
+    [string[]]$Paths,
+    [string]$LogsPath,
+    [string]$BasePath
+  )
+
+  if ($NoTeardown) {
+    Write-Log "[$Computer] WARN: -NoTeardown requested; transient remote payloads may remain for debugging."
+    return
+  }
+
+  foreach ($path in ($Paths | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
+    try {
+      Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    } catch {
+      Write-Log "[$Computer] Teardown warning removing ${path}: $($_.Exception.Message)"
+    }
+  }
+
+  foreach ($dir in @($LogsPath, $BasePath)) {
+    if ([string]::IsNullOrWhiteSpace($dir)) { continue }
+    try {
+      if ((Test-Path -LiteralPath $dir) -and -not (Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+        Remove-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
+        Write-Log "[$Computer] Removed empty remote transient directory: $dir"
+      }
+    } catch {
+      Write-Log "[$Computer] Teardown warning removing directory ${dir}: $($_.Exception.Message)"
+    }
+  }
+}
 
  function Initialize-ControllerRunControl {
    $candidatePaths = @(
@@ -414,6 +463,14 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
    $adminLauncher = Join-AdminShare -Computer $Computer -SubPath $remoteLauncher
    $adminStopSignal = Join-AdminShare -Computer $Computer -SubPath $remoteStopSignal
    $adminStatusPath = Join-AdminShare -Computer $Computer -SubPath $remoteStatusPath
+  $transientRemotePaths = @(
+    $adminScript,
+    $adminUndoRedo,
+    $adminRunControl,
+    $adminLauncher,
+    $adminStopSignal,
+    $adminStatusPath
+  )
 
    $script:currentHost = $Computer
    $script:currentRemoteStopAdminPath = $adminStopSignal
@@ -453,6 +510,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
      Write-Log "[$Computer] Wrote launcher -> $adminLauncher"
    } catch {
      Write-Log "[$Computer] ERROR copying script: $($_.Exception.Message)"
+    Invoke-RemoteTransientCleanup -Computer $Computer -Paths $transientRemotePaths -LogsPath $adminLogs -BasePath $adminBase
     return $false
    }
  
@@ -484,6 +542,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
        Invoke-UndoRedo -Session $script:undoRedoSession -Action $createAction | Out-Null
      } catch {
        Write-Log "[$Computer] ERROR creating task via undo/redo action: $($_.Exception.Message)"
+      Invoke-RemoteTransientCleanup -Computer $Computer -Paths $transientRemotePaths -LogsPath $adminLogs -BasePath $adminBase
        return $false
      }
    } else {
@@ -492,6 +551,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
      Write-Log "[$Computer] schtasks /Create output:`n$createOut"
     if ($createExit -ne 0) {
       Write-Log "[$Computer] ERROR creating task. ExitCode=$createExit"
+      Invoke-RemoteTransientCleanup -Computer $Computer -Paths $transientRemotePaths -LogsPath $adminLogs -BasePath $adminBase
       return $false
     }
    }
@@ -502,6 +562,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
    Write-Log "[$Computer] schtasks /Run output:`n$runOut"
   if ($runExit -ne 0) {
     Write-Log "[$Computer] ERROR running task. ExitCode=$runExit"
+    Invoke-RemoteTransientCleanup -Computer $Computer -Paths $transientRemotePaths -LogsPath $adminLogs -BasePath $adminBase
     return $false
   }
  
@@ -563,7 +624,7 @@ $null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress 
        cmd /c ("schtasks /Delete /S {0} /TN {1} /F" -f $Computer, $TaskName) | Out-Null
        Write-Log "[$Computer] Deleted task $TaskName."
      }
-     Remove-Item -LiteralPath $adminStopSignal,$adminStatusPath,$adminLauncher -Force -ErrorAction SilentlyContinue
+    Invoke-RemoteTransientCleanup -Computer $Computer -Paths $transientRemotePaths -LogsPath $adminLogs -BasePath $adminBase
    } catch {
      Write-Log "[$Computer] Cleanup warning: $($_.Exception.Message)"
    }

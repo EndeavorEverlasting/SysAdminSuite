@@ -6151,7 +6151,8 @@ const CYBERNET_TUTORIAL_STEPS = [
     checks: [
       'The dashboard does not run probes by itself.',
       'You copy commands when the tutorial gives them, run them on an admin machine, then load the output files back here.',
-      'Use approved target sources only; do not broaden the survey from guessed hosts.'
+      'Use approved target sources only; do not broaden the survey from guessed hosts.',
+      'Survey commands are the no-target-artifact lane; deployment and mapping tools are legacy-gated separately.'
     ],
     nextAction: 'Read this, then click Next to load or prepare your targets.',
     explain: 'Introduces the manual survey model: the dashboard teaches steps, but probes run only when you copy and run commands yourself.',

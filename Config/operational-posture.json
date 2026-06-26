@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "doctrine": "Low-waste, low-noise operation: scoped inputs, transparent operator intent, local-only evidence, no target-side artifacts for survey lanes, and teardown-required payloads for authorized deployment lanes.",
+  "defaults": {
+    "legacyToolsEnabled": false,
+    "legacyEnableEnv": "SAS_ALLOW_LEGACY_TOOLS",
+    "legacyEnableFlag": "--allow-legacy",
+    "legacyDisabledClassification": "LEGACY_TOOLS_DISABLED",
+    "naabuMaxRate": 3000
+  },
+  "lanes": [
+    {
+      "id": "survey",
+      "description": "Read-only survey and reachability validation from approved manifests.",
+      "targetMutation": "never",
+      "evidenceLocalOnly": true,
+      "teardownRequired": false,
+      "defaultEnabled": true,
+      "outputRoots": ["logs/nmap/", "logs/targets/", "survey/output/", "survey/artifacts/"]
+    },
+    {
+      "id": "dashboard",
+      "description": "Local dashboard and relay probes run from the operator machine.",
+      "targetMutation": "never",
+      "evidenceLocalOnly": true,
+      "teardownRequired": false,
+      "defaultEnabled": true,
+      "outputRoots": ["dashboard/toolbox-status.json", "survey/output/", "logs/nmap/"]
+    },
+    {
+      "id": "deployment",
+      "description": "Authorized deployment, mapping, and staging workflows that may mutate targets.",
+      "targetMutation": "authorized-only",
+      "evidenceLocalOnly": true,
+      "teardownRequired": true,
+      "defaultEnabled": false,
+      "legacyGateRequired": true,
+      "outputRoots": ["bash/apps/output/", "SysAdminSuite-Session-*"]
+    }
+  ],
+  "principles": [
+    {
+      "id": "low_noise_survey",
+      "summary": "Use approved target manifests, key ports, -silent, -ec, and JSON for parser-facing evidence."
+    },
+    {
+      "id": "no_target_evidence",
+      "summary": "Survey evidence is written only to local ignored paths; target workstations receive no logs, scripts, or agents."
+    },
+    {
+      "id": "cdn_exclude",
+      "summary": "Use Naabu -ec on reachability profiles to avoid wasting probes on CDN/cloud firewall edges."
+    },
+    {
+      "id": "silent_output",
+      "summary": "Use silent machine-readable tool output in pipelines to avoid logos and banner noise."
+    },
+    {
+      "id": "ad_population_first",
+      "summary": "AD-derived or approved manifests define population; packet probes validate reachability only."
+    },
+    {
+      "id": "deployment_teardown",
+      "summary": "Authorized deployment payloads, scheduled tasks, and transient staging must be removed or explicitly documented as retained."
+    },
+    {
+      "id": "legacy_gate",
+      "summary": "Legacy deployment/mapping tools are preserved but disabled by default until the operator opts in."
+    }
+  ],
+  "legacyTools": [
+    {
+      "id": "map_run_controller",
+      "path": "mapping/Controllers/Map-Run-Controller.ps1",
+      "lane": "deployment",
+      "gate": "powershell",
+      "teardownRequired": true
+    },
+    {
+      "id": "app_install_remote",
+      "path": "bash/apps/sas-install-apps.sh",
+      "lane": "deployment",
+      "gate": "bash",
+      "teardownRequired": true
+    },
+    {
+      "id": "app_stage_fileshare",
+      "path": "bash/apps/sas-stage-fileshare.sh",
+      "lane": "deployment",
+      "gate": "bash",
+      "teardownRequired": true,
+      "retentionMode": "operator-selected"
+    },
+    {
+      "id": "deploy_shortcuts",
+      "path": "EnvSetup/Deploy-Shortcuts.ps1",
+      "lane": "deployment",
+      "gate": "powershell",
+      "teardownRequired": false,
+      "retentionMode": "intentional-shortcut-deployment"
+    },
+    {
+      "id": "mapping_archive",
+      "path": "mapping/Archive",
+      "lane": "deployment",
+      "gate": "archive-block",
+      "teardownRequired": true
+    }
+  ]
+}

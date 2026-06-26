@@ -1,0 +1,23 @@
+# Operational Posture
+
+SysAdminSuite applies low-waste posture across survey, dashboard, deployment, and
+cleanup work.
+
+- `Config/operational-posture.json` is the cross-lane posture manifest.
+- `docs/OPERATIONAL_POSTURE.md` is the human/agent entry point.
+- Survey and dashboard lanes do not write to target boxes. Evidence stays local
+  in ignored paths.
+- Deployment/mapping lanes may mutate targets only when explicitly authorized.
+  They must be legacy-gated and teardown-aware.
+- Preserved PowerShell tools are not deleted. For Northwell Bash-first field
+  work, legacy deployment/mapping tools must require `--allow-legacy`,
+  `-AllowLegacy`, or `SAS_ALLOW_LEGACY_TOOLS=1`.
+- Cleanup means reducing residual operational clutter. Do not frame it as log
+  bypass, stealth, evasion, or hiding activity.
+
+Canonical references:
+
+- `Config/operational-posture.json`
+- `docs/OPERATIONAL_POSTURE.md`
+- `docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md`
+- `docs/LOW_NOISE_SURVEY_DOCTRINE.md`

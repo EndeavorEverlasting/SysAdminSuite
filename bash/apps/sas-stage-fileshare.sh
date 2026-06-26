@@ -3,6 +3,7 @@
 # Stages installers from the local software repo onto a target host's admin share.
 # Verifies share reachability (mirrors sas-smb-readonly-recon.sh pattern) then
 # copies matching installers into \\TARGET\C$\SoftwareRepo\staged\<LIST_NAME>\.
+# Legacy deployment lane: requires --allow-legacy or SAS_ALLOW_LEGACY_TOOLS=1.
 #
 # Usage:
 #   ./bash/apps/sas-stage-fileshare.sh --target HOSTNAME --list LIST_NAME [options]
@@ -24,6 +25,8 @@ SMB_PASS="${SAS_SMB_PASS:-}"
 SMB_DOMAIN="${SAS_SMB_DOMAIN:-}"
 TIMEOUT=10
 DRY_RUN=0
+ALLOW_LEGACY=0
+TEARDOWN_AFTER=0
 LOG_DIR="bash/apps/output"
 
 usage() {
@@ -44,6 +47,8 @@ Options:
   --smb-domain DOM    SMB domain (or set SAS_SMB_DOMAIN)
   --timeout SEC       SMB timeout seconds (default: 10)
   --dry-run           Print what would be copied without copying
+  --allow-legacy      Enable this preserved legacy deployment lane for this run
+  --teardown-after    Remove the remote staged list directory after this transient run
   --log-dir PATH      Output log directory (default: bash/apps/output)
   -h, --help          Show help
 
@@ -68,6 +73,8 @@ while [[ $# -gt 0 ]]; do
     --smb-domain) SMB_DOMAIN="${2:?missing value for --smb-domain}"; shift 2 ;;
     --timeout)    TIMEOUT="${2:?missing value for --timeout}"; shift 2 ;;
     --dry-run)    DRY_RUN=1; shift ;;
+    --allow-legacy) ALLOW_LEGACY=1; shift ;;
+    --teardown-after) TEARDOWN_AFTER=1; shift ;;
     --log-dir)    LOG_DIR="${2:?missing value for --log-dir}"; shift 2 ;;
     -h|--help)    usage; exit 0 ;;
     --) shift; break ;;
@@ -75,6 +82,10 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unexpected argument: $1" ;;
   esac
 done
+
+LEGACY_GATE_ARGS=(--tool "bash/apps/sas-stage-fileshare.sh")
+[[ "$ALLOW_LEGACY" -eq 1 ]] && LEGACY_GATE_ARGS+=(--allow-legacy)
+bash scripts/sas-legacy-gate.sh "${LEGACY_GATE_ARGS[@]}" || exit $?
 
 [[ -n "$TARGET" ]]    || fail "--target is required"
 [[ -n "$LIST_NAME" ]] || fail "--list is required"
@@ -439,6 +450,20 @@ if [[ "$FAILED" -gt 0 && "$DRY_RUN" -eq 0 ]]; then
   log "Staging finished with $FAILED failure(s). Log: $LOG_FILE"
   exit 1
 else
+  if [[ "$TEARDOWN_AFTER" -eq 1 ]]; then
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      log "[DRY-RUN] Would remove transient staged directory: \\\\${TARGET}\\${SHARE}\\${DEST_PATH//\//\\}"
+    elif [[ "$COPY_METHOD" == "smbclient" ]]; then
+      DEST_WIN="${DEST_PATH//\//\\}"
+      run_smb_cmd "del \"${DEST_WIN}\\*\"; rmdir \"${DEST_WIN}\"" >/dev/null 2>&1 || true
+      log "Best-effort teardown requested for staged directory: ${DEST_PATH}"
+    elif [[ "$COPY_METHOD" == "robocopy" ]]; then
+      cmd.exe /c "rmdir /S /Q \"\\\\${TARGET}\\${SHARE}\\${DEST_PATH//\//\\}\"" >/dev/null 2>&1 || true
+      log "Best-effort teardown requested for staged directory: \\\\${TARGET}\\${SHARE}\\${DEST_PATH//\//\\}"
+    fi
+  else
+    log "Staged installers intentionally retained. Use --teardown-after for transient staging runs."
+  fi
   log "Staging complete. Log: $LOG_FILE"
 fi
 

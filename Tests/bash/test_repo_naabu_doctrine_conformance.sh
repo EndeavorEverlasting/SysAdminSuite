@@ -26,12 +26,6 @@ check_raw_naabu_commands() {
   while IFS=: read -r path line_no text; do
     [[ -n "${path:-}" ]] || continue
 
-    # Generated dashboard bundles may contain copied operator guidance. Source docs/scripts carry
-    # the enforceable command text.
-    case "$path" in
-      dashboard/js/bundle.js) continue ;;
-    esac
-
     if [[ "$text" != *"-silent"* ]]; then
       printf 'missing -silent: %s:%s:%s\n' "$path" "$line_no" "$text" >&2
       bad=1
@@ -43,7 +37,7 @@ check_raw_naabu_commands() {
     fi
   done < <(
     git grep -n -I -E 'naabu[[:space:]]+-(list|host)' -- \
-      '*.md' '*.sh' '*.ps1' '*.psm1' '*.json' '*.go' ':!Config/cybernet-naabu-profiles.json' || true
+      '*.md' '*.sh' '*.ps1' '*.psm1' '*.json' '*.go' '*.js' ':!Config/cybernet-naabu-profiles.json' || true
   )
 
   [[ "$bad" -eq 0 ]] || fail "raw naabu command strings must preserve -silent and -ec"

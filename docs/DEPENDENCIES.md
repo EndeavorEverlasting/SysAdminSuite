@@ -7,6 +7,7 @@ whether a dependency is needed for a given use case."
 Human and agent entry points:
 
 - Registry: [`Config/toolbox-dependencies.json`](../Config/toolbox-dependencies.json)
+- Operational posture: [`Config/operational-posture.json`](../Config/operational-posture.json)
 - Live presence probe: `bash scripts/sas-probe-toolbox.sh`
 - Pin drift contract: `bash Tests/bash/test_dependency_registry_contracts.sh`
 

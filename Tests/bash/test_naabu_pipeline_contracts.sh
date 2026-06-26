@@ -40,6 +40,12 @@ grep -q '\-silent' "$PLANNED" || { echo 'expected -silent in default command'; e
 grep -q '\-json' "$PLANNED" || { echo 'expected -json in default command'; exit 1; }
 grep -q '80,443,135,445,3389,5985,5986' "$PLANNED" || { echo 'expected full Cybernet key ports in default'; cat "$PLANNED"; exit 1; }
 
+if bash "$PIPE" --site testsite \
+  --list "$FIX/targets.sample.txt" --out "$OUT.json" --dry-run --rate 3001 2>/dev/null; then
+  echo 'expected rate above operational posture cap to fail'
+  exit 1
+fi
+
 # Pipe profile (keyports_cybernet_pipe) is txt stream: -silent -ec, full key ports, NO -json
 : > "$PLANNED"
 bash "$PIPE" --site testsite --profile keyports_cybernet_pipe \
