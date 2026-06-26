@@ -7,6 +7,7 @@
 > Double-click **`START-HERE-SysAdminSuite-Dashboard.bat`** at the repo root.
 > Your browser opens `http://127.0.0.1:5000/dashboard/?tutorial=setup`.
 > CLI tools are optional — use them only when the dashboard or a runbook says so.
+> Routine launcher updates are conservative; explicit repo repair uses `Update-SysAdminSuite.ps1`.
 
 On first run the launcher will **automatically prepare the dashboard host** if dependencies or the host are missing — it runs `scripts/ensure-dashboard-host.sh` through Git Bash, installs official Microsoft .NET 8 dependencies system-wide when needed, waits for the host to respond on port 5000, and only then opens the browser. Field users are never told to run the publish command by hand. If Microsoft downloads, installer approval, or the build cannot run, the launcher shows a field-safe message directing the user to the **field release package** or IT/admin preparation.
 
@@ -18,7 +19,7 @@ On first run the launcher will **automatically prepare the dashboard host** if d
 
 **Wizard command model:** dashboard wizard **Next** buttons never run commands; command panels show whether to run, read, or simply continue. See [`DASHBOARD_TOOLBOX_TUTORIAL.md#how-next-works`](DASHBOARD_TOOLBOX_TUTORIAL.md#how-next-works).
 
-**Updates:** launcher checks are opt-in and must prompt before applying changes. Source clones use a clean `main` fast-forward; ZIP/field packages use checksum-verified manifests. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
+**Updates:** launcher checks are opt-in and must prompt before applying changes. Source clones use a clean `main` fast-forward; ZIP/field packages use checksum-verified manifests. For explicit field repair that resets a local repo to official `origin/main`, use [`FIELD_TECH_UPDATE.md`](FIELD_TECH_UPDATE.md). See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
 
 Compatibility aliases (same behavior, not the documented primary): **`START-HERE-SysAdminSuite-Dashboard.cmd`** and **`SysAdminSuite Dashboard.cmd`**.
 
@@ -41,6 +42,7 @@ Warn against the common mistake: do **not** create a `SysAdminSuite` folder firs
 | `START-HERE-SysAdminSuite-Dashboard.bat` | **Field users (primary)** | Friendly console, starts host, writes toolbox status, opens browser; Toolbox, Repo Setup, Cybernet, and Software Tracker front-door workflows |
 | `START-HERE-SysAdminSuite-Dashboard.cmd` | Compatibility alias | Calls the `.bat` launcher |
 | `SysAdminSuite Dashboard.cmd` | Field desktops / shortcuts | Alias of the START-HERE `.bat` |
+| `Update-SysAdminSuite.ps1` / `Update-SysAdminSuite.bat` | IT / explicit repair | Shows stage progress, resets a Git repo to official `origin/main`, or backs up a non-git folder before cloning fresh |
 | `Launch-SysAdminSuiteDashboard.Host.bat` | IT / developers | Ensures dependencies/host via Bash bootstrap, then spawns tray host |
 | `Launch-SysAdminSuite-Runtime.bat` `[3]` | Portable zip | Menu entry for .NET host |
 | `Launch-SysAdminSuiteDashboard.bat` | Permissive sites | Legacy PS + Python path |
@@ -105,12 +107,15 @@ See [`dashboard/README.md`](../dashboard/README.md) — **Loading experience (Hi
 | Browser did not open | If the host is already running, paste `http://127.0.0.1:5000/dashboard/?tutorial=setup`; if nothing is listening, run `START-HERE-SysAdminSuite-Dashboard.bat` first |
 | Host exe not found | The `.bat` prepares it automatically on first run. If bootstrap fails, get the packaged release or have IT/admin prepare the machine (do not tell field users to run publish by hand) |
 | Dependency bootstrap failed | Check Git Bash, Microsoft download access, checksum verification, and administrator approval; see `DASHBOARD_DEPENDENCY_BOOTSTRAP.md` |
+| Update check needs manual review | Continue with the current copy, or use `Update-SysAdminSuite.ps1` only when IT intends to discard local repo edits |
 | Port 5000 in use | Stop prior instance from tray icon |
+| Local copy is stale or broken | Run `Update-SysAdminSuite.ps1` only when you intend to discard local repo edits and match official `origin/main`; see `FIELD_TECH_UPDATE.md` |
 | User asks "do I run code?" | Point to `START-HERE-SysAdminSuite-Dashboard.bat` double-click; read [`START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) |
 
 ## Related docs
 
 - [`START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) — lay user guide
+- [`docs/FIELD_TECH_UPDATE.md`](FIELD_TECH_UPDATE.md) — explicit field repair/update runbook
 - [`docs/DASHBOARD_DEPENDENCY_BOOTSTRAP.md`](DASHBOARD_DEPENDENCY_BOOTSTRAP.md) — first-run .NET dependency bootstrap
 - [`docs/GUI_HOST_MIGRATION.md`](GUI_HOST_MIGRATION.md) — launcher technical matrix
 - [`docs/DASHBOARD_EXE_FUTURE_SPRINT.md`](DASHBOARD_EXE_FUTURE_SPRINT.md) — planned EXE sprint

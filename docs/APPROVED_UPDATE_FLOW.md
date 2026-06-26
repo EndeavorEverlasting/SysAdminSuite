@@ -29,6 +29,32 @@ For developer and IT git clones:
 The updater must not run `git reset --hard`, delete branches, or update feature
 branches automatically.
 
+## Field Repair Lane
+
+The approved launcher update is intentionally conservative. It is not the same
+as the explicit field repair updater:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Update-SysAdminSuite.ps1
+```
+
+Use the repair updater only when a tech needs the local `SysAdminSuite` folder to
+match official `origin/main`. It shows stage-based progress, can back up an
+existing non-git folder, and then runs `git fetch origin`, `git checkout main`,
+`git reset --hard origin/main`, and `git clean -fd` inside the intended install
+path. Local edits inside the repo are discarded by design.
+
+Do not run `git clone` over an existing copy. Use the repair updater instead, or
+manually move the old folder aside first.
+
+If the folder is not `%USERPROFILE%\Desktop\SysAdminSuite`, pass the actual path
+with `-InstallRoot`. The repair updater asks the tech to type `YES` before
+starting destructive repo repair. Routine field release ZIP/package updates
+should stay on the launcher and checksum manifest flow; the repair updater
+creates a fresh Git clone when it is pointed at a non-git folder.
+
+See [`FIELD_TECH_UPDATE.md`](FIELD_TECH_UPDATE.md) for the tech-facing runbook.
+
 ## ZIP / Field Package Rules
 
 For users who downloaded a ZIP or received a field release package:
@@ -78,3 +104,4 @@ check needs manual review, the dashboard opens from the current local copy.
 - [`REMOTE_WORKFLOW.md`](REMOTE_WORKFLOW.md) — source-clone mainline rules
 - [`DEPLOYMENT_ARTIFACTS.md`](DEPLOYMENT_ARTIFACTS.md) — package manifest/update rules
 - [`DASHBOARD_FIELD_RELEASE.md`](DASHBOARD_FIELD_RELEASE.md) — no-SDK field package path
+- [`FIELD_TECH_UPDATE.md`](FIELD_TECH_UPDATE.md) — explicit field repair/update runbook

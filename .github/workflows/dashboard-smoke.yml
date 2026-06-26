@@ -5,6 +5,19 @@ on:
     paths:
       - 'dashboard/**'
       - 'Tests/bash/test_dashboard_*.sh'
+      - 'Tests/bash/test_update_flow_contracts.sh'
+      - 'Tests/bash/test_field_tech_update_contracts.sh'
+      - 'START-HERE-SysAdminSuite.md'
+      - 'START-HERE-SysAdminSuite-Dashboard.bat'
+      - 'START-HERE-SysAdminSuite-Dashboard.cmd'
+      - 'SysAdminSuite Dashboard.cmd'
+      - 'Launch-SysAdminSuiteDashboard.Host.bat'
+      - 'Update-SysAdminSuite.ps1'
+      - 'Update-SysAdminSuite.bat'
+      - 'tools/update/**'
+      - 'docs/APPROVED_UPDATE_FLOW.md'
+      - 'docs/DASHBOARD_ENTRYPOINT.md'
+      - 'docs/FIELD_TECH_UPDATE.md'
       - '.github/workflows/dashboard-smoke.yml'
   push:
     branches:
@@ -12,6 +25,19 @@ on:
     paths:
       - 'dashboard/**'
       - 'Tests/bash/test_dashboard_*.sh'
+      - 'Tests/bash/test_update_flow_contracts.sh'
+      - 'Tests/bash/test_field_tech_update_contracts.sh'
+      - 'START-HERE-SysAdminSuite.md'
+      - 'START-HERE-SysAdminSuite-Dashboard.bat'
+      - 'START-HERE-SysAdminSuite-Dashboard.cmd'
+      - 'SysAdminSuite Dashboard.cmd'
+      - 'Launch-SysAdminSuiteDashboard.Host.bat'
+      - 'Update-SysAdminSuite.ps1'
+      - 'Update-SysAdminSuite.bat'
+      - 'tools/update/**'
+      - 'docs/APPROVED_UPDATE_FLOW.md'
+      - 'docs/DASHBOARD_ENTRYPOINT.md'
+      - 'docs/FIELD_TECH_UPDATE.md'
       - '.github/workflows/dashboard-smoke.yml'
 
 jobs:
@@ -59,9 +85,15 @@ jobs:
           node dashboard/test_relay_abort_e2e.js
       - name: Dashboard tutorial launcher contracts
         run: bash Tests/bash/test_dashboard_tutorial_launcher_contracts.sh
+      - name: Dashboard entrypoint contracts
+        run: bash Tests/bash/test_dashboard_entrypoint_contracts.sh
       - name: Dashboard wizard exit + probe stop contracts
         run: bash Tests/bash/test_dashboard_wizard_exit_contracts.sh
       - name: Dashboard relay cancel E2E contracts
         run: bash Tests/bash/test_dashboard_relay_cancel_e2e_contracts.sh
       - name: Dashboard relay abort E2E contracts
         run: bash Tests/bash/test_dashboard_relay_abort_e2e_contracts.sh
+      - name: Approved update flow contracts
+        run: bash Tests/bash/test_update_flow_contracts.sh
+      - name: Field tech update contracts
+        run: bash Tests/bash/test_field_tech_update_contracts.sh

@@ -81,6 +81,28 @@ clean `main` from `origin/main`. If this is a ZIP or field package, updates come
 from a checksum-verified package manifest. In both cases, you approve before
 anything changes. See [`docs/APPROVED_UPDATE_FLOW.md`](docs/APPROVED_UPDATE_FLOW.md).
 
+## Repair / refresh my copy
+
+If a tech needs to make the local copy match official `origin/main`, run the
+field repair updater instead of typing raw Git commands:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Update-SysAdminSuite.ps1
+```
+
+If your SysAdminSuite folder is not `%USERPROFILE%\Desktop\SysAdminSuite`, pass
+the actual folder with `-InstallRoot`. The updater prints the target path and
+requires `Type YES to update` before it repairs the repo.
+
+Do not run `git clone` over an existing copy. The updater handles the three safe
+cases: clone when the folder is missing, back up an existing non-git folder, or
+repair an existing Git repo.
+
+Important: the repair updater runs `git reset --hard origin/main` and
+`git clean -fd` inside the SysAdminSuite repo. That makes the local copy match
+official `main`, and local edits inside the repo are discarded. See
+[`docs/FIELD_TECH_UPDATE.md`](docs/FIELD_TECH_UPDATE.md).
+
 ## What if the dashboard does not open?
 
 1. Run `START-HERE-SysAdminSuite-Dashboard.bat` from the **repo root**, not from inside a subfolder.
