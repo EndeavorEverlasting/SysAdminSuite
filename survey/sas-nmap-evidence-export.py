@@ -35,6 +35,17 @@ def clean(value: object) -> str:
     return str(value or "").strip()
 
 
+def short_hostname(value: str) -> str:
+    """Return the short computer name used by tracker manifests.
+
+    Nmap commonly returns an FQDN such as HOST001.example.internal while the
+    approved manifest contains HOST001. Keeping the FQDN only in Notes avoids a
+    false hostname-drift result while preserving the original DNS evidence.
+    """
+    value = clean(value).rstrip(".")
+    return value.split(".", 1)[0] if value else ""
+
+
 def mac_norm(value: str) -> str:
     value = clean(value)
     if value.upper().startswith("SAMPLEMAC"):
@@ -61,16 +72,20 @@ def parse_xml(path: Path) -> list[dict[str, str]]:
                 ip = addr_value
             elif addr_type == "mac" and not mac:
                 mac = mac_norm(addr_value)
-        hostname = ""
+        fqdn = ""
         hostnames = host.find("hostnames")
         if hostnames is not None:
             for hn in hostnames.findall("hostname"):
-                hostname = clean(hn.get("name"))
-                if hostname:
+                fqdn = clean(hn.get("name"))
+                if fqdn:
                     break
+        hostname = short_hostname(fqdn)
         target = hostname or ip or mac
         if not target:
             continue
+        notes = f"ip={ip}; state={state}"
+        if fqdn and fqdn.rstrip(".").upper() != hostname.upper():
+            notes += f"; fqdn={fqdn.rstrip('.')}"
         rows.append(
             {
                 "Target": target,
@@ -81,7 +96,7 @@ def parse_xml(path: Path) -> list[dict[str, str]]:
                 "serial_probe_status": "nmap_identity_observed" if hostname or mac else "nmap_no_identity",
                 "ProbeMethod": "nmap_reverse_dns" if hostname else "nmap_mac_or_ip_observed" if mac or ip else "nmap_no_identity",
                 "EvidenceSource": "nmap_xml",
-                "Notes": f"ip={ip}; state={state}",
+                "Notes": notes,
             }
         )
     return rows
@@ -101,12 +116,16 @@ def parse_normal_text(path: Path) -> list[dict[str, str]]:
             if current:
                 rows.append(current)
             raw = clean(m.group(1))
-            hostname = ""
+            fqdn = ""
             ip = raw
             p = ip_in_paren_re.match(raw)
             if p:
-                hostname = clean(p.group(1))
+                fqdn = clean(p.group(1))
                 ip = clean(p.group(2))
+            hostname = short_hostname(fqdn)
+            notes = f"ip={ip}"
+            if fqdn and fqdn.rstrip(".").upper() != hostname.upper():
+                notes += f"; fqdn={fqdn.rstrip('.')}"
             current = {
                 "Target": hostname or ip,
                 "observed_hostname": hostname,
@@ -116,7 +135,7 @@ def parse_normal_text(path: Path) -> list[dict[str, str]]:
                 "serial_probe_status": "nmap_identity_observed" if hostname else "nmap_ip_observed",
                 "ProbeMethod": "nmap_reverse_dns" if hostname else "nmap_ip_observed",
                 "EvidenceSource": "nmap_normal",
-                "Notes": f"ip={ip}",
+                "Notes": notes,
             }
             continue
         if not current:
