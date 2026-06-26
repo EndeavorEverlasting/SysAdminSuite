@@ -1467,6 +1467,335 @@ _exports.buildProtocolRows = buildProtocolRows;
 })();
 var detectFileType = _exports.detectFileType, parseFileContent = _exports.parseFileContent, mergeDataStore = _exports.mergeDataStore, buildInventoryRows = _exports.buildInventoryRows, buildPrinterRows = _exports.buildPrinterRows, buildProtocolRows = _exports.buildProtocolRows;
 
+// ====== run-control.js ======
+(function () {
+// run-control.js — shared lifecycle state for dashboard runs.
+//
+// Buttons express intent; lifecycle events prove current run reality.
+
+const ACTIVE_STATES = new Set(['requested', 'approved', 'starting', 'running', 'stopping']);
+const STOPPABLE_STATES = new Set(['requested', 'approved', 'starting', 'running', 'stopping']);
+const TERMINAL_STATES = new Set(['stopped', 'completed', 'failed', 'aborted', 'disconnected']);
+const VALID_SOURCES = new Set(['ui', 'relay-client', 'relay-server', 'script', 'dashboard-parser']);
+
+let _runs = new Map();
+let _events = [];
+let _listeners = [];
+let _stopHandlers = new Map();
+let _bannerTimer = null;
+
+function _now() {
+  return new Date().toISOString();
+}
+
+function _genRunId() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch (_) { /* fall through */ }
+  return 'run-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function _safeSource(source) {
+  return VALID_SOURCES.has(source) ? source : 'ui';
+}
+
+function _safeSummary(summary) {
+  return String(summary || '').slice(0, 240);
+}
+
+function _initialRun(runId, details) {
+  return {
+    runId,
+    kind: details.kind || 'run',
+    state: 'idle',
+    createdAt: _now(),
+    updatedAt: null,
+    startedAt: null,
+    endedAt: null,
+    source: _safeSource(details.source),
+    summary: _safeSummary(details.targetsSummary || details.summary || ''),
+    progress: { completed: 0, total: details.total || null },
+    current: { target: '', step: '' },
+    partialResultsPreserved: false,
+    lastEvent: null,
+    lastError: '',
+  };
+}
+
+function _reduce(run, event) {
+  const next = Object.assign({}, run, {
+    updatedAt: event.timestamp,
+    lastEvent: event.type,
+  });
+  const payload = event.payload || {};
+
+  if (payload.total !== undefined) {
+    next.progress = Object.assign({}, next.progress, { total: payload.total });
+  }
+  if (payload.completed !== undefined) {
+    next.progress = Object.assign({}, next.progress, { completed: payload.completed });
+  }
+  if (payload.target !== undefined || payload.step !== undefined) {
+    next.current = Object.assign({}, next.current, {
+      target: payload.target !== undefined ? String(payload.target || '') : next.current.target,
+      step: payload.step !== undefined ? String(payload.step || '') : next.current.step,
+    });
+  }
+
+  switch (event.type) {
+    case 'RunRequested':
+      next.state = 'requested';
+      break;
+    case 'RunApproved':
+      next.state = 'approved';
+      break;
+    case 'RunCreated':
+      if (next.state === 'idle') next.state = 'requested';
+      break;
+    case 'RunStarting':
+      next.state = 'starting';
+      break;
+    case 'RunStarted':
+      next.state = 'running';
+      next.startedAt = next.startedAt || event.timestamp;
+      break;
+    case 'RunStepStarted':
+    case 'RunStepResult':
+    case 'RunProgress':
+      if (!TERMINAL_STATES.has(next.state)) next.state = 'running';
+      break;
+    case 'StopRequested':
+    case 'StopSent':
+    case 'StopAcknowledged':
+    case 'RunStopping':
+      if (!TERMINAL_STATES.has(next.state)) next.state = 'stopping';
+      break;
+    case 'RunStopped':
+      next.state = 'stopped';
+      next.endedAt = event.timestamp;
+      break;
+    case 'RunCompleted':
+      next.state = 'completed';
+      next.endedAt = event.timestamp;
+      break;
+    case 'RunFailed':
+      next.state = 'failed';
+      next.lastError = _safeSummary(payload.message || event.summary);
+      next.endedAt = event.timestamp;
+      break;
+    case 'RunAborted':
+      next.state = 'aborted';
+      next.endedAt = event.timestamp;
+      break;
+    case 'RunDisconnected':
+      next.state = 'disconnected';
+      next.endedAt = event.timestamp;
+      break;
+    case 'PartialResultsPreserved':
+      next.partialResultsPreserved = true;
+      break;
+    case 'RunEvidenceWritten':
+      break;
+    default:
+      break;
+  }
+
+  next.summary = event.summary || next.summary;
+  return next;
+}
+
+function _notify(event, run) {
+  _updateRunBanner();
+  for (const listener of _listeners.slice()) {
+    try { listener(event, run); } catch (_) { /* isolate listeners */ }
+  }
+}
+
+function createRun({ kind, source = 'ui', targetsSummary = '', total = null, stopHandler = null } = {}) {
+  const runId = _genRunId();
+  const run = _initialRun(runId, { kind, source, targetsSummary, total });
+  _runs.set(runId, run);
+  if (stopHandler) _stopHandlers.set(runId, stopHandler);
+  emitRunEvent(runId, 'RunCreated', {
+    source,
+    summary: `${run.kind} created`,
+    payload: { total },
+  });
+  emitRunEvent(runId, 'RunRequested', {
+    source,
+    summary: `${run.kind} requested: ${targetsSummary || 'scoped run'}`,
+    payload: { total },
+  });
+  return getRunState(runId);
+}
+
+function emitRunEvent(runId, type, details = {}) {
+  if (!runId || !_runs.has(runId)) return null;
+  const run = _runs.get(runId);
+  const event = {
+    runId,
+    type,
+    timestamp: details.timestamp || _now(),
+    source: _safeSource(details.source || run.source),
+    summary: _safeSummary(details.summary || type),
+    payload: details.payload || {},
+  };
+  const next = _reduce(run, event);
+  _runs.set(runId, next);
+  _events.push(event);
+  _notify(event, next);
+  return event;
+}
+
+function subscribeRunEvents(listener) {
+  if (typeof listener !== 'function') return () => {};
+  _listeners.push(listener);
+  return () => {
+    _listeners = _listeners.filter(fn => fn !== listener);
+  };
+}
+
+function getRunState(runId) {
+  const run = _runs.get(runId);
+  return run ? JSON.parse(JSON.stringify(run)) : null;
+}
+
+function getRunEvents(runId) {
+  return _events.filter(ev => !runId || ev.runId === runId).map(ev => JSON.parse(JSON.stringify(ev)));
+}
+
+function getActiveRun() {
+  const active = Array.from(_runs.values())
+    .filter(run => ACTIVE_STATES.has(run.state))
+    .sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0];
+  return active ? getRunState(active.runId) : null;
+}
+
+function setRunStopHandler(runId, handler) {
+  if (!runId) return;
+  if (typeof handler === 'function') _stopHandlers.set(runId, handler);
+  else _stopHandlers.delete(runId);
+}
+
+function requestStop(runId) {
+  const run = getRunState(runId);
+  if (!run || !STOPPABLE_STATES.has(run.state)) return false;
+  emitRunEvent(runId, 'StopRequested', {
+    source: 'ui',
+    summary: `${run.kind} stop requested`,
+  });
+  const handler = _stopHandlers.get(runId);
+  if (handler) {
+    try { handler(); } catch (err) {
+      emitRunEvent(runId, 'RunFailed', {
+        source: 'ui',
+        summary: 'Stop request failed before reaching worker',
+        payload: { message: String(err) },
+      });
+    }
+  }
+  return true;
+}
+
+function _formatElapsed(run) {
+  if (!run || !run.startedAt) return '';
+  const start = Date.parse(run.startedAt);
+  if (!Number.isFinite(start)) return '';
+  const seconds = Math.max(0, Math.floor((Date.now() - start) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+function _bannerText(run) {
+  if (!run) return '';
+  const kind = run.kind || 'Run';
+  const total = run.progress && run.progress.total;
+  const completed = run.progress && run.progress.completed;
+  const countText = total ? ` - ${completed || 0} of ${total} targets checked` : '';
+  const stepText = run.current && run.current.step ? ` - ${run.current.step}` : '';
+  const elapsed = _formatElapsed(run);
+  const elapsedText = elapsed ? ` - ${elapsed}` : '';
+
+  if (run.state === 'stopping') return `${kind} stopping${countText}.`;
+  if (run.state === 'stopped') return `${kind} stopped. Partial results preserved.`;
+  if (run.state === 'completed') return `${kind} completed${countText}.`;
+  if (run.state === 'failed') return `${kind} failed: ${run.lastError || run.summary}`;
+  if (run.state === 'aborted') return `${kind} aborted. Partial results preserved.`;
+  if (run.state === 'disconnected') return `${kind} disconnected. Partial results may be incomplete.`;
+  if (run.state === 'running') return `${kind} running${countText}${stepText}${elapsedText}.`;
+  return `${kind} ${run.state}${countText}.`;
+}
+
+function _latestRun() {
+  return Array.from(_runs.values())
+    .sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0] || null;
+}
+
+function _updateRunBanner() {
+  const banner = typeof document !== 'undefined' ? document.getElementById('run-control-banner') : null;
+  if (!banner) return;
+  const text = document.getElementById('run-control-text');
+  const meta = document.getElementById('run-control-meta');
+  const stopBtn = document.getElementById('run-control-stop');
+  const run = getActiveRun() || _latestRun();
+
+  banner.classList.toggle('hidden', !run || run.state === 'idle');
+  banner.classList.toggle('run-control-terminal', !!run && TERMINAL_STATES.has(run.state));
+  if (text) text.textContent = run ? _bannerText(run) : '';
+  if (meta) meta.textContent = run ? `source: ${run.source} - state: ${run.state}` : '';
+  if (stopBtn) {
+    const stoppable = !!run && STOPPABLE_STATES.has(run.state);
+    stopBtn.classList.toggle('hidden', !stoppable);
+    stopBtn.disabled = !!run && run.state === 'stopping';
+    stopBtn.textContent = run && run.state === 'stopping' ? 'Stopping...' : 'Stop';
+    stopBtn.dataset.runId = run ? run.runId : '';
+  }
+}
+
+function initRunControl() {
+  const stopBtn = typeof document !== 'undefined' ? document.getElementById('run-control-stop') : null;
+  if (stopBtn && !stopBtn.dataset.runControlBound) {
+    stopBtn.dataset.runControlBound = '1';
+    stopBtn.addEventListener('click', () => {
+      const runId = stopBtn.dataset.runId;
+      if (runId) requestStop(runId);
+    });
+  }
+  if (_bannerTimer) clearInterval(_bannerTimer);
+  if (typeof setInterval === 'function') {
+    _bannerTimer = setInterval(_updateRunBanner, 1000);
+    if (_bannerTimer && typeof _bannerTimer.unref === 'function') _bannerTimer.unref();
+  }
+  _updateRunBanner();
+}
+
+function _resetRunControlForTests() {
+  _runs = new Map();
+  _events = [];
+  _listeners = [];
+  _stopHandlers = new Map();
+  if (_bannerTimer) {
+    try { clearInterval(_bannerTimer); } catch (_) { /* ignore */ }
+    _bannerTimer = null;
+  }
+}
+
+// expose exports to bundle scope
+_exports.createRun = createRun;
+_exports.emitRunEvent = emitRunEvent;
+_exports.subscribeRunEvents = subscribeRunEvents;
+_exports.getRunState = getRunState;
+_exports.getRunEvents = getRunEvents;
+_exports.getActiveRun = getActiveRun;
+_exports.setRunStopHandler = setRunStopHandler;
+_exports.requestStop = requestStop;
+_exports.initRunControl = initRunControl;
+_exports._resetRunControlForTests = _resetRunControlForTests;
+})();
+var createRun = _exports.createRun, emitRunEvent = _exports.emitRunEvent, subscribeRunEvents = _exports.subscribeRunEvents, getRunState = _exports.getRunState, getRunEvents = _exports.getRunEvents, getActiveRun = _exports.getActiveRun, setRunStopHandler = _exports.setRunStopHandler, requestStop = _exports.requestStop, initRunControl = _exports.initRunControl, _resetRunControlForTests = _exports._resetRunControlForTests;
+
 // ====== relay-client.js ======
 (function () {
 // relay-client.js — WebSocket relay connection manager
@@ -1612,7 +1941,18 @@ function initRelayConnection() {
  * @returns {function} cancel  — call to stop the probe; sends a real cancel to the relay
  */
 function sendRelayProbe(req, onMessage, onDone, onError) {
+  const runId = req && req.runId;
+  const relayReq = Object.assign({}, req || {});
+  delete relayReq.runId;
+
   if (!_connected || !_ws) {
+    if (runId) {
+      emitRunEvent(runId, 'RunFailed', {
+        source: 'relay-client',
+        summary: 'Relay not connected',
+        payload: { message: 'Relay not connected' },
+      });
+    }
     if (onError) onError('Relay not connected');
     return () => {};
   }
@@ -1635,6 +1975,56 @@ function sendRelayProbe(req, onMessage, onDone, onError) {
     try { msg = JSON.parse(event.data); } catch (e) { return; }
     // If the relay tags messages with a probeId, ignore ones for other probes.
     if (msg.probeId && msg.probeId !== probeId) return;
+    if (runId) {
+      if (msg.type === 'probe_start') {
+        emitRunEvent(runId, 'RunStarted', {
+          source: 'relay-server',
+          summary: `Relay accepted probe for ${msg.total || 0} target(s)`,
+          payload: { total: msg.total || 0, completed: 0 },
+        });
+      } else if (msg.type === 'step_result') {
+        emitRunEvent(runId, 'RunStepResult', {
+          source: 'relay-server',
+          summary: `Probe step result: ${msg.step || 'step'} ${msg.status || ''}`,
+          payload: {
+            target: msg.target || '',
+            step: msg.step || '',
+            status: msg.status || '',
+            value: msg.value || '',
+          },
+        });
+      } else if (msg.type === 'probe_done') {
+        if (msg.cancelled) {
+          emitRunEvent(runId, 'StopAcknowledged', {
+            source: 'relay-server',
+            summary: 'Relay acknowledged probe cancellation',
+            payload: { completed: msg.completed, total: msg.total },
+          });
+          emitRunEvent(runId, 'PartialResultsPreserved', {
+            source: 'dashboard-parser',
+            summary: 'Partial probe results preserved locally',
+            payload: { completed: msg.completed, total: msg.total },
+          });
+          emitRunEvent(runId, 'RunStopped', {
+            source: 'relay-server',
+            summary: 'Relay stopped probe before remaining targets',
+            payload: { completed: msg.completed, total: msg.total },
+          });
+        } else {
+          emitRunEvent(runId, 'RunCompleted', {
+            source: 'relay-server',
+            summary: 'Relay probe completed',
+            payload: { completed: msg.completed, total: msg.total },
+          });
+        }
+      } else if (msg.type === 'error') {
+        emitRunEvent(runId, 'RunFailed', {
+          source: 'relay-server',
+          summary: msg.message || 'Relay reported an error',
+          payload: { message: msg.message || 'Relay reported an error' },
+        });
+      }
+    }
     if (onMessage) onMessage(msg);
     if (msg.type === 'probe_done' || msg.type === 'error') {
       cleanup();
@@ -1647,6 +2037,16 @@ function sendRelayProbe(req, onMessage, onDone, onError) {
     cleanup();
     // The relay socket dropped mid-probe: classify as aborted/disconnected,
     // never as a successful completion.
+    if (runId) {
+      emitRunEvent(runId, 'RunDisconnected', {
+        source: 'relay-client',
+        summary: 'Relay socket closed before probe completion',
+      });
+      emitRunEvent(runId, 'PartialResultsPreserved', {
+        source: 'dashboard-parser',
+        summary: 'Partial probe results preserved locally after disconnect',
+      });
+    }
     if (onDone) onDone({ type: 'probe_done', probeId, aborted: true });
   }
 
@@ -1654,9 +2054,22 @@ function sendRelayProbe(req, onMessage, onDone, onError) {
   ws.addEventListener('close', closeListener);
 
   try {
-    ws.send(JSON.stringify(Object.assign({ type: 'probe', probeId }, req)));
+    if (runId) {
+      emitRunEvent(runId, 'RunStarting', {
+        source: 'relay-client',
+        summary: 'Probe request sent to relay',
+      });
+    }
+    ws.send(JSON.stringify(Object.assign({ type: 'probe', probeId }, relayReq)));
   } catch (e) {
     cleanup();
+    if (runId) {
+      emitRunEvent(runId, 'RunFailed', {
+        source: 'relay-client',
+        summary: 'Failed to send probe request',
+        payload: { message: String(e) },
+      });
+    }
     if (onError) onError(String(e));
   }
 
@@ -1666,9 +2079,21 @@ function sendRelayProbe(req, onMessage, onDone, onError) {
     // enough — without this message the relay keeps probing every target.
     try {
       ws.send(JSON.stringify({ type: 'probe_cancel', probeId }));
+      if (runId) {
+        emitRunEvent(runId, 'StopSent', {
+          source: 'relay-client',
+          summary: 'Cancel message sent to relay',
+        });
+      }
     } catch (e) {
       // Socket is already gone — classify as aborted/disconnected, not success.
       cleanup();
+      if (runId) {
+        emitRunEvent(runId, 'RunDisconnected', {
+          source: 'relay-client',
+          summary: 'Relay socket closed before cancel acknowledgement',
+        });
+      }
       if (onDone) onDone({ type: 'probe_done', probeId, aborted: true });
       return;
     }
@@ -1678,6 +2103,16 @@ function sendRelayProbe(req, onMessage, onDone, onError) {
       cancelTimer = setTimeout(() => {
         if (!active) return;
         cleanup();
+        if (runId) {
+          emitRunEvent(runId, 'RunDisconnected', {
+            source: 'relay-client',
+            summary: 'Relay cancel acknowledgement timed out',
+          });
+          emitRunEvent(runId, 'PartialResultsPreserved', {
+            source: 'dashboard-parser',
+            summary: 'Partial probe results preserved locally after cancel timeout',
+          });
+        }
         if (onDone) onDone({ type: 'probe_done', probeId, cancelled: true, ackTimeout: true });
       }, CANCEL_ACK_TIMEOUT);
     }
@@ -2295,9 +2730,7 @@ let sortDir = 'asc';
 
 // Live probe state
 let liveRows = {};       // keyed by target — accumulated step results
-let probeCancel = null;  // cancel function returned by sendRelayProbe
-let probeRunning = false;
-let probeStopping = false; // true between a Stop request and the relay's ack
+let activeProbeRunId = null;
 
 const PROTOCOL_STEPS = [
   { key: 'DNS',  label: 'DNS',     port: null },
@@ -2316,6 +2749,22 @@ const PROTOCOL_STEPS = [
   { key: 'HTTP', label: 'HTTP',   port: null },
   { key: 'ARP',  label: 'ARP',    port: null },
 ];
+
+function _getActiveProbeRun() {
+  const run = activeProbeRunId ? getRunState(activeProbeRunId) : null;
+  if (run && ['requested', 'approved', 'starting', 'running', 'stopping'].includes(run.state)) return run;
+  const active = getActiveRun();
+  return active && active.kind === 'Network probe' ? active : null;
+}
+
+function _isProbeActive() {
+  return !!_getActiveProbeRun();
+}
+
+function _isProbeStopping() {
+  const run = _getActiveProbeRun();
+  return !!run && run.state === 'stopping';
+}
 
 function renderNetworkPanel(store) {
   allRows = buildProtocolRows(store);
@@ -2431,6 +2880,11 @@ function initNetworkPanel() {
   // (it sends a cancel to the relay), not just the browser view.
   const stopBtn = document.getElementById('net-stop-probe-btn');
   if (stopBtn) stopBtn.addEventListener('click', () => stopLiveProbe());
+
+  subscribeRunEvents((_event, run) => {
+    if (!run || run.kind !== 'Network probe') return;
+    updateRelayIndicator();
+  });
 }
 
 // Update the probe status line on the panel (and mirror it into the modal
@@ -2448,10 +2902,10 @@ function _setProbeStatus(text) {
 // Shared Stop path used by both the panel Stop button and the modal Stop button.
 // Sends a real cancellation to the relay so server-side probing halts.
 function stopLiveProbe() {
-  if (!probeRunning || !probeCancel) return;
-  probeStopping = true;
+  const run = _getActiveProbeRun();
+  if (!run) return;
   _setProbeStatus('Stopping probe…');
-  probeCancel();
+  requestStop(run.runId);
 }
 
 // ── Relay indicator ───────────────────────────────────────────────────────────
@@ -2479,7 +2933,7 @@ function updateRelayIndicator() {
   if (probeBtn) {
     // Always enabled — when relay is offline the button opens a fallback
     // instruction view; when connected it opens the real probe modal.
-    probeBtn.disabled = probeRunning;
+    probeBtn.disabled = _isProbeActive();
     probeBtn.textContent = connected ? '📡 Live Probe' : '📡 Probe / Commands';
     probeBtn.title = connected
       ? 'Run live network probe via local relay'
@@ -2488,9 +2942,11 @@ function updateRelayIndicator() {
   if (stopBtn) {
     // Visible only while a probe is running, regardless of whether the modal is
     // open — so closing the modal never strands the user without a Stop control.
-    stopBtn.classList.toggle('hidden', !probeRunning);
-    stopBtn.disabled = probeStopping;
-    stopBtn.textContent = probeStopping ? '■ Stopping…' : '■ Stop Probe';
+    const active = _isProbeActive();
+    const stopping = _isProbeStopping();
+    stopBtn.classList.toggle('hidden', !active);
+    stopBtn.disabled = stopping;
+    stopBtn.textContent = stopping ? '■ Stopping…' : '■ Stop Probe';
   }
   // Hide token input once connected (token is saved); show when disconnected
   if (tokenInput) tokenInput.style.display = connected ? 'none' : '';
@@ -2569,7 +3025,7 @@ function openProbeModal() {
     <div class="modal" style="width:560px;max-width:98vw">
       <div class="modal-header">
         <span class="modal-title">📡 Live Network Probe</span>
-        <p class="modal-subtitle">Targets are probed via the local relay. Results stream into the Network panel in real time. A running probe can be stopped here or from the Stop button on the Network panel — closing this window does not stop the probe.</p>
+        <p class="modal-subtitle">Targets are probed via the local relay. Results stream into the Network panel in real time. A running probe can be stopped here or from the global Run Control Stop button — closing this window does not stop the probe.</p>
         <button class="modal-close" id="probe-modal-close">×</button>
       </div>
       <div class="modal-body" style="gap:12px">
@@ -2606,7 +3062,7 @@ function openProbeModal() {
   document.body.appendChild(modal);
 
   // Closing the modal only dismisses the window. If a probe is running it keeps
-  // running and the panel Stop button remains available, so the user is never
+  // running and the global Run Control Stop remains available, so the user is never
   // stranded without a way to stop it.
   const close = () => modal.remove();
   modal.querySelector('#probe-modal-close').addEventListener('click', close);
@@ -2616,7 +3072,7 @@ function openProbeModal() {
   // Single persistent handler: before a probe starts this Cancels (closes the
   // window); once a probe is running it Stops the probe (real relay cancel).
   modal.querySelector('#probe-modal-cancel').addEventListener('click', () => {
-    if (probeRunning) stopLiveProbe();
+    if (_isProbeActive()) stopLiveProbe();
     else close();
   });
 
@@ -2649,14 +3105,14 @@ function openProbeModal() {
 // the modal is still open: the panel status always reflects the result, and any
 // captured (possibly detached) modal buttons are updated harmlessly.
 function _finishProbe(doneMsg, totalTargets, modalEls) {
-  probeRunning = false;
-  probeStopping = false;
-  probeCancel = null;
+  activeProbeRunId = null;
   updateRelayIndicator();
 
   let label;
   if (doneMsg && doneMsg.aborted) {
     label = 'Relay disconnected — probe aborted. Partial results preserved.';
+  } else if (doneMsg && doneMsg.ackTimeout) {
+    label = 'Probe stop acknowledgement timed out. Partial results preserved; relay state may be incomplete.';
   } else if (doneMsg && doneMsg.cancelled) {
     const completed = typeof doneMsg.completed === 'number' ? doneMsg.completed : null;
     const total = typeof doneMsg.total === 'number' ? doneMsg.total : totalTargets;
@@ -2677,11 +3133,22 @@ function _finishProbe(doneMsg, totalTargets, modalEls) {
 
 function startLiveProbe(targets, ports, community, timeout, modal) {
   if (!getRelayConnected()) return;
-  if (probeRunning && probeCancel) probeCancel();
+  const existing = _getActiveProbeRun();
+  if (existing) requestStop(existing.runId);
 
   liveRows = {};
-  probeRunning = true;
-  probeStopping = false;
+  const run = createRun({
+    kind: 'Network probe',
+    source: 'ui',
+    targetsSummary: `${targets.length} target(s)`,
+    total: targets.length,
+  });
+  activeProbeRunId = run.runId;
+  emitRunEvent(run.runId, 'RunApproved', {
+    source: 'ui',
+    summary: 'Network probe approved for scoped relay targets',
+    payload: { total: targets.length, completed: 0 },
+  });
   updateRelayIndicator();
 
   const startBtn = modal ? modal.querySelector('#probe-modal-start') : null;
@@ -2700,12 +3167,12 @@ function startLiveProbe(targets, ports, community, timeout, modal) {
   }
   _refreshLive();
 
-  probeCancel = sendRelayProbe(
-    { targets, ports, snmp_community: community, timeout },
+  const cancelProbe = sendRelayProbe(
+    { runId: run.runId, targets, ports, snmp_community: community, timeout },
     (msg) => {
       if (msg.type === 'step_result') {
         _applyStepResult(msg);
-        if (!probeStopping) {
+        if (!_isProbeStopping()) {
           _setProbeStatus(`Probing ${targets.length} target(s) — ${msg.target} / ${msg.step}`);
         }
         _refreshLive();
@@ -2715,14 +3182,13 @@ function startLiveProbe(targets, ports, community, timeout, modal) {
     },
     (doneMsg) => { _finishProbe(doneMsg, targets.length, modalEls); },
     (err) => {
-      probeRunning = false;
-      probeStopping = false;
-      probeCancel = null;
+      activeProbeRunId = null;
       updateRelayIndicator();
       _setProbeStatus(`Error: ${err}`);
       if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
     },
   );
+  setRunStopHandler(run.runId, cancelProbe);
 }
 
 function _makeLiveRow(target) {
@@ -5307,6 +5773,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initRelayConnection();
   onRelayStatus(_updateHeaderRelayBadge);
+  initRunControl();
 
   initPrinterPanel();
   initInventoryPanel();

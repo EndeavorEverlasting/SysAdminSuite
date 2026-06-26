@@ -53,7 +53,9 @@ global.localStorage = {
 };
 
 // Load the real module (Node resolves the ESM file directly).
+const runControlUrl = 'file://' + join(__dir, 'js', 'run-control.js').replace(/\\/g, '/');
 const relayClientUrl = 'file://' + join(__dir, 'js', 'relay-client.js').replace(/\\/g, '/');
+const { _resetRunControlForTests, createRun, getRunEvents, getRunState } = await import(runControlUrl);
 const { setRelayToken, getRelayConnected, sendRelayProbe } = await import(relayClientUrl);
 
 // Connect: setting a token triggers _connect() which creates a MockWebSocket.
@@ -63,9 +65,11 @@ lastSocket._fire('open');
 assert(getRelayConnected() === true, 'relay-connected', 'relay did not report connected after open');
 
 // ── Probe 1: Stop must send probe_cancel with the matching probeId ───────────
+_resetRunControlForTests();
+const run1 = createRun({ kind: 'Network probe', source: 'ui', targetsSummary: '2 target(s)', total: 2 });
 let doneMsg1 = null;
 const cancel1 = sendRelayProbe(
-  { targets: ['t1', 't2'], ports: [80], snmp_community: 'public', timeout: 1 },
+  { runId: run1.runId, targets: ['t1', 't2'], ports: [80], snmp_community: 'public', timeout: 1 },
   () => {},
   (d) => { doneMsg1 = d; },
   (e) => { assert(false, 'probe1-no-error', e); },
@@ -83,6 +87,8 @@ assert(cancelMsgs.length === 1, 'cancel-sent-to-relay',
   'Stop did not send a probe_cancel to the relay (UI-only cancel is a defect)');
 assert(cancelMsgs[0].probeId === probeId, 'cancel-matches-probe-id',
   `cancel probeId ${cancelMsgs[0].probeId} != probe ${probeId}`);
+assert(getRunEvents(run1.runId).some(ev => ev.type === 'StopSent'), 'lifecycle-stop-sent',
+  'relay client did not emit StopSent after sending probe_cancel');
 
 // Relay acknowledges with an authoritative cancelled probe_done.
 lastSocket._fire('message', { data: JSON.stringify({ type: 'probe_done', probeId, total: 2, completed: 1, cancelled: true }) });
@@ -90,11 +96,17 @@ assert(doneMsg1 && doneMsg1.cancelled === true, 'cancel-ack-honored',
   'client did not surface the relay cancelled probe_done');
 assert(doneMsg1 && doneMsg1.completed === 1, 'partial-count-preserved',
   'client lost the partial completion count');
+const run1Events = getRunEvents(run1.runId).map(ev => ev.type);
+assert(run1Events.includes('StopAcknowledged') && run1Events.includes('RunStopped'), 'lifecycle-stop-ack',
+  `relay acknowledgement did not emit StopAcknowledged/RunStopped (${run1Events.join(',')})`);
+assert(getRunState(run1.runId).state === 'stopped', 'lifecycle-stopped-state',
+  `run state after cancel ack was ${getRunState(run1.runId).state}`);
 
 // ── Probe 2: mid-probe disconnect is classified as aborted, not success ──────
+const run2 = createRun({ kind: 'Network probe', source: 'ui', targetsSummary: '1 target(s)', total: 1 });
 let doneMsg2 = null;
 sendRelayProbe(
-  { targets: ['t3'], ports: [80], snmp_community: 'public', timeout: 1 },
+  { runId: run2.runId, targets: ['t3'], ports: [80], snmp_community: 'public', timeout: 1 },
   () => {},
   (d) => { doneMsg2 = d; },
   () => {},
@@ -104,6 +116,8 @@ assert(doneMsg2 && doneMsg2.aborted === true, 'disconnect-classified-aborted',
   'mid-probe disconnect was not classified as aborted/disconnected');
 assert(!(doneMsg2 && doneMsg2.cancelled), 'disconnect-not-success',
   'aborted probe must not also be reported as a clean cancel/success');
+assert(getRunState(run2.runId).state === 'disconnected', 'lifecycle-disconnected-state',
+  `run state after relay close was ${getRunState(run2.runId).state}`);
 
 console.log(`\nProbe stop: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

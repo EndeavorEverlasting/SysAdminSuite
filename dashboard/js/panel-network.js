@@ -3,6 +3,7 @@
 import { sanitize, statusBadge, exportToCSV, sortRows, filterRows, debounce, pingToStep } from './utils.js';
 import { buildProtocolRows } from './parsers.js';
 import { getRelayConnected, sendRelayProbe, onRelayStatus, setRelayToken, getRelayToken, RELAY_PORT } from './relay-client.js';
+import { createRun, emitRunEvent, getActiveRun, getRunState, requestStop, setRunStopHandler, subscribeRunEvents } from './run-control.js';
 
 let allRows = [];
 let displayRows = [];
@@ -14,9 +15,7 @@ let sortDir = 'asc';
 
 // Live probe state
 let liveRows = {};       // keyed by target — accumulated step results
-let probeCancel = null;  // cancel function returned by sendRelayProbe
-let probeRunning = false;
-let probeStopping = false; // true between a Stop request and the relay's ack
+let activeProbeRunId = null;
 
 const PROTOCOL_STEPS = [
   { key: 'DNS',  label: 'DNS',     port: null },
@@ -35,6 +34,22 @@ const PROTOCOL_STEPS = [
   { key: 'HTTP', label: 'HTTP',   port: null },
   { key: 'ARP',  label: 'ARP',    port: null },
 ];
+
+function _getActiveProbeRun() {
+  const run = activeProbeRunId ? getRunState(activeProbeRunId) : null;
+  if (run && ['requested', 'approved', 'starting', 'running', 'stopping'].includes(run.state)) return run;
+  const active = getActiveRun();
+  return active && active.kind === 'Network probe' ? active : null;
+}
+
+function _isProbeActive() {
+  return !!_getActiveProbeRun();
+}
+
+function _isProbeStopping() {
+  const run = _getActiveProbeRun();
+  return !!run && run.state === 'stopping';
+}
 
 export function renderNetworkPanel(store) {
   allRows = buildProtocolRows(store);
@@ -150,6 +165,11 @@ export function initNetworkPanel() {
   // (it sends a cancel to the relay), not just the browser view.
   const stopBtn = document.getElementById('net-stop-probe-btn');
   if (stopBtn) stopBtn.addEventListener('click', () => stopLiveProbe());
+
+  subscribeRunEvents((_event, run) => {
+    if (!run || run.kind !== 'Network probe') return;
+    updateRelayIndicator();
+  });
 }
 
 // Update the probe status line on the panel (and mirror it into the modal
@@ -167,10 +187,10 @@ function _setProbeStatus(text) {
 // Shared Stop path used by both the panel Stop button and the modal Stop button.
 // Sends a real cancellation to the relay so server-side probing halts.
 function stopLiveProbe() {
-  if (!probeRunning || !probeCancel) return;
-  probeStopping = true;
+  const run = _getActiveProbeRun();
+  if (!run) return;
   _setProbeStatus('Stopping probe…');
-  probeCancel();
+  requestStop(run.runId);
 }
 
 // ── Relay indicator ───────────────────────────────────────────────────────────
@@ -198,7 +218,7 @@ function updateRelayIndicator() {
   if (probeBtn) {
     // Always enabled — when relay is offline the button opens a fallback
     // instruction view; when connected it opens the real probe modal.
-    probeBtn.disabled = probeRunning;
+    probeBtn.disabled = _isProbeActive();
     probeBtn.textContent = connected ? '📡 Live Probe' : '📡 Probe / Commands';
     probeBtn.title = connected
       ? 'Run live network probe via local relay'
@@ -207,9 +227,11 @@ function updateRelayIndicator() {
   if (stopBtn) {
     // Visible only while a probe is running, regardless of whether the modal is
     // open — so closing the modal never strands the user without a Stop control.
-    stopBtn.classList.toggle('hidden', !probeRunning);
-    stopBtn.disabled = probeStopping;
-    stopBtn.textContent = probeStopping ? '■ Stopping…' : '■ Stop Probe';
+    const active = _isProbeActive();
+    const stopping = _isProbeStopping();
+    stopBtn.classList.toggle('hidden', !active);
+    stopBtn.disabled = stopping;
+    stopBtn.textContent = stopping ? '■ Stopping…' : '■ Stop Probe';
   }
   // Hide token input once connected (token is saved); show when disconnected
   if (tokenInput) tokenInput.style.display = connected ? 'none' : '';
@@ -288,7 +310,7 @@ function openProbeModal() {
     <div class="modal" style="width:560px;max-width:98vw">
       <div class="modal-header">
         <span class="modal-title">📡 Live Network Probe</span>
-        <p class="modal-subtitle">Targets are probed via the local relay. Results stream into the Network panel in real time. A running probe can be stopped here or from the Stop button on the Network panel — closing this window does not stop the probe.</p>
+        <p class="modal-subtitle">Targets are probed via the local relay. Results stream into the Network panel in real time. A running probe can be stopped here or from the global Run Control Stop button — closing this window does not stop the probe.</p>
         <button class="modal-close" id="probe-modal-close">×</button>
       </div>
       <div class="modal-body" style="gap:12px">
@@ -325,7 +347,7 @@ function openProbeModal() {
   document.body.appendChild(modal);
 
   // Closing the modal only dismisses the window. If a probe is running it keeps
-  // running and the panel Stop button remains available, so the user is never
+  // running and the global Run Control Stop remains available, so the user is never
   // stranded without a way to stop it.
   const close = () => modal.remove();
   modal.querySelector('#probe-modal-close').addEventListener('click', close);
@@ -335,7 +357,7 @@ function openProbeModal() {
   // Single persistent handler: before a probe starts this Cancels (closes the
   // window); once a probe is running it Stops the probe (real relay cancel).
   modal.querySelector('#probe-modal-cancel').addEventListener('click', () => {
-    if (probeRunning) stopLiveProbe();
+    if (_isProbeActive()) stopLiveProbe();
     else close();
   });
 
@@ -368,14 +390,14 @@ function openProbeModal() {
 // the modal is still open: the panel status always reflects the result, and any
 // captured (possibly detached) modal buttons are updated harmlessly.
 function _finishProbe(doneMsg, totalTargets, modalEls) {
-  probeRunning = false;
-  probeStopping = false;
-  probeCancel = null;
+  activeProbeRunId = null;
   updateRelayIndicator();
 
   let label;
   if (doneMsg && doneMsg.aborted) {
     label = 'Relay disconnected — probe aborted. Partial results preserved.';
+  } else if (doneMsg && doneMsg.ackTimeout) {
+    label = 'Probe stop acknowledgement timed out. Partial results preserved; relay state may be incomplete.';
   } else if (doneMsg && doneMsg.cancelled) {
     const completed = typeof doneMsg.completed === 'number' ? doneMsg.completed : null;
     const total = typeof doneMsg.total === 'number' ? doneMsg.total : totalTargets;
@@ -396,11 +418,22 @@ function _finishProbe(doneMsg, totalTargets, modalEls) {
 
 function startLiveProbe(targets, ports, community, timeout, modal) {
   if (!getRelayConnected()) return;
-  if (probeRunning && probeCancel) probeCancel();
+  const existing = _getActiveProbeRun();
+  if (existing) requestStop(existing.runId);
 
   liveRows = {};
-  probeRunning = true;
-  probeStopping = false;
+  const run = createRun({
+    kind: 'Network probe',
+    source: 'ui',
+    targetsSummary: `${targets.length} target(s)`,
+    total: targets.length,
+  });
+  activeProbeRunId = run.runId;
+  emitRunEvent(run.runId, 'RunApproved', {
+    source: 'ui',
+    summary: 'Network probe approved for scoped relay targets',
+    payload: { total: targets.length, completed: 0 },
+  });
   updateRelayIndicator();
 
   const startBtn = modal ? modal.querySelector('#probe-modal-start') : null;
@@ -419,12 +452,12 @@ function startLiveProbe(targets, ports, community, timeout, modal) {
   }
   _refreshLive();
 
-  probeCancel = sendRelayProbe(
-    { targets, ports, snmp_community: community, timeout },
+  const cancelProbe = sendRelayProbe(
+    { runId: run.runId, targets, ports, snmp_community: community, timeout },
     (msg) => {
       if (msg.type === 'step_result') {
         _applyStepResult(msg);
-        if (!probeStopping) {
+        if (!_isProbeStopping()) {
           _setProbeStatus(`Probing ${targets.length} target(s) — ${msg.target} / ${msg.step}`);
         }
         _refreshLive();
@@ -434,14 +467,13 @@ function startLiveProbe(targets, ports, community, timeout, modal) {
     },
     (doneMsg) => { _finishProbe(doneMsg, targets.length, modalEls); },
     (err) => {
-      probeRunning = false;
-      probeStopping = false;
-      probeCancel = null;
+      activeProbeRunId = null;
       updateRelayIndicator();
       _setProbeStatus(`Error: ${err}`);
       if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
     },
   );
+  setRunStopHandler(run.runId, cancelProbe);
 }
 
 function _makeLiveRow(target) {

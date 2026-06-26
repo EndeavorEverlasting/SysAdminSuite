@@ -30,12 +30,14 @@ jobs:
       - name: JavaScript syntax checks
         run: |
           node --check dashboard/js/parsers.js
+          node --check dashboard/js/run-control.js
           node --check dashboard/js/app.js
           node --check dashboard/js/bundle.js
           node --check dashboard/js/cybernet-os-preflight.js
           node --check dashboard/js/launch-cybernet-tutorial.js
           node --check dashboard/js/launch-repo-setup-tutorial.js
           node --check dashboard/js/repo-setup-tutorial.js
+          node --check dashboard/test_run_control_lifecycle.js
           node --check dashboard/test_relay_abort_e2e.js
       - name: Relay syntax check
         run: python -m py_compile dashboard/relay.py
@@ -45,6 +47,8 @@ jobs:
         run: node dashboard/start-button-smoke.js
       - name: Relay cancel client smoke test
         run: node dashboard/probe-stop-smoke.js
+      - name: Run Control lifecycle smoke test
+        run: node dashboard/test_run_control_lifecycle.js
       - name: Relay cancel unit test
         run: python dashboard/test_relay_cancel.py
       - name: Relay cancel loopback E2E test

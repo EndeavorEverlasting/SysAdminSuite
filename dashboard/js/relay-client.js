@@ -2,6 +2,8 @@
 // Manages the authenticated connection to the local Python relay (dashboard/relay.py).
 // Exported functions are available to all panel modules via the bundle.
 
+import { emitRunEvent } from './run-control.js';
+
 export const RELAY_PORT = 7823;
 export const RELAY_HOST = 'localhost';
 const RELAY_TOKEN_KEY = 'sas_relay_token';
@@ -141,7 +143,18 @@ export function initRelayConnection() {
  * @returns {function} cancel  — call to stop the probe; sends a real cancel to the relay
  */
 export function sendRelayProbe(req, onMessage, onDone, onError) {
+  const runId = req && req.runId;
+  const relayReq = Object.assign({}, req || {});
+  delete relayReq.runId;
+
   if (!_connected || !_ws) {
+    if (runId) {
+      emitRunEvent(runId, 'RunFailed', {
+        source: 'relay-client',
+        summary: 'Relay not connected',
+        payload: { message: 'Relay not connected' },
+      });
+    }
     if (onError) onError('Relay not connected');
     return () => {};
   }
@@ -164,6 +177,56 @@ export function sendRelayProbe(req, onMessage, onDone, onError) {
     try { msg = JSON.parse(event.data); } catch (e) { return; }
     // If the relay tags messages with a probeId, ignore ones for other probes.
     if (msg.probeId && msg.probeId !== probeId) return;
+    if (runId) {
+      if (msg.type === 'probe_start') {
+        emitRunEvent(runId, 'RunStarted', {
+          source: 'relay-server',
+          summary: `Relay accepted probe for ${msg.total || 0} target(s)`,
+          payload: { total: msg.total || 0, completed: 0 },
+        });
+      } else if (msg.type === 'step_result') {
+        emitRunEvent(runId, 'RunStepResult', {
+          source: 'relay-server',
+          summary: `Probe step result: ${msg.step || 'step'} ${msg.status || ''}`,
+          payload: {
+            target: msg.target || '',
+            step: msg.step || '',
+            status: msg.status || '',
+            value: msg.value || '',
+          },
+        });
+      } else if (msg.type === 'probe_done') {
+        if (msg.cancelled) {
+          emitRunEvent(runId, 'StopAcknowledged', {
+            source: 'relay-server',
+            summary: 'Relay acknowledged probe cancellation',
+            payload: { completed: msg.completed, total: msg.total },
+          });
+          emitRunEvent(runId, 'PartialResultsPreserved', {
+            source: 'dashboard-parser',
+            summary: 'Partial probe results preserved locally',
+            payload: { completed: msg.completed, total: msg.total },
+          });
+          emitRunEvent(runId, 'RunStopped', {
+            source: 'relay-server',
+            summary: 'Relay stopped probe before remaining targets',
+            payload: { completed: msg.completed, total: msg.total },
+          });
+        } else {
+          emitRunEvent(runId, 'RunCompleted', {
+            source: 'relay-server',
+            summary: 'Relay probe completed',
+            payload: { completed: msg.completed, total: msg.total },
+          });
+        }
+      } else if (msg.type === 'error') {
+        emitRunEvent(runId, 'RunFailed', {
+          source: 'relay-server',
+          summary: msg.message || 'Relay reported an error',
+          payload: { message: msg.message || 'Relay reported an error' },
+        });
+      }
+    }
     if (onMessage) onMessage(msg);
     if (msg.type === 'probe_done' || msg.type === 'error') {
       cleanup();
@@ -176,6 +239,16 @@ export function sendRelayProbe(req, onMessage, onDone, onError) {
     cleanup();
     // The relay socket dropped mid-probe: classify as aborted/disconnected,
     // never as a successful completion.
+    if (runId) {
+      emitRunEvent(runId, 'RunDisconnected', {
+        source: 'relay-client',
+        summary: 'Relay socket closed before probe completion',
+      });
+      emitRunEvent(runId, 'PartialResultsPreserved', {
+        source: 'dashboard-parser',
+        summary: 'Partial probe results preserved locally after disconnect',
+      });
+    }
     if (onDone) onDone({ type: 'probe_done', probeId, aborted: true });
   }
 
@@ -183,9 +256,22 @@ export function sendRelayProbe(req, onMessage, onDone, onError) {
   ws.addEventListener('close', closeListener);
 
   try {
-    ws.send(JSON.stringify(Object.assign({ type: 'probe', probeId }, req)));
+    if (runId) {
+      emitRunEvent(runId, 'RunStarting', {
+        source: 'relay-client',
+        summary: 'Probe request sent to relay',
+      });
+    }
+    ws.send(JSON.stringify(Object.assign({ type: 'probe', probeId }, relayReq)));
   } catch (e) {
     cleanup();
+    if (runId) {
+      emitRunEvent(runId, 'RunFailed', {
+        source: 'relay-client',
+        summary: 'Failed to send probe request',
+        payload: { message: String(e) },
+      });
+    }
     if (onError) onError(String(e));
   }
 
@@ -195,9 +281,21 @@ export function sendRelayProbe(req, onMessage, onDone, onError) {
     // enough — without this message the relay keeps probing every target.
     try {
       ws.send(JSON.stringify({ type: 'probe_cancel', probeId }));
+      if (runId) {
+        emitRunEvent(runId, 'StopSent', {
+          source: 'relay-client',
+          summary: 'Cancel message sent to relay',
+        });
+      }
     } catch (e) {
       // Socket is already gone — classify as aborted/disconnected, not success.
       cleanup();
+      if (runId) {
+        emitRunEvent(runId, 'RunDisconnected', {
+          source: 'relay-client',
+          summary: 'Relay socket closed before cancel acknowledgement',
+        });
+      }
       if (onDone) onDone({ type: 'probe_done', probeId, aborted: true });
       return;
     }
@@ -207,6 +305,16 @@ export function sendRelayProbe(req, onMessage, onDone, onError) {
       cancelTimer = setTimeout(() => {
         if (!active) return;
         cleanup();
+        if (runId) {
+          emitRunEvent(runId, 'RunDisconnected', {
+            source: 'relay-client',
+            summary: 'Relay cancel acknowledgement timed out',
+          });
+          emitRunEvent(runId, 'PartialResultsPreserved', {
+            source: 'dashboard-parser',
+            summary: 'Partial probe results preserved locally after cancel timeout',
+          });
+        }
         if (onDone) onDone({ type: 'probe_done', probeId, cancelled: true, ackTimeout: true });
       }, CANCEL_ACK_TIMEOUT);
     }
