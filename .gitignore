@@ -157,3 +157,6 @@ targets/raw/**
 !targets/sanitized/**/*.sample.json
 !targets/sanitized/**/*.example.json
 !targets/sanitized/**/*.fixture.json
+Software Tracker.xlsx
+*.real.xlsx
+data/private/
