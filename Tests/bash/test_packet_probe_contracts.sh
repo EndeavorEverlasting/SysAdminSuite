@@ -37,6 +37,23 @@ grep -q -- '-json' "$PLAN" || { echo 'missing -json'; cat "$PLAN"; exit 1; }
 grep -q -- '-duc' "$PLAN" || { echo 'missing -duc'; cat "$PLAN"; exit 1; }
 grep -q '"classification": "OK_NAABU_PACKET_PROBE_PLANNED"' "$SUMMARY" || { echo 'summary missing planned classification'; cat "$SUMMARY"; exit 1; }
 
+LIB_PLAN="$TMP/planned-library.txt"
+LIB_SUMMARY="$TMP/summary-library.json"
+bash "$WRAP" --site testsite \
+  --list "$FIX/targets.sample.txt" \
+  --out "$OUT" \
+  --summary "$LIB_SUMMARY" \
+  --planned-file "$LIB_PLAN" \
+  --engine library \
+  --dry-run >/dev/null
+grep -q -- '-ec' "$LIB_PLAN" || { echo 'library dry-run missing -ec'; cat "$LIB_PLAN"; exit 1; }
+grep -q '"engine": "library"' "$LIB_SUMMARY" || { echo 'summary missing library engine'; cat "$LIB_SUMMARY"; exit 1; }
+
+if bash "$WRAP" --site testsite --list "$FIX/targets.sample.txt" --out "$OUT" --engine typo --dry-run 2>/dev/null; then
+  echo 'expected invalid engine to fail'
+  exit 1
+fi
+
 BAD="$TMP/bad-profile.json"
 python - "$BAD" <<'PY'
 import json, sys
