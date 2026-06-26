@@ -42,6 +42,14 @@ const naabuCases = [
   { file: 'cybernet_naabu.invalid.sample.jsonl',  expectedType: 'naabu-reachability', minRows: 1, minWarnings: 1 },
 ];
 
+// Toolbox status fixtures include tool names such as "naabu"; filename hints
+// must keep them on the toolbox parser path before generic reachability rules.
+const toolboxStatusCases = [
+  { file: 'toolbox-status-all-ok.json',             expectedType: 'toolbox-status', minRows: 1, actionNeeded: false },
+  { file: 'toolbox-status-missing-naabu.json',      expectedType: 'toolbox-status', minRows: 1, actionNeeded: true },
+  { file: 'toolbox-status-update-available.json',   expectedType: 'toolbox-status', minRows: 1, actionNeeded: true },
+];
+
 // Generic filenames whose headers resemble manifest columns but must NOT classify as manifest
 const manifestNegativeCases = [
   { file: 'machine_info_negative_manifest.sample.csv',      expectedType: 'machine-info' },
@@ -107,6 +115,34 @@ for (const { file, expectedType, minRows, minWarnings } of naabuCases) {
 
   const warnNote = parsed.meta?.warnings?.length ? `, warnings=${parsed.meta.warnings.length}` : '';
   console.log(`PASS [${file}]: type="${detected}"${parsed.rows ? ', rows=' + parsed.rows.length : ''}${warnNote}`);
+  passed++;
+}
+
+for (const { file, expectedType, minRows, actionNeeded } of toolboxStatusCases) {
+  const content = readFileSync(join(samplesDir, file), 'utf8');
+  const detected = detectFileType(file, content);
+
+  if (detected !== expectedType) {
+    console.error(`FAIL [${file}]: expected type="${expectedType}" got="${detected}"`);
+    failed++;
+    continue;
+  }
+
+  const parsed = parseFileContent(detected, content, file);
+
+  if ((parsed.rows?.length ?? 0) < minRows) {
+    console.error(`FAIL [${file}]: expected >= ${minRows} tools, got ${parsed.rows?.length ?? 0}`);
+    failed++;
+    continue;
+  }
+
+  if (parsed.data?.actionNeeded !== actionNeeded) {
+    console.error(`FAIL [${file}]: expected actionNeeded=${actionNeeded} got=${parsed.data?.actionNeeded}`);
+    failed++;
+    continue;
+  }
+
+  console.log(`PASS [${file}]: type="${detected}", tools=${parsed.rows.length}, actionNeeded=${parsed.data.actionNeeded}`);
   passed++;
 }
 

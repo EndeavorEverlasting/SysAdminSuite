@@ -109,11 +109,6 @@ export function detectFileType(filename, content) {
     return 'software-tracker'; // treat all YAML drops as tracker
   }
 
-  // Naabu reachability JSON / JSONL — filename hint
-  if ((fn.endsWith('.json') || fn.endsWith('.jsonl')) && fn.includes('naabu')) {
-    return 'naabu-reachability';
-  }
-
   // JSON detection — check filename hints first, then probe content
   if (fn.endsWith('.json')) {
     if (fn.includes('toolbox-status') || fn.includes('toolbox_status')) return 'toolbox-status';
@@ -139,6 +134,12 @@ export function detectFileType(filename, content) {
     }
     if (contentLooksLikeNaabuReachability(content)) return 'naabu-reachability';
     return 'status-json'; // fallback: attempt parse as status snapshot
+  }
+
+  // Naabu reachability JSONL — filename hint. JSON is handled above so toolbox
+  // status fixtures with tool names such as "naabu" keep their explicit type.
+  if (fn.endsWith('.jsonl') && fn.includes('naabu')) {
+    return 'naabu-reachability';
   }
 
   if (fn.endsWith('.jsonl')) {
