@@ -28,6 +28,8 @@ FIELDS = [
     "Description",
     "DistinguishedName",
     "SourceFile",
+    "PopulationAuthority",
+    "ReconcileBucket",
 ]
 
 
@@ -54,8 +56,8 @@ def status_from_enabled(enabled: str) -> str:
     if value in {"false", "0", "no", "disabled"}:
         return "AD_DISABLED"
     if value in {"true", "1", "yes", "enabled"}:
-        return "AD_FOUND"
-    return "AD_FOUND"
+        return "AD_REGISTERED"
+    return "AD_REGISTERED"
 
 
 def normalize_rows(path: Path) -> list[dict[str, str]]:
@@ -75,6 +77,7 @@ def normalize_rows(path: Path) -> list[dict[str, str]]:
         host_norm = norm_host(host)
         dns_host = clean(dns_host)
         enabled = first(row, ["Enabled", "AccountEnabled", "ADEnabled"])
+        ad_status = status_from_enabled(enabled)
         key = (host_norm, dns_host.upper())
         if not host_norm or key in seen:
             continue
@@ -84,13 +87,15 @@ def normalize_rows(path: Path) -> list[dict[str, str]]:
             {
                 "HostName": host_norm,
                 "DNSHostName": dns_host,
-                "ADStatus": status_from_enabled(enabled),
+                "ADStatus": ad_status,
                 "Enabled": enabled,
                 "OperatingSystem": first(row, ["OperatingSystem", "OS", "Operating System"]),
                 "LastLogonDate": first(row, ["LastLogonDate", "LastLogonTimestamp", "LastLogon", "Last Seen", "LastSeen"]),
                 "Description": first(row, ["Description", "Comment", "Notes"]),
                 "DistinguishedName": first(row, ["DistinguishedName", "DN", "CanonicalName"]),
                 "SourceFile": str(path),
+                "PopulationAuthority": "ad_registered",
+                "ReconcileBucket": "disabled" if ad_status == "AD_DISABLED" else "registered",
             }
         )
 

@@ -415,11 +415,14 @@ const adContractChecks = [
   ['AD Registered Population', 'AD summary heading'],
   ['registered computer accounts', 'AD population row label'],
   ['not serial or reachability proof', 'no false AD proof claim'],
+  ['ad_registered_normalized.csv / AD bucket CSVs', 'AD supported format hint'],
   ['AD registered population', 'AD section label'],
+  ['sample-ad_registered_normalized.csv', 'AD sample chip wiring'],
+  ['AD is the registered-device roster; network probes are attendance', 'AD roster vs attendance review copy'],
 ];
 
 for (const [needle, label] of adContractChecks) {
-  const src = (needle === 'cybernet-ad-population-summary' || needle === 'AD Registered Population' || needle === 'not serial or reachability proof')
+  const src = (needle === 'cybernet-ad-population-summary' || needle === 'AD Registered Population' || needle === 'not serial or reachability proof' || needle === 'ad_registered_normalized.csv / AD bucket CSVs')
     ? indexHtml
     : appJs;
   if (!src.includes(needle)) {

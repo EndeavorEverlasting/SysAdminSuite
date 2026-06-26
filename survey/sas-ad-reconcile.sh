@@ -333,6 +333,8 @@ write_csv(out / "live_serial_unavailable.csv", SERIAL_FIELDS, serial_unavailable
 
 summary = {
     "population_authority": "ad_registered",
+    "query_mode_used": "imported approved AD CSV",
+    "fallback_mode_used": "offline/static evidence",
     "source_ad_csv": str(ad_csv),
     "output_dir": str(out),
     "prefix_filter": prefix or None,
@@ -361,6 +363,8 @@ readme = f"""AD Registered Population Reconcile Output
 =========================================
 
 Population authority: ad_registered
+Query mode used: imported approved AD CSV
+Fallback mode used: offline/static evidence
 Source AD CSV: {ad_csv}
 Generated: {summary['generated_at']}
 

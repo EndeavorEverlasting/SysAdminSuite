@@ -125,6 +125,16 @@
       { Target: 'WMH300OPR106', ResolvedAddress: '10.10.3.106', DnsName: 'wmh300opr106.corp.local', PingStatus: 'Reachable',   TransportUsed: 'WMI', IdentityStatus: 'Collected', ObservedHostName: 'WMH300OPR106', ObservedSerial: 'SN-00106', ObservedMACs: 'AA:BB:CC:DD:01:06', Notes: '', Timestamp: '2026-05-03T09:02:00Z' },
     ],
 
+    // AD registered population is the roster. It does not prove reachability or
+    // serial identity; those come from network and workstation identity evidence.
+    adRegisteredPopulation: [
+      { HostName: 'WMH300OPR101', DNSHostName: 'WMH300OPR101.sample.local', ADStatus: 'AD_REGISTERED', Enabled: 'true', OperatingSystem: 'Windows 10 Enterprise', LastLogonDate: '2026-05-01', Description: 'Synthetic AD roster row', DistinguishedName: 'CN=WMH300OPR101,OU=Cybernet,DC=sample,DC=local', SourceFile: 'dashboard-sample', PopulationAuthority: 'ad_registered', ReconcileBucket: 'matched' },
+      { HostName: 'WMH300OPR102', DNSHostName: 'WMH300OPR102.sample.local', ADStatus: 'AD_REGISTERED', Enabled: 'true', OperatingSystem: 'Windows 10 Enterprise', LastLogonDate: '2026-05-01', Description: 'Synthetic AD roster row', DistinguishedName: 'CN=WMH300OPR102,OU=Cybernet,DC=sample,DC=local', SourceFile: 'dashboard-sample', PopulationAuthority: 'ad_registered', ReconcileBucket: 'registered' },
+      { HostName: 'WMH300OPR103', DNSHostName: '', ADStatus: 'AD_REGISTERED', Enabled: 'true', OperatingSystem: 'Windows 10 Enterprise', LastLogonDate: '2026-04-20', Description: 'Synthetic missing DNS roster row', DistinguishedName: 'CN=WMH300OPR103,OU=Cybernet,DC=sample,DC=local', SourceFile: 'dashboard-sample', PopulationAuthority: 'ad_registered', ReconcileBucket: 'missing_dns' },
+      { HostName: 'WMH300OPR104', DNSHostName: 'WMH300OPR104.sample.local', ADStatus: 'AD_DISABLED', Enabled: 'false', OperatingSystem: 'Windows 10 Enterprise', LastLogonDate: '2025-02-01', Description: 'Synthetic disabled roster row', DistinguishedName: 'CN=WMH300OPR104,OU=Cybernet,DC=sample,DC=local', SourceFile: 'dashboard-sample', PopulationAuthority: 'ad_registered', ReconcileBucket: 'disabled' },
+      { HostName: 'WMH300OPR105', DNSHostName: 'WMH300OPR105.sample.local', ADStatus: 'AD_REGISTERED', Enabled: 'true', OperatingSystem: 'Windows 10 Enterprise', LastLogonDate: '2024-01-01', Description: 'Synthetic stale roster row', DistinguishedName: 'CN=WMH300OPR105,OU=Cybernet,DC=sample,DC=local', SourceFile: 'dashboard-sample', PopulationAuthority: 'ad_registered', ReconcileBucket: 'stale' },
+    ],
+
     // ── Software Superset (install inventory from Inventory-Software.ps1) ─────
     // One row per Name+Host — mirrors what Inventory-Software.ps1 emits.
     // 4 surveyed hosts: OPR101, OPR102, OPR103, OPR104

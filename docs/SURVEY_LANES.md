@@ -6,12 +6,25 @@ This document is the canonical map for **which survey job you are running** and 
 
 | Axis | Question | Values |
 |------|----------|--------|
-| **Survey lane** | What job am I doing? | Cybernet manifest lane · Subnet discovery lane |
+| **Survey lane** | What job am I doing? | AD registered roster lane · Cybernet manifest lane · Subnet discovery lane |
 | **Identifier lane** | What key am I using right now? | Serial · HostName · MAC |
 
 DNS and probes may also report a **device role** (workstation vs access point vs network gear vs printer). Infrastructure findings are expected in subnet discovery; they are informational, not product failures.
 
 ## When to use each survey lane
+
+### AD registered roster lane
+
+Use when you have an **approved AD computer export** and your goal is to build the registered-device population for dashboard review.
+
+| Item | Detail |
+|------|--------|
+| Population authority | AD registered computer accounts |
+| Typical entry | `survey/sas-export-ad-registered-population.sh` |
+| Identity proof | None by itself — AD is roster evidence, not reachability or serial proof |
+| Output paths | `survey/output/ad_registered_population/`, `ad_registered_normalized.csv`, AD bucket CSVs |
+
+AD is the roster. Network probes are attendance. WMI/endpoint inventory is identity proof.
 
 ### Cybernet manifest lane
 
@@ -52,15 +65,20 @@ See also: [`CYBERNET_SUBNET_LOCATION_INFERENCE.md`](CYBERNET_SUBNET_LOCATION_INF
 ```mermaid
 flowchart TD
   start["What evidence do you have?"]
-  manifest["AD export or approved manifest rows"]
+  adExport["Approved AD export"]
+  manifest["Approved manifest rows"]
   subnet["Approved CIDR/subnet list only"]
+  rosterLane["AD registered roster lane"]
   cybernetLane["Cybernet manifest lane"]
   subnetLane["Subnet discovery lane"]
+  roster["Roster: registered population"]
   serialKey["Primary key: Serial when known"]
   hostKey["DNS/probe key: HostName"]
   infra["Infrastructure AP/network/print — review only"]
   target["Manifest workstation target"]
 
+  start --> adExport
+  adExport --> rosterLane --> roster
   start --> manifest
   start --> subnet
   manifest --> cybernetLane --> serialKey --> target

@@ -71,6 +71,29 @@ Describe 'DeploymentTracker.Core.psm1' {
     $rows[0].DuplicateProblematicColumns | Should -Match 'Cybernet Hostname'
     $rows[1].DuplicateProblematicColumns | Should -Match 'Cybernet Hostname'
   }
+
+  It 'Set-CybernetReconcileMetadata exposes AD registration aliases without removing compatibility fields' {
+    $rows = [System.Collections.Generic.List[object]]::new()
+    $rows.Add([pscustomobject]@{
+        'Device Type' = 'Cybernet-Neuron'
+        Deployed = 'Yes'
+        'Cybernet Hostname' = 'HOSTTIX'
+      })
+
+    $ticketSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    [void]$ticketSet.Add('HOSTTIX')
+    $adLookup = @{
+      HOSTTIX = 'Enabled=True; DNS=HOSTTIX.sample.local; OU=OU=Cybernet,DC=sample,DC=local'
+    }
+
+    Set-CybernetReconcileMetadata -Rows $rows -TicketHostSet $ticketSet -AdLookup $adLookup
+
+    $rows[0].Cybernet_InAd | Should -Be $true
+    $rows[0].Cybernet_RegisteredInAd | Should -Be $true
+    $rows[0].Cybernet_AdRegistered | Should -Be $true
+    $rows[0].Cybernet_OnNetwork | Should -Be $true
+    $rows[0].Cybernet_AdNote | Should -Match 'Enabled=True'
+  }
 }
 
 Describe 'Compare-DeploymentToAd.ps1 (CSV, -SkipAd)' {
@@ -86,5 +109,7 @@ Describe 'Compare-DeploymentToAd.ps1 (CSV, -SkipAd)' {
     @($badPeriph).Count | Should -Be 1
     $tixRow = $data | Where-Object { $_.'Cybernet Hostname' -eq 'HOSTTIX' }
     $tixRow.Cybernet_InTicketHostnameUsed | Should -Be 'True'
+    $tixRow.PSObject.Properties.Name | Should -Contain 'Cybernet_RegisteredInAd'
+    $tixRow.PSObject.Properties.Name | Should -Contain 'Cybernet_AdRegistered'
   }
 }
