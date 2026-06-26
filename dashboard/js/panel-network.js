@@ -16,6 +16,7 @@ let sortDir = 'asc';
 let liveRows = {};       // keyed by target — accumulated step results
 let probeCancel = null;  // cancel function returned by sendRelayProbe
 let probeRunning = false;
+let probeStopping = false; // true between a Stop request and the relay's ack
 
 const PROTOCOL_STEPS = [
   { key: 'DNS',  label: 'DNS',     port: null },
@@ -143,6 +144,33 @@ export function initNetworkPanel() {
   // Live probe button
   const probeBtn = document.getElementById('net-live-probe-btn');
   if (probeBtn) probeBtn.addEventListener('click', openProbeModal);
+
+  // Persistent Stop control on the panel header — always available while a probe
+  // runs, even if the probe modal was closed. This stops real network activity
+  // (it sends a cancel to the relay), not just the browser view.
+  const stopBtn = document.getElementById('net-stop-probe-btn');
+  if (stopBtn) stopBtn.addEventListener('click', () => stopLiveProbe());
+}
+
+// Update the probe status line on the panel (and mirror it into the modal
+// progress line when the modal is open).
+function _setProbeStatus(text) {
+  const panelStatus = document.getElementById('net-probe-status');
+  if (panelStatus) {
+    panelStatus.textContent = text || '';
+    panelStatus.classList.toggle('hidden', !text);
+  }
+  const modalProgress = document.getElementById('probe-progress');
+  if (modalProgress && text) modalProgress.textContent = text;
+}
+
+// Shared Stop path used by both the panel Stop button and the modal Stop button.
+// Sends a real cancellation to the relay so server-side probing halts.
+function stopLiveProbe() {
+  if (!probeRunning || !probeCancel) return;
+  probeStopping = true;
+  _setProbeStatus('Stopping probe…');
+  probeCancel();
 }
 
 // ── Relay indicator ───────────────────────────────────────────────────────────
@@ -151,6 +179,7 @@ function updateRelayIndicator() {
   const dot = document.getElementById('relay-dot');
   const label = document.getElementById('relay-label');
   const probeBtn = document.getElementById('net-live-probe-btn');
+  const stopBtn = document.getElementById('net-stop-probe-btn');
   const tokenInput = document.getElementById('relay-token-input');
   const connectBtn = document.getElementById('relay-connect-btn');
 
@@ -174,6 +203,13 @@ function updateRelayIndicator() {
     probeBtn.title = connected
       ? 'Run live network probe via local relay'
       : 'Relay offline — shows setup instructions and command-gen fallback';
+  }
+  if (stopBtn) {
+    // Visible only while a probe is running, regardless of whether the modal is
+    // open — so closing the modal never strands the user without a Stop control.
+    stopBtn.classList.toggle('hidden', !probeRunning);
+    stopBtn.disabled = probeStopping;
+    stopBtn.textContent = probeStopping ? '■ Stopping…' : '■ Stop Probe';
   }
   // Hide token input once connected (token is saved); show when disconnected
   if (tokenInput) tokenInput.style.display = connected ? 'none' : '';
@@ -252,7 +288,7 @@ function openProbeModal() {
     <div class="modal" style="width:560px;max-width:98vw">
       <div class="modal-header">
         <span class="modal-title">📡 Live Network Probe</span>
-        <p class="modal-subtitle">Targets are probed via the local relay. Results stream into the Network panel in real time.</p>
+        <p class="modal-subtitle">Targets are probed via the local relay. Results stream into the Network panel in real time. A running probe can be stopped here or from the Stop button on the Network panel — closing this window does not stop the probe.</p>
         <button class="modal-close" id="probe-modal-close">×</button>
       </div>
       <div class="modal-body" style="gap:12px">
@@ -280,17 +316,28 @@ function openProbeModal() {
         <div id="probe-progress" style="display:none;font-size:11px;color:var(--text-dim);font-family:var(--mono)"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" id="probe-modal-cancel">Cancel</button>
-        <button class="btn-primary" id="probe-modal-start">▶ Start Probe</button>
+        <button class="btn-secondary" id="probe-modal-back" type="button">← Back to dashboard</button>
+        <button class="btn-secondary" id="probe-modal-cancel" type="button">Cancel</button>
+        <button class="btn-primary" id="probe-modal-start" type="button">▶ Start Probe</button>
       </div>
     </div>`;
 
   document.body.appendChild(modal);
 
+  // Closing the modal only dismisses the window. If a probe is running it keeps
+  // running and the panel Stop button remains available, so the user is never
+  // stranded without a way to stop it.
   const close = () => modal.remove();
   modal.querySelector('#probe-modal-close').addEventListener('click', close);
-  modal.querySelector('#probe-modal-cancel').addEventListener('click', close);
+  modal.querySelector('#probe-modal-back').addEventListener('click', close);
   modal.addEventListener('click', e => { if (e.target === modal) close(); });
+
+  // Single persistent handler: before a probe starts this Cancels (closes the
+  // window); once a probe is running it Stops the probe (real relay cancel).
+  modal.querySelector('#probe-modal-cancel').addEventListener('click', () => {
+    if (probeRunning) stopLiveProbe();
+    else close();
+  });
 
   modal.querySelector('#probe-modal-start').addEventListener('click', () => {
     const targetsRaw = modal.querySelector('#probe-targets-input').value;
@@ -317,21 +364,54 @@ function openProbeModal() {
   });
 }
 
+// Re-enable controls and report the final probe outcome. Works whether or not
+// the modal is still open: the panel status always reflects the result, and any
+// captured (possibly detached) modal buttons are updated harmlessly.
+function _finishProbe(doneMsg, totalTargets, modalEls) {
+  probeRunning = false;
+  probeStopping = false;
+  probeCancel = null;
+  updateRelayIndicator();
+
+  let label;
+  if (doneMsg && doneMsg.aborted) {
+    label = 'Relay disconnected — probe aborted. Partial results preserved.';
+  } else if (doneMsg && doneMsg.cancelled) {
+    const completed = typeof doneMsg.completed === 'number' ? doneMsg.completed : null;
+    const total = typeof doneMsg.total === 'number' ? doneMsg.total : totalTargets;
+    label = completed !== null
+      ? `Probe stopped. Partial results preserved (${completed} of ${total} target(s) completed).`
+      : 'Probe stopped. Partial results preserved.';
+  } else {
+    label = `Probe complete — ${totalTargets} target(s) done.`;
+  }
+  _setProbeStatus(label);
+
+  const startBtn = modalEls && modalEls.startBtn;
+  const cancelBtn = modalEls && modalEls.cancelBtn;
+  if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
+  if (cancelBtn) cancelBtn.textContent = 'Close';
+  _refreshLive();
+}
+
 function startLiveProbe(targets, ports, community, timeout, modal) {
   if (!getRelayConnected()) return;
   if (probeRunning && probeCancel) probeCancel();
 
   liveRows = {};
   probeRunning = true;
+  probeStopping = false;
   updateRelayIndicator();
 
-  const startBtn = modal.querySelector('#probe-modal-start');
-  const cancelBtn = modal.querySelector('#probe-modal-cancel');
-  const progress = modal.querySelector('#probe-progress');
+  const startBtn = modal ? modal.querySelector('#probe-modal-start') : null;
+  const cancelBtn = modal ? modal.querySelector('#probe-modal-cancel') : null;
+  const progress = modal ? modal.querySelector('#probe-progress') : null;
+  const modalEls = { startBtn, cancelBtn };
 
   if (startBtn) { startBtn.disabled = true; startBtn.textContent = '⏳ Probing…'; }
   if (cancelBtn) cancelBtn.textContent = 'Stop';
-  if (progress) { progress.style.display = ''; progress.textContent = `Probing ${targets.length} target(s)…`; }
+  if (progress) progress.style.display = '';
+  _setProbeStatus(`Probing ${targets.length} target(s)…`);
 
   // Initialise live rows for each target so they appear immediately
   for (const t of targets) {
@@ -344,46 +424,24 @@ function startLiveProbe(targets, ports, community, timeout, modal) {
     (msg) => {
       if (msg.type === 'step_result') {
         _applyStepResult(msg);
-        if (progress) {
-          progress.textContent = `Probing ${targets.length} target(s) — ${msg.target} / ${msg.step}`;
+        if (!probeStopping) {
+          _setProbeStatus(`Probing ${targets.length} target(s) — ${msg.target} / ${msg.step}`);
         }
         _refreshLive();
       } else if (msg.type === 'probe_start') {
-        if (progress) progress.textContent = `Probing ${msg.total} target(s)…`;
+        _setProbeStatus(`Probing ${msg.total} target(s)…`);
       }
     },
-    (doneMsg) => {
-      probeRunning = false;
-      probeCancel = null;
-      updateRelayIndicator();
-      if (progress) {
-        const label = doneMsg.cancelled ? 'Probe cancelled.' : doneMsg.aborted ? 'Relay disconnected.' : `Probe complete — ${targets.length} target(s) done.`;
-        progress.textContent = label;
-      }
-      if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
-      if (cancelBtn) cancelBtn.textContent = 'Close';
-      _refreshLive();
-    },
+    (doneMsg) => { _finishProbe(doneMsg, targets.length, modalEls); },
     (err) => {
       probeRunning = false;
+      probeStopping = false;
       probeCancel = null;
       updateRelayIndicator();
-      if (progress) progress.textContent = `Error: ${err}`;
+      _setProbeStatus(`Error: ${err}`);
       if (startBtn) { startBtn.disabled = false; startBtn.textContent = '▶ Start Probe'; }
     },
   );
-
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      if (probeRunning && probeCancel) {
-        probeCancel();
-        probeRunning = false;
-        probeCancel = null;
-        updateRelayIndicator();
-      }
-      modal.remove();
-    }, { once: true });
-  }
 }
 
 function _makeLiveRow(target) {
@@ -654,6 +712,8 @@ export function getNetworkHTML() {
         title="Paste the token printed by: python3 dashboard/relay.py">
       <button class="icon-btn relay-connect-btn" id="relay-connect-btn" title="Connect to relay with this token">Connect</button>
       <button class="icon-btn relay-probe-btn" id="net-live-probe-btn" title="Run live probe or get setup instructions">📡 Probe / Commands</button>
+      <button class="icon-btn relay-stop-btn hidden" id="net-stop-probe-btn" title="Stop the running probe — halts further network checks on the relay">■ Stop Probe</button>
+      <span class="relay-probe-status hidden" id="net-probe-status" role="status" aria-live="polite"></span>
     </div>
     <div class="table-wrapper" id="net-accordion"></div>`;
 }

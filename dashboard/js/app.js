@@ -147,6 +147,36 @@ function switchTab(tab) {
   if (content) content.classList.remove('hidden');
 }
 
+// ── Shared workflow exit control ─────────────────────────────────────────────
+// A durable, state-independent way to leave any open wizard and return to its
+// hero/start action. This never depends on step index or probe state, so a field
+// user is never trapped inside a tutorial. It does NOT clear loaded evidence,
+// manifests, or live rows — only the visible wizard chrome is closed.
+function closeWorkflowTutorial(opts) {
+  if (!opts) return;
+  const tutorial = opts.tutorialId ? document.getElementById(opts.tutorialId) : null;
+  if (tutorial) {
+    tutorial.classList.add('hidden');
+    tutorial.style.display = ''; // drop any stale inline display so .hidden wins
+  }
+  const startBtn = opts.startBtnId ? document.getElementById(opts.startBtnId) : null;
+  if (startBtn) {
+    if (opts.startLabel) startBtn.textContent = opts.startLabel;
+    startBtn.removeAttribute('aria-label');
+  }
+  const statusEl = opts.heroStatusId ? document.getElementById(opts.heroStatusId) : null;
+  if (statusEl) {
+    statusEl.textContent = opts.neutralStatus || '';
+    statusEl.classList.remove('is-busy', 'is-open', 'is-error');
+    statusEl.classList.toggle('hidden', !opts.neutralStatus);
+  }
+  const hero = opts.heroId ? document.getElementById(opts.heroId) : null;
+  if (hero && opts.scroll !== false) {
+    try { hero.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) { /* non-fatal */ }
+  }
+}
+window.closeWorkflowTutorial = closeWorkflowTutorial;
+
 // ── Cybernet-first shell ─────────────────────────────────────────────────────
 function initRepoSetupShell() {
   const startBtn = document.getElementById('hero-start-setup');
@@ -202,6 +232,13 @@ function initRepoSetupShell() {
   };
 
   startBtn?.addEventListener('click', () => startRepoSetupTutorial({ source: 'manual' }));
+  document.getElementById('repo-setup-exit')?.addEventListener('click', () => {
+    closeWorkflowTutorial({
+      tutorialId: 'repo-setup-tutorial', heroId: 'repo-setup-hero',
+      startBtnId: 'hero-start-setup', startLabel: 'Start Repo Setup',
+      heroStatusId: 'repo-setup-hero-status',
+    });
+  });
   document.getElementById('hero-open-cybernet')?.addEventListener('click', () => {
     if (typeof window.startCybernetTutorial === 'function') window.startCybernetTutorial({ source: 'manual' });
     else document.getElementById('hero-start-survey')?.click();
@@ -266,6 +303,13 @@ function initToolboxShell() {
   };
 
   startBtn?.addEventListener('click', () => startToolboxTutorial({ source: 'manual', status: window.__sasLastToolboxStatus }));
+  document.getElementById('toolbox-exit')?.addEventListener('click', () => {
+    closeWorkflowTutorial({
+      tutorialId: 'toolbox-tutorial', heroId: 'toolbox-hero',
+      startBtnId: 'hero-start-toolbox', startLabel: 'Start Toolbox Check',
+      heroStatusId: 'toolbox-hero-status',
+    });
+  });
   window.startToolboxTutorial = startToolboxTutorial;
   window.renderToolboxChecklist = renderToolboxChecklist;
   window.updateToolboxBanner = updateToolboxBanner;
@@ -337,6 +381,13 @@ function initCybernetShell() {
   };
 
   startBtn?.addEventListener('click', () => startCybernetTutorial({ source: 'manual' }));
+  document.getElementById('cybernet-exit')?.addEventListener('click', () => {
+    closeWorkflowTutorial({
+      tutorialId: 'cybernet-tutorial', heroId: 'cybernet-hero',
+      startBtnId: 'hero-start-survey', startLabel: 'Start Cybernet Survey',
+      heroStatusId: 'cybernet-hero-status',
+    });
+  });
 
   // Expose the same verified transition for the ?tutorial=cybernet auto-launch
   // path so it cannot diverge from the manual click behavior.
@@ -416,6 +467,13 @@ function initSoftwareTrackerShell() {
   };
 
   startBtn?.addEventListener('click', () => startSoftwareTrackerTutorial({ source: 'manual' }));
+  document.getElementById('sw-exit')?.addEventListener('click', () => {
+    closeWorkflowTutorial({
+      tutorialId: 'software-tracker-tutorial', heroId: 'software-tracker-hero',
+      startBtnId: 'hero-start-install', startLabel: 'Start Software Tracker Install',
+      heroStatusId: 'software-tracker-hero-status',
+    });
+  });
   window.startSoftwareTrackerTutorial = startSoftwareTrackerTutorial;
 
   document.getElementById('hero-start-install-evidence')?.addEventListener('click', () => {
@@ -1297,6 +1355,8 @@ function showCommandModal(targetCount, bashCmds, psCmds, linuxCmds) {
         <div style="padding:8px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:6px;font-size:11px;color:var(--warning)">
           ⚠ Browser security prevents direct network probing from a web page.
           Copy the commands below, run them from an admin machine, then drag the resulting CSV files back into the dashboard.
+          <br><strong>To stop a copied command, use Ctrl+C in the terminal where it is running.</strong>
+          The dashboard cannot stop a command already running in an external shell, and it does not hide or evade normal OS, network, or security telemetry.
         </div>
         ${section('bash-cmds', '1 — BASH  (primary — suite scripts + optional low-noise reachability)', '220px')}
         ${section('ps-cmds',   '2 — POWERSHELL  (Windows WMI / printer mapping)', '150px')}

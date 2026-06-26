@@ -527,3 +527,48 @@ startAssert(bundleJs.includes('startCybernetTutorial'), 'bundle-not-stale',
 
 console.log(`\nStart button: ${startPassed} passed, ${startFailed} failed`);
 if (startFailed > 0) process.exit(1);
+
+// ── Persistent Back/Exit + real Stop contracts ───────────────────────────────
+// Source-level guards that every wizard has a state-independent exit and that
+// the live probe Stop is a real relay cancellation, not a UI-only teardown.
+
+const relayClientJs = readFileSync(join(__dir, 'js', 'relay-client.js'), 'utf8');
+const panelNetworkJs = readFileSync(join(__dir, 'js', 'panel-network.js'), 'utf8');
+const relayPy = readFileSync(join(__dir, 'relay.py'), 'utf8');
+
+let bsPassed = 0;
+let bsFailed = 0;
+function bsAssert(ok, label, detail) {
+  if (ok) { console.log(`PASS [back-stop:${label}]`); bsPassed++; }
+  else { console.error(`FAIL [back-stop:${label}]${detail ? ': ' + detail : ''}`); bsFailed++; }
+}
+
+// Persistent Back/Exit control on every wizard (independent of step index).
+for (const id of ['cybernet-exit', 'repo-setup-exit', 'toolbox-exit', 'sw-exit']) {
+  bsAssert(indexHtml.includes(`id="${id}"`), `exit-control:${id}`, `index.html missing #${id}`);
+}
+bsAssert(indexHtml.includes('Back to dashboard'), 'exit-label', 'no "Back to dashboard" control in index.html');
+// Step Back is renamed so exit and previous-step are not the same overloaded button.
+bsAssert(indexHtml.includes('Previous Step'), 'step-back-renamed', 'step Back not renamed to Previous Step');
+bsAssert(appJs.includes('closeWorkflowTutorial'), 'close-helper', 'app.js missing closeWorkflowTutorial');
+bsAssert(bundleJs.includes('closeWorkflowTutorial'), 'close-helper-bundled',
+  'bundle.js stale — missing closeWorkflowTutorial; rebuild with: node dashboard/build-bundle.js');
+
+// Real Stop: client sends probe_cancel; relay honors it; panel has a Stop button.
+bsAssert(relayClientJs.includes('probe_cancel'), 'client-sends-cancel',
+  'relay-client.js does not send a probe_cancel (UI-only Stop is a defect)');
+bsAssert(relayClientJs.includes('probeId'), 'client-probe-id', 'relay-client.js missing probeId');
+bsAssert(relayPy.includes('probe_cancel'), 'relay-handles-cancel', 'relay.py does not handle probe_cancel');
+bsAssert(relayPy.includes('cancel_event'), 'relay-cancel-event', 'relay.py has no cancellation token');
+bsAssert(/def run_probe/.test(relayPy), 'relay-run-probe', 'relay.py missing run_probe orchestrator');
+bsAssert(indexHtml.includes('id="net-stop-probe-btn"') || panelNetworkJs.includes('net-stop-probe-btn'),
+  'panel-stop-button', 'no persistent Stop button on the network panel');
+bsAssert(panelNetworkJs.includes('Partial results preserved'), 'partial-results-msg',
+  'panel-network.js does not report preserved partial results');
+bsAssert(bundleJs.includes('net-stop-probe-btn'), 'panel-stop-bundled',
+  'bundle.js stale — missing panel Stop button; rebuild with: node dashboard/build-bundle.js');
+// Command-gen fallback must tell the user how to stop a copied command.
+bsAssert(appJs.includes('Ctrl+C'), 'cmdgen-ctrl-c', 'command-gen modal missing Ctrl+C stop guidance');
+
+console.log(`\nBack/Stop controls: ${bsPassed} passed, ${bsFailed} failed`);
+if (bsFailed > 0) process.exit(1);
