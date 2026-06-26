@@ -11,6 +11,10 @@
 
 Field users on locked-down PCs should receive the **field release package**, not a raw git clone.
 
+Updates are also package-based for this path. The launcher may prompt when a
+trusted manifest says a newer field package is available; it uses a
+checksum-verified package before applying anything. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
+
 ## Build the field release (trusted machine with .NET 8 SDK)
 
 From repo root:

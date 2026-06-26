@@ -12,6 +12,8 @@ On first run the launcher will **automatically prepare (build) the dashboard hos
 
 **Field release package (no SDK):** [`DASHBOARD_FIELD_RELEASE.md`](DASHBOARD_FIELD_RELEASE.md) — pre-built zip with `app/bin/SysAdminSuite.DashboardHost.exe`.
 
+**Updates:** launcher checks are opt-in and must prompt before applying changes. Source clones use a clean `main` fast-forward; ZIP/field packages use checksum-verified manifests. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
+
 Compatibility aliases (same behavior, not the documented primary): **`START-HERE-SysAdminSuite-Dashboard.cmd`** and **`SysAdminSuite Dashboard.cmd`**.
 
 ## Get the repo first (clone / download)

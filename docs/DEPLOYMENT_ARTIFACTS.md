@@ -52,6 +52,12 @@ Use a JSON manifest (`Config/update-manifest.sample.json`) with:
 7. Validate startup and primary QR task dispatch.
 8. If validation fails, restore `app.previous`.
 
+## Approved Prompted Update Procedure
+`tools/update/Invoke-SysAdminSuiteUpdate.ps1` can perform the same package update
+after the user approves it. The helper reads a manifest, verifies
+`checksumSha256`, backs up the current app/root content, and applies only a
+recognized package layout. See [`APPROVED_UPDATE_FLOW.md`](APPROVED_UPDATE_FLOW.md).
+
 ## Approved Transport Methods
 - Internal SMB file share
 - Browser download from approved release location
