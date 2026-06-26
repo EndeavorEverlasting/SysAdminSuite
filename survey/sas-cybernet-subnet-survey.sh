@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-VERSION="0.1.1"
+VERSION="0.1.2"
 SITE=""
 MODE=""
 RUN_ID="$(date +%Y%m%d_%H%M%S)"
@@ -39,6 +39,10 @@ MAX_HOSTS=256
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+TARGET_INTAKE_HELPER="${SCRIPT_DIR}/lib/sas-target-intake.sh"
+[[ -f "$TARGET_INTAKE_HELPER" ]] || { echo "[cybernet-subnet-survey] ERROR: Missing target intake helper: $TARGET_INTAKE_HELPER" >&2; exit 1; }
+# shellcheck source=survey/lib/sas-target-intake.sh
+source "$TARGET_INTAKE_HELPER"
 
 usage() {
   cat <<'USAGE'
@@ -65,10 +69,10 @@ Required:
 
 Options:
   --mode MODE          One of the modes above (required)
-  --manifest PATH      Target manifest CSV (resolve-only, package-only)
+  --manifest PATH      Target manifest CSV from approved intake/staging or generated SysAdminSuite output
   --cidr CIDR          Approved IPv4 CIDR. Repeatable
-  --subnet-file PATH   Plain-text CIDR list (e.g. subnet_candidates.txt)
-  --host-file PATH     Host list for confirm-windows (required except Naabu --host mode)
+  --subnet-file PATH   Plain-text CIDR list from approved intake/staging
+  --host-file PATH     Host list for confirm-windows from approved intake/staging
   --output-root DIR    Default: survey/output/cybernet_subnet_survey
   --logs-root DIR      Default: logs/nmap
   --run-id ID          Correlate multi-step runs. Default: timestamp
@@ -95,7 +99,7 @@ Options:
 
 Urgent path:
   1. local-context-only
-  2. dns-list-only (--subnet-file from finder)
+  2. dns-list-only (--subnet-file from approved intake/staging)
   3. discover
   4. resolve-only (--manifest)
   5. confirm-windows (--host-file) optional
@@ -152,7 +156,7 @@ PY
 
 load_subnet_file() {
   local file="$1" line
-  [[ -f "$file" ]] || fail "Subnet file not found: $file"
+  sas_target_require_input_file "$file" "subnet CIDR file" 1 "$REPO_ROOT" || exit 1
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%%#*}"
     line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
@@ -265,7 +269,10 @@ run_parse_naabu_evidence() {
     --output "$csv_out"
   )
   [[ -n "$followup_out" ]] && parse_args+=(--followup "$followup_out")
-  [[ -n "$MANIFEST" && -f "$MANIFEST" ]] && parse_args+=(--manifest "$MANIFEST")
+  if [[ -n "$MANIFEST" && -f "$MANIFEST" ]]; then
+    sas_target_require_manifest_file "$MANIFEST" "resolver manifest" "$REPO_ROOT" || exit 1
+    parse_args+=(--manifest "$MANIFEST")
+  fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '%s\n' "${parse_args[@]}" >> "$PLANNED_FILE"
     log "DRY-RUN: ${parse_args[*]}"
@@ -308,7 +315,7 @@ collect_cidrs_for_scan() {
 
 validate_host_file() {
   [[ -n "$HOST_FILE" ]] || fail "confirm-windows requires --host-file"
-  [[ -f "$HOST_FILE" ]] || fail "Host file not found: $HOST_FILE"
+  sas_target_require_input_file "$HOST_FILE" "confirm-windows host file" 1 "$REPO_ROOT" || exit 1
   local line count=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
@@ -495,6 +502,7 @@ pick_default_nmap_xml() {
 
 mode_resolve_only() {
   [[ -n "$MANIFEST" ]] || fail "resolve-only requires --manifest"
+  sas_target_require_manifest_file "$MANIFEST" "resolve-only manifest" "$REPO_ROOT" || exit 1
   [[ -f "$MANIFEST" ]] || fail "Manifest not found: $MANIFEST"
   ensure_run_dir
   local xml="$NMAP_XML"
@@ -566,6 +574,7 @@ mode_package_only() {
   shopt -u nullglob
 
   if [[ -n "$MANIFEST" && -f "$MANIFEST" ]]; then
+    sas_target_require_manifest_file "$MANIFEST" "package manifest" "$REPO_ROOT" || exit 1
     mkdir -p "$artifact_dir/manifests"
     cp "$MANIFEST" "$artifact_dir/manifests/$(basename "$MANIFEST")"
     echo "manifests/$(basename "$MANIFEST")" >> "$PACKAGE_LIST"
