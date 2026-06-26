@@ -1,0 +1,11 @@
+{
+  "pathAliases": {
+    "\\\\example-server\\share\\Demo\\setup.msi": "Tests/fixtures/installers/example.msi",
+    "\\\\example-server\\share\\Demo\\install.cmd": "Tests/fixtures/installers/sample.ps1",
+    "\\\\example-server\\share\\Demo\\setup.exe": "Tests/fixtures/installers/manual.exe",
+    "\\\\example-server\\share\\DemoFolder": "Tests/fixtures/installers",
+    "\\\\example-server\\share\\Multi\\install.cmd": "Tests/fixtures/installers/sample.ps1",
+    "Z:\\Multi\\setup.msi": "Tests/fixtures/installers/installed.msi",
+    "\\\\example-server\\share\\Clinical\\aehr.msi": "Tests/fixtures/installers/example.msi"
+  }
+}

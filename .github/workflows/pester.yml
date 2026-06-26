@@ -13,6 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Run Software Tracker install tests
+        shell: pwsh
+        run: |
+          python -m pytest -q Tests/test_software_tracker_installs.py
+
       - name: Install Pester 5
         shell: pwsh
         run: |
