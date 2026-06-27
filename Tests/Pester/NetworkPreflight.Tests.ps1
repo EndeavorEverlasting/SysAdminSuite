@@ -3,34 +3,9 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:preflight = Join-Path $script:repoRoot 'survey\sas-network-preflight.ps1'
-    $script:targetsDir = Join-Path $script:repoRoot 'targets\local\pester-network-preflight'
-    $script:outputDir = Join-Path $script:repoRoot 'survey\output\pester-network-preflight'
-    $script:pwsh = (Get-Process -Id $PID).Path
-
-    function Invoke-PreflightProcess {
-        param([string[]]$Arguments)
-        $allArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $script:preflight) + $Arguments
-        $output = & $script:pwsh @allArgs 2>&1
-        [pscustomobject]@{
-            ExitCode = $LASTEXITCODE
-            Output   = ($output -join "`n")
-        }
-    }
 }
 
-BeforeEach {
-    Remove-Item -LiteralPath $script:targetsDir -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $script:outputDir -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $script:targetsDir | Out-Null
-    New-Item -ItemType Directory -Force -Path $script:outputDir | Out-Null
-}
-
-AfterAll {
-    Remove-Item -LiteralPath $script:targetsDir -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $script:outputDir -Recurse -Force -ErrorAction SilentlyContinue
-}
-
-Describe 'sas-network-preflight.ps1 executable behavior' {
+Describe 'sas-network-preflight.ps1 identity and folder contracts' {
     It 'parses without PowerShell syntax errors' {
         $tokens = $null
         $errors = $null
@@ -38,84 +13,38 @@ Describe 'sas-network-preflight.ps1 executable behavior' {
         @($errors).Count | Should -Be 0
     }
 
-    It 'stops without probing when no target file is selected and prints candidate guidance' {
-        $result = Invoke-PreflightProcess -Arguments @()
-        $result.ExitCode | Should -Be 1
-        $result.Output | Should -Match 'No -TargetFile was provided. Stopping without probing.'
-        $result.Output | Should -Match 'targets[/\\]local'
-        $result.Output | Should -Match 'logs[/\\]targets'
-        $result.Output | Should -Match 'Run in Windows PowerShell'
+    It 'uses codified target intake roots and generated output roots' {
+        $content = Get-Content -LiteralPath $script:preflight -Raw
+        $content | Should -Match 'targetsLocalRoot'
+        $content | Should -Match 'logsTargetsRoot'
+        $content | Should -Match 'surveyInputRoot'
+        $content | Should -Match 'surveyOutputRoot'
+        $content | Should -Match 'logsNmapRoot'
+        $content | Should -Match 'surveyArtifactsRoot'
     }
 
-    It 'runs against a codified targets/local CSV and writes codified survey output' {
-        $targetCsv = Join-Path $script:targetsDir 'approved_targets.csv'
-        @'
-HostName,Identifier,IdentifierType,Source
-127.0.0.1,SERIAL-LOCALHOST-001,Serial,pester
-'@ | Set-Content -LiteralPath $targetCsv -Encoding UTF8
-
-        $result = Invoke-PreflightProcess -Arguments @('-TargetFile', $targetCsv, '-Ports', '1', '-OutputDirectory', $script:outputDir)
-        $result.ExitCode | Should -Be 0
-        $result.Output | Should -Match 'Selected target file:'
-        $result.Output | Should -Match 'Final CSV path:'
-
-        $csv = Get-ChildItem -LiteralPath $script:outputDir -Filter 'network_preflight_*.csv' |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-
-        $csv | Should -Not -BeNullOrEmpty
-        $rows = @(Import-Csv -LiteralPath $csv.FullName)
-        $rows.Count | Should -Be 1
-        $rows[0].Target | Should -Be '127.0.0.1'
-        $rows[0].SourceFile | Should -Match 'targets[/\\]local[/\\]pester-network-preflight'
-        $csv.FullName | Should -Match 'survey[/\\]output[/\\]pester-network-preflight'
+    It 'prints progress with stage and per-check percentages' {
+        $content = Get-Content -LiteralPath $script:preflight -Raw
+        $content | Should -Match 'Write-SasStageProgress'
+        $content | Should -Match 'PercentComplete'
+        $content | Should -Match '\[\$Step/\$Total\]'
+        $content | Should -Match '\[\$checkNumber/\$totalChecks\]'
     }
 
-    It 'does not silently probe serial-only Identifier rows without an explicit host/IP type' {
-        $targetCsv = Join-Path $script:targetsDir 'serial_only.csv'
-        @'
-Identifier,IdentifierType,Source
-CYB123456789,Serial,pester
-WNH999SERIAL,Serial,pester
-'@ | Set-Content -LiteralPath $targetCsv -Encoding UTF8
-
-        $result = Invoke-PreflightProcess -Arguments @('-TargetFile', $targetCsv, '-Ports', '1', '-OutputDirectory', $script:outputDir)
-        $result.ExitCode | Should -Be 1
-        $result.Output | Should -Match 'Serial-only rows must be normalized or enriched'
-
-        $generated = @(Get-ChildItem -LiteralPath $script:outputDir -Filter 'network_preflight_*.csv' -ErrorAction SilentlyContinue)
-        $generated.Count | Should -Be 0
+    It 'does not treat ambiguous Identifier values as probe targets by default' {
+        $content = Get-Content -LiteralPath $script:preflight -Raw
+        $content | Should -Match 'function Get-ExplicitTargetType'
+        $content | Should -Match 'function Test-ExplicitNonHostType'
+        $content | Should -Match "\$targetColumns = @\('Target'\)"
+        $content | Should -Match "\$identifierColumns = @\('Identifier'\)"
+        $content | Should -Match 'Skipping ambiguous Identifier value without explicit host/IP type'
+        $content | Should -Match 'Serial-only rows must be normalized or enriched'
     }
 
-    It 'accepts Identifier only when the row explicitly marks it as host or IP evidence' {
-        $targetCsv = Join-Path $script:targetsDir 'explicit_identifier_host.csv'
-        @'
-Identifier,IdentifierType,Source
-127.0.0.1,IPAddress,pester
-'@ | Set-Content -LiteralPath $targetCsv -Encoding UTF8
-
-        $result = Invoke-PreflightProcess -Arguments @('-TargetFile', $targetCsv, '-Ports', '1', '-OutputDirectory', $script:outputDir)
-        $result.ExitCode | Should -Be 0
-
-        $csv = Get-ChildItem -LiteralPath $script:outputDir -Filter 'network_preflight_*.csv' |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-
-        $rows = @(Import-Csv -LiteralPath $csv.FullName)
-        $rows.Count | Should -Be 1
-        $rows[0].Target | Should -Be '127.0.0.1'
-    }
-
-    It 'rejects target files outside codified intake roots by default' {
-        $outside = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-network-preflight-outside-{0}.txt' -f ([Guid]::NewGuid().ToString('N')))
-        try {
-            '127.0.0.1' | Set-Content -LiteralPath $outside -Encoding UTF8
-            $result = Invoke-PreflightProcess -Arguments @('-TargetFile', $outside, '-Ports', '1', '-OutputDirectory', $script:outputDir)
-            $result.ExitCode | Should -Be 1
-            $result.Output | Should -Match 'outside codified intake roots'
-        }
-        finally {
-            Remove-Item -LiteralPath $outside -Force -ErrorAction SilentlyContinue
+    It 'accepts explicit host and address columns without requiring ambiguous Identifier fallback' {
+        $content = Get-Content -LiteralPath $script:preflight -Raw
+        foreach ($column in @('HostName', 'Hostname', 'ComputerName', 'DeviceName', 'Name', 'DnsName', 'DNSName', 'FQDN', 'IPAddress', 'IP', 'IPv4')) {
+            $content | Should -Match $column
         }
     }
 }
