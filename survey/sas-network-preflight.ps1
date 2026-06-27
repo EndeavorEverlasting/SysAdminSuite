@@ -143,11 +143,23 @@ function Get-RowValue {
     return ''
 }
 
+function Get-ExplicitTargetType {
+    param($Row)
+    return Get-RowValue -Row $Row -Names @('IdentifierType', 'TargetType', 'Type', 'ValueType')
+}
+
 function Test-ExplicitHostType {
     param($Row)
-    $typeValue = Get-RowValue -Row $Row -Names @('IdentifierType', 'TargetType', 'Type', 'ValueType')
+    $typeValue = Get-ExplicitTargetType -Row $Row
     if ([string]::IsNullOrWhiteSpace($typeValue)) { return $false }
-    return $typeValue -match '^(HostName|Hostname|Host|ComputerName|DnsName|FQDN|IPv4|IPv6|IPAddress|IP)$'
+    return $typeValue -match '^(HostName|Hostname|Host|ComputerName|DnsName|DNSName|FQDN|IPv4|IPv6|IPAddress|IP)$'
+}
+
+function Test-ExplicitNonHostType {
+    param($Row)
+    $typeValue = Get-ExplicitTargetType -Row $Row
+    if ([string]::IsNullOrWhiteSpace($typeValue)) { return $false }
+    return -not (Test-ExplicitHostType -Row $Row)
 }
 
 function Read-TextTargets {
@@ -172,8 +184,9 @@ function Read-CsvTargets {
 
     $rows = @(Import-Csv -LiteralPath $Path)
     $items = New-Object System.Collections.Generic.List[string]
-    $hostColumns = @('HostName', 'Hostname', 'ComputerName', 'DeviceName', 'Name')
-    $targetColumns = @('Target', 'Identifier')
+    $hostColumns = @('HostName', 'Hostname', 'ComputerName', 'DeviceName', 'Name', 'DnsName', 'DNSName', 'FQDN', 'IPAddress', 'IP', 'IPv4')
+    $targetColumns = @('Target')
+    $identifierColumns = @('Identifier')
 
     foreach ($row in $rows) {
         $host = Get-RowValue -Row $row -Names $hostColumns
@@ -183,10 +196,24 @@ function Read-CsvTargets {
         }
 
         $target = Get-RowValue -Row $row -Names $targetColumns
-        if ([string]::IsNullOrWhiteSpace($target)) { continue }
+        if (-not [string]::IsNullOrWhiteSpace($target)) {
+            if (Test-ExplicitNonHostType -Row $row) {
+                Write-Host "Skipping non-host Target value because its type is not probe-ready: $target"
+                continue
+            }
+            if (Test-ProbeReadyTargetValue -Value $target) {
+                $items.Add($target)
+                continue
+            }
+        }
 
-        if ((Test-ExplicitHostType -Row $row) -or (Test-ProbeReadyTargetValue -Value $target)) {
-            $items.Add($target)
+        $identifier = Get-RowValue -Row $row -Names $identifierColumns
+        if ([string]::IsNullOrWhiteSpace($identifier)) { continue }
+
+        if (Test-ExplicitHostType -Row $row) {
+            $items.Add($identifier)
+        } else {
+            Write-Host "Skipping ambiguous Identifier value without explicit host/IP type: $identifier"
         }
     }
 
@@ -317,7 +344,7 @@ foreach ($target in $targetsRaw) {
 }
 
 if ($targets.Count -eq 0) {
-    throw 'The selected file did not yield probe-ready hostnames or IP addresses. Provide a .txt with one hostname/IP per line, or a .csv with HostName, Hostname, Target, Identifier, ComputerName, Name, or DeviceName. Serial-only rows must be normalized or enriched to hostnames before network preflight.'
+    throw 'The selected file did not yield probe-ready hostnames or IP addresses. Provide a .txt with one hostname/IP per line, or a .csv with HostName, Hostname, Target, Identifier, ComputerName, Name, DeviceName, DnsName, FQDN, IPAddress, IP, or IPv4. Serial-only rows must be normalized or enriched to hostnames before network preflight.'
 }
 
 New-Item -ItemType Directory -Force -Path $outputDirectoryFull | Out-Null
