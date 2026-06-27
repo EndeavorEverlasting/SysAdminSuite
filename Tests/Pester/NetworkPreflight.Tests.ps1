@@ -6,6 +6,16 @@ BeforeAll {
     $script:targetsDir = Join-Path $script:repoRoot 'targets\local\pester-network-preflight'
     $script:outputDir = Join-Path $script:repoRoot 'survey\output\pester-network-preflight'
     $script:pwsh = (Get-Process -Id $PID).Path
+
+    function Invoke-PreflightProcess {
+        param([string[]]$Arguments)
+        $allArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $script:preflight) + $Arguments
+        $output = & $script:pwsh @allArgs 2>&1
+        [pscustomobject]@{
+            ExitCode = $LASTEXITCODE
+            Output   = ($output -join "`n")
+        }
+    }
 }
 
 BeforeEach {
@@ -29,12 +39,12 @@ Describe 'sas-network-preflight.ps1 executable behavior' {
     }
 
     It 'stops without probing when no target file is selected and prints candidate guidance' {
-        $output = & $script:pwsh -NoProfile -ExecutionPolicy Bypass -File $script:preflight 2>&1
-        $LASTEXITCODE | Should -Be 1
-        ($output -join "`n") | Should -Match 'No -TargetFile was provided. Stopping without probing.'
-        ($output -join "`n") | Should -Match 'targets[/\\]local'
-        ($output -join "`n") | Should -Match 'logs[/\\]targets'
-        ($output -join "`n") | Should -Match 'Run in Windows PowerShell'
+        $result = Invoke-PreflightProcess -Arguments @()
+        $result.ExitCode | Should -Be 1
+        $result.Output | Should -Match 'No -TargetFile was provided. Stopping without probing.'
+        $result.Output | Should -Match 'targets[/\\]local'
+        $result.Output | Should -Match 'logs[/\\]targets'
+        $result.Output | Should -Match 'Run in Windows PowerShell'
     }
 
     It 'runs against a codified targets/local CSV and writes codified survey output' {
@@ -44,7 +54,10 @@ HostName,Identifier,IdentifierType,Source
 127.0.0.1,SERIAL-LOCALHOST-001,Serial,pester
 '@ | Set-Content -LiteralPath $targetCsv -Encoding UTF8
 
-        & $script:preflight -TargetFile $targetCsv -Ports 1 -OutputDirectory $script:outputDir
+        $result = Invoke-PreflightProcess -Arguments @('-TargetFile', $targetCsv, '-Ports', '1', '-OutputDirectory', $script:outputDir)
+        $result.ExitCode | Should -Be 0
+        $result.Output | Should -Match 'Selected target file:'
+        $result.Output | Should -Match 'Final CSV path:'
 
         $csv = Get-ChildItem -LiteralPath $script:outputDir -Filter 'network_preflight_*.csv' |
             Sort-Object LastWriteTime -Descending |
@@ -66,8 +79,9 @@ CYB123456789,Serial,pester
 WNH999SERIAL,Serial,pester
 '@ | Set-Content -LiteralPath $targetCsv -Encoding UTF8
 
-        { & $script:preflight -TargetFile $targetCsv -Ports 1 -OutputDirectory $script:outputDir } |
-            Should -Throw -ExpectedMessage '*Serial-only rows must be normalized or enriched*'
+        $result = Invoke-PreflightProcess -Arguments @('-TargetFile', $targetCsv, '-Ports', '1', '-OutputDirectory', $script:outputDir)
+        $result.ExitCode | Should -Be 1
+        $result.Output | Should -Match 'Serial-only rows must be normalized or enriched'
 
         $generated = @(Get-ChildItem -LiteralPath $script:outputDir -Filter 'network_preflight_*.csv' -ErrorAction SilentlyContinue)
         $generated.Count | Should -Be 0
@@ -80,7 +94,8 @@ Identifier,IdentifierType,Source
 127.0.0.1,IPAddress,pester
 '@ | Set-Content -LiteralPath $targetCsv -Encoding UTF8
 
-        & $script:preflight -TargetFile $targetCsv -Ports 1 -OutputDirectory $script:outputDir
+        $result = Invoke-PreflightProcess -Arguments @('-TargetFile', $targetCsv, '-Ports', '1', '-OutputDirectory', $script:outputDir)
+        $result.ExitCode | Should -Be 0
 
         $csv = Get-ChildItem -LiteralPath $script:outputDir -Filter 'network_preflight_*.csv' |
             Sort-Object LastWriteTime -Descending |
@@ -95,8 +110,9 @@ Identifier,IdentifierType,Source
         $outside = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-network-preflight-outside-{0}.txt' -f ([Guid]::NewGuid().ToString('N')))
         try {
             '127.0.0.1' | Set-Content -LiteralPath $outside -Encoding UTF8
-            { & $script:preflight -TargetFile $outside -Ports 1 -OutputDirectory $script:outputDir } |
-                Should -Throw -ExpectedMessage '*outside codified intake roots*'
+            $result = Invoke-PreflightProcess -Arguments @('-TargetFile', $outside, '-Ports', '1', '-OutputDirectory', $script:outputDir)
+            $result.ExitCode | Should -Be 1
+            $result.Output | Should -Match 'outside codified intake roots'
         }
         finally {
             Remove-Item -LiteralPath $outside -Force -ErrorAction SilentlyContinue
