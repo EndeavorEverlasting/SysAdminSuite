@@ -80,9 +80,14 @@ contains 'NONSTANDARD INPUT OVERRIDE' "$preflight" 'missing clear override label
 contains "'.txt'" "$preflight" 'missing .txt support'
 contains "'.csv'" "$preflight" 'missing .csv support'
 contains 'Import-Csv' "$preflight" 'missing CSV parser'
-for col in HostName Hostname Target Identifier ComputerName DeviceName Name; do
+for col in HostName Hostname Target Identifier ComputerName DeviceName Name DnsName DNSName FQDN IPAddress IP IPv4; do
   contains "$col" "$preflight" "missing $col column support"
 done
+contains 'function Get-ExplicitTargetType' "$preflight" 'missing explicit target type helper'
+contains 'function Test-ExplicitNonHostType' "$preflight" 'missing explicit non-host type guard'
+contains "\$targetColumns = @('Target')" "$preflight" 'Target column must be separate from ambiguous Identifier'
+contains "\$identifierColumns = @('Identifier')" "$preflight" 'Identifier column must be handled as ambiguous unless explicitly typed'
+contains 'Skipping ambiguous Identifier value without explicit host/IP type' "$preflight" 'ambiguous Identifier rows must not silently probe'
 contains 'Serial-only rows must be normalized or enriched' "$preflight" 'must refuse serial-only material clearly'
 
 for mode in ListCandidates NetworkPreflight NaabuPlan ADRegisteredPlan SubnetConfirmPlan; do
