@@ -11,6 +11,7 @@
   3. Stage only serials that resolve to exactly one probe-ready hostname/IP.
   4. Write review-required rows for serial-only, ambiguous, or invalid-host cases.
   5. Invoke survey/sas-network-preflight.ps1 against the staged hostname/IP file unless -PlanOnly is used.
+  6. Emit artifact_manifest.json so the serial-to-artifact chain is auditable after the run.
 
   The wrapper performs no direct ping/TCP/DNS checks itself. Network activity, when requested, is
   delegated to the existing read-only network preflight script.
@@ -56,6 +57,58 @@ function Get-RepoRoot {
 function ConvertTo-FullPathSafe {
   param([Parameter(Mandatory = $true)][string]$Path)
   ConvertTo-SasFullPath -Path $Path
+}
+
+function Get-FileSha256 {
+  param([Parameter(Mandatory = $true)][string]$Path)
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return '' }
+  return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function New-FileArtifactRecord {
+  param(
+    [Parameter(Mandatory = $true)][string]$Role,
+    [Parameter(Mandatory = $true)][string]$Path,
+    [string]$Description = '',
+    [nullable[int]]$RowCount = $null,
+    [bool]$NetworkActivity = $false
+  )
+
+  $exists = Test-Path -LiteralPath $Path -PathType Leaf
+  [pscustomobject]@{
+    role = $Role
+    kind = 'file'
+    path = $Path
+    exists = [bool]$exists
+    sha256 = if ($exists) { Get-FileSha256 -Path $Path } else { '' }
+    row_count = if ($null -ne $RowCount) { $RowCount } else { $null }
+    network_activity = $NetworkActivity
+    description = $Description
+  }
+}
+
+function New-DirectoryArtifactRecord {
+  param(
+    [Parameter(Mandatory = $true)][string]$Role,
+    [Parameter(Mandatory = $true)][string]$Path,
+    [string]$Description = '',
+    [bool]$NetworkActivity = $false
+  )
+
+  $exists = Test-Path -LiteralPath $Path -PathType Container
+  $fileCount = 0
+  if ($exists) {
+    $fileCount = @(Get-ChildItem -LiteralPath $Path -File -Recurse -ErrorAction SilentlyContinue).Count
+  }
+  [pscustomobject]@{
+    role = $Role
+    kind = 'directory'
+    path = $Path
+    exists = [bool]$exists
+    file_count = $fileCount
+    network_activity = $NetworkActivity
+    description = $Description
+  }
 }
 
 function Get-RowValue {
@@ -285,6 +338,19 @@ if (-not (Test-SasPathUnderRoot -Path $stagingDirectoryFull -Root $roots.Staging
 New-Item -ItemType Directory -Force -Path $outputDirectoryFull | Out-Null
 New-Item -ItemType Directory -Force -Path $stagingDirectoryFull | Out-Null
 
+$serialFileFull = (Resolve-Path -LiteralPath $SerialFile).Path
+$enrichmentFileRecords = @($EnrichmentCsv | ForEach-Object {
+  $fullPath = (Resolve-Path -LiteralPath $_).Path
+  [pscustomobject]@{
+    role = 'hostname_enrichment_input'
+    kind = 'file'
+    path = $fullPath
+    exists = $true
+    sha256 = Get-FileSha256 -Path $fullPath
+    description = 'Optional serial-to-hostname/IP enrichment evidence.'
+  }
+})
+
 $requests = @(Read-SerialRequestRows -Path $SerialFile)
 $enrichmentMap = Read-EnrichmentMap -Paths $EnrichmentCsv
 
@@ -342,6 +408,7 @@ foreach ($request in $requests) {
 $toProbePath = Join-Path $stagingDirectoryFull 'to_probe_targets.csv'
 $reviewPath = Join-Path $outputDirectoryFull 'review_required.csv'
 $summaryPath = Join-Path $outputDirectoryFull 'serial_network_preflight_summary.json'
+$artifactManifestPath = Join-Path $outputDirectoryFull 'artifact_manifest.json'
 $networkOutputDirectory = Join-Path $outputDirectoryFull 'network_preflight'
 
 $toProbe | Export-Csv -LiteralPath $toProbePath -NoTypeInformation -Encoding UTF8
@@ -369,21 +436,63 @@ if ($toProbe.Count -eq 0) {
   & $networkPreflightScript -TargetFile $toProbePath -Ports $Ports -OutputDirectory $networkOutputDirectory
 }
 
-[ordered]@{
+$summary = [ordered]@{
   run_id = $runId
   generated_at = (Get-Date).ToUniversalTime().ToString('o')
-  serial_file = (Resolve-Path -LiteralPath $SerialFile).Path
-  enrichment_files = @($EnrichmentCsv | ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
+  serial_file = $serialFileFull
+  serial_file_sha256 = Get-FileSha256 -Path $serialFileFull
+  enrichment_files = @($enrichmentFileRecords | ForEach-Object { $_.path })
   input_serial_rows = $requests.Count
   probe_ready_targets = $toProbe.Count
   review_required_rows = $review.Count
   staged_target_file = $toProbePath
   review_required_csv = $reviewPath
   network_preflight_output_directory = $networkOutputDirectory
+  artifact_manifest = $artifactManifestPath
   ports = $Ports
   plan_only = [bool]$PlanOnly
   network_activity_performed = $networkActivityPerformed
   doctrine = 'serials_resolve_to_exactly_one_hostname_or_ip_before_network_preflight'
-} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+}
+$summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+
+$generatedArtifacts = @(
+  (New-FileArtifactRecord -Role 'staged_probe_targets' -Path $toProbePath -Description 'Only serials resolved to exactly one probe-ready hostname/IP.' -RowCount $toProbe.Count -NetworkActivity:$false),
+  (New-FileArtifactRecord -Role 'review_required_serials' -Path $reviewPath -Description 'Serial-only, ambiguous, missing-serial, or invalid-host rows requiring operator review.' -RowCount $review.Count -NetworkActivity:$false),
+  (New-FileArtifactRecord -Role 'run_summary' -Path $summaryPath -Description 'Human-readable run counters and primary artifact paths.' -NetworkActivity:$false),
+  (New-DirectoryArtifactRecord -Role 'network_preflight_output_directory' -Path $networkOutputDirectory -Description 'Delegated DNS/ping/TCP preflight artifacts from sas-network-preflight.ps1.' -NetworkActivity:$networkActivityPerformed)
+)
+
+$artifactManifest = [ordered]@{
+  protocol_version = 'serial-artifact-provenance/v1'
+  artifact_chain_invariant = 'serial_input_hashes_plus_enrichment_hashes_produce_staged_probe_targets_or_review_required_rows_before_any_network_preflight_artifact'
+  run_id = $runId
+  generated_at = (Get-Date).ToUniversalTime().ToString('o')
+  repo_root = $repoRoot
+  input_artifacts = @(
+    (New-FileArtifactRecord -Role 'serial_input' -Path $serialFileFull -Description 'Approved serial-first input file.' -RowCount $requests.Count -NetworkActivity:$false)
+  ) + @($enrichmentFileRecords)
+  generated_artifacts = $generatedArtifacts
+  counters = [ordered]@{
+    input_serial_rows = $requests.Count
+    probe_ready_targets = $toProbe.Count
+    review_required_rows = $review.Count
+    enrichment_file_count = @($enrichmentFileRecords).Count
+  }
+  execution = [ordered]@{
+    plan_only = [bool]$PlanOnly
+    ports = $Ports
+    network_activity_performed = $networkActivityPerformed
+    delegated_network_preflight_script = Join-Path $PSScriptRoot 'sas-network-preflight.ps1'
+  }
+  safety = [ordered]@{
+    serials_are_not_probe_targets = $true
+    exact_one_hostname_or_ip_required_before_probe = $true
+    duplicate_serial_host_conflicts_route_to_review = $true
+    live_evidence_commit_policy = 'local operator artifacts only; do not commit generated serial/network evidence'
+  }
+}
+$artifactManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $artifactManifestPath -Encoding UTF8
 
 Write-Host ("- Summary JSON: {0}" -f $summaryPath)
+Write-Host ("- Artifact manifest: {0}" -f $artifactManifestPath)
