@@ -42,7 +42,7 @@ Network preflight should be the last-mile action, not the first pass.
 requested serial population
   -> local evidence comparison
   -> delta decision plan
-  -> reduced probe target file
+  -> reduced staged target file
   -> network preflight only for the delta
   -> reconciliation/report artifacts
 ```
@@ -95,26 +95,31 @@ survey/artifacts/
 
 It should support explicit evidence file arguments as well as directory discovery.
 
-## Required output root
+## Required output and staging roots
 
-The planner writes a self-contained local ignored run directory:
+The planner writes human/machine reports to a self-contained local ignored run directory:
 
 ```text
 survey/output/delta_preflight/<run_id>/
 ```
 
-Required files:
+Required report files:
 
 ```text
 delta_preflight_plan.csv
-to_probe_targets.txt
 skipped_recent_evidence.csv
 review_required.csv
 delta_summary.json
 README.txt
 ```
 
-No generated delta output is committed.
+The planner must stage the runnable reduced target file under the normalized input root because `survey/sas-network-preflight.ps1` currently accepts codified source/staging roots, not generated report roots:
+
+```text
+survey/input/delta_preflight/<run_id>/to_probe_targets.txt
+```
+
+No generated delta report, staged target, or live operational evidence is committed.
 
 ## Evidence model
 
@@ -254,7 +259,7 @@ EvidenceSourceFiles
 
 ## Probe target file contract
 
-`to_probe_targets.txt` must contain only probe-ready hostnames/IPs selected by the delta plan.
+`survey/input/delta_preflight/<run_id>/to_probe_targets.txt` must contain only probe-ready hostnames/IPs selected by the delta plan.
 
 Rules:
 
@@ -291,6 +296,8 @@ reachability_ttl_hours
 identity_ttl_days
 network_activity_performed
 ```
+
+`to_probe_targets_path` must point to the staged `survey/input/delta_preflight/<run_id>/to_probe_targets.txt` file.
 
 `network_activity_performed` must always be `false` for the delta planner.
 
@@ -341,8 +348,8 @@ identity evidence exists but freshness window expired; reprobe target if hostnam
    - attach tracker/progress evidence
    - classify freshness
    - choose one decision
-6. Write the full plan.
-7. Write `to_probe_targets.txt` from probe-required, probe-ready rows only.
+6. Write the full plan under `survey/output/delta_preflight/<run_id>/`.
+7. Stage `to_probe_targets.txt` under `survey/input/delta_preflight/<run_id>/` from probe-required, probe-ready rows only.
 8. Write skipped/review sidecar CSVs.
 9. Write summary JSON.
 10. Print counts and next command.
@@ -359,11 +366,11 @@ Set-Location <SysAdminSuite repo root>
   -IdentityTtlDays 7
 ```
 
-Then run network preflight only on the reduced target file:
+Then run network preflight only on the staged reduced target file:
 
 ```powershell
 .\survey\sas-network-preflight.ps1 `
-  -TargetFile .\survey\output\delta_preflight\<run_id>\to_probe_targets.txt `
+  -TargetFile .\survey\input\delta_preflight\<run_id>\to_probe_targets.txt `
   -Ports 135,445,3389,9100
 ```
 
@@ -373,7 +380,7 @@ The dashboard should show this as:
 1. Load approved source.
 2. Compare local evidence.
 3. Review skipped / probe / review counts.
-4. Probe only the generated delta target file.
+4. Probe only the staged delta target file.
 5. Feed new evidence back into reconciliation.
 ```
 
@@ -416,7 +423,7 @@ Tests must prove:
 9. `to_probe_targets.txt` contains only probe-ready hostnames/IPs.
 10. Duplicate probe targets are deduplicated.
 11. Planner performs no network commands.
-12. Planner writes all outputs under `survey/output/delta_preflight/`.
+12. Planner writes reports under `survey/output/delta_preflight/` and stages runnable target files under `survey/input/delta_preflight/`.
 13. No live target/evidence files are committed.
 14. Replit/Linux runtime mismatch is not treated as product failure.
 15. PowerShell remains the field lane for this workflow.
@@ -444,7 +451,7 @@ Network commands belong in network preflight, not in the delta planner.
 The implementation sprint is complete when:
 
 - Requested serial/target files can be compared to local evidence without sending packets.
-- The planner emits a reduced `to_probe_targets.txt` for network preflight.
+- The planner emits a reduced staged `to_probe_targets.txt` for network preflight.
 - Recent, useful evidence skips rework.
 - Stale or conflicting evidence is surfaced clearly.
 - Serial-only and ambiguous-hostname rows are review-required.
@@ -463,6 +470,7 @@ Current doctrine to implement:
 - docs/CYBERNET_XLSX_TARGET_INGESTION.md
 - docs/AD_REGISTERED_POPULATION.md
 - docs/AD_COMPUTER_CANDIDATE_POOL_SPRINT.md
+- docs/go_naabu_packet_pipeline.plan.md
 
 Mission:
 Implement a PowerShell-first delta preflight planner that compares requested serials/targets against local evidence before any ping/TCP packets are sent.
@@ -477,12 +485,14 @@ Do not collapse PowerShell field tooling into Bash/Linux defaults.
 Required entrypoint:
 - survey/sas-delta-preflight-plan.ps1
 
-Required outputs:
+Required report outputs:
 - survey/output/delta_preflight/<run_id>/delta_preflight_plan.csv
-- survey/output/delta_preflight/<run_id>/to_probe_targets.txt
 - survey/output/delta_preflight/<run_id>/skipped_recent_evidence.csv
 - survey/output/delta_preflight/<run_id>/review_required.csv
 - survey/output/delta_preflight/<run_id>/delta_summary.json
+
+Required staged handoff output:
+- survey/input/delta_preflight/<run_id>/to_probe_targets.txt
 
 Default TTLs:
 - ReachabilityTtlHours = 24
