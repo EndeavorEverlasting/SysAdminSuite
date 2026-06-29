@@ -30,9 +30,10 @@ Do not type demo hostnames manually for live work. Do not use `C:\Temp` as the l
 2. If the source is not already a `.txt` or `.csv` with probe-ready hostnames/IPs, normalize it first.
 3. Run the delta preflight planner to compare the requested population against local evidence.
 4. Review skipped / probe / review counts from `survey/output/delta_preflight/<run_id>/`.
-5. Run the PowerShell network preflight only against `to_probe_targets.txt` from the delta plan.
-6. Review the generated CSV under `survey/output/network_preflight/`.
-7. Load the CSV into the dashboard through **Load Evidence**.
+5. Use the planner-staged target file under `survey/input/delta_preflight/<run_id>/to_probe_targets.txt`.
+6. Run the PowerShell network preflight only against that staged `to_probe_targets.txt` file.
+7. Review the generated CSV under `survey/output/network_preflight/`.
+8. Load the CSV into the dashboard through **Load Evidence**.
 
 ## Delta preflight first
 
@@ -49,17 +50,22 @@ What is stale or conflicting?
 What still deserves packets?
 ```
 
-Expected future planner output:
+Expected future planner report output:
 
 ```text
 survey/output/delta_preflight/<run_id>/delta_preflight_plan.csv
-survey/output/delta_preflight/<run_id>/to_probe_targets.txt
 survey/output/delta_preflight/<run_id>/skipped_recent_evidence.csv
 survey/output/delta_preflight/<run_id>/review_required.csv
 survey/output/delta_preflight/<run_id>/delta_summary.json
 ```
 
-Only `to_probe_targets.txt` should feed the network preflight.
+Expected future staged preflight handoff file:
+
+```text
+survey/input/delta_preflight/<run_id>/to_probe_targets.txt
+```
+
+Only the staged `survey/input/.../to_probe_targets.txt` file should feed the network preflight unless the preflight script is explicitly updated later to trust generated delta output roots.
 
 ## Spreadsheet source on X:\
 
@@ -71,7 +77,7 @@ Preferred path:
 2. Place the CSV under `targets/local/` or `logs/targets/`.
 3. Normalize if needed.
 4. Run the delta preflight planner.
-5. Run the PowerShell preflight against the planner's `to_probe_targets.txt`.
+5. Run the PowerShell preflight against the planner's staged `survey/input/delta_preflight/<run_id>/to_probe_targets.txt`.
 
 ## Select a target file
 
@@ -90,7 +96,7 @@ Run in Windows PowerShell:
 
 ```powershell
 Set-Location <SysAdminSuite repo root>
-.\survey\sas-network-preflight.ps1 -TargetFile .\survey\output\delta_preflight\<run_id>\to_probe_targets.txt -Ports 135,445,3389,9100
+.\survey\sas-network-preflight.ps1 -TargetFile .\survey\input\delta_preflight\<run_id>\to_probe_targets.txt -Ports 135,445,3389,9100
 ```
 
 Direct approved source roots are still accepted when the delta planner is not available yet:
