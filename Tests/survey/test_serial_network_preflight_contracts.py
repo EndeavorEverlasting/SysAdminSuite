@@ -74,6 +74,20 @@ def test_serial_network_preflight_preserves_candidate_source_traceability():
         assert fragment in text, f"serial enrichment source traceability missing: {fragment}"
 
 
+def test_serial_network_preflight_groups_duplicate_serial_candidates():
+    text = read(SCRIPT)
+    required = [
+        "Duplicate serial direct hostnames are included in the same candidate set",
+        "foreach ($peer in $requests | Where-Object",
+        "$_.NormalizedSerial -eq $request.NormalizedSerial",
+        "$candidates.Add([pscustomobject]@{ HostName = $peer.DirectHostName; Source = $peer.Source })",
+        "$probeReady.Count -gt 1",
+        "REVIEW_REQUIRED_MULTIPLE_HOSTNAMES",
+    ]
+    for fragment in required:
+        assert fragment in text, f"duplicate serial grouping contract missing: {fragment}"
+
+
 def test_serial_network_preflight_delegates_network_activity_to_existing_preflight():
     text = read(SCRIPT)
     assert "sas-network-preflight.ps1" in text
@@ -121,6 +135,7 @@ if __name__ == "__main__":
     test_serial_network_preflight_wrapper_exists_and_uses_target_intake()
     test_serial_network_preflight_requires_resolution_before_probe()
     test_serial_network_preflight_preserves_candidate_source_traceability()
+    test_serial_network_preflight_groups_duplicate_serial_candidates()
     test_serial_network_preflight_delegates_network_activity_to_existing_preflight()
     test_serial_network_preflight_has_no_ad_or_target_mutation()
     test_offline_runner_wires_serial_network_preflight_contract()
