@@ -219,18 +219,24 @@ function Read-EnrichmentMap {
   return $map
 }
 
-function Select-UniqueProbeCandidate {
+function Select-UniqueProbeCandidateRecords {
   param(
     [object[]]$Candidates
   )
 
-  $values = New-Object System.Collections.Generic.List[string]
+  $records = New-Object System.Collections.Generic.List[object]
+  $seen = New-Object System.Collections.Generic.HashSet[string] ([System.StringComparer]::OrdinalIgnoreCase)
   foreach ($candidate in $Candidates) {
     $host = ([string]$candidate.HostName).Trim()
     if ([string]::IsNullOrWhiteSpace($host)) { continue }
-    if ($values -notcontains $host) { $values.Add($host) | Out-Null }
+    if ($seen.Add($host)) {
+      $records.Add([pscustomobject]@{
+        HostName = $host
+        Source = ([string]$candidate.Source)
+      }) | Out-Null
+    }
   }
-  return @($values)
+  return @($records)
 }
 
 function New-ReviewRow {
@@ -300,13 +306,15 @@ foreach ($request in $requests) {
     foreach ($candidate in $enrichmentMap[$request.NormalizedSerial]) { $candidates.Add($candidate) | Out-Null }
   }
 
-  $candidateValues = @(Select-UniqueProbeCandidate -Candidates @($candidates))
+  $candidateRecords = @(Select-UniqueProbeCandidateRecords -Candidates @($candidates))
+  $candidateValues = @($candidateRecords | Select-Object -ExpandProperty HostName)
   if ($candidateValues.Count -eq 0) {
     $review.Add((New-ReviewRow -Request $request -Status 'REVIEW_REQUIRED_SERIAL_ONLY' -Reason 'Serial-only rows are review-required; a serial cannot be pinged until resolved to one hostname or IP.' -CandidateHostnames @())) | Out-Null
     continue
   }
 
-  $probeReady = @($candidateValues | Where-Object { Test-ProbeReadyTargetValue -Value $_ })
+  $probeReadyRecords = @($candidateRecords | Where-Object { Test-ProbeReadyTargetValue -Value $_.HostName })
+  $probeReady = @($probeReadyRecords | Select-Object -ExpandProperty HostName)
   if ($probeReady.Count -eq 0) {
     $review.Add((New-ReviewRow -Request $request -Status 'REVIEW_REQUIRED_NO_PROBE_READY_HOST' -Reason 'Candidate host values exist but none are valid probe-ready hostnames or IP addresses.' -CandidateHostnames $candidateValues)) | Out-Null
     continue
@@ -317,13 +325,15 @@ foreach ($request in $requests) {
     continue
   }
 
-  $target = $probeReady[0]
+  $selected = $probeReadyRecords[0]
+  $target = [string]$selected.HostName
   if ($seenTargets.Add($target)) {
     $toProbe.Add([pscustomobject]@{
       HostName = $target
       Serial = $request.NormalizedSerial
       IdentifierType = if (Test-IsIpAddress -Value $target) { 'IPAddress' } else { 'HostName' }
-      Source = $request.Source
+      Source = [string]$selected.Source
+      RequestSource = $request.Source
     }) | Out-Null
   }
 }
