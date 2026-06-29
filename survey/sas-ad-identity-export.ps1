@@ -4,6 +4,10 @@
 .DESCRIPTION
   Uses bounded AD lookups only. It discovers domain/DC state before querying and classifies blocked,
   ambiguous, missing, stale, disabled, DNS, and permission states instead of collapsing them to pass/fail.
+
+  Hostname variance is handled as bounded doctrine candidate generation, not generic fuzzy search.
+  Variant matches are candidate discovery only and remain serial_unverified until a privileged identity
+  source proves the physical device identity.
 #>
 [CmdletBinding()]
 param(
@@ -38,6 +42,13 @@ $RequiredAdProbeStates = @(
   'PERMISSION_BLOCKED','IMPORTED_STATIC_EVIDENCE','NOT_AD_VERIFIED','NEEDS_OPERATOR_REVIEW'
 )
 
+$HostnameVariantStatusTokens = @(
+  'ad_exact_match','ad_variant_match','ad_prefix_variant_match','ad_known_prefix_substitution',
+  'ad_prefix_site_mismatch','ad_number_transposition_candidate','ad_letter_transposition_candidate',
+  'serial_unverified','needs_site_context_review','needs_privileged_identity','not_found_in_ad',
+  'wildcard_prefix_review_only'
+)
+
 function Test-PermissionError([string]$Message) {
   $Message -match '(?i)access is denied|insufficient|permission|unauthorized|not authorized|privilege'
 }
@@ -58,6 +69,12 @@ function Get-ShortHostname([string]$Value) {
   return (($Value.Trim() -split '\.')[0] -replace '\$$','').ToUpperInvariant()
 }
 
+function Get-CompactHostname([string]$Value) {
+  $short = Get-ShortHostname $Value
+  if ([string]::IsNullOrWhiteSpace($short)) { return '' }
+  return ($short -replace '[-_\s]','').ToUpperInvariant()
+}
+
 function Get-FirstValue([hashtable]$Row,[string[]]$Names) {
   foreach ($n in $Names) {
     foreach ($k in $Row.Keys) {
@@ -71,22 +88,189 @@ function Get-FirstValue([hashtable]$Row,[string[]]$Names) {
 }
 
 function Get-ManifestIdentifier([hashtable]$Row) {
-  Get-FirstValue $Row @('target','Target','Identifier','SurveyTargetHint','HostName','Hostname','ComputerName','Cybernet Hostname','Neuron Hostname','Cybernet Serial','Cybernet S/N','Neuron S/N','Neuron Serial','MACAddress','MAC')
+  Get-FirstValue $Row @('target','Target','Identifier','SurveyTargetHint','HostName','Hostname','ComputerName','ExpectedHostname','Cybernet Hostname','Neuron Hostname','Cybernet Serial','Cybernet S/N','Neuron S/N','Neuron Serial','MACAddress','MAC')
+}
+
+function Get-ManifestSite([hashtable]$Row) {
+  Get-FirstValue $Row @('Site','Facility','Location','Hospital','SourceSite')
 }
 
 function Get-IdentifierType([string]$Value) {
   $v = (($Value -as [string]).Trim() -replace '\s+','').ToUpperInvariant()
   if (-not $v) { return 'missing' }
   if ($v -match '^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$') { return 'mac' }
-  if ($v -match '^(CYB|WNH|HOST|OPR|PC|WKST|WKS|LAP|DESK|DT|LT)[A-Z0-9._-]*$') { return 'hostname' }
+  if ($v -match '^(CYB|WNH|WMH|HOST|OPR|PC|WKST|WKS|LAP|DESK|DT|LT)[A-Z0-9._-]*$') { return 'hostname' }
   if ($v -match '[A-Z]' -and $v -match '\d') { return 'serial_or_asset' }
   return 'identifier'
 }
 
-function Get-ADComputerCandidates([string]$Identifier,[string]$IdentifierType) {
+function Get-SitePrefixDisposition([string]$Candidate,[string]$Site) {
+  $prefix = (Get-CompactHostname $Candidate)
+  if ($prefix.Length -ge 3) { $prefix = $prefix.Substring(0,3) }
+  $siteText = if ($Site) { $Site.Trim() } else { '' }
+  $status = 'ad_known_prefix_substitution'
+  $confidence = 'medium'
+  $reviewRequired = $false
+  $notes = 'known WNH/WMH substitution; verify against Site before trusting.'
+
+  if ([string]::IsNullOrWhiteSpace($siteText)) {
+    return @{ Status='needs_site_context_review'; Confidence='low'; ReviewRequired=$true; Notes='Site is missing; prefix substitution requires operator review.' }
+  }
+
+  $lijLike = $siteText -match '(?i)\bLIJ\b|Long Island Jewish|Forest Hills|Valley Stream|Cohen'
+  $nsuhLike = $siteText -match '(?i)\bNSUH\b|North Shore|Manhasset|Marcus'
+
+  if (($prefix -eq 'WNH' -and $lijLike) -or ($prefix -eq 'WMH' -and $nsuhLike)) {
+    return @{ Status=$status; Confidence=$confidence; ReviewRequired=$false; Notes=$notes }
+  }
+
+  return @{ Status='ad_prefix_site_mismatch'; Confidence='low'; ReviewRequired=$true; Notes='Substituted prefix conflicts with available site context; needs_site_context_review.' }
+}
+
+function Get-AdjacentNumericTranspositions([string]$CompactHostname) {
+  $out = New-Object System.Collections.Generic.List[string]
+  foreach ($m in [regex]::Matches($CompactHostname, '\d+')) {
+    $block = [string]$m.Value
+    if ($block.Length -lt 2) { continue }
+    for ($i = 0; $i -lt ($block.Length - 1); $i++) {
+      $chars = $block.ToCharArray()
+      $tmp = $chars[$i]
+      $chars[$i] = $chars[$i + 1]
+      $chars[$i + 1] = $tmp
+      $swapped = -join $chars
+      if ($swapped -ne $block) {
+        $candidate = $CompactHostname.Substring(0,$m.Index) + $swapped + $CompactHostname.Substring($m.Index + $m.Length)
+        $out.Add($candidate) | Out-Null
+      }
+    }
+  }
+  $out | Select-Object -Unique
+}
+
+function Get-PrefixLetterTranspositions([string]$CompactHostname) {
+  if ($CompactHostname.Length -lt 4) { return @() }
+  $prefix = $CompactHostname.Substring(0,3)
+  if ($prefix -notmatch '^[A-Z]{3}$') { return @() }
+  $suffix = $CompactHostname.Substring(3)
+  $c = $prefix.ToCharArray()
+  @(
+    "$($c[0])$($c[2])$($c[1])$suffix",
+    "$($c[1])$($c[0])$($c[2])$suffix",
+    "$($c[1])$($c[2])$($c[0])$suffix",
+    "$($c[2])$($c[0])$($c[1])$suffix",
+    "$($c[2])$($c[1])$($c[0])$suffix"
+  ) | Where-Object { $_ -ne $CompactHostname } | Select-Object -Unique
+}
+
+function Get-ADComputerCandidateRecords([string]$Identifier,[string]$IdentifierType,[string]$Site) {
   if ($IdentifierType -ne 'hostname') { return @() }
+
+  $records = New-Object System.Collections.Generic.List[object]
+  $seen = @{}
+
+  function Add-CandidateRecord {
+    param(
+      [string]$Candidate,
+      [string]$VariantClass,
+      [string]$Confidence,
+      [string]$CandidateStatus,
+      [bool]$SearchAllowed,
+      [bool]$ReviewRequired,
+      [string]$Notes
+    )
+    if ([string]::IsNullOrWhiteSpace($Candidate)) { return }
+    $value = $Candidate.Trim().ToUpperInvariant()
+    $key = "{0}|{1}" -f $value, $VariantClass
+    if ($seen.ContainsKey($key)) { return }
+    $seen[$key] = $true
+    $records.Add([pscustomobject]@{
+      Candidate = $value
+      VariantClass = $VariantClass
+      Confidence = $Confidence
+      CandidateStatus = $CandidateStatus
+      SearchAllowed = $SearchAllowed
+      ReviewRequired = $ReviewRequired
+      Notes = $Notes
+    }) | Out-Null
+  }
+
   $short = Get-ShortHostname $Identifier
-  @($Identifier.Trim(), $short, "$short$") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique -First 4
+  $compact = Get-CompactHostname $Identifier
+  if ([string]::IsNullOrWhiteSpace($compact)) { return @() }
+
+  Add-CandidateRecord -Candidate $short -VariantClass 'exact_hostname' -Confidence 'highest' -CandidateStatus 'ad_exact_match' -SearchAllowed $true -ReviewRequired $false -Notes 'Exact manifest hostname candidate.'
+  Add-CandidateRecord -Candidate $compact -VariantClass 'separator_only_variant' -Confidence 'high' -CandidateStatus 'ad_variant_match' -SearchAllowed $true -ReviewRequired $false -Notes 'Separator-only normalized hostname candidate.'
+  Add-CandidateRecord -Candidate "$compact$" -VariantClass 'sam_account_name' -Confidence 'highest' -CandidateStatus 'ad_exact_match' -SearchAllowed $true -ReviewRequired $false -Notes 'Computer sAMAccountName candidate.'
+
+  if ($compact -match '^([A-Z]{3})(\d+)([A-Z]+)(\d+)$') {
+    Add-CandidateRecord -Candidate ("{0}-{1}-{2}-{3}" -f $matches[1],$matches[2],$matches[3],$matches[4]) -VariantClass 'separator_only_variant' -Confidence 'high' -CandidateStatus 'ad_variant_match' -SearchAllowed $true -ReviewRequired $false -Notes 'Separator-only dashed hostname candidate.'
+    Add-CandidateRecord -Candidate ("{0}{1}-{2}{3}" -f $matches[1],$matches[2],$matches[3],$matches[4]) -VariantClass 'separator_only_variant' -Confidence 'high' -CandidateStatus 'ad_variant_match' -SearchAllowed $true -ReviewRequired $false -Notes 'Separator-only partial-dash hostname candidate.'
+  }
+
+  if ($compact -match '(OPR|0PR|O0R|OP0R)') {
+    $chars = $compact.ToCharArray()
+    $added = 0
+    for ($i = 0; $i -lt $chars.Length -and $added -lt 8; $i++) {
+      if ($chars[$i] -eq 'O' -or $chars[$i] -eq '0') {
+        $copy = $compact.ToCharArray()
+        $copy[$i] = if ($copy[$i] -eq 'O') { '0' } else { 'O' }
+        $candidate = -join $copy
+        Add-CandidateRecord -Candidate $candidate -VariantClass 'o0_swap_variant' -Confidence 'medium-high' -CandidateStatus 'ad_variant_match' -SearchAllowed $true -ReviewRequired $false -Notes 'O/0 swap in OPR-like hostname segment.'
+        $added++
+      }
+    }
+  }
+
+  if ($compact -match '^(.+?)(\d+)$') {
+    $head = $matches[1]
+    $suffix = $matches[2]
+    if ($suffix.Length -gt 1 -and $suffix.StartsWith('0')) {
+      Add-CandidateRecord -Candidate ($head + $suffix.Substring(1)) -VariantClass 'zero_count_drift' -Confidence 'medium' -CandidateStatus 'ad_variant_match' -SearchAllowed $true -ReviewRequired $false -Notes 'Missing leading zero in numeric suffix.'
+    }
+    Add-CandidateRecord -Candidate ($head + '0' + $suffix) -VariantClass 'zero_count_drift' -Confidence 'medium' -CandidateStatus 'ad_variant_match' -SearchAllowed $true -ReviewRequired $false -Notes 'Extra leading zero in numeric suffix.'
+  }
+
+  if ($compact.StartsWith('WNH') -or $compact.StartsWith('WMH')) {
+    $sub = if ($compact.StartsWith('WNH')) { 'WMH' + $compact.Substring(3) } else { 'WNH' + $compact.Substring(3) }
+    $siteDisposition = Get-SitePrefixDisposition -Candidate $sub -Site $Site
+    Add-CandidateRecord -Candidate $sub -VariantClass 'known_wnh_wmh_substitution' -Confidence $siteDisposition.Confidence -CandidateStatus $siteDisposition.Status -SearchAllowed $true -ReviewRequired $siteDisposition.ReviewRequired -Notes $siteDisposition.Notes
+  }
+
+  foreach ($candidate in Get-PrefixLetterTranspositions $compact) {
+    Add-CandidateRecord -Candidate $candidate -VariantClass 'prefix_letter_transposition' -Confidence 'low' -CandidateStatus 'ad_letter_transposition_candidate' -SearchAllowed $true -ReviewRequired $true -Notes 'Prefix-letter transposition; candidate discovery only.'
+  }
+
+  foreach ($candidate in Get-AdjacentNumericTranspositions $compact) {
+    Add-CandidateRecord -Candidate $candidate -VariantClass 'numeric_block_transposition' -Confidence 'low' -CandidateStatus 'ad_number_transposition_candidate' -SearchAllowed $true -ReviewRequired $true -Notes 'Adjacent numeric-block transposition; candidate discovery only.'
+  }
+
+  Add-CandidateRecord -Candidate $compact -VariantClass 'wildcard_prefix_review_only' -Confidence 'review' -CandidateStatus 'wildcard_prefix_review_only' -SearchAllowed $false -ReviewRequired $true -Notes 'Wildcard prefix matching is review-only and is never used as an AD query.'
+
+  @($records | Select-Object -First 50)
+}
+
+function Get-ADComputerCandidates([string]$Identifier,[string]$IdentifierType,[string]$Site = '') {
+  Get-ADComputerCandidateRecords $Identifier $IdentifierType $Site |
+    Where-Object { $_.SearchAllowed } |
+    Select-Object -ExpandProperty Candidate -Unique
+}
+
+function Format-CandidatePool([object[]]$CandidateRecords) {
+  if (-not $CandidateRecords) { return '' }
+  (@($CandidateRecords) | ForEach-Object {
+    "{0}:{1}:{2}:{3}:query={4}" -f $_.Candidate,$_.VariantClass,$_.Confidence,$_.CandidateStatus,$_.SearchAllowed
+  }) -join ';'
+}
+
+function Select-BestCandidateForComputer($Computer,[object[]]$CandidateRecords) {
+  if (-not $CandidateRecords) { return $null }
+  $computerName = Get-ShortHostname ([string]$Computer.Name)
+  $dnsName = Get-ShortHostname ([string]$Computer.DNSHostName)
+  foreach ($r in @($CandidateRecords | Where-Object { $_.SearchAllowed })) {
+    $candidateShort = Get-ShortHostname ([string]$r.Candidate)
+    if ($candidateShort -and ($candidateShort -eq $computerName -or $candidateShort -eq $dnsName)) { return $r }
+  }
+  return @($CandidateRecords | Where-Object { $_.SearchAllowed } | Select-Object -First 1)[0]
 }
 
 function Get-ComputerOUPath([string]$Dn) {
@@ -124,6 +308,12 @@ function New-EvidenceRow {
     [string]$DomainControllerStatus = '',
     [string]$PermissionStatus = '',
     [string]$DNSStatus = '',
+    [string]$CandidateValue = '',
+    [string]$CandidateVariantClass = '',
+    [string]$CandidateConfidence = '',
+    [string]$CandidateStatus = '',
+    [string]$CandidateReviewRequired = '',
+    [string]$CandidatePool = '',
     [string]$Notes = ''
   )
   [pscustomobject]@{
@@ -146,6 +336,12 @@ function New-EvidenceRow {
     DomainControllerStatus = $DomainControllerStatus
     PermissionStatus = $PermissionStatus
     DNSStatus = $DNSStatus
+    CandidateValue = $CandidateValue
+    CandidateVariantClass = $CandidateVariantClass
+    CandidateConfidence = $CandidateConfidence
+    CandidateStatus = $CandidateStatus
+    CandidateReviewRequired = $CandidateReviewRequired
+    CandidatePool = $CandidatePool
     Notes = $Notes
   }
 }
@@ -207,7 +403,7 @@ function Resolve-AdDnsState([string]$DNSHostName,[switch]$Enabled) {
   }
 }
 
-function Convert-ADComputerToEvidenceRow($Computer,[string]$Target,[string]$IdentifierType,[string]$Method,[pscustomobject]$DomainState,[switch]$DoDnsResolve,[int]$StaleAfterDays) {
+function Convert-ADComputerToEvidenceRow($Computer,[string]$Target,[string]$IdentifierType,[string]$Method,[pscustomobject]$DomainState,[switch]$DoDnsResolve,[int]$StaleAfterDays,$CandidateRecord,[string]$CandidatePool) {
   $enabled = if ($null -ne $Computer.Enabled) { [bool]$Computer.Enabled } else { $true }
   $dns = Resolve-AdDnsState ([string]$Computer.DNSHostName) -Enabled:$DoDnsResolve
   $status = [string]$dns.Status
@@ -216,28 +412,48 @@ function Convert-ADComputerToEvidenceRow($Computer,[string]$Target,[string]$Iden
   } elseif ($null -ne $Computer.whenChanged -and ((Get-Date) - [datetime]$Computer.whenChanged).Days -gt $StaleAfterDays) {
     $status = 'AD_OBJECT_FOUND_STALE'
   }
-  $notes = "whenChanged={0} | {1}" -f $Computer.whenChanged, $dns.Notes
-  New-EvidenceRow -Target $Target -IdentifierType $IdentifierType -ADHostname ([string]$Computer.Name) -DNSHostName ([string]$Computer.DNSHostName) -ADEnabled ([string]$enabled) -DirectoryPath ([string]$Computer.DistinguishedName) -ADStatus $status -ADProbeMethod $Method -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -DNSStatus ([string]$dns.DNSStatus) -Notes $notes
+  $candidateValue = ''
+  $candidateVariantClass = ''
+  $candidateConfidence = ''
+  $candidateStatus = ''
+  $candidateReviewRequired = ''
+  $candidateNotes = ''
+  if ($CandidateRecord) {
+    $candidateValue = [string]$CandidateRecord.Candidate
+    $candidateVariantClass = [string]$CandidateRecord.VariantClass
+    $candidateConfidence = [string]$CandidateRecord.Confidence
+    $candidateStatus = [string]$CandidateRecord.CandidateStatus
+    $candidateReviewRequired = [string]$CandidateRecord.ReviewRequired
+    $candidateNotes = [string]$CandidateRecord.Notes
+  }
+  $notes = "whenChanged={0} | {1} | candidate_status={2} | serial_unverified | needs_privileged_identity | {3}" -f $Computer.whenChanged, $dns.Notes, $candidateStatus, $candidateNotes
+  New-EvidenceRow -Target $Target -IdentifierType $IdentifierType -ADHostname ([string]$Computer.Name) -DNSHostName ([string]$Computer.DNSHostName) -ADEnabled ([string]$enabled) -DirectoryPath ([string]$Computer.DistinguishedName) -ADStatus $status -ADProbeMethod $Method -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -DNSStatus ([string]$dns.DNSStatus) -CandidateValue $candidateValue -CandidateVariantClass $candidateVariantClass -CandidateConfidence $candidateConfidence -CandidateStatus $candidateStatus -CandidateReviewRequired $candidateReviewRequired -CandidatePool $CandidatePool -Notes $notes
 }
 
-function Find-WithADModule([string]$Identifier,[string]$IdentifierType,[switch]$AllowDescriptionSearch,[pscustomobject]$DomainState,[switch]$DoDnsResolve,[int]$StaleAfterDays) {
+function Find-WithADModule([string]$Identifier,[string]$IdentifierType,[string]$Site,[switch]$AllowDescriptionSearch,[pscustomobject]$DomainState,[switch]$DoDnsResolve,[int]$StaleAfterDays) {
   $props = @('Enabled','DistinguishedName','DNSHostName','Description','Name','whenChanged')
+  $candidateRecords = @(Get-ADComputerCandidateRecords $Identifier $IdentifierType $Site)
+  $queryRecords = @($candidateRecords | Where-Object { $_.SearchAllowed })
+  $candidatePool = Format-CandidatePool $candidateRecords
   $matches = @()
-  foreach ($c in Get-ADComputerCandidates $Identifier $IdentifierType) {
+
+  foreach ($record in $queryRecords) {
     try {
-      $matches += Get-ADComputer -Identity $c -Properties $props -ErrorAction Stop
+      $matches += Get-ADComputer -Identity ([string]$record.Candidate) -Properties $props -ErrorAction Stop
     } catch {
       $m = $_.Exception.Message
       if (Test-PermissionError $m) { return New-BlockedEvidenceRow $Identifier $IdentifierType 'PERMISSION_BLOCKED' 'active_directory_module_identity' $DomainState $m }
     }
   }
+
   if ($matches.Count -eq 0) {
     $clauses = @()
-    foreach ($c in Get-ADComputerCandidates $Identifier $IdentifierType) {
-      $safe = ConvertTo-LdapEscapedValue $c
+    foreach ($record in $queryRecords) {
+      $safe = ConvertTo-LdapEscapedValue ([string]$record.Candidate)
       if ($safe) {
         $clauses += "(name=$safe)"
         $clauses += "(dNSHostName=$safe)"
+        $clauses += "(sAMAccountName=$safe)"
       }
     }
     if ($AllowDescriptionSearch) {
@@ -247,22 +463,28 @@ function Find-WithADModule([string]$Identifier,[string]$IdentifierType,[switch]$
     if ($clauses.Count -gt 0) {
       $filter = if ($clauses.Count -eq 1) { $clauses[0] } else { "(|$($clauses -join ''))" }
       try {
-        $matches = @(Get-ADComputer -LDAPFilter $filter -Properties $props -ResultSetSize 10 -ErrorAction Stop)
+        $matches = @(Get-ADComputer -LDAPFilter $filter -Properties $props -ResultSetSize 25 -ErrorAction Stop)
       } catch {
         $m = $_.Exception.Message
         $st = if (Test-PermissionError $m) { 'PERMISSION_BLOCKED' } else { 'AD_QUERY_BLOCKED' }
-        return New-BlockedEvidenceRow $Identifier $IdentifierType $st 'active_directory_module_exact_filter' $DomainState $m
+        return New-BlockedEvidenceRow $Identifier $IdentifierType $st 'active_directory_module_bounded_variant_filter' $DomainState $m
       }
     }
   }
+
   $u = @{}
   foreach ($x in $matches) {
     if ($x.DistinguishedName -and -not $u.ContainsKey([string]$x.DistinguishedName)) { $u[[string]$x.DistinguishedName] = $x }
   }
   $d = @($u.Values)
-  if ($d.Count -eq 1) { return Convert-ADComputerToEvidenceRow $d[0] $Identifier $IdentifierType 'active_directory_module_bounded_lookup' $DomainState -DoDnsResolve:$DoDnsResolve -StaleAfterDays $StaleAfterDays }
-  if ($d.Count -gt 1) { return New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType -ADStatus 'AD_DUPLICATE_CANDIDATES' -ADProbeMethod 'active_directory_module_bounded_lookup' -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -Notes ("Multiple candidate AD computer objects found: {0}" -f (($d | Select-Object -ExpandProperty Name) -join ';')) }
-  New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType -ADStatus 'AD_NOT_FOUND' -ADProbeMethod 'active_directory_module_bounded_lookup' -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -Notes 'No matching AD computer object found with bounded candidate lookup.'
+  if ($d.Count -eq 1) {
+    $candidate = Select-BestCandidateForComputer $d[0] $candidateRecords
+    return Convert-ADComputerToEvidenceRow $d[0] $Identifier $IdentifierType 'active_directory_module_bounded_variant_lookup' $DomainState -DoDnsResolve:$DoDnsResolve -StaleAfterDays $StaleAfterDays -CandidateRecord $candidate -CandidatePool $candidatePool
+  }
+  if ($d.Count -gt 1) {
+    return New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType -ADStatus 'AD_DUPLICATE_CANDIDATES' -ADProbeMethod 'active_directory_module_bounded_variant_lookup' -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -CandidatePool $candidatePool -Notes ("Multiple candidate AD computer objects found: {0} | serial_unverified | needs_privileged_identity" -f (($d | Select-Object -ExpandProperty Name) -join ';'))
+  }
+  New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType -ADStatus 'AD_NOT_FOUND' -ADProbeMethod 'active_directory_module_bounded_variant_lookup' -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -CandidatePool $candidatePool -Notes 'No matching AD computer object found with bounded doctrine candidate lookup; not_found_in_ad.'
 }
 
 function Find-WithDsquery([string]$Identifier,[string]$IdentifierType,[pscustomobject]$DomainState) {
@@ -273,7 +495,7 @@ function Find-WithDsquery([string]$Identifier,[string]$IdentifierType,[pscustomo
       $lines = @($raw | Where-Object { $_ -and $_.ToString().Trim() })
       if ($lines.Count -gt 1) { return New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType -ADStatus 'AD_DUPLICATE_CANDIDATES' -ADProbeMethod 'dsquery_computer_exact_name' -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -Notes ($lines -join ';') }
       $host = if ($lines[0] -match '^"?CN=([^,"]+)') { $matches[1] } else { '' }
-      return New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType -ADHostname $host -DirectoryPath ([string]$lines[0]) -ADStatus 'NOT_AD_VERIFIED' -ADProbeMethod 'dsquery_computer_exact_name' -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -Notes 'Resolved through dsquery fallback; DNS/enabled/stale fields unavailable.'
+      return New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType -ADHostname $host -DirectoryPath ([string]$lines[0]) -ADStatus 'NOT_AD_VERIFIED' -ADProbeMethod 'dsquery_computer_exact_name' -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -CandidateStatus 'ad_exact_match' -CandidateReviewRequired 'False' -Notes 'Resolved through dsquery fallback; DNS/enabled/stale fields unavailable; serial_unverified.'
     }
     New-EvidenceRow -Target $Identifier -IdentifierType $IdentifierType -ADStatus 'AD_NOT_FOUND' -ADProbeMethod 'dsquery_computer_exact_name' -DomainContext $DomainState.DomainContext -DomainControllerStatus $DomainState.DomainControllerStatus -PermissionStatus $DomainState.PermissionStatus -Notes (($raw | Out-String).Trim())
   } catch {
@@ -296,7 +518,7 @@ function Expand-EvidenceRow([pscustomobject]$Row,[string]$Identifier,[switch]$Wa
   if ($WantUserLookup) {
     $notes = if ($notes) { "$notes | AD user lookup intentionally not run in this bounded probe." } else { 'AD user lookup intentionally not run in this bounded probe.' }
   }
-  New-EvidenceRow -Target $Row.Target -IdentifierType $Row.IdentifierType -ADHostname $Row.ADHostname -DNSHostName $Row.DNSHostName -ADEnabled $Row.ADEnabled -DirectoryPath $Row.DirectoryPath -ComputerOU $ou -LegacyOUWarning $warn -ADStatus $status -ADProbeMethod $Row.ADProbeMethod -DomainContext $Row.DomainContext -DomainControllerStatus $Row.DomainControllerStatus -PermissionStatus $Row.PermissionStatus -DNSStatus $Row.DNSStatus -Notes $notes
+  New-EvidenceRow -Target $Row.Target -IdentifierType $Row.IdentifierType -ADHostname $Row.ADHostname -DNSHostName $Row.DNSHostName -ADEnabled $Row.ADEnabled -DirectoryPath $Row.DirectoryPath -ComputerOU $ou -LegacyOUWarning $warn -ADStatus $status -ADProbeMethod $Row.ADProbeMethod -DomainContext $Row.DomainContext -DomainControllerStatus $Row.DomainControllerStatus -PermissionStatus $Row.PermissionStatus -DNSStatus $Row.DNSStatus -CandidateValue $Row.CandidateValue -CandidateVariantClass $Row.CandidateVariantClass -CandidateConfidence $Row.CandidateConfidence -CandidateStatus $Row.CandidateStatus -CandidateReviewRequired $Row.CandidateReviewRequired -CandidatePool $Row.CandidatePool -Notes $notes
 }
 
 function Write-AdProbeStateSummary([object[]]$Results,[pscustomobject]$DomainState,[string]$QueryMode,[string]$FallbackMode,[string]$OutputPath,[string]$SummaryPath) {
@@ -310,6 +532,7 @@ function Write-AdProbeStateSummary([object[]]$Results,[pscustomobject]$DomainSta
   $found = $counts['AD_CONFIRMED'] + $counts['AD_OBJECT_FOUND_DNS_FOUND'] + $counts['AD_OBJECT_FOUND_DNS_MISSING'] + $counts['AD_OBJECT_FOUND_DNS_MISMATCH'] + $counts['AD_OBJECT_FOUND_STALE'] + $counts['AD_OBJECT_FOUND_DISABLED'] + $counts['AD_OBJECT_FOUND_WRONG_OU'] + $counts['NOT_AD_VERIFIED']
   $blocked = $counts['AD_QUERY_BLOCKED'] + $counts['DOMAIN_CONTEXT_UNKNOWN'] + $counts['DOMAIN_CONTROLLER_UNREACHABLE'] + $counts['PERMISSION_BLOCKED']
   $dnsEnriched = @($Results | Where-Object { $_.DNSStatus }).Count
+  $candidateReview = @($Results | Where-Object { $_.CandidateReviewRequired -match 'True|true' }).Count
   Write-Host 'AD PROBE STATE SUMMARY:'
   Write-Host ("- Query mode used: {0}" -f $QueryMode)
   Write-Host ("- Fallback mode used: {0}" -f $FallbackMode)
@@ -324,7 +547,7 @@ function Write-AdProbeStateSummary([object[]]$Results,[pscustomobject]$DomainSta
   Write-Host ("- Duplicate candidates: {0}" -f $counts['AD_DUPLICATE_CANDIDATES'])
   Write-Host ("- Not found: {0}" -f $counts['AD_NOT_FOUND'])
   Write-Host ("- Blocked / unknown: {0}" -f $blocked)
-  Write-Host ("- Needs operator review: {0}" -f ($counts['NEEDS_OPERATOR_REVIEW'] + $counts['AD_DUPLICATE_CANDIDATES'] + $counts['AD_OBJECT_FOUND_WRONG_OU']))
+  Write-Host ("- Needs operator review: {0}" -f ($counts['NEEDS_OPERATOR_REVIEW'] + $counts['AD_DUPLICATE_CANDIDATES'] + $counts['AD_OBJECT_FOUND_WRONG_OU'] + $candidateReview))
   Write-Host ("- Local ignored log path: {0}" -f $SummaryPath)
   Write-Host '- Evidence committed: none, or sanitized fixture only'
   [ordered]@{
@@ -341,7 +564,8 @@ function Write-AdProbeStateSummary([object[]]$Results,[pscustomobject]$DomainSta
     duplicate_candidates = $counts['AD_DUPLICATE_CANDIDATES']
     not_found = $counts['AD_NOT_FOUND']
     blocked_unknown = $blocked
-    needs_operator_review = ($counts['NEEDS_OPERATOR_REVIEW'] + $counts['AD_DUPLICATE_CANDIDATES'] + $counts['AD_OBJECT_FOUND_WRONG_OU'])
+    needs_operator_review = ($counts['NEEDS_OPERATOR_REVIEW'] + $counts['AD_DUPLICATE_CANDIDATES'] + $counts['AD_OBJECT_FOUND_WRONG_OU'] + $candidateReview)
+    candidate_review_required = $candidateReview
     output_path = $OutputPath
     evidence_committed = 'none; local operator evidence only'
     counts_by_state = $counts
@@ -355,12 +579,13 @@ $manifestRows = Import-Csv -LiteralPath $Manifest
 $hasADModule = $null -ne (Get-Module -ListAvailable -Name ActiveDirectory | Select-Object -First 1)
 $hasDsquery = $null -ne (Get-Command dsquery.exe -ErrorAction SilentlyContinue)
 $domainState = Get-DomainProbeState
-$queryMode = if ($hasADModule) { 'active_directory_module_bounded_lookup' } elseif ($hasDsquery) { 'dsquery_exact_hostname_fallback' } else { 'no_live_ad_tooling_available' }
+$queryMode = if ($hasADModule) { 'active_directory_module_bounded_variant_lookup' } elseif ($hasDsquery) { 'dsquery_exact_hostname_fallback' } else { 'no_live_ad_tooling_available' }
 $fallbackMode = if ($hasADModule) { 'none' } elseif ($hasDsquery) { 'dsquery' } else { 'operator_manifest_required' }
 
 $results = foreach ($raw in $manifestRows) {
   $row = ConvertTo-Hashtable $raw
   $id = Get-ManifestIdentifier $row
+  $site = Get-ManifestSite $row
   $type = Get-IdentifierType $id
   if ([string]::IsNullOrWhiteSpace($id)) {
     New-EvidenceRow -Target '' -IdentifierType 'missing' -ADStatus 'NEEDS_OPERATOR_REVIEW' -ADProbeMethod 'none' -DomainContext $domainState.DomainContext -DomainControllerStatus $domainState.DomainControllerStatus -PermissionStatus $domainState.PermissionStatus -Notes 'Manifest row did not contain an identifier.'
@@ -373,7 +598,7 @@ $results = foreach ($raw in $manifestRows) {
   } elseif ($domainState.DomainControllerStatus -eq 'DOMAIN_CONTROLLER_UNREACHABLE') {
     $e = New-BlockedEvidenceRow $id $type 'DOMAIN_CONTROLLER_UNREACHABLE' 'domain_controller_discovery' $domainState 'Domain context exists but no reachable domain controller was discovered.'
   } elseif ($hasADModule) {
-    $e = Find-WithADModule $id $type -AllowDescriptionSearch:$SearchDescription -DomainState $domainState -DoDnsResolve:$ResolveDns -StaleAfterDays $StaleDays
+    $e = Find-WithADModule $id $type $site -AllowDescriptionSearch:$SearchDescription -DomainState $domainState -DoDnsResolve:$ResolveDns -StaleAfterDays $StaleDays
   } elseif ($hasDsquery) {
     $e = Find-WithDsquery $id $type $domainState
   } else {
