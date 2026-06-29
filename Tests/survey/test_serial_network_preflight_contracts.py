@@ -4,7 +4,9 @@
 The user-facing phrase is "ping the network for these serials", but serials are
 not probe targets. This contract ensures the wrapper stages only host/IP targets
 and routes serial-only or ambiguous rows to review before delegating to the
-existing network preflight script.
+existing network preflight script. It also requires a provenance manifest so the
+serial input, enrichment files, staged probe CSV, review CSV, summary, and
+network-preflight output directory are tied together as one auditable artifact chain.
 """
 from pathlib import Path
 import re
@@ -88,6 +90,32 @@ def test_serial_network_preflight_groups_duplicate_serial_candidates():
         assert fragment in text, f"duplicate serial grouping contract missing: {fragment}"
 
 
+def test_serial_artifact_manifest_links_inputs_to_outputs():
+    text = read(SCRIPT)
+    required = [
+        "artifact_manifest.json",
+        "function Get-FileSha256",
+        "Get-FileHash -LiteralPath $Path -Algorithm SHA256",
+        "function New-FileArtifactRecord",
+        "function New-DirectoryArtifactRecord",
+        "protocol_version = 'serial-artifact-provenance/v1'",
+        "artifact_chain_invariant",
+        "serial_input_hashes_plus_enrichment_hashes_produce_staged_probe_targets_or_review_required_rows_before_any_network_preflight_artifact",
+        "input_artifacts",
+        "generated_artifacts",
+        "serial_file_sha256",
+        "hostname_enrichment_input",
+        "staged_probe_targets",
+        "review_required_serials",
+        "run_summary",
+        "network_preflight_output_directory",
+        "live_evidence_commit_policy",
+        "Artifact manifest:",
+    ]
+    for fragment in required:
+        assert fragment in text, f"serial artifact provenance fragment missing: {fragment}"
+
+
 def test_serial_network_preflight_delegates_network_activity_to_existing_preflight():
     text = read(SCRIPT)
     assert "sas-network-preflight.ps1" in text
@@ -136,6 +164,7 @@ if __name__ == "__main__":
     test_serial_network_preflight_requires_resolution_before_probe()
     test_serial_network_preflight_preserves_candidate_source_traceability()
     test_serial_network_preflight_groups_duplicate_serial_candidates()
+    test_serial_artifact_manifest_links_inputs_to_outputs()
     test_serial_network_preflight_delegates_network_activity_to_existing_preflight()
     test_serial_network_preflight_has_no_ad_or_target_mutation()
     test_offline_runner_wires_serial_network_preflight_contract()
