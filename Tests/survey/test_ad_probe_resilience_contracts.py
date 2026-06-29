@@ -10,6 +10,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 DOC = ROOT / "docs" / "AD_PROBE_RESILIENCE.md"
+VARIANT_DOC = ROOT / "docs" / "CYBERNET_HOSTNAME_VARIANT_DOCTRINE.md"
 LIVE_HELPER = ROOT / "survey" / "sas-ad-identity-export.ps1"
 RUNNER = ROOT / "tests" / "survey" / "run_offline_survey_tests.sh"
 
@@ -30,6 +31,24 @@ REQUIRED_STATES = [
     "IMPORTED_STATIC_EVIDENCE",
     "NOT_AD_VERIFIED",
     "NEEDS_OPERATOR_REVIEW",
+]
+
+HOSTNAME_VARIANT_FRAGMENTS = [
+    "function Get-ADComputerCandidateRecords",
+    "separator_only_variant",
+    "o0_swap_variant",
+    "zero_count_drift",
+    "known_wnh_wmh_substitution",
+    "prefix_letter_transposition",
+    "numeric_block_transposition",
+    "wildcard_prefix_review_only",
+    "SearchAllowed = $false",
+    "CandidateVariantClass",
+    "CandidateConfidence",
+    "CandidateStatus",
+    "CandidateReviewRequired",
+    "serial_unverified",
+    "needs_privileged_identity",
 ]
 
 
@@ -109,9 +128,35 @@ def test_live_helper_uses_resilient_bounded_lookup_shape():
         "name=*$",
         "dNSHostName=*$",
         "description=*$",
+        "Name -like '*'",
+        "-like '*'",
     ]
     for fragment in forbidden_wildcards:
         assert fragment not in helper, f"broad wildcard LDAP lookup reintroduced: {fragment}"
+
+
+def test_live_helper_materializes_hostname_variant_doctrine_without_broad_search():
+    doc = read(VARIANT_DOC)
+    helper = read(LIVE_HELPER)
+    for fragment in HOSTNAME_VARIANT_FRAGMENTS:
+        assert fragment in helper, f"live AD helper missing hostname-variant fragment: {fragment}"
+
+    doctrine_fragments = [
+        "Separator-only variants",
+        "O/0 swaps",
+        "Missing or extra zero",
+        "Known prefix substitution",
+        "Prefix letter transposition",
+        "Numeric block transposition",
+        "Wildcard prefix match",
+    ]
+    for fragment in doctrine_fragments:
+        assert fragment in doc, f"hostname doctrine missing variant class: {fragment}"
+
+    assert "Get-ADComputer -LDAPFilter $filter" in helper
+    assert "ResultSetSize 25" in helper
+    assert "wildcard_prefix_review_only" in helper
+    assert "SearchAllowed = $false" in helper
 
 
 def test_offline_runner_wires_ad_probe_contract():
@@ -124,4 +169,5 @@ if __name__ == "__main__":
     test_live_helper_uses_shared_target_intake_module()
     test_live_helper_remains_read_only_and_operator_scoped()
     test_live_helper_uses_resilient_bounded_lookup_shape()
+    test_live_helper_materializes_hostname_variant_doctrine_without_broad_search()
     test_offline_runner_wires_ad_probe_contract()
