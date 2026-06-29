@@ -30,8 +30,9 @@ def test_serial_network_preflight_wrapper_exists_and_uses_target_intake():
         "Assert-SasApprovedInputPath -Path $path",
         "-Role 'serial hostname enrichment input'",
         "Assert-SasApprovedOutputPath -Path $outputDirectoryFull",
-        "survey/input",
-        "survey/output/serial_network_preflight",
+        "Test-SasPathUnderRoot -Path $stagingDirectoryFull -Root $roots.StagingRoot",
+        "Join-Path (Join-Path $roots.OutputRoots[0] 'serial_network_preflight')",
+        "Join-Path (Join-Path $roots.StagingRoot 'serial_network_preflight')",
     ]
     for fragment in required:
         assert fragment in text, f"missing serial preflight wrapper fragment: {fragment}"
@@ -44,7 +45,7 @@ def test_serial_network_preflight_requires_resolution_before_probe():
         "[string[]]$EnrichmentCsv",
         "function Read-SerialRequestRows",
         "function Read-EnrichmentMap",
-        "function Select-UniqueProbeCandidate",
+        "function Select-UniqueProbeCandidateRecords",
         "function Test-ProbeReadyTargetValue",
         "REVIEW_REQUIRED_SERIAL_ONLY",
         "REVIEW_REQUIRED_MULTIPLE_HOSTNAMES",
@@ -58,6 +59,19 @@ def test_serial_network_preflight_requires_resolution_before_probe():
     ]
     for fragment in required:
         assert fragment in text, f"serial resolution contract missing: {fragment}"
+
+
+def test_serial_network_preflight_preserves_candidate_source_traceability():
+    text = read(SCRIPT)
+    required = [
+        "HostName = $host",
+        "Source = ([string]$candidate.Source)",
+        "$selected = $probeReadyRecords[0]",
+        "Source = [string]$selected.Source",
+        "RequestSource = $request.Source",
+    ]
+    for fragment in required:
+        assert fragment in text, f"serial enrichment source traceability missing: {fragment}"
 
 
 def test_serial_network_preflight_delegates_network_activity_to_existing_preflight():
@@ -106,6 +120,7 @@ def test_offline_runner_wires_serial_network_preflight_contract():
 if __name__ == "__main__":
     test_serial_network_preflight_wrapper_exists_and_uses_target_intake()
     test_serial_network_preflight_requires_resolution_before_probe()
+    test_serial_network_preflight_preserves_candidate_source_traceability()
     test_serial_network_preflight_delegates_network_activity_to_existing_preflight()
     test_serial_network_preflight_has_no_ad_or_target_mutation()
     test_offline_runner_wires_serial_network_preflight_contract()
