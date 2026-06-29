@@ -42,7 +42,7 @@ HOSTNAME_VARIANT_FRAGMENTS = [
     "prefix_letter_transposition",
     "numeric_block_transposition",
     "wildcard_prefix_review_only",
-    "SearchAllowed = $false",
+    "-SearchAllowed $false",
     "CandidateVariantClass",
     "CandidateConfidence",
     "CandidateStatus",
@@ -156,7 +156,7 @@ def test_live_helper_materializes_hostname_variant_doctrine_without_broad_search
     assert "Get-ADComputer -LDAPFilter $filter" in helper
     assert "ResultSetSize 25" in helper
     assert "wildcard_prefix_review_only" in helper
-    assert "SearchAllowed = $false" in helper
+    assert "-SearchAllowed $false" in helper
 
 
 def test_offline_runner_wires_ad_probe_contract():
