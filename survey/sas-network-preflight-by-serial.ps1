@@ -299,8 +299,9 @@ foreach ($request in $requests) {
   }
 
   $candidates = New-Object System.Collections.Generic.List[object]
-  if ($request.DirectHostName) {
-    $candidates.Add([pscustomobject]@{ HostName = $request.DirectHostName; Source = $request.Source }) | Out-Null
+  # Duplicate serial direct hostnames are included in the same candidate set so one serial cannot stage multiple machines.
+  foreach ($peer in $requests | Where-Object { $_.NormalizedSerial -eq $request.NormalizedSerial -and $_.DirectHostName }) {
+    $candidates.Add([pscustomobject]@{ HostName = $peer.DirectHostName; Source = $peer.Source }) | Out-Null
   }
   if ($enrichmentMap.ContainsKey($request.NormalizedSerial)) {
     foreach ($candidate in $enrichmentMap[$request.NormalizedSerial]) { $candidates.Add($candidate) | Out-Null }
