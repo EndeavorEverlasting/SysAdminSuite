@@ -18,6 +18,22 @@ The field question is:
 What do we already know locally, what is stale, what conflicts, and what still deserves packets?
 ```
 
+## Top focus: adjust the next gap
+
+The next implementation gap is **evidence strength ranking**.
+
+Before adding more probing, SysAdminSuite must rank each serial row's strongest evidence and choose the correct handoff:
+
+```text
+confirmed identity
+skip recent evidence
+probe stale or missing evidence
+review ambiguous/candidate evidence
+block rows with no probe-ready target
+```
+
+See [`SERIAL_EVIDENCE_STRENGTH_RANKING.md`](SERIAL_EVIDENCE_STRENGTH_RANKING.md). The delta planner must use that ranking before it stages any target file.
+
 ## Replit harvest insights carried forward
 
 The Replit harvest history is useful, but it is not a direct merge source. Treat it as a product-insight archive and promote only reviewed logic into clean product branches.
@@ -40,6 +56,8 @@ Network preflight should be the last-mile action, not the first pass.
 
 ```text
 requested serial population
+  -> spreadsheet-backed normalization
+  -> evidence strength ranking
   -> local evidence comparison
   -> delta decision plan
   -> reduced staged target file
@@ -134,6 +152,8 @@ The delta planner is a reconciliation layer over evidence, not a truth oracle.
 | Live identity row | Host reported serial/MAC/identity evidence | Usually yes | Yes, if serial matches |
 | Tracker row | Planned/deployed operational attribution | Maybe | No by itself |
 | Offline fixture | Test evidence only | No for live | No |
+
+The detailed ranking order is defined in [`SERIAL_EVIDENCE_STRENGTH_RANKING.md`](SERIAL_EVIDENCE_STRENGTH_RANKING.md).
 
 ## Freshness defaults
 
@@ -242,6 +262,11 @@ RequestedHostname
 ResolvedHostname
 CandidateHostnames
 ProbeTarget
+EvidenceStrengthTier
+StrongestEvidencePath
+SerialIdentityConfirmed
+ProbeWorthiness
+PreferredNextHandoff
 LastReachabilityStatus
 LastReachabilityTimestamp
 LastReachabilitySource
@@ -341,11 +366,12 @@ identity evidence exists but freshness window expired; reprobe target if hostnam
 3. Load prior evidence files from configured local evidence roots.
 4. Build an evidence index by serial, hostname, target, and MAC.
 5. For each requested row:
-   - resolve known hostnames
-   - attach prior reachability evidence
-   - attach prior identity evidence
-   - attach AD registered / candidate evidence
-   - attach tracker/progress evidence
+   - attach all evidence paths
+   - compute `EvidenceStrengthTier`
+   - compute `StrongestEvidencePath`
+   - compute `SerialIdentityConfirmed`
+   - compute `ProbeWorthiness`
+   - compute `PreferredNextHandoff`
    - classify freshness
    - choose one decision
 6. Write the full plan under `survey/output/delta_preflight/<run_id>/`.
@@ -378,10 +404,11 @@ The dashboard should show this as:
 
 ```text
 1. Load approved source.
-2. Compare local evidence.
-3. Review skipped / probe / review counts.
-4. Probe only the staged delta target file.
-5. Feed new evidence back into reconciliation.
+2. Rank evidence strength.
+3. Compare local evidence.
+4. Review skipped / probe / review counts.
+5. Probe only the staged delta target file.
+6. Feed new evidence back into reconciliation.
 ```
 
 ## Runtime doctrine
@@ -427,6 +454,9 @@ Tests must prove:
 13. No live target/evidence files are committed.
 14. Replit/Linux runtime mismatch is not treated as product failure.
 15. PowerShell remains the field lane for this workflow.
+16. Evidence strength ranking follows `SERIAL_EVIDENCE_STRENGTH_RANKING.md`.
+17. Reachability-only and packet-only evidence never set `SerialIdentityConfirmed = true`.
+18. The staged target file is generated only from rows with probe-worthy ranking.
 
 ## Static forbidden patterns
 
@@ -451,12 +481,13 @@ Network commands belong in network preflight, not in the delta planner.
 The implementation sprint is complete when:
 
 - Requested serial/target files can be compared to local evidence without sending packets.
+- Each serial receives an evidence strength tier and strongest evidence path.
 - The planner emits a reduced staged `to_probe_targets.txt` for network preflight.
 - Recent, useful evidence skips rework.
 - Stale or conflicting evidence is surfaced clearly.
 - Serial-only and ambiguous-hostname rows are review-required.
 - Ping failure does not erase identity/AD/DNS evidence.
-- Dashboard or runbook flow makes delta planning the step before network preflight.
+- Dashboard or runbook flow makes evidence ranking and delta planning the step before network preflight.
 - Tests prove no network activity occurs in the planner.
 
 ## Copy-ready next-agent prompt
@@ -465,6 +496,7 @@ The implementation sprint is complete when:
 You are continuing SysAdminSuite.
 
 Current doctrine to implement:
+- docs/SERIAL_EVIDENCE_STRENGTH_RANKING.md
 - docs/DELTA_PREFLIGHT_EVIDENCE_CACHE_SPRINT.md
 - docs/FIELD_NETWORK_PREFLIGHT.md
 - docs/CYBERNET_XLSX_TARGET_INGESTION.md
@@ -472,8 +504,18 @@ Current doctrine to implement:
 - docs/AD_COMPUTER_CANDIDATE_POOL_SPRINT.md
 - docs/go_naabu_packet_pipeline.plan.md
 
+Top focus:
+Implement evidence strength ranking before adding any new packet path.
+
 Mission:
 Implement a PowerShell-first delta preflight planner that compares requested serials/targets against local evidence before any ping/TCP packets are sent.
+
+For every serial row, compute:
+- EvidenceStrengthTier
+- StrongestEvidencePath
+- SerialIdentityConfirmed
+- ProbeWorthiness
+- PreferredNextHandoff
 
 Do not create a new scanner.
 Do not run network commands in the planner.
@@ -481,6 +523,7 @@ Do not use generic fuzzy logic.
 Do not commit live evidence.
 Do not treat Replit/Linux runtime mismatch as product failure.
 Do not collapse PowerShell field tooling into Bash/Linux defaults.
+Do not treat ping, TCP, Naabu, DNS, AD candidate, or subnet inference as serial proof.
 
 Required entrypoint:
 - survey/sas-delta-preflight-plan.ps1
@@ -497,22 +540,6 @@ Required staged handoff output:
 Default TTLs:
 - ReachabilityTtlHours = 24
 - IdentityTtlDays = 7
-
-Decision statuses:
-- PROBE_REQUIRED_NO_EVIDENCE
-- PROBE_REQUIRED_STALE_EVIDENCE
-- PROBE_REQUIRED_CONFLICTING_EVIDENCE
-- PROBE_REQUIRED_OPERATOR_FORCED
-- SKIP_RECENT_REACHABLE
-- SKIP_RECENT_IDENTITY_CONFIRMED
-- SKIP_ALREADY_TRACKED
-- SKIP_RECENTLY_SILENT_WITHIN_COOLDOWN
-- REVIEW_REQUIRED_SERIAL_ONLY
-- REVIEW_REQUIRED_MULTIPLE_HOSTNAMES
-- REVIEW_REQUIRED_AD_VARIANT_ONLY
-- REVIEW_REQUIRED_PREFIX_SITE_MISMATCH
-- REVIEW_REQUIRED_EVIDENCE_TIMESTAMP_UNKNOWN
-- BLOCKED_NO_PROBE_READY_HOST
 
 Validation:
 - Pester suite
