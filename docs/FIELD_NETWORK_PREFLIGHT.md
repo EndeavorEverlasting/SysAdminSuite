@@ -45,7 +45,7 @@ The staged text file is a runtime handoff artifact, not a replacement source of 
 
 ## Field flow
 
-1. Start from the approved spreadsheet/workbook, deployment tracker tab, AD export, or other approved source of record.
+1. Export or copy the approved spreadsheet/workbook, deployment tracker tab, AD export, or other approved source of record into an approved local intake path when required by the selected ingestion engine.
 2. Run the appropriate SysAdminSuite ingestion/normalization engine. Do not manually retype targets into `.txt` files for live work.
 3. Confirm the generated manifest, progress summary, and gap/review files under `survey/output/`.
 4. Run the delta preflight planner to compare the requested population against local evidence.
