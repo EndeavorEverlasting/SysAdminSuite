@@ -94,18 +94,45 @@ Rules:
 - Serial-only rows go to review, not packets.
 - The planner performs no network activity. It only stages a reduced target file.
 
+## Iterative technician handoff
+
+Technicians should be able to keep running the same approved planning command or dashboard action without asking an AI agent for the next command.
+
+See [`TECHNICIAN_ITERATIVE_PROBE_HANDOFFS.md`](TECHNICIAN_ITERATIVE_PROBE_HANDOFFS.md) for the implementation contract.
+
+The repeatable command should:
+
+```text
+read Alejandro's serial list
+  -> read local evidence and prior probe history
+  -> preserve mystery serials
+  -> timestamp each attempt
+  -> check time-of-day diversity
+  -> narrow the next target file
+  -> classify stable gaps and repeated non-response
+  -> print the next handoff command
+```
+
+Important outcomes:
+
+- serial-only mystery rows remain visible as `MYSTERY_SERIAL_NO_BRIDGE`
+- repeated failed attempts are classified as non-response evidence, not proof that the serial does not exist
+- five attempts in one narrow time window are not equivalent to five diverse attempts
+- plateau/no-improvement detection should stop wasteful re-probing and route rows to review
+
 ## Field flow
 
 1. Export or copy the approved spreadsheet/workbook, deployment tracker tab, AD export, or other approved source of record into an approved local intake path when required by the selected ingestion engine.
 2. Run the appropriate SysAdminSuite ingestion/normalization engine. Do not manually retype targets into `.txt` files for live work.
 3. Confirm the generated manifest, progress summary, and gap/review files under `survey/output/`.
 4. If starting from Alejandro's serial list, run `survey/sas-serial-preflight-plan.ps1` with approved serial-to-host/IP evidence and use its generated `survey/input/serial_preflight/<run_id>/to_probe_targets.txt` file.
-5. Run the delta preflight planner to compare the requested population against local evidence when a broader delta evidence cache is available.
-6. Review skipped / probe / review counts from `survey/output/delta_preflight/<run_id>/` or `survey/output/serial_preflight/<run_id>/`.
-7. Use the planner-staged target file under `survey/input/delta_preflight/<run_id>/to_probe_targets.txt` or `survey/input/serial_preflight/<run_id>/to_probe_targets.txt`.
-8. Run the PowerShell network preflight only against that staged `to_probe_targets.txt` file.
-9. Review the generated CSV under `survey/output/network_preflight/`.
-10. Load the CSV into the dashboard through **Load Evidence**.
+5. For repeated attempts, use the iterative technician handoff doctrine so local evidence and timestamped prior attempts narrow the next run.
+6. Run the delta preflight planner to compare the requested population against local evidence when a broader delta evidence cache is available.
+7. Review skipped / probe / review counts from `survey/output/delta_preflight/<run_id>/` or `survey/output/serial_preflight/<run_id>/`.
+8. Use the planner-staged target file under `survey/input/delta_preflight/<run_id>/to_probe_targets.txt` or `survey/input/serial_preflight/<run_id>/to_probe_targets.txt`.
+9. Run the PowerShell network preflight only against that staged `to_probe_targets.txt` file.
+10. Review the generated CSV under `survey/output/network_preflight/`.
+11. Load the CSV into the dashboard through **Load Evidence**.
 
 ## Delta preflight first
 
