@@ -116,6 +116,35 @@ def test_serial_artifact_manifest_links_inputs_to_outputs():
         assert fragment in text, f"serial artifact provenance fragment missing: {fragment}"
 
 
+def test_serial_protocol_decision_fields_are_explicit():
+    text = read(SCRIPT)
+    required = [
+        "$protocolLayer = 'fallback_review'",
+        "$protocolDecision = 'no_network_probe'",
+        "$protocolReason = 'no_probe_ready_targets'",
+        "$primaryProtocolApplied = $false",
+        "$fallbackProtocolApplied = $true",
+        "$tertiaryManifestWritten = $true",
+        "$protocolLayer = 'primary_probe'",
+        "$protocolDecision = 'delegated_network_preflight'",
+        "$protocolReason = 'probe_ready_targets_present'",
+        "$protocolLayer = 'dry_run_plan'",
+        "$protocolReason = 'plan_only_requested_with_probe_ready_targets'",
+        "protocol_decision_record = $protocolDecisionRecord",
+        "protocol_layer = $protocolLayer",
+        "protocol_decision = $protocolDecision",
+        "protocol_reason = $protocolReason",
+        "primary_protocol_applied = $primaryProtocolApplied",
+        "fallback_protocol_applied = $fallbackProtocolApplied",
+        "tertiary_manifest_written = $tertiaryManifestWritten",
+        "Protocol layer:",
+        "Protocol decision:",
+        "Protocol reason:",
+    ]
+    for fragment in required:
+        assert fragment in text, f"serial protocol decision fragment missing: {fragment}"
+
+
 def test_serial_network_preflight_delegates_network_activity_to_existing_preflight():
     text = read(SCRIPT)
     assert "sas-network-preflight.ps1" in text
@@ -165,6 +194,7 @@ if __name__ == "__main__":
     test_serial_network_preflight_preserves_candidate_source_traceability()
     test_serial_network_preflight_groups_duplicate_serial_candidates()
     test_serial_artifact_manifest_links_inputs_to_outputs()
+    test_serial_protocol_decision_fields_are_explicit()
     test_serial_network_preflight_delegates_network_activity_to_existing_preflight()
     test_serial_network_preflight_has_no_ad_or_target_mutation()
     test_offline_runner_wires_serial_network_preflight_contract()
