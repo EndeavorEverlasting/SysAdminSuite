@@ -15,11 +15,14 @@ Generated outputs stay under survey/output, logs/nmap, or survey/artifacts.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('ListCandidates', 'NetworkPreflight', 'NaabuPlan', 'ADRegisteredPlan', 'SubnetConfirmPlan')]
+    [ValidateSet('ListCandidates', 'SerialPreflightPlan', 'NetworkPreflight', 'NaabuPlan', 'ADRegisteredPlan', 'SubnetConfirmPlan')]
     [string]$Mode,
 
     [Parameter(Mandatory = $false)]
     [string]$TargetFile,
+
+    [Parameter(Mandatory = $false)]
+    [string[]]$EvidenceFile = @(),
 
     [Parameter(Mandatory = $false)]
     [string]$Site = 'cybernet',
@@ -74,6 +77,16 @@ function Resolve-DispatchTargetFile {
     return (Resolve-Path -LiteralPath $TargetFile).Path
 }
 
+function Resolve-DispatchEvidenceFile {
+    $resolved = @()
+    foreach ($path in $EvidenceFile) {
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+        Assert-SasApprovedInputPath -Path $path -RepoRoot $repoRoot -Role 'dispatch evidence file' -AllowStaging -AllowGenerated
+        $resolved += (Resolve-Path -LiteralPath $path).Path
+    }
+    return $resolved
+}
+
 function Write-CommandBlock {
     param(
         [string]$Label,
@@ -96,6 +109,16 @@ switch ($Mode) {
         } else {
             foreach ($candidate in $candidates) { Write-Host "- $($candidate.FullName)" }
         }
+        break
+    }
+
+    'SerialPreflightPlan' {
+        $selected = Resolve-DispatchTargetFile
+        $evidence = @(Resolve-DispatchEvidenceFile)
+        $evidenceArg = if ($evidence.Count -gt 0) { ' -EvidenceFile ' + (($evidence | ForEach-Object { "`"$_`"" }) -join ',') } else { '' }
+        $cmd = "& `"$repoRoot\survey\sas-serial-preflight-plan.ps1`" -SerialFile `"$selected`"$evidenceArg -Ports $($Ports -join ',')"
+        Write-CommandBlock -Label 'Run in Windows PowerShell to stage pingable host/IP targets from Alejandro serials:' -Command $cmd
+        if ($Execute) { & (Join-Path $repoRoot 'survey/sas-serial-preflight-plan.ps1') -SerialFile $selected -EvidenceFile $evidence -Ports $Ports }
         break
     }
 

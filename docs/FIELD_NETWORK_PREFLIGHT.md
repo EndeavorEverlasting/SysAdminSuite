@@ -43,17 +43,69 @@ approved workbook / exported tracker tab
 
 The staged text file is a runtime handoff artifact, not a replacement source of truth. If the spreadsheet and staged targets disagree, the spreadsheet-backed manifest and delta plan must explain the mismatch.
 
+## Alejandro serial list flow
+
+Alejandro's serial list can be used to decide which hosts deserve network preflight, but the suite must not ping serial strings directly.
+
+Use this path when the operator has a serial population and one or more approved evidence exports that bridge those serials to hostnames or IP addresses:
+
+```text
+Alejandro serial list
+  -> approved serial-to-host/IP evidence
+  -> serial preflight planner
+  -> survey/input/serial_preflight/<run_id>/to_probe_targets.txt
+  -> PowerShell network preflight
+```
+
+Run in Windows PowerShell:
+
+```powershell
+Set-Location <SysAdminSuite repo root>
+.\survey\sas-serial-preflight-plan.ps1 `
+  -SerialFile .\targets\local\alejandro_serials.csv `
+  -EvidenceFile .\targets\local\approved_serial_hostname_bridge.csv `
+  -Ports 135,445,3389,9100
+```
+
+The planner writes:
+
+```text
+survey/output/serial_preflight/<run_id>/serial_preflight_plan.csv
+survey/output/serial_preflight/<run_id>/review_required.csv
+survey/output/serial_preflight/<run_id>/serial_preflight_summary.json
+survey/output/serial_preflight/<run_id>/operator_handoff.txt
+survey/input/serial_preflight/<run_id>/to_probe_targets.txt
+```
+
+Then run the PowerShell network preflight only against the generated `to_probe_targets.txt`:
+
+```powershell
+.\survey\sas-network-preflight.ps1 `
+  -TargetFile .\survey\input\serial_preflight\<run_id>\to_probe_targets.txt `
+  -Ports 135,445,3389,9100
+```
+
+Rules:
+
+- `Serial`, `SerialNumber`, `AlejandroSerial`, `DeviceSerial`, `TargetSerial`, `ComputerSerial`, `AssetSerial`, and `SN` are accepted serial columns.
+- `HostName`, `Hostname`, `ComputerName`, `DeviceName`, `DnsName`, `FQDN`, `IPAddress`, `IP`, and `IPv4` are accepted probe target columns when bridged to a serial.
+- `Target` is accepted only when it is probe-ready and not explicitly typed as a non-host value.
+- `Identifier` is accepted only when `IdentifierType`, `TargetType`, `Type`, or `ValueType` explicitly says it is a host/IP value.
+- Serial-only rows go to review, not packets.
+- The planner performs no network activity. It only stages a reduced target file.
+
 ## Field flow
 
 1. Export or copy the approved spreadsheet/workbook, deployment tracker tab, AD export, or other approved source of record into an approved local intake path when required by the selected ingestion engine.
 2. Run the appropriate SysAdminSuite ingestion/normalization engine. Do not manually retype targets into `.txt` files for live work.
 3. Confirm the generated manifest, progress summary, and gap/review files under `survey/output/`.
-4. Run the delta preflight planner to compare the requested population against local evidence.
-5. Review skipped / probe / review counts from `survey/output/delta_preflight/<run_id>/`.
-6. Use the planner-staged target file under `survey/input/delta_preflight/<run_id>/to_probe_targets.txt`.
-7. Run the PowerShell network preflight only against that staged `to_probe_targets.txt` file.
-8. Review the generated CSV under `survey/output/network_preflight/`.
-9. Load the CSV into the dashboard through **Load Evidence**.
+4. If starting from Alejandro's serial list, run `survey/sas-serial-preflight-plan.ps1` with approved serial-to-host/IP evidence and use its generated `survey/input/serial_preflight/<run_id>/to_probe_targets.txt` file.
+5. Run the delta preflight planner to compare the requested population against local evidence when a broader delta evidence cache is available.
+6. Review skipped / probe / review counts from `survey/output/delta_preflight/<run_id>/` or `survey/output/serial_preflight/<run_id>/`.
+7. Use the planner-staged target file under `survey/input/delta_preflight/<run_id>/to_probe_targets.txt` or `survey/input/serial_preflight/<run_id>/to_probe_targets.txt`.
+8. Run the PowerShell network preflight only against that staged `to_probe_targets.txt` file.
+9. Review the generated CSV under `survey/output/network_preflight/`.
+10. Load the CSV into the dashboard through **Load Evidence**.
 
 ## Delta preflight first
 
@@ -96,8 +148,8 @@ Preferred path:
 1. Use the approved workbook or export the approved tab only if the ingestion engine requires CSV.
 2. Place the workbook/export under `targets/local/` or reference its approved local path directly if the ingester supports explicit workbook arguments.
 3. Run the workbook/CSV ingestion engine; do not manually create target text files.
-4. Run the delta preflight planner against the normalized manifest.
-5. Run the PowerShell preflight against the planner's staged `survey/input/delta_preflight/<run_id>/to_probe_targets.txt`.
+4. Run the serial preflight planner or delta preflight planner against the normalized manifest.
+5. Run the PowerShell preflight against the planner's staged `survey/input/.../<run_id>/to_probe_targets.txt`.
 
 ## Select a target file
 
@@ -201,4 +253,4 @@ Generated outputs are local and ignored. Do not commit live target lists, serial
 
 This preflight is read-only. It does not add credentials, mutate targets, install software, create remote tasks, or broaden scope beyond the selected approved target file.
 
-The delta planner that precedes this step must also be read-only and must perform no network activity.
+The serial preflight planner and delta planner that precede this step must also be read-only and must perform no network activity.

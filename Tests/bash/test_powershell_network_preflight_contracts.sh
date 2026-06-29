@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 preflight="$repo_root/survey/sas-network-preflight.ps1"
+serial_plan="$repo_root/survey/sas-serial-preflight-plan.ps1"
 runbook="$repo_root/docs/FIELD_NETWORK_PREFLIGHT.md"
 start_here="$repo_root/START-HERE-CYBERNET-NEURON-SURVEY.md"
 dashboard_patch="$repo_root/dashboard/js/cybernet-os-preflight.js"
@@ -16,7 +17,7 @@ contains(){ grep -Fq -- "$1" "$2" || fail "$3"; }
 not_contains(){ if grep -Fq -- "$1" "$2"; then fail "$3"; fi; }
 not_matches(){ if grep -Eq -- "$1" "$2"; then fail "$3"; fi; }
 
-for f in "$preflight" "$runbook" "$start_here" "$dashboard_patch" "$ps_module" "$dispatch" "$bash_helper"; do
+for f in "$preflight" "$serial_plan" "$runbook" "$start_here" "$dashboard_patch" "$ps_module" "$dispatch" "$bash_helper"; do
   [[ -f "$f" ]] || fail "missing file: $f"
 done
 
@@ -31,6 +32,9 @@ ming_shell='MING''W64'
 not_matches "$win_temp_re" "$preflight" 'preflight references emergency Windows temp intake'
 not_contains "$posix_tmp" "$preflight" 'preflight references POSIX temp intake'
 not_contains "$legacy_folder" "$preflight" 'preflight references legacy emergency target folder'
+not_matches "$win_temp_re" "$serial_plan" 'serial preflight references emergency Windows temp intake'
+not_contains "$posix_tmp" "$serial_plan" 'serial preflight references POSIX temp intake'
+not_contains "$legacy_folder" "$serial_plan" 'serial preflight references legacy emergency target folder'
 
 for f in "$preflight" "$runbook" "$start_here" "$dashboard_patch"; do
   grep -Eq '(^|[^A-Z0-9])(WMH|WNH|CYB)[0-9]{3,}[A-Z0-9_-]*' "$f" \
@@ -55,7 +59,7 @@ contains 'Import-Module $targetIntakeModule -Force' "$preflight" 'preflight must
 contains 'Get-SasTargetIntakeRoots' "$preflight" 'preflight must consume shared root set'
 contains 'Test-SasPathUnderAnyRoot' "$preflight" 'preflight must validate through shared path helper'
 
-for f in "$preflight" "$ps_module" "$bash_helper" "$dispatch"; do
+for f in "$preflight" "$serial_plan" "$ps_module" "$bash_helper" "$dispatch"; do
   contains 'targets/local' "$f" "$f missing targets/local input root"
   contains 'logs/targets' "$f" "$f missing logs/targets input root"
   contains 'survey/input' "$f" "$f missing survey/input staging root"
@@ -90,7 +94,17 @@ contains "\$identifierColumns = @('Identifier')" "$preflight" 'Identifier column
 contains 'Skipping ambiguous Identifier value without explicit host/IP type' "$preflight" 'ambiguous Identifier rows must not silently probe'
 contains 'Serial-only rows must be normalized or enriched' "$preflight" 'must refuse serial-only material clearly'
 
-for mode in ListCandidates NetworkPreflight NaabuPlan ADRegisteredPlan SubnetConfirmPlan; do
+contains 'Alejandro serial list' "$serial_plan" 'serial planner must name Alejandro serial input'
+contains 'serial-to-target evidence file' "$serial_plan" 'serial planner must validate evidence bridge files'
+contains 'STAGE_FOR_NETWORK_PREFLIGHT' "$serial_plan" 'serial planner missing staged decision'
+contains 'REVIEW_REQUIRED_NO_PROBE_READY_EVIDENCE' "$serial_plan" 'serial planner missing review decision'
+contains 'do not ping the serial string' "$serial_plan" 'serial planner must not ping serial strings'
+contains 'network_activity_performed = $false' "$serial_plan" 'serial planner must report no network activity'
+contains 'to_probe_targets.txt' "$serial_plan" 'serial planner must stage target file'
+contains 'SerialPreflightPlan' "$dispatch" 'dispatcher missing SerialPreflightPlan mode'
+contains 'sas-serial-preflight-plan.ps1' "$dispatch" 'dispatcher missing serial planner entrypoint'
+
+for mode in ListCandidates SerialPreflightPlan NetworkPreflight NaabuPlan ADRegisteredPlan SubnetConfirmPlan; do
   contains "$mode" "$dispatch" "dispatcher missing mode $mode"
 done
 contains 'Assert-SasApprovedInputPath' "$dispatch" 'dispatcher must validate selected target files'
@@ -98,6 +112,9 @@ contains 'sas_target_require_input_file' "$bash_helper" 'Bash helper missing reu
 contains 'sas_target_require_output_path' "$bash_helper" 'Bash helper missing reusable output validator'
 
 contains 'Export or copy the approved spreadsheet' "$runbook" 'runbook missing source export/copy step'
+contains 'Alejandro serial list flow' "$runbook" 'runbook missing Alejandro serial flow'
+contains 'approved serial-to-host/IP evidence' "$runbook" 'runbook missing serial evidence bridge rule'
+contains 'Serial-only rows go to review, not packets' "$runbook" 'runbook must route serial-only rows to review'
 contains 'Run the PowerShell network preflight' "$runbook" 'runbook missing PowerShell preflight step'
 contains 'Review the generated CSV under `survey/output/network_preflight/`' "$runbook" 'runbook missing output review step'
 contains '.\survey\sas-network-preflight.ps1' "$dashboard_patch" 'dashboard patch missing PowerShell preflight entrypoint'
