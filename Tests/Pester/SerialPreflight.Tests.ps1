@@ -24,17 +24,17 @@ Describe 'sas-serial-preflight-plan.ps1' {
         $serialFile = Join-Path $targetsLocal 'alejandro_serials.pester.csv'
         $evidenceFile = Join-Path $targetsLocal 'alejandro_serial_evidence.pester.csv'
 
-        @'
-Serial
-CYBTEST0001
-CYBTEST0002
-'@ | Set-Content -LiteralPath $serialFile -Encoding UTF8
+        @(
+            'Serial',
+            'CYBTEST0001',
+            'CYBTEST0002'
+        ) | Set-Content -LiteralPath $serialFile -Encoding UTF8
 
-        @'
-Serial,HostName,EvidenceClass
-CYBTEST0001,WMH999TEST001,approved_identity_collection
-CYBTEST0002,,population_only
-'@ | Set-Content -LiteralPath $evidenceFile -Encoding UTF8
+        @(
+            'Serial,HostName,EvidenceClass',
+            'CYBTEST0001,WMH999TEST001,approved_identity_collection',
+            'CYBTEST0002,,population_only'
+        ) | Set-Content -LiteralPath $evidenceFile -Encoding UTF8
 
         if (Test-Path -LiteralPath $outputRoot) { Remove-Item -LiteralPath $outputRoot -Recurse -Force }
         if (Test-Path -LiteralPath $stagingRoot) { Remove-Item -LiteralPath $stagingRoot -Recurse -Force }
