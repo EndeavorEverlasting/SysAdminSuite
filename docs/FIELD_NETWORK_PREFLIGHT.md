@@ -24,16 +24,36 @@ CMD is only acceptable for simple Windows launcher commands, such as double-clic
 
 Do not type demo hostnames manually for live work. Do not use `C:\Temp` as the live workflow. Use approved target files from `targets/local/` or `logs/targets/` first. Use `survey/input/` only when a prior SysAdminSuite step produced normalized staging.
 
+## Spreadsheet-first doctrine
+
+The deployment spreadsheet/workbook remains the primary field artifact when it defines the Cybernet / Neuron population.
+
+The repo should not expect technicians to hand-build `.txt` files from that workbook. A SysAdminSuite ingestion/normalization step must convert the approved workbook or exported tab into the machine-readable artifacts needed by later lanes.
+
+Expected engine path:
+
+```text
+approved workbook / exported tracker tab
+  -> XLSX/CSV ingestion and normalization engine
+  -> manifest / progress / gap reports under survey/output/
+  -> probe-ready staged target file under survey/input/
+  -> delta preflight planner
+  -> network preflight only for the reduced staged target file
+```
+
+The staged text file is a runtime handoff artifact, not a replacement source of truth. If the spreadsheet and staged targets disagree, the spreadsheet-backed manifest and delta plan must explain the mismatch.
+
 ## Field flow
 
-1. Export or copy the approved spreadsheet, AD export, tracker tab, or target source to `targets/local/` or `logs/targets/`.
-2. If the source is not already a `.txt` or `.csv` with probe-ready hostnames/IPs, normalize it first.
-3. Run the delta preflight planner to compare the requested population against local evidence.
-4. Review skipped / probe / review counts from `survey/output/delta_preflight/<run_id>/`.
-5. Use the planner-staged target file under `survey/input/delta_preflight/<run_id>/to_probe_targets.txt`.
-6. Run the PowerShell network preflight only against that staged `to_probe_targets.txt` file.
-7. Review the generated CSV under `survey/output/network_preflight/`.
-8. Load the CSV into the dashboard through **Load Evidence**.
+1. Start from the approved spreadsheet/workbook, deployment tracker tab, AD export, or other approved source of record.
+2. Run the appropriate SysAdminSuite ingestion/normalization engine. Do not manually retype targets into `.txt` files for live work.
+3. Confirm the generated manifest, progress summary, and gap/review files under `survey/output/`.
+4. Run the delta preflight planner to compare the requested population against local evidence.
+5. Review skipped / probe / review counts from `survey/output/delta_preflight/<run_id>/`.
+6. Use the planner-staged target file under `survey/input/delta_preflight/<run_id>/to_probe_targets.txt`.
+7. Run the PowerShell network preflight only against that staged `to_probe_targets.txt` file.
+8. Review the generated CSV under `survey/output/network_preflight/`.
+9. Load the CSV into the dashboard through **Load Evidence**.
 
 ## Delta preflight first
 
@@ -73,10 +93,10 @@ Do not probe a spreadsheet directly from `X:\` unless an existing tested ingesti
 
 Preferred path:
 
-1. Export the approved spreadsheet or target tab to CSV.
-2. Place the CSV under `targets/local/` or `logs/targets/`.
-3. Normalize if needed.
-4. Run the delta preflight planner.
+1. Use the approved workbook or export the approved tab only if the ingestion engine requires CSV.
+2. Place the workbook/export under `targets/local/` or reference its approved local path directly if the ingester supports explicit workbook arguments.
+3. Run the workbook/CSV ingestion engine; do not manually create target text files.
+4. Run the delta preflight planner against the normalized manifest.
 5. Run the PowerShell preflight against the planner's staged `survey/input/delta_preflight/<run_id>/to_probe_targets.txt`.
 
 ## Select a target file
