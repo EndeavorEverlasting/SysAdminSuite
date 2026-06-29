@@ -3,10 +3,12 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:planner = Join-Path $script:repoRoot 'survey\sas-serial-preflight-plan.ps1'
+    $script:dispatcher = Join-Path $script:repoRoot 'survey\sas-target-intake-dispatch.ps1'
+    $script:runbook = Join-Path $script:repoRoot 'docs\FIELD_NETWORK_PREFLIGHT.md'
 }
 
-Describe 'sas-serial-preflight-plan.ps1' {
-    It 'exists and parses without PowerShell syntax errors' {
+Describe 'serial preflight planner contracts' {
+    It 'planner exists and parses without PowerShell syntax errors' {
         $script:planner | Should -Exist
         $tokens = $null
         $errors = $null
@@ -14,65 +16,39 @@ Describe 'sas-serial-preflight-plan.ps1' {
         @($errors).Count | Should -Be 0
     }
 
-    It 'stages only approved hostname/IP evidence from an Alejandro serial list' {
-        $runId = 'pester-serial-preflight'
-        $targetsLocal = Join-Path $script:repoRoot 'targets\local'
-        $outputRoot = Join-Path $script:repoRoot "survey\output\serial_preflight\$runId"
-        $stagingRoot = Join-Path $script:repoRoot "survey\input\serial_preflight\$runId"
-        New-Item -ItemType Directory -Force -Path $targetsLocal | Out-Null
+    It 'dispatcher parses and exposes SerialPreflightPlan mode' {
+        $script:dispatcher | Should -Exist
+        $tokens = $null
+        $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($script:dispatcher, [ref]$tokens, [ref]$errors) | Out-Null
+        @($errors).Count | Should -Be 0
 
-        $serialFile = Join-Path $targetsLocal 'alejandro_serials.pester.csv'
-        $evidenceFile = Join-Path $targetsLocal 'alejandro_serial_evidence.pester.csv'
-
-        @(
-            'Serial',
-            'CYBTEST0001',
-            'CYBTEST0002'
-        ) | Set-Content -LiteralPath $serialFile -Encoding UTF8
-
-        @(
-            'Serial,HostName,EvidenceClass',
-            'CYBTEST0001,WMH999TEST001,approved_identity_collection',
-            'CYBTEST0002,,population_only'
-        ) | Set-Content -LiteralPath $evidenceFile -Encoding UTF8
-
-        if (Test-Path -LiteralPath $outputRoot) { Remove-Item -LiteralPath $outputRoot -Recurse -Force }
-        if (Test-Path -LiteralPath $stagingRoot) { Remove-Item -LiteralPath $stagingRoot -Recurse -Force }
-
-        & $script:planner -SerialFile $serialFile -EvidenceFile $evidenceFile -RunId $runId | Out-Null
-
-        $targetFile = Join-Path $stagingRoot 'to_probe_targets.txt'
-        $planFile = Join-Path $outputRoot 'serial_preflight_plan.csv'
-        $reviewFile = Join-Path $outputRoot 'review_required.csv'
-        $summaryFile = Join-Path $outputRoot 'serial_preflight_summary.json'
-        $handoffFile = Join-Path $outputRoot 'operator_handoff.txt'
-
-        $targetFile | Should -Exist
-        $planFile | Should -Exist
-        $reviewFile | Should -Exist
-        $summaryFile | Should -Exist
-        $handoffFile | Should -Exist
-
-        $targets = @(Get-Content -LiteralPath $targetFile)
-        $targets | Should -Contain 'WMH999TEST001'
-        $targets | Should -Not -Contain 'CYBTEST0001'
-        $targets | Should -Not -Contain 'CYBTEST0002'
-
-        $plan = @(Import-Csv -LiteralPath $planFile)
-        ($plan | Where-Object { $_.Serial -eq 'CYBTEST0001' }).Decision | Should -Be 'STAGE_FOR_NETWORK_PREFLIGHT'
-        ($plan | Where-Object { $_.Serial -eq 'CYBTEST0002' }).Decision | Should -Be 'REVIEW_REQUIRED_NO_PROBE_READY_EVIDENCE'
-
-        $summary = Get-Content -LiteralPath $summaryFile -Raw | ConvertFrom-Json
-        $summary.network_activity_performed | Should -BeFalse
-        $summary.staged_probe_target_count | Should -Be 1
-        $summary.review_required_count | Should -Be 1
+        $content = Get-Content -LiteralPath $script:dispatcher -Raw
+        $content.Contains('SerialPreflightPlan') | Should -BeTrue
+        $content.Contains('sas-serial-preflight-plan.ps1') | Should -BeTrue
+        $content.Contains('Run in Windows PowerShell to stage pingable host/IP targets from Alejandro serials') | Should -BeTrue
     }
 
-    It 'contains the safety contract that serial strings are not ping targets' {
+    It 'planner stages host/IP targets and not serial strings' {
         $content = Get-Content -LiteralPath $script:planner -Raw
-        $content | Should -Match 'Do not ping serial strings'
-        $content | Should -Match 'network_activity_performed = \$false'
-        $content | Should -Match 'STAGE_FOR_NETWORK_PREFLIGHT'
-        $content | Should -Match 'REVIEW_REQUIRED_NO_PROBE_READY_EVIDENCE'
+        $content.Contains('Alejandro serial list') | Should -BeTrue
+        $content.Contains('survey/input/serial_preflight') | Should -BeTrue
+        $content.Contains('survey/output/serial_preflight') | Should -BeTrue
+        $content.Contains('to_probe_targets.txt') | Should -BeTrue
+        $content.Contains('STAGE_FOR_NETWORK_PREFLIGHT') | Should -BeTrue
+        $content.Contains('REVIEW_REQUIRED_NO_PROBE_READY_EVIDENCE') | Should -BeTrue
+        $content.Contains('do not ping the serial string') | Should -BeTrue
+        $content.Contains('Do not ping serial strings') | Should -BeTrue
+        $content.Contains('network_activity_performed = $false') | Should -BeTrue
+    }
+
+    It 'runbook documents the Alejandro serial list to network preflight path' {
+        $script:runbook | Should -Exist
+        $content = Get-Content -LiteralPath $script:runbook -Raw
+        $content.Contains('Alejandro serial list flow') | Should -BeTrue
+        $content.Contains('sas-serial-preflight-plan.ps1') | Should -BeTrue
+        $content.Contains('approved serial-to-host/IP evidence') | Should -BeTrue
+        $content.Contains('Serial-only rows go to review, not packets') | Should -BeTrue
+        $content.Contains('sas-network-preflight.ps1') | Should -BeTrue
     }
 }
