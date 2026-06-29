@@ -436,6 +436,36 @@ if ($toProbe.Count -eq 0) {
   & $networkPreflightScript -TargetFile $toProbePath -Ports $Ports -OutputDirectory $networkOutputDirectory
 }
 
+$protocolLayer = 'fallback_review'
+$protocolDecision = 'no_network_probe'
+$protocolReason = 'no_probe_ready_targets'
+$primaryProtocolApplied = $false
+$fallbackProtocolApplied = $true
+
+if ($networkActivityPerformed) {
+  $protocolLayer = 'primary_probe'
+  $protocolDecision = 'delegated_network_preflight'
+  $protocolReason = 'probe_ready_targets_present'
+  $primaryProtocolApplied = $true
+  $fallbackProtocolApplied = $false
+} elseif ($PlanOnly -and $toProbe.Count -gt 0) {
+  $protocolLayer = 'dry_run_plan'
+  $protocolDecision = 'no_network_probe'
+  $protocolReason = 'plan_only_requested_with_probe_ready_targets'
+  $primaryProtocolApplied = $false
+  $fallbackProtocolApplied = $false
+}
+
+$tertiaryManifestWritten = $true
+$protocolDecisionRecord = [ordered]@{
+  protocol_layer = $protocolLayer
+  protocol_decision = $protocolDecision
+  protocol_reason = $protocolReason
+  primary_protocol_applied = $primaryProtocolApplied
+  fallback_protocol_applied = $fallbackProtocolApplied
+  tertiary_manifest_written = $tertiaryManifestWritten
+}
+
 $summary = [ordered]@{
   run_id = $runId
   generated_at = (Get-Date).ToUniversalTime().ToString('o')
@@ -452,6 +482,12 @@ $summary = [ordered]@{
   ports = $Ports
   plan_only = [bool]$PlanOnly
   network_activity_performed = $networkActivityPerformed
+  protocol_layer = $protocolLayer
+  protocol_decision = $protocolDecision
+  protocol_reason = $protocolReason
+  primary_protocol_applied = $primaryProtocolApplied
+  fallback_protocol_applied = $fallbackProtocolApplied
+  tertiary_manifest_written = $tertiaryManifestWritten
   doctrine = 'serials_resolve_to_exactly_one_hostname_or_ip_before_network_preflight'
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
@@ -466,6 +502,7 @@ $generatedArtifacts = @(
 $artifactManifest = [ordered]@{
   protocol_version = 'serial-artifact-provenance/v1'
   artifact_chain_invariant = 'serial_input_hashes_plus_enrichment_hashes_produce_staged_probe_targets_or_review_required_rows_before_any_network_preflight_artifact'
+  protocol_decision_record = $protocolDecisionRecord
   run_id = $runId
   generated_at = (Get-Date).ToUniversalTime().ToString('o')
   repo_root = $repoRoot
@@ -483,6 +520,12 @@ $artifactManifest = [ordered]@{
     plan_only = [bool]$PlanOnly
     ports = $Ports
     network_activity_performed = $networkActivityPerformed
+    protocol_layer = $protocolLayer
+    protocol_decision = $protocolDecision
+    protocol_reason = $protocolReason
+    primary_protocol_applied = $primaryProtocolApplied
+    fallback_protocol_applied = $fallbackProtocolApplied
+    tertiary_manifest_written = $tertiaryManifestWritten
     delegated_network_preflight_script = Join-Path $PSScriptRoot 'sas-network-preflight.ps1'
   }
   safety = [ordered]@{
@@ -494,5 +537,8 @@ $artifactManifest = [ordered]@{
 }
 $artifactManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $artifactManifestPath -Encoding UTF8
 
+Write-Host ("- Protocol layer: {0}" -f $protocolLayer)
+Write-Host ("- Protocol decision: {0}" -f $protocolDecision)
+Write-Host ("- Protocol reason: {0}" -f $protocolReason)
 Write-Host ("- Summary JSON: {0}" -f $summaryPath)
 Write-Host ("- Artifact manifest: {0}" -f $artifactManifestPath)
