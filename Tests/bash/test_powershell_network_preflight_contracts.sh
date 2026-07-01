@@ -139,7 +139,7 @@ contains 'fewer ports' "$low_noise_doc" 'low-noise doctrine missing port princip
 contains 'lower rate' "$low_noise_doc" 'low-noise doctrine missing rate principle'
 contains 'fewer retries' "$low_noise_doc" 'low-noise doctrine missing retry principle'
 contains 'Is this a CDN/WAF/load-balanced/front-door target?' "$low_noise_doc" 'low-noise doctrine missing front-door question'
-contains 'five probes are unnecessary' "$low_noise_doc" 'low-noise doctrine missing pragmatic retry guidance'
+contains 'Five probes are unnecessary' "$low_noise_doc" 'low-noise doctrine missing pragmatic retry guidance'
 contains 'low_noise_principle' "$low_noise_doc" 'low-noise doctrine missing artifact context fields'
 contains 'Do not use stealth, bypass, or no-trace language.' "$low_noise_doc" 'low-noise doctrine must reject evasion language'
 
