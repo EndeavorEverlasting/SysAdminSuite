@@ -22,6 +22,36 @@ WSL
 
 Shell choice can change local endpoint/process history, parent process, and operator workflow. It does not make the same packets lower-noise on the network.
 
+## Shared implementation point
+
+The canonical implementation surface is:
+
+```text
+scripts/SasLowNoisePolicy.psm1
+```
+
+Survey planners and command dispatchers should import this module instead of copying low-noise strings locally.
+
+Required shared functions:
+
+```text
+Get-SasLowNoisePolicy
+New-SasLowNoiseSummaryObject
+Get-SasLowNoiseOperatorLines
+```
+
+The policy must be consumed by every path that stages or runs probes, including:
+
+```text
+serial preflight planning
+network preflight execution
+Naabu command planning
+subnet confirmation planning
+future delta/iteration planners
+```
+
+No use case should invent its own retry doctrine or omit the principle that fresh reachable/identity evidence suppresses habitual re-probing.
+
 ## What actually lowers network noise
 
 Low-noise comes from the survey design:
@@ -180,12 +210,15 @@ Every planner output that stages a probe should include low-noise context in mac
 Minimum fields for summary JSON:
 
 ```text
+low_noise_policy_version
 low_noise_principle
 network_visibility_note
 probe_selection_questions
 probe_again_guidance
 fresh_evidence_guidance
 mystery_serial_guidance
+front_door_guidance
+packet_profile_guidance
 network_activity_performed
 ```
 
@@ -231,6 +264,8 @@ When implementing survey paths:
 8. Preserve mystery serials as first-class review outputs.
 9. Do not use fixed retry counts without freshness and time-diversity context.
 10. Prefer delta-only probing after each run.
+11. Import `scripts/SasLowNoisePolicy.psm1` for shared wording and artifact fields instead of copying policy strings.
+12. Add static contracts when a new survey lane stages or runs probes so the shared policy cannot be omitted.
 
 ## Acceptance criteria for future implementation
 
@@ -243,4 +278,5 @@ A low-noise survey sprint is not complete unless:
 - retry guidance prefers different time/day over immediate repetition
 - serial-only mystery rows are visible and not packetized
 - shell choice is not presented as network visibility mitigation
+- shared policy comes from `scripts/SasLowNoisePolicy.psm1`
 - generated outputs remain local and ignored
