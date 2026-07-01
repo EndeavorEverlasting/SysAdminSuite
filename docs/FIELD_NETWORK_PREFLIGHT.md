@@ -94,6 +94,41 @@ Rules:
 - Serial-only rows go to review, not packets.
 - The planner performs no network activity. It only stages a reduced target file.
 
+## Low-noise probe posture
+
+See [`LOW_NOISE_PROBE_PRINCIPLES.md`](LOW_NOISE_PROBE_PRINCIPLES.md) for the full doctrine.
+
+The network sees packets, not the shell. Running a packet tool from CMD rather than PowerShell does not materially reduce network visibility when the same targets, ports, packet types, rates, and retries are used.
+
+Before any probe is staged or run, the workflow should answer:
+
+```text
+Should this target be probed at all?
+Which exact host/IP should be probed?
+Which exact ports answer the survey question?
+At what rate?
+How many retries?
+Is this already fresh in local evidence?
+Is this a CDN/WAF/load-balanced/front-door target?
+Is this a mystery serial that needs review, not packets?
+```
+
+Low-noise work comes from:
+
+```text
+smaller scope
+fewer ports
+lower rate
+fewer retries
+smarter evidence reuse
+avoiding broad scans
+avoiding immediate repeat probes when a better time/day would be more informative
+```
+
+A fixed retry count is not the goal. Five probes are unnecessary when a device is already recently reachable or identity-confirmed. If a retry is justified, prefer a different time of day and/or different day of week over immediate repetition.
+
+The serial preflight planner must carry this context into its artifacts so the operator can see why packets were or were not justified.
+
 ## Dashboard controls gap
 
 The runbook and backend now support serial-first planning, but the dashboard controls must also expose that path.
