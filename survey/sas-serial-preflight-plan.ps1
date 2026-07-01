@@ -57,6 +57,12 @@ if (-not (Test-Path -LiteralPath $targetIntakeModule)) {
 }
 Import-Module $targetIntakeModule -Force
 
+$lowNoiseModule = Join-Path $repoGuess 'scripts/SasLowNoisePolicy.psm1'
+if (-not (Test-Path -LiteralPath $lowNoiseModule)) {
+    throw "Missing shared low-noise policy module: $lowNoiseModule"
+}
+Import-Module $lowNoiseModule -Force
+
 function Get-RowValue {
     param(
         [Parameter(Mandatory = $true)]$Row,
@@ -291,22 +297,7 @@ $plan = New-Object System.Collections.Generic.List[object]
 $review = New-Object System.Collections.Generic.List[object]
 $targets = New-Object System.Collections.Generic.List[string]
 $seenTargets = @{}
-
-$lowNoisePrinciple = 'The network sees packets, not the shell. Reduce packets by using local evidence before probes.'
-$networkVisibilityNote = 'CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.'
-$probeAgainGuidance = 'Do not repeat fixed probe counts by habit. If a device was already recently reachable or identity-confirmed, skip by default; if retrying silent/stale rows, prefer a different time of day or different day of week.'
-$freshEvidenceGuidance = 'Fresh identity or reachability evidence should reduce re-probing. Stale, missing, conflicting, or operator-forced evidence can justify staging a target.'
-$mysterySerialGuidance = 'A serial with no approved host/IP bridge remains a mystery serial for review; do not ping the serial string.'
-$probeSelectionQuestions = @(
-    'Should this target be probed at all?',
-    'Which exact host/IP should be probed?',
-    'Which exact ports answer the survey question?',
-    'At what rate?',
-    'How many retries?',
-    'Is this already fresh in local evidence?',
-    'Is this a CDN/WAF/load-balanced/front-door target?',
-    'Is this a mystery serial that needs review, not packets?'
-)
+$lowNoisePolicy = Get-SasLowNoisePolicy
 
 foreach ($serial in $serialRows) {
     $matches = @($evidenceRows | Where-Object { $_.NormalizedSerial -eq $serial.NormalizedSerial })
@@ -345,8 +336,9 @@ foreach ($serial in $serialRows) {
         EvidenceSourceFile = $evidenceSource
         Decision = $decision
         DecisionReason = $reason
+        LowNoisePolicyVersion = $lowNoisePolicy.PolicyVersion
         LowNoiseDisposition = $lowNoiseDisposition
-        ProbeAgainGuidance = $probeAgainGuidance
+        ProbeAgainGuidance = $lowNoisePolicy.ProbeAgainGuidance
         NetworkActivityPerformed = $false
     }
     $plan.Add($planRow)
@@ -364,7 +356,7 @@ $review | Export-Csv -LiteralPath $reviewPath -NoTypeInformation -Encoding UTF8
 $targets | Set-Content -LiteralPath $targetPath -Encoding UTF8
 
 $nextCommand = ".\survey\sas-network-preflight.ps1 -TargetFile `"$targetPath`" -Ports $($Ports -join ',')"
-$summary = [pscustomobject]@{
+$summary = New-SasLowNoiseSummaryObject -Properties @{
     run_id = $resolvedRunId
     generated_at = (Get-Date).ToString('o')
     serial_file = $serialFilePath
@@ -377,12 +369,6 @@ $summary = [pscustomobject]@{
     to_probe_targets_path = $targetPath
     operator_handoff_path = $handoffPath
     next_network_preflight_command = $nextCommand
-    low_noise_principle = $lowNoisePrinciple
-    network_visibility_note = $networkVisibilityNote
-    probe_selection_questions = $probeSelectionQuestions
-    probe_again_guidance = $probeAgainGuidance
-    fresh_evidence_guidance = $freshEvidenceGuidance
-    mystery_serial_guidance = $mysterySerialGuidance
     network_activity_performed = $false
 }
 $summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
@@ -399,15 +385,7 @@ $summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryPath -Enco
     "Review: $reviewPath",
     "Staged target file: $targetPath",
     '',
-    'Low-noise context:',
-    "- $lowNoisePrinciple",
-    "- $networkVisibilityNote",
-    "- $freshEvidenceGuidance",
-    "- $probeAgainGuidance",
-    "- $mysterySerialGuidance",
-    '',
-    'Pre-probe questions:',
-    ($probeSelectionQuestions | ForEach-Object { "- $_" }),
+    (Get-SasLowNoiseOperatorLines),
     '',
     'Run in Windows PowerShell:',
     $nextCommand,
@@ -424,9 +402,9 @@ Write-Host "Review-required serials: $($review.Count)"
 Write-Host "Staged target file: $targetPath"
 Write-Host ''
 Write-Host 'Low-noise context:'
-Write-Host "- $lowNoisePrinciple"
-Write-Host "- $networkVisibilityNote"
-Write-Host "- $probeAgainGuidance"
+Write-Host "- $($lowNoisePolicy.LowNoisePrinciple)"
+Write-Host "- $($lowNoisePolicy.NetworkVisibilityNote)"
+Write-Host "- $($lowNoisePolicy.ProbeAgainGuidance)"
 Write-Host ''
 Write-Host 'Run in Windows PowerShell:'
 Write-Host $nextCommand
