@@ -38,6 +38,12 @@ if (-not (Test-Path -LiteralPath $targetIntakeModule)) {
 }
 Import-Module $targetIntakeModule -Force
 
+$lowNoiseModule = Join-Path $repoGuess 'scripts/SasLowNoisePolicy.psm1'
+if (-not (Test-Path -LiteralPath $lowNoiseModule)) {
+    throw "Missing shared low-noise policy module: $lowNoiseModule"
+}
+Import-Module $lowNoiseModule -Force
+
 function Resolve-SasRepoRoot {
     return Get-SasRepoRoot -StartPath $PSScriptRoot
 }
@@ -89,12 +95,18 @@ function Show-TargetFileSelectionHelp {
         [Parameter(Mandatory = $true)][string]$StagingRoot
     )
 
+    $policy = Get-SasLowNoisePolicy
+
     Write-Host 'No -TargetFile was provided. Stopping without probing.'
     Write-Host ''
     Write-Host 'Select an approved .txt or .csv target file from one of these live intake roots:'
     foreach ($root in $CandidateRoots) { Write-Host "- $root" }
     Write-Host ''
     Write-Host "survey/input is normalized runtime staging only: $StagingRoot"
+    Write-Host ''
+    Write-Host 'Low-noise reminder:'
+    Write-Host "- $($policy.LowNoisePrinciple)"
+    Write-Host "- $($policy.ProbeAgainGuidance)"
     Write-Host ''
     Write-Host 'Candidate files found:'
     $candidates = @(Get-CandidateTargetFiles -Roots $CandidateRoots)
@@ -293,6 +305,7 @@ $surveyInputRoot = $rootSet.StagingRoot
 $surveyOutputRoot = $rootSet.OutputRoots[0]
 $logsNmapRoot = $rootSet.OutputRoots[1]
 $surveyArtifactsRoot = $rootSet.OutputRoots[2]
+$lowNoisePolicy = Get-SasLowNoisePolicy
 
 $candidateRoots = @($targetsLocalRoot, $logsTargetsRoot)
 $allowedInputRoots = @($targetsLocalRoot, $logsTargetsRoot, $surveyInputRoot)
@@ -350,11 +363,16 @@ if ($targets.Count -eq 0) {
 New-Item -ItemType Directory -Force -Path $outputDirectoryFull | Out-Null
 $runId = Get-Date -Format 'yyyyMMdd_HHmmss'
 $outputCsv = Join-Path $outputDirectoryFull "network_preflight_$runId.csv"
+$summaryJson = Join-Path $outputDirectoryFull "network_preflight_${runId}_summary.json"
+$handoffPath = Join-Path $outputDirectoryFull "network_preflight_${runId}_handoff.txt"
 
 Write-Host "Selected target file: $selectedTargetFile"
 Write-Host "Target count: $($targets.Count)"
 Write-Host "Selected ports: $($Ports -join ',')"
 Write-Host "Output path: $outputCsv"
+Write-Host 'Low-noise context:'
+Write-Host "- $($lowNoisePolicy.LowNoisePrinciple)"
+Write-Host "- $($lowNoisePolicy.ProbeAgainGuidance)"
 
 Write-SasStageProgress -Step 2 -Total 4 -Message 'Resolving DNS for selected targets' -Percent 50
 $resolved = @{}
@@ -390,19 +408,55 @@ foreach ($target in $targets) {
         if ($status -eq 'NotChecked') { $notes += 'Test-NetConnection unavailable in this PowerShell runtime' }
 
         $rows.Add([pscustomobject]@{
-            Timestamp       = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-            Target          = $target
-            ResolvedAddress = $resolved[$target]
-            PingStatus      = $ping[$target]
-            Port            = $port
-            PortStatus      = $status
-            SourceFile      = $selectedTargetFile
-            Notes           = ($notes -join '; ')
+            Timestamp              = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+            Target                 = $target
+            ResolvedAddress        = $resolved[$target]
+            PingStatus             = $ping[$target]
+            Port                   = $port
+            PortStatus             = $status
+            SourceFile             = $selectedTargetFile
+            LowNoisePolicyVersion  = $lowNoisePolicy.PolicyVersion
+            LowNoiseDisposition    = 'network_preflight_attempt_recorded'
+            ProbeAgainGuidance     = $lowNoisePolicy.ProbeAgainGuidance
+            Notes                  = ($notes -join '; ')
         })
     }
 }
 
 Write-SasStageProgress -Step 4 -Total 4 -Message 'Writing network_preflight.csv' -Percent 100
 $rows | Export-Csv -LiteralPath $outputCsv -NoTypeInformation -Encoding UTF8
+
+$summary = New-SasLowNoiseSummaryObject -Properties @{
+    run_id = $runId
+    generated_at = (Get-Date).ToString('o')
+    target_file = $selectedTargetFile
+    target_count = $targets.Count
+    ports = $Ports
+    total_checks = $totalChecks
+    output_csv = $outputCsv
+    summary_json = $summaryJson
+    operator_handoff_path = $handoffPath
+    network_activity_performed = $true
+}
+$summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryJson -Encoding UTF8
+
+@(
+    'SysAdminSuite network preflight handoff',
+    "RunId: $runId",
+    "Target file: $selectedTargetFile",
+    "Targets checked: $($targets.Count)",
+    "Ports checked: $($Ports -join ',')",
+    "CSV output: $outputCsv",
+    "Summary JSON: $summaryJson",
+    '',
+    (Get-SasLowNoiseOperatorLines),
+    '',
+    'Network activity performed: true',
+    'Do not repeat probes by habit. If a target was recently reachable or identity-confirmed, prefer using fresh evidence instead of immediate repetition.',
+    'If retrying silent or stale rows, prefer a different time of day or different day of week.'
+) | Set-Content -LiteralPath $handoffPath -Encoding UTF8
+
 Write-Progress -Activity 'SysAdminSuite network preflight' -Completed
 Write-Host "Final CSV path: $outputCsv"
+Write-Host "Summary JSON path: $summaryJson"
+Write-Host "Operator handoff path: $handoffPath"
