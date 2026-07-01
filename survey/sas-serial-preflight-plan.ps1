@@ -13,6 +13,11 @@ The common field path is:
 - approved evidence exports under targets/local/, logs/targets/, survey/output/, logs/nmap/, or survey/artifacts/
 - generated to_probe_targets.txt under survey/input/serial_preflight/<run_id>/
 - sas-network-preflight.ps1 consumes that generated target file
+
+Low-noise principle:
+The network sees packets, not the operator shell. This planner reduces noise by staging fewer justified
+host/IP targets before any probe runs; it does not rely on CMD, PowerShell, or silent console output to
+change network visibility.
 #>
 
 [CmdletBinding()]
@@ -287,6 +292,22 @@ $review = New-Object System.Collections.Generic.List[object]
 $targets = New-Object System.Collections.Generic.List[string]
 $seenTargets = @{}
 
+$lowNoisePrinciple = 'The network sees packets, not the shell. Reduce packets by using local evidence before probes.'
+$networkVisibilityNote = 'CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.'
+$probeAgainGuidance = 'Do not repeat fixed probe counts by habit. If a device was already recently reachable or identity-confirmed, skip by default; if retrying silent/stale rows, prefer a different time of day or different day of week.'
+$freshEvidenceGuidance = 'Fresh identity or reachability evidence should reduce re-probing. Stale, missing, conflicting, or operator-forced evidence can justify staging a target.'
+$mysterySerialGuidance = 'A serial with no approved host/IP bridge remains a mystery serial for review; do not ping the serial string.'
+$probeSelectionQuestions = @(
+    'Should this target be probed at all?',
+    'Which exact host/IP should be probed?',
+    'Which exact ports answer the survey question?',
+    'At what rate?',
+    'How many retries?',
+    'Is this already fresh in local evidence?',
+    'Is this a CDN/WAF/load-balanced/front-door target?',
+    'Is this a mystery serial that needs review, not packets?'
+)
+
 foreach ($serial in $serialRows) {
     $matches = @($evidenceRows | Where-Object { $_.NormalizedSerial -eq $serial.NormalizedSerial })
     $probeMatches = @($matches | Where-Object { -not [string]::IsNullOrWhiteSpace($_.ProbeTarget) -and (Test-ProbeReadyTargetValue -Value $_.ProbeTarget) })
@@ -295,10 +316,11 @@ foreach ($serial in $serialRows) {
 
     if ($null -ne $selected) {
         $decision = 'STAGE_FOR_NETWORK_PREFLIGHT'
-        $reason = 'serial has approved local evidence that bridges to a probe-ready hostname/IP'
+        $reason = 'serial has approved local evidence that bridges to a probe-ready hostname/IP; stage only this reduced host/IP target, not the serial string'
         $probeTarget = [string]$selected.ProbeTarget
         $evidencePath = [string]$selected.EvidencePath
         $evidenceSource = [string]$selected.EvidenceSourceFile
+        $lowNoiseDisposition = 'staged_bridge_exists'
         $key = $probeTarget.ToLowerInvariant()
         if (-not $seenTargets.ContainsKey($key)) {
             $seenTargets[$key] = $true
@@ -310,6 +332,7 @@ foreach ($serial in $serialRows) {
         $probeTarget = ''
         $evidencePath = if ($matches.Count -gt 0) { 'evidence_without_probe_ready_target' } else { 'serial_only_population' }
         $evidenceSource = if ($matches.Count -gt 0) { (($matches | ForEach-Object { $_.EvidenceSourceFile } | Sort-Object -Unique) -join ';') } else { '' }
+        $lowNoiseDisposition = 'review_mystery_serial_or_missing_bridge'
     }
 
     $planRow = [pscustomobject]@{
@@ -322,6 +345,8 @@ foreach ($serial in $serialRows) {
         EvidenceSourceFile = $evidenceSource
         Decision = $decision
         DecisionReason = $reason
+        LowNoiseDisposition = $lowNoiseDisposition
+        ProbeAgainGuidance = $probeAgainGuidance
         NetworkActivityPerformed = $false
     }
     $plan.Add($planRow)
@@ -352,6 +377,12 @@ $summary = [pscustomobject]@{
     to_probe_targets_path = $targetPath
     operator_handoff_path = $handoffPath
     next_network_preflight_command = $nextCommand
+    low_noise_principle = $lowNoisePrinciple
+    network_visibility_note = $networkVisibilityNote
+    probe_selection_questions = $probeSelectionQuestions
+    probe_again_guidance = $probeAgainGuidance
+    fresh_evidence_guidance = $freshEvidenceGuidance
+    mystery_serial_guidance = $mysterySerialGuidance
     network_activity_performed = $false
 }
 $summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
@@ -368,11 +399,22 @@ $summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryPath -Enco
     "Review: $reviewPath",
     "Staged target file: $targetPath",
     '',
+    'Low-noise context:',
+    "- $lowNoisePrinciple",
+    "- $networkVisibilityNote",
+    "- $freshEvidenceGuidance",
+    "- $probeAgainGuidance",
+    "- $mysterySerialGuidance",
+    '',
+    'Pre-probe questions:',
+    ($probeSelectionQuestions | ForEach-Object { "- $_" }),
+    '',
     'Run in Windows PowerShell:',
     $nextCommand,
     '',
     'Planner network activity performed: false',
-    'Do not ping serial strings. Ping only the generated hostname/IP target file.'
+    'Do not ping serial strings. Ping only the generated hostname/IP target file.',
+    'If a device was recently reachable, do not repeat probes by habit; retry later only when evidence is stale, missing, conflicting, or operator-forced.'
 ) | Set-Content -LiteralPath $handoffPath -Encoding UTF8
 
 Write-Host "Serial preflight plan complete: $resolvedRunId"
@@ -380,6 +422,11 @@ Write-Host "Serials read: $($serialRows.Count)"
 Write-Host "Probe-ready targets staged: $($targets.Count)"
 Write-Host "Review-required serials: $($review.Count)"
 Write-Host "Staged target file: $targetPath"
+Write-Host ''
+Write-Host 'Low-noise context:'
+Write-Host "- $lowNoisePrinciple"
+Write-Host "- $networkVisibilityNote"
+Write-Host "- $probeAgainGuidance"
 Write-Host ''
 Write-Host 'Run in Windows PowerShell:'
 Write-Host $nextCommand
