@@ -20,11 +20,12 @@ SCAN_ROOTS = (
     ROOT / "probe" / "packet-expenditure",
 )
 
-# These files are the only approved places where packet/probe execution may be
-# assembled in the active survey lane. They are not blanket approval for broad
-# scanning; each surface still has to preserve low-noise profile controls and
-# local-only evidence behavior.
+# These files are the only approved places where packet/probe execution or probe
+# binary availability may be assembled in the active survey lane. They are not
+# blanket approval for broad scanning; each surface still has to preserve
+# low-noise profile controls and local-only evidence behavior.
 APPROVED_PROBE_SURFACES = {
+    "survey/sas-ensure-naabu.sh",
     "survey/sas-run-naabu-pipeline.sh",
     "survey/sas-run-packet-probe.sh",
     "survey/sas-network-preflight.ps1",
@@ -54,6 +55,13 @@ PROBE_ACCESS_PATTERNS = [
 ]
 
 REQUIRED_SURFACE_FRAGMENTS = {
+    "survey/sas-ensure-naabu.sh": [
+        "Config/cybernet-naabu-profiles.json",
+        "--dry-run",
+        "NAABU_VERSION",
+        "BIN_DIR",
+        "download_naabu_windows",
+    ],
     "survey/sas-run-packet-probe.sh": [
         "Enforced low-noise Naabu packet probe wrapper",
         "--site",
