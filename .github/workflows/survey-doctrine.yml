@@ -20,6 +20,7 @@ on:
       - 'Tests/bash/test_packet_probe_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
+      - 'Tests/survey/test_probe_socket_access_contracts.py'
       - '.github/workflows/survey-doctrine.yml'
   pull_request:
     branches: [main]
@@ -40,6 +41,7 @@ on:
       - 'Tests/bash/test_packet_probe_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
+      - 'Tests/survey/test_probe_socket_access_contracts.py'
       - '.github/workflows/survey-doctrine.yml'
 
 jobs:
@@ -61,6 +63,11 @@ jobs:
         shell: bash
         run: |
           bash Tests/bash/test_target_intake_centralization_contracts.sh
+
+      - name: Probe access boundary contracts
+        shell: bash
+        run: |
+          python3 Tests/survey/test_probe_socket_access_contracts.py
 
       - name: Northwell registry verification contracts
         shell: bash
