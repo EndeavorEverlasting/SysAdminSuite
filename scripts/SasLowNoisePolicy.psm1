@@ -4,7 +4,7 @@
 Shared SysAdminSuite low-noise survey and pragmatic retry policy.
 
 .DESCRIPTION
-This module centralizes the retry/noise doctrine used by Cybernet survey planners and probe handoffs.
+scripts/SasLowNoisePolicy.psm1 centralizes the retry/noise doctrine used by Cybernet survey planners and probe handoffs.
 
 The policy is deliberately plain: shell choice is not a network-noise control; packet count is controlled by
 scope, ports, rate, retries, freshness, evidence reuse, and staging only justified host/IP targets.
