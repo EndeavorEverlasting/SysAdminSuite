@@ -47,8 +47,15 @@ if (-not (Test-Path -LiteralPath $modulePath)) {
 }
 Import-Module $modulePath -Force
 
+$lowNoiseModule = Join-Path $repoGuess 'scripts/SasLowNoisePolicy.psm1'
+if (-not (Test-Path -LiteralPath $lowNoiseModule)) {
+    throw "Missing shared low-noise policy module: $lowNoiseModule"
+}
+Import-Module $lowNoiseModule -Force
+
 $repoRoot = Get-SasRepoRoot -StartPath $PSScriptRoot
 $roots = Get-SasTargetIntakeRoots -RepoRoot $repoRoot
+$lowNoisePolicy = Get-SasLowNoisePolicy
 
 function Write-DispatchHeader {
     param([string]$SelectedMode)
@@ -87,6 +94,14 @@ function Resolve-DispatchEvidenceFile {
     return $resolved
 }
 
+function Write-LowNoisePolicyBlock {
+    Write-Host ''
+    Write-Host 'Low-noise policy:'
+    Write-Host "- $($lowNoisePolicy.LowNoisePrinciple)"
+    Write-Host "- $($lowNoisePolicy.ProbeAgainGuidance)"
+    Write-Host "- $($lowNoisePolicy.FreshEvidenceGuidance)"
+}
+
 function Write-CommandBlock {
     param(
         [string]$Label,
@@ -95,6 +110,7 @@ function Write-CommandBlock {
     Write-Host ''
     Write-Host $Label
     Write-Host $Command
+    Write-LowNoisePolicyBlock
 }
 
 Write-DispatchHeader -SelectedMode $Mode
@@ -109,6 +125,7 @@ switch ($Mode) {
         } else {
             foreach ($candidate in $candidates) { Write-Host "- $($candidate.FullName)" }
         }
+        Write-LowNoisePolicyBlock
         break
     }
 

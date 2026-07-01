@@ -9,6 +9,7 @@ low_noise_doc="$repo_root/docs/LOW_NOISE_PROBE_PRINCIPLES.md"
 start_here="$repo_root/START-HERE-CYBERNET-NEURON-SURVEY.md"
 dashboard_patch="$repo_root/dashboard/js/cybernet-os-preflight.js"
 ps_module="$repo_root/scripts/SasTargetIntake.psm1"
+low_noise_module="$repo_root/scripts/SasLowNoisePolicy.psm1"
 dispatch="$repo_root/survey/sas-target-intake-dispatch.ps1"
 bash_helper="$repo_root/survey/lib/sas-target-intake.sh"
 field_files=("$runbook" "$start_here" "$dashboard_patch")
@@ -18,7 +19,7 @@ contains(){ grep -Fq -- "$1" "$2" || fail "$3"; }
 not_contains(){ if grep -Fq -- "$1" "$2"; then fail "$3"; fi; }
 not_matches(){ if grep -Eq -- "$1" "$2"; then fail "$3"; fi; }
 
-for f in "$preflight" "$serial_plan" "$runbook" "$low_noise_doc" "$start_here" "$dashboard_patch" "$ps_module" "$dispatch" "$bash_helper"; do
+for f in "$preflight" "$serial_plan" "$runbook" "$low_noise_doc" "$start_here" "$dashboard_patch" "$ps_module" "$low_noise_module" "$dispatch" "$bash_helper"; do
   [[ -f "$f" ]] || fail "missing file: $f"
 done
 
@@ -95,6 +96,22 @@ contains "\$identifierColumns = @('Identifier')" "$preflight" 'Identifier column
 contains 'Skipping ambiguous Identifier value without explicit host/IP type' "$preflight" 'ambiguous Identifier rows must not silently probe'
 contains 'Serial-only rows must be normalized or enriched' "$preflight" 'must refuse serial-only material clearly'
 
+contains 'SasLowNoisePolicy.psm1' "$low_noise_module" 'low-noise module missing self-identifying name'
+contains 'function Get-SasLowNoisePolicy' "$low_noise_module" 'low-noise module missing policy getter'
+contains 'Five probes are unnecessary' "$low_noise_module" 'low-noise module missing pragmatic retry doctrine'
+contains 'prefer a different time of day or different day of week' "$low_noise_module" 'low-noise module missing time-diverse retry doctrine'
+contains 'The network sees packets, not the shell' "$low_noise_module" 'low-noise module missing network visibility principle'
+contains 'low_noise_principle' "$low_noise_module" 'low-noise module missing summary low-noise field'
+contains 'network_visibility_note' "$low_noise_module" 'low-noise module missing summary visibility field'
+contains 'probe_selection_questions' "$low_noise_module" 'low-noise module missing summary question field'
+contains 'probe_again_guidance' "$low_noise_module" 'low-noise module missing summary retry field'
+contains 'New-SasLowNoiseSummaryObject' "$low_noise_module" 'low-noise module missing summary helper'
+contains 'Get-SasLowNoiseOperatorLines' "$low_noise_module" 'low-noise module missing operator handoff helper'
+
+contains 'Import-Module $lowNoiseModule -Force' "$serial_plan" 'serial planner must import shared low-noise policy module'
+contains 'Get-SasLowNoisePolicy' "$serial_plan" 'serial planner must consume shared low-noise policy'
+contains 'New-SasLowNoiseSummaryObject' "$serial_plan" 'serial planner must build summary through shared policy'
+contains 'Get-SasLowNoiseOperatorLines' "$serial_plan" 'serial planner must build handoff through shared policy'
 contains 'Alejandro serial list' "$serial_plan" 'serial planner must name Alejandro serial input'
 contains 'serial-to-target evidence file' "$serial_plan" 'serial planner must validate evidence bridge files'
 contains 'STAGE_FOR_NETWORK_PREFLIGHT' "$serial_plan" 'serial planner missing staged decision'
@@ -102,13 +119,24 @@ contains 'REVIEW_REQUIRED_NO_PROBE_READY_EVIDENCE' "$serial_plan" 'serial planne
 contains 'do not ping the serial string' "$serial_plan" 'serial planner must not ping serial strings'
 contains 'network_activity_performed = $false' "$serial_plan" 'serial planner must report no network activity'
 contains 'to_probe_targets.txt' "$serial_plan" 'serial planner must stage target file'
-contains 'low_noise_principle' "$serial_plan" 'serial planner summary missing low-noise principle'
-contains 'network_visibility_note' "$serial_plan" 'serial planner summary missing network visibility note'
-contains 'probe_selection_questions' "$serial_plan" 'serial planner summary missing probe selection questions'
-contains 'probe_again_guidance' "$serial_plan" 'serial planner summary missing probe-again guidance'
+contains 'LowNoisePolicyVersion' "$serial_plan" 'serial planner rows must include low-noise policy version'
 contains 'LowNoiseDisposition' "$serial_plan" 'serial planner plan rows missing low-noise disposition'
-contains 'The network sees packets, not the shell' "$serial_plan" 'serial planner must explain shell choice is not network visibility control'
+contains 'ProbeAgainGuidance' "$serial_plan" 'serial planner rows must include pragmatic retry guidance'
 contains 'If a device was recently reachable' "$serial_plan" 'serial planner must discourage habitual repeat probes'
+
+contains 'Import-Module $lowNoiseModule -Force' "$preflight" 'network preflight must import shared low-noise policy module'
+contains 'Get-SasLowNoisePolicy' "$preflight" 'network preflight must consume shared low-noise policy'
+contains 'New-SasLowNoiseSummaryObject' "$preflight" 'network preflight must build summary through shared policy'
+contains 'Get-SasLowNoiseOperatorLines' "$preflight" 'network preflight must build handoff through shared policy'
+contains 'LowNoisePolicyVersion' "$preflight" 'network preflight rows must include low-noise policy version'
+contains 'LowNoiseDisposition' "$preflight" 'network preflight rows must include low-noise disposition'
+contains 'ProbeAgainGuidance' "$preflight" 'network preflight rows must include pragmatic retry guidance'
+contains 'network_preflight_${runId}_summary.json' "$preflight" 'network preflight must emit summary JSON'
+contains 'network_preflight_${runId}_handoff.txt' "$preflight" 'network preflight must emit operator handoff'
+
+contains 'Import-Module $lowNoiseModule -Force' "$dispatch" 'dispatcher must import shared low-noise policy module'
+contains 'Get-SasLowNoisePolicy' "$dispatch" 'dispatcher must consume shared low-noise policy'
+contains 'Low-noise policy:' "$dispatch" 'dispatcher must print low-noise policy for command plans'
 contains 'SerialPreflightPlan' "$dispatch" 'dispatcher missing SerialPreflightPlan mode'
 contains 'sas-serial-preflight-plan.ps1' "$dispatch" 'dispatcher missing serial planner entrypoint'
 
@@ -134,6 +162,7 @@ contains 'survey\output\network_preflight' "$dashboard_patch" 'dashboard patch m
 
 contains '# Low-Noise Probe Principles' "$low_noise_doc" 'low-noise doctrine missing title'
 contains 'The network sees packets, not the operator' "$low_noise_doc" 'low-noise doctrine missing shell distinction'
+contains 'scripts/SasLowNoisePolicy.psm1' "$low_noise_doc" 'low-noise doctrine missing shared module path'
 contains 'smaller scope' "$low_noise_doc" 'low-noise doctrine missing scope principle'
 contains 'fewer ports' "$low_noise_doc" 'low-noise doctrine missing port principle'
 contains 'lower rate' "$low_noise_doc" 'low-noise doctrine missing rate principle'
