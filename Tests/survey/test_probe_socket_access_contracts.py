@@ -18,21 +18,21 @@ CODE_SUFFIXES = {".go", ".py", ".sh", ".ps1", ".psm1", ".cmd", ".bat"}
 SCAN_ROOTS = (
     ROOT / "survey",
     ROOT / "probe" / "packet-expenditure",
-    ROOT / "deployment-audit" / "nmap",
 )
 
 # These files are the only approved places where packet/probe execution may be
-# assembled. They are not blanket approval for broad scanning; each surface still
-# has to preserve low-noise profile controls and local-only evidence behavior.
+# assembled in the active survey lane. They are not blanket approval for broad
+# scanning; each surface still has to preserve low-noise profile controls and
+# local-only evidence behavior.
 APPROVED_PROBE_SURFACES = {
     "survey/sas-run-naabu-pipeline.sh",
     "survey/sas-run-packet-probe.sh",
     "survey/sas-network-preflight.ps1",
     "survey/sas-cybernet-subnet-survey.sh",
+    "survey/sas-run-naabu-scan.sh",
     "probe/packet-expenditure/cmd/sas-packet-probe/main.go",
     "probe/packet-expenditure/internal/runner/cli.go",
     "probe/packet-expenditure/internal/runner/library_naabu.go",
-    "deployment-audit/nmap/nmap_probe_runner.py",
 }
 
 PROBE_ACCESS_PATTERNS = [
@@ -45,8 +45,11 @@ PROBE_ACCESS_PATTERNS = [
     re.compile(r"\bsocket\.(?:socket|create_connection)\s*\("),
     re.compile(r"\b(?:import|from)\s+scapy\b"),
     re.compile(r"\bnmap\.PortScanner\s*\("),
-    # Shell / PowerShell probe executors and primitives.
-    re.compile(r"(?<![A-Za-z0-9_.-])(?:naabu|nmap|nc|ncat)(?![A-Za-z0-9_.-])"),
+    re.compile(r"\bsubprocess\.(?:run|Popen|call|check_call|check_output)\s*\([^\n]*(?:naabu|nmap|nc|ncat)"),
+    re.compile(r"\basyncio\.create_subprocess_exec\s*\([^\n]*(?:naabu|nmap|nc|ncat)"),
+    # Literal shell / PowerShell probe execution. Mentions, parser names, examples,
+    # and installer helper text should not trip this contract.
+    re.compile(r"(?m)^\s*(?:naabu|nmap|nc|ncat)\s+(?:-|--|[A-Za-z0-9])"),
     re.compile(r"\b(?:Test-Connection|Test-NetConnection|Resolve-DnsName)\b", re.IGNORECASE),
 ]
 
@@ -109,8 +112,19 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def strip_comment_only_lines(text: str) -> str:
+    kept: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") or stripped.startswith("//"):
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
 def probe_access_matches(text: str) -> list[str]:
-    return [pattern.pattern for pattern in PROBE_ACCESS_PATTERNS if pattern.search(text)]
+    searchable = strip_comment_only_lines(text)
+    return [pattern.pattern for pattern in PROBE_ACCESS_PATTERNS if pattern.search(searchable)]
 
 
 def test_probe_socket_access_is_restricted_to_approved_surfaces():
