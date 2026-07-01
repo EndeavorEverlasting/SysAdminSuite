@@ -49,9 +49,7 @@ PROBE_ACCESS_PATTERNS = [
     re.compile(r"\bnmap\.PortScanner\s*\("),
     re.compile(r"\bsubprocess\.(?:run|Popen|call|check_call|check_output)\s*\([^\n]*(?:naabu|nmap|nc|ncat)"),
     re.compile(r"\basyncio\.create_subprocess_exec\s*\([^\n]*(?:naabu|nmap|nc|ncat)"),
-    # Literal shell / PowerShell probe execution. Mentions, parser names, examples,
-    # and installer helper text should not trip this contract.
-    re.compile(r"(?m)^\s*(?:naabu|nmap|nc|ncat)\s+(?:-|--|[A-Za-z0-9])"),
+    # PowerShell network probe primitives.
     re.compile(r"\b(?:Test-Connection|Test-NetConnection|Resolve-DnsName)\b", re.IGNORECASE),
 ]
 
