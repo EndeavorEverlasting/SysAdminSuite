@@ -292,7 +292,7 @@ $review = New-Object System.Collections.Generic.List[object]
 $targets = New-Object System.Collections.Generic.List[string]
 $seenTargets = @{}
 
-$lowNoisePrinciple = 'Reduce packets by using local evidence before probes; the network sees packets, not the shell.'
+$lowNoisePrinciple = 'The network sees packets, not the shell. Reduce packets by using local evidence before probes.'
 $networkVisibilityNote = 'CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.'
 $probeAgainGuidance = 'Do not repeat fixed probe counts by habit. If a device was already recently reachable or identity-confirmed, skip by default; if retrying silent/stale rows, prefer a different time of day or different day of week.'
 $freshEvidenceGuidance = 'Fresh identity or reachability evidence should reduce re-probing. Stale, missing, conflicting, or operator-forced evidence can justify staging a target.'
