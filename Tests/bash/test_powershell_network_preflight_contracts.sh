@@ -5,6 +5,7 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 preflight="$repo_root/survey/sas-network-preflight.ps1"
 serial_plan="$repo_root/survey/sas-serial-preflight-plan.ps1"
 runbook="$repo_root/docs/FIELD_NETWORK_PREFLIGHT.md"
+low_noise_doc="$repo_root/docs/LOW_NOISE_PROBE_PRINCIPLES.md"
 start_here="$repo_root/START-HERE-CYBERNET-NEURON-SURVEY.md"
 dashboard_patch="$repo_root/dashboard/js/cybernet-os-preflight.js"
 ps_module="$repo_root/scripts/SasTargetIntake.psm1"
@@ -17,7 +18,7 @@ contains(){ grep -Fq -- "$1" "$2" || fail "$3"; }
 not_contains(){ if grep -Fq -- "$1" "$2"; then fail "$3"; fi; }
 not_matches(){ if grep -Eq -- "$1" "$2"; then fail "$3"; fi; }
 
-for f in "$preflight" "$serial_plan" "$runbook" "$start_here" "$dashboard_patch" "$ps_module" "$dispatch" "$bash_helper"; do
+for f in "$preflight" "$serial_plan" "$runbook" "$low_noise_doc" "$start_here" "$dashboard_patch" "$ps_module" "$dispatch" "$bash_helper"; do
   [[ -f "$f" ]] || fail "missing file: $f"
 done
 
@@ -101,6 +102,13 @@ contains 'REVIEW_REQUIRED_NO_PROBE_READY_EVIDENCE' "$serial_plan" 'serial planne
 contains 'do not ping the serial string' "$serial_plan" 'serial planner must not ping serial strings'
 contains 'network_activity_performed = $false' "$serial_plan" 'serial planner must report no network activity'
 contains 'to_probe_targets.txt' "$serial_plan" 'serial planner must stage target file'
+contains 'low_noise_principle' "$serial_plan" 'serial planner summary missing low-noise principle'
+contains 'network_visibility_note' "$serial_plan" 'serial planner summary missing network visibility note'
+contains 'probe_selection_questions' "$serial_plan" 'serial planner summary missing probe selection questions'
+contains 'probe_again_guidance' "$serial_plan" 'serial planner summary missing probe-again guidance'
+contains 'LowNoiseDisposition' "$serial_plan" 'serial planner plan rows missing low-noise disposition'
+contains 'The network sees packets, not the shell' "$serial_plan" 'serial planner must explain shell choice is not network visibility control'
+contains 'If a device was recently reachable' "$serial_plan" 'serial planner must discourage habitual repeat probes'
 contains 'SerialPreflightPlan' "$dispatch" 'dispatcher missing SerialPreflightPlan mode'
 contains 'sas-serial-preflight-plan.ps1' "$dispatch" 'dispatcher missing serial planner entrypoint'
 
@@ -115,9 +123,24 @@ contains 'Export or copy the approved spreadsheet' "$runbook" 'runbook missing s
 contains 'Alejandro serial list flow' "$runbook" 'runbook missing Alejandro serial flow'
 contains 'approved serial-to-host/IP evidence' "$runbook" 'runbook missing serial evidence bridge rule'
 contains 'Serial-only rows go to review, not packets' "$runbook" 'runbook must route serial-only rows to review'
+contains 'Low-noise probe posture' "$runbook" 'runbook missing low-noise probe posture section'
+contains 'The network sees packets, not the shell' "$runbook" 'runbook missing network visibility principle'
+contains 'Which exact ports answer the survey question?' "$runbook" 'runbook missing low-noise probe selection questions'
+contains 'Five probes are unnecessary' "$runbook" 'runbook missing pragmatic repeat-probe guidance'
 contains 'Run the PowerShell network preflight' "$runbook" 'runbook missing PowerShell preflight step'
 contains 'Review the generated CSV under `survey/output/network_preflight/`' "$runbook" 'runbook missing output review step'
 contains '.\survey\sas-network-preflight.ps1' "$dashboard_patch" 'dashboard patch missing PowerShell preflight entrypoint'
 contains 'survey\output\network_preflight' "$dashboard_patch" 'dashboard patch missing generated output folder'
+
+contains '# Low-Noise Probe Principles' "$low_noise_doc" 'low-noise doctrine missing title'
+contains 'The network sees packets, not the operator' "$low_noise_doc" 'low-noise doctrine missing shell distinction'
+contains 'smaller scope' "$low_noise_doc" 'low-noise doctrine missing scope principle'
+contains 'fewer ports' "$low_noise_doc" 'low-noise doctrine missing port principle'
+contains 'lower rate' "$low_noise_doc" 'low-noise doctrine missing rate principle'
+contains 'fewer retries' "$low_noise_doc" 'low-noise doctrine missing retry principle'
+contains 'Is this a CDN/WAF/load-balanced/front-door target?' "$low_noise_doc" 'low-noise doctrine missing front-door question'
+contains 'five probes are unnecessary' "$low_noise_doc" 'low-noise doctrine missing pragmatic retry guidance'
+contains 'low_noise_principle' "$low_noise_doc" 'low-noise doctrine missing artifact context fields'
+contains 'Do not use stealth, bypass, or no-trace language.' "$low_noise_doc" 'low-noise doctrine must reject evasion language'
 
 echo 'PASS: PowerShell network preflight contracts'
