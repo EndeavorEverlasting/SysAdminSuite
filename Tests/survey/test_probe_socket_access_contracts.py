@@ -26,6 +26,7 @@ SCAN_ROOTS = (
 # low-noise profile controls and local-only evidence behavior.
 APPROVED_PROBE_SURFACES = {
     "survey/sas-ensure-naabu.sh",
+    "survey/sas-naabu-profile-command.sh",
     "survey/sas-run-naabu-pipeline.sh",
     "survey/sas-run-packet-probe.sh",
     "survey/sas-network-preflight.ps1",
@@ -61,6 +62,13 @@ REQUIRED_SURFACE_FRAGMENTS = {
         "NAABU_VERSION",
         "BIN_DIR",
         "download_naabu_windows",
+    ],
+    "survey/sas-naabu-profile-command.sh": [
+        "Render-only. This script never executes naabu and never touches target hosts.",
+        "survey/naabu_profiles.json",
+        "--profile",
+        "--list must be under logs/targets/",
+        "print(\" \".join(argv))",
     ],
     "survey/sas-run-packet-probe.sh": [
         "Enforced low-noise Naabu packet probe wrapper",
