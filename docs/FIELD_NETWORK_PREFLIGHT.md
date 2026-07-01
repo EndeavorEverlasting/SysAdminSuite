@@ -94,6 +94,24 @@ Rules:
 - Serial-only rows go to review, not packets.
 - The planner performs no network activity. It only stages a reduced target file.
 
+## Dashboard controls gap
+
+The runbook and backend now support serial-first planning, but the dashboard controls must also expose that path.
+
+See [`DASHBOARD_SERIAL_PROBE_CONTROLS_SPRINT.md`](DASHBOARD_SERIAL_PROBE_CONTROLS_SPRINT.md) for the dashboard implementation contract.
+
+Required dashboard direction:
+
+```text
+Plan from Alejandro serials
+  -> show serial preflight command
+  -> load serial preflight outputs
+  -> summarize probe-ready targets, review-required rows, and mystery serials
+  -> show next staged network preflight command
+```
+
+The dashboard must not make manual host/IP target entry feel like the primary Cybernet workflow when the operator is starting from serials.
+
 ## Iterative technician handoff
 
 Technicians should be able to keep running the same approved planning command or dashboard action without asking an AI agent for the next command.
@@ -187,7 +205,7 @@ Set-Location <SysAdminSuite repo root>
 .\survey\sas-network-preflight.ps1
 ```
 
-With no `-TargetFile`, the script lists candidate `.txt` and `.csv` files from `targets/local/` and `logs/targets/`, explains what the operator must select, and stops without probing.
+With no `-TargetFile`, the script lists candidate `.txt` and `.csv` files from `targets/local/` and `logs/targets`, explains what the operator must select, and stops without probing.
 
 ## Run the network preflight
 
