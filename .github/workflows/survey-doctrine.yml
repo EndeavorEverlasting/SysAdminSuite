@@ -10,6 +10,7 @@ on:
       - 'Config/cybernet-packet-profile.json'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
+      - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
       - 'probe/packet-expenditure/**'
       - 'survey/**'
       - 'scripts/SasTargetIntake.psm1'
@@ -21,6 +22,7 @@ on:
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
+      - 'Tests/survey/test_standard_corporate_tooling_contracts.py'
       - '.github/workflows/survey-doctrine.yml'
   pull_request:
     branches: [main]
@@ -31,6 +33,7 @@ on:
       - 'Config/cybernet-packet-profile.json'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
+      - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
       - 'probe/packet-expenditure/**'
       - 'survey/**'
       - 'scripts/SasTargetIntake.psm1'
@@ -42,6 +45,7 @@ on:
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
+      - 'Tests/survey/test_standard_corporate_tooling_contracts.py'
       - '.github/workflows/survey-doctrine.yml'
 
 jobs:
@@ -68,6 +72,11 @@ jobs:
         shell: bash
         run: |
           python3 Tests/survey/test_probe_socket_access_contracts.py
+
+      - name: Standard corporate tooling contracts
+        shell: bash
+        run: |
+          python3 Tests/survey/test_standard_corporate_tooling_contracts.py
 
       - name: Northwell registry verification contracts
         shell: bash
