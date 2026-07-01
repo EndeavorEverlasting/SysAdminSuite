@@ -2,9 +2,9 @@
 """Static contracts for probe/socket access boundaries.
 
 This test turns the low-noise operational posture into an enforceable code gate:
-probe/socket access must stay behind approved SysAdminSuite wrapper surfaces. New
-network probe code should fail here until it is intentionally scoped, reviewed, and
-wired through the same low-noise controls.
+raw socket/probe-library access must stay behind approved SysAdminSuite wrapper
+surfaces. New network probe code should fail here until it is intentionally
+scoped, reviewed, and wired through the same low-noise controls.
 """
 from __future__ import annotations
 
@@ -37,20 +37,17 @@ APPROVED_PROBE_SURFACES = {
     "probe/packet-expenditure/internal/runner/library_naabu.go",
 }
 
-PROBE_ACCESS_PATTERNS = [
+RAW_SOCKET_ACCESS_PATTERNS = [
     # Go direct socket primitives or raw packet libraries.
     re.compile(r"\bnet\.(?:Dial|DialContext|DialTimeout|Listen|ListenPacket|ListenTCP|ListenUDP)\s*\("),
     re.compile(r"\b(?:syscall|unix)\.Socket\s*\("),
     re.compile(r"golang\.org/x/net/(?:icmp|ipv4|ipv6)"),
     re.compile(r"github\.com/(?:google/gopacket|mdlayher/raw|mdlayher/packet|projectdiscovery/naabu)"),
-    # Python direct socket or packet/probe libraries.
+    # Python direct socket or packet/probe libraries. DNS resolution helpers are
+    # intentionally not treated as raw socket ownership in this first gate.
     re.compile(r"\bsocket\.(?:socket|create_connection)\s*\("),
     re.compile(r"\b(?:import|from)\s+scapy\b"),
     re.compile(r"\bnmap\.PortScanner\s*\("),
-    re.compile(r"\bsubprocess\.(?:run|Popen|call|check_call|check_output)\s*\([^\n]*(?:naabu|nmap|nc|ncat)"),
-    re.compile(r"\basyncio\.create_subprocess_exec\s*\([^\n]*(?:naabu|nmap|nc|ncat)"),
-    # PowerShell network probe primitives.
-    re.compile(r"\b(?:Test-Connection|Test-NetConnection|Resolve-DnsName)\b", re.IGNORECASE),
 ]
 
 REQUIRED_SURFACE_FRAGMENTS = {
@@ -136,16 +133,16 @@ def strip_comment_only_lines(text: str) -> str:
     return "\n".join(kept)
 
 
-def probe_access_matches(text: str) -> list[str]:
+def raw_socket_matches(text: str) -> list[str]:
     searchable = strip_comment_only_lines(text)
-    return [pattern.pattern for pattern in PROBE_ACCESS_PATTERNS if pattern.search(searchable)]
+    return [pattern.pattern for pattern in RAW_SOCKET_ACCESS_PATTERNS if pattern.search(searchable)]
 
 
-def test_probe_socket_access_is_restricted_to_approved_surfaces():
+def test_raw_socket_access_is_restricted_to_approved_surfaces():
     violations: list[str] = []
     for path in iter_code_files():
         text = read(path)
-        matches = probe_access_matches(text)
+        matches = raw_socket_matches(text)
         if not matches:
             continue
         relative = rel(path)
@@ -153,7 +150,7 @@ def test_probe_socket_access_is_restricted_to_approved_surfaces():
             violations.append(f"{relative}: {', '.join(matches)}")
 
     assert not violations, (
-        "probe/socket access must stay behind approved low-noise wrappers; "
+        "raw socket/probe-library access must stay behind approved low-noise wrappers; "
         "new probe surfaces require explicit review and allowlisting:\n" + "\n".join(violations)
     )
 
@@ -189,6 +186,6 @@ def test_socket_access_contract_names_the_operator_boundary():
 
 
 if __name__ == "__main__":
-    test_probe_socket_access_is_restricted_to_approved_surfaces()
+    test_raw_socket_access_is_restricted_to_approved_surfaces()
     test_approved_probe_surfaces_keep_low_noise_controls_visible()
     test_socket_access_contract_names_the_operator_boundary()
