@@ -101,6 +101,10 @@ contains 'function Get-SasLowNoisePolicy' "$low_noise_module" 'low-noise module 
 contains 'Five probes are unnecessary' "$low_noise_module" 'low-noise module missing pragmatic retry doctrine'
 contains 'prefer a different time of day or different day of week' "$low_noise_module" 'low-noise module missing time-diverse retry doctrine'
 contains 'The network sees packets, not the shell' "$low_noise_module" 'low-noise module missing network visibility principle'
+contains 'low_noise_principle' "$low_noise_module" 'low-noise module missing summary low-noise field'
+contains 'network_visibility_note' "$low_noise_module" 'low-noise module missing summary visibility field'
+contains 'probe_selection_questions' "$low_noise_module" 'low-noise module missing summary question field'
+contains 'probe_again_guidance' "$low_noise_module" 'low-noise module missing summary retry field'
 contains 'New-SasLowNoiseSummaryObject' "$low_noise_module" 'low-noise module missing summary helper'
 contains 'Get-SasLowNoiseOperatorLines' "$low_noise_module" 'low-noise module missing operator handoff helper'
 
@@ -115,11 +119,9 @@ contains 'REVIEW_REQUIRED_NO_PROBE_READY_EVIDENCE' "$serial_plan" 'serial planne
 contains 'do not ping the serial string' "$serial_plan" 'serial planner must not ping serial strings'
 contains 'network_activity_performed = $false' "$serial_plan" 'serial planner must report no network activity'
 contains 'to_probe_targets.txt' "$serial_plan" 'serial planner must stage target file'
-contains 'low_noise_principle' "$serial_plan" 'serial planner summary missing low-noise principle'
-contains 'network_visibility_note' "$serial_plan" 'serial planner summary missing network visibility note'
-contains 'probe_selection_questions' "$serial_plan" 'serial planner summary missing probe selection questions'
-contains 'probe_again_guidance' "$serial_plan" 'serial planner summary missing probe-again guidance'
+contains 'LowNoisePolicyVersion' "$serial_plan" 'serial planner rows must include low-noise policy version'
 contains 'LowNoiseDisposition' "$serial_plan" 'serial planner plan rows missing low-noise disposition'
+contains 'ProbeAgainGuidance' "$serial_plan" 'serial planner rows must include pragmatic retry guidance'
 contains 'If a device was recently reachable' "$serial_plan" 'serial planner must discourage habitual repeat probes'
 
 contains 'Import-Module $lowNoiseModule -Force' "$preflight" 'network preflight must import shared low-noise policy module'
@@ -160,6 +162,7 @@ contains 'survey\output\network_preflight' "$dashboard_patch" 'dashboard patch m
 
 contains '# Low-Noise Probe Principles' "$low_noise_doc" 'low-noise doctrine missing title'
 contains 'The network sees packets, not the operator' "$low_noise_doc" 'low-noise doctrine missing shell distinction'
+contains 'scripts/SasLowNoisePolicy.psm1' "$low_noise_doc" 'low-noise doctrine missing shared module path'
 contains 'smaller scope' "$low_noise_doc" 'low-noise doctrine missing scope principle'
 contains 'fewer ports' "$low_noise_doc" 'low-noise doctrine missing port principle'
 contains 'lower rate' "$low_noise_doc" 'low-noise doctrine missing rate principle'
