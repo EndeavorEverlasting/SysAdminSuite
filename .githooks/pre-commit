@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "[sas-harness] pre-commit: running static guardrails"
+python3 Tests/survey/test_local_harness_contracts.py
+python3 Tests/survey/test_probe_socket_access_contracts.py
+python3 Tests/survey/test_standard_corporate_tooling_contracts.py
+
+blocked=0
+while IFS= read -r path; do
+  case "$path" in
+    logs/*|survey/output/*|survey/artifacts/*|survey/input/serial_network_preflight/*|survey/output/serial_network_preflight/*|survey/output/target_reduction/*|*.pcap|*.pcapng|*.evtx)
+      echo "[sas-harness] refusing staged generated/operator artifact: $path" >&2
+      blocked=1
+      ;;
+  esac
+done < <(git diff --cached --name-only)
+
+if [[ "$blocked" -ne 0 ]]; then
+  echo "[sas-harness] generated evidence must stay local/gitignored; commit schema, docs, and tests instead." >&2
+  exit 1
+fi
+
+echo "[sas-harness] pre-commit: ok"
