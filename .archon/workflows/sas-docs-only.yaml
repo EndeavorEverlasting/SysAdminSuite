@@ -1,0 +1,30 @@
+name: sas-docs-only
+description: Documentation-only SysAdminSuite workflow with local-data guardrails.
+inputs:
+  - request_summary
+  - doc_paths
+phases:
+  - id: load-context
+    actions:
+      - read AGENTS.md
+      - read CLAUDE.md
+      - read CODEBASE_MAP.md
+      - read relevant source-of-truth docs only
+  - id: guard-local-data
+    actions:
+      - avoid live target CSVs, workbooks, host lists, serial lists, MAC exports, scan output, dashboards, ZIP bundles, and local evidence
+      - use generic local reference wording only
+  - id: edit-docs
+    actions:
+      - keep wording authorized, read-only, low-noise, scoped, bounded, local evidence, dry-run, and validation-first
+      - avoid changing runtime behavior
+  - id: validate
+    actions:
+      - run a docs/static validator when available
+      - for AI layer docs, run tools/validate-ai-layer.ps1
+  - id: summarize
+    actions:
+      - describe documentation changes
+      - state runtime behavior was intentionally not changed
+validation:
+  ai_layer: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1

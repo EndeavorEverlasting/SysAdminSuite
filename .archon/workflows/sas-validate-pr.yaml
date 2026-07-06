@@ -1,0 +1,31 @@
+name: sas-validate-pr
+description: Pre-PR validation workflow for SysAdminSuite changes.
+inputs:
+  - changed_files
+phases:
+  - id: inspect-diff
+    actions:
+      - run git status --short
+      - inspect staged and unstaged diffs
+      - confirm no protected local data is included
+  - id: choose-validation
+    actions:
+      - use .claude/skills/scoped-validation/SKILL.md
+      - select the smallest checks covering changed paths
+  - id: run-validation
+    actions:
+      - run selected checks without network access unless the task explicitly requires it
+      - do not run live probes for docs/config-only changes
+  - id: review-results
+    actions:
+      - record pass, warning, or fail accurately
+      - separate environment limitations from product failures
+  - id: final-summary
+    actions:
+      - include summary of files changed
+      - include intentionally unchanged areas
+      - include exact validation commands and results
+validation:
+  no_live_data: required
+  scoped_checks: required
+  exact_results: required
