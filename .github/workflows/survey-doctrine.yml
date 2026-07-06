@@ -6,12 +6,17 @@ on:
     paths:
       - 'AGENTS.md'
       - '.cursor/rules/**'
+      - '.githooks/**'
       - 'Config/cybernet-naabu-profiles.json'
       - 'Config/cybernet-packet-profile.json'
+      - 'docs/LOCAL_DEVELOPMENT_HARNESS.md'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
+      - 'harness/**'
+      - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
+      - 'scripts/install-local-harness-hooks.sh'
       - 'survey/**'
       - 'scripts/SasTargetIntake.psm1'
       - 'targets/README.md'
@@ -21,6 +26,7 @@ on:
       - 'Tests/bash/test_packet_probe_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
+      - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
       - 'Tests/survey/test_standard_corporate_tooling_contracts.py'
       - '.github/workflows/survey-doctrine.yml'
@@ -29,12 +35,17 @@ on:
     paths:
       - 'AGENTS.md'
       - '.cursor/rules/**'
+      - '.githooks/**'
       - 'Config/cybernet-naabu-profiles.json'
       - 'Config/cybernet-packet-profile.json'
+      - 'docs/LOCAL_DEVELOPMENT_HARNESS.md'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
+      - 'harness/**'
+      - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
+      - 'scripts/install-local-harness-hooks.sh'
       - 'survey/**'
       - 'scripts/SasTargetIntake.psm1'
       - 'targets/README.md'
@@ -44,6 +55,7 @@ on:
       - 'Tests/bash/test_packet_probe_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
+      - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
       - 'Tests/survey/test_standard_corporate_tooling_contracts.py'
       - '.github/workflows/survey-doctrine.yml'
@@ -77,6 +89,11 @@ jobs:
         shell: bash
         run: |
           python3 Tests/survey/test_standard_corporate_tooling_contracts.py
+
+      - name: Local harness contracts
+        shell: bash
+        run: |
+          python3 Tests/survey/test_local_harness_contracts.py
 
       - name: Northwell registry verification contracts
         shell: bash
