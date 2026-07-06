@@ -1,0 +1,48 @@
+name: sas-survey-change
+description: SysAdminSuite survey change workflow with authorized, read-only, low-noise, scoped validation.
+inputs:
+  - request_summary
+  - touched_paths
+phases:
+  - id: load-doctrine
+    actions:
+      - read AGENTS.md
+      - read CLAUDE.md
+      - read CODEBASE_MAP.md
+      - read survey/README.md
+      - read docs/OPERATIONAL_POSTURE.md
+  - id: classify-scope
+    actions:
+      - confirm whether change is docs/config, survey script, dashboard, mapping, or validation
+      - confirm no live target material is needed
+  - id: plan
+    actions:
+      - choose smallest Bash-first change
+      - preserve PowerShell files unless explicitly requested
+      - define local evidence paths if artifacts are generated
+  - id: implement
+    actions:
+      - edit only scoped files
+      - keep survey probes read-only toward targets
+  - id: validate
+    actions:
+      - run scoped validation only
+      - do not require network access
+      - do not run live probes unless explicitly authorized outside this workflow
+  - id: summarize
+    actions:
+      - list files changed
+      - list intentionally unchanged runtime behavior
+      - list validation command and result
+artifacts:
+  allowed:
+    - tracked docs
+    - tracked config
+    - synthetic fixtures
+  local_only:
+    - survey/output/
+    - survey/artifacts/
+    - logs/nmap/
+    - logs/targets/
+validation:
+  default: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1

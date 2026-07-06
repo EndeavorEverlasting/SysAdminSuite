@@ -1,0 +1,27 @@
+# SysAdminSuite local/live data guardrails
+targets/local/
+logs/targets/
+survey/input/
+survey/output/
+survey/artifacts/
+logs/nmap/
+Mapping/Output/GuiRuns/
+mapping/Output/GuiRuns/
+runs/
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+!targets/sanitized/**/*.csv
+!**/*.sample.csv
+!**/*.example.csv
+!**/*.fixture.csv
+*.zip
+*.7z
+*.pcap
+*.pcapng
+*.nessus
+*.nmap
+*.gnmap
+*.jsonl
+*.har
