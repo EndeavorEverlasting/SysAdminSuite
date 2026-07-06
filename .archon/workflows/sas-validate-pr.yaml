@@ -26,6 +26,7 @@ phases:
       - include intentionally unchanged areas
       - include exact validation commands and results
 validation:
+  ai_layer: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
   no_live_data: required
   scoped_checks: required
   exact_results: required
