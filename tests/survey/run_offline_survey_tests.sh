@@ -7,3 +7,5 @@ python3 Tests/survey/test_ad_probe_resilience_contracts.py
 python3 Tests/survey/test_ad_existence_bulk_contracts.py
 python3 Tests/survey/test_serial_network_preflight_contracts.py
 python3 Tests/survey/test_probe_socket_access_contracts.py
+python3 Tests/survey/test_standard_corporate_tooling_contracts.py
+python3 Tests/survey/test_local_harness_contracts.py
