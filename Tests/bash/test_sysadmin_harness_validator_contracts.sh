@@ -24,7 +24,6 @@ for file in \
   scripts/render-english-report-fixtures.sh \
   scripts/show-harness-evidence-paths.sh \
   scripts/Render-SasEnglishReport.ps1 \
-  scripts/SasRunContext.psm1 \
   Tests/bash/run_harness_contracts.sh \
   Tests/bash/test_harness_command_surface.sh \
   schemas/harness/run-event.schema.json \
@@ -36,6 +35,11 @@ for file in \
   grep -q "$file" scripts/validate-sysadmin-harness.ps1 || fail "validator does not name required file: $file"
 done
 pass "validator names required files"
+
+if grep -q "scripts/SasRunContext.psm1" scripts/validate-sysadmin-harness.ps1; then
+  fail "validator still claims run context ownership"
+fi
+pass "validator does not claim run context ownership"
 
 grep -q "command surface wrappers" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface wrapper check"
 grep -q "command surface scripts" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface script check"
