@@ -25,10 +25,12 @@ This lets a script inspect a request such as "clear old Application log entries 
 docs/WINDOWS_LOG_CLASSIFICATION_SYSTEM.md
 harness/taxonomy/windows-log-taxonomy.json
 schemas/harness/windows-log-taxonomy.schema.json
+harness/windows_log_classifier.py
 Tests/survey/test_windows_log_classification_contracts.py
+Tests/survey/test_windows_log_classifier_code.py
 ```
 
-The Markdown explains the doctrine. The taxonomy is the machine-readable contract. The schema and tests keep the taxonomy usable by scripts, MCP tools, and dashboard surfaces.
+The Markdown explains the doctrine. The taxonomy is the machine-readable contract. The classifier is the executable implementation that loads the taxonomy, classifies a request, builds an operation plan, and renders an operator-visible PowerShell handoff without executing host log actions. The schema and tests keep the taxonomy usable by scripts, MCP tools, and dashboard surfaces.
 
 ## Classification dimensions
 
@@ -187,7 +189,7 @@ A classifier result should include:
 
 ## Command rendering posture
 
-The first implementation should render plans and commands, not execute them.
+The implementation renders plans and commands; it does not execute them.
 
 Approved renderer outputs:
 
@@ -199,6 +201,26 @@ windows_log_classification_report.md
 ```
 
 Real EVTX, ETL, CBS, DISM, or vendor logs should remain outside tracked repo paths unless they are synthetic fixtures.
+
+## CLI usage
+
+```bash
+python3 harness/windows_log_classifier.py \
+  --target System \
+  --operation "show recent errors" \
+  --emit plan
+```
+
+To write local artifacts under an ignored output root:
+
+```bash
+python3 harness/windows_log_classifier.py \
+  --target Application \
+  --operation "write event" \
+  --output-root survey/output/windows-log-classifier/demo \
+  --emit all \
+  --write
+```
 
 ## Add/delete/mutate command families
 
@@ -257,3 +279,4 @@ This system is ready for scripts when:
 4. Every classifier result declares `host_log_mutation`.
 5. MCP/API surfaces expose classification and rendering but do not silently execute host mutation.
 6. Static tests prove the doc, taxonomy, API manifest, and MCP catalog stay connected.
+7. Executable tests prove the classifier can load the taxonomy, classify common requests, build operation plans, and render handoffs without executing host actions.
