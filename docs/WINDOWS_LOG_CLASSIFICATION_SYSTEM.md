@@ -96,3 +96,4 @@ This system is ready for scripts when:
 5. MCP/API surfaces expose classification and rendering but do not silently execute host mutation.
 6. Static tests prove the doc, taxonomy, API manifest, MCP catalog, implementation, and PowerShell wrapper stay connected.
 7. Executable tests prove the classifier can load the taxonomy, classify common requests, build operation plans, and render handoffs without executing host actions.
+8. Windows operators have a checked-in PowerShell wrapper entrypoint for the classifier.
