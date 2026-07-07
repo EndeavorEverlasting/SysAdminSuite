@@ -15,8 +15,9 @@ Start here when you need to know which local surface to use.
 
 | Surface | Implementation |
 |---|---|
-| Harness validation | `scripts/validate-sysadmin-harness.ps1` |
-| English report rendering | `scripts/Render-SasEnglishReport.ps1` |
+| Harness validation | `scripts/run-harness-validation.sh` -> `scripts/validate-sysadmin-harness.ps1` |
+| English report rendering | `scripts/render-english-report-fixtures.sh` -> `scripts/Render-SasEnglishReport.ps1` |
+| Evidence path summary | `scripts/show-harness-evidence-paths.sh` |
 | Run context helpers | `scripts/SasRunContext.psm1` |
 | Workflow specs | `survey/workflows/` |
 | Synthetic fixtures | `survey/fixtures/` |
@@ -27,7 +28,6 @@ Start here when you need to know which local surface to use.
 | Question | Read |
 |---|---|
 | AI harness doctrine | `docs/AI_LAYER_HARNESS_TOOLING_PLAN.md` |
-| Harness command surface | `docs/harness-command-surface.md` |
 | Parallel-agent coordination | `docs/handoff/sysadminsuite-agent-coordination.md` |
 | English report variables | `docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md` |
 | Local harness usage | `docs/LOCAL_DEVELOPMENT_HARNESS.md` |
