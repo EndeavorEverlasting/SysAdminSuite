@@ -648,7 +648,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+OFFLINE_SURVEY_MODE=0
+case "$MODE" in
+  local-context-only|resolve-only|parse-naabu-only|package-only) OFFLINE_SURVEY_MODE=1 ;;
+esac
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" && "$OFFLINE_SURVEY_MODE" -ne 1 ]]; then
   sas_require_northwell_wifi
 fi
 
