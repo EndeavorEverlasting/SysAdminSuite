@@ -20,6 +20,7 @@ function Test-JsonFile {
 Write-Host 'SYSADMIN HARNESS VALIDATION'
 
 $required = @(
+    'Run-HarnessContracts.cmd',
     'Run-HarnessValidation.cmd',
     'Run-EnglishReportFixture.cmd',
     'Run-ExportHarnessEvidence.cmd',
@@ -28,6 +29,7 @@ $required = @(
     'scripts/show-harness-evidence-paths.sh',
     'scripts/Render-SasEnglishReport.ps1',
     'scripts/SasRunContext.psm1',
+    'Tests/bash/run_harness_contracts.sh',
     'Tests/bash/test_harness_command_surface.sh',
     'schemas/harness/run-event.schema.json',
     'schemas/harness/artifact-registry.schema.json',
@@ -122,6 +124,7 @@ catch {
 
 try {
     $wrapperRoutes = @{
+        'Run-HarnessContracts.cmd' = 'Tests/bash/run_harness_contracts.sh'
         'Run-HarnessValidation.cmd' = 'scripts/run-harness-validation.sh'
         'Run-EnglishReportFixture.cmd' = 'scripts/render-english-report-fixtures.sh'
         'Run-ExportHarnessEvidence.cmd' = 'scripts/show-harness-evidence-paths.sh'
