@@ -66,6 +66,27 @@ still_silent_count
 stale_or_conflicting_count
 persistent_silent_time_diverse_count
 plateau_detected
+default_profile
+open_default_port_target_count
+web_only_reachable_count
+admin_surface_reachable_count
+default_ports_blocked_or_filtered_count
+fallback_profile_recommended
+fallback_requires_approval
+all_ports_allowed
+fallback_decision
+blocked_default_ports_guidance
+```
+
+Port fallback reports should use these decision names:
+
+```text
+default_ok
+web_only_fallback
+approved_subnet_host_discovery_required
+udp_justification_required
+all_ports_denied_without_explicit_gate
+review_required
 ```
 
 ## English report template
@@ -102,6 +123,26 @@ Fresh reachability evidence should reduce re-probing. If a target is still silen
 
 Next action:
 {next_action}
+```
+
+A port fallback report should read like:
+
+```text
+SysAdminSuite checked {target_count} approved target(s) from {target_file}.
+
+The default Cybernet TCP profile {default_profile} checked ports {ports_requested}.
+Network activity was performed. Evidence was written locally to {network_preflight_csv}.
+No files, scripts, or logs were written to target workstations. Assume enterprise network monitoring may observe authorized traffic.
+
+Results:
+- {open_default_port_target_count} target(s) answered on at least one default port.
+- {web_only_reachable_count} target(s) answered only on web ports 80/443.
+- {admin_surface_reachable_count} target(s) answered on Windows/admin surface ports.
+- {default_ports_blocked_or_filtered_count} target(s) were silent on the default profile.
+
+Decision:
+{fallback_decision}. Recommended fallback profile: {fallback_profile_recommended}. Approval required: {fallback_requires_approval}. All-port scan allowed: {all_ports_allowed}.
+{blocked_default_ports_guidance}
 ```
 
 ## Required report sections
@@ -163,6 +204,17 @@ Minimum shape:
 }
 ```
 
+Additional network survey roles:
+
+```text
+naabu_json_evidence
+naabu_raw_pipeline_stream
+cybernet_detect_jsonl
+network_preflight_csv
+port_fallback_decision
+network_english_report
+```
+
 Synthetic test registries may be tracked only under approved fixture/sample paths.
 
 ## Log event contract
@@ -205,6 +257,7 @@ English logs should be concise and factual:
 - Say whether network activity occurred.
 - Say why rows were staged, skipped, or routed to review.
 - Include low-noise retry context when relevant.
+- Include port profile and fallback decision context when relevant.
 - Avoid raw dumps.
 - Avoid hiding uncertainty.
 - Avoid stealth/no-trace/bypass language.
@@ -219,6 +272,7 @@ English logs should be concise and factual:
 | `serial_preflight.review.required` | `{review_required_count} serial(s) remain review-required because no probe-ready bridge was found.` |
 | `network_preflight.started` | `Started bounded network preflight for {target_count} target(s) on ports {ports_requested}.` |
 | `network_preflight.completed` | `Network preflight completed and wrote {network_preflight_csv}.` |
+| `network_preflight.port_fallback.classified` | `Classified {default_ports_blocked_or_filtered_count} target(s) as silent on the default profile. Fallback decision: {fallback_decision}.` |
 | `iteration.plateau.detected` | `No new successful evidence appeared across comparable runs; route the remaining rows to review instead of repeating immediately.` |
 | `live_data.audit.warning` | `The advisory audit found {warning_count} possible live-data risk(s). Review before committing.` |
 
@@ -238,63 +292,3 @@ Inputs:
 -Template serial-preflight|network-preflight|iteration|audit
 -OutputPath <path>
 ```
-
-Rules:
-
-- Renderer performs no network activity.
-- Renderer reads JSON/artifacts only.
-- Renderer should not require live data for tests.
-- Renderer should fail clearly if required variables are missing.
-- Renderer should preserve uncertainty instead of inventing conclusions.
-
-## Fixture strategy
-
-Synthetic fixtures should live under:
-
-```text
-survey/fixtures/english-log/
-```
-
-Suggested fixtures:
-
-```text
-serial_preflight_summary.sample.json
-serial_preflight_artifact_registry.sample.json
-network_preflight_summary.sample.json
-network_preflight_artifact_registry.sample.json
-```
-
-## Required tests
-
-Add:
-
-```text
-Tests/bash/test_english_log_artifact_contracts.sh
-```
-
-Tests must prove:
-
-1. Renderer exists and parses.
-2. Fixture summary JSON contains required variables.
-3. Fixture artifact registry contains source, summary, report, and handoff roles.
-4. Rendered report includes request/source/evidence/action/network status/next action.
-5. Serial report says planner performed no network activity.
-6. Network preflight report says network activity occurred.
-7. Missing required variables fail clearly.
-8. Output does not contain raw live-looking hostnames, serials, MACs, or IPs in tracked fixtures.
-9. Report includes low-noise retry guidance.
-10. Renderer does not run network commands.
-
-## Acceptance criteria
-
-This contract is satisfied when a future sprint can run:
-
-```powershell
-.\scripts\Render-SasEnglishReport.ps1 `
-  -SummaryJson .\survey\fixtures\english-log\serial_preflight_summary.sample.json `
-  -ArtifactRegistry .\survey\fixtures\english-log\serial_preflight_artifact_registry.sample.json `
-  -Template serial-preflight `
-  -OutputPath .\survey\output\english-log\serial_preflight_report.md
-```
-
-and the result reads like an operator report rather than a raw data dump.
