@@ -32,7 +32,7 @@ log() { printf '[sas-probe-toolbox] %s\n' "$*" >&2; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run) shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) log "Unknown argument: $1"; usage; exit 0 ;;
   esac
