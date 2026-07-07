@@ -18,8 +18,7 @@ param(
     [string]$TargetFile,
 
     [Parameter(Mandatory = $false)]
-    [ValidateNotNullOrEmpty()]
-    [int[]]$Ports = @(135, 445, 3389, 9100),
+    [int[]]$Ports,
 
     [Parameter(Mandatory = $false)]
     [string]$OutputDirectory,
@@ -107,6 +106,8 @@ function Show-TargetFileSelectionHelp {
     Write-Host 'Low-noise reminder:'
     Write-Host "- $($policy.LowNoisePrinciple)"
     Write-Host "- $($policy.ProbeAgainGuidance)"
+    Write-Host "- Default Cybernet TCP ports: $($policy.DefaultCybernetTcpPorts -join ',')"
+    Write-Host "- $($policy.BlockedDefaultPortsGuidance)"
     Write-Host ''
     Write-Host 'Candidate files found:'
     $candidates = @(Get-CandidateTargetFiles -Roots $CandidateRoots)
@@ -119,7 +120,7 @@ function Show-TargetFileSelectionHelp {
     }
     Write-Host ''
     Write-Host 'Run in Windows PowerShell:'
-    Write-Host '.\survey\sas-network-preflight.ps1 -TargetFile .\targets\local\approved_targets.csv -Ports 135,445,3389,9100'
+    Write-Host ".\survey\sas-network-preflight.ps1 -TargetFile .\targets\local\approved_targets.csv -Ports $($policy.DefaultCybernetTcpPorts -join ',')"
 }
 
 function Test-IsIpAddress {
@@ -297,6 +298,62 @@ function Test-PortStatus {
     }
 }
 
+function Get-PortFallbackSummary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Rows,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$Targets
+    )
+
+    $webPorts = @(Get-SasWebReachabilityPorts)
+    $adminPorts = @(Get-SasAdminSurfacePorts)
+    $openPortsByTarget = @{}
+
+    foreach ($target in $Targets) {
+        $openPortsByTarget[$target] = New-Object System.Collections.Generic.List[int]
+    }
+
+    foreach ($row in $Rows) {
+        if ($row.PortStatus -ne 'Open') { continue }
+        if (-not $openPortsByTarget.ContainsKey($row.Target)) {
+            $openPortsByTarget[$row.Target] = New-Object System.Collections.Generic.List[int]
+        }
+        $openPortsByTarget[$row.Target].Add([int]$row.Port)
+    }
+
+    $openDefaultTargets = 0
+    $webOnlyTargets = 0
+    $adminSurfaceTargets = 0
+    $silentTargets = 0
+
+    foreach ($target in $Targets) {
+        $openPorts = @($openPortsByTarget[$target])
+        if ($openPorts.Count -eq 0) {
+            $silentTargets++
+            continue
+        }
+
+        $openDefaultTargets++
+        $hasWeb = $false
+        $hasAdmin = $false
+        foreach ($port in $openPorts) {
+            if ($webPorts -contains [int]$port) { $hasWeb = $true }
+            if ($adminPorts -contains [int]$port) { $hasAdmin = $true }
+        }
+        if ($hasAdmin) { $adminSurfaceTargets++ }
+        if ($hasWeb -and -not $hasAdmin) { $webOnlyTargets++ }
+    }
+
+    return Get-SasPortFallbackDecision `
+        -TargetCount $Targets.Count `
+        -OpenDefaultPortTargetCount $openDefaultTargets `
+        -WebOnlyReachableCount $webOnlyTargets `
+        -AdminSurfaceReachableCount $adminSurfaceTargets `
+        -SilentOnDefaultProfileCount $silentTargets
+}
+
 $repoRoot = Resolve-SasRepoRoot
 $rootSet = Get-SasTargetIntakeRoots -RepoRoot $repoRoot
 $targetsLocalRoot = $rootSet.SourceRoots[0]
@@ -306,6 +363,10 @@ $surveyOutputRoot = $rootSet.OutputRoots[0]
 $logsNmapRoot = $rootSet.OutputRoots[1]
 $surveyArtifactsRoot = $rootSet.OutputRoots[2]
 $lowNoisePolicy = Get-SasLowNoisePolicy
+
+if ($null -eq $Ports -or @($Ports).Count -eq 0) {
+    $Ports = @(Get-SasDefaultCybernetTcpPorts)
+}
 
 $candidateRoots = @($targetsLocalRoot, $logsTargetsRoot)
 $allowedInputRoots = @($targetsLocalRoot, $logsTargetsRoot, $surveyInputRoot)
@@ -373,6 +434,7 @@ Write-Host "Output path: $outputCsv"
 Write-Host 'Low-noise context:'
 Write-Host "- $($lowNoisePolicy.LowNoisePrinciple)"
 Write-Host "- $($lowNoisePolicy.ProbeAgainGuidance)"
+Write-Host "- $($lowNoisePolicy.BlockedDefaultPortsGuidance)"
 
 Write-SasStageProgress -Step 2 -Total 4 -Message 'Resolving DNS for selected targets' -Percent 50
 $resolved = @{}
@@ -423,6 +485,8 @@ foreach ($target in $targets) {
     }
 }
 
+$fallbackDecision = Get-PortFallbackSummary -Rows @($rows) -Targets @($targets)
+
 Write-SasStageProgress -Step 4 -Total 4 -Message 'Writing network_preflight.csv' -Percent 100
 $rows | Export-Csv -LiteralPath $outputCsv -NoTypeInformation -Encoding UTF8
 
@@ -431,32 +495,60 @@ $summary = New-SasLowNoiseSummaryObject -Properties @{
     generated_at = (Get-Date).ToString('o')
     target_file = $selectedTargetFile
     target_count = $targets.Count
+    default_profile = $fallbackDecision.default_profile
     ports = $Ports
+    ports_requested = $Ports
     total_checks = $totalChecks
+    open_default_port_target_count = $fallbackDecision.open_default_port_target_count
+    web_only_reachable_count = $fallbackDecision.web_only_reachable_count
+    admin_surface_reachable_count = $fallbackDecision.admin_surface_reachable_count
+    default_ports_blocked_or_filtered_count = $fallbackDecision.default_ports_blocked_or_filtered_count
+    fallback_profile_recommended = $fallbackDecision.fallback_profile_recommended
+    fallback_requires_approval = $fallbackDecision.fallback_requires_approval
+    all_ports_allowed = $fallbackDecision.all_ports_allowed
+    fallback_decision = $fallbackDecision.decision
     output_csv = $outputCsv
     summary_json = $summaryJson
     operator_handoff_path = $handoffPath
     network_activity_performed = $true
 }
-$summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryJson -Encoding UTF8
+$summary | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $summaryJson -Encoding UTF8
 
 @(
     'SysAdminSuite network preflight handoff',
     "RunId: $runId",
     "Target file: $selectedTargetFile",
     "Targets checked: $($targets.Count)",
+    "Default profile: $($fallbackDecision.default_profile)",
     "Ports checked: $($Ports -join ',')",
     "CSV output: $outputCsv",
     "Summary JSON: $summaryJson",
+    '',
+    'Plain-English result:',
+    "SysAdminSuite checked $($targets.Count) approved target(s) from $selectedTargetFile.",
+    "The default Cybernet TCP profile checked ports $($Ports -join ',').",
+    "Network activity was performed. Evidence was written locally to $outputCsv and $summaryJson.",
+    'No files, scripts, or logs were written to target workstations. Assume enterprise network monitoring may observe authorized traffic.',
+    '',
+    'Port fallback summary:',
+    "- Targets answering at least one default port: $($fallbackDecision.open_default_port_target_count)",
+    "- Targets answering only web ports 80/443: $($fallbackDecision.web_only_reachable_count)",
+    "- Targets answering Windows/admin surface ports: $($fallbackDecision.admin_surface_reachable_count)",
+    "- Targets silent on the default profile: $($fallbackDecision.default_ports_blocked_or_filtered_count)",
+    "- Fallback decision: $($fallbackDecision.decision)",
+    "- Recommended fallback profile: $($fallbackDecision.fallback_profile_recommended)",
+    "- Fallback requires approval: $($fallbackDecision.fallback_requires_approval)",
     '',
     (Get-SasLowNoiseOperatorLines),
     '',
     'Network activity performed: true',
     'Do not repeat probes by habit. If a target was recently reachable or identity-confirmed, prefer using fresh evidence instead of immediate repetition.',
-    'If retrying silent or stale rows, prefer a different time of day or different day of week.'
+    'If retrying silent or stale rows, prefer a different time of day or different day of week.',
+    $lowNoisePolicy.BlockedDefaultPortsGuidance
 ) | Set-Content -LiteralPath $handoffPath -Encoding UTF8
 
 Write-Progress -Activity 'SysAdminSuite network preflight' -Completed
 Write-Host "Final CSV path: $outputCsv"
 Write-Host "Summary JSON path: $summaryJson"
 Write-Host "Operator handoff path: $handoffPath"
+Write-Host "Fallback decision: $($fallbackDecision.decision)"
