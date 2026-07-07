@@ -118,10 +118,48 @@ naabu -list logs/targets/<site>_confirm_hosts.txt -silent -ec \
 naabu -list logs/targets/<site>_confirm_hosts.txt -p 80,443,135,445,3389,5985,5986 -json -silent -ec -o logs/nmap/<site>_<runid>_keyports.json
 ```
 
+The default Cybernet TCP profile is intentionally bounded:
+
+```text
+80,443,135,445,3389,5985,5986
+```
+
+`9100` is not part of the default Cybernet profile. Add printer/device-specific
+ports only through a separate documented profile or an explicit operator-supplied
+port list.
+
+### Blocked default ports and backup policy
+
+If the default Cybernet ports are blocked or filtered, do not broaden automatically.
+Blocked defaults are a result classification, not permission to scan every port.
+
+Fallback decisions must use named profiles:
+
+| Condition | Decision | Profile |
+| --- | --- | --- |
+| At least one default port answers and no silent targets remain | `default_ok` | `keyports_cybernet_json` |
+| Default Windows/admin surfaces are blocked but a bounded web check is still useful | `web_only_fallback` | `web_reachability_only_json` |
+| Approved subnet liveness is needed without treating discovery as population | `approved_subnet_host_discovery_required` | `host_discovery_web_syn_txt` |
+| UDP evidence is required by the Cybernet survey | `udp_justification_required` | `udp_dns_snmp_json` |
+| All TCP ports are requested without the explicit all-port gate | `all_ports_denied_without_explicit_gate` | none |
+| Evidence is missing, stale, or ambiguous | `review_required` | none |
+
+English reports should say what happened in plain language:
+
+```text
+Default Cybernet ports were checked with silent mode and CDN exclusion enabled.
+Evidence was written locally only. No files, scripts, or logs were written to target workstations.
+Some targets were silent on the default profile. Do not broaden automatically; use the named fallback profile that answers the survey question.
+```
+
 ### All ports, only when justified
 
 ```bash
 naabu -list logs/targets/<site>_confirm_hosts.txt -p - -json -silent -ec -o logs/nmap/<site>_<runid>_allports.json
+```
+
+```text
+All TCP port profiles require explicit justification and a small approved target set. They are never default.
 ```
 
 ### UDP optional profile
@@ -166,7 +204,8 @@ Do not commit live JSON, TXT, CSV, ZIP, or XLSX evidence.
 ## Profiles and tooling
 
 - Canonical doctrine profiles: [`survey/naabu_profiles.json`](../survey/naabu_profiles.json)
-- Profile contract validator: [`tests/bash/smoke-naabu-profiles.sh`](../tests/bash/smoke-naabu-profiles.sh)
+- Profile contract validator: [`Tests/bash/smoke-naabu-profiles.sh`](../Tests/bash/smoke-naabu-profiles.sh)
+- Runtime sync validator: [`Tests/bash/test_naabu_profile_sync.sh`](../Tests/bash/test_naabu_profile_sync.sh)
 - Render-only command helper: [`survey/sas-naabu-profile-command.sh`](../survey/sas-naabu-profile-command.sh)
 - Operational naabu runbook (runtime config): [`docs/NAABU_CYBERNET_PROFILES.md`](NAABU_CYBERNET_PROFILES.md)
 - WAB field gate (Phase 2b): [`docs/WAB_TEST_READINESS.md`](WAB_TEST_READINESS.md)
