@@ -4,7 +4,7 @@
 
 SysAdminSuite commands must not assume the operator is already in the right directory. Every runnable instruction should start by entering the repository root, then use repo-relative paths.
 
-This document establishes the canonical app root, source directories, generated-output directories, and command preamble for local operators and agents.
+This document establishes the canonical app root, sibling worktree layout, source directories, generated-output directories, and command preamble for local operators and agents.
 
 ## App root contract
 
@@ -24,6 +24,54 @@ If you are outside the repo, pass the clone path explicitly:
 
 After the helper runs, commands should use repo-relative paths.
 
+## Local clone and sibling worktree pattern
+
+SysAdminSuite should emulate the Blacksmith Guild local layout: one stable primary clone plus sibling directories for validation, PR, and sprint worktrees.
+
+Blacksmith Guild reference pattern:
+
+```text
+C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild
+C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild-037a-validation
+C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild-pr23
+C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild-pr25-launcher-evidence
+C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild-pr27-duration-guard
+```
+
+SysAdminSuite equivalent pattern:
+
+```text
+<dev-root>\SysAdminSuite
+<dev-root>\SysAdminSuite-<sprint-or-validation-name>
+<dev-root>\SysAdminSuite-pr<NUMBER>
+<dev-root>\SysAdminSuite-pr<NUMBER>-<short-scope>
+<dev-root>\SysAdminSuite-<sprint-id>-<short-scope>
+```
+
+Suggested concrete Windows layout:
+
+```text
+C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite
+C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-pr149-windows-log-classifier
+C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-log-classifier-validation
+C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-harness-validation
+```
+
+The primary clone should remain the ordinary working copy. Sibling worktrees should be used when a branch is dirty, conflicted, experimental, or validating a PR without disturbing the primary clone.
+
+## Worktree naming rules
+
+Use these names for sibling worktrees:
+
+| Case | Pattern | Example |
+| --- | --- | --- |
+| PR validation | `SysAdminSuite-pr<NUMBER>-<short-scope>` | `SysAdminSuite-pr149-windows-log-classifier` |
+| Sprint branch | `SysAdminSuite-<sprint-id>-<short-scope>` | `SysAdminSuite-logs-classifier-implementation` |
+| Validation lane | `SysAdminSuite-<scope>-validation` | `SysAdminSuite-log-classifier-validation` |
+| Dirty primary escape | `SysAdminSuite-<branch-short-name>-validation` | `SysAdminSuite-harness-validation` |
+
+Keep worktree names short, lowercase where practical, and specific enough to identify the PR/sprint from File Explorer and terminal prompts.
+
 ## Required command preamble
 
 Every human-facing PowerShell command block should start with one of these forms.
@@ -31,7 +79,13 @@ Every human-facing PowerShell command block should start with one of these forms
 Known local clone path:
 
 ```powershell
-Set-Location "C:\path\to\SysAdminSuite"
+Set-Location "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
+```
+
+Known sibling worktree path:
+
+```powershell
+Set-Location "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-pr149-windows-log-classifier"
 ```
 
 Already somewhere inside the repo:
@@ -43,10 +97,28 @@ Already somewhere inside the repo:
 Unknown current directory but known clone path:
 
 ```powershell
-.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\path\to\SysAdminSuite"
+.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
 ```
 
 Do not give a command that starts with `bash tests/...`, `python3 harness/...`, `powershell -File ...`, or `git ...` unless it first establishes the app root.
+
+## Creating a sibling worktree
+
+Use the repo helper from the primary clone when creating a sibling worktree:
+
+```powershell
+Set-Location "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
+.\scripts\New-SysAdminSuiteWorktree.ps1 `
+  -Name "SysAdminSuite-pr149-windows-log-classifier" `
+  -Branch "sprint/windows-log-classification-system" `
+  -StartPoint "main"
+```
+
+Then work from the sibling path:
+
+```powershell
+Set-Location "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-pr149-windows-log-classifier"
+```
 
 ## Canonical tracked directories
 
@@ -131,13 +203,12 @@ Tests/survey/test_windows_log_classifier_code.py
 Local generated output:
 
 ```text
-survey/output/windows-log-classifier/<run_id>/
-```
+survey/output/windows-log-classifier/<run_id>/n```
 
 ## Example: safe classifier run from an unknown shell
 
 ```powershell
-.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\path\to\SysAdminSuite"
+.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
 .\scripts\Invoke-WindowsLogClassifier.ps1 `
   -Target System `
   -Operation "show recent errors" `
@@ -147,10 +218,10 @@ survey/output/windows-log-classifier/<run_id>/
 ## Example: repository validation from an unknown shell
 
 ```powershell
-.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\path\to\SysAdminSuite"
+.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
 bash tests/survey/run_offline_survey_tests.sh
 ```
 
 ## Agent rule
 
-When producing a command for this repo, include the app-root step. If the actual clone path is unknown, use a placeholder path only in the `Set-Location` line and say it must be replaced with the local clone path. Do not omit the directory step.
+When producing a command for this repo, include the app-root step. If the actual clone path differs from the documented `C:\Users\Cheex\Desktop\dev\SysAdminSuite\...` convention, use the real local clone path in the `Set-Location` or `-RepoRoot` line. Do not omit the directory step.
