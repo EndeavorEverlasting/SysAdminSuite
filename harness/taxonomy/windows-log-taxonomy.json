@@ -1,0 +1,367 @@
+{
+  "schema_version": "sas-windows-log-taxonomy/v1",
+  "default_posture": {
+    "network_activity": false,
+    "host_log_mutation_default": false,
+    "tracked_live_log_outputs_allowed": false,
+    "planner_execution_allowed": false,
+    "operator_boundary": "explicit_authorized_operator_execution_for_S2_or_higher"
+  },
+  "safety_tiers": [
+    {
+      "id": "S0_READ_ONLY",
+      "rank": 0,
+      "mutation_effect": "none",
+      "minimum_gate": "scope_time_window",
+      "default_allow_render": true,
+      "default_allow_execute_from_harness": false
+    },
+    {
+      "id": "S1_EXPORT_LOCAL",
+      "rank": 1,
+      "mutation_effect": "local_artifact_created",
+      "minimum_gate": "local_gitignored_output_path",
+      "default_allow_render": true,
+      "default_allow_execute_from_harness": false
+    },
+    {
+      "id": "S2_APPEND",
+      "rank": 2,
+      "mutation_effect": "records_appended",
+      "minimum_gate": "operator_acknowledgement_and_source_validation",
+      "default_allow_render": true,
+      "default_allow_execute_from_harness": false
+    },
+    {
+      "id": "S3_CONFIG_CHANGE",
+      "rank": 3,
+      "mutation_effect": "log_configuration_changed",
+      "minimum_gate": "admin_gate_before_after_config_and_rollback_note",
+      "default_allow_render": true,
+      "default_allow_execute_from_harness": false
+    },
+    {
+      "id": "S4_DESTRUCTIVE_BACKED_UP",
+      "rank": 4,
+      "mutation_effect": "records_or_registration_removed_after_backup",
+      "minimum_gate": "explicit_authorization_backup_reason_and_post_check",
+      "default_allow_render": true,
+      "default_allow_execute_from_harness": false
+    },
+    {
+      "id": "S4_DESTRUCTIVE_CONFIG",
+      "rank": 4,
+      "mutation_effect": "provider_or_source_registration_removed",
+      "minimum_gate": "explicit_authorization_dependency_review_and_rollback_plan",
+      "default_allow_render": true,
+      "default_allow_execute_from_harness": false
+    },
+    {
+      "id": "S5_DESTRUCTIVE_UNBACKED",
+      "rank": 5,
+      "mutation_effect": "records_or_files_removed_without_preservation",
+      "minimum_gate": "deny_by_default_break_glass_only",
+      "default_allow_render": false,
+      "default_allow_execute_from_harness": false
+    },
+    {
+      "id": "S5_DISALLOWED",
+      "rank": 5,
+      "mutation_effect": "history_falsified_or_evidence_suppressed",
+      "minimum_gate": "refuse_and_route_to_legitimate_retention_or_export_workflow",
+      "default_allow_render": false,
+      "default_allow_execute_from_harness": false
+    }
+  ],
+  "log_families": [
+    {
+      "id": "eventlog_classic",
+      "examples": ["Application", "System", "Setup"],
+      "storage": "EVTX channel",
+      "default_reader": "Get-WinEvent",
+      "alternate_reader": "wevtutil qe",
+      "contains_sensitive_data": true,
+      "tracked_output_allowed": false
+    },
+    {
+      "id": "eventlog_security",
+      "examples": ["Security"],
+      "storage": "EVTX channel",
+      "default_reader": "Get-WinEvent",
+      "alternate_reader": "Event Viewer",
+      "contains_sensitive_data": true,
+      "tracked_output_allowed": false,
+      "special_handling": [
+        "elevated_read_common",
+        "clears_are_security_significant",
+        "deny_unbacked_clear_by_default"
+      ]
+    },
+    {
+      "id": "eventlog_provider_channel",
+      "examples": [
+        "Microsoft-Windows-PowerShell/Operational",
+        "Microsoft-Windows-TaskScheduler/Operational",
+        "Microsoft-Windows-Windows Defender/Operational"
+      ],
+      "storage": "EVTX provider channel",
+      "default_reader": "Get-WinEvent",
+      "alternate_reader": "wevtutil qe",
+      "contains_sensitive_data": true,
+      "tracked_output_allowed": false
+    },
+    {
+      "id": "eventlog_forwarded",
+      "examples": ["ForwardedEvents"],
+      "storage": "EVTX collector channel",
+      "default_reader": "Get-WinEvent",
+      "alternate_reader": "wevtutil qe",
+      "contains_sensitive_data": true,
+      "tracked_output_allowed": false,
+      "special_handling": ["preserve_source_computer_identity"]
+    },
+    {
+      "id": "etw_trace",
+      "examples": [".etl", "WPR trace", "live ETW session"],
+      "storage": "ETL trace file or live session",
+      "default_reader": "Get-WinEvent -Path",
+      "alternate_reader": "tracerpt or Windows Performance Analyzer",
+      "contains_sensitive_data": true,
+      "tracked_output_allowed": false,
+      "special_handling": ["high_volume", "session_lifetime_required"]
+    },
+    {
+      "id": "setup_servicing_log",
+      "examples": ["CBS.log", "DISM.log", "Panther setup logs", "WindowsUpdate logs"],
+      "storage": "plain text or diagnostic file",
+      "default_reader": "text_parser",
+      "alternate_reader": "vendor_or_windows_diagnostic_tooling",
+      "contains_sensitive_data": true,
+      "tracked_output_allowed": false
+    },
+    {
+      "id": "application_text_log",
+      "examples": ["ProgramData vendor logs", "application JSON logs", "temporary installer logs"],
+      "storage": "plain text JSON or vendor format",
+      "default_reader": "text_or_json_parser",
+      "alternate_reader": "application_owner_tooling",
+      "contains_sensitive_data": true,
+      "tracked_output_allowed": false,
+      "special_handling": ["ownership_and_rotation_policy_unknown_until_classified"]
+    },
+    {
+      "id": "repository_fixture_log",
+      "examples": ["synthetic event fixture", "sample json summary", "sample markdown report"],
+      "storage": "tracked repository fixture",
+      "default_reader": "local_parser",
+      "alternate_reader": "test_runner",
+      "contains_sensitive_data": false,
+      "tracked_output_allowed": true
+    }
+  ],
+  "operation_classes": [
+    {
+      "id": "inventory",
+      "description": "List logs, providers, channels, or local fixture metadata.",
+      "mutation_effect": "none",
+      "safety_tier": "S0_READ_ONLY",
+      "backup_required": false,
+      "host_log_mutation": false,
+      "default_bucket": "safe_read_plan",
+      "example_surfaces": ["Get-WinEvent -ListLog *", "wevtutil el", "wevtutil ep"]
+    },
+    {
+      "id": "read_query",
+      "description": "Read event records or text log lines using a scoped query.",
+      "mutation_effect": "none",
+      "safety_tier": "S0_READ_ONLY",
+      "backup_required": false,
+      "host_log_mutation": false,
+      "default_bucket": "safe_read_plan",
+      "example_surfaces": ["Get-WinEvent -FilterHashtable", "wevtutil qe"]
+    },
+    {
+      "id": "export_copy",
+      "description": "Export events or a log file copy to a local artifact.",
+      "mutation_effect": "local_artifact_created",
+      "safety_tier": "S1_EXPORT_LOCAL",
+      "backup_required": false,
+      "host_log_mutation": false,
+      "default_bucket": "safe_export_plan",
+      "example_surfaces": ["wevtutil epl"]
+    },
+    {
+      "id": "archive_copy",
+      "description": "Archive exported EVTX with locale metadata.",
+      "mutation_effect": "local_artifact_created",
+      "safety_tier": "S1_EXPORT_LOCAL",
+      "backup_required": false,
+      "host_log_mutation": false,
+      "default_bucket": "safe_export_plan",
+      "example_surfaces": ["wevtutil al"]
+    },
+    {
+      "id": "append_event",
+      "description": "Write a custom event to an existing log/source.",
+      "mutation_effect": "records_appended",
+      "safety_tier": "S2_APPEND",
+      "backup_required": false,
+      "host_log_mutation": true,
+      "default_bucket": "append_plan_requires_ack",
+      "example_surfaces": ["Write-EventLog", "eventcreate"]
+    },
+    {
+      "id": "register_source",
+      "description": "Register a classic event source or custom classic log.",
+      "mutation_effect": "source_or_log_registration_added",
+      "safety_tier": "S3_CONFIG_CHANGE",
+      "backup_required": false,
+      "host_log_mutation": true,
+      "default_bucket": "config_plan_requires_admin",
+      "example_surfaces": ["New-EventLog"]
+    },
+    {
+      "id": "install_manifest",
+      "description": "Install event providers and channels from a manifest.",
+      "mutation_effect": "provider_or_channel_registration_added",
+      "safety_tier": "S3_CONFIG_CHANGE",
+      "backup_required": false,
+      "host_log_mutation": true,
+      "default_bucket": "config_plan_requires_admin",
+      "example_surfaces": ["wevtutil im"]
+    },
+    {
+      "id": "set_configuration",
+      "description": "Change log retention, size, enablement, path, level, keywords, or access control.",
+      "mutation_effect": "log_configuration_changed",
+      "safety_tier": "S3_CONFIG_CHANGE",
+      "backup_required": true,
+      "host_log_mutation": true,
+      "default_bucket": "config_plan_requires_admin",
+      "example_surfaces": ["wevtutil sl"]
+    },
+    {
+      "id": "enable_high_volume_channel",
+      "description": "Enable analytic/debug/high-volume channels or verbose provider filters.",
+      "mutation_effect": "log_configuration_changed_high_volume",
+      "safety_tier": "S3_CONFIG_CHANGE",
+      "backup_required": true,
+      "host_log_mutation": true,
+      "default_bucket": "config_plan_requires_admin",
+      "example_surfaces": ["wevtutil sl <channel> /e:true"]
+    },
+    {
+      "id": "clear_with_backup",
+      "description": "Clear records after writing a backup copy.",
+      "mutation_effect": "records_removed_after_backup",
+      "safety_tier": "S4_DESTRUCTIVE_BACKED_UP",
+      "backup_required": true,
+      "host_log_mutation": true,
+      "default_bucket": "destructive_plan_requires_backup_and_auth",
+      "example_surfaces": ["wevtutil cl <log> /bu:<backup.evtx>"]
+    },
+    {
+      "id": "clear_without_backup",
+      "description": "Clear records without preserving a backup copy.",
+      "mutation_effect": "records_removed_without_backup",
+      "safety_tier": "S5_DESTRUCTIVE_UNBACKED",
+      "backup_required": true,
+      "host_log_mutation": true,
+      "default_bucket": "deny_or_break_glass",
+      "example_surfaces": ["wevtutil cl <log>"]
+    },
+    {
+      "id": "delete_source_registration",
+      "description": "Remove a classic event source or custom classic log registration.",
+      "mutation_effect": "source_or_log_registration_removed",
+      "safety_tier": "S4_DESTRUCTIVE_CONFIG",
+      "backup_required": true,
+      "host_log_mutation": true,
+      "default_bucket": "destructive_plan_requires_backup_and_auth",
+      "example_surfaces": ["Remove-EventLog"]
+    },
+    {
+      "id": "uninstall_manifest",
+      "description": "Uninstall providers and logs created by an event manifest.",
+      "mutation_effect": "provider_or_channel_registration_removed",
+      "safety_tier": "S4_DESTRUCTIVE_CONFIG",
+      "backup_required": true,
+      "host_log_mutation": true,
+      "default_bucket": "destructive_plan_requires_backup_and_auth",
+      "example_surfaces": ["wevtutil um"]
+    },
+    {
+      "id": "delete_log_file",
+      "description": "Delete a file-backed log such as EVTX, ETL, or vendor text log.",
+      "mutation_effect": "log_file_removed_without_eventlog_service_context",
+      "safety_tier": "S5_DESTRUCTIVE_UNBACKED",
+      "backup_required": true,
+      "host_log_mutation": true,
+      "default_bucket": "deny_or_break_glass",
+      "example_surfaces": ["Remove-Item"]
+    },
+    {
+      "id": "tamper_history",
+      "description": "Edit, falsify, suppress, or hide prior event history.",
+      "mutation_effect": "history_falsified_or_evidence_suppressed",
+      "safety_tier": "S5_DISALLOWED",
+      "backup_required": false,
+      "host_log_mutation": true,
+      "default_bucket": "deny_or_break_glass",
+      "example_surfaces": ["manual EVTX modification", "stealth clearing", "bypass auditing"]
+    }
+  ],
+  "review_buckets": [
+    {
+      "id": "safe_read_plan",
+      "description": "Bounded read/list command can be rendered."
+    },
+    {
+      "id": "safe_export_plan",
+      "description": "Export/archive can be rendered to local ignored output."
+    },
+    {
+      "id": "append_plan_requires_ack",
+      "description": "Append requires source validation and acknowledgement."
+    },
+    {
+      "id": "config_plan_requires_admin",
+      "description": "Configuration or registration requires elevation and rollback notes."
+    },
+    {
+      "id": "destructive_plan_requires_backup_and_auth",
+      "description": "Clear/delete requires backup and explicit authorization."
+    },
+    {
+      "id": "deny_or_break_glass",
+      "description": "Unbacked destructive or tamper-like request is denied by default."
+    },
+    {
+      "id": "needs_human_review",
+      "description": "Ambiguous or unknown target/action requires human review."
+    }
+  ],
+  "classifier_output_required_fields": [
+    "target",
+    "family",
+    "operation_class",
+    "safety_tier",
+    "mutation_effect",
+    "network_activity",
+    "host_log_mutation",
+    "requires_admin",
+    "contains_sensitive_data",
+    "required_gate",
+    "backup_required",
+    "tracked_output_allowed",
+    "recommended_reader",
+    "recommended_command_surface",
+    "notes"
+  ],
+  "command_render_outputs": [
+    "windows_log_inventory_plan.json",
+    "windows_log_operation_plan.json",
+    "windows_log_command_plan.ps1",
+    "windows_log_classification_report.md"
+  ]
+}
