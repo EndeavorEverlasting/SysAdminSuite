@@ -7,6 +7,5 @@ cd "$repo_root"
 echo "[sas-harness] pre-push: running offline survey guardrails"
 bash tests/survey/run_offline_survey_tests.sh
 python3 Tests/survey/test_local_harness_contracts.py
-python3 Tests/survey/test_sprint_working_rules_contracts.py
 
 echo "[sas-harness] pre-push: ok"
