@@ -1,0 +1,10 @@
+{
+  "workflow_id": "network-preflight",
+  "run_id": "20260707-network-preflight-sample",
+  "artifacts": [
+    { "role": "source", "path": "survey/fixtures/english-log/to_probe_targets.sample.txt", "tracked": true, "contains_live_data": false, "generated": false, "description": "Synthetic target source." },
+    { "role": "summary", "path": "survey/fixtures/english-log/network_preflight_summary.sample.json", "tracked": true, "contains_live_data": false, "generated": false, "description": "Synthetic summary." },
+    { "role": "report", "path": "survey/output/english-log/network_preflight_report.md", "tracked": false, "contains_live_data": false, "generated": true, "description": "Rendered report." },
+    { "role": "handoff", "path": "survey/output/runs/network-preflight/20260707-network-preflight-sample/operator_handoff.txt", "tracked": false, "contains_live_data": false, "generated": true, "description": "Next action text." }
+  ]
+}
