@@ -10,6 +10,7 @@ DOC = ROOT / "docs" / "WINDOWS_LOG_CLASSIFICATION_SYSTEM.md"
 TAXONOMY = ROOT / "harness" / "taxonomy" / "windows-log-taxonomy.json"
 SCHEMA = ROOT / "schemas" / "harness" / "windows-log-taxonomy.schema.json"
 CLASSIFIER = ROOT / "harness" / "windows_log_classifier.py"
+WRAPPER = ROOT / "scripts" / "Invoke-WindowsLogClassifier.ps1"
 API = ROOT / "harness" / "api" / "sas-harness-api.json"
 MCP = ROOT / "mcp" / "local" / "servers.json"
 
@@ -75,6 +76,40 @@ def test_classifier_implementation_exists_and_declares_cli_surfaces():
     ]
     for fragment in required:
         assert fragment in text, f"missing classifier implementation fragment: {fragment}"
+
+
+def test_powershell_wrapper_invokes_classifier_without_host_log_actions():
+    text = read(WRAPPER)
+    required = [
+        "#Requires -Version 5.1",
+        "[CmdletBinding()]",
+        "[string]$Target",
+        "[string]$Operation",
+        "[ValidateSet('classification', 'plan', 'powershell', 'all')]",
+        "harness/windows_log_classifier.py",
+        "harness/taxonomy/windows-log-taxonomy.json",
+        "Resolve-SasPythonCommand",
+        "--target",
+        "--operation",
+        "--taxonomy",
+        "--emit",
+        "--output-root",
+        "--write",
+    ]
+    for fragment in required:
+        assert fragment in text, f"missing PowerShell wrapper fragment: {fragment}"
+
+    forbidden_fragments = [
+        "Get-WinEvent",
+        "Write-EventLog",
+        "New-EventLog",
+        "Remove-EventLog",
+        "wevtutil",
+        "Remove-Item",
+    ]
+    body_without_comment_help = text.split("#>", 1)[-1]
+    for fragment in forbidden_fragments:
+        assert fragment not in body_without_comment_help, f"wrapper must not execute host log action: {fragment}"
 
 
 def test_windows_log_taxonomy_has_required_shape_and_no_execution_default():
@@ -255,6 +290,7 @@ def test_harness_api_and_mcp_expose_windows_log_classifier_without_execution():
 if __name__ == "__main__":
     test_windows_log_doc_names_families_operations_and_mutation_scope()
     test_classifier_implementation_exists_and_declares_cli_surfaces()
+    test_powershell_wrapper_invokes_classifier_without_host_log_actions()
     test_windows_log_taxonomy_has_required_shape_and_no_execution_default()
     test_operation_classes_cover_add_delete_clear_and_mutation()
     test_classifier_output_contract_is_explicit_about_mutation_and_artifacts()
