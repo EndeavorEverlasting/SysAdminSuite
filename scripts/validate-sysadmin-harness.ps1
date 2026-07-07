@@ -20,8 +20,15 @@ function Test-JsonFile {
 Write-Host 'SYSADMIN HARNESS VALIDATION'
 
 $required = @(
+    'Run-HarnessValidation.cmd',
+    'Run-EnglishReportFixture.cmd',
+    'Run-ExportHarnessEvidence.cmd',
+    'scripts/run-harness-validation.sh',
+    'scripts/render-english-report-fixtures.sh',
+    'scripts/show-harness-evidence-paths.sh',
     'scripts/Render-SasEnglishReport.ps1',
     'scripts/SasRunContext.psm1',
+    'Tests/bash/test_harness_command_surface.sh',
     'schemas/harness/run-event.schema.json',
     'schemas/harness/artifact-registry.schema.json',
     'schemas/harness/operator-report.schema.json',
@@ -111,6 +118,55 @@ try {
 }
 catch {
     Add-Check -Name 'live-data fixture guard' -Passed $false -Detail $_.Exception.Message
+}
+
+try {
+    $wrapperRoutes = @{
+        'Run-HarnessValidation.cmd' = 'scripts/run-harness-validation.sh'
+        'Run-EnglishReportFixture.cmd' = 'scripts/render-english-report-fixtures.sh'
+        'Run-ExportHarnessEvidence.cmd' = 'scripts/show-harness-evidence-paths.sh'
+    }
+    $wrapperFailures = @()
+    foreach ($wrapper in $wrapperRoutes.Keys) {
+        if (-not (Test-Path -LiteralPath $wrapper)) {
+            $wrapperFailures += "$wrapper missing"
+            continue
+        }
+        $text = Get-Content -LiteralPath $wrapper -Raw
+        if ($text -notmatch [regex]::Escape($wrapperRoutes[$wrapper])) {
+            $wrapperFailures += "$wrapper missing route to $($wrapperRoutes[$wrapper])"
+        }
+        if ($text -notmatch 'exit /b %SAS_EXIT%') {
+            $wrapperFailures += "$wrapper does not preserve exit code"
+        }
+    }
+    Add-Check -Name 'command surface wrappers' -Passed ($wrapperFailures.Count -eq 0) -Detail (($wrapperFailures -join '; '))
+}
+catch {
+    Add-Check -Name 'command surface wrappers' -Passed $false -Detail $_.Exception.Message
+}
+
+try {
+    $scriptRoutes = @{
+        'scripts/run-harness-validation.sh' = 'scripts/validate-sysadmin-harness.ps1'
+        'scripts/render-english-report-fixtures.sh' = 'scripts/Render-SasEnglishReport.ps1'
+        'scripts/show-harness-evidence-paths.sh' = 'docs/evidence/latest/README.md'
+    }
+    $scriptFailures = @()
+    foreach ($script in $scriptRoutes.Keys) {
+        if (-not (Test-Path -LiteralPath $script)) {
+            $scriptFailures += "$script missing"
+            continue
+        }
+        $text = Get-Content -LiteralPath $script -Raw
+        if ($text -notmatch [regex]::Escape($scriptRoutes[$script])) {
+            $scriptFailures += "$script missing route to $($scriptRoutes[$script])"
+        }
+    }
+    Add-Check -Name 'command surface scripts' -Passed ($scriptFailures.Count -eq 0) -Detail (($scriptFailures -join '; '))
+}
+catch {
+    Add-Check -Name 'command surface scripts' -Passed $false -Detail $_.Exception.Message
 }
 
 $passed = 0
