@@ -39,6 +39,10 @@ function Test-SasRunContextPathUnderRoot {
 
     $fullPath = ConvertTo-SasRunContextFullPath -Path $Path
     $fullRoot = ConvertTo-SasRunContextFullPath -Path $Root
+    if ($fullPath.Equals($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+
     if (-not $fullRoot.EndsWith([System.IO.Path]::DirectorySeparatorChar)) {
         $fullRoot = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
     }
