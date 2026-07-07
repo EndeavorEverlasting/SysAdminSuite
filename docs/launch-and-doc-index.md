@@ -20,7 +20,6 @@ Start here when you need to know which local surface to use.
 | Harness validation | `scripts/run-harness-validation.sh` -> `scripts/validate-sysadmin-harness.ps1` |
 | English report rendering | `scripts/render-english-report-fixtures.sh` -> `scripts/Render-SasEnglishReport.ps1` |
 | Evidence path summary | `scripts/show-harness-evidence-paths.sh` |
-| Run context helpers | `scripts/SasRunContext.psm1` |
 | Workflow specs | `survey/workflows/` |
 | Synthetic fixtures | `survey/fixtures/` |
 | Harness schemas | `schemas/harness/` |
