@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DOC = ROOT / "docs" / "WINDOWS_LOG_CLASSIFICATION_SYSTEM.md"
 TAXONOMY = ROOT / "harness" / "taxonomy" / "windows-log-taxonomy.json"
 SCHEMA = ROOT / "schemas" / "harness" / "windows-log-taxonomy.schema.json"
+CLASSIFIER = ROOT / "harness" / "windows_log_classifier.py"
 API = ROOT / "harness" / "api" / "sas-harness-api.json"
 MCP = ROOT / "mcp" / "local" / "servers.json"
 
@@ -55,6 +56,25 @@ def test_windows_log_doc_names_families_operations_and_mutation_scope():
     ]
     for fragment in required:
         assert fragment in text, f"missing Windows log doctrine fragment: {fragment}"
+
+
+def test_classifier_implementation_exists_and_declares_cli_surfaces():
+    text = read(CLASSIFIER)
+    required = [
+        "def infer_family",
+        "def infer_operation",
+        "def classify_request",
+        "def build_operation_plan",
+        "def render_powershell_plan",
+        "def write_outputs",
+        "--target",
+        "--operation",
+        "--emit",
+        "--write",
+        "harness_executes_host_action",
+    ]
+    for fragment in required:
+        assert fragment in text, f"missing classifier implementation fragment: {fragment}"
 
 
 def test_windows_log_taxonomy_has_required_shape_and_no_execution_default():
@@ -234,6 +254,7 @@ def test_harness_api_and_mcp_expose_windows_log_classifier_without_execution():
 
 if __name__ == "__main__":
     test_windows_log_doc_names_families_operations_and_mutation_scope()
+    test_classifier_implementation_exists_and_declares_cli_surfaces()
     test_windows_log_taxonomy_has_required_shape_and_no_execution_default()
     test_operation_classes_cover_add_delete_clear_and_mutation()
     test_classifier_output_contract_is_explicit_about_mutation_and_artifacts()
