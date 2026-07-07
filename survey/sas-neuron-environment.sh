@@ -133,6 +133,10 @@ print_survey() {
   echo "Neuron environment survey complete."
 }
 
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
+
 if [[ "$NO_LOG" -eq 1 ]]; then
   print_survey
   exit 0
@@ -149,7 +153,3 @@ fi
 print_survey | tee "$OUTPUT_FILE"
 echo
 echo "Saved survey log: $OUTPUT_FILE"
-
-if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
-  sas_require_northwell_wifi
-fi
