@@ -16,6 +16,7 @@ grep -q "FAIL" scripts/validate-sysadmin-harness.ps1 || fail "validator missing 
 pass "validator matrix contract"
 
 for file in \
+  Run-HarnessContracts.cmd \
   Run-HarnessValidation.cmd \
   Run-EnglishReportFixture.cmd \
   Run-ExportHarnessEvidence.cmd \
@@ -24,6 +25,7 @@ for file in \
   scripts/show-harness-evidence-paths.sh \
   scripts/Render-SasEnglishReport.ps1 \
   scripts/SasRunContext.psm1 \
+  Tests/bash/run_harness_contracts.sh \
   Tests/bash/test_harness_command_surface.sh \
   schemas/harness/run-event.schema.json \
   schemas/harness/artifact-registry.schema.json \
@@ -37,6 +39,8 @@ pass "validator names required files"
 
 grep -q "command surface wrappers" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface wrapper check"
 grep -q "command surface scripts" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface script check"
+grep -q "Run-HarnessContracts.cmd" scripts/validate-sysadmin-harness.ps1 || fail "validator missing contract launcher check"
+grep -q "Tests/bash/run_harness_contracts.sh" scripts/validate-sysadmin-harness.ps1 || fail "validator missing contract runner route"
 grep -q "exit /b %SAS_EXIT%" scripts/validate-sysadmin-harness.ps1 || fail "validator missing wrapper exit-code check"
 pass "validator covers command surface wiring"
 
