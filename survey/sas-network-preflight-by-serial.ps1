@@ -44,6 +44,20 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $repoGuess = Split-Path -Parent $PSScriptRoot
+if (-not (Test-Path -LiteralPath (Join-Path $repoGuess 'scripts/SasNetworkGuard.psm1'))) {
+    $repoGuess = Split-Path -Parent $repoGuess
+}
+$networkGuardModule = Join-Path $repoGuess 'scripts/SasNetworkGuard.psm1'
+if (-not (Test-Path -LiteralPath $networkGuardModule)) {
+    throw "Missing shared network guard module: $networkGuardModule"
+}
+Import-Module $networkGuardModule -Force
+$skipNetworkGuard = $false
+if ((Get-Variable -Name AllowFixtures -Scope Local -ErrorAction SilentlyContinue) -and $AllowFixtures) { $skipNetworkGuard = $true }
+if ((Get-Variable -Name DryRun -Scope Local -ErrorAction SilentlyContinue) -and $DryRun) { $skipNetworkGuard = $true }
+if (-not $skipNetworkGuard) { Assert-SasNorthwellWifi }
+
+$repoGuess = Split-Path -Parent $PSScriptRoot
 $targetIntakeModule = Join-Path $repoGuess 'scripts/SasTargetIntake.psm1'
 if (-not (Test-Path -LiteralPath $targetIntakeModule -PathType Leaf)) {
   throw "Missing shared target intake module: $targetIntakeModule"

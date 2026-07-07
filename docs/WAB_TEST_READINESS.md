@@ -185,3 +185,7 @@ Codifies low-noise Naabu/Cybernet survey profiles:
 ## Do not skip this
 
 No feature work should proceed from an offline guest-network result. That is how ghosts get promoted to architecture.
+
+## Live Wi-Fi prerequisite
+
+Before running live WAB-path SysAdminSuite scripts, confirm the workstation is connected to a current Wi-Fi SSID that starts with `NSLIJHS-WAB`. The live-script guard fails immediately for guest, home, empty, missing, or unknown SSIDs and reports `ENVIRONMENT_BLOCKED_GUEST_NETWORK`-style evidence posture rather than treating unreachable Northwell services as product failures.

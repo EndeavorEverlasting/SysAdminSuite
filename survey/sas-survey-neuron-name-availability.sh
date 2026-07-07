@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 CONVENTIONS=()
 TARGETS=()
 TARGET_FILE=""
@@ -73,6 +81,10 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown argument: $1" ;;
   esac
 done
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 [[ "${#CONVENTIONS[@]}" -gt 0 ]] || fail "At least one --convention is required"
 [[ "$CANDIDATE_COUNT" =~ ^[0-9]+$ ]] || fail "--candidate-count must be numeric"

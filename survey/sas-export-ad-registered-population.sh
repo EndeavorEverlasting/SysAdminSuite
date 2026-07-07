@@ -4,10 +4,22 @@
 # sas-ad-reconcile.sh: it does not query AD, DNS, Naabu, Nmap, or target hosts.
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RECONCILE="$ROOT/survey/sas-ad-reconcile.sh"
 OUTPUT_DIR="$ROOT/survey/output/ad_registered_population"
 TARGET_INTAKE_HELPER="$ROOT/survey/lib/sas-target-intake.sh"
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
+
 [[ -f "$TARGET_INTAKE_HELPER" ]] || { echo "[ad-registered-population] ERROR: Missing target intake helper: $TARGET_INTAKE_HELPER" >&2; exit 1; }
 # shellcheck source=survey/lib/sas-target-intake.sh
 source "$TARGET_INTAKE_HELPER"

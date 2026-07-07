@@ -98,3 +98,9 @@ not bypass normal authorization, credentials, or target-scope requirements.
 
 Deployment teardown rules are documented in
 [`docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md`](DEPLOYMENT_TEARDOWN_DOCTRINE.md).
+
+## Northwell Wi-Fi guard for live scripts
+
+Live SysAdminSuite operational scripts must fail closed before expensive or target-facing work when the local workstation is not connected to a Northwell Wi-Fi SSID starting with `NSLIJHS-WAB`. Valid connected SSIDs include `NSLIJHS-WAB`, `NSLIJHS-WAB2`, and `NSLIJHS-WAB-TEST`. Guest, home, empty, missing, or unknown SSIDs are classified as environment/network posture failures rather than product failures.
+
+The guard uses only local workstation state. On Windows it reads the current wireless interface with `netsh wlan show interfaces`, parses the `SSID` field only, and must not treat `BSSID` as the connected network name. The guard must not scan networks, connect to Wi-Fi, collect credentials, or probe Northwell systems. True offline fixture or dry-run modes may skip the guard; live survey, AD, registry, WMI, install, deployment, remote readiness, and packet-probe paths require it.
