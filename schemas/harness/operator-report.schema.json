@@ -1,3 +1,41 @@
 {
-  "type": "object"
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/operator-report.schema.json",
+  "title": "SysAdminSuite Harness Operator Report Summary",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "workflow_id",
+    "run_id",
+    "request_summary",
+    "source_artifacts",
+    "loaded_evidence_artifacts",
+    "planner_name",
+    "planner_version",
+    "network_activity_performed",
+    "low_noise_policy_version",
+    "started_at",
+    "finished_at",
+    "operator_handoff_path",
+    "summary_json_path",
+    "report_markdown_path",
+    "next_action"
+  ],
+  "properties": {
+    "workflow_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "request_summary": { "type": "string" },
+    "source_artifacts": { "type": "array" },
+    "loaded_evidence_artifacts": { "type": "array" },
+    "planner_name": { "type": "string" },
+    "planner_version": { "type": "string" },
+    "network_activity_performed": { "type": "boolean" },
+    "low_noise_policy_version": { "type": "string" },
+    "started_at": { "type": "string" },
+    "finished_at": { "type": "string" },
+    "operator_handoff_path": { "type": "string" },
+    "summary_json_path": { "type": "string" },
+    "report_markdown_path": { "type": "string" },
+    "next_action": { "type": "string" }
+  }
 }
