@@ -229,7 +229,7 @@ def test_harness_api_and_mcp_expose_windows_log_classifier_without_execution():
     assert server["network_activity"] is False
     assert server["target_mutation"] is False
     assert required_api_ids <= set(server["allowed_apis"])
-    assert "Does_not_execute_host_log_mutation" in server["guardrails"]
+    assert "Does_not_execute_host_changes" in server["guardrails"]
 
 
 if __name__ == "__main__":
