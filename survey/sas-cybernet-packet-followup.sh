@@ -4,6 +4,14 @@
 # Enrichment only under low-noise survey doctrine. See docs/LOW_NOISE_SURVEY_DOCTRINE.md.
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 SITE=""
 INPUT=""
 USE_STDIN=0
@@ -107,6 +115,14 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown argument: $1" ;;
   esac
 done
+
+OFFLINE_ENRICHMENT_MODE=0
+if [[ ("${USE_STDIN:-0}" -eq 1 || -n "${INPUT:-}") && "${USE_HTTPX:-0}" -eq 0 ]]; then
+  OFFLINE_ENRICHMENT_MODE=1
+fi
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" && "$OFFLINE_ENRICHMENT_MODE" -ne 1 ]]; then
+  sas_require_northwell_wifi
+fi
 
 [[ -n "$SITE" ]] || fail "--site is required"
 

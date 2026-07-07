@@ -98,3 +98,13 @@ not bypass normal authorization, credentials, or target-scope requirements.
 
 Deployment teardown rules are documented in
 [`docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md`](DEPLOYMENT_TEARDOWN_DOCTRINE.md).
+
+## Northwell network guard for live scripts
+
+Live SysAdminSuite operational scripts must fail closed before expensive or target-facing work when the local workstation is not on an approved Northwell network. Wi-Fi passes when the currently connected SSID starts with `NSLIJHS-WAB`; valid examples include `NSLIJHS-WAB`, `NSLIJHS-WAB2`, and `NSLIJHS-WAB-TEST`. Guest, home, empty, missing, or unknown SSIDs fail unless separately approved wired-Ethernet evidence is configured.
+
+Wired Ethernet can pass only through local approved indicators configured outside public source control. Supported local allowlist inputs include DNS suffixes, Windows domain names, local IP CIDRs, gateway CIDRs, and DNS server CIDRs via environment variables or `Config/sas-network-guard.local.json`. Do not commit private Northwell IP ranges, DNS servers, gateways, internal domains, or site-specific allowlist values.
+
+For wired Ethernet setup, copy [`Config/sas-network-guard.example.json`](../Config/sas-network-guard.example.json) to `Config/sas-network-guard.local.json` on the operator workstation, replace the documentation-only placeholder values with approved internal/site values, and keep the local file uncommitted. Detailed operator setup and guard-only check commands are in [`Config/NETWORK_GUARD_README.md`](../Config/NETWORK_GUARD_README.md).
+
+The guard uses only local workstation state. On Windows it reads the current wireless interface with `netsh wlan show interfaces`, parses the `SSID` field only, and must not treat `BSSID` as the connected network name. Wired checks use local network configuration such as `ipconfig /all`; the guard must not scan networks, connect to Wi-Fi or Ethernet, collect credentials, or probe Northwell systems. True offline fixture or dry-run modes may skip the guard; live survey, AD, registry, WMI, install, deployment, remote readiness, and packet-probe paths require approved Wi-Fi or approved wired LAN evidence.

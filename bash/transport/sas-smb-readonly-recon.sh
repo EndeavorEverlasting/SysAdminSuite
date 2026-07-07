@@ -5,6 +5,14 @@
 
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 TARGETS=()
 TARGET_FILE=""
 OUTPUT="bash/transport/output/smb_readonly_recon.csv"
@@ -67,7 +75,7 @@ fail(){ printf '[smb-recon] ERROR: %s\n' "$*" >&2; exit 1; }
 log(){ printf '[smb-recon] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
-csv_escape(){ local s="${1:-}"; s="${s//"/""}"; printf '"%s"' "$s"; }
+csv_escape(){ local s="${1:-}"; s="${s//\"/\"\"}"; printf '"%s"' "$s"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -93,6 +101,10 @@ done
 SMB_USER="${SMB_USER:-${SAS_SMB_USER:-}}"
 SMB_PASS="${SMB_PASS:-${SAS_SMB_PASS:-}}"
 SMB_DOMAIN="${SMB_DOMAIN:-${SAS_SMB_DOMAIN:-}}"
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
+
 [[ "$TIMEOUT" =~ ^[0-9]+$ && "$TIMEOUT" -ge 1 ]] || fail "--timeout must be positive integer"
 if [[ -n "$TARGET_FILE" ]]; then
   [[ -f "$TARGET_FILE" ]] || fail "targets file not found: $TARGET_FILE"

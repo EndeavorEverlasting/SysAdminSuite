@@ -3,6 +3,14 @@
 # and emit bucketed target lists. No live AD queries. No network scans.
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 VERSION="1.0.0"
 AD_CSV=""
 EVIDENCE_CSV=""
@@ -65,6 +73,10 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown argument: $1" ;;
   esac
 done
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 [[ -n "$AD_CSV" ]] || fail "--ad-csv is required"
 [[ -f "$AD_CSV" ]] || fail "AD CSV not found: $AD_CSV"

@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 MANIFEST=""
 SOFTWARE_ID=""
 CATALOG="Config/software_registry_evidence.example.json"
@@ -51,6 +59,10 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown argument: $1" ;;
   esac
 done
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 [[ -n "$SOFTWARE_ID" ]] || fail "--software-id is required"
 [[ -f "$CATALOG" ]] || fail "Catalog not found: $CATALOG"

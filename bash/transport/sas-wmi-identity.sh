@@ -5,6 +5,14 @@
 
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 TARGETS=()
 TARGET_FILE=""
 OUTPUT="bash/transport/output/wmi_identity.csv"
@@ -105,6 +113,10 @@ done
 WMI_USER="${WMI_USER:-${SAS_WMI_USER:-}}"
 WMI_PASS="${WMI_PASS:-${SAS_WMI_PASS:-}}"
 WMI_DOMAIN="${WMI_DOMAIN:-${SAS_WMI_DOMAIN:-}}"
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
+
 [[ "$TIMEOUT" =~ ^[0-9]+$ && "$TIMEOUT" -ge 1 ]] || fail "--timeout must be positive integer"
 case "$WMI_CLIENT" in
   auto|wmic|powershell) ;;

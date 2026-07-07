@@ -2,6 +2,15 @@
 # Read-only toolbox probe: checks suite dependencies and emits JSON status.
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MANIFEST="${REPO_ROOT}/Config/toolbox-dependencies.json"
@@ -23,11 +32,15 @@ log() { printf '[sas-probe-toolbox] %s\n' "$*" >&2; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run) shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) log "Unknown argument: $1"; usage; exit 0 ;;
   esac
 done
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 if [[ ! -f "$MANIFEST" ]]; then
   log "Missing manifest: $MANIFEST"

@@ -17,7 +17,7 @@ Describe 'Invoke-TrackedInstall' {
         Mock Start-Process { throw 'Should not execute on dry run' }
         $result = & $ScriptPath -Target localhost -DryRun -SoftwareId EXAMPLE-SOFTWARE-ID -InstallerPath 'C:\Installers\ExampleApp\setup.exe' -InstallerType exe -SilentArgs '/quiet /norestart'
         $result.status | Should -Be 'DryRun'
-        Assert-MockCalled Start-Process -Times 0
+        Should -Invoke -CommandName Start-Process -Times 0 -Exactly
     }
 
     It 'creates output JSON when OutputPath is supplied and JSON parses' {
