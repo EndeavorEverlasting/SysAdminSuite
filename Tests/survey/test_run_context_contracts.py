@@ -54,6 +54,23 @@ def test_run_context_module_preserves_canonical_directory_shape():
         assert fragment in text, f"missing canonical run fragment: {fragment}"
 
 
+def test_run_context_root_includes_workflow_id_and_run_id():
+    text = read(MODULE)
+    assert "$workflowRoot = Join-Path $resolvedOutputRoot $WorkflowId" in text
+    assert "$runRoot = Join-Path $workflowRoot $RunId" in text
+    assert "$runRoot = Join-Path $resolvedOutputRoot $WorkflowId" not in text
+    assert "Run context already exists" in text
+
+
+def test_workflow_id_is_sanitized_before_generating_run_id_prefix():
+    text = read(MODULE)
+    assert "function ConvertTo-SasRunIdPrefix" in text
+    assert "ConvertTo-SasRunIdPrefix -WorkflowId $WorkflowId" in text
+    assert "New-SasRunId -Prefix $WorkflowId.Replace" not in text
+    assert "if ($sanitized -notmatch '^[a-zA-Z]')" in text
+    assert "if ($sanitized.Length -gt 32)" in text
+
+
 def test_artifact_registry_entries_preserve_required_metadata():
     text = read(MODULE)
     required_fields = [
@@ -114,6 +131,8 @@ def test_harness_plan_names_the_same_run_context_shape():
 if __name__ == "__main__":
     test_run_context_module_exists_and_exports_expected_api()
     test_run_context_module_preserves_canonical_directory_shape()
+    test_run_context_root_includes_workflow_id_and_run_id()
+    test_workflow_id_is_sanitized_before_generating_run_id_prefix()
     test_artifact_registry_entries_preserve_required_metadata()
     test_run_context_defaults_to_no_activity_for_planner_initialization()
     test_run_context_module_does_not_introduce_probe_execution_surfaces()
