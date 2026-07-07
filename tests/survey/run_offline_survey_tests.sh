@@ -11,3 +11,4 @@ python3 Tests/survey/test_standard_corporate_tooling_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_windows_log_classification_contracts.py
 python3 Tests/survey/test_windows_log_classifier_code.py
+python3 Tests/survey/test_repo_directory_structure_contracts.py
