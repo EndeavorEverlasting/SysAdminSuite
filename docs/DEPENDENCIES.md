@@ -58,3 +58,17 @@ live checklist.
 `Tests/bash/test_dependency_registry_contracts.sh` is read-only. It cross-validates registry pins
 against their `versionSource` files and asserts that `registryOnly` ids stay out of the probe
 output. Mismatches fail CI; the registry does not auto-bump pins.
+
+## Network guard local configuration
+
+The Northwell network guard is not a third-party dependency, but its local allowlist files are part
+of the dependency/posture registry surface because they affect whether live runtime workflows may
+start.
+
+- Public template: [`Config/sas-network-guard.example.json`](../Config/sas-network-guard.example.json)
+- Operator guidance: [`Config/NETWORK_GUARD_README.md`](../Config/NETWORK_GUARD_README.md)
+- Private local allowlist: `Config/sas-network-guard.local.json` (gitignored; never commit site values)
+
+The guard uses only local OS state (`netsh wlan show interfaces` and `ipconfig /all`). Do not place
+private Northwell IP ranges, DNS servers, gateways, domain names, or site-specific allowlist values
+in committed dependency docs or config.
