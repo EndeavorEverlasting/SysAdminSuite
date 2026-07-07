@@ -48,9 +48,6 @@ MAX_HOSTS=256
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TARGET_INTAKE_HELPER="${SCRIPT_DIR}/lib/sas-target-intake.sh"
-if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
-  sas_require_northwell_wifi
-fi
 
 [[ -f "$TARGET_INTAKE_HELPER" ]] || { echo "[cybernet-subnet-survey] ERROR: Missing target intake helper: $TARGET_INTAKE_HELPER" >&2; exit 1; }
 # shellcheck source=survey/lib/sas-target-intake.sh
@@ -650,6 +647,10 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown argument: $1" ;;
   esac
 done
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 [[ -n "$SITE" ]] || fail "--site is required"
 [[ -n "$MODE" ]] || fail "--mode is required"

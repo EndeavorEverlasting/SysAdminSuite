@@ -36,9 +36,6 @@ PROFILE_JSON="${REPO_ROOT}/Config/cybernet-naabu-profiles.json"
 FOLLOWUP_SCRIPT="${SCRIPT_DIR}/sas-cybernet-packet-followup.sh"
 ENSURE_SCRIPT="${SCRIPT_DIR}/sas-ensure-naabu.sh"
 TARGET_INTAKE_HELPER="${SCRIPT_DIR}/lib/sas-target-intake.sh"
-if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
-  sas_require_northwell_wifi
-fi
 
 [[ -f "$TARGET_INTAKE_HELPER" ]] || { echo "[naabu-pipeline] ERROR: Missing target intake helper: $TARGET_INTAKE_HELPER" >&2; exit 1; }
 # shellcheck source=survey/lib/sas-target-intake.sh
@@ -314,6 +311,10 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown argument: $1" ;;
   esac
 done
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 [[ -n "$SITE" ]] || fail "--site is required"
 safe_site

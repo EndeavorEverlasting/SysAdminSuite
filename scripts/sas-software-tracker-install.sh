@@ -12,9 +12,6 @@ fi
 # shellcheck source=survey/lib/sas-network-guard.sh
 source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
 
-if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
-  sas_require_northwell_wifi
-fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -64,6 +61,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "[software-tracker-install] ERROR: Unexpected argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 if [[ ${#args[@]} -eq 0 ]]; then
   usage >&2

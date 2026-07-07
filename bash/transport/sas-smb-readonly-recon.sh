@@ -75,7 +75,7 @@ fail(){ printf '[smb-recon] ERROR: %s\n' "$*" >&2; exit 1; }
 log(){ printf '[smb-recon] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
-csv_escape(){ local s="${1:-}"; s="${s//"/""}"; printf '"%s"' "$s"; }
+csv_escape(){ local s="${1:-}"; s="${s//\"/\"\"}"; printf '"%s"' "$s"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
