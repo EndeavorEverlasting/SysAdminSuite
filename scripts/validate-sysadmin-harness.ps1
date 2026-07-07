@@ -28,7 +28,6 @@ $required = @(
     'scripts/render-english-report-fixtures.sh',
     'scripts/show-harness-evidence-paths.sh',
     'scripts/Render-SasEnglishReport.ps1',
-    'scripts/SasRunContext.psm1',
     'Tests/bash/run_harness_contracts.sh',
     'Tests/bash/test_harness_command_surface.sh',
     'schemas/harness/run-event.schema.json',
