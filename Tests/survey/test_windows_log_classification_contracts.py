@@ -218,9 +218,9 @@ def test_harness_api_and_mcp_expose_windows_log_classifier_without_execution():
         assert op["outputs"], op_id
         assert op["guardrails"], op_id
 
-    assert "Classify_mutating_requests_do_not_execute" in operations["windows_log.classify"]["guardrails"]
-    assert "S2_and_higher_require_explicit_operator_execution" in operations["windows_log.plan_operation"]["guardrails"]
-    assert "Clear_operations_require_backup_path_or_denial" in operations["windows_log.render_powershell"]["guardrails"]
+    assert "Classify_only" in operations["windows_log.classify"]["guardrails"]
+    assert "Operator_execution_required_for_host_actions" in operations["windows_log.plan_operation"]["guardrails"]
+    assert "Sensitive_operations_require_gate" in operations["windows_log.render_powershell"]["guardrails"]
 
     mcp = load_json(MCP)
     servers = {server["id"]: server for server in mcp["servers"]}
