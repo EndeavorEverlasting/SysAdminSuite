@@ -127,14 +127,14 @@ def test_local_mcp_catalog_only_exposes_allowed_apis():
     assert posture["credential_collection_allowed"] is False
     assert posture["unapproved_background_services_allowed"] is False
 
-    servers = catalog["servers"]
-    assert {server["id"] for server in servers} == {
+    assert {server["id"] for server in catalog["servers"]} == {
         "sas-target-reduction",
         "sas-standard-tools",
         "sas-evidence-reporter",
+        "sas-windows-log-classifier",
     }
 
-    for server in servers:
+    for server in catalog["servers"]:
         assert server["status"] == "planned"
         assert server["command"].startswith("python -m harness.mcp."), server["id"]
         assert server["network_activity"] is False, server["id"]
