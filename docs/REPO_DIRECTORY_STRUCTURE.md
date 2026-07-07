@@ -203,7 +203,8 @@ Tests/survey/test_windows_log_classifier_code.py
 Local generated output:
 
 ```text
-survey/output/windows-log-classifier/<run_id>/n```
+survey/output/windows-log-classifier/<run_id>/
+```
 
 ## Example: safe classifier run from an unknown shell
 
