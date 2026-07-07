@@ -7,6 +7,7 @@ Start here when you need to know which local surface to use.
 | Goal | Use |
 |---|---|
 | Open the dashboard | `START-HERE-SysAdminSuite-Dashboard.bat` |
+| Run the full Bash harness contract suite | `Run-HarnessContracts.cmd` |
 | Run the synthetic harness validator | `Run-HarnessValidation.cmd` |
 | Render fixture English reports | `Run-EnglishReportFixture.cmd` |
 | Print harness output locations | `Run-ExportHarnessEvidence.cmd` |
@@ -15,6 +16,7 @@ Start here when you need to know which local surface to use.
 
 | Surface | Implementation |
 |---|---|
+| Harness contract suite | `Run-HarnessContracts.cmd` -> `Tests/bash/run_harness_contracts.sh` |
 | Harness validation | `scripts/run-harness-validation.sh` -> `scripts/validate-sysadmin-harness.ps1` |
 | English report rendering | `scripts/render-english-report-fixtures.sh` -> `scripts/Render-SasEnglishReport.ps1` |
 | Evidence path summary | `scripts/show-harness-evidence-paths.sh` |
@@ -37,6 +39,7 @@ Start here when you need to know which local surface to use.
 
 ```text
 Dashboard: START-HERE-SysAdminSuite-Dashboard.bat
+Contracts: Run-HarnessContracts.cmd
 Harness:   Run-HarnessValidation.cmd
 Reports:   Run-EnglishReportFixture.cmd
 Evidence:  Run-ExportHarnessEvidence.cmd
