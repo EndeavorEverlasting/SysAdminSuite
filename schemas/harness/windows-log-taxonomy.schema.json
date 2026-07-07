@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.local/schemas/harness/windows-log-taxonomy.schema.json",
+  "title": "SysAdminSuite Windows Log Taxonomy",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "default_posture",
+    "safety_tiers",
+    "log_families",
+    "operation_classes",
+    "review_buckets",
+    "classifier_output_required_fields",
+    "command_render_outputs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-windows-log-taxonomy/v1"
+    },
+    "default_posture": {
+      "type": "object",
+      "required": [
+        "network_activity",
+        "host_log_mutation_default",
+        "tracked_live_log_outputs_allowed",
+        "planner_execution_allowed",
+        "operator_boundary"
+      ],
+      "properties": {
+        "network_activity": { "type": "boolean" },
+        "host_log_mutation_default": { "type": "boolean" },
+        "tracked_live_log_outputs_allowed": { "type": "boolean" },
+        "planner_execution_allowed": { "type": "boolean" },
+        "operator_boundary": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "safety_tiers": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "rank",
+          "mutation_effect",
+          "minimum_gate",
+          "default_allow_render",
+          "default_allow_execute_from_harness"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "rank": { "type": "integer", "minimum": 0 },
+          "mutation_effect": { "type": "string" },
+          "minimum_gate": { "type": "string" },
+          "default_allow_render": { "type": "boolean" },
+          "default_allow_execute_from_harness": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "log_families": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "examples",
+          "storage",
+          "default_reader",
+          "contains_sensitive_data",
+          "tracked_output_allowed"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "examples": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "storage": { "type": "string" },
+          "default_reader": { "type": "string" },
+          "alternate_reader": { "type": "string" },
+          "contains_sensitive_data": { "type": "boolean" },
+          "tracked_output_allowed": { "type": "boolean" },
+          "special_handling": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "operation_classes": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "description",
+          "mutation_effect",
+          "safety_tier",
+          "backup_required",
+          "host_log_mutation",
+          "default_bucket",
+          "example_surfaces"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "mutation_effect": { "type": "string" },
+          "safety_tier": { "type": "string" },
+          "backup_required": { "type": "boolean" },
+          "host_log_mutation": { "type": "boolean" },
+          "default_bucket": { "type": "string" },
+          "example_surfaces": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "review_buckets": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["id", "description"],
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "classifier_output_required_fields": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 10
+    },
+    "command_render_outputs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}
