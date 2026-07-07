@@ -50,6 +50,35 @@ function Test-SasRunContextPathUnderRoot {
     return $fullPath.StartsWith($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
+function ConvertTo-SasRunIdPrefix {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$WorkflowId)
+
+    Assert-SasWorkflowId -WorkflowId $WorkflowId
+
+    $sanitized = $WorkflowId.ToLowerInvariant() -replace '[^a-z0-9_-]', '-'
+    $sanitized = $sanitized -replace '-+', '-'
+
+    while ($sanitized.Length -gt 0 -and ($sanitized.StartsWith('-') -or $sanitized.StartsWith('_'))) {
+        $sanitized = $sanitized.Substring(1)
+    }
+    while ($sanitized.Length -gt 0 -and ($sanitized.EndsWith('-') -or $sanitized.EndsWith('_'))) {
+        $sanitized = $sanitized.Substring(0, $sanitized.Length - 1)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($sanitized)) {
+        $sanitized = 'run'
+    }
+    if ($sanitized -notmatch '^[a-zA-Z]') {
+        $sanitized = "run-$sanitized"
+    }
+    if ($sanitized.Length -gt 32) {
+        $sanitized = $sanitized.Substring(0, 32)
+    }
+
+    return $sanitized
+}
+
 function New-SasRunId {
     [CmdletBinding()]
     param(
@@ -189,12 +218,17 @@ function New-SasRunContext {
 
     Assert-SasWorkflowId -WorkflowId $WorkflowId
     if (-not $RepoRoot) { $RepoRoot = Get-SasRepoRoot }
-    if (-not $RunId) { $RunId = New-SasRunId -Prefix $WorkflowId.Replace('.', '-').Replace('_', '-') }
+    if (-not $RunId) { $RunId = New-SasRunId -Prefix (ConvertTo-SasRunIdPrefix -WorkflowId $WorkflowId) }
 
     $resolvedOutputRoot = Resolve-SasOutputRoot -RepoRoot $RepoRoot -Survey:$Survey -OutputRoot $OutputRoot
     Assert-SasLocalOutputRoot -OutputRoot $resolvedOutputRoot -RepoRoot $RepoRoot -AllowNonstandard:$AllowNonstandardOutputRoot
 
-    $runRoot = Join-Path $resolvedOutputRoot $WorkflowId
+    $workflowRoot = Join-Path $resolvedOutputRoot $WorkflowId
+    $runRoot = Join-Path $workflowRoot $RunId
+    if (Test-Path -LiteralPath (Join-Path $runRoot 'context.json') -PathType Leaf) {
+        throw "Run context already exists: $runRoot"
+    }
+
     $directories = @(
         $runRoot,
         (Join-Path $runRoot 'actions'),
@@ -212,6 +246,7 @@ function New-SasRunContext {
         schema_version = 'sas-run-context/v1'
         workflow_id = $WorkflowId
         run_id = $RunId
+        workflow_root = $workflowRoot
         run_root = $runRoot
         output_root = $resolvedOutputRoot
         request_summary = $RequestSummary
