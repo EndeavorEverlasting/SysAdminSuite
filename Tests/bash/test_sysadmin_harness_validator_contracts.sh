@@ -16,8 +16,15 @@ grep -q "FAIL" scripts/validate-sysadmin-harness.ps1 || fail "validator missing 
 pass "validator matrix contract"
 
 for file in \
+  Run-HarnessValidation.cmd \
+  Run-EnglishReportFixture.cmd \
+  Run-ExportHarnessEvidence.cmd \
+  scripts/run-harness-validation.sh \
+  scripts/render-english-report-fixtures.sh \
+  scripts/show-harness-evidence-paths.sh \
   scripts/Render-SasEnglishReport.ps1 \
   scripts/SasRunContext.psm1 \
+  Tests/bash/test_harness_command_surface.sh \
   schemas/harness/run-event.schema.json \
   schemas/harness/artifact-registry.schema.json \
   schemas/harness/operator-report.schema.json \
@@ -27,6 +34,11 @@ for file in \
   grep -q "$file" scripts/validate-sysadmin-harness.ps1 || fail "validator does not name required file: $file"
 done
 pass "validator names required files"
+
+grep -q "command surface wrappers" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface wrapper check"
+grep -q "command surface scripts" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface script check"
+grep -q "exit /b %SAS_EXIT%" scripts/validate-sysadmin-harness.ps1 || fail "validator missing wrapper exit-code check"
+pass "validator covers command surface wiring"
 
 blocked='(Test-''NetConnection|Resolve-''DnsName|naa''bu|n''map|soc''ket|pack''et|pi''ng|nslook''up|cu''rl)'
 if grep -E "$blocked" scripts/validate-sysadmin-harness.ps1; then
