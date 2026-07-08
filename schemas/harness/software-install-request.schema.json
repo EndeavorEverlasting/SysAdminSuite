@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.local/schemas/harness/software-install-request.schema.json",
+  "title": "SysAdminSuite software install request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "package_name",
+    "installer_relative_path",
+    "install_mode",
+    "targets"
+  ],
+  "properties": {
+    "package_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "software_share_root": {
+      "type": "string",
+      "default": "\\\\nt2kwb972sms01\\",
+      "pattern": "^\\\\\\\\[^\\\\]+\\\\.*$"
+    },
+    "installer_relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:" },
+          { "pattern": "^\\\\\\\\" },
+          { "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)" }
+        ]
+      }
+    },
+    "installer_arguments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "/quiet",
+        "/norestart"
+      ]
+    },
+    "install_mode": {
+      "type": "string",
+      "enum": [
+        "UncDirect",
+        "CopyThenInstall"
+      ]
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 25,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "allow_target_mutation": {
+      "type": "boolean",
+      "const": true
+    }
+  }
+}
