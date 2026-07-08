@@ -12,6 +12,7 @@ for file in \
   Run-HarnessValidation.cmd \
   Run-EnglishReportFixture.cmd \
   Run-ExportHarnessEvidence.cmd \
+  scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 \
   scripts/run-harness-validation.sh \
   scripts/render-english-report-fixtures.sh \
   scripts/show-harness-evidence-paths.sh \
@@ -48,10 +49,22 @@ grep -q "Tests/bash/test_sysadmin_harness_validator_contracts.sh" Tests/bash/run
 grep -q "Tests/bash/test_harness_command_surface.sh" Tests/bash/run_harness_contracts.sh || fail "contract runner missing command surface test"
 pass "implementation scripts route to harness behavior"
 
+grep -q "Ensure-Pr142HarnessFoundationWorktree.ps1" docs/launch-and-doc-index.md || fail "launch index missing PR142 worktree bootstrap"
+grep -q "Bootstrap" docs/launch-and-doc-index.md || fail "launch index missing bootstrap cheat-sheet entry"
 grep -q "Run-HarnessContracts.cmd" docs/launch-and-doc-index.md || fail "launch index missing harness contract wrapper"
 grep -q "Run-HarnessValidation.cmd" docs/launch-and-doc-index.md || fail "launch index missing harness validation wrapper"
 grep -q "Run-EnglishReportFixture.cmd" docs/launch-and-doc-index.md || fail "launch index missing report fixture wrapper"
 grep -q "Run-ExportHarnessEvidence.cmd" docs/launch-and-doc-index.md || fail "launch index missing evidence wrapper"
 pass "launch index names command surface"
+
+for fragment in \
+  "New-Item -ItemType Directory -Force -Path \$DevRoot" \
+  "git @Arguments" \
+  "worktree" \
+  "origin/\$Branch" \
+  "Set-Location -LiteralPath \$worktreeRoot"; do
+  grep -q "$fragment" scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 || fail "worktree bootstrap missing fragment: $fragment"
+done
+pass "worktree bootstrap creates and enters missing sibling worktree"
 
 echo "Harness command surface contracts passed."
