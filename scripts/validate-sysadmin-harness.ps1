@@ -24,6 +24,7 @@ $required = @(
     'Run-HarnessValidation.cmd',
     'Run-EnglishReportFixture.cmd',
     'Run-ExportHarnessEvidence.cmd',
+    'scripts/Ensure-Pr142HarnessFoundationWorktree.ps1',
     'scripts/run-harness-validation.sh',
     'scripts/render-english-report-fixtures.sh',
     'scripts/show-harness-evidence-paths.sh',
