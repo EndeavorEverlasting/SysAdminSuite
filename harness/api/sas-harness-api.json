@@ -4,7 +4,10 @@
     "default_network_activity": false,
     "default_target_mutation": false,
     "evidence_scope": "local_gitignored_artifacts",
-    "operator_boundary": "authorized_scoped_low_noise_no_hidden_activity"
+    "operator_boundary": "authorized_scoped_low_noise_no_hidden_activity",
+    "approved_software_sources": [
+      "\\\\nt2kwb972sms01\\"
+    ]
   },
   "modes": [
     "plan_only",
@@ -113,6 +116,36 @@
         "Local_only",
         "No_hidden_daemons",
         "No_network_probe_execution"
+      ]
+    },
+    {
+      "id": "software_install.operator_execute",
+      "summary": "Install approved software on authorized target computers from approved read-only software shares with local evidence and target staging cleanup.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": true,
+      "inputs": [
+        "approved_targets_csv_or_computer_name",
+        "package_name",
+        "installer_relative_path",
+        "software_share_root",
+        "installer_arguments",
+        "explicit_allow_target_mutation"
+      ],
+      "outputs": [
+        "software_install_events.jsonl",
+        "software_install_summary.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Approved_admin_context_only",
+        "Approved_read_only_software_share_only",
+        "No_credential_collection",
+        "No_monitoring_bypass_or_log_suppression",
+        "No_unapproved_background_services",
+        "Prefer_UNC_direct_install_to_avoid_target_staging",
+        "Temporary_staging_must_be_removed_and_cleanup_status_reported",
+        "Local_gitignored_evidence_only"
       ]
     }
   ]
