@@ -9,18 +9,27 @@ Date: 2026-07-08
 | PR | #142, `feat(harness): add executable AI harness foundation` |
 | Branch | `docs/ai-layer-harness-tooling-plan` |
 | Base | `main` |
-| Evidence head inspected | `094f61f10512c3f983578c60164e9a5f28b7d9aa` |
+| Latest evidence head inspected | `eef45867a5a9609e4c6163edda9c30005579528b` |
 | PR state at inspection | Open, not draft, not merged, mergeable |
-| Changed files at inspection | 37 |
-| Branch relation to `main` | Diverged; `main` has 41 commits not yet in this branch, and this branch has 87 commits not in `main` |
+| Changed files at inspection | 38 |
+| Branch relation to `main` | Diverged; `main` has 41 commits not yet in this branch, and this branch has 92 commits not in `main` |
 
 ## CI state at inspected head
 
 | Workflow | Run | Status | Conclusion |
 |---|---:|---|---|
-| Harness Contracts | 102 | completed | success |
-| Pester | 830 | completed | success |
-| Survey doctrine | 346 | completed | success |
+| Harness Contracts | 112 | completed | success |
+| Pester | 837 | completed | success |
+| Survey doctrine | 353 | completed | success |
+
+## Scope-control state
+
+The scope ledger and boundary contract now match the current PR #142 changed-file set more closely:
+
+- `docs/handoff/pr142-scope-ledger.md` records harness validation helpers, run-context boundary documentation, merge-readiness reporting, and local staging/output discovery as PR-owned surfaces.
+- `Tests/bash/test_pr142_scope_boundary_contracts.sh` enforces those tracked surfaces.
+- `Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md` keeps PR #142 out of canonical run-context ownership.
+- `scripts/SasRunContext.psm1` remains outside PR #142-owned changes.
 
 ## Local Windows validation state
 
@@ -31,18 +40,21 @@ Repo evidence confirms the expected Windows-native path exists:
 - `Run-HarnessContracts.cmd` routes to `scripts/Invoke-SasHarnessContracts.ps1`.
 - `Run-HarnessValidation.cmd` routes to `scripts/validate-sysadmin-harness.ps1`.
 - `docs/handoff/pr142-scope-ledger.md` requires local Windows validation through `scripts/Invoke-SasHarnessContracts.ps1` or `Run-HarnessContracts.cmd` before review/merge readiness.
-- No tracked reviewed evidence summary currently records a passing local Windows run for inspected head `094f61f10512c3f983578c60164e9a5f28b7d9aa`.
+- No tracked reviewed evidence summary currently records a passing local Windows run for inspected head `eef45867a5a9609e4c6163edda9c30005579528b`.
 
-`git diff --check` was not run by this docs/reporting update because this sprint used GitHub repository evidence rather than a local worktree.
+`git diff --check` was not run by this connector-only update because this sprint used GitHub repository evidence rather than a local worktree.
 
 ## Owned PR #142 lanes
 
 - Harness doctrine and planning docs.
 - Fixture-backed English reports.
 - Harness command surface and Windows-native launchers.
+- Harness validation helper scripts.
 - CI/static parity contracts.
+- Run-context boundary documentation.
+- Merge-readiness reporting.
 - Workflow specs and harness schemas.
-- Local output discovery and sanitized evidence pointers.
+- Local staging/output discovery and sanitized evidence pointers.
 
 ## Explicit non-owned lanes
 
@@ -57,7 +69,7 @@ Repo evidence confirms the expected Windows-native path exists:
 1. Branch must be updated from `main` because PR #146 has merged there and this branch is currently diverged from `main`.
 2. Local Windows validation proof is missing from tracked, reviewed repo evidence.
 3. `git diff --check` still needs to be run from a local worktree after the branch is updated from `main`.
-4. After updating from `main`, rerun CI and the Windows-native harness contract runner before treating PR #142 as merge-ready.
+4. After any new commit lands on the PR branch, rerun CI and the Windows-native harness contract runner before treating PR #142 as merge-ready.
 
 ## Forbidden scope reminders
 
