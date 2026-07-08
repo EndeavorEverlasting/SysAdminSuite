@@ -8,8 +8,10 @@ fail() { echo "[FAIL] $*" >&2; exit 1; }
 pass() { echo "[PASS] $*"; }
 
 ledger="docs/handoff/pr142-scope-ledger.md"
+boundary="Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md"
 [[ -f "$ledger" ]] || fail "missing PR #142 scope ledger"
-pass "scope ledger exists"
+[[ -f "$boundary" ]] || fail "missing run context lane boundary"
+pass "scope ledger and run context boundary exist"
 
 for phrase in \
   "PR #142 is intentionally a broad harness-foundation PR" \
@@ -20,7 +22,7 @@ for phrase in \
   "Harness Contracts succeeds" \
   "Pester succeeds" \
   "Survey doctrine succeeds" \
-  "scripts/SasRunContext.psm1 remains absent"; do
+  "scripts/SasRunContext.psm1 remains outside PR #142-owned changes"; do
   grep -Fq "$phrase" "$ledger" || fail "scope ledger missing phrase: $phrase"
 done
 pass "scope ledger records broad PR controls"
@@ -51,10 +53,10 @@ grep -Fq "must not depend on Git Bash or WSL" "$ledger" || fail "scope ledger mi
 grep -Fq "Bash contract scripts may stay tracked for CI/static parity" "$ledger" || fail "scope ledger missing CI/static Bash parity rule"
 pass "scope ledger distinguishes Windows and CI execution paths"
 
-if [[ -f scripts/SasRunContext.psm1 ]]; then
-  fail "PR #142 branch contains scripts/SasRunContext.psm1; run context belongs to PR #146"
-fi
-pass "run context module remains outside PR #142 branch"
+grep -Fq "PR #146" "$boundary" || fail "run context boundary does not name PR #146"
+grep -Fq "must consume that module after rebasing" "$boundary" || fail "run context boundary does not require consuming merged run context module"
+grep -Fq "Do not add new foundation-contract assertions here that make this PR the behavioral owner" "$boundary" || fail "run context boundary does not forbid behavioral ownership"
+pass "run context module is consumed from PR #146, not owned by PR #142"
 
 if grep -RE "Test-NetConnection|Resolve-DnsName|naabu|nmap|socket|packet|ping|nslookup|curl" "$ledger" scripts/Render-SasEnglishReport.ps1; then
   fail "scope-controlled behavior surfaces contain blocked live-network command text"
