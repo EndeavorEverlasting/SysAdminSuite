@@ -7,10 +7,10 @@ Installs approved software on authorized target computers from an approved read-
 Invoke-SasSoftwareInstall is the SysAdminSuite operator-execute wrapper for admin-box software installs.
 It prefers direct UNC execution so SysAdminSuite does not stage payloads on the target. When staging is explicitly
 requested, it copies the installer to ProgramData\SysAdminSuite\SoftwareInstall\<run_id> and removes that staging
-folder in a cleanup block after the installer exits.
+folder in cleanup. Empty SysAdminSuite parent folders are pruned when no sibling run artifacts remain.
 
 This script does not suppress Windows logs, clear evidence, collect credentials, create persistence, or bypass
-monitoring. Local JSON evidence is written on the admin box.
+monitoring. It writes SysAdminSuite run evidence only on the admin box and cleans SysAdminSuite-owned target staging.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -189,7 +189,51 @@ Write-SasInstallEvent -EventPath $eventPath -Event @{
     install_mode = $InstallMode
     target_count = $targets.Count
     output_root = $runRoot
-    posture = 'authorized_operator_execute_no_log_suppression_no_credential_collection_cleanup_staging_only'
+    posture = 'authorized_operator_execute_no_log_suppression_no_credential_collection_cleanup_repo_owned_target_staging_only'
+}
+
+$remoteRepoCleanup = {
+    param([string]$RunId)
+
+    $ErrorActionPreference = 'Stop'
+    $stageRoot = Join-Path -Path $env:ProgramData -ChildPath ("SysAdminSuite\SoftwareInstall\{0}" -f $RunId)
+    $softwareInstallRoot = Join-Path -Path $env:ProgramData -ChildPath 'SysAdminSuite\SoftwareInstall'
+    $suiteRoot = Join-Path -Path $env:ProgramData -ChildPath 'SysAdminSuite'
+    $removedPaths = @()
+    $prunedParentDirs = @()
+    $errorMessage = $null
+
+    try {
+        if (Test-Path -LiteralPath $stageRoot) {
+            Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction Stop
+            $removedPaths += $stageRoot
+        }
+
+        foreach ($parentPath in @($softwareInstallRoot, $suiteRoot)) {
+            if (Test-Path -LiteralPath $parentPath) {
+                $children = @(Get-ChildItem -LiteralPath $parentPath -Force -ErrorAction Stop)
+                if ($children.Count -eq 0) {
+                    Remove-Item -LiteralPath $parentPath -Force -ErrorAction Stop
+                    $prunedParentDirs += $parentPath
+                }
+            }
+        }
+    }
+    catch {
+        $errorMessage = $_.Exception.Message
+    }
+
+    $repoArtifactRemaining = Test-Path -LiteralPath $stageRoot
+
+    return [pscustomobject]@{
+        cleanup_attempted = $true
+        cleanup_succeeded = (-not $repoArtifactRemaining -and [string]::IsNullOrWhiteSpace($errorMessage))
+        repo_owned_stage_root = $stageRoot
+        repo_artifact_remaining = $repoArtifactRemaining
+        removed_paths = @($removedPaths)
+        pruned_empty_parent_dirs = @($prunedParentDirs)
+        error = $errorMessage
+    }
 }
 
 $remoteInstall = {
@@ -202,6 +246,49 @@ $remoteInstall = {
     )
 
     $ErrorActionPreference = 'Stop'
+
+    function Remove-SasRepoOwnedInstallArtifacts {
+        param([string]$CleanupRunId)
+
+        $stageRoot = Join-Path -Path $env:ProgramData -ChildPath ("SysAdminSuite\SoftwareInstall\{0}" -f $CleanupRunId)
+        $softwareInstallRoot = Join-Path -Path $env:ProgramData -ChildPath 'SysAdminSuite\SoftwareInstall'
+        $suiteRoot = Join-Path -Path $env:ProgramData -ChildPath 'SysAdminSuite'
+        $removedPaths = @()
+        $prunedParentDirs = @()
+        $errorMessage = $null
+
+        try {
+            if (Test-Path -LiteralPath $stageRoot) {
+                Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction Stop
+                $removedPaths += $stageRoot
+            }
+
+            foreach ($parentPath in @($softwareInstallRoot, $suiteRoot)) {
+                if (Test-Path -LiteralPath $parentPath) {
+                    $children = @(Get-ChildItem -LiteralPath $parentPath -Force -ErrorAction Stop)
+                    if ($children.Count -eq 0) {
+                        Remove-Item -LiteralPath $parentPath -Force -ErrorAction Stop
+                        $prunedParentDirs += $parentPath
+                    }
+                }
+            }
+        }
+        catch {
+            $errorMessage = $_.Exception.Message
+        }
+
+        $repoArtifactRemaining = Test-Path -LiteralPath $stageRoot
+        return [pscustomobject]@{
+            cleanup_attempted = $true
+            cleanup_succeeded = (-not $repoArtifactRemaining -and [string]::IsNullOrWhiteSpace($errorMessage))
+            repo_owned_stage_root = $stageRoot
+            repo_artifact_remaining = $repoArtifactRemaining
+            removed_paths = @($removedPaths)
+            pruned_empty_parent_dirs = @($prunedParentDirs)
+            error = $errorMessage
+        }
+    }
+
     $stageRoot = Join-Path -Path $env:ProgramData -ChildPath ("SysAdminSuite\SoftwareInstall\{0}" -f $RunId)
     $result = [ordered]@{
         package_name = $PackageName
@@ -212,6 +299,8 @@ $remoteInstall = {
         stage_root = $(if ($InstallMode -eq 'CopyThenInstall') { $stageRoot } else { $null })
         cleanup_attempted = $false
         cleanup_succeeded = $null
+        repo_artifact_remaining = $null
+        pruned_empty_parent_dirs = @()
         status = 'started'
         error = $null
     }
@@ -236,20 +325,17 @@ $remoteInstall = {
     }
     finally {
         if ($InstallMode -eq 'CopyThenInstall') {
-            $result.cleanup_attempted = $true
-            try {
-                if (Test-Path -LiteralPath $stageRoot) {
-                    Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction Stop
-                }
-                $result.cleanup_succeeded = -not (Test-Path -LiteralPath $stageRoot)
-            }
-            catch {
-                $result.cleanup_succeeded = $false
+            $cleanup = Remove-SasRepoOwnedInstallArtifacts -CleanupRunId $RunId
+            $result.cleanup_attempted = $cleanup.cleanup_attempted
+            $result.cleanup_succeeded = $cleanup.cleanup_succeeded
+            $result.repo_artifact_remaining = $cleanup.repo_artifact_remaining
+            $result.pruned_empty_parent_dirs = $cleanup.pruned_empty_parent_dirs
+            if (-not [string]::IsNullOrWhiteSpace([string]$cleanup.error)) {
                 if ([string]::IsNullOrWhiteSpace([string]$result.error)) {
-                    $result.error = $_.Exception.Message
+                    $result.error = $cleanup.error
                 }
                 else {
-                    $result.error = "$($result.error); cleanup failed: $($_.Exception.Message)"
+                    $result.error = "$($result.error); cleanup failed: $($cleanup.error)"
                 }
             }
         }
@@ -278,6 +364,8 @@ foreach ($target in $targets) {
             exit_code = $null
             cleanup_attempted = $false
             cleanup_succeeded = $null
+            repo_artifact_remaining = $null
+            pruned_empty_parent_dirs = @()
             error = $null
         }
         $results.Add($planned)
@@ -292,6 +380,7 @@ foreach ($target in $targets) {
     }
 
     $session = $null
+    $stageRoot = $null
     try {
         $session = New-PSSession -ComputerName $target
         $remoteInstallerPath = $installerPath
@@ -317,6 +406,8 @@ foreach ($target in $targets) {
             exit_code = $remoteResult.exit_code
             cleanup_attempted = $remoteResult.cleanup_attempted
             cleanup_succeeded = $remoteResult.cleanup_succeeded
+            repo_artifact_remaining = $remoteResult.repo_artifact_remaining
+            pruned_empty_parent_dirs = $remoteResult.pruned_empty_parent_dirs
             error = $remoteResult.error
         }
         $results.Add($row)
@@ -331,19 +422,46 @@ foreach ($target in $targets) {
             exit_code = $row.exit_code
             cleanup_attempted = $row.cleanup_attempted
             cleanup_succeeded = $row.cleanup_succeeded
+            repo_artifact_remaining = $row.repo_artifact_remaining
+            pruned_empty_parent_dirs = $row.pruned_empty_parent_dirs
             error = $row.error
         }
     }
     catch {
+        $failureMessage = $_.Exception.Message
+        $outerCleanup = $null
+        if ($InstallMode -eq 'CopyThenInstall' -and $session) {
+            try {
+                $outerCleanup = Invoke-Command -Session $session -ScriptBlock $remoteRepoCleanup -ArgumentList $runId
+            }
+            catch {
+                $outerCleanup = [pscustomobject]@{
+                    cleanup_attempted = $true
+                    cleanup_succeeded = $false
+                    repo_owned_stage_root = $stageRoot
+                    repo_artifact_remaining = $true
+                    removed_paths = @()
+                    pruned_empty_parent_dirs = @()
+                    error = $_.Exception.Message
+                }
+            }
+        }
+
+        if ($outerCleanup -and -not [string]::IsNullOrWhiteSpace([string]$outerCleanup.error)) {
+            $failureMessage = "$failureMessage; cleanup failed: $($outerCleanup.error)"
+        }
+
         $row = [pscustomobject]@{
             computer_name = $target
             package_name = $PackageName
             install_mode = $InstallMode
             status = 'failed_before_remote_result'
             exit_code = $null
-            cleanup_attempted = ($InstallMode -eq 'CopyThenInstall')
-            cleanup_succeeded = $false
-            error = $_.Exception.Message
+            cleanup_attempted = $(if ($outerCleanup) { $outerCleanup.cleanup_attempted } else { $false })
+            cleanup_succeeded = $(if ($outerCleanup) { $outerCleanup.cleanup_succeeded } else { $null })
+            repo_artifact_remaining = $(if ($outerCleanup) { $outerCleanup.repo_artifact_remaining } else { $null })
+            pruned_empty_parent_dirs = $(if ($outerCleanup) { $outerCleanup.pruned_empty_parent_dirs } else { @() })
+            error = $failureMessage
         }
         $results.Add($row)
         Write-SasInstallEvent -EventPath $eventPath -Event @{
@@ -355,6 +473,8 @@ foreach ($target in $targets) {
             status = $row.status
             cleanup_attempted = $row.cleanup_attempted
             cleanup_succeeded = $row.cleanup_succeeded
+            repo_artifact_remaining = $row.repo_artifact_remaining
+            pruned_empty_parent_dirs = $row.pruned_empty_parent_dirs
             error = $row.error
         }
     }
@@ -376,6 +496,8 @@ $summary = [ordered]@{
     planned_count = @($results | Where-Object { $_.status -eq 'planned_whatif' }).Count
     failed_count = @($results | Where-Object { $_.status -notin @('completed', 'planned_whatif') }).Count
     cleanup_failure_count = @($results | Where-Object { $_.cleanup_attempted -and $_.cleanup_succeeded -eq $false }).Count
+    repo_artifact_remaining_count = @($results | Where-Object { $_.repo_artifact_remaining -eq $true }).Count
+    target_repo_artifact_policy = 'No SysAdminSuite-owned target logs, reports, manifests, transcripts, scripts, evidence, or staging should remain after cleanup. Installer-owned changes are outside this cleanup boundary.'
     event_path = $eventPath
     operator_handoff_path = $handoffPath
     results = @($results)
@@ -385,6 +507,9 @@ $summary = [ordered]@{
         'no_credential_collection',
         'no_monitoring_bypass_or_log_suppression',
         'no_unapproved_background_services',
+        'no_repo_owned_target_logs_reports_manifests_or_transcripts',
+        'run_specific_staging_cleanup_attempted_on_all_failure_paths',
+        'prune_empty_sysadminsuite_target_directories',
         'temporary_staging_cleanup_status_reported'
     )
 }
@@ -400,10 +525,11 @@ $handoffLines = @(
     "Planned/WhatIf: $($summary.planned_count)",
     "Failed or unresolved: $($summary.failed_count)",
     "Cleanup failures: $($summary.cleanup_failure_count)",
+    "Repo-owned target remnants remaining: $($summary.repo_artifact_remaining_count)",
     "Events: $eventPath",
     "Summary: $summaryPath",
     '',
-    'Review failures and cleanup failures before reporting completion to the client.'
+    'Review failures, cleanup failures, and repo-owned target remnant status before reporting completion to the client.'
 )
 $handoffLines | Set-Content -LiteralPath $handoffPath -Encoding UTF8
 Write-SasInstallEvent -EventPath $eventPath -Event @{
@@ -414,6 +540,7 @@ Write-SasInstallEvent -EventPath $eventPath -Event @{
     planned_count = $summary.planned_count
     failed_count = $summary.failed_count
     cleanup_failure_count = $summary.cleanup_failure_count
+    repo_artifact_remaining_count = $summary.repo_artifact_remaining_count
 }
 
 Write-Output $summary
