@@ -27,6 +27,7 @@ for file in \
   Run-EnglishReportFixture.cmd \
   Run-ExportHarnessEvidence.cmd \
   scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 \
+  scripts/Invoke-SasHarnessContracts.ps1 \
   scripts/run-harness-validation.sh \
   scripts/render-english-report-fixtures.sh \
   scripts/show-harness-evidence-paths.sh \
@@ -48,10 +49,10 @@ if grep -q "scripts/SasRunContext.psm1" scripts/validate-sysadmin-harness.ps1; t
 fi
 pass "validator does not claim run context ownership"
 
-grep -q "command surface wrappers" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface wrapper check"
+grep -q "PowerShell-native command wrappers" scripts/validate-sysadmin-harness.ps1 || fail "validator missing PowerShell-native wrapper check"
 grep -q "command surface scripts" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface script check"
 grep -q "Run-HarnessContracts.cmd" scripts/validate-sysadmin-harness.ps1 || fail "validator missing contract launcher check"
-grep -q "Tests/bash/run_harness_contracts.sh" scripts/validate-sysadmin-harness.ps1 || fail "validator missing contract runner route"
+grep -q "scripts/Invoke-SasHarnessContracts.ps1" scripts/validate-sysadmin-harness.ps1 || fail "validator missing PowerShell contract runner route"
 grep -q "exit /b %SAS_EXIT%" scripts/validate-sysadmin-harness.ps1 || fail "validator missing wrapper exit-code check"
 pass "validator covers command surface wiring"
 
