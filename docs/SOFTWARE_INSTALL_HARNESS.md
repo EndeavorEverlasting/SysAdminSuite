@@ -4,7 +4,7 @@
 
 SysAdminSuite needs a controlled operator-execute lane for installing approved software from an approved read-only software source onto authorized target computers.
 
-This lane is intentionally not stealth tooling. It must not suppress Windows logs, bypass monitoring, collect credentials, or hide the fact that an authorized install occurred. The no-artifact requirement means no persistent SysAdminSuite staging payloads should remain on the target after the run. The installed software, normal installer traces, endpoint management records, and Windows event logs are expected client records.
+This lane is intentionally not stealth tooling. It must not suppress Windows logs, bypass monitoring, collect credentials, or hide the fact that an authorized install occurred. The no-artifact requirement means no persistent SysAdminSuite-owned staging payloads, reports, manifests, transcripts, scripts, or evidence should remain on the target after the run. The installed software and the installer-owned files, logs, registry changes, caches, services, or records created by the approved executable or MSI are outside the SysAdminSuite cleanup boundary.
 
 ## Approved source
 
@@ -29,7 +29,23 @@ The harness rejects installer paths that are absolute, use `..`, or do not resol
 | `UncDirect` | None by SysAdminSuite | The target can execute the installer directly from the approved read-only share. |
 | `CopyThenInstall` | Temporary `ProgramData\SysAdminSuite\SoftwareInstall\<run_id>` | The installer must be copied from the admin box to the target before execution. |
 
-`UncDirect` is preferred because it avoids placing the installer payload on the target. `CopyThenInstall` is allowed only when direct UNC execution is not practical. When staging is used, the wrapper removes the staging directory in a `finally` cleanup block and records cleanup status in local evidence.
+`UncDirect` is preferred because it avoids placing the installer payload on the target. `CopyThenInstall` is allowed only when direct UNC execution is not practical. When staging is used, the wrapper removes the run-specific staging directory in cleanup and records cleanup status in local evidence.
+
+## Target-side repo-owned artifact boundary
+
+SysAdminSuite must not write target-side logs, reports, manifests, transcripts, scripts, or evidence for this lane. Run evidence belongs on the admin box only.
+
+When `CopyThenInstall` is used, these paths are SysAdminSuite-owned temporary staging and must be cleaned up:
+
+```text
+%ProgramData%\SysAdminSuite\SoftwareInstall\<run_id>
+%ProgramData%\SysAdminSuite\SoftwareInstall    # prune only when empty
+%ProgramData%\SysAdminSuite                    # prune only when empty
+```
+
+Cleanup is attempted from both the normal remote installer `finally` block and the outer failure path that catches copy/session/install orchestration failures. A cleanup failure is a reportable failure, not something to hide. The summary must state whether a repo-owned staging path may still remain.
+
+This cleanup boundary deliberately does not remove records owned by Windows, endpoint tooling, or the approved installer itself. The harness avoids creating SysAdminSuite-owned target evidence and cleans SysAdminSuite-owned filesystem staging; it does not erase operating-system audit logs.
 
 ## Operator contract
 
@@ -40,7 +56,7 @@ The install wrapper must require all of the following:
 3. Explicit `-AllowTargetMutation` unless running with `-WhatIf`.
 4. Local output under `survey/output/software_install/<run_id>/` or another operator-supplied local output root.
 5. Per-target status events written locally as JSONL.
-6. A summary JSON that names targets, installer, mode, exit codes, staging cleanup status, and unresolved failures.
+6. A summary JSON that names targets, installer, mode, exit codes, staging cleanup status, repo-owned target remnant status, and unresolved failures.
 
 ## Guardrails
 
@@ -52,11 +68,14 @@ The lane must preserve these boundaries:
 - No monitoring bypass, log suppression, or event-log cleanup.
 - No hidden listeners, services, agents, persistence, or background daemons.
 - No broad network discovery from this operation.
+- No target-side SysAdminSuite logs, reports, manifests, transcripts, scripts, or evidence.
 - No target-side SysAdminSuite staging artifacts after completion when cleanup succeeds.
+- Run-specific staging cleanup is attempted on normal and failure paths.
+- Empty SysAdminSuite parent directories are pruned when no sibling run artifacts remain.
 - Cleanup failure is a reportable failure, not something to hide.
 - Generated run artifacts stay in gitignored local output paths.
 
-## Expected artifacts
+## Expected local artifacts
 
 Each run should produce local evidence similar to:
 
@@ -64,6 +83,7 @@ Each run should produce local evidence similar to:
 survey/output/software_install/<run_id>/
   software_install_events.jsonl
   software_install_summary.json
+  operator_handoff.txt
 ```
 
 The evidence belongs on the admin box. It should be used to update the client-facing deployment tracker without writing extra audit files to target hosts.
@@ -95,6 +115,7 @@ The evidence belongs on the admin box. It should be used to update the client-fa
 
 ## Known operational limits
 
-- Some installers create their own logs, caches, services, scheduled tasks, or registry keys. That is part of the software installation, not SysAdminSuite staging.
+- Some installers create their own logs, caches, services, scheduled tasks, or registry keys. Those are part of the software installation, not SysAdminSuite staging.
 - Direct UNC execution can fail if the target cannot read the source share. Use `CopyThenInstall` when the admin box can read the share but the target cannot.
 - This wrapper does not provide credentials. It relies on the operator's approved admin session and normal Windows authorization.
+- This wrapper does not erase operating-system audit records. It is designed to avoid and clean SysAdminSuite-owned target filesystem remnants.
