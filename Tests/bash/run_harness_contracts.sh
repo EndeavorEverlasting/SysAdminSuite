@@ -14,7 +14,8 @@ required_tests=(
 )
 
 [[ -f scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 ]] || fail "missing PR142 worktree bootstrap"
-pass "PR142 worktree bootstrap exists"
+[[ -f scripts/Invoke-SasHarnessContracts.ps1 ]] || fail "missing PowerShell harness contract runner"
+pass "PowerShell worktree bootstrap and contract runner exist"
 
 for test_file in "${required_tests[@]}"; do
   [[ -f "$test_file" ]] || fail "missing harness contract test: $test_file"
