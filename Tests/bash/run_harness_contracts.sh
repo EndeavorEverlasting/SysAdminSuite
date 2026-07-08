@@ -11,11 +11,13 @@ required_tests=(
   "Tests/bash/test_english_log_artifact_contracts.sh"
   "Tests/bash/test_sysadmin_harness_validator_contracts.sh"
   "Tests/bash/test_harness_command_surface.sh"
+  "Tests/bash/test_pr142_scope_boundary_contracts.sh"
 )
 
 [[ -f scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 ]] || fail "missing PR142 worktree bootstrap"
 [[ -f scripts/Invoke-SasHarnessContracts.ps1 ]] || fail "missing PowerShell harness contract runner"
-pass "PowerShell worktree bootstrap and contract runner exist"
+[[ -f docs/handoff/pr142-scope-ledger.md ]] || fail "missing PR142 scope ledger"
+pass "PowerShell worktree bootstrap, contract runner, and scope ledger exist"
 
 for test_file in "${required_tests[@]}"; do
   [[ -f "$test_file" ]] || fail "missing harness contract test: $test_file"
