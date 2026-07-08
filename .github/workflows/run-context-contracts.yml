@@ -1,0 +1,26 @@
+name: Run context contracts
+
+on:
+  push:
+    branches: [main, 'feat/**', 'feature/**']
+    paths:
+      - 'scripts/SasRunContext.psm1'
+      - 'Tests/survey/test_run_context_contracts.py'
+      - '.github/workflows/run-context-contracts.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/SasRunContext.psm1'
+      - 'Tests/survey/test_run_context_contracts.py'
+      - '.github/workflows/run-context-contracts.yml'
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run static run context contracts
+        shell: bash
+        run: |
+          python3 Tests/survey/test_run_context_contracts.py
