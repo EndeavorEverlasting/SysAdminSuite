@@ -26,7 +26,7 @@ PR #142 is intentionally a broad harness-foundation PR, so its merge risk must b
 ## Merge-risk controls
 
 - Every owned surface must be tied to a validator, contract test, schema, fixture, or launcher.
-- Windows `.cmd` launchers must be PowerShell-native and must not depend on Git Bash or WSL.
+- Windows .cmd launchers must be PowerShell-native and must not depend on Git Bash or WSL.
 - Bash contract scripts may stay tracked for CI/static parity.
 - Fixtures must remain synthetic and must not contain live hostnames, private IP addresses, MAC addresses, serial numbers, crash dumps, or generated runtime evidence.
 - The PR must keep run-context ownership out of the harness foundation branch.
