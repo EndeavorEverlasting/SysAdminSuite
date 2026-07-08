@@ -9,9 +9,11 @@ PR #142 is intentionally a broad harness-foundation PR, so its merge risk must b
 | Harness doctrine | `docs/AI_LAYER_HARNESS_TOOLING_PLAN.md`, `docs/plans/executable-ai-harness-foundation.plan.md`, `docs/handoff/sysadminsuite-agent-coordination.md` | Planning and coordination only. |
 | Fixture-backed English reports | `scripts/Render-SasEnglishReport.ps1`, `survey/fixtures/english-log/`, `schemas/harness/operator-report.schema.json` | Uses synthetic fixtures only. |
 | Harness command surface | `Run-HarnessContracts.cmd`, `Run-HarnessValidation.cmd`, `Run-EnglishReportFixture.cmd`, `Run-ExportHarnessEvidence.cmd`, `scripts/Invoke-SasHarnessContracts.ps1` | Windows entrypoints are PowerShell-native and must not require Bash. |
+| Harness validation helpers | `scripts/validate-sysadmin-harness.ps1`, `scripts/Ensure-Pr142HarnessFoundationWorktree.ps1`, `scripts/run-harness-validation.sh`, `scripts/render-english-report-fixtures.sh`, `scripts/show-harness-evidence-paths.sh` | Runner and helper surfaces only; no live probing, cleanup, or target mutation. |
 | CI/static parity | `Tests/bash/run_harness_contracts.sh`, `Tests/bash/test_*.sh`, `.github/workflows/harness-contracts.yml` | Bash remains a CI/static parity surface, not a Windows operator dependency. |
+| Run-context boundary documentation | `Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md` | Boundary note only; does not transfer ownership of `scripts/SasRunContext.psm1`. |
 | Workflow specs and schemas | `survey/workflows/`, `schemas/harness/` | Declarative contracts only. |
-| Local output discovery | `docs/launch-and-doc-index.md`, `docs/evidence/latest/README.md`, `survey/output/README.md` | Documents local output locations; generated outputs stay untracked unless sanitized. |
+| Local staging and output discovery | `docs/launch-and-doc-index.md`, `docs/evidence/latest/README.md`, `survey/input/README.md`, `survey/output/README.md`, `survey/artifacts/README.md` | Documents local staging and output locations; generated and operator-provided files stay untracked unless sanitized and reviewed. |
 
 ## Explicit non-owned lanes
 
