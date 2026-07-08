@@ -169,6 +169,7 @@ New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 
 $eventPath = Join-Path -Path $runRoot -ChildPath 'software_install_events.jsonl'
 $summaryPath = Join-Path -Path $runRoot -ChildPath 'software_install_summary.json'
+$handoffPath = Join-Path -Path $runRoot -ChildPath 'operator_handoff.txt'
 $installerPath = Resolve-SasApprovedInstallerPath -Root $SoftwareShareRoot -RelativePath $InstallerRelativePath
 if ([string]::IsNullOrWhiteSpace($PackageName)) {
     $PackageName = Split-Path -Path $installerPath -Leaf
@@ -376,6 +377,7 @@ $summary = [ordered]@{
     failed_count = @($results | Where-Object { $_.status -notin @('completed', 'planned_whatif') }).Count
     cleanup_failure_count = @($results | Where-Object { $_.cleanup_attempted -and $_.cleanup_succeeded -eq $false }).Count
     event_path = $eventPath
+    operator_handoff_path = $handoffPath
     results = @($results)
     guardrails = @(
         'approved_admin_context_only',
@@ -388,6 +390,22 @@ $summary = [ordered]@{
 }
 
 $summary | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+$handoffLines = @(
+    'SysAdminSuite software install handoff',
+    "Run ID: $runId",
+    "Package: $PackageName",
+    "Install mode: $InstallMode",
+    "Targets: $($targets.Count)",
+    "Completed: $($summary.completed_count)",
+    "Planned/WhatIf: $($summary.planned_count)",
+    "Failed or unresolved: $($summary.failed_count)",
+    "Cleanup failures: $($summary.cleanup_failure_count)",
+    "Events: $eventPath",
+    "Summary: $summaryPath",
+    '',
+    'Review failures and cleanup failures before reporting completion to the client.'
+)
+$handoffLines | Set-Content -LiteralPath $handoffPath -Encoding UTF8
 Write-SasInstallEvent -EventPath $eventPath -Event @{
     event = 'run_completed'
     run_id = $runId
