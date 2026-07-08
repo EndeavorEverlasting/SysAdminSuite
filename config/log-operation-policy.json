@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "sprint": "deployment-orchestration-render-only-log-planning",
+  "operations": {
+    "CREATE_DEPLOYMENT_LOG": { "decision": "allowed", "scope": "deployment-owned outputs only" },
+    "APPEND_DEPLOYMENT_LOG": { "decision": "allowed", "scope": "active deployment run only" },
+    "READ_PLAN_ONLY": { "decision": "allowed", "scope": "rendered guidance only" },
+    "LIVE_READ_HOST_LOG": { "decision": "forbidden", "scope": "not authorized in this sprint" },
+    "EXPORT_HOST_LOG": { "decision": "forbidden", "scope": "requires future explicit authorization" },
+    "CLEAR_LOG": { "decision": "forbidden", "scope": "host, audit, security, PowerShell, WinRM, EDR, Defender, and deployment evidence" },
+    "DELETE_LOG": { "decision": "forbidden", "scope": "host, audit, security, PowerShell, WinRM, EDR, Defender, and deployment evidence" },
+    "MUTATE_LOG": { "decision": "forbidden", "scope": "all host/audit/security logs" },
+    "DISABLE_LOGGING": { "decision": "forbidden", "scope": "all audit and platform logging" },
+    "SUPPRESS_AUDIT": { "decision": "forbidden", "scope": "all audit trails" },
+    "RENDER_TROUBLESHOOTING_PLAN": { "decision": "allowed", "scope": "documentation and JSON plans only" },
+    "CLEAN_SCRIPT_CREATED_TEMP_FILES": { "decision": "allowed", "scope": "only under C:\\ProgramData\\SysAdminSuite\\DeploymentTemp\\<deployment-id>\\" }
+  }
+}

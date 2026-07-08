@@ -1,0 +1,19 @@
+[
+  {
+    "TargetHostname": "WORKSTATION001",
+    "ApplicationName": "ExampleApp",
+    "NetworkSharePath": "\\\\fileserver.example.internal\\software\\ExampleApp",
+    "InstallerPath": "ExampleApp-1.0.0-x64.msi",
+    "ExpectedSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "SilentInstallArguments": "/qn /norestart",
+    "InstallDetectionMethod": "CommandExitCodeOnly",
+    "InstallDetectionValue": "",
+    "RebootRequired": false,
+    "Owner": "Endpoint Engineering",
+    "RequestReference": "REQ-0001",
+    "ChangeReference": "CHG-0001",
+    "TicketReference": "TICKET-0001",
+    "DeploymentGroup": "pilot",
+    "Batch": "batch-001"
+  }
+]

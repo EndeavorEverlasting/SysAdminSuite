@@ -1,0 +1,8 @@
+{
+  "scenario": "host-unreachable",
+  "mode": "render-only",
+  "liveHostLogQueriesAllowed": false,
+  "operations": ["READ_PLAN_ONLY", "RENDER_TROUBLESHOOTING_PLAN"],
+  "forbiddenOperations": ["LIVE_READ_HOST_LOG", "EXPORT_HOST_LOG", "CLEAR_LOG", "DELETE_LOG", "MUTATE_LOG", "DISABLE_LOGGING", "SUPPRESS_AUDIT"],
+  "humanReviewNote": "This plan names useful log classes for authorized human review; it does not query hosts."
+}

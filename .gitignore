@@ -174,3 +174,7 @@ data/private/
 
 # Local Northwell network guard allowlist (private operator/site values)
 Config/sas-network-guard.local.json
+
+# Authorized app deployment runtime outputs (local evidence only)
+output/deployments/*
+!output/deployments/.gitkeep

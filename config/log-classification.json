@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "mode": "render-only",
+  "liveHostLogQueriesAllowed": false,
+  "classes": [
+    { "name": "DEPLOYMENT_OWNED", "reviewPurpose": "Deployment-created result files and installer logs retained on the orchestrator." },
+    { "name": "INSTALLER_LOGS", "reviewPurpose": "Vendor installer logs if the installer writes them or if silent arguments specify one." },
+    { "name": "WINDOWS_APPLICATION", "reviewPurpose": "Human review of app installation events after failures." },
+    { "name": "WINDOWS_SYSTEM", "reviewPurpose": "Human review of reboot, service, or MSI infrastructure events." },
+    { "name": "WINDOWS_SECURITY", "reviewPurpose": "Audit-integrity review only; never clear or mutate." },
+    { "name": "POWERSHELL_OPERATIONAL", "reviewPurpose": "Human review of remoting/script activity when authorized." },
+    { "name": "WINRM_REMOTE_MANAGEMENT", "reviewPurpose": "Human review of remoting connectivity and authentication events." },
+    { "name": "SECURITY_PRODUCT_OR_EDR", "reviewPurpose": "Human review by security/tool owners only; no bypass guidance." },
+    { "name": "FILE_SHARE_AND_NETWORK_ACCESS", "reviewPurpose": "Human review of SMB/share access, DNS, and path validation failures." },
+    { "name": "AUDIT_INTEGRITY_EVENTS", "reviewPurpose": "Escalate any clearing, suppression, or tamper indicators." }
+  ],
+  "scenarioMappings": {
+    "installer-failed": ["DEPLOYMENT_OWNED", "INSTALLER_LOGS", "WINDOWS_APPLICATION", "WINDOWS_SYSTEM"],
+    "host-unreachable": ["DEPLOYMENT_OWNED", "WINRM_REMOTE_MANAGEMENT", "FILE_SHARE_AND_NETWORK_ACCESS"],
+    "hash-mismatch": ["DEPLOYMENT_OWNED", "FILE_SHARE_AND_NETWORK_ACCESS"],
+    "audit-integrity-warning": ["WINDOWS_SECURITY", "POWERSHELL_OPERATIONAL", "WINRM_REMOTE_MANAGEMENT", "SECURITY_PRODUCT_OR_EDR", "AUDIT_INTEGRITY_EVENTS"]
+  }
+}

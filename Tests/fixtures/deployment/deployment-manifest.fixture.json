@@ -1,0 +1,19 @@
+[
+  {
+    "TargetHostname": "WORKSTATION001",
+    "ApplicationName": "FixtureApp",
+    "NetworkSharePath": "\\\\fileserver.example.internal\\software\\FixtureApp",
+    "InstallerPath": "/workspace/SysAdminSuite/Tests/fixtures/deployment/fixture-installer.txt",
+    "ExpectedSha256": "ea0b492251b656c9fa2a08b277df0f4b52aa5b1b772e54d1c1bab1647ec611cc",
+    "SilentInstallArguments": "/quiet /norestart",
+    "InstallDetectionMethod": "CommandExitCodeOnly",
+    "InstallDetectionValue": "",
+    "RebootRequired": false,
+    "Owner": "Endpoint Engineering",
+    "RequestReference": "REQ-FIXTURE-0001",
+    "ChangeReference": "CHG-FIXTURE-0001",
+    "TicketReference": "TICKET-FIXTURE-0001",
+    "DeploymentGroup": "fixture",
+    "Batch": "dry-run"
+  }
+]

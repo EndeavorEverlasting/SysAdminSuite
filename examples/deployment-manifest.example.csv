@@ -1,0 +1,2 @@
+TargetHostname,ApplicationName,NetworkSharePath,InstallerPath,ExpectedSha256,SilentInstallArguments,InstallDetectionMethod,InstallDetectionValue,RebootRequired,Owner,RequestReference,ChangeReference,TicketReference,DeploymentGroup,Batch
+WORKSTATION001,ExampleApp,\\fileserver.example.internal\software\ExampleApp,ExampleApp-1.0.0-x64.msi,0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef,"/qn /norestart",CommandExitCodeOnly,,false,Endpoint Engineering,REQ-0001,CHG-0001,TICKET-0001,pilot,batch-001

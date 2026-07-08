@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SysAdminSuite Authorized App Deployment Manifest",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "TargetHostname",
+      "ApplicationName",
+      "NetworkSharePath",
+      "InstallerPath",
+      "ExpectedSha256",
+      "SilentInstallArguments",
+      "InstallDetectionMethod",
+      "Owner",
+      "RequestReference",
+      "ChangeReference",
+      "TicketReference"
+    ],
+    "properties": {
+      "TargetHostname": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$" },
+      "ApplicationName": { "type": "string", "minLength": 1 },
+      "NetworkSharePath": { "type": "string", "pattern": "^\\\\[^\\]+\\[^\\]+.*$" },
+      "InstallerPath": { "type": "string", "minLength": 1 },
+      "ExpectedSha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
+      "SilentInstallArguments": { "type": "string" },
+      "InstallDetectionMethod": { "type": "string", "enum": ["FileExists", "RegistryDisplayName", "CommandExitCodeOnly"] },
+      "InstallDetectionValue": { "type": "string" },
+      "RebootRequired": { "type": ["boolean", "string"] },
+      "Owner": { "type": "string", "minLength": 1 },
+      "RequestReference": { "type": "string", "minLength": 1 },
+      "ChangeReference": { "type": "string", "minLength": 1 },
+      "TicketReference": { "type": "string", "minLength": 1 },
+      "DeploymentGroup": { "type": "string" },
+      "Batch": { "type": "string" },
+      "ManifestRow": { "type": ["integer", "string"] }
+    }
+  }
+}
