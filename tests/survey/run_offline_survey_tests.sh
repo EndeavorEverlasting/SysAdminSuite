@@ -10,3 +10,4 @@ python3 Tests/survey/test_probe_socket_access_contracts.py
 python3 Tests/survey/test_standard_corporate_tooling_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_run_context_contracts.py
+bash Tests/bash/test_target_reduction_plan_contracts.sh

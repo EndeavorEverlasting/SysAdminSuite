@@ -15,7 +15,7 @@
   "operations": [
     {
       "id": "target_reduction.plan",
-      "summary": "Classify prior probe results into reduced targets, retry candidates, review rows, and location/subnet candidates.",
+      "summary": "Classify prior probe results into reduced targets, retry candidates, review rows, out-of-scope rows, and location/subnet candidates.",
       "mode": "local_transform",
       "network_activity": false,
       "target_mutation": false,
@@ -28,6 +28,7 @@
         "reduced_targets.csv",
         "retry_candidates.csv",
         "review_required.csv",
+        "out_of_scope.csv",
         "location_subnet_candidates.csv",
         "target_reduction_summary.json"
       ],
