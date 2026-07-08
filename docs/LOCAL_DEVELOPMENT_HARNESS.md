@@ -9,7 +9,7 @@ It has four jobs:
 3. Catalog local MCP servers that expose repo capabilities without bypassing guardrails.
 4. Make reports emerge from local artifacts instead of ad hoc explanation after the fact.
 
-This harness is for authorized local development and approved operator workflows. It must not introduce hidden network activity, target-side artifacts, credential collection, log suppression, or monitoring bypass behavior.
+This harness is for authorized local development and approved operator workflows. It must not introduce hidden network activity, persistent target-side artifacts, credential collection, log suppression, or monitoring bypass behavior.
 
 ## Harness layers
 
@@ -27,7 +27,7 @@ This harness is for authorized local development and approved operator workflows
 
 The pre-commit hook is a fast local guard. It should:
 
-- run harness, socket-boundary, and standard tooling static contracts;
+- run harness, socket-boundary, standard tooling, and software-install static contracts;
 - block staged generated evidence paths;
 - block accidental commit of live operational files such as generated probe outputs, serial evidence, host/IP/MAC exports, or local MCP runtime logs;
 - stay local-only and avoid network actions.
@@ -71,13 +71,29 @@ Approved modes:
 | `local_transform` | Converts local evidence into reports or reduced target lists. |
 | `operator_execute` | May execute only through an approved wrapper and must be separately gated. |
 
-The first harness APIs are deliberately plan-only or local-transform:
+The default harness APIs are deliberately plan-only or local-transform:
 
 - `target_reduction.plan`
 - `standard_probe.render_cmd`
 - `standard_probe.render_powershell`
 - `report.generate_from_artifacts`
 - `mcp.catalog.list`
+
+The software install lane is intentionally different. `software_install.operator_execute` is an approved operator-execute surface because installing software mutates authorized targets. It must be gated by explicit operator intent, approved source roots, bounded target lists, local evidence, and cleanup reporting. It must not suppress Windows logs, bypass monitoring, collect credentials, or create persistence.
+
+## Software install posture
+
+The approved software source root is:
+
+```text
+\\nt2kwb972sms01\
+```
+
+Software install work should prefer direct UNC execution from the read-only source so SysAdminSuite does not stage installer payloads on the target. If staging is required, the wrapper must stage only under a run-specific `ProgramData\SysAdminSuite\SoftwareInstall\<run_id>` folder, remove that folder after execution, and report cleanup status locally.
+
+The no-artifact boundary means no persistent SysAdminSuite staging payload should remain on the target. It does not mean the harness clears Windows event logs, installer logs, registry keys, endpoint-management records, or the installed software's own files.
+
+See `docs/SOFTWARE_INSTALL_HARNESS.md` and `scripts/Invoke-SasSoftwareInstall.ps1` for the concrete contract.
 
 ## Local MCP posture
 
