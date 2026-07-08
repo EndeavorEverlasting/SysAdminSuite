@@ -13,6 +13,9 @@ required_tests=(
   "Tests/bash/test_harness_command_surface.sh"
 )
 
+[[ -f scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 ]] || fail "missing PR142 worktree bootstrap"
+pass "PR142 worktree bootstrap exists"
+
 for test_file in "${required_tests[@]}"; do
   [[ -f "$test_file" ]] || fail "missing harness contract test: $test_file"
   bash -n "$test_file"
