@@ -113,7 +113,9 @@ def test_harness_api_manifest_is_local_first_and_has_required_operations():
                 "Approved_read_only_software_share_only",
                 "No_credential_collection",
                 "No_monitoring_bypass_or_log_suppression",
-                "Temporary_staging_must_be_removed_and_cleanup_status_reported",
+                "No_repo_owned_target_logs_reports_manifests_or_transcripts",
+                "Run_specific_staging_cleanup_attempted_on_all_failure_paths",
+                "Prune_empty_SysAdminSuite_target_directories",
             ]:
                 assert guardrail in op["guardrails"]
         else:
