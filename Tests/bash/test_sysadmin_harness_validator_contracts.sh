@@ -26,6 +26,7 @@ for file in \
   Run-HarnessValidation.cmd \
   Run-EnglishReportFixture.cmd \
   Run-ExportHarnessEvidence.cmd \
+  docs/handoff/pr142-scope-ledger.md \
   scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 \
   scripts/Invoke-SasHarnessContracts.ps1 \
   scripts/run-harness-validation.sh \
@@ -34,6 +35,7 @@ for file in \
   scripts/Render-SasEnglishReport.ps1 \
   Tests/bash/run_harness_contracts.sh \
   Tests/bash/test_harness_command_surface.sh \
+  Tests/bash/test_pr142_scope_boundary_contracts.sh \
   schemas/harness/run-event.schema.json \
   schemas/harness/artifact-registry.schema.json \
   schemas/harness/operator-report.schema.json \
@@ -44,11 +46,13 @@ for file in \
 done
 pass "validator names required files"
 
-if grep -q "scripts/SasRunContext.psm1" scripts/validate-sysadmin-harness.ps1; then
-  fail "validator still claims run context ownership"
+if grep -Fq "'scripts/SasRunContext.psm1'" scripts/validate-sysadmin-harness.ps1; then
+  fail "validator still treats run context module as a required owned file"
 fi
-pass "validator does not claim run context ownership"
+grep -q "scripts/SasRunContext.psm1 remains outside PR #142-owned changes" scripts/validate-sysadmin-harness.ps1 || fail "validator does not enforce run context ownership boundary"
+pass "validator references run context only as a boundary, not an owned file"
 
+grep -q "PR142 scope ledger" scripts/validate-sysadmin-harness.ps1 || fail "validator missing scope ledger check"
 grep -q "PowerShell-native command wrappers" scripts/validate-sysadmin-harness.ps1 || fail "validator missing PowerShell-native wrapper check"
 grep -q "command surface scripts" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface script check"
 grep -q "Run-HarnessContracts.cmd" scripts/validate-sysadmin-harness.ps1 || fail "validator missing contract launcher check"
