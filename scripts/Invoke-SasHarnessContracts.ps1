@@ -5,8 +5,9 @@ Runs the SysAdminSuite harness contract checks without requiring Bash.
 
 .DESCRIPTION
 This runner is the Windows-native equivalent of Tests/bash/run_harness_contracts.sh. It validates the
-tracked harness command surfaces, schemas, fixtures, launcher routes, and then invokes the synthetic
-harness validator. It is safe to run from the repository root or through Run-HarnessContracts.cmd.
+tracked harness command surfaces, schemas, fixtures, launcher routes, PR #142 scope boundaries, and then
+invokes the synthetic harness validator. It is safe to run from the repository root or through
+Run-HarnessContracts.cmd.
 
 It does not read live network state, mutate target machines, delete branches, or clean generated output.
 #>
@@ -114,6 +115,7 @@ $requiredFiles = @(
     'Run-HarnessValidation.cmd',
     'Run-EnglishReportFixture.cmd',
     'Run-ExportHarnessEvidence.cmd',
+    'docs/handoff/pr142-scope-ledger.md',
     'scripts/Ensure-Pr142HarnessFoundationWorktree.ps1',
     'scripts/Invoke-SasHarnessContracts.ps1',
     'scripts/validate-sysadmin-harness.ps1',
@@ -125,6 +127,7 @@ $requiredFiles = @(
     'Tests/bash/test_english_log_artifact_contracts.sh',
     'Tests/bash/test_sysadmin_harness_validator_contracts.sh',
     'Tests/bash/test_harness_command_surface.sh',
+    'Tests/bash/test_pr142_scope_boundary_contracts.sh',
     'schemas/harness/run-event.schema.json',
     'schemas/harness/artifact-registry.schema.json',
     'schemas/harness/operator-report.schema.json',
@@ -220,6 +223,28 @@ foreach ($workflow in @(
     Assert-SasContains -Path $workflow -Fragment 'target_mutation_policy:'
 }
 if ($failures.Count -eq 0) { Add-SasPass 'workflow specs declare safety policy fields' }
+
+$scopeLedger = 'docs/handoff/pr142-scope-ledger.md'
+foreach ($fragment in @(
+    'PR #142 is intentionally a broad harness-foundation PR',
+    '## Owned lanes',
+    '## Explicit non-owned lanes',
+    '## Merge-risk controls',
+    '## Merge-readiness rule',
+    'Canonical run context module',
+    'Target reduction planner',
+    'Low-noise port policy',
+    'Windows log classifier',
+    'Manifest-driven deployment',
+    'Windows .cmd launchers must be PowerShell-native',
+    'scripts/SasRunContext.psm1 remains absent'
+)) {
+    Assert-SasContains -Path $scopeLedger -Fragment $fragment
+}
+if (Test-Path -LiteralPath 'scripts/SasRunContext.psm1') {
+    Add-SasFailure 'PR #142 branch contains scripts/SasRunContext.psm1; run context belongs to PR #146'
+}
+if ($failures.Count -eq 0) { Add-SasPass 'PR142 scope ledger controls broad PR risk' }
 
 Assert-SasContains -Path 'Run-HarnessContracts.cmd' -Fragment 'scripts\Invoke-SasHarnessContracts.ps1'
 Assert-SasContains -Path 'Run-HarnessValidation.cmd' -Fragment 'scripts\validate-sysadmin-harness.ps1'
