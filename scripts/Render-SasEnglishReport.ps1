@@ -57,6 +57,16 @@ function Assert-SasProperties {
     }
 }
 
+function Format-SasInlineCode {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return '``'
+    }
+
+    return ('`{0}`' -f $Text)
+}
+
 function Format-SasValueList {
     param([object]$Value)
 
@@ -81,7 +91,7 @@ function Format-SasValueList {
 
                 $parts = @()
                 if ($name) { $parts += $name }
-                if ($path) { $parts += "`$path`" }
+                if ($path) { $parts += (Format-SasInlineCode -Text $path) }
                 if ($description) { $parts += $description }
                 if ($parts.Count -eq 0) { $parts += ($item | ConvertTo-Json -Compress) }
                 $items += "- $($parts -join ' - ')"
@@ -204,7 +214,7 @@ foreach ($name in @(
     'plateau_detected'
 )) {
     if ($summary.PSObject.Properties.Name -contains $name) {
-        $results += "- $name: $($summary.$name)"
+        $results += "- ${name}: $($summary.$name)"
     }
 }
 if ($results.Count -eq 0) { $results += '- No result counters declared.' }
@@ -224,7 +234,8 @@ Add-SasSection -Lines $lines -Title 'Next action' -Body @($summary.next_action)
 $artifactLines = @()
 foreach ($artifact in $registry.artifacts) {
     Assert-SasProperties -Object $artifact -Names @('role', 'path', 'tracked', 'contains_live_data', 'generated', 'description') -Label 'ArtifactRegistry artifact'
-    $artifactLines += "- $($artifact.role): `$($artifact.path)`; tracked=$($artifact.tracked); contains_live_data=$($artifact.contains_live_data); generated=$($artifact.generated); $($artifact.description)"
+    $artifactPath = Format-SasInlineCode -Text $artifact.path
+    $artifactLines += "- $($artifact.role): $artifactPath; tracked=$($artifact.tracked); contains_live_data=$($artifact.contains_live_data); generated=$($artifact.generated); $($artifact.description)"
 }
 Add-SasSection -Lines $lines -Title 'Artifact list' -Body $artifactLines
 
