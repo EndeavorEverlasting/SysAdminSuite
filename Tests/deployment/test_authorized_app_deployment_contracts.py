@@ -101,7 +101,10 @@ def test_dry_run_fixture_manifest_points_to_local_fixture_without_execute():
     row = rows[0]
     assert row["TargetHostname"] == "WORKSTATION001"
     assert row["NetworkSharePath"].startswith(r"\\fileserver.example.internal\software")
-    assert Path(row["InstallerPath"]) == FIXTURE_INSTALLER
+    installer_path = Path(row["InstallerPath"])
+    if not installer_path.is_absolute():
+        installer_path = ROOT / installer_path
+    assert installer_path.resolve() == FIXTURE_INSTALLER.resolve()
     import hashlib
     assert hashlib.sha256(FIXTURE_INSTALLER.read_bytes()).hexdigest() == row["ExpectedSha256"]
 
