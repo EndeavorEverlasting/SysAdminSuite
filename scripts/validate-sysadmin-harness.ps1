@@ -128,6 +128,7 @@ catch {
 try {
     $ledgerPath = 'docs/handoff/pr142-scope-ledger.md'
     $ledgerText = Get-Content -LiteralPath $ledgerPath -Raw
+    $boundaryText = Get-Content -LiteralPath 'Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md' -Raw
     $requiredLedgerPhrases = @(
         'PR #142 is intentionally a broad harness-foundation PR',
         '## Owned lanes',
@@ -140,11 +141,11 @@ try {
         'Windows log classifier',
         'Manifest-driven deployment',
         'Windows .cmd launchers must be PowerShell-native',
-        'scripts/SasRunContext.psm1 remains absent'
+        'scripts/SasRunContext.psm1 remains outside PR #142-owned changes'
     )
     $missingLedgerPhrases = @($requiredLedgerPhrases | Where-Object { -not $ledgerText.Contains($_) })
-    $runContextPresent = Test-Path -LiteralPath 'scripts/SasRunContext.psm1'
-    Add-Check -Name 'PR142 scope ledger' -Passed (($missingLedgerPhrases.Count -eq 0) -and (-not $runContextPresent)) -Detail (($missingLedgerPhrases -join ', ') + $(if ($runContextPresent) { '; scripts/SasRunContext.psm1 present' } else { '' }))
+    $boundaryOk = $boundaryText.Contains('PR #146') -and $boundaryText.Contains('must consume that module after rebasing') -and $boundaryText.Contains('Do not add new foundation-contract assertions here that make this PR the behavioral owner')
+    Add-Check -Name 'PR142 scope ledger' -Passed (($missingLedgerPhrases.Count -eq 0) -and $boundaryOk) -Detail (($missingLedgerPhrases -join ', ') + $(if (-not $boundaryOk) { '; run context boundary incomplete' } else { '' }))
 }
 catch {
     Add-Check -Name 'PR142 scope ledger' -Passed $false -Detail $_.Exception.Message
