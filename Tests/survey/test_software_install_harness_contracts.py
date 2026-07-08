@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 API = ROOT / "harness" / "api" / "sas-harness-api.json"
 DOC = ROOT / "docs" / "SOFTWARE_INSTALL_HARNESS.md"
+LOCAL_DOC = ROOT / "docs" / "LOCAL_DEVELOPMENT_HARNESS.md"
 SCRIPT = ROOT / "scripts" / "Invoke-SasSoftwareInstall.ps1"
 SCHEMA = ROOT / "schemas" / "harness" / "software-install-request.schema.json"
 RUNNER = ROOT / "tests" / "survey" / "run_offline_survey_tests.sh"
@@ -48,8 +49,10 @@ def test_api_manifest_declares_gated_operator_execute_surface():
         "No_credential_collection",
         "No_monitoring_bypass_or_log_suppression",
         "No_unapproved_background_services",
+        "No_repo_owned_target_logs_reports_manifests_or_transcripts",
         "Prefer_UNC_direct_install_to_avoid_target_staging",
-        "Temporary_staging_must_be_removed_and_cleanup_status_reported",
+        "Run_specific_staging_cleanup_attempted_on_all_failure_paths",
+        "Prune_empty_SysAdminSuite_target_directories",
         "Local_gitignored_evidence_only",
     }
     assert required_guardrails <= set(op["guardrails"])
@@ -60,15 +63,25 @@ def test_document_names_no_artifact_boundary_without_stealth_claims():
     required = [
         "not stealth tooling",
         "must not suppress Windows logs",
-        "no persistent SysAdminSuite staging payloads",
+        "no persistent SysAdminSuite-owned staging payloads, reports, manifests, transcripts, scripts, or evidence",
+        "installer-owned files, logs, registry changes, caches, services, or records",
         "\\\\nt2kwb972sms01\\",
         "UncDirect",
         "CopyThenInstall",
+        "%ProgramData%\\SysAdminSuite\\SoftwareInstall\\<run_id>",
+        "Cleanup is attempted from both the normal remote installer `finally` block and the outer failure path",
         "Cleanup failure is a reportable failure",
         "Generated run artifacts stay in gitignored local output paths",
     ]
     for fragment in required:
         assert fragment in text, f"missing software install doc fragment: {fragment}"
+
+    local_text = read(LOCAL_DOC)
+    for fragment in [
+        "no persistent SysAdminSuite-owned staging payload, log, report, manifest, transcript, script, or evidence",
+        "prune empty `ProgramData\\SysAdminSuite\\SoftwareInstall` and `ProgramData\\SysAdminSuite` parent directories",
+    ]:
+        assert fragment in local_text, f"missing local harness software posture fragment: {fragment}"
 
 
 def test_script_enforces_approved_source_and_explicit_mutation_gate():
@@ -85,9 +98,15 @@ def test_script_enforces_approved_source_and_explicit_mutation_gate():
         "exceeds MaxTargets",
         "New-PSSession -ComputerName $target",
         "Copy-Item -LiteralPath $installerPath -Destination $remoteInstallerPath -ToSession $session -Force",
+        "Remove-SasRepoOwnedInstallArtifacts",
+        "$remoteRepoCleanup",
         "Remove-Item -LiteralPath $stageRoot -Recurse -Force",
+        "pruned_empty_parent_dirs",
+        "repo_artifact_remaining_count",
         "operator_handoff.txt",
         "cleanup_failure_count",
+        "no_repo_owned_target_logs_reports_manifests_or_transcripts",
+        "run_specific_staging_cleanup_attempted_on_all_failure_paths",
         "no_monitoring_bypass_or_log_suppression",
     ]
     for fragment in required:
@@ -99,6 +118,8 @@ def test_script_enforces_approved_source_and_explicit_mutation_gate():
         "Remove-EventLog",
         "New-Service",
         "Register-ScheduledTask",
+        "Start-Transcript",
+        "Stop-Transcript",
         "-Credential",
     ]
     for fragment in forbidden:
