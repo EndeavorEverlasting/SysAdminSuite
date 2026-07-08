@@ -237,12 +237,17 @@ foreach ($fragment in @(
     'Windows log classifier',
     'Manifest-driven deployment',
     'Windows .cmd launchers must be PowerShell-native',
-    'scripts/SasRunContext.psm1 remains absent'
+    'scripts/SasRunContext.psm1 remains outside PR #142-owned changes'
 )) {
     Assert-SasContains -Path $scopeLedger -Fragment $fragment
 }
-if (Test-Path -LiteralPath 'scripts/SasRunContext.psm1') {
-    Add-SasFailure 'PR #142 branch contains scripts/SasRunContext.psm1; run context belongs to PR #146'
+$runContextBoundary = 'Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md'
+foreach ($fragment in @(
+    'PR #146',
+    'must consume that module after rebasing',
+    'Do not add new foundation-contract assertions here that make this PR the behavioral owner'
+)) {
+    Assert-SasContains -Path $runContextBoundary -Fragment $fragment
 }
 if ($failures.Count -eq 0) { Add-SasPass 'PR142 scope ledger controls broad PR risk' }
 
