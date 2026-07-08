@@ -55,6 +55,7 @@ def test_local_hooks_run_expected_contracts_and_block_generated_evidence():
         "python3 Tests/survey/test_local_harness_contracts.py",
         "python3 Tests/survey/test_probe_socket_access_contracts.py",
         "python3 Tests/survey/test_standard_corporate_tooling_contracts.py",
+        "python3 Tests/survey/test_software_install_harness_contracts.py",
         "git diff --cached --name-only",
         "survey/output/*",
         "logs/*",
@@ -82,6 +83,7 @@ def test_harness_api_manifest_is_local_first_and_has_required_operations():
     assert posture["default_network_activity"] is False
     assert posture["default_target_mutation"] is False
     assert posture["evidence_scope"] == "local_gitignored_artifacts"
+    assert "\\\\nt2kwb972sms01\\" in posture["approved_software_sources"]
 
     allowed_modes = {"plan_only", "local_read", "local_transform", "operator_execute"}
     assert set(api["modes"]) == allowed_modes
@@ -93,16 +95,30 @@ def test_harness_api_manifest_is_local_first_and_has_required_operations():
         "standard_probe.render_powershell",
         "report.generate_from_artifacts",
         "mcp.catalog.list",
+        "software_install.operator_execute",
     }
     assert required_ids <= set(operations), f"missing harness API operations: {required_ids - set(operations)}"
 
     for op_id, op in operations.items():
         assert op["mode"] in allowed_modes, f"invalid mode for {op_id}"
-        assert op["network_activity"] is False, f"first harness API must be non-network: {op_id}"
-        assert op["target_mutation"] is False, f"first harness API must not mutate targets: {op_id}"
         assert op["inputs"], f"operation must name inputs: {op_id}"
         assert op["outputs"], f"operation must name outputs: {op_id}"
         assert op["guardrails"], f"operation must name guardrails: {op_id}"
+
+        if op_id == "software_install.operator_execute":
+            assert op["mode"] == "operator_execute"
+            assert op["network_activity"] is True
+            assert op["target_mutation"] is True
+            for guardrail in [
+                "Approved_read_only_software_share_only",
+                "No_credential_collection",
+                "No_monitoring_bypass_or_log_suppression",
+                "Temporary_staging_must_be_removed_and_cleanup_status_reported",
+            ]:
+                assert guardrail in op["guardrails"]
+        else:
+            assert op["network_activity"] is False, f"planner/local API must be non-network: {op_id}"
+            assert op["target_mutation"] is False, f"planner/local API must not mutate targets: {op_id}"
 
     target_reduction = operations["target_reduction.plan"]
     for output in [
@@ -141,6 +157,7 @@ def test_local_mcp_catalog_only_exposes_allowed_apis():
         assert server["target_mutation"] is False, server["id"]
         assert server["allowed_apis"], server["id"]
         assert set(server["allowed_apis"]) <= allowed_api_ids, server["id"]
+        assert "software_install.operator_execute" not in set(server["allowed_apis"]), server["id"]
         assert server["guardrails"], server["id"]
 
 
@@ -169,6 +186,7 @@ def test_harness_contract_is_wired_into_local_runner_and_ci():
     runner = read(RUNNER)
     workflow = read(WORKFLOW)
     assert "python3 Tests/survey/test_local_harness_contracts.py" in runner
+    assert "python3 Tests/survey/test_software_install_harness_contracts.py" in runner
     assert "Tests/survey/test_local_harness_contracts.py" in workflow
     assert "Local harness contracts" in workflow
 
