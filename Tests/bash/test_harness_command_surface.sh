@@ -63,7 +63,7 @@ for fragment in \
   "worktree" \
   "origin/\$Branch" \
   "Set-Location -LiteralPath \$worktreeRoot"; do
-  grep -q "$fragment" scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 || fail "worktree bootstrap missing fragment: $fragment"
+  grep -Fq "$fragment" scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 || fail "worktree bootstrap missing fragment: $fragment"
 done
 pass "worktree bootstrap creates and enters missing sibling worktree"
 
