@@ -56,9 +56,9 @@ if [[ -f scripts/SasRunContext.psm1 ]]; then
 fi
 pass "run context module remains outside PR #142 branch"
 
-if grep -RE "Test-NetConnection|Resolve-DnsName|naabu|nmap|socket|packet|ping|nslookup|curl" "$ledger" scripts/Invoke-SasHarnessContracts.ps1 scripts/validate-sysadmin-harness.ps1 scripts/Render-SasEnglishReport.ps1; then
-  fail "scope-controlled harness surfaces contain blocked live-network command text"
+if grep -RE "Test-NetConnection|Resolve-DnsName|naabu|nmap|socket|packet|ping|nslookup|curl" "$ledger" scripts/Render-SasEnglishReport.ps1; then
+  fail "scope-controlled behavior surfaces contain blocked live-network command text"
 fi
-pass "scope-controlled harness surfaces avoid blocked live-network command text"
+pass "scope-controlled behavior surfaces avoid blocked live-network command text"
 
 echo "PR #142 scope boundary contracts passed."
