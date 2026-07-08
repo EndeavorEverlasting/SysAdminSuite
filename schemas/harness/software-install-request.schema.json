@@ -8,7 +8,8 @@
     "package_name",
     "installer_relative_path",
     "install_mode",
-    "targets"
+    "targets",
+    "allow_target_mutation"
   ],
   "properties": {
     "package_name": {
@@ -25,9 +26,15 @@
       "minLength": 1,
       "not": {
         "anyOf": [
-          { "pattern": "^[A-Za-z]:" },
-          { "pattern": "^\\\\\\\\" },
-          { "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)" }
+          {
+            "pattern": "^[A-Za-z]:"
+          },
+          {
+            "pattern": "^\\\\\\\\"
+          },
+          {
+            "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)"
+          }
         ]
       }
     },
