@@ -25,6 +25,7 @@ $required = @(
     'Run-EnglishReportFixture.cmd',
     'Run-ExportHarnessEvidence.cmd',
     'scripts/Ensure-Pr142HarnessFoundationWorktree.ps1',
+    'scripts/Invoke-SasHarnessContracts.ps1',
     'scripts/run-harness-validation.sh',
     'scripts/render-english-report-fixtures.sh',
     'scripts/show-harness-evidence-paths.sh',
@@ -124,10 +125,10 @@ catch {
 
 try {
     $wrapperRoutes = @{
-        'Run-HarnessContracts.cmd' = 'Tests/bash/run_harness_contracts.sh'
-        'Run-HarnessValidation.cmd' = 'scripts/run-harness-validation.sh'
-        'Run-EnglishReportFixture.cmd' = 'scripts/render-english-report-fixtures.sh'
-        'Run-ExportHarnessEvidence.cmd' = 'scripts/show-harness-evidence-paths.sh'
+        'Run-HarnessContracts.cmd' = 'scripts\Invoke-SasHarnessContracts.ps1'
+        'Run-HarnessValidation.cmd' = 'scripts\validate-sysadmin-harness.ps1'
+        'Run-EnglishReportFixture.cmd' = 'scripts\Render-SasEnglishReport.ps1'
+        'Run-ExportHarnessEvidence.cmd' = 'Harness output locations'
     }
     $wrapperFailures = @()
     foreach ($wrapper in $wrapperRoutes.Keys) {
@@ -142,15 +143,19 @@ try {
         if ($text -notmatch 'exit /b %SAS_EXIT%') {
             $wrapperFailures += "$wrapper does not preserve exit code"
         }
+        if ($text -match '\bbash\b') {
+            $wrapperFailures += "$wrapper still depends on Bash"
+        }
     }
-    Add-Check -Name 'command surface wrappers' -Passed ($wrapperFailures.Count -eq 0) -Detail (($wrapperFailures -join '; '))
+    Add-Check -Name 'PowerShell-native command wrappers' -Passed ($wrapperFailures.Count -eq 0) -Detail (($wrapperFailures -join '; '))
 }
 catch {
-    Add-Check -Name 'command surface wrappers' -Passed $false -Detail $_.Exception.Message
+    Add-Check -Name 'PowerShell-native command wrappers' -Passed $false -Detail $_.Exception.Message
 }
 
 try {
     $scriptRoutes = @{
+        'scripts/Invoke-SasHarnessContracts.ps1' = 'scripts/validate-sysadmin-harness.ps1'
         'scripts/run-harness-validation.sh' = 'scripts/validate-sysadmin-harness.ps1'
         'scripts/render-english-report-fixtures.sh' = 'scripts/Render-SasEnglishReport.ps1'
         'scripts/show-harness-evidence-paths.sh' = 'docs/evidence/latest/README.md'
