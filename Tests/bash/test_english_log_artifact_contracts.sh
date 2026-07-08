@@ -10,6 +10,13 @@ pass() { echo "[PASS] $*"; }
 [[ -f scripts/Render-SasEnglishReport.ps1 ]] || fail "renderer missing"
 pass "renderer exists"
 
+grep -q "function Format-SasInlineCode" scripts/Render-SasEnglishReport.ps1 || fail "renderer missing inline-code formatter"
+grep -q "\${name}:" scripts/Render-SasEnglishReport.ps1 || fail "renderer does not delimit dynamic result names before colon"
+if grep -q '"`\$path`"' scripts/Render-SasEnglishReport.ps1; then
+  fail "renderer contains invalid backtick-dollar-path quoting"
+fi
+pass "renderer PowerShell quoting guard"
+
 for file in \
   schemas/harness/run-event.schema.json \
   schemas/harness/artifact-registry.schema.json \
