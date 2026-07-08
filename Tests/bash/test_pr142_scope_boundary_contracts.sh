@@ -34,6 +34,7 @@ for owned in \
   "Harness validation helpers" \
   "CI/static parity" \
   "Run-context boundary documentation" \
+  "Merge-readiness reporting" \
   "Workflow specs and schemas" \
   "Local staging and output discovery"; do
   grep -Fq "$owned" "$ledger" || fail "scope ledger missing owned lane: $owned"
@@ -47,6 +48,7 @@ for surfaced in \
   "scripts/render-english-report-fixtures.sh" \
   "scripts/show-harness-evidence-paths.sh" \
   "Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md" \
+  "docs/handoff/pr142-merge-readiness.md" \
   "survey/input/README.md" \
   "survey/output/README.md" \
   "survey/artifacts/README.md"; do
