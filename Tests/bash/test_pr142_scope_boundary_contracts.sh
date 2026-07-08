@@ -31,12 +31,28 @@ for owned in \
   "Harness doctrine" \
   "Fixture-backed English reports" \
   "Harness command surface" \
+  "Harness validation helpers" \
   "CI/static parity" \
+  "Run-context boundary documentation" \
   "Workflow specs and schemas" \
-  "Local output discovery"; do
+  "Local staging and output discovery"; do
   grep -Fq "$owned" "$ledger" || fail "scope ledger missing owned lane: $owned"
 done
 pass "scope ledger enumerates owned lanes"
+
+for surfaced in \
+  "scripts/validate-sysadmin-harness.ps1" \
+  "scripts/Ensure-Pr142HarnessFoundationWorktree.ps1" \
+  "scripts/run-harness-validation.sh" \
+  "scripts/render-english-report-fixtures.sh" \
+  "scripts/show-harness-evidence-paths.sh" \
+  "Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md" \
+  "survey/input/README.md" \
+  "survey/output/README.md" \
+  "survey/artifacts/README.md"; do
+  grep -Fq "$surfaced" "$ledger" || fail "scope ledger missing changed surface: $surfaced"
+done
+pass "scope ledger names scope-control surfaces changed by PR #142"
 
 for non_owned in \
   "Canonical run context module" \
