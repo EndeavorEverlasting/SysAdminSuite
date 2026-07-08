@@ -89,9 +89,9 @@ The approved software source root is:
 \\nt2kwb972sms01\
 ```
 
-Software install work should prefer direct UNC execution from the read-only source so SysAdminSuite does not stage installer payloads on the target. If staging is required, the wrapper must stage only under a run-specific `ProgramData\SysAdminSuite\SoftwareInstall\<run_id>` folder, remove that folder after execution, and report cleanup status locally.
+Software install work should prefer direct UNC execution from the read-only source so SysAdminSuite does not stage installer payloads on the target. If staging is required, the wrapper must stage only under a run-specific `ProgramData\SysAdminSuite\SoftwareInstall\<run_id>` folder, remove that run folder after execution, and prune empty `ProgramData\SysAdminSuite\SoftwareInstall` and `ProgramData\SysAdminSuite` parent directories when no sibling run artifacts remain.
 
-The no-artifact boundary means no persistent SysAdminSuite staging payload should remain on the target. It does not mean the harness clears Windows event logs, installer logs, registry keys, endpoint-management records, or the installed software's own files.
+The no-artifact boundary means no persistent SysAdminSuite-owned staging payload, log, report, manifest, transcript, script, or evidence should remain on the target. Installer-owned files, installer logs, registry changes, caches, services, and endpoint-management records belong to the software install itself. SysAdminSuite does not erase operating-system audit logs; it avoids and cleans its own target filesystem remnants.
 
 See `docs/SOFTWARE_INSTALL_HARNESS.md` and `scripts/Invoke-SasSoftwareInstall.ps1` for the concrete contract.
 
