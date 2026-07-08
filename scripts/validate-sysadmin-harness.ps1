@@ -24,6 +24,7 @@ $required = @(
     'Run-HarnessValidation.cmd',
     'Run-EnglishReportFixture.cmd',
     'Run-ExportHarnessEvidence.cmd',
+    'docs/handoff/pr142-scope-ledger.md',
     'scripts/Ensure-Pr142HarnessFoundationWorktree.ps1',
     'scripts/Invoke-SasHarnessContracts.ps1',
     'scripts/run-harness-validation.sh',
@@ -32,6 +33,7 @@ $required = @(
     'scripts/Render-SasEnglishReport.ps1',
     'Tests/bash/run_harness_contracts.sh',
     'Tests/bash/test_harness_command_surface.sh',
+    'Tests/bash/test_pr142_scope_boundary_contracts.sh',
     'schemas/harness/run-event.schema.json',
     'schemas/harness/artifact-registry.schema.json',
     'schemas/harness/operator-report.schema.json',
@@ -124,6 +126,31 @@ catch {
 }
 
 try {
+    $ledgerPath = 'docs/handoff/pr142-scope-ledger.md'
+    $ledgerText = Get-Content -LiteralPath $ledgerPath -Raw
+    $requiredLedgerPhrases = @(
+        'PR #142 is intentionally a broad harness-foundation PR',
+        '## Owned lanes',
+        '## Explicit non-owned lanes',
+        '## Merge-risk controls',
+        '## Merge-readiness rule',
+        'Canonical run context module',
+        'Target reduction planner',
+        'Low-noise port policy',
+        'Windows log classifier',
+        'Manifest-driven deployment',
+        'Windows .cmd launchers must be PowerShell-native',
+        'scripts/SasRunContext.psm1 remains absent'
+    )
+    $missingLedgerPhrases = @($requiredLedgerPhrases | Where-Object { -not $ledgerText.Contains($_) })
+    $runContextPresent = Test-Path -LiteralPath 'scripts/SasRunContext.psm1'
+    Add-Check -Name 'PR142 scope ledger' -Passed (($missingLedgerPhrases.Count -eq 0) -and (-not $runContextPresent)) -Detail (($missingLedgerPhrases -join ', ') + $(if ($runContextPresent) { '; scripts/SasRunContext.psm1 present' } else { '' }))
+}
+catch {
+    Add-Check -Name 'PR142 scope ledger' -Passed $false -Detail $_.Exception.Message
+}
+
+try {
     $wrapperRoutes = @{
         'Run-HarnessContracts.cmd' = 'scripts\Invoke-SasHarnessContracts.ps1'
         'Run-HarnessValidation.cmd' = 'scripts\validate-sysadmin-harness.ps1'
@@ -155,7 +182,7 @@ catch {
 
 try {
     $scriptRoutes = @{
-        'scripts/Invoke-SasHarnessContracts.ps1' = 'scripts/validate-sysadmin-harness.ps1'
+        'scripts/Invoke-SasHarnessContracts.ps1' = 'docs/handoff/pr142-scope-ledger.md'
         'scripts/run-harness-validation.sh' = 'scripts/validate-sysadmin-harness.ps1'
         'scripts/render-english-report-fixtures.sh' = 'scripts/Render-SasEnglishReport.ps1'
         'scripts/show-harness-evidence-paths.sh' = 'docs/evidence/latest/README.md'
