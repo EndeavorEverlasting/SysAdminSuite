@@ -40,4 +40,4 @@ PR #142 may be treated as reviewable only when:
 2. Pester succeeds on the PR head.
 3. Survey doctrine succeeds on the PR head.
 4. Local Windows validation runs `scripts/Invoke-SasHarnessContracts.ps1` or `Run-HarnessContracts.cmd` from the PR #142 worktree.
-5. `scripts/SasRunContext.psm1` remains absent from this PR branch.
+5. scripts/SasRunContext.psm1 remains absent from this PR branch.
