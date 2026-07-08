@@ -86,6 +86,7 @@ def test_script_enforces_approved_source_and_explicit_mutation_gate():
         "New-PSSession -ComputerName $target",
         "Copy-Item -LiteralPath $installerPath -Destination $remoteInstallerPath -ToSession $session -Force",
         "Remove-Item -LiteralPath $stageRoot -Recurse -Force",
+        "operator_handoff.txt",
         "cleanup_failure_count",
         "no_monitoring_bypass_or_log_suppression",
     ]
@@ -109,6 +110,7 @@ def test_schema_keeps_requests_bounded():
     assert schema["title"] == "SysAdminSuite software install request"
     assert schema["properties"]["software_share_root"]["default"] == "\\\\nt2kwb972sms01\\"
     assert schema["properties"]["targets"]["maxItems"] == 25
+    assert "allow_target_mutation" in schema["required"]
     assert schema["properties"]["allow_target_mutation"]["const"] is True
     assert schema["properties"]["install_mode"]["enum"] == ["UncDirect", "CopyThenInstall"]
 
