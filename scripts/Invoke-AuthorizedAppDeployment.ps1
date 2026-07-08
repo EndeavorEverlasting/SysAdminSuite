@@ -53,32 +53,41 @@ function Resolve-SasInstallerSourcePath {
 
 function Test-SasManifestRows {
   param([object[]]$Rows,[string[]]$AllowedShareRoot)
-  $errors = New-Object System.Collections.Generic.List[object]
+
+  $errors = @()
   $rowNumber = 1
+
   foreach ($row in $Rows) {
     foreach ($field in $RequiredFields) {
       if (-not ($row.PSObject.Properties.Name -contains $field) -or [string]::IsNullOrWhiteSpace([string]$row.$field)) {
-        $errors.Add([pscustomobject]@{ row = $rowNumber; field = $field; category = 'MissingRequiredField'; message = "Missing required field $field" })
+        $errors += [pscustomobject]@{ row = $rowNumber; field = $field; category = 'MissingRequiredField'; message = "Missing required field $field" }
       }
     }
+
     if ([string]$row.NetworkSharePath -notmatch '^\\\\[^\\]+\\[^\\]+') {
-      $errors.Add([pscustomobject]@{ row = $rowNumber; field = 'NetworkSharePath'; category = 'InvalidSharePath'; message = 'NetworkSharePath must be a UNC share path.' })
+      $errors += [pscustomobject]@{ row = $rowNumber; field = 'NetworkSharePath'; category = 'InvalidSharePath'; message = 'NetworkSharePath must be a UNC share path.' }
     }
+
     if ($AllowedShareRoot -and -not ($AllowedShareRoot | Where-Object { [string]$row.NetworkSharePath -like "$($_.TrimEnd('\'))*" })) {
-      $errors.Add([pscustomobject]@{ row = $rowNumber; field = 'NetworkSharePath'; category = 'ShareRootNotAllowed'; message = 'NetworkSharePath is outside the configured allowlist.' })
+      $errors += [pscustomobject]@{ row = $rowNumber; field = 'NetworkSharePath'; category = 'ShareRootNotAllowed'; message = 'NetworkSharePath is outside the configured allowlist.' }
     }
+
     if ([string]$row.ExpectedSha256 -notmatch '^[A-Fa-f0-9]{64}$') {
-      $errors.Add([pscustomobject]@{ row = $rowNumber; field = 'ExpectedSha256'; category = 'InvalidSha256'; message = 'ExpectedSha256 must be a 64-character hex string.' })
+      $errors += [pscustomobject]@{ row = $rowNumber; field = 'ExpectedSha256'; category = 'InvalidSha256'; message = 'ExpectedSha256 must be a 64-character hex string.' }
     }
+
     if ([string]$row.TargetHostname -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$') {
-      $errors.Add([pscustomobject]@{ row = $rowNumber; field = 'TargetHostname'; category = 'InvalidTargetHostname'; message = 'TargetHostname must be a hostname, not an IP range or command.' })
+      $errors += [pscustomobject]@{ row = $rowNumber; field = 'TargetHostname'; category = 'InvalidTargetHostname'; message = 'TargetHostname must be a hostname, not an IP range or command.' }
     }
+
     $source = Resolve-SasInstallerSourcePath -Row $row
     if (-not (Test-Path -LiteralPath $source)) {
-      $errors.Add([pscustomobject]@{ row = $rowNumber; field = 'InstallerPath'; category = 'InstallerNotFound'; message = "Installer not found at source path: $source" })
+      $errors += [pscustomobject]@{ row = $rowNumber; field = 'InstallerPath'; category = 'InstallerNotFound'; message = "Installer not found at source path: $source" }
     }
+
     $rowNumber++
   }
+
   return @($errors)
 }
 
@@ -90,13 +99,29 @@ function ConvertTo-SasBoolean {
 
 function New-SasResultRecord {
   param($Row,[string]$Status,[string]$Category,[string]$Message)
-  [ordered]@{
-    DeploymentId = $DeploymentId; Hostname = [string]$Row.TargetHostname; Application = [string]$Row.ApplicationName; ManifestRow = [string]$Row.ManifestRow
-    StartTime = (Get-Date).ToString('o'); EndTime = $null; NetworkSharePath = [string]$Row.NetworkSharePath; InstallerName = [System.IO.Path]::GetFileName([string]$Row.InstallerPath)
-    ExpectedSha256 = [string]$Row.ExpectedSha256; ActualSha256 = $null; HashValidationStatus = 'NotChecked'; InstallAttempted = $false; InstallerExitCode = $null
-    InstallResult = $Status; RebootRequired = (ConvertTo-SasBoolean -Value $Row.RebootRequired)
-    CleanupAttempted = $false; CleanupResult = 'NotAttempted'; ErrorCategory = $Category; ErrorMessage = $Message; NextRecommendedAction = 'Review validation report and manifest/source path.'
-  }
+
+  $record = New-Object PSObject
+  $record | Add-Member -MemberType NoteProperty -Name DeploymentId -Value $DeploymentId
+  $record | Add-Member -MemberType NoteProperty -Name Hostname -Value ([string]$Row.TargetHostname)
+  $record | Add-Member -MemberType NoteProperty -Name Application -Value ([string]$Row.ApplicationName)
+  $record | Add-Member -MemberType NoteProperty -Name ManifestRow -Value ([string]$Row.ManifestRow)
+  $record | Add-Member -MemberType NoteProperty -Name StartTime -Value ((Get-Date).ToString('o'))
+  $record | Add-Member -MemberType NoteProperty -Name EndTime -Value ''
+  $record | Add-Member -MemberType NoteProperty -Name NetworkSharePath -Value ([string]$Row.NetworkSharePath)
+  $record | Add-Member -MemberType NoteProperty -Name InstallerName -Value ([System.IO.Path]::GetFileName([string]$Row.InstallerPath))
+  $record | Add-Member -MemberType NoteProperty -Name ExpectedSha256 -Value ([string]$Row.ExpectedSha256)
+  $record | Add-Member -MemberType NoteProperty -Name ActualSha256 -Value ''
+  $record | Add-Member -MemberType NoteProperty -Name HashValidationStatus -Value 'NotChecked'
+  $record | Add-Member -MemberType NoteProperty -Name InstallAttempted -Value $false
+  $record | Add-Member -MemberType NoteProperty -Name InstallerExitCode -Value ''
+  $record | Add-Member -MemberType NoteProperty -Name InstallResult -Value $Status
+  $record | Add-Member -MemberType NoteProperty -Name RebootRequired -Value (ConvertTo-SasBoolean -Value $Row.RebootRequired)
+  $record | Add-Member -MemberType NoteProperty -Name CleanupAttempted -Value $false
+  $record | Add-Member -MemberType NoteProperty -Name CleanupResult -Value 'NotAttempted'
+  $record | Add-Member -MemberType NoteProperty -Name ErrorCategory -Value $Category
+  $record | Add-Member -MemberType NoteProperty -Name ErrorMessage -Value $Message
+  $record | Add-Member -MemberType NoteProperty -Name NextRecommendedAction -Value 'Review validation report and manifest/source path.'
+  return $record
 }
 
 function Invoke-SasRemoteInstall {
@@ -135,9 +160,9 @@ $i = 1; foreach ($r in $rows) { Add-Member -InputObject $r -NotePropertyName Man
 if ($SingleHost) { $rows = @($rows | Where-Object { $_.TargetHostname -ieq $SingleHost }) }
 if ($PSBoundParameters.ContainsKey('TargetLimit')) { $rows = @($rows | Select-Object -First $TargetLimit) }
 $validationErrors = Test-SasManifestRows -Rows $rows -AllowedShareRoot $AllowedShareRoot
-$validationReport = [ordered]@{ deploymentId = $DeploymentId; manifestPath = $ManifestPath; execute = [bool]$Execute; rowCount = @($rows).Count; errors = @($validationErrors) }
+$validationReport = [pscustomobject]@{ deploymentId = $DeploymentId; manifestPath = $ManifestPath; execute = [bool]$Execute; rowCount = @($rows).Count; errors = @($validationErrors) }
 $validationReport | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $runDir 'validation-report.json') -Encoding UTF8
-if ($validationErrors.Count -gt 0) { throw "Manifest validation failed. See $(Join-Path $runDir 'validation-report.json')" }
+if (@($validationErrors).Count -gt 0) { throw "Manifest validation failed. See $(Join-Path $runDir 'validation-report.json')" }
 
 Write-Host "Deployment ID: $DeploymentId"
 Write-Host ("Mode: {0}" -f ($(if ($Execute) { 'EXECUTE' } else { 'DRY-RUN' })))
@@ -162,7 +187,7 @@ foreach ($row in $rows) {
   } catch {
     $record.ErrorCategory = ($(if ($_.Exception.Message -like 'HASH_MISMATCH*') { 'HashMismatch' } else { 'DeploymentError' }))
     $record.ErrorMessage = $_.Exception.Message; $record.InstallResult = 'Failed'; Write-Host "$($row.TargetHostname) $($row.ApplicationName): Failed"
-  } finally { $record.EndTime = (Get-Date).ToString('o'); $results += [pscustomobject]$record }
+  } finally { $record.EndTime = (Get-Date).ToString('o'); $results += $record }
 }
 $results | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $runDir 'deployment-results.json') -Encoding UTF8
 $results | Export-Csv -Path (Join-Path $runDir 'deployment-results.csv') -NoTypeInformation
