@@ -10,6 +10,12 @@ pass() { echo "[PASS] $*"; }
 [[ -f scripts/validate-sysadmin-harness.ps1 ]] || fail "validator missing"
 pass "validator exists"
 
+[[ -f Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md ]] || fail "run context lane boundary missing"
+grep -q "PR #146" Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md || fail "run context boundary does not name PR #146"
+grep -q "scripts/SasRunContext.psm1" Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md || fail "run context boundary does not name canonical module"
+grep -q "must consume that module after rebasing" Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md || fail "run context boundary does not require consuming merged module"
+pass "run context lane boundary documented"
+
 grep -q "SYSADMIN HARNESS VALIDATION" scripts/validate-sysadmin-harness.ps1 || fail "validator missing title"
 grep -q "PASS" scripts/validate-sysadmin-harness.ps1 || fail "validator missing PASS matrix output"
 grep -q "FAIL" scripts/validate-sysadmin-harness.ps1 || fail "validator missing FAIL matrix output"
