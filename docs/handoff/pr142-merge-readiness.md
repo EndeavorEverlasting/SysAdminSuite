@@ -10,10 +10,10 @@ Date: 2026-07-09
 | Branch | `docs/ai-layer-harness-tooling-plan` |
 | Base | `main` |
 | Latest local Windows proof head | `62d5b9d6cd3432190b98fad19b517bae520afeaf` |
-| Latest tracked handoff update | This report records the operator-supplied local Windows validation proof for `62d5b9d6cd3432190b98fad19b517bae520afeaf`. |
+| Latest tracked handoff update | This report records the operator-supplied local Windows validation proof for `62d5b9d6cd3432190b98fad19b517bae520afeaf` and is the tracked source of truth if PR body text lags. |
 | PR state at inspection | Open, not draft, not merged, mergeable |
 | Changed files at inspection | 38 |
-| Branch relation to `main` | Diverged; `main` has 41 commits not yet in this branch, and this branch has 94 commits not in `main` |
+| Branch relation to `main` | Diverged; connector preflight before this report refresh observed `main` 41 commits ahead of the branch and the branch 99 commits ahead of `main` |
 
 ## CI state at inspected head
 
@@ -29,7 +29,7 @@ The scope ledger, boundary contract, and PR body have been brought into alignmen
 
 - `docs/handoff/pr142-scope-ledger.md` records harness validation helpers, run-context boundary documentation, merge-readiness reporting, and local staging/output discovery as PR-owned surfaces.
 - `Tests/bash/test_pr142_scope_boundary_contracts.sh` enforces those tracked surfaces.
-- The PR body records that local Windows proof is a separate merge-readiness requirement.
+- The PR body records that local Windows proof is a separate merge-readiness requirement; this report is the tracked proof record after the operator supplied current-head Windows output.
 - `Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md` keeps PR #142 out of canonical run-context ownership.
 - `scripts/SasRunContext.psm1` remains outside PR #142-owned changes.
 
