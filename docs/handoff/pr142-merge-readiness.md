@@ -9,25 +9,26 @@ Date: 2026-07-08
 | PR | #142, `feat(harness): add executable AI harness foundation` |
 | Branch | `docs/ai-layer-harness-tooling-plan` |
 | Base | `main` |
-| Latest evidence head inspected | `eef45867a5a9609e4c6163edda9c30005579528b` |
+| Latest evidence head inspected | `c665e8adf90824341185a8df1b036ee707595a93` |
 | PR state at inspection | Open, not draft, not merged, mergeable |
 | Changed files at inspection | 38 |
-| Branch relation to `main` | Diverged; `main` has 41 commits not yet in this branch, and this branch has 92 commits not in `main` |
+| Branch relation to `main` | Diverged; `main` has 41 commits not yet in this branch, and this branch has 93 commits not in `main` |
 
 ## CI state at inspected head
 
 | Workflow | Run | Status | Conclusion |
 |---|---:|---|---|
-| Harness Contracts | 112 | completed | success |
-| Pester | 837 | completed | success |
-| Survey doctrine | 353 | completed | success |
+| Harness Contracts | 114 | completed | success |
+| Pester | 839 | completed | success |
+| Survey doctrine | 354 | completed | success |
 
 ## Scope-control state
 
-The scope ledger and boundary contract now match the current PR #142 changed-file set more closely:
+The scope ledger, boundary contract, and PR body have been brought into alignment with the current PR #142 reporting state:
 
 - `docs/handoff/pr142-scope-ledger.md` records harness validation helpers, run-context boundary documentation, merge-readiness reporting, and local staging/output discovery as PR-owned surfaces.
 - `Tests/bash/test_pr142_scope_boundary_contracts.sh` enforces those tracked surfaces.
+- The PR body now records that the PR body was updated and that local Windows proof remains a separate requirement.
 - `Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md` keeps PR #142 out of canonical run-context ownership.
 - `scripts/SasRunContext.psm1` remains outside PR #142-owned changes.
 
@@ -40,7 +41,7 @@ Repo evidence confirms the expected Windows-native path exists:
 - `Run-HarnessContracts.cmd` routes to `scripts/Invoke-SasHarnessContracts.ps1`.
 - `Run-HarnessValidation.cmd` routes to `scripts/validate-sysadmin-harness.ps1`.
 - `docs/handoff/pr142-scope-ledger.md` requires local Windows validation through `scripts/Invoke-SasHarnessContracts.ps1` or `Run-HarnessContracts.cmd` before review/merge readiness.
-- No tracked reviewed evidence summary currently records a passing local Windows run for inspected head `eef45867a5a9609e4c6163edda9c30005579528b`.
+- No tracked reviewed evidence summary currently records a passing local Windows run for inspected head `c665e8adf90824341185a8df1b036ee707595a93`.
 
 `git diff --check` was not run by this connector-only update because this sprint used GitHub repository evidence rather than a local worktree.
 
