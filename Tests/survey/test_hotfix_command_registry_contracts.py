@@ -164,27 +164,21 @@ def test_field_hotfixes_launcher_runs_the_dedicated_gui_in_sta_mode() -> None:
     assert "GUI\\Start-FieldHotfixesGui.ps1" in content
 
 
-def test_main_gui_wrapper_injects_field_hotfixes_into_tab_collection() -> None:
-    assert MAIN_GUI_PATH.exists(), f"missing main GUI wrapper: {MAIN_GUI_PATH}"
-    assert MAIN_GUI_CORE_PATH.exists(), f"missing preserved main GUI core: {MAIN_GUI_CORE_PATH}"
+def test_main_gui_remains_monolithic_and_not_runtime_generated() -> None:
+    assert MAIN_GUI_PATH.exists(), f"missing main GUI: {MAIN_GUI_PATH}"
+    assert not MAIN_GUI_CORE_PATH.exists(), "temporary wrapper/core split must not remain in the repo"
     content = MAIN_GUI_PATH.read_text(encoding="utf-8")
 
-    assert "Start-SysAdminSuiteGui.Core.ps1" in content
-    assert "$fieldHotfixesTab.Text = 'Field Hotfixes'" in content
-    assert "$tabs.TabPages.AddRange(@($runTab,$kronosTab,$compareTab,$deployTrackTab,$machineInfoTab,$bomTab,$fieldHotfixesTab))" in content
-    assert "Start-FieldHotfixesGui.ps1" in content
-    assert "cmd_shift_f10" in content
-    assert "powershell_console" in content
-    assert "Set-QRCodeImage -PictureBox $picFieldHotfixQr" in content
-    assert "Shift+F10" in content
-    assert "Stand at the Cybernet" in content
+    assert "Start-SysAdminSuiteGui.Core.ps1" not in content
+    assert "Start-SysAdminSuiteGui.Integrated.generated.ps1" not in content
+    assert "$generatedPath" not in content
+    assert "Remove-Item -LiteralPath $generatedPath" not in content
+    assert "$tabs.TabPages.AddRange(@($runTab,$kronosTab,$compareTab,$deployTrackTab,$machineInfoTab,$bomTab))" in content
 
 
-def test_main_gui_wrapper_preserves_core_without_adding_silent_remote_execution() -> None:
+def test_main_gui_does_not_receive_connector_only_field_hotfix_injection() -> None:
     content = MAIN_GUI_PATH.read_text(encoding="utf-8")
 
-    assert "Start-SysAdminSuiteGui.Integrated.generated.ps1" in content
-    assert "Remove-Item -LiteralPath $generatedPath" in content
-    assert "Invoke-Command" not in content
-    assert "New-PSSession" not in content
-    assert "Register-ScheduledTask" not in content
+    assert "fieldHotfixTabInjection" not in content
+    assert "$fieldHotfixesTab.Text = 'Field Hotfixes'" not in content
+    assert "Start-FieldHotfixesGui.ps1" not in content
