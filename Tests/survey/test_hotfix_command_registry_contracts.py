@@ -12,11 +12,42 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "configs" / "hotfix-commands" / "cybernet-setup-completion-flag.json"
+SCHEMA_PATH = REPO_ROOT / "schemas" / "harness" / "hotfix-command.schema.json"
 
 
 def load_manifest() -> dict:
     assert MANIFEST_PATH.exists(), f"missing manifest: {MANIFEST_PATH}"
     return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+
+
+def load_schema() -> dict:
+    assert SCHEMA_PATH.exists(), f"missing schema: {SCHEMA_PATH}"
+    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def test_hotfix_command_schema_requires_operator_safe_fields() -> None:
+    schema = load_schema()
+    required = set(schema["required"])
+
+    for key in [
+        "command_id",
+        "status",
+        "risk_level",
+        "requires_operator_confirmation",
+        "intended_operator_position",
+        "delivery_modes",
+        "preconditions",
+        "forbidden_use",
+        "scan_instructions",
+        "cmd_payload",
+        "powershell_payload",
+        "qr_payloads",
+    ]:
+        assert key in required
+
+    assert schema["properties"]["requires_operator_confirmation"]["const"] is True
+    assert "standing-at-target" in schema["properties"]["intended_operator_position"]["enum"]
+    assert "silent-admin-push" not in schema["properties"]["delivery_modes"]["items"]["enum"]
 
 
 def test_cybernet_setup_completion_manifest_is_versioned_and_operator_confirmed() -> None:
