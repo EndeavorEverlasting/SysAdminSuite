@@ -13,6 +13,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "configs" / "hotfix-commands" / "cybernet-setup-completion-flag.json"
 SCHEMA_PATH = REPO_ROOT / "schemas" / "harness" / "hotfix-command.schema.json"
+FIELD_HOTFIX_GUI_PATH = REPO_ROOT / "GUI" / "Start-FieldHotfixesGui.ps1"
+FIELD_HOTFIX_LAUNCHER_PATH = REPO_ROOT / "Run-FieldHotfixesGui.cmd"
 
 
 def load_manifest() -> dict:
@@ -116,3 +118,45 @@ def test_cybernet_setup_completion_manifest_has_no_public_or_secret_bearing_payl
 
     for fragment in forbidden_fragments:
         assert fragment not in manifest_text, f"manifest should not contain {fragment!r}"
+
+
+def test_field_hotfixes_gui_exposes_dedicated_tab_and_qr_workflow() -> None:
+    assert FIELD_HOTFIX_GUI_PATH.exists(), f"missing Field Hotfixes GUI: {FIELD_HOTFIX_GUI_PATH}"
+    content = FIELD_HOTFIX_GUI_PATH.read_text(encoding="utf-8")
+
+    assert "$fieldHotfixesTab.Text = 'Field Hotfixes'" in content
+    assert "configs\\hotfix-commands\\cybernet-setup-completion-flag.json" in content
+    assert "cmd_shift_f10" in content
+    assert "powershell_console" in content
+    assert "New-HotfixQrBitmap" in content
+    assert "QRCoder.dll" in content
+    assert "Scanner workflow" in content
+    assert "Shift+F10" in content
+    assert "Stand at the Cybernet" in content
+
+
+def test_field_hotfixes_gui_has_no_silent_remote_execution_surface() -> None:
+    content = FIELD_HOTFIX_GUI_PATH.read_text(encoding="utf-8")
+
+    forbidden_fragments = [
+        "Invoke-Command",
+        "New-PSSession",
+        "Enter-PSSession",
+        "Copy-Item -ToSession",
+        "\\\\$env:COMPUTERNAME\\c$",
+        "Start-Service",
+        "New-Service",
+        "Register-ScheduledTask",
+    ]
+
+    for fragment in forbidden_fragments:
+        assert fragment not in content, f"Field Hotfixes GUI must not include {fragment}"
+
+
+def test_field_hotfixes_launcher_runs_the_dedicated_gui_in_sta_mode() -> None:
+    assert FIELD_HOTFIX_LAUNCHER_PATH.exists(), f"missing launcher: {FIELD_HOTFIX_LAUNCHER_PATH}"
+    content = FIELD_HOTFIX_LAUNCHER_PATH.read_text(encoding="utf-8")
+
+    assert "powershell.exe" in content
+    assert "-STA" in content
+    assert "GUI\\Start-FieldHotfixesGui.ps1" in content
