@@ -5,6 +5,14 @@
 
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 TARGETS=()
 TARGET_FILE=""
 OUTPUT="bash/transport/output/workstation_identity.csv"
@@ -85,6 +93,10 @@ while [[ $# -gt 0 ]]; do
     *) TARGETS+=("$1"); shift ;;
   esac
 done
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 [[ "$TIMEOUT" =~ ^[0-9]+$ && "$TIMEOUT" -ge 1 ]] || fail "--timeout must be positive integer"
 if [[ "$ALLOW_SSH" -eq 1 && -z "$SSH_USER" ]]; then fail "--ssh-user is required with --allow-ssh"; fi

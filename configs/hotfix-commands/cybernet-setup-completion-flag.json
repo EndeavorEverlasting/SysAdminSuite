@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0.0",
+  "command_id": "cybernet.setup.childcompletion.setup_exe_3",
+  "title": "Cybernet Windows Setup Completion Flag",
+  "status": "approved-field-hotfix",
+  "version": "1.0.0",
+  "risk_level": "medium",
+  "requires_operator_confirmation": true,
+  "intended_operator_position": "standing-at-target",
+  "delivery_modes": [
+    "admin-gui-qr-display",
+    "suite-clone-local-qr-generation"
+  ],
+  "applies_to": [
+    "Cybernet devices stopped at the Windows setup restart/error loop before final post-install app binding"
+  ],
+  "preconditions": [
+    "A technician is physically standing in front of the target Cybernet",
+    "The target is showing the Windows setup restart/unexpected-error dialog",
+    "The technician can open Command Prompt with Shift+F10",
+    "The target has not completed final post-install identity/app binding"
+  ],
+  "forbidden_use": [
+    "Do not use as a general Windows repair command",
+    "Do not use after final clinical app/device COM binding unless an operator explicitly approves it",
+    "Do not run silently from the admin box without a technician confirming the target screen state"
+  ],
+  "scan_instructions": [
+    "Open Command Prompt on the Cybernet with Shift+F10 from the Windows setup error screen",
+    "Scan the CMD QR payload into the Command Prompt window",
+    "Press Enter if the scanner does not send Enter automatically",
+    "Allow the device to restart and continue post-install"
+  ],
+  "cmd_payload": "reg add HKLM\\SYSTEM\\Setup\\Status\\ChildCompletion /v setup.exe /t REG_DWORD /d 3 /f && shutdown /r /t 0",
+  "powershell_payload": "& reg.exe add HKLM\\SYSTEM\\Setup\\Status\\ChildCompletion /v setup.exe /t REG_DWORD /d 3 /f; shutdown.exe /r /t 0",
+  "qr_payloads": {
+    "cmd_shift_f10": "reg add HKLM\\SYSTEM\\Setup\\Status\\ChildCompletion /v setup.exe /t REG_DWORD /d 3 /f && shutdown /r /t 0",
+    "powershell_console": "& reg.exe add HKLM\\SYSTEM\\Setup\\Status\\ChildCompletion /v setup.exe /t REG_DWORD /d 3 /f; shutdown.exe /r /t 0"
+  },
+  "expected_result": "After restart, Windows setup continues and post-install can finish on affected Cybernets.",
+  "rollback_note": "No normal rollback is expected for this setup-state repair. Reimage if the setup state is invalid after the fix.",
+  "evidence_to_capture": [
+    "target asset tag or hostname label",
+    "timestamp",
+    "operator name or initials",
+    "whether the device continued post-install after reboot"
+  ]
+}

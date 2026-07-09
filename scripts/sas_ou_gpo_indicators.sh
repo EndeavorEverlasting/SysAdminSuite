@@ -4,6 +4,14 @@
 # Read-only evidence collector. No gpupdate, no AD writes, no registry writes.
 
 set -Eeuo pipefail
+
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
 OUTPUT_ROOT="${USERPROFILE:-${HOME:-.}}/SysAdminSuite/Runs"
 TARGET_HINT="local"
 INCLUDE_REGISTRY=1
@@ -38,6 +46,11 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown argument: $1" ;;
   esac
 done
+
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 HOST="$(portable_hostname)"; STAMP="$(date +"%Y%m%d_%H%M%S")"
 RUN_ID="SAS_OU_GPO_INDICATORS_${HOST}_${STAMP}"
@@ -114,6 +127,7 @@ COMP_DN="$(extract_dn "$RAW_DIR/gpresult_computer.txt")"
 USER_DN="$(extract_dn "$RAW_DIR/whoami_fqdn.txt")"
 COMP_OU="$(ou_from_dn "$COMP_DN")"; USER_OU="$(ou_from_dn "$USER_DN")"
 DC_HINT="$(first_match "$RAW_DIR/gpresult_computer.txt" 'Group Policy was applied from|Group Policy was applied from:')"
+
 [[ -z "$DC_HINT" ]] && DC_HINT="$(first_match "$RAW_DIR/nltest_dsgetdc.txt" 'DC:|Address:|Dom Name:')"
 POSTURE="unknown"; [[ "${PART,,}" == true ]] && POSTURE="domain_joined"; [[ "${PART,,}" == false ]] && POSTURE="not_domain_joined_or_unavailable"
 

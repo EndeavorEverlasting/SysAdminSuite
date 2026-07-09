@@ -11,7 +11,7 @@ fail() {
 }
 
 run_contracts() {
-  bash Tests/bash/smoke-naabu-profiles.sh
+  bash tests/bash/smoke-naabu-profiles.sh
   bash Tests/bash/test_naabu_profile_sync.sh
   bash Tests/bash/test_cybernet_detect_contracts.sh
   bash Tests/bash/test_naabu_pipeline_contracts.sh

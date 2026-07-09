@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 MANIFEST=""
 IDENTITY_CSV=""
 AD_CSV=""
@@ -56,6 +64,14 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown argument: $1" ;;
   esac
 done
+
+OFFLINE_FIXTURE_MODE=0
+if [[ -n "$IDENTITY_CSV" && "$AD_LIVE" -eq 0 ]]; then
+  OFFLINE_FIXTURE_MODE=1
+fi
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" && "$OFFLINE_FIXTURE_MODE" -ne 1 ]]; then
+  sas_require_northwell_wifi
+fi
 
 [[ -n "$MANIFEST" ]] || fail "--manifest is required"
 [[ -f "$MANIFEST" ]] || fail "Manifest not found: $MANIFEST"

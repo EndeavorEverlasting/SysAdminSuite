@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Runs the SysAdminSuite Pester suite with a strict Pester 5 requirement.
 
@@ -28,6 +28,27 @@ Install on a trusted build/test machine:
 }
 
 Import-Module Pester -RequiredVersion $pesterModule.Version -Force
+
+$networkGuardTemp = Join-Path ([System.IO.Path]::GetTempPath()) ("SAS_NetworkGuard_Pester_" + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $networkGuardTemp -Force | Out-Null
+$networkGuardConfig = Join-Path $networkGuardTemp 'sas-network-guard.local.json'
+$networkGuardIpconfig = Join-Path $networkGuardTemp 'ipconfig.txt'
+@{
+    allowedDnsSuffixes = @('wired.example.invalid')
+    allowedLocalIpCidrs = @('192.0.2.0/24')
+    allowedGatewayCidrs = @('192.0.2.1/32')
+    allowedDnsServerCidrs = @('198.51.100.0/24')
+} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $networkGuardConfig -Encoding UTF8
+@(
+    'Windows IP Configuration'
+    'Ethernet adapter Ethernet:'
+    '   Connection-specific DNS Suffix  . : wired.example.invalid'
+    '   IPv4 Address. . . . . . . . . . . : 192.0.2.25(Preferred)'
+    '   Default Gateway . . . . . . . . . : 192.0.2.1'
+    '   DNS Servers . . . . . . . . . . . : 198.51.100.10'
+) | Set-Content -LiteralPath $networkGuardIpconfig -Encoding UTF8
+$env:SAS_NETWORK_GUARD_CONFIG = $networkGuardConfig
+$env:SAS_NETWORK_GUARD_IPCONFIG_FIXTURE = $networkGuardIpconfig
 
 $config = New-PesterConfiguration
 $config.Run.Path = $TestPath
