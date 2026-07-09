@@ -1,0 +1,45 @@
+name: Harness Contracts
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/harness-contracts.yml'
+      - 'Tests/bash/run_harness_contracts.sh'
+      - 'Tests/bash/test_english_log_artifact_contracts.sh'
+      - 'Tests/bash/test_sysadmin_harness_validator_contracts.sh'
+      - 'Tests/bash/test_harness_command_surface.sh'
+      - 'Tests/bash/test_pr142_scope_boundary_contracts.sh'
+      - 'Run-HarnessContracts.cmd'
+      - 'Run-HarnessValidation.cmd'
+      - 'Run-EnglishReportFixture.cmd'
+      - 'Run-ExportHarnessEvidence.cmd'
+      - 'docs/handoff/pr142-scope-ledger.md'
+      - 'scripts/Ensure-Pr142HarnessFoundationWorktree.ps1'
+      - 'scripts/Invoke-SasHarnessContracts.ps1'
+      - 'scripts/run-harness-validation.sh'
+      - 'scripts/render-english-report-fixtures.sh'
+      - 'scripts/show-harness-evidence-paths.sh'
+      - 'scripts/Render-SasEnglishReport.ps1'
+      - 'scripts/validate-sysadmin-harness.ps1'
+      - 'schemas/harness/**'
+      - 'survey/fixtures/english-log/**'
+      - 'survey/workflows/**'
+  push:
+    branches:
+      - main
+      - docs/ai-layer-harness-tooling-plan
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run harness contract suite
+        shell: bash
+        run: bash Tests/bash/run_harness_contracts.sh
