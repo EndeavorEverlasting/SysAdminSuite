@@ -8,6 +8,7 @@ BeforeAll {
     $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:dispatcherPath = Join-Path $repoRoot 'QRTasks\Invoke-TechTask.ps1'
     $script:powerComfortPath = Join-Path $repoRoot 'QRTasks\Set-PowerComfortDefaults.ps1'
+    $script:displayMenuProbePath = Join-Path $repoRoot 'QRTasks\Test-DisplayMenuButtonEvent.ps1'
 }
 
 Describe 'Invoke-TechTask task registry' {
@@ -25,10 +26,15 @@ Describe 'Invoke-TechTask task registry' {
         $content = Get-Content -Path $script:dispatcherPath -Raw
         $content | Should -Match "PowerComfortRevert\s*=\s*'Restore-PowerComfortDefaults\.ps1'"
     }
+
+    It 'Includes DisplayMenuButtonProbe mapped to Test-DisplayMenuButtonEvent.ps1' {
+        $content = Get-Content -Path $script:dispatcherPath -Raw
+        $content | Should -Match "DisplayMenuButtonProbe\s*=\s*'Test-DisplayMenuButtonEvent\.ps1'"
+    }
 }
 
 Describe 'Set-PowerComfortDefaults button behavior' {
-    It 'Sets the physical power button and Windows menu power button to do nothing on AC and DC' {
+    It 'Sets the physical power button and Windows Start menu power button to do nothing on AC and DC' {
         $content = Get-Content -Path $script:powerComfortPath -Raw
         $content | Should -Match '\$powerButtonAction\s*=\s*''7648efa3-dd9c-4e3e-b566-50f929386280'''
         $content | Should -Match '\$startMenuPowerButtonAction\s*=\s*''a7066653-8d6c-40a8-910e-a1f54b84c7e5'''
@@ -38,9 +44,39 @@ Describe 'Set-PowerComfortDefaults button behavior' {
         $content.Contains("@('/setdcvalueindex', `$g, 'SUB_BUTTONS', `$startMenuPowerButtonAction, '0')") | Should -Be $true
     }
 
-    It 'Names the menu power button behavior in the operator report text' {
+    It 'Names the Start menu power button behavior in the operator report text' {
         $content = Get-Content -Path $script:powerComfortPath -Raw
         $content | Should -Match 'start menu power button=do nothing'
+    }
+}
+
+Describe 'Test-DisplayMenuButtonEvent field probe' {
+    It 'Classifies the physical display/menu button separately from Windows power policy' {
+        $content = Get-Content -Path $script:displayMenuProbePath -Raw
+        $content | Should -Match 'physical display/menu button'
+        $content | Should -Match 'OBSERVED_WINDOWS_EVENT'
+        $content | Should -Match 'NO_WINDOWS_EVENT_OBSERVED'
+        $content | Should -Match 'firmware-only / OSD-controlled'
+        $content | Should -Match 'DisplayMenuButtonProbe'
+    }
+
+    It 'Remains read-only except for local QRTasks report output' {
+        $content = Get-Content -Path $script:displayMenuProbePath -Raw
+        $forbidden = @(
+            'powercfg /set',
+            'Set-ItemProperty',
+            'New-ItemProperty',
+            'Remove-ItemProperty',
+            'Register-ScheduledTask',
+            'New-Service',
+            'wevtutil cl',
+            'Clear-EventLog'
+        )
+        foreach ($fragment in $forbidden) {
+            $content | Should -Not -Match ([regex]::Escape($fragment))
+        }
+        $content | Should -Match 'Get-WinEvent'
+        $content | Should -Match 'GetInfo\\Output\\QRTasks'
     }
 }
 
