@@ -7,6 +7,7 @@
 BeforeAll {
     $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:dispatcherPath = Join-Path $repoRoot 'QRTasks\Invoke-TechTask.ps1'
+    $script:powerComfortPath = Join-Path $repoRoot 'QRTasks\Set-PowerComfortDefaults.ps1'
 }
 
 Describe 'Invoke-TechTask task registry' {
@@ -23,6 +24,23 @@ Describe 'Invoke-TechTask task registry' {
     It 'Includes PowerComfortRevert mapped to Restore-PowerComfortDefaults.ps1' {
         $content = Get-Content -Path $script:dispatcherPath -Raw
         $content | Should -Match "PowerComfortRevert\s*=\s*'Restore-PowerComfortDefaults\.ps1'"
+    }
+}
+
+Describe 'Set-PowerComfortDefaults button behavior' {
+    It 'Sets the physical power button and Windows menu power button to do nothing on AC and DC' {
+        $content = Get-Content -Path $script:powerComfortPath -Raw
+        $content | Should -Match '\$powerButtonAction\s*=\s*''7648efa3-dd9c-4e3e-b566-50f929386280'''
+        $content | Should -Match '\$startMenuPowerButtonAction\s*=\s*''a7066653-8d6c-40a8-910e-a1f54b84c7e5'''
+        $content.Contains("@('/setacvalueindex', `$g, 'SUB_BUTTONS', `$powerButtonAction, '0')") | Should -Be $true
+        $content.Contains("@('/setdcvalueindex', `$g, 'SUB_BUTTONS', `$powerButtonAction, '0')") | Should -Be $true
+        $content.Contains("@('/setacvalueindex', `$g, 'SUB_BUTTONS', `$startMenuPowerButtonAction, '0')") | Should -Be $true
+        $content.Contains("@('/setdcvalueindex', `$g, 'SUB_BUTTONS', `$startMenuPowerButtonAction, '0')") | Should -Be $true
+    }
+
+    It 'Names the menu power button behavior in the operator report text' {
+        $content = Get-Content -Path $script:powerComfortPath -Raw
+        $content | Should -Match 'start menu power button=do nothing'
     }
 }
 
