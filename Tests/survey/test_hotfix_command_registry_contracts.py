@@ -15,6 +15,8 @@ MANIFEST_PATH = REPO_ROOT / "configs" / "hotfix-commands" / "cybernet-setup-comp
 SCHEMA_PATH = REPO_ROOT / "schemas" / "harness" / "hotfix-command.schema.json"
 FIELD_HOTFIX_GUI_PATH = REPO_ROOT / "GUI" / "Start-FieldHotfixesGui.ps1"
 FIELD_HOTFIX_LAUNCHER_PATH = REPO_ROOT / "Run-FieldHotfixesGui.cmd"
+MAIN_GUI_PATH = REPO_ROOT / "GUI" / "Start-SysAdminSuiteGui.ps1"
+MAIN_GUI_CORE_PATH = REPO_ROOT / "GUI" / "Start-SysAdminSuiteGui.Core.ps1"
 
 
 def load_manifest() -> dict:
@@ -160,3 +162,29 @@ def test_field_hotfixes_launcher_runs_the_dedicated_gui_in_sta_mode() -> None:
     assert "powershell.exe" in content
     assert "-STA" in content
     assert "GUI\\Start-FieldHotfixesGui.ps1" in content
+
+
+def test_main_gui_wrapper_injects_field_hotfixes_into_tab_collection() -> None:
+    assert MAIN_GUI_PATH.exists(), f"missing main GUI wrapper: {MAIN_GUI_PATH}"
+    assert MAIN_GUI_CORE_PATH.exists(), f"missing preserved main GUI core: {MAIN_GUI_CORE_PATH}"
+    content = MAIN_GUI_PATH.read_text(encoding="utf-8")
+
+    assert "Start-SysAdminSuiteGui.Core.ps1" in content
+    assert "$fieldHotfixesTab.Text = 'Field Hotfixes'" in content
+    assert "$tabs.TabPages.AddRange(@($runTab,$kronosTab,$compareTab,$deployTrackTab,$machineInfoTab,$bomTab,$fieldHotfixesTab))" in content
+    assert "Start-FieldHotfixesGui.ps1" in content
+    assert "cmd_shift_f10" in content
+    assert "powershell_console" in content
+    assert "Set-QRCodeImage -PictureBox $picFieldHotfixQr" in content
+    assert "Shift+F10" in content
+    assert "Stand at the Cybernet" in content
+
+
+def test_main_gui_wrapper_preserves_core_without_adding_silent_remote_execution() -> None:
+    content = MAIN_GUI_PATH.read_text(encoding="utf-8")
+
+    assert "Start-SysAdminSuiteGui.Integrated.generated.ps1" in content
+    assert "Remove-Item -LiteralPath $generatedPath" in content
+    assert "Invoke-Command" not in content
+    assert "New-PSSession" not in content
+    assert "Register-ScheduledTask" not in content
