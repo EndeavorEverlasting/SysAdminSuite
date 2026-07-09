@@ -3,7 +3,7 @@
     Applies a "comfort" power preset on all power schemes, or reverts using the last backup.
 
 .DESCRIPTION
-    Apply mode: exports each scheme to .pow under GetInfo\Output\QRTasks, then sets display/sleep/disk/button/lid.
+    Apply mode: exports each scheme to .pow under GetInfo\Output\QRTasks, then sets display/sleep/disk/power-button/menu-button/lid.
     Revert mode: imports those backups (replacing schemes by deleting prior GUIDs after switching active).
 
 .PARAMETER Revert
@@ -98,6 +98,7 @@ $backupRoot = Join-Path $_outDir "PowerComfortBackup_$($env:COMPUTERNAME)"
 $metaPath = Join-Path $backupRoot 'meta.json'
 
 $powerButtonAction = '7648efa3-dd9c-4e3e-b566-50f929386280'
+$startMenuPowerButtonAction = 'a7066653-8d6c-40a8-910e-a1f54b84c7e5'
 
 # ── Revert ──────────────────────────────────────────────────────────
 if ($Revert) {
@@ -288,6 +289,8 @@ foreach ($s in $schemes) {
         @('/setdcvalueindex', $g, 'SUB_DISK', 'DISKIDLE', '0'),
         @('/setacvalueindex', $g, 'SUB_BUTTONS', $powerButtonAction, '0'),
         @('/setdcvalueindex', $g, 'SUB_BUTTONS', $powerButtonAction, '0'),
+        @('/setacvalueindex', $g, 'SUB_BUTTONS', $startMenuPowerButtonAction, '0'),
+        @('/setdcvalueindex', $g, 'SUB_BUTTONS', $startMenuPowerButtonAction, '0'),
         @('/setacvalueindex', $g, 'SUB_BUTTONS', 'LIDACTION', '0'),
         @('/setdcvalueindex', $g, 'SUB_BUTTONS', 'LIDACTION', '0')
     )
@@ -326,7 +329,7 @@ $lines.Add('')
 $lines.Add("Backup: $backupRoot")
 $lines.Add("Schemes updated: $($schemes.Count)")
 $lines.Add("Active scheme GUID (re-applied): $activeGuid")
-$lines.Add('Preset: display off=never, sleep=never, hibernate after=never, disk off=never, power button=do nothing, lid=do nothing')
+$lines.Add('Preset: display off=never, sleep=never, hibernate after=never, disk off=never, power button=do nothing, start menu power button=do nothing, lid=do nothing')
 if ($DisableHibernateFile) {
     $lines.Add('Hibernate file: disabled (powercfg /hibernate off)')
 } else {
