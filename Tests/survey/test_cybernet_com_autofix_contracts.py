@@ -31,20 +31,28 @@ def load_pack() -> dict:
 def test_autofix_launcher_runs_apply_restart_with_admin_elevation() -> None:
     launcher = read(LAUNCHER_PATH)
 
+    assert "SysAdminSuite - Cybernet COM Port AutoFix" in launcher
+    assert "Mode: APPLY + RESTART" in launcher
+    assert "Evidence: C:\\Temp\\CybernetCOM\\autofix_*" in launcher
     assert "net session" in launcher
     assert "Start-Process" in launcher
     assert "-Verb RunAs" in launcher
     assert "Invoke-CybernetComPortAutoFix.ps1" in launcher
     assert "-Apply" in launcher
     assert "-Restart" in launcher
+    assert "EXITCODE" in launcher
 
 
 def test_autofix_dryrun_launcher_does_not_apply_or_restart() -> None:
     launcher = read(DRYRUN_LAUNCHER_PATH)
 
+    assert "SysAdminSuite - Cybernet COM Port AutoFix" in launcher
+    assert "Mode: DRY RUN ONLY" in launcher
+    assert "This captures evidence and previews the mapping" in launcher
     assert "Invoke-CybernetComPortAutoFix.ps1" in launcher
     assert "-Apply" not in launcher
     assert "-Restart" not in launcher
+    assert "EXITCODE" in launcher
 
 
 def test_autofix_script_is_local_admin_bounded_and_evidence_first() -> None:
@@ -63,6 +71,46 @@ def test_autofix_script_is_local_admin_bounded_and_evidence_first() -> None:
     assert "autofix-transcript.txt" in content
 
 
+def test_autofix_script_is_factored_for_future_posture_changes() -> None:
+    content = read(SCRIPT_PATH)
+    required_functions = [
+        "Initialize-ComAutoFixEvidence",
+        "Write-ComAutoFixProgress",
+        "Export-ComAutoFixRegistryBackup",
+        "Get-CybernetComPortState",
+        "Test-CybernetComAutoFixEligibility",
+        "New-CybernetComMappingPlan",
+        "Invoke-CybernetComArbiterReset",
+        "Set-CybernetComPortMapping",
+        "Write-ComAutoFixSummary",
+    ]
+
+    for function_name in required_functions:
+        assert f"function {function_name}" in content
+
+
+def test_autofix_script_has_progress_and_unambiguous_final_statuses() -> None:
+    content = read(SCRIPT_PATH)
+    phases = [
+        "Evidence setup",
+        "Before-state capture",
+        "Eligibility checks",
+        "Registry backup",
+        "Mapping plan",
+        "Apply changes",
+        "After-state capture",
+        "Summary",
+        "Restart",
+    ]
+
+    assert "Write-Progress" in content
+    assert "Phase {0}/9" in content
+    for phase in phases:
+        assert phase in content
+    for final_status in ["COMPLETE", "DRY RUN COMPLETE", "FAILED", "REBOOTING"]:
+        assert final_status in content
+
+
 def test_autofix_script_only_targets_known_com3_to_com6_pattern_by_default() -> None:
     content = read(SCRIPT_PATH)
 
@@ -71,6 +119,18 @@ def test_autofix_script_only_targets_known_com3_to_com6_pattern_by_default() -> 
     assert "FINTEK or multi-port serial device was not detected" in content
     assert "COM1, COM2, COM3, COM4" in content
     assert "already COM1-COM4" in content
+
+
+def test_autofix_script_saves_registry_before_any_portname_changes() -> None:
+    content = read(SCRIPT_PATH)
+
+    assert "Export-ComAutoFixRegistryBackup" in content
+    assert "COMNameArbiter-before.reg" in content
+    assert "device-parameters-before-{0:00}.reg" in content
+    assert "reg.exe export" in content
+    assert "native_registry_path" in content
+    assert "registry_backups" in content
+    assert content.index("Export-ComAutoFixRegistryBackup") < content.index("Set-CybernetComPortMapping -Mapping")
 
 
 def test_autofix_script_resets_arbiter_and_assigns_portname_values() -> None:
@@ -125,7 +185,7 @@ def test_qr_pack_exposes_autofix_as_step_12() -> None:
     assert "local AutoFix launcher" in step12["expected_result"]
 
 
-def test_docs_explain_fast_path_and_boundaries() -> None:
+def test_docs_explain_fast_path_boundaries_progress_and_backups() -> None:
     doc = read(DOC_PATH)
     qr_doc = read(QR_DOC_PATH)
 
@@ -137,5 +197,33 @@ def test_docs_explain_fast_path_and_boundaries() -> None:
     assert "No admin-box target mutation" in doc
     assert "No SmartLynx or final app install" in doc
     assert "No USB/COM driver replacement" in doc
+    assert "progress bar" in doc.lower()
+    assert "COMPLETE" in doc
+    assert "DRY RUN COMPLETE" in doc
+    assert "FAILED" in doc
+    assert "device-parameters-before-01.reg" in doc
     assert "Run-CybernetComPortAutoFix.cmd" in qr_doc
     assert "Run automated COM AutoFix" in qr_doc
+
+
+def main() -> None:
+    tests = [
+        test_autofix_launcher_runs_apply_restart_with_admin_elevation,
+        test_autofix_dryrun_launcher_does_not_apply_or_restart,
+        test_autofix_script_is_local_admin_bounded_and_evidence_first,
+        test_autofix_script_is_factored_for_future_posture_changes,
+        test_autofix_script_has_progress_and_unambiguous_final_statuses,
+        test_autofix_script_only_targets_known_com3_to_com6_pattern_by_default,
+        test_autofix_script_saves_registry_before_any_portname_changes,
+        test_autofix_script_resets_arbiter_and_assigns_portname_values,
+        test_autofix_has_no_remote_execution_or_public_bootstrap,
+        test_qr_pack_exposes_autofix_as_step_12,
+        test_docs_explain_fast_path_boundaries_progress_and_backups,
+    ]
+    for test in tests:
+        test()
+    print(f"PASS: {len(tests)} Cybernet COM AutoFix static contracts")
+
+
+if __name__ == "__main__":
+    main()
