@@ -6,7 +6,7 @@ echo Mode: APPLY + RESTART
 echo Evidence: C:\Temp\CybernetCOM\autofix_*
 echo Use only on the local Cybernet before final app binding.
 echo.
-net session >nul 2>&1
+powershell.exe -NoProfile -Command "if (([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 1 }"
 if not "%ERRORLEVEL%"=="0" (
   echo Requesting Administrator permission for Cybernet COM Port AutoFix...
   powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c ""%~f0"" %*' -Verb RunAs"
