@@ -4,15 +4,42 @@
 
 This package lets a technician pull QR-ready CMD snippets from SysAdminSuite while standing at a Cybernet that has FINTEK serial hardware present but COM ports numbered incorrectly.
 
-Use the launcher:
+Use the QR menu launcher:
 
 ```cmd
 Run-CybernetComPortQrPack.cmd
 ```
 
-The launcher reads `configs/hotfix-command-packs/cybernet-com-port-repair.pack.json`, builds a temporary Field Hotfix manifest for the selected step, and opens the existing Field Hotfixes GUI so the command appears as a scannable QR code.
+Use the one-shot local AutoFix launcher when the suite is already on the affected Cybernet:
 
-## Operator sequence
+```cmd
+Run-CybernetComPortAutoFix.cmd
+```
+
+The QR launcher reads `configs/hotfix-command-packs/cybernet-com-port-repair.pack.json`, builds a temporary Field Hotfix manifest for the selected step, and opens the existing Field Hotfixes GUI so the command appears as a scannable QR code.
+
+## Fast AutoFix path
+
+Run this from the SysAdminSuite repo root on the affected Cybernet:
+
+```cmd
+Run-CybernetComPortAutoFix.cmd
+```
+
+The AutoFix captures evidence, exports COM Name Arbiter, exports each active COM device `Device Parameters` key, resets the COM reservation bitmap, assigns the active ports in sorted order from COM3-COM6 to COM1-COM4, captures after-state evidence, and restarts.
+
+The launcher and script now print a progress bar plus plain status lines. A technician should wait for one of these final statuses:
+
+```text
+DRY RUN COMPLETE
+COMPLETE
+FAILED
+REBOOTING
+```
+
+If the console says `FAILED`, stop and review the evidence folder before retrying.
+
+## Manual operator sequence
 
 1. Make evidence folder.
 2. Capture `SERIALCOMM` before.
@@ -49,6 +76,7 @@ The launcher reads `configs/hotfix-command-packs/cybernet-com-port-repair.pack.j
 | 9 | Capture SERIALCOMM after | Captures the post-change serial device map. |
 | 10 | Capture Ports after | Captures post-change Ports class devices. |
 | 11 | Open evidence folder | Opens the evidence folder. |
+| 12 | Run automated COM AutoFix | Runs the local AutoFix launcher from the repo root. |
 
 ## Boundaries
 
@@ -56,7 +84,7 @@ The launcher reads `configs/hotfix-command-packs/cybernet-com-port-repair.pack.j
 - No target mutation from the admin box.
 - No SmartLynx or final app install.
 - No USB/COM driver replacement in this QR pack.
-- Do not scan reset/reboot snippets unless the operator is physically at the target and has captured evidence first.
+- Do not scan reset/reboot/AutoFix snippets unless the operator is physically at the target and has captured or accepted evidence first.
 
 ## Evidence folder
 
@@ -66,6 +94,12 @@ All capture snippets write to:
 C:\Temp\CybernetCOM
 ```
 
+AutoFix runs write timestamped evidence folders under:
+
+```text
+C:\Temp\CybernetCOM\autofix_YYYYMMDD_HHMMSS
+```
+
 Expected files include:
 
 ```text
@@ -73,6 +107,13 @@ serialcomm-before.txt
 ports-before.txt
 multiport-before.txt
 COMNameArbiter-before.reg
+device-parameters-before-01.reg
+device-parameters-before-02.reg
+device-parameters-before-03.reg
+device-parameters-before-04.reg
+port-mapping-plan.json
 serialcomm-after.txt
 ports-after.txt
+autofix-summary.json
+autofix-transcript.txt
 ```
