@@ -99,10 +99,15 @@ jobs:
         run: |
           python3 Tests/survey/test_local_harness_contracts.py
 
-      - name: Offline survey suite
+      - name: Target reduction Bash syntax
         shell: bash
         run: |
-          bash tests/survey/run_offline_survey_tests.sh
+          bash -n survey/sas-target-reduction-plan.sh
+
+      - name: Target reduction planner contracts
+        shell: bash
+        run: |
+          bash Tests/bash/test_target_reduction_plan_contracts.sh
 
       - name: Northwell registry verification contracts
         shell: bash
