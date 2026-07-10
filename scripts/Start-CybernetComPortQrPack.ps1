@@ -111,8 +111,8 @@ function Show-ComQrMenu {
 
     $choice = Read-Host 'Select QR snippet'
     if ([string]::IsNullOrWhiteSpace($choice)) { continue }
-    if ($choice -match '^(?i)q$') { return }
-    if ($choice -match '^(?i)o$') {
+    if ($choice -match '(?i)^q$') { return }
+    if ($choice -match '(?i)^o$') {
       if (Test-Path -LiteralPath $outlinePath) { Start-Process -FilePath $outlinePath | Out-Null }
       continue
     }
