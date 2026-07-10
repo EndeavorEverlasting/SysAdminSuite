@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0.0",
+  "pack_id": "cybernet.com_port_qr_pack",
+  "title": "Cybernet COM Port QR Pack",
+  "status": "field-ready",
+  "version": "1.0.0",
+  "entrypoint": "Run-CybernetComPortQrPack.cmd",
+  "operator_position": "standing-at-target",
+  "purpose": "Give field technicians a menu of QR-ready CMD snippets for Cybernet COM port evidence capture, hidden-device inspection, COM Name Arbiter reset, reboot, and after-state capture.",
+  "sequence": [
+    {"step":"01","title":"Cybernet COM Evidence Folder","manifest_path":"configs/hotfix-commands/cybernet-com-01-make-evidence-folder.json","risk_level":"low"},
+    {"step":"02","title":"Cybernet COM Capture SERIALCOMM Before","manifest_path":"configs/hotfix-commands/cybernet-com-02-capture-serialcomm-before.json","risk_level":"low"},
+    {"step":"03","title":"Cybernet COM Capture Ports Before","manifest_path":"configs/hotfix-commands/cybernet-com-03-capture-ports-before.json","risk_level":"low"},
+    {"step":"04","title":"Cybernet COM Capture MultiPortSerial Before","manifest_path":"configs/hotfix-commands/cybernet-com-04-capture-multiport-before.json","risk_level":"low"},
+    {"step":"05","title":"Cybernet COM Show Hidden Device Manager","manifest_path":"configs/hotfix-commands/cybernet-com-05-show-hidden-device-manager.json","risk_level":"low"},
+    {"step":"06","title":"Cybernet COM Export Name Arbiter","manifest_path":"configs/hotfix-commands/cybernet-com-06-export-com-arbiter.json","risk_level":"low"},
+    {"step":"07","title":"Cybernet COM Reset Name Arbiter","manifest_path":"configs/hotfix-commands/cybernet-com-07-reset-com-arbiter.json","risk_level":"medium"},
+    {"step":"08","title":"Cybernet COM Reboot","manifest_path":"configs/hotfix-commands/cybernet-com-08-reboot.json","risk_level":"medium"},
+    {"step":"09","title":"Cybernet COM Capture SERIALCOMM After","manifest_path":"configs/hotfix-commands/cybernet-com-09-capture-serialcomm-after.json","risk_level":"low"},
+    {"step":"10","title":"Cybernet COM Capture Ports After","manifest_path":"configs/hotfix-commands/cybernet-com-10-capture-ports-after.json","risk_level":"low"},
+    {"step":"11","title":"Cybernet COM Open Evidence Folder","manifest_path":"configs/hotfix-commands/cybernet-com-11-open-evidence-folder.json","risk_level":"low"}
+  ],
+  "manual_steps": [
+    "After showing hidden devices, expand Ports (COM & LPT) and Multi-port serial adapters.",
+    "Do not uninstall active FINTEK PCIe To Serial devices.",
+    "If active ports remain COM3-COM6, manually assign COM3->COM1, COM4->COM2, COM5->COM3, COM6->COM4 through Device Manager > Port Settings > Advanced.",
+    "Use COM Name Arbiter reset only after evidence capture and export.",
+    "Run after-capture snippets after reboot and manual assignment."
+  ],
+  "forbidden_scope": [
+    "No silent remote execution",
+    "No admin-box target mutation",
+    "No SmartLynx or final app install",
+    "No USB/COM driver replacement in this QR pack"
+  ]
+}
