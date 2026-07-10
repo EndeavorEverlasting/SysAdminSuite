@@ -26,7 +26,18 @@ Run this from the SysAdminSuite repo root on the affected Cybernet:
 Run-CybernetComPortAutoFix.cmd
 ```
 
-The AutoFix captures evidence, exports COM Name Arbiter, resets the COM reservation bitmap, assigns the active ports in sorted order from COM3-COM6 to COM1-COM4, captures after-state evidence, and restarts.
+The AutoFix captures evidence, exports COM Name Arbiter, exports each active COM device `Device Parameters` key, resets the COM reservation bitmap, assigns the active ports in sorted order from COM3-COM6 to COM1-COM4, captures after-state evidence, and restarts.
+
+The launcher and script now print a progress bar plus plain status lines. A technician should wait for one of these final statuses:
+
+```text
+DRY RUN COMPLETE
+COMPLETE
+FAILED
+REBOOTING
+```
+
+If the console says `FAILED`, stop and review the evidence folder before retrying.
 
 ## Manual operator sequence
 
@@ -96,6 +107,10 @@ serialcomm-before.txt
 ports-before.txt
 multiport-before.txt
 COMNameArbiter-before.reg
+device-parameters-before-01.reg
+device-parameters-before-02.reg
+device-parameters-before-03.reg
+device-parameters-before-04.reg
 port-mapping-plan.json
 serialcomm-after.txt
 ports-after.txt
