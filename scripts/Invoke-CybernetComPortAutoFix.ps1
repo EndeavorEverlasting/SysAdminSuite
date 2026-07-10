@@ -66,6 +66,42 @@ function Convert-RegistryProviderPathToNative {
   return ($RegistryPath -replace '^HKLM:\\', 'HKLM\')
 }
 
+function Invoke-ComAutoFixRegistryExport {
+  param(
+    [Parameter(Mandatory)][string]$NativeRegistryPath,
+    [Parameter(Mandatory)][string]$ExportPath,
+    [Parameter(Mandatory)][string]$OutputPath,
+    [switch]$Append
+  )
+
+  $exportOutput = & reg.exe export $NativeRegistryPath $ExportPath /y 2>&1
+  $exitCode = $LASTEXITCODE
+  if ($Append) {
+    $exportOutput | Out-File -FilePath $OutputPath -Encoding ASCII -Append
+  } else {
+    $exportOutput | Out-File -FilePath $OutputPath -Encoding ASCII
+  }
+
+  if ($exitCode -ne 0) {
+    throw "Registry export failed with exit code $exitCode for $NativeRegistryPath. See $OutputPath."
+  }
+  if (-not (Test-Path -LiteralPath $ExportPath -PathType Leaf)) {
+    throw "Registry export did not create the expected backup file: $ExportPath"
+  }
+
+  $exportFile = Get-Item -LiteralPath $ExportPath -ErrorAction Stop
+  if ($exportFile.Length -le 0) {
+    throw "Registry export created an empty backup file: $ExportPath"
+  }
+
+  return [pscustomobject]@{
+    registry_path = $NativeRegistryPath
+    export_path = $ExportPath
+    size_bytes = [int64]$exportFile.Length
+    validated = $true
+  }
+}
+
 function Initialize-ComAutoFixEvidence {
   param([Parameter(Mandatory)][string]$Root)
 
@@ -148,7 +184,10 @@ function Export-ComAutoFixRegistryBackup {
 
   $outputPath = Join-Path $RunDir 'reg-export-output.txt'
   $arbiterExportPath = Join-Path $RunDir 'COMNameArbiter-before.reg'
-  & reg.exe export 'HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter' $arbiterExportPath /y | Out-File -FilePath $outputPath -Encoding ASCII
+  $arbiterExport = Invoke-ComAutoFixRegistryExport `
+    -NativeRegistryPath 'HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter' `
+    -ExportPath $arbiterExportPath `
+    -OutputPath $outputPath
 
   $deviceExports = @()
   $sortedPorts = @($Ports | Sort-Object CurrentPort)
@@ -161,18 +200,26 @@ function Export-ComAutoFixRegistryBackup {
 
     $deviceExportPath = Join-Path $RunDir ('device-parameters-before-{0:00}.reg' -f $index)
     $nativeRegistryPath = Convert-RegistryProviderPathToNative -RegistryPath $port.RegistryPath
-    & reg.exe export $nativeRegistryPath $deviceExportPath /y | Out-File -FilePath $outputPath -Encoding ASCII -Append
+    $deviceExport = Invoke-ComAutoFixRegistryExport `
+      -NativeRegistryPath $nativeRegistryPath `
+      -ExportPath $deviceExportPath `
+      -OutputPath $outputPath `
+      -Append
     $deviceExports += [pscustomobject]@{
       name = $port.Name
       current_port = ('COM{0}' -f $port.CurrentPort)
       registry_path = $port.RegistryPath
       native_registry_path = $nativeRegistryPath
-      export_path = $deviceExportPath
+      export_path = $deviceExport.export_path
+      size_bytes = $deviceExport.size_bytes
+      validated = [bool]$deviceExport.validated
     }
   }
 
   return [pscustomobject]@{
-    com_name_arbiter = $arbiterExportPath
+    validated = $true
+    com_name_arbiter = $arbiterExport.export_path
+    com_name_arbiter_size_bytes = $arbiterExport.size_bytes
     device_parameters = $deviceExports
   }
 }
@@ -274,6 +321,9 @@ try {
 
   Write-ComAutoFixProgress -Phase 4 -Status 'Exporting COM Name Arbiter and active device Device Parameters registry keys.'
   $registryBackups = Export-ComAutoFixRegistryBackup -Ports $state.Ports -RunDir $evidence.RunDir
+  if (-not $registryBackups.validated) {
+    throw 'Registry backup validation did not complete. No COM registry mutation will be attempted.'
+  }
 
   Write-ComAutoFixProgress -Phase 5 -Status 'Building COM3-COM6 to COM1-COM4 mapping plan.'
   $mapping = New-CybernetComMappingPlan -Ports $state.Ports
