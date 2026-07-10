@@ -58,7 +58,7 @@ The install wrapper must require all of the following:
 1. An explicit target list through `-ComputerName` or `-TargetsCsv`.
 2. An installer path under the approved software source root.
 3. Explicit `-AllowTargetMutation` unless running with `-WhatIf`.
-4. Local output under `survey/output/software_install/<run_id>/` or another operator-supplied local output root.
+4. Local output under the approved gitignored roots `survey/output/`, `logs/nmap/`, or `survey/artifacts/`; the default is `survey/output/software_install/<run_id>/`.
 5. Per-target status events written locally as JSONL.
 6. A summary JSON that names targets, installer, mode, exit codes, staging cleanup status, repo-owned target remnant status, and unresolved failures.
 
