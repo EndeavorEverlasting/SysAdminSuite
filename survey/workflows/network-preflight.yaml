@@ -1,0 +1,77 @@
+schema_version: sas-workflow/v1
+workflow_id: network-preflight
+name: Network Preflight
+description: Run bounded reachability checks against approved host or IP targets and write local evidence.
+inputs:
+  - staged_target_file
+  - requested_ports
+nodes:
+  - id: load-staged-targets
+    kind: local_read
+    description: Load previously approved host or IP targets.
+    inputs: [staged_target_file]
+    outputs: [targets]
+    network_activity: false
+    target_mutation: false
+    validation: no serial-only rows are present
+  - id: resolve-dns
+    kind: bounded_probe
+    description: Resolve approved hostnames during the network preflight phase.
+    inputs: [targets]
+    outputs: [dns_results]
+    network_activity: true
+    target_mutation: false
+    validation: scope remains limited to the staged target file
+  - id: test-ping
+    kind: bounded_probe
+    description: Check basic reachability for approved targets when configured.
+    inputs: [targets]
+    outputs: [reachability_results]
+    network_activity: true
+    target_mutation: false
+    validation: non-response is not treated as proof of removal
+  - id: test-tcp-ports
+    kind: bounded_probe
+    description: Check requested TCP ports for approved targets.
+    inputs: [targets, requested_ports]
+    outputs: [port_results]
+    network_activity: true
+    target_mutation: false
+    validation: ports remain bounded by request
+  - id: write-csv
+    kind: local_write
+    description: Write local CSV evidence.
+    inputs: [dns_results, reachability_results, port_results]
+    outputs: [network_preflight_csv]
+    network_activity: false
+    target_mutation: false
+    validation: evidence is local only
+  - id: write-summary-json
+    kind: local_write
+    description: Write machine-readable summary JSON.
+    inputs: [network_preflight_csv]
+    outputs: [summary_json]
+    network_activity: false
+    target_mutation: false
+    validation: summary declares network_activity_performed true
+  - id: write-operator-handoff
+    kind: local_render
+    description: Write next-action guidance.
+    inputs: [summary_json]
+    outputs: [operator_handoff]
+    network_activity: false
+    target_mutation: false
+    validation: handoff preserves uncertainty
+artifacts:
+  - network_preflight.csv
+  - network_preflight_summary.json
+  - artifact_registry.json
+  - operator_handoff.txt
+validation:
+  - reachability is not identity proof
+  - non-response is not proof of removal
+next_actions:
+  - reduce repeat probing for fresh reachable rows
+  - route unresolved rows to time-diverse retry or review
+network_activity_policy: only bounded probe nodes perform network activity
+target_mutation_policy: read-only toward targets

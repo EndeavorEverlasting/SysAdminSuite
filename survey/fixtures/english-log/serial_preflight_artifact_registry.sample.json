@@ -1,0 +1,39 @@
+{
+  "workflow_id": "serial-to-preflight",
+  "run_id": "20260707-serial-preflight-sample",
+  "started_at": "2026-07-07T00:00:00-04:00",
+  "artifacts": [
+    {
+      "role": "source",
+      "path": "survey/fixtures/english-log/sample_serials.csv",
+      "tracked": true,
+      "contains_live_data": false,
+      "generated": false,
+      "description": "Synthetic serial source for harness validation."
+    },
+    {
+      "role": "summary",
+      "path": "survey/fixtures/english-log/serial_preflight_summary.sample.json",
+      "tracked": true,
+      "contains_live_data": false,
+      "generated": false,
+      "description": "Synthetic serial preflight summary variables."
+    },
+    {
+      "role": "report",
+      "path": "survey/output/english-log/serial_preflight_report.md",
+      "tracked": false,
+      "contains_live_data": false,
+      "generated": true,
+      "description": "Rendered Markdown report from synthetic fixtures."
+    },
+    {
+      "role": "handoff",
+      "path": "survey/output/runs/serial-to-preflight/20260707-serial-preflight-sample/operator_handoff.txt",
+      "tracked": false,
+      "contains_live_data": false,
+      "generated": true,
+      "description": "Generated next-action handoff text."
+    }
+  ]
+}

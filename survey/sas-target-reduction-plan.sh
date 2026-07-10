@@ -14,6 +14,7 @@ python3 - "$repo_root" "$@" <<'PY'
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import csv
 import json
 import re
@@ -35,11 +36,30 @@ LOCATION_COLUMNS = [
 ]
 
 POLICY = {
-    "policy_version": "bash-target-reduction-v1",
-    "probe_again_guidance": "Review reduced, retry, review, and out-of-scope queues before any follow-up action.",
-    "fresh_evidence_guidance": "Fresh local evidence reduces repeat work, but reachability is not identity proof.",
-    "network_visibility_note": "This planner performs no network activity and only transforms local CSV evidence.",
+    # Keep these values aligned with scripts/SasLowNoisePolicy.psm1 without invoking PowerShell.
+    "policy_version": "1.0",
+    "low_noise_principle": "The network sees packets, not the shell. Reduce packets by using local evidence before probes.",
+    "network_visibility_note": "CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.",
+    "probe_again_guidance": "Five probes are unnecessary when a device was already recently reachable or identity-confirmed. If retrying is justified, prefer a different time of day or different day of week over immediate repeated probes.",
+    "fresh_evidence_guidance": "Fresh identity or reachability evidence should reduce re-probing. Stale, missing, conflicting, or operator-forced evidence can justify staging a target.",
+    "mystery_serial_guidance": "A serial with no approved host/IP bridge remains a mystery serial for review; do not ping the serial string.",
+    "front_door_guidance": "CDN/WAF/load-balanced/front-door targets should not be treated as serial proof. Review or use bounded profiles rather than broad probing.",
+    "packet_profile_guidance": "Prefer smaller scope, fewer ports, lower rate, fewer retries, smarter evidence reuse, and avoiding broad scans.",
+    "probe_selection_questions": [
+        "Should this target be probed at all?",
+        "Which exact host/IP should be probed?",
+        "Which exact ports answer the survey question?",
+        "At what rate?",
+        "How many retries?",
+        "Is this already fresh in local evidence?",
+        "Is this a CDN/WAF/load-balanced/front-door target?",
+        "Is this a mystery serial that needs review, not packets?",
+    ],
 }
+
+TARGET_FIELDS = ["Target", "ProbeTarget", "HostName", "Hostname", "ComputerName", "DeviceName", "Name", "DnsName", "DNSName", "FQDN", "IPAddress", "IP", "IPv4"]
+SERIAL_FIELDS = ["Serial", "SerialNumber", "DeviceSerial", "ComputerSerial", "AssetSerial", "SN"]
+LOCATION_FIELDS = ["Location", "Room", "Department", "Area"]
 
 
 def normalize_arg(arg: str) -> str:
@@ -112,13 +132,34 @@ def assert_output_path(path_text: str) -> Path:
     roots = [REPO_ROOT / "survey" / "output", REPO_ROOT / "survey" / "artifacts", REPO_ROOT / "logs" / "nmap"]
     if not within(path, roots):
         raise SystemExit(f"target reduction output directory is outside approved local output roots: {path}")
-    path.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def read_csv(path: Path) -> list[dict[str, str]]:
+def read_csv(path: Path, label: str, required_groups: list[list[str]]) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8-sig") as fh:
-        return [{k: (v or "").strip() for k, v in row.items()} for row in csv.DictReader(fh)]
+        reader = csv.DictReader(fh)
+        if not reader.fieldnames:
+            raise SystemExit(f"{label} has no CSV header: {path}")
+        headers = [header.strip() if header is not None else "" for header in reader.fieldnames]
+        if any(not header for header in headers):
+            raise SystemExit(f"{label} has a blank CSV header: {path}")
+        normalized_headers = [header.lower() for header in headers]
+        if len(normalized_headers) != len(set(normalized_headers)):
+            raise SystemExit(f"{label} has duplicate case-insensitive CSV headers: {path}")
+        for group in required_groups:
+            if not any(name.lower() in normalized_headers for name in group):
+                raise SystemExit(f"{label} is missing a required CSV column ({', '.join(group)}): {path}")
+
+        rows: list[dict[str, str]] = []
+        for row_number, row in enumerate(reader, start=2):
+            if None in row:
+                raise SystemExit(f"{label} row {row_number} has more values than the CSV header: {path}")
+            if any(value is None for value in row.values()):
+                raise SystemExit(f"{label} row {row_number} has fewer values than the CSV header: {path}")
+            cleaned = {str(k).strip(): (v or "").strip() for k, v in row.items()}
+            if any(cleaned.values()):
+                rows.append(cleaned)
+        return rows
 
 
 def first(row: dict[str, str] | None, names: list[str]) -> str:
@@ -137,11 +178,11 @@ def key(value: str) -> str:
 
 
 def target(row: dict[str, str] | None) -> str:
-    return first(row, ["Target", "ProbeTarget", "HostName", "Hostname", "ComputerName", "DeviceName", "Name", "DnsName", "DNSName", "FQDN", "IPAddress", "IP", "IPv4"])
+    return first(row, TARGET_FIELDS)
 
 
 def serial(row: dict[str, str] | None) -> str:
-    return first(row, ["Serial", "SerialNumber", "DeviceSerial", "ComputerSerial", "AssetSerial", "SN"])
+    return first(row, SERIAL_FIELDS)
 
 
 def site(row: dict[str, str] | None) -> str:
@@ -149,7 +190,7 @@ def site(row: dict[str, str] | None) -> str:
 
 
 def location(row: dict[str, str] | None) -> str:
-    return first(row, ["Location", "Room", "Department", "Area"])
+    return first(row, LOCATION_FIELDS)
 
 
 def loc_key(row: dict[str, str] | None) -> str:
@@ -267,15 +308,24 @@ def main() -> int:
     run_id = safe_run_id(ns.run_id)
     output_dir = assert_output_path(ns.output_directory or str(REPO_ROOT / "survey" / "output" / "target_reduction" / run_id))
 
-    prior_rows = read_csv(prior_path)
+    prior_rows = read_csv(prior_path, "prior evidence CSV", [TARGET_FIELDS])
     if not prior_rows:
         raise SystemExit("Prior evidence CSV had no rows.")
-    identity_rows = read_csv(identity_path) if identity_path else []
-    location_rows = read_csv(location_path) if location_path else []
+    identity_rows = read_csv(identity_path, "identity evidence CSV", [TARGET_FIELDS + SERIAL_FIELDS]) if identity_path else []
+    location_rows = read_csv(location_path, "location map CSV", [["Site"], LOCATION_FIELDS]) if location_path else []
 
-    identity_by_target = {key(target(row)): row for row in identity_rows if target(row)}
-    identity_by_serial = {key(serial(row)): row for row in identity_rows if serial(row)}
-    locations = {loc_key(row): row for row in location_rows if loc_key(row) != "|"}
+    identity_by_target: dict[str, dict[str, str]] = {}
+    identity_by_serial: dict[str, dict[str, str]] = {}
+    for row in identity_rows:
+        if target(row):
+            identity_by_target.setdefault(key(target(row)), row)
+        if serial(row):
+            identity_by_serial.setdefault(key(serial(row)), row)
+    locations: dict[str, dict[str, str]] = {}
+    for row in location_rows:
+        if loc_key(row) != "|":
+            locations.setdefault(loc_key(row), row)
+    target_counts = Counter(key(target(row)) for row in prior_rows if target(row))
 
     reduced: list[dict[str, str]] = []
     retry: list[dict[str, str]] = []
@@ -289,18 +339,28 @@ def main() -> int:
         if out_of_scope(row, identity_row, location_row):
             outscope.append(reduction_row(row, "OutOfScope", "outside approved survey scope", identity_row, location_row))
             continue
-        if not target(row) or identity_review_required(row, identity_row):
+        if not target(row):
+            if location_row and truthy(first(location_row, ["SurveyAllowed", "Allowed"])):
+                location_candidates.append(location_candidate_row(row, location_row))
+            review.append(reduction_row(row, "ReviewRequired", "missing or conflicting identity evidence", identity_row, location_row))
+            continue
+        if target_counts[key(target(row))] > 1:
+            review.append(reduction_row(row, "ReviewRequired", "duplicate or case-variant target rows require review", identity_row, location_row))
+            continue
+        if identity_review_required(row, identity_row):
             review.append(reduction_row(row, "ReviewRequired", "missing or conflicting identity evidence", identity_row, location_row))
             continue
         if is_reached(row):
             reduced.append(reduction_row(row, "ConfirmedReached", "prior local reachability evidence exists; this is not identity proof", identity_row, location_row))
             continue
-        if location_row:
-            location_candidates.append(location_candidate_row(row, location_row))
         if is_retry_signal(row):
             retry.append(reduction_row(row, "RetryCandidate", "negative local evidence is not proof the device is gone", identity_row, location_row))
         else:
             review.append(reduction_row(row, "ReviewRequired", "ambiguous local evidence requires review", identity_row, location_row))
+
+    classified_row_count = len(reduced) + len(retry) + len(review) + len(outscope)
+    if classified_row_count != len(prior_rows):
+        raise RuntimeError(f"target reduction classification count mismatch: input={len(prior_rows)} classified={classified_row_count}")
 
     paths = {
         "reduced_targets_csv": output_dir / "reduced_targets.csv",
@@ -312,6 +372,7 @@ def main() -> int:
         "operator_handoff_path": output_dir / "operator_handoff.txt",
     }
 
+    output_dir.mkdir(parents=True, exist_ok=True)
     write_csv(paths["reduced_targets_csv"], REDUCTION_COLUMNS, reduced)
     write_csv(paths["retry_candidates_csv"], REDUCTION_COLUMNS, retry)
     write_csv(paths["review_required_csv"], REDUCTION_COLUMNS, review)
@@ -325,6 +386,8 @@ def main() -> int:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "prior_probe_results_csv": str(prior_path),
         "input_row_count": len(prior_rows),
+        "classified_row_count": classified_row_count,
+        "classification_reconciled": True,
         "confirmed_reached_count": len(reduced),
         "retry_candidate_count": len(retry),
         "review_required_count": len(review),
@@ -333,6 +396,15 @@ def main() -> int:
         "required_statuses": ["ConfirmedReached", "RetryCandidate", "ReviewRequired", "DeferredSubnetCandidate", "OutOfScope"],
         "network_activity_performed": False,
         "target_mutation_performed": False,
+        "low_noise_policy_version": POLICY["policy_version"],
+        "low_noise_principle": POLICY["low_noise_principle"],
+        "network_visibility_note": POLICY["network_visibility_note"],
+        "probe_selection_questions": POLICY["probe_selection_questions"],
+        "probe_again_guidance": POLICY["probe_again_guidance"],
+        "fresh_evidence_guidance": POLICY["fresh_evidence_guidance"],
+        "mystery_serial_guidance": POLICY["mystery_serial_guidance"],
+        "front_door_guidance": POLICY["front_door_guidance"],
+        "packet_profile_guidance": POLICY["packet_profile_guidance"],
         **{key_name: str(value) for key_name, value in paths.items()},
     }
     paths["target_reduction_summary_json"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

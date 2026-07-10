@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT"
+
+fail() { echo "[FAIL] $*" >&2; exit 1; }
+pass() { echo "[PASS] $*"; }
+
+required_tests=(
+  "Tests/bash/test_english_log_artifact_contracts.sh"
+  "Tests/bash/test_sysadmin_harness_validator_contracts.sh"
+  "Tests/bash/test_harness_command_surface.sh"
+  "Tests/bash/test_pr142_scope_boundary_contracts.sh"
+)
+
+[[ -f scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 ]] || fail "missing PR142 worktree bootstrap"
+[[ -f scripts/Invoke-SasHarnessContracts.ps1 ]] || fail "missing PowerShell harness contract runner"
+[[ -f docs/handoff/pr142-scope-ledger.md ]] || fail "missing PR142 scope ledger"
+pass "PowerShell worktree bootstrap, contract runner, and scope ledger exist"
+
+for test_file in "${required_tests[@]}"; do
+  [[ -f "$test_file" ]] || fail "missing harness contract test: $test_file"
+  bash -n "$test_file"
+done
+pass "harness contract tests exist and parse"
+
+for test_file in "${required_tests[@]}"; do
+  echo "[SAS] Running $test_file"
+  bash "$test_file"
+done
+
+pass "harness contract suite passed"

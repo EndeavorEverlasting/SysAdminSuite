@@ -49,11 +49,14 @@ $locationColumns = @(
     'Site', 'Location', 'Building', 'Floor', 'SubnetCIDR', 'Gateway', 'Target', 'Status',
     'StatusReason', 'SourceEvidence', 'LastVerified', 'SurveyAllowed', 'Confidence', 'Notes', 'NetworkActivityPerformed'
 )
+$targetFields = @('Target', 'ProbeTarget', 'HostName', 'Hostname', 'ComputerName', 'DeviceName', 'Name', 'DnsName', 'DNSName', 'FQDN', 'IPAddress', 'IP', 'IPv4')
+$serialFields = @('Serial', 'SerialNumber', 'DeviceSerial', 'ComputerSerial', 'AssetSerial', 'SN')
+$locationFields = @('Location', 'Room', 'Department', 'Area')
 
 function New-SafeRunId {
     param([string]$Candidate)
     if (-not [string]::IsNullOrWhiteSpace($Candidate)) {
-        $safe = ($Candidate.ToLowerInvariant() -replace '[^a-z0-9_-]', '-')
+        $safe = ($Candidate.ToLowerInvariant() -replace '[^a-z0-9_-]', '-').Trim('-')
         if (-not [string]::IsNullOrWhiteSpace($safe)) { return $safe }
     }
     return (Get-Date -Format 'yyyyMMdd-HHmmss')
@@ -75,10 +78,10 @@ function ConvertTo-NormalizedKey {
     return $Value.Trim().ToLowerInvariant()
 }
 
-function Get-TargetFromRow { param($Row) return Get-RowValue -Row $Row -Names @('Target', 'ProbeTarget', 'HostName', 'Hostname', 'ComputerName', 'DeviceName', 'Name', 'DnsName', 'DNSName', 'FQDN', 'IPAddress', 'IP', 'IPv4') }
-function Get-SerialFromRow { param($Row) return Get-RowValue -Row $Row -Names @('Serial', 'SerialNumber', 'DeviceSerial', 'ComputerSerial', 'AssetSerial', 'SN') }
+function Get-TargetFromRow { param($Row) return Get-RowValue -Row $Row -Names $targetFields }
+function Get-SerialFromRow { param($Row) return Get-RowValue -Row $Row -Names $serialFields }
 function Get-SiteFromRow { param($Row) return Get-RowValue -Row $Row -Names @('Site') }
-function Get-LocationFromRow { param($Row) return Get-RowValue -Row $Row -Names @('Location', 'Room', 'Department', 'Area') }
+function Get-LocationFromRow { param($Row) return Get-RowValue -Row $Row -Names $locationFields }
 function Get-LocationKey { param([string]$Site, [string]$Location) return ('{0}|{1}' -f (ConvertTo-NormalizedKey $Site), (ConvertTo-NormalizedKey $Location)) }
 
 function Test-IsTruthy {
@@ -179,9 +182,68 @@ function New-LocationIndex {
     $index = @{}
     foreach ($row in $Rows) {
         $key = Get-LocationKey -Site (Get-SiteFromRow $row) -Location (Get-LocationFromRow $row)
-        if ($key -and -not $index.ContainsKey($key)) { $index[$key] = $row }
+        if ($key -ne '|' -and -not $index.ContainsKey($key)) { $index[$key] = $row }
     }
     return $index
+}
+
+function Import-SasPlannerCsv {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Label,
+        [string[]]$RequiredColumns = @(),
+        [string[]]$RequiredAnyColumns = @()
+    )
+
+    Add-Type -AssemblyName Microsoft.VisualBasic
+    $parser = New-Object Microsoft.VisualBasic.FileIO.TextFieldParser -ArgumentList $Path
+    $parser.TextFieldType = [Microsoft.VisualBasic.FileIO.FieldType]::Delimited
+    $parser.SetDelimiters(',')
+    $parser.HasFieldsEnclosedInQuotes = $true
+    $parser.TrimWhiteSpace = $false
+
+    try {
+        if ($parser.EndOfData) { throw "$Label has no CSV header: $Path" }
+        $headers = @($parser.ReadFields() | ForEach-Object { ([string]$_).Trim() })
+        if ($headers.Count -eq 0 -or @($headers | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) {
+            throw "$Label has a blank CSV header: $Path"
+        }
+
+        $headerIndex = @{}
+        foreach ($header in $headers) {
+            if ($headerIndex.ContainsKey($header)) { throw "$Label has duplicate case-insensitive CSV headers: $Path" }
+            $headerIndex[$header] = $true
+        }
+        foreach ($required in $RequiredColumns) {
+            if (-not $headerIndex.ContainsKey($required)) { throw "$Label is missing required CSV column '$required': $Path" }
+        }
+        if ($RequiredAnyColumns.Count -gt 0) {
+            $matched = @($RequiredAnyColumns | Where-Object { $headerIndex.ContainsKey($_) })
+            if ($matched.Count -eq 0) { throw "$Label is missing a required CSV column ($($RequiredAnyColumns -join ', ')): $Path" }
+        }
+
+        while (-not $parser.EndOfData) {
+            try {
+                $fields = @($parser.ReadFields())
+            }
+            catch [Microsoft.VisualBasic.FileIO.MalformedLineException] {
+                throw "$Label has malformed CSV quoting near line $($parser.ErrorLineNumber): $Path"
+            }
+            if ($fields.Count -ne $headers.Count) {
+                throw "$Label row $($parser.LineNumber) does not match the CSV header width: $Path"
+            }
+            if (@($fields | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0) { continue }
+
+            $record = [ordered]@{}
+            for ($i = 0; $i -lt $headers.Count; $i++) { $record[$headers[$i]] = ([string]$fields[$i]).Trim() }
+            [pscustomobject]$record
+        }
+    }
+    finally {
+        $parser.Close()
+        $parser.Dispose()
+    }
 }
 
 function Test-OutOfScope {
@@ -199,12 +261,14 @@ function New-ReductionRow {
     param($ProbeRow, [string]$Status, [string]$StatusReason, $Policy, $IdentityRow, $LocationRow)
     $source = Get-RowValue -Row $ProbeRow -Names @('SourceEvidence', 'EvidencePath', 'EvidenceSource', 'SourceFile')
     if (-not $source) { $source = 'prior_probe_results_csv' }
+    $subnet = if ($null -ne $LocationRow) { Get-RowValue -Row $LocationRow -Names @('SubnetCIDR', 'Subnet', 'CIDR') } else { '' }
+    if (-not $subnet) { $subnet = Get-RowValue -Row $ProbeRow -Names @('SubnetCIDR', 'Subnet', 'CIDR') }
     return [pscustomobject]@{
         Target = Get-TargetFromRow $ProbeRow
         Serial = Get-SerialFromRow $ProbeRow
         Site = Get-SiteFromRow $ProbeRow
         Location = Get-LocationFromRow $ProbeRow
-        SubnetCIDR = if ($null -ne $LocationRow) { Get-RowValue -Row $LocationRow -Names @('SubnetCIDR', 'Subnet', 'CIDR') } else { Get-RowValue -Row $ProbeRow -Names @('SubnetCIDR', 'Subnet', 'CIDR') }
+        SubnetCIDR = $subnet
         Status = $Status
         StatusReason = $StatusReason
         ReachabilityEvidence = Get-ReachabilityText $ProbeRow
@@ -214,7 +278,7 @@ function New-ReductionRow {
         ProbeAgainGuidance = $Policy.ProbeAgainGuidance
         FreshEvidenceGuidance = $Policy.FreshEvidenceGuidance
         NetworkVisibilityNote = $Policy.NetworkVisibilityNote
-        NetworkActivityPerformed = $false
+        NetworkActivityPerformed = 'false'
         SourceEvidence = $source
     }
 }
@@ -236,13 +300,13 @@ function New-LocationCandidateRow {
         SurveyAllowed = Get-RowValue -Row $LocationRow -Names @('SurveyAllowed', 'Allowed')
         Confidence = Get-RowValue -Row $LocationRow -Names @('Confidence')
         Notes = Get-RowValue -Row $LocationRow -Names @('Notes')
-        NetworkActivityPerformed = $false
+        NetworkActivityPerformed = 'false'
     }
 }
 
 function Export-SasCsvAlways {
     param($Rows, [string]$Path, [string[]]$Columns)
-    $rowArray = @($Rows)
+    $rowArray = @($Rows | ForEach-Object { $_ })
     if ($rowArray.Count -gt 0) { $rowArray | Export-Csv -LiteralPath $Path -NoTypeInformation -Encoding UTF8; return }
     Set-Content -LiteralPath $Path -Value (($Columns | ForEach-Object { '"{0}"' -f $_ }) -join ',') -Encoding UTF8
 }
@@ -257,17 +321,23 @@ if ($IdentityEvidence) { Assert-SasApprovedInputPath -Path $IdentityEvidence -Re
 
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path (Join-Path $roots.OutputRoots[0] 'target_reduction') $resolvedRunId }
 Assert-SasApprovedOutputPath -Path $OutputDirectory -RepoRoot $repoRoot -Role 'target reduction output directory'
-New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
 $priorPath = (Resolve-Path -LiteralPath $PriorProbeResults).Path
-$priorRows = @(Import-Csv -LiteralPath $priorPath)
+$priorRows = @(Import-SasPlannerCsv -Path $priorPath -Label 'prior evidence CSV' -RequiredAnyColumns $targetFields)
 if ($priorRows.Count -eq 0) { throw 'Prior evidence CSV had no rows.' }
 
-$identityRows = if ($IdentityEvidence) { @(Import-Csv -LiteralPath (Resolve-Path -LiteralPath $IdentityEvidence).Path) } else { @() }
+$identityRows = if ($IdentityEvidence) { @(Import-SasPlannerCsv -Path (Resolve-Path -LiteralPath $IdentityEvidence).Path -Label 'identity evidence CSV' -RequiredAnyColumns @($targetFields + $serialFields)) } else { @() }
 $identityIndex = New-IdentityIndex -Rows $identityRows
-$locationRows = if ($LocationSubnetMap) { @(Import-Csv -LiteralPath (Resolve-Path -LiteralPath $LocationSubnetMap).Path) } else { @() }
+$locationRows = if ($LocationSubnetMap) { @(Import-SasPlannerCsv -Path (Resolve-Path -LiteralPath $LocationSubnetMap).Path -Label 'location map CSV' -RequiredColumns @('Site') -RequiredAnyColumns $locationFields) } else { @() }
 $locationIndex = New-LocationIndex -Rows $locationRows
 $policy = Get-SasLowNoisePolicy
+$targetCounts = @{}
+foreach ($row in $priorRows) {
+    $targetKey = ConvertTo-NormalizedKey (Get-TargetFromRow $row)
+    if (-not $targetKey) { continue }
+    if (-not $targetCounts.ContainsKey($targetKey)) { $targetCounts[$targetKey] = 0 }
+    $targetCounts[$targetKey]++
+}
 
 $reduced = New-Object System.Collections.Generic.List[object]
 $retry = New-Object System.Collections.Generic.List[object]
@@ -287,7 +357,18 @@ foreach ($row in $priorRows) {
         $outOfScope.Add($outRow)
         continue
     }
-    if (-not $target -or (Test-IdentityReviewRequired -ProbeRow $row -IdentityRow $identityRow)) {
+    if (-not $target) {
+        $surveyAllowed = Get-RowValue -Row $locationRow -Names @('SurveyAllowed', 'Allowed')
+        if ($null -ne $locationRow -and (Test-IsTruthy $surveyAllowed)) { $locationCandidates.Add((New-LocationCandidateRow -ProbeRow $row -LocationRow $locationRow)) }
+        $review.Add((New-ReductionRow -ProbeRow $row -Status 'ReviewRequired' -StatusReason 'missing or conflicting identity evidence' -Policy $policy -IdentityRow $identityRow -LocationRow $locationRow))
+        continue
+    }
+    $targetKey = ConvertTo-NormalizedKey $target
+    if ($targetCounts[$targetKey] -gt 1) {
+        $review.Add((New-ReductionRow -ProbeRow $row -Status 'ReviewRequired' -StatusReason 'duplicate or case-variant target rows require review' -Policy $policy -IdentityRow $identityRow -LocationRow $locationRow))
+        continue
+    }
+    if (Test-IdentityReviewRequired -ProbeRow $row -IdentityRow $identityRow) {
         $review.Add((New-ReductionRow -ProbeRow $row -Status 'ReviewRequired' -StatusReason 'missing or conflicting identity evidence' -Policy $policy -IdentityRow $identityRow -LocationRow $locationRow))
         continue
     }
@@ -295,12 +376,16 @@ foreach ($row in $priorRows) {
         $reduced.Add((New-ReductionRow -ProbeRow $row -Status 'ConfirmedReached' -StatusReason 'prior local reachability evidence exists; this is not identity proof' -Policy $policy -IdentityRow $identityRow -LocationRow $locationRow))
         continue
     }
-    if ($null -ne $locationRow) { $locationCandidates.Add((New-LocationCandidateRow -ProbeRow $row -LocationRow $locationRow)) }
     if (Test-IsRetrySignal $row) {
         $retry.Add((New-ReductionRow -ProbeRow $row -Status 'RetryCandidate' -StatusReason 'negative local evidence is not proof the device is gone' -Policy $policy -IdentityRow $identityRow -LocationRow $locationRow))
     } else {
         $review.Add((New-ReductionRow -ProbeRow $row -Status 'ReviewRequired' -StatusReason 'ambiguous local evidence requires review' -Policy $policy -IdentityRow $identityRow -LocationRow $locationRow))
     }
+}
+
+$classifiedRowCount = $reduced.Count + $retry.Count + $review.Count + $outOfScope.Count
+if ($classifiedRowCount -ne $priorRows.Count) {
+    throw "target reduction classification count mismatch: input=$($priorRows.Count) classified=$classifiedRowCount"
 }
 
 $reducedPath = Join-Path $OutputDirectory 'reduced_targets.csv'
@@ -311,6 +396,7 @@ $locationPath = Join-Path $OutputDirectory 'location_subnet_candidates.csv'
 $summaryPath = Join-Path $OutputDirectory 'target_reduction_summary.json'
 $handoffPath = Join-Path $OutputDirectory 'operator_handoff.txt'
 
+New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 Export-SasCsvAlways -Rows $reduced -Path $reducedPath -Columns $reductionColumns
 Export-SasCsvAlways -Rows $retry -Path $retryPath -Columns $reductionColumns
 Export-SasCsvAlways -Rows $review -Path $reviewPath -Columns $reductionColumns
@@ -324,6 +410,8 @@ $summary = New-SasLowNoiseSummaryObject -Properties @{
     generated_at = (Get-Date).ToString('o')
     prior_probe_results_csv = $priorPath
     input_row_count = $priorRows.Count
+    classified_row_count = $classifiedRowCount
+    classification_reconciled = $true
     confirmed_reached_count = $reduced.Count
     retry_candidate_count = $retry.Count
     review_required_count = $review.Count
@@ -360,6 +448,7 @@ $summary | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $summaryPath -Enco
     "- $outOfScopePath",
     "- $locationPath",
     "- $summaryPath",
+    "- $handoffPath",
     '',
     'Planner network activity performed: false',
     'Target mutation performed: false',

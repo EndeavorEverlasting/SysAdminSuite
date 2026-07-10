@@ -30,7 +30,8 @@
         "review_required.csv",
         "out_of_scope.csv",
         "location_subnet_candidates.csv",
-        "target_reduction_summary.json"
+        "target_reduction_summary.json",
+        "operator_handoff.txt"
       ],
       "guardrails": [
         "NoPing_NoTcp_DNS_failure_is_not_dead",
