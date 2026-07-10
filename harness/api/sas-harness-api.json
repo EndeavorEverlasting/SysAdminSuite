@@ -127,12 +127,13 @@
       "network_activity": true,
       "target_mutation": true,
       "inputs": [
-        "approved_targets_csv_or_computer_name",
         "package_name",
         "installer_relative_path",
+        "install_mode",
+        "targets",
+        "allow_target_mutation",
         "software_share_root",
-        "installer_arguments",
-        "explicit_allow_target_mutation"
+        "installer_arguments"
       ],
       "outputs": [
         "software_install_events.jsonl",
@@ -154,3 +155,4 @@
     }
   ]
 }
+
