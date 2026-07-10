@@ -15,3 +15,4 @@ python3 Tests/survey/test_windows_log_classification_contracts.py
 python3 Tests/survey/test_windows_log_classifier_code.py
 python3 Tests/survey/test_repo_directory_structure_contracts.py
 python3 Tests/survey/test_run_context_contracts.py
+bash Tests/bash/test_target_reduction_plan_contracts.sh
