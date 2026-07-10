@@ -41,6 +41,7 @@ param(
     [string]$OutputRoot = (Join-Path -Path (Get-Location) -ChildPath 'survey/output/software_install'),
 
     [Parameter(Mandatory = $false)]
+    [ValidateRange(1, 25)]
     [int]$MaxTargets = 25,
 
     [Parameter(Mandatory = $false)]
@@ -361,7 +362,12 @@ $remoteInstall = {
             throw "Installer source not found on target context: $InstallerSource"
         }
 
-        $process = Start-Process -FilePath $InstallerSource -ArgumentList $Arguments -Wait -PassThru
+        $installerTimeoutMilliseconds = 1800000
+        $process = Start-Process -FilePath $InstallerSource -ArgumentList $Arguments -PassThru
+        if (-not $process.WaitForExit($installerTimeoutMilliseconds)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw "Installer timed out after $($installerTimeoutMilliseconds / 1000) seconds."
+        }
         $result.exit_code = $process.ExitCode
         if ($process.ExitCode -eq 0) {
             $result.status = 'completed'
@@ -433,7 +439,8 @@ foreach ($target in $targets) {
     $session = $null
     $stageRoot = $null
     try {
-        $session = New-PSSession -ComputerName $target
+        $sessionOption = New-PSSessionOption -OpenTimeout 30000 -OperationTimeout 3600000
+        $session = New-PSSession -ComputerName $target -SessionOption $sessionOption
         $remoteInstallerPath = $installerPath
 
         if ($InstallMode -eq 'CopyThenInstall') {
@@ -595,3 +602,4 @@ Write-SasInstallEvent -EventPath $eventPath -Event @{
 }
 
 Write-Output $summary
+
