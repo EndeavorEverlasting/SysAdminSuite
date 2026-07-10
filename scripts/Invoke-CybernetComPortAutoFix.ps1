@@ -166,11 +166,11 @@ function Test-CybernetComAutoFixEligibility {
   if (-not $State.FintekPresent -and -not $Force) {
     throw 'FINTEK or multi-port serial device was not detected. Use -Force only if a lead confirms this is still a Cybernet COM repair target.'
   }
-  if ($State.Ports.Count -ne 4 -and -not $Force) {
-    throw "Expected exactly 4 active Communications Port devices, found $($State.Ports.Count). Use -Force only after a lead confirms the target."
+  if ($State.Ports.Count -ne 4) {
+    throw "Expected exactly 4 active Communications Port devices, found $($State.Ports.Count). This invariant cannot be overridden with -Force."
   }
-  if ($currentSet -ne '3,4,5,6' -and -not $Force) {
-    throw "Expected the known failed map COM3-COM6, found $($currentPorts -join ','). Use -Force only after a lead confirms the target."
+  if ($currentSet -ne '3,4,5,6') {
+    throw "Expected the known failed map COM3-COM6, found $($currentPorts -join ','). This invariant cannot be overridden with -Force."
   }
 
   return [pscustomobject]@{ Status = 'eligible'; Eligible = $true; AlreadyCorrect = $false }
