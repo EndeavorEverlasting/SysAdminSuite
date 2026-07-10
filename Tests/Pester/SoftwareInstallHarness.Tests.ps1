@@ -34,12 +34,7 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
     }
 
     It 'keeps WhatIf local and does not probe the share or target' {
-        $script:testedPaths = [System.Collections.Generic.List[string]]::new()
-        Mock Test-Path {
-            param($LiteralPath)
-            $script:testedPaths.Add([string]$LiteralPath)
-            return $true
-        }
+        Mock Test-Path { return $true }
         Mock New-PSSession { throw 'New-PSSession must not be called' }
         Mock Invoke-Command { throw 'Invoke-Command must not be called' }
         Mock Copy-Item { throw 'Copy-Item must not be called' }
@@ -51,7 +46,7 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
             -WhatIf
 
         $summary.planned_count | Should -Be 1
-        @($script:testedPaths | Where-Object { $_.StartsWith('\\') }).Count | Should -Be 0
+        Should -Invoke Test-Path -Times 0 -Exactly -ParameterFilter { $LiteralPath -like '\\*' }
         Should -Invoke New-PSSession -Times 0 -Exactly
         Should -Invoke Invoke-Command -Times 0 -Exactly
         Should -Invoke Copy-Item -Times 0 -Exactly
@@ -73,9 +68,9 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
                 pruned_empty_parent_dirs = @()
                 error = $null
             }
-        }
-        Mock Copy-Item { throw 'synthetic copy failure' }
-        Mock Remove-PSSession {}
+        } -RemoveParameterType Session
+        Mock Copy-Item { throw 'synthetic copy failure' } -RemoveParameterType ToSession
+        Mock Remove-PSSession {} -RemoveParameterType Session
 
         $summary = & $script:installer `
             -ComputerName 'synthetic-target' `
@@ -104,9 +99,9 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
                 return 'C:\ProgramData\SysAdminSuite\SoftwareInstall\software-install-20260710-120000'
             }
             throw 'synthetic cleanup failure'
-        }
-        Mock Copy-Item { throw 'synthetic copy failure' }
-        Mock Remove-PSSession {}
+        } -RemoveParameterType Session
+        Mock Copy-Item { throw 'synthetic copy failure' } -RemoveParameterType ToSession
+        Mock Remove-PSSession {} -RemoveParameterType Session
 
         $summary = & $script:installer `
             -ComputerName 'synthetic-target' `
