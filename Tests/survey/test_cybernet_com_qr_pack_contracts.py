@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PACK_PATH = REPO_ROOT / "configs" / "hotfix-command-packs" / "cybernet-com-port-repair.pack.json"
 RUNNER_PATH = REPO_ROOT / "scripts" / "Start-CybernetComPortQrPack.ps1"
 LAUNCHER_PATH = REPO_ROOT / "Run-CybernetComPortQrPack.cmd"
+AUTOFIX_LAUNCHER_PATH = REPO_ROOT / "Run-CybernetComPortAutoFix.cmd"
 DOC_PATH = REPO_ROOT / "docs" / "field-hotfixes" / "cybernet-com-port-qr-pack.md"
 FIELD_HOTFIX_GUI_PATH = REPO_ROOT / "GUI" / "Start-FieldHotfixesGui.ps1"
 
@@ -29,9 +30,10 @@ def test_cybernet_com_qr_pack_has_ordered_scannable_snippets() -> None:
 
     assert pack["pack_id"] == "cybernet.com_port_qr_pack"
     assert pack["entrypoint"] == "Run-CybernetComPortQrPack.cmd"
+    assert pack["autofix_entrypoint"] == "Run-CybernetComPortAutoFix.cmd"
     assert pack["operator_position"] == "standing-at-target"
-    assert len(sequence) == 11
-    assert [item["step"] for item in sequence] == [f"{i:02d}" for i in range(1, 12)]
+    assert len(sequence) == 12
+    assert [item["step"] for item in sequence] == [f"{i:02d}" for i in range(1, 13)]
 
     required_keys = {
         "step",
@@ -67,6 +69,7 @@ def test_cybernet_com_qr_pack_contains_the_required_field_workflow() -> None:
         "serialcomm-after.txt",
         "ports-after.txt",
         r"explorer C:\Temp\CybernetCOM",
+        "Run-CybernetComPortAutoFix.cmd",
     ]
 
     for fragment in expected_fragments:
@@ -124,6 +127,7 @@ def test_cybernet_com_qr_pack_runner_builds_temporary_field_hotfix_manifest() ->
 
 def test_cybernet_com_qr_pack_launcher_and_outline_exist() -> None:
     assert LAUNCHER_PATH.exists(), f"missing launcher: {LAUNCHER_PATH}"
+    assert AUTOFIX_LAUNCHER_PATH.exists(), f"missing AutoFix launcher: {AUTOFIX_LAUNCHER_PATH}"
     assert DOC_PATH.exists(), f"missing outline: {DOC_PATH}"
 
     launcher = LAUNCHER_PATH.read_text(encoding="utf-8")
@@ -131,7 +135,9 @@ def test_cybernet_com_qr_pack_launcher_and_outline_exist() -> None:
 
     assert "Start-CybernetComPortQrPack.ps1" in launcher
     assert "Run-CybernetComPortQrPack.cmd" in outline
+    assert "Run-CybernetComPortAutoFix.cmd" in outline
     assert "COM3 to COM1" in outline
     assert "COM4 to COM2" in outline
+    assert "Run automated COM AutoFix" in outline
     assert "No silent remote execution" in outline
     assert "C:\\Temp\\CybernetCOM" in outline
