@@ -7,6 +7,7 @@ Use this map to load only the files needed for a task.
 - `AGENTS.md` — agent rules, Bash-first hierarchy, PowerShell preservation, low-noise survey doctrine, and local reference guardrails.
 - `README.md` — user entrypoint, repo layout, runtime policy, and local source folder policy.
 - `docs/HARNESS_COMPLETION_PLAN.md` — source of truth for AI harness completion sequencing.
+- `docs/PYDANTIC_AI_CAPABILITY_ADAPTER_DECISION.md` — boundary decision for future Pydantic AI or capability-oriented adapters; the repo-local harness remains authoritative.
 - `docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md` — source of truth for future English report/run-context artifacts.
 - `docs/OPERATIONAL_POSTURE.md` — lane model for survey, dashboard probes, deployment, mapping, and teardown.
 - `docs/LOCAL_REFERENCE_POLICY.md` — rules for gitignored operator-local reference material.
