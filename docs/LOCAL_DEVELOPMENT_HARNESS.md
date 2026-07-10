@@ -47,6 +47,10 @@ Developers can install the hooks with:
 bash scripts/install-local-harness-hooks.sh
 ```
 
+```powershell
+& "$env:ProgramFiles\Git\bin\bash.exe" scripts/install-local-harness-hooks.sh
+```
+
 ## API posture
 
 Harness APIs are operation contracts, not remote services by default.
@@ -143,3 +147,4 @@ operator_handoff.txt
 ```
 
 That planner should implement the API operation `target_reduction.plan` and stay plan-only/local-transform before any new probe execution is introduced.
+
