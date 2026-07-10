@@ -63,8 +63,16 @@ def test_autofix_dryrun_launcher_rejects_mutation_args_and_elevates() -> None:
     assert "-Verb RunAs" in launcher
     assert "Invoke-CybernetComPortAutoFix.ps1" in launcher
     assert "%*" not in launcher
-    assert " -Apply" not in launcher
-    assert " -Restart" not in launcher
+    invocation_lines = [
+        line
+        for line in launcher.splitlines()
+        if "Invoke-CybernetComPortAutoFix.ps1" in line and "-File" in line
+    ]
+    assert len(invocation_lines) == 1
+    invocation = invocation_lines[0]
+    assert "-Apply" not in invocation
+    assert "-Restart" not in invocation
+    assert "-Force" not in invocation
     assert "EXITCODE" in launcher
 
 
