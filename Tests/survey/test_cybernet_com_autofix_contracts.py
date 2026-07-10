@@ -34,7 +34,11 @@ def test_autofix_launcher_runs_apply_restart_with_admin_elevation() -> None:
     assert "SysAdminSuite - Cybernet COM Port AutoFix" in launcher
     assert "Mode: APPLY + RESTART" in launcher
     assert "Evidence: C:\\Temp\\CybernetCOM\\autofix_*" in launcher
-    assert "net session" in launcher
+    assert "WindowsPrincipal" in launcher
+    assert "WindowsIdentity" in launcher
+    assert "WindowsBuiltInRole" in launcher
+    assert "Administrator" in launcher
+    assert "net session" not in launcher
     assert "Start-Process" in launcher
     assert "-Verb RunAs" in launcher
     assert "Invoke-CybernetComPortAutoFix.ps1" in launcher
@@ -43,15 +47,24 @@ def test_autofix_launcher_runs_apply_restart_with_admin_elevation() -> None:
     assert "EXITCODE" in launcher
 
 
-def test_autofix_dryrun_launcher_does_not_apply_or_restart() -> None:
+def test_autofix_dryrun_launcher_rejects_mutation_args_and_elevates() -> None:
     launcher = read(DRYRUN_LAUNCHER_PATH)
 
     assert "SysAdminSuite - Cybernet COM Port AutoFix" in launcher
     assert "Mode: DRY RUN ONLY" in launcher
     assert "This captures evidence and previews the mapping" in launcher
+    assert 'if not "%~1"==""' in launcher
+    assert "does not accept arguments" in launcher
+    assert "WindowsPrincipal" in launcher
+    assert "WindowsIdentity" in launcher
+    assert "WindowsBuiltInRole" in launcher
+    assert "Administrator" in launcher
+    assert "Start-Process" in launcher
+    assert "-Verb RunAs" in launcher
     assert "Invoke-CybernetComPortAutoFix.ps1" in launcher
-    assert "-Apply" not in launcher
-    assert "-Restart" not in launcher
+    assert "%*" not in launcher
+    assert " -Apply" not in launcher
+    assert " -Restart" not in launcher
     assert "EXITCODE" in launcher
 
 
@@ -120,6 +133,17 @@ def test_autofix_script_only_targets_known_com3_to_com6_pattern_by_default() -> 
     assert "FINTEK or multi-port serial device was not detected" in content
     assert "COM1, COM2, COM3, COM4" in content
     assert "already COM1-COM4" in content
+
+
+def test_force_only_overrides_fintech_detection_not_mapping_invariants() -> None:
+    content = read(SCRIPT_PATH)
+
+    assert "if (-not $State.FintekPresent -and -not $Force)" in content
+    assert "if ($State.Ports.Count -ne 4)" in content
+    assert "if ($currentSet -ne '3,4,5,6')" in content
+    assert "if ($State.Ports.Count -ne 4 -and -not $Force)" not in content
+    assert "if ($currentSet -ne '3,4,5,6' -and -not $Force)" not in content
+    assert "This invariant cannot be overridden with -Force." in content
 
 
 def test_autofix_script_saves_and_validates_registry_before_any_mutation() -> None:
@@ -206,12 +230,15 @@ def test_docs_explain_fast_path_boundaries_progress_and_backups() -> None:
 
     assert "Run-CybernetComPortAutoFix.cmd" in doc
     assert "Run-CybernetComPortAutoFix-DryRun.cmd" in doc
+    assert "requests Administrator permission" in doc
+    assert "does not accept arguments" in doc
     assert "COM3" in doc and "COM6" in doc
     assert "COM1" in doc and "COM4" in doc
     assert "No remote execution" in doc
     assert "No admin-box target mutation" in doc
     assert "No SmartLynx or final app install" in doc
     assert "No USB/COM driver replacement" in doc
+    assert "-Force cannot override" in doc
     assert "progress bar" in doc.lower()
     assert "COMPLETE" in doc
     assert "DRY RUN COMPLETE" in doc
@@ -226,11 +253,12 @@ def test_docs_explain_fast_path_boundaries_progress_and_backups() -> None:
 def main() -> None:
     tests = [
         test_autofix_launcher_runs_apply_restart_with_admin_elevation,
-        test_autofix_dryrun_launcher_does_not_apply_or_restart,
+        test_autofix_dryrun_launcher_rejects_mutation_args_and_elevates,
         test_autofix_script_is_local_admin_bounded_and_evidence_first,
         test_autofix_script_is_factored_for_future_posture_changes,
         test_autofix_script_has_progress_and_unambiguous_final_statuses,
         test_autofix_script_only_targets_known_com3_to_com6_pattern_by_default,
+        test_force_only_overrides_fintech_detection_not_mapping_invariants,
         test_autofix_script_saves_and_validates_registry_before_any_mutation,
         test_autofix_script_resets_arbiter_and_assigns_portname_values,
         test_autofix_has_no_remote_execution_or_public_bootstrap,
