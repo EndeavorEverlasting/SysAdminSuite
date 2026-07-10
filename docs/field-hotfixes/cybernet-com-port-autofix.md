@@ -30,6 +30,8 @@ Run-CybernetComPortAutoFix-DryRun.cmd
 
 Dry run captures evidence, exports registry backups, builds the planned COM mapping, writes a summary, and stops before changing `PortName` values or rebooting.
 
+Every registry export must return exit code 0 and create a nonempty `.reg` file. If the COM Name Arbiter export or any per-device `Device Parameters` export fails validation, AutoFix reports `FAILED` and stops before any COM registry mutation.
+
 ## Progress and final status
 
 The script now shows a progress bar plus plain console lines so a technician can tell whether it is still working, safely stopped, failed, or rebooting.
@@ -65,14 +67,15 @@ If the console says `FAILED`, stop and review the evidence folder before retryin
 4. Confirms a FINTEK or multi-port serial device is present.
 5. Exports `HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter`.
 6. Exports each active COM device `Device Parameters` registry key before changing `PortName`.
-7. Clears the COM Name Arbiter `ComDB` reservation bitmap.
-8. Reassigns the active local ports in sorted order:
+7. Validates that all five registry exports exist and are nonempty.
+8. Clears the COM Name Arbiter `ComDB` reservation bitmap.
+9. Reassigns the active local ports in sorted order:
    - `COM3` to `COM1`
    - `COM4` to `COM2`
    - `COM5` to `COM3`
    - `COM6` to `COM4`
-9. Captures after-state evidence.
-10. Restarts the Cybernet.
+10. Captures after-state evidence.
+11. Restarts the Cybernet.
 
 ## Evidence output
 
@@ -105,6 +108,8 @@ autofix-summary.json
 autofix-transcript.txt
 ```
 
+For eligible dry-run and apply paths, `autofix-summary.json` records `registry_backups.validated: true`, the COM Name Arbiter backup path and size, and each per-device backup path, size, and validation result.
+
 Do not commit these runtime evidence files to the repo.
 
 ## Safety boundaries
@@ -127,4 +132,5 @@ Stop and escalate if:
 - The device already completed final app/device COM binding.
 - The script cannot export the COM Name Arbiter key.
 - The script cannot export any `device-parameters-before-*.reg` file.
+- Any registry backup is missing or empty.
 - The script reports `FAILED` instead of `COMPLETE`, `DRY RUN COMPLETE`, or `REBOOTING`.
