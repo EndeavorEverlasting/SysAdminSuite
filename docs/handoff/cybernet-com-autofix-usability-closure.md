@@ -2,10 +2,12 @@
 
 ## Sprint outcome
 
-PR #156 now includes the requested follow-up hardening for the Cybernet COM AutoFix lane:
+PR #156 includes the requested hardening for the Cybernet COM AutoFix lane:
 
 - progress/status output to avoid ambiguous hanging prompts
 - per-device `Device Parameters` registry export before `PortName` changes
+- explicit native registry export exit-code, file-presence, and nonempty-file validation
+- a mutation gate that stops before COM Name Arbiter reset or `PortName` writes unless all backups validate
 - clearer technician-facing launcher text and field docs
 - factored PowerShell functions for future posture, GUI, or platform changes
 - an offline survey runner merge-drift repair that keeps the AutoFix contract test and current software-install harness contract test in the same runner
@@ -34,16 +36,65 @@ The apply launcher runs the local script with `-Apply -Restart`. The dry-run lau
 - No SmartLynx or final app install.
 - No USB/COM driver replacement.
 - Default apply still stops unless the known COM3-COM6 pattern is present.
+- No `-Force` validation or runtime proof was performed in this sprint.
 
-## Evidence additions
+## Registry-backup validation
 
-AutoFix continues to write timestamped folders under:
+The validation sprint found a bounded backup-path defect: native `reg.exe export` failures were not explicitly checked. PowerShell could therefore continue after a nonzero native exit code.
+
+The AutoFix now requires every registry export to:
+
+1. return native exit code `0`
+2. create the expected `.reg` file
+3. create a nonempty file
+
+The successful backup result records:
+
+```json
+{
+  "registry_backups": {
+    "validated": true,
+    "com_name_arbiter": "...\\COMNameArbiter-before.reg",
+    "com_name_arbiter_size_bytes": 1,
+    "device_parameters": [
+      {
+        "export_path": "...\\device-parameters-before-01.reg",
+        "size_bytes": 1,
+        "validated": true
+      }
+    ]
+  }
+}
+```
+
+The numeric sizes above are structural examples only. Runtime values come from the files produced on the Cybernet.
+
+The static contract proves this order in the executable orchestration:
+
+```text
+registry backup call
+  < backup validation gate
+  < COM Name Arbiter reset
+  < per-device PortName mutation
+```
+
+Bounded hardening commits:
+
+```text
+e8053d8e65e8a4d74f766602ca990a15997315ca  script backup validation
+c378803ecb067d8d47eb2971761f3a830801f47d  ordering and failure contracts
+ec21f8d38eec718244cc50f150d6e61ac3f8e7d3  operator documentation
+```
+
+## Evidence output
+
+AutoFix writes timestamped folders under:
 
 ```text
 C:\Temp\CybernetCOM\autofix_YYYYMMDD_HHMMSS
 ```
 
-Registry backup now includes:
+An eligible dry run is expected to produce:
 
 ```text
 COMNameArbiter-before.reg
@@ -51,35 +102,55 @@ device-parameters-before-01.reg
 device-parameters-before-02.reg
 device-parameters-before-03.reg
 device-parameters-before-04.reg
+autofix-summary.json
+autofix-transcript.txt
 ```
 
-`autofix-summary.json` records the registry backups and planned/applied mapping.
+`autofix-summary.json` records the validated registry backups and planned mapping.
 
-## Release hygiene update - 2026-07-10
+Do not commit these runtime artifacts.
 
-Old head before this cleanup pass:
+## Validation completed
+
+Executed against an exact local reconstruction of the PR files:
 
 ```text
-7b88454e0196551a3f51f9b3e635b4eb161ffa52
+python Tests/survey/test_cybernet_com_autofix_contracts.py
+PASS: 11 Cybernet COM AutoFix static contracts
 ```
 
-Repair commit:
+Connector-side inspection confirmed that the PR changed-file list contains no `.reg` exports, transcripts, screenshots, runtime logs, hostnames, or machine-local evidence.
 
-```text
-a121f43cd5e6f9f89079e22bf5e3e7c384418ae6
-```
+## Validation not completed in this environment
 
-The branch was behind current `main` after PR #151 landed. The only confirmed same-file drift was `tests/survey/run_offline_survey_tests.sh`: PR #156 had added `test_cybernet_com_autofix_contracts.py`, while `main` had added `test_software_install_harness_contracts.py`. The runner now includes both contract suites.
-
-Connector PR metadata still reported `mergeable: false` after the runner repair. A local checkout is required to complete a true `git merge origin/main` / conflict repair and to run the requested Windows/Python validation commands.
-
-## Validation still needed on Windows
-
-Run locally before trusting field rollout:
+The execution environment was Linux-only and did not provide `powershell.exe`, `pwsh`, `cmd.exe`, Windows registry access, FINTEK/COM devices, or an affected Cybernet. Therefore these requested proofs remain pending on Windows:
 
 ```cmd
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$null = [scriptblock]::Create((Get-Content .\scripts\Invoke-CybernetComPortAutoFix.ps1 -Raw)); 'PARSE OK'"
 Run-CybernetComPortAutoFix-DryRun.cmd
-python Tests\survey\test_cybernet_com_autofix_contracts.py
 ```
 
-Controlled apply proof on a non-finalized Cybernet should confirm that COM1-COM4 sticks after reboot and that no runtime evidence was committed.
+No real `C:\Temp\CybernetCOM\autofix_*` evidence folder was observed in this sprint, and no runtime `autofix-summary.json` result is claimed.
+
+## Release hygiene
+
+The branch had diverged after current `main` gained the software-install harness. The shared offline survey runner preserves both:
+
+```text
+Tests/survey/test_cybernet_com_autofix_contracts.py
+Tests/survey/test_software_install_harness_contracts.py
+```
+
+Current-main refresh was completed without force-pushing:
+
+```text
+044b65edfd668f7066d532875e637f8dc951ce68  merge current main into PR #156
+c89dc8130068bdef2c9ba0972bec9ce761916e96  preserve runner line endings
+177a80b1848d7af59f0fc61f629ad1c27c416a21  restore pre-commit hook mode
+```
+
+After refresh, PR #156 is mergeable and the feature branch is zero commits behind `main`.
+
+## Next runtime decision
+
+On a non-finalized Cybernet with the known COM3-COM6 state, run the PowerShell parse check and dry-run launcher. Inspect the newest evidence folder and confirm all five `.reg` files are nonempty and `autofix-summary.json` reports `registry_backups.validated` as `true`. Do not run apply or use `-Force` as part of this validation step.
