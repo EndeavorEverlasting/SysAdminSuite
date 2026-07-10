@@ -136,8 +136,10 @@ The next implementation sprint should add a local target-reduction planner that 
 reduced_targets.csv
 retry_candidates.csv
 review_required.csv
+out_of_scope.csv
 location_subnet_candidates.csv
 target_reduction_summary.json
+operator_handoff.txt
 ```
 
 That planner should implement the API operation `target_reduction.plan` and stay plan-only/local-transform before any new probe execution is introduced.

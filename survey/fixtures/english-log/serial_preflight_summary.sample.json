@@ -1,0 +1,47 @@
+{
+  "workflow_id": "serial-to-preflight",
+  "run_id": "20260707-serial-preflight-sample",
+  "request_summary": "Review a synthetic serial list and stage only rows with approved host or IP bridge evidence.",
+  "source_artifacts": [
+    {
+      "name": "Synthetic serial source",
+      "path": "survey/fixtures/english-log/sample_serials.csv",
+      "description": "Fixture-only serial list using SAMPLE-SERIAL values."
+    }
+  ],
+  "loaded_evidence_artifacts": [
+    {
+      "name": "Synthetic bridge evidence",
+      "path": "survey/fixtures/english-log/sample_bridge_evidence.csv",
+      "description": "Fixture-only mapping from sample serials to example hosts."
+    }
+  ],
+  "planner_name": "sas-serial-preflight-plan",
+  "planner_version": "fixture/v1",
+  "network_activity_performed": false,
+  "low_noise_policy_version": "sas-low-noise-policy/v1",
+  "started_at": "2026-07-07T00:00:00-04:00",
+  "finished_at": "2026-07-07T00:00:02-04:00",
+  "operator_handoff_path": "survey/output/runs/serial-to-preflight/20260707-serial-preflight-sample/operator_handoff.txt",
+  "summary_json_path": "survey/fixtures/english-log/serial_preflight_summary.sample.json",
+  "report_markdown_path": "survey/output/english-log/serial_preflight_report.md",
+  "next_action": "Run bounded network preflight only against staged example host/IP targets from the generated target file.",
+  "action_decision": "Stage only bridged host/IP targets; keep mystery serials in review.",
+  "serials_total": 3,
+  "serials_with_probe_ready_bridge": 2,
+  "serials_mystery_no_bridge": 1,
+  "review_required_count": 1,
+  "probe_targets_staged": 2,
+  "probe_target_file": "survey/input/serial_network_preflight/20260707-serial-preflight-sample/to_probe_targets.txt",
+  "low_noise_context": [
+    "Serials are not network targets.",
+    "Fresh local evidence should reduce repeat work.",
+    "Retry only when timing, evidence, or operator review justifies it."
+  ],
+  "review_required_rows": [
+    {
+      "serial": "SAMPLE-SERIAL-003",
+      "reason": "No approved host/IP bridge was found."
+    }
+  ]
+}

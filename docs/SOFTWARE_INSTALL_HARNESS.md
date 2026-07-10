@@ -14,6 +14,8 @@ Initial approved source root:
 \\nt2kwb972sms01\
 ```
 
+The approved root list is read from `harness/api/sas-harness-api.json`. Supplying a different UNC root, including a near-prefix match, is rejected before the share or any target is contacted.
+
 The operator supplies an installer path relative to that root, for example:
 
 ```text
@@ -21,6 +23,8 @@ SomeShare\Vendor\Package\setup.exe
 ```
 
 The harness rejects installer paths that are absolute, use `..`, or do not resolve under the approved source root.
+
+`-WhatIf` does not test the installer on the share and does not open a remote session, copy a payload, or start an installer. It validates the request and writes local planning evidence only.
 
 ## Modes
 
@@ -71,6 +75,7 @@ The lane must preserve these boundaries:
 - No target-side SysAdminSuite logs, reports, manifests, transcripts, scripts, or evidence.
 - No target-side SysAdminSuite staging artifacts after completion when cleanup succeeds.
 - Run-specific staging cleanup is attempted on normal and failure paths.
+- A run-specific staging path is validated against the expected `%ProgramData%\SysAdminSuite\SoftwareInstall\<run_id>` boundary before recursive deletion.
 - Empty SysAdminSuite parent directories are pruned when no sibling run artifacts remain.
 - Cleanup failure is a reportable failure, not something to hide.
 - Generated run artifacts stay in gitignored local output paths.

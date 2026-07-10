@@ -13,6 +13,7 @@ SCRIPT = ROOT / "scripts" / "Invoke-SasSoftwareInstall.ps1"
 SCHEMA = ROOT / "schemas" / "harness" / "software-install-request.schema.json"
 RUNNER = ROOT / "tests" / "survey" / "run_offline_survey_tests.sh"
 PRE_COMMIT = ROOT / ".githooks" / "pre-commit"
+PESTER = ROOT / "Tests" / "Pester" / "SoftwareInstallHarness.Tests.ps1"
 
 
 def read(path: Path) -> str:
@@ -88,7 +89,9 @@ def test_script_enforces_approved_source_and_explicit_mutation_gate():
     text = read(SCRIPT)
     required = [
         "[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]",
-        "\\\\nt2kwb972sms01\\",
+        "Get-SasApprovedSoftwareShareRoots",
+        "approved_software_sources",
+        "SoftwareShareRoot is not an approved software source",
         "Resolve-SasApprovedInstallerPath",
         "InstallerRelativePath must be relative",
         "parent-directory traversal",
@@ -101,6 +104,7 @@ def test_script_enforces_approved_source_and_explicit_mutation_gate():
         "Remove-SasRepoOwnedInstallArtifacts",
         "$remoteRepoCleanup",
         "Remove-Item -LiteralPath $stageRoot -Recurse -Force",
+        "run-specific staging path failed validation",
         "pruned_empty_parent_dirs",
         "repo_artifact_remaining_count",
         "operator_handoff.txt",
@@ -125,6 +129,8 @@ def test_script_enforces_approved_source_and_explicit_mutation_gate():
     for fragment in forbidden:
         assert fragment not in text, f"forbidden software install script fragment present: {fragment}"
 
+    assert "if (-not $WhatIfPreference -and -not (Test-Path -LiteralPath $installerPath" in text
+
 
 def test_schema_keeps_requests_bounded():
     schema = load_json(SCHEMA)
@@ -143,9 +149,23 @@ def test_contract_is_wired_into_offline_runner_and_precommit():
     assert "python3 Tests/survey/test_software_install_harness_contracts.py" in pre_commit
 
 
+def test_behavioral_pester_covers_dry_run_and_cleanup_failures():
+    text = read(PESTER)
+    for fragment in [
+        "rejects an arbitrary UNC root before contacting it",
+        "keeps WhatIf local and does not probe the share or target",
+        "cleans run-specific staging after a copy failure",
+        "preserves the original failure and reports cleanup uncertainty",
+        "Should -Invoke New-PSSession -Times 0 -Exactly",
+        "Should -Invoke Invoke-Command -Times 2 -Exactly",
+    ]:
+        assert fragment in text, f"missing behavioral Pester fragment: {fragment}"
+
+
 if __name__ == "__main__":
     test_api_manifest_declares_gated_operator_execute_surface()
     test_document_names_no_artifact_boundary_without_stealth_claims()
     test_script_enforces_approved_source_and_explicit_mutation_gate()
     test_schema_keeps_requests_bounded()
     test_contract_is_wired_into_offline_runner_and_precommit()
+    test_behavioral_pester_covers_dry_run_and_cleanup_failures()

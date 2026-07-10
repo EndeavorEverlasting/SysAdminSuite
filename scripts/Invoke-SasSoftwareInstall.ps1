@@ -28,7 +28,7 @@ param(
     [string]$InstallerRelativePath,
 
     [Parameter(Mandatory = $false)]
-    [string]$SoftwareShareRoot = '\\nt2kwb972sms01\',
+    [string]$SoftwareShareRoot,
 
     [Parameter(Mandatory = $false)]
     [string[]]$InstallerArguments = @('/quiet', '/norestart'),
@@ -57,12 +57,33 @@ function Normalize-SasUncRoot {
         [string]$Path
     )
 
-    if (-not $Path.StartsWith('\\')) {
+    $normalized = $Path.Trim().Replace('/', '\')
+    if ($normalized -notmatch '^\\\\[^\\]+\\?$') {
         throw "SoftwareShareRoot must be a UNC path. Received: $Path"
     }
 
-    $trimmed = $Path.TrimEnd('\')
+    $trimmed = $normalized.TrimEnd('\')
     return "$trimmed\"
+}
+
+function Get-SasApprovedSoftwareShareRoots {
+    [CmdletBinding()]
+    param()
+
+    $manifestPath = Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'harness/api/sas-harness-api.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "Harness API manifest not found: $manifestPath"
+    }
+
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $roots = @($manifest.posture.approved_software_sources | ForEach-Object {
+        Normalize-SasUncRoot -Path ([string]$_)
+    } | Sort-Object -Unique)
+    if ($roots.Count -eq 0) {
+        throw 'Harness API manifest does not declare any approved software source roots.'
+    }
+
+    return $roots
 }
 
 function Resolve-SasApprovedInstallerPath {
@@ -72,20 +93,32 @@ function Resolve-SasApprovedInstallerPath {
         [string]$Root,
 
         [Parameter(Mandatory = $true)]
-        [string]$RelativePath
+        [string]$RelativePath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ApprovedRoots
     )
 
-    if ([System.IO.Path]::IsPathRooted($RelativePath)) {
+    $normalizedRoot = Normalize-SasUncRoot -Path $Root
+    $rootApproved = @($ApprovedRoots | Where-Object {
+        $normalizedRoot.Equals((Normalize-SasUncRoot -Path $_), [System.StringComparison]::OrdinalIgnoreCase)
+    }).Count -gt 0
+    if (-not $rootApproved) {
+        throw "SoftwareShareRoot is not an approved software source: $normalizedRoot"
+    }
+
+    $normalizedRelativePath = $RelativePath.Trim().Replace('/', '\')
+    if ([string]::IsNullOrWhiteSpace($normalizedRelativePath) -or
+        [System.IO.Path]::IsPathRooted($normalizedRelativePath) -or
+        $normalizedRelativePath.StartsWith('\')) {
         throw 'InstallerRelativePath must be relative to the approved software share root.'
     }
 
-    if ($RelativePath -match '(^|[\\/])\.\.([\\/]|$)') {
+    if ($normalizedRelativePath -match '(^|\\)\.\.(\\|$)') {
         throw 'InstallerRelativePath cannot contain parent-directory traversal.'
     }
 
-    $normalizedRoot = Normalize-SasUncRoot -Path $Root
-    $child = $RelativePath.TrimStart('\', '/')
-    $candidate = Join-Path -Path $normalizedRoot -ChildPath $child
+    $candidate = "$normalizedRoot$normalizedRelativePath"
 
     if (-not $candidate.StartsWith($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw 'Resolved installer path escaped the approved software share root.'
@@ -133,7 +166,7 @@ function Get-SasInstallTargets {
         }
     }
 
-    $deduped = $targets | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique
+    $deduped = @($targets | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
     if ($deduped.Count -eq 0) {
         throw 'No targets were supplied. Use -ComputerName or -TargetsCsv with ComputerName, Hostname, or Target column.'
     }
@@ -156,7 +189,7 @@ function Write-SasInstallEvent {
     )
 
     $Event['timestamp_utc'] = (Get-Date).ToUniversalTime().ToString('o')
-    $Event | ConvertTo-Json -Depth 10 -Compress | Add-Content -LiteralPath $EventPath -Encoding UTF8
+    $Event | ConvertTo-Json -Depth 10 -Compress | Add-Content -LiteralPath $EventPath -Encoding UTF8 -WhatIf:$false
 }
 
 if (-not $AllowTargetMutation -and -not $WhatIfPreference) {
@@ -165,21 +198,25 @@ if (-not $AllowTargetMutation -and -not $WhatIfPreference) {
 
 $runId = 'software-install-{0}' -f (Get-Date -Format 'yyyyMMdd-HHmmss')
 $runRoot = Join-Path -Path $OutputRoot -ChildPath $runId
-New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $runRoot -Force -WhatIf:$false | Out-Null
 
 $eventPath = Join-Path -Path $runRoot -ChildPath 'software_install_events.jsonl'
 $summaryPath = Join-Path -Path $runRoot -ChildPath 'software_install_summary.json'
 $handoffPath = Join-Path -Path $runRoot -ChildPath 'operator_handoff.txt'
-$installerPath = Resolve-SasApprovedInstallerPath -Root $SoftwareShareRoot -RelativePath $InstallerRelativePath
+$approvedSoftwareShareRoots = @(Get-SasApprovedSoftwareShareRoots)
+if ([string]::IsNullOrWhiteSpace($SoftwareShareRoot)) {
+    $SoftwareShareRoot = $approvedSoftwareShareRoots[0]
+}
+$installerPath = Resolve-SasApprovedInstallerPath -Root $SoftwareShareRoot -RelativePath $InstallerRelativePath -ApprovedRoots $approvedSoftwareShareRoots
 if ([string]::IsNullOrWhiteSpace($PackageName)) {
     $PackageName = Split-Path -Path $installerPath -Leaf
 }
 
-if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+if (-not $WhatIfPreference -and -not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
     throw "Installer was not found under the approved software source: $installerPath"
 }
 
-$targets = Get-SasInstallTargets -DirectTargets $ComputerName -CsvPath $TargetsCsv -Limit $MaxTargets
+$targets = @(Get-SasInstallTargets -DirectTargets $ComputerName -CsvPath $TargetsCsv -Limit $MaxTargets)
 
 Write-SasInstallEvent -EventPath $eventPath -Event @{
     event = 'run_started'
@@ -202,6 +239,13 @@ $remoteRepoCleanup = {
     $removedPaths = @()
     $prunedParentDirs = @()
     $errorMessage = $null
+
+    $expectedBase = [System.IO.Path]::GetFullPath((Join-Path -Path $env:ProgramData -ChildPath 'SysAdminSuite\SoftwareInstall'))
+    $expectedStageRoot = [System.IO.Path]::GetFullPath((Join-Path -Path $expectedBase -ChildPath $RunId))
+    if ($RunId -notmatch '^software-install-[0-9]{8}-[0-9]{6}$' -or
+        -not $stageRoot.Equals($expectedStageRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Refusing cleanup because the run-specific staging path failed validation.'
+    }
 
     try {
         if (Test-Path -LiteralPath $stageRoot) {
@@ -256,6 +300,13 @@ $remoteInstall = {
         $removedPaths = @()
         $prunedParentDirs = @()
         $errorMessage = $null
+
+        $expectedBase = [System.IO.Path]::GetFullPath((Join-Path -Path $env:ProgramData -ChildPath 'SysAdminSuite\SoftwareInstall'))
+        $expectedStageRoot = [System.IO.Path]::GetFullPath((Join-Path -Path $expectedBase -ChildPath $CleanupRunId))
+        if ($CleanupRunId -notmatch '^software-install-[0-9]{8}-[0-9]{6}$' -or
+            -not $stageRoot.Equals($expectedStageRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Refusing cleanup because the run-specific staging path failed validation.'
+        }
 
         try {
             if (Test-Path -LiteralPath $stageRoot) {
@@ -500,7 +551,7 @@ $summary = [ordered]@{
     target_repo_artifact_policy = 'No SysAdminSuite-owned target logs, reports, manifests, transcripts, scripts, evidence, or staging should remain after cleanup. Installer-owned changes are outside this cleanup boundary.'
     event_path = $eventPath
     operator_handoff_path = $handoffPath
-    results = @($results)
+    results = @($results | ForEach-Object { $_ })
     guardrails = @(
         'approved_admin_context_only',
         'approved_read_only_software_share_only',
@@ -514,7 +565,7 @@ $summary = [ordered]@{
     )
 }
 
-$summary | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+$summary | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $summaryPath -Encoding UTF8 -WhatIf:$false
 $handoffLines = @(
     'SysAdminSuite software install handoff',
     "Run ID: $runId",
@@ -531,7 +582,7 @@ $handoffLines = @(
     '',
     'Review failures, cleanup failures, and repo-owned target remnant status before reporting completion to the client.'
 )
-$handoffLines | Set-Content -LiteralPath $handoffPath -Encoding UTF8
+$handoffLines | Set-Content -LiteralPath $handoffPath -Encoding UTF8 -WhatIf:$false
 Write-SasInstallEvent -EventPath $eventPath -Event @{
     event = 'run_completed'
     run_id = $runId

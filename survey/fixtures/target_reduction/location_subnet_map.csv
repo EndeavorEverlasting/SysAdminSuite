@@ -1,0 +1,3 @@
+Site,Location,Building,Floor,SubnetCIDR,Gateway,SourceEvidence,LastVerified,SurveyAllowed,Confidence,Notes
+FixtureSite,RoomD,FixtureBuilding,4,192.0.2.0/28,192.0.2.1,fixture_map,2026-01-01,yes,medium,"synthetic candidate, quoted safely"
+FixtureSite,RoomE,FixtureBuilding,5,198.51.100.0/28,198.51.100.1,fixture_map,2026-01-01,no,medium,synthetic out of scope
