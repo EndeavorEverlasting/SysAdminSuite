@@ -14,7 +14,7 @@ From the SysAdminSuite repo root on the affected Cybernet, run:
 Run-CybernetComPortAutoFix.cmd
 ```
 
-The launcher requests Administrator permission if needed, then runs:
+The launcher uses a Windows principal-role check, requests Administrator permission if needed, then runs:
 
 ```powershell
 scripts\Invoke-CybernetComPortAutoFix.ps1 -Apply -Restart
@@ -27,6 +27,8 @@ When unsure, run the dry path first:
 ```cmd
 Run-CybernetComPortAutoFix-DryRun.cmd
 ```
+
+The dry-run launcher requests Administrator permission if needed because evidence capture includes read-only registry exports. It does not accept arguments and exits with an error if any are supplied, preventing `-Apply`, `-Restart`, or `-Force` from escaping the dry-run boundary.
 
 Dry run captures evidence, exports registry backups, builds the planned COM mapping, writes a summary, and stops before changing `PortName` values or rebooting.
 
@@ -77,6 +79,15 @@ If the console says `FAILED`, stop and review the evidence folder before retryin
 10. Captures after-state evidence.
 11. Restarts the Cybernet.
 
+## Force boundary
+
+`-Force` may bypass only FINTEK or MultiPortSerial detection after lead confirmation. `-Force cannot override` either mandatory mapping invariant:
+
+- exactly four active `Communications Port` devices
+- the known failed map `COM3,COM4,COM5,COM6`
+
+AutoFix never generates a COM1-through-COMn plan for an arbitrary port count.
+
 ## Evidence output
 
 Each run creates a timestamped folder like:
@@ -119,7 +130,7 @@ Do not commit these runtime evidence files to the repo.
 - No admin-box target mutation.
 - No SmartLynx or final app install.
 - No USB/COM driver replacement.
-- The default launcher stops unless the known failed pattern is present.
+- The launcher stops unless the known four-port failed pattern is present.
 - Do not continue final app binding until COM1-COM4 sticks after reboot.
 
 ## Escalation
