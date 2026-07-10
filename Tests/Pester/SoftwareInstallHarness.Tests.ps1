@@ -37,6 +37,17 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
         Should -Invoke New-PSSession -Times 0 -Exactly
     }
 
+    It 'rejects a MaxTargets value above the 25-target ceiling' {
+        {
+            & $script:installer `
+                -ComputerName 'synthetic-target' `
+                -InstallerRelativePath 'Share\Package\setup.exe' `
+                -MaxTargets 26 `
+                -OutputRoot $script:outputRoot `
+                -WhatIf
+        } | Should -Throw '*MaxTargets*'
+    }
+
     It 'keeps WhatIf local and does not probe the share or target' {
         Mock Test-Path { return $true }
         Mock New-PSSession { throw 'New-PSSession must not be called' }
