@@ -104,6 +104,8 @@ def test_script_enforces_approved_source_and_explicit_mutation_gate():
         "No targets were supplied",
         "exceeds MaxTargets",
         "[ValidateRange(1, 25)]",
+        "Assert-SasApprovedOutputPath -Path $OutputRoot",
+        "[guid]::NewGuid()",
         "New-PSSession -ComputerName $target",
         "New-PSSessionOption -OpenTimeout 30000 -OperationTimeout 3600000",
         "WaitForExit($installerTimeoutMilliseconds)",
@@ -161,11 +163,16 @@ def test_behavioral_pester_covers_dry_run_and_cleanup_failures():
     text = read(PESTER)
     for fragment in [
         "rejects an arbitrary UNC root before contacting it",
+        "accepts the approved root with case and separator normalization",
+        "rejects a deceptive near-prefix software root",
+        "rejects rooted and parent-traversal installer paths before target contact",
+        "rejects output outside approved generated roots",
         "keeps WhatIf local and does not probe the share or target",
         "cleans run-specific staging after a copy failure",
         "preserves the original failure and reports cleanup uncertainty",
         "Should -Invoke New-PSSession -Times 0 -Exactly",
         "Should -Invoke Invoke-Command -Times 2 -Exactly",
+        "creates collision-safe run identifiers for back-to-back plans",
     ]:
         assert fragment in text, f"missing behavioral Pester fragment: {fragment}"
 
