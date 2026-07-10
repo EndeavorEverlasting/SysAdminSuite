@@ -76,6 +76,7 @@ Describe 'SasRunContext module' {
             -Path 'Tests/fixtures/harness/request.json' `
             -Tracked $true `
             -LiveData $false `
+            -Generated $false `
             -Description 'fixture request artifact' `
             -SourceArtifact 'operator request' `
             -NetworkActivity 'No network activity performed.'
@@ -83,6 +84,8 @@ Describe 'SasRunContext module' {
         $entry.role | Should -Be 'source-request'
         $entry.tracked | Should -BeTrue
         $entry.live_data | Should -BeFalse
+        $entry.contains_live_data | Should -BeFalse
+        $entry.generated | Should -BeFalse
 
         $updated = Get-Content -LiteralPath $context.artifact_registry_path -Raw | ConvertFrom-Json
         @($updated.artifacts).Count | Should -Be 1
