@@ -38,7 +38,7 @@ param(
     [string]$InstallMode = 'UncDirect',
 
     [Parameter(Mandatory = $false)]
-    [string]$OutputRoot = (Join-Path -Path (Get-Location) -ChildPath 'survey/output/software_install'),
+    [string]$OutputRoot,
 
     [Parameter(Mandatory = $false)]
     [ValidateRange(1, 25)]
@@ -197,7 +197,15 @@ if (-not $AllowTargetMutation -and -not $WhatIfPreference) {
     throw 'Refusing target mutation without -AllowTargetMutation. Use -WhatIf for dry-run planning.'
 }
 
-$runId = 'software-install-{0}' -f (Get-Date -Format 'yyyyMMdd-HHmmss')
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$targetIntakeModule = Join-Path -Path $PSScriptRoot -ChildPath 'SasTargetIntake.psm1'
+Import-Module -Name $targetIntakeModule -Force
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $OutputRoot = Join-Path -Path $repoRoot -ChildPath 'survey/output/software_install'
+}
+Assert-SasApprovedOutputPath -Path $OutputRoot -RepoRoot $repoRoot -Role 'software install output directory'
+
+$runId = 'software-install-{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8))
 $runRoot = Join-Path -Path $OutputRoot -ChildPath $runId
 New-Item -ItemType Directory -Path $runRoot -Force -WhatIf:$false | Out-Null
 
@@ -243,7 +251,7 @@ $remoteRepoCleanup = {
 
     $expectedBase = [System.IO.Path]::GetFullPath((Join-Path -Path $env:ProgramData -ChildPath 'SysAdminSuite\SoftwareInstall'))
     $expectedStageRoot = [System.IO.Path]::GetFullPath((Join-Path -Path $expectedBase -ChildPath $RunId))
-    if ($RunId -notmatch '^software-install-[0-9]{8}-[0-9]{6}$' -or
+    if ($RunId -notmatch '^software-install-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$' -or
         -not $stageRoot.Equals($expectedStageRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw 'Refusing cleanup because the run-specific staging path failed validation.'
     }
@@ -304,7 +312,7 @@ $remoteInstall = {
 
         $expectedBase = [System.IO.Path]::GetFullPath((Join-Path -Path $env:ProgramData -ChildPath 'SysAdminSuite\SoftwareInstall'))
         $expectedStageRoot = [System.IO.Path]::GetFullPath((Join-Path -Path $expectedBase -ChildPath $CleanupRunId))
-        if ($CleanupRunId -notmatch '^software-install-[0-9]{8}-[0-9]{6}$' -or
+        if ($CleanupRunId -notmatch '^software-install-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$' -or
             -not $stageRoot.Equals($expectedStageRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
             throw 'Refusing cleanup because the run-specific staging path failed validation.'
         }
