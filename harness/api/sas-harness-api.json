@@ -4,7 +4,10 @@
     "default_network_activity": false,
     "default_target_mutation": false,
     "evidence_scope": "local_gitignored_artifacts",
-    "operator_boundary": "authorized_scoped_low_noise_no_hidden_activity"
+    "operator_boundary": "authorized_scoped_low_noise_no_hidden_activity",
+    "approved_software_sources": [
+      "\\\\nt2kwb972sms01\\"
+    ]
   },
   "modes": [
     "plan_only",
@@ -116,6 +119,40 @@
         "No_hidden_daemons",
         "No_network_probe_execution"
       ]
+    },
+    {
+      "id": "software_install.operator_execute",
+      "summary": "Install approved software on authorized target computers from approved read-only software shares with local evidence and cleanup of SysAdminSuite-owned target staging.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": true,
+      "inputs": [
+        "package_name",
+        "installer_relative_path",
+        "install_mode",
+        "targets",
+        "allow_target_mutation",
+        "software_share_root",
+        "installer_arguments"
+      ],
+      "outputs": [
+        "software_install_events.jsonl",
+        "software_install_summary.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Approved_admin_context_only",
+        "Approved_read_only_software_share_only",
+        "No_credential_collection",
+        "No_monitoring_bypass_or_log_suppression",
+        "No_unapproved_background_services",
+        "No_repo_owned_target_logs_reports_manifests_or_transcripts",
+        "Prefer_UNC_direct_install_to_avoid_target_staging",
+        "Run_specific_staging_cleanup_attempted_on_all_failure_paths",
+        "Prune_empty_SysAdminSuite_target_directories",
+        "Local_gitignored_evidence_only"
+      ]
     }
   ]
 }
+
