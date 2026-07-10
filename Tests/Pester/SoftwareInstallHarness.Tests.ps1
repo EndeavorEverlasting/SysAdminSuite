@@ -10,6 +10,10 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
         $script:outputRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
     }
 
+    AfterEach {
+        Remove-Variable -Name SasRemoteCall -Scope Global -ErrorAction SilentlyContinue
+    }
+
     It 'exists and parses' {
         $script:installer | Should -Exist
         $tokens = $null
@@ -53,12 +57,12 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
     }
 
     It 'cleans run-specific staging after a copy failure' {
-        $script:remoteCall = 0
+        $global:SasRemoteCall = 0
         Mock Test-Path { return $true }
         Mock New-PSSession { [pscustomobject]@{ ComputerName = 'synthetic-target' } }
         Mock Invoke-Command {
-            $script:remoteCall++
-            if ($script:remoteCall -eq 1) {
+            $global:SasRemoteCall++
+            if ($global:SasRemoteCall -eq 1) {
                 return 'C:\ProgramData\SysAdminSuite\SoftwareInstall\software-install-20260710-120000'
             }
             return [pscustomobject]@{
@@ -90,12 +94,12 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
     }
 
     It 'preserves the original failure and reports cleanup uncertainty' {
-        $script:remoteCall = 0
+        $global:SasRemoteCall = 0
         Mock Test-Path { return $true }
         Mock New-PSSession { [pscustomobject]@{ ComputerName = 'synthetic-target' } }
         Mock Invoke-Command {
-            $script:remoteCall++
-            if ($script:remoteCall -eq 1) {
+            $global:SasRemoteCall++
+            if ($global:SasRemoteCall -eq 1) {
                 return 'C:\ProgramData\SysAdminSuite\SoftwareInstall\software-install-20260710-120000'
             }
             throw 'synthetic cleanup failure'
