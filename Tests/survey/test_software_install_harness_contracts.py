@@ -35,14 +35,15 @@ def test_api_manifest_declares_gated_operator_execute_surface():
     assert op["target_mutation"] is True
 
     required_inputs = {
-        "approved_targets_csv_or_computer_name",
         "package_name",
         "installer_relative_path",
+        "install_mode",
+        "targets",
+        "allow_target_mutation",
         "software_share_root",
         "installer_arguments",
-        "explicit_allow_target_mutation",
     }
-    assert required_inputs <= set(op["inputs"])
+    assert set(op["inputs"]) == required_inputs
 
     required_guardrails = {
         "Approved_admin_context_only",
@@ -81,8 +82,11 @@ def test_document_names_no_artifact_boundary_without_stealth_claims():
     for fragment in [
         "no persistent SysAdminSuite-owned staging payload, log, report, manifest, transcript, script, or evidence",
         "prune empty `ProgramData\\SysAdminSuite\\SoftwareInstall` and `ProgramData\\SysAdminSuite` parent directories",
+        '& "$env:ProgramFiles\\Git\\bin\\bash.exe" scripts/install-local-harness-hooks.sh',
     ]:
         assert fragment in local_text, f"missing local harness software posture fragment: {fragment}"
+
+    assert text.count("pwsh -NoProfile -Command") >= 2
 
 
 def test_script_enforces_approved_source_and_explicit_mutation_gate():
@@ -99,7 +103,11 @@ def test_script_enforces_approved_source_and_explicit_mutation_gate():
         "Refusing target mutation without -AllowTargetMutation",
         "No targets were supplied",
         "exceeds MaxTargets",
+        "[ValidateRange(1, 25)]",
         "New-PSSession -ComputerName $target",
+        "New-PSSessionOption -OpenTimeout 30000 -OperationTimeout 3600000",
+        "WaitForExit($installerTimeoutMilliseconds)",
+        "Installer timed out after",
         "Copy-Item -LiteralPath $installerPath -Destination $remoteInstallerPath -ToSession $session -Force",
         "Remove-SasRepoOwnedInstallArtifacts",
         "$remoteRepoCleanup",
@@ -169,3 +177,4 @@ if __name__ == "__main__":
     test_schema_keeps_requests_bounded()
     test_contract_is_wired_into_offline_runner_and_precommit()
     test_behavioral_pester_covers_dry_run_and_cleanup_failures()
+
