@@ -8,6 +8,7 @@ PR #156 now includes the requested follow-up hardening for the Cybernet COM Auto
 - per-device `Device Parameters` registry export before `PortName` changes
 - clearer technician-facing launcher text and field docs
 - factored PowerShell functions for future posture, GUI, or platform changes
+- a branch repair merge commit that brings current `main` into the PR branch without changing runtime evidence
 
 ## Operator path
 
@@ -53,6 +54,10 @@ device-parameters-before-04.reg
 ```
 
 `autofix-summary.json` records the registry backups and planned/applied mapping.
+
+## Mergeability repair
+
+The PR branch was behind `main` after connector-side cleanup commits on the default branch. This closure document was updated in the merge repair commit so the PR branch has a normal fast-forwardable head that includes current `main` as a parent while preserving the COM AutoFix changes.
 
 ## Validation still needed on Windows
 
