@@ -8,7 +8,10 @@ python3 Tests/survey/test_ad_existence_bulk_contracts.py
 python3 Tests/survey/test_serial_network_preflight_contracts.py
 python3 Tests/survey/test_probe_socket_access_contracts.py
 python3 Tests/survey/test_standard_corporate_tooling_contracts.py
+python3 Tests/survey/test_hotfix_command_registry_contracts.py
+python3 Tests/survey/test_cybernet_com_qr_pack_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_windows_log_classification_contracts.py
 python3 Tests/survey/test_windows_log_classifier_code.py
 python3 Tests/survey/test_repo_directory_structure_contracts.py
+python3 Tests/survey/test_run_context_contracts.py

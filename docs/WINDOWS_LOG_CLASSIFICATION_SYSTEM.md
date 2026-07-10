@@ -52,6 +52,23 @@ Every Windows log target should be classified with these dimensions before an ac
 | `backup_required` | Whether export/backup must happen before the operation. |
 | `tracked_output_allowed` | Whether resulting artifacts may be committed. Live logs and EVTX/ETL exports should remain local/gitignored. |
 
+## Supported taxonomy
+
+The supported log-family identifiers are:
+
+```text
+eventlog_classic
+eventlog_security
+eventlog_provider_channel
+eventlog_forwarded
+etw_trace
+setup_servicing_log
+application_text_log
+repository_fixture_log
+```
+
+Mutating operations are in scope for classification and plan rendering, but never for automatic harness execution. Operations at safety tier `S2+` require an explicit operator gate. The taxonomy covers `append_event`, `set_configuration`, `register_source`, `install_manifest`, `clear_with_backup`, `clear_without_backup`, `delete_source_registration`, `uninstall_manifest`, `delete_log_file`, and the disallowed `tamper_history` request. Every destructive classification must state `backup_required` explicitly.
+
 ## Command rendering posture
 
 The implementation renders plans and commands; it does not execute them.

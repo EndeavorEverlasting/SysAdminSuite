@@ -31,11 +31,11 @@ SysAdminSuite should emulate the Blacksmith Guild local layout: one stable prima
 Blacksmith Guild reference pattern:
 
 ```text
-C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild
-C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild-037a-validation
-C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild-pr23
-C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild-pr25-launcher-evidence
-C:\Users\Cheex\Desktop\dev\Mods\Bannerlord\BlacksmithGuild-pr27-duration-guard
+C:\dev\Mods\Bannerlord\BlacksmithGuild
+C:\dev\Mods\Bannerlord\BlacksmithGuild-037a-validation
+C:\dev\Mods\Bannerlord\BlacksmithGuild-pr23
+C:\dev\Mods\Bannerlord\BlacksmithGuild-pr25-launcher-evidence
+C:\dev\Mods\Bannerlord\BlacksmithGuild-pr27-duration-guard
 ```
 
 SysAdminSuite equivalent pattern:
@@ -51,10 +51,10 @@ SysAdminSuite equivalent pattern:
 Suggested concrete Windows layout:
 
 ```text
-C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite
-C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-pr149-windows-log-classifier
-C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-log-classifier-validation
-C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-harness-validation
+C:\dev\SysAdminSuite
+C:\dev\SysAdminSuite-pr149-windows-log-classifier
+C:\dev\SysAdminSuite-log-classifier-validation
+C:\dev\SysAdminSuite-harness-validation
 ```
 
 The primary clone should remain the ordinary working copy. Sibling worktrees should be used when a branch is dirty, conflicted, experimental, or validating a PR without disturbing the primary clone.
@@ -79,13 +79,13 @@ Every human-facing PowerShell command block should start with one of these forms
 Known local clone path:
 
 ```powershell
-Set-Location "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
+Set-Location "C:\dev\SysAdminSuite"
 ```
 
 Known sibling worktree path:
 
 ```powershell
-Set-Location "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-pr149-windows-log-classifier"
+Set-Location "C:\dev\SysAdminSuite-pr149-windows-log-classifier"
 ```
 
 Already somewhere inside the repo:
@@ -97,7 +97,7 @@ Already somewhere inside the repo:
 Unknown current directory but known clone path:
 
 ```powershell
-.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
+.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\dev\SysAdminSuite"
 ```
 
 Do not give a command that starts with `bash tests/...`, `python3 harness/...`, `powershell -File ...`, or `git ...` unless it first establishes the app root.
@@ -107,7 +107,7 @@ Do not give a command that starts with `bash tests/...`, `python3 harness/...`, 
 Use the repo helper from the primary clone when creating a sibling worktree:
 
 ```powershell
-Set-Location "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
+Set-Location "C:\dev\SysAdminSuite"
 .\scripts\New-SysAdminSuiteWorktree.ps1 `
   -Name "SysAdminSuite-pr149-windows-log-classifier" `
   -Branch "sprint/windows-log-classification-system" `
@@ -117,7 +117,7 @@ Set-Location "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
 Then work from the sibling path:
 
 ```powershell
-Set-Location "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite-pr149-windows-log-classifier"
+Set-Location "C:\dev\SysAdminSuite-pr149-windows-log-classifier"
 ```
 
 ## Canonical tracked directories
@@ -170,6 +170,8 @@ live client evidence
 
 Synthetic fixtures may be committed only when scrubbed and clearly marked as fixtures.
 
+The canonical runtime paths are `survey/input/` for staged local inputs and `survey/output/` for generated local evidence. Contract tests live under `Tests/survey/`; the aggregate offline runner lives under `tests/survey/`.
+
 ## Canonical run directory shape
 
 For new harness workflows, prefer this run shape:
@@ -209,7 +211,7 @@ survey/output/windows-log-classifier/<run_id>/
 ## Example: safe classifier run from an unknown shell
 
 ```powershell
-.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
+.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\dev\SysAdminSuite"
 .\scripts\Invoke-WindowsLogClassifier.ps1 `
   -Target System `
   -Operation "show recent errors" `
@@ -219,10 +221,10 @@ survey/output/windows-log-classifier/<run_id>/
 ## Example: repository validation from an unknown shell
 
 ```powershell
-.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\Users\Cheex\Desktop\dev\SysAdminSuite\SysAdminSuite"
+.\scripts\Enter-SysAdminSuite.ps1 -RepoRoot "C:\dev\SysAdminSuite"
 bash tests/survey/run_offline_survey_tests.sh
 ```
 
 ## Agent rule
 
-When producing a command for this repo, include the app-root step. If the actual clone path differs from the documented `C:\Users\Cheex\Desktop\dev\SysAdminSuite\...` convention, use the real local clone path in the `Set-Location` or `-RepoRoot` line. Do not omit the directory step.
+When producing a command for this repo, include the app-root step. Replace the generic `C:\dev\SysAdminSuite` example with the real local clone path in the `Set-Location` or `-RepoRoot` line. Do not publish user-profile paths, and do not omit the directory step.

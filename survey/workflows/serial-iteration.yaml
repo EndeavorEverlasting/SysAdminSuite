@@ -1,0 +1,77 @@
+schema_version: sas-workflow/v1
+workflow_id: serial-iteration
+name: Serial Iteration
+description: Compare prior local evidence and choose review, retry, skip, or next probe queues without probing.
+inputs:
+  - prior_attempt_history
+  - latest_network_preflight_summary
+nodes:
+  - id: load-prior-attempts
+    kind: local_read
+    description: Load local prior attempt history.
+    inputs: [prior_attempt_history]
+    outputs: [attempt_history]
+    network_activity: false
+    target_mutation: false
+    validation: history is local evidence only
+  - id: compute-time-diversity
+    kind: local_transform
+    description: Compute distinct dates, time buckets, and weekday/weekend spread.
+    inputs: [attempt_history]
+    outputs: [time_diversity]
+    network_activity: false
+    target_mutation: false
+    validation: narrow repeated attempts do not count as diverse
+  - id: skip-fresh-evidence
+    kind: local_transform
+    description: Skip rows with fresh reachable or identity-confirmed evidence.
+    inputs: [attempt_history]
+    outputs: [skip_rows]
+    network_activity: false
+    target_mutation: false
+    validation: fresh evidence reduces repeat work
+  - id: classify-silent-targets
+    kind: local_transform
+    description: Classify silent rows without treating non-response as proof.
+    inputs: [attempt_history, time_diversity]
+    outputs: [still_silent, review_required]
+    network_activity: false
+    target_mutation: false
+    validation: non-response remains uncertain
+  - id: stage-next-targets
+    kind: local_write
+    description: Stage only host or IP targets justified for another run.
+    inputs: [still_silent, review_required]
+    outputs: [next_probe_targets]
+    network_activity: false
+    target_mutation: false
+    validation: no serial-only rows are staged
+  - id: detect-plateau
+    kind: local_transform
+    description: Detect when comparable runs produce no new useful evidence.
+    inputs: [attempt_history]
+    outputs: [plateau_status]
+    network_activity: false
+    target_mutation: false
+    validation: plateau requires comparable runs
+  - id: write-next-handoff
+    kind: local_render
+    description: Write repeatable next command and review guidance.
+    inputs: [next_probe_targets, plateau_status]
+    outputs: [operator_handoff]
+    network_activity: false
+    target_mutation: false
+    validation: handoff includes next action
+artifacts:
+  - iteration_summary.json
+  - serial_attempt_history.csv
+  - next_probe_targets.csv
+  - review_required.csv
+  - operator_handoff.txt
+validation:
+  - planner performs no network activity
+  - serial-only rows remain review-required
+next_actions:
+  - rerun bounded network-preflight only when retry adds value
+network_activity_policy: no planner node performs network activity
+target_mutation_policy: no target mutation
