@@ -77,8 +77,10 @@ New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 Push-Location $repoRoot
 try {
     $git = Find-Command @('git')
-    $branch = if ($git) { (& $git -C $repoRoot branch --show-current).Trim() } else { 'unknown' }
-    $commit = if ($git) { (& $git -C $repoRoot rev-parse HEAD).Trim() } else { 'unknown' }
+    $branchValue = if ($git) { & $git -C $repoRoot branch --show-current | Select-Object -First 1 } else { $null }
+    $commitValue = if ($git) { & $git -C $repoRoot rev-parse HEAD | Select-Object -First 1 } else { $null }
+    $branch = if ([string]::IsNullOrWhiteSpace([string]$branchValue)) { 'detached' } else { ([string]$branchValue).Trim() }
+    $commit = if ([string]::IsNullOrWhiteSpace([string]$commitValue)) { 'unknown' } else { ([string]$commitValue).Trim() }
     $dependencies.git = $git
 
     $required = @(

@@ -55,6 +55,7 @@ def test_validator_exists_parses_and_has_no_runtime_execution_surface() -> None:
     assert "cross-lane merge integrity" in text
     assert "test_windows_log_classifier_code.py" in text
     assert "git_bash_not_available" in text
+    assert "'detached'" in text
 
     forbidden = [
         r"Start-Process",
