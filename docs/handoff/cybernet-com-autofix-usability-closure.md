@@ -8,7 +8,7 @@ PR #156 now includes the requested follow-up hardening for the Cybernet COM Auto
 - per-device `Device Parameters` registry export before `PortName` changes
 - clearer technician-facing launcher text and field docs
 - factored PowerShell functions for future posture, GUI, or platform changes
-- a branch repair merge commit that brings current `main` into the PR branch without changing runtime evidence
+- an offline survey runner merge-drift repair that keeps the AutoFix contract test and current software-install harness contract test in the same runner
 
 ## Operator path
 
@@ -55,9 +55,23 @@ device-parameters-before-04.reg
 
 `autofix-summary.json` records the registry backups and planned/applied mapping.
 
-## Mergeability repair
+## Release hygiene update - 2026-07-10
 
-The PR branch was behind `main` after connector-side cleanup commits on the default branch. This closure document was updated in the merge repair commit so the PR branch has a normal fast-forwardable head that includes current `main` as a parent while preserving the COM AutoFix changes.
+Old head before this cleanup pass:
+
+```text
+7b88454e0196551a3f51f9b3e635b4eb161ffa52
+```
+
+Repair commit:
+
+```text
+a121f43cd5e6f9f89079e22bf5e3e7c384418ae6
+```
+
+The branch was behind current `main` after PR #151 landed. The only confirmed same-file drift was `tests/survey/run_offline_survey_tests.sh`: PR #156 had added `test_cybernet_com_autofix_contracts.py`, while `main` had added `test_software_install_harness_contracts.py`. The runner now includes both contract suites.
+
+Connector PR metadata still reported `mergeable: false` after the runner repair. A local checkout is required to complete a true `git merge origin/main` / conflict repair and to run the requested Windows/Python validation commands.
 
 ## Validation still needed on Windows
 
