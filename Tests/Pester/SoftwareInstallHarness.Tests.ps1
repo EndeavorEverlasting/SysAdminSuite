@@ -59,7 +59,11 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
     It 'cleans run-specific staging after a copy failure' {
         $global:SasRemoteCall = 0
         Mock Test-Path { return $true }
-        Mock New-PSSession { [pscustomobject]@{ ComputerName = 'synthetic-target' } }
+        Mock New-PSSession {
+            [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject(
+                [System.Management.Automation.Runspaces.PSSession]
+            )
+        }
         Mock Invoke-Command {
             $global:SasRemoteCall++
             if ($global:SasRemoteCall -eq 1) {
@@ -96,7 +100,11 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
     It 'preserves the original failure and reports cleanup uncertainty' {
         $global:SasRemoteCall = 0
         Mock Test-Path { return $true }
-        Mock New-PSSession { [pscustomobject]@{ ComputerName = 'synthetic-target' } }
+        Mock New-PSSession {
+            [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject(
+                [System.Management.Automation.Runspaces.PSSession]
+            )
+        }
         Mock Invoke-Command {
             $global:SasRemoteCall++
             if ($global:SasRemoteCall -eq 1) {
@@ -124,3 +132,4 @@ Describe 'Invoke-SasSoftwareInstall safety behavior' {
         Should -Invoke Remove-PSSession -Times 1 -Exactly
     }
 }
+
