@@ -105,6 +105,13 @@ The evidence belongs on the admin box. It should be used to update the client-fa
   -WhatIf
 ```
 
+From Git Bash on Windows:
+
+```bash
+pwsh -NoProfile -Command \
+  '& ./scripts/Invoke-SasSoftwareInstall.ps1 -ComputerName WNH269OPR009 -PackageName ExampleVendorTool -InstallerRelativePath "SomeShare\Vendor\Package\setup.exe" -InstallerArguments @("/quiet", "/norestart") -InstallMode UncDirect -WhatIf'
+```
+
 ## Example approved execution
 
 ```powershell
@@ -118,9 +125,18 @@ The evidence belongs on the admin box. It should be used to update the client-fa
   -Confirm:$false
 ```
 
+From Git Bash on Windows:
+
+```bash
+pwsh -NoProfile -Command \
+  '& ./scripts/Invoke-SasSoftwareInstall.ps1 -TargetsCsv ./targets/local/approved-software-targets.csv -PackageName ExampleVendorTool -InstallerRelativePath "SomeShare\Vendor\Package\setup.exe" -InstallerArguments @("/quiet", "/norestart") -InstallMode CopyThenInstall -AllowTargetMutation -Confirm:$false'
+```
+
 ## Known operational limits
 
 - Some installers create their own logs, caches, services, scheduled tasks, or registry keys. Those are part of the software installation, not SysAdminSuite staging.
 - Direct UNC execution can fail if the target cannot read the source share. Use `CopyThenInstall` when the admin box can read the share but the target cannot.
 - This wrapper does not provide credentials. It relies on the operator's approved admin session and normal Windows authorization.
+- Remote session creation is bounded to 30 seconds, remote operations to 60 minutes, and the installer process to 30 minutes per target.
 - This wrapper does not erase operating-system audit records. It is designed to avoid and clean SysAdminSuite-owned target filesystem remnants.
+
