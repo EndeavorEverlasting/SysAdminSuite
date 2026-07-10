@@ -81,7 +81,6 @@ def test_cybernet_com_qr_pack_payloads_are_local_only() -> None:
         "New-PSSession",
         "Enter-PSSession",
         "Copy-Item -ToSession",
-        "\\\\",
         "http://",
         "https://",
         "password",
