@@ -20,21 +20,59 @@ The launcher requests Administrator permission if needed, then runs:
 scripts\Invoke-CybernetComPortAutoFix.ps1 -Apply -Restart
 ```
 
-## What it does
+## Dry run
+
+When unsure, run the dry path first:
+
+```cmd
+Run-CybernetComPortAutoFix-DryRun.cmd
+```
+
+Dry run captures evidence, exports registry backups, builds the planned COM mapping, writes a summary, and stops before changing `PortName` values or rebooting.
+
+## Progress and final status
+
+The script now shows a progress bar plus plain console lines so a technician can tell whether it is still working, safely stopped, failed, or rebooting.
+
+Expected phases:
+
+1. Evidence setup
+2. Before-state capture
+3. Eligibility checks
+4. Registry backup
+5. Mapping plan
+6. Apply changes
+7. After-state capture
+8. Summary
+9. Restart
+
+Expected final statuses:
+
+```text
+DRY RUN COMPLETE
+COMPLETE
+FAILED
+REBOOTING
+```
+
+If the console says `FAILED`, stop and review the evidence folder before retrying.
+
+## What apply mode does
 
 1. Creates an evidence folder under `C:\Temp\CybernetCOM`.
 2. Captures hostname, `SERIALCOMM`, Ports class, MultiPortSerial class, and PnP state.
 3. Confirms the local pattern is safe: four active `Communications Port` devices and the known `COM3-COM6` failed map.
 4. Confirms a FINTEK or multi-port serial device is present.
 5. Exports `HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter`.
-6. Clears the COM Name Arbiter `ComDB` reservation bitmap.
-7. Reassigns the active local ports in sorted order:
+6. Exports each active COM device `Device Parameters` registry key before changing `PortName`.
+7. Clears the COM Name Arbiter `ComDB` reservation bitmap.
+8. Reassigns the active local ports in sorted order:
    - `COM3` to `COM1`
    - `COM4` to `COM2`
    - `COM5` to `COM3`
    - `COM6` to `COM4`
-8. Captures after-state evidence.
-9. Restarts the Cybernet.
+9. Captures after-state evidence.
+10. Restarts the Cybernet.
 
 ## Evidence output
 
@@ -54,6 +92,10 @@ ports-before.txt
 multiport-before.txt
 pnp-before.json
 COMNameArbiter-before.reg
+device-parameters-before-01.reg
+device-parameters-before-02.reg
+device-parameters-before-03.reg
+device-parameters-before-04.reg
 port-mapping-plan.json
 reg-export-output.txt
 reg-reset-output.txt
@@ -65,14 +107,6 @@ autofix-transcript.txt
 
 Do not commit these runtime evidence files to the repo.
 
-## Dry run
-
-To capture evidence and preview the mapping without applying the change:
-
-```cmd
-Run-CybernetComPortAutoFix-DryRun.cmd
-```
-
 ## Safety boundaries
 
 - Local Cybernet only.
@@ -81,6 +115,7 @@ Run-CybernetComPortAutoFix-DryRun.cmd
 - No SmartLynx or final app install.
 - No USB/COM driver replacement.
 - The default launcher stops unless the known failed pattern is present.
+- Do not continue final app binding until COM1-COM4 sticks after reboot.
 
 ## Escalation
 
@@ -91,3 +126,5 @@ Stop and escalate if:
 - The failed map is not `COM3-COM6`.
 - The device already completed final app/device COM binding.
 - The script cannot export the COM Name Arbiter key.
+- The script cannot export any `device-parameters-before-*.reg` file.
+- The script reports `FAILED` instead of `COMPLETE`, `DRY RUN COMPLETE`, or `REBOOTING`.
