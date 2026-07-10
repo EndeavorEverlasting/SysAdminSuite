@@ -76,6 +76,7 @@ def test_autofix_script_is_factored_for_future_posture_changes() -> None:
     required_functions = [
         "Initialize-ComAutoFixEvidence",
         "Write-ComAutoFixProgress",
+        "Invoke-ComAutoFixRegistryExport",
         "Export-ComAutoFixRegistryBackup",
         "Get-CybernetComPortState",
         "Test-CybernetComAutoFixEligibility",
@@ -121,16 +122,30 @@ def test_autofix_script_only_targets_known_com3_to_com6_pattern_by_default() -> 
     assert "already COM1-COM4" in content
 
 
-def test_autofix_script_saves_registry_before_any_portname_changes() -> None:
+def test_autofix_script_saves_and_validates_registry_before_any_mutation() -> None:
     content = read(SCRIPT_PATH)
 
+    assert "Invoke-ComAutoFixRegistryExport" in content
     assert "Export-ComAutoFixRegistryBackup" in content
     assert "COMNameArbiter-before.reg" in content
     assert "device-parameters-before-{0:00}.reg" in content
     assert "reg.exe export" in content
+    assert "$LASTEXITCODE" in content
+    assert "Registry export failed with exit code" in content
+    assert "Registry export did not create the expected backup file" in content
+    assert "Registry export created an empty backup file" in content
+    assert "Test-Path -LiteralPath $ExportPath -PathType Leaf" in content
+    assert "$exportFile.Length -le 0" in content
     assert "native_registry_path" in content
     assert "registry_backups" in content
-    assert content.index("Export-ComAutoFixRegistryBackup") < content.index("Set-CybernetComPortMapping -Mapping")
+    assert "validated = $true" in content
+    assert "if (-not $registryBackups.validated)" in content
+
+    backup_call = content.index("$registryBackups = Export-ComAutoFixRegistryBackup")
+    validation_gate = content.index("if (-not $registryBackups.validated)", backup_call)
+    arbiter_reset = content.index("Invoke-CybernetComArbiterReset -RunDir", backup_call)
+    port_mutation = content.index("Set-CybernetComPortMapping -Mapping", backup_call)
+    assert backup_call < validation_gate < arbiter_reset < port_mutation
 
 
 def test_autofix_script_resets_arbiter_and_assigns_portname_values() -> None:
@@ -201,6 +216,8 @@ def test_docs_explain_fast_path_boundaries_progress_and_backups() -> None:
     assert "COMPLETE" in doc
     assert "DRY RUN COMPLETE" in doc
     assert "FAILED" in doc
+    assert "nonempty" in doc.lower()
+    assert "before any COM registry mutation" in doc
     assert "device-parameters-before-01.reg" in doc
     assert "Run-CybernetComPortAutoFix.cmd" in qr_doc
     assert "Run automated COM AutoFix" in qr_doc
@@ -214,7 +231,7 @@ def main() -> None:
         test_autofix_script_is_factored_for_future_posture_changes,
         test_autofix_script_has_progress_and_unambiguous_final_statuses,
         test_autofix_script_only_targets_known_com3_to_com6_pattern_by_default,
-        test_autofix_script_saves_registry_before_any_portname_changes,
+        test_autofix_script_saves_and_validates_registry_before_any_mutation,
         test_autofix_script_resets_arbiter_and_assigns_portname_values,
         test_autofix_has_no_remote_execution_or_public_bootstrap,
         test_qr_pack_exposes_autofix_as_step_12,
