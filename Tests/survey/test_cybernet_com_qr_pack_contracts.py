@@ -63,8 +63,8 @@ def test_cybernet_com_qr_pack_contains_the_required_field_workflow() -> None:
         r"pnputil /enum-devices /class Ports",
         r"pnputil /enum-devices /class MultiPortSerial",
         "set devmgr_show_nonpresent_devices=1 && start devmgmt.msc",
-        r"reg export \"HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter\"",
-        r"reg add \"HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter\" /v ComDB",
+        r'reg export "HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter"',
+        r'reg add "HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter" /v ComDB',
         "shutdown /r /t 0",
         "serialcomm-after.txt",
         "ports-after.txt",
@@ -141,3 +141,20 @@ def test_cybernet_com_qr_pack_launcher_and_outline_exist() -> None:
     assert "Run automated COM AutoFix" in outline
     assert "No silent remote execution" in outline
     assert "C:\\Temp\\CybernetCOM" in outline
+
+
+def main() -> None:
+    tests = [
+        test_cybernet_com_qr_pack_has_ordered_scannable_snippets,
+        test_cybernet_com_qr_pack_contains_the_required_field_workflow,
+        test_cybernet_com_qr_pack_payloads_are_local_only,
+        test_cybernet_com_qr_pack_runner_builds_temporary_field_hotfix_manifest,
+        test_cybernet_com_qr_pack_launcher_and_outline_exist,
+    ]
+    for test in tests:
+        test()
+    print(f"PASS: {len(tests)} Cybernet COM QR pack static contracts")
+
+
+if __name__ == "__main__":
+    main()
