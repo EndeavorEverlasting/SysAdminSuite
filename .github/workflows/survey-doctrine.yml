@@ -2,7 +2,7 @@ name: Survey doctrine
 
 on:
   push:
-    branches: [main, 'feat/**', 'feature/**']
+    branches: [main, 'feat/**', 'feature/**', 'sprint/**']
     paths:
       - 'AGENTS.md'
       - '.cursor/rules/**'
@@ -13,9 +13,11 @@ on:
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
+      - 'docs/WINDOWS_LOG_CLASSIFICATION_SYSTEM.md'
       - 'harness/**'
       - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
+      - 'schemas/harness/**'
       - 'scripts/install-local-harness-hooks.sh'
       - 'survey/**'
       - 'scripts/SasTargetIntake.psm1'
@@ -30,6 +32,7 @@ on:
       - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
       - 'Tests/survey/test_standard_corporate_tooling_contracts.py'
+      - 'Tests/survey/test_windows_log_classification_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/survey-doctrine.yml'
   pull_request:
@@ -44,9 +47,11 @@ on:
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
+      - 'docs/WINDOWS_LOG_CLASSIFICATION_SYSTEM.md'
       - 'harness/**'
       - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
+      - 'schemas/harness/**'
       - 'scripts/install-local-harness-hooks.sh'
       - 'survey/**'
       - 'scripts/SasTargetIntake.psm1'
@@ -61,6 +66,7 @@ on:
       - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
       - 'Tests/survey/test_standard_corporate_tooling_contracts.py'
+      - 'Tests/survey/test_windows_log_classification_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/survey-doctrine.yml'
 
@@ -98,6 +104,11 @@ jobs:
         shell: bash
         run: |
           python3 Tests/survey/test_local_harness_contracts.py
+
+      - name: Windows log classification contracts
+        shell: bash
+        run: |
+          python3 Tests/survey/test_windows_log_classification_contracts.py
 
       - name: Target reduction Bash syntax
         shell: bash

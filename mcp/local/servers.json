@@ -13,54 +13,44 @@
       "display_name": "SysAdminSuite Target Reduction MCP",
       "status": "planned",
       "command": "python -m harness.mcp.target_reduction_server",
-      "allowed_apis": [
-        "target_reduction.plan",
-        "report.generate_from_artifacts"
-      ],
+      "allowed_apis": ["target_reduction.plan", "report.generate_from_artifacts"],
       "network_activity": false,
       "target_mutation": false,
       "evidence_scope": "local_only",
-      "guardrails": [
-        "Classifies_prior_probe_results_only",
-        "Does_not_probe",
-        "Does_not_mark_non_reached_as_dead"
-      ]
+      "guardrails": ["Classifies_prior_probe_results_only", "Does_not_probe", "Does_not_mark_non_reached_as_dead"]
     },
     {
       "id": "sas-standard-tools",
       "display_name": "SysAdminSuite Standard Tools MCP",
       "status": "planned",
       "command": "python -m harness.mcp.standard_tools_server",
-      "allowed_apis": [
-        "standard_probe.render_cmd",
-        "standard_probe.render_powershell"
-      ],
+      "allowed_apis": ["standard_probe.render_cmd", "standard_probe.render_powershell"],
       "network_activity": false,
       "target_mutation": false,
       "evidence_scope": "render_only",
-      "guardrails": [
-        "Renders_commands_only",
-        "No_blind_subnet_sweeps",
-        "Operator_runs_commands_explicitly"
-      ]
+      "guardrails": ["Renders_commands_only", "No_blind_subnet_sweeps", "Operator_runs_commands_explicitly"]
     },
     {
       "id": "sas-evidence-reporter",
       "display_name": "SysAdminSuite Evidence Reporter MCP",
       "status": "planned",
       "command": "python -m harness.mcp.evidence_reporter_server",
-      "allowed_apis": [
-        "report.generate_from_artifacts",
-        "mcp.catalog.list"
-      ],
+      "allowed_apis": ["report.generate_from_artifacts", "mcp.catalog.list"],
       "network_activity": false,
       "target_mutation": false,
       "evidence_scope": "local_only",
-      "guardrails": [
-        "Reports_name_input_artifacts",
-        "Reports_preserve_unknowns",
-        "No_credential_or_live_evidence_commit"
-      ]
+      "guardrails": ["Reports_name_input_artifacts", "Reports_preserve_unknowns", "No_credential_or_live_evidence_commit"]
+    },
+    {
+      "id": "sas-windows-log-classifier",
+      "display_name": "SysAdminSuite Windows Log Classifier MCP",
+      "status": "planned",
+      "command": "python -m harness.mcp.windows_log_classifier_server",
+      "allowed_apis": ["windows_log.classify", "windows_log.plan_operation", "windows_log.render_powershell", "report.generate_from_artifacts"],
+      "network_activity": false,
+      "target_mutation": false,
+      "evidence_scope": "taxonomy_and_local_artifacts_only",
+      "guardrails": ["Classifies_requested_log_operations", "Does_not_execute_host_changes", "Operator_gate_required_for_host_actions", "Routes_review_required_requests"]
     }
   ]
 }

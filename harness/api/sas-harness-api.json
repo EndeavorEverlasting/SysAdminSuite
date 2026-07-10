@@ -46,18 +46,9 @@
       "mode": "plan_only",
       "network_activity": false,
       "target_mutation": false,
-      "inputs": [
-        "approved_hostname_or_ip",
-        "optional_port"
-      ],
-      "outputs": [
-        "cmd_command_plan.txt"
-      ],
-      "guardrails": [
-        "Render_only",
-        "No_blind_subnet_sweeps",
-        "One_target_unless_manifest_approved"
-      ]
+      "inputs": ["approved_hostname_or_ip", "optional_port"],
+      "outputs": ["cmd_command_plan.txt"],
+      "guardrails": ["Render_only", "No_blind_subnet_sweeps", "One_target_unless_manifest_approved"]
     },
     {
       "id": "standard_probe.render_powershell",
@@ -65,18 +56,9 @@
       "mode": "plan_only",
       "network_activity": false,
       "target_mutation": false,
-      "inputs": [
-        "approved_hostname_or_ip",
-        "optional_port"
-      ],
-      "outputs": [
-        "powershell_command_plan.ps1"
-      ],
-      "guardrails": [
-        "Render_only",
-        "Use_short_targeted_checks",
-        "No_target_mutation"
-      ]
+      "inputs": ["approved_hostname_or_ip", "optional_port"],
+      "outputs": ["powershell_command_plan.ps1"],
+      "guardrails": ["Render_only", "Use_short_targeted_checks", "No_target_mutation"]
     },
     {
       "id": "report.generate_from_artifacts",
@@ -84,20 +66,9 @@
       "mode": "local_transform",
       "network_activity": false,
       "target_mutation": false,
-      "inputs": [
-        "artifact_manifest_json",
-        "summary_json",
-        "csv_artifacts"
-      ],
-      "outputs": [
-        "report.md",
-        "report_summary.json"
-      ],
-      "guardrails": [
-        "Reports_must_name_inputs",
-        "Reports_must_name_unresolved_rows",
-        "Reports_must_not_invent_identity_proof"
-      ]
+      "inputs": ["artifact_manifest_json", "summary_json", "csv_artifacts"],
+      "outputs": ["report.md", "report_summary.json"],
+      "guardrails": ["Reports_must_name_inputs", "Reports_must_name_unresolved_rows", "Reports_must_not_invent_identity_proof"]
     },
     {
       "id": "mcp.catalog.list",
@@ -105,17 +76,39 @@
       "mode": "local_read",
       "network_activity": false,
       "target_mutation": false,
-      "inputs": [
-        "mcp/local/servers.json"
-      ],
-      "outputs": [
-        "mcp_server_catalog.json"
-      ],
-      "guardrails": [
-        "Local_only",
-        "No_hidden_daemons",
-        "No_network_probe_execution"
-      ]
+      "inputs": ["mcp/local/servers.json"],
+      "outputs": ["mcp_server_catalog.json"],
+      "guardrails": ["Local_only", "No_hidden_daemons", "No_network_probe_execution"]
+    },
+    {
+      "id": "windows_log.classify",
+      "summary": "Classify Windows log targets and requested operations using the repository taxonomy.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": ["harness/taxonomy/windows-log-taxonomy.json", "log_target", "requested_operation"],
+      "outputs": ["windows_log_classification.json", "windows_log_review_bucket.txt"],
+      "guardrails": ["Classify_only", "Every_request_gets_safety_tier", "Every_sensitive_request_declares_required_gate", "Preserve_uncertainty_for_unknown_provider_or_log_owner"]
+    },
+    {
+      "id": "windows_log.plan_operation",
+      "summary": "Produce a Windows log operation plan from a classification result without executing host actions.",
+      "mode": "plan_only",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": ["windows_log_classification.json", "operator_scope", "optional_output_root"],
+      "outputs": ["windows_log_operation_plan.json", "windows_log_classification_report.md"],
+      "guardrails": ["Plan_only", "Operator_execution_required_for_host_actions", "Live_log_outputs_stay_local_gitignored", "Preserve_evidence"]
+    },
+    {
+      "id": "windows_log.render_powershell",
+      "summary": "Render bounded PowerShell command plans for classified Windows log operations without executing them.",
+      "mode": "plan_only",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": ["windows_log_operation_plan.json", "approved_log_target", "approved_operation_class"],
+      "outputs": ["windows_log_command_plan.ps1", "windows_log_operator_handoff.md"],
+      "guardrails": ["Render_only", "Sensitive_operations_require_gate", "Configuration_plans_require_before_after_capture", "Security_log_operations_require_sensitive_scope_review"]
     }
   ]
 }
