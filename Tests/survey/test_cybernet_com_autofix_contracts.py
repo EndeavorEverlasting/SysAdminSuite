@@ -17,6 +17,9 @@ DRYRUN_LAUNCHER_PATH = REPO_ROOT / "Run-CybernetComPortAutoFix-DryRun.cmd"
 PACK_PATH = REPO_ROOT / "configs" / "hotfix-command-packs" / "cybernet-com-port-repair.pack.json"
 DOC_PATH = REPO_ROOT / "docs" / "field-hotfixes" / "cybernet-com-port-autofix.md"
 QR_DOC_PATH = REPO_ROOT / "docs" / "field-hotfixes" / "cybernet-com-port-qr-pack.md"
+PARSER_PATH = REPO_ROOT / "scripts" / "Test-CybernetComPortAutoFixParser.ps1"
+INSPECTOR_PATH = REPO_ROOT / "scripts" / "Inspect-CybernetComPortAutoFixEvidence.ps1"
+READINESS_TEST_PATH = REPO_ROOT / "Tests" / "Pester" / "CybernetComPortAutoFixReadiness.Tests.ps1"
 
 
 def read(path: Path) -> str:
@@ -258,6 +261,30 @@ def test_docs_explain_fast_path_boundaries_progress_and_backups() -> None:
     assert "Run automated COM AutoFix" in qr_doc
 
 
+def test_readiness_helpers_prevent_false_parser_and_stale_evidence_results() -> None:
+    parser = read(PARSER_PATH)
+    inspector = read(INSPECTOR_PATH)
+    readiness_test = read(READINESS_TEST_PATH)
+
+    assert "[System.Management.Automation.Language.Parser]::ParseFile" in parser
+    assert "$parseErrors.Count -gt 0" in parser
+    assert "PARSE OK" in parser
+
+    assert "Test-Path -LiteralPath $EvidenceRoot -PathType Container" in inspector
+    assert "if (-not $run)" in inspector
+    assert "Join-Path -Path $run.FullName -ChildPath $name" in inspector
+    assert "$artifactPath" in inspector
+    assert "Exists = $exists" in inspector
+    assert "Bytes = if ($exists)" in inspector
+    assert "AutoFix backup proof is incomplete or empty" in inspector
+    assert "registry_backups.validated" in inspector
+    assert "Set-ItemProperty" not in inspector
+    assert "reg.exe" not in inspector
+
+    assert "parses the AutoFix script without shell interpolation" in readiness_test
+    assert "fails clearly instead of reusing stale state" in readiness_test
+
+
 def main() -> None:
     tests = [
         test_autofix_launcher_runs_apply_restart_with_admin_elevation,
@@ -272,6 +299,7 @@ def main() -> None:
         test_autofix_has_no_remote_execution_or_public_bootstrap,
         test_qr_pack_exposes_autofix_as_step_12,
         test_docs_explain_fast_path_boundaries_progress_and_backups,
+        test_readiness_helpers_prevent_false_parser_and_stale_evidence_results,
     ]
     for test in tests:
         test()

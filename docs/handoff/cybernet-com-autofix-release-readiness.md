@@ -110,11 +110,11 @@ autofix-transcript.txt
 
 All of the following remain required before merge:
 
-1. PowerShell parser check passes on Windows.
+1. `scripts/Test-CybernetComPortAutoFixParser.ps1` prints `PARSE OK` on Windows.
 2. `Run-CybernetComPortAutoFix-DryRun.cmd` runs locally on an approved, non-finalized Cybernet.
 3. The dry run detects the intended FINTEK / four-port / `COM3-COM6` state without `-Force`.
 4. All five `.reg` backups exist and are nonempty.
-5. `autofix-summary.json` reports `registry_backups.validated` as `true`.
+5. `scripts/Inspect-CybernetComPortAutoFixEvidence.ps1` verifies all required backup files are nonempty and `autofix-summary.json` reports `registry_backups.validated` as `true`.
 6. Controlled apply and reboot proof confirms `COM1-COM4` under the separately approved runtime-proof lane.
 7. `git status --short` remains clean after runtime artifacts are left outside the repository.
 

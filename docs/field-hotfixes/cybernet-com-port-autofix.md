@@ -34,6 +34,26 @@ Dry run captures evidence, exports registry backups, builds the planned COM mapp
 
 Every registry export must return exit code 0 and create a nonempty `.reg` file. If the COM Name Arbiter export or any per-device `Device Parameters` export fails validation, AutoFix reports `FAILED` and stops before any COM registry mutation.
 
+## Parser verification
+
+Before any local launch, verify the tracked AutoFix script with the repository helper:
+
+```powershell
+.\scripts\Test-CybernetComPortAutoFixParser.ps1
+```
+
+The only successful result is `PARSE OK`. This helper uses PowerShell's parser API directly, so the current shell cannot consume `$null` or turn a failed `Get-Content` call into a false success.
+
+## Evidence inspection
+
+After a launcher has actually created a local `autofix_*` run directory, inspect it with:
+
+```powershell
+.\scripts\Inspect-CybernetComPortAutoFixEvidence.ps1
+```
+
+The inspector is read-only. It refuses a missing evidence root or run directory, builds every artifact path from the selected run directory, requires all five `.reg` backups plus `autofix-summary.json` to exist and be nonempty, then requires `registry_backups.validated` to be `true`. It cannot reuse a stale path variable to report a misleading table.
+
 ## Progress and final status
 
 The script now shows a progress bar plus plain console lines so a technician can tell whether it is still working, safely stopped, failed, or rebooting.
