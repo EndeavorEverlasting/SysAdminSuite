@@ -4,7 +4,9 @@
 
 SysAdminSuite must not generate live probes just because a probe lane exists.
 
-Naabu/Nmap output is reachability evidence only. It is not population proof, serial identity proof, target ownership proof, or permission to keep probing. Population authority stays with approved manifests, AD-derived target lists, or other approved local evidence.
+Naabu/Nmap output is live reachability and service-state evidence. It is not population proof, serial identity proof, target ownership proof, or permission to keep probing by itself.
+
+Probe output may contribute to identity, population, target ownership, or action-readiness proof only when it is joined with approved source data and the match is complete, fresh, in scope, and unambiguous. Population authority stays with approved manifests, AD-derived target lists, or other approved local evidence.
 
 ## Elemental rule
 
@@ -26,8 +28,9 @@ Before emitting or executing a live probe command, agents, scripts, and validato
 4. Is the evidence fresh enough for the current workflow?
 5. Is the evidence from the correct approved scope?
 6. Is there conflicting evidence?
-7. Has this target/scope already reached five live probes?
-8. If the cap is reached, is a lead/operator override recorded?
+7. Is the live probe result joined to approved source data instead of treated as proof by itself?
+8. Has this target/scope already reached five live probes?
+9. If the cap is reached, is a lead/operator override recorded?
 
 Only after this decision order may a workflow stage a live probe.
 
@@ -37,6 +40,8 @@ Only after this decision order may a workflow stage a live probe.
 |---|---|
 | Complete approved evidence exists | Reuse evidence. Do not probe by default. |
 | Complete approved live probe evidence exists | Prefer existing live probe evidence. Do not re-probe by default. |
+| Complete approved source data plus fresh scoped live probe evidence exists | This may contribute to identity, population, target ownership, or action-readiness proof for that workflow. |
+| Live probe evidence exists by itself | Treat as reachability/service-state evidence only. Do not promote it to identity or population proof. |
 | No existing evidence exists | A bounded live probe may be staged if the scope is otherwise approved. |
 | Partial match exists | Review before probe. Do not treat as complete reuse proof. |
 | Ambiguous match exists | Review before probe. Do not treat as complete reuse proof. |
@@ -53,12 +58,15 @@ The canonical low-noise policy must expose:
 - `live_probe_budget_policy.prefer_existing_live_probe_evidence`
 - `live_probe_budget_policy.max_live_probes_per_target_scope`
 - `live_probe_budget_policy.override_requires_recorded_lead_or_operator_reason`
+- `guidance.probe_evidence_role_guidance`
 
 Tests must fail if a policy or workflow can blindly re-probe a known target without first checking evidence reuse and the live-probe budget.
 
+Tests must also fail if policy wording treats live probe output as useless or impossible to use as proof. The intended distinction is narrow: live probe output is not proof by itself, but it may contribute to proof when joined with complete approved evidence.
+
 ## English reporting contract
 
-Operator-facing reports should say why a probe did or did not happen.
+Operator-facing reports should say why a probe did or did not happen, and whether live probe evidence is being reused as part of a complete proof package or only retained as reachability evidence.
 
 Examples:
 
@@ -76,6 +84,12 @@ Evidence reuse decision: block_live_probe.
 Reason: live probe budget exhausted for this target/scope.
 ```
 
+```text
+Evidence role: live probe output contributes to action-readiness proof because approved source data is complete, fresh, scoped, and unambiguous.
+```
+
 ## Agent guardrail
 
 AI agents must check this guardrail before generating commands. A generated command that skips the evidence-reuse decision is not low-noise, even if it uses a narrow port list or a low retry count.
+
+AI agents must not flatten the rule into either extreme. Live probe output is not authoritative by itself, and it is also not disposable. Its value depends on the approved evidence chain around it.
