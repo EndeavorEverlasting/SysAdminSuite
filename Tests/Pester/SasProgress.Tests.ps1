@@ -1,7 +1,6 @@
-$modulePath = Join-Path $PSScriptRoot '..\..\scripts\SasProgress.psm1'
-
 Describe 'SysAdminSuite PowerShell progress contract' {
     BeforeAll {
+        $modulePath = Join-Path $PSScriptRoot '..\..\scripts\SasProgress.psm1'
         Import-Module $modulePath -Force
     }
 
