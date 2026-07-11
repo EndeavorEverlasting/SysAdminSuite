@@ -1,0 +1,19 @@
+{
+  "schema_version": "sas-low-noise-policy/v1",
+  "policy_version": "1.1",
+  "population_source_policy": "approved_manifest_or_fresh_local_evidence_only",
+  "freshness_policy": { "reuse_hours": 24, "stale_requires_review": true },
+  "retry_policy": { "default_retries": 1, "max_retries": 2 },
+  "rate_policy": { "default_rate_cap": 3000, "max_rate_cap": 3000 },
+  "edge_target_policy": { "exclude_cdn": true, "front_door_requires_review": true },
+  "output_policy": { "survey_local_only": true, "machine_output_required": true },
+  "evidence_policy": { "serial_only_is_review": true, "target_mutation": "never" },
+  "profiles": [
+    { "id": "keyports_cybernet_json", "purpose": "Cybernet key-port JSON reachability", "target_source": "approved_manifest", "ports": [80, 443, 135, 445, 3389, 5985, 5986], "tcp_only": true, "rate_cap": 3000, "retries": 1, "host_discovery_mode": "none", "exclude_cdn": true, "silent_output": true, "machine_output": "json", "local_evidence_only": true, "target_mutation": "never" },
+    { "id": "keyports_cybernet_pipe", "purpose": "Cybernet key-port pipeline handoff", "target_source": "approved_manifest", "ports": [80, 443, 135, 445, 3389, 5985, 5986], "tcp_only": true, "rate_cap": 3000, "retries": 1, "host_discovery_mode": "none", "exclude_cdn": true, "silent_output": true, "machine_output": "text", "local_evidence_only": true, "target_mutation": "never" },
+    { "id": "web_reachability_only", "purpose": "Narrow web reachability", "target_source": "approved_manifest", "ports": [80, 443], "tcp_only": true, "rate_cap": 1000, "retries": 1, "host_discovery_mode": "none", "exclude_cdn": true, "silent_output": true, "machine_output": "json", "local_evidence_only": true, "target_mutation": "never" },
+    { "id": "admin_surface_reachability", "purpose": "Approved Windows administration surfaces", "target_source": "approved_manifest", "ports": [135, 445, 3389, 5985, 5986], "tcp_only": true, "rate_cap": 1000, "retries": 1, "host_discovery_mode": "none", "exclude_cdn": true, "silent_output": true, "machine_output": "json", "local_evidence_only": true, "target_mutation": "never" },
+    { "id": "serial_to_target_preflight", "purpose": "Serial-linked target preflight", "target_source": "serial_identity_bridge", "ports": [135, 445, 3389, 5985, 5986], "tcp_only": true, "rate_cap": 500, "retries": 1, "host_discovery_mode": "none", "exclude_cdn": true, "silent_output": true, "machine_output": "json", "local_evidence_only": true, "target_mutation": "never" },
+    { "id": "subnet_confirmation", "purpose": "Confirmation of an already approved subnet scope", "target_source": "approved_subnet_scope", "ports": [80, 443], "tcp_only": true, "rate_cap": 300, "retries": 0, "host_discovery_mode": "explicit_only", "exclude_cdn": true, "silent_output": true, "machine_output": "json", "local_evidence_only": true, "target_mutation": "never" }
+  ]
+}

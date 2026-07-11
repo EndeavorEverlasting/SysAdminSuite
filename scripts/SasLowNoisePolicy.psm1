@@ -12,12 +12,38 @@ scope, ports, rate, retries, freshness, evidence reuse, and staging only justifi
 
 Set-StrictMode -Version 2.0
 
+function Get-SasCanonicalLowNoiseDocument {
+    [CmdletBinding()]
+    param()
+
+    $path = if ($env:SAS_LOW_NOISE_POLICY_PATH) {
+        $env:SAS_LOW_NOISE_POLICY_PATH
+    } else {
+        Join-Path $PSScriptRoot '..\Config\low-noise-policy.json'
+    }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Canonical low-noise policy is missing: $path"
+    }
+    try {
+        $document = Get-Content -LiteralPath $path -Raw -ErrorAction Stop | ConvertFrom-Json
+    } catch {
+        throw "Canonical low-noise policy is invalid: $path; $($_.Exception.Message)"
+    }
+    if ($document.schema_version -ne 'sas-low-noise-policy/v1' -or -not $document.profiles) {
+        throw "Canonical low-noise policy has unsupported schema or no profiles: $path"
+    }
+    return $document
+}
+
 function Get-SasLowNoisePolicy {
     [CmdletBinding()]
     param()
 
+    $document = Get-SasCanonicalLowNoiseDocument
     return [pscustomobject]@{
-        PolicyVersion = '1.0'
+        PolicyVersion = $document.policy_version
+        SchemaVersion = $document.schema_version
+        Profiles = @($document.profiles | ForEach-Object { $_.PSObject.Copy() })
         LowNoisePrinciple = 'The network sees packets, not the shell. Reduce packets by using local evidence before probes.'
         NetworkVisibilityNote = 'CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.'
         ProbeAgainGuidance = 'Five probes are unnecessary when a device was already recently reachable or identity-confirmed. If retrying is justified, prefer a different time of day or different day of week over immediate repeated probes.'
