@@ -131,29 +131,29 @@ IDENTITY_OUT="$TMP_DIR/workstation_identity.csv"
 WMI_OUT="$TMP_DIR/wmi_identity.csv"
 SMB_OUT="$TMP_DIR/smb_readonly_recon.csv"
 
-bash "$PREFLIGHT" --target 127.0.0.1 --ports 80 --timeout 1 --output "$PREFLIGHT_OUT" >/dev/null
+bash "$PREFLIGHT" --target 127.0.0.1 --ports 80 --timeout 1 --output "$PREFLIGHT_OUT" --pass-thru >/dev/null
 [[ -f "$PREFLIGHT_OUT" ]] || fail "Preflight did not create CSV"
 grep -q 'Timestamp,Target,ResolvedAddress,PingStatus,Port,PortStatus' "$PREFLIGHT_OUT" || fail "Preflight CSV header changed"
 grep -q '127.0.0.1' "$PREFLIGHT_OUT" || fail "Preflight CSV missing target"
 
-bash "$PRINTER" --target 127.0.0.1 --snmp-only --timeout 1 --output "$PRINTER_OUT" >/dev/null
+bash "$PRINTER" --target 127.0.0.1 --snmp-only --timeout 1 --output "$PRINTER_OUT" --pass-thru >/dev/null
 [[ -f "$PRINTER_OUT" ]] || fail "Printer probe did not create CSV"
 grep -q 'Timestamp,Target,ResolvedAddress,PingStatus,MAC,Serial,Source,Notes' "$PRINTER_OUT" || fail "Printer CSV header changed"
 grep -q '127.0.0.1' "$PRINTER_OUT" || fail "Printer CSV missing target"
 
-bash "$IDENTITY" --target 127.0.0.1 --timeout 1 --output "$IDENTITY_OUT" >/dev/null
+bash "$IDENTITY" --target 127.0.0.1 --timeout 1 --output "$IDENTITY_OUT" --pass-thru >/dev/null
 [[ -f "$IDENTITY_OUT" ]] || fail "Identity adapter did not create CSV"
 grep -q 'Timestamp,Target,ResolvedAddress,PingStatus,DnsName,ObservedHostName,ObservedSerial,ObservedMACs,TransportUsed,IdentityStatus,Notes' "$IDENTITY_OUT" || fail "Identity CSV header changed"
 grep -q '127.0.0.1' "$IDENTITY_OUT" || fail "Identity CSV missing target"
 grep -Eq 'IdentityCollected|ReachableNeedsApprovedIdentityTransport|UnreachableOrBlocked' "$IDENTITY_OUT" || fail "Identity CSV missing status verdict"
 
-bash "$WMI" --target 127.0.0.1 --timeout 1 --output "$WMI_OUT" >/dev/null
+bash "$WMI" --target 127.0.0.1 --timeout 1 --output "$WMI_OUT" --pass-thru >/dev/null
 [[ -f "$WMI_OUT" ]] || fail "WMI adapter did not create CSV"
 grep -q 'Timestamp,Target,ObservedHostName,ObservedSerial,ObservedMACs,WmiStatus,Notes' "$WMI_OUT" || fail "WMI CSV header changed"
 grep -q '127.0.0.1' "$WMI_OUT" || fail "WMI CSV missing target"
 grep -Eq 'WmiClientMissing|WmiQueryFailed|WmiIdentityCollected|WmiNoIdentityReturned' "$WMI_OUT" || fail "WMI CSV missing WmiStatus verdict"
 
-bash "$SMB" --target 127.0.0.1 --timeout 1 --output "$SMB_OUT" >/dev/null
+bash "$SMB" --target 127.0.0.1 --timeout 1 --output "$SMB_OUT" --pass-thru >/dev/null
 [[ -f "$SMB_OUT" ]] || fail "SMB adapter did not create CSV"
 grep -q 'Timestamp,Target,Share,ApprovedPath,Reachable,ListStatus,ReadStatus,Evidence,ReconStatus,Notes' "$SMB_OUT" || fail "SMB CSV header changed"
 grep -q '127.0.0.1' "$SMB_OUT" || fail "SMB CSV missing target"
