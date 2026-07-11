@@ -4,55 +4,58 @@
 
 **HOLD - DO NOT MERGE PR #156 YET.**
 
-PR #156 is structurally mergeable, current with `main`, and clean of committed runtime evidence. Static and repository checks pass on the final code/test head, but the release gate is incomplete because the required local Windows dry-run and controlled runtime proof have not been performed on an approved, non-finalized Cybernet with the known `COM3-COM6` state.
+PR #156 is structurally mergeable, current with `main`, and clean of committed runtime evidence. Static and repository checks pass. The release gate remains incomplete because the required dry run and controlled apply/reboot proof must occur locally on an approved, non-finalized Cybernet showing the known `COM3-COM6` state.
+
+A normal workstation, work box, or admin box cannot satisfy this gate. The 2026-07-10 workstation inspection failed closed with all required backup/summary artifacts absent. That result validates the inspection boundary, not the COM repair behavior.
 
 Mergeability and green CI are not runtime proof.
 
 ## Repository and PR state
 
-Recorded during the release-hygiene pass on 2026-07-10:
+Recorded during the 2026-07-10 release-hygiene refresh:
 
 ```text
 repo: EndeavorEverlasting/SysAdminSuite
 branch: feat/cybernet-com-port-autofix
-code/test head before this note: 862a8eb6b75b98835ec2da78ebc3c60a6e908f4f
+PR: #156
 base: main at b3143ebb52271c4ac8f52cbae83779e0698f5e31
-branch relation: ahead of main, 0 commits behind
+code/helper head before runtime-status refresh: cde189d7faf7226c4e3d74a8f4241d92cfb1d15a
+runtime-status commit: b0e6c7414727093a4b9e74ee29f34a89c41ed7d7
+branch relation before this note: ahead of main, 0 commits behind
 PR state: open
 PR mergeable: true
 ```
 
+The PR body is the authoritative location for the final head SHA after this documentation commit.
+
 ## Release-blocker fixes
 
-The release pass verified unresolved review findings against the current code and fixed the findings that remained valid:
+The release pass verified and fixed the following boundaries:
+
+- launchers use a Windows principal-role elevation check instead of `net session`
+- dry-run rejects every argument and cannot forward `-Apply`, `-Restart`, or `-Force`
+- `-Force` may bypass only FINTEK detection after separate approval
+- exactly four active ports and the `COM3,COM4,COM5,COM6` failed map remain mandatory
+- registry backup validation gates every COM mutation
+- QR-pack contracts execute rather than returning a false-green exit
+- parser verification uses PowerShell's parser API without shell interpolation
+- evidence inspection refuses missing/stale state and cannot report success from a reused path variable
+
+Key commits:
 
 ```text
 fc8b78aa724580be649ff27e65bd33796f744613  replace net-session elevation detection
-80be1d7eec7feadab4d447f92371c36ad7660fc3  reject dry-run arguments and elevate safely
-377ddc13ea3bdd28f791f785a7c86435f3821ab1  keep four-port and COM3-COM6 invariants mandatory
-44efa9f9801ff82143f398cb4154a629dc24b47d  enforce launcher and Force boundaries in contracts
-38a08019f754392d9a13cf003ee8e7e874dcbd1e  document the locked dry-run and Force boundary
-862a8eb6b75b98835ec2da78ebc3c60a6e908f4f  make the QR-pack command execute real contracts
+80be1d7eec7feadab4d447f92371c36ad7660fc3  lock dry-run argument boundary
+377ddc13ea3bdd28f791f785a7c86435f3821ab1  keep mapping invariants mandatory
+44efa9f9801ff82143f398cb4154a629dc24b47d  enforce launcher and Force contracts
+862a8eb6b75b98835ec2da78ebc3c60a6e908f4f  execute QR-pack contracts
+cde189d7faf7226c4e3d74a8f4241d92cfb1d15a  harden parser/evidence readiness helpers
+b0e6c7414727093a4b9e74ee29f34a89c41ed7d7  record Cybernet-only runtime gate and field plan
 ```
-
-Current behavior:
-
-- Both AutoFix launchers use a Windows principal-role elevation check.
-- The dry-run launcher rejects every argument, does not forward `%*`, and invokes the PowerShell script without `-Apply`, `-Restart`, or `-Force`.
-- `-Force` may bypass only FINTEK detection after lead confirmation.
-- Exactly four active ports and the `COM3,COM4,COM5,COM6` failed map remain mandatory invariants.
-- Registry backup validation still gates all COM mutation.
 
 ## Validation evidence
 
-GitHub checks completed successfully on the final code/test head:
-
-```text
-Survey doctrine - run 29129717426 - success
-Pester          - run 29129717410 - success
-```
-
-Targeted contract commands were executed against reconstructed branch files from the current connector blobs:
+Targeted contract commands previously passed on the tracked branch surfaces:
 
 ```text
 python Tests/survey/test_cybernet_com_autofix_contracts.py
@@ -62,38 +65,33 @@ python Tests/survey/test_cybernet_com_qr_pack_contracts.py
 PASS: 5 Cybernet COM QR pack static contracts
 ```
 
-Relevant current blobs:
+GitHub checks on `cde189d7faf7226c4e3d74a8f4241d92cfb1d15a`:
 
 ```text
-Run-CybernetComPortAutoFix.cmd
-acd59508b7008bfb28e7a41bca403341a740a732
-
-Run-CybernetComPortAutoFix-DryRun.cmd
-4589937a356ff94fabdcbc15eb47290f65e4e2c4
-
-scripts/Invoke-CybernetComPortAutoFix.ps1
-c6e06d83d45c52d23fe2720af6bb7034e289e9bd
-
-Tests/survey/test_cybernet_com_autofix_contracts.py
-61221d9e82446ce28dd7f559ea5e8141c04564e8
-
-Tests/survey/test_cybernet_com_qr_pack_contracts.py
-09e2cfcca4d13eb84477983c2cb441cba6dc4995
+Survey doctrine - run 29133596443 - success
+Pester          - run 29133596450 - success
 ```
 
-The connector-only execution environment could not produce a complete local checkout, so this broader command remains an explicit skipped check rather than an inferred pass:
+The workstation inspection also demonstrated that `scripts/Inspect-CybernetComPortAutoFixEvidence.ps1` fails closed when the latest run lacks required artifacts. It did not establish target eligibility, valid backups, COM mapping behavior, apply behavior, or reboot behavior.
 
-```bash
-bash ./tests/survey/run_offline_survey_tests.sh
-```
+## Proof level
+
+| Proof level | Status |
+|---|---|
+| Contract proof | Complete |
+| Harness proof | Complete for parser/evidence readiness helpers |
+| Static test proof | Complete |
+| Build proof | Not applicable |
+| Launcher/browser proof | Incomplete |
+| Command ACK proof | Partial for workstation evidence inspection |
+| Behavior observed proof | Partial for fail-closed inspection behavior |
+| Live runtime proof | Not reached |
 
 ## Evidence hygiene
 
-The PR changed-file list contains only launchers, tracked scripts, tests, configuration, documentation, and the offline test runner.
+No runtime `.reg` export, transcript, screenshot, hostname, asset list, full JSON summary, machine-local log, or `autofix_*` directory may be committed.
 
-No committed PR file is a runtime `.reg` export, transcript, screenshot, hostname capture, asset list, `autofix_*` evidence directory, or machine-local log.
-
-Expected runtime names appear only as contracts, documentation, and generated-output paths. They must remain outside git:
+Expected local-only paths:
 
 ```text
 C:\Temp\CybernetCOM\autofix_*
@@ -103,6 +101,7 @@ device-parameters-before-02.reg
 device-parameters-before-03.reg
 device-parameters-before-04.reg
 autofix-summary.json
+port-mapping-plan.json
 autofix-transcript.txt
 ```
 
@@ -110,15 +109,15 @@ autofix-transcript.txt
 
 All of the following remain required before merge:
 
-1. `scripts/Test-CybernetComPortAutoFixParser.ps1` prints `PARSE OK` on Windows.
-2. `Run-CybernetComPortAutoFix-DryRun.cmd` runs locally on an approved, non-finalized Cybernet.
-3. The dry run detects the intended FINTEK / four-port / `COM3-COM6` state without `-Force`.
+1. `scripts/Test-CybernetComPortAutoFixParser.ps1` prints `PARSE OK` on the selected Cybernet.
+2. `Run-CybernetComPortAutoFix-DryRun.cmd` runs locally on one approved, non-finalized Cybernet.
+3. The dry run detects FINTEK/MultiPortSerial, exactly four active ports, and `COM3-COM6` without `-Force`.
 4. All five `.reg` backups exist and are nonempty.
-5. `scripts/Inspect-CybernetComPortAutoFixEvidence.ps1` verifies all required backup files are nonempty and `autofix-summary.json` reports `registry_backups.validated` as `true`.
-6. Controlled apply and reboot proof confirms `COM1-COM4` under the separately approved runtime-proof lane.
-7. `git status --short` remains clean after runtime artifacts are left outside the repository.
-
-Do not merge merely because static checks and GitHub checks pass.
+5. `scripts/Inspect-CybernetComPortAutoFixEvidence.ps1` prints `REGISTRY BACKUPS VALIDATED`.
+6. `autofix-summary.json` reports `registry_backups.validated: true`.
+7. An anonymized tracked dry-run summary is recorded without raw evidence or machine identity.
+8. Separately approved apply/reboot proof confirms `COM1-COM4`.
+9. `git status --short` remains clean after runtime evidence stays outside the repository.
 
 ## Exact field command
 
@@ -128,4 +127,10 @@ From the SysAdminSuite repository root on the local, non-finalized Cybernet:
 Run-CybernetComPortAutoFix-DryRun.cmd
 ```
 
-Do not run apply and do not use `-Force` as part of release-readiness validation.
+Do not pass arguments. Do not run apply. Do not use `-Force` during release-readiness validation.
+
+The complete operator sequence is maintained in:
+
+```text
+docs/handoff/cybernet-com-autofix-runtime-proof.md
+```
