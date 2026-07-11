@@ -12,6 +12,8 @@ if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
 fi
 # shellcheck source=survey/lib/sas-network-guard.sh
 source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+# shellcheck source=survey/lib/sas-progress.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-progress.sh"
 
 TARGETS=()
 TARGET_FILE=""
@@ -25,6 +27,7 @@ SMB_USER=""
 SMB_PASS=""
 SMB_DOMAIN=""
 PASS_THRU=0
+NO_PROGRESS=0
 
 usage(){ cat <<'USAGE'
 SysAdminSuite SMB Read-Only Recon
@@ -45,6 +48,7 @@ Options:
   --smb-pass PASS       Optional SMB password. Prefer SAS_SMB_PASS
   --smb-domain DOMAIN   Optional SMB domain. Prefer SAS_SMB_DOMAIN
   --pass-thru           Print CSV after writing
+  --no-progress         Suppress progress bars
   -h, --help            Show help
 
 Environment variables:
@@ -71,7 +75,7 @@ Known limitations:
 USAGE
 }
 
-fail(){ printf '[smb-recon] ERROR: %s\n' "$*" >&2; exit 1; }
+fail(){ sas_progress_fail "$*"; printf '[smb-recon] ERROR: %s\n' "$*" >&2; exit 1; }
 log(){ printf '[smb-recon] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
@@ -91,6 +95,7 @@ while [[ $# -gt 0 ]]; do
     --smb-pass) SMB_PASS="${2:?missing value for --smb-pass}"; shift 2 ;;
     --smb-domain) SMB_DOMAIN="${2:?missing value for --smb-domain}"; shift 2 ;;
     --pass-thru) PASS_THRU=1; shift ;;
+    --no-progress) NO_PROGRESS=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [[ $# -gt 0 ]]; do TARGETS+=("$1"); shift; done ;;
     -*) fail "Unknown option: $1" ;;
@@ -115,6 +120,10 @@ if [[ -n "$TARGET_FILE" ]]; then
 fi
 [[ ${#TARGETS[@]} -gt 0 ]] || fail "No targets provided"
 mkdir -p "$(dirname "$OUTPUT")"
+[[ "$NO_PROGRESS" -eq 1 ]] && sas_progress_disable
+sas_progress_start "${#TARGETS[@]}" "SMB read-only recon"
+completed=0
+trap 'rc=$?; if (( rc != 0 )); then sas_progress_fail "stopped with exit $rc"; fi' EXIT
 IFS=',' read -r -a PATH_ARRAY <<< "$APPROVED_PATHS"
 
 smb_auth_args(){
@@ -152,6 +161,7 @@ classify(){
 {
   printf 'Timestamp,Target,Share,ApprovedPath,Reachable,ListStatus,ReadStatus,Evidence,ReconStatus,Notes\n'
   for target in "${TARGETS[@]}"; do
+    sas_progress_update "$completed" "checking $target"
     for raw_path in "${PATH_ARRAY[@]}"; do
       path="$(trim "$raw_path")"; [[ -z "$path" ]] && continue
       path="${path//\\//}"
@@ -187,7 +197,10 @@ classify(){
       [[ "$list_status" == "PathMissing" ]] && recon="EvidencePathMissing"
       csv_escape "$(date '+%Y-%m-%d %H:%M:%S')"; printf ','; csv_escape "$target"; printf ','; csv_escape "$SHARE"; printf ','; csv_escape "$path"; printf ','; csv_escape "$reachable"; printf ','; csv_escape "$list_status"; printf ','; csv_escape "$read_status"; printf ','; csv_escape "$evidence"; printf ','; csv_escape "$recon"; printf ','; csv_escape "$(IFS='; '; echo "${notes[*]:-}")"; printf '\n'
     done
+    completed=$((completed + 1))
+    sas_progress_update "$completed" "finished $target"
   done
 } > "$OUTPUT"
+sas_progress_complete "wrote $OUTPUT"
 log "Wrote SMB read-only recon CSV: $OUTPUT"
 [[ "$PASS_THRU" -eq 1 ]] && cat "$OUTPUT"

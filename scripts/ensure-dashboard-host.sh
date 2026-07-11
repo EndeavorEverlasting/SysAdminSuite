@@ -9,10 +9,13 @@ CONFIGURATION="Release"
 RUNTIME_IDENTIFIER="win-x64"
 PUBLISH_DIR="${REPO_ROOT}/app/bin"
 PROJECT="${REPO_ROOT}/src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj"
+# shellcheck source=survey/lib/sas-progress.sh
+source "${REPO_ROOT}/survey/lib/sas-progress.sh"
+trap 'rc=$?; if (( rc != 0 )); then sas_progress_fail "stopped with exit $rc"; fi' EXIT
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/ensure-dashboard-host.sh [--dry-run]
+Usage: bash scripts/ensure-dashboard-host.sh [--dry-run] [--no-progress]
 
 Ensures the dashboard host can run on this Windows workstation. Existing host
 executables are reused. If the host is missing on a source checkout, the script
@@ -21,16 +24,18 @@ ensures the .NET 8 SDK, publishes the host into app/bin/, and ensures required
 
 Options:
   --dry-run   Print planned actions only
+  --no-progress  Suppress human progress; status logs still use stderr
   -h, --help  Show help
 USAGE
 }
 
 log() { printf '[ensure-dashboard-host] %s\n' "$*" >&2; }
-fail() { printf '[ensure-dashboard-host] ERROR: %s\n' "$*" >&2; exit "${2:-1}"; }
+fail() { sas_progress_fail "$1"; printf '[ensure-dashboard-host] ERROR: %s\n' "$1" >&2; exit "${2:-1}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
+    --no-progress) sas_progress_disable; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "Unknown argument: $1" ;;
   esac
@@ -93,21 +98,30 @@ publish_host() {
 }
 
 if host_path="$(find_host)"; then
+  sas_progress_start 2 "Dashboard host bootstrap"
+  sas_progress_update 1 "existing host located"
   log "Found dashboard host: $host_path"
   ensure_runtime
+  sas_progress_complete "runtime ready; host reused"
   printf '%s\n' "$host_path"
   exit 0
 fi
 
+sas_progress_start 3 "Dashboard host bootstrap"
 log "Dashboard host missing; preparing source checkout for first use."
+sas_progress_update 0 "ensuring .NET SDK"
 ensure_sdk
+sas_progress_update 1 "publishing dashboard host"
 publish_host
+sas_progress_update 2 "ensuring .NET runtime"
 ensure_runtime
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
+  sas_progress_complete "dry-run plan complete"
   printf '%s\n' "${PUBLISH_DIR}/SysAdminSuite.DashboardHost.exe"
   exit 0
 fi
 
 host_path="$(find_host)" || fail "Dashboard host could not be built or located" 3
+sas_progress_complete "dashboard host ready"
 printf '%s\n' "$host_path"
