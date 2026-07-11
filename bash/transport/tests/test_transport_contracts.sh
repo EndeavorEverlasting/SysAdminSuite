@@ -13,6 +13,7 @@ PROGRESS="$ROOT_DIR/survey/lib/sas-progress.sh"
 
 fail(){ printf '[transport-tests] FAIL: %s\n' "$*" >&2; exit 1; }
 pass(){ printf '[transport-tests] PASS: %s\n' "$*"; }
+skip(){ printf '[transport-tests] SKIP: %s\n' "$*"; }
 
 [[ -f "$PREFLIGHT" ]] || fail "Missing network preflight tool"
 [[ -f "$PRINTER" ]] || fail "Missing printer probe tool"
@@ -157,11 +158,15 @@ grep -q 'Timestamp,Target,ObservedHostName,ObservedSerial,ObservedMACs,WmiStatus
 grep -q '127.0.0.1' "$WMI_OUT" || fail "WMI CSV missing target"
 grep -Eq 'WmiClientMissing|WmiQueryFailed|WmiIdentityCollected|WmiNoIdentityReturned' "$WMI_OUT" || fail "WMI CSV missing WmiStatus verdict"
 
-run_tool smb-readonly-recon bash "$SMB" --target 127.0.0.1 --timeout 1 --output "$SMB_OUT" --pass-thru
-[[ -f "$SMB_OUT" ]] || fail "SMB adapter did not create CSV"
-grep -q 'Timestamp,Target,Share,ApprovedPath,Reachable,ListStatus,ReadStatus,Evidence,ReconStatus,Notes' "$SMB_OUT" || fail "SMB CSV header changed"
-grep -q '127.0.0.1' "$SMB_OUT" || fail "SMB CSV missing target"
-grep -Eq 'EvidencePathReachable|NeedsApprovedCredentialsOrPolicy|SMBUnavailable|EvidencePathMissing|ReviewRequired' "$SMB_OUT" || fail "SMB CSV missing ReconStatus verdict"
+if command -v smbclient >/dev/null 2>&1; then
+  run_tool smb-readonly-recon bash "$SMB" --target 127.0.0.1 --timeout 1 --output "$SMB_OUT" --pass-thru
+  [[ -f "$SMB_OUT" ]] || fail "SMB adapter did not create CSV"
+  grep -q 'Timestamp,Target,Share,ApprovedPath,Reachable,ListStatus,ReadStatus,Evidence,ReconStatus,Notes' "$SMB_OUT" || fail "SMB CSV header changed"
+  grep -q '127.0.0.1' "$SMB_OUT" || fail "SMB CSV missing target"
+  grep -Eq 'EvidencePathReachable|NeedsApprovedCredentialsOrPolicy|SMBUnavailable|EvidencePathMissing|ReviewRequired' "$SMB_OUT" || fail "SMB CSV missing ReconStatus verdict"
+else
+  skip "SMB runtime contract requires smbclient; static and help contracts passed"
+fi
 
 pass "Bash syntax checks passed"
 pass "Help contracts passed"
