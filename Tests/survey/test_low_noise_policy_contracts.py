@@ -38,6 +38,15 @@ def test_policy_contract() -> None:
     assert "Partial matches, ambiguous matches" in english
     assert "stop at five total live probes" in english
 
+    legacy_scanner_profile = json.loads((ROOT / "Config" / "cybernet-port-profile.json").read_text(encoding="utf-8"))
+    legacy_cybernet = legacy_scanner_profile["profiles"]["CybernetWindowsEndpoint"]
+    canonical_cybernet = profiles["keyports_cybernet_json"]
+    assert legacy_cybernet["ports"] == canonical_cybernet["ports"]
+    assert legacy_cybernet["defaultRate"] == canonical_cybernet["rate_cap"]
+    assert legacy_cybernet["retries"] == canonical_cybernet["retries"]
+    assert legacy_cybernet["excludeCdn"] == canonical_cybernet["exclude_cdn"]
+    assert 139 not in legacy_cybernet["ports"]
+
     complete_evidence = decide_probe_from_evidence(policy, {
         "existing_evidence_present": True,
         "all_required_data_present": True,
