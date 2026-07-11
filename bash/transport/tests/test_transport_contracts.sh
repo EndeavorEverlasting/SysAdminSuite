@@ -118,6 +118,13 @@ SMB_HELP="$($SMB --help)"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+NETWORK_FIXTURE="$TMP_DIR/ipconfig.synthetic.txt"
+cat > "$NETWORK_FIXTURE" <<'EOF'
+Windows IP Configuration
+   Connection-specific DNS Suffix  . : sas-contract.invalid
+EOF
+export SAS_NETWORK_GUARD_IPCONFIG_FIXTURE="$NETWORK_FIXTURE"
+export SAS_NETWORK_GUARD_ALLOWED_DNS_SUFFIXES="sas-contract.invalid"
 PREFLIGHT_OUT="$TMP_DIR/network_preflight.csv"
 PRINTER_OUT="$TMP_DIR/printer_probe.csv"
 IDENTITY_OUT="$TMP_DIR/workstation_identity.csv"
