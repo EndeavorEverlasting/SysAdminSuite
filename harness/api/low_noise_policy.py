@@ -34,6 +34,7 @@ def load_policy(path: Path = DEFAULT_POLICY_PATH) -> dict[str, Any]:
         "network_visibility_note",
         "probe_again_guidance",
         "fresh_evidence_guidance",
+        "probe_evidence_role_guidance",
         "evidence_reuse_guardrail",
         "complete_match_guidance",
         "live_probe_budget_guidance",
@@ -43,9 +44,12 @@ def load_policy(path: Path = DEFAULT_POLICY_PATH) -> dict[str, Any]:
         "probe_selection_questions",
     }
     assert required_guidance <= data["guidance"].keys(), "canonical guidance is incomplete"
+    assert "not population, identity" in data["guidance"]["probe_evidence_role_guidance"]
+    assert "may contribute" in data["guidance"]["probe_evidence_role_guidance"]
     required_questions = {
         "Are all required data fields present?",
         "Is the match partial or ambiguous?",
+        "Is the live probe result joined to approved source data instead of treated as proof by itself?",
         "Has this target/scope already reached the live probe budget?",
     }
     assert required_questions <= set(data["guidance"]["probe_selection_questions"]), "probe selection questions must guard evidence reuse"
@@ -134,6 +138,7 @@ def render_profile_english(policy: dict[str, Any], profile: dict[str, Any]) -> s
         f"It accepts targets only from {profile['target_source']} and limits TCP checks to ports {ports}.",
         f"Its rate cap is {profile['rate_cap']} with {profile['retries']} retries and host discovery mode {discovery}.",
         "Evidence remains local, target mutation is forbidden, and profile selection does not authorize execution.",
+        policy["guidance"]["probe_evidence_role_guidance"],
         policy["guidance"]["evidence_reuse_guardrail"],
         policy["guidance"]["complete_match_guidance"],
         policy["guidance"]["live_probe_budget_guidance"],
