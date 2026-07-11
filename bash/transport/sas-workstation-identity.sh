@@ -121,7 +121,6 @@ mkdir -p "$(dirname "$OUTPUT")"
 [[ "$NO_PROGRESS" -eq 1 ]] && sas_progress_disable
 sas_progress_start "${#TARGETS[@]}" "Workstation identity"
 completed=0
-trap 'rc=$?; if (( rc != 0 )); then sas_progress_fail "stopped with exit $rc"; fi' EXIT
 TMP_DIR="$(mktemp -d)"
 cleanup(){ local rc=$?; rm -rf "$TMP_DIR"; if (( rc != 0 )); then sas_progress_fail "stopped with exit $rc"; fi; }
 trap cleanup EXIT

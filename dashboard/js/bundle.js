@@ -1776,6 +1776,8 @@ function _bannerText(run) {
   if (run.state === 'failed') return `${kind} failed: ${run.lastError || run.summary}`;
   if (run.state === 'aborted') return `${kind} aborted. Partial results preserved.`;
   if (run.state === 'disconnected') return `${kind} disconnected. Partial results may be incomplete.`;
+  if (run.state === 'waiting') return `${kind} waiting${stepText}.`;
+  if (run.state === 'skipped') return `${kind} skipped: ${run.summary || 'not required for this run'}.`;
   if (run.state === 'running') return `${kind} running${countText}${stepText}${elapsedText}.`;
   return `${kind} ${run.state}${countText}.`;
 }

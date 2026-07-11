@@ -78,6 +78,7 @@ FAILED_PROGRESS_OUTPUT="$( {
 [[ "$FAILED_PROGRESS_OUTPUT" == *"33% (1/3) failed"* ]] || fail "Progress helper must show explicit failure"
 
 WAITING_PROGRESS_OUTPUT="$( {
+  # shellcheck source=survey/lib/sas-progress.sh
   source "$PROGRESS"
   sas_progress_start 2 "Waiting operation"
   sas_progress_update 1 "prepared"
@@ -86,6 +87,7 @@ WAITING_PROGRESS_OUTPUT="$( {
 [[ "$WAITING_PROGRESS_OUTPUT" == *"50% (1/2) waiting"* ]] || fail "Progress helper must show explicit waiting state"
 
 SKIPPED_PROGRESS_OUTPUT="$( {
+  # shellcheck source=survey/lib/sas-progress.sh
   source "$PROGRESS"
   sas_progress_start 2 "Skipped operation"
   sas_progress_skip "not required for this run"
@@ -93,6 +95,7 @@ SKIPPED_PROGRESS_OUTPUT="$( {
 [[ "$SKIPPED_PROGRESS_OUTPUT" == *"0% (0/2) skipped"* ]] || fail "Progress helper must show explicit skipped state"
 
 MACHINE_STDOUT="$( {
+  # shellcheck source=survey/lib/sas-progress.sh
   source "$PROGRESS"
   sas_progress_start 1 "Machine output contract"
   printf '{\"result\":\"ok\"}\n'
