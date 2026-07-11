@@ -11,6 +11,8 @@ if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
 fi
 # shellcheck source=survey/lib/sas-network-guard.sh
 source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+# shellcheck source=survey/lib/sas-progress.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-progress.sh"
 
 TARGETS=()
 TARGET_FILE=""
@@ -19,6 +21,7 @@ PORTS="135,139,445,3389,515,631,9100"
 TIMEOUT=3
 PING_MODE="${SAS_PING_MODE:-auto}"
 PASS_THRU=0
+NO_PROGRESS=0
 
 usage(){ cat <<'USAGE'
 SysAdminSuite Network Preflight
@@ -34,6 +37,7 @@ Options:
   --timeout SEC        Per-check timeout. Default: 3
   --ping-mode MODE     Ping implementation: auto, linux, or windows. Default: auto
   --pass-thru          Print CSV after writing
+  --no-progress        Suppress progress bars
   -h, --help           Show help
 
 Ping modes:
@@ -44,7 +48,7 @@ Ping modes:
 Read-only. No remote mutation.
 USAGE
 }
-fail(){ printf '[network-preflight] ERROR: %s\n' "$*" >&2; exit 1; }
+fail(){ sas_progress_fail "$*"; printf '[network-preflight] ERROR: %s\n' "$*" >&2; exit 1; }
 log(){ printf '[network-preflight] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
@@ -58,6 +62,7 @@ while [[ $# -gt 0 ]]; do
     --timeout) TIMEOUT="${2:?missing value for --timeout}"; shift 2 ;;
     --ping-mode) PING_MODE="${2:?missing value for --ping-mode}"; shift 2 ;;
     --pass-thru) PASS_THRU=1; shift ;;
+    --no-progress) NO_PROGRESS=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [[ $# -gt 0 ]]; do TARGETS+=("$1"); shift; done ;;
     -*) fail "Unknown option: $1" ;;
@@ -86,6 +91,10 @@ if [[ -n "$TARGET_FILE" ]]; then
 fi
 [[ ${#TARGETS[@]} -gt 0 ]] || fail "No targets provided"
 mkdir -p "$(dirname "$OUTPUT")"
+[[ "$NO_PROGRESS" -eq 1 ]] && sas_progress_disable
+sas_progress_start "${#TARGETS[@]}" "Network preflight"
+completed=0
+trap 'rc=$?; if (( rc != 0 )); then sas_progress_fail "stopped with exit $rc"; fi' EXIT
 
 IFS=',' read -r -a PORT_ARRAY <<< "$PORTS"
 
@@ -173,6 +182,7 @@ tcp_status(){
 {
   printf 'Timestamp,Target,ResolvedAddress,PingStatus,Port,PortStatus\n'
   for target in "${TARGETS[@]}"; do
+    sas_progress_update "$completed" "checking $target"
     ip="$(resolve_ip "$target")"
     ping="$(ping_status "${ip:-$target}")"
     for port in "${PORT_ARRAY[@]}"; do
@@ -181,8 +191,11 @@ tcp_status(){
       status="$(tcp_status "${ip:-$target}" "$port")"
       printf '"%s","%s","%s","%s","%s","%s"\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$target" "$ip" "$ping" "$port" "$status"
     done
+    completed=$((completed + 1))
+    sas_progress_update "$completed" "finished $target"
   done
 } > "$OUTPUT"
+sas_progress_complete "wrote $OUTPUT"
 
 log "Wrote preflight CSV: $OUTPUT"
 [[ "$PASS_THRU" -eq 1 ]] && cat "$OUTPUT"

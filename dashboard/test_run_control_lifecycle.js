@@ -148,6 +148,16 @@ emitRunEvent(run.runId, 'RunFailed', {
 });
 assert(getRunState(run.runId).state === 'failed', 'failed-state', 'RunFailed did not move to failed');
 
+// running -> waiting -> running -> skipped
+_resetRunControlForTests();
+run = createRun({ kind: 'Operator-gated action', source: 'ui', targetsSummary: 'approval required', total: 1 });
+emitRunEvent(run.runId, 'RunStarted', { source: 'script', summary: 'Preparation started' });
+emitRunEvent(run.runId, 'RunWaiting', { source: 'script', summary: 'Waiting for operator approval' });
+assert(getRunState(run.runId).state === 'waiting', 'waiting-state', 'RunWaiting did not make the wait explicit');
+emitRunEvent(run.runId, 'RunStarted', { source: 'script', summary: 'Operator approved continuation' });
+emitRunEvent(run.runId, 'RunSkipped', { source: 'script', summary: 'Optional action not required' });
+assert(getRunState(run.runId).state === 'skipped', 'skipped-state', 'RunSkipped did not move to skipped');
+
 // Persistent global Stop exists outside the probe modal and dispatches StopRequested.
 _resetRunControlForTests();
 initRunControl();

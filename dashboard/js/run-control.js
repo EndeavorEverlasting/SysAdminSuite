@@ -2,9 +2,9 @@
 //
 // Buttons express intent; lifecycle events prove current run reality.
 
-const ACTIVE_STATES = new Set(['requested', 'approved', 'starting', 'running', 'stopping']);
-const STOPPABLE_STATES = new Set(['requested', 'approved', 'starting', 'running', 'stopping']);
-const TERMINAL_STATES = new Set(['stopped', 'completed', 'failed', 'aborted', 'disconnected']);
+const ACTIVE_STATES = new Set(['requested', 'approved', 'starting', 'running', 'waiting', 'stopping']);
+const STOPPABLE_STATES = new Set(['requested', 'approved', 'starting', 'running', 'waiting', 'stopping']);
+const TERMINAL_STATES = new Set(['stopped', 'completed', 'failed', 'skipped', 'aborted', 'disconnected']);
 const VALID_SOURCES = new Set(['ui', 'relay-client', 'relay-server', 'script', 'dashboard-parser']);
 const EXTERNAL_COMMAND_KINDS = new Set(['Command generation']);
 const CTRL_C_STOP_HINT = 'To stop a copied command, press Ctrl+C in the terminal where it is running.';
@@ -104,6 +104,9 @@ function _reduce(run, event) {
     case 'RunProgress':
       if (!TERMINAL_STATES.has(next.state)) next.state = 'running';
       break;
+    case 'RunWaiting':
+      if (!TERMINAL_STATES.has(next.state)) next.state = 'waiting';
+      break;
     case 'StopRequested':
     case 'StopSent':
     case 'StopAcknowledged':
@@ -121,6 +124,10 @@ function _reduce(run, event) {
     case 'RunFailed':
       next.state = 'failed';
       next.lastError = _safeSummary(payload.message || event.summary);
+      next.endedAt = event.timestamp;
+      break;
+    case 'RunSkipped':
+      next.state = 'skipped';
       next.endedAt = event.timestamp;
       break;
     case 'RunAborted':

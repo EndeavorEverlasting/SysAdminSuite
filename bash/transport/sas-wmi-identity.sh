@@ -12,6 +12,8 @@ if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
 fi
 # shellcheck source=survey/lib/sas-network-guard.sh
 source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+# shellcheck source=survey/lib/sas-progress.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-progress.sh"
 
 TARGETS=()
 TARGET_FILE=""
@@ -24,6 +26,7 @@ WMI_CLIENT="${SAS_WMI_CLIENT:-auto}"
 DEBUG="${SAS_WMI_DEBUG:-${SAS_DEBUG:-0}}"
 LOG_FILE="${SAS_WMI_LOG_FILE:-}"
 PASS_THRU=0
+NO_PROGRESS=0
 
 usage(){ cat <<'USAGE'
 SysAdminSuite WMI Identity Adapter
@@ -43,6 +46,7 @@ Options:
   --debug              Print safe diagnostic logging to stderr.
   --log-file PATH      Write safe diagnostic logging to a local file.
   --pass-thru          Print CSV after writing
+  --no-progress        Suppress progress bars
   -h, --help           Show help
 
 Environment variables:
@@ -71,7 +75,7 @@ Known limitations:
 USAGE
 }
 
-fail(){ printf '[wmi-identity] ERROR: %s\n' "$*" >&2; exit 1; }
+fail(){ sas_progress_fail "$*"; printf '[wmi-identity] ERROR: %s\n' "$*" >&2; exit 1; }
 log(){ printf '[wmi-identity] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
@@ -103,6 +107,7 @@ while [[ $# -gt 0 ]]; do
     --debug) DEBUG=1; shift ;;
     --log-file) LOG_FILE="${2:?missing value for --log-file}"; shift 2 ;;
     --pass-thru) PASS_THRU=1; shift ;;
+    --no-progress) NO_PROGRESS=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [[ $# -gt 0 ]]; do TARGETS+=("$1"); shift; done ;;
     -*) fail "Unknown option: $1" ;;
@@ -131,9 +136,14 @@ if [[ -n "$TARGET_FILE" ]]; then
 fi
 [[ ${#TARGETS[@]} -gt 0 ]] || fail "No targets provided"
 mkdir -p "$(dirname "$OUTPUT")"
+[[ "$NO_PROGRESS" -eq 1 ]] && sas_progress_disable
+sas_progress_start "${#TARGETS[@]}" "WMI identity"
+completed=0
+trap 'rc=$?; if (( rc != 0 )); then sas_progress_fail "stopped with exit $rc"; fi' EXIT
 
 TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
+cleanup(){ local rc=$?; rm -rf "$TMP_DIR"; if (( rc != 0 )); then sas_progress_fail "stopped with exit $rc"; fi; }
+trap cleanup EXIT
 PS_WMI_SCRIPT="$TMP_DIR/sas-wmi-query.ps1"
 
 cat > "$PS_WMI_SCRIPT" <<'PS1'
@@ -320,11 +330,15 @@ diagnostic "tooling wmic=$(if has_cmd wmic; then printf found; else printf missi
 {
   printf 'Timestamp,Target,ObservedHostName,ObservedSerial,ObservedMACs,WmiStatus,Notes\n'
   for target in "${TARGETS[@]}"; do
+    sas_progress_update "$completed" "checking $target"
     result="$(collect_identity "$target")"
     IFS='|' read -r status host serial macs notes client <<< "$result"
     diagnostic "target=$target client=${client:-unknown} status=${status:-unknown} host_collected=$([[ -n "$host" ]] && printf yes || printf no) serial_collected=$([[ -n "$serial" ]] && printf yes || printf no) macs_collected=$([[ -n "$macs" ]] && printf yes || printf no) notes=$(sanitize_field "$notes")"
     csv_escape "$(date '+%Y-%m-%d %H:%M:%S')"; printf ','; csv_escape "$target"; printf ','; csv_escape "$host"; printf ','; csv_escape "$serial"; printf ','; csv_escape "$macs"; printf ','; csv_escape "$status"; printf ','; csv_escape "$notes"; printf '\n'
+    completed=$((completed + 1))
+    sas_progress_update "$completed" "finished $target"
   done
 } > "$OUTPUT"
+sas_progress_complete "wrote $OUTPUT"
 log "Wrote WMI identity CSV: $OUTPUT"
 [[ "$PASS_THRU" -eq 1 ]] && cat "$OUTPUT"
