@@ -39,6 +39,7 @@
     "network_visibility_note": "CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.",
     "probe_again_guidance": "Five probes are unnecessary when a device was already recently reachable or identity-confirmed. If retrying is justified, prefer a different time of day or different day of week over immediate repeated probes.",
     "fresh_evidence_guidance": "Fresh identity or reachability evidence should reduce re-probing. Stale, missing, conflicting, or operator-forced evidence can justify staging a target.",
+    "probe_evidence_role_guidance": "Naabu/Nmap output is live reachability and service-state evidence, not population, identity, target ownership, or action-readiness proof by itself. It may contribute to those proofs only when joined with approved source data and complete, fresh, in-scope, unambiguous matches.",
     "evidence_reuse_guardrail": "If all required data is already present in approved evidence, do not probe again by default.",
     "complete_match_guidance": "Partial matches, ambiguous matches, stale evidence, incomplete evidence, or evidence from the wrong approved scope are insufficient for reuse and require review before any live probe.",
     "live_probe_budget_guidance": "If a live probe must be repeated for the same target and scope, stop at five total live probes unless a lead or operator override is recorded.",
@@ -54,6 +55,7 @@
       "Is this already fresh in local evidence?",
       "Are all required data fields present?",
       "Is the match partial or ambiguous?",
+      "Is the live probe result joined to approved source data instead of treated as proof by itself?",
       "Has this target/scope already reached the live probe budget?",
       "Is this a CDN/WAF/load-balanced/front-door target?",
       "Is this a mystery serial that needs review, not packets?"
