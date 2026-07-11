@@ -40,27 +40,19 @@ function Get-SasLowNoisePolicy {
     param()
 
     $document = Get-SasCanonicalLowNoiseDocument
+    $guidance = $document.guidance
     return [pscustomobject]@{
         PolicyVersion = $document.policy_version
         SchemaVersion = $document.schema_version
         Profiles = @($document.profiles | ForEach-Object { $_.PSObject.Copy() })
-        LowNoisePrinciple = 'The network sees packets, not the shell. Reduce packets by using local evidence before probes.'
-        NetworkVisibilityNote = 'CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.'
-        ProbeAgainGuidance = 'Five probes are unnecessary when a device was already recently reachable or identity-confirmed. If retrying is justified, prefer a different time of day or different day of week over immediate repeated probes.'
-        FreshEvidenceGuidance = 'Fresh identity or reachability evidence should reduce re-probing. Stale, missing, conflicting, or operator-forced evidence can justify staging a target.'
-        MysterySerialGuidance = 'A serial with no approved host/IP bridge remains a mystery serial for review; do not ping the serial string.'
-        FrontDoorGuidance = 'CDN/WAF/load-balanced/front-door targets should not be treated as serial proof. Review or use bounded profiles rather than broad probing.'
-        PacketProfileGuidance = 'Prefer smaller scope, fewer ports, lower rate, fewer retries, smarter evidence reuse, and avoiding broad scans.'
-        ProbeSelectionQuestions = @(
-            'Should this target be probed at all?',
-            'Which exact host/IP should be probed?',
-            'Which exact ports answer the survey question?',
-            'At what rate?',
-            'How many retries?',
-            'Is this already fresh in local evidence?',
-            'Is this a CDN/WAF/load-balanced/front-door target?',
-            'Is this a mystery serial that needs review, not packets?'
-        )
+        LowNoisePrinciple = $guidance.low_noise_principle
+        NetworkVisibilityNote = $guidance.network_visibility_note
+        ProbeAgainGuidance = $guidance.probe_again_guidance
+        FreshEvidenceGuidance = $guidance.fresh_evidence_guidance
+        MysterySerialGuidance = $guidance.mystery_serial_guidance
+        FrontDoorGuidance = $guidance.front_door_guidance
+        PacketProfileGuidance = $guidance.packet_profile_guidance
+        ProbeSelectionQuestions = @($guidance.probe_selection_questions)
     }
 }
 
@@ -78,6 +70,48 @@ function Get-SasLowNoiseProfile {
         throw "Unknown or duplicated low-noise profile: $Id"
     }
     return $profile[0].PSObject.Copy()
+}
+
+function New-SasLowNoiseContextObject {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$ProfileId,
+        [Parameter(Mandatory = $true)][ValidateSet('canonical_default', 'explicit_named_profile', 'explicit_subset_override')][string]$ProfileSource,
+        [Parameter(Mandatory = $true)][string]$EvidenceSource,
+        [Parameter(Mandatory = $true)][string]$Disposition,
+        [Parameter(Mandatory = $true)][string]$Reason,
+        [Parameter(Mandatory = $true)][bool]$NetworkActivityPerformed,
+        [Parameter(Mandatory = $true)][bool]$TargetMutationPerformed,
+        [Parameter(Mandatory = $true)][string]$NextAction,
+        [int[]]$EffectivePorts
+    )
+
+    $policy = Get-SasLowNoisePolicy
+    $profile = Get-SasLowNoiseProfile -Id $ProfileId
+    $ports = if ($PSBoundParameters.ContainsKey('EffectivePorts')) { @($EffectivePorts) } else { @($profile.ports) }
+    return [pscustomobject]@{
+        applicability = 'applicable'
+        policy_schema_version = $policy.SchemaVersion
+        policy_version = $policy.PolicyVersion
+        profile_id = $profile.id
+        profile_source = $ProfileSource
+        target_source = $profile.target_source
+        effective_constraints = [pscustomobject]@{
+            ports = $ports
+            rate_cap = $profile.rate_cap
+            retries = $profile.retries
+            host_discovery_mode = $profile.host_discovery_mode
+            exclude_cdn = $profile.exclude_cdn
+            silent_output = $profile.silent_output
+            machine_output = $profile.machine_output
+        }
+        evidence_source = $EvidenceSource
+        disposition = $Disposition
+        reason = $Reason
+        network_activity_performed = $NetworkActivityPerformed
+        target_mutation_performed = $TargetMutationPerformed
+        next_action = $NextAction
+    }
 }
 
 function Add-SasLowNoisePolicyToObject {
@@ -132,4 +166,4 @@ function Get-SasLowNoiseOperatorLines {
     ) + ($policy.ProbeSelectionQuestions | ForEach-Object { "- $_" })
 }
 
-Export-ModuleMember -Function Get-SasLowNoisePolicy, Get-SasLowNoiseProfile, Add-SasLowNoisePolicyToObject, New-SasLowNoiseSummaryObject, Get-SasLowNoiseOperatorLines
+Export-ModuleMember -Function Get-SasLowNoisePolicy, Get-SasLowNoiseProfile, New-SasLowNoiseContextObject, Add-SasLowNoisePolicyToObject, New-SasLowNoiseSummaryObject, Get-SasLowNoiseOperatorLines

@@ -6,6 +6,7 @@ Describe 'SasRunContext module' {
     BeforeAll {
         $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         $script:modulePath = Join-Path $repoRoot 'scripts/SasRunContext.psm1'
+        $script:rendererPath = Join-Path $repoRoot 'scripts/Render-SasEnglishReport.ps1'
         Import-Module $script:modulePath -Force
     }
 
@@ -83,10 +84,36 @@ Describe 'SasRunContext module' {
         $entry.role | Should -Be 'source-request'
         $entry.tracked | Should -BeTrue
         $entry.live_data | Should -BeFalse
+        $entry.contains_live_data | Should -BeFalse
+        $entry.generated | Should -BeFalse
 
         $updated = Get-Content -LiteralPath $context.artifact_registry_path -Raw | ConvertFrom-Json
         @($updated.artifacts).Count | Should -Be 1
         $updated.artifacts[0].network_activity | Should -Be 'No network activity performed.'
+
+        $reportPath = Join-Path $context.directories.reports 'run-context-report.md'
+        Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'report' -Path $reportPath -Generated $true -Description 'English report derived from synthetic run context.' | Out-Null
+        [ordered]@{
+            workflow_id = $context.workflow_id
+            run_id = $context.run_id
+            request_summary = 'Render a synthetic run-context report.'
+            source_artifacts = @('Tests/fixtures/harness/request.json')
+            loaded_evidence_artifacts = @()
+            planner_name = 'SasRunContext.Tests'
+            planner_version = 'fixture/v1'
+            network_activity_performed = $false
+            low_noise_policy_version = '1.1'
+            started_at = '2026-07-07T21:00:00Z'
+            finished_at = '2026-07-07T21:00:01Z'
+            operator_handoff_path = $context.operator_handoff_path
+            summary_json_path = $context.summary_path
+            report_markdown_path = $reportPath
+            next_action = 'Review the synthetic report.'
+        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $context.summary_path -Encoding UTF8
+
+        & $script:rendererPath -SummaryJson $context.summary_path -ArtifactRegistry $context.artifact_registry_path -Template 'audit' -OutputPath $reportPath
+        Test-Path -LiteralPath $reportPath | Should -BeTrue
+        (Get-Content -LiteralPath $reportPath -Raw) | Should -Match 'The source-request artifact at'
 
         Remove-Item -LiteralPath $tmpRoot -Recurse -Force -ErrorAction SilentlyContinue
     }

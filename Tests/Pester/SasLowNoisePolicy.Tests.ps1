@@ -29,6 +29,14 @@ Describe 'SasLowNoisePolicy canonical provider' {
         (Get-SasLowNoiseProfile -Id 'network_preflight').id | Should -Be 'network_preflight'
     }
 
+    It 'builds one profile-agnostic effective context for reports and agents' {
+        $context = New-SasLowNoiseContextObject -ProfileId 'network_preflight' -ProfileSource 'explicit_subset_override' -EvidenceSource 'synthetic_fixture' -Disposition 'fixture_complete' -Reason 'synthetic contract proof' -NetworkActivityPerformed $false -TargetMutationPerformed $false -NextAction 'Review the fixture.' -EffectivePorts 135,445
+        $context.profile_id | Should -Be 'network_preflight'
+        $context.profile_source | Should -Be 'explicit_subset_override'
+        ($context.effective_constraints.ports -join ',') | Should -Be '135,445'
+        $context.target_mutation_performed | Should -BeFalse
+    }
+
     It 'rejects unknown profiles' {
         { Get-SasLowNoiseProfile -Id 'not-a-profile' } | Should -Throw '*Unknown or duplicated low-noise profile*'
     }

@@ -8,6 +8,16 @@
   "edge_target_policy": { "exclude_cdn": true, "front_door_requires_review": true },
   "output_policy": { "survey_local_only": true, "machine_output_required": true },
   "evidence_policy": { "serial_only_is_review": true, "target_mutation": "never" },
+  "guidance": {
+    "low_noise_principle": "The network sees packets, not the shell. Reduce packets by using local evidence before probes.",
+    "network_visibility_note": "CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.",
+    "probe_again_guidance": "Five probes are unnecessary when a device was already recently reachable or identity-confirmed. If retrying is justified, prefer a different time of day or different day of week over immediate repeated probes.",
+    "fresh_evidence_guidance": "Fresh identity or reachability evidence should reduce re-probing. Stale, missing, conflicting, or operator-forced evidence can justify staging a target.",
+    "mystery_serial_guidance": "A serial with no approved host/IP bridge remains a mystery serial for review; do not ping the serial string.",
+    "front_door_guidance": "CDN/WAF/load-balanced/front-door targets should not be treated as serial proof. Review or use bounded profiles rather than broad probing.",
+    "packet_profile_guidance": "Prefer smaller scope, fewer ports, lower rate, fewer retries, smarter evidence reuse, and avoiding broad scans.",
+    "probe_selection_questions": ["Should this target be probed at all?", "Which exact host/IP should be probed?", "Which exact ports answer the survey question?", "At what rate?", "How many retries?", "Is this already fresh in local evidence?", "Is this a CDN/WAF/load-balanced/front-door target?", "Is this a mystery serial that needs review, not packets?"]
+  },
   "profiles": [
     { "id": "network_preflight", "purpose": "PowerShell field network preflight", "target_source": "approved_manifest", "ports": [135, 445, 3389, 9100], "tcp_only": true, "rate_cap": 500, "retries": 1, "host_discovery_mode": "none", "exclude_cdn": true, "silent_output": true, "machine_output": "json", "local_evidence_only": true, "target_mutation": "never" },
     { "id": "keyports_cybernet_json", "purpose": "Cybernet key-port JSON reachability", "target_source": "approved_manifest", "ports": [80, 443, 135, 445, 3389, 5985, 5986], "tcp_only": true, "rate_cap": 3000, "retries": 1, "host_discovery_mode": "none", "exclude_cdn": true, "silent_output": true, "machine_output": "json", "local_evidence_only": true, "target_mutation": "never" },

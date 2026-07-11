@@ -24,6 +24,8 @@
     "message_template": { "type": "string" },
     "variables": { "type": "object" },
     "artifact_refs": { "type": "array", "items": { "type": "string" } },
-    "network_activity_performed": { "type": "boolean" }
+    "network_activity_performed": { "type": "boolean" },
+    "target_mutation_performed": { "type": "boolean" },
+    "english_message": { "type": "string" }
   }
 }
