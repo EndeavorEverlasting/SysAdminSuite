@@ -139,7 +139,7 @@ run_tool() {
   fi
 }
 
-run_tool network-preflight bash "$PREFLIGHT" --target 127.0.0.1 --ports 80 --timeout 1 --output "$PREFLIGHT_OUT" --pass-thru
+run_tool network-preflight bash -x "$PREFLIGHT" --target 127.0.0.1 --ports 80 --timeout 1 --output "$PREFLIGHT_OUT" --pass-thru
 [[ -f "$PREFLIGHT_OUT" ]] || fail "Preflight did not create CSV"
 grep -q 'Timestamp,Target,ResolvedAddress,PingStatus,Port,PortStatus' "$PREFLIGHT_OUT" || fail "Preflight CSV header changed"
 grep -q '127.0.0.1' "$PREFLIGHT_OUT" || fail "Preflight CSV missing target"
