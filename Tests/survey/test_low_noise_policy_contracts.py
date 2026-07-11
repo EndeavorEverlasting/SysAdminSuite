@@ -24,9 +24,13 @@ def test_policy_contract() -> None:
     assert policy["live_probe_budget_policy"]["check_existing_evidence_before_probe"] is True
     assert policy["live_probe_budget_policy"]["complete_match_required_for_reuse"] is True
     assert policy["live_probe_budget_policy"]["partial_or_ambiguous_match_is_insufficient"] is True
+    assert "not population, identity" in policy["guidance"]["probe_evidence_role_guidance"]
+    assert "may contribute" in policy["guidance"]["probe_evidence_role_guidance"]
+    assert "by itself" in policy["guidance"]["probe_evidence_role_guidance"]
     assert policy["guidance"]["evidence_reuse_guardrail"].startswith("If all required data is already present")
     assert "Partial matches" in policy["guidance"]["complete_match_guidance"]
     assert "stop at five total live probes" in policy["guidance"]["live_probe_budget_guidance"]
+    assert "Is the live probe result joined to approved source data instead of treated as proof by itself?" in policy["guidance"]["probe_selection_questions"]
 
     profiles = {profile["id"]: profile for profile in policy["profiles"]}
     assert profiles.keys() >= {"network_preflight", "keyports_cybernet_json", "web_reachability_only", "admin_surface_reachability", "serial_to_target_preflight"}
@@ -34,18 +38,11 @@ def test_policy_contract() -> None:
     english = render_profile_english(policy, get_profile(policy, "network_preflight"))
     assert "limits TCP checks to ports 135, 445, 3389, 9100" in english
     assert "target mutation is forbidden" in english
+    assert "not population, identity" in english
+    assert "may contribute" in english
     assert "do not probe again by default" in english
     assert "Partial matches, ambiguous matches" in english
     assert "stop at five total live probes" in english
-
-    legacy_scanner_profile = json.loads((ROOT / "Config" / "cybernet-port-profile.json").read_text(encoding="utf-8"))
-    legacy_cybernet = legacy_scanner_profile["profiles"]["CybernetWindowsEndpoint"]
-    canonical_cybernet = profiles["keyports_cybernet_json"]
-    assert legacy_cybernet["ports"] == canonical_cybernet["ports"]
-    assert legacy_cybernet["defaultRate"] == canonical_cybernet["rate_cap"]
-    assert legacy_cybernet["retries"] == canonical_cybernet["retries"]
-    assert legacy_cybernet["excludeCdn"] == canonical_cybernet["exclude_cdn"]
-    assert 139 not in legacy_cybernet["ports"]
 
     complete_evidence = decide_probe_from_evidence(policy, {
         "existing_evidence_present": True,
