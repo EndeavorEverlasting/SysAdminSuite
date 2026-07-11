@@ -19,7 +19,11 @@ param(
 
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
-    [int[]]$Ports = @(135, 445, 3389, 9100),
+    [int[]]$Ports,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateNotNullOrEmpty()]
+    [string]$PolicyProfile = 'network_preflight',
 
     [Parameter(Mandatory = $false)]
     [string]$OutputDirectory,
@@ -320,6 +324,18 @@ $surveyOutputRoot = $rootSet.OutputRoots[0]
 $logsNmapRoot = $rootSet.OutputRoots[1]
 $surveyArtifactsRoot = $rootSet.OutputRoots[2]
 $lowNoisePolicy = Get-SasLowNoisePolicy
+$lowNoiseProfile = Get-SasLowNoiseProfile -Id $PolicyProfile
+$profilePorts = @($lowNoiseProfile.ports | ForEach-Object { [int]$_ })
+$portsSource = 'canonical_profile'
+if ($PSBoundParameters.ContainsKey('Ports')) {
+    $outsideProfile = @($Ports | Where-Object { $_ -notin $profilePorts })
+    if ($outsideProfile.Count -gt 0) {
+        throw "Explicit ports may narrow but not broaden profile '$PolicyProfile'. Rejected: $($outsideProfile -join ',')"
+    }
+    $portsSource = 'operator_subset'
+} else {
+    $Ports = $profilePorts
+}
 
 $candidateRoots = @($targetsLocalRoot, $logsTargetsRoot)
 $allowedInputRoots = @($targetsLocalRoot, $logsTargetsRoot, $surveyInputRoot)
@@ -383,6 +399,7 @@ $handoffPath = Join-Path $outputDirectoryFull "network_preflight_${runId}_handof
 Write-Host "Selected target file: $selectedTargetFile"
 Write-Host "Target count: $($targets.Count)"
 Write-Host "Selected ports: $($Ports -join ',')"
+Write-Host "Low-noise profile: $PolicyProfile ($portsSource)"
 Write-Host "Output path: $outputCsv"
 Write-Host 'Low-noise context:'
 Write-Host "- $($lowNoisePolicy.LowNoisePrinciple)"
@@ -430,6 +447,7 @@ foreach ($target in $targets) {
             PortStatus             = $status
             SourceFile             = $selectedTargetFile
             LowNoisePolicyVersion  = $lowNoisePolicy.PolicyVersion
+            LowNoiseProfile        = $PolicyProfile
             LowNoiseDisposition    = 'network_preflight_attempt_recorded'
             ProbeAgainGuidance     = $lowNoisePolicy.ProbeAgainGuidance
             Notes                  = ($notes -join '; ')
@@ -446,6 +464,8 @@ $summary = New-SasLowNoiseSummaryObject -Properties @{
     target_file = $selectedTargetFile
     target_count = $targets.Count
     ports = $Ports
+    low_noise_profile = $PolicyProfile
+    ports_source = $portsSource
     total_checks = $totalChecks
     output_csv = $outputCsv
     summary_json = $summaryJson

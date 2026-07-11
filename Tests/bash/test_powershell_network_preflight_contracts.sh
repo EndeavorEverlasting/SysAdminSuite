@@ -126,6 +126,11 @@ contains 'If a device was recently reachable' "$serial_plan" 'serial planner mus
 
 contains 'Import-Module $lowNoiseModule -Force' "$preflight" 'network preflight must import shared low-noise policy module'
 contains 'Get-SasLowNoisePolicy' "$preflight" 'network preflight must consume shared low-noise policy'
+contains 'Get-SasLowNoiseProfile' "$preflight" 'network preflight must consume a canonical low-noise profile'
+contains "PolicyProfile = 'network_preflight'" "$preflight" 'network preflight must default to its canonical profile'
+contains 'may narrow but not broaden' "$preflight" 'network preflight must reject broader port overrides'
+contains 'low_noise_profile' "$preflight" 'network preflight summary must record its effective profile'
+contains 'ports_source' "$preflight" 'network preflight summary must record the port source'
 contains 'New-SasLowNoiseSummaryObject' "$preflight" 'network preflight must build summary through shared policy'
 contains 'Get-SasLowNoiseOperatorLines' "$preflight" 'network preflight must build handoff through shared policy'
 contains 'LowNoisePolicyVersion' "$preflight" 'network preflight rows must include low-noise policy version'

@@ -64,6 +64,22 @@ function Get-SasLowNoisePolicy {
     }
 }
 
+function Get-SasLowNoiseProfile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Id
+    )
+
+    $document = Get-SasCanonicalLowNoiseDocument
+    $profile = @($document.profiles | Where-Object { $_.id -eq $Id })
+    if ($profile.Count -ne 1) {
+        throw "Unknown or duplicated low-noise profile: $Id"
+    }
+    return $profile[0].PSObject.Copy()
+}
+
 function Add-SasLowNoisePolicyToObject {
     [CmdletBinding()]
     param(
@@ -116,4 +132,4 @@ function Get-SasLowNoiseOperatorLines {
     ) + ($policy.ProbeSelectionQuestions | ForEach-Object { "- $_" })
 }
 
-Export-ModuleMember -Function Get-SasLowNoisePolicy, Add-SasLowNoisePolicyToObject, New-SasLowNoiseSummaryObject, Get-SasLowNoiseOperatorLines
+Export-ModuleMember -Function Get-SasLowNoisePolicy, Get-SasLowNoiseProfile, Add-SasLowNoisePolicyToObject, New-SasLowNoiseSummaryObject, Get-SasLowNoiseOperatorLines
