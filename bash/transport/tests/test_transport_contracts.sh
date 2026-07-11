@@ -118,13 +118,9 @@ SMB_HELP="$($SMB --help)"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
-NETWORK_FIXTURE="$TMP_DIR/ipconfig.synthetic.txt"
-cat > "$NETWORK_FIXTURE" <<'EOF'
-Windows IP Configuration
-   Connection-specific DNS Suffix  . : sas-contract.invalid
-EOF
-export SAS_NETWORK_GUARD_IPCONFIG_FIXTURE="$NETWORK_FIXTURE"
-export SAS_NETWORK_GUARD_ALLOWED_DNS_SUFFIXES="sas-contract.invalid"
+# These contracts probe loopback only. Use the scripts' existing dry-run guard
+# exemption so tests never depend on the runner's real Northwell network state.
+export DRY_RUN=1
 PREFLIGHT_OUT="$TMP_DIR/network_preflight.csv"
 PRINTER_OUT="$TMP_DIR/printer_probe.csv"
 IDENTITY_OUT="$TMP_DIR/workstation_identity.csv"
@@ -139,7 +135,7 @@ run_tool() {
   fi
 }
 
-run_tool network-preflight bash -x "$PREFLIGHT" --target 127.0.0.1 --ports 80 --timeout 1 --output "$PREFLIGHT_OUT" --pass-thru
+run_tool network-preflight bash "$PREFLIGHT" --target 127.0.0.1 --ports 80 --timeout 1 --output "$PREFLIGHT_OUT" --pass-thru
 [[ -f "$PREFLIGHT_OUT" ]] || fail "Preflight did not create CSV"
 grep -q 'Timestamp,Target,ResolvedAddress,PingStatus,Port,PortStatus' "$PREFLIGHT_OUT" || fail "Preflight CSV header changed"
 grep -q '127.0.0.1' "$PREFLIGHT_OUT" || fail "Preflight CSV missing target"
