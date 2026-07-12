@@ -134,11 +134,29 @@ Agents MUST preserve these boundaries:
 - Cleanup means reducing residual operational clutter. Do not describe cleanup as bypassing logs,
   suppressing telemetry, hiding activity, stealth, or evasion.
 
+### Harness discipline
+
+Every repo mutation — merge, cherry-pick, squash, close, delete branch/PR, comment,
+worktree create/remove — must follow harness discipline:
+
+1. **Name the fields**: repo, branch, PR/sprint, lane, scope, forbidden scope, expected artifacts.
+2. **Gather evidence** before acting: `git status`, `git log`, `git diff`, CI state, worktree list.
+3. **Plan** the single bounded operation.
+4. **Execute** the operation.
+5. **Validate** with the strongest practical check.
+6. **Report** changed files, commit SHA, skipped checks, gaps, risks.
+7. **Hand off** with verification, git state, next command, and copy-paste prompt.
+
+Do not claim completion without proof. Do not merge, squash, or delete without confirming
+clean tree, CI status, and scope containment. See [`docs/HARNESS_DISCIPLINE.md`](docs/HARNESS_DISCIPLINE.md)
+for the full operation-by-operation contract.
+
 Canonical references:
 
 - `Config/operational-posture.json`
 - `docs/OPERATIONAL_POSTURE.md`
 - `docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md`
+- `docs/HARNESS_DISCIPLINE.md` — PR/branch/worktree lifecycle discipline
 
 ## WAB Test Evidence Guardrail
 
