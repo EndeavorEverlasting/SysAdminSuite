@@ -1,0 +1,3 @@
+# Sample-safe AD/DNS/name evidence
+LIJ-MACH-C.example.invalid
+CCMC-MACH-B.example.invalid
