@@ -9,6 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PS_SCRIPT = REPO_ROOT / "scripts" / "Invoke-SasAutoLogonStateDelta.ps1"
 BASH_WRAPPER = REPO_ROOT / "survey" / "sas-autologon-state-delta.sh"
 DOC = REPO_ROOT / "docs" / "AUTOLOGON_STATE_DELTA.md"
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "autologon-state-delta-contracts.yml"
 
 
 def read(path: Path) -> str:
@@ -17,7 +18,7 @@ def read(path: Path) -> str:
 
 
 def test_entrypoints_and_docs_exist() -> None:
-    for path in (PS_SCRIPT, BASH_WRAPPER, DOC):
+    for path in (PS_SCRIPT, BASH_WRAPPER, DOC, WORKFLOW):
         assert path.exists(), f"missing auto-logon state-delta surface: {path}"
 
 
@@ -135,7 +136,7 @@ def test_state_delta_does_not_claim_human_actor_identity() -> None:
     assert "A workstation delta proves state, not human identity." in doc
 
 
-def test_fixture_mode_is_offline_and_wrapper_is_bash_on_windows() -> None:
+def test_fixture_mode_and_repo_launcher_are_windows_safe() -> None:
     ps_content = read(PS_SCRIPT)
     bash_content = read(BASH_WRAPPER)
     doc = read(DOC)
@@ -145,7 +146,15 @@ def test_fixture_mode_is_offline_and_wrapper_is_bash_on_windows() -> None:
     assert "--fixture-mode" in bash_content
     assert "powershell.exe" in bash_content
     assert "pwsh.exe" in bash_content
+    assert "command -v wslpath" in bash_content
+    assert "wslpath -w" in bash_content
+    assert "Windows PowerShell equivalents:" in bash_content
     assert "Fixture success is contract proof only" in doc
+
+
+def test_workflow_does_not_persist_checkout_credentials() -> None:
+    content = read(WORKFLOW)
+    assert "persist-credentials: false" in content
 
 
 def test_documented_pilot_requires_runtime_observation() -> None:
@@ -172,7 +181,8 @@ def main() -> None:
         test_evidence_stays_on_admin_box_and_collection_is_read_only,
         test_summary_materializes_generic_list_without_binder_failure,
         test_state_delta_does_not_claim_human_actor_identity,
-        test_fixture_mode_is_offline_and_wrapper_is_bash_on_windows,
+        test_fixture_mode_and_repo_launcher_are_windows_safe,
+        test_workflow_does_not_persist_checkout_credentials,
         test_documented_pilot_requires_runtime_observation,
     ]
     for test in tests:
