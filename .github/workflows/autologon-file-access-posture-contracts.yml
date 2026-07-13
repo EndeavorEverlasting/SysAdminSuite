@@ -94,6 +94,9 @@ jobs:
               'FAIL: offline AutoLogon file-access fixture',
               "Exception: $($_.Exception.Message)",
               "Position: $($_.InvocationInfo.PositionMessage)",
+              "Script stack: $($_.ScriptStackTrace)",
+              'Invocation details:',
+              ($_.InvocationInfo | Format-List * | Out-String),
               'Full error:',
               ($_ | Out-String)
             ) | Set-Content -LiteralPath $diagnosticPath -Encoding UTF8
