@@ -356,7 +356,7 @@ Describe 'Invoke-BluetoothDriverFlush' {
 
     Context 'BackupOnly mode' {
         It 'Does not call sc.exe stop when BackupOnly is set' {
-            Mock sc.exe { } -ParameterFilter { $ArgumentList -contains 'stop' }
+            Mock sc.exe { } -ParameterFilter { $args -contains 'stop' }
             Mock Get-PnpDevice { }
             Mock Disable-PnpDevice { }
             Mock Enable-PnpDevice { }
@@ -365,7 +365,7 @@ Describe 'Invoke-BluetoothDriverFlush' {
 
             Invoke-BluetoothDriverFlush -BackupOnly -BackupPath $TestDrive -Confirm:$false
 
-            Should -Invoke sc.exe -Times 0 -ParameterFilter { $ArgumentList -contains 'stop' }
+            Should -Invoke sc.exe -Times 0 -ParameterFilter { $args -contains 'stop' }
         }
     }
 
@@ -414,7 +414,7 @@ Describe 'Invoke-BluetoothDriverFlush' {
             Invoke-BluetoothDriverFlush -BackupPath $testBackupDir -Confirm:$false
 
             # Verification: sc.exe stop should NOT have been invoked since we aborted
-            Should -Invoke sc.exe -Times 0 -ParameterFilter { $ArgumentList -contains 'stop' }
+            Should -Invoke sc.exe -Times 0 -ParameterFilter { $args -contains 'stop' }
         }
 
         It 'Performs mutations if confirmation is YES' {
@@ -445,7 +445,7 @@ Describe 'Invoke-BluetoothDriverFlush' {
             Invoke-BluetoothDriverFlush -BackupPath $testBackupDir -Confirm:$false
 
             # Verification: sc.exe stop should have been invoked to stop services in flush phase
-            Should -Invoke sc.exe -Minimum -Times 1 -ParameterFilter { $ArgumentList -contains 'stop' }
+            Should -Invoke sc.exe -Times 1 -ParameterFilter { $args -contains 'stop' }
         }
     }
 }
