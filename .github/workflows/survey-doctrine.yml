@@ -15,6 +15,7 @@ on:
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
       - 'harness/**'
+      - 'bash/transport/**'
       - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
       - 'scripts/install-local-harness-hooks.sh'
@@ -31,6 +32,7 @@ on:
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
       - 'Tests/bash/test_target_reduction_plan_contracts.sh'
+      - 'Tests/bash/test_progress_reporting_contracts.sh'
       - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
       - 'Tests/survey/test_english_event_renderer.py'
@@ -53,6 +55,7 @@ on:
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
       - 'harness/**'
+      - 'bash/transport/**'
       - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
       - 'scripts/install-local-harness-hooks.sh'
@@ -69,6 +72,7 @@ on:
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
       - 'Tests/bash/test_target_reduction_plan_contracts.sh'
+      - 'Tests/bash/test_progress_reporting_contracts.sh'
       - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
       - 'Tests/survey/test_english_event_renderer.py'
@@ -119,6 +123,16 @@ jobs:
           python3 scripts/validate-low-noise-policy.py
           python3 Tests/survey/test_low_noise_policy_contracts.py
           python3 Tests/survey/test_english_event_renderer.py
+
+      - name: Progress reporting contracts
+        shell: bash
+        run: |
+          bash Tests/bash/test_progress_reporting_contracts.sh
+
+      - name: Transport progress and CSV contracts
+        shell: bash
+        run: |
+          bash bash/transport/tests/test_transport_contracts.sh
 
       - name: Target reduction Bash syntax
         shell: bash
