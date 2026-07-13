@@ -225,6 +225,32 @@ Then rerun with `--mode after` and the emitted run ID. The synthetic after state
 `CONFIRMED_STATE_TRANSITION`. Fixture success is contract proof only; it is not live workstation
 proof.
 
+## Repository validation
+
+Run the bounded contracts before a live pilot:
+
+```powershell
+python .\Tests\survey\test_autologon_state_delta_contracts.py
+
+$tokens = $null
+$errors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile(
+  (Resolve-Path '.\scripts\Invoke-SasAutoLogonStateDelta.ps1'),
+  [ref]$tokens,
+  [ref]$errors
+)
+if ($errors.Count -gt 0) { throw "PowerShell parser reported $($errors.Count) error(s)." }
+```
+
+From Git Bash or another Bash-on-Windows shell:
+
+```bash
+bash -n survey/sas-autologon-state-delta.sh
+```
+
+The dedicated GitHub Actions workflow also runs a synthetic Before/After pair and requires exactly
+one `CONFIRMED_STATE_TRANSITION` without network activity or target mutation.
+
 ## Pilot acceptance gate
 
 Before expanding beyond the first two workstations, require:
