@@ -1,0 +1,50 @@
+name: Patch Bluetooth Pester Mock
+
+on:
+  push:
+    branches:
+      - feat/2026-07-13-autologon-state-delta
+    paths:
+      - '.github/workflows/patch-bluetooth-pester-mock.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/2026-07-13-autologon-state-delta
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Repair BackupOnly service-control mock and remove diagnostics
+        shell: pwsh
+        run: |
+          $testPath = '.\Tests\Pester\Utilities.Tests.ps1'
+          $content = Get-Content -LiteralPath $testPath -Raw
+          $old = "            Mock sc.exe { } -ParameterFilter { `$ArgumentList -contains 'stop' }"
+          $new = "            Mock sc.exe { }"
+          if (-not $content.Contains($old)) {
+            throw 'Expected filtered sc.exe mock was not found.'
+          }
+          $content = $content.Replace($old, $new)
+          Set-Content -LiteralPath $testPath -Value $content -Encoding UTF8
+
+          Remove-Item -LiteralPath '.\.github\workflows\diagnose-pester-autologon.yml' -Force
+          Remove-Item -LiteralPath '.\.github\workflows\patch-bluetooth-pester-mock.yml' -Force
+
+      - name: Commit bounded test repair
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Tests/Pester/Utilities.Tests.ps1 .github/workflows/diagnose-pester-autologon.yml .github/workflows/patch-bluetooth-pester-mock.yml
+          git commit -m 'test(bluetooth): allow BackupOnly service-state queries'
+          git push origin HEAD:feat/2026-07-13-autologon-state-delta
