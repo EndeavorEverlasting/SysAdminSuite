@@ -12,6 +12,7 @@ on:
       - 'scripts/Show-CybernetComPortHelp.ps1'
       - 'Tests/Pester/CybernetComPortAutoFixReadiness.Tests.ps1'
       - 'Tests/survey/test_cybernet_com_autofix_contracts.py'
+      - 'Tests/survey/test_cybernet_com_arbiter_reset_contract.py'
       - 'docs/field-hotfixes/cybernet-com-port-*.md'
       - 'docs/handoff/cybernet-com-autofix-*.md'
       - '.github/workflows/cybernet-com-autofix.yml'
@@ -25,6 +26,7 @@ on:
       - 'scripts/Show-CybernetComPortHelp.ps1'
       - 'Tests/Pester/CybernetComPortAutoFixReadiness.Tests.ps1'
       - 'Tests/survey/test_cybernet_com_autofix_contracts.py'
+      - 'Tests/survey/test_cybernet_com_arbiter_reset_contract.py'
       - 'docs/field-hotfixes/cybernet-com-port-*.md'
       - 'docs/handoff/cybernet-com-autofix-*.md'
       - '.github/workflows/cybernet-com-autofix.yml'
@@ -39,6 +41,7 @@ jobs:
         shell: pwsh
         run: |
           python .\Tests\survey\test_cybernet_com_autofix_contracts.py
+          python .\Tests\survey\test_cybernet_com_arbiter_reset_contract.py
 
       - name: Install Pester 5
         shell: pwsh
