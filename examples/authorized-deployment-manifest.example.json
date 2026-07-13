@@ -1,0 +1,18 @@
+[
+  {
+    "TargetHostname": "WORKSTATION001",
+    "PackageName": "NW AutoLogon Setup x64",
+    "SoftwareShareRoot": "\\\\nt2kwb972sms01\\",
+    "InstallerRelativePath": "packages\\AutoLogonSetup\\NW_AutoLogon_Setup_x64.exe",
+    "ExpectedSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "InstallerArguments": [
+      "/quiet",
+      "/norestart"
+    ],
+    "InstallMode": "CopyThenInstall",
+    "Owner": "Endpoint Engineering",
+    "RequestReference": "REQ-REPLACE-ME",
+    "ChangeReference": "CHG-REPLACE-ME",
+    "TicketReference": "TASK-REPLACE-ME"
+  }
+]
