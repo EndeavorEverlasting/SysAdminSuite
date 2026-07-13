@@ -1,0 +1,69 @@
+name: Patch AutoLogon State Delta
+
+on:
+  push:
+    branches:
+      - feat/2026-07-13-autologon-state-delta
+    paths:
+      - '.github/workflows/patch-autologon-state-delta.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.ref == 'refs/heads/feat/2026-07-13-autologon-state-delta'
+    runs-on: windows-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/2026-07-13-autologon-state-delta
+          fetch-depth: 0
+
+      - name: Apply bounded runtime fix and input guard
+        shell: pwsh
+        run: |
+          $path = '.\scripts\Invoke-SasAutoLogonStateDelta.ps1'
+          $content = Get-Content -LiteralPath $path -Raw
+
+          $oldResults = '    results = @($rows)'
+          $newResults = '    results = $rows.ToArray()'
+          if (-not $content.Contains($oldResults)) {
+            throw "Expected summary-list fragment not found: $oldResults"
+          }
+          $content = $content.Replace($oldResults, $newResults)
+
+          $oldImport = @'
+          Import-Module -Name $targetIntakeModule -Force
+
+          if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+          '@
+          $newImport = @'
+          Import-Module -Name $targetIntakeModule -Force
+
+          if (-not [string]::IsNullOrWhiteSpace($TargetsCsv)) {
+              Assert-SasApprovedInputPath -Path $TargetsCsv -RepoRoot $repoRoot -Role 'auto-logon target manifest'
+          }
+
+          if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+          '@
+          if (-not $content.Contains($oldImport)) {
+            throw 'Expected target-intake import seam was not found.'
+          }
+          $content = $content.Replace($oldImport, $newImport)
+
+          Set-Content -LiteralPath $path -Value $content -Encoding UTF8
+          Remove-Item -LiteralPath '.\.github\workflows\patch-autologon-state-delta.yml' -Force
+
+      - name: Commit bounded patch
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/Invoke-SasAutoLogonStateDelta.ps1 .github/workflows/patch-autologon-state-delta.yml
+          git commit -m 'fix(autologon): stabilize fixture summary and guard manifest input'
+          git push origin HEAD:feat/2026-07-13-autologon-state-delta
