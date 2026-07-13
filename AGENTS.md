@@ -147,6 +147,22 @@ worktree create/remove — must follow harness discipline:
 6. **Report** changed files, commit SHA, skipped checks, gaps, risks.
 7. **Hand off** with verification, git state, next command, and copy-paste prompt.
 
+#### Incremental work preservation
+
+Agents must checkpoint coherent tracked progress before beginning broad validation, long-running diagnostics, runtime proof, or a larger refactoring phase.
+
+A valid checkpoint is one of:
+
+- a bounded WIP commit on the owned feature branch;
+- a complete patch containing tracked and newly created files;
+- another repo-approved recovery artifact that records the exact changed files and Git state.
+
+Do not include secrets, runtime evidence, generated logs, machine-local data, or unrelated dirty files in a checkpoint.
+
+After interruption, resume from the latest checkpoint. Do not repeat repository-wide discovery or regenerate completed work unless evidence shows the checkpoint is incomplete or invalid.
+
+A checkpoint proves preservation only. It does not prove validation, completion, merge readiness, or runtime behavior.
+
 Do not claim completion without proof. Do not merge, squash, or delete without confirming
 clean tree, CI status, and scope containment. See [`docs/HARNESS_DISCIPLINE.md`](docs/HARNESS_DISCIPLINE.md)
 for the full operation-by-operation contract.
