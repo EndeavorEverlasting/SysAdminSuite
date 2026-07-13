@@ -29,7 +29,7 @@ Options:
   --fixture-mode               Offline synthetic proof; performs no network activity.
   -h, --help                   Show this help.
 
-Examples:
+Bash-on-Windows examples:
   bash survey/sas-autologon-state-delta.sh \
     --mode before \
     --manifest targets/local/autologon-pilot.csv \
@@ -40,6 +40,18 @@ Examples:
     --run-id autologon-delta-20260713-170000-1a2b3c4d \
     --manifest targets/local/autologon-pilot.csv \
     --technician-label "Pilot batch A"
+
+Windows PowerShell equivalents:
+  .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
+    -Mode Before `
+    -TargetsCsv .\targets\local\autologon-pilot.csv `
+    -TechnicianLabel 'Pilot batch A'
+
+  .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
+    -Mode After `
+    -RunId autologon-delta-20260713-170000-1a2b3c4d `
+    -TargetsCsv .\targets\local\autologon-pilot.csv `
+    -TechnicianLabel 'Pilot batch A'
 USAGE
 }
 
@@ -63,6 +75,8 @@ to_windows_path() {
   local path="$1"
   if command -v cygpath >/dev/null 2>&1; then
     cygpath -w "$path"
+  elif command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$path"
   else
     printf '%s\n' "$path"
   fi
