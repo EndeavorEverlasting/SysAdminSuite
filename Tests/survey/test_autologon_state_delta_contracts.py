@@ -36,7 +36,7 @@ def test_collector_has_before_after_and_assess_modes() -> None:
         assert fragment in content, f"missing state-delta contract: {fragment}"
 
 
-def test_collector_uses_explicit_bounded_targets() -> None:
+def test_collector_uses_explicit_bounded_approved_targets() -> None:
     content = read(PS_SCRIPT)
     for fragment in (
         "[ValidateRange(1, 25)]",
@@ -44,6 +44,8 @@ def test_collector_uses_explicit_bounded_targets() -> None:
         "ComputerName",
         "No explicit targets were supplied",
         "Split the run to keep remote reads bounded",
+        "Assert-SasApprovedInputPath -Path $TargetsCsv",
+        "auto-logon target manifest",
     ):
         assert fragment in content, f"missing target-boundary contract: {fragment}"
 
@@ -102,6 +104,12 @@ def test_evidence_stays_on_admin_box_and_collection_is_read_only() -> None:
         assert fragment.lower() not in lowered, f"forbidden target-mutation fragment: {fragment}"
 
 
+def test_summary_materializes_generic_list_without_binder_failure() -> None:
+    content = read(PS_SCRIPT)
+    assert "results = $rows.ToArray()" in content
+    assert "results = @($rows)" not in content
+
+
 def test_state_delta_does_not_claim_human_actor_identity() -> None:
     content = read(PS_SCRIPT)
     doc = read(DOC)
@@ -144,10 +152,11 @@ def main() -> None:
     tests = [
         test_entrypoints_and_docs_exist,
         test_collector_has_before_after_and_assess_modes,
-        test_collector_uses_explicit_bounded_targets,
+        test_collector_uses_explicit_bounded_approved_targets,
         test_default_password_data_is_never_read_or_exported,
         test_installed_software_inventory_avoids_product_class_queries,
         test_evidence_stays_on_admin_box_and_collection_is_read_only,
+        test_summary_materializes_generic_list_without_binder_failure,
         test_state_delta_does_not_claim_human_actor_identity,
         test_fixture_mode_is_offline_and_wrapper_is_bash_on_windows,
         test_documented_pilot_requires_runtime_observation,
