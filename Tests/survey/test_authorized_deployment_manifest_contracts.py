@@ -55,6 +55,7 @@ def test_approved_source_hash_and_argument_contracts() -> None:
         "HASH_MISMATCH",
         "InstallerArguments",
         "must be a JSON string array",
+        "must contain only JSON strings",
         "UncDirect",
         "does not yet prove staged-file SHA-256 verification before execution",
     )
