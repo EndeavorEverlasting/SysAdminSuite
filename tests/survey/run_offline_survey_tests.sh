@@ -11,6 +11,6 @@ python3 Tests/survey/test_standard_corporate_tooling_contracts.py
 python3 Tests/survey/test_hotfix_command_registry_contracts.py
 python3 Tests/survey/test_cybernet_com_qr_pack_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
-python3 Tests/survey/test_software_install_harness_contracts.py
 python3 Tests/survey/test_run_context_contracts.py
+python3 Tests/survey/test_one_command_harness_proof_contracts.py
 bash Tests/bash/test_target_reduction_plan_contracts.sh
