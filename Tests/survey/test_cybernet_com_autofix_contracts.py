@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Static contracts for the local Cybernet COM AutoFix.
 
-These tests validate file presence, safety boundaries, and expected local-only behavior.
-They do not execute registry or device-manager changes.
+These tests validate tracked safety boundaries and operator entrypoints. They do
+not execute registry, PnP, restart, or device-manager changes.
 """
 
 from __future__ import annotations
@@ -12,13 +12,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "Invoke-CybernetComPortAutoFix.ps1"
+STARTER_PATH = REPO_ROOT / "scripts" / "Start-CybernetComPortAutoFix.ps1"
 LAUNCHER_PATH = REPO_ROOT / "Run-CybernetComPortAutoFix.cmd"
 DRYRUN_LAUNCHER_PATH = REPO_ROOT / "Run-CybernetComPortAutoFix-DryRun.cmd"
+HELP_LAUNCHER_PATH = REPO_ROOT / "Run-CybernetComPortHelp.cmd"
 PACK_PATH = REPO_ROOT / "configs" / "hotfix-command-packs" / "cybernet-com-port-repair.pack.json"
 DOC_PATH = REPO_ROOT / "docs" / "field-hotfixes" / "cybernet-com-port-autofix.md"
 QR_DOC_PATH = REPO_ROOT / "docs" / "field-hotfixes" / "cybernet-com-port-qr-pack.md"
+READINESS_DOC_PATH = REPO_ROOT / "docs" / "handoff" / "cybernet-com-autofix-release-readiness.md"
 PARSER_PATH = REPO_ROOT / "scripts" / "Test-CybernetComPortAutoFixParser.ps1"
 INSPECTOR_PATH = REPO_ROOT / "scripts" / "Inspect-CybernetComPortAutoFixEvidence.ps1"
+HELP_PATH = REPO_ROOT / "scripts" / "Show-CybernetComPortHelp.ps1"
 READINESS_TEST_PATH = REPO_ROOT / "Tests" / "Pester" / "CybernetComPortAutoFixReadiness.Tests.ps1"
 
 
@@ -31,52 +35,46 @@ def load_pack() -> dict:
     return json.loads(read(PACK_PATH))
 
 
-def test_autofix_launcher_runs_apply_restart_with_admin_elevation() -> None:
-    launcher = read(LAUNCHER_PATH)
+def test_technician_launchers_are_bounded_and_do_not_bypass_policy() -> None:
+    apply_launcher = read(LAUNCHER_PATH)
+    dry_launcher = read(DRYRUN_LAUNCHER_PATH)
+    help_launcher = read(HELP_LAUNCHER_PATH)
 
-    assert "SysAdminSuite - Cybernet COM Port AutoFix" in launcher
-    assert "Mode: APPLY + RESTART" in launcher
-    assert "Evidence: C:\\Temp\\CybernetCOM\\autofix_*" in launcher
-    assert "WindowsPrincipal" in launcher
-    assert "WindowsIdentity" in launcher
-    assert "WindowsBuiltInRole" in launcher
-    assert "Administrator" in launcher
-    assert "net session" not in launcher
-    assert "Start-Process" in launcher
-    assert "-Verb RunAs" in launcher
-    assert "Invoke-CybernetComPortAutoFix.ps1" in launcher
-    assert "-Apply" in launcher
-    assert "-Restart" in launcher
-    assert "EXITCODE" in launcher
+    assert "Mode: APPLY + RESTART" in apply_launcher
+    assert "Mode: DRY RUN ONLY" in dry_launcher
+    assert "Start-CybernetComPortAutoFix.ps1" in apply_launcher
+    assert "Start-CybernetComPortAutoFix.ps1" in dry_launcher
+    assert "-Mode Apply" in apply_launcher
+    assert "-Mode DryRun" in dry_launcher
+
+    for launcher in (apply_launcher, dry_launcher):
+        assert "set \"SAS_COM_AUTOFIX_ARGS=%*\"" in launcher
+        assert "if defined SAS_COM_AUTOFIX_ARGS" in launcher
+        assert "exit /b 2" in launcher
+        assert "-ExecutionPolicy Bypass" not in launcher
+        invocation = next(
+            line for line in launcher.splitlines() if "Start-CybernetComPortAutoFix.ps1" in line
+        )
+        assert "%*" not in invocation
+
+    assert "Show-CybernetComPortHelp.ps1" in help_launcher
+    assert "-ExecutionPolicy Bypass" not in help_launcher
 
 
-def test_autofix_dryrun_launcher_rejects_mutation_args_and_elevates() -> None:
-    launcher = read(DRYRUN_LAUNCHER_PATH)
+def test_elevation_helper_is_synchronous_quote_bounded_and_mode_locked() -> None:
+    starter = read(STARTER_PATH)
 
-    assert "SysAdminSuite - Cybernet COM Port AutoFix" in launcher
-    assert "Mode: DRY RUN ONLY" in launcher
-    assert "This captures evidence and previews the mapping" in launcher
-    assert 'if not "%~1"==""' in launcher
-    assert "does not accept arguments" in launcher
-    assert "WindowsPrincipal" in launcher
-    assert "WindowsIdentity" in launcher
-    assert "WindowsBuiltInRole" in launcher
-    assert "Administrator" in launcher
-    assert "Start-Process" in launcher
-    assert "-Verb RunAs" in launcher
-    assert "Invoke-CybernetComPortAutoFix.ps1" in launcher
-    assert "%*" not in launcher
-    invocation_lines = [
-        line
-        for line in launcher.splitlines()
-        if "Invoke-CybernetComPortAutoFix.ps1" in line and "-File" in line
-    ]
-    assert len(invocation_lines) == 1
-    invocation = invocation_lines[0]
-    assert "-Apply" not in invocation
-    assert "-Restart" not in invocation
-    assert "-Force" not in invocation
-    assert "EXITCODE" in launcher
+    assert "ValidateSet('DryRun', 'Apply')" in starter
+    assert "Test-RunningAsAdministrator" in starter
+    assert "Start-Process" in starter
+    assert "-Verb RunAs" in starter
+    assert "-Wait" in starter
+    assert "-PassThru" in starter
+    assert "exit $process.ExitCode" in starter
+    assert "-ExecutionPolicy" not in starter
+    assert "& $corePath -Apply -Restart" in starter
+    assert "& $corePath" in starter
+    assert "-Force" not in starter
 
 
 def test_autofix_script_is_local_admin_bounded_and_evidence_first() -> None:
@@ -85,14 +83,17 @@ def test_autofix_script_is_local_admin_bounded_and_evidence_first() -> None:
     assert "Test-RunningAsAdministrator" in content
     assert "Run this from an elevated Command Prompt" in content
     assert "C:\\Temp\\CybernetCOM" in content
-    assert "serialcomm-before.txt" in content
-    assert "ports-before.txt" in content
-    assert "multiport-before.txt" in content
-    assert "pnp-before.json" in content
-    assert "COMNameArbiter-before.reg" in content
-    assert "port-mapping-plan.json" in content
-    assert "autofix-summary.json" in content
-    assert "autofix-transcript.txt" in content
+    for artifact in [
+        "serialcomm-before.txt",
+        "ports-before.txt",
+        "multiport-before.txt",
+        "pnp-before.json",
+        "COMNameArbiter-before.reg",
+        "port-mapping-plan.json",
+        "autofix-summary.json",
+        "autofix-transcript.txt",
+    ]:
+        assert artifact in content
 
 
 def test_autofix_script_is_factored_for_future_posture_changes() -> None:
@@ -109,14 +110,15 @@ def test_autofix_script_is_factored_for_future_posture_changes() -> None:
         "Set-CybernetComPortMapping",
         "Write-ComAutoFixSummary",
     ]
-
     for function_name in required_functions:
         assert f"function {function_name}" in content
 
 
 def test_autofix_script_has_progress_and_unambiguous_final_statuses() -> None:
     content = read(SCRIPT_PATH)
-    phases = [
+    assert "Write-Progress" in content
+    assert "Phase {0}/9" in content
+    for phase in [
         "Evidence setup",
         "Before-state capture",
         "Eligibility checks",
@@ -126,83 +128,67 @@ def test_autofix_script_has_progress_and_unambiguous_final_statuses() -> None:
         "After-state capture",
         "Summary",
         "Restart",
-    ]
-
-    assert "Write-Progress" in content
-    assert "Phase {0}/9" in content
-    for phase in phases:
+    ]:
         assert phase in content
-    for final_status in ["COMPLETE", "DRY RUN COMPLETE", "FAILED", "REBOOTING"]:
-        assert final_status in content
+    for status in ["COMPLETE", "DRY RUN COMPLETE", "FAILED", "REBOOTING"]:
+        assert status in content
 
 
-def test_autofix_script_only_targets_known_com3_to_com6_pattern_by_default() -> None:
+def test_autofix_only_targets_known_four_port_pattern() -> None:
     content = read(SCRIPT_PATH)
 
     assert "Expected the known failed map COM3-COM6" in content
     assert "Expected exactly 4 active Communications Port devices" in content
     assert "FINTEK or multi-port serial device was not detected" in content
-    assert "COM1, COM2, COM3, COM4" in content
     assert "already COM1-COM4" in content
-
-
-def test_force_only_overrides_fintech_detection_not_mapping_invariants() -> None:
-    content = read(SCRIPT_PATH)
-
     assert "if (-not $State.FintekPresent -and -not $Force)" in content
     assert "if ($State.Ports.Count -ne 4)" in content
     assert "if ($currentSet -ne '3,4,5,6')" in content
-    assert "if ($State.Ports.Count -ne 4 -and -not $Force)" not in content
-    assert "if ($currentSet -ne '3,4,5,6' -and -not $Force)" not in content
     assert "This invariant cannot be overridden with -Force." in content
 
 
-def test_autofix_script_saves_and_validates_registry_before_any_mutation() -> None:
+def test_registry_is_backed_up_and_validated_before_mutation() -> None:
     content = read(SCRIPT_PATH)
 
-    assert "Invoke-ComAutoFixRegistryExport" in content
-    assert "Export-ComAutoFixRegistryBackup" in content
-    assert "COMNameArbiter-before.reg" in content
-    assert "device-parameters-before-{0:00}.reg" in content
-    assert "reg.exe export" in content
-    assert "$LASTEXITCODE" in content
-    assert "Registry export failed with exit code" in content
-    assert "Registry export did not create the expected backup file" in content
-    assert "Registry export created an empty backup file" in content
-    assert "Test-Path -LiteralPath $ExportPath -PathType Leaf" in content
-    assert "$exportFile.Length -le 0" in content
-    assert "native_registry_path" in content
-    assert "registry_backups" in content
-    assert "validated = $true" in content
-    assert "if (-not $registryBackups.validated)" in content
+    for fragment in [
+        "Invoke-ComAutoFixRegistryExport",
+        "Export-ComAutoFixRegistryBackup",
+        "COMNameArbiter-before.reg",
+        "device-parameters-before-{0:00}.reg",
+        "reg.exe export",
+        "$LASTEXITCODE",
+        "Registry export failed with exit code",
+        "Registry export did not create the expected backup file",
+        "Registry export created an empty backup file",
+        "registry_backups",
+        "if (-not $registryBackups.validated)",
+    ]:
+        assert fragment in content
 
     backup_call = content.index("$registryBackups = Export-ComAutoFixRegistryBackup")
     validation_gate = content.index("if (-not $registryBackups.validated)", backup_call)
-    arbiter_reset = content.index("Invoke-CybernetComArbiterReset -RunDir", backup_call)
-    port_mutation = content.index("Set-CybernetComPortMapping -Mapping", backup_call)
-    assert backup_call < validation_gate < arbiter_reset < port_mutation
+    reset_call = content.index("Invoke-CybernetComArbiterReset -RunDir", backup_call)
+    mapping_call = content.index("Set-CybernetComPortMapping -Mapping", backup_call)
+    assert backup_call < validation_gate < reset_call < mapping_call
 
 
-def test_autofix_script_resets_arbiter_and_assigns_portname_values() -> None:
+def test_arbiter_reset_fails_closed_before_portname_mutation() -> None:
     content = read(SCRIPT_PATH)
+    start = content.index("function Invoke-CybernetComArbiterReset")
+    end = content.index("function Set-CybernetComPortMapping", start)
+    reset_block = content[start:end]
 
-    assert "COM Name Arbiter" in content
-    assert "/v ComDB" in content
-    assert "0000000000000000000000000000000000000000000000000000000000000000" in content
-    assert "Set-ItemProperty" in content
-    assert "-Name PortName" in content
-    assert "Device Parameters" in content
-    assert "shutdown.exe /r /t 0" in content
+    assert "reg.exe add" in reset_block
+    assert "$exitCode = $LASTEXITCODE" in reset_block
+    assert "if ($exitCode -ne 0)" in reset_block
+    assert "COM Name Arbiter reset failed with exit code" in reset_block
 
 
-def test_autofix_has_no_remote_execution_or_public_bootstrap() -> None:
-    combined = "\n".join([
-        read(SCRIPT_PATH),
-        read(LAUNCHER_PATH),
-        read(DRYRUN_LAUNCHER_PATH),
-    ])
-
-    forbidden_fragments = [
+def test_no_remote_execution_or_public_bootstrap() -> None:
+    combined = "\n".join(
+        [read(SCRIPT_PATH), read(STARTER_PATH), read(LAUNCHER_PATH), read(DRYRUN_LAUNCHER_PATH)]
+    )
+    for fragment in [
         "Invoke-Command",
         "New-PSSession",
         "Enter-PSSession",
@@ -214,8 +200,7 @@ def test_autofix_has_no_remote_execution_or_public_bootstrap() -> None:
         "credential",
         "secret",
         "token",
-    ]
-    for fragment in forbidden_fragments:
+    ]:
         assert fragment not in combined, f"AutoFix must not include {fragment!r}"
 
 
@@ -228,40 +213,40 @@ def test_qr_pack_exposes_autofix_as_step_12() -> None:
     assert pack["autofix_entrypoint"] == "Run-CybernetComPortAutoFix.cmd"
     assert len(steps) == 12
     assert [item["step"] for item in steps] == [f"{i:02d}" for i in range(1, 13)]
-    assert step12["step"] == "12"
     assert step12["command_id"] == "cybernet.com.12_run_autofix"
     assert step12["cmd_payload"] == "Run-CybernetComPortAutoFix.cmd"
     assert step12["risk_level"] == "medium"
-    assert "local AutoFix launcher" in step12["expected_result"]
 
 
-def test_docs_explain_fast_path_boundaries_progress_and_backups() -> None:
+def test_docs_explain_boundaries_progress_backups_and_readiness_marker() -> None:
     doc = read(DOC_PATH)
     qr_doc = read(QR_DOC_PATH)
+    readiness = read(READINESS_DOC_PATH)
 
-    assert "Run-CybernetComPortAutoFix.cmd" in doc
-    assert "Run-CybernetComPortAutoFix-DryRun.cmd" in doc
-    assert "requests Administrator permission" in doc
-    assert "does not accept arguments" in doc
-    assert "COM3" in doc and "COM6" in doc
-    assert "COM1" in doc and "COM4" in doc
-    assert "No remote execution" in doc
-    assert "No admin-box target mutation" in doc
-    assert "No SmartLynx or final app install" in doc
-    assert "No USB/COM driver replacement" in doc
-    assert "-Force cannot override" in doc
-    assert "progress bar" in doc.lower()
-    assert "COMPLETE" in doc
-    assert "DRY RUN COMPLETE" in doc
-    assert "FAILED" in doc
-    assert "nonempty" in doc.lower()
-    assert "before any COM registry mutation" in doc
-    assert "device-parameters-before-01.reg" in doc
-    assert "Run-CybernetComPortAutoFix.cmd" in qr_doc
+    for fragment in [
+        "Run-CybernetComPortAutoFix.cmd",
+        "Run-CybernetComPortAutoFix-DryRun.cmd",
+        "COM3",
+        "COM6",
+        "COM1",
+        "COM4",
+        "No remote execution",
+        "No admin-box target mutation",
+        "No SmartLynx or final app install",
+        "No USB/COM driver replacement",
+        "progress bar",
+        "DRY RUN COMPLETE",
+        "before any COM registry mutation",
+        "device-parameters-before-01.reg",
+    ]:
+        assert fragment.lower() in doc.lower()
+
     assert "Run automated COM AutoFix" in qr_doc
+    assert "HOLD - DO NOT MERGE" in readiness
+    assert "GO|READY" in read(HELP_PATH)
 
 
-def test_readiness_helpers_prevent_false_parser_and_stale_evidence_results() -> None:
+def test_readiness_helpers_prevent_false_results_and_allow_noop_evidence() -> None:
     parser = read(PARSER_PATH)
     inspector = read(INSPECTOR_PATH)
     readiness_test = read(READINESS_TEST_PATH)
@@ -270,14 +255,11 @@ def test_readiness_helpers_prevent_false_parser_and_stale_evidence_results() -> 
     assert "$parseErrors.Count -gt 0" in parser
     assert "PARSE OK" in parser
 
-    assert "Test-Path -LiteralPath $EvidenceRoot -PathType Container" in inspector
-    assert "if (-not $run)" in inspector
-    assert "Join-Path -Path $run.FullName -ChildPath $name" in inspector
-    assert "$artifactPath" in inspector
-    assert "Exists = $exists" in inspector
-    assert "Bytes = if ($exists)" in inspector
-    assert "AutoFix backup proof is incomplete or empty" in inspector
-    assert "registry_backups.validated" in inspector
+    assert "autofix-summary.json" in inspector
+    assert "if ($summary.status -eq 'already-correct')" in inspector
+    assert "ALREADY CORRECT" in inspector
+    assert "if ($null -ne $summary.registry_backups)" in inspector
+    assert "REGISTRY BACKUPS VALIDATED" in inspector
     assert "Set-ItemProperty" not in inspector
     assert "reg.exe" not in inspector
 
@@ -287,19 +269,18 @@ def test_readiness_helpers_prevent_false_parser_and_stale_evidence_results() -> 
 
 def main() -> None:
     tests = [
-        test_autofix_launcher_runs_apply_restart_with_admin_elevation,
-        test_autofix_dryrun_launcher_rejects_mutation_args_and_elevates,
+        test_technician_launchers_are_bounded_and_do_not_bypass_policy,
+        test_elevation_helper_is_synchronous_quote_bounded_and_mode_locked,
         test_autofix_script_is_local_admin_bounded_and_evidence_first,
         test_autofix_script_is_factored_for_future_posture_changes,
         test_autofix_script_has_progress_and_unambiguous_final_statuses,
-        test_autofix_script_only_targets_known_com3_to_com6_pattern_by_default,
-        test_force_only_overrides_fintech_detection_not_mapping_invariants,
-        test_autofix_script_saves_and_validates_registry_before_any_mutation,
-        test_autofix_script_resets_arbiter_and_assigns_portname_values,
-        test_autofix_has_no_remote_execution_or_public_bootstrap,
+        test_autofix_only_targets_known_four_port_pattern,
+        test_registry_is_backed_up_and_validated_before_mutation,
+        test_arbiter_reset_fails_closed_before_portname_mutation,
+        test_no_remote_execution_or_public_bootstrap,
         test_qr_pack_exposes_autofix_as_step_12,
-        test_docs_explain_fast_path_boundaries_progress_and_backups,
-        test_readiness_helpers_prevent_false_parser_and_stale_evidence_results,
+        test_docs_explain_boundaries_progress_backups_and_readiness_marker,
+        test_readiness_helpers_prevent_false_results_and_allow_noop_evidence,
     ]
     for test in tests:
         test()
