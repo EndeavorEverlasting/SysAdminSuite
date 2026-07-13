@@ -3,10 +3,11 @@
   "pack_id": "cybernet.com_port_qr_pack",
   "title": "Cybernet COM Port QR Pack",
   "status": "field-ready",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "entrypoint": "Run-CybernetComPortQrPack.cmd",
+  "autofix_entrypoint": "Run-CybernetComPortAutoFix.cmd",
   "operator_position": "standing-at-target",
-  "purpose": "Give field technicians a menu of QR-ready CMD snippets for Cybernet COM port evidence capture, hidden-device inspection, COM Name Arbiter reset, reboot, and after-state capture.",
+  "purpose": "Give field technicians a menu of QR-ready CMD snippets and a local AutoFix launcher for Cybernet COM port evidence capture, hidden-device inspection, COM Name Arbiter reset, COM1-COM4 reassignment, reboot, and after-state capture.",
   "sequence": [
     {
       "step": "01",
@@ -117,10 +118,21 @@
       "powershell_payload": "cmd.exe /c 'explorer C:\\Temp\\CybernetCOM'",
       "expected_result": "Opens C:\\Temp\\CybernetCOM so the operator can review captured evidence files.",
       "operator_note": "Do not move evidence into the repo."
+    },
+    {
+      "step": "12",
+      "title": "Run automated COM AutoFix",
+      "command_id": "cybernet.com.12_run_autofix",
+      "risk_level": "medium",
+      "cmd_payload": "Run-CybernetComPortAutoFix.cmd",
+      "powershell_payload": "cmd.exe /c 'Run-CybernetComPortAutoFix.cmd'",
+      "expected_result": "Runs the local AutoFix launcher, captures evidence, exports COM Name Arbiter, resets reservations, assigns active COM3-COM6 devices to COM1-COM4, and restarts.",
+      "operator_note": "Run only from the SysAdminSuite repo root on the local Cybernet and only before final app binding."
     }
   ],
   "manual_steps": [
-    "After showing hidden devices, expand Ports (COM & LPT) and Multi-port serial adapters.",
+    "Fast path: run Run-CybernetComPortAutoFix.cmd from an elevated prompt at the SysAdminSuite repo root on the local Cybernet.",
+    "Manual path: after showing hidden devices, expand Ports (COM & LPT) and Multi-port serial adapters.",
     "Do not uninstall active FINTEK PCIe To Serial devices.",
     "If active ports remain COM3-COM6, manually assign COM3->COM1, COM4->COM2, COM5->COM3, COM6->COM4 through Device Manager > Port Settings > Advanced.",
     "Use COM Name Arbiter reset only after evidence capture and export.",
