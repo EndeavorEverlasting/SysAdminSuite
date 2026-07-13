@@ -6,6 +6,7 @@ param(
   [string]$EvidenceRoot = 'C:\Temp\CybernetCOM'
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:ComAutoFixPhases = @(
@@ -52,17 +53,22 @@ function Invoke-CmdCapture {
     [Parameter(Mandatory)][string]$Command,
     [Parameter(Mandatory)][string]$OutputPath
   )
+
   cmd.exe /c "$Command > `"$OutputPath`" 2>&1"
 }
 
 function Get-ComNumberFromName {
   param([string]$Name)
-  if ($Name -match '\(COM(?<port>\d+)\)') { return [int]$Matches.port }
+
+  if ($Name -match '\(COM(?<port>\d+)\)') {
+    return [int]$Matches.port
+  }
   return $null
 }
 
 function Convert-RegistryProviderPathToNative {
   param([Parameter(Mandatory)][string]$RegistryPath)
+
   return ($RegistryPath -replace '^HKLM:\\', 'HKLM\')
 }
 
@@ -78,7 +84,8 @@ function Invoke-ComAutoFixRegistryExport {
   $exitCode = $LASTEXITCODE
   if ($Append) {
     $exportOutput | Out-File -FilePath $OutputPath -Encoding ASCII -Append
-  } else {
+  }
+  else {
     $exportOutput | Out-File -FilePath $OutputPath -Encoding ASCII
   }
 
@@ -121,10 +128,12 @@ function Initialize-ComAutoFixEvidence {
 function Get-CybernetComPortState {
   $pnp = @(Get-CimInstance Win32_PnPEntity -ErrorAction Stop)
   $ports = @()
+
   foreach ($device in $pnp) {
     $portNumber = Get-ComNumberFromName -Name ([string]$device.Name)
     if ($null -eq $portNumber) { continue }
     if ([string]$device.Name -notmatch '^Communications Port \(COM\d+\)$') { continue }
+
     $ports += [pscustomobject]@{
       Name = [string]$device.Name
       CurrentPort = $portNumber
@@ -160,7 +169,11 @@ function Test-CybernetComAutoFixEligibility {
   $alreadyCorrect = ($currentPorts.Count -eq 4 -and $currentSet -eq '1,2,3,4')
 
   if ($alreadyCorrect) {
-    return [pscustomobject]@{ Status = 'already-correct'; Eligible = $false; AlreadyCorrect = $true }
+    return [pscustomobject]@{
+      Status = 'already-correct'
+      Eligible = $false
+      AlreadyCorrect = $true
+    }
   }
 
   if (-not $State.FintekPresent -and -not $Force) {
@@ -173,7 +186,11 @@ function Test-CybernetComAutoFixEligibility {
     throw "Expected the known failed map COM3-COM6, found $($currentPorts -join ','). This invariant cannot be overridden with -Force."
   }
 
-  return [pscustomobject]@{ Status = 'eligible'; Eligible = $true; AlreadyCorrect = $false }
+  return [pscustomobject]@{
+    Status = 'eligible'
+    Eligible = $true
+    AlreadyCorrect = $false
+  }
 }
 
 function Export-ComAutoFixRegistryBackup {
@@ -205,6 +222,7 @@ function Export-ComAutoFixRegistryBackup {
       -ExportPath $deviceExportPath `
       -OutputPath $outputPath `
       -Append
+
     $deviceExports += [pscustomobject]@{
       name = $port.Name
       current_port = ('COM{0}' -f $port.CurrentPort)
@@ -230,22 +248,29 @@ function New-CybernetComMappingPlan {
   $mapping = @()
   $sortedPorts = @($Ports | Sort-Object CurrentPort)
   for ($i = 0; $i -lt $sortedPorts.Count; $i++) {
-    $targetPort = 'COM{0}' -f ($i + 1)
     $mapping += [pscustomobject]@{
       name = $sortedPorts[$i].Name
       pnp_device_id = $sortedPorts[$i].PNPDeviceID
       current_port = ('COM{0}' -f $sortedPorts[$i].CurrentPort)
-      target_port = $targetPort
+      target_port = ('COM{0}' -f ($i + 1))
       registry_path = $sortedPorts[$i].RegistryPath
     }
   }
+
   return @($mapping)
 }
 
 function Invoke-CybernetComArbiterReset {
   param([Parameter(Mandatory)][string]$RunDir)
 
-  & reg.exe add 'HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter' /v ComDB /t REG_BINARY /d 0000000000000000000000000000000000000000000000000000000000000000 /f | Out-File -FilePath (Join-Path $RunDir 'reg-reset-output.txt') -Encoding ASCII
+  $outputPath = Join-Path $RunDir 'reg-reset-output.txt'
+  $resetOutput = & reg.exe add 'HKLM\SYSTEM\CurrentControlSet\Control\COM Name Arbiter' /v ComDB /t REG_BINARY /d 0000000000000000000000000000000000000000000000000000000000000000 /f 2>&1
+  $exitCode = $LASTEXITCODE
+  $resetOutput | Out-File -FilePath $outputPath -Encoding ASCII
+
+  if ($exitCode -ne 0) {
+    throw "COM Name Arbiter reset failed with exit code $exitCode. See $outputPath."
+  }
 }
 
 function Set-CybernetComPortMapping {
@@ -255,6 +280,7 @@ function Set-CybernetComPortMapping {
     if (-not (Test-Path -LiteralPath $item.registry_path)) {
       throw "Device Parameters registry path not found during apply: $($item.registry_path)"
     }
+
     Write-ComAutoFixProgress -Phase 6 -Status "Assigning $($item.current_port) to $($item.target_port): $($item.name)"
     Set-ItemProperty -LiteralPath $item.registry_path -Name PortName -Value $item.target_port
   }
@@ -292,8 +318,11 @@ if (-not (Test-RunningAsAdministrator)) {
 }
 
 $evidence = Initialize-ComAutoFixEvidence -Root $EvidenceRoot
-Start-Transcript -Path $evidence.LogPath -Force | Out-Null
+$transcriptStarted = $false
 try {
+  Start-Transcript -Path $evidence.LogPath -Force | Out-Null
+  $transcriptStarted = $true
+
   Write-ComAutoFixProgress -Phase 1 -Status "Evidence folder: $($evidence.RunDir)"
   hostname | Set-Content -LiteralPath (Join-Path $evidence.RunDir 'hostname.txt') -Encoding ASCII
   Get-Date -Format s | Set-Content -LiteralPath (Join-Path $evidence.RunDir 'started-at.txt') -Encoding ASCII
@@ -302,7 +331,11 @@ try {
   Invoke-CmdCapture -Command 'reg query HKLM\HARDWARE\DEVICEMAP\SERIALCOMM' -OutputPath (Join-Path $evidence.RunDir 'serialcomm-before.txt')
   Invoke-CmdCapture -Command 'pnputil /enum-devices /class Ports' -OutputPath (Join-Path $evidence.RunDir 'ports-before.txt')
   Invoke-CmdCapture -Command 'pnputil /enum-devices /class MultiPortSerial' -OutputPath (Join-Path $evidence.RunDir 'multiport-before.txt')
-  Get-CimInstance Win32_PnPEntity | Sort-Object Name | Select-Object Name,PNPClass,PNPDeviceID,Status | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $evidence.RunDir 'pnp-before.json') -Encoding UTF8
+  Get-CimInstance Win32_PnPEntity |
+    Sort-Object Name |
+    Select-Object Name, PNPClass, PNPDeviceID, Status |
+    ConvertTo-Json -Depth 4 |
+    Set-Content -LiteralPath (Join-Path $evidence.RunDir 'pnp-before.json') -Encoding UTF8
 
   Write-ComAutoFixProgress -Phase 3 -Status 'Checking FINTEK presence and COM numbering pattern.'
   $state = Get-CybernetComPortState
@@ -344,14 +377,21 @@ try {
   Invoke-CmdCapture -Command 'reg query HKLM\HARDWARE\DEVICEMAP\SERIALCOMM' -OutputPath (Join-Path $evidence.RunDir 'serialcomm-after.txt')
   Invoke-CmdCapture -Command 'pnputil /enum-devices /class Ports' -OutputPath (Join-Path $evidence.RunDir 'ports-after.txt')
 
-  $restartNote = if ($Restart) { 'Restart requested by launcher.' } else { 'Restart not requested. Restart manually before final app binding.' }
+  $restartNote = if ($Restart) {
+    'Restart requested by launcher.'
+  }
+  else {
+    'Restart not requested. Restart manually before final app binding.'
+  }
+
   Write-ComAutoFixProgress -Phase 8 -Status 'Writing apply summary.'
   Write-ComAutoFixSummary -SummaryPath $evidence.SummaryPath -Status 'applied' -RunDir $evidence.RunDir -State $state -Mapping $mapping -RegistryBackups $registryBackups -Applied $true -RestartRequested ([bool]$Restart) -RestartNote $restartNote
 
   if ($Restart) {
     Write-ComAutoFixProgress -Phase 9 -Status 'REBOOTING - Expected final map after restart: COM1, COM2, COM3, COM4.'
     shutdown.exe /r /t 0
-  } else {
+  }
+  else {
     Write-ComAutoFixProgress -Completed -Status "COMPLETE - Restart skipped. Reboot before final app binding. Summary: $($evidence.SummaryPath)"
   }
 }
@@ -360,5 +400,7 @@ catch {
   throw
 }
 finally {
-  Stop-Transcript | Out-Null
+  if ($transcriptStarted) {
+    Stop-Transcript | Out-Null
+  }
 }
