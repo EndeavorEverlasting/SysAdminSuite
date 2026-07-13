@@ -502,6 +502,14 @@ async def handle_connection(ws, secret_token: str):
                     await run_probe(ws, pid, t, p, c, to, ev)
                 except Exception as exc:
                     log.warning("Probe %s ended unexpectedly: %s", pid, exc)
+                    try:
+                        await ws.send(json.dumps({
+                            "type": "error",
+                            "probeId": pid,
+                            "message": "Probe failed before completion",
+                        }))
+                    except Exception:
+                        log.debug("Probe %s failure could not be delivered to client", pid)
                 finally:
                     if state["probe_id"] == pid:
                         state["probe_id"] = None
