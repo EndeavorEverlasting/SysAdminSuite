@@ -126,7 +126,6 @@ $requiredFiles = @(
     'Tests/bash/run_harness_contracts.sh',
     'Tests/bash/test_english_log_artifact_contracts.sh',
     'Tests/bash/test_sysadmin_harness_validator_contracts.sh',
-    'Tests/survey/test_one_command_harness_proof_contracts.py',
     'Tests/bash/test_harness_command_surface.sh',
     'Tests/bash/test_pr142_scope_boundary_contracts.sh',
     'schemas/harness/run-event.schema.json',

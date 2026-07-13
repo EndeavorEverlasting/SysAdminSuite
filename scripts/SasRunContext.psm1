@@ -321,7 +321,6 @@ function Register-SasArtifact {
         [Parameter(Mandatory = $true)][string]$Path,
         [bool]$Tracked = $false,
         [bool]$LiveData = $false,
-        [bool]$Generated = $true,
         [Parameter(Mandatory = $true)][string]$Description,
         [string]$SourceArtifact = '',
         [string]$NetworkActivity = 'No network activity performed.',
@@ -342,8 +341,6 @@ function Register-SasArtifact {
         path = $Path
         tracked = $Tracked
         live_data = $LiveData
-        contains_live_data = $LiveData
-        generated = $Generated
         description = $Description
         source_artifact = $SourceArtifact
         network_activity = $NetworkActivity

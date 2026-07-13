@@ -78,8 +78,6 @@ def test_artifact_registry_entries_preserve_required_metadata():
         "path",
         "tracked",
         "live_data",
-        "contains_live_data",
-        "generated",
         "description",
         "source_artifact",
         "network_activity",
