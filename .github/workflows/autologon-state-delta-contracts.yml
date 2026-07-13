@@ -4,9 +4,12 @@ on:
   pull_request:
     paths:
       - 'scripts/Invoke-SasAutoLogonStateDelta.ps1'
+      - 'scripts/Invoke-SasAutoLogonDeployment.ps1'
       - 'survey/sas-autologon-state-delta.sh'
       - 'docs/AUTOLOGON_STATE_DELTA.md'
+      - 'docs/AUTOLOGON_DEPLOYMENT_WORKFLOW.md'
       - 'Tests/survey/test_autologon_state_delta_contracts.py'
+      - 'Tests/survey/test_autologon_deployment_workflow_contracts.py'
       - '.github/workflows/autologon-state-delta-contracts.yml'
   workflow_dispatch:
 
@@ -79,25 +82,82 @@ jobs:
             exit 1
           }
 
-      - name: Run static contracts
-        shell: pwsh
-        run: python .\Tests\survey\test_autologon_state_delta_contracts.py
-
-      - name: Parse PowerShell collector
+      - name: Run offline deployment workflow fixture
+        id: deployment_fixture
+        continue-on-error: true
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path '.\scripts\Invoke-SasAutoLogonStateDelta.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          )
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            throw "PowerShell parser reported $($errors.Count) error(s)."
+          $outputRoot = Join-Path $PWD 'survey\output\autologon_deployment'
+          New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+          $diagnosticPath = Join-Path $outputRoot 'fixture-diagnostic.txt'
+          $failureFlag = Join-Path $outputRoot 'fixture-failed.flag'
+
+          try {
+            $result = .\scripts\Invoke-SasAutoLogonDeployment.ps1 `
+              -ComputerName SAMPLE001 `
+              -TechnicianLabel 'synthetic-ci' `
+              -OutputRoot $outputRoot `
+              -FixtureMode
+
+            $summary = Get-Content -LiteralPath $result.summary_json -Raw | ConvertFrom-Json
+            if ($summary.status -ne 'FIXTURE_PASS') {
+              throw "Expected FIXTURE_PASS; found $($summary.status)."
+            }
+            if ($summary.install_planned_count -ne 1) {
+              throw "Expected one planned install; found $($summary.install_planned_count)."
+            }
+            if ($summary.confirmed_state_transition_count -ne 1) {
+              throw "Expected one confirmed transition; found $($summary.confirmed_state_transition_count)."
+            }
+            if ($summary.startup_persistence_created -ne $false) {
+              throw 'Fixture incorrectly reported startup persistence.'
+            }
+            if ($summary.default_password_value_collected -ne $false) {
+              throw 'Fixture violated the password-data boundary.'
+            }
+            'PASS: offline AutoLogon deployment workflow fixture completed end to end.' |
+              Set-Content -LiteralPath $diagnosticPath -Encoding UTF8
           }
-          Write-Host 'PASS: PowerShell parser accepted auto-logon state-delta collector.'
+          catch {
+            @(
+              'FAIL: offline AutoLogon deployment workflow fixture',
+              "Exception: $($_.Exception.Message)",
+              "Position: $($_.InvocationInfo.PositionMessage)",
+              'Full error:',
+              ($_ | Out-String)
+            ) | Set-Content -LiteralPath $diagnosticPath -Encoding UTF8
+            New-Item -ItemType File -Path $failureFlag -Force | Out-Null
+            Get-Content -LiteralPath $diagnosticPath
+            exit 1
+          }
+
+      - name: Run static contracts
+        shell: pwsh
+        run: |
+          python .\Tests\survey\test_autologon_state_delta_contracts.py
+          python .\Tests\survey\test_autologon_deployment_workflow_contracts.py
+
+      - name: Parse PowerShell entrypoints
+        shell: pwsh
+        run: |
+          $files = @(
+            '.\scripts\Invoke-SasAutoLogonStateDelta.ps1',
+            '.\scripts\Invoke-SasAutoLogonDeployment.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$file: $($_.Message)" }
+              throw "PowerShell parser reported $($errors.Count) error(s) for $file."
+            }
+          }
+          Write-Host 'PASS: PowerShell parser accepted AutoLogon entrypoints.'
 
       - name: Check Bash wrapper syntax
         shell: bash
@@ -107,19 +167,39 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: autologon-state-delta-synthetic-evidence
-          path: survey/output/autologon_state_delta/
+          name: autologon-synthetic-evidence
+          path: |
+            survey/output/autologon_state_delta/
+            survey/output/autologon_deployment/
           if-no-files-found: error
 
-      - name: Enforce fixture result
+      - name: Enforce fixture results
         if: always()
         shell: pwsh
         run: |
-          $failureFlag = Join-Path $PWD 'survey\output\autologon_state_delta\fixture-failed.flag'
-          $diagnosticPath = Join-Path $PWD 'survey\output\autologon_state_delta\fixture-diagnostic.txt'
-          if (Test-Path -LiteralPath $diagnosticPath) {
-            Get-Content -LiteralPath $diagnosticPath
+          $checks = @(
+            @{
+              Name = 'state delta'
+              FailureFlag = (Join-Path $PWD 'survey\output\autologon_state_delta\fixture-failed.flag')
+              DiagnosticPath = (Join-Path $PWD 'survey\output\autologon_state_delta\fixture-diagnostic.txt')
+            },
+            @{
+              Name = 'deployment workflow'
+              FailureFlag = (Join-Path $PWD 'survey\output\autologon_deployment\fixture-failed.flag')
+              DiagnosticPath = (Join-Path $PWD 'survey\output\autologon_deployment\fixture-diagnostic.txt')
+            }
+          )
+
+          $failed = @()
+          foreach ($check in $checks) {
+            if (Test-Path -LiteralPath $check.DiagnosticPath) {
+              Get-Content -LiteralPath $check.DiagnosticPath
+            }
+            if (Test-Path -LiteralPath $check.FailureFlag) {
+              $failed += $check.Name
+            }
           }
-          if (Test-Path -LiteralPath $failureFlag) {
-            throw 'Offline fixture proof failed. See the uploaded diagnostic artifact.'
+
+          if ($failed.Count -gt 0) {
+            throw "Offline fixture proof failed: $($failed -join ', '). See the uploaded diagnostic artifact."
           }
