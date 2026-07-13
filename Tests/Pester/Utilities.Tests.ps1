@@ -1,4 +1,4 @@
-﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
 <#
 .SYNOPSIS
     Offline unit tests for Utilities\ scripts.
@@ -355,8 +355,8 @@ Describe 'Invoke-BluetoothDriverFlush' {
     }
 
     Context 'BackupOnly mode' {
-        It 'Does not call sc stop when BackupOnly is set' {
-            Mock sc { } -ParameterFilter { $ArgumentList -contains 'stop' }
+        It 'Does not call sc.exe stop when BackupOnly is set' {
+            Mock sc.exe { } -ParameterFilter { $ArgumentList -contains 'stop' }
             Mock Get-PnpDevice { }
             Mock Disable-PnpDevice { }
             Mock Enable-PnpDevice { }
@@ -365,14 +365,14 @@ Describe 'Invoke-BluetoothDriverFlush' {
 
             Invoke-BluetoothDriverFlush -BackupOnly -BackupPath $TestDrive -Confirm:$false
 
-            Should -Invoke sc -Times 0 -ParameterFilter { $ArgumentList -contains 'stop' }
+            Should -Invoke sc.exe -Times 0 -ParameterFilter { $ArgumentList -contains 'stop' }
         }
     }
 
     Context 'WhatIf preview' {
         It 'Does not create backup directory under TestDrive when WhatIf is set' {
             $testBackupDir = Join-Path $TestDrive 'WhatIfTest'
-            Mock sc { }
+            Mock sc.exe { }
             Mock pnputil { }
             Mock Get-PnpDevice { }
             Mock Read-Host { 'YES' }

@@ -132,7 +132,7 @@ function Invoke-BluetoothDriverFlush {
     $btServices = @('bthserv', 'BthAudioHF', 'btwavext', 'RFCOMM', 'BthLEEnum')
     $svcData = @{}
     foreach ($svc in $btServices) {
-        $svcData[$svc] = & sc query $svc 2>&1 | Out-String
+        $svcData[$svc] = & sc.exe query $svc 2>&1 | Out-String
     }
     $svcFile = Join-Path $backupDir 'service_states.json'
     if ($PSCmdlet.ShouldProcess($svcFile, 'Write service states')) {
@@ -307,7 +307,7 @@ function Invoke-BluetoothDriverFlush {
     # 3c. Stop BT services
     Write-Step 'Stopping Bluetooth services ...'
     foreach ($svc in $btServices) {
-        & sc stop $svc 2>&1 | Out-Null
+        & sc.exe stop $svc 2>&1 | Out-Null
     }
     Start-Sleep -Seconds 2
     Write-StepOk 'Services stopped'
@@ -358,7 +358,7 @@ function Invoke-BluetoothDriverFlush {
     # 3f. Start BT services
     Write-Step 'Starting Bluetooth services ...'
     foreach ($svc in @('RFCOMM', 'bthserv', 'BthAudioHF', 'btwavext', 'BthLEEnum')) {
-        & sc start $svc 2>&1 | Out-Null
+        & sc.exe start $svc 2>&1 | Out-Null
     }
     Start-Sleep -Seconds 3
     Write-StepOk 'Services started'
