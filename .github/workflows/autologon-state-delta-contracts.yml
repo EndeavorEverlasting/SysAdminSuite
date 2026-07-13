@@ -1,0 +1,89 @@
+name: AutoLogon State Delta Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-SasAutoLogonStateDelta.ps1'
+      - 'survey/sas-autologon-state-delta.sh'
+      - 'docs/AUTOLOGON_STATE_DELTA.md'
+      - 'Tests/survey/test_autologon_state_delta_contracts.py'
+      - '.github/workflows/autologon-state-delta-contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run static contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_autologon_state_delta_contracts.py
+
+      - name: Parse PowerShell collector
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\scripts\Invoke-SasAutoLogonStateDelta.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "PowerShell parser reported $($errors.Count) error(s)."
+          }
+          Write-Host 'PASS: PowerShell parser accepted auto-logon state-delta collector.'
+
+      - name: Check Bash wrapper syntax
+        shell: bash
+        run: bash -n survey/sas-autologon-state-delta.sh
+
+      - name: Run offline before and after fixture proof
+        shell: pwsh
+        run: |
+          $runId = 'autologon-delta-20260713-170000-1a2b3c4d'
+          $outputRoot = Join-Path $PWD 'survey\output\autologon_state_delta'
+
+          .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
+            -Mode Before `
+            -ComputerName SAMPLE001 `
+            -RunId $runId `
+            -OutputRoot $outputRoot `
+            -TechnicianLabel 'synthetic-ci' `
+            -FixtureMode
+
+          .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
+            -Mode After `
+            -ComputerName SAMPLE001 `
+            -RunId $runId `
+            -OutputRoot $outputRoot `
+            -TechnicianLabel 'synthetic-ci' `
+            -FixtureMode
+
+          $summaryPath = Join-Path $outputRoot "$runId\autologon_state_delta_summary.json"
+          $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
+          if ($summary.confirmed_state_transition_count -ne 1) {
+            throw "Expected one CONFIRMED_STATE_TRANSITION; found $($summary.confirmed_state_transition_count)."
+          }
+          if ($summary.default_password_value_collected -ne $false) {
+            throw 'Fixture summary violated the password-data boundary.'
+          }
+          if ($summary.target_mutation_performed -ne $false) {
+            throw 'Fixture summary incorrectly reported target mutation.'
+          }
+          Write-Host 'PASS: offline before/after fixture produced one confirmed state transition.'
+
+      - name: Upload synthetic fixture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: autologon-state-delta-synthetic-evidence
+          path: survey/output/autologon_state_delta/
+          if-no-files-found: error
