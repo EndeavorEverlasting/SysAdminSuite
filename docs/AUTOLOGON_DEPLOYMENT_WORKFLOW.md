@@ -20,6 +20,7 @@ The workflow composes existing SysAdminSuite contracts instead of creating anoth
 
 ```text
 explicit target list
+  -> request-only approved-source and relative-path preflight
   -> read-only baseline snapshot
   -> skip baseline failures
   -> skip workstations already configured
@@ -28,6 +29,8 @@ explicit target list
   -> per-workstation state delta
   -> combined local JSONL, JSON, and operator handoff
 ```
+
+The package preflight uses the existing software-install wrapper with `-WhatIf`. It validates the approved UNC root, relative installer path, target ceiling, and local output boundary before the state-delta collector can contact a workstation. A typo or unapproved source therefore fails locally instead of creating avoidable target reads.
 
 ## Why this does not use the Startup folder
 
@@ -48,6 +51,7 @@ No Startup-folder CMD, Run key, scheduled task, service, hidden listener, or bac
 
 - Explicit target names only.
 - Maximum 25 targets per invocation.
+- Approved source and relative installer path are validated locally before any baseline target read.
 - No install when baseline collection fails.
 - No reinstall when baseline already reports `autologon_ready`.
 - Live execution requires `-AllowTargetMutation`.
@@ -98,6 +102,8 @@ survey\output\autologon_deployment\<workflow_id>\
   install\
 ```
 
+The summary includes `request_preflight`, which records the no-network package-plan result completed before the synthetic baseline.
+
 ## 2. Request-only dry run for the real pilot manifest
 
 This validates target intake, approved source resolution, relative-path safety, output boundaries, and install planning without contacting the share or workstations:
@@ -115,6 +121,8 @@ Expected status:
 ```text
 PLANNED_WHATIF
 ```
+
+An unapproved `-SoftwareShareRoot`, rooted installer path, or `..` traversal is rejected here and is also revalidated before baseline collection during fixture and live modes.
 
 ## 3. Verify silent installer arguments
 
@@ -139,12 +147,13 @@ Replace the example arguments with the validated switches:
 
 The workflow will:
 
-1. capture baseline evidence;
-2. exclude failed baselines and already-configured workstations;
-3. install only eligible workstations;
-4. clean and report SysAdminSuite-owned staging;
-5. capture after evidence;
-6. emit the combined summary and per-workstation delta.
+1. validate the approved source and relative path without contacting a workstation;
+2. capture baseline evidence;
+3. exclude failed baselines and already-configured workstations;
+4. install only eligible workstations;
+5. clean and report SysAdminSuite-owned staging;
+6. capture after evidence;
+7. emit the combined summary and per-workstation delta.
 
 ## 5. Review before expansion
 
@@ -157,6 +166,7 @@ survey\output\autologon_deployment\<workflow_id>\autologon_deployment_summary.js
 
 Expansion gates:
 
+- request preflight succeeded under the approved source root;
 - no baseline collection failures;
 - no install failures;
 - no cleanup failures;
