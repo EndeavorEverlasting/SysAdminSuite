@@ -12,7 +12,9 @@ This lane recovers the useful part of PR #150: a bounded, auditable manifest in 
 4. delegates each approved row to `scripts/Invoke-SasSoftwareInstall.ps1`;
 5. writes one local batch summary plus the canonical per-install child summaries.
 
-The wrapper does not contain a second remote-install implementation. The canonical engine remains responsible for PowerShell remoting, optional `CopyThenInstall` staging, installer execution, cleanup, and per-target evidence.
+The wrapper does not contain a second remote-install implementation. The canonical engine remains responsible for PowerShell remoting, installer execution, cleanup, and per-target evidence.
+
+The recovered manifest lane currently fails closed on `CopyThenInstall`. PR #150's review correctly identified that a copied installer must be hashed again on the target before execution. Until that proof is added to the canonical engine, this adapter permits only `UncDirect` so it cannot execute an unverified staged copy.
 
 ## Pre-logon behavior
 
@@ -30,7 +32,7 @@ Each JSON row requires:
 - `InstallerRelativePath`
 - `ExpectedSha256`
 - `InstallerArguments` as a JSON string array
-- `InstallMode`: `UncDirect` or `CopyThenInstall`
+- `InstallMode`: currently `UncDirect` only
 - `Owner`
 - `RequestReference`
 - `ChangeReference`
@@ -48,7 +50,7 @@ For AutoLogon, the relative installer path is:
 packages\AutoLogonSetup\NW_AutoLogon_Setup_x64.exe
 ```
 
-Replace the example SHA-256 and references before any live execution. Do not guess silent switches. Use vendor-validated arguments.
+Replace the example SHA-256 and references before any live execution. Do not guess silent switches. Use vendor-validated arguments. Confirm that the remote execution context can read the approved UNC path before the pilot.
 
 ## Request-only validation
 
@@ -86,6 +88,7 @@ Do not expand beyond the pilot until all of the following are true:
 - the expected SHA-256 matches the package on the approved share;
 - the installer arguments are vendor-validated;
 - the target is reachable through the approved administrative path;
+- the remote execution context can read the approved UNC package path without an interactive user logon;
 - the child software-install summary reports no unresolved cleanup failure or SysAdminSuite-owned target remnant;
 - application detection confirms the intended software state;
 - for AutoLogon, a controlled reboot and observed automatic sign-in have been completed separately.
