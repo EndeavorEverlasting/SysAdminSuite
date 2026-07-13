@@ -1,3 +1,4 @@
+#Requires -Version 5.1
 [CmdletBinding()]
 param(
   [switch]$Apply,
@@ -274,6 +275,7 @@ function Invoke-CybernetComArbiterReset {
 }
 
 function Set-CybernetComPortMapping {
+  [CmdletBinding(SupportsShouldProcess)]
   param([Parameter(Mandatory)]$Mapping)
 
   foreach ($item in $Mapping) {
@@ -281,8 +283,11 @@ function Set-CybernetComPortMapping {
       throw "Device Parameters registry path not found during apply: $($item.registry_path)"
     }
 
-    Write-ComAutoFixProgress -Phase 6 -Status "Assigning $($item.current_port) to $($item.target_port): $($item.name)"
-    Set-ItemProperty -LiteralPath $item.registry_path -Name PortName -Value $item.target_port
+    $target = '{0} -> {1} ({2})' -f $item.current_port, $item.target_port, $item.name
+    if ($PSCmdlet.ShouldProcess($item.registry_path, "Set PortName to $($item.target_port) [$target]")) {
+      Write-ComAutoFixProgress -Phase 6 -Status "Assigning $($item.current_port) to $($item.target_port): $($item.name)"
+      Set-ItemProperty -LiteralPath $item.registry_path -Name PortName -Value $item.target_port
+    }
   }
 }
 
@@ -389,7 +394,7 @@ try {
 
   if ($Restart) {
     Write-ComAutoFixProgress -Phase 9 -Status 'REBOOTING - Expected final map after restart: COM1, COM2, COM3, COM4.'
-    shutdown.exe /r /t 0
+    shutdown.exe /r /t 5
   }
   else {
     Write-ComAutoFixProgress -Completed -Status "COMPLETE - Restart skipped. Reboot before final app binding. Summary: $($evidence.SummaryPath)"

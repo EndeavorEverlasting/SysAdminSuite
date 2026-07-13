@@ -156,7 +156,10 @@ function Show-Status {
 }
 
 function Show-Topic {
-  param([Parameter(Mandatory)][string]$Name)
+  param(
+    [Parameter(Mandatory)][string]$Name,
+    [switch]$Copy
+  )
 
   if ($Name -eq 'status') {
     Show-Status
@@ -214,12 +217,12 @@ function Show-Menu {
     'Q' { return }
     default { throw "Unknown menu choice: $choice" }
   }
-  Show-Topic -Name $selection
+  Show-Topic -Name $selection -Copy:$Copy
 }
 
 if ($Topic -eq 'menu') {
   Show-Menu
 }
 else {
-  Show-Topic -Name $Topic
+  Show-Topic -Name $Topic -Copy:$Copy
 }
