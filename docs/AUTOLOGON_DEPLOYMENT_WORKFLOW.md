@@ -6,6 +6,8 @@ This workflow deploys the approved auto-logon package from the approved read-onl
 
 The pilot also uses `Invoke-SasAutoLogonFileAccessPosture.ps1` to inspect bounded NTFS ACL signals, the expected AutoLogon profile, shell-folder redirection, and mapped-drive metadata before and after deployment. That companion lane is required because correct registry state does not prove that the resulting user can use required local application directories or the intended file-share roundabout.
 
+The final access gate uses `Invoke-SasAutoLogonSessionAccessProof.ps1` inside the real signed-in AutoLogon session. That current-token proof opens the exact required local/share paths and, when explicitly authorized, creates and immediately removes one unique marker in each path.
+
 Canonical package:
 
 ```text
@@ -22,6 +24,12 @@ Companion access-posture entrypoint:
 
 ```text
 scripts\Invoke-SasAutoLogonFileAccessPosture.ps1
+```
+
+Current-token runtime proof entrypoint:
+
+```text
+scripts\Invoke-SasAutoLogonSessionAccessProof.ps1
 ```
 
 The workflow composes existing SysAdminSuite contracts instead of creating another installer engine:
@@ -46,7 +54,9 @@ same explicit target list
   -> AutoLogon deployment workflow
   -> read-only file-access After capture
   -> ACL/profile/redirection/mapped-drive delta
-  -> real AutoLogon user-session access test
+  -> reboot and visible AutoLogon sign-in
+  -> current-token local/share open and write/cleanup proof
+  -> real application read/write/save test
 ```
 
 The package preflight uses the existing software-install wrapper with `-WhatIf`. It validates the approved UNC root, relative installer path, target ceiling, and local output boundary before the state-delta collector can contact a workstation. A typo or unapproved source therefore fails locally instead of creating avoidable target reads.
@@ -82,6 +92,10 @@ No Startup-folder CMD, Run key, scheduled task, service, hidden listener, or bac
 - File-access posture rejects UNC paths, wildcards, relative paths, and parent traversal.
 - File-access posture records share redirection and mapped-drive metadata without contacting those shares or enumerating directory contents.
 - ACL signals do not claim effective access; actual user-session access remains a runtime gate.
+- Session access proof accepts at most 12 explicit drive-rooted or complete UNC paths.
+- Session access proof verifies the current Windows identity before contacting a path and never impersonates another account.
+- Session write proof requires `-AllowWriteProbe`, uses `FileMode.CreateNew`, and immediately removes its unique marker.
+- Session access retries are bounded; no continuous monitor, scheduled task, service, or background agent is created.
 - SysAdminSuite evidence remains under the gitignored admin-box output root.
 - `DefaultPassword` data is never collected.
 - Event logs, monitoring, endpoint tooling, and installer evidence are not suppressed or cleared.
@@ -137,6 +151,27 @@ The synthetic access delta should report `ACCESS_POSTURE_IMPROVED`, one UNC shel
 path_contents_enumerated: false
 share_paths_contacted: false
 effective_access_proven: false
+```
+
+Also prove the current-token session contract offline:
+
+```powershell
+$sessionFixture = .\scripts\Invoke-SasAutoLogonSessionAccessProof.ps1 `
+  -ExpectedUserName SAMPLE001 `
+  -Path @('C:\ProgramData\VendorApp', '\\fileserver\roundabout') `
+  -AllowWriteProbe `
+  -FixtureMode `
+  -Confirm:$false
+```
+
+Expected fixture posture:
+
+```text
+decision: SESSION_ACCESS_CONFIRMED
+runtime_proof: false
+path_contents_recorded: false
+credentials_collected: false
+impersonation_used: false
 ```
 
 Expected local deployment artifacts:
@@ -247,6 +282,45 @@ survey\output\autologon_file_access\<access_run_id>\autologon_file_access_summar
 survey\output\autologon_file_access\<access_run_id>\delta\<target>.json
 ```
 
+### Prove access from the real AutoLogon session
+
+Reboot each pilot workstation and directly observe the expected AutoLogon account sign in. Open
+PowerShell inside that exact session. Do not use an administrator session, `runas`, alternate
+credentials, PowerShell remoting, a service, or a scheduled task.
+
+Run the proof against the exact local application locations and file-share roundabouts required by
+the workflow:
+
+```powershell
+$sessionProof = & '\\approved-server\approved-tools\scripts\Invoke-SasAutoLogonSessionAccessProof.ps1' `
+  -Path @(
+    'C:\ProgramData\VendorApp',
+    'Z:\OperationalData',
+    '\\approved-fileserver\approved-share\OperationalData'
+  ) `
+  -RetryCount 3 `
+  -RetryDelaySeconds 5 `
+  -AllowWriteProbe `
+  -Enforce `
+  -Confirm:$false
+
+$sessionProof | ConvertTo-Json -Depth 12
+```
+
+The proof must report:
+
+```text
+identity_match: true
+decision: SESSION_ACCESS_CONFIRMED
+runtime_proof: true
+failed_path_count: 0
+credentials_collected: false
+impersonation_used: false
+```
+
+Confirm that no `.sas-autologon-access-*.tmp` marker remains in any tested location. Then run the
+real application and complete its required open/read/write/save workflow.
+
 ## 5. Review before expansion
 
 Open:
@@ -272,16 +346,21 @@ Expansion gates:
 - expected profile and required local application directories have understood ACL grant signals;
 - intended shell-folder redirection and mapped-drive metadata are present when the design relies on file shares;
 - at least one real reboot and observed successful auto-logon on each pilot workstation;
-- the real AutoLogon session can open the application and complete the required read/write/save workflow;
-- the real AutoLogon session can reach the intended file share when local directories are intentionally unavailable.
+- current-session identity matches the expected hostname-based AutoLogon account;
+- every required local, mapped-drive, and UNC path reports `ACCESS_CONFIRMED`;
+- session-level decision is `SESSION_ACCESS_CONFIRMED` with `runtime_proof: true`;
+- no `.sas-autologon-access-*.tmp` marker remains;
+- the real AutoLogon session can open the application and complete the required read/write/save workflow.
 
-The registry and installed-software delta proves workstation configuration state. The ACL/profile snapshot proves only recorded access posture. Neither proves human identity or effective user access. The real AutoLogon session proves the user experience.
+The registry and installed-software delta proves workstation configuration state. The ACL/profile snapshot proves recorded access posture. The current-token proof establishes directory and share authentication under the actual AutoLogon identity. The application test establishes the real user workflow. None of these alone proves the identity of the technician who performed the deployment.
 
 ## Operational notes
 
 - `CopyThenInstall` avoids the common remote UNC second-hop problem while retaining the server as the approved package source.
 - `UncDirect` is available when target-side access to the share is already proven.
-- The file-access collector does not test share availability because the remote administrative session is not the AutoLogon user's token and may encounter second-hop behavior.
+- The administrative file-access collector does not test share availability because its remote token is not the AutoLogon user's token and may encounter second-hop behavior.
+- The session access proof intentionally contacts only its explicit paths under the current signed-in token; it accepts no credentials and performs no impersonation.
+- Mapped drives and UNC paths may become available after logon delay. Use only the bounded retry controls; do not create a continuous watcher.
 - The installer may create its own files, logs, services, tasks, registry values, caches, or reboot requirements. Those are installer-owned and outside SysAdminSuite staging cleanup.
 - The workflow does not reboot targets automatically.
-- A completed install exit code, registry delta, or ACL allow signal is not a substitute for an observed reboot/auto-logon runtime test.
+- A completed install exit code, registry delta, ACL allow signal, or mapped-drive registry entry is not a substitute for the current-token proof and the real application workflow.
