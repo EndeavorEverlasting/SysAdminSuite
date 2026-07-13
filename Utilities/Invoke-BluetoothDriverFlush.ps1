@@ -55,7 +55,8 @@ function Invoke-BluetoothDriverFlush {
         [string]$BackupPath = (Join-Path $env:APPDATA 'BT_Flush_Backups'),
         [switch]$BackupOnly,
         [switch]$SkipDeviceRemoval,
-        [string]$TargetDeviceName = 'speaker|audio|headphone|headset|earbuds'
+        [string]$TargetDeviceName = 'speaker|audio|headphone|headset|earbuds',
+        [switch]$Force
     )
 
     $ErrorActionPreference = 'Stop'
@@ -294,10 +295,12 @@ function Invoke-BluetoothDriverFlush {
         return
     }
 
-    $confirm = Read-Host "`nBackups validated at $backupDir. Type YES to proceed with driver flush"
-    if ($confirm -ne 'YES') {
-        Write-Host 'Aborted by user.'
-        return
+    if (-not $Force) {
+        $confirm = Read-Host "`nBackups validated at $backupDir. Type YES to proceed with driver flush"
+        if ($confirm -ne 'YES') {
+            Write-Host 'Aborted by user.'
+            return
+        }
     }
 
     Write-Phase 'FLUSH PHASE' ''

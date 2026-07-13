@@ -384,5 +384,70 @@ Describe 'Invoke-BluetoothDriverFlush' {
             $testBackupDir | Should -Not -Exist
         }
     }
+
+    Context 'Confirmation and Mutation Safety' {
+        It 'Aborts and does not flush drivers if confirmation is NOT YES' {
+            $testBackupDir = Join-Path $TestDrive 'AbortTest'
+            Mock sc.exe { }
+            Mock pnputil { }
+            Mock Get-PnpDevice { }
+            Mock Read-Host { 'NO' }
+            Mock Get-ItemProperty { $null }
+            Mock Disable-PnpDevice { }
+            Mock Enable-PnpDevice { }
+            Mock Remove-Item { }
+
+            # Pre-create a valid backup structure so validation passes
+            New-Item -ItemType Directory -Path $testBackupDir -Force | Out-Null
+            $subDir = Join-Path $testBackupDir 'dummy-stamp'
+            New-Item -ItemType Directory -Path $subDir -Force | Out-Null
+            $requiredFiles = @(
+                'bthport.reg', 'com_ports.reg', 'service_states.json',
+                'com_ports_current.txt', 'audio_endpoints.json', 'bt_devices.json'
+            )
+            foreach ($f in $requiredFiles) {
+                Set-Content -Path (Join-Path $subDir $f) -Value 'dummy-content' -Encoding UTF8
+            }
+
+            Mock Get-Date { 'dummy-stamp' }
+
+            Invoke-BluetoothDriverFlush -BackupPath $testBackupDir -Confirm:$false
+
+            # Verification: sc.exe stop should NOT have been invoked since we aborted
+            Should -Invoke sc.exe -Times 0 -ParameterFilter { $ArgumentList -contains 'stop' }
+        }
+
+        It 'Performs mutations if confirmation is YES' {
+            $testBackupDir = Join-Path $TestDrive 'SuccessTest'
+            Mock sc.exe { }
+            Mock pnputil { }
+            Mock Get-PnpDevice { }
+            Mock Read-Host { 'YES' }
+            Mock Get-ItemProperty { $null }
+            Mock Disable-PnpDevice { }
+            Mock Enable-PnpDevice { }
+            Mock Remove-Item { }
+
+            # Pre-create a valid backup structure so validation passes
+            New-Item -ItemType Directory -Path $testBackupDir -Force | Out-Null
+            $subDir = Join-Path $testBackupDir 'dummy-stamp'
+            New-Item -ItemType Directory -Path $subDir -Force | Out-Null
+            $requiredFiles = @(
+                'bthport.reg', 'com_ports.reg', 'service_states.json',
+                'com_ports_current.txt', 'audio_endpoints.json', 'bt_devices.json'
+            )
+            foreach ($f in $requiredFiles) {
+                Set-Content -Path (Join-Path $subDir $f) -Value 'dummy-content' -Encoding UTF8
+            }
+
+            Mock Get-Date { 'dummy-stamp' }
+
+            Invoke-BluetoothDriverFlush -BackupPath $testBackupDir -Confirm:$false
+
+            # Verification: sc.exe stop should have been invoked to stop services in flush phase
+            Should -Invoke sc.exe -Minimum -Times 1 -ParameterFilter { $ArgumentList -contains 'stop' }
+        }
+    }
 }
+
 

@@ -20,6 +20,14 @@ Use this map to load only the files needed for a task.
 - `docs/LOW_NOISE_SURVEY_DOCTRINE.md` — narrative low-noise policy.
 - `docs/SURVEY_LANES.md` and `targets/README.md` — local target intake and tracked fixture boundaries.
 
+## Field Hotfixes and Repair Utilities
+
+- `Utilities/Invoke-BluetoothDriverFlush.ps1` — Bluetooth driver flush and restore tool.
+- `Run-BluetoothDriverFlushHelp.cmd` — launcher for Bluetooth driver flush menu.
+- `scripts/Show-BluetoothDriverFlushHelp.ps1` — Bluetooth driver flush interactive menu.
+- `docs/field-hotfixes/bluetooth-driver-flush.md` — Bluetooth driver flush Runbook and guidance.
+
+
 ## Dashboard and user entry
 
 - `docs/DASHBOARD_ENTRYPOINT.md` — canonical field and IT/developer launcher guidance.
