@@ -52,6 +52,26 @@ def test_live_mutation_and_installer_arguments_are_explicitly_gated() -> None:
     assert "-AllowTargetMutation -Confirm:$false" in content
 
 
+def test_approved_source_preflight_precedes_baseline_target_reads() -> None:
+    content = read(SCRIPT)
+    preflight_marker = "$requestPreflight = & $softwareInstallScript"
+    baseline_marker = "$before = & $stateDeltaScript"
+
+    assert preflight_marker in content
+    assert baseline_marker in content
+    assert content.index(preflight_marker) < content.index(baseline_marker)
+
+    required = (
+        "request_preflight_completed",
+        "target_reads_performed = $false",
+        "target_mutation_performed = $false",
+        "approved_source_and_relative_path_validated_before_target_reads",
+        "request_preflight = $requestPreflight",
+    )
+    for fragment in required:
+        assert fragment in content, f"missing preflight-before-target-read contract: {fragment}"
+
+
 def test_dry_run_and_fixture_are_no_network_contracts() -> None:
     content = read(SCRIPT)
     doc = read(DOC)
@@ -100,6 +120,7 @@ def test_local_evidence_and_combined_summary_are_declared() -> None:
         "autologon_deployment_summary.json",
         "operator_handoff.txt",
         "sas-autologon-deployment-summary/v1",
+        "request_preflight",
         "confirmed_state_transition_count",
         "cleanup_failure_count",
         "repo_artifact_remaining_count",
@@ -133,6 +154,7 @@ def main() -> None:
         test_canonical_package_defaults_are_exact,
         test_composes_existing_state_and_install_lanes,
         test_live_mutation_and_installer_arguments_are_explicitly_gated,
+        test_approved_source_preflight_precedes_baseline_target_reads,
         test_dry_run_and_fixture_are_no_network_contracts,
         test_workflow_does_not_create_startup_persistence,
         test_local_evidence_and_combined_summary_are_declared,
