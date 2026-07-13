@@ -96,7 +96,7 @@ function Write-SasJson {
 
 function Set-SasStage {
     param(
-        [hashtable]$State,
+        [System.Collections.IDictionary]$State,
         [string]$Name,
         [string]$Status,
         [string]$Detail
