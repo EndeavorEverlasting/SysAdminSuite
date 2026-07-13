@@ -219,14 +219,15 @@ $remoteCollector = {
     }
 
     function Get-AutoLogonStatus {
-        param([string]$ExpectedName, [object]$IntentValue, [object]$EnabledValue, [object]$UserValue)
+        param([string]$ExpectedName, [object]$IntentValue, [object]$EnabledValue, [object]$UserValue, [bool]$PasswordPresent)
         $expected = $ExpectedName.ToUpperInvariant()
         $actual = ConvertTo-AccountLeaf -Value ([string]$UserValue)
         $enabled = ([string]$EnabledValue).Trim() -in @('1', '0x1')
         $intent = ("$IntentValue").ToUpperInvariant().Replace('_', '').Replace(' ', '').Contains('AUTOLOGONYES')
 
-        if ($enabled -and $actual -eq $expected) { return 'autologon_ready' }
         if ($enabled -and $actual -ne $expected) { return 'configured_user_mismatch' }
+        if ($enabled -and $actual -eq $expected -and -not $PasswordPresent) { return 'configured_password_missing' }
+        if ($enabled -and $actual -eq $expected -and $PasswordPresent) { return 'autologon_ready' }
         if ($intent) { return 'intent_only' }
         return 'not_configured'
     }
@@ -328,7 +329,7 @@ $remoteCollector = {
             default_password_value_collected = $false
             expected_user_name = $expectedUser
             expected_user_match = ($actualUser -eq $expectedUser)
-            status = Get-AutoLogonStatus -ExpectedName $env:COMPUTERNAME -IntentValue $intentValue -EnabledValue $enabledValue -UserValue $userValue
+            status = Get-AutoLogonStatus -ExpectedName $env:COMPUTERNAME -IntentValue $intentValue -EnabledValue $enabledValue -UserValue $userValue -PasswordPresent ([bool]$passwordPresent)
         }
         installed_software = @(Get-InstalledSoftwareSafe)
         related_services = @(Get-RelatedServicesSafe)
