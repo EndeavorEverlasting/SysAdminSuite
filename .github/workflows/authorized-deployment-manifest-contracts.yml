@@ -4,8 +4,11 @@ on:
   pull_request:
     paths:
       - 'scripts/Invoke-SasAuthorizedDeploymentManifest.ps1'
+      - 'scripts/New-SasAuthorizedDeploymentManifest.ps1'
       - 'schemas/harness/authorized-deployment-manifest.schema.json'
       - 'Tests/survey/test_authorized_deployment_manifest_contracts.py'
+      - 'Tests/survey/test_authorized_package_intake_contracts.py'
+      - 'Tests/fixtures/deployment/authorized-package-intake.fixture.txt'
       - 'docs/AUTHORIZED_DEPLOYMENT_MANIFEST.md'
       - 'examples/authorized-deployment-manifest.example.json'
       - '.github/workflows/authorized-deployment-manifest-contracts.yml'
@@ -27,31 +30,69 @@ jobs:
 
       - name: Run static contracts
         shell: pwsh
-        run: python .\Tests\survey\test_authorized_deployment_manifest_contracts.py
+        run: |
+          python .\Tests\survey\test_authorized_deployment_manifest_contracts.py
+          python .\Tests\survey\test_authorized_package_intake_contracts.py
 
-      - name: Parse PowerShell adapter
+      - name: Parse PowerShell entrypoints
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path '.\scripts\Invoke-SasAuthorizedDeploymentManifest.ps1'),
-            [ref]$tokens,
-            [ref]$errors
+          $files = @(
+            '.\scripts\Invoke-SasAuthorizedDeploymentManifest.ps1',
+            '.\scripts\New-SasAuthorizedDeploymentManifest.ps1'
           )
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            throw "PowerShell parser reported $($errors.Count) error(s)."
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "${file}: $($_.Message)" }
+              throw "PowerShell parser reported $($errors.Count) error(s) for $file."
+            }
           }
-          Write-Host 'PASS: PowerShell parser accepted authorized deployment manifest adapter.'
+          Write-Host 'PASS: PowerShell parser accepted deployment manifest entrypoints.'
 
-      - name: Run request-only manifest proof
+      - name: Run package intake fixture and request-only deployment proof
         shell: pwsh
         run: |
-          $outputRoot = Join-Path $PWD 'survey\output\authorized_app_deployment'
+          $intakeOutput = Join-Path $PWD 'survey\output\authorized_package_intake'
+          $deploymentOutput = Join-Path $PWD 'survey\output\authorized_app_deployment'
+
+          $intake = .\scripts\New-SasAuthorizedDeploymentManifest.ps1 `
+            -ComputerName 'SAMPLE001' `
+            -PackageName 'Synthetic package intake fixture' `
+            -SoftwareShareRoot '\\nt2kwb972sms01\' `
+            -InstallerRelativePath 'packages\Synthetic\fixture-installer.exe' `
+            -InstallerArguments @('/quiet', '/norestart') `
+            -Owner 'synthetic-ci' `
+            -RequestReference 'REQ-SYNTHETIC-001' `
+            -ChangeReference 'CHG-SYNTHETIC-001' `
+            -TicketReference 'TASK-SYNTHETIC-001' `
+            -InstallerArgumentsReference 'synthetic fixture contract' `
+            -OutputRoot $intakeOutput `
+            -FixtureMode `
+            -Confirm:$false
+
+          if ($intake.status -ne 'manifest_ready_for_review') {
+            throw "Expected manifest_ready_for_review; found $($intake.status)."
+          }
+          if ($intake.sha256 -notmatch '^[a-f0-9]{64}$') {
+            throw 'Fixture intake did not produce a SHA-256.'
+          }
+          if ($intake.target_contact_performed -ne $false -or $intake.target_mutation_performed -ne $false) {
+            throw 'Package intake incorrectly reported target contact or mutation.'
+          }
+          if (-not (Test-Path -LiteralPath $intake.manifest_path -PathType Leaf)) {
+            throw "Generated manifest not found: $($intake.manifest_path)"
+          }
+
           $summary = .\scripts\Invoke-SasAuthorizedDeploymentManifest.ps1 `
-            -ManifestPath .\examples\authorized-deployment-manifest.example.json `
-            -OutputRoot $outputRoot `
+            -ManifestPath $intake.manifest_path `
+            -OutputRoot $deploymentOutput `
             -WhatIf
 
           if ($summary.planned_count -ne 1) {
@@ -66,4 +107,12 @@ jobs:
           if ($summary.service_created -ne $false -or $summary.scheduled_task_created -ne $false) {
             throw 'Adapter incorrectly reported persistence creation.'
           }
-          Write-Host 'PASS: request-only manifest proof completed without target mutation.'
+          Write-Host 'PASS: package intake and request-only deployment proof completed without target mutation.'
+
+      - name: Upload synthetic package intake evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authorized-package-intake-synthetic-evidence
+          path: survey/output/authorized_package_intake/
+          if-no-files-found: error
