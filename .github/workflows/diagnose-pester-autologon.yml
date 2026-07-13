@@ -1,11 +1,11 @@
 name: Diagnose Pester AutoLogon
 
 on:
-  push:
-    branches:
-      - feat/2026-07-13-autologon-state-delta
+  pull_request:
     paths:
       - '.github/workflows/diagnose-pester-autologon.yml'
+      - 'scripts/Invoke-SasAutoLogonStateDelta.ps1'
+      - 'Tests/survey/test_autologon_state_delta_contracts.py'
   workflow_dispatch:
 
 permissions:
@@ -17,10 +17,9 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Check out feature branch
+      - name: Check out pull request
         uses: actions/checkout@v4
         with:
-          ref: feat/2026-07-13-autologon-state-delta
           show-progress: false
 
       - name: Install Pester 5
