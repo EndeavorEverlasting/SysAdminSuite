@@ -356,7 +356,7 @@ Describe 'Invoke-BluetoothDriverFlush' {
 
     Context 'BackupOnly mode' {
         It 'Does not call sc.exe stop when BackupOnly is set' {
-            Mock sc.exe { }
+            Mock sc.exe { } -ParameterFilter { $ArgumentList -contains 'stop' }
             Mock Get-PnpDevice { }
             Mock Disable-PnpDevice { }
             Mock Enable-PnpDevice { }
@@ -385,5 +385,4 @@ Describe 'Invoke-BluetoothDriverFlush' {
         }
     }
 }
-
 
