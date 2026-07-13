@@ -4,14 +4,14 @@
 Capture and compare read-only AutoLogon file-access posture on approved workstations.
 
 .DESCRIPTION
-Collects a bounded NTFS ACL posture for expected-user and operator-supplied target-local
-directories. It also records the expected AutoLogon profile, loaded user-shell-folder
+Collects bounded NTFS ACL signals for expected-user and operator-supplied target-local
+folders. It also records the expected AutoLogon profile, loaded user-shell-folder
 redirections, and mapped-drive registry metadata.
 
-The collector does not enumerate directory contents, contact redirected UNC paths, impersonate
-the AutoLogon account, calculate effective access, or write evidence to target workstations.
-Evidence is returned through PowerShell remoting and stored only under the approved local,
-gitignored SysAdminSuite output root.
+The collector does not enumerate directory contents, contact redirected UNC paths,
+impersonate the AutoLogon account, calculate effective access, or write evidence to
+target workstations. Evidence is returned through PowerShell remoting and stored only
+under the approved local, gitignored SysAdminSuite output root.
 #>
 [CmdletBinding()]
 param(
@@ -40,7 +40,12 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 function Get-SasProperty {
-    param([object]$Object, [string]$Name, [object]$Default = $null)
+    param(
+        [object]$Object,
+        [string]$Name,
+        [object]$Default = $null
+    )
+
     if ($null -eq $Object) { return $Default }
     $property = $Object.PSObject.Properties[$Name]
     if ($null -ne $property) { return $property.Value }
@@ -48,7 +53,11 @@ function Get-SasProperty {
 }
 
 function Write-SasJson {
-    param([string]$Path, [object]$Value)
+    param(
+        [string]$Path,
+        [object]$Value
+    )
+
     $parent = Split-Path -Path $Path -Parent
     if ($parent -and -not (Test-Path -LiteralPath $parent)) {
         New-Item -ItemType Directory -Path $parent -Force | Out-Null
@@ -62,17 +71,24 @@ function ConvertTo-SasSafeName {
 }
 
 function Get-SasTargets {
-    param([string[]]$Direct, [string]$CsvPath, [int]$Limit)
+    param(
+        [string[]]$Direct,
+        [string]$CsvPath,
+        [int]$Limit
+    )
 
-    $items = New-Object System.Collections.Generic.List[string]
+    $items = @()
     foreach ($target in @($Direct)) {
-        if (-not [string]::IsNullOrWhiteSpace($target)) { $items.Add($target.Trim()) }
+        if (-not [string]::IsNullOrWhiteSpace($target)) {
+            $items += $target.Trim()
+        }
     }
 
     if (-not [string]::IsNullOrWhiteSpace($CsvPath)) {
         if (-not (Test-Path -LiteralPath $CsvPath -PathType Leaf)) {
             throw "TargetsCsv not found: $CsvPath"
         }
+
         foreach ($row in @(Import-Csv -LiteralPath $CsvPath)) {
             $value = $null
             foreach ($column in @('ComputerName', 'HostName', 'Hostname', 'Target')) {
@@ -84,7 +100,7 @@ function Get-SasTargets {
                     }
                 }
             }
-            if ($value) { $items.Add($value) }
+            if ($value) { $items += $value }
         }
     }
 
@@ -97,25 +113,35 @@ function Get-SasTargets {
 
 function Get-SasBaselineTargets {
     param([string]$BeforeDirectory)
-    if (-not (Test-Path -LiteralPath $BeforeDirectory -PathType Container)) { return @() }
 
-    $targets = foreach ($file in @(Get-ChildItem -LiteralPath $BeforeDirectory -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
+    if (-not (Test-Path -LiteralPath $BeforeDirectory -PathType Container)) {
+        return @()
+    }
+
+    $targets = @()
+    foreach ($file in @(Get-ChildItem -LiteralPath $BeforeDirectory -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
         try {
             $snapshot = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
             $requested = [string](Get-SasProperty -Object $snapshot -Name 'requested_target' -Default '')
-            if (-not [string]::IsNullOrWhiteSpace($requested)) { $requested }
+            if (-not [string]::IsNullOrWhiteSpace($requested)) {
+                $targets += $requested
+            }
         }
         catch {
             Write-Warning "Unable to read baseline target from $($file.FullName): $($_.Exception.Message)"
         }
     }
+
     return @($targets | Sort-Object -Unique)
 }
 
 function Assert-SasPermissionPaths {
-    param([string[]]$Paths, [int]$Limit)
+    param(
+        [string[]]$Paths,
+        [int]$Limit
+    )
 
-    $clean = New-Object System.Collections.Generic.List[string]
+    $clean = @()
     foreach ($path in @($Paths)) {
         if ([string]::IsNullOrWhiteSpace($path)) { continue }
         $candidate = $path.Trim()
@@ -132,7 +158,8 @@ function Assert-SasPermissionPaths {
         if (@($candidate -split '\\') -contains '..') {
             throw "PermissionPath cannot contain parent traversal segments: $candidate"
         }
-        $clean.Add($candidate.TrimEnd('\'))
+
+        $clean += $candidate.TrimEnd('\')
     }
 
     $result = @($clean | Sort-Object -Unique)
@@ -142,165 +169,152 @@ function Assert-SasPermissionPaths {
     return $result
 }
 
+function New-SasFixturePathRow {
+    param(
+        [string]$Path,
+        [string]$Source,
+        [string]$RequiredCapability,
+        [bool]$Exists,
+        [string]$Owner,
+        [bool]$ExpectedIdentityRule,
+        [bool]$ReadSignal,
+        [bool]$WriteSignal,
+        [bool]$ReviewRequired
+    )
+
+    $rules = @()
+    if ($Exists -and ($ReadSignal -or $WriteSignal)) {
+        $identity = if ($ExpectedIdentityRule) { $Owner } else { 'NT AUTHORITY\Authenticated Users' }
+        $rights = if ($WriteSignal) { 'Modify, Synchronize' } else { 'ReadAndExecute, Synchronize' }
+        $rules = @(
+            [pscustomobject]@{
+                identity = $identity
+                access_control_type = 'Allow'
+                file_system_rights = $rights
+                is_inherited = (-not $ExpectedIdentityRule)
+                read_signal = $ReadSignal
+                write_signal = $WriteSignal
+            }
+        )
+    }
+
+    $posture = if (-not $Exists) {
+        'missing'
+    }
+    elseif ($ReadSignal -or $WriteSignal) {
+        'allow_signal_present'
+    }
+    else {
+        'no_relevant_grant_observed'
+    }
+
+    return [pscustomobject]@{
+        path = $Path
+        source = $Source
+        required_capability = $RequiredCapability
+        exists = $Exists
+        owner = $(if ($Exists) { $Owner } else { $null })
+        inheritance_protected = $(if ($Exists) { $false } else { $null })
+        relevant_rule_count = $rules.Count
+        expected_identity_rule_count = $(if ($ExpectedIdentityRule -and $Exists) { 1 } else { 0 })
+        allow_read_signal = $ReadSignal
+        allow_write_signal = $WriteSignal
+        deny_signal = $false
+        posture = $posture
+        review_required = $ReviewRequired
+        error = $null
+        relevant_rules = $rules
+    }
+}
+
 function New-SasFixtureSnapshot {
-    param([string]$Target, [string]$Phase, [string[]]$RequestedPaths)
+    param(
+        [string]$Target,
+        [string]$Phase,
+        [string[]]$RequestedPaths
+    )
 
     $isAfter = $Phase -eq 'after'
-    $expectedAccount = "SAMPLE\$($Target.ToUpperInvariant())"
-    $profilePath = "C:\Users\$($Target.ToUpperInvariant())"
+    $expectedLeaf = $Target.ToUpperInvariant()
+    $expectedAccount = "SAMPLE\$expectedLeaf"
+    $profilePath = "C:\Users\$expectedLeaf"
 
-    $paths = @(
-        [pscustomobject]@{
-            path = 'C:\Users\Public'
-            source = 'default_public'
-            required_capability = 'read_write_signal'
-            exists = $true
-            owner = 'BUILTIN\Administrators'
-            inheritance_protected = $false
-            relevant_rule_count = 1
-            expected_identity_rule_count = 0
-            allow_read_signal = $true
-            allow_write_signal = $true
-            deny_signal = $false
-            posture = 'allow_signal_present'
-            review_required = $false
-            error = $null
-            relevant_rules = @(
-                [pscustomobject]@{
-                    identity = 'BUILTIN\Users'
-                    access_control_type = 'Allow'
-                    file_system_rights = 'ReadAndExecute, Synchronize, Write'
-                    is_inherited = $true
-                    read_signal = $true
-                    write_signal = $true
-                }
-            )
-        },
-        [pscustomobject]@{
-            path = 'C:\ProgramData'
-            source = 'default_program_data'
-            required_capability = 'read_signal'
-            exists = $true
-            owner = 'NT AUTHORITY\SYSTEM'
-            inheritance_protected = $false
-            relevant_rule_count = 1
-            expected_identity_rule_count = 0
-            allow_read_signal = $true
-            allow_write_signal = $false
-            deny_signal = $false
-            posture = 'allow_signal_present'
-            review_required = $false
-            error = $null
-            relevant_rules = @(
-                [pscustomobject]@{
-                    identity = 'BUILTIN\Users'
-                    access_control_type = 'Allow'
-                    file_system_rights = 'ReadAndExecute, Synchronize'
-                    is_inherited = $true
-                    read_signal = $true
-                    write_signal = $false
-                }
-            )
-        },
-        [pscustomobject]@{
-            path = 'C:\Temp'
-            source = 'default_temp'
-            required_capability = 'read_write_signal'
-            exists = $false
-            owner = $null
-            inheritance_protected = $null
-            relevant_rule_count = 0
-            expected_identity_rule_count = 0
-            allow_read_signal = $false
-            allow_write_signal = $false
-            deny_signal = $false
-            posture = 'missing'
-            review_required = $false
-            error = $null
-            relevant_rules = @()
-        },
-        [pscustomobject]@{
-            path = $profilePath
-            source = 'expected_profile'
-            required_capability = 'read_write_signal'
-            exists = [bool]$isAfter
-            owner = $(if ($isAfter) { $expectedAccount } else { $null })
-            inheritance_protected = $(if ($isAfter) { $false } else { $null })
-            relevant_rule_count = $(if ($isAfter) { 1 } else { 0 })
-            expected_identity_rule_count = $(if ($isAfter) { 1 } else { 0 })
-            allow_read_signal = [bool]$isAfter
-            allow_write_signal = [bool]$isAfter
-            deny_signal = $false
-            posture = $(if ($isAfter) { 'allow_signal_present' } else { 'missing' })
-            review_required = $false
-            error = $null
-            relevant_rules = $(if ($isAfter) {
-                @(
-                    [pscustomobject]@{
-                        identity = $expectedAccount
-                        access_control_type = 'Allow'
-                        file_system_rights = 'FullControl'
-                        is_inherited = $false
-                        read_signal = $true
-                        write_signal = $true
-                    }
-                )
-            } else { @() })
-        }
+    $pathRows = @(
+        (New-SasFixturePathRow `
+            -Path 'C:\Users\Public' `
+            -Source 'default_public' `
+            -RequiredCapability 'read_write_signal' `
+            -Exists $true `
+            -Owner 'BUILTIN\Administrators' `
+            -ExpectedIdentityRule $false `
+            -ReadSignal $true `
+            -WriteSignal $true `
+            -ReviewRequired $false),
+        (New-SasFixturePathRow `
+            -Path 'C:\ProgramData' `
+            -Source 'default_program_data' `
+            -RequiredCapability 'read_signal' `
+            -Exists $true `
+            -Owner 'NT AUTHORITY\SYSTEM' `
+            -ExpectedIdentityRule $false `
+            -ReadSignal $true `
+            -WriteSignal $false `
+            -ReviewRequired $false),
+        (New-SasFixturePathRow `
+            -Path 'C:\Temp' `
+            -Source 'default_temp' `
+            -RequiredCapability 'read_write_signal' `
+            -Exists $false `
+            -Owner '' `
+            -ExpectedIdentityRule $false `
+            -ReadSignal $false `
+            -WriteSignal $false `
+            -ReviewRequired $false),
+        (New-SasFixturePathRow `
+            -Path $profilePath `
+            -Source 'expected_profile' `
+            -RequiredCapability 'read_write_signal' `
+            -Exists $isAfter `
+            -Owner $expectedAccount `
+            -ExpectedIdentityRule $isAfter `
+            -ReadSignal $isAfter `
+            -WriteSignal $isAfter `
+            -ReviewRequired $false)
     )
 
     foreach ($customPath in @($RequestedPaths)) {
-        $paths += [pscustomobject]@{
-            path = $customPath
-            source = 'operator_supplied'
-            required_capability = 'read_write_signal'
-            exists = $true
-            owner = 'BUILTIN\Administrators'
-            inheritance_protected = $false
-            relevant_rule_count = 1
-            expected_identity_rule_count = 0
-            allow_read_signal = $true
-            allow_write_signal = $true
-            deny_signal = $false
-            posture = 'allow_signal_present'
-            review_required = $false
-            error = $null
-            relevant_rules = @(
-                [pscustomobject]@{
-                    identity = 'NT AUTHORITY\Authenticated Users'
-                    access_control_type = 'Allow'
-                    file_system_rights = 'Modify, Synchronize'
-                    is_inherited = $true
-                    read_signal = $true
-                    write_signal = $true
-                }
-            )
-        }
+        $pathRows += New-SasFixturePathRow `
+            -Path $customPath `
+            -Source 'operator_supplied' `
+            -RequiredCapability 'read_write_signal' `
+            -Exists $true `
+            -Owner 'BUILTIN\Administrators' `
+            -ExpectedIdentityRule $false `
+            -ReadSignal $true `
+            -WriteSignal $true `
+            -ReviewRequired $false
     }
 
-    $shellFolders = if ($isAfter) {
-        @(
+    $shellFolders = @()
+    $mappedDrives = @()
+    if ($isAfter) {
+        $shellFolders = @(
             [pscustomobject]@{
                 name = 'Personal'
-                raw_path = "\\fileserver\autologon\$($Target.ToUpperInvariant())\Documents"
+                raw_path = "\\fileserver\autologon\$expectedLeaf\Documents"
                 path_kind = 'unc'
                 contacted = $false
             }
         )
-    }
-    else { @() }
-
-    $mappedDrives = if ($isAfter) {
-        @(
+        $mappedDrives = @(
             [pscustomobject]@{
                 drive_letter = 'P'
-                remote_path = "\\fileserver\autologon\$($Target.ToUpperInvariant())"
+                remote_path = "\\fileserver\autologon\$expectedLeaf"
                 path_kind = 'unc'
                 contacted = $false
             }
         )
     }
-    else { @() }
 
     return [pscustomobject]@{
         schema_version = 'sas-autologon-file-access-snapshot/v1'
@@ -308,31 +322,31 @@ function New-SasFixtureSnapshot {
         captured_at_utc = (Get-Date).ToUniversalTime().ToString('o')
         capture_phase = $Phase
         requested_target = $Target
-        computer_name = $Target.ToUpperInvariant()
+        computer_name = $expectedLeaf
         collection_status = 'success'
         error = $null
         expected_identity = [pscustomobject]@{
-            user_name = $Target.ToUpperInvariant()
+            user_name = $expectedLeaf
             domain_name = 'SAMPLE'
             account = $expectedAccount
         }
         expected_profile = [pscustomobject]@{
             sid = $(if ($isAfter) { 'S-1-5-21-111-222-333-1001' } else { $null })
             local_path = $profilePath
-            exists = [bool]$isAfter
-            loaded = [bool]$isAfter
+            exists = $isAfter
+            loaded = $isAfter
             status = 0
-            user_hive_loaded = [bool]$isAfter
+            user_hive_loaded = $isAfter
         }
-        local_path_posture = @($paths)
-        shell_folder_redirections = @($shellFolders)
-        mapped_network_drives = @($mappedDrives)
+        local_path_posture = $pathRows
+        shell_folder_redirections = $shellFolders
+        mapped_network_drives = $mappedDrives
         file_access_review_required = $false
         review_path_count = 0
         explicit_deny_path_count = 0
-        missing_path_count = @($paths | Where-Object { -not $_.exists }).Count
+        missing_path_count = @($pathRows | Where-Object { -not $_.exists }).Count
         redirected_shell_folder_count = @($shellFolders | Where-Object { $_.path_kind -eq 'unc' }).Count
-        mapped_drive_count = @($mappedDrives).Count
+        mapped_drive_count = $mappedDrives.Count
         path_contents_enumerated = $false
         share_paths_contacted = $false
         effective_access_proven = $false
@@ -348,13 +362,20 @@ function New-SasFixtureSnapshot {
 }
 
 $remoteCollector = {
-    param([string]$Phase, [string[]]$RequestedPaths)
+    param(
+        [string]$Phase,
+        [string[]]$RequestedPaths
+    )
 
     Set-StrictMode -Version 2.0
     $ErrorActionPreference = 'Stop'
 
     function Get-RegistryValueSafe {
-        param([string]$Path, [string]$Name)
+        param(
+            [string]$Path,
+            [string]$Name
+        )
+
         try {
             if (-not (Test-Path -LiteralPath $Path)) { return $null }
             $key = Get-Item -LiteralPath $Path -ErrorAction Stop
@@ -365,11 +386,14 @@ $remoteCollector = {
                 [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames
             )
         }
-        catch { return $null }
+        catch {
+            return $null
+        }
     }
 
     function ConvertTo-AccountLeaf {
         param([string]$Value)
+
         if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
         $leaf = $Value.Trim()
         if ($leaf.Contains('\')) { $leaf = $leaf.Split('\')[-1] }
@@ -379,6 +403,7 @@ $remoteCollector = {
 
     function Get-PathKind {
         param([string]$Value)
+
         if ([string]::IsNullOrWhiteSpace($Value)) { return 'empty' }
         if ($Value.StartsWith('\\')) { return 'unc' }
         if ($Value -match '^[A-Za-z]:\\') { return 'local' }
@@ -387,7 +412,11 @@ $remoteCollector = {
     }
 
     function Test-RelevantIdentity {
-        param([string]$Identity, [string]$ExpectedLeaf)
+        param(
+            [string]$Identity,
+            [string]$ExpectedLeaf
+        )
+
         $leaf = ConvertTo-AccountLeaf -Value $Identity
         $known = @(
             'EVERYONE',
@@ -430,7 +459,8 @@ $remoteCollector = {
         catch {}
 
         $match = $profiles | Where-Object {
-            (ConvertTo-AccountLeaf -Value (Split-Path -Path ([string]$_.LocalPath) -Leaf)) -eq $ExpectedLeaf
+            $profileLeaf = Split-Path -Path ([string]$_.LocalPath) -Leaf
+            (ConvertTo-AccountLeaf -Value $profileLeaf) -eq $ExpectedLeaf
         } | Select-Object -First 1
 
         $candidatePath = Join-Path -Path $env:SystemDrive -ChildPath "Users\$ExpectedLeaf"
@@ -490,11 +520,15 @@ $remoteCollector = {
 
         try {
             $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop
-            $rows = foreach ($rule in @($acl.Access)) {
+            $rows = @()
+            foreach ($rule in @($acl.Access)) {
                 $identity = [string]$rule.IdentityReference
-                if (-not (Test-RelevantIdentity -Identity $identity -ExpectedLeaf $ExpectedLeaf)) { continue }
+                if (-not (Test-RelevantIdentity -Identity $identity -ExpectedLeaf $ExpectedLeaf)) {
+                    continue
+                }
+
                 $signals = Get-RuleSignals -Rule $rule
-                [pscustomobject]@{
+                $rows += [pscustomobject]@{
                     identity = $identity
                     access_control_type = [string]$rule.AccessControlType
                     file_system_rights = [string]$rule.FileSystemRights
@@ -503,7 +537,7 @@ $remoteCollector = {
                     write_signal = [bool]$signals.write
                 }
             }
-            $rows = @($rows)
+
             $allowRows = @($rows | Where-Object { $_.access_control_type -eq 'Allow' })
             $denyRows = @($rows | Where-Object {
                 $_.access_control_type -eq 'Deny' -and ($_.read_signal -or $_.write_signal)
@@ -511,6 +545,7 @@ $remoteCollector = {
             $allowRead = @($allowRows | Where-Object { $_.read_signal }).Count -gt 0
             $allowWrite = @($allowRows | Where-Object { $_.write_signal }).Count -gt 0
             $deny = $denyRows.Count -gt 0
+
             $capabilitySignal = if ($RequiredCapability -eq 'read_signal') {
                 $allowRead
             }
@@ -576,44 +611,46 @@ $remoteCollector = {
 
     function Get-ShellFolderRedirectionsSafe {
         param([string]$Sid)
-        if ([string]::IsNullOrWhiteSpace($Sid)) { return @() }
 
+        if ([string]::IsNullOrWhiteSpace($Sid)) { return @() }
         $path = "Registry::HKEY_USERS\$Sid\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
         if (-not (Test-Path -LiteralPath $path)) { return @() }
 
+        $rows = @()
         try {
             $item = Get-ItemProperty -LiteralPath $path -ErrorAction Stop
-            $names = @('Desktop', 'Personal', 'AppData', 'Local AppData', 'Start Menu')
-            $rows = foreach ($name in $names) {
+            foreach ($name in @('Desktop', 'Personal', 'AppData', 'Local AppData', 'Start Menu')) {
                 $property = $item.PSObject.Properties[$name]
                 if ($null -eq $property) { continue }
                 $value = [string]$property.Value
                 if ([string]::IsNullOrWhiteSpace($value)) { continue }
-                [pscustomobject]@{
+                $rows += [pscustomobject]@{
                     name = $name
                     raw_path = $value
                     path_kind = Get-PathKind -Value $value
                     contacted = $false
                 }
             }
-            return @($rows | Sort-Object -Property name)
         }
-        catch { return @() }
+        catch {}
+
+        return @($rows | Sort-Object -Property name)
     }
 
     function Get-MappedDrivesSafe {
         param([string]$Sid)
-        if ([string]::IsNullOrWhiteSpace($Sid)) { return @() }
 
+        if ([string]::IsNullOrWhiteSpace($Sid)) { return @() }
         $path = "Registry::HKEY_USERS\$Sid\Network"
         if (-not (Test-Path -LiteralPath $path)) { return @() }
 
-        $rows = foreach ($key in @(Get-ChildItem -LiteralPath $path -ErrorAction SilentlyContinue)) {
+        $rows = @()
+        foreach ($key in @(Get-ChildItem -LiteralPath $path -ErrorAction SilentlyContinue)) {
             try {
                 $item = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction Stop
                 $remotePath = [string]$item.RemotePath
                 if ([string]::IsNullOrWhiteSpace($remotePath)) { continue }
-                [pscustomobject]@{
+                $rows += [pscustomobject]@{
                     drive_letter = $key.PSChildName.ToUpperInvariant()
                     remote_path = $remotePath
                     path_kind = Get-PathKind -Value $remotePath
@@ -622,6 +659,7 @@ $remoteCollector = {
             }
             catch {}
         }
+
         return @($rows | Sort-Object -Property drive_letter)
     }
 
@@ -632,6 +670,7 @@ $remoteCollector = {
     if ([string]::IsNullOrWhiteSpace($expectedLeaf)) {
         $expectedLeaf = $env:COMPUTERNAME.ToUpperInvariant()
     }
+
     $expectedDomain = if ([string]::IsNullOrWhiteSpace($domainValue)) {
         $env:COMPUTERNAME
     }
@@ -641,50 +680,54 @@ $remoteCollector = {
     $expectedAccount = "$expectedDomain\$expectedLeaf"
     $profile = Get-ExpectedProfileSafe -ExpectedLeaf $expectedLeaf
 
-    $descriptors = New-Object System.Collections.Generic.List[object]
-    $descriptors.Add([pscustomobject]@{
-        path = (Join-Path -Path $env:SystemDrive -ChildPath 'Users\Public')
-        source = 'default_public'
-        required_capability = 'read_write_signal'
-    })
-    $descriptors.Add([pscustomobject]@{
-        path = $env:ProgramData
-        source = 'default_program_data'
-        required_capability = 'read_signal'
-    })
-    $descriptors.Add([pscustomobject]@{
-        path = (Join-Path -Path $env:SystemDrive -ChildPath 'Temp')
-        source = 'default_temp'
-        required_capability = 'read_write_signal'
-    })
-    $descriptors.Add([pscustomobject]@{
-        path = [string]$profile.local_path
-        source = 'expected_profile'
-        required_capability = 'read_write_signal'
-    })
+    $descriptors = @(
+        [pscustomobject]@{
+            path = (Join-Path -Path $env:SystemDrive -ChildPath 'Users\Public')
+            source = 'default_public'
+            required_capability = 'read_write_signal'
+        },
+        [pscustomobject]@{
+            path = $env:ProgramData
+            source = 'default_program_data'
+            required_capability = 'read_signal'
+        },
+        [pscustomobject]@{
+            path = (Join-Path -Path $env:SystemDrive -ChildPath 'Temp')
+            source = 'default_temp'
+            required_capability = 'read_write_signal'
+        },
+        [pscustomobject]@{
+            path = [string]$profile.local_path
+            source = 'expected_profile'
+            required_capability = 'read_write_signal'
+        }
+    )
+
     foreach ($path in @($RequestedPaths)) {
-        $descriptors.Add([pscustomobject]@{
+        $descriptors += [pscustomobject]@{
             path = $path
             source = 'operator_supplied'
             required_capability = 'read_write_signal'
-        })
+        }
     }
 
     $seen = @{}
-    $pathRows = foreach ($descriptor in @($descriptors)) {
+    $pathRows = @()
+    foreach ($descriptor in $descriptors) {
         $candidate = ([string]$descriptor.path).TrimEnd('\')
         if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
         $key = $candidate.ToLowerInvariant()
         if ($seen.ContainsKey($key)) { continue }
         $seen[$key] = $true
-        Get-LocalPathPosture `
+
+        $pathRows += Get-LocalPathPosture `
             -Path $candidate `
             -Source ([string]$descriptor.source) `
             -RequiredCapability ([string]$descriptor.required_capability) `
             -ExpectedLeaf $expectedLeaf `
             -PhaseName $Phase
     }
-    $pathRows = @($pathRows)
+
     $shellFolders = @(Get-ShellFolderRedirectionsSafe -Sid ([string]$profile.sid))
     $mappedDrives = @(Get-MappedDrivesSafe -Sid ([string]$profile.sid))
     $reviewRows = @($pathRows | Where-Object { $_.review_required })
@@ -758,6 +801,7 @@ function Invoke-SasCapture {
                 if ($session) { Remove-PSSession -Session $session }
             }
         }
+
         $snapshot | Add-Member -NotePropertyName requested_target -NotePropertyValue $Target -Force
         return $snapshot
     }
@@ -791,7 +835,11 @@ function Invoke-SasCapture {
 }
 
 function Get-SasObjectMap {
-    param([object[]]$Rows, [string]$KeyName)
+    param(
+        [object[]]$Rows,
+        [string]$KeyName
+    )
+
     $map = @{}
     foreach ($row in @($Rows)) {
         $key = ([string](Get-SasProperty -Object $row -Name $KeyName -Default '')).Trim().ToLowerInvariant()
@@ -801,29 +849,32 @@ function Get-SasObjectMap {
 }
 
 function Compare-SasAccessPosture {
-    param([object]$BeforeAccess, [object]$AfterAccess)
+    param(
+        [object]$BeforeAccess,
+        [object]$AfterAccess
+    )
 
-    $changes = New-Object System.Collections.Generic.List[object]
+    $changes = @()
 
     $beforePaths = @(Get-SasProperty -Object $BeforeAccess -Name 'local_path_posture' -Default @())
     $afterPaths = @(Get-SasProperty -Object $AfterAccess -Name 'local_path_posture' -Default @())
     $beforeMap = Get-SasObjectMap -Rows $beforePaths -KeyName 'path'
     $afterMap = Get-SasObjectMap -Rows $afterPaths -KeyName 'path'
-    $pathKeys = @($beforeMap.Keys + $afterMap.Keys | Sort-Object -Unique)
-    foreach ($key in $pathKeys) {
+
+    foreach ($key in @($beforeMap.Keys + $afterMap.Keys | Sort-Object -Unique)) {
         $beforeRow = if ($beforeMap.ContainsKey($key)) { $beforeMap[$key] } else { $null }
         $afterRow = if ($afterMap.ContainsKey($key)) { $afterMap[$key] } else { $null }
         foreach ($field in @('exists', 'owner', 'posture', 'allow_read_signal', 'allow_write_signal', 'deny_signal', 'review_required')) {
             $beforeValue = Get-SasProperty -Object $beforeRow -Name $field
             $afterValue = Get-SasProperty -Object $afterRow -Name $field
             if ([string]$beforeValue -ne [string]$afterValue) {
-                $changes.Add([pscustomobject]@{
+                $changes += [pscustomobject]@{
                     category = 'local_path'
                     key = $key
                     field = $field
                     before = $beforeValue
                     after = $afterValue
-                })
+                }
             }
         }
     }
@@ -834,17 +885,18 @@ function Compare-SasAccessPosture {
     $afterShell = Get-SasObjectMap `
         -Rows @(Get-SasProperty -Object $AfterAccess -Name 'shell_folder_redirections' -Default @()) `
         -KeyName 'name'
+
     foreach ($key in @($beforeShell.Keys + $afterShell.Keys | Sort-Object -Unique)) {
         $beforeValue = if ($beforeShell.ContainsKey($key)) { [string]$beforeShell[$key].raw_path } else { $null }
         $afterValue = if ($afterShell.ContainsKey($key)) { [string]$afterShell[$key].raw_path } else { $null }
         if ($beforeValue -ne $afterValue) {
-            $changes.Add([pscustomobject]@{
+            $changes += [pscustomobject]@{
                 category = 'shell_folder_redirection'
                 key = $key
                 field = 'raw_path'
                 before = $beforeValue
                 after = $afterValue
-            })
+            }
         }
     }
 
@@ -854,29 +906,34 @@ function Compare-SasAccessPosture {
     $afterDrives = Get-SasObjectMap `
         -Rows @(Get-SasProperty -Object $AfterAccess -Name 'mapped_network_drives' -Default @()) `
         -KeyName 'drive_letter'
+
     foreach ($key in @($beforeDrives.Keys + $afterDrives.Keys | Sort-Object -Unique)) {
         $beforeValue = if ($beforeDrives.ContainsKey($key)) { [string]$beforeDrives[$key].remote_path } else { $null }
         $afterValue = if ($afterDrives.ContainsKey($key)) { [string]$afterDrives[$key].remote_path } else { $null }
         if ($beforeValue -ne $afterValue) {
-            $changes.Add([pscustomobject]@{
+            $changes += [pscustomobject]@{
                 category = 'mapped_network_drive'
                 key = $key
                 field = 'remote_path'
                 before = $beforeValue
                 after = $afterValue
-            })
+            }
         }
     }
 
-    return @($changes)
+    return $changes
 }
 
 function New-SasAccessDelta {
-    param([object]$Before, [object]$After, [string]$AssignmentLabel)
+    param(
+        [object]$Before,
+        [object]$After,
+        [string]$AssignmentLabel
+    )
 
     $beforeCollection = [string](Get-SasProperty -Object $Before -Name 'collection_status' -Default 'failed')
     $afterCollection = [string](Get-SasProperty -Object $After -Name 'collection_status' -Default 'failed')
-    $changes = Compare-SasAccessPosture -BeforeAccess $Before -AfterAccess $After
+    $changes = @(Compare-SasAccessPosture -BeforeAccess $Before -AfterAccess $After)
     $beforeReview = [bool](Get-SasProperty -Object $Before -Name 'file_access_review_required' -Default $true)
     $afterReview = [bool](Get-SasProperty -Object $After -Name 'file_access_review_required' -Default $true)
     $beforeReviewCount = [int](Get-SasProperty -Object $Before -Name 'review_path_count' -Default 0)
@@ -892,7 +949,7 @@ function New-SasAccessDelta {
         }
         elseif ($afterReview) {
             $decision = 'ACCESS_POSTURE_REVIEW'
-            $reason = 'The final ACL/profile posture contains explicit deny, missing required path, unavailable ACL, or no direct/broad grant signal on a required path.'
+            $reason = 'The final ACL/profile posture contains an explicit deny, missing required path, unavailable ACL, or no direct/broad grant signal on a required path.'
         }
         elseif ($changes.Count -gt 0) {
             $decision = 'ACCESS_POSTURE_IMPROVED'
@@ -956,7 +1013,9 @@ if (-not $FixtureMode) {
 }
 
 if ([string]::IsNullOrWhiteSpace($RunId)) {
-    if ($Mode -eq 'After') { throw 'After mode requires -RunId from the Before capture.' }
+    if ($Mode -eq 'After') {
+        throw 'After mode requires -RunId from the Before capture.'
+    }
     $RunId = 'autologon-access-{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8))
 }
 if ($RunId -notmatch '^autologon-access-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$') {
@@ -995,7 +1054,9 @@ else {
     $currentDirectory
 }
 New-Item -ItemType Directory -Path $phaseDirectory -Force | Out-Null
-if ($Mode -eq 'After') { New-Item -ItemType Directory -Path $deltaDirectory -Force | Out-Null }
+if ($Mode -eq 'After') {
+    New-Item -ItemType Directory -Path $deltaDirectory -Force | Out-Null
+}
 
 $phase = $Mode.ToLowerInvariant()
 $manifestPath = Join-Path -Path $runRoot -ChildPath ("run_manifest_{0}.json" -f $phase)
@@ -1017,9 +1078,9 @@ $manifest = [ordered]@{
 }
 Write-SasJson -Path $manifestPath -Value $manifest
 
-$snapshots = New-Object System.Collections.Generic.List[object]
-$deltas = New-Object System.Collections.Generic.List[object]
-$rows = New-Object System.Collections.Generic.List[object]
+$snapshots = @()
+$deltas = @()
+$rows = @()
 
 foreach ($target in $targets) {
     $safeTarget = ConvertTo-SasSafeName -Value $target
@@ -1030,7 +1091,7 @@ foreach ($target in $targets) {
         -UseFixture:$FixtureMode
     $snapshotPath = Join-Path -Path $phaseDirectory -ChildPath "$safeTarget.json"
     Write-SasJson -Path $snapshotPath -Value $snapshot
-    $snapshots.Add($snapshot)
+    $snapshots += $snapshot
 
     if ($Mode -eq 'After') {
         $beforePath = Join-Path -Path $beforeDirectory -ChildPath "$safeTarget.json"
@@ -1063,8 +1124,8 @@ foreach ($target in $targets) {
 
         $deltaPath = Join-Path -Path $deltaDirectory -ChildPath "$safeTarget.json"
         Write-SasJson -Path $deltaPath -Value $delta
-        $deltas.Add($delta)
-        $rows.Add([pscustomobject]@{
+        $deltas += $delta
+        $rows += [pscustomobject]@{
             ComputerName = $delta.computer_name
             TechnicianLabel = $TechnicianLabel
             Decision = $delta.decision
@@ -1077,11 +1138,11 @@ foreach ($target in $targets) {
             EffectiveAccessProven = $false
             ShareAccessProven = $false
             EvidencePath = $deltaPath
-        })
+        }
     }
     else {
         $identity = Get-SasProperty -Object $snapshot -Name 'expected_identity'
-        $rows.Add([pscustomobject]@{
+        $rows += [pscustomobject]@{
             ComputerName = $snapshot.computer_name
             TechnicianLabel = $TechnicianLabel
             Decision = $(if ($Mode -eq 'Before') { 'ACCESS_BASELINE_CAPTURED' } else { 'ACCESS_POSTURE_CAPTURED' })
@@ -1095,7 +1156,7 @@ foreach ($target in $targets) {
             EffectiveAccessProven = $false
             ShareAccessProven = $false
             EvidencePath = $snapshotPath
-        })
+        }
     }
 }
 
@@ -1130,7 +1191,7 @@ $summary = [ordered]@{
     effective_access_proven = $false
     summary_csv = $summaryCsvPath
     phase_manifest = $manifestPath
-    results = @($rows)
+    results = $rows
 }
 Write-SasJson -Path $summaryJsonPath -Value $summary
 
