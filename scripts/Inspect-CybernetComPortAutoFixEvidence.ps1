@@ -22,16 +22,42 @@ if (-not $run) {
 
 Write-Output "Inspecting: $($run.FullName)"
 
-$required = @(
+$summaryPath = Join-Path -Path $run.FullName -ChildPath 'autofix-summary.json'
+if (-not (Test-Path -LiteralPath $summaryPath -PathType Leaf)) {
+  throw "This run did not produce autofix-summary.json. Review autofix-transcript.txt for the failure point."
+}
+if ((Get-Item -LiteralPath $summaryPath).Length -le 0) {
+  throw 'autofix-summary.json exists but is empty.'
+}
+
+$summary = Get-Content -LiteralPath $summaryPath -Raw -ErrorAction Stop | ConvertFrom-Json
+if ([string]::IsNullOrWhiteSpace([string]$summary.status)) {
+  throw 'AutoFix summary does not contain a status.'
+}
+
+Write-Output "Status: $($summary.status)"
+
+if ($summary.status -eq 'already-correct') {
+  if ($null -ne $summary.registry_backups) {
+    throw 'Already-correct summary unexpectedly contains registry backup data.'
+  }
+  Write-Output 'ALREADY CORRECT - COM1-COM4 detected; no registry backup or mutation was required.'
+  return
+}
+
+if ($null -eq $summary.registry_backups) {
+  throw 'AutoFix summary does not contain registry_backups.'
+}
+
+$requiredBackups = @(
   'COMNameArbiter-before.reg',
   'device-parameters-before-01.reg',
   'device-parameters-before-02.reg',
   'device-parameters-before-03.reg',
-  'device-parameters-before-04.reg',
-  'autofix-summary.json'
+  'device-parameters-before-04.reg'
 )
 
-$results = foreach ($name in $required) {
+$results = foreach ($name in $requiredBackups) {
   $artifactPath = Join-Path -Path $run.FullName -ChildPath $name
   $exists = Test-Path -LiteralPath $artifactPath -PathType Leaf
   [pscustomobject]@{
@@ -46,16 +72,6 @@ $results | Format-Table -AutoSize
 $invalidArtifacts = @($results | Where-Object { -not $_.Exists -or $_.Bytes -le 0 })
 if ($invalidArtifacts.Count -gt 0) {
   throw "AutoFix backup proof is incomplete or empty: $($invalidArtifacts.File -join ', ')"
-}
-
-$summaryPath = Join-Path -Path $run.FullName -ChildPath 'autofix-summary.json'
-if (-not (Test-Path -LiteralPath $summaryPath -PathType Leaf)) {
-  throw "This run did not produce autofix-summary.json. Review autofix-transcript.txt for the failure point."
-}
-
-$summary = Get-Content -LiteralPath $summaryPath -Raw -ErrorAction Stop | ConvertFrom-Json
-if ($null -eq $summary.registry_backups) {
-  throw 'AutoFix summary does not contain registry_backups.'
 }
 
 $summary.registry_backups | Format-List
