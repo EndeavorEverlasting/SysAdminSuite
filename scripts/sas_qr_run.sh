@@ -26,12 +26,10 @@ EOF
 fail() { echo "ERROR: $*" >&2; exit 1; }
 profile_value() {
   local file="$1" key="$2"
-  awk -F '=' -v k="$key" '
+  awk -v k="$key" '
     /^[[:space:]]*#/ { next }
-    $1 == k {
-      $1=""
-      sub(/^=/, "")
-      print
+    index($0, k "=") == 1 {
+      print substr($0, length(k) + 2)
       exit
     }' "$file"
 }
