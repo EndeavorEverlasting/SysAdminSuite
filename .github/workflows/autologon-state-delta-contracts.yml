@@ -25,39 +25,59 @@ jobs:
           show-progress: false
 
       - name: Run offline before and after fixture proof
+        id: fixture
+        continue-on-error: true
         shell: pwsh
         run: |
           $runId = 'autologon-delta-20260713-170000-1a2b3c4d'
           $outputRoot = Join-Path $PWD 'survey\output\autologon_state_delta'
+          New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+          $diagnosticPath = Join-Path $outputRoot 'fixture-diagnostic.txt'
+          $failureFlag = Join-Path $outputRoot 'fixture-failed.flag'
 
-          .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
-            -Mode Before `
-            -ComputerName SAMPLE001 `
-            -RunId $runId `
-            -OutputRoot $outputRoot `
-            -TechnicianLabel 'synthetic-ci' `
-            -FixtureMode
+          try {
+            .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
+              -Mode Before `
+              -ComputerName SAMPLE001 `
+              -RunId $runId `
+              -OutputRoot $outputRoot `
+              -TechnicianLabel 'synthetic-ci' `
+              -FixtureMode
 
-          .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
-            -Mode After `
-            -ComputerName SAMPLE001 `
-            -RunId $runId `
-            -OutputRoot $outputRoot `
-            -TechnicianLabel 'synthetic-ci' `
-            -FixtureMode
+            .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
+              -Mode After `
+              -ComputerName SAMPLE001 `
+              -RunId $runId `
+              -OutputRoot $outputRoot `
+              -TechnicianLabel 'synthetic-ci' `
+              -FixtureMode
 
-          $summaryPath = Join-Path $outputRoot "$runId\autologon_state_delta_summary.json"
-          $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
-          if ($summary.confirmed_state_transition_count -ne 1) {
-            throw "Expected one CONFIRMED_STATE_TRANSITION; found $($summary.confirmed_state_transition_count)."
+            $summaryPath = Join-Path $outputRoot "$runId\autologon_state_delta_summary.json"
+            $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
+            if ($summary.confirmed_state_transition_count -ne 1) {
+              throw "Expected one CONFIRMED_STATE_TRANSITION; found $($summary.confirmed_state_transition_count)."
+            }
+            if ($summary.default_password_value_collected -ne $false) {
+              throw 'Fixture summary violated the password-data boundary.'
+            }
+            if ($summary.target_mutation_performed -ne $false) {
+              throw 'Fixture summary incorrectly reported target mutation.'
+            }
+            'PASS: offline before/after fixture produced one confirmed state transition.' |
+              Set-Content -LiteralPath $diagnosticPath -Encoding UTF8
           }
-          if ($summary.default_password_value_collected -ne $false) {
-            throw 'Fixture summary violated the password-data boundary.'
+          catch {
+            @(
+              'FAIL: offline before/after fixture proof',
+              "Exception: $($_.Exception.Message)",
+              "Position: $($_.InvocationInfo.PositionMessage)",
+              'Full error:',
+              ($_ | Out-String)
+            ) | Set-Content -LiteralPath $diagnosticPath -Encoding UTF8
+            New-Item -ItemType File -Path $failureFlag -Force | Out-Null
+            Get-Content -LiteralPath $diagnosticPath
+            exit 1
           }
-          if ($summary.target_mutation_performed -ne $false) {
-            throw 'Fixture summary incorrectly reported target mutation.'
-          }
-          Write-Host 'PASS: offline before/after fixture produced one confirmed state transition.'
 
       - name: Run static contracts
         shell: pwsh
@@ -83,9 +103,23 @@ jobs:
         shell: bash
         run: bash -n survey/sas-autologon-state-delta.sh
 
-      - name: Upload synthetic fixture evidence
+      - name: Upload synthetic fixture evidence and diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: autologon-state-delta-synthetic-evidence
           path: survey/output/autologon_state_delta/
           if-no-files-found: error
+
+      - name: Enforce fixture result
+        if: always()
+        shell: pwsh
+        run: |
+          $failureFlag = Join-Path $PWD 'survey\output\autologon_state_delta\fixture-failed.flag'
+          $diagnosticPath = Join-Path $PWD 'survey\output\autologon_state_delta\fixture-diagnostic.txt'
+          if (Test-Path -LiteralPath $diagnosticPath) {
+            Get-Content -LiteralPath $diagnosticPath
+          }
+          if (Test-Path -LiteralPath $failureFlag) {
+            throw 'Offline fixture proof failed. See the uploaded diagnostic artifact.'
+          }
