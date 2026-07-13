@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SysAdminSuite authorized deployment manifest",
+  "type": "array",
+  "minItems": 1,
+  "maxItems": 100,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "TargetHostname",
+      "PackageName",
+      "SoftwareShareRoot",
+      "InstallerRelativePath",
+      "ExpectedSha256",
+      "InstallerArguments",
+      "InstallMode",
+      "Owner",
+      "RequestReference",
+      "ChangeReference",
+      "TicketReference"
+    ],
+    "properties": {
+      "TargetHostname": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$"
+      },
+      "PackageName": {
+        "type": "string",
+        "minLength": 1
+      },
+      "SoftwareShareRoot": {
+        "type": "string",
+        "pattern": "^\\\\\\\\[^\\\\]+\\\\?$",
+        "default": "\\\\nt2kwb972sms01\\"
+      },
+      "InstallerRelativePath": {
+        "type": "string",
+        "minLength": 1
+      },
+      "ExpectedSha256": {
+        "type": "string",
+        "pattern": "^[A-Fa-f0-9]{64}$"
+      },
+      "InstallerArguments": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "InstallMode": {
+        "type": "string",
+        "enum": [
+          "UncDirect",
+          "CopyThenInstall"
+        ],
+        "default": "CopyThenInstall"
+      },
+      "Owner": {
+        "type": "string",
+        "minLength": 1
+      },
+      "RequestReference": {
+        "type": "string",
+        "minLength": 1
+      },
+      "ChangeReference": {
+        "type": "string",
+        "minLength": 1
+      },
+      "TicketReference": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}
