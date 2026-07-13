@@ -15,6 +15,9 @@ PACK_PATH = REPO_ROOT / "configs" / "hotfix-command-packs" / "cybernet-com-port-
 RUNNER_PATH = REPO_ROOT / "scripts" / "Start-CybernetComPortQrPack.ps1"
 LAUNCHER_PATH = REPO_ROOT / "Run-CybernetComPortQrPack.cmd"
 AUTOFIX_LAUNCHER_PATH = REPO_ROOT / "Run-CybernetComPortAutoFix.cmd"
+HELP_LAUNCHER_PATH = REPO_ROOT / "Run-CybernetComPortHelp.cmd"
+HELP_SCRIPT_PATH = REPO_ROOT / "scripts" / "Show-CybernetComPortHelp.ps1"
+HELP_DOC_PATH = REPO_ROOT / "docs" / "field-hotfixes" / "cybernet-com-port-quick-help.md"
 DOC_PATH = REPO_ROOT / "docs" / "field-hotfixes" / "cybernet-com-port-qr-pack.md"
 FIELD_HOTFIX_GUI_PATH = REPO_ROOT / "GUI" / "Start-FieldHotfixesGui.ps1"
 
@@ -143,6 +146,43 @@ def test_cybernet_com_qr_pack_launcher_and_outline_exist() -> None:
     assert "C:\\Temp\\CybernetCOM" in outline
 
 
+def test_cybernet_com_help_is_read_only_copy_ready_and_tutorial_driven() -> None:
+    assert HELP_LAUNCHER_PATH.exists(), f"missing help launcher: {HELP_LAUNCHER_PATH}"
+    assert HELP_SCRIPT_PATH.exists(), f"missing help script: {HELP_SCRIPT_PATH}"
+    assert HELP_DOC_PATH.exists(), f"missing help doc: {HELP_DOC_PATH}"
+
+    launcher = HELP_LAUNCHER_PATH.read_text(encoding="utf-8")
+    script = HELP_SCRIPT_PATH.read_text(encoding="utf-8")
+    doc = HELP_DOC_PATH.read_text(encoding="utf-8")
+
+    assert "Show-CybernetComPortHelp.ps1" in launcher
+    assert "Cybernet COM Port Help finished with exit code" in launcher
+    assert "This tutorial prints or copies commands. It does not run them." in script
+    assert "Set-Clipboard" in script
+    assert "clip.exe" in script
+    assert "Run-CybernetComPortAutoFix-DryRun.cmd" in script
+    assert "Inspect-CybernetComPortAutoFixEvidence.ps1" in script
+    assert "Run-CybernetComPortQrPack.cmd" in script
+    assert "Run-CybernetComPortAutoFix.cmd" in script
+    assert "reg query HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM" in script
+    assert "Cybernet Windows Setup Completion Flag" in script
+    assert "HOLD - live Cybernet proof is still required." in script
+    assert "Run-CybernetComPortHelp.cmd diagnostics -Copy" in doc
+    assert "REGISTRY BACKUPS VALIDATED" in doc
+    assert "The help/tutorial launcher does not execute commands." in doc
+
+    for forbidden_fragment in [
+        "Invoke-Expression",
+        "Start-Process",
+        "Invoke-Command",
+        "New-PSSession",
+        "Enter-PSSession",
+    ]:
+        assert forbidden_fragment not in script, (
+            f"help/tutorial must not execute or remote commands: {forbidden_fragment}"
+        )
+
+
 def main() -> None:
     tests = [
         test_cybernet_com_qr_pack_has_ordered_scannable_snippets,
@@ -150,6 +190,7 @@ def main() -> None:
         test_cybernet_com_qr_pack_payloads_are_local_only,
         test_cybernet_com_qr_pack_runner_builds_temporary_field_hotfix_manifest,
         test_cybernet_com_qr_pack_launcher_and_outline_exist,
+        test_cybernet_com_help_is_read_only_copy_ready_and_tutorial_driven,
     ]
     for test in tests:
         test()
