@@ -131,6 +131,43 @@ jobs:
             exit 1
           }
 
+      - name: Reject invalid source before target reads
+        shell: pwsh
+        run: |
+          $outputRoot = Join-Path $PWD 'survey\output\autologon_deployment_invalid_source'
+          $expectedRejection = $false
+
+          try {
+            .\scripts\Invoke-SasAutoLogonDeployment.ps1 `
+              -ComputerName 'SHOULD-NOT-BE-CONTACTED' `
+              -SoftwareShareRoot '\\unapproved-server\' `
+              -InstallerRelativePath 'packages\AutoLogonSetup\NW_AutoLogon_Setup_x64.exe' `
+              -InstallerArguments @('/quiet') `
+              -OutputRoot $outputRoot `
+              -AllowTargetMutation `
+              -Confirm:$false
+          }
+          catch {
+            if ($_.Exception.Message -notmatch 'not an approved software source') {
+              throw "Expected approved-source rejection before baseline collection; received: $($_.Exception.Message)"
+            }
+            $expectedRejection = $true
+          }
+
+          if (-not $expectedRejection) {
+            throw 'Unapproved software source was not rejected.'
+          }
+
+          $stateDirectories = @(
+            Get-ChildItem -LiteralPath $outputRoot -Directory -Recurse -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -eq 'state' }
+          )
+          if ($stateDirectories.Count -ne 0) {
+            throw 'State collection directory exists after invalid-source rejection; target-read ordering regressed.'
+          }
+
+          Write-Host 'PASS: invalid package source was rejected before target-state collection.'
+
       - name: Run static contracts
         shell: pwsh
         run: |
