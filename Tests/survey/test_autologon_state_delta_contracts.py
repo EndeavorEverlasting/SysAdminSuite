@@ -25,7 +25,7 @@ def test_collector_has_before_after_and_assess_modes() -> None:
     content = read(PS_SCRIPT)
     for fragment in (
         "[ValidateSet('Before', 'After', 'Assess')]",
-        "run_manifest_before.json",
+        '"run_manifest_{0}.json" -f $phase',
         "CONFIRMED_STATE_TRANSITION",
         "ALREADY_CONFIGURED_BEFORE",
         "NO_MATERIAL_CHANGE",
@@ -70,7 +70,6 @@ def test_installed_software_inventory_avoids_product_class_queries() -> None:
     assert "CurrentVersion\\Uninstall" in content
     assert "WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall" in content
 
-    # Constructed to keep the forbidden API token itself out of product code and docs.
     forbidden_product_class = "Win32" + "_Product"
     assert forbidden_product_class.lower() not in content.lower()
 
