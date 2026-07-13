@@ -56,7 +56,7 @@ def test_approved_source_hash_and_argument_contracts() -> None:
         "InstallerArguments",
         "must be a JSON string array",
         "UncDirect",
-        "CopyThenInstall",
+        "does not yet prove staged-file SHA-256 verification before execution",
     )
     for fragment in required:
         assert fragment in content, f"missing source/hash contract: {fragment}"
@@ -114,7 +114,7 @@ def test_schema_and_example_match_the_canonical_request_shape() -> None:
         "TicketReference",
     }
     assert required == expected
-    assert schema["items"]["properties"]["InstallMode"]["enum"] == ["UncDirect", "CopyThenInstall"]
+    assert schema["items"]["properties"]["InstallMode"]["enum"] == ["UncDirect"]
     assert schema["items"]["properties"]["InstallerArguments"]["type"] == "array"
 
     rows = json.loads(read(EXAMPLE))
@@ -123,7 +123,7 @@ def test_schema_and_example_match_the_canonical_request_shape() -> None:
     assert row["SoftwareShareRoot"] == "\\\\nt2kwb972sms01\\"
     assert row["InstallerRelativePath"] == r"packages\AutoLogonSetup\NW_AutoLogon_Setup_x64.exe"
     assert len(row["ExpectedSha256"]) == 64
-    assert row["InstallMode"] == "CopyThenInstall"
+    assert row["InstallMode"] == "UncDirect"
 
 
 def test_docs_require_pilot_runtime_proof_before_expansion() -> None:
