@@ -9,14 +9,10 @@ if %ERRORLEVEL% EQU 0 (
     set "SAS_PS=powershell.exe"
 )
 
-echo [SAS][running] Harness validator child process started.
+echo [SAS] Running harness validation through PowerShell...
 "%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\validate-sysadmin-harness.ps1"
 set "SAS_EXIT=%ERRORLEVEL%"
 echo.
-if "%SAS_EXIT%"=="0" (
-    echo [SAS][complete] Harness validator finished successfully.
-) else (
-    echo [SAS][failed] Harness validator exited with code %SAS_EXIT%.
-)
+echo [SAS] Exit code: %SAS_EXIT%
 pause
 exit /b %SAS_EXIT%

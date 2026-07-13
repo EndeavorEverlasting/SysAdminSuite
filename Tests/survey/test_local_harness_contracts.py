@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DOC = ROOT / "docs" / "LOCAL_DEVELOPMENT_HARNESS.md"
 API = ROOT / "harness" / "api" / "sas-harness-api.json"
 MCP = ROOT / "mcp" / "local" / "servers.json"
+POLICY_API = ROOT / "harness" / "api" / "low_noise_policy.py"
+EVENT_RENDERER = ROOT / "harness" / "reporting" / "english.py"
 PRE_COMMIT = ROOT / ".githooks" / "pre-commit"
 PRE_PUSH = ROOT / ".githooks" / "pre-push"
 INSTALLER = ROOT / "scripts" / "install-local-harness-hooks.sh"
@@ -37,6 +39,9 @@ def test_harness_documentation_names_the_spine():
         "harness/api/sas-harness-api.json",
         "mcp/local/servers.json",
         "Tests/survey/test_local_harness_contracts.py",
+        "harness/api/low_noise_policy.py",
+        "harness/reporting/english.py",
+        "scripts/render-sas-structured-log.py",
         "must not introduce hidden network activity",
         "target-side artifacts",
         "credential collection",
@@ -44,6 +49,8 @@ def test_harness_documentation_names_the_spine():
     ]
     for fragment in required:
         assert fragment in text, f"missing harness spine fragment: {fragment}"
+    assert POLICY_API.exists()
+    assert EVENT_RENDERER.exists()
 
 
 def test_local_hooks_run_expected_contracts_and_block_generated_evidence():
@@ -132,6 +139,12 @@ def test_harness_api_manifest_is_local_first_and_has_required_operations():
     ]:
         assert output in target_reduction["outputs"]
 
+    reporter = operations["report.generate_from_artifacts"]
+    assert "optional_run_events_jsonl" in reporter["inputs"]
+    assert "low_noise_policy_json" in reporter["inputs"]
+    assert "events_english.jsonl" in reporter["outputs"]
+    assert "events_english.txt" in reporter["outputs"]
+
 
 def test_local_mcp_catalog_only_exposes_allowed_apis():
     api = load_json(API)
@@ -161,6 +174,10 @@ def test_local_mcp_catalog_only_exposes_allowed_apis():
         assert set(server["allowed_apis"]) <= allowed_api_ids, server["id"]
         assert "software_install.operator_execute" not in set(server["allowed_apis"]), server["id"]
         assert server["guardrails"], server["id"]
+
+    reporter = next(server for server in servers if server["id"] == "sas-evidence-reporter")
+    assert "report.generate_from_artifacts" in reporter["allowed_apis"]
+    assert "Renders_syntactic_English_from_structured_events" in reporter["guardrails"]
 
 
 def test_reporting_rule_and_next_sprint_outputs_are_preserved():

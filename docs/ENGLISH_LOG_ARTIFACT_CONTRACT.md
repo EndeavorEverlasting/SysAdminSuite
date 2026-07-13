@@ -26,6 +26,10 @@ Templates own the wording.
 Reports own the human-readable explanation.
 ```
 
+The same contract applies to event streams. Raw `events.jsonl` remains unchanged; `scripts/render-sas-structured-log.py` resolves each safe named placeholder into an `english_message` and emits separate `events_english.jsonl` and `events_english.txt` artifacts. Machine JSON remains parser-facing output, while English is a registered derived artifact for agents and operators.
+
+Low-noise summaries should carry one profile-agnostic `low_noise_context` object containing policy/schema version, profile and profile source, target/evidence source, effective constraints, disposition and reason, activity/mutation status, and next action. This lets posture and platform policy change in the provider without adding workflow-specific renderer branches.
+
 ## Required run variables
 
 Every workflow run should expose these core variables:

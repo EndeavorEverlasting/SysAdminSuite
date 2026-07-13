@@ -12,8 +12,6 @@ if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
 fi
 # shellcheck source=survey/lib/sas-network-guard.sh
 source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
-# shellcheck source=survey/lib/sas-progress.sh
-source "$SAS_REPO_ROOT/survey/lib/sas-progress.sh"
 
 TARGETS=()
 TARGET_FILE=""
@@ -23,7 +21,6 @@ TIMEOUT=3
 SNMP_ONLY=0
 SKIP_9100=0
 PASS_THRU=0
-NO_PROGRESS=0
 
 usage(){ cat <<'USAGE'
 SysAdminSuite Printer Probe
@@ -40,7 +37,6 @@ Options:
   --output PATH        Output CSV path
   --timeout SEC        Timeout. Default: 3
   --pass-thru          Print CSV after writing
-  --no-progress        Suppress progress bars
   -h, --help           Show help
 
 Output columns:
@@ -53,7 +49,7 @@ Risks:
   - Port 9100/ZPL should be used only where approved; use --skip-9100 if unsure.
 USAGE
 }
-fail(){ sas_progress_fail "$*"; printf '[printer-probe] ERROR: %s\n' "$*" >&2; exit 1; }
+fail(){ printf '[printer-probe] ERROR: %s\n' "$*" >&2; exit 1; }
 log(){ printf '[printer-probe] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
@@ -68,7 +64,6 @@ while [[ $# -gt 0 ]]; do
     --output) OUTPUT="${2:?missing value for --output}"; shift 2 ;;
     --timeout) TIMEOUT="${2:?missing value for --timeout}"; shift 2 ;;
     --pass-thru) PASS_THRU=1; shift ;;
-    --no-progress) NO_PROGRESS=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [[ $# -gt 0 ]]; do TARGETS+=("$1"); shift; done ;;
     -*) fail "Unknown option: $1" ;;
@@ -89,10 +84,6 @@ if [[ -n "$TARGET_FILE" ]]; then
 fi
 [[ ${#TARGETS[@]} -gt 0 ]] || fail "No targets provided"
 mkdir -p "$(dirname "$OUTPUT")"
-[[ "$NO_PROGRESS" -eq 1 ]] && sas_progress_disable
-sas_progress_start "${#TARGETS[@]}" "Printer identity probe"
-completed=0
-trap 'rc=$?; if (( rc != 0 )); then sas_progress_fail "stopped with exit $rc"; fi' EXIT
 IFS=',' read -r -a COMMUNITY_ARRAY <<< "$COMMUNITIES"
 
 norm_mac(){
@@ -164,7 +155,6 @@ csv_escape(){ local s="${1:-}" q='"'; s="${s//$q/$q$q}"; printf '"%s"' "$s"; }
 {
   printf 'Timestamp,Target,ResolvedAddress,PingStatus,MAC,Serial,Source,Notes\n'
   for target in "${TARGETS[@]}"; do
-    sas_progress_update "$completed" "checking $target"
     ip="$(resolve_ip "$target")"; [[ -z "$ip" ]] && ip="$target"
     ping="$(ping_status "$ip")"
     mac=""; serial=""; source=(); notes=()
@@ -185,10 +175,7 @@ csv_escape(){ local s="${1:-}" q='"'; s="${s//$q/$q$q}"; printf '"%s"' "$s"; }
     [[ -z "$serial" ]] && notes+=("Serial unavailable")
     [[ "$ping" != "Reachable" ]] && notes+=("Ping failed or ICMP blocked")
     csv_escape "$(date '+%Y-%m-%d %H:%M:%S')"; printf ','; csv_escape "$target"; printf ','; csv_escape "$ip"; printf ','; csv_escape "$ping"; printf ','; csv_escape "$mac"; printf ','; csv_escape "$serial"; printf ','; csv_escape "$(IFS=' | '; echo "${source[*]:-}")"; printf ','; csv_escape "$(IFS='; '; echo "${notes[*]:-}")"; printf '\n'
-    completed=$((completed + 1))
-    sas_progress_update "$completed" "finished $target"
   done
 } > "$OUTPUT"
-sas_progress_complete "wrote $OUTPUT"
 log "Wrote printer probe CSV: $OUTPUT"
 [[ "$PASS_THRU" -eq 1 ]] && cat "$OUTPUT"

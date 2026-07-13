@@ -10,6 +10,7 @@ start_here="$repo_root/START-HERE-CYBERNET-NEURON-SURVEY.md"
 dashboard_patch="$repo_root/dashboard/js/cybernet-os-preflight.js"
 ps_module="$repo_root/scripts/SasTargetIntake.psm1"
 low_noise_module="$repo_root/scripts/SasLowNoisePolicy.psm1"
+low_noise_policy="$repo_root/Config/low-noise-policy.json"
 dispatch="$repo_root/survey/sas-target-intake-dispatch.ps1"
 bash_helper="$repo_root/survey/lib/sas-target-intake.sh"
 field_files=("$runbook" "$start_here" "$dashboard_patch")
@@ -19,7 +20,7 @@ contains(){ grep -Fq -- "$1" "$2" || fail "$3"; }
 not_contains(){ if grep -Fq -- "$1" "$2"; then fail "$3"; fi; }
 not_matches(){ if grep -Eq -- "$1" "$2"; then fail "$3"; fi; }
 
-for f in "$preflight" "$serial_plan" "$runbook" "$low_noise_doc" "$start_here" "$dashboard_patch" "$ps_module" "$low_noise_module" "$dispatch" "$bash_helper"; do
+for f in "$preflight" "$serial_plan" "$runbook" "$low_noise_doc" "$start_here" "$dashboard_patch" "$ps_module" "$low_noise_module" "$low_noise_policy" "$dispatch" "$bash_helper"; do
   [[ -f "$f" ]] || fail "missing file: $f"
 done
 
@@ -98,9 +99,9 @@ contains 'Serial-only rows must be normalized or enriched' "$preflight" 'must re
 
 contains 'SasLowNoisePolicy.psm1' "$low_noise_module" 'low-noise module missing self-identifying name'
 contains 'function Get-SasLowNoisePolicy' "$low_noise_module" 'low-noise module missing policy getter'
-contains 'Five probes are unnecessary' "$low_noise_module" 'low-noise module missing pragmatic retry doctrine'
-contains 'prefer a different time of day or different day of week' "$low_noise_module" 'low-noise module missing time-diverse retry doctrine'
-contains 'The network sees packets, not the shell' "$low_noise_module" 'low-noise module missing network visibility principle'
+contains 'Five probes are unnecessary' "$low_noise_policy" 'canonical low-noise policy missing pragmatic retry doctrine'
+contains 'prefer a different time of day or different day of week' "$low_noise_policy" 'canonical low-noise policy missing time-diverse retry doctrine'
+contains 'The network sees packets, not the shell' "$low_noise_policy" 'canonical low-noise policy missing network visibility principle'
 contains 'low_noise_principle' "$low_noise_module" 'low-noise module missing summary low-noise field'
 contains 'network_visibility_note' "$low_noise_module" 'low-noise module missing summary visibility field'
 contains 'probe_selection_questions' "$low_noise_module" 'low-noise module missing summary question field'
@@ -126,6 +127,15 @@ contains 'If a device was recently reachable' "$serial_plan" 'serial planner mus
 
 contains 'Import-Module $lowNoiseModule -Force' "$preflight" 'network preflight must import shared low-noise policy module'
 contains 'Get-SasLowNoisePolicy' "$preflight" 'network preflight must consume shared low-noise policy'
+contains 'Get-SasLowNoiseProfile' "$preflight" 'network preflight must consume a canonical low-noise profile'
+contains "PolicyProfile = 'network_preflight'" "$preflight" 'network preflight must default to its canonical profile'
+contains 'may narrow but not broaden' "$preflight" 'network preflight must reject broader port overrides'
+contains 'low_noise_profile' "$preflight" 'network preflight summary must record its effective profile'
+contains 'ports_source' "$preflight" 'network preflight summary must record the port source'
+contains 'Render-SasEnglishReport.ps1' "$preflight" 'network preflight must use the shared English renderer'
+contains 'artifact_registry_path' "$preflight" 'network preflight summary must name its artifact registry'
+contains 'report_markdown_path' "$preflight" 'network preflight summary must name its English report'
+contains 'target_mutation_performed = $false' "$preflight" 'network preflight must report no target mutation'
 contains 'New-SasLowNoiseSummaryObject' "$preflight" 'network preflight must build summary through shared policy'
 contains 'Get-SasLowNoiseOperatorLines' "$preflight" 'network preflight must build handoff through shared policy'
 contains 'LowNoisePolicyVersion' "$preflight" 'network preflight rows must include low-noise policy version'

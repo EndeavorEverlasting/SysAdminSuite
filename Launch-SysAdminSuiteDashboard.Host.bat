@@ -18,11 +18,11 @@ set "ROOT=%~dp0"
 
 call :find_bash
 if not defined BASH_EXE (
-    echo [SAS][failed] Git Bash was not found. Install Git for Windows or use the packaged dashboard field release.
+    echo Git Bash was not found. Install Git for Windows or use the packaged dashboard field release.
     exit /b 2
 )
 
-echo [SAS][running] Preparing dashboard dependencies and host for first use...
+echo Preparing dashboard dependencies and host for first use...
 "%BASH_EXE%" -lc "cd '%ROOT:\=/%' && bash scripts/ensure-dashboard-host.sh"
 set "ENSURE_RC=%errorlevel%"
 
@@ -35,15 +35,8 @@ if not "%ENSURE_RC%"=="0" (
     rem gap with the local-only Python dashboard fallback so a double-click still
     rem serves the dashboard instead of dead-ending to manual CLI usage.
     call :start_fallback
-    if defined FALLBACK_OK (
-        echo [SAS][complete] Local Python dashboard fallback started.
-        exit /b 0
-    )
-    if "%ENSURE_RC%"=="2" (
-        echo [SAS][failed] Dashboard dependency preparation failed.
-        exit /b 2
-    )
-    echo [SAS][failed] Dashboard host preparation needs IT or admin attention.
+    if defined FALLBACK_OK exit /b 0
+    if "%ENSURE_RC%"=="2" exit /b 2
     exit /b 3
 )
 
@@ -52,11 +45,7 @@ if not defined HOST_EXE (
     rem Host preparation reported success but no executable was located. Try the
     rem local-only Python dashboard fallback before failing.
     call :start_fallback
-    if defined FALLBACK_OK (
-        echo [SAS][complete] Local Python dashboard fallback started.
-        exit /b 0
-    )
-    echo [SAS][failed] Host preparation completed but no dashboard executable was found.
+    if defined FALLBACK_OK exit /b 0
     exit /b 3
 )
 
@@ -69,7 +58,6 @@ if exist "%ROOT%app\bin\SysAdminSuite.DashboardHost.exe" (
     )
 )
 start "" /B "%HOST_EXE%" %*
-echo [SAS][complete] Dashboard host process started.
 exit /b 0
 
 :find_host
@@ -96,15 +84,9 @@ set "PY_OK="
 where py >nul 2>nul && set "PY_OK=1"
 if not defined PY_OK where python >nul 2>nul && set "PY_OK=1"
 if not defined PY_OK where python3 >nul 2>nul && set "PY_OK=1"
-if not defined PY_OK (
-    echo [SAS][skipped] Python fallback unavailable because no Python runtime was found.
-    goto :eof
-)
-if not exist "%ROOT%server.py" (
-    echo [SAS][skipped] Python fallback unavailable because server.py was not found.
-    goto :eof
-)
-echo [SAS][running] The .NET dashboard host is unavailable; starting the local Python dashboard fallback...
+if not defined PY_OK goto :eof
+if not exist "%ROOT%server.py" goto :eof
+echo The .NET dashboard host is unavailable; starting the local Python dashboard fallback...
 start "SysAdminSuite Dashboard (fallback)" /MIN "%BASH_EXE%" -lc "cd '%ROOT:\=/%' && SAS_DASHBOARD_BIND=127.0.0.1 SAS_DASHBOARD_PORT=5000 bash scripts/sas-serve-dashboard-fallback.sh"
 set "FALLBACK_OK=1"
 goto :eof

@@ -24,6 +24,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(sys.argv[1]).resolve()
 ARGS = sys.argv[2:]
+sys.path.insert(0, str(REPO_ROOT))
+from harness.api.low_noise_policy import load_policy
 
 REDUCTION_COLUMNS = [
     "Target", "Serial", "Site", "Location", "SubnetCIDR", "Status", "StatusReason",
@@ -35,27 +37,8 @@ LOCATION_COLUMNS = [
     "StatusReason", "SourceEvidence", "LastVerified", "SurveyAllowed", "Confidence", "Notes", "NetworkActivityPerformed",
 ]
 
-POLICY = {
-    # Keep these values aligned with scripts/SasLowNoisePolicy.psm1 without invoking PowerShell.
-    "policy_version": "1.0",
-    "low_noise_principle": "The network sees packets, not the shell. Reduce packets by using local evidence before probes.",
-    "network_visibility_note": "CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.",
-    "probe_again_guidance": "Five probes are unnecessary when a device was already recently reachable or identity-confirmed. If retrying is justified, prefer a different time of day or different day of week over immediate repeated probes.",
-    "fresh_evidence_guidance": "Fresh identity or reachability evidence should reduce re-probing. Stale, missing, conflicting, or operator-forced evidence can justify staging a target.",
-    "mystery_serial_guidance": "A serial with no approved host/IP bridge remains a mystery serial for review; do not ping the serial string.",
-    "front_door_guidance": "CDN/WAF/load-balanced/front-door targets should not be treated as serial proof. Review or use bounded profiles rather than broad probing.",
-    "packet_profile_guidance": "Prefer smaller scope, fewer ports, lower rate, fewer retries, smarter evidence reuse, and avoiding broad scans.",
-    "probe_selection_questions": [
-        "Should this target be probed at all?",
-        "Which exact host/IP should be probed?",
-        "Which exact ports answer the survey question?",
-        "At what rate?",
-        "How many retries?",
-        "Is this already fresh in local evidence?",
-        "Is this a CDN/WAF/load-balanced/front-door target?",
-        "Is this a mystery serial that needs review, not packets?",
-    ],
-}
+POLICY_DOCUMENT = load_policy()
+POLICY = {"policy_version": POLICY_DOCUMENT["policy_version"], **POLICY_DOCUMENT["guidance"]}
 
 TARGET_FIELDS = ["Target", "ProbeTarget", "HostName", "Hostname", "ComputerName", "DeviceName", "Name", "DnsName", "DNSName", "FQDN", "IPAddress", "IP", "IPv4"]
 SERIAL_FIELDS = ["Serial", "SerialNumber", "DeviceSerial", "ComputerSerial", "AssetSerial", "SN"]
