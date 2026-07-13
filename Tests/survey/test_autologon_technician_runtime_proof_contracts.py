@@ -118,7 +118,7 @@ def test_disposable_state_and_secret_boundaries_are_enforced() -> None:
         "Register-ScheduledTask",
         "New-ScheduledTask",
         "New-Service",
-        "CurrentVersion\\Run",
+        "CurrentVersion\Run",
     )
     for fragment in forbidden:
         assert fragment.lower() not in content.lower(), f"forbidden runtime behavior: {fragment}"
@@ -203,13 +203,15 @@ def test_cmd_launcher_uses_repo_runner_and_preserves_exit_code() -> None:
 def test_runbook_rejects_lower_proof_claims() -> None:
     content = read(DOC)
     required = (
-        "successful installer exit, process launch, route issuance, or command ACK is not enough",
+        "successful installer exit, process launch, route issuance, or command ACK",
+        "not enough. The runner records the exact proof level",
         "must name the exact proof level",
         "Never rewrite a process ACK or static/fixture result as live application behavior",
         "Fixture success validates the runner only",
     )
+    normalized = " ".join(content.split())
     for fragment in required:
-        assert fragment in content
+        assert fragment in normalized
 
 
 def main() -> None:
