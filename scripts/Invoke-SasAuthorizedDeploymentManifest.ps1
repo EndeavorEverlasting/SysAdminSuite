@@ -104,11 +104,21 @@ function Get-SasManifestArguments {
     if ($Value -is [string]) {
         throw "Manifest row $RowNumber InstallerArguments must be a JSON string array, not one command-line string."
     }
-    $values = @($Value | ForEach-Object { [string]$_ })
-    if ($values.Count -eq 0 -or @($values | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) {
-        throw "Manifest row $RowNumber InstallerArguments must contain nonblank strings."
+
+    $values = New-Object System.Collections.Generic.List[string]
+    foreach ($item in @($Value)) {
+        if ($item -isnot [string]) {
+            throw "Manifest row $RowNumber InstallerArguments must contain only JSON strings."
+        }
+        if ([string]::IsNullOrWhiteSpace($item)) {
+            throw "Manifest row $RowNumber InstallerArguments must contain nonblank strings."
+        }
+        $values.Add($item)
     }
-    return $values
+    if ($values.Count -eq 0) {
+        throw "Manifest row $RowNumber InstallerArguments must contain at least one string."
+    }
+    return $values.ToArray()
 }
 
 $rawRows = @(Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json)
