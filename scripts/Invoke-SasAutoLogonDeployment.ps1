@@ -222,21 +222,33 @@ Write-SasWorkflowEvent -Path $eventsPath -Event @{
     install_mode = $InstallMode
     fixture_mode = [bool]$FixtureMode
     what_if = [bool]$WhatIfPreference
-    posture = 'baseline_reduce_install_validate_local_evidence_no_startup_persistence'
+    posture = 'request_validate_baseline_reduce_install_validate_local_evidence_no_startup_persistence'
+}
+
+# Validate the approved source root and relative installer path before any baseline
+# collection can contact a workstation. Invoke-SasSoftwareInstall -WhatIf performs
+# request-only validation and writes local planning evidence without probing the share,
+# opening a remote session, copying a payload, or starting the installer.
+$requestPreflight = & $softwareInstallScript `
+    -ComputerName $targets `
+    -PackageName $PackageName `
+    -SoftwareShareRoot $SoftwareShareRoot `
+    -InstallerRelativePath $InstallerRelativePath `
+    -InstallerArguments $InstallerArguments `
+    -InstallMode $InstallMode `
+    -OutputRoot $installOutputRoot `
+    -MaxTargets $MaxTargets `
+    -WhatIf
+
+Write-SasWorkflowEvent -Path $eventsPath -Event @{
+    event = 'request_preflight_completed'
+    workflow_id = $workflowId
+    planned_count = [int]$requestPreflight.planned_count
+    target_reads_performed = $false
+    target_mutation_performed = $false
 }
 
 if ($WhatIfPreference -and -not $FixtureMode) {
-    $installPlan = & $softwareInstallScript `
-        -ComputerName $targets `
-        -PackageName $PackageName `
-        -SoftwareShareRoot $SoftwareShareRoot `
-        -InstallerRelativePath $InstallerRelativePath `
-        -InstallerArguments $InstallerArguments `
-        -InstallMode $InstallMode `
-        -OutputRoot $installOutputRoot `
-        -MaxTargets $MaxTargets `
-        -WhatIf
-
     $summary = [ordered]@{
         schema_version = 'sas-autologon-deployment-summary/v1'
         workflow_id = $workflowId
@@ -253,7 +265,8 @@ if ($WhatIfPreference -and -not $FixtureMode) {
         software_share_root = $SoftwareShareRoot
         installer_relative_path = $InstallerRelativePath
         install_mode = $InstallMode
-        install_plan = $installPlan
+        request_preflight = $requestPreflight
+        install_plan = $requestPreflight
         next_gate = 'Run -FixtureMode for offline end-to-end proof, then a two-target approved pilot with explicit vendor-validated InstallerArguments and -AllowTargetMutation.'
     }
     Write-SasWorkflowJson -Path $summaryPath -Value $summary
@@ -419,6 +432,7 @@ $summary = [ordered]@{
     targets = $targets
     fixture_mode = [bool]$FixtureMode
     what_if = [bool]$WhatIfPreference
+    request_preflight = $requestPreflight
     baseline_success_count = @($eligibility | Where-Object { $_.collection_status -eq 'success' }).Count
     baseline_failure_count = $baselineFailureTargets.Count
     baseline_failure_targets = $baselineFailureTargets
@@ -448,6 +462,7 @@ $summary = [ordered]@{
     guardrails = @(
         'explicit_targets_only',
         'maximum_25_targets_per_run',
+        'approved_source_and_relative_path_validated_before_target_reads',
         'baseline_required_before_install',
         'baseline_collection_failures_are_not_installed',
         'already_configured_targets_are_not_reinstalled',
@@ -469,6 +484,7 @@ Write-SasWorkflowJson -Path $summaryPath -Value $summary
     "State run ID: $stateRunId",
     "Status: $status",
     "Targets requested: $($targets.Count)",
+    "Request preflight planned: $([int]$requestPreflight.planned_count)",
     "Eligible for install: $($eligibleTargets.Count)",
     "Already configured before: $($alreadyConfiguredTargets.Count)",
     "Baseline collection failures skipped: $($baselineFailureTargets.Count)",
