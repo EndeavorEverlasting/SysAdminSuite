@@ -4,6 +4,8 @@
 
 This workflow deploys the approved auto-logon package from the approved read-only software share while preserving a reviewable before/install/after evidence chain on the admin box.
 
+The pilot also uses `Invoke-SasAutoLogonFileAccessPosture.ps1` to inspect bounded NTFS ACL signals, the expected AutoLogon profile, shell-folder redirection, and mapped-drive metadata before and after deployment. That companion lane is required because correct registry state does not prove that the resulting user can use required local application directories or the intended file-share roundabout.
+
 Canonical package:
 
 ```text
@@ -14,6 +16,12 @@ Entrypoint:
 
 ```text
 scripts\Invoke-SasAutoLogonDeployment.ps1
+```
+
+Companion access-posture entrypoint:
+
+```text
+scripts\Invoke-SasAutoLogonFileAccessPosture.ps1
 ```
 
 The workflow composes existing SysAdminSuite contracts instead of creating another installer engine:
@@ -28,6 +36,17 @@ explicit target list
   -> read-only after snapshot
   -> per-workstation state delta
   -> combined local JSONL, JSON, and operator handoff
+```
+
+The pilot evidence sequence adds:
+
+```text
+same explicit target list
+  -> read-only file-access Before capture
+  -> AutoLogon deployment workflow
+  -> read-only file-access After capture
+  -> ACL/profile/redirection/mapped-drive delta
+  -> real AutoLogon user-session access test
 ```
 
 The package preflight uses the existing software-install wrapper with `-WhatIf`. It validates the approved UNC root, relative installer path, target ceiling, and local output boundary before the state-delta collector can contact a workstation. A typo or unapproved source therefore fails locally instead of creating avoidable target reads.
@@ -59,6 +78,10 @@ No Startup-folder CMD, Run key, scheduled task, service, hidden listener, or bac
 - The source root must match the approved root in `harness/api/sas-harness-api.json`.
 - `-WhatIf` performs request validation only: no share read, target read, remote session, copy, or installer execution.
 - `-FixtureMode` performs offline end-to-end contract proof with synthetic state and a planned install.
+- File-access posture accepts at most 12 operator-supplied absolute target-local directories.
+- File-access posture rejects UNC paths, wildcards, relative paths, and parent traversal.
+- File-access posture records share redirection and mapped-drive metadata without contacting those shares or enumerating directory contents.
+- ACL signals do not claim effective access; actual user-session access remains a runtime gate.
 - SysAdminSuite evidence remains under the gitignored admin-box output root.
 - `DefaultPassword` data is never collected.
 - Event logs, monitoring, endpoint tooling, and installer evidence are not suppressed or cleared.
@@ -91,7 +114,32 @@ Expected status:
 FIXTURE_PASS
 ```
 
-Expected local artifacts:
+Also prove the file-access companion offline:
+
+```powershell
+$accessBefore = .\scripts\Invoke-SasAutoLogonFileAccessPosture.ps1 `
+  -Mode Before `
+  -ComputerName SAMPLE001 `
+  -PermissionPath 'C:\ProgramData\VendorApp' `
+  -FixtureMode
+
+.\scripts\Invoke-SasAutoLogonFileAccessPosture.ps1 `
+  -Mode After `
+  -RunId $accessBefore.run_id `
+  -ComputerName SAMPLE001 `
+  -PermissionPath 'C:\ProgramData\VendorApp' `
+  -FixtureMode
+```
+
+The synthetic access delta should report `ACCESS_POSTURE_IMPROVED`, one UNC shell-folder redirection, and one mapped drive while recording:
+
+```text
+path_contents_enumerated: false
+share_paths_contacted: false
+effective_access_proven: false
+```
+
+Expected local deployment artifacts:
 
 ```text
 survey\output\autologon_deployment\<workflow_id>\
@@ -132,6 +180,27 @@ The live workflow deliberately refuses to run when `-InstallerArguments` is omit
 
 ## 4. Two-workstation approved pilot
 
+### Capture file-access Before posture
+
+Use the same approved manifest and name the local directories the AutoLogon user actually needs:
+
+```powershell
+$accessBefore = .\scripts\Invoke-SasAutoLogonFileAccessPosture.ps1 `
+  -Mode Before `
+  -TargetsCsv .\targets\local\autologon-pilot.csv `
+  -PermissionPath @(
+    'C:\ProgramData\VendorApp',
+    'C:\Northwell'
+  ) `
+  -TechnicianLabel 'AutoLogon pilot'
+
+$accessRunId = $accessBefore.run_id
+```
+
+Do not put file shares in `-PermissionPath`. The collector inspects target-local ACL metadata only. Existing user-shell-folder redirects and mapped drives are recorded from the loaded profile registry without contacting the remote path.
+
+### Run the deployment
+
 Replace the example arguments with the validated switches:
 
 ```powershell
@@ -155,6 +224,29 @@ The workflow will:
 6. capture after evidence;
 7. emit the combined summary and per-workstation delta.
 
+### Capture file-access After posture
+
+Reuse the same file-access run ID, target manifest, and path list:
+
+```powershell
+.\scripts\Invoke-SasAutoLogonFileAccessPosture.ps1 `
+  -Mode After `
+  -RunId $accessRunId `
+  -TargetsCsv .\targets\local\autologon-pilot.csv `
+  -PermissionPath @(
+    'C:\ProgramData\VendorApp',
+    'C:\Northwell'
+  ) `
+  -TechnicianLabel 'AutoLogon pilot'
+```
+
+Review the file-access summary and each target delta before rebooting:
+
+```text
+survey\output\autologon_file_access\<access_run_id>\autologon_file_access_summary.json
+survey\output\autologon_file_access\<access_run_id>\delta\<target>.json
+```
+
 ## 5. Review before expansion
 
 Open:
@@ -162,6 +254,8 @@ Open:
 ```text
 survey\output\autologon_deployment\<workflow_id>\operator_handoff.txt
 survey\output\autologon_deployment\<workflow_id>\autologon_deployment_summary.json
+survey\output\autologon_file_access\<access_run_id>\operator_handoff.txt
+survey\output\autologon_file_access\<access_run_id>\autologon_file_access_summary.json
 ```
 
 Expansion gates:
@@ -173,14 +267,21 @@ Expansion gates:
 - no SysAdminSuite-owned target remnants;
 - expected `CONFIRMED_STATE_TRANSITION` or justified `ALREADY_CONFIGURED_BEFORE`;
 - no `PARTIAL_CHANGE_REVIEW`, `REGRESSION_REVIEW`, or `INCONCLUSIVE`;
-- at least one real reboot and observed successful auto-logon on each pilot workstation.
+- file-access Before and After captures succeeded for the same targets and path list;
+- no unexpected `explicit_deny_review`, missing required path, or `acl_unavailable` result;
+- expected profile and required local application directories have understood ACL grant signals;
+- intended shell-folder redirection and mapped-drive metadata are present when the design relies on file shares;
+- at least one real reboot and observed successful auto-logon on each pilot workstation;
+- the real AutoLogon session can open the application and complete the required read/write/save workflow;
+- the real AutoLogon session can reach the intended file share when local directories are intentionally unavailable.
 
-The registry and installed-software delta proves workstation state. It does not prove which human performed the work.
+The registry and installed-software delta proves workstation configuration state. The ACL/profile snapshot proves only recorded access posture. Neither proves human identity or effective user access. The real AutoLogon session proves the user experience.
 
 ## Operational notes
 
 - `CopyThenInstall` avoids the common remote UNC second-hop problem while retaining the server as the approved package source.
 - `UncDirect` is available when target-side access to the share is already proven.
+- The file-access collector does not test share availability because the remote administrative session is not the AutoLogon user's token and may encounter second-hop behavior.
 - The installer may create its own files, logs, services, tasks, registry values, caches, or reboot requirements. Those are installer-owned and outside SysAdminSuite staging cleanup.
 - The workflow does not reboot targets automatically.
-- A completed install exit code and a registry delta are not substitutes for an observed reboot/auto-logon runtime test.
+- A completed install exit code, registry delta, or ACL allow signal is not a substitute for an observed reboot/auto-logon runtime test.
