@@ -21,30 +21,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Run static contracts
-        shell: pwsh
-        run: python .\Tests\survey\test_autologon_state_delta_contracts.py
-
-      - name: Parse PowerShell collector
-        shell: pwsh
-        run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path '.\scripts\Invoke-SasAutoLogonStateDelta.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          )
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            throw "PowerShell parser reported $($errors.Count) error(s)."
-          }
-          Write-Host 'PASS: PowerShell parser accepted auto-logon state-delta collector.'
-
-      - name: Check Bash wrapper syntax
-        shell: bash
-        run: bash -n survey/sas-autologon-state-delta.sh
+        with:
+          show-progress: false
 
       - name: Run offline before and after fixture proof
         shell: pwsh
@@ -80,6 +58,30 @@ jobs:
             throw 'Fixture summary incorrectly reported target mutation.'
           }
           Write-Host 'PASS: offline before/after fixture produced one confirmed state transition.'
+
+      - name: Run static contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_autologon_state_delta_contracts.py
+
+      - name: Parse PowerShell collector
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\scripts\Invoke-SasAutoLogonStateDelta.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "PowerShell parser reported $($errors.Count) error(s)."
+          }
+          Write-Host 'PASS: PowerShell parser accepted auto-logon state-delta collector.'
+
+      - name: Check Bash wrapper syntax
+        shell: bash
+        run: bash -n survey/sas-autologon-state-delta.sh
 
       - name: Upload synthetic fixture evidence
         uses: actions/upload-artifact@v4
