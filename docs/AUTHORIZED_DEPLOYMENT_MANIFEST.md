@@ -2,7 +2,77 @@
 
 This lane recovers the useful part of PR #150: a bounded, auditable manifest in front of the canonical SysAdminSuite software-install engine.
 
-## What it does
+## Surfaces
+
+- `scripts/New-SasAuthorizedDeploymentManifest.ps1` performs package intake and generates a reviewable manifest.
+- `scripts/Invoke-SasAuthorizedDeploymentManifest.ps1` validates that manifest and delegates each row to the canonical installer.
+- `scripts/Invoke-SasSoftwareInstall.ps1` remains the only remote-install implementation.
+
+The manifest layer does not contain a second remoting engine.
+
+## Package intake
+
+`New-SasAuthorizedDeploymentManifest.ps1` turns operator-supplied deployment intent into package evidence and a ready-to-review JSON manifest.
+
+It:
+
+1. accepts explicit target hostnames or an approved target CSV;
+2. caps the result at 25 unique targets;
+3. resolves the package only beneath an approved software-source root;
+4. rejects rooted or parent-traversal installer paths;
+5. requires explicit nonblank silent installer arguments and an `InstallerArgumentsReference` identifying the vendor document, packaging record, or approved test that supports them;
+6. computes the package SHA-256;
+7. records Authenticode status, signer identity when available, file size, product version, and file version;
+8. emits `authorized-deployment-manifest.json`, `package-intake-summary.json`, and `operator_handoff.txt` under a gitignored output root.
+
+Package intake does not contact target workstations and does not mutate them. It creates no service, scheduled task, startup-folder command, Run key, or other persistence.
+
+### Request-only package-intake validation
+
+This validates the request shape and returns before contacting the package share or writing output:
+
+```powershell
+.\scripts\New-SasAuthorizedDeploymentManifest.ps1 `
+  -ComputerName 'PILOT001','PILOT002' `
+  -PackageName 'NW AutoLogon Setup x64' `
+  -SoftwareShareRoot '\\nt2kwb972sms01\' `
+  -InstallerRelativePath 'packages\AutoLogonSetup\NW_AutoLogon_Setup_x64.exe' `
+  -InstallerArguments @('<vendor-validated-switch-1>','<vendor-validated-switch-2>') `
+  -Owner 'Endpoint Engineering' `
+  -RequestReference 'REQ-REPLACE-ME' `
+  -ChangeReference 'CHG-REPLACE-ME' `
+  -TicketReference 'TASK-REPLACE-ME' `
+  -InstallerArgumentsReference 'vendor documentation or approved packaging record' `
+  -WhatIf
+```
+
+### Verified package intake
+
+This reads the approved package, computes the real SHA-256, captures signature/version evidence, and writes a local manifest. It still does not contact any workstation:
+
+```powershell
+$intake = .\scripts\New-SasAuthorizedDeploymentManifest.ps1 `
+  -ComputerName 'PILOT001','PILOT002' `
+  -PackageName 'NW AutoLogon Setup x64' `
+  -SoftwareShareRoot '\\nt2kwb972sms01\' `
+  -InstallerRelativePath 'packages\AutoLogonSetup\NW_AutoLogon_Setup_x64.exe' `
+  -InstallerArguments @('<vendor-validated-switch-1>','<vendor-validated-switch-2>') `
+  -Owner 'Endpoint Engineering' `
+  -RequestReference 'REQ-REPLACE-ME' `
+  -ChangeReference 'CHG-REPLACE-ME' `
+  -TicketReference 'TASK-REPLACE-ME' `
+  -InstallerArgumentsReference 'vendor documentation or approved packaging record' `
+  -OutputRoot .\survey\output\authorized_package_intake `
+  -Confirm:$false
+
+$intake.manifest_path
+$intake.sha256
+$intake.signature_status
+```
+
+Use `-RequireValidSignature` only when the approved package is expected to carry a valid Authenticode signature. An unsigned internal wrapper must be reviewed and dispositioned rather than silently represented as signed.
+
+## Deployment adapter
 
 `Invoke-SasAuthorizedDeploymentManifest.ps1`:
 
@@ -11,8 +81,6 @@ This lane recovers the useful part of PR #150: a bounded, auditable manifest in 
 3. verifies the installer SHA-256 on the admin box during live execution;
 4. delegates each approved row to `scripts/Invoke-SasSoftwareInstall.ps1`;
 5. writes one local batch summary plus the canonical per-install child summaries.
-
-The wrapper does not contain a second remote-install implementation. The canonical engine remains responsible for PowerShell remoting, installer execution, cleanup, and per-target evidence.
 
 The recovered manifest lane currently fails closed on `CopyThenInstall`. PR #150's review correctly identified that a copied installer must be hashed again on the target before execution. Until that proof is added to the canonical engine, this adapter permits only `UncDirect` so it cannot execute an unverified staged copy.
 
@@ -50,25 +118,25 @@ For AutoLogon, the relative installer path is:
 packages\AutoLogonSetup\NW_AutoLogon_Setup_x64.exe
 ```
 
-Replace the example SHA-256 and references before any live execution. Do not guess silent switches. Use vendor-validated arguments. Confirm that the remote execution context can read the approved UNC path before the pilot.
+Do not guess silent switches. Use vendor-validated arguments and record the evidence source through `InstallerArgumentsReference` during package intake. Confirm that the remote execution context can read the approved UNC path before the pilot.
 
-## Request-only validation
+## Request-only deployment validation
 
-This performs local manifest validation and invokes the canonical engine in `WhatIf` mode. It does not contact the software share or target workstations.
+This validates the generated manifest and invokes the canonical engine in `WhatIf` mode. It does not contact the software share or target workstations.
 
 ```powershell
 .\scripts\Invoke-SasAuthorizedDeploymentManifest.ps1 `
-  -ManifestPath .\examples\authorized-deployment-manifest.example.json `
+  -ManifestPath $intake.manifest_path `
   -WhatIf
 ```
 
 ## Approved pilot execution
 
-Use a dedicated manifest containing no more than two approved pilot workstations. Confirm the installer hash and silent arguments first.
+Use a dedicated generated manifest containing no more than two approved pilot workstations.
 
 ```powershell
 .\scripts\Invoke-SasAuthorizedDeploymentManifest.ps1 `
-  -ManifestPath .\targets\local\authorized-deployment-pilot.json `
+  -ManifestPath $intake.manifest_path `
   -AllowTargetMutation `
   -Confirm
 ```
@@ -76,6 +144,8 @@ Use a dedicated manifest containing no more than two approved pilot workstations
 Review:
 
 ```text
+survey/output/authorized_package_intake/<run_id>/package-intake-summary.json
+survey/output/authorized_package_intake/<run_id>/authorized-deployment-manifest.json
 survey/output/authorized_app_deployment/<run_id>/authorized_deployment_summary.json
 survey/output/authorized_app_deployment/<run_id>/operator_handoff.txt
 survey/output/authorized_app_deployment/<run_id>/software_install/
@@ -85,8 +155,9 @@ survey/output/authorized_app_deployment/<run_id>/software_install/
 
 Do not expand beyond the pilot until all of the following are true:
 
-- the expected SHA-256 matches the package on the approved share;
-- the installer arguments are vendor-validated;
+- the package-intake SHA-256 matches the package on the approved share;
+- signature status and publisher identity have been reviewed;
+- installer arguments are vendor-validated and their evidence reference is recorded;
 - the target is reachable through the approved administrative path;
 - the remote execution context can read the approved UNC package path without an interactive user logon;
 - the child software-install summary reports no unresolved cleanup failure or SysAdminSuite-owned target remnant;
