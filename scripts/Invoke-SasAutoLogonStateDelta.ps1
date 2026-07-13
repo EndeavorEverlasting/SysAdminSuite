@@ -514,6 +514,10 @@ if (-not (Test-Path -LiteralPath $targetIntakeModule -PathType Leaf)) {
 }
 Import-Module -Name $targetIntakeModule -Force
 
+if (-not [string]::IsNullOrWhiteSpace($TargetsCsv)) {
+    Assert-SasApprovedInputPath -Path $TargetsCsv -RepoRoot $repoRoot -Role 'auto-logon target manifest'
+}
+
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path -Path $repoRoot -ChildPath 'survey/output/autologon_state_delta'
 }
@@ -678,7 +682,7 @@ $summary = [ordered]@{
     default_password_value_collected = $false
     summary_csv = $summaryCsvPath
     phase_manifest = $manifestPath
-    results = @($rows)
+    results = $rows.ToArray()
 }
 Write-SasJson -Path $summaryJsonPath -Value $summary
 
@@ -718,3 +722,4 @@ Write-Host "Summary: $summaryCsvPath" -ForegroundColor Green
     target_mutation_performed = $false
     target_side_sysadminsuite_artifacts_written = $false
 }
+
