@@ -67,6 +67,19 @@ def test_default_password_data_is_never_read_or_exported() -> None:
         assert fragment.lower() not in lowered, f"forbidden password-data collection fragment: {fragment}"
 
 
+def test_autologon_ready_requires_default_password_presence() -> None:
+    content = read(PS_SCRIPT)
+    required = (
+        "[bool]$PasswordPresent",
+        "configured_password_missing",
+        "$enabled -and $actual -eq $expected -and -not $PasswordPresent",
+        "$enabled -and $actual -eq $expected -and $PasswordPresent",
+        "-PasswordPresent ([bool]$passwordPresent)",
+    )
+    for fragment in required:
+        assert fragment in content, f"missing fail-closed password-presence gate: {fragment}"
+
+
 def test_installed_software_inventory_avoids_product_class_queries() -> None:
     content = read(PS_SCRIPT)
     assert "CurrentVersion\\Uninstall" in content
@@ -154,6 +167,7 @@ def main() -> None:
         test_collector_has_before_after_and_assess_modes,
         test_collector_uses_explicit_bounded_approved_targets,
         test_default_password_data_is_never_read_or_exported,
+        test_autologon_ready_requires_default_password_presence,
         test_installed_software_inventory_avoids_product_class_queries,
         test_evidence_stays_on_admin_box_and_collection_is_read_only,
         test_summary_materializes_generic_list_without_binder_failure,
