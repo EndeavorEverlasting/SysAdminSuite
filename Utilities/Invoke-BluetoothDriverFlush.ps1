@@ -93,6 +93,47 @@ function Invoke-BluetoothDriverFlush {
 
     Write-Phase 'BACKUP PHASE' "Target: $backupDir"
 
+    # Resolve target MAC addresses based on TargetDeviceName filter
+    $targetMacs = @()
+    $devicesPath = "HKLM:\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices"
+    if (Test-Path $devicesPath) {
+        Get-ChildItem $devicesPath -ErrorAction SilentlyContinue | ForEach-Object {
+            $mac = $_.PSChildName
+            $name = ""
+            try {
+                $nameBytes = Get-ItemPropertyValue -Path $_.PSPath -Name "Name" -ErrorAction SilentlyContinue
+                if ($nameBytes) { $name = [System.Text.Encoding]::UTF8.GetString($nameBytes).TrimEnd("`0") }
+            } catch {}
+
+            $friendlyName = ""
+            try {
+                $friendlyNameBytes = Get-ItemPropertyValue -Path $_.PSPath -Name "FriendlyName" -ErrorAction SilentlyContinue
+                if ($friendlyNameBytes) { $friendlyName = [System.Text.Encoding]::UTF8.GetString($friendlyNameBytes).TrimEnd("`0") }
+            } catch {}
+
+            if ($name -match $TargetDeviceName -or $friendlyName -match $TargetDeviceName -or $mac -match $TargetDeviceName) {
+                $targetMacs += $mac
+            }
+        }
+    }
+
+    $pnpBtDevices = Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue |
+        Where-Object { $_.FriendlyName -match $TargetDeviceName }
+    foreach ($dev in $pnpBtDevices) {
+        if ($dev.InstanceId -match 'DEV_([0-9A-Fa-f]{12})') {
+            $mac = $Matches[1].ToLower()
+            if ($mac -notin $targetMacs) {
+                $targetMacs += $mac
+            }
+        }
+    }
+
+    if ($targetMacs.Count -gt 0) {
+        Write-Step "Resolved targeted MAC addresses: $($targetMacs -join ', ')"
+    } else {
+        Write-Step "No targeted MAC addresses resolved for filter '$TargetDeviceName'."
+    }
+
     if ($PSCmdlet.ShouldProcess($backupDir, 'Create backup directory')) {
         if (-not (Test-Path -LiteralPath $backupDir)) {
             New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
@@ -316,16 +357,54 @@ function Invoke-BluetoothDriverFlush {
     if (-not $SkipDeviceRemoval) {
         Write-Step 'Removing paired Bluetooth audio devices ...'
         try {
-            $targetDevices = Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue |
-                Where-Object { $_.FriendlyName -match $TargetDeviceName }
-            if ($targetDevices) {
-                foreach ($dev in $targetDevices) {
-                    Write-Step "  Removing: $($dev.FriendlyName) ($($dev.InstanceId))"
+            $devicesToRemove = @()
+            if ($targetMacs.Count -gt 0) {
+                foreach ($mac in $targetMacs) {
+                    $matched = Get-PnpDevice -ErrorAction SilentlyContinue |
+                        Where-Object { $_.InstanceId -like "*$mac*" }
+                    foreach ($m in $matched) {
+                        if ($m.InstanceId -notin ($devicesToRemove | Select-Object -ExpandProperty InstanceId -ErrorAction SilentlyContinue)) {
+                            $devicesToRemove += $m
+                        }
+                    }
+                }
+            } else {
+                # Fallback to name-based matching on Bluetooth class only
+                $devicesToRemove = Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue |
+                    Where-Object { $_.FriendlyName -match $TargetDeviceName }
+            }
+
+            if ($devicesToRemove.Count -gt 0) {
+                foreach ($dev in $devicesToRemove) {
+                    Write-Step "  Removing [Class: $($dev.Class)]: $($dev.FriendlyName) ($($dev.InstanceId))"
                     & pnputil /remove-device $dev.InstanceId 2>&1 | Out-Null
                 }
-                Write-StepOk "Removed $($targetDevices.Count) device(s)"
+                Write-StepOk "Removed $($devicesToRemove.Count) device node(s)"
             } else {
-                Write-Step '  No matching audio Bluetooth devices found.'
+                Write-Step '  No matching Bluetooth devices found.'
+            }
+
+            # Attempt registry key cleanup for resolved MACs
+            if ($targetMacs.Count -gt 0) {
+                Write-Step 'Verifying registry key cleanup ...'
+                foreach ($mac in $targetMacs) {
+                    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices\$mac"
+                    if (Test-Path $regPath) {
+                        Write-StepWarn "Registry key for $mac still exists. Attempting delete ..."
+                        try {
+                            Remove-Item -Path $regPath -Force -Recurse -ErrorAction SilentlyContinue
+                            if (-not (Test-Path $regPath)) {
+                                Write-StepOk "Registry key for $mac deleted successfully."
+                            } else {
+                                Write-StepWarn "Could not delete registry key $mac (access denied)."
+                            }
+                        } catch {
+                            Write-StepWarn "Error deleting registry key ${mac}: $($_.Exception.Message)"
+                        }
+                    } else {
+                        Write-StepOk "Registry key for $mac was cleaned up successfully by PnP subsystem."
+                    }
+                }
             }
         } catch {
             Write-StepWarn "Device removal error: $($_.Exception.Message)"
