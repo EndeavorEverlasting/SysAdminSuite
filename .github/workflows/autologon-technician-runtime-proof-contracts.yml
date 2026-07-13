@@ -141,9 +141,11 @@ jobs:
         shell: pwsh
         run: |
           $env:SAS_RUNTIME_NO_PAUSE = '1'
-          & cmd.exe /c .\scripts\Start-SasAutoLogonTechnicianRuntimeProof.cmd
-          if ($LASTEXITCODE -ne 2) {
-            throw "Expected no-config usage exit code 2; found $LASTEXITCODE."
+          & cmd.exe /d /c .\scripts\Start-SasAutoLogonTechnicianRuntimeProof.cmd
+          $launcherExitCode = $LASTEXITCODE
+          $global:LASTEXITCODE = 0
+          if ($launcherExitCode -ne 2) {
+            throw "Expected no-config usage exit code 2; found $launcherExitCode."
           }
           Write-Host 'PASS: CMD launcher reports bounded usage failure without starting runtime work.'
 
