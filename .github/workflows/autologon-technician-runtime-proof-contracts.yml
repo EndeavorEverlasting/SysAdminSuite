@@ -1,0 +1,156 @@
+name: AutoLogon Technician Runtime Proof Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1'
+      - 'scripts/Start-SasAutoLogonTechnicianRuntimeProof.cmd'
+      - 'docs/AUTOLOGON_TECHNICIAN_RUNTIME_PROOF.md'
+      - 'docs/examples/autologon-runtime-proof.example.json'
+      - 'Tests/survey/test_autologon_technician_runtime_proof_contracts.py'
+      - '.github/workflows/autologon-technician-runtime-proof-contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Run offline technician runtime fixture
+        shell: pwsh
+        run: |
+          $fixtureRoot = Join-Path $PWD 'survey\output\autologon_technician_runtime'
+          New-Item -ItemType Directory -Path $fixtureRoot -Force | Out-Null
+          $configPath = Join-Path $fixtureRoot 'fixture-config.json'
+
+          $config = [ordered]@{
+            schema_version = 'sas-autologon-technician-runtime-config/v1'
+            expected_user_name = 'SAMPLE001'
+            access_paths = @(
+              'C:\ProgramData\VendorApp',
+              '\\fileserver\roundabout'
+            )
+            evidence_directory = $fixtureRoot
+            application_path = 'C:\Program Files\FixtureApp\FixtureApp.exe'
+            application_arguments = @('--fixture')
+            expected_process_name = 'FixtureApp'
+            surface_ready_mode = 'RespondingWindow'
+            window_title_pattern = ''
+            stop_existing_process = $false
+            safe_to_stop_existing_process = $false
+            stop_timeout_seconds = 5
+            ready_timeout_seconds = 5
+            access_retry_count = 1
+            access_retry_delay_seconds = 1
+            allow_write_probe = $true
+            disposable_state_acknowledged = $true
+            trigger_description = 'Issue the synthetic fixture trigger.'
+            expected_behavior = 'The synthetic fixture behavior is observed without live application or data mutation.'
+            technician_label = 'synthetic-ci'
+          }
+          $config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $configPath -Encoding UTF8
+
+          $result = .\scripts\Invoke-SasAutoLogonTechnicianRuntimeProof.ps1 `
+            -ConfigPath $configPath `
+            -FixtureMode `
+            -NonInteractive `
+            -ObservedAck 'fixture-process-ack' `
+            -ObservedBehavior 'Synthetic expected behavior observed.' `
+            -ObservationResult Pass
+
+          if ($result.proof_level -ne 'FIXTURE_ONLY') {
+            throw "Expected FIXTURE_ONLY; found $($result.proof_level)."
+          }
+          if ($result.runtime_proof -ne $false) {
+            throw 'Fixture incorrectly claimed live runtime proof.'
+          }
+          if ($result.overall_success -ne $true) {
+            throw 'Fixture did not complete the synthetic proof chain.'
+          }
+          if ($result.access_proof.runtime_proof -ne $false) {
+            throw 'Nested session fixture incorrectly claimed live access proof.'
+          }
+          if ($result.process_id -ne 4242) {
+            throw "Expected synthetic process ACK 4242; found $($result.process_id)."
+          }
+
+          $requiredStages = @(
+            'repo_floor',
+            'session_attach',
+            'safe_start',
+            'launcher_attach',
+            'target_surface_ready',
+            'trigger_issued',
+            'command_ack',
+            'behavior_observed',
+            'runtime_artifact'
+          )
+          foreach ($stage in $requiredStages) {
+            if ($null -eq $result.stages.$stage) {
+              throw "Missing runtime stage: $stage"
+            }
+          }
+
+          $summaryPath = Join-Path $result.artifact_directory 'runtime-proof-summary.json'
+          $logPath = Join-Path $result.artifact_directory 'runtime-proof-chain.log'
+          if (-not (Test-Path -LiteralPath $summaryPath -PathType Leaf)) {
+            throw "Fixture summary not found: $summaryPath"
+          }
+          if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+            throw "Fixture chain log not found: $logPath"
+          }
+
+          Write-Host 'PASS: offline technician runtime fixture completed the full labeled proof chain without live application behavior.'
+
+      - name: Run static contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_autologon_technician_runtime_proof_contracts.py
+
+      - name: Parse PowerShell entrypoints
+        shell: pwsh
+        run: |
+          $files = @(
+            '.\scripts\Invoke-SasAutoLogonTechnicianRuntimeProof.ps1',
+            '.\scripts\Invoke-SasAutoLogonSessionAccessProof.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "${file}: $($_.Message)" }
+              throw "PowerShell parser reported $($errors.Count) error(s) for $file."
+            }
+          }
+          Write-Host 'PASS: PowerShell parser accepted technician and session runtime proof entrypoints.'
+
+      - name: Validate CMD launcher usage contract
+        shell: pwsh
+        run: |
+          $env:SAS_RUNTIME_NO_PAUSE = '1'
+          & cmd.exe /c .\scripts\Start-SasAutoLogonTechnicianRuntimeProof.cmd
+          if ($LASTEXITCODE -ne 2) {
+            throw "Expected no-config usage exit code 2; found $LASTEXITCODE."
+          }
+          Write-Host 'PASS: CMD launcher reports bounded usage failure without starting runtime work.'
+
+      - name: Upload synthetic technician runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autologon-technician-runtime-synthetic-evidence
+          path: survey/output/autologon_technician_runtime/
+          if-no-files-found: error
