@@ -9,7 +9,7 @@
       "/quiet",
       "/norestart"
     ],
-    "InstallMode": "CopyThenInstall",
+    "InstallMode": "UncDirect",
     "Owner": "Endpoint Engineering",
     "RequestReference": "REQ-REPLACE-ME",
     "ChangeReference": "CHG-REPLACE-ME",
