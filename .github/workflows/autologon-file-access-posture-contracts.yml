@@ -1,0 +1,145 @@
+name: AutoLogon File Access Posture Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-SasAutoLogonFileAccessPosture.ps1'
+      - 'docs/AUTOLOGON_FILE_ACCESS_POSTURE.md'
+      - 'Tests/survey/test_autologon_file_access_posture_contracts.py'
+      - '.github/workflows/autologon-file-access-posture-contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Run offline before and after file-access fixture
+        id: fixture
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $outputRoot = Join-Path $PWD 'survey\output\autologon_file_access'
+          New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+          $diagnosticPath = Join-Path $outputRoot 'fixture-diagnostic.txt'
+          $failureFlag = Join-Path $outputRoot 'fixture-failed.flag'
+
+          try {
+            $before = .\scripts\Invoke-SasAutoLogonFileAccessPosture.ps1 `
+              -Mode Before `
+              -ComputerName SAMPLE001 `
+              -PermissionPath 'C:\ProgramData\VendorApp' `
+              -TechnicianLabel 'synthetic-ci' `
+              -OutputRoot $outputRoot `
+              -FixtureMode
+
+            $after = .\scripts\Invoke-SasAutoLogonFileAccessPosture.ps1 `
+              -Mode After `
+              -RunId $before.run_id `
+              -ComputerName SAMPLE001 `
+              -PermissionPath 'C:\ProgramData\VendorApp' `
+              -TechnicianLabel 'synthetic-ci' `
+              -OutputRoot $outputRoot `
+              -FixtureMode
+
+            $summary = Get-Content -LiteralPath $after.summary_json -Raw | ConvertFrom-Json
+            if ($summary.access_posture_improved_count -ne 1) {
+              throw "Expected one ACCESS_POSTURE_IMPROVED decision; found $($summary.access_posture_improved_count)."
+            }
+            if ($summary.current_review_target_count -ne 0) {
+              throw "Expected zero final file-access review targets; found $($summary.current_review_target_count)."
+            }
+            if ($summary.redirected_shell_folder_target_count -ne 1) {
+              throw "Expected one redirected shell-folder target; found $($summary.redirected_shell_folder_target_count)."
+            }
+            if ($summary.mapped_drive_target_count -ne 1) {
+              throw "Expected one mapped-drive target; found $($summary.mapped_drive_target_count)."
+            }
+            if ($summary.path_contents_enumerated -ne $false) {
+              throw 'Fixture incorrectly reported directory-content enumeration.'
+            }
+            if ($summary.share_paths_contacted -ne $false) {
+              throw 'Fixture incorrectly reported share-path contact.'
+            }
+            if ($summary.effective_access_proven -ne $false) {
+              throw 'Fixture incorrectly claimed effective access.'
+            }
+
+            $afterSnapshotPath = Join-Path $after.output_root 'after\SAMPLE001.json'
+            $snapshot = Get-Content -LiteralPath $afterSnapshotPath -Raw | ConvertFrom-Json
+            if ($snapshot.expected_profile.exists -ne $true) {
+              throw 'Fixture after state did not include the expected profile.'
+            }
+            if ($snapshot.redirected_shell_folder_count -ne 1) {
+              throw 'Fixture after state did not include the expected UNC shell-folder redirect.'
+            }
+            if ($snapshot.mapped_drive_count -ne 1) {
+              throw 'Fixture after state did not include the expected mapped drive.'
+            }
+
+            'PASS: offline AutoLogon file-access fixture captured ACL, profile, redirect, and mapped-drive posture.' |
+              Set-Content -LiteralPath $diagnosticPath -Encoding UTF8
+          }
+          catch {
+            @(
+              'FAIL: offline AutoLogon file-access fixture',
+              "Exception: $($_.Exception.Message)",
+              "Position: $($_.InvocationInfo.PositionMessage)",
+              'Full error:',
+              ($_ | Out-String)
+            ) | Set-Content -LiteralPath $diagnosticPath -Encoding UTF8
+            New-Item -ItemType File -Path $failureFlag -Force | Out-Null
+            Get-Content -LiteralPath $diagnosticPath
+            exit 1
+          }
+
+      - name: Run static contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_autologon_file_access_posture_contracts.py
+
+      - name: Parse PowerShell entrypoint
+        shell: pwsh
+        run: |
+          $file = '.\scripts\Invoke-SasAutoLogonFileAccessPosture.ps1'
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path $file),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error "${file}: $($_.Message)" }
+            throw "PowerShell parser reported $($errors.Count) error(s)."
+          }
+          Write-Host 'PASS: PowerShell parser accepted the AutoLogon file-access entrypoint.'
+
+      - name: Upload synthetic file-access evidence and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autologon-file-access-synthetic-evidence
+          path: survey/output/autologon_file_access/
+          if-no-files-found: error
+
+      - name: Enforce fixture result
+        if: always()
+        shell: pwsh
+        run: |
+          $failureFlag = Join-Path $PWD 'survey\output\autologon_file_access\fixture-failed.flag'
+          $diagnosticPath = Join-Path $PWD 'survey\output\autologon_file_access\fixture-diagnostic.txt'
+          if (Test-Path -LiteralPath $diagnosticPath) {
+            Get-Content -LiteralPath $diagnosticPath
+          }
+          if (Test-Path -LiteralPath $failureFlag) {
+            throw 'Offline AutoLogon file-access fixture failed. See the uploaded diagnostic artifact.'
+          }
