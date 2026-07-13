@@ -146,7 +146,7 @@ Do not expand beyond the pilot until each test workstation has:
 2. a real reboot and visible sign-in by the expected account;
 3. `SESSION_ACCESS_CONFIRMED` for every required local application directory;
 4. `SESSION_ACCESS_CONFIRMED` for every required mapped drive or UNC roundabout;
-5. successful application read/write/save behavior in its real working location;
+5. real application read/write/save behavior in its working location;
 6. no leftover `.sas-autologon-access-*.tmp` marker;
 7. clean SysAdminSuite deployment staging.
 
