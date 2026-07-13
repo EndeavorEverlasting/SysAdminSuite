@@ -1,0 +1,80 @@
+name: Diagnose Pester AutoLogon
+
+on:
+  push:
+    branches:
+      - feat/2026-07-13-autologon-state-delta
+    paths:
+      - '.github/workflows/diagnose-pester-autologon.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/2026-07-13-autologon-state-delta
+          show-progress: false
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run full suite and preserve diagnostics
+        id: pester
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $diagnosticRoot = Join-Path $PWD 'survey\output\autologon_state_delta\pester-diagnostic'
+          New-Item -ItemType Directory -Path $diagnosticRoot -Force | Out-Null
+          $transcript = Join-Path $diagnosticRoot 'pester-console.txt'
+          $failureFlag = Join-Path $diagnosticRoot 'pester-failed.flag'
+
+          try {
+            & "$PWD\tools\Test-Pester5Suite.ps1" *>&1 |
+              Tee-Object -FilePath $transcript
+            if ($LASTEXITCODE -ne 0) {
+              throw "Test-Pester5Suite.ps1 exited with code $LASTEXITCODE"
+            }
+          }
+          catch {
+            @(
+              '',
+              '--- DIAGNOSTIC CATCH ---',
+              "Exception: $($_.Exception.Message)",
+              "Position: $($_.InvocationInfo.PositionMessage)",
+              ($_ | Out-String)
+            ) | Add-Content -LiteralPath $transcript -Encoding UTF8
+            New-Item -ItemType File -Path $failureFlag -Force | Out-Null
+          }
+
+          $xmlSource = Join-Path $PWD '_out\pester-results.xml'
+          if (Test-Path -LiteralPath $xmlSource) {
+            Copy-Item -LiteralPath $xmlSource -Destination (Join-Path $diagnosticRoot 'pester-results.xml') -Force
+          }
+
+          Get-Content -LiteralPath $transcript -Tail 160
+
+      - name: Upload Pester diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autologon-pester-diagnostic
+          path: survey/output/autologon_state_delta/pester-diagnostic/
+          if-no-files-found: error
+
+      - name: Enforce diagnostic result
+        if: always()
+        shell: pwsh
+        run: |
+          $failureFlag = Join-Path $PWD 'survey\output\autologon_state_delta\pester-diagnostic\pester-failed.flag'
+          if (Test-Path -LiteralPath $failureFlag) {
+            throw 'Full Pester suite failed. See the uploaded diagnostic artifact.'
+          }
