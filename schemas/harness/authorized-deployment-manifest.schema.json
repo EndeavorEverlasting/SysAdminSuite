@@ -53,10 +53,9 @@
       "InstallMode": {
         "type": "string",
         "enum": [
-          "UncDirect",
-          "CopyThenInstall"
+          "UncDirect"
         ],
-        "default": "CopyThenInstall"
+        "default": "UncDirect"
       },
       "Owner": {
         "type": "string",
