@@ -61,11 +61,10 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          $evidenceRoot = Join-Path $env:RUNNER_TEMP 'cybernet_power_hardening_evidence'
-          $outputRoot = Join-Path $evidenceRoot 'output'
-          $logPath = Join-Path $evidenceRoot 'fixture-process.log'
-          New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
-          "CYBERNET_POWER_FIXTURE_ROOT=$evidenceRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $outputRoot = Join-Path $PWD 'survey\output\cybernet_power_hardening_ci'
+          $logPath = Join-Path $outputRoot 'fixture-process.log'
+          New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+          "CYBERNET_POWER_FIXTURE_ROOT=$outputRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
           & pwsh -NoProfile -ExecutionPolicy Bypass `
             -File .\scripts\Invoke-SasCybernetPowerHardening.ps1 `
