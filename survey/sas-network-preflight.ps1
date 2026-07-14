@@ -19,7 +19,11 @@ param(
 
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
-    [int[]]$Ports = @(135, 445, 3389, 9100),
+    [int[]]$Ports,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateNotNullOrEmpty()]
+    [string]$PolicyProfile = 'network_preflight',
 
     [Parameter(Mandatory = $false)]
     [string]$OutputDirectory,
@@ -30,6 +34,7 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+$startedAt = (Get-Date).ToString('o')
 
 $repoGuess = Split-Path -Parent $PSScriptRoot
 if (-not (Test-Path -LiteralPath (Join-Path $repoGuess 'scripts/SasNetworkGuard.psm1'))) {
@@ -57,6 +62,10 @@ if (-not (Test-Path -LiteralPath $lowNoiseModule)) {
     throw "Missing shared low-noise policy module: $lowNoiseModule"
 }
 Import-Module $lowNoiseModule -Force
+$englishRenderer = Join-Path $repoGuess 'scripts/Render-SasEnglishReport.ps1'
+if (-not (Test-Path -LiteralPath $englishRenderer)) {
+    throw "Missing shared English report renderer: $englishRenderer"
+}
 
 function Resolve-SasRepoRoot {
     return Get-SasRepoRoot -StartPath $PSScriptRoot
@@ -320,6 +329,18 @@ $surveyOutputRoot = $rootSet.OutputRoots[0]
 $logsNmapRoot = $rootSet.OutputRoots[1]
 $surveyArtifactsRoot = $rootSet.OutputRoots[2]
 $lowNoisePolicy = Get-SasLowNoisePolicy
+$lowNoiseProfile = Get-SasLowNoiseProfile -Id $PolicyProfile
+$profilePorts = @($lowNoiseProfile.ports | ForEach-Object { [int]$_ })
+$portsSource = 'canonical_default'
+if ($PSBoundParameters.ContainsKey('Ports')) {
+    $outsideProfile = @($Ports | Where-Object { $_ -notin $profilePorts })
+    if ($outsideProfile.Count -gt 0) {
+        throw "Explicit ports may narrow but not broaden profile '$PolicyProfile'. Rejected: $($outsideProfile -join ',')"
+    }
+    $portsSource = 'explicit_subset_override'
+} else {
+    $Ports = $profilePorts
+}
 
 $candidateRoots = @($targetsLocalRoot, $logsTargetsRoot)
 $allowedInputRoots = @($targetsLocalRoot, $logsTargetsRoot, $surveyInputRoot)
@@ -379,10 +400,13 @@ $runId = Get-Date -Format 'yyyyMMdd_HHmmss'
 $outputCsv = Join-Path $outputDirectoryFull "network_preflight_$runId.csv"
 $summaryJson = Join-Path $outputDirectoryFull "network_preflight_${runId}_summary.json"
 $handoffPath = Join-Path $outputDirectoryFull "network_preflight_${runId}_handoff.txt"
+$artifactRegistryPath = Join-Path $outputDirectoryFull "network_preflight_${runId}_artifacts.json"
+$reportMarkdownPath = Join-Path $outputDirectoryFull "network_preflight_${runId}_report.md"
 
 Write-Host "Selected target file: $selectedTargetFile"
 Write-Host "Target count: $($targets.Count)"
 Write-Host "Selected ports: $($Ports -join ',')"
+Write-Host "Low-noise profile: $PolicyProfile ($portsSource)"
 Write-Host "Output path: $outputCsv"
 Write-Host 'Low-noise context:'
 Write-Host "- $($lowNoisePolicy.LowNoisePrinciple)"
@@ -430,6 +454,7 @@ foreach ($target in $targets) {
             PortStatus             = $status
             SourceFile             = $selectedTargetFile
             LowNoisePolicyVersion  = $lowNoisePolicy.PolicyVersion
+            LowNoiseProfile        = $PolicyProfile
             LowNoiseDisposition    = 'network_preflight_attempt_recorded'
             ProbeAgainGuidance     = $lowNoisePolicy.ProbeAgainGuidance
             Notes                  = ($notes -join '; ')
@@ -440,19 +465,64 @@ foreach ($target in $targets) {
 Write-SasStageProgress -Step 4 -Total 4 -Message 'Writing network_preflight.csv' -Percent 100
 $rows | Export-Csv -LiteralPath $outputCsv -NoTypeInformation -Encoding UTF8
 
+$nextAction = 'Use fresh reachability evidence to avoid immediate repeat probes; route silent or unresolved rows to review before a time-diverse retry.'
+$lowNoiseContext = New-SasLowNoiseContextObject `
+    -ProfileId $PolicyProfile `
+    -ProfileSource $portsSource `
+    -EvidenceSource 'approved_target_file_and_generated_reachability_results' `
+    -Disposition 'network_preflight_completed' `
+    -Reason 'The explicit approved target list was checked using bounded effective constraints.' `
+    -NetworkActivityPerformed $true `
+    -TargetMutationPerformed $false `
+    -NextAction $nextAction `
+    -EffectivePorts $Ports
 $summary = New-SasLowNoiseSummaryObject -Properties @{
+    workflow_id = 'network-preflight'
     run_id = $runId
+    request_summary = 'Run a bounded network preflight against an explicit approved target file.'
+    source_artifacts = @($selectedTargetFile)
+    loaded_evidence_artifacts = @()
+    planner_name = 'sas-network-preflight'
+    planner_version = 'policy-profile/v1'
+    started_at = $startedAt
+    finished_at = (Get-Date).ToString('o')
     generated_at = (Get-Date).ToString('o')
     target_file = $selectedTargetFile
     target_count = $targets.Count
     ports = $Ports
+    ports_requested = ($Ports -join ',')
+    low_noise_profile = $PolicyProfile
+    ports_source = $portsSource
+    low_noise_context = $lowNoiseContext
     total_checks = $totalChecks
     output_csv = $outputCsv
+    network_preflight_csv = $outputCsv
     summary_json = $summaryJson
+    summary_json_path = $summaryJson
     operator_handoff_path = $handoffPath
+    report_markdown_path = $reportMarkdownPath
+    artifact_registry_path = $artifactRegistryPath
     network_activity_performed = $true
+    target_mutation_performed = $false
+    action_decision = 'Record bounded reachability evidence without changing target systems.'
+    next_action = $nextAction
 }
 $summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryJson -Encoding UTF8
+
+$artifactRegistry = [ordered]@{
+    workflow_id = 'network-preflight'
+    run_id = $runId
+    started_at = $startedAt
+    artifacts = @(
+        [ordered]@{ role = 'source'; path = $selectedTargetFile; tracked = $false; contains_live_data = $true; generated = $false; description = 'Approved target source consumed by this run.' }
+        [ordered]@{ role = 'raw_result'; path = $outputCsv; tracked = $false; contains_live_data = $true; generated = $true; description = 'Machine-readable reachability results.' }
+        [ordered]@{ role = 'summary'; path = $summaryJson; tracked = $false; contains_live_data = $true; generated = $true; description = 'Structured run summary and low-noise context.' }
+        [ordered]@{ role = 'registry'; path = $artifactRegistryPath; tracked = $false; contains_live_data = $true; generated = $true; description = 'Registry linking source, machine, handoff, and English artifacts.' }
+        [ordered]@{ role = 'handoff'; path = $handoffPath; tracked = $false; contains_live_data = $true; generated = $true; description = 'Operator next-action handoff.' }
+        [ordered]@{ role = 'report'; path = $reportMarkdownPath; tracked = $false; contains_live_data = $true; generated = $true; description = 'Syntactic-English report derived from the structured summary.' }
+    )
+}
+$artifactRegistry | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $artifactRegistryPath -Encoding UTF8
 
 @(
     'SysAdminSuite network preflight handoff',
@@ -470,7 +540,11 @@ $summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryJson -Enco
     'If retrying silent or stale rows, prefer a different time of day or different day of week.'
 ) | Set-Content -LiteralPath $handoffPath -Encoding UTF8
 
+& $englishRenderer -SummaryJson $summaryJson -ArtifactRegistry $artifactRegistryPath -Template 'network-preflight' -OutputPath $reportMarkdownPath
+
 Write-Progress -Activity 'SysAdminSuite network preflight' -Completed
 Write-Host "Final CSV path: $outputCsv"
 Write-Host "Summary JSON path: $summaryJson"
 Write-Host "Operator handoff path: $handoffPath"
+Write-Host "Artifact registry path: $artifactRegistryPath"
+Write-Host "English report path: $reportMarkdownPath"

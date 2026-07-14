@@ -18,6 +18,8 @@ This harness is for authorized local development and approved operator workflows
 | Hooks | `.githooks/` | Run local checks before commit and push. |
 | Installer | `scripts/install-local-harness-hooks.sh` | Sets `core.hooksPath` to `.githooks`. |
 | API manifest | `harness/api/sas-harness-api.json` | Defines stable local operation names, inputs, outputs, and safety modes. |
+| Low-noise API | `harness/api/low_noise_policy.py` | Supplies canonical profiles and English explanations to scripts, agents, and future MCP adapters. |
+| Event renderer | `harness/reporting/english.py` | Strictly converts structured event templates into linked syntactic-English artifacts. |
 | MCP catalog | `mcp/local/servers.json` | Lists local-only MCP servers and the APIs they may expose. |
 | Contracts | `Tests/survey/test_local_harness_contracts.py` | Keeps hooks, APIs, MCP, and reporting guardrails connected in CI. |
 
@@ -131,6 +133,14 @@ input artifact(s) -> classifier/transform -> report output -> summary metadata
 ```
 
 A report should say what it consumed, what it excluded, what it classified, and what remains unresolved. It should not invent certainty. Reached is not identity proof. Non-reached is not dead.
+
+Structured JSONL events use the `message_template`, `variables`, and `artifact_refs` contract in `schemas/harness/run-event.schema.json`. Render them locally for agents and operators with:
+
+```bash
+python3 scripts/render-sas-structured-log.py --input events.jsonl --jsonl-output events_english.jsonl --english-output events_english.txt --artifact-registry artifact_registry.json
+```
+
+The renderer is the implementation seam for `report.generate_from_artifacts` and the planned `sas-evidence-reporter` MCP. It resolves simple named variables only, fails on missing or unsafe placeholders, preserves the original JSON fields, adds `english_message`, and never performs network activity or target mutation.
 
 ## Next sprint seam
 

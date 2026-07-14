@@ -108,7 +108,7 @@ catch {
 
 try {
     $combined = ((Get-Content -LiteralPath $serialReport -Raw), (Get-Content -LiteralPath $networkReport -Raw)) -join "`n"
-    $ok = $combined -match 'Low-noise context' -and $combined -match 'Next action'
+    $ok = $combined -match 'Low-noise context' -and $combined -match 'Next action' -and $combined -match 'SysAdminSuite applied profile' -and $combined -match 'target mutation performed: False' -and $combined -match 'The target count value is' -and $combined -match 'This record reports target as'
     Add-Check -Name 'low-noise guidance' -Passed $ok -Detail 'reports include required sections'
 }
 catch {

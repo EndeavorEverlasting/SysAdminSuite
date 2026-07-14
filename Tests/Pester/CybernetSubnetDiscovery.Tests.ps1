@@ -213,7 +213,7 @@ Describe 'New-CybernetScannerCommand' {
         $cmd = New-CybernetNaabuCommand -TargetFile '.\targets.txt' -OutputFile '.\out.jsonl' -PortProfile $portProfile
         $cmd.Scanner | Should -Be 'PacketProbe'
         $cmd.Command | Should -Be 'bash survey/sas-run-packet-probe.sh --site cybernet --list .\targets.txt --out .\out.jsonl --summary .\out.jsonl.summary.json'
-        $cmd.AuditCommand | Should -Be 'naabu -list .\targets.txt -p 135,139,445,3389,5985,5986,80,443 -rate 50 -c 10 -retries 1 -timeout 1000 -ec -json -silent -duc -o .\out.jsonl'
+        $cmd.AuditCommand | Should -Be 'naabu -list .\targets.txt -p 80,443,135,445,3389,5985,5986 -rate 3000 -c 10 -retries 1 -timeout 1000 -ec -json -silent -duc -o .\out.jsonl'
     }
 
     It 'Generates deterministic Nmap host discovery command' {
@@ -225,7 +225,7 @@ Describe 'New-CybernetScannerCommand' {
         $profilePath = Join-Path $script:repoRoot 'Config\cybernet-port-profile.json'
         $portProfile = Get-CybernetPortProfile -ProfilePath $profilePath
         $cmd = New-CybernetNmapSelectedPortCommand -TargetFile '.\targets.txt' -OutputFile '.\out.xml' -PortProfile $portProfile
-        $cmd.Command | Should -Be 'nmap -p 135,139,445,3389,5985,5986,80,443 --open -iL .\targets.txt -oX .\out.xml'
+        $cmd.Command | Should -Be 'nmap -p 80,443,135,445,3389,5985,5986 --open -iL .\targets.txt -oX .\out.xml'
     }
 }
 

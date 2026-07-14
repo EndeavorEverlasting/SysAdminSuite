@@ -59,6 +59,8 @@
       "guardrails": [
         "Reports_name_input_artifacts",
         "Reports_preserve_unknowns",
+        "Renders_syntactic_English_from_structured_events",
+        "Machine_and_English_outputs_remain_linked",
         "No_credential_or_live_evidence_commit"
       ]
     }
