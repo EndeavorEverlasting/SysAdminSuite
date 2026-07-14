@@ -179,6 +179,9 @@ jobs:
           $state = Get-Content $statePath -Raw | ConvertFrom-Json
           if ($state.workflow_status -ne 'acceptance_extracted') { throw "Unexpected state: $($state.workflow_status)" }
           if (-not (Test-Path -LiteralPath $state.acceptance_summary_path -PathType Leaf)) { throw 'Acceptance summary missing.' }
+          if ([System.IO.Path]::GetFileName([string]$state.acceptance_summary_path) -ne 'acceptance-summary.json') {
+            throw "Unexpected acceptance summary filename: $($state.acceptance_summary_path)"
+          }
 
           $summary = Get-Content $state.acceptance_summary_path -Raw | ConvertFrom-Json
           if ($summary.proof_level -ne 'FIXTURE_ONLY') { throw "Unexpected fixture proof: $($summary.proof_level)" }
