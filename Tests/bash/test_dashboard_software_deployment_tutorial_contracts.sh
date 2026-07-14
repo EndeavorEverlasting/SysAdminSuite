@@ -56,8 +56,8 @@ grep -Fq 'Stop when' "$ui" \
 
 grep -Fq 'web interface is the canonical technician tutorial' "$start_doc" \
   || fail "START-HERE does not identify the web interface as canonical"
-grep -Fq 'supporting written runbook' "$written" \
-  || fail "Markdown runbook does not identify itself as supporting documentation"
+grep -Fq 'Supporting written runbook' "$start_doc" \
+  || fail "START-HERE does not demote Markdown to a supporting runbook"
 
 node --check "$ui"
 node --check "$loader"
