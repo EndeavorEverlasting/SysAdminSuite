@@ -1,0 +1,21 @@
+{
+  "run_id": "autologon-delta-20260714-143000-1a2b3c4d",
+  "target": "SAMPLE301MSO001",
+  "phase": "after_complete",
+  "timestamp_utc": "2026-07-14T15:00:00.0000000Z",
+  "technician_label": "pilot-wave-1",
+  "state_delta": {
+    "decision": "CONFIRMED_STATE_TRANSITION",
+    "autologon_status_before": "not_enabled",
+    "autologon_status_after": "autologon_ready",
+    "material_changes": [
+      "AutoAdminLogon=1 added",
+      "DefaultUserName=SAMPLE301MSO001\\technician added",
+      "DefaultPassword value exists (content not read)"
+    ]
+  },
+  "evidence": {
+    "before_snapshot_path": "survey/output/autologon_state_delta/autologon-delta-20260714-143000-1a2b3c4d/run_manifest_before.json",
+    "after_snapshot_path": "survey/output/autologon_state_delta/autologon-delta-20260714-143000-1a2b3c4d/run_manifest_after.json"
+  }
+}

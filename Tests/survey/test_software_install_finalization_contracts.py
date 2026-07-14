@@ -18,6 +18,7 @@ EXAMPLE = ROOT / "docs/examples/validated-deployment-request.example.json"
 PROFILE = ROOT / "harness/e2e/e2e-profiles.json"
 WORKFLOW = ROOT / ".github/workflows/default-e2e-validation.yml"
 OFFLINE = ROOT / "tests/survey/run_offline_survey_tests.sh"
+PESTER_REQUEST = ROOT / "Tests/Pester/ValidatedSoftwareDeploymentRequest.Tests.ps1"
 
 
 def read(path: Path) -> str:
@@ -26,7 +27,21 @@ def read(path: Path) -> str:
 
 
 def test_surfaces_exist_and_json_parses() -> None:
-    for path in (SCHEMA, MODULE, FINALIZER, ORCHESTRATOR, INSPECTOR, CMD, E2E, DOC, EXAMPLE, PROFILE, WORKFLOW, OFFLINE):
+    for path in (
+        SCHEMA,
+        MODULE,
+        FINALIZER,
+        ORCHESTRATOR,
+        INSPECTOR,
+        CMD,
+        E2E,
+        DOC,
+        EXAMPLE,
+        PROFILE,
+        WORKFLOW,
+        OFFLINE,
+        PESTER_REQUEST,
+    ):
         assert path.exists(), f"missing finalization surface: {path}"
     schema = json.loads(read(SCHEMA))
     assert schema["additionalProperties"] is False
@@ -54,6 +69,37 @@ def test_request_contract_is_pinned_authorized_and_bounded() -> None:
         "FileExists", "FileSha256Equals", "FileVersionEquals", "JsonPropertyEquals",
         "RegistryValueEquals", "UninstallEntry", "ServiceExists",
     }
+
+
+def test_runtime_validator_enforces_closed_schema_guardrails() -> None:
+    module = read(MODULE)
+    for fragment in (
+        "REQUEST_FIELD_UNKNOWN",
+        "AUTHORIZATION_FIELD_UNKNOWN",
+        "VALIDATION_FIELD_UNKNOWN",
+        "VALIDATION_CHECK_FIELD_UNKNOWN",
+        "INSTALLER_ARGUMENTS_NOT_ARRAY",
+        "TARGETS_NOT_ARRAY",
+        "TARGET_DUPLICATE",
+        "REQUIRE_VALID_SIGNATURE_TYPE_INVALID",
+        "EXPECTED_SIGNER_THUMBPRINT_INVALID",
+        "VALIDATION_SERVICE_STATUS_INVALID",
+        "Select-Object -Unique",
+    ):
+        assert fragment in module, f"runtime request validator is missing: {fragment}"
+
+    pester = read(PESTER_REQUEST)
+    for fragment in (
+        "accepts the tracked schema-valid example",
+        "rejects unknown root properties",
+        "rejects scalar target input and case-insensitive duplicate targets",
+        "requires an actual boolean for signature enforcement",
+        "rejects unknown validation-check properties",
+        "rejects unsupported service states before target execution",
+    ):
+        assert fragment in pester, f"missing executable request rejection proof: {fragment}"
+    for forbidden in ("Invoke-Command", "Start-Process", "New-PSSession", "AllowTargetMutation"):
+        assert forbidden not in pester, f"offline request tests must not cross mutation boundary: {forbidden}"
 
 
 def test_no_arbitrary_validation_or_broad_cleanup() -> None:

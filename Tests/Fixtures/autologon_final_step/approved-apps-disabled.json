@@ -1,0 +1,21 @@
+{
+  "schema_version": "sas-approved-software-catalog/v1",
+  "software_share_root": "\\\\nt2kwb972sms01\\",
+  "package_root_relative_path": "packages",
+  "catalog_policy": {},
+  "packages": [
+    {
+      "id": "autologon",
+      "display_name": "NW AutoLogon Setup x64",
+      "source_folder_relative_path": "packages\\AutoLogonSetup",
+      "installer_file": "NW_AutoLogon_Setup_x64.exe",
+      "default_install_mode": "CopyThenInstall",
+      "default_installer_arguments": [],
+      "requires_validated_installer_arguments": true,
+      "install_enabled": false,
+      "readiness": "installer_path_confirmed_arguments_pending",
+      "acceptance": {},
+      "notes": "Test fixture: install_enabled is false."
+    }
+  ]
+}

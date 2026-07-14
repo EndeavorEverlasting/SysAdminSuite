@@ -1,0 +1,33 @@
+{
+  "package_name": "autologon",
+  "display_name": "NW AutoLogon Setup x64",
+  "installer_file": "NW_AutoLogon_Setup_x64.exe",
+  "install_enabled": true,
+  "acceptance_profile": {
+    "application_launch": {
+      "enabled": false,
+      "description": "AutoLogon does not have a user-facing application; it configures Winlogon registry"
+    },
+    "autologon_behavior": {
+      "enabled": true,
+      "checks": [
+        "AutoAdminLogon registry key",
+        "DefaultUserName registry key",
+        "DefaultPassword registry key existence (never read)"
+      ],
+      "classifier_order": [
+        "not_enabled",
+        "configured_user_mismatch",
+        "configured_password_missing",
+        "autologon_ready"
+      ]
+    },
+    "reboot_required": true,
+    "post_reboot_verification": [
+      "Observe AutoLogon sign-in after reboot",
+      "Run current-token access proof",
+      "Confirm application launch",
+      "Record observed behavior"
+    ]
+  }
+}

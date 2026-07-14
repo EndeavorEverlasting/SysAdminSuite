@@ -1,0 +1,77 @@
+{
+  "schema_version": "sas-approved-software-catalog/v1",
+  "software_share_root": "\\\\nt2kwb972sms01\\",
+  "package_root_relative_path": "packages",
+  "catalog_policy": {
+    "folder_first": true,
+    "requires_admin_context": true,
+    "snapshot_required_before_install": true,
+    "acceptance_extraction_after_snapshot": true,
+    "require_pinned_installer_file_for_plan_or_install": true,
+    "require_vendor_validated_installer_arguments_for_live_install": true,
+    "never_collect_default_password_value": true,
+    "never_collect_application_command_line": true
+  },
+  "packages": [
+    {
+      "id": "epic-satellite",
+      "display_name": "Epic Satellite",
+      "source_folder_relative_path": "packages\\Epic\\Satellite",
+      "installer_file": null,
+      "default_install_mode": "UncDirect",
+      "default_installer_arguments": [],
+      "requires_validated_installer_arguments": true,
+      "install_enabled": false,
+      "readiness": "installer_file_pending",
+      "acceptance": {
+        "application_process_names": [],
+        "application_window_title_pattern": null,
+        "require_responding_process": true,
+        "autologon_profile": "none",
+        "expected_autologon_user_rule": null
+      },
+      "notes": "The package folder is confirmed. Pin the current approved installer filename before planning or installing. Add the approved application process name before automated launch observation."
+    },
+    {
+      "id": "allscripts-touchworks-22-1",
+      "display_name": "AllScripts TouchWorks 22.1",
+      "source_folder_relative_path": "packages\\TouchWork_22.1",
+      "installer_file": "TWInstaller.exe",
+      "default_install_mode": "UncDirect",
+      "default_installer_arguments": [],
+      "requires_validated_installer_arguments": true,
+      "install_enabled": true,
+      "readiness": "installer_path_confirmed_arguments_pending",
+      "acceptance": {
+        "application_process_names": [],
+        "application_window_title_pattern": null,
+        "require_responding_process": true,
+        "autologon_profile": "none",
+        "expected_autologon_user_rule": null
+      },
+      "notes": "The folder and installer filename are confirmed. Live installation still requires vendor-validated installer arguments. Add the approved application process name before automated launch observation."
+    },
+    {
+      "id": "autologon",
+      "display_name": "NW AutoLogon Setup x64",
+      "source_folder_relative_path": "packages\\AutoLogonSetup",
+      "installer_file": "NW_AutoLogon_Setup_x64.exe",
+      "default_install_mode": "CopyThenInstall",
+      "default_installer_arguments": [],
+      "requires_validated_installer_arguments": true,
+      "install_enabled": true,
+      "readiness": "installer_path_confirmed_arguments_pending",
+      "acceptance": {
+        "application_process_names": [],
+        "application_window_title_pattern": null,
+        "require_responding_process": false,
+        "autologon_profile": "windows_winlogon",
+        "expected_autologon_user_rule": "computer_name",
+        "require_password_value_name": true,
+        "require_current_session_match": true,
+        "require_reboot_after_before_snapshot": true
+      },
+      "notes": "The folder and installer filename are confirmed. Live installation still requires vendor-validated installer arguments. Acceptance checks Winlogon configuration, password-value-name presence, current session identity, and reboot evidence without reading DefaultPassword data."
+    }
+  ]
+}

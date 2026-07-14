@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contracts for the technician-facing software deployment tutorial."""
+"""Contracts for the browser-first software deployment tutorial."""
 from __future__ import annotations
 
 import re
@@ -9,6 +9,10 @@ ROOT = Path(__file__).resolve().parents[2]
 TUTORIAL = ROOT / "docs" / "tutorials" / "SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md"
 START_HERE = ROOT / "START-HERE-SysAdminSuite.md"
 DOC_INDEX = ROOT / "docs" / "launch-and-doc-index.md"
+DASHBOARD_UI = ROOT / "dashboard" / "js" / "software-deployment-tutorial.js"
+DASHBOARD_LOADER = ROOT / "dashboard" / "js" / "launch-repo-setup-tutorial.js"
+DASHBOARD_RUNTIME = ROOT / "dashboard" / "test_software_deployment_tutorial.js"
+DASHBOARD_WORKFLOW = ROOT / ".github" / "workflows" / "dashboard-smoke.yml"
 E2E_SCRIPT = ROOT / "scripts" / "Invoke-SasSoftwareInstallE2E.ps1"
 INSTALL_SCRIPT = ROOT / "scripts" / "Invoke-SasSoftwareInstall.ps1"
 
@@ -18,65 +22,84 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_tutorial_is_discoverable() -> None:
-    relative = "docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md"
-    assert relative in read(START_HERE)
-    assert relative in read(DOC_INDEX)
-    assert "Where is the software deployment tutorial?" in read(START_HERE)
+def test_web_interface_is_canonical_and_discoverable() -> None:
+    start = read(START_HERE)
+    index = read(DOC_INDEX)
+    assert "web interface is the canonical technician tutorial" in start
+    assert "Start Software Deployment" in start
+    assert "?tutorial=software-deployment" in start
+    assert "Supporting written runbook" in start
+    assert "docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md" in start
+    assert "SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md" in index
 
 
-def test_tutorial_matches_real_entrypoints() -> None:
+def test_dashboard_loader_and_primary_card_exist() -> None:
+    loader = read(DASHBOARD_LOADER)
+    ui = read(DASHBOARD_UI)
+    assert "software-deployment-tutorial.js" in loader
+    assert "Primary deployment interface" in ui
+    assert "Start Software Deployment" in ui
+    assert "Jump to Safe Dry Run" in ui
+    assert "hero-open-deployment" in ui
+    assert "software-deployment" in ui
+    assert "software-install" in ui
+
+
+def test_dashboard_matches_real_entrypoints() -> None:
+    ui = read(DASHBOARD_UI)
     tutorial = read(TUTORIAL)
-    assert "scripts\\Invoke-SasSoftwareInstallE2E.ps1" in tutorial
-    assert ".\\scripts\\Invoke-SasSoftwareInstall.ps1" in tutorial
-    assert "SOFTWARE_INSTALL_E2E.md" in tutorial
-    assert "SOFTWARE_INSTALL_HARNESS.md" in tutorial
+    for fragment in [
+        "Invoke-SasSoftwareInstallE2E.ps1",
+        "Invoke-SasSoftwareInstall.ps1",
+    ]:
+        assert fragment in ui
+        assert fragment in tutorial
     assert E2E_SCRIPT.is_file()
     assert INSTALL_SCRIPT.is_file()
 
 
 def test_dry_run_is_first_and_explicitly_non_live() -> None:
     tutorial = read(TUTORIAL)
+    ui = read(DASHBOARD_UI)
     dry_run = tutorial.index("# Phase 1: Run the safe executable dry run")
     pilot = tutorial.index("# Phase 2: Prepare one real pilot deployment")
     assert dry_run < pilot
     for fragment in [
-        "It does not contact a real package share or workstation.",
         "fixture-software-install-executable-e2e",
-        "Delta: 3 added / 0 changed / 0 removed",
-        "dummy-installed.txt",
-        "real_operator_wrapper_executed = true",
-        "real_installer_executable_executed = true",
-        "live_target_e2e = false",
-        "Do not add them to git.",
+        "real_operator_wrapper_executed",
+        "real_installer_executable_executed",
+        "3 / 0 / 0",
+        "does not contact a package share or workstation",
     ]:
-        assert fragment in tutorial, f"tutorial missing dry-run contract: {fragment}"
+        assert fragment.lower() in ui.lower(), f"dashboard missing dry-run contract: {fragment}"
+    assert "live_target_e2e = false" in tutorial
+    assert "Do not add them to git." in tutorial
 
 
-def test_pilot_remains_bounded_and_confirmation_enabled() -> None:
+def test_pilot_remains_one_target_and_confirmation_enabled() -> None:
     tutorial = read(TUTORIAL)
+    ui = read(DASHBOARD_UI)
     for fragment in [
-        "one approved package and one authorized target",
-        "Keep the first live run to one workstation.",
+        "The first live pilot stays limited to one workstation.",
+        "Use one hostname or FQDN only",
         "-WhatIf",
         "-AllowTargetMutation",
-        "Do not add `-Confirm:$false` during the first real pilot.",
-        "Read the confirmation prompt carefully.",
-        "UncDirect` first",
+        "Confirmation remains enabled",
+        "Do not bypass the confirmation prompt",
+        "UncDirect",
         "CopyThenInstall",
     ]:
-        assert fragment in tutorial, f"tutorial missing pilot guard: {fragment}"
+        assert fragment in ui, f"dashboard missing pilot guard: {fragment}"
 
     pilot_section = tutorial.split("# Phase 4: Execute one approved pilot", 1)[1]
     pilot_section = pilot_section.split("# Phase 5:", 1)[0]
-    assert "-Confirm:$false" in pilot_section  # present only in the explicit prohibition
     executable_commands = re.findall(r"```powershell\n(.*?)```", pilot_section, re.DOTALL)
-    assert executable_commands, "pilot section must contain an executable PowerShell example"
+    assert executable_commands
     assert all("-Confirm:$false" not in command for command in executable_commands)
 
 
-def test_tutorial_requires_evidence_and_observed_behavior() -> None:
-    tutorial = read(TUTORIAL)
+def test_dashboard_requires_evidence_and_observed_behavior() -> None:
+    ui = read(DASHBOARD_UI)
     for fragment in [
         "software_install_events.jsonl",
         "software_install_summary.json",
@@ -85,57 +108,79 @@ def test_tutorial_requires_evidence_and_observed_behavior() -> None:
         "failed_count = 0",
         "cleanup_failure_count = 0",
         "repo_artifact_remaining_count = 0",
-        "Record actual observed behavior separately from installer exit-code proof.",
-        "A process launch or exit code alone is not full deployment proof.",
+        "A process launch or exit code alone is not deployment proof.",
+        "intended behavior were actually observed",
     ]:
-        assert fragment in tutorial, f"tutorial missing evidence contract: {fragment}"
+        assert fragment in ui, f"dashboard missing evidence contract: {fragment}"
 
 
-def test_stop_and_expand_gates_are_present() -> None:
-    tutorial = read(TUTORIAL)
-    assert "## Expand only when" in tutorial
-    assert "## Stop and escalate when" in tutorial
+def test_dashboard_has_stop_and_expand_gates() -> None:
+    ui = read(DASHBOARD_UI)
+    assert "Expand only when" in ui
+    assert "Stop when" in ui
     for fragment in [
-        "package hash, signature, version, or arguments are uncertain",
-        "cleanup fails or target staging remains",
-        "endpoint security blocks or quarantines the package",
-        "evidence is incomplete or contradictory",
-        "Do not hide failures, clear logs, or delete operating-system audit records.",
+        "Package evidence or arguments are uncertain",
+        "Security blocks or unexpected interaction occurs",
+        "Version, behavior, cleanup, or evidence is wrong",
+        "Results are incomplete or contradictory",
     ]:
-        assert fragment in tutorial, f"tutorial missing stop condition: {fragment}"
+        assert fragment in ui, f"dashboard missing decision gate: {fragment}"
 
 
-def test_tutorial_uses_placeholders_not_operational_targets() -> None:
-    tutorial = read(TUTORIAL)
-    assert "<AUTHORIZED-HOST>" in tutorial
-    assert "<APPROVED-PACKAGE-NAME>" in tutorial
+def test_command_builder_stays_placeholder_free_and_safe() -> None:
+    ui = read(DASHBOARD_UI)
+    runtime = read(DASHBOARD_RUNTIME)
+    for fragment in [
+        "validatePilot",
+        "buildWhatIfCommand",
+        "buildPilotCommand",
+        "one hostname or FQDN",
+        "parent traversal",
+    ]:
+        assert fragment in ui
+    assert "-Confirm:$false" not in ui
+    assert "assert(!whatIf.command.includes('-Confirm:$false'))" in runtime
+    assert "assert(!pilot.command.includes('-Confirm:$false'))" in runtime
+    assert "HOST1,HOST2" in runtime
+    assert "unsafe path accepted" in runtime
     forbidden = [
         r"DefaultPassword\s*=",
         r"-Credential\b",
         r"ConvertTo-SecureString",
-        r"Invoke-Command\s+-ComputerName",
         r"Enter-PSSession",
         r"git\s+add\s+survey/output",
     ]
     for pattern in forbidden:
-        assert not re.search(pattern, tutorial, re.IGNORECASE), (
-            f"tutorial contains forbidden operational pattern: {pattern}"
+        assert not re.search(pattern, ui, re.IGNORECASE), (
+            f"dashboard tutorial contains forbidden pattern: {pattern}"
         )
+
+
+def test_dashboard_ci_executes_browser_contracts() -> None:
+    workflow = read(DASHBOARD_WORKFLOW)
+    for fragment in [
+        "node --check dashboard/js/software-deployment-tutorial.js",
+        "node dashboard/test_software_deployment_tutorial.js",
+        "test_dashboard_software_deployment_tutorial_contracts.sh",
+    ]:
+        assert fragment in workflow, f"dashboard workflow missing: {fragment}"
 
 
 def main() -> None:
     tests = [
-        test_tutorial_is_discoverable,
-        test_tutorial_matches_real_entrypoints,
+        test_web_interface_is_canonical_and_discoverable,
+        test_dashboard_loader_and_primary_card_exist,
+        test_dashboard_matches_real_entrypoints,
         test_dry_run_is_first_and_explicitly_non_live,
-        test_pilot_remains_bounded_and_confirmation_enabled,
-        test_tutorial_requires_evidence_and_observed_behavior,
-        test_stop_and_expand_gates_are_present,
-        test_tutorial_uses_placeholders_not_operational_targets,
+        test_pilot_remains_one_target_and_confirmation_enabled,
+        test_dashboard_requires_evidence_and_observed_behavior,
+        test_dashboard_has_stop_and_expand_gates,
+        test_command_builder_stays_placeholder_free_and_safe,
+        test_dashboard_ci_executes_browser_contracts,
     ]
     for test in tests:
         test()
-    print(f"PASS: {len(tests)} software deployment tutorial contracts")
+    print(f"PASS: {len(tests)} browser-first software deployment tutorial contracts")
 
 
 if __name__ == "__main__":

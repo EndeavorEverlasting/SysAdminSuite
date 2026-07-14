@@ -1,0 +1,41 @@
+{
+  "gate_id": "autologon-final-step",
+  "gate_version": "1.0.0",
+  "target": "SAMPLE301MSO001",
+  "run_id": "autologon-delta-20260714-143000-1a2b3c4d",
+  "timestamp_utc": "2026-07-14T14:30:00.0000000Z",
+  "technician_label": "pilot-wave-1",
+  "fixture_mode": true,
+  "prerequisites": [
+    {
+      "id": "run_id_format",
+      "description": "Run ID matches autologon-delta format",
+      "passed": true,
+      "mandatory": true,
+      "detail": "Run ID 'autologon-delta-20260714-143000-1a2b3c4d' is valid"
+    },
+    {
+      "id": "host_eligibility",
+      "description": "Target host is eligible for package execution",
+      "passed": false,
+      "mandatory": true,
+      "detail": "Host 'SAMPLE301MSO001' is not in the approved eligibility policy"
+    },
+    {
+      "id": "approved_catalog",
+      "description": "Autologon package exists in approved software catalog",
+      "passed": true,
+      "mandatory": true,
+      "detail": "Package 'autologon' found: NW AutoLogon Setup x64, installer=NW_AutoLogon_Setup_x64.exe"
+    },
+    {
+      "id": "before_snapshot",
+      "description": "State-delta Before snapshot captured for this run",
+      "passed": true,
+      "mandatory": true,
+      "detail": "Before snapshot validated for run 'autologon-delta-20260714-143000-1a2b3c4d', target 'SAMPLE301MSO001'"
+    }
+  ],
+  "overall_pass": false,
+  "blocked_reason": "host_eligibility: Host 'SAMPLE301MSO001' is not in the approved eligibility policy"
+}

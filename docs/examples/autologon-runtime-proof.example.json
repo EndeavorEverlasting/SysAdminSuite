@@ -1,0 +1,26 @@
+{
+  "schema_version": "sas-autologon-technician-runtime-config/v1",
+  "expected_user_name": "WORKSTATION001",
+  "access_paths": [
+    "C:\\ProgramData\\VendorApp",
+    "Z:\\OperationalData",
+    "\\\\approved-fileserver\\approved-share\\OperationalData"
+  ],
+  "evidence_directory": "\\\\approved-fileserver\\approved-share\\SysAdminSuiteRuntimeEvidence",
+  "application_path": "C:\\Program Files\\VendorApp\\VendorApp.exe",
+  "application_arguments": [],
+  "expected_process_name": "VendorApp",
+  "surface_ready_mode": "RespondingWindow",
+  "window_title_pattern": "",
+  "stop_existing_process": false,
+  "safe_to_stop_existing_process": false,
+  "stop_timeout_seconds": 15,
+  "ready_timeout_seconds": 60,
+  "access_retry_count": 3,
+  "access_retry_delay_seconds": 5,
+  "allow_write_probe": true,
+  "disposable_state_acknowledged": true,
+  "trigger_description": "Open the site-approved disposable validation surface and perform the approved non-persistent action.",
+  "expected_behavior": "The application acknowledges the action, remains responsive, and reads/writes/saves only in the approved disposable location.",
+  "technician_label": "AutoLogon pilot batch"
+}

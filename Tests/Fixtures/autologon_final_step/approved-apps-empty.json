@@ -1,0 +1,9 @@
+{
+  "schema_version": "sas-approved-software-catalog/v1",
+  "software_share_root": "\\\\nt2kwb972sms01\\",
+  "package_root_relative_path": "packages",
+  "catalog_policy": {
+    "folder_first": true
+  },
+  "packages": []
+}
