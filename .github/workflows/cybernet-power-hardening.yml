@@ -1,0 +1,116 @@
+name: Cybernet Power Hardening
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-SasCybernetPowerHardening.ps1'
+      - 'QRTasks/Set-PowerComfortDefaults.ps1'
+      - 'QRTasks/Test-DisplayMenuButtonEvent.ps1'
+      - 'QRTasks/Invoke-TechTask.ps1'
+      - 'Tests/Pester/CybernetPowerHardening.Tests.ps1'
+      - 'Tests/survey/test_cybernet_power_hardening_contracts.py'
+      - 'docs/CYBERNET_POWER_HARDENING.md'
+      - '.github/workflows/cybernet-power-hardening.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-and-contracts:
+    runs-on: windows-2025
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run dependency-free Cybernet power contracts
+        shell: pwsh
+        run: python Tests/survey/test_cybernet_power_hardening_contracts.py
+
+      - name: Parse PowerShell surfaces
+        shell: pwsh
+        run: |
+          $paths = @(
+            'scripts/Invoke-SasCybernetPowerHardening.ps1',
+            'QRTasks/Test-DisplayMenuButtonEvent.ps1'
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if (@($errors).Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$path :: $($_.Message)" }
+              throw "PowerShell parser validation failed: $path"
+            }
+          }
+          Write-Host 'PASS: Cybernet power-hardening PowerShell surfaces parse cleanly.'
+
+      - name: Execute offline Cybernet power fixture
+        shell: pwsh
+        run: |
+          $outputRoot = Join-Path $env:RUNNER_TEMP 'cybernet_power_hardening'
+          & pwsh -NoProfile -ExecutionPolicy Bypass `
+            -File .\scripts\Invoke-SasCybernetPowerHardening.ps1 `
+            -ComputerName 'CYBERNET-FIXTURE-01' `
+            -FixtureMode `
+            -OutputRoot $outputRoot
+          if ($LASTEXITCODE -ne 0) {
+            throw "Cybernet power-hardening fixture exited $LASTEXITCODE"
+          }
+
+          $summaryPath = Get-ChildItem -LiteralPath $outputRoot `
+            -Filter 'cybernet_power_hardening_summary.json' `
+            -File -Recurse |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $summaryPath) { throw 'Fixture summary was not generated.' }
+
+          $summary = Get-Content -LiteralPath $summaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($summary.status -ne 'PASS') { throw "Unexpected fixture status: $($summary.status)" }
+          if ($summary.applied_verified_count -ne 1) { throw 'Fixture did not report exactly one verified synthetic target.' }
+          if (-not $summary.fixture_mode) { throw 'Fixture summary did not retain fixture_mode=true.' }
+          if ($summary.network_activity_performed) { throw 'Fixture incorrectly reported network activity.' }
+          if ($summary.target_mutation_performed) { throw 'Fixture incorrectly reported target mutation.' }
+          if ($summary.display_menu_button_status -ne 'NOT_APPLIED_UNPROVEN') {
+            throw "Unsafe display/menu classification: $($summary.display_menu_button_status)"
+          }
+          Get-Content -LiteralPath $summaryPath
+          "CYBERNET_POWER_FIXTURE_ROOT=$outputRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run targeted Cybernet Pester contracts
+        shell: pwsh
+        run: |
+          .\tools\Test-Pester5Suite.ps1 `
+            -TestPath .\Tests\Pester\CybernetPowerHardening.Tests.ps1
+
+      - name: Check patch whitespace
+        shell: pwsh
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --check "origin/${{ github.base_ref }}...HEAD"
+
+      - name: Upload synthetic fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cybernet-power-hardening-fixture
+          path: ${{ env.CYBERNET_POWER_FIXTURE_ROOT }}
+          if-no-files-found: error
+          retention-days: 30
