@@ -77,11 +77,9 @@ function Write-SasSoftwareInstallE2EEvent {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Name,
-
         [Parameter(Mandatory = $false)]
         [hashtable]$Data = @{}
     )
-
     $record = [ordered]@{
         timestamp_utc = (Get-Date).ToUniversalTime().ToString('o')
         event = $Name
@@ -101,11 +99,9 @@ function Get-SasSoftwareInstallSnapshot {
         [Parameter(Mandatory = $true)]
         [string]$Root
     )
-
     if (-not [IO.Directory]::Exists($Root)) {
         return @()
     }
-
     $rootPrefix = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
     return @(
         Get-ChildItem -LiteralPath $Root -Recurse -Force -File |
@@ -119,7 +115,6 @@ function Get-SasSoftwareInstallSnapshot {
                 if (-not $included) {
                     return
                 }
-
                 [ordered]@{
                     relative_path = $relativePath
                     bytes = $_.Length
@@ -134,12 +129,12 @@ function Get-SasSoftwareInstallDelta {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [object[]]$Before,
-
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [object[]]$After
     )
-
     $beforeByPath = @{}
     foreach ($entry in $Before) {
         $beforeByPath[[string]$entry.relative_path] = $entry
@@ -148,7 +143,6 @@ function Get-SasSoftwareInstallDelta {
     foreach ($entry in $After) {
         $afterByPath[[string]$entry.relative_path] = $entry
     }
-
     $added = @(
         $After |
             Where-Object { -not $beforeByPath.ContainsKey([string]$_.relative_path) } |
@@ -173,7 +167,6 @@ function Get-SasSoftwareInstallDelta {
             }
         }
     )
-
     return [ordered]@{
         schema_version = 'sas-software-install-delta/v1'
         added_count = $added.Count
@@ -200,18 +193,14 @@ function Test-Path {
     param(
         [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true, ParameterSetName = 'Path')]
         [string[]]$Path,
-
         [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true, ParameterSetName = 'LiteralPath')]
         [Alias('PSPath')]
         [string[]]$LiteralPath,
-
         [Parameter(Mandatory = $false)]
         [Microsoft.PowerShell.Commands.TestPathType]$PathType = [Microsoft.PowerShell.Commands.TestPathType]::Any,
-
         [Parameter(Mandatory = $false)]
         [switch]$IsValid
     )
-
     process {
         $values = if ($PSCmdlet.ParameterSetName -eq 'LiteralPath') { $LiteralPath } else { $Path }
         foreach ($value in $values) {
@@ -220,7 +209,6 @@ function Test-Path {
                 [IO.File]::Exists($global:SasSoftwareInstallE2EFixtureInstaller)
                 continue
             }
-
             $delegate = @{}
             if ($IsValid) {
                 $delegate['IsValid'] = $true
@@ -244,14 +232,11 @@ function Start-Process {
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [string]$FilePath,
-
         [Parameter(Mandatory = $false)]
         [object[]]$ArgumentList = @(),
-
         [Parameter(Mandatory = $false)]
         [switch]$PassThru
     )
-
     $resolvedFilePath = if ($FilePath.Replace('/', '\').Equals(
         $global:SasSoftwareInstallE2EMappedInstaller,
         [StringComparison]::OrdinalIgnoreCase
@@ -261,7 +246,6 @@ function Start-Process {
     else {
         $FilePath
     }
-
     $delegate = @{ FilePath = $resolvedFilePath }
     if ($ArgumentList.Count -gt 0) {
         $delegate['ArgumentList'] = $ArgumentList
@@ -278,7 +262,6 @@ function New-PSSessionOption {
         [int]$OpenTimeout,
         [int]$OperationTimeout
     )
-
     [pscustomobject]@{
         OpenTimeout = $OpenTimeout
         OperationTimeout = $OperationTimeout
@@ -292,7 +275,6 @@ function New-PSSession {
         [string]$ComputerName,
         [object]$SessionOption
     )
-
     [pscustomobject]@{
         ComputerName = $ComputerName
         SessionOption = $SessionOption
@@ -307,7 +289,6 @@ function Invoke-Command {
         [scriptblock]$ScriptBlock,
         [object[]]$ArgumentList = @()
     )
-
     $previousProgramData = $env:ProgramData
     $previousFixtureRoot = $env:SAS_FIXTURE_INSTALL_ROOT
     $env:ProgramData = $global:SasSoftwareInstallE2EFixtureProgramData
