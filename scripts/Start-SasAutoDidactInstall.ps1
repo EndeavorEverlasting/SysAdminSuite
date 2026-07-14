@@ -216,7 +216,7 @@ function Show-SasMenu {
     while ($true) {
         Clear-Host; Write-Host 'SysAdminSuite - Auto Didact Install'; Write-Host ''; Write-Host '[1] Capture BEFORE snapshot'; Write-Host '[2] Plan Auto Didact install (WhatIf)'; Write-Host '[3] Install Auto Didact after confirmed BEFORE snapshot'; Write-Host '[4] Capture AFTER snapshot and compare'; Write-Host '[5] Open latest evidence folder'; Write-Host '[Q] Quit'; Write-Host ''
         $choice = Read-Host 'Select action'
-        switch -Regex ($choice) { '^1$' { Start-SasBefore; pause } '^2$' { Invoke-SasInstallWrapper -PlanOnly; pause } '^3$' { Invoke-SasInstallWrapper; pause } '^4$' { Start-SasAfter; pause } '^5$' { Open-SasLatest; pause } '^(?i)q$' { return } default { Write-Warning "Unknown selection: $choice"; pause } }
+        switch -Regex ($choice) { '^1$' { Start-SasBefore; pause } '^2$' { Invoke-SasInstallWrapper -PlanOnly; pause } '^3$' { Invoke-SasInstallWrapper; pause } '^4$' { Start-SasAfter; pause } '^5$' { Open-SasLatest; pause } '(?i)^q$' { return } default { Write-Warning "Unknown selection: $choice"; pause } }
     }
 }
 
