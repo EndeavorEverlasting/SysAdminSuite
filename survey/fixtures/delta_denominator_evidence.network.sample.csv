@@ -1,0 +1,4 @@
+Timestamp,SerialNumber,Target,PingStatus,Port,PortStatus,EvidenceType
+2026-07-13T08:00:00-04:00,SN2001,CYB101,Reachable,445,Open,network_preflight
+2026-07-14T08:00:00-04:00,SN2001,CYB101,Reachable,445,Open,network_preflight
+2026-07-10T08:00:00-04:00,SN2004,CYB104,NoPing,445,Closed,network_preflight
