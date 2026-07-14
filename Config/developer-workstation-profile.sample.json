@@ -1,0 +1,32 @@
+{
+  "schema_version": "sas-developer-workstation-profile/v1",
+  "schema_path": "schemas/harness/developer-workstation-profile.schema.json",
+  "workspace": {
+    "name": "SysAdminSuite",
+    "repo_path": "~/dev/SysAdminSuite",
+    "tmux_session": "sysadmin"
+  },
+  "terminal": {
+    "provider": "wezterm",
+    "default_environment": "wsl",
+    "multiplexer": "tmux",
+    "wsl_distribution": "Ubuntu"
+  },
+  "agent_switchboard": {
+    "repository": "EndeavorEverlasting/AgentSwitchboard",
+    "profile": "core",
+    "required_agents": [
+      "opencode",
+      "agy",
+      "goose"
+    ],
+    "invocation_mode": "external-versioned-contract"
+  },
+  "posture": {
+    "install_missing_only": true,
+    "preserve_existing_configuration": true,
+    "automatic_authentication": false,
+    "target_mutation": false,
+    "tracked_runtime_evidence": false
+  }
+}
