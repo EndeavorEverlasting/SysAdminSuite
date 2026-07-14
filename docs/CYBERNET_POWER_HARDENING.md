@@ -2,9 +2,9 @@
 
 ## Operational truth
 
-SysAdminSuite currently has two different button surfaces that must not be conflated.
+SysAdminSuite has two different control planes for Cybernet buttons. They are intentionally separate because they use different Windows and display-controller interfaces.
 
-### Proven Windows physical power-button control
+## Windows physical power-button policy
 
 `QRTasks/Set-PowerComfortDefaults.ps1` uses the canonical Windows physical power-button action GUID:
 
@@ -12,114 +12,276 @@ SysAdminSuite currently has two different button surfaces that must not be confl
 7648efa3-dd9c-4e3e-b566-50f929386280
 ```
 
-For every parsed power scheme it sets the AC and DC action index to `0`, which is **Do nothing** for the physical Windows power button. The local QRTask also exports power-scheme backups before applying its broader comfort preset.
+For every parsed Windows power scheme it sets the AC and DC action index to `0`, which is **Do nothing** for the physical Windows power button.
 
-`scripts/Invoke-SasCybernetPowerHardening.ps1` is the bounded network repair lane. It changes only this physical power-button action, verifies AC and DC values, writes local evidence, and does not stage a payload on the target.
+`scripts/Invoke-SasCybernetPowerHardening.ps1` is the bounded network lane for that Windows policy. It changes only the Windows physical power-button action, verifies AC and DC values, writes local evidence, and does not stage a payload on the target.
 
-### Unproven physical display/menu-button control
+This Windows setting does not control a panel display's on-screen-display menu or display-controller button firmware.
 
-The physical Cybernet display/menu button is not the Windows Start-menu power button. Repository review found no proven Windows policy, registry value, HID contract, vendor API, firmware interface, or OSD control that disables it.
+Do not use `UIBUTTON_ACTION = 0` as a substitute. That Windows setting maps the Start-menu power action to Sleep; it does not disable the Cybernet display-controller buttons.
 
-Do **not** use `UIBUTTON_ACTION = 0` as a substitute. That Windows setting maps the Start-menu power action to Sleep rather than disabling the Cybernet display/menu button.
-
-The repository therefore reports:
+The Windows power-hardening workflow therefore continues to report:
 
 ```text
 NOT_APPLIED_UNPROVEN
 ```
 
-for the physical display/menu button. `QRTasks/Test-DisplayMenuButtonEvent.ps1` is a read-only local probe that records whether pressing the button produces a plausible Windows event. An observed event is evidence for a later bounded implementation. No event suggests a firmware-only or display-OSD path, but does not by itself prove that conclusion.
+for the physical display/menu-button surface. That classification means the Windows power-policy lane intentionally did not apply display-controller control. The separate DDC/CI lane below owns capability detection, VCP mutation, verification, and restore for a conforming display controller.
+
+## MCCS 2.2 display-controller button control
+
+`scripts/Invoke-SasCybernetDisplayButtonControl.ps1` implements a separate, standards-based DDC/CI lane through the Windows Monitor Configuration API and `scripts/SasDdcciMonitorControl.cs`.
+
+The relevant Monitor Control Command Set feature is:
+
+```text
+VCP 0xCA - OSD/Button Control
+```
+
+For MCCS 2.2, the current value is interpreted as two control bytes:
+
+| Byte | `0x01` | `0x02` | `0x03` |
+|---|---|---|---|
+| SL: OSD/menu-button control | OSD disabled, button events enabled | OSD enabled, button events enabled | OSD disabled, button events disabled |
+| SH: display power-button control | power button disabled, events enabled | power button enabled, events enabled | power button disabled, events disabled |
+
+The requested lock value is therefore:
+
+```text
+0x0303
+```
+
+That value asks a conforming MCCS 2.2 display controller to disable the OSD/menu-button events and disable the display power-button events.
+
+Protocol references used to derive this implementation:
+
+- Microsoft Windows Monitor Configuration API, including physical-monitor enumeration, capabilities, VCP reads, and VCP writes.
+- `rockowitz/ddcutil` feature metadata for MCCS VCP `0xCA`, which identifies MCCS 2.2 SH and SL button-control values: `src/vcp/vcp_feature_codes.c` at commit `e16561ffc4d87e29b03257dd5cfedaea7009c586`.
+
+The numeric protocol values are not treated as proof that a particular Cybernet model implements them. A real target must prove support before mutation.
+
+## Fail-closed eligibility
+
+Apply is refused unless the selected physical monitor proves all of the following:
+
+1. Windows exposes it through the physical Monitor Configuration API.
+2. VCP `0xDF` confirms MCCS 2.2 or later.
+3. VCP `0xCA` is readable.
+4. The current SL OSD/menu-button control byte is one of `0x01`, `0x02`, or `0x03`.
+5. The current SH display power-button control byte is one of `0x01`, `0x02`, or `0x03`.
+6. Exactly one eligible monitor exists, or the operator provides an explicit `-MonitorIndex` from a prior probe.
+
+Important classifications include:
+
+```text
+VCP_CA_V22_BUTTON_LOCK_READY
+MCCS_PRE_2_2_OSD_ONLY
+MCCS_VERSION_UNREADABLE
+VCP_CA_UNREADABLE
+HOST_BUTTON_CONTROL_UNSUPPORTED
+```
+
+MCCS versions before 2.2 may expose VCP `0xCA` as an OSD-only control. SysAdminSuite does not use that older behavior to claim physical button disablement.
+
+## Mutation and rollback contract
+
+Apply follows this sequence on each authorized target:
+
+1. Enumerate physical monitors.
+2. Read capabilities, MCCS version, and the original VCP `0xCA` value.
+3. Refuse an ambiguous or unsupported monitor.
+4. Ask for `ShouldProcess` confirmation.
+5. Write `0x0303`.
+6. Read VCP `0xCA` again.
+7. Report success only when readback equals `0x0303`.
+8. If verification fails, immediately attempt to restore the original value and verify that rollback.
+9. Persist every successful target's original value in a generated restore manifest.
+
+The helper always destroys Windows physical-monitor handles after probe or mutation.
+
+A generated restore manifest uses:
+
+```text
+sas-cybernet-display-button-restore/v1
+```
+
+It records the exact target, monitor index, physical-monitor description, original VCP `0xCA` value, and applied value. Do not edit it manually.
 
 ## Target input
 
 Keep live target CSV files under an ignored approved intake root such as:
 
 ```text
-targets/local/cybernet-power-hardening.csv
+targets/local/cybernet-display-buttons.csv
 ```
 
 Accepted columns are `ComputerName`, `HostName`, `Hostname`, or `Target`.
 
 Do not commit live target names.
 
-## Request-only plan
+## Request-only validation
 
 `-WhatIf` validates target intake and writes a local plan. It does not open a remote session or mutate a workstation.
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasCybernetPowerHardening.ps1 `
-  -TargetsCsv .\targets\local\cybernet-power-hardening.csv `
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-SasCybernetDisplayButtonControl.ps1 `
+  -TargetsCsv .\targets\local\cybernet-display-buttons.csv `
+  -Operation Apply `
   -WhatIf
 ```
 
 Expected evidence root:
 
 ```text
-survey/output/cybernet_power_hardening/<workflow-id>/
+survey/output/cybernet_display_button_control/<workflow-id>/
 ```
 
 ## Offline fixture proof
 
+Apply fixture:
+
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasCybernetPowerHardening.ps1 `
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-SasCybernetDisplayButtonControl.ps1 `
   -ComputerName CYBERNET-FIXTURE-01 `
+  -Operation Apply `
   -FixtureMode
 ```
 
-Fixture proof does not contact a target and does not prove a real power-policy change.
-
-## First authorized pilot
-
-Use exactly one approved Cybernet and keep confirmation enabled.
+Restore fixture:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasCybernetPowerHardening.ps1 `
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-SasCybernetDisplayButtonControl.ps1 `
+  -ComputerName CYBERNET-FIXTURE-01 `
+  -Operation Restore `
+  -FixtureMode
+```
+
+Fixture proof validates output, classification, desired value, and restore-manifest contracts. It performs no network activity and proves no real monitor behavior.
+
+## First authorized capability probe
+
+Probe exactly one representative Cybernet before applying the lock:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-SasCybernetDisplayButtonControl.ps1 `
   -ComputerName AUTHORIZED-CYBERNET `
+  -Operation Probe
+```
+
+Probe is read-only but does contact the target through one remote PowerShell session. Review `cybernet_display_button_details.json` and confirm exactly one monitor reports:
+
+```text
+VCP_CA_V22_BUTTON_LOCK_READY
+```
+
+A remote session may fail to expose the physical display on some Windows or graphics-driver configurations. That is a failed capability probe, not permission to bypass the gate.
+
+## First authorized apply pilot
+
+Use the same approved Cybernet and keep confirmation enabled:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-SasCybernetDisplayButtonControl.ps1 `
+  -ComputerName AUTHORIZED-CYBERNET `
+  -Operation Apply `
   -AllowTargetMutation
 ```
 
-The script prompts through `ShouldProcess` before the remote session. Verify the target name and approve only during the authorized change window.
+If the probe found multiple eligible monitors, add the exact index:
+
+```powershell
+-MonitorIndex 0
+```
+
+The operator must verify all of the following before expanding scope:
+
+- the result is `APPLIED_VERIFIED` or `ALREADY_LOCKED_VERIFIED`;
+- final VCP `0xCA` is `0x0303`;
+- the local OSD/menu buttons no longer invoke the OSD or display action;
+- the display power button no longer turns off the panel;
+- normal Windows display output remains available;
+- the generated restore manifest is readable from the admin workstation.
+
+## Restore the pilot
+
+Use the restore manifest generated by the Apply run:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-SasCybernetDisplayButtonControl.ps1 `
+  -ComputerName AUTHORIZED-CYBERNET `
+  -Operation Restore `
+  -RestoreManifest .\survey\output\cybernet_display_button_control\<apply-workflow-id>\cybernet_display_button_restore_manifest.json `
+  -AllowTargetMutation
+```
+
+Restore reads and writes the exact original VCP `0xCA` value for that target and monitor index. Success requires readback of the original value.
 
 ## Bounded fleet run
 
-After one pilot has behavior-observed proof, use an approved target CSV. The default maximum is 25 targets per run.
+Do not run this fleet-wide until one Cybernet has capability, apply, physical-behavior, and restore proof.
+
+After that gate is satisfied:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasCybernetPowerHardening.ps1 `
-  -TargetsCsv .\targets\local\cybernet-power-hardening.csv `
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-SasCybernetDisplayButtonControl.ps1 `
+  -TargetsCsv .\targets\local\cybernet-display-buttons.csv `
+  -Operation Apply `
   -AllowTargetMutation `
   -MaxTargets 25
 ```
 
-The workflow uses one remote PowerShell session per target and does not pre-ping or scan the subnet.
+The workflow uses one remote PowerShell session per target. It does not pre-ping, scan the subnet, install a service, create a scheduled task, change registry values, or stage a payload.
+
+Keep the Apply restore manifest until the fleet result and physical acceptance are complete.
 
 ## Evidence
 
-Each run writes:
+Each display-button run writes:
 
 ```text
-cybernet_power_hardening_events.jsonl
-cybernet_power_hardening_results.csv
-cybernet_power_hardening_summary.json
+cybernet_display_button_events.jsonl
+cybernet_display_button_results.csv
+cybernet_display_button_details.json
+cybernet_display_button_summary.json
 operator_handoff.txt
 ```
 
-A target is technically successful only when every parsed power scheme reports AC and DC action index `0` after application.
+Apply additionally writes:
 
-This proves the Windows physical power-button policy was applied and verified. It does not prove the physical display/menu button was disabled, and it does not replace an operator test of the actual Cybernet button behavior.
+```text
+cybernet_display_button_restore_manifest.json
+```
 
-## Display/menu-button probe
+Runtime evidence belongs under ignored `survey/output/` roots and must not be committed.
 
-Run on one representative Cybernet while physically present:
+## Existing physical-button event probe
+
+`QRTasks/Test-DisplayMenuButtonEvent.ps1` remains a separate, read-only local event probe:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\QRTasks\Invoke-TechTask.ps1 `
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\QRTasks\Invoke-TechTask.ps1 `
   -Task DisplayMenuButtonProbe
 ```
 
-The probe writes under `GetInfo\Output\QRTasks` and returns one of:
+It returns one of:
 
-- `OBSERVED_WINDOWS_EVENT`
-- `NO_WINDOWS_EVENT_OBSERVED`
+```text
+OBSERVED_WINDOWS_EVENT
+NO_WINDOWS_EVENT_OBSERVED
+```
 
-Preserve the local report outside git. A later firmware or OSD sprint must name the exact Cybernet model, control surface, rollback path, and live proof gate before it can claim the display/menu button is disabled.
+This event probe is useful when DDC/CI is unavailable or when a model appears to expose a Windows input signal. It does not write VCP features and does not disable a button.
+
+## Proof ceiling
+
+The repository now contains a real gated implementation for MCCS 2.2 VCP `0xCA`, including apply, verification, rollback, restore manifest, fixtures, and CI.
+
+That implementation does not prove that the deployed Cybernet model supports DDC/CI or conforms to MCCS 2.2. Only an authorized hardware probe and physical-button observation can establish that proof.
