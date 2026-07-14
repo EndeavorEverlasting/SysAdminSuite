@@ -135,9 +135,16 @@ Only when the dashboard tells you to copy a command, or a runbook explicitly ask
 - CLI runbook (advanced): [`START-HERE-CYBERNET-NEURON-SURVEY.md`](START-HERE-CYBERNET-NEURON-SURVEY.md)
 - Full step-by-step: [`docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md)
 
+## Where is the software deployment tutorial?
+
+- Full technician tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
+- Run the generated dummy-installer dry run before entering the real environment.
+- The first live pilot stays limited to one authorized workstation and keeps the confirmation prompt enabled.
+- Implementation and evidence reference: [`docs/SOFTWARE_INSTALL_E2E.md`](docs/SOFTWARE_INSTALL_E2E.md)
+
 ## What files should I never commit?
 
-Live target CSVs, scan output, packaged ZIPs, serials, MACs, and site evidence. Keep them on your admin workstation only.
+Live target CSVs, scan output, packaged ZIPs, generated installer executables, software-install evidence, serials, MACs, and site evidence. Keep them on your admin workstation only.
 
 ### Where to put local Cybernet sources
 
