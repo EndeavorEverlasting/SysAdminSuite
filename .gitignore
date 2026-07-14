@@ -174,4 +174,7 @@ data/private/
 
 # Local Northwell network guard allowlist (private operator/site values)
 Config/sas-network-guard.local.json
+
+# Local host eligibility policy (operator-local patterns, never commit)
+Config/host-eligibility-policy.local.json
 .aider*

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/host-eligibility-policy.schema.json",
+  "title": "SysAdminSuite Host Eligibility Policy",
+  "description": "Defines which hostnames are eligible to receive package execution in each execution context. The policy must be loaded from a gitignored operator-local path. Absence, malformation, or ambiguity results in a closed decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "policy_version",
+    "patterns"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-host-eligibility-policy/v1"
+    },
+    "policy_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,64}$"
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$"
+    },
+    "default_allowed_contexts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "default": ["local", "remote", "fixture", "vm"],
+      "items": {
+        "type": "string",
+        "enum": ["local", "remote", "fixture", "vm"]
+      }
+    },
+    "patterns": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "match_type",
+          "regex",
+          "actions"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "match_type": {
+            "type": "string",
+            "enum": ["regex"]
+          },
+          "regex": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "actions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "uniqueItems": true,
+            "default": ["local", "remote", "fixture", "vm"],
+            "items": {
+              "type": "string",
+              "enum": ["local", "remote", "fixture", "vm"]
+            }
+          }
+        }
+      }
+    }
+  }
+}
