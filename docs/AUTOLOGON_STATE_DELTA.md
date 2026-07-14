@@ -21,10 +21,68 @@ approved target list
   -> review one decision per workstation
 ```
 
-The implementation is:
+## Technician entry point
 
-- PowerShell collector: `scripts/Invoke-SasAutoLogonStateDelta.ps1`
-- Bash-on-Windows entrypoint: `survey/sas-autologon-state-delta.sh`
+Technicians should not compose PowerShell commands, remember a run ID, or re-enter the target list.
+
+Double-click this repository launcher:
+
+```text
+Run-AutoLogonStateDelta.cmd
+```
+
+The menu provides four actions:
+
+```text
+[1] Capture BEFORE state
+[2] Capture AFTER state and compare automatically
+[3] Assess current state only
+[4] Open latest evidence folder
+```
+
+For the normal pilot:
+
+1. Double-click `Run-AutoLogonStateDelta.cmd` and choose option 1.
+2. Select the approved target CSV in the Windows file picker. When
+   `targets/local/autologon-pilot.csv` already exists, accept the saved default.
+3. Enter an assignment label or press Enter to accept the generated dated label.
+4. Let the approved AutoLogon installation work occur.
+5. Double-click the same launcher and choose option 2.
+6. Review the evidence folder that opens automatically.
+
+The launcher remembers:
+
+- the generated run ID;
+- the approved baseline target set;
+- the assignment label;
+- whether the run is waiting for its After capture;
+- the latest evidence folder.
+
+The local workflow state is stored at:
+
+```text
+survey/output/autologon_state_delta/operator-state.json
+```
+
+It contains workflow metadata only. It does not contain credentials or password values.
+
+### Fail-closed behavior
+
+- A new baseline is blocked while the saved baseline is still waiting for its After capture.
+- After mode automatically reuses the targets stored in the baseline.
+- When state is missing but exactly one incomplete baseline exists, that baseline is recovered.
+- When more than one incomplete baseline exists, the interactive menu asks which one to finish.
+- Noninteractive automation fails and requires an explicit `-RunId` when the choice is ambiguous.
+
+## Implementation surfaces
+
+- Double-click launcher: `Run-AutoLogonStateDelta.cmd`
+- Stateful technician orchestrator: `scripts/Start-SasAutoLogonStateDelta.ps1`
+- Canonical collector and comparer: `scripts/Invoke-SasAutoLogonStateDelta.ps1`
+- Bash-on-Windows direct wrapper: `survey/sas-autologon-state-delta.sh`
+
+The launcher delegates to the canonical collector rather than duplicating snapshot or comparison
+logic.
 
 ## What it captures
 
@@ -54,7 +112,7 @@ default_password_value_collected: false
 ```
 
 Do not add password data, secret values, deployment credentials, or account passwords to snapshot,
-delta, CSV, JSON, screenshot, or handoff artifacts.
+delta, CSV, JSON, screenshot, state, or handoff artifacts.
 
 ## Evidence location
 
@@ -79,7 +137,7 @@ operator_handoff.txt
 ```
 
 The remote collector returns objects through the PowerShell session. It does not place a script,
-log, transcript, report, manifest, or evidence file on the target workstation.
+log, transcript, report, manifest, state file, or evidence file on the target workstation.
 
 ## Target contract
 
@@ -93,11 +151,7 @@ Target
 ```
 
 Live target material belongs under ignored local roots such as `targets/local/`; it must not be
-committed. The collector caps a run at 25 targets by default. Use smaller pilot batches first.
-
-## Pilot workflow
-
-### 1. Prepare the approved pilot manifest
+committed. The collector caps a run at 25 targets by default. Use a two-workstation pilot first.
 
 Example local file:
 
@@ -111,67 +165,13 @@ WORKSTATION001
 WORKSTATION002
 ```
 
-### 2. Capture the baseline
-
-Bash-on-Windows:
-
-```bash
-bash survey/sas-autologon-state-delta.sh \
-  --mode before \
-  --manifest targets/local/autologon-pilot.csv \
-  --technician-label "Auto-logon pilot A"
-```
-
-Windows PowerShell:
-
-```powershell
-.\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
-  -Mode Before `
-  -TargetsCsv .\targets\local\autologon-pilot.csv `
-  -TechnicianLabel 'Auto-logon pilot A'
-```
-
-Record the generated run ID from console output and `operator_handoff.txt`.
-
-### 3. Run the approved auto-logon deployment
-
-Use the existing authorized technician or deployment path. Do not broaden the target list, rerun
-failed targets blindly, or place credentials into command history or logs.
-
-The evidence lane is read-only. The deployment lane remains separately authorized target mutation.
-
-### 4. Capture and compare the final state
-
-Bash-on-Windows:
-
-```bash
-bash survey/sas-autologon-state-delta.sh \
-  --mode after \
-  --run-id autologon-delta-YYYYMMDD-HHMMSS-xxxxxxxx \
-  --manifest targets/local/autologon-pilot.csv \
-  --technician-label "Auto-logon pilot A"
-```
-
-Windows PowerShell:
-
-```powershell
-.\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
-  -Mode After `
-  -RunId autologon-delta-YYYYMMDD-HHMMSS-xxxxxxxx `
-  -TargetsCsv .\targets\local\autologon-pilot.csv `
-  -TechnicianLabel 'Auto-logon pilot A'
-```
-
-After mode may reuse targets stored in the baseline when the same approved manifest is unavailable,
-but passing the same manifest makes the operator intent clearest.
-
 ## Decisions
 
 Each workstation receives one primary decision:
 
 | Decision | Meaning |
 |---|---|
-| `CONFIRMED_STATE_TRANSITION` | Before was not ready; after shows enabled auto-logon with the expected hostname-based user. |
+| `CONFIRMED_STATE_TRANSITION` | Before was not ready; after shows enabled auto-logon, the expected hostname-based user, and password-value presence. |
 | `ALREADY_CONFIGURED_BEFORE` | The baseline was already ready, so the later state does not prove new work. |
 | `NO_MATERIAL_CHANGE` | No auto-logon registry/status change was detected. |
 | `PARTIAL_CHANGE_REVIEW` | Some values changed, but the final state is not fully ready. |
@@ -200,46 +200,88 @@ does not clear, suppress, or replace those records.
 
 ## Current-state assessment
 
-To inspect a workstation without a baseline:
+Double-click `Run-AutoLogonStateDelta.cmd` and choose option 3. This reports current posture only; it
+cannot establish when the state changed.
 
-```bash
-bash survey/sas-autologon-state-delta.sh \
-  --mode assess \
-  --computer WORKSTATION001
+## Direct script API
+
+The commands below are for automation, CI, and advanced administrators. They are not the normal
+technician procedure.
+
+A noninteractive baseline can be created with:
+
+```powershell
+.\scripts\Start-SasAutoLogonStateDelta.ps1 `
+  -Action Before `
+  -TargetsCsv .\targets\local\autologon-pilot.csv `
+  -TechnicianLabel 'Auto-logon pilot A' `
+  -NonInteractive
 ```
 
-This reports current posture only. It cannot establish when the state changed.
+The saved baseline can then be completed without repeating the run ID, target CSV, or label:
+
+```powershell
+.\scripts\Start-SasAutoLogonStateDelta.ps1 `
+  -Action After `
+  -NonInteractive
+```
+
+When multiple incomplete baselines intentionally exist, advanced automation must supply the selected
+`-RunId` explicitly. The lower-level collector remains available for harness composition, but it is
+not a field memorization contract.
 
 ## Offline fixture proof
 
-Fixture mode performs no network activity and no target mutation:
+Fixture mode performs no network activity and no target mutation. The stateful launcher itself can be
+proved end to end:
 
-```bash
-bash survey/sas-autologon-state-delta.sh \
-  --mode before \
-  --computer SAMPLE001 \
-  --fixture-mode
+```powershell
+$runId = 'autologon-delta-20260713-170000-1a2b3c4d'
+$outputRoot = Join-Path $PWD 'survey\output\autologon_state_delta'
+
+.\scripts\Start-SasAutoLogonStateDelta.ps1 `
+  -Action Before `
+  -ComputerName SAMPLE001 `
+  -RunId $runId `
+  -OutputRoot $outputRoot `
+  -TechnicianLabel synthetic-ci `
+  -FixtureMode `
+  -NonInteractive `
+  -NoOpen
+
+.\scripts\Start-SasAutoLogonStateDelta.ps1 `
+  -Action After `
+  -OutputRoot $outputRoot `
+  -FixtureMode `
+  -NonInteractive `
+  -NoOpen
 ```
 
-Then rerun with `--mode after` and the emitted run ID. The synthetic after state should produce
+The second call discovers the saved run automatically. It should produce one
 `CONFIRMED_STATE_TRANSITION`. Fixture success is contract proof only; it is not live workstation
 proof.
 
 ## Repository validation
 
-Run the bounded contracts before a live pilot:
+Run the focused contracts before a live pilot:
 
 ```powershell
 python .\Tests\survey\test_autologon_state_delta_contracts.py
 
-$tokens = $null
-$errors = $null
-[void][System.Management.Automation.Language.Parser]::ParseFile(
-  (Resolve-Path '.\scripts\Invoke-SasAutoLogonStateDelta.ps1'),
-  [ref]$tokens,
-  [ref]$errors
+$paths = @(
+  '.\scripts\Invoke-SasAutoLogonStateDelta.ps1',
+  '.\scripts\Start-SasAutoLogonStateDelta.ps1'
 )
-if ($errors.Count -gt 0) { throw "PowerShell parser reported $($errors.Count) error(s)." }
+foreach ($path in $paths) {
+  $tokens = $null
+  $errors = $null
+  [void][System.Management.Automation.Language.Parser]::ParseFile(
+    (Resolve-Path $path),
+    [ref]$tokens,
+    [ref]$errors
+  )
+  if ($errors.Count -gt 0) { throw "$path has $($errors.Count) parser error(s)." }
+}
 ```
 
 From Git Bash or another Bash-on-Windows shell:
@@ -248,8 +290,9 @@ From Git Bash or another Bash-on-Windows shell:
 bash -n survey/sas-autologon-state-delta.sh
 ```
 
-The dedicated GitHub Actions workflow also runs a synthetic Before/After pair and requires exactly
-one `CONFIRMED_STATE_TRANSITION` without network activity or target mutation.
+The dedicated GitHub Actions workflow runs the stateful launcher through a synthetic Before/After
+pair and requires exactly one `CONFIRMED_STATE_TRANSITION` without network activity or target
+mutation.
 
 ## Pilot acceptance gate
 
