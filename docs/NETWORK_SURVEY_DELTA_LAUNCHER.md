@@ -20,10 +20,12 @@ Technicians do not need to remember PowerShell cmdlets, RunIds, generated target
 
 ## What the launcher does
 
-The launcher keeps the packet-free planner and the live read-only survey as separate proof stages:
+The launcher keeps artifact intake, the packet-free planner, and the live read-only survey as separate proof stages:
 
 ```text
-approved requested population
+approved requested/evidence artifacts
+  -> registered format adapters
+  -> canonical denominator validation
   -> load prior local evidence
   -> rank strongest evidence per row
   -> compare latest and previous observations
@@ -33,9 +35,13 @@ approved requested population
   -> automatically rebuild the delta comparison
 ```
 
+Every source artifact must pass `schemas/survey/network-survey-artifact-denominator.schema.json` through `scripts/SasSurveyArtifactNormalizer.psm1` before planning begins. Source-specific aliases live only in `survey/network_survey_artifact_adapters.json`; they are not copied into the planner. See [`NETWORK_SURVEY_ARTIFACT_DENOMINATOR.md`](NETWORK_SURVEY_ARTIFACT_DENOMINATOR.md).
+
 `survey/sas-delta-preflight-plan.ps1` never sends packets. It writes:
 
 ```text
+survey/output/delta_preflight/<run_id>/artifact_intake_manifest.json
+survey/output/delta_preflight/<run_id>/normalized_artifacts/
 survey/output/delta_preflight/<run_id>/delta_preflight_plan.csv
 survey/output/delta_preflight/<run_id>/skipped_recent_evidence.csv
 survey/output/delta_preflight/<run_id>/review_required.csv
@@ -83,8 +89,9 @@ The state stores repo-relative source and artifact paths. Paths are resolved aga
 
 ## Safety boundaries
 
-- No live source, evidence, state, or generated delta artifact is committed.
-- The planner performs no DNS, ping, TCP, Nmap, Naabu, AD, or target-side operation.
+- No live source, normalized package, evidence, state, or generated delta artifact is committed.
+- The normalizer and planner perform no DNS, ping, TCP, Nmap, Naabu, AD, or target-side operation.
+- An artifact with one denominator-invalid row fails closed before planning.
 - A live survey requires an explicit `SURVEY` confirmation.
 - The launcher cannot broaden the selected ports beyond the existing preflight policy.
 - Serial-only values are never staged as network targets.
