@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -164,7 +165,7 @@ def test_documentation_states_live_proof_boundary() -> None:
 def test_workflow_executes_fixture_acceptance_chain() -> None:
     content = read(WORKFLOW)
     required = [
-        "python3 Tests/survey/test_approved_software_acceptance_contracts.py",
+        "test_approved_software_acceptance_contracts.py",
         "Parse acceptance extraction scripts",
         "Capture fixture Before snapshot",
         "Run WhatIf install plan",
@@ -186,20 +187,31 @@ def test_offline_runner_wires_acceptance_contract() -> None:
     assert "python3 Tests/survey/test_approved_software_acceptance_contracts.py" in content
 
 
+TESTS = {
+    "catalog": test_catalog_codifies_acceptance_profiles,
+    "after-gate": test_acceptance_requires_completed_after_snapshot,
+    "application": test_application_launch_observation_is_read_only_and_bounded,
+    "autologon": test_autologon_extraction_never_reads_password_data,
+    "proof": test_proof_levels_do_not_overclaim_behavior,
+    "operator": test_operator_exposes_acceptance_without_raw_launch_commands,
+    "docs": test_documentation_states_live_proof_boundary,
+    "workflow": test_workflow_executes_fixture_acceptance_chain,
+    "runner": test_offline_runner_wires_acceptance_contract,
+}
+
+
 def main() -> None:
-    tests = [
-        test_catalog_codifies_acceptance_profiles,
-        test_acceptance_requires_completed_after_snapshot,
-        test_application_launch_observation_is_read_only_and_bounded,
-        test_autologon_extraction_never_reads_password_data,
-        test_proof_levels_do_not_overclaim_behavior,
-        test_operator_exposes_acceptance_without_raw_launch_commands,
-        test_documentation_states_live_proof_boundary,
-        test_workflow_executes_fixture_acceptance_chain,
-        test_offline_runner_wires_acceptance_contract,
-    ]
-    for test in tests:
+    selected = sys.argv[1:]
+    if selected:
+        unknown = [name for name in selected if name not in TESTS]
+        assert not unknown, f"unknown contract names: {', '.join(unknown)}"
+        tests = [(name, TESTS[name]) for name in selected]
+    else:
+        tests = list(TESTS.items())
+
+    for name, test in tests:
         test()
+        print(f"PASS: {name}")
     print(f"PASS: {len(tests)} approved software acceptance contracts")
 
 
