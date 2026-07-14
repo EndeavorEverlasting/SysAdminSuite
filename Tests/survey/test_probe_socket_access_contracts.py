@@ -173,14 +173,19 @@ def test_socket_access_contract_names_the_operator_boundary():
     posture = read(ROOT / "docs" / "OPERATIONAL_POSTURE.md")
     low_noise = read(ROOT / "docs" / "LOW_NOISE_SURVEY_DOCTRINE.md")
     agents = read(ROOT / "AGENTS.md")
+    survey_skill = read(ROOT / ".claude" / "skills" / "survey-low-noise" / "SKILL.md")
+
+    assert ".claude/skills/survey-low-noise/SKILL.md" in agents, (
+        "AGENTS.md must route probe work to the survey low-noise skill"
+    )
 
     required = [
         "It is not stealth, evasion, log suppression, or hiding activity.",
         "This project uses \"low-noise survey discipline,\" not \"stealth.\"",
         "Do not attempt to bypass monitoring, evade security tools, hide activity, or defeat logging.",
-        "Use \"low-noise survey discipline\" language.",
+        "Use \"low-noise survey discipline\" language",
     ]
-    combined = "\n".join([posture, low_noise, agents])
+    combined = "\n".join([posture, low_noise, survey_skill])
     for fragment in required:
         assert fragment in combined, f"operator boundary wording missing: {fragment}"
 
