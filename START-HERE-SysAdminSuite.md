@@ -61,7 +61,7 @@ flowchart TD
 
    `http://127.0.0.1:5000/dashboard/?tutorial=setup`
 
-3. The browser tab shows the Harold icon. Follow **Repo Setup** first, then click **Start Cybernet Survey** for field survey work.
+3. The browser tab shows the Harold icon. Follow **Repo Setup**, then choose **Software Deployment**, **Cybernet Survey**, or another guided workflow.
 
 On first run, the launcher may **automatically prepare the dashboard app** for a minute before the browser opens. If Microsoft .NET 8 dependencies are missing, it can download official Microsoft installers, verify them, and build the local dashboard host. You do not need to run any command yourself.
 
@@ -137,9 +137,12 @@ Only when the dashboard tells you to copy a command, or a runbook explicitly ask
 
 ## Where is the software deployment tutorial?
 
-- Full technician tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
-- Run the generated dummy-installer dry run before entering the real environment.
-- The first live pilot stays limited to one authorized workstation and keeps the confirmation prompt enabled.
+The **web interface is the canonical technician tutorial**.
+
+- Open the dashboard and click **Start Software Deployment**.
+- Direct route: `http://127.0.0.1:5000/dashboard/?tutorial=software-deployment`
+- The web wizard guides the generated dummy-installer proof, exact evidence review, one-target WhatIf plan, confirmation-enabled pilot, and stop/expand decision.
+- Supporting written runbook: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Implementation and evidence reference: [`docs/SOFTWARE_INSTALL_E2E.md`](docs/SOFTWARE_INSTALL_E2E.md)
 
 ## What files should I never commit?
