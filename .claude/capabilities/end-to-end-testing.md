@@ -14,6 +14,8 @@ Use end-to-end validation as the default merge and release proof target for exec
 - Keep external target, device, deployment, and mutation journeys behind their explicit authorization and teardown gates.
 - Keep generated logs and results in ignored local paths or CI artifacts.
 - Never describe fixture or loopback E2E as live target proof.
+- After any software-install run, invoke `scripts/Show-SasSoftwareInstallResult.ps1` and present its classification and target table before making a completion claim. For technicians, expose `Inspect-LatestSoftwareInstall.cmd`.
+- Even a successful software-install inspection remains post-install verification pending unless package-specific version, service, launch, or acceptance evidence exists.
 
 ## Default runner
 

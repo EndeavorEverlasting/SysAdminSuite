@@ -7,11 +7,13 @@ on:
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
       - 'START-HERE-SysAdminSuite.md'
+      - 'Inspect-LatestSoftwareInstall.cmd'
       - '.claude/skills/**'
       - '.claude/capabilities/**'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'docs/SOFTWARE_INSTALL_E2E.md'
       - 'docs/SOFTWARE_INSTALL_HARNESS.md'
+      - 'docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md'
       - 'docs/AI_LAYER.md'
       - 'docs/launch-and-doc-index.md'
       - 'docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md'
@@ -22,6 +24,7 @@ on:
       - 'scripts/Invoke-SasEndToEndValidation.ps1'
       - 'scripts/Invoke-SasSoftwareInstall.ps1'
       - 'scripts/Invoke-SasSoftwareInstallE2E.ps1'
+      - 'scripts/Show-SasSoftwareInstallResult.ps1'
       - 'scripts/Build-SasSoftwareInstallFixtureExecutable.ps1'
       - 'scripts/SasTargetIntake.psm1'
       - 'scripts/validate-sysadmin-harness.ps1'
@@ -32,6 +35,7 @@ on:
       - 'Tests/fixtures/software-install/**'
       - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
       - 'Tests/survey/test_software_install_harness_contracts.py'
+      - 'Tests/survey/test_software_install_result_inspector_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'Tests/survey/test_software_deployment_tutorial_contracts.py'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
@@ -53,11 +57,13 @@ on:
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
       - 'START-HERE-SysAdminSuite.md'
+      - 'Inspect-LatestSoftwareInstall.cmd'
       - '.claude/skills/**'
       - '.claude/capabilities/**'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'docs/SOFTWARE_INSTALL_E2E.md'
       - 'docs/SOFTWARE_INSTALL_HARNESS.md'
+      - 'docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md'
       - 'docs/AI_LAYER.md'
       - 'docs/launch-and-doc-index.md'
       - 'docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md'
@@ -68,6 +74,7 @@ on:
       - 'scripts/Invoke-SasEndToEndValidation.ps1'
       - 'scripts/Invoke-SasSoftwareInstall.ps1'
       - 'scripts/Invoke-SasSoftwareInstallE2E.ps1'
+      - 'scripts/Show-SasSoftwareInstallResult.ps1'
       - 'scripts/Build-SasSoftwareInstallFixtureExecutable.ps1'
       - 'scripts/SasTargetIntake.psm1'
       - 'scripts/validate-sysadmin-harness.ps1'
@@ -78,6 +85,7 @@ on:
       - 'Tests/fixtures/software-install/**'
       - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
       - 'Tests/survey/test_software_install_harness_contracts.py'
+      - 'Tests/survey/test_software_install_result_inspector_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'Tests/survey/test_software_deployment_tutorial_contracts.py'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
@@ -115,6 +123,7 @@ jobs:
         shell: pwsh
         run: |
           python .\Tests\survey\test_software_install_harness_contracts.py
+          python .\Tests\survey\test_software_install_result_inspector_contracts.py
           python .\Tests\survey\test_e2e_default_posture_contracts.py
           python .\Tests\survey\test_software_deployment_tutorial_contracts.py
       - name: Run default end-to-end gate

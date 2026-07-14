@@ -17,9 +17,14 @@ Use this skill for integration gates, composed workflow proof, browser or launch
    ```powershell
    pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasEndToEndValidation.ps1 -Profile default
    ```
-5. Run broader regression checks after the E2E slice is recoverable.
-6. Run live target or mutation proof only when explicitly authorized and when teardown/evidence boundaries are satisfied.
-7. Report the journey IDs, result artifacts, proof class, and every unrun higher gate.
+5. After any software-install execution or recovered run, invoke:
+   ```powershell
+   pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Show-SasSoftwareInstallResult.ps1
+   ```
+   Present the classification and target table. Give technicians `Inspect-LatestSoftwareInstall.cmd`; do not present installer completion as application acceptance.
+6. Run broader regression checks after the E2E slice is recoverable.
+7. Run live target or mutation proof only when explicitly authorized and when teardown/evidence boundaries are satisfied.
+8. Report the journey IDs, result artifacts, proof class, and every unrun higher gate.
 
 ## Guardrails
 

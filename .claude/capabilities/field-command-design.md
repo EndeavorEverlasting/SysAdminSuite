@@ -13,6 +13,8 @@ Technicians receive short, repeatable, repo-owned entrypoints rather than improv
 - Require explicit target selection and fail closed on ambiguity.
 - Generate machine-readable summaries in addition to concise operator output when the workflow produces evidence.
 - Call Bash items commands/functions/scripts and PowerShell items cmdlets/functions/scripts accurately.
+- For software installation, present `Inspect-LatestSoftwareInstall.cmd` as the technician result entrypoint and invoke `scripts/Show-SasSoftwareInstallResult.ps1` after the install command, after interrupted-run recovery, and before expansion or closeout.
+- Never reduce software-install presentation to “exit code 0”; show classification, target rows, cleanup state, and the remaining post-install verification gate.
 
 ## Dashboard front door
 
