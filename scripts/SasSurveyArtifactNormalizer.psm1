@@ -209,7 +209,7 @@ function Select-SasSurveyArtifactAdapter {
     }
     $topPriority = [int]$matches[0].priority
     $top = @($matches | Where-Object { [int]$_.priority -eq $topPriority })
-    if ($top.Count -ne 1) { throw "Ambiguous network survey adapters at priority $topPriority: $(@($top.id) -join ', ')." }
+    if ($top.Count -ne 1) { throw "Ambiguous network survey adapters at priority ${topPriority}: $(@($top.id) -join ', ')." }
     return $top[0]
 }
 
@@ -402,7 +402,7 @@ function Invoke-SasSurveyArtifactNormalization {
         $tier = Get-SasSurveyEvidenceTier -EvidenceType $evidenceType -ExplicitTier $explicitTier
 
         $normalized = [pscustomobject][ordered]@{
-            row_id = "$artifactId:$rowNumber"; record_role = $Role; serial = $serial; normalized_serial = ConvertTo-SasSurveyNormalizedSerial -Value $serial
+            row_id = "${artifactId}:$rowNumber"; record_role = $Role; serial = $serial; normalized_serial = ConvertTo-SasSurveyNormalizedSerial -Value $serial
             target = $target; normalized_target = ConvertTo-SasSurveyNormalizedTarget -Value $target; candidate_targets = $candidates
             device_type = ([string](Get-SasSurveyMappedValue -Row $row -Adapter $adapter -CanonicalField 'device_type')).Trim()
             site = ([string](Get-SasSurveyMappedValue -Row $row -Adapter $adapter -CanonicalField 'site')).Trim()
