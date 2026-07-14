@@ -87,6 +87,14 @@ Evidence to save:
 
 Before printer mapping, remote probes, or host reachability tests, record the network posture.
 
+Run this local-only gate first. It records an ignored JSON result and does not contact a Cybernet or any other target:
+
+```powershell
+.\scripts\Test-CybernetNetworkPosture.ps1
+```
+
+Only continue when it reports `OK_NETWORK_POSTURE`. If it reports `ENVIRONMENT_BLOCKED_GUEST_NETWORK`, move to an approved enterprise segment. If it reports `ENVIRONMENT_BLOCKED_POLICY`, correct the ignored local network-guard allowlist. This classification happens before target preflight.
+
 ```powershell
 ipconfig /all
 hostname
