@@ -121,6 +121,9 @@ def test_inspector_only_accepts_full_validated_finalization() -> None:
     assert "installer_hash_verified" in text
     assert "requested_software_uninstall_performed" in text
     assert "repo_owned_target_remnants" in text
+    assert "$candidates = @()" in text, "single latest run must remain an array under strict mode"
+    assert "$results = @()" in text, "single target result must remain an array under strict mode"
+    assert "$events = @()" in text, "single event sequence must have an explicit array baseline"
 
 
 def test_e2e_proves_transient_removal_and_package_preservation() -> None:
