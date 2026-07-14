@@ -5,34 +5,41 @@ permissions:
 
 on:
   push:
-    branches: [main, 'feat/**', 'refactor/**', 'docs/**']
+    branches: [main, 'feat/**', 'refactor/**', 'docs/**', 'harness/**']
     paths:
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
       - '.claude/skills/**'
       - '.claude/capabilities/**'
-      - 'harness/api/agent-capability-manifest.json'
-      - 'schemas/harness/agent-capability-manifest.schema.json'
       - 'docs/AI_LAYER.md'
+      - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'harness/api/agent-capability-manifest.json'
+      - 'harness/e2e/**'
+      - 'schemas/harness/agent-capability-manifest.schema.json'
+      - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
+      - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'tools/validate-ai-layer.ps1'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/agent-instruction-contracts.yml'
   pull_request:
-    branches: [main]
     paths:
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
       - '.claude/skills/**'
       - '.claude/capabilities/**'
-      - 'harness/api/agent-capability-manifest.json'
-      - 'schemas/harness/agent-capability-manifest.schema.json'
       - 'docs/AI_LAYER.md'
+      - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'harness/api/agent-capability-manifest.json'
+      - 'harness/e2e/**'
+      - 'schemas/harness/agent-capability-manifest.schema.json'
+      - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
+      - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'tools/validate-ai-layer.ps1'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/agent-instruction-contracts.yml'
@@ -44,15 +51,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-
       - name: Skill and capability factoring contracts
         run: |
           python3 Tests/survey/test_agent_instruction_factoring_contracts.py
           python3 Tests/survey/test_agent_capability_manifest_contracts.py
+          python3 Tests/survey/test_e2e_default_posture_contracts.py
 
   ai-layer-validator:
     runs-on: windows-latest
@@ -60,7 +66,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
       - name: AI layer validator
         shell: pwsh
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1

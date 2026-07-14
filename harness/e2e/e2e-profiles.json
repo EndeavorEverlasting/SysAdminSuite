@@ -1,0 +1,81 @@
+{
+  "schema_version": "sas-e2e-profiles/v1",
+  "schema_path": "schemas/harness/e2e-validation-profiles.schema.json",
+  "default_profile": "default",
+  "posture": {
+    "end_to_end_default_required": true,
+    "unit_tests_sufficient_for_merge": false,
+    "external_network_activity_default": false,
+    "target_mutation_default": false,
+    "tracked_runtime_evidence_allowed": false
+  },
+  "journeys": [
+    {
+      "id": "harness-one-command-synthetic",
+      "summary": "Run the real one-command harness through run context, artifact registration, report rendering, contracts, and final result emission.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/validate-sysadmin-harness.ps1",
+      "arguments": ["-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "software-install-fixture",
+      "summary": "Run the real software-install operator wrapper and generated installer executable against an isolated fixture target, then prove package-state deltas and structured evidence.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasSoftwareInstallE2E.ps1",
+      "arguments": ["-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "software-install-result-presentation",
+      "summary": "Inspect the completed fixture software-install evidence, recompute target and cleanup counts, write software_install_review.json, and present the final operator classification.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Show-SasSoftwareInstallResult.ps1",
+      "arguments": [
+        "-OutputRoot",
+        "{run_root}\\software-install-fixture\\operator",
+        "-RequireCompleted"
+      ],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "dashboard-relay-cancel-loopback",
+      "summary": "Start the real dashboard relay and prove authenticated loopback cancellation preserves partial evidence and stops later targets.",
+      "runtime_candidates": ["python", "python3"],
+      "script": "dashboard/test_relay_cancel_e2e.py",
+      "arguments": [],
+      "network_scope": "loopback-only",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "dashboard-relay-abort-loopback",
+      "summary": "Drive the real relay client against the real relay and prove process death becomes an aborted partial-result classification.",
+      "runtime_candidates": ["node"],
+      "script": "dashboard/test_relay_abort_e2e.js",
+      "arguments": [],
+      "network_scope": "loopback-only",
+      "target_mutation": false,
+      "required": true
+    }
+  ],
+  "profiles": [
+    {
+      "id": "default",
+      "proof_class": "fixture-loopback-e2e",
+      "journey_ids": [
+        "harness-one-command-synthetic",
+        "software-install-fixture",
+        "software-install-result-presentation",
+        "dashboard-relay-cancel-loopback",
+        "dashboard-relay-abort-loopback"
+      ]
+    }
+  ]
+}

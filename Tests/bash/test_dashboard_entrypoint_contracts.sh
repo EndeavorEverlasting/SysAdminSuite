@@ -15,6 +15,7 @@ exe_sprint="$repo_root/docs/DASHBOARD_EXE_FUTURE_SPRINT.md"
 readme="$repo_root/README.md"
 survey_readme="$repo_root/survey/README.md"
 agents="$repo_root/AGENTS.md"
+field_skill="$repo_root/.claude/skills/field-workflow/SKILL.md"
 index="$repo_root/dashboard/index.html"
 fallback_script="$repo_root/scripts/sas-serve-dashboard-fallback.sh"
 server_py="$repo_root/server.py"
@@ -31,6 +32,7 @@ fail() {
 [[ -f "$start_md" ]] || fail "START-HERE-SysAdminSuite.md is missing"
 [[ -f "$entry_doc" ]] || fail "docs/DASHBOARD_ENTRYPOINT.md is missing"
 [[ -f "$exe_sprint" ]] || fail "docs/DASHBOARD_EXE_FUTURE_SPRINT.md is missing"
+[[ -f "$field_skill" ]] || fail ".claude/skills/field-workflow/SKILL.md is missing"
 
 # Canonical launcher is the .bat: it must contain the full launcher logic.
 grep -Fq 'Launch-SysAdminSuiteDashboard.Host.bat' "$bat" \
@@ -57,8 +59,12 @@ grep -Fq 'START-HERE-SysAdminSuite-Dashboard.bat' "$readme" \
   || fail "README.md does not point to .bat launcher"
 grep -Fq '## Start here' "$readme" \
   || fail "README.md is missing Start here section"
-grep -Fq 'DASHBOARD_ENTRYPOINT.md' "$agents" \
-  || fail "AGENTS.md does not reference DASHBOARD_ENTRYPOINT.md"
+# AGENTS.md is a compact router. Dashboard procedure must be reachable through
+# the field-workflow skill rather than copied back into the root instruction file.
+grep -Fq '.claude/skills/field-workflow/SKILL.md' "$agents" \
+  || fail "AGENTS.md does not route field work to field-workflow/SKILL.md"
+grep -Fq 'DASHBOARD_ENTRYPOINT.md' "$field_skill" \
+  || fail "field-workflow/SKILL.md does not reference DASHBOARD_ENTRYPOINT.md"
 grep -Fq 'DASHBOARD_EXE_FUTURE_SPRINT.md' "$entry_doc" \
   || fail "DASHBOARD_ENTRYPOINT.md does not reference EXE future sprint"
 

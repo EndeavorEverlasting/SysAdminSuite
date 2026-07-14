@@ -15,6 +15,7 @@ python3 Tests/survey/test_cybernet_com_qr_pack_contracts.py
 python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
+python3 Tests/survey/test_e2e_default_posture_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_software_install_harness_contracts.py
 python3 Tests/survey/test_run_context_contracts.py

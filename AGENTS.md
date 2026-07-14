@@ -19,6 +19,7 @@ Do not preload every skill, capability, plan, or handoff. Progressive disclosure
 - State repo, branch, PR/sprint, lane, owned scope, forbidden scope, and expected artifacts before mutation.
 - Keep changes bounded. Reuse existing contracts, helpers, schemas, workflows, and validators before inventing new ones.
 - Checkpoint coherent tracked work before broad validation, long diagnostics, runtime proof, or refactoring expansion.
+- End-to-end proof is the default merge and release target for executable or integration-affecting changes; unit tests are fast diagnostics, not completion proof.
 - Never commit secrets, credentials, personal data, live targets, machine-local paths, raw runtime evidence, generated logs, or local reference material.
 - Survey and dashboard probe lanes are read-only toward targets. Deployment or repair mutation requires explicit authorization and its lane-specific gate.
 - Do not claim a higher proof level than the evidence supports. Static checks, launcher success, command ACK, observed behavior, and live runtime proof are distinct.
@@ -32,7 +33,8 @@ Do not preload every skill, capability, plan, or handoff. Progressive disclosure
 | Repository intake, sprint selection, Git/PR lifecycle, interrupted work recovery | [Repository Sprint](.claude/skills/repository-sprint/SKILL.md) |
 | Choosing Bash, PowerShell, Windows-native, or managed implementation surfaces | [Language and Runtime](.claude/skills/language-runtime/SKILL.md) |
 | Technician commands, double-click launchers, field runbooks, QR command capsules | [Field Workflow](.claude/skills/field-workflow/SKILL.md) |
-| Selecting tests or validators | [Scoped Validation](.claude/skills/scoped-validation/SKILL.md) |
+| Selecting parsers, unit tests, contracts, and bounded validators | [Scoped Validation](.claude/skills/scoped-validation/SKILL.md) |
+| Integration gates, composed workflows, browser/launcher journeys, merge/release proof | [End-to-End Validation](.claude/skills/end-to-end-validation/SKILL.md) |
 | Reading, generating, moving, or staging local/live evidence | [Live Data Guard](.claude/skills/live-data-guard/SKILL.md) |
 | Survey, preflight, target intake, Naabu/Nmap, packet probes, dashboard probes | [Survey Low-Noise](.claude/skills/survey-low-noise/SKILL.md) |
 
@@ -57,6 +59,7 @@ If two same-level sources conflict, stop expansion, cite both paths, and make th
 - `CODEBASE_MAP.md` — minimal context routing.
 - `Config/operational-posture.json` and `docs/OPERATIONAL_POSTURE.md` — lane and mutation posture.
 - `docs/HARNESS_DISCIPLINE.md` — full Git/PR/worktree operation contract.
+- `docs/END_TO_END_TESTING_POSTURE.md` — default validation and merge/release proof posture.
 - `docs/LOCAL_REFERENCE_POLICY.md`, `.gitignore`, and `.claudeignore` — local data boundaries.
 - `survey/naabu_profiles.json` — approved Naabu doctrine profiles.
 - `tools/validate-ai-layer.ps1` — agent instruction, skill, and capability validation.
@@ -66,8 +69,8 @@ If two same-level sources conflict, stop expansion, cite both paths, and make th
 Before reporting completion:
 
 1. Review `git diff --check`, `git status --short`, `git diff --stat`, and the final diff when locally available.
-2. Run the strongest scoped validator named by the selected skill.
+2. Run targeted diagnostics, then the applicable E2E journey, then broader checks.
 3. Report exact passes, failures, and skipped commands.
 4. Report changed files, commit SHA, push/PR state, remaining gaps, proof level, and one exact next command.
 
-A checkpoint or green static test is not automatically merge readiness or runtime proof.
+A checkpoint, green unit test, or green static contract is not automatically merge readiness or runtime proof.

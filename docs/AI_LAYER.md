@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The SysAdminSuite AI harness gives assisted changes a compact repo front door, progressive disclosure, scoped workflows, reusable capabilities, local-data guardrails, and repeatable validation.
+The SysAdminSuite AI harness gives assisted changes a compact repo front door, progressive disclosure, scoped workflows, reusable capabilities, local-data guardrails, repeatable validation, and executable end-to-end gates.
 
 The root instruction file is not a prompt packet. `AGENTS.md` contains universal invariants and routing only. Task procedures live in skills; stable rules used by several skills live in capabilities.
 
@@ -26,14 +26,18 @@ This keeps unrelated doctrine out of routine prompts while preserving repository
 | `CODEBASE_MAP.md` | Minimal context map for targeted loading |
 | `.claude/skills/` | Task-specific workflows |
 | `.claude/capabilities/` | Reusable atomic policy and operating capabilities |
-| `harness/api/agent-capability-manifest.json` | Machine-readable capability and skill catalog |
-| `schemas/harness/agent-capability-manifest.schema.json` | Fail-closed catalog shape |
+| `harness/api/agent-capability-manifest.json` | Machine-readable skill/capability catalog |
+| `schemas/harness/agent-capability-manifest.schema.json` | Fail-closed catalog schema |
+| `harness/e2e/e2e-profiles.json` | Machine-readable E2E journey profiles |
+| `scripts/Invoke-SasEndToEndValidation.ps1` | One-command E2E gate and result emitter |
+| `scripts/Invoke-SasSoftwareInstallE2E.ps1` | Real fixture software-install journey with snapshots, delta, and structured logs |
 | `.claudeignore` | AI context exclusions for local/live data and evidence |
 | `.claude/agents/explorer.md` | Read-only explorer role for specific repo questions |
 | `.archon/workflows/*.yaml` | Workflow templates for survey, docs, and PR validation |
 | `tools/validate-ai-layer.ps1` | Offline instruction/harness validator |
-| `Tests/survey/test_agent_instruction_factoring_contracts.py` | Anti-bloat and Markdown composition contract |
-| `Tests/survey/test_agent_capability_manifest_contracts.py` | Machine-readable manifest integrity and wiring contract |
+| `Tests/survey/test_agent_instruction_factoring_contracts.py` | Anti-bloat and skill/capability dependency contract |
+| `Tests/survey/test_agent_capability_manifest_contracts.py` | Manifest/schema/dependency contract |
+| `Tests/survey/test_e2e_default_posture_contracts.py` | E2E default-posture, software-install, and profile contract |
 
 ## Skills versus capabilities
 
@@ -43,25 +47,36 @@ A **capability** answers â€œwhat stable rule or ability is reused across tasks?â
 
 Skills must declare capability dependencies. Agents load only the selected skills and those dependencies.
 
-## Machine-readable capability manifest
+The authoritative metadata catalog is:
 
-`harness/api/agent-capability-manifest.json` is the harness-facing catalog for progressive disclosure. It records:
+```text
+harness/api/agent-capability-manifest.json
+```
 
-- stable capability and skill IDs;
-- capability versions;
-- repository-relative Markdown paths;
-- applicable lanes;
-- default network and target-mutation posture;
-- control-plane or gated-target execution modes;
-- canonical authority paths;
-- validators;
-- exact skill-to-capability dependencies.
+Its fail-closed contract is:
 
-The manifest does not replace Markdown operating law, workflow specifications, schemas, run context, or runtime implementations. It gives validators and future adapters a deterministic catalog without requiring them to scrape prose or preload every instruction file.
+```text
+schemas/harness/agent-capability-manifest.schema.json
+```
 
-The existing harness API exposes this catalog through the local-read contract `agent_capability.catalog.read` in `harness/api/sas-harness-api.json`. That operation reads metadata only; it does not execute a skill, create a second run context, contact targets, or mutate state.
+## End-to-end default posture
 
-The schema is `schemas/harness/agent-capability-manifest.schema.json`. Both catalog and schema are tracked product contracts. Runtime evidence and machine-local state never belong in either file.
+For executable or integration-affecting changes, targeted unit and contract checks are diagnostic layers. The default merge/release proof target is an applicable E2E journey through the real entrypoint, composition boundary, artifact/result path, and final classification.
+
+The fixture-safe default profile composes:
+
+- the real one-command synthetic harness;
+- the real software-install operator wrapper and fixture installer, including before/after state, deltas, and structured logging;
+- the real dashboard relay cancellation flow over loopback;
+- the real dashboard relay/client abort flow over loopback.
+
+Run it with:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasEndToEndValidation.ps1 -Profile default
+```
+
+See `docs/END_TO_END_TESTING_POSTURE.md` and `docs/SOFTWARE_INSTALL_E2E.md`. Fixture and loopback success must not be promoted to live target or operator acceptance proof.
 
 ## Operating boundaries
 
@@ -81,11 +96,12 @@ Run after changing agent instructions, skills, capabilities, or AI harness files
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
 ```
 
-Run the dependency-free factoring and manifest contracts on every platform:
+Run portable contracts:
 
 ```text
 python Tests/survey/test_agent_instruction_factoring_contracts.py
 python Tests/survey/test_agent_capability_manifest_contracts.py
+python Tests/survey/test_e2e_default_posture_contracts.py
 ```
 
-The validators enforce required files, safety language, Markdown and machine-readable dependency agreement, referenced path existence, local-data exclusions, and the compact `AGENTS.md` line budget.
+The validators enforce required files, safety language, skill-to-capability links, local-data exclusions, the compact `AGENTS.md` line budget, machine-readable catalog agreement, and E2E-default posture.
