@@ -48,6 +48,11 @@ $packageName = 'SysAdminSuite Fixture Package'
 $packageMarker = Join-Path $fixtureTargetRoot 'InstalledPackages/SysAdminSuiteFixturePackage/manifest.json'
 $installerOwnedLog = Join-Path $fixtureTargetRoot 'InstallerLogs/sysadminsuite-fixture-package.log'
 
+$global:SasSoftwareInstallE2EMappedInstaller = $mappedInstaller
+$global:SasSoftwareInstallE2EFixtureInstaller = $fixtureInstaller
+$global:SasSoftwareInstallE2EFixtureTargetRoot = $fixtureTargetRoot
+$global:SasSoftwareInstallE2EFixtureProgramData = $fixtureProgramData
+
 foreach ($requiredPath in @($fixtureInstaller, $fixtureInstallerScript, $operatorScript)) {
     if (-not [IO.File]::Exists($requiredPath)) {
         throw "Required software-install E2E file is missing: $requiredPath"
@@ -72,11 +77,12 @@ function Write-SasSoftwareInstallE2EEvent {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Name,
+
         [Parameter(Mandatory = $false)]
         [hashtable]$Data = @{}
     )
 
-    [ordered]@{
+    $record = [ordered]@{
         timestamp_utc = (Get-Date).ToUniversalTime().ToString('o')
         event = $Name
         proof_class = 'fixture-software-install-e2e'
@@ -84,46 +90,66 @@ function Write-SasSoftwareInstallE2EEvent {
         external_network_activity = $false
         target_mutation = $false
         data = $Data
-    } | ConvertTo-Json -Depth 10 -Compress |
+    }
+    $record | ConvertTo-Json -Depth 10 -Compress |
         Add-Content -LiteralPath $eventPath -Encoding UTF8
 }
 
 function Get-SasSoftwareInstallSnapshot {
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string]$Root)
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
 
-    if (-not [IO.Directory]::Exists($Root)) { return @() }
+    if (-not [IO.Directory]::Exists($Root)) {
+        return @()
+    }
+
     $rootPrefix = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
     return @(
         Get-ChildItem -LiteralPath $Root -Recurse -Force -File |
             ForEach-Object {
+                $relativePath = $_.FullName.Substring($rootPrefix.Length).Replace('\', '/')
                 [ordered]@{
-                    relative_path = $_.FullName.Substring($rootPrefix.Length).Replace('\', '/')
+                    relative_path = $relativePath
                     bytes = $_.Length
                     sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
                 }
-            } | Sort-Object relative_path
+            } |
+            Sort-Object relative_path
     )
 }
 
 function Get-SasSoftwareInstallDelta {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true)][object[]]$Before,
-        [Parameter(Mandatory = $true)][object[]]$After
+        [Parameter(Mandatory = $true)]
+        [object[]]$Before,
+
+        [Parameter(Mandatory = $true)]
+        [object[]]$After
     )
 
     $beforeByPath = @{}
-    foreach ($entry in $Before) { $beforeByPath[[string]$entry.relative_path] = $entry }
+    foreach ($entry in $Before) {
+        $beforeByPath[[string]$entry.relative_path] = $entry
+    }
     $afterByPath = @{}
-    foreach ($entry in $After) { $afterByPath[[string]$entry.relative_path] = $entry }
+    foreach ($entry in $After) {
+        $afterByPath[[string]$entry.relative_path] = $entry
+    }
 
-    $added = @($After | Where-Object {
-        -not $beforeByPath.ContainsKey([string]$_.relative_path)
-    } | Sort-Object relative_path)
-    $removed = @($Before | Where-Object {
-        -not $afterByPath.ContainsKey([string]$_.relative_path)
-    } | Sort-Object relative_path)
+    $added = @(
+        $After |
+            Where-Object { -not $beforeByPath.ContainsKey([string]$_.relative_path) } |
+            Sort-Object relative_path
+    )
+    $removed = @(
+        $Before |
+            Where-Object { -not $afterByPath.ContainsKey([string]$_.relative_path) } |
+            Sort-Object relative_path
+    )
     $changed = @(
         foreach ($entry in $After) {
             $path = [string]$entry.relative_path
@@ -151,24 +177,29 @@ function Get-SasSoftwareInstallDelta {
 }
 
 $before = @(Get-SasSoftwareInstallSnapshot -Root $fixtureTargetRoot)
-ConvertTo-Json -InputObject $before -Depth 8 |
-    Set-Content -LiteralPath $beforePath -Encoding UTF8
+ConvertTo-Json -InputObject $before -Depth 8 | Set-Content -LiteralPath $beforePath -Encoding UTF8
 Write-SasSoftwareInstallE2EEvent -Name 'before_snapshot_captured' -Data @{
     file_count = $before.Count
     snapshot_path = $beforePath
 }
 
-# Process-local adapters let the production wrapper traverse its real session and remote-install
-# branches while redirecting only transport and the approved UNC lookup to the fixture target.
+# The adapter functions below are process-local. They let the production operator wrapper traverse its
+# real session and remote-install branches while redirecting only the transport and approved UNC lookup
+# to the isolated fixture target. The real installer still runs as a child process.
 function Test-Path {
     [CmdletBinding(DefaultParameterSetName = 'Path')]
     param(
         [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true, ParameterSetName = 'Path')]
         [string[]]$Path,
+
         [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true, ParameterSetName = 'LiteralPath')]
         [Alias('PSPath')]
         [string[]]$LiteralPath,
+
+        [Parameter(Mandatory = $false)]
         [Microsoft.PowerShell.Commands.TestPathType]$PathType = [Microsoft.PowerShell.Commands.TestPathType]::Any,
+
+        [Parameter(Mandatory = $false)]
         [switch]$IsValid
     )
 
@@ -176,16 +207,22 @@ function Test-Path {
         $values = if ($PSCmdlet.ParameterSetName -eq 'LiteralPath') { $LiteralPath } else { $Path }
         foreach ($value in $values) {
             $normalized = ([string]$value).Replace('/', '\')
-            if ($normalized.Equals($script:mappedInstaller, [StringComparison]::OrdinalIgnoreCase)) {
-                [IO.File]::Exists($script:fixtureInstaller)
+            if ($normalized.Equals($global:SasSoftwareInstallE2EMappedInstaller, [StringComparison]::OrdinalIgnoreCase)) {
+                [IO.File]::Exists($global:SasSoftwareInstallE2EFixtureInstaller)
                 continue
             }
 
             $delegate = @{}
-            if ($IsValid) { $delegate['IsValid'] = $true } else { $delegate['PathType'] = $PathType }
+            if ($IsValid) {
+                $delegate['IsValid'] = $true
+            }
+            else {
+                $delegate['PathType'] = $PathType
+            }
             if ($PSCmdlet.ParameterSetName -eq 'LiteralPath') {
                 $delegate['LiteralPath'] = $value
-            } else {
+            }
+            else {
                 $delegate['Path'] = $value
             }
             Microsoft.PowerShell.Management\Test-Path @delegate
@@ -196,25 +233,43 @@ function Test-Path {
 function Start-Process {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true, Position = 0)][string]$FilePath,
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string]$FilePath,
+
+        [Parameter(Mandatory = $false)]
         [object[]]$ArgumentList = @(),
+
+        [Parameter(Mandatory = $false)]
         [switch]$PassThru
     )
 
     $resolvedFilePath = if ($FilePath.Replace('/', '\').Equals(
-        $script:mappedInstaller,
+        $global:SasSoftwareInstallE2EMappedInstaller,
         [StringComparison]::OrdinalIgnoreCase
-    )) { $script:fixtureInstaller } else { $FilePath }
+    )) {
+        $global:SasSoftwareInstallE2EFixtureInstaller
+    }
+    else {
+        $FilePath
+    }
 
     $delegate = @{ FilePath = $resolvedFilePath }
-    if ($ArgumentList.Count -gt 0) { $delegate['ArgumentList'] = $ArgumentList }
-    if ($PassThru) { $delegate['PassThru'] = $true }
+    if ($ArgumentList.Count -gt 0) {
+        $delegate['ArgumentList'] = $ArgumentList
+    }
+    if ($PassThru) {
+        $delegate['PassThru'] = $true
+    }
     Microsoft.PowerShell.Management\Start-Process @delegate
 }
 
 function New-PSSessionOption {
     [CmdletBinding()]
-    param([int]$OpenTimeout, [int]$OperationTimeout)
+    param(
+        [int]$OpenTimeout,
+        [int]$OperationTimeout
+    )
+
     [pscustomobject]@{
         OpenTimeout = $OpenTimeout
         OperationTimeout = $OperationTimeout
@@ -224,28 +279,39 @@ function New-PSSessionOption {
 
 function New-PSSession {
     [CmdletBinding()]
-    param([string]$ComputerName, [object]$SessionOption)
+    param(
+        [string]$ComputerName,
+        [object]$SessionOption
+    )
+
     [pscustomobject]@{
         ComputerName = $ComputerName
         SessionOption = $SessionOption
-        FixtureTargetRoot = $script:fixtureTargetRoot
+        FixtureTargetRoot = $global:SasSoftwareInstallE2EFixtureTargetRoot
     }
 }
 
 function Invoke-Command {
     [CmdletBinding()]
-    param([object]$Session, [scriptblock]$ScriptBlock, [object[]]$ArgumentList = @())
+    param(
+        [object]$Session,
+        [scriptblock]$ScriptBlock,
+        [object[]]$ArgumentList = @()
+    )
 
     $previousProgramData = $env:ProgramData
     $previousFixtureRoot = $env:SAS_FIXTURE_INSTALL_ROOT
-    $env:ProgramData = $script:fixtureProgramData
-    $env:SAS_FIXTURE_INSTALL_ROOT = $script:fixtureTargetRoot
-    try { & $ScriptBlock @ArgumentList }
+    $env:ProgramData = $global:SasSoftwareInstallE2EFixtureProgramData
+    $env:SAS_FIXTURE_INSTALL_ROOT = $global:SasSoftwareInstallE2EFixtureTargetRoot
+    try {
+        & $ScriptBlock @ArgumentList
+    }
     finally {
         $env:ProgramData = $previousProgramData
         if ($null -eq $previousFixtureRoot) {
             Remove-Item Env:SAS_FIXTURE_INSTALL_ROOT -ErrorAction SilentlyContinue
-        } else {
+        }
+        else {
             $env:SAS_FIXTURE_INSTALL_ROOT = $previousFixtureRoot
         }
     }
@@ -286,8 +352,7 @@ Write-SasSoftwareInstallE2EEvent -Name 'operator_install_completed' -Data @{
 }
 
 $after = @(Get-SasSoftwareInstallSnapshot -Root $fixtureTargetRoot)
-ConvertTo-Json -InputObject $after -Depth 8 |
-    Set-Content -LiteralPath $afterPath -Encoding UTF8
+ConvertTo-Json -InputObject $after -Depth 8 | Set-Content -LiteralPath $afterPath -Encoding UTF8
 Write-SasSoftwareInstallE2EEvent -Name 'after_snapshot_captured' -Data @{
     file_count = $after.Count
     snapshot_path = $afterPath
@@ -312,10 +377,11 @@ $operatorEvents = @(
 $operatorEventNames = @($operatorEvents | ForEach-Object { [string]$_.event })
 $packageState = if ([IO.File]::Exists($packageMarker)) {
     Get-Content -LiteralPath $packageMarker -Raw | ConvertFrom-Json
-} else { $null }
-$repoOwnedStageRoot = Join-Path $fixtureProgramData (
-    "SysAdminSuite\SoftwareInstall\{0}" -f $summary.run_id
-)
+}
+else {
+    $null
+}
+$repoOwnedStageRoot = Join-Path $fixtureProgramData ("SysAdminSuite\SoftwareInstall\{0}" -f $summary.run_id)
 
 $failures = [Collections.Generic.List[string]]::new()
 if ($summary.completed_count -ne 1) {
@@ -419,4 +485,6 @@ Write-SasSoftwareInstallE2EEvent -Name 'validation_completed' -Data @{
 }
 
 $matrix | ForEach-Object { Write-Host $_ }
-if ($failures.Count -gt 0) { exit 1 }
+if ($failures.Count -gt 0) {
+    exit 1
+}
