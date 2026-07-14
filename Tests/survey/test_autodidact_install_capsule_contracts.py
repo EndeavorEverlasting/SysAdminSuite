@@ -10,9 +10,11 @@ ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "configs" / "software-packages" / "approved-apps.json"
 CMD = ROOT / "Run-InstallApprovedSoftware.cmd"
 LEGACY_CMD = ROOT / "Run-InstallAutoDidact.cmd"
-SCRIPT = ROOT / "scripts" / "Start-SasAutoDidactInstall.ps1"
+SCRIPT = ROOT / "scripts" / "Start-SasApprovedSoftwareInstall.ps1"
+LEGACY_SCRIPT = ROOT / "scripts" / "Start-SasAutoDidactInstall.ps1"
 DOC = ROOT / "docs" / "AUTODIDACT_INSTALL_WORKFLOW.md"
 RUNNER = ROOT / "tests" / "survey" / "run_offline_survey_tests.sh"
+WORKFLOW = ROOT / ".github" / "workflows" / "approved-software-catalog-contracts.yml"
 
 
 def read(path: Path) -> str:
@@ -82,7 +84,7 @@ def test_canonical_and_legacy_cmd_launchers_are_repo_relative() -> None:
         "SysAdminSuite - Approved Software Install",
         "Catalog: Epic, AllScripts, AutoLogon",
         "Snapshot protocol: BEFORE snapshot - plan/install - AFTER snapshot",
-        "scripts\\Start-SasAutoDidactInstall.ps1",
+        "scripts\\Start-SasApprovedSoftwareInstall.ps1",
         "-Action Menu",
         "survey\\output\\approved_software_install",
         "exit /b %EXITCODE%",
@@ -93,6 +95,26 @@ def test_canonical_and_legacy_cmd_launchers_are_repo_relative() -> None:
     legacy = read(LEGACY_CMD)
     assert 'call "%~dp0Run-InstallApprovedSoftware.cmd" %*' in legacy
     assert "exit /b %EXITCODE%" in legacy
+
+
+def test_legacy_powershell_entrypoint_forwards_to_canonical_wrapper() -> None:
+    content = read(LEGACY_SCRIPT)
+    required = [
+        "Start-SasApprovedSoftwareInstall.ps1",
+        "$PSBoundParameters.Keys",
+        "$forward[$name] = $PSBoundParameters[$name]",
+        "& $canonical @forward",
+    ]
+    for fragment in required:
+        assert fragment in content, f"missing compatibility wrapper fragment: {fragment}"
+
+    forbidden = [
+        "Invoke-SasSoftwareInstall.ps1",
+        "New-PSSession",
+        "Copy-Item -ToSession",
+    ]
+    for fragment in forbidden:
+        assert fragment not in content, f"legacy wrapper duplicated implementation: {fragment}"
 
 
 def test_wrapper_loads_catalog_and_does_not_prompt_for_raw_installer_paths() -> None:
@@ -112,7 +134,7 @@ def test_wrapper_loads_catalog_and_does_not_prompt_for_raw_installer_paths() -> 
         assert fragment in content, f"missing package catalog wrapper fragment: {fragment}"
 
     assert "[string]$InstallerRelativePath" not in content
-    assert "Auto Didact installer path relative to approved software root" not in content
+    assert "installer path relative to approved software root" not in content
     assert "Get-ChildItem -LiteralPath $catalogRoot" not in content
 
 
@@ -138,6 +160,16 @@ def test_before_snapshot_is_required_and_bound_to_selected_package() -> None:
         "& $installScript @params -AllowTargetMutation -Confirm:$false"
     )
     assert before_gate < install_call
+
+
+def test_snapshot_manifests_use_bounded_arrays_not_generic_list_wrapping() -> None:
+    content = read(SCRIPT)
+    assert "$rows = @()" in content
+    assert "snapshots = $rows" in content
+    assert "deltas = $rows" in content
+    assert "System.Collections.Generic.List[object]" not in content
+    assert "snapshots = @($rows)" not in content
+    assert "deltas = @($rows)" not in content
 
 
 def test_plan_and_live_install_fail_closed_on_catalog_readiness() -> None:
@@ -199,6 +231,7 @@ def test_documented_catalog_flow_and_readiness_boundaries() -> None:
         "Run-InstallApprovedSoftware.cmd",
         "Run-InstallAutoDidact.cmd",
         "configs/software-packages/approved-apps.json",
+        "scripts/Start-SasApprovedSoftwareInstall.ps1",
         "Epic Satellite",
         "AllScripts TouchWorks 22.1",
         "NW AutoLogon Setup x64",
@@ -216,6 +249,24 @@ def test_documented_catalog_flow_and_readiness_boundaries() -> None:
         assert fragment in content, f"missing documentation fragment: {fragment}"
 
 
+def test_dedicated_workflow_runs_static_parser_and_fixture_chain() -> None:
+    content = read(WORKFLOW)
+    required = [
+        "Approved software catalog contracts",
+        "persist-credentials: false",
+        "git diff --check",
+        "python3 Tests/survey/test_autodidact_install_capsule_contracts.py",
+        "Start-SasApprovedSoftwareInstall.ps1 -Raw",
+        "-Action ListPackages",
+        "Capture fixture Before snapshot",
+        "Run WhatIf install plan",
+        "Capture fixture After snapshot",
+        "SYNTHETIC CATALOG WORKFLOW PASS",
+    ]
+    for fragment in required:
+        assert fragment in content, f"missing workflow contract fragment: {fragment}"
+
+
 def test_offline_runner_wires_catalog_contract() -> None:
     content = read(RUNNER)
     assert "python3 Tests/survey/test_autodidact_install_capsule_contracts.py" in content
@@ -226,11 +277,14 @@ def main() -> None:
         test_catalog_is_folder_first_and_uses_approved_server_root,
         test_catalog_records_epic_allscripts_and_autologon_paths,
         test_canonical_and_legacy_cmd_launchers_are_repo_relative,
+        test_legacy_powershell_entrypoint_forwards_to_canonical_wrapper,
         test_wrapper_loads_catalog_and_does_not_prompt_for_raw_installer_paths,
         test_before_snapshot_is_required_and_bound_to_selected_package,
+        test_snapshot_manifests_use_bounded_arrays_not_generic_list_wrapping,
         test_plan_and_live_install_fail_closed_on_catalog_readiness,
         test_snapshots_are_read_only_admin_box_evidence,
         test_documented_catalog_flow_and_readiness_boundaries,
+        test_dedicated_workflow_runs_static_parser_and_fixture_chain,
         test_offline_runner_wires_catalog_contract,
     ]
     for test in tests:
