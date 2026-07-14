@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "configs" / "software-packages" / "approved-apps.json"
 CMD = ROOT / "Run-InstallApprovedSoftware.cmd"
 LEGACY_CMD = ROOT / "Run-InstallAutoDidact.cmd"
-SCRIPT = ROOT / "scripts" / "Start-SasApprovedSoftwareInstall.ps1"
+OPERATOR = ROOT / "scripts" / "Start-SasApprovedSoftwareOperator.ps1"
+ENGINE = ROOT / "scripts" / "Start-SasApprovedSoftwareInstall.ps1"
 LEGACY_SCRIPT = ROOT / "scripts" / "Start-SasAutoDidactInstall.ps1"
 DOC = ROOT / "docs" / "AUTODIDACT_INSTALL_WORKFLOW.md"
 RUNNER = ROOT / "tests" / "survey" / "run_offline_survey_tests.sh"
@@ -27,8 +28,7 @@ def load_catalog() -> dict:
 
 
 def package_map() -> dict[str, dict]:
-    catalog = load_catalog()
-    return {package["id"]: package for package in catalog["packages"]}
+    return {package["id"]: package for package in load_catalog()["packages"]}
 
 
 def test_catalog_is_folder_first_and_uses_approved_server_root() -> None:
@@ -72,8 +72,8 @@ def test_catalog_records_epic_allscripts_and_autologon_paths() -> None:
 
     for package in packages.values():
         folder = package["source_folder_relative_path"]
-        assert not folder.startswith("\\\\"), "catalog package folders must stay relative"
-        assert ".." not in folder.split("\\"), "catalog package folders cannot traverse parents"
+        assert not folder.startswith("\\\\")
+        assert ".." not in folder.split("\\")
         assert package["default_installer_arguments"] == []
         assert package["requires_validated_installer_arguments"] is True
 
@@ -84,7 +84,7 @@ def test_canonical_and_legacy_cmd_launchers_are_repo_relative() -> None:
         "SysAdminSuite - Approved Software Install",
         "Catalog: Epic, AllScripts, AutoLogon",
         "Snapshot protocol: BEFORE snapshot - plan/install - AFTER snapshot",
-        "scripts\\Start-SasApprovedSoftwareInstall.ps1",
+        "scripts\\Start-SasApprovedSoftwareOperator.ps1",
         "-Action Menu",
         "survey\\output\\approved_software_install",
         "exit /b %EXITCODE%",
@@ -97,28 +97,23 @@ def test_canonical_and_legacy_cmd_launchers_are_repo_relative() -> None:
     assert "exit /b %EXITCODE%" in legacy
 
 
-def test_legacy_powershell_entrypoint_forwards_to_canonical_wrapper() -> None:
+def test_legacy_powershell_entrypoint_forwards_to_operator() -> None:
     content = read(LEGACY_SCRIPT)
     required = [
-        "Start-SasApprovedSoftwareInstall.ps1",
+        "Start-SasApprovedSoftwareOperator.ps1",
         "$PSBoundParameters.Keys",
         "$forward[$name] = $PSBoundParameters[$name]",
-        "& $canonical @forward",
+        "& $operator @forward",
     ]
     for fragment in required:
         assert fragment in content, f"missing compatibility wrapper fragment: {fragment}"
 
-    forbidden = [
-        "Invoke-SasSoftwareInstall.ps1",
-        "New-PSSession",
-        "Copy-Item -ToSession",
-    ]
-    for fragment in forbidden:
+    for fragment in ("Invoke-SasSoftwareInstall.ps1", "New-PSSession", "Copy-Item -ToSession"):
         assert fragment not in content, f"legacy wrapper duplicated implementation: {fragment}"
 
 
-def test_wrapper_loads_catalog_and_does_not_prompt_for_raw_installer_paths() -> None:
-    content = read(SCRIPT)
+def test_engine_loads_catalog_and_never_prompts_for_raw_installer_paths() -> None:
+    content = read(ENGINE)
     required = [
         "configs/software-packages/approved-apps.json",
         "sas-approved-software-catalog/v1",
@@ -131,7 +126,7 @@ def test_wrapper_loads_catalog_and_does_not_prompt_for_raw_installer_paths() -> 
         "Catalog: Epic, AllScripts, AutoLogon",
     ]
     for fragment in required:
-        assert fragment in content, f"missing package catalog wrapper fragment: {fragment}"
+        assert fragment in content, f"missing catalog engine fragment: {fragment}"
 
     assert "[string]$InstallerRelativePath" not in content
     assert "installer path relative to approved software root" not in content
@@ -139,7 +134,7 @@ def test_wrapper_loads_catalog_and_does_not_prompt_for_raw_installer_paths() -> 
 
 
 def test_before_snapshot_is_required_and_bound_to_selected_package() -> None:
-    content = read(SCRIPT)
+    content = read(ENGINE)
     required = [
         "Assert-SasBeforeSnapshotReady",
         "Before snapshot must complete before approved software install",
@@ -163,7 +158,7 @@ def test_before_snapshot_is_required_and_bound_to_selected_package() -> None:
 
 
 def test_snapshot_manifests_use_bounded_arrays_not_generic_list_wrapping() -> None:
-    content = read(SCRIPT)
+    content = read(ENGINE)
     assert "$rows = @()" in content
     assert "snapshots = $rows" in content
     assert "deltas = $rows" in content
@@ -173,10 +168,10 @@ def test_snapshot_manifests_use_bounded_arrays_not_generic_list_wrapping() -> No
 
 
 def test_plan_and_live_install_fail_closed_on_catalog_readiness() -> None:
-    content = read(SCRIPT)
+    content = read(ENGINE)
     required = [
         "Assert-SasPackagePlanReady",
-        "Package '$($Package.display_name)' is not enabled for plan/install",
+        "is not enabled for plan/install",
         "has no pinned installer filename",
         "Assert-SasPackageLiveReady",
         "requires explicit vendor-validated installer arguments",
@@ -192,8 +187,31 @@ def test_plan_and_live_install_fail_closed_on_catalog_readiness() -> None:
         assert fragment in content, f"missing fail-closed install fragment: {fragment}"
 
 
+def test_operator_recovers_only_valid_durable_install_artifacts() -> None:
+    content = read(OPERATOR)
+    required = [
+        "Start-SasApprovedSoftwareInstall.ps1",
+        "software_install_summary.json",
+        "sas-software-install-summary/v1",
+        "operator_handoff_path",
+        "Canonical install handoff is missing or invalid",
+        "target count",
+        "WhatIf summary is incomplete",
+        "install_planned_whatif",
+        "install_attempted",
+        "Canonical install wrapper did not return its summary object",
+        "Install attempt produced unresolved results",
+    ]
+    for fragment in required:
+        assert fragment in content, f"missing operator recovery fragment: {fragment}"
+
+    catch_block = content.split("catch {", maxsplit=1)[1]
+    assert "expectedReturnFailure" in catch_block
+    assert "if (-not $expectedReturnFailure) { throw }" in catch_block
+
+
 def test_snapshots_are_read_only_admin_box_evidence() -> None:
-    content = read(SCRIPT)
+    content = read(ENGINE)
     required = [
         "sas-approved-software-snapshot/v1",
         "sas-approved-software-snapshot-manifest/v1",
@@ -209,8 +227,8 @@ def test_snapshots_are_read_only_admin_box_evidence() -> None:
     for fragment in required:
         assert fragment in content, f"missing read-only snapshot fragment: {fragment}"
 
-    lowered = content.lower()
-    forbidden = [
+    lowered = (content + "\n" + read(OPERATOR)).lower()
+    for fragment in (
         "win32_product",
         "defaultpassword",
         "clear-eventlog",
@@ -220,8 +238,7 @@ def test_snapshots_are_read_only_admin_box_evidence() -> None:
         "-credential",
         "register-scheduledtask",
         "new-service",
-    ]
-    for fragment in forbidden:
+    ):
         assert fragment not in lowered, f"forbidden fragment present: {fragment}"
 
 
@@ -231,7 +248,7 @@ def test_documented_catalog_flow_and_readiness_boundaries() -> None:
         "Run-InstallApprovedSoftware.cmd",
         "Run-InstallAutoDidact.cmd",
         "configs/software-packages/approved-apps.json",
-        "scripts/Start-SasApprovedSoftwareInstall.ps1",
+        "scripts/Start-SasApprovedSoftwareOperator.ps1",
         "Epic Satellite",
         "AllScripts TouchWorks 22.1",
         "NW AutoLogon Setup x64",
@@ -256,7 +273,7 @@ def test_dedicated_workflow_runs_static_parser_and_fixture_chain() -> None:
         "persist-credentials: false",
         "git diff --check",
         "python3 Tests/survey/test_autodidact_install_capsule_contracts.py",
-        "Start-SasApprovedSoftwareInstall.ps1 -Raw",
+        "Start-SasApprovedSoftwareOperator.ps1 -Raw",
         "-Action ListPackages",
         "Capture fixture Before snapshot",
         "Run WhatIf install plan",
@@ -268,8 +285,7 @@ def test_dedicated_workflow_runs_static_parser_and_fixture_chain() -> None:
 
 
 def test_offline_runner_wires_catalog_contract() -> None:
-    content = read(RUNNER)
-    assert "python3 Tests/survey/test_autodidact_install_capsule_contracts.py" in content
+    assert "python3 Tests/survey/test_autodidact_install_capsule_contracts.py" in read(RUNNER)
 
 
 def main() -> None:
@@ -277,11 +293,12 @@ def main() -> None:
         test_catalog_is_folder_first_and_uses_approved_server_root,
         test_catalog_records_epic_allscripts_and_autologon_paths,
         test_canonical_and_legacy_cmd_launchers_are_repo_relative,
-        test_legacy_powershell_entrypoint_forwards_to_canonical_wrapper,
-        test_wrapper_loads_catalog_and_does_not_prompt_for_raw_installer_paths,
+        test_legacy_powershell_entrypoint_forwards_to_operator,
+        test_engine_loads_catalog_and_never_prompts_for_raw_installer_paths,
         test_before_snapshot_is_required_and_bound_to_selected_package,
         test_snapshot_manifests_use_bounded_arrays_not_generic_list_wrapping,
         test_plan_and_live_install_fail_closed_on_catalog_readiness,
+        test_operator_recovers_only_valid_durable_install_artifacts,
         test_snapshots_are_read_only_admin_box_evidence,
         test_documented_catalog_flow_and_readiness_boundaries,
         test_dedicated_workflow_runs_static_parser_and_fixture_chain,
