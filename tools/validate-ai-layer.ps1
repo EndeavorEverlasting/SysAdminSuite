@@ -5,20 +5,37 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $repoRoot
 
+$skillFiles = @(
+  '.claude/skills/repository-sprint/SKILL.md',
+  '.claude/skills/language-runtime/SKILL.md',
+  '.claude/skills/field-workflow/SKILL.md',
+  '.claude/skills/scoped-validation/SKILL.md',
+  '.claude/skills/live-data-guard/SKILL.md',
+  '.claude/skills/survey-low-noise/SKILL.md'
+)
+
+$capabilityFiles = @(
+  '.claude/capabilities/README.md',
+  '.claude/capabilities/repository-evidence.md',
+  '.claude/capabilities/proof-and-checkpointing.md',
+  '.claude/capabilities/language-runtime-selection.md',
+  '.claude/capabilities/mutation-and-evidence-boundaries.md',
+  '.claude/capabilities/field-command-design.md'
+)
+
 $requiredFiles = @(
+  'AGENTS.md',
   'CLAUDE.md',
   'CODEBASE_MAP.md',
   '.claudeignore',
-  '.claude/skills/scoped-validation/SKILL.md',
-  '.claude/skills/live-data-guard/SKILL.md',
-  '.claude/skills/survey-low-noise/SKILL.md',
   '.claude/agents/explorer.md',
   '.archon/workflows/sas-survey-change.yaml',
   '.archon/workflows/sas-docs-only.yaml',
   '.archon/workflows/sas-validate-pr.yaml',
   'docs/AI_LAYER.md',
+  'Tests/survey/test_agent_instruction_factoring_contracts.py',
   'tools/validate-ai-layer.ps1'
-)
+) + $skillFiles + $capabilityFiles
 
 $workflowFiles = @(
   '.archon/workflows/sas-survey-change.yaml',
@@ -27,17 +44,12 @@ $workflowFiles = @(
 )
 
 $harnessDocs = @(
+  'AGENTS.md',
   'CLAUDE.md',
   'CODEBASE_MAP.md',
-  '.claude/skills/scoped-validation/SKILL.md',
-  '.claude/skills/live-data-guard/SKILL.md',
-  '.claude/skills/survey-low-noise/SKILL.md',
   '.claude/agents/explorer.md',
-  '.archon/workflows/sas-survey-change.yaml',
-  '.archon/workflows/sas-docs-only.yaml',
-  '.archon/workflows/sas-validate-pr.yaml',
   'docs/AI_LAYER.md'
-)
+) + $skillFiles + $capabilityFiles + $workflowFiles
 
 $requiredSafetyPhrases = @(
   'authorized',
@@ -71,6 +83,20 @@ $unsafeTerms = @(
   'defe' + 'ating monitoring',
   'keeping q' + 'uiet',
   'avoiding det' + 'ection'
+)
+
+$forbiddenInstructionPhrases = @(
+  'PowerShell is deprecated',
+  'PowerShell is dead code',
+  'Treat existing `.ps1`, `.psm1`, and `.psd1` files as legacy/reference tooling'
+)
+
+$rootDetailMarkers = @(
+  'naabu -list',
+  'Get-NetAdapter',
+  'New-NetIPAddress',
+  'ip addr',
+  'journalctl'
 )
 
 $failures = New-Object System.Collections.Generic.List[string]
@@ -107,6 +133,57 @@ foreach ($file in $workflowFiles) {
   }
 }
 
+if (Test-Path -LiteralPath 'AGENTS.md' -PathType Leaf) {
+  $agentLines = @(Get-Content -LiteralPath 'AGENTS.md').Count
+  if ($agentLines -le 120) {
+    Add-Pass "AGENTS.md stays within compact line budget: $agentLines/120"
+  } else {
+    Add-Fail "AGENTS.md exceeds compact line budget: $agentLines/120"
+  }
+
+  $agentText = Get-Content -LiteralPath 'AGENTS.md' -Raw
+  foreach ($skill in $skillFiles) {
+    if ($agentText.IndexOf($skill, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+      Add-Pass "AGENTS.md routes to skill: $skill"
+    } else {
+      Add-Fail "AGENTS.md missing skill route: $skill"
+    }
+  }
+
+  foreach ($marker in $rootDetailMarkers) {
+    if ($agentText.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+      Add-Fail "AGENTS.md contains detail that belongs in a skill/capability: $marker"
+    } else {
+      Add-Pass "AGENTS.md omits routed implementation detail: $marker"
+    }
+  }
+}
+
+foreach ($skill in $skillFiles) {
+  if (-not (Test-Path -LiteralPath $skill -PathType Leaf)) { continue }
+  $content = Get-Content -LiteralPath $skill -Raw
+  if ($content -match '(?m)^## Capability dependencies\s*$') {
+    Add-Pass "skill declares capability dependencies: $skill"
+  } else {
+    Add-Fail "skill missing capability dependency section: $skill"
+  }
+  if ($content -match '\.\./\.\./capabilities/[A-Za-z0-9._-]+\.md') {
+    Add-Pass "skill links a capability: $skill"
+  } else {
+    Add-Fail "skill does not link a capability: $skill"
+  }
+}
+
+$allSkillText = ($skillFiles | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | ForEach-Object { Get-Content -LiteralPath $_ -Raw }) -join "`n"
+foreach ($capability in $capabilityFiles | Where-Object { $_ -ne '.claude/capabilities/README.md' }) {
+  $relative = [System.IO.Path]::GetFileName($capability)
+  if ($allSkillText.IndexOf($relative, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    Add-Pass "capability is composed by at least one skill: $capability"
+  } else {
+    Add-Fail "orphan capability is not referenced by a skill: $capability"
+  }
+}
+
 $combinedHarnessText = ''
 foreach ($file in $harnessDocs) {
   if (Test-Path -LiteralPath $file -PathType Leaf) {
@@ -127,6 +204,14 @@ foreach ($term in $unsafeTerms) {
     Add-Fail "unsafe wording found in harness docs: $term"
   } else {
     Add-Pass "unsafe wording absent from harness docs: $term"
+  }
+}
+
+foreach ($phrase in $forbiddenInstructionPhrases) {
+  if ($combinedHarnessText.IndexOf($phrase, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    Add-Fail "contradictory instruction found: $phrase"
+  } else {
+    Add-Pass "contradictory instruction absent: $phrase"
   }
 }
 
