@@ -25,13 +25,12 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasValidatedSoftw
   -WhatIf
 ```
 
-After the request, target list, installer hash, vendor arguments, and validation checks are reviewed, run the separately authorized pilot:
+After the request, target list, installer hash, vendor arguments, and validation checks are reviewed, run the separately authorized pilot. Do not add `-Confirm:$false` during the first real pilot:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasValidatedSoftwareDeployment.ps1 `
   -RequestPath .\survey\input\software-install\approved-request.json `
-  -AllowTargetMutation `
-  -Confirm:$false
+  -AllowTargetMutation
 ```
 
 Then double-click:

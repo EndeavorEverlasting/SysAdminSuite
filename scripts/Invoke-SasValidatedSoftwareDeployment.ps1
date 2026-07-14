@@ -83,6 +83,13 @@ $request = Get-Content -LiteralPath $RequestPath -Raw -Encoding UTF8 | ConvertFr
 $requestErrors = @(Test-SasValidatedDeploymentRequest -Request $request)
 if ($requestErrors.Count -gt 0) { throw "Validated deployment request failed closed: $($requestErrors -join ', ')" }
 
+$mutationTarget = @($request.targets) -join ', '
+$mutationAction = "Install '$($request.package_name)' and finalize SysAdminSuite teardown"
+if (-not $WhatIfPreference -and -not $PSCmdlet.ShouldProcess($mutationTarget, $mutationAction)) {
+    Write-Verbose 'Validated deployment cancelled before installer or target contact.'
+    return
+}
+
 $installerPath = Resolve-ValidatedInstallerPath -Request $request
 $signatureStatus = 'not_checked_whatif'
 $observedSignerThumbprint = $null
