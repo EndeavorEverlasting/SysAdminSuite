@@ -27,6 +27,8 @@ Start here when you need to know which local surface to use.
 | Synthetic fixtures | `survey/fixtures/` |
 | Harness schemas | `schemas/harness/` |
 
+The harness validator is a synthetic, offline proof only. One command detects the repo root, records the branch and commit, exercises run-context and artifact-registry creation, renders a fixture report, checks cross-lane API/workflow preservation, runs safe local contracts, reports optional dependencies as `SKIP`, and writes both an English matrix and JSON result under `survey/output/harness-validator/`. It does not launch the dashboard, execute installers, probe a network, or mutate target systems or operator data.
+
 ## Agent start points
 
 | Question | Read |

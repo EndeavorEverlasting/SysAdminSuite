@@ -77,6 +77,7 @@ Describe 'SasRunContext module' {
             -Path 'Tests/fixtures/harness/request.json' `
             -Tracked $true `
             -LiveData $false `
+            -Generated $false `
             -Description 'fixture request artifact' `
             -SourceArtifact 'operator request' `
             -NetworkActivity 'No network activity performed.'
