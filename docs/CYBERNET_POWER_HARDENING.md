@@ -18,6 +18,16 @@ For every parsed Windows power scheme it sets the AC and DC action index to `0`,
 
 This Windows setting does not control a panel display's on-screen-display menu or display-controller button firmware.
 
+Do not use `UIBUTTON_ACTION = 0` as a substitute. That Windows setting maps the Start-menu power action to Sleep; it does not disable the Cybernet display-controller buttons.
+
+The Windows power-hardening workflow therefore continues to report:
+
+```text
+NOT_APPLIED_UNPROVEN
+```
+
+for the physical display/menu-button surface. That classification means the Windows power-policy lane intentionally did not apply display-controller control. The separate DDC/CI lane below owns capability detection, VCP mutation, verification, and restore for a conforming display controller.
+
 ## MCCS 2.2 display-controller button control
 
 `scripts/Invoke-SasCybernetDisplayButtonControl.ps1` implements a separate, standards-based DDC/CI lane through the Windows Monitor Configuration API and `scripts/SasDdcciMonitorControl.cs`.
