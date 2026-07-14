@@ -1,0 +1,441 @@
+{
+  "registry_version": "1.0.0",
+  "denominator_contract_version": "1.0.0",
+  "denominator_schema": "schemas/survey/network-survey-artifact-denominator.schema.json",
+  "canonical_fields": [
+    "serial",
+    "target",
+    "candidate_targets",
+    "device_type",
+    "site",
+    "expected_prefix",
+    "observed_at",
+    "evidence_type",
+    "evidence_strength_tier",
+    "serial_identity_confirmed",
+    "reachability_status",
+    "port",
+    "open_ports",
+    "resolved_address",
+    "ad_candidate_status",
+    "tracker_status",
+    "mac_address",
+    "port_status"
+  ],
+  "adapters": [
+    {
+      "id": "requested-target-list-txt/v1",
+      "role": "requested_population",
+      "formats": [
+        "txt"
+      ],
+      "priority": 100,
+      "detection": {
+        "required_any": [
+          [
+            "Target"
+          ]
+        ]
+      },
+      "mappings": {
+        "target": [
+          "Target"
+        ]
+      }
+    },
+    {
+      "id": "requested-population-tabular/v1",
+      "role": "requested_population",
+      "formats": [
+        "csv",
+        "json",
+        "jsonl"
+      ],
+      "priority": 50,
+      "detection": {
+        "required_any": [
+          [
+            "Serial",
+            "SerialNumber",
+            "ExpectedSerial",
+            "DeviceSerial",
+            "TargetSerial",
+            "ComputerSerial",
+            "AssetSerial",
+            "SN",
+            "Cybernet Serial",
+            "Cybernet S/N",
+            "Neuron Serial",
+            "Neuron S/N",
+            "HostName",
+            "Hostname",
+            "ComputerName",
+            "ExpectedHostname",
+            "DeviceName",
+            "DnsName",
+            "DNSName",
+            "FQDN",
+            "Target",
+            "Identifier",
+            "IPAddress",
+            "IP",
+            "IPv4"
+          ]
+        ]
+      },
+      "mappings": {
+        "serial": [
+          "Serial",
+          "SerialNumber",
+          "ExpectedSerial",
+          "DeviceSerial",
+          "TargetSerial",
+          "ComputerSerial",
+          "AssetSerial",
+          "SN",
+          "Cybernet Serial",
+          "Cybernet S/N",
+          "Neuron Serial",
+          "Neuron S/N"
+        ],
+        "target": [
+          "HostName",
+          "Hostname",
+          "ComputerName",
+          "ExpectedHostname",
+          "DeviceName",
+          "DnsName",
+          "DNSName",
+          "FQDN",
+          "Target",
+          "IPAddress",
+          "IP",
+          "IPv4"
+        ],
+        "candidate_targets": [
+          "CandidateHostnames",
+          "CandidateHosts",
+          "HostCandidates"
+        ],
+        "device_type": [
+          "DeviceType",
+          "Device Class",
+          "AssetType"
+        ],
+        "site": [
+          "Site",
+          "Location",
+          "Facility"
+        ],
+        "expected_prefix": [
+          "ExpectedPrefix",
+          "SitePrefix",
+          "HostnamePrefix"
+        ],
+        "tracker_status": [
+          "TrackerStatus",
+          "DeploymentStatus",
+          "BuildStatus"
+        ]
+      }
+    },
+    {
+      "id": "network-preflight-evidence/v1",
+      "role": "evidence_snapshot",
+      "formats": [
+        "csv",
+        "json",
+        "jsonl"
+      ],
+      "priority": 100,
+      "detection": {
+        "required_any": [
+          [
+            "Serial",
+            "SerialNumber",
+            "ExpectedSerial",
+            "DeviceSerial",
+            "SN",
+            "HostName",
+            "Hostname",
+            "ComputerName",
+            "Target",
+            "IPAddress",
+            "IP",
+            "ResolvedAddress"
+          ],
+          [
+            "Timestamp",
+            "GeneratedAt",
+            "generated_at",
+            "ObservedAt",
+            "ProbedAt",
+            "probed_at",
+            "PingStatus",
+            "ReachabilityStatus",
+            "PortStatus",
+            "SerialIdentityConfirmed",
+            "IdentityConfirmed",
+            "EvidenceType",
+            "EvidenceStrengthTier"
+          ]
+        ]
+      },
+      "mappings": {
+        "serial": [
+          "Serial",
+          "SerialNumber",
+          "ExpectedSerial",
+          "DeviceSerial",
+          "TargetSerial",
+          "ComputerSerial",
+          "AssetSerial",
+          "SN"
+        ],
+        "target": [
+          "HostName",
+          "Hostname",
+          "ComputerName",
+          "ExpectedHostname",
+          "DeviceName",
+          "DnsName",
+          "DNSName",
+          "FQDN",
+          "Target",
+          "IPAddress",
+          "IP",
+          "IPv4",
+          "ResolvedAddress"
+        ],
+        "candidate_targets": [
+          "CandidateHostnames",
+          "CandidateHosts",
+          "HostCandidates"
+        ],
+        "device_type": [
+          "DeviceType",
+          "Device Class",
+          "AssetType"
+        ],
+        "site": [
+          "Site",
+          "Location",
+          "Facility"
+        ],
+        "expected_prefix": [
+          "ExpectedPrefix",
+          "SitePrefix",
+          "HostnamePrefix"
+        ],
+        "observed_at": [
+          "Timestamp",
+          "GeneratedAt",
+          "generated_at",
+          "ObservedAt",
+          "ProbedAt",
+          "probed_at",
+          "AttemptFinishedAt"
+        ],
+        "evidence_type": [
+          "EvidenceType",
+          "EvidenceKind",
+          "SourceType",
+          "Classification"
+        ],
+        "evidence_strength_tier": [
+          "EvidenceStrengthTier",
+          "EvidenceTier",
+          "Tier"
+        ],
+        "serial_identity_confirmed": [
+          "SerialIdentityConfirmed",
+          "IdentityConfirmed",
+          "IdentityMatch"
+        ],
+        "reachability_status": [
+          "PingStatus",
+          "ReachabilityStatus",
+          "Reachability",
+          "Status",
+          "Outcome"
+        ],
+        "port": [
+          "Port"
+        ],
+        "open_ports": [
+          "OpenPorts"
+        ],
+        "resolved_address": [
+          "ResolvedAddress",
+          "IPAddress",
+          "IP",
+          "IPv4"
+        ],
+        "ad_candidate_status": [
+          "ADCandidateStatus",
+          "ADStatus",
+          "DirectoryStatus"
+        ],
+        "tracker_status": [
+          "TrackerStatus",
+          "DeploymentStatus",
+          "BuildStatus"
+        ],
+        "mac_address": [
+          "MacAddress",
+          "MAC",
+          "PhysicalAddress"
+        ],
+        "port_status": [
+          "PortStatus",
+          "ServiceStatus"
+        ]
+      }
+    },
+    {
+      "id": "generic-evidence-snapshot/v1",
+      "role": "evidence_snapshot",
+      "formats": [
+        "csv",
+        "json",
+        "jsonl"
+      ],
+      "priority": 10,
+      "detection": {
+        "required_any": [
+          [
+            "Serial",
+            "SerialNumber",
+            "ExpectedSerial",
+            "DeviceSerial",
+            "SN",
+            "HostName",
+            "Hostname",
+            "ComputerName",
+            "Target",
+            "IPAddress",
+            "IP"
+          ],
+          [
+            "EvidenceType",
+            "EvidenceStrengthTier",
+            "Timestamp",
+            "ObservedAt",
+            "IdentityConfirmed",
+            "ReachabilityStatus"
+          ]
+        ]
+      },
+      "mappings": {
+        "serial": [
+          "Serial",
+          "SerialNumber",
+          "ExpectedSerial",
+          "DeviceSerial",
+          "TargetSerial",
+          "ComputerSerial",
+          "AssetSerial",
+          "SN"
+        ],
+        "target": [
+          "HostName",
+          "Hostname",
+          "ComputerName",
+          "ExpectedHostname",
+          "DeviceName",
+          "DnsName",
+          "DNSName",
+          "FQDN",
+          "Target",
+          "IPAddress",
+          "IP",
+          "IPv4",
+          "ResolvedAddress"
+        ],
+        "candidate_targets": [
+          "CandidateHostnames",
+          "CandidateHosts",
+          "HostCandidates"
+        ],
+        "device_type": [
+          "DeviceType",
+          "Device Class",
+          "AssetType"
+        ],
+        "site": [
+          "Site",
+          "Location",
+          "Facility"
+        ],
+        "expected_prefix": [
+          "ExpectedPrefix",
+          "SitePrefix",
+          "HostnamePrefix"
+        ],
+        "observed_at": [
+          "Timestamp",
+          "GeneratedAt",
+          "generated_at",
+          "ObservedAt",
+          "ProbedAt",
+          "probed_at",
+          "AttemptFinishedAt"
+        ],
+        "evidence_type": [
+          "EvidenceType",
+          "EvidenceKind",
+          "SourceType",
+          "Classification"
+        ],
+        "evidence_strength_tier": [
+          "EvidenceStrengthTier",
+          "EvidenceTier",
+          "Tier"
+        ],
+        "serial_identity_confirmed": [
+          "SerialIdentityConfirmed",
+          "IdentityConfirmed",
+          "IdentityMatch"
+        ],
+        "reachability_status": [
+          "PingStatus",
+          "ReachabilityStatus",
+          "Reachability",
+          "Status",
+          "Outcome"
+        ],
+        "port": [
+          "Port"
+        ],
+        "open_ports": [
+          "OpenPorts"
+        ],
+        "resolved_address": [
+          "ResolvedAddress",
+          "IPAddress",
+          "IP",
+          "IPv4"
+        ],
+        "ad_candidate_status": [
+          "ADCandidateStatus",
+          "ADStatus",
+          "DirectoryStatus"
+        ],
+        "tracker_status": [
+          "TrackerStatus",
+          "DeploymentStatus",
+          "BuildStatus"
+        ],
+        "mac_address": [
+          "MacAddress",
+          "MAC",
+          "PhysicalAddress"
+        ],
+        "port_status": [
+          "PortStatus",
+          "ServiceStatus"
+        ]
+      }
+    }
+  ]
+}
