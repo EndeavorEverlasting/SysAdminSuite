@@ -4,7 +4,13 @@
 
 `Run-InstallApprovedSoftware.cmd` is the canonical technician-facing command capsule for installing approved software through the existing SysAdminSuite guarded software-install wrapper.
 
-`Run-InstallAutoDidact.cmd` remains as a compatibility launcher and routes to the same catalog-driven workflow.
+`Run-InstallAutoDidact.cmd` remains as a compatibility launcher and routes to the same catalog-driven workflow. The canonical PowerShell implementation is:
+
+```text
+scripts/Start-SasApprovedSoftwareInstall.ps1
+```
+
+`scripts/Start-SasAutoDidactInstall.ps1` remains as a compatibility forwarder.
 
 The workflow enforces this order:
 
@@ -125,7 +131,7 @@ operator-state.json
 
 ## Install behavior
 
-The install action delegates to the canonical wrapper:
+The catalog wrapper delegates to the canonical install engine:
 
 ```text
 scripts/Invoke-SasSoftwareInstall.ps1
@@ -142,7 +148,7 @@ The catalog-driven launcher does not duplicate remote install mechanics. It pass
 - `-AllowTargetMutation`;
 - `-Confirm:$false`.
 
-The Plan action uses the same saved request with `-WhatIf`. The canonical install wrapper performs request validation only and does not contact the share or targets in that mode.
+The Plan action uses the same saved request with `-WhatIf`. The canonical install engine performs request validation only and does not contact the share or targets in that mode.
 
 ## Guardrails
 
@@ -163,13 +169,13 @@ The Plan action uses the same saved request with `-WhatIf`. The canonical instal
 List the catalog without contacting the share or targets:
 
 ```powershell
-.\scripts\Start-SasAutoDidactInstall.ps1 -Action ListPackages
+.\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action ListPackages
 ```
 
 Fixture Before snapshot for AutoLogon:
 
 ```powershell
-.\scripts\Start-SasAutoDidactInstall.ps1 `
+.\scripts\Start-SasApprovedSoftwareInstall.ps1 `
   -Action Before `
   -PackageId autologon `
   -TargetsCsv .\targets\local\approved-software-targets.csv `
@@ -180,26 +186,26 @@ Fixture Before snapshot for AutoLogon:
 WhatIf plan after a successful Before snapshot:
 
 ```powershell
-.\scripts\Start-SasAutoDidactInstall.ps1 -Action Plan -NonInteractive
+.\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action Plan -NonInteractive
 ```
 
 Approved live installation requires explicit validated arguments recorded during the Before step or supplied directly:
 
 ```powershell
-.\scripts\Start-SasAutoDidactInstall.ps1 `
+.\scripts\Start-SasApprovedSoftwareInstall.ps1 `
   -Action Before `
   -PackageId autologon `
   -TargetsCsv .\targets\local\approved-software-targets.csv `
   -InstallerArguments @('<vendor-validated-argument-1>', '<vendor-validated-argument-2>') `
   -NonInteractive
 
-.\scripts\Start-SasAutoDidactInstall.ps1 -Action Install -NonInteractive
+.\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action Install -NonInteractive
 ```
 
 After snapshot and delta:
 
 ```powershell
-.\scripts\Start-SasAutoDidactInstall.ps1 -Action After -NonInteractive
+.\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action After -NonInteractive
 ```
 
 ## Production readiness boundary
