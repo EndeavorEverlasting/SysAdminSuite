@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/survey/network-survey-artifact-denominator.schema.json",
+  "title": "SysAdminSuite Network Survey Artifact Denominator",
+  "description": "Canonical normalized envelope required before modular requested-population or evidence artifacts enter network survey delta planning.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "artifact_id",
+    "artifact_role",
+    "adapter_id",
+    "source_format",
+    "source_path",
+    "normalized_at",
+    "row_count",
+    "rows"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "artifact_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,128}$"
+    },
+    "artifact_role": {
+      "enum": [
+        "requested_population",
+        "evidence_snapshot"
+      ]
+    },
+    "adapter_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "source_format": {
+      "enum": [
+        "csv",
+        "txt",
+        "json",
+        "jsonl"
+      ]
+    },
+    "source_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "normalized_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "row_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    }
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "row_id",
+        "record_role",
+        "serial",
+        "normalized_serial",
+        "target",
+        "normalized_target",
+        "candidate_targets",
+        "device_type",
+        "site",
+        "expected_prefix",
+        "observed_at",
+        "evidence_type",
+        "evidence_strength_tier",
+        "serial_identity_confirmed",
+        "reachability_status",
+        "open_ports",
+        "resolved_address",
+        "port_status",
+        "port",
+        "mac_address",
+        "ad_candidate_status",
+        "tracker_status",
+        "source_file",
+        "source_adapter",
+        "source_values"
+      ],
+      "properties": {
+        "row_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "record_role": {
+          "enum": [
+            "requested_population",
+            "evidence_snapshot"
+          ]
+        },
+        "serial": {
+          "type": "string"
+        },
+        "normalized_serial": {
+          "type": "string",
+          "pattern": "^[A-Z0-9]*$"
+        },
+        "target": {
+          "type": "string"
+        },
+        "normalized_target": {
+          "type": "string"
+        },
+        "candidate_targets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "device_type": {
+          "type": "string"
+        },
+        "site": {
+          "type": "string"
+        },
+        "expected_prefix": {
+          "type": "string"
+        },
+        "observed_at": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_type": {
+          "enum": [
+            "population",
+            "identity",
+            "device_location",
+            "ad_registered",
+            "ad_candidate",
+            "dns_subnet",
+            "reachability",
+            "packet_service",
+            "negative_silent",
+            "test_fixture"
+          ]
+        },
+        "evidence_strength_tier": {
+          "enum": [
+            "IDENTITY_CONFIRMED",
+            "PROBABLE_DEVICE_LOCATION",
+            "POPULATION_ONLY",
+            "REGISTERED_AD_TARGET",
+            "AD_VARIANT_REVIEW",
+            "DNS_OR_SUBNET_ONLY",
+            "REACHABILITY_ONLY",
+            "PACKET_SERVICE_ONLY",
+            "NEGATIVE_OR_SILENT",
+            "TEST_ONLY"
+          ]
+        },
+        "serial_identity_confirmed": {
+          "type": "boolean"
+        },
+        "reachability_status": {
+          "enum": [
+            "reachable",
+            "silent",
+            "unknown"
+          ]
+        },
+        "open_ports": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "uniqueItems": true
+        },
+        "resolved_address": {
+          "type": "string"
+        },
+        "ad_candidate_status": {
+          "type": "string"
+        },
+        "tracker_status": {
+          "type": "string"
+        },
+        "source_file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_adapter": {
+          "type": "string",
+          "minLength": 3
+        },
+        "source_values": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "mac_address": {
+          "type": "string"
+        },
+        "port": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "port_status": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "properties": {
+                "normalized_serial": {
+                  "minLength": 1
+                }
+              }
+            },
+            {
+              "properties": {
+                "normalized_target": {
+                  "minLength": 1
+                }
+              }
+            },
+            {
+              "properties": {
+                "candidate_targets": {
+                  "minItems": 1
+                }
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": {
+              "evidence_type": {
+                "const": "identity"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "normalized_serial": {
+                "minLength": 1
+              },
+              "serial_identity_confirmed": {
+                "const": true
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evidence_type": {
+                "enum": [
+                  "device_location",
+                  "reachability",
+                  "packet_service",
+                  "negative_silent"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
