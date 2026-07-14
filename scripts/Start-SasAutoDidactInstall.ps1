@@ -4,8 +4,8 @@
 Compatibility entrypoint for the approved software install workflow.
 
 .DESCRIPTION
-The canonical implementation is Start-SasApprovedSoftwareInstall.ps1. This file preserves the
-previous Auto Didact entrypoint name while forwarding only declared parameters.
+The technician operator implementation is Start-SasApprovedSoftwareOperator.ps1. This file
+preserves the previous Auto Didact entrypoint name while forwarding only declared parameters.
 #>
 [CmdletBinding()]
 param(
@@ -28,9 +28,9 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-$canonical = Join-Path $PSScriptRoot 'Start-SasApprovedSoftwareInstall.ps1'
-if (-not (Test-Path -LiteralPath $canonical -PathType Leaf)) {
-    throw "Canonical approved software wrapper not found: $canonical"
+$operator = Join-Path $PSScriptRoot 'Start-SasApprovedSoftwareOperator.ps1'
+if (-not (Test-Path -LiteralPath $operator -PathType Leaf)) {
+    throw "Approved software operator wrapper not found: $operator"
 }
 
 $forward = @{}
@@ -38,4 +38,4 @@ foreach ($name in $PSBoundParameters.Keys) {
     $forward[$name] = $PSBoundParameters[$name]
 }
 
-& $canonical @forward
+& $operator @forward
