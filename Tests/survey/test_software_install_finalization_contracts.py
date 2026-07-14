@@ -101,6 +101,12 @@ def test_finalizer_and_orchestrator_both_fail_closed_on_mutation() -> None:
     assert "[switch]$AllowTargetMutation" in finalizer
     assert "-AllowTargetMutation `" in orchestrator
     assert "-Confirm:$false" in orchestrator
+    assert "SupportsShouldProcess = $true" in orchestrator
+    assert "if (-not $WhatIfPreference -and -not $PSCmdlet.ShouldProcess" in orchestrator
+    confirmation_gate = orchestrator.index("$PSCmdlet.ShouldProcess")
+    package_contact = orchestrator.index("$installerPath = Resolve-ValidatedInstallerPath")
+    target_mutation = orchestrator.index("& $installerScript")
+    assert confirmation_gate < package_contact < target_mutation
 
 
 def test_orchestrator_is_canonical_and_live_fails_closed() -> None:
