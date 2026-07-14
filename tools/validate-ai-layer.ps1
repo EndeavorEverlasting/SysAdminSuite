@@ -33,6 +33,7 @@ $requiredFiles = @(
   '.archon/workflows/sas-docs-only.yaml',
   '.archon/workflows/sas-validate-pr.yaml',
   'docs/AI_LAYER.md',
+  '.github/workflows/agent-instruction-contracts.yml',
   'Tests/survey/test_agent_instruction_factoring_contracts.py',
   'tools/validate-ai-layer.ps1'
 ) + $skillFiles + $capabilityFiles

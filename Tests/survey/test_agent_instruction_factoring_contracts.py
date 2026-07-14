@@ -11,6 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS = REPO_ROOT / "AGENTS.md"
 CLAUDE = REPO_ROOT / "CLAUDE.md"
 CAPABILITY_ROOT = REPO_ROOT / ".claude" / "capabilities"
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "agent-instruction-contracts.yml"
 SKILL_ROOT = REPO_ROOT / ".claude" / "skills"
 
 REQUIRED_SKILLS = {
@@ -117,6 +118,14 @@ def test_claude_front_door_uses_progressive_disclosure() -> None:
     assert "Load only the selected `SKILL.md` files" in text
 
 
+def test_ci_runs_both_portable_and_windows_contracts() -> None:
+    text = read(WORKFLOW)
+    assert "ubuntu-latest" in text
+    assert "windows-latest" in text
+    assert "python3 Tests/survey/test_agent_instruction_factoring_contracts.py" in text
+    assert "tools\\validate-ai-layer.ps1" in text
+
+
 def main() -> None:
     tests = [
         test_agents_is_compact_router,
@@ -124,6 +133,7 @@ def main() -> None:
         test_capabilities_are_atomic_and_catalogued,
         test_instruction_sources_do_not_reintroduce_language_conflict,
         test_claude_front_door_uses_progressive_disclosure,
+        test_ci_runs_both_portable_and_windows_contracts,
     ]
     for test in tests:
         test()

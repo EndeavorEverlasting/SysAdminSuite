@@ -1,0 +1,51 @@
+name: Agent instruction contracts
+
+on:
+  push:
+    branches: [main, 'feat/**', 'refactor/**', 'docs/**']
+    paths:
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'CODEBASE_MAP.md'
+      - '.claude/skills/**'
+      - '.claude/capabilities/**'
+      - 'docs/AI_LAYER.md'
+      - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
+      - 'tools/validate-ai-layer.ps1'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/agent-instruction-contracts.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'CODEBASE_MAP.md'
+      - '.claude/skills/**'
+      - '.claude/capabilities/**'
+      - 'docs/AI_LAYER.md'
+      - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
+      - 'tools/validate-ai-layer.ps1'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/agent-instruction-contracts.yml'
+
+jobs:
+  factoring-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Skill and capability factoring contracts
+        run: python3 Tests/survey/test_agent_instruction_factoring_contracts.py
+
+  ai-layer-validator:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: AI layer validator
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
