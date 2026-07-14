@@ -396,6 +396,7 @@ Describe 'Invoke-BluetoothDriverFlush' {
             Mock Disable-PnpDevice { }
             Mock Enable-PnpDevice { }
             Mock Remove-Item { }
+            Mock Get-IsElevated { $true }
 
             # Pre-create a valid backup structure so validation passes
             New-Item -ItemType Directory -Path $testBackupDir -Force | Out-Null
@@ -411,7 +412,7 @@ Describe 'Invoke-BluetoothDriverFlush' {
 
             Mock Get-Date { 'dummy-stamp' }
 
-            Invoke-BluetoothDriverFlush -BackupPath $testBackupDir -Confirm:$false
+            Invoke-BluetoothDriverFlush -BackupPath $testBackupDir -FullStackReset -Confirm:$false
 
             # Verification: sc.exe stop should NOT have been invoked since we aborted
             Should -Invoke sc.exe -Times 0 -ParameterFilter { $args -contains 'stop' }
@@ -427,6 +428,7 @@ Describe 'Invoke-BluetoothDriverFlush' {
             Mock Disable-PnpDevice { }
             Mock Enable-PnpDevice { }
             Mock Remove-Item { }
+            Mock Get-IsElevated { $true }
 
             # Pre-create a valid backup structure so validation passes
             New-Item -ItemType Directory -Path $testBackupDir -Force | Out-Null
@@ -442,7 +444,7 @@ Describe 'Invoke-BluetoothDriverFlush' {
 
             Mock Get-Date { 'dummy-stamp' }
 
-            Invoke-BluetoothDriverFlush -BackupPath $testBackupDir -Confirm:$false
+            Invoke-BluetoothDriverFlush -BackupPath $testBackupDir -FullStackReset -Confirm:$false
 
             # Verification: sc.exe stop should have been invoked to stop services in flush phase
             Should -Invoke sc.exe -Times 1 -ParameterFilter { $args -contains 'stop' }

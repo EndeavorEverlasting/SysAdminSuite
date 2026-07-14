@@ -555,7 +555,8 @@ function Invoke-BluetoothDriverFlush {
         try {
             $audioDevices = Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue |
                 Select-Object Status, Class, FriendlyName, InstanceId
-            $audioJson = $audioDevices | ConvertTo-Json -Depth 3
+            $audioJson = if ($audioDevices) { $audioDevices | ConvertTo-Json -Depth 3 } else { '[]' }
+            if ($null -eq $audioJson -or $audioJson.Trim() -eq '') { $audioJson = '[]' }
         } catch {
             $audioJson = '[]'
         }
@@ -567,7 +568,8 @@ function Invoke-BluetoothDriverFlush {
         try {
             $btDevices = Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue |
                 Select-Object Status, Class, FriendlyName, InstanceId
-            $btJson = $btDevices | ConvertTo-Json -Depth 3
+            $btJson = if ($btDevices) { $btDevices | ConvertTo-Json -Depth 3 } else { '[]' }
+            if ($null -eq $btJson -or $btJson.Trim() -eq '') { $btJson = '[]' }
         } catch {
             $btJson = '[]'
         }
@@ -749,6 +751,24 @@ WARNINGS:
     # Phase 3 — Eviction / Flush
     # -----------------------------------------------------------------------
     Write-Phase 'FLUSH PHASE' ''
+
+    if (-not $Force -and $isWhatIf) {
+        $confirm = Read-Host "`nBackups validated at $backupDir. Type YES to proceed with driver flush"
+        if ($confirm -ne 'YES') {
+            Write-Host 'Aborted by user.'
+            $summary = [ordered]@{
+                run_id                         = $runId
+                mode                           = if ($RemoveTarget) { 'RemoveTarget' } elseif ($FullStackReset) { 'FullStackReset' } else { 'BackupOnly' }
+                backup_validated               = $validationPassed
+                target_identity_count          = if ($targetIdentity) { 1 } else { 0 }
+                result                         = 'BACKUP_FAILED'
+            }
+            try {
+                $logBuffer -join "`r`n" | Set-Content -Path (Join-Path $backupDir 'transcript.txt') -Encoding UTF8
+            } catch {}
+            return [PSCustomObject]$summary
+        }
+    }
 
     $driverPackagesDeleted = 0
     $nodesRemoved = 0
