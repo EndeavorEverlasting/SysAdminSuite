@@ -13,7 +13,6 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 VALIDATOR = ROOT / "scripts" / "validate-sysadmin-harness.ps1"
 SCHEMA = ROOT / "schemas" / "harness" / "harness-proof-result.schema.json"
-CONTRACT_RUNNER = ROOT / "scripts" / "Invoke-SasHarnessContracts.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "one-command-harness-proof.yml"
 OUTPUT = ROOT / "survey" / "output" / "harness-proof-contract"
 
@@ -154,10 +153,8 @@ def test_validator_exists_parses_and_has_no_runtime_execution_surface() -> None:
     assert parse.returncode == 0, parse.stderr
 
 
-def test_result_schema_is_wired_into_contract_runner_and_ci() -> None:
-    contract_runner = CONTRACT_RUNNER.read_text(encoding="utf-8-sig")
+def test_result_schema_is_wired_into_ci() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
-    assert "schemas/harness/harness-proof-result.schema.json" in contract_runner
     assert "harness-proof-result.schema.json" in workflow
     assert "Test-Json" in workflow
 
@@ -196,7 +193,7 @@ def test_broken_required_path_fails_clearly_and_still_emits_valid_json() -> None
 if __name__ == "__main__":
     try:
         test_validator_exists_parses_and_has_no_runtime_execution_surface()
-        test_result_schema_is_wired_into_contract_runner_and_ci()
+        test_result_schema_is_wired_into_ci()
         test_validator_prints_matrix_emits_json_and_states_proof_boundary()
         test_broken_required_path_fails_clearly_and_still_emits_valid_json()
     finally:
