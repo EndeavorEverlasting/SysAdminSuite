@@ -6,6 +6,7 @@ on:
       - 'Run-InstallApprovedSoftware.cmd'
       - 'Run-InstallAutoDidact.cmd'
       - 'configs/software-packages/approved-apps.json'
+      - 'scripts/Start-SasApprovedSoftwareInstall.ps1'
       - 'scripts/Start-SasAutoDidactInstall.ps1'
       - 'scripts/Invoke-SasSoftwareInstall.ps1'
       - 'scripts/SasTargetIntake.psm1'
@@ -19,6 +20,7 @@ on:
       - 'Run-InstallApprovedSoftware.cmd'
       - 'Run-InstallAutoDidact.cmd'
       - 'configs/software-packages/approved-apps.json'
+      - 'scripts/Start-SasApprovedSoftwareInstall.ps1'
       - 'scripts/Start-SasAutoDidactInstall.ps1'
       - 'scripts/Invoke-SasSoftwareInstall.ps1'
       - 'scripts/SasTargetIntake.psm1'
@@ -72,6 +74,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          $null = [scriptblock]::Create((Get-Content .\scripts\Start-SasApprovedSoftwareInstall.ps1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\Start-SasAutoDidactInstall.ps1 -Raw))
           'PARSE OK'
 
@@ -79,7 +82,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          .\scripts\Start-SasAutoDidactInstall.ps1 -Action ListPackages -NonInteractive
+          .\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action ListPackages -NonInteractive
 
       - name: Prepare synthetic target manifest
         shell: powershell
@@ -95,7 +98,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          .\scripts\Start-SasAutoDidactInstall.ps1 `
+          .\scripts\Start-SasApprovedSoftwareInstall.ps1 `
             -Action Before `
             -PackageId autologon `
             -TargetsCsv .\targets\local\approved-software-ci.csv `
@@ -107,13 +110,13 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          .\scripts\Start-SasAutoDidactInstall.ps1 -Action Plan -NonInteractive -NoOpen
+          .\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action Plan -NonInteractive -NoOpen
 
       - name: Capture fixture After snapshot
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          .\scripts\Start-SasAutoDidactInstall.ps1 -Action After -FixtureMode -NonInteractive -NoOpen
+          .\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action After -FixtureMode -NonInteractive -NoOpen
 
       - name: Verify synthetic evidence
         shell: powershell
