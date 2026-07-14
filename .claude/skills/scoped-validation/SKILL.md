@@ -21,9 +21,9 @@ Use this skill whenever an AI-assisted change needs validation.
    ```
 7. Run the targeted Python contracts when agent instructions, capability metadata, or E2E posture change:
    ```text
-   python Tests/survey/test_agent_instruction_factoring_contracts.py
-   python Tests/survey/test_agent_capability_manifest_contracts.py
-   python Tests/survey/test_e2e_default_posture_contracts.py
+   python3 Tests/survey/test_agent_instruction_factoring_contracts.py
+   python3 Tests/survey/test_agent_capability_manifest_contracts.py
+   python3 Tests/survey/test_e2e_default_posture_contracts.py
    ```
 8. Run the default fixture-safe E2E profile when shared harness or dashboard integration can be affected:
    ```powershell
