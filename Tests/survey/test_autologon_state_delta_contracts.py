@@ -160,6 +160,13 @@ def test_technician_launcher_remembers_run_and_targets() -> None:
     assert "ComputerName =" not in after_block.split("'Assess' {", maxsplit=1)[0]
 
 
+def test_generated_handoff_uses_launcher_not_memorized_command() -> None:
+    content = read(PS_SCRIPT)
+    assert "Double-click Run-AutoLogonStateDelta.cmd and choose option 2." in content
+    legacy = ".\\scripts\\Invoke-SasAutoLogonStateDelta.ps1 -Mode After -RunId"
+    assert legacy not in content
+
+
 def test_technician_launcher_has_menu_file_picker_and_safe_ambiguity_handling() -> None:
     launcher = read(TECH_LAUNCHER)
     required = (
@@ -264,6 +271,7 @@ def main() -> None:
         test_evidence_stays_on_admin_box_and_collection_is_read_only,
         test_summary_materializes_generic_list_without_binder_failure,
         test_technician_launcher_remembers_run_and_targets,
+        test_generated_handoff_uses_launcher_not_memorized_command,
         test_technician_launcher_has_menu_file_picker_and_safe_ambiguity_handling,
         test_double_click_cmd_launcher_is_zero_argument_and_repo_relative,
         test_state_delta_does_not_claim_human_actor_identity,
