@@ -44,9 +44,15 @@ check_raw_naabu_commands() {
 }
 
 check_doctrine_references() {
-  grep -q 'survey/naabu_profiles.json' AGENTS.md || fail "AGENTS.md must reference survey/naabu_profiles.json"
-  grep -q 'low-noise survey discipline' AGENTS.md || fail "AGENTS.md must preserve low-noise language"
-  grep -q 'feature/naabu-docs-consolidation' AGENTS.md || fail "AGENTS.md must mark H1 as superseded"
+  local skill='.claude/skills/survey-low-noise/SKILL.md'
+  local doctrine='docs/LOW_NOISE_SURVEY_DOCTRINE.md'
+
+  grep -q '.claude/skills/survey-low-noise/SKILL.md' AGENTS.md || fail "AGENTS.md must route survey work to the low-noise skill"
+  [[ -f "$skill" ]] || fail "missing survey low-noise skill"
+  grep -q 'survey/naabu_profiles.json' "$skill" || fail "survey skill must reference survey/naabu_profiles.json"
+  grep -q 'low-noise survey discipline' "$skill" || fail "survey skill must preserve low-noise language"
+  grep -q 'feature/naabu-docs-consolidation' "$skill" || fail "survey skill must mark H1 as superseded"
+  grep -q 'AD registered population = source' "$doctrine" || fail "canonical doctrine must preserve the population authority"
   [[ -f .cursor/rules/naabu-doctrine.mdc ]] || fail "missing .cursor/rules/naabu-doctrine.mdc"
 }
 

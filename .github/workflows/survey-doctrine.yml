@@ -2,9 +2,13 @@ name: Survey doctrine
 
 on:
   push:
-    branches: [main, 'feat/**', 'feature/**']
+    branches: [main, 'feat/**', 'feature/**', 'refactor/**']
     paths:
       - 'AGENTS.md'
+      - '.claude/skills/survey-low-noise/SKILL.md'
+      - '.claude/capabilities/language-runtime-selection.md'
+      - '.claude/capabilities/mutation-and-evidence-boundaries.md'
+      - '.claude/capabilities/proof-and-checkpointing.md'
       - '.cursor/rules/**'
       - '.githooks/**'
       - 'Config/cybernet-naabu-profiles.json'
@@ -53,6 +57,10 @@ on:
     branches: [main]
     paths:
       - 'AGENTS.md'
+      - '.claude/skills/survey-low-noise/SKILL.md'
+      - '.claude/capabilities/language-runtime-selection.md'
+      - '.claude/capabilities/mutation-and-evidence-boundaries.md'
+      - '.claude/capabilities/proof-and-checkpointing.md'
       - '.cursor/rules/**'
       - '.githooks/**'
       - 'Config/cybernet-naabu-profiles.json'

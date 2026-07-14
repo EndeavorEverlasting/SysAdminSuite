@@ -13,15 +13,17 @@ Use this skill for survey, preflight, packet-probe, Naabu/Nmap, target-intake, o
 - Treat AD-derived or approved manifests as the population authority.
 - Treat Naabu/Nmap output as reachability evidence only unless joined with approved, fresh, complete identity evidence.
 - Reuse fresh local evidence before proposing another live probe.
-- Use suite wrappers: `survey/sas-run-naabu-pipeline.sh` or `survey/sas-run-packet-probe.sh`.
+- Use `survey/naabu_profiles.json` as the canonical doctrine source and suite wrappers such as `survey/sas-run-naabu-pipeline.sh` or `survey/sas-run-packet-probe.sh` for execution.
+- Use “low-noise survey discipline” language; the objective is authorized scope control and local evidence, not reduced monitoring visibility.
 - Use the canonical profile and operational-posture files rather than copying port/rate/retry defaults.
 - Require explicit gates for UDP, all-port, public-target, or subnet host-discovery profiles.
 - Write artifacts only to local ignored output paths.
 - Classify guest-network failures as `ENVIRONMENT_BLOCKED_GUEST_NETWORK`, not product failure.
+- Treat `feature/naabu-docs-consolidation` as superseded by current `main`; do not revive or merge it without explicit user authorization.
 
 ## Change process
 
-1. Read `docs/OPERATIONAL_POSTURE.md`, `survey/README.md`, and the relevant survey/profile docs.
+1. Read `docs/OPERATIONAL_POSTURE.md`, `docs/LOW_NOISE_SURVEY_DOCTRINE.md`, `survey/README.md`, and the relevant survey/profile docs.
 2. Use the language-runtime skill to choose the actual implementation surface; suitable new survey work is Bash-first on Windows.
 3. Make the smallest change without broadening targets, ports, rates, retries, or mutation posture.
 4. Validate with scoped, non-live checks unless the user requested an approved field run.
