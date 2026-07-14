@@ -33,7 +33,7 @@ grep -Fq 'Invoke-SasSoftwareInstall.ps1' "$ui" \
   || fail "dashboard tutorial does not compose the canonical software installer"
 grep -Fq 'real_operator_wrapper_executed' "$ui" \
   || fail "dashboard tutorial does not require real-wrapper fixture evidence"
-grep -Fq 'delta is 3 / 0 / 0' "$ui" \
+grep -Fq 'exact 3 / 0 / 0 delta' "$ui" \
   || fail "dashboard tutorial does not require the exact fixture delta"
 grep -Fq 'Use one hostname or FQDN only' "$ui" \
   || fail "dashboard tutorial does not reject multi-target pilot input"
