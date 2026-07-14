@@ -32,6 +32,10 @@ Use this map to load only the files needed for a task.
 - `survey/sas-run-naabu-pipeline.sh` and `survey/sas-run-packet-probe.sh` — preferred packet-probe wrappers.
 - `docs/LOW_NOISE_SURVEY_DOCTRINE.md` — narrative low-noise policy.
 - `docs/SURVEY_LANES.md` and `targets/README.md` — local target intake and tracked fixture boundaries.
+- `schemas/survey/network-survey-artifact-denominator.schema.json` — canonical normalized package required before modular requested/evidence artifacts enter delta planning.
+- `survey/network_survey_artifact_adapters.json` — registered format detection and source-column mappings; source aliases stop at this boundary.
+- `scripts/SasSurveyArtifactNormalizer.psm1` and `scripts/Test-SasSurveyArtifactDenominator.ps1` — packet-free normalization, validation, and fail-closed rejection evidence.
+- `survey/sas-delta-preflight-plan.ps1` — denominator-gated evidence comparison and reduced target staging.
 
 ## Dashboard and field entry
 
@@ -46,6 +50,8 @@ Use this map to load only the files needed for a task.
 - `tests/bash/` — Bash contract and smoke tests.
 - `Tests/Pester/` — PowerShell test suite for Windows tooling.
 - `SysAdminSuite.sln` and `managed-tests/` — .NET validation surface.
+- `Tests/survey/test_network_survey_denominator_contracts.py` — denominator/schema/adapter drift contract.
+- `.github/workflows/network-survey-delta-contracts.yml` — Windows parser and mixed-format denominator-to-delta end-to-end fixture proof.
 
 ## Local data boundaries
 
