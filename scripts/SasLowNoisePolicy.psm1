@@ -102,13 +102,19 @@ function Get-SasPortFallbackDecision {
         [int]$SilentOnDefaultProfileCount,
 
         [Parameter(Mandatory = $false)]
+        [int]$UntestedCount = 0,
+
+        [Parameter(Mandatory = $false)]
         [switch]$ApprovedSubnetScope,
 
         [Parameter(Mandatory = $false)]
         [switch]$UdpJustified,
 
         [Parameter(Mandatory = $false)]
-        [switch]$AllowFullPorts
+        [switch]$AllowFullPorts,
+
+        [Parameter(Mandatory = $false)]
+        [int[]]$EffectivePorts
     )
 
     $policy = Get-SasPortFallbackPolicy
@@ -117,37 +123,53 @@ function Get-SasPortFallbackDecision {
     $decision = 'review_required'
     $allPortsAllowed = [bool]$AllowFullPorts
 
-    if ($TargetCount -le 0) {
+    if ($TargetCount -le 0 -or $UntestedCount -eq $TargetCount) {
         $decision = 'review_required'
     } elseif ($SilentOnDefaultProfileCount -eq 0 -and $OpenDefaultPortTargetCount -gt 0) {
         $decision = 'default_ok'
-    } elseif ($SilentOnDefaultProfileCount -gt 0 -and $ApprovedSubnetScope) {
-        $decision = 'approved_subnet_host_discovery_required'
-        $fallbackProfile = $policy.HostDiscoveryFallbackProfile
-        $fallbackRequiresApproval = $true
     } elseif ($SilentOnDefaultProfileCount -gt 0) {
-        $decision = 'web_only_fallback'
-        $fallbackProfile = $policy.WebReachabilityFallbackProfile
+        if ($UdpJustified) {
+            $decision = 'udp_justification_required'
+            $fallbackProfile = $policy.UdpFallbackProfile
+            $fallbackRequiresApproval = $true
+        } elseif (-not $AllowFullPorts) {
+            $decision = 'all_ports_denied_without_explicit_gate'
+            $fallbackRequiresApproval = $true
+        } elseif ($ApprovedSubnetScope) {
+            $decision = 'approved_subnet_host_discovery_required'
+            $fallbackProfile = $policy.HostDiscoveryFallbackProfile
+            $fallbackRequiresApproval = $true
+        } else {
+            $decision = 'web_only_fallback'
+            $fallbackProfile = $policy.WebReachabilityFallbackProfile
+        }
     }
 
-    if ($UdpJustified) {
-        $fallbackProfile = $policy.UdpFallbackProfile
-        $fallbackRequiresApproval = $true
-        if ($decision -eq 'review_required') { $decision = 'udp_justification_required' }
-    }
-
-    if (-not $AllowFullPorts -and $decision -eq 'review_required' -and $SilentOnDefaultProfileCount -gt 0) {
-        $decision = 'all_ports_denied_without_explicit_gate'
-        $fallbackRequiresApproval = $true
+    $emittedDefaultProfile = $policy.DefaultProfile
+    $emittedPortsRequested = $policy.DefaultCybernetTcpPorts
+    if ($PSBoundParameters.ContainsKey('EffectivePorts') -and $null -ne $EffectivePorts -and $EffectivePorts.Count -gt 0) {
+        $canonical = @($policy.DefaultCybernetTcpPorts | Sort-Object)
+        $effective = @($EffectivePorts | Sort-Object)
+        $isNarrowed = $effective.Count -ne $canonical.Count
+        if (-not $isNarrowed) {
+            for ($i = 0; $i -lt $canonical.Count; $i++) {
+                if ($canonical[$i] -ne $effective[$i]) { $isNarrowed = $true; break }
+            }
+        }
+        if ($isNarrowed) {
+            $emittedDefaultProfile = ''
+            $emittedPortsRequested = @()
+        }
     }
 
     return [pscustomobject]@{
-        default_profile = $policy.DefaultProfile
-        ports_requested = $policy.DefaultCybernetTcpPorts
+        default_profile = $emittedDefaultProfile
+        ports_requested = $emittedPortsRequested
         open_default_port_target_count = $OpenDefaultPortTargetCount
         web_only_reachable_count = $WebOnlyReachableCount
         admin_surface_reachable_count = $AdminSurfaceReachableCount
         default_ports_blocked_or_filtered_count = $SilentOnDefaultProfileCount
+        untested_target_count = $UntestedCount
         fallback_profile_recommended = $fallbackProfile
         fallback_requires_approval = $fallbackRequiresApproval
         all_ports_allowed = $allPortsAllowed

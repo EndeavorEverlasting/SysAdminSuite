@@ -328,18 +328,26 @@ function Get-PortFallbackSummary {
         [object[]]$Rows,
 
         [Parameter(Mandatory = $true)]
-        [string[]]$Targets
+        [string[]]$Targets,
+
+        [Parameter(Mandatory = $false)]
+        [int[]]$EffectivePorts
     )
 
     $webPorts = @(Get-SasWebReachabilityPorts)
     $adminPorts = @(Get-SasAdminSurfacePorts)
     $openPortsByTarget = @{}
+    $untestedByTarget = @{}
 
     foreach ($target in $Targets) {
         $openPortsByTarget[$target] = New-Object System.Collections.Generic.List[int]
+        $untestedByTarget[$target] = $false
     }
 
     foreach ($row in $Rows) {
+        if ($row.PortStatus -eq 'NotChecked') {
+            $untestedByTarget[$row.Target] = $true
+        }
         if ($row.PortStatus -ne 'Open') { continue }
         if (-not $openPortsByTarget.ContainsKey($row.Target)) {
             $openPortsByTarget[$row.Target] = New-Object System.Collections.Generic.List[int]
@@ -351,11 +359,16 @@ function Get-PortFallbackSummary {
     $webOnlyTargets = 0
     $adminSurfaceTargets = 0
     $silentTargets = 0
+    $untestedTargets = 0
 
     foreach ($target in $Targets) {
         $openPorts = @($openPortsByTarget[$target])
         if ($openPorts.Count -eq 0) {
-            $silentTargets++
+            if ($untestedByTarget[$target]) {
+                $untestedTargets++
+            } else {
+                $silentTargets++
+            }
             continue
         }
 
@@ -370,12 +383,19 @@ function Get-PortFallbackSummary {
         if ($hasWeb -and -not $hasAdmin) { $webOnlyTargets++ }
     }
 
-    return Get-SasPortFallbackDecision `
-        -TargetCount $Targets.Count `
-        -OpenDefaultPortTargetCount $openDefaultTargets `
-        -WebOnlyReachableCount $webOnlyTargets `
-        -AdminSurfaceReachableCount $adminSurfaceTargets `
-        -SilentOnDefaultProfileCount $silentTargets
+    $decisionParams = @{
+        TargetCount                  = $Targets.Count
+        OpenDefaultPortTargetCount   = $openDefaultTargets
+        WebOnlyReachableCount        = $webOnlyTargets
+        AdminSurfaceReachableCount   = $adminSurfaceTargets
+        SilentOnDefaultProfileCount  = $silentTargets
+        UntestedCount                = $untestedTargets
+    }
+    if ($PSBoundParameters.ContainsKey('EffectivePorts') -and $null -ne $EffectivePorts -and $EffectivePorts.Count -gt 0) {
+        $decisionParams['EffectivePorts'] = $EffectivePorts
+    }
+
+    return Get-SasPortFallbackDecision @decisionParams
 }
 
 $repoRoot = Resolve-SasRepoRoot
@@ -525,7 +545,7 @@ foreach ($target in $targets) {
     }
 }
 
-$fallbackDecision = Get-PortFallbackSummary -Rows @($rows) -Targets @($targets)
+$fallbackDecision = Get-PortFallbackSummary -Rows @($rows) -Targets @($targets) -EffectivePorts $Ports
 
 Write-SasStageProgress -Step 4 -Total 4 -Message 'Writing network_preflight.csv' -Percent 100
 $rows | Export-Csv -LiteralPath $outputCsv -NoTypeInformation -Encoding UTF8
@@ -565,6 +585,7 @@ $summary = New-SasLowNoiseSummaryObject -Properties @{
     web_only_reachable_count = $fallbackDecision.web_only_reachable_count
     admin_surface_reachable_count = $fallbackDecision.admin_surface_reachable_count
     default_ports_blocked_or_filtered_count = $fallbackDecision.default_ports_blocked_or_filtered_count
+    untested_target_count = $fallbackDecision.untested_target_count
     fallback_profile_recommended = $fallbackDecision.fallback_profile_recommended
     fallback_requires_approval = $fallbackDecision.fallback_requires_approval
     all_ports_allowed = $fallbackDecision.all_ports_allowed
@@ -619,6 +640,7 @@ $artifactRegistry | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $artifact
     "- Targets answering only web ports 80/443: $($fallbackDecision.web_only_reachable_count)",
     "- Targets answering Windows/admin surface ports: $($fallbackDecision.admin_surface_reachable_count)",
     "- Targets silent on the default profile: $($fallbackDecision.default_ports_blocked_or_filtered_count)",
+    "- Targets untested (probe tool unavailable): $($fallbackDecision.untested_target_count)",
     "- Fallback decision: $($fallbackDecision.decision)",
     "- Recommended fallback profile: $($fallbackDecision.fallback_profile_recommended)",
     "- Fallback requires approval: $($fallbackDecision.fallback_requires_approval)",
