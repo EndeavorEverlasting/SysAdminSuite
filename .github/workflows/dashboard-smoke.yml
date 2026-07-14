@@ -71,6 +71,8 @@ jobs:
           node --check dashboard/js/launch-cybernet-tutorial.js
           node --check dashboard/js/launch-repo-setup-tutorial.js
           node --check dashboard/js/repo-setup-tutorial.js
+          node --check dashboard/js/software-deployment-tutorial.js
+          node --check dashboard/test_software_deployment_tutorial.js
           node --check dashboard/test_run_control_lifecycle.js
           node --check dashboard/test_relay_abort_e2e.js
       - name: Relay syntax check
@@ -79,6 +81,8 @@ jobs:
         run: node dashboard/smoke-test.js
       - name: Dashboard Start-button runtime smoke test
         run: node dashboard/start-button-smoke.js
+      - name: Software deployment tutorial runtime smoke test
+        run: node dashboard/test_software_deployment_tutorial.js
       - name: Relay cancel client smoke test
         run: node dashboard/probe-stop-smoke.js
       - name: Run Control lifecycle smoke test
@@ -93,6 +97,8 @@ jobs:
           node dashboard/test_relay_abort_e2e.js
       - name: Dashboard tutorial launcher contracts
         run: bash Tests/bash/test_dashboard_tutorial_launcher_contracts.sh
+      - name: Dashboard software deployment tutorial contracts
+        run: bash Tests/bash/test_dashboard_software_deployment_tutorial_contracts.sh
       - name: Dashboard entrypoint contracts
         run: bash Tests/bash/test_dashboard_entrypoint_contracts.sh
       - name: Dashboard wizard exit + probe stop contracts
