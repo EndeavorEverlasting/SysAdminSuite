@@ -176,6 +176,36 @@ def test_cmd_is_zero_argument_result_entrypoint() -> None:
     assert "exit /b 2" in text
 
 
+def test_first_pilot_docs_enforce_confirmation_enabled() -> None:
+    import re
+
+    harness_doc = ROOT / "docs" / "SOFTWARE_INSTALL_HARNESS.md"
+    finalization_doc = DOC
+
+    for doc_path in (finalization_doc, harness_doc):
+        text = read(doc_path)
+        assert "Do not add `-Confirm:$false` during the first real pilot" in text, (
+            f"{doc_path.name} must explicitly prohibit -Confirm:$false on first pilot"
+        )
+
+    pilot_section = read(finalization_doc).split("## Request authority", 1)[0]
+    pilot_commands = re.findall(r"```powershell\n(.*?)```", pilot_section, re.DOTALL)
+    assert pilot_commands, "finalization doc must contain a pilot PowerShell example"
+    assert all(
+        "-Confirm:$false" not in cmd for cmd in pilot_commands
+    ), "finalization doc pilot example must not include -Confirm:$false"
+
+    harness_text = read(harness_doc)
+    approved_section = harness_text.split("## Example approved execution", 1)[1]
+    approved_section = approved_section.split("## Known operational limits", 1)[0]
+    first_pilot_block = approved_section.split("For noninteractive", 1)[0]
+    first_pilot_commands = re.findall(r"```powershell\n(.*?)```", first_pilot_block, re.DOTALL)
+    assert first_pilot_commands, "harness doc first-pilot example must exist"
+    assert all(
+        "-Confirm:$false" not in cmd for cmd in first_pilot_commands
+    ), "harness doc first-pilot example must not include -Confirm:$false"
+
+
 if __name__ == "__main__":
     tests = [value for name, value in sorted(globals().items()) if name.startswith("test_") and callable(value)]
     for test in tests:
