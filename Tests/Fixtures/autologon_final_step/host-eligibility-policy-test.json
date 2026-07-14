@@ -1,0 +1,13 @@
+{
+  "schema_version": "sas-host-eligibility-policy/v1",
+  "policy_id": "test-final-step-gate",
+  "policy_version": "2026.07.14",
+  "patterns": [
+    {
+      "name": "test-samples",
+      "match_type": "regex",
+      "regex": "^SAMPLE",
+      "actions": ["local", "remote", "fixture", "vm"]
+    }
+  ]
+}

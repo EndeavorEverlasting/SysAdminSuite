@@ -284,7 +284,7 @@ function Test-SasHostEligibility {
         }
     }
 
-    $patternActions = @([string]$matchedPattern.actions)
+    $patternActions = @($matchedPattern.actions | ForEach-Object { [string]$_ })
     if ($ExecContext -notin $patternActions) {
         return [pscustomobject]@{
             schema_version     = 'sas-host-eligibility-result/v1'

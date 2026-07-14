@@ -1,0 +1,14 @@
+{
+  "run_id": "autologon-delta-20260714-143000-1a2b3c4d",
+  "phase": "before_complete",
+  "targets": [
+    {
+      "computer_name": "SAMPLE001",
+      "hostname": "SAMPLE001"
+    },
+    {
+      "computer_name": "SAMPLE002",
+      "hostname": "SAMPLE002"
+    }
+  ]
+}
