@@ -18,12 +18,15 @@ RUNNER = ROOT / "scripts" / "Invoke-SasEndToEndValidation.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "default-e2e-validation.yml"
 MANIFEST = ROOT / "harness" / "api" / "agent-capability-manifest.json"
 
+
 def read(path: Path) -> str:
     assert path.is_file(), f"missing required path: {path.relative_to(ROOT)}"
     return path.read_text(encoding="utf-8")
 
+
 def load(path: Path) -> dict:
     return json.loads(read(path))
+
 
 def test_default_posture_is_explicit_and_not_unit_only() -> None:
     agents = read(AGENTS)
@@ -33,6 +36,7 @@ def test_default_posture_is_explicit_and_not_unit_only() -> None:
     assert "fixture, synthetic, or loopback end-to-end journey" in doctrine
     assert "Never promote fixture or loopback E2E to live target proof" in doctrine
     assert ".claude/skills/end-to-end-validation/SKILL.md" in agents
+
 
 def test_skill_and_capability_compose_the_posture() -> None:
     capability = read(CAPABILITY)
@@ -46,6 +50,7 @@ def test_skill_and_capability_compose_the_posture() -> None:
     assert "end-to-end-testing.md" in scoped
     assert "targeted check" in scoped.lower()
     assert "end-to-end" in scoped.lower()
+
 
 def test_profile_is_fail_closed_and_loopback_only() -> None:
     catalog = load(PROFILES)
@@ -76,6 +81,7 @@ def test_profile_is_fail_closed_and_loopback_only() -> None:
     assert "dashboard/test_relay_cancel_e2e.py" in scripts
     assert "dashboard/test_relay_abort_e2e.js" in scripts
 
+
 def test_runner_emits_gate_artifacts_and_proof_boundaries() -> None:
     text = read(RUNNER)
     for fragment in [
@@ -86,6 +92,8 @@ def test_runner_emits_gate_artifacts_and_proof_boundaries() -> None:
         "external_network_activity_performed",
         "target_mutation_performed",
         "missing runtime:",
+        "Test-AllUnittestCasesSkipped",
+        "Required E2E journey skipped all tests",
     ]:
         assert fragment in text, f"runner missing contract: {fragment}"
     forbidden = [
@@ -100,7 +108,8 @@ def test_runner_emits_gate_artifacts_and_proof_boundaries() -> None:
     for pattern in forbidden:
         assert not re.search(pattern, text, re.IGNORECASE), f"default runner contains target surface: {pattern}"
 
-def test_ci_executes_the_real_default_journeys() -> None:
+
+def test_ci_executes_real_journeys_and_tracks_dependencies() -> None:
     workflow = read(WORKFLOW)
     assert "windows-latest" in workflow
     assert "pip install websockets jsonschema" in workflow
@@ -109,6 +118,25 @@ def test_ci_executes_the_real_default_journeys() -> None:
     assert "Invoke-SasEndToEndValidation.ps1" in workflow
     assert "e2e_validation_result.json" in workflow
     assert "if-no-files-found: error" in workflow
+    assert "persist-credentials: false" in workflow
+
+    dependency_paths = [
+        "dashboard/**",
+        "scripts/SasRunContext.psm1",
+        "scripts/Render-SasEnglishReport.ps1",
+        "scripts/Invoke-SasHarnessContracts.ps1",
+        "Tests/survey/test_one_command_harness_proof_contracts.py",
+        "Tests/survey/test_run_context_contracts.py",
+        "Tests/survey/test_local_harness_contracts.py",
+        "survey/fixtures/english-log/**",
+        "survey/workflows/**",
+        "harness/api/sas-harness-api.json",
+        "mcp/local/servers.json",
+        ".githooks/**",
+    ]
+    for path in dependency_paths:
+        assert workflow.count(path) >= 2, f"E2E workflow does not trigger for dependency in push and PR filters: {path}"
+
 
 def test_agent_manifest_records_e2e_default() -> None:
     manifest = load(MANIFEST)
@@ -122,6 +150,7 @@ def test_agent_manifest_records_e2e_default() -> None:
     assert "end-to-end-testing" in skills["end-to-end-validation"]["capability_ids"]
     assert "end-to-end-testing" in skills["scoped-validation"]["capability_ids"]
 
+
 def test_schema_validation_when_jsonschema_is_available() -> None:
     try:
         import jsonschema
@@ -129,19 +158,21 @@ def test_schema_validation_when_jsonschema_is_available() -> None:
         return
     jsonschema.validate(load(PROFILES), load(SCHEMA))
 
+
 def main() -> None:
     tests = [
         test_default_posture_is_explicit_and_not_unit_only,
         test_skill_and_capability_compose_the_posture,
         test_profile_is_fail_closed_and_loopback_only,
         test_runner_emits_gate_artifacts_and_proof_boundaries,
-        test_ci_executes_the_real_default_journeys,
+        test_ci_executes_real_journeys_and_tracks_dependencies,
         test_agent_manifest_records_e2e_default,
         test_schema_validation_when_jsonschema_is_available,
     ]
     for test in tests:
         test()
     print(f"PASS: {len(tests)} E2E default posture contracts")
+
 
 if __name__ == "__main__":
     main()
