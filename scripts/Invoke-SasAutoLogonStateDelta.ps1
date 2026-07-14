@@ -701,8 +701,8 @@ $handoff = @(
 )
 if ($Mode -eq 'Before') {
     $handoff += ''
-    $handoff += 'After approved auto-logon work completes, run:'
-    $handoff += ".\scripts\Invoke-SasAutoLogonStateDelta.ps1 -Mode After -RunId $RunId -TargetsCsv <same-approved-manifest>"
+    $handoff += 'After approved auto-logon work completes:'
+    $handoff += 'Double-click Run-AutoLogonStateDelta.cmd and choose option 2. The launcher remembers this run ID and baseline targets.'
 }
 $handoff | Set-Content -LiteralPath $handoffPath -Encoding UTF8
 
@@ -723,3 +723,4 @@ Write-Host "Summary: $summaryCsvPath" -ForegroundColor Green
     target_mutation_performed = $false
     target_side_sysadminsuite_artifacts_written = $false
 }
+
