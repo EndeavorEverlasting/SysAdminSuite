@@ -1,0 +1,4 @@
+Timestamp,Serial,HostName,EvidenceStrengthTier,SerialIdentityConfirmed,PingStatus,Port,PortStatus,EvidenceType
+2026-07-14T10:00:00-04:00,SN1001,CYB001,IDENTITY_CONFIRMED,true,Reachable,445,Open,approved_identity
+2026-07-14T09:00:00-04:00,SN1002,CYB002,REACHABILITY_ONLY,false,Reachable,445,Open,network_preflight
+2026-07-14T08:00:00-04:00,SN1005,CYB005,NEGATIVE_OR_SILENT,false,NoPing,445,Closed,network_preflight
