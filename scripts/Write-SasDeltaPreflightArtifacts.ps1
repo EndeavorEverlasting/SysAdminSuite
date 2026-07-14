@@ -2,7 +2,7 @@
 
 function Export-SasDeltaCsv {
     param(
-        [Parameter(Mandatory = $true)][object[]]$Rows,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Rows,
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)]$Template
     )
