@@ -1,4 +1,4 @@
-﻿#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
+#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0' }
 <#
 .SYNOPSIS
     Offline unit tests for Utilities\ scripts.
@@ -10,11 +10,13 @@ BeforeAll {
     $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:compareInventoryPath = Join-Path $repoRoot 'Config\Compare-HostInventory.ps1'
     $script:compareRunbookPath = Join-Path $repoRoot 'Config\Runbook-Compare-Inventory.ps1'
+    $script:btFlushPath = Join-Path $repoRoot 'Utilities\Invoke-BluetoothDriverFlush.ps1'
     . (Join-Path $repoRoot 'Utilities\Test-Network.ps1')
     . (Join-Path $repoRoot 'Utilities\Map-Printer.ps1')
     . (Join-Path $repoRoot 'Utilities\Invoke-FileShare.ps1')
     . (Join-Path $repoRoot 'Utilities\Invoke-UndoRedo.ps1')
     . (Join-Path $repoRoot 'Utilities\Invoke-RunControl.ps1')
+    . $script:btFlushPath
 }
 
 Describe 'Test-Network' {
@@ -300,6 +302,88 @@ Describe 'Config inventory comparison scripts' {
         $content | Should -Match '\$SourceHost'
         $content | Should -Match '\$TargetHost'
         $content | Should -Match 'Compare-HostInventory\.ps1'
+    }
+}
+
+Describe 'Invoke-BluetoothDriverFlush' {
+    Context 'Script parses cleanly' {
+        It 'Exists at expected path' {
+            $script:btFlushPath | Should -Exist
+        }
+
+        It 'Parses without errors' {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+                $script:btFlushPath, [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            @($errors).Count | Should -Be 0
+        }
+    }
+
+    Context 'Parameter contract' {
+        It 'Has a BackupPath parameter' {
+            $cmd = Get-Command Invoke-BluetoothDriverFlush
+            $cmd.Parameters.Keys | Should -Contain 'BackupPath'
+        }
+
+        It 'Has a BackupOnly switch' {
+            $cmd = Get-Command Invoke-BluetoothDriverFlush
+            $cmd.Parameters.Keys | Should -Contain 'BackupOnly'
+            $cmd.Parameters['BackupOnly'].ParameterType | Should -Be ([switch])
+        }
+
+        It 'Has a SkipDeviceRemoval switch' {
+            $cmd = Get-Command Invoke-BluetoothDriverFlush
+            $cmd.Parameters.Keys | Should -Contain 'SkipDeviceRemoval'
+        }
+
+        It 'Has a TargetDeviceName parameter with default filter' {
+            $cmd = Get-Command Invoke-BluetoothDriverFlush
+            $cmd.Parameters.Keys | Should -Contain 'TargetDeviceName'
+        }
+
+        It 'Supports ShouldProcess (-WhatIf)' {
+            $cmd = Get-Command Invoke-BluetoothDriverFlush
+            $cmd.Parameters.Keys | Should -Contain 'WhatIf'
+        }
+
+        It 'Has ConfirmImpact of High' {
+            $cmd = Get-Command Invoke-BluetoothDriverFlush
+            $cmd.CmdletBinding | Should -Be $true
+        }
+    }
+
+    Context 'BackupOnly mode' {
+        It 'Does not call sc.exe stop when BackupOnly is set' {
+            Mock sc.exe { }
+            Mock sc.exe { } -ParameterFilter { $args -contains 'stop' }
+            Mock Get-PnpDevice { }
+            Mock Disable-PnpDevice { }
+            Mock Enable-PnpDevice { }
+            Mock Read-Host { 'YES' }
+            Mock Get-ItemProperty { $null }
+
+            Invoke-BluetoothDriverFlush -BackupOnly -BackupPath $TestDrive -Confirm:$false
+
+            Should -Invoke sc.exe -Times 0 -ParameterFilter { $args -contains 'stop' }
+        }
+    }
+
+    Context 'WhatIf preview' {
+        It 'Does not create backup directory under TestDrive when WhatIf is set' {
+            $testBackupDir = Join-Path $TestDrive 'WhatIfTest'
+            Mock sc.exe { }
+            Mock pnputil { }
+            Mock Get-PnpDevice { }
+            Mock Read-Host { 'YES' }
+            Mock Get-ItemProperty { $null }
+
+            Invoke-BluetoothDriverFlush -BackupPath $testBackupDir -WhatIf -Confirm:$false
+
+            # The backup directory should NOT exist because WhatIf prevents creation
+            $testBackupDir | Should -Not -Exist
+        }
     }
 }
 

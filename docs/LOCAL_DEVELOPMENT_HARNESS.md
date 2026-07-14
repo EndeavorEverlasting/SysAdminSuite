@@ -9,7 +9,7 @@ It has four jobs:
 3. Catalog local MCP servers that expose repo capabilities without bypassing guardrails.
 4. Make reports emerge from local artifacts instead of ad hoc explanation after the fact.
 
-This harness is for authorized local development and approved operator workflows. It must not introduce hidden network activity, target-side artifacts, credential collection, log suppression, or monitoring bypass behavior.
+This harness is for authorized local development and approved operator workflows. It must not introduce hidden network activity, persistent target-side artifacts, credential collection, log suppression, or monitoring bypass behavior.
 
 ## Harness layers
 
@@ -18,6 +18,8 @@ This harness is for authorized local development and approved operator workflows
 | Hooks | `.githooks/` | Run local checks before commit and push. |
 | Installer | `scripts/install-local-harness-hooks.sh` | Sets `core.hooksPath` to `.githooks`. |
 | API manifest | `harness/api/sas-harness-api.json` | Defines stable local operation names, inputs, outputs, and safety modes. |
+| Low-noise API | `harness/api/low_noise_policy.py` | Supplies canonical profiles and English explanations to scripts, agents, and future MCP adapters. |
+| Event renderer | `harness/reporting/english.py` | Strictly converts structured event templates into linked syntactic-English artifacts. |
 | MCP catalog | `mcp/local/servers.json` | Lists local-only MCP servers and the APIs they may expose. |
 | Contracts | `Tests/survey/test_local_harness_contracts.py` | Keeps hooks, APIs, MCP, and reporting guardrails connected in CI. |
 
@@ -27,7 +29,7 @@ This harness is for authorized local development and approved operator workflows
 
 The pre-commit hook is a fast local guard. It should:
 
-- run harness, socket-boundary, and standard tooling static contracts;
+- run harness, socket-boundary, standard tooling, and software-install static contracts;
 - block staged generated evidence paths;
 - block accidental commit of live operational files such as generated probe outputs, serial evidence, host/IP/MAC exports, or local MCP runtime logs;
 - stay local-only and avoid network actions.
@@ -45,6 +47,10 @@ Developers can install the hooks with:
 
 ```bash
 bash scripts/install-local-harness-hooks.sh
+```
+
+```powershell
+& "$env:ProgramFiles\Git\bin\bash.exe" scripts/install-local-harness-hooks.sh
 ```
 
 ## API posture
@@ -71,13 +77,29 @@ Approved modes:
 | `local_transform` | Converts local evidence into reports or reduced target lists. |
 | `operator_execute` | May execute only through an approved wrapper and must be separately gated. |
 
-The first harness APIs are deliberately plan-only or local-transform:
+The default harness APIs are deliberately plan-only or local-transform:
 
 - `target_reduction.plan`
 - `standard_probe.render_cmd`
 - `standard_probe.render_powershell`
 - `report.generate_from_artifacts`
 - `mcp.catalog.list`
+
+The software install lane is intentionally different. `software_install.operator_execute` is an approved operator-execute surface because installing software mutates authorized targets. It must be gated by explicit operator intent, approved source roots, bounded target lists, local evidence, and cleanup reporting. It must not suppress Windows logs, bypass monitoring, collect credentials, or create persistence.
+
+## Software install posture
+
+The approved software source root is:
+
+```text
+\\nt2kwb972sms01\
+```
+
+Software install work should prefer direct UNC execution from the read-only source so SysAdminSuite does not stage installer payloads on the target. If staging is required, the wrapper must stage only under a run-specific `ProgramData\SysAdminSuite\SoftwareInstall\<run_id>` folder, remove that run folder after execution, and prune empty `ProgramData\SysAdminSuite\SoftwareInstall` and `ProgramData\SysAdminSuite` parent directories when no sibling run artifacts remain.
+
+The no-artifact boundary means no persistent SysAdminSuite-owned staging payload, log, report, manifest, transcript, script, or evidence should remain on the target. Installer-owned files, installer logs, registry changes, caches, services, and endpoint-management records belong to the software install itself. SysAdminSuite does not erase operating-system audit logs; it avoids and cleans its own target filesystem remnants.
+
+See `docs/SOFTWARE_INSTALL_HARNESS.md` and `scripts/Invoke-SasSoftwareInstall.ps1` for the concrete contract.
 
 ## Local MCP posture
 
@@ -112,6 +134,14 @@ input artifact(s) -> classifier/transform -> report output -> summary metadata
 
 A report should say what it consumed, what it excluded, what it classified, and what remains unresolved. It should not invent certainty. Reached is not identity proof. Non-reached is not dead.
 
+Structured JSONL events use the `message_template`, `variables`, and `artifact_refs` contract in `schemas/harness/run-event.schema.json`. Render them locally for agents and operators with:
+
+```bash
+python3 scripts/render-sas-structured-log.py --input events.jsonl --jsonl-output events_english.jsonl --english-output events_english.txt --artifact-registry artifact_registry.json
+```
+
+The renderer is the implementation seam for `report.generate_from_artifacts` and the planned `sas-evidence-reporter` MCP. It resolves simple named variables only, fails on missing or unsafe placeholders, preserves the original JSON fields, adds `english_message`, and never performs network activity or target mutation.
+
 ## Next sprint seam
 
 The next implementation sprint should add a local target-reduction planner that consumes prior probe results and produces:
@@ -127,3 +157,4 @@ operator_handoff.txt
 ```
 
 That planner should implement the API operation `target_reduction.plan` and stay plan-only/local-transform before any new probe execution is introduced.
+

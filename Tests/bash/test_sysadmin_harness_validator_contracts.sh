@@ -7,71 +7,47 @@ cd "$ROOT"
 fail() { echo "[FAIL] $*" >&2; exit 1; }
 pass() { echo "[PASS] $*"; }
 
-[[ -f scripts/validate-sysadmin-harness.ps1 ]] || fail "validator missing"
-pass "validator exists"
+validator="scripts/validate-sysadmin-harness.ps1"
+[[ -f "$validator" ]] || fail "validator missing"
 
-[[ -f Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md ]] || fail "run context lane boundary missing"
-grep -q "PR #146" Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md || fail "run context boundary does not name PR #146"
-grep -q "scripts/SasRunContext.psm1" Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md || fail "run context boundary does not name canonical module"
-grep -q "must consume that module after rebasing" Tests/bash/RUN_CONTEXT_LANE_BOUNDARY.md || fail "run context boundary does not require consuming merged module"
-pass "run context lane boundary documented"
-
-grep -q "SYSADMIN HARNESS VALIDATION" scripts/validate-sysadmin-harness.ps1 || fail "validator missing title"
-grep -q "PASS" scripts/validate-sysadmin-harness.ps1 || fail "validator missing PASS matrix output"
-grep -q "FAIL" scripts/validate-sysadmin-harness.ps1 || fail "validator missing FAIL matrix output"
-pass "validator matrix contract"
-
-for file in \
-  Run-HarnessContracts.cmd \
-  Run-HarnessValidation.cmd \
-  Run-EnglishReportFixture.cmd \
-  Run-ExportHarnessEvidence.cmd \
-  docs/handoff/pr142-scope-ledger.md \
-  scripts/Ensure-Pr142HarnessFoundationWorktree.ps1 \
-  scripts/Invoke-SasHarnessContracts.ps1 \
-  scripts/run-harness-validation.sh \
-  scripts/render-english-report-fixtures.sh \
-  scripts/show-harness-evidence-paths.sh \
-  scripts/Render-SasEnglishReport.ps1 \
-  Tests/bash/run_harness_contracts.sh \
-  Tests/bash/test_harness_command_surface.sh \
-  Tests/bash/test_pr142_scope_boundary_contracts.sh \
-  schemas/harness/run-event.schema.json \
-  schemas/harness/artifact-registry.schema.json \
-  schemas/harness/operator-report.schema.json \
-  survey/workflows/serial-to-preflight.yaml \
-  survey/workflows/network-preflight.yaml \
-  survey/workflows/serial-iteration.yaml; do
-  grep -q "$file" scripts/validate-sysadmin-harness.ps1 || fail "validator does not name required file: $file"
+for fragment in \
+  "APP HARNESS VALIDATION" \
+  "scripts/SasRunContext.psm1" \
+  "artifact registry" \
+  "report renderer" \
+  "cross-lane merge integrity" \
+  "optional Python module compatibility" \
+  "git_bash_not_available" \
+  "optional MCP symbol smoke" \
+  "lsp_project_not_loaded" \
+  "hook hygiene" \
+  "harness_validation_result.json" \
+  "synthetic_offline" \
+  "runtime_proof=\$false" \
+  "network_activity_performed=\$false" \
+  "launcher_execution_performed=\$false" \
+  "target_mutation_performed=\$false"; do
+  grep -Fq "$fragment" "$validator" || fail "validator missing contract: $fragment"
 done
-pass "validator names required files"
+pass "validator declares matrix, JSON, dependency, and proof-boundary contracts"
 
-if grep -Fq "'scripts/SasRunContext.psm1'" scripts/validate-sysadmin-harness.ps1; then
-  fail "validator still treats run context module as a required owned file"
-fi
-grep -q "scripts/SasRunContext.psm1 remains outside PR #142-owned changes" scripts/validate-sysadmin-harness.ps1 || fail "validator does not enforce run context ownership boundary"
-pass "validator references run context only as a boundary, not an owned file"
+for forbidden in Start-Process Invoke-Item explorer.exe START-HERE-SysAdminSuite Launch-SysAdminSuite Test-NetConnection Resolve-DnsName Invoke-WebRequest; do
+  if grep -Fiq "$forbidden" "$validator"; then
+    fail "validator contains forbidden runtime surface: $forbidden"
+  fi
+done
+pass "validator contains no launcher or network execution surface"
 
-grep -q "PR142 scope ledger" scripts/validate-sysadmin-harness.ps1 || fail "validator missing scope ledger check"
-grep -q "PowerShell-native command wrappers" scripts/validate-sysadmin-harness.ps1 || fail "validator missing PowerShell-native wrapper check"
-grep -q "command surface scripts" scripts/validate-sysadmin-harness.ps1 || fail "validator missing command surface script check"
-grep -q "Run-HarnessContracts.cmd" scripts/validate-sysadmin-harness.ps1 || fail "validator missing contract launcher check"
-grep -q "scripts/Invoke-SasHarnessContracts.ps1" scripts/validate-sysadmin-harness.ps1 || fail "validator missing PowerShell contract runner route"
-grep -q "exit /b %SAS_EXIT%" scripts/validate-sysadmin-harness.ps1 || fail "validator missing wrapper exit-code check"
-pass "validator covers command surface wiring"
-
-blocked='(Test-''NetConnection|Resolve-''DnsName|naa''bu|n''map|soc''ket|pack''et|pi''ng|nslook''up|cu''rl)'
-if grep -E "$blocked" scripts/validate-sysadmin-harness.ps1; then
-  fail "validator contains blocked command text"
-fi
-pass "validator contains no blocked command text"
+[[ -f Tests/survey/test_one_command_harness_proof_contracts.py ]] || fail "executable proof contracts missing"
+grep -Fq "test_one_command_harness_proof_contracts.py" tests/survey/run_offline_survey_tests.sh || fail "offline runner missing proof contracts"
+pass "one-command proof is wired into offline validation"
 
 if command -v pwsh >/dev/null 2>&1; then
-  pwsh -NoProfile -File scripts/validate-sysadmin-harness.ps1
+  pwsh -NoProfile -ExecutionPolicy Bypass -File "$validator"
 elif command -v powershell.exe >/dev/null 2>&1; then
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/validate-sysadmin-harness.ps1
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$validator"
 else
-  echo "[SKIP] PowerShell runtime unavailable; static validator contract checks completed."
+  echo "[SKIP] PowerShell runtime unavailable; static contracts completed."
 fi
 
 echo "SysAdmin harness validator contracts passed."

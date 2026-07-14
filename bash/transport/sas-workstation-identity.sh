@@ -12,6 +12,8 @@ if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
 fi
 # shellcheck source=survey/lib/sas-network-guard.sh
 source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+# shellcheck source=survey/lib/sas-progress.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-progress.sh"
 
 TARGETS=()
 TARGET_FILE=""
@@ -26,6 +28,7 @@ WMI_PASS=""
 WMI_DOMAIN=""
 WMI_ADAPTER=""
 PASS_THRU=0
+NO_PROGRESS=0
 
 usage(){ cat <<'USAGE'
 SysAdminSuite Workstation Identity Adapter
@@ -47,6 +50,7 @@ Options:
   --wmi-domain DOMAIN  Optional WMI domain. Prefer SAS_WMI_DOMAIN
   --wmi-adapter PATH   Optional WMI adapter path. Defaults to bash/transport/sas-wmi-identity.sh
   --pass-thru          Print CSV after writing
+  --no-progress        Suppress progress bars
   -h, --help           Show help
 
 Output columns:
@@ -63,7 +67,7 @@ Known limitation:
 USAGE
 }
 
-fail(){ printf '[workstation-identity] ERROR: %s\n' "$*" >&2; exit 1; }
+fail(){ sas_progress_fail "$*"; printf '[workstation-identity] ERROR: %s\n' "$*" >&2; exit 1; }
 log(){ printf '[workstation-identity] %s\n' "$*" >&2; }
 has_cmd(){ command -v "$1" >/dev/null 2>&1; }
 trim(){ local s="${1:-}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
@@ -87,6 +91,7 @@ while [[ $# -gt 0 ]]; do
     --wmi-domain) WMI_DOMAIN="${2:?missing value for --wmi-domain}"; shift 2 ;;
     --wmi-adapter) WMI_ADAPTER="${2:?missing value for --wmi-adapter}"; shift 2 ;;
     --pass-thru) PASS_THRU=1; shift ;;
+    --no-progress) NO_PROGRESS=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [[ $# -gt 0 ]]; do TARGETS+=("$1"); shift; done ;;
     -*) fail "Unknown option: $1" ;;
@@ -113,8 +118,12 @@ if [[ -n "$TARGET_FILE" ]]; then
 fi
 [[ ${#TARGETS[@]} -gt 0 ]] || fail "No targets provided"
 mkdir -p "$(dirname "$OUTPUT")"
+[[ "$NO_PROGRESS" -eq 1 ]] && sas_progress_disable
+sas_progress_start "${#TARGETS[@]}" "Workstation identity"
+completed=0
 TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
+cleanup(){ local rc=$?; rm -rf "$TMP_DIR"; if (( rc != 0 )); then sas_progress_fail "stopped with exit $rc"; fi; }
+trap cleanup EXIT
 TARGETS_TMP="$TMP_DIR/targets.txt"
 WMI_OUT="$TMP_DIR/wmi_identity.csv"
 printf '%s\n' "${TARGETS[@]}" > "$TARGETS_TMP"
@@ -197,6 +206,7 @@ ssh_identity(){
 
 if [[ "$ALLOW_WMI" -eq 1 ]]; then
   wmi_args=("$WMI_ADAPTER" --targets-file "$TARGETS_TMP" --output "$WMI_OUT" --timeout "$TIMEOUT")
+  wmi_args+=(--no-progress)
   [[ -n "$WMI_USER" ]] && wmi_args+=(--wmi-user "$WMI_USER")
   [[ -n "$WMI_PASS" ]] && wmi_args+=(--wmi-pass "$WMI_PASS")
   [[ -n "$WMI_DOMAIN" ]] && wmi_args+=(--wmi-domain "$WMI_DOMAIN")
@@ -240,6 +250,7 @@ PY
 {
   printf 'Timestamp,Target,ResolvedAddress,PingStatus,DnsName,ObservedHostName,ObservedSerial,ObservedMACs,TransportUsed,IdentityStatus,Notes\n'
   for target in "${TARGETS[@]}"; do
+    sas_progress_update "$completed" "checking $target"
     ip="$(resolve_ip "$target")"; dns="$(resolve_name "${ip:-$target}")"; ping="$(ping_status "${ip:-$target}")"
     observed_host=""; observed_serial=""; observed_macs=""; transport=""; notes=()
     if [[ "$ALLOW_WMI" -eq 1 ]]; then
@@ -262,7 +273,10 @@ PY
     [[ "$ping" != "Reachable" ]] && notes+=("ICMP failed or blocked")
     status="$(identity_status "$ping" "$observed_host" "$observed_serial" "$observed_macs")"
     csv_escape "$(date '+%Y-%m-%d %H:%M:%S')"; printf ','; csv_escape "$target"; printf ','; csv_escape "$ip"; printf ','; csv_escape "$ping"; printf ','; csv_escape "$dns"; printf ','; csv_escape "$observed_host"; printf ','; csv_escape "$observed_serial"; printf ','; csv_escape "$observed_macs"; printf ','; csv_escape "$transport"; printf ','; csv_escape "$status"; printf ','; csv_escape "$(IFS='; '; echo "${notes[*]:-}")"; printf '\n'
+    completed=$((completed + 1))
+    sas_progress_update "$completed" "finished $target"
   done
 } > "$OUTPUT"
+sas_progress_complete "wrote $OUTPUT"
 log "Wrote workstation identity CSV: $OUTPUT"
 [[ "$PASS_THRU" -eq 1 ]] && cat "$OUTPUT"

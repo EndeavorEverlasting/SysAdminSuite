@@ -91,12 +91,19 @@ Bash scripts may call Windows-native executables such as `cmd.exe`, `hostname.ex
 ## Low-Noise Survey / Naabu Doctrine
 
 Naabu and related packet probes are for authorized reachability validation only. They are not a
-population source, identity proof, stealth technique, or target-side collection mechanism.
+standalone population source, identity proof, stealth technique, or target-side collection mechanism.
 
 Agents MUST preserve these rules across docs, scripts, dashboards, generated commands, and tests:
 
 - Treat AD-derived target lists as the registered Cybernet population authority.
-- Treat Naabu/Nmap output as reachability evidence only.
+- Treat Naabu/Nmap output as live reachability and service-state evidence, not population or identity proof by itself.
+  It may contribute to identity, population, target ownership, or action-readiness proof only when joined with approved
+  source data and complete, fresh, in-scope, unambiguous matches.
+- Check approved local evidence before proposing another live probe. If all required data is already present, do not
+  probe again by default.
+- Treat partial matches, ambiguous matches, stale evidence, incomplete evidence, wrong-scope evidence, and conflicting
+  evidence as insufficient for reuse until reviewed.
+- Cap repeated live probes for the same target/scope at five total attempts unless a lead/operator override is recorded.
 - Use `survey/naabu_profiles.json` as the doctrine source of truth and
   `Config/cybernet-naabu-profiles.json` as generated runtime config.
 - Prefer `survey/sas-run-naabu-pipeline.sh` or `survey/sas-run-packet-probe.sh` for execution.
@@ -116,6 +123,8 @@ Agents MUST preserve these rules across docs, scripts, dashboards, generated com
 - Treat `feature/naabu-docs-consolidation` as superseded by current `main` doctrine. Do not
   revive or merge it without explicit user authorization.
 
+Canonical evidence-reuse reference: [`docs/LOW_NOISE_EVIDENCE_REUSE_GUARDRAIL.md`](docs/LOW_NOISE_EVIDENCE_REUSE_GUARDRAIL.md).
+
 ## Operational Posture / Legacy Gates
 
 `Config/operational-posture.json` and `docs/OPERATIONAL_POSTURE.md` are the cross-lane posture
@@ -133,6 +142,39 @@ Agents MUST preserve these boundaries:
   folders require teardown unless they are documented as intentional retained payloads.
 - Cleanup means reducing residual operational clutter. Do not describe cleanup as bypassing logs,
   suppressing telemetry, hiding activity, stealth, or evasion.
+
+### Harness discipline
+
+Every repo mutation — merge, cherry-pick, squash, close, delete branch/PR, comment,
+worktree create/remove — must follow harness discipline:
+
+1. **Name the fields**: repo, branch, PR/sprint, lane, scope, forbidden scope, expected artifacts.
+2. **Gather evidence** before acting: `git status`, `git log`, `git diff`, CI state, worktree list.
+3. **Plan** the single bounded operation.
+4. **Execute** the operation.
+5. **Validate** with the strongest practical check.
+6. **Report** changed files, commit SHA, skipped checks, gaps, risks.
+7. **Hand off** with verification, git state, next command, and copy-paste prompt.
+
+#### Incremental work preservation
+
+Agents must checkpoint coherent tracked progress before beginning broad validation, long-running diagnostics, runtime proof, or a larger refactoring phase.
+
+A valid checkpoint is one of:
+
+- a bounded WIP commit on the owned feature branch;
+- a complete patch containing tracked and newly created files;
+- another repo-approved recovery artifact that records the exact changed files and Git state.
+
+Do not include secrets, runtime evidence, generated logs, machine-local data, or unrelated dirty files in a checkpoint.
+
+After interruption, resume from the latest checkpoint. Do not repeat repository-wide discovery or regenerate completed work unless evidence shows the checkpoint is incomplete or invalid.
+
+A checkpoint proves preservation only. It does not prove validation, completion, merge readiness, or runtime behavior.
+
+Do not claim completion without proof. Do not merge, squash, or delete without confirming
+clean tree, CI status, and scope containment. See [`docs/HARNESS_DISCIPLINE.md`](docs/HARNESS_DISCIPLINE.md)
+for the full operation-by-operation contract.
 
 Canonical references:
 
