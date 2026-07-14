@@ -12,9 +12,10 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 if (-not [IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot = Join-Path $repoRoot $OutputRoot }
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
-$approvedOutput = [IO.Path]::GetFullPath((Join-Path $repoRoot 'survey/output')).TrimEnd('\')
-if (-not ($OutputRoot.Equals($approvedOutput, [StringComparison]::OrdinalIgnoreCase) -or $OutputRoot.StartsWith($approvedOutput + '\', [StringComparison]::OrdinalIgnoreCase))) {
-    throw 'Validated deployment E2E output must remain under survey/output.'
+$approvedE2ERoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'survey/output/e2e-validation')).TrimEnd('\')
+if ($OutputRoot.Equals($approvedE2ERoot, [StringComparison]::OrdinalIgnoreCase) -or
+    -not $OutputRoot.StartsWith($approvedE2ERoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Validated deployment E2E output must be a journey-owned child directory under survey/output/e2e-validation.'
 }
 
 $targetRoot = Join-Path $OutputRoot 'fixture-target'
@@ -36,8 +37,14 @@ $dummyFile = Join-Path $targetRoot $dummyRelative
 $manifestFile = Join-Path $targetRoot 'InstalledPackages/SysAdminSuiteFixturePackage/manifest.json'
 $installerLog = Join-Path $targetRoot 'InstallerLogs/sysadminsuite-fixture-package.jsonl'
 
-foreach ($path in @($sourcePath, $buildScript, $orchestrator)) { if (-not [IO.File]::Exists($path)) { throw "Missing fixture dependency: $path" } }
-if ([IO.Directory]::Exists($OutputRoot)) { [IO.Directory]::Delete($OutputRoot, $true) }
+foreach ($path in @($sourcePath, $buildScript, $orchestrator)) {
+    if (-not [IO.File]::Exists($path)) { throw "Missing fixture dependency: $path" }
+}
+New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
+foreach ($ownedPath in @($targetRoot, $generatedRoot, $operatorRoot, $requestPath, $resultPath, $matrixPath)) {
+    if ([IO.Directory]::Exists($ownedPath)) { [IO.Directory]::Delete($ownedPath, $true) }
+    elseif ([IO.File]::Exists($ownedPath)) { [IO.File]::Delete($ownedPath) }
+}
 New-Item -ItemType Directory -Path $programData, $generatedRoot, $operatorRoot -Force | Out-Null
 $build = & $buildScript -SourcePath $sourcePath -OutputPath $installer
 $installerHash = (Microsoft.PowerShell.Utility\Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -202,7 +209,9 @@ if (-not $global:SasValidatedE2EStagedCopyVerified) { $failures += 'fixture did 
 if (-not $global:SasValidatedE2EInjectedTransient) { $failures += 'fixture did not inject a post-install run-owned transient' }
 if (Test-Path -LiteralPath $stageRoot) { $failures += "run-scoped SysAdminSuite staging remains: $stageRoot" }
 if (Test-Path -LiteralPath $global:SasValidatedE2EInjectedTransient) { $failures += 'post-install transient survived finalization' }
-foreach ($requiredPackageFile in @($dummyFile, $manifestFile, $installerLog)) { if (-not (Test-Path -LiteralPath $requiredPackageFile -PathType Leaf)) { $failures += "requested software evidence was removed: $requiredPackageFile" } }
+foreach ($requiredPackageFile in @($dummyFile, $manifestFile, $installerLog)) {
+    if (-not (Test-Path -LiteralPath $requiredPackageFile -PathType Leaf)) { $failures += "requested software evidence was removed: $requiredPackageFile" }
+}
 if ($finalization.results[0].requested_software_preserved_after_teardown -ne $true) { $failures += 'post-teardown package validation did not pass' }
 
 $status = if ($failures.Count -eq 0) { 'PASS' } else { 'FAIL' }
@@ -239,7 +248,11 @@ $matrix = @(
     "Finalization: $finalizationPath",
     'Live target proof: false'
 )
-if ($failures.Count -gt 0) { $matrix += ''; $matrix += 'Failures:'; $matrix += @($failures | ForEach-Object { "- $_" }) }
+if ($failures.Count -gt 0) {
+    $matrix += ''
+    $matrix += 'Failures:'
+    $matrix += @($failures | ForEach-Object { "- $_" })
+}
 $matrix | Set-Content -LiteralPath $matrixPath -Encoding UTF8
 $matrix | ForEach-Object { Write-Host $_ }
 if ($failures.Count -gt 0) { exit 1 }
