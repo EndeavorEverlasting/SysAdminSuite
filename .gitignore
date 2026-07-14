@@ -124,6 +124,7 @@ tools/cache/
 # Local reference tree (install scripts, shortcuts, installers — not product code; never commit)
 tech emulation/
 Alex Emulation/
+docs/Northwell Apps/
 
 # Generated runtime artifacts from bash/apps scripts (timestamped logs and worker scripts)
 bash/apps/output/
