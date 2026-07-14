@@ -6,12 +6,15 @@ on:
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
+      - 'START-HERE-SysAdminSuite.md'
       - '.claude/skills/**'
       - '.claude/capabilities/**'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'docs/SOFTWARE_INSTALL_E2E.md'
       - 'docs/SOFTWARE_INSTALL_HARNESS.md'
       - 'docs/AI_LAYER.md'
+      - 'docs/launch-and-doc-index.md'
+      - 'docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md'
       - 'harness/e2e/**'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/sas-harness-api.json'
@@ -30,6 +33,7 @@ on:
       - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
       - 'Tests/survey/test_software_install_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
+      - 'Tests/survey/test_software_deployment_tutorial_contracts.py'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
       - 'Tests/survey/test_run_context_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
@@ -48,12 +52,15 @@ on:
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
+      - 'START-HERE-SysAdminSuite.md'
       - '.claude/skills/**'
       - '.claude/capabilities/**'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'docs/SOFTWARE_INSTALL_E2E.md'
       - 'docs/SOFTWARE_INSTALL_HARNESS.md'
       - 'docs/AI_LAYER.md'
+      - 'docs/launch-and-doc-index.md'
+      - 'docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md'
       - 'harness/e2e/**'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/sas-harness-api.json'
@@ -72,6 +79,7 @@ on:
       - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
       - 'Tests/survey/test_software_install_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
+      - 'Tests/survey/test_software_deployment_tutorial_contracts.py'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
       - 'Tests/survey/test_run_context_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
@@ -103,11 +111,12 @@ jobs:
         run: |
           pip install websockets jsonschema
           npm install --no-save --no-package-lock ws@8
-      - name: Validate E2E posture and software-install contracts
+      - name: Validate E2E posture, tutorial, and software-install contracts
         shell: pwsh
         run: |
           python .\Tests\survey\test_software_install_harness_contracts.py
           python .\Tests\survey\test_e2e_default_posture_contracts.py
+          python .\Tests\survey\test_software_deployment_tutorial_contracts.py
       - name: Run default end-to-end gate
         shell: pwsh
         run: |
