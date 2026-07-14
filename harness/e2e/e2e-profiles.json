@@ -31,13 +31,23 @@
       "required": true
     },
     {
-      "id": "software-install-result-presentation",
-      "summary": "Inspect the completed fixture software-install evidence, recompute target and cleanup counts, write software_install_review.json, and present the final operator classification.",
+      "id": "software-install-validated-finalization",
+      "summary": "Run the real validated-deployment orchestrator with a generated installer in CopyThenInstall mode, validate the package, remove an injected run-scoped transient, and prove the package remains.",
       "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
-      "script": "scripts/Show-SasSoftwareInstallResult.ps1",
+      "script": "scripts/Invoke-SasValidatedSoftwareDeploymentE2E.ps1",
+      "arguments": ["-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "software-install-result-presentation",
+      "summary": "Inspect the validated deployment evidence, recompute install, validation, teardown, remnant, and preservation counts, and present the final deployment classification.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Show-SasValidatedSoftwareDeploymentResult.ps1",
       "arguments": [
         "-OutputRoot",
-        "{run_root}\\software-install-fixture\\operator",
+        "{run_root}\\software-install-validated-finalization\\operator",
         "-RequireCompleted"
       ],
       "network_scope": "none",
@@ -72,6 +82,7 @@
       "journey_ids": [
         "harness-one-command-synthetic",
         "software-install-fixture",
+        "software-install-validated-finalization",
         "software-install-result-presentation",
         "dashboard-relay-cancel-loopback",
         "dashboard-relay-abort-loopback"
