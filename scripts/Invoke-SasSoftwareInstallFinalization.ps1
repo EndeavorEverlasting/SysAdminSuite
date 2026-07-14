@@ -9,15 +9,19 @@ software_install_summary.json and a closed validated-deployment request. For eac
 read-only package checks, executes idempotent cleanup limited to ProgramData\SysAdminSuite\SoftwareInstall\<run_id>,
 then repeats the package checks. Cleanup runs even when installation or validation failed. The script never
 uninstalls the requested package, clears logs, suppresses monitoring, collects credentials, or removes installer-owned files.
+Direct execution is fail-closed and requires both -AllowTargetMutation and ShouldProcess approval.
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [Parameter(Mandatory = $true)]
     [string]$InstallSummaryPath,
 
     [Parameter(Mandatory = $true)]
     [string]$RequestPath,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$AllowTargetMutation,
 
     [Parameter(Mandatory = $false)]
     [switch]$AllowFixtures
@@ -62,6 +66,16 @@ $summaryTargets = @($summary.results | ForEach-Object { [string]$_.computer_name
 $requestTargets = @($request.targets | ForEach-Object { [string]$_ } | Sort-Object -Unique)
 if (@(Compare-Object -ReferenceObject $requestTargets -DifferenceObject $summaryTargets).Count -ne 0) {
     throw 'Install summary target set does not match validated deployment request.'
+}
+
+if (-not $AllowTargetMutation -and -not $WhatIfPreference) {
+    throw 'Refusing software-install finalization without -AllowTargetMutation. Use -WhatIf to inspect the approved finalization scope without contacting targets.'
+}
+$targetDescription = $summaryTargets -join ', '
+$actionDescription = "Validate package '$($request.package_name)', remove only run-scoped SysAdminSuite staging for '$($summary.run_id)', and validate package preservation"
+if (-not $PSCmdlet.ShouldProcess($targetDescription, $actionDescription)) {
+    Write-Host 'Software-install finalization was not executed.'
+    return
 }
 
 $runRoot = Split-Path -Parent $InstallSummaryPath
