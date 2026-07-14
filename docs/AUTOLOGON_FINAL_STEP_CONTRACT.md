@@ -202,3 +202,28 @@ The final-step gate (step 4) is the **single point** where all prerequisites are
 | `docs/AUTOLOGON_ASSESSMENT.md` | AutoLogon assessment lifecycle |
 | `docs/AUTOLOGON_STATE_DELTA.md` | State-delta workflow documentation |
 | `docs/SOFTWARE_INSTALL_HARNESS.md` | Admin software install harness |
+| `docs/AUTOLOGON_UNIQUE_BEHAVIOR_MATRIX.md` | Reconciliation of PRs #167, #168, #175 |
+| `docs/AUTOLOGON_PHYSICAL_PILOT_CHECKLIST.md` | Pre-pilot readiness checklist |
+
+## Unique-Behavior Reconciliation
+
+This gate reconciles unique behavior from PRs #167, #168, and #175. See `AUTOLOGON_UNIQUE_BEHAVIOR_MATRIX.md` for the full matrix.
+
+**Key invariants:**
+1. AutoLogon is the **final mutation** — no other mutations after AutoLogon
+2. Package validation and application acceptance must pass before AutoLogon mutation
+3. Required reboots must complete before AutoLogon baseline is captured
+4. Post-reboot proof is required — technician must observe and record AutoLogon behavior
+
+## Refusal Classifications
+
+| Refusal | Classification | Recovery |
+|---------|---------------|----------|
+| `run_id_format` invalid | **BLOCKED** — operator error | Generate valid run ID |
+| `host_eligibility` failed | **BLOCKED** — safety gate | Add host to policy or choose eligible target |
+| `approved_catalog` missing | **BLOCKED** — package not approved | Add package to catalog or pin installer |
+| `before_snapshot` missing | **BLOCKED** — evidence missing | Capture Before snapshot first |
+| `application_acceptance` not confirmed | **BLOCKED** — prerequisite incomplete | Complete application acceptance extraction |
+| `required_reboot` pending | **BLOCKED** — reboot required | Complete required reboot and verify |
+| `runtime_proof` missing | **WARN** — not blocking | Capture runtime proof (recommended) |
+| `file_access_posture` not verified | **WARN** — not blocking | Verify file access posture (recommended) |

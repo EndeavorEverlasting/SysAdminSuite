@@ -265,3 +265,50 @@ Describe 'Invoke-SasAutoLogonFinalStepGate safety behavior' {
         $recommendedCount | Should -Be 2
     }
 }
+
+Describe 'AutoLogon unique-behavior reconciliation fixtures' {
+    It 'has a confirmed state-delta fixture' {
+        $fixture = Join-Path $script:fixtures 'run_manifest_after_confirmed.json'
+        $fixture | Should -Exist
+        $json = Get-Content -LiteralPath $fixture -Raw | ConvertFrom-Json
+        $json.state_delta.decision | Should -Be 'CONFIRMED_STATE_TRANSITION'
+        $json.state_delta.autologon_status_before | Should -Be 'not_enabled'
+        $json.state_delta.autologon_status_after | Should -Be 'autologon_ready'
+    }
+
+    It 'has a blocked gate result fixture' {
+        $fixture = Join-Path $script:fixtures 'gate_result_blocked.json'
+        $fixture | Should -Exist
+        $json = Get-Content -LiteralPath $fixture -Raw | ConvertFrom-Json
+        $json.overall_pass | Should -BeFalse
+        $json.blocked_reason | Should -BeLike '*host_eligibility*'
+    }
+
+    It 'has a passed gate result fixture' {
+        $fixture = Join-Path $script:fixtures 'gate_result_passed.json'
+        $fixture | Should -Exist
+        $json = Get-Content -LiteralPath $fixture -Raw | ConvertFrom-Json
+        $json.overall_pass | Should -BeTrue
+        $json.blocked_reason | Should -BeNullOrEmpty
+    }
+
+    It 'has an acceptance profile fixture for autologon' {
+        $fixture = Join-Path $script:fixtures 'acceptance_profile_autologon.json'
+        $fixture | Should -Exist
+        $json = Get-Content -LiteralPath $fixture -Raw | ConvertFrom-Json
+        $json.package_name | Should -Be 'autologon'
+        $json.acceptance_profile.autologon_behavior.enabled | Should -BeTrue
+        $json.acceptance_profile.autologon_behavior.classifier_order | Should -Contain 'autologon_ready'
+        $json.acceptance_profile.reboot_required | Should -BeTrue
+    }
+
+    It 'classifier order matches fail-closed precedence from PR #175' {
+        $fixture = Join-Path $script:fixtures 'acceptance_profile_autologon.json'
+        $json = Get-Content -LiteralPath $fixture -Raw | ConvertFrom-Json
+        $order = $json.acceptance_profile.autologon_behavior.classifier_order
+        $order[0] | Should -Be 'not_enabled'
+        $order[1] | Should -Be 'configured_user_mismatch'
+        $order[2] | Should -Be 'configured_password_missing'
+        $order[3] | Should -Be 'autologon_ready'
+    }
+}
