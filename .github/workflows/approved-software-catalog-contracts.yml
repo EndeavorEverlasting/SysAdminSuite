@@ -1,0 +1,142 @@
+name: Approved software catalog contracts
+
+on:
+  pull_request:
+    paths:
+      - 'Run-InstallApprovedSoftware.cmd'
+      - 'Run-InstallAutoDidact.cmd'
+      - 'configs/software-packages/approved-apps.json'
+      - 'scripts/Start-SasApprovedSoftwareOperator.ps1'
+      - 'scripts/Start-SasApprovedSoftwareInstall.ps1'
+      - 'scripts/Start-SasAutoDidactInstall.ps1'
+      - 'scripts/Invoke-SasSoftwareInstall.ps1'
+      - 'scripts/SasTargetIntake.psm1'
+      - 'docs/AUTODIDACT_INSTALL_WORKFLOW.md'
+      - 'Tests/survey/test_autodidact_install_capsule_contracts.py'
+      - '.github/workflows/approved-software-catalog-contracts.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Run-InstallApprovedSoftware.cmd'
+      - 'Run-InstallAutoDidact.cmd'
+      - 'configs/software-packages/approved-apps.json'
+      - 'scripts/Start-SasApprovedSoftwareOperator.ps1'
+      - 'scripts/Start-SasApprovedSoftwareInstall.ps1'
+      - 'scripts/Start-SasAutoDidactInstall.ps1'
+      - 'scripts/Invoke-SasSoftwareInstall.ps1'
+      - 'scripts/SasTargetIntake.psm1'
+      - 'docs/AUTODIDACT_INSTALL_WORKFLOW.md'
+      - 'Tests/survey/test_autodidact_install_capsule_contracts.py'
+      - '.github/workflows/approved-software-catalog-contracts.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  static-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check patch whitespace
+        run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
+
+      - name: Run approved software catalog contracts
+        run: python3 Tests/survey/test_autodidact_install_capsule_contracts.py
+
+  windows-fixture:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run approved software catalog contracts
+        shell: pwsh
+        run: python Tests/survey/test_autodidact_install_capsule_contracts.py
+
+      - name: Parse approved software wrappers
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $null = [scriptblock]::Create((Get-Content .\scripts\Start-SasApprovedSoftwareOperator.ps1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\Start-SasApprovedSoftwareInstall.ps1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\Start-SasAutoDidactInstall.ps1 -Raw))
+          'PARSE OK'
+
+      - name: List approved packages
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\scripts\Start-SasApprovedSoftwareOperator.ps1 -Action ListPackages -NonInteractive
+
+      - name: Prepare synthetic target manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path .\targets\local -Force | Out-Null
+          @"
+          ComputerName
+          FIXTURE-WS01
+          "@ | Set-Content -LiteralPath .\targets\local\approved-software-ci.csv -Encoding UTF8
+
+      - name: Capture fixture Before snapshot
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\scripts\Start-SasApprovedSoftwareOperator.ps1 `
+            -Action Before `
+            -PackageId autologon `
+            -TargetsCsv .\targets\local\approved-software-ci.csv `
+            -FixtureMode `
+            -NonInteractive `
+            -NoOpen
+
+      - name: Run WhatIf install plan
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\scripts\Start-SasApprovedSoftwareOperator.ps1 -Action Plan -NonInteractive -NoOpen
+
+      - name: Capture fixture After snapshot
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\scripts\Start-SasApprovedSoftwareOperator.ps1 -Action After -FixtureMode -NonInteractive -NoOpen
+
+      - name: Verify synthetic evidence
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $state = Get-Content .\survey\output\approved_software_install\operator-state.json -Raw | ConvertFrom-Json
+          if ($state.workflow_status -ne 'after_complete') { throw "Unexpected workflow status: $($state.workflow_status)" }
+          if (-not (Test-Path -LiteralPath $state.before_manifest_path -PathType Leaf)) { throw 'Before manifest missing.' }
+          if (-not (Test-Path -LiteralPath $state.install_summary_path -PathType Leaf)) { throw 'WhatIf handoff missing.' }
+          if (-not (Test-Path -LiteralPath $state.after_manifest_path -PathType Leaf)) { throw 'After manifest missing.' }
+          if (-not (Test-Path -LiteralPath $state.delta_path -PathType Leaf)) { throw 'Delta missing.' }
+          'SYNTHETIC CATALOG WORKFLOW PASS'
+
+      - name: Upload synthetic workflow evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-software-catalog-synthetic-proof
+          path: survey/output/approved_software_install
+          if-no-files-found: warn
