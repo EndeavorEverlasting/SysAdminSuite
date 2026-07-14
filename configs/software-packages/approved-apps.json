@@ -1,0 +1,50 @@
+{
+  "schema_version": "sas-approved-software-catalog/v1",
+  "software_share_root": "\\\\nt2kwb972sms01\\",
+  "package_root_relative_path": "packages",
+  "catalog_policy": {
+    "folder_first": true,
+    "requires_admin_context": true,
+    "snapshot_required_before_install": true,
+    "require_pinned_installer_file_for_plan_or_install": true,
+    "require_vendor_validated_installer_arguments_for_live_install": true
+  },
+  "packages": [
+    {
+      "id": "epic-satellite",
+      "display_name": "Epic Satellite",
+      "source_folder_relative_path": "packages\\Epic\\Satellite",
+      "installer_file": null,
+      "default_install_mode": "UncDirect",
+      "default_installer_arguments": [],
+      "requires_validated_installer_arguments": true,
+      "install_enabled": false,
+      "readiness": "installer_file_pending",
+      "notes": "The package folder is confirmed. Pin the current approved installer filename before planning or installing."
+    },
+    {
+      "id": "allscripts-touchworks-22-1",
+      "display_name": "AllScripts TouchWorks 22.1",
+      "source_folder_relative_path": "packages\\TouchWork_22.1",
+      "installer_file": "TWInstaller.exe",
+      "default_install_mode": "UncDirect",
+      "default_installer_arguments": [],
+      "requires_validated_installer_arguments": true,
+      "install_enabled": true,
+      "readiness": "installer_path_confirmed_arguments_pending",
+      "notes": "The folder and installer filename are confirmed. Live installation still requires vendor-validated installer arguments."
+    },
+    {
+      "id": "autologon",
+      "display_name": "NW AutoLogon Setup x64",
+      "source_folder_relative_path": "packages\\AutoLogonSetup",
+      "installer_file": "NW_AutoLogon_Setup_x64.exe",
+      "default_install_mode": "CopyThenInstall",
+      "default_installer_arguments": [],
+      "requires_validated_installer_arguments": true,
+      "install_enabled": true,
+      "readiness": "installer_path_confirmed_arguments_pending",
+      "notes": "The folder and installer filename are confirmed. Live installation still requires vendor-validated installer arguments."
+    }
+  ]
+}
