@@ -1,0 +1,25 @@
+[
+  {
+    "SerialNumber": "SN2001",
+    "FQDN": "CYB101",
+    "Location": "LAB",
+    "DeviceType": "Cybernet"
+  },
+  {
+    "ExpectedSerial": "SN2002",
+    "HostName": "CYB102",
+    "Location": "LAB",
+    "DeviceType": "Cybernet"
+  },
+  {
+    "SN": "SN2003",
+    "Location": "LAB",
+    "DeviceType": "Cybernet"
+  },
+  {
+    "DeviceSerial": "SN2004",
+    "ComputerName": "CYB104",
+    "Location": "LAB",
+    "DeviceType": "Cybernet"
+  }
+]

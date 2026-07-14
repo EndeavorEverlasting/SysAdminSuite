@@ -1,0 +1,247 @@
+name: Network Survey Delta Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'Run-NetworkSurveyDelta.cmd'
+      - 'scripts/Start-SasNetworkSurveyDelta.ps1'
+      - 'scripts/SasSurveyArtifactNormalizer.psm1'
+      - 'scripts/Test-SasSurveyArtifactDenominator.ps1'
+      - 'scripts/SasDeltaEvidenceCache.psm1'
+      - 'scripts/Invoke-SasDeltaPreflightPlanRows.ps1'
+      - 'scripts/Write-SasDeltaPreflightArtifacts.ps1'
+      - 'schemas/survey/network-survey-artifact-denominator.schema.json'
+      - 'survey/network_survey_artifact_adapters.json'
+      - 'survey/sas-delta-preflight-plan.ps1'
+      - 'survey/fixtures/delta_preflight_*.sample.csv'
+      - 'survey/fixtures/delta_denominator_*'
+      - 'Tests/survey/test_network_survey_delta_contracts.py'
+      - 'Tests/survey/test_network_survey_denominator_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - 'docs/NETWORK_SURVEY_DELTA_LAUNCHER.md'
+      - 'docs/NETWORK_SURVEY_ARTIFACT_DENOMINATOR.md'
+      - '.github/workflows/network-survey-delta-contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+          persist-credentials: false
+
+      - name: Run delta static contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_network_survey_delta_contracts.py
+
+      - name: Run denominator static contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_network_survey_denominator_contracts.py
+
+      - name: Parse PowerShell surfaces
+        shell: pwsh
+        run: |
+          $paths = @(
+            '.\scripts\SasSurveyArtifactNormalizer.psm1',
+            '.\scripts\Test-SasSurveyArtifactDenominator.ps1',
+            '.\scripts\SasDeltaEvidenceCache.psm1',
+            '.\survey\sas-delta-preflight-plan.ps1',
+            '.\scripts\Invoke-SasDeltaPreflightPlanRows.ps1',
+            '.\scripts\Write-SasDeltaPreflightArtifacts.ps1',
+            '.\scripts\Start-SasNetworkSurveyDelta.ps1'
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "${path}: $($_.Message)" }
+              throw "$path reported $($errors.Count) parser error(s)."
+            }
+          }
+          Write-Host 'PASS: PowerShell parser accepted denominator, planner, and launcher surfaces.'
+
+      - name: Run modular artifact denominator validation
+        shell: pwsh
+        run: |
+          $output = Join-Path $PWD 'survey\output\denominator_contracts\modular'
+          $cases = @(
+            @{ Path = '.\survey\fixtures\delta_denominator_requested.alias.sample.csv'; Role = 'requested_population'; Adapter = 'requested-population-tabular/v1' },
+            @{ Path = '.\survey\fixtures\delta_denominator_requested.sample.json'; Role = 'requested_population'; Adapter = 'requested-population-tabular/v1' },
+            @{ Path = '.\survey\fixtures\delta_denominator_targets.sample.txt'; Role = 'requested_population'; Adapter = 'requested-target-list-txt/v1' },
+            @{ Path = '.\survey\fixtures\delta_denominator_evidence.network.sample.csv'; Role = 'evidence_snapshot'; Adapter = 'network-preflight-evidence/v1' },
+            @{ Path = '.\survey\fixtures\delta_denominator_evidence.identity.sample.jsonl'; Role = 'evidence_snapshot'; Adapter = 'network-preflight-evidence/v1' }
+          )
+          foreach ($case in $cases) {
+            $result = .\scripts\Test-SasSurveyArtifactDenominator.ps1 `
+              -Path $case.Path `
+              -Role $case.Role `
+              -OutputDirectory $output `
+              -AllowFixtures
+            if ($result.AdapterId -ne $case.Adapter) {
+              throw "Expected adapter $($case.Adapter) for $($case.Path); found $($result.AdapterId)."
+            }
+            if (-not (Test-Path -LiteralPath $result.PackagePath)) { throw "Normalized package missing: $($result.PackagePath)" }
+            if (-not (Test-Path -LiteralPath $result.ValidationPath)) { throw "Validation report missing: $($result.ValidationPath)" }
+            $validation = Get-Content -LiteralPath $result.ValidationPath -Raw | ConvertFrom-Json
+            if ($validation.status -ne 'valid') { throw "Expected valid denominator report for $($case.Path)." }
+            if ($validation.network_activity_performed -ne $false) { throw 'Normalizer reported network activity.' }
+            if ($validation.target_mutation_performed -ne $false) { throw 'Normalizer reported target mutation.' }
+          }
+          Write-Host 'PASS: CSV, TXT, JSON, and JSONL artifacts resolved to the canonical denominator contract.'
+
+      - name: Reject an artifact that cannot satisfy the denominator
+        shell: pwsh
+        run: |
+          $output = Join-Path $PWD 'survey\output\denominator_contracts\invalid'
+          $failed = $false
+          try {
+            .\scripts\Test-SasSurveyArtifactDenominator.ps1 `
+              -Path .\survey\fixtures\delta_denominator_invalid.sample.csv `
+              -Role requested_population `
+              -OutputDirectory $output `
+              -AllowFixtures
+          }
+          catch {
+            $failed = $true
+            Write-Host "Expected denominator rejection: $($_.Exception.Message)"
+          }
+          if (-not $failed) { throw 'Invalid artifact unexpectedly passed the denominator contract.' }
+          $validationPath = Get-ChildItem -LiteralPath $output -Filter '*.validation.json' | Select-Object -First 1 -ExpandProperty FullName
+          $rejectionPath = Get-ChildItem -LiteralPath $output -Filter '*.rejections.csv' | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $validationPath -or -not $rejectionPath) { throw 'Expected validation and rejection artifacts were not written.' }
+          $validation = Get-Content -LiteralPath $validationPath -Raw | ConvertFrom-Json
+          if ($validation.status -ne 'invalid') { throw 'Invalid artifact validation report did not fail closed.' }
+          if ((Get-Content -LiteralPath $rejectionPath -Raw) -notmatch 'DENOMINATOR_KEY_MISSING') {
+            throw 'Rejection artifact did not preserve the denominator failure reason.'
+          }
+          Write-Host 'PASS: denominator-invalid artifact failed closed with machine-readable rejection evidence.'
+
+      - name: Run synthetic smart-delta fixture
+        shell: pwsh
+        run: |
+          $outputRoot = Join-Path $PWD 'survey\output\delta_preflight'
+          $stagingRoot = Join-Path $PWD 'survey\input\delta_preflight'
+          $result = .\survey\sas-delta-preflight-plan.ps1 `
+            -InputFile .\survey\fixtures\delta_preflight_requested.sample.csv `
+            -EvidenceFile @(
+              '.\survey\fixtures\delta_preflight_evidence_previous.sample.csv',
+              '.\survey\fixtures\delta_preflight_evidence_latest.sample.csv'
+            ) `
+            -ReferenceTime '2026-07-14T12:00:00-04:00' `
+            -RunId 'fixture-smart-delta' `
+            -OutputRoot $outputRoot `
+            -StagingRoot $stagingRoot `
+            -AllowFixtures
+
+          if ($result.network_activity_performed -ne $false) { throw 'Planner reported network activity.' }
+          if ($result.target_mutation_performed -ne $false) { throw 'Planner reported target mutation.' }
+          if ($result.probe_required_count -ne 1) { throw "Expected one stale target; found $($result.probe_required_count)." }
+          if ($result.review_required_count -ne 1) { throw "Expected one serial-only review row; found $($result.review_required_count)." }
+          if ($result.became_silent_count -ne 1) { throw "Expected one BECAME_SILENT delta; found $($result.became_silent_count)." }
+          if (-not (Test-Path -LiteralPath $result.artifact_intake_manifest_path)) { throw 'artifact_intake_manifest.json was not created.' }
+          $targets = @(Get-Content -LiteralPath $result.to_probe_targets_path | Where-Object { $_.Trim() })
+          if ($targets.Count -ne 1 -or $targets[0] -ne 'CYB004') {
+            throw "Expected only CYB004 in smart staged targets; found: $($targets -join ',')"
+          }
+          Write-Host 'PASS: smart delta normalized inputs, reused fresh evidence, and staged only the stale target.'
+
+      - name: Run mixed-format denominator-to-delta end-to-end fixture
+        shell: pwsh
+        run: |
+          $result = .\survey\sas-delta-preflight-plan.ps1 `
+            -InputFile .\survey\fixtures\delta_denominator_requested.sample.json `
+            -EvidenceFile @(
+              '.\survey\fixtures\delta_denominator_evidence.network.sample.csv',
+              '.\survey\fixtures\delta_denominator_evidence.identity.sample.jsonl'
+            ) `
+            -ReferenceTime '2026-07-14T12:00:00-04:00' `
+            -RunId 'fixture-mixed-denominator-e2e' `
+            -AllowFixtures
+          if ($result.probe_required_count -ne 1) { throw "Expected one stale mixed-format target; found $($result.probe_required_count)." }
+          if ($result.review_required_count -ne 1) { throw "Expected one serial-only mixed-format review row; found $($result.review_required_count)." }
+          if ($result.skipped_identity_confirmed_count -ne 1) { throw 'Expected one identity-confirmed skip from JSONL evidence.' }
+          if ($result.skipped_recent_reachable_count -ne 1) { throw 'Expected one recent-reachability skip from CSV evidence.' }
+          $targets = @(Get-Content -LiteralPath $result.to_probe_targets_path | Where-Object { $_.Trim() })
+          if ($targets.Count -ne 1 -or $targets[0] -ne 'CYB104') { throw "Expected only CYB104; found: $($targets -join ',')" }
+          $manifest = Get-Content -LiteralPath $result.artifact_intake_manifest_path -Raw | ConvertFrom-Json
+          if ($manifest.all_artifacts_valid -ne $true -or $manifest.artifacts.Count -ne 3) { throw 'Mixed-format artifact intake manifest is incomplete.' }
+          if (@($manifest.artifacts.adapter_id | Sort-Object -Unique).Count -lt 2) { throw 'End-to-end fixture did not exercise modular adapters.' }
+          Write-Host 'PASS: modular JSON, CSV, and JSONL artifacts normalized to one denominator and completed delta planning.'
+
+      - name: Run synthetic time-diverse repeat fixture
+        shell: pwsh
+        run: |
+          $result = .\survey\sas-delta-preflight-plan.ps1 `
+            -InputFile .\survey\fixtures\delta_preflight_requested.sample.csv `
+            -EvidenceFile @(
+              '.\survey\fixtures\delta_preflight_evidence_previous.sample.csv',
+              '.\survey\fixtures\delta_preflight_evidence_latest.sample.csv'
+            ) `
+            -ReferenceTime '2026-07-14T18:30:00-04:00' `
+            -RunId 'fixture-forced-repeat' `
+            -ForceReprobe `
+            -ForceReason 'synthetic_time_diverse_repeat' `
+            -AllowFixtures
+          $targets = @(Get-Content -LiteralPath $result.to_probe_targets_path | Where-Object { $_.Trim() })
+          if ($targets.Count -ne 4) { throw "Expected four probe-ready forced targets; found $($targets.Count)." }
+          if ($targets -contains 'SN1003') { throw 'Serial-only value was incorrectly staged as a target.' }
+          if ($result.review_required_count -ne 1) { throw 'Serial-only row must remain review-required during a forced repeat.' }
+          Write-Host 'PASS: explicit time-diverse repeat staged probe-ready rows without staging the mystery serial.'
+
+      - name: Run stateful launcher plan-only fixture
+        shell: pwsh
+        run: |
+          .\scripts\Start-SasNetworkSurveyDelta.ps1 `
+            -Action Plan `
+            -InputFile .\survey\fixtures\delta_preflight_requested.sample.csv `
+            -EvidenceFile @(
+              '.\survey\fixtures\delta_preflight_evidence_previous.sample.csv',
+              '.\survey\fixtures\delta_preflight_evidence_latest.sample.csv'
+            ) `
+            -ReferenceTime '2026-07-14T12:00:00-04:00' `
+            -AllowFixtures `
+            -NonInteractive `
+            -NoOpen
+          $statePath = Join-Path $PWD 'survey\output\network_survey_delta\operator-state.json'
+          $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+          if (-not $state.input_file_relative) { throw 'Launcher did not remember the approved requested population.' }
+          if (-not $state.last_observation_delta_relative) { throw 'Launcher did not remember the latest observation delta.' }
+          if ($state.attempt_count -ne 0) { throw 'Plan-only action incorrectly advanced the network attempt count.' }
+          Write-Host 'PASS: launcher plan-only action persisted reusable local state without network activity.'
+
+      - name: Verify CMD launcher rejects arguments
+        shell: pwsh
+        run: |
+          $process = Start-Process `
+            -FilePath 'cmd.exe' `
+            -ArgumentList @('/d', '/c', 'Run-NetworkSurveyDelta.cmd forbidden') `
+            -Wait `
+            -PassThru `
+            -NoNewWindow
+          if ($process.ExitCode -ne 2) { throw "Expected usage exit 2; found $($process.ExitCode)." }
+          Write-Host 'PASS: zero-argument double-click launcher rejects command-line arguments.'
+
+      - name: Upload synthetic fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-survey-delta-synthetic-evidence
+          path: |
+            survey/output/denominator_contracts/
+            survey/output/delta_preflight/
+            survey/output/network_survey_delta/
+            survey/input/delta_preflight/
+          if-no-files-found: error

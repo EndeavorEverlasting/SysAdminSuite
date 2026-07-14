@@ -1,0 +1,5 @@
+Cybernet S/N,ComputerName,Facility,HostnamePrefix,AssetType
+SN2001,CYB101,LAB,CYB,Cybernet
+SN2002,CYB102,LAB,CYB,Cybernet
+SN2003,,LAB,CYB,Cybernet
+SN2004,CYB104,LAB,CYB,Cybernet
