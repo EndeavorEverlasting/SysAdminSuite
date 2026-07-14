@@ -43,6 +43,45 @@ Describe 'Cybernet power-hardening PowerShell surfaces' {
         $content | Should -Match "status = 'FIXTURE_PASS'"
     }
 
+    It 'Executes fixture mode without network activity or target mutation' {
+        $outputRoot = Join-Path $repoRoot 'survey\output\cybernet_power_hardening_pester'
+        if (Test-Path -LiteralPath $outputRoot) {
+            Remove-Item -LiteralPath $outputRoot -Recurse -Force
+        }
+
+        try {
+            $hostExe = (Get-Process -Id $PID).Path
+            $arguments = @(
+                '-NoProfile',
+                '-ExecutionPolicy', 'Bypass',
+                '-File', $script:orchestrator,
+                '-ComputerName', 'CYBERNET-FIXTURE-01',
+                '-FixtureMode',
+                '-OutputRoot', $outputRoot
+            )
+            & $hostExe @arguments | Out-Host
+            $LASTEXITCODE | Should -Be 0
+
+            $summaryPath = Get-ChildItem -LiteralPath $outputRoot -Filter 'cybernet_power_hardening_summary.json' -File -Recurse |
+                Sort-Object LastWriteTimeUtc -Descending |
+                Select-Object -First 1 -ExpandProperty FullName
+            $summaryPath | Should -Not -BeNullOrEmpty
+
+            $summary = Get-Content -LiteralPath $summaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $summary.status | Should -Be 'PASS'
+            $summary.applied_verified_count | Should -Be 1
+            $summary.fixture_mode | Should -Be $true
+            $summary.network_activity_performed | Should -Be $false
+            $summary.target_mutation_performed | Should -Be $false
+            $summary.display_menu_button_status | Should -Be 'NOT_APPLIED_UNPROVEN'
+        }
+        finally {
+            if (Test-Path -LiteralPath $outputRoot) {
+                Remove-Item -LiteralPath $outputRoot -Recurse -Force
+            }
+        }
+    }
+
     It 'Does not broaden the remote repair into unrelated comfort settings or scanning' {
         $content = Get-Content -LiteralPath $script:orchestrator -Raw
         foreach ($forbidden in @('VIDEOIDLE', 'STANDBYIDLE', 'HIBERNATEIDLE', 'DISKIDLE', 'LIDACTION', 'UIBUTTON_ACTION', 'Test-Connection', 'ping.exe')) {
