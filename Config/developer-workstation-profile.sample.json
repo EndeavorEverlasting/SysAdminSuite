@@ -1,27 +1,57 @@
 {
-  "schema_version": "sas-developer-workstation-profile/v1",
+  "schema_version": "sas-developer-workstation-profile/v2",
   "schema_path": "schemas/harness/developer-workstation-profile.schema.json",
   "workspace": {
     "name": "SysAdminSuite",
     "repo_path": "dev/SysAdminSuite"
   },
+  "platform_support": {
+    "supported": [
+      "windows",
+      "linux"
+    ],
+    "unsupported": [
+      "macos"
+    ],
+    "runtime_test_available": {
+      "windows": true,
+      "linux": true,
+      "macos": false
+    }
+  },
   "terminal": {
     "provider": "wezterm",
     "preference": "required",
-    "default_profile": "windows-native",
+    "default_profiles": {
+      "windows": "windows-native",
+      "linux": "linux-native"
+    },
     "execution_profiles": [
       {
         "id": "windows-native",
+        "platform": "windows",
+        "environment": "native",
         "priority": 10,
         "enabled": true,
         "shell": "pwsh",
         "multiplexer": "none"
       },
       {
+        "id": "linux-native",
+        "platform": "linux",
+        "environment": "native",
+        "priority": 10,
+        "enabled": true,
+        "shell": "bash",
+        "multiplexer": "tmux"
+      },
+      {
         "id": "wsl-tmux",
+        "platform": "windows",
+        "environment": "wsl",
         "priority": 100,
         "enabled": false,
-        "shell": "wsl",
+        "shell": "bash",
         "multiplexer": "tmux",
         "distribution": "Ubuntu"
       }
