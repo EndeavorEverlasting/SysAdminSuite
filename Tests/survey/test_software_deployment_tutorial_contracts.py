@@ -138,7 +138,9 @@ def test_command_builder_stays_placeholder_free_and_safe() -> None:
         "parent traversal",
     ]:
         assert fragment in ui
-    assert "-Confirm:$false" not in runtime
+    assert "-Confirm:$false" not in ui
+    assert "assert(!whatIf.command.includes('-Confirm:$false'))" in runtime
+    assert "assert(!pilot.command.includes('-Confirm:$false'))" in runtime
     assert "HOST1,HOST2" in runtime
     assert "unsafe path accepted" in runtime
     forbidden = [
