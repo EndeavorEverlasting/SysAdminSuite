@@ -184,7 +184,23 @@ function Invoke-SasEngineAction {
     }
 }
 
+function Initialize-SasAcceptanceState {
+    $stateRecord = Read-SasOperatorState
+    $state = $stateRecord.value
+    if ([string]$state.workflow_status -ne 'after_complete') {
+        throw "Acceptance extraction requires a completed AFTER snapshot. Current status: $($state.workflow_status)"
+    }
+
+    foreach ($propertyName in @('acceptance_summary_path', 'acceptance_proof_level')) {
+        if ($null -eq $state.PSObject.Properties[$propertyName]) {
+            $state | Add-Member -NotePropertyName $propertyName -NotePropertyValue $null
+        }
+    }
+    Write-SasOperatorState -Path $stateRecord.path -State $state
+}
+
 function Invoke-SasAcceptanceAction {
+    Initialize-SasAcceptanceState
     $parameters = Get-SasAcceptanceParameters
     & $acceptanceScript @parameters
 }
