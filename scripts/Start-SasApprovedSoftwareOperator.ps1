@@ -4,25 +4,29 @@
 Technician operator surface for the approved software catalog workflow.
 
 .DESCRIPTION
-Delegates package selection, snapshots, and installation to Start-SasApprovedSoftwareInstall.ps1.
-When the existing install engine has already written a complete software_install_summary.json but
-cannot return that summary cleanly through the PowerShell pipeline, this wrapper validates the
-durable artifact, records its operator handoff in workflow state, and preserves any reported
-install failures.
+Delegates package selection, snapshots, and installation to Start-SasApprovedSoftwareInstall.ps1
+and acceptance extraction to Invoke-SasApprovedSoftwareAcceptance.ps1. When the existing install
+engine has already written a complete software_install_summary.json but cannot return that summary
+cleanly through the PowerShell pipeline, this wrapper validates the durable artifact, records its
+operator handoff in workflow state, and preserves any reported install failures.
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Menu', 'ListPackages', 'Before', 'Plan', 'Install', 'After', 'OpenLatest')]
+    [ValidateSet('Menu', 'ListPackages', 'Before', 'Plan', 'Install', 'After', 'Acceptance', 'OpenLatest')]
     [string]$Action = 'Menu',
 
     [string]$TargetsCsv,
     [string]$PackageId,
     [string[]]$InstallerArguments = @(),
+    [string[]]$ProcessName = @(),
+    [string]$WindowTitlePattern,
     [string]$OutputRoot,
 
     [ValidateRange(1, 25)]
     [int]$MaxTargets = 25,
 
+    [switch]$ApplicationObserved,
+    [switch]$AutoLogonObservedAfterReboot,
     [switch]$FixtureMode,
     [switch]$NonInteractive,
     [switch]$NoOpen
@@ -33,8 +37,11 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $engine = Join-Path $PSScriptRoot 'Start-SasApprovedSoftwareInstall.ps1'
-if (-not (Test-Path -LiteralPath $engine -PathType Leaf)) {
-    throw "Approved software engine not found: $engine"
+$acceptanceScript = Join-Path $PSScriptRoot 'Invoke-SasApprovedSoftwareAcceptance.ps1'
+foreach ($requiredPath in @($engine, $acceptanceScript)) {
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+        throw "Approved software operator dependency not found: $requiredPath"
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
@@ -55,6 +62,20 @@ function Get-SasEngineParameters {
     if ($FixtureMode) { $parameters['FixtureMode'] = $true }
     if ($NonInteractive) { $parameters['NonInteractive'] = $true }
     if ($NoOpen) { $parameters['NoOpen'] = $true }
+    return $parameters
+}
+
+function Get-SasAcceptanceParameters {
+    $parameters = @{
+        OutputRoot = $OutputRoot
+        MaxTargets = $MaxTargets
+    }
+    if (@($ProcessName).Count -gt 0) { $parameters['ProcessName'] = @($ProcessName) }
+    if (-not [string]::IsNullOrWhiteSpace($WindowTitlePattern)) { $parameters['WindowTitlePattern'] = $WindowTitlePattern }
+    if ($ApplicationObserved) { $parameters['ApplicationObserved'] = $true }
+    if ($AutoLogonObservedAfterReboot) { $parameters['AutoLogonObservedAfterReboot'] = $true }
+    if ($FixtureMode) { $parameters['FixtureMode'] = $true }
+    if ($NonInteractive) { $parameters['NonInteractive'] = $true }
     return $parameters
 }
 
@@ -163,6 +184,11 @@ function Invoke-SasEngineAction {
     }
 }
 
+function Invoke-SasAcceptanceAction {
+    $parameters = Get-SasAcceptanceParameters
+    & $acceptanceScript @parameters
+}
+
 function Wait-SasOperator {
     if (-not $NonInteractive) { $null = Read-Host 'Press Enter to continue' }
 }
@@ -178,7 +204,8 @@ function Show-SasMenu {
         Write-Host '[3] Plan selected package install (WhatIf)'
         Write-Host '[4] Install selected package after confirmed BEFORE snapshot'
         Write-Host '[5] Capture AFTER snapshot and compare'
-        Write-Host '[6] Open latest evidence folder'
+        Write-Host '[6] Extract application launch and AutoLogon behavior'
+        Write-Host '[7] Open latest evidence folder'
         Write-Host '[Q] Quit'
         Write-Host ''
 
@@ -190,7 +217,8 @@ function Show-SasMenu {
                 '^3$' { Invoke-SasEngineAction -EngineAction Plan; Wait-SasOperator }
                 '^4$' { Invoke-SasEngineAction -EngineAction Install; Wait-SasOperator }
                 '^5$' { Invoke-SasEngineAction -EngineAction After; Wait-SasOperator }
-                '^6$' { Invoke-SasEngineAction -EngineAction OpenLatest; Wait-SasOperator }
+                '^6$' { Invoke-SasAcceptanceAction; Wait-SasOperator }
+                '^7$' { Invoke-SasEngineAction -EngineAction OpenLatest; Wait-SasOperator }
                 '(?i)^q$' { return }
                 default { Write-Warning "Unknown selection: $choice"; Wait-SasOperator }
             }
@@ -204,6 +232,9 @@ function Show-SasMenu {
 
 if ($Action -eq 'Menu') {
     Show-SasMenu
+}
+elseif ($Action -eq 'Acceptance') {
+    Invoke-SasAcceptanceAction
 }
 else {
     Invoke-SasEngineAction -EngineAction $Action
