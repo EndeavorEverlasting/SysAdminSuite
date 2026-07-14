@@ -9,17 +9,25 @@ on:
       - '.claude/skills/**'
       - '.claude/capabilities/**'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/SOFTWARE_INSTALL_E2E.md'
+      - 'docs/SOFTWARE_INSTALL_HARNESS.md'
       - 'docs/AI_LAYER.md'
       - 'harness/e2e/**'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/sas-harness-api.json'
       - 'schemas/harness/**'
       - 'scripts/Invoke-SasEndToEndValidation.ps1'
+      - 'scripts/Invoke-SasSoftwareInstall.ps1'
+      - 'scripts/Invoke-SasSoftwareInstallE2E.ps1'
+      - 'scripts/SasTargetIntake.psm1'
       - 'scripts/validate-sysadmin-harness.ps1'
       - 'scripts/SasRunContext.psm1'
       - 'scripts/Render-SasEnglishReport.ps1'
       - 'scripts/Invoke-SasHarnessContracts.ps1'
       - 'dashboard/**'
+      - 'Tests/fixtures/software-install/**'
+      - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
+      - 'Tests/survey/test_software_install_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
       - 'Tests/survey/test_run_context_contracts.py'
@@ -42,17 +50,25 @@ on:
       - '.claude/skills/**'
       - '.claude/capabilities/**'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/SOFTWARE_INSTALL_E2E.md'
+      - 'docs/SOFTWARE_INSTALL_HARNESS.md'
       - 'docs/AI_LAYER.md'
       - 'harness/e2e/**'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/sas-harness-api.json'
       - 'schemas/harness/**'
       - 'scripts/Invoke-SasEndToEndValidation.ps1'
+      - 'scripts/Invoke-SasSoftwareInstall.ps1'
+      - 'scripts/Invoke-SasSoftwareInstallE2E.ps1'
+      - 'scripts/SasTargetIntake.psm1'
       - 'scripts/validate-sysadmin-harness.ps1'
       - 'scripts/SasRunContext.psm1'
       - 'scripts/Render-SasEnglishReport.ps1'
       - 'scripts/Invoke-SasHarnessContracts.ps1'
       - 'dashboard/**'
+      - 'Tests/fixtures/software-install/**'
+      - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
+      - 'Tests/survey/test_software_install_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
       - 'Tests/survey/test_run_context_contracts.py'
@@ -85,9 +101,11 @@ jobs:
         run: |
           pip install websockets jsonschema
           npm install --no-save --no-package-lock ws@8
-      - name: Validate E2E posture and profiles
+      - name: Validate E2E posture and software-install contracts
         shell: pwsh
-        run: python .\Tests\survey\test_e2e_default_posture_contracts.py
+        run: |
+          python .\Tests\survey\test_software_install_harness_contracts.py
+          python .\Tests\survey\test_e2e_default_posture_contracts.py
       - name: Run default end-to-end gate
         shell: pwsh
         run: |
@@ -104,4 +122,5 @@ jobs:
             survey/output/e2e-validation/**/e2e_validation_result.json
             survey/output/e2e-validation/**/*.log
             survey/output/e2e-validation/**/harness-one-command-synthetic/**
+            survey/output/e2e-validation/**/software-install-fixture/**
           if-no-files-found: error

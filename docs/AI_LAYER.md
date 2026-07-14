@@ -30,13 +30,14 @@ This keeps unrelated doctrine out of routine prompts while preserving repository
 | `schemas/harness/agent-capability-manifest.schema.json` | Fail-closed catalog schema |
 | `harness/e2e/e2e-profiles.json` | Machine-readable E2E journey profiles |
 | `scripts/Invoke-SasEndToEndValidation.ps1` | One-command E2E gate and result emitter |
+| `scripts/Invoke-SasSoftwareInstallE2E.ps1` | Real fixture software-install journey with snapshots, delta, and structured logs |
 | `.claudeignore` | AI context exclusions for local/live data and evidence |
 | `.claude/agents/explorer.md` | Read-only explorer role for specific repo questions |
 | `.archon/workflows/*.yaml` | Workflow templates for survey, docs, and PR validation |
 | `tools/validate-ai-layer.ps1` | Offline instruction/harness validator |
 | `Tests/survey/test_agent_instruction_factoring_contracts.py` | Anti-bloat and skill/capability dependency contract |
 | `Tests/survey/test_agent_capability_manifest_contracts.py` | Manifest/schema/dependency contract |
-| `Tests/survey/test_e2e_default_posture_contracts.py` | E2E default-posture and profile contract |
+| `Tests/survey/test_e2e_default_posture_contracts.py` | E2E default-posture, software-install, and profile contract |
 
 ## Skills versus capabilities
 
@@ -65,6 +66,7 @@ For executable or integration-affecting changes, targeted unit and contract chec
 The fixture-safe default profile composes:
 
 - the real one-command synthetic harness;
+- the real software-install operator wrapper and fixture installer, including before/after state, deltas, and structured logging;
 - the real dashboard relay cancellation flow over loopback;
 - the real dashboard relay/client abort flow over loopback.
 
@@ -74,7 +76,7 @@ Run it with:
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasEndToEndValidation.ps1 -Profile default
 ```
 
-See `docs/END_TO_END_TESTING_POSTURE.md`. Fixture and loopback success must not be promoted to live target or operator acceptance proof.
+See `docs/END_TO_END_TESTING_POSTURE.md` and `docs/SOFTWARE_INSTALL_E2E.md`. Fixture and loopback success must not be promoted to live target or operator acceptance proof.
 
 ## Operating boundaries
 

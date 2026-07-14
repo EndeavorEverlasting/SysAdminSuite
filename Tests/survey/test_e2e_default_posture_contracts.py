@@ -17,6 +17,15 @@ SCHEMA = ROOT / "schemas" / "harness" / "e2e-validation-profiles.schema.json"
 RUNNER = ROOT / "scripts" / "Invoke-SasEndToEndValidation.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "default-e2e-validation.yml"
 MANIFEST = ROOT / "harness" / "api" / "agent-capability-manifest.json"
+SOFTWARE_INSTALL_E2E = ROOT / "scripts" / "Invoke-SasSoftwareInstallE2E.ps1"
+SOFTWARE_INSTALL_OPERATOR = ROOT / "scripts" / "Invoke-SasSoftwareInstall.ps1"
+SOFTWARE_INSTALL_DOC = ROOT / "docs" / "SOFTWARE_INSTALL_E2E.md"
+SOFTWARE_INSTALL_FIXTURE_CMD = (
+    ROOT / "Tests" / "fixtures" / "software-install" / "fixture-installer.cmd"
+)
+SOFTWARE_INSTALL_FIXTURE_PS1 = (
+    ROOT / "Tests" / "fixtures" / "software-install" / "fixture-installer.ps1"
+)
 
 
 def read(path: Path) -> str:
@@ -68,7 +77,7 @@ def test_profile_is_fail_closed_and_loopback_only() -> None:
     profiles = {p["id"]: p for p in catalog["profiles"]}
     journeys = {j["id"]: j for j in catalog["journeys"]}
     default = profiles[catalog["default_profile"]]
-    assert len(default["journey_ids"]) >= 3
+    assert len(default["journey_ids"]) >= 4
     assert set(default["journey_ids"]) <= set(journeys)
     for journey_id in default["journey_ids"]:
         journey = journeys[journey_id]
@@ -78,8 +87,13 @@ def test_profile_is_fail_closed_and_loopback_only() -> None:
         assert (ROOT / journey["script"]).is_file()
     scripts = {j["script"] for j in journeys.values()}
     assert "scripts/validate-sysadmin-harness.ps1" in scripts
+    assert "scripts/Invoke-SasSoftwareInstallE2E.ps1" in scripts
     assert "dashboard/test_relay_cancel_e2e.py" in scripts
     assert "dashboard/test_relay_abort_e2e.js" in scripts
+    install_journey = journeys["software-install-fixture"]
+    assert install_journey["network_scope"] == "none"
+    assert install_journey["target_mutation"] is False
+    assert install_journey["arguments"] == ["-OutputRoot", "{journey_output}"]
 
 
 def test_runner_emits_gate_artifacts_and_proof_boundaries() -> None:
@@ -106,7 +120,70 @@ def test_runner_emits_gate_artifacts_and_proof_boundaries() -> None:
         r"Invoke-Command\s+-ComputerName",
     ]
     for pattern in forbidden:
-        assert not re.search(pattern, text, re.IGNORECASE), f"default runner contains target surface: {pattern}"
+        assert not re.search(pattern, text, re.IGNORECASE), (
+            f"default runner contains target surface: {pattern}"
+        )
+
+
+def test_software_install_e2e_runs_real_installer_and_emits_deltas() -> None:
+    e2e = read(SOFTWARE_INSTALL_E2E)
+    operator = read(SOFTWARE_INSTALL_OPERATOR)
+    doc = read(SOFTWARE_INSTALL_DOC)
+    fixture_cmd = read(SOFTWARE_INSTALL_FIXTURE_CMD)
+    fixture_ps1 = read(SOFTWARE_INSTALL_FIXTURE_PS1)
+
+    required_e2e_fragments = [
+        "Invoke-SasSoftwareInstall.ps1",
+        "Microsoft.PowerShell.Management\\Start-Process",
+        "real_operator_wrapper_executed = $true",
+        "real_installer_process_executed",
+        "software_install_before.json",
+        "software_install_after.json",
+        "software_install_delta.json",
+        "software_install_e2e_events.jsonl",
+        "software_install_e2e_result.json",
+        "Get-SasSoftwareInstallDelta",
+        "AllowTargetMutation = $true",
+        "completed_count -ne 1",
+        "repo_artifact_remaining_count",
+        "run_started",
+        "target_completed",
+        "fixture-software-install-e2e",
+        "live_target_e2e = $false",
+        "external_network_activity_performed = $false",
+        "target_mutation_performed = $false",
+    ]
+    for fragment in required_e2e_fragments:
+        assert fragment in e2e, f"software-install E2E missing contract: {fragment}"
+
+    for fragment in [
+        "New-PSSession -ComputerName $target",
+        "Start-Process -FilePath $InstallerSource",
+        "software_install_events.jsonl",
+        "software_install_summary.json",
+        "Write-SasInstallEvent",
+    ]:
+        assert fragment in operator, f"operator wrapper contract missing: {fragment}"
+
+    assert "fixture-installer.ps1" in fixture_cmd
+    assert "powershell.exe" in fixture_cmd.lower()
+    for fragment in [
+        "InstalledPackages",
+        "InstallerLogs",
+        "SysAdminSuite Fixture Package",
+        "version = '1.0.0'",
+        "manifest.json",
+    ]:
+        assert fragment in fixture_ps1, f"fixture installer missing behavior: {fragment}"
+
+    for fragment in [
+        "real software-install operator wrapper",
+        "before and after snapshots",
+        "added, changed, and removed delta",
+        "installer-owned logging",
+        "not live WinRM",
+    ]:
+        assert fragment in doc, f"software-install E2E doc missing: {fragment}"
 
 
 def test_ci_executes_real_journeys_and_tracks_dependencies() -> None:
@@ -114,9 +191,11 @@ def test_ci_executes_real_journeys_and_tracks_dependencies() -> None:
     assert "windows-latest" in workflow
     assert "pip install websockets jsonschema" in workflow
     assert "npm install --no-save --no-package-lock ws@8" in workflow
+    assert "Tests\\survey\\test_software_install_harness_contracts.py" in workflow
     assert "Tests\\survey\\test_e2e_default_posture_contracts.py" in workflow
     assert "Invoke-SasEndToEndValidation.ps1" in workflow
     assert "e2e_validation_result.json" in workflow
+    assert "software-install-fixture/**" in workflow
     assert "if-no-files-found: error" in workflow
     assert "persist-credentials: false" in workflow
 
@@ -125,6 +204,13 @@ def test_ci_executes_real_journeys_and_tracks_dependencies() -> None:
         "scripts/SasRunContext.psm1",
         "scripts/Render-SasEnglishReport.ps1",
         "scripts/Invoke-SasHarnessContracts.ps1",
+        "scripts/Invoke-SasSoftwareInstall.ps1",
+        "scripts/Invoke-SasSoftwareInstallE2E.ps1",
+        "scripts/SasTargetIntake.psm1",
+        "Tests/fixtures/software-install/**",
+        "Tests/Pester/SoftwareInstallHarness.Tests.ps1",
+        "Tests/survey/test_software_install_harness_contracts.py",
+        "docs/SOFTWARE_INSTALL_E2E.md",
         "Tests/survey/test_one_command_harness_proof_contracts.py",
         "Tests/survey/test_run_context_contracts.py",
         "Tests/survey/test_local_harness_contracts.py",
@@ -135,7 +221,10 @@ def test_ci_executes_real_journeys_and_tracks_dependencies() -> None:
         ".githooks/**",
     ]
     for path in dependency_paths:
-        assert workflow.count(path) >= 2, f"E2E workflow does not trigger for dependency in push and PR filters: {path}"
+        assert workflow.count(path) >= 2, (
+            "E2E workflow does not trigger for dependency in push and PR filters: "
+            + path
+        )
 
 
 def test_agent_manifest_records_e2e_default() -> None:
@@ -165,6 +254,7 @@ def main() -> None:
         test_skill_and_capability_compose_the_posture,
         test_profile_is_fail_closed_and_loopback_only,
         test_runner_emits_gate_artifacts_and_proof_boundaries,
+        test_software_install_e2e_runs_real_installer_and_emits_deltas,
         test_ci_executes_real_journeys_and_tracks_dependencies,
         test_agent_manifest_records_e2e_default,
         test_schema_validation_when_jsonschema_is_available,

@@ -33,6 +33,7 @@ repo-owned entrypoint
 Valid fixture-safe examples include:
 
 - the one-command harness creating run context, artifact registry entries, reports, and a final validation result;
+- the software-install operator wrapper launching a real fixture installer process, producing installed package state, structured logs, before/after snapshots, and an added/changed/removed delta;
 - the dashboard relay starting as a real subprocess, authenticating over a real loopback WebSocket, receiving a probe request, and returning cancellation or abort behavior;
 - a deployment fixture creating and consuming the same manifest and summary shapes used by the operator lane without contacting a target.
 
@@ -87,8 +88,11 @@ e2e_validation_result.json
 The default profile composes existing real journeys rather than replacing them:
 
 - one-command synthetic harness proof;
+- software installation against an isolated fixture target with before/after delta and structured evidence;
 - dashboard relay cancellation over loopback;
 - dashboard relay process-abort handling over loopback.
+
+The software-install journey is documented in `docs/SOFTWARE_INSTALL_E2E.md`.
 
 ## Proof language
 

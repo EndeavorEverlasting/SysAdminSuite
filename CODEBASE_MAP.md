@@ -17,12 +17,14 @@ Use this map to load only the files needed for a task.
 ## End-to-end validation
 
 - `docs/END_TO_END_TESTING_POSTURE.md` — default merge/release proof posture and E2E safety classes.
+- `docs/SOFTWARE_INSTALL_E2E.md` — fixture software-install proof, deltas, logs, artifacts, and proof ceiling.
 - `.claude/skills/end-to-end-validation/SKILL.md` — task workflow for composed integration and runtime gates.
 - `.claude/capabilities/end-to-end-testing.md` — reusable E2E invariants.
 - `harness/e2e/e2e-profiles.json` — default fixture/loopback journey catalog.
 - `schemas/harness/e2e-validation-profiles.schema.json` — E2E profile schema.
 - `scripts/Invoke-SasEndToEndValidation.ps1` — one-command E2E gate and evidence emitter.
-- `Tests/survey/test_e2e_default_posture_contracts.py` — default-posture and profile contract.
+- `scripts/Invoke-SasSoftwareInstallE2E.ps1` — runs the real operator wrapper and installer process against an isolated fixture target.
+- `Tests/survey/test_e2e_default_posture_contracts.py` — default-posture, software-install, and profile contract.
 - `.github/workflows/default-e2e-validation.yml` — executable default E2E CI gate.
 
 ## Repo doctrine
