@@ -4,218 +4,98 @@
   "title": "SysAdminSuite Local Package Inventory Schema",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "generated_at",
-    "scan_root",
-    "packages"
-  ],
+  "required": ["schema_version", "generated_at", "scan_root", "packages"],
   "properties": {
-    "schema_version": {
-      "type": "string",
-      "const": "sas-local-package-inventory/v1"
-    },
-    "generated_at": {
-      "type": "string",
-      "format": "date-time"
-    },
+    "schema_version": {"type": "string", "const": "sas-local-package-inventory/v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
     "scan_root": {
-      "type": "string"
+      "type": "string",
+      "enum": ["fixture-only", "operator-local-reference"]
     },
     "packages": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "relative_path",
-          "file_class",
-          "size_bytes",
-          "sha256",
-          "authenticode",
-          "file_version_info",
-          "msi_info",
-          "archive_type",
-          "referenced_dependencies",
-          "embedded_or_adjacent_configs",
-          "likely_reboot_requirements",
-          "likely_application_executables",
-          "dangerous_indicators",
-          "installer_arguments",
-          "classification"
-        ],
-        "properties": {
-          "relative_path": {
-            "type": "string"
-          },
-          "file_class": {
-            "type": "string",
-            "enum": [
-              "installer",
-              "script",
-              "shortcut",
-              "configuration",
-              "archive",
-              "other"
-            ]
-          },
-          "size_bytes": {
-            "type": "integer"
-          },
-          "sha256": {
-            "type": "string",
-            "pattern": "^[a-fA-F0-9]{64}$"
-          },
-          "authenticode": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "status",
-              "signer"
-            ],
-            "properties": {
-              "status": {
-                "type": "string"
-              },
-              "signer": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            }
-          },
-          "file_version_info": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "product_name",
-              "product_version",
-              "file_version",
-              "company_name"
-            ],
-            "properties": {
-              "product_name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "product_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "file_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "company_name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            }
-          },
-          "msi_info": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "additionalProperties": false,
-            "required": [
-              "product_code",
-              "product_name",
-              "product_version",
-              "manufacturer"
-            ],
-            "properties": {
-              "product_code": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "product_name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "product_version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "manufacturer": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            }
-          },
-          "archive_type": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "referenced_dependencies": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "embedded_or_adjacent_configs": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "likely_reboot_requirements": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "likely_application_executables": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "dangerous_indicators": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "installer_arguments": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "string"
-            }
-          },
-          "classification": {
-            "type": "string",
-            "enum": [
-              "inventory_only",
-              "fixture_only",
-              "vm_candidate",
-              "requires_reboot_vm",
-              "requires_physical_cybernet",
-              "blocked_missing_evidence"
-            ]
+      "maxItems": 100000,
+      "items": {"$ref": "#/$defs/package"}
+    }
+  },
+  "$defs": {
+    "safeToken": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\]{2})(?!.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+$"
+    },
+    "stringList": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/safeToken"}
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_path", "file_class", "size_bytes", "sha256", "authenticode",
+        "file_version_info", "msi_info", "archive_type", "referenced_dependencies",
+        "embedded_or_adjacent_configs", "likely_reboot_requirements",
+        "likely_application_executables", "dangerous_indicators",
+        "installer_arguments", "classification"
+      ],
+      "properties": {
+        "relative_path": {"$ref": "#/$defs/safeToken"},
+        "file_class": {
+          "type": "string",
+          "enum": ["installer", "script", "shortcut", "configuration", "archive", "other"]
+        },
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "authenticode": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "signer"],
+          "properties": {
+            "status": {"type": "string", "minLength": 1, "maxLength": 64},
+            "signer": {"type": ["string", "null"], "maxLength": 1024}
           }
+        },
+        "file_version_info": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["product_name", "product_version", "file_version", "company_name"],
+          "properties": {
+            "product_name": {"type": ["string", "null"], "maxLength": 512},
+            "product_version": {"type": ["string", "null"], "maxLength": 128},
+            "file_version": {"type": ["string", "null"], "maxLength": 128},
+            "company_name": {"type": ["string", "null"], "maxLength": 512}
+          }
+        },
+        "msi_info": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["product_code", "product_name", "product_version", "manufacturer"],
+          "properties": {
+            "product_code": {"type": ["string", "null"], "maxLength": 128},
+            "product_name": {"type": ["string", "null"], "maxLength": 512},
+            "product_version": {"type": ["string", "null"], "maxLength": 128},
+            "manufacturer": {"type": ["string", "null"], "maxLength": 512}
+          }
+        },
+        "archive_type": {"type": ["string", "null"], "maxLength": 64},
+        "referenced_dependencies": {"$ref": "#/$defs/stringList"},
+        "embedded_or_adjacent_configs": {"$ref": "#/$defs/stringList"},
+        "likely_reboot_requirements": {"$ref": "#/$defs/stringList"},
+        "likely_application_executables": {"$ref": "#/$defs/stringList"},
+        "dangerous_indicators": {"$ref": "#/$defs/stringList"},
+        "installer_arguments": {
+          "type": ["array", "null"],
+          "maxItems": 64,
+          "items": {"type": "string", "minLength": 1, "maxLength": 512}
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "inventory_only", "fixture_only", "vm_candidate", "requires_reboot_vm",
+            "requires_physical_cybernet", "blocked_missing_evidence"
+          ]
         }
       }
     }
