@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PLANNER = ROOT / "survey" / "sas-delta-preflight-plan.ps1"
+NORMALIZER = ROOT / "scripts" / "SasSurveyArtifactNormalizer.psm1"
 MODULE = ROOT / "scripts" / "SasDeltaEvidenceCache.psm1"
 PLAN_ROWS = ROOT / "scripts" / "Invoke-SasDeltaPreflightPlanRows.ps1"
 ARTIFACT_WRITER = ROOT / "scripts" / "Write-SasDeltaPreflightArtifacts.ps1"
@@ -27,13 +28,15 @@ def read(path: Path) -> str:
 
 
 def test_surfaces_exist() -> None:
-    for path in (PLANNER, MODULE, PLAN_ROWS, ARTIFACT_WRITER, LAUNCHER, CMD, DOC, WORKFLOW, *FIXTURES):
+    for path in (PLANNER, NORMALIZER, MODULE, PLAN_ROWS, ARTIFACT_WRITER, LAUNCHER, CMD, DOC, WORKFLOW, *FIXTURES):
         assert path.exists(), f"missing network survey delta surface: {path}"
 
 
 def test_planner_writes_required_contract_artifacts() -> None:
     text = read(PLANNER) + "\n" + read(PLAN_ROWS) + "\n" + read(ARTIFACT_WRITER)
     for fragment in (
+        "artifact_intake_manifest.json",
+        "normalized_artifacts",
         "delta_preflight_plan.csv",
         "skipped_recent_evidence.csv",
         "review_required.csv",
@@ -48,14 +51,16 @@ def test_planner_writes_required_contract_artifacts() -> None:
         "ProbeWorthiness",
         "PreferredNextHandoff",
         "PROBE_REQUIRED_OPERATOR_FORCED",
+        "PROBE_REQUIRED_STALE_EVIDENCE",
         "SKIP_RECENTLY_SILENT_WITHIN_COOLDOWN",
         "REVIEW_REQUIRED_SERIAL_ONLY",
     ):
         assert fragment in text, f"planner missing contract fragment: {fragment}"
+    assert "PROBE_REQUIRD_STALE_EVIDENCE" not in text
 
 
 def test_planner_contains_no_network_execution_primitives() -> None:
-    text = read(PLANNER) + "\n" + read(PLAN_ROWS) + "\n" + read(ARTIFACT_WRITER) + "\n" + read(MODULE)
+    text = "\n".join(read(path) for path in (PLANNER, NORMALIZER, PLAN_ROWS, ARTIFACT_WRITER, MODULE))
     forbidden = (
         "Test-NetConnection",
         "Test-Connection -ComputerName",
@@ -105,6 +110,7 @@ def test_documentation_labels_unsupported_continuation_behavior() -> None:
     assert "unsupported" in text.lower()
     assert "Run-NetworkSurveyDelta.cmd" in text
     assert "five" in text.lower() and "attempt" in text.lower()
+    assert "canonical denominator" in text.lower()
 
 
 if __name__ == "__main__":
