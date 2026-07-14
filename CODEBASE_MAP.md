@@ -16,10 +16,10 @@ Use this map to load only the files needed for a task.
 
 ## Developer workstation provisioning
 
-- `docs/DEVELOPER_WORKSTATION_PROVISIONING.md` — ownership boundary between SysAdminSuite workstation orchestration and AgentSwitchboard agent lifecycle management.
-- `schemas/harness/developer-workstation-profile.schema.json` — fail-closed WezTerm, WSL, tmux, workspace, and AgentSwitchboard integration profile.
-- `Config/developer-workstation-profile.sample.json` — sanitized tracked sample with no credentials or machine-local paths.
-- `Tests/survey/test_developer_workstation_profile_contracts.py` — dependency-free boundary, safety-posture, discoverability, and optional JSON Schema validation.
+- `docs/DEVELOPER_WORKSTATION_PROVISIONING.md` — WezTerm-first ownership and preference boundary between SysAdminSuite workstation orchestration and AgentSwitchboard agent lifecycle management; Windows-native is default and WSL/tmux is optional.
+- `schemas/harness/developer-workstation-profile.schema.json` — fail-closed WezTerm provider, ordered execution-profile, workspace, and AgentSwitchboard integration contract.
+- `Config/developer-workstation-profile.sample.json` — sanitized tracked sample with an enabled Windows-native default and disabled lower-priority WSL/tmux profile.
+- `Tests/survey/test_developer_workstation_profile_contracts.py` — dependency-free preference-order, boundary, safety-posture, discoverability, and optional JSON Schema validation.
 
 ## End-to-end validation
 
