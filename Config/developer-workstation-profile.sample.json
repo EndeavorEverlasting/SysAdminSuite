@@ -3,14 +3,29 @@
   "schema_path": "schemas/harness/developer-workstation-profile.schema.json",
   "workspace": {
     "name": "SysAdminSuite",
-    "repo_path": "~/dev/SysAdminSuite",
-    "tmux_session": "sysadmin"
+    "repo_path": "dev/SysAdminSuite"
   },
   "terminal": {
     "provider": "wezterm",
-    "default_environment": "wsl",
-    "multiplexer": "tmux",
-    "wsl_distribution": "Ubuntu"
+    "preference": "required",
+    "default_profile": "windows-native",
+    "execution_profiles": [
+      {
+        "id": "windows-native",
+        "priority": 10,
+        "enabled": true,
+        "shell": "pwsh",
+        "multiplexer": "none"
+      },
+      {
+        "id": "wsl-tmux",
+        "priority": 100,
+        "enabled": false,
+        "shell": "wsl",
+        "multiplexer": "tmux",
+        "distribution": "Ubuntu"
+      }
+    ]
   },
   "agent_switchboard": {
     "repository": "EndeavorEverlasting/AgentSwitchboard",
