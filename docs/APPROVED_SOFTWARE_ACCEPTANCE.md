@@ -90,8 +90,7 @@ Behavior results include:
 The `configured_password_missing` check occurs before `autologon_ready`, fixing the unsafe classifier
 shape identified in the older stacked AutoLogon state-delta lane.
 
-A current session match after a reboot is strong machine evidence, but it does not by itself prove
-automatic sign-in. The technician separately records whether automatic sign-in was directly observed.
+A current session match after a reboot is strong machine evidence, but it does not by itself prove automatic sign-in. The technician separately records whether automatic sign-in was directly observed.
 
 ## Technician attestation and proof levels
 
