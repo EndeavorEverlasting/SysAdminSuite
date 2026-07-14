@@ -92,6 +92,17 @@ def test_cleanup_runs_after_validation_and_preservation_is_rechecked() -> None:
     assert "requested_software_preserved_after_teardown" in text
 
 
+def test_finalizer_and_orchestrator_both_fail_closed_on_mutation() -> None:
+    finalizer = read(FINALIZER)
+    orchestrator = read(ORCHESTRATOR)
+    assert "SupportsShouldProcess = $true" in finalizer
+    assert "Refusing software-install finalization without -AllowTargetMutation" in finalizer
+    assert "$PSCmdlet.ShouldProcess" in finalizer
+    assert "[switch]$AllowTargetMutation" in finalizer
+    assert "-AllowTargetMutation `" in orchestrator
+    assert "-Confirm:$false" in orchestrator
+
+
 def test_orchestrator_is_canonical_and_live_fails_closed() -> None:
     text = read(ORCHESTRATOR)
     for fragment in (
@@ -136,8 +147,12 @@ def test_e2e_proves_transient_removal_and_package_preservation() -> None:
         "requested_software_preserved_after_teardown",
         "real_production_installer_wrapper_executed = $true",
         "real_finalization_gate_executed = $true",
+        "journey-owned child directory",
+        "foreach ($ownedPath in",
     ):
         assert fragment in text
+    assert "[IO.Directory]::Delete($OutputRoot, $true)" not in text
+    assert "$OutputRoot.Equals($approvedE2ERoot" in text
 
 
 def test_harness_and_offline_runner_require_finalization_proof() -> None:
