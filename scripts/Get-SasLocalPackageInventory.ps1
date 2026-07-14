@@ -1,14 +1,15 @@
 <#
 .SYNOPSIS
-    Generates a read-only inventory of local packages in the reference tree.
+    Generates a read-only, redacted inventory of an operator-local package tree.
 .DESCRIPTION
-    Analyzes installer files, scripts, shortcuts, and configurations without executing package code.
-    Identifies file classes, versions, hashes, Authenticode signatures, and dangerous indicators.
+    Reads file metadata, hashes, Authenticode status, selected MSI properties, and
+    bounded text indicators without executing package code. Output paths are
+    relative to the supplied scan root. The scan root itself is never persisted.
 #>
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $false)]
-    [string]$ScanPath = "$PSScriptRoot\..\tech emulation\Alex",
+    [string]$ScanPath,
 
     [Parameter(Mandatory = $false)]
     [string]$OutputPath,
@@ -17,435 +18,281 @@ param (
     [switch]$FixtureOnly
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
 
 function Get-FileSha256 {
-    param([string]$Path)
-    try {
-        $hashObj = Get-FileHash -Path $Path -Algorithm SHA256
-        return $hashObj.Hash.ToLowerInvariant()
-    } catch {
-        return "0" * 64
-    }
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
 function Get-MsiInfo {
-    param([string]$Path)
-    $msi = @{
-        product_code = $null
-        product_name = $null
-        product_version = $null
-        manufacturer = $null
-    }
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+
+    $installer = $null
+    $database = $null
+    $view = $null
     try {
-        $Installer = New-Object -ComObject WindowsInstaller.Installer
-        $Database = $Installer.OpenDatabase($Path, 0) # 0 is ReadOnly
-        $View = $Database.OpenView("SELECT Property, Value FROM Property")
-        $View.Execute()
-        while ($Record = $View.Fetch()) {
-            $propName = $Record.StringData(1)
-            $propVal = $Record.StringData(2)
-            if ($propName -eq 'ProductCode') { $msi.product_code = $propVal }
-            elseif ($propName -eq 'ProductName') { $msi.product_name = $propVal }
-            elseif ($propName -eq 'ProductVersion') { $msi.product_version = $propVal }
-            elseif ($propName -eq 'Manufacturer') { $msi.manufacturer = $propVal }
+        $installer = New-Object -ComObject WindowsInstaller.Installer
+        $database = $installer.OpenDatabase($Path, 0)
+        $view = $database.OpenView('SELECT Property, Value FROM Property')
+        $view.Execute()
+
+        $result = [ordered]@{
+            product_code = $null
+            product_name = $null
+            product_version = $null
+            manufacturer = $null
         }
-        $View.Close()
-        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Database) | Out-Null
-        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Installer) | Out-Null
-    } catch {
-        # Silent fallback
+
+        while ($record = $view.Fetch()) {
+            $name = $record.StringData(1)
+            $value = $record.StringData(2)
+            switch ($name) {
+                'ProductCode' { $result.product_code = $value }
+                'ProductName' { $result.product_name = $value }
+                'ProductVersion' { $result.product_version = $value }
+                'Manufacturer' { $result.manufacturer = $value }
+            }
+        }
+
+        return $result
     }
-    return $msi
+    catch {
+        return $null
+    }
+    finally {
+        if ($view) {
+            try { $view.Close() } catch {}
+            [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($view)
+        }
+        if ($database) {
+            [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($database)
+        }
+        if ($installer) {
+            [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($installer)
+        }
+    }
 }
 
 function Get-DangerousIndicators {
-    param([string]$TextContent)
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$TextContent)
+
     $indicators = [System.Collections.Generic.List[string]]::new()
-    
-    if ($TextContent -match 'reg\.exe|reg\s+add|reg\s+delete|regedit|Registry|New-ItemProperty|Set-ItemProperty|Remove-ItemProperty') {
-        $indicators.Add("registry_changes")
-    }
-    if ($TextContent -match 'sc\.exe|sc\s+create|sc\s+delete|sc\s+config|New-Service|Set-Service|Start-Service|Stop-Service|Remove-Service') {
-        $indicators.Add("services")
-    }
-    if ($TextContent -match 'schtasks|New-ScheduledTask|Register-ScheduledTask|Unregister-ScheduledTask') {
-        $indicators.Add("scheduled_tasks")
-    }
-    if ($TextContent -match 'reboot|restart-computer|shutdown\.exe|restart|/forcerestart|/norestart') {
-        $indicators.Add("reboot")
-    }
-    if ($TextContent -match 'AutoLogon|DefaultPassword|DefaultUserName|AutoAdminLogon|Winlogon') {
-        $indicators.Add("autologon")
-    }
-    if ($TextContent -match 'net\s+user|net\s+localgroup|New-LocalUser|Add-LocalGroupMember') {
-        $indicators.Add("account_changes")
-    }
-    if ($TextContent -match 'netsh\s+advfirewall|New-NetFirewallRule|Set-NetFirewallRule') {
-        $indicators.Add("firewall_changes")
-    }
-    if ($TextContent -match 'rmdir\s+/s\s+/q|Remove-Item\s+-Recurse|del\s+/f\s+/s\s+/q') {
-        $indicators.Add("broad_deletion")
-    }
-    if ($TextContent -match 'del\s+%0|del\s+"%~f0"') {
-        $indicators.Add("self_removal")
-    }
-    if ($TextContent -match '/q|/s|/qn|/qb|/silent|/norestart') {
-        $indicators.Add("silent_switches")
+    $rules = [ordered]@{
+        registry_changes = 'reg\.exe|reg\s+add|reg\s+delete|regedit|New-ItemProperty|Set-ItemProperty|Remove-ItemProperty'
+        services = 'sc\.exe|sc\s+create|sc\s+delete|sc\s+config|New-Service|Set-Service|Start-Service|Stop-Service|Remove-Service'
+        scheduled_tasks = 'schtasks|New-ScheduledTask|Register-ScheduledTask|Unregister-ScheduledTask'
+        reboot = 'reboot|restart-computer|shutdown\.exe|/forcerestart|/norestart'
+        autologon = 'AutoLogon|DefaultPassword|DefaultUserName|AutoAdminLogon|Winlogon'
+        account_changes = 'net\s+user|net\s+localgroup|New-LocalUser|Add-LocalGroupMember'
+        firewall_changes = 'netsh\s+advfirewall|New-NetFirewallRule|Set-NetFirewallRule'
+        group_policy_refresh = 'gpupdate(?:\.exe)?'
+        broad_deletion = 'rmdir\s+/s\s+/q|Remove-Item\s+-Recurse|del\s+/f\s+/s\s+/q'
+        self_removal = 'del\s+%0|del\s+"%~f0"'
+        silent_switches_observed = '/q(?:n|b)?\b|/s(?:ilent)?\b|/norestart\b'
     }
 
-    return $indicators.ToArray()
+    foreach ($entry in $rules.GetEnumerator()) {
+        if ($TextContent -match $entry.Value) {
+            $indicators.Add([string]$entry.Key)
+        }
+    }
+
+    return @($indicators | Select-Object -Unique)
+}
+
+function Get-SafeRelativePath {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Root,
+        [Parameter(Mandatory)][string]$FullName
+    )
+
+    $rootWithSeparator = $Root.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    if (-not $FullName.StartsWith($rootWithSeparator, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'File is outside the approved scan root.'
+    }
+
+    return $FullName.Substring($rootWithSeparator.Length).Replace('\', '/')
+}
+
+function New-FixtureInventory {
+    $repoRoot = Split-Path -Parent $PSScriptRoot
+    $fixturePath = Join-Path $repoRoot 'Tests\Fixtures\local-package-inventory.fixture.json'
+    if (-not (Test-Path -LiteralPath $fixturePath -PathType Leaf)) {
+        throw 'The sanitized package-inventory fixture is missing.'
+    }
+
+    return Get-Content -LiteralPath $fixturePath -Raw | ConvertFrom-Json
 }
 
 if ($FixtureOnly) {
-    Write-Verbose "Generating fixture-only mock inventory."
-    $mockPackages = @(
-        @{
-            relative_path = "tech emulation/Alex/Installers/Epic/Satellite/EpicSatelliteSetup.exe"
-            file_class = "installer"
-            size_bytes = 12500000
-            sha256 = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
-            authenticode = @{
-                status = "Valid"
-                signer = "CN=Epic Systems Corporation, O=Epic Systems Corporation, L=Verona, S=Wisconsin, C=US"
-            }
-            file_version_info = @{
-                product_name = "Epic Satellite Client"
-                product_version = "2026.1.0"
-                file_version = "2026.1.0.42"
-                company_name = "Epic Systems Corporation"
-            }
-            msi_info = $null
-            archive_type = $null
-            referenced_dependencies = @()
-            embedded_or_adjacent_configs = @()
-            likely_reboot_requirements = @()
-            likely_application_executables = @()
-            dangerous_indicators = @("silent_switches")
-            installer_arguments = @("/q", "/norestart")
-            classification = "vm_candidate"
-        },
-        @{
-            relative_path = "tech emulation/Alex/Installers/Allscripts/TWInstaller.exe"
-            file_class = "installer"
-            size_bytes = 85000000
-            sha256 = "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3"
-            authenticode = @{
-                status = "NotSigned"
-                signer = $null
-            }
-            file_version_info = @{
-                product_name = "Allscripts TouchWorks installer"
-                product_version = "22.1.0"
-                file_version = "22.1.0.100"
-                company_name = "Allscripts"
-            }
-            msi_info = $null
-            archive_type = $null
-            referenced_dependencies = @()
-            embedded_or_adjacent_configs = @()
-            likely_reboot_requirements = @()
-            likely_application_executables = @()
-            dangerous_indicators = @()
-            installer_arguments = $null
-            classification = "blocked_missing_evidence"
-        },
-        @{
-            relative_path = "tech emulation/Alex/Installers/AutoLogonSetup/NW_AutoLogon_Setup_x64.exe"
-            file_class = "installer"
-            size_bytes = 5400000
-            sha256 = "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
-            authenticode = @{
-                status = "Valid"
-                signer = "CN=Northwell Health, O=Northwell Health, C=US"
-            }
-            file_version_info = @{
-                product_name = "Northwell AutoLogon Configurator"
-                product_version = "1.2.0"
-                file_version = "1.2.0.0"
-                company_name = "Northwell Health"
-            }
-            msi_info = $null
-            archive_type = $null
-            referenced_dependencies = @()
-            embedded_or_adjacent_configs = @()
-            likely_reboot_requirements = @("reboot")
-            likely_application_executables = @()
-            dangerous_indicators = @("autologon", "reboot", "registry_changes")
-            installer_arguments = @("/silent")
-            classification = "requires_physical_cybernet"
-        }
-    )
-
-    $inventory = @{
-        schema_version = "sas-local-package-inventory/v1"
-        generated_at = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssK")
-        scan_root = "fixture-only"
-        packages = $mockPackages
-    }
-
-    $json = ConvertTo-Json $inventory -Depth 10
-    if ($OutputPath) {
-        New-Item -ItemType File -Path $OutputPath -Force | Out-Null
-        [System.IO.File]::WriteAllText($OutputPath, $json)
-    }
-    return $inventory
+    $inventory = New-FixtureInventory
 }
-
-if (-not (Test-Path $ScanPath)) {
-    throw "Scan path '$ScanPath' does not exist."
-}
-
-$scanRootAbs = (Resolve-Path $ScanPath).Path
-$repoRoot = (git rev-parse --show-toplevel).Replace('/', '\')
-
-$packages = [System.Collections.Generic.List[object]]::new()
-$files = Get-ChildItem -Path $ScanPath -Recurse -File
-
-foreach ($file in $files) {
-    # 1. Path Calculation
-    $relPath = $file.FullName
-    if ($relPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        $relPath = $relPath.Substring($repoRoot.Length).TrimStart('\')
+else {
+    if ([string]::IsNullOrWhiteSpace($ScanPath)) {
+        throw 'ScanPath is required unless FixtureOnly is specified.'
     }
-    $relPath = $relPath.Replace('\', '/')
-
-    # 2. File Class
-    $ext = $file.Extension.ToLowerInvariant()
-    $fileClass = "other"
-    if ($ext -in '.msi', '.exe', '.msix', '.msixbundle', '.appx') {
-        $fileClass = "installer"
-    } elseif ($ext -in '.ps1', '.psm1', '.bat', '.cmd', '.vbs', '.js', '.sh') {
-        $fileClass = "script"
-    } elseif ($ext -in '.lnk', '.url') {
-        $fileClass = "shortcut"
-    } elseif ($ext -in '.xml', '.json', '.ini', '.cfg', '.config', '.manifest', '.inf') {
-        $fileClass = "configuration"
-    } elseif ($ext -in '.zip', '.cab', '.tar', '.gz', '.tgz') {
-        $fileClass = "archive"
+    if (-not (Test-Path -LiteralPath $ScanPath -PathType Container)) {
+        throw 'The supplied scan root does not exist or is not a directory.'
     }
 
-    # 3. Basic Metadata
-    $size = $file.Length
-    $sha256 = Get-FileSha256 -Path $file.FullName
+    $scanRootAbsolute = (Resolve-Path -LiteralPath $ScanPath).Path
+    $packages = [System.Collections.Generic.List[object]]::new()
+    $files = Get-ChildItem -LiteralPath $scanRootAbsolute -Recurse -File
 
-    # 4. Authenticode Signature
-    $authStatus = "NotSigned"
-    $authSigner = $null
-    try {
-        $sig = Get-AuthenticodeSignature -FilePath $file.FullName
-        $authStatus = $sig.Status.ToString()
-        if ($sig.SignerCertificate) {
-            $authSigner = $sig.SignerCertificate.Subject
-        }
-    } catch {
-        $authStatus = "UnknownError"
-    }
-
-    # 5. Version Info
-    $viProduct = $null
-    $viProductVer = $null
-    $viFileVer = $null
-    $viCompany = $null
-    if ($ext -in '.exe', '.dll') {
-        try {
-            $vi = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($file.FullName)
-            $viProduct = $vi.ProductName
-            $viProductVer = $vi.ProductVersion
-            $viFileVer = $vi.FileVersion
-            $viCompany = $vi.CompanyName
-        } catch {}
-    }
-    $versionInfo = @{
-        product_name = $viProduct
-        product_version = $viProductVer
-        file_version = $viFileVer
-        company_name = $viCompany
-    }
-
-    # 6. MSI Properties (Read-Only COM)
-    $msiInfo = $null
-    if ($ext -eq '.msi') {
-        $msiInfo = Get-MsiInfo -Path $file.FullName
-    }
-
-    # 7. Archive Type
-    $archiveType = $null
-    if ($fileClass -eq 'archive') {
-        $archiveType = $ext.TrimStart('.')
-    } elseif ($ext -in '.msixbundle', '.msix') {
-        $archiveType = "appx_bundle"
-    }
-
-    # 8. Script/Config/Shortcuts Scanning
-    $referencedDeps = [System.Collections.Generic.List[string]]::new()
-    $embeddedConfigs = [System.Collections.Generic.List[string]]::new()
-    $rebootReqs = [System.Collections.Generic.List[string]]::new()
-    $appExes = [System.Collections.Generic.List[string]]::new()
-    $dangerousInds = [System.Collections.Generic.List[string]]::new()
-    $installerArgs = $null
-
-    # If it is a text-based file, parse content
-    $isText = $ext -in '.ps1', '.psm1', '.bat', '.cmd', '.vbs', '.js', '.sh', '.xml', '.json', '.ini', '.cfg', '.config', '.txt', '.md'
-    if ($isText) {
-        try {
-            $content = [System.IO.File]::ReadAllText($file.FullName)
-            
-            # Dangerous indicators
-            $dangerousInds.AddRange((Get-DangerousIndicators -TextContent $content))
-
-            # Look for reboot cues
-            if ($content -match 'reboot|restart|shutdown') {
-                $rebootReqs.Add("Stated in content")
-            }
-
-            # Find executables mentioned in the text
-            $matches = [regex]::Matches($content, '\b[\w-]+\.exe\b', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-            foreach ($match in $matches) {
-                if ($match.Value -ne $file.Name) {
-                    $appExes.Add($match.Value)
-                }
-            }
-
-            # Look for installer invocation pattern to extract installer arguments
-            # e.g. installer.exe /S /qn
-            # Only match if the exe is in the same folder or listed in installers
-            $argsMatches = [regex]::Matches($content, '([\w-]+\.exe)\s+([^`\r\n&|;]+)', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-            foreach ($am in $argsMatches) {
-                $exeName = $am.Groups[1].Value
-                $argStr = $am.Groups[2].Value.Trim()
-                if ($argStr -match '/q|/s|/qn|/qb|/silent|/norestart|/S|/S\s+|/qn\s+') {
-                    $argsList = [System.Collections.Generic.List[string]]::new()
-                    $argStr -split '\s+' | ForEach-Object {
-                        if ($_ -like '/*') { $argsList.Add($_) }
-                    }
-                    if ($argsList.Count -gt 0) {
-                        $installerArgs = $argsList.ToArray()
-                    }
-                }
-            }
-        } catch {}
-    }
-
-    # If it is a shortcut, extract target
-    if ($ext -eq '.lnk') {
-        try {
-            $sh = New-Object -ComObject WScript.Shell
-            $lnk = $sh.CreateShortcut($file.FullName)
-            if ($lnk.TargetPath) {
-                $appExes.Add($lnk.TargetPath)
-                if ($lnk.Arguments) {
-                    $referencedDeps.Add($lnk.Arguments)
-                }
-            }
-            [System.Runtime.InteropServices.Marshal]::ReleaseComObject($sh) | Out-Null
-        } catch {}
-    } elseif ($ext -eq '.url') {
-        try {
-            $lines = Get-Content -Path $file.FullName
-            foreach ($line in $lines) {
-                if ($line -match '^URL=(.+)$') {
-                    $referencedDeps.Add($matches[1])
-                }
-            }
-        } catch {}
-    }
-
-    # Check for adjacent config file
-    $fileDir = $file.DirectoryName
-    if ($fileDir) {
-        $adjacentFiles = Get-ChildItem -Path $fileDir -File
-        foreach ($adj in $adjacentFiles) {
-            if ($adj.Extension.ToLowerInvariant() -in '.xml', '.json', '.ini', '.cfg', '.config') {
-                $embeddedConfigs.Add($adj.Name)
-            }
-        }
-    }
-
-    # 9. Argument and Classification determination
-    if ($fileClass -eq 'installer') {
-        # Check if we found arguments from adjacent scripts
-        if ($null -eq $installerArgs) {
-            if ($ext -eq '.msi') {
-                # Default quiet/norestart arguments are safe to resolve for MSIs
-                $installerArgs = @("/qn", "/norestart")
-            } else {
-                # For EXEs, do not guess
-                $installerArgs = $null
-            }
+    foreach ($file in $files) {
+        $extension = $file.Extension.ToLowerInvariant()
+        $fileClass = switch ($extension) {
+            { $_ -in '.msi', '.exe', '.msix', '.msixbundle', '.appx' } { 'installer'; break }
+            { $_ -in '.ps1', '.psm1', '.bat', '.cmd', '.vbs', '.js', '.sh' } { 'script'; break }
+            { $_ -in '.lnk', '.url' } { 'shortcut'; break }
+            { $_ -in '.xml', '.json', '.ini', '.cfg', '.config', '.manifest', '.inf' } { 'configuration'; break }
+            { $_ -in '.zip', '.cab', '.tar', '.gz', '.tgz' } { 'archive'; break }
+            default { 'other' }
         }
 
-        # Check dangerous indicators on the installer path directory level
-        # E.g. scan if there are scripts in the same folder that indicate reboot or autologon
-        $parentScripts = Get-ChildItem -Path $file.DirectoryName -Filter "*.*" -File
-        foreach ($ps in $parentScripts) {
-            if ($ps.Extension.ToLowerInvariant() -in '.ps1', '.psm1', '.bat', '.cmd') {
+        $dangerousIndicators = [System.Collections.Generic.List[string]]::new()
+        $referencedDependencies = [System.Collections.Generic.List[string]]::new()
+        $adjacentConfigs = [System.Collections.Generic.List[string]]::new()
+        $rebootRequirements = [System.Collections.Generic.List[string]]::new()
+        $applicationExecutables = [System.Collections.Generic.List[string]]::new()
+
+        $isText = $extension -in '.ps1', '.psm1', '.bat', '.cmd', '.vbs', '.js', '.sh', '.xml', '.json', '.ini', '.cfg', '.config', '.txt', '.md'
+        if ($isText -and $file.Length -le 5MB) {
+            try {
+                $content = [IO.File]::ReadAllText($file.FullName)
+                foreach ($indicator in (Get-DangerousIndicators -TextContent $content)) {
+                    $dangerousIndicators.Add($indicator)
+                }
+                if ($content -match 'reboot|restart|shutdown') {
+                    $rebootRequirements.Add('content_mentions_reboot')
+                }
+                foreach ($match in [regex]::Matches($content, '\b[\w.-]+\.exe\b', 'IgnoreCase')) {
+                    $applicationExecutables.Add([IO.Path]::GetFileName($match.Value))
+                }
+            }
+            catch {}
+        }
+
+        if ($extension -eq '.lnk') {
+            $shell = $null
+            try {
+                $shell = New-Object -ComObject WScript.Shell
+                $shortcut = $shell.CreateShortcut($file.FullName)
+                if ($shortcut.TargetPath) {
+                    $targetName = [IO.Path]::GetFileName($shortcut.TargetPath)
+                    $referencedDependencies.Add($(if ($targetName) { $targetName } else { 'external_shortcut_target' }))
+                }
+            }
+            catch {}
+            finally {
+                if ($shell) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) }
+            }
+        }
+        elseif ($extension -eq '.url') {
+            $referencedDependencies.Add('external_url_target')
+        }
+
+        foreach ($adjacent in (Get-ChildItem -LiteralPath $file.DirectoryName -File)) {
+            if ($adjacent.Extension.ToLowerInvariant() -in '.xml', '.json', '.ini', '.cfg', '.config') {
+                $adjacentConfigs.Add($adjacent.Name)
+            }
+            if ($fileClass -eq 'installer' -and $adjacent.Extension.ToLowerInvariant() -in '.ps1', '.psm1', '.bat', '.cmd') {
                 try {
-                    $psContent = [System.IO.File]::ReadAllText($ps.FullName)
-                    $dangerousInds.AddRange((Get-DangerousIndicators -TextContent $psContent))
-                } catch {}
+                    $scriptContent = [IO.File]::ReadAllText($adjacent.FullName)
+                    foreach ($indicator in (Get-DangerousIndicators -TextContent $scriptContent)) {
+                        $dangerousIndicators.Add($indicator)
+                    }
+                }
+                catch {}
             }
         }
 
-        $allInds = $dangerousInds | Select-Object -Unique
-
-        # Classify
-        if ($allInds -contains 'autologon') {
-            $classification = "requires_physical_cybernet"
-        } elseif ($allInds -contains 'reboot' -or $allInds -contains 'services') {
-            $classification = "requires_reboot_vm"
-        } elseif ($null -eq $installerArgs) {
-            $classification = "blocked_missing_evidence"
-        } else {
-            $classification = "vm_candidate"
+        $signatureStatus = 'NotSigned'
+        $signatureSigner = $null
+        try {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            $signatureStatus = $signature.Status.ToString()
+            if ($signature.SignerCertificate) {
+                $signatureSigner = $signature.SignerCertificate.Subject
+            }
         }
-    } else {
-        $classification = "inventory_only"
+        catch {
+            $signatureStatus = 'UnknownError'
+        }
+
+        $versionInfo = [ordered]@{
+            product_name = $null
+            product_version = $null
+            file_version = $null
+            company_name = $null
+        }
+        if ($extension -in '.exe', '.dll') {
+            try {
+                $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($file.FullName)
+                $versionInfo.product_name = $version.ProductName
+                $versionInfo.product_version = $version.ProductVersion
+                $versionInfo.file_version = $version.FileVersion
+                $versionInfo.company_name = $version.CompanyName
+            }
+            catch {}
+        }
+
+        $uniqueIndicators = @($dangerousIndicators | Select-Object -Unique)
+        if ($fileClass -eq 'installer') {
+            if ($uniqueIndicators -contains 'autologon') {
+                $classification = 'requires_physical_cybernet'
+            }
+            elseif ($uniqueIndicators -contains 'reboot' -or $uniqueIndicators -contains 'services' -or $uniqueIndicators -contains 'account_changes') {
+                $classification = 'requires_reboot_vm'
+            }
+            else {
+                $classification = 'blocked_missing_evidence'
+            }
+        }
+        else {
+            $classification = 'inventory_only'
+        }
+
+        $packages.Add([ordered]@{
+            relative_path = Get-SafeRelativePath -Root $scanRootAbsolute -FullName $file.FullName
+            file_class = $fileClass
+            size_bytes = [long]$file.Length
+            sha256 = Get-FileSha256 -Path $file.FullName
+            authenticode = [ordered]@{ status = $signatureStatus; signer = $signatureSigner }
+            file_version_info = $versionInfo
+            msi_info = $(if ($extension -eq '.msi') { Get-MsiInfo -Path $file.FullName } else { $null })
+            archive_type = $(if ($fileClass -eq 'archive') { $extension.TrimStart('.') } elseif ($extension -in '.msix', '.msixbundle') { 'appx_bundle' } else { $null })
+            referenced_dependencies = @($referencedDependencies | Select-Object -Unique)
+            embedded_or_adjacent_configs = @($adjacentConfigs | Select-Object -Unique)
+            likely_reboot_requirements = @($rebootRequirements | Select-Object -Unique)
+            likely_application_executables = @($applicationExecutables | Select-Object -Unique)
+            dangerous_indicators = $uniqueIndicators
+            installer_arguments = $null
+            classification = $classification
+        })
     }
 
-    $packages.Add(@{
-        relative_path = $relPath
-        file_class = $fileClass
-        size_bytes = $size
-        sha256 = $sha256
-        authenticode = @{
-            status = $authStatus
-            signer = $authSigner
-        }
-        file_version_info = $versionInfo
-        msi_info = $msiInfo
-        archive_type = $archiveType
-        referenced_dependencies = ($referencedDeps | Select-Object -Unique | Where-Object {$_})
-        embedded_or_adjacent_configs = ($embeddedConfigs | Select-Object -Unique | Where-Object {$_})
-        likely_reboot_requirements = ($rebootReqs | Select-Object -Unique | Where-Object {$_})
-        likely_application_executables = ($appExes | Select-Object -Unique | Where-Object {$_})
-        dangerous_indicators = ($dangerousInds | Select-Object -Unique | Where-Object {$_})
-        installer_arguments = $installerArgs
-        classification = $classification
-    })
+    $inventory = [ordered]@{
+        schema_version = 'sas-local-package-inventory/v1'
+        generated_at = (Get-Date).ToUniversalTime().ToString('o')
+        scan_root = 'operator-local-reference'
+        packages = $packages.ToArray()
+    }
 }
 
-$inventory = @{
-    schema_version = "sas-local-package-inventory/v1"
-    generated_at = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssK")
-    scan_root = $(
-        $scanRootRel = $scanRootAbs
-        if ($scanRootRel.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            $scanRootRel = $scanRootRel.Substring($repoRoot.Length).TrimStart('\')
-        }
-        $scanRootRel.Replace('\', '/')
-    )
-    packages = $packages.ToArray()
-}
-
-$json = ConvertTo-Json $inventory -Depth 10
+$json = ConvertTo-Json $inventory -Depth 12
 if ($OutputPath) {
-    $parentDir = Split-Path -Path $OutputPath -Parent
-    if ($parentDir -and -not (Test-Path $parentDir)) {
-        New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
+    $parent = Split-Path -Path $OutputPath -Parent
+    if ($parent -and -not (Test-Path -LiteralPath $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
     }
-    New-Item -ItemType File -Path $OutputPath -Force | Out-Null
-    [System.IO.File]::WriteAllText($OutputPath, $json)
+    [IO.File]::WriteAllText($OutputPath, $json, [Text.UTF8Encoding]::new($false))
 }
 
 return $inventory
