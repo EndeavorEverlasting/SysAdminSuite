@@ -8,6 +8,15 @@ Use this skill for technician commands, launchers, menus, QR command capsules, o
 - [Language Runtime Selection](../../capabilities/language-runtime-selection.md)
 - [Mutation and Evidence Boundaries](../../capabilities/mutation-and-evidence-boundaries.md)
 
+## Canonical references
+
+Load only the references that match the selected field lane:
+
+- Dashboard front door and fallback: [`docs/DASHBOARD_ENTRYPOINT.md`](../../../docs/DASHBOARD_ENTRYPOINT.md)
+- Software deployment tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](../../../docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
+- Software installation safety contract: [`docs/SOFTWARE_INSTALL_HARNESS.md`](../../../docs/SOFTWARE_INSTALL_HARNESS.md)
+- Executable fixture proof: [`docs/SOFTWARE_INSTALL_E2E.md`](../../../docs/SOFTWARE_INSTALL_E2E.md)
+
 ## Workflow
 
 1. Identify the field user, target environment, and mutation posture.
