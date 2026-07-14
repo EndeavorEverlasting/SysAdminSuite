@@ -1,12 +1,13 @@
 <#
 .SYNOPSIS
-Builds a packet-free delta plan from approved requested targets and prior local evidence.
+Builds a packet-free delta plan from modular approved artifacts normalized to one denominator schema.
 
 .DESCRIPTION
-Ranks local evidence before any new network survey. The planner writes a complete decision CSV,
-review/skip sidecars, a direct latest-versus-previous observation delta, and a reduced staged target
-file for the existing sas-network-preflight.ps1 workflow. It never runs DNS, ping, TCP, Nmap, Naabu,
-or any target-side command.
+Every requested-population and evidence artifact is first resolved through the registered adapter layer
+into the canonical network survey denominator contract. Planning begins only after every input package
+passes that contract. The planner then ranks local evidence, compares observations, and stages a reduced
+target file for the existing sas-network-preflight.ps1 workflow. It never runs DNS, ping, TCP, Nmap,
+Naabu, or any target-side command.
 #>
 
 [CmdletBinding()]
@@ -59,11 +60,13 @@ if ($ForceReprobe -and [string]::IsNullOrWhiteSpace($ForceReason)) {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $targetIntakeModule = Join-Path $repoRoot 'scripts/SasTargetIntake.psm1'
+$normalizerModule = Join-Path $repoRoot 'scripts/SasSurveyArtifactNormalizer.psm1'
 $deltaModule = Join-Path $repoRoot 'scripts/SasDeltaEvidenceCache.psm1'
-foreach ($modulePath in @($targetIntakeModule, $deltaModule)) {
+foreach ($modulePath in @($targetIntakeModule, $normalizerModule, $deltaModule)) {
     if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) { throw "Missing required module: $modulePath" }
 }
 Import-Module $targetIntakeModule -Force
+Import-Module $normalizerModule -Force
 Import-Module $deltaModule -Force
 
 Assert-SasApprovedInputPath -Path $InputFile -RepoRoot $repoRoot -Role 'delta requested population' -AllowStaging -AllowFixtures:$AllowFixtures -AllowNonstandard:$AllowNonstandardInput
@@ -91,7 +94,8 @@ if ($RunId -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{2,96}$') { throw "Invalid RunId
 
 $runOutput = Join-Path $OutputRoot $RunId
 $runStaging = Join-Path $StagingRoot $RunId
-New-Item -ItemType Directory -Force -Path $runOutput, $runStaging | Out-Null
+$normalizedRoot = Join-Path $runOutput 'normalized_artifacts'
+New-Item -ItemType Directory -Force -Path $runOutput, $runStaging, $normalizedRoot | Out-Null
 
 $planPath = Join-Path $runOutput 'delta_preflight_plan.csv'
 $skipPath = Join-Path $runOutput 'skipped_recent_evidence.csv'
@@ -101,11 +105,48 @@ $readmePath = Join-Path $runOutput 'README.txt'
 $observationPath = Join-Path $runOutput 'survey_observation_delta.csv'
 $handoffPath = Join-Path $runOutput 'operator_handoff.txt'
 $targetPath = Join-Path $runStaging 'to_probe_targets.txt'
+$intakeManifestPath = Join-Path $runOutput 'artifact_intake_manifest.json'
 
-$requestedRows = @(ConvertTo-SasRequestedRows -Path $resolvedInput)
-if ($requestedRows.Count -eq 0) { throw 'Requested population file did not contain any usable rows.' }
-$evidenceSnapshots = @(ConvertTo-SasEvidenceSnapshots -Paths @($resolvedEvidence))
+$normalizationResults = New-Object System.Collections.Generic.List[object]
+$requestedNormalization = Invoke-SasSurveyArtifactNormalization -Path $resolvedInput -Role requested_population -OutputDirectory $normalizedRoot -RepoRoot $repoRoot -NormalizedAt $ReferenceTime
+$normalizationResults.Add($requestedNormalization)
+$evidencePackages = New-Object System.Collections.Generic.List[object]
+foreach ($evidencePath in @($resolvedEvidence)) {
+    $result = Invoke-SasSurveyArtifactNormalization -Path $evidencePath -Role evidence_snapshot -OutputDirectory $normalizedRoot -RepoRoot $repoRoot -NormalizedAt $ReferenceTime
+    $normalizationResults.Add($result)
+    $evidencePackages.Add($result.Package)
+}
 
+$intakeManifest = [ordered]@{
+    contract_version = '1.0.0'
+    workflow_id = 'delta-preflight'
+    run_id = $RunId
+    generated_at = $ReferenceTime.ToString('o')
+    denominator_schema = 'schemas/survey/network-survey-artifact-denominator.schema.json'
+    adapter_registry = 'survey/network_survey_artifact_adapters.json'
+    all_artifacts_valid = $true
+    artifacts = @($normalizationResults | ForEach-Object {
+        [ordered]@{
+            artifact_id = $_.Package.artifact_id
+            artifact_role = $_.Package.artifact_role
+            adapter_id = $_.AdapterId
+            source_path = $_.Package.source_path
+            source_format = $_.Package.source_format
+            normalized_package_path = $_.PackagePath
+            validation_report_path = $_.ValidationPath
+            row_count = $_.Package.row_count
+        }
+    })
+    network_activity_performed = $false
+    target_mutation_performed = $false
+}
+$intakeManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $intakeManifestPath -Encoding UTF8
+
+$requestedRows = @(ConvertFrom-SasRequestedArtifactPackage -Package $requestedNormalization.Package)
+if ($requestedRows.Count -eq 0) { throw 'Requested population package did not contain any denominator-valid rows.' }
+$evidenceSnapshots = @(ConvertFrom-SasEvidenceArtifactPackages -Packages @($evidencePackages))
+$normalizedArtifactPaths = @($normalizationResults | ForEach-Object { $_.PackagePath })
+$validationReportPaths = @($normalizationResults | ForEach-Object { $_.ValidationPath })
 
 $corePaths = @(
     (Join-Path $repoRoot 'scripts/Invoke-SasDeltaPreflightPlanRows.ps1'),
