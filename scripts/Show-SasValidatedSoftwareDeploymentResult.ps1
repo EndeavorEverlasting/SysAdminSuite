@@ -31,9 +31,13 @@ if ($OutputRoot -and $RunRoot) { throw 'Use either -OutputRoot or -RunRoot.' }
 if (-not $RunRoot) {
     if (-not $OutputRoot) { $OutputRoot = Join-Path $repoRoot 'survey/output/software_install' }
     $OutputRoot = Resolve-ApprovedPath -Path $OutputRoot -Role 'Validated deployment output root'
-    $candidates = if (Test-Path -LiteralPath $OutputRoot -PathType Container) {
-        @(Get-ChildItem -LiteralPath $OutputRoot -Directory -Filter 'software-install-*' | Sort-Object LastWriteTimeUtc, Name -Descending)
-    } else { @() }
+    $candidates = @()
+    if (Test-Path -LiteralPath $OutputRoot -PathType Container) {
+        $candidates = @(
+            Get-ChildItem -LiteralPath $OutputRoot -Directory -Filter 'software-install-*' |
+                Sort-Object LastWriteTimeUtc, Name -Descending
+        )
+    }
     if ($candidates.Count -eq 0) {
         Write-Host 'SYSADMINSUITE VALIDATED SOFTWARE DEPLOYMENT RESULT'
         Write-Host 'Classification: NO_RUN_FOUND'
@@ -58,15 +62,28 @@ foreach ($name in @('summary','events','handoff','finalization','deployment')) {
     elseif ((Get-Item -LiteralPath $path).Length -eq 0) { $errors += "required evidence is empty: $path" }
 }
 
-$summary = $null; $finalization = $null; $deployment = $null; $events = @()
+$summary = $null
+$finalization = $null
+$deployment = $null
+$events = @()
 if ($errors.Count -eq 0) {
     try { $summary = Get-Content -LiteralPath $paths.summary -Raw | ConvertFrom-Json } catch { $errors += "invalid summary JSON: $($_.Exception.Message)" }
     try { $finalization = Get-Content -LiteralPath $paths.finalization -Raw | ConvertFrom-Json } catch { $errors += "invalid finalization JSON: $($_.Exception.Message)" }
     try { $deployment = Get-Content -LiteralPath $paths.deployment -Raw | ConvertFrom-Json } catch { $errors += "invalid deployment JSON: $($_.Exception.Message)" }
-    try { $events = @(Get-Content -LiteralPath $paths.events | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json }) } catch { $errors += "invalid events JSONL: $($_.Exception.Message)" }
+    try {
+        $events = @(
+            Get-Content -LiteralPath $paths.events |
+                Where-Object { $_.Trim() } |
+                ForEach-Object { $_ | ConvertFrom-Json }
+        )
+    }
+    catch { $errors += "invalid events JSONL: $($_.Exception.Message)" }
 }
 
-$results = if ($finalization) { @($finalization.results) } else { @() }
+$results = @()
+if ($finalization) {
+    $results = @($finalization.results)
+}
 $targetCount = $results.Count
 $completeCount = @($results | Where-Object { $_.finalization_status -eq 'COMPLETED_VALIDATED_FINALIZED' }).Count
 $installFailureCount = @($results | Where-Object { $_.finalization_status -eq 'INSTALL_FAILED_TOOLS_REMOVED' }).Count
