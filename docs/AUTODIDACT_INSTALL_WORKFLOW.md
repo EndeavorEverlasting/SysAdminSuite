@@ -4,13 +4,13 @@
 
 `Run-InstallApprovedSoftware.cmd` is the canonical technician-facing command capsule for installing approved software through the existing SysAdminSuite guarded software-install wrapper.
 
-`Run-InstallAutoDidact.cmd` remains as a compatibility launcher and routes to the same catalog-driven workflow. The canonical PowerShell implementation is:
+`Run-InstallAutoDidact.cmd` remains as a compatibility launcher and routes to the same catalog-driven workflow. The technician PowerShell surface is:
 
 ```text
-scripts/Start-SasApprovedSoftwareInstall.ps1
+scripts/Start-SasApprovedSoftwareOperator.ps1
 ```
 
-`scripts/Start-SasAutoDidactInstall.ps1` remains as a compatibility forwarder.
+It composes the catalog/snapshot engine at `scripts/Start-SasApprovedSoftwareInstall.ps1` and the canonical install engine at `scripts/Invoke-SasSoftwareInstall.ps1`. `scripts/Start-SasAutoDidactInstall.ps1` remains as a compatibility forwarder.
 
 The workflow enforces this order:
 
@@ -131,7 +131,7 @@ operator-state.json
 
 ## Install behavior
 
-The catalog wrapper delegates to the canonical install engine:
+The catalog/snapshot engine delegates installation to:
 
 ```text
 scripts/Invoke-SasSoftwareInstall.ps1
@@ -149,6 +149,18 @@ The catalog-driven launcher does not duplicate remote install mechanics. It pass
 - `-Confirm:$false`.
 
 The Plan action uses the same saved request with `-WhatIf`. The canonical install engine performs request validation only and does not contact the share or targets in that mode.
+
+### Durable handoff recovery
+
+The canonical install engine writes `software_install_summary.json` and `operator_handoff.txt` before returning. If PowerShell cannot materialize the final in-memory summary object cleanly, the technician operator wrapper accepts only the durable JSON contract after validating:
+
+- schema `sas-software-install-summary/v1`;
+- target count matches the completed Before snapshot;
+- the handoff path exists;
+- every WhatIf target is planned and no WhatIf failure is reported;
+- live failures, cleanup failures, and target remnants remain reportable failures.
+
+The wrapper does not convert a failed install into success. Artifact recovery only preserves a completed, validated handoff from the existing install engine.
 
 ## Guardrails
 
@@ -169,13 +181,13 @@ The Plan action uses the same saved request with `-WhatIf`. The canonical instal
 List the catalog without contacting the share or targets:
 
 ```powershell
-.\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action ListPackages
+.\scripts\Start-SasApprovedSoftwareOperator.ps1 -Action ListPackages
 ```
 
 Fixture Before snapshot for AutoLogon:
 
 ```powershell
-.\scripts\Start-SasApprovedSoftwareInstall.ps1 `
+.\scripts\Start-SasApprovedSoftwareOperator.ps1 `
   -Action Before `
   -PackageId autologon `
   -TargetsCsv .\targets\local\approved-software-targets.csv `
@@ -186,26 +198,26 @@ Fixture Before snapshot for AutoLogon:
 WhatIf plan after a successful Before snapshot:
 
 ```powershell
-.\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action Plan -NonInteractive
+.\scripts\Start-SasApprovedSoftwareOperator.ps1 -Action Plan -NonInteractive
 ```
 
 Approved live installation requires explicit validated arguments recorded during the Before step or supplied directly:
 
 ```powershell
-.\scripts\Start-SasApprovedSoftwareInstall.ps1 `
+.\scripts\Start-SasApprovedSoftwareOperator.ps1 `
   -Action Before `
   -PackageId autologon `
   -TargetsCsv .\targets\local\approved-software-targets.csv `
   -InstallerArguments @('<vendor-validated-argument-1>', '<vendor-validated-argument-2>') `
   -NonInteractive
 
-.\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action Install -NonInteractive
+.\scripts\Start-SasApprovedSoftwareOperator.ps1 -Action Install -NonInteractive
 ```
 
 After snapshot and delta:
 
 ```powershell
-.\scripts\Start-SasApprovedSoftwareInstall.ps1 -Action After -NonInteractive
+.\scripts\Start-SasApprovedSoftwareOperator.ps1 -Action After -NonInteractive
 ```
 
 ## Production readiness boundary
