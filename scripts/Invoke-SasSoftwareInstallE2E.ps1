@@ -4,13 +4,14 @@
 Runs the approved software-install workflow end to end against an isolated local fixture target.
 
 .DESCRIPTION
-This journey executes the real Invoke-SasSoftwareInstall.ps1 operator wrapper, the wrapper's real
-remote-install script block, and a real child installer process. A local fixture transport adapter
-replaces WinRM and the approved UNC share only for this isolated journey. No live target or external
-network is contacted.
+This journey builds a real Windows executable, executes the real Invoke-SasSoftwareInstall.ps1
+operator wrapper, traverses the wrapper's real remote-install script block, and launches the generated
+executable as a child process. A process-local fixture transport adapter replaces only WinRM and the
+approved UNC share. No live target or external network is contacted.
 
-The journey captures before/after filesystem snapshots, an added/changed/removed delta, the operator
-JSONL event stream and summary, fixture installer-owned logs, and a final machine-readable E2E result.
+The generated executable installs a dummy file, package manifest, and installer-owned JSONL log.
+The journey captures before/after snapshots, an added/changed/removed delta, operator logs and summary,
+the executable hash/build manifest, and a final machine-readable E2E result.
 #>
 
 [CmdletBinding()]
@@ -39,31 +40,18 @@ New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 $fixtureTargetRoot = Join-Path $OutputRoot 'fixture-target'
 $fixtureProgramData = Join-Path $fixtureTargetRoot 'ProgramData'
 $operatorOutputRoot = Join-Path $OutputRoot 'operator'
-$fixtureSourceRoot = Join-Path $repoRoot 'Tests/fixtures/software-install'
-$fixtureInstaller = Join-Path $fixtureSourceRoot 'fixture-installer.cmd'
-$fixtureInstallerScript = Join-Path $fixtureSourceRoot 'fixture-installer.ps1'
+$generatedInstallerRoot = Join-Path $OutputRoot 'generated-installer'
+$fixtureSource = Join-Path $repoRoot 'Tests/fixtures/software-install/DummyInstaller.cs'
+$fixtureBuildScript = Join-Path $repoRoot 'scripts/Build-SasSoftwareInstallFixtureExecutable.ps1'
+$fixtureInstaller = Join-Path $generatedInstallerRoot 'sysadminsuite-dummy-installer.exe'
 $operatorScript = Join-Path $repoRoot 'scripts/Invoke-SasSoftwareInstall.ps1'
-$mappedInstaller = '\\nt2kwb972sms01\Software\Fixture\fixture-installer.cmd'
+$mappedInstaller = '\\nt2kwb972sms01\Software\Fixture\sysadminsuite-dummy-installer.exe'
 $packageName = 'SysAdminSuite Fixture Package'
+$packageVersion = '1.0.0'
+$dummyRelativePath = 'InstalledPackages\SysAdminSuiteFixturePackage\dummy-installed.txt'
 $packageMarker = Join-Path $fixtureTargetRoot 'InstalledPackages/SysAdminSuiteFixturePackage/manifest.json'
-$installerOwnedLog = Join-Path $fixtureTargetRoot 'InstallerLogs/sysadminsuite-fixture-package.log'
-
-$global:SasSoftwareInstallE2EMappedInstaller = $mappedInstaller
-$global:SasSoftwareInstallE2EFixtureInstaller = $fixtureInstaller
-$global:SasSoftwareInstallE2EFixtureTargetRoot = $fixtureTargetRoot
-$global:SasSoftwareInstallE2EFixtureProgramData = $fixtureProgramData
-
-foreach ($requiredPath in @($fixtureInstaller, $fixtureInstallerScript, $operatorScript)) {
-    if (-not [IO.File]::Exists($requiredPath)) {
-        throw "Required software-install E2E file is missing: $requiredPath"
-    }
-}
-
-if ([IO.Directory]::Exists($fixtureTargetRoot)) {
-    [IO.Directory]::Delete($fixtureTargetRoot, $true)
-}
-New-Item -ItemType Directory -Path $fixtureProgramData -Force | Out-Null
-New-Item -ItemType Directory -Path $operatorOutputRoot -Force | Out-Null
+$dummyFile = Join-Path $fixtureTargetRoot $dummyRelativePath
+$installerOwnedLog = Join-Path $fixtureTargetRoot 'InstallerLogs/sysadminsuite-fixture-package.jsonl'
 
 $beforePath = Join-Path $OutputRoot 'software_install_before.json'
 $afterPath = Join-Path $OutputRoot 'software_install_after.json'
@@ -80,16 +68,16 @@ function Write-SasSoftwareInstallE2EEvent {
         [Parameter(Mandatory = $false)]
         [hashtable]$Data = @{}
     )
-    $record = [ordered]@{
+
+    [ordered]@{
         timestamp_utc = (Get-Date).ToUniversalTime().ToString('o')
         event = $Name
-        proof_class = 'fixture-software-install-e2e'
+        proof_class = 'fixture-software-install-executable-e2e'
         live_target = $false
         external_network_activity = $false
         target_mutation = $false
         data = $Data
-    }
-    $record | ConvertTo-Json -Depth 10 -Compress |
+    } | ConvertTo-Json -Depth 10 -Compress |
         Add-Content -LiteralPath $eventPath -Encoding UTF8
 }
 
@@ -99,9 +87,11 @@ function Get-SasSoftwareInstallSnapshot {
         [Parameter(Mandatory = $true)]
         [string]$Root
     )
+
     if (-not [IO.Directory]::Exists($Root)) {
         return @()
     }
+
     $rootPrefix = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
     return @(
         Get-ChildItem -LiteralPath $Root -Recurse -Force -File |
@@ -115,6 +105,7 @@ function Get-SasSoftwareInstallSnapshot {
                 if (-not $included) {
                     return
                 }
+
                 [ordered]@{
                     relative_path = $relativePath
                     bytes = $_.Length
@@ -135,6 +126,7 @@ function Get-SasSoftwareInstallDelta {
         [AllowEmptyCollection()]
         [object[]]$After
     )
+
     $beforeByPath = @{}
     foreach ($entry in $Before) {
         $beforeByPath[[string]$entry.relative_path] = $entry
@@ -143,6 +135,7 @@ function Get-SasSoftwareInstallDelta {
     foreach ($entry in $After) {
         $afterByPath[[string]$entry.relative_path] = $entry
     }
+
     $added = @(
         $After |
             Where-Object { -not $beforeByPath.ContainsKey([string]$_.relative_path) } |
@@ -167,7 +160,8 @@ function Get-SasSoftwareInstallDelta {
             }
         }
     )
-    return [ordered]@{
+
+    [ordered]@{
         schema_version = 'sas-software-install-delta/v1'
         added_count = $added.Count
         changed_count = $changed.Count
@@ -178,16 +172,51 @@ function Get-SasSoftwareInstallDelta {
     }
 }
 
+foreach ($requiredPath in @($fixtureSource, $fixtureBuildScript, $operatorScript)) {
+    if (-not [IO.File]::Exists($requiredPath)) {
+        throw "Required software-install E2E file is missing: $requiredPath"
+    }
+}
+foreach ($cleanRoot in @($fixtureTargetRoot, $generatedInstallerRoot, $operatorOutputRoot)) {
+    if ([IO.Directory]::Exists($cleanRoot)) {
+        [IO.Directory]::Delete($cleanRoot, $true)
+    }
+}
+New-Item -ItemType Directory -Path $fixtureProgramData -Force | Out-Null
+New-Item -ItemType Directory -Path $operatorOutputRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $generatedInstallerRoot -Force | Out-Null
+
+$build = & $fixtureBuildScript -SourcePath $fixtureSource -OutputPath $fixtureInstaller
+if (-not [IO.File]::Exists($fixtureInstaller)) {
+    throw "Generated fixture installer is missing: $fixtureInstaller"
+}
+$fixtureInstallerHash = (Get-FileHash -LiteralPath $fixtureInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($build.executable_sha256 -ne $fixtureInstallerHash) {
+    throw 'Generated installer hash does not match the build manifest result.'
+}
+Write-SasSoftwareInstallE2EEvent -Name 'fixture_executable_built' -Data @{
+    executable_path = $fixtureInstaller
+    executable_sha256 = $fixtureInstallerHash
+    executable_bytes = $build.executable_bytes
+    build_manifest_path = $build.build_manifest_path
+    compiler = $build.compiler
+}
+
+$global:SasSoftwareInstallE2EMappedInstaller = $mappedInstaller
+$global:SasSoftwareInstallE2EFixtureInstaller = $fixtureInstaller
+$global:SasSoftwareInstallE2EFixtureTargetRoot = $fixtureTargetRoot
+$global:SasSoftwareInstallE2EFixtureProgramData = $fixtureProgramData
+
 $before = @(Get-SasSoftwareInstallSnapshot -Root $fixtureTargetRoot)
-ConvertTo-Json -InputObject $before -Depth 8 | Set-Content -LiteralPath $beforePath -Encoding UTF8
+ConvertTo-Json -InputObject $before -Depth 8 |
+    Set-Content -LiteralPath $beforePath -Encoding UTF8
 Write-SasSoftwareInstallE2EEvent -Name 'before_snapshot_captured' -Data @{
     file_count = $before.Count
     snapshot_path = $beforePath
 }
 
-# The adapter functions below are process-local. They let the production operator wrapper traverse its
-# real session and remote-install branches while redirecting only the transport and approved UNC lookup
-# to the isolated fixture target. The real installer still runs as a child process.
+# Process-local adapters let the production wrapper traverse its real session and remote-install
+# branches while redirecting only transport and the approved UNC lookup to the fixture target.
 function Test-Path {
     [CmdletBinding(DefaultParameterSetName = 'Path')]
     param(
@@ -201,14 +230,19 @@ function Test-Path {
         [Parameter(Mandatory = $false)]
         [switch]$IsValid
     )
+
     process {
         $values = if ($PSCmdlet.ParameterSetName -eq 'LiteralPath') { $LiteralPath } else { $Path }
         foreach ($value in $values) {
             $normalized = ([string]$value).Replace('/', '\')
-            if ($normalized.Equals($global:SasSoftwareInstallE2EMappedInstaller, [StringComparison]::OrdinalIgnoreCase)) {
+            if ($normalized.Equals(
+                $global:SasSoftwareInstallE2EMappedInstaller,
+                [StringComparison]::OrdinalIgnoreCase
+            )) {
                 [IO.File]::Exists($global:SasSoftwareInstallE2EFixtureInstaller)
                 continue
             }
+
             $delegate = @{}
             if ($IsValid) {
                 $delegate['IsValid'] = $true
@@ -237,6 +271,7 @@ function Start-Process {
         [Parameter(Mandatory = $false)]
         [switch]$PassThru
     )
+
     $resolvedFilePath = if ($FilePath.Replace('/', '\').Equals(
         $global:SasSoftwareInstallE2EMappedInstaller,
         [StringComparison]::OrdinalIgnoreCase
@@ -246,6 +281,7 @@ function Start-Process {
     else {
         $FilePath
     }
+
     $delegate = @{ FilePath = $resolvedFilePath }
     if ($ArgumentList.Count -gt 0) {
         $delegate['ArgumentList'] = $ArgumentList
@@ -289,21 +325,14 @@ function Invoke-Command {
         [scriptblock]$ScriptBlock,
         [object[]]$ArgumentList = @()
     )
+
     $previousProgramData = $env:ProgramData
-    $previousFixtureRoot = $env:SAS_FIXTURE_INSTALL_ROOT
     $env:ProgramData = $global:SasSoftwareInstallE2EFixtureProgramData
-    $env:SAS_FIXTURE_INSTALL_ROOT = $global:SasSoftwareInstallE2EFixtureTargetRoot
     try {
         & $ScriptBlock @ArgumentList
     }
     finally {
         $env:ProgramData = $previousProgramData
-        if ($null -eq $previousFixtureRoot) {
-            Remove-Item Env:SAS_FIXTURE_INSTALL_ROOT -ErrorAction SilentlyContinue
-        }
-        else {
-            $env:SAS_FIXTURE_INSTALL_ROOT = $previousFixtureRoot
-        }
     }
 }
 
@@ -312,9 +341,17 @@ function Remove-PSSession {
     param([object]$Session)
 }
 
+$installerArguments = @(
+    ('--target-root="{0}"' -f $fixtureTargetRoot),
+    ('--package-name="{0}"' -f $packageName),
+    ('--version="{0}"' -f $packageVersion),
+    ('--dummy-relative-path="{0}"' -f $dummyRelativePath),
+    ('--log-path="{0}"' -f $installerOwnedLog)
+)
 Write-SasSoftwareInstallE2EEvent -Name 'operator_install_started' -Data @{
     operator_script = $operatorScript
-    fixture_installer = $fixtureInstaller
+    generated_installer_executable = $fixtureInstaller
+    generated_installer_sha256 = $fixtureInstallerHash
     mapped_installer = $mappedInstaller
     target = 'fixture-target'
 }
@@ -322,9 +359,9 @@ Write-SasSoftwareInstallE2EEvent -Name 'operator_install_started' -Data @{
 $installParameters = @{
     ComputerName = @('fixture-target')
     PackageName = $packageName
-    InstallerRelativePath = 'Software\Fixture\fixture-installer.cmd'
+    InstallerRelativePath = 'Software\Fixture\sysadminsuite-dummy-installer.exe'
     SoftwareShareRoot = '\\nt2kwb972sms01\'
-    InstallerArguments = @()
+    InstallerArguments = $installerArguments
     InstallMode = 'UncDirect'
     OutputRoot = $operatorOutputRoot
     AllowTargetMutation = $true
@@ -342,14 +379,16 @@ Write-SasSoftwareInstallE2EEvent -Name 'operator_install_completed' -Data @{
 }
 
 $after = @(Get-SasSoftwareInstallSnapshot -Root $fixtureTargetRoot)
-ConvertTo-Json -InputObject $after -Depth 8 | Set-Content -LiteralPath $afterPath -Encoding UTF8
+ConvertTo-Json -InputObject $after -Depth 8 |
+    Set-Content -LiteralPath $afterPath -Encoding UTF8
 Write-SasSoftwareInstallE2EEvent -Name 'after_snapshot_captured' -Data @{
     file_count = $after.Count
     snapshot_path = $afterPath
 }
 
 $delta = Get-SasSoftwareInstallDelta -Before $before -After $after
-$delta | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $deltaPath -Encoding UTF8
+$delta | ConvertTo-Json -Depth 10 |
+    Set-Content -LiteralPath $deltaPath -Encoding UTF8
 Write-SasSoftwareInstallE2EEvent -Name 'delta_computed' -Data @{
     delta_path = $deltaPath
     added_count = $delta.added_count
@@ -365,6 +404,17 @@ $operatorEvents = @(
         ForEach-Object { $_ | ConvertFrom-Json }
 )
 $operatorEventNames = @($operatorEvents | ForEach-Object { [string]$_.event })
+$installerEvents = if ([IO.File]::Exists($installerOwnedLog)) {
+    @(
+        Get-Content -LiteralPath $installerOwnedLog |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            ForEach-Object { $_ | ConvertFrom-Json }
+    )
+}
+else {
+    @()
+}
+$installerEventNames = @($installerEvents | ForEach-Object { [string]$_.event })
 $packageState = if ([IO.File]::Exists($packageMarker)) {
     Get-Content -LiteralPath $packageMarker -Raw | ConvertFrom-Json
 }
@@ -373,6 +423,12 @@ else {
 }
 $repoOwnedStageRoot = Join-Path $fixtureProgramData ("SysAdminSuite\SoftwareInstall\{0}" -f $summary.run_id)
 
+$expectedAddedPaths = @(
+    'InstalledPackages/SysAdminSuiteFixturePackage/dummy-installed.txt',
+    'InstalledPackages/SysAdminSuiteFixturePackage/manifest.json',
+    'InstallerLogs/sysadminsuite-fixture-package.jsonl'
+)
+$actualAddedPaths = @($delta.added | ForEach-Object { [string]$_.relative_path } | Sort-Object)
 $failures = [Collections.Generic.List[string]]::new()
 if ($summary.completed_count -ne 1) {
     $failures.Add("expected one completed fixture installation; observed $($summary.completed_count)")
@@ -383,14 +439,23 @@ if ($summary.failed_count -ne 0) {
 if ($summary.cleanup_failure_count -ne 0 -or $summary.repo_artifact_remaining_count -ne 0) {
     $failures.Add('operator summary reported cleanup failure or repo-owned target remnants')
 }
-if (-not $packageState -or $packageState.package_name -ne $packageName -or $packageState.version -ne '1.0.0') {
-    $failures.Add('fixture package manifest is missing or does not report the installed package/version')
+if (-not $packageState -or
+    $packageState.package_name -ne $packageName -or
+    $packageState.version -ne $packageVersion -or
+    $packageState.installer -ne 'sysadminsuite-dummy-installer.exe') {
+    $failures.Add('fixture package manifest is missing or does not report the executable package/version')
 }
-if (-not [IO.File]::Exists($installerOwnedLog)) {
-    $failures.Add('fixture installer-owned log was not created')
+if (-not [IO.File]::Exists($dummyFile)) {
+    $failures.Add('generated executable did not install the required dummy file')
 }
-if ($delta.added_count -lt 2 -or $delta.changed_count -ne 0 -or $delta.removed_count -ne 0) {
-    $failures.Add('before/after delta did not show the expected added package state and installer log')
+if ('dummy_install_completed' -notin $installerEventNames) {
+    $failures.Add('generated executable JSONL log is missing dummy_install_completed')
+}
+if ($delta.added_count -ne 3 -or $delta.changed_count -ne 0 -or $delta.removed_count -ne 0) {
+    $failures.Add('before/after delta did not show exactly three added install artifacts')
+}
+if (@(Compare-Object -ReferenceObject $expectedAddedPaths -DifferenceObject $actualAddedPaths).Count -ne 0) {
+    $failures.Add('added delta paths do not match the executable package manifest, dummy file, and installer log')
 }
 foreach ($requiredEvent in @('run_started', 'target_started', 'target_completed', 'run_completed')) {
     if ($requiredEvent -notin $operatorEventNames) {
@@ -403,30 +468,43 @@ if ([IO.Directory]::Exists($repoOwnedStageRoot)) {
 if (-not [IO.File]::Exists($operatorSummaryPath)) {
     $failures.Add('operator software_install_summary.json is missing')
 }
+if (-not [IO.File]::Exists([string]$build.build_manifest_path)) {
+    $failures.Add('generated executable build manifest is missing')
+}
 
 $status = if ($failures.Count -eq 0) { 'PASS' } else { 'FAIL' }
 $result = [ordered]@{
-    schema_version = 'sas-software-install-e2e/v1'
+    schema_version = 'sas-software-install-e2e/v2'
     status = $status
-    proof_class = 'fixture-software-install-e2e'
+    proof_class = 'fixture-software-install-executable-e2e'
     fixture_transport_adapter = $true
     real_operator_wrapper_executed = $true
-    real_installer_process_executed = ($null -ne $packageState)
+    real_installer_executable_executed = ($null -ne $packageState)
     fixture_mutation_performed = $true
     live_target_e2e = $false
     external_network_activity_performed = $false
     target_mutation_performed = $false
+    executable = [ordered]@{
+        path = $fixtureInstaller
+        sha256 = $fixtureInstallerHash
+        bytes = $build.executable_bytes
+        build_manifest_path = $build.build_manifest_path
+        compiler = $build.compiler
+        committed_binary = $false
+    }
     package = [ordered]@{
         name = $packageName
-        expected_version = '1.0.0'
+        expected_version = $packageVersion
         observed_version = $(if ($packageState) { $packageState.version } else { $null })
         manifest_path = $packageMarker
+        dummy_file_path = $dummyFile
         installer_owned_log_path = $installerOwnedLog
     }
     delta = [ordered]@{
         added_count = $delta.added_count
         changed_count = $delta.changed_count
         removed_count = $delta.removed_count
+        added_paths = $actualAddedPaths
     }
     operator = [ordered]@{
         run_id = $summary.run_id
@@ -444,17 +522,23 @@ $result = [ordered]@{
         events = $eventPath
         result = $resultPath
         matrix = $matrixPath
+        generated_executable = $fixtureInstaller
+        build_manifest = $build.build_manifest_path
     }
     failures = @($failures)
 }
-$result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $resultPath -Encoding UTF8
+$result | ConvertTo-Json -Depth 12 |
+    Set-Content -LiteralPath $resultPath -Encoding UTF8
 
 $matrix = @(
-    'SYSADMINSUITE SOFTWARE INSTALL E2E',
+    'SYSADMINSUITE SOFTWARE INSTALL EXECUTABLE E2E',
     "Status: $status",
-    'Proof class: fixture-software-install-e2e',
+    'Proof class: fixture-software-install-executable-e2e',
+    "Generated executable: $fixtureInstaller",
+    "Executable SHA-256: $fixtureInstallerHash",
     "Package: $packageName",
     "Observed version: $($result.package.observed_version)",
+    "Dummy file: $dummyFile",
     "Delta: $($delta.added_count) added / $($delta.changed_count) changed / $($delta.removed_count) removed",
     "Operator run: $($summary.run_id)",
     "Operator events: $($summary.event_path)",
@@ -472,6 +556,8 @@ Write-SasSoftwareInstallE2EEvent -Name 'validation_completed' -Data @{
     status = $status
     result_path = $resultPath
     failure_count = $failures.Count
+    generated_installer_sha256 = $fixtureInstallerHash
+    dummy_file_path = $dummyFile
 }
 
 $matrix | ForEach-Object { Write-Host $_ }
