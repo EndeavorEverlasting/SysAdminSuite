@@ -8,13 +8,14 @@
     "schema_version",
     "schema_path",
     "workspace",
+    "platform_support",
     "terminal",
     "agent_switchboard",
     "posture"
   ],
   "properties": {
     "schema_version": {
-      "const": "sas-developer-workstation-profile/v1"
+      "const": "sas-developer-workstation-profile/v2"
     },
     "schema_path": {
       "const": "schemas/harness/developer-workstation-profile.schema.json"
@@ -22,7 +23,10 @@
     "workspace": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "repo_path"],
+      "required": [
+        "name",
+        "repo_path"
+      ],
       "properties": {
         "name": {
           "type": "string",
@@ -34,10 +38,44 @@
         }
       }
     },
+    "platform_support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supported",
+        "unsupported",
+        "runtime_test_available"
+      ],
+      "properties": {
+        "supported": {
+          "const": [
+            "windows",
+            "linux"
+          ]
+        },
+        "unsupported": {
+          "const": [
+            "macos"
+          ]
+        },
+        "runtime_test_available": {
+          "const": {
+            "windows": true,
+            "linux": true,
+            "macos": false
+          }
+        }
+      }
+    },
     "terminal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "preference", "default_profile", "execution_profiles"],
+      "required": [
+        "provider",
+        "preference",
+        "default_profiles",
+        "execution_profiles"
+      ],
       "properties": {
         "provider": {
           "const": "wezterm"
@@ -45,12 +83,26 @@
         "preference": {
           "const": "required"
         },
-        "default_profile": {
-          "$ref": "#/$defs/id"
+        "default_profiles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "windows",
+            "linux"
+          ],
+          "properties": {
+            "windows": {
+              "const": "windows-native"
+            },
+            "linux": {
+              "const": "linux-native"
+            }
+          }
         },
         "execution_profiles": {
           "type": "array",
-          "minItems": 1,
+          "minItems": 2,
+          "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/executionProfile"
           }
@@ -60,7 +112,12 @@
     "agent_switchboard": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "profile", "required_agents", "invocation_mode"],
+      "required": [
+        "repository",
+        "profile",
+        "required_agents",
+        "invocation_mode"
+      ],
       "properties": {
         "repository": {
           "const": "EndeavorEverlasting/AgentSwitchboard"
@@ -125,10 +182,30 @@
     "executionProfile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "priority", "enabled", "shell", "multiplexer"],
+      "required": [
+        "id",
+        "platform",
+        "environment",
+        "priority",
+        "enabled",
+        "shell",
+        "multiplexer"
+      ],
       "properties": {
         "id": {
           "$ref": "#/$defs/id"
+        },
+        "platform": {
+          "enum": [
+            "windows",
+            "linux"
+          ]
+        },
+        "environment": {
+          "enum": [
+            "native",
+            "wsl"
+          ]
         },
         "priority": {
           "type": "integer",
@@ -139,10 +216,19 @@
           "type": "boolean"
         },
         "shell": {
-          "enum": ["pwsh", "powershell", "cmd", "wsl"]
+          "enum": [
+            "pwsh",
+            "powershell",
+            "cmd",
+            "bash",
+            "zsh"
+          ]
         },
         "multiplexer": {
-          "enum": ["none", "tmux"]
+          "enum": [
+            "none",
+            "tmux"
+          ]
         },
         "distribution": {
           "type": "string",
@@ -154,34 +240,80 @@
         {
           "if": {
             "properties": {
-              "shell": {
+              "environment": {
                 "const": "wsl"
               }
             },
-            "required": ["shell"]
+            "required": [
+              "environment"
+            ]
           },
           "then": {
-            "required": ["distribution"]
+            "required": [
+              "distribution"
+            ],
+            "properties": {
+              "platform": {
+                "const": "windows"
+              }
+            }
           },
           "else": {
             "not": {
-              "required": ["distribution"]
+              "required": [
+                "distribution"
+              ]
             }
           }
         },
         {
           "if": {
             "properties": {
-              "multiplexer": {
-                "const": "tmux"
+              "platform": {
+                "const": "linux"
               }
             },
-            "required": ["multiplexer"]
+            "required": [
+              "platform"
+            ]
+          },
+          "then": {
+            "properties": {
+              "environment": {
+                "const": "native"
+              },
+              "shell": {
+                "enum": [
+                  "bash",
+                  "zsh"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "platform": {
+                "const": "windows"
+              },
+              "environment": {
+                "const": "native"
+              }
+            },
+            "required": [
+              "platform",
+              "environment"
+            ]
           },
           "then": {
             "properties": {
               "shell": {
-                "const": "wsl"
+                "enum": [
+                  "pwsh",
+                  "powershell",
+                  "cmd"
+                ]
               }
             }
           }
