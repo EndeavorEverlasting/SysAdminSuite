@@ -38,8 +38,11 @@ $requiredFiles = @(
   'Tests/survey/test_agent_capability_manifest_contracts.py',
   'harness/api/agent-capability-manifest.json',
   'schemas/harness/agent-capability-manifest.schema.json',
-  'harness/api/sas-harness-api.json',
-  'tools/validate-ai-layer.ps1'
+    'harness/api/sas-harness-api.json',
+    'tools/validate-ai-layer.ps1',
+    'schemas/harness/host-eligibility-policy.schema.json',
+    'scripts/Test-SasHostEligibility.ps1',
+    'Tests/survey/test_host_eligibility_policy_contracts.py'
 ) + $skillFiles + $capabilityFiles
 
 $workflowFiles = @(

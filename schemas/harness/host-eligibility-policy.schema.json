@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/host-eligibility-policy.schema.json",
+  "title": "SysAdminSuite Host Eligibility Policy",
+  "description": "Fail-closed policy defining which hosts are eligible for package access or execution across fixture, VM, local, remote, and physical-Cybernet contexts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_version",
+    "execution_contexts",
+    "authorization",
+    "fallback_behavior"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-host-eligibility-policy/v1"
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "execution_contexts": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "fixture": {
+          "$ref": "#/$defs/context_rule"
+        },
+        "vm": {
+          "$ref": "#/$defs/context_rule"
+        },
+        "local": {
+          "$ref": "#/$defs/context_rule"
+        },
+        "remote": {
+          "$ref": "#/$defs/context_rule"
+        },
+        "cybernet_physical": {
+          "$ref": "#/$defs/context_rule"
+        }
+      }
+    },
+    "authorization": {
+      "$ref": "#/$defs/authorization_spec"
+    },
+    "fallback_behavior": {
+      "type": "string",
+      "enum": ["fail_closed"],
+      "default": "fail_closed"
+    }
+  },
+  "$defs": {
+    "hostname_pattern": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$" },
+          { "pattern": "^:" }
+        ]
+      },
+      "description": "Sanitized hostname pattern. No raw IPs or live hostnames."
+    },
+    "context_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "hostname_patterns",
+        "require_authorization"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "hostname_patterns": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/hostname_pattern"
+          }
+        },
+        "require_authorization": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "authorization_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "require_ticket_reference",
+        "require_change_reference",
+        "allowed_authorizers"
+      ],
+      "properties": {
+        "require_ticket_reference": {
+          "type": "boolean"
+        },
+        "require_change_reference": {
+          "type": "boolean"
+        },
+        "allowed_authorizers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        }
+      }
+    }
+  }
+}

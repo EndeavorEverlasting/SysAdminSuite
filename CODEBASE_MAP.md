@@ -14,6 +14,16 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_agent_instruction_factoring_contracts.py` — dependency-free factoring and anti-bloat contract.
 - `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
 
+## Host eligibility gate
+
+- `schemas/harness/host-eligibility-policy.schema.json` — fail-closed host eligibility policy schema (sas-host-eligibility-policy/v1).
+- `Config/host-eligibility-policy.sample.json` — sanitized sample policy with fixture, VM, local, remote, and Cybernet-physical contexts.
+- `Config/host-eligibility-policy.local.json` — operator-local policy (gitignored, never committed).
+- `scripts/Test-SasHostEligibility.ps1` — executable eligibility gate: validates hostname match and request authorization.
+- `Tests/Pester/HostEligibility.Tests.ps1` — Pester unit proof for all gate paths (fail-closed, authorization, context).
+- `Tests/survey/test_host_eligibility_policy_contracts.py` — dependency-free contract tests for schema and fixtures.
+- `Tests/fixtures/host-eligibility/` — sanitized valid, malformed, missing, and rejection fixtures.
+
 ## End-to-end validation
 
 - `docs/END_TO_END_TESTING_POSTURE.md` — default merge/release proof posture and E2E safety classes.

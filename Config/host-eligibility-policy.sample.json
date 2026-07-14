@@ -1,0 +1,56 @@
+{
+  "schema_version": "sas-host-eligibility-policy/v1",
+  "policy_version": "1.0.0",
+  "execution_contexts": {
+    "fixture": {
+      "enabled": true,
+      "hostname_patterns": [
+        "FIXTURE-DEV-*.example.com",
+        "SANDBOX-*.example.com"
+      ],
+      "require_authorization": false,
+      "description": "Synthetic fixture targets for E2E testing. No real hostnames."
+    },
+    "vm": {
+      "enabled": true,
+      "hostname_patterns": [
+        "VM-TEST-*.example.com",
+        "VM-SCAN-*.example.com"
+      ],
+      "require_authorization": false,
+      "description": "Isolated VM targets for integration and scan testing."
+    },
+    "local": {
+      "enabled": false,
+      "hostname_patterns": [],
+      "require_authorization": true,
+      "description": "Local admin box. Disabled by default. Enable only for on-box fixture runs."
+    },
+    "remote": {
+      "enabled": true,
+      "hostname_patterns": [
+        "REMOTE-AUTOPILOT-*.example.com"
+      ],
+      "require_authorization": true,
+      "description": "Remote production-adjacent targets. Always require authorization."
+    },
+    "cybernet_physical": {
+      "enabled": true,
+      "hostname_patterns": [
+        "CYB-PHYS-*.example.com",
+        "CYB-REPAIR-*.example.com"
+      ],
+      "require_authorization": true,
+      "description": "Physical Cybernet hardware targets. Require ticket and change reference."
+    }
+  },
+  "authorization": {
+    "require_ticket_reference": true,
+    "require_change_reference": true,
+    "allowed_authorizers": [
+      "sas-admin@example.com",
+      "sas-deploy@example.com"
+    ]
+  },
+  "fallback_behavior": "fail_closed"
+}
