@@ -84,6 +84,7 @@ $global:SasValidatedE2EProgramData = $programData
 $global:SasValidatedE2ELastStageRoot = $null
 $global:SasValidatedE2EInjectedTransient = $null
 $global:SasValidatedE2ESessionCloseCount = 0
+$global:SasValidatedE2EStagedCopyVerified = $false
 
 function Test-Path {
     [CmdletBinding(DefaultParameterSetName = 'Path')]
@@ -140,7 +141,19 @@ function Copy-Item {
 function Start-Process {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$FilePath, [object[]]$ArgumentList = @(), [switch]$PassThru)
-    $delegate = @{ FilePath = $FilePath }
+    $executionPath = $FilePath
+    if ($global:SasValidatedE2ELastStageRoot -and
+        [IO.Path]::GetFullPath($FilePath).StartsWith([IO.Path]::GetFullPath($global:SasValidatedE2ELastStageRoot) + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        if (-not (Microsoft.PowerShell.Management\Test-Path -LiteralPath $FilePath -PathType Leaf)) { throw "Staged fixture installer is missing: $FilePath" }
+        $stagedHash = (Microsoft.PowerShell.Utility\Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $sourceHash = (Microsoft.PowerShell.Utility\Get-FileHash -LiteralPath $global:SasValidatedE2EFixtureInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($stagedHash -ne $sourceHash) { throw 'Staged fixture installer hash does not match the generated source executable.' }
+        $global:SasValidatedE2EStagedCopyVerified = $true
+        # Hosted Windows runners may refuse process creation from the simulated ProgramData tree.
+        # The fixture adapter executes the identical hash-verified source binary after proving the staged copy.
+        $executionPath = $global:SasValidatedE2EFixtureInstaller
+    }
+    $delegate = @{ FilePath = $executionPath }
     if ($ArgumentList.Count -gt 0) { $delegate.ArgumentList = $ArgumentList }
     if ($PassThru) { $delegate.PassThru = $true }
     Microsoft.PowerShell.Management\Start-Process @delegate
@@ -185,6 +198,7 @@ if (-not $deployment.deployment_complete -or $deployment.classification -ne 'DEP
 if (-not $deployment.installer_hash_verified) { $failures += 'installer SHA-256 was not verified' }
 if ($summary.deployment_complete -ne $true -or $summary.completed_validated_finalized_count -ne 1) { $failures += 'install summary did not persist finalization completion' }
 if ($finalization.completed_validated_finalized_count -ne 1 -or $finalization.teardown_failure_count -ne 0) { $failures += 'finalization artifact did not report one clean target' }
+if (-not $global:SasValidatedE2EStagedCopyVerified) { $failures += 'fixture did not verify the CopyThenInstall staged executable hash' }
 if (-not $global:SasValidatedE2EInjectedTransient) { $failures += 'fixture did not inject a post-install run-owned transient' }
 if (Test-Path -LiteralPath $stageRoot) { $failures += "run-scoped SysAdminSuite staging remains: $stageRoot" }
 if (Test-Path -LiteralPath $global:SasValidatedE2EInjectedTransient) { $failures += 'post-install transient survived finalization' }
@@ -197,6 +211,8 @@ $result = [ordered]@{
     status = $status
     proof_class = 'fixture-install-validate-finalize-preserve-e2e'
     fixture_transport_adapter = $true
+    fixture_staged_execution_adapter = $true
+    staged_copy_sha256_verified = [bool]$global:SasValidatedE2EStagedCopyVerified
     real_installer_executable_executed = $true
     real_production_installer_wrapper_executed = $true
     real_validated_deployment_orchestrator_executed = $true
@@ -217,6 +233,7 @@ $matrix = @(
     "Status: $status",
     "Classification: $($deployment.classification)",
     "Installer SHA-256 verified: $($deployment.installer_hash_verified)",
+    "Staged copy SHA-256 verified: $($result.staged_copy_sha256_verified)",
     "Requested software preserved: $($result.requested_software_preserved)",
     "Repo-owned target remnants: $($result.repo_owned_target_remnants)",
     "Finalization: $finalizationPath",
