@@ -1,57 +1,6 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
-function Get-SasDeltaRowValue {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]$Row,
-        [Parameter(Mandatory = $true)][string[]]$Names
-    )
-
-    foreach ($name in $Names) {
-        $property = $Row.PSObject.Properties | Where-Object { $_.Name -ieq $name } | Select-Object -First 1
-        if ($null -ne $property -and -not [string]::IsNullOrWhiteSpace([string]$property.Value)) {
-            return ([string]$property.Value).Trim()
-        }
-    }
-    return ''
-}
-
-function ConvertTo-SasDeltaBoolean {
-    [CmdletBinding()]
-    param($Value)
-
-    if ($Value -is [bool]) { return $Value }
-    if ($null -eq $Value) { return $false }
-    return ([string]$Value).Trim() -match '^(1|true|yes|y|confirmed)$'
-}
-
-function ConvertTo-SasDeltaTimestamp {
-    [CmdletBinding()]
-    param([string]$Value)
-
-    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
-    $parsed = [datetimeoffset]::MinValue
-    if ([datetimeoffset]::TryParse($Value, [ref]$parsed)) { return $parsed }
-    return $null
-}
-
-function ConvertTo-SasNormalizedSerial {
-    [CmdletBinding()]
-    param([string]$Value)
-
-    if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
-    return (($Value.Trim().ToUpperInvariant()) -replace '[^A-Z0-9]', '')
-}
-
-function ConvertTo-SasNormalizedTarget {
-    [CmdletBinding()]
-    param([string]$Value)
-
-    if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
-    return $Value.Trim().TrimEnd('.').ToLowerInvariant()
-}
-
 function Test-SasDeltaProbeReadyTarget {
     [CmdletBinding()]
     param([string]$Value)
@@ -60,8 +9,7 @@ function Test-SasDeltaProbeReadyTarget {
     $candidate = $Value.Trim()
     $parsedIp = $null
     if ([System.Net.IPAddress]::TryParse($candidate, [ref]$parsedIp)) { return $true }
-    if ($candidate -match '^[A-Za-z0-9][A-Za-z0-9._-]{1,252}$') { return $true }
-    return $false
+    return $candidate -match '^[A-Za-z0-9][A-Za-z0-9._-]{1,252}$'
 }
 
 function Get-SasDeltaTimeBucket {
@@ -98,156 +46,85 @@ function Get-SasDeltaTierRank {
     return 99
 }
 
-function Get-SasDeltaEvidenceTier {
+function ConvertFrom-SasRequestedArtifactPackage {
     [CmdletBinding()]
-    param($Row)
+    param([Parameter(Mandatory = $true)]$Package)
 
-    $explicit = (Get-SasDeltaRowValue -Row $Row -Names @('EvidenceStrengthTier', 'EvidenceTier', 'Tier')).ToUpperInvariant()
-    if ($explicit) { return $explicit }
-
-    $evidenceType = (Get-SasDeltaRowValue -Row $Row -Names @('EvidenceType', 'EvidenceKind', 'SourceType', 'Classification')).ToLowerInvariant()
-    $identity = ConvertTo-SasDeltaBoolean (Get-SasDeltaRowValue -Row $Row -Names @('SerialIdentityConfirmed', 'IdentityConfirmed', 'IdentityMatch'))
-    $serial = Get-SasDeltaRowValue -Row $Row -Names @('Serial', 'SerialNumber', 'ExpectedSerial', 'DeviceSerial', 'TargetSerial', 'ComputerSerial', 'AssetSerial', 'SN')
-    $mac = Get-SasDeltaRowValue -Row $Row -Names @('MacAddress', 'MAC', 'PhysicalAddress')
-    $ip = Get-SasDeltaRowValue -Row $Row -Names @('IPAddress', 'IP', 'IPv4', 'ResolvedAddress')
-    $ping = (Get-SasDeltaRowValue -Row $Row -Names @('PingStatus', 'ReachabilityStatus', 'Reachability', 'Status', 'Outcome')).ToLowerInvariant()
-    $port = (Get-SasDeltaRowValue -Row $Row -Names @('PortStatus', 'ServiceStatus')).ToLowerInvariant()
-    $adStatus = (Get-SasDeltaRowValue -Row $Row -Names @('ADCandidateStatus', 'ADStatus', 'DirectoryStatus')).ToLowerInvariant()
-
-    if ($identity -or $evidenceType -match 'identity|wmi|cim|sccm|mdm|vendor') { return 'IDENTITY_CONFIRMED' }
-    if ($serial -and $mac -and $ip) { return 'PROBABLE_DEVICE_LOCATION' }
-    if ($evidenceType -match 'tracker|workbook|population|manifest') { return 'POPULATION_ONLY' }
-    if ($adStatus -match 'exact|registered' -or $evidenceType -match 'ad_exact|registered_ad') { return 'REGISTERED_AD_TARGET' }
-    if ($adStatus -match 'candidate|variant' -or $evidenceType -match 'ad_variant|candidate') { return 'AD_VARIANT_REVIEW' }
-    if ($evidenceType -match 'dns|subnet' -or $ip) { return 'DNS_OR_SUBNET_ONLY' }
-    if ($ping -match 'reachable|success|online|up') { return 'REACHABILITY_ONLY' }
-    if ($port -match 'open') { return 'PACKET_SERVICE_ONLY' }
-    if ($ping -match 'noping|silent|unreachable|offline|failed|timeout|down') { return 'NEGATIVE_OR_SILENT' }
-    if ($evidenceType -match 'fixture|test') { return 'TEST_ONLY' }
-    return 'NONE'
-}
-
-function ConvertTo-SasRequestedRows {
-    [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    $extension = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
-    $rawRows = @()
-    if ($extension -eq '.csv') {
-        $rawRows = @(Import-Csv -LiteralPath $Path)
-    } elseif ($extension -eq '.txt') {
-        $rawRows = @(Get-Content -LiteralPath $Path -Encoding UTF8 | ForEach-Object {
-            $value = ([string]$_).Trim()
-            if ($value -and -not $value.StartsWith('#')) { [pscustomobject]@{ Target = $value } }
-        })
-    } else {
-        throw "Unsupported requested input extension '$extension'. Use .csv or .txt."
+    if ($Package.artifact_role -ne 'requested_population') {
+        throw "Expected requested_population package; found '$($Package.artifact_role)'."
     }
-
     $results = New-Object System.Collections.Generic.List[object]
-    $rowId = 0
-    foreach ($row in $rawRows) {
-        if ($null -eq $row) { continue }
-        $rowId++
-        $serial = Get-SasDeltaRowValue -Row $row -Names @('Serial', 'ExpectedSerial', 'Cybernet Serial', 'Cybernet S/N', 'Neuron Serial', 'Neuron S/N', 'SerialNumber', 'DeviceSerial', 'TargetSerial', 'ComputerSerial', 'AssetSerial', 'SN')
-        $host = Get-SasDeltaRowValue -Row $row -Names @('HostName', 'Hostname', 'ComputerName', 'ExpectedHostname', 'DeviceName', 'DnsName', 'DNSName', 'FQDN', 'IPAddress', 'IP', 'IPv4')
-        if (-not $host) {
-            $target = Get-SasDeltaRowValue -Row $row -Names @('Target')
-            if ($target -and (Test-SasDeltaProbeReadyTarget -Value $target)) { $host = $target }
+    foreach ($row in @($Package.rows)) {
+        $candidates = New-Object System.Collections.Generic.List[string]
+        foreach ($candidate in @($row.candidate_targets)) {
+            $clean = ([string]$candidate).Trim()
+            if ($clean -and -not $candidates.Contains($clean)) { $candidates.Add($clean) }
         }
-        if (-not $host) {
-            $identifier = Get-SasDeltaRowValue -Row $row -Names @('Identifier')
-            $identifierType = Get-SasDeltaRowValue -Row $row -Names @('IdentifierType', 'TargetType', 'Type', 'ValueType')
-            if ($identifier -and $identifierType -match '^(HostName|Hostname|Host|ComputerName|DnsName|DNSName|FQDN|IPv4|IPv6|IPAddress|IP)$') { $host = $identifier }
-        }
-        $candidateText = Get-SasDeltaRowValue -Row $row -Names @('CandidateHostnames', 'CandidateHosts', 'HostCandidates')
-        $candidates = @()
-        if ($candidateText) { $candidates = @($candidateText -split '[,;|]' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
-        if ($host) { $candidates = @($host) + $candidates }
-        $candidates = @($candidates | Sort-Object -Unique)
-
+        if ($row.target -and -not $candidates.Contains([string]$row.target)) { $candidates.Insert(0, [string]$row.target) }
         $results.Add([pscustomobject]@{
-            InputRowId = $rowId
-            Serial = $serial
-            NormalizedSerial = ConvertTo-SasNormalizedSerial $serial
-            RequestedHostname = $host
-            NormalizedRequestedTarget = ConvertTo-SasNormalizedTarget $host
-            CandidateHostnames = $candidates
-            DeviceType = Get-SasDeltaRowValue -Row $row -Names @('DeviceType', 'Type')
-            Site = Get-SasDeltaRowValue -Row $row -Names @('Site', 'Location')
-            ExpectedPrefix = Get-SasDeltaRowValue -Row $row -Names @('ExpectedPrefix', 'SitePrefix', 'HostnamePrefix')
-            Source = Get-SasDeltaRowValue -Row $row -Names @('Source', 'InputSource')
+            InputRowId = [string]$row.row_id
+            Serial = [string]$row.serial
+            NormalizedSerial = [string]$row.normalized_serial
+            RequestedHostname = [string]$row.target
+            NormalizedRequestedTarget = [string]$row.normalized_target
+            CandidateHostnames = @($candidates)
+            DeviceType = [string]$row.device_type
+            Site = [string]$row.site
+            ExpectedPrefix = [string]$row.expected_prefix
+            Source = [string]$Package.source_path
+            SourceAdapter = [string]$Package.adapter_id
         })
     }
     return @($results)
 }
 
-function ConvertTo-SasEvidenceSnapshots {
+function ConvertFrom-SasEvidenceArtifactPackages {
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string[]]$Paths)
+    param([Parameter(Mandatory = $true)][object[]]$Packages)
 
-    $snapshots = New-Object System.Collections.Generic.List[object]
-    foreach ($path in $Paths) {
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
-        $extension = [System.IO.Path]::GetExtension($path).ToLowerInvariant()
-        if ($extension -ne '.csv') { continue }
-        $rows = @(Import-Csv -LiteralPath $path)
-        if ($rows.Count -eq 0) { continue }
-
-        $groups = @{}
-        foreach ($row in $rows) {
-            $target = Get-SasDeltaRowValue -Row $row -Names @('HostName', 'Hostname', 'ComputerName', 'ExpectedHostname', 'DeviceName', 'DnsName', 'DNSName', 'FQDN', 'Target', 'IPAddress', 'IP', 'IPv4', 'ResolvedAddress')
-            $serial = Get-SasDeltaRowValue -Row $row -Names @('Serial', 'SerialNumber', 'ExpectedSerial', 'DeviceSerial', 'TargetSerial', 'ComputerSerial', 'AssetSerial', 'SN')
-            $normalizedTarget = ConvertTo-SasNormalizedTarget $target
-            $normalizedSerial = ConvertTo-SasNormalizedSerial $serial
-            $key = "$normalizedTarget|$normalizedSerial"
+    $groups = @{}
+    foreach ($package in @($Packages)) {
+        if ($package.artifact_role -ne 'evidence_snapshot') {
+            throw "Expected evidence_snapshot package; found '$($package.artifact_role)'."
+        }
+        foreach ($row in @($package.rows)) {
+            $observedKey = if ($row.observed_at) { [string]$row.observed_at } else { 'undated' }
+            $key = '{0}|{1}|{2}|{3}' -f $row.source_file, $row.normalized_target, $row.normalized_serial, $observedKey
             if (-not $groups.ContainsKey($key)) { $groups[$key] = New-Object System.Collections.Generic.List[object] }
             $groups[$key].Add($row)
         }
+    }
 
-        foreach ($key in $groups.Keys) {
-            $groupRows = @($groups[$key])
-            $first = $groupRows[0]
-            $target = Get-SasDeltaRowValue -Row $first -Names @('HostName', 'Hostname', 'ComputerName', 'ExpectedHostname', 'DeviceName', 'DnsName', 'DNSName', 'FQDN', 'Target', 'IPAddress', 'IP', 'IPv4', 'ResolvedAddress')
-            $serial = Get-SasDeltaRowValue -Row $first -Names @('Serial', 'SerialNumber', 'ExpectedSerial', 'DeviceSerial', 'TargetSerial', 'ComputerSerial', 'AssetSerial', 'SN')
-            $timestamps = @($groupRows | ForEach-Object {
-                ConvertTo-SasDeltaTimestamp (Get-SasDeltaRowValue -Row $_ -Names @('Timestamp', 'GeneratedAt', 'generated_at', 'probed_at', 'ProbedAt', 'ObservedAt', 'AttemptFinishedAt'))
-            } | Where-Object { $null -ne $_ } | Sort-Object -Descending)
-            $timestamp = if ($timestamps.Count -gt 0) { $timestamps[0] } else { $null }
-            $tiers = @($groupRows | ForEach-Object { Get-SasDeltaEvidenceTier $_ })
-            $tier = @($tiers | Sort-Object { Get-SasDeltaTierRank $_ })[0]
-            $identityConfirmed = $false
-            foreach ($row in $groupRows) {
-                if ((Get-SasDeltaEvidenceTier $row) -eq 'IDENTITY_CONFIRMED' -and (ConvertTo-SasNormalizedSerial $serial)) { $identityConfirmed = $true }
-                if (ConvertTo-SasDeltaBoolean (Get-SasDeltaRowValue -Row $row -Names @('SerialIdentityConfirmed', 'IdentityConfirmed', 'IdentityMatch'))) { $identityConfirmed = $true }
-            }
-            $pingValues = @($groupRows | ForEach-Object { (Get-SasDeltaRowValue -Row $_ -Names @('PingStatus', 'ReachabilityStatus', 'Reachability', 'Status', 'Outcome')).ToLowerInvariant() })
-            $portRows = @($groupRows | Where-Object { (Get-SasDeltaRowValue -Row $_ -Names @('PortStatus', 'ServiceStatus')).ToLowerInvariant() -eq 'open' })
-            $openPorts = @($portRows | ForEach-Object { Get-SasDeltaRowValue -Row $_ -Names @('Port') } | Where-Object { $_ } | Sort-Object {[int]$_} -Unique)
-            $reachability = 'unknown'
-            if ($pingValues -match 'reachable|success|online|up') { $reachability = 'reachable' }
-            elseif ($pingValues -match 'noping|silent|unreachable|offline|failed|timeout|down') { $reachability = 'silent' }
-            elseif ($openPorts.Count -gt 0) { $reachability = 'reachable' }
-            $resolvedAddress = Get-SasDeltaRowValue -Row $first -Names @('ResolvedAddress', 'IPAddress', 'IP', 'IPv4')
-            $adStatus = Get-SasDeltaRowValue -Row $first -Names @('ADCandidateStatus', 'ADStatus', 'DirectoryStatus')
-            $trackerStatus = Get-SasDeltaRowValue -Row $first -Names @('TrackerStatus', 'DeploymentStatus', 'BuildStatus')
-
-            $snapshots.Add([pscustomobject]@{
-                SourceFile = [System.IO.Path]::GetFullPath($path)
-                Target = $target
-                NormalizedTarget = ConvertTo-SasNormalizedTarget $target
-                Serial = $serial
-                NormalizedSerial = ConvertTo-SasNormalizedSerial $serial
-                Timestamp = $timestamp
-                EvidenceStrengthTier = $tier
-                SerialIdentityConfirmed = $identityConfirmed
-                ReachabilityStatus = $reachability
-                OpenPorts = $openPorts
-                ResolvedAddress = $resolvedAddress
-                ADCandidateStatus = $adStatus
-                TrackerStatus = $trackerStatus
-            })
-        }
+    $snapshots = New-Object System.Collections.Generic.List[object]
+    foreach ($key in $groups.Keys) {
+        $rows = @($groups[$key])
+        $first = $rows[0]
+        $tiers = @($rows | ForEach-Object { [string]$_.evidence_strength_tier } | Sort-Object { Get-SasDeltaTierRank $_ })
+        $identityConfirmed = @($rows | Where-Object { $_.serial_identity_confirmed }).Count -gt 0
+        $reachabilityValues = @($rows | ForEach-Object { [string]$_.reachability_status })
+        $reachability = 'unknown'
+        if ($reachabilityValues -contains 'reachable') { $reachability = 'reachable' }
+        elseif ($reachabilityValues -contains 'silent') { $reachability = 'silent' }
+        $openPorts = @($rows | ForEach-Object { @($_.open_ports) } | ForEach-Object { [int]$_ } | Sort-Object -Unique)
+        $timestamp = ConvertTo-SasSurveyTimestamp -Value $first.observed_at
+        $snapshots.Add([pscustomobject]@{
+            SourceFile = [string]$first.source_file
+            SourceAdapter = [string]$first.source_adapter
+            Target = [string]$first.target
+            NormalizedTarget = [string]$first.normalized_target
+            Serial = [string]$first.serial
+            NormalizedSerial = [string]$first.normalized_serial
+            Timestamp = $timestamp
+            EvidenceStrengthTier = if ($tiers.Count -gt 0) { $tiers[0] } else { 'NONE' }
+            SerialIdentityConfirmed = $identityConfirmed
+            ReachabilityStatus = $reachability
+            OpenPorts = $openPorts
+            ResolvedAddress = [string]$first.resolved_address
+            MacAddress = [string]$first.mac_address
+            ADCandidateStatus = [string]$first.ad_candidate_status
+            TrackerStatus = [string]$first.tracker_status
+            EvidenceType = [string]$first.evidence_type
+        })
     }
     return @($snapshots)
 }
@@ -280,4 +157,4 @@ function Get-SasObservationDelta {
     return [pscustomobject]@{ Previous = $previous; Latest = $latest; Delta = $delta }
 }
 
-Export-ModuleMember -Function Get-SasDeltaRowValue, ConvertTo-SasDeltaBoolean, ConvertTo-SasDeltaTimestamp, ConvertTo-SasNormalizedSerial, ConvertTo-SasNormalizedTarget, Test-SasDeltaProbeReadyTarget, Get-SasDeltaTimeBucket, Get-SasDeltaTierRank, Get-SasDeltaEvidenceTier, ConvertTo-SasRequestedRows, ConvertTo-SasEvidenceSnapshots, Get-SasObservationDelta
+Export-ModuleMember -Function Test-SasDeltaProbeReadyTarget, Get-SasDeltaTimeBucket, Get-SasDeltaTierRank, ConvertFrom-SasRequestedArtifactPackage, ConvertFrom-SasEvidenceArtifactPackages, Get-SasObservationDelta
