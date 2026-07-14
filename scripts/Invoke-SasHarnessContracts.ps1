@@ -267,7 +267,8 @@ Assert-SasNotContains -Path 'Run-ExportHarnessEvidence.cmd' -Fragment 'bash '
 if ($failures.Count -eq 0) { Add-SasPass 'root command wrappers are PowerShell-native' }
 
 Assert-SasContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment 'function Format-SasInlineCode'
-Assert-SasContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment '${name}:'
+Assert-SasContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment 'function Convert-SasIdentifierToWords'
+Assert-SasContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment 'function Format-SasObjectSentence'
 Assert-SasNotContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment '"`$path`"'
 Assert-SasNotMatch -Path 'scripts/Render-SasEnglishReport.ps1' -Pattern 'Test-NetConnection|Resolve-DnsName|naabu|nmap|socket|packet|ping|nslookup|curl' -Label 'blocked network command text'
 if ($failures.Count -eq 0) { Add-SasPass 'renderer static contract passed' }

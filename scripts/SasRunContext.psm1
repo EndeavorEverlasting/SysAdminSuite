@@ -321,7 +321,7 @@ function Register-SasArtifact {
         [Parameter(Mandatory = $true)][string]$Path,
         [bool]$Tracked = $false,
         [bool]$LiveData = $false,
-        [bool]$Generated = $true,
+        [bool]$Generated = $false,
         [Parameter(Mandatory = $true)][string]$Description,
         [string]$SourceArtifact = '',
         [string]$NetworkActivity = 'No network activity performed.',

@@ -11,7 +11,8 @@ pass() { echo "[PASS] $*"; }
 pass "renderer exists"
 
 grep -q "function Format-SasInlineCode" scripts/Render-SasEnglishReport.ps1 || fail "renderer missing inline-code formatter"
-grep -q "\${name}:" scripts/Render-SasEnglishReport.ps1 || fail "renderer does not delimit dynamic result names before colon"
+grep -q "function Convert-SasIdentifierToWords" scripts/Render-SasEnglishReport.ps1 || fail "renderer missing generic identifier-to-English formatter"
+grep -q "function Format-SasObjectSentence" scripts/Render-SasEnglishReport.ps1 || fail "renderer missing generic object sentence formatter"
 if grep -q '"`\$path`"' scripts/Render-SasEnglishReport.ps1; then
   fail "renderer contains invalid backtick-dollar-path quoting"
 fi

@@ -1,0 +1,67 @@
+name: Cybernet COM AutoFix
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/cybernet-com-port-*'
+    paths:
+      - 'Run-CybernetComPortAutoFix*.cmd'
+      - 'Run-CybernetComPortHelp.cmd'
+      - 'scripts/*CybernetComPortAutoFix*.ps1'
+      - 'scripts/Show-CybernetComPortHelp.ps1'
+      - 'Tests/Pester/CybernetComPortAutoFixReadiness.Tests.ps1'
+      - 'Tests/survey/test_cybernet_com_autofix_contracts.py'
+      - 'Tests/survey/test_cybernet_com_arbiter_reset_contract.py'
+      - 'docs/field-hotfixes/cybernet-com-port-*.md'
+      - 'docs/handoff/cybernet-com-autofix-*.md'
+      - '.github/workflows/cybernet-com-autofix.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'Run-CybernetComPortAutoFix*.cmd'
+      - 'Run-CybernetComPortHelp.cmd'
+      - 'scripts/*CybernetComPortAutoFix*.ps1'
+      - 'scripts/Show-CybernetComPortHelp.ps1'
+      - 'Tests/Pester/CybernetComPortAutoFixReadiness.Tests.ps1'
+      - 'Tests/survey/test_cybernet_com_autofix_contracts.py'
+      - 'Tests/survey/test_cybernet_com_arbiter_reset_contract.py'
+      - 'docs/field-hotfixes/cybernet-com-port-*.md'
+      - 'docs/handoff/cybernet-com-autofix-*.md'
+      - '.github/workflows/cybernet-com-autofix.yml'
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run static COM AutoFix contracts
+        shell: pwsh
+        run: |
+          python .\Tests\survey\test_cybernet_com_autofix_contracts.py
+          python .\Tests\survey\test_cybernet_com_arbiter_reset_contract.py
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run COM AutoFix readiness tests
+        shell: pwsh
+        run: |
+          & .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\CybernetComPortAutoFixReadiness.Tests.ps1
+
+      - name: Verify PowerShell parser helper
+        shell: pwsh
+        run: |
+          $result = & .\scripts\Test-CybernetComPortAutoFixParser.ps1
+          if ($result -ne 'PARSE OK') {
+            throw "Expected PARSE OK, received: $result"
+          }
+
+      - name: Smoke technician help status
+        shell: pwsh
+        run: |
+          & .\scripts\Show-CybernetComPortHelp.ps1 -Topic status
