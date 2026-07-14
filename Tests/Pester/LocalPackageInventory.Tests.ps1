@@ -49,13 +49,17 @@ Describe "Local Package Inventory Contract" {
 
     Context "Gitignore policy verification" {
         It "Proves payload files in 'tech emulation/' are ignored by Git" {
-            # Check git status for tech emulation directory
             $checkIgnore = git check-ignore "tech emulation/dummy.exe" 2>&1
             $checkIgnore | Should -Match "tech emulation/"
         }
 
+        It "Proves payload files in 'docs/Northwell Apps/' are ignored by Git" {
+            $checkIgnore = git check-ignore "docs/Northwell Apps/dummy.exe" 2>&1
+            $checkIgnore | Should -Match "docs/Northwell Apps/"
+        }
+
         It "Proves no payload files are tracked by Git" {
-            $tracked = git ls-files "tech emulation/*" 2>&1
+            $tracked = git ls-files "tech emulation/*" "docs/Northwell Apps/*" 2>&1
             $tracked | Should -BeNullOrEmpty
         }
     }

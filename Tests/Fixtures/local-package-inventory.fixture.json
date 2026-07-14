@@ -1,0 +1,95 @@
+{
+  "generated_at": "2026-07-14T14:11:09-04:00",
+  "schema_version": "sas-local-package-inventory/v1",
+  "scan_root": "fixture-only",
+  "packages": [
+    {
+      "authenticode": {
+        "status": "Valid",
+        "signer": "CN=Epic Systems Corporation, O=Epic Systems Corporation, L=Verona, S=Wisconsin, C=US"
+      },
+      "likely_application_executables": [],
+      "embedded_or_adjacent_configs": [],
+      "classification": "vm_candidate",
+      "relative_path": "tech emulation/Alex/Installers/Epic/Satellite/EpicSatelliteSetup.exe",
+      "referenced_dependencies": [],
+      "archive_type": null,
+      "dangerous_indicators": [
+        "silent_switches"
+      ],
+      "file_class": "installer",
+      "sha256": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "likely_reboot_requirements": [],
+      "file_version_info": {
+        "product_version": "2026.1.0",
+        "product_name": "Epic Satellite Client",
+        "company_name": "Epic Systems Corporation",
+        "file_version": "2026.1.0.42"
+      },
+      "installer_arguments": [
+        "/q",
+        "/norestart"
+      ],
+      "msi_info": null,
+      "size_bytes": 12500000
+    },
+    {
+      "authenticode": {
+        "status": "NotSigned",
+        "signer": null
+      },
+      "likely_application_executables": [],
+      "embedded_or_adjacent_configs": [],
+      "classification": "blocked_missing_evidence",
+      "relative_path": "tech emulation/Alex/Installers/Allscripts/TWInstaller.exe",
+      "referenced_dependencies": [],
+      "archive_type": null,
+      "dangerous_indicators": [],
+      "file_class": "installer",
+      "sha256": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+      "likely_reboot_requirements": [],
+      "file_version_info": {
+        "product_version": "22.1.0",
+        "product_name": "Allscripts TouchWorks installer",
+        "company_name": "Allscripts",
+        "file_version": "22.1.0.100"
+      },
+      "installer_arguments": null,
+      "msi_info": null,
+      "size_bytes": 85000000
+    },
+    {
+      "authenticode": {
+        "status": "Valid",
+        "signer": "CN=Northwell Health, O=Northwell Health, C=US"
+      },
+      "likely_application_executables": [],
+      "embedded_or_adjacent_configs": [],
+      "classification": "requires_physical_cybernet",
+      "relative_path": "tech emulation/Alex/Installers/AutoLogonSetup/NW_AutoLogon_Setup_x64.exe",
+      "referenced_dependencies": [],
+      "archive_type": null,
+      "dangerous_indicators": [
+        "autologon",
+        "reboot",
+        "registry_changes"
+      ],
+      "file_class": "installer",
+      "sha256": "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+      "likely_reboot_requirements": [
+        "reboot"
+      ],
+      "file_version_info": {
+        "product_version": "1.2.0",
+        "product_name": "Northwell AutoLogon Configurator",
+        "company_name": "Northwell Health",
+        "file_version": "1.2.0.0"
+      },
+      "installer_arguments": [
+        "/silent"
+      ],
+      "msi_info": null,
+      "size_bytes": 5400000
+    }
+  ]
+}
