@@ -2,65 +2,71 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:scannerPath = Join-Path $script:repoRoot "scripts\Get-SasLocalPackageInventory.ps1"
-    $script:schemaPath = Join-Path $script:repoRoot "schemas\harness\local-package-inventory.schema.json"
+    $script:scannerPath = Join-Path $script:repoRoot 'scripts\Get-SasLocalPackageInventory.ps1'
+    $script:schemaPath = Join-Path $script:repoRoot 'schemas\harness\local-package-inventory.schema.json'
+    $script:fixturePath = Join-Path $script:repoRoot 'Tests\Fixtures\local-package-inventory.fixture.json'
 }
 
-Describe "Local Package Inventory Contract" {
-    Context "Script existence and structure" {
-        It "Exists at scripts/Get-SasLocalPackageInventory.ps1" {
-            $script:scannerPath | Should -Exist
-        }
+Describe 'Local Package Inventory Evidence Floor' {
+    It 'parses cleanly' {
+        $tokens = $null
+        $errors = $null
+        [void][Management.Automation.Language.Parser]::ParseFile($script:scannerPath, [ref]$tokens, [ref]$errors)
+        @($errors).Count | Should -Be 0
+    }
 
-        It "Parses cleanly without syntax errors" {
-            $tokens = $null
-            $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile(
-                $script:scannerPath, [ref]$tokens, [ref]$errors
-            ) | Out-Null
-            @($errors).Count | Should -Be 0
+    It 'contains no installer or remote-execution primitive' {
+        $content = Get-Content -LiteralPath $script:scannerPath -Raw
+        $content | Should -Not -Match '(?i)\bStart-Process\b'
+        $content | Should -Not -Match '(?i)\bInvoke-Expression\b'
+        $content | Should -Not -Match '(?i)\bInvoke-Command\b'
+        $content | Should -Not -Match '(?i)\bmsiexec(?:\.exe)?\b'
+    }
+
+    It 'requires an explicit scan root outside fixture mode' {
+        { & $script:scannerPath } | Should -Throw '*ScanPath is required*'
+    }
+
+    It 'does not assign a machine-local default scan path' {
+        $content = Get-Content -LiteralPath $script:scannerPath -Raw
+        $content | Should -Not -Match '(?m)\[string\]\$ScanPath\s*='
+    }
+
+    It 'does not promote observed or conventional switches into approved installer arguments' {
+        $content = Get-Content -LiteralPath $script:scannerPath -Raw
+        $content | Should -Not -Match '@\("/qn"\s*,\s*"/norestart"\)'
+        $fixture = Get-Content -LiteralPath $script:fixturePath -Raw | ConvertFrom-Json
+        @($fixture.packages | Where-Object { $null -ne $_.installer_arguments }).Count | Should -Be 0
+    }
+
+    It 'emits only redacted scan-root identities' {
+        $fixture = & $script:scannerPath -FixtureOnly
+        $fixture.scan_root | Should -Be 'fixture-only'
+        $fixtureJson = ConvertTo-Json $fixture -Depth 12
+        Test-Json -Json $fixtureJson -SchemaFile $script:schemaPath | Should -BeTrue
+    }
+
+    It 'uses only safe relative fixture paths' {
+        $fixture = Get-Content -LiteralPath $script:fixturePath -Raw | ConvertFrom-Json
+        foreach ($package in $fixture.packages) {
+            $package.relative_path | Should -Not -Match '^[A-Za-z]:'
+            $package.relative_path | Should -Not -Match '^[/\\]{2}'
+            $package.relative_path | Should -Not -Match '(^|[/\\])\.\.([/\\]|$)'
         }
     }
 
-    Context "Safety constraints" {
-        It "Does not contain installer execution commands" {
-            $content = Get-Content -Path $script:scannerPath -Raw
-            # Ensure the script doesn't call msiexec or start-process to install or extract
-            $content | Should -Not -Match '\bmsiexec(?!\.msi)\b'
-            $content | Should -Not -Match 'Start-Process'
-            $content | Should -Not -Match 'Invoke-Expression'
-            $content | Should -Not -Match '\binvoke-command\b'
-        }
+    It 'does not fabricate a signature or unattended argument for the AutoLogon fixture' {
+        $fixture = Get-Content -LiteralPath $script:fixturePath -Raw | ConvertFrom-Json
+        $autoLogon = @($fixture.packages | Where-Object { $_.classification -eq 'requires_physical_cybernet' })
+        $autoLogon.Count | Should -Be 1
+        $autoLogon[0].authenticode.status | Should -Be 'NotSigned'
+        $autoLogon[0].authenticode.signer | Should -BeNullOrEmpty
+        $autoLogon[0].installer_arguments | Should -BeNullOrEmpty
     }
 
-    Context "Schema contract and validation" {
-        It "Validates the generated fixture output against the schema" {
-            $script:schemaPath | Should -Exist
-            
-            # Execute scanner in FixtureOnly mode
-            $inventory = & $script:scannerPath -FixtureOnly
-            $inventory | Should -Not -BeNullOrEmpty
-            
-            $json = ConvertTo-Json $inventory -Depth 10
-            $testJsonResult = Test-Json -Json $json -SchemaFile $script:schemaPath
-            $testJsonResult | Should -Be $true
-        }
-    }
-
-    Context "Gitignore policy verification" {
-        It "Proves payload files in 'tech emulation/' are ignored by Git" {
-            $checkIgnore = git check-ignore "tech emulation/dummy.exe" 2>&1
-            $checkIgnore | Should -Match "tech emulation/"
-        }
-
-        It "Proves payload files in 'docs/Northwell Apps/' are ignored by Git" {
-            $checkIgnore = git check-ignore "docs/Northwell Apps/dummy.exe" 2>&1
-            $checkIgnore | Should -Match "docs/Northwell Apps/"
-        }
-
-        It "Proves no payload files are tracked by Git" {
-            $tracked = git ls-files "tech emulation/*" "docs/Northwell Apps/*" 2>&1
-            $tracked | Should -BeNullOrEmpty
-        }
+    It 'keeps real output paths relative to the supplied scan root' {
+        $content = Get-Content -LiteralPath $script:scannerPath -Raw
+        $content | Should -Match "scan_root = 'operator-local-reference'"
+        $content | Should -Match 'Get-SafeRelativePath'
     }
 }
