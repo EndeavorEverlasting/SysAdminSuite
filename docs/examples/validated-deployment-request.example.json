@@ -1,0 +1,43 @@
+{
+  "schema_version": "sas-validated-software-deployment-request/v1",
+  "request_id": "approved-change-request-id",
+  "package_name": "Approved Client Software",
+  "software_share_root": "\\\\approved-server\\",
+  "installer_relative_path": "packages\\ApprovedSoftware\\installer.exe",
+  "installer_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "installer_arguments": [
+    "/quiet",
+    "/norestart"
+  ],
+  "installer_arguments_reference": "vendor silent-install documentation or approved packaging record",
+  "install_mode": "CopyThenInstall",
+  "targets": [
+    "APPROVED-WORKSTATION-01"
+  ],
+  "authorization": {
+    "authorized_by": "authorized approver",
+    "request_reference": "REQ0000000",
+    "change_reference": "CHG0000000",
+    "ticket_reference": "TASK0000000"
+  },
+  "validation": {
+    "checks": [
+      {
+        "id": "installed-file",
+        "type": "FileExists",
+        "required": true,
+        "path": "%ProgramFiles%\\ApprovedSoftware\\ApprovedSoftware.exe"
+      },
+      {
+        "id": "uninstall-entry",
+        "type": "UninstallEntry",
+        "required": true,
+        "display_name": "Approved Client Software",
+        "expected_version": "REPLACE_WITH_APPROVED_VERSION"
+      }
+    ]
+  },
+  "cleanup_policy": "repo_owned_run_scoped_only",
+  "require_valid_signature": true,
+  "expected_signer_thumbprint": "0000000000000000000000000000000000000000"
+}
