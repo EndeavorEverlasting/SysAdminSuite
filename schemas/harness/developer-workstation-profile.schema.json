@@ -1,1 +1,192 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"schemas/harness/developer-workstation-profile.schema.json","title":"SysAdminSuite Developer Workstation Profile","type":"object","additionalProperties":false,"required":["schema_version","schema_path","workspace","terminal","agent_switchboard","posture"],"properties":{"schema_version":{"const":"sas-developer-workstation-profile/v1"},"schema_path":{"const":"schemas/harness/developer-workstation-profile.schema.json"},"workspace":{"type":"object","additionalProperties":false,"required":["name","repo_path","tmux_session"],"properties":{"name":{"type":"string","minLength":1,"maxLength":80},"repo_path":{"$ref":"#/$defs/wslPath"},"tmux_session":{"type":"string","pattern":"^[a-zA-Z0-9_.-]+$","maxLength":80}}},"terminal":{"type":"object","additionalProperties":false,"required":["provider","default_environment","multiplexer","wsl_distribution"],"properties":{"provider":{"const":"wezterm"},"default_environment":{"const":"wsl"},"multiplexer":{"const":"tmux"},"wsl_distribution":{"type":"string","minLength":1,"maxLength":80}}},"agent_switchboard":{"type":"object","additionalProperties":false,"required":["repository","profile","required_agents","invocation_mode"],"properties":{"repository":{"const":"EndeavorEverlasting/AgentSwitchboard"},"profile":{"type":"string","minLength":1,"maxLength":80},"required_agents":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"}},"invocation_mode":{"const":"external-versioned-contract"}}},"posture":{"type":"object","additionalProperties":false,"required":["install_missing_only","preserve_existing_configuration","automatic_authentication","target_mutation","tracked_runtime_evidence"],"properties":{"install_missing_only":{"const":true},"preserve_existing_configuration":{"const":true},"automatic_authentication":{"const":false},"target_mutation":{"const":false},"tracked_runtime_evidence":{"const":false}}}},"$defs":{"wslPath":{"type":"string","minLength":1,"pattern":"^~?/[^\\r\\n]*$"}}}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/developer-workstation-profile.schema.json",
+  "title": "SysAdminSuite Developer Workstation Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "workspace",
+    "terminal",
+    "agent_switchboard",
+    "posture"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-developer-workstation-profile/v1"
+    },
+    "schema_path": {
+      "const": "schemas/harness/developer-workstation-profile.schema.json"
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "repo_path"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "repo_path": {
+          "$ref": "#/$defs/portablePath"
+        }
+      }
+    },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "preference", "default_profile", "execution_profiles"],
+      "properties": {
+        "provider": {
+          "const": "wezterm"
+        },
+        "preference": {
+          "const": "required"
+        },
+        "default_profile": {
+          "$ref": "#/$defs/id"
+        },
+        "execution_profiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/executionProfile"
+          }
+        }
+      }
+    },
+    "agent_switchboard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "profile", "required_agents", "invocation_mode"],
+      "properties": {
+        "repository": {
+          "const": "EndeavorEverlasting/AgentSwitchboard"
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "required_agents": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "invocation_mode": {
+          "const": "external-versioned-contract"
+        }
+      }
+    },
+    "posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "install_missing_only",
+        "preserve_existing_configuration",
+        "automatic_authentication",
+        "target_mutation",
+        "tracked_runtime_evidence"
+      ],
+      "properties": {
+        "install_missing_only": {
+          "const": true
+        },
+        "preserve_existing_configuration": {
+          "const": true
+        },
+        "automatic_authentication": {
+          "const": false
+        },
+        "target_mutation": {
+          "const": false
+        },
+        "tracked_runtime_evidence": {
+          "const": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "portablePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+    },
+    "executionProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "priority", "enabled", "shell", "multiplexer"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "shell": {
+          "enum": ["pwsh", "powershell", "cmd", "wsl"]
+        },
+        "multiplexer": {
+          "enum": ["none", "tmux"]
+        },
+        "distribution": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "shell": {
+                "const": "wsl"
+              }
+            },
+            "required": ["shell"]
+          },
+          "then": {
+            "required": ["distribution"]
+          },
+          "else": {
+            "not": {
+              "required": ["distribution"]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "multiplexer": {
+                "const": "tmux"
+              }
+            },
+            "required": ["multiplexer"]
+          },
+          "then": {
+            "properties": {
+              "shell": {
+                "const": "wsl"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
