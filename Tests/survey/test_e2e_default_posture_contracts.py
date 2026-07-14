@@ -18,12 +18,18 @@ RUNNER = ROOT / "scripts" / "Invoke-SasEndToEndValidation.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "default-e2e-validation.yml"
 MANIFEST = ROOT / "harness" / "api" / "agent-capability-manifest.json"
 SOFTWARE_INSTALL_E2E = ROOT / "scripts" / "Invoke-SasSoftwareInstallE2E.ps1"
+SOFTWARE_INSTALL_BUILD = (
+    ROOT / "scripts" / "Build-SasSoftwareInstallFixtureExecutable.ps1"
+)
 SOFTWARE_INSTALL_OPERATOR = ROOT / "scripts" / "Invoke-SasSoftwareInstall.ps1"
 SOFTWARE_INSTALL_DOC = ROOT / "docs" / "SOFTWARE_INSTALL_E2E.md"
-SOFTWARE_INSTALL_FIXTURE_CMD = (
+SOFTWARE_INSTALL_FIXTURE_SOURCE = (
+    ROOT / "Tests" / "fixtures" / "software-install" / "DummyInstaller.cs"
+)
+OLD_FIXTURE_CMD = (
     ROOT / "Tests" / "fixtures" / "software-install" / "fixture-installer.cmd"
 )
-SOFTWARE_INSTALL_FIXTURE_PS1 = (
+OLD_FIXTURE_PS1 = (
     ROOT / "Tests" / "fixtures" / "software-install" / "fixture-installer.ps1"
 )
 
@@ -125,18 +131,28 @@ def test_runner_emits_gate_artifacts_and_proof_boundaries() -> None:
         )
 
 
-def test_software_install_e2e_runs_real_installer_and_emits_deltas() -> None:
+def test_software_install_e2e_builds_executable_and_emits_deltas() -> None:
     e2e = read(SOFTWARE_INSTALL_E2E)
+    build = read(SOFTWARE_INSTALL_BUILD)
     operator = read(SOFTWARE_INSTALL_OPERATOR)
     doc = read(SOFTWARE_INSTALL_DOC)
-    fixture_cmd = read(SOFTWARE_INSTALL_FIXTURE_CMD)
-    fixture_ps1 = read(SOFTWARE_INSTALL_FIXTURE_PS1)
+    fixture_source = read(SOFTWARE_INSTALL_FIXTURE_SOURCE)
+
+    assert not OLD_FIXTURE_CMD.exists(), "legacy command-wrapper fixture must be removed"
+    assert not OLD_FIXTURE_PS1.exists(), "legacy PowerShell fixture must be removed"
+    assert not list(
+        (ROOT / "Tests" / "fixtures" / "software-install").glob("*.exe")
+    ), "generated installer binaries must not be committed"
 
     required_e2e_fragments = [
         "Invoke-SasSoftwareInstall.ps1",
+        "Build-SasSoftwareInstallFixtureExecutable.ps1",
+        "sysadminsuite-dummy-installer.exe",
         "Microsoft.PowerShell.Management\\Start-Process",
         "real_operator_wrapper_executed = $true",
-        "real_installer_process_executed",
+        "real_installer_executable_executed",
+        "generated_installer_executable",
+        "generated_installer_sha256",
         "software_install_before.json",
         "software_install_after.json",
         "software_install_delta.json",
@@ -144,17 +160,48 @@ def test_software_install_e2e_runs_real_installer_and_emits_deltas() -> None:
         "software_install_e2e_result.json",
         "Get-SasSoftwareInstallDelta",
         "AllowTargetMutation = $true",
+        "dummy-installed.txt",
         "completed_count -ne 1",
         "repo_artifact_remaining_count",
         "run_started",
         "target_completed",
-        "fixture-software-install-e2e",
+        "fixture-software-install-executable-e2e",
         "live_target_e2e = $false",
         "external_network_activity_performed = $false",
         "target_mutation_performed = $false",
+        "added_count -ne 3",
     ]
     for fragment in required_e2e_fragments:
         assert fragment in e2e, f"software-install E2E missing contract: {fragment}"
+
+    for fragment in [
+        "csc.exe",
+        "/target:exe",
+        "/platform:anycpu",
+        "Get-FileHash",
+        "executable_sha256",
+        "build_manifest_path",
+        "generated",
+        "never committed",
+    ]:
+        assert fragment in build, f"fixture executable build missing contract: {fragment}"
+
+    for fragment in [
+        "dummy_install_completed",
+        "dummy_install_failed",
+        "dummy-installed.txt",
+        "manifest.json",
+        "SysAdminSuite Fixture Package",
+        "sysadminsuite-dummy-installer.exe",
+        "target-root",
+        "dummy-relative-path",
+        "log-path",
+        "EnsureUnderRoot",
+        "parent traversal",
+    ]:
+        assert fragment in fixture_source, (
+            f"dummy installer executable source missing behavior: {fragment}"
+        )
 
     for fragment in [
         "New-PSSession -ComputerName $target",
@@ -165,22 +212,14 @@ def test_software_install_e2e_runs_real_installer_and_emits_deltas() -> None:
     ]:
         assert fragment in operator, f"operator wrapper contract missing: {fragment}"
 
-    assert "fixture-installer.ps1" in fixture_cmd
-    assert "powershell.exe" in fixture_cmd.lower()
-    for fragment in [
-        "InstalledPackages",
-        "InstallerLogs",
-        "SysAdminSuite Fixture Package",
-        "version = '1.0.0'",
-        "manifest.json",
-    ]:
-        assert fragment in fixture_ps1, f"fixture installer missing behavior: {fragment}"
-
     for fragment in [
         "real software-install operator wrapper",
+        "generated Windows executable",
+        "dummy-installed.txt",
         "before and after snapshots",
         "added, changed, and removed delta",
-        "installer-owned logging",
+        "installer-owned JSONL logging",
+        "binary is not committed",
         "not live WinRM",
     ]:
         assert fragment in doc, f"software-install E2E doc missing: {fragment}"
@@ -206,6 +245,7 @@ def test_ci_executes_real_journeys_and_tracks_dependencies() -> None:
         "scripts/Invoke-SasHarnessContracts.ps1",
         "scripts/Invoke-SasSoftwareInstall.ps1",
         "scripts/Invoke-SasSoftwareInstallE2E.ps1",
+        "scripts/Build-SasSoftwareInstallFixtureExecutable.ps1",
         "scripts/SasTargetIntake.psm1",
         "Tests/fixtures/software-install/**",
         "Tests/Pester/SoftwareInstallHarness.Tests.ps1",
@@ -254,7 +294,7 @@ def main() -> None:
         test_skill_and_capability_compose_the_posture,
         test_profile_is_fail_closed_and_loopback_only,
         test_runner_emits_gate_artifacts_and_proof_boundaries,
-        test_software_install_e2e_runs_real_installer_and_emits_deltas,
+        test_software_install_e2e_builds_executable_and_emits_deltas,
         test_ci_executes_real_journeys_and_tracks_dependencies,
         test_agent_manifest_records_e2e_default,
         test_schema_validation_when_jsonschema_is_available,
