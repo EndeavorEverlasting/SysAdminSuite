@@ -1,0 +1,311 @@
+{
+  "schema_version": "sas-agent-capability-manifest/v1",
+  "schema_path": "schemas/harness/agent-capability-manifest.schema.json",
+  "authority": {
+    "root_instruction": "AGENTS.md",
+    "codebase_map": "CODEBASE_MAP.md",
+    "skill_root": ".claude/skills",
+    "capability_root": ".claude/capabilities",
+    "harness_api": "harness/api/sas-harness-api.json"
+  },
+  "posture": {
+    "progressive_disclosure_required": true,
+    "default_network_activity": false,
+    "default_target_mutation": false,
+    "tracked_runtime_evidence_allowed": false
+  },
+  "capabilities": [
+    {
+      "id": "repository-evidence",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/repository-evidence.md",
+      "summary": "Recover repository, Git, worktree, and PR truth before selecting or mutating work.",
+      "lanes": [
+        "repository",
+        "cleanup",
+        "release-pr-hygiene",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "control-plane",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "CODEBASE_MAP.md",
+        "docs/HARNESS_DISCIPLINE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py",
+        "Tests/survey/test_checkpoint_discipline_contracts.py"
+      ]
+    },
+    {
+      "id": "proof-and-checkpointing",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/proof-and-checkpointing.md",
+      "summary": "Preserve coherent work before expansion and keep claimed proof at the level actually reached.",
+      "lanes": [
+        "repository",
+        "validation",
+        "runtime-proof",
+        "release-pr-hygiene"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "docs/HARNESS_DISCIPLINE.md",
+        "docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_checkpoint_discipline_contracts.py"
+      ]
+    },
+    {
+      "id": "language-runtime-selection",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/language-runtime-selection.md",
+      "summary": "Select Bash, PowerShell, Windows-native, or managed surfaces from the real workflow and environment.",
+      "lanes": [
+        "language-runtime",
+        "field-workflow",
+        "survey",
+        "deployment",
+        "device-repair"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "README.md",
+        "docs/OPERATIONAL_POSTURE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "mutation-and-evidence-boundaries",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/mutation-and-evidence-boundaries.md",
+      "summary": "Separate read-only observation, approved mutation, teardown, and private evidence handling.",
+      "lanes": [
+        "live-data",
+        "survey",
+        "deployment",
+        "device-repair",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "Config/operational-posture.json",
+        "docs/LOCAL_REFERENCE_POLICY.md",
+        "docs/OPERATIONAL_POSTURE.md"
+      ],
+      "validators": [
+        "Tests/bash/test_operational_posture_contracts.sh",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "field-command-design",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/field-command-design.md",
+      "summary": "Expose short technician entrypoints while keeping scope, gates, evidence, and failure classifications visible.",
+      "lanes": [
+        "field-workflow",
+        "deployment",
+        "device-repair",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "START-HERE-SysAdminSuite-Dashboard.bat",
+        "docs/DASHBOARD_ENTRYPOINT.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "id": "repository-sprint",
+      "path": ".claude/skills/repository-sprint/SKILL.md",
+      "summary": "Recover repository truth, rank bounded sprints, execute safely, and report Git and proof state.",
+      "capability_ids": [
+        "repository-evidence",
+        "proof-and-checkpointing",
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "repository",
+        "harness",
+        "cleanup",
+        "validation",
+        "release-pr-hygiene"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "control-plane",
+      "target_mutation_mode": "repository",
+      "authority_paths": [
+        "CODEBASE_MAP.md",
+        "docs/HARNESS_DISCIPLINE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_checkpoint_discipline_contracts.py"
+      ]
+    },
+    {
+      "id": "language-runtime",
+      "path": ".claude/skills/language-runtime/SKILL.md",
+      "summary": "Choose and preserve the correct implementation language and runtime boundary.",
+      "capability_ids": [
+        "language-runtime-selection",
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "language-runtime",
+        "survey",
+        "deployment",
+        "device-repair"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "README.md",
+        "docs/OPERATIONAL_POSTURE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "field-workflow",
+      "path": ".claude/skills/field-workflow/SKILL.md",
+      "summary": "Design one-command technician and operator entrypoints around existing governed workflows.",
+      "capability_ids": [
+        "field-command-design",
+        "language-runtime-selection",
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "field-workflow",
+        "deployment",
+        "device-repair",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "docs/DASHBOARD_ENTRYPOINT.md",
+        "docs/OPERATIONAL_POSTURE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "scoped-validation",
+      "path": ".claude/skills/scoped-validation/SKILL.md",
+      "summary": "Select the smallest deterministic validation surface and report the exact proof ceiling.",
+      "capability_ids": [
+        "proof-and-checkpointing",
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "validation",
+        "harness",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "tools/validate-ai-layer.ps1",
+        "tests/survey/run_offline_survey_tests.sh"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "live-data-guard",
+      "path": ".claude/skills/live-data-guard/SKILL.md",
+      "summary": "Keep operator-local, live target, and generated evidence out of prompts and commits.",
+      "capability_ids": [
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "live-data",
+        "repository",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        ".claudeignore",
+        "docs/LOCAL_REFERENCE_POLICY.md",
+        "targets/README.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "survey-low-noise",
+      "path": ".claude/skills/survey-low-noise/SKILL.md",
+      "summary": "Preserve approved target intake, low-noise reachability doctrine, and local-only evidence.",
+      "capability_ids": [
+        "language-runtime-selection",
+        "mutation-and-evidence-boundaries",
+        "proof-and-checkpointing"
+      ],
+      "lanes": [
+        "survey",
+        "preflight",
+        "dashboard-probe",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "Config/low-noise-policy.json",
+        "docs/LOW_NOISE_SURVEY_DOCTRINE.md",
+        "survey/naabu_profiles.json"
+      ],
+      "validators": [
+        "Tests/bash/test_repo_naabu_doctrine_conformance.sh",
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_probe_socket_access_contracts.py"
+      ]
+    }
+  ]
+}

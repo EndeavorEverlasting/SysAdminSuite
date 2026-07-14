@@ -8,8 +8,11 @@ Use this map to load only the files needed for a task.
 - `CLAUDE.md` — progressive-disclosure front door for Claude-compatible agents.
 - `.claude/skills/*/SKILL.md` — task workflows that compose reusable capabilities.
 - `.claude/capabilities/*.md` — stable atomic rules shared by multiple skills.
+- `harness/api/agent-capability-manifest.json` — machine-readable skill/capability IDs, versions, lanes, posture, authorities, validators, and dependencies.
+- `schemas/harness/agent-capability-manifest.schema.json` — fail-closed manifest shape.
 - `tools/validate-ai-layer.ps1` — validates the instruction architecture, required safety language, and local-data exclusions.
 - `Tests/survey/test_agent_instruction_factoring_contracts.py` — dependency-free factoring and anti-bloat contract.
+- `Tests/survey/test_agent_capability_manifest_contracts.py` — manifest integrity, path, dependency, and validation wiring contract.
 
 ## Repo doctrine
 

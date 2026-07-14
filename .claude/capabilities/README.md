@@ -10,6 +10,15 @@ Capabilities are stable, reusable rule modules. Skills compose capabilities into
 - Agents load only capabilities required by the selected skills.
 - Product behavior remains authoritative in schemas, workflow specs, scripts, and canonical docs; capabilities route agents to those surfaces.
 
+## Machine-readable catalog
+
+The authoritative metadata catalog is `harness/api/agent-capability-manifest.json`. Its contract is
+`schemas/harness/agent-capability-manifest.schema.json`.
+
+Markdown remains the human-readable operating law. The manifest supplies IDs, versions, paths, lanes,
+default network and target-mutation posture, authority paths, validators, and exact skill-to-capability
+dependencies for harness consumers and future bounded adapters.
+
 ## Catalog
 
 | Capability | Concern |

@@ -18,10 +18,11 @@ Use this skill whenever an AI-assisted change needs validation.
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
 ```
 
-5. Run the targeted Python factoring contract when agent instructions change:
+5. Run the targeted Python contracts when agent instructions or capability metadata change:
 
 ```text
 python Tests/survey/test_agent_instruction_factoring_contracts.py
+python Tests/survey/test_agent_capability_manifest_contracts.py
 ```
 
 6. If a required runtime is unavailable, report the exact skipped command and do not claim it passed.
@@ -30,8 +31,8 @@ python Tests/survey/test_agent_instruction_factoring_contracts.py
 
 | Change type | Preferred validation |
 |---|---|
-| Agent instructions, skills, capabilities | Factoring contract plus `tools/validate-ai-layer.ps1` |
-| AI harness docs/config | `tools/validate-ai-layer.ps1` |
+| Agent instructions, skills, capabilities | Factoring and capability-manifest contracts plus `tools/validate-ai-layer.ps1` |
+| AI harness docs/config | `tools/validate-ai-layer.ps1` plus the relevant manifest contract |
 | Bash survey scripts | Relevant `tests/bash/` contract plus static shell checks |
 | PowerShell tooling | Existing Pester or targeted parser/contract validation |
 | .NET dashboard/managed code | `dotnet test` for the relevant solution/project |

@@ -127,6 +127,27 @@
       ]
     },
     {
+      "id": "agent_capability.catalog.read",
+      "summary": "Read the repository-owned skill and capability manifest for progressive disclosure and bounded adapter planning.",
+      "mode": "local_read",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "harness/api/agent-capability-manifest.json",
+        "schemas/harness/agent-capability-manifest.schema.json"
+      ],
+      "outputs": [
+        "agent_capability_catalog.json"
+      ],
+      "guardrails": [
+        "Local_only",
+        "Manifest_and_Markdown_dependencies_must_match",
+        "No_dynamic_skill_execution",
+        "No_second_run_context",
+        "No_target_mutation"
+      ]
+    },
+    {
       "id": "software_install.operator_execute",
       "summary": "Install approved software on authorized target computers from approved read-only software shares with local evidence and cleanup of SysAdminSuite-owned target staging.",
       "mode": "operator_execute",
@@ -161,4 +182,3 @@
     }
   ]
 }
-
