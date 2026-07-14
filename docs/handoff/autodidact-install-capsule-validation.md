@@ -2,19 +2,19 @@
 
 ## Sprint status
 
-This branch now provides the technician-facing command:
+Technician entrypoint:
 
 ```cmd
 Run-InstallApprovedSoftware.cmd
 ```
 
-The earlier command remains compatible:
+Compatibility entrypoint:
 
 ```cmd
 Run-InstallAutoDidact.cmd
 ```
 
-Both launch the catalog-driven workflow:
+Both launch the catalog-driven operator workflow:
 
 ```text
 select package
@@ -33,84 +33,109 @@ Tracked authority:
 configs/software-packages/approved-apps.json
 ```
 
-Current entries:
-
 | ID | Folder | Installer | Readiness |
 | --- | --- | --- | --- |
 | `epic-satellite` | `packages\Epic\Satellite` | pending | Snapshot only; plan/install blocked |
 | `allscripts-touchworks-22-1` | `packages\TouchWork_22.1` | `TWInstaller.exe` | Path pinned; validated live arguments pending |
 | `autologon` | `packages\AutoLogonSetup` | `NW_AutoLogon_Setup_x64.exe` | Path pinned; validated live arguments pending |
 
-The approved share root is `\\nt2kwb972sms01\`. The launcher does not scan folders to choose an executable.
+The approved share root is `\\nt2kwb972sms01\`. The operator does not scan package folders to select an executable.
 
 ## Files preserved
 
 - `Run-InstallApprovedSoftware.cmd`
 - `Run-InstallAutoDidact.cmd`
 - `configs/software-packages/approved-apps.json`
+- `scripts/Start-SasApprovedSoftwareOperator.ps1`
+- `scripts/Start-SasApprovedSoftwareInstall.ps1`
 - `scripts/Start-SasAutoDidactInstall.ps1`
 - `docs/AUTODIDACT_INSTALL_WORKFLOW.md`
 - `Tests/survey/test_autodidact_install_capsule_contracts.py`
+- `.github/workflows/approved-software-catalog-contracts.yml`
 - `tests/survey/run_offline_survey_tests.sh`
 
-## Checkpoints
-
-- `667d6d0f3a52e05a347d49cec89a2a1d383b6fae` preserves the folder-first catalog before wrapper expansion.
-- The current completion commit updates the catalog consumer, technician launchers, tests, and documentation.
-
-## Connector validation
+## Preservation checkpoint
 
 ```text
-GitHub compare main...feat/autodidact-install-capsule
-PASS: branch is ahead of main and changed files are limited to the approved software catalog/capsule lane.
+667d6d0f3a52e05a347d49cec89a2a1d383b6fae feat(software): add approved package catalog
 ```
 
-Fetched-content review confirmed:
+This checkpoint preserved the folder-first catalog before expanding into technician wrappers, validation, and documentation.
 
-- the catalog root matches `harness/api/sas-harness-api.json`;
-- package folders remain relative to the approved root;
-- the normal technician path selects a package ID instead of prompting for a raw installer path;
-- Epic fails closed before plan/install because no installer filename is pinned;
-- AllScripts and AutoLogon resolve deterministic relative file paths;
-- live installation fails closed when vendor-validated installer arguments are absent;
-- the selected package/path is bound to the completed Before snapshot;
-- a catalog path change after Before requires a new snapshot;
-- snapshot evidence remains under `survey/output/approved_software_install` on the admin workstation;
-- the catalog contract remains wired into `tests/survey/run_offline_survey_tests.sh`.
+## Failures found and repaired
 
-## Windows validation commands
+The dedicated Windows fixture exposed two integration defects:
 
-Run from the branch on a Windows validation workstation:
+1. The first snapshot manifest wrapped a generic PowerShell list during JSON materialization. The individual snapshot succeeded, but the manifest was not written. The repaired engine uses bounded PowerShell arrays for snapshot and delta collections.
+2. The existing install engine completed its WhatIf run and wrote a valid `software_install_summary.json` plus `operator_handoff.txt`, but the final in-memory summary object did not materialize cleanly through the composed PowerShell pipeline. The technician operator now validates the durable summary artifact, confirms target counts and WhatIf completion, records the handoff in workflow state, and preserves live failure reporting.
 
-```cmd
-git diff --check
-python .\Tests\survey\test_autodidact_install_capsule_contracts.py
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$null = [scriptblock]::Create((Get-Content .\scripts\Start-SasAutoDidactInstall.ps1 -Raw)); 'PARSE OK'"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-SasAutoDidactInstall.ps1 -Action ListPackages
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-SasAutoDidactInstall.ps1 -Action Before -PackageId autologon -TargetsCsv .\targets\local\approved-software-targets.csv -FixtureMode -NonInteractive
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-SasAutoDidactInstall.ps1 -Action Plan -NonInteractive
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-SasAutoDidactInstall.ps1 -Action After -FixtureMode -NonInteractive
+Neither repair contacts the live software share or a target during fixture validation.
+
+## Validation completed
+
+Dedicated GitHub Actions run:
+
+```text
+Approved software catalog contracts #15
+run id: 29314828855
+head: 44991f8ba18e815bd2591de23afe982f5482a7cf
+```
+
+Ubuntu static job: **PASS**
+
+- full checkout with credentials not persisted;
+- `git diff --check`;
+- `python3 Tests/survey/test_autodidact_install_capsule_contracts.py`.
+
+Windows fixture job: **PASS**
+
+- Python catalog contracts;
+- parser validation for operator, engine, and compatibility wrappers;
+- catalog listing;
+- synthetic target manifest preparation;
+- complete fixture BEFORE snapshot and manifest;
+- complete WhatIf install plan;
+- complete fixture AFTER snapshot;
+- delta and operator-state verification;
+- synthetic artifact upload.
+
+Synthetic proof artifact:
+
+```text
+approved-software-catalog-synthetic-proof
+artifact id: 8303505390
+sha256: 80fbefd0a9ad8cad468cc1e6df81d60b6c14a93f49efc1fcf2dbdac6f573444a
 ```
 
 ## Proof boundary
 
-This branch proves a guarded catalog and command shape. It does not prove:
+This validation proves:
 
-- the package files currently exist on the live share;
+- package catalog structure and fail-closed readiness rules;
+- technician CMD routing;
+- PowerShell parser correctness;
+- fixture BEFORE snapshot preservation;
+- request-only WhatIf planning through the existing install engine;
+- fixture AFTER snapshot and local delta generation;
+- durable artifact recovery and operator-state continuity.
+
+It does not prove:
+
+- package files currently exist on the live share;
 - installer hashes, signatures, publishers, or versions;
 - vendor-supported silent arguments;
-- remote-session access to a target;
+- remote-session access to a workstation;
 - a live installation;
 - application launch, AutoLogon behavior, or business acceptance.
 
 ## Production gate
 
-Before technicians use live Install:
+Before technicians use the live Install action:
 
-1. validate this branch on Windows;
-2. capture a complete Before snapshot;
+1. use an approved pilot target CSV;
+2. capture and review a complete Before snapshot;
 3. confirm the selected pinned filename still exists in its approved folder;
-4. record vendor-validated installer arguments;
+4. validate package hash, signature, publisher, version, and installer arguments;
 5. review the WhatIf output;
 6. run no more than one or two approved pilot targets;
 7. capture After and review the delta;
