@@ -111,6 +111,15 @@ function Get-SasSoftwareInstallSnapshot {
         Get-ChildItem -LiteralPath $Root -Recurse -Force -File |
             ForEach-Object {
                 $relativePath = $_.FullName.Substring($rootPrefix.Length).Replace('\', '/')
+                $included = (
+                    $relativePath.StartsWith('InstalledPackages/', [StringComparison]::OrdinalIgnoreCase) -or
+                    $relativePath.StartsWith('InstallerLogs/', [StringComparison]::OrdinalIgnoreCase) -or
+                    $relativePath.StartsWith('ProgramData/SysAdminSuite/', [StringComparison]::OrdinalIgnoreCase)
+                )
+                if (-not $included) {
+                    return
+                }
+
                 [ordered]@{
                     relative_path = $relativePath
                     bytes = $_.Length
