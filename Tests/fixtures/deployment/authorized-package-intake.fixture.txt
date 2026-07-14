@@ -1,0 +1,2 @@
+SysAdminSuite authorized package intake synthetic fixture.
+No executable behavior is contained in this file.

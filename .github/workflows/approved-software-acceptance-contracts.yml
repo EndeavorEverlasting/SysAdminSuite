@@ -1,0 +1,204 @@
+name: Approved software acceptance contracts
+
+on:
+  pull_request:
+    paths:
+      - 'Run-InstallApprovedSoftware.cmd'
+      - 'Run-InstallAutoDidact.cmd'
+      - 'configs/software-packages/approved-apps.json'
+      - 'scripts/Invoke-SasApprovedSoftwareAcceptance.ps1'
+      - 'scripts/Start-SasApprovedSoftwareOperator.ps1'
+      - 'scripts/Start-SasApprovedSoftwareInstall.ps1'
+      - 'scripts/Start-SasAutoDidactInstall.ps1'
+      - 'docs/APPROVED_SOFTWARE_ACCEPTANCE.md'
+      - 'Tests/survey/test_approved_software_acceptance_contracts.py'
+      - '.github/workflows/approved-software-acceptance-contracts.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Run-InstallApprovedSoftware.cmd'
+      - 'Run-InstallAutoDidact.cmd'
+      - 'configs/software-packages/approved-apps.json'
+      - 'scripts/Invoke-SasApprovedSoftwareAcceptance.ps1'
+      - 'scripts/Start-SasApprovedSoftwareOperator.ps1'
+      - 'scripts/Start-SasApprovedSoftwareInstall.ps1'
+      - 'scripts/Start-SasAutoDidactInstall.ps1'
+      - 'docs/APPROVED_SOFTWARE_ACCEPTANCE.md'
+      - 'Tests/survey/test_approved_software_acceptance_contracts.py'
+      - '.github/workflows/approved-software-acceptance-contracts.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  static-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check patch whitespace
+        run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
+
+      - name: Catalog acceptance profile contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py catalog
+
+      - name: Completed After gate contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py after-gate
+
+      - name: Read-only application observation contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py application
+
+      - name: Password-free AutoLogon contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py autologon
+
+      - name: Proof-boundary contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py proof
+
+      - name: Technician operator contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py operator
+
+      - name: Acceptance documentation contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py docs
+
+      - name: Windows fixture workflow contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py workflow
+
+      - name: Offline runner contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py runner
+
+  windows-fixture:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run approved software acceptance contracts
+        shell: pwsh
+        run: python Tests/survey/test_approved_software_acceptance_contracts.py
+
+      - name: Parse acceptance extraction scripts
+        shell: powershell
+        run: |
+          $paths = @(
+            '.\scripts\Invoke-SasApprovedSoftwareAcceptance.ps1',
+            '.\scripts\Start-SasApprovedSoftwareOperator.ps1',
+            '.\scripts\Start-SasApprovedSoftwareInstall.ps1',
+            '.\scripts\Start-SasAutoDidactInstall.ps1'
+          )
+          foreach ($path in $paths) {
+            $null = [scriptblock]::Create((Get-Content $path -Raw))
+            "PARSE OK: $path"
+          }
+
+      - name: Verify password-missing classifier precedence
+        shell: powershell
+        run: |
+          $content = Get-Content .\scripts\Invoke-SasApprovedSoftwareAcceptance.ps1 -Raw
+          $missing = $content.IndexOf("elseif (-not `$passwordPresent) { `$configurationStatus = 'configured_password_missing' }")
+          $ready = $content.IndexOf("else { `$configurationStatus = 'autologon_ready' }")
+          if ($missing -lt 0 -or $ready -lt 0 -or $missing -ge $ready) {
+            throw 'configured_password_missing must be evaluated before autologon_ready.'
+          }
+          'PASS: configured_password_missing precedes autologon_ready'
+
+      - name: Prepare synthetic target manifest
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path .\targets\local -Force | Out-Null
+          @"
+          ComputerName
+          FIXTURE-WS01
+          "@ | Set-Content -LiteralPath .\targets\local\approved-software-acceptance-ci.csv -Encoding UTF8
+
+      - name: Capture fixture Before snapshot
+        shell: powershell
+        run: |
+          .\scripts\Start-SasApprovedSoftwareOperator.ps1 `
+            -Action Before `
+            -PackageId autologon `
+            -TargetsCsv .\targets\local\approved-software-acceptance-ci.csv `
+            -OutputRoot .\survey\output\approved_software_acceptance_ci `
+            -FixtureMode `
+            -NonInteractive `
+            -NoOpen
+
+      - name: Run WhatIf install plan
+        shell: powershell
+        run: |
+          .\scripts\Start-SasApprovedSoftwareOperator.ps1 `
+            -Action Plan `
+            -OutputRoot .\survey\output\approved_software_acceptance_ci `
+            -NonInteractive `
+            -NoOpen
+
+      - name: Capture fixture After snapshot
+        shell: powershell
+        run: |
+          .\scripts\Start-SasApprovedSoftwareOperator.ps1 `
+            -Action After `
+            -OutputRoot .\survey\output\approved_software_acceptance_ci `
+            -FixtureMode `
+            -NonInteractive `
+            -NoOpen
+
+      - name: Extract fixture application and AutoLogon behavior
+        shell: powershell
+        run: |
+          .\scripts\Start-SasApprovedSoftwareOperator.ps1 `
+            -Action Acceptance `
+            -OutputRoot .\survey\output\approved_software_acceptance_ci `
+            -ProcessName FixtureApp `
+            -ApplicationObserved `
+            -AutoLogonObservedAfterReboot `
+            -FixtureMode `
+            -NonInteractive `
+            -NoOpen
+
+      - name: Verify fixture acceptance evidence
+        shell: powershell
+        run: |
+          $statePath = '.\survey\output\approved_software_acceptance_ci\operator-state.json'
+          $state = Get-Content $statePath -Raw | ConvertFrom-Json
+          if ($state.workflow_status -ne 'acceptance_extracted') { throw "Unexpected state: $($state.workflow_status)" }
+          if (-not (Test-Path -LiteralPath $state.acceptance_summary_path -PathType Leaf)) { throw 'Acceptance summary missing.' }
+          if ([System.IO.Path]::GetFileName([string]$state.acceptance_summary_path) -ne 'acceptance-summary.json') {
+            throw "Unexpected acceptance summary filename: $($state.acceptance_summary_path)"
+          }
+
+          $summary = Get-Content $state.acceptance_summary_path -Raw | ConvertFrom-Json
+          if ($summary.proof_level -ne 'FIXTURE_ONLY') { throw "Unexpected fixture proof: $($summary.proof_level)" }
+          if ([bool]$summary.runtime_proof) { throw 'Fixture evidence must never claim runtime proof.' }
+          if ($summary.target_count -ne 1 -or $summary.failed_count -ne 0) { throw 'Fixture target result is incomplete.' }
+
+          $result = @($summary.results)[0]
+          if ($result.application.status -ne 'launch_observed') { throw "Unexpected application status: $($result.application.status)" }
+          if ($result.autologon.configuration_status -ne 'autologon_ready') { throw "Unexpected configuration status: $($result.autologon.configuration_status)" }
+          if ($result.autologon.behavior_status -ne 'session_match_after_reboot_observed') { throw "Unexpected behavior status: $($result.autologon.behavior_status)" }
+          if ([bool]$result.autologon.default_password_value_collected) { throw 'DefaultPassword data collection is forbidden.' }
+          if ([bool]$result.application.command_line_collected) { throw 'Application command-line collection is forbidden.' }
+          'PASS: fixture launch and AutoLogon acceptance evidence'
+
+      - name: Upload synthetic acceptance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-software-acceptance-synthetic-proof
+          path: survey/output/approved_software_acceptance_ci
+          if-no-files-found: error
