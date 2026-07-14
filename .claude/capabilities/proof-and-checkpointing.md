@@ -38,3 +38,4 @@ Never promote a lower level to a higher one. Green CI does not replace controlle
 
 - `.claude/skills/repository-sprint/SKILL.md`
 - `.claude/skills/scoped-validation/SKILL.md`
+- `.claude/skills/survey-low-noise/SKILL.md`
