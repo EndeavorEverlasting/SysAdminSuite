@@ -62,7 +62,7 @@ function Get-MsiInfo {
 function Get-DangerousIndicators {
     param([string]$TextContent)
     $indicators = [System.Collections.Generic.List[string]]::new()
-    
+
     if ($TextContent -match 'reg\.exe|reg\s+add|reg\s+delete|regedit|Registry|New-ItemProperty|Set-ItemProperty|Remove-ItemProperty') {
         $indicators.Add("registry_changes")
     }
@@ -290,7 +290,7 @@ foreach ($file in $files) {
     if ($isText) {
         try {
             $content = [System.IO.File]::ReadAllText($file.FullName)
-            
+
             # Dangerous indicators
             $dangerousInds.AddRange((Get-DangerousIndicators -TextContent $content))
 

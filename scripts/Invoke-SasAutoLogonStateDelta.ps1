@@ -723,4 +723,3 @@ Write-Host "Summary: $summaryCsvPath" -ForegroundColor Green
     target_mutation_performed = $false
     target_side_sysadminsuite_artifacts_written = $false
 }
-

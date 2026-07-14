@@ -37,7 +37,7 @@ def test_profiles_conform_to_contract() -> None:
 
     for profile_path in profiles:
         content = read(profile_path)
-        
+
         # Helper to parse key-value pairs
         data = {}
         for line in content.splitlines():
@@ -52,10 +52,10 @@ def test_profiles_conform_to_contract() -> None:
         assert data.get("profile_id") == profile_id, f"profile_id mismatch in {profile_path.name}"
         assert data.get("mutation_allowed") == "false", f"mutation_allowed must be false in {profile_path.name}"
         assert data.get("runner") in {"python3", "bash", "pwsh"}, f"unknown runner in {profile_path.name}"
-        
+
         script_path = ROOT / data.get("script", "")
         assert script_path.is_file(), f"script declared in {profile_path.name} not found: {script_path}"
-        
+
         contracts = data.get("output_contract", "").split(",")
         assert len(contracts) > 0, f"missing output_contract in {profile_path.name}"
         for contract in contracts:
@@ -81,7 +81,7 @@ def test_invalid_profile_rejection() -> None:
     bad1 = PROFILES_DIR / "bad1.profile"
     bad2 = PROFILES_DIR / "bad2.profile"
     bad3 = PROFILES_DIR / "bad3.profile"
-    
+
     try:
         # 1. Unsafe mutation_allowed
         bad1.write_text(

@@ -36,11 +36,11 @@ Describe "Local Package Inventory Contract" {
     Context "Schema contract and validation" {
         It "Validates the generated fixture output against the schema" {
             $script:schemaPath | Should -Exist
-            
+
             # Execute scanner in FixtureOnly mode
             $inventory = & $script:scannerPath -FixtureOnly
             $inventory | Should -Not -BeNullOrEmpty
-            
+
             $json = ConvertTo-Json $inventory -Depth 10
             $testJsonResult = Test-Json -Json $json -SchemaFile $script:schemaPath
             $testJsonResult | Should -Be $true
