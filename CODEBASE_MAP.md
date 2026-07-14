@@ -8,11 +8,22 @@ Use this map to load only the files needed for a task.
 - `CLAUDE.md` — progressive-disclosure front door for Claude-compatible agents.
 - `.claude/skills/*/SKILL.md` — task workflows that compose reusable capabilities.
 - `.claude/capabilities/*.md` — stable atomic rules shared by multiple skills.
-- `harness/api/agent-capability-manifest.json` — machine-readable skill/capability IDs, versions, lanes, posture, authorities, validators, and dependencies.
-- `schemas/harness/agent-capability-manifest.schema.json` — fail-closed manifest shape.
+- `harness/api/agent-capability-manifest.json` — machine-readable skill/capability catalog and dependency graph.
+- `schemas/harness/agent-capability-manifest.schema.json` — fail-closed catalog schema.
 - `tools/validate-ai-layer.ps1` — validates the instruction architecture, required safety language, and local-data exclusions.
 - `Tests/survey/test_agent_instruction_factoring_contracts.py` — dependency-free factoring and anti-bloat contract.
-- `Tests/survey/test_agent_capability_manifest_contracts.py` — manifest integrity, path, dependency, and validation wiring contract.
+- `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
+
+## End-to-end validation
+
+- `docs/END_TO_END_TESTING_POSTURE.md` — default merge/release proof posture and E2E safety classes.
+- `.claude/skills/end-to-end-validation/SKILL.md` — task workflow for composed integration and runtime gates.
+- `.claude/capabilities/end-to-end-testing.md` — reusable E2E invariants.
+- `harness/e2e/e2e-profiles.json` — default fixture/loopback journey catalog.
+- `schemas/harness/e2e-validation-profiles.schema.json` — E2E profile schema.
+- `scripts/Invoke-SasEndToEndValidation.ps1` — one-command E2E gate and evidence emitter.
+- `Tests/survey/test_e2e_default_posture_contracts.py` — default-posture and profile contract.
+- `.github/workflows/default-e2e-validation.yml` — executable default E2E CI gate.
 
 ## Repo doctrine
 
@@ -38,6 +49,8 @@ Use this map to load only the files needed for a task.
 - `docs/DASHBOARD_ENTRYPOINT.md` — canonical field and IT/developer launcher guidance.
 - `START-HERE-SysAdminSuite-Dashboard.bat` — field-user dashboard launcher.
 - `Launch-SysAdminSuiteDashboard.Host.bat` — IT/developer dashboard launcher.
+- `dashboard/test_relay_cancel_e2e.py` — real relay cancellation journey over loopback.
+- `dashboard/test_relay_abort_e2e.js` — real relay/client abort journey over loopback.
 
 ## Validation and tests
 

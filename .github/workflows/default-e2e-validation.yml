@@ -1,0 +1,89 @@
+name: Default End-to-End Validation
+
+on:
+  pull_request:
+    paths:
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'CODEBASE_MAP.md'
+      - '.claude/skills/**'
+      - '.claude/capabilities/**'
+      - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/AI_LAYER.md'
+      - 'harness/e2e/**'
+      - 'harness/api/agent-capability-manifest.json'
+      - 'schemas/harness/**'
+      - 'scripts/Invoke-SasEndToEndValidation.ps1'
+      - 'scripts/validate-sysadmin-harness.ps1'
+      - 'dashboard/relay.py'
+      - 'dashboard/js/relay-client.js'
+      - 'dashboard/test_relay_cancel_e2e.py'
+      - 'dashboard/test_relay_abort_e2e.js'
+      - 'Tests/survey/test_e2e_default_posture_contracts.py'
+      - '.github/workflows/default-e2e-validation.yml'
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'refactor/**'
+      - 'harness/**'
+    paths:
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'CODEBASE_MAP.md'
+      - '.claude/skills/**'
+      - '.claude/capabilities/**'
+      - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/AI_LAYER.md'
+      - 'harness/e2e/**'
+      - 'harness/api/agent-capability-manifest.json'
+      - 'schemas/harness/**'
+      - 'scripts/Invoke-SasEndToEndValidation.ps1'
+      - 'scripts/validate-sysadmin-harness.ps1'
+      - 'dashboard/relay.py'
+      - 'dashboard/js/relay-client.js'
+      - 'dashboard/test_relay_cancel_e2e.py'
+      - 'dashboard/test_relay_abort_e2e.js'
+      - 'Tests/survey/test_e2e_default_posture_contracts.py'
+      - '.github/workflows/default-e2e-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  default-e2e:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install fixture-safe E2E dependencies
+        shell: pwsh
+        run: |
+          pip install websockets jsonschema
+          npm install --no-save --no-package-lock ws@8
+      - name: Validate E2E posture and profiles
+        shell: pwsh
+        run: python .\Tests\survey\test_e2e_default_posture_contracts.py
+      - name: Run default end-to-end gate
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasEndToEndValidation.ps1 `
+            -Profile default `
+            -OutputRoot .\survey\output\e2e-validation
+      - name: Upload E2E proof artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: default-e2e-validation
+          path: |
+            survey/output/e2e-validation/**/e2e_validation_matrix.txt
+            survey/output/e2e-validation/**/e2e_validation_result.json
+            survey/output/e2e-validation/**/*.log
+            survey/output/e2e-validation/**/harness-one-command-synthetic/**
+          if-no-files-found: error

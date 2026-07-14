@@ -25,6 +25,7 @@ dependencies for harness consumers and future bounded adapters.
 |---|---|
 | [Repository Evidence](repository-evidence.md) | Recover Git/repo truth and preserve concurrent work. |
 | [Proof and Checkpointing](proof-and-checkpointing.md) | Preserve progress and classify validation/runtime proof honestly. |
+| [End-to-End Testing](end-to-end-testing.md) | Make closed-loop fixture, loopback, and authorized runtime journeys the default merge/release proof target. |
 | [Language Runtime Selection](language-runtime-selection.md) | Choose Bash, PowerShell, Windows-native, or managed surfaces without deleting active tooling. |
 | [Mutation and Evidence Boundaries](mutation-and-evidence-boundaries.md) | Separate read-only lanes, authorized mutation, teardown, and private evidence. |
 | [Field Command Design](field-command-design.md) | Produce short technician entrypoints and bounded operator handoffs. |
