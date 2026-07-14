@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCANNER = ROOT / "scripts" / "Get-SasLocalPackageInventory.ps1"
 SCHEMA = ROOT / "schemas" / "harness" / "local-package-inventory.schema.json"
 FIXTURE = ROOT / "Tests" / "Fixtures" / "local-package-inventory.fixture.json"
+DOC = ROOT / "docs" / "LOCAL_PACKAGE_INVENTORY_EVIDENCE_FLOOR.md"
 
 
 def require(condition: bool, message: str) -> None:
@@ -22,6 +23,7 @@ def main() -> None:
     scanner = SCANNER.read_text(encoding="utf-8")
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    documentation = DOC.read_text(encoding="utf-8")
 
     require(
         schema["properties"]["scan_root"]["enum"]
@@ -63,6 +65,15 @@ def main() -> None:
     )
     require("autologon" in auto[0]["dangerous_indicators"], "AutoLogon mutation indicator missing")
     require("reboot" in auto[0]["dangerous_indicators"], "AutoLogon reboot indicator missing")
+
+    for required_phrase in (
+        "does not approve or execute an installer",
+        "has no machine-local default",
+        "are not approved installer arguments",
+        "requires_physical_cybernet",
+        "do not prove package identity",
+    ):
+        require(required_phrase in documentation, f"documentation lost required boundary: {required_phrase}")
 
     print("PASS: local package inventory evidence floor")
 
