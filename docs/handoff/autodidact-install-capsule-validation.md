@@ -26,7 +26,7 @@ BEFORE snapshot -> WhatIf plan -> approved install -> AFTER snapshot -> local de
 
 ```text
 GitHub compare main...feat/autodidact-install-capsule
-PASS: branch is 6 commits ahead, 0 behind, with changes limited to the Auto Didact install capsule surfaces and test runner wiring.
+PASS: branch is 7 commits ahead, 0 behind, with changes limited to the Auto Didact install capsule surfaces, validation handoff, and test runner wiring.
 ```
 
 Static fetched-content review confirmed:
