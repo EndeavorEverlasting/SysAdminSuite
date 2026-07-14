@@ -18,10 +18,13 @@ if not exist "%SCRIPT%" (
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" -Action Menu
 set "EXITCODE=%ERRORLEVEL%"
 
+echo.
 if not "%EXITCODE%"=="0" (
-    echo.
     echo AutoLogon verification stopped with exit code %EXITCODE%.
-    pause
+) else (
+    echo AutoLogon verification action completed.
 )
+echo Press any key to close this window.
+pause >nul
 
 exit /b %EXITCODE%
