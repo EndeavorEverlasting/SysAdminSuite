@@ -21,8 +21,8 @@ Describe 'Cybernet power-hardening PowerShell surfaces' {
     It 'Preserves the known-good physical power-button Do nothing action' {
         $content = Get-Content -LiteralPath $script:localPreset -Raw
         $content | Should -Match '7648efa3-dd9c-4e3e-b566-50f929386280'
-        $content | Should -Match "'/setacvalueindex', \$g, 'SUB_BUTTONS', \$powerButtonAction, '0'"
-        $content | Should -Match "'/setdcvalueindex', \$g, 'SUB_BUTTONS', \$powerButtonAction, '0'"
+        $content.Contains("@('/setacvalueindex', `$g, 'SUB_BUTTONS', `$powerButtonAction, '0')") | Should -Be $true
+        $content.Contains("@('/setdcvalueindex', `$g, 'SUB_BUTTONS', `$powerButtonAction, '0')") | Should -Be $true
         $content | Should -Not -Match 'UIBUTTON_ACTION'
     }
 
