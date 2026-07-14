@@ -10,13 +10,24 @@ fail() {
   exit 1
 }
 
+run_contract() {
+  local contract="$1"
+  local output
+  if ! output="$(bash "$contract" 2>&1)"; then
+    printf '%s\n' "$output" >&2
+    printf '::error title=Naabu doctrine child contract failed::%s\n' "$contract" >&2
+    fail "child contract failed: $contract"
+  fi
+  printf '[PASS] %s\n' "$contract"
+}
+
 run_contracts() {
-  bash tests/bash/smoke-naabu-profiles.sh
-  bash Tests/bash/test_naabu_profile_sync.sh
-  bash Tests/bash/test_cybernet_detect_contracts.sh
-  bash Tests/bash/test_naabu_pipeline_contracts.sh
-  bash Tests/bash/test_naabu_package_contracts.sh
-  bash Tests/bash/test_packet_probe_contracts.sh
+  run_contract tests/bash/smoke-naabu-profiles.sh
+  run_contract Tests/bash/test_naabu_profile_sync.sh
+  run_contract Tests/bash/test_cybernet_detect_contracts.sh
+  run_contract Tests/bash/test_naabu_pipeline_contracts.sh
+  run_contract Tests/bash/test_naabu_package_contracts.sh
+  run_contract Tests/bash/test_packet_probe_contracts.sh
 }
 
 check_raw_naabu_commands() {
@@ -54,10 +65,11 @@ check_doctrine_references() {
   grep -q 'feature/naabu-docs-consolidation' "$skill" || fail "survey skill must mark H1 as superseded"
   grep -q 'AD registered population = source' "$doctrine" || fail "canonical doctrine must preserve the population authority"
   [[ -f .cursor/rules/naabu-doctrine.mdc ]] || fail "missing .cursor/rules/naabu-doctrine.mdc"
+  printf '[PASS] factored doctrine references\n'
 }
 
+check_doctrine_references
 run_contracts
 check_raw_naabu_commands
-check_doctrine_references
 
 echo "test_repo_naabu_doctrine_conformance: PASS"
