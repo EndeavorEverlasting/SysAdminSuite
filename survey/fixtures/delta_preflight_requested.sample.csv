@@ -1,0 +1,6 @@
+Serial,HostName,DeviceType,Site
+SN1001,CYB001,Cybernet,LIJ
+SN1002,CYB002,Cybernet,LIJ
+SN1003,,Cybernet,LIJ
+SN1004,CYB004,Cybernet,LIJ
+SN1005,CYB005,Cybernet,LIJ
