@@ -1,0 +1,97 @@
+name: AutoLogon Session Access Proof Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-SasAutoLogonSessionAccessProof.ps1'
+      - 'docs/AUTOLOGON_SESSION_ACCESS_PROOF.md'
+      - 'Tests/survey/test_autologon_session_access_proof_contracts.py'
+      - '.github/workflows/autologon-session-access-proof-contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Run offline session-access fixture
+        shell: pwsh
+        run: |
+          $outputRoot = Join-Path $PWD 'survey\output\autologon_session_access'
+          New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+          $outputPath = Join-Path $outputRoot 'fixture-summary.json'
+
+          $result = .\scripts\Invoke-SasAutoLogonSessionAccessProof.ps1 `
+            -ExpectedUserName SAMPLE001 `
+            -Path @('C:\ProgramData\VendorApp', '\\fileserver\roundabout') `
+            -RetryCount 2 `
+            -RetryDelaySeconds 1 `
+            -AllowWriteProbe `
+            -FixtureMode `
+            -Confirm:$false
+
+          $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $outputPath -Encoding UTF8
+
+          if ($result.decision -ne 'SESSION_ACCESS_CONFIRMED') {
+            throw "Expected SESSION_ACCESS_CONFIRMED; found $($result.decision)."
+          }
+          if ($result.identity_match -ne $true) {
+            throw 'Fixture did not confirm the expected identity contract.'
+          }
+          if ($result.confirmed_path_count -ne 2 -or $result.failed_path_count -ne 0) {
+            throw 'Fixture did not confirm both explicit paths.'
+          }
+          if ($result.write_probe_count -ne 2) {
+            throw "Expected two simulated write probes; found $($result.write_probe_count)."
+          }
+          if ($result.runtime_proof -ne $false) {
+            throw 'Fixture incorrectly claimed live runtime proof.'
+          }
+          if ($result.path_contents_recorded -ne $false) {
+            throw 'Fixture violated the no-content-evidence boundary.'
+          }
+          if ($result.credentials_collected -ne $false -or $result.impersonation_used -ne $false) {
+            throw 'Fixture violated the identity/credential boundary.'
+          }
+          if (@($result.results | Where-Object { $_.marker_file_created }).Count -ne 0) {
+            throw 'Fixture incorrectly reported a real marker file.'
+          }
+
+          Write-Host 'PASS: offline AutoLogon session-access fixture confirmed identity, local/share paths, write intent, and cleanup contracts.'
+
+      - name: Run static contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_autologon_session_access_proof_contracts.py
+
+      - name: Parse PowerShell entrypoint
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\scripts\Invoke-SasAutoLogonSessionAccessProof.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "PowerShell parser reported $($errors.Count) error(s)."
+          }
+          Write-Host 'PASS: PowerShell parser accepted the AutoLogon session-access proof.'
+
+      - name: Upload synthetic session-access evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autologon-session-access-synthetic-evidence
+          path: survey/output/autologon_session_access/
+          if-no-files-found: error
