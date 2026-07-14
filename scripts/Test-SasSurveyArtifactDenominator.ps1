@@ -44,8 +44,26 @@ $resolvedPath = (Resolve-Path -LiteralPath $Path).Path
 $roots = Get-SasTargetIntakeRoots -RepoRoot $repoRoot
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $roots.OutputRoots[0] 'artifact_intake_validation' }
 Assert-SasApprovedOutputPath -Path $OutputDirectory -RepoRoot $repoRoot -Role 'network survey denominator validation output' -AllowNonstandard:$AllowNonstandardInput
+New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
-$result = Invoke-SasSurveyArtifactNormalization -Path $resolvedPath -Role $Role -OutputDirectory $OutputDirectory -RepoRoot $repoRoot
+try {
+    $result = Invoke-SasSurveyArtifactNormalization -Path $resolvedPath -Role $Role -OutputDirectory $OutputDirectory -RepoRoot $repoRoot
+}
+catch {
+    $diagnosticPath = Join-Path $OutputDirectory 'denominator-validation-error.txt'
+    @(
+        'FAIL: network survey denominator validation',
+        "Source: $resolvedPath",
+        "Role: $Role",
+        "Exception: $($_.Exception.Message)",
+        "Position: $($_.InvocationInfo.PositionMessage)",
+        'Full error:',
+        ($_ | Out-String)
+    ) | Set-Content -LiteralPath $diagnosticPath -Encoding UTF8
+    Write-Host "Denominator diagnostic: $diagnosticPath"
+    throw
+}
+
 Write-Host "Adapter: $($result.AdapterId)"
 Write-Host "Normalized package: $($result.PackagePath)"
 Write-Host "Validation report: $($result.ValidationPath)"
