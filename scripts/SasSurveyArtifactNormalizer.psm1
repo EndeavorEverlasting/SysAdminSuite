@@ -175,7 +175,7 @@ function Get-SasSurveyArtifactHeaders {
     foreach ($row in @($Rows | Select-Object -First 20)) {
         foreach ($property in $row.PSObject.Properties) { [void]$headers.Add($property.Name) }
     }
-    return @($headers)
+    return @($headers | Sort-Object)
 }
 
 function Test-SasSurveyAdapterDetection {
