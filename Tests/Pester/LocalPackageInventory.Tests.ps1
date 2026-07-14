@@ -11,7 +11,7 @@ Describe 'Local Package Inventory Evidence Floor' {
     It 'parses cleanly' {
         $tokens = $null
         $errors = $null
-        [void][Management.Automation.Language.Parser]::ParseFile($script:scannerPath, [ref]$tokens, [ref]$errors)
+        [void][System.Management.Automation.Language.Parser]::ParseFile($script:scannerPath, [ref]$tokens, [ref]$errors)
         @($errors).Count | Should -Be 0
     }
 
