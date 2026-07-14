@@ -41,6 +41,17 @@ function Tail-Text {
     return @($Lines[$start..($Lines.Count - 1)])
 }
 
+function Test-AllUnittestCasesSkipped {
+    param([string[]]$Lines)
+    $joined = @($Lines) -join "`n"
+    $ranMatch = [regex]::Match($joined, '(?im)^Ran\s+(\d+)\s+tests?\s+in\s+')
+    $skippedMatch = [regex]::Match($joined, '(?im)^OK\s+\(skipped=(\d+)\)\s*$')
+    if (-not $ranMatch.Success -or -not $skippedMatch.Success) { return $false }
+    $ran = [int]$ranMatch.Groups[1].Value
+    $skipped = [int]$skippedMatch.Groups[1].Value
+    return $ran -gt 0 -and $ran -eq $skipped
+}
+
 $catalog = Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json
 $profileRecord = @($catalog.profiles | Where-Object id -eq $Profile)
 if ($profileRecord.Count -ne 1) {
@@ -118,6 +129,12 @@ try {
         $output = @(& $runtime @arguments 2>&1 | ForEach-Object { $_.ToString() })
         $exitCode = $LASTEXITCODE
         $watch.Stop()
+
+        if ([bool]$journey.required -and $exitCode -eq 0 -and (Test-AllUnittestCasesSkipped $output)) {
+            $exitCode = 3
+            $output += 'Required E2E journey skipped all tests; required journeys must execute at least one assertion.'
+        }
+
         Set-Content -LiteralPath $logPath -Value $output -Encoding UTF8
         $status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
         $tail = Tail-Text $output
