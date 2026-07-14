@@ -30,17 +30,17 @@ function Get-SasDeltaTierRank {
     param([string]$Tier)
 
     $rank = @{
-        IDENTITY_CONFIRMED        = 1
-        PROBABLE_DEVICE_LOCATION  = 2
-        POPULATION_ONLY           = 3
-        REGISTERED_AD_TARGET      = 4
-        AD_VARIANT_REVIEW         = 5
-        DNS_OR_SUBNET_ONLY        = 6
-        REACHABILITY_ONLY         = 7
-        PACKET_SERVICE_ONLY       = 8
-        NEGATIVE_OR_SILENT        = 9
-        TEST_ONLY                 = 10
-        NONE                      = 99
+        IDENTITY_CONFIRMED = 1
+        PROBABLE_DEVICE_LOCATION = 2
+        POPULATION_ONLY = 3
+        REGISTERED_AD_TARGET = 4
+        AD_VARIANT_REVIEW = 5
+        DNS_OR_SUBNET_ONLY = 6
+        REACHABILITY_ONLY = 7
+        PACKET_SERVICE_ONLY = 8
+        NEGATIVE_OR_SILENT = 9
+        TEST_ONLY = 10
+        NONE = 99
     }
     if ($rank.ContainsKey($Tier)) { return [int]$rank[$Tier] }
     return 99
@@ -53,15 +53,17 @@ function ConvertFrom-SasRequestedArtifactPackage {
     if ($Package.artifact_role -ne 'requested_population') {
         throw "Expected requested_population package; found '$($Package.artifact_role)'."
     }
-    $results = New-Object System.Collections.Generic.List[object]
+    $results = @()
     foreach ($row in @($Package.rows)) {
-        $candidates = New-Object System.Collections.Generic.List[string]
+        $candidates = @()
         foreach ($candidate in @($row.candidate_targets)) {
             $clean = ([string]$candidate).Trim()
-            if ($clean -and -not $candidates.Contains($clean)) { $candidates.Add($clean) }
+            if ($clean -and $candidates -notcontains $clean) { $candidates += $clean }
         }
-        if ($row.target -and -not $candidates.Contains([string]$row.target)) { $candidates.Insert(0, [string]$row.target) }
-        $results.Add([pscustomobject]@{
+        if ($row.target -and $candidates -notcontains [string]$row.target) {
+            $candidates = @([string]$row.target) + $candidates
+        }
+        $results += [pscustomobject]@{
             InputRowId = [string]$row.row_id
             Serial = [string]$row.serial
             NormalizedSerial = [string]$row.normalized_serial
@@ -73,7 +75,7 @@ function ConvertFrom-SasRequestedArtifactPackage {
             ExpectedPrefix = [string]$row.expected_prefix
             Source = [string]$Package.source_path
             SourceAdapter = [string]$Package.adapter_id
-        })
+        }
     }
     return @($results)
 }
@@ -90,12 +92,12 @@ function ConvertFrom-SasEvidenceArtifactPackages {
         foreach ($row in @($package.rows)) {
             $observedKey = if ($row.observed_at) { [string]$row.observed_at } else { 'undated' }
             $key = '{0}|{1}|{2}|{3}' -f $row.source_file, $row.normalized_target, $row.normalized_serial, $observedKey
-            if (-not $groups.ContainsKey($key)) { $groups[$key] = New-Object System.Collections.Generic.List[object] }
-            $groups[$key].Add($row)
+            if (-not $groups.ContainsKey($key)) { $groups[$key] = @() }
+            $groups[$key] += $row
         }
     }
 
-    $snapshots = New-Object System.Collections.Generic.List[object]
+    $snapshots = @()
     foreach ($key in $groups.Keys) {
         $rows = @($groups[$key])
         $first = $rows[0]
@@ -107,7 +109,7 @@ function ConvertFrom-SasEvidenceArtifactPackages {
         elseif ($reachabilityValues -contains 'silent') { $reachability = 'silent' }
         $openPorts = @($rows | ForEach-Object { @($_.open_ports) } | ForEach-Object { [int]$_ } | Sort-Object -Unique)
         $timestamp = ConvertTo-SasSurveyTimestamp -Value $first.observed_at
-        $snapshots.Add([pscustomobject]@{
+        $snapshots += [pscustomobject]@{
             SourceFile = [string]$first.source_file
             SourceAdapter = [string]$first.source_adapter
             Target = [string]$first.target
@@ -124,7 +126,7 @@ function ConvertFrom-SasEvidenceArtifactPackages {
             ADCandidateStatus = [string]$first.ad_candidate_status
             TrackerStatus = [string]$first.tracker_status
             EvidenceType = [string]$first.evidence_type
-        })
+        }
     }
     return @($snapshots)
 }
