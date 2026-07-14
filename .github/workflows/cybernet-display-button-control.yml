@@ -1,0 +1,183 @@
+name: Cybernet Display Button Control
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/SasDdcciMonitorControl.cs'
+      - 'scripts/Invoke-SasCybernetDisplayButtonControl.ps1'
+      - 'QRTasks/Test-DisplayMenuButtonEvent.ps1'
+      - 'Tests/Pester/CybernetDisplayButtonControl.Tests.ps1'
+      - 'Tests/survey/test_cybernet_display_button_control_contracts.py'
+      - 'docs/CYBERNET_POWER_HARDENING.md'
+      - 'CODEBASE_MAP.md'
+      - '.github/workflows/cybernet-display-button-control.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-and-contracts:
+    runs-on: windows-2025
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run dependency-free display-button contracts
+        shell: pwsh
+        run: python Tests/survey/test_cybernet_display_button_control_contracts.py
+
+      - name: Parse display-button PowerShell surface
+        shell: pwsh
+        run: |
+          $path = Resolve-Path -LiteralPath 'scripts/Invoke-SasCybernetDisplayButtonControl.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            $path,
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if (@($errors).Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw 'Cybernet display-button PowerShell parser validation failed.'
+          }
+          Write-Host 'PASS: Cybernet display-button orchestrator parses cleanly.'
+
+      - name: Compile DDC CI helper
+        shell: pwsh
+        run: |
+          $source = Get-Content -LiteralPath 'scripts/SasDdcciMonitorControl.cs' -Raw -Encoding UTF8
+          Add-Type -TypeDefinition $source -Language CSharp -ErrorAction Stop
+          if ([SysAdminSuite.DisplayControl.MonitorController]::MccsVersionCode -ne 0xDF) {
+            throw 'Unexpected MCCS version code.'
+          }
+          if ([SysAdminSuite.DisplayControl.MonitorController]::OsdButtonControlCode -ne 0xCA) {
+            throw 'Unexpected OSD/button control code.'
+          }
+          if ([SysAdminSuite.DisplayControl.MonitorController]::LockedButtonValue -ne 0x0303) {
+            throw 'Unexpected locked-button value.'
+          }
+          Write-Host 'PASS: DDC/CI helper compiles and exports expected constants.'
+
+      - name: Execute offline apply and restore fixtures
+        id: fixture
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $outputRoot = Join-Path $PWD 'survey\output\cybernet_display_button_ci'
+          if (Test-Path -LiteralPath $outputRoot) {
+            Remove-Item -LiteralPath $outputRoot -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+          "CYBERNET_DISPLAY_BUTTON_FIXTURE_ROOT=$outputRoot" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          & pwsh -NoProfile -ExecutionPolicy Bypass `
+            -File .\scripts\Invoke-SasCybernetDisplayButtonControl.ps1 `
+            -ComputerName 'CYBERNET-FIXTURE-01' `
+            -Operation Apply `
+            -FixtureMode `
+            -OutputRoot $outputRoot
+          if ($LASTEXITCODE -ne 0) {
+            throw "Apply fixture exited $LASTEXITCODE"
+          }
+
+          $applySummaryPath = Get-ChildItem -LiteralPath $outputRoot `
+            -Filter 'cybernet_display_button_summary.json' `
+            -File -Recurse |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          $applySummary = Get-Content -LiteralPath $applySummaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($applySummary.status -ne 'PASS' -or $applySummary.operation -ne 'Apply') {
+            throw 'Apply fixture did not produce a PASS Apply summary.'
+          }
+          if ($applySummary.desired_vcp_ca_hex -ne '0x0303') {
+            throw 'Apply fixture did not retain desired VCP 0xCA value 0x0303.'
+          }
+          if ($applySummary.network_activity_performed -or $applySummary.target_mutation_performed) {
+            throw 'Apply fixture incorrectly reported live network activity or mutation.'
+          }
+
+          $restoreManifestPath = Get-ChildItem -LiteralPath $outputRoot `
+            -Filter 'cybernet_display_button_restore_manifest.json' `
+            -File -Recurse |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $restoreManifestPath) { throw 'Apply fixture did not generate a restore manifest.' }
+          $restoreManifest = Get-Content -LiteralPath $restoreManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($restoreManifest.schema_version -ne 'sas-cybernet-display-button-restore/v1') {
+            throw 'Unexpected restore manifest schema.'
+          }
+          if (@($restoreManifest.entries).Count -ne 1) {
+            throw 'Apply fixture did not preserve exactly one restore entry.'
+          }
+          if ($restoreManifest.entries[0].original_vcp_ca_hex -ne '0x0202') {
+            throw 'Apply fixture did not preserve the original synthetic VCP value.'
+          }
+
+          Start-Sleep -Milliseconds 1100
+          & pwsh -NoProfile -ExecutionPolicy Bypass `
+            -File .\scripts\Invoke-SasCybernetDisplayButtonControl.ps1 `
+            -ComputerName 'CYBERNET-FIXTURE-01' `
+            -Operation Restore `
+            -FixtureMode `
+            -OutputRoot $outputRoot
+          if ($LASTEXITCODE -ne 0) {
+            throw "Restore fixture exited $LASTEXITCODE"
+          }
+
+          $restoreSummaryPath = Get-ChildItem -LiteralPath $outputRoot `
+            -Filter 'cybernet_display_button_summary.json' `
+            -File -Recurse |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          $restoreSummary = Get-Content -LiteralPath $restoreSummaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($restoreSummary.status -ne 'PASS' -or $restoreSummary.operation -ne 'Restore') {
+            throw 'Restore fixture did not produce a PASS Restore summary.'
+          }
+          if ($restoreSummary.network_activity_performed -or $restoreSummary.target_mutation_performed) {
+            throw 'Restore fixture incorrectly reported live network activity or mutation.'
+          }
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run targeted display-button Pester contracts
+        shell: pwsh
+        run: |
+          .\tools\Test-Pester5Suite.ps1 `
+            -TestPath .\Tests\Pester\CybernetDisplayButtonControl.Tests.ps1
+
+      - name: Check patch whitespace
+        shell: pwsh
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --check "origin/${{ github.base_ref }}...HEAD"
+
+      - name: Upload synthetic fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cybernet-display-button-fixture
+          path: ${{ env.CYBERNET_DISPLAY_BUTTON_FIXTURE_ROOT }}
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce fixture result
+        if: always()
+        shell: pwsh
+        run: |
+          if ('${{ steps.fixture.outcome }}' -ne 'success') {
+            throw 'Offline display-button fixture failed. Inspect the uploaded synthetic fixture artifact.'
+          }
