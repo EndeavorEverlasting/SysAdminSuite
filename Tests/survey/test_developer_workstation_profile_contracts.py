@@ -36,20 +36,43 @@ def test_profile_and_schema_are_fail_closed() -> None:
     }
 
 
+def test_wezterm_is_required_and_windows_native_is_default() -> None:
+    terminal = load(PROFILE)["terminal"]
+    assert terminal["provider"] == "wezterm"
+    assert terminal["preference"] == "required"
+    assert terminal["default_profile"] == "windows-native"
+
+    profiles = terminal["execution_profiles"]
+    ids = [profile["id"] for profile in profiles]
+    assert len(ids) == len(set(ids)), f"duplicate execution profile IDs: {ids}"
+    by_id = {profile["id"]: profile for profile in profiles}
+
+    assert by_id["windows-native"] == {
+        "id": "windows-native",
+        "priority": 10,
+        "enabled": True,
+        "shell": "pwsh",
+        "multiplexer": "none",
+    }
+    assert by_id["wsl-tmux"] == {
+        "id": "wsl-tmux",
+        "priority": 100,
+        "enabled": False,
+        "shell": "wsl",
+        "multiplexer": "tmux",
+        "distribution": "Ubuntu",
+    }
+    assert by_id[terminal["default_profile"]]["enabled"] is True
+    assert by_id["windows-native"]["priority"] < by_id["wsl-tmux"]["priority"]
+
+
 def test_profile_preserves_repository_ownership_boundary() -> None:
     profile = load(PROFILE)
-    assert profile["terminal"] == {
-        "provider": "wezterm",
-        "default_environment": "wsl",
-        "multiplexer": "tmux",
-        "wsl_distribution": "Ubuntu",
-    }
     switchboard = profile["agent_switchboard"]
     assert switchboard["repository"] == "EndeavorEverlasting/AgentSwitchboard"
     assert switchboard["invocation_mode"] == "external-versioned-contract"
     assert switchboard["required_agents"] == ["opencode", "agy", "goose"]
-    posture = profile["posture"]
-    assert posture == {
+    assert profile["posture"] == {
         "install_missing_only": True,
         "preserve_existing_configuration": True,
         "automatic_authentication": False,
@@ -75,6 +98,8 @@ def test_contract_is_discoverable_and_wired() -> None:
     for path in (schema_path, profile_path):
         assert path in read(DOC), f"documentation does not name {path}"
         assert path in read(MAP), f"codebase map does not name {path}"
+    assert "WezTerm is the required terminal host" in read(DOC)
+    assert "WSL is an optional, lower-priority execution profile" in read(DOC)
     assert f"python3 {test_path}" in read(RUNNER)
 
 
@@ -89,6 +114,7 @@ def test_schema_validation_when_available() -> None:
 def main() -> None:
     tests = [
         test_profile_and_schema_are_fail_closed,
+        test_wezterm_is_required_and_windows_native_is_default,
         test_profile_preserves_repository_ownership_boundary,
         test_profile_contains_no_machine_local_or_secret_material,
         test_contract_is_discoverable_and_wired,
