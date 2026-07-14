@@ -295,6 +295,106 @@ Describe 'Test-SasHostEligibility with sanitized fixtures' {
             $result.decision | Should -Be 'closed'
             $result.reason_code | Should -Be 'LOCAL_FALLBACK_BLOCKED'
         }
+
+        It 'closes when an unmatched vm target resolves to the local computer' {
+            $policyPath = Join-Path $script:testDir 'fallback-policy4.json'
+            $policy = New-SasTestPolicy -Patterns @(
+                (New-SasTestPattern -Name 'remote-only' -Regex '^remote-host    }
+
+    Context 'Fixture mode' {
+        It 'allows fixture execution on unmatched hosts' {
+            $policyPath = Join-Path $script:testDir 'fixture-policy.json'
+            $policy = New-SasTestPolicy -Patterns @(
+                (New-SasTestPattern -Name 'remote-only' -Regex '^cyb-[a-z]+$' -Actions @('remote'))
+            )
+            Save-SasTestPolicy -Policy $policy -Path $policyPath
+            $result = & $script:validatorScript -Target 'fixture-anything' -ExecContext 'fixture' -PolicyPath $policyPath
+            $result.eligible | Should -BeTrue
+            $result.decision | Should -Be 'allowed'
+            $result.reason_code | Should -Be 'UNSUPPORTED_HOST_FIT_FOR_FIXTURE_OR_VM'
+            $result.matched_pattern | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'VM mode' {
+        It 'allows VM execution on unmatched hosts' {
+            $policyPath = Join-Path $script:testDir 'vm-policy.json'
+            $policy = New-SasTestPolicy -Patterns @(
+                (New-SasTestPattern -Name 'remote-only' -Regex '^cyb-[a-z]+$' -Actions @('remote'))
+            )
+            Save-SasTestPolicy -Policy $policy -Path $policyPath
+            $result = & $script:validatorScript -Target 'vm-lab-01' -ExecContext 'vm' -PolicyPath $policyPath
+            $result.eligible | Should -BeTrue
+            $result.decision | Should -Be 'allowed'
+            $result.reason_code | Should -Be 'UNSUPPORTED_HOST_FIT_FOR_FIXTURE_OR_VM'
+            $result.matched_pattern | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'Local context with local target' {
+        It 'allows local context when target matches the local computer name' {
+            $policyPath = Join-Path $script:testDir 'local-policy.json'
+            $policy = New-SasTestPolicy -Patterns @(
+                (New-SasTestPattern -Name 'any-host' -Regex '.*' -Actions @('local'))
+            )
+            Save-SasTestPolicy -Policy $policy -Path $policyPath
+            $result = & $script:validatorScript -Target $env:COMPUTERNAME -ExecContext 'local' -PolicyPath $policyPath
+            $result.eligible | Should -BeTrue
+            $result.decision | Should -Be 'allowed'
+            $result.reason_code | Should -Be 'PATTERN_MATCH_AND_CONTEXT_ALLOWED'
+        }
+
+        It 'closes when local context target is not the local computer name' {
+            $policyPath = Join-Path $script:testDir 'local-policy2.json'
+            $policy = New-SasTestPolicy -Patterns @(
+                (New-SasTestPattern -Name 'any-host' -Regex '.*' -Actions @('local'))
+            )
+            Save-SasTestPolicy -Policy $policy -Path $policyPath
+            $result = & $script:validatorScript -Target 'REMOTE-HOST01' -ExecContext 'local' -PolicyPath $policyPath
+            $result.eligible | Should -BeFalse
+            $result.decision | Should -Be 'closed'
+            $result.reason_code | Should -Be 'LOCAL_CONTEXT_TARGET_MISMATCH'
+        }
+    }
+
+    Context 'Result schema contract' {
+        It 'returns all required result fields' {
+            $policyPath = Join-Path $script:testDir 'contract-policy.json'
+            $policy = New-SasTestPolicy -Patterns @((New-SasTestPattern -Regex '^fixture-.*$'))
+            Save-SasTestPolicy -Policy $policy -Path $policyPath
+            $result = & $script:validatorScript -Target 'fixture-test' -ExecContext 'fixture' -PolicyPath $policyPath
+            $result.schema_version | Should -Be 'sas-host-eligibility-result/v1'
+            $result.PSObject.Properties.Name | Should -Contain 'execution_context'
+            $result.PSObject.Properties.Name | Should -Contain 'target'
+            $result.PSObject.Properties.Name | Should -Contain 'eligible'
+            $result.PSObject.Properties.Name | Should -Contain 'decision'
+            $result.PSObject.Properties.Name | Should -Contain 'reason_code'
+            $result.PSObject.Properties.Name | Should -Contain 'reason'
+            $result.PSObject.Properties.Name | Should -Contain 'policy_path'
+            $result.PSObject.Properties.Name | Should -Contain 'policy_version'
+            $result.PSObject.Properties.Name | Should -Contain 'matched_pattern'
+            $result.PSObject.Properties.Name | Should -Contain 'allowed_contexts'
+        }
+
+        It 'never exposes the real target hostname' {
+            $policyPath = Join-Path $script:testDir 'redact-policy.json'
+            $policy = New-SasTestPolicy -Patterns @((New-SasTestPattern -Regex '^fixture-.*$'))
+            Save-SasTestPolicy -Policy $policy -Path $policyPath
+            $result = & $script:validatorScript -Target 'fixture-secret-name' -ExecContext 'fixture' -PolicyPath $policyPath
+            $result.target | Should -Be '[redacted]'
+        }
+    }
+}
+ -Actions @('remote'))
+            )
+            Save-SasTestPolicy -Policy $policy -Path $policyPath
+            $result = & $script:validatorScript -Target $env:COMPUTERNAME -ExecContext 'vm' -PolicyPath $policyPath
+            $result.eligible | Should -BeFalse
+            $result.decision | Should -Be 'closed'
+            $result.reason_code | Should -Be 'LOCAL_FALLBACK_BLOCKED'
+            $result.matched_pattern | Should -BeNullOrEmpty
+            @($result.allowed_contexts).Count | Should -Be 0
+        }
     }
 
     Context 'Fixture mode' {

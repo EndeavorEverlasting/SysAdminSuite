@@ -252,6 +252,30 @@ function Test-SasHostEligibility {
         }
     }
 
+    $patternActions = if ($null -ne $matchedPattern) {
+        @($matchedPattern.actions | ForEach-Object { [string]$_ })
+    }
+    else {
+        @()
+    }
+    $matchedPatternName = if ($null -ne $matchedPattern) { [string]$matchedPattern.name } else { $null }
+
+    if ($ExecContext -in @('remote', 'vm') -and $isLocalTarget) {
+        return [pscustomobject]@{
+            schema_version     = 'sas-host-eligibility-result/v1'
+            execution_context  = $ExecContext
+            target             = '[redacted]'
+            eligible           = $false
+            decision           = 'closed'
+            reason_code        = 'LOCAL_FALLBACK_BLOCKED'
+            reason             = "ExecutionContext '$ExecContext' requires a non-local target. Implicit localhost fallback is not permitted."
+            policy_path        = $resolvedPolicyPath
+            policy_version     = [string]$policy.policy_version
+            matched_pattern    = $matchedPatternName
+            allowed_contexts   = @($patternActions)
+        }
+    }
+
     if ($null -eq $matchedPattern) {
         if ($ExecContext -in @('fixture', 'vm')) {
             return [pscustomobject]@{
@@ -284,7 +308,6 @@ function Test-SasHostEligibility {
         }
     }
 
-    $patternActions = @($matchedPattern.actions | ForEach-Object { [string]$_ })
     if ($ExecContext -notin $patternActions) {
         return [pscustomobject]@{
             schema_version     = 'sas-host-eligibility-result/v1'
@@ -294,22 +317,6 @@ function Test-SasHostEligibility {
             decision           = 'closed'
             reason_code        = 'CONTEXT_NOT_ALLOWED_FOR_PATTERN'
             reason             = "Target matched pattern '$([string]$matchedPattern.name)' but ExecutionContext '$ExecContext' is not in the pattern's allowed actions."
-            policy_path        = $resolvedPolicyPath
-            policy_version     = [string]$policy.policy_version
-            matched_pattern    = [string]$matchedPattern.name
-            allowed_contexts   = @($patternActions)
-        }
-    }
-
-    if ($ExecContext -in @('remote', 'vm') -and $isLocalTarget) {
-        return [pscustomobject]@{
-            schema_version     = 'sas-host-eligibility-result/v1'
-            execution_context  = $ExecContext
-            target             = '[redacted]'
-            eligible           = $false
-            decision           = 'closed'
-            reason_code        = 'LOCAL_FALLBACK_BLOCKED'
-            reason             = "ExecutionContext '$ExecContext' requires a non-local target. Implicit localhost fallback is not permitted."
             policy_path        = $resolvedPolicyPath
             policy_version     = [string]$policy.policy_version
             matched_pattern    = [string]$matchedPattern.name
