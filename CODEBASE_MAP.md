@@ -52,6 +52,7 @@ Use this map to load only the files needed for a task.
 - `harness/api/developer-workstation-agent-routing.json` — deterministic trigger and terminal-context record.
 - `schemas/harness/developer-workstation-agent-routing.schema.json` — fail-closed routing contract.
 - `Tests/survey/test_developer_workstation_agent_harness_contracts.py` — trigger uniqueness, path, manifest, context, and prompt/application separation tests.
+
 ## Native Linux workstation host
 
 - `scripts/invoke-sas-linux-tmux-workspace.sh` — native Plan/Apply/Start/Status/Stop/Repair/Rollback lifecycle implementation.
@@ -60,6 +61,14 @@ Use this map to load only the files needed for a task.
 - `Tests/Fixtures/linux-tmux-workspace/` and `Tests/survey/test_linux_wezterm_tmux_contracts.py` — required-failure and temporary-HOME lifecycle proof.
 - `docs/DEVELOPER_WORKSTATION_LINUX_HOST.md` — operator commands, preservation rules, and the native-GUI proof ceiling.
 - `.github/workflows/linux-wezterm-tmux-host.yml` — Ubuntu fixture contract gate; it is not a native desktop GUI claim.
+
+## Agent sprint capsules
+
+- `schemas/harness/agent-sprint-capsule.schema.json` — fail-closed schema for self-contained sprint context documents.
+- `tools/New-SasSprintCapsule.ps1` — generator that emits a single chat-ready capsule JSON for AI agent handoff.
+- `Tests/fixtures/capsules/` — sanitized valid and rejection fixtures for capsule validation.
+- `Tests/Pester/SprintCapsule.Tests.ps1` — Pester unit proof for capsule generation and rejection rules.
+- `Tests/survey/test_agent_sprint_capsule_contracts.py` — dependency-free contract tests for capsule schema and fixtures.
 
 ## End-to-end validation
 
