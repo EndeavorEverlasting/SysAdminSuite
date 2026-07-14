@@ -72,7 +72,7 @@ It extracts:
 - current logged-on Windows session identity;
 - current boot time and whether it changed from the Before snapshot.
 
-The extractor checks the `DefaultPassword` value name but never reads the value data.
+The extractor checks the DefaultPassword value name but never reads the value data.
 
 Configuration results include:
 
