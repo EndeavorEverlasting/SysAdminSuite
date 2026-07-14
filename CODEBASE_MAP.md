@@ -14,6 +14,13 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_agent_instruction_factoring_contracts.py` — dependency-free factoring and anti-bloat contract.
 - `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
 
+## Developer workstation provisioning
+
+- `docs/DEVELOPER_WORKSTATION_PROVISIONING.md` — ownership boundary between SysAdminSuite workstation orchestration and AgentSwitchboard agent lifecycle management.
+- `schemas/harness/developer-workstation-profile.schema.json` — fail-closed WezTerm, WSL, tmux, workspace, and AgentSwitchboard integration profile.
+- `Config/developer-workstation-profile.sample.json` — sanitized tracked sample with no credentials or machine-local paths.
+- `Tests/survey/test_developer_workstation_profile_contracts.py` — dependency-free boundary, safety-posture, discoverability, and optional JSON Schema validation.
+
 ## End-to-end validation
 
 - `docs/END_TO_END_TESTING_POSTURE.md` — default merge/release proof posture and E2E safety classes.
