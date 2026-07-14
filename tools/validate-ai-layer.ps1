@@ -35,6 +35,10 @@ $requiredFiles = @(
   'docs/AI_LAYER.md',
   '.github/workflows/agent-instruction-contracts.yml',
   'Tests/survey/test_agent_instruction_factoring_contracts.py',
+  'Tests/survey/test_agent_capability_manifest_contracts.py',
+  'harness/api/agent-capability-manifest.json',
+  'schemas/harness/agent-capability-manifest.schema.json',
+  'harness/api/sas-harness-api.json',
   'tools/validate-ai-layer.ps1'
 ) + $skillFiles + $capabilityFiles
 
