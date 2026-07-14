@@ -18,6 +18,8 @@ python3 Tests/survey/test_agent_capability_manifest_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_software_install_harness_contracts.py
 python3 Tests/survey/test_run_context_contracts.py
+python3 Tests/survey/test_network_survey_delta_contracts.py
+python3 Tests/survey/test_network_survey_denominator_contracts.py
 
 if command -v pwsh >/dev/null 2>&1 || command -v powershell.exe >/dev/null 2>&1 || command -v powershell >/dev/null 2>&1; then
   python3 Tests/survey/test_one_command_harness_proof_contracts.py
