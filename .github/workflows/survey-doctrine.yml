@@ -10,6 +10,7 @@ on:
       - 'Config/cybernet-naabu-profiles.json'
       - 'Config/cybernet-packet-profile.json'
       - 'Config/low-noise-policy.json'
+      - 'docs/HARNESS_DISCIPLINE.md'
       - 'docs/LOCAL_DEVELOPMENT_HARNESS.md'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
@@ -39,6 +40,7 @@ on:
       - 'Tests/bash/test_target_reduction_plan_contracts.sh'
       - 'Tests/bash/test_progress_reporting_contracts.sh'
       - 'Tests/Pester/SasProgress.Tests.ps1'
+      - 'Tests/survey/test_checkpoint_discipline_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
       - 'Tests/survey/test_english_event_renderer.py'
@@ -56,6 +58,7 @@ on:
       - 'Config/cybernet-naabu-profiles.json'
       - 'Config/cybernet-packet-profile.json'
       - 'Config/low-noise-policy.json'
+      - 'docs/HARNESS_DISCIPLINE.md'
       - 'docs/LOCAL_DEVELOPMENT_HARNESS.md'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
@@ -85,6 +88,7 @@ on:
       - 'Tests/bash/test_target_reduction_plan_contracts.sh'
       - 'Tests/bash/test_progress_reporting_contracts.sh'
       - 'Tests/Pester/SasProgress.Tests.ps1'
+      - 'Tests/survey/test_checkpoint_discipline_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
       - 'Tests/survey/test_english_event_renderer.py'
@@ -128,6 +132,11 @@ jobs:
         shell: bash
         run: |
           python3 Tests/survey/test_local_harness_contracts.py
+
+      - name: Checkpoint discipline contracts
+        shell: bash
+        run: |
+          python3 Tests/survey/test_checkpoint_discipline_contracts.py
 
       - name: Low-noise policy and English event contracts
         shell: bash
