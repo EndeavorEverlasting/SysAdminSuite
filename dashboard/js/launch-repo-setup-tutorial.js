@@ -1,7 +1,25 @@
 // launch-repo-setup-tutorial.js
-// Opens the repo setup tutorial when launched with ?tutorial=setup.
+// Opens the repo setup tutorial when launched with ?tutorial=setup and loads
+// the browser-first software-deployment tutorial used by the main dashboard.
 (function () {
   'use strict';
+
+  function loadSoftwareDeploymentTutorial() {
+    if (document.getElementById('sas-software-deployment-script')) return;
+    const script = document.createElement('script');
+    script.id = 'sas-software-deployment-script';
+    script.src = 'js/software-deployment-tutorial.js';
+    script.async = false;
+    script.onerror = function () {
+      const status = document.getElementById('repo-setup-hero-status');
+      if (status) {
+        status.textContent = 'Software Deployment tutorial could not load. Reload the dashboard.';
+        status.classList.remove('hidden');
+        status.classList.add('is-error');
+      }
+    };
+    document.head.appendChild(script);
+  }
 
   function shouldStart() {
     const params = new URLSearchParams(window.location.search || '');
@@ -45,9 +63,14 @@
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { startTutorial(25); });
-  } else {
+  function initialize() {
+    loadSoftwareDeploymentTutorial();
     startTutorial(25);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialize);
+  } else {
+    initialize();
   }
 })();
