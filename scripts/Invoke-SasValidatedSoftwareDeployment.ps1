@@ -151,7 +151,12 @@ if ($WhatIfPreference) {
     return
 }
 
-$finalization = & $finalizerScript -InstallSummaryPath $summaryPath -RequestPath $RequestPath -AllowFixtures:$AllowFixtures
+$finalization = & $finalizerScript `
+    -InstallSummaryPath $summaryPath `
+    -RequestPath $RequestPath `
+    -AllowTargetMutation `
+    -AllowFixtures:$AllowFixtures `
+    -Confirm:$false
 $result = [ordered]@{
     schema_version = 'sas-validated-software-deployment-result/v1'
     generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
