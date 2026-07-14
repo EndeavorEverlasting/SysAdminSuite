@@ -1,0 +1,26 @@
+{
+  "schema_version": "sas-host-eligibility-policy/v1",
+  "policy_id": "sample-host-eligibility",
+  "policy_version": "2026.07.14",
+  "default_allowed_contexts": ["local", "remote", "fixture", "vm"],
+  "patterns": [
+    {
+      "name": "synthetic-fixture",
+      "match_type": "regex",
+      "regex": "^fixture-[a-z0-9]+$",
+      "actions": ["fixture"]
+    },
+    {
+      "name": "synthetic-vm-lab",
+      "match_type": "regex",
+      "regex": "^vm-[a-z]+-[0-9]+$",
+      "actions": ["vm", "fixture"]
+    },
+    {
+      "name": "sample-cybernet",
+      "match_type": "regex",
+      "regex": "^CYB-[A-Z]{2,4}-[0-9]{4}$",
+      "actions": ["remote"]
+    }
+  ]
+}
