@@ -138,8 +138,10 @@ jobs:
 
       - name: Enforce Naabu doctrine contract result
         shell: bash
+        env:
+          NAABU_DOCTRINE_EXIT_CODE: ${{ steps.naabu_doctrine.outputs.exit_code }}
         run: |
-          test "${{ steps.naabu_doctrine.outputs.exit_code }}" -eq 0
+          test "$NAABU_DOCTRINE_EXIT_CODE" -eq 0
 
       - name: Central target intake contracts
         shell: bash
