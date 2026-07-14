@@ -64,6 +64,22 @@ jobs:
         run: |
           & .\scripts\validate-sysadmin-harness.ps1 -OutputRoot .\survey\output\harness-validator
 
+      - name: Validate machine-readable proof schema
+        shell: pwsh
+        run: |
+          $result = Get-ChildItem -LiteralPath .\survey\output\harness-validator -Filter harness_validation_result.json -Recurse -File |
+            Sort-Object LastWriteTimeUtc |
+            Select-Object -Last 1
+          if (-not $result) {
+            throw 'One-command validator did not emit harness_validation_result.json.'
+          }
+          $json = Get-Content -LiteralPath $result.FullName -Raw
+          $valid = Test-Json -Json $json -SchemaFile .\schemas\harness\harness-proof-result.schema.json
+          if (-not $valid) {
+            throw 'Harness validation result did not satisfy harness-proof-result.schema.json.'
+          }
+          Write-Host "[PASS] schema-backed harness proof result: $($result.FullName)"
+
       - name: Upload synthetic proof artifacts
         if: always()
         uses: actions/upload-artifact@v4
