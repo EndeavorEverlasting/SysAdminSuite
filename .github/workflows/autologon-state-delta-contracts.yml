@@ -3,6 +3,8 @@ name: AutoLogon State Delta Contracts
 on:
   pull_request:
     paths:
+      - 'Run-AutoLogonStateDelta.cmd'
+      - 'scripts/Start-SasAutoLogonStateDelta.ps1'
       - 'scripts/Invoke-SasAutoLogonStateDelta.ps1'
       - 'survey/sas-autologon-state-delta.sh'
       - 'docs/AUTOLOGON_STATE_DELTA.md'
@@ -25,7 +27,7 @@ jobs:
           show-progress: false
           persist-credentials: false
 
-      - name: Run offline before and after fixture proof
+      - name: Run stateful technician launcher fixture proof
         id: fixture
         continue-on-error: true
         shell: pwsh
@@ -37,21 +39,39 @@ jobs:
           $failureFlag = Join-Path $outputRoot 'fixture-failed.flag'
 
           try {
-            .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
-              -Mode Before `
+            .\scripts\Start-SasAutoLogonStateDelta.ps1 `
+              -Action Before `
               -ComputerName SAMPLE001 `
               -RunId $runId `
               -OutputRoot $outputRoot `
               -TechnicianLabel 'synthetic-ci' `
-              -FixtureMode
+              -FixtureMode `
+              -NonInteractive `
+              -NoOpen
 
-            .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
-              -Mode After `
-              -ComputerName SAMPLE001 `
-              -RunId $runId `
+            $statePath = Join-Path $outputRoot 'operator-state.json'
+            $beforeState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+            if ($beforeState.active_run_id -ne $runId) {
+              throw "Launcher did not remember the Before RunId. Found: $($beforeState.active_run_id)"
+            }
+            if ($beforeState.phase -ne 'before_complete') {
+              throw "Expected before_complete state; found $($beforeState.phase)."
+            }
+
+            .\scripts\Start-SasAutoLogonStateDelta.ps1 `
+              -Action After `
               -OutputRoot $outputRoot `
-              -TechnicianLabel 'synthetic-ci' `
-              -FixtureMode
+              -FixtureMode `
+              -NonInteractive `
+              -NoOpen
+
+            $afterState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+            if ($afterState.active_run_id -ne $runId) {
+              throw "After action did not reuse the saved RunId. Found: $($afterState.active_run_id)"
+            }
+            if ($afterState.phase -ne 'after_complete') {
+              throw "Expected after_complete state; found $($afterState.phase)."
+            }
 
             $summaryPath = Join-Path $outputRoot "$runId\autologon_state_delta_summary.json"
             $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
@@ -64,12 +84,12 @@ jobs:
             if ($summary.target_mutation_performed -ne $false) {
               throw 'Fixture summary incorrectly reported target mutation.'
             }
-            'PASS: offline before/after fixture produced one confirmed state transition.' |
+            'PASS: stateful launcher remembered RunId and targets and produced one confirmed transition.' |
               Set-Content -LiteralPath $diagnosticPath -Encoding UTF8
           }
           catch {
             @(
-              'FAIL: offline before/after fixture proof',
+              'FAIL: stateful technician launcher fixture proof',
               "Exception: $($_.Exception.Message)",
               "Position: $($_.InvocationInfo.PositionMessage)",
               'Full error:',
@@ -84,21 +104,41 @@ jobs:
         shell: pwsh
         run: python .\Tests\survey\test_autologon_state_delta_contracts.py
 
-      - name: Parse PowerShell collector
+      - name: Parse PowerShell collector and technician launcher
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path '.\scripts\Invoke-SasAutoLogonStateDelta.ps1'),
-            [ref]$tokens,
-            [ref]$errors
+          $paths = @(
+            '.\scripts\Invoke-SasAutoLogonStateDelta.ps1',
+            '.\scripts\Start-SasAutoLogonStateDelta.ps1'
           )
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            throw "PowerShell parser reported $($errors.Count) error(s)."
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$path: $($_.Message)" }
+              throw "$path reported $($errors.Count) PowerShell parser error(s)."
+            }
           }
-          Write-Host 'PASS: PowerShell parser accepted auto-logon state-delta collector.'
+          Write-Host 'PASS: PowerShell parser accepted collector and technician launcher.'
+
+      - name: Verify CMD launcher rejects arguments without prompting
+        shell: pwsh
+        run: |
+          $process = Start-Process `
+            -FilePath 'cmd.exe' `
+            -ArgumentList @('/d', '/c', 'Run-AutoLogonStateDelta.cmd forbidden') `
+            -Wait `
+            -PassThru `
+            -NoNewWindow
+          if ($process.ExitCode -ne 2) {
+            throw "Expected CMD launcher usage exit 2; found $($process.ExitCode)."
+          }
+          Write-Host 'PASS: double-click launcher rejects command-line arguments.'
 
       - name: Check Bash wrapper syntax
         shell: bash
@@ -122,5 +162,5 @@ jobs:
             Get-Content -LiteralPath $diagnosticPath
           }
           if (Test-Path -LiteralPath $failureFlag) {
-            throw 'Offline fixture proof failed. See the uploaded diagnostic artifact.'
+            throw 'Stateful launcher fixture proof failed. See the uploaded diagnostic artifact.'
           }
