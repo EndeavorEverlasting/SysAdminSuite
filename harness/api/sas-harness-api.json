@@ -90,16 +90,22 @@
       "inputs": [
         "artifact_manifest_json",
         "summary_json",
-        "csv_artifacts"
+        "csv_artifacts",
+        "optional_run_events_jsonl",
+        "low_noise_policy_json"
       ],
       "outputs": [
         "report.md",
-        "report_summary.json"
+        "report_summary.json",
+        "events_english.jsonl",
+        "events_english.txt"
       ],
       "guardrails": [
         "Reports_must_name_inputs",
         "Reports_must_name_unresolved_rows",
-        "Reports_must_not_invent_identity_proof"
+        "Reports_must_not_invent_identity_proof",
+        "Structured_events_resolve_message_templates_strictly",
+        "Machine_and_English_outputs_remain_linked"
       ]
     },
     {

@@ -1,0 +1,210 @@
+{
+  "schema_version": "sas-low-noise-policy/v1",
+  "policy_version": "1.1",
+  "population_source_policy": "approved_manifest_or_fresh_local_evidence_only",
+  "freshness_policy": {
+    "reuse_hours": 24,
+    "stale_requires_review": true
+  },
+  "retry_policy": {
+    "default_retries": 1,
+    "max_retries": 2
+  },
+  "live_probe_budget_policy": {
+    "check_existing_evidence_before_probe": true,
+    "complete_match_required_for_reuse": true,
+    "partial_or_ambiguous_match_is_insufficient": true,
+    "prefer_existing_live_probe_evidence": true,
+    "max_live_probes_per_target_scope": 5,
+    "override_requires_recorded_lead_or_operator_reason": true
+  },
+  "rate_policy": {
+    "default_rate_cap": 3000,
+    "max_rate_cap": 3000
+  },
+  "edge_target_policy": {
+    "exclude_cdn": true,
+    "front_door_requires_review": true
+  },
+  "output_policy": {
+    "survey_local_only": true,
+    "machine_output_required": true
+  },
+  "evidence_policy": {
+    "serial_only_is_review": true,
+    "target_mutation": "never"
+  },
+  "guidance": {
+    "low_noise_principle": "The network sees packets, not the shell. Reduce packets by using local evidence before probes.",
+    "network_visibility_note": "CMD versus PowerShell does not materially change network visibility when the same packets, targets, ports, rate, and retries are used.",
+    "probe_again_guidance": "Five probes are unnecessary when a device was already recently reachable or identity-confirmed. If retrying is justified, prefer a different time of day or different day of week over immediate repeated probes.",
+    "fresh_evidence_guidance": "Fresh identity or reachability evidence should reduce re-probing. Stale, missing, conflicting, or operator-forced evidence can justify staging a target.",
+    "probe_evidence_role_guidance": "Naabu/Nmap output is live reachability and service-state evidence, not population, identity, target ownership, or action-readiness proof by itself. It may contribute to those proofs only when joined with approved source data and complete, fresh, in-scope, unambiguous matches.",
+    "evidence_reuse_guardrail": "If all required data is already present in approved evidence, do not probe again by default.",
+    "complete_match_guidance": "Partial matches, ambiguous matches, stale evidence, incomplete evidence, or evidence from the wrong approved scope are insufficient for reuse and require review before any live probe.",
+    "live_probe_budget_guidance": "If a live probe must be repeated for the same target and scope, stop at five total live probes unless a lead or operator override is recorded.",
+    "mystery_serial_guidance": "A serial with no approved host/IP bridge remains a mystery serial for review; do not ping the serial string.",
+    "front_door_guidance": "CDN/WAF/load-balanced/front-door targets should not be treated as serial proof. Review or use bounded profiles rather than broad probing.",
+    "packet_profile_guidance": "Prefer smaller scope, fewer ports, lower rate, fewer retries, smarter evidence reuse, and avoiding broad scans.",
+    "probe_selection_questions": [
+      "Should this target be probed at all?",
+      "Which exact host/IP should be probed?",
+      "Which exact ports answer the survey question?",
+      "At what rate?",
+      "How many retries?",
+      "Is this already fresh in local evidence?",
+      "Are all required data fields present?",
+      "Is the match partial or ambiguous?",
+      "Is the live probe result joined to approved source data instead of treated as proof by itself?",
+      "Has this target/scope already reached the live probe budget?",
+      "Is this a CDN/WAF/load-balanced/front-door target?",
+      "Is this a mystery serial that needs review, not packets?"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "network_preflight",
+      "purpose": "PowerShell field network preflight",
+      "target_source": "approved_manifest",
+      "ports": [
+        135,
+        445,
+        3389,
+        9100
+      ],
+      "tcp_only": true,
+      "rate_cap": 500,
+      "retries": 1,
+      "host_discovery_mode": "none",
+      "exclude_cdn": true,
+      "silent_output": true,
+      "machine_output": "json",
+      "local_evidence_only": true,
+      "target_mutation": "never"
+    },
+    {
+      "id": "keyports_cybernet_json",
+      "purpose": "Cybernet key-port JSON reachability",
+      "target_source": "approved_manifest",
+      "ports": [
+        80,
+        443,
+        135,
+        445,
+        3389,
+        5985,
+        5986
+      ],
+      "tcp_only": true,
+      "rate_cap": 3000,
+      "retries": 1,
+      "host_discovery_mode": "none",
+      "exclude_cdn": true,
+      "silent_output": true,
+      "machine_output": "json",
+      "local_evidence_only": true,
+      "target_mutation": "never"
+    },
+    {
+      "id": "keyports_cybernet_pipe",
+      "purpose": "Cybernet key-port pipeline handoff",
+      "target_source": "approved_manifest",
+      "ports": [
+        80,
+        443,
+        135,
+        445,
+        3389,
+        5985,
+        5986
+      ],
+      "tcp_only": true,
+      "rate_cap": 3000,
+      "retries": 1,
+      "host_discovery_mode": "none",
+      "exclude_cdn": true,
+      "silent_output": true,
+      "machine_output": "text",
+      "local_evidence_only": true,
+      "target_mutation": "never"
+    },
+    {
+      "id": "web_reachability_only",
+      "purpose": "Narrow web reachability",
+      "target_source": "approved_manifest",
+      "ports": [
+        80,
+        443
+      ],
+      "tcp_only": true,
+      "rate_cap": 1000,
+      "retries": 1,
+      "host_discovery_mode": "none",
+      "exclude_cdn": true,
+      "silent_output": true,
+      "machine_output": "json",
+      "local_evidence_only": true,
+      "target_mutation": "never"
+    },
+    {
+      "id": "admin_surface_reachability",
+      "purpose": "Approved Windows administration surfaces",
+      "target_source": "approved_manifest",
+      "ports": [
+        135,
+        445,
+        3389,
+        5985,
+        5986
+      ],
+      "tcp_only": true,
+      "rate_cap": 1000,
+      "retries": 1,
+      "host_discovery_mode": "none",
+      "exclude_cdn": true,
+      "silent_output": true,
+      "machine_output": "json",
+      "local_evidence_only": true,
+      "target_mutation": "never"
+    },
+    {
+      "id": "serial_to_target_preflight",
+      "purpose": "Serial-linked target preflight",
+      "target_source": "serial_identity_bridge",
+      "ports": [
+        135,
+        445,
+        3389,
+        5985,
+        5986
+      ],
+      "tcp_only": true,
+      "rate_cap": 500,
+      "retries": 1,
+      "host_discovery_mode": "none",
+      "exclude_cdn": true,
+      "silent_output": true,
+      "machine_output": "json",
+      "local_evidence_only": true,
+      "target_mutation": "never"
+    },
+    {
+      "id": "subnet_confirmation",
+      "purpose": "Confirmation of an already approved subnet scope",
+      "target_source": "approved_subnet_scope",
+      "ports": [
+        80,
+        443
+      ],
+      "tcp_only": true,
+      "rate_cap": 300,
+      "retries": 0,
+      "host_discovery_mode": "explicit_only",
+      "exclude_cdn": true,
+      "silent_output": true,
+      "machine_output": "json",
+      "local_evidence_only": true,
+      "target_mutation": "never"
+    }
+  ]
+}

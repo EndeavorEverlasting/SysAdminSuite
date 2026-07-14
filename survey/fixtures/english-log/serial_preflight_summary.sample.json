@@ -19,7 +19,10 @@
   "planner_name": "sas-serial-preflight-plan",
   "planner_version": "fixture/v1",
   "network_activity_performed": false,
-  "low_noise_policy_version": "sas-low-noise-policy/v1",
+  "low_noise_policy_version": "1.1",
+  "low_noise_profile": "serial_to_target_preflight",
+  "ports_source": "canonical_default",
+  "target_mutation_performed": false,
   "started_at": "2026-07-07T00:00:00-04:00",
   "finished_at": "2026-07-07T00:00:02-04:00",
   "operator_handoff_path": "survey/output/runs/serial-to-preflight/20260707-serial-preflight-sample/operator_handoff.txt",
@@ -33,11 +36,21 @@
   "review_required_count": 1,
   "probe_targets_staged": 2,
   "probe_target_file": "survey/input/serial_network_preflight/20260707-serial-preflight-sample/to_probe_targets.txt",
-  "low_noise_context": [
-    "Serials are not network targets.",
-    "Fresh local evidence should reduce repeat work.",
-    "Retry only when timing, evidence, or operator review justifies it."
-  ],
+  "low_noise_context": {
+    "applicability": "applicable",
+    "policy_schema_version": "sas-low-noise-policy/v1",
+    "policy_version": "1.1",
+    "profile_id": "serial_to_target_preflight",
+    "profile_source": "canonical_default",
+    "target_source": "serial_identity_bridge",
+    "effective_constraints": { "ports": [135, 445, 3389, 5985, 5986], "rate_cap": 500, "retries": 1, "host_discovery_mode": "none", "exclude_cdn": true, "silent_output": true, "machine_output": "json" },
+    "evidence_source": "synthetic_fixture",
+    "disposition": "review_and_stage",
+    "reason": "only serials with approved host or IP bridge evidence may be staged",
+    "network_activity_performed": false,
+    "target_mutation_performed": false,
+    "next_action": "Use only the staged synthetic targets for a separately approved preflight."
+  },
   "review_required_rows": [
     {
       "serial": "SAMPLE-SERIAL-003",

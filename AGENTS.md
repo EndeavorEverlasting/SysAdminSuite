@@ -91,12 +91,19 @@ Bash scripts may call Windows-native executables such as `cmd.exe`, `hostname.ex
 ## Low-Noise Survey / Naabu Doctrine
 
 Naabu and related packet probes are for authorized reachability validation only. They are not a
-population source, identity proof, stealth technique, or target-side collection mechanism.
+standalone population source, identity proof, stealth technique, or target-side collection mechanism.
 
 Agents MUST preserve these rules across docs, scripts, dashboards, generated commands, and tests:
 
 - Treat AD-derived target lists as the registered Cybernet population authority.
-- Treat Naabu/Nmap output as reachability evidence only.
+- Treat Naabu/Nmap output as live reachability and service-state evidence, not population or identity proof by itself.
+  It may contribute to identity, population, target ownership, or action-readiness proof only when joined with approved
+  source data and complete, fresh, in-scope, unambiguous matches.
+- Check approved local evidence before proposing another live probe. If all required data is already present, do not
+  probe again by default.
+- Treat partial matches, ambiguous matches, stale evidence, incomplete evidence, wrong-scope evidence, and conflicting
+  evidence as insufficient for reuse until reviewed.
+- Cap repeated live probes for the same target/scope at five total attempts unless a lead/operator override is recorded.
 - Use `survey/naabu_profiles.json` as the doctrine source of truth and
   `Config/cybernet-naabu-profiles.json` as generated runtime config.
 - Prefer `survey/sas-run-naabu-pipeline.sh` or `survey/sas-run-packet-probe.sh` for execution.
@@ -115,6 +122,8 @@ Agents MUST preserve these rules across docs, scripts, dashboards, generated com
 - Classify guest-network failures as `ENVIRONMENT_BLOCKED_GUEST_NETWORK`, not product failure.
 - Treat `feature/naabu-docs-consolidation` as superseded by current `main` doctrine. Do not
   revive or merge it without explicit user authorization.
+
+Canonical evidence-reuse reference: [`docs/LOW_NOISE_EVIDENCE_REUSE_GUARDRAIL.md`](docs/LOW_NOISE_EVIDENCE_REUSE_GUARDRAIL.md).
 
 ## Operational Posture / Legacy Gates
 
@@ -172,7 +181,6 @@ Canonical references:
 - `Config/operational-posture.json`
 - `docs/OPERATIONAL_POSTURE.md`
 - `docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md`
-- `docs/HARNESS_DISCIPLINE.md` — PR/branch/worktree lifecycle discipline
 
 ## WAB Test Evidence Guardrail
 

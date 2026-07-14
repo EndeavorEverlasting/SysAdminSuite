@@ -67,6 +67,27 @@ function Format-SasInlineCode {
     return ('`{0}`' -f $Text)
 }
 
+function Convert-SasIdentifierToWords {
+    param([string]$Name)
+
+    $text = $Name -replace '_', ' '
+    $text = $text -creplace '([a-z0-9])([A-Z])', '$1 $2'
+    return $text.ToLowerInvariant()
+}
+
+function Format-SasObjectSentence {
+    param([object]$Value)
+
+    $parts = @()
+    foreach ($property in $Value.PSObject.Properties) {
+        if ($null -eq $property.Value) { continue }
+        $label = Convert-SasIdentifierToWords -Name $property.Name
+        $parts += "$label as $($property.Value)"
+    }
+    if ($parts.Count -eq 0) { return 'This record contains no declared values.' }
+    return "This record reports $($parts -join '; ')."
+}
+
 function Format-SasValueList {
     param([object]$Value)
 
@@ -93,8 +114,12 @@ function Format-SasValueList {
                 if ($name) { $parts += $name }
                 if ($path) { $parts += (Format-SasInlineCode -Text $path) }
                 if ($description) { $parts += $description }
-                if ($parts.Count -eq 0) { $parts += ($item | ConvertTo-Json -Compress) }
-                $items += "- $($parts -join ' - ')"
+                if ($parts.Count -eq 0) {
+                    $items += "- $(Format-SasObjectSentence -Value $item)"
+                }
+                else {
+                    $items += "- $($parts -join ' - ')"
+                }
             }
         }
         if ($items.Count -eq 0) { return @('- none declared') }
@@ -106,7 +131,7 @@ function Format-SasValueList {
         return @("- $Value")
     }
 
-    return @("- $($Value | ConvertTo-Json -Compress)")
+    return @("- $(Format-SasObjectSentence -Value $Value)")
 }
 
 function Add-SasSection {
@@ -171,12 +196,14 @@ Add-SasSection -Lines $lines -Title 'Request summary' -Body @($summary.request_s
 Add-SasSection -Lines $lines -Title 'Source artifacts' -Body (Format-SasValueList -Value $summary.source_artifacts)
 Add-SasSection -Lines $lines -Title 'Local evidence used' -Body (Format-SasValueList -Value $summary.loaded_evidence_artifacts)
 
-$actionBody = @(
-    "- Decision: $($summary.action_decision)",
-    "- Next action: $($summary.next_action)"
-)
-if ($summary.PSObject.Properties.Name -notcontains 'action_decision') {
-    $actionBody = @(
+$actionBody = if ($summary.PSObject.Properties.Name -contains 'action_decision') {
+    @(
+        "- Decision: $($summary.action_decision)",
+        "- Next action: $($summary.next_action)"
+    )
+}
+else {
+    @(
         '- Decision: not separately declared; see next action.',
         "- Next action: $($summary.next_action)"
     )
@@ -188,7 +215,30 @@ Add-SasSection -Lines $lines -Title 'Network activity status' -Body @(
 )
 
 $lowNoiseBody = @("- Policy version: $($summary.low_noise_policy_version)")
-if ($summary.PSObject.Properties.Name -contains 'low_noise_context') {
+if ($summary.PSObject.Properties.Name -contains 'low_noise_profile') {
+    $lowNoiseBody += "- Effective profile: $($summary.low_noise_profile)"
+}
+if ($summary.PSObject.Properties.Name -contains 'ports_source') {
+    $lowNoiseBody += "- Constraint source: $($summary.ports_source)"
+}
+if ($summary.PSObject.Properties.Name -contains 'target_mutation_performed') {
+    $mutationText = if ([bool]$summary.target_mutation_performed) { 'target mutation occurred.' } else { 'no target mutation occurred.' }
+    $lowNoiseBody += "- Target posture: $mutationText"
+}
+if (($summary.PSObject.Properties.Name -contains 'low_noise_context') -and
+    ($summary.low_noise_context.PSObject.Properties.Name -contains 'profile_id')) {
+    $context = $summary.low_noise_context
+    $constraints = $context.effective_constraints
+    $lowNoiseBody += @(
+        "- SysAdminSuite applied profile $($context.profile_id) from $($context.profile_source).",
+        "- The approved target source was $($context.target_source), and the evidence source was $($context.evidence_source).",
+        "- Effective constraints limited ports to $(@($constraints.ports) -join ','), rate to $($constraints.rate_cap), retries to $($constraints.retries), and host discovery to $($constraints.host_discovery_mode).",
+        "- The run disposition was $($context.disposition) because $($context.reason)",
+        "- Network activity performed: $($context.network_activity_performed); target mutation performed: $($context.target_mutation_performed).",
+        "- Policy-directed next action: $($context.next_action)"
+    )
+}
+elseif ($summary.PSObject.Properties.Name -contains 'low_noise_context') {
     $lowNoiseBody += Format-SasValueList -Value $summary.low_noise_context
 }
 else {
@@ -214,7 +264,8 @@ foreach ($name in @(
     'plateau_detected'
 )) {
     if ($summary.PSObject.Properties.Name -contains $name) {
-        $results += "- ${name}: $($summary.$name)"
+        $label = Convert-SasIdentifierToWords -Name $name
+        $results += "- The $label value is $($summary.$name)."
     }
 }
 if ($results.Count -eq 0) { $results += '- No result counters declared.' }
@@ -235,7 +286,10 @@ $artifactLines = @()
 foreach ($artifact in $registry.artifacts) {
     Assert-SasProperties -Object $artifact -Names @('role', 'path', 'tracked', 'contains_live_data', 'generated', 'description') -Label 'ArtifactRegistry artifact'
     $artifactPath = Format-SasInlineCode -Text $artifact.path
-    $artifactLines += "- $($artifact.role): $artifactPath; tracked=$($artifact.tracked); contains_live_data=$($artifact.contains_live_data); generated=$($artifact.generated); $($artifact.description)"
+    $trackedText = if ([bool]$artifact.tracked) { 'tracked' } else { 'not tracked' }
+    $liveText = if ([bool]$artifact.contains_live_data) { 'contains live data' } else { 'contains synthetic or non-live data' }
+    $generatedText = if ([bool]$artifact.generated) { 'was generated by the run' } else { 'was supplied as an input' }
+    $artifactLines += "- The $($artifact.role) artifact at $artifactPath is $trackedText, $liveText, and $generatedText. $($artifact.description)"
 }
 Add-SasSection -Lines $lines -Title 'Artifact list' -Body $artifactLines
 
