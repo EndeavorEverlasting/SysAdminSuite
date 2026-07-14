@@ -18,6 +18,7 @@ python3 Tests/survey/test_agent_capability_manifest_contracts.py
 python3 Tests/survey/test_e2e_default_posture_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_software_install_harness_contracts.py
+python3 Tests/survey/test_software_install_finalization_contracts.py
 python3 Tests/survey/test_run_context_contracts.py
 
 if command -v pwsh >/dev/null 2>&1 || command -v powershell.exe >/dev/null 2>&1 || command -v powershell >/dev/null 2>&1; then
