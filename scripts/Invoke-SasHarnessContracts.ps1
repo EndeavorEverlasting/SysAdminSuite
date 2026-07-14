@@ -126,6 +126,7 @@ $requiredFiles = @(
     'Tests/bash/run_harness_contracts.sh',
     'Tests/bash/test_english_log_artifact_contracts.sh',
     'Tests/bash/test_sysadmin_harness_validator_contracts.sh',
+    'Tests/survey/test_one_command_harness_proof_contracts.py',
     'Tests/bash/test_harness_command_surface.sh',
     'Tests/bash/test_pr142_scope_boundary_contracts.sh',
     'schemas/harness/run-event.schema.json',
@@ -266,7 +267,8 @@ Assert-SasNotContains -Path 'Run-ExportHarnessEvidence.cmd' -Fragment 'bash '
 if ($failures.Count -eq 0) { Add-SasPass 'root command wrappers are PowerShell-native' }
 
 Assert-SasContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment 'function Format-SasInlineCode'
-Assert-SasContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment '${name}:'
+Assert-SasContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment 'function Convert-SasIdentifierToWords'
+Assert-SasContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment 'function Format-SasObjectSentence'
 Assert-SasNotContains -Path 'scripts/Render-SasEnglishReport.ps1' -Fragment '"`$path`"'
 Assert-SasNotMatch -Path 'scripts/Render-SasEnglishReport.ps1' -Pattern 'Test-NetConnection|Resolve-DnsName|naabu|nmap|socket|packet|ping|nslookup|curl' -Label 'blocked network command text'
 if ($failures.Count -eq 0) { Add-SasPass 'renderer static contract passed' }

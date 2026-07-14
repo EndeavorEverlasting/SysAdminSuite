@@ -2,22 +2,36 @@ name: Survey doctrine
 
 on:
   push:
-    branches: [main, 'feat/**', 'feature/**']
+    branches: [main, 'feat/**', 'feature/**', 'refactor/**']
     paths:
       - 'AGENTS.md'
+      - '.claude/skills/survey-low-noise/SKILL.md'
+      - '.claude/capabilities/language-runtime-selection.md'
+      - '.claude/capabilities/mutation-and-evidence-boundaries.md'
+      - '.claude/capabilities/proof-and-checkpointing.md'
       - '.cursor/rules/**'
       - '.githooks/**'
       - 'Config/cybernet-naabu-profiles.json'
       - 'Config/cybernet-packet-profile.json'
+      - 'Config/low-noise-policy.json'
+      - 'docs/HARNESS_DISCIPLINE.md'
       - 'docs/LOCAL_DEVELOPMENT_HARNESS.md'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
+      - 'docs/PROGRESS_REPORTING.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
       - 'harness/**'
       - 'bash/transport/**'
       - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
+      - 'Launch-SysAdminSuiteDashboard.Host.bat'
+      - 'Run-HarnessValidation.cmd'
+      - 'scripts/ensure-dashboard-host.sh'
       - 'scripts/install-local-harness-hooks.sh'
+      - 'scripts/SasLowNoisePolicy.psm1'
+      - 'scripts/SasProgress.psm1'
+      - 'scripts/validate-low-noise-policy.py'
+      - 'scripts/render-sas-structured-log.py'
       - 'survey/**'
       - 'scripts/SasTargetIntake.psm1'
       - 'targets/README.md'
@@ -29,7 +43,12 @@ on:
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
       - 'Tests/bash/test_target_reduction_plan_contracts.sh'
       - 'Tests/bash/test_progress_reporting_contracts.sh'
+      - 'Tests/Pester/SasProgress.Tests.ps1'
+      - 'Tests/survey/test_checkpoint_discipline_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
+      - 'Tests/survey/test_low_noise_policy_contracts.py'
+      - 'Tests/survey/test_english_event_renderer.py'
+      - 'Tests/Pester/SasLowNoisePolicy.Tests.ps1'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
       - 'Tests/survey/test_standard_corporate_tooling_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -38,19 +57,33 @@ on:
     branches: [main]
     paths:
       - 'AGENTS.md'
+      - '.claude/skills/survey-low-noise/SKILL.md'
+      - '.claude/capabilities/language-runtime-selection.md'
+      - '.claude/capabilities/mutation-and-evidence-boundaries.md'
+      - '.claude/capabilities/proof-and-checkpointing.md'
       - '.cursor/rules/**'
       - '.githooks/**'
       - 'Config/cybernet-naabu-profiles.json'
       - 'Config/cybernet-packet-profile.json'
+      - 'Config/low-noise-policy.json'
+      - 'docs/HARNESS_DISCIPLINE.md'
       - 'docs/LOCAL_DEVELOPMENT_HARNESS.md'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
+      - 'docs/PROGRESS_REPORTING.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
       - 'harness/**'
       - 'bash/transport/**'
       - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
+      - 'Launch-SysAdminSuiteDashboard.Host.bat'
+      - 'Run-HarnessValidation.cmd'
+      - 'scripts/ensure-dashboard-host.sh'
       - 'scripts/install-local-harness-hooks.sh'
+      - 'scripts/SasLowNoisePolicy.psm1'
+      - 'scripts/SasProgress.psm1'
+      - 'scripts/validate-low-noise-policy.py'
+      - 'scripts/render-sas-structured-log.py'
       - 'survey/**'
       - 'scripts/SasTargetIntake.psm1'
       - 'targets/README.md'
@@ -62,7 +95,12 @@ on:
       - 'Tests/bash/test_target_intake_centralization_contracts.sh'
       - 'Tests/bash/test_target_reduction_plan_contracts.sh'
       - 'Tests/bash/test_progress_reporting_contracts.sh'
+      - 'Tests/Pester/SasProgress.Tests.ps1'
+      - 'Tests/survey/test_checkpoint_discipline_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
+      - 'Tests/survey/test_low_noise_policy_contracts.py'
+      - 'Tests/survey/test_english_event_renderer.py'
+      - 'Tests/Pester/SasLowNoisePolicy.Tests.ps1'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
       - 'Tests/survey/test_standard_corporate_tooling_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -78,10 +116,32 @@ jobs:
         with:
           go-version: '1.24.x'
 
-      - name: Naabu doctrine contract tests
+      - name: Run Naabu doctrine contract tests
+        id: naabu_doctrine
         shell: bash
         run: |
-          bash Tests/bash/test_repo_naabu_doctrine_conformance.sh
+          set +e
+          bash Tests/bash/test_repo_naabu_doctrine_conformance.sh > naabu-doctrine.log 2>&1
+          code=$?
+          cat naabu-doctrine.log
+          printf 'exit_code=%s\n' "$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload Naabu doctrine diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: naabu-doctrine-contract-log
+          path: naabu-doctrine.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce Naabu doctrine contract result
+        shell: bash
+        env:
+          NAABU_DOCTRINE_EXIT_CODE: ${{ steps.naabu_doctrine.outputs.exit_code }}
+        run: |
+          test "$NAABU_DOCTRINE_EXIT_CODE" -eq 0
 
       - name: Central target intake contracts
         shell: bash
@@ -102,6 +162,18 @@ jobs:
         shell: bash
         run: |
           python3 Tests/survey/test_local_harness_contracts.py
+
+      - name: Checkpoint discipline contracts
+        shell: bash
+        run: |
+          python3 Tests/survey/test_checkpoint_discipline_contracts.py
+
+      - name: Low-noise policy and English event contracts
+        shell: bash
+        run: |
+          python3 scripts/validate-low-noise-policy.py
+          python3 Tests/survey/test_low_noise_policy_contracts.py
+          python3 Tests/survey/test_english_event_renderer.py
 
       - name: Progress reporting contracts
         shell: bash

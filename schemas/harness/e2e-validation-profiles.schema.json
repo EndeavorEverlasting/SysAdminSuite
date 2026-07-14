@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/e2e-validation-profiles.schema.json",
+  "title": "SysAdminSuite End-to-End Validation Profiles",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "default_profile",
+    "posture",
+    "journeys",
+    "profiles"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-e2e-profiles/v1" },
+    "schema_path": { "const": "schemas/harness/e2e-validation-profiles.schema.json" },
+    "default_profile": { "$ref": "#/$defs/id" },
+    "posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "end_to_end_default_required",
+        "unit_tests_sufficient_for_merge",
+        "external_network_activity_default",
+        "target_mutation_default",
+        "tracked_runtime_evidence_allowed"
+      ],
+      "properties": {
+        "end_to_end_default_required": { "const": true },
+        "unit_tests_sufficient_for_merge": { "const": false },
+        "external_network_activity_default": { "const": false },
+        "target_mutation_default": { "const": false },
+        "tracked_runtime_evidence_allowed": { "const": false }
+      }
+    },
+    "journeys": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/journey" }
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/profile" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+    },
+    "journey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "summary",
+        "runtime_candidates",
+        "script",
+        "arguments",
+        "network_scope",
+        "target_mutation",
+        "required"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "summary": { "type": "string", "minLength": 20, "maxLength": 300 },
+        "runtime_candidates": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "script": { "$ref": "#/$defs/repoPath" },
+        "arguments": { "type": "array", "items": { "type": "string" } },
+        "network_scope": {
+          "enum": [
+            "none",
+            "loopback-only",
+            "approved-control-plane",
+            "approved-target"
+          ]
+        },
+        "target_mutation": { "const": false },
+        "required": { "type": "boolean" }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "proof_class", "journey_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "proof_class": {
+          "enum": [
+            "fixture-loopback-e2e",
+            "approved-control-plane-e2e",
+            "approved-target-e2e"
+          ]
+        },
+        "journey_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    }
+  }
+}

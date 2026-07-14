@@ -7,11 +7,14 @@ on:
       - 'AGENTS.md'
       - '.cursor/rules/operational-posture.mdc'
       - 'Config/operational-posture.json'
+      - 'Config/low-noise-policy.json'
       - 'docs/OPERATIONAL_POSTURE.md'
       - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
       - 'docs/DEPENDENCIES.md'
       - 'scripts/sas-legacy-gate.sh'
       - 'scripts/Invoke-SasLegacyGate.ps1'
+      - 'scripts/SasLowNoisePolicy.psm1'
+      - 'scripts/validate-low-noise-policy.py'
       - 'bash/apps/sas-install-apps.sh'
       - 'bash/apps/sas-stage-fileshare.sh'
       - 'mapping/Controllers/Map-Run-Controller.ps1'
@@ -19,6 +22,7 @@ on:
       - 'survey/sas-run-naabu-pipeline.sh'
       - 'survey/sas-cybernet-subnet-survey.sh'
       - 'Tests/bash/test_operational_posture_contracts.sh'
+      - 'Tests/survey/test_low_noise_policy_contracts.py'
       - 'Tests/bash/test_naabu_pipeline_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - '.github/workflows/operational-posture.yml'
@@ -28,11 +32,14 @@ on:
       - 'AGENTS.md'
       - '.cursor/rules/operational-posture.mdc'
       - 'Config/operational-posture.json'
+      - 'Config/low-noise-policy.json'
       - 'docs/OPERATIONAL_POSTURE.md'
       - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
       - 'docs/DEPENDENCIES.md'
       - 'scripts/sas-legacy-gate.sh'
       - 'scripts/Invoke-SasLegacyGate.ps1'
+      - 'scripts/SasLowNoisePolicy.psm1'
+      - 'scripts/validate-low-noise-policy.py'
       - 'bash/apps/sas-install-apps.sh'
       - 'bash/apps/sas-stage-fileshare.sh'
       - 'mapping/Controllers/Map-Run-Controller.ps1'
@@ -40,6 +47,7 @@ on:
       - 'survey/sas-run-naabu-pipeline.sh'
       - 'survey/sas-cybernet-subnet-survey.sh'
       - 'Tests/bash/test_operational_posture_contracts.sh'
+      - 'Tests/survey/test_low_noise_policy_contracts.py'
       - 'Tests/bash/test_naabu_pipeline_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - '.github/workflows/operational-posture.yml'
@@ -57,3 +65,9 @@ jobs:
       - name: Operational posture contracts
         shell: bash
         run: bash Tests/bash/test_operational_posture_contracts.sh
+
+      - name: Canonical low-noise policy contract
+        shell: bash
+        run: |
+          python3 scripts/validate-low-noise-policy.py
+          python3 Tests/survey/test_low_noise_policy_contracts.py

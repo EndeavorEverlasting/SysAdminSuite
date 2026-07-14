@@ -114,6 +114,20 @@ pwsh -NoProfile -Command \
 
 ## Example approved execution
 
+The first pilot must be confirmation-enabled. Do not add `-Confirm:$false` during the first real pilot:
+
+```powershell
+.\scripts\Invoke-SasSoftwareInstall.ps1 `
+  -TargetsCsv .\targets\local\approved-software-targets.csv `
+  -PackageName ExampleVendorTool `
+  -InstallerRelativePath 'SomeShare\Vendor\Package\setup.exe' `
+  -InstallerArguments @('/quiet', '/norestart') `
+  -InstallMode CopyThenInstall `
+  -AllowTargetMutation
+```
+
+For noninteractive or automated runs after the first pilot has been confirmed, `-Confirm:$false` is permitted:
+
 ```powershell
 .\scripts\Invoke-SasSoftwareInstall.ps1 `
   -TargetsCsv .\targets\local\approved-software-targets.csv `
