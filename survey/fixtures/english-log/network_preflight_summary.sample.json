@@ -1,0 +1,51 @@
+{
+  "workflow_id": "network-preflight",
+  "run_id": "20260707-network-preflight-sample",
+  "request_summary": "Run a synthetic bounded network preflight against approved example targets.",
+  "source_artifacts": ["survey/input/serial_network_preflight/20260707-network-preflight-sample/to_probe_targets.txt"],
+  "loaded_evidence_artifacts": ["survey/fixtures/english-log/serial_preflight_summary.sample.json"],
+  "planner_name": "sas-network-preflight",
+  "planner_version": "fixture/v1",
+  "network_activity_performed": true,
+  "low_noise_policy_version": "1.1",
+  "low_noise_profile": "network_preflight",
+  "ports_source": "canonical_default",
+  "target_mutation_performed": false,
+  "started_at": "2026-07-07T00:01:00-04:00",
+  "finished_at": "2026-07-07T00:01:03-04:00",
+  "operator_handoff_path": "survey/output/runs/network-preflight/20260707-network-preflight-sample/operator_handoff.txt",
+  "summary_json_path": "survey/fixtures/english-log/network_preflight_summary.sample.json",
+  "report_markdown_path": "survey/output/english-log/network_preflight_report.md",
+  "next_action": "Keep fresh reachable rows out of immediate repeat probing and route unresolved rows to review or time-diverse retry.",
+  "action_decision": "Record bounded reachability evidence for approved example targets only.",
+  "target_count": 2,
+  "ports_requested": "135,445,3389,9100",
+  "network_preflight_csv": "survey/output/network_preflight/20260707-network-preflight-sample/network_preflight.csv",
+  "newly_reachable_count": 1,
+  "still_silent_count": 1,
+  "stale_or_conflicting_count": 0,
+  "persistent_silent_time_diverse_count": 0,
+  "plateau_detected": false,
+  "review_required_count": 1,
+  "low_noise_context": {
+    "applicability": "applicable",
+    "policy_schema_version": "sas-low-noise-policy/v1",
+    "policy_version": "1.1",
+    "profile_id": "network_preflight",
+    "profile_source": "canonical_default",
+    "target_source": "approved_manifest",
+    "effective_constraints": { "ports": [135, 445, 3389, 9100], "rate_cap": 500, "retries": 1, "host_discovery_mode": "none", "exclude_cdn": true, "silent_output": true, "machine_output": "json" },
+    "evidence_source": "synthetic_fixture",
+    "disposition": "fixture_complete",
+    "reason": "the synthetic approved target list was evaluated",
+    "network_activity_performed": true,
+    "target_mutation_performed": false,
+    "next_action": "Review the synthetic evidence before any repeat action."
+  },
+  "review_required_rows": [
+    {
+      "target": "example-host-002",
+      "reason": "Synthetic target stayed silent and needs review before immediate retry."
+    }
+  ]
+}

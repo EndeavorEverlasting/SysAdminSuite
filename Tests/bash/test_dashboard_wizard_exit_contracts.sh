@@ -62,6 +62,15 @@ grep -q "cancel_event" "$relay_py" || fail "relay.py has no cancellation token"
 grep -Eq "def run_probe" "$relay_py" || fail "relay.py missing run_probe orchestrator"
 grep -q "cancelled" "$relay_py" || fail "relay.py does not report a cancelled probe_done"
 
+# ── Terminal relay failure path ──────────────────────────────────────────────
+grep -q "Probe failed before completion" "$relay_py" || fail "relay.py does not send a terminal failure message when background probing crashes"
+grep -q '"type": "error"' "$relay_py" || fail "relay.py does not emit an error event for background probe failure"
+grep -q '"probeId": pid' "$relay_py" || fail "relay.py background error event is not tied to the active probeId"
+grep -q "state\[\"task\"\] = None" "$relay_py" || fail "relay.py does not clear the background task after failure"
+grep -q "state\[\"cancel_event\"\] = None" "$relay_py" || fail "relay.py does not clear cancel state after failure"
+grep -q "msg.type === 'probe_done' || msg.type === 'error'" "$relay_client" || fail "relay-client.js does not treat relay error as a terminal event"
+grep -q "RunFailed" "$relay_client" || fail "relay-client.js does not reduce relay error to RunFailed"
+
 # ── Persistent Stop on the network panel (not modal-only) ────────────────────
 grep -q "net-stop-probe-btn" "$panel" || fail "no persistent Stop button on the network panel"
 grep -q "net-stop-probe-btn" "$bundle" || fail "bundle.js is stale (missing panel Stop) — run: node dashboard/build-bundle.js"

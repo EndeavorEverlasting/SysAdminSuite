@@ -1,0 +1,9 @@
+Target,Serial,Site,Location,PortStatus,DnsStatus,IdentityStatus,SourceEvidence,SurveyScope
+alpha,asset-alpha,FixtureSite,RoomA,Open,,Fresh,fixture,InScope
+bravo,asset-bravo,FixtureSite,RoomB,Closed,,Fresh,fixture,InScope
+charlie,asset-charlie,FixtureSite,RoomC,Closed,,MissingBridge,fixture,InScope
+,asset-delta,FixtureSite,RoomD,Closed,,Fresh,fixture,InScope
+echo,asset-echo,FixtureSite,RoomE,Closed,,Fresh,fixture,OutOfScope
+foxtrot,asset-foxtrot,FixtureSite,RoomF,,Resolved,Fresh,fixture,InScope
+Golf,asset-golf-a,FixtureSite,RoomG,Open,,Fresh,fixture,InScope
+golf,asset-golf-b,FixtureSite,RoomH,Closed,,Fresh,fixture,InScope

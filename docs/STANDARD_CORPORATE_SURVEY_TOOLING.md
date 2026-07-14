@@ -146,8 +146,10 @@ survey/input/target_reduction/<run_id>/prior_probe_results.csv
 survey/output/target_reduction/<run_id>/reduced_targets.csv
 survey/output/target_reduction/<run_id>/retry_candidates.csv
 survey/output/target_reduction/<run_id>/review_required.csv
+survey/output/target_reduction/<run_id>/out_of_scope.csv
 survey/output/target_reduction/<run_id>/location_subnet_candidates.csv
 survey/output/target_reduction/<run_id>/target_reduction_summary.json
+survey/output/target_reduction/<run_id>/operator_handoff.txt
 ```
 
 The first version can be plan-only and local-only. It should not probe. It should classify what to keep, retry, review, defer to subnet-candidate work, or remove from the next reachability pass.

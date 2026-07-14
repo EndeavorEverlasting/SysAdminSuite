@@ -1,0 +1,18 @@
+{
+  "_comment": "Copy this file to Config/sas-network-guard.local.json on an approved operator workstation. Replace these documentation-only examples with approved internal/site values. Do not commit the local file.",
+  "allowedDnsSuffixes": [
+    "wired.example.invalid"
+  ],
+  "allowedWindowsDomains": [
+    "EXAMPLE"
+  ],
+  "allowedLocalIpCidrs": [
+    "192.0.2.0/24"
+  ],
+  "allowedGatewayCidrs": [
+    "198.51.100.0/24"
+  ],
+  "allowedDnsServerCidrs": [
+    "203.0.113.0/24"
+  ]
+}

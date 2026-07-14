@@ -10,6 +10,7 @@ Run: python dashboard/test_relay_cancel.py
 """
 
 import asyncio
+import inspect
 import json
 import os
 import sys
@@ -133,6 +134,17 @@ class RunProbeCancelTests(unittest.TestCase):
         )
 
         self.assertEqual(ws.sent, [], "no step_result should be sent for a cancelled target")
+
+    def test_background_probe_failure_has_terminal_error_contract(self):
+        """Unexpected run_probe failures must end the dashboard run, not leave it active."""
+        source = inspect.getsource(relay.handle_connection)
+
+        self.assertIn('"type": "error"', source)
+        self.assertIn('"probeId": pid', source)
+        self.assertIn('"message": "Probe failed before completion"', source)
+        self.assertIn('state["probe_id"] = None', source)
+        self.assertIn('state["task"] = None', source)
+        self.assertIn('state["cancel_event"] = None', source)
 
 
 if __name__ == "__main__":

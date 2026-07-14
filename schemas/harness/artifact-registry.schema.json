@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/artifact-registry.schema.json",
+  "title": "SysAdminSuite Harness Artifact Registry",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "workflow_id",
+    "run_id",
+    "artifacts"
+  ],
+  "properties": {
+    "workflow_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "started_at": { "type": "string" },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "role",
+          "path",
+          "tracked",
+          "contains_live_data",
+          "generated",
+          "description"
+        ],
+        "properties": {
+          "role": { "type": "string" },
+          "path": { "type": "string" },
+          "tracked": { "type": "boolean" },
+          "contains_live_data": { "type": "boolean" },
+          "generated": { "type": "boolean" },
+          "description": { "type": "string" },
+          "sha256": { "type": "string" },
+          "created_at": { "type": "string" }
+        }
+      }
+    }
+  }
+}

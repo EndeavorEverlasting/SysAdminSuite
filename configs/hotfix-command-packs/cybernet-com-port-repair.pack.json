@@ -1,0 +1,147 @@
+{
+  "schema_version": "1.0.0",
+  "pack_id": "cybernet.com_port_qr_pack",
+  "title": "Cybernet COM Port QR Pack",
+  "status": "field-ready",
+  "version": "1.1.0",
+  "entrypoint": "Run-CybernetComPortQrPack.cmd",
+  "autofix_entrypoint": "Run-CybernetComPortAutoFix.cmd",
+  "operator_position": "standing-at-target",
+  "purpose": "Give field technicians a menu of QR-ready CMD snippets and a local AutoFix launcher for Cybernet COM port evidence capture, hidden-device inspection, COM Name Arbiter reset, COM1-COM4 reassignment, reboot, and after-state capture.",
+  "sequence": [
+    {
+      "step": "01",
+      "title": "Make evidence folder",
+      "command_id": "cybernet.com.01_make_evidence_folder",
+      "risk_level": "low",
+      "cmd_payload": "mkdir C:\\Temp\\CybernetCOM",
+      "powershell_payload": "cmd.exe /c 'mkdir C:\\Temp\\CybernetCOM'",
+      "expected_result": "Creates C:\\Temp\\CybernetCOM for the COM-port evidence files.",
+      "operator_note": "Run this first. If the folder already exists, continue."
+    },
+    {
+      "step": "02",
+      "title": "Capture SERIALCOMM before",
+      "command_id": "cybernet.com.02_capture_serialcomm_before",
+      "risk_level": "low",
+      "cmd_payload": "reg query HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM > C:\\Temp\\CybernetCOM\\serialcomm-before.txt",
+      "powershell_payload": "cmd.exe /c 'reg query HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM > C:\\Temp\\CybernetCOM\\serialcomm-before.txt'",
+      "expected_result": "Writes serialcomm-before.txt with the current Windows serial device map.",
+      "operator_note": "Run before manual COM reassignment or COM Name Arbiter reset."
+    },
+    {
+      "step": "03",
+      "title": "Capture Ports before",
+      "command_id": "cybernet.com.03_capture_ports_before",
+      "risk_level": "low",
+      "cmd_payload": "pnputil /enum-devices /class Ports > C:\\Temp\\CybernetCOM\\ports-before.txt",
+      "powershell_payload": "cmd.exe /c 'pnputil /enum-devices /class Ports > C:\\Temp\\CybernetCOM\\ports-before.txt'",
+      "expected_result": "Writes ports-before.txt with the current Ports class devices.",
+      "operator_note": "Run before manual COM reassignment or COM Name Arbiter reset."
+    },
+    {
+      "step": "04",
+      "title": "Capture MultiPortSerial before",
+      "command_id": "cybernet.com.04_capture_multiport_before",
+      "risk_level": "low",
+      "cmd_payload": "pnputil /enum-devices /class MultiPortSerial > C:\\Temp\\CybernetCOM\\multiport-before.txt",
+      "powershell_payload": "cmd.exe /c 'pnputil /enum-devices /class MultiPortSerial > C:\\Temp\\CybernetCOM\\multiport-before.txt'",
+      "expected_result": "Writes multiport-before.txt with the current FINTEK or multi-port serial adapter state.",
+      "operator_note": "Run before manual COM reassignment or COM Name Arbiter reset."
+    },
+    {
+      "step": "05",
+      "title": "Show hidden Device Manager",
+      "command_id": "cybernet.com.05_show_hidden_device_manager",
+      "risk_level": "low",
+      "cmd_payload": "set devmgr_show_nonpresent_devices=1 && start devmgmt.msc",
+      "powershell_payload": "$env:devmgr_show_nonpresent_devices=\"1\"; Start-Process devmgmt.msc",
+      "expected_result": "Opens Device Manager so the operator can choose View > Show hidden devices.",
+      "operator_note": "Expand Ports and Multi-port serial adapters. Do not uninstall active FINTEK PCIe To Serial."
+    },
+    {
+      "step": "06",
+      "title": "Export COM Name Arbiter",
+      "command_id": "cybernet.com.06_export_com_arbiter",
+      "risk_level": "low",
+      "cmd_payload": "reg export \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\COM Name Arbiter\" C:\\Temp\\CybernetCOM\\COMNameArbiter-before.reg /y",
+      "powershell_payload": "cmd.exe /c 'reg export \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\COM Name Arbiter\" C:\\Temp\\CybernetCOM\\COMNameArbiter-before.reg /y'",
+      "expected_result": "Backs up the COM Name Arbiter registry key before any reset.",
+      "operator_note": "Run before the reset step. Keep the .reg file with the evidence bundle."
+    },
+    {
+      "step": "07",
+      "title": "Reset COM Name Arbiter",
+      "command_id": "cybernet.com.07_reset_com_arbiter",
+      "risk_level": "medium",
+      "cmd_payload": "reg add \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\COM Name Arbiter\" /v ComDB /t REG_BINARY /d 0000000000000000000000000000000000000000000000000000000000000000 /f",
+      "powershell_payload": "cmd.exe /c 'reg add \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\COM Name Arbiter\" /v ComDB /t REG_BINARY /d 0000000000000000000000000000000000000000000000000000000000000000 /f'",
+      "expected_result": "Clears the COM reservation bitmap so COM1-COM4 can be manually assigned on non-finalized Cybernets.",
+      "operator_note": "Use only after evidence capture and export, and only before final clinical app binding."
+    },
+    {
+      "step": "08",
+      "title": "Reboot Cybernet",
+      "command_id": "cybernet.com.08_reboot",
+      "risk_level": "medium",
+      "cmd_payload": "shutdown /r /t 0",
+      "powershell_payload": "cmd.exe /c 'shutdown /r /t 0'",
+      "expected_result": "Restarts Windows so COM changes can settle.",
+      "operator_note": "Confirm the device is safe to restart before scanning."
+    },
+    {
+      "step": "09",
+      "title": "Capture SERIALCOMM after",
+      "command_id": "cybernet.com.09_capture_serialcomm_after",
+      "risk_level": "low",
+      "cmd_payload": "reg query HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM > C:\\Temp\\CybernetCOM\\serialcomm-after.txt",
+      "powershell_payload": "cmd.exe /c 'reg query HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM > C:\\Temp\\CybernetCOM\\serialcomm-after.txt'",
+      "expected_result": "Writes serialcomm-after.txt with the post-change Windows serial device map.",
+      "operator_note": "Run after reboot and manual COM1-COM4 assignment."
+    },
+    {
+      "step": "10",
+      "title": "Capture Ports after",
+      "command_id": "cybernet.com.10_capture_ports_after",
+      "risk_level": "low",
+      "cmd_payload": "pnputil /enum-devices /class Ports > C:\\Temp\\CybernetCOM\\ports-after.txt",
+      "powershell_payload": "cmd.exe /c 'pnputil /enum-devices /class Ports > C:\\Temp\\CybernetCOM\\ports-after.txt'",
+      "expected_result": "Writes ports-after.txt with the post-change Ports class state.",
+      "operator_note": "Run after reboot and manual COM1-COM4 assignment."
+    },
+    {
+      "step": "11",
+      "title": "Open evidence folder",
+      "command_id": "cybernet.com.11_open_evidence_folder",
+      "risk_level": "low",
+      "cmd_payload": "explorer C:\\Temp\\CybernetCOM",
+      "powershell_payload": "cmd.exe /c 'explorer C:\\Temp\\CybernetCOM'",
+      "expected_result": "Opens C:\\Temp\\CybernetCOM so the operator can review captured evidence files.",
+      "operator_note": "Do not move evidence into the repo."
+    },
+    {
+      "step": "12",
+      "title": "Run automated COM AutoFix",
+      "command_id": "cybernet.com.12_run_autofix",
+      "risk_level": "medium",
+      "cmd_payload": "Run-CybernetComPortAutoFix.cmd",
+      "powershell_payload": "cmd.exe /c 'Run-CybernetComPortAutoFix.cmd'",
+      "expected_result": "Runs the local AutoFix launcher, captures evidence, exports COM Name Arbiter, resets reservations, assigns active COM3-COM6 devices to COM1-COM4, and restarts.",
+      "operator_note": "Run only from the SysAdminSuite repo root on the local Cybernet and only before final app binding."
+    }
+  ],
+  "manual_steps": [
+    "Fast path: run Run-CybernetComPortAutoFix.cmd from an elevated prompt at the SysAdminSuite repo root on the local Cybernet.",
+    "Manual path: after showing hidden devices, expand Ports (COM & LPT) and Multi-port serial adapters.",
+    "Do not uninstall active FINTEK PCIe To Serial devices.",
+    "If active ports remain COM3-COM6, manually assign COM3->COM1, COM4->COM2, COM5->COM3, COM6->COM4 through Device Manager > Port Settings > Advanced.",
+    "Use COM Name Arbiter reset only after evidence capture and export.",
+    "Run after-capture snippets after reboot and manual assignment."
+  ],
+  "forbidden_scope": [
+    "No silent remote execution",
+    "No admin-box target mutation",
+    "No SmartLynx or final app install",
+    "No USB/COM driver replacement in this QR pack"
+  ]
+}

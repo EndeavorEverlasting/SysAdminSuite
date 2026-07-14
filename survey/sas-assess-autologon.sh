@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 MANIFEST=""
 OUTPUT="survey/output/autologon_assessment.csv"
 DASHBOARD=""
@@ -73,6 +81,10 @@ done
 
 command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 mkdir -p "$(dirname "$OUTPUT")"
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
+
 [[ -z "$DASHBOARD" ]] && DASHBOARD="$(dirname "$OUTPUT")/autologon_dashboard.html"
 
 if [[ "$LOCAL" -eq 1 && -n "$MANIFEST" ]]; then

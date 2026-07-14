@@ -1,0 +1,70 @@
+schema_version: sas-workflow/v1
+workflow_id: serial-to-preflight
+name: Serial to Preflight
+description: Convert approved serial evidence into a bounded host or IP target preflight plan.
+inputs:
+  - serial_source
+  - bridge_evidence
+nodes:
+  - id: load-serial-source
+    kind: local_read
+    description: Load the synthetic or approved serial source.
+    inputs: [serial_source]
+    outputs: [loaded_serials]
+    network_activity: false
+    target_mutation: false
+    validation: serial source exists and is readable
+  - id: load-bridge-evidence
+    kind: local_read
+    description: Load local bridge evidence linking serials to approved host or IP targets.
+    inputs: [bridge_evidence]
+    outputs: [loaded_bridge_evidence]
+    network_activity: false
+    target_mutation: false
+    validation: bridge evidence is local and readable
+  - id: classify-serials
+    kind: local_transform
+    description: Classify serials as staged or review-required without probing.
+    inputs: [loaded_serials, loaded_bridge_evidence]
+    outputs: [serial_preflight_plan, review_required]
+    network_activity: false
+    target_mutation: false
+    validation: serial-only rows are not staged
+  - id: stage-probe-targets
+    kind: local_write
+    description: Write only approved host or IP targets to the next target file.
+    inputs: [serial_preflight_plan]
+    outputs: [to_probe_targets]
+    network_activity: false
+    target_mutation: false
+    validation: target file contains no serial-only rows
+  - id: write-plan-artifacts
+    kind: local_write
+    description: Write summary and registry artifacts.
+    inputs: [serial_preflight_plan, review_required]
+    outputs: [summary_json, artifact_registry]
+    network_activity: false
+    target_mutation: false
+    validation: artifacts are local and fixture-safe when tracked
+  - id: render-operator-handoff
+    kind: local_render
+    description: Render a human-readable handoff.
+    inputs: [summary_json, artifact_registry]
+    outputs: [operator_handoff]
+    network_activity: false
+    target_mutation: false
+    validation: handoff includes next action
+artifacts:
+  - serial_preflight_plan.csv
+  - review_required.csv
+  - serial_preflight_summary.json
+  - to_probe_targets.txt
+  - artifact_registry.json
+  - operator_handoff.txt
+validation:
+  - no network activity occurs in planner nodes
+  - mystery serials remain review-required
+next_actions:
+  - run network-preflight on staged host/IP targets only
+network_activity_policy: planner nodes never perform network activity
+target_mutation_policy: no target mutation

@@ -5,6 +5,14 @@
 # live in Config/cybernet-naabu-profiles.json (doctrine contract: survey/naabu_profiles.json).
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 VERSION="0.1.1"
 SITE=""
 PROFILE="keyports_cybernet_json"
@@ -28,6 +36,7 @@ PROFILE_JSON="${REPO_ROOT}/Config/cybernet-naabu-profiles.json"
 FOLLOWUP_SCRIPT="${SCRIPT_DIR}/sas-cybernet-packet-followup.sh"
 ENSURE_SCRIPT="${SCRIPT_DIR}/sas-ensure-naabu.sh"
 TARGET_INTAKE_HELPER="${SCRIPT_DIR}/lib/sas-target-intake.sh"
+
 [[ -f "$TARGET_INTAKE_HELPER" ]] || { echo "[naabu-pipeline] ERROR: Missing target intake helper: $TARGET_INTAKE_HELPER" >&2; exit 1; }
 # shellcheck source=survey/lib/sas-target-intake.sh
 source "$TARGET_INTAKE_HELPER"
@@ -302,6 +311,10 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unknown argument: $1" ;;
   esac
 done
+
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
 
 [[ -n "$SITE" ]] || fail "--site is required"
 safe_site

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/run-event.schema.json",
+  "title": "SysAdminSuite Harness Run Event",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "timestamp",
+    "level",
+    "event_type",
+    "workflow_id",
+    "run_id",
+    "message_template",
+    "variables",
+    "artifact_refs",
+    "network_activity_performed"
+  ],
+  "properties": {
+    "timestamp": { "type": "string" },
+    "level": { "type": "string" },
+    "event_type": { "type": "string" },
+    "workflow_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "message_template": { "type": "string" },
+    "variables": { "type": "object" },
+    "artifact_refs": { "type": "array", "items": { "type": "string" } },
+    "network_activity_performed": { "type": "boolean" },
+    "target_mutation_performed": { "type": "boolean" },
+    "english_message": { "type": "string" }
+  }
+}

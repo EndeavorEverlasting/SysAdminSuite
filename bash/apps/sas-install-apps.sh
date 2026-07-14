@@ -15,6 +15,14 @@
 
 set -euo pipefail
 
+SAS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/.." && pwd)"
+if [[ ! -f "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh" ]]; then
+  SAS_REPO_ROOT="$(cd "$SAS_SCRIPT_DIR/../.." && pwd)"
+fi
+# shellcheck source=survey/lib/sas-network-guard.sh
+source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
+
 TARGETS_RAW=""
 LIST_NAME=""
 SOURCES_YAML="Config/sources.yaml"
@@ -99,6 +107,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 LEGACY_GATE_ARGS=(--tool "bash/apps/sas-install-apps.sh")
+if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
+  sas_require_northwell_wifi
+fi
+
 [[ "$ALLOW_LEGACY" -eq 1 ]] && LEGACY_GATE_ARGS+=(--allow-legacy)
 bash scripts/sas-legacy-gate.sh "${LEGACY_GATE_ARGS[@]}" || exit $?
 if [[ "$NO_TEARDOWN" -eq 1 && "$ALLOW_LEGACY" -ne 1 && "${SAS_ALLOW_LEGACY_TOOLS:-0}" != "1" ]]; then

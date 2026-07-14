@@ -185,3 +185,9 @@ Codifies low-noise Naabu/Cybernet survey profiles:
 ## Do not skip this
 
 No feature work should proceed from an offline guest-network result. That is how ghosts get promoted to architecture.
+
+## Live Northwell network prerequisite
+
+Before running live WAB-path SysAdminSuite scripts, confirm the workstation is on an approved Northwell network. Wi-Fi passes when the current SSID starts with `NSLIJHS-WAB`; wired Ethernet passes only when local approved wired indicators are configured outside public source control. The live-script guard fails immediately for guest, home, empty, missing, or unknown SSIDs when no approved wired evidence is present and reports environment/network-posture evidence rather than treating unreachable Northwell services as product failures.
+
+For wired Ethernet operators, copy [`Config/sas-network-guard.example.json`](../Config/sas-network-guard.example.json) to `Config/sas-network-guard.local.json`, replace the placeholder values with approved internal/site values, and keep the local file uncommitted. See [`Config/NETWORK_GUARD_README.md`](../Config/NETWORK_GUARD_README.md) for the local allowlist format, environment variable alternative, and guard-only check commands.

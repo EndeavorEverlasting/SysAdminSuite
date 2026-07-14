@@ -8,6 +8,9 @@ DETAIL_OUT="$OUT_DIR/neuron_name_availability_detail.csv"
 DASHBOARD_OUT="$OUT_DIR/neuron_name_availability.html"
 WRAP_OUT_DIR="$OUT_DIR/wrapper"
 GUARD_ERR="$OUT_DIR/authorization_guard.err"
+DIRECTORY_OUT="$OUT_DIR/neuron_name_directory_check.csv"
+DIRECTORY_SUMMARY_OUT="$OUT_DIR/neuron_name_directory_check_summary.csv"
+DIRECTORY_DASHBOARD_OUT="$OUT_DIR/neuron_name_directory_check.html"
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
@@ -41,6 +44,22 @@ done
 for dash_text in 'SysAdminSuite Neuron Name Availability' 'First gap' 'Next after highest' 'Local operational artifact'; do
   grep -q "$dash_text" "$DASHBOARD_OUT" || { echo "FAIL: missing dashboard text $dash_text" >&2; exit 1; }
 done
+
+python3 "$ROOT/survey/sas-neuron-name-directory-check.py" \
+  --detail "$DETAIL_OUT" \
+  --directory-evidence "$ROOT/survey/fixtures/neuron_name_directory_evidence.sample.txt" \
+  --output "$DIRECTORY_OUT" \
+  --summary-output "$DIRECTORY_SUMMARY_OUT" \
+  --dashboard "$DIRECTORY_DASHBOARD_OUT"
+
+[[ -f "$DIRECTORY_OUT" ]] || { echo "FAIL: missing directory check output" >&2; exit 1; }
+[[ -f "$DIRECTORY_SUMMARY_OUT" ]] || { echo "FAIL: missing directory summary" >&2; exit 1; }
+[[ -f "$DIRECTORY_DASHBOARD_OUT" ]] || { echo "FAIL: missing directory dashboard" >&2; exit 1; }
+
+grep -q 'BLOCKED_BY_DIRECTORY_EVIDENCE' "$DIRECTORY_OUT" || { echo "FAIL: expected blocked directory candidate" >&2; exit 1; }
+grep -q 'LIJ-MACH-E' "$DIRECTORY_SUMMARY_OUT" || { echo "FAIL: expected LIJ recommendation to advance beyond stale LIJ-MACH-C" >&2; exit 1; }
+grep -q 'CCMC-MACH-D' "$DIRECTORY_SUMMARY_OUT" || { echo "FAIL: expected CCMC recommendation to advance beyond stale CCMC-MACH-B" >&2; exit 1; }
+grep -q 'SysAdminSuite Neuron Directory Name Check' "$DIRECTORY_DASHBOARD_OUT" || { echo "FAIL: missing directory dashboard title" >&2; exit 1; }
 
 bash "$ROOT/survey/sas-survey-neuron-name-availability.sh" \
   --convention LIJ-MACH- \

@@ -4,7 +4,10 @@
     "default_network_activity": false,
     "default_target_mutation": false,
     "evidence_scope": "local_gitignored_artifacts",
-    "operator_boundary": "authorized_scoped_low_noise_no_hidden_activity"
+    "operator_boundary": "authorized_scoped_low_noise_no_hidden_activity",
+    "approved_software_sources": [
+      "\\\\nt2kwb972sms01\\"
+    ]
   },
   "modes": [
     "plan_only",
@@ -15,7 +18,7 @@
   "operations": [
     {
       "id": "target_reduction.plan",
-      "summary": "Classify prior probe results into reduced targets, retry candidates, review rows, and location/subnet candidates.",
+      "summary": "Classify prior probe results into reduced targets, retry candidates, review rows, out-of-scope rows, and location/subnet candidates.",
       "mode": "local_transform",
       "network_activity": false,
       "target_mutation": false,
@@ -28,8 +31,10 @@
         "reduced_targets.csv",
         "retry_candidates.csv",
         "review_required.csv",
+        "out_of_scope.csv",
         "location_subnet_candidates.csv",
-        "target_reduction_summary.json"
+        "target_reduction_summary.json",
+        "operator_handoff.txt"
       ],
       "guardrails": [
         "NoPing_NoTcp_DNS_failure_is_not_dead",
@@ -85,16 +90,22 @@
       "inputs": [
         "artifact_manifest_json",
         "summary_json",
-        "csv_artifacts"
+        "csv_artifacts",
+        "optional_run_events_jsonl",
+        "low_noise_policy_json"
       ],
       "outputs": [
         "report.md",
-        "report_summary.json"
+        "report_summary.json",
+        "events_english.jsonl",
+        "events_english.txt"
       ],
       "guardrails": [
         "Reports_must_name_inputs",
         "Reports_must_name_unresolved_rows",
-        "Reports_must_not_invent_identity_proof"
+        "Reports_must_not_invent_identity_proof",
+        "Structured_events_resolve_message_templates_strictly",
+        "Machine_and_English_outputs_remain_linked"
       ]
     },
     {
@@ -114,6 +125,40 @@
         "No_hidden_daemons",
         "No_network_probe_execution"
       ]
+    },
+    {
+      "id": "software_install.operator_execute",
+      "summary": "Install approved software on authorized target computers from approved read-only software shares with local evidence and cleanup of SysAdminSuite-owned target staging.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": true,
+      "inputs": [
+        "package_name",
+        "installer_relative_path",
+        "install_mode",
+        "targets",
+        "allow_target_mutation",
+        "software_share_root",
+        "installer_arguments"
+      ],
+      "outputs": [
+        "software_install_events.jsonl",
+        "software_install_summary.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Approved_admin_context_only",
+        "Approved_read_only_software_share_only",
+        "No_credential_collection",
+        "No_monitoring_bypass_or_log_suppression",
+        "No_unapproved_background_services",
+        "No_repo_owned_target_logs_reports_manifests_or_transcripts",
+        "Prefer_UNC_direct_install_to_avoid_target_staging",
+        "Run_specific_staging_cleanup_attempted_on_all_failure_paths",
+        "Prune_empty_SysAdminSuite_target_directories",
+        "Local_gitignored_evidence_only"
+      ]
     }
   ]
 }
+
