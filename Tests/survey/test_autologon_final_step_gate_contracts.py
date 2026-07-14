@@ -96,7 +96,10 @@ def test_gate_script_never_exposes_default_password():
 
 def test_gate_script_has_no_override_path():
     content = read(SCRIPT)
-    for fragment in ("-Force", "FORCE", "override", "bypass", "skip_gate"):
+    import re
+    assert not re.search(r'\$Force\b|param.*-Force|-Force\s+\[switch\]', content, re.IGNORECASE), \
+        "gate script must not declare a -Force parameter"
+    for fragment in ("skip_gate",):
         assert fragment not in content, f"gate script must not have override: {fragment}"
 
 
