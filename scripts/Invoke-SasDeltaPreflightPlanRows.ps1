@@ -33,7 +33,7 @@ foreach ($requested in $requestedRows) {
     $tier = if ($strongest) { $strongest.EvidenceStrengthTier } elseif ($requested.Serial) { 'POPULATION_ONLY' } else { 'NONE' }
     $strongestPath = if ($strongest) { $strongest.SourceFile } else { $resolvedInput }
 
-    $targetMatches = @($matches | Where-Object { $probeTarget -and $_.NormalizedTarget -eq (ConvertTo-SasNormalizedTarget $probeTarget) })
+    $targetMatches = @($matches | Where-Object { $probeTarget -and $_.NormalizedTarget -eq (ConvertTo-SasSurveyNormalizedTarget -Value $probeTarget) })
     $observation = Get-SasObservationDelta -Snapshots $targetMatches
     $latest = $observation.Latest
     $previous = $observation.Previous
@@ -44,7 +44,6 @@ foreach ($requested in $requestedRows) {
     }
     $recentReachable = $false
     $recentSilent = $false
-    $latestAgeHours = $null
     if ($latest -and $latest.Timestamp) {
         $latestAgeHours = ($ReferenceTime - $latest.Timestamp).TotalHours
         if ($latestAgeHours -ge 0 -and $latestAgeHours -le $ReachabilityTtlHours) {
@@ -141,7 +140,7 @@ foreach ($requested in $requestedRows) {
         $probeWorthiness = 'probe_stale_or_missing'
         $nextHandoff = 'delta_network_preflight'
     } else {
-        $decision = 'PROBE_REQUIRD_STALE_EVIDENCE'
+        $decision = 'PROBE_REQUIRED_STALE_EVIDENCE'
         $reason = 'Prior evidence exists but is outside the applicable freshness window.'
         $probeWorthiness = 'probe_stale_or_missing'
         $nextHandoff = 'delta_network_preflight'
@@ -158,10 +157,12 @@ foreach ($requested in $requestedRows) {
     $adStatus = if ($rankedMatches.Count -gt 0) { $rankedMatches[0].ADCandidateStatus } else { '' }
     $trackerStatus = if ($rankedMatches.Count -gt 0) { $rankedMatches[0].TrackerStatus } else { '' }
     $sourceFiles = @($matches | ForEach-Object { $_.SourceFile } | Sort-Object -Unique)
+    $sourceAdapters = @($matches | ForEach-Object { $_.SourceAdapter } | Where-Object { $_ } | Sort-Object -Unique)
 
     $planRows.Add([pscustomobject][ordered]@{
         InputRowId = $requested.InputRowId
         InputSource = $resolvedInput
+        InputAdapter = $requested.SourceAdapter
         Serial = $requested.Serial
         RequestedHostname = $requested.RequestedHostname
         ResolvedHostname = $resolvedHostname
@@ -181,6 +182,7 @@ foreach ($requested in $requestedRows) {
         ADCandidateStatus = $adStatus
         ADCandidateSource = if ($adStatus -and $strongest) { $strongest.SourceFile } else { '' }
         TrackerStatus = $trackerStatus
+        EvidenceAdapters = ($sourceAdapters -join ';')
         PreviousReachabilityStatus = if ($previous) { $previous.ReachabilityStatus } else { '' }
         PreviousReachabilityTimestamp = if ($previous -and $previous.Timestamp) { $previous.Timestamp.ToString('o') } else { '' }
         ObservationDelta = $observation.Delta
