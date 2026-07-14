@@ -72,12 +72,12 @@ Import-Module $deltaModule -Force
 Assert-SasApprovedInputPath -Path $InputFile -RepoRoot $repoRoot -Role 'delta requested population' -AllowStaging -AllowFixtures:$AllowFixtures -AllowNonstandard:$AllowNonstandardInput
 $resolvedInput = (Resolve-Path -LiteralPath $InputFile).Path
 
-$resolvedEvidence = New-Object System.Collections.Generic.List[string]
+$resolvedEvidence = @()
 foreach ($path in @($EvidenceFile)) {
     if ([string]::IsNullOrWhiteSpace($path)) { continue }
     Assert-SasApprovedInputPath -Path $path -RepoRoot $repoRoot -Role 'delta evidence file' -AllowStaging -AllowGenerated -AllowFixtures:$AllowFixtures -AllowNonstandard:$AllowNonstandardInput
     $resolved = (Resolve-Path -LiteralPath $path).Path
-    if (-not $resolvedEvidence.Contains($resolved)) { $resolvedEvidence.Add($resolved) }
+    if ($resolvedEvidence -notcontains $resolved) { $resolvedEvidence += $resolved }
 }
 
 $roots = Get-SasTargetIntakeRoots -RepoRoot $repoRoot
@@ -107,14 +107,14 @@ $handoffPath = Join-Path $runOutput 'operator_handoff.txt'
 $targetPath = Join-Path $runStaging 'to_probe_targets.txt'
 $intakeManifestPath = Join-Path $runOutput 'artifact_intake_manifest.json'
 
-$normalizationResults = New-Object System.Collections.Generic.List[object]
+$normalizationResults = @()
 $requestedNormalization = Invoke-SasSurveyArtifactNormalization -Path $resolvedInput -Role requested_population -OutputDirectory $normalizedRoot -RepoRoot $repoRoot -NormalizedAt $ReferenceTime
-$normalizationResults.Add($requestedNormalization)
-$evidencePackages = New-Object System.Collections.Generic.List[object]
+$normalizationResults += $requestedNormalization
+$evidencePackages = @()
 foreach ($evidencePath in @($resolvedEvidence)) {
     $result = Invoke-SasSurveyArtifactNormalization -Path $evidencePath -Role evidence_snapshot -OutputDirectory $normalizedRoot -RepoRoot $repoRoot -NormalizedAt $ReferenceTime
-    $normalizationResults.Add($result)
-    $evidencePackages.Add($result.Package)
+    $normalizationResults += $result
+    $evidencePackages += $result.Package
 }
 
 $intakeManifest = [ordered]@{
