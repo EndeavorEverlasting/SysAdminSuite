@@ -21,8 +21,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
 5. Run the targeted Python contracts when agent instructions or capability metadata change:
 
 ```text
-python Tests/survey/test_agent_instruction_factoring_contracts.py
-python Tests/survey/test_agent_capability_manifest_contracts.py
+python3 Tests/survey/test_agent_instruction_factoring_contracts.py
+python3 Tests/survey/test_agent_capability_manifest_contracts.py
 ```
 
 6. If a required runtime is unavailable, report the exact skipped command and do not claim it passed.
