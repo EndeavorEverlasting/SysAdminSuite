@@ -11,6 +11,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_PATH = REPO_ROOT / "AGENTS.md"
+REPOSITORY_SKILL_PATH = REPO_ROOT / ".claude" / "skills" / "repository-sprint" / "SKILL.md"
+PROOF_CAPABILITY_PATH = REPO_ROOT / ".claude" / "capabilities" / "proof-and-checkpointing.md"
 HARNESS_DISCIPLINE_PATH = REPO_ROOT / "docs" / "HARNESS_DISCIPLINE.md"
 
 
@@ -19,20 +21,27 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_agents_declares_incremental_work_preservation() -> None:
-    content = read(AGENTS_PATH)
+def test_factored_instructions_preserve_incremental_work_rule() -> None:
+    agents = read(AGENTS_PATH)
+    repository_skill = read(REPOSITORY_SKILL_PATH)
+    proof_capability = read(PROOF_CAPABILITY_PATH)
 
-    required_fragments = [
-        "#### Incremental work preservation",
-        "Agents must checkpoint coherent tracked progress before beginning broad validation",
-        "a bounded WIP commit on the owned feature branch",
-        "a complete patch containing tracked and newly created files",
-        "Do not include secrets, runtime evidence, generated logs, machine-local data, or unrelated dirty files",
+    assert ".claude/skills/repository-sprint/SKILL.md" in agents
+    assert "Checkpoint coherent tracked work before broad validation" in agents
+    assert "proof-and-checkpointing.md" in repository_skill
+    assert "Checkpoint before broad validation or runtime proof" in repository_skill
+
+    required_capability_fragments = [
+        "Checkpoint the first coherent tracked change before broad validation",
+        "A valid checkpoint is a bounded commit, a complete patch, or another repo-approved recovery artifact",
         "A checkpoint proves preservation only",
-        "It does not prove validation, completion, merge readiness, or runtime behavior",
+        "It does not prove correctness, completion, merge readiness, or runtime behavior",
+        "Keep raw runtime evidence outside git",
     ]
-    for fragment in required_fragments:
-        assert fragment in content, f"AGENTS.md missing checkpoint rule fragment: {fragment}"
+    for fragment in required_capability_fragments:
+        assert fragment in proof_capability, (
+            "proof-and-checkpointing capability missing rule fragment: " + fragment
+        )
 
 
 def test_harness_core_loop_requires_preservation_checkpoint() -> None:
@@ -134,7 +143,7 @@ def test_refactoring_checkpoint_rule_requires_slices_and_verified_skill_path() -
 
 def main() -> None:
     tests = [
-        test_agents_declares_incremental_work_preservation,
+        test_factored_instructions_preserve_incremental_work_rule,
         test_harness_core_loop_requires_preservation_checkpoint,
         test_harness_checkpoint_boundary_and_safety_are_explicit,
         test_harness_resume_report_and_proof_boundaries_are_explicit,

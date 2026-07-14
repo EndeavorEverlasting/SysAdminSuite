@@ -2,9 +2,13 @@ name: Survey doctrine
 
 on:
   push:
-    branches: [main, 'feat/**', 'feature/**']
+    branches: [main, 'feat/**', 'feature/**', 'refactor/**']
     paths:
       - 'AGENTS.md'
+      - '.claude/skills/survey-low-noise/SKILL.md'
+      - '.claude/capabilities/language-runtime-selection.md'
+      - '.claude/capabilities/mutation-and-evidence-boundaries.md'
+      - '.claude/capabilities/proof-and-checkpointing.md'
       - '.cursor/rules/**'
       - '.githooks/**'
       - 'Config/cybernet-naabu-profiles.json'
@@ -53,6 +57,10 @@ on:
     branches: [main]
     paths:
       - 'AGENTS.md'
+      - '.claude/skills/survey-low-noise/SKILL.md'
+      - '.claude/capabilities/language-runtime-selection.md'
+      - '.claude/capabilities/mutation-and-evidence-boundaries.md'
+      - '.claude/capabilities/proof-and-checkpointing.md'
       - '.cursor/rules/**'
       - '.githooks/**'
       - 'Config/cybernet-naabu-profiles.json'
@@ -108,10 +116,32 @@ jobs:
         with:
           go-version: '1.24.x'
 
-      - name: Naabu doctrine contract tests
+      - name: Run Naabu doctrine contract tests
+        id: naabu_doctrine
         shell: bash
         run: |
-          bash Tests/bash/test_repo_naabu_doctrine_conformance.sh
+          set +e
+          bash Tests/bash/test_repo_naabu_doctrine_conformance.sh > naabu-doctrine.log 2>&1
+          code=$?
+          cat naabu-doctrine.log
+          printf 'exit_code=%s\n' "$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload Naabu doctrine diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: naabu-doctrine-contract-log
+          path: naabu-doctrine.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce Naabu doctrine contract result
+        shell: bash
+        env:
+          NAABU_DOCTRINE_EXIT_CODE: ${{ steps.naabu_doctrine.outputs.exit_code }}
+        run: |
+          test "$NAABU_DOCTRINE_EXIT_CODE" -eq 0
 
       - name: Central target intake contracts
         shell: bash
