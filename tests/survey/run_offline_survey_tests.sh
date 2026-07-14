@@ -16,6 +16,7 @@ python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_software_install_harness_contracts.py
 python3 Tests/survey/test_autodidact_install_capsule_contracts.py
+python3 Tests/survey/test_approved_software_acceptance_contracts.py
 python3 Tests/survey/test_run_context_contracts.py
 
 if command -v pwsh >/dev/null 2>&1 || command -v powershell.exe >/dev/null 2>&1 || command -v powershell >/dev/null 2>&1; then
