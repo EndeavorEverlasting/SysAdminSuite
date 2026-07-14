@@ -92,8 +92,10 @@ $forbiddenInstructionPhrases = @(
   'Treat existing `.ps1`, `.psm1`, and `.psd1` files as legacy/reference tooling'
 )
 
+# Split command-like sentinels so repository-wide raw-command checks do not
+# mistake this validator's search terms for operator guidance.
 $rootDetailMarkers = @(
-  'naabu -list',
+  ('naabu ' + '-list'),
   'Get-NetAdapter',
   'New-NetIPAddress',
   'ip addr',
