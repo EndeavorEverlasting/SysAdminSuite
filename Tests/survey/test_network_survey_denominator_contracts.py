@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,31 +28,11 @@ FIXTURES = (
 )
 
 ROW_REQUIRED = {
-    "row_id",
-    "record_role",
-    "serial",
-    "normalized_serial",
-    "target",
-    "normalized_target",
-    "candidate_targets",
-    "device_type",
-    "site",
-    "expected_prefix",
-    "observed_at",
-    "evidence_type",
-    "evidence_strength_tier",
-    "serial_identity_confirmed",
-    "reachability_status",
-    "open_ports",
-    "resolved_address",
-    "mac_address",
-    "port",
-    "port_status",
-    "ad_candidate_status",
-    "tracker_status",
-    "source_file",
-    "source_adapter",
-    "source_values",
+    "row_id", "record_role", "serial", "normalized_serial", "target", "normalized_target",
+    "candidate_targets", "device_type", "site", "expected_prefix", "observed_at", "evidence_type",
+    "evidence_strength_tier", "serial_identity_confirmed", "reachability_status", "open_ports",
+    "resolved_address", "mac_address", "port", "port_status", "ad_candidate_status", "tracker_status",
+    "source_file", "source_adapter", "source_values",
 }
 
 
@@ -99,7 +80,6 @@ def test_adapter_registry_covers_modular_formats_without_expanding_planner_alias
         assert adapter["detection"]["required_any"], f"adapter detection is empty: {adapter['id']}"
     assert coverage["requested_population"] == {"csv", "txt", "json", "jsonl"}
     assert coverage["evidence_snapshot"] == {"csv", "json", "jsonl"}
-
     downstream = read(DELTA_MODULE) + "\n" + read(PLANNER)
     for alias in ("Cybernet S/N", "Neuron S/N", "SerialNumber", "ExpectedHostname", "PingStatus"):
         assert alias not in downstream, f"source alias leaked beyond adapter boundary: {alias}"
@@ -108,66 +88,43 @@ def test_adapter_registry_covers_modular_formats_without_expanding_planner_alias
 def test_normalizer_uses_schema_as_operational_input_and_fails_closed() -> None:
     text = read(NORMALIZER)
     for fragment in (
-        "network_survey_artifact_adapters.json",
-        "network-survey-artifact-denominator.schema.json",
-        "$Schema.required",
-        "$Schema.'$defs'.row.required",
-        "Select-SasSurveyArtifactAdapter",
-        "Test-SasSurveyDenominatorPackage",
-        "ARTIFACT_ROWS_REJECTED",
-        "DENOMINATOR_KEY_MISSING",
+        "network_survey_artifact_adapters.json", "network-survey-artifact-denominator.schema.json",
+        "$Schema.required", "$Schema.'$defs'.row.required", "Select-SasSurveyArtifactAdapter",
+        "Test-SasSurveyDenominatorPackage", "ARTIFACT_ROWS_REJECTED", "DENOMINATOR_KEY_MISSING",
         "TIMESTAMP_REQUIRED_FOR_FRESHNESS",
-        "network_activity_performed = $false",
-        "target_mutation_performed = $false",
     ):
         assert fragment in text, f"normalizer missing enforcement fragment: {fragment}"
+    assert re.search(r"network_activity_performed\s*=\s*\$false", text)
+    assert re.search(r"target_mutation_performed\s*=\s*\$false", text)
 
 
 def test_planner_normalizes_every_artifact_before_delta_logic() -> None:
     text = read(PLANNER) + "\n" + read(WRITER)
-    normalizer_call = text.index("Invoke-SasSurveyArtifactNormalization")
-    planner_conversion = text.index("ConvertFrom-SasRequestedArtifactPackage")
-    assert normalizer_call < planner_conversion
+    assert text.index("Invoke-SasSurveyArtifactNormalization") < text.index("ConvertFrom-SasRequestedArtifactPackage")
     for fragment in (
-        "artifact_intake_manifest.json",
-        "normalized_artifacts",
-        "all_artifacts_valid = $true",
-        "normalized_artifact_paths",
-        "validation_report_paths",
-        "denominator_contract_version = '1.0.0'",
+        "artifact_intake_manifest.json", "normalized_artifacts", "all_artifacts_valid = $true",
+        "normalized_artifact_paths", "validation_report_paths", "denominator_contract_version = '1.0.0'",
     ):
         assert fragment in text, f"planner/writer missing denominator provenance: {fragment}"
-    assert "PROBE_REQUIRD_STALE_EVIDENCE" not in read(ROOT / "scripts" / "Invoke-SasDeltaPreflightPlanRows.ps1")
-    assert "PROBE_REQUIRED_STALE_EVIDENCE" in read(ROOT / "scripts" / "Invoke-SasDeltaPreflightPlanRows.ps1")
+    plan_rows = read(ROOT / "scripts" / "Invoke-SasDeltaPreflightPlanRows.ps1")
+    assert "PROBE_REQUIRD_STALE_EVIDENCE" not in plan_rows
+    assert "PROBE_REQUIRED_STALE_EVIDENCE" in plan_rows
 
 
 def test_normalizer_and_validator_are_packet_free() -> None:
     text = read(NORMALIZER) + "\n" + read(VALIDATOR)
-    forbidden = (
-        "Test-NetConnection",
-        "Test-Connection -ComputerName",
-        "Resolve-DnsName",
-        "Invoke-Command -ComputerName",
-        "naabu -",
-        "nmap ",
-    )
-    for fragment in forbidden:
+    for fragment in ("Test-NetConnection", "Test-Connection -ComputerName", "Resolve-DnsName", "Invoke-Command -ComputerName", "naabu -", "nmap "):
         assert fragment not in text, f"artifact intake must remain packet-free: {fragment}"
 
 
 def test_end_to_end_harness_covers_valid_mixed_formats_and_invalid_artifact() -> None:
     workflow = read(WORKFLOW)
     for fragment in (
-        "Run denominator static contracts",
-        "Run modular artifact denominator validation",
-        "Run mixed-format denominator-to-delta end-to-end fixture",
-        "Reject an artifact that cannot satisfy the denominator",
-        "delta_denominator_requested.sample.json",
-        "delta_denominator_evidence.network.sample.csv",
-        "delta_denominator_evidence.identity.sample.jsonl",
-        "delta_denominator_invalid.sample.csv",
-        "artifact_intake_manifest.json",
-        "canonical denominator contract",
+        "Run denominator static contracts", "Run modular artifact denominator validation",
+        "Run mixed-format denominator-to-delta end-to-end fixture", "Reject an artifact that cannot satisfy the denominator",
+        "delta_denominator_requested.sample.json", "delta_denominator_evidence.network.sample.csv",
+        "delta_denominator_evidence.identity.sample.jsonl", "delta_denominator_invalid.sample.csv",
+        "artifact_intake_manifest.json", "canonical denominator contract",
     ):
         assert fragment in workflow, f"workflow missing end-to-end denominator coverage: {fragment}"
     assert "test_network_survey_denominator_contracts.py" in read(OFFLINE_RUNNER)
