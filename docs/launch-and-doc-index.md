@@ -7,7 +7,9 @@ Start here when you need to know which local surface to use.
 | Goal | Use |
 |---|---|
 | Open the dashboard | `START-HERE-SysAdminSuite-Dashboard.bat` |
-| Learn the software-deployment dry run and pilot workflow | `docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md` |
+| Run the canonical software-deployment tutorial | Dashboard → **Start Software Deployment** |
+| Open the deployment tutorial directly | `http://127.0.0.1:5000/dashboard/?tutorial=software-deployment` |
+| Read the supporting deployment runbook | `docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md` |
 | Create or enter the PR #142 harness-foundation worktree | `scripts/Ensure-Pr142HarnessFoundationWorktree.ps1` |
 | Run the full harness contract suite on Windows | `Run-HarnessContracts.cmd` |
 | Run the synthetic harness validator | `Run-HarnessValidation.cmd` |
@@ -18,7 +20,9 @@ Start here when you need to know which local surface to use.
 
 | Surface | Implementation |
 |---|---|
-| Software deployment tutorial | `docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md` |
+| Browser deployment tutorial | `dashboard/js/software-deployment-tutorial.js` |
+| Browser tutorial loader | `dashboard/js/launch-repo-setup-tutorial.js` |
+| Supporting written runbook | `docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md` |
 | Generated dummy installer | `Tests/fixtures/software-install/DummyInstaller.cs` -> `scripts/Build-SasSoftwareInstallFixtureExecutable.ps1` |
 | Software-install E2E | `scripts/Invoke-SasSoftwareInstallE2E.ps1` -> `scripts/Invoke-SasSoftwareInstall.ps1` |
 | PR #142 worktree bootstrap | `scripts/Ensure-Pr142HarnessFoundationWorktree.ps1` |
@@ -31,7 +35,7 @@ Start here when you need to know which local surface to use.
 | Synthetic fixtures | `survey/fixtures/` |
 | Harness schemas | `schemas/harness/` |
 
-The software-deployment tutorial starts with a generated-executable fixture dry run and then guides one confirmation-enabled authorized pilot. The fixture proof does not contact a package share or workstation. Live execution remains a separate approved mutation step.
+The dashboard is the canonical technician interface for software deployment. Its eight-stage wizard starts with the generated-executable fixture dry run, validates one pilot target and relative package path, generates the WhatIf and confirmation-enabled live commands, and requires evidence and approval gates before advancement. The Markdown tutorial is the supporting runbook.
 
 The harness validator is a synthetic, offline proof only. One command detects the repo root, records the branch and commit, exercises run-context and artifact-registry creation, renders a fixture report, checks cross-lane API/workflow preservation, runs safe local contracts, reports optional dependencies as `SKIP`, and writes both an English matrix and JSON result under `survey/output/harness-validator/`. It does not launch the dashboard, execute installers, probe a network, or mutate target systems or operator data.
 
@@ -49,7 +53,8 @@ The harness validator is a synthetic, offline proof only. One command detects th
 
 ```text
 Dashboard: START-HERE-SysAdminSuite-Dashboard.bat
-Software deployment tutorial: docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md
+Software deployment UI: http://127.0.0.1:5000/dashboard/?tutorial=software-deployment
+Supporting deployment runbook: docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md
 Software install E2E: scripts/Invoke-SasSoftwareInstallE2E.ps1
 Bootstrap: scripts/Ensure-Pr142HarnessFoundationWorktree.ps1
 Contracts: Run-HarnessContracts.cmd
@@ -63,6 +68,7 @@ Agents:    docs/handoff/sysadminsuite-agent-coordination.md
 
 ## Rules
 
+- Use the dashboard as the default technician surface; use written runbooks as support and fallback.
 - Use synthetic fixtures for tracked harness proof.
 - Run the dummy-installer E2E before a real software-deployment pilot.
 - Keep the first live software pilot to one authorized workstation with confirmation enabled.
