@@ -49,8 +49,32 @@ jobs:
       - name: Check patch whitespace
         run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
 
-      - name: Run approved software acceptance contracts
-        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py
+      - name: Catalog acceptance profile contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py catalog
+
+      - name: Completed After gate contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py after-gate
+
+      - name: Read-only application observation contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py application
+
+      - name: Password-free AutoLogon contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py autologon
+
+      - name: Proof-boundary contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py proof
+
+      - name: Technician operator contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py operator
+
+      - name: Acceptance documentation contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py docs
+
+      - name: Windows fixture workflow contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py workflow
+
+      - name: Offline runner contract
+        run: python3 Tests/survey/test_approved_software_acceptance_contracts.py runner
 
   windows-fixture:
     runs-on: windows-latest
