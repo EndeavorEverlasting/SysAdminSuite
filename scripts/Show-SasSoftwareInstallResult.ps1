@@ -72,6 +72,7 @@ function Convert-SasJsonLineFile {
         [string]$Path,
 
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [Collections.Generic.List[string]]$Errors
     )
 
