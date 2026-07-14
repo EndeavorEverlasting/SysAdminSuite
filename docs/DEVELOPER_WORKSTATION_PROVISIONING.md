@@ -2,44 +2,31 @@
 
 ## Purpose
 
-SysAdminSuite owns the operator-workstation orchestration layer for a Windows development workstation. WezTerm is the required terminal host and the preferred user-facing entrypoint. The default execution profile is Windows-native PowerShell inside WezTerm.
+SysAdminSuite owns the developer-workstation orchestration layer for a bimodal Windows and Linux programming workflow. WezTerm is the preferred terminal host on both supported platforms. Native Windows and native Linux are first-class execution modes.
 
-WSL is an optional, lower-priority execution profile for tools or workflows that genuinely need a Linux environment. It is not the default and must not be installed, enabled, or selected merely because it is present on the current workstation. tmux belongs only to the optional WSL profile.
+WSL remains available as a lower-priority Windows compatibility and experimentation profile. It is not the default Linux implementation and must not replace or obscure native Linux support.
 
-This document defines the first contract slice only. It does not install software, authenticate agents, mutate target workstations, or duplicate AgentSwitchboard implementation.
+macOS is explicitly unsupported in this contract because no current test environment is available. The repository must not advertise, generate, or infer macOS readiness until a dedicated test lane proves it.
 
-## Product preference
-
-The preferred stack is:
-
-```text
-Windows -> WezTerm -> PowerShell 7 -> OpenCode / AGY / Goose
-```
-
-The optional compatibility and experimentation stack is:
-
-```text
-Windows -> WezTerm -> WSL -> tmux -> OpenCode / AGY / Goose
-```
-
-WezTerm and WSL are not equivalent layers: WezTerm is the terminal host, while WSL is one possible execution environment launched by that host. The product preference is therefore expressed by requiring WezTerm and ranking a Windows-native profile ahead of a disabled WSL profile.
+This document defines the profile and ownership contract only. It does not install software, authenticate agents, mutate deployment targets, or duplicate AgentSwitchboard implementation.
 
 ## Repository ownership boundary
 
 ### SysAdminSuite owns
 
-- Windows prerequisite inventory and future orchestration;
-- WezTerm installation posture, configuration templates, launch profiles, and preference order;
-- Windows-native shell selection and project workspace composition;
-- optional WSL distribution selection only when an enabled profile requires it;
-- optional tmux configuration only inside an enabled WSL profile;
-- elevation boundaries, rollback, and technician-facing evidence;
+- Windows and Linux prerequisite inventory and future orchestration;
+- WezTerm installation and managed configuration policy on supported platforms;
+- native Windows and native Linux execution-profile selection;
+- optional WSL distribution discovery and compatibility routing on Windows;
+- tmux configuration for Linux-native and optional WSL workflows;
+- project workspace and launcher composition;
+- elevation, rollback, and technician-facing evidence boundaries;
 - validation that the external AgentSwitchboard contract is available before invocation.
 
 ### AgentSwitchboard owns
 
 - coding-agent installation, detection, upgrade, and repair;
-- agent-specific PATH and wrapper handling across supported execution profiles;
+- agent-specific PATH and wrapper handling;
 - authentication-readiness reporting without automatic authentication;
 - per-agent smoke tests and normalized agent inventory.
 
@@ -51,34 +38,87 @@ SysAdminSuite must consume AgentSwitchboard through a versioned external contrac
 - Sanitized sample: `Config/developer-workstation-profile.sample.json`
 - Contract test: `Tests/survey/test_developer_workstation_profile_contracts.py`
 
-The sample contract enforces:
+The contract uses these first-class paths:
 
-- `wezterm` as the required terminal provider;
-- `windows-native` as the enabled default profile;
-- PowerShell 7 as the preferred native shell;
-- `wsl-tmux` as disabled and lower priority;
-- explicit profile ordering rather than an inferred fallback;
-- install-missing-only behavior;
-- preservation of existing user configuration;
-- no automatic account authentication;
-- no deployment-target contact or mutation;
-- no committed runtime evidence, credentials, or machine-local paths.
+```text
+Windows:
+Windows -> WezTerm -> PowerShell 7 -> OpenCode / AGY / Goose
 
-A future implementation may allow the operator to explicitly enable or select the WSL profile. It must not silently promote WSL to the default when Windows-native agent tooling is healthy.
+Linux:
+Linux -> WezTerm -> Bash -> tmux -> OpenCode / AGY / Goose
+```
+
+The optional Windows compatibility path remains:
+
+```text
+Windows -> WezTerm -> WSL -> Bash -> tmux -> OpenCode / AGY / Goose
+```
+
+## Platform posture
+
+| Platform | Support | Default profile | Runtime-test posture |
+|---|---|---|---|
+| Windows | Supported | `windows-native` | Available |
+| Linux | Supported | `linux-native` | Available |
+| macOS | Unsupported | None | Unavailable |
+| WSL | Optional Windows environment | `wsl-tmux` disabled by default | Experimental/compatibility |
+
+A future macOS lane must begin as a separately scoped research and validation sprint. Documentation, launchers, schemas, and installers must continue to reject macOS support claims until that lane has real executable proof.
+
+## Preference and fallback rules
+
+1. WezTerm is required as the preferred terminal provider for this workstation profile.
+2. Windows-native and Linux-native are both enabled first-class profiles.
+3. The default profile is selected by host platform rather than by a single cross-platform default.
+4. WSL is Windows-only, disabled by default, and lower priority than Windows-native.
+5. Linux-native uses a native Linux shell. It must not be represented as WSL.
+6. macOS profiles are outside the accepted schema.
+7. Existing user configuration must be preserved unless an explicit managed-block or replacement policy is authorized.
+
+## Safety posture
+
+The profile is fail closed around these properties:
+
+- install missing components only;
+- preserve existing user configuration;
+- never authenticate accounts automatically;
+- never contact or mutate deployment targets;
+- never commit runtime evidence, credentials, or machine-local paths;
+- never claim support for an untested operating system.
 
 ## Proof ceiling
 
-The contract test can prove schema shape, preference ordering, repository-boundary declarations, sanitized tracked configuration, and validation-runner registration. It cannot prove:
+The contract test can prove:
 
-- WezTerm, PowerShell 7, WSL, tmux, or any coding agent is installed;
-- OpenCode, AGY, or Goose works natively on the current Windows machine;
+- schema shape and fail-closed platform declarations;
+- enabled native Windows and Linux defaults;
+- WezTerm preference;
+- optional, lower-priority WSL posture;
+- explicit macOS exclusion;
+- repository ownership and safety boundaries;
+- sanitized tracked configuration and validation-runner registration.
+
+It cannot prove:
+
+- WezTerm, PowerShell, Bash, tmux, WSL, or any coding agent is installed;
+- native Windows or native Linux agent operation works;
 - AgentSwitchboard exposes a stable executable command;
-- installation, repair, upgrade, authentication readiness, or launch behavior works;
-- Windows elevation and rollback behavior;
+- installation, repair, upgrade, authentication readiness, or launch behavior;
+- Windows elevation or Linux privilege behavior;
+- rollback behavior;
 - end-to-end workstation provisioning.
 
-Those require later bounded implementation and Windows fixture/runtime sprints.
+Those require later bounded implementation and platform-specific runtime sprints.
 
 ## Next implementation seam
 
-Before adding an executable SysAdminSuite installer, AgentSwitchboard must publish a stable, versioned invocation and result contract that identifies supported execution profiles. The SysAdminSuite adapter should then validate that contract, prefer the enabled Windows-native profile, refuse silent fallback to disabled WSL, invoke AgentSwitchboard without forwarding secrets, and translate normalized PASS/SKIP/FAIL results into a SysAdminSuite evidence summary.
+Before adding an executable SysAdminSuite installer, AgentSwitchboard must publish a stable, versioned invocation and result contract for both Windows and Linux.
+
+The SysAdminSuite adapter should then:
+
+1. detect the host as Windows or Linux;
+2. select the matching native WezTerm execution profile;
+3. treat WSL only as an explicit Windows fallback;
+4. reject macOS as unsupported;
+5. invoke AgentSwitchboard without forwarding secrets;
+6. translate normalized PASS/SKIP/FAIL results into a SysAdminSuite evidence summary.
