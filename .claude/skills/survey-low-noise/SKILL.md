@@ -14,7 +14,7 @@ Use this skill for survey, preflight, packet-probe, Naabu/Nmap, target-intake, o
 - Treat Naabu/Nmap output as reachability evidence only unless joined with approved, fresh, complete identity evidence.
 - Reuse fresh local evidence before proposing another live probe.
 - Use `survey/naabu_profiles.json` as the canonical doctrine source and suite wrappers such as `survey/sas-run-naabu-pipeline.sh` or `survey/sas-run-packet-probe.sh` for execution.
-- Use “low-noise survey discipline” language; the objective is authorized scope control and local evidence, not reduced monitoring visibility.
+- Use "low-noise survey discipline" language; the objective is authorized scope control and local evidence, not reduced monitoring visibility.
 - Use the canonical profile and operational-posture files rather than copying port/rate/retry defaults.
 - Require explicit gates for UDP, all-port, public-target, or subnet host-discovery profiles.
 - Write artifacts only to local ignored output paths.
