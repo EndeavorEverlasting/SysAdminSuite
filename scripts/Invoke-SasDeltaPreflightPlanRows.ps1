@@ -1,7 +1,7 @@
 # Internal core for survey/sas-delta-preflight-plan.ps1. Dot-source only.
-$planRows = New-Object System.Collections.Generic.List[object]
-$observationRows = New-Object System.Collections.Generic.List[object]
-$targetSet = New-Object System.Collections.Generic.HashSet[string] ([System.StringComparer]::OrdinalIgnoreCase)
+$planRows = @()
+$observationRows = @()
+$targetSet = @()
 
 foreach ($requested in $requestedRows) {
     $matches = @($evidenceSnapshots | Where-Object {
@@ -10,12 +10,12 @@ foreach ($requested in $requestedRows) {
         ($_.NormalizedTarget -and $requested.CandidateHostnames -contains $_.Target)
     })
 
-    $candidateHostnames = New-Object System.Collections.Generic.List[string]
+    $candidateHostnames = @()
     foreach ($candidate in @($requested.CandidateHostnames)) {
-        if ($candidate -and -not $candidateHostnames.Contains($candidate)) { $candidateHostnames.Add($candidate) }
+        if ($candidate -and $candidateHostnames -notcontains $candidate) { $candidateHostnames += $candidate }
     }
     foreach ($match in $matches) {
-        if ($match.Target -and -not $candidateHostnames.Contains($match.Target)) { $candidateHostnames.Add($match.Target) }
+        if ($match.Target -and $candidateHostnames -notcontains $match.Target) { $candidateHostnames += $match.Target }
     }
 
     $identityMatches = @($matches | Where-Object {
@@ -146,7 +146,9 @@ foreach ($requested in $requestedRows) {
         $nextHandoff = 'delta_network_preflight'
     }
 
-    if ($decision -like 'PROBE_REQUIRED_*' -and $probeTarget) { [void]$targetSet.Add($probeTarget) }
+    if ($decision -like 'PROBE_REQUIRED_*' -and $probeTarget -and $targetSet -notcontains $probeTarget) {
+        $targetSet += $probeTarget
+    }
 
     $lastReachabilityStatus = if ($latest) { $latest.ReachabilityStatus } else { '' }
     $lastReachabilityTimestamp = if ($latest -and $latest.Timestamp) { $latest.Timestamp.ToString('o') } else { '' }
@@ -159,7 +161,7 @@ foreach ($requested in $requestedRows) {
     $sourceFiles = @($matches | ForEach-Object { $_.SourceFile } | Sort-Object -Unique)
     $sourceAdapters = @($matches | ForEach-Object { $_.SourceAdapter } | Where-Object { $_ } | Sort-Object -Unique)
 
-    $planRows.Add([pscustomobject][ordered]@{
+    $planRows += [pscustomobject][ordered]@{
         InputRowId = $requested.InputRowId
         InputSource = $resolvedInput
         InputAdapter = $requested.SourceAdapter
@@ -190,9 +192,9 @@ foreach ($requested in $requestedRows) {
         DecisionReason = $reason
         ReviewRequired = $reviewRequired
         EvidenceSourceFiles = ($sourceFiles -join ';')
-    })
+    }
 
-    $observationRows.Add([pscustomobject][ordered]@{
+    $observationRows += [pscustomobject][ordered]@{
         InputRowId = $requested.InputRowId
         Serial = $requested.Serial
         Target = $probeTarget
@@ -205,5 +207,5 @@ foreach ($requested in $requestedRows) {
         ObservationDelta = $observation.Delta
         PreviousSource = if ($previous) { $previous.SourceFile } else { '' }
         LatestSource = if ($latest) { $latest.SourceFile } else { '' }
-    })
+    }
 }
