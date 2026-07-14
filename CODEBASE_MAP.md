@@ -14,6 +14,14 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_agent_instruction_factoring_contracts.py` — dependency-free factoring and anti-bloat contract.
 - `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
 
+## Agent sprint capsules
+
+- `schemas/harness/agent-sprint-capsule.schema.json` — fail-closed schema for self-contained sprint context documents.
+- `tools/New-SasSprintCapsule.ps1` — generator that emits a single chat-ready capsule JSON for AI agent handoff.
+- `Tests/fixtures/capsules/` — sanitized valid and rejection fixtures for capsule validation.
+- `Tests/Pester/SprintCapsule.Tests.ps1` — Pester unit proof for capsule generation and rejection rules.
+- `Tests/survey/test_agent_sprint_capsule_contracts.py` — dependency-free contract tests for capsule schema and fixtures.
+
 ## End-to-end validation
 
 - `docs/END_TO_END_TESTING_POSTURE.md` — default merge/release proof posture and E2E safety classes.

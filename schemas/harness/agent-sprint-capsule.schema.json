@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/agent-sprint-capsule.schema.json",
+  "title": "SysAdminSuite Agent Sprint Capsule",
+  "description": "Self-contained sprint context document for AI agent handoff. Emits a single chat-ready JSON that gives an agent everything it needs to enter a bounded repo sprint.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "capsule",
+    "sprint",
+    "branch",
+    "scope",
+    "skills",
+    "capabilities",
+    "preflight",
+    "validation",
+    "proof_ceiling",
+    "adapters"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-agent-sprint-capsule/v1" },
+    "schema_path": { "const": "schemas/harness/agent-sprint-capsule.schema.json" },
+    "capsule": { "$ref": "#/$defs/capsule_meta" },
+    "sprint": { "$ref": "#/$defs/sprint_spec" },
+    "branch": { "$ref": "#/$defs/branch_spec" },
+    "scope": { "$ref": "#/$defs/scope_spec" },
+    "skills": { "$ref": "#/$defs/skill_routing" },
+    "capabilities": { "$ref": "#/$defs/capability_deps" },
+    "preflight": { "$ref": "#/$defs/preflight_spec" },
+    "validation": { "$ref": "#/$defs/validation_spec" },
+    "proof_ceiling": { "$ref": "#/$defs/proof_ceiling_spec" },
+    "adapters": { "$ref": "#/$defs/adapter_spec" }
+  },
+  "$defs": {
+    "capsule_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "minLength": 3,
+      "maxLength": 80
+    },
+    "repo_relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+    },
+    "kebab_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "snake_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "version_pattern": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "iso_timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "capsule_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capsule_id",
+        "generated_at",
+        "output_path",
+        "generator_version"
+      ],
+      "properties": {
+        "capsule_id": { "$ref": "#/$defs/capsule_id" },
+        "generated_at": { "$ref": "#/$defs/iso_timestamp" },
+        "output_path": { "type": "string", "minLength": 1 },
+        "generator_version": { "$ref": "#/$defs/version_pattern" }
+      }
+    },
+    "sprint_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sprint_id",
+        "repo_root",
+        "sprint_skill",
+        "skill_md_path"
+      ],
+      "properties": {
+        "sprint_id": { "$ref": "#/$defs/kebab_id" },
+        "repo_root": { "type": "string", "minLength": 1 },
+        "sprint_skill": { "$ref": "#/$defs/kebab_id" },
+        "skill_md_path": { "$ref": "#/$defs/repo_relative_path" }
+      }
+    },
+    "branch_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "branch_name",
+        "worktree_path",
+        "is_isolated_worktree"
+      ],
+      "properties": {
+        "branch_name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._/-]*$",
+          "minLength": 1
+        },
+        "worktree_path": { "type": "string", "minLength": 1 },
+        "is_isolated_worktree": { "type": "boolean" }
+      }
+    },
+    "scope_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owned_paths",
+        "forbidden_scope",
+        "dependencies"
+      ],
+      "properties": {
+        "owned_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/repo_relative_path" }
+        },
+        "forbidden_scope": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/repo_relative_path" }
+        },
+        "dependencies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/kebab_id" }
+        }
+      }
+    },
+    "skill_routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary_skill",
+        "skill_paths",
+        "load_order"
+      ],
+      "properties": {
+        "primary_skill": { "$ref": "#/$defs/kebab_id" },
+        "skill_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/repo_relative_path" }
+        },
+        "load_order": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/kebab_id" }
+        }
+      }
+    },
+    "capability_deps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_capabilities",
+        "capability_paths"
+      ],
+      "properties": {
+        "required_capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/kebab_id" }
+        },
+        "capability_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/repo_relative_path" }
+        }
+      }
+    },
+    "preflight_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "git_state",
+        "host_eligibility",
+        "artifacts"
+      ],
+      "properties": {
+        "git_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["clean", "branch_count", "detached"],
+          "properties": {
+            "clean": { "type": "boolean" },
+            "branch_count": { "type": "integer", "minimum": 0 },
+            "detached": { "type": "boolean" }
+          }
+        },
+        "host_eligibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy_path", "status"],
+          "properties": {
+            "policy_path": { "$ref": "#/$defs/repo_relative_path" },
+            "status": {
+              "type": "string",
+              "enum": ["pass", "fail", "not_required"]
+            }
+          }
+        },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["manifest_path", "schema_path"],
+          "properties": {
+            "manifest_path": { "$ref": "#/$defs/repo_relative_path" },
+            "schema_path": { "$ref": "#/$defs/repo_relative_path" }
+          }
+        }
+      }
+    },
+    "validation_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_validate_command",
+        "pester_command",
+        "ai_layer_validate_command",
+        "contract_command"
+      ],
+      "properties": {
+        "schema_validate_command": { "type": "string", "minLength": 1 },
+        "pester_command": { "type": "string", "minLength": 1 },
+        "ai_layer_validate_command": { "type": "string", "minLength": 1 },
+        "contract_command": { "type": "string", "minLength": 1 }
+      }
+    },
+    "proof_ceiling_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "levels"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "P0_schema_validation",
+            "P1_static_lint",
+            "P2_unit_proof",
+            "P3_integration",
+            "P4_unit_test",
+            "P5_smoke",
+            "P6_E2E_fixture",
+            "P7_E2E_live",
+            "P8_runtime"
+          ]
+        },
+        "levels": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "P0_schema_validation",
+              "P1_static_lint",
+              "P2_unit_proof",
+              "P3_integration",
+              "P4_unit_test",
+              "P5_smoke",
+              "P6_E2E_fixture",
+              "P7_E2E_live",
+              "P8_runtime"
+            ]
+          }
+        }
+      }
+    },
+    "adapter_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "opencode",
+        "antigravity"
+      ],
+      "properties": {
+        "opencode": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["root_instruction", "capsule_source", "skill_load_method"],
+          "properties": {
+            "root_instruction": { "type": "string", "minLength": 1 },
+            "capsule_source": { "type": "string", "minLength": 1 },
+            "skill_load_method": { "type": "string", "minLength": 1 }
+          }
+        },
+        "antigravity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capsule_source", "skill_load_method"],
+          "properties": {
+            "capsule_source": { "type": "string", "minLength": 1 },
+            "skill_load_method": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}
