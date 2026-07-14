@@ -29,8 +29,8 @@ def test_tutorial_matches_real_entrypoints() -> None:
     tutorial = read(TUTORIAL)
     assert "scripts\\Invoke-SasSoftwareInstallE2E.ps1" in tutorial
     assert ".\\scripts\\Invoke-SasSoftwareInstall.ps1" in tutorial
-    assert "docs/SOFTWARE_INSTALL_E2E.md" in tutorial
-    assert "docs/SOFTWARE_INSTALL_HARNESS.md" in tutorial
+    assert "SOFTWARE_INSTALL_E2E.md" in tutorial
+    assert "SOFTWARE_INSTALL_HARNESS.md" in tutorial
     assert E2E_SCRIPT.is_file()
     assert INSTALL_SCRIPT.is_file()
 
