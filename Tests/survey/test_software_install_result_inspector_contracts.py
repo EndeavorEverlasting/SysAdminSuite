@@ -75,16 +75,14 @@ def test_default_e2e_runs_inspector_after_real_fixture_install() -> None:
     )
     assert "software-install-fixture" in default_ids
     assert "software-install-result-presentation" in default_ids
-    assert default_ids.index("software-install-result-presentation") == (
-        default_ids.index("software-install-fixture") + 1
-    )
+    assert default_ids.index("software-install-result-presentation") > default_ids.index("software-install-fixture")
     journey = journeys["software-install-result-presentation"]
-    assert journey["script"] == "scripts/Show-SasSoftwareInstallResult.ps1"
+    assert journey["script"] == "scripts/Show-SasValidatedSoftwareDeploymentResult.ps1"
     assert journey["required"] is True
     assert journey["network_scope"] == "none"
     assert journey["target_mutation"] is False
     assert "-RequireCompleted" in journey["arguments"]
-    assert any("software-install-fixture" in value for value in journey["arguments"])
+    assert any("software-install-validated-finalization" in value for value in journey["arguments"])
 
 
 def test_agents_must_present_the_inspector_at_the_logical_moment() -> None:
