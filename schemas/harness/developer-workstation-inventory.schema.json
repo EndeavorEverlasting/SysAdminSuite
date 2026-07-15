@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/developer-workstation-inventory.schema.json",
+  "title": "SysAdminSuite Developer Workstation Inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "detected_platform",
+    "execution_environment",
+    "checks",
+    "selected_profile",
+    "eligible_profiles",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-developer-workstation-inventory/v1"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "detected_platform": {
+      "enum": ["windows", "linux", "unsupported"]
+    },
+    "execution_environment": {
+      "enum": ["native", "wsl", "unknown"]
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wezterm",
+        "shell",
+        "multiplexer",
+        "repository",
+        "agent_commands",
+        "agent_switchboard"
+      ],
+      "properties": {
+        "wezterm": { "$ref": "#/$defs/toolCheck" },
+        "shell": { "$ref": "#/$defs/toolCheck" },
+        "multiplexer": { "$ref": "#/$defs/toolCheck" },
+        "repository": { "$ref": "#/$defs/repositoryCheck" },
+        "agent_commands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/agentCheck" }
+        },
+        "agent_switchboard": { "$ref": "#/$defs/toolCheck" },
+        "wsl": { "$ref": "#/$defs/wslCheck" }
+      }
+    },
+    "selected_profile": {
+      "type": ["string", "null"]
+    },
+    "eligible_profiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "proof_ceiling": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "toolCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason"],
+      "properties": {
+        "status": {
+          "enum": ["PASS", "SKIP", "FAIL"]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": ["string", "null"]
+        },
+        "path": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "repositoryCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason"],
+      "properties": {
+        "status": {
+          "enum": ["PASS", "SKIP", "FAIL"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "relative_path": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "agentCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_id", "status", "reason"],
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "status": {
+          "enum": ["PASS", "SKIP", "FAIL"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "version": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "wslCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason"],
+      "properties": {
+        "status": {
+          "enum": ["PASS", "SKIP", "FAIL"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "distributions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "status", "reason"],
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "enum": ["PASS", "SKIP", "FAIL"] },
+              "reason": { "type": "string" },
+              "tmux": { "$ref": "#/$defs/toolCheck" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
