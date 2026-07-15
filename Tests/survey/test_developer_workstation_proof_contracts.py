@@ -46,6 +46,11 @@ def test_catalog_journeys_use_fixture_only_python_runner() -> None:
         assert item["network_scope"]=="none" and item["target_mutation"] is False and item["required"] is True
 
 
+def test_generic_e2e_runner_preserves_single_line_tail_as_array() -> None:
+    runner=(ROOT/"scripts"/"Invoke-SasEndToEndValidation.ps1").read_text(encoding="utf-8")
+    assert "$tail = @(Tail-Text $output)" in runner
+
+
 def test_public_entrypoint_and_idempotent_proof_execute() -> None:
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp)
