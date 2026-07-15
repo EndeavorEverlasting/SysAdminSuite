@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/developer-workstation-proof.schema.json",
+  "title": "SysAdminSuite Developer Workstation E2E Proof",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "run_root",
+    "platform",
+    "profile",
+    "validation_matrix",
+    "journeys",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-developer-workstation-proof/v1"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "run_root": {
+      "type": "string"
+    },
+    "platform": {
+      "enum": ["windows", "linux", "unsupported"]
+    },
+    "profile": {
+      "type": ["string", "null"]
+    },
+    "validation_matrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "skipped", "failed"],
+      "properties": {
+        "passed": { "type": "integer" },
+        "skipped": { "type": "integer" },
+        "failed": { "type": "integer" }
+      }
+    },
+    "journeys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "required", "detail"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["PASS", "SKIP", "FAIL"] },
+          "required": { "type": "boolean" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "proof_ceiling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_proof",
+        "live_installation_proof",
+        "authentication_proof",
+        "provider_response_proof"
+      ],
+      "properties": {
+        "runtime_proof": { "const": false },
+        "live_installation_proof": { "const": false },
+        "authentication_proof": { "const": false },
+        "provider_response_proof": { "const": false }
+      }
+    }
+  }
+}

@@ -25,6 +25,7 @@ python3 Tests/survey/test_developer_workstation_lifecycle_contracts.py
 python3 Tests/survey/test_developer_workstation_inventory_contracts.py
 python3 Tests/survey/test_windows_wezterm_tmux_service_contracts.py
 python3 Tests/survey/test_linux_wezterm_tmux_contracts.py
+python3 Tests/survey/test_developer_workstation_proof_contracts.py
 python3 Tests/survey/test_e2e_default_posture_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_software_install_harness_contracts.py

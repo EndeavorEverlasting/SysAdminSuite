@@ -73,6 +73,126 @@
       "network_scope": "loopback-only",
       "target_mutation": false,
       "required": true
+    },
+    {
+      "id": "workstation-windows-native-success",
+      "summary": "Prove Windows native workstation success path including planning, apply to disposable HOME, and rollback.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-windows-native-success", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-linux-native-success",
+      "summary": "Prove Linux native workstation success path or syntax validation.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-linux-native-success", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-wsl-opt-in",
+      "summary": "Prove WSL opt-in terminal profile generation behavior.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-wsl-opt-in", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-missing-wezterm",
+      "summary": "Prove graceful planning when WezTerm is absent.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-missing-wezterm", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-missing-shell",
+      "summary": "Prove default fallback shell selection when preferred shell is absent.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-missing-shell", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-missing-tmux-linux",
+      "summary": "Prove skip behavior when tmux is missing on Linux.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-missing-tmux-linux", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-auth-required",
+      "summary": "Prove warning/skip behavior when Switchboard requires authentication.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-auth-required", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-malformed-switchboard",
+      "summary": "Prove planning does not crash on malformed agent switchboard inventory.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-malformed-switchboard", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-unsupported-version",
+      "summary": "Prove warning/rejection on unsupported contract version.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-unsupported-version", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-config-conflict",
+      "summary": "Prove update/replacement logic when config managed block exists.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-config-conflict", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-rollback-on-failure",
+      "summary": "Prove rollback after apply failure restores base config state.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-rollback-on-failure", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
+      "id": "workstation-unsupported-macos",
+      "summary": "Prove graceful SKIP behavior when running on unsupported macOS platform.",
+      "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
+      "script": "scripts/Invoke-SasWorkstationE2E.ps1",
+      "arguments": ["-JourneyId", "workstation-unsupported-macos", "-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
     }
   ],
   "profiles": [
@@ -86,6 +206,24 @@
         "software-install-result-presentation",
         "dashboard-relay-cancel-loopback",
         "dashboard-relay-abort-loopback"
+      ]
+    },
+    {
+      "id": "developer-workstation-bimodal-e2e",
+      "proof_class": "fixture-loopback-e2e",
+      "journey_ids": [
+        "workstation-windows-native-success",
+        "workstation-linux-native-success",
+        "workstation-wsl-opt-in",
+        "workstation-missing-wezterm",
+        "workstation-missing-shell",
+        "workstation-missing-tmux-linux",
+        "workstation-auth-required",
+        "workstation-malformed-switchboard",
+        "workstation-unsupported-version",
+        "workstation-config-conflict",
+        "workstation-rollback-on-failure",
+        "workstation-unsupported-macos"
       ]
     }
   ]
