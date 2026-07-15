@@ -1,0 +1,10 @@
+supported=true
+os_id=ubuntu
+package_manager=apt-get
+tmux_available=true
+tmux_version=tmux-3.6
+wezterm_available=true
+wezterm_path=/usr/bin/wezterm
+git_available=true
+bash_available=true
+session_exists=true
