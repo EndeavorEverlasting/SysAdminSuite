@@ -6,6 +6,8 @@ Use this lane before any supplied Epic, Hyland, Imprivata, shortcut, or other re
 
 The readiness validator is intentionally offline. It proves that the repository has a bounded VM test contract and that its existing fixture journeys remain safe to use as the pre-VM dry run. It does **not** start a VM, create a checkpoint, run a real installer, launch an application, contact a target, or change the host.
 
+This lane consumes the canonical `sas-harness-proof/v1` result contract. The schema-backed one-command harness floor must land before this VM-readiness layer is merged or retargeted to `main`.
+
 ## One command
 
 From the repository root:
