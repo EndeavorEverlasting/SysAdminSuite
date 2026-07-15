@@ -144,7 +144,10 @@ def test_exact_keepalive_ownership_contract() -> None:
     assert "Get-CimInstance Win32_Process" in text and "sas-workstation-keepalive" in text
     assert "Stop-Process -Id" in text
     assert "Stop-Process -Name" not in text and "wsl --terminate" not in text.lower()
-    assert "Start-Process -FilePath 'wsl.exe'" in text and "-WindowStyle Hidden" in text
+    assert "[Diagnostics.ProcessStartInfo]::new()" in text
+    assert "ArgumentList.Add" in text and "CreateNoWindow" in text
+    assert "'--exec', 'bash', '-lc'" in text
+    assert "Start-Process -FilePath 'wsl.exe'" not in text
 
 
 if __name__ == "__main__":

@@ -109,6 +109,19 @@ function Get-ExactOwnedKeepalive {
     return [pscustomobject]@{ running = [bool]$owned; stale = -not [bool]$owned; pid = [int]$rawPid }
 }
 
+function Start-OwnedKeepaliveProcess {
+    param([string]$Distro)
+    $wsl = Get-Command wsl.exe -ErrorAction Stop
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $wsl.Source
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    foreach ($argument in @('-d', $Distro, '--exec', 'bash', '-lc', 'exec -a sas-workstation-keepalive sleep infinity')) {
+        [void]$startInfo.ArgumentList.Add($argument)
+    }
+    return [Diagnostics.Process]::Start($startInfo)
+}
+
 function Get-LiveInventory {
     $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
     $distros = @()
@@ -263,7 +276,9 @@ function Start-Workspace {
     $pidPath = Join-Path $StateRoot 'wsl-keepalive.pid'
     $keepalive = Get-ExactOwnedKeepalive -PidPath $pidPath -Distro $Inventory.distro
     if (-not $keepalive.running) {
-        $process = Start-Process -FilePath 'wsl.exe' -ArgumentList @('-d', $Inventory.distro, '--', 'sh', '-lc', 'exec -a sas-workstation-keepalive sleep infinity') -WindowStyle Hidden -PassThru
+        # ProcessStartInfo.ArgumentList preserves the keepalive command as one
+        # bash -lc argument. Start-Process flattens the array and makes WSL exit.
+        $process = Start-OwnedKeepaliveProcess -Distro $Inventory.distro
         [System.IO.File]::WriteAllText($pidPath, [string]$process.Id, [System.Text.Encoding]::ASCII)
         $deadline = (Get-Date).AddSeconds($StartupTimeoutSeconds)
         do {
