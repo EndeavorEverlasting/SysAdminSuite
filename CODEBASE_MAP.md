@@ -35,6 +35,7 @@ Use this map to load only the files needed for a task.
 - `.github/workflows/windows-wezterm-tmux-service.yml` — Windows fixture lifecycle and Pester CI gate.
 - `schemas/harness/developer-workstation-proof.schema.json` — fail-closed fixture proof v2 with false live, behavior, persistence, agent-interaction, and acceptance flags.
 - `scripts/Invoke-SasWorkstationE2E.py`, `.ps1`, and `invoke-sas-workstation-e2e.sh` — 22-journey public-entrypoint fixture E2E and English matrix runners.
+- `scripts/Invoke-SasWindowsWorkstationLiveProof.ps1` — opt-in, content-free Windows detach/reopen and canonical-wrapper runtime proof.
 - `Tests/survey/test_developer_workstation_proof_contracts.py` — exact profile, artifact, idempotency, public-entrypoint, CI, and proof-ceiling contracts.
 - `.github/workflows/developer-workstation-e2e-proof.yml` — platform-bounded Windows and native-Linux fixture matrix gates.
 - `docs/DEVELOPER_WORKSTATION_E2E_PROOF_MERGE_READINESS.md` — honest 22-journey fixture readiness report and remaining live blockers.

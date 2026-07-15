@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/developer-workstation-live-proof.schema.json",
+  "type": "object",
+  "required": ["schema_version", "platform", "execution_domain", "distro", "session", "outcome", "agents", "observations", "proof"],
+  "properties": {
+    "schema_version": {"const": "sas-developer-workstation-live-proof/v1"},
+    "platform": {"const": "windows"},
+    "execution_domain": {"const": "windows-wsl"},
+    "distro": {"type": "string", "minLength": 1},
+    "session": {"const": "dev"},
+    "outcome": {"enum": ["PASS", "FAIL"]},
+    "agents": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["agent", "canonical_wrapper", "selected_backend", "command_acknowledged", "help_interaction_observed", "provider_response_observed", "authentication_observed"],
+        "properties": {
+          "agent": {"enum": ["opencode", "agy", "goose"]},
+          "canonical_wrapper": {"enum": ["opencode", "agy", "goose"]},
+          "selected_backend": {"enum": ["native", "bridge"]},
+          "command_acknowledged": {"type": "boolean"},
+          "help_interaction_observed": {"type": "boolean"},
+          "provider_response_observed": {"const": false},
+          "authentication_observed": {"const": false}
+        },
+        "additionalProperties": false
+      }
+    },
+    "observations": {"type": "object"},
+    "proof": {
+      "type": "object",
+      "required": ["live_runtime", "command_acknowledged", "behavior_observed", "persistence_observed", "agent_interaction_observed", "agent_interaction_scope", "provider_response_observed", "authentication_observed", "operator_accepted"],
+      "properties": {
+        "live_runtime": {"const": true},
+        "command_acknowledged": {"type": "boolean"},
+        "behavior_observed": {"type": "boolean"},
+        "persistence_observed": {"type": "boolean"},
+        "agent_interaction_observed": {"type": "boolean"},
+        "agent_interaction_scope": {"const": "canonical-wrapper-help-command-only"},
+        "provider_response_observed": {"const": false},
+        "authentication_observed": {"const": false},
+        "operator_accepted": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
