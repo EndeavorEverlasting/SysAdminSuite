@@ -14,6 +14,14 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_agent_instruction_factoring_contracts.py` — dependency-free factoring and anti-bloat contract.
 - `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
 
+## Developer workstation provisioning
+
+- `docs/DEVELOPER_WORKSTATION_PROVISIONING.md` — layered WezTerm terminal, tmux workspace, Windows WSL backend, native-Linux backend, PowerShell fallback, and ownership contract.
+- `docs/DEVELOPER_WORKSTATION_PR_STACK.md` — preservation, blocking, repair, and supersession decisions for workstation PRs #199–#204.
+- `schemas/harness/developer-workstation-profile.schema.json` — fail-closed v3 terminal/workspace/backend/shell/agent-domain contract.
+- `Config/developer-workstation-profile.sample.json` — sanitized v3 sample with Windows WSL and native-Linux tmux backends plus Windows PowerShell fallback.
+- `Tests/survey/test_developer_workstation_profile_contracts.py` — dependency-free layer, domain, safety, negative-case, discoverability, and optional JSON Schema validation.
+
 ## End-to-end validation
 
 - `docs/END_TO_END_TESTING_POSTURE.md` — default merge/release proof posture and E2E safety classes.

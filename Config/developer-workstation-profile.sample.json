@@ -1,0 +1,103 @@
+{
+  "schema_version": "sas-developer-workstation-profile/v3",
+  "schema_path": "schemas/harness/developer-workstation-profile.schema.json",
+  "project": {
+    "name": "SysAdminSuite",
+    "repo_path": "projects/SysAdminSuite"
+  },
+  "platform_support": {
+    "supported": [
+      "windows",
+      "linux"
+    ],
+    "unsupported": [
+      "macos"
+    ],
+    "runtime_test_available": {
+      "windows": true,
+      "linux": false,
+      "macos": false
+    }
+  },
+  "architecture": {
+    "terminal": {
+      "provider": "wezterm",
+      "role": "terminal-host",
+      "preference": "preferred",
+      "gui_executable_role": "wezterm-gui",
+      "cli_executable_role": "wezterm-cli"
+    },
+    "workspace": {
+      "multiplexer": "tmux",
+      "display_name": "tmux: Development",
+      "session_name": "dev"
+    },
+    "default_backends": {
+      "windows": "windows-wsl",
+      "linux": "linux-native"
+    },
+    "tmux_backends": [
+      {
+        "id": "windows-wsl",
+        "host_platform": "windows",
+        "kind": "wsl",
+        "execution_domain": "windows-wsl",
+        "shell": "bash",
+        "multiplexer": "tmux",
+        "tmux_capable": true,
+        "enabled": true,
+        "priority": 10,
+        "distro_selector": {
+          "mode": "detected-non-docker",
+          "excluded_names": [
+            "docker-desktop",
+            "docker-desktop-data"
+          ]
+        }
+      },
+      {
+        "id": "linux-native",
+        "host_platform": "linux",
+        "kind": "native-linux",
+        "execution_domain": "linux-native",
+        "shell": "bash",
+        "multiplexer": "tmux",
+        "tmux_capable": true,
+        "enabled": true,
+        "priority": 10
+      }
+    ],
+    "fallback_profiles": [
+      {
+        "id": "windows-powershell",
+        "host_platform": "windows",
+        "execution_domain": "windows-native",
+        "shell": "pwsh",
+        "multiplexer": "none",
+        "role": "fallback-admin",
+        "enabled": true
+      }
+    ]
+  },
+  "agent_switchboard": {
+    "repository": "EndeavorEverlasting/AgentSwitchboard",
+    "contract_version": "agentswitchboard-invocation/v2",
+    "required_agents": [
+      "opencode",
+      "agy",
+      "goose"
+    ],
+    "readiness_scope": "per-execution-domain",
+    "windows_command_presence_satisfies_wsl_readiness": false,
+    "native_preference": true,
+    "bridge_fallback": "explicit-when-allowed"
+  },
+  "posture": {
+    "install_missing_only": true,
+    "preserve_existing_configuration": true,
+    "automatic_authentication": false,
+    "target_mutation": false,
+    "tracked_runtime_evidence": false,
+    "macos_implementation": false
+  }
+}
