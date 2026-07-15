@@ -72,6 +72,7 @@ def test_lua_and_launcher_contract() -> None:
     service = read(SCRIPT)
     assert "Start-IndependentWezTermGui" in service and "UseShellExecute = $true" in service
     assert "gui_pid" in service and "--always-new-process" in service
+    assert "-LaunchGui -Confirm:$false" in service
 
 
 def test_fixture_matrix_is_sanitized() -> None:

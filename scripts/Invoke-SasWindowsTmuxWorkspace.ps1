@@ -275,7 +275,9 @@ function Apply-Configuration {
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut($shortcutPath)
         $shortcut.TargetPath = $pwsh.Source
-        $shortcut.Arguments = '-NoProfile -WindowStyle Hidden -File "{0}" -LaunchGui' -f (Join-Path $repoRoot 'scripts\Start-SasWindowsTmuxWorkspace.ps1')
+        # Activating the generated shortcut is the explicit Start intent; do
+        # not strand a hidden process on a confirmation prompt.
+        $shortcut.Arguments = '-NoProfile -WindowStyle Hidden -File "{0}" -LaunchGui -Confirm:$false' -f (Join-Path $repoRoot 'scripts\Start-SasWindowsTmuxWorkspace.ps1')
         $shortcut.WorkingDirectory = $repoRoot
         $shortcut.Description = 'SysAdminSuite WezTerm tmux workspace'
         $shortcut.Save()
