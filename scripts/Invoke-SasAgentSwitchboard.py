@@ -61,7 +61,12 @@ def validate_result(result: dict, request: dict) -> None:
         if row.get("selected_backend") == "bridge" and request.get("bridge_permission") is not True:
             raise ValueError(f"bridge selected without permission for {agent}")
     proof = result.get("proof", {})
-    for field in ("installation_observed", "authentication_observed", "provider_response_observed", "interactive_behavior_observed"):
+    installation = proof.get("installation_observed")
+    if not isinstance(installation, bool):
+        raise ValueError("AgentSwitchboard installation proof must be boolean")
+    if installation and not (request.get("posture") == "live" and request.get("operation") == "install-missing"):
+        raise ValueError("installation proof is valid only for live install-missing")
+    for field in ("authentication_observed", "provider_response_observed", "interactive_behavior_observed"):
         if proof.get(field) is not False:
             raise ValueError(f"AgentSwitchboard proof field must remain false: {field}")
 
@@ -77,7 +82,7 @@ def main() -> int:
     parser.add_argument("--request", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--agentswitchboard-root", type=Path)
-    parser.add_argument("--fixture-result", choices=["native", "native-linux", "native-windows", "bridge", "missing", "authentication-required", "malformed"])
+    parser.add_argument("--fixture-result", choices=["native", "native-linux", "native-windows", "bridge", "missing", "authentication-required", "malformed", "live-install"])
     parser.add_argument("--simulate-timeout", action="store_true")
     parser.add_argument("--timeout-seconds", type=int, default=15)
     args = parser.parse_args()
