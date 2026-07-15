@@ -65,6 +65,16 @@ function Test-SasPathUnderRoot {
     )
 }
 
+function ConvertTo-SasRepoRelativePath {
+    param([string]$Path)
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $rootPrefix = [IO.Path]::GetFullPath($repoRoot).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    if (-not $fullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        return [IO.Path]::GetFileName($fullPath)
+    }
+    return $fullPath.Substring($rootPrefix.Length).Replace('\', '/')
+}
+
 $git = Get-Command git -ErrorAction SilentlyContinue
 $branchValue = if ($git) { & $git.Source -C $repoRoot branch --show-current | Select-Object -First 1 } else { $null }
 $commitValue = if ($git) { & $git.Source -C $repoRoot rev-parse HEAD | Select-Object -First 1 } else { $null }
@@ -82,7 +92,6 @@ else {
 }
 
 $profile = $null
-$e2eProfiles = $null
 try {
     $requiredPaths = @(
         $resolvedProfilePath,
@@ -100,7 +109,7 @@ try {
     if ($missing.Count -gt 0) {
         $display = @($missing | ForEach-Object {
             if (Test-SasPathUnderRoot -Path $_ -Root $repoRoot) {
-                [IO.Path]::GetRelativePath($repoRoot, $_).Replace('\', '/')
+                ConvertTo-SasRepoRelativePath -Path $_
             }
             else {
                 [IO.Path]::GetFileName($_)
