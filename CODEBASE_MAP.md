@@ -20,6 +20,12 @@ Use this map to load only the files needed for a task.
 - `schemas/harness/developer-workstation-profile.schema.json` — fail-closed platform support, WezTerm provider, native execution-profile, workspace, and AgentSwitchboard integration contract.
 - `Config/developer-workstation-profile.sample.json` — sanitized tracked sample with enabled Windows-native and Linux-native defaults plus disabled lower-priority WSL/tmux compatibility.
 - `Tests/survey/test_developer_workstation_profile_contracts.py` — dependency-free platform, preference, boundary, safety, rejection, discoverability, and optional JSON Schema validation.
+- `Config/wezterm-windows.lua.template` — WezTerm configuration template for Windows native workstation.
+- `scripts/Invoke-SasWezTermWindowsNativeProfile.ps1` — Windows WezTerm profile configuration manager with Plan, Apply, and Rollback.
+- `Launch-WorkstationWezTerm.ps1` — technician-facing workstation WezTerm launcher.
+- `Tests/survey/test_wezterm_windows_native_contracts.py` — WezTerm configuration and launcher contract tests.
+- `Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1` — Pester tests for WezTerm profile manager.
+- `.github/workflows/wezterm-windows-native-profile.yml` — CI workflow executing Pester and Python tests for Windows-native WezTerm profile.
 - `schemas/harness/developer-workstation-inventory.schema.json` — fail-closed normalized inventory schema v1.
 - `scripts/Get-SasDeveloperWorkstationInventory.ps1` — read-only developer workstation inventory collector on Windows.
 - `scripts/get-sas-developer-workstation-inventory.sh` — read-only developer workstation inventory collector on Linux.
