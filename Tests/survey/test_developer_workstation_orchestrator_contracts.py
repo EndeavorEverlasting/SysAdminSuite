@@ -48,6 +48,13 @@ def test_windows_bash_path_matches_launcher_family() -> None:
     assert module.windows_bash_path(path,r"C:\Program Files\Git\bin\bash.exe")=="/d/a/SysAdminSuite/scripts/fixture.sh"
 
 
+def test_bash_launcher_prefers_explicit_git_candidate() -> None:
+    module=core_module()
+    with tempfile.TemporaryDirectory() as temp:
+        candidate=Path(temp)/"Git/bin/bash.exe";candidate.parent.mkdir(parents=True);candidate.write_text("",encoding="utf-8")
+        assert module.bash_executable([candidate])==str(candidate)
+
+
 def test_explicit_apply_gate() -> None:
     with tempfile.TemporaryDirectory() as temp:
         completed,result=invoke("success","Apply",Path(temp))

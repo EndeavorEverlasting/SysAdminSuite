@@ -38,12 +38,27 @@ def windows_bash_path(path: str | Path, bash_executable: str) -> str:
     return f"{prefix}/{remainder}"
 
 
-def shell_path(path: Path) -> str:
+def bash_executable(candidate_paths: list[Path] | None = None) -> str:
+    candidates = list(candidate_paths or [])
+    if candidate_paths is None and os.name == "nt":
+        for variable in ("ProgramFiles", "ProgramFiles(x86)"):
+            root = os.environ.get(variable)
+            if root:
+                candidates.extend((Path(root) / "Git/bin/bash.exe", Path(root) / "Git/usr/bin/bash.exe"))
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    discovered = shutil.which("bash")
+    if not discovered:
+        raise FileNotFoundError("Bash is required for the selected workstation execution domain")
+    return discovered
+
+
+def shell_path(path: Path, bash: str | None = None) -> str:
     resolved = path.resolve()
     if os.name != "nt":
         return str(resolved)
-    bash = shutil.which("bash") or "bash"
-    return windows_bash_path(resolved, bash)
+    return windows_bash_path(resolved, bash or bash_executable())
 
 
 def sanitize(text: str) -> str:
@@ -75,7 +90,8 @@ def run_inventory(platform: str, fixture: dict | None, run_root: Path, timeout: 
         if fixture:
             command += ["-Fixture", fixture["inventory_fixture"]]
     else:
-        command = ["bash", shell_path(ROOT / "scripts/get-sas-developer-workstation-inventory.sh"), "--output", shell_path(output), "--lifecycle-output", shell_path(lifecycle)]
+        bash = bash_executable()
+        command = [bash, shell_path(ROOT / "scripts/get-sas-developer-workstation-inventory.sh", bash), "--output", shell_path(output, bash), "--lifecycle-output", shell_path(lifecycle, bash)]
         if fixture:
             command += ["--fixture", fixture["inventory_fixture"]]
     completed = execute(command, timeout)
@@ -104,10 +120,11 @@ def run_workspace(platform: str, domain: str, action: str, fixture: dict | None,
         if launch_gui:
             command.append("-LaunchGui")
     else:
-        command = ["bash", shell_path(ROOT / "scripts/invoke-sas-linux-tmux-workspace.sh"), "--action", action,
-                   "--user-root", shell_path(user_root), "--state-root", shell_path(state_root), "--output", shell_path(output)]
+        bash = bash_executable()
+        command = [bash, shell_path(ROOT / "scripts/invoke-sas-linux-tmux-workspace.sh", bash), "--action", action,
+                   "--user-root", shell_path(user_root, bash), "--state-root", shell_path(state_root, bash), "--output", shell_path(output, bash)]
         if fixture:
-            command += ["--fixture", shell_path(ROOT / f"Tests/Fixtures/linux-tmux-workspace/{fixture['workspace_fixture']}.fixture")]
+            command += ["--fixture", shell_path(ROOT / f"Tests/Fixtures/linux-tmux-workspace/{fixture['workspace_fixture']}.fixture", bash)]
         if allow:
             command.append("--apply")
         if launch_gui:
