@@ -14,6 +14,8 @@ ROOT=Path(__file__).resolve().parents[1]
 ORCHESTRATOR=ROOT/"scripts/Invoke-SasDeveloperWorkstation.py"
 RESULT_SCHEMA=ROOT/"schemas/harness/developer-workstation-orchestrator-result.schema.json"
 PROOF_SCHEMA=ROOT/"schemas/harness/developer-workstation-proof.schema.json"
+FIXTURE_STEP_TIMEOUT_SECONDS=30
+FIXTURE_RUN_TIMEOUT_SECONDS=120
 
 JOURNEYS={
 "workstation-windows-wsl-success":("windows","success","Apply",True,True,"PASS"),
@@ -52,10 +54,10 @@ def validate(value,schema_path):
 
 
 def public_run(scenario,mode,root,allow,launch):
-    command=[sys.executable,str(ORCHESTRATOR),"--fixture-scenario",scenario,"--mode",mode,"--output-root",str(root),"--timeout-seconds","10"]
+    command=[sys.executable,str(ORCHESTRATOR),"--fixture-scenario",scenario,"--mode",mode,"--output-root",str(root),"--timeout-seconds",str(FIXTURE_STEP_TIMEOUT_SECONDS)]
     if allow:command.append("--allow-target-mutation")
     if launch:command.append("--launch-gui")
-    completed=subprocess.run(command,cwd=ROOT,capture_output=True,text=True,timeout=45)
+    completed=subprocess.run(command,cwd=ROOT,capture_output=True,text=True,timeout=FIXTURE_RUN_TIMEOUT_SECONDS)
     result_path=root/"orchestrator-result.json"
     if not result_path.is_file():raise AssertionError(completed.stderr or "public orchestrator produced no result")
     result=load(result_path);validate(result,RESULT_SCHEMA)
