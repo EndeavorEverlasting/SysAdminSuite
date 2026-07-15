@@ -1,0 +1,29 @@
+name: Developer workstation lifecycle contracts
+
+on:
+  pull_request:
+    paths:
+      - "schemas/harness/developer-workstation-*.schema.json"
+      - "harness/api/developer-workstation-artifact-types.json"
+      - "Tests/Fixtures/developer-workstation-lifecycle/**"
+      - "Tests/survey/test_developer_workstation_lifecycle_contracts.py"
+      - ".github/workflows/developer-workstation-lifecycle-contracts.yml"
+  push:
+    paths:
+      - "schemas/harness/developer-workstation-*.schema.json"
+      - "harness/api/developer-workstation-artifact-types.json"
+      - "Tests/Fixtures/developer-workstation-lifecycle/**"
+      - "Tests/survey/test_developer_workstation_lifecycle_contracts.py"
+
+jobs:
+  lifecycle-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install jsonschema
+      - run: python Tests/survey/test_developer_workstation_lifecycle_contracts.py
+      - run: python -m json.tool schemas/harness/developer-workstation-run.schema.json > /dev/null
+      - run: python -m json.tool schemas/harness/developer-workstation-lifecycle-result.schema.json > /dev/null

@@ -21,6 +21,11 @@ Use this map to load only the files needed for a task.
 - `schemas/harness/developer-workstation-profile.schema.json` — fail-closed v3 terminal/workspace/backend/shell/agent-domain contract.
 - `Config/developer-workstation-profile.sample.json` — sanitized v3 sample with Windows WSL and native-Linux tmux backends plus Windows PowerShell fallback.
 - `Tests/survey/test_developer_workstation_profile_contracts.py` — dependency-free layer, domain, safety, negative-case, discoverability, and optional JSON Schema validation.
+- `schemas/harness/developer-workstation-run.schema.json` — canonical workstation operation/run envelope.
+- `schemas/harness/developer-workstation-lifecycle-result.schema.json` — lifecycle outcomes, states, reason codes, artifact references, and proof flags.
+- `harness/api/developer-workstation-artifact-types.json` — closed artifact role registry; runtime output stays under ignored run roots.
+- `Tests/Fixtures/developer-workstation-lifecycle/` — sanitized success, partial, failure, action-required, and unsupported lifecycle fixtures.
+- `Tests/survey/test_developer_workstation_lifecycle_contracts.py` — dependency-free lifecycle schema, registry, fixture, API, workflow, and evidence-boundary contracts.
 
 ## End-to-end validation
 
