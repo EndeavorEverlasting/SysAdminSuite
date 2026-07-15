@@ -6,7 +6,7 @@ Use this lane before any supplied Epic, Hyland, Imprivata, shortcut, or other re
 
 The readiness validator is intentionally offline. It proves that the repository has a bounded VM test contract and that its existing fixture journeys remain safe to use as the pre-VM dry run. It does **not** start a VM, create a checkpoint, run a real installer, launch an application, contact a target, or change the host.
 
-This lane consumes the canonical `sas-harness-proof/v1` result contract. The schema-backed one-command harness floor must land before this VM-readiness layer is merged or retargeted to `main`.
+This lane consumes the canonical `sas-harness-proof/v1` result contract. The schema-backed one-command harness floor must land before this VM-readiness layer is merged to `main`.
 
 ## One command
 
@@ -22,7 +22,7 @@ The command composes:
 1. `scripts/validate-sysadmin-harness.ps1`;
 2. `scripts/Test-SasVmDryRunReadiness.ps1`;
 3. `harness/e2e/vm-dry-run-readiness.json`;
-4. the three existing network-free software-install journeys in `harness/e2e/e2e-profiles.json`.
+4. the three existing network-free software-install journey contracts in `harness/e2e/e2e-profiles.json`.
 
 The combined output remains under the ignored `survey/output/` evidence root.
 
@@ -59,7 +59,18 @@ That skip does not invalidate the repository's offline readiness contract. It bl
 
 `Invoke-SasSoftwareInstallE2E.ps1` already builds a real dummy Windows executable from tracked source and runs it through the production software-install wrapper against an isolated fixture target. It proves transport adaptation, executable launch, logging, package-state deltas, cleanup, and result presentation without WinRM, SMB, or a live workstation.
 
-That is the safe synthetic dry run. It is not proof that a real vendor package works in a VM.
+The one-command VM-readiness validator checks that this executable journey remains present, required, network-free, and target-mutation-free. It deliberately does not launch the dummy installer itself. The repository's separate default fixture-safe E2E workflow executes that generated installer and supplies the stronger executable dry-run proof.
+
+Together they establish:
+
+```text
+one-command readiness matrix
+-> default fixture-safe executable E2E
+-> disposable-VM package testing
+-> physical Cybernet proof where hardware or AutoLogon is required
+```
+
+The fixture E2E is the safe synthetic dry run. It is not proof that a real vendor package works in a VM.
 
 ## Entry gate for actual VM testing
 
