@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,11 @@ CORE=ROOT/"scripts/Invoke-SasDeveloperWorkstation.py"
 SCENARIOS=ROOT/"Tests/Fixtures/developer-workstation-orchestrator/scenarios.json"
 RESULT_SCHEMA=ROOT/"schemas/harness/developer-workstation-orchestrator-result.schema.json"
 HAS_PWSH=bool(shutil.which("pwsh"))
+
+
+def core_module():
+    spec=importlib.util.spec_from_file_location("sas_developer_workstation",CORE)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
 
 def invoke(scenario,mode,root,allow=False,launch=False):
@@ -34,6 +40,12 @@ def test_modes_entrypoints_and_default() -> None:
     for mode in ("Inventory","Plan","Apply","Start","Status","Stop","Repair","Validate","Rollback"):assert f'"{mode}"' in text
     assert 'default="Inventory"' in text
     for path in (ROOT/"scripts/Invoke-SasDeveloperWorkstation.ps1",ROOT/"scripts/invoke-sas-developer-workstation.sh",ROOT/"Developer-Workstation.cmd"):assert path.is_file()
+
+
+def test_windows_bash_path_matches_launcher_family() -> None:
+    module=core_module(); path=r"D:\a\SysAdminSuite\scripts\fixture.sh"
+    assert module.windows_bash_path(path,r"C:\Windows\System32\bash.exe")=="/mnt/d/a/SysAdminSuite/scripts/fixture.sh"
+    assert module.windows_bash_path(path,r"C:\Program Files\Git\bin\bash.exe")=="/d/a/SysAdminSuite/scripts/fixture.sh"
 
 
 def test_explicit_apply_gate() -> None:

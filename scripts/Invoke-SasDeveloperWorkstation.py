@@ -6,10 +6,11 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,12 +27,23 @@ def write(path: Path, value) -> None:
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
 
+def windows_bash_path(path: str | Path, bash_executable: str) -> str:
+    resolved = PureWindowsPath(str(path))
+    if not resolved.drive:
+        raise ValueError("Windows Bash paths must be drive-qualified")
+    drive = resolved.drive.rstrip(":").lower()
+    remainder = "/".join(resolved.parts[1:])
+    system32_wsl_launcher = "\\windows\\system32\\bash" in bash_executable.lower()
+    prefix = f"/mnt/{drive}" if system32_wsl_launcher else f"/{drive}"
+    return f"{prefix}/{remainder}"
+
+
 def shell_path(path: Path) -> str:
     resolved = path.resolve()
     if os.name != "nt":
         return str(resolved)
-    drive = resolved.drive.rstrip(":").lower()
-    return f"/mnt/{drive}/{resolved.as_posix().split(':', 1)[1].lstrip('/')}"
+    bash = shutil.which("bash") or "bash"
+    return windows_bash_path(resolved, bash)
 
 
 def sanitize(text: str) -> str:
