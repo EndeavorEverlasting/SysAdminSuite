@@ -26,6 +26,12 @@ Use this map to load only the files needed for a task.
 - `harness/api/developer-workstation-artifact-types.json` — closed artifact role registry; runtime output stays under ignored run roots.
 - `Tests/Fixtures/developer-workstation-lifecycle/` — sanitized success, partial, failure, action-required, and unsupported lifecycle fixtures.
 - `Tests/survey/test_developer_workstation_lifecycle_contracts.py` — dependency-free lifecycle schema, registry, fixture, API, workflow, and evidence-boundary contracts.
+- `Config/wezterm-windows.lua.template` — WezTerm configuration template for Windows native workstation.
+- `scripts/Invoke-SasWezTermWindowsNativeProfile.ps1` — Windows WezTerm profile configuration manager with Plan, Apply, and Rollback.
+- `Launch-WorkstationWezTerm.ps1` — technician-facing workstation WezTerm launcher.
+- `Tests/survey/test_wezterm_windows_native_contracts.py` — WezTerm configuration and launcher contract tests.
+- `Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1` — Pester tests for WezTerm profile manager.
+- `.github/workflows/wezterm-windows-native-profile.yml` — CI workflow executing Pester and Python tests for Windows-native WezTerm profile.
 
 ## Developer workstation inventory
 

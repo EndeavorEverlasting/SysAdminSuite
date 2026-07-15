@@ -1,0 +1,53 @@
+name: WezTerm Windows-native profile contracts
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'refactor/**']
+    paths:
+      - 'Config/wezterm-windows.lua.template'
+      - 'scripts/Invoke-SasWezTermWindowsNativeProfile.ps1'
+      - 'Launch-WorkstationWezTerm.ps1'
+      - 'Launch-WorkstationWezTerm.cmd'
+      - 'Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1'
+      - 'Tests/survey/test_wezterm_windows_native_contracts.py'
+      - '.github/workflows/wezterm-windows-native-profile.yml'
+  pull_request:
+    paths:
+      - 'Config/wezterm-windows.lua.template'
+      - 'scripts/Invoke-SasWezTermWindowsNativeProfile.ps1'
+      - 'Launch-WorkstationWezTerm.ps1'
+      - 'Launch-WorkstationWezTerm.cmd'
+      - 'Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1'
+      - 'Tests/survey/test_wezterm_windows_native_contracts.py'
+      - '.github/workflows/wezterm-windows-native-profile.yml'
+
+jobs:
+  python-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run Python contract tests
+        run: python3 Tests/survey/test_wezterm_windows_native_contracts.py
+
+  pester-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1 -PassThru
+          if ($result.FailedCount -gt 0) {
+              Write-Error "Pester tests failed!"
+              exit 1
+          }
