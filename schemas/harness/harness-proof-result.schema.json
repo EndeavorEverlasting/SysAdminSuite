@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.local/schemas/harness/harness-proof-result.schema.json",
+  "title": "SysAdminSuite Synthetic Harness Proof Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "repo_root",
+    "branch",
+    "commit",
+    "proof_level",
+    "runtime_proof",
+    "network_activity_performed",
+    "launcher_execution_performed",
+    "target_mutation_performed",
+    "data_mutation_performed",
+    "counts",
+    "dependencies",
+    "checks",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "sas-harness-proof/v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "repo_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|unknown)$"
+    },
+    "proof_level": {
+      "type": "string",
+      "const": "synthetic_offline"
+    },
+    "runtime_proof": {
+      "type": "boolean",
+      "const": false
+    },
+    "network_activity_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "launcher_execution_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "target_mutation_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "data_mutation_performed": {
+      "type": "boolean",
+      "const": false
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "skipped", "failed"],
+      "properties": {
+        "passed": {"type": "integer", "minimum": 0},
+        "skipped": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0}
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "null"]
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "name", "detail", "required"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["PASS", "SKIP", "FAIL"]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "detail": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matrix", "json", "run_root", "artifact_registry"],
+      "properties": {
+        "matrix": {"type": "string", "minLength": 1},
+        "json": {"type": "string", "minLength": 1},
+        "run_root": {"type": ["string", "null"]},
+        "artifact_registry": {"type": ["string", "null"]}
+      }
+    }
+  }
+}
