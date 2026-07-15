@@ -1,0 +1,39 @@
+name: Native Linux WezTerm tmux host contracts
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'repair/**']
+    paths:
+      - 'Config/*sysadminsuite*'
+      - 'Config/wezterm-linux-tmux.lua.template'
+      - 'scripts/*sas-linux-tmux-workspace*.sh'
+      - 'Tests/Fixtures/linux-tmux-workspace/**'
+      - 'Tests/survey/test_linux_wezterm_tmux_contracts.py'
+      - '.github/workflows/linux-wezterm-tmux-host.yml'
+  pull_request:
+    paths:
+      - 'Config/*sysadminsuite*'
+      - 'Config/wezterm-linux-tmux.lua.template'
+      - 'scripts/*sas-linux-tmux-workspace*.sh'
+      - 'Tests/Fixtures/linux-tmux-workspace/**'
+      - 'Tests/survey/test_linux_wezterm_tmux_contracts.py'
+      - '.github/workflows/linux-wezterm-tmux-host.yml'
+
+jobs:
+  fixture-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Parse lifecycle scripts
+        run: |
+          for script in scripts/*sas-linux-tmux-workspace*.sh; do bash -n "$script"; done
+      - name: Run fixture lifecycle
+        run: python3 Tests/survey/test_linux_wezterm_tmux_contracts.py

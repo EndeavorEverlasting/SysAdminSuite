@@ -45,6 +45,23 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_developer_workstation_inventory_contracts.py` — dependency-free schema, fixture, renderer, script, and wiring contracts.
 - `.github/workflows/developer-workstation-inventory.yml` — contract, schema, PowerShell fixture, and Bash fixture CI gates.
 
+## Developer workstation agent routing
+
+- `.claude/skills/developer-workstation/SKILL.md` — progressive-disclosure workflow that routes to application entrypoints.
+- `.claude/capabilities/workstation-*.md` and `.claude/capabilities/agentswitchboard-invocation.md` — atomic inventory, plan, configuration, backend, session, agent, adapter, and rollback rules.
+- `harness/api/developer-workstation-agent-routing.json` — deterministic trigger and terminal-context record.
+- `schemas/harness/developer-workstation-agent-routing.schema.json` — fail-closed routing contract.
+- `Tests/survey/test_developer_workstation_agent_harness_contracts.py` — trigger uniqueness, path, manifest, context, and prompt/application separation tests.
+
+## Native Linux workstation host
+
+- `scripts/invoke-sas-linux-tmux-workspace.sh` — native Plan/Apply/Start/Status/Stop/Repair/Rollback lifecycle implementation.
+- `scripts/*-sas-linux-tmux-workspace.sh` — stable operator entrypoints with Plan as the installation default.
+- `Config/wezterm-linux-tmux.lua.template`, `Config/tmux-sysadminsuite.conf`, and `Config/bashrc-sysadminsuite.sh` — bounded native-Linux managed fragments.
+- `Tests/Fixtures/linux-tmux-workspace/` and `Tests/survey/test_linux_wezterm_tmux_contracts.py` — required-failure and temporary-HOME lifecycle proof.
+- `docs/DEVELOPER_WORKSTATION_LINUX_HOST.md` — operator commands, preservation rules, and the native-GUI proof ceiling.
+- `.github/workflows/linux-wezterm-tmux-host.yml` — Ubuntu fixture contract gate; it is not a native desktop GUI claim.
+
 ## End-to-end validation
 
 - `docs/END_TO_END_TESTING_POSTURE.md` — default merge/release proof posture and E2E safety classes.

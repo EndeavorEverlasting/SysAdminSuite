@@ -202,6 +202,32 @@
         "No_credentials_or_automatic_authentication",
         "No_machine_local_paths_in_fixtures"
       ]
+    },
+    {
+      "id": "developer_workstation.agent_route",
+      "summary": "Read deterministic workstation triggers and route requests to product-owned inventory, lifecycle, agent-readiness, and rollback operations.",
+      "mode": "local_read",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "harness/api/developer-workstation-agent-routing.json",
+        "harness/api/agent-capability-manifest.json",
+        "developer-workstation-request"
+      ],
+      "outputs": [
+        "selected-operation",
+        "terminal-context-label",
+        "selected-capability",
+        "proof-ceiling"
+      ],
+      "guardrails": [
+        "No_prompt_only_application_logic",
+        "No_default_apply",
+        "No_automatic_authentication",
+        "No_user_home_content_injection",
+        "No_nested_tmux",
+        "Lua_routes_to_managed_file_operation"
+      ]
     }
   ]
 }
