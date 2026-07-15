@@ -61,6 +61,7 @@ load_values() {
   local path=$1 key value
   [[ -f "$path" ]] || return 0
   while IFS='=' read -r key value; do
+    value=${value%$'\r'}
     case "$key" in
       supported|os_id|package_manager|tmux_available|tmux_version|wezterm_available|wezterm_path|git_available|bash_available|session_exists|custom_dotfiles|malformed_config|apply_failure|nested_tmux|config_applied|gui_launched)
         printf -v "$key" '%s' "$value"
@@ -123,8 +124,7 @@ blocking_reasons() {
   $supported || reasons+=(unsupported-platform)
   $tmux_available || reasons+=(tmux-missing)
   $wezterm_available || reasons+=(wezterm-cli-gui-confusion)
-  $git_available || reasons+=(rollback-required)
-  $bash_available || reasons+=(rollback-required)
+  if ! $git_available || ! $bash_available; then reasons+=(rollback-required); fi
   $nested_tmux && reasons+=(nested-tmux-attempt)
   local IFS=,
   printf '%s' "${reasons[*]}"
