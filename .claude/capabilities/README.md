@@ -29,3 +29,11 @@ dependencies for harness consumers and future bounded adapters.
 | [Language Runtime Selection](language-runtime-selection.md) | Choose Bash, PowerShell, Windows-native, or managed surfaces without deleting active tooling. |
 | [Mutation and Evidence Boundaries](mutation-and-evidence-boundaries.md) | Separate read-only lanes, authorized mutation, teardown, and private evidence. |
 | [Field Command Design](field-command-design.md) | Produce short technician entrypoints and bounded operator handoffs. |
+| [Workstation Inventory](workstation-inventory.md) | Observe terminal, execution-domain, backend, tmux, service, and agent state. |
+| [Workstation Planning](workstation-planning.md) | Produce a read-only domain-correct plan. |
+| [Workstation Managed Configuration](workstation-managed-configuration.md) | Route bounded backup-first configuration. |
+| [Workstation Backend Lifecycle](workstation-backend-lifecycle.md) | Route Windows WSL and native-Linux backend lifecycle. |
+| [Workstation Session Lifecycle](workstation-session-lifecycle.md) | Route deterministic tmux Start, Status, and Stop. |
+| [Workstation Agent Domain Resolution](workstation-agent-domain-resolution.md) | Preserve native, bridge, missing, and authentication truth. |
+| [AgentSwitchboard Invocation](agentswitchboard-invocation.md) | Enforce the structured cross-repository request/result boundary. |
+| [Workstation Rollback](workstation-rollback.md) | Restore only manifest-owned configuration and launch surfaces. |

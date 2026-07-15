@@ -4,8 +4,8 @@ from __future__ import annotations
 import json,re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]; MANIFEST=ROOT/'harness/api/agent-capability-manifest.json'; SCHEMA=ROOT/'schemas/harness/agent-capability-manifest.schema.json'; CAPABILITY_CATALOG=ROOT/'.claude/capabilities/README.md'; AI_LAYER_DOC=ROOT/'docs/AI_LAYER.md'; CODEBASE_MAP=ROOT/'CODEBASE_MAP.md'; WORKFLOW=ROOT/'.github/workflows/agent-instruction-contracts.yml'; RUNNER=ROOT/'tests/survey/run_offline_survey_tests.sh'; HARNESS_API=ROOT/'harness/api/sas-harness-api.json'
-REQUIRED_CAPABILITY_IDS={'repository-evidence','proof-and-checkpointing','end-to-end-testing','language-runtime-selection','mutation-and-evidence-boundaries','field-command-design'}
-REQUIRED_SKILL_IDS={'repository-sprint','language-runtime','field-workflow','scoped-validation','end-to-end-validation','live-data-guard','survey-low-noise'}
+REQUIRED_CAPABILITY_IDS={'repository-evidence','proof-and-checkpointing','end-to-end-testing','language-runtime-selection','mutation-and-evidence-boundaries','field-command-design','workstation-inventory','workstation-planning','workstation-managed-configuration','workstation-backend-lifecycle','workstation-session-lifecycle','workstation-agent-domain-resolution','agentswitchboard-invocation','workstation-rollback'}
+REQUIRED_SKILL_IDS={'repository-sprint','language-runtime','field-workflow','scoped-validation','end-to-end-validation','live-data-guard','survey-low-noise','developer-workstation'}
 ID_PATTERN=re.compile(r'^[a-z][a-z0-9-]*$'); VERSION_PATTERN=re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+$'); CAPABILITY_LINK=re.compile(r'\(\.\./\.\./capabilities/([A-Za-z0-9._-]+\.md)\)')
 def read(path):
     assert path.is_file(),f'missing required file: {path.relative_to(ROOT).as_posix()}'; return path.read_text(encoding='utf-8')

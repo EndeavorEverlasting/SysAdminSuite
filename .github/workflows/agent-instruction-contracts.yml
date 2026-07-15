@@ -15,11 +15,14 @@ on:
       - 'docs/AI_LAYER.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'harness/api/agent-capability-manifest.json'
+      - 'harness/api/developer-workstation-agent-routing.json'
       - 'harness/e2e/**'
       - 'schemas/harness/agent-capability-manifest.schema.json'
+      - 'schemas/harness/developer-workstation-agent-routing.schema.json'
       - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
+      - 'Tests/survey/test_developer_workstation_agent_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'tools/validate-ai-layer.ps1'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -34,11 +37,14 @@ on:
       - 'docs/AI_LAYER.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'harness/api/agent-capability-manifest.json'
+      - 'harness/api/developer-workstation-agent-routing.json'
       - 'harness/e2e/**'
       - 'schemas/harness/agent-capability-manifest.schema.json'
+      - 'schemas/harness/developer-workstation-agent-routing.schema.json'
       - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
+      - 'Tests/survey/test_developer_workstation_agent_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'tools/validate-ai-layer.ps1'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -58,6 +64,7 @@ jobs:
         run: |
           python3 Tests/survey/test_agent_instruction_factoring_contracts.py
           python3 Tests/survey/test_agent_capability_manifest_contracts.py
+          python3 Tests/survey/test_developer_workstation_agent_harness_contracts.py
           python3 Tests/survey/test_e2e_default_posture_contracts.py
 
   ai-layer-validator:

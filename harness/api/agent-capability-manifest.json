@@ -1,1 +1,508 @@
-{"schema_version":"sas-agent-capability-manifest/v1","schema_path":"schemas/harness/agent-capability-manifest.schema.json","authority":{"root_instruction":"AGENTS.md","codebase_map":"CODEBASE_MAP.md","skill_root":".claude/skills","capability_root":".claude/capabilities","harness_api":"harness/api/sas-harness-api.json"},"posture":{"progressive_disclosure_required":true,"end_to_end_default_required":true,"unit_tests_sufficient_for_merge":false,"default_network_activity":false,"default_target_mutation":false,"tracked_runtime_evidence_allowed":false},"capabilities":[{"id":"repository-evidence","version":"1.0.0","path":".claude/capabilities/repository-evidence.md","summary":"Recover repository, Git, worktree, and PR truth before selecting or mutating work.","lanes":["repository","cleanup","release-pr-hygiene","validation"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"control-plane","target_mutation_mode":"none","authority_paths":["CODEBASE_MAP.md","docs/HARNESS_DISCIPLINE.md"],"validators":["Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py","Tests/survey/test_checkpoint_discipline_contracts.py"]},{"id":"proof-and-checkpointing","version":"1.0.0","path":".claude/capabilities/proof-and-checkpointing.md","summary":"Preserve coherent work before expansion and keep claimed proof at the level actually reached.","lanes":["repository","validation","runtime-proof","release-pr-hygiene"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"none","target_mutation_mode":"none","authority_paths":["docs/HARNESS_DISCIPLINE.md","docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md"],"validators":["Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_checkpoint_discipline_contracts.py"]},{"id":"end-to-end-testing","version":"1.0.0","path":".claude/capabilities/end-to-end-testing.md","summary":"Make closed-loop fixture, loopback, and authorized runtime journeys the default merge and release proof target.","lanes":["validation","harness","release-pr-hygiene","runtime-proof"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"gated-target","target_mutation_mode":"gated-target","authority_paths":["docs/END_TO_END_TESTING_POSTURE.md","harness/e2e/e2e-profiles.json","scripts/Invoke-SasEndToEndValidation.ps1"],"validators":["Tests/survey/test_e2e_default_posture_contracts.py","Tests/survey/test_agent_capability_manifest_contracts.py"]},{"id":"language-runtime-selection","version":"1.0.0","path":".claude/capabilities/language-runtime-selection.md","summary":"Select Bash, PowerShell, Windows-native, or managed surfaces from the real workflow and environment.","lanes":["language-runtime","field-workflow","survey","deployment","device-repair"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"none","target_mutation_mode":"none","authority_paths":["README.md","docs/OPERATIONAL_POSTURE.md"],"validators":["Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py"]},{"id":"mutation-and-evidence-boundaries","version":"1.0.0","path":".claude/capabilities/mutation-and-evidence-boundaries.md","summary":"Separate read-only observation, approved mutation, teardown, and private evidence handling.","lanes":["live-data","survey","deployment","device-repair","runtime-proof"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"gated-target","target_mutation_mode":"gated-target","authority_paths":["Config/operational-posture.json","docs/LOCAL_REFERENCE_POLICY.md","docs/OPERATIONAL_POSTURE.md"],"validators":["Tests/bash/test_operational_posture_contracts.sh","Tests/survey/test_agent_capability_manifest_contracts.py"]},{"id":"field-command-design","version":"1.0.0","path":".claude/capabilities/field-command-design.md","summary":"Expose short technician entrypoints while keeping scope, gates, evidence, and failure classifications visible.","lanes":["field-workflow","deployment","device-repair","runtime-proof"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"gated-target","target_mutation_mode":"gated-target","authority_paths":["START-HERE-SysAdminSuite-Dashboard.bat","docs/DASHBOARD_ENTRYPOINT.md"],"validators":["Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py"]}],"skills":[{"id":"repository-sprint","path":".claude/skills/repository-sprint/SKILL.md","summary":"Recover repository truth, rank bounded sprints, execute safely, and report Git and proof state.","capability_ids":["repository-evidence","proof-and-checkpointing","mutation-and-evidence-boundaries"],"lanes":["repository","harness","cleanup","validation","release-pr-hygiene"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"control-plane","target_mutation_mode":"repository","authority_paths":["CODEBASE_MAP.md","docs/HARNESS_DISCIPLINE.md"],"validators":["Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_checkpoint_discipline_contracts.py"]},{"id":"language-runtime","path":".claude/skills/language-runtime/SKILL.md","summary":"Choose and preserve the correct implementation language and runtime boundary.","capability_ids":["language-runtime-selection","mutation-and-evidence-boundaries"],"lanes":["language-runtime","survey","deployment","device-repair"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"none","target_mutation_mode":"none","authority_paths":["README.md","docs/OPERATIONAL_POSTURE.md"],"validators":["Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py"]},{"id":"field-workflow","path":".claude/skills/field-workflow/SKILL.md","summary":"Design one-command technician and operator entrypoints around existing governed workflows.","capability_ids":["field-command-design","language-runtime-selection","mutation-and-evidence-boundaries"],"lanes":["field-workflow","deployment","device-repair","runtime-proof"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"gated-target","target_mutation_mode":"gated-target","authority_paths":["docs/DASHBOARD_ENTRYPOINT.md","docs/OPERATIONAL_POSTURE.md"],"validators":["Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py"]},{"id":"scoped-validation","path":".claude/skills/scoped-validation/SKILL.md","summary":"Select fast diagnostic checks, the applicable end-to-end journey, and the exact proof ceiling.","capability_ids":["proof-and-checkpointing","end-to-end-testing","mutation-and-evidence-boundaries"],"lanes":["validation","harness","runtime-proof"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"gated-target","target_mutation_mode":"none","authority_paths":["tools/validate-ai-layer.ps1","tests/survey/run_offline_survey_tests.sh","docs/END_TO_END_TESTING_POSTURE.md"],"validators":["Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py","Tests/survey/test_e2e_default_posture_contracts.py"]},{"id":"end-to-end-validation","path":".claude/skills/end-to-end-validation/SKILL.md","summary":"Prove composed workflows through real entrypoints, process boundaries, result artifacts, and final classifications.","capability_ids":["end-to-end-testing","proof-and-checkpointing","mutation-and-evidence-boundaries"],"lanes":["validation","harness","release-pr-hygiene","runtime-proof"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"gated-target","target_mutation_mode":"gated-target","authority_paths":["docs/END_TO_END_TESTING_POSTURE.md","harness/e2e/e2e-profiles.json","scripts/Invoke-SasEndToEndValidation.ps1"],"validators":["Tests/survey/test_e2e_default_posture_contracts.py","Tests/survey/test_agent_capability_manifest_contracts.py"]},{"id":"live-data-guard","path":".claude/skills/live-data-guard/SKILL.md","summary":"Keep operator-local, live target, and generated evidence out of prompts and commits.","capability_ids":["mutation-and-evidence-boundaries"],"lanes":["live-data","repository","validation"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"none","target_mutation_mode":"none","authority_paths":[".claudeignore","docs/LOCAL_REFERENCE_POLICY.md","targets/README.md"],"validators":["Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py"]},{"id":"survey-low-noise","path":".claude/skills/survey-low-noise/SKILL.md","summary":"Preserve approved target intake, low-noise reachability doctrine, and local-only evidence.","capability_ids":["language-runtime-selection","mutation-and-evidence-boundaries","proof-and-checkpointing"],"lanes":["survey","preflight","dashboard-probe","validation"],"default_network_activity":false,"default_target_mutation":false,"network_activity_mode":"gated-target","target_mutation_mode":"none","authority_paths":["Config/low-noise-policy.json","docs/LOW_NOISE_SURVEY_DOCTRINE.md","survey/naabu_profiles.json"],"validators":["Tests/bash/test_repo_naabu_doctrine_conformance.sh","Tests/survey/test_agent_capability_manifest_contracts.py","Tests/survey/test_probe_socket_access_contracts.py"]}]}
+{
+  "schema_version": "sas-agent-capability-manifest/v1",
+  "schema_path": "schemas/harness/agent-capability-manifest.schema.json",
+  "authority": {
+    "root_instruction": "AGENTS.md",
+    "codebase_map": "CODEBASE_MAP.md",
+    "skill_root": ".claude/skills",
+    "capability_root": ".claude/capabilities",
+    "harness_api": "harness/api/sas-harness-api.json"
+  },
+  "posture": {
+    "progressive_disclosure_required": true,
+    "end_to_end_default_required": true,
+    "unit_tests_sufficient_for_merge": false,
+    "default_network_activity": false,
+    "default_target_mutation": false,
+    "tracked_runtime_evidence_allowed": false
+  },
+  "capabilities": [
+    {
+      "id": "repository-evidence",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/repository-evidence.md",
+      "summary": "Recover repository, Git, worktree, and PR truth before selecting or mutating work.",
+      "lanes": [
+        "repository",
+        "cleanup",
+        "release-pr-hygiene",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "control-plane",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "CODEBASE_MAP.md",
+        "docs/HARNESS_DISCIPLINE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py",
+        "Tests/survey/test_checkpoint_discipline_contracts.py"
+      ]
+    },
+    {
+      "id": "proof-and-checkpointing",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/proof-and-checkpointing.md",
+      "summary": "Preserve coherent work before expansion and keep claimed proof at the level actually reached.",
+      "lanes": [
+        "repository",
+        "validation",
+        "runtime-proof",
+        "release-pr-hygiene"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "docs/HARNESS_DISCIPLINE.md",
+        "docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_checkpoint_discipline_contracts.py"
+      ]
+    },
+    {
+      "id": "end-to-end-testing",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/end-to-end-testing.md",
+      "summary": "Make closed-loop fixture, loopback, and authorized runtime journeys the default merge and release proof target.",
+      "lanes": [
+        "validation",
+        "harness",
+        "release-pr-hygiene",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "docs/END_TO_END_TESTING_POSTURE.md",
+        "harness/e2e/e2e-profiles.json",
+        "scripts/Invoke-SasEndToEndValidation.ps1"
+      ],
+      "validators": [
+        "Tests/survey/test_e2e_default_posture_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "language-runtime-selection",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/language-runtime-selection.md",
+      "summary": "Select Bash, PowerShell, Windows-native, or managed surfaces from the real workflow and environment.",
+      "lanes": [
+        "language-runtime",
+        "field-workflow",
+        "survey",
+        "deployment",
+        "device-repair"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "README.md",
+        "docs/OPERATIONAL_POSTURE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "mutation-and-evidence-boundaries",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/mutation-and-evidence-boundaries.md",
+      "summary": "Separate read-only observation, approved mutation, teardown, and private evidence handling.",
+      "lanes": [
+        "live-data",
+        "survey",
+        "deployment",
+        "device-repair",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "Config/operational-posture.json",
+        "docs/LOCAL_REFERENCE_POLICY.md",
+        "docs/OPERATIONAL_POSTURE.md"
+      ],
+      "validators": [
+        "Tests/bash/test_operational_posture_contracts.sh",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "field-command-design",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/field-command-design.md",
+      "summary": "Expose short technician entrypoints while keeping scope, gates, evidence, and failure classifications visible.",
+      "lanes": [
+        "field-workflow",
+        "deployment",
+        "device-repair",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "START-HERE-SysAdminSuite-Dashboard.bat",
+        "docs/DASHBOARD_ENTRYPOINT.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "workstation-inventory",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/workstation-inventory.md",
+      "summary": "Observe workstation terminal, execution-domain, backend, tmux, service, and agent state without mutation.",
+      "lanes": ["developer-workstation", "inventory", "validation"],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": ["docs/DEVELOPER_WORKSTATION_INVENTORY.md", "scripts/Get-SasDeveloperWorkstationInventory.ps1", "scripts/get-sas-developer-workstation-inventory.sh"],
+      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+    },
+    {
+      "id": "workstation-planning",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/workstation-planning.md",
+      "summary": "Translate the v3 profile and inventory into a read-only, domain-correct persistent workspace plan.",
+      "lanes": ["developer-workstation", "planning"],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": ["docs/DEVELOPER_WORKSTATION_PROVISIONING.md", "schemas/harness/developer-workstation-profile.schema.json"],
+      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+    },
+    {
+      "id": "workstation-managed-configuration",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/workstation-managed-configuration.md",
+      "summary": "Route explicit Apply and Repair operations to bounded, backup-first platform configuration entrypoints.",
+      "lanes": ["developer-workstation", "configuration"],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": ["scripts/Invoke-SasWindowsTmuxWorkspace.ps1", "scripts/invoke-sas-linux-tmux-workspace.sh"],
+      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+    },
+    {
+      "id": "workstation-backend-lifecycle",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/workstation-backend-lifecycle.md",
+      "summary": "Route Windows WSL keepalive and native-Linux backend health through their platform-owned services.",
+      "lanes": ["developer-workstation", "backend-lifecycle", "runtime-proof"],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": ["scripts/Invoke-SasWindowsTmuxWorkspace.ps1", "scripts/invoke-sas-linux-tmux-workspace.sh"],
+      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+    },
+    {
+      "id": "workstation-session-lifecycle",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/workstation-session-lifecycle.md",
+      "summary": "Route deterministic tmux dev Start, Status, and explicitly destructive Stop operations without nesting.",
+      "lanes": ["developer-workstation", "session-lifecycle", "runtime-proof"],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": ["scripts/Start-SasWindowsTmuxWorkspace.ps1", "scripts/start-sas-linux-tmux-workspace.sh"],
+      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+    },
+    {
+      "id": "workstation-agent-domain-resolution",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/workstation-agent-domain-resolution.md",
+      "summary": "Preserve native, bridge, missing, and authentication readiness truth for each workstation execution domain.",
+      "lanes": ["developer-workstation", "agent-readiness"],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": ["schemas/harness/developer-workstation-inventory.schema.json", "harness/api/developer-workstation-agent-routing.json"],
+      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+    },
+    {
+      "id": "agentswitchboard-invocation",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/agentswitchboard-invocation.md",
+      "summary": "Enforce the structured, version-pinned AgentSwitchboard request/result boundary and bounded probe policy.",
+      "lanes": ["developer-workstation", "agent-readiness", "integration"],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": ["harness/api/developer-workstation-agent-routing.json", "docs/DEVELOPER_WORKSTATION_PROVISIONING.md"],
+      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+    },
+    {
+      "id": "workstation-rollback",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/workstation-rollback.md",
+      "summary": "Restore only workstation files and launch surfaces owned by a validated backup manifest.",
+      "lanes": ["developer-workstation", "rollback"],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": ["scripts/Rollback-SasWindowsTmuxWorkspace.ps1", "scripts/rollback-sas-linux-tmux-workspace.sh"],
+      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+    }
+  ],
+  "skills": [
+    {
+      "id": "repository-sprint",
+      "path": ".claude/skills/repository-sprint/SKILL.md",
+      "summary": "Recover repository truth, rank bounded sprints, execute safely, and report Git and proof state.",
+      "capability_ids": [
+        "repository-evidence",
+        "proof-and-checkpointing",
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "repository",
+        "harness",
+        "cleanup",
+        "validation",
+        "release-pr-hygiene"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "control-plane",
+      "target_mutation_mode": "repository",
+      "authority_paths": [
+        "CODEBASE_MAP.md",
+        "docs/HARNESS_DISCIPLINE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_checkpoint_discipline_contracts.py"
+      ]
+    },
+    {
+      "id": "language-runtime",
+      "path": ".claude/skills/language-runtime/SKILL.md",
+      "summary": "Choose and preserve the correct implementation language and runtime boundary.",
+      "capability_ids": [
+        "language-runtime-selection",
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "language-runtime",
+        "survey",
+        "deployment",
+        "device-repair"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "README.md",
+        "docs/OPERATIONAL_POSTURE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "field-workflow",
+      "path": ".claude/skills/field-workflow/SKILL.md",
+      "summary": "Design one-command technician and operator entrypoints around existing governed workflows.",
+      "capability_ids": [
+        "field-command-design",
+        "language-runtime-selection",
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "field-workflow",
+        "deployment",
+        "device-repair",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "docs/DASHBOARD_ENTRYPOINT.md",
+        "docs/OPERATIONAL_POSTURE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "scoped-validation",
+      "path": ".claude/skills/scoped-validation/SKILL.md",
+      "summary": "Select fast diagnostic checks, the applicable end-to-end journey, and the exact proof ceiling.",
+      "capability_ids": [
+        "proof-and-checkpointing",
+        "end-to-end-testing",
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "validation",
+        "harness",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "tools/validate-ai-layer.ps1",
+        "tests/survey/run_offline_survey_tests.sh",
+        "docs/END_TO_END_TESTING_POSTURE.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py",
+        "Tests/survey/test_e2e_default_posture_contracts.py"
+      ]
+    },
+    {
+      "id": "end-to-end-validation",
+      "path": ".claude/skills/end-to-end-validation/SKILL.md",
+      "summary": "Prove composed workflows through real entrypoints, process boundaries, result artifacts, and final classifications.",
+      "capability_ids": [
+        "end-to-end-testing",
+        "proof-and-checkpointing",
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "validation",
+        "harness",
+        "release-pr-hygiene",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "docs/END_TO_END_TESTING_POSTURE.md",
+        "harness/e2e/e2e-profiles.json",
+        "scripts/Invoke-SasEndToEndValidation.ps1"
+      ],
+      "validators": [
+        "Tests/survey/test_e2e_default_posture_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "live-data-guard",
+      "path": ".claude/skills/live-data-guard/SKILL.md",
+      "summary": "Keep operator-local, live target, and generated evidence out of prompts and commits.",
+      "capability_ids": [
+        "mutation-and-evidence-boundaries"
+      ],
+      "lanes": [
+        "live-data",
+        "repository",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        ".claudeignore",
+        "docs/LOCAL_REFERENCE_POLICY.md",
+        "targets/README.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "survey-low-noise",
+      "path": ".claude/skills/survey-low-noise/SKILL.md",
+      "summary": "Preserve approved target intake, low-noise reachability doctrine, and local-only evidence.",
+      "capability_ids": [
+        "language-runtime-selection",
+        "mutation-and-evidence-boundaries",
+        "proof-and-checkpointing"
+      ],
+      "lanes": [
+        "survey",
+        "preflight",
+        "dashboard-probe",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "Config/low-noise-policy.json",
+        "docs/LOW_NOISE_SURVEY_DOCTRINE.md",
+        "survey/naabu_profiles.json"
+      ],
+      "validators": [
+        "Tests/bash/test_repo_naabu_doctrine_conformance.sh",
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_probe_socket_access_contracts.py"
+      ]
+    },
+    {
+      "id": "developer-workstation",
+      "path": ".claude/skills/developer-workstation/SKILL.md",
+      "summary": "Route persistent WezTerm and tmux workstation operations to domain-correct product entrypoints.",
+      "capability_ids": [
+        "workstation-inventory",
+        "workstation-planning",
+        "workstation-managed-configuration",
+        "workstation-backend-lifecycle",
+        "workstation-session-lifecycle",
+        "workstation-agent-domain-resolution",
+        "agentswitchboard-invocation",
+        "workstation-rollback",
+        "language-runtime-selection",
+        "mutation-and-evidence-boundaries",
+        "proof-and-checkpointing"
+      ],
+      "lanes": ["developer-workstation", "field-workflow", "integration", "runtime-proof"],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "docs/DEVELOPER_WORKSTATION_PROVISIONING.md",
+        "harness/api/developer-workstation-agent-routing.json",
+        "scripts/Invoke-SasWindowsTmuxWorkspace.ps1",
+        "scripts/invoke-sas-linux-tmux-workspace.sh"
+      ],
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    }
+  ]
+}
