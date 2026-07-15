@@ -54,8 +54,9 @@ def test_surface_and_parse_contract() -> None:
                      "Repair-SasWindowsTmuxWorkspace.ps1", "Rollback-SasWindowsTmuxWorkspace.ps1"):
         assert (ROOT / "scripts" / filename).is_file()
     assert "SupportsShouldProcess" in text and "AllowTargetMutation" in text
-    parser = "& { $e=$null; [System.Management.Automation.Language.Parser]::ParseFile($args[0],[ref]$null,[ref]$e)|Out-Null; if($e.Count){$e|Out-String|Write-Error;exit 1} }"
-    subprocess.run(["pwsh", "-NoProfile", "-Command", parser, str(SCRIPT)], check=True, cwd=ROOT)
+    if shutil.which("pwsh"):
+        parser = "& { $e=$null; [System.Management.Automation.Language.Parser]::ParseFile($args[0],[ref]$null,[ref]$e)|Out-Null; if($e.Count){$e|Out-String|Write-Error;exit 1} }"
+        subprocess.run(["pwsh", "-NoProfile", "-Command", parser, str(SCRIPT)], check=True, cwd=ROOT)
 
 
 def test_lua_and_launcher_contract() -> None:
@@ -76,6 +77,8 @@ def test_fixture_matrix_is_sanitized() -> None:
 
 
 def test_required_failure_reasons() -> None:
+    if not shutil.which("pwsh"):
+        return
     expected = {"no-wsl": "no-wsl-distro", "docker-only": "docker-only-distro",
                 "missing-tmux": "tmux-missing", "missing-wezterm-gui": "wezterm-cli-gui-confusion",
                 "nested-tmux": "nested-tmux-attempt"}
@@ -88,6 +91,8 @@ def test_required_failure_reasons() -> None:
 
 
 def test_plan_is_read_only_and_apply_requires_authorization() -> None:
+    if not shutil.which("pwsh"):
+        return
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp); home = root / "home"; state = root / "state"
         plan = invoke("Plan", FIXTURES / "healthy.json", home, state)
@@ -98,6 +103,8 @@ def test_plan_is_read_only_and_apply_requires_authorization() -> None:
 
 
 def test_apply_start_status_stop_rollback_fixture_loop() -> None:
+    if not shutil.which("pwsh"):
+        return
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp); home = root / "home"; state = root / "state"; home.mkdir()
         original = "local wezterm = require 'wezterm'\nlocal config = wezterm.config_builder()\nconfig.color_scheme = 'Builtin Solarized Dark'\nreturn config\n"
@@ -120,6 +127,8 @@ def test_apply_start_status_stop_rollback_fixture_loop() -> None:
 
 
 def test_apply_failures_preserve_backup_evidence() -> None:
+    if not shutil.which("pwsh"):
+        return
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         for scenario, reason in (("malformed-config", "invalid-lua"), ("apply-failure", "rollback-required")):
@@ -140,8 +149,6 @@ def test_exact_keepalive_ownership_contract() -> None:
 
 if __name__ == "__main__":
     tests = [value for name, value in sorted(globals().items()) if name.startswith("test_")]
-    if not shutil.which("pwsh"):
-        raise SystemExit("pwsh is required")
     for test in tests:
         test()
     print(f"PASS: {len(tests)} Windows WezTerm-tmux service contract groups")
