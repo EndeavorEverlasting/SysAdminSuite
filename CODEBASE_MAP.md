@@ -91,6 +91,37 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_e2e_default_posture_contracts.py` — default-posture, software-install, and profile contract.
 - `.github/workflows/default-e2e-validation.yml` — executable default E2E CI gate.
 
+## Developer workstation
+
+- `docs/tutorials/DEVELOPER_WORKSTATION.md` — canonical operator and developer tutorial: inventory, plan, apply, launch, verify, rollback, proof interpretation.
+- `docs/DEVELOPER_WORKSTATION_PROVISIONING.md` — bimodal Windows/Linux profile contract, ownership boundary, safety posture, proof ceiling.
+- `docs/DEVELOPER_WORKSTATION_INVENTORY.md` — read-only inventory surface, detected fields, reason codes, fixtures, proof ceiling.
+- `docs/DEVELOPER_WORKSTATION_E2E_PROOF_MERGE_READINESS.md` — 12-journey validation matrix and merge readiness.
+- `docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md` — PR stack, merge order, superseded branches, unresolved checks.
+- `Config/developer-workstation-profile.sample.json` — canonical v2 profile: bimodal platform support, WezTerm required, WSL optional.
+- `Config/wezterm-windows.lua.template` — WezTerm Lua template with managed-block placeholders.
+- `schemas/harness/developer-workstation-profile.schema.json` — profile schema (fail-closed, `additionalProperties: false`).
+- `schemas/harness/developer-workstation-inventory.schema.json` — inventory schema.
+- `schemas/harness/developer-workstation-proof.schema.json` — E2E proof result schema.
+- `scripts/Get-SasDeveloperWorkstationInventory.ps1` — Windows read-only inventory collector.
+- `scripts/get-sas-developer-workstation-inventory.sh` — Linux read-only inventory collector.
+- `scripts/Render-SasWorkstationInventoryEnglish.py` — dependency-free English summary renderer.
+- `scripts/Invoke-SasWezTermWindowsNativeProfile.ps1` — Windows WezTerm Plan/Apply/Rollback orchestrator.
+- `scripts/Invoke-SasWorkstationE2E.ps1` — 12-journey bimodal E2E executor.
+- `Launch-WorkstationWezTerm.ps1` / `Launch-WorkstationWezTerm.cmd` — Windows workspace launcher.
+- `configs/linux-native/wezterm-linux-template.lua` — Linux-native WezTerm Lua module.
+- `configs/linux-native/sas-bashrc.sh` — SysAdminSuite bash fragment for Linux.
+- `configs/linux-native/tmux-linux.conf` — SysAdminSuite tmux fragment for Linux.
+- `Tests/survey/test_developer_workstation_profile_contracts.py` — 9 profile contract tests.
+- `Tests/survey/test_developer_workstation_inventory_contracts.py` — 5 inventory contract tests.
+- `Tests/survey/test_wezterm_windows_native_contracts.py` — 4 WezTerm Windows-native contract tests.
+- `Tests/survey/test_developer_workstation_proof_contracts.py` — 4 E2E proof contract tests.
+- `Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1` — Pester tests for Windows WezTerm profile.
+- `Tests/Pester/DeveloperWorkstationInventory.Tests.ps1` — Pester tests for inventory collector.
+- `Tests/Fixtures/workstation-inventory/*.json` — 6 inventory fixture files.
+- `.github/workflows/developer-workstation-inventory.yml` — inventory CI workflow.
+- `.github/workflows/wezterm-windows-native-profile.yml` — WezTerm profile CI workflow.
+
 ## Repo doctrine
 
 - `README.md` — user entrypoint, repo layout, runtime policy, and local source folder policy.
