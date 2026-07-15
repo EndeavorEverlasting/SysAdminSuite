@@ -122,6 +122,8 @@ def test_collectors_are_read_only_and_do_not_authenticate() -> None:
     assert "docker-desktop" in text
     assert "wezterm-gui" in text
     assert "alias-only" in text
+    assert '"$resolved" == /mnt/[a-zA-Z]/*' in text
+    assert "path_class=windows-interop; backend=bridge" in text
 
 
 def test_docs_renderer_workflow_and_runner_are_wired() -> None:
