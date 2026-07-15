@@ -1,0 +1,17 @@
+-- Managed by SysAdminSuite. The user-owned .wezterm.lua only includes this file.
+return function(config)
+  local wezterm = require 'wezterm'
+  local tmux_command = { 'wsl.exe', '-d', '@DISTRO@', '--', 'tmux', 'new-session', '-A', '-s', '@SESSION@' }
+
+  config.default_prog = tmux_command
+  config.launch_menu = config.launch_menu or {}
+  table.insert(config.launch_menu, {
+    label = 'tmux: Development',
+    args = tmux_command,
+  })
+  table.insert(config.launch_menu, {
+    label = 'PowerShell 7 (fallback/admin)',
+    args = { 'pwsh.exe', '-NoLogo' },
+  })
+  config.check_for_updates = false
+end

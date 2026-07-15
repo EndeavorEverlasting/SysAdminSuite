@@ -1,0 +1,44 @@
+name: Windows WezTerm tmux workspace contracts
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'repair/**']
+    paths:
+      - 'Config/wezterm-windows-tmux.lua.template'
+      - 'scripts/*SasWindowsTmuxWorkspace.ps1'
+      - 'Launch-WorkstationWezTerm.*'
+      - 'Tests/Fixtures/windows-tmux-workspace/**'
+      - 'Tests/Pester/WindowsWezTermTmuxService.Tests.ps1'
+      - 'Tests/survey/test_windows_wezterm_tmux_service_contracts.py'
+      - '.github/workflows/windows-wezterm-tmux-service.yml'
+  pull_request:
+    paths:
+      - 'Config/wezterm-windows-tmux.lua.template'
+      - 'scripts/*SasWindowsTmuxWorkspace.ps1'
+      - 'Launch-WorkstationWezTerm.*'
+      - 'Tests/Fixtures/windows-tmux-workspace/**'
+      - 'Tests/Pester/WindowsWezTermTmuxService.Tests.ps1'
+      - 'Tests/survey/test_windows_wezterm_tmux_service_contracts.py'
+      - '.github/workflows/windows-wezterm-tmux-service.yml'
+
+jobs:
+  fixture-contracts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run lifecycle contracts
+        shell: pwsh
+        run: python Tests/survey/test_windows_wezterm_tmux_service_contracts.py
+      - name: Run Pester contracts
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path Tests/Pester/WindowsWezTermTmuxService.Tests.ps1 -PassThru
+          if ($result.FailedCount -gt 0) { exit 1 }
