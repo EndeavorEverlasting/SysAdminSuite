@@ -1,527 +1,267 @@
-# Tutorial: Developer Workstation Setup with SysAdminSuite
+# Developer Workstation: WezTerm → tmux → agents
 
-Use this tutorial to inventory, plan, configure, launch, verify, and recover a developer workstation for SysAdminSuite on Windows or Linux.
+This is the canonical operator guide for the persistent coding workstation owned by SysAdminSuite and AgentSwitchboard.
 
-## What this tutorial covers
+The product model is:
 
-```text
-read-only host inventory (Windows or Linux)
--> select matching execution profile
--> plan WezTerm configuration
--> apply configuration (optional, requires explicit authorization)
--> launch workspace
--> verify environment
--> rollback if needed
--> interpret proof results
-```
+- WezTerm is the terminal GUI.
+- tmux session `dev` is the persistent workspace.
+- Windows uses a selected non-Docker WSL distribution as the tmux backend.
+- Native Linux uses local tmux.
+- PowerShell 7 is the Windows fallback and administration shell, not the primary tmux workspace.
+- OpenCode, AGY, and Goose are resolved by AgentSwitchboard in the domain where they run.
 
-Every step in this tutorial is read-only unless you explicitly authorize mutation with `-AllowTargetMutation`. The plan action never touches your file system.
+macOS is unsupported. WSL is not native-Linux proof.
 
-## Supported platforms
+## Know which terminal receives a command
 
-| Platform | Support | Default profile | Shell | Multiplexer |
-|----------|---------|-----------------|-------|-------------|
-| Windows | Supported | `windows-native` | PowerShell 7 | none |
-| Linux | Supported | `linux-native` | Bash | tmux |
-| WSL | Optional (Windows only) | `wsl-tmux` (disabled) | Bash | tmux |
-| macOS | **Unsupported** | None | n/a | n/a |
+| Label in this guide | Where to use it |
+|---|---|
+| **Regular Windows PowerShell** | A normal PowerShell 7 window outside WezTerm/tmux. Use it for Windows Inventory, Plan, Apply, lifecycle, and recovery. |
+| **WezTerm/tmux Bash** | A Bash pane inside the `dev` tmux session. Use it for tmux and coding-agent commands. |
+| **Native Linux Bash** | A terminal on a real Linux desktop, not WSL. Use it for the native-Linux lifecycle. |
+| **Windows shortcut** | Double-click `WezTerm tmux` on the Windows desktop. |
+| **File content** | Configuration text managed by the repository. Do not paste it into a shell. |
 
-### macOS notice
-
-macOS is explicitly unsupported. No test environment exists for macOS. The repository does not advertise, generate, or infer macOS readiness. All schemas reject macOS platform claims. Do not attempt to use these tools on macOS.
-
----
-
-## Key concepts
-
-### WezTerm is the terminal host
-
-WezTerm is the required terminal emulator for the developer workstation. It runs on both Windows and Linux. On Windows, it provides a native PowerShell 7 session with optional WSL launch-menu entries. On Linux, it provides a Bash session with tmux integration.
-
-If WezTerm is not installed, the planner emits a warning and continues. The launcher falls back to native PowerShell or a plain Bash session.
-
-### WSL is optional, not mandatory
-
-WSL (Windows Subsystem for Linux) is an optional execution environment on Windows. It is disabled by default in the workstation profile. Native Windows (PowerShell 7) and native Linux (Bash) are first-class execution modes. WSL is a compatibility path for tools that require a Linux environment on a Windows host.
-
-### Native Linux is not WSL
-
-Running WezTerm on a Linux machine is the `linux-native` profile. Running WezTerm inside WSL on a Windows machine is the `wsl-tmux` profile. These are different execution environments with different inventory results and different configuration paths.
-
-### AgentSwitchboard is external
-
-SysAdminSuite validates that AgentSwitchboard is available but does not install, configure, or authenticate it. AgentSwitchboard owns agent installation, detection, upgrade, repair, and authentication-readiness reporting. SysAdminSuite never automatically authenticates accounts.
-
-### No automatic authentication
-
-The workstation profile enforces `automatic_authentication: false`. SysAdminSuite does not log into any agent, API, or service. Authentication readiness is reported, not performed.
-
----
+Opening the generated WezTerm shortcut already attaches to tmux `dev`. Do not run `tmux new-session` inside that pane: `$TMUX` is already set, and nesting tmux makes detach and key bindings ambiguous.
 
 ## Prerequisites
 
-Before running any workstation command:
+Windows requires PowerShell 7, WezTerm GUI, WSL2, one non-Docker development distribution, tmux in that distribution, Python, Git, a SysAdminSuite checkout, and an AgentSwitchboard checkout.
 
-1. **Clone the repository** (or use an existing clone):
+Native Linux requires a graphical Linux desktop, WezTerm, tmux, Bash, Python, Git, and both repositories. A WSL kernel containing `microsoft` does not qualify.
 
-   ```bash
-   git clone https://github.com/EndeavorEverlasting/SysAdminSuite.git
-   ```
+The commands never automate provider authentication. Sign-in, tokens, and provider-quality checks remain manual and outside runtime evidence.
 
-2. **Navigate to the repository root.** All commands assume you are at the top level of the `SysAdminSuite` folder.
+## Windows first-time setup
 
-3. **Verify your shell:**
+Inventory and Plan are read-only. Apply requires `-AllowTargetMutation`; `-BridgePermission` explicitly allows canonical WSL wrappers to use healthy Windows agent executables when no WSL-native executable exists.
 
-   - Windows: PowerShell 7 (`pwsh`) recommended; PowerShell 5.1 compatible.
-   - Linux: Bash 4+ recommended.
-
-4. **Optional: Install WezTerm** from [wezfurlong.org/wezterm](https://wezfurlong.org/wezterm/). The inventory and plan work without WezTerm; only Apply and Launch benefit from it.
-
----
-
-## Phase 1: Read-only inventory
-
-The inventory detects what is present on your host without installing, repairing, or mutating anything.
-
-### Windows inventory
+Terminal: **regular Windows PowerShell**, from the SysAdminSuite repository root.
 
 ```powershell
-.\scripts\Get-SasDeveloperWorkstationInventory.ps1 -OutputPath .\runs\workstation-inventory.json
+$Switchboard = 'C:\path\to\AgentSwitchboard'
+$Evidence = '.\survey\output\developer-workstation'
+
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 `
+  -Mode Inventory -Platform windows -ExecutionDomain windows-wsl `
+  -AgentSwitchboardRoot $Switchboard -OutputRoot "$Evidence\01-inventory"
+
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 `
+  -Mode Plan -Platform windows -ExecutionDomain windows-wsl `
+  -AgentSwitchboardRoot $Switchboard -OutputRoot "$Evidence\02-plan"
 ```
 
-This probes WezTerm, PowerShell, tmux (WSL only), repository presence, agent commands (OpenCode, AGY, Goose), AgentSwitchboard, and WSL distributions. It emits:
+Read the English summary before Apply. The Plan must name a real `wezterm-gui.exe`, a non-Docker WSL distro, tmux, and session `dev`.
 
-- `.\runs\workstation-inventory.json` — machine-readable inventory
-- `.\runs\workstation-inventory-summary.txt` — human-readable summary
+Terminal: **regular Windows PowerShell**, after reviewing Plan and authorizing the bounded configuration change.
 
-### Linux inventory
+```powershell
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 `
+  -Mode Apply -Platform windows -ExecutionDomain windows-wsl `
+  -AgentSwitchboardRoot $Switchboard -AllowTargetMutation `
+  -BridgePermission -LaunchGui -OutputRoot "$Evidence\03-apply"
+```
+
+Apply preserves the existing `.wezterm.lua`, writes a bounded managed include, renders `.wezterm-sysadminsuite.lua`, preserves the first rollback manifest across idempotent reruns, starts the exact owned WSL keepalive, ensures tmux `dev`, installs managed AgentSwitchboard wrappers in WSL, and creates the desktop shortcut.
+
+## Lua is file content
+
+`.wezterm.lua` and `.wezterm-sysadminsuite.lua` are Lua configuration files. Lua is not a PowerShell or Bash command. Repository lifecycle commands render and manage the bounded include.
+
+File content: **conceptual Lua shape only; do not paste into PowerShell or Bash**.
+
+```lua
+local wezterm = require 'wezterm'
+local config = wezterm.config_builder()
+-- BEGIN SYSADMINSUITE WINDOWS TMUX WORKSPACE
+-- The repository renders and updates this managed include.
+-- END SYSADMINSUITE WINDOWS TMUX WORKSPACE
+return config
+```
+
+## Daily Windows use
+
+Windows shortcut: **double-click `WezTerm tmux`**. The shortcut starts a hidden, noninteractive lifecycle command and launches the real `wezterm-gui.exe`; no parent PowerShell window must remain.
+
+Terminal: **regular Windows PowerShell**, equivalent CLI Start.
+
+```powershell
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 `
+  -Mode Start -Platform windows -ExecutionDomain windows-wsl `
+  -AgentSwitchboardRoot $Switchboard -BridgePermission -LaunchGui `
+  -OutputRoot "$Evidence\daily-start"
+```
+
+Terminal: **WezTerm/tmux Bash**, safe status checks.
 
 ```bash
-bash scripts/get-sas-developer-workstation-inventory.sh --output runs/workstation-inventory.json
+printf 'TMUX=%s\n' "${TMUX:-not-attached}"
+tmux display-message -p 'session=#{session_name} attached=#{session_attached} windows=#{session_windows}'
+tmux list-windows -F '#{window_index}:#{window_name}:#{pane_current_command}'
 ```
 
-Same probe structure as the Windows version, adapted for Linux. Emits JSON and English summary to stdout and the specified output path.
+Detach with `Ctrl+B`, release both keys, then press `D`. Closing WezTerm does not mean Stop: the owned keepalive and tmux server are designed to remain alive.
 
-### Understanding the output
+Terminal: **regular Windows PowerShell**, verify after detaching or closing the GUI.
 
-Every check returns one of:
+```powershell
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 `
+  -Mode Status -Platform windows -ExecutionDomain windows-wsl `
+  -AgentSwitchboardRoot $Switchboard -BridgePermission `
+  -OutputRoot "$Evidence\daily-status"
+```
 
-| Status | Meaning |
-|--------|---------|
-| `PASS` | Tool found and version obtained |
-| `SKIP` | Check not applicable on this platform |
-| `FAIL` | Tool not found or not obtainable |
+Status is healthy only when the exact owned keepalive PID and tmux `dev` both remain. Reopen with the desktop shortcut to reattach the same windows.
 
-The inventory also reports:
+## Agent wrappers inside tmux
 
-- `detected_platform` — `windows`, `linux`, or `unsupported`
-- `execution_environment` — `native`, `wsl`, or `unknown`
-- `selected_profile` — the matching enabled profile from the sample
-- `eligible_profiles` — all enabled profiles for this platform
+Canonical wrappers are `opencode`, `agy`, and `goose`. Each prefers a healthy native executable. A Windows bridge is selected only when the recorded policy permits it. Diagnostic wrappers make routing explicit:
 
-### English renderer
+- `<agent>_native` requires a native executable in the current domain.
+- `<agent>_win` requires Windows interop and never masquerades as native.
+- `<agent>` applies native-first policy and reports failure when neither route is healthy.
 
-To render any inventory JSON as a human-readable summary:
+Terminal: **WezTerm/tmux Bash**, content-free resolution checks.
 
 ```bash
-python3 scripts/Render-SasWorkstationInventoryEnglish.py runs/workstation-inventory.json
+opencode --agent-switchboard-probe
+agy --agent-switchboard-probe
+goose --agent-switchboard-probe
+
+opencode_native --agent-switchboard-probe
+opencode_win --agent-switchboard-probe
 ```
 
-### Fixture mode (for testing)
-
-```powershell
-# Windows fixture
-.\scripts\Get-SasDeveloperWorkstationInventory.ps1 -FixtureMode
-```
+Terminal: **WezTerm/tmux Bash**, launch agents only after completing any required authentication yourself.
 
 ```bash
-# Linux fixture
-bash scripts/get-sas-developer-workstation-inventory.sh --fixture
+opencode
+agy
+goose
 ```
 
-Fixture mode emits synthetic inventory data without probing the host. Use it to verify the rendering pipeline or to test downstream tools.
+Version/help output proves command acknowledgement only. It does not prove authentication, provider response quality, or a successful coding conversation.
 
----
+## PowerShell fallback
 
-## Phase 2: Plan WezTerm configuration (read-only)
+Choose `PowerShell 7 (fallback/admin)` from the WezTerm launch menu when Windows administration or a Windows-native agent is required. This profile does not create hidden WSL lifecycle state and does not provide tmux persistence.
 
-The plan action renders the planned WezTerm configuration files without touching the file system.
-
-### Windows plan
+Terminal: **regular Windows PowerShell**, inspect fallback posture.
 
 ```powershell
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 `
-  -ProfilePath .\Config\developer-workstation-profile.sample.json `
-  -Action Plan
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 `
+  -Mode Plan -Platform windows -ExecutionDomain windows-native `
+  -AgentSwitchboardRoot $Switchboard -OutputRoot "$Evidence\powershell-fallback"
 ```
 
-This produces:
+## Native Linux quick start
 
-- A planned `.wezterm-sysadminsuite.lua` content block (the managed fragment).
-- A planned `.wezterm.lua` content block (your main config with the managed block injected).
-- No file changes.
+Run this section only on a real Linux desktop. Stop if `/proc/sys/kernel/osrelease` contains `microsoft`, if `wezterm` is missing, or if no graphical session is available.
 
-Review the plan output before deciding to apply.
-
-### Plan with a specific user config directory
-
-```powershell
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 `
-  -ProfilePath .\Config\developer-workstation-profile.sample.json `
-  -Action Plan `
-  -UserConfigDir "C:\Users\YourName"
-```
-
-### Plan with a fixture inventory
-
-```powershell
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 `
-  -ProfilePath .\Config\developer-workstation-profile.sample.json `
-  -InventoryFixturePath .\Tests\Fixtures\workstation-inventory\windows-native.fixture.json `
-  -Action Plan
-```
-
----
-
-## Phase 3: Apply WezTerm configuration (mutation)
-
-Apply writes WezTerm configuration files. It requires explicit authorization.
-
-### Windows apply
-
-```powershell
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 `
-  -ProfilePath .\Config\developer-workstation-profile.sample.json `
-  -Action Apply `
-  -AllowTargetMutation
-```
-
-Apply will:
-
-1. Prompt for confirmation (High impact).
-2. Create a timestamped backup in `logs/wezterm-backups/`.
-3. Write `.wezterm-sysadminsuite.lua` (the managed fragment).
-4. Update `.wezterm.lua` (inject or replace the managed block).
-5. Optionally validate via `wezterm show-config`.
-
-### What Apply does not do
-
-- It does not install WezTerm.
-- It does not install PowerShell, Bash, or tmux.
-- It does not authenticate any agent or service.
-- It does not contact any remote target.
-- It does not modify the repository.
-
----
-
-## Phase 4: Launch workspace
-
-### Windows launcher
-
-Double-click:
-
-```text
-Launch-WorkstationWezTerm.cmd
-```
-
-Or from PowerShell:
-
-```powershell
-.\Launch-WorkstationWezTerm.ps1
-```
-
-The launcher:
-
-1. Detects WezTerm on the PATH.
-2. If found, opens WezTerm at the repository root.
-3. If not found, falls back to a native PowerShell session at the repository root.
-
-### Linux workspace functions
-
-On Linux, source the SysAdminSuite bash fragment from your `~/.bashrc`:
+Terminal: **native Linux Bash**, host gate and read-only phases.
 
 ```bash
-source /path/to/SysAdminSuite/configs/linux-native/sas-bashrc.sh
+grep -qi microsoft /proc/sys/kernel/osrelease && { echo 'WSL is not native Linux proof'; exit 1; }
+command -v wezterm tmux bash python3 git
+
+bash scripts/invoke-sas-developer-workstation.sh \
+  --mode Inventory --platform linux --execution-domain linux-native \
+  --agentswitchboard-root ../AgentSwitchboard \
+  --output-root survey/output/developer-workstation/01-inventory
+
+bash scripts/invoke-sas-developer-workstation.sh \
+  --mode Plan --platform linux --execution-domain linux-native \
+  --agentswitchboard-root ../AgentSwitchboard \
+  --output-root survey/output/developer-workstation/02-plan
 ```
 
-Then use:
+Terminal: **native Linux Bash**, authorized Apply and GUI launch.
 
 ```bash
-sas_workspace     # Open WezTerm at the repository root (if available)
-sas_wezterm_info  # Show WezTerm detection status
-sas_tmux_attach   # Attach to the SysAdminSuite tmux session
-sas_agent_info    # Show agent command availability
+bash scripts/invoke-sas-developer-workstation.sh \
+  --mode Apply --platform linux --execution-domain linux-native \
+  --agentswitchboard-root ../AgentSwitchboard \
+  --allow-target-mutation --launch-gui \
+  --output-root survey/output/developer-workstation/03-apply
 ```
 
-### tmux integration (Linux)
+Native Linux uses local tmux, not WSL and not a Windows bridge by default. The repository currently has fixture proof for this path; the 2026-07-15 recovery sprint had no qualifying native desktop and therefore did not claim live native-Linux persistence.
 
-Source the tmux fragment from your `~/.tmux.conf`:
+## Stop, Repair, and Rollback
 
-```conf
-source-file /path/to/SysAdminSuite/configs/linux-native/tmux-linux.conf
-```
+Stop is intentionally destructive to the persistent workspace: it terminates tmux `dev` and every shell or agent process inside it. Preserve work and obtain explicit operator intent first.
 
-This adds WezTerm-compatible keybindings for split navigation.
-
----
-
-## Phase 5: Verify environment
-
-After launching, verify your environment:
-
-1. **Check WezTerm loaded the config:** In WezTerm, the launch menu should show a `windows-native` entry (Windows) or the Bash prompt should be available (Linux).
-
-2. **Check agent availability:**
-
-   ```powershell
-   # Windows
-   Get-Command opencode -ErrorAction SilentlyContinue
-   Get-Command agy -ErrorAction SilentlyContinue
-   Get-Command goose -ErrorAction SilentlyContinue
-   ```
-
-   ```bash
-   # Linux
-   which opencode agy goose 2>/dev/null
-   ```
-
-3. **Check AgentSwitchboard:**
-
-   The inventory output's `checks.agent_switchboard` field reports availability. `FAIL` means AgentSwitchboard is not installed or not on the PATH. This does not block planning or configuration.
-
----
-
-## Phase 6: Rollback and recovery
-
-### Rollback WezTerm configuration
+Terminal: **regular Windows PowerShell**, destructive Stop after explicit intent.
 
 ```powershell
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 `
-  -Action Rollback `
-  -AllowTargetMutation
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 `
+  -Mode Stop -Platform windows -ExecutionDomain windows-wsl `
+  -AgentSwitchboardRoot $Switchboard -BridgePermission `
+  -OutputRoot "$Evidence\stop"
 ```
 
-Rollback will:
+Repair refreshes only managed configuration, owned lifecycle state, tmux agent `PATH`, and the generated shortcut.
 
-1. Restore from the latest timestamped backup in `logs/wezterm-backups/`.
-2. If no backup exists, strip the managed block from `.wezterm.lua` and remove `.wezterm-sysadminsuite.lua`.
-3. Prompt for confirmation before any file change.
-
-### Restore from git
-
-If you accidentally modified tracked files in the repository:
-
-```bash
-git checkout -- .
-git clean -fd
-```
-
-This restores the repository to the last committed state. Local evidence in `runs/`, `logs/`, and `survey/output/` is not affected.
-
-### Recover from an interrupted run
-
-The inventory and planner are stateless. There is no session to recover. Simply re-run the command from Phase 1 or Phase 2.
-
----
-
-## Phase 7: Interpret proof results
-
-### What the inventory proves
-
-- What tools are present or absent on the host at command-discovery time.
-- Which profile from the sample is selected and eligible.
-- The detected platform and execution environment.
-
-### What the inventory does not prove
-
-- That WezTerm, shell, tmux, or any coding agent is installed and functional.
-- That native Windows or native Linux agent operation works.
-- That AgentSwitchboard exposes a stable executable command.
-- Installation, repair, upgrade, authentication readiness, or launch behavior.
-- End-to-end workstation provisioning.
-
-### What the E2E fixture suite proves
-
-The 12-journey bimodal E2E suite proves:
-
-- Configuration planning, backup, and rollback on disposable mock-home directories.
-- Managed-block injection and replacement in existing `.wezterm.lua`.
-- Graceful handling of missing tools, malformed input, and unsupported platforms.
-- WSL opt-in generates the correct launch-menu entry.
-- macOS detection produces a clean skip.
-
-### What the E2E suite does not prove
-
-- Live runtime agent capabilities.
-- Real target mutation or installation.
-- Active authentication or provider API responses.
-- Network connectivity or remote target behavior.
-
-### Proof ceiling
-
-| Dimension | Achieved |
-|-----------|----------|
-| `runtime_proof` | false |
-| `live_installation_proof` | false |
-| `authentication_proof` | false |
-| `provider_response_proof` | false |
-
-The highest achieved proof level is **fixture/loopback E2E**. This means all journeys ran against synthetic fixtures in disposable directories. No live target was contacted, no installation was performed, and no authentication occurred.
-
----
-
-## Windows quick start
+Terminal: **regular Windows PowerShell**, bounded Repair.
 
 ```powershell
-# 1. Inventory
-.\scripts\Get-SasDeveloperWorkstationInventory.ps1 -OutputPath .\runs\inventory.json
-
-# 2. Plan (read-only)
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 `
-  -ProfilePath .\Config\developer-workstation-profile.sample.json `
-  -Action Plan
-
-# 3. Apply (requires authorization)
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 `
-  -ProfilePath .\Config\developer-workstation-profile.sample.json `
-  -Action Apply `
-  -AllowTargetMutation
-
-# 4. Launch
-.\Launch-WorkstationWezTerm.ps1
-
-# 5. Rollback (if needed)
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 `
-  -Action Rollback `
-  -AllowTargetMutation
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 `
+  -Mode Repair -Platform windows -ExecutionDomain windows-wsl `
+  -AgentSwitchboardRoot $Switchboard -AllowTargetMutation `
+  -BridgePermission -LaunchGui -OutputRoot "$Evidence\repair"
 ```
 
-## Linux quick start
+Rollback restores configuration from the preserved manifest. Stop first if you also intend to terminate the active workspace; Rollback alone is a configuration operation.
 
-```bash
-# 1. Inventory
-bash scripts/get-sas-developer-workstation-inventory.sh --output runs/inventory.json
+Terminal: **regular Windows PowerShell**, authorized Rollback.
 
-# 2. Source workspace helpers (add to ~/.bashrc)
-source configs/linux-native/sas-bashrc.sh
-
-# 3. Open workspace
-sas_workspace
-
-# 4. Check agents
-sas_agent_info
+```powershell
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 `
+  -Mode Rollback -Platform windows -ExecutionDomain windows-wsl `
+  -AgentSwitchboardRoot $Switchboard -AllowTargetMutation `
+  -BridgePermission -OutputRoot "$Evidence\rollback"
 ```
 
----
+## Recovery table
 
-## WSL optional profile
+| Symptom | Read first | Recovery |
+|---|---|---|
+| No GUI | Plan must identify `wezterm-gui.exe`, not only `wezterm.exe` | Run Repair, then use the regenerated shortcut. |
+| Hidden PowerShell remains | Shortcut may be stale | Run Repair; current shortcut includes noninteractive confirmation handling. |
+| `keepalive-stale` | PID file does not match the exact owned WSL command | Run Repair. Never kill all `wsl.exe` processes. |
+| `tmux-socket-missing` | Backend is running but `dev` is absent | Run Start or Repair. |
+| Agent says command not found | Managed wrapper path is absent in an old pane | Open a new tmux window or run Repair, then use the canonical wrapper. |
+| Nested tmux warning | `$TMUX` is already set | Detach instead of starting another tmux server. |
+| Invalid Lua | Existing config lacks a bounded `return config` insertion point | Use the backup manifest; repair the user config explicitly. |
+| Native Linux requested on WSL | Kernel contains `microsoft` | Move to a real Linux desktop; do not relabel WSL evidence. |
 
-WSL is available as a lower-priority Windows compatibility profile. It is **disabled by default**.
+No recovery command uses `wsl --unregister`, broad process-name kills, automatic authentication, or full dotfile replacement.
 
-To enable WSL profiling, modify `Config/developer-workstation-profile.sample.json` and set the `wsl-tmux` execution profile to `enabled: true` with a lower priority number. The plan action will then include WSL launch-menu entries in the WezTerm configuration.
+## Proof taxonomy and current evidence
 
-Do not enable WSL as a replacement for native Linux support. WSL is a Windows-only compatibility path.
+A fixture proof is not live-runtime proof. Live-runtime proof is also not authentication/provider proof or operator acceptance; each claim stops at the evidence recorded for that layer.
 
----
+| Proof class | Current result | What it means |
+|---|---|---|
+| Static/contracts | PASS | Schemas, fixtures, scripts, routing, and safety invariants validate. |
+| Fixture E2E | 22/22 PASS | The public orchestrator covers required success and failure journeys in disposable roots. |
+| Windows live runtime | PASS | Independent GUI, exact keepalive, tmux detach/reopen, same windows, and canonical-wrapper help interaction were observed. |
+| Native Linux live runtime | BLOCKED | Available Linux kernel is WSL2 and native Linux WezTerm GUI is missing. |
+| Authentication/provider | NOT PROVEN | No login, token, provider response, or response quality was captured. |
+| Operator acceptance | NOT RECORDED | Automation cannot accept the experience on the operator's behalf. |
 
-## AgentSwitchboard readiness
+The Windows interaction ceiling is `canonical-wrapper-help-command-only`. It is stronger than startup-banner proof and weaker than authenticated provider behavior.
 
-SysAdminSuite validates AgentSwitchboard availability through the inventory. The `checks.agent_switchboard` field reports:
+## Validation commands
 
-- `PASS` — AgentSwitchboard is detected and versioned.
-- `FAIL` — AgentSwitchboard is not found.
+Terminal: **regular Windows PowerShell**, documentation and repository gates.
 
-A `FAIL` status does not block planning or configuration. It means SysAdminSuite cannot invoke AgentSwitchboard for agent management. AgentSwitchboard owns its own installation, detection, upgrade, repair, and authentication-readiness reporting.
-
-SysAdminSuite must not:
-
-- Copy AgentSwitchboard installers into this repository.
-- Silently replace customized agent installations.
-- Forward secrets to AgentSwitchboard.
-- Automatically authenticate agent accounts.
-
----
-
-## Safety posture
-
-The workstation profile enforces:
-
-- **Install missing components only** — never overwrite existing tooling.
-- **Preserve existing configuration** — managed blocks are injected, not wholesale replaced.
-- **Never authenticate accounts automatically** — authentication readiness is reported, not performed.
-- **Never contact or mutate deployment targets** — inventory and planning are local-only.
-- **Never commit runtime evidence, credentials, or machine-local paths** — output stays local.
-- **Never claim support for an untested operating system** — macOS is explicitly rejected.
-
----
-
-## AI-use prompt
-
-Copy and paste this prompt into an AI assistant to get help explaining the workstation tools, grounded in the current repository:
-
-```text
-I am working in the SysAdminSuite repository (https://github.com/EndeavorEverlasting/SysAdminSuite).
-
-I need help understanding the developer workstation setup tools. Please read these files from the repository to answer my questions:
-
-1. docs/tutorials/DEVELOPER_WORKSTATION.md — the canonical developer workstation tutorial
-2. Config/developer-workstation-profile.sample.json — the workstation profile definition
-3. docs/DEVELOPER_WORKSTATION_PROVISIONING.md — the provisioning contract and ownership boundary
-4. docs/DEVELOPER_WORKSTATION_INVENTORY.md — the inventory surface and proof ceiling
-
-After reading those files, please help me with: [your question here]
-
-Important constraints:
-- WezTerm is the terminal host. WSL is optional. Native Linux is distinct from WSL.
-- macOS is explicitly unsupported.
-- No automatic authentication occurs. Secrets are never stored or forwarded.
-- Inventory is read-only. Apply requires explicit -AllowTargetMutation.
-- The highest proof level is fixture/loopback E2E, not live runtime.
-- Do not suggest commands that do not exist in the committed implementation.
+```powershell
+python .\Tests\survey\test_developer_workstation_documentation_contracts.py
+bash .\tests\survey\run_offline_survey_tests.sh
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
+git diff --check
 ```
 
----
-
-## Command reference
-
-| Command | Platform | Purpose |
-|---------|----------|---------|
-| `.\scripts\Get-SasDeveloperWorkstationInventory.ps1` | Windows | Read-only host inventory |
-| `bash scripts/get-sas-developer-workstation-inventory.sh` | Linux | Read-only host inventory |
-| `python3 scripts/Render-SasWorkstationInventoryEnglish.py <file>` | Both | Render inventory as English summary |
-| `.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 -Action Plan` | Windows | Plan WezTerm config (read-only) |
-| `.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 -Action Apply -AllowTargetMutation` | Windows | Apply WezTerm config |
-| `.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 -Action Rollback -AllowTargetMutation` | Windows | Rollback WezTerm config |
-| `.\Launch-WorkstationWezTerm.ps1` | Windows | Launch WezTerm workspace |
-| `.\Launch-WorkstationWezTerm.cmd` | Windows | Batch wrapper for launcher |
-| `sas_workspace` | Linux | Open WezTerm at repo root |
-| `sas_wezterm_info` | Linux | Show WezTerm status |
-| `sas_tmux_attach` | Linux | Attach to tmux session |
-| `sas_agent_info` | Linux | Show agent availability |
-
-## File locations
-
-| File | Path |
-|------|------|
-| Profile sample | `Config/developer-workstation-profile.sample.json` |
-| Profile schema | `schemas/harness/developer-workstation-profile.schema.json` |
-| Inventory schema | `schemas/harness/developer-workstation-inventory.schema.json` |
-| Windows inventory script | `scripts/Get-SasDeveloperWorkstationInventory.ps1` |
-| Linux inventory script | `scripts/get-sas-developer-workstation-inventory.sh` |
-| English renderer | `scripts/Render-SasWorkstationInventoryEnglish.py` |
-| Windows profile manager | `scripts/Invoke-SasWezTermWindowsNativeProfile.ps1` |
-| WezTerm Lua template | `Config/wezterm-windows.lua.template` |
-| Windows launcher | `Launch-WorkstationWezTerm.ps1` / `Launch-WorkstationWezTerm.cmd` |
-| Linux WezTerm template | `configs/linux-native/wezterm-linux-template.lua` |
-| Linux bash fragment | `configs/linux-native/sas-bashrc.sh` |
-| Linux tmux fragment | `configs/linux-native/tmux-linux.conf` |
-| E2E runner | `scripts/Invoke-SasWorkstationE2E.ps1` |
-| Inventory fixtures | `Tests/Fixtures/workstation-inventory/*.json` |
-| Backups | `logs/wezterm-backups/` (created by Apply) |
-
-## Further reading
-
-- Provisioning contract: [`docs/DEVELOPER_WORKSTATION_PROVISIONING.md`](../DEVELOPER_WORKSTATION_PROVISIONING.md)
-- Inventory surface: [`docs/DEVELOPER_WORKSTATION_INVENTORY.md`](../DEVELOPER_WORKSTATION_INVENTORY.md)
-- E2E proof report: [`docs/DEVELOPER_WORKSTATION_E2E_PROOF_MERGE_READINESS.md`](../DEVELOPER_WORKSTATION_E2E_PROOF_MERGE_READINESS.md)
-- Convergence report: [`docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md`](../DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md)
+Further details: [provisioning contract](../DEVELOPER_WORKSTATION_PROVISIONING.md), [inventory contract](../DEVELOPER_WORKSTATION_INVENTORY.md), [fixture E2E report](../DEVELOPER_WORKSTATION_E2E_PROOF_MERGE_READINESS.md), and [PR convergence report](../DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md).

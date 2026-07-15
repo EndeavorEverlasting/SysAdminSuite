@@ -1,0 +1,41 @@
+name: Developer workstation documentation
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'docs/**', 'repair/**', 'runtime/**']
+    paths:
+      - 'README.md'
+      - 'START-HERE-SysAdminSuite.md'
+      - 'CODEBASE_MAP.md'
+      - 'docs/tutorials/DEVELOPER_WORKSTATION.md'
+      - 'docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md'
+      - 'Tests/survey/test_developer_workstation_documentation_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/developer-workstation-documentation.yml'
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'START-HERE-SysAdminSuite.md'
+      - 'CODEBASE_MAP.md'
+      - 'docs/tutorials/DEVELOPER_WORKSTATION.md'
+      - 'docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md'
+      - 'Tests/survey/test_developer_workstation_documentation_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/developer-workstation-documentation.yml'
+
+jobs:
+  contracts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.x'}
+      - name: Validate documented paths, links, architecture, and proof ceilings
+        run: python Tests/survey/test_developer_workstation_documentation_contracts.py

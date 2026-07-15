@@ -148,8 +148,11 @@ The **web interface is the canonical technician tutorial**.
 ## Where is the developer workstation tutorial?
 
 - Full step-by-step: [`docs/tutorials/DEVELOPER_WORKSTATION.md`](docs/tutorials/DEVELOPER_WORKSTATION.md)
-- Covers Windows, Linux, optional WSL, WezTerm configuration, inventory, plan/apply/rollback, proof interpretation.
-- macOS is explicitly unsupported.
+- The daily path is **WezTerm → tmux `dev` → coding agents**.
+- Windows requires Ubuntu WSL2 as the tmux backend; a graphical native-Linux host runs WezTerm and tmux locally.
+- PowerShell 7 is the Windows fallback/admin shell. macOS is unsupported, and WSL evidence is never native-Linux proof.
+- Start with read-only Inventory and Plan. Apply, Stop, and Rollback require explicit review and authorization.
+- Release and proof status: [`docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md`](docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md)
 
 ## What files should I never commit?
 

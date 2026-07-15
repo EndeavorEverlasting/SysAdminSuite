@@ -281,42 +281,24 @@ The tutorial system lives in `GUI/Start-SysAdminSuiteGui.ps1` and is designed fo
 
 ---
 
-### Developer Workstation (Windows / Linux)
+### Developer Workstation (Windows / native Linux)
 
-Set up a bimodal developer workstation with WezTerm as the terminal host:
+The persistent coding path is **WezTerm → tmux `dev` → coding agents**. On Windows, native WezTerm enters tmux through Ubuntu WSL2. On a graphical native-Linux host, WezTerm and tmux run locally. PowerShell 7 is the Windows fallback and administration shell, not the primary workspace. macOS is unsupported, and WSL evidence never counts as native-Linux proof.
 
-- [`docs/tutorials/DEVELOPER_WORKSTATION.md`](docs/tutorials/DEVELOPER_WORKSTATION.md) — full tutorial: inventory, plan, apply, launch, verify, rollback, proof interpretation
-- Windows and Linux are supported. macOS is explicitly unsupported.
-- WSL is optional, not mandatory.
+- [`docs/tutorials/DEVELOPER_WORKSTATION.md`](docs/tutorials/DEVELOPER_WORKSTATION.md) — canonical inventory, plan, apply, daily launch, agent, recovery, and proof workflow
+- [`docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md`](docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md) — PR ledger, merge order, CI repair, live evidence, and remaining proof gaps
 
-Windows quick start:
+Terminal: **regular Windows PowerShell**, from the repository root.
 
 ```powershell
-# Inventory (read-only)
-.\scripts\Get-SasDeveloperWorkstationInventory.ps1 -OutputPath .\runs\inventory.json
-
-# Plan (read-only)
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 -ProfilePath .\Config\developer-workstation-profile.sample.json -Action Plan
-
-# Apply (requires authorization)
-.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 -ProfilePath .\Config\developer-workstation-profile.sample.json -Action Apply -AllowTargetMutation
-
-# Launch
-.\Launch-WorkstationWezTerm.ps1
+$Switchboard = 'C:\path\to\AgentSwitchboard'
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 -Mode Inventory -Platform windows -ExecutionDomain windows-wsl -AgentSwitchboardRoot $Switchboard -OutputRoot .\survey\output\developer-workstation\01-inventory
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 -Mode Plan -Platform windows -ExecutionDomain windows-wsl -AgentSwitchboardRoot $Switchboard -OutputRoot .\survey\output\developer-workstation\02-plan
+# Review Plan before authorizing Apply.
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 -Mode Apply -Platform windows -ExecutionDomain windows-wsl -AgentSwitchboardRoot $Switchboard -OutputRoot .\survey\output\developer-workstation\03-apply -AllowTargetMutation -BridgePermission -LaunchGui -Confirm:$false
 ```
 
-Linux quick start:
-
-```bash
-# Inventory (read-only)
-bash scripts/get-sas-developer-workstation-inventory.sh --output runs/inventory.json
-
-# Source workspace helpers
-source configs/linux-native/sas-bashrc.sh
-
-# Open workspace
-sas_workspace
-```
+Daily Windows use starts from the generated **WezTerm tmux** shortcut. Native-Linux installation is gated by host classification and uses `scripts/invoke-sas-developer-workstation.sh`; follow the tutorial rather than applying from WSL.
 
 ### Dry-run / Offline Validation (safe on any machine)
 ```powershell
