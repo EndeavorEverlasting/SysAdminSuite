@@ -268,7 +268,9 @@ def main() -> int:
                     break
         agent_result, agent_step = run_agent_adapter(args, fixture, platform, domain, selected_distro, run_root)
         steps.append(agent_step)
-        artifacts.extend([{"role": "agentswitchboard-result", "path": "agentswitchboard-result.json"}, {"role": "english-summary", "path": "english-summary.txt"}])
+        if agent_result is not None:
+            artifacts.append({"role": "agentswitchboard-result", "path": "agentswitchboard-result.json"})
+        artifacts.append({"role": "english-summary", "path": "english-summary.txt"})
     outcome = classify(steps, agent_result, unsupported)
     result = {"schema_version": "sas-developer-workstation-orchestrator-result/v2", "run_id": run_id, "mode": args.mode, "platform": platform, "execution_domain": domain, "outcome": outcome, "steps": steps, "artifacts": artifacts, "proof": {"fixture": bool(fixture), "live_runtime": False, "behavior_observed": False, "persistence_observed": False, "operator_accepted": False}}
     result_path = run_root / "orchestrator-result.json"

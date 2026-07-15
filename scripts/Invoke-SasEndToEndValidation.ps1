@@ -137,7 +137,9 @@ try {
 
         Set-Content -LiteralPath $logPath -Value $output -Encoding UTF8
         $status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
-        $tail = Tail-Text $output
+        # PowerShell unwraps a single pipeline result to a scalar. Keep the
+        # detail tail array-shaped so StrictMode can safely inspect Count.
+        $tail = @(Tail-Text $output)
         $results.Add([pscustomobject]@{
             id=$journey.id; status=$status; required=[bool]$journey.required
             exit_code=$exitCode; duration_ms=$watch.ElapsedMilliseconds

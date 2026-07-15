@@ -33,6 +33,11 @@ Use this map to load only the files needed for a task.
 - `Tests/Fixtures/windows-tmux-workspace/` — sanitized healthy, missing, stale, malformed, nested, failure, and rollback fixture inputs.
 - `Tests/survey/test_windows_wezterm_tmux_service_contracts.py` and `Tests/Pester/WindowsWezTermTmuxService.Tests.ps1` — temporary-HOME lifecycle, preservation, launcher, and ownership proof.
 - `.github/workflows/windows-wezterm-tmux-service.yml` — Windows fixture lifecycle and Pester CI gate.
+- `schemas/harness/developer-workstation-proof.schema.json` — fail-closed fixture proof v2 with false live, behavior, persistence, agent-interaction, and acceptance flags.
+- `scripts/Invoke-SasWorkstationE2E.py`, `.ps1`, and `invoke-sas-workstation-e2e.sh` — 22-journey public-entrypoint fixture E2E and English matrix runners.
+- `Tests/survey/test_developer_workstation_proof_contracts.py` — exact profile, artifact, idempotency, public-entrypoint, CI, and proof-ceiling contracts.
+- `.github/workflows/developer-workstation-e2e-proof.yml` — platform-bounded Windows and native-Linux fixture matrix gates.
+- `docs/DEVELOPER_WORKSTATION_E2E_PROOF_MERGE_READINESS.md` — honest 22-journey fixture readiness report and remaining live blockers.
 
 ## Developer workstation inventory
 
