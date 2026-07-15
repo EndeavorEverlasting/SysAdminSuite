@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -15,8 +16,9 @@ def test_surfaces_parse_and_schema_is_closed() -> None:
     schema=json.loads(SCHEMA.read_text(encoding="utf-8"))
     assert schema["properties"]["proof"]["properties"]["operator_accepted"]["const"] is False
     assert schema["properties"]["proof"]["properties"]["provider_response_observed"]["const"] is False
-    parser="& { $e=$null; [Management.Automation.Language.Parser]::ParseFile($args[0],[ref]$null,[ref]$e)|Out-Null; if($e.Count){exit 1} }"
-    subprocess.run(["pwsh","-NoProfile","-Command",parser,str(SCRIPT)],cwd=ROOT,check=True)
+    if shutil.which("pwsh"):
+        parser="& { $e=$null; [Management.Automation.Language.Parser]::ParseFile($args[0],[ref]$null,[ref]$e)|Out-Null; if($e.Count){exit 1} }"
+        subprocess.run(["pwsh","-NoProfile","-Command",parser,str(SCRIPT)],cwd=ROOT,check=True)
 
 
 def test_runtime_proof_is_scoped_and_content_free() -> None:
