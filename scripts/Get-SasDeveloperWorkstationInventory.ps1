@@ -175,7 +175,7 @@ function Get-LiveInventory {
             $wslDomain.available = $true; $wslDomain.backend.distribution = $selected.Name; $wslDomain.backend.distribution_state = $selected.State
             if ($selected.State -eq 'running') {
                 $tmuxVersion = (& $wslCommand.Source -d $selected.Name -- bash -lc 'command -v tmux >/dev/null 2>&1 && tmux -V || true' 2>$null | Select-Object -First 1)
-                $sessions = @(& $wslCommand.Source -d $selected.Name -- bash -lc "tmux list-sessions -F '#S' 2>/dev/null || true" 2>$null) | Where-Object { $_ }
+                $sessions = @(@(& $wslCommand.Source -d $selected.Name -- bash -lc "tmux list-sessions -F '#S' 2>/dev/null || true" 2>$null) | Where-Object { $_ })
                 $wslDomain.backend.tmux = New-TmuxState -Present ([bool]$tmuxVersion) -Version $tmuxVersion -Socket $(if ($sessions.Count) { 'present' } else { 'missing' }) -Sessions $sessions
                 $wslDomain.health = if ($tmuxVersion) { 'healthy' } else { 'degraded' }
                 if (-not $tmuxVersion) { $reasons.Add('tmux-missing') }
@@ -205,12 +205,13 @@ function Get-LiveInventory {
     $selectedBackend = if ($wslDomain.available) { 'windows-wsl' } else { $null }
     $outcome = if (-not $selectedBackend -or $uniqueReasons -contains 'wezterm-cli-gui-confusion') { 'action-required' } elseif ($uniqueReasons.Count) { 'partial' } else { 'success' }
     $state = if (-not $selectedBackend) { 'absent' } elseif ($wslDomain.backend.tmux.sessions -contains 'dev') { 'session-running' } elseif ($wslDomain.backend.tmux.present) { 'tmux-available' } else { 'installed' }
+    [string[]]$reasonCodes = if ($uniqueReasons.Count) { $uniqueReasons } else { @('none') }
     return [ordered]@{
         schema_version = 'sas-developer-workstation-inventory/v2'; generated_at = (Get-Date).ToUniversalTime().ToString('o');
         host_platform = 'windows'; detected_context = 'windows-native';
         terminal = [ordered]@{ wezterm_cli = $cli; wezterm_gui = $gui; config_path_class = $configClass; default_workspace = [ordered]@{ configured = $workspaceConfigured; name = $(if ($workspaceConfigured) { 'tmux: Development' } else { $null }) }; font = [ordered]@{ configured_name = $fontName; availability = $fontAvailability } };
         domains = @($windowsDomain, $wslDomain); workspace_service = $service; selected_backend = $selectedBackend;
-        lifecycle = [ordered]@{ outcome = $outcome; state = $state; reason_codes = $(if ($uniqueReasons.Count) { $uniqueReasons } else { @('none') }) };
+        lifecycle = [ordered]@{ outcome = $outcome; state = $state; reason_codes = $reasonCodes };
         proof_ceiling = 'Read-only inventory proves detected state only; command presence is not authentication, session presence is not persistence, and no interactive smoke was attempted.'
     }
 }
