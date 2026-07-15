@@ -18,6 +18,8 @@ python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
 python3 Tests/survey/test_developer_workstation_agent_harness_contracts.py
+python3 Tests/survey/test_agent_switchboard_adapter_contracts.py
+python3 Tests/survey/test_developer_workstation_orchestrator_contracts.py
 python3 Tests/survey/test_developer_workstation_profile_contracts.py
 python3 Tests/survey/test_developer_workstation_lifecycle_contracts.py
 python3 Tests/survey/test_developer_workstation_inventory_contracts.py

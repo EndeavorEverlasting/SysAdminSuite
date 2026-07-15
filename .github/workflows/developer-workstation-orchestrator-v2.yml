@@ -1,0 +1,69 @@
+name: Developer workstation orchestrator v2
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'test/**']
+    paths:
+      - 'Developer-Workstation.cmd'
+      - 'scripts/*DeveloperWorkstation*'
+      - 'scripts/Invoke-SasAgentSwitchboard.py'
+      - 'schemas/harness/developer-workstation-operation.schema.json'
+      - 'schemas/harness/developer-workstation-orchestrator-result.schema.json'
+      - 'Tests/Fixtures/developer-workstation-orchestrator/**'
+      - 'Tests/Fixtures/agent-switchboard-v2/**'
+      - 'Tests/Pester/DeveloperWorkstationOrchestrator.Tests.ps1'
+      - 'Tests/survey/test_developer_workstation_orchestrator_contracts.py'
+      - 'Tests/survey/test_agent_switchboard_adapter_contracts.py'
+      - '.github/workflows/developer-workstation-orchestrator-v2.yml'
+  pull_request:
+    paths:
+      - 'Developer-Workstation.cmd'
+      - 'scripts/*DeveloperWorkstation*'
+      - 'scripts/Invoke-SasAgentSwitchboard.py'
+      - 'schemas/harness/developer-workstation-operation.schema.json'
+      - 'schemas/harness/developer-workstation-orchestrator-result.schema.json'
+      - 'Tests/Fixtures/developer-workstation-orchestrator/**'
+      - 'Tests/Fixtures/agent-switchboard-v2/**'
+      - 'Tests/Pester/DeveloperWorkstationOrchestrator.Tests.ps1'
+      - 'Tests/survey/test_developer_workstation_orchestrator_contracts.py'
+      - 'Tests/survey/test_agent_switchboard_adapter_contracts.py'
+      - '.github/workflows/developer-workstation-orchestrator-v2.yml'
+
+jobs:
+  windows-integration:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Adapter and orchestration fixtures
+        shell: pwsh
+        run: |
+          python Tests/survey/test_agent_switchboard_adapter_contracts.py
+          python Tests/survey/test_developer_workstation_orchestrator_contracts.py
+      - name: PowerShell entrypoint contracts
+        shell: pwsh
+        run: |
+          $result=Invoke-Pester -Path Tests/Pester/DeveloperWorkstationOrchestrator.Tests.ps1 -PassThru
+          if($result.FailedCount -gt 0){exit 1}
+
+  linux-entrypoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Bash and Python contracts
+        run: |
+          bash -n scripts/invoke-sas-developer-workstation.sh
+          python3 Tests/survey/test_agent_switchboard_adapter_contracts.py
+          python3 scripts/Invoke-SasDeveloperWorkstation.py --mode Apply --fixture-scenario success-linux --allow-target-mutation --output-root "$RUNNER_TEMP/workstation"

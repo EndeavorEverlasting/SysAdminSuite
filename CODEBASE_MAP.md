@@ -53,6 +53,16 @@ Use this map to load only the files needed for a task.
 - `schemas/harness/developer-workstation-agent-routing.schema.json` — fail-closed routing contract.
 - `Tests/survey/test_developer_workstation_agent_harness_contracts.py` — trigger uniqueness, path, manifest, context, and prompt/application separation tests.
 
+## Developer workstation orchestration
+
+- `scripts/Invoke-SasDeveloperWorkstation.py` — one-command Inventory/Plan/Apply/Start/Status/Stop/Repair/Validate/Rollback composition.
+- `scripts/Invoke-SasDeveloperWorkstation.ps1`, `scripts/invoke-sas-developer-workstation.sh`, and `Developer-Workstation.cmd` — structured platform and technician entrypoints.
+- `scripts/Invoke-SasAgentSwitchboard.py` — version-pinned, timeout-bounded external AgentSwitchboard v2 adapter.
+- `scripts/Render-SasDeveloperWorkstationEnglish.py` — concise PASS/SKIP/FAIL/ACTION_REQUIRED renderer with terminal-context labels.
+- `schemas/harness/developer-workstation-operation.schema.json` and `developer-workstation-orchestrator-result.schema.json` — operation gate and result/artifact contracts.
+- `Tests/Fixtures/developer-workstation-orchestrator/` and `Tests/Fixtures/agent-switchboard-v2/` — sanitized integration and external-boundary fixtures.
+- `.github/workflows/developer-workstation-orchestrator-v2.yml` — Windows composed fixture and Linux entrypoint gates.
+
 ## Native Linux workstation host
 
 - `scripts/invoke-sas-linux-tmux-workspace.sh` — native Plan/Apply/Start/Status/Stop/Repair/Rollback lifecycle implementation.
