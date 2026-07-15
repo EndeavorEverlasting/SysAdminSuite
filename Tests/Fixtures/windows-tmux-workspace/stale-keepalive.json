@@ -1,0 +1,1 @@
+{"schema_version":"sas-windows-tmux-fixture/v1","scenario":"stale-keepalive","distro":"Ubuntu","docker_only":false,"tmux_available":true,"tmux_version":"tmux 3.6","wezterm_gui_available":true,"wezterm_gui_path":"C:\\Program Files\\WezTerm\\wezterm-gui.exe","keepalive_running":false,"keepalive_stale":true,"session_exists":true,"shortcut_exists":true,"nested_tmux":false}
