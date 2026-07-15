@@ -27,7 +27,7 @@ macOS is unsupported. WSL evidence never satisfies native-Linux proof.
 | #214 | 22-journey fixture E2E | Open | Merge after #212. |
 | #215 | Windows live-runtime fixes and proof harness | Open | Merge after #214. |
 | #216 | native-host blocker preparation fix | Open | Merge after #215. |
-| convergence PR | tutorial, routing, release ledger | This branch | Merge last. |
+| #217 | tutorial, routing, release ledger | Open | Merge last. |
 
 ## AgentSwitchboard PR ledger
 
@@ -53,9 +53,9 @@ PRs #205, #206, #207, #208, and #210 are already merged. PR #209 is not a missin
 
 ## CI repair
 
-The shared `windows-integration` failure on #212, #214, and #215 was traced to Bash path conversion. The orchestrator emitted WSL `/mnt/<drive>` paths even when GitHub’s Windows runner selected Git Bash, which requires `/<drive>`. Commit `3535755` classifies the active Bash launcher and has deterministic tests for both WSL and Git Bash paths. The fix is propagated through every downstream branch without rebasing or force-pushing.
+The shared `windows-integration` failure on #212, #214, and #215 was traced to Bash launcher and path selection. The orchestrator emitted WSL `/mnt/<drive>` paths for Git Bash, which requires `/<drive>`, and Windows command search could select the System32 WSL launcher before the installed Git Bash used by CI. Commits `3535755` and `eea8c51` classify the launcher, prefer the installed Git Bash on Windows, and test both WSL and Git Bash paths. Commit `035f165` keeps fixture startup bounded while allowing 30 seconds for a cold hosted-runner PowerShell process. The fixes are propagated through every downstream branch without rebasing or force-pushing.
 
-Local validation for that repair: 7 orchestrator contract groups pass, including the full required-failure matrix.
+Local validation for that repair: 8 orchestrator contract groups pass, including the full required-failure matrix, plus 9 fixture-proof contract groups and a Windows WSL success journey.
 
 ## Proof ledger
 

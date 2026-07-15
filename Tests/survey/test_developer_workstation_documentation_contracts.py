@@ -123,6 +123,7 @@ def test_convergence_report_preserves_exact_evidence_boundaries() -> None:
         if number in (200, 211, 213):
             continue
         assert f"#{number}" in text
+    assert "#217" in text
     for required in (
         "22 passed / 0 skipped / 0 failed",
         "Windows live runtime",
