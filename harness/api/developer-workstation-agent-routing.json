@@ -1,0 +1,28 @@
+{
+  "schema_version": "sas-developer-workstation-agent-routing/v1",
+  "schema_path": "schemas/harness/developer-workstation-agent-routing.schema.json",
+  "skill_id": "developer-workstation",
+  "terminal_context_labels": [
+    "Windows PowerShell",
+    "WezTerm/tmux Bash",
+    "file content: Lua"
+  ],
+  "triggers": [
+    {"phrase": "set up WezTerm and tmux", "operation": "Plan", "capability_id": "workstation-planning", "terminal_context": "Windows PowerShell"},
+    {"phrase": "start my coding workspace", "operation": "Start", "capability_id": "workstation-session-lifecycle", "terminal_context": "Windows PowerShell"},
+    {"phrase": "why did my tmux session disappear?", "operation": "Status", "capability_id": "workstation-session-lifecycle", "terminal_context": "WezTerm/tmux Bash"},
+    {"phrase": "check my agents", "operation": "AgentReadiness", "capability_id": "workstation-agent-domain-resolution", "terminal_context": "WezTerm/tmux Bash"},
+    {"phrase": "repair workstation", "operation": "Repair", "capability_id": "workstation-managed-configuration", "terminal_context": "Windows PowerShell"},
+    {"phrase": "stop persistent workspace", "operation": "Stop", "capability_id": "workstation-session-lifecycle", "terminal_context": "Windows PowerShell"},
+    {"phrase": "use native Linux", "operation": "Plan", "capability_id": "workstation-backend-lifecycle", "terminal_context": "WezTerm/tmux Bash"},
+    {"phrase": "use PowerShell fallback", "operation": "Plan", "capability_id": "workstation-planning", "terminal_context": "Windows PowerShell"}
+  ],
+  "guards": {
+    "already_inside_tmux": "route-to-status-or-current-session",
+    "lua_content": "route-to-managed-file-operation",
+    "default_mutation": false,
+    "automatic_authentication": false,
+    "inject_user_home_content": false,
+    "mac_supported": false
+  }
+}

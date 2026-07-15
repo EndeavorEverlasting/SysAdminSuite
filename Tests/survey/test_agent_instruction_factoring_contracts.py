@@ -5,8 +5,8 @@ import re
 from pathlib import Path
 REPO_ROOT=Path(__file__).resolve().parents[2]
 AGENTS=REPO_ROOT/'AGENTS.md'; CLAUDE=REPO_ROOT/'CLAUDE.md'; CAPABILITY_ROOT=REPO_ROOT/'.claude'/'capabilities'; WORKFLOW=REPO_ROOT/'.github'/'workflows'/'agent-instruction-contracts.yml'; SKILL_ROOT=REPO_ROOT/'.claude'/'skills'
-REQUIRED_SKILLS={'repository-sprint','language-runtime','field-workflow','scoped-validation','end-to-end-validation','live-data-guard','survey-low-noise'}
-REQUIRED_CAPABILITIES={'repository-evidence.md','proof-and-checkpointing.md','end-to-end-testing.md','language-runtime-selection.md','mutation-and-evidence-boundaries.md','field-command-design.md'}
+REQUIRED_SKILLS={'repository-sprint','language-runtime','field-workflow','scoped-validation','end-to-end-validation','live-data-guard','survey-low-noise','developer-workstation'}
+REQUIRED_CAPABILITIES={'repository-evidence.md','proof-and-checkpointing.md','end-to-end-testing.md','language-runtime-selection.md','mutation-and-evidence-boundaries.md','field-command-design.md','workstation-inventory.md','workstation-planning.md','workstation-managed-configuration.md','workstation-backend-lifecycle.md','workstation-session-lifecycle.md','workstation-agent-domain-resolution.md','agentswitchboard-invocation.md','workstation-rollback.md'}
 FORBIDDEN_ROOT_DETAILS={'naabu -list','get-netadapter','new-netipaddress','ip addr','journalctl'}
 FORBIDDEN_CONTRADICTIONS={'powershell is deprecated','powershell is dead code','legacy/reference tooling'}
 CAPABILITY_LINK=re.compile(r'\(\.\./\.\./capabilities/([A-Za-z0-9._-]+\.md)\)')
