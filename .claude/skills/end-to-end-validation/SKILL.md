@@ -17,7 +17,7 @@ Use this skill for integration gates, composed workflow proof, browser or launch
    ```powershell
    pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasEndToEndValidation.ps1 -Profile default
    ```
-5. After any software-install execution or recovered run, invoke:
+5. After any software-install execution or recovered run, invoke the post-install result inspector:
    ```powershell
    pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Show-SasSoftwareInstallResult.ps1
    ```

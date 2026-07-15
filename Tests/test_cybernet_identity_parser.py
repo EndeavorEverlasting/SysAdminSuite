@@ -9,6 +9,8 @@ def load_parser_module():
     module_path = repo_root / "tools" / "Parse-CybernetIdentityArtifact.py"
     spec = importlib.util.spec_from_file_location("cybernet_identity_parser", module_path)
     module = importlib.util.module_from_spec(spec)
+    import sys
+    sys.modules["cybernet_identity_parser"] = module
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
