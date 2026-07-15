@@ -72,8 +72,8 @@ foreach ($agent in @('opencode', 'agy', 'goose')) {
     do {
         Start-Sleep -Milliseconds 200
         $capture = ((Invoke-Wsl -Arguments @('tmux', 'capture-pane', '-p', '-J', '-t', $target, '-S', '-100')).lines -join "`n")
-    } until ($capture.Contains($end) -or (Get-Date) -ge $deadline)
-    $acknowledged = $capture.Contains($begin) -and $capture.Contains($end)
+    } until ($capture.Contains("$end rc=") -or (Get-Date) -ge $deadline)
+    $acknowledged = $capture.Contains($begin) -and $capture.Contains("$end rc=")
     $helpSucceeded = $capture.Contains("$end rc=0")
     $row = $agentResult.agents.$agent
     $agentRows.Add([pscustomobject]@{
