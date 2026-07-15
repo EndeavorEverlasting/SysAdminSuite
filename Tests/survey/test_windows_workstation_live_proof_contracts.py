@@ -22,6 +22,7 @@ def test_surfaces_parse_and_schema_is_closed() -> None:
 def test_runtime_proof_is_scoped_and_content_free() -> None:
     text=SCRIPT.read_text(encoding="utf-8-sig")
     assert "tmux', 'send-keys'" in text and "--help >/dev/null 2>&1" in text
+    assert "$HOME/.local/agent-switchboard/bin" in text
     assert "Stop-Process -Id" in text and "Stop-Process -Name" not in text
     assert "detach-client" in text and "WezTerm tmux.lnk" in text
     assert "chat_content" not in text and "token" not in text.lower()

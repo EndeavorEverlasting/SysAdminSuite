@@ -64,14 +64,14 @@ foreach ($agent in @('opencode', 'agy', 'goose')) {
     $marker = ([guid]::NewGuid().ToString('N').Substring(0, 12))
     $begin = "__SAS_${marker}_BEGIN__"
     $end = "__SAS_${marker}_END__"
-    $command = "printf '$begin\n'; $agent --help >/dev/null 2>&1; rc=`$?; printf '$end rc=%s\n' `"`$rc`""
+    $command = "export PATH=`"`$HOME/.local/agent-switchboard/bin:`$PATH`"; printf '$begin\n'; $agent --help >/dev/null 2>&1; rc=`$?; printf '$end rc=%s\n' `"`$rc`""
     Invoke-Wsl -Arguments @('tmux', 'send-keys', '-t', $target, '-l', '--', $command) | Out-Null
     Invoke-Wsl -Arguments @('tmux', 'send-keys', '-t', $target, 'Enter') | Out-Null
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $capture = ''
     do {
         Start-Sleep -Milliseconds 200
-        $capture = ((Invoke-Wsl -Arguments @('tmux', 'capture-pane', '-p', '-J', '-t', $target, '-S', '-30')).lines -join "`n")
+        $capture = ((Invoke-Wsl -Arguments @('tmux', 'capture-pane', '-p', '-J', '-t', $target, '-S', '-100')).lines -join "`n")
     } until ($capture.Contains($end) -or (Get-Date) -ge $deadline)
     $matched = [regex]::Match($capture, [regex]::Escape($end) + ' rc=(\d+)')
     $row = $agentResult.agents.$agent
