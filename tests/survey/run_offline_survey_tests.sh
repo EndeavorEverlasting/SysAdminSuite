@@ -17,6 +17,7 @@ python3 Tests/survey/test_cybernet_display_button_control_contracts.py
 python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
+python3 Tests/survey/test_developer_workstation_profile_contracts.py
 python3 Tests/survey/test_e2e_default_posture_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_software_install_harness_contracts.py
@@ -28,10 +29,24 @@ python3 Tests/survey/test_authorized_deployment_manifest_contracts.py
 python3 Tests/survey/test_authorized_package_intake_contracts.py
 python3 Tests/survey/test_qr_field_command_capsule_contracts.py
 
-if command -v pwsh >/dev/null 2>&1 || command -v powershell.exe >/dev/null 2>&1 || command -v powershell >/dev/null 2>&1; then
+has_powershell=0
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh_path=$(command -v pwsh)
+  if [[ "$pwsh_path" != /mnt/* ]]; then
+    has_powershell=1
+  fi
+fi
+if [ "$has_powershell" -eq 0 ] && command -v powershell >/dev/null 2>&1; then
+  ps_path=$(command -v powershell)
+  if [[ "$ps_path" != /mnt/* ]]; then
+    has_powershell=1
+  fi
+fi
+
+if [ "$has_powershell" -eq 1 ]; then
   python3 Tests/survey/test_one_command_harness_proof_contracts.py
 else
-  printf '[SKIP] PowerShell runtime unavailable; one-command harness proof contracts run in the dedicated Windows workflow.\n'
+  printf '[SKIP] PowerShell runtime unavailable or Windows-only under WSL; one-command harness proof contracts run in the dedicated Windows workflow.\n'
 fi
 
 bash Tests/bash/test_target_reduction_plan_contracts.sh

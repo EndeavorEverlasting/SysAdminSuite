@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/developer-workstation-profile.schema.json",
+  "title": "SysAdminSuite Persistent Developer Workstation Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "project",
+    "platform_support",
+    "architecture",
+    "agent_switchboard",
+    "posture"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-developer-workstation-profile/v3"
+    },
+    "schema_path": {
+      "const": "schemas/harness/developer-workstation-profile.schema.json"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "repo_path"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "repo_path": {"$ref": "#/$defs/portablePath"}
+      }
+    },
+    "platform_support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported", "unsupported", "runtime_test_available"],
+      "properties": {
+        "supported": {"const": ["windows", "linux"]},
+        "unsupported": {"const": ["macos"]},
+        "runtime_test_available": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["windows", "linux", "macos"],
+          "properties": {
+            "windows": {"type": "boolean"},
+            "linux": {"type": "boolean"},
+            "macos": {"const": false}
+          }
+        }
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["terminal", "workspace", "default_backends", "tmux_backends", "fallback_profiles"],
+      "properties": {
+        "terminal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "role", "preference", "gui_executable_role", "cli_executable_role"],
+          "properties": {
+            "provider": {"const": "wezterm"},
+            "role": {"const": "terminal-host"},
+            "preference": {"const": "preferred"},
+            "gui_executable_role": {"const": "wezterm-gui"},
+            "cli_executable_role": {"const": "wezterm-cli"}
+          }
+        },
+        "workspace": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["multiplexer", "display_name", "session_name"],
+          "properties": {
+            "multiplexer": {"const": "tmux"},
+            "display_name": {"const": "tmux: Development"},
+            "session_name": {"const": "dev"}
+          }
+        },
+        "default_backends": {
+          "const": {"windows": "windows-wsl", "linux": "linux-native"}
+        },
+        "tmux_backends": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/tmuxBackend"}
+        },
+        "fallback_profiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/fallbackProfile"}
+        }
+      }
+    },
+    "agent_switchboard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "contract_version",
+        "required_agents",
+        "readiness_scope",
+        "windows_command_presence_satisfies_wsl_readiness",
+        "native_preference",
+        "bridge_fallback"
+      ],
+      "properties": {
+        "repository": {"const": "EndeavorEverlasting/AgentSwitchboard"},
+        "contract_version": {"const": "agentswitchboard-invocation/v2"},
+        "required_agents": {
+          "const": ["opencode", "agy", "goose"]
+        },
+        "readiness_scope": {"const": "per-execution-domain"},
+        "windows_command_presence_satisfies_wsl_readiness": {"const": false},
+        "native_preference": {"const": true},
+        "bridge_fallback": {"const": "explicit-when-allowed"}
+      }
+    },
+    "posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "install_missing_only",
+        "preserve_existing_configuration",
+        "automatic_authentication",
+        "target_mutation",
+        "tracked_runtime_evidence",
+        "macos_implementation"
+      ],
+      "properties": {
+        "install_missing_only": {"const": true},
+        "preserve_existing_configuration": {"const": true},
+        "automatic_authentication": {"const": false},
+        "target_mutation": {"const": false},
+        "tracked_runtime_evidence": {"const": false},
+        "macos_implementation": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "portablePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![~/])(?![A-Za-z]:[\\\\/])(?!%)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+    },
+    "tmuxBackend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "host_platform",
+        "kind",
+        "execution_domain",
+        "shell",
+        "multiplexer",
+        "tmux_capable",
+        "enabled",
+        "priority"
+      ],
+      "properties": {
+        "id": {"enum": ["windows-wsl", "linux-native"]},
+        "host_platform": {"enum": ["windows", "linux"]},
+        "kind": {"enum": ["wsl", "native-linux"]},
+        "execution_domain": {"enum": ["windows-wsl", "linux-native"]},
+        "shell": {"const": "bash"},
+        "multiplexer": {"const": "tmux"},
+        "tmux_capable": {"const": true},
+        "enabled": {"const": true},
+        "priority": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "distro_selector": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "excluded_names"],
+          "properties": {
+            "mode": {"const": "detected-non-docker"},
+            "excluded_names": {
+              "type": "array",
+              "contains": {"const": "docker-desktop"},
+              "minContains": 1,
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "wsl"}}, "required": ["kind"]},
+          "then": {
+            "required": ["distro_selector"],
+            "properties": {
+              "id": {"const": "windows-wsl"},
+              "host_platform": {"const": "windows"},
+              "execution_domain": {"const": "windows-wsl"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "native-linux"}}, "required": ["kind"]},
+          "then": {
+            "not": {"required": ["distro_selector"]},
+            "properties": {
+              "id": {"const": "linux-native"},
+              "host_platform": {"const": "linux"},
+              "execution_domain": {"const": "linux-native"}
+            }
+          }
+        }
+      ]
+    },
+    "fallbackProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "host_platform", "execution_domain", "shell", "multiplexer", "role", "enabled"],
+      "properties": {
+        "id": {"const": "windows-powershell"},
+        "host_platform": {"const": "windows"},
+        "execution_domain": {"const": "windows-native"},
+        "shell": {"const": "pwsh"},
+        "multiplexer": {"const": "none"},
+        "role": {"const": "fallback-admin"},
+        "enabled": {"const": true}
+      }
+    }
+  }
+}
