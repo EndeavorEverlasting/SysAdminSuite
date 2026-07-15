@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/developer-workstation-operation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode", "platform", "execution_domain", "allow_target_mutation", "bridge_permission"],
+  "properties": {
+    "schema_version": {"const": "sas-developer-workstation-operation/v2"},
+    "mode": {"enum": ["Inventory", "Plan", "Apply", "Start", "Status", "Stop", "Repair", "Validate", "Rollback"]},
+    "platform": {"enum": ["auto", "windows", "linux", "macos"]},
+    "execution_domain": {"enum": ["auto", "windows-native", "windows-wsl", "linux-native", "unsupported"]},
+    "allow_target_mutation": {"type": "boolean"},
+    "bridge_permission": {"type": "boolean"}
+  },
+  "allOf": [
+    {"if":{"properties":{"mode":{"enum":["Apply","Repair","Rollback"]}},"required":["mode"]},"then":{"properties":{"allow_target_mutation":{"const":true}}}},
+    {"if":{"properties":{"platform":{"const":"macos"}},"required":["platform"]},"then":{"properties":{"execution_domain":{"const":"unsupported"}}}}
+  ]
+}
