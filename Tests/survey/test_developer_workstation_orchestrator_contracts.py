@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -12,6 +13,7 @@ ROOT=Path(__file__).resolve().parents[2]
 CORE=ROOT/"scripts/Invoke-SasDeveloperWorkstation.py"
 SCENARIOS=ROOT/"Tests/Fixtures/developer-workstation-orchestrator/scenarios.json"
 RESULT_SCHEMA=ROOT/"schemas/harness/developer-workstation-orchestrator-result.schema.json"
+HAS_PWSH=bool(shutil.which("pwsh"))
 
 
 def invoke(scenario,mode,root,allow=False,launch=False):
@@ -45,6 +47,7 @@ def test_windows_and_linux_composed_success() -> None:
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp)
         for scenario in ("success","success-linux"):
+            if scenario=="success" and not HAS_PWSH:continue
             completed,result=invoke(scenario,"Apply",root/scenario,allow=True,launch=True)
             assert completed.returncode==0,completed.stderr
             assert result["outcome"]=="PASS"
@@ -57,9 +60,11 @@ def test_windows_and_linux_composed_success() -> None:
 def test_required_failure_matrix_classifies_honestly() -> None:
     modes={"partial":"Plan","stale-keepalive":"Status","missing-tmux":"Plan","malformed-lua":"Apply","bridge-only":"Plan","authentication-required":"Plan","nested-tmux":"Start","timeout":"Plan","rollback":"Rollback","unsupported-platform":"Plan"}
     expected={item["id"]:item["expected"] for item in json.loads(SCENARIOS.read_text())["scenarios"]}
+    platforms={item["id"]:item["platform"] for item in json.loads(SCENARIOS.read_text())["scenarios"]}
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp)
         for scenario,mode in modes.items():
+            if platforms[scenario]=="windows" and not HAS_PWSH:continue
             completed,result=invoke(scenario,mode,root/scenario,allow=mode in {"Apply","Rollback"})
             assert result["outcome"]==expected[scenario],f"{scenario}: {result}"
             if expected[scenario]=="FAIL":assert completed.returncode==1
@@ -67,6 +72,7 @@ def test_required_failure_matrix_classifies_honestly() -> None:
 
 
 def test_artifact_chain_and_english_classifications() -> None:
+    if not HAS_PWSH:return
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp); _,result=invoke("bridge-only","Plan",root)
         registry=json.loads((root/"artifact-registry.json").read_text())
