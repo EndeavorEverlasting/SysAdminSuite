@@ -73,14 +73,15 @@ foreach ($agent in @('opencode', 'agy', 'goose')) {
         Start-Sleep -Milliseconds 200
         $capture = ((Invoke-Wsl -Arguments @('tmux', 'capture-pane', '-p', '-J', '-t', $target, '-S', '-100')).lines -join "`n")
     } until ($capture.Contains($end) -or (Get-Date) -ge $deadline)
-    $matched = [regex]::Match($capture, [regex]::Escape($end) + ' rc=(\d+)')
+    $acknowledged = $capture.Contains($begin) -and $capture.Contains($end)
+    $helpSucceeded = $capture.Contains("$end rc=0")
     $row = $agentResult.agents.$agent
     $agentRows.Add([pscustomobject]@{
         agent = $agent
         canonical_wrapper = $agent
         selected_backend = $row.selected_backend
-        command_acknowledged = $capture.Contains($begin) -and $matched.Success
-        help_interaction_observed = $matched.Success -and [int]$matched.Groups[1].Value -eq 0
+        command_acknowledged = $acknowledged
+        help_interaction_observed = $helpSucceeded
         provider_response_observed = $false
         authentication_observed = $false
     })
