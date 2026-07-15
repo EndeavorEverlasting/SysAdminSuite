@@ -122,6 +122,18 @@ function Start-OwnedKeepaliveProcess {
     return [Diagnostics.Process]::Start($startInfo)
 }
 
+function Start-IndependentWezTermGui {
+    param([string]$GuiPath)
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $GuiPath
+    # Shell execution prevents the GUI from inheriting redirected orchestrator
+    # stdout/stderr handles, so no parent PowerShell process must remain.
+    $startInfo.UseShellExecute = $true
+    [void]$startInfo.ArgumentList.Add('start')
+    [void]$startInfo.ArgumentList.Add('--always-new-process')
+    return [Diagnostics.Process]::Start($startInfo)
+}
+
 function Get-LiveInventory {
     $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
     $distros = @()
@@ -290,8 +302,8 @@ function Start-Workspace {
     & wsl.exe -d $Inventory.distro -- tmux has-session -t $sessionName 2>$null
     if ($LASTEXITCODE -ne 0) { & wsl.exe -d $Inventory.distro -- tmux new-session -d -s $sessionName }
     if ($LASTEXITCODE -ne 0) { throw 'tmux-socket-missing: could not create dev session' }
-    if ($LaunchGui) { Start-Process -FilePath $Inventory.wezterm_gui_path -ArgumentList @('start', '--always-new-process') -WindowStyle Hidden }
-    Write-JsonFile -Path $statePath -Value ([pscustomobject]@{ distro = $Inventory.distro; keepalive_pid = $keepalive.pid; session_name = $sessionName; gui_launcher = $Inventory.wezterm_gui_path })
+    $guiProcess = if ($LaunchGui) { Start-IndependentWezTermGui -GuiPath $Inventory.wezterm_gui_path } else { $null }
+    Write-JsonFile -Path $statePath -Value ([pscustomobject]@{ distro = $Inventory.distro; keepalive_pid = $keepalive.pid; session_name = $sessionName; gui_launcher = $Inventory.wezterm_gui_path; gui_pid = $(if ($guiProcess) { $guiProcess.Id } else { $null }) })
 }
 
 function Stop-Workspace {

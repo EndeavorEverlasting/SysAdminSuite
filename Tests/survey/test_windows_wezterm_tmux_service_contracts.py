@@ -68,6 +68,9 @@ def test_lua_and_launcher_contract() -> None:
     assert "font" not in template.lower()
     assert "Start-SasWindowsTmuxWorkspace.ps1" in launcher and "LaunchGui" in launcher
     assert "wezterm-gui.exe" in read(SCRIPT)
+    service = read(SCRIPT)
+    assert "Start-IndependentWezTermGui" in service and "UseShellExecute = $true" in service
+    assert "gui_pid" in service and "--always-new-process" in service
 
 
 def test_fixture_matrix_is_sanitized() -> None:
