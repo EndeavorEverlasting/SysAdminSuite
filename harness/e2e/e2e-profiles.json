@@ -193,7 +193,29 @@
       "network_scope": "none",
       "target_mutation": false,
       "required": true
-    }
+    },
+    {"id":"workstation-windows-wsl-success","summary":"Windows WSL persistent workspace success.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-windows-wsl-success","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-native-linux-success","summary":"Native Linux persistent workspace success.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-native-linux-success","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-powershell-fallback","summary":"Windows PowerShell fallback avoids hidden WSL lifecycle.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-powershell-fallback","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-wsl-missing","summary":"Missing WSL is action required.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-wsl-missing","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-docker-only-distro","summary":"Docker-only WSL is rejected.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-docker-only-distro","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-tmux-missing","summary":"Missing tmux is action required.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-tmux-missing","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-wsl-without-keepalive","summary":"Stopped WSL without keepalive is action required.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-wsl-without-keepalive","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-keepalive-healthy","summary":"Healthy owned keepalive and tmux session pass status.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-keepalive-healthy","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-stale-pid","summary":"Stale keepalive PID is action required.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-stale-pid","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-tmux-session-missing","summary":"Missing tmux dev session is action required.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-tmux-session-missing","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-session-survives-gui-close","summary":"Fixture session survives simulated GUI ownership removal.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-session-survives-gui-close","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-nested-tmux-guard","summary":"Nested tmux start is rejected.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-nested-tmux-guard","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-wezterm-cli-gui-confusion","summary":"WezTerm CLI-only detection cannot satisfy GUI launch.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-wezterm-cli-gui-confusion","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-invalid-lua","summary":"Malformed Lua fails after backup with rollback evidence.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-invalid-lua","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-unavailable-font","summary":"Unavailable optional font does not become a mandatory blocker.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-unavailable-font","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-native-agent","summary":"Native AgentSwitchboard backend is preserved.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-native-agent","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-windows-bridge-agent","summary":"Permitted Windows bridge is typed as partial fixture proof.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-windows-bridge-agent","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-alias-only-agent-rejected","summary":"Alias-only automation readiness is rejected.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-alias-only-agent-rejected","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-auth-required-v2","summary":"Authentication requirement stays action required without auth.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-auth-required-v2","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-malformed-agentswitchboard","summary":"Malformed AgentSwitchboard output fails closed.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-malformed-agentswitchboard","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-rollback-v2","summary":"Rollback restores disposable configuration from manifest evidence.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-rollback-v2","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true},
+    {"id":"workstation-unsupported-mac-v2","summary":"macOS remains explicitly unsupported.","runtime_candidates":["python","python3"],"script":"scripts/Invoke-SasWorkstationE2E.py","arguments":["--journey-id","workstation-unsupported-mac-v2","--output-root","{journey_output}"],"network_scope":"none","target_mutation":false,"required":true}
   ],
   "profiles": [
     {
@@ -209,21 +231,31 @@
       ]
     },
     {
-      "id": "developer-workstation-bimodal-e2e",
+      "id": "developer-workstation-persistent-e2e-v2",
       "proof_class": "fixture-loopback-e2e",
       "journey_ids": [
-        "workstation-windows-native-success",
-        "workstation-linux-native-success",
-        "workstation-wsl-opt-in",
-        "workstation-missing-wezterm",
-        "workstation-missing-shell",
-        "workstation-missing-tmux-linux",
-        "workstation-auth-required",
-        "workstation-malformed-switchboard",
-        "workstation-unsupported-version",
-        "workstation-config-conflict",
-        "workstation-rollback-on-failure",
-        "workstation-unsupported-macos"
+        "workstation-windows-wsl-success",
+        "workstation-native-linux-success",
+        "workstation-powershell-fallback",
+        "workstation-wsl-missing",
+        "workstation-docker-only-distro",
+        "workstation-tmux-missing",
+        "workstation-wsl-without-keepalive",
+        "workstation-keepalive-healthy",
+        "workstation-stale-pid",
+        "workstation-tmux-session-missing",
+        "workstation-session-survives-gui-close",
+        "workstation-nested-tmux-guard",
+        "workstation-wezterm-cli-gui-confusion",
+        "workstation-invalid-lua",
+        "workstation-unavailable-font",
+        "workstation-native-agent",
+        "workstation-windows-bridge-agent",
+        "workstation-alias-only-agent-rejected",
+        "workstation-auth-required-v2",
+        "workstation-malformed-agentswitchboard",
+        "workstation-rollback-v2",
+        "workstation-unsupported-mac-v2"
       ]
     }
   ]

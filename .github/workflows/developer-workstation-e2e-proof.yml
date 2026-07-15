@@ -1,73 +1,65 @@
-name: Developer workstation E2E proof
+name: Developer workstation persistent E2E v2
 
 permissions:
   contents: read
 
 on:
   push:
-    branches: [main, 'feat/**', 'refactor/**', 'test/**']
+    branches: [main, 'feat/**', 'repair/**', 'test/**']
     paths:
-      - 'Config/developer-workstation-profile.sample.json'
-      - 'schemas/harness/developer-workstation-proof.schema.json'
-      - 'scripts/Invoke-SasWorkstationE2E.ps1'
-      - 'scripts/Invoke-SasWezTermWindowsNativeProfile.ps1'
       - 'harness/e2e/e2e-profiles.json'
+      - 'schemas/harness/developer-workstation-proof.schema.json'
+      - 'scripts/Invoke-SasWorkstationE2E.*'
+      - 'scripts/invoke-sas-workstation-e2e.sh'
+      - 'scripts/Invoke-SasDeveloperWorkstation*'
+      - 'Tests/Fixtures/developer-workstation-orchestrator/**'
       - 'Tests/survey/test_developer_workstation_proof_contracts.py'
-      - 'Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1'
       - '.github/workflows/developer-workstation-e2e-proof.yml'
   pull_request:
     paths:
-      - 'Config/developer-workstation-profile.sample.json'
-      - 'schemas/harness/developer-workstation-proof.schema.json'
-      - 'scripts/Invoke-SasWorkstationE2E.ps1'
-      - 'scripts/Invoke-SasWezTermWindowsNativeProfile.ps1'
       - 'harness/e2e/e2e-profiles.json'
+      - 'schemas/harness/developer-workstation-proof.schema.json'
+      - 'scripts/Invoke-SasWorkstationE2E.*'
+      - 'scripts/invoke-sas-workstation-e2e.sh'
+      - 'scripts/Invoke-SasDeveloperWorkstation*'
+      - 'Tests/Fixtures/developer-workstation-orchestrator/**'
       - 'Tests/survey/test_developer_workstation_proof_contracts.py'
-      - 'Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1'
       - '.github/workflows/developer-workstation-e2e-proof.yml'
 
 jobs:
-  python-contracts:
+  contracts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+        with: {persist-credentials: false}
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - name: Run Python proof contracts
-        run: python3 Tests/survey/test_developer_workstation_proof_contracts.py
+        with: {python-version: '3.x'}
+      - run: python3 Tests/survey/test_developer_workstation_proof_contracts.py
 
-  e2e-windows:
+  windows-matrix:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Run Windows Workstation E2E Proof
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.x'}
+      - name: Run Windows fixture matrix
+        shell: pwsh
+        run: python scripts/Invoke-SasWorkstationE2E.py --all --platform-filter windows --output-root "$env:RUNNER_TEMP\workstation-e2e"
+      - name: Verify matrix profile
         shell: pwsh
         run: |
-          $result = .\scripts\Invoke-SasEndToEndValidation.ps1 -Profile developer-workstation-bimodal-e2e
-          # Verify result file is generated and validate exit code
-          $jsonPath = "$($result.artifacts.json)"
-          if (-not (Test-Path $jsonPath)) {
-              Write-Error "E2E Validation JSON artifact was not generated!"
-              exit 1
-          }
+          $matrix=Get-Content -Raw "$env:RUNNER_TEMP\workstation-e2e\matrix.json"|ConvertFrom-Json
+          if($matrix.failed -ne 0 -or $matrix.profile -ne 'developer-workstation-persistent-e2e-v2'){exit 1}
 
-  e2e-linux:
+  linux-matrix:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Run Linux Workstation E2E Proof
-        shell: pwsh
-        run: |
-          $result = ./scripts/Invoke-SasEndToEndValidation.ps1 -Profile developer-workstation-bimodal-e2e
-          $jsonPath = "$($result.artifacts.json)"
-          if (-not (Test-Path $jsonPath)) {
-              Write-Error "E2E Validation JSON artifact was not generated!"
-              exit 1
-          }
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.x'}
+      - name: Run native-Linux fixture subset
+        run: bash scripts/invoke-sas-workstation-e2e.sh --all --platform-filter linux --output-root "$RUNNER_TEMP/workstation-e2e"
+      - name: Verify matrix profile
+        run: python3 -m json.tool "$RUNNER_TEMP/workstation-e2e/matrix.json" >/dev/null

@@ -319,6 +319,7 @@ try {
             $reasons = @($blocking)
             if (Get-Value $inventory 'keepalive_stale' $false) { $reasons += 'keepalive-stale' }
             elseif (-not (Get-Value $inventory 'keepalive_running' $false)) { $reasons += 'keepalive-missing' }
+            if (-not (Get-Value $inventory 'session_exists' $false)) { $reasons += 'tmux-socket-missing' }
             $healthy = -not $reasons.Count -and (Get-Value $inventory 'session_exists' $false)
             return New-LifecycleResult -Operation 'status' -Outcome $(if ($healthy) { 'success' } else { 'action-required' }) -State $(if ($healthy) { 'session-running' } else { 'action-required' }) -Reasons @($reasons | Select-Object -Unique) -Message "Status: keepalive=$((Get-Value $inventory 'keepalive_running' $false)); session=$((Get-Value $inventory 'session_exists' $false)); shortcut=$((Get-Value $inventory 'shortcut_exists' $false))." -Artifacts @(New-Artifact 'backend-status' $fixture $liveData; New-Artifact 'tmux-status' $fixture $liveData)
         }

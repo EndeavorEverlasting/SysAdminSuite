@@ -72,7 +72,7 @@ def test_lua_and_launcher_contract() -> None:
 
 def test_fixture_matrix_is_sanitized() -> None:
     scenarios = {json.loads(read(path))["scenario"] for path in FIXTURES.glob("*.json")}
-    assert scenarios == {"healthy", "no-wsl", "docker-only", "missing-tmux", "missing-wezterm-gui", "stale-keepalive", "nested-tmux", "malformed-config", "apply-failure"}
+    assert scenarios == {"healthy", "no-wsl", "docker-only", "missing-tmux", "missing-wezterm-gui", "stale-keepalive", "nested-tmux", "malformed-config", "apply-failure", "keepalive-healthy", "session-missing"}
     assert "Cheex" not in "".join(read(path) for path in FIXTURES.glob("*.json"))
 
 
