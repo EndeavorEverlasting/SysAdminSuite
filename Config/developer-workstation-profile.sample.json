@@ -3,7 +3,7 @@
   "schema_path": "schemas/harness/developer-workstation-profile.schema.json",
   "workspace": {
     "name": "SysAdminSuite",
-    "repo_path": "dev/SysAdminSuite"
+    "repo_path": "projects/SysAdminSuite"
   },
   "platform_support": {
     "supported": [
