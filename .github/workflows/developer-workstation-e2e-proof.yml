@@ -1,0 +1,73 @@
+name: Developer workstation E2E proof
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'refactor/**', 'test/**']
+    paths:
+      - 'Config/developer-workstation-profile.sample.json'
+      - 'schemas/harness/developer-workstation-proof.schema.json'
+      - 'scripts/Invoke-SasWorkstationE2E.ps1'
+      - 'scripts/Invoke-SasWezTermWindowsNativeProfile.ps1'
+      - 'harness/e2e/e2e-profiles.json'
+      - 'Tests/survey/test_developer_workstation_proof_contracts.py'
+      - 'Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1'
+      - '.github/workflows/developer-workstation-e2e-proof.yml'
+  pull_request:
+    paths:
+      - 'Config/developer-workstation-profile.sample.json'
+      - 'schemas/harness/developer-workstation-proof.schema.json'
+      - 'scripts/Invoke-SasWorkstationE2E.ps1'
+      - 'scripts/Invoke-SasWezTermWindowsNativeProfile.ps1'
+      - 'harness/e2e/e2e-profiles.json'
+      - 'Tests/survey/test_developer_workstation_proof_contracts.py'
+      - 'Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1'
+      - '.github/workflows/developer-workstation-e2e-proof.yml'
+
+jobs:
+  python-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run Python proof contracts
+        run: python3 Tests/survey/test_developer_workstation_proof_contracts.py
+
+  e2e-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run Windows Workstation E2E Proof
+        shell: pwsh
+        run: |
+          $result = .\scripts\Invoke-SasEndToEndValidation.ps1 -Profile developer-workstation-bimodal-e2e
+          # Verify result file is generated and validate exit code
+          $jsonPath = "$($result.artifacts.json)"
+          if (-not (Test-Path $jsonPath)) {
+              Write-Error "E2E Validation JSON artifact was not generated!"
+              exit 1
+          }
+
+  e2e-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run Linux Workstation E2E Proof
+        shell: pwsh
+        run: |
+          $result = ./scripts/Invoke-SasEndToEndValidation.ps1 -Profile developer-workstation-bimodal-e2e
+          $jsonPath = "$($result.artifacts.json)"
+          if (-not (Test-Path $jsonPath)) {
+              Write-Error "E2E Validation JSON artifact was not generated!"
+              exit 1
+          }

@@ -31,6 +31,9 @@ param (
     [string]$Action = 'Plan',
 
     [Parameter(Mandatory = $false)]
+    [string]$BackupDir,
+
+    [Parameter(Mandatory = $false)]
     [switch]$AllowTargetMutation
 )
 
@@ -48,7 +51,7 @@ $resolvedProfilePath = if ($ProfilePath) { $ProfilePath } else { Join-Path $scri
 $resolvedUserConfigDir = if ($UserConfigDir) { $UserConfigDir } else { $env:USERPROFILE }
 $weztermLuaPath = Join-Path $resolvedUserConfigDir ".wezterm.lua"
 $sasLuaPath = Join-Path $resolvedUserConfigDir ".wezterm-sysadminsuite.lua"
-$backupDir = Join-Path $script:repoRoot "logs/wezterm-backups"
+$backupDir = if ($BackupDir) { $BackupDir } else { Join-Path $script:repoRoot "logs/wezterm-backups" }
 
 $managedBlockStart = "-- BEGIN SYSADMINSUITE MANAGED BLOCK"
 $managedBlockEnd = "-- END SYSADMINSUITE MANAGED BLOCK"
@@ -370,9 +373,12 @@ if ($Action -eq 'Rollback') {
             if ($currentContent.Contains($managedBlockStart)) {
                 $pattern = "(?s)" + [regex]::Escape($managedBlockStart) + ".*?" + [regex]::Escape($managedBlockEnd)
                 $cleanedContent = [regex]::Replace($currentContent, $pattern, "").Trim()
-                if ([string]::IsNullOrWhiteSpace($cleanedContent)) {
+                $normalizedCleaned = $cleanedContent.Replace("`r`n", "`n").Trim()
+                $stripped = $normalizedCleaned -replace '\s+', ''
+                $targetStripped = "localwezterm=require'wezterm'localconfig=wezterm.config_builder()returnconfig"
+                if ([string]::IsNullOrWhiteSpace($normalizedCleaned) -or $stripped -eq $targetStripped) {
                     Remove-Item -LiteralPath $weztermLuaPath -Force
-                    Write-Output "Removed empty .wezterm.lua"
+                    Write-Output "Removed empty or boilerplate .wezterm.lua"
                 } else {
                     [System.IO.File]::WriteAllText($weztermLuaPath, $cleanedContent, [System.Text.Encoding]::UTF8)
                     Write-Output "Cleaned SysAdminSuite block from .wezterm.lua"

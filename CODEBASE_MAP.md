@@ -26,6 +26,11 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_wezterm_windows_native_contracts.py` — WezTerm configuration and launcher contract tests.
 - `Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1` — Pester tests for WezTerm profile manager.
 - `.github/workflows/wezterm-windows-native-profile.yml` — CI workflow executing Pester and Python tests for Windows-native WezTerm profile.
+- `schemas/harness/developer-workstation-proof.schema.json` — JSON Schema for bimodal developer workstation E2E validation proof results.
+- `scripts/Invoke-SasWorkstationE2E.ps1` — dynamic E2E validation journey script executing mock-based platform and failure cases.
+- `Tests/survey/test_developer_workstation_proof_contracts.py` — contract and schema validation tests for E2E proof results.
+- `.github/workflows/developer-workstation-e2e-proof.yml` — CI workflow executing Windows and Linux workstation E2E proof validation.
+- `docs/DEVELOPER_WORKSTATION_E2E_PROOF_MERGE_READINESS.md` — merge readiness validation report detailing journeys status and proof ceilings.
 - `schemas/harness/developer-workstation-inventory.schema.json` — fail-closed normalized inventory schema v1.
 - `scripts/Get-SasDeveloperWorkstationInventory.ps1` — read-only developer workstation inventory collector on Windows.
 - `scripts/get-sas-developer-workstation-inventory.sh` — read-only developer workstation inventory collector on Linux.
