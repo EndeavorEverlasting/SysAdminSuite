@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/one-command-harness-proof-schema
     paths:
       - '.github/workflows/one-command-harness-proof.yml'
       - 'scripts/validate-sysadmin-harness.ps1'
