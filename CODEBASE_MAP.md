@@ -26,12 +26,13 @@ Use this map to load only the files needed for a task.
 - `harness/api/developer-workstation-artifact-types.json` — closed artifact role registry; runtime output stays under ignored run roots.
 - `Tests/Fixtures/developer-workstation-lifecycle/` — sanitized success, partial, failure, action-required, and unsupported lifecycle fixtures.
 - `Tests/survey/test_developer_workstation_lifecycle_contracts.py` — dependency-free lifecycle schema, registry, fixture, API, workflow, and evidence-boundary contracts.
-- `Config/wezterm-windows.lua.template` — WezTerm configuration template for Windows native workstation.
-- `scripts/Invoke-SasWezTermWindowsNativeProfile.ps1` — Windows WezTerm profile configuration manager with Plan, Apply, and Rollback.
-- `Launch-WorkstationWezTerm.ps1` — technician-facing workstation WezTerm launcher.
-- `Tests/survey/test_wezterm_windows_native_contracts.py` — WezTerm configuration and launcher contract tests.
-- `Tests/Pester/WezTermWindowsNativeProfile.Tests.ps1` — Pester tests for WezTerm profile manager.
-- `.github/workflows/wezterm-windows-native-profile.yml` — CI workflow executing Pester and Python tests for Windows-native WezTerm profile.
+- `scripts/Invoke-SasWindowsTmuxWorkspace.ps1` — Plan/Apply/Start/Status/Stop/Repair/Rollback service for the Windows WezTerm → WSL → tmux workspace.
+- `scripts/*-SasWindowsTmuxWorkspace.ps1` — stable technician-facing lifecycle entrypoints.
+- `Config/wezterm-windows-tmux.lua.template` — managed native Windows WezTerm configuration that enters WSL tmux `dev` and retains a PowerShell fallback.
+- `Launch-WorkstationWezTerm.ps1` and `.cmd` — detached daily launcher; the GUI is always started through `wezterm-gui.exe`.
+- `Tests/Fixtures/windows-tmux-workspace/` — sanitized healthy, missing, stale, malformed, nested, failure, and rollback fixture inputs.
+- `Tests/survey/test_windows_wezterm_tmux_service_contracts.py` and `Tests/Pester/WindowsWezTermTmuxService.Tests.ps1` — temporary-HOME lifecycle, preservation, launcher, and ownership proof.
+- `.github/workflows/windows-wezterm-tmux-service.yml` — Windows fixture lifecycle and Pester CI gate.
 
 ## Developer workstation inventory
 
