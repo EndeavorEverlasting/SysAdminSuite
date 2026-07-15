@@ -20,6 +20,22 @@ Use this map to load only the files needed for a task.
 - `schemas/harness/developer-workstation-profile.schema.json` — fail-closed platform support, WezTerm provider, native execution-profile, workspace, and AgentSwitchboard integration contract.
 - `Config/developer-workstation-profile.sample.json` — sanitized tracked sample with enabled Windows-native and Linux-native defaults plus disabled lower-priority WSL/tmux compatibility.
 - `Tests/survey/test_developer_workstation_profile_contracts.py` — dependency-free platform, preference, boundary, safety, rejection, discoverability, and optional JSON Schema validation.
+- `schemas/harness/developer-workstation-inventory.schema.json` — fail-closed normalized inventory schema v1.
+- `scripts/Get-SasDeveloperWorkstationInventory.ps1` — read-only developer workstation inventory collector on Windows.
+- `scripts/get-sas-developer-workstation-inventory.sh` — read-only developer workstation inventory collector on Linux.
+- `scripts/Render-SasWorkstationInventoryEnglish.py` — English matrix log summary renderer.
+- `Tests/survey/test_developer_workstation_inventory_contracts.py` — contract and fixture validation tests.
+
+## Developer workstation inventory
+
+- `docs/DEVELOPER_WORKSTATION_INVENTORY.md` — read-only host inventory surface, detected fields, reason codes, proof ceiling, and fixture strategy.
+- `schemas/harness/developer-workstation-inventory.schema.json` — normalized PASS/SKIP/FAIL inventory result with platform, tool, agent, and profile checks.
+- `scripts/Get-SasDeveloperWorkstationInventory.ps1` — Windows-native PowerShell inventory collector with fixture mode.
+- `scripts/get-sas-developer-workstation-inventory.sh` — Linux-native Bash inventory collector with fixture mode.
+- `scripts/Render-SasWorkstationInventoryEnglish.py` — dependency-free English renderer for inventory results.
+- `Tests/Fixtures/workstation-inventory/` — Windows-native, Linux-native, WSL, missing-tools, malformed-output, and unsupported-platform fixtures.
+- `Tests/survey/test_developer_workstation_inventory_contracts.py` — dependency-free schema, fixture, renderer, script, and wiring contracts.
+- `.github/workflows/developer-workstation-inventory.yml` — contract, schema, PowerShell fixture, and Bash fixture CI gates.
 
 ## End-to-end validation
 
