@@ -1,0 +1,25 @@
+{
+  "schema_version": "sas-developer-workstation-lifecycle-result/v1",
+  "workflow_id": "developer-workstation",
+  "run_id": "fixture-success",
+  "operation": "configure",
+  "outcome": "success",
+  "lifecycle_state": "configured",
+  "reason_codes": ["none"],
+  "message": "Fixture configuration completed without live mutation.",
+  "artifacts": [
+    {"role": "plan", "path_class": "tracked-fixture", "tracked": true, "contains_live_data": false},
+    {"role": "lua-validation", "path_class": "tracked-fixture", "tracked": true, "contains_live_data": false}
+  ],
+  "proof": {
+    "install_completed": false,
+    "config_applied": false,
+    "launcher_started": false,
+    "tmux_attached": false,
+    "command_acknowledged": false,
+    "behavior_observed": false,
+    "persistence_observed": false,
+    "live_runtime": false,
+    "operator_accepted": false
+  }
+}

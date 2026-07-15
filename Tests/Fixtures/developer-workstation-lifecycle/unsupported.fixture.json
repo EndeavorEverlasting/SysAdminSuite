@@ -1,0 +1,24 @@
+{
+  "schema_version": "sas-developer-workstation-lifecycle-result/v1",
+  "workflow_id": "developer-workstation",
+  "run_id": "fixture-unsupported",
+  "operation": "plan",
+  "outcome": "unsupported",
+  "lifecycle_state": "action-required",
+  "reason_codes": ["unsupported-platform"],
+  "message": "macOS is unsupported because no implementation or runtime proof exists.",
+  "artifacts": [
+    {"role": "english-summary", "path_class": "tracked-fixture", "tracked": true, "contains_live_data": false}
+  ],
+  "proof": {
+    "install_completed": false,
+    "config_applied": false,
+    "launcher_started": false,
+    "tmux_attached": false,
+    "command_acknowledged": false,
+    "behavior_observed": false,
+    "persistence_observed": false,
+    "live_runtime": false,
+    "operator_accepted": false
+  }
+}

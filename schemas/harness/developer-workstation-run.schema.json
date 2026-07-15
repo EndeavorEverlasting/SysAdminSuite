@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/developer-workstation-run.schema.json",
+  "title": "Developer Workstation Lifecycle Run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workflow_id",
+    "run_id",
+    "operation",
+    "profile_schema_version",
+    "proof_posture",
+    "output_root_class"
+  ],
+  "properties": {
+    "schema_version": {"const": "sas-developer-workstation-run/v1"},
+    "workflow_id": {"const": "developer-workstation"},
+    "run_id": {"type": "string", "pattern": "^developer-workstation-[0-9]{8}-[0-9]{6}-[a-z0-9]{8}$"},
+    "operation": {
+      "enum": [
+        "inventory", "plan", "install", "configure", "start", "attach",
+        "status", "stop", "agent-readiness", "rollback", "fixture-e2e", "live-runtime"
+      ]
+    },
+    "profile_schema_version": {"const": "sas-developer-workstation-profile/v3"},
+    "proof_posture": {"enum": ["fixture", "live"]},
+    "output_root_class": {"enum": ["repo-ignored-run", "temporary-fixture"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"operation": {"const": "live-runtime"}}, "required": ["operation"]},
+      "then": {"properties": {"proof_posture": {"const": "live"}, "output_root_class": {"const": "repo-ignored-run"}}}
+    },
+    {
+      "if": {"properties": {"proof_posture": {"const": "fixture"}}, "required": ["proof_posture"]},
+      "then": {"properties": {"output_root_class": {"const": "temporary-fixture"}}}
+    }
+  ]
+}

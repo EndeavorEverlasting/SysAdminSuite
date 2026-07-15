@@ -3,6 +3,10 @@ Mapping/Logs/*
 Mapping/logs/*
 !Mapping/Logs/.gitkeep
 
+# Canonical harness and developer-workstation runtime evidence
+runs/
+workstation-runtime/
+
 # GUI worker run sessions (contain PII: usernames, paths, PIDs)
 Mapping/Output/GuiRuns/
 mapping/Output/GuiRuns/
