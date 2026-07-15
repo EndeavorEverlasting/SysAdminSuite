@@ -74,7 +74,7 @@ foreach ($agent in @('opencode', 'agy', 'goose')) {
         $capture = ((Invoke-Wsl -Arguments @('tmux', 'capture-pane', '-p', '-J', '-t', $target, '-S', '-100')).lines -join "`n")
     } until ($capture.Contains("$end rc=") -or (Get-Date) -ge $deadline)
     $acknowledged = $capture.Contains($begin) -and $capture.Contains("$end rc=")
-    $helpSucceeded = $capture.Contains("$end rc=0")
+    $helpSucceeded = [regex]::IsMatch($capture, [regex]::Escape($end) + '\s+rc=0')
     $row = $agentResult.agents.$agent
     $agentRows.Add([pscustomobject]@{
         agent = $agent
