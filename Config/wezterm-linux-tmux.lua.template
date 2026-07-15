@@ -1,0 +1,7 @@
+-- Managed native-Linux fragment. The user-owned .wezterm.lua includes this file.
+return function(config)
+  local tmux_command = { 'tmux', 'new-session', '-A', '-s', 'dev' }
+  config.default_prog = tmux_command
+  config.launch_menu = config.launch_menu or {}
+  table.insert(config.launch_menu, { label = 'tmux: Development', args = tmux_command })
+end
