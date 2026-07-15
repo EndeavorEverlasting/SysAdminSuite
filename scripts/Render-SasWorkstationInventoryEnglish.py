@@ -1,72 +1,43 @@
 #!/usr/bin/env python3
-"""Dependency-free English renderer for developer-workstation inventory results."""
+"""Render execution-domain workstation inventory as concise English."""
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
-from typing import Any
 
 
-STATUS_ICON = {"PASS": "[PASS]", "SKIP": "[SKIP]", "FAIL": "[FAIL]"}
-
-
-def render_inventory_summary(inventory: dict[str, Any]) -> str:
-    lines: list[str] = []
-    lines.append("Developer Workstation Inventory")
-    lines.append("================================")
-    lines.append("")
-    lines.append(f"Platform: {inventory['detected_platform']}")
-    lines.append(f"Environment: {inventory['execution_environment']}")
-    lines.append(f"Generated: {inventory['generated_at']}")
-    lines.append("")
-
-    checks = inventory["checks"]
-    named_checks = [
-        ("WezTerm", checks.get("wezterm")),
-        ("Shell", checks.get("shell")),
-        ("Multiplexer", checks.get("multiplexer")),
-        ("Repository", checks.get("repository")),
-        ("AgentSwitchboard", checks.get("agent_switchboard")),
+def render_inventory_summary(data: dict) -> str:
+    lines = [
+        "Developer Workstation Inventory",
+        "================================",
+        f"Host: {data['host_platform']} ({data['detected_context']})",
+        f"Selected tmux backend: {data['selected_backend'] or 'none'}",
+        f"Lifecycle: {data['lifecycle']['outcome']} / {data['lifecycle']['state']}",
+        f"Reasons: {', '.join(data['lifecycle']['reason_codes'])}",
+        "",
+        "Terminal host:",
+        f"  WezTerm CLI: {'present' if data['terminal']['wezterm_cli']['present'] else 'missing'}",
+        f"  WezTerm GUI: {'present' if data['terminal']['wezterm_gui']['present'] else 'missing'}",
+        f"  Default workspace: {data['terminal']['default_workspace']['name'] or 'not configured'}",
+        f"  Font availability: {data['terminal']['font']['availability']}",
+        "",
+        "Execution domains:",
     ]
-    for name, check in named_checks:
-        if check is not None:
-            icon = STATUS_ICON[check["status"]]
-            lines.append(f"{icon} {name}: {check['reason']}")
-
-    wsl = checks.get("wsl")
-    if wsl and wsl.get("status") not in ("SKIP", None):
-        lines.append("")
-        lines.append("WSL Distributions:")
-        for dist in wsl.get("distributions", []):
-            d_icon = STATUS_ICON[dist["status"]]
-            lines.append(f"  {d_icon} {dist['name']}: {dist['reason']}")
-            if dist.get("tmux"):
-                t_icon = STATUS_ICON[dist["tmux"]["status"]]
-                lines.append(f"    {t_icon} tmux: {dist['tmux']['reason']}")
-
-    lines.append("")
-    lines.append("Agent Commands:")
-    for agent in checks.get("agent_commands", []):
-        a_icon = STATUS_ICON[agent["status"]]
-        lines.append(f"  {a_icon} {agent['agent_id']}: {agent['reason']}")
-
-    lines.append("")
-    lines.append(f"Selected Profile: {inventory['selected_profile']}")
-    lines.append(f"Eligible Profiles: {', '.join(inventory['eligible_profiles'])}")
-    lines.append("")
-    lines.append(f"Proof Ceiling: {inventory['proof_ceiling']}")
-
+    for domain in data["domains"]:
+        backend = domain["backend"]
+        lines.append(f"  {domain['id']}: {domain['health']} ({backend['kind']})")
+        lines.append(f"    tmux: {'present' if backend['tmux']['present'] else 'missing/unknown'}; sessions: {', '.join(backend['tmux']['sessions']) or 'none'}")
+        for agent in domain["agents"]:
+            lines.append(f"    {agent['agent_id']}: {agent['resolution_kind']} via {agent['backend']} ({agent['authentication_readiness']})")
+    lines.extend(["", f"Proof ceiling: {data['proof_ceiling']}"])
     return "\n".join(lines)
 
 
 def main() -> None:
-    import sys
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <inventory.json>", file=sys.stderr)
-        sys.exit(1)
-    path = Path(sys.argv[1])
-    inventory = json.loads(path.read_text(encoding="utf-8"))
-    print(render_inventory_summary(inventory))
+    if len(sys.argv) != 2:
+        raise SystemExit(f"Usage: {sys.argv[0]} <inventory.json>")
+    print(render_inventory_summary(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8-sig"))))
 
 
 if __name__ == "__main__":

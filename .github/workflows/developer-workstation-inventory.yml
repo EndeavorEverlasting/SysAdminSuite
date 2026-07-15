@@ -4,115 +4,38 @@ permissions:
   contents: read
 
 on:
-  push:
-    branches: [main, 'feat/**', 'refactor/**']
-    paths:
-      - 'schemas/harness/developer-workstation-inventory.schema.json'
-      - 'schemas/harness/developer-workstation-profile.schema.json'
-      - 'Config/developer-workstation-profile.sample.json'
-      - 'scripts/Get-SasDeveloperWorkstationInventory.ps1'
-      - 'scripts/get-sas-developer-workstation-inventory.sh'
-      - 'scripts/Render-SasWorkstationInventoryEnglish.py'
-      - 'Tests/Fixtures/workstation-inventory/**'
-      - 'Tests/survey/test_developer_workstation_inventory_contracts.py'
-      - 'docs/DEVELOPER_WORKSTATION_INVENTORY.md'
-      - 'tests/survey/run_offline_survey_tests.sh'
-      - '.github/workflows/developer-workstation-inventory.yml'
   pull_request:
     paths:
-      - 'schemas/harness/developer-workstation-inventory.schema.json'
-      - 'schemas/harness/developer-workstation-profile.schema.json'
-      - 'Config/developer-workstation-profile.sample.json'
-      - 'scripts/Get-SasDeveloperWorkstationInventory.ps1'
-      - 'scripts/get-sas-developer-workstation-inventory.sh'
-      - 'scripts/Render-SasWorkstationInventoryEnglish.py'
-      - 'Tests/Fixtures/workstation-inventory/**'
-      - 'Tests/survey/test_developer_workstation_inventory_contracts.py'
-      - 'docs/DEVELOPER_WORKSTATION_INVENTORY.md'
-      - 'tests/survey/run_offline_survey_tests.sh'
-      - '.github/workflows/developer-workstation-inventory.yml'
+      - "schemas/harness/developer-workstation-inventory.schema.json"
+      - "scripts/Get-SasDeveloperWorkstationInventory.ps1"
+      - "scripts/get-sas-developer-workstation-inventory.sh"
+      - "scripts/Render-SasWorkstationInventoryEnglish.py"
+      - "Tests/Fixtures/workstation-inventory/**"
+      - "Tests/Pester/DeveloperWorkstationInventory.Tests.ps1"
+      - "Tests/survey/test_developer_workstation_inventory_contracts.py"
+      - ".github/workflows/developer-workstation-inventory.yml"
 
 jobs:
-  inventory-contracts:
+  contracts-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - name: Inventory contract tests
-        run: python3 Tests/survey/test_developer_workstation_inventory_contracts.py
-      - name: Schema validation (if jsonschema available)
-        run: |
-          pip install jsonschema 2>/dev/null || true
-          python3 -c "
-          import json, jsonschema, sys
-          schema = json.load(open('schemas/harness/developer-workstation-inventory.schema.json'))
-          fixtures = [
-              'Tests/Fixtures/workstation-inventory/windows-native.fixture.json',
-              'Tests/Fixtures/workstation-inventory/linux-native.fixture.json',
-              'Tests/Fixtures/workstation-inventory/wsl.fixture.json',
-              'Tests/Fixtures/workstation-inventory/missing-tools.fixture.json',
-              'Tests/Fixtures/workstation-inventory/unsupported-platform.fixture.json',
-          ]
-          for f in fixtures:
-              data = json.load(open(f))
-              jsonschema.validate(data, schema)
-              print(f'PASS: {f}')
-          # Malformed should fail
-          malformed = json.load(open('Tests/Fixtures/workstation-inventory/malformed-output.fixture.json'))
-          try:
-              jsonschema.validate(malformed, schema)
-              print('FAIL: malformed fixture was not rejected')
-              sys.exit(1)
-          except jsonschema.ValidationError:
-              print('PASS: malformed fixture correctly rejected')
-          "
+        with: {python-version: "3.12"}
+      - run: pip install jsonschema
+      - run: python Tests/survey/test_developer_workstation_inventory_contracts.py
+      - run: bash -n scripts/get-sas-developer-workstation-inventory.sh
+      - run: bash scripts/get-sas-developer-workstation-inventory.sh --fixture tmux-session-healthy --output /tmp/inventory.json --lifecycle-output /tmp/lifecycle.json
+      - run: python -m json.tool /tmp/inventory.json > /dev/null
+      - run: python -m json.tool /tmp/lifecycle.json > /dev/null
 
-  windows-fixture-smoke:
+  contracts-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Windows collector fixture mode
-        shell: pwsh
+      - shell: pwsh
         run: |
-          $result = & ".\scripts\Get-SasDeveloperWorkstationInventory.ps1" -FixtureMode
-          $inv = $result.inventory
-          if ($inv.schema_version -ne 'sas-developer-workstation-inventory/v1') {
-            Write-Error "schema_version mismatch"
-            exit 1
-          }
-          if ($inv.detected_platform -ne 'windows') {
-            Write-Error "expected windows platform in fixture mode"
-            exit 1
-          }
-          Write-Host "PASS: Windows fixture mode smoke test"
-
-  linux-fixture-smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Linux collector fixture mode
-        run: |
-          output=$(bash scripts/get-sas-developer-workstation-inventory.sh --fixture)
-          if echo "$output" | grep -q "sas-developer-workstation-inventory/v1"; then
-            echo "PASS: Linux fixture mode smoke test"
-          else
-            echo "FAIL: Linux fixture mode did not produce expected output"
-            exit 1
-          fi
-
-  bash-syntax:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Bash syntax check
-        run: bash -n scripts/get-sas-developer-workstation-inventory.sh
+          ./scripts/Get-SasDeveloperWorkstationInventory.ps1 -Fixture tmux-session-healthy -OutputPath "$env:RUNNER_TEMP/inventory.json" -LifecycleOutputPath "$env:RUNNER_TEMP/lifecycle.json"
+          if ((Get-Content "$env:RUNNER_TEMP/inventory.json" -Raw | ConvertFrom-Json).schema_version -ne 'sas-developer-workstation-inventory/v2') { throw 'schema mismatch' }
+      - shell: pwsh
+        run: ./tools/Test-Pester5Suite.ps1 -TestPath ./Tests/Pester/DeveloperWorkstationInventory.Tests.ps1

@@ -1,148 +1,136 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "schemas/harness/developer-workstation-inventory.schema.json",
-  "title": "SysAdminSuite Developer Workstation Inventory",
+  "title": "SysAdminSuite Execution-Domain Workstation Inventory",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "generated_at",
-    "detected_platform",
-    "execution_environment",
-    "checks",
-    "selected_profile",
-    "eligible_profiles",
-    "proof_ceiling"
+    "schema_version", "generated_at", "host_platform", "detected_context", "terminal",
+    "domains", "workspace_service", "selected_backend", "lifecycle", "proof_ceiling"
   ],
   "properties": {
-    "schema_version": {
-      "const": "sas-developer-workstation-inventory/v1"
-    },
-    "generated_at": {
-      "type": "string"
-    },
-    "detected_platform": {
-      "enum": ["windows", "linux", "unsupported"]
-    },
-    "execution_environment": {
-      "enum": ["native", "wsl", "unknown"]
-    },
-    "checks": {
+    "schema_version": {"const": "sas-developer-workstation-inventory/v2"},
+    "generated_at": {"type": "string"},
+    "host_platform": {"enum": ["windows", "linux", "unsupported"]},
+    "detected_context": {"enum": ["windows-native", "windows-wsl", "linux-native", "unknown"]},
+    "terminal": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "wezterm",
-        "shell",
-        "multiplexer",
-        "repository",
-        "agent_commands",
-        "agent_switchboard"
-      ],
+      "required": ["wezterm_cli", "wezterm_gui", "config_path_class", "default_workspace", "font"],
       "properties": {
-        "wezterm": { "$ref": "#/$defs/toolCheck" },
-        "shell": { "$ref": "#/$defs/toolCheck" },
-        "multiplexer": { "$ref": "#/$defs/toolCheck" },
-        "repository": { "$ref": "#/$defs/repositoryCheck" },
-        "agent_commands": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/agentCheck" }
+        "wezterm_cli": {"$ref": "#/$defs/command"},
+        "wezterm_gui": {"$ref": "#/$defs/command"},
+        "config_path_class": {"enum": ["user-home", "system", "missing", "unknown"]},
+        "default_workspace": {
+          "type": "object", "additionalProperties": false,
+          "required": ["configured", "name"],
+          "properties": {"configured": {"type": "boolean"}, "name": {"type": ["string", "null"]}}
         },
-        "agent_switchboard": { "$ref": "#/$defs/toolCheck" },
-        "wsl": { "$ref": "#/$defs/wslCheck" }
+        "font": {
+          "type": "object", "additionalProperties": false,
+          "required": ["configured_name", "availability"],
+          "properties": {
+            "configured_name": {"type": ["string", "null"]},
+            "availability": {"enum": ["available", "unavailable", "not-configured", "unknown"]}
+          }
+        }
       }
     },
-    "selected_profile": {
-      "type": ["string", "null"]
+    "domains": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/domain"}
     },
-    "eligible_profiles": {
-      "type": "array",
-      "items": { "type": "string" }
+    "workspace_service": {
+      "type": "object", "additionalProperties": false,
+      "required": ["keepalive", "pid_file", "shortcut", "start_script", "stop_script"],
+      "properties": {
+        "keepalive": {"enum": ["healthy", "missing", "stale", "not-applicable", "unknown"]},
+        "pid_file": {"enum": ["healthy", "missing", "stale", "not-applicable", "unknown"]},
+        "shortcut": {"enum": ["present", "missing", "not-applicable", "unknown"]},
+        "start_script": {"enum": ["present", "missing", "not-applicable", "unknown"]},
+        "stop_script": {"enum": ["present", "missing", "not-applicable", "unknown"]}
+      }
+    },
+    "selected_backend": {"type": ["string", "null"], "enum": ["windows-wsl", "linux-native", null]},
+    "lifecycle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["outcome", "state", "reason_codes"],
+      "properties": {
+        "outcome": {"enum": ["success", "partial", "failure", "action-required", "unsupported"]},
+        "state": {"enum": ["absent", "installed", "configured", "backend-running", "tmux-available", "session-running", "action-required", "failed"]},
+        "reason_codes": {
+          "type": "array", "uniqueItems": true,
+          "items": {"enum": [
+            "none", "no-wsl-distro", "docker-only-distro", "tmux-missing", "wsl-stopped",
+            "keepalive-missing", "keepalive-stale", "tmux-socket-missing", "unavailable-font",
+            "wezterm-cli-gui-confusion", "windows-only-agent-bridge", "unsupported-platform"
+          ]}
+        }
+      }
     },
     "proof_ceiling": {
-      "type": "string"
+      "const": "Read-only inventory proves detected state only; command presence is not authentication, session presence is not persistence, and no interactive smoke was attempted."
     }
   },
   "$defs": {
-    "toolCheck": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "reason"],
+    "command": {
+      "type": "object", "additionalProperties": false,
+      "required": ["present", "version", "path_class"],
       "properties": {
-        "status": {
-          "enum": ["PASS", "SKIP", "FAIL"]
-        },
-        "reason": {
-          "type": "string",
-          "minLength": 1
-        },
-        "version": {
-          "type": ["string", "null"]
-        },
-        "path": {
-          "type": ["string", "null"]
+        "present": {"type": "boolean"},
+        "version": {"type": ["string", "null"]},
+        "path_class": {"enum": ["system-path", "user-path", "windows-interop", "managed-wrapper", "missing", "unknown"]}
+      }
+    },
+    "agent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["agent_id", "resolution_kind", "backend", "command_path_class", "version", "authentication_readiness", "interactive_smoke"],
+      "properties": {
+        "agent_id": {"enum": ["opencode", "agy", "goose"]},
+        "resolution_kind": {"enum": ["executable", "wrapper", "function", "alias", "missing"]},
+        "backend": {"enum": ["native", "bridge", "missing", "unknown"]},
+        "command_path_class": {"enum": ["managed-wrapper", "system-path", "user-path", "windows-interop", "alias-only", "missing", "unknown"]},
+        "version": {"type": ["string", "null"]},
+        "authentication_readiness": {"enum": ["unknown", "required", "ready"]},
+        "interactive_smoke": {
+          "type": "object", "additionalProperties": false,
+          "required": ["attempted", "status"],
+          "properties": {"attempted": {"const": false}, "status": {"const": "not-attempted"}}
         }
       }
     },
-    "repositoryCheck": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "reason"],
+    "tmux": {
+      "type": "object", "additionalProperties": false,
+      "required": ["present", "version", "server_socket", "sessions", "inside_tmux"],
       "properties": {
-        "status": {
-          "enum": ["PASS", "SKIP", "FAIL"]
-        },
-        "reason": {
-          "type": "string"
-        },
-        "relative_path": {
-          "type": ["string", "null"]
-        }
+        "present": {"type": "boolean"},
+        "version": {"type": ["string", "null"]},
+        "server_socket": {"enum": ["present", "missing", "unknown", "not-applicable"]},
+        "sessions": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "inside_tmux": {"type": "boolean"}
       }
     },
-    "agentCheck": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["agent_id", "status", "reason"],
+    "backend": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "distribution", "distribution_state", "docker_only", "tmux"],
       "properties": {
-        "agent_id": {
-          "type": "string"
-        },
-        "status": {
-          "enum": ["PASS", "SKIP", "FAIL"]
-        },
-        "reason": {
-          "type": "string"
-        },
-        "version": {
-          "type": ["string", "null"]
-        }
+        "kind": {"enum": ["windows-native", "wsl", "native-linux"]},
+        "distribution": {"type": ["string", "null"]},
+        "distribution_state": {"enum": ["running", "stopped", "not-applicable", "unknown"]},
+        "docker_only": {"type": "boolean"},
+        "tmux": {"$ref": "#/$defs/tmux"}
       }
     },
-    "wslCheck": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "reason"],
+    "domain": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "available", "health", "shell", "backend", "agents"],
       "properties": {
-        "status": {
-          "enum": ["PASS", "SKIP", "FAIL"]
-        },
-        "reason": {
-          "type": "string"
-        },
-        "distributions": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["name", "status", "reason"],
-            "properties": {
-              "name": { "type": "string" },
-              "status": { "enum": ["PASS", "SKIP", "FAIL"] },
-              "reason": { "type": "string" },
-              "tmux": { "$ref": "#/$defs/toolCheck" }
-            }
-          }
-        }
+        "id": {"enum": ["windows-native", "windows-wsl", "linux-native"]},
+        "available": {"type": "boolean"},
+        "health": {"enum": ["healthy", "degraded", "unavailable", "unknown"]},
+        "shell": {"enum": ["pwsh", "bash", "unknown"]},
+        "backend": {"$ref": "#/$defs/backend"},
+        "agents": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/agent"}}
       }
     }
   }

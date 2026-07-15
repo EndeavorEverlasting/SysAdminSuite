@@ -1,0 +1,1 @@
+{"schema_version":"sas-workstation-inventory-fixture/v2","scenario":"docker-only-wsl","host_platform":"windows","expected_reason":"docker-only-distro"}

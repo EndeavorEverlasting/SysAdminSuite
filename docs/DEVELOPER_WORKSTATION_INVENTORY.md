@@ -1,126 +1,56 @@
-# Developer Workstation Inventory
+# Developer Workstation Execution-Domain Inventory
 
-## Purpose
+The inventory is read-only. It reports the host, terminal roles, execution
+domains, tmux health, persistence-service state, and agent command resolution
+without installing packages, starting stopped WSL distributions, launching a
+GUI, editing configuration, authenticating, or attempting interactive smoke.
 
-SysAdminSuite owns a read-only inventory surface that determines what is present and healthy enough to plan, without installing, repairing, authenticating, or mutating anything.
+## Domains
 
-The inventory collects bounded facts about the host environment and maps them to the developer-workstation profile v2 from the provisioning contract.
+- `windows-native`: PowerShell fallback/admin and Windows agent commands.
+- `windows-wsl`: the Windows tmux backend and its native or bridged agents.
+- `linux-native`: local Linux tmux and native agents.
 
-## Canonical paths
+These domains are never interchangeable. A Windows command does not establish
+WSL readiness, and WSL is not native-Linux runtime proof.
 
-| Artifact | Path |
-|---|---|
-| Inventory schema | `schemas/harness/developer-workstation-inventory.schema.json` |
-| Profile schema | `schemas/harness/developer-workstation-profile.schema.json` |
-| Profile sample | `Config/developer-workstation-profile.sample.json` |
-| Windows collector | `scripts/Get-SasDeveloperWorkstationInventory.ps1` |
-| Linux collector | `scripts/get-sas-developer-workstation-inventory.sh` |
-| English renderer | `scripts/Render-SasWorkstationInventoryEnglish.py` |
-| Contract test | `Tests/survey/test_developer_workstation_inventory_contracts.py` |
-| CI workflow | `.github/workflows/developer-workstation-inventory.yml` |
+## Detected state
 
-## Detected fields
+The v2 inventory distinguishes `wezterm.exe` from `wezterm-gui.exe`, reports
+only path classes, inspects the managed default-workspace and font posture,
+and records WSL candidate distribution state, tmux version/socket/sessions,
+nested-tmux state, keepalive and PID health, desktop shortcut, and start/stop
+script presence.
 
-The inventory captures:
+Agents report command kind (`executable`, `wrapper`, `function`, `alias`, or
+`missing`), selected native/bridge backend, command-path class, version when
+safe, authentication readiness, and an explicit non-attempted interactive
+smoke state. Alias-only commands are not treated as scriptable automation.
 
-| Field | Description |
-|---|---|
-| `detected_platform` | `windows`, `linux`, or `unsupported` |
-| `execution_environment` | `native`, `wsl`, or `unknown` |
-| `checks.wezterm` | WezTerm executable presence and version |
-| `checks.shell` | Native shell presence and version |
-| `checks.multiplexer` | tmux presence and version (SKIP on Windows native) |
-| `checks.repository` | SysAdminSuite repo root detection with relative path |
-| `checks.agent_commands` | OpenCode, AGY, Goose command resolution and version |
-| `checks.agent_switchboard` | AgentSwitchboard availability |
-| `checks.wsl` | WSL availability and registered distributions (Windows native only) |
-| `selected_profile` | Matching enabled profile from the profile sample |
-| `eligible_profiles` | All enabled profiles matching the detected platform and environment |
-| `proof_ceiling` | Statement of what the inventory does not prove |
+## Fixtures and evidence
 
-## Reason codes
+Ten sanitized scenarios cover no WSL, Docker-only WSL, stopped WSL, healthy and
+stale keepalive, a healthy `dev` tmux session, bridge-only and WSL-native agents,
+an unavailable font, and WezTerm CLI/GUI confusion. Collectors can emit both the
+typed inventory and a `sas-developer-workstation-lifecycle-result/v1` artifact.
+Live output belongs under ignored `runs/` paths.
 
-Every check returns one of:
+## Commands
 
-| Status | Meaning |
-|---|---|
-| `PASS` | Tool or resource was found and version was obtained (or distribution discovered) |
-| `SKIP` | Check not applicable on this platform (e.g., tmux on Windows native, WSL on Linux) |
-| `FAIL` | Tool or resource was not found or not obtainable |
+Windows PowerShell:
 
-## Path redaction
+```powershell
+./scripts/Get-SasDeveloperWorkstationInventory.ps1 -OutputPath ./runs/inventory.json -LifecycleOutputPath ./runs/lifecycle.json
+```
 
-- Repository `relative_path` uses portable relative paths, never absolute machine-local paths.
-- No drive letters, `/Users/`, `/home/`, or usernames appear in tracked fixtures or output.
-- Tool `path` fields in live inventory are ephemeral and never committed.
+Native Linux or WezTerm/tmux Bash:
 
-## Unsupported-platform behavior
-
-When `detected_platform` is `unsupported`, all tool checks return `SKIP`, the repository check returns `FAIL`, `selected_profile` is `null`, and `eligible_profiles` is empty. The inventory does not guess at unsupported behavior.
-
-## Fixtures
-
-| Fixture | Scenario |
-|---|---|
-| `windows-native.fixture.json` | Windows host with WezTerm, pwsh, no tmux, WSL with Ubuntu, 2 of 3 agents |
-| `linux-native.fixture.json` | Linux host with WezTerm, bash, tmux, no WSL, 2 of 3 agents |
-| `wsl.fixture.json` | Windows host running inside a WSL session |
-| `missing-tools.fixture.json` | Windows host with all tools missing |
-| `malformed-output.fixture.json` | Intentionally incomplete JSON to test schema rejection |
-| `unsupported-platform.fixture.json` | macOS or unknown platform |
+```bash
+bash scripts/get-sas-developer-workstation-inventory.sh --output runs/inventory.json --lifecycle-output runs/lifecycle.json
+```
 
 ## Proof ceiling
 
-The inventory proves:
-
-- What tools are present or absent on the host at command-discovery time.
-- Which profile from the sample is selected and eligible.
-- The detected platform and execution environment.
-
-The inventory does not prove:
-
-- WezTerm, shell, tmux, or any coding agent is installed and functional.
-- Native Windows or native Linux agent operation works.
-- AgentSwitchboard exposes a stable executable command.
-- Installation, repair, upgrade, authentication readiness, or launch behavior.
-- End-to-end workstation provisioning.
-
-## Usage
-
-### Windows (PowerShell)
-
-```powershell
-# Live inventory
-$inventory = .\scripts\Get-SasDeveloperWorkstationInventory.ps1 -OutputPath .\runs\inventory.json
-
-# Fixture mode
-$inventory = .\scripts\Get-SasDeveloperWorkstationInventory.ps1 -FixtureMode
-```
-
-### Linux (Bash)
-
-```bash
-# Live inventory
-bash scripts/get-sas-developer-workstation-inventory.sh --output runs/inventory.json
-
-# Fixture mode
-bash scripts/get-sas-developer-workstation-inventory.sh --fixture
-```
-
-### English renderer
-
-```bash
-python3 scripts/Render-SasWorkstationInventoryEnglish.py Tests/Fixtures/workstation-inventory/windows-native.fixture.json
-```
-
-## Validation order
-
-1. Dependency-free contract tests (Python)
-2. PowerShell parser for Windows collector
-3. Bash syntax check for Linux collector
-4. Schema validation of every fixture
-5. English-renderer checks
-6. Dedicated CI workflow
-7. Offline suite
-8. `git diff --check`
-9. Final diff review
+Inventory proves detected read-only state. Command presence is not successful
+launch or authentication. A tmux session is not persistence proof. No launcher,
+provider, interactive agent, or operator-acceptance claim is made.
