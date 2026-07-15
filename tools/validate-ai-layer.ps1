@@ -11,7 +11,8 @@ $skillFiles = @(
   '.claude/skills/field-workflow/SKILL.md',
   '.claude/skills/scoped-validation/SKILL.md',
   '.claude/skills/live-data-guard/SKILL.md',
-  '.claude/skills/survey-low-noise/SKILL.md'
+  '.claude/skills/survey-low-noise/SKILL.md',
+  '.claude/skills/developer-workstation/SKILL.md'
 )
 
 $capabilityFiles = @(
@@ -20,7 +21,15 @@ $capabilityFiles = @(
   '.claude/capabilities/proof-and-checkpointing.md',
   '.claude/capabilities/language-runtime-selection.md',
   '.claude/capabilities/mutation-and-evidence-boundaries.md',
-  '.claude/capabilities/field-command-design.md'
+  '.claude/capabilities/field-command-design.md',
+  '.claude/capabilities/workstation-inventory.md',
+  '.claude/capabilities/workstation-planning.md',
+  '.claude/capabilities/workstation-managed-configuration.md',
+  '.claude/capabilities/workstation-backend-lifecycle.md',
+  '.claude/capabilities/workstation-session-lifecycle.md',
+  '.claude/capabilities/workstation-agent-domain-resolution.md',
+  '.claude/capabilities/agentswitchboard-invocation.md',
+  '.claude/capabilities/workstation-rollback.md'
 )
 
 $requiredFiles = @(
@@ -42,7 +51,9 @@ $requiredFiles = @(
     'tools/validate-ai-layer.ps1',
     'schemas/harness/agent-sprint-capsule.schema.json',
     'tools/New-SasSprintCapsule.ps1',
-    'Tests/survey/test_agent_sprint_capsule_contracts.py'
+    'Tests/survey/test_agent_sprint_capsule_contracts.py',
+    'harness/api/agent-routing-manifest.json',
+    'schemas/harness/agent-routing-manifest.schema.json'
 ) + $skillFiles + $capabilityFiles
 
 $workflowFiles = @(

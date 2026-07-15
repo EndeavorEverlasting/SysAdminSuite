@@ -1,0 +1,287 @@
+{
+  "schema_version": "sas-agent-routing-manifest/v1",
+  "schema_path": "schemas/harness/agent-routing-manifest.schema.json",
+  "triggers": [
+    {
+      "id": "repository-sprint-trigger",
+      "summary": "Route general repository sprint execution and checkout tasks.",
+      "deterministic_task_signals": [
+        "EXECUTE THE REPO SPRINT",
+        "EXECUTE THE REPOSITORY SPRINT",
+        "sprint branch",
+        "merge readiness"
+      ],
+      "priority": 1,
+      "composition_mode": "exclusive",
+      "target_type": "skill",
+      "target": "repository-sprint",
+      "required_inputs": [
+        "repo",
+        "sprint"
+      ],
+      "outputs": [
+        "commit",
+        "pull request"
+      ],
+      "preconditions": [
+        "git clean status check"
+      ],
+      "guardrails": [
+        "do not force push"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ],
+      "proof_ceiling": "repository-floor proof"
+    },
+    {
+      "id": "language-runtime-trigger",
+      "summary": "Route choosing the correct runtime and script wrappers.",
+      "deterministic_task_signals": [
+        "choose the language runtime",
+        "select the language runtime",
+        "python vs powershell"
+      ],
+      "priority": 1,
+      "composition_mode": "exclusive",
+      "target_type": "skill",
+      "target": "language-runtime",
+      "required_inputs": [
+        "script_path"
+      ],
+      "outputs": [
+        "runtime selection"
+      ],
+      "preconditions": [
+        "runtime check"
+      ],
+      "guardrails": [
+        "preserve EOL attributes"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ],
+      "proof_ceiling": "static contract proof"
+    },
+    {
+      "id": "field-workflow-trigger",
+      "summary": "Route short entrypoints for technician dashboard and launchers.",
+      "deterministic_task_signals": [
+        "field command entrypoint",
+        "expose technician launcher",
+        "START-HERE-SysAdminSuite-Dashboard.bat"
+      ],
+      "priority": 1,
+      "composition_mode": "exclusive",
+      "target_type": "skill",
+      "target": "field-workflow",
+      "required_inputs": [
+        "launcher_path"
+      ],
+      "outputs": [
+        "dashboard execution status"
+      ],
+      "preconditions": [
+        "dashboard availability check"
+      ],
+      "guardrails": [
+        "never bypass operator confirmation"
+      ],
+      "owner": "Dashboard Team",
+      "validators": [
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ],
+      "proof_ceiling": "launcher and browser proof"
+    },
+    {
+      "id": "scoped-validation-trigger",
+      "summary": "Route fast diagnostic and narrow unit validation checks.",
+      "deterministic_task_signals": [
+        "run scoped validation",
+        "diagnostic check",
+        "narrow check"
+      ],
+      "priority": 1,
+      "composition_mode": "exclusive",
+      "target_type": "skill",
+      "target": "scoped-validation",
+      "required_inputs": [
+        "test_path"
+      ],
+      "outputs": [
+        "test run results"
+      ],
+      "preconditions": [
+        "pytest or pester available"
+      ],
+      "guardrails": [
+        "do not stub real implementation behavior"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ],
+      "proof_ceiling": "static test and unit proof"
+    },
+    {
+      "id": "end-to-end-validation-trigger",
+      "summary": "Route composed integration E2E validation workflows.",
+      "deterministic_task_signals": [
+        "merge readiness proof",
+        "end-to-end validation",
+        "E2E validation"
+      ],
+      "priority": 1,
+      "composition_mode": "exclusive",
+      "target_type": "skill",
+      "target": "end-to-end-validation",
+      "required_inputs": [
+        "e2e_profile"
+      ],
+      "outputs": [
+        "validation gate status"
+      ],
+      "preconditions": [
+        "E2E profile schema matches"
+      ],
+      "guardrails": [
+        "never bypass required journeys in default profile"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_e2e_default_posture_contracts.py"
+      ],
+      "proof_ceiling": "synthetic E2E validation proof"
+    },
+    {
+      "id": "live-data-guard-trigger",
+      "summary": "Route live network activity and target contact constraints.",
+      "deterministic_task_signals": [
+        "live network activity",
+        "external target contact",
+        "live target mutation"
+      ],
+      "priority": 10,
+      "composition_mode": "additive",
+      "target_type": "skill",
+      "target": "live-data-guard",
+      "required_inputs": [
+        "target_ip"
+      ],
+      "outputs": [
+        "evidence boundary checks"
+      ],
+      "preconditions": [
+        "live execution authorized"
+      ],
+      "guardrails": [
+        "never commit live evidence or target details to git"
+      ],
+      "owner": "Security Guild",
+      "validators": [
+        "Tests/survey/test_checkpoint_discipline_contracts.py"
+      ],
+      "proof_ceiling": "compliance and evidence boundary proof"
+    },
+    {
+      "id": "survey-low-noise-trigger",
+      "summary": "Route network delta scans and low-noise port check pipelines.",
+      "deterministic_task_signals": [
+        "survey low noise",
+        "packet probe survey",
+        "network survey"
+      ],
+      "priority": 1,
+      "composition_mode": "exclusive",
+      "target_type": "skill",
+      "target": "survey-low-noise",
+      "required_inputs": [
+        "manifest_csv"
+      ],
+      "outputs": [
+        "evidence_json"
+      ],
+      "preconditions": [
+        "target offline file list exists"
+      ],
+      "guardrails": [
+        "strictly match Naabu low-noise profiles"
+      ],
+      "owner": "Survey Lead",
+      "validators": [
+        "Tests/bash/test_repo_naabu_doctrine_conformance.sh"
+      ],
+      "proof_ceiling": "low-noise scanning policy proof"
+    },
+    {
+      "id": "developer-workstation-trigger",
+      "summary": "Route persistent workstation terminal, tmux, and wsl operations.",
+      "deterministic_task_signals": [
+        "workstation provisioning",
+        "persistent tmux workspace",
+        "wezterm config"
+      ],
+      "priority": 1,
+      "composition_mode": "exclusive",
+      "target_type": "skill",
+      "target": "developer-workstation",
+      "required_inputs": [
+        "profile_json"
+      ],
+      "outputs": [
+        "lifecycle status report"
+      ],
+      "preconditions": [
+        "profile v3 schema passes"
+      ],
+      "guardrails": [
+        "never automate workstation credentials"
+      ],
+      "owner": "Workstation Team",
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py"
+      ],
+      "proof_ceiling": "workstation profile and lifecycle proof"
+    },
+    {
+      "id": "agent-sprint-capsule-trigger",
+      "summary": "Route requests to generate self-contained chat handoff next-chat capsules.",
+      "deterministic_task_signals": [
+        "next-chat sprint capsule",
+        "sprint capsule",
+        "self-contained next-chat",
+        "agent sprint capsule"
+      ],
+      "priority": 2,
+      "composition_mode": "exclusive",
+      "target_type": "harness_operation",
+      "target": "agent_sprint_capsule.generate",
+      "required_inputs": [
+        "repo_path",
+        "sprint_name"
+      ],
+      "outputs": [
+        "sprint_capsule_json"
+      ],
+      "preconditions": [
+        "harness run context is healthy"
+      ],
+      "guardrails": [
+        "do not include machine-local directories, home paths, or credentials in capsules"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_sprint_capsule_contracts.py"
+      ],
+      "proof_ceiling": "fixture-backed sprint capsule proof"
+    }
+  ],
+  "ambiguity_rules": {
+    "explicit_user_lane_wins": true,
+    "safety_guard_triggers_compose_additively": true,
+    "equal_priority_conflict_resolution": "fail_closed_to_repository_sprint",
+    "no_trigger_authorizes_mutation": true
+  }
+}

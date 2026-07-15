@@ -1,0 +1,87 @@
+{
+  "schema_version": "sas-agent-sprint-capsule/v1",
+  "schema_path": "schemas/harness/agent-sprint-capsule.schema.json",
+  "capsule": {
+    "capsule_id": "test-sprint-capsule",
+    "generated_at": "2026-07-15T06:17:42Z",
+    "output_path": "runs/capsules/test-sprint-capsule.json",
+    "generator_version": "1.0.0"
+  },
+  "sprint": {
+    "sprint_id": "test-sprint",
+    "repo_root": "C:\\Users\\Cheex\\SysAdminSuite",
+    "sprint_skill": "repository-sprint",
+    "skill_md_path": ".claude/skills/repository-sprint/SKILL.md"
+  },
+  "branch": {
+    "branch_name": "feat/test-sprint",
+    "worktree_path": "worktrees/test-sprint",
+    "is_isolated_worktree": true
+  },
+  "scope": {
+    "owned_paths": [
+      "tools/New-SasSprintCapsule.ps1",
+      "schemas/harness/agent-sprint-capsule.schema.json"
+    ],
+    "forbidden_scope": [
+      "scripts/SasRunContext.psm1"
+    ],
+    "dependencies": []
+  },
+  "skills": {
+    "primary_skill": "repository-sprint",
+    "skill_paths": [
+      ".claude/skills/repository-sprint/SKILL.md"
+    ],
+    "load_order": [
+      "repository-sprint"
+    ]
+  },
+  "capabilities": {
+    "required_capabilities": [
+      "repository-evidence"
+    ],
+    "capability_paths": [
+      ".claude/capabilities/repository-evidence.md"
+    ]
+  },
+  "preflight": {
+    "git_state": {
+      "clean": true,
+      "branch_count": 1,
+      "detached": false
+    },
+    "host_eligibility": {
+      "policy_path": "schemas/harness/host-eligibility-policy.schema.json",
+      "status": "not_required"
+    },
+    "artifacts": {
+      "manifest_path": "harness/api/agent-capability-manifest.json",
+      "schema_path": "schemas/harness/agent-capability-manifest.schema.json"
+    }
+  },
+  "validation": {
+    "schema_validate_command": "pwsh -NoProfile -File tools/validate-ai-layer.ps1",
+    "pester_command": "pwsh -NoProfile -Command Invoke-Pester",
+    "ai_layer_validate_command": "pwsh -NoProfile -File tools/validate-ai-layer.ps1",
+    "contract_command": "python3 Tests/survey/test_agent_sprint_capsule_contracts.py"
+  },
+  "proof_ceiling": {
+    "level": "P4_unit_test",
+    "levels": [
+      "P0_schema_validation",
+      "P4_unit_test"
+    ]
+  },
+  "adapters": {
+    "opencode": {
+      "root_instruction": "AGENTS.md",
+      "capsule_source": "harness/api/agent-sprint-capsule-trigger",
+      "skill_load_method": "progressive_disclosure_from_skill_router"
+    },
+    "antigravity": {
+      "capsule_source": "harness/api/agent-sprint-capsule-trigger",
+      "skill_load_method": "progressive_disclosure_from_skill_router"
+    }
+  }
+}

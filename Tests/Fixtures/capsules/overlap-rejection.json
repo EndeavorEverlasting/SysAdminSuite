@@ -1,0 +1,10 @@
+{
+  "_description": "Rejects path in both owned and forbidden scope",
+  "_expect": "both owned_paths and forbidden_scope",
+  "params": {
+    "SprintId": "dup-test",
+    "OwnedPaths": ["tools/Test-ScriptHealth.ps1"],
+    "ForbiddenScope": ["tools/Test-ScriptHealth.ps1"],
+    "ProofCeiling": "P4_unit_test"
+  }
+}

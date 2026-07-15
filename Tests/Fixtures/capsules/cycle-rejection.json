@@ -1,0 +1,10 @@
+{
+  "_description": "Rejects self-referencing dependency",
+  "_expect": "cycle",
+  "params": {
+    "SprintId": "self-ref-test",
+    "OwnedPaths": ["tools/Test-ScriptHealth.ps1"],
+    "ForbiddenScope": ["scripts/SasRunContext.psm1"],
+    "ProofCeiling": "P4_unit_test"
+  }
+}

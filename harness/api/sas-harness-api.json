@@ -228,6 +228,26 @@
         "No_nested_tmux",
         "Lua_routes_to_managed_file_operation"
       ]
+    },
+    {
+      "id": "agent_sprint_capsule.generate",
+      "summary": "Generate a self-contained chat handoff sprint capsule JSON for AI agent execution.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "repo_path",
+        "sprint_name"
+      ],
+      "outputs": [
+        "sprint_capsule_json"
+      ],
+      "guardrails": [
+        "Local_only",
+        "No_machine_local_or_home_paths",
+        "No_credentials_or_unapproved_secrets",
+        "Deterministic_success_and_rejection_rules"
+      ]
     }
   ]
 }

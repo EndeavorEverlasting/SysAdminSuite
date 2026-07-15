@@ -1,0 +1,10 @@
+{
+  "_description": "Rejects missing validation command",
+  "_expect": "pester*missing",
+  "params": {
+    "SprintId": "no-cmd-test",
+    "OwnedPaths": ["tools/Test-ScriptHealth.ps1"],
+    "ForbiddenScope": ["scripts/SasRunContext.psm1"],
+    "ProofCeiling": "P4_unit_test"
+  }
+}

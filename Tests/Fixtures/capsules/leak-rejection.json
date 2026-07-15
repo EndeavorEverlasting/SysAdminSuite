@@ -1,0 +1,10 @@
+{
+  "_description": "Rejects absolute Windows path in owned_paths",
+  "_expect": "local/absolute path",
+  "params": {
+    "SprintId": "leak-test",
+    "OwnedPaths": ["C:\\Users\\test\\script.ps1"],
+    "ForbiddenScope": ["scripts/SasRunContext.psm1"],
+    "ProofCeiling": "P4_unit_test"
+  }
+}

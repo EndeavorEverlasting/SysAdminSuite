@@ -11,6 +11,9 @@ Use this map to load only the files needed for a task.
 - `harness/api/agent-capability-manifest.json` — machine-readable skill/capability catalog and dependency graph.
 - `schemas/harness/agent-capability-manifest.schema.json` — fail-closed catalog schema.
 - `tools/validate-ai-layer.ps1` — validates the instruction architecture, required safety language, and local-data exclusions.
+- `harness/api/agent-routing-manifest.json` — deterministic trigger/routing catalog.
+- `schemas/harness/agent-routing-manifest.schema.json` — fail-closed routing contract schema.
+- `Tests/survey/test_agent_routing_manifest_contracts.py` — trigger routing manifest contract test.
 - `Tests/survey/test_agent_instruction_factoring_contracts.py` — dependency-free factoring and anti-bloat contract.
 - `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
 

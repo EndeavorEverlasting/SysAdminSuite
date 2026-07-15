@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/agent-routing-manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "schema_path", "triggers", "ambiguity_rules"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "sas-agent-routing-manifest/v1"
+    },
+    "schema_path": {
+      "type": "string",
+      "const": "schemas/harness/agent-routing-manifest.schema.json"
+    },
+    "triggers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "summary",
+          "deterministic_task_signals",
+          "priority",
+          "composition_mode",
+          "target_type",
+          "target",
+          "required_inputs",
+          "outputs",
+          "preconditions",
+          "guardrails",
+          "owner",
+          "validators",
+          "proof_ceiling"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "deterministic_task_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "composition_mode": {
+            "type": "string",
+            "enum": ["exclusive", "additive", "fallback"]
+          },
+          "target_type": {
+            "type": "string",
+            "enum": ["skill", "capability", "harness_operation"]
+          },
+          "target": {
+            "type": "string"
+          },
+          "required_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "guardrails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "type": "string"
+          },
+          "validators": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "proof_ceiling": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ambiguity_rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["explicit_user_lane_wins", "safety_guard_triggers_compose_additively", "equal_priority_conflict_resolution", "no_trigger_authorizes_mutation"],
+      "properties": {
+        "explicit_user_lane_wins": {
+          "type": "boolean",
+          "const": true
+        },
+        "safety_guard_triggers_compose_additively": {
+          "type": "boolean",
+          "const": true
+        },
+        "equal_priority_conflict_resolution": {
+          "type": "string",
+          "const": "fail_closed_to_repository_sprint"
+        },
+        "no_trigger_authorizes_mutation": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  }
+}
