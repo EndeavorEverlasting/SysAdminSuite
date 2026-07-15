@@ -51,6 +51,12 @@ def test_generic_e2e_runner_preserves_single_line_tail_as_array() -> None:
     assert "$tail = @(Tail-Text $output)" in runner
 
 
+def test_fixture_timeouts_are_bounded_but_allow_ci_cold_start() -> None:
+    module=runner_module()
+    assert 15 <= module.FIXTURE_STEP_TIMEOUT_SECONDS <= 30
+    assert module.FIXTURE_STEP_TIMEOUT_SECONDS < module.FIXTURE_RUN_TIMEOUT_SECONDS <= 120
+
+
 def test_public_entrypoint_and_idempotent_proof_execute() -> None:
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp)
