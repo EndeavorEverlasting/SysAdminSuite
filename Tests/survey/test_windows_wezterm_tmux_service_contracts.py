@@ -64,6 +64,7 @@ def test_lua_and_launcher_contract() -> None:
     launcher = read(ROOT / "Launch-WorkstationWezTerm.ps1")
     assert "tmux: Development" in template and "wsl.exe" in template
     assert "new-session" in template and "-A" in template and "@SESSION@" in template
+    assert "$HOME/.local/agent-switchboard/bin" in template and "--exec" in template
     assert "PowerShell 7 (fallback/admin)" in template
     assert "font" not in template.lower()
     assert "Start-SasWindowsTmuxWorkspace.ps1" in launcher and "LaunchGui" in launcher
@@ -115,6 +116,9 @@ def test_apply_start_status_stop_rollback_fixture_loop() -> None:
         applied = invoke("Apply", FIXTURES / "healthy.json", home, state, allow=True)
         validate_result(applied)
         assert applied["outcome"] == "success" and applied["proof"]["config_applied"]
+        baseline_manifest = read(state / "windows-tmux-workspace-backup.json")
+        assert invoke("Apply", FIXTURES / "healthy.json", home, state, allow=True)["outcome"] == "success"
+        assert read(state / "windows-tmux-workspace-backup.json") == baseline_manifest
         assert "Builtin Solarized Dark" in read(home / ".wezterm.lua")
         assert "BEGIN SYSADMINSUITE" in read(home / ".wezterm.lua")
         assert "tmux: Development" in read(home / ".wezterm-sysadminsuite.lua")
@@ -150,6 +154,7 @@ def test_exact_keepalive_ownership_contract() -> None:
     assert "[Diagnostics.ProcessStartInfo]::new()" in text
     assert "ArgumentList.Add" in text and "CreateNoWindow" in text
     assert "'--exec', 'bash', '-lc'" in text
+    assert "tmux set-environment -g PATH" in text
     assert "Start-Process -FilePath 'wsl.exe'" not in text
 
 

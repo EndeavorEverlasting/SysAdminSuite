@@ -240,23 +240,27 @@ function Apply-Configuration {
     if (-not (Test-Path -LiteralPath $templatePath)) { throw "Template missing: $templatePath" }
     New-Item -ItemType Directory -Path $UserConfigDir -Force | Out-Null
     New-Item -ItemType Directory -Path $StateRoot -Force | Out-Null
-    $backupRoot = Join-Path $StateRoot ('backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
-    New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
     $userExisted = Test-Path -LiteralPath $userLuaPath
     $sasExisted = Test-Path -LiteralPath $sasLuaPath
-    $userBackup = Join-Path $backupRoot 'wezterm.lua'
-    $sasBackup = Join-Path $backupRoot 'wezterm-sysadminsuite.lua'
-    if ($userExisted) { Copy-Item -LiteralPath $userLuaPath -Destination $userBackup }
-    if ($sasExisted) { Copy-Item -LiteralPath $sasLuaPath -Destination $sasBackup }
-    $manifest = [pscustomobject]@{
-        schema_version = 'sas-windows-tmux-workspace-backup/v1'
-        user_lua = [pscustomobject]@{ path = $userLuaPath; existed = $userExisted; backup = $userBackup }
-        sas_lua = [pscustomobject]@{ path = $sasLuaPath; existed = $sasExisted; backup = $sasBackup }
-        shortcut = [pscustomobject]@{ path = $shortcutPath; existed = (Test-Path -LiteralPath $shortcutPath) }
-    }
-    Write-JsonFile -Path $manifestPath -Value $manifest
-    if (Get-Value $Inventory 'apply_failure' $false) { throw 'fixture apply failure after backup' }
     $existing = if ($userExisted) { Get-Content -Raw -LiteralPath $userLuaPath } else { '' }
+    $priorManifest = Read-JsonFile -Path $manifestPath
+    $alreadyManaged = $userExisted -and $sasExisted -and $existing.Contains($managedStart) -and $existing.Contains($managedEnd)
+    if (-not ($priorManifest -and $priorManifest.schema_version -eq 'sas-windows-tmux-workspace-backup/v1' -and $alreadyManaged)) {
+        $backupRoot = Join-Path $StateRoot ('backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+        New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
+        $userBackup = Join-Path $backupRoot 'wezterm.lua'
+        $sasBackup = Join-Path $backupRoot 'wezterm-sysadminsuite.lua'
+        if ($userExisted) { Copy-Item -LiteralPath $userLuaPath -Destination $userBackup }
+        if ($sasExisted) { Copy-Item -LiteralPath $sasLuaPath -Destination $sasBackup }
+        $manifest = [pscustomobject]@{
+            schema_version = 'sas-windows-tmux-workspace-backup/v1'
+            user_lua = [pscustomobject]@{ path = $userLuaPath; existed = $userExisted; backup = $userBackup }
+            sas_lua = [pscustomobject]@{ path = $sasLuaPath; existed = $sasExisted; backup = $sasBackup }
+            shortcut = [pscustomobject]@{ path = $shortcutPath; existed = (Test-Path -LiteralPath $shortcutPath) }
+        }
+        Write-JsonFile -Path $manifestPath -Value $manifest
+    }
+    if (Get-Value $Inventory 'apply_failure' $false) { throw 'fixture apply failure after backup' }
     if (Get-Value $Inventory 'malformed_config' $false) { $existing = 'return {' }
     $updated = Get-UpdatedUserLua -Content $existing
     $rendered = (Get-Content -Raw -LiteralPath $templatePath).Replace('@DISTRO@', [string](Get-Value $Inventory 'distro')).Replace('@SESSION@', $sessionName)
@@ -300,8 +304,10 @@ function Start-Workspace {
         if (-not $keepalive.running) { throw 'operation-timeout: keepalive did not reach an owned running state' }
     }
     & wsl.exe -d $Inventory.distro -- tmux has-session -t $sessionName 2>$null
-    if ($LASTEXITCODE -ne 0) { & wsl.exe -d $Inventory.distro -- tmux new-session -d -s $sessionName }
+    if ($LASTEXITCODE -ne 0) { & wsl.exe -d $Inventory.distro --exec bash -lc 'export PATH="$HOME/.local/agent-switchboard/bin:$PATH"; exec tmux new-session -d -s dev' }
     if ($LASTEXITCODE -ne 0) { throw 'tmux-socket-missing: could not create dev session' }
+    & wsl.exe -d $Inventory.distro --exec bash -lc 'tmux set-environment -g PATH "$HOME/.local/agent-switchboard/bin:$PATH"'
+    if ($LASTEXITCODE -ne 0) { throw 'tmux-socket-missing: could not update the dev session agent PATH' }
     $guiProcess = if ($LaunchGui) { Start-IndependentWezTermGui -GuiPath $Inventory.wezterm_gui_path } else { $null }
     Write-JsonFile -Path $statePath -Value ([pscustomobject]@{ distro = $Inventory.distro; keepalive_pid = $keepalive.pid; session_name = $sessionName; gui_launcher = $Inventory.wezterm_gui_path; gui_pid = $(if ($guiProcess) { $guiProcess.Id } else { $null }) })
 }
