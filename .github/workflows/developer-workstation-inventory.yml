@@ -1,0 +1,41 @@
+name: Developer workstation inventory contracts
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - "schemas/harness/developer-workstation-inventory.schema.json"
+      - "scripts/Get-SasDeveloperWorkstationInventory.ps1"
+      - "scripts/get-sas-developer-workstation-inventory.sh"
+      - "scripts/Render-SasWorkstationInventoryEnglish.py"
+      - "Tests/Fixtures/workstation-inventory/**"
+      - "Tests/Pester/DeveloperWorkstationInventory.Tests.ps1"
+      - "Tests/survey/test_developer_workstation_inventory_contracts.py"
+      - ".github/workflows/developer-workstation-inventory.yml"
+
+jobs:
+  contracts-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install jsonschema
+      - run: python Tests/survey/test_developer_workstation_inventory_contracts.py
+      - run: bash -n scripts/get-sas-developer-workstation-inventory.sh
+      - run: bash scripts/get-sas-developer-workstation-inventory.sh --fixture tmux-session-healthy --output /tmp/inventory.json --lifecycle-output /tmp/lifecycle.json
+      - run: python -m json.tool /tmp/inventory.json > /dev/null
+      - run: python -m json.tool /tmp/lifecycle.json > /dev/null
+
+  contracts-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: pwsh
+        run: |
+          ./scripts/Get-SasDeveloperWorkstationInventory.ps1 -Fixture tmux-session-healthy -OutputPath "$env:RUNNER_TEMP/inventory.json" -LifecycleOutputPath "$env:RUNNER_TEMP/lifecycle.json"
+          if ((Get-Content "$env:RUNNER_TEMP/inventory.json" -Raw | ConvertFrom-Json).schema_version -ne 'sas-developer-workstation-inventory/v2') { throw 'schema mismatch' }
+      - shell: pwsh
+        run: ./tools/Test-Pester5Suite.ps1 -TestPath ./Tests/Pester/DeveloperWorkstationInventory.Tests.ps1

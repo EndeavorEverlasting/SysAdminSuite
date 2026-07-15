@@ -27,6 +27,17 @@ Use this map to load only the files needed for a task.
 - `Tests/Fixtures/developer-workstation-lifecycle/` — sanitized success, partial, failure, action-required, and unsupported lifecycle fixtures.
 - `Tests/survey/test_developer_workstation_lifecycle_contracts.py` — dependency-free lifecycle schema, registry, fixture, API, workflow, and evidence-boundary contracts.
 
+## Developer workstation inventory
+
+- `docs/DEVELOPER_WORKSTATION_INVENTORY.md` — read-only host inventory surface, detected fields, reason codes, proof ceiling, and fixture strategy.
+- `schemas/harness/developer-workstation-inventory.schema.json` — typed terminal, domain, tmux, service, agent, lifecycle, and proof-ceiling inventory v2.
+- `scripts/Get-SasDeveloperWorkstationInventory.ps1` — read-only Windows/WSL domain collector with lifecycle artifact output.
+- `scripts/get-sas-developer-workstation-inventory.sh` — read-only native-Linux/WSL-context collector with lifecycle artifact output.
+- `scripts/Render-SasWorkstationInventoryEnglish.py` — dependency-free English renderer for inventory results.
+- `Tests/Fixtures/workstation-inventory/` — Windows-native, Linux-native, WSL, missing-tools, malformed-output, and unsupported-platform fixtures.
+- `Tests/survey/test_developer_workstation_inventory_contracts.py` — dependency-free schema, fixture, renderer, script, and wiring contracts.
+- `.github/workflows/developer-workstation-inventory.yml` — contract, schema, PowerShell fixture, and Bash fixture CI gates.
+
 ## End-to-end validation
 
 - `docs/END_TO_END_TESTING_POSTURE.md` — default merge/release proof posture and E2E safety classes.

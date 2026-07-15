@@ -1,0 +1,1 @@
+{"schema_version":"sas-workstation-inventory-fixture/v2","scenario":"no-wsl","host_platform":"windows","expected_reason":"no-wsl-distro"}

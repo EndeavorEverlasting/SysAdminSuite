@@ -1,0 +1,1 @@
+{"schema_version":"sas-workstation-inventory-fixture/v2","scenario":"wsl-native-agent","host_platform":"windows","expected_agent_backend":"native"}
