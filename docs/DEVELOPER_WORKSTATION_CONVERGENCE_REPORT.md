@@ -12,33 +12,33 @@ macOS is unsupported. WSL evidence never satisfies native-Linux proof.
 
 | PR | Scope | State at snapshot | Convergence decision |
 |---|---|---|---|
-| #199 | v2 profile contract | Draft, conflicting | Superseded by merged v3 #205. Close; preserve branch. |
-| #201 | v2 inventory | Draft, conflicting | Superseded by merged domain inventory #207. Close; preserve branch. |
-| #202 | PowerShell-primary Windows profile | Draft, conflicting | Superseded by merged Windows WSL/tmux service #208. Close; preserve branch. |
-| #203 | 12-case v2 fixture E2E | Draft | Superseded by 22-case v3 E2E #214. Close; preserve branch. |
-| #204 | v2 tutorial and report | Draft | Useful structure salvaged and rewritten on the convergence branch. Close after the new docs PR opens. |
+| #199 | v2 profile contract | Closed, superseded | Superseded by merged v3 #205; branch preserved. |
+| #201 | v2 inventory | Closed, superseded | Superseded by merged domain inventory #207; branch preserved. |
+| #202 | PowerShell-primary Windows profile | Closed, superseded | Superseded by merged Windows WSL/tmux service #208; branch preserved. |
+| #203 | 12-case v2 fixture E2E | Closed, superseded | Superseded by 22-case v3 E2E #214; branch preserved. |
+| #204 | v2 tutorial and report | Closed, superseded | Useful structure salvaged and rewritten in #217; branch preserved. |
 | #205 | v3 profile contract | Merged | Foundation retained. |
 | #206 | lifecycle evidence spine | Merged | Foundation retained. |
 | #207 | execution-domain inventory | Merged | Foundation retained. |
 | #208 | Windows WSL/tmux service | Merged | Foundation retained. |
-| #209 | native-Linux service | Open, conflicting | Unique implementation is already present in merged #210. Close as superseded; preserve branch. |
+| #209 | native-Linux service | Closed, superseded | Unique implementation is already present in merged #210; branch preserved. |
 | #210 | agent harness plus converged Windows/Linux services | Merged | Foundation retained. |
-| #212 | one-command orchestrator | Open | Merge next after repaired `windows-integration` turns green. |
-| #214 | 22-journey fixture E2E | Open | Merge after #212. |
-| #215 | Windows live-runtime fixes and proof harness | Open | Merge after #214. |
-| #216 | native-host blocker preparation fix | Open | Merge after #215. |
-| #217 | tutorial, routing, release ledger | Open | Merge last. |
+| #212 | one-command orchestrator | Open, checks green, mergeable | Merge next. |
+| #214 | 22-journey fixture E2E | Open, checks green, mergeable | Merge after #212. |
+| #215 | Windows live-runtime fixes and proof harness | Open, checks green, mergeable | Merge after #214. |
+| #216 | native-host blocker preparation fix | Open, checks green, mergeable | Merge after #215. |
+| #217 | tutorial, routing, release ledger | Open, checks green, mergeable | Merge last. |
 
 ## AgentSwitchboard PR ledger
 
-| PR | Scope | Decision |
+| PR | Scope | State and decision |
 |---|---|---|
-| #4 | Windows CLI bootstrap | Close as superseded after #10; unique command/bootstrap intent is preserved. |
-| #6 | WSL bootstrap | Close as superseded after #10; useful bootstrap and dotfile safety work is preserved. |
-| #9 | versioned invocation API | Close as superseded after #10; v2 request/result contracts are preserved. |
-| #10 | multi-domain wrapper and runtime convergence | Merge before relying on live SysAdminSuite agent routing. |
+| #4 | Windows CLI bootstrap | Closed as superseded by #10; unique command/bootstrap intent is preserved and the branch remains. |
+| #6 | WSL bootstrap | Closed as superseded by #10; useful bootstrap and dotfile safety work is preserved and the branch remains. |
+| #9 | versioned invocation API | Closed as superseded by #10; v2 request/result contracts are preserved and the branch remains. |
+| #10 | multi-domain wrapper and runtime convergence | Open and mergeable; merge before relying on live SysAdminSuite agent routing. |
 
-No branch is deleted and no old PR is closed until its unique work has a named replacement.
+No branch was deleted. Each old PR was closed only after its unique work had a named replacement and #217 was open.
 
 ## Required merge order
 
