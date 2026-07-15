@@ -281,6 +281,43 @@ The tutorial system lives in `GUI/Start-SysAdminSuiteGui.ps1` and is designed fo
 
 ---
 
+### Developer Workstation (Windows / Linux)
+
+Set up a bimodal developer workstation with WezTerm as the terminal host:
+
+- [`docs/tutorials/DEVELOPER_WORKSTATION.md`](docs/tutorials/DEVELOPER_WORKSTATION.md) — full tutorial: inventory, plan, apply, launch, verify, rollback, proof interpretation
+- Windows and Linux are supported. macOS is explicitly unsupported.
+- WSL is optional, not mandatory.
+
+Windows quick start:
+
+```powershell
+# Inventory (read-only)
+.\scripts\Get-SasDeveloperWorkstationInventory.ps1 -OutputPath .\runs\inventory.json
+
+# Plan (read-only)
+.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 -ProfilePath .\Config\developer-workstation-profile.sample.json -Action Plan
+
+# Apply (requires authorization)
+.\scripts\Invoke-SasWezTermWindowsNativeProfile.ps1 -ProfilePath .\Config\developer-workstation-profile.sample.json -Action Apply -AllowTargetMutation
+
+# Launch
+.\Launch-WorkstationWezTerm.ps1
+```
+
+Linux quick start:
+
+```bash
+# Inventory (read-only)
+bash scripts/get-sas-developer-workstation-inventory.sh --output runs/inventory.json
+
+# Source workspace helpers
+source configs/linux-native/sas-bashrc.sh
+
+# Open workspace
+sas_workspace
+```
+
 ### Dry-run / Offline Validation (safe on any machine)
 ```powershell
 # Canonical runner: fails fast if Pester 5 is missing

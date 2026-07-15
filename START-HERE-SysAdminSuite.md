@@ -145,6 +145,12 @@ The **web interface is the canonical technician tutorial**.
 - Supporting written runbook: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Implementation and evidence reference: [`docs/SOFTWARE_INSTALL_E2E.md`](docs/SOFTWARE_INSTALL_E2E.md)
 
+## Where is the developer workstation tutorial?
+
+- Full step-by-step: [`docs/tutorials/DEVELOPER_WORKSTATION.md`](docs/tutorials/DEVELOPER_WORKSTATION.md)
+- Covers Windows, Linux, optional WSL, WezTerm configuration, inventory, plan/apply/rollback, proof interpretation.
+- macOS is explicitly unsupported.
+
 ## What files should I never commit?
 
 Live target CSVs, scan output, packaged ZIPs, generated installer executables, software-install evidence, serials, MACs, and site evidence. Keep them on your admin workstation only.
