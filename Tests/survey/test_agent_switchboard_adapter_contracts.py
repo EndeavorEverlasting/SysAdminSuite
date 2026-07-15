@@ -66,6 +66,19 @@ def test_authentication_required_is_data_not_automation() -> None:
         assert "oauth" not in ADAPTER.read_text(encoding="utf-8").lower()
 
 
+def test_live_installation_proof_is_accepted_without_authentication_inflation() -> None:
+    with tempfile.TemporaryDirectory() as temp:
+        root=Path(temp); req=root/"request.json"; out=root/"result.json"
+        request(req,bridge=True)
+        value=json.loads(req.read_text()); value.update(operation="install-missing",posture="live"); value.pop("fixture_scenario")
+        req.write_text(json.dumps(value),encoding="utf-8")
+        result=run(["--request",str(req),"--output",str(out),"--fixture-result","live-install"])
+        assert result.returncode==0,result.stderr
+        proof=json.loads(out.read_text())["proof"]
+        assert proof["installation_observed"] is True
+        assert proof["authentication_observed"] is proof["provider_response_observed"] is proof["interactive_behavior_observed"] is False
+
+
 def test_malformed_and_timeout_are_bounded() -> None:
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp); req=root/"request.json"; out=root/"result.json"; request(req)
