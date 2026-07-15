@@ -1,0 +1,53 @@
+{
+  "schema_version": "sas-vm-dry-run-readiness/v1",
+  "schema_path": "schemas/harness/vm-dry-run-readiness.schema.json",
+  "proof_class": "synthetic_offline_vm_readiness",
+  "dry_run_journey_ids": [
+    "software-install-fixture",
+    "software-install-validated-finalization",
+    "software-install-result-presentation"
+  ],
+  "safety": {
+    "readiness_validator_starts_vm": false,
+    "readiness_validator_executes_real_package": false,
+    "readiness_validator_mutates_host": false,
+    "readiness_validator_contacts_target": false,
+    "readiness_validator_uses_external_network": false,
+    "autologon_allowed": false,
+    "runtime_vm_must_be_disposable": true,
+    "rollback_or_destroy_required": true,
+    "one_package_per_clean_snapshot": true
+  },
+  "provider_detection": {
+    "mode": "command_presence_only",
+    "required_for_offline_readiness": false,
+    "commands": [
+      "vmconnect.exe",
+      "WindowsSandbox.exe",
+      "VBoxManage.exe",
+      "vmrun.exe"
+    ]
+  },
+  "runtime_entry_requirements": [
+    "provider_selected",
+    "clean_checkpoint_or_ephemeral_guest",
+    "host_negative_gate_passed",
+    "approved_package_identity_available",
+    "supported_installer_arguments_available",
+    "guest_evidence_root_selected",
+    "rollback_or_destroy_plan_recorded",
+    "autologon_excluded"
+  ],
+  "required_evidence": [
+    "host_preflight",
+    "guest_baseline",
+    "package_identity",
+    "dry_run_plan",
+    "install_result",
+    "application_acceptance",
+    "guest_delta",
+    "rollback_or_destroy_result",
+    "host_postflight"
+  ],
+  "proof_ceiling": "readiness_only_no_vm_started"
+}

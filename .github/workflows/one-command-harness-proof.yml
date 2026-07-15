@@ -4,15 +4,24 @@ on:
   pull_request:
     branches:
       - main
+      - feat/one-command-harness-proof-schema
     paths:
       - '.github/workflows/one-command-harness-proof.yml'
       - 'scripts/validate-sysadmin-harness.ps1'
+      - 'scripts/Invoke-SasVmDryRunHarnessProof.ps1'
+      - 'scripts/Test-SasVmDryRunReadiness.ps1'
+      - 'scripts/Invoke-SasSoftwareInstallE2E.ps1'
+      - 'scripts/Invoke-SasValidatedSoftwareDeploymentE2E.ps1'
       - 'scripts/SasRunContext.psm1'
       - 'scripts/Render-SasEnglishReport.ps1'
       - 'scripts/Invoke-SasHarnessContracts.ps1'
+      - 'harness/e2e/vm-dry-run-readiness.json'
+      - 'harness/e2e/e2e-profiles.json'
       - 'Tests/Pester/SasRunContext.Tests.ps1'
+      - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
       - 'Tests/bash/test_sysadmin_harness_validator_contracts.sh'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
+      - 'Tests/survey/test_vm_dry_run_readiness_contracts.py'
       - 'Tests/survey/test_run_context_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
       - 'schemas/harness/**'
@@ -28,12 +37,20 @@ on:
     paths:
       - '.github/workflows/one-command-harness-proof.yml'
       - 'scripts/validate-sysadmin-harness.ps1'
+      - 'scripts/Invoke-SasVmDryRunHarnessProof.ps1'
+      - 'scripts/Test-SasVmDryRunReadiness.ps1'
+      - 'scripts/Invoke-SasSoftwareInstallE2E.ps1'
+      - 'scripts/Invoke-SasValidatedSoftwareDeploymentE2E.ps1'
       - 'scripts/SasRunContext.psm1'
       - 'scripts/Render-SasEnglishReport.ps1'
       - 'scripts/Invoke-SasHarnessContracts.ps1'
+      - 'harness/e2e/vm-dry-run-readiness.json'
+      - 'harness/e2e/e2e-profiles.json'
       - 'Tests/Pester/SasRunContext.Tests.ps1'
+      - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
       - 'Tests/bash/test_sysadmin_harness_validator_contracts.sh'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
+      - 'Tests/survey/test_vm_dry_run_readiness_contracts.py'
       - 'Tests/survey/test_run_context_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
       - 'schemas/harness/**'
@@ -57,19 +74,42 @@ jobs:
       - name: Run executable proof contracts
         shell: pwsh
         run: |
+          python .\Tests\survey\test_vm_dry_run_readiness_contracts.py
           python .\Tests\survey\test_one_command_harness_proof_contracts.py
 
       - name: Run one-command synthetic validator
         shell: pwsh
         run: |
-          & .\scripts\validate-sysadmin-harness.ps1 -OutputRoot .\survey\output\harness-validator
+          & .\scripts\Invoke-SasVmDryRunHarnessProof.ps1 -OutputRoot .\survey\output\vm-dry-run-harness
+
+      - name: Validate machine-readable proof schemas
+        shell: pwsh
+        run: |
+          $profileJson = Get-Content -LiteralPath .\harness\e2e\vm-dry-run-readiness.json -Raw
+          if (-not (Test-Json -Json $profileJson -SchemaFile .\schemas\harness\vm-dry-run-readiness.schema.json)) {
+            throw 'VM dry-run profile did not satisfy vm-dry-run-readiness.schema.json.'
+          }
+
+          $resultPath = '.\survey\output\vm-dry-run-harness\harness_validation_result.json'
+          if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
+            throw 'One-command validator did not emit harness_validation_result.json.'
+          }
+          $resultJson = Get-Content -LiteralPath $resultPath -Raw
+          if (-not (Test-Json -Json $resultJson -SchemaFile .\schemas\harness\harness-proof-result.schema.json)) {
+            throw 'Harness validation result did not satisfy harness-proof-result.schema.json.'
+          }
+          Write-Host "[PASS] schema-backed VM dry-run harness proof result: $resultPath"
 
       - name: Upload synthetic proof artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: one-command-harness-proof
+          name: one-command-vm-dry-run-proof
           path: |
-            survey/output/harness-validator/**/reports/harness_validation_matrix.txt
-            survey/output/harness-validator/**/reports/harness_validation_result.json
+            survey/output/vm-dry-run-harness/harness_validation_matrix.txt
+            survey/output/vm-dry-run-harness/harness_validation_result.json
+            survey/output/vm-dry-run-harness/base-harness/**/reports/harness_validation_matrix.txt
+            survey/output/vm-dry-run-harness/base-harness/**/reports/harness_validation_result.json
+            survey/output/vm-dry-run-harness/vm-readiness/vm_dry_run_readiness_matrix.txt
+            survey/output/vm-dry-run-harness/vm-readiness/vm_dry_run_readiness_result.json
           if-no-files-found: error

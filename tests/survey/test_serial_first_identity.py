@@ -29,6 +29,13 @@ def read_first_row(path: Path) -> dict[str, str]:
         return next(csv.DictReader(handle))
 
 
+def to_wsl_path(path: Path) -> str:
+    p = path.resolve().as_posix()
+    if len(p) > 1 and p[1] == ':':
+        return f"/mnt/{p[0].lower()}{p[2:]}"
+    return p
+
+
 def run(cmd: list[str]) -> None:
     subprocess.run(cmd, cwd=REPO_ROOT, check=True)
 
@@ -57,6 +64,7 @@ def fake_identity_adapter(path: Path) -> None:
         "  printf '\"2026-06-25 00:00:00\",\"%s\",\"\",\"NoPing\",\"\",\"\",\"\",\"\",\"\",\"UnreachableOrBlocked\",\"probe=%s\"\\n' \"$probe\" \"$probe\" >> \"$output\"\n"
         "fi\n",
         encoding="utf-8",
+        newline="\n",
     )
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
@@ -96,9 +104,9 @@ def test_manifest_builder_prefers_serial_over_hostname() -> None:
                 "bash",
                 "deployment-audit/sas-build-survey-manifest.sh",
                 "--requests",
-                str(requests),
+                to_wsl_path(requests),
                 "--output",
-                str(output),
+                to_wsl_path(output),
             ]
         )
 
@@ -153,11 +161,11 @@ def test_cybernet_collector_keeps_serial_as_target_and_hostname_as_probe_hint() 
                 "bash",
                 "survey/sas-collect-cybernet-evidence.sh",
                 "--manifest",
-                str(manifest),
+                to_wsl_path(manifest),
                 "--identity-adapter",
-                str(adapter),
+                to_wsl_path(adapter),
                 "--output",
-                str(output),
+                to_wsl_path(output),
             ]
         )
 
@@ -214,11 +222,11 @@ def test_cybernet_collector_reports_serial_only_rows_without_crashing() -> None:
                 "bash",
                 "survey/sas-collect-cybernet-evidence.sh",
                 "--manifest",
-                str(manifest),
+                to_wsl_path(manifest),
                 "--identity-adapter",
-                str(adapter),
+                to_wsl_path(adapter),
                 "--output",
-                str(output),
+                to_wsl_path(output),
             ]
         )
 
@@ -289,11 +297,11 @@ def test_live_serial_probe_resolves_by_serial_before_hostname() -> None:
                 "bash",
                 "survey/sas-live-serial-probe.sh",
                 "--manifest",
-                str(manifest),
+                to_wsl_path(manifest),
                 "--identity-csv",
-                str(identity),
+                to_wsl_path(identity),
                 "--output",
-                str(output),
+                to_wsl_path(output),
                 "--no-dashboard",
             ]
         )

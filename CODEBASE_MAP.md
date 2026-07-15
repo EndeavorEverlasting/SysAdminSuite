@@ -60,7 +60,6 @@ Use this map to load only the files needed for a task.
 - `harness/api/developer-workstation-agent-routing.json` — deterministic trigger and terminal-context record.
 - `schemas/harness/developer-workstation-agent-routing.schema.json` — fail-closed routing contract.
 - `Tests/survey/test_developer_workstation_agent_harness_contracts.py` — trigger uniqueness, path, manifest, context, and prompt/application separation tests.
-
 ## Developer workstation orchestration
 
 - `scripts/Invoke-SasDeveloperWorkstation.py` — one-command Inventory/Plan/Apply/Start/Status/Stop/Repair/Validate/Rollback composition.

@@ -40,17 +40,24 @@ FIELDS = [
 ]
 
 
+def to_wsl_path(path: Path) -> str:
+    p = path.resolve().as_posix()
+    if len(p) > 1 and p[1] == ':':
+        return f"/mnt/{p[0].lower()}{p[2:]}"
+    return p
+
+
 def build_reports(resolver: Path, cleanup: Path, revisit: Path) -> None:
     run(
         [
             "bash",
             "survey/sas-build-cybernet-cleanup-report.sh",
             "--resolver-csv",
-            str(resolver),
+            to_wsl_path(resolver),
             "--output-cleanup",
-            str(cleanup),
+            to_wsl_path(cleanup),
             "--output-revisit",
-            str(revisit),
+            to_wsl_path(revisit),
         ]
     )
 
