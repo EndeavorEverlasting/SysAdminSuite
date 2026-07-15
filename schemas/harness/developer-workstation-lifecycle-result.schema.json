@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/developer-workstation-lifecycle-result.schema.json",
+  "title": "Developer Workstation Lifecycle Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "workflow_id", "run_id", "operation", "outcome",
+    "lifecycle_state", "reason_codes", "message", "artifacts", "proof"
+  ],
+  "properties": {
+    "schema_version": {"const": "sas-developer-workstation-lifecycle-result/v1"},
+    "workflow_id": {"const": "developer-workstation"},
+    "run_id": {"type": "string", "minLength": 1},
+    "operation": {
+      "enum": [
+        "inventory", "plan", "install", "configure", "start", "attach",
+        "status", "stop", "agent-readiness", "rollback", "fixture-e2e", "live-runtime"
+      ]
+    },
+    "outcome": {"enum": ["success", "partial", "failure", "action-required", "unsupported"]},
+    "lifecycle_state": {
+      "enum": [
+        "absent", "planned", "installed", "configured", "backend-running",
+        "tmux-available", "session-running", "gui-launched", "attached",
+        "agent-ready", "action-required", "failed", "stopped"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "none", "no-wsl-distro", "docker-only-distro", "tmux-missing",
+          "wsl-stopped", "keepalive-missing", "keepalive-stale",
+          "tmux-socket-missing", "nested-tmux-attempt", "wezterm-cli-gui-confusion",
+          "invalid-lua", "unavailable-font", "windows-only-agent-bridge",
+          "authentication-required", "rollback-required", "unsupported-platform",
+          "operation-timeout", "malformed-agent-result"
+        ]
+      }
+    },
+    "message": {"type": "string", "minLength": 1},
+    "artifacts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/artifactReference"}
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "install_completed", "config_applied", "launcher_started", "tmux_attached",
+        "command_acknowledged", "behavior_observed", "persistence_observed",
+        "live_runtime", "operator_accepted"
+      ],
+      "properties": {
+        "install_completed": {"type": "boolean"},
+        "config_applied": {"type": "boolean"},
+        "launcher_started": {"type": "boolean"},
+        "tmux_attached": {"type": "boolean"},
+        "command_acknowledged": {"type": "boolean"},
+        "behavior_observed": {"type": "boolean"},
+        "persistence_observed": {"type": "boolean"},
+        "live_runtime": {"type": "boolean"},
+        "operator_accepted": {"type": "boolean"}
+      }
+    }
+  },
+  "$defs": {
+    "artifactReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "path_class", "tracked", "contains_live_data"],
+      "properties": {
+        "role": {
+          "enum": [
+            "inventory", "plan", "config-backup-manifest", "lua-validation",
+            "backend-status", "tmux-status", "launcher-result",
+            "agentswitchboard-result", "rollback-result", "english-summary", "runtime-proof"
+          ]
+        },
+        "path_class": {"enum": ["tracked-fixture", "temporary-fixture", "repo-ignored-run"]},
+        "tracked": {"type": "boolean"},
+        "contains_live_data": {"type": "boolean"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"outcome": {"const": "success"}}, "required": ["outcome"]},
+      "then": {"properties": {"reason_codes": {"const": ["none"]}}}
+    },
+    {
+      "if": {"properties": {"outcome": {"enum": ["failure", "action-required", "unsupported"]}}, "required": ["outcome"]},
+      "then": {"properties": {"reason_codes": {"minItems": 1, "not": {"contains": {"const": "none"}}}}}
+    }
+  ]
+}

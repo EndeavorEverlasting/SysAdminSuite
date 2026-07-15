@@ -179,6 +179,29 @@
         "Prune_empty_SysAdminSuite_target_directories",
         "Local_gitignored_evidence_only"
       ]
+    },
+    {
+      "id": "developer_workstation.lifecycle",
+      "summary": "Create a canonical developer-workstation lifecycle result and registered local evidence envelope without performing workstation application logic.",
+      "mode": "operator_execute",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "developer-workstation-run.json",
+        "developer-workstation-profile.json"
+      ],
+      "outputs": [
+        "developer-workstation-lifecycle-result.json",
+        "artifact_registry.json",
+        "english-summary.txt"
+      ],
+      "guardrails": [
+        "No_process_launch_in_contract_layer",
+        "Proof_flags_default_false",
+        "Runtime_evidence_stays_gitignored",
+        "No_credentials_or_automatic_authentication",
+        "No_machine_local_paths_in_fixtures"
+      ]
     }
   ]
 }

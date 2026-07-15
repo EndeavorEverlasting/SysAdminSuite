@@ -1,0 +1,24 @@
+{
+  "schema_version": "sas-developer-workstation-lifecycle-result/v1",
+  "workflow_id": "developer-workstation",
+  "run_id": "fixture-failure",
+  "operation": "start",
+  "outcome": "failure",
+  "lifecycle_state": "failed",
+  "reason_codes": ["tmux-missing"],
+  "message": "The selected execution backend does not expose tmux.",
+  "artifacts": [
+    {"role": "backend-status", "path_class": "tracked-fixture", "tracked": true, "contains_live_data": false}
+  ],
+  "proof": {
+    "install_completed": false,
+    "config_applied": false,
+    "launcher_started": false,
+    "tmux_attached": false,
+    "command_acknowledged": false,
+    "behavior_observed": false,
+    "persistence_observed": false,
+    "live_runtime": false,
+    "operator_accepted": false
+  }
+}

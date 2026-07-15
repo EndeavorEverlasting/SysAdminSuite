@@ -1,0 +1,19 @@
+{
+  "schema_version": "sas-developer-workstation-artifact-types/v1",
+  "workflow_id": "developer-workstation",
+  "runtime_root": "runs/developer-workstation/<run_id>",
+  "tracked_runtime_evidence": false,
+  "roles": [
+    "inventory",
+    "plan",
+    "config-backup-manifest",
+    "lua-validation",
+    "backend-status",
+    "tmux-status",
+    "launcher-result",
+    "agentswitchboard-result",
+    "rollback-result",
+    "english-summary",
+    "runtime-proof"
+  ]
+}
