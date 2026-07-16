@@ -1,4 +1,4 @@
-name: Package static analysis contracts
+name: Package analysis contracts
 
 permissions:
   contents: read
@@ -8,24 +8,36 @@ on:
     paths:
       - '.claude/skills/package-static-analysis/**'
       - 'harness/api/package-static-analysis-skill.json'
+      - 'harness/api/package-semantic-analysis-skill.json'
       - 'schemas/harness/package-static-analysis-result.schema.json'
+      - 'schemas/harness/package-semantic-analysis-result.schema.json'
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
+      - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
       - 'scripts/invoke-sas-package-static-analysis.sh'
+      - 'scripts/invoke-sas-package-semantic-analysis.sh'
       - 'docs/PACKAGE_STATIC_ANALYSIS.md'
+      - 'docs/PACKAGE_SEMANTIC_ANALYSIS.md'
       - 'Tests/survey/test_package_static_analysis_contracts.py'
+      - 'Tests/survey/test_package_semantic_analysis_contracts.py'
       - '.github/workflows/package-static-analysis.yml'
   push:
     branches: [main, 'feat/**', 'repair/**', 'test/**']
     paths:
       - '.claude/skills/package-static-analysis/**'
       - 'harness/api/package-static-analysis-skill.json'
+      - 'harness/api/package-semantic-analysis-skill.json'
       - 'schemas/harness/package-static-analysis-result.schema.json'
+      - 'schemas/harness/package-semantic-analysis-result.schema.json'
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
+      - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
       - 'scripts/invoke-sas-package-static-analysis.sh'
+      - 'scripts/invoke-sas-package-semantic-analysis.sh'
       - 'docs/PACKAGE_STATIC_ANALYSIS.md'
+      - 'docs/PACKAGE_SEMANTIC_ANALYSIS.md'
       - 'Tests/survey/test_package_static_analysis_contracts.py'
+      - 'Tests/survey/test_package_semantic_analysis_contracts.py'
       - '.github/workflows/package-static-analysis.yml'
 
 jobs:
@@ -41,25 +53,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Compile analyzer and executable contracts
+      - name: Compile analyzers and executable contracts
         run: |
-          python -m py_compile tools/package-analysis/analyze_package.py Tests/survey/test_package_static_analysis_contracts.py
+          python -m py_compile tools/package-analysis/analyze_package.py tools/package-analysis/enrich_package_semantics.py Tests/survey/test_package_static_analysis_contracts.py Tests/survey/test_package_semantic_analysis_contracts.py
           python Tests/survey/test_package_static_analysis_contracts.py
+          python Tests/survey/test_package_semantic_analysis_contracts.py
       - name: Validate result schema posture
-        run: >-
-          python -c 'import json; from pathlib import Path; schema=json.loads(Path("schemas/harness/package-static-analysis-result.schema.json").read_text()); assert schema["$schema"]=="https://json-schema.org/draft/2020-12/schema"; assert schema["additionalProperties"] is False; print("PASS: result schema posture")'
+        run: python -c "import json,pathlib; paths=['schemas/harness/package-static-analysis-result.schema.json','schemas/harness/package-semantic-analysis-result.schema.json']; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+'schema') == 'https://json-schema.org/draft/2020-12/schema' and s['additionalProperties'] is False for s in schemas); print('PASS: package result schema posture')"
       - name: Bash syntax
         if: runner.os != 'Windows'
-        run: bash -n scripts/invoke-sas-package-static-analysis.sh
+        run: |
+          bash -n scripts/invoke-sas-package-static-analysis.sh
+          bash -n scripts/invoke-sas-package-semantic-analysis.sh
       - name: PowerShell parser
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $tokens=$null; $errors=$null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path '.\scripts\Invoke-SasPackageStaticAnalysis.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          )
-          if($errors.Count -gt 0){$errors|ForEach-Object{Write-Error $_}; exit 1}
-          'PASS: PowerShell parser'
+          foreach($path in '.\scripts\Invoke-SasPackageStaticAnalysis.ps1','.\scripts\Invoke-SasPackageSemanticAnalysis.ps1') {
+            $tokens=$null; $errors=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path),[ref]$tokens,[ref]$errors)
+            if($errors.Count -gt 0){$errors|ForEach-Object{Write-Error $_}; exit 1}
+          }
+          'PASS: PowerShell parsers'
