@@ -119,7 +119,7 @@ def test_bash_service_syntax_and_safety_contract() -> None:
     assert "| sh" not in source
     assert "snap install" not in source
     assert "npm install" not in source
-    assert "git status --porcelain" in source
+    assert 'git -C "$app_root" status --porcelain' in source
     assert "refusing update" in source
 
 
