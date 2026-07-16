@@ -1,0 +1,21 @@
+{
+  "kind": "regular-sprint-request",
+  "schemaVersion": 1,
+  "objective": "Generate one bounded GNHF prompt for a fixture-only SysAdminSuite harness change.",
+  "repository": {
+    "name": "SysAdminSuite",
+    "remote": "https://github.com/EndeavorEverlasting/SysAdminSuite",
+    "localPath": "__TARGET_REPO__",
+    "branchContext": "stacked feature branch from the current harness authority"
+  },
+  "forbiddenScope": [
+    "deployment and live target behavior"
+  ],
+  "expectedArtifacts": [
+    "sanitized contract fixture"
+  ],
+  "safetyConstraints": [
+    "no credentials or live targets"
+  ],
+  "desiredProofLevel": "contract-only"
+}

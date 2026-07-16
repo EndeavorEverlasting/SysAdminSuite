@@ -23,6 +23,7 @@ This document is the operational index for a fresh agent entering SysAdminSuite.
 | Codebase map | `CODEBASE_MAP.md` | Implemented |
 | Skill/capability catalog | `harness/api/agent-capability-manifest.json` | Implemented and manifest-driven |
 | Deterministic task routing | `harness/api/agent-routing-manifest.json` | Implemented; routes only, never authorizes mutation |
+| AgentSwitchboard GNHF compatibility | `harness/api/agentswitchboard-gnhf-external-contract.json` | Implemented as an exact external version/blob pin; no runtime code copied |
 | Scoped skills | `.claude/skills/*/SKILL.md` | Implemented |
 | Reusable capabilities | `.claude/capabilities/*.md` | Implemented |
 | Workflow specs | `.archon/workflows/`, `survey/workflows/`, `harness/workflows/` | Implemented by lane |
@@ -35,6 +36,8 @@ This document is the operational index for a fresh agent entering SysAdminSuite.
 | Local MCP servers | `mcp/local/servers.json` | Planned; catalog entries are not runtime proof |
 | English/operator reports | `scripts/Render-SasEnglishReport.ps1`, `docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md` | Implemented for structured artifacts |
 | Final handoff compression | `tools/New-SasSprintCapsule.ps1`, `schemas/harness/agent-sprint-capsule.schema.json` | Implemented |
+
+The GNHF adoption seam routes explicit compile-only, local execute, environment Plan, and registered overnight workflow signals through `.claude/skills/gnhf-prompt-adoption/SKILL.md`. SysAdminSuite owns its request scope, workflow selection, validation, result ingestion, and capsule. AgentSwitchboard owns GNHF schemas, prompt compilation/runtime contracts, workstation setup, launch, and local runtime evidence.
 
 ## Canonical run and artifact shape
 
@@ -78,6 +81,7 @@ python3 Tests/survey/test_agent_instruction_factoring_contracts.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
 python3 Tests/survey/test_agent_routing_manifest_contracts.py
 python3 Tests/survey/test_agent_sprint_capsule_contracts.py
+python3 Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools/validate-ai-layer.ps1
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester/SprintCapsule.Tests.ps1
 bash tests/survey/run_offline_survey_tests.sh

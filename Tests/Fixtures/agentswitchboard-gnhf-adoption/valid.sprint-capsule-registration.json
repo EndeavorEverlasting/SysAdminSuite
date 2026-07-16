@@ -1,0 +1,12 @@
+{
+  "schema_version": "sas-agentswitchboard-gnhf-capsule-registration/v1",
+  "source_result": "Tests/Fixtures/agentswitchboard-gnhf-adoption/valid.successful-delegation-result.json",
+  "source_proof_level": "local-workstation-observed",
+  "source_proof_ceiling": "Sanitized fixture models local workstation behavior only; provider quality and live target behavior remain unproven.",
+  "operation": "agent_sprint_capsule.generate",
+  "workflow": "harness/workflows/agent-sprint-capsule.yaml",
+  "artifact_registry_schema": "sas-artifact-registry/v1",
+  "registered_artifact": "agent-sprint-capsule.json",
+  "proof_ceiling_preserved": true,
+  "tracked_runtime_evidence": false
+}

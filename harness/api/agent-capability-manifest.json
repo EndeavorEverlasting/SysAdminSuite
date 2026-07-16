@@ -326,6 +326,144 @@
       ]
     },
     {
+      "id": "agentswitchboard-gnhf-request-construction",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/agentswitchboard-gnhf-request-construction.md",
+      "summary": "Construct a bounded SysAdminSuite regular sprint request for the pinned AgentSwitchboard GNHF contract.",
+      "lanes": [
+        "harness",
+        "integration",
+        "prompt-compilation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/agentswitchboard-gnhf-external-contract.json",
+        "harness/workflows/agentswitchboard-gnhf-prompt-adoption.yaml"
+      ],
+      "validators": [
+        "Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "agentswitchboard-gnhf-external-contract-validation",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/agentswitchboard-gnhf-external-contract-validation.md",
+      "summary": "Validate GNHF request and result kinds against the exact external AgentSwitchboard version pin.",
+      "lanes": [
+        "harness",
+        "integration",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/agentswitchboard-gnhf-external-contract.json",
+        "schemas/harness/agentswitchboard-gnhf-external-contract.schema.json"
+      ],
+      "validators": [
+        "Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "agentswitchboard-gnhf-prompt-compilation-delegation",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/agentswitchboard-gnhf-prompt-compilation-delegation.md",
+      "summary": "Delegate compile-only prompt generation to the AgentSwitchboard-owned GNHF prompt contract.",
+      "lanes": [
+        "harness",
+        "integration",
+        "prompt-compilation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/agentswitchboard-gnhf-external-contract.json",
+        "harness/workflows/agentswitchboard-gnhf-prompt-adoption.yaml"
+      ],
+      "validators": [
+        "Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "agentswitchboard-gnhf-local-runtime-delegation",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/agentswitchboard-gnhf-local-runtime-delegation.md",
+      "summary": "Gate and delegate explicit local GNHF execution through the canonical AgentSwitchboard entrypoint.",
+      "lanes": [
+        "harness",
+        "integration",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "repository",
+      "authority_paths": [
+        "harness/api/agentswitchboard-gnhf-external-contract.json",
+        "harness/workflows/agentswitchboard-gnhf-prompt-adoption.yaml"
+      ],
+      "validators": [
+        "Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "agentswitchboard-gnhf-result-ingestion",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/agentswitchboard-gnhf-result-ingestion.md",
+      "summary": "Ingest one validated AgentSwitchboard runtime result without raising its status or proof ceiling.",
+      "lanes": [
+        "harness",
+        "integration",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/agentswitchboard-gnhf-external-contract.json",
+        "harness/workflows/agentswitchboard-gnhf-prompt-adoption.yaml"
+      ],
+      "validators": [
+        "Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "agentswitchboard-gnhf-sprint-capsule-generation",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/agentswitchboard-gnhf-sprint-capsule-generation.md",
+      "summary": "Compress validated GNHF delegation state through the existing sprint capsule and artifact registry.",
+      "lanes": [
+        "harness",
+        "integration",
+        "handoff"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/workflows/agent-sprint-capsule.yaml",
+        "tools/New-SasSprintCapsule.ps1"
+      ],
+      "validators": [
+        "Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py",
+        "Tests/survey/test_agent_sprint_capsule_contracts.py"
+      ]
+    },
+    {
       "id": "workstation-rollback",
       "version": "1.0.0",
       "path": ".claude/capabilities/workstation-rollback.md",
@@ -584,6 +722,39 @@
         "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
         "Tests/survey/test_agent_capability_manifest_contracts.py",
         "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "gnhf-prompt-adoption",
+      "path": ".claude/skills/gnhf-prompt-adoption/SKILL.md",
+      "summary": "Compile bounded SysAdminSuite GNHF prompts and delegate separately authorized local runtime to AgentSwitchboard.",
+      "capability_ids": [
+        "agentswitchboard-gnhf-request-construction",
+        "agentswitchboard-gnhf-external-contract-validation",
+        "agentswitchboard-gnhf-prompt-compilation-delegation",
+        "agentswitchboard-gnhf-local-runtime-delegation",
+        "agentswitchboard-gnhf-result-ingestion",
+        "agentswitchboard-gnhf-sprint-capsule-generation"
+      ],
+      "lanes": [
+        "harness",
+        "integration",
+        "prompt-compilation",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "repository",
+      "authority_paths": [
+        "harness/api/agentswitchboard-gnhf-external-contract.json",
+        "harness/workflows/agentswitchboard-gnhf-prompt-adoption.yaml",
+        "docs/AGENTSWITCHBOARD_GNHF_ADOPTION.md"
+      ],
+      "validators": [
+        "Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_routing_manifest_contracts.py"
       ]
     },
     {

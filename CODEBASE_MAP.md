@@ -52,6 +52,15 @@ Use this map to load only the files needed for a task.
 - `harness/api/developer-workstation-agent-routing.json` — deterministic trigger and terminal-context record.
 - `schemas/harness/developer-workstation-agent-routing.schema.json` — fail-closed routing contract.
 - `Tests/survey/test_developer_workstation_agent_harness_contracts.py` — trigger uniqueness, path, manifest, context, and prompt/application separation tests.
+
+## AgentSwitchboard GNHF prompt adoption
+
+- `.claude/skills/gnhf-prompt-adoption/SKILL.md` — one scoped compile/delegate/Plan/registered-workflow adoption skill.
+- `.claude/capabilities/agentswitchboard-gnhf-*.md` — atomic request, external validation, compilation, runtime, result, and capsule concerns.
+- `harness/api/agentswitchboard-gnhf-external-contract.json` — exact AgentSwitchboard PR #17 commit, schema version, blob, and desktop-entrypoint pin; external schemas and launchers are not copied.
+- `harness/workflows/agentswitchboard-gnhf-prompt-adoption.yaml` — registered compile-only and separately authorized local-delegation workflow.
+- `Tests/Fixtures/agentswitchboard-gnhf-adoption/` — sanitized success, rejection, blocker, proof-ceiling, and capsule-registration fixtures.
+- `Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py` — offline pin, routing, permission, version, result, capsule, and hygiene contracts.
 ## Native Linux workstation host
 
 - `scripts/invoke-sas-linux-tmux-workspace.sh` — native Plan/Apply/Start/Status/Stop/Repair/Rollback lifecycle implementation.

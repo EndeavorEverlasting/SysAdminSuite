@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/agentswitchboard-gnhf-external-contract.schema.json",
+  "title": "SysAdminSuite AgentSwitchboard GNHF External Contract Pin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "supported_external_schema_version",
+    "authority",
+    "schemas",
+    "invocation",
+    "proof_policy"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-agentswitchboard-gnhf-external-contract/v1" },
+    "schema_path": { "const": "schemas/harness/agentswitchboard-gnhf-external-contract.schema.json" },
+    "supported_external_schema_version": { "const": 1 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "pull_request", "source_commit", "runtime_owner", "consumer_owner"],
+      "properties": {
+        "repository": { "const": "EndeavorEverlasting/AgentSwitchboard" },
+        "pull_request": { "const": 17 },
+        "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "runtime_owner": { "const": "AgentSwitchboard" },
+        "consumer_owner": { "const": "SysAdminSuite" }
+      }
+    },
+    "schemas": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "schema_version", "path", "schema_id", "git_blob_sha"],
+        "properties": {
+          "kind": { "enum": ["regular-sprint-request", "compiled-gnhf-prompt-result", "desktop-gnhf-launch-request", "desktop-gnhf-runtime-result"] },
+          "schema_version": { "const": 1 },
+          "path": { "type": "string", "pattern": "^tooling/gnhf/schemas/.+\\.v1\\.schema\\.json$" },
+          "schema_id": { "type": "string", "pattern": "^https://agentswitchboard\\.local/schemas/.+\\.v1\\.schema\\.json$" },
+          "git_blob_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+        }
+      }
+    },
+    "invocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "git_blob_sha", "plan_default", "parameters"],
+      "properties": {
+        "path": { "const": "tooling/gnhf/Invoke-ChatGPTDesktopGnhfSprint.ps1" },
+        "git_blob_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "plan_default": { "const": true },
+        "parameters": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 6,
+          "items": { "type": "string", "pattern": "^-[A-Za-z]+$" }
+        }
+      }
+    },
+    "proof_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["process_exit_sufficient", "preserve_external_proof_ceiling", "tracked_runtime_evidence_allowed"],
+      "properties": {
+        "process_exit_sufficient": { "const": false },
+        "preserve_external_proof_ceiling": { "const": true },
+        "tracked_runtime_evidence_allowed": { "const": false }
+      }
+    }
+  }
+}

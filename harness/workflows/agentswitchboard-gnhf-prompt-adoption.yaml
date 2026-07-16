@@ -1,0 +1,62 @@
+name: agentswitchboard-gnhf-prompt-adoption
+description: Construct and validate a SysAdminSuite sprint request, then delegate compilation or separately authorized local execution to AgentSwitchboard.
+mode: local_transform
+network_activity: false
+target_mutation: false
+external_contract: harness/api/agentswitchboard-gnhf-external-contract.json
+inputs:
+  - exact deterministic task signal
+  - objective and bounded scope
+  - branch or PR context
+  - expected artifacts and validators
+  - proof target
+  - explicit local execution authorization when requested
+phases:
+  - id: classify-signal
+    capability: agentswitchboard-gnhf-request-construction
+    action: Select compile-only, local execute, environment Plan, or registered overnight workflow semantics.
+  - id: construct-request
+    capability: agentswitchboard-gnhf-request-construction
+    action: Emit a version-1 AgentSwitchboard regular sprint request from explicit SysAdminSuite inputs.
+  - id: validate-external-contract
+    capability: agentswitchboard-gnhf-external-contract-validation
+    action: Fail closed on unavailable authority, schema mismatch, malformed scope, or conflicting Git modes.
+  - id: delegate-compilation
+    capability: agentswitchboard-gnhf-prompt-compilation-delegation
+    action: Produce exactly one compiled prompt and validation result without local execution.
+  - id: gate-local-runtime
+    capability: agentswitchboard-gnhf-local-runtime-delegation
+    action: Delegate only after explicit permission, availability, attached clean target, and one Git mode are proven.
+  - id: ingest-result
+    capability: agentswitchboard-gnhf-result-ingestion
+    action: Preserve status, artifact and commit proof, blocker, proof level, and proof ceiling.
+  - id: generate-capsule
+    capability: agentswitchboard-gnhf-sprint-capsule-generation
+    action: Reuse agent_sprint_capsule.generate and the canonical artifact registry for final handoff compression.
+guardrails:
+  - Compile_only_never_runs
+  - Local_execution_requires_explicit_authorization
+  - Environment_configuration_is_Plan_first
+  - Registered_overnight_workflow_requires_explicit_execution_authorization
+  - Unknown_or_conflicting_signals_fail_closed_to_repository_sprint
+  - AgentSwitchboard_unavailable_or_schema_mismatch_is_non_success
+  - No_deployment_or_target_mutation_authority
+  - No_credentials_or_tracked_runtime_evidence
+  - Preserve_external_proof_ceiling
+artifacts:
+  - regular-sprint-request.json
+  - compiled-prompt-validation.json
+  - delegation-result.json
+  - agent-sprint-capsule.json
+  - operator_handoff.txt
+validation:
+  - python3 Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py
+  - python3 Tests/survey/test_agent_instruction_factoring_contracts.py
+  - python3 Tests/survey/test_agent_capability_manifest_contracts.py
+  - python3 Tests/survey/test_agent_routing_manifest_contracts.py
+  - python3 Tests/survey/test_agent_sprint_capsule_contracts.py
+  - pwsh -NoProfile -ExecutionPolicy Bypass -File tools/validate-ai-layer.ps1
+next_actions:
+  - Use Plan unless local execution has been requested explicitly.
+  - Keep AgentSwitchboard runtime evidence outside SysAdminSuite Git.
+  - Preserve the ingested proof ceiling in the sprint capsule.

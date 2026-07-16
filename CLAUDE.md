@@ -38,6 +38,7 @@ Do not preload `docs/HARNESS_COMPLETION_PLAN.md`, `docs/ENGLISH_LOG_ARTIFACT_CON
 - `.claude/skills/live-data-guard/SKILL.md` — keep local data and operator evidence out of AI context and commits.
 - `.claude/skills/survey-low-noise/SKILL.md` — preserve low-noise survey doctrine.
 - `.claude/skills/developer-workstation/SKILL.md` — route WezTerm/tmux inventory, lifecycle, configuration, agent readiness, and rollback to product entrypoints.
+- `.claude/skills/gnhf-prompt-adoption/SKILL.md` — compile bounded SysAdminSuite GNHF prompts and delegate separately authorized local runtime to AgentSwitchboard.
 - `.claude/skills/package-static-analysis/SKILL.md` — inspect local EXE, MSI, archive, script, and configuration packages without execution or endpoint contact.
 
 Capability catalog: `.claude/capabilities/README.md`.

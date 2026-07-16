@@ -41,6 +41,7 @@ Do not preload every skill, capability, plan, or handoff. Progressive disclosure
 | Reading, generating, moving, or staging local/live evidence | [Live Data Guard](.claude/skills/live-data-guard/SKILL.md) |
 | Survey, preflight, target intake, Naabu/Nmap, packet probes, dashboard probes | [Survey Low-Noise](.claude/skills/survey-low-noise/SKILL.md) |
 | WezTerm/tmux setup, persistent coding workspace, workstation repair, or agent readiness | [Developer Workstation](.claude/skills/developer-workstation/SKILL.md) |
+| Generate a GNHF prompt, delegate an explicit local GNHF run, or plan its environment | [GNHF Prompt Adoption](.claude/skills/gnhf-prompt-adoption/SKILL.md) |
 | EXE/MSI/archive inspection, installer behavior inference, large private package intake | [Package Static Analysis](.claude/skills/package-static-analysis/SKILL.md) |
 
 Load multiple skills only when the task genuinely crosses lanes. A skill may compose several capabilities; do not copy capability text into a new prompt.
@@ -65,6 +66,7 @@ If two same-level sources conflict, stop expansion, cite both paths, and make th
 - `CODEBASE_MAP.md` — minimal context routing.
 - `harness/api/agent-capability-manifest.json` — complete skill and capability inventory.
 - `harness/api/agent-routing-manifest.json` — deterministic task-signal routing and ambiguity rules.
+- `harness/api/agentswitchboard-gnhf-external-contract.json` — exact AgentSwitchboard GNHF schema and entrypoint compatibility pin.
 - `harness/workflows/agent-sprint-capsule.yaml` and `tools/New-SasSprintCapsule.ps1` — final handoff compression using the canonical run context and artifact registry.
 - `Config/operational-posture.json` and `docs/OPERATIONAL_POSTURE.md` — lane and mutation posture.
 - `docs/HARNESS_DISCIPLINE.md` — full Git/PR/worktree operation contract.

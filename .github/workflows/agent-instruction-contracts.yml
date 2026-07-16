@@ -18,20 +18,25 @@ on:
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
       - 'harness/api/sas-harness-api.json'
+      - 'harness/api/agentswitchboard-gnhf-external-contract.json'
       - 'harness/api/developer-workstation-agent-routing.json'
       - 'harness/workflows/agent-sprint-capsule.yaml'
+      - 'harness/workflows/agentswitchboard-gnhf-prompt-adoption.yaml'
       - 'harness/e2e/**'
       - 'schemas/harness/agent-capability-manifest.schema.json'
       - 'schemas/harness/agent-routing-manifest.schema.json'
       - 'schemas/harness/agent-sprint-capsule.schema.json'
+      - 'schemas/harness/agentswitchboard-gnhf-external-contract.schema.json'
       - 'schemas/harness/developer-workstation-agent-routing.schema.json'
       - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/Fixtures/capsules/**'
+      - 'Tests/Fixtures/agentswitchboard-gnhf-adoption/**'
       - 'Tests/Pester/SprintCapsule.Tests.ps1'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
       - 'Tests/survey/test_agent_routing_manifest_contracts.py'
       - 'Tests/survey/test_agent_sprint_capsule_contracts.py'
+      - 'Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py'
       - 'Tests/survey/test_developer_workstation_agent_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'tools/New-SasSprintCapsule.ps1'
@@ -51,20 +56,25 @@ on:
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
       - 'harness/api/sas-harness-api.json'
+      - 'harness/api/agentswitchboard-gnhf-external-contract.json'
       - 'harness/api/developer-workstation-agent-routing.json'
       - 'harness/workflows/agent-sprint-capsule.yaml'
+      - 'harness/workflows/agentswitchboard-gnhf-prompt-adoption.yaml'
       - 'harness/e2e/**'
       - 'schemas/harness/agent-capability-manifest.schema.json'
       - 'schemas/harness/agent-routing-manifest.schema.json'
       - 'schemas/harness/agent-sprint-capsule.schema.json'
+      - 'schemas/harness/agentswitchboard-gnhf-external-contract.schema.json'
       - 'schemas/harness/developer-workstation-agent-routing.schema.json'
       - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/Fixtures/capsules/**'
+      - 'Tests/Fixtures/agentswitchboard-gnhf-adoption/**'
       - 'Tests/Pester/SprintCapsule.Tests.ps1'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
       - 'Tests/survey/test_agent_routing_manifest_contracts.py'
       - 'Tests/survey/test_agent_sprint_capsule_contracts.py'
+      - 'Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py'
       - 'Tests/survey/test_developer_workstation_agent_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'tools/New-SasSprintCapsule.ps1'
@@ -91,17 +101,22 @@ jobs:
           Tests/survey/test_agent_capability_manifest_contracts.py
           Tests/survey/test_agent_routing_manifest_contracts.py
           Tests/survey/test_agent_sprint_capsule_contracts.py
+          Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py
       - name: Skill, capability, routing, and handoff contracts
         run: |
           python3 Tests/survey/test_agent_instruction_factoring_contracts.py
           python3 Tests/survey/test_agent_capability_manifest_contracts.py
           python3 Tests/survey/test_agent_routing_manifest_contracts.py
           python3 Tests/survey/test_agent_sprint_capsule_contracts.py
+          python3 Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py
           python3 Tests/survey/test_developer_workstation_agent_harness_contracts.py
           python3 Tests/survey/test_e2e_default_posture_contracts.py
       - name: Parse harness workflow spec
         run: >-
           python -c "import pathlib,yaml; p=pathlib.Path('harness/workflows/agent-sprint-capsule.yaml'); d=yaml.safe_load(p.read_text()); assert d['mode']=='local_transform' and d['network_activity'] is False and d['target_mutation'] is False; print('PASS: agent sprint capsule workflow')"
+      - name: Parse AgentSwitchboard GNHF adoption workflow
+        run: >-
+          python -c "import pathlib,yaml; p=pathlib.Path('harness/workflows/agentswitchboard-gnhf-prompt-adoption.yaml'); d=yaml.safe_load(p.read_text()); assert d['mode']=='local_transform' and d['network_activity'] is False and d['target_mutation'] is False; print('PASS: AgentSwitchboard GNHF adoption workflow')"
 
   ai-layer-validator:
     runs-on: windows-latest

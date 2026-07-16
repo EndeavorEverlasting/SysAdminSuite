@@ -280,6 +280,53 @@
       "proof_ceiling": "Profile, fixture, and bounded runtime proof for the observed host only."
     },
     {
+      "id": "gnhf-prompt-adoption-trigger",
+      "summary": "Route compile-only, explicit local runtime, environment Plan, and registered overnight GNHF requests.",
+      "deterministic_task_signals": [
+        "generate a good night have fun prompt",
+        "run this GNHF sprint locally",
+        "configure my GNHF environment",
+        "execute this registered workflow overnight"
+      ],
+      "priority": 65,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "gnhf-prompt-adoption",
+      "required_inputs": [
+        "objective",
+        "owned and forbidden scope",
+        "Git context",
+        "expected artifacts",
+        "validators",
+        "proof target"
+      ],
+      "outputs": [
+        "AgentSwitchboard-compatible regular request",
+        "compiled-prompt validation result",
+        "exact local next command",
+        "validated result and sprint capsule when authorized"
+      ],
+      "preconditions": [
+        "the exact requested operation is identified",
+        "AgentSwitchboard external contract version is pinned",
+        "local execution and environment Apply remain separately authorized"
+      ],
+      "guardrails": [
+        "compile-only never executes",
+        "local execution requires explicit permission and clean attached Git state",
+        "environment configuration routes to Plan first",
+        "unknown or conflicting signals fail closed to repository-sprint",
+        "no deployment or target mutation authority",
+        "preserve returned proof ceiling"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py",
+        "Tests/survey/test_agent_routing_manifest_contracts.py"
+      ],
+      "proof_ceiling": "External version pin, routing, schema, fixture, and delegation contract proof only; no live GNHF execution."
+    },
+    {
       "id": "package-static-analysis-trigger",
       "summary": "Route non-executing EXE, MSI, archive, packaged-script, and semantic package analysis.",
       "deterministic_task_signals": [

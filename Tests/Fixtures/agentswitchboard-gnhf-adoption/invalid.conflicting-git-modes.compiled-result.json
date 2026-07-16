@@ -1,0 +1,63 @@
+{
+  "kind": "compiled-gnhf-prompt-result",
+  "schemaVersion": 1,
+  "repository": {
+    "name": "SysAdminSuite",
+    "remote": "https://github.com/EndeavorEverlasting/SysAdminSuite",
+    "localPath": "__TARGET_REPO__"
+  },
+  "prompt": "Execute a bounded fixture-only SysAdminSuite harness sprint. Preserve repository scope, run the registered validators, require a committed artifact, stop deterministically, and report only the proof actually observed.",
+  "gitExecution": {
+    "mode": "worktree",
+    "baseBranch": "feat/example-base",
+    "currentBranch": true
+  },
+  "agentRoute": {
+    "agent": "codex",
+    "routeId": "fixture-route"
+  },
+  "bounds": {
+    "maxIterations": 4,
+    "maxTokens": 24000,
+    "preventSleep": false,
+    "timeoutSeconds": 900
+  },
+  "ownedScope": [
+    "Tests/Fixtures/agentswitchboard-gnhf-adoption"
+  ],
+  "forbiddenScope": [
+    "deployment"
+  ],
+  "expectedArtifacts": [
+    {
+      "path": "artifacts/fixture-result.json",
+      "proof": "tracked artifact is committed"
+    }
+  ],
+  "readFirst": [
+    "AGENTS.md"
+  ],
+  "validationOrder": [
+    "python3 Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py"
+  ],
+  "commitContract": {
+    "required": true,
+    "message": "test: prove fixture sprint",
+    "proof": "commit SHA and clean worktree"
+  },
+  "pushContract": {
+    "mode": "manual",
+    "merge": false,
+    "deploy": false
+  },
+  "stopCondition": "Stop after the exact fixture artifact is committed and validation passes.",
+  "proofLevel": "contract-only",
+  "proofCeiling": "Fixture contract proof only; no local provider or target behavior is established.",
+  "finalResponseContract": [
+    "changed files",
+    "commit SHA",
+    "validation",
+    "proof ceiling"
+  ],
+  "nextCommand": "git status --short"
+}
