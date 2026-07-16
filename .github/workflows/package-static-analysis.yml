@@ -47,7 +47,7 @@ jobs:
           python Tests/survey/test_package_static_analysis_contracts.py
       - name: Validate result schema posture
         run: >-
-          python -c "import json; from pathlib import Path; schema=json.loads(Path('schemas/harness/package-static-analysis-result.schema.json').read_text()); assert schema['$schema']=='https://json-schema.org/draft/2020-12/schema'; assert schema['additionalProperties'] is False; print('PASS: result schema posture')"
+          python -c 'import json; from pathlib import Path; schema=json.loads(Path("schemas/harness/package-static-analysis-result.schema.json").read_text()); assert schema["$schema"]=="https://json-schema.org/draft/2020-12/schema"; assert schema["additionalProperties"] is False; print("PASS: result schema posture")'
       - name: Bash syntax
         if: runner.os != 'Windows'
         run: bash -n scripts/invoke-sas-package-static-analysis.sh
