@@ -67,7 +67,7 @@ jobs:
           PY
             git diff --check
           } 2>&1 | tee -a "$RUNNER_TEMP/agent-harness-repair.log"
-      - name: Commit repaired harness
+      - name: Commit non-workflow repairs
         shell: bash
         run: |
           set -o pipefail
@@ -84,8 +84,7 @@ jobs:
               tools/New-SasSprintCapsule.ps1 \
               Tests/Pester/SprintCapsule.Tests.ps1 \
               Tests/survey/test_agent_routing_manifest_contracts.py \
-              Tests/survey/test_agent_sprint_capsule_contracts.py \
-              .github/workflows/agent-instruction-contracts.yml
+              Tests/survey/test_agent_sprint_capsule_contracts.py
             git status --short
             git commit -m 'fix(harness): close capsule review boundaries'
             git push origin HEAD:${{ github.event.pull_request.head.ref }}
