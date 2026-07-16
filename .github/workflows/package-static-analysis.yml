@@ -17,6 +17,7 @@ on:
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
+      - 'scripts/Invoke-SasPackageTrust.ps1'
       - 'scripts/Test-SasPackageTrust.ps1'
       - 'scripts/invoke-sas-package-static-analysis.sh'
       - 'scripts/invoke-sas-package-semantic-analysis.sh'
@@ -41,6 +42,7 @@ on:
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
+      - 'scripts/Invoke-SasPackageTrust.ps1'
       - 'scripts/Test-SasPackageTrust.ps1'
       - 'scripts/invoke-sas-package-static-analysis.sh'
       - 'scripts/invoke-sas-package-semantic-analysis.sh'
@@ -105,7 +107,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          foreach($path in '.\scripts\Invoke-SasPackageStaticAnalysis.ps1','.\scripts\Invoke-SasPackageSemanticAnalysis.ps1','.\scripts\Test-SasPackageTrust.ps1','.\Tests\survey\Test-PackageTrustVerificationContracts.ps1') {
+          foreach($path in '.\scripts\Invoke-SasPackageStaticAnalysis.ps1','.\scripts\Invoke-SasPackageSemanticAnalysis.ps1','.\scripts\Invoke-SasPackageTrust.ps1','.\scripts\Test-SasPackageTrust.ps1','.\Tests\survey\Test-PackageTrustVerificationContracts.ps1') {
             $tokens=$null; $errors=$null
             [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path),[ref]$tokens,[ref]$errors)
             if($errors.Count -gt 0){$errors|ForEach-Object{Write-Error $_}; exit 1}
