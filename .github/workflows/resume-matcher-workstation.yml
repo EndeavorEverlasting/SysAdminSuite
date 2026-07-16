@@ -9,11 +9,14 @@ on:
       - 'Config/resume-matcher-workstation.sample.json'
       - 'schemas/harness/resume-matcher-workstation*.schema.json'
       - 'scripts/invoke-sas-resume-matcher-workstation.sh'
+      - 'scripts/invoke-sas-resume-matcher-workstation-safe.sh'
       - 'scripts/test-sas-resume-matcher-live-acceptance.sh'
       - 'scripts/Invoke-SasResumeMatcherWorkstation.ps1'
       - 'scripts/Test-SasResumeMatcherLiveAcceptance.ps1'
       - 'docs/RESUME_MATCHER_WORKSTATION.md'
+      - 'docs/RESUME_MATCHER_LIFECYCLE_SAFETY.md'
       - 'Tests/survey/test_resume_matcher_workstation_contracts.py'
+      - 'Tests/survey/test_resume_matcher_lifecycle_safety_contracts.py'
       - 'CODEBASE_MAP.md'
       - '.github/workflows/resume-matcher-workstation.yml'
   push:
@@ -22,11 +25,14 @@ on:
       - 'Config/resume-matcher-workstation.sample.json'
       - 'schemas/harness/resume-matcher-workstation*.schema.json'
       - 'scripts/invoke-sas-resume-matcher-workstation.sh'
+      - 'scripts/invoke-sas-resume-matcher-workstation-safe.sh'
       - 'scripts/test-sas-resume-matcher-live-acceptance.sh'
       - 'scripts/Invoke-SasResumeMatcherWorkstation.ps1'
       - 'scripts/Test-SasResumeMatcherLiveAcceptance.ps1'
       - 'docs/RESUME_MATCHER_WORKSTATION.md'
+      - 'docs/RESUME_MATCHER_LIFECYCLE_SAFETY.md'
       - 'Tests/survey/test_resume_matcher_workstation_contracts.py'
+      - 'Tests/survey/test_resume_matcher_lifecycle_safety_contracts.py'
       - 'CODEBASE_MAP.md'
       - '.github/workflows/resume-matcher-workstation.yml'
 
@@ -45,14 +51,20 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile deployment contracts
-        run: python -m py_compile Tests/survey/test_resume_matcher_workstation_contracts.py
-      - name: Run Linux fixture and contract suite
+        run: >-
+          python -m py_compile
+          Tests/survey/test_resume_matcher_workstation_contracts.py
+          Tests/survey/test_resume_matcher_lifecycle_safety_contracts.py
+      - name: Run Linux fixture and contract suites
         if: runner.os != 'Windows'
-        run: python Tests/survey/test_resume_matcher_workstation_contracts.py
+        run: |
+          python Tests/survey/test_resume_matcher_workstation_contracts.py
+          python Tests/survey/test_resume_matcher_lifecycle_safety_contracts.py
       - name: Bash syntax
         if: runner.os != 'Windows'
         run: |
           bash -n scripts/invoke-sas-resume-matcher-workstation.sh
+          bash -n scripts/invoke-sas-resume-matcher-workstation-safe.sh
           bash -n scripts/test-sas-resume-matcher-live-acceptance.sh
       - name: PowerShell parsers
         if: runner.os == 'Windows'
