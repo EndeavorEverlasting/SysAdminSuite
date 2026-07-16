@@ -81,6 +81,7 @@ jobs:
           python -c "import json; from pathlib import Path;
           paths=[Path('schemas/harness/resume-matcher-workstation.schema.json'),Path('schemas/harness/resume-matcher-workstation-result.schema.json')];
           schemas=[json.loads(path.read_text(encoding='utf-8')) for path in paths];
-          assert all(schema['$schema']=='https://json-schema.org/draft/2020-12/schema' for schema in schemas);
+          key=chr(36)+'schema';
+          assert all(schema[key]=='https://json-schema.org/draft/2020-12/schema' for schema in schemas);
           assert all(schema['additionalProperties'] is False for schema in schemas);
           print('PASS: Resume Matcher schema posture')"
