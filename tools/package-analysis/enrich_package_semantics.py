@@ -336,6 +336,13 @@ def derive_harness_requirements(files: list[dict[str, Any]]) -> dict[str, list[s
         "may_contact_endpoints": ("preflight", "store_endpoints_in_ignored_configuration", "logging", "redact_endpoint_values", "runtime_acceptance", "run_connectivity_checks_only_in_authorized_environment"),
         "may_launch_child_processes": ("logging", "capture_process_tree", "runtime_acceptance", "classify_child_process_exit_and_stability"),
         "may_configure_autologon": ("environment", "physical_cybernet_final_step_only", "runtime_acceptance", "require_post_reboot_console_observation"),
+        "may_modify_accounts_or_credential_provider": ("preflight", "capture_local_accounts_and_credential_providers", "logging", "capture_account_and_logon_provider_events", "runtime_acceptance", "verify_owned_account_or_credential_provider_delta", "rollback", "restore_owned_account_and_credential_provider_state"),
+        "may_delete_files_broadly": ("preflight", "capture_protected_file_tree_baseline", "logging", "capture_deleted_paths_redacted", "runtime_acceptance", "verify_no_unapproved_file_deletion", "rollback", "restore_snapshot_on_unbounded_file_change"),
+        "may_remove_own_files": ("logging", "capture_self_cleanup_actions", "runtime_acceptance", "verify_only_owned_staging_was_removed", "rollback", "preserve_requested_application_during_cleanup"),
+        "may_refresh_or_modify_group_policy": ("preflight", "capture_group_policy_baseline", "logging", "capture_group_policy_refresh_result", "runtime_acceptance", "verify_expected_group_policy_delta", "rollback", "restore_only_owned_policy_state"),
+        "may_define_msi_custom_actions": ("preflight", "decode_msi_custom_action_metadata_before_vm", "logging", "capture_msi_custom_action_failures", "runtime_acceptance", "verify_custom_action_side_effects_separately"),
+        "contains_encoded_powershell_marker": ("preflight", "inspect_encoded_powershell_payload_without_execution", "logging", "redact_encoded_payload_and_command_lines"),
+        "contains_secret_like_material": ("preflight", "isolate_private_configuration_and_activation_material", "logging", "redact_secret_like_values"),
     }
     for item_id in inference_ids:
         parts = mapping.get(item_id)
@@ -358,14 +365,21 @@ def validate_base_result(base: dict[str, Any]) -> None:
 
 def resolve_record_path(input_path: Path, relative_path: str) -> Path:
     if input_path.is_file():
+        if input_path.is_symlink():
+            raise ValueError("symlink_not_followed")
         return input_path
     pure = PurePosixPath(relative_path)
     if pure.is_absolute() or ".." in pure.parts:
         raise ValueError("unsafe relative path in base result")
-    candidate = input_path.joinpath(*pure.parts).resolve(strict=False)
     root = input_path.resolve()
+    candidate = Path(os.path.abspath(root.joinpath(*pure.parts)))
     if candidate != root and root not in candidate.parents:
         raise ValueError("base result path escapes the input root")
+    current = root
+    for part in pure.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("symlink_not_followed")
     return candidate
 
 
