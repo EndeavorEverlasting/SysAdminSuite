@@ -52,6 +52,7 @@ Use this map to load only the files needed for a task.
 - `harness/api/developer-workstation-agent-routing.json` — deterministic trigger and terminal-context record.
 - `schemas/harness/developer-workstation-agent-routing.schema.json` — fail-closed routing contract.
 - `Tests/survey/test_developer_workstation_agent_harness_contracts.py` — trigger uniqueness, path, manifest, context, and prompt/application separation tests.
+
 ## Native Linux workstation host
 
 - `scripts/invoke-sas-linux-tmux-workspace.sh` — native Plan/Apply/Start/Status/Stop/Repair/Rollback lifecycle implementation.
@@ -60,6 +61,16 @@ Use this map to load only the files needed for a task.
 - `Tests/Fixtures/linux-tmux-workspace/` and `Tests/survey/test_linux_wezterm_tmux_contracts.py` — required-failure and temporary-HOME lifecycle proof.
 - `docs/DEVELOPER_WORKSTATION_LINUX_HOST.md` — operator commands, preservation rules, and the native-GUI proof ceiling.
 - `.github/workflows/linux-wezterm-tmux-host.yml` — Ubuntu fixture contract gate; it is not a native desktop GUI claim.
+
+## Resume Matcher workstation deployment
+
+- `docs/RESUME_MATCHER_WORKSTATION.md` — operator workflow, recovered troubleshooting, DeepSeek handoff, and proof boundaries.
+- `Config/resume-matcher-workstation.sample.json` — pinned source, Python 3.13, Node 22, tmux, port, and Ubuntu 26.04 browser strategy.
+- `schemas/harness/resume-matcher-workstation.schema.json` and `schemas/harness/resume-matcher-workstation-result.schema.json` — fail-closed profile and lifecycle result contracts.
+- `scripts/invoke-sas-resume-matcher-workstation.sh` — Plan/Apply/Start/Status/Stop/Validate service for WSL or Linux.
+- `scripts/Invoke-SasResumeMatcherWorkstation.ps1` — Windows WSL wrapper with explicit mutation gating and distro selection.
+- `Tests/survey/test_resume_matcher_workstation_contracts.py` — dependency-free fixture, idempotency, secret-boundary, and syntax contracts.
+- `.github/workflows/resume-matcher-workstation.yml` — cross-platform contract and parser gate.
 
 ## End-to-end validation
 
