@@ -16,6 +16,8 @@ The static analyzer can observe a PE certificate table or CLR strong-name materi
 8. evaluates an explicit hash-bound signer or unsigned-package policy;
 9. emits a deployment disposition without launching the package.
 
+The canonical wrapper compiles `tools/package-analysis/SasPackageTrustInterop.cs` before invoking the policy engine. The interop uses an explicit optional-date object so unsigned files cannot fail because a signer certificate date is absent.
+
 ## Proof levels
 
 The lane distinguishes:
@@ -41,7 +43,7 @@ Use the emitted `package_analysis.json` as the trust lane's base result.
 ## Step 2: observation-only trust inventory
 
 ```powershell
-.\scripts\Test-SasPackageTrust.ps1 `
+.\scripts\Invoke-SasPackageTrust.ps1 `
   -InputPath 'D:\PrivatePackages\Allscripts' `
   -BaseResultPath '.\survey\output\package_static_analysis\<run>\package_analysis.json' `
   -ObservationOnly
@@ -99,7 +101,7 @@ Do not convert an invalid, bad-digest, expired, distrusted, or untrusted signatu
 ## Step 4: run the policy gate
 
 ```powershell
-.\scripts\Test-SasPackageTrust.ps1 `
+.\scripts\Invoke-SasPackageTrust.ps1 `
   -InputPath 'D:\PrivatePackages\Allscripts' `
   -BaseResultPath '.\survey\output\package_static_analysis\<run>\package_analysis.json' `
   -TrustPolicyPath 'D:\PrivatePolicies\allscripts-trust-policy.json'
