@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-<#+
+<#
 .SYNOPSIS
 Creates a schema-backed, registered, machine-local-path-free sprint handoff capsule.
 .DESCRIPTION
@@ -79,7 +79,12 @@ function ConvertTo-SasRepoRelative {
 
 $modulePath = Join-Path $PSScriptRoot '..\scripts\SasRunContext.psm1'
 Import-Module (Resolve-Path $modulePath) -Force
-if (-not $RepoRoot) { $RepoRoot = Get-SasRepoRoot -StartPath $PSScriptRoot }
+if (-not $RepoRoot) {
+    $candidateRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    $rootOutput = @(& git -C $candidateRoot rev-parse --show-toplevel 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "Unable to resolve repository root from the generator path: $($rootOutput -join "`n")" }
+    $RepoRoot = ($rootOutput -join "`n").Trim()
+}
 $script:ResolvedRepoRoot = [IO.Path]::GetFullPath($RepoRoot)
 $gitRoot = Invoke-SasGitText @('rev-parse','--show-toplevel')
 if (-not ([IO.Path]::GetFullPath($gitRoot)).Equals($script:ResolvedRepoRoot,[StringComparison]::OrdinalIgnoreCase)) { throw 'REJECT: RepoRoot does not match the active Git repository root.' }
