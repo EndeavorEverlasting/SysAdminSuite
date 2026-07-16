@@ -6,8 +6,8 @@
     Delegates to Invoke-SasResumeMatcherWorkstation.ps1 with Action Accept and the
     explicit mutation gate. By default it proves saved provider configuration
     without issuing an LLM request. -RequireProviderHealth opts into one bounded
-    provider test and possible API usage cost. No API key or model output is
-    written to the acceptance artifact.
+    provider request and therefore also requires -ConfirmProviderCharge. No API
+    key or model output is written to the acceptance artifact.
 #>
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
@@ -16,11 +16,19 @@ param(
     [string]$AppRoot,
     [string]$StateRoot,
     [string]$OutputPath,
-    [switch]$RequireProviderHealth
+    [switch]$RequireProviderHealth,
+    [switch]$ConfirmProviderCharge
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
+if ($RequireProviderHealth -and -not $ConfirmProviderCharge) {
+    throw '-RequireProviderHealth requires -ConfirmProviderCharge because the test may consume provider credits.'
+}
+if ($ConfirmProviderCharge -and -not $RequireProviderHealth) {
+    throw '-ConfirmProviderCharge requires -RequireProviderHealth.'
+}
 
 $service = Join-Path $PSScriptRoot 'Invoke-SasResumeMatcherWorkstation.ps1'
 if (-not (Test-Path -LiteralPath $service -PathType Leaf)) {
@@ -45,6 +53,7 @@ foreach ($entry in @{
 }
 if ($RequireProviderHealth) {
     $invoke.RequireProviderHealth = $true
+    $invoke.ConfirmProviderCharge = $true
 }
 
 if (-not $PSCmdlet.ShouldProcess('Resume Matcher in WSL', 'Run bounded live acceptance')) {
