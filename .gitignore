@@ -17,6 +17,7 @@ mapping/Output/*.json
 __pycache__/
 *.py[cod]
 *.pyo
+.venv/
 
 # PowerShell transcript leftovers
 *.log
