@@ -28,7 +28,7 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_developer_workstation_lifecycle_contracts.py` — dependency-free lifecycle schema, registry, fixture, API, workflow, and evidence-boundary contracts.
 - `scripts/Invoke-SasWindowsTmuxWorkspace.ps1` — Plan/Apply/Start/Status/Stop/Repair/Rollback service for the Windows WezTerm → WSL → tmux workspace.
 - `scripts/*-SasWindowsTmuxWorkspace.ps1` — stable technician-facing lifecycle entrypoints.
-- `Config/wezterm-windows-tmux.lua.template` — managed native Windows WezTerm configuration that enters WSL tmux `dev` and retains a PowerShell fallback.
+- `Config/wezterm-windows-tmux.lua.template`, `Config/tmux-sysadminsuite.conf`, and `Config/bashrc-sysadminsuite.sh` — bounded native-Linux managed fragments.
 - `Launch-WorkstationWezTerm.ps1` and `.cmd` — detached daily launcher; the GUI is always started through `wezterm-gui.exe`.
 - `Tests/Fixtures/windows-tmux-workspace/` — sanitized healthy, missing, stale, malformed, nested, failure, and rollback fixture inputs.
 - `Tests/survey/test_windows_wezterm_tmux_service_contracts.py` and `Tests/Pester/WindowsWezTermTmuxService.Tests.ps1` — temporary-HOME lifecycle, preservation, launcher, and ownership proof.
@@ -65,12 +65,14 @@ Use this map to load only the files needed for a task.
 ## Resume Matcher workstation deployment
 
 - `docs/RESUME_MATCHER_WORKSTATION.md` — install, troubleshooting, DeepSeek handoff, live acceptance, and proof boundaries.
+- `docs/RESUME_MATCHER_LIFECYCLE_SAFETY.md` — explicit application-update, provider-cost, and unmanaged-runtime safety gates.
 - `Config/resume-matcher-workstation.sample.json` — pinned runtime, service, browser-fallback, and acceptance profile.
 - `schemas/harness/resume-matcher-workstation.schema.json` and `schemas/harness/resume-matcher-workstation-result.schema.json` — fail-closed profile and lifecycle proof contracts.
-- `scripts/invoke-sas-resume-matcher-workstation.sh` — Plan/Apply/Start/Status/Stop/Validate/Accept service for WSL or Linux.
-- `scripts/Invoke-SasResumeMatcherWorkstation.ps1` — Windows WSL wrapper with explicit mutation and provider-health gates.
+- `scripts/invoke-sas-resume-matcher-workstation-safe.sh` — canonical Bash operator front door; gates clean-clone updates, provider cost, and unmanaged runtime shutdown claims.
+- `scripts/invoke-sas-resume-matcher-workstation.sh` — underlying Plan/Apply/Start/Status/Stop/Validate/Accept lifecycle engine.
+- `scripts/Invoke-SasResumeMatcherWorkstation.ps1` — Windows WSL front door routed through the Bash safety layer.
 - `scripts/Test-SasResumeMatcherLiveAcceptance.ps1` and `scripts/test-sas-resume-matcher-live-acceptance.sh` — stable one-command live acceptance entrypoints.
-- `Tests/survey/test_resume_matcher_workstation_contracts.py` — fixture, idempotency, secret-boundary, PDF-proof, and false-acceptance contracts.
+- `Tests/survey/test_resume_matcher_workstation_contracts.py` and `Tests/survey/test_resume_matcher_lifecycle_safety_contracts.py` — fixture, idempotency, secret-boundary, PDF-proof, update-gate, cost-gate, and unmanaged-runtime contracts.
 - `.github/workflows/resume-matcher-workstation.yml` — cross-platform contract, Bash syntax, PowerShell parser, and schema gate.
 - Runtime acceptance artifacts stay under `~/.local/state/sysadminsuite/resume-matcher/` and are never tracked.
 
