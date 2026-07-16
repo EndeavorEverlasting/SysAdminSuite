@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/package-trust-policy.schema.json",
+  "title": "SysAdminSuite Package Trust Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "default_disposition",
+    "unlisted_noncode_disposition",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {"const": "sas-package-trust-policy/v1"},
+    "policy_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "default_disposition": {"enum": ["review_required", "blocked"]},
+    "unlisted_noncode_disposition": {"enum": ["hash_only_approved", "review_required", "blocked"]},
+    "entries": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/policyEntry"}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+    "thumbprint": {"type": "string", "pattern": "^[0-9A-Fa-f]{40,128}$"},
+    "policyEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_path",
+        "expected_sha256",
+        "signature_requirement",
+        "approved_signer_thumbprints",
+        "approved_signer_subjects",
+        "approval_reference"
+      ],
+      "properties": {
+        "relative_path": {"type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!.*(^|[/\\\\])\\.\\.([/\\\\]|$)).+$"},
+        "expected_sha256": {"$ref": "#/$defs/sha256"},
+        "signature_requirement": {"enum": ["required_valid", "allow_unsigned_explicit", "review_required"]},
+        "approved_signer_thumbprints": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/thumbprint"},
+          "uniqueItems": true
+        },
+        "approved_signer_subjects": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 1024},
+          "uniqueItems": true
+        },
+        "approval_reference": {"type": ["string", "null"], "maxLength": 256},
+        "observed_signature_status": {"type": ["string", "null"], "maxLength": 64},
+        "observed_signer_thumbprint": {"oneOf": [{"$ref": "#/$defs/thumbprint"}, {"type": "null"}]},
+        "observed_signer_subject": {"type": ["string", "null"], "maxLength": 1024}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"signature_requirement": {"const": "required_valid"}}, "required": ["signature_requirement"]},
+          "then": {
+            "anyOf": [
+              {"properties": {"approved_signer_thumbprints": {"minItems": 1}}},
+              {"properties": {"approved_signer_subjects": {"minItems": 1}}}
+            ]
+          }
+        },
+        {
+          "if": {"properties": {"signature_requirement": {"const": "allow_unsigned_explicit"}}, "required": ["signature_requirement"]},
+          "then": {"properties": {"approval_reference": {"type": "string", "minLength": 1}}}
+        }
+      ]
+    }
+  }
+}
