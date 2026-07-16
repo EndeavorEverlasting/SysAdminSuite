@@ -1,1 +1,369 @@
-{"schema_version":"sas-agent-routing-manifest/v1","schema_path":"schemas/harness/agent-routing-manifest.schema.json","capability_manifest_path":"harness/api/agent-capability-manifest.json","harness_api_path":"harness/api/sas-harness-api.json","triggers":[{"id":"repository-sprint-trigger","summary":"Route repository intake, bounded sprint execution, Git recovery, and PR lifecycle work.","deterministic_task_signals":["EXECUTE THE REPO SPRINT","EXECUTE THE REPOSITORY SPRINT","analyze the repository","sprint the harness","merge readiness"],"priority":50,"composition_mode":"primary","target_type":"skill","target":"repository-sprint","required_inputs":["repo"],"outputs":["repository evidence","bounded sprint result"],"preconditions":["repository or repository URL is known"],"guardrails":["preserve dirty work","do not force push","do not claim unrun validation"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py"],"proof_ceiling":"Repository mutation and validation proof only; no target runtime proof."},{"id":"language-runtime-trigger","summary":"Route explicit runtime and implementation-language selection without rewriting active surfaces.","deterministic_task_signals":["choose the language runtime","PowerShell or Bash","Windows-native or WSL","select the implementation runtime"],"priority":40,"composition_mode":"primary","target_type":"skill","target":"language-runtime","required_inputs":["workflow or script path"],"outputs":["runtime selection"],"preconditions":["current entrypoints are inspected"],"guardrails":["preserve active PowerShell tooling","do not convert working surfaces by preference alone"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/survey/test_agent_capability_manifest_contracts.py"],"proof_ceiling":"Runtime-selection contract proof only."},{"id":"field-workflow-trigger","summary":"Route technician launchers, dashboard help, runbooks, and bounded command capsules.","deterministic_task_signals":["technician launcher","field runbook","double-click entrypoint","QR command capsule","dashboard tutorial"],"priority":40,"composition_mode":"primary","target_type":"skill","target":"field-workflow","required_inputs":["user journey"],"outputs":["field entrypoint or runbook"],"preconditions":["product-owned command exists or prerequisite is named"],"guardrails":["never hide mutation","preserve preview and confirmation"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py"],"proof_ceiling":"Launcher, documentation, and fixture proof only."},{"id":"scoped-validation-trigger","summary":"Route targeted parser, unit, contract, and bounded diagnostic validation.","deterministic_task_signals":["run scoped validation","targeted tests","diagnostic check","validate this file"],"priority":40,"composition_mode":"primary","target_type":"skill","target":"scoped-validation","required_inputs":["changed surface"],"outputs":["ordered validation result"],"preconditions":["the changed behavior and proof target are known"],"guardrails":["do not replace application logic with stubs","name skipped checks"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/survey/test_e2e_default_posture_contracts.py"],"proof_ceiling":"Targeted diagnostic proof; merge readiness requires the applicable composed gate."},{"id":"end-to-end-validation-trigger","summary":"Route merge, release, launcher, browser, and composed journey proof.","deterministic_task_signals":["end-to-end validation","E2E validation","release proof","merge readiness proof","browser journey"],"priority":45,"composition_mode":"primary","target_type":"skill","target":"end-to-end-validation","required_inputs":["workflow profile"],"outputs":["E2E result and artifacts"],"preconditions":["an applicable E2E profile or explicit journey exists"],"guardrails":["do not infer live proof from fixture proof","required default journeys cannot be skipped silently"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/survey/test_e2e_default_posture_contracts.py"],"proof_ceiling":"Fixture or loopback E2E unless an authorized live journey is separately observed."},{"id":"live-data-guard-trigger","summary":"Compose local-data, live-target, and generated-evidence boundaries with another selected lane.","deterministic_task_signals":["live target","production evidence","operator-local package","real hostname","target mutation"],"priority":90,"composition_mode":"additive","target_type":"skill","target":"live-data-guard","required_inputs":["evidence source"],"outputs":["evidence boundary decision"],"preconditions":["the data or target boundary is identified"],"guardrails":["never commit live evidence","never place credentials in prompts or capsules"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/survey/test_agent_instruction_factoring_contracts.py"],"proof_ceiling":"Evidence-boundary compliance proof only."},{"id":"survey-low-noise-trigger","summary":"Route survey, target intake, preflight, Naabu, Nmap, and packet-probe work.","deterministic_task_signals":["network survey","target intake","Naabu","Nmap","packet probe","low-noise survey"],"priority":50,"composition_mode":"primary","target_type":"skill","target":"survey-low-noise","required_inputs":["approved target source"],"outputs":["bounded survey plan or evidence"],"preconditions":["authorized scope exists"],"guardrails":["no blind probing","planner phases perform no network activity"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/bash/test_repo_naabu_doctrine_conformance.sh"],"proof_ceiling":"Policy and fixture proof unless approved live packets are separately observed."},{"id":"developer-workstation-trigger","summary":"Route WezTerm, tmux, WSL, Linux host, lifecycle, and coding-agent readiness work.","deterministic_task_signals":["WezTerm","tmux dev","developer workstation","Windows WSL backend","native Linux workstation","AgentSwitchboard"],"priority":55,"composition_mode":"primary","target_type":"skill","target":"developer-workstation","required_inputs":["developer workstation request"],"outputs":["selected lifecycle operation and proof ceiling"],"preconditions":["execution domain is identified"],"guardrails":["no automatic authentication","no nested tmux","Apply and Stop remain explicit"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/survey/test_developer_workstation_agent_harness_contracts.py"],"proof_ceiling":"Profile, fixture, and bounded runtime proof for the observed host only."},{"id":"package-static-analysis-trigger","summary":"Route non-executing EXE, MSI, archive, packaged-script, and semantic package analysis.","deterministic_task_signals":["analyze this installer","inspect this EXE","inspect this MSI","package static analysis","package semantic analysis","SAPIEN package"],"priority":60,"composition_mode":"primary","target_type":"skill","target":"package-static-analysis","required_inputs":["operator-local package path"],"outputs":["static result","semantic result","runtime requirements"],"preconditions":["package is local and ignored by Git"],"guardrails":["never execute the package","never contact discovered endpoints","do not emit raw private strings"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/survey/test_package_static_analysis_contracts.py","Tests/survey/test_package_semantic_analysis_contracts.py"],"proof_ceiling":"Bounded static and semantic inference only; installation and application behavior remain unproven."},{"id":"agent-sprint-capsule-trigger","summary":"Route final handoff compression into a registered, machine-local-path-free sprint capsule.","deterministic_task_signals":["next-chat sprint capsule","sprint capsule","final handoff compression","self-contained next chat","compress the handoff"],"priority":70,"composition_mode":"primary","target_type":"harness_operation","target":"agent_sprint_capsule.generate","required_inputs":["sprint identity","scope","validation","proof ceiling"],"outputs":["agent sprint capsule","operator handoff"],"preconditions":["repository Git state is inspectable","selected skills exist in the capability manifest"],"guardrails":["no machine-local paths","no credentials","no mutation authorization"],"owner":"Harness Spine","validators":["Tests/survey/test_agent_routing_manifest_contracts.py","Tests/survey/test_agent_sprint_capsule_contracts.py"],"proof_ceiling":"schema, fixture, run-context, artifact-registration, and local handoff proof"}],"ambiguity_rules":{"explicit_user_lane_wins":true,"safety_guard_triggers_compose_additively":true,"equal_priority_conflict_resolution":"fail_closed_to_repository_sprint","unknown_signal_fallback":"repository-sprint","no_trigger_authorizes_mutation":true}}
+{
+  "schema_version": "sas-agent-routing-manifest/v1",
+  "schema_path": "schemas/harness/agent-routing-manifest.schema.json",
+  "capability_manifest_path": "harness/api/agent-capability-manifest.json",
+  "harness_api_path": "harness/api/sas-harness-api.json",
+  "triggers": [
+    {
+      "id": "repository-sprint-trigger",
+      "summary": "Route repository intake, bounded sprint execution, Git recovery, and PR lifecycle work.",
+      "deterministic_task_signals": [
+        "EXECUTE THE REPO SPRINT",
+        "EXECUTE THE REPOSITORY SPRINT",
+        "analyze the repository",
+        "sprint the harness",
+        "merge readiness"
+      ],
+      "priority": 50,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "repository-sprint",
+      "required_inputs": [
+        "repo"
+      ],
+      "outputs": [
+        "repository evidence",
+        "bounded sprint result"
+      ],
+      "preconditions": [
+        "repository or repository URL is known"
+      ],
+      "guardrails": [
+        "preserve dirty work",
+        "do not force push",
+        "do not claim unrun validation"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ],
+      "proof_ceiling": "Repository mutation and validation proof only; no target runtime proof."
+    },
+    {
+      "id": "language-runtime-trigger",
+      "summary": "Route explicit runtime and implementation-language selection without rewriting active surfaces.",
+      "deterministic_task_signals": [
+        "choose the language runtime",
+        "PowerShell or Bash",
+        "Windows-native or WSL",
+        "select the implementation runtime"
+      ],
+      "priority": 40,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "language-runtime",
+      "required_inputs": [
+        "workflow or script path"
+      ],
+      "outputs": [
+        "runtime selection"
+      ],
+      "preconditions": [
+        "current entrypoints are inspected"
+      ],
+      "guardrails": [
+        "preserve active PowerShell tooling",
+        "do not convert working surfaces by preference alone"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ],
+      "proof_ceiling": "Runtime-selection contract proof only."
+    },
+    {
+      "id": "field-workflow-trigger",
+      "summary": "Route technician launchers, dashboard help, runbooks, and bounded command capsules.",
+      "deterministic_task_signals": [
+        "technician launcher",
+        "field runbook",
+        "double-click entrypoint",
+        "QR command capsule",
+        "dashboard tutorial"
+      ],
+      "priority": 40,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "field-workflow",
+      "required_inputs": [
+        "user journey"
+      ],
+      "outputs": [
+        "field entrypoint or runbook"
+      ],
+      "preconditions": [
+        "product-owned command exists or prerequisite is named"
+      ],
+      "guardrails": [
+        "never hide mutation",
+        "preserve preview and confirmation"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ],
+      "proof_ceiling": "Launcher, documentation, and fixture proof only."
+    },
+    {
+      "id": "scoped-validation-trigger",
+      "summary": "Route targeted parser, unit, contract, and bounded diagnostic validation.",
+      "deterministic_task_signals": [
+        "run scoped validation",
+        "targeted tests",
+        "diagnostic check",
+        "validate this file"
+      ],
+      "priority": 40,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "scoped-validation",
+      "required_inputs": [
+        "changed surface"
+      ],
+      "outputs": [
+        "ordered validation result"
+      ],
+      "preconditions": [
+        "the changed behavior and proof target are known"
+      ],
+      "guardrails": [
+        "do not replace application logic with stubs",
+        "name skipped checks"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_e2e_default_posture_contracts.py"
+      ],
+      "proof_ceiling": "Targeted diagnostic proof; merge readiness requires the applicable composed gate."
+    },
+    {
+      "id": "end-to-end-validation-trigger",
+      "summary": "Route merge, release, launcher, browser, and composed journey proof.",
+      "deterministic_task_signals": [
+        "end-to-end validation",
+        "E2E validation",
+        "release proof",
+        "merge readiness proof",
+        "browser journey"
+      ],
+      "priority": 45,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "end-to-end-validation",
+      "required_inputs": [
+        "workflow profile"
+      ],
+      "outputs": [
+        "E2E result and artifacts"
+      ],
+      "preconditions": [
+        "an applicable E2E profile or explicit journey exists"
+      ],
+      "guardrails": [
+        "do not infer live proof from fixture proof",
+        "required default journeys cannot be skipped silently"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_e2e_default_posture_contracts.py"
+      ],
+      "proof_ceiling": "Fixture or loopback E2E unless an authorized live journey is separately observed."
+    },
+    {
+      "id": "live-data-guard-trigger",
+      "summary": "Compose local-data, live-target, and generated-evidence boundaries with another selected lane.",
+      "deterministic_task_signals": [
+        "live target",
+        "production evidence",
+        "operator-local package",
+        "real hostname",
+        "target mutation"
+      ],
+      "priority": 90,
+      "composition_mode": "additive",
+      "target_type": "skill",
+      "target": "live-data-guard",
+      "required_inputs": [
+        "evidence source"
+      ],
+      "outputs": [
+        "evidence boundary decision"
+      ],
+      "preconditions": [
+        "the data or target boundary is identified"
+      ],
+      "guardrails": [
+        "never commit live evidence",
+        "never place credentials in prompts or capsules"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ],
+      "proof_ceiling": "Evidence-boundary compliance proof only."
+    },
+    {
+      "id": "survey-low-noise-trigger",
+      "summary": "Route survey, target intake, preflight, Naabu, Nmap, and packet-probe work.",
+      "deterministic_task_signals": [
+        "network survey",
+        "target intake",
+        "Naabu",
+        "Nmap",
+        "packet probe",
+        "low-noise survey"
+      ],
+      "priority": 50,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "survey-low-noise",
+      "required_inputs": [
+        "approved target source"
+      ],
+      "outputs": [
+        "bounded survey plan or evidence"
+      ],
+      "preconditions": [
+        "authorized scope exists"
+      ],
+      "guardrails": [
+        "no blind probing",
+        "planner phases perform no network activity"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/bash/test_repo_naabu_doctrine_conformance.sh"
+      ],
+      "proof_ceiling": "Policy and fixture proof unless approved live packets are separately observed."
+    },
+    {
+      "id": "developer-workstation-trigger",
+      "summary": "Route WezTerm, tmux, WSL, Linux host, lifecycle, and coding-agent readiness work.",
+      "deterministic_task_signals": [
+        "WezTerm",
+        "tmux dev",
+        "developer workstation",
+        "Windows WSL backend",
+        "native Linux workstation",
+        "AgentSwitchboard"
+      ],
+      "priority": 55,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "developer-workstation",
+      "required_inputs": [
+        "developer workstation request"
+      ],
+      "outputs": [
+        "selected lifecycle operation and proof ceiling"
+      ],
+      "preconditions": [
+        "execution domain is identified"
+      ],
+      "guardrails": [
+        "no automatic authentication",
+        "no nested tmux",
+        "Apply and Stop remain explicit"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py"
+      ],
+      "proof_ceiling": "Profile, fixture, and bounded runtime proof for the observed host only."
+    },
+    {
+      "id": "package-static-analysis-trigger",
+      "summary": "Route non-executing EXE, MSI, archive, packaged-script, and semantic package analysis.",
+      "deterministic_task_signals": [
+        "analyze this installer",
+        "inspect this EXE",
+        "inspect this MSI",
+        "package static analysis",
+        "package semantic analysis",
+        "SAPIEN package"
+      ],
+      "priority": 60,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "package-static-analysis",
+      "required_inputs": [
+        "operator-local package path"
+      ],
+      "outputs": [
+        "static result",
+        "semantic result",
+        "runtime requirements"
+      ],
+      "preconditions": [
+        "package is local and ignored by Git"
+      ],
+      "guardrails": [
+        "never execute the package",
+        "never contact discovered endpoints",
+        "do not emit raw private strings"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_package_static_analysis_contracts.py",
+        "Tests/survey/test_package_semantic_analysis_contracts.py"
+      ],
+      "proof_ceiling": "Bounded static and semantic inference only; installation and application behavior remain unproven."
+    },
+    {
+      "id": "agent-sprint-capsule-trigger",
+      "summary": "Route final handoff compression into a registered, machine-local-path-free sprint capsule.",
+      "deterministic_task_signals": [
+        "next-chat sprint capsule",
+        "sprint capsule",
+        "final handoff compression",
+        "self-contained next chat",
+        "compress the handoff"
+      ],
+      "priority": 70,
+      "composition_mode": "primary",
+      "target_type": "harness_operation",
+      "target": "agent_sprint_capsule.generate",
+      "required_inputs": [
+        "sprint identity",
+        "scope",
+        "validation",
+        "proof ceiling"
+      ],
+      "outputs": [
+        "agent sprint capsule",
+        "operator handoff"
+      ],
+      "preconditions": [
+        "repository Git state is inspectable",
+        "selected skills exist in the capability manifest"
+      ],
+      "guardrails": [
+        "no machine-local paths",
+        "no credentials",
+        "no mutation authorization"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_agent_sprint_capsule_contracts.py"
+      ],
+      "proof_ceiling": "schema, fixture, run-context, artifact-registration, and local handoff proof"
+    }
+  ],
+  "ambiguity_rules": {
+    "explicit_user_lane_wins": true,
+    "safety_guard_triggers_compose_additively": true,
+    "equal_priority_conflict_resolution": "fail_closed_to_repository_sprint",
+    "unknown_signal_fallback": "repository-sprint",
+    "no_trigger_authorizes_mutation": true
+  }
+}

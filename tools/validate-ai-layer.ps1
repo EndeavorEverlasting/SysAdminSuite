@@ -104,6 +104,24 @@ foreach ($file in $requiredFiles) {
     else { Add-Fail "missing required file: $file" }
 }
 
+$reviewableJsonFiles = @(
+    $manifestPath,
+    $routingPath,
+    $harnessApiPath,
+    'schemas/harness/agent-capability-manifest.schema.json',
+    'schemas/harness/agent-routing-manifest.schema.json',
+    'schemas/harness/agent-sprint-capsule.schema.json',
+    'Tests/Fixtures/capsules/agent-sprint-capsule.v2.sample.json'
+)
+foreach ($file in $reviewableJsonFiles) {
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
+    if (@(Get-Content -LiteralPath $file).Count -gt 1) {
+        Add-Pass "JSON authority is human-reviewable: $file"
+    } else {
+        Add-Fail "JSON authority must not be minified: $file"
+    }
+}
+
 $workflowFiles = @(
     '.archon/workflows/sas-survey-change.yaml',
     '.archon/workflows/sas-docs-only.yaml',

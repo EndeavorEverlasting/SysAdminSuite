@@ -1,1 +1,178 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"schemas/harness/agent-routing-manifest.schema.json","title":"SysAdminSuite Agent Routing Manifest","type":"object","additionalProperties":false,"required":["schema_version","schema_path","capability_manifest_path","harness_api_path","triggers","ambiguity_rules"],"properties":{"schema_version":{"const":"sas-agent-routing-manifest/v1"},"schema_path":{"const":"schemas/harness/agent-routing-manifest.schema.json"},"capability_manifest_path":{"const":"harness/api/agent-capability-manifest.json"},"harness_api_path":{"const":"harness/api/sas-harness-api.json"},"triggers":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/trigger"}},"ambiguity_rules":{"type":"object","additionalProperties":false,"required":["explicit_user_lane_wins","safety_guard_triggers_compose_additively","equal_priority_conflict_resolution","unknown_signal_fallback","no_trigger_authorizes_mutation"],"properties":{"explicit_user_lane_wins":{"const":true},"safety_guard_triggers_compose_additively":{"const":true},"equal_priority_conflict_resolution":{"const":"fail_closed_to_repository_sprint"},"unknown_signal_fallback":{"const":"repository-sprint"},"no_trigger_authorizes_mutation":{"const":true}}}},"$defs":{"id":{"type":"string","pattern":"^[a-z][a-z0-9-]*$"},"repoPath":{"type":"string","minLength":1,"pattern":"^(?!/)(?![A-Za-z]:\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"},"stringList":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},"pathList":{"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"#/$defs/repoPath"}},"trigger":{"type":"object","additionalProperties":false,"required":["id","summary","deterministic_task_signals","priority","composition_mode","target_type","target","required_inputs","outputs","preconditions","guardrails","owner","validators","proof_ceiling"],"properties":{"id":{"$ref":"#/$defs/id"},"summary":{"type":"string","minLength":20,"maxLength":240},"deterministic_task_signals":{"$ref":"#/$defs/stringList"},"priority":{"type":"integer","minimum":0,"maximum":100},"composition_mode":{"type":"string","enum":["primary","additive","fallback"]},"target_type":{"type":"string","enum":["skill","capability","harness_operation"]},"target":{"type":"string","minLength":1},"required_inputs":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}},"outputs":{"$ref":"#/$defs/stringList"},"preconditions":{"$ref":"#/$defs/stringList"},"guardrails":{"$ref":"#/$defs/stringList"},"owner":{"type":"string","minLength":3},"validators":{"$ref":"#/$defs/pathList"},"proof_ceiling":{"type":"string","minLength":10}}}}}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/agent-routing-manifest.schema.json",
+  "title": "SysAdminSuite Agent Routing Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "capability_manifest_path",
+    "harness_api_path",
+    "triggers",
+    "ambiguity_rules"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-agent-routing-manifest/v1"
+    },
+    "schema_path": {
+      "const": "schemas/harness/agent-routing-manifest.schema.json"
+    },
+    "capability_manifest_path": {
+      "const": "harness/api/agent-capability-manifest.json"
+    },
+    "harness_api_path": {
+      "const": "harness/api/sas-harness-api.json"
+    },
+    "triggers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/trigger"
+      }
+    },
+    "ambiguity_rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "explicit_user_lane_wins",
+        "safety_guard_triggers_compose_additively",
+        "equal_priority_conflict_resolution",
+        "unknown_signal_fallback",
+        "no_trigger_authorizes_mutation"
+      ],
+      "properties": {
+        "explicit_user_lane_wins": {
+          "const": true
+        },
+        "safety_guard_triggers_compose_additively": {
+          "const": true
+        },
+        "equal_priority_conflict_resolution": {
+          "const": "fail_closed_to_repository_sprint"
+        },
+        "unknown_signal_fallback": {
+          "const": "repository-sprint"
+        },
+        "no_trigger_authorizes_mutation": {
+          "const": true
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+    },
+    "stringList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "pathList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repoPath"
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "summary",
+        "deterministic_task_signals",
+        "priority",
+        "composition_mode",
+        "target_type",
+        "target",
+        "required_inputs",
+        "outputs",
+        "preconditions",
+        "guardrails",
+        "owner",
+        "validators",
+        "proof_ceiling"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 240
+        },
+        "deterministic_task_signals": {
+          "$ref": "#/$defs/stringList"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "composition_mode": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "additive",
+            "fallback"
+          ]
+        },
+        "target_type": {
+          "type": "string",
+          "enum": [
+            "skill",
+            "capability",
+            "harness_operation"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_inputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "outputs": {
+          "$ref": "#/$defs/stringList"
+        },
+        "preconditions": {
+          "$ref": "#/$defs/stringList"
+        },
+        "guardrails": {
+          "$ref": "#/$defs/stringList"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 3
+        },
+        "validators": {
+          "$ref": "#/$defs/pathList"
+        },
+        "proof_ceiling": {
+          "type": "string",
+          "minLength": 10
+        }
+      }
+    }
+  }
+}
