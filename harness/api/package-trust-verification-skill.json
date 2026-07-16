@@ -1,6 +1,9 @@
 {
   "schema_version": "sas-package-trust-verification-skill/v1",
   "skill_path": ".claude/skills/package-static-analysis/SKILL.md",
+  "entrypoint": "scripts/Invoke-SasPackageTrust.ps1",
+  "policy_engine": "scripts/Test-SasPackageTrust.ps1",
+  "interop_source": "tools/package-analysis/SasPackageTrustInterop.cs",
   "policy_schema": "schemas/harness/package-trust-policy.schema.json",
   "result_schema": "schemas/harness/package-trust-verification-result.schema.json",
   "operation": {
@@ -28,6 +31,8 @@
     "guardrails": [
       "source_hashes_reverified",
       "source_and_intermediate_reparse_points_rejected",
+      "repository_owned_wintrust_interop",
+      "explicit_optional_signer_dates",
       "winverifytrust_cache_only_url_retrieval",
       "no_online_revocation_claim",
       "no_get_authenticode_signature_network_ambiguity",
