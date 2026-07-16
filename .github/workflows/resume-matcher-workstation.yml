@@ -1,0 +1,93 @@
+name: Resume Matcher workstation contracts
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'Config/resume-matcher-workstation.sample.json'
+      - 'schemas/harness/resume-matcher-workstation*.schema.json'
+      - 'scripts/invoke-sas-resume-matcher-workstation.sh'
+      - 'scripts/test-sas-resume-matcher-live-acceptance.sh'
+      - 'scripts/Invoke-SasResumeMatcherWorkstation.ps1'
+      - 'scripts/Test-SasResumeMatcherLiveAcceptance.ps1'
+      - 'docs/RESUME_MATCHER_WORKSTATION.md'
+      - 'Tests/survey/test_resume_matcher_workstation_contracts.py'
+      - 'CODEBASE_MAP.md'
+      - '.github/workflows/resume-matcher-workstation.yml'
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'test/**']
+    paths:
+      - 'Config/resume-matcher-workstation.sample.json'
+      - 'schemas/harness/resume-matcher-workstation*.schema.json'
+      - 'scripts/invoke-sas-resume-matcher-workstation.sh'
+      - 'scripts/test-sas-resume-matcher-live-acceptance.sh'
+      - 'scripts/Invoke-SasResumeMatcherWorkstation.ps1'
+      - 'scripts/Test-SasResumeMatcherLiveAcceptance.ps1'
+      - 'docs/RESUME_MATCHER_WORKSTATION.md'
+      - 'Tests/survey/test_resume_matcher_workstation_contracts.py'
+      - 'CODEBASE_MAP.md'
+      - '.github/workflows/resume-matcher-workstation.yml'
+
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile deployment contracts
+        run: python -m py_compile Tests/survey/test_resume_matcher_workstation_contracts.py
+      - name: Run Linux fixture and contract suite
+        if: runner.os != 'Windows'
+        run: python Tests/survey/test_resume_matcher_workstation_contracts.py
+      - name: Bash syntax
+        if: runner.os != 'Windows'
+        run: |
+          bash -n scripts/invoke-sas-resume-matcher-workstation.sh
+          bash -n scripts/test-sas-resume-matcher-live-acceptance.sh
+      - name: PowerShell parsers
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($path in @(
+            '.\scripts\Invoke-SasResumeMatcherWorkstation.ps1',
+            '.\scripts\Test-SasResumeMatcherLiveAcceptance.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_ }
+              exit 1
+            }
+          }
+          'PASS: PowerShell parsers'
+      - name: Validate schema posture
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in (
+              Path('schemas/harness/resume-matcher-workstation.schema.json'),
+              Path('schemas/harness/resume-matcher-workstation-result.schema.json'),
+          ):
+              schema = json.loads(path.read_text(encoding='utf-8'))
+              assert schema['$schema'] == 'https://json-schema.org/draft/2020-12/schema'
+              assert schema['additionalProperties'] is False
+          print('PASS: Resume Matcher schema posture')
+          PY
