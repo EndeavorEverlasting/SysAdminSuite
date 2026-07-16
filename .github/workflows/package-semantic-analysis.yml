@@ -1,0 +1,64 @@
+name: Package semantic analysis contracts
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/package-static-analysis/**'
+      - 'harness/api/package-semantic-analysis-skill.json'
+      - 'schemas/harness/package-semantic-analysis-result.schema.json'
+      - 'tools/package-analysis/enrich_package_semantics.py'
+      - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
+      - 'scripts/invoke-sas-package-semantic-analysis.sh'
+      - 'docs/PACKAGE_SEMANTIC_ANALYSIS.md'
+      - 'Tests/survey/test_package_semantic_analysis_contracts.py'
+      - '.github/workflows/package-semantic-analysis.yml'
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'test/**']
+    paths:
+      - '.claude/skills/package-static-analysis/**'
+      - 'harness/api/package-semantic-analysis-skill.json'
+      - 'schemas/harness/package-semantic-analysis-result.schema.json'
+      - 'tools/package-analysis/enrich_package_semantics.py'
+      - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
+      - 'scripts/invoke-sas-package-semantic-analysis.sh'
+      - 'docs/PACKAGE_SEMANTIC_ANALYSIS.md'
+      - 'Tests/survey/test_package_semantic_analysis_contracts.py'
+      - '.github/workflows/package-semantic-analysis.yml'
+
+jobs:
+  contracts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile and execute semantic contracts
+        run: |
+          python -m py_compile tools/package-analysis/enrich_package_semantics.py Tests/survey/test_package_semantic_analysis_contracts.py
+          python Tests/survey/test_package_semantic_analysis_contracts.py
+      - name: Validate schema posture
+        run: python -c "import json,pathlib; s=json.loads(pathlib.Path('schemas/harness/package-semantic-analysis-result.schema.json').read_text()); assert s.get(chr(36)+'schema') == 'https://json-schema.org/draft/2020-12/schema'; assert s['additionalProperties'] is False; print('PASS: semantic schema posture')"
+      - name: Bash syntax
+        if: runner.os != 'Windows'
+        run: bash -n scripts/invoke-sas-package-semantic-analysis.sh
+      - name: PowerShell parser
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens=$null; $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\scripts\Invoke-SasPackageSemanticAnalysis.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if($errors.Count -gt 0){$errors|ForEach-Object{Write-Error $_}; exit 1}
+          'PASS: PowerShell parser'
