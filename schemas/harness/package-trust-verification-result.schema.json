@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/package-trust-verification-result.schema.json",
+  "title": "SysAdminSuite Package Trust Verification Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "input", "base_result", "policy", "proof", "summary", "files", "errors"],
+  "properties": {
+    "schema_version": {"const": "sas-package-trust-verification/v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "display_name", "absolute_path_emitted"],
+      "properties": {
+        "kind": {"enum": ["file", "directory"]},
+        "display_name": {"type": "string", "minLength": 1, "maxLength": 260},
+        "absolute_path_emitted": {"const": false}
+      }
+    },
+    "base_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "sha256", "hash_verified_source_files"],
+      "properties": {
+        "schema_version": {"const": "sas-package-static-analysis/v1"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "hash_verified_source_files": {"type": "integer", "minimum": 0}
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provided", "schema_version", "policy_id", "sha256", "observation_only"],
+      "properties": {
+        "provided": {"type": "boolean"},
+        "schema_version": {"type": ["string", "null"]},
+        "policy_id": {"type": ["string", "null"]},
+        "sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "observation_only": {"type": "boolean"}
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proof_level",
+        "file_execution_performed",
+        "archive_payload_extracted",
+        "network_activity_performed",
+        "target_mutation_performed",
+        "host_mutation_performed",
+        "cache_only_url_retrieval",
+        "online_revocation_checked",
+        "authenticode_integrity_and_local_trust_evaluated",
+        "signer_policy_evaluated",
+        "strong_name_cryptographic_validation_performed",
+        "deployment_runtime_validated"
+      ],
+      "properties": {
+        "proof_level": {"const": "offline_authenticode_policy"},
+        "file_execution_performed": {"const": false},
+        "archive_payload_extracted": {"const": false},
+        "network_activity_performed": {"const": false},
+        "target_mutation_performed": {"const": false},
+        "host_mutation_performed": {"const": false},
+        "cache_only_url_retrieval": {"const": true},
+        "online_revocation_checked": {"const": false},
+        "authenticode_integrity_and_local_trust_evaluated": {"const": true},
+        "signer_policy_evaluated": {"type": "boolean"},
+        "strong_name_cryptographic_validation_performed": {"const": false},
+        "deployment_runtime_validated": {"const": false}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_files", "files_verified", "error_count", "approved_count", "review_required_count", "blocked_count", "overall_disposition", "deployment_approved"],
+      "properties": {
+        "base_files": {"type": "integer", "minimum": 0},
+        "files_verified": {"type": "integer", "minimum": 0},
+        "error_count": {"type": "integer", "minimum": 0},
+        "approved_count": {"type": "integer", "minimum": 0},
+        "review_required_count": {"type": "integer", "minimum": 0},
+        "blocked_count": {"type": "integer", "minimum": 0},
+        "overall_disposition": {"enum": ["approved_for_vm_intake", "review_required", "blocked"]},
+        "deployment_approved": {"type": "boolean"}
+      }
+    },
+    "files": {"type": "array", "items": {"$ref": "#/$defs/fileRecord"}},
+    "errors": {"type": "array", "items": {"$ref": "#/$defs/errorRecord"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "thumbprint": {"type": ["string", "null"], "pattern": "^[0-9A-F]{40,128}$"},
+    "fileRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_path", "sha256", "hash_verified", "trust_scope", "signature_status", "winverifytrust_code",
+        "signer_subject", "signer_thumbprint", "signer_not_before", "signer_not_after", "policy_entry_found",
+        "signature_requirement", "signer_identity_match", "disposition", "reasons", "package_execution_performed"
+      ],
+      "properties": {
+        "relative_path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "hash_verified": {"const": true},
+        "trust_scope": {"enum": ["authenticode_candidate", "hash_only_noncode"]},
+        "signature_status": {"enum": ["valid", "not_signed", "bad_digest", "subject_not_trusted", "certificate_expired", "untrusted_root", "explicit_distrust", "chain_build_failed", "subject_form_unknown", "verification_error", "not_applicable"]},
+        "winverifytrust_code": {"type": ["string", "null"], "pattern": "^0x[0-9A-F]{8}$"},
+        "signer_subject": {"type": ["string", "null"], "maxLength": 2048},
+        "signer_thumbprint": {"$ref": "#/$defs/thumbprint"},
+        "signer_not_before": {"type": ["string", "null"], "format": "date-time"},
+        "signer_not_after": {"type": ["string", "null"], "format": "date-time"},
+        "policy_entry_found": {"type": "boolean"},
+        "signature_requirement": {"enum": ["required_valid", "allow_unsigned_explicit", "review_required", "observation_only", "hash_only_noncode", "no_policy_entry"]},
+        "signer_identity_match": {"type": "boolean"},
+        "disposition": {"enum": ["approved", "review_required", "blocked", "hash_only_approved"]},
+        "reasons": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_]+$"}, "minItems": 1, "uniqueItems": true},
+        "package_execution_performed": {"const": false}
+      }
+    },
+    "errorRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_path", "error_type", "message"],
+      "properties": {
+        "relative_path": {"type": "string", "minLength": 1},
+        "error_type": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1, "maxLength": 300}
+      }
+    }
+  }
+}
