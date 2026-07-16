@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [main, 'feat/**', 'refactor/**', 'docs/**', 'harness/**']
+    branches: [main, 'feat/**', 'repair/**', 'refactor/**', 'docs/**', 'harness/**']
     paths:
       - 'AGENTS.md'
       - 'CLAUDE.md'
@@ -13,17 +13,28 @@ on:
       - '.claude/skills/**'
       - '.claude/capabilities/**'
       - 'docs/AI_LAYER.md'
+      - 'docs/AI_HARNESS_ENTRYPOINT.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'harness/api/agent-capability-manifest.json'
+      - 'harness/api/agent-routing-manifest.json'
+      - 'harness/api/sas-harness-api.json'
       - 'harness/api/developer-workstation-agent-routing.json'
+      - 'harness/workflows/agent-sprint-capsule.yaml'
       - 'harness/e2e/**'
       - 'schemas/harness/agent-capability-manifest.schema.json'
+      - 'schemas/harness/agent-routing-manifest.schema.json'
+      - 'schemas/harness/agent-sprint-capsule.schema.json'
       - 'schemas/harness/developer-workstation-agent-routing.schema.json'
       - 'schemas/harness/e2e-validation-profiles.schema.json'
+      - 'Tests/Fixtures/capsules/**'
+      - 'Tests/Pester/SprintCapsule.Tests.ps1'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
+      - 'Tests/survey/test_agent_routing_manifest_contracts.py'
+      - 'Tests/survey/test_agent_sprint_capsule_contracts.py'
       - 'Tests/survey/test_developer_workstation_agent_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
+      - 'tools/New-SasSprintCapsule.ps1'
       - 'tools/validate-ai-layer.ps1'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/agent-instruction-contracts.yml'
@@ -35,17 +46,28 @@ on:
       - '.claude/skills/**'
       - '.claude/capabilities/**'
       - 'docs/AI_LAYER.md'
+      - 'docs/AI_HARNESS_ENTRYPOINT.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'harness/api/agent-capability-manifest.json'
+      - 'harness/api/agent-routing-manifest.json'
+      - 'harness/api/sas-harness-api.json'
       - 'harness/api/developer-workstation-agent-routing.json'
+      - 'harness/workflows/agent-sprint-capsule.yaml'
       - 'harness/e2e/**'
       - 'schemas/harness/agent-capability-manifest.schema.json'
+      - 'schemas/harness/agent-routing-manifest.schema.json'
+      - 'schemas/harness/agent-sprint-capsule.schema.json'
       - 'schemas/harness/developer-workstation-agent-routing.schema.json'
       - 'schemas/harness/e2e-validation-profiles.schema.json'
+      - 'Tests/Fixtures/capsules/**'
+      - 'Tests/Pester/SprintCapsule.Tests.ps1'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
+      - 'Tests/survey/test_agent_routing_manifest_contracts.py'
+      - 'Tests/survey/test_agent_sprint_capsule_contracts.py'
       - 'Tests/survey/test_developer_workstation_agent_harness_contracts.py'
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
+      - 'tools/New-SasSprintCapsule.ps1'
       - 'tools/validate-ai-layer.ps1'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/agent-instruction-contracts.yml'
@@ -59,13 +81,27 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
-      - name: Skill and capability factoring contracts
+          python-version: '3.12'
+      - name: Install contract dependencies
+        run: python -m pip install jsonschema pyyaml
+      - name: Compile agent harness contracts
+        run: >-
+          python -m py_compile
+          Tests/survey/test_agent_instruction_factoring_contracts.py
+          Tests/survey/test_agent_capability_manifest_contracts.py
+          Tests/survey/test_agent_routing_manifest_contracts.py
+          Tests/survey/test_agent_sprint_capsule_contracts.py
+      - name: Skill, capability, routing, and handoff contracts
         run: |
           python3 Tests/survey/test_agent_instruction_factoring_contracts.py
           python3 Tests/survey/test_agent_capability_manifest_contracts.py
+          python3 Tests/survey/test_agent_routing_manifest_contracts.py
+          python3 Tests/survey/test_agent_sprint_capsule_contracts.py
           python3 Tests/survey/test_developer_workstation_agent_harness_contracts.py
           python3 Tests/survey/test_e2e_default_posture_contracts.py
+      - name: Parse harness workflow spec
+        run: >-
+          python -c "import pathlib,yaml; p=pathlib.Path('harness/workflows/agent-sprint-capsule.yaml'); d=yaml.safe_load(p.read_text()); assert d['mode']=='local_transform' and d['network_activity'] is False and d['target_mutation'] is False; print('PASS: agent sprint capsule workflow')"
 
   ai-layer-validator:
     runs-on: windows-latest
@@ -76,3 +112,6 @@ jobs:
       - name: AI layer validator
         shell: pwsh
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
+      - name: Sprint capsule Pester contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\SprintCapsule.Tests.ps1
