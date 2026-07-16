@@ -9,17 +9,23 @@ on:
       - '.claude/skills/package-static-analysis/**'
       - 'harness/api/package-static-analysis-skill.json'
       - 'harness/api/package-semantic-analysis-skill.json'
+      - 'harness/api/package-trust-verification-skill.json'
       - 'schemas/harness/package-static-analysis-result.schema.json'
       - 'schemas/harness/package-semantic-analysis-result.schema.json'
+      - 'schemas/harness/package-trust-policy.schema.json'
+      - 'schemas/harness/package-trust-verification-result.schema.json'
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
+      - 'scripts/Test-SasPackageTrust.ps1'
       - 'scripts/invoke-sas-package-static-analysis.sh'
       - 'scripts/invoke-sas-package-semantic-analysis.sh'
       - 'docs/PACKAGE_STATIC_ANALYSIS.md'
       - 'docs/PACKAGE_SEMANTIC_ANALYSIS.md'
+      - 'docs/PACKAGE_TRUST_VERIFICATION.md'
       - 'Tests/survey/test_package_static_analysis_contracts.py'
       - 'Tests/survey/test_package_semantic_analysis_contracts.py'
+      - 'Tests/survey/Test-PackageTrustVerificationContracts.ps1'
       - '.github/workflows/package-static-analysis.yml'
   push:
     branches: [main, 'feat/**', 'repair/**', 'test/**']
@@ -27,17 +33,23 @@ on:
       - '.claude/skills/package-static-analysis/**'
       - 'harness/api/package-static-analysis-skill.json'
       - 'harness/api/package-semantic-analysis-skill.json'
+      - 'harness/api/package-trust-verification-skill.json'
       - 'schemas/harness/package-static-analysis-result.schema.json'
       - 'schemas/harness/package-semantic-analysis-result.schema.json'
+      - 'schemas/harness/package-trust-policy.schema.json'
+      - 'schemas/harness/package-trust-verification-result.schema.json'
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
+      - 'scripts/Test-SasPackageTrust.ps1'
       - 'scripts/invoke-sas-package-static-analysis.sh'
       - 'scripts/invoke-sas-package-semantic-analysis.sh'
       - 'docs/PACKAGE_STATIC_ANALYSIS.md'
       - 'docs/PACKAGE_SEMANTIC_ANALYSIS.md'
+      - 'docs/PACKAGE_TRUST_VERIFICATION.md'
       - 'Tests/survey/test_package_static_analysis_contracts.py'
       - 'Tests/survey/test_package_semantic_analysis_contracts.py'
+      - 'Tests/survey/Test-PackageTrustVerificationContracts.ps1'
       - '.github/workflows/package-static-analysis.yml'
 
 jobs:
@@ -60,9 +72,13 @@ jobs:
         run: python Tests/survey/test_package_static_analysis_contracts.py
       - name: Execute semantic package contracts
         run: python Tests/survey/test_package_semantic_analysis_contracts.py
+      - name: Execute package trust contracts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\Test-PackageTrustVerificationContracts.ps1
       - name: Validate result schema posture
         run: >-
-          python -c 'import json,pathlib; paths=["schemas/harness/package-static-analysis-result.schema.json","schemas/harness/package-semantic-analysis-result.schema.json"]; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+"schema") == "https://json-schema.org/draft/2020-12/schema" and s["additionalProperties"] is False for s in schemas); print("PASS: package result schema posture")'
+          python -c 'import json,pathlib; paths=["schemas/harness/package-static-analysis-result.schema.json","schemas/harness/package-semantic-analysis-result.schema.json","schemas/harness/package-trust-policy.schema.json","schemas/harness/package-trust-verification-result.schema.json"]; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+"schema") == "https://json-schema.org/draft/2020-12/schema" and s["additionalProperties"] is False for s in schemas); print("PASS: package result and policy schema posture")'
       - name: Bash syntax
         if: runner.os != 'Windows'
         run: |
@@ -72,7 +88,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          foreach($path in '.\scripts\Invoke-SasPackageStaticAnalysis.ps1','.\scripts\Invoke-SasPackageSemanticAnalysis.ps1') {
+          foreach($path in '.\scripts\Invoke-SasPackageStaticAnalysis.ps1','.\scripts\Invoke-SasPackageSemanticAnalysis.ps1','.\scripts\Test-SasPackageTrust.ps1','.\Tests\survey\Test-PackageTrustVerificationContracts.ps1') {
             $tokens=$null; $errors=$null
             [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path),[ref]$tokens,[ref]$errors)
             if($errors.Count -gt 0){$errors|ForEach-Object{Write-Error $_}; exit 1}
