@@ -406,7 +406,7 @@
       ],
       "default_network_activity": false,
       "default_target_mutation": false,
-      "network_activity_mode": "none",
+      "network_activity_mode": "control-plane",
       "target_mutation_mode": "repository",
       "authority_paths": [
         "harness/api/agentswitchboard-gnhf-external-contract.json",
@@ -744,7 +744,7 @@
       ],
       "default_network_activity": false,
       "default_target_mutation": false,
-      "network_activity_mode": "none",
+      "network_activity_mode": "control-plane",
       "target_mutation_mode": "repository",
       "authority_paths": [
         "harness/api/agentswitchboard-gnhf-external-contract.json",

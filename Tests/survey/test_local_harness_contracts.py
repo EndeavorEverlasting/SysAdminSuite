@@ -125,6 +125,17 @@ def test_harness_api_manifest_is_local_first_and_has_required_operations():
                 "Prune_empty_SysAdminSuite_target_directories",
             ]:
                 assert guardrail in op["guardrails"]
+        elif op_id == "agentswitchboard_gnhf.local_delegate":
+            assert op["mode"] == "operator_execute"
+            assert op["network_activity"] is True
+            assert op["target_mutation"] is False
+            for guardrail in [
+                "Explicit_local_execution_authorization_required",
+                "AgentSwitchboard_availability_required",
+                "Clean_attached_target_required",
+                "Provider_and_network_execution_requires_local_execution_authorization_and_remains_AgentSwitchboard_owned",
+            ]:
+                assert guardrail in op["guardrails"]
         else:
             assert op["network_activity"] is False, f"planner/local API must be non-network: {op_id}"
             assert op["target_mutation"] is False, f"planner/local API must not mutate targets: {op_id}"

@@ -91,12 +91,15 @@ def test_skill_composes_six_atomic_capabilities_and_one_route() -> None:
     skill = next(item for item in manifest["skills"] if item["id"] == "gnhf-prompt-adoption")
     assert set(skill["capability_ids"]) == EXPECTED_CAPABILITIES
     manifest_caps = {item["id"]: item for item in manifest["capabilities"]}
+    assert skill["default_network_activity"] is False and skill["network_activity_mode"] == "control-plane"
     skill_text = read(SKILL)
     for capability_id in EXPECTED_CAPABILITIES:
         capability = manifest_caps[capability_id]
         text = read(ROOT / capability["path"])
         assert len(text.splitlines()) <= 80 and "## Contract" in text and "## Used by" in text
         assert capability_id + ".md" in skill_text
+        expected_network_mode = "control-plane" if capability_id == "agentswitchboard-gnhf-local-runtime-delegation" else "none"
+        assert capability["default_network_activity"] is False and capability["network_activity_mode"] == expected_network_mode
     routes = [item for item in load(ROUTING)["triggers"] if item["target"] == "gnhf-prompt-adoption"]
     assert len(routes) == 1 and routes[0]["target_type"] == "skill"
     assert set(routes[0]["deterministic_task_signals"]) == EXPECTED_SIGNALS
@@ -151,8 +154,10 @@ def test_registered_workflow_and_harness_operations_are_bounded() -> None:
     for operation_id, mode in expected.items():
         operation = operations[operation_id]
         assert operation["mode"] == mode
-        assert operation["network_activity"] is False and operation["target_mutation"] is False
+        expected_network = operation_id == "agentswitchboard_gnhf.local_delegate"
+        assert operation["network_activity"] is expected_network and operation["target_mutation"] is False
     assert "Explicit_local_execution_authorization_required" in operations["agentswitchboard_gnhf.local_delegate"]["guardrails"]
+    assert "Provider_and_network_execution_requires_local_execution_authorization_and_remains_AgentSwitchboard_owned" in operations["agentswitchboard_gnhf.local_delegate"]["guardrails"]
     assert "Plan_only" in operations["agentswitchboard_gnhf.environment_plan"]["guardrails"]
 
 
