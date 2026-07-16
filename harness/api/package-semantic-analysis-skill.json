@@ -1,0 +1,37 @@
+{
+  "schema_version": "sas-package-semantic-analysis-skill/v1",
+  "skill_path": ".claude/skills/package-static-analysis/SKILL.md",
+  "base_result_schema": "schemas/harness/package-static-analysis-result.schema.json",
+  "result_schema": "schemas/harness/package-semantic-analysis-result.schema.json",
+  "operation": {
+    "id": "package_analysis.semantic_enrich",
+    "summary": "Re-verify local package hashes and convert static structure into bounded semantic classifications and deployment-harness requirements without executing package code.",
+    "mode": "local_transform",
+    "network_activity": false,
+    "target_mutation": false,
+    "package_execution": false,
+    "archive_payload_extraction": false,
+    "inputs": [
+      "operator_local_file_or_directory",
+      "package_analysis.json",
+      "bounded_semantic_scan_limit"
+    ],
+    "outputs": [
+      "package_semantic_analysis.json",
+      "package_semantic_analysis.txt"
+    ],
+    "guardrails": [
+      "source_hash_reverification_required",
+      "base_proof_must_be_static_only",
+      "no_shortcut_following",
+      "no_archive_payload_extraction",
+      "no_process_installer_or_custom_action_execution",
+      "no_network_activity",
+      "no_target_or_host_mutation",
+      "raw_strings_not_emitted",
+      "semantic_inferences_never_claim_runtime_confirmation",
+      "authenticode_and_strong_name_presence_are_not_trust_validation",
+      "vm_and_physical_device_proof_remain_separate"
+    ]
+  }
+}
