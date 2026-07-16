@@ -1,0 +1,50 @@
+{
+  "schema_version": "sas-resume-matcher-workstation/v1",
+  "schema_path": "schemas/harness/resume-matcher-workstation.schema.json",
+  "application": {
+    "name": "Resume Matcher",
+    "repository_url": "https://github.com/srbhr/Resume-Matcher.git",
+    "repository_ref": "main",
+    "install_path_relative_to_home": "dev/Resume-Matcher",
+    "backend_relative_path": "apps/backend",
+    "frontend_relative_path": "apps/frontend"
+  },
+  "runtime": {
+    "python_version": "3.13",
+    "node_major": "22",
+    "nvm_version": "v0.40.6",
+    "uv_installer_url": "https://astral.sh/uv/install.sh",
+    "nvm_repository_url": "https://github.com/nvm-sh/nvm.git"
+  },
+  "services": {
+    "tmux_session": "resume-matcher",
+    "backend_window": "backend",
+    "frontend_window": "frontend",
+    "backend_port": 8000,
+    "frontend_port": 3000,
+    "backend_health_path": "/api/v1/health",
+    "startup_timeout_seconds": 120
+  },
+  "browser": {
+    "playwright_ubuntu_2604_strategy": "system_chrome",
+    "system_browser_command": "google-chrome-stable",
+    "system_browser_package_url": "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
+  },
+  "configuration": {
+    "create_env_from_example_when_missing": true,
+    "clear_example_api_key_placeholder": true,
+    "api_key_configuration": "settings_ui_only",
+    "preserve_existing_env": true,
+    "preserve_dirty_application_repo": true
+  },
+  "posture": {
+    "plan_is_default": true,
+    "apply_requires_explicit_gate": true,
+    "install_missing_only": true,
+    "preserve_existing_configuration": true,
+    "automatic_authentication": false,
+    "write_api_key_to_env": false,
+    "tracked_runtime_evidence": false,
+    "fixture_process_launch": false
+  }
+}
