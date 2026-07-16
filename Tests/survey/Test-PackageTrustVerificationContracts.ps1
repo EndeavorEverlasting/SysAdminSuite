@@ -6,7 +6,9 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$trustScript = Join-Path $repoRoot 'scripts/Test-SasPackageTrust.ps1'
+$trustScript = Join-Path $repoRoot 'scripts/Invoke-SasPackageTrust.ps1'
+$policyEnginePath = Join-Path $repoRoot 'scripts/Test-SasPackageTrust.ps1'
+$interopPath = Join-Path $repoRoot 'tools/package-analysis/SasPackageTrustInterop.cs'
 $policySchema = Join-Path $repoRoot 'schemas/harness/package-trust-policy.schema.json'
 $resultSchema = Join-Path $repoRoot 'schemas/harness/package-trust-verification-result.schema.json'
 $manifestPath = Join-Path $repoRoot 'harness/api/package-trust-verification-skill.json'
@@ -71,7 +73,7 @@ function Invoke-TrustChild {
     return $exitCode
 }
 
-foreach ($path in @($trustScript, $policySchema, $resultSchema, $manifestPath, $docPath, $skillPath, $workflowPath)) {
+foreach ($path in @($trustScript, $policyEnginePath, $interopPath, $policySchema, $resultSchema, $manifestPath, $docPath, $skillPath, $workflowPath)) {
     Assert-True (Test-Path -LiteralPath $path -PathType Leaf) "Missing required package trust file: $path"
 }
 
@@ -87,7 +89,7 @@ foreach ($schemaPath in @($policySchema, $resultSchema)) {
     Assert-True ($schema.additionalProperties -eq $false) "Schema must be closed: $schemaPath"
 }
 
-$scriptText = Get-Content -LiteralPath $trustScript -Raw
+$scriptText = (Get-Content -LiteralPath $trustScript -Raw) + (Get-Content -LiteralPath $policyEnginePath -Raw) + (Get-Content -LiteralPath $interopPath -Raw)
 foreach ($required in @('WTD_CACHE_ONLY_URL_RETRIEVAL', 'WTD_REVOCATION_CHECK_NONE', 'WinVerifyTrust', 'source_path_contains_reparse_point', 'strong_name_cryptographic_validation_performed = $false')) {
     Assert-True ($scriptText.Contains($required)) "Missing trust safety contract: $required"
 }
