@@ -59,7 +59,8 @@ jobs:
           python Tests/survey/test_package_static_analysis_contracts.py
           python Tests/survey/test_package_semantic_analysis_contracts.py
       - name: Validate result schema posture
-        run: python -c "import json,pathlib; paths=['schemas/harness/package-static-analysis-result.schema.json','schemas/harness/package-semantic-analysis-result.schema.json']; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+'schema') == 'https://json-schema.org/draft/2020-12/schema' and s['additionalProperties'] is False for s in schemas); print('PASS: package result schema posture')"
+        run: >-
+          python -c 'import json,pathlib; paths=["schemas/harness/package-static-analysis-result.schema.json","schemas/harness/package-semantic-analysis-result.schema.json"]; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+"schema") == "https://json-schema.org/draft/2020-12/schema" and s["additionalProperties"] is False for s in schemas); print("PASS: package result schema posture")'
       - name: Bash syntax
         if: runner.os != 'Windows'
         run: |
