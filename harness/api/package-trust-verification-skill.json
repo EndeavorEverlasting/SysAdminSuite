@@ -1,0 +1,42 @@
+{
+  "schema_version": "sas-package-trust-verification-skill/v1",
+  "skill_path": ".claude/skills/package-static-analysis/SKILL.md",
+  "policy_schema": "schemas/harness/package-trust-policy.schema.json",
+  "result_schema": "schemas/harness/package-trust-verification-result.schema.json",
+  "operation": {
+    "id": "package_analysis.trust",
+    "summary": "Verify source hashes, embedded Authenticode integrity, local Windows trust, and explicit signer or unsigned-package policy without executing package code.",
+    "mode": "local_read",
+    "platform": "windows",
+    "network_activity": false,
+    "target_mutation": false,
+    "host_mutation": false,
+    "package_execution": false,
+    "archive_payload_extraction": false,
+    "online_revocation_check": false,
+    "inputs": [
+      "operator_local_file_or_directory",
+      "sas_package_static_analysis_v1_result",
+      "optional_observation_only_mode",
+      "explicit_package_trust_policy_for_deployment_gate"
+    ],
+    "outputs": [
+      "package_trust_verification.json",
+      "package_trust_verification.txt",
+      "package_trust_policy.starter.json_in_observation_mode"
+    ],
+    "guardrails": [
+      "source_hashes_reverified",
+      "source_and_intermediate_reparse_points_rejected",
+      "winverifytrust_cache_only_url_retrieval",
+      "no_online_revocation_claim",
+      "no_get_authenticode_signature_network_ambiguity",
+      "valid_signature_requires_explicit_approved_signer",
+      "unsigned_package_requires_exact_hash_and_approval_reference",
+      "unlisted_code_files_fail_closed",
+      "noncode_hash_only_approval_must_be_explicit_policy",
+      "strong_name_presence_is_not_cryptographic_validation",
+      "runtime_behavior_requires_separate_vm_lane"
+    ]
+  }
+}
