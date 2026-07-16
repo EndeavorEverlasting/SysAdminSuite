@@ -8,6 +8,7 @@ logs/nmap/
 Mapping/Output/GuiRuns/
 mapping/Output/GuiRuns/
 runs/
+.venv/
 *.xlsx
 *.xlsm
 *.xls
