@@ -65,8 +65,10 @@ function Write-Policy {
 function Invoke-TrustChild {
     param([string[]]$Arguments)
     $pwsh = (Get-Command pwsh -ErrorAction Stop).Source
-    & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $trustScript @Arguments 2>&1 | Out-String | Write-Verbose
-    return $LASTEXITCODE
+    $output = & $pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File $trustScript @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+    $script:LastTrustChildOutput = @($output) | ForEach-Object { [string]$_ } | Out-String
+    return $exitCode
 }
 
 foreach ($path in @($trustScript, $policySchema, $resultSchema, $manifestPath, $docPath, $skillPath, $workflowPath)) {
@@ -110,7 +112,7 @@ try {
 
     $observeOut = Join-Path $tempRoot 'observe'
     $exit = Invoke-TrustChild -Arguments @('-InputPath', $fixture, '-BaseResultPath', $basePath, '-ObservationOnly', '-OutputRoot', $observeOut, '-FixtureMode')
-    Assert-True ($exit -eq 0) "Observation mode failed with exit code $exit"
+    Assert-True ($exit -eq 0) "Observation mode failed with exit code $exit`n$script:LastTrustChildOutput"
     $observe = Get-Content -LiteralPath (Join-Path $observeOut 'package_trust_verification.json') -Raw | ConvertFrom-Json
     Assert-True ([string]$observe.summary.overall_disposition -eq 'review_required') 'Observation mode must not approve deployment.'
     Assert-True ($observe.proof.network_activity_performed -eq $false) 'Observation mode must report no network activity.'
