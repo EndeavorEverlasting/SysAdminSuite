@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/EndeavorEverlasting/SysAdminSuite/schemas/harness/resume-matcher-workstation-result.schema.json",
+  "title": "SysAdminSuite Resume Matcher workstation result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workflow_id",
+    "operation",
+    "outcome",
+    "lifecycle_state",
+    "reason_codes",
+    "message",
+    "configuration",
+    "inventory",
+    "proof"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-resume-matcher-workstation-result/v1" },
+    "workflow_id": { "const": "resume-matcher-workstation" },
+    "operation": { "enum": ["plan", "apply", "start", "status", "stop", "validate"] },
+    "outcome": { "enum": ["success", "action-required", "failure"] },
+    "lifecycle_state": { "enum": ["absent", "planned", "configured", "installed", "ready", "running", "stopped", "degraded"] },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 96, "pattern": "^[a-z0-9-]+$" }
+    },
+    "message": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "application_root", "api_key_automated", "fixture_mode"],
+      "properties": {
+        "profile": { "type": "string", "minLength": 1 },
+        "application_root": { "type": "string", "minLength": 1 },
+        "api_key_automated": { "const": false },
+        "fixture_mode": { "type": "boolean" }
+      }
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repo_present",
+        "repo_dirty",
+        "uv_available",
+        "node_available",
+        "python_ready",
+        "browser_ready",
+        "tmux_available",
+        "backend_healthy",
+        "frontend_healthy"
+      ],
+      "properties": {
+        "repo_present": { "type": "boolean" },
+        "repo_dirty": { "type": "boolean" },
+        "uv_available": { "type": "boolean" },
+        "node_available": { "type": "boolean" },
+        "python_ready": { "type": "boolean" },
+        "browser_ready": { "type": "boolean" },
+        "tmux_available": { "type": "boolean" },
+        "backend_healthy": { "type": "boolean" },
+        "frontend_healthy": { "type": "boolean" }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "install_completed",
+        "configuration_applied",
+        "launcher_started",
+        "backend_health_observed",
+        "frontend_health_observed",
+        "live_runtime"
+      ],
+      "properties": {
+        "install_completed": { "type": "boolean" },
+        "configuration_applied": { "type": "boolean" },
+        "launcher_started": { "type": "boolean" },
+        "backend_health_observed": { "type": "boolean" },
+        "frontend_health_observed": { "type": "boolean" },
+        "live_runtime": { "type": "boolean" }
+      }
+    }
+  }
+}
