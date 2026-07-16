@@ -36,6 +36,8 @@ on:
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'tools/New-SasSprintCapsule.ps1'
       - 'tools/validate-ai-layer.ps1'
+      - 'tools/Test-Pester5Suite.ps1'
+      - 'scripts/SasRunContext.psm1'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/agent-instruction-contracts.yml'
   pull_request:
@@ -69,6 +71,8 @@ on:
       - 'Tests/survey/test_e2e_default_posture_contracts.py'
       - 'tools/New-SasSprintCapsule.ps1'
       - 'tools/validate-ai-layer.ps1'
+      - 'tools/Test-Pester5Suite.ps1'
+      - 'scripts/SasRunContext.psm1'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/agent-instruction-contracts.yml'
 
