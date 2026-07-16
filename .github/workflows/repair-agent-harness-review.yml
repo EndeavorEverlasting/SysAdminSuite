@@ -1,0 +1,73 @@
+name: Repair agent harness review findings
+
+permissions:
+  contents: write
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/repair_agent_harness_review.py'
+      - '.github/workflows/repair-agent-harness-review.yml'
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply reviewed repairs
+        run: python tools/repair_agent_harness_review.py
+      - name: Validate repair
+        run: |
+          python -m pip install jsonschema pyyaml
+          python -m py_compile \
+            Tests/survey/test_agent_instruction_factoring_contracts.py \
+            Tests/survey/test_agent_capability_manifest_contracts.py \
+            Tests/survey/test_agent_routing_manifest_contracts.py \
+            Tests/survey/test_agent_sprint_capsule_contracts.py
+          python Tests/survey/test_agent_instruction_factoring_contracts.py
+          python Tests/survey/test_agent_capability_manifest_contracts.py
+          python Tests/survey/test_agent_routing_manifest_contracts.py
+          python Tests/survey/test_agent_sprint_capsule_contracts.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import yaml
+          for path in (
+              'schemas/harness/agent-sprint-capsule.schema.json',
+              'harness/api/agent-routing-manifest.json',
+              'harness/api/sas-harness-api.json',
+          ):
+              json.loads(Path(path).read_text())
+          workflow = yaml.safe_load(Path('harness/workflows/agent-sprint-capsule.yaml').read_text())
+          assert workflow['input_mapping']['next_command'] == 'NextCommand'
+          print('PASS: repair schema and workflow parse')
+          PY
+          git diff --check
+      - name: Commit repaired harness
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm tools/repair_agent_harness_review.py .github/workflows/repair-agent-harness-review.yml
+          git add \
+            AGENTS.md \
+            docs/AI_HARNESS_ENTRYPOINT.md \
+            harness/api/agent-routing-manifest.json \
+            harness/api/sas-harness-api.json \
+            harness/workflows/agent-sprint-capsule.yaml \
+            schemas/harness/agent-sprint-capsule.schema.json \
+            tools/New-SasSprintCapsule.ps1 \
+            Tests/Pester/SprintCapsule.Tests.ps1 \
+            Tests/survey/test_agent_routing_manifest_contracts.py \
+            Tests/survey/test_agent_sprint_capsule_contracts.py \
+            .github/workflows/agent-instruction-contracts.yml
+          git commit -m 'fix(harness): close capsule review boundaries'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
