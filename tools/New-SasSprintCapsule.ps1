@@ -70,7 +70,7 @@ function Invoke-SasGitText {
 
 function ConvertTo-SasRepoRelative {
     param([Parameter(Mandatory)][string]$Path)
-    $rootFull = [IO.Path]::GetFullPath($script:ResolvedRepoRoot).TrimEnd('\\','/')
+    $rootFull = [IO.Path]::GetFullPath($script:ResolvedRepoRoot).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
     $pathFull = [IO.Path]::GetFullPath($Path)
     $prefix = $rootFull + [IO.Path]::DirectorySeparatorChar
     if (-not $pathFull.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)) { throw 'REJECT: generated artifact escaped the repository root.' }
