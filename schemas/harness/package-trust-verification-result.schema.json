@@ -105,7 +105,7 @@
         "relative_path": {"type": "string", "minLength": 1},
         "sha256": {"$ref": "#/$defs/sha256"},
         "hash_verified": {"const": true},
-        "trust_scope": {"enum": ["authenticode_candidate", "hash_only_noncode"]},
+        "trust_scope": {"enum": ["authenticode_candidate", "code_policy_required", "hash_only_noncode"]},
         "signature_status": {"enum": ["valid", "not_signed", "bad_digest", "subject_not_trusted", "certificate_expired", "untrusted_root", "explicit_distrust", "chain_build_failed", "subject_form_unknown", "verification_error", "not_applicable"]},
         "winverifytrust_code": {"type": ["string", "null"], "pattern": "^0x[0-9A-F]{8}$"},
         "signer_subject": {"type": ["string", "null"], "maxLength": 2048},
