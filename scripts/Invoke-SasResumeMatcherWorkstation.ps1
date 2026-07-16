@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-<#+
+<#
 .SYNOPSIS
     Invokes the repo-owned Resume Matcher workstation deployment service in WSL.
 .DESCRIPTION
