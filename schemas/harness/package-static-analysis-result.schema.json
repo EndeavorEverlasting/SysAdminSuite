@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/package-static-analysis-result.schema.json",
+  "title": "SysAdminSuite Package Static Analysis Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analyzer_version",
+    "generated_at",
+    "input",
+    "limits",
+    "tools",
+    "proof",
+    "summary",
+    "files",
+    "skipped",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": {"const": "sas-package-static-analysis/v1"},
+    "analyzer_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "display_name", "absolute_path_emitted", "total_bytes"],
+      "properties": {
+        "kind": {"enum": ["file", "directory"]},
+        "display_name": {"type": "string", "minLength": 1, "maxLength": 260},
+        "absolute_path_emitted": {"const": false},
+        "total_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_files",
+        "max_total_bytes",
+        "max_content_bytes_per_file",
+        "archive_payload_extraction_allowed",
+        "symlink_following_allowed"
+      ],
+      "properties": {
+        "max_files": {"type": "integer", "minimum": 1},
+        "max_total_bytes": {"type": "integer", "minimum": 1},
+        "max_content_bytes_per_file": {"type": "integer", "minimum": 1},
+        "archive_payload_extraction_allowed": {"const": false},
+        "symlink_following_allowed": {"const": false}
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python_version", "platform", "pefile_available", "olefile_available"],
+      "properties": {
+        "python_version": {"type": "string", "minLength": 1},
+        "platform": {"type": "string", "minLength": 1},
+        "pefile_available": {"type": "boolean"},
+        "olefile_available": {"type": "boolean"}
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proof_level",
+        "file_execution_performed",
+        "archive_payload_extracted",
+        "network_activity_performed",
+        "target_mutation_performed",
+        "host_mutation_performed",
+        "signature_trust_validated",
+        "runtime_behavior_validated"
+      ],
+      "properties": {
+        "proof_level": {"const": "static_only"},
+        "file_execution_performed": {"const": false},
+        "archive_payload_extracted": {"const": false},
+        "network_activity_performed": {"const": false},
+        "target_mutation_performed": {"const": false},
+        "host_mutation_performed": {"const": false},
+        "signature_trust_validated": {"const": false},
+        "runtime_behavior_validated": {"const": false}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["discovered_files", "analyzed_files", "skipped_files", "error_count", "file_classes", "indicator_counts"],
+      "properties": {
+        "discovered_files": {"type": "integer", "minimum": 0},
+        "analyzed_files": {"type": "integer", "minimum": 0},
+        "skipped_files": {"type": "integer", "minimum": 0},
+        "error_count": {"type": "integer", "minimum": 0},
+        "file_classes": {"$ref": "#/$defs/countMap"},
+        "indicator_counts": {"$ref": "#/$defs/countMap"}
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/fileRecord"}
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "error_type", "message"],
+        "properties": {
+          "relative_path": {"type": "string", "minLength": 1},
+          "error_type": {"type": "string", "minLength": 1},
+          "message": {"type": "string", "minLength": 1, "maxLength": 500}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "countMap": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z0-9_]+$"},
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "endpointFingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sha256"],
+      "properties": {
+        "kind": {"enum": ["url", "unc"]},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "contentScan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "bytes_scanned", "truncated", "indicators", "endpoint_fingerprints", "raw_strings_emitted"],
+      "properties": {
+        "status": {"enum": ["scanned", "scanned_truncated"]},
+        "bytes_scanned": {"type": "integer", "minimum": 0},
+        "truncated": {"type": "boolean"},
+        "indicators": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "endpoint_fingerprints": {"type": "array", "items": {"$ref": "#/$defs/endpointFingerprint"}},
+        "raw_strings_emitted": {"const": false}
+      }
+    },
+    "fileRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_path",
+        "file_name",
+        "extension",
+        "file_class",
+        "magic_type",
+        "size_bytes",
+        "sha256",
+        "entropy_first_mib",
+        "content_scan",
+        "pe",
+        "compound_file",
+        "archive"
+      ],
+      "properties": {
+        "relative_path": {"type": "string", "minLength": 1},
+        "file_name": {"type": "string", "minLength": 1},
+        "extension": {"type": "string"},
+        "file_class": {"enum": ["installer", "portable_executable", "compound_file", "archive", "script", "configuration", "shortcut", "other"]},
+        "magic_type": {"enum": ["pe", "ole_cfb", "zip", "extension_only", "text_or_script", "text_or_config", "shortcut", "unknown"]},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "entropy_first_mib": {"type": ["number", "null"], "minimum": 0, "maximum": 8},
+        "content_scan": {"$ref": "#/$defs/contentScan"},
+        "pe": {"type": ["object", "null"]},
+        "compound_file": {"type": ["object", "null"]},
+        "archive": {"type": ["object", "null"]}
+      }
+    }
+  }
+}
