@@ -37,9 +37,13 @@ replacement = """    target = ROOT / path
 '''
     target.write_text(source[:function_start] + replacement_function + source[function_end:], encoding=\"utf-8\")"""
 text = text[:start] + replacement + text[end:]
-needle = 'Tests\\\\Pester\\\\SprintCapsule.Tests.ps1'
+needle = 'Tests\\Pester\\SprintCapsule.Tests.ps1'
 if text.count(needle) != 2:
     raise RuntimeError(f"expected two escaped CI matchers, found {text.count(needle)}")
-text = text.replace(needle, 'Tests\\\\\\\\Pester\\\\\\\\SprintCapsule.Tests.ps1')
+text = text.replace(needle, 'Tests\\\\Pester\\\\SprintCapsule.Tests.ps1')
+path_count = text.count(r'\S*')
+if path_count < 3:
+    raise RuntimeError(f"expected at least three POSIX path patterns, found {path_count}")
+text = text.replace(r'\S*', r'\S+')
 path.write_text(text, encoding="utf-8")
 print("PASS: temporary repair helper normalized")
