@@ -23,9 +23,10 @@ Use this skill when the task is to inspect an EXE, MSI, MST, MSP, ZIP, applicati
 - Trust guide: [`docs/PACKAGE_TRUST_VERIFICATION.md`](../../../docs/PACKAGE_TRUST_VERIFICATION.md)
 - Static analyzer: [`tools/package-analysis/analyze_package.py`](../../../tools/package-analysis/analyze_package.py)
 - Semantic sidecar: [`tools/package-analysis/enrich_package_semantics.py`](../../../tools/package-analysis/enrich_package_semantics.py)
+- Trust interop: [`tools/package-analysis/SasPackageTrustInterop.cs`](../../../tools/package-analysis/SasPackageTrustInterop.cs)
 - Windows semantic entrypoint: [`scripts/Invoke-SasPackageSemanticAnalysis.ps1`](../../../scripts/Invoke-SasPackageSemanticAnalysis.ps1)
 - Bash semantic entrypoint: [`scripts/invoke-sas-package-semantic-analysis.sh`](../../../scripts/invoke-sas-package-semantic-analysis.sh)
-- Windows trust entrypoint: [`scripts/Test-SasPackageTrust.ps1`](../../../scripts/Test-SasPackageTrust.ps1)
+- Windows trust entrypoint: [`scripts/Invoke-SasPackageTrust.ps1`](../../../scripts/Invoke-SasPackageTrust.ps1)
 
 ## Workflow
 
