@@ -1,14 +1,14 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Invokes the repo-owned Resume Matcher workstation deployment service in WSL.
+    Invokes the operator-safe Resume Matcher workstation lifecycle in WSL.
 .DESCRIPTION
     Plan is the default and is read-only. Apply, Start, Stop, and Accept require
-    -AllowMutation. Accept composes installation validation, sanitized PDF proof,
-    bounded backend/frontend health, page identity, saved-provider configuration,
-    and an optional explicit provider health request. The wrapper selects an
-    explicit non-Docker WSL distribution, converts repository paths with wslpath,
-    and never collects or forwards API keys.
+    -AllowMutation. Existing clean application clones are not fast-forwarded
+    unless -AllowApplicationUpdate is also supplied. Provider health requires
+    both -RequireProviderHealth and -ConfirmProviderCharge. Stop terminates only
+    the repo-owned tmux session and reports when an unmanaged runtime remains.
+    The wrapper never collects or forwards API keys.
 #>
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
@@ -23,7 +23,9 @@ param(
     [string]$FixtureRoot,
 
     [switch]$AllowMutation,
-    [switch]$RequireProviderHealth
+    [switch]$AllowApplicationUpdate,
+    [switch]$RequireProviderHealth,
+    [switch]$ConfirmProviderCharge
 )
 
 Set-StrictMode -Version 2.0
@@ -33,8 +35,20 @@ $mutatingActions = @('Apply', 'Start', 'Stop', 'Accept')
 if ($mutatingActions -contains $Action -and -not $AllowMutation) {
     throw "$Action requires -AllowMutation. Plan, Status, and Validate remain non-mutating defaults."
 }
+if ($AllowApplicationUpdate -and $Action -ne 'Apply') {
+    throw '-AllowApplicationUpdate is valid only with -Action Apply.'
+}
 if ($RequireProviderHealth -and $Action -ne 'Accept') {
     throw '-RequireProviderHealth is valid only with -Action Accept.'
+}
+if ($ConfirmProviderCharge -and $Action -ne 'Accept') {
+    throw '-ConfirmProviderCharge is valid only with -Action Accept.'
+}
+if ($ConfirmProviderCharge -and -not $RequireProviderHealth) {
+    throw '-ConfirmProviderCharge requires -RequireProviderHealth.'
+}
+if ($RequireProviderHealth -and -not $ConfirmProviderCharge) {
+    throw '-RequireProviderHealth requires -ConfirmProviderCharge because the test may consume provider credits.'
 }
 
 $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
@@ -52,9 +66,9 @@ if ([string]::IsNullOrWhiteSpace($Distro)) {
     $Distro = $distros[0]
 }
 
-$bashScriptWindowsPath = Join-Path $PSScriptRoot 'invoke-sas-resume-matcher-workstation.sh'
+$bashScriptWindowsPath = Join-Path $PSScriptRoot 'invoke-sas-resume-matcher-workstation-safe.sh'
 if (-not (Test-Path -LiteralPath $bashScriptWindowsPath -PathType Leaf)) {
-    throw "Resume Matcher Bash service not found: $bashScriptWindowsPath"
+    throw "Resume Matcher safe Bash front door not found: $bashScriptWindowsPath"
 }
 
 function ConvertTo-WslPath {
@@ -74,7 +88,9 @@ function ConvertTo-WslPath {
 $bashScript = ConvertTo-WslPath -Path $bashScriptWindowsPath
 $arguments = @('-d', $Distro, '--', 'bash', $bashScript, '--action', $Action)
 if ($AllowMutation) { $arguments += '--apply' }
+if ($AllowApplicationUpdate) { $arguments += '--allow-application-update' }
 if ($RequireProviderHealth) { $arguments += '--require-provider-health' }
+if ($ConfirmProviderCharge) { $arguments += '--confirm-provider-charge' }
 
 foreach ($pair in @(
     @('--config', $ConfigPath),
