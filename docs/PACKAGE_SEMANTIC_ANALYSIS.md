@@ -53,6 +53,10 @@ The composed run writes four files to one ignored evidence directory:
 
 The semantic JSON is governed by `schemas/harness/package-semantic-analysis-result.schema.json`.
 
+## Validation authority
+
+`.github/workflows/package-static-analysis.yml` is the single cross-platform package-analysis CI gate. It runs both static and semantic executable contracts, validates both closed schemas, parses both PowerShell entrypoints on Windows, and checks both Bash entrypoints on Ubuntu. A separate semantic-only workflow is intentionally not maintained because duplicate gates can drift.
+
 ## Managed .NET evidence
 
 For PE files with a CLR directory, the sidecar reports:
