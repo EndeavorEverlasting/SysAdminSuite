@@ -57,7 +57,6 @@ command -v python3 >/dev/null 2>&1 || { printf 'python3 is required to read the 
 mapfile -d '' config_values < <(python3 - "$config_path" <<'PY'
 import json
 import pathlib
-import re
 import sys
 
 path = pathlib.Path(sys.argv[1])
@@ -175,8 +174,14 @@ launcher_started=false
 live_runtime=false
 
 refresh_inventory() {
-  [[ -d "$app_root/.git" ]] && repo_present=true || repo_present=false
-  if $repo_present && [[ -n "$(git -C "$app_root" status --porcelain 2>/dev/null || true)" ]]; then
+  if [[ -n "$fixture_root" && -d "$app_root/.git" ]]; then
+    repo_present=true
+  elif git -C "$app_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    repo_present=true
+  else
+    repo_present=false
+  fi
+  if $repo_present && [[ -z "$fixture_root" ]] && [[ -n "$(git -C "$app_root" status --porcelain 2>/dev/null || true)" ]]; then
     repo_dirty=true
   else
     repo_dirty=false
@@ -194,20 +199,21 @@ refresh_inventory() {
   fi
   command_exists node && node_available=true || node_available=false
   [[ -x "$backend_dir/.venv/bin/python" ]] && python_ready=true || python_ready=false
-  if command_exists "$system_browser_command" || [[ -d "$home_root/.cache/ms-playwright" ]]; then
+  browser_ready=false
+  if command_exists "$system_browser_command"; then
     browser_ready=true
-  else
-    browser_ready=false
+  elif [[ -d "$home_root/.cache/ms-playwright" ]] && find "$home_root/.cache/ms-playwright" -maxdepth 5 -type f -perm -u+x -print -quit 2>/dev/null | grep -q .; then
+    browser_ready=true
   fi
-  if curl -fsS --max-time 3 "http://127.0.0.1:$backend_port$backend_health_path" >/dev/null 2>&1; then
-    backend_healthy=true
-  else
-    backend_healthy=false
-  fi
-  if curl -fsS --max-time 3 "http://127.0.0.1:$frontend_port" >/dev/null 2>&1; then
-    frontend_healthy=true
-  else
-    frontend_healthy=false
+  backend_healthy=false
+  frontend_healthy=false
+  if command_exists curl; then
+    if curl -fsS --max-time 3 "http://127.0.0.1:$backend_port$backend_health_path" >/dev/null 2>&1; then
+      backend_healthy=true
+    fi
+    if curl -fsS --max-time 3 "http://127.0.0.1:$frontend_port" >/dev/null 2>&1; then
+      frontend_healthy=true
+    fi
   fi
 }
 
@@ -264,9 +270,10 @@ FRONTEND_BASE_URL=http://localhost:3000
 CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
 EOF
   fi
-  mkdir -p "$backend_dir/.venv/bin" "$frontend_dir/node_modules" "$home_root/.cache/ms-playwright"
+  mkdir -p "$backend_dir/.venv/bin" "$frontend_dir/node_modules" "$home_root/.cache/ms-playwright/chromium-fixture"
   : > "$backend_dir/.venv/bin/python"
-  chmod +x "$backend_dir/.venv/bin/python"
+  : > "$home_root/.cache/ms-playwright/chromium-fixture/chrome"
+  chmod +x "$backend_dir/.venv/bin/python" "$home_root/.cache/ms-playwright/chromium-fixture/chrome"
 }
 
 ensure_base_packages() {
@@ -298,12 +305,18 @@ ensure_uv() {
 ensure_nvm_and_node() {
   export NVM_DIR=$home_root/.nvm
   if [[ ! -s "$NVM_DIR/nvm.sh" ]]; then
-    [[ ! -e "$NVM_DIR" || -d "$NVM_DIR" ]] || { printf 'NVM path exists and is not a directory: %s\n' "$NVM_DIR" >&2; return 1; }
+    if [[ -e "$NVM_DIR" && ! -d "$NVM_DIR/.git" ]]; then
+      printf 'NVM path exists but is not a recognized NVM clone; preserving it and refusing replacement: %s\n' "$NVM_DIR" >&2
+      return 1
+    fi
     if [[ -d "$NVM_DIR/.git" ]]; then
+      if [[ -n "$(git -C "$NVM_DIR" status --porcelain)" ]]; then
+        printf 'NVM repository is dirty; preserving local work and refusing update: %s\n' "$NVM_DIR" >&2
+        return 1
+      fi
       git -C "$NVM_DIR" fetch --tags --force origin "$nvm_version"
       git -C "$NVM_DIR" checkout --detach "$nvm_version"
     else
-      rm -rf "$NVM_DIR"
       git clone --depth 1 --branch "$nvm_version" "$nvm_repository_url" "$NVM_DIR"
     fi
   fi
@@ -322,7 +335,7 @@ ensure_application_repo() {
     git clone --branch "$repo_ref" "$repo_url" "$app_root"
     return 0
   fi
-  [[ -d "$app_root/.git" ]] || { printf 'Application path exists but is not a Git repository: %s\n' "$app_root" >&2; return 1; }
+  git -C "$app_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { printf 'Application path exists but is not a Git repository: %s\n' "$app_root" >&2; return 1; }
   local origin
   origin=$(git -C "$app_root" remote get-url origin)
   [[ "$origin" == "$repo_url" ]] || { printf 'Application origin mismatch: %s\n' "$origin" >&2; return 1; }
@@ -410,10 +423,13 @@ start_runtime() {
   fi
   command_exists tmux || { printf 'tmux is required to start Resume Matcher.\n' >&2; return 1; }
   if tmux has-session -t "$tmux_session" 2>/dev/null; then
-    wait_for_runtime
-    launcher_started=true
-    live_runtime=true
-    return 0
+    refresh_inventory
+    if $backend_healthy && $frontend_healthy; then
+      launcher_started=true
+      live_runtime=true
+      return 0
+    fi
+    tmux kill-session -t "$tmux_session"
   fi
   local uv_env nvm_script backend_command frontend_command
   uv_env=$(printf '%q' "$home_root/.local/bin/env")
@@ -439,11 +455,12 @@ stop_runtime() {
 
 validate_installation() {
   [[ -d "$backend_dir" && -d "$frontend_dir" ]] || return 1
+  [[ -f "$backend_dir/.env" ]] || return 1
+  ! grep -Fq 'sk-your-api-key-here' "$backend_dir/.env" || return 1
   if [[ -n "$fixture_root" ]]; then
-    [[ -f "$backend_dir/.env" ]] || return 1
-    ! grep -Fq 'sk-your-api-key-here' "$backend_dir/.env" || return 1
     return 0
   fi
+  [[ -d "$frontend_dir/node_modules" ]] || return 1
   source "$home_root/.local/bin/env"
   export NVM_DIR=$home_root/.nvm
   # shellcheck disable=SC1090
@@ -453,6 +470,7 @@ validate_installation() {
   [[ "$(node --version)" == v${node_major}.* ]] || return 1
   (
     cd "$backend_dir"
+    uv run python -c "import fastapi, playwright; print('PASS: backend imports')"
     uv run python - <<'PY'
 import asyncio
 from playwright.async_api import async_playwright
@@ -467,6 +485,17 @@ async def main() -> None:
 asyncio.run(main())
 PY
   )
+}
+
+apply_installation() {
+  ensure_base_packages || return
+  ensure_uv || return
+  ensure_nvm_and_node || return
+  ensure_application_repo || return
+  configure_backend_env || return
+  ensure_python_dependencies || return
+  ensure_browser || return
+  ensure_frontend_dependencies || return
 }
 
 refresh_inventory
@@ -497,23 +526,26 @@ case "$action" in
       emit_result apply success configured fixture-no-network 'Fixture Apply proved idempotent configuration without package installation, process launch, or network access.'
       exit 0
     fi
-    ensure_base_packages
-    ensure_uv
-    ensure_nvm_and_node
-    ensure_application_repo
-    configure_backend_env
-    ensure_python_dependencies
-    ensure_browser
-    ensure_frontend_dependencies
-    install_completed=true
-    write_state
-    refresh_inventory
-    install_completed=true
-    configuration_applied=true
-    emit_result apply success installed none 'Resume Matcher installed and configured. API credentials were not written; configure DeepSeek or another provider in the Settings UI.'
+    if apply_installation; then
+      install_completed=true
+      configuration_applied=true
+      write_state
+      refresh_inventory
+      install_completed=true
+      configuration_applied=true
+      emit_result apply success installed none 'Resume Matcher installed and configured. API credentials were not written; configure DeepSeek or another provider in the Settings UI.'
+    else
+      refresh_inventory
+      emit_result apply failure degraded apply-failed 'Resume Matcher Apply failed before completion. Existing repositories, configuration, and credentials were preserved.'
+      exit 1
+    fi
     ;;
   Start)
-    validate_installation
+    if ! validate_installation; then
+      refresh_inventory
+      emit_result start failure degraded validation-failed 'Resume Matcher must pass Validate before Start.'
+      exit 1
+    fi
     if start_runtime; then
       refresh_inventory
       if [[ -n "$fixture_root" ]]; then
@@ -521,7 +553,7 @@ case "$action" in
       else
         launcher_started=true
         live_runtime=true
-        emit_result start success running none "Resume Matcher is running at http://localhost:$frontend_port with backend health observed."
+        emit_result start success running none "Resume Matcher is running at http://localhost:$frontend_port with backend and frontend health observed."
       fi
     else
       refresh_inventory
