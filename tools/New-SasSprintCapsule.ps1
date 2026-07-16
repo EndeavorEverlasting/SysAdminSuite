@@ -49,9 +49,26 @@ function Assert-SasRepoRelativePath {
 function Assert-SasSafeHandoffText {
     param([Parameter(Mandatory)][string]$Value,[Parameter(Mandatory)][string]$Field)
     if ([string]::IsNullOrWhiteSpace($Value)) { throw "REJECT: $Field must not be empty." }
-    if ($Value -match '(?i)(?:[A-Za-z]:[\\/]|/(?:home|Users|mnt/c)/|%USERPROFILE%|\$HOME|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY|(?:password|token|secret)\s*[:=])') {
+    if ($Value.Length -gt 1000) { throw "REJECT: $Field exceeds the 1000-character capsule limit." }
+    if ($Value -match '(?i)(?:[A-Za-z]:[\\/]|(?:^|\s)/(?!/)\S+|%USERPROFILE%|\$HOME|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY|(?:password|token|secret)\s*[:=])') {
         throw "REJECT: $Field contains a machine-local path or secret-like value."
     }
+}
+
+function Assert-SasUniqueList {
+    param([object[]]$Values,[Parameter(Mandatory)][string]$Field)
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($value in @($Values)) {
+        $text = [string]$value
+        if (-not $seen.Add($text)) { throw "REJECT: $Field must contain unique values: $text" }
+    }
+}
+
+function Get-SasPathComparison {
+    if ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT) {
+        return [System.StringComparison]::OrdinalIgnoreCase
+    }
+    return [System.StringComparison]::Ordinal
 }
 
 function Test-SasPathOverlap {
@@ -73,7 +90,8 @@ function ConvertTo-SasRepoRelative {
     $rootFull = [IO.Path]::GetFullPath($script:ResolvedRepoRoot).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
     $pathFull = [IO.Path]::GetFullPath($Path)
     $prefix = $rootFull + [IO.Path]::DirectorySeparatorChar
-    if (-not $pathFull.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)) { throw 'REJECT: generated artifact escaped the repository root.' }
+    $comparison = Get-SasPathComparison
+    if (-not $pathFull.StartsWith($prefix,$comparison)) { throw 'REJECT: generated artifact escaped the repository root.' }
     $pathFull.Substring($prefix.Length) -replace '\\','/'
 }
 
@@ -87,15 +105,34 @@ if (-not $RepoRoot) {
 }
 $script:ResolvedRepoRoot = [IO.Path]::GetFullPath($RepoRoot)
 $gitRoot = Invoke-SasGitText @('rev-parse','--show-toplevel')
-if (-not ([IO.Path]::GetFullPath($gitRoot)).Equals($script:ResolvedRepoRoot,[StringComparison]::OrdinalIgnoreCase)) { throw 'REJECT: RepoRoot does not match the active Git repository root.' }
+if (-not ([IO.Path]::GetFullPath($gitRoot)).Equals($script:ResolvedRepoRoot,(Get-SasPathComparison))) { throw 'REJECT: RepoRoot does not match the active Git repository root.' }
 
 $owned = @($OwnedPaths | ForEach-Object { Assert-SasRepoRelativePath $_ 'OwnedPaths' })
 $forbidden = @($ForbiddenScope | ForEach-Object { Assert-SasRepoRelativePath $_ 'ForbiddenScope' })
 $expected = @($ExpectedArtifacts | ForEach-Object { Assert-SasRepoRelativePath $_ 'ExpectedArtifacts' })
 $workflow = Assert-SasRepoRelativePath $WorkflowSpec 'WorkflowSpec'
+Assert-SasUniqueList -Values $owned -Field 'OwnedPaths'
+Assert-SasUniqueList -Values $forbidden -Field 'ForbiddenScope'
+Assert-SasUniqueList -Values $expected -Field 'ExpectedArtifacts'
+Assert-SasUniqueList -Values @($Dependencies) -Field 'Dependencies'
+Assert-SasUniqueList -Values @($AdditionalSkills) -Field 'AdditionalSkills'
+$handoffLists = [ordered]@{
+    Completed = @($Completed)
+    Remaining = @($Remaining)
+    Blockers = @($Blockers)
+    ValidationCommands = @($ValidationCommands)
+    SkippedChecks = @($SkippedChecks)
+    ClaimsNotMade = @($ClaimsNotMade)
+}
+foreach ($entry in $handoffLists.GetEnumerator()) {
+    Assert-SasUniqueList -Values $entry.Value -Field $entry.Key
+    foreach ($value in @($entry.Value)) { Assert-SasSafeHandoffText -Value ([string]$value) -Field $entry.Key }
+}
+foreach ($entry in ([ordered]@{ Title=$Title; Mission=$Mission; ProofCeiling=$ProofCeiling; NextCommand=$NextCommand }).GetEnumerator()) {
+    Assert-SasSafeHandoffText -Value ([string]$entry.Value) -Field $entry.Key
+}
 foreach ($left in $owned) { foreach ($right in $forbidden) { if (Test-SasPathOverlap $left $right) { throw "REJECT: owned and forbidden scope overlap: $left <-> $right" } } }
 if (-not (Test-Path -LiteralPath (Join-Path $script:ResolvedRepoRoot $workflow) -PathType Leaf)) { throw "REJECT: workflow spec does not exist: $workflow" }
-foreach ($value in @($Title,$Mission,$ProofCeiling,$NextCommand) + $Completed + $Remaining + $Blockers + $ValidationCommands + $SkippedChecks + $ClaimsNotMade) { Assert-SasSafeHandoffText $value 'handoff text' }
 
 $capabilityManifest = Get-Content (Join-Path $script:ResolvedRepoRoot 'harness/api/agent-capability-manifest.json') -Raw | ConvertFrom-Json
 $routingManifest = Get-Content (Join-Path $script:ResolvedRepoRoot 'harness/api/agent-routing-manifest.json') -Raw | ConvertFrom-Json

@@ -7,7 +7,7 @@ This document is the operational index for a fresh agent entering SysAdminSuite.
 1. Read `AGENTS.md` for universal rules and source precedence.
 2. Read `CODEBASE_MAP.md` to find the smallest product and validation surface.
 3. Match exact task signals in `harness/api/agent-routing-manifest.json`. Conflicting or unknown primary signals fail closed to `repository-sprint`; additive safety guards may compose.
-4. Load the selected `.claude/skills/*/SKILL.md` file and only the capability dependencies it declares.
+4. For a `skill` target, load the selected `.claude/skills/*/SKILL.md` file and only its declared capability dependencies. For a `harness_operation` target, collect every declared required input and apply the input mapping from its registered workflow before invoking the repo-owned entrypoint.
 5. Inspect Git, worktrees, open PRs, generated-output policy, and the current implementation before mutating anything.
 6. Select an existing workflow spec and product entrypoint. Do not move product logic into a prompt, skill, or trigger.
 7. Create or reuse the canonical run context when the workflow emits evidence.
@@ -59,7 +59,7 @@ Use `Register-SasArtifact` for every generated artifact that downstream validati
 
 ## Routing contract
 
-The routing manifest declares deterministic signals, target skill or harness operation, required inputs, outputs, preconditions, guardrails, validators, owner, and proof ceiling.
+The routing manifest declares deterministic signals, target skill or harness operation, required inputs, outputs, preconditions, guardrails, validators, owner, and proof ceiling. Skill routes load skill and capability instructions. Harness-operation routes must collect the operation's complete required-input set and translate it through the workflow's `input_mapping`; they do not silently invent defaults.
 
 Routing rules:
 

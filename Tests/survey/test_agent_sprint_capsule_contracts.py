@@ -16,7 +16,7 @@ ROUTING = ROOT / "harness/api/agent-routing-manifest.json"
 WORKFLOW_SPEC = ROOT / "harness/workflows/agent-sprint-capsule.yaml"
 WORKFLOW = ROOT / ".github/workflows/agent-instruction-contracts.yml"
 RUNNER = ROOT / "tests/survey/run_offline_survey_tests.sh"
-LOCAL_PATTERN = re.compile(r"(?i)(?:[A-Za-z]:[\\/]|/(?:home|Users|mnt/c)/|%USERPROFILE%|\$HOME|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY)")
+LOCAL_PATTERN = re.compile(r"(?i)(?:[A-Za-z]:[\\/]|(?:^|\s)/(?!/)\S+|%USERPROFILE%|\$HOME|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY|(?:password|token|secret)\s*[:=])")
 
 
 def read(path: Path) -> str:
@@ -72,7 +72,7 @@ def test_generator_reuses_run_context_and_registry() -> None:
 
 def test_generator_rejects_overlap_and_local_handoff_text() -> None:
     generator = read(GENERATOR)
-    for marker in ("owned and forbidden scope overlap", "machine-local path or secret-like value", "worktree is dirty", "primary skill is not uniquely routed", "generated artifact escaped the repository root"):
+    for marker in ("owned and forbidden scope overlap", "machine-local path or secret-like value", "1000-character capsule limit", "must contain unique values", "worktree is dirty", "primary skill is not uniquely routed", "generated artifact escaped the repository root", "Get-SasPathComparison"):
         assert marker in generator
     assert "Test-SasPathOverlap" in generator
     assert "Assert-SasSafeHandoffText" in generator
@@ -85,17 +85,23 @@ def test_harness_api_and_routing_register_capsule_operation() -> None:
     assert operation["network_activity"] is False and operation["target_mutation"] is False
     assert "Uses_canonical_SasRunContext" in operation["guardrails"]
     triggers = {item["target"]: item for item in load(ROUTING)["triggers"]}
-    assert triggers["agent_sprint_capsule.generate"]["target_type"] == "harness_operation"
-    assert (ROOT / triggers["agent_sprint_capsule.generate"]["validators"][0]).is_file()
+    trigger = triggers["agent_sprint_capsule.generate"]
+    assert trigger["target_type"] == "harness_operation"
+    assert set(trigger["required_inputs"]) == set(operation["inputs"])
+    assert "Mandatory_inputs_collected_from_routing_and_workflow_mapping" in operation["guardrails"]
+    assert (ROOT / trigger["validators"][0]).is_file()
 
 
 def test_workflow_and_validation_wiring() -> None:
     workflow_text = read(WORKFLOW_SPEC)
     assert "register-artifact" in workflow_text and "render-handoff" in workflow_text
     assert "No_machine_local_paths_in_capsule" in workflow_text
+    assert "input_mapping:" in workflow_text and "next_command: NextCommand" in workflow_text
     assert "python3 Tests/survey/test_agent_sprint_capsule_contracts.py" in read(RUNNER)
     ci = read(WORKFLOW)
     assert "python3 Tests/survey/test_agent_sprint_capsule_contracts.py" in ci
+    assert "tools/Test-Pester5Suite.ps1" in ci
+    assert "scripts/SasRunContext.psm1" in ci
     assert "Tests\\Pester\\SprintCapsule.Tests.ps1" in ci
 
 
@@ -106,7 +112,7 @@ def test_schema_rejects_local_paths_when_jsonschema_is_available() -> None:
         return
     schema, fixture = load(SCHEMA), load(FIXTURE)
     jsonschema.validate(fixture, schema)
-    for bad in (r"C:\\Users\\operator\\repo", "/home/operator/repo", "/mnt/c/Users/operator/repo"):
+    for bad in (r"C:\Users\operator\repo", "/home/operator/repo", "/mnt/c/Users/operator/repo", "/workspace/SysAdminSuite", "/tmp/sas-run", "token=abc", "password: abc", "secret = abc"):
         candidate = copy.deepcopy(fixture)
         candidate["handoff"]["next_command"] = bad
         try:
@@ -114,7 +120,15 @@ def test_schema_rejects_local_paths_when_jsonschema_is_available() -> None:
         except jsonschema.ValidationError:
             pass
         else:
-            raise AssertionError(f"schema accepted machine-local handoff text: {bad}")
+            raise AssertionError(f"schema accepted machine-local or secret-like handoff text: {bad}")
+    candidate = copy.deepcopy(fixture)
+    candidate["scope"]["owned_paths"][0] = r"safe\..\outside"
+    try:
+        jsonschema.validate(candidate, schema)
+    except jsonschema.ValidationError:
+        pass
+    else:
+        raise AssertionError("schema accepted a backslash parent-traversal repository path")
 
 
 def main() -> None:

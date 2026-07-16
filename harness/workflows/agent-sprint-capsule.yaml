@@ -8,9 +8,21 @@ inputs:
   - repository Git state
   - owned and forbidden scope
   - selected skills
+  - workflow spec
   - expected artifacts
   - validation commands and skipped checks
-  - proof ceiling
+  - proof level and ceiling
+  - completed, remaining, and blocked work
+  - next command
+input_mapping:
+  repository_git_state: inspected by the generator from the active Git repository
+  bounded_sprint_scope: SprintId, Title, Lane, Mission, OwnedPaths, ForbiddenScope, and Dependencies
+  selected_skills: PrimarySkill and AdditionalSkills
+  validation_results: ValidationCommands and SkippedChecks
+  proof_ceiling: ProofLevel, ProofCeiling, and ClaimsNotMade
+  next_command: NextCommand
+  workflow_and_artifacts: WorkflowSpec and ExpectedArtifacts
+  handoff_state: Completed, Remaining, and Blockers
 phases:
   - id: inspect-repository
     action: Read Git state and the repository capability manifest.

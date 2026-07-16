@@ -61,14 +61,14 @@
     "repoPath": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?!/)(?!\\\\)(?![A-Za-z]:[\\\\/])(?!~)(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+      "pattern": "^(?!/)(?!~)(?![A-Za-z]:[\\\\/])(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"
     },
     "safeText": {
       "type": "string",
       "minLength": 1,
       "maxLength": 1000,
       "not": {
-        "pattern": "(?i)(?:[A-Za-z]:[\\\\/]|/(?:home|Users|mnt/c)/|%USERPROFILE%|\\$HOME|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY)"
+        "pattern": "(?i)(?:[A-Za-z]:[\\\\/]|(?:^|\\s)/(?!/)\\S+|%USERPROFILE%|\\$HOME|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY|(?:password|token|secret)\\s*[:=])"
       }
     },
     "textList": {

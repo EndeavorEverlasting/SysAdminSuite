@@ -7,11 +7,11 @@
 1. Read this file.
 2. Use `CODEBASE_MAP.md` to locate the smallest relevant repo surface.
 3. Use `harness/api/agent-routing-manifest.json` when the request matches an exact deterministic task signal; unknown or conflicting signals fail closed to the repository-sprint skill.
-4. Load only the skill rows that match the task.
-5. Load the capability dependencies named by those skills.
-6. Read deeper product or harness docs only when the selected skill points to them.
+4. For a `skill` route, load only the selected skill and its declared capability dependencies.
+5. For a `harness_operation` route, collect every declared `required_inputs` value and apply the registered workflow input mapping before invoking its repo-owned entrypoint.
+6. Read deeper product or harness docs only when the selected skill or operation points to them.
 
-Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, or proof claims.
+Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, or proof claims. A harness-operation route is not a skill and cannot omit mandatory operation inputs.
 
 Do not preload every skill, capability, plan, or handoff. Progressive disclosure is a repository requirement.
 

@@ -90,12 +90,14 @@ def test_package_and_handoff_routes_are_current() -> None:
     assert "package semantic analysis" in [s.lower() for s in by_target["package-static-analysis"]["deterministic_task_signals"]]
     capsule = by_target["agent_sprint_capsule.generate"]
     assert "final handoff compression" in [s.lower() for s in capsule["deterministic_task_signals"]]
+    operation = {item["id"]: item for item in load(HARNESS_API)["operations"]}["agent_sprint_capsule.generate"]
+    assert set(capsule["required_inputs"]) == set(operation["inputs"])
     assert capsule["proof_ceiling"] == "schema, fixture, run-context, artifact-registration, and local handoff proof"
 
 
 def test_workflow_and_discoverability_are_wired() -> None:
     workflow_text = read(WORKFLOW_SPEC)
-    for marker in ("name:", "mode: local_transform", "network_activity: false", "target_mutation: false", "phases:", "artifacts:", "validation:", "next_actions:"):
+    for marker in ("name:", "mode: local_transform", "network_activity: false", "target_mutation: false", "input_mapping:", "next_command: NextCommand", "phases:", "artifacts:", "validation:", "next_actions:"):
         assert marker in workflow_text
     assert "harness/api/agent-capability-manifest.json" in read(CODEBASE_MAP)
     for doc in (AGENTS, AI_ENTRYPOINT):

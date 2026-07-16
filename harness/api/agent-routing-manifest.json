@@ -333,10 +333,12 @@
       "target_type": "harness_operation",
       "target": "agent_sprint_capsule.generate",
       "required_inputs": [
-        "sprint identity",
-        "scope",
-        "validation",
-        "proof ceiling"
+        "repository_git_state",
+        "bounded_sprint_scope",
+        "selected_skills",
+        "validation_results",
+        "proof_ceiling",
+        "next_command"
       ],
       "outputs": [
         "agent sprint capsule",

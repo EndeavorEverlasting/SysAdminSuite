@@ -81,6 +81,43 @@ Describe 'Agent sprint capsule generator' {
         } | Should -Throw '*machine-local path or secret-like value*'
     }
 
+    It 'rejects generic POSIX paths, secret assignments, duplicates, and overlong handoff text before run creation' {
+        foreach ($unsafe in @('/workspace/SysAdminSuite','review /tmp/sas-run','token=abc')) {
+            {
+                & $script:generator -SprintId 'boundary-fixture' -Title 'Boundary fixture' -Lane 'harness' `
+                    -Mission 'Reject unsafe handoff input before creating a run.' `
+                    -OwnedPaths @('harness/api') -ForbiddenScope @('dashboard') `
+                    -PrimarySkill 'repository-sprint' -WorkflowSpec 'harness/workflows/agent-sprint-capsule.yaml' `
+                    -ExpectedArtifacts @('harness/api/agent-routing-manifest.json') `
+                    -Completed @('No work.') -ValidationCommands @('python3 Tests/survey/test_agent_sprint_capsule_contracts.py') `
+                    -ProofLevel 'P1_static_lint' -ProofCeiling 'Static rejection proof only.' `
+                    -ClaimsNotMade @('No mutation occurred.') -NextCommand $unsafe `
+                    -RepositorySlug 'EndeavorEverlasting/SysAdminSuite'
+            } | Should -Throw '*machine-local path or secret-like value*'
+        }
+        {
+            & $script:generator -SprintId 'duplicate-fixture' -Title 'Duplicate fixture' -Lane 'harness' `
+                -Mission 'Reject duplicate schema values before creating a run.' `
+                -OwnedPaths @('harness/api','harness/api') -ForbiddenScope @('dashboard') `
+                -PrimarySkill 'repository-sprint' -WorkflowSpec 'harness/workflows/agent-sprint-capsule.yaml' `
+                -ExpectedArtifacts @('harness/api/agent-routing-manifest.json') `
+                -Completed @('No work.') -ValidationCommands @('python3 Tests/survey/test_agent_sprint_capsule_contracts.py') `
+                -ProofLevel 'P1_static_lint' -ProofCeiling 'Static rejection proof only.' `
+                -ClaimsNotMade @('No mutation occurred.') -NextCommand 'git status --short' `
+                -RepositorySlug 'EndeavorEverlasting/SysAdminSuite'
+        } | Should -Throw '*must contain unique values*'
+        {
+            & $script:generator -SprintId 'long-fixture' -Title 'Long fixture' -Lane 'harness' `
+                -Mission ('x' * 1001) -OwnedPaths @('harness/api') -ForbiddenScope @('dashboard') `
+                -PrimarySkill 'repository-sprint' -WorkflowSpec 'harness/workflows/agent-sprint-capsule.yaml' `
+                -ExpectedArtifacts @('harness/api/agent-routing-manifest.json') `
+                -Completed @('No work.') -ValidationCommands @('python3 Tests/survey/test_agent_sprint_capsule_contracts.py') `
+                -ProofLevel 'P1_static_lint' -ProofCeiling 'Static rejection proof only.' `
+                -ClaimsNotMade @('No mutation occurred.') -NextCommand 'git status --short' `
+                -RepositorySlug 'EndeavorEverlasting/SysAdminSuite'
+        } | Should -Throw '*1000-character capsule limit*'
+    }
+
     It 'keeps the schema closed and machine-local-path-free' {
         $schema = Get-Content -LiteralPath $script:schema -Raw | ConvertFrom-Json
         $schema.additionalProperties | Should -BeFalse

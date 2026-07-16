@@ -281,7 +281,8 @@
         "No_machine_local_or_home_paths_in_capsule",
         "No_credentials_or_unapproved_secrets",
         "No_mutation_authority",
-        "Reinspect_git_state_before_receiving_agent_mutates"
+        "Reinspect_git_state_before_receiving_agent_mutates",
+        "Mandatory_inputs_collected_from_routing_and_workflow_mapping"
       ]
     }
   ]
