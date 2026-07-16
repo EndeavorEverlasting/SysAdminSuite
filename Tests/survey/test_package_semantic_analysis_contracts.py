@@ -18,7 +18,7 @@ MANIFEST = ROOT / "harness/api/package-semantic-analysis-skill.json"
 DOC = ROOT / "docs/PACKAGE_SEMANTIC_ANALYSIS.md"
 PS_WRAPPER = ROOT / "scripts/Invoke-SasPackageSemanticAnalysis.ps1"
 BASH_WRAPPER = ROOT / "scripts/invoke-sas-package-semantic-analysis.sh"
-WORKFLOW = ROOT / ".github/workflows/package-semantic-analysis.yml"
+WORKFLOW = ROOT / ".github/workflows/package-static-analysis.yml"
 
 
 def read(path: Path) -> str:
@@ -209,6 +209,51 @@ def test_fail_closed_base_and_sanitized_msi_classifier() -> None:
         raise AssertionError("unsupported base schema did not fail closed")
 
 
+def test_dangerous_inferences_generate_controls() -> None:
+    module = load_module()
+    files = [{
+        "semantic_analysis": {
+            "packaging_signals": [],
+            "behavior_inferences": [
+                {"id": "may_modify_accounts_or_credential_provider"},
+                {"id": "may_delete_files_broadly"},
+                {"id": "may_remove_own_files"},
+                {"id": "may_refresh_or_modify_group_policy"},
+            ],
+        }
+    }]
+    requirements = module.derive_harness_requirements(files)
+    assert "capture_local_accounts_and_credential_providers" in requirements["preflight"]
+    assert "capture_protected_file_tree_baseline" in requirements["preflight"]
+    assert "verify_no_unapproved_file_deletion" in requirements["runtime_acceptance"]
+    assert "restore_snapshot_on_unbounded_file_change" in requirements["rollback"]
+    assert "preserve_requested_application_during_cleanup" in requirements["rollback"]
+    assert "capture_group_policy_refresh_result" in requirements["logging"]
+
+
+def test_symlink_substitution_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        fixture = root / "fixture"
+        output = root / "output"
+        fixture.mkdir()
+        real = fixture / "real.exe"
+        write_fake_managed_sapien_pe(real)
+        link = fixture / "package.exe"
+        try:
+            link.symlink_to(real.name)
+        except (OSError, NotImplementedError):
+            return
+        base = root / "package_analysis.json"
+        record = base_record(real, link.name, "pe", [])
+        write_base_result(base, [record])
+        completed = subprocess.run([sys.executable, str(SEMANTIC), "--input", str(fixture), "--base-result", str(base), "--output-dir", str(output)], cwd=ROOT, text=True, capture_output=True, check=False)
+        assert completed.returncode == 1
+        result = json.loads((output / "package_semantic_analysis.json").read_text(encoding="utf-8"))
+        assert result["summary"]["files_enriched"] == 0
+        assert result["errors"][0]["message"] == "symlink_not_followed"
+
+
 def test_safety_contracts() -> None:
     schema = json.loads(read(SCHEMA))
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
@@ -225,10 +270,22 @@ def test_safety_contracts() -> None:
 
 
 def main() -> None:
-    tests = [test_required_surfaces_and_manifest, test_semantic_sidecar_and_harness_requirements, test_hash_mismatch_fails_with_evidence, test_fail_closed_base_and_sanitized_msi_classifier, test_safety_contracts]
-    for test in tests:
-        test()
-    print(f"PASS: {len(tests)} package semantic analysis contract groups")
+    tests = {
+        "surfaces": test_required_surfaces_and_manifest,
+        "semantic": test_semantic_sidecar_and_harness_requirements,
+        "hash_mismatch": test_hash_mismatch_fails_with_evidence,
+        "fail_closed": test_fail_closed_base_and_sanitized_msi_classifier,
+        "dangerous_controls": test_dangerous_inferences_generate_controls,
+        "symlink": test_symlink_substitution_fails_closed,
+        "safety": test_safety_contracts,
+    }
+    selected = sys.argv[1:] or list(tests)
+    for name in selected:
+        assert name in tests, f"unknown test group: {name}"
+        print(f"RUN: {name}")
+        tests[name]()
+        print(f"PASS: {name}")
+    print(f"PASS: {len(selected)} package semantic analysis contract groups")
 
 
 if __name__ == "__main__":
