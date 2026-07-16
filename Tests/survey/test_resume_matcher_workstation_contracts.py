@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,7 +18,6 @@ POWERSHELL_WRAPPER = ROOT / "scripts/Invoke-SasResumeMatcherWorkstation.ps1"
 DOC = ROOT / "docs/RESUME_MATCHER_WORKSTATION.md"
 WORKFLOW = ROOT / ".github/workflows/resume-matcher-workstation.yml"
 CODEBASE_MAP = ROOT / "CODEBASE_MAP.md"
-WORKSTATION_SKILL = ROOT / ".claude/skills/developer-workstation/SKILL.md"
 
 
 def read(path: Path) -> str:
@@ -52,12 +52,12 @@ def test_required_surface_and_discoverability() -> None:
         DOC,
         WORKFLOW,
         CODEBASE_MAP,
-        WORKSTATION_SKILL,
     ):
         read(path)
-    assert "docs/RESUME_MATCHER_WORKSTATION.md" in read(CODEBASE_MAP)
-    assert "RESUME_MATCHER_WORKSTATION.md" in read(WORKSTATION_SKILL)
-    assert "invoke-sas-resume-matcher-workstation.sh" in read(WORKSTATION_SKILL)
+    codebase_map = read(CODEBASE_MAP)
+    assert "docs/RESUME_MATCHER_WORKSTATION.md" in codebase_map
+    assert "scripts/invoke-sas-resume-matcher-workstation.sh" in codebase_map
+    assert "scripts/Invoke-SasResumeMatcherWorkstation.ps1" in codebase_map
 
 
 def test_profile_is_pinned_closed_and_secret_free() -> None:
@@ -258,6 +258,7 @@ def main() -> int:
         except Exception as exc:  # pragma: no cover - compact standalone runner
             failures.append(f"{name}: {exc}")
             print(f"FAIL: {name}: {exc}", file=sys.stderr)
+            traceback.print_exc()
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1
