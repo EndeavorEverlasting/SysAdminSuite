@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Normalize one structural test rewrite in the temporary PR #224 repair helper."""
+"""Normalize exact-match quoting in the temporary PR #224 repair helper."""
 from pathlib import Path
 
 path = Path(__file__).with_name("repair_agent_harness_review.py")
@@ -36,5 +36,10 @@ replacement = """    target = ROOT / path
         raise AssertionError(\"schema accepted a backslash parent-traversal repository path\")
 '''
     target.write_text(source[:function_start] + replacement_function + source[function_end:], encoding=\"utf-8\")"""
-path.write_text(text[:start] + replacement + text[end:], encoding="utf-8")
+text = text[:start] + replacement + text[end:]
+needle = 'Tests\\\\Pester\\\\SprintCapsule.Tests.ps1'
+if text.count(needle) != 2:
+    raise RuntimeError(f"expected two escaped CI matchers, found {text.count(needle)}")
+text = text.replace(needle, 'Tests\\\\\\\\Pester\\\\\\\\SprintCapsule.Tests.ps1')
+path.write_text(text, encoding="utf-8")
 print("PASS: temporary repair helper normalized")
