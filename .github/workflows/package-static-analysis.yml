@@ -74,17 +74,15 @@ jobs:
         run: python Tests/survey/test_package_semantic_analysis_contracts.py
       - name: Execute package trust contracts
         if: runner.os == 'Windows'
+        timeout-minutes: 6
         shell: pwsh
         run: |
           $logPath = Join-Path $env:RUNNER_TEMP 'package-trust-contract.log'
-          $output = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\Test-PackageTrustVerificationContracts.ps1 2>&1
+          & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\Test-PackageTrustVerificationContracts.ps1 2>&1 |
+            ForEach-Object { [string]$_ } |
+            Tee-Object -FilePath $logPath
           $exitCode = $LASTEXITCODE
-          @($output) | ForEach-Object { [string]$_ } | Set-Content -LiteralPath $logPath -Encoding UTF8
-          if ($exitCode -ne 0) {
-            @($output) | Select-Object -Last 80 | ForEach-Object { Write-Host ([string]$_) }
-            exit $exitCode
-          }
-          @($output) | ForEach-Object { Write-Host ([string]$_) }
+          if ($exitCode -ne 0) { exit $exitCode }
       - name: Upload package trust diagnostics
         if: always() && runner.os == 'Windows'
         uses: actions/upload-artifact@v4
