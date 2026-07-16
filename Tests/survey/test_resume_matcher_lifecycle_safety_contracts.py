@@ -109,8 +109,8 @@ case "$args" in
   *"remote get-url origin"*) printf 'https://github.com/srbhr/Resume-Matcher.git\\n' ;;
   *"status --porcelain"*) exit 0 ;;
   *"rev-parse HEAD"*) printf '1111111111111111111111111111111111111111\\n' ;;
-  "ls-remote --heads "*) printf '2222222222222222222222222222222222222222\\trefs/heads/main\\n' ;;
-  "ls-remote "*) printf '2222222222222222222222222222222222222222\\trefs/heads/main\\n' ;;
+  *"ls-remote --heads "*) printf '2222222222222222222222222222222222222222\\trefs/heads/main\\n' ;;
+  *"ls-remote "*) printf '2222222222222222222222222222222222222222\\trefs/heads/main\\n' ;;
   *) exit 0 ;;
 esac
 """,
