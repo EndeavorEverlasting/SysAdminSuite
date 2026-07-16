@@ -4,9 +4,10 @@ from pathlib import Path
 
 path = Path(__file__).with_name("repair_agent_harness_review.py")
 text = path.read_text(encoding="utf-8")
-start = text.index("    replace_once(\n        path,\n        '''    for bad in")
-end = text.index('\n\n    path = "Tests/survey/test_agent_routing_manifest_contracts.py"', start)
-replacement = """    target = ROOT / path
+
+schema_start = text.index("    replace_once(\n        path,\n        '''    for bad in")
+schema_end = text.index('\n\n    path = "Tests/survey/test_agent_routing_manifest_contracts.py"', schema_start)
+schema_replacement = """    target = ROOT / path
     source = target.read_text(encoding=\"utf-8\")
     function_start = source.index(\"def test_schema_rejects_local_paths_when_jsonschema_is_available() -> None:\\n\")
     function_end = source.index(\"\\n\\ndef main() -> None:\", function_start)
@@ -36,14 +37,24 @@ replacement = """    target = ROOT / path
         raise AssertionError(\"schema accepted a backslash parent-traversal repository path\")
 '''
     target.write_text(source[:function_start] + replacement_function + source[function_end:], encoding=\"utf-8\")"""
-text = text[:start] + replacement + text[end:]
-needle = 'Tests\\Pester\\SprintCapsule.Tests.ps1'
-if text.count(needle) != 2:
-    raise RuntimeError(f"expected two escaped CI matchers, found {text.count(needle)}")
-text = text.replace(needle, 'Tests\\\\Pester\\\\SprintCapsule.Tests.ps1')
-path_count = text.count(r'\S*')
-if path_count < 3:
-    raise RuntimeError(f"expected at least three POSIX path patterns, found {path_count}")
-text = text.replace(r'\S*', r'\S+')
+text = text[:schema_start] + schema_replacement + text[schema_end:]
+
+ci_start = text.index("    replace_once(\n        path,\n        '''    assert \"python3 Tests/survey/test_agent_sprint_capsule_contracts.py\" in ci")
+ci_end = text.index("\n    target = ROOT / path", ci_start)
+ci_replacement = """    target = ROOT / path
+    source = target.read_text(encoding=\"utf-8\")
+    marker = '    assert \"python3 Tests/survey/test_agent_sprint_capsule_contracts.py\" in ci\\n'
+    if source.count(marker) != 1:
+        raise RuntimeError(f\"expected one capsule CI assertion, found {source.count(marker)}\")
+    additions = '    assert \"tools/Test-Pester5Suite.ps1\" in ci\\n    assert \"scripts/SasRunContext.psm1\" in ci\\n'
+    source = source.replace(marker, marker + additions, 1)
+    target.write_text(source, encoding=\"utf-8\")
+"""
+text = text[:ci_start] + ci_replacement + text[ci_end:]
+
+before = text
+text = text.replace(r"\S*", r"\S+")
+if text == before:
+    raise RuntimeError("no staged POSIX path pattern was tightened")
 path.write_text(text, encoding="utf-8")
 print("PASS: temporary repair helper normalized")
