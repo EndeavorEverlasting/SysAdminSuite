@@ -24,7 +24,10 @@ jobs:
         with:
           python-version: '3.12'
       - name: Apply reviewed repairs
-        run: python tools/repair_agent_harness_review.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/repair_agent_harness_review.py 2>&1 | tee "$RUNNER_TEMP/agent-harness-repair.log"
       - name: Validate repair
         run: |
           python -m pip install jsonschema pyyaml
@@ -52,6 +55,14 @@ jobs:
           print('PASS: repair schema and workflow parse')
           PY
           git diff --check
+      - name: Upload repair diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-harness-repair-diagnostics
+          path: ${{ runner.temp }}/agent-harness-repair.log
+          if-no-files-found: error
+          retention-days: 3
       - name: Commit repaired harness
         run: |
           git config user.name 'github-actions[bot]'
