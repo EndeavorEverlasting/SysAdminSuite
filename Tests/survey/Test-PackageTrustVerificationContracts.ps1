@@ -182,7 +182,7 @@ try {
     Set-Content -LiteralPath $unsignedPath -Encoding UTF8 -Value "Write-Output 'fixture'"
     Set-Content -LiteralPath $signedPath -Encoding UTF8 -Value "Write-Output 'signed fixture'"
     Set-Content -LiteralPath $pythonPath -Encoding UTF8 -Value "print('fixture')"
-    Set-Content -LiteralPath $archivePath -Encoding Byte -Value ([byte[]](80, 75, 3, 4, 0, 0, 0, 0))
+    [System.IO.File]::WriteAllBytes($archivePath, [byte[]](80, 75, 3, 4, 0, 0, 0, 0))
     Set-Content -LiteralPath $noncodePath -Encoding UTF8 -Value 'fixture resource'
 
     $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=SysAdminSuite Fixture Signer' -CertStoreLocation 'Cert:\CurrentUser\My' -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2)
