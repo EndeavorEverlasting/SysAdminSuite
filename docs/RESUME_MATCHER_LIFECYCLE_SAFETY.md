@@ -49,8 +49,8 @@ cannot be checked safely, Apply also stops without changing the checkout.
 ## 2. Provider health has a separate cost confirmation
 
 Normal `Accept` verifies that a saved provider configuration exists without
-issuing an LLM request. A provider health test performs exactly one provider
-request and may consume credits, so two explicit flags are required:
+issuing an LLM request. The opt-in test performs one provider request and may
+consume credits, so two explicit flags are required:
 
 ```bash
 bash scripts/test-sas-resume-matcher-live-acceptance.sh \
@@ -73,8 +73,8 @@ never stores the model response.
 
 ## 3. Stop reports unmanaged runtimes instead of killing them
 
-`Stop` terminates only the repo-owned `resume-matcher` tmux session. It never
-kills arbitrary processes by port, name, or PID.
+`Stop` terminates only the repo-owned `resume-matcher` tmux session. SysAdminSuite
+never kills arbitrary processes by port, name, or PID.
 
 ```bash
 bash scripts/invoke-sas-resume-matcher-workstation-safe.sh \
