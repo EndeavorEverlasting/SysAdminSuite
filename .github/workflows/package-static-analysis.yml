@@ -75,7 +75,24 @@ jobs:
       - name: Execute package trust contracts
         if: runner.os == 'Windows'
         shell: pwsh
-        run: pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\Test-PackageTrustVerificationContracts.ps1
+        run: |
+          $logPath = Join-Path $env:RUNNER_TEMP 'package-trust-contract.log'
+          $output = & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\Test-PackageTrustVerificationContracts.ps1 2>&1
+          $exitCode = $LASTEXITCODE
+          @($output) | ForEach-Object { [string]$_ } | Set-Content -LiteralPath $logPath -Encoding UTF8
+          if ($exitCode -ne 0) {
+            @($output) | Select-Object -Last 80 | ForEach-Object { Write-Host ([string]$_) }
+            exit $exitCode
+          }
+          @($output) | ForEach-Object { Write-Host ([string]$_) }
+      - name: Upload package trust diagnostics
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-trust-contract-diagnostics
+          path: ${{ runner.temp }}/package-trust-contract.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Validate result schema posture
         run: >-
           python -c 'import json,pathlib; paths=["schemas/harness/package-static-analysis-result.schema.json","schemas/harness/package-semantic-analysis-result.schema.json","schemas/harness/package-trust-policy.schema.json","schemas/harness/package-trust-verification-result.schema.json"]; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+"schema") == "https://json-schema.org/draft/2020-12/schema" and s["additionalProperties"] is False for s in schemas); print("PASS: package result and policy schema posture")'
