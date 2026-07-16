@@ -26,12 +26,21 @@ command_state() {
 }
 
 agent_state() {
-  local name="$1" kind path_class backend
+  local name="$1" kind path_class backend resolved
   kind=$(type -t "$name" 2>/dev/null || true)
   case "$kind" in
     alias) path_class=alias-only; backend=native ;;
     function) path_class=alias-only; backend=native ;;
-    file) kind=executable; path_class=system-path; backend=native ;;
+    file)
+      resolved=$(command -v "$name")
+      if [[ "$resolved" == *'/.local/agent-switchboard/bin/'* ]]; then
+        kind=wrapper; path_class=managed-wrapper; backend=unknown
+      elif [[ "${detected_context:-linux-native}" == windows-wsl && "$resolved" == /mnt/[a-zA-Z]/* ]]; then
+        kind=executable; path_class=windows-interop; backend=bridge
+      else
+        kind=executable; path_class=system-path; backend=native
+      fi
+      ;;
     *) kind=missing; path_class=missing; backend=missing ;;
   esac
   printf '%s\t%s\t%s' "$kind" "$path_class" "$backend"

@@ -1,7 +1,10 @@
 -- Managed by SysAdminSuite. The user-owned .wezterm.lua only includes this file.
 return function(config)
   local wezterm = require 'wezterm'
-  local tmux_command = { 'wsl.exe', '-d', '@DISTRO@', '--', 'tmux', 'new-session', '-A', '-s', '@SESSION@' }
+  local tmux_command = {
+    'wsl.exe', '-d', '@DISTRO@', '--exec', 'bash', '-lc',
+    'export PATH="$HOME/.local/agent-switchboard/bin:$PATH"; exec tmux new-session -A -s @SESSION@'
+  }
 
   config.default_prog = tmux_command
   config.launch_menu = config.launch_menu or {}

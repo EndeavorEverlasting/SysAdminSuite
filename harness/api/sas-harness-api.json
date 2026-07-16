@@ -228,6 +228,34 @@
         "No_nested_tmux",
         "Lua_routes_to_managed_file_operation"
       ]
+    },
+    {
+      "id": "developer_workstation.orchestrate",
+      "summary": "Compose workstation inventory, guarded platform lifecycle, AgentSwitchboard v2 resolution, validation, rollback, artifact registration, and English output.",
+      "mode": "operator_execute",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "sas-developer-workstation-operation/v2",
+        "sas-developer-workstation-profile/v3",
+        "agentswitchboard-invocation/v2",
+        "explicit-allow-target-mutation"
+      ],
+      "outputs": [
+        "orchestrator-result.json",
+        "artifact-registry.json",
+        "agentswitchboard-result.json",
+        "english-summary.txt"
+      ],
+      "guardrails": [
+        "Inventory_is_default",
+        "Apply_Repair_Rollback_require_explicit_authorization",
+        "Structured_process_arguments_only",
+        "Bounded_timeouts_and_sanitized_stderr",
+        "No_automatic_authentication",
+        "No_fixture_runtime_claims",
+        "Stop_is_explicitly_destructive"
+      ]
     }
   ]
 }

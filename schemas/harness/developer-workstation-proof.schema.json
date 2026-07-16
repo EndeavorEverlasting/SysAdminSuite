@@ -1,0 +1,23 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"schemas/harness/developer-workstation-proof.schema.json",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schema_version","journey_id","platform","expected_outcome","observed_outcome","status","public_entrypoint","artifacts_validated","idempotent_rerun","detail","proof"],
+  "properties":{
+    "schema_version":{"const":"sas-developer-workstation-proof/v2"},
+    "journey_id":{"type":"string","pattern":"^workstation-[a-z0-9-]+$"},
+    "platform":{"enum":["windows","linux","unsupported"]},
+    "expected_outcome":{"enum":["PASS","PARTIAL","FAIL","ACTION_REQUIRED","UNSUPPORTED"]},
+    "observed_outcome":{"enum":["PASS","PARTIAL","FAIL","ACTION_REQUIRED","UNSUPPORTED"]},
+    "status":{"enum":["PASS","FAIL","SKIP"]},
+    "public_entrypoint":{"const":"scripts/Invoke-SasDeveloperWorkstation.py"},
+    "artifacts_validated":{"type":"boolean"},
+    "idempotent_rerun":{"type":"boolean"},
+    "detail":{"type":"string","minLength":1},
+    "proof":{"type":"object","additionalProperties":false,"required":["fixture","live_runtime","behavior_observed","persistence_observed","agent_interaction_observed","operator_accepted"],"properties":{"fixture":{"const":true},"live_runtime":{"const":false},"behavior_observed":{"const":false},"persistence_observed":{"const":false},"agent_interaction_observed":{"const":false},"operator_accepted":{"const":false}}}
+  },
+  "allOf":[
+    {"if":{"properties":{"status":{"const":"PASS"}},"required":["status"]},"then":{"properties":{"artifacts_validated":{"const":true},"idempotent_rerun":{"const":true}}}}
+  ]
+}

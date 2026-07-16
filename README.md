@@ -281,6 +281,25 @@ The tutorial system lives in `GUI/Start-SysAdminSuiteGui.ps1` and is designed fo
 
 ---
 
+### Developer Workstation (Windows / native Linux)
+
+The persistent coding path is **WezTerm → tmux `dev` → coding agents**. On Windows, native WezTerm enters tmux through Ubuntu WSL2. On a graphical native-Linux host, WezTerm and tmux run locally. PowerShell 7 is the Windows fallback and administration shell, not the primary workspace. macOS is unsupported, and WSL evidence never counts as native-Linux proof.
+
+- [`docs/tutorials/DEVELOPER_WORKSTATION.md`](docs/tutorials/DEVELOPER_WORKSTATION.md) — canonical inventory, plan, apply, daily launch, agent, recovery, and proof workflow
+- [`docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md`](docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md) — PR ledger, merge order, CI repair, live evidence, and remaining proof gaps
+
+Terminal: **regular Windows PowerShell**, from the repository root.
+
+```powershell
+$Switchboard = 'C:\path\to\AgentSwitchboard'
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 -Mode Inventory -Platform windows -ExecutionDomain windows-wsl -AgentSwitchboardRoot $Switchboard -OutputRoot .\survey\output\developer-workstation\01-inventory
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 -Mode Plan -Platform windows -ExecutionDomain windows-wsl -AgentSwitchboardRoot $Switchboard -OutputRoot .\survey\output\developer-workstation\02-plan
+# Review Plan before authorizing Apply.
+pwsh -NoProfile -File .\scripts\Invoke-SasDeveloperWorkstation.ps1 -Mode Apply -Platform windows -ExecutionDomain windows-wsl -AgentSwitchboardRoot $Switchboard -OutputRoot .\survey\output\developer-workstation\03-apply -AllowTargetMutation -BridgePermission -LaunchGui -Confirm:$false
+```
+
+Daily Windows use starts from the generated **WezTerm tmux** shortcut. Native-Linux installation is gated by host classification and uses `scripts/invoke-sas-developer-workstation.sh`; follow the tutorial rather than applying from WSL.
+
 ### Dry-run / Offline Validation (safe on any machine)
 ```powershell
 # Canonical runner: fails fast if Pester 5 is missing

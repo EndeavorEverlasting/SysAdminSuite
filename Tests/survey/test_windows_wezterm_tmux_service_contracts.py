@@ -64,15 +64,20 @@ def test_lua_and_launcher_contract() -> None:
     launcher = read(ROOT / "Launch-WorkstationWezTerm.ps1")
     assert "tmux: Development" in template and "wsl.exe" in template
     assert "new-session" in template and "-A" in template and "@SESSION@" in template
+    assert "$HOME/.local/agent-switchboard/bin" in template and "--exec" in template
     assert "PowerShell 7 (fallback/admin)" in template
     assert "font" not in template.lower()
     assert "Start-SasWindowsTmuxWorkspace.ps1" in launcher and "LaunchGui" in launcher
     assert "wezterm-gui.exe" in read(SCRIPT)
+    service = read(SCRIPT)
+    assert "Start-IndependentWezTermGui" in service and "UseShellExecute = $true" in service
+    assert "gui_pid" in service and "--always-new-process" in service
+    assert "-LaunchGui -Confirm:$false" in service
 
 
 def test_fixture_matrix_is_sanitized() -> None:
     scenarios = {json.loads(read(path))["scenario"] for path in FIXTURES.glob("*.json")}
-    assert scenarios == {"healthy", "no-wsl", "docker-only", "missing-tmux", "missing-wezterm-gui", "stale-keepalive", "nested-tmux", "malformed-config", "apply-failure"}
+    assert scenarios == {"healthy", "no-wsl", "docker-only", "missing-tmux", "missing-wezterm-gui", "stale-keepalive", "nested-tmux", "malformed-config", "apply-failure", "keepalive-healthy", "session-missing"}
     assert "Cheex" not in "".join(read(path) for path in FIXTURES.glob("*.json"))
 
 
@@ -112,6 +117,9 @@ def test_apply_start_status_stop_rollback_fixture_loop() -> None:
         applied = invoke("Apply", FIXTURES / "healthy.json", home, state, allow=True)
         validate_result(applied)
         assert applied["outcome"] == "success" and applied["proof"]["config_applied"]
+        baseline_manifest = read(state / "windows-tmux-workspace-backup.json")
+        assert invoke("Apply", FIXTURES / "healthy.json", home, state, allow=True)["outcome"] == "success"
+        assert read(state / "windows-tmux-workspace-backup.json") == baseline_manifest
         assert "Builtin Solarized Dark" in read(home / ".wezterm.lua")
         assert "BEGIN SYSADMINSUITE" in read(home / ".wezterm.lua")
         assert "tmux: Development" in read(home / ".wezterm-sysadminsuite.lua")
@@ -144,7 +152,11 @@ def test_exact_keepalive_ownership_contract() -> None:
     assert "Get-CimInstance Win32_Process" in text and "sas-workstation-keepalive" in text
     assert "Stop-Process -Id" in text
     assert "Stop-Process -Name" not in text and "wsl --terminate" not in text.lower()
-    assert "Start-Process -FilePath 'wsl.exe'" in text and "-WindowStyle Hidden" in text
+    assert "[Diagnostics.ProcessStartInfo]::new()" in text
+    assert "ArgumentList.Add" in text and "CreateNoWindow" in text
+    assert "'--exec', 'bash', '-lc'" in text
+    assert "tmux set-environment -g PATH" in text
+    assert "Start-Process -FilePath 'wsl.exe'" not in text
 
 
 if __name__ == "__main__":

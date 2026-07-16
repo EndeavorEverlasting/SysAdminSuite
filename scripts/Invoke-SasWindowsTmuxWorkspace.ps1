@@ -109,6 +109,31 @@ function Get-ExactOwnedKeepalive {
     return [pscustomobject]@{ running = [bool]$owned; stale = -not [bool]$owned; pid = [int]$rawPid }
 }
 
+function Start-OwnedKeepaliveProcess {
+    param([string]$Distro)
+    $wsl = Get-Command wsl.exe -ErrorAction Stop
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $wsl.Source
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    foreach ($argument in @('-d', $Distro, '--exec', 'bash', '-lc', 'exec -a sas-workstation-keepalive sleep infinity')) {
+        [void]$startInfo.ArgumentList.Add($argument)
+    }
+    return [Diagnostics.Process]::Start($startInfo)
+}
+
+function Start-IndependentWezTermGui {
+    param([string]$GuiPath)
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $GuiPath
+    # Shell execution prevents the GUI from inheriting redirected orchestrator
+    # stdout/stderr handles, so no parent PowerShell process must remain.
+    $startInfo.UseShellExecute = $true
+    [void]$startInfo.ArgumentList.Add('start')
+    [void]$startInfo.ArgumentList.Add('--always-new-process')
+    return [Diagnostics.Process]::Start($startInfo)
+}
+
 function Get-LiveInventory {
     $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
     $distros = @()
@@ -215,23 +240,27 @@ function Apply-Configuration {
     if (-not (Test-Path -LiteralPath $templatePath)) { throw "Template missing: $templatePath" }
     New-Item -ItemType Directory -Path $UserConfigDir -Force | Out-Null
     New-Item -ItemType Directory -Path $StateRoot -Force | Out-Null
-    $backupRoot = Join-Path $StateRoot ('backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
-    New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
     $userExisted = Test-Path -LiteralPath $userLuaPath
     $sasExisted = Test-Path -LiteralPath $sasLuaPath
-    $userBackup = Join-Path $backupRoot 'wezterm.lua'
-    $sasBackup = Join-Path $backupRoot 'wezterm-sysadminsuite.lua'
-    if ($userExisted) { Copy-Item -LiteralPath $userLuaPath -Destination $userBackup }
-    if ($sasExisted) { Copy-Item -LiteralPath $sasLuaPath -Destination $sasBackup }
-    $manifest = [pscustomobject]@{
-        schema_version = 'sas-windows-tmux-workspace-backup/v1'
-        user_lua = [pscustomobject]@{ path = $userLuaPath; existed = $userExisted; backup = $userBackup }
-        sas_lua = [pscustomobject]@{ path = $sasLuaPath; existed = $sasExisted; backup = $sasBackup }
-        shortcut = [pscustomobject]@{ path = $shortcutPath; existed = (Test-Path -LiteralPath $shortcutPath) }
-    }
-    Write-JsonFile -Path $manifestPath -Value $manifest
-    if (Get-Value $Inventory 'apply_failure' $false) { throw 'fixture apply failure after backup' }
     $existing = if ($userExisted) { Get-Content -Raw -LiteralPath $userLuaPath } else { '' }
+    $priorManifest = Read-JsonFile -Path $manifestPath
+    $alreadyManaged = $userExisted -and $sasExisted -and $existing.Contains($managedStart) -and $existing.Contains($managedEnd)
+    if (-not ($priorManifest -and $priorManifest.schema_version -eq 'sas-windows-tmux-workspace-backup/v1' -and $alreadyManaged)) {
+        $backupRoot = Join-Path $StateRoot ('backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+        New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
+        $userBackup = Join-Path $backupRoot 'wezterm.lua'
+        $sasBackup = Join-Path $backupRoot 'wezterm-sysadminsuite.lua'
+        if ($userExisted) { Copy-Item -LiteralPath $userLuaPath -Destination $userBackup }
+        if ($sasExisted) { Copy-Item -LiteralPath $sasLuaPath -Destination $sasBackup }
+        $manifest = [pscustomobject]@{
+            schema_version = 'sas-windows-tmux-workspace-backup/v1'
+            user_lua = [pscustomobject]@{ path = $userLuaPath; existed = $userExisted; backup = $userBackup }
+            sas_lua = [pscustomobject]@{ path = $sasLuaPath; existed = $sasExisted; backup = $sasBackup }
+            shortcut = [pscustomobject]@{ path = $shortcutPath; existed = (Test-Path -LiteralPath $shortcutPath) }
+        }
+        Write-JsonFile -Path $manifestPath -Value $manifest
+    }
+    if (Get-Value $Inventory 'apply_failure' $false) { throw 'fixture apply failure after backup' }
     if (Get-Value $Inventory 'malformed_config' $false) { $existing = 'return {' }
     $updated = Get-UpdatedUserLua -Content $existing
     $rendered = (Get-Content -Raw -LiteralPath $templatePath).Replace('@DISTRO@', [string](Get-Value $Inventory 'distro')).Replace('@SESSION@', $sessionName)
@@ -246,7 +275,9 @@ function Apply-Configuration {
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut($shortcutPath)
         $shortcut.TargetPath = $pwsh.Source
-        $shortcut.Arguments = '-NoProfile -WindowStyle Hidden -File "{0}" -LaunchGui' -f (Join-Path $repoRoot 'scripts\Start-SasWindowsTmuxWorkspace.ps1')
+        # Activating the generated shortcut is the explicit Start intent; do
+        # not strand a hidden process on a confirmation prompt.
+        $shortcut.Arguments = '-NoProfile -WindowStyle Hidden -File "{0}" -LaunchGui -Confirm:$false' -f (Join-Path $repoRoot 'scripts\Start-SasWindowsTmuxWorkspace.ps1')
         $shortcut.WorkingDirectory = $repoRoot
         $shortcut.Description = 'SysAdminSuite WezTerm tmux workspace'
         $shortcut.Save()
@@ -263,7 +294,9 @@ function Start-Workspace {
     $pidPath = Join-Path $StateRoot 'wsl-keepalive.pid'
     $keepalive = Get-ExactOwnedKeepalive -PidPath $pidPath -Distro $Inventory.distro
     if (-not $keepalive.running) {
-        $process = Start-Process -FilePath 'wsl.exe' -ArgumentList @('-d', $Inventory.distro, '--', 'sh', '-lc', 'exec -a sas-workstation-keepalive sleep infinity') -WindowStyle Hidden -PassThru
+        # ProcessStartInfo.ArgumentList preserves the keepalive command as one
+        # bash -lc argument. Start-Process flattens the array and makes WSL exit.
+        $process = Start-OwnedKeepaliveProcess -Distro $Inventory.distro
         [System.IO.File]::WriteAllText($pidPath, [string]$process.Id, [System.Text.Encoding]::ASCII)
         $deadline = (Get-Date).AddSeconds($StartupTimeoutSeconds)
         do {
@@ -273,10 +306,12 @@ function Start-Workspace {
         if (-not $keepalive.running) { throw 'operation-timeout: keepalive did not reach an owned running state' }
     }
     & wsl.exe -d $Inventory.distro -- tmux has-session -t $sessionName 2>$null
-    if ($LASTEXITCODE -ne 0) { & wsl.exe -d $Inventory.distro -- tmux new-session -d -s $sessionName }
+    if ($LASTEXITCODE -ne 0) { & wsl.exe -d $Inventory.distro --exec bash -lc 'export PATH="$HOME/.local/agent-switchboard/bin:$PATH"; exec tmux new-session -d -s dev' }
     if ($LASTEXITCODE -ne 0) { throw 'tmux-socket-missing: could not create dev session' }
-    if ($LaunchGui) { Start-Process -FilePath $Inventory.wezterm_gui_path -ArgumentList @('start', '--always-new-process') -WindowStyle Hidden }
-    Write-JsonFile -Path $statePath -Value ([pscustomobject]@{ distro = $Inventory.distro; keepalive_pid = $keepalive.pid; session_name = $sessionName; gui_launcher = $Inventory.wezterm_gui_path })
+    & wsl.exe -d $Inventory.distro --exec bash -lc 'tmux set-environment -g PATH "$HOME/.local/agent-switchboard/bin:$PATH"'
+    if ($LASTEXITCODE -ne 0) { throw 'tmux-socket-missing: could not update the dev session agent PATH' }
+    $guiProcess = if ($LaunchGui) { Start-IndependentWezTermGui -GuiPath $Inventory.wezterm_gui_path } else { $null }
+    Write-JsonFile -Path $statePath -Value ([pscustomobject]@{ distro = $Inventory.distro; keepalive_pid = $keepalive.pid; session_name = $sessionName; gui_launcher = $Inventory.wezterm_gui_path; gui_pid = $(if ($guiProcess) { $guiProcess.Id } else { $null }) })
 }
 
 function Stop-Workspace {
@@ -319,6 +354,7 @@ try {
             $reasons = @($blocking)
             if (Get-Value $inventory 'keepalive_stale' $false) { $reasons += 'keepalive-stale' }
             elseif (-not (Get-Value $inventory 'keepalive_running' $false)) { $reasons += 'keepalive-missing' }
+            if (-not (Get-Value $inventory 'session_exists' $false)) { $reasons += 'tmux-socket-missing' }
             $healthy = -not $reasons.Count -and (Get-Value $inventory 'session_exists' $false)
             return New-LifecycleResult -Operation 'status' -Outcome $(if ($healthy) { 'success' } else { 'action-required' }) -State $(if ($healthy) { 'session-running' } else { 'action-required' }) -Reasons @($reasons | Select-Object -Unique) -Message "Status: keepalive=$((Get-Value $inventory 'keepalive_running' $false)); session=$((Get-Value $inventory 'session_exists' $false)); shortcut=$((Get-Value $inventory 'shortcut_exists' $false))." -Artifacts @(New-Artifact 'backend-status' $fixture $liveData; New-Artifact 'tmux-status' $fixture $liveData)
         }

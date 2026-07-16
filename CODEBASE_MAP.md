@@ -16,6 +16,8 @@ Use this map to load only the files needed for a task.
 
 ## Developer workstation provisioning
 
+- `docs/tutorials/DEVELOPER_WORKSTATION.md` — canonical Windows/WSL and native-Linux operator workflow, daily launch, agent routing, recovery, and proof interpretation.
+- `docs/DEVELOPER_WORKSTATION_CONVERGENCE_REPORT.md` — release PR ledger, required merge order, CI repair, live evidence, and remaining owners.
 - `docs/DEVELOPER_WORKSTATION_PROVISIONING.md` — layered WezTerm terminal, tmux workspace, Windows WSL backend, native-Linux backend, PowerShell fallback, and ownership contract.
 - `docs/DEVELOPER_WORKSTATION_PR_STACK.md` — preservation, blocking, repair, and supersession decisions for workstation PRs #199–#204.
 - `schemas/harness/developer-workstation-profile.schema.json` — fail-closed v3 terminal/workspace/backend/shell/agent-domain contract.
@@ -33,6 +35,12 @@ Use this map to load only the files needed for a task.
 - `Tests/Fixtures/windows-tmux-workspace/` — sanitized healthy, missing, stale, malformed, nested, failure, and rollback fixture inputs.
 - `Tests/survey/test_windows_wezterm_tmux_service_contracts.py` and `Tests/Pester/WindowsWezTermTmuxService.Tests.ps1` — temporary-HOME lifecycle, preservation, launcher, and ownership proof.
 - `.github/workflows/windows-wezterm-tmux-service.yml` — Windows fixture lifecycle and Pester CI gate.
+- `schemas/harness/developer-workstation-proof.schema.json` — fail-closed fixture proof v2 with false live, behavior, persistence, agent-interaction, and acceptance flags.
+- `scripts/Invoke-SasWorkstationE2E.py`, `.ps1`, and `invoke-sas-workstation-e2e.sh` — 22-journey public-entrypoint fixture E2E and English matrix runners.
+- `scripts/Invoke-SasWindowsWorkstationLiveProof.ps1` — opt-in, content-free Windows detach/reopen and canonical-wrapper runtime proof.
+- `Tests/survey/test_developer_workstation_proof_contracts.py` — exact profile, artifact, idempotency, public-entrypoint, CI, and proof-ceiling contracts.
+- `.github/workflows/developer-workstation-e2e-proof.yml` — platform-bounded Windows and native-Linux fixture matrix gates.
+- `docs/DEVELOPER_WORKSTATION_E2E_PROOF_MERGE_READINESS.md` — honest 22-journey fixture readiness report and remaining live blockers.
 
 ## Developer workstation inventory
 
@@ -52,6 +60,16 @@ Use this map to load only the files needed for a task.
 - `harness/api/developer-workstation-agent-routing.json` — deterministic trigger and terminal-context record.
 - `schemas/harness/developer-workstation-agent-routing.schema.json` — fail-closed routing contract.
 - `Tests/survey/test_developer_workstation_agent_harness_contracts.py` — trigger uniqueness, path, manifest, context, and prompt/application separation tests.
+## Developer workstation orchestration
+
+- `scripts/Invoke-SasDeveloperWorkstation.py` — one-command Inventory/Plan/Apply/Start/Status/Stop/Repair/Validate/Rollback composition.
+- `scripts/Invoke-SasDeveloperWorkstation.ps1`, `scripts/invoke-sas-developer-workstation.sh`, and `Developer-Workstation.cmd` — structured platform and technician entrypoints.
+- `scripts/Invoke-SasAgentSwitchboard.py` — version-pinned, timeout-bounded external AgentSwitchboard v2 adapter.
+- `scripts/Render-SasDeveloperWorkstationEnglish.py` — concise PASS/SKIP/FAIL/ACTION_REQUIRED renderer with terminal-context labels.
+- `schemas/harness/developer-workstation-operation.schema.json` and `developer-workstation-orchestrator-result.schema.json` — operation gate and result/artifact contracts.
+- `Tests/Fixtures/developer-workstation-orchestrator/` and `Tests/Fixtures/agent-switchboard-v2/` — sanitized integration and external-boundary fixtures.
+- `.github/workflows/developer-workstation-orchestrator-v2.yml` — Windows composed fixture and Linux entrypoint gates.
+
 ## Native Linux workstation host
 
 - `scripts/invoke-sas-linux-tmux-workspace.sh` — native Plan/Apply/Start/Status/Stop/Repair/Rollback lifecycle implementation.
