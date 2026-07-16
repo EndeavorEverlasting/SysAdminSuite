@@ -13,10 +13,11 @@ The static analyzer can observe a PE certificate table or CLR strong-name materi
 5. evaluates embedded Authenticode through `WinVerifyTrust`;
 6. forces cache-only URL retrieval and disables online revocation checking;
 7. extracts the signer identity from the WinTrust provider state;
-8. evaluates an explicit hash-bound signer or unsigned-package policy;
-9. emits a deployment disposition without launching the package.
+8. evaluates an explicit hash-bound signer or unsigned-code policy;
+9. blocks opaque archives and shortcuts until their actual components receive separate intake;
+10. emits a deployment disposition without launching the package.
 
-The canonical wrapper compiles `tools/package-analysis/SasPackageTrustInterop.cs` before invoking the policy engine. The interop uses an explicit optional-date object so unsigned files cannot fail because a signer certificate date is absent.
+The canonical entrypoint compiles `tools/package-analysis/SasPackageTrustInterop.cs` before applying policy. The interop uses an explicit optional-date object so an unsigned file cannot fail merely because no signer certificate dates exist.
 
 ## Proof levels
 
@@ -57,8 +58,10 @@ Observation mode writes:
 
 The starter policy is deliberately fail-closed:
 
-- code-bearing files start as `review_required`;
+- Authenticode-capable files start as `review_required`;
+- non-Authenticode scripts such as Python and shell files start as `review_required`;
 - unlisted code-bearing files are blocked;
+- archives, shortcuts, and containers with nested installer metadata are blocked until their components receive separate intake;
 - non-code resources may be admitted by exact base-result hash only when `unlisted_noncode_disposition` explicitly says `hash_only_approved`;
 - observed signer data is informational and is not automatically approved.
 
@@ -80,7 +83,7 @@ A signed package entry should use `required_valid` and at least one exact signer
 }
 ```
 
-An internal unsigned wrapper requires an exact hash and an explicit exception reference:
+An unsigned internal wrapper or non-Authenticode script requires an exact hash and an explicit exception reference:
 
 ```json
 {
@@ -96,7 +99,7 @@ An internal unsigned wrapper requires an exact hash and an explicit exception re
 }
 ```
 
-Do not convert an invalid, bad-digest, expired, distrusted, or untrusted signature into an unsigned exception. Those states remain blocked.
+`allow_unsigned_explicit` is not a shortcut around signer policy. A file that carries a valid signature must use `required_valid` and match an approved signer. An invalid, bad-digest, expired, distrusted, or untrusted signature also cannot be converted into an unsigned exception; those states remain blocked.
 
 ## Step 4: run the policy gate
 
@@ -107,7 +110,7 @@ Do not convert an invalid, bad-digest, expired, distrusted, or untrusted signatu
   -TrustPolicyPath 'D:\PrivatePolicies\allscripts-trust-policy.json'
 ```
 
-The command returns success only when every source hash is continuous and every code-bearing file is approved by policy. Possible overall dispositions are:
+The command returns success only when every source hash is continuous and every directly inspectable code-bearing file is approved by policy. Possible overall dispositions are:
 
 - `approved_for_vm_intake`
 - `review_required`
@@ -120,9 +123,11 @@ Approval means the package may proceed to disposable-VM intake. It does not auth
 The policy is governed by `schemas/harness/package-trust-policy.schema.json`.
 
 - `default_disposition` applies to unlisted code-bearing files and must be `review_required` or `blocked`.
-- `unlisted_noncode_disposition` controls hash-only resources and may be `hash_only_approved`, `review_required`, or `blocked`.
+- `unlisted_noncode_disposition` controls true hash-only resources and may be `hash_only_approved`, `review_required`, or `blocked`.
 - `required_valid` requires a locally valid embedded Authenticode signature and an exact approved signer subject or thumbprint.
-- `allow_unsigned_explicit` permits only a genuinely unsigned file pinned by exact SHA-256 and an explicit approval reference.
+- `allow_unsigned_explicit` permits genuinely unsigned Authenticode-capable files or non-Authenticode scripts only when pinned by exact SHA-256 and backed by an explicit approval reference.
+- a valid signed file cannot use `allow_unsigned_explicit`;
+- opaque archives and shortcuts cannot be approved as indivisible hash-only code;
 - `review_required` cannot approve deployment.
 
 ## Output evidence
@@ -131,8 +136,8 @@ The policy is governed by `schemas/harness/package-trust-policy.schema.json`.
 
 - static-result hash;
 - re-verified source hashes;
-- trust scope per file;
-- WinVerifyTrust status code;
+- trust scope per file: `authenticode_candidate`, `code_policy_required`, or `hash_only_noncode`;
+- WinVerifyTrust status code when applicable;
 - normalized signature status;
 - signer subject and thumbprint when available;
 - policy identity match;
@@ -147,7 +152,8 @@ Absolute package paths are not emitted.
 This lane never:
 
 - executes EXE, MSI, script, custom action, service, application, or embedded payload code;
-- follows symlinks, junctions, or other reparse points;
+- follows shortcuts, symlinks, junctions, or other reparse points;
+- extracts archives to make them pass trust intake;
 - contacts certificate, CRL, OCSP, package, endpoint, target, or VM services;
 - claims online revocation freshness;
 - treats a CLR strong-name flag or blob as verified strong-name integrity;
@@ -159,11 +165,12 @@ A package may enter disposable-VM testing only when:
 
 1. static and semantic results are complete;
 2. every source hash is continuous;
-3. every code-bearing file has an explicit disposition;
-4. signed files match approved signer identity;
-5. unsigned internal wrappers have documented exceptions;
-6. invalid signatures remain blocked;
-7. package-specific preflight, logging, acceptance, reboot, and rollback requirements are defined.
+3. every directly inspectable code-bearing file has an explicit disposition;
+4. opaque package containers have been decomposed through a separately authorized component-intake lane;
+5. signed files match approved signer identity;
+6. unsigned internal wrappers and non-Authenticode scripts have documented exact-hash exceptions;
+7. invalid signatures remain blocked;
+8. package-specific preflight, logging, acceptance, reboot, and rollback requirements are defined.
 
 ## Proof ceiling
 
