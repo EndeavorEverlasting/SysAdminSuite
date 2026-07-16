@@ -6,9 +6,12 @@
 
 1. Read this file.
 2. Use `CODEBASE_MAP.md` to locate the smallest relevant repo surface.
-3. Load only the skill rows that match the task.
-4. Load the capability dependencies named by those skills.
-5. Read deeper product or harness docs only when the selected skill points to them.
+3. Use `harness/api/agent-routing-manifest.json` when the request matches an exact deterministic task signal; unknown or conflicting signals fail closed to the repository-sprint skill.
+4. For a `skill` route, load only the selected skill and its declared capability dependencies.
+5. For a `harness_operation` route, collect every declared `required_inputs` value and apply the registered workflow input mapping before invoking its repo-owned entrypoint.
+6. Read deeper product or harness docs only when the selected skill or operation points to them.
+
+Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, or proof claims. A harness-operation route is not a skill and cannot omit mandatory operation inputs.
 
 Do not preload every skill, capability, plan, or handoff. Progressive disclosure is a repository requirement.
 
@@ -50,7 +53,7 @@ When instructions appear to conflict, use this order:
 2. This file's universal invariants.
 3. The selected skill.
 4. The capability dependencies named by that skill.
-5. Canonical machine-readable policy, schemas, and workflow specs.
+5. Canonical machine-readable policy, schemas, routing, and workflow specs.
 6. Product docs and runbooks.
 7. Historical plans, handoffs, PR bodies, and comments.
 
@@ -58,13 +61,17 @@ If two same-level sources conflict, stop expansion, cite both paths, and make th
 
 ## Canonical repo authorities
 
+- `docs/AI_HARNESS_ENTRYPOINT.md` — fresh-agent inspection, routing, artifact, validation, and handoff sequence.
 - `CODEBASE_MAP.md` — minimal context routing.
+- `harness/api/agent-capability-manifest.json` — complete skill and capability inventory.
+- `harness/api/agent-routing-manifest.json` — deterministic task-signal routing and ambiguity rules.
+- `harness/workflows/agent-sprint-capsule.yaml` and `tools/New-SasSprintCapsule.ps1` — final handoff compression using the canonical run context and artifact registry.
 - `Config/operational-posture.json` and `docs/OPERATIONAL_POSTURE.md` — lane and mutation posture.
 - `docs/HARNESS_DISCIPLINE.md` — full Git/PR/worktree operation contract.
 - `docs/END_TO_END_TESTING_POSTURE.md` — default validation and merge/release proof posture.
 - `docs/LOCAL_REFERENCE_POLICY.md`, `.gitignore`, and `.claudeignore` — local data boundaries.
 - `survey/naabu_profiles.json` — approved Naabu doctrine profiles.
-- `tools/validate-ai-layer.ps1` — agent instruction, skill, and capability validation.
+- `tools/validate-ai-layer.ps1` — manifest-driven agent instruction, skill, capability, routing, and handoff validation.
 
 ## Delivery floor
 
@@ -74,5 +81,6 @@ Before reporting completion:
 2. Run targeted diagnostics, then the applicable E2E journey, then broader checks.
 3. Report exact passes, failures, and skipped commands.
 4. Report changed files, commit SHA, push/PR state, remaining gaps, proof level, and one exact next command.
+5. When another agent or chat must continue, generate a schema-backed sprint capsule; do not paste an unbounded transcript as the handoff.
 
 A checkpoint, green unit test, or green static contract is not automatically merge readiness or runtime proof.

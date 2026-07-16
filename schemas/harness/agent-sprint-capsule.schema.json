@@ -1,0 +1,354 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/agent-sprint-capsule.schema.json",
+  "title": "SysAdminSuite Agent Sprint Capsule",
+  "description": "Machine-local-path-free compressed handoff for a bounded repository sprint.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "capsule",
+    "repository",
+    "sprint",
+    "scope",
+    "routing",
+    "artifacts",
+    "validation",
+    "proof",
+    "handoff"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-agent-sprint-capsule/v2"
+    },
+    "schema_path": {
+      "const": "schemas/harness/agent-sprint-capsule.schema.json"
+    },
+    "capsule": {
+      "$ref": "#/$defs/capsule"
+    },
+    "repository": {
+      "$ref": "#/$defs/repository"
+    },
+    "sprint": {
+      "$ref": "#/$defs/sprint"
+    },
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "routing": {
+      "$ref": "#/$defs/routing"
+    },
+    "artifacts": {
+      "$ref": "#/$defs/artifacts"
+    },
+    "validation": {
+      "$ref": "#/$defs/validation"
+    },
+    "proof": {
+      "$ref": "#/$defs/proof"
+    },
+    "handoff": {
+      "$ref": "#/$defs/handoff"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!~)(?![A-Za-z]:[\\\\/])(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+    },
+    "safeText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "not": {
+        "pattern": "(?i)(?:[A-Za-z]:[\\\\/]|(?:^|\\s)/(?!/)\\S+|%USERPROFILE%|\\$HOME|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY|(?:password|token|secret)\\s*[:=])"
+      }
+    },
+    "textList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/safeText"
+      }
+    },
+    "pathList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repoPath"
+      }
+    },
+    "capsule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capsule_id",
+        "generated_at",
+        "generator_version",
+        "workflow_id",
+        "run_id",
+        "output_path",
+        "artifact_registry_path"
+      ],
+      "properties": {
+        "capsule_id": {
+          "$ref": "#/$defs/id"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "generator_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "workflow_id": {
+          "const": "agent-sprint-capsule"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*-[0-9]{8}-[0-9]{6}-[a-f0-9]{8}$"
+        },
+        "output_path": {
+          "$ref": "#/$defs/repoPath"
+        },
+        "artifact_registry_path": {
+          "$ref": "#/$defs/repoPath"
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slug",
+        "base_branch",
+        "head_branch",
+        "head_sha",
+        "worktree_clean",
+        "dirty_paths"
+      ],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "base_branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "head_branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "worktree_clean": {
+          "type": "boolean"
+        },
+        "dirty_paths": {
+          "$ref": "#/$defs/pathList"
+        }
+      }
+    },
+    "sprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "lane",
+        "mission"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "$ref": "#/$defs/safeText"
+        },
+        "lane": {
+          "$ref": "#/$defs/id"
+        },
+        "mission": {
+          "$ref": "#/$defs/safeText"
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owned_paths",
+        "forbidden_scope",
+        "dependencies"
+      ],
+      "properties": {
+        "owned_paths": {
+          "$ref": "#/$defs/pathList"
+        },
+        "forbidden_scope": {
+          "$ref": "#/$defs/pathList"
+        },
+        "dependencies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary_skill",
+        "additional_skills",
+        "capability_ids",
+        "workflow_spec"
+      ],
+      "properties": {
+        "primary_skill": {
+          "$ref": "#/$defs/id"
+        },
+        "additional_skills": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "capability_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "workflow_spec": {
+          "$ref": "#/$defs/repoPath"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected",
+        "generated"
+      ],
+      "properties": {
+        "expected": {
+          "$ref": "#/$defs/pathList"
+        },
+        "generated": {
+          "$ref": "#/$defs/pathList"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordered_commands",
+        "skipped_checks"
+      ],
+      "properties": {
+        "ordered_commands": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/safeText"
+          }
+        },
+        "skipped_checks": {
+          "$ref": "#/$defs/textList"
+        }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "ceiling",
+        "claims_not_made"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "P0_schema_validation",
+            "P1_static_lint",
+            "P2_unit_proof",
+            "P3_integration",
+            "P4_unit_test",
+            "P5_smoke",
+            "P6_E2E_fixture",
+            "P7_E2E_live",
+            "P8_runtime"
+          ]
+        },
+        "ceiling": {
+          "$ref": "#/$defs/safeText"
+        },
+        "claims_not_made": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/safeText"
+          }
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completed",
+        "remaining",
+        "blockers",
+        "next_command",
+        "final_response_sections"
+      ],
+      "properties": {
+        "completed": {
+          "$ref": "#/$defs/textList"
+        },
+        "remaining": {
+          "$ref": "#/$defs/textList"
+        },
+        "blockers": {
+          "$ref": "#/$defs/textList"
+        },
+        "next_command": {
+          "$ref": "#/$defs/safeText"
+        },
+        "final_response_sections": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          }
+        }
+      }
+    }
+  }
+}

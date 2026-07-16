@@ -171,104 +171,181 @@
       "version": "1.0.0",
       "path": ".claude/capabilities/workstation-inventory.md",
       "summary": "Observe workstation terminal, execution-domain, backend, tmux, service, and agent state without mutation.",
-      "lanes": ["developer-workstation", "inventory", "validation"],
+      "lanes": [
+        "developer-workstation",
+        "inventory",
+        "validation"
+      ],
       "default_network_activity": false,
       "default_target_mutation": false,
       "network_activity_mode": "none",
       "target_mutation_mode": "none",
-      "authority_paths": ["docs/DEVELOPER_WORKSTATION_INVENTORY.md", "scripts/Get-SasDeveloperWorkstationInventory.ps1", "scripts/get-sas-developer-workstation-inventory.sh"],
-      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+      "authority_paths": [
+        "docs/DEVELOPER_WORKSTATION_INVENTORY.md",
+        "scripts/Get-SasDeveloperWorkstationInventory.ps1",
+        "scripts/get-sas-developer-workstation-inventory.sh"
+      ],
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
     },
     {
       "id": "workstation-planning",
       "version": "1.0.0",
       "path": ".claude/capabilities/workstation-planning.md",
       "summary": "Translate the v3 profile and inventory into a read-only, domain-correct persistent workspace plan.",
-      "lanes": ["developer-workstation", "planning"],
+      "lanes": [
+        "developer-workstation",
+        "planning"
+      ],
       "default_network_activity": false,
       "default_target_mutation": false,
       "network_activity_mode": "none",
       "target_mutation_mode": "none",
-      "authority_paths": ["docs/DEVELOPER_WORKSTATION_PROVISIONING.md", "schemas/harness/developer-workstation-profile.schema.json"],
-      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+      "authority_paths": [
+        "docs/DEVELOPER_WORKSTATION_PROVISIONING.md",
+        "schemas/harness/developer-workstation-profile.schema.json"
+      ],
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
     },
     {
       "id": "workstation-managed-configuration",
       "version": "1.0.0",
       "path": ".claude/capabilities/workstation-managed-configuration.md",
       "summary": "Route explicit Apply and Repair operations to bounded, backup-first platform configuration entrypoints.",
-      "lanes": ["developer-workstation", "configuration"],
+      "lanes": [
+        "developer-workstation",
+        "configuration"
+      ],
       "default_network_activity": false,
       "default_target_mutation": false,
       "network_activity_mode": "none",
       "target_mutation_mode": "gated-target",
-      "authority_paths": ["scripts/Invoke-SasWindowsTmuxWorkspace.ps1", "scripts/invoke-sas-linux-tmux-workspace.sh"],
-      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+      "authority_paths": [
+        "scripts/Invoke-SasWindowsTmuxWorkspace.ps1",
+        "scripts/invoke-sas-linux-tmux-workspace.sh"
+      ],
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
     },
     {
       "id": "workstation-backend-lifecycle",
       "version": "1.0.0",
       "path": ".claude/capabilities/workstation-backend-lifecycle.md",
       "summary": "Route Windows WSL keepalive and native-Linux backend health through their platform-owned services.",
-      "lanes": ["developer-workstation", "backend-lifecycle", "runtime-proof"],
+      "lanes": [
+        "developer-workstation",
+        "backend-lifecycle",
+        "runtime-proof"
+      ],
       "default_network_activity": false,
       "default_target_mutation": false,
       "network_activity_mode": "none",
       "target_mutation_mode": "gated-target",
-      "authority_paths": ["scripts/Invoke-SasWindowsTmuxWorkspace.ps1", "scripts/invoke-sas-linux-tmux-workspace.sh"],
-      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+      "authority_paths": [
+        "scripts/Invoke-SasWindowsTmuxWorkspace.ps1",
+        "scripts/invoke-sas-linux-tmux-workspace.sh"
+      ],
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
     },
     {
       "id": "workstation-session-lifecycle",
       "version": "1.0.0",
       "path": ".claude/capabilities/workstation-session-lifecycle.md",
       "summary": "Route deterministic tmux dev Start, Status, and explicitly destructive Stop operations without nesting.",
-      "lanes": ["developer-workstation", "session-lifecycle", "runtime-proof"],
+      "lanes": [
+        "developer-workstation",
+        "session-lifecycle",
+        "runtime-proof"
+      ],
       "default_network_activity": false,
       "default_target_mutation": false,
       "network_activity_mode": "none",
       "target_mutation_mode": "gated-target",
-      "authority_paths": ["scripts/Start-SasWindowsTmuxWorkspace.ps1", "scripts/start-sas-linux-tmux-workspace.sh"],
-      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+      "authority_paths": [
+        "scripts/Start-SasWindowsTmuxWorkspace.ps1",
+        "scripts/start-sas-linux-tmux-workspace.sh"
+      ],
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
     },
     {
       "id": "workstation-agent-domain-resolution",
       "version": "1.0.0",
       "path": ".claude/capabilities/workstation-agent-domain-resolution.md",
       "summary": "Preserve native, bridge, missing, and authentication readiness truth for each workstation execution domain.",
-      "lanes": ["developer-workstation", "agent-readiness"],
+      "lanes": [
+        "developer-workstation",
+        "agent-readiness"
+      ],
       "default_network_activity": false,
       "default_target_mutation": false,
       "network_activity_mode": "none",
       "target_mutation_mode": "none",
-      "authority_paths": ["schemas/harness/developer-workstation-inventory.schema.json", "harness/api/developer-workstation-agent-routing.json"],
-      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+      "authority_paths": [
+        "schemas/harness/developer-workstation-inventory.schema.json",
+        "harness/api/developer-workstation-agent-routing.json"
+      ],
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
     },
     {
       "id": "agentswitchboard-invocation",
       "version": "1.0.0",
       "path": ".claude/capabilities/agentswitchboard-invocation.md",
       "summary": "Enforce the structured, version-pinned AgentSwitchboard request/result boundary and bounded probe policy.",
-      "lanes": ["developer-workstation", "agent-readiness", "integration"],
+      "lanes": [
+        "developer-workstation",
+        "agent-readiness",
+        "integration"
+      ],
       "default_network_activity": false,
       "default_target_mutation": false,
       "network_activity_mode": "none",
       "target_mutation_mode": "none",
-      "authority_paths": ["harness/api/developer-workstation-agent-routing.json", "docs/DEVELOPER_WORKSTATION_PROVISIONING.md"],
-      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+      "authority_paths": [
+        "harness/api/developer-workstation-agent-routing.json",
+        "docs/DEVELOPER_WORKSTATION_PROVISIONING.md"
+      ],
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
     },
     {
       "id": "workstation-rollback",
       "version": "1.0.0",
       "path": ".claude/capabilities/workstation-rollback.md",
       "summary": "Restore only workstation files and launch surfaces owned by a validated backup manifest.",
-      "lanes": ["developer-workstation", "rollback"],
+      "lanes": [
+        "developer-workstation",
+        "rollback"
+      ],
       "default_network_activity": false,
       "default_target_mutation": false,
       "network_activity_mode": "none",
       "target_mutation_mode": "gated-target",
-      "authority_paths": ["scripts/Rollback-SasWindowsTmuxWorkspace.ps1", "scripts/rollback-sas-linux-tmux-workspace.sh"],
-      "validators": ["Tests/survey/test_developer_workstation_agent_harness_contracts.py", "Tests/survey/test_agent_capability_manifest_contracts.py"]
+      "authority_paths": [
+        "scripts/Rollback-SasWindowsTmuxWorkspace.ps1",
+        "scripts/rollback-sas-linux-tmux-workspace.sh"
+      ],
+      "validators": [
+        "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
     }
   ],
   "skills": [
@@ -487,7 +564,12 @@
         "mutation-and-evidence-boundaries",
         "proof-and-checkpointing"
       ],
-      "lanes": ["developer-workstation", "field-workflow", "integration", "runtime-proof"],
+      "lanes": [
+        "developer-workstation",
+        "field-workflow",
+        "integration",
+        "runtime-proof"
+      ],
       "default_network_activity": false,
       "default_target_mutation": false,
       "network_activity_mode": "none",
@@ -502,6 +584,37 @@
         "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
         "Tests/survey/test_agent_capability_manifest_contracts.py",
         "Tests/survey/test_agent_instruction_factoring_contracts.py"
+      ]
+    },
+    {
+      "id": "package-static-analysis",
+      "path": ".claude/skills/package-static-analysis/SKILL.md",
+      "summary": "Inspect private software packages without execution and derive bounded static and semantic harness requirements.",
+      "capability_ids": [
+        "language-runtime-selection",
+        "mutation-and-evidence-boundaries",
+        "proof-and-checkpointing",
+        "end-to-end-testing"
+      ],
+      "lanes": [
+        "package-analysis",
+        "harness",
+        "validation",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/package-static-analysis-skill.json",
+        "harness/api/package-semantic-analysis-skill.json",
+        "docs/PACKAGE_SEMANTIC_ANALYSIS.md"
+      ],
+      "validators": [
+        "Tests/survey/test_package_static_analysis_contracts.py",
+        "Tests/survey/test_package_semantic_analysis_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
       ]
     }
   ]
