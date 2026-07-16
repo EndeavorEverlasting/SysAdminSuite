@@ -31,6 +31,7 @@ jobs:
         run: |
           set -o pipefail
           python tools/normalize_agent_harness_repair.py 2>&1 | tee -a "$RUNNER_TEMP/agent-harness-repair.log"
+          nl -ba tools/repair_agent_harness_review.py | sed -n '265,315p' | tee -a "$RUNNER_TEMP/agent-harness-repair.log"
       - name: Apply reviewed repairs
         shell: bash
         run: |
