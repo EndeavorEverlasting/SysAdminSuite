@@ -42,10 +42,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Compile and run deployment contracts
-        run: |
-          python -m py_compile Tests/survey/test_resume_matcher_workstation_contracts.py
-          python Tests/survey/test_resume_matcher_workstation_contracts.py
+      - name: Compile deployment contracts
+        run: python -m py_compile Tests/survey/test_resume_matcher_workstation_contracts.py
+      - name: Run Linux fixture and contract suite
+        if: runner.os != 'Windows'
+        run: python Tests/survey/test_resume_matcher_workstation_contracts.py
       - name: Bash syntax
         if: runner.os != 'Windows'
         run: bash -n scripts/invoke-sas-resume-matcher-workstation.sh
@@ -65,18 +66,11 @@ jobs:
             exit 1
           }
           'PASS: PowerShell parser'
-      - name: Validate schemas when jsonschema is available
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          for path in (
-              Path('schemas/harness/resume-matcher-workstation.schema.json'),
-              Path('schemas/harness/resume-matcher-workstation-result.schema.json'),
-          ):
-              schema = json.loads(path.read_text(encoding='utf-8'))
-              assert schema['$schema'] == 'https://json-schema.org/draft/2020-12/schema'
-              assert schema['additionalProperties'] is False
-          print('PASS: Resume Matcher schema posture')
-          PY
+      - name: Validate schema posture
+        run: >-
+          python -c "import json; from pathlib import Path;
+          paths=[Path('schemas/harness/resume-matcher-workstation.schema.json'),Path('schemas/harness/resume-matcher-workstation-result.schema.json')];
+          schemas=[json.loads(path.read_text(encoding='utf-8')) for path in paths];
+          assert all(schema['$schema']=='https://json-schema.org/draft/2020-12/schema' for schema in schemas);
+          assert all(schema['additionalProperties'] is False for schema in schemas);
+          print('PASS: Resume Matcher schema posture')"
