@@ -7,7 +7,6 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $trustScript = Join-Path $repoRoot 'scripts/Invoke-SasPackageTrust.ps1'
-$policyEnginePath = Join-Path $repoRoot 'scripts/Test-SasPackageTrust.ps1'
 $interopPath = Join-Path $repoRoot 'tools/package-analysis/SasPackageTrustInterop.cs'
 $policySchema = Join-Path $repoRoot 'schemas/harness/package-trust-policy.schema.json'
 $resultSchema = Join-Path $repoRoot 'schemas/harness/package-trust-verification-result.schema.json'
@@ -30,9 +29,18 @@ function Write-BaseResult {
     param([string]$InputRoot, [string[]]$RelativePaths, [string]$Path)
     $files = foreach ($relative in $RelativePaths) {
         $source = Join-Path $InputRoot $relative
+        $extension = [System.IO.Path]::GetExtension($source).ToLowerInvariant()
+        $fileClass = switch ($extension) {
+            '.ps1' { 'script' }
+            '.py' { 'script' }
+            '.zip' { 'archive' }
+            default { 'other' }
+        }
         [ordered]@{
             relative_path = $relative.Replace('\', '/')
-            extension = [System.IO.Path]::GetExtension($source).ToLowerInvariant()
+            extension = $extension
+            file_class = $fileClass
+            archive = if ($extension -eq '.zip') { [ordered]@{ nested_installer_extensions = @('.exe') } } else { $null }
             sha256 = Get-Sha256 -Path $source
         }
     }
@@ -73,12 +81,13 @@ function Invoke-TrustChild {
     return $exitCode
 }
 
-foreach ($path in @($trustScript, $policyEnginePath, $interopPath, $policySchema, $resultSchema, $manifestPath, $docPath, $skillPath, $workflowPath)) {
+foreach ($path in @($trustScript, $interopPath, $policySchema, $resultSchema, $manifestPath, $docPath, $skillPath, $workflowPath)) {
     Assert-True (Test-Path -LiteralPath $path -PathType Leaf) "Missing required package trust file: $path"
 }
 
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 Assert-True ([string]$manifest.schema_version -eq 'sas-package-trust-verification-skill/v1') 'Unexpected trust manifest schema.'
+Assert-True ([string]$manifest.entrypoint -eq 'scripts/Invoke-SasPackageTrust.ps1') 'Unexpected canonical trust entrypoint.'
 Assert-True ($manifest.operation.network_activity -eq $false) 'Trust operation must be network-free.'
 Assert-True ($manifest.operation.package_execution -eq $false) 'Trust operation must not execute package code.'
 Assert-True ($manifest.operation.online_revocation_check -eq $false) 'Trust operation must not claim online revocation.'
@@ -89,8 +98,8 @@ foreach ($schemaPath in @($policySchema, $resultSchema)) {
     Assert-True ($schema.additionalProperties -eq $false) "Schema must be closed: $schemaPath"
 }
 
-$scriptText = (Get-Content -LiteralPath $trustScript -Raw) + (Get-Content -LiteralPath $policyEnginePath -Raw) + (Get-Content -LiteralPath $interopPath -Raw)
-foreach ($required in @('WTD_CACHE_ONLY_URL_RETRIEVAL', 'WTD_REVOCATION_CHECK_NONE', 'WinVerifyTrust', 'source_path_contains_reparse_point', 'strong_name_cryptographic_validation_performed = $false')) {
+$scriptText = (Get-Content -LiteralPath $trustScript -Raw) + (Get-Content -LiteralPath $interopPath -Raw)
+foreach ($required in @('WTD_CACHE_ONLY_URL_RETRIEVAL', 'WTD_REVOCATION_CHECK_NONE', 'WinVerifyTrust', 'source_path_contains_reparse_point', 'strong_name_cryptographic_validation_performed = $false', 'code_policy_required', 'signed_file_requires_required_valid_policy')) {
     Assert-True ($scriptText.Contains($required)) "Missing trust safety contract: $required"
 }
 foreach ($forbidden in @('Get-AuthenticodeSignature', 'Invoke-WebRequest', 'Invoke-RestMethod', 'Start-Process', 'Invoke-Command', 'New-PSSession')) {
@@ -139,7 +148,7 @@ try {
     ) -Path $unsignedPolicyPath
     $unsignedOut = Join-Path $tempRoot 'unsigned-approved'
     $exit = Invoke-TrustChild -Arguments @('-InputPath', $fixture, '-BaseResultPath', $basePath, '-TrustPolicyPath', $unsignedPolicyPath, '-OutputRoot', $unsignedOut, '-FixtureMode')
-    Assert-True ($exit -eq 0) "Explicit unsigned approval failed with exit code $exit"
+    Assert-True ($exit -eq 0) "Explicit unsigned approval failed with exit code $exit`n$script:LastTrustChildOutput"
     $unsignedResult = Get-Content -LiteralPath (Join-Path $unsignedOut 'package_trust_verification.json') -Raw | ConvertFrom-Json
     Assert-True ([string]$unsignedResult.summary.overall_disposition -eq 'approved_for_vm_intake') 'Explicit unsigned approval should pass exact-hash VM intake.'
     Assert-True ($unsignedResult.summary.deployment_approved -eq $true) 'Approved trust result must set deployment_approved true.'
@@ -151,6 +160,22 @@ try {
     $mismatch = Get-Content -LiteralPath (Join-Path $mismatchOut 'package_trust_verification.json') -Raw | ConvertFrom-Json
     Assert-True ([string]$mismatch.summary.overall_disposition -eq 'blocked') 'Hash mismatch must block.'
     Assert-True (@($mismatch.errors | Where-Object { $_.message -eq 'hash_mismatch_since_base_analysis' }).Count -eq 1) 'Hash mismatch evidence missing.'
+
+    $codeFixture = Join-Path $tempRoot 'code-fixture'
+    New-Item -ItemType Directory -Path $codeFixture | Out-Null
+    $pythonPath = Join-Path $codeFixture 'tool.py'
+    Set-Content -LiteralPath $pythonPath -Encoding UTF8 -Value "print('fixture')"
+    $codeBasePath = Join-Path $tempRoot 'code-base.json'
+    Write-BaseResult -InputRoot $codeFixture -RelativePaths @('tool.py') -Path $codeBasePath
+    $codePolicyPath = Join-Path $tempRoot 'code-policy.json'
+    Write-Policy -Entries @() -Path $codePolicyPath
+    $codeOut = Join-Path $tempRoot 'code-unlisted'
+    $exit = Invoke-TrustChild -Arguments @('-InputPath', $codeFixture, '-BaseResultPath', $codeBasePath, '-TrustPolicyPath', $codePolicyPath, '-OutputRoot', $codeOut, '-FixtureMode')
+    Assert-True ($exit -eq 4) "Unlisted Python code should block with exit code 4, received $exit"
+    $codeResult = Get-Content -LiteralPath (Join-Path $codeOut 'package_trust_verification.json') -Raw | ConvertFrom-Json
+    $codeRecord = @($codeResult.files)[0]
+    Assert-True ([string]$codeRecord.trust_scope -eq 'code_policy_required') 'Python code was incorrectly treated as non-code.'
+    Assert-True ([string]$codeRecord.disposition -eq 'blocked') 'Unlisted Python code must be blocked.'
 
     $signedPath = Join-Path $fixture 'signed.ps1'
     Set-Content -LiteralPath $signedPath -Encoding UTF8 -Value "Write-Output 'signed fixture'"
@@ -166,6 +191,28 @@ try {
 
     $signedBasePath = Join-Path $tempRoot 'signed-base.json'
     Write-BaseResult -InputRoot $fixture -RelativePaths @('signed.ps1') -Path $signedBasePath
+
+    $signedUnsignedPolicyPath = Join-Path $tempRoot 'signed-unsigned-policy.json'
+    Write-Policy -Entries @(
+        [ordered]@{
+            relative_path = 'signed.ps1'
+            expected_sha256 = Get-Sha256 -Path $signedPath
+            signature_requirement = 'allow_unsigned_explicit'
+            approved_signer_thumbprints = @()
+            approved_signer_subjects = @()
+            approval_reference = 'FIXTURE-INVALID-UNSIGNED-USE'
+            observed_signature_status = 'valid'
+            observed_signer_thumbprint = $cert.Thumbprint
+            observed_signer_subject = $cert.Subject
+        }
+    ) -Path $signedUnsignedPolicyPath
+    $signedUnsignedOut = Join-Path $tempRoot 'signed-unsigned-blocked'
+    $exit = Invoke-TrustChild -Arguments @('-InputPath', $fixture, '-BaseResultPath', $signedBasePath, '-TrustPolicyPath', $signedUnsignedPolicyPath, '-OutputRoot', $signedUnsignedOut, '-FixtureMode')
+    Assert-True ($exit -eq 4) "Signed file under unsigned exception should block with exit code 4, received $exit"
+    $signedUnsigned = Get-Content -LiteralPath (Join-Path $signedUnsignedOut 'package_trust_verification.json') -Raw | ConvertFrom-Json
+    Assert-True ([string](@($signedUnsigned.files)[0].disposition) -eq 'blocked') 'Signed files must not pass unsigned exceptions.'
+    Assert-True (@(@($signedUnsigned.files)[0].reasons) -contains 'signed_file_requires_required_valid_policy') 'Signed-file policy reason missing.'
+
     $signedPolicyPath = Join-Path $tempRoot 'signed-policy.json'
     Write-Policy -Entries @(
         [ordered]@{
@@ -182,7 +229,7 @@ try {
     ) -Path $signedPolicyPath
     $signedOut = Join-Path $tempRoot 'signed-approved'
     $exit = Invoke-TrustChild -Arguments @('-InputPath', $fixture, '-BaseResultPath', $signedBasePath, '-TrustPolicyPath', $signedPolicyPath, '-OutputRoot', $signedOut, '-FixtureMode')
-    Assert-True ($exit -eq 0) "Signed fixture approval failed with exit code $exit"
+    Assert-True ($exit -eq 0) "Signed fixture approval failed with exit code $exit`n$script:LastTrustChildOutput"
     $signedResult = Get-Content -LiteralPath (Join-Path $signedOut 'package_trust_verification.json') -Raw | ConvertFrom-Json
     $signedRecord = @($signedResult.files)[0]
     Assert-True ([string]$signedRecord.signature_status -eq 'valid') "Signed fixture status was $($signedRecord.signature_status)"
@@ -237,4 +284,4 @@ finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host 'PASS: 6 package trust verification contract groups'
+Write-Host 'PASS: 8 package trust verification contract groups'
