@@ -64,6 +64,30 @@ grep -Fq -- "-InstallerPattern 'EPIC_BCA_Web-Shortcut_1.0.msi'" "$WORKER" || fai
 grep -Fq -- "-SilentArgs @('/qn', '/norestart')" "$WORKER" || fail "worker must use cataloged BCA arguments"
 grep -Fq 'Worker self-teardown provides best-effort cleanup' "$WORKER" || fail "worker must include fallback teardown"
 
+# Windows Python emits CRLF. Reproduce that behavior on Linux and prove that
+# package metadata is normalized before it reaches paths or console output.
+CRLF_BIN="$TMP_ROOT/crlf-bin"
+mkdir -p "$CRLF_BIN"
+cp Tests/Fixtures/smb_scheduled_task_install/fake-python-crlf.sh "$CRLF_BIN/python3"
+chmod +x "$CRLF_BIN/python3"
+CRLF_OUTPUT="$TMP_ROOT/crlf-dry-run.txt"
+PATH="$CRLF_BIN:$PATH" \
+REAL_PYTHON3="$(command -v python3)" \
+bash "$SCRIPT" \
+  --targets SYNTHETIC001 \
+  --package bca \
+  --allow-legacy \
+  --dry-run \
+  --log-dir "$TMP_ROOT/crlf-output" >"$CRLF_OUTPUT" 2>&1 \
+  || fail "BCA dry run must accept Windows CRLF metadata"
+grep -Fq '[DRY-RUN] Approved package: Epic BCA Web Shortcut 1.0 (bca)' "$CRLF_OUTPUT" \
+  || fail "CRLF metadata must not overwrite the approved-package prefix"
+grep -Fq '\\nt2kwb972sms01\packages\Epic\EPIC_BCA_Web-Shortcut_1.0\EPIC_BCA_Web-Shortcut_1.0.msi' "$CRLF_OUTPUT" \
+  || fail "CRLF metadata must preserve the exact pinned source path"
+if grep -q $'\r' "$CRLF_OUTPUT"; then
+  fail "controller output must not contain carriage returns from package metadata"
+fi
+
 if bash "$SCRIPT" --targets SYNTHETIC001 --list workstation-baseline --package bca --allow-legacy --dry-run --log-dir "$TMP_ROOT/both" >"$TMP_ROOT/both.txt" 2>&1; then
   fail "list and package together must fail closed"
 fi

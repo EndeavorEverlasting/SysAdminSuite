@@ -233,6 +233,12 @@ PY
   )" || fail "could not resolve approved package metadata: $PACKAGE_ID"
   mapfile -t PACKAGE_FIELDS <<< "$PACKAGE_METADATA"
   [[ "${#PACKAGE_FIELDS[@]}" -eq 5 ]] || fail "approved package metadata was incomplete: $PACKAGE_ID"
+  # Native Windows Python writes CRLF even when invoked from Git Bash. mapfile
+  # removes LF but preserves CR, so normalize each metadata field before it is
+  # used as a UNC source, filename, installer type, or JSON argument payload.
+  for _package_field_index in "${!PACKAGE_FIELDS[@]}"; do
+    PACKAGE_FIELDS[$_package_field_index]="${PACKAGE_FIELDS[$_package_field_index]%$'\r'}"
+  done
   PACKAGE_SOURCE_PATH="${PACKAGE_FIELDS[0]}"
   PACKAGE_DISPLAY_NAME="${PACKAGE_FIELDS[1]}"
   PACKAGE_INSTALLER_FILE="${PACKAGE_FIELDS[2]}"
