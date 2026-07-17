@@ -4,7 +4,7 @@
   "profile_id": "fixture-disposable-vm-ready",
   "authorization_reference": "fixture-change-0001",
   "package": {
-    "source_sha256": "30760af35b48f4826ee30b7e5fc2c5705f7e0721121b5e1fe6dd1a7d37e9789d",
+    "source_sha256": "3fc7c04c1bb770f43f83246c57c8a5f395febe0860eec4f148c63326951b4445",
     "installer_type": "exe",
     "arguments_source": "vendor_documentation",
     "host_hash_reverified": true

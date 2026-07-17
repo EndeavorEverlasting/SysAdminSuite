@@ -4,7 +4,7 @@
   "profile_id": "fixture-disposable-vm-ready",
   "package_family": "generic_windows_application",
   "package_selector": {
-    "source_sha256": "30760af35b48f4826ee30b7e5fc2c5705f7e0721121b5e1fe6dd1a7d37e9789d",
+    "source_sha256": "3fc7c04c1bb770f43f83246c57c8a5f395febe0860eec4f148c63326951b4445",
     "static_result_reference": "survey/output/package-analysis/fixture/package_analysis.json",
     "semantic_result_reference": "survey/output/package-analysis/fixture/package_semantic_analysis.json",
     "trust_result_reference": "survey/output/package-analysis/fixture/package_trust_verification.json",
