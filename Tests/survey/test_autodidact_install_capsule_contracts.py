@@ -45,10 +45,11 @@ def test_catalog_is_folder_first_and_uses_approved_server_root() -> None:
     assert policy["require_vendor_validated_installer_arguments_for_live_install"] is True
 
 
-def test_catalog_records_epic_allscripts_and_autologon_paths() -> None:
+def test_catalog_records_epic_bca_allscripts_and_autologon_paths() -> None:
     packages = package_map()
     assert set(packages) == {
         "epic-satellite",
+        "bca",
         "allscripts-touchworks-22-1",
         "autologon",
     }
@@ -58,6 +59,16 @@ def test_catalog_records_epic_allscripts_and_autologon_paths() -> None:
     assert epic["installer_file"] is None
     assert epic["install_enabled"] is False
     assert epic["readiness"] == "installer_file_pending"
+
+    bca = packages["bca"]
+    assert bca["display_name"] == "Epic BCA Web Shortcut 1.0"
+    assert bca["source_folder_relative_path"] == r"packages\Epic\EPIC_BCA_Web-Shortcut_1.0"
+    assert bca["installer_file"] == "EPIC_BCA_Web-Shortcut_1.0.msi"
+    assert bca["default_install_mode"] == "CopyThenInstall"
+    assert bca["default_installer_arguments"] == ["/qn", "/norestart"]
+    assert bca["requires_validated_installer_arguments"] is False
+    assert bca["install_enabled"] is True
+    assert bca["readiness"] == "installer_and_arguments_confirmed"
 
     allscripts = packages["allscripts-touchworks-22-1"]
     assert allscripts["source_folder_relative_path"] == r"packages\TouchWork_22.1"
@@ -70,19 +81,20 @@ def test_catalog_records_epic_allscripts_and_autologon_paths() -> None:
     assert autologon["default_install_mode"] == "CopyThenInstall"
     assert autologon["install_enabled"] is True
 
-    for package in packages.values():
+    for package_id, package in packages.items():
         folder = package["source_folder_relative_path"]
         assert not folder.startswith("\\\\")
         assert ".." not in folder.split("\\")
-        assert package["default_installer_arguments"] == []
-        assert package["requires_validated_installer_arguments"] is True
+        if package_id != "bca":
+            assert package["default_installer_arguments"] == []
+            assert package["requires_validated_installer_arguments"] is True
 
 
 def test_canonical_and_legacy_cmd_launchers_are_repo_relative() -> None:
     content = read(CMD)
     required = [
         "SysAdminSuite - Approved Software Install",
-        "Catalog: Epic, AllScripts, AutoLogon",
+        "Catalog: Epic, BCA, AllScripts, AutoLogon",
         "Snapshot protocol: BEFORE snapshot - plan/install - AFTER snapshot",
         "scripts\\Start-SasApprovedSoftwareOperator.ps1",
         "-Action Menu",
@@ -123,7 +135,7 @@ def test_engine_loads_catalog_and_never_prompts_for_raw_installer_paths() -> Non
         "Show-SasApprovedPackages",
         "PackageId is required for noninteractive approved software work",
         "Select package number or enter package id",
-        "Catalog: Epic, AllScripts, AutoLogon",
+        "Catalog: Epic, BCA, AllScripts, AutoLogon",
     ]
     for fragment in required:
         assert fragment in content, f"missing catalog engine fragment: {fragment}"
@@ -250,9 +262,11 @@ def test_documented_catalog_flow_and_readiness_boundaries() -> None:
         "configs/software-packages/approved-apps.json",
         "scripts/Start-SasApprovedSoftwareOperator.ps1",
         "Epic Satellite",
+        "Epic BCA Web Shortcut 1.0",
         "AllScripts TouchWorks 22.1",
         "NW AutoLogon Setup x64",
         "packages\\Epic\\Satellite",
+        "packages\\Epic\\EPIC_BCA_Web-Shortcut_1.0\\EPIC_BCA_Web-Shortcut_1.0.msi",
         "packages\\TouchWork_22.1\\TWInstaller.exe",
         "packages\\AutoLogonSetup\\NW_AutoLogon_Setup_x64.exe",
         "BEFORE snapshot",
@@ -291,7 +305,7 @@ def test_offline_runner_wires_catalog_contract() -> None:
 def main() -> None:
     tests = [
         test_catalog_is_folder_first_and_uses_approved_server_root,
-        test_catalog_records_epic_allscripts_and_autologon_paths,
+        test_catalog_records_epic_bca_allscripts_and_autologon_paths,
         test_canonical_and_legacy_cmd_launchers_are_repo_relative,
         test_legacy_powershell_entrypoint_forwards_to_operator,
         test_engine_loads_catalog_and_never_prompts_for_raw_installer_paths,

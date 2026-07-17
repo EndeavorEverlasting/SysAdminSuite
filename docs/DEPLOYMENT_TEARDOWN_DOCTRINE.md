@@ -25,7 +25,7 @@ the wrong environment.
 | Class | Examples | Teardown expectation |
 |-------|----------|----------------------|
 | Printer mapping controller | `mapping/Controllers/Map-Run-Controller.ps1` | Remove scheduled task, launcher, payload script, status/stop files, and empty remote working dirs |
-| App install worker | `bash/apps/sas-install-apps.sh` | Worker self-removes transient payloads and scheduled task after writing results |
+| App install worker | `bash/apps/sas-install-apps.sh` | Copy results to the controller, verify task removal, and remove only the unique run-scoped staging root; worker self-teardown remains a fallback |
 | Installer staging | `bash/apps/sas-stage-fileshare.sh` | Retain by default for deployment cache; `--teardown-after` removes transient staged files |
 | Shortcut deployment | `EnvSetup/Deploy-Shortcuts.ps1` | Shortcuts are the intended payload and are retained |
 
