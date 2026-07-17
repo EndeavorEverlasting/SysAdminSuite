@@ -37,18 +37,57 @@ def run_profile(profile: dict) -> subprocess.CompletedProcess[str]:
         )
 
 
+def ready_profile() -> dict:
+    profile = copy.deepcopy(load(SAMPLE))
+    profile["package_family"] = "generic_windows_application"
+    selector = profile["package_selector"]
+    selector["trust_result_reference"] = "survey/output/package-analysis/sample/package_trust_verification.json"
+    selector["revocation_result_reference"] = "survey/output/package-analysis/sample/package_revocation_verification.json"
+    prerequisite = profile["prerequisite_evidence"]
+    prerequisite["offline_trust_complete"] = True
+    prerequisite["online_revocation_status"] = "verified"
+    prerequisite["managed_code_present"] = False
+    prerequisite["strong_name_status"] = "not_applicable"
+    prerequisite["msi_present"] = False
+    prerequisite["msi_decode_status"] = "not_applicable"
+    prerequisite["sapien_detected"] = False
+    prerequisite["sapien_payload_status"] = "not_applicable"
+    profile["trust_policy"] = {
+        "package_family_policy_required": True,
+        "policy_status": "approved",
+        "policy_reference": "survey/output/package-analysis/sample/package_trust_policy.json",
+    }
+    profile["guest"]["provider"] = "hyper_v"
+    profile["execution_contract"].update({
+        "installer_type": "exe",
+        "supported_arguments_source": "vendor_documentation",
+        "supported_arguments": ["/quiet"],
+        "reboot_expected": "possible",
+        "execution_authorized": True,
+        "authorization_reference": "change-record-0001",
+    })
+    profile["acceptance"]["criteria_status"] = "approved"
+    profile["decision"]["status"] = "ready_for_authorized_vm_run"
+    profile["decision"]["blockers"] = []
+    return profile
+
+
 def test_schema_and_sample_are_closed_and_blocked() -> None:
     schema, sample = load(SCHEMA), load(SAMPLE)
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["$id"] == "schemas/harness/package-vm-qualification-profile.schema.json"
     assert schema["additionalProperties"] is False
-    assert sample["schema_version"] == "sas-package-vm-qualification-profile/v1"
+    assert sample["schema_version"] == "sas-package-vm-qualification-profile/v2"
     assert sample["package_family"] == "allscripts"
     assert sample["trust_policy"]["policy_status"] == "missing"
     assert sample["decision"]["status"] == "blocked"
     assert sample["decision"]["vm_started"] is False
     assert sample["decision"]["package_executed"] is False
-    assert "trust_policy_missing" in sample["decision"]["blockers"]
+    for blocker in (
+        "trust_policy_missing", "online_revocation_unproven", "strong_name_unproven",
+        "msi_decode_incomplete", "exact_sapien_payload_unrecovered",
+    ):
+        assert blocker in sample["decision"]["blockers"]
 
 
 def test_blocked_sample_validates_without_claiming_runtime() -> None:
@@ -58,24 +97,62 @@ def test_blocked_sample_validates_without_claiming_runtime() -> None:
     assert "no VM or package execution performed" in completed.stdout
 
 
-def test_allscripts_policy_and_authorization_fail_closed() -> None:
-    sample = load(SAMPLE)
-    candidate = copy.deepcopy(sample)
-    candidate["decision"]["status"] = "ready_for_authorized_vm_run"
-    candidate["decision"]["blockers"] = []
-    completed = run_profile(candidate)
-    assert completed.returncode != 0
-    assert any(marker in completed.stderr for marker in (
-        "allscripts_unapproved_policy_must_block",
-        "allscripts_unapproved_policy_cannot_be_ready",
-        "ready_status_without_complete_gates",
-    ))
+def test_derived_evidence_blockers_cannot_be_removed_manually() -> None:
+    for blocker in (
+        "online_revocation_unproven", "strong_name_unproven",
+        "msi_decode_incomplete", "exact_sapien_payload_unrecovered",
+    ):
+        candidate = copy.deepcopy(load(SAMPLE))
+        candidate["decision"]["blockers"].remove(blocker)
+        completed = run_profile(candidate)
+        assert completed.returncode != 0
+        assert "decision_blockers_mismatch" in completed.stderr
+        assert blocker in completed.stderr
 
-    candidate = copy.deepcopy(sample)
-    candidate["execution_contract"]["execution_authorized"] = True
+
+def test_completed_evidence_requires_canonical_result_references() -> None:
+    candidate = copy.deepcopy(load(SAMPLE))
+    candidate["prerequisite_evidence"]["strong_name_status"] = "verified"
+    candidate["decision"]["blockers"].remove("strong_name_unproven")
     completed = run_profile(candidate)
     assert completed.returncode != 0
-    assert "authorized_execution_requires_supported_arguments" in completed.stderr
+    assert "strong_name_result_reference_must_be_canonical_repo_reference" in completed.stderr
+
+    candidate = copy.deepcopy(load(SAMPLE))
+    candidate["prerequisite_evidence"]["msi_decode_status"] = "complete"
+    candidate["decision"]["blockers"].remove("msi_decode_incomplete")
+    completed = run_profile(candidate)
+    assert completed.returncode != 0
+    assert "deep_analysis_result_reference_must_be_canonical_repo_reference" in completed.stderr
+
+
+def test_not_applicable_statuses_must_match_detected_package_shape() -> None:
+    candidate = copy.deepcopy(load(SAMPLE))
+    candidate["prerequisite_evidence"]["managed_code_present"] = False
+    completed = run_profile(candidate)
+    assert completed.returncode != 0
+    assert "strong_name_status_must_be_not_applicable_without_managed_code" in completed.stderr
+
+    candidate = copy.deepcopy(load(SAMPLE))
+    candidate["prerequisite_evidence"]["msi_present"] = False
+    completed = run_profile(candidate)
+    assert completed.returncode != 0
+    assert "msi_decode_status_must_be_not_applicable_without_msi" in completed.stderr
+
+
+def test_ready_profile_requires_every_derived_gate() -> None:
+    candidate = ready_profile()
+    completed = run_profile(candidate)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "status=ready_for_authorized_vm_run" in completed.stdout
+
+    candidate = ready_profile()
+    candidate["prerequisite_evidence"]["online_revocation_status"] = "indeterminate"
+    candidate["package_selector"]["revocation_result_reference"] = None
+    completed = run_profile(candidate)
+    assert completed.returncode != 0
+    assert "decision_blockers_mismatch" in completed.stderr
+    assert "online_revocation_unproven" in completed.stderr
 
 
 def test_runtime_and_machine_local_claims_are_rejected() -> None:
@@ -93,28 +170,18 @@ def test_runtime_and_machine_local_claims_are_rejected() -> None:
     assert "machine_local_value" in completed.stderr
 
 
-def test_required_analysis_gaps_are_explicit() -> None:
-    sample = load(SAMPLE)
-    prerequisites = sample["prerequisite_evidence"]
-    assert prerequisites["online_revocation_required_before_pilot"] is True
-    assert prerequisites["strong_name_required_if_managed"] is True
-    assert prerequisites["full_msi_decode_required_if_msi"] is True
-    assert prerequisites["exact_sapien_payload_required_if_detected"] is True
-    assert sample["guest"]["autologon_allowed"] is False
-    assert sample["guest"]["one_package_per_snapshot"] is True
-    assert sample["rollback"]["required"] is True
-
-
 def test_api_docs_skill_and_ci_are_wired() -> None:
     operation = load(API)["operation"]
     assert operation["id"] == "package_analysis.vm_qualification_profile_validate"
     assert operation["mode"] == "local_read"
     for field in ("network_activity", "target_mutation", "package_execution", "vm_start"):
         assert operation[field] is False
+    assert "derived_evidence_blockers_must_match_profile" in operation["guardrails"]
     assert operation["proof_ceiling"] == "qualification_profile_only_no_vm_or_package_execution"
 
     skill = SKILL.read_text(encoding="utf-8")
     doc = DOC.read_text(encoding="utf-8")
+    doc_lower = doc.lower()
     workflow = WORKFLOW.read_text(encoding="utf-8")
     runner = RUNNER.read_text(encoding="utf-8")
     for marker in (
@@ -123,8 +190,8 @@ def test_api_docs_skill_and_ci_are_wired() -> None:
         "PACKAGE_VM_QUALIFICATION_PROFILES.md",
     ):
         assert marker in skill
-    for marker in ("Allscripts", "online revocation", "strong-name", "SAPIEN", "MSI", "AutoLogon"):
-        assert marker in doc
+    for marker in ("derived blockers", "online revocation", "strong-name", "sapien", "msi", "autologon"):
+        assert marker in doc_lower
     assert "test_package_vm_qualification_profile_contracts.py" in workflow
     assert "test_package_vm_qualification_profile_contracts.py" in runner
 
@@ -135,15 +202,18 @@ def test_jsonschema_when_available() -> None:
     except ImportError:
         return
     jsonschema.validate(load(SAMPLE), load(SCHEMA))
+    jsonschema.validate(ready_profile(), load(SCHEMA))
 
 
 def main() -> None:
     tests = [
         test_schema_and_sample_are_closed_and_blocked,
         test_blocked_sample_validates_without_claiming_runtime,
-        test_allscripts_policy_and_authorization_fail_closed,
+        test_derived_evidence_blockers_cannot_be_removed_manually,
+        test_completed_evidence_requires_canonical_result_references,
+        test_not_applicable_statuses_must_match_detected_package_shape,
+        test_ready_profile_requires_every_derived_gate,
         test_runtime_and_machine_local_claims_are_rejected,
-        test_required_analysis_gaps_are_explicit,
         test_api_docs_skill_and_ci_are_wired,
         test_jsonschema_when_available,
     ]
