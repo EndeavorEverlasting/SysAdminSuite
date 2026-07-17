@@ -51,7 +51,12 @@
       "additionalProperties": false,
       "required": ["path", "git_blob_sha", "plan_default", "parameters"],
       "properties": {
-        "path": { "const": "tooling/gnhf/Invoke-ChatGPTDesktopGnhfSprint.ps1" },
+        "path": {
+          "enum": [
+            "tooling/gnhf/Invoke-CursorGnhfSprint.ps1",
+            "tooling/gnhf/Invoke-ChatGPTDesktopGnhfSprint.ps1"
+          ]
+        },
         "git_blob_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "plan_default": { "const": true },
         "parameters": {

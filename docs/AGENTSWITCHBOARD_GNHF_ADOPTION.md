@@ -29,7 +29,7 @@ Unknown or conflicting intent returns to the repository-sprint route for evidenc
 After the desktop thread has written and validated the request and compiled prompt to ignored local paths, Plan uses the external entrypoint:
 
 ```powershell
-pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$env:AGENTSWITCHBOARD_ROOT\tooling\gnhf\Invoke-ChatGPTDesktopGnhfSprint.ps1" -RequestPath "$env:SAS_GNHF_REQUEST_PATH" -CompiledPromptPath "$env:SAS_GNHF_COMPILED_PROMPT_PATH" -TargetRepo "$env:SAS_REPO_ROOT" -PlanOnly
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$env:AGENTSWITCHBOARD_ROOT\tooling\gnhf\Invoke-CursorGnhfSprint.ps1" -RequestPath "$env:SAS_GNHF_REQUEST_PATH" -CompiledPromptPath "$env:SAS_GNHF_COMPILED_PROMPT_PATH" -TargetRepo "$env:SAS_REPO_ROOT" -PlanOnly
 ```
 
 Only an explicit local-execution request replaces `-PlanOnly` with `-Run`. SysAdminSuite does not provide a second launcher or workstation installer.

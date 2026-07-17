@@ -22,13 +22,15 @@ LOCAL_OR_SECRET = re.compile(
     r"(?im)(?:(?:^|[\s\"'])[A-Za-z]:[\\/]|/(?:home|Users|mnt/c)/|BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{12,}|AKIA[0-9A-Z]{12,})"
 )
 
-EXPECTED_COMMIT = "720e2b1f1b171949a8e8e9233f4162bdd2581937"
+EXPECTED_COMMIT = "a4b8f680e70a84cbba0d97460b2e756991833c26"
 EXPECTED_BLOBS = {
-    "regular-sprint-request": "3bd3a3e778380b3e5bb95735860ce94395669a08",
+    "regular-sprint-request": "a5370b647025a514c1350ddb2a121439389c8ab6",
     "compiled-gnhf-prompt-result": "cd6041e4ea21d30c6fc30aa8722c5df1d9cec4d6",
     "desktop-gnhf-launch-request": "3f42c92e75a1313028083e4bdf00566c176ec6e9",
     "desktop-gnhf-runtime-result": "d51e38df6d00cb26f264738272fb303e46911f6e",
 }
+EXPECTED_INVOCATION_PATH = "tooling/gnhf/Invoke-CursorGnhfSprint.ps1"
+EXPECTED_INVOCATION_BLOB = "129cbc810a47bae6852ea7890487d162baf60690"
 EXPECTED_CAPABILITIES = {
     "agentswitchboard-gnhf-request-construction",
     "agentswitchboard-gnhf-external-contract-validation",
@@ -72,8 +74,16 @@ def test_external_contract_pin_is_exact_and_schema_backed() -> None:
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["$id"] == pin["schema_path"] and schema["additionalProperties"] is False
     assert pin["invocation"]["plan_default"] is True
+    assert pin["invocation"]["path"] == EXPECTED_INVOCATION_PATH
+    assert pin["invocation"]["git_blob_sha"] == EXPECTED_INVOCATION_BLOB
     assert set(pin["invocation"]["parameters"]) == {
-        "-RequestPath", "-CompiledPromptPath", "-TargetRepo", "-PlanOnly", "-Run", "-CreateDisposableProofRepo"
+        "-RequestPath",
+        "-CompiledPromptPath",
+        "-TargetRepo",
+        "-PlanOnly",
+        "-Run",
+        "-CreateDisposableProofRepo",
+        "-LocalHarnessProof",
     }
     assert not any((ROOT / item["path"]).exists() for item in pin["schemas"]), "external schemas must not be copied into SysAdminSuite"
 
@@ -164,12 +174,14 @@ def test_registered_workflow_and_harness_operations_are_bounded() -> None:
 def test_compile_only_request_is_valid_and_missing_scope_fails() -> None:
     required = {
         "kind", "schemaVersion", "objective", "repository", "ownedScope", "forbiddenScope",
-        "expectedArtifacts", "safetyConstraints", "desiredProofLevel",
+        "expectedArtifacts", "safetyConstraints", "desiredProofLevel", "executionIntent",
+        "readFirst", "validators",
     }
     valid = load(FIXTURES / "valid.compile-only.request.json")
     invalid = load(FIXTURES / "invalid.missing-scope.request.json")
     assert set(valid) == required and valid["kind"] == "regular-sprint-request" and valid["schemaVersion"] == 1
     assert valid["ownedScope"] and valid["forbiddenScope"]
+    assert valid["executionIntent"] == "compile_only"
     assert required - set(invalid) == {"ownedScope"}
 
 

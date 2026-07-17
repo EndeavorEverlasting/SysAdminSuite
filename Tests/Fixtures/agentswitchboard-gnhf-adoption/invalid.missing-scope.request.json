@@ -17,5 +17,12 @@
   "safetyConstraints": [
     "no credentials or live targets"
   ],
-  "desiredProofLevel": "contract-only"
+  "desiredProofLevel": "contract-only",
+  "executionIntent": "compile_only",
+  "readFirst": [
+    "AGENTS.md"
+  ],
+  "validators": [
+    "Tests/survey/test_agentswitchboard_gnhf_prompt_adoption_contracts.py"
+  ]
 }

@@ -5,7 +5,7 @@
   "authority": {
     "repository": "EndeavorEverlasting/AgentSwitchboard",
     "pull_request": 17,
-    "source_commit": "720e2b1f1b171949a8e8e9233f4162bdd2581937",
+    "source_commit": "a4b8f680e70a84cbba0d97460b2e756991833c26",
     "runtime_owner": "AgentSwitchboard",
     "consumer_owner": "SysAdminSuite"
   },
@@ -15,7 +15,7 @@
       "schema_version": 1,
       "path": "tooling/gnhf/schemas/regular-sprint-request.v1.schema.json",
       "schema_id": "https://agentswitchboard.local/schemas/regular-sprint-request.v1.schema.json",
-      "git_blob_sha": "3bd3a3e778380b3e5bb95735860ce94395669a08"
+      "git_blob_sha": "a5370b647025a514c1350ddb2a121439389c8ab6"
     },
     {
       "kind": "compiled-gnhf-prompt-result",
@@ -40,8 +40,8 @@
     }
   ],
   "invocation": {
-    "path": "tooling/gnhf/Invoke-ChatGPTDesktopGnhfSprint.ps1",
-    "git_blob_sha": "c6580e80bea3502d431a610ad6bb82959824761e",
+    "path": "tooling/gnhf/Invoke-CursorGnhfSprint.ps1",
+    "git_blob_sha": "129cbc810a47bae6852ea7890487d162baf60690",
     "plan_default": true,
     "parameters": [
       "-RequestPath",
@@ -49,7 +49,8 @@
       "-TargetRepo",
       "-PlanOnly",
       "-Run",
-      "-CreateDisposableProofRepo"
+      "-CreateDisposableProofRepo",
+      "-LocalHarnessProof"
     ]
   },
   "proof_policy": {
