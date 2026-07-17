@@ -1,0 +1,98 @@
+{
+  "schema_version": "sas-package-vm-qualification-profile/v2",
+  "schema_path": "schemas/harness/package-vm-qualification-profile.schema.json",
+  "profile_id": "fixture-disposable-vm-ready",
+  "package_family": "generic_windows_application",
+  "package_selector": {
+    "source_sha256": "30760af35b48f4826ee30b7e5fc2c5705f7e0721121b5e1fe6dd1a7d37e9789d",
+    "static_result_reference": "survey/output/package-analysis/fixture/package_analysis.json",
+    "semantic_result_reference": "survey/output/package-analysis/fixture/package_semantic_analysis.json",
+    "trust_result_reference": "survey/output/package-analysis/fixture/package_trust_verification.json",
+    "strong_name_result_reference": null,
+    "deep_analysis_result_reference": null,
+    "revocation_result_reference": "survey/output/package-analysis/fixture/package_revocation_verification.json"
+  },
+  "prerequisite_evidence": {
+    "static_analysis_complete": true,
+    "semantic_analysis_complete": true,
+    "offline_trust_complete": true,
+    "online_revocation_required_before_pilot": true,
+    "online_revocation_status": "verified",
+    "strong_name_required_if_managed": true,
+    "managed_code_present": false,
+    "strong_name_status": "not_applicable",
+    "full_msi_decode_required_if_msi": true,
+    "msi_present": false,
+    "msi_decode_status": "not_applicable",
+    "exact_sapien_payload_required_if_detected": true,
+    "sapien_detected": false,
+    "sapien_payload_status": "not_applicable"
+  },
+  "trust_policy": {
+    "package_family_policy_required": true,
+    "policy_status": "approved",
+    "policy_reference": "survey/output/package-analysis/fixture/package_trust_policy.json"
+  },
+  "guest": {
+    "provider": "hyper_v",
+    "os_family": "windows_11",
+    "architecture": "x64",
+    "network_mode": "disconnected",
+    "snapshot_strategy": "clean_checkpoint",
+    "host_execution_forbidden": true,
+    "one_package_per_snapshot": true,
+    "autologon_allowed": false,
+    "shared_clipboard_allowed": false,
+    "shared_folders_allowed": false
+  },
+  "execution_contract": {
+    "installer_type": "exe",
+    "supported_arguments_source": "vendor_documentation",
+    "supported_arguments": [
+      "/quiet"
+    ],
+    "reboot_expected": "possible",
+    "execution_authorized": true,
+    "authorization_reference": "fixture-change-0001"
+  },
+  "acceptance": {
+    "criteria_status": "approved",
+    "required_checks": [
+      "installer_exit",
+      "application_launch",
+      "service_state",
+      "registry_delta"
+    ]
+  },
+  "rollback": {
+    "mode": "checkpoint_revert",
+    "required": true,
+    "verification_checks": [
+      "guest_reverted_or_destroyed",
+      "package_absent_from_host",
+      "host_postflight_clean"
+    ]
+  },
+  "evidence": {
+    "output_root_policy": "gitignored_operator_local",
+    "required_artifacts": [
+      "host_preflight",
+      "guest_baseline",
+      "package_identity",
+      "trust_evidence",
+      "execution_plan",
+      "install_result",
+      "application_acceptance",
+      "guest_delta",
+      "rollback_or_destroy_result",
+      "host_postflight"
+    ]
+  },
+  "decision": {
+    "status": "ready_for_authorized_vm_run",
+    "blockers": [],
+    "vm_started": false,
+    "package_executed": false
+  },
+  "proof_ceiling": "qualification_profile_only_no_vm_or_package_execution"
+}

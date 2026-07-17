@@ -78,4 +78,4 @@ validation:
 next_actions:
   - Keep private package evidence under ignored run roots.
   - Implement registered deep-analysis and authorized revocation producers before satisfying their v2 evidence states.
-  - Enter disposable-VM runtime only after a READY_FOR_VM qualification profile and explicit authorization.
+  - For explicit installation testing, transfer a READY_FOR_VM profile to harness/workflows/package-vm-execution.yaml; the analysis workflow never starts the VM or executes the package.

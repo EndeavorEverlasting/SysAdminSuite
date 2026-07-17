@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/package-vm-execution-result.schema.json",
+  "title": "SysAdminSuite disposable VM package execution result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "profile_id",
+    "authorization_reference",
+    "package",
+    "vm",
+    "proof",
+    "execution",
+    "rollback",
+    "artifacts",
+    "errors",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-package-vm-execution-result/v1"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^package-vm-run-[0-9]{8}-[0-9]{6}-[a-f0-9]{8}$"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64
+    },
+    "authorization_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_sha256",
+        "installer_type",
+        "arguments_source",
+        "host_hash_reverified"
+      ],
+      "properties": {
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "installer_type": {
+          "enum": [
+            "exe",
+            "msi"
+          ]
+        },
+        "arguments_source": {
+          "enum": [
+            "vendor_documentation",
+            "package_authority",
+            "operator_approved_manifest"
+          ]
+        },
+        "host_hash_reverified": {
+          "type": "boolean"
+        }
+      }
+    },
+    "vm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "vm_name",
+        "checkpoint_name",
+        "network_mode",
+        "initial_state",
+        "final_state"
+      ],
+      "properties": {
+        "provider": {
+          "const": "hyper_v"
+        },
+        "vm_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "checkpoint_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "network_mode": {
+          "const": "disconnected"
+        },
+        "initial_state": {
+          "type": "string"
+        },
+        "final_state": {
+          "type": "string"
+        }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_mode",
+        "vm_started",
+        "package_executed_in_guest",
+        "package_executed_on_host",
+        "admin_box_installer_mutation",
+        "physical_workstation_validated",
+        "autologon_performed"
+      ],
+      "properties": {
+        "fixture_mode": {
+          "type": "boolean"
+        },
+        "vm_started": {
+          "type": "boolean"
+        },
+        "package_executed_in_guest": {
+          "type": "boolean"
+        },
+        "package_executed_on_host": {
+          "const": false
+        },
+        "admin_box_installer_mutation": {
+          "const": false
+        },
+        "physical_workstation_validated": {
+          "const": false
+        },
+        "autologon_performed": {
+          "const": false
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "installer_exit_code",
+        "reboot_performed",
+        "acceptance_passed",
+        "started_at_utc",
+        "completed_at_utc"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "planned",
+            "fixture_only",
+            "passed",
+            "failed",
+            "cleanup_failed",
+            "blocked"
+          ]
+        },
+        "installer_exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reboot_performed": {
+          "type": "boolean"
+        },
+        "acceptance_passed": {
+          "type": "boolean"
+        },
+        "started_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempted",
+        "succeeded",
+        "checkpoint_restored",
+        "guest_staging_removed",
+        "host_package_hash_unchanged"
+      ],
+      "properties": {
+        "attempted": {
+          "type": "boolean"
+        },
+        "succeeded": {
+          "type": "boolean"
+        },
+        "checkpoint_restored": {
+          "type": "boolean"
+        },
+        "guest_staging_removed": {
+          "type": "boolean"
+        },
+        "host_package_hash_unchanged": {
+          "type": "boolean"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "events",
+        "result",
+        "handoff"
+      ],
+      "properties": {
+        "events": {
+          "const": "package_vm_execution_events.jsonl"
+        },
+        "result": {
+          "const": "package_vm_execution_result.json"
+        },
+        "handoff": {
+          "const": "operator_handoff.txt"
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "maxLength": 2000
+      }
+    },
+    "proof_ceiling": {
+      "const": "disposable_vm_installation_and_application_acceptance_only_no_physical_workstation_validation"
+    }
+  }
+}

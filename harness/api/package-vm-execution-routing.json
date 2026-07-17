@@ -1,0 +1,43 @@
+{
+  "schema_version": "sas-package-vm-execution-routing/v1",
+  "operation_manifest": "harness/api/package-vm-execution-skill.json",
+  "skill_path": ".claude/skills/package-vm-execution/SKILL.md",
+  "triggers": [
+    {
+      "id": "package-disposable-vm-execution-trigger",
+      "deterministic_task_signals": [
+        "install the software in a virtual environment",
+        "validate installation in a VM",
+        "disposable VM package test",
+        "protect the admin box",
+        "ready for authorized VM run",
+        "package VM execution"
+      ],
+      "target_type": "harness_operation",
+      "target": "package_analysis.vm_execute",
+      "priority": 70,
+      "required_inputs": [
+        "ready_for_authorized_vm_run_profile",
+        "qualified_package",
+        "disconnected_hyper_v_guest",
+        "clean_checkpoint",
+        "acceptance_script",
+        "explicit_authorization"
+      ],
+      "guardrails": [
+        "live_data_guard_composes_additively",
+        "no_admin_box_package_execution",
+        "no_physical_workstation_mutation",
+        "no_network_adapter_connection",
+        "operator_confirmation_required"
+      ],
+      "proof_ceiling": "disposable_vm_installation_and_application_acceptance_only_no_physical_workstation_validation"
+    }
+  ],
+  "ambiguity_rules": {
+    "static_analysis_requests_remain_in_package_static_analysis": true,
+    "vm_readiness_without_execution_routes_to_package_analysis.vm_qualification_profile_validate": true,
+    "explicit_execution_request_required": true,
+    "unknown_signal_fails_closed": true
+  }
+}

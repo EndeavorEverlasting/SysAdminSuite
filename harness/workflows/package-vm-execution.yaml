@@ -1,0 +1,51 @@
+name: package-vm-execution
+description: Execute one authorized package only inside a disconnected disposable Hyper-V guest after every package-analysis and qualification gate passes.
+mode: operator_execute
+network_activity: false
+target_mutation: true
+mutation_scope: disposable_guest_only
+inputs:
+  - validated READY_FOR_VM package qualification profile
+  - operator-local package matching the qualified SHA-256
+  - powered-off Hyper-V guest
+  - named clean checkpoint
+  - runtime-only guest credential
+  - approved package-specific acceptance script
+  - explicit AllowVmMutation authorization
+phases:
+  - id: validate-profile
+    action: Run validate_vm_qualification_profile.py and require ready_for_authorized_vm_run with zero blockers.
+  - id: host-preflight
+    action: Re-verify package hash, require Hyper-V, require the VM powered off, and reject every connected virtual network adapter.
+  - id: restore-clean-checkpoint
+    action: Restore the exact named checkpoint before starting the guest.
+  - id: start-disposable-guest
+    action: Start the guest and enter it only through Hyper-V PowerShell Direct.
+  - id: capture-baseline
+    action: Capture guest installed-application, service, and reboot-pending state without changing the host package.
+  - id: stage-and-execute
+    action: Copy one package and one approved acceptance script into a run-specific guest directory, re-verify the guest hash, and execute EXE or MSI only inside the guest.
+  - id: accept
+    action: Reboot when required, run the package-specific acceptance script, and collect guest deltas.
+  - id: teardown
+    action: Remove guest staging, stop the guest, and restore the clean checkpoint even after failure.
+  - id: host-postflight
+    action: Re-verify the host package hash and emit ignored local result, event, and handoff artifacts.
+guardrails:
+  - No package execution on the admin box
+  - No connected VM network adapter in the initial implementation
+  - No physical workstation mutation
+  - No AutoLogon
+  - No shared clipboard or shared folders
+  - One package per clean checkpoint
+  - Explicit authorization and confirmation required
+  - Credentials remain runtime-only and are never emitted
+  - Rollback failure is a failed result
+artifacts:
+  - package_vm_execution_events.jsonl
+  - package_vm_execution_result.json
+  - operator_handoff.txt
+validation:
+  - python Tests/survey/test_package_vm_execution_contracts.py
+proof_ceiling: disposable_vm_installation_and_application_acceptance_only_no_physical_workstation_validation
+next_action: Advance only a passing package to a separately authorized physical-workstation pilot.
