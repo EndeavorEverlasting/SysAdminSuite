@@ -1,0 +1,41 @@
+{
+  "schema_version": "sas-package-vm-qualification-skill/v1",
+  "skill_path": ".claude/skills/package-static-analysis/SKILL.md",
+  "profile_schema": "schemas/harness/package-vm-qualification-profile.schema.json",
+  "operation": {
+    "id": "package_analysis.vm_qualification_profile_validate",
+    "summary": "Validate a package-specific disposable-VM qualification profile and report missing evidence without starting a VM.",
+    "mode": "local_read",
+    "network_activity": false,
+    "target_mutation": false,
+    "package_execution": false,
+    "vm_start": false,
+    "inputs": [
+      "operator_local_package_vm_qualification_profile",
+      "package_static_analysis_result",
+      "package_semantic_analysis_result",
+      "optional_package_trust_result"
+    ],
+    "outputs": [
+      "qualification_profile_validation"
+    ],
+    "guardrails": [
+      "one_package_per_clean_snapshot",
+      "host_execution_forbidden",
+      "no_vm_start",
+      "no_package_execution",
+      "no_network_activity",
+      "autologon_excluded",
+      "package_family_trust_policy_required",
+      "online_revocation_remains_separate_gate",
+      "strong_name_validation_required_for_managed_code",
+      "full_msi_decode_required_for_msi",
+      "exact_sapien_payload_required_when_detected",
+      "supported_installer_arguments_required",
+      "application_acceptance_required",
+      "rollback_or_destroy_required",
+      "runtime_evidence_must_remain_gitignored"
+    ],
+    "proof_ceiling": "qualification_profile_only_no_vm_or_package_execution"
+  }
+}

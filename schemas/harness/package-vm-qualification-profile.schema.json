@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/package-vm-qualification-profile.schema.json",
+  "title": "SysAdminSuite package VM qualification profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "schema_path", "profile_id", "package_family", "package_selector", "prerequisite_evidence", "trust_policy", "guest", "execution_contract", "acceptance", "rollback", "evidence", "decision", "proof_ceiling"],
+  "properties": {
+    "schema_version": {"const": "sas-package-vm-qualification-profile/v1"},
+    "schema_path": {"const": "schemas/harness/package-vm-qualification-profile.schema.json"},
+    "profile_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$"},
+    "package_family": {"enum": ["allscripts", "epic_satellite", "hyland", "imprivata", "generic_windows_application"]},
+    "package_selector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_sha256", "static_result_reference", "semantic_result_reference", "trust_result_reference"],
+      "properties": {
+        "source_sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "static_result_reference": {"$ref": "#/$defs/repoPath"},
+        "semantic_result_reference": {"anyOf": [{"$ref": "#/$defs/repoPath"}, {"type": "null"}]},
+        "trust_result_reference": {"anyOf": [{"$ref": "#/$defs/repoPath"}, {"type": "null"}]}
+      }
+    },
+    "prerequisite_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["static_analysis_complete", "semantic_analysis_complete", "offline_trust_complete", "online_revocation_required_before_pilot", "strong_name_required_if_managed", "full_msi_decode_required_if_msi", "exact_sapien_payload_required_if_detected"],
+      "properties": {
+        "static_analysis_complete": {"type": "boolean"},
+        "semantic_analysis_complete": {"type": "boolean"},
+        "offline_trust_complete": {"type": "boolean"},
+        "online_revocation_required_before_pilot": {"const": true},
+        "strong_name_required_if_managed": {"const": true},
+        "full_msi_decode_required_if_msi": {"const": true},
+        "exact_sapien_payload_required_if_detected": {"const": true}
+      }
+    },
+    "trust_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package_family_policy_required", "policy_status", "policy_reference"],
+      "properties": {
+        "package_family_policy_required": {"const": true},
+        "policy_status": {"enum": ["missing", "draft", "approved"]},
+        "policy_reference": {"anyOf": [{"$ref": "#/$defs/repoPath"}, {"type": "null"}]}
+      }
+    },
+    "guest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "os_family", "architecture", "network_mode", "snapshot_strategy", "host_execution_forbidden", "one_package_per_snapshot", "autologon_allowed", "shared_clipboard_allowed", "shared_folders_allowed"],
+      "properties": {
+        "provider": {"enum": ["hyper_v", "windows_sandbox", "virtualbox", "vmware", "unselected"]},
+        "os_family": {"enum": ["windows_10", "windows_11", "windows_server_2022", "windows_server_2025"]},
+        "architecture": {"const": "x64"},
+        "network_mode": {"enum": ["disconnected", "isolated_allowlist"]},
+        "snapshot_strategy": {"enum": ["clean_checkpoint", "ephemeral_guest"]},
+        "host_execution_forbidden": {"const": true},
+        "one_package_per_snapshot": {"const": true},
+        "autologon_allowed": {"const": false},
+        "shared_clipboard_allowed": {"const": false},
+        "shared_folders_allowed": {"const": false}
+      }
+    },
+    "execution_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["installer_type", "supported_arguments_source", "supported_arguments", "reboot_expected", "execution_authorized", "authorization_reference"],
+      "properties": {
+        "installer_type": {"enum": ["exe", "msi", "msix", "script", "unknown"]},
+        "supported_arguments_source": {"enum": ["vendor_documentation", "package_authority", "operator_approved_manifest", "missing"]},
+        "supported_arguments": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1000}},
+        "reboot_expected": {"enum": ["no", "possible", "required", "unknown"]},
+        "execution_authorized": {"type": "boolean"},
+        "authorization_reference": {"anyOf": [{"type": "string", "minLength": 1, "maxLength": 1000}, {"type": "null"}]}
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criteria_status", "required_checks"],
+      "properties": {
+        "criteria_status": {"enum": ["undefined", "draft", "approved"]},
+        "required_checks": {"type": "array", "minItems": 4, "uniqueItems": true, "items": {"enum": ["installer_exit", "reboot_complete", "application_launch", "service_state", "file_delta", "registry_delta", "event_log_review", "no_host_residue"]}}
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "required", "verification_checks"],
+      "properties": {
+        "mode": {"enum": ["checkpoint_revert", "guest_destroy"]},
+        "required": {"const": true},
+        "verification_checks": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"enum": ["guest_reverted_or_destroyed", "package_absent_from_host", "host_postflight_clean"]}}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["output_root_policy", "required_artifacts"],
+      "properties": {
+        "output_root_policy": {"const": "gitignored_operator_local"},
+        "required_artifacts": {"type": "array", "minItems": 9, "uniqueItems": true, "items": {"enum": ["host_preflight", "guest_baseline", "package_identity", "trust_evidence", "execution_plan", "install_result", "reboot_result", "application_acceptance", "guest_delta", "rollback_or_destroy_result", "host_postflight"]}}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "blockers", "vm_started", "package_executed"],
+      "properties": {
+        "status": {"enum": ["blocked", "ready_for_authorized_vm_run", "completed"]},
+        "blockers": {"type": "array", "uniqueItems": true, "items": {"enum": ["static_analysis_incomplete", "semantic_analysis_incomplete", "offline_trust_incomplete", "trust_policy_missing", "trust_policy_not_approved", "online_revocation_unproven", "strong_name_unproven", "exact_sapien_payload_unrecovered", "msi_decode_incomplete", "installer_arguments_unapproved", "vm_provider_unselected", "authorization_missing", "application_acceptance_undefined", "rollback_plan_missing"]}},
+        "vm_started": {"const": false},
+        "package_executed": {"const": false}
+      }
+    },
+    "proof_ceiling": {"const": "qualification_profile_only_no_vm_or_package_execution"}
+  },
+  "$defs": {
+    "repoPath": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?!/)(?!~)(?![A-Za-z]:[\\\\/])(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"}
+  }
+}
