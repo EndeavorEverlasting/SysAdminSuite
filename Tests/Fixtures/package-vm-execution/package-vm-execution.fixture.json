@@ -1,0 +1,51 @@
+{
+  "schema_version": "sas-package-vm-execution-result/v1",
+  "run_id": "package-vm-run-20260717-120000-deadbeef",
+  "profile_id": "fixture-disposable-vm-ready",
+  "authorization_reference": "fixture-change-0001",
+  "package": {
+    "source_sha256": "3fc7c04c1bb770f43f83246c57c8a5f395febe0860eec4f148c63326951b4445",
+    "installer_type": "exe",
+    "arguments_source": "vendor_documentation",
+    "host_hash_reverified": true
+  },
+  "vm": {
+    "provider": "hyper_v",
+    "vm_name": "SAS-FIXTURE-VM",
+    "checkpoint_name": "clean",
+    "network_mode": "disconnected",
+    "initial_state": "not_observed",
+    "final_state": "not_observed"
+  },
+  "proof": {
+    "fixture_mode": true,
+    "vm_started": false,
+    "package_executed_in_guest": false,
+    "package_executed_on_host": false,
+    "admin_box_installer_mutation": false,
+    "physical_workstation_validated": false,
+    "autologon_performed": false
+  },
+  "execution": {
+    "status": "fixture_only",
+    "installer_exit_code": null,
+    "reboot_performed": false,
+    "acceptance_passed": false,
+    "started_at_utc": "2026-07-17T16:00:00Z",
+    "completed_at_utc": "2026-07-17T16:00:01Z"
+  },
+  "rollback": {
+    "attempted": false,
+    "succeeded": false,
+    "checkpoint_restored": false,
+    "guest_staging_removed": false,
+    "host_package_hash_unchanged": true
+  },
+  "artifacts": {
+    "events": "package_vm_execution_events.jsonl",
+    "result": "package_vm_execution_result.json",
+    "handoff": "operator_handoff.txt"
+  },
+  "errors": [],
+  "proof_ceiling": "disposable_vm_installation_and_application_acceptance_only_no_physical_workstation_validation"
+}

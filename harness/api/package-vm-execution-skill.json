@@ -1,0 +1,50 @@
+{
+  "schema_version": "sas-package-vm-execution-skill/v1",
+  "skill_path": ".claude/skills/package-static-analysis/SKILL.md",
+  "workflow_path": "harness/workflows/package-vm-execution.yaml",
+  "profile_schema": "schemas/harness/package-vm-qualification-profile.schema.json",
+  "result_schema": "schemas/harness/package-vm-execution-result.schema.json",
+  "operation": {
+    "id": "package_analysis.vm_execute",
+    "summary": "Restore a clean disconnected Hyper-V checkpoint, execute one authorized package only inside the guest, run approved acceptance, export local evidence, and restore the checkpoint.",
+    "mode": "operator_execute",
+    "network_activity": false,
+    "target_mutation": true,
+    "mutation_scope": "disposable_guest_only",
+    "package_execution": true,
+    "package_execution_scope": "disposable_guest_only",
+    "vm_start": true,
+    "inputs": [
+      "validated_ready_for_authorized_vm_run_profile",
+      "operator_local_package_matching_profile_sha256",
+      "disconnected_hyper_v_vm",
+      "clean_checkpoint",
+      "guest_credential_supplied_at_runtime",
+      "approved_acceptance_script",
+      "explicit_allow_vm_mutation"
+    ],
+    "outputs": [
+      "package_vm_execution_events.jsonl",
+      "package_vm_execution_result.json",
+      "operator_handoff.txt"
+    ],
+    "guardrails": [
+      "qualification_profile_validator_must_pass",
+      "ready_for_authorized_vm_run_required",
+      "exact_package_hash_continuity_required",
+      "explicit_vm_mutation_authorization_required",
+      "hyper_v_power_shell_direct_only",
+      "guest_network_must_be_disconnected",
+      "admin_box_package_execution_forbidden",
+      "one_package_per_clean_checkpoint",
+      "checkpoint_restore_before_and_after",
+      "guest_staging_cleanup_required",
+      "no_autologon",
+      "no_shared_clipboard_or_folders",
+      "runtime_evidence_gitignored",
+      "physical_workstation_validation_remains_separate"
+    ],
+    "proof_ceiling": "disposable_vm_installation_and_application_acceptance_only_no_physical_workstation_validation"
+  },
+  "routing_path": "harness/api/package-vm-execution-routing.json"
+}

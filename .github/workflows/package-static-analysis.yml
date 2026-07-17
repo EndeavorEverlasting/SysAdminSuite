@@ -7,28 +7,35 @@ on:
   pull_request:
     paths:
       - '.claude/skills/package-static-analysis/**'
+      - '.claude/skills/package-vm-execution/**'
       - '.claude/capabilities/package-*.md'
       - 'harness/api/package-static-analysis-skill.json'
       - 'harness/api/package-semantic-analysis-skill.json'
       - 'harness/api/package-trust-verification-skill.json'
       - 'harness/api/package-strong-name-verification-skill.json'
       - 'harness/api/package-vm-qualification-skill.json'
+      - 'harness/api/package-vm-execution-skill.json'
+      - 'harness/api/package-vm-execution-routing.json'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
       - 'harness/api/sas-harness-api.json'
       - 'harness/workflows/package-analysis.yaml'
+      - 'harness/workflows/package-vm-execution.yaml'
       - 'schemas/harness/package-static-analysis-result.schema.json'
       - 'schemas/harness/package-semantic-analysis-result.schema.json'
       - 'schemas/harness/package-trust-policy.schema.json'
       - 'schemas/harness/package-trust-verification-result.schema.json'
       - 'schemas/harness/package-strong-name-verification-result.schema.json'
       - 'schemas/harness/package-vm-qualification-profile.schema.json'
+      - 'schemas/harness/package-vm-execution-result.schema.json'
       - 'Tests/Fixtures/package-vm-qualification/**'
+      - 'Tests/Fixtures/package-vm-execution/**'
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageTrust.ps1'
       - 'scripts/Invoke-SasPackageStrongNameVerification.ps1'
+      - 'scripts/Invoke-SasPackageDisposableVmRun.ps1'
       - 'scripts/invoke-sas-package-static-analysis.sh'
       - 'scripts/invoke-sas-package-semantic-analysis.sh'
       - 'scripts/invoke-sas-package-strong-name-verification.sh'
@@ -37,39 +44,48 @@ on:
       - 'docs/PACKAGE_TRUST_VERIFICATION.md'
       - 'docs/PACKAGE_STRONG_NAME_VERIFICATION.md'
       - 'docs/PACKAGE_VM_QUALIFICATION_PROFILES.md'
+      - 'docs/PACKAGE_VM_EXECUTION.md'
       - 'Tests/survey/test_package_static_analysis_contracts.py'
       - 'Tests/survey/test_package_semantic_analysis_contracts.py'
       - 'Tests/survey/Test-PackageTrustVerificationContracts.ps1'
       - 'Tests/survey/test_package_strong_name_verification_contracts.py'
       - 'Tests/survey/test_package_vm_qualification_profile_contracts.py'
+      - 'Tests/survey/test_package_vm_execution_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/package-static-analysis.yml'
   push:
     branches: [main, 'feat/**', 'repair/**', 'test/**']
     paths:
       - '.claude/skills/package-static-analysis/**'
+      - '.claude/skills/package-vm-execution/**'
       - '.claude/capabilities/package-*.md'
       - 'harness/api/package-static-analysis-skill.json'
       - 'harness/api/package-semantic-analysis-skill.json'
       - 'harness/api/package-trust-verification-skill.json'
       - 'harness/api/package-strong-name-verification-skill.json'
       - 'harness/api/package-vm-qualification-skill.json'
+      - 'harness/api/package-vm-execution-skill.json'
+      - 'harness/api/package-vm-execution-routing.json'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
       - 'harness/api/sas-harness-api.json'
       - 'harness/workflows/package-analysis.yaml'
+      - 'harness/workflows/package-vm-execution.yaml'
       - 'schemas/harness/package-static-analysis-result.schema.json'
       - 'schemas/harness/package-semantic-analysis-result.schema.json'
       - 'schemas/harness/package-trust-policy.schema.json'
       - 'schemas/harness/package-trust-verification-result.schema.json'
       - 'schemas/harness/package-strong-name-verification-result.schema.json'
       - 'schemas/harness/package-vm-qualification-profile.schema.json'
+      - 'schemas/harness/package-vm-execution-result.schema.json'
       - 'Tests/Fixtures/package-vm-qualification/**'
+      - 'Tests/Fixtures/package-vm-execution/**'
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageTrust.ps1'
       - 'scripts/Invoke-SasPackageStrongNameVerification.ps1'
+      - 'scripts/Invoke-SasPackageDisposableVmRun.ps1'
       - 'scripts/invoke-sas-package-static-analysis.sh'
       - 'scripts/invoke-sas-package-semantic-analysis.sh'
       - 'scripts/invoke-sas-package-strong-name-verification.sh'
@@ -78,11 +94,13 @@ on:
       - 'docs/PACKAGE_TRUST_VERIFICATION.md'
       - 'docs/PACKAGE_STRONG_NAME_VERIFICATION.md'
       - 'docs/PACKAGE_VM_QUALIFICATION_PROFILES.md'
+      - 'docs/PACKAGE_VM_EXECUTION.md'
       - 'Tests/survey/test_package_static_analysis_contracts.py'
       - 'Tests/survey/test_package_semantic_analysis_contracts.py'
       - 'Tests/survey/Test-PackageTrustVerificationContracts.ps1'
       - 'Tests/survey/test_package_strong_name_verification_contracts.py'
       - 'Tests/survey/test_package_vm_qualification_profile_contracts.py'
+      - 'Tests/survey/test_package_vm_execution_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/package-static-analysis.yml'
 
@@ -111,6 +129,7 @@ jobs:
           Tests/survey/test_package_semantic_analysis_contracts.py
           Tests/survey/test_package_strong_name_verification_contracts.py
           Tests/survey/test_package_vm_qualification_profile_contracts.py
+          Tests/survey/test_package_vm_execution_contracts.py
       - name: Execute static package contracts
         run: python Tests/survey/test_package_static_analysis_contracts.py
       - name: Execute semantic package contracts
@@ -121,6 +140,8 @@ jobs:
         env:
           SAS_VM_QUALIFICATION_DIAGNOSTIC: ${{ runner.temp }}/package-vm-qualification-contract.log
         run: python Tests/survey/test_package_vm_qualification_profile_contracts.py
+      - name: Execute disposable VM runtime contracts
+        run: python Tests/survey/test_package_vm_execution_contracts.py
       - name: Upload VM qualification diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -155,7 +176,7 @@ jobs:
           retention-days: 7
       - name: Validate result and profile schema posture
         run: >-
-          python -c 'import json,pathlib; paths=["schemas/harness/package-static-analysis-result.schema.json","schemas/harness/package-semantic-analysis-result.schema.json","schemas/harness/package-trust-policy.schema.json","schemas/harness/package-trust-verification-result.schema.json","schemas/harness/package-strong-name-verification-result.schema.json","schemas/harness/package-vm-qualification-profile.schema.json"]; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+"schema") == "https://json-schema.org/draft/2020-12/schema" and s["additionalProperties"] is False for s in schemas); print("PASS: package schema posture")'
+          python -c 'import json,pathlib; paths=["schemas/harness/package-static-analysis-result.schema.json","schemas/harness/package-semantic-analysis-result.schema.json","schemas/harness/package-trust-policy.schema.json","schemas/harness/package-trust-verification-result.schema.json","schemas/harness/package-strong-name-verification-result.schema.json","schemas/harness/package-vm-qualification-profile.schema.json","schemas/harness/package-vm-execution-result.schema.json"]; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+"schema") == "https://json-schema.org/draft/2020-12/schema" and s["additionalProperties"] is False for s in schemas); print("PASS: package schema posture")'
       - name: Bash syntax
         if: runner.os != 'Windows'
         run: |
@@ -166,7 +187,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          foreach($path in '.\scripts\Invoke-SasPackageStaticAnalysis.ps1','.\scripts\Invoke-SasPackageSemanticAnalysis.ps1','.\scripts\Invoke-SasPackageTrust.ps1','.\scripts\Invoke-SasPackageStrongNameVerification.ps1','.\Tests\survey\Test-PackageTrustVerificationContracts.ps1') {
+          foreach($path in '.\scripts\Invoke-SasPackageStaticAnalysis.ps1','.\scripts\Invoke-SasPackageSemanticAnalysis.ps1','.\scripts\Invoke-SasPackageTrust.ps1','.\scripts\Invoke-SasPackageStrongNameVerification.ps1','.\scripts\Invoke-SasPackageDisposableVmRun.ps1','.\Tests\survey\Test-PackageTrustVerificationContracts.ps1') {
             $tokens=$null; $errors=$null
             [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path),[ref]$tokens,[ref]$errors)
             if($errors.Count -gt 0){$errors|ForEach-Object{Write-Error $_}; exit 1}
