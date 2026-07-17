@@ -6,33 +6,43 @@
   "additionalProperties": false,
   "required": ["schema_version", "schema_path", "profile_id", "package_family", "package_selector", "prerequisite_evidence", "trust_policy", "guest", "execution_contract", "acceptance", "rollback", "evidence", "decision", "proof_ceiling"],
   "properties": {
-    "schema_version": {"const": "sas-package-vm-qualification-profile/v1"},
+    "schema_version": {"const": "sas-package-vm-qualification-profile/v2"},
     "schema_path": {"const": "schemas/harness/package-vm-qualification-profile.schema.json"},
     "profile_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$"},
     "package_family": {"enum": ["allscripts", "epic_satellite", "hyland", "imprivata", "generic_windows_application"]},
     "package_selector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source_sha256", "static_result_reference", "semantic_result_reference", "trust_result_reference"],
+      "required": ["source_sha256", "static_result_reference", "semantic_result_reference", "trust_result_reference", "strong_name_result_reference", "deep_analysis_result_reference", "revocation_result_reference"],
       "properties": {
         "source_sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
         "static_result_reference": {"$ref": "#/$defs/repoPath"},
         "semantic_result_reference": {"anyOf": [{"$ref": "#/$defs/repoPath"}, {"type": "null"}]},
-        "trust_result_reference": {"anyOf": [{"$ref": "#/$defs/repoPath"}, {"type": "null"}]}
+        "trust_result_reference": {"anyOf": [{"$ref": "#/$defs/repoPath"}, {"type": "null"}]},
+        "strong_name_result_reference": {"anyOf": [{"$ref": "#/$defs/repoPath"}, {"type": "null"}]},
+        "deep_analysis_result_reference": {"anyOf": [{"$ref": "#/$defs/repoPath"}, {"type": "null"}]},
+        "revocation_result_reference": {"anyOf": [{"$ref": "#/$defs/repoPath"}, {"type": "null"}]}
       }
     },
     "prerequisite_evidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["static_analysis_complete", "semantic_analysis_complete", "offline_trust_complete", "online_revocation_required_before_pilot", "strong_name_required_if_managed", "full_msi_decode_required_if_msi", "exact_sapien_payload_required_if_detected"],
+      "required": ["static_analysis_complete", "semantic_analysis_complete", "offline_trust_complete", "online_revocation_required_before_pilot", "online_revocation_status", "strong_name_required_if_managed", "managed_code_present", "strong_name_status", "full_msi_decode_required_if_msi", "msi_present", "msi_decode_status", "exact_sapien_payload_required_if_detected", "sapien_detected", "sapien_payload_status"],
       "properties": {
         "static_analysis_complete": {"type": "boolean"},
         "semantic_analysis_complete": {"type": "boolean"},
         "offline_trust_complete": {"type": "boolean"},
         "online_revocation_required_before_pilot": {"const": true},
+        "online_revocation_status": {"enum": ["unproven", "verified", "indeterminate", "failed"]},
         "strong_name_required_if_managed": {"const": true},
+        "managed_code_present": {"type": "boolean"},
+        "strong_name_status": {"enum": ["not_applicable", "unproven", "verified", "invalid", "delay_signed", "unsupported", "failed"]},
         "full_msi_decode_required_if_msi": {"const": true},
-        "exact_sapien_payload_required_if_detected": {"const": true}
+        "msi_present": {"type": "boolean"},
+        "msi_decode_status": {"enum": ["not_applicable", "unproven", "complete", "partial", "unsupported", "failed"]},
+        "exact_sapien_payload_required_if_detected": {"const": true},
+        "sapien_detected": {"type": "boolean"},
+        "sapien_payload_status": {"enum": ["not_applicable", "unproven", "recovered", "partial", "unsupported", "failed"]}
       }
     },
     "trust_policy": {
@@ -117,6 +127,6 @@
     "proof_ceiling": {"const": "qualification_profile_only_no_vm_or_package_execution"}
   },
   "$defs": {
-    "repoPath": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?!/)(?!~)(?![A-Za-z]:[\\\\/])(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"}
+    "repoPath": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?!/)(?!~)(?![A-Za-z]:[\\/])(?!.*\\)(?!.*(?:^|/)\.\.(?:/|$)).+"}
   }
 }
