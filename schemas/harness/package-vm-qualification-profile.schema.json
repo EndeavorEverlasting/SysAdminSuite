@@ -127,6 +127,6 @@
     "proof_ceiling": {"const": "qualification_profile_only_no_vm_or_package_execution"}
   },
   "$defs": {
-    "repoPath": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?!/)(?!~)(?![A-Za-z]:[\\/])(?!.*\\)(?!.*(?:^|/)\.\.(?:/|$)).+"}
+    "repoPath": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?!/)(?!~)(?![A-Za-z]:[\\\\/])(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+"}
   }
 }
