@@ -1,0 +1,11 @@
+{
+  "schema_version": "sas-agentswitchboard-gnhf-validation-result/v1",
+  "contract_kind": "compiled-gnhf-prompt-result",
+  "external_schema_version": 1,
+  "external_schema_path": "tooling/gnhf/schemas/compiled-gnhf-prompt-result.v1.schema.json",
+  "external_source_commit": "a4b8f680e70a84cbba0d97460b2e756991833c26",
+  "valid": true,
+  "proof_level": "contract-only",
+  "proof_ceiling": "External version and local compatibility invariants passed; no GNHF runtime was executed.",
+  "exact_local_next_command": "pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"$env:AGENTSWITCHBOARD_ROOT\\tooling\\gnhf\\Invoke-CursorGnhfSprint.ps1\" -RequestPath \"$env:SAS_GNHF_REQUEST_PATH\" -CompiledPromptPath \"$env:SAS_GNHF_COMPILED_PROMPT_PATH\" -TargetRepo \"$env:SAS_REPO_ROOT\" -PlanOnly"
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": "sas-agentswitchboard-gnhf-delegation-case/v1",
+  "operation": "compile_only",
+  "local_execution_authorized": false,
+  "agentswitchboard_available": true,
+  "requested_schema_version": 2,
+  "git_modes": [
+    "worktree"
+  ],
+  "expected": {
+    "status": "rejected",
+    "classification": "EXTERNAL_SCHEMA_VERSION_MISMATCH"
+  }
+}

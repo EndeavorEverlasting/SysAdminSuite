@@ -1,0 +1,61 @@
+{
+  "schema_version": "sas-agentswitchboard-gnhf-external-contract/v1",
+  "schema_path": "schemas/harness/agentswitchboard-gnhf-external-contract.schema.json",
+  "supported_external_schema_version": 1,
+  "authority": {
+    "repository": "EndeavorEverlasting/AgentSwitchboard",
+    "pull_request": 17,
+    "source_commit": "a4b8f680e70a84cbba0d97460b2e756991833c26",
+    "runtime_owner": "AgentSwitchboard",
+    "consumer_owner": "SysAdminSuite"
+  },
+  "schemas": [
+    {
+      "kind": "regular-sprint-request",
+      "schema_version": 1,
+      "path": "tooling/gnhf/schemas/regular-sprint-request.v1.schema.json",
+      "schema_id": "https://agentswitchboard.local/schemas/regular-sprint-request.v1.schema.json",
+      "git_blob_sha": "a5370b647025a514c1350ddb2a121439389c8ab6"
+    },
+    {
+      "kind": "compiled-gnhf-prompt-result",
+      "schema_version": 1,
+      "path": "tooling/gnhf/schemas/compiled-gnhf-prompt-result.v1.schema.json",
+      "schema_id": "https://agentswitchboard.local/schemas/compiled-gnhf-prompt-result.v1.schema.json",
+      "git_blob_sha": "cd6041e4ea21d30c6fc30aa8722c5df1d9cec4d6"
+    },
+    {
+      "kind": "desktop-gnhf-launch-request",
+      "schema_version": 1,
+      "path": "tooling/gnhf/schemas/desktop-gnhf-launch-request.v1.schema.json",
+      "schema_id": "https://agentswitchboard.local/schemas/desktop-gnhf-launch-request.v1.schema.json",
+      "git_blob_sha": "3f42c92e75a1313028083e4bdf00566c176ec6e9"
+    },
+    {
+      "kind": "desktop-gnhf-runtime-result",
+      "schema_version": 1,
+      "path": "tooling/gnhf/schemas/desktop-gnhf-runtime-result.v1.schema.json",
+      "schema_id": "https://agentswitchboard.local/schemas/desktop-gnhf-runtime-result.v1.schema.json",
+      "git_blob_sha": "d51e38df6d00cb26f264738272fb303e46911f6e"
+    }
+  ],
+  "invocation": {
+    "path": "tooling/gnhf/Invoke-CursorGnhfSprint.ps1",
+    "git_blob_sha": "129cbc810a47bae6852ea7890487d162baf60690",
+    "plan_default": true,
+    "parameters": [
+      "-RequestPath",
+      "-CompiledPromptPath",
+      "-TargetRepo",
+      "-PlanOnly",
+      "-Run",
+      "-CreateDisposableProofRepo",
+      "-LocalHarnessProof"
+    ]
+  },
+  "proof_policy": {
+    "process_exit_sufficient": false,
+    "preserve_external_proof_ceiling": true,
+    "tracked_runtime_evidence_allowed": false
+  }
+}

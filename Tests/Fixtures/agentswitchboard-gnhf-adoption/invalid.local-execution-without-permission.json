@@ -1,0 +1,14 @@
+{
+  "schema_version": "sas-agentswitchboard-gnhf-delegation-case/v1",
+  "operation": "local_execute",
+  "local_execution_authorized": false,
+  "agentswitchboard_available": true,
+  "requested_schema_version": 1,
+  "git_modes": [
+    "worktree"
+  ],
+  "expected": {
+    "status": "rejected",
+    "classification": "LOCAL_EXECUTION_PERMISSION_REQUIRED"
+  }
+}

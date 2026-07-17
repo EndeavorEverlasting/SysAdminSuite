@@ -255,6 +255,104 @@
       ]
     },
     {
+      "id": "agentswitchboard_gnhf.prompt_compile",
+      "summary": "Construct and validate a SysAdminSuite regular sprint request, then delegate compile-only prompt generation to AgentSwitchboard.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "harness/api/agentswitchboard-gnhf-external-contract.json",
+        "objective",
+        "bounded_scope",
+        "git_context",
+        "expected_artifacts",
+        "validators",
+        "proof_target"
+      ],
+      "outputs": [
+        "regular-sprint-request.json",
+        "compiled-prompt-validation.json",
+        "exact-local-next-command"
+      ],
+      "guardrails": [
+        "Compile_only",
+        "External_schema_version_1_required",
+        "Exactly_one_Git_mode",
+        "No_Run_parameter",
+        "No_deployment_authority",
+        "No_credentials_or_tracked_runtime_evidence"
+      ]
+    },
+    {
+      "id": "agentswitchboard_gnhf.local_delegate",
+      "summary": "Delegate a validated compiled GNHF prompt through the AgentSwitchboard desktop runtime entrypoint.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": false,
+      "inputs": [
+        "validated_regular_request",
+        "validated_compiled_prompt",
+        "target_repository",
+        "local_execution_authorization"
+      ],
+      "outputs": [
+        "desktop-gnhf-runtime-result.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Explicit_local_execution_authorization_required",
+        "AgentSwitchboard_availability_required",
+        "Clean_attached_target_required",
+        "Exactly_one_Git_mode",
+        "Schema_mismatch_is_non_success",
+        "Provider_and_network_execution_requires_local_execution_authorization_and_remains_AgentSwitchboard_owned",
+        "Runtime_evidence_remains_AgentSwitchboard_owned_and_gitignored"
+      ]
+    },
+    {
+      "id": "agentswitchboard_gnhf.environment_plan",
+      "summary": "Delegate GNHF environment configuration intent to the existing AgentSwitchboard Plan surface.",
+      "mode": "plan_only",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "environment_configuration_request",
+        "harness/api/agentswitchboard-gnhf-external-contract.json"
+      ],
+      "outputs": [
+        "agentswitchboard-environment-plan",
+        "exact-local-next-command"
+      ],
+      "guardrails": [
+        "Plan_only",
+        "No_silent_Apply",
+        "No_automatic_authentication",
+        "No_installer_or_launcher_copy"
+      ]
+    },
+    {
+      "id": "agentswitchboard_gnhf.result_ingest",
+      "summary": "Validate and ingest one AgentSwitchboard runtime result while preserving proof and blocker truth.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "desktop-gnhf-runtime-result.json",
+        "harness/api/agentswitchboard-gnhf-external-contract.json"
+      ],
+      "outputs": [
+        "delegation-result.json",
+        "capsule-input-summary.json"
+      ],
+      "guardrails": [
+        "External_schema_version_1_required",
+        "Process_exit_is_not_success_proof",
+        "Artifact_and_commit_proof_required_for_success",
+        "Preserve_external_proof_ceiling",
+        "Blocked_and_failed_results_remain_non_success"
+      ]
+    },
+    {
       "id": "agent_sprint_capsule.generate",
       "summary": "Generate a machine-local-path-free, schema-backed final repository sprint handoff using the canonical run context and artifact registry.",
       "mode": "local_transform",
