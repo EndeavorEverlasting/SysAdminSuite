@@ -102,8 +102,19 @@ jobs:
       - name: Execute semantic package contracts
         run: python Tests/survey/test_package_semantic_analysis_contracts.py
       - name: Execute VM qualification profile contracts
+        env:
+          SAS_VM_QUALIFICATION_DIAGNOSTIC: ${{ runner.temp }}/package-vm-qualification-contract.log
         run: python Tests/survey/test_package_vm_qualification_profile_contracts.py
+      - name: Upload VM qualification diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-vm-qualification-contract-diagnostics-${{ runner.os }}
+          path: ${{ runner.temp }}/package-vm-qualification-contract.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Execute package trust contracts
+        id: package-trust
         if: runner.os == 'Windows'
         timeout-minutes: 10
         shell: pwsh
@@ -119,7 +130,7 @@ jobs:
           $exitCode = $LASTEXITCODE
           if ($exitCode -ne 0) { exit $exitCode }
       - name: Upload package trust diagnostics
-        if: always() && runner.os == 'Windows'
+        if: always() && runner.os == 'Windows' && steps.package-trust.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: package-trust-contract-diagnostics

@@ -4,7 +4,7 @@
   "profile_schema": "schemas/harness/package-vm-qualification-profile.schema.json",
   "operation": {
     "id": "package_analysis.vm_qualification_profile_validate",
-    "summary": "Validate a package-specific disposable-VM qualification profile and report missing evidence without starting a VM.",
+    "summary": "Validate a package-specific disposable-VM qualification profile, derive mandatory evidence blockers, and reject proof gaps without starting a VM.",
     "mode": "local_read",
     "network_activity": false,
     "target_mutation": false,
@@ -14,7 +14,10 @@
       "operator_local_package_vm_qualification_profile",
       "package_static_analysis_result",
       "package_semantic_analysis_result",
-      "optional_package_trust_result"
+      "optional_package_trust_result",
+      "optional_strong_name_result",
+      "optional_deep_analysis_result",
+      "optional_revocation_result"
     ],
     "outputs": [
       "qualification_profile_validation"
@@ -31,6 +34,9 @@
       "strong_name_validation_required_for_managed_code",
       "full_msi_decode_required_for_msi",
       "exact_sapien_payload_required_when_detected",
+      "completed_evidence_requires_canonical_result_reference",
+      "not_applicable_status_must_match_detected_package_shape",
+      "derived_evidence_blockers_must_match_profile",
       "supported_installer_arguments_required",
       "application_acceptance_required",
       "rollback_or_destroy_required",

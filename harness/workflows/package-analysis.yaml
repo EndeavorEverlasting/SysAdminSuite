@@ -1,5 +1,5 @@
 name: package-analysis
-description: Route local package intake through static inventory, semantic enrichment, offline trust, and disposable-VM qualification validation without executing package code.
+description: Route local package intake through static inventory, semantic enrichment, offline trust, explicit deep-evidence gates, and disposable-VM qualification validation without executing package code.
 mode: local_read
 network_activity: false
 target_mutation: false
@@ -8,6 +8,9 @@ inputs:
   - ignored local output root
   - optional offline wheelhouse
   - optional reviewed trust policy
+  - optional strong-name verification result
+  - optional deep-analysis result
+  - optional revocation result
   - optional package VM qualification profile
 input_mapping:
   operator_local_package_path: InputPath supplied to the selected package entrypoint
@@ -15,6 +18,9 @@ input_mapping:
   semantic_result: package_semantic_analysis.json produced by package_analysis.semantic_enrich
   trust_policy: TrustPolicyPath for package_analysis.trust deployment gate
   trust_result: package_trust_verification.json produced by package_analysis.trust
+  strong_name_result: package_strong_name_verification.json produced by the registered strong-name operation when managed code is present
+  deep_analysis_result: package_deep_analysis.json produced by the registered deep-analysis operation when MSI or SAPIEN evidence applies
+  revocation_result: package_revocation_verification.json produced only by an explicitly authorized revocation operation
   qualification_profile: operator-local package VM qualification profile for package_analysis.vm_qualification_profile_validate
 phases:
   - id: create-run-context
@@ -25,8 +31,10 @@ phases:
     action: Run scripts/Invoke-SasPackageSemanticAnalysis.ps1 or scripts/invoke-sas-package-semantic-analysis.sh against the static result.
   - id: offline-trust
     action: On Windows, run scripts/Invoke-SasPackageTrust.ps1 in observation mode, then apply a reviewed local policy when available.
+  - id: evidence-gate-binding
+    action: Bind managed-code, MSI, SAPIEN, and revocation status to canonical ignored result references; missing or incomplete evidence must produce derived blockers.
   - id: vm-qualification
-    action: Validate the package-specific profile with tools/package-analysis/validate_vm_qualification_profile.py without starting a VM.
+    action: Validate the v2 package-specific profile with tools/package-analysis/validate_vm_qualification_profile.py without starting a VM.
   - id: register-artifacts
     action: Register JSON/TXT results and summary outputs in sas-artifact-registry/v1.
 guardrails:
@@ -35,6 +43,9 @@ guardrails:
   - No_shortcut_following
   - No_archive_payload_extraction_by_default
   - No_online_revocation_by_default
+  - Evidence_status_must_match_detected_package_shape
+  - Completed_evidence_requires_canonical_result_reference
+  - Derived_blockers_cannot_be_removed_manually
   - No_vm_start_from_validator
   - No_autologon
   - Reuse_canonical_SasRunContext
@@ -47,6 +58,9 @@ artifacts:
   - package_trust_verification.json
   - package_trust_verification.txt
   - package_trust_policy.starter.json
+  - optional package_strong_name_verification.json
+  - optional package_deep_analysis.json
+  - optional package_revocation_verification.json
   - package_vm_qualification validation result
   - artifact_registry.json
   - operator_handoff.txt
@@ -59,4 +73,5 @@ validation:
   - python3 Tests/survey/test_agent_capability_manifest_contracts.py
 next_actions:
   - Keep private package evidence under ignored run roots.
+  - Implement registered strong-name, deep-analysis, and authorized revocation producers before satisfying their v2 evidence states.
   - Enter disposable-VM runtime only after a READY_FOR_VM qualification profile and explicit authorization.
