@@ -28,7 +28,7 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_developer_workstation_lifecycle_contracts.py` — dependency-free lifecycle schema, registry, fixture, API, workflow, and evidence-boundary contracts.
 - `scripts/Invoke-SasWindowsTmuxWorkspace.ps1` — Plan/Apply/Start/Status/Stop/Repair/Rollback service for the Windows WezTerm → WSL → tmux workspace.
 - `scripts/*-SasWindowsTmuxWorkspace.ps1` — stable technician-facing lifecycle entrypoints.
-- `Config/wezterm-windows-tmux.lua.template` — managed native Windows WezTerm configuration that enters WSL tmux `dev` and retains a PowerShell fallback.
+- `Config/wezterm-windows-tmux.lua.template`, `Config/tmux-sysadminsuite.conf`, and `Config/bashrc-sysadminsuite.sh` — bounded native-Linux managed fragments.
 - `Launch-WorkstationWezTerm.ps1` and `.cmd` — detached daily launcher; the GUI is always started through `wezterm-gui.exe`.
 - `Tests/Fixtures/windows-tmux-workspace/` — sanitized healthy, missing, stale, malformed, nested, failure, and rollback fixture inputs.
 - `Tests/survey/test_windows_wezterm_tmux_service_contracts.py` and `Tests/Pester/WindowsWezTermTmuxService.Tests.ps1` — temporary-HOME lifecycle, preservation, launcher, and ownership proof.
@@ -52,6 +52,7 @@ Use this map to load only the files needed for a task.
 - `harness/api/developer-workstation-agent-routing.json` — deterministic trigger and terminal-context record.
 - `schemas/harness/developer-workstation-agent-routing.schema.json` — fail-closed routing contract.
 - `Tests/survey/test_developer_workstation_agent_harness_contracts.py` — trigger uniqueness, path, manifest, context, and prompt/application separation tests.
+
 ## Native Linux workstation host
 
 - `scripts/invoke-sas-linux-tmux-workspace.sh` — native Plan/Apply/Start/Status/Stop/Repair/Rollback lifecycle implementation.
@@ -60,6 +61,20 @@ Use this map to load only the files needed for a task.
 - `Tests/Fixtures/linux-tmux-workspace/` and `Tests/survey/test_linux_wezterm_tmux_contracts.py` — required-failure and temporary-HOME lifecycle proof.
 - `docs/DEVELOPER_WORKSTATION_LINUX_HOST.md` — operator commands, preservation rules, and the native-GUI proof ceiling.
 - `.github/workflows/linux-wezterm-tmux-host.yml` — Ubuntu fixture contract gate; it is not a native desktop GUI claim.
+
+## Resume Matcher workstation deployment
+
+- `docs/RESUME_MATCHER_WORKSTATION.md` — install, troubleshooting, DeepSeek handoff, live acceptance, and proof boundaries.
+- `docs/RESUME_MATCHER_LIFECYCLE_SAFETY.md` — explicit application-update, provider-cost, and unmanaged-runtime safety gates.
+- `Config/resume-matcher-workstation.sample.json` — pinned runtime, service, browser-fallback, and acceptance profile.
+- `schemas/harness/resume-matcher-workstation.schema.json` and `schemas/harness/resume-matcher-workstation-result.schema.json` — fail-closed profile and lifecycle proof contracts.
+- `scripts/invoke-sas-resume-matcher-workstation-safe.sh` — canonical Bash operator front door; gates clean-clone updates, provider cost, and unmanaged runtime shutdown claims.
+- `scripts/invoke-sas-resume-matcher-workstation.sh` — underlying Plan/Apply/Start/Status/Stop/Validate/Accept lifecycle engine.
+- `scripts/Invoke-SasResumeMatcherWorkstation.ps1` — Windows WSL front door routed through the Bash safety layer.
+- `scripts/Test-SasResumeMatcherLiveAcceptance.ps1` and `scripts/test-sas-resume-matcher-live-acceptance.sh` — stable one-command live acceptance entrypoints.
+- `Tests/survey/test_resume_matcher_workstation_contracts.py` and `Tests/survey/test_resume_matcher_lifecycle_safety_contracts.py` — fixture, idempotency, secret-boundary, PDF-proof, update-gate, cost-gate, and unmanaged-runtime contracts.
+- `.github/workflows/resume-matcher-workstation.yml` — cross-platform contract, Bash syntax, PowerShell parser, and schema gate.
+- Runtime acceptance artifacts stay under `~/.local/state/sysadminsuite/resume-matcher/` and are never tracked.
 
 ## End-to-end validation
 
@@ -81,7 +96,7 @@ Use this map to load only the files needed for a task.
 - `docs/PYDANTIC_AI_CAPABILITY_ADAPTER_DECISION.md` — boundary for capability-oriented adapters; repo-local skills/capabilities remain authoritative.
 - `docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md` — future English report/run-context artifact contract.
 - `docs/OPERATIONAL_POSTURE.md` — lane model for survey, dashboard probes, deployment, mapping, and teardown.
-- `docs/HARNESS_DISCIPLINE.md` — full repository mutation and PR/worktree operation contract.
+- `docs/HARNESS_DISCIPLINE.md` — full Git/PR/worktree operation contract.
 - `docs/LOCAL_REFERENCE_POLICY.md` — gitignored operator-local reference rules.
 
 ## Cybernet power and display-button control

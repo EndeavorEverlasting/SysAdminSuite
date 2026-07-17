@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/EndeavorEverlasting/SysAdminSuite/schemas/harness/resume-matcher-workstation.schema.json",
+  "title": "SysAdminSuite Resume Matcher workstation deployment profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "application",
+    "runtime",
+    "services",
+    "browser",
+    "acceptance",
+    "configuration",
+    "posture"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-resume-matcher-workstation/v1"
+    },
+    "schema_path": {
+      "const": "schemas/harness/resume-matcher-workstation.schema.json"
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "repository_url",
+        "repository_ref",
+        "install_path_relative_to_home",
+        "backend_relative_path",
+        "frontend_relative_path"
+      ],
+      "properties": {
+        "name": { "const": "Resume Matcher" },
+        "repository_url": { "const": "https://github.com/srbhr/Resume-Matcher.git" },
+        "repository_ref": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._/-]+$" },
+        "install_path_relative_to_home": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$" },
+        "backend_relative_path": { "const": "apps/backend" },
+        "frontend_relative_path": { "const": "apps/frontend" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "python_version",
+        "node_major",
+        "nvm_version",
+        "uv_installer_url",
+        "nvm_repository_url"
+      ],
+      "properties": {
+        "python_version": { "const": "3.13" },
+        "node_major": { "const": "22" },
+        "nvm_version": { "const": "v0.40.6" },
+        "uv_installer_url": { "const": "https://astral.sh/uv/install.sh" },
+        "nvm_repository_url": { "const": "https://github.com/nvm-sh/nvm.git" }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tmux_session",
+        "backend_window",
+        "frontend_window",
+        "backend_port",
+        "frontend_port",
+        "backend_health_path",
+        "startup_timeout_seconds"
+      ],
+      "properties": {
+        "tmux_session": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$" },
+        "backend_window": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$" },
+        "frontend_window": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$" },
+        "backend_port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "frontend_port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "backend_health_path": { "const": "/api/v1/health" },
+        "startup_timeout_seconds": { "type": "integer", "minimum": 30, "maximum": 600 }
+      }
+    },
+    "browser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "playwright_ubuntu_2604_strategy",
+        "system_browser_command",
+        "system_browser_package_url"
+      ],
+      "properties": {
+        "playwright_ubuntu_2604_strategy": { "const": "system_chrome" },
+        "system_browser_command": { "const": "google-chrome-stable" },
+        "system_browser_package_url": { "const": "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb" }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_config_path",
+        "provider_test_path",
+        "frontend_expected_text",
+        "pdf_fixture_name",
+        "require_provider_configuration",
+        "provider_test_is_explicit_opt_in"
+      ],
+      "properties": {
+        "provider_config_path": { "const": "/api/v1/config/llm-api-key" },
+        "provider_test_path": { "const": "/api/v1/config/llm-test" },
+        "frontend_expected_text": { "const": "Resume Matcher" },
+        "pdf_fixture_name": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._-]+\\.pdf$" },
+        "require_provider_configuration": { "const": true },
+        "provider_test_is_explicit_opt_in": { "const": true }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "create_env_from_example_when_missing",
+        "clear_example_api_key_placeholder",
+        "api_key_configuration",
+        "preserve_existing_env",
+        "preserve_dirty_application_repo"
+      ],
+      "properties": {
+        "create_env_from_example_when_missing": { "const": true },
+        "clear_example_api_key_placeholder": { "const": true },
+        "api_key_configuration": { "const": "settings_ui_only" },
+        "preserve_existing_env": { "const": true },
+        "preserve_dirty_application_repo": { "const": true }
+      }
+    },
+    "posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_is_default",
+        "apply_requires_explicit_gate",
+        "install_missing_only",
+        "preserve_existing_configuration",
+        "automatic_authentication",
+        "write_api_key_to_env",
+        "tracked_runtime_evidence",
+        "fixture_process_launch"
+      ],
+      "properties": {
+        "plan_is_default": { "const": true },
+        "apply_requires_explicit_gate": { "const": true },
+        "install_missing_only": { "const": true },
+        "preserve_existing_configuration": { "const": true },
+        "automatic_authentication": { "const": false },
+        "write_api_key_to_env": { "const": false },
+        "tracked_runtime_evidence": { "const": false },
+        "fixture_process_launch": { "const": false }
+      }
+    }
+  }
+}
