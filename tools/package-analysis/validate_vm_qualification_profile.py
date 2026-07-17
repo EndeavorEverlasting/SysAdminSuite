@@ -58,13 +58,97 @@ def require_repo_reference(value: str | None, name: str, *, nullable: bool = Fal
         raise ProfileError(f"{name}_must_be_canonical_repo_reference")
 
 
+def require_reference_for_status(reference: str | None, status: str, completed_status: str, name: str) -> None:
+    if status == completed_status:
+        require_repo_reference(reference, name)
+    elif reference is not None:
+        raise ProfileError(f"{name}_must_be_null_until_{completed_status}")
+
+
+def derive_blockers(profile: dict[str, Any]) -> set[str]:
+    selector = profile["package_selector"]
+    prerequisite = profile["prerequisite_evidence"]
+    trust = profile["trust_policy"]
+    guest = profile["guest"]
+    execution = profile["execution_contract"]
+    acceptance = profile["acceptance"]
+    rollback = profile["rollback"]
+
+    blockers: set[str] = set()
+    if not prerequisite["static_analysis_complete"]:
+        blockers.add("static_analysis_incomplete")
+    if not prerequisite["semantic_analysis_complete"]:
+        blockers.add("semantic_analysis_incomplete")
+    if not prerequisite["offline_trust_complete"]:
+        blockers.add("offline_trust_incomplete")
+
+    if trust["policy_status"] == "missing":
+        blockers.add("trust_policy_missing")
+    elif trust["policy_status"] != "approved":
+        blockers.add("trust_policy_not_approved")
+
+    if prerequisite["online_revocation_status"] != "verified":
+        blockers.add("online_revocation_unproven")
+
+    if prerequisite["managed_code_present"]:
+        if prerequisite["strong_name_status"] != "verified":
+            blockers.add("strong_name_unproven")
+    elif prerequisite["strong_name_status"] != "not_applicable":
+        raise ProfileError("strong_name_status_must_be_not_applicable_without_managed_code")
+
+    if prerequisite["msi_present"]:
+        if prerequisite["msi_decode_status"] != "complete":
+            blockers.add("msi_decode_incomplete")
+    elif prerequisite["msi_decode_status"] != "not_applicable":
+        raise ProfileError("msi_decode_status_must_be_not_applicable_without_msi")
+
+    if prerequisite["sapien_detected"]:
+        if prerequisite["sapien_payload_status"] != "recovered":
+            blockers.add("exact_sapien_payload_unrecovered")
+    elif prerequisite["sapien_payload_status"] != "not_applicable":
+        raise ProfileError("sapien_payload_status_must_be_not_applicable_without_sapien")
+
+    require_reference_for_status(
+        selector["strong_name_result_reference"],
+        prerequisite["strong_name_status"],
+        "verified",
+        "strong_name_result_reference",
+    )
+    deep_evidence_complete = (
+        prerequisite["msi_decode_status"] == "complete"
+        or prerequisite["sapien_payload_status"] == "recovered"
+    )
+    if deep_evidence_complete:
+        require_repo_reference(selector["deep_analysis_result_reference"], "deep_analysis_result_reference")
+    elif selector["deep_analysis_result_reference"] is not None:
+        raise ProfileError("deep_analysis_result_reference_requires_completed_decode_evidence")
+    require_reference_for_status(
+        selector["revocation_result_reference"],
+        prerequisite["online_revocation_status"],
+        "verified",
+        "revocation_result_reference",
+    )
+
+    if execution["supported_arguments_source"] == "missing":
+        blockers.add("installer_arguments_unapproved")
+    if guest["provider"] == "unselected":
+        blockers.add("vm_provider_unselected")
+    if not execution["execution_authorized"]:
+        blockers.add("authorization_missing")
+    if acceptance["criteria_status"] != "approved":
+        blockers.add("application_acceptance_undefined")
+    if rollback["required"] is not True:
+        blockers.add("rollback_plan_missing")
+    return blockers
+
+
 def validate(profile: dict[str, Any]) -> str:
     require_keys(profile, {
         "schema_version", "schema_path", "profile_id", "package_family", "package_selector",
         "prerequisite_evidence", "trust_policy", "guest", "execution_contract",
         "acceptance", "rollback", "evidence", "decision", "proof_ceiling",
     }, "profile")
-    if profile["schema_version"] != "sas-package-vm-qualification-profile/v1":
+    if profile["schema_version"] != "sas-package-vm-qualification-profile/v2":
         raise ProfileError("schema_version_unsupported")
     if profile["schema_path"] != "schemas/harness/package-vm-qualification-profile.schema.json":
         raise ProfileError("schema_path_mismatch")
@@ -78,7 +162,10 @@ def validate(profile: dict[str, Any]) -> str:
             raise ProfileError("sensitive_assignment_value")
 
     selector = profile["package_selector"]
-    require_keys(selector, {"source_sha256", "static_result_reference", "semantic_result_reference", "trust_result_reference"}, "package_selector")
+    require_keys(selector, {
+        "source_sha256", "static_result_reference", "semantic_result_reference", "trust_result_reference",
+        "strong_name_result_reference", "deep_analysis_result_reference", "revocation_result_reference",
+    }, "package_selector")
     if not re.fullmatch(r"[A-Fa-f0-9]{64}", selector["source_sha256"]):
         raise ProfileError("source_sha256_invalid")
     require_repo_reference(selector["static_result_reference"], "static_result_reference")
@@ -88,10 +175,15 @@ def validate(profile: dict[str, Any]) -> str:
     prerequisite = profile["prerequisite_evidence"]
     require_keys(prerequisite, {
         "static_analysis_complete", "semantic_analysis_complete", "offline_trust_complete",
+        "online_revocation_required_before_pilot", "online_revocation_status",
+        "strong_name_required_if_managed", "managed_code_present", "strong_name_status",
+        "full_msi_decode_required_if_msi", "msi_present", "msi_decode_status",
+        "exact_sapien_payload_required_if_detected", "sapien_detected", "sapien_payload_status",
+    }, "prerequisite_evidence")
+    for key in (
         "online_revocation_required_before_pilot", "strong_name_required_if_managed",
         "full_msi_decode_required_if_msi", "exact_sapien_payload_required_if_detected",
-    }, "prerequisite_evidence")
-    for key in ("online_revocation_required_before_pilot", "strong_name_required_if_managed", "full_msi_decode_required_if_msi", "exact_sapien_payload_required_if_detected"):
+    ):
         if prerequisite[key] is not True:
             raise ProfileError(f"{key}_must_be_true")
 
@@ -133,8 +225,6 @@ def validate(profile: dict[str, Any]) -> str:
     require_keys(acceptance, {"criteria_status", "required_checks"}, "acceptance")
     rollback = profile["rollback"]
     require_keys(rollback, {"mode", "required", "verification_checks"}, "rollback")
-    if rollback["required"] is not True:
-        raise ProfileError("rollback_or_destroy_must_be_required")
     if set(rollback["verification_checks"]) != {"guest_reverted_or_destroyed", "package_absent_from_host", "host_postflight_clean"}:
         raise ProfileError("rollback_verification_incomplete")
 
@@ -151,20 +241,16 @@ def validate(profile: dict[str, Any]) -> str:
     if len(blockers) != len(decision["blockers"]):
         raise ProfileError("decision_blockers_must_be_unique")
 
-    if profile["package_family"] == "allscripts" and trust["policy_status"] != "approved":
-        if not ({"trust_policy_missing", "trust_policy_not_approved"} & blockers):
-            raise ProfileError("allscripts_unapproved_policy_must_block")
-        if decision["status"] != "blocked":
-            raise ProfileError("allscripts_unapproved_policy_cannot_be_ready")
+    expected_blockers = derive_blockers(profile)
+    if blockers != expected_blockers:
+        missing = ",".join(sorted(expected_blockers - blockers)) or "none"
+        stale = ",".join(sorted(blockers - expected_blockers)) or "none"
+        raise ProfileError(f"decision_blockers_mismatch:missing={missing};stale={stale}")
 
-    ready = (
-        prerequisite["static_analysis_complete"] and prerequisite["semantic_analysis_complete"] and
-        prerequisite["offline_trust_complete"] and trust["policy_status"] == "approved" and
-        guest["provider"] != "unselected" and execution["execution_authorized"] and
-        acceptance["criteria_status"] == "approved" and not blockers
-    )
-    if decision["status"] == "ready_for_authorized_vm_run" and not ready:
-        raise ProfileError("ready_status_without_complete_gates")
+    if decision["status"] == "ready_for_authorized_vm_run" and blockers:
+        raise ProfileError("ready_status_with_blockers")
+    if decision["status"] == "blocked" and not blockers:
+        raise ProfileError("blocked_status_without_blockers")
     if decision["status"] == "completed":
         raise ProfileError("completed_status_requires_separate_runtime_result_contract")
     return decision["status"]
