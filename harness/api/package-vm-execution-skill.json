@@ -1,6 +1,6 @@
 {
   "schema_version": "sas-package-vm-execution-skill/v1",
-  "skill_path": ".claude/skills/package-vm-execution/SKILL.md",
+  "skill_path": ".claude/skills/package-static-analysis/SKILL.md",
   "workflow_path": "harness/workflows/package-vm-execution.yaml",
   "profile_schema": "schemas/harness/package-vm-qualification-profile.schema.json",
   "result_schema": "schemas/harness/package-vm-execution-result.schema.json",

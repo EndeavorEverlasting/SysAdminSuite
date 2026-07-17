@@ -1,7 +1,7 @@
 {
   "schema_version": "sas-package-vm-execution-routing/v1",
   "operation_manifest": "harness/api/package-vm-execution-skill.json",
-  "skill_path": ".claude/skills/package-vm-execution/SKILL.md",
+  "skill_path": ".claude/skills/package-static-analysis/SKILL.md",
   "triggers": [
     {
       "id": "package-disposable-vm-execution-trigger",

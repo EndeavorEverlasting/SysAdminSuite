@@ -10,8 +10,7 @@ SCHEMA = ROOT / "schemas/harness/package-vm-execution-result.schema.json"
 OPERATION = ROOT / "harness/api/package-vm-execution-skill.json"
 WORKFLOW = ROOT / "harness/workflows/package-vm-execution.yaml"
 DOC = ROOT / "docs/PACKAGE_VM_EXECUTION.md"
-CAPABILITY = ROOT / ".claude/capabilities/package-vm-execution.md"
-SKILL = ROOT / ".claude/skills/package-vm-execution/SKILL.md"
+PACKAGE_SKILL = ROOT / ".claude/skills/package-static-analysis/SKILL.md"
 ROUTING = ROOT / "harness/api/package-vm-execution-routing.json"
 PROFILE = ROOT / "Tests/Fixtures/package-vm-execution/ready-profile.fixture.json"
 INSTALLER = ROOT / "Tests/Fixtures/package-vm-execution/fixture-installer.payload"
@@ -36,7 +35,9 @@ def test_operation_and_workflow_are_separate_authorized_lane():
     assert operation["vm_start"] is True
     for marker in ("admin_box_package_execution_forbidden", "checkpoint_restore_before_and_after", "physical_workstation_validation_remains_separate"):
         assert marker in operation["guardrails"]
+    assert load(OPERATION)["skill_path"] == ".claude/skills/package-static-analysis/SKILL.md"
     routing = load(ROUTING)
+    assert routing["skill_path"] == ".claude/skills/package-static-analysis/SKILL.md"
     assert routing["triggers"][0]["target"] == "package_analysis.vm_execute"
     assert routing["ambiguity_rules"]["explicit_execution_request_required"] is True
     workflow = WORKFLOW.read_text(encoding="utf-8")
@@ -90,7 +91,7 @@ def test_powershell_entrypoint_enforces_real_runtime_boundaries():
     assert "DefaultPassword" not in text
 
 def test_docs_keep_vm_and_physical_proof_separate():
-    combined = (DOC.read_text(encoding="utf-8") + CAPABILITY.read_text(encoding="utf-8") + SKILL.read_text(encoding="utf-8")).lower()
+    combined = (DOC.read_text(encoding="utf-8") + PACKAGE_SKILL.read_text(encoding="utf-8")).lower()
     for marker in ("admin box", "powerShell direct".lower(), "disconnected", "clean checkpoint", "physical-workstation", "autologon", "credentials"):
         assert marker in combined, marker
     assert "qualified in a disposable vm and eligible for a controlled physical pilot" in combined
