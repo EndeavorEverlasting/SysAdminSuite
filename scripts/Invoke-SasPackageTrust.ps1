@@ -158,7 +158,7 @@ function Get-SasSignatureStatus {
     }
 }
 
-function Normalize-SasThumbprint {
+function Format-SasThumbprint {
     [CmdletBinding()]
     param([AllowNull()][string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
@@ -185,7 +185,7 @@ function Read-SasTrustPolicy {
         if ([string]$entry.expected_sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw "Invalid expected_sha256 for $relative" }
         $requirement = [string]$entry.signature_requirement
         if ($requirement -notin @('required_valid','allow_unsigned_explicit','review_required')) { throw "Invalid signature_requirement for $relative" }
-        $thumbprints = @($entry.approved_signer_thumbprints | ForEach-Object { Normalize-SasThumbprint ([string]$_) } | Where-Object { $_ })
+        $thumbprints = @($entry.approved_signer_thumbprints | ForEach-Object { Format-SasThumbprint ([string]$_) } | Where-Object { $_ })
         $subjects = @($entry.approved_signer_subjects | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
         if ($requirement -eq 'required_valid' -and ($thumbprints.Count + $subjects.Count) -eq 0) {
             throw "required_valid entry must declare an approved signer identity: $relative"
@@ -207,9 +207,9 @@ function Find-SasPolicyEntry {
 function Test-SasSignerIdentity {
     [CmdletBinding()]
     param($PolicyEntry, [AllowNull()][string]$SignerSubject, [AllowNull()][string]$SignerThumbprint)
-    $approvedThumbprints = @($PolicyEntry.approved_signer_thumbprints | ForEach-Object { Normalize-SasThumbprint ([string]$_) } | Where-Object { $_ })
+    $approvedThumbprints = @($PolicyEntry.approved_signer_thumbprints | ForEach-Object { Format-SasThumbprint ([string]$_) } | Where-Object { $_ })
     $approvedSubjects = @($PolicyEntry.approved_signer_subjects | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    $actualThumbprint = Normalize-SasThumbprint $SignerThumbprint
+    $actualThumbprint = Format-SasThumbprint $SignerThumbprint
     if ($actualThumbprint -and $approvedThumbprints -contains $actualThumbprint) { return $true }
     foreach ($subject in $approvedSubjects) {
         if ($SignerSubject -and $SignerSubject.Equals($subject, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
@@ -275,7 +275,7 @@ foreach ($baseRecord in $baseFiles) {
             $hexCode = ConvertTo-SasHexStatus ([int]$verification.ResultCode)
             $signatureStatus = Get-SasSignatureStatus $hexCode
             $signerSubject = if ([string]::IsNullOrWhiteSpace([string]$verification.SignerSubject)) { $null } else { [string]$verification.SignerSubject }
-            $signerThumbprint = Normalize-SasThumbprint ([string]$verification.SignerThumbprint)
+            $signerThumbprint = Format-SasThumbprint ([string]$verification.SignerThumbprint)
         }
 
         $policyEntry = if ($policy) { Find-SasPolicyEntry -Policy $policy -RelativePath $relativePath } else { $null }
@@ -326,17 +326,19 @@ foreach ($baseRecord in $baseFiles) {
             }
         }
         elseif ($requirement -eq 'allow_unsigned_explicit') {
-            if ($trustScope -eq 'authenticode_candidate' -and $signatureStatus -eq 'not_signed') {
+            $wrapperUnsignedStatuses = @('not_signed', 'subject_form_unknown', 'verification_error')
+            $wrapperUnsignedEligible = $extension -in @('.cmd', '.bat') -and $signatureStatus -in $wrapperUnsignedStatuses
+            if ($signatureStatus -eq 'valid') {
+                $disposition = 'blocked'
+                $reasons.Add('signed_file_requires_required_valid_policy')
+            }
+            elseif ($trustScope -eq 'authenticode_candidate' -and ($signatureStatus -eq 'not_signed' -or $wrapperUnsignedEligible)) {
                 $disposition = 'approved'
                 $reasons.Add('unsigned_package_explicitly_approved_by_hash')
             }
             elseif ($trustScope -eq 'code_policy_required') {
                 $disposition = 'approved'
                 $reasons.Add('non_authenticode_code_explicitly_approved_by_hash')
-            }
-            elseif ($signatureStatus -eq 'valid') {
-                $disposition = 'blocked'
-                $reasons.Add('signed_file_requires_required_valid_policy')
             }
             elseif ($trustScope -eq 'hash_only_noncode') {
                 $disposition = 'approved'

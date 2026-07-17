@@ -157,7 +157,10 @@ This lane never:
 - contacts certificate, CRL, OCSP, package, endpoint, target, or VM services;
 - claims online revocation freshness;
 - treats a CLR strong-name flag or blob as verified strong-name integrity;
-- turns a trust result into application, rollback, or Cybernet proof.
+- turns a trust result into application, rollback, or Cybernet proof;
+- installs fixture or package certificates into the Windows Root or TrustedPublisher stores.
+
+Contract fixtures prove valid Authenticode with an already-trusted Windows-signed binary copy and prove untrusted or tampered signatures with ephemeral CurrentUser\\My certificates only. Interactive Security Warning dialogs are a defect, not an operator step.
 
 ## Promotion gate
 

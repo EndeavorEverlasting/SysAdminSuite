@@ -228,6 +228,167 @@
         "No_nested_tmux",
         "Lua_routes_to_managed_file_operation"
       ]
+    },
+    {
+      "id": "agent_routing.catalog.read",
+      "summary": "Read the deterministic repository task-signal catalog and resolve bounded skill, capability, or harness-operation routing.",
+      "mode": "local_read",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "harness/api/agent-routing-manifest.json",
+        "schemas/harness/agent-routing-manifest.schema.json",
+        "agent_request_text"
+      ],
+      "outputs": [
+        "matched-primary-trigger",
+        "additive-safety-triggers",
+        "selected-target",
+        "proof-ceiling"
+      ],
+      "guardrails": [
+        "Local_only",
+        "Exact_task_signals_before_fallback",
+        "Equal_priority_conflicts_fail_closed",
+        "No_trigger_authorizes_mutation",
+        "No_prompt_only_application_logic"
+      ]
+    },
+    {
+      "id": "agent_sprint_capsule.generate",
+      "summary": "Generate a machine-local-path-free, schema-backed final repository sprint handoff using the canonical run context and artifact registry.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "repository_git_state",
+        "bounded_sprint_scope",
+        "selected_skills",
+        "validation_results",
+        "proof_ceiling",
+        "next_command"
+      ],
+      "outputs": [
+        "agent-sprint-capsule.json",
+        "artifact_registry.json",
+        "summary.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Local_only",
+        "Uses_canonical_SasRunContext",
+        "Registers_generated_capsule",
+        "No_machine_local_or_home_paths_in_capsule",
+        "No_credentials_or_unapproved_secrets",
+        "No_mutation_authority",
+        "Reinspect_git_state_before_receiving_agent_mutates",
+        "Mandatory_inputs_collected_from_routing_and_workflow_mapping"
+      ]
+    },
+    {
+      "id": "package_analysis.static",
+      "summary": "Analyze local executable, MSI, archive, script, and configuration packages without executing package code.",
+      "mode": "local_read",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "operator_local_file_or_directory",
+        "optional_offline_wheelhouse",
+        "bounded_analysis_limits"
+      ],
+      "outputs": [
+        "package_analysis.json",
+        "package_analysis.txt"
+      ],
+      "guardrails": [
+        "explicit_local_input_required",
+        "no_shortcut_following",
+        "no_archive_payload_extraction",
+        "no_process_or_installer_execution",
+        "no_network_activity",
+        "no_target_or_host_mutation",
+        "raw_strings_not_emitted",
+        "signature_table_presence_is_not_trust_validation",
+        "runtime_behavior_requires_separate_vm_lane",
+        "Uses_canonical_SasRunContext"
+      ]
+    },
+    {
+      "id": "package_analysis.semantic_enrich",
+      "summary": "Re-verify local package hashes and convert static structure into bounded semantic classifications and deployment-harness requirements.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "operator_local_file_or_directory",
+        "package_analysis.json",
+        "bounded_semantic_scan_limit"
+      ],
+      "outputs": [
+        "package_semantic_analysis.json",
+        "package_semantic_analysis.txt"
+      ],
+      "guardrails": [
+        "source_hash_reverification_required",
+        "base_proof_must_be_static_only",
+        "no_shortcut_following",
+        "no_archive_payload_extraction",
+        "no_process_installer_or_custom_action_execution",
+        "no_network_activity",
+        "semantic_inferences_never_claim_runtime_confirmation",
+        "Uses_canonical_SasRunContext"
+      ]
+    },
+    {
+      "id": "package_analysis.trust",
+      "summary": "Verify source hashes, embedded Authenticode integrity, local Windows trust, and explicit signer or unsigned-package policy without executing package code.",
+      "mode": "local_read",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "operator_local_file_or_directory",
+        "sas_package_static_analysis_v1_result",
+        "optional_observation_only_mode",
+        "explicit_package_trust_policy_for_deployment_gate"
+      ],
+      "outputs": [
+        "package_trust_verification.json",
+        "package_trust_verification.txt",
+        "package_trust_policy.starter.json_in_observation_mode"
+      ],
+      "guardrails": [
+        "source_hashes_reverified",
+        "source_and_intermediate_reparse_points_rejected",
+        "winverifytrust_cache_only_url_retrieval",
+        "no_online_revocation_claim",
+        "signed_files_cannot_use_unsigned_exceptions",
+        "unlisted_code_files_fail_closed",
+        "Uses_canonical_SasRunContext"
+      ]
+    },
+    {
+      "id": "package_analysis.vm_qualification_profile_validate",
+      "summary": "Validate a package-specific disposable-VM qualification profile and report missing evidence without starting a VM.",
+      "mode": "local_read",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "operator_local_package_vm_qualification_profile",
+        "package_static_analysis_result",
+        "package_semantic_analysis_result",
+        "optional_package_trust_result"
+      ],
+      "outputs": [
+        "qualification_profile_validation"
+      ],
+      "guardrails": [
+        "no_vm_start",
+        "no_package_execution",
+        "no_network_activity",
+        "autologon_excluded",
+        "one_package_per_clean_snapshot",
+        "Uses_canonical_SasRunContext"
+      ]
     }
   ]
 }

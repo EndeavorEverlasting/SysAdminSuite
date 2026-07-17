@@ -1,0 +1,57 @@
+name: agent-sprint-capsule
+description: Compress a completed or checkpointed repository sprint into a registered, machine-local-path-free handoff capsule.
+mode: local_transform
+network_activity: false
+target_mutation: false
+inputs:
+  - sprint identity
+  - repository Git state
+  - owned and forbidden scope
+  - selected skills
+  - workflow spec
+  - expected artifacts
+  - validation commands and skipped checks
+  - proof level and ceiling
+  - completed, remaining, and blocked work
+  - next command
+input_mapping:
+  repository_git_state: inspected by the generator from the active Git repository
+  bounded_sprint_scope: SprintId, Title, Lane, Mission, OwnedPaths, ForbiddenScope, and Dependencies
+  selected_skills: PrimarySkill and AdditionalSkills
+  validation_results: ValidationCommands and SkippedChecks
+  proof_ceiling: ProofLevel, ProofCeiling, and ClaimsNotMade
+  next_command: NextCommand
+  workflow_and_artifacts: WorkflowSpec and ExpectedArtifacts
+  handoff_state: Completed, Remaining, and Blockers
+phases:
+  - id: inspect-repository
+    action: Read Git state and the repository capability manifest.
+  - id: validate-routing
+    action: Resolve selected skills and capability dependencies from repository authorities.
+  - id: create-run-context
+    action: Create the canonical agent-sprint-capsule run context.
+  - id: emit-capsule
+    action: Write the v2 capsule without absolute repo, worktree, home, or output paths.
+  - id: register-artifact
+    action: Register the capsule in sas-artifact-registry/v1.
+  - id: render-handoff
+    action: Write the compact English operator_handoff.txt.
+guardrails:
+  - Local_only
+  - No_machine_local_paths_in_capsule
+  - No_credentials_or_secrets
+  - No_trigger_authorizes_mutation
+  - Reinspect_Git_state_before_mutation
+artifacts:
+  - runs/agent-sprint-capsule/<run-id>/artifacts/agent-sprint-capsule.json
+  - runs/agent-sprint-capsule/<run-id>/artifact_registry.json
+  - runs/agent-sprint-capsule/<run-id>/summary.json
+  - runs/agent-sprint-capsule/<run-id>/operator_handoff.txt
+validation:
+  - python3 Tests/survey/test_agent_sprint_capsule_contracts.py
+  - python3 Tests/survey/test_agent_routing_manifest_contracts.py
+  - pwsh -NoProfile -File tools/validate-ai-layer.ps1
+  - pwsh -NoProfile -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester/SprintCapsule.Tests.ps1
+next_actions:
+  - Paste or load only the generated capsule, not the ignored run context containing machine-local paths.
+  - Re-inspect Git state before mutation in the receiving chat or agent session.

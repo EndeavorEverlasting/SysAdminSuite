@@ -7,13 +7,21 @@ on:
   pull_request:
     paths:
       - '.claude/skills/package-static-analysis/**'
+      - '.claude/capabilities/package-*.md'
       - 'harness/api/package-static-analysis-skill.json'
       - 'harness/api/package-semantic-analysis-skill.json'
       - 'harness/api/package-trust-verification-skill.json'
+      - 'harness/api/package-vm-qualification-skill.json'
+      - 'harness/api/agent-capability-manifest.json'
+      - 'harness/api/agent-routing-manifest.json'
+      - 'harness/api/sas-harness-api.json'
+      - 'harness/workflows/package-analysis.yaml'
       - 'schemas/harness/package-static-analysis-result.schema.json'
       - 'schemas/harness/package-semantic-analysis-result.schema.json'
       - 'schemas/harness/package-trust-policy.schema.json'
       - 'schemas/harness/package-trust-verification-result.schema.json'
+      - 'schemas/harness/package-vm-qualification-profile.schema.json'
+      - 'Tests/Fixtures/package-vm-qualification/**'
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
@@ -23,21 +31,32 @@ on:
       - 'docs/PACKAGE_STATIC_ANALYSIS.md'
       - 'docs/PACKAGE_SEMANTIC_ANALYSIS.md'
       - 'docs/PACKAGE_TRUST_VERIFICATION.md'
+      - 'docs/PACKAGE_VM_QUALIFICATION_PROFILES.md'
       - 'Tests/survey/test_package_static_analysis_contracts.py'
       - 'Tests/survey/test_package_semantic_analysis_contracts.py'
       - 'Tests/survey/Test-PackageTrustVerificationContracts.ps1'
+      - 'Tests/survey/test_package_vm_qualification_profile_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/package-static-analysis.yml'
   push:
     branches: [main, 'feat/**', 'repair/**', 'test/**']
     paths:
       - '.claude/skills/package-static-analysis/**'
+      - '.claude/capabilities/package-*.md'
       - 'harness/api/package-static-analysis-skill.json'
       - 'harness/api/package-semantic-analysis-skill.json'
       - 'harness/api/package-trust-verification-skill.json'
+      - 'harness/api/package-vm-qualification-skill.json'
+      - 'harness/api/agent-capability-manifest.json'
+      - 'harness/api/agent-routing-manifest.json'
+      - 'harness/api/sas-harness-api.json'
+      - 'harness/workflows/package-analysis.yaml'
       - 'schemas/harness/package-static-analysis-result.schema.json'
       - 'schemas/harness/package-semantic-analysis-result.schema.json'
       - 'schemas/harness/package-trust-policy.schema.json'
       - 'schemas/harness/package-trust-verification-result.schema.json'
+      - 'schemas/harness/package-vm-qualification-profile.schema.json'
+      - 'Tests/Fixtures/package-vm-qualification/**'
       - 'tools/package-analysis/**'
       - 'scripts/Invoke-SasPackageStaticAnalysis.ps1'
       - 'scripts/Invoke-SasPackageSemanticAnalysis.ps1'
@@ -47,9 +66,12 @@ on:
       - 'docs/PACKAGE_STATIC_ANALYSIS.md'
       - 'docs/PACKAGE_SEMANTIC_ANALYSIS.md'
       - 'docs/PACKAGE_TRUST_VERIFICATION.md'
+      - 'docs/PACKAGE_VM_QUALIFICATION_PROFILES.md'
       - 'Tests/survey/test_package_static_analysis_contracts.py'
       - 'Tests/survey/test_package_semantic_analysis_contracts.py'
       - 'Tests/survey/Test-PackageTrustVerificationContracts.ps1'
+      - 'Tests/survey/test_package_vm_qualification_profile_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/package-static-analysis.yml'
 
 jobs:
@@ -67,20 +89,33 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile package analyzers and contracts
-        run: python -m py_compile tools/package-analysis/analyze_package.py tools/package-analysis/enrich_package_semantics.py Tests/survey/test_package_static_analysis_contracts.py Tests/survey/test_package_semantic_analysis_contracts.py
+        run: >-
+          python -m py_compile
+          tools/package-analysis/analyze_package.py
+          tools/package-analysis/enrich_package_semantics.py
+          tools/package-analysis/validate_vm_qualification_profile.py
+          Tests/survey/test_package_static_analysis_contracts.py
+          Tests/survey/test_package_semantic_analysis_contracts.py
+          Tests/survey/test_package_vm_qualification_profile_contracts.py
       - name: Execute static package contracts
         run: python Tests/survey/test_package_static_analysis_contracts.py
       - name: Execute semantic package contracts
         run: python Tests/survey/test_package_semantic_analysis_contracts.py
+      - name: Execute VM qualification profile contracts
+        run: python Tests/survey/test_package_vm_qualification_profile_contracts.py
       - name: Execute package trust contracts
         if: runner.os == 'Windows'
-        timeout-minutes: 6
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $logPath = Join-Path $env:RUNNER_TEMP 'package-trust-contract.log'
-          & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\Test-PackageTrustVerificationContracts.ps1 2>&1 |
-            ForEach-Object { [string]$_ } |
-            Tee-Object -FilePath $logPath
+          Set-Content -LiteralPath $logPath -Value "package-trust-contract start $(Get-Date -Format o)" -Encoding utf8
+          & pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\Test-PackageTrustVerificationContracts.ps1 *>&1 |
+            ForEach-Object {
+              $line = [string]$_
+              Add-Content -LiteralPath $logPath -Value $line -Encoding utf8
+              $line
+            }
           $exitCode = $LASTEXITCODE
           if ($exitCode -ne 0) { exit $exitCode }
       - name: Upload package trust diagnostics
@@ -91,9 +126,9 @@ jobs:
           path: ${{ runner.temp }}/package-trust-contract.log
           if-no-files-found: error
           retention-days: 7
-      - name: Validate result schema posture
+      - name: Validate result and profile schema posture
         run: >-
-          python -c 'import json,pathlib; paths=["schemas/harness/package-static-analysis-result.schema.json","schemas/harness/package-semantic-analysis-result.schema.json","schemas/harness/package-trust-policy.schema.json","schemas/harness/package-trust-verification-result.schema.json"]; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+"schema") == "https://json-schema.org/draft/2020-12/schema" and s["additionalProperties"] is False for s in schemas); print("PASS: package result and policy schema posture")'
+          python -c 'import json,pathlib; paths=["schemas/harness/package-static-analysis-result.schema.json","schemas/harness/package-semantic-analysis-result.schema.json","schemas/harness/package-trust-policy.schema.json","schemas/harness/package-trust-verification-result.schema.json","schemas/harness/package-vm-qualification-profile.schema.json"]; schemas=[json.loads(pathlib.Path(p).read_text()) for p in paths]; assert all(s.get(chr(36)+"schema") == "https://json-schema.org/draft/2020-12/schema" and s["additionalProperties"] is False for s in schemas); print("PASS: package schema posture")'
       - name: Bash syntax
         if: runner.os != 'Windows'
         run: |

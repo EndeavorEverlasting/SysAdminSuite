@@ -34,7 +34,7 @@
       "required": ["provided", "schema_version", "policy_id", "sha256", "observation_only"],
       "properties": {
         "provided": {"type": "boolean"},
-        "schema_version": {"type": ["string", "null"]},
+        "schema_version": {"oneOf": [{"const": "sas-package-trust-policy/v1"}, {"type": "null"}]},
         "policy_id": {"type": ["string", "null"]},
         "sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
         "observation_only": {"type": "boolean"}

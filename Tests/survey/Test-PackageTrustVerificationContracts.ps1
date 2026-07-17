@@ -31,6 +31,8 @@ function Get-FixtureFileClass {
         '.ps1' { 'script' }
         '.py' { 'script' }
         '.zip' { 'archive' }
+        '.exe' { 'portable_executable' }
+        '.dll' { 'portable_executable' }
         default { 'other' }
     }
 }
@@ -133,6 +135,45 @@ function Invoke-TrustChild {
     return $exitCode
 }
 
+function New-EphemeralCodeSigningCert {
+    # In-memory/My-store only. Never install into Root or TrustedPublisher (those stores raise interactive Security Warning UI).
+    $rsa = [System.Security.Cryptography.RSA]::Create(2048)
+    $request = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+        'CN=SysAdminSuite Fixture Signer',
+        $rsa,
+        [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+        [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+    )
+    $request.CertificateExtensions.Add(
+        [System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($false, $false, 0, $false)
+    )
+    $request.CertificateExtensions.Add(
+        [System.Security.Cryptography.X509Certificates.X509KeyUsageExtension]::new(
+            [System.Security.Cryptography.X509Certificates.X509KeyUsageFlags]::DigitalSignature,
+            $true
+        )
+    )
+    $ekuOids = [System.Security.Cryptography.OidCollection]::new()
+    [void]$ekuOids.Add([System.Security.Cryptography.Oid]::new('1.3.6.1.5.5.7.3.3', 'Code Signing'))
+    $request.CertificateExtensions.Add(
+        [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]::new($ekuOids, $false)
+    )
+    $notBefore = [DateTimeOffset]::UtcNow.AddMinutes(-5)
+    $notAfter = $notBefore.AddDays(2)
+    $ephemeral = $request.CreateSelfSigned($notBefore, $notAfter)
+    $securePassword = ConvertTo-SecureString -String ('fixture-' + [guid]::NewGuid().ToString('N')) -AsPlainText -Force
+    $pfxBytes = $ephemeral.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, $securePassword)
+    $ephemeral.Dispose()
+    return [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+        $pfxBytes,
+        $securePassword,
+        [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bor
+        [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet -bor
+        [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::UserKeySet
+    )
+}
+
+Write-Host 'SETUP START: package trust contract surfaces'
 foreach ($path in @($trustScript, $interopPath, $policySchema, $resultSchema, $manifestPath, $docPath, $skillPath, $workflowPath)) {
     Assert-True (Test-Path -LiteralPath $path -PathType Leaf) "Missing required package trust file: $path"
 }
@@ -166,36 +207,46 @@ foreach ($required in @(
 foreach ($forbidden in @('Get-AuthenticodeSignature', 'Invoke-WebRequest', 'Invoke-RestMethod', 'Start-Process', 'Invoke-Command', 'New-PSSession')) {
     Assert-True (-not $scriptText.Contains($forbidden)) "Forbidden trust implementation surface found: $forbidden"
 }
+Assert-True (-not $scriptText.Contains('TrustedPublisher')) 'Trust engine must not mutate TrustedPublisher.'
+Assert-True (-not $scriptText.Contains("X509Store('Root'")) 'Trust engine must not mutate Root.'
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-package-trust-' + [guid]::NewGuid().ToString('N'))
 $fixture = Join-Path $tempRoot 'fixture'
 New-Item -ItemType Directory -Path $fixture -Force | Out-Null
 $cert = $null
-$stores = New-Object System.Collections.Generic.List[System.Security.Cryptography.X509Certificates.X509Store]
+$myStore = $null
 
 try {
+    Write-Host 'SETUP: writing fixture files'
     $unsignedPath = Join-Path $fixture 'unsigned.ps1'
-    $signedPath = Join-Path $fixture 'signed.ps1'
+    $selfSignedPath = Join-Path $fixture 'selfsigned.ps1'
+    $trustedSignedPath = Join-Path $fixture 'trusted-signed.exe'
     $pythonPath = Join-Path $fixture 'tool.py'
     $archivePath = Join-Path $fixture 'bundle.zip'
     $noncodePath = Join-Path $fixture 'readme.txt'
     Set-Content -LiteralPath $unsignedPath -Encoding UTF8 -Value "Write-Output 'fixture'"
-    Set-Content -LiteralPath $signedPath -Encoding UTF8 -Value "Write-Output 'signed fixture'"
+    Set-Content -LiteralPath $selfSignedPath -Encoding UTF8 -Value "Write-Output 'self-signed fixture'"
     Set-Content -LiteralPath $pythonPath -Encoding UTF8 -Value "print('fixture')"
     [System.IO.File]::WriteAllBytes($archivePath, [byte[]](80, 75, 3, 4, 0, 0, 0, 0))
     Set-Content -LiteralPath $noncodePath -Encoding UTF8 -Value 'fixture resource'
 
-    $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=SysAdminSuite Fixture Signer' -CertStoreLocation 'Cert:\CurrentUser\My' -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2)
-    foreach ($storeName in @('Root', 'TrustedPublisher')) {
-        $store = New-Object System.Security.Cryptography.X509Certificates.X509Store($storeName, [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
-        $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-        $store.Add($cert)
-        $stores.Add($store)
-    }
-    $signature = Set-AuthenticodeSignature -FilePath $signedPath -Certificate $cert -HashAlgorithm SHA256
-    Assert-True ([string]$signature.Status -in @('Valid', 'UnknownError')) 'Fixture signing failed.'
+    # Valid Authenticode proof uses an already-trusted Windows binary copy. Never install fixture roots.
+    $systemSignedSource = (Get-Command pwsh -ErrorAction Stop).Source
+    Assert-True (Test-Path -LiteralPath $systemSignedSource -PathType Leaf) "Missing system-signed source: $systemSignedSource"
+    [System.IO.File]::Copy($systemSignedSource, $trustedSignedPath, $true)
+    Write-Host "SETUP: copied system-signed binary from pwsh for valid Authenticode proof"
 
-    $allPaths = @('unsigned.ps1', 'signed.ps1', 'tool.py', 'bundle.zip', 'readme.txt')
+    Write-Host 'SETUP: creating ephemeral code-signing certificate in CurrentUser\\My only'
+    $cert = New-EphemeralCodeSigningCert
+    $myStore = New-Object System.Security.Cryptography.X509Certificates.X509Store('My', [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
+    $myStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+    $myStore.Add($cert)
+    Write-Host 'SETUP: signing self-signed script without Root/TrustedPublisher trust'
+    $signature = Set-AuthenticodeSignature -FilePath $selfSignedPath -Certificate $cert -HashAlgorithm SHA256
+    Assert-True ([string]$signature.Status -in @('Valid', 'UnknownError', 'NotTrusted')) "Fixture signing failed: $($signature.Status) $($signature.StatusMessage)"
+    Write-Host 'SETUP END: fixtures ready (no Root or TrustedPublisher mutation)'
+
+    $allPaths = @('unsigned.ps1', 'selfsigned.ps1', 'trusted-signed.exe', 'tool.py', 'bundle.zip', 'readme.txt')
     $basePath = Join-Path $tempRoot 'base.json'
     Write-BaseResult -InputRoot $fixture -RelativePaths $allPaths -Path $basePath
 
@@ -209,18 +260,21 @@ try {
     $observedByPath = @{}
     foreach ($record in $observe.files) { $observedByPath[[string]$record.relative_path] = $record }
     Assert-True ([string]$observedByPath['unsigned.ps1'].signature_status -eq 'not_signed') 'Unsigned fixture status mismatch.'
-    Assert-True ([string]$observedByPath['signed.ps1'].signature_status -eq 'valid') 'Signed fixture status mismatch.'
+    Assert-True ([string]$observedByPath['trusted-signed.exe'].signature_status -eq 'valid') "System-signed fixture status mismatch: $($observedByPath['trusted-signed.exe'].signature_status)"
+    Assert-True ([string]$observedByPath['selfsigned.ps1'].signature_status -notin @('valid', 'not_signed')) 'Self-signed fixture unexpectedly looked fully trusted or unsigned.'
     Assert-True ([string]$observedByPath['tool.py'].trust_scope -eq 'code_policy_required') 'Python code was treated as non-code.'
     Assert-True ([string]$observedByPath['bundle.zip'].trust_scope -eq 'code_policy_required') 'Archive was treated as non-code.'
     Assert-True (Test-Path -LiteralPath (Join-Path $observeOut 'package_trust_policy.starter.json')) 'Observation mode must emit a starter policy.'
+    $trustedThumbprint = [string]$observedByPath['trusted-signed.exe'].signer_thumbprint
+    Assert-True (-not [string]::IsNullOrWhiteSpace($trustedThumbprint)) 'Trusted signed fixture must expose a signer thumbprint.'
 
     $approvedBasePath = Join-Path $tempRoot 'approved-base.json'
-    Write-BaseResult -InputRoot $fixture -RelativePaths @('unsigned.ps1', 'signed.ps1', 'tool.py', 'readme.txt') -Path $approvedBasePath
+    Write-BaseResult -InputRoot $fixture -RelativePaths @('unsigned.ps1', 'trusted-signed.exe', 'tool.py', 'readme.txt') -Path $approvedBasePath
     $approvedPolicyPath = Join-Path $tempRoot 'approved-policy.json'
     Write-Policy -Entries @(
         (New-PolicyEntry -RelativePath 'unsigned.ps1' -SourcePath $unsignedPath -Requirement 'allow_unsigned_explicit' -ApprovalReference 'FIXTURE-UNSIGNED'),
         (New-PolicyEntry -RelativePath 'tool.py' -SourcePath $pythonPath -Requirement 'allow_unsigned_explicit' -ApprovalReference 'FIXTURE-PYTHON'),
-        (New-PolicyEntry -RelativePath 'signed.ps1' -SourcePath $signedPath -Requirement 'required_valid' -Thumbprints @($cert.Thumbprint) -ApprovalReference 'FIXTURE-SIGNER')
+        (New-PolicyEntry -RelativePath 'trusted-signed.exe' -SourcePath $trustedSignedPath -Requirement 'required_valid' -Thumbprints @($trustedThumbprint) -ApprovalReference 'FIXTURE-SIGNER')
     ) -Path $approvedPolicyPath
     $approvedOut = Join-Path $tempRoot 'approved'
     $exit = Invoke-TrustChild -Scenario 'approved signer and explicit code exceptions' -Arguments @('-InputPath', $fixture, '-BaseResultPath', $approvedBasePath, '-TrustPolicyPath', $approvedPolicyPath, '-OutputRoot', $approvedOut, '-FixtureMode')
@@ -228,14 +282,14 @@ try {
     $approved = Get-Content -LiteralPath (Join-Path $approvedOut 'package_trust_verification.json') -Raw | ConvertFrom-Json
     Assert-True ([string]$approved.summary.overall_disposition -eq 'approved_for_vm_intake') 'Approved composite should pass VM intake.'
     Assert-True ($approved.summary.deployment_approved -eq $true) 'Approved composite must set deployment_approved.'
-    $approvedSigned = @($approved.files | Where-Object { $_.relative_path -eq 'signed.ps1' })[0]
-    Assert-True ($approvedSigned.signer_identity_match -eq $true) 'Signed fixture signer identity did not match policy.'
+    $approvedSigned = @($approved.files | Where-Object { $_.relative_path -eq 'trusted-signed.exe' })[0]
+    Assert-True ($approvedSigned.signer_identity_match -eq $true) 'Trusted signed fixture signer identity did not match policy.'
 
     $blockedBasePath = Join-Path $tempRoot 'blocked-base.json'
-    Write-BaseResult -InputRoot $fixture -RelativePaths @('signed.ps1', 'tool.py', 'bundle.zip') -Path $blockedBasePath
+    Write-BaseResult -InputRoot $fixture -RelativePaths @('trusted-signed.exe', 'tool.py', 'bundle.zip') -Path $blockedBasePath
     $blockedPolicyPath = Join-Path $tempRoot 'blocked-policy.json'
     Write-Policy -Entries @(
-        (New-PolicyEntry -RelativePath 'signed.ps1' -SourcePath $signedPath -Requirement 'allow_unsigned_explicit' -ApprovalReference 'INVALID-SIGNED-EXCEPTION'),
+        (New-PolicyEntry -RelativePath 'trusted-signed.exe' -SourcePath $trustedSignedPath -Requirement 'allow_unsigned_explicit' -ApprovalReference 'INVALID-SIGNED-EXCEPTION'),
         (New-PolicyEntry -RelativePath 'bundle.zip' -SourcePath $archivePath -Requirement 'review_required' -ApprovalReference 'OPAQUE-REVIEW')
     ) -Path $blockedPolicyPath
     $blockedOut = Join-Path $tempRoot 'blocked'
@@ -244,23 +298,30 @@ try {
     $blocked = Get-Content -LiteralPath (Join-Path $blockedOut 'package_trust_verification.json') -Raw | ConvertFrom-Json
     $blockedByPath = @{}
     foreach ($record in $blocked.files) { $blockedByPath[[string]$record.relative_path] = $record }
-    Assert-True ([string]$blockedByPath['signed.ps1'].disposition -eq 'blocked') 'Signed file passed an unsigned exception.'
-    Assert-True (@($blockedByPath['signed.ps1'].reasons) -contains 'signed_file_requires_required_valid_policy') 'Signed misuse reason missing.'
+    Assert-True ([string]$blockedByPath['trusted-signed.exe'].disposition -eq 'blocked') 'Signed file passed an unsigned exception.'
+    Assert-True (@($blockedByPath['trusted-signed.exe'].reasons) -contains 'signed_file_requires_required_valid_policy') 'Signed misuse reason missing.'
     Assert-True ([string]$blockedByPath['tool.py'].disposition -eq 'blocked') 'Unlisted Python code must be blocked.'
     Assert-True ([string]$blockedByPath['bundle.zip'].disposition -eq 'blocked') 'Opaque archive must be blocked.'
     Assert-True (@($blockedByPath['bundle.zip'].reasons) -contains 'opaque_code_container_requires_component_intake') 'Opaque archive reason missing.'
 
-    $tamperBase = Get-Content -LiteralPath $approvedBasePath -Raw | ConvertFrom-Json
-    Set-Content -LiteralPath $unsignedPath -Encoding UTF8 -Value "Write-Output 'changed after base'"
-    Add-Content -LiteralPath $signedPath -Encoding UTF8 -Value '# tampered after signing'
-    $signedBaseRecord = @($tamperBase.files | Where-Object { $_.relative_path -eq 'signed.ps1' })[0]
-    $signedBaseRecord.sha256 = Get-Sha256 -Path $signedPath
     $tamperBasePath = Join-Path $tempRoot 'tamper-base.json'
+    Write-BaseResult -InputRoot $fixture -RelativePaths @('unsigned.ps1', 'selfsigned.ps1', 'tool.py') -Path $tamperBasePath
+    Set-Content -LiteralPath $unsignedPath -Encoding UTF8 -Value "Write-Output 'changed after base'"
+    # Corrupt signed body bytes while leaving the trailing Authenticode block present so WinTrust reports digest failure, not not_signed.
+    $signedText = [System.IO.File]::ReadAllText($selfSignedPath)
+    Assert-True ($signedText -match 'SIG # End signature block') 'Self-signed fixture is missing an Authenticode signature block.'
+    $tamperedText = $signedText.Replace("Write-Output 'self-signed fixture'", "Write-Output 'self-signed fixture TAMPERED'")
+    Assert-True ($tamperedText -ne $signedText) 'Failed to corrupt self-signed fixture body.'
+    [System.IO.File]::WriteAllText($selfSignedPath, $tamperedText)
+    # Keep unsigned base hash stale (continuity failure). Refresh self-signed base hash so WinTrust evaluates the broken signature.
+    $tamperBase = Get-Content -LiteralPath $tamperBasePath -Raw | ConvertFrom-Json
+    $selfSignedBaseRecord = @($tamperBase.files | Where-Object { $_.relative_path -eq 'selfsigned.ps1' })[0]
+    $selfSignedBaseRecord.sha256 = Get-Sha256 -Path $selfSignedPath
     $tamperBase | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $tamperBasePath -Encoding UTF8
     $tamperPolicyPath = Join-Path $tempRoot 'tamper-policy.json'
     Write-Policy -Entries @(
         (New-PolicyEntry -RelativePath 'unsigned.ps1' -SourcePath $unsignedPath -Requirement 'allow_unsigned_explicit' -ApprovalReference 'HASH-MISMATCH-EXPECTED'),
-        (New-PolicyEntry -RelativePath 'signed.ps1' -SourcePath $signedPath -Requirement 'allow_unsigned_explicit' -ApprovalReference 'TAMPER-MUST-BLOCK'),
+        (New-PolicyEntry -RelativePath 'selfsigned.ps1' -SourcePath $selfSignedPath -Requirement 'allow_unsigned_explicit' -ApprovalReference 'TAMPER-MUST-BLOCK'),
         (New-PolicyEntry -RelativePath 'tool.py' -SourcePath $pythonPath -Requirement 'allow_unsigned_explicit' -ApprovalReference 'FIXTURE-PYTHON')
     ) -Path $tamperPolicyPath
     $tamperOut = Join-Path $tempRoot 'tamper'
@@ -268,30 +329,20 @@ try {
     Assert-True ($exit -eq 4) "Tamper composite should return 4, received $exit`n$script:LastTrustChildOutput"
     $tamper = Get-Content -LiteralPath (Join-Path $tamperOut 'package_trust_verification.json') -Raw | ConvertFrom-Json
     Assert-True (@($tamper.errors | Where-Object { $_.relative_path -eq 'unsigned.ps1' -and $_.message -eq 'hash_mismatch_since_base_analysis' }).Count -eq 1) 'Hash mismatch evidence missing.'
-    $tamperedSigned = @($tamper.files | Where-Object { $_.relative_path -eq 'signed.ps1' })[0]
+    $tamperedSigned = @($tamper.files | Where-Object { $_.relative_path -eq 'selfsigned.ps1' })[0]
     Assert-True ([string]$tamperedSigned.disposition -eq 'blocked') 'Tampered signature must remain blocked.'
     Assert-True ([string]$tamperedSigned.signature_status -notin @('valid', 'not_signed')) 'Tampered signature was treated as valid or unsigned.'
 }
 finally {
-    foreach ($store in $stores) {
+    if ($myStore) {
         try {
-            if ($cert) { $store.Remove($cert) }
+            if ($cert) { $myStore.Remove($cert) }
         } finally {
-            $store.Close()
-            $store.Dispose()
+            $myStore.Close()
+            $myStore.Dispose()
         }
     }
-    if ($cert) {
-        $my = New-Object System.Security.Cryptography.X509Certificates.X509Store('My', [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
-        try {
-            $my.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-            $my.Remove($cert)
-        } finally {
-            $my.Close()
-            $my.Dispose()
-            $cert.Dispose()
-        }
-    }
+    if ($cert) { $cert.Dispose() }
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 

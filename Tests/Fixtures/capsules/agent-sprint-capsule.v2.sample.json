@@ -1,0 +1,103 @@
+{
+  "schema_version": "sas-agent-sprint-capsule/v2",
+  "schema_path": "schemas/harness/agent-sprint-capsule.schema.json",
+  "capsule": {
+    "capsule_id": "ai-harness-routing-handoff-capsule",
+    "generated_at": "2026-07-16T18:00:00Z",
+    "generator_version": "2.0.0",
+    "workflow_id": "agent-sprint-capsule",
+    "run_id": "agent-sprint-capsule-20260716-180000-a1b2c3d4",
+    "output_path": "runs/agent-sprint-capsule/agent-sprint-capsule-20260716-180000-a1b2c3d4/artifacts/agent-sprint-capsule.json",
+    "artifact_registry_path": "runs/agent-sprint-capsule/agent-sprint-capsule-20260716-180000-a1b2c3d4/artifact_registry.json"
+  },
+  "repository": {
+    "slug": "EndeavorEverlasting/SysAdminSuite",
+    "base_branch": "main",
+    "head_branch": "feat/ai-harness-routing-handoff-v2",
+    "head_sha": "7499f5791b1591bc113160863b976001367f0077",
+    "worktree_clean": true,
+    "dirty_paths": []
+  },
+  "sprint": {
+    "id": "ai-harness-routing-handoff",
+    "title": "AI harness routing and handoff convergence",
+    "lane": "harness",
+    "mission": "Make fresh-agent routing deterministic and produce a compressed schema-backed final handoff."
+  },
+  "scope": {
+    "owned_paths": [
+      "harness/api",
+      "schemas/harness",
+      "tools/New-SasSprintCapsule.ps1",
+      "Tests/survey"
+    ],
+    "forbidden_scope": [
+      "dashboard",
+      "scripts/Invoke-SasSoftwareInstall.ps1",
+      "targets/local"
+    ],
+    "dependencies": []
+  },
+  "routing": {
+    "primary_skill": "repository-sprint",
+    "additional_skills": [
+      "scoped-validation"
+    ],
+    "capability_ids": [
+      "end-to-end-testing",
+      "mutation-and-evidence-boundaries",
+      "proof-and-checkpointing",
+      "repository-evidence"
+    ],
+    "workflow_spec": "harness/workflows/agent-sprint-capsule.yaml"
+  },
+  "artifacts": {
+    "expected": [
+      "harness/api/agent-routing-manifest.json",
+      "schemas/harness/agent-sprint-capsule.schema.json"
+    ],
+    "generated": [
+      "runs/agent-sprint-capsule/agent-sprint-capsule-20260716-180000-a1b2c3d4/artifacts/agent-sprint-capsule.json",
+      "runs/agent-sprint-capsule/agent-sprint-capsule-20260716-180000-a1b2c3d4/artifact_registry.json",
+      "runs/agent-sprint-capsule/agent-sprint-capsule-20260716-180000-a1b2c3d4/summary.json",
+      "runs/agent-sprint-capsule/agent-sprint-capsule-20260716-180000-a1b2c3d4/operator_handoff.txt"
+    ]
+  },
+  "validation": {
+    "ordered_commands": [
+      "python3 Tests/survey/test_agent_routing_manifest_contracts.py",
+      "python3 Tests/survey/test_agent_sprint_capsule_contracts.py",
+      "pwsh -NoProfile -File tools/validate-ai-layer.ps1"
+    ],
+    "skipped_checks": [
+      "No live target or runtime proof was required."
+    ]
+  },
+  "proof": {
+    "level": "P6_E2E_fixture",
+    "ceiling": "Repository contract, fixture, run-context, artifact-registration, and CI proof only.",
+    "claims_not_made": [
+      "No live target was contacted.",
+      "No external agent framework execution was observed."
+    ]
+  },
+  "handoff": {
+    "completed": [
+      "Added deterministic routing.",
+      "Added schema-backed handoff compression."
+    ],
+    "remaining": [
+      "Merge after final-head CI and maintainer review."
+    ],
+    "blockers": [],
+    "next_command": "gh pr checks --watch",
+    "final_response_sections": [
+      "CONTEXT",
+      "WORK COMMITTED",
+      "VALIDATION",
+      "BLOCKERS / GAPS",
+      "FINAL GIT STATE",
+      "NEXT COMMAND"
+    ]
+  }
+}

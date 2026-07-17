@@ -17,6 +17,8 @@ python3 Tests/survey/test_cybernet_display_button_control_contracts.py
 python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
+python3 Tests/survey/test_agent_routing_manifest_contracts.py
+python3 Tests/survey/test_agent_sprint_capsule_contracts.py
 python3 Tests/survey/test_developer_workstation_agent_harness_contracts.py
 python3 Tests/survey/test_developer_workstation_profile_contracts.py
 python3 Tests/survey/test_developer_workstation_lifecycle_contracts.py
@@ -33,6 +35,10 @@ python3 Tests/survey/test_autodidact_install_capsule_contracts.py
 python3 Tests/survey/test_authorized_deployment_manifest_contracts.py
 python3 Tests/survey/test_authorized_package_intake_contracts.py
 python3 Tests/survey/test_qr_field_command_capsule_contracts.py
+python3 Tests/survey/test_package_static_analysis_contracts.py
+python3 Tests/survey/test_package_semantic_analysis_contracts.py
+python3 Tests/survey/test_package_vm_qualification_profile_contracts.py
+
 
 has_powershell=0
 if command -v pwsh >/dev/null 2>&1; then

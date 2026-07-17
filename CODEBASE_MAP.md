@@ -9,10 +9,24 @@ Use this map to load only the files needed for a task.
 - `.claude/skills/*/SKILL.md` — task workflows that compose reusable capabilities.
 - `.claude/capabilities/*.md` — stable atomic rules shared by multiple skills.
 - `harness/api/agent-capability-manifest.json` — machine-readable skill/capability catalog and dependency graph.
+- `harness/api/agent-routing-manifest.json` — deterministic task-signal catalog; equal-priority primary conflicts fail closed.
 - `schemas/harness/agent-capability-manifest.schema.json` — fail-closed catalog schema.
 - `tools/validate-ai-layer.ps1` — validates the instruction architecture, required safety language, and local-data exclusions.
 - `Tests/survey/test_agent_instruction_factoring_contracts.py` — dependency-free factoring and anti-bloat contract.
 - `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
+- `Tests/survey/test_agent_routing_manifest_contracts.py` — deterministic routing and package-operation wiring contract.
+
+## Package analysis
+
+- `.claude/skills/package-static-analysis/SKILL.md` — umbrella package workflow across static, semantic, offline trust, and VM qualification.
+- `.claude/capabilities/package-*.md` — atomic package inspection, semantic enrichment, offline trust, and VM-qualification capabilities.
+- `harness/workflows/package-analysis.yaml` — canonical package-analysis workflow mapping inputs to entrypoints.
+- `harness/api/package-static-analysis-skill.json`, `package-semantic-analysis-skill.json`, `package-trust-verification-skill.json`, `package-vm-qualification-skill.json` — operation manifests.
+- `scripts/Invoke-SasPackageTrust.ps1` and `tools/package-analysis/SasPackageTrustInterop.cs` — cache-only WinTrust trust gate.
+- `tools/package-analysis/validate_vm_qualification_profile.py` — fail-closed disposable-VM qualification validator; never starts a VM.
+- `docs/PACKAGE_STATIC_ANALYSIS.md`, `PACKAGE_SEMANTIC_ANALYSIS.md`, `PACKAGE_TRUST_VERIFICATION.md`, `PACKAGE_VM_QUALIFICATION_PROFILES.md` — operator guides and proof ceilings.
+- `Tests/survey/test_package_*_contracts.py` and `Tests/survey/Test-PackageTrustVerificationContracts.ps1` — focused package contracts.
+- `.github/workflows/package-static-analysis.yml` — Ubuntu/Windows package-analysis CI gate.
 
 ## Developer workstation provisioning
 
