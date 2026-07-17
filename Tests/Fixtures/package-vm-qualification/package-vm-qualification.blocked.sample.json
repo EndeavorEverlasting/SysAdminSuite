@@ -1,5 +1,5 @@
 {
-  "schema_version": "sas-package-vm-qualification-profile/v1",
+  "schema_version": "sas-package-vm-qualification-profile/v2",
   "schema_path": "schemas/harness/package-vm-qualification-profile.schema.json",
   "profile_id": "allscripts-client-blocked-sample",
   "package_family": "allscripts",
@@ -7,16 +7,26 @@
     "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "static_result_reference": "survey/output/package-analysis/allscripts/package_analysis.json",
     "semantic_result_reference": "survey/output/package-analysis/allscripts/package_semantic_analysis.json",
-    "trust_result_reference": null
+    "trust_result_reference": null,
+    "strong_name_result_reference": null,
+    "deep_analysis_result_reference": null,
+    "revocation_result_reference": null
   },
   "prerequisite_evidence": {
     "static_analysis_complete": true,
     "semantic_analysis_complete": true,
     "offline_trust_complete": false,
     "online_revocation_required_before_pilot": true,
+    "online_revocation_status": "unproven",
     "strong_name_required_if_managed": true,
+    "managed_code_present": true,
+    "strong_name_status": "unproven",
     "full_msi_decode_required_if_msi": true,
-    "exact_sapien_payload_required_if_detected": true
+    "msi_present": true,
+    "msi_decode_status": "unproven",
+    "exact_sapien_payload_required_if_detected": true,
+    "sapien_detected": true,
+    "sapien_payload_status": "unproven"
   },
   "trust_policy": {
     "package_family_policy_required": true,
@@ -84,6 +94,8 @@
       "trust_policy_missing",
       "online_revocation_unproven",
       "strong_name_unproven",
+      "exact_sapien_payload_unrecovered",
+      "msi_decode_incomplete",
       "installer_arguments_unapproved",
       "vm_provider_unselected",
       "authorization_missing",
