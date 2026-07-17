@@ -40,4 +40,5 @@ dependencies for harness consumers and future bounded adapters.
 | [Package Static Inspection](package-static-inspection.md) | Inventory packages without execution. |
 | [Package Semantic Enrichment](package-semantic-enrichment.md) | Convert static structure into bounded semantic harness requirements. |
 | [Package Offline Trust Verification](package-offline-trust-verification.md) | Cache-only Authenticode and explicit trust-policy gating. |
+| [Package CLR Strong-Name Verification](package-clr-strong-name-verification.md) | Offline CLR strong-name integrity for managed assemblies. |
 | [Package VM Qualification Validation](package-vm-qualification-validation.md) | Fail-closed disposable-VM qualification without starting a VM. |

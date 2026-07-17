@@ -365,6 +365,45 @@
       "proof_ceiling": "Cache-only Authenticode integrity and explicit local trust policy only; online revocation and application approval remain unproven."
     },
     {
+      "id": "package-strong-name-verification-trigger",
+      "summary": "Route CLR strong-name integrity verification for managed package assemblies.",
+      "deterministic_task_signals": [
+        "CLR strong-name verification",
+        "strong-name signature validation",
+        "managed assembly strong name",
+        "package strong name verification",
+        "dotnet strong name"
+      ],
+      "priority": 64,
+      "composition_mode": "primary",
+      "target_type": "harness_operation",
+      "target": "package_analysis.strong_name",
+      "required_inputs": [
+        "operator_local_file_or_directory",
+        "sas_package_static_analysis_v1_result",
+        "bounded_analysis_limits"
+      ],
+      "outputs": [
+        "package_strong_name_verification.json",
+        "package_strong_name_verification.txt"
+      ],
+      "preconditions": [
+        "static package result exists"
+      ],
+      "guardrails": [
+        "never execute the package",
+        "Authenticode remains a separate lane",
+        "no online revocation",
+        "no mutation authority"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_package_strong_name_verification_contracts.py"
+      ],
+      "proof_ceiling": "CLR strong-name integrity only; Authenticode publisher trust and runtime behavior remain unproven."
+    },
+    {
       "id": "package-vm-qualification-trigger",
       "summary": "Route disposable-VM readiness, package qualification profile, acceptance, and rollback-plan validation.",
       "deterministic_task_signals": [
@@ -374,7 +413,7 @@
         "package rollback plan",
         "ready for package VM"
       ],
-      "priority": 64,
+      "priority": 63,
       "composition_mode": "primary",
       "target_type": "harness_operation",
       "target": "package_analysis.vm_qualification_profile_validate",
