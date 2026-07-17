@@ -90,6 +90,17 @@ fail() { printf '[sas-install] ERROR: %s\n' "$*" >&2; exit 1; }
 log()  { printf '[sas-install] %s\n' "$*" >&2; }
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
+windows_path() {
+  local path="$1"
+  if [[ "$path" == \\\\* ]]; then
+    printf '%s' "$path"
+  elif has_cmd cygpath; then
+    cygpath -w "$path"
+  else
+    printf '%s' "$path"
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --targets)     TARGETS_RAW="${2:?missing value for --targets}"; shift 2 ;;
@@ -541,13 +552,23 @@ foreach (\$path in @((Join-Path \$PSScriptRoot 'Start-Installer.ps1'), \$PSComma
       Remove-Item -LiteralPath \$path -Force -ErrorAction SilentlyContinue
     }
   } catch {
-    Write-Warning "Teardown warning removing transient payload \$path: \$($_.Exception.Message)"
+    Write-Warning "Teardown warning removing transient payload \${path}: \$($_.Exception.Message)"
   }
 }
 EOF
   log "Worker teardown enabled for transient payloads and scheduled task."
 else
   log "WARN: --no-teardown requested; transient target payloads may remain for debugging."
+fi
+
+if has_cmd powershell.exe; then
+  WORKER_SCRIPT_WINDOWS="$(windows_path "$WORKER_SCRIPT_PATH")"
+  if ! SAS_WORKER_PATH="$WORKER_SCRIPT_WINDOWS" MSYS_NO_PATHCONV=1 \
+      powershell.exe -NoProfile -NonInteractive -Command \
+      '$tokens = $null; $errors = $null; [void][System.Management.Automation.Language.Parser]::ParseFile($env:SAS_WORKER_PATH, [ref]$tokens, [ref]$errors); if (@($errors).Count -gt 0) { foreach ($parseError in $errors) { [Console]::Error.WriteLine(("WORKER_PARSE_ERROR: {0}: {1}" -f $parseError.Extent.Text, $parseError.Message)) }; exit 1 }'; then
+    fail "generated PowerShell worker failed local syntax preflight"
+  fi
+  log "Worker syntax preflight passed with Windows PowerShell."
 fi
 
 # ---------------------------------------------------------------------------
@@ -595,17 +616,6 @@ smb_put() {
     printf 'smb_put FAIL: %s\n' "$out" >&2; return 1
   fi
   return 0
-}
-
-windows_path() {
-  local path="$1"
-  if [[ "$path" == \\\\* ]]; then
-    printf '%s' "$path"
-  elif has_cmd cygpath; then
-    cygpath -w "$path"
-  else
-    printf '%s' "$path"
-  fi
 }
 
 remote_unc_path() {

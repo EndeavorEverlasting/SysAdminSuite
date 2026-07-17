@@ -11,6 +11,13 @@ map_target_unc() {
   printf '%s/%s' "$SIM_REMOTE_ROOT" "$value"
 }
 
+if [[ -n "${SAS_WORKER_PATH:-}" ]]; then
+  [[ -f "$SAS_WORKER_PATH" ]]
+  ! grep -Fq '$path:' "$SAS_WORKER_PATH"
+  grep -Fq '${path}:' "$SAS_WORKER_PATH"
+  exit 0
+fi
+
 if [[ -n "${SAS_ADMIN_SHARE:-}" ]]; then
   exit 0
 fi

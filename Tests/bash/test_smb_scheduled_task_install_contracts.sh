@@ -63,6 +63,10 @@ grep -Fq "Start-Process -FilePath \"msiexec.exe\"" "$WORKER" || fail "worker mus
 grep -Fq -- "-InstallerPattern 'EPIC_BCA_Web-Shortcut_1.0.msi'" "$WORKER" || fail "worker must pin the BCA MSI"
 grep -Fq -- "-SilentArgs @('/qn', '/norestart')" "$WORKER" || fail "worker must use cataloged BCA arguments"
 grep -Fq 'Worker self-teardown provides best-effort cleanup' "$WORKER" || fail "worker must include fallback teardown"
+if grep -Fq '$path:' "$WORKER"; then
+  fail "worker teardown warning must not contain invalid PowerShell variable syntax"
+fi
+grep -Fq '${path}:' "$WORKER" || fail "worker teardown warning must delimit the path variable"
 
 # Windows Python emits CRLF. Reproduce that behavior on Linux and prove that
 # package metadata is normalized before it reaches paths or console output.
@@ -137,6 +141,7 @@ bash "$SCRIPT" \
 for fragment in \
   'transport=windows-native' \
   'Staged pinned package: EPIC_BCA_Web-Shortcut_1.0.msi' \
+  'Worker syntax preflight passed with Windows PowerShell.' \
   'Task triggered; waiting up to 10s' \
   'Result copied locally:' \
   'HOST_OK' \
