@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import subprocess
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -217,9 +219,29 @@ def main() -> None:
         test_api_docs_skill_and_ci_are_wired,
         test_jsonschema_when_available,
     ]
+    diagnostic_lines: list[str] = []
+    diagnostic_path = os.environ.get("SAS_VM_QUALIFICATION_DIAGNOSTIC")
     for item in tests:
-        item()
-    print(f"PASS: {len(tests)} package VM qualification profile contracts")
+        start = f"RUN: {item.__name__}"
+        print(start, flush=True)
+        diagnostic_lines.append(start)
+        try:
+            item()
+        except Exception:
+            failure = f"FAIL: {item.__name__}\n{traceback.format_exc()}"
+            print(failure, file=sys.stderr, flush=True)
+            diagnostic_lines.append(failure)
+            if diagnostic_path:
+                Path(diagnostic_path).write_text("\n".join(diagnostic_lines) + "\n", encoding="utf-8")
+            raise
+        passed = f"PASS: {item.__name__}"
+        print(passed, flush=True)
+        diagnostic_lines.append(passed)
+    summary = f"PASS: {len(tests)} package VM qualification profile contracts"
+    print(summary)
+    diagnostic_lines.append(summary)
+    if diagnostic_path:
+        Path(diagnostic_path).write_text("\n".join(diagnostic_lines) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
