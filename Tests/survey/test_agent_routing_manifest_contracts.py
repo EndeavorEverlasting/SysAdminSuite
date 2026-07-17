@@ -86,11 +86,33 @@ def test_harness_operation_targets_exist_and_do_not_mutate() -> None:
 
 def test_package_and_handoff_routes_are_current() -> None:
     by_target = {item["target"]: item for item in load(ROUTING)["triggers"]}
+    operations = {item["id"]: item for item in load(HARNESS_API)["operations"]}
     assert "package-static-analysis" in by_target
     assert "package semantic analysis" in [s.lower() for s in by_target["package-static-analysis"]["deterministic_task_signals"]]
+    assert "package functionality analysis" in [s.lower() for s in by_target["package-static-analysis"]["deterministic_task_signals"]]
+    assert "package_analysis.trust" in by_target
+    assert "package trust policy" in [s.lower() for s in by_target["package_analysis.trust"]["deterministic_task_signals"]]
+    assert set(by_target["package_analysis.trust"]["required_inputs"]) == set(operations["package_analysis.trust"]["inputs"])
+    assert "package_analysis.vm_qualification_profile_validate" in by_target
+    assert "package qualification profile" in [
+        s.lower() for s in by_target["package_analysis.vm_qualification_profile_validate"]["deterministic_task_signals"]
+    ]
+    assert set(by_target["package_analysis.vm_qualification_profile_validate"]["required_inputs"]) == set(
+        operations["package_analysis.vm_qualification_profile_validate"]["inputs"]
+    )
+    for operation_id in (
+        "package_analysis.static",
+        "package_analysis.semantic_enrich",
+        "package_analysis.trust",
+        "package_analysis.vm_qualification_profile_validate",
+    ):
+        assert operation_id in operations
+        assert operations[operation_id]["network_activity"] is False
+        assert operations[operation_id]["target_mutation"] is False
+    assert (ROOT / "harness/workflows/package-analysis.yaml").is_file()
     capsule = by_target["agent_sprint_capsule.generate"]
     assert "final handoff compression" in [s.lower() for s in capsule["deterministic_task_signals"]]
-    operation = {item["id"]: item for item in load(HARNESS_API)["operations"]}["agent_sprint_capsule.generate"]
+    operation = operations["agent_sprint_capsule.generate"]
     assert set(capsule["required_inputs"]) == set(operation["inputs"])
     assert capsule["proof_ceiling"] == "schema, fixture, run-context, artifact-registration, and local handoff proof"
 

@@ -346,6 +346,103 @@
         "Tests/survey/test_developer_workstation_agent_harness_contracts.py",
         "Tests/survey/test_agent_capability_manifest_contracts.py"
       ]
+    },
+    {
+      "id": "package-static-inspection",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/package-static-inspection.md",
+      "summary": "Inventory operator-local packages without execution and emit bounded static analysis evidence.",
+      "lanes": [
+        "package-analysis",
+        "harness",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/package-static-analysis-skill.json",
+        "tools/package-analysis/analyze_package.py",
+        "docs/PACKAGE_STATIC_ANALYSIS.md"
+      ],
+      "validators": [
+        "Tests/survey/test_package_static_analysis_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "package-semantic-enrichment",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/package-semantic-enrichment.md",
+      "summary": "Re-verify static hashes and emit semantic package classifications plus harness requirements.",
+      "lanes": [
+        "package-analysis",
+        "harness",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/package-semantic-analysis-skill.json",
+        "tools/package-analysis/enrich_package_semantics.py",
+        "docs/PACKAGE_SEMANTIC_ANALYSIS.md"
+      ],
+      "validators": [
+        "Tests/survey/test_package_semantic_analysis_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "package-offline-trust-verification",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/package-offline-trust-verification.md",
+      "summary": "Evaluate cache-only Authenticode trust and explicit package trust policy without online revocation.",
+      "lanes": [
+        "package-analysis",
+        "harness",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/package-trust-verification-skill.json",
+        "scripts/Invoke-SasPackageTrust.ps1",
+        "docs/PACKAGE_TRUST_VERIFICATION.md"
+      ],
+      "validators": [
+        "Tests/survey/Test-PackageTrustVerificationContracts.ps1",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "package-vm-qualification-validation",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/package-vm-qualification-validation.md",
+      "summary": "Validate package-specific disposable-VM qualification profiles without starting a VM.",
+      "lanes": [
+        "package-analysis",
+        "harness",
+        "validation",
+        "runtime-proof"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/package-vm-qualification-skill.json",
+        "tools/package-analysis/validate_vm_qualification_profile.py",
+        "docs/PACKAGE_VM_QUALIFICATION_PROFILES.md"
+      ],
+      "validators": [
+        "Tests/survey/test_package_vm_qualification_profile_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
     }
   ],
   "skills": [
@@ -589,12 +686,16 @@
     {
       "id": "package-static-analysis",
       "path": ".claude/skills/package-static-analysis/SKILL.md",
-      "summary": "Inspect private software packages without execution and derive bounded static and semantic harness requirements.",
+      "summary": "Inspect private software packages without execution across static, semantic, offline trust, and VM-qualification gates.",
       "capability_ids": [
         "language-runtime-selection",
         "mutation-and-evidence-boundaries",
         "proof-and-checkpointing",
-        "end-to-end-testing"
+        "end-to-end-testing",
+        "package-static-inspection",
+        "package-semantic-enrichment",
+        "package-offline-trust-verification",
+        "package-vm-qualification-validation"
       ],
       "lanes": [
         "package-analysis",
@@ -609,12 +710,21 @@
       "authority_paths": [
         "harness/api/package-static-analysis-skill.json",
         "harness/api/package-semantic-analysis-skill.json",
-        "docs/PACKAGE_SEMANTIC_ANALYSIS.md"
+        "harness/api/package-trust-verification-skill.json",
+        "harness/api/package-vm-qualification-skill.json",
+        "harness/workflows/package-analysis.yaml",
+        "docs/PACKAGE_STATIC_ANALYSIS.md",
+        "docs/PACKAGE_SEMANTIC_ANALYSIS.md",
+        "docs/PACKAGE_TRUST_VERIFICATION.md",
+        "docs/PACKAGE_VM_QUALIFICATION_PROFILES.md"
       ],
       "validators": [
         "Tests/survey/test_package_static_analysis_contracts.py",
         "Tests/survey/test_package_semantic_analysis_contracts.py",
-        "Tests/survey/test_agent_capability_manifest_contracts.py"
+        "Tests/survey/Test-PackageTrustVerificationContracts.ps1",
+        "Tests/survey/test_package_vm_qualification_profile_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_routing_manifest_contracts.py"
       ]
     }
   ]

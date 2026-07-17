@@ -281,14 +281,15 @@
     },
     {
       "id": "package-static-analysis-trigger",
-      "summary": "Route non-executing EXE, MSI, archive, packaged-script, and semantic package analysis.",
+      "summary": "Route non-executing EXE, MSI, archive, and semantic package inspection requests.",
       "deterministic_task_signals": [
         "analyze this installer",
         "inspect this EXE",
         "inspect this MSI",
         "package static analysis",
         "package semantic analysis",
-        "SAPIEN package"
+        "SAPIEN package",
+        "package functionality analysis"
       ],
       "priority": 60,
       "composition_mode": "primary",
@@ -308,7 +309,8 @@
       "guardrails": [
         "never execute the package",
         "never contact discovered endpoints",
-        "do not emit raw private strings"
+        "do not emit raw private strings",
+        "no mutation authority"
       ],
       "owner": "Harness Spine",
       "validators": [
@@ -316,7 +318,90 @@
         "Tests/survey/test_package_static_analysis_contracts.py",
         "Tests/survey/test_package_semantic_analysis_contracts.py"
       ],
-      "proof_ceiling": "Bounded static and semantic inference only; installation and application behavior remain unproven."
+      "proof_ceiling": "Bounded static and semantic inference only; trust, qualification, installation, and application behavior remain unproven."
+    },
+    {
+      "id": "package-trust-verification-trigger",
+      "summary": "Route offline Authenticode, signer, trust-policy, and tamper-verification package requests.",
+      "deterministic_task_signals": [
+        "Authenticode verification",
+        "package signer policy",
+        "package trust policy",
+        "unsigned exception approval",
+        "tamper verification",
+        "package signature trust"
+      ],
+      "priority": 65,
+      "composition_mode": "primary",
+      "target_type": "harness_operation",
+      "target": "package_analysis.trust",
+      "required_inputs": [
+        "operator_local_file_or_directory",
+        "sas_package_static_analysis_v1_result",
+        "optional_observation_only_mode",
+        "explicit_package_trust_policy_for_deployment_gate"
+      ],
+      "outputs": [
+        "package_trust_verification.json",
+        "package_trust_verification.txt",
+        "package_trust_policy.starter.json_in_observation_mode"
+      ],
+      "preconditions": [
+        "static package result exists",
+        "Windows trust API available for verification"
+      ],
+      "guardrails": [
+        "cache-only URL retrieval",
+        "no online revocation",
+        "never execute the package",
+        "invalid signatures remain blocked",
+        "no mutation authority"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/Test-PackageTrustVerificationContracts.ps1"
+      ],
+      "proof_ceiling": "Cache-only Authenticode integrity and explicit local trust policy only; online revocation and application approval remain unproven."
+    },
+    {
+      "id": "package-vm-qualification-trigger",
+      "summary": "Route disposable-VM readiness, package qualification profile, acceptance, and rollback-plan validation.",
+      "deterministic_task_signals": [
+        "disposable VM readiness",
+        "package qualification profile",
+        "application acceptance criteria",
+        "package rollback plan",
+        "ready for package VM"
+      ],
+      "priority": 64,
+      "composition_mode": "primary",
+      "target_type": "harness_operation",
+      "target": "package_analysis.vm_qualification_profile_validate",
+      "required_inputs": [
+        "operator_local_package_vm_qualification_profile",
+        "package_static_analysis_result",
+        "package_semantic_analysis_result",
+        "optional_package_trust_result"
+      ],
+      "outputs": [
+        "qualification_profile_validation"
+      ],
+      "preconditions": [
+        "prior package analysis artifacts exist"
+      ],
+      "guardrails": [
+        "validator never starts a VM",
+        "never execute the package",
+        "AutoLogon excluded",
+        "no mutation authority"
+      ],
+      "owner": "Harness Spine",
+      "validators": [
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_package_vm_qualification_profile_contracts.py"
+      ],
+      "proof_ceiling": "Fail-closed qualification-profile validation only; VM startup and application behavior remain unproven."
     },
     {
       "id": "agent-sprint-capsule-trigger",

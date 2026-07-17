@@ -37,3 +37,7 @@ dependencies for harness consumers and future bounded adapters.
 | [Workstation Agent Domain Resolution](workstation-agent-domain-resolution.md) | Preserve native, bridge, missing, and authentication truth. |
 | [AgentSwitchboard Invocation](agentswitchboard-invocation.md) | Enforce the structured cross-repository request/result boundary. |
 | [Workstation Rollback](workstation-rollback.md) | Restore only manifest-owned configuration and launch surfaces. |
+| [Package Static Inspection](package-static-inspection.md) | Inventory packages without execution. |
+| [Package Semantic Enrichment](package-semantic-enrichment.md) | Convert static structure into bounded semantic harness requirements. |
+| [Package Offline Trust Verification](package-offline-trust-verification.md) | Cache-only Authenticode and explicit trust-policy gating. |
+| [Package VM Qualification Validation](package-vm-qualification-validation.md) | Fail-closed disposable-VM qualification without starting a VM. |

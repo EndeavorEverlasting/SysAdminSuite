@@ -25,7 +25,8 @@ This document is the operational index for a fresh agent entering SysAdminSuite.
 | Deterministic task routing | `harness/api/agent-routing-manifest.json` | Implemented; routes only, never authorizes mutation |
 | Scoped skills | `.claude/skills/*/SKILL.md` | Implemented |
 | Reusable capabilities | `.claude/capabilities/*.md` | Implemented |
-| Workflow specs | `.archon/workflows/`, `survey/workflows/`, `harness/workflows/` | Implemented by lane |
+| Workflow specs | `.archon/workflows/`, `survey/workflows/`, `harness/workflows/` including `package-analysis.yaml` | Implemented by lane |
+| Package analysis lane | static → semantic → offline trust → VM qualification | Implemented; deep decoding and private-package runtime remain later waves |
 | Run context | `scripts/SasRunContext.psm1` | Implemented |
 | Artifact registry | `sas-artifact-registry/v1` through `SasRunContext.psm1` | Implemented |
 | Harness API | `harness/api/sas-harness-api.json` | Implemented |
