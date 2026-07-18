@@ -1,0 +1,45 @@
+{
+  "schema_version": "sas-production-install-proof-skill/v1",
+  "skill_path": ".claude/skills/end-to-end-validation/SKILL.md",
+  "source_runtime_authority": {
+    "pull_request": 222,
+    "title": "feat: harden Resume Matcher deployment and live acceptance",
+    "supported_result_schema": "sas-resume-matcher-workstation-result/v1"
+  },
+  "operation": {
+    "id": "software_install.production_proof_ingest",
+    "summary": "Validate operator-local live software-installation acceptance evidence, hash it in place, and emit a public-safe proof receipt without re-running the installation.",
+    "mode": "local_transform",
+    "network_activity": false,
+    "target_mutation": false,
+    "package_execution": false,
+    "inputs": [
+      "operator_local_live_acceptance_result_json",
+      "source_pull_request_number",
+      "validation_date",
+      "environment_class",
+      "operator_confirmation"
+    ],
+    "outputs": [
+      "production_install_proof_receipt.json",
+      "production_install_proof_receipt.txt",
+      "artifact_registry.json",
+      "summary.json",
+      "operator_handoff.txt"
+    ],
+    "guardrails": [
+      "source_evidence_hashed_in_place",
+      "source_evidence_never_copied",
+      "fixture_evidence_never_claims_production_proof",
+      "operator_confirmation_required_for_live_acceptance",
+      "no_hostnames_usernames_credentials_provider_secrets_or_raw_logs_emitted",
+      "no_machine_local_paths_emitted_in_receipt",
+      "no_package_or_application_execution",
+      "no_network_activity",
+      "no_target_mutation",
+      "uses_canonical_SasRunContext_and_artifact_registry",
+      "proof_applies_only_to_exact_evidence_digest_and_observed_workstation"
+    ],
+    "proof_ceiling": "exact_source_digest_plus_live_application_acceptance_and_operator_attested_environment_only"
+  }
+}

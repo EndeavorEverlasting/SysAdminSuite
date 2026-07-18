@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/EndeavorEverlasting/SysAdminSuite/schemas/harness/production-install-proof-receipt.schema.json",
+  "title": "SysAdminSuite production installation proof receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workflow_id",
+    "outcome",
+    "reason_codes",
+    "source",
+    "event",
+    "proof",
+    "privacy",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-production-install-proof-receipt/v1" },
+    "workflow_id": { "const": "production-install-proof-ingest" },
+    "outcome": { "enum": ["validated", "contract-only", "blocked"] },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9-]+$", "maxLength": 96 }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_pr",
+        "source_pr_role",
+        "source_schema_version",
+        "source_workflow_id",
+        "source_evidence_sha256",
+        "source_evidence_size_bytes",
+        "source_evidence_retained_operator_local",
+        "source_evidence_copied_to_output"
+      ],
+      "properties": {
+        "source_pr": { "const": 222 },
+        "source_pr_role": { "const": "runtime-lane-authority" },
+        "source_schema_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "source_workflow_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "source_evidence_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "source_evidence_size_bytes": { "type": "integer", "minimum": 2 },
+        "source_evidence_retained_operator_local": { "const": true },
+        "source_evidence_copied_to_output": { "const": false }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["validation_date", "environment_class", "operator_confirmed", "contract_fixture"],
+      "properties": {
+        "validation_date": { "type": "string", "format": "date" },
+        "environment_class": {
+          "enum": ["production_corporate_network", "production_isolated", "authorized_pilot"]
+        },
+        "operator_confirmed": { "type": "boolean" },
+        "contract_fixture": { "type": "boolean" }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proof_level", "production_install_accepted", "machine_observed", "operator_attested"],
+      "properties": {
+        "proof_level": { "enum": ["live_production_acceptance", "sanitized_fixture_contract", "insufficient"] },
+        "production_install_accepted": { "type": "boolean" },
+        "machine_observed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "install_completed",
+            "configuration_applied",
+            "launcher_started",
+            "backend_health_observed",
+            "frontend_health_observed",
+            "browser_launch_observed",
+            "pdf_export_observed",
+            "live_runtime",
+            "acceptance_completed",
+            "provider_configured",
+            "frontend_content_observed",
+            "provider_health_observed"
+          ],
+          "properties": {
+            "install_completed": { "type": "boolean" },
+            "configuration_applied": { "type": "boolean" },
+            "launcher_started": { "type": "boolean" },
+            "backend_health_observed": { "type": "boolean" },
+            "frontend_health_observed": { "type": "boolean" },
+            "browser_launch_observed": { "type": "boolean" },
+            "pdf_export_observed": { "type": "boolean" },
+            "live_runtime": { "type": "boolean" },
+            "acceptance_completed": { "type": "boolean" },
+            "provider_configured": { "type": "boolean" },
+            "frontend_content_observed": { "type": "boolean" },
+            "provider_health_observed": { "type": "boolean" }
+          }
+        },
+        "operator_attested": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["production_environment", "corporate_network"],
+          "properties": {
+            "production_environment": { "type": "boolean" },
+            "corporate_network": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hostnames_emitted",
+        "usernames_emitted",
+        "credentials_emitted",
+        "provider_secrets_emitted",
+        "machine_local_paths_emitted",
+        "raw_logs_emitted"
+      ],
+      "properties": {
+        "hostnames_emitted": { "const": false },
+        "usernames_emitted": { "const": false },
+        "credentials_emitted": { "const": false },
+        "provider_secrets_emitted": { "const": false },
+        "machine_local_paths_emitted": { "const": false },
+        "raw_logs_emitted": { "const": false }
+      }
+    },
+    "proof_ceiling": { "type": "string", "minLength": 40, "maxLength": 1024 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "outcome": { "const": "validated" } }, "required": ["outcome"] },
+      "then": {
+        "properties": {
+          "event": {
+            "properties": {
+              "operator_confirmed": { "const": true },
+              "contract_fixture": { "const": false }
+            }
+          },
+          "proof": {
+            "properties": {
+              "proof_level": { "const": "live_production_acceptance" },
+              "production_install_accepted": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "outcome": { "const": "contract-only" } }, "required": ["outcome"] },
+      "then": {
+        "properties": {
+          "event": { "properties": { "contract_fixture": { "const": true } } },
+          "proof": {
+            "properties": {
+              "proof_level": { "const": "sanitized_fixture_contract" },
+              "production_install_accepted": { "const": false }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

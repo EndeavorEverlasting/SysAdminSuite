@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/EndeavorEverlasting/SysAdminSuite/schemas/harness/production-install-proof-routing.schema.json",
+  "title": "SysAdminSuite production install proof routing",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "operation", "deterministic_task_signals", "additive_guard", "proof_ceiling"],
+  "properties": {
+    "schema_version": { "const": "sas-production-install-proof-routing/v1" },
+    "operation": { "const": "software_install.production_proof_ingest" },
+    "deterministic_task_signals": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 4, "maxLength": 128 }
+    },
+    "additive_guard": { "const": "live-data-guard" },
+    "proof_ceiling": { "type": "string", "minLength": 20, "maxLength": 512 }
+  }
+}

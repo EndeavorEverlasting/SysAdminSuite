@@ -1,0 +1,55 @@
+{
+  "schema_version": "sas-resume-matcher-workstation-result/v1",
+  "workflow_id": "resume-matcher-workstation",
+  "operation": "accept",
+  "outcome": "success",
+  "lifecycle_state": "accepted",
+  "reason_codes": [
+    "accepted"
+  ],
+  "message": "Sanitized contract fixture that must never become production proof.",
+  "configuration": {
+    "profile": "sanitized-profile",
+    "application_root": "operator-local-application-root",
+    "api_key_automated": false,
+    "fixture_mode": true,
+    "provider_health_required": false
+  },
+  "inventory": {
+    "repo_present": true,
+    "repo_dirty": false,
+    "uv_available": true,
+    "node_available": true,
+    "python_ready": true,
+    "browser_ready": true,
+    "tmux_available": true,
+    "backend_healthy": true,
+    "frontend_healthy": true
+  },
+  "acceptance": {
+    "runtime_reused": true,
+    "frontend_content_observed": true,
+    "browser_launch_observed": true,
+    "pdf_export_observed": true,
+    "provider_configured": true,
+    "provider_health_observed": false,
+    "provider": null,
+    "model": null,
+    "pdf_artifact_path": "operator-local-sanitized-pdf",
+    "pdf_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "pdf_size_bytes": 4096,
+    "acceptance_completed": true
+  },
+  "proof": {
+    "install_completed": true,
+    "configuration_applied": true,
+    "launcher_started": true,
+    "backend_health_observed": true,
+    "frontend_health_observed": true,
+    "browser_launch_observed": true,
+    "pdf_export_observed": true,
+    "provider_health_observed": false,
+    "live_runtime": true,
+    "acceptance_completed": true
+  }
+}

@@ -1,0 +1,86 @@
+name: Production installation proof contracts
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'tools/production-install-proof/**'
+      - 'scripts/Import-SasProductionInstallProof.ps1'
+      - 'schemas/harness/production-install-proof-*.schema.json'
+      - 'harness/api/production-install-proof-*.json'
+      - 'harness/workflows/production-install-proof-ingest.yaml'
+      - 'Tests/Fixtures/production-install-proof/**'
+      - 'Tests/survey/test_production_install_proof_contracts.py'
+      - 'docs/PRODUCTION_INSTALL_PROOF_HARNESS.md'
+      - '.github/workflows/production-install-proof.yml'
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'test/**']
+    paths:
+      - 'tools/production-install-proof/**'
+      - 'scripts/Import-SasProductionInstallProof.ps1'
+      - 'schemas/harness/production-install-proof-*.schema.json'
+      - 'harness/api/production-install-proof-*.json'
+      - 'harness/workflows/production-install-proof-ingest.yaml'
+      - 'Tests/Fixtures/production-install-proof/**'
+      - 'Tests/survey/test_production_install_proof_contracts.py'
+      - 'docs/PRODUCTION_INSTALL_PROOF_HARNESS.md'
+      - '.github/workflows/production-install-proof.yml'
+
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install contract dependencies
+        run: python -m pip install jsonschema PyYAML
+      - name: Compile and run production-proof contracts
+        run: |
+          python -m py_compile tools/production-install-proof/ingest_production_install_proof.py Tests/survey/test_production_install_proof_contracts.py
+          python Tests/survey/test_production_install_proof_contracts.py
+      - name: Parse manifests and validate receipt schema
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import yaml
+          from jsonschema import Draft202012Validator
+
+          for path in (
+              Path('schemas/harness/production-install-proof-receipt.schema.json'),
+              Path('schemas/harness/production-install-proof-routing.schema.json'),
+              Path('harness/api/production-install-proof-routing.json'),
+              Path('harness/api/production-install-proof-skill.json'),
+          ):
+              json.loads(path.read_text(encoding='utf-8'))
+          Draft202012Validator.check_schema(json.loads(Path('schemas/harness/production-install-proof-receipt.schema.json').read_text(encoding='utf-8')))
+          yaml.safe_load(Path('harness/workflows/production-install-proof-ingest.yaml').read_text(encoding='utf-8'))
+          print('PASS: production installation proof manifests and schemas')
+          PY
+      - name: PowerShell parser
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\scripts\Import-SasProductionInstallProof.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+          'PASS: production proof PowerShell parser'
