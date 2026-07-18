@@ -1,0 +1,33 @@
+schema_version: sas-harness-workflow/v1
+id: production-install-proof-ingest
+summary: Validate operator-local live installation evidence and generate a sanitized proof receipt.
+mode: local_transform
+operation: software_install.production_proof_ingest
+entrypoint: scripts/Import-SasProductionInstallProof.ps1
+inputs:
+  - operator_local_live_acceptance_result_json
+  - source_pull_request_number
+  - validation_date
+  - environment_class
+  - operator_confirmation
+outputs:
+  - production_install_proof_receipt.json
+  - production_install_proof_receipt.txt
+  - artifact_registry.json
+  - summary.json
+  - operator_handoff.txt
+preconditions:
+  - source evidence exists as a regular operator-local JSON file
+  - source evidence is the non-fixture result from the authorized runtime lane
+  - operator explicitly confirms the environment and validation date
+guardrails:
+  - no network activity during ingestion
+  - no package or application execution
+  - no target mutation
+  - source evidence is hashed in place and never copied
+  - fixtures cannot produce live-production proof
+  - receipt contains no hostname, username, credential, secret, raw log, or machine-local path
+validators:
+  - Tests/survey/test_production_install_proof_contracts.py
+  - schemas/harness/production-install-proof-receipt.schema.json
+proof_ceiling: Exact evidence digest, observed acceptance flags, and operator-attested environment/date only.
