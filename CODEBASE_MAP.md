@@ -137,6 +137,24 @@ Use this map to load only the files needed for a task.
 - `Tests/Pester/` — PowerShell test suite for Windows tooling.
 - `SysAdminSuite.sln` and `managed-tests/` — .NET validation surface.
 
+## AI provider catalog and agent feedback
+
+- `Config/ai-provider-catalog.json` — catalog of known AI model providers with free/paid tier classification, free-token priority, and fallback ordering.
+- `schemas/harness/ai-provider-catalog.schema.json` — fail-closed provider catalog schema.
+- `schemas/harness/agent-feedback-event.schema.json` — schema for agent/model feedback votes.
+- `scripts/Invoke-SasAgentFeedback.ps1` — cast a feedback vote on an agent or model contribution.
+- `scripts/Show-SasAgentFeedbackSummary.ps1` — read aggregated feedback summary for orchestrator routing.
+- `scripts/Show-SasActiveAgent.ps1` — display currently active agent, backend, model, provider, tier, and free-token status.
+- `docs/AGENT_FEEDBACK_AND_ROUTING.md` — feedback contract, vote values, evidence paths, orchestrator routing rules.
+- `docs/TECHNICIAN_WORKSTATION_QUICKSTART.md` — one-command technician setup for WezTerm, tmux, agents, models, and feedback.
+- `.claude/skills/ai-provider-catalog/SKILL.md` — skill for provider catalog, model routing, fallback chain, feedback, and agent visibility.
+- `.claude/skills/agent-feedback/SKILL.md` — skill for agent/model feedback voting, summary, orchestrator routing, and active agent display.
+
+## Agent capability manifest
+
+- `harness/api/agent-capability-manifest.json` — machine-readable catalog of 15 capabilities and 10 skills with dependency graph, posture, authority paths, and validators.
+- `schemas/harness/agent-capability-manifest.schema.json` — fail-closed schema admitting optional `version` on skill entries.
+
 ## Local data boundaries
 
 - `targets/local/`, `logs/targets/`, `survey/input/`, `survey/output/`, `survey/artifacts/`, `logs/nmap/`, and `Mapping/Output/GuiRuns/` are local/evidence areas unless a tracked sample path explicitly says otherwise.

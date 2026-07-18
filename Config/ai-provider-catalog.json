@@ -1,0 +1,265 @@
+{
+  "$schema": "../schemas/harness/ai-provider-catalog.schema.json",
+  "schema_version": "sas-ai-provider-catalog/v1",
+  "catalog_policy": {
+    "free_model_priority": true,
+    "free_tokens_before_paid": true,
+    "free_to_paid_fallback": true,
+    "local_model_preference": true,
+    "provider_authentication_never_automatic": true,
+    "fallback_chain_logging_required": true,
+    "agent_feedback_tracking_enabled": true,
+    "feedback_gates_orchestrator_routing": true
+  },
+  "tier_fallback_order": [
+    "free_local",
+    "free_cloud_free_tokens",
+    "free_cloud_trial",
+    "paid"
+  ],
+  "provider_fallback_order": [
+    "ollama",
+    "github-models",
+    "google-ai-studio",
+    "groq",
+    "huggingface-inference",
+    "mistral",
+    "deepseek",
+    "cohere",
+    "openai",
+    "anthropic",
+    "google-vertex",
+    "amazon-bedrock"
+  ],
+  "providers": [
+    {
+      "id": "ollama",
+      "display_name": "Ollama Local",
+      "tier": "free_local",
+      "free_tokens_available": true,
+      "runtime": "local",
+      "authentication_required": false,
+      "notes": "Local LLM runtime via Ollama. No API key, no token billing. Unlimited free inference on local hardware. Run `ollama pull <model>` to download models. Preferred fallback target when no cloud provider is reachable.",
+      "setup_steps": [
+        "Install Ollama from https://ollama.com",
+        "ollama pull deepseek-coder-v2",
+        "ollama pull llama3.1",
+        "ollama pull phi4",
+        "ollama pull mistral"
+      ],
+      "models": [
+        {"id": "deepseek-coder-v2",   "display_name": "DeepSeek Coder V2",   "context_window": 128000, "coding_focus": true},
+        {"id": "llama3.1",           "display_name": "Llama 3.1",            "context_window": 128000, "coding_focus": false},
+        {"id": "phi4",               "display_name": "Phi-4",                "context_window": 128000, "coding_focus": true},
+        {"id": "mistral",            "display_name": "Mistral",              "context_window": 32000,  "coding_focus": false},
+        {"id": "codellama",          "display_name": "Code Llama",           "context_window": 16384,  "coding_focus": true},
+        {"id": "qwen2.5-coder",     "display_name": "Qwen 2.5 Coder",       "context_window": 32768,  "coding_focus": true}
+      ]
+    },
+    {
+      "id": "github-models",
+      "display_name": "GitHub Models (Free Tokens)",
+      "tier": "free_cloud_free_tokens",
+      "free_tokens_available": true,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "github_token",
+      "notes": "Free tokens with monthly rate limits. Requires GitHub personal access token (no billing setup needed). Supports multiple model providers through a single token. Preferred free cloud fallback before paid providers.",
+      "setup_steps": [
+        "Create GitHub PAT at https://github.com/settings/tokens",
+        "Set GH_TOKEN environment variable"
+      ],
+      "models": [
+        {"id": "gpt-4o-mini",         "display_name": "GPT-4o Mini",         "provider": "openai",      "context_window": 128000},
+        {"id": "llama-3.1-70b",       "display_name": "Llama 3.1 70B",       "provider": "meta",        "context_window": 128000},
+        {"id": "phi-3.5-mini",        "display_name": "Phi-3.5 Mini",        "provider": "microsoft",   "context_window": 128000},
+        {"id": "mistral-large",       "display_name": "Mistral Large",       "provider": "mistral",     "context_window": 128000},
+        {"id": "cohere-command-r",    "display_name": "Cohere Command R",    "provider": "cohere",      "context_window": 128000}
+      ]
+    },
+    {
+      "id": "google-ai-studio",
+      "display_name": "Google AI Studio (Free Tokens)",
+      "tier": "free_cloud_free_tokens",
+      "free_tokens_available": true,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "api_key",
+      "notes": "Free tier with daily token quota. Requires Google AI API key from aistudio.google.com. No billing setup required for free tier. Falls back to paid Vertex AI when quota exhausted.",
+      "setup_steps": [
+        "Get API key from https://aistudio.google.com",
+        "Set GOOGLE_API_KEY environment variable"
+      ],
+      "models": [
+        {"id": "gemini-1.5-flash",    "display_name": "Gemini 1.5 Flash",    "context_window": 1048576},
+        {"id": "gemini-1.5-flash-8b", "display_name": "Gemini 1.5 Flash 8B", "context_window": 1048576},
+        {"id": "gemma-2-27b",         "display_name": "Gemma 2 27B",         "context_window": 8192}
+      ]
+    },
+    {
+      "id": "groq",
+      "display_name": "Groq Cloud (Free Tokens)",
+      "tier": "free_cloud_free_tokens",
+      "free_tokens_available": true,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "api_key",
+      "notes": "Free tokens with daily rate limits. Very fast inference on LPU hardware. Requires Groq API key from console.groq.com. No billing setup required for free tier.",
+      "setup_steps": [
+        "Get API key from https://console.groq.com",
+        "Set GROQ_API_KEY environment variable"
+      ],
+      "models": [
+        {"id": "llama3-70b-8192",     "display_name": "Llama 3 70B",          "context_window": 8192},
+        {"id": "llama3-8b-8192",      "display_name": "Llama 3 8B",           "context_window": 8192},
+        {"id": "mixtral-8x7b-32768",  "display_name": "Mixtral 8x7B",         "context_window": 32768},
+        {"id": "gemma2-9b-it",        "display_name": "Gemma 2 9B IT",        "context_window": 8192}
+      ]
+    },
+    {
+      "id": "mistral",
+      "display_name": "Mistral AI (Free Tokens)",
+      "tier": "free_cloud_free_tokens",
+      "free_tokens_available": true,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "api_key",
+      "notes": "Free tier with monthly token allowance. Requires Mistral API key from console.mistral.ai. No billing setup required for free tier.",
+      "setup_steps": [
+        "Get API key from https://console.mistral.ai",
+        "Set MISTRAL_API_KEY environment variable"
+      ],
+      "models": [
+        {"id": "mistral-tiny",        "display_name": "Mistral Tiny",         "context_window": 32000},
+        {"id": "mistral-small",       "display_name": "Mistral Small",        "context_window": 32000},
+        {"id": "mistral-medium",      "display_name": "Mistral Medium",       "context_window": 32000}
+      ]
+    },
+    {
+      "id": "huggingface-inference",
+      "display_name": "Hugging Face Inference (Free Tokens)",
+      "tier": "free_cloud_free_tokens",
+      "free_tokens_available": true,
+      "runtime": "cloud",
+      "authentication_required": false,
+      "notes": "Free inference API with rate limits. No API key required for free tier; HF_TOKEN enables higher rate limits. No billing setup needed.",
+      "models": [
+        {"id": "mistralai/Mistral-7B-Instruct-v0.3",    "display_name": "Mistral 7B Instruct",      "context_window": 32768},
+        {"id": "meta-llama/Llama-3.2-3B-Instruct",      "display_name": "Llama 3.2 3B Instruct",    "context_window": 8192},
+        {"id": "microsoft/Phi-3.5-mini-instruct",       "display_name": "Phi-3.5 Mini Instruct",    "context_window": 128000},
+        {"id": "HuggingFaceH4/zephyr-7b-beta",          "display_name": "Zephyr 7B Beta",           "context_window": 8192}
+      ]
+    },
+    {
+      "id": "deepseek",
+      "display_name": "DeepSeek (Free Tokens)",
+      "tier": "free_cloud_free_tokens",
+      "free_tokens_available": true,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "api_key",
+      "notes": "Free API tier with token allowance for new accounts. Requires DeepSeek API key from platform.deepseek.com. No billing setup required for free tier.",
+      "setup_steps": [
+        "Get API key from https://platform.deepseek.com",
+        "Set DEEPSEEK_API_KEY environment variable"
+      ],
+      "models": [
+        {"id": "deepseek-chat",          "display_name": "DeepSeek Chat",       "context_window": 128000},
+        {"id": "deepseek-coder",         "display_name": "DeepSeek Coder",      "context_window": 128000}
+      ]
+    },
+    {
+      "id": "cohere",
+      "display_name": "Cohere (Free Trial Tokens)",
+      "tier": "free_cloud_trial",
+      "free_tokens_available": true,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "api_key",
+      "notes": "Free trial API key with initial token grant. Trial tokens are finite. Falls back to paid Cohere or other providers after trial exhaustion.",
+      "models": [
+        {"id": "command-r",             "display_name": "Command R",            "context_window": 128000},
+        {"id": "command-r-plus",        "display_name": "Command R+",           "context_window": 128000}
+      ]
+    },
+    {
+      "id": "openai",
+      "display_name": "OpenAI",
+      "tier": "paid",
+      "free_tokens_available": false,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "api_key",
+      "notes": "Paid API. Billed per token. No free tokens available. Requires OpenAI API key and active billing.",
+      "setup_steps": [
+        "Get API key from https://platform.openai.com",
+        "Set OPENAI_API_KEY environment variable",
+        "Verify billing is set up at platform.openai.com"
+      ],
+      "models": [
+        {"id": "gpt-4o",               "display_name": "GPT-4o",               "context_window": 128000},
+        {"id": "gpt-4o-mini",          "display_name": "GPT-4o Mini",          "context_window": 128000},
+        {"id": "gpt-4-turbo",          "display_name": "GPT-4 Turbo",          "context_window": 128000},
+        {"id": "gpt-4",                "display_name": "GPT-4",                "context_window": 8192}
+      ]
+    },
+    {
+      "id": "anthropic",
+      "display_name": "Anthropic",
+      "tier": "paid",
+      "free_tokens_available": false,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "api_key",
+      "notes": "Paid API. Billed per token. No free tokens. Requires Anthropic API key and active billing.",
+      "setup_steps": [
+        "Get API key from https://console.anthropic.com",
+        "Set ANTHROPIC_API_KEY environment variable",
+        "Verify billing is set up at console.anthropic.com"
+      ],
+      "models": [
+        {"id": "claude-sonnet-4-6",    "display_name": "Claude Sonnet 4.6",     "context_window": 200000},
+        {"id": "claude-3-5-sonnet",    "display_name": "Claude 3.5 Sonnet",     "context_window": 200000},
+        {"id": "claude-3-opus",        "display_name": "Claude 3 Opus",         "context_window": 200000},
+        {"id": "claude-3-haiku",       "display_name": "Claude 3 Haiku",        "context_window": 200000}
+      ]
+    },
+    {
+      "id": "google-vertex",
+      "display_name": "Google Vertex AI",
+      "tier": "paid",
+      "free_tokens_available": false,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "gcp_credentials",
+      "notes": "Paid API through GCP. Requires Google Cloud project with Vertex AI enabled and billing active. No free tokens.",
+      "setup_steps": [
+        "Set up GCP project with Vertex AI API enabled",
+        "Configure gcloud auth or set GOOGLE_APPLICATION_CREDENTIALS"
+      ],
+      "models": [
+        {"id": "gemini-1.5-pro",       "display_name": "Gemini 1.5 Pro",        "context_window": 1048576},
+        {"id": "gemini-1.5-ultra",     "display_name": "Gemini 1.5 Ultra",      "context_window": 1048576}
+      ]
+    },
+    {
+      "id": "amazon-bedrock",
+      "display_name": "Amazon Bedrock",
+      "tier": "paid",
+      "free_tokens_available": false,
+      "runtime": "cloud",
+      "authentication_required": true,
+      "authentication_type": "aws_credentials",
+      "notes": "Paid API through AWS. Requires AWS credentials with Bedrock access and active billing. No free tokens.",
+      "setup_steps": [
+        "Set up AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION)",
+        "Request model access in AWS Bedrock console"
+      ],
+      "models": [
+        {"id": "claude-3-5-sonnet",    "display_name": "Claude 3.5 Sonnet",     "provider": "anthropic",  "context_window": 200000},
+        {"id": "llama3-1-70b",         "display_name": "Llama 3.1 70B",         "provider": "meta",       "context_window": 128000},
+        {"id": "mistral-large",        "display_name": "Mistral Large",         "provider": "mistral",    "context_window": 128000}
+      ]
+    }
+  ]
+}

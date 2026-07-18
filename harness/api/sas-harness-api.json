@@ -212,12 +212,16 @@
       "inputs": [
         "harness/api/developer-workstation-agent-routing.json",
         "harness/api/agent-capability-manifest.json",
+        "Config/ai-provider-catalog.json",
+        "survey/output/agent_feedback/feedback_summary.json",
         "developer-workstation-request"
       ],
       "outputs": [
         "selected-operation",
         "terminal-context-label",
         "selected-capability",
+        "selected-provider",
+        "selected-model",
         "proof-ceiling"
       ],
       "guardrails": [
@@ -226,7 +230,48 @@
         "No_automatic_authentication",
         "No_user_home_content_injection",
         "No_nested_tmux",
-        "Lua_routes_to_managed_file_operation"
+        "Lua_routes_to_managed_file_operation",
+        "Feedback_gated_orchestrator_routing",
+        "Free_tokens_before_paid_models",
+        "No_provider_automatic_authentication"
+      ]
+    },
+    {
+      "id": "agent_feedback.vote",
+      "summary": "Record a feedback vote on an agent or model contribution and regenerate the aggregated feedback summary.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "agent-feedback-event (JSON or parameters)",
+        "survey/output/agent_feedback/feedback_events.jsonl"
+      ],
+      "outputs": [
+        "survey/output/agent_feedback/feedback_events.jsonl",
+        "survey/output/agent_feedback/feedback_summary.json"
+      ],
+      "guardrails": [
+        "Thumbs_down_requires_reason",
+        "Local_gitignored_evidence_only",
+        "No_automatic_feedback_sharing",
+        "No_target_mutation"
+      ]
+    },
+    {
+      "id": "agent_feedback.read_summary",
+      "summary": "Read the aggregated agent feedback summary for orchestrator routing decisions.",
+      "mode": "local_read",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "survey/output/agent_feedback/feedback_summary.json"
+      ],
+      "outputs": [
+        "agent_feedback_summary.json"
+      ],
+      "guardrails": [
+        "Local_only",
+        "No_target_mutation"
       ]
     },
     {

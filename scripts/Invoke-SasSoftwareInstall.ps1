@@ -212,16 +212,35 @@ New-Item -ItemType Directory -Path $runRoot -Force -WhatIf:$false | Out-Null
 $eventPath = Join-Path -Path $runRoot -ChildPath 'software_install_events.jsonl'
 $summaryPath = Join-Path -Path $runRoot -ChildPath 'software_install_summary.json'
 $handoffPath = Join-Path -Path $runRoot -ChildPath 'operator_handoff.txt'
+$fallbackChain = @()
 $approvedSoftwareShareRoots = @(Get-SasApprovedSoftwareShareRoots)
 if ([string]::IsNullOrWhiteSpace($SoftwareShareRoot)) {
     $SoftwareShareRoot = $approvedSoftwareShareRoots[0]
+    $fallbackChain += @{
+        step = 'software_share_root'
+        from = 'null (no -SoftwareShareRoot supplied)'
+        to = $SoftwareShareRoot
+        reason = "No explicit software share root was supplied; fell back to first approved source from harness API manifest"
+    }
 }
 $installerPath = Resolve-SasApprovedInstallerPath -Root $SoftwareShareRoot -RelativePath $InstallerRelativePath -ApprovedRoots $approvedSoftwareShareRoots
 if ([string]::IsNullOrWhiteSpace($PackageName)) {
     $PackageName = Split-Path -Path $installerPath -Leaf
+    $fallbackChain += @{
+        step = 'package_name'
+        from = 'null (no -PackageName supplied)'
+        to = $PackageName
+        reason = "Package name derived from installer filename at resolved path"
+    }
 }
 
 if (-not $WhatIfPreference -and -not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+    $fallbackChain += @{
+        step = 'installer_not_found'
+        from = $installerPath
+        to = 'error'
+        reason = "Installer file missing at resolved path; fallback retry not possible without alternate installer source"
+    }
     throw "Installer was not found under the approved software source: $installerPath"
 }
 
@@ -235,6 +254,7 @@ Write-SasInstallEvent -EventPath $eventPath -Event @{
     install_mode = $InstallMode
     target_count = $targets.Count
     output_root = $runRoot
+    fallback_chain = $fallbackChain
     posture = 'authorized_operator_execute_no_log_suppression_no_credential_collection_cleanup_repo_owned_target_staging_only'
 }
 
@@ -557,6 +577,10 @@ $summary = [ordered]@{
     package_name = $PackageName
     installer_path = $installerPath
     install_mode = $InstallMode
+    fallback_chain = $fallbackChain
+    fallback_chain_summary = if ($fallbackChain.Count -gt 0) {
+        ($fallbackChain | ForEach-Object { "$($_.step): $($_.reason)" }) -join '; '
+    } else { 'none' }
     target_count = $targets.Count
     completed_count = @($results | Where-Object { $_.status -eq 'completed' }).Count
     planned_count = @($results | Where-Object { $_.status -eq 'planned_whatif' }).Count
@@ -592,16 +616,19 @@ $handoffLines = @(
     "Failed or unresolved: $($summary.failed_count)",
     "Cleanup failures: $($summary.cleanup_failure_count)",
     "Repo-owned target remnants remaining: $($summary.repo_artifact_remaining_count)",
+    "Fallback chain: $($summary.fallback_chain_summary)",
     "Events: $eventPath",
     "Summary: $summaryPath",
     '',
-    'Review failures, cleanup failures, and repo-owned target remnant status before reporting completion to the client.'
+    'Review the fallback chain, failures, cleanup failures, and repo-owned target remnant status before reporting completion to the client.'
 )
 $handoffLines | Set-Content -LiteralPath $handoffPath -Encoding UTF8 -WhatIf:$false
 Write-SasInstallEvent -EventPath $eventPath -Event @{
     event = 'run_completed'
     run_id = $runId
     summary_path = $summaryPath
+    fallback_chain = $fallbackChain
+    fallback_chain_summary = $summary.fallback_chain_summary
     completed_count = $summary.completed_count
     planned_count = $summary.planned_count
     failed_count = $summary.failed_count
