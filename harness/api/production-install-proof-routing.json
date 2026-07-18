@@ -1,0 +1,13 @@
+{
+  "schema_version": "sas-production-install-proof-routing/v1",
+  "operation": "software_install.production_proof_ingest",
+  "deterministic_task_signals": [
+    "production software installation proof",
+    "validated install on the corporate network",
+    "ingest live installation evidence",
+    "close the production install runtime gate",
+    "record workstation installation acceptance"
+  ],
+  "additive_guard": "live-data-guard",
+  "proof_ceiling": "The route selects local evidence ingestion only; it never authorizes another installation, network contact, target mutation, or fleet rollout."
+}
