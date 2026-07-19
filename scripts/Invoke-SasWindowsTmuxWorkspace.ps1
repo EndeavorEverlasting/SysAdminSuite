@@ -275,7 +275,14 @@ function Start-Workspace {
     & wsl.exe -d $Inventory.distro -- tmux has-session -t $sessionName 2>$null
     if ($LASTEXITCODE -ne 0) { & wsl.exe -d $Inventory.distro -- tmux new-session -d -s $sessionName }
     if ($LASTEXITCODE -ne 0) { throw 'tmux-socket-missing: could not create dev session' }
-    if ($LaunchGui) { Start-Process -FilePath $Inventory.wezterm_gui_path -ArgumentList @('start', '--always-new-process') -WindowStyle Hidden }
+    if ($LaunchGui) {
+        $asLauncher = Join-Path $env:LOCALAPPDATA 'AgentSwitchboard\wezterm-launcher\Invoke-AgentSwitchboardWezTermLauncher.ps1'
+        if (Test-Path -LiteralPath $asLauncher) {
+            & $asLauncher -Workspace 'agent-switchboard' -Distro $Inventory.distro -TmuxSession $sessionName
+        } else {
+            Start-Process -FilePath $Inventory.wezterm_gui_path -ArgumentList @('start') -WindowStyle Hidden
+        }
+    }
     Write-JsonFile -Path $statePath -Value ([pscustomobject]@{ distro = $Inventory.distro; keepalive_pid = $keepalive.pid; session_name = $sessionName; gui_launcher = $Inventory.wezterm_gui_path })
 }
 

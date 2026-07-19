@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# DOCTRINE: This launcher must NEVER use --always-new-process. That flag
+# bypasses WezTerm's delegation to an existing GUI and deliberately starts
+# another GUI process, causing duplicate windows. The correct pattern is:
+# inventory first, decide second. Query WezTerm's own mux state via
+# 'wezterm cli list --format json' before any launch decision.
+
 action=Plan
 user_root=${HOME}
 state_root=${XDG_STATE_HOME:-$HOME/.local/state}/sysadminsuite/workstation
@@ -264,7 +270,20 @@ start_workspace() {
   tmux has-session -t "$session" 2>/dev/null || tmux new-session -d -s "$session"
   session_exists=true
   if $launch_gui; then
-    AGENT_SWITCHBOARD_ALLOW_WINDOWS_BRIDGE=0 nohup wezterm start --always-new-process >/dev/null 2>&1 &
+    # Inventory-first: check for existing managed windows before launching
+    local managed_windows
+    managed_windows=$(wezterm cli list --format json 2>/dev/null | python3 -c "import sys,json; panes=json.load(sys.stdin); print(len([p for p in panes if p.get('workspace')=='agent-switchboard']))" 2>/dev/null || echo 0)
+    if [[ "$managed_windows" -gt 1 ]]; then
+      echo "WARNING: $managed_windows managed windows detected. Skipping launch to prevent duplicates." >&2
+    elif [[ "$managed_windows" -eq 1 ]]; then
+      # Activate existing pane
+      local pane_id
+      pane_id=$(wezterm cli list --format json 2>/dev/null | python3 -c "import sys,json; panes=json.load(sys.stdin); managed=[p for p in panes if p.get('workspace')=='agent-switchboard']; print(managed[0]['pane_id'] if managed else '')" 2>/dev/null)
+      [[ -n "$pane_id" ]] && wezterm cli activate-pane --pane-id "$pane_id" 2>/dev/null || true
+    else
+      # No managed workspace - start new GUI
+      AGENT_SWITCHBOARD_ALLOW_WINDOWS_BRIDGE=0 nohup wezterm start --workspace agent-switchboard >/dev/null 2>&1 &
+    fi
     gui_launched=true
   fi
   write_state
