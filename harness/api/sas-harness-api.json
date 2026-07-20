@@ -255,6 +255,30 @@
       ]
     },
     {
+      "id": "survey.port_fallback.plan",
+      "summary": "Classify a completed bounded network preflight into one mutually exclusive port-fallback decision using canonical profile metadata. No network activity, no target mutation, no automatic fallback execution.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "network_preflight_summary_json",
+        "optional_sanitized_parameters"
+      ],
+      "outputs": [
+        "port_fallback_decision.json"
+      ],
+      "guardrails": [
+        "No_network_activity",
+        "No_target_mutation",
+        "No_automatic_fallback_execution",
+        "Consumes_canonical_profile_metadata",
+        "One_mutually_exclusive_decision",
+        "Never_recommends_unregistered_profile",
+        "Schema_valid_against_schemas_harness_port_fallback_decision_schema_json"
+      ],
+      "owner": "Sprint 2 application integration"
+    },
+    {
       "id": "agent_sprint_capsule.generate",
       "summary": "Generate a machine-local-path-free, schema-backed final repository sprint handoff using the canonical run context and artifact registry.",
       "mode": "local_transform",
