@@ -1,30 +1,60 @@
 # Windows-native SMB and Task Scheduler software install
 
+## Operator entrypoint
+
+For a complete one-target-to-batch tutorial, start with [`tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`](tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md). A root-level navigation page is available at [`../START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md`](../START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md).
+
+This page is the technical transport reference for `bash/apps/sas-install-apps.sh`.
+
 ## Purpose
 
-Use this guarded fallback when an authorized Windows target does not accept WinRM but its `C$` administrative share and remote Task Scheduler are available. Run it from Git Bash on the approved admin workstation.
+Use this guarded fallback when an authorized Windows target does not accept WinRM but its `C$` administrative share and remote Task Scheduler are available. Run it from Git Bash on an approved Windows admin workstation or an approved Windows admin VM.
 
-The fallback uses the current Windows admin token. It does not require `smbclient`, collect credentials, enable WinRM, change firewall policy, or weaken endpoint controls.
+The controller uses the current Windows admin token. It does not require `smbclient`, collect credentials, enable WinRM, change firewall policy, or weaken endpoint controls. The repository does not provision or authorize the controller VM.
+
+## Implemented flow
+
+1. Resolve one enabled package from `configs/software-packages/approved-apps.json`.
+2. Require the catalog root to match an approved software source in `harness/api/sas-harness-api.json`.
+3. Generate a package-specific PowerShell worker.
+4. Parse the worker locally with Windows PowerShell before target contact when `powershell.exe` is available.
+5. Verify `\\TARGET\C$` through the current Windows token.
+6. Create a unique run root beneath `C:\ProgramData\SysAdminSuite\AppInstall`.
+7. Stage the exact pinned MSI or EXE and transient worker files.
+8. Create and run a uniquely named one-time scheduled task as SYSTEM.
+9. Wait for the worker result.
+10. Copy the result CSV to `bash/apps/output/`.
+11. Delete the unique task and remove only the unique run root.
+12. Classify the host as `HOST_OK` or `HOST_FAILED`.
 
 ## Preconditions
 
-- The target is explicitly authorized for software installation.
-- The admin workstation is on an approved network accepted by the SysAdminSuite network guard.
+- The package and every target are explicitly authorized.
+- The controller is on an approved network accepted by the SysAdminSuite network guard.
 - The current Windows account can read the approved software share and write to `\\TARGET\C$`.
 - Remote Task Scheduler RPC is permitted and the Schedule service is running.
+- Git Bash, Python 3, `powershell.exe`, and `schtasks.exe` are available.
 - The package has an enabled, pinned MSI or EXE entry in `configs/software-packages/approved-apps.json`.
-- Silent installer arguments are stored in that catalog when the package requires them.
-- The explicit target list contains no more than 25 authorized hostnames; start with one pilot.
+- Silent arguments are stored in that catalog when required.
+- The target list contains 1–25 explicit authorized hostnames; start with one pilot.
 
-The `--allow-legacy` switch enables only this preserved deployment lane. It does not grant permission, credentials, or broader target scope.
+The `--allow-legacy` switch enables only this preserved deployment lane. It does not grant permission, credentials, package approval, or broader target scope.
+
+## Command help
+
+```bash
+bash bash/apps/sas-install-apps.sh --help
+```
+
+The package path requires exactly one of `--package` or `--list`. Approved-package installation uses `--package` and requires the Windows-native transport for live execution.
 
 ## BCA dry run
 
-From the repository root in Git Bash, render the complete one-target plan without contacting the target or package share:
+Render the one-target plan without contacting a target or package share:
 
 ```bash
 bash bash/apps/sas-install-apps.sh \
-  --targets SYNTHETIC001 \
+  --targets CYBERNET-PILOT-01 \
   --package bca \
   --allow-legacy \
   --dry-run
@@ -35,45 +65,86 @@ The plan must show:
 - approved package ID `bca`;
 - pinned file `EPIC_BCA_Web-Shortcut_1.0.msi`;
 - a unique `C:\ProgramData\SysAdminSuite\AppInstall\app-install-*` run root;
-- a one-time `SYSTEM` scheduled task;
-- local result retrieval followed by task and run-root cleanup.
+- a one-time SYSTEM scheduled task;
+- local result retrieval followed by task and run-root cleanup;
+- final marker `DRY_RUN_OK`.
 
 ## One-target pilot
 
-After reviewing the dry run, replace the synthetic hostname with the one authorized pilot target and omit only `--dry-run`:
+After reviewing the dry run, use the exact authorized hostname and omit only `--dry-run`:
 
 ```bash
 bash bash/apps/sas-install-apps.sh \
-  --targets SYNTHETIC001 \
+  --targets CYBERNET-PILOT-01 \
   --package bca \
   --allow-legacy
 ```
 
-The controller resolves BCA from the approved catalog, copies the pinned MSI from the approved read-only share into that run's target staging folder, and creates a uniquely named one-time task. The task runs the local staged MSI as `SYSTEM` with `/qn` and `/norestart`.
+The task runs the staged BCA MSI as SYSTEM with `/qn` and `/norestart`. The controller waits up to 1,800 seconds by default, copies the result CSV and log locally, validates the installer result, then verifies task removal and removes only the unique run root.
 
-The controller waits for the worker result, copies the CSV and log to `bash/apps/output/`, verifies that the result is `Installed` or `ExitOK_NotDetected`, then verifies task removal and deletes only the unique run root. Windows Installer exit code `3010` is accepted as success requiring a later restart; this lane never initiates the restart.
+Windows Installer exit code `3010` is accepted as successful installation requiring a later authorized restart. This lane never initiates the restart.
 
-If installation or cleanup cannot be proven, the command exits nonzero and records `HOST_FAILED` in the local log. Use `--no-teardown` only for approved debugging because it deliberately retains the run-scoped target artifacts.
+If installation, result retrieval, task cleanup, or staging cleanup cannot be proven, the command exits nonzero and records `HOST_FAILED`.
 
-## Evidence and acceptance boundary
+## Multiple targets
 
-Review these controller-side artifacts:
+After one accepted pilot, pass a comma-separated list of no more than 25 explicit hostnames:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets CYBERNET-01,CYBERNET-02,CYBERNET-03 \
+  --package bca \
+  --allow-legacy \
+  --dry-run
+```
+
+Review the batch plan before removing only `--dry-run`. Each target receives its own classification and evidence. The maximum of 25 is a hard guardrail, not a recommendation to start with 25.
+
+## Evidence and application acceptance
+
+Review controller-side artifacts:
 
 ```text
 bash/apps/output/sas-install-<target>-package-bca-<timestamp>.log
 bash/apps/output/sas-install-<target>-package-bca-<timestamp>.results.csv
 ```
 
-An MSI exit code proves only installer completion. BCA is a web-shortcut package, so a technician must still confirm the shortcut exists, opens the intended approved destination, and meets the ticket's acceptance criteria. This fallback does not provide the canonical WinRM lane's Before/After software snapshots.
+Accepted package results are `Installed` or `ExitOK_NotDetected`. Installer completion is not application acceptance. BCA is a web-shortcut package, so a technician must still confirm that the shortcut exists, opens the approved destination, and meets the ticket criteria.
+
+This fallback does not provide the canonical WinRM lane's Before/After software snapshots.
+
+## Production evidence
+
+PR #229 records one authorized Windows production pilot on July 17, 2026:
+
+- approved package `bca`;
+- Windows-native admin-share staging and remote Task Scheduler;
+- local Windows PowerShell worker syntax preflight;
+- pinned MSI staging;
+- one-time SYSTEM task creation and execution;
+- result CSV returned to the controller;
+- verified task and run-root cleanup;
+- `HOST_OK`, one success and zero failures;
+- technician-confirmed shortcut/application behavior.
+
+The live hostname and local result artifact were intentionally not committed. This is one-target production proof, not fleet authorization.
+
+## Teardown and rollback boundary
+
+Normal success includes task deletion and unique run-root removal. Worker self-teardown is a fallback if the controller is interrupted.
+
+Use `--no-teardown` only for explicitly approved debugging. It intentionally leaves transient artifacts and therefore cannot satisfy ordinary final-success cleanup.
+
+Transport cleanup is not an uninstall. The controller does not implement a general software rollback. Removal of installed software requires a separately reviewed vendor uninstall path and acceptance plan.
 
 ## Adding another approved package
 
-Add one reviewed entry to `configs/software-packages/approved-apps.json` with:
+A reviewer or administrator adds one catalog entry with:
 
-- a unique package ID and display name;
+- a unique ID and display name;
 - a relative folder under the approved software root;
 - one exact MSI or EXE filename;
-- its approved silent arguments;
-- `install_enabled: true` only after package review.
+- approved unattended arguments;
+- `install_enabled: true` only after review and qualification.
 
-Then run the same dry-run and pilot commands with the new package ID. Do not pass arbitrary UNC installer paths on the command line and do not store credentials in the catalog or scripts.
+Then complete the same dry-run, one-target pilot, evidence review, cleanup verification, and technician acceptance. Do not pass arbitrary UNC installers on the command line and do not store credentials in the catalog, scripts, docs, or output committed to Git.
