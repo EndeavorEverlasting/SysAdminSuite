@@ -72,7 +72,7 @@ def test_current_controller_boundaries_are_documented() -> None:
         "maximum of 25",
         "current approved Windows administrative token",
         "does not enable WinRM",
-        "does not create a VM",
+        "does not create, configure",
         "Transport cleanup is not software rollback",
         "does not implement a general uninstall",
         "PR #229",
