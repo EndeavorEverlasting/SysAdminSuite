@@ -9,6 +9,7 @@ on:
       - 'Config/operational-posture.json'
       - 'Config/low-noise-policy.json'
       - 'START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md'
+      - 'START-HERE-SysAdminSuite.md'
       - 'docs/OPERATIONAL_POSTURE.md'
       - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
       - 'docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md'
@@ -42,6 +43,7 @@ on:
       - 'Config/operational-posture.json'
       - 'Config/low-noise-policy.json'
       - 'START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md'
+      - 'START-HERE-SysAdminSuite.md'
       - 'docs/OPERATIONAL_POSTURE.md'
       - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
       - 'docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md'
@@ -73,6 +75,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - uses: actions/setup-python@v5
         with:
@@ -88,7 +92,20 @@ jobs:
 
       - name: Cybernet software deployment documentation contracts
         shell: bash
-        run: python3 Tests/survey/test_cybernet_software_deployment_documentation_contracts.py
+        run: |
+          set +e
+          python3 Tests/survey/test_cybernet_software_deployment_documentation_contracts.py > cybernet-software-deployment-doc-contract.log 2>&1
+          status=$?
+          cat cybernet-software-deployment-doc-contract.log
+          exit "$status"
+
+      - name: Upload Cybernet documentation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cybernet-software-deployment-doc-contract
+          path: cybernet-software-deployment-doc-contract.log
+          if-no-files-found: error
 
       - name: Canonical low-noise policy contract
         shell: bash
