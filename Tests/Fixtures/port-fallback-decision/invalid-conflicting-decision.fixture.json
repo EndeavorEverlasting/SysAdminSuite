@@ -1,0 +1,22 @@
+{
+  "schema_version": "sas-port-fallback-decision/v1",
+  "source_profile_id": "keyports_cybernet_json",
+  "profile_source": "canonical_default",
+  "effective_ports": [80, 443, 135, 445, 3389, 5985, 5986],
+  "target_count": 3,
+  "tested_target_count": 3,
+  "untested_target_count": 0,
+  "open_default_port_target_count": 3,
+  "web_only_reachable_count": 0,
+  "admin_surface_reachable_count": 3,
+  "silent_on_default_profile_count": 0,
+  "decision": "web_only_fallback",
+  "recommended_profile_id": "web_reachability_only_json",
+  "approval_required": false,
+  "required_gate": "",
+  "network_activity_performed": false,
+  "target_mutation_performed": false,
+  "reason": "Decision says web_only_fallback but counts show all targets answered on admin ports too.",
+  "next_action": "Fix contradictory decision and counts.",
+  "proof_level": "fixture"
+}
