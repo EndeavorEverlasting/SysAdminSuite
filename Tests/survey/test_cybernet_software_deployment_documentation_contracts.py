@@ -48,7 +48,11 @@ def test_commands_match_the_current_entrypoint() -> None:
         assert flag in tutorial, f"tutorial missing {flag}"
         assert flag in script, f"entrypoint missing {flag}"
     commands = re.findall(r"```bash\n(.*?)\n```", tutorial, flags=re.DOTALL)
-    deployment_commands = [command for command in commands if "sas-install-apps.sh" in command and "--help" not in command]
+    deployment_commands = [
+        command
+        for command in commands
+        if "bash bash/apps/sas-install-apps.sh" in command and "--help" not in command
+    ]
     assert len(deployment_commands) >= 4
     for command in deployment_commands:
         assert "--targets" in command
