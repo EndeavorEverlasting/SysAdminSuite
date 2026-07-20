@@ -76,7 +76,7 @@ def test_safety_and_proof_boundaries_are_explicit() -> None:
         "PR #229",
         "HOST_OK",
         "technician",
-        "one authorized pilot",
+        "one authorized production pilot",
         "does not restart",
     ):
         assert marker.lower() in combined.lower(), f"missing boundary: {marker}"
@@ -96,7 +96,6 @@ def test_documented_output_matches_controller_contract() -> None:
     script = read(SCRIPT)
     for marker in (
         "DRY_RUN_OK",
-        "transport=windows-native",
         "Worker syntax preflight passed with Windows PowerShell.",
         "Staged pinned package:",
         "Result copied locally:",
@@ -109,6 +108,9 @@ def test_documented_output_matches_controller_contract() -> None:
     ):
         assert marker in tutorial, f"tutorial missing output marker: {marker}"
         assert marker in script, f"controller no longer emits/handles marker: {marker}"
+    assert "transport=windows-native" in tutorial
+    assert 'TRANSPORT="windows-native"' in script
+    assert "transport=$TRANSPORT" in script
 
 
 def test_bca_example_is_catalog_backed() -> None:
