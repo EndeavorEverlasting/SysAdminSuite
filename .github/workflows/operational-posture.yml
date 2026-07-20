@@ -2,15 +2,18 @@ name: Operational posture
 
 on:
   push:
-    branches: [main, 'feat/**']
+    branches: [main, 'feat/**', 'docs/**']
     paths:
       - 'AGENTS.md'
       - '.cursor/rules/operational-posture.mdc'
       - 'Config/operational-posture.json'
       - 'Config/low-noise-policy.json'
+      - 'START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md'
+      - 'START-HERE-SysAdminSuite.md'
       - 'docs/OPERATIONAL_POSTURE.md'
       - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
       - 'docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md'
+      - 'docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md'
       - 'docs/DEPENDENCIES.md'
       - 'scripts/sas-legacy-gate.sh'
       - 'scripts/Invoke-SasLegacyGate.ps1'
@@ -18,6 +21,7 @@ on:
       - 'scripts/validate-low-noise-policy.py'
       - 'bash/apps/sas-install-apps.sh'
       - 'bash/apps/sas-stage-fileshare.sh'
+      - 'configs/software-packages/approved-apps.json'
       - 'mapping/Controllers/Map-Run-Controller.ps1'
       - 'EnvSetup/Deploy-Shortcuts.ps1'
       - 'survey/sas-run-naabu-pipeline.sh'
@@ -25,20 +29,25 @@ on:
       - 'Tests/bash/test_operational_posture_contracts.sh'
       - 'Tests/bash/test_smb_scheduled_task_install_contracts.sh'
       - 'Tests/Fixtures/smb_scheduled_task_install/**'
+      - 'Tests/survey/test_cybernet_software_deployment_documentation_contracts.py'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
       - 'Tests/bash/test_naabu_pipeline_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - '.github/workflows/operational-posture.yml'
   pull_request:
-    branches: [main]
+    branches: [main, 'agent/windows-native-smb-bca-deployment']
     paths:
       - 'AGENTS.md'
       - '.cursor/rules/operational-posture.mdc'
       - 'Config/operational-posture.json'
       - 'Config/low-noise-policy.json'
+      - 'START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md'
+      - 'START-HERE-SysAdminSuite.md'
       - 'docs/OPERATIONAL_POSTURE.md'
       - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
       - 'docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md'
+      - 'docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md'
       - 'docs/DEPENDENCIES.md'
       - 'scripts/sas-legacy-gate.sh'
       - 'scripts/Invoke-SasLegacyGate.ps1'
@@ -46,6 +55,7 @@ on:
       - 'scripts/validate-low-noise-policy.py'
       - 'bash/apps/sas-install-apps.sh'
       - 'bash/apps/sas-stage-fileshare.sh'
+      - 'configs/software-packages/approved-apps.json'
       - 'mapping/Controllers/Map-Run-Controller.ps1'
       - 'EnvSetup/Deploy-Shortcuts.ps1'
       - 'survey/sas-run-naabu-pipeline.sh'
@@ -53,7 +63,9 @@ on:
       - 'Tests/bash/test_operational_posture_contracts.sh'
       - 'Tests/bash/test_smb_scheduled_task_install_contracts.sh'
       - 'Tests/Fixtures/smb_scheduled_task_install/**'
+      - 'Tests/survey/test_cybernet_software_deployment_documentation_contracts.py'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
       - 'Tests/bash/test_naabu_pipeline_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
       - '.github/workflows/operational-posture.yml'
@@ -63,6 +75,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - uses: actions/setup-python@v5
         with:
@@ -75,6 +89,23 @@ jobs:
       - name: Windows-native SMB scheduled-task install contracts
         shell: bash
         run: bash Tests/bash/test_smb_scheduled_task_install_contracts.sh
+
+      - name: Cybernet software deployment documentation contracts
+        shell: bash
+        run: |
+          set +e
+          python3 Tests/survey/test_cybernet_software_deployment_documentation_contracts.py > cybernet-software-deployment-doc-contract.log 2>&1
+          status=$?
+          cat cybernet-software-deployment-doc-contract.log
+          exit "$status"
+
+      - name: Upload Cybernet documentation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cybernet-software-deployment-doc-contract
+          path: cybernet-software-deployment-doc-contract.log
+          if-no-files-found: error
 
       - name: Canonical low-noise policy contract
         shell: bash
