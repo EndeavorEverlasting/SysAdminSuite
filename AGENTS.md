@@ -22,7 +22,6 @@ Do not preload every skill, capability, plan, or handoff. Progressive disclosure
 - State repo, branch, PR/sprint, lane, owned scope, forbidden scope, and expected artifacts before mutation.
 - Keep changes bounded. Reuse existing contracts, helpers, schemas, workflows, and validators before inventing new ones.
 - Checkpoint coherent tracked work before broad validation, long diagnostics, runtime proof, or refactoring expansion.
-- End-to-end proof is the default merge and release target for executable or integration-affecting changes; unit tests are fast diagnostics, not completion proof.
 - Never commit secrets, credentials, personal data, live targets, machine-local paths, raw runtime evidence, generated logs, or local reference material.
 - Survey and dashboard probe lanes are read-only toward targets. Deployment or repair mutation requires explicit authorization and its lane-specific gate.
 - Do not claim a higher proof level than the evidence supports. Static checks, launcher success, command ACK, observed behavior, and live runtime proof are distinct.
@@ -78,9 +77,7 @@ If two same-level sources conflict, stop expansion, cite both paths, and make th
 Before reporting completion:
 
 1. Review `git diff --check`, `git status --short`, `git diff --stat`, and the final diff when locally available.
-2. Run targeted diagnostics, then the applicable E2E journey, then broader checks.
+2. Run targeted diagnostics, then the selected skill's required proof gate, then broader checks.
 3. Report exact passes, failures, and skipped commands.
 4. Report changed files, commit SHA, push/PR state, remaining gaps, proof level, and one exact next command.
 5. When another agent or chat must continue, generate a schema-backed sprint capsule; do not paste an unbounded transcript as the handoff.
-
-A checkpoint, green unit test, or green static contract is not automatically merge readiness or runtime proof.
