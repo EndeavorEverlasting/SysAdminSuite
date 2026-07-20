@@ -98,6 +98,8 @@ not bypass normal authorization, credentials, or target-scope requirements.
 
 Deployment teardown rules are documented in
 [`docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md`](DEPLOYMENT_TEARDOWN_DOCTRINE.md).
+The Windows-native admin-share/Task Scheduler package lane is documented in
+[`docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md`](SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md).
 
 ## Northwell network guard for live scripts
 

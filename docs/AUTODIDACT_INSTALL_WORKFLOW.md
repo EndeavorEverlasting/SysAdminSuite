@@ -65,12 +65,14 @@ The tracked catalog is folder-first. Each entry records the confirmed package fo
 | Package | Catalog ID | Confirmed folder | Pinned installer | Current readiness |
 | --- | --- | --- | --- | --- |
 | Epic Satellite | `epic-satellite` | `packages\Epic\Satellite` | Not yet confirmed | Before snapshot allowed; plan/install blocked |
+| Epic BCA Web Shortcut 1.0 | `bca` | `packages\Epic\EPIC_BCA_Web-Shortcut_1.0` | `EPIC_BCA_Web-Shortcut_1.0.msi` | Path and unattended MSI arguments confirmed for a guarded pilot |
 | AllScripts TouchWorks 22.1 | `allscripts-touchworks-22-1` | `packages\TouchWork_22.1` | `TWInstaller.exe` | Path confirmed; vendor arguments still required for live install |
 | NW AutoLogon Setup x64 | `autologon` | `packages\AutoLogonSetup` | `NW_AutoLogon_Setup_x64.exe` | Path confirmed; vendor arguments still required for live install |
 
 Resolved file paths for the pinned entries are:
 
 ```text
+packages\Epic\EPIC_BCA_Web-Shortcut_1.0\EPIC_BCA_Web-Shortcut_1.0.msi
 packages\TouchWork_22.1\TWInstaller.exe
 packages\AutoLogonSetup\NW_AutoLogon_Setup_x64.exe
 ```
@@ -175,6 +177,8 @@ The wrapper does not convert a failed install into success. Artifact recovery on
 - No credentials, password values, tokens, secrets, log suppression, event clearing, or hidden persistence.
 - The snapshot compares software inventory only. It does not prove application launch, user acceptance, or business behavior.
 - Installer-owned files, logs, services, shortcuts, registry keys, or caches are outside the SysAdminSuite cleanup boundary.
+
+Targets without WinRM can use the separately guarded Windows-native admin-share and Task Scheduler transport documented in [`SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md`](SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md). That transport uses the same approved package catalog but does not provide the canonical WinRM workflow's Before/After snapshot sequence.
 
 ## Direct PowerShell examples
 

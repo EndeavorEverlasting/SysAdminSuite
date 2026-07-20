@@ -2,7 +2,7 @@
 setlocal
 set "SCRIPT_DIR=%~dp0"
 echo SysAdminSuite - Approved Software Install
-echo Catalog: Epic, AllScripts, AutoLogon
+echo Catalog: Epic, BCA, AllScripts, AutoLogon
 echo Snapshot protocol: BEFORE snapshot - plan/install - AFTER snapshot
 echo Evidence: survey\output\approved_software_install
 echo.

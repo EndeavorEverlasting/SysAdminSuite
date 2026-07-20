@@ -213,7 +213,7 @@ function Show-SasMenu {
     while ($true) {
         Clear-Host
         Write-Host 'SysAdminSuite - Approved Software Install'
-        Write-Host 'Catalog: Epic, AllScripts, AutoLogon'
+        Write-Host 'Catalog: Epic, BCA, AllScripts, AutoLogon'
         Write-Host ''
         Write-Host '[1] List approved packages and readiness'
         Write-Host '[2] Select package and capture BEFORE snapshot'

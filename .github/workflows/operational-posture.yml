@@ -10,6 +10,7 @@ on:
       - 'Config/low-noise-policy.json'
       - 'docs/OPERATIONAL_POSTURE.md'
       - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
+      - 'docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md'
       - 'docs/DEPENDENCIES.md'
       - 'scripts/sas-legacy-gate.sh'
       - 'scripts/Invoke-SasLegacyGate.ps1'
@@ -22,6 +23,8 @@ on:
       - 'survey/sas-run-naabu-pipeline.sh'
       - 'survey/sas-cybernet-subnet-survey.sh'
       - 'Tests/bash/test_operational_posture_contracts.sh'
+      - 'Tests/bash/test_smb_scheduled_task_install_contracts.sh'
+      - 'Tests/Fixtures/smb_scheduled_task_install/**'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
       - 'Tests/bash/test_naabu_pipeline_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
@@ -35,6 +38,7 @@ on:
       - 'Config/low-noise-policy.json'
       - 'docs/OPERATIONAL_POSTURE.md'
       - 'docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md'
+      - 'docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md'
       - 'docs/DEPENDENCIES.md'
       - 'scripts/sas-legacy-gate.sh'
       - 'scripts/Invoke-SasLegacyGate.ps1'
@@ -47,6 +51,8 @@ on:
       - 'survey/sas-run-naabu-pipeline.sh'
       - 'survey/sas-cybernet-subnet-survey.sh'
       - 'Tests/bash/test_operational_posture_contracts.sh'
+      - 'Tests/bash/test_smb_scheduled_task_install_contracts.sh'
+      - 'Tests/Fixtures/smb_scheduled_task_install/**'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
       - 'Tests/bash/test_naabu_pipeline_contracts.sh'
       - 'Tests/bash/test_repo_naabu_doctrine_conformance.sh'
@@ -65,6 +71,10 @@ jobs:
       - name: Operational posture contracts
         shell: bash
         run: bash Tests/bash/test_operational_posture_contracts.sh
+
+      - name: Windows-native SMB scheduled-task install contracts
+        shell: bash
+        run: bash Tests/bash/test_smb_scheduled_task_install_contracts.sh
 
       - name: Canonical low-noise policy contract
         shell: bash
