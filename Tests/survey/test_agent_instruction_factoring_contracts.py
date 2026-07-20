@@ -19,6 +19,9 @@ E2E_ROUTED_DETAILS = {
     "unit tests, parser checks, and narrow contracts are fast diagnostics",
     "green static contract",
     "mark e2e `not_applicable`",
+    "run the applicable e2e journey through the real repo-owned entrypoint",
+    "run broader regression checks only after",
+    "do not claim merge or release readiness",
 }
 CAPABILITY_LINK = re.compile(r"\(\.\./\.\./capabilities/([A-Za-z0-9._-]+\.md)\)")
 
@@ -48,9 +51,6 @@ def test_e2e_procedure_is_owned_by_project_skill() -> None:
     text = read(E2E_SKILL).lower()
     for detail in E2E_ROUTED_DETAILS:
         assert detail in text, f"E2E project skill is missing extracted instruction: {detail}"
-    assert "run the applicable e2e journey through the real repo-owned entrypoint" in text
-    assert "run broader regression checks only after" in text
-    assert "do not claim merge or release readiness" in text
 
 
 def test_every_skill_composes_declared_capabilities() -> None:
