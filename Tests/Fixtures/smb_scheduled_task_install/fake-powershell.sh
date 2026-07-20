@@ -13,7 +13,9 @@ map_target_unc() {
 
 if [[ -n "${SAS_WORKER_PATH:-}" ]]; then
   [[ -f "$SAS_WORKER_PATH" ]]
-  ! grep -Fq '$path:' "$SAS_WORKER_PATH"
+  if grep -Fq '$path:' "$SAS_WORKER_PATH"; then
+    exit 1
+  fi
   grep -Fq '${path}:' "$SAS_WORKER_PATH"
   exit 0
 fi
