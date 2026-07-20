@@ -45,6 +45,7 @@ The harness validator is a synthetic, offline proof only. One command detects th
 |---|---|
 | AI harness doctrine | `docs/AI_LAYER_HARNESS_TOOLING_PLAN.md` |
 | Parallel-agent coordination | `docs/handoff/sysadminsuite-agent-coordination.md` |
+| BCA one-target runtime floor | `docs/handoff/bca-one-target-runtime-floor.md` |
 | English report variables | `docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md` |
 | Local harness usage | `docs/LOCAL_DEVELOPMENT_HARNESS.md` |
 | Harness plan | `docs/plans/executable-ai-harness-foundation.plan.md` |

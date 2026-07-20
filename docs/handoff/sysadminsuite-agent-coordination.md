@@ -22,13 +22,18 @@ Read this before changing shared sprint files.
 - Do not replace active Windows PowerShell tooling with Bash.
 - Do not run network probes from planner or renderer phases.
 - If evidence is partial, say partial.
+- Do not contact a Cybernet for BCA install proof until the merge floor in `docs/handoff/bca-one-target-runtime-floor.md` is satisfied or an exact-SHA exception is recorded.
 
 ## Active sprint map
 
 | Branch / PR | Role | Current relationship |
 |---|---|---|
 | `main` | Product baseline | Base branch for implementation PRs |
-| PR #142 | Executable AI harness foundation | Active harness branch for English reports, run context, workflow specs, wrappers, and docs |
+| PR #229 | Windows-native SMB/Task Scheduler BCA install path | Primary implementation floor for one-target Cybernet BCA runtime proof |
+| PR #233 | Cybernet software-deployment tutorial | Stacked on #229; land after #229 |
+| `docs/handoff/bca-one-target-runtime-floor.md` | Runtime-floor gate | Dependency and proof-boundary record for the next live sprint |
+
+Historical note: PR #142 harness-foundation work remains provenance for English-report / run-context surfaces and is not the current BCA runtime blocker.
 
 ## Ownership matrix
 
@@ -51,19 +56,20 @@ Read this before changing shared sprint files.
 - Generated run output is local unless deliberately sanitized.
 - A report is not a PASS by itself; PASS requires the matching validator or test result.
 - If local validation cannot run, name the skipped command and reason.
+- Installer exit codes and task ACK are not application-behavior proof.
 
 ## Current next target
 
-Stabilize PR #142 locally:
+1. Keep PR #229 merge-ready (non-draft, green checks, mergeable into `main`).
+2. Merge #229 when merge authority is present.
+3. Retarget or merge PR #233 after #229.
+4. Only then run the one-target Admin-VM → Cybernet BCA live proof from an approved controller.
+
+Local static checks for this coordination update:
 
 ```bash
 git diff --check
-bash Tests/bash/test_english_log_artifact_contracts.sh
-bash Tests/bash/test_sysadmin_harness_validator_contracts.sh
+git status --short
 ```
 
-Then run:
-
-```powershell
-.\scripts\validate-sysadmin-harness.ps1
-```
+Live Cybernet contact remains out of scope for this board update.
