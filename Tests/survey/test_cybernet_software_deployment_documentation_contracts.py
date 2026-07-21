@@ -140,6 +140,7 @@ def test_clinical_package_set_example_is_catalog_backed() -> None:
         "epic-downtime-guide-shortcut-1-0",
         "nuance-dragon-medical-one-2025",
         "hyland-fos-epic-integration-23-1-33-1000",
+        "bca",
         "autologon",
     ]
     tutorial = read(TUTORIAL)
