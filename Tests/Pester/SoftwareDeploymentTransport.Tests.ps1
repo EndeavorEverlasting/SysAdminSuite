@@ -6,9 +6,11 @@ Describe 'Software deployment transport preflight' {
     BeforeAll {
         $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         $script:modulePath = Join-Path $repoRoot 'scripts/SasSoftwareDeploymentTransport.psm1'
+        $script:lowNoiseModulePath = Join-Path $repoRoot 'scripts/SasSoftwareDeploymentLowNoise.psm1'
         $script:entrypoint = Join-Path $repoRoot 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
         $script:fixtureRoot = Join-Path $repoRoot 'Tests/Fixtures/software-deployment-transport'
         Import-Module $script:modulePath -Force
+        Import-Module $script:lowNoiseModulePath -Force
 
         function Read-TransportFixture([string]$Name) {
             Get-Content -LiteralPath (Join-Path $script:fixtureRoot $Name) -Raw | ConvertFrom-Json
@@ -20,6 +22,7 @@ Describe 'Software deployment transport preflight' {
     }
 
     AfterAll {
+        Remove-Module SasSoftwareDeploymentLowNoise -ErrorAction SilentlyContinue
         Remove-Module SasSoftwareDeploymentTransport -ErrorAction SilentlyContinue
     }
 
@@ -112,9 +115,21 @@ Describe 'Software deployment transport preflight' {
     It 'exposes an optional runtime-only PSCredential and no interactive prompt' {
         $command = Get-Command -Name $script:entrypoint
         $command.Parameters['Credential'].ParameterType.FullName | Should -Be 'System.Management.Automation.PSCredential'
+        $command.Parameters['TransportIntent'].ParameterType.FullName | Should -Be 'System.String'
         $content = Get-Content -LiteralPath $script:entrypoint -Raw
+        $content | Should -Match '\[string\]\$TransportIntent = ''kerberos_smb_task'''
         $content | Should -Not -Match 'Get-Credential'
         $content | Should -Not -Match 'ConvertFrom-SecureString|ConvertTo-SecureString'
+    }
+
+    It 'keeps broad discovery explicit and low-noise transport selection as the default' {
+        $entrypointText = Get-Content -LiteralPath $script:entrypoint -Raw
+        $lowNoiseText = Get-Content -LiteralPath $script:lowNoiseModulePath -Raw
+        $entrypointText | Should -Match 'if \(\$TransportIntent -eq ''auto''\)'
+        $entrypointText | Should -Match 'Invoke-SasSoftwareDeploymentLowNoiseObservation'
+        $lowNoiseText | Should -Not -Match 'get HOST/'
+        $lowNoiseText | Should -Match '/Query /S \{0\} /TN \{1\} /FO LIST'
+        $lowNoiseText | Should -Not -Match '/Query /S \{0\} /FO CSV /NH'
     }
 
     It 'allows the no-argument klist TGT query through bounded process binding' {
@@ -133,8 +148,9 @@ Describe 'Software deployment transport preflight' {
             $execution.result.network_activity_performed | Should -BeFalse
             $execution.result.target_mutation_performed | Should -BeFalse
             Test-Path -LiteralPath $execution.result_path -PathType Leaf | Should -BeTrue
+            Test-Path -LiteralPath $execution.low_noise_context_path -PathType Leaf | Should -BeTrue
             Test-Path -LiteralPath $execution.english_summary_path -PathType Leaf | Should -BeTrue
-            (Get-Content -LiteralPath $execution.artifact_registry_path -Raw | ConvertFrom-Json).artifacts.Count | Should -Be 3
+            (Get-Content -LiteralPath $execution.artifact_registry_path -Raw | ConvertFrom-Json).artifacts.Count | Should -Be 4
         }
         finally {
             if (Test-Path -LiteralPath $outputRoot) { Remove-Item -LiteralPath $outputRoot -Recurse -Force }
