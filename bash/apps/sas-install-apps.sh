@@ -997,6 +997,7 @@ PY
       if [[ "$_deploy_ok" -eq 1 && -n "$PACKAGE_SET_ID" ]]; then
         _staged_file_count=0
         while IFS=$'\t' read -r _source_path _staged_relative_path _package_label; do
+          _package_label="${_package_label%$'\r'}"
           [[ -n "$_source_path" && -n "$_staged_relative_path" ]] || continue
           REMOTE_PACKAGE_PATH="${REMOTE_BASE_SMB}/staged/${LIST_NAME}/${_staged_relative_path//\\//}"
           if remote_put "$TARGET" "$_source_path" "$REMOTE_PACKAGE_PATH"; then
