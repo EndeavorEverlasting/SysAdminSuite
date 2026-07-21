@@ -12,6 +12,13 @@
         "hyland-fos-epic-integration-23-1-33-1000",
         "autologon"
       ]
+    },
+    {
+      "id": "cybernet-autologon-only",
+      "display_name": "Cybernet AutoLogon recovery",
+      "package_ids": [
+        "autologon"
+      ]
     }
   ],
   "packages": [
