@@ -17,7 +17,7 @@ approved Windows admin workstation or admin VM
   -> technician application acceptance
 ```
 
-The repository entrypoint is `bash/apps/sas-install-apps.sh`. The package must already be enabled in `configs/software-packages/approved-apps.json`.
+The repository entrypoint is `bash/apps/sas-install-apps.sh`. A single package must be enabled in `configs/software-packages/approved-apps.json`; an ordered Windows-native package set must be enabled in `configs/software-packages/windows-native-package-sets.json`.
 
 A Windows admin VM can be the controller when it has the same approved network access, Windows administrative token, Git Bash, repository checkout, package-share access, `powershell.exe`, and `schtasks.exe`. SysAdminSuite does not create, configure, snapshot, or approve that VM.
 
@@ -73,7 +73,7 @@ Show the current command help before a live change:
 bash bash/apps/sas-install-apps.sh --help
 ```
 
-The help must show `--targets`, `--package`, `--dry-run`, `--allow-legacy`, `--wait-timeout`, and the maximum of 25 targets.
+The help must show `--targets`, `--package`, `--package-set`, `--dry-run`, `--allow-legacy`, `--wait-timeout`, and the maximum of 25 targets.
 
 ## 2. Review the approved package
 
@@ -200,6 +200,31 @@ Operational rules for batches:
 - Keep every target's log and result CSV until the change is closed.
 - A failure on one workstation is not proof that another workstation failed or succeeded.
 - Do not rerun a failed target blindly. Read its exact failure and inspect residual task/staging state first.
+
+## 7. Install the approved six-package clinical set
+
+The package-set ID `cybernet-clinical-workstation` installs Allscripts EEHR Shortcut, Epic Downtime Guide, Dragon Medical One 2025, Hyland FOS Epic Integration, Epic BCA Web Shortcut, and AutoLogon in that order. Dragon and Hyland keep their approved folder dependencies together; BCA uses its pinned MSI with `/qn /norestart`; AutoLogon runs last as SYSTEM. The command does not reboot the workstation.
+
+Pilot dry run:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets CYBERNET-PILOT-01 \
+  --package-set cybernet-clinical-workstation \
+  --allow-legacy \
+  --dry-run
+```
+
+Pilot live run after reviewing the staging plan:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets CYBERNET-PILOT-01 \
+  --package-set cybernet-clinical-workstation \
+  --allow-legacy
+```
+
+After the pilot is accepted, use a comma-separated list of the remaining authorized hostnames. The local result CSV contains five rows per target. Review each application through the normal technician workflow before closing the change.
 
 ## Troubleshooting
 

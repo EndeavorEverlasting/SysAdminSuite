@@ -1,0 +1,131 @@
+{
+  "schema_version": "sas-windows-native-package-sets/v1",
+  "software_share_root": "\\\\nt2kwb972sms01\\",
+  "package_sets": [
+    {
+      "id": "cybernet-clinical-workstation",
+      "display_name": "Cybernet clinical workstation applications",
+      "package_ids": [
+        "allscripts-eehr-shortcut-uai-2-2",
+        "epic-downtime-guide-shortcut-1-0",
+        "nuance-dragon-medical-one-2025",
+        "hyland-fos-epic-integration-23-1-33-1000",
+        "bca",
+        "autologon"
+      ]
+    },
+    {
+      "id": "cybernet-autologon-only",
+      "display_name": "Cybernet AutoLogon recovery",
+      "package_ids": [
+        "autologon"
+      ]
+    },
+    {
+      "id": "cybernet-bca-autologon-recovery",
+      "display_name": "Cybernet BCA and AutoLogon recovery",
+      "package_ids": [
+        "bca",
+        "autologon"
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "id": "allscripts-eehr-shortcut-uai-2-2",
+      "display_name": "Allscripts EEHR Shortcut UAI 2.2",
+      "source_folder_relative_path": "packages\\TouchWork_22.1\\Allscripts_Shortcut",
+      "package_kind": "single",
+      "entrypoint_file": "Allscripts_EEHR-Shortcut-UAI_2.2.msi",
+      "staged_files": [
+        "Allscripts_EEHR-Shortcut-UAI_2.2.msi"
+      ],
+      "installer_type": "msi",
+      "installer_arguments": [
+        "/qb",
+        "/norestart"
+      ],
+      "install_enabled": true
+    },
+    {
+      "id": "epic-downtime-guide-shortcut-1-0",
+      "display_name": "Epic Downtime Guide Shortcut 1.0",
+      "source_folder_relative_path": "packages\\Epic_TPI_Installer\\TPI\\Epic_Epic_Downtime_Guide-Shortcut_1.0",
+      "package_kind": "bundle",
+      "entrypoint_file": "Install.cmd",
+      "staged_files": [
+        "Epic_Epic_Downtime_Guide-Shortcut_1.0.msi",
+        "Install.cmd"
+      ],
+      "installer_type": "cmd",
+      "installer_arguments": [],
+      "install_enabled": true
+    },
+    {
+      "id": "nuance-dragon-medical-one-2025",
+      "display_name": "Nuance Dragon Medical One 2025",
+      "source_folder_relative_path": "packages\\Epic_TPI_Installer\\TPI\\Nuance_DragonMedicalOne_2025",
+      "package_kind": "bundle",
+      "entrypoint_file": "Install.cmd",
+      "staged_files": [
+        "cab1.cab",
+        "DMO.Mst",
+        "Dragon Medical One.lnk",
+        "Install.cmd",
+        "Nuance_Dragon_Edge_Extension.msi",
+        "Standalone.msi"
+      ],
+      "installer_type": "cmd",
+      "installer_arguments": [],
+      "install_enabled": true
+    },
+    {
+      "id": "hyland-fos-epic-integration-23-1-33-1000",
+      "display_name": "Hyland FOS Epic Integration 23.1.33.1000",
+      "source_folder_relative_path": "packages\\Epic_TPI_Installer\\TPI\\Hyland_FOS_Epic-Integration_23.1.33.1000",
+      "package_kind": "bundle",
+      "entrypoint_file": "Install.cmd",
+      "staged_files": [
+        "EPICFOSCONFIG.XML",
+        "FrontOfficeScanning.exe",
+        "Hyland Integration for Epic.msi",
+        "Hyland_Integration_EPIC.cab",
+        "Hyland_Integration_EPIC.Mst",
+        "Install.cmd",
+        "VC_redist.x64.exe"
+      ],
+      "installer_type": "cmd",
+      "installer_arguments": [],
+      "install_enabled": true
+    },
+    {
+      "id": "bca",
+      "display_name": "Epic BCA Web Shortcut 1.0",
+      "source_folder_relative_path": "packages\\Epic\\EPIC_BCA_Web-Shortcut_1.0",
+      "package_kind": "single",
+      "entrypoint_file": "EPIC_BCA_Web-Shortcut_1.0.msi",
+      "staged_files": [
+        "EPIC_BCA_Web-Shortcut_1.0.msi"
+      ],
+      "installer_type": "msi",
+      "installer_arguments": [
+        "/qn",
+        "/norestart"
+      ],
+      "install_enabled": true
+    },
+    {
+      "id": "autologon",
+      "display_name": "NW AutoLogon Setup x64",
+      "source_folder_relative_path": "packages\\AutoLogonSetup",
+      "package_kind": "single",
+      "entrypoint_file": "NW_AutoLogon_Setup_x64.exe",
+      "staged_files": [
+        "NW_AutoLogon_Setup_x64.exe"
+      ],
+      "installer_type": "exe",
+      "installer_arguments": [],
+      "install_enabled": true
+    }
+  ]
+}
