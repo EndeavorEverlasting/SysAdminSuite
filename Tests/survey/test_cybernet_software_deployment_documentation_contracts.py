@@ -13,6 +13,7 @@ REFERENCE = ROOT / "docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md"
 CENTRAL_START = ROOT / "START-HERE-SysAdminSuite.md"
 SCRIPT = ROOT / "bash/apps/sas-install-apps.sh"
 CATALOG = ROOT / "configs/software-packages/approved-apps.json"
+PACKAGE_SET_CATALOG = ROOT / "configs/software-packages/windows-native-package-sets.json"
 WORKFLOW = ROOT / ".github/workflows/operational-posture.yml"
 RUNNER = ROOT / "tests/survey/run_offline_survey_tests.sh"
 IMPLEMENTATION_CONTRACT = ROOT / "Tests/bash/test_smb_scheduled_task_install_contracts.sh"
@@ -44,7 +45,7 @@ def test_navigation_and_audience() -> None:
 def test_commands_match_the_current_entrypoint() -> None:
     tutorial = read(TUTORIAL)
     script = read(SCRIPT)
-    for flag in ("--targets", "--package", "--allow-legacy", "--dry-run", "--wait-timeout", "--no-teardown"):
+    for flag in ("--targets", "--package", "--package-set", "--allow-legacy", "--dry-run", "--wait-timeout", "--no-teardown"):
         assert flag in tutorial, f"tutorial missing {flag}"
         assert flag in script, f"entrypoint missing {flag}"
     commands = re.findall(r"```bash\n(.*?)\n```", tutorial, flags=re.DOTALL)
@@ -56,7 +57,7 @@ def test_commands_match_the_current_entrypoint() -> None:
     assert len(deployment_commands) >= 4
     for command in deployment_commands:
         assert "--targets" in command
-        assert "--package bca" in command
+        assert "--package bca" in command or "--package-set cybernet-clinical-workstation" in command
         assert "--allow-legacy" in command
     assert any("--dry-run" in command and "CYBERNET-PILOT-01" in command for command in deployment_commands)
     assert any("--dry-run" not in command and "CYBERNET-PILOT-01" in command for command in deployment_commands)
@@ -130,6 +131,22 @@ def test_bca_example_is_catalog_backed() -> None:
     assert "`/qn /norestart`" in tutorial
 
 
+def test_clinical_package_set_example_is_catalog_backed() -> None:
+    catalog = json.loads(read(PACKAGE_SET_CATALOG))
+    matches = [item for item in catalog["package_sets"] if item["id"] == "cybernet-clinical-workstation"]
+    assert len(matches) == 1
+    assert matches[0]["package_ids"] == [
+        "allscripts-eehr-shortcut-uai-2-2",
+        "epic-downtime-guide-shortcut-1-0",
+        "nuance-dragon-medical-one-2025",
+        "hyland-fos-epic-integration-23-1-33-1000",
+        "autologon",
+    ]
+    tutorial = read(TUTORIAL)
+    assert "--package-set cybernet-clinical-workstation" in tutorial
+    assert "AutoLogon runs last as SYSTEM" in tutorial
+
+
 def test_docs_contract_is_wired_beside_the_executable_contract() -> None:
     workflow = read(WORKFLOW)
     runner = read(RUNNER)
@@ -138,6 +155,7 @@ def test_docs_contract_is_wired_beside_the_executable_contract() -> None:
     assert test_path in workflow and test_path in runner
     assert "bash Tests/bash/test_smb_scheduled_task_install_contracts.sh" in workflow
     assert "docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md" in workflow
+    assert "configs/software-packages/windows-native-package-sets.json" in workflow
     assert "START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md" in workflow
     assert "'docs/**'" in workflow
     assert "DRY_RUN_OK" in implementation
