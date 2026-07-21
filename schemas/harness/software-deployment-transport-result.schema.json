@@ -1,0 +1,688 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/software-deployment-transport-result.schema.json",
+  "title": "SysAdminSuite software deployment transport result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workflow_id",
+    "evidence_class",
+    "target_scope",
+    "observations",
+    "decision",
+    "proof",
+    "network_activity_performed",
+    "target_mutation_performed",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-software-deployment-transport-result/v1"
+    },
+    "workflow_id": {
+      "const": "software-deployment-transport"
+    },
+    "evidence_class": {
+      "enum": [
+        "sanitized_fixture",
+        "operator_local_live"
+      ]
+    },
+    "target_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_count",
+        "identifier_emitted"
+      ],
+      "properties": {
+        "target_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        },
+        "identifier_emitted": {
+          "const": false
+        }
+      }
+    },
+    "observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dns",
+        "identity",
+        "service_tickets",
+        "tcp",
+        "winrm_session",
+        "admin_share",
+        "schedule_service",
+        "scheduled_task_query"
+      ],
+      "properties": {
+        "dns": {
+          "$ref": "#/$defs/dnsObservation"
+        },
+        "identity": {
+          "$ref": "#/$defs/identityObservation"
+        },
+        "service_tickets": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http",
+            "host",
+            "cifs"
+          ],
+          "properties": {
+            "http": {
+              "$ref": "#/$defs/ticketObservation"
+            },
+            "host": {
+              "$ref": "#/$defs/ticketObservation"
+            },
+            "cifs": {
+              "$ref": "#/$defs/ticketObservation"
+            }
+          }
+        },
+        "tcp": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "port_5985",
+            "port_5986",
+            "port_445",
+            "port_135"
+          ],
+          "properties": {
+            "port_5985": {
+              "$ref": "#/$defs/tcpObservation"
+            },
+            "port_5986": {
+              "$ref": "#/$defs/tcpObservation"
+            },
+            "port_445": {
+              "$ref": "#/$defs/tcpObservation"
+            },
+            "port_135": {
+              "$ref": "#/$defs/tcpObservation"
+            }
+          }
+        },
+        "winrm_session": {
+          "$ref": "#/$defs/authorizationObservation"
+        },
+        "admin_share": {
+          "$ref": "#/$defs/authorizationObservation"
+        },
+        "schedule_service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "queried",
+            "running",
+            "authorization_denied"
+          ],
+          "properties": {
+            "queried": {
+              "type": "boolean"
+            },
+            "running": {
+              "type": "boolean"
+            },
+            "authorization_denied": {
+              "type": "boolean"
+            }
+          }
+        },
+        "scheduled_task_query": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "queried",
+            "succeeded",
+            "authorization_denied"
+          ],
+          "properties": {
+            "queried": {
+              "type": "boolean"
+            },
+            "succeeded": {
+              "type": "boolean"
+            },
+            "authorization_denied": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "selected_transport",
+        "reason_codes",
+        "silent_fallback_permitted",
+        "fallback_after_mutation_permitted"
+      ],
+      "properties": {
+        "classification": {
+          "enum": [
+            "kerberos_smb_task_ready",
+            "winrm_ready",
+            "no_supported_transport",
+            "transport_reachable_authorization_denied",
+            "inconclusive"
+          ]
+        },
+        "selected_transport": {
+          "enum": [
+            "kerberos_smb_task",
+            "winrm",
+            "none"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "all_kerberos_smb_task_prerequisites_satisfied",
+              "winrm_session_authorized",
+              "required_transport_ports_unreachable",
+              "reachable_transport_authorization_denied",
+              "required_observation_missing",
+              "observation_timeout",
+              "contradictory_observations"
+            ]
+          }
+        },
+        "silent_fallback_permitted": {
+          "const": false
+        },
+        "fallback_after_mutation_permitted": {
+          "const": false
+        }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preflight_complete",
+        "transport_authorization_proven",
+        "task_creation_proven",
+        "system_execution_proven",
+        "result_retrieval_proven",
+        "cleanup_proven",
+        "live_runtime"
+      ],
+      "properties": {
+        "preflight_complete": {
+          "type": "boolean"
+        },
+        "transport_authorization_proven": {
+          "type": "boolean"
+        },
+        "task_creation_proven": {
+          "const": false
+        },
+        "system_execution_proven": {
+          "const": false
+        },
+        "result_retrieval_proven": {
+          "const": false
+        },
+        "cleanup_proven": {
+          "const": false
+        },
+        "live_runtime": {
+          "type": "boolean"
+        }
+      }
+    },
+    "network_activity_performed": {
+      "type": "boolean"
+    },
+    "target_mutation_performed": {
+      "const": false
+    },
+    "proof_ceiling": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 1024
+    }
+  },
+  "$defs": {
+    "dnsObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempted",
+        "resolved",
+        "address_count",
+        "timed_out"
+      ],
+      "properties": {
+        "attempted": {
+          "type": "boolean"
+        },
+        "resolved": {
+          "type": "boolean"
+        },
+        "address_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32
+        },
+        "timed_out": {
+          "type": "boolean"
+        }
+      }
+    },
+    "identityObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain_joined",
+        "tgt_present",
+        "ticket_bytes_emitted"
+      ],
+      "properties": {
+        "domain_joined": {
+          "type": "boolean"
+        },
+        "tgt_present": {
+          "type": "boolean"
+        },
+        "ticket_bytes_emitted": {
+          "const": false
+        }
+      }
+    },
+    "ticketObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requested",
+        "issued",
+        "ticket_bytes_emitted"
+      ],
+      "properties": {
+        "requested": {
+          "type": "boolean"
+        },
+        "issued": {
+          "type": "boolean"
+        },
+        "ticket_bytes_emitted": {
+          "const": false
+        }
+      }
+    },
+    "tcpObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tested",
+        "reachable",
+        "timed_out"
+      ],
+      "properties": {
+        "tested": {
+          "type": "boolean"
+        },
+        "reachable": {
+          "type": "boolean"
+        },
+        "timed_out": {
+          "type": "boolean"
+        }
+      }
+    },
+    "authorizationObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempted",
+        "authorized",
+        "authorization_denied"
+      ],
+      "properties": {
+        "attempted": {
+          "type": "boolean"
+        },
+        "authorized": {
+          "type": "boolean"
+        },
+        "authorization_denied": {
+          "type": "boolean"
+        }
+      }
+    },
+    "kerberosSmbReadyObservations": {
+      "type": "object",
+      "properties": {
+        "dns": {
+          "properties": {
+            "attempted": {
+              "const": true
+            },
+            "resolved": {
+              "const": true
+            },
+            "timed_out": {
+              "const": false
+            }
+          }
+        },
+        "identity": {
+          "properties": {
+            "domain_joined": {
+              "const": true
+            },
+            "tgt_present": {
+              "const": true
+            }
+          }
+        },
+        "service_tickets": {
+          "properties": {
+            "cifs": {
+              "properties": {
+                "requested": {
+                  "const": true
+                },
+                "issued": {
+                  "const": true
+                }
+              }
+            }
+          }
+        },
+        "tcp": {
+          "properties": {
+            "port_445": {
+              "properties": {
+                "tested": {
+                  "const": true
+                },
+                "reachable": {
+                  "const": true
+                },
+                "timed_out": {
+                  "const": false
+                }
+              }
+            },
+            "port_135": {
+              "properties": {
+                "tested": {
+                  "const": true
+                },
+                "reachable": {
+                  "const": true
+                },
+                "timed_out": {
+                  "const": false
+                }
+              }
+            }
+          }
+        },
+        "admin_share": {
+          "properties": {
+            "attempted": {
+              "const": true
+            },
+            "authorized": {
+              "const": true
+            },
+            "authorization_denied": {
+              "const": false
+            }
+          }
+        },
+        "schedule_service": {
+          "properties": {
+            "queried": {
+              "const": true
+            },
+            "running": {
+              "const": true
+            },
+            "authorization_denied": {
+              "const": false
+            }
+          }
+        },
+        "scheduled_task_query": {
+          "properties": {
+            "queried": {
+              "const": true
+            },
+            "succeeded": {
+              "const": true
+            },
+            "authorization_denied": {
+              "const": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_class": {
+            "const": "sanitized_fixture"
+          }
+        },
+        "required": [
+          "evidence_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "network_activity_performed": {
+            "const": false
+          },
+          "proof": {
+            "properties": {
+              "live_runtime": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "classification": {
+                "const": "kerberos_smb_task_ready"
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "selected_transport": {
+                "const": "kerberos_smb_task"
+              },
+              "reason_codes": {
+                "contains": {
+                  "const": "all_kerberos_smb_task_prerequisites_satisfied"
+                }
+              }
+            }
+          },
+          "proof": {
+            "properties": {
+              "preflight_complete": {
+                "const": true
+              },
+              "transport_authorization_proven": {
+                "const": true
+              }
+            }
+          },
+          "observations": {
+            "$ref": "#/$defs/kerberosSmbReadyObservations"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "classification": {
+                "const": "winrm_ready"
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "selected_transport": {
+                "const": "winrm"
+              },
+              "reason_codes": {
+                "contains": {
+                  "const": "winrm_session_authorized"
+                }
+              }
+            }
+          },
+          "proof": {
+            "properties": {
+              "preflight_complete": {
+                "const": true
+              },
+              "transport_authorization_proven": {
+                "const": true
+              }
+            }
+          },
+          "observations": {
+            "properties": {
+              "winrm_session": {
+                "properties": {
+                  "attempted": {
+                    "const": true
+                  },
+                  "authorized": {
+                    "const": true
+                  },
+                  "authorization_denied": {
+                    "const": false
+                  }
+                }
+              }
+            },
+            "anyOf": [
+              {
+                "properties": {
+                  "tcp": {
+                    "properties": {
+                      "port_5985": {
+                        "properties": {
+                          "tested": {
+                            "const": true
+                          },
+                          "reachable": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "tcp": {
+                    "properties": {
+                      "port_5986": {
+                        "properties": {
+                          "tested": {
+                            "const": true
+                          },
+                          "reachable": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "classification": {
+                "enum": [
+                  "no_supported_transport",
+                  "transport_reachable_authorization_denied",
+                  "inconclusive"
+                ]
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "selected_transport": {
+                "const": "none"
+              }
+            }
+          },
+          "proof": {
+            "properties": {
+              "transport_authorization_proven": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
