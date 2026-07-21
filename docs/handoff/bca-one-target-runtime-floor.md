@@ -12,28 +12,40 @@ This document is coordination evidence only. It does not authorize live installa
 
 ## Required merge floor
 
-| Order | PR | Branch | Role |
-|---|---|---|---|
-| 1 | [#229](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/229) | `agent/windows-native-smb-bca-deployment` | Windows-native SMB + Task Scheduler approved-package install path for catalog ID `bca` |
-| 2 | [#233](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/233) | `docs/cybernet-software-deployment-tutorial` | Cybernet software-deployment tutorial stacked on #229 |
+| Order | PR | Branch | Role | Merge SHA |
+|---|---|---|---|---|
+| 1 | [#229](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/229) | `agent/windows-native-smb-bca-deployment` | Windows-native SMB + Task Scheduler approved-package install path for catalog ID `bca` | Merged 2026-07-20 |
+| 2 | [#233](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/233) | `docs/cybernet-software-deployment-tutorial` | Cybernet software-deployment tutorial stacked on #229 | Merged 2026-07-20 |
 
-Preferred runtime commit identity:
+All merge-floor PRs are merged to `main`.
 
-1. `#229` merged to `main`
-2. `#233` retargeted or merged after `#229`
-3. required checks green on the exact runtime commit
-4. clean local worktree or isolated worktree based on that floor
+## Additional landed lanes
 
-## Exact-SHA exception rule
+| Order | PR | Branch | Role | Merge SHA |
+|---|---|---|---|---|
+| 3 | [#235](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/235) | `feat/low-noise-port-fallback-contract-v2` | Low-noise port-fallback contract floor (schema, fixtures, routing, authority boundaries) | `dfb637e` |
+| 4 | [#236](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/236) | `feat/low-noise-network-preflight-v2` | Low-noise network-preflight application integration (decision service, preflight integration) | `d7f75da` |
 
-If live proof is authorized before merge, the exception must name the exact implementation and documentation SHAs and must not claim qualification of `main`.
+## Superseded lanes
 
-Observed heads at floor-readiness update time (re-query before use):
+| PR | Disposition |
+|---|---|
+| [#144](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/144) | Closed as superseded by #235 and #236. Historical branch `sprint/low-noise-port-policy` preserved. Useful port-fallback classification behavior salvaged into dedicated application module. |
 
-- implementation hint: PR #229 head previously green and mergeable while draft
-- documentation hint: PR #233 head stacked on the implementation branch
+## Final `main` at convergence
 
-Hints are not current truth. Re-query GitHub before runtime.
+```text
+d7f75da feat(survey): integrate bounded port fallback decisions (#236)
+dfb637e feat(survey): establish low-noise port fallback contract floor (#235)
+```
+
+Proof level per lane:
+- **#229:** Repository contract + fixture proof + live controller/target execution proof; installer result, CSV retrieval, cleanup, and technician-observed behavior for one Cybernet
+- **#233:** Documentation consistency + operator usability proof
+- **#235:** Contract proof + harness-routing proof + static/fixture proof + CI proof
+- **#236:** Contract proof + harness proof + static/Pester proof + fixture/loopback E2E
+
+No merged lane independently proves fleet deployment completion.
 
 ## Runtime proof ceiling after merge
 
