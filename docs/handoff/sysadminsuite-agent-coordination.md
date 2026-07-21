@@ -22,48 +22,28 @@ Read this before changing shared sprint files.
 - Do not replace active Windows PowerShell tooling with Bash.
 - Do not run network probes from planner or renderer phases.
 - If evidence is partial, say partial.
+- Do not contact a Cybernet for BCA install proof until the merge floor in `docs/handoff/bca-one-target-runtime-floor.md` is satisfied or an exact-SHA exception is recorded.
 
 ## Active sprint map
 
 | Branch / PR | Role | Current relationship |
 |---|---|---|
-| `main` | Product baseline | Base branch for implementation PRs |
-| PR #142 | Executable AI harness foundation | Active harness branch for English reports, run context, workflow specs, wrappers, and docs |
-
-## Ownership matrix
-
-| Path | Primary owner | Notes |
-|---|---|---|
-| `scripts/Render-SasEnglishReport.ps1` | Agent A | Renderer must stay local-artifact only |
-| `scripts/SasRunContext.psm1` | Agent A | Run context and artifact registry helpers |
-| `scripts/validate-sysadmin-harness.ps1` | Agent A | Synthetic no-live-data validator |
-| `survey/workflows/` | Agent B | Static workflow contracts |
-| `dashboard/` | Agent C | Dashboard surfaces and samples |
-| root `Run-*.cmd` wrappers | Agent C | Human click surfaces |
-| `docs/launch-and-doc-index.md` | Agent D | Start-here index |
-| `docs/handoff/` | Agent D | Routing and handoff board |
-| `survey/fixtures/` | Agent E | Synthetic fixture boundary |
-| `survey/output/`, `survey/artifacts/` | Agent E | Generated local output boundary |
-
-## Evidence rules
-
-- Fixtures are tracked only when synthetic.
-- Generated run output is local unless deliberately sanitized.
-- A report is not a PASS by itself; PASS requires the matching validator or test result.
-- If local validation cannot run, name the skipped command and reason.
+| `main` at `d7f75da` | Product baseline | Current convergence head |
+| PR #229 | Windows-native SMB/Task Scheduler BCA install path | Merged to `main` 2026-07-20 |
+| PR #233 | Cybernet software-deployment tutorial | Merged to `main` 2026-07-20 (retargeted, validated) |
+| PR #235 | Low-noise port-fallback contract floor | Merged to `main` (`dfb637e`) |
+| PR #236 | Low-noise port-fallback application integration | Merged to `main` (`d7f75da`) |
+| PR #234 | BCA and low-noise convergence coordination | This PR; records final landed SHAs and proof levels |
+| PR #144 | Historical low-noise port-policy (draft) | Closed as superseded by #235/#236; branch preserved |
+| `docs/handoff/bca-one-target-runtime-floor.md` | Runtime-floor gate | Updated with final merge SHAs and proof levels |
 
 ## Current next target
 
-Stabilize PR #142 locally:
-
-```bash
-git diff --check
-bash Tests/bash/test_english_log_artifact_contracts.sh
-bash Tests/bash/test_sysadmin_harness_validator_contracts.sh
-```
-
-Then run:
-
-```powershell
-.\scripts\validate-sysadmin-harness.ps1
-```
+1. ~~Keep PR #229 merge-ready.~~ Done. Merged.
+2. ~~Merge #229.~~ Done.
+3. ~~Retarget and merge #233.~~ Done.
+4. ~~Merge Sprint 1 contract floor (#235).~~ Done.
+5. ~~Merge Sprint 2 application integration (#236).~~ Done.
+6. ~~Close PR #144 as superseded.~~ Done.
+7. Merge PR #234 (this PR) after final validation.
+8. One-target Admin-VM → Cybernet BCA live proof from an approved controller remains separately authorized.
