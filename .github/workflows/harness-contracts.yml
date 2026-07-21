@@ -14,10 +14,13 @@ on:
       - 'Tests/Fixtures/software-deployment-transport/**'
       - 'Tests/bash/test_harness_command_surface.sh'
       - 'Tests/bash/test_pr142_scope_boundary_contracts.sh'
+      - 'Tests/bash/test_smb_scheduled_task_install_contracts.sh'
       - 'Run-HarnessContracts.cmd'
       - 'Run-HarnessValidation.cmd'
       - 'Run-EnglishReportFixture.cmd'
       - 'Run-ExportHarnessEvidence.cmd'
+      - 'Config/low-noise-policy.json'
+      - 'bash/apps/sas-install-apps.sh'
       - 'docs/handoff/pr142-scope-ledger.md'
       - 'scripts/Ensure-Pr142HarnessFoundationWorktree.ps1'
       - 'scripts/Invoke-SasHarnessContracts.ps1'
@@ -27,12 +30,15 @@ on:
       - 'scripts/Render-SasEnglishReport.ps1'
       - 'scripts/validate-sysadmin-harness.ps1'
       - 'scripts/SasRunContext.psm1'
+      - 'scripts/SasLowNoisePolicy.psm1'
       - 'scripts/SasSoftwareDeploymentTransport.psm1'
+      - 'scripts/SasSoftwareDeploymentLowNoise.psm1'
       - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
       - 'schemas/harness/**'
       - 'harness/api/sas-harness-api.json'
       - 'harness/workflows/software-deployment-transport.yaml'
       - 'docs/SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md'
+      - 'docs/SOFTWARE_DEPLOYMENT_LOW_NOISE.md'
       - 'survey/fixtures/english-log/**'
       - 'survey/workflows/**'
   push:
@@ -60,7 +66,7 @@ jobs:
         shell: bash
         run: python3 Tests/survey/test_software_deployment_transport_contracts.py
 
-      - name: Software deployment transport preflight contracts
+      - name: Software deployment low-noise and preflight contracts
         shell: bash
         run: python3 Tests/survey/test_software_deployment_transport_preflight_contracts.py
 
@@ -76,11 +82,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Parse PowerShell 5.1 entrypoint and module
+      - name: Parse PowerShell 5.1 entrypoint and modules
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentTransport.psm1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentLowNoise.psm1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\SasLowNoisePolicy.psm1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\Test-SasSoftwareDeploymentTransport.ps1 -Raw))
           'PARSE OK'
 
@@ -106,6 +114,9 @@ jobs:
           if ($execution.result.network_activity_performed) { throw 'Fixture claimed network activity.' }
           if ($execution.result.target_mutation_performed) { throw 'Fixture claimed target mutation.' }
           if ($execution.result.decision.classification -ne 'kerberos_smb_task_ready') { throw 'Unexpected fixture classification.' }
+          if (-not (Test-Path -LiteralPath $execution.low_noise_context_path -PathType Leaf)) { throw 'Low-noise context was not generated.' }
+          $registry = Get-Content -LiteralPath $execution.artifact_registry_path -Raw | ConvertFrom-Json
+          if (@($registry.artifacts).Count -ne 4) { throw 'Expected four registered fixture artifacts.' }
 
       - name: Validate generated fixture result against P01 schema
         shell: pwsh
