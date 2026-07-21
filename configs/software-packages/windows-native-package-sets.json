@@ -10,6 +10,7 @@
         "epic-downtime-guide-shortcut-1-0",
         "nuance-dragon-medical-one-2025",
         "hyland-fos-epic-integration-23-1-33-1000",
+        "bca",
         "autologon"
       ]
     },
@@ -17,6 +18,14 @@
       "id": "cybernet-autologon-only",
       "display_name": "Cybernet AutoLogon recovery",
       "package_ids": [
+        "autologon"
+      ]
+    },
+    {
+      "id": "cybernet-bca-autologon-recovery",
+      "display_name": "Cybernet BCA and AutoLogon recovery",
+      "package_ids": [
+        "bca",
         "autologon"
       ]
     }
@@ -87,6 +96,22 @@
       ],
       "installer_type": "cmd",
       "installer_arguments": [],
+      "install_enabled": true
+    },
+    {
+      "id": "bca",
+      "display_name": "Epic BCA Web Shortcut 1.0",
+      "source_folder_relative_path": "packages\\Epic\\EPIC_BCA_Web-Shortcut_1.0",
+      "package_kind": "single",
+      "entrypoint_file": "EPIC_BCA_Web-Shortcut_1.0.msi",
+      "staged_files": [
+        "EPIC_BCA_Web-Shortcut_1.0.msi"
+      ],
+      "installer_type": "msi",
+      "installer_arguments": [
+        "/qn",
+        "/norestart"
+      ],
       "install_enabled": true
     },
     {
