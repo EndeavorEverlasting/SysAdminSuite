@@ -65,7 +65,7 @@ Preserve existing work, keep mutation inside owned scope, and checkpoint coheren
 - Never commit secrets, credentials, personal data, live targets, machine-local paths, raw runtime evidence, generated logs, or local reference material.
 - Survey and dashboard probe lanes are read-only toward targets; deployment or repair mutation requires explicit authorization and its lane-specific gate.
 - Do not claim a higher proof level than the evidence supports. Static checks, launcher success, command acknowledgment, observed behavior, and live runtime proof are distinct.
-- Preserve active PowerShell tooling. Bash-first does not mean PowerShell is deprecated or safe to delete.
+- Preserve active PowerShell tooling. Bash-first does not mean PowerShell is dead, deprecated, or safe to delete.
 - Use short technician entrypoints and hide composition complexity behind repository-owned scripts, launchers, profiles, and evidence summaries.
 
 ## Skill router
