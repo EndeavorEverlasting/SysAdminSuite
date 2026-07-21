@@ -13,6 +13,10 @@
 
 Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims.
 
+Progressive disclosure is a repository requirement. Do not preload every skill, capability, plan, or handoff.
+
+End-to-end proof is the default merge and release target for executable or integration-affecting changes; unit tests are fast diagnostics, not completion proof.
+
 ## Agent operating principles
 
 - **Evidence before action:** inspect repository, branch, PR, worktree, contracts, and existing evidence before mutation.
