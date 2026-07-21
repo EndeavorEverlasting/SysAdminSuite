@@ -4,6 +4,12 @@ This document is the authority boundary for selecting, certifying, and reporting
 
 Low-noise execution and target-user visibility are defined in [`SOFTWARE_DEPLOYMENT_LOW_NOISE.md`](SOFTWARE_DEPLOYMENT_LOW_NOISE.md).
 
+## Frozen-floor history and current status
+
+P01 was deliberately a contract-only floor: it **does not implement a transport**, and its evidence **does not prove transport implementation**. P02 now implements only the bounded read-only preflight behind those unchanged interfaces. It does not implement live certification or software execution.
+
+Application behavior remains authoritative in repository scripts and modules until a later bounded controller-integration sprint explicitly consumes the frozen transport result.
+
 ## Frozen v1 interfaces
 
 | Interface | Frozen identifier |
