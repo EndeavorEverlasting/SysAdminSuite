@@ -125,7 +125,7 @@ Describe 'Software deployment transport preflight' {
     It 'keeps broad discovery explicit and low-noise transport selection as the default' {
         $entrypointText = Get-Content -LiteralPath $script:entrypoint -Raw
         $lowNoiseText = Get-Content -LiteralPath $script:lowNoiseModulePath -Raw
-        $entrypointText | Should -Match "if \(\$TransportIntent -eq 'auto'\)"
+        $entrypointText | Should -Match 'if \(\$TransportIntent -eq ''auto''\)'
         $entrypointText | Should -Match 'Invoke-SasSoftwareDeploymentLowNoiseObservation'
         $lowNoiseText | Should -Not -Match 'get HOST/'
         $lowNoiseText | Should -Match '/Query /S \{0\} /TN \{1\} /FO LIST'
