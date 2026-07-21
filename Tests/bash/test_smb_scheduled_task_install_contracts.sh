@@ -144,6 +144,7 @@ grep -Fq -- "-Type 'exe'" "$SET_WORKER" || fail "package-set worker must run the
 grep -Fq '$cmdArguments = '\''/d /s /c ""{0}""' "$SET_WORKER" || fail "CMD bundle execution must preserve quoted entrypoint paths"
 grep -Fq 'if (@($SilentArgs).Count -gt 0)' "$SET_WORKER" || fail "EXE execution must distinguish populated and empty argument arrays"
 grep -Fq 'Start-Process -FilePath $installer -Wait -PassThru -NoNewWindow' "$SET_WORKER" || fail "argument-free EXE execution must omit ArgumentList"
+grep -Fq '_package_label="${_package_label%$'\''\r'\''}"' "$SCRIPT" || fail "Windows CRLF must be removed from package-set staging labels"
 if grep -Fq 'Start-Process -FilePath $installer -ArgumentList $SilentArgs -Wait -PassThru -NoNewWindow' "$SET_WORKER" && \
    ! grep -Fq 'if (@($SilentArgs).Count -gt 0)' "$SET_WORKER"; then
   fail "EXE execution must not pass an empty ArgumentList"
