@@ -31,6 +31,7 @@ python3 Tests/survey/test_e2e_default_posture_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_software_install_harness_contracts.py
 python3 Tests/survey/test_software_deployment_transport_contracts.py
+python3 Tests/survey/test_software_deployment_transport_preflight_contracts.py
 python3 Tests/survey/test_software_install_finalization_contracts.py
 python3 Tests/survey/test_run_context_contracts.py
 python3 Tests/survey/test_approved_software_acceptance_contracts.py

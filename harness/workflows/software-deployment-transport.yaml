@@ -8,12 +8,20 @@ schemas:
   receipt: schemas/harness/software-deployment-transport-receipt.schema.json
 operations:
   - id: software_install.transport_preflight
-    implementation_status: deferred_to_p02
+    implementation_status: implemented_p02
+    contract_floor_transition: "implementation_status: deferred_to_p02 -> implemented_p02"
+    application_entrypoint: scripts/Test-SasSoftwareDeploymentTransport.ps1
     consumes:
       - authorized FQDN targets
+      - explicit network activity acknowledgement for live mode
       - bounded read-only observation policy
+      - optional runtime-only PSCredential
+      - optional sanitized fixture observations
     produces:
       - software_deployment_transport_result.json
+      - sanitized_transport_observations.json
+      - english_summary.txt
+      - artifact_registry.json
     mutation_authority: none
   - id: software_install.transport_live_cert
     implementation_status: deferred_to_p03_and_p07
