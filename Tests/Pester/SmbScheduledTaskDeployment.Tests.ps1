@@ -15,7 +15,7 @@ Describe 'Canonical SMB scheduled-task deployment adapter' {
 
         function New-FixturePreflightPath([string]$Name = 'preflight.json') {
             $fixture = Get-Content -LiteralPath $observationFixturePath -Raw | ConvertFrom-Json
-            $result = New-SasSoftwareDeploymentTransportResult -Observations $fixture.observations -EvidenceClass sanitized_fixture -NetworkActivityPerformed $false
+            $result = SasSoftwareDeploymentTransport\New-SasSoftwareDeploymentTransportResult -Observations $fixture.observations -EvidenceClass sanitized_fixture -NetworkActivityPerformed $false
             $path = Join-Path $TestDrive $Name
             $result | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $path -Encoding UTF8
             return $path

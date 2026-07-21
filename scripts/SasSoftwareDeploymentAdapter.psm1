@@ -93,8 +93,10 @@ function Read-SasDeploymentTransportPreflight {
     }
 
     $transportModule = Join-Path $PSScriptRoot 'SasSoftwareDeploymentTransport.psm1'
-    Import-Module $transportModule -Force
-    $reclassified = New-SasSoftwareDeploymentTransportResult `
+    if (-not (Get-Module -Name SasSoftwareDeploymentTransport)) {
+        Import-Module $transportModule -ErrorAction Stop
+    }
+    $reclassified = SasSoftwareDeploymentTransport\New-SasSoftwareDeploymentTransportResult `
         -Observations $result.observations `
         -EvidenceClass ([string]$result.evidence_class) `
         -NetworkActivityPerformed ([bool]$result.network_activity_performed)
