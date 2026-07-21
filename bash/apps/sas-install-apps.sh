@@ -4,11 +4,13 @@
 # For each target: verifies admin-share access, drops a generated PowerShell
 # worker script (sas-install-worker.ps1), then creates and triggers a scheduled
 # task mirroring the pattern in mapping/Controllers/Map-Run-Controller.ps1.
-# Legacy deployment lane: requires --allow-legacy or SAS_ALLOW_LEGACY_TOOLS=1.
+# Intentionally supported SMB/Task Scheduler compatibility controller.
+# Its historical gate remains --allow-legacy or SAS_ALLOW_LEGACY_TOOLS=1.
 #
 # Usage:
 #   ./bash/apps/sas-install-apps.sh --targets HOST1,HOST2 --list LIST_NAME [options]
 #   ./bash/apps/sas-install-apps.sh --targets HOST1 --package PACKAGE_ID [options]
+#   ./bash/apps/sas-install-apps.sh --targets HOST1,HOST2 --package-set PACKAGE_SET_ID [options]
 #
 # Examples:
 #   ./bash/apps/sas-install-apps.sh --targets WKS001,WKS002 --list workstation-baseline
@@ -28,8 +30,10 @@ source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
 TARGETS_RAW=""
 LIST_NAME=""
 PACKAGE_ID=""
+PACKAGE_SET_ID=""
 SOURCES_YAML="Config/sources.yaml"
 PACKAGE_CATALOG="configs/software-packages/approved-apps.json"
+PACKAGE_SET_CATALOG="configs/software-packages/windows-native-package-sets.json"
 REPO_ROOT="${SAS_REPO_ROOT:-C:\SoftwareRepo}"
 SHARE="C$"
 REMOTE_BASE_ROOT='C:\ProgramData\SysAdminSuite\AppInstall'
@@ -50,14 +54,17 @@ usage() {
 SysAdminSuite — Remote App Installer Orchestrator
 
 Usage:
-  ./bash/apps/sas-install-apps.sh --targets HOST1,HOST2,... (--list LIST_NAME | --package PACKAGE_ID) [options]
+  ./bash/apps/sas-install-apps.sh --targets HOST1,HOST2,... (--list LIST_NAME | --package PACKAGE_ID | --package-set PACKAGE_SET_ID) [options]
 
 Options:
   --targets HOSTS     Comma-separated target hostnames (maximum 25)
   --list NAME         Named app list from sources.yaml
   --package ID        One package from configs/software-packages/approved-apps.json
+  --package-set ID    Ordered Windows-native package set from configs/software-packages/windows-native-package-sets.json
   --yaml PATH         Path to sources.yaml (default: Config/sources.yaml)
   --catalog PATH      Approved package catalog (default: configs/software-packages/approved-apps.json)
+  --package-set-catalog PATH
+                      Windows-native package-set catalog (default: configs/software-packages/windows-native-package-sets.json)
   --repo-root PATH    Remote path to software repo on targets (default: C:\SoftwareRepo)
   --share NAME        Admin share name (default: C$)
   --remote-base PATH  Target staging parent (default: C:\ProgramData\SysAdminSuite\AppInstall)
@@ -69,7 +76,7 @@ Options:
   --timeout SEC       SMB timeout seconds (default: 10)
   --wait-timeout SEC  Maximum installer-result wait per target (default: 1800)
   --dry-run           Generate worker script and print schtasks commands without executing
-  --allow-legacy      Enable this preserved legacy deployment lane for this run
+  --allow-legacy      Enable this compatibility controller for this run
   --no-teardown       Debug only: leave transient worker/launcher/task artifacts on targets
   --log-dir PATH      Output log directory (default: bash/apps/output)
   -h, --help          Show help
@@ -106,8 +113,10 @@ while [[ $# -gt 0 ]]; do
     --targets)     TARGETS_RAW="${2:?missing value for --targets}"; shift 2 ;;
     --list)        LIST_NAME="${2:?missing value for --list}"; shift 2 ;;
     --package)     PACKAGE_ID="${2:?missing value for --package}"; shift 2 ;;
+    --package-set) PACKAGE_SET_ID="${2:?missing value for --package-set}"; shift 2 ;;
     --yaml)        SOURCES_YAML="${2:?missing value for --yaml}"; shift 2 ;;
     --catalog)     PACKAGE_CATALOG="${2:?missing value for --catalog}"; shift 2 ;;
+    --package-set-catalog) PACKAGE_SET_CATALOG="${2:?missing value for --package-set-catalog}"; shift 2 ;;
     --repo-root)   REPO_ROOT="${2:?missing value for --repo-root}"; shift 2 ;;
     --share)       SHARE="${2:?missing value for --share}"; shift 2 ;;
     --remote-base) REMOTE_BASE_ROOT="${2:?missing value for --remote-base}"; shift 2 ;;
@@ -141,23 +150,28 @@ if [[ "$NO_TEARDOWN" -eq 1 && "$ALLOW_LEGACY" -ne 1 && "${SAS_ALLOW_LEGACY_TOOLS
 fi
 
 [[ -n "$TARGETS_RAW" ]] || fail "--targets is required"
-if [[ -n "$LIST_NAME" && -n "$PACKAGE_ID" ]]; then
-  fail "use exactly one of --list or --package"
-fi
-if [[ -z "$LIST_NAME" && -z "$PACKAGE_ID" ]]; then
-  fail "one of --list or --package is required"
+SELECTION_COUNT=0
+[[ -n "$LIST_NAME" ]] && SELECTION_COUNT=$((SELECTION_COUNT + 1))
+[[ -n "$PACKAGE_ID" ]] && SELECTION_COUNT=$((SELECTION_COUNT + 1))
+[[ -n "$PACKAGE_SET_ID" ]] && SELECTION_COUNT=$((SELECTION_COUNT + 1))
+if [[ "$SELECTION_COUNT" -ne 1 ]]; then
+  fail "use exactly one of --list, --package, or --package-set"
 fi
 has_cmd python3 || fail "python3 is required"
 if [[ -n "$LIST_NAME" ]]; then
   [[ -f "$SOURCES_YAML" ]] || fail "sources.yaml not found: $SOURCES_YAML"
-else
+elif [[ -n "$PACKAGE_ID" ]]; then
   [[ -f "$PACKAGE_CATALOG" ]] || fail "approved package catalog not found: $PACKAGE_CATALOG"
   LIST_NAME="package-${PACKAGE_ID}"
+else
+  [[ -f "$PACKAGE_SET_CATALOG" ]] || fail "Windows-native package-set catalog not found: $PACKAGE_SET_CATALOG"
+  LIST_NAME="package-set-${PACKAGE_SET_ID}"
 fi
 
 # Input validation — reject shell metacharacters in user-supplied values
 [[ "$LIST_NAME" =~ ^[A-Za-z0-9_.\-]+$ ]] || fail "--list contains invalid characters: $LIST_NAME"
 [[ -z "$PACKAGE_ID" || "$PACKAGE_ID" =~ ^[A-Za-z0-9_.\-]+$ ]] || fail "--package contains invalid characters: $PACKAGE_ID"
+[[ -z "$PACKAGE_SET_ID" || "$PACKAGE_SET_ID" =~ ^[A-Za-z0-9_.\-]+$ ]] || fail "--package-set contains invalid characters: $PACKAGE_SET_ID"
 [[ "$TASK_NAME" =~ ^[A-Za-z0-9_.\-]+$ ]] || fail "--task-name contains invalid characters: $TASK_NAME"
 [[ "$SHARE"     =~ ^[A-Za-z0-9_\$]+$  ]] || fail "--share contains invalid characters: $SHARE"
 [[ "$SHARE" == 'C$' ]] || fail "--share must be C$ because target staging is constrained to the C: drive"
@@ -188,6 +202,7 @@ PACKAGE_DISPLAY_NAME=""
 PACKAGE_INSTALLER_FILE=""
 PACKAGE_TYPE=""
 PACKAGE_ARGUMENTS_JSON="[]"
+PACKAGE_SET_METADATA_FILE=""
 
 if [[ -n "$PACKAGE_ID" ]]; then
   PACKAGE_METADATA="$(python3 - "$PACKAGE_CATALOG" "harness/api/sas-harness-api.json" "$PACKAGE_ID" <<'PY'
@@ -257,6 +272,124 @@ PY
   PACKAGE_ARGUMENTS_JSON="${PACKAGE_FIELDS[4]}"
 fi
 
+if [[ -n "$PACKAGE_SET_ID" ]]; then
+  PACKAGE_SET_METADATA_FILE="$LOG_DIR/package-set-${PACKAGE_SET_ID}-${STAMP}.json"
+  if ! python3 - "$PACKAGE_SET_CATALOG" "harness/api/sas-harness-api.json" "$PACKAGE_SET_ID" > "$PACKAGE_SET_METADATA_FILE" <<'PY'; then
+import json
+import ntpath
+import sys
+
+catalog_path, api_path, package_set_id = sys.argv[1:]
+with open(catalog_path, encoding="utf-8-sig") as handle:
+    catalog = json.load(handle)
+with open(api_path, encoding="utf-8-sig") as handle:
+    api = json.load(handle)
+
+if catalog.get("schema_version") != "sas-windows-native-package-sets/v1":
+    raise SystemExit("Windows-native package-set catalog schema is not supported")
+
+root = str(catalog.get("software_share_root", "")).strip().replace("/", "\\").rstrip("\\") + "\\"
+approved = {
+    str(item).strip().replace("/", "\\").rstrip("\\").lower() + "\\"
+    for item in api.get("posture", {}).get("approved_software_sources", [])
+}
+if root.lower() not in approved:
+    raise SystemExit("package-set software_share_root is not approved by harness/api/sas-harness-api.json")
+
+set_matches = [
+    item for item in catalog.get("package_sets", [])
+    if str(item.get("id", "")).lower() == package_set_id.lower()
+]
+if len(set_matches) != 1:
+    raise SystemExit(f"approved package set not found or ambiguous: {package_set_id}")
+
+package_ids = [str(item).strip() for item in set_matches[0].get("package_ids", []) if str(item).strip()]
+if not package_ids or len(package_ids) > 20 or len(package_ids) != len(set(package_ids)):
+    raise SystemExit(f"approved package set must contain 1-20 unique package ids: {package_set_id}")
+
+catalog_packages = catalog.get("packages", [])
+resolved = []
+for package_id in package_ids:
+    matches = [item for item in catalog_packages if str(item.get("id", "")).lower() == package_id.lower()]
+    if len(matches) != 1:
+        raise SystemExit(f"package-set member not found or ambiguous: {package_id}")
+    package = matches[0]
+    if not package.get("install_enabled"):
+        raise SystemExit(f"package-set member is not enabled for installation: {package_id}")
+
+    folder = str(package.get("source_folder_relative_path") or "").strip().strip("\\/").replace("/", "\\")
+    entrypoint = str(package.get("entrypoint_file") or "").strip().strip("\\/").replace("/", "\\")
+    package_kind = str(package.get("package_kind") or "").strip().lower()
+    installer_type = str(package.get("installer_type") or "").strip().lower()
+    staged_files = package.get("staged_files", [])
+    arguments = package.get("installer_arguments", [])
+
+    if not folder or ntpath.isabs(folder) or ".." in folder.split("\\"):
+        raise SystemExit(f"package-set member has unsafe source folder: {package_id}")
+    if package_kind not in {"single", "bundle"}:
+        raise SystemExit(f"package-set member has unsupported package_kind: {package_id}")
+    if installer_type not in {"msi", "exe", "cmd"}:
+        raise SystemExit(f"package-set member has unsupported installer_type: {package_id}")
+    if package_kind == "single" and installer_type == "cmd":
+        raise SystemExit(f"cmd entrypoints must use package_kind=bundle: {package_id}")
+    if package_kind == "bundle" and installer_type != "cmd":
+        raise SystemExit(f"bundle package entrypoint must be cmd: {package_id}")
+    if not isinstance(staged_files, list) or not staged_files or len(staged_files) > 50:
+        raise SystemExit(f"package-set member must pin 1-50 staged files: {package_id}")
+    if not isinstance(arguments, list):
+        raise SystemExit(f"package-set member installer_arguments must be an array: {package_id}")
+    if installer_type == "cmd" and arguments:
+        raise SystemExit(f"cmd bundle entrypoint arguments must be encoded in the approved wrapper: {package_id}")
+
+    normalized_files = []
+    for raw_file in staged_files:
+        relative_file = str(raw_file).strip().strip("\\/").replace("/", "\\")
+        parts = relative_file.split("\\")
+        if (
+            not relative_file
+            or ntpath.isabs(relative_file)
+            or ".." in parts
+            or any(part in {"", "."} for part in parts)
+            or any(char in relative_file for char in '<>:"|?*')
+        ):
+            raise SystemExit(f"package-set member has unsafe staged file: {package_id}")
+        normalized_files.append(relative_file)
+    if entrypoint not in normalized_files:
+        raise SystemExit(f"package-set entrypoint is not pinned in staged_files: {package_id}")
+
+    expected_extension = {"msi": ".msi", "exe": ".exe", "cmd": ".cmd"}[installer_type]
+    if ntpath.splitext(entrypoint)[1].lower() != expected_extension:
+        raise SystemExit(f"package-set entrypoint extension does not match installer_type: {package_id}")
+
+    resolved.append({
+        "id": package_id,
+        "display_name": str(package.get("display_name") or package_id),
+        "source_folder": root + folder,
+        "entrypoint_file": entrypoint,
+        "staged_files": normalized_files,
+        "staged_entrypoint": package_id + "\\" + entrypoint,
+        "installer_type": installer_type,
+        "installer_arguments": [str(item) for item in arguments],
+        "detect_type": str(package.get("detect_type") or ""),
+        "detect_value": str(package.get("detect_value") or ""),
+    })
+
+json.dump(
+    {
+        "schema_version": "sas-resolved-windows-native-package-set/v1",
+        "id": str(set_matches[0].get("id")),
+        "display_name": str(set_matches[0].get("display_name") or package_set_id),
+        "packages": resolved,
+    },
+    sys.stdout,
+    separators=(",", ":"),
+)
+PY
+    rm -f "$PACKAGE_SET_METADATA_FILE"
+    fail "could not resolve approved Windows-native package set: $PACKAGE_SET_ID"
+  fi
+fi
+
 # Write Python worker-generator to temp file — avoids bash double-quote expansion
 # issues that occur with python3 -c "$var" when Python code contains " characters.
 _PY_WORKER_GEN="$(mktemp /tmp/sas-install-XXXXXX.py)"
@@ -274,6 +407,7 @@ package_display_name = sys.argv[6]
 package_installer_file = sys.argv[7]
 package_type = sys.argv[8]
 package_arguments = json.loads(sys.argv[9])
+package_set_metadata_path = sys.argv[10]
 
 def parse_sources_yaml(path):
     with open(path, encoding='utf-8-sig') as f:
@@ -343,7 +477,21 @@ def parse_sources_yaml(path):
         i += 1
     return {'apps': apps, 'lists': lists}
 
-if package_id:
+if package_set_metadata_path:
+    with open(package_set_metadata_path, encoding='utf-8-sig') as handle:
+        package_set = json.load(handle)
+    apps = [
+        {
+            'name': package['display_name'],
+            'filename_template': package['staged_entrypoint'],
+            'type': package['installer_type'],
+            'silent_args': package['installer_arguments'],
+            'detect_type': package.get('detect_type', ''),
+            'detect_value': package.get('detect_value', ''),
+        }
+        for package in package_set['packages']
+    ]
+elif package_id:
     apps = [{
         'name': package_display_name,
         'filename_template': package_installer_file,
@@ -443,7 +591,17 @@ function Install-App {{
         $exitCode = $p.ExitCode
       }}
       "exe" {{
-        $p = Start-Process -FilePath $installer -ArgumentList $SilentArgs -Wait -PassThru -NoNewWindow
+        if (@($SilentArgs).Count -gt 0) {{
+          $p = Start-Process -FilePath $installer -ArgumentList $SilentArgs -Wait -PassThru -NoNewWindow
+        }} else {{
+          $p = Start-Process -FilePath $installer -Wait -PassThru -NoNewWindow
+        }}
+        $exitCode = $p.ExitCode
+      }}
+      "cmd" {{
+        if ($SilentArgs.Count -gt 0) {{ throw "CMD bundle arguments must be encoded in the approved wrapper" }}
+        $cmdArguments = '/d /s /c ""{{0}}""' -f $installer
+        $p = Start-Process -FilePath $env:ComSpec -ArgumentList $cmdArguments -WorkingDirectory (Split-Path -Parent $installer) -Wait -PassThru -NoNewWindow
         $exitCode = $p.ExitCode
       }}
       "msix" {{
@@ -520,12 +678,13 @@ PYEOF
 log "Generating worker script for list: $LIST_NAME"
 
 EFFECTIVE_REPO_ROOT="$REPO_ROOT"
-if [[ -n "$PACKAGE_ID" ]]; then
+if [[ -n "$PACKAGE_ID" || -n "$PACKAGE_SET_ID" ]]; then
   EFFECTIVE_REPO_ROOT="$REMOTE_BASE"
 fi
 python3 "$_PY_WORKER_GEN" \
   "$SOURCES_YAML" "$LIST_NAME" "$EFFECTIVE_REPO_ROOT" "$REMOTE_BASE" \
   "$PACKAGE_ID" "$PACKAGE_DISPLAY_NAME" "$PACKAGE_INSTALLER_FILE" "$PACKAGE_TYPE" "$PACKAGE_ARGUMENTS_JSON" \
+  "$PACKAGE_SET_METADATA_FILE" \
   > "$WORKER_SCRIPT_PATH"
 
 # Check that python succeeded and the worker doesn't start with an error comment
@@ -748,7 +907,7 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
     fail "requires Windows powershell.exe + schtasks.exe, or smbclient + schtasks.exe"
   fi
 fi
-if [[ -n "$PACKAGE_ID" && "$DRY_RUN" -eq 0 && "$TRANSPORT" != "windows-native" ]]; then
+if [[ ( -n "$PACKAGE_ID" || -n "$PACKAGE_SET_ID" ) && "$DRY_RUN" -eq 0 && "$TRANSPORT" != "windows-native" ]]; then
   fail "approved-package mode requires the Windows-native admin-share transport"
 fi
 
@@ -783,6 +942,23 @@ for TARGET in "${TARGETS[@]}"; do
         echo "[DRY-RUN] Approved package: ${PACKAGE_DISPLAY_NAME} (${PACKAGE_ID})"
         echo "[DRY-RUN] Pinned installer: ${PACKAGE_SOURCE_PATH}"
         echo "[DRY-RUN] Would stage installer to \\\\${TARGET}\\${SHARE}\\${REMOTE_BASE_SMB_WIN}\\staged\\${LIST_NAME}\\${PACKAGE_INSTALLER_FILE}"
+      elif [[ -n "$PACKAGE_SET_ID" ]]; then
+        python3 - "$PACKAGE_SET_METADATA_FILE" "$TARGET" "$SHARE" "$REMOTE_BASE_SMB_WIN" "$LIST_NAME" <<'PY'
+import json
+import ntpath
+import sys
+
+metadata_path, target, share, remote_base, list_name = sys.argv[1:]
+with open(metadata_path, encoding="utf-8-sig") as handle:
+    metadata = json.load(handle)
+print(f"[DRY-RUN] Approved package set: {metadata['display_name']} ({metadata['id']})")
+for package in metadata["packages"]:
+    print(f"[DRY-RUN] Package: {package['display_name']} ({package['id']})")
+    for relative_file in package["staged_files"]:
+        source = package["source_folder"] + "\\" + relative_file
+        destination = ntpath.join(remote_base, "staged", list_name, package["id"], relative_file)
+        print(f"[DRY-RUN] Would stage: {source} -> \\\\{target}\\{share}\\{destination}")
+PY
       fi
       echo "[DRY-RUN] schtasks /Create /S ${TARGET} /RU SYSTEM /SC ONCE /ST HH:MM /TN ${TASK_NAME} /TR \"\\\"${REMOTE_PWSH}\\\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \\\"${REMOTE_LAUNCHER_REMOTE}\\\"\" /RL HIGHEST /F"
       echo "[DRY-RUN] schtasks /Run /S ${TARGET} /TN ${TASK_NAME}"
@@ -816,6 +992,38 @@ for TARGET in "${TARGETS[@]}"; do
         else
           echo "ERROR: Failed to stage approved package from ${PACKAGE_SOURCE_PATH}"
           _deploy_ok=0
+        fi
+      fi
+
+      if [[ "$_deploy_ok" -eq 1 && -n "$PACKAGE_SET_ID" ]]; then
+        _staged_file_count=0
+        while IFS=$'\t' read -r _source_path _staged_relative_path _package_label; do
+          _package_label="${_package_label%$'\r'}"
+          [[ -n "$_source_path" && -n "$_staged_relative_path" ]] || continue
+          REMOTE_PACKAGE_PATH="${REMOTE_BASE_SMB}/staged/${LIST_NAME}/${_staged_relative_path//\\//}"
+          if remote_put "$TARGET" "$_source_path" "$REMOTE_PACKAGE_PATH"; then
+            _staged_file_count=$((_staged_file_count + 1))
+            echo "Staged approved bundle file: ${_package_label}/${_staged_relative_path#*/}"
+          else
+            echo "ERROR: Failed to stage approved bundle file from ${_source_path}"
+            _deploy_ok=0
+            break
+          fi
+        done < <(python3 - "$PACKAGE_SET_METADATA_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8-sig") as handle:
+    metadata = json.load(handle)
+for package in metadata["packages"]:
+    for relative_file in package["staged_files"]:
+        source = package["source_folder"] + "\\" + relative_file
+        staged = package["id"] + "\\" + relative_file
+        print(source + "\t" + staged + "\t" + package["id"])
+PY
+        )
+        if [[ "$_deploy_ok" -eq 1 ]]; then
+          echo "Staged approved package set: ${PACKAGE_SET_ID} (${_staged_file_count} files)"
         fi
       fi
 

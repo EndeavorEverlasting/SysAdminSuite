@@ -6,9 +6,9 @@ This lane recovers the useful part of PR #150: a bounded, auditable manifest in 
 
 - `scripts/New-SasAuthorizedDeploymentManifest.ps1` performs package intake and generates a reviewable manifest.
 - `scripts/Invoke-SasAuthorizedDeploymentManifest.ps1` validates that manifest and delegates each row to the canonical installer.
-- `scripts/Invoke-SasSoftwareInstall.ps1` remains the only remote-install implementation.
+- `scripts/Invoke-SasSoftwareInstall.ps1` remains the only WinRM remote-install implementation used by this manifest lane. The separately guarded SMB/Task Scheduler compatibility controller is `bash/apps/sas-install-apps.sh`; this manifest does not consume the transport decision, delegate to that controller, or guess between transports.
 
-The manifest layer does not contain a second remoting engine.
+The manifest layer does not contain a second remoting engine and cannot silently fall back after mutation begins.
 
 ## Package intake
 

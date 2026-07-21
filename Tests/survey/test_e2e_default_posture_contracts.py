@@ -46,7 +46,9 @@ def load(path: Path) -> dict:
 def test_default_posture_is_explicit_and_not_unit_only() -> None:
     agents = read(AGENTS)
     doctrine = read(DOCTRINE)
-    assert "End-to-end proof is the default merge and release target" in agents
+    skill = read(SKILL)
+    assert "End-to-end proof is the default merge and release target" not in agents
+    assert "End-to-end proof is the default merge and release target" in skill
     assert "Unit tests alone are insufficient" in doctrine
     assert "fixture, synthetic, or loopback end-to-end journey" in doctrine
     assert "Never promote fixture or loopback E2E to live target proof" in doctrine
@@ -94,12 +96,18 @@ def test_profile_is_fail_closed_and_loopback_only() -> None:
     scripts = {j["script"] for j in journeys.values()}
     assert "scripts/validate-sysadmin-harness.ps1" in scripts
     assert "scripts/Invoke-SasSoftwareInstallE2E.ps1" in scripts
+    assert "Tests/bash/test_smb_scheduled_task_install_contracts.sh" in scripts
     assert "dashboard/test_relay_cancel_e2e.py" in scripts
     assert "dashboard/test_relay_abort_e2e.js" in scripts
     install_journey = journeys["software-install-fixture"]
     assert install_journey["network_scope"] == "none"
     assert install_journey["target_mutation"] is False
     assert install_journey["arguments"] == ["-OutputRoot", "{journey_output}"]
+    smb_journey = journeys["software-install-smb-task-fixture"]
+    assert smb_journey["runtime_candidates"] == ["bash"]
+    assert smb_journey["network_scope"] == "none"
+    assert smb_journey["target_mutation"] is False
+    assert smb_journey["required"] is True
 
 
 def test_runner_emits_gate_artifacts_and_proof_boundaries() -> None:
@@ -222,7 +230,7 @@ def test_software_install_e2e_builds_executable_and_emits_deltas() -> None:
         "binary is not committed",
         "not live WinRM",
     ]:
-        assert fragment in doc, f"software-install E2E doc missing: {fragment}"
+        assert fragment in doc, f"software-install E2E doc missing contract: {fragment}"
 
 
 def test_ci_executes_real_journeys_and_tracks_dependencies() -> None:

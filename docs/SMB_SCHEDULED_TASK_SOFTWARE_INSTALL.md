@@ -4,23 +4,23 @@
 
 For a complete one-target-to-batch tutorial, start with [`tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`](tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md). A root-level navigation page is available at [`../START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md`](../START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md).
 
-This page is the technical transport reference for `bash/apps/sas-install-apps.sh`.
+This page is the technical transport reference for the intentionally supported compatibility controller at `bash/apps/sas-install-apps.sh`. The cross-transport decision authority is [`SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md`](SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md); the validated PowerShell front door remains `scripts/Invoke-SasValidatedSoftwareDeployment.ps1`.
 
 ## Purpose
 
-Use this guarded fallback when an authorized Windows target does not accept WinRM but its `C$` administrative share and remote Task Scheduler are available. Run it from Git Bash on an approved Windows admin workstation or an approved Windows admin VM.
+Use this guarded compatibility controller when a schema-valid decision selects Kerberos-authenticated SMB plus Remote Task Scheduler for an authorized Windows target that does not accept WinRM. WinRM unavailability does not by itself block this transport. Run it from Git Bash on an approved Windows admin workstation or an approved Windows admin VM.
 
 The controller uses the current Windows admin token. It does not require `smbclient`, collect credentials, enable WinRM, change firewall policy, or weaken endpoint controls. The repository does not provision or authorize the controller VM.
 
 ## Implemented flow
 
-1. Resolve one enabled package from `configs/software-packages/approved-apps.json`.
+1. Resolve one enabled package from `configs/software-packages/approved-apps.json` or one ordered Windows-native package set from `configs/software-packages/windows-native-package-sets.json`.
 2. Require the catalog root to match an approved software source in `harness/api/sas-harness-api.json`.
 3. Generate a package-specific PowerShell worker.
 4. Parse the worker locally with Windows PowerShell before target contact when `powershell.exe` is available.
 5. Verify `\\TARGET\C$` through the current Windows token.
 6. Create a unique run root beneath `C:\ProgramData\SysAdminSuite\AppInstall`.
-7. Stage the exact pinned MSI or EXE and transient worker files.
+7. Stage the exact pinned MSI/EXE or the exact files required by each approved CMD bundle, plus transient worker files.
 8. Create and run a uniquely named one-time scheduled task as SYSTEM.
 9. Wait for the worker result.
 10. Copy the result CSV to `bash/apps/output/`.
@@ -34,11 +34,11 @@ The controller uses the current Windows admin token. It does not require `smbcli
 - The current Windows account can read the approved software share and write to `\\TARGET\C$`.
 - Remote Task Scheduler RPC is permitted and the Schedule service is running.
 - Git Bash, Python 3, `powershell.exe`, and `schtasks.exe` are available.
-- The package has an enabled, pinned MSI or EXE entry in `configs/software-packages/approved-apps.json`.
+- A single package has an enabled, pinned MSI or EXE entry in `configs/software-packages/approved-apps.json`, or the package set and every required bundle file are pinned in `configs/software-packages/windows-native-package-sets.json`.
 - Silent arguments are stored in that catalog when required.
 - The target list contains 1–25 explicit authorized hostnames; start with one pilot.
 
-The `--allow-legacy` switch enables only this preserved deployment lane. It does not grant permission, credentials, package approval, or broader target scope.
+The historical `--allow-legacy` switch is retained as the compatibility-controller gate. It does not classify this transport as deprecated, and it does not grant permission, credentials, package approval, a transport decision, or broader target scope. New cross-transport front doors must consume a schema-valid decision instead of relying on this flag.
 
 ## Command help
 
@@ -46,7 +46,61 @@ The `--allow-legacy` switch enables only this preserved deployment lane. It does
 bash bash/apps/sas-install-apps.sh --help
 ```
 
-The package path requires exactly one of `--package` or `--list`. Approved-package installation uses `--package` and requires the Windows-native transport for live execution.
+The command requires exactly one of `--package`, `--package-set`, or `--list`. Approved-package and package-set installation require the Windows-native transport for live execution.
+
+## Clinical workstation package set
+
+The approved package-set ID `cybernet-clinical-workstation` installs these packages sequentially on each target:
+
+1. Allscripts EEHR Shortcut UAI 2.2;
+2. Epic Downtime Guide Shortcut 1.0;
+3. Nuance Dragon Medical One 2025;
+4. Hyland FOS Epic Integration 23.1.33.1000;
+5. Epic BCA Web Shortcut 1.0;
+6. NW AutoLogon Setup x64.
+
+Dragon and Hyland are approved folder bundles. Each package is staged in its own run-scoped subdirectory so its `Install.cmd`, MST, CAB, XML, shortcut, MSI, and EXE dependencies remain together. AutoLogon runs last and is elevated through the same one-time SYSTEM task. The controller never restarts a workstation.
+
+Dry run one explicit pilot target:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets CYBERNET-PILOT-01 \
+  --package-set cybernet-clinical-workstation \
+  --allow-legacy \
+  --dry-run
+```
+
+After reviewing the 18-file staging plan, remove only `--dry-run` for the authorized live run:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets CYBERNET-PILOT-01 \
+  --package-set cybernet-clinical-workstation \
+  --allow-legacy
+```
+
+If a completed package-set result shows that only AutoLogon failed, rerun only the final approved step instead of reinstalling the preceding applications:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets HOST1,HOST2 \
+  --package-set cybernet-autologon-only \
+  --allow-legacy
+```
+
+The AutoLogon recovery set runs only `NW_AutoLogon_Setup_x64.exe` as SYSTEM. Its argument list is intentionally empty; the worker omits PowerShell's `-ArgumentList` parameter for this case.
+
+For machines that already received the first four clinical applications but still need both BCA and the corrected AutoLogon step, use the bounded recovery set:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets HOST1,HOST2 \
+  --package-set cybernet-bca-autologon-recovery \
+  --allow-legacy
+```
+
+The recovery set installs BCA first and AutoLogon last. The returned full-set CSV contains one result row for each of the six packages. A failed row makes the target `HOST_FAILED`; later packages are still represented by the worker result when execution reaches them. Installer completion remains separate from technician application acceptance.
 
 ## BCA dry run
 
@@ -100,6 +154,12 @@ bash bash/apps/sas-install-apps.sh \
 
 Review the batch plan before removing only `--dry-run`. Each target receives its own classification and evidence. The maximum of 25 is a hard guardrail, not a recommendation to start with 25.
 
+For the six-package clinical set, replace `--package bca` with:
+
+```text
+--package-set cybernet-clinical-workstation
+```
+
 ## Evidence and application acceptance
 
 Review controller-side artifacts:
@@ -111,7 +171,7 @@ bash/apps/output/sas-install-<target>-package-bca-<timestamp>.results.csv
 
 Accepted package results are `Installed` or `ExitOK_NotDetected`. Installer completion is not application acceptance. BCA is a web-shortcut package, so a technician must still confirm that the shortcut exists, opens the approved destination, and meets the ticket criteria.
 
-This fallback does not provide the canonical WinRM lane's Before/After software snapshots.
+This compatibility controller does not provide the validated PowerShell lane's Before/After software snapshots. Its result and cleanup evidence are transport-specific and must not be represented as the validated front door's result contract.
 
 ## Production evidence
 
@@ -148,3 +208,5 @@ A reviewer or administrator adds one catalog entry with:
 - `install_enabled: true` only after review and qualification.
 
 Then complete the same dry-run, one-target pilot, evidence review, cleanup verification, and technician acceptance. Do not pass arbitrary UNC installers on the command line and do not store credentials in the catalog, scripts, docs, or output committed to Git.
+
+An approved CMD bundle belongs in the Windows-native package-set catalog with one pinned entrypoint and an explicit list of every staged dependency. The runner rejects absolute paths, traversal, wildcards, missing entrypoints, unsupported extensions, duplicate package IDs, and unapproved software-share roots.

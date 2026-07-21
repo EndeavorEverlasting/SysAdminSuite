@@ -8,6 +8,9 @@ on:
       - 'Tests/bash/test_english_log_artifact_contracts.sh'
       - 'Tests/bash/test_sysadmin_harness_validator_contracts.sh'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
+      - 'Tests/survey/test_software_deployment_transport_contracts.py'
+      - 'Tests/survey/test_deployment_transport_convergence_contracts.py'
+      - 'Tests/Fixtures/software-deployment-transport/**'
       - 'Tests/bash/test_harness_command_surface.sh'
       - 'Tests/bash/test_pr142_scope_boundary_contracts.sh'
       - 'Run-HarnessContracts.cmd'
@@ -24,6 +27,12 @@ on:
       - 'scripts/validate-sysadmin-harness.ps1'
       - 'scripts/SasRunContext.psm1'
       - 'schemas/harness/**'
+      - 'harness/api/sas-harness-api.json'
+      - 'harness/workflows/software-deployment-transport.yaml'
+      - 'docs/SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md'
+      - 'docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md'
+      - 'docs/handoff/deployment-transport-convergence.md'
+      - 'docs/launch-and-doc-index.md'
       - 'survey/fixtures/english-log/**'
       - 'survey/workflows/**'
   push:
@@ -41,6 +50,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Software deployment transport contracts
+        shell: bash
+        run: python3 Tests/survey/test_software_deployment_transport_contracts.py
+
+      - name: Deployment transport convergence contracts
+        shell: bash
+        run: python3 Tests/survey/test_deployment_transport_convergence_contracts.py
 
       - name: Run harness contract suite
         shell: bash

@@ -148,8 +148,93 @@
       ]
     },
     {
+      "id": "software_install.transport_preflight",
+      "summary": "Collect bounded read-only WinRM and Kerberos SMB Task Scheduler observations and emit one schema-valid fail-closed transport decision.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": false,
+      "inputs": [
+        "authorized_fqdn_targets",
+        "allow_network_activity",
+        "bounded_timeouts",
+        "optional_runtime_only_pscredential",
+        "software_deployment_transport_result_schema"
+      ],
+      "outputs": [
+        "software_deployment_transport_result.json",
+        "artifact_registry.json",
+        "english_summary.txt"
+      ],
+      "guardrails": [
+        "Read_only_preflight",
+        "No_target_mutation",
+        "No_credential_persistence",
+        "No_ticket_bytes_or_session_keys",
+        "No_hidden_gui_prompt",
+        "WinRM_failure_does_not_block_SMB_evaluation",
+        "Every_SMB_Task_prerequisite_required",
+        "No_silent_transport_fallback",
+        "Local_gitignored_evidence_only"
+      ]
+    },
+    {
+      "id": "software_install.transport_live_cert",
+      "summary": "Certify one authorized Kerberos SMB Task Scheduler transport with a harmless SYSTEM task, local result retrieval, and verified run-scoped teardown.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": true,
+      "inputs": [
+        "schema_valid_transport_result",
+        "authorized_single_target",
+        "allow_target_mutation",
+        "harmless_certification_payload"
+      ],
+      "outputs": [
+        "operator_local_transport_live_cert_result.json",
+        "artifact_registry.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "One_explicitly_authorized_target_only",
+        "Kerberos_SMB_Task_ready_decision_required",
+        "No_software_installation",
+        "Harmless_payload_only",
+        "Run_scoped_task_and_staging_only",
+        "Result_retrieval_before_teardown",
+        "Task_deletion_staging_deletion_and_zero_remnants_required",
+        "No_fallback_after_mutation_begins",
+        "Raw_evidence_remains_operator_local"
+      ]
+    },
+    {
+      "id": "software_install.transport_proof_ingest",
+      "summary": "Hash an operator-local transport certification result in place and emit a public-safe receipt without copying private source evidence.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "operator_local_transport_live_cert_result",
+        "source_evidence_sha256",
+        "operator_confirmation",
+        "software_deployment_transport_receipt_schema"
+      ],
+      "outputs": [
+        "software_deployment_transport_receipt.json",
+        "artifact_registry.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Local_only",
+        "Source_evidence_hashed_in_place_and_not_copied",
+        "No_hostname_username_ticket_credential_or_package_path",
+        "Fixtures_cannot_produce_live_cert_proof",
+        "No_network_activity",
+        "No_target_mutation"
+      ]
+    },
+    {
       "id": "software_install.operator_execute",
-      "summary": "Install approved software on authorized target computers from approved read-only software shares with local evidence and cleanup of SysAdminSuite-owned target staging.",
+      "summary": "Install approved software on authorized target computers from approved read-only software shares after consuming a schema-valid transport decision.",
       "mode": "operator_execute",
       "network_activity": true,
       "target_mutation": true,
@@ -160,7 +245,8 @@
         "targets",
         "allow_target_mutation",
         "software_share_root",
-        "installer_arguments"
+        "installer_arguments",
+        "schema_valid_transport_result"
       ],
       "outputs": [
         "software_install_events.jsonl",
@@ -177,7 +263,10 @@
         "Prefer_UNC_direct_install_to_avoid_target_staging",
         "Run_specific_staging_cleanup_attempted_on_all_failure_paths",
         "Prune_empty_SysAdminSuite_target_directories",
-        "Local_gitignored_evidence_only"
+        "Local_gitignored_evidence_only",
+        "Schema_valid_transport_decision_required",
+        "No_transport_guessing",
+        "No_silent_fallback_after_mutation_begins"
       ]
     },
     {
