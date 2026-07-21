@@ -1,0 +1,22 @@
+{
+  "schema_version": "sas-port-fallback-decision/v1",
+  "source_profile_id": "custom_narrow_scan",
+  "profile_source": "canonical_default",
+  "effective_ports": [445, 3389],
+  "target_count": 2,
+  "tested_target_count": 2,
+  "untested_target_count": 0,
+  "open_default_port_target_count": 2,
+  "web_only_reachable_count": 0,
+  "admin_surface_reachable_count": 2,
+  "silent_on_default_profile_count": 0,
+  "decision": "default_ok",
+  "recommended_profile_id": "",
+  "approval_required": false,
+  "required_gate": "",
+  "network_activity_performed": false,
+  "target_mutation_performed": false,
+  "reason": "Claims canonical default but a narrowed custom port set was used.",
+  "next_action": "Must not claim default-profile identity with a custom port set.",
+  "proof_level": "fixture"
+}

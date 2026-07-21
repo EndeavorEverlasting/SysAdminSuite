@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/port-fallback-decision.schema.json",
+  "title": "Port-Fallback Decision",
+  "description": "Closed decision document produced by the low-noise port-fallback classification service. Contract only; no live packets, no target mutation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_profile_id",
+    "profile_source",
+    "effective_ports",
+    "target_count",
+    "tested_target_count",
+    "untested_target_count",
+    "open_default_port_target_count",
+    "web_only_reachable_count",
+    "admin_surface_reachable_count",
+    "silent_on_default_profile_count",
+    "decision",
+    "recommended_profile_id",
+    "approval_required",
+    "required_gate",
+    "network_activity_performed",
+    "target_mutation_performed",
+    "reason",
+    "next_action",
+    "proof_level"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "sas-port-fallback-decision/v1"
+    },
+    "source_profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The registered low-noise or Naabu profile ID used for this bounded check."
+    },
+    "profile_source": {
+      "type": "string",
+      "enum": ["canonical_default", "explicit_named_profile", "explicit_subset_override"]
+    },
+    "effective_ports": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1, "maximum": 65535 },
+      "minItems": 0,
+      "description": "Exact ports used. Empty array when no port-level profile was selected."
+    },
+    "target_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tested_target_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "untested_target_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "open_default_port_target_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "web_only_reachable_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "admin_surface_reachable_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "silent_on_default_profile_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "default_ok",
+        "web_only_fallback",
+        "approved_subnet_host_discovery_required",
+        "udp_justification_required",
+        "all_ports_denied_without_explicit_gate",
+        "review_required"
+      ]
+    },
+    "recommended_profile_id": {
+      "type": "string",
+      "description": "Recommended registered profile ID for the next authorized step. Empty string when no profile is recommended or review is required."
+    },
+    "approval_required": {
+      "type": "boolean"
+    },
+    "required_gate": {
+      "type": "string",
+      "description": "Canonical gate that must be satisfied before the recommended profile may be used. Empty string when no gate is required.",
+      "enum": [
+        "",
+        "approved_subnet_scope",
+        "udp_justification",
+        "explicit_all_ports_gate",
+        "lead_or_operator_override"
+      ]
+    },
+    "network_activity_performed": {
+      "type": "boolean"
+    },
+    "target_mutation_performed": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "next_action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "proof_level": {
+      "type": "string",
+      "enum": [
+        "contract",
+        "fixture",
+        "harness_routing",
+        "static_pester",
+        "fixture_e2e",
+        "live_packets",
+        "operator_acceptance"
+      ]
+    }
+  }
+}

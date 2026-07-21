@@ -17,10 +17,13 @@ on:
       - 'docs/HARNESS_DISCIPLINE.md'
       - 'docs/LOCAL_DEVELOPMENT_HARNESS.md'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
+      - 'docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'docs/PROGRESS_REPORTING.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
       - 'harness/**'
+      - 'schemas/harness/port-fallback-decision.schema.json'
+      - 'Tests/Fixtures/port-fallback-decision/**'
       - 'bash/transport/**'
       - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
@@ -47,6 +50,7 @@ on:
       - 'Tests/survey/test_checkpoint_discipline_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
+      - 'Tests/survey/test_port_fallback_decision_contracts.py'
       - 'Tests/survey/test_english_event_renderer.py'
       - 'Tests/Pester/SasLowNoisePolicy.Tests.ps1'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
@@ -69,10 +73,13 @@ on:
       - 'docs/HARNESS_DISCIPLINE.md'
       - 'docs/LOCAL_DEVELOPMENT_HARNESS.md'
       - 'docs/LOW_NOISE_SURVEY_DOCTRINE.md'
+      - 'docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md'
       - 'docs/NAABU_CYBERNET_PROFILES.md'
       - 'docs/PROGRESS_REPORTING.md'
       - 'docs/STANDARD_CORPORATE_SURVEY_TOOLING.md'
       - 'harness/**'
+      - 'schemas/harness/port-fallback-decision.schema.json'
+      - 'Tests/Fixtures/port-fallback-decision/**'
       - 'bash/transport/**'
       - 'mcp/local/**'
       - 'probe/packet-expenditure/**'
@@ -99,6 +106,7 @@ on:
       - 'Tests/survey/test_checkpoint_discipline_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
       - 'Tests/survey/test_low_noise_policy_contracts.py'
+      - 'Tests/survey/test_port_fallback_decision_contracts.py'
       - 'Tests/survey/test_english_event_renderer.py'
       - 'Tests/Pester/SasLowNoisePolicy.Tests.ps1'
       - 'Tests/survey/test_probe_socket_access_contracts.py'
@@ -174,6 +182,16 @@ jobs:
           python3 scripts/validate-low-noise-policy.py
           python3 Tests/survey/test_low_noise_policy_contracts.py
           python3 Tests/survey/test_english_event_renderer.py
+
+      - name: Port-fallback decision contracts
+        shell: bash
+        run: |
+          python3 Tests/survey/test_port_fallback_decision_contracts.py
+
+      - name: Naabu profile sync contracts
+        shell: bash
+        run: |
+          bash Tests/bash/test_naabu_profile_sync.sh
 
       - name: Progress reporting contracts
         shell: bash

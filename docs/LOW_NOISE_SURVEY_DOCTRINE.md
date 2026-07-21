@@ -202,3 +202,35 @@ bash survey/sas-generate-naabu-runtime-profiles.sh --check   # fails if runtime 
 Legacy runtime profile names (`keyports_cdn`, `keyports_cdn_json`, `windows_selected`,
 `host_discovery_tcp80`, `udp_infrastructure`, `hostname_all_ips`,
 `full_ports_cdn_guarded`) remain available as backward-compatible aliases.
+
+## 7. Port-fallback authority matrix
+
+This matrix establishes the single canonical owner for each authority surface consumed by port-fallback classification. Application code must consume these sources rather than copying port lists or approval rules.
+
+| Authority surface                  | Canonical owner              | Scope                                                                 |
+| ---------------------------------- | ---------------------------- | --------------------------------------------------------------------- |
+| General low-noise policy           | `Config/low-noise-policy.json` | Evidence reuse, freshness, retry, rate, mutation, and low-noise guardrails |
+| Executable Naabu profile authority | `survey/naabu_profiles.json`   | Profile IDs, executable flags, port expressions, output format, explicit approval/gate metadata |
+| Port-fallback decision output      | `schemas/harness/port-fallback-decision.schema.json` | Closed decision shape; one mutually exclusive decision per classification |
+| Application implementation         | `scripts/SasPortFallbackDecision.psm1` (Sprint 2) | Pure decision service consuming canonical data, not duplicating it |
+| Run context and artifact registry  | `scripts/SasRunContext.psm1`   | Run identity, artifact registration, and canonical output paths       |
+| Agent routing                      | `harness/api/agent-routing-manifest.json` | Deterministic task-signal routing to `survey-low-noise` skill         |
+
+The following values may be referenced but must not be duplicated outside their canonical owner:
+
+- The canonical Cybernet key-port list: `80,443,135,445,3389,5985,5986` (from `survey/naabu_profiles.json`)
+- Profile approval/gate metadata: `requiresJustification`, `requiresApprovedSubnetScope`, `requiresHostnameInput`
+- Decision names: `default_ok`, `web_only_fallback`, `approved_subnet_host_discovery_required`, `udp_justification_required`, `all_ports_denied_without_explicit_gate`, `review_required`
+
+## 8. Port 9100 profile decision
+
+The `network_preflight` profile in `Config/low-noise-policy.json` intentionally includes port 9100 (HP JetDirect/laser printer TCP) as part of a separate PowerShell field network preflight profile. This profile is **not** the canonical Cybernet key-port profile and must not be mistaken for one.
+
+| Profile                        | Owner                         | Ports                            | Purpose                                             |
+| ------------------------------ | ----------------------------- | -------------------------------- | --------------------------------------------------- |
+| `network_preflight`            | `Config/low-noise-policy.json` | `135, 445, 3389, 9100`          | PowerShell field preflight with printer discovery    |
+| `keyports_cybernet_json`       | `survey/naabu_profiles.json`   | `80, 443, 135, 445, 3389, 5985, 5986` | Canonical Cybernet key-port reachability |
+
+Port 9100 was evaluated on 2026-07-20 and retained as an intentional field-usable profile distinct from the canonical Cybernet baseline. The canonical Naabu Cybernet key-port profile (`keyports_cybernet_json`) correctly excludes port 9100.
+
+Application code consuming port-fallback decisions must derive effective ports from the selected profile's canonical source rather than maintaining a separate hardcoded port list.
