@@ -10,8 +10,11 @@ on:
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
       - 'Tests/survey/test_software_deployment_transport_contracts.py'
       - 'Tests/survey/test_software_deployment_transport_preflight_contracts.py'
+      - 'Tests/survey/test_canonical_smb_task_deployment_contracts.py'
       - 'Tests/Pester/SoftwareDeploymentTransport.Tests.ps1'
+      - 'Tests/Pester/SmbScheduledTaskDeployment.Tests.ps1'
       - 'Tests/Fixtures/software-deployment-transport/**'
+      - 'Tests/Fixtures/smb-scheduled-task-deployment/**'
       - 'Tests/bash/test_harness_command_surface.sh'
       - 'Tests/bash/test_pr142_scope_boundary_contracts.sh'
       - 'Run-HarnessContracts.cmd'
@@ -28,7 +31,11 @@ on:
       - 'scripts/validate-sysadmin-harness.ps1'
       - 'scripts/SasRunContext.psm1'
       - 'scripts/SasSoftwareDeploymentTransport.psm1'
+      - 'scripts/SasSoftwareDeploymentAdapter.psm1'
       - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
+      - 'scripts/Invoke-SasValidatedSoftwareDeployment.ps1'
+      - 'scripts/Test-SasSmbScheduledTaskDeploymentFixture.ps1'
+      - 'bash/apps/sas-install-apps.sh'
       - 'schemas/harness/**'
       - 'harness/api/sas-harness-api.json'
       - 'harness/workflows/software-deployment-transport.yaml'
@@ -64,6 +71,10 @@ jobs:
         shell: bash
         run: python3 Tests/survey/test_software_deployment_transport_preflight_contracts.py
 
+      - name: Canonical SMB scheduled-task deployment contracts
+        shell: bash
+        run: python3 Tests/survey/test_canonical_smb_task_deployment_contracts.py
+
       - name: Run harness contract suite
         shell: bash
         run: bash Tests/bash/run_harness_contracts.sh
@@ -82,6 +93,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentTransport.psm1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\Test-SasSoftwareDeploymentTransport.ps1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentAdapter.psm1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\Invoke-SasValidatedSoftwareDeployment.ps1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\Test-SasSmbScheduledTaskDeploymentFixture.ps1 -Raw))
           'PARSE OK'
 
       - name: Install Pester 5
@@ -93,6 +107,12 @@ jobs:
         run: |
           $result = Invoke-Pester -Path .\Tests\Pester\SoftwareDeploymentTransport.Tests.ps1 -PassThru
           if ($result.FailedCount -gt 0) { throw "$($result.FailedCount) focused Pester test(s) failed." }
+
+      - name: Run focused canonical SMB scheduled-task Pester
+        shell: powershell
+        run: |
+          $result = Invoke-Pester -Path .\Tests\Pester\SmbScheduledTaskDeployment.Tests.ps1 -PassThru
+          if ($result.FailedCount -gt 0) { throw "$($result.FailedCount) canonical SMB scheduled-task Pester test(s) failed." }
 
       - name: Execute offline SMB-ready fixture
         shell: powershell
@@ -113,6 +133,16 @@ jobs:
           python -m pip install jsonschema
           $resultPath = Get-ChildItem .\survey\output\transport-preflight-ci -Filter software_deployment_transport_result.json -File -Recurse | Select-Object -First 1 -ExpandProperty FullName
           python -c "import json,jsonschema,sys; jsonschema.validate(json.load(open(sys.argv[1],encoding='utf-8-sig')),json.load(open(sys.argv[2],encoding='utf-8-sig'))); print('SCHEMA VALID')" $resultPath .\schemas\harness\software-deployment-transport-result.schema.json
+
+      - name: Execute and schema-validate canonical SMB task fixture matrix
+        shell: powershell
+        run: |
+          .\scripts\Test-SasSmbScheduledTaskDeploymentFixture.ps1 -OutputRoot .\survey\output\canonical-smb-task-ci
+          $schema = '.\schemas\harness\smb-scheduled-task-deployment-result.schema.json'
+          Get-ChildItem .\survey\output\canonical-smb-task-ci\results -Filter *.result.json | ForEach-Object {
+            python -c "import json,jsonschema,sys; jsonschema.validate(json.load(open(sys.argv[1],encoding='utf-8-sig')),json.load(open(sys.argv[2],encoding='utf-8-sig'))); print('SCHEMA VALID',sys.argv[1])" $_.FullName $schema
+            if ($LASTEXITCODE -ne 0) { throw "Schema validation failed: $($_.FullName)" }
+          }
 
       - name: Upload sanitized fixture proof
         if: always()

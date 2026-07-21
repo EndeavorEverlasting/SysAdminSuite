@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/smb-scheduled-task-deployment-result.schema.json",
+  "title": "SysAdminSuite SMB scheduled-task deployment result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "run_id", "target", "transport", "selected_before_mutation",
+    "fallback_attempted", "source_sha256", "target_sha256", "worker_source_sha256",
+    "worker_target_sha256", "hashes_verified", "task", "execution", "result_retrieval",
+    "validation", "cleanup", "status", "network_activity_performed",
+    "target_mutation_performed", "error"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-smb-scheduled-task-deployment-result/v1" },
+    "run_id": { "type": "string", "pattern": "^software-install-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$" },
+    "target": { "type": "string", "format": "hostname", "minLength": 3, "maxLength": 253 },
+    "transport": { "const": "SmbScheduledTask" },
+    "selected_before_mutation": { "const": true },
+    "fallback_attempted": { "const": false },
+    "source_sha256": { "$ref": "#/$defs/nullableSha256" },
+    "target_sha256": { "$ref": "#/$defs/nullableSha256" },
+    "worker_source_sha256": { "$ref": "#/$defs/nullableSha256" },
+    "worker_target_sha256": { "$ref": "#/$defs/nullableSha256" },
+    "hashes_verified": { "type": "boolean" },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "create_attempted", "created", "run_attempted", "started", "delete_attempted", "deleted", "absent_verified"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^SysAdminSuite-SoftwareInstall-[a-f0-9]{32}$" },
+        "create_attempted": { "type": "boolean" },
+        "created": { "type": "boolean" },
+        "run_attempted": { "type": "boolean" },
+        "started": { "type": "boolean" },
+        "delete_attempted": { "type": "boolean" },
+        "deleted": { "type": "boolean" },
+        "absent_verified": { "type": "boolean" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity_sid", "as_system", "installer_exit_code", "reboot_required", "installer_status"],
+      "properties": {
+        "identity_sid": { "type": ["string", "null"], "pattern": "^S-[0-9-]+$" },
+        "as_system": { "type": "boolean" },
+        "installer_exit_code": { "type": ["integer", "null"] },
+        "reboot_required": { "type": "boolean" },
+        "installer_status": { "enum": ["not_started", "completed", "completed_reboot_required"] }
+      }
+    },
+    "result_retrieval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempted", "succeeded", "malformed", "local_path"],
+      "properties": {
+        "attempted": { "type": "boolean" },
+        "succeeded": { "type": "boolean" },
+        "malformed": { "type": "boolean" },
+        "local_path": { "type": ["string", "null"] }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["before_payload_cleanup_succeeded", "after_payload_cleanup_succeeded"],
+      "properties": {
+        "before_payload_cleanup_succeeded": { "type": "boolean" },
+        "after_payload_cleanup_succeeded": { "type": "boolean" }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempted", "task_deletion_succeeded", "run_root_deletion_succeeded", "task_remaining", "run_root_remaining"],
+      "properties": {
+        "attempted": { "type": "boolean" },
+        "task_deletion_succeeded": { "type": "boolean" },
+        "run_root_deletion_succeeded": { "type": "boolean" },
+        "task_remaining": { "type": "boolean" },
+        "run_root_remaining": { "type": "boolean" }
+      }
+    },
+    "status": {
+      "enum": [
+        "failed_before_staging", "staged_hash_verified", "task_started",
+        "deployment_failed_pending_cleanup", "deployment_failed_cleaned",
+        "cleanup_failed", "completed", "completed_reboot_required"
+      ]
+    },
+    "network_activity_performed": { "type": "boolean" },
+    "target_mutation_performed": { "type": "boolean" },
+    "error": { "type": ["string", "null"] }
+  },
+  "$defs": {
+    "nullableSha256": {
+      "anyOf": [
+        { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        { "type": "null" }
+      ]
+    }
+  }
+}

@@ -25,6 +25,17 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasValidatedSoftw
   -WhatIf
 ```
 
+Transport selection is explicit when needed:
+
+- `WinRM` preserves the existing PSSession adapter when it is separately certified.
+- `SmbScheduledTask` requires one fresh matching P02 result per target and uses
+  Kerberos-authenticated SMB staging plus a one-time SYSTEM task.
+- `Auto` is limited to a one-target pilot and consumes a fresh P02 result. It does
+  not probe, guess, or fall back during mutation.
+
+The default remains `WinRM` for existing callers. Select `SmbScheduledTask` for a
+certified target where WinRM is unavailable.
+
 After the request, target list, installer hash, vendor arguments, and validation checks are reviewed, run the separately authorized pilot. Do not add `-Confirm:$false` during the first real pilot:
 
 ```powershell
@@ -137,6 +148,16 @@ validated_deployment_review.json
 ```
 
 The workstation receives no SysAdminSuite logs, reports, manifests, credentials, scheduled tasks, services, Run keys, startup entries, or hidden persistence.
+
+For `SmbScheduledTask`, a closed worker result exists transiently inside the
+run-specific staging root only long enough to be retrieved. Successful completion
+requires verified task deletion and verified absence of the run root. Normal
+Windows and endpoint telemetry is neither suppressed nor cleared.
+
+The SMB event stream records `run_started`, per-target start/completion,
+`finalization_started`, per-target finalization, `finalization_completed`, and
+`run_completed`. The result inspector rejects missing lifecycle events or count
+disagreement between the summary and finalization artifacts as `EVIDENCE_INVALID`.
 
 ## Pilot gate
 

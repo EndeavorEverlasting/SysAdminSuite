@@ -1,0 +1,19 @@
+{
+  "schema_version": "sas-smb-scheduled-task-fixture-scenarios/v1",
+  "network_activity_performed": false,
+  "target_mutation_performed": false,
+  "scenarios": [
+    { "id": "success", "expected_status": "completed" },
+    { "id": "source_hash_mismatch", "expected_status": "failed_before_staging" },
+    { "id": "target_hash_mismatch", "expected_status": "deployment_failed_cleaned" },
+    { "id": "admin_share_denied", "expected_status": "failed_before_staging" },
+    { "id": "task_creation_failure", "expected_status": "deployment_failed_cleaned" },
+    { "id": "task_run_failure", "expected_status": "deployment_failed_cleaned" },
+    { "id": "result_timeout", "expected_status": "deployment_failed_cleaned" },
+    { "id": "malformed_result", "expected_status": "deployment_failed_cleaned" },
+    { "id": "task_deletion_failure", "expected_status": "cleanup_failed" },
+    { "id": "run_root_deletion_failure", "expected_status": "cleanup_failed" },
+    { "id": "remaining_task", "expected_status": "cleanup_failed" },
+    { "id": "remaining_file", "expected_status": "cleanup_failed" }
+  ]
+}
