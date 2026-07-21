@@ -1,6 +1,8 @@
 # Software deployment transport contract floor
 
-This document is the authority boundary for selecting, certifying, and reporting a SysAdminSuite software-deployment transport. It freezes interfaces for later implementation work; it does not implement a transport, contact a target, create a task, install software, or grant mutation authority.
+This document is the authority boundary for selecting, certifying, and reporting a SysAdminSuite software-deployment transport. The frozen v1 schemas remain unchanged. The read-only preflight implementation is now present; live certification, software execution, and public proof ingestion remain separately gated.
+
+Low-noise execution and target-user visibility are defined in [`SOFTWARE_DEPLOYMENT_LOW_NOISE.md`](SOFTWARE_DEPLOYMENT_LOW_NOISE.md).
 
 ## Frozen v1 interfaces
 
@@ -14,6 +16,13 @@ This document is the authority boundary for selecting, certifying, and reporting
 
 The schemas live under `schemas/harness/`; operation registration lives in `harness/api/sas-harness-api.json`; orchestration mapping lives in `harness/workflows/software-deployment-transport.yaml`.
 
+The implementation front door is `scripts/Test-SasSoftwareDeploymentTransport.ps1`. It composes:
+
+- `scripts/SasSoftwareDeploymentTransport.psm1` for the frozen classifier and explicit broad discovery;
+- `scripts/SasSoftwareDeploymentLowNoise.psm1` for intent-scoped collection;
+- `scripts/SasLowNoisePolicy.psm1` for canonical low-noise context;
+- `scripts/SasRunContext.psm1` for ignored artifacts and registry output.
+
 ## Closed preflight classifications
 
 - `winrm_ready`: a WinRM endpoint is reachable and a session is authorized.
@@ -24,6 +33,21 @@ The schemas live under `schemas/harness/`; operation registration lives in `harn
 
 Reachability and authorization are separate observations. A reachable port is never sufficient authorization proof.
 
+## Intent-scoped low-noise selection
+
+The default `TransportIntent` is `kerberos_smb_task`, matching the proven Windows-native Cybernet deployment path. It requests only the CIFS ticket and stages observations in this order:
+
+1. local domain/TGT and one-FQDN DNS state;
+2. TCP 445;
+3. `ADMIN$` read authorization;
+4. TCP 135 only after `ADMIN$` authorization;
+5. Schedule service query;
+6. one reserved nonexistent task-name query without enumerating the task library.
+
+An explicit `winrm` intent requests only the HTTP ticket, tests 5985, tests 5986 only when needed, and opens one bounded read-only PSSession.
+
+`auto` retains broad discovery across both supported transports. It is explicit and is never substituted after a narrow failure without a recorded reason.
+
 ## Fail-closed selection
 
 WinRM unavailability does not block evaluation or selection of Kerberos-authenticated SMB plus Remote Task Scheduler. Kerberos/SMB/Task Scheduler readiness requires all of these observations:
@@ -31,18 +55,23 @@ WinRM unavailability does not block evaluation or selection of Kerberos-authenti
 1. DNS resolution succeeded.
 2. The source posture is domain joined and reports a TGT Boolean without ticket bytes.
 3. A CIFS service ticket was issued without persisting ticket material.
-4. TCP 445 and TCP 135 are reachable.
+4. TCP 445 is reachable.
 5. `ADMIN$` read access is authorized.
-6. The remote Schedule service query succeeds and reports running.
-7. The scheduled-task read query succeeds.
+6. TCP 135 is reachable.
+7. The remote Schedule service query succeeds and reports running.
+8. The named scheduled-task read query proves authorization.
 
-HTTP and HOST service-ticket outcomes and TCP 5985/5986 remain independent observations. No operation may guess a transport, silently fall back, or switch transports after mutation begins.
+No operation may guess a transport, silently fall back, switch transports after mutation begins, broaden ports after a narrow failure, or treat task enumeration as a harmless default.
 
 ## Observation and decision boundary
 
-The result schema keeps DNS, identity/TGT summary, HTTP/HOST/CIFS ticket outcomes, four TCP observations, WinRM session authorization, administrative-share authorization, Schedule-service status, and scheduled-task query status under `observations`. Selection, reason codes, and fallback prohibitions live separately under `decision`.
+The result schema retains DNS, identity/TGT summary, HTTP/HOST/CIFS ticket outcomes, four TCP observations, WinRM session authorization, administrative-share authorization, Schedule-service status, and scheduled-task query status under `observations`. An intent-scoped run leaves irrelevant observations explicitly unrequested or untested rather than omitting schema fields.
+
+Selection, reason codes, and fallback prohibitions live separately under `decision`.
 
 Preflight results always set `target_mutation_performed` to false. They cannot claim task creation, SYSTEM execution, result retrieval, cleanup, software installation, or operator acceptance. Sanitized fixtures additionally set `network_activity_performed` and `live_runtime` to false.
+
+Every run also emits `low_noise_context.json`, which records the canonical policy identity and exact effective port subset.
 
 ## Public receipt boundary
 
@@ -54,15 +83,15 @@ Sanitized fixtures can prove only the contract. They can never become live certi
 
 ## Operation authority
 
-- `software_install.transport_preflight` is read-only toward targets. Its future implementation may perform bounded network reads only after explicit operator authorization.
+- `software_install.transport_preflight` is read-only toward targets and requires explicit network acknowledgement for live mode.
 - `software_install.transport_live_cert` is separately mutation-gated, limited to one authorized target and a harmless run-scoped task, and cannot install software.
 - `software_install.transport_proof_ingest` is local-only and hashes source evidence in place.
-- `software_install.operator_execute` now declares a schema-valid transport result as an input. The canonical application implementation does not consume this contract yet; that integration belongs to the later canonical-controller sprint.
+- `software_install.operator_execute` declares a schema-valid transport result as an input. Canonical-controller integration remains a later bounded sprint.
 
-These registrations define interfaces, not permission. Application behavior remains authoritative in repository scripts and modules until the later implementation sprints deliberately adopt the frozen contracts.
+These registrations define interfaces, not permission.
 
 ## Evidence and proof ceiling
 
-Tracked fixtures use synthetic, identifier-free observations and documentation-only values. Raw corporate evidence, target names, usernames, ticket caches, package paths, and local run artifacts must remain in ignored operator-local evidence roots.
+Tracked fixtures use synthetic, identifier-free observations. Raw corporate evidence, target names, usernames, ticket caches, package paths, and local run artifacts must remain in ignored operator-local evidence roots.
 
-P01 reaches schema, sanitized fixture, harness registration, validator, and CI proof. It does not prove transport implementation, live network behavior, scheduled-task creation, SYSTEM execution, result retrieval, teardown, software installation, or application acceptance.
+The current implementation reaches parser, unit/contract, sanitized fixture, schema, run-context, artifact-registry, low-noise-context, and CI proof. It does not prove live corporate-network traffic, scheduled-task creation, SYSTEM execution, result retrieval, teardown, software installation, absence of vendor UI, or application acceptance.
