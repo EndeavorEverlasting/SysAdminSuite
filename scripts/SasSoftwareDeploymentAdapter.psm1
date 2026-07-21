@@ -329,6 +329,33 @@ function New-SasSmbTaskResult {
     }
 }
 
+function Resolve-SasSmbDeploymentFinalizationStatus {
+    <#
+    .SYNOPSIS
+    Independently classifies one closed SMB transport result for finalization.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Result)
+
+    $cleanupSucceeded = ([bool]$Result.cleanup.attempted -and
+        [bool]$Result.cleanup.task_deletion_succeeded -and
+        [bool]$Result.cleanup.run_root_deletion_succeeded -and
+        -not [bool]$Result.cleanup.task_remaining -and
+        -not [bool]$Result.cleanup.run_root_remaining)
+    if (-not $cleanupSucceeded) { return 'TEARDOWN_FAILED' }
+
+    $installerCompleted = ([string]$Result.execution.installer_status -in @('completed','completed_reboot_required'))
+    $executionProven = ([bool]$Result.result_retrieval.succeeded -and
+        [bool]$Result.execution.as_system -and
+        [bool]$Result.hashes_verified -and
+        $installerCompleted)
+    if (-not $executionProven) { return 'INSTALL_FAILED_TOOLS_REMOVED' }
+    if (-not [bool]$Result.validation.before_payload_cleanup_succeeded) { return 'VALIDATION_FAILED_TOOLS_REMOVED' }
+    if (-not [bool]$Result.validation.after_payload_cleanup_succeeded) { return 'REQUESTED_SOFTWARE_NOT_PRESERVED_AFTER_TEARDOWN' }
+    if ([string]$Result.status -notin @('completed','completed_reboot_required')) { return 'INSTALL_FAILED_TOOLS_REMOVED' }
+    return 'COMPLETED_VALIDATED_FINALIZED'
+}
+
 function Invoke-SasSmbScheduledTaskDeployment {
     [CmdletBinding()]
     param(
@@ -613,4 +640,4 @@ function Invoke-SasSmbScheduledTaskDeploymentFixture {
     return [pscustomobject]$result
 }
 
-Export-ModuleMember -Function Test-SasDeploymentFqdn, Read-SasDeploymentTransportPreflight, Resolve-SasSoftwareDeploymentTransport, New-SasSmbTaskWorker, Test-SasSmbTaskWorkerResult, Invoke-SasSmbScheduledTaskDeployment, Invoke-SasSmbScheduledTaskDeploymentFixture
+Export-ModuleMember -Function Test-SasDeploymentFqdn, Read-SasDeploymentTransportPreflight, Resolve-SasSoftwareDeploymentTransport, New-SasSmbTaskWorker, Test-SasSmbTaskWorkerResult, Resolve-SasSmbDeploymentFinalizationStatus, Invoke-SasSmbScheduledTaskDeployment, Invoke-SasSmbScheduledTaskDeploymentFixture

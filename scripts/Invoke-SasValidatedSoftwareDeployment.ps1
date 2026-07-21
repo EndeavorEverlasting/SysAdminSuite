@@ -93,6 +93,22 @@ function Resolve-ValidatedInstallerPath {
     return "$root$relative"
 }
 
+function Write-SasValidatedDeploymentEvent {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$RunId,
+        [hashtable]$Data = @{}
+    )
+    $payload = [ordered]@{
+        timestamp_utc = (Get-Date).ToUniversalTime().ToString('o')
+        event = $Name
+        run_id = $RunId
+    }
+    foreach ($key in $Data.Keys) { $payload[$key] = $Data[$key] }
+    $payload | ConvertTo-Json -Depth 12 -Compress | Add-Content -LiteralPath $Path -Encoding UTF8
+}
+
 if (-not $AllowTargetMutation -and -not $WhatIfPreference) {
     throw 'Refusing validated deployment without -AllowTargetMutation. Use -WhatIf for request-only planning.'
 }
@@ -201,16 +217,18 @@ else {
     $eventPath = Join-Path $runRoot 'software_install_events.jsonl'
     $handoffPath = Join-Path $runRoot 'operator_handoff.txt'
     $adapterResults = @()
+    Write-SasValidatedDeploymentEvent -Path $eventPath -Name 'run_started' -RunId $runId -Data @{
+        package_name = [string]$request.package_name
+        target_count = $targets.Count
+        transport = 'SmbScheduledTask'
+    }
 
     for ($targetIndex = 0; $targetIndex -lt $targets.Count; $targetIndex++) {
         $target = $targets[$targetIndex]
-        [ordered]@{
-            timestamp_utc = (Get-Date).ToUniversalTime().ToString('o')
-            event = 'target_started'
-            run_id = $runId
+        Write-SasValidatedDeploymentEvent -Path $eventPath -Name 'target_started' -RunId $runId -Data @{
             computer_name = $target
             transport = 'SmbScheduledTask'
-        } | ConvertTo-Json -Compress | Add-Content -LiteralPath $eventPath -Encoding UTF8
+        }
 
         $adapter = Invoke-SasSmbScheduledTaskDeployment `
             -ComputerName $target `
@@ -227,15 +245,12 @@ else {
         $adapter | Add-Member -NotePropertyName controller_result_path -NotePropertyValue $adapterPath -Force
         $adapterResults += $adapter
 
-        [ordered]@{
-            timestamp_utc = (Get-Date).ToUniversalTime().ToString('o')
-            event = 'target_completed'
-            run_id = $runId
+        Write-SasValidatedDeploymentEvent -Path $eventPath -Name 'target_completed' -RunId $runId -Data @{
             computer_name = $target
             transport = 'SmbScheduledTask'
             status = [string]$adapter.status
             cleanup_verified = (-not [bool]$adapter.cleanup.task_remaining -and -not [bool]$adapter.cleanup.run_root_remaining)
-        } | ConvertTo-Json -Compress | Add-Content -LiteralPath $eventPath -Encoding UTF8
+        }
     }
 
     $installRows = @($adapterResults | ForEach-Object {
@@ -339,11 +354,16 @@ if ($selectedTransport -eq 'WinRM') {
         -Confirm:$false
 }
 else {
+    Write-SasValidatedDeploymentEvent -Path $eventPath -Name 'finalization_started' -RunId ([string]$summary.run_id) -Data @{
+        request_id = [string]$request.request_id
+        target_count = $adapterResults.Count
+        transport = 'SmbScheduledTask'
+    }
     $finalizationRows = @($adapterResults | ForEach-Object {
         $cleanupSucceeded = ([bool]$_.cleanup.task_deletion_succeeded -and [bool]$_.cleanup.run_root_deletion_succeeded -and
             -not [bool]$_.cleanup.task_remaining -and -not [bool]$_.cleanup.run_root_remaining)
-        $complete = ([string]$_.status -in @('completed','completed_reboot_required'))
-        [pscustomobject][ordered]@{
+        $finalStatus = Resolve-SasSmbDeploymentFinalizationStatus -Result $_
+        $row = [pscustomobject][ordered]@{
             computer_name = [string]$_.target
             transport = 'SmbScheduledTask'
             install_status = [string]$_.execution.installer_status
@@ -358,16 +378,32 @@ else {
             cleanup_attempted = [bool]$_.cleanup.attempted
             cleanup_succeeded = $cleanupSucceeded
             repo_artifact_remaining = ([bool]$_.cleanup.task_remaining -or [bool]$_.cleanup.run_root_remaining)
-            requested_software_preserved_after_teardown = ($complete -and [bool]$_.validation.after_payload_cleanup_succeeded -and $cleanupSucceeded)
+            requested_software_preserved_after_teardown = ($finalStatus -eq 'COMPLETED_VALIDATED_FINALIZED')
             reboot_required = [bool]$_.execution.reboot_required
-            finalization_status = $(if ($complete) { 'COMPLETED_VALIDATED_FINALIZED' } elseif (-not $cleanupSucceeded) { 'TEARDOWN_FAILED' } else { 'INSTALL_FAILED_TOOLS_REMOVED' })
+            finalization_status = $finalStatus
             error = $_.error
         }
+        Write-SasValidatedDeploymentEvent -Path $eventPath -Name 'target_finalization_completed' -RunId ([string]$summary.run_id) -Data @{
+            computer_name = [string]$_.target
+            finalization_status = $finalStatus
+            validation_before_cleanup_succeeded = [bool]$row.validation_before_cleanup_succeeded
+            cleanup_succeeded = [bool]$row.cleanup_succeeded
+            repo_artifact_remaining = [bool]$row.repo_artifact_remaining
+            requested_software_preserved_after_teardown = [bool]$row.requested_software_preserved_after_teardown
+        }
+        $row
     })
     $completedCount = @($finalizationRows | Where-Object { $_.finalization_status -eq 'COMPLETED_VALIDATED_FINALIZED' }).Count
+    $installFailureCount = @($finalizationRows | Where-Object { $_.finalization_status -eq 'INSTALL_FAILED_TOOLS_REMOVED' }).Count
+    $validationFailureCount = @($finalizationRows | Where-Object { $_.finalization_status -eq 'VALIDATION_FAILED_TOOLS_REMOVED' }).Count
     $teardownFailureCount = @($finalizationRows | Where-Object { $_.finalization_status -eq 'TEARDOWN_FAILED' }).Count
+    $preservationFailureCount = @($finalizationRows | Where-Object { $_.finalization_status -eq 'REQUESTED_SOFTWARE_NOT_PRESERVED_AFTER_TEARDOWN' }).Count
     $deploymentComplete = ($finalizationRows.Count -gt 0 -and $completedCount -eq $finalizationRows.Count)
-    $classification = if ($deploymentComplete) { 'DEPLOYMENT_COMPLETE_VALIDATED_AND_FINALIZED' } elseif ($teardownFailureCount -gt 0) { 'TEARDOWN_FAILED' } else { 'INSTALL_FAILED_TOOLS_REMOVED' }
+    $classification = if ($deploymentComplete) { 'DEPLOYMENT_COMPLETE_VALIDATED_AND_FINALIZED' }
+    elseif ($teardownFailureCount -gt 0) { 'TEARDOWN_FAILED' }
+    elseif ($preservationFailureCount -gt 0) { 'REQUESTED_SOFTWARE_NOT_PRESERVED' }
+    elseif ($validationFailureCount -gt 0) { 'POST_INSTALL_VALIDATION_FAILED_TOOLS_REMOVED' }
+    else { 'INSTALL_FAILED_TOOLS_REMOVED' }
     $finalization = [pscustomobject][ordered]@{
         schema_version = 'sas-software-install-finalization/v1'
         generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
@@ -379,10 +415,10 @@ else {
         deployment_complete = $deploymentComplete
         target_count = $finalizationRows.Count
         completed_validated_finalized_count = $completedCount
-        install_failure_count = @($finalizationRows | Where-Object { $_.finalization_status -eq 'INSTALL_FAILED_TOOLS_REMOVED' }).Count
-        validation_failure_count = @($finalizationRows | Where-Object { -not $_.validation_after_cleanup_succeeded }).Count
+        install_failure_count = $installFailureCount
+        validation_failure_count = $validationFailureCount
         teardown_failure_count = $teardownFailureCount
-        preservation_failure_count = @($finalizationRows | Where-Object { -not $_.requested_software_preserved_after_teardown }).Count
+        preservation_failure_count = $preservationFailureCount
         cleanup_policy = 'repo_owned_run_scoped_only'
         requested_software_uninstall_performed = $false
         management_transport_used = $true
@@ -397,7 +433,19 @@ else {
     $summary | Add-Member -NotePropertyName deployment_complete -NotePropertyValue $deploymentComplete -Force
     $summary | Add-Member -NotePropertyName finalization_classification -NotePropertyValue $classification -Force
     $summary | Add-Member -NotePropertyName completed_validated_finalized_count -NotePropertyValue $completedCount -Force
+    $summary | Add-Member -NotePropertyName validation_failure_count -NotePropertyValue $validationFailureCount -Force
+    $summary | Add-Member -NotePropertyName teardown_failure_count -NotePropertyValue $teardownFailureCount -Force
+    $summary | Add-Member -NotePropertyName preservation_failure_count -NotePropertyValue $preservationFailureCount -Force
     $summary | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+    Write-SasValidatedDeploymentEvent -Path $eventPath -Name 'finalization_completed' -RunId ([string]$summary.run_id) -Data @{
+        classification = $classification
+        deployment_complete = $deploymentComplete
+        finalization_path = $finalizationPath
+        completed_validated_finalized_count = $completedCount
+        validation_failure_count = $validationFailureCount
+        teardown_failure_count = $teardownFailureCount
+        preservation_failure_count = $preservationFailureCount
+    }
 }
 $result = [ordered]@{
     schema_version = 'sas-validated-software-deployment-result/v1'
@@ -435,6 +483,16 @@ $result = [ordered]@{
     finalization_path = Join-Path $runRoot 'software_install_finalization.json'
 }
 $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $orchestrationPath -Encoding UTF8
+if ($selectedTransport -eq 'SmbScheduledTask') {
+    Write-SasValidatedDeploymentEvent -Path $eventPath -Name 'run_completed' -RunId ([string]$summary.run_id) -Data @{
+        classification = [string]$result.classification
+        deployment_complete = [bool]$result.deployment_complete
+        completed_count = [int]$summary.completed_count
+        failed_count = [int]$summary.failed_count
+        cleanup_failure_count = [int]$summary.cleanup_failure_count
+        repo_artifact_remaining_count = [int]$summary.repo_artifact_remaining_count
+    }
+}
 
 Write-Host "Validated deployment classification: $($result.classification)"
 Write-Host "Deployment complete: $($result.deployment_complete)"

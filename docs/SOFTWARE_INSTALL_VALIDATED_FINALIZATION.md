@@ -154,6 +154,11 @@ run-specific staging root only long enough to be retrieved. Successful completio
 requires verified task deletion and verified absence of the run root. Normal
 Windows and endpoint telemetry is neither suppressed nor cleared.
 
+The SMB event stream records `run_started`, per-target start/completion,
+`finalization_started`, per-target finalization, `finalization_completed`, and
+`run_completed`. The result inspector rejects missing lifecycle events or count
+disagreement between the summary and finalization artifacts as `EVIDENCE_INVALID`.
+
 ## Pilot gate
 
 Before expanding beyond one or two approved targets:

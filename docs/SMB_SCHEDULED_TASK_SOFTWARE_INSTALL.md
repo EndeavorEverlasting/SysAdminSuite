@@ -22,6 +22,26 @@ contradictory, unauthorized, or non-executable decisions. Explicit
 `SmbScheduledTask` also requires one matching P02 result per target. Once selected,
 the controller never changes transport during that run.
 
+Create the fresh read-only P02 result immediately before the pilot. Remote Task
+Scheduler queries can take longer than the five-second diagnostic default on an
+otherwise healthy authorized path, so the production preflight uses a bounded
+15-second observation timeout:
+
+```powershell
+$Target = Read-Host 'Authorized target FQDN'
+$Preflight = .\scripts\Test-SasSoftwareDeploymentTransport.ps1 `
+  -ComputerName $Target `
+  -AllowNetworkActivity `
+  -TimeoutSeconds 15 `
+  -PassThru
+$Preflight.result.decision | Format-List
+```
+
+Continue only when the classification is `kerberos_smb_task_ready`, the selected
+transport is `kerberos_smb_task`, and the saved operator-local result remains
+within the canonical entrypoint's freshness window. Keep the hostname, local
+path, and raw observation evidence out of Git.
+
 For the first pilot:
 
 ```powershell

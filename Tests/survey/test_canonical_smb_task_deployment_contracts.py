@@ -13,6 +13,7 @@ PESTER = ROOT / "Tests" / "Pester" / "SmbScheduledTaskDeployment.Tests.ps1"
 SCHEMA = ROOT / "schemas" / "harness" / "smb-scheduled-task-deployment-result.schema.json"
 SCENARIOS = ROOT / "Tests" / "Fixtures" / "smb-scheduled-task-deployment" / "scenarios.json"
 OFFLINE = ROOT / "tests" / "survey" / "run_offline_survey_tests.sh"
+DOC = ROOT / "docs" / "SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md"
 
 
 def read(path: Path) -> str:
@@ -21,7 +22,7 @@ def read(path: Path) -> str:
 
 
 def test_surfaces_and_closed_result_schema() -> None:
-    for path in (ADAPTER, FRONT_DOOR, BASH, PESTER, SCHEMA, SCENARIOS, OFFLINE):
+    for path in (ADAPTER, FRONT_DOOR, BASH, PESTER, SCHEMA, SCENARIOS, OFFLINE, DOC):
         assert path.is_file(), path
     schema = json.loads(read(SCHEMA))
     assert schema["additionalProperties"] is False
@@ -102,6 +103,36 @@ def test_front_door_keeps_winrm_optional_and_smb_first_class() -> None:
     ):
         assert fragment in text, fragment
     assert text.index("$PSCmdlet.ShouldProcess") < text.index("$installerPath = Resolve-ValidatedInstallerPath")
+
+
+def test_smb_finalization_is_closed_and_emits_reviewable_lifecycle() -> None:
+    adapter = read(ADAPTER)
+    front_door = read(FRONT_DOOR)
+    pester = read(PESTER)
+    for fragment in (
+        "Resolve-SasSmbDeploymentFinalizationStatus",
+        "VALIDATION_FAILED_TOOLS_REMOVED",
+        "REQUESTED_SOFTWARE_NOT_PRESERVED_AFTER_TEARDOWN",
+        "TEARDOWN_FAILED",
+        "COMPLETED_VALIDATED_FINALIZED",
+    ):
+        assert fragment in adapter, fragment
+    for event in (
+        "'run_started'", "'target_started'", "'target_completed'",
+        "'finalization_started'", "'target_finalization_completed'",
+        "'finalization_completed'", "'run_completed'",
+    ):
+        assert event in front_door, event
+    for fragment in (
+        "validation_failure_count = $validationFailureCount",
+        "preservation_failure_count = $preservationFailureCount",
+        "Resolve-SasSmbDeploymentFinalizationStatus -Result $_",
+    ):
+        assert fragment in front_door, fragment
+    assert "classifies success, validation, preservation, install, and teardown independently" in pester
+    assert "runs the final evidence reviewer across SMB success and closed failure packages" in pester
+    assert "MissingLifecycleEvent" in pester
+    assert "-TimeoutSeconds 15" in read(DOC)
 
 
 def test_failure_matrix_is_complete_and_pester_drives_it() -> None:
