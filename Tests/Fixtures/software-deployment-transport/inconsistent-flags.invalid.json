@@ -1,0 +1,44 @@
+{
+  "schema_version": "sas-software-deployment-transport-result/v1",
+  "workflow_id": "software-deployment-transport",
+  "evidence_class": "sanitized_fixture",
+  "target_scope": {"target_count": 1, "identifier_emitted": false},
+  "observations": {
+    "dns": {"attempted": true, "resolved": true, "address_count": 1, "timed_out": false},
+    "identity": {"domain_joined": true, "tgt_present": true, "ticket_bytes_emitted": false},
+    "service_tickets": {
+      "http": {"requested": true, "issued": true, "ticket_bytes_emitted": false},
+      "host": {"requested": true, "issued": true, "ticket_bytes_emitted": false},
+      "cifs": {"requested": true, "issued": true, "ticket_bytes_emitted": false}
+    },
+    "tcp": {
+      "port_5985": {"tested": true, "reachable": false, "timed_out": false},
+      "port_5986": {"tested": true, "reachable": false, "timed_out": false},
+      "port_445": {"tested": true, "reachable": true, "timed_out": false},
+      "port_135": {"tested": true, "reachable": true, "timed_out": false}
+    },
+    "winrm_session": {"attempted": false, "authorized": false, "authorization_denied": false},
+    "admin_share": {"attempted": true, "authorized": false, "authorization_denied": true},
+    "schedule_service": {"queried": false, "running": false, "authorization_denied": true},
+    "scheduled_task_query": {"queried": false, "succeeded": false, "authorization_denied": true}
+  },
+  "decision": {
+    "classification": "kerberos_smb_task_ready",
+    "selected_transport": "kerberos_smb_task",
+    "reason_codes": ["all_kerberos_smb_task_prerequisites_satisfied"],
+    "silent_fallback_permitted": false,
+    "fallback_after_mutation_permitted": false
+  },
+  "proof": {
+    "preflight_complete": true,
+    "transport_authorization_proven": true,
+    "task_creation_proven": false,
+    "system_execution_proven": false,
+    "result_retrieval_proven": false,
+    "cleanup_proven": false,
+    "live_runtime": false
+  },
+  "network_activity_performed": false,
+  "target_mutation_performed": true,
+  "proof_ceiling": "This invalid fixture intentionally contradicts readiness and mutation flags so the fail-closed validator must reject it."
+}

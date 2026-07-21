@@ -1,0 +1,42 @@
+{
+  "schema_version": "sas-software-deployment-transport-receipt/v1",
+  "workflow_id": "software-deployment-transport-proof-ingest",
+  "outcome": "contract_only",
+  "reason_codes": ["sanitized_fixture_contract"],
+  "source": {
+    "source_schema_version": "sas-software-deployment-transport-live-cert-result/v1",
+    "source_evidence_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_evidence_size_bytes": 512,
+    "source_evidence_retained_operator_local": true,
+    "source_evidence_copied_to_output": false,
+    "contract_fixture": true,
+    "operator_confirmed": false
+  },
+  "decision": {
+    "preflight_classification": "kerberos_smb_task_ready",
+    "selected_transport": "kerberos_smb_task"
+  },
+  "certification": {
+    "task_created": false,
+    "executed_as_system": false,
+    "result_retrieved": false,
+    "task_deleted": false,
+    "staging_deleted": false,
+    "zero_remnants_verified": false,
+    "software_installation_performed": false,
+    "harmless_payload_only": true
+  },
+  "privacy": {
+    "hostnames_emitted": false,
+    "usernames_emitted": false,
+    "ticket_bytes_emitted": false,
+    "credentials_emitted": false,
+    "package_paths_emitted": false,
+    "machine_local_paths_emitted": false,
+    "raw_evidence_emitted": false
+  },
+  "proof_level": "sanitized_fixture_contract",
+  "proof_ceiling": "This invalid receipt intentionally adds a private identifier field so the closed public receipt schema must reject it.",
+  "target_hostname": "synthetic-leak.example.test",
+  "operator_username": "fixture-user"
+}

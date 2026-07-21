@@ -103,6 +103,9 @@ def test_harness_api_manifest_is_local_first_and_has_required_operations():
         "report.generate_from_artifacts",
         "mcp.catalog.list",
         "software_install.operator_execute",
+        "software_install.transport_preflight",
+        "software_install.transport_live_cert",
+        "software_install.transport_proof_ingest",
     }
     assert required_ids <= set(operations), f"missing harness API operations: {required_ids - set(operations)}"
 
@@ -125,6 +128,20 @@ def test_harness_api_manifest_is_local_first_and_has_required_operations():
                 "Prune_empty_SysAdminSuite_target_directories",
             ]:
                 assert guardrail in op["guardrails"]
+        elif op_id == "software_install.transport_preflight":
+            assert op["mode"] == "operator_execute"
+            assert op["network_activity"] is True
+            assert op["target_mutation"] is False
+            assert "Read_only_preflight" in op["guardrails"]
+        elif op_id == "software_install.transport_live_cert":
+            assert op["mode"] == "operator_execute"
+            assert op["network_activity"] is True
+            assert op["target_mutation"] is True
+            assert "No_software_installation" in op["guardrails"]
+        elif op_id == "software_install.transport_proof_ingest":
+            assert op["mode"] == "local_transform"
+            assert op["network_activity"] is False
+            assert op["target_mutation"] is False
         else:
             assert op["network_activity"] is False, f"planner/local API must be non-network: {op_id}"
             assert op["target_mutation"] is False, f"planner/local API must not mutate targets: {op_id}"

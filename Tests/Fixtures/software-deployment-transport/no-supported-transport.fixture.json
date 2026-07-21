@@ -1,0 +1,44 @@
+{
+  "schema_version": "sas-software-deployment-transport-result/v1",
+  "workflow_id": "software-deployment-transport",
+  "evidence_class": "sanitized_fixture",
+  "target_scope": {"target_count": 1, "identifier_emitted": false},
+  "observations": {
+    "dns": {"attempted": true, "resolved": true, "address_count": 1, "timed_out": false},
+    "identity": {"domain_joined": true, "tgt_present": true, "ticket_bytes_emitted": false},
+    "service_tickets": {
+      "http": {"requested": true, "issued": false, "ticket_bytes_emitted": false},
+      "host": {"requested": true, "issued": false, "ticket_bytes_emitted": false},
+      "cifs": {"requested": true, "issued": false, "ticket_bytes_emitted": false}
+    },
+    "tcp": {
+      "port_5985": {"tested": true, "reachable": false, "timed_out": false},
+      "port_5986": {"tested": true, "reachable": false, "timed_out": false},
+      "port_445": {"tested": true, "reachable": false, "timed_out": false},
+      "port_135": {"tested": true, "reachable": false, "timed_out": false}
+    },
+    "winrm_session": {"attempted": false, "authorized": false, "authorization_denied": false},
+    "admin_share": {"attempted": false, "authorized": false, "authorization_denied": false},
+    "schedule_service": {"queried": false, "running": false, "authorization_denied": false},
+    "scheduled_task_query": {"queried": false, "succeeded": false, "authorization_denied": false}
+  },
+  "decision": {
+    "classification": "no_supported_transport",
+    "selected_transport": "none",
+    "reason_codes": ["required_transport_ports_unreachable"],
+    "silent_fallback_permitted": false,
+    "fallback_after_mutation_permitted": false
+  },
+  "proof": {
+    "preflight_complete": true,
+    "transport_authorization_proven": false,
+    "task_creation_proven": false,
+    "system_execution_proven": false,
+    "result_retrieval_proven": false,
+    "cleanup_proven": false,
+    "live_runtime": false
+  },
+  "network_activity_performed": false,
+  "target_mutation_performed": false,
+  "proof_ceiling": "Sanitized fixture proof that the declared WinRM and Kerberos SMB Task Scheduler prerequisites were unavailable; no live conclusion is claimed."
+}
