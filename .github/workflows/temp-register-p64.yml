@@ -1,0 +1,302 @@
+name: Temporary P64 registry update
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - docs/prompt-registry-agent-skill-extractor
+
+jobs:
+  register-p64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Register P64 and enforce registry sync
+        shell: bash
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          registry_path = Path('docs/prompts.json')
+          prompt_kit_path = Path('docs/prompt-kit.html')
+          workflow_path = Path('.github/workflows/agent-instruction-contracts.yml')
+          temp_workflow_path = Path('.github/workflows/temp-register-p64.yml')
+          test_path = Path('Tests/survey/test_prompt_registry_contracts.py')
+
+          prompts = json.loads(registry_path.read_text(encoding='utf-8'))
+          if not isinstance(prompts, list):
+              raise SystemExit('docs/prompts.json must be a JSON array')
+          if any(item.get('id') == 'P64' for item in prompts):
+              raise SystemExit('P64 already exists; refusing duplicate registration')
+
+          prompt = {
+              'id': 'P64',
+              'seq': '64',
+              'name': 'Agent Instruction-to-Skill Extractor',
+              'type': 'REFACTOR + HARNESS',
+              'class': 'AGENT HARNESS / INSTRUCTION FACTORING',
+              'sprintRole': 'Extract detailed task procedures from AGENTS.md into a reusable project-level skill while preserving compact routing',
+              'progress': 'YES',
+              'useWhen': 'AGENTS.md contains detailed repeatable instructions—especially end-to-end testing procedures—that should live in a project-level skill under the repository’s established skill system.',
+              'inspectFirst': 'AGENTS.md, CLAUDE.md, the codebase map, existing skill and capability directories, skill/capability manifests, routing contracts, end-to-end posture docs, relevant validators, and current Git/PR state.',
+              'expectedOutput': 'A compact AGENTS.md that retains universal invariants and routing, a new or repaired project-level skill containing the extracted procedure, updated manifests or routing only when required, anti-drift validation, commit SHA, and push or PR evidence.',
+              'nextStep': 'Run the project skill’s focused contracts and applicable end-to-end gate, then review the factoring PR.',
+              'proofGate': 'The procedure exists in exactly one canonical skill, AGENTS.md routes to it without duplicating detailed instructions, anti-drift tests pass, applicable end-to-end proof passes or is explicitly not applicable, and commit/PR evidence exists.',
+              'color': 'Violet',
+              'copySheet': 'P64_COPY_SAFE',
+              'category': 'standard',
+              'copyContent': '''EXTRACT THE END-TO-END TESTING INSTRUCTIONS FROM AGENTS.MD INTO A PROJECT-LEVEL SKILL NOW. DO NOT STOP AT A PLAN OR DUPLICATE THE PROCEDURE.
+
+Repo: resolve the current repository from the environment when no explicit repo is supplied.
+Branch or worktree: preserve existing work; use the current safe branch or create an isolated feature branch/worktree.
+Sprint: Agent Instruction-to-Skill Factoring.
+Lane: agent harness and instruction factoring.
+Instruction topic: end-to-end testing unless the user names another bounded procedure.
+Source: AGENTS.md or the repository’s canonical compact agent entrypoint.
+Target: reuse the existing canonical project-level skill when one exists; otherwise create one under the established skill root.
+Owned scope: the source instruction file, the target skill, directly related skill/capability manifest or routing entries, focused anti-drift tests, and minimal CI wiring.
+Forbidden scope: product behavior, E2E runner/profile semantics, live targets, unrelated skill refactors, destructive cleanup, force-push, secrets, generated runtime evidence, merge, release, or deployment.
+Expected artifacts: compact source instructions, tracked project-level skill, anti-drift validator, validation evidence, commit SHA, and push or PR evidence.
+
+MISSION
+Move the reusable procedure out of the compact root instruction file and into the repository’s project-level skill system without weakening its behavior, proof gates, safety boundaries, discoverability, or capability dependencies.
+
+EXTRACTION PROCEDURE
+1. INSPECT BEFORE EDITING
+   - Read AGENTS.md, CLAUDE.md, CODEBASE_MAP.md, the existing skill/capability roots, manifests, routing rules, E2E posture docs, validators, and recent Git/PR state.
+   - Identify every source passage that belongs to the requested procedure.
+   - Identify the repository’s canonical skill format and whether an appropriate skill already exists.
+
+2. CLASSIFY THE SOURCE TEXT
+   - Keep universal invariants, instruction precedence, compact routing, and canonical authority links in AGENTS.md.
+   - Move task sequence, validation ordering, commands, proof-class rules, not-applicable handling, dependency failure behavior, and detailed reporting requirements into the selected skill.
+   - Do not move unrelated product or repository-wide governance rules.
+
+3. REUSE BEFORE CREATING
+   - Repair or extend an existing canonical skill when it already owns the procedure.
+   - Do not create a competing skill, duplicate capability text, or turn AGENTS.md into a prompt packet.
+   - Preserve declared capability dependencies and progressive disclosure.
+
+4. PRESERVE PROCEDURAL MEANING
+   For end-to-end testing, preserve at minimum:
+   - E2E as the default merge/release proof target for executable or integration-affecting changes;
+   - targeted diagnostics before the applicable closed-loop E2E journey;
+   - the real repo-owned entrypoint, composition boundary, artifact/result path, and final classification;
+   - fixture/loopback versus live-target proof boundaries;
+   - explicit not_applicable reasons and fail-closed missing dependencies;
+   - broader regression checks after the E2E slice is recoverable;
+   - exact journey, artifact, pass/failure, skipped-gate, proof-level, and proof-ceiling reporting.
+
+5. REPAIR ROUTING AND METADATA ONLY WHEN REQUIRED
+   - Keep or add one compact router entry from AGENTS.md to the skill.
+   - Update manifests, routing, catalogs, or dependency declarations only when the canonical path or dependency set changes.
+   - Do not reimplement deterministic behavior in prompt text.
+
+6. ADD FAIL-CLOSED ANTI-DRIFT VALIDATION
+   - Require every extracted procedural marker in the project skill.
+   - Reject those detailed markers if they return to AGENTS.md.
+   - Prove the skill is discoverable, tracked, correctly linked, and composed with its declared capabilities.
+   - Preserve existing line-budget and progressive-disclosure contracts.
+
+7. VALIDATE IN ORDER
+   - Run the focused instruction-factoring and skill/capability contracts first.
+   - Run the applicable fixture-safe/default E2E gate when the change affects E2E instruction routing.
+   - Run broader repository checks after the focused proof passes.
+   - Run git diff --check and inspect final Git status and diff.
+
+8. COMMIT AND PUBLISH
+   - Commit coherent tracked changes with a focused message such as: refactor(agent): extract end-to-end procedure into project skill
+   - Push normally and open or update the intended PR when authorized.
+   - Never force-push, mutate the default branch directly, or claim live proof from fixture/loopback validation.
+
+COMPLETION STANDARD
+- AGENTS.md is compact and contains routing rather than the extracted procedure.
+- Exactly one canonical project-level skill owns the procedure.
+- Detailed procedural markers are present in the skill and absent from AGENTS.md.
+- Skill/capability dependencies and routing remain valid.
+- Focused anti-drift contracts pass.
+- The applicable E2E gate passes or is explicitly classified not_applicable with evidence.
+- Changed files, validation commands/results, commit SHA, push/PR state, proof level, proof ceiling, final Git state, and one exact next command are reported.
+
+FINAL REPORT
+Repo, branch/worktree, source instruction path, target skill path, extracted sections, retained root invariants/routing, manifest/routing changes, validator results, E2E result or not_applicable reason, commit SHA, push/PR state, proof level, proof ceiling, final Git state, and one exact next command.''',
+              'keywords': [
+                  'extract instructions',
+                  'agents.md to skill',
+                  'project-level skill',
+                  'end-to-end testing skill',
+                  'instruction factoring',
+                  'progressive disclosure',
+                  'compact agent rules',
+                  'skill extraction',
+                  'anti-drift',
+                  'E2E procedure',
+              ],
+          }
+
+          prompts.append(prompt)
+          registry_path.write_text(
+              json.dumps(prompts, indent=2, ensure_ascii=False) + '\n',
+              encoding='utf-8',
+          )
+
+          html = prompt_kit_path.read_text(encoding='utf-8')
+          marker = 'var PROMPTS='
+          start = html.index(marker) + len(marker)
+          existing, consumed = json.JSONDecoder().raw_decode(html[start:])
+          if not isinstance(existing, list):
+              raise SystemExit('prompt-kit PROMPTS payload is not an array')
+          compact = json.dumps(prompts, ensure_ascii=False)
+          html = html[:start] + compact + html[start + consumed:]
+          prompt_kit_path.write_text(html, encoding='utf-8')
+
+          test_path.write_text(r'''#!/usr/bin/env python3
+          """Contracts for the human-facing prompt registry and embedded prompt kit."""
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          ROOT = Path(__file__).resolve().parents[2]
+          REGISTRY = ROOT / "docs" / "prompts.json"
+          PROMPT_KIT = ROOT / "docs" / "prompt-kit.html"
+          REQUIRED_FIELDS = {
+              "id",
+              "seq",
+              "name",
+              "type",
+              "class",
+              "sprintRole",
+              "progress",
+              "useWhen",
+              "inspectFirst",
+              "expectedOutput",
+              "nextStep",
+              "proofGate",
+              "color",
+              "copySheet",
+              "category",
+              "copyContent",
+              "keywords",
+          }
+
+
+          def load_registry() -> list[dict]:
+              data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+              assert isinstance(data, list) and data, "prompt registry must be a non-empty array"
+              return data
+
+
+          def load_embedded_prompts() -> list[dict]:
+              html = PROMPT_KIT.read_text(encoding="utf-8")
+              marker = "var PROMPTS="
+              start = html.index(marker) + len(marker)
+              data, _ = json.JSONDecoder().raw_decode(html[start:])
+              assert isinstance(data, list), "embedded PROMPTS payload must be an array"
+              return data
+
+
+          def test_registry_shape_and_identity() -> None:
+              prompts = load_registry()
+              ids = [item["id"] for item in prompts]
+              seqs = [item["seq"] for item in prompts]
+              assert len(ids) == len(set(ids)), "prompt IDs must be unique"
+              assert len(seqs) == len(set(seqs)), "prompt sequences must be unique"
+              for item in prompts:
+                  missing = REQUIRED_FIELDS - set(item)
+                  assert not missing, f"{item.get('id', '<unknown>')} missing fields: {sorted(missing)}"
+                  assert item["id"] == f"P{item['seq']}"
+                  assert item["copySheet"] == f"{item['id']}_COPY_SAFE"
+                  assert isinstance(item["keywords"], list) and item["keywords"]
+
+
+          def test_p64_instruction_to_skill_extractor_contract() -> None:
+              prompts = {item["id"]: item for item in load_registry()}
+              prompt = prompts["P64"]
+              assert prompt["name"] == "Agent Instruction-to-Skill Extractor"
+              assert "end-to-end testing procedures" in prompt["useWhen"]
+              content = prompt["copyContent"]
+              for marker in (
+                  "EXTRACT THE END-TO-END TESTING INSTRUCTIONS FROM AGENTS.MD",
+                  "reuse the existing canonical project-level skill",
+                  "Keep universal invariants, instruction precedence, compact routing",
+                  "Require every extracted procedural marker in the project skill",
+                  "Reject those detailed markers if they return to AGENTS.md",
+                  "Run the applicable fixture-safe/default E2E gate",
+                  "Exactly one canonical project-level skill owns the procedure",
+                  "commit SHA",
+                  "push/PR state",
+                  "one exact next command",
+              ):
+                  assert marker in content, f"P64 missing contract marker: {marker}"
+
+
+          def test_prompt_kit_embeds_exact_registry() -> None:
+              assert load_embedded_prompts() == load_registry()
+
+
+          def main() -> None:
+              tests = [
+                  test_registry_shape_and_identity,
+                  test_p64_instruction_to_skill_extractor_contract,
+                  test_prompt_kit_embeds_exact_registry,
+              ]
+              for test in tests:
+                  test()
+              print(f"PASS: {len(tests)} prompt registry contracts")
+
+
+          if __name__ == "__main__":
+              main()
+          '''.replace('\n          ', '\n').lstrip(), encoding='utf-8')
+
+          workflow = workflow_path.read_text(encoding='utf-8')
+          path_anchor = "      - 'docs/END_TO_END_TESTING_POSTURE.md'\n"
+          path_addition = (
+              "      - 'docs/prompts.json'\n"
+              "      - 'docs/prompt-kit.html'\n"
+              "      - 'Tests/survey/test_prompt_registry_contracts.py'\n"
+          )
+          if workflow.count(path_anchor) != 2:
+              raise SystemExit('unexpected agent-instruction workflow path-filter shape')
+          workflow = workflow.replace(path_anchor, path_anchor + path_addition)
+
+          compile_anchor = "          Tests/survey/test_agent_instruction_factoring_contracts.py\n"
+          if workflow.count(compile_anchor) != 1:
+              raise SystemExit('unexpected compile-list shape')
+          workflow = workflow.replace(
+              compile_anchor,
+              compile_anchor + "          Tests/survey/test_prompt_registry_contracts.py\n",
+          )
+
+          run_anchor = "          python3 Tests/survey/test_agent_instruction_factoring_contracts.py\n"
+          if workflow.count(run_anchor) != 1:
+              raise SystemExit('unexpected contract-runner shape')
+          workflow = workflow.replace(
+              run_anchor,
+              run_anchor + "          python3 Tests/survey/test_prompt_registry_contracts.py\n",
+          )
+          workflow_path.write_text(workflow, encoding='utf-8')
+
+          temp_workflow_path.unlink()
+          PY
+
+          python Tests/survey/test_prompt_registry_contracts.py
+          python Tests/survey/test_agent_instruction_factoring_contracts.py
+          git diff --check
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/prompts.json docs/prompt-kit.html Tests/survey/test_prompt_registry_contracts.py .github/workflows/agent-instruction-contracts.yml .github/workflows/temp-register-p64.yml
+          git commit -m 'docs(prompts): register agent instruction skill extractor'
+          git push origin HEAD:docs/prompt-registry-agent-skill-extractor
