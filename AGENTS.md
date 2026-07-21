@@ -91,6 +91,7 @@ Preserve existing work, keep mutation inside owned scope, and checkpoint coheren
 - `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.
 - `Config/operational-posture.json` and `docs/OPERATIONAL_POSTURE.md` — lane and mutation posture.
 - `harness/api/agent-capability-manifest.json` and `harness/api/agent-routing-manifest.json` — machine-readable capability and routing authority.
+- `harness/workflows/agent-sprint-capsule.yaml` and `tools/New-SasSprintCapsule.ps1` — final handoff compression.
 - `tools/validate-ai-layer.ps1` and `Tests/survey/test_agent_governance_doctrine_contracts.py` — instruction and governance enforcement.
 
 ## Completion standard
