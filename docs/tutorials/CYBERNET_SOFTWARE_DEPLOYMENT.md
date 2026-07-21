@@ -201,9 +201,9 @@ Operational rules for batches:
 - A failure on one workstation is not proof that another workstation failed or succeeded.
 - Do not rerun a failed target blindly. Read its exact failure and inspect residual task/staging state first.
 
-## 7. Install the approved five-package clinical set
+## 7. Install the approved six-package clinical set
 
-The package-set ID `cybernet-clinical-workstation` installs Allscripts EEHR Shortcut, Epic Downtime Guide, Dragon Medical One 2025, Hyland FOS Epic Integration, and AutoLogon in that order. Dragon and Hyland keep their approved folder dependencies together; AutoLogon runs last as SYSTEM. The command does not reboot the workstation.
+The package-set ID `cybernet-clinical-workstation` installs Allscripts EEHR Shortcut, Epic Downtime Guide, Dragon Medical One 2025, Hyland FOS Epic Integration, Epic BCA Web Shortcut, and AutoLogon in that order. Dragon and Hyland keep their approved folder dependencies together; BCA uses its pinned MSI with `/qn /norestart`; AutoLogon runs last as SYSTEM. The command does not reboot the workstation.
 
 Pilot dry run:
 
