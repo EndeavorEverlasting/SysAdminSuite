@@ -11,15 +11,27 @@ operations:
     implementation_status: implemented_p02
     contract_floor_transition: "implementation_status: deferred_to_p02 -> implemented_p02"
     application_entrypoint: scripts/Test-SasSoftwareDeploymentTransport.ps1
+    implementation_modules:
+      - scripts/SasSoftwareDeploymentTransport.psm1
+      - scripts/SasSoftwareDeploymentLowNoise.psm1
+      - scripts/SasLowNoisePolicy.psm1
+    default_transport_intent: kerberos_smb_task
+    explicit_transport_intents:
+      - kerberos_smb_task
+      - winrm
+      - auto
     consumes:
-      - authorized FQDN targets
+      - one authorized FQDN target
       - explicit network activity acknowledgement for live mode
+      - exact transport intent; broad auto discovery is never the default
       - bounded read-only observation policy
+      - canonical low-noise policy and exact effective port subset
       - optional runtime-only PSCredential
       - optional sanitized fixture observations
     produces:
       - software_deployment_transport_result.json
       - sanitized_transport_observations.json
+      - low_noise_context.json
       - english_summary.txt
       - artifact_registry.json
     mutation_authority: none
@@ -53,22 +65,44 @@ selection:
     - source is domain joined and has a TGT summary
     - CIFS service ticket issued without ticket bytes
     - TCP 445 reachable
-    - TCP 135 reachable
     - ADMIN$ authorized
+    - TCP 135 reachable
     - Schedule service running
-    - scheduled-task read query authorized
+    - one named scheduled-task read query authorized without task enumeration
+  low_noise_order:
+    kerberos_smb_task:
+      - inspect source domain/TGT state and resolve the one authorized FQDN
+      - request only the CIFS ticket
+      - test TCP 445
+      - test ADMIN$ read authorization
+      - test TCP 135 only after ADMIN$ authorization
+      - query the Schedule service and one reserved nonexistent task name
+    winrm:
+      - inspect source domain/TGT state and resolve the one authorized FQDN
+      - request only the HTTP ticket
+      - test TCP 5985
+      - test TCP 5986 only when 5985 is not reachable and did not time out
+      - open and immediately remove one bounded read-only PSSession
+    auto:
+      - explicit broad discovery using the frozen P02 collector
   fail_closed_rules:
     - WinRM unavailability does not block Kerberos SMB Task Scheduler selection.
     - Every declared Kerberos SMB Task Scheduler prerequisite is required.
     - No transport may be guessed from reachability alone.
     - No silent fallback is permitted.
     - No fallback is permitted after mutation begins.
+    - Broad auto discovery must never be substituted for the narrow default.
+    - A failed narrow preflight does not authorize probing more ports without a recorded reason.
 guardrails:
   - Contracts do not authorize network activity or target mutation.
   - Preflight evidence cannot claim task creation, SYSTEM execution, result retrieval, cleanup, or software installation.
   - Live-cert operation cannot install software.
   - Raw target identifiers, usernames, credentials, ticket bytes, package paths, and private evidence remain operator-local.
   - Public receipts bind source evidence by SHA-256 without copying it.
+  - Target deployment uses a noninteractive SYSTEM scheduled task without /IT, and approved installer execution is required to remain silent.
 validators:
   - Tests/survey/test_software_deployment_transport_contracts.py
-proof_ceiling: Schema, sanitized fixture, harness registration, validator, and CI proof only; no transport implementation or live target behavior is claimed.
+  - Tests/survey/test_software_deployment_transport_preflight_contracts.py
+  - Tests/Pester/SoftwareDeploymentTransport.Tests.ps1
+  - Tests/bash/test_smb_scheduled_task_install_contracts.sh
+proof_ceiling: Read-only intent-scoped preflight implementation, sanitized fixture, schema, run-context, low-noise artifact, validator, and CI proof only; no live target observation, task creation, software execution, or operator acceptance is claimed.
