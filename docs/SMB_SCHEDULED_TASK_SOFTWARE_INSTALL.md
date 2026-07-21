@@ -79,6 +79,17 @@ bash bash/apps/sas-install-apps.sh \
   --allow-legacy
 ```
 
+If a completed package-set result shows that only AutoLogon failed, rerun only the final approved step instead of reinstalling the four preceding applications:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets HOST1,HOST2 \
+  --package-set cybernet-autologon-only \
+  --allow-legacy
+```
+
+The AutoLogon recovery set runs only `NW_AutoLogon_Setup_x64.exe` as SYSTEM. Its argument list is intentionally empty; the worker omits PowerShell's `-ArgumentList` parameter for this case.
+
 The returned CSV contains one result row for each of the five packages. A failed row makes the target `HOST_FAILED`; later packages are still represented by the worker result when execution reaches them. Installer completion remains separate from technician application acceptance.
 
 ## BCA dry run
