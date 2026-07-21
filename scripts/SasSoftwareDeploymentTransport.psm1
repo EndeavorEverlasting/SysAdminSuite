@@ -210,7 +210,7 @@ function Invoke-SasBoundedProcess {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(Mandatory = $true)][string]$Arguments,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Arguments,
         [Parameter(Mandatory = $true)][ValidateRange(1, 30)][int]$TimeoutSeconds
     )
 

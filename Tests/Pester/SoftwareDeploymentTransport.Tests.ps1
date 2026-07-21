@@ -117,6 +117,13 @@ Describe 'Software deployment transport preflight' {
         $content | Should -Not -Match 'ConvertFrom-SecureString|ConvertTo-SecureString'
     }
 
+    It 'allows the no-argument klist TGT query through bounded process binding' {
+        InModuleScope SasSoftwareDeploymentTransport {
+            $wherePath = Join-Path $env:WINDIR 'System32\where.exe'
+            { Invoke-SasBoundedProcess -FilePath $wherePath -Arguments '' -TimeoutSeconds 2 } | Should -Not -Throw
+        }
+    }
+
     It 'executes the SMB-ready fixture through the run context without network activity' {
         $fixturePath = Join-Path $script:fixtureRoot 'kerberos-smb-task-ready.fixture.json'
         $outputRoot = Join-Path $repoRoot ('survey/output/pester-transport-' + [guid]::NewGuid().ToString('N'))

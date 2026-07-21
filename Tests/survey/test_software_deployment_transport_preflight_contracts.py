@@ -52,6 +52,7 @@ def test_module_collects_required_read_only_observations() -> None:
         "Resolve-SasBoundedDns",
         "Test-SasBoundedTcpPort",
         "klist.exe",
+        "[AllowEmptyString()][string]$Arguments",
         "HTTP",
         "HOST",
         "CIFS",
