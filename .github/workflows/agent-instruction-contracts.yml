@@ -1,7 +1,7 @@
 name: Agent instruction contracts
 
 permissions:
-  contents: read
+  contents: write
 
 on:
   push:
@@ -119,3 +119,80 @@ jobs:
       - name: Sprint capsule Pester contracts
         shell: pwsh
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\SprintCapsule.Tests.ps1
+
+  register-p64:
+    if: github.event_name == 'pull_request' && github.head_ref == 'docs/prompt-registry-agent-skill-extractor'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate synchronized P64 registry surfaces
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/temp-register-p64.yml').read_text(encoding='utf-8')
+          marker = "          python - <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          Path('/tmp/register_p64.py').write_text(
+              textwrap.dedent(source[start:end]) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          python /tmp/register_p64.py
+      - name: Remove one-shot scaffolding and restore read-only CI
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/agent-instruction-contracts.yml')
+          text = workflow.read_text(encoding='utf-8')
+          marker = '\n  register-p64:\n'
+          if marker not in text:
+              raise SystemExit('temporary register-p64 job marker missing')
+          text = text.split(marker, 1)[0].rstrip() + '\n'
+          text = text.replace('permissions:\n  contents: write', 'permissions:\n  contents: read', 1)
+          workflow.write_text(text, encoding='utf-8')
+
+          for temporary in (
+              '.github/workflows/temp-register-p64-pr.yml',
+              '.github/temp-p64-trigger.txt',
+          ):
+              Path(temporary).unlink(missing_ok=True)
+          PY
+      - name: Validate generated registry and instruction contracts
+        shell: bash
+        run: |
+          python -m py_compile \
+            Tests/survey/test_prompt_registry_contracts.py \
+            Tests/survey/test_agent_instruction_factoring_contracts.py \
+            Tests/survey/test_e2e_default_posture_contracts.py
+          python Tests/survey/test_prompt_registry_contracts.py
+          python Tests/survey/test_agent_instruction_factoring_contracts.py
+          python Tests/survey/test_agent_capability_manifest_contracts.py
+          python Tests/survey/test_agent_routing_manifest_contracts.py
+          python Tests/survey/test_agent_sprint_capsule_contracts.py
+          python Tests/survey/test_developer_workstation_agent_harness_contracts.py
+          python Tests/survey/test_e2e_default_posture_contracts.py
+          git diff --check
+          git status --short
+          git diff --stat
+          git diff --name-only
+      - name: Commit synchronized prompt registry
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'docs(prompts): register agent instruction skill extractor'
+          git push origin HEAD:docs/prompt-registry-agent-skill-extractor
