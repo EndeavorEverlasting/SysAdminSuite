@@ -10,9 +10,19 @@ AGENTS = ROOT / "AGENTS.md"
 CLAUDE = ROOT / "CLAUDE.md"
 MANIFEST = ROOT / "harness/api/agent-capability-manifest.json"
 CAPABILITY_ROOT = ROOT / ".claude/capabilities"
+E2E_SKILL = ROOT / ".claude/skills/end-to-end-validation/SKILL.md"
 WORKFLOW = ROOT / ".github/workflows/agent-instruction-contracts.yml"
 FORBIDDEN_ROOT_DETAILS = {"naabu -list", "get-netadapter", "new-netipaddress", "ip addr", "journalctl"}
 FORBIDDEN_CONTRADICTIONS = {"powershell is deprecated", "powershell is dead code", "legacy/reference tooling"}
+E2E_ROUTED_DETAILS = {
+    "end-to-end proof is the default merge and release target",
+    "unit tests, parser checks, and narrow contracts are fast diagnostics",
+    "green static contract",
+    "mark e2e `not_applicable`",
+    "run the applicable e2e journey through the real repo-owned entrypoint",
+    "run broader regression checks only after",
+    "do not claim merge or release readiness",
+}
 CAPABILITY_LINK = re.compile(r"\(\.\./\.\./capabilities/([A-Za-z0-9._-]+\.md)\)")
 
 
@@ -29,12 +39,18 @@ def test_agents_is_compact_router() -> None:
     text = read(AGENTS)
     assert len(text.splitlines()) <= 120
     assert "## Skill router" in text and "Progressive disclosure is a repository requirement" in text
-    assert "End-to-end proof is the default merge and release target" in text
+    assert ".claude/skills/end-to-end-validation/SKILL.md" in text
     lowered = text.lower()
-    for detail in FORBIDDEN_ROOT_DETAILS:
+    for detail in FORBIDDEN_ROOT_DETAILS | E2E_ROUTED_DETAILS:
         assert detail not in lowered, f"root instruction contains routed detail: {detail}"
     for skill in manifest()["skills"]:
         assert skill["path"] in text, f"AGENTS.md does not route to {skill['path']}"
+
+
+def test_e2e_procedure_is_owned_by_project_skill() -> None:
+    text = read(E2E_SKILL).lower()
+    for detail in E2E_ROUTED_DETAILS:
+        assert detail in text, f"E2E project skill is missing extracted instruction: {detail}"
 
 
 def test_every_skill_composes_declared_capabilities() -> None:
@@ -100,6 +116,7 @@ def test_ci_runs_manifest_routing_and_handoff_contracts() -> None:
 def main() -> None:
     tests = [
         test_agents_is_compact_router,
+        test_e2e_procedure_is_owned_by_project_skill,
         test_every_skill_composes_declared_capabilities,
         test_capabilities_are_atomic_and_catalogued,
         test_instruction_sources_do_not_reintroduce_language_conflict,

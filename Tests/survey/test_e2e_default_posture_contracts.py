@@ -46,7 +46,9 @@ def load(path: Path) -> dict:
 def test_default_posture_is_explicit_and_not_unit_only() -> None:
     agents = read(AGENTS)
     doctrine = read(DOCTRINE)
-    assert "End-to-end proof is the default merge and release target" in agents
+    skill = read(SKILL)
+    assert "End-to-end proof is the default merge and release target" not in agents
+    assert "End-to-end proof is the default merge and release target" in skill
     assert "Unit tests alone are insufficient" in doctrine
     assert "fixture, synthetic, or loopback end-to-end journey" in doctrine
     assert "Never promote fixture or loopback E2E to live target proof" in doctrine
@@ -222,7 +224,7 @@ def test_software_install_e2e_builds_executable_and_emits_deltas() -> None:
         "binary is not committed",
         "not live WinRM",
     ]:
-        assert fragment in doc, f"software-install E2E doc missing: {fragment}"
+        assert fragment in doc, f"software-install E2E doc missing contract: {fragment}"
 
 
 def test_ci_executes_real_journeys_and_tracks_dependencies() -> None:
