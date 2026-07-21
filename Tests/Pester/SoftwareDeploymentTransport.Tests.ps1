@@ -117,7 +117,7 @@ Describe 'Software deployment transport preflight' {
         $command.Parameters['Credential'].ParameterType.FullName | Should -Be 'System.Management.Automation.PSCredential'
         $command.Parameters['TransportIntent'].ParameterType.FullName | Should -Be 'System.String'
         $content = Get-Content -LiteralPath $script:entrypoint -Raw
-        $content | Should -Match "\[string\]\$TransportIntent = 'kerberos_smb_task'"
+        $content | Should -Match '\[string\]\$TransportIntent = ''kerberos_smb_task'''
         $content | Should -Not -Match 'Get-Credential'
         $content | Should -Not -Match 'ConvertFrom-SecureString|ConvertTo-SecureString'
     }
