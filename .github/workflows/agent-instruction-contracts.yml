@@ -134,21 +134,10 @@ jobs:
           python-version: '3.12'
       - name: Generate synchronized P64 registry surfaces
         run: python .github/temp-register-p64.py
-      - name: Remove one-shot job and restore read-only CI
+      - name: Restore staging surfaces before publication
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          workflow = Path('.github/workflows/agent-instruction-contracts.yml')
-          text = workflow.read_text(encoding='utf-8')
-          marker = '\n  register-p64:\n'
-          if marker not in text:
-              raise SystemExit('temporary register-p64 job marker missing')
-          text = text.split(marker, 1)[0].rstrip() + '\n'
-          text = text.replace('permissions:\n  contents: write', 'permissions:\n  contents: read', 1)
-          workflow.write_text(text, encoding='utf-8')
-          PY
+          git restore -- .github/workflows/agent-instruction-contracts.yml .github/temp-register-p64.py
       - name: Validate generated registry and instruction contracts
         shell: bash
         run: |
@@ -172,6 +161,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add docs/prompts.json docs/prompt-kit.html Tests/survey/test_prompt_registry_contracts.py
           git commit -m 'docs(prompts): register agent instruction skill extractor'
           git push origin HEAD:docs/prompt-registry-agent-skill-extractor-v2
