@@ -590,7 +590,11 @@ function Install-App {{
         $exitCode = $p.ExitCode
       }}
       "exe" {{
-        $p = Start-Process -FilePath $installer -ArgumentList $SilentArgs -Wait -PassThru -NoNewWindow
+        if (@($SilentArgs).Count -gt 0) {{
+          $p = Start-Process -FilePath $installer -ArgumentList $SilentArgs -Wait -PassThru -NoNewWindow
+        }} else {{
+          $p = Start-Process -FilePath $installer -Wait -PassThru -NoNewWindow
+        }}
         $exitCode = $p.ExitCode
       }}
       "cmd" {{
