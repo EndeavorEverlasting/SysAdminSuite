@@ -4,13 +4,57 @@
 
 For a complete one-target-to-batch tutorial, start with [`tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`](tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md). A root-level navigation page is available at [`../START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md`](../START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md).
 
-This page is the technical transport reference for `bash/apps/sas-install-apps.sh`.
+This page covers the canonical PowerShell transport and the preserved
+`bash/apps/sas-install-apps.sh` compatibility controller.
 
 ## Purpose
 
-Use this guarded fallback when an authorized Windows target does not accept WinRM but its `C$` administrative share and remote Task Scheduler are available. Run it from Git Bash on an approved Windows admin workstation or an approved Windows admin VM.
+Use `SmbScheduledTask` when an authorized Windows target does not accept WinRM but Kerberos-authenticated administrative shares and remote Task Scheduler are certified. The canonical path is no longer a legacy fallback: `Invoke-SasValidatedSoftwareDeployment.ps1` consumes the closed request and fresh P02 decision. Run it from an approved Windows admin workstation or approved Windows admin VM.
 
-The controller uses the current Windows admin token. It does not require `smbclient`, collect credentials, enable WinRM, change firewall policy, or weaken endpoint controls. The repository does not provision or authorize the controller VM.
+The controller uses the current Windows admin token. It does not require `smbclient`, collect credentials, enable WinRM, change firewall policy, or weaken endpoint controls. The repository does not provision or authorize the controller VM. This fallback does not provide the canonical WinRM lane; WinRM remains an optional separately certified adapter, not a universal requirement.
+
+## Canonical selection and execution
+
+The canonical front door accepts `-Transport Auto`, `WinRM`, or
+`SmbScheduledTask`. `Auto` never probes while mutating: it consumes one fresh,
+schema-valid P02 result for its one-target pilot and fails closed on stale,
+contradictory, unauthorized, or non-executable decisions. Explicit
+`SmbScheduledTask` also requires one matching P02 result per target. Once selected,
+the controller never changes transport during that run.
+
+For the first pilot:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasValidatedSoftwareDeployment.ps1 `
+  -RequestPath .\survey\input\software-install\approved-request.json `
+  -Transport SmbScheduledTask `
+  -TransportPreflightPath .\survey\output\runs\software-deployment-transport\<run>\artifacts\software_deployment_transport_result.json `
+  -AllowTargetMutation
+```
+
+The canonical staging boundary is
+`C:\ProgramData\SysAdminSuite\SoftwareInstall\<run-id>`. The adapter verifies
+the source hash immediately before copy, verifies installer and worker hashes
+through the target share, verifies the installer hash again from target-local
+SYSTEM context, executes once, validates the package, retrieves a closed JSON
+result, deletes the task, removes only the run root, and verifies both are absent.
+Cleanup failure is deployment failure. Exit code `3010` is recorded as reboot
+required; no reboot is initiated.
+
+From Git Bash, `--request` is a bounded wrapper over that same front door and does
+not use `--allow-legacy`:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --request survey/input/software-install/approved-request.json \
+  --transport SmbScheduledTask \
+  --transport-preflight survey/output/runs/software-deployment-transport/<run>/artifacts/software_deployment_transport_result.json \
+  --dry-run
+```
+
+The older `--targets` plus `--list`/`--package` controller below is temporary
+compatibility mode. Its proven PR #229 behavior is preserved behind
+`--allow-legacy` until canonical parity tests support retirement.
 
 ## Implemented flow
 

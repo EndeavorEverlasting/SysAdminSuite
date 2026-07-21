@@ -5,7 +5,7 @@ Run the catalog-driven approved software snapshot and install workflow.
 
 .DESCRIPTION
 Selects one tracked package, captures a read-only Before snapshot, delegates WhatIf or live
-installation to Invoke-SasSoftwareInstall.ps1, then captures an After snapshot and local delta.
+installation to Invoke-SasValidatedSoftwareDeployment.ps1, then captures an After snapshot and local delta.
 The normal technician path never asks for a raw installer path and never discovers executable
 files dynamically from the package share.
 #>
@@ -21,6 +21,11 @@ param(
 
     [ValidateRange(1, 25)]
     [int]$MaxTargets = 25,
+
+    [ValidateSet('Auto', 'WinRM', 'SmbScheduledTask')]
+    [string]$Transport = 'WinRM',
+
+    [string[]]$TransportPreflightPath = @(),
 
     [switch]$FixtureMode,
     [switch]$NonInteractive,
@@ -676,7 +681,9 @@ function Invoke-SasInstallWrapper {
     $params = @{
         RequestPath = $requestPath
         OutputRoot = (Join-Path ([string]$state.run_root) 'software_install')
+        Transport = $Transport
     }
+    if ($TransportPreflightPath.Count -gt 0) { $params.TransportPreflightPath = @($TransportPreflightPath) }
     if ($isFixture) {
         $params.AllowFixtures = $true
     }

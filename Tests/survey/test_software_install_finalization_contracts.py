@@ -104,6 +104,7 @@ def test_runtime_validator_enforces_closed_schema_guardrails() -> None:
 
 def test_no_arbitrary_validation_or_broad_cleanup() -> None:
     text = read(MODULE) + "\n" + read(FINALIZER) + "\n" + read(ORCHESTRATOR)
+    winrm_finalization_text = read(MODULE) + "\n" + read(FINALIZER)
     for required in (
         "VALIDATION_REGISTRY_VALUE_NAME_FORBIDDEN",
         "repo_owned_run_scoped_only",
@@ -122,10 +123,10 @@ def test_no_arbitrary_validation_or_broad_cleanup() -> None:
         "Clear-EventLog",
         "wevtutil cl",
         "Remove-Item -Path $env:ProgramData -Recurse",
-        "scheduledtask",
         "New-Service",
     ):
         assert forbidden.lower() not in text.lower(), f"forbidden broad behavior present: {forbidden}"
+    assert "scheduledtask" not in winrm_finalization_text.lower(), "WinRM finalization must not create scheduled tasks"
 
 
 def test_cleanup_runs_after_validation_and_preservation_is_rechecked() -> None:
