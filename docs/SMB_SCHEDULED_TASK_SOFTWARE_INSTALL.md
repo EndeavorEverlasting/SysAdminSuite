@@ -56,7 +56,8 @@ The approved package-set ID `cybernet-clinical-workstation` installs these packa
 2. Epic Downtime Guide Shortcut 1.0;
 3. Nuance Dragon Medical One 2025;
 4. Hyland FOS Epic Integration 23.1.33.1000;
-5. NW AutoLogon Setup x64.
+5. Epic BCA Web Shortcut 1.0;
+6. NW AutoLogon Setup x64.
 
 Dragon and Hyland are approved folder bundles. Each package is staged in its own run-scoped subdirectory so its `Install.cmd`, MST, CAB, XML, shortcut, MSI, and EXE dependencies remain together. AutoLogon runs last and is elevated through the same one-time SYSTEM task. The controller never restarts a workstation.
 
@@ -70,7 +71,7 @@ bash bash/apps/sas-install-apps.sh \
   --dry-run
 ```
 
-After reviewing the 17-file staging plan, remove only `--dry-run` for the authorized live run:
+After reviewing the 18-file staging plan, remove only `--dry-run` for the authorized live run:
 
 ```bash
 bash bash/apps/sas-install-apps.sh \
@@ -79,7 +80,7 @@ bash bash/apps/sas-install-apps.sh \
   --allow-legacy
 ```
 
-If a completed package-set result shows that only AutoLogon failed, rerun only the final approved step instead of reinstalling the four preceding applications:
+If a completed package-set result shows that only AutoLogon failed, rerun only the final approved step instead of reinstalling the preceding applications:
 
 ```bash
 bash bash/apps/sas-install-apps.sh \
@@ -90,7 +91,16 @@ bash bash/apps/sas-install-apps.sh \
 
 The AutoLogon recovery set runs only `NW_AutoLogon_Setup_x64.exe` as SYSTEM. Its argument list is intentionally empty; the worker omits PowerShell's `-ArgumentList` parameter for this case.
 
-The returned CSV contains one result row for each of the five packages. A failed row makes the target `HOST_FAILED`; later packages are still represented by the worker result when execution reaches them. Installer completion remains separate from technician application acceptance.
+For machines that already received the first four clinical applications but still need both BCA and the corrected AutoLogon step, use the bounded recovery set:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets HOST1,HOST2 \
+  --package-set cybernet-bca-autologon-recovery \
+  --allow-legacy
+```
+
+The recovery set installs BCA first and AutoLogon last. The returned full-set CSV contains one result row for each of the six packages. A failed row makes the target `HOST_FAILED`; later packages are still represented by the worker result when execution reaches them. Installer completion remains separate from technician application acceptance.
 
 ## BCA dry run
 
@@ -144,7 +154,7 @@ bash bash/apps/sas-install-apps.sh \
 
 Review the batch plan before removing only `--dry-run`. Each target receives its own classification and evidence. The maximum of 25 is a hard guardrail, not a recommendation to start with 25.
 
-For the five-package clinical set, replace `--package bca` with:
+For the six-package clinical set, replace `--package bca` with:
 
 ```text
 --package-set cybernet-clinical-workstation
