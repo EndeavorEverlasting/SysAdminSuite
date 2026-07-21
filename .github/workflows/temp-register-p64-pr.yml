@@ -1,0 +1,53 @@
+name: Temporary P64 pull-request update
+
+permissions:
+  contents: write
+
+on:
+  pull_request:
+    branches:
+      - refactor/e2e-instructions-project-skill
+    types: [opened, synchronize, reopened]
+
+jobs:
+  register-p64:
+    if: github.head_ref == 'docs/prompt-registry-agent-skill-extractor'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute staged generator
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/temp-register-p64.yml').read_text(encoding='utf-8')
+          marker = "          python - <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          Path('/tmp/register_p64.py').write_text(
+              textwrap.dedent(source[start:end]) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+          python /tmp/register_p64.py
+          rm -f .github/workflows/temp-register-p64-pr.yml .github/temp-p64-trigger.txt
+
+          python Tests/survey/test_prompt_registry_contracts.py
+          python Tests/survey/test_agent_instruction_factoring_contracts.py
+          python Tests/survey/test_e2e_default_posture_contracts.py
+          git diff --check
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'docs(prompts): register agent instruction skill extractor'
+          git push origin HEAD:docs/prompt-registry-agent-skill-extractor
