@@ -1,0 +1,66 @@
+schema_version: sas-harness-workflow/v1
+id: software-deployment-transport
+summary: Select, certify, and publicly receipt WinRM or Kerberos SMB Task Scheduler deployment transports through frozen fail-closed contracts.
+mode: contract_floor
+contract_status: frozen_v1
+schemas:
+  result: schemas/harness/software-deployment-transport-result.schema.json
+  receipt: schemas/harness/software-deployment-transport-receipt.schema.json
+operations:
+  - id: software_install.transport_preflight
+    implementation_status: deferred_to_p02
+    consumes:
+      - authorized FQDN targets
+      - bounded read-only observation policy
+    produces:
+      - software_deployment_transport_result.json
+    mutation_authority: none
+  - id: software_install.transport_live_cert
+    implementation_status: deferred_to_p03_and_p07
+    consumes:
+      - schema-valid kerberos_smb_task_ready result
+      - one explicitly authorized target
+      - explicit live-cert mutation approval
+    produces:
+      - operator_local_transport_live_cert_result.json
+    mutation_authority: harmless run-scoped certification task only
+  - id: software_install.transport_proof_ingest
+    implementation_status: deferred_to_p06
+    consumes:
+      - operator-local live-cert result
+      - SHA-256 binding
+      - operator confirmation
+    produces:
+      - software_deployment_transport_receipt.json
+    mutation_authority: none
+selection:
+  precedence:
+    - winrm_ready
+    - kerberos_smb_task_ready
+    - transport_reachable_authorization_denied
+    - no_supported_transport
+    - inconclusive
+  kerberos_smb_task_prerequisites:
+    - DNS resolved
+    - source is domain joined and has a TGT summary
+    - CIFS service ticket issued without ticket bytes
+    - TCP 445 reachable
+    - TCP 135 reachable
+    - ADMIN$ authorized
+    - Schedule service running
+    - scheduled-task read query authorized
+  fail_closed_rules:
+    - WinRM unavailability does not block Kerberos SMB Task Scheduler selection.
+    - Every declared Kerberos SMB Task Scheduler prerequisite is required.
+    - No transport may be guessed from reachability alone.
+    - No silent fallback is permitted.
+    - No fallback is permitted after mutation begins.
+guardrails:
+  - Contracts do not authorize network activity or target mutation.
+  - Preflight evidence cannot claim task creation, SYSTEM execution, result retrieval, cleanup, or software installation.
+  - Live-cert operation cannot install software.
+  - Raw target identifiers, usernames, credentials, ticket bytes, package paths, and private evidence remain operator-local.
+  - Public receipts bind source evidence by SHA-256 without copying it.
+validators:
+  - Tests/survey/test_software_deployment_transport_contracts.py
+proof_ceiling: Schema, sanitized fixture, harness registration, validator, and CI proof only; no transport implementation or live target behavior is claimed.
