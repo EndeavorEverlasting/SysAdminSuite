@@ -40,6 +40,7 @@ case "${1:-}" in
         'hyland-fos-epic-integration-23-1-33-1000/Hyland_Integration_EPIC.Mst'
         'hyland-fos-epic-integration-23-1-33-1000/Install.cmd'
         'hyland-fos-epic-integration-23-1-33-1000/VC_redist.x64.exe'
+        'bca/EPIC_BCA_Web-Shortcut_1.0.msi'
         'autologon/NW_AutoLogon_Setup_x64.exe'
       )
       for required_file in "${required_files[@]}"; do
@@ -51,6 +52,7 @@ case "${1:-}" in
         printf 'Epic Downtime Guide Shortcut 1.0,%s,%s\n' "$status" "$error"
         printf 'Nuance Dragon Medical One 2025,%s,%s\n' "$status" "$error"
         printf 'Hyland FOS Epic Integration 23.1.33.1000,%s,%s\n' "$status" "$error"
+        printf 'Epic BCA Web Shortcut 1.0,%s,%s\n' "$status" "$error"
         printf 'NW AutoLogon Setup x64,%s,%s\n' "$status" "$error"
       } > "$run_root/results/install_results_package-set-cybernet-clinical-workstation.csv"
     fi
