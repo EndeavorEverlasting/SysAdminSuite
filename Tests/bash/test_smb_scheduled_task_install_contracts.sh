@@ -53,6 +53,8 @@ assert package_set["package_ids"] == [
     "hyland-fos-epic-integration-23-1-33-1000",
     "autologon",
 ]
+autologon_recovery = next(item for item in catalog["package_sets"] if item["id"] == "cybernet-autologon-only")
+assert autologon_recovery["package_ids"] == ["autologon"]
 packages = {item["id"]: item for item in catalog["packages"]}
 assert packages["allscripts-eehr-shortcut-uai-2-2"]["entrypoint_file"] == "Allscripts_EEHR-Shortcut-UAI_2.2.msi"
 assert packages["allscripts-eehr-shortcut-uai-2-2"]["installer_arguments"] == ["/qb", "/norestart"]
@@ -140,6 +142,27 @@ SET_WORKER="$(find "$TMP_ROOT/package-set-output" -maxdepth 1 -type f -name 'sas
 grep -Fq -- "-Type 'cmd'" "$SET_WORKER" || fail "package-set worker must support approved CMD bundle entrypoints"
 grep -Fq -- "-Type 'exe'" "$SET_WORKER" || fail "package-set worker must run the elevated AutoLogon EXE"
 grep -Fq '$cmdArguments = '\''/d /s /c ""{0}""' "$SET_WORKER" || fail "CMD bundle execution must preserve quoted entrypoint paths"
+grep -Fq 'if (@($SilentArgs).Count -gt 0)' "$SET_WORKER" || fail "EXE execution must distinguish populated and empty argument arrays"
+grep -Fq 'Start-Process -FilePath $installer -Wait -PassThru -NoNewWindow' "$SET_WORKER" || fail "argument-free EXE execution must omit ArgumentList"
+if grep -Fq 'Start-Process -FilePath $installer -ArgumentList $SilentArgs -Wait -PassThru -NoNewWindow' "$SET_WORKER" && \
+   ! grep -Fq 'if (@($SilentArgs).Count -gt 0)' "$SET_WORKER"; then
+  fail "EXE execution must not pass an empty ArgumentList"
+fi
+
+AUTOLOGON_DRY_OUTPUT="$TMP_ROOT/autologon-dry-run.txt"
+bash "$SCRIPT" \
+  --targets SYNTHETIC001 \
+  --package-set cybernet-autologon-only \
+  --allow-legacy \
+  --dry-run \
+  --log-dir "$TMP_ROOT/autologon-output" >"$AUTOLOGON_DRY_OUTPUT" 2>&1 \
+  || fail "AutoLogon recovery dry run must succeed offline"
+grep -Fq 'Approved package set: Cybernet AutoLogon recovery (cybernet-autologon-only)' "$AUTOLOGON_DRY_OUTPUT" \
+  || fail "AutoLogon recovery dry run must resolve the recovery set"
+AUTOLOGON_WORKER="$(find "$TMP_ROOT/autologon-output" -maxdepth 1 -type f -name 'sas-install-worker-package-set-cybernet-autologon-only-*.ps1' -print -quit)"
+[[ -n "$AUTOLOGON_WORKER" ]] || fail "AutoLogon recovery dry run did not generate a worker"
+[[ "$(grep -Fc '$Results += Install-App' "$AUTOLOGON_WORKER")" -eq 1 ]] || fail "AutoLogon recovery worker must contain exactly one install"
+grep -Fq -- "-Name 'NW AutoLogon Setup x64'" "$AUTOLOGON_WORKER" || fail "AutoLogon recovery worker must contain only the approved AutoLogon executable"
 
 # Windows Python emits CRLF. Reproduce that behavior on Linux and prove that
 # package metadata is normalized before it reaches paths or console output.
