@@ -30,7 +30,7 @@ def test_catalog_codifies_acceptance_profiles() -> None:
     assert policy["never_collect_application_command_line"] is True
 
     packages = {package["id"]: package for package in catalog["packages"]}
-    assert set(packages) == {"epic-satellite", "allscripts-touchworks-22-1", "autologon"}
+    assert set(packages) == {"epic-satellite", "bca", "allscripts-touchworks-22-1", "autologon"}
     for package in packages.values():
         acceptance = package["acceptance"]
         assert isinstance(acceptance["application_process_names"], list)

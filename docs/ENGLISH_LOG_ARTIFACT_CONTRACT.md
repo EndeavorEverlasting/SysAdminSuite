@@ -70,6 +70,27 @@ still_silent_count
 stale_or_conflicting_count
 persistent_silent_time_diverse_count
 plateau_detected
+default_profile
+open_default_port_target_count
+web_only_reachable_count
+admin_surface_reachable_count
+default_ports_blocked_or_filtered_count
+fallback_profile_recommended
+fallback_requires_approval
+all_ports_allowed
+fallback_decision
+blocked_default_ports_guidance
+```
+
+Port fallback reports must use these mutually exclusive decision names:
+
+```text
+default_ok
+web_only_fallback
+approved_subnet_host_discovery_required
+udp_justification_required
+all_ports_denied_without_explicit_gate
+review_required
 ```
 
 ## English report template
@@ -106,6 +127,26 @@ Fresh reachability evidence should reduce re-probing. If a target is still silen
 
 Next action:
 {next_action}
+```
+
+A port fallback report should read like:
+
+```text
+SysAdminSuite checked {target_count} approved target(s) from {target_file}.
+
+The default Cybernet TCP profile {default_profile} checked ports {ports_requested}.
+Network activity was performed. Evidence was written locally to {network_preflight_csv}.
+No files, scripts, or logs were written to target workstations. Assume enterprise network monitoring may observe authorized traffic.
+
+Results:
+- {open_default_port_target_count} target(s) answered on at least one default port.
+- {web_only_reachable_count} target(s) answered only on web ports 80/443.
+- {admin_surface_reachable_count} target(s) answered on Windows/admin surface ports.
+- {default_ports_blocked_or_filtered_count} target(s) were silent on the default profile.
+
+Decision:
+{fallback_decision}. Recommended fallback profile: {fallback_profile_recommended}. Approval required: {fallback_requires_approval}. All-port scan allowed: {all_ports_allowed}.
+{blocked_default_ports_guidance}
 ```
 
 ## Required report sections

@@ -1,0 +1,22 @@
+{
+  "schema_version": "sas-port-fallback-decision/v1",
+  "source_profile_id": "network_preflight",
+  "profile_source": "explicit_named_profile",
+  "effective_ports": [135, 445, 3389, 9100],
+  "target_count": 3,
+  "tested_target_count": 0,
+  "untested_target_count": 3,
+  "open_default_port_target_count": 0,
+  "web_only_reachable_count": 0,
+  "admin_surface_reachable_count": 0,
+  "silent_on_default_profile_count": 0,
+  "decision": "review_required",
+  "recommended_profile_id": "",
+  "approval_required": false,
+  "required_gate": "",
+  "network_activity_performed": false,
+  "target_mutation_performed": false,
+  "reason": "No example targets were tested; all targets remain untested. Review is required before any profile expansion.",
+  "next_action": "Review untested targets before authorizing a bounded network preflight.",
+  "proof_level": "fixture"
+}

@@ -217,7 +217,11 @@
         "Naabu",
         "Nmap",
         "packet probe",
-        "low-noise survey"
+        "low-noise survey",
+        "port fallback",
+        "blocked default ports",
+        "network preflight fallback",
+        "Cybernet key-port fallback"
       ],
       "priority": 50,
       "composition_mode": "primary",

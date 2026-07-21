@@ -1,0 +1,22 @@
+{
+  "schema_version": "sas-port-fallback-decision/v1",
+  "source_profile_id": "keyports_cybernet_json",
+  "profile_source": "canonical_default",
+  "effective_ports": [80, 443, 135, 445, 3389, 5985, 5986],
+  "target_count": 3,
+  "tested_target_count": 3,
+  "untested_target_count": 0,
+  "open_default_port_target_count": 3,
+  "web_only_reachable_count": 0,
+  "admin_surface_reachable_count": 3,
+  "silent_on_default_profile_count": 0,
+  "decision": "unknown_fallback_decision",
+  "recommended_profile_id": "",
+  "approval_required": false,
+  "required_gate": "",
+  "network_activity_performed": false,
+  "target_mutation_performed": false,
+  "reason": "Decision value not in the closed decision set.",
+  "next_action": "Fix decision to a known value.",
+  "proof_level": "fixture"
+}

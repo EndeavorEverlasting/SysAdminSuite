@@ -1,0 +1,22 @@
+{
+  "schema_version": "sas-port-fallback-decision/v1",
+  "source_profile_id": "keyports_cybernet_json",
+  "profile_source": "canonical_default",
+  "effective_ports": [80, 443, 135, 445, 3389, 5985, 5986],
+  "target_count": 3,
+  "tested_target_count": 3,
+  "untested_target_count": 0,
+  "open_default_port_target_count": 0,
+  "web_only_reachable_count": 0,
+  "admin_surface_reachable_count": 0,
+  "silent_on_default_profile_count": 3,
+  "decision": "approved_subnet_host_discovery_required",
+  "recommended_profile_id": "host_discovery_web_syn_txt",
+  "approval_required": true,
+  "required_gate": "approved_subnet_scope",
+  "network_activity_performed": false,
+  "target_mutation_performed": false,
+  "reason": "All example targets silent on default profile; approved subnet scope required before host discovery.",
+  "next_action": "Obtain explicit approved-subnet-scope authorization before running host_discovery_web_syn_txt.",
+  "proof_level": "fixture"
+}

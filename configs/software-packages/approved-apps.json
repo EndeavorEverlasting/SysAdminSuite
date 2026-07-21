@@ -33,6 +33,28 @@
       "notes": "The package folder is confirmed. Pin the current approved installer filename before planning or installing. Add the approved application process name before automated launch observation."
     },
     {
+      "id": "bca",
+      "display_name": "Epic BCA Web Shortcut 1.0",
+      "source_folder_relative_path": "packages\\Epic\\EPIC_BCA_Web-Shortcut_1.0",
+      "installer_file": "EPIC_BCA_Web-Shortcut_1.0.msi",
+      "default_install_mode": "CopyThenInstall",
+      "default_installer_arguments": [
+        "/qn",
+        "/norestart"
+      ],
+      "requires_validated_installer_arguments": false,
+      "install_enabled": true,
+      "readiness": "installer_and_arguments_confirmed",
+      "acceptance": {
+        "application_process_names": [],
+        "application_window_title_pattern": null,
+        "require_responding_process": false,
+        "autologon_profile": "none",
+        "expected_autologon_user_rule": null
+      },
+      "notes": "The pinned MSI and standard unattended Windows Installer arguments are confirmed for pilot use. Exit-code evidence does not prove that the installed web shortcut launches or reaches its destination; complete technician acceptance after installation."
+    },
+    {
       "id": "allscripts-touchworks-22-1",
       "display_name": "AllScripts TouchWorks 22.1",
       "source_folder_relative_path": "packages\\TouchWork_22.1",

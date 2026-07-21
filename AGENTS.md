@@ -1,33 +1,72 @@
-# Agent Instructions for SysAdminSuite
+# Agent Governance for SysAdminSuite
 
-`AGENTS.md` is the compact, agent-agnostic entrypoint. It contains only universal invariants and routing. Detailed procedures live in task skills under `.claude/skills/`; stable reusable rules live in `.claude/capabilities/`.
+`AGENTS.md` is the repository-root governance contract and the single source of truth for how agents operate in SysAdminSuite. Compact routing lives here; detailed procedures remain in task skills under `.claude/skills/`, reusable rules in `.claude/capabilities/`, and machine-readable execution contracts under `harness/`.
 
 ## Required loading sequence
 
-1. Read this file.
-2. Use `CODEBASE_MAP.md` to locate the smallest relevant repo surface.
-3. Use `harness/api/agent-routing-manifest.json` when the request matches an exact deterministic task signal; unknown or conflicting signals fail closed to the repository-sprint skill.
-4. For a `skill` route, load only the selected skill and its declared capability dependencies.
-5. For a `harness_operation` route, collect every declared `required_inputs` value and apply the registered workflow input mapping before invoking its repo-owned entrypoint.
-6. Read deeper product or harness docs only when the selected skill or operation points to them.
+1. Read this governance contract.
+2. Inspect the current Git state and preserve existing work.
+3. Use `CODEBASE_MAP.md` to locate the smallest relevant surface.
+4. Use `harness/api/agent-routing-manifest.json` for exact task signals; unknown or conflicting signals fail closed to the repository-sprint skill.
+5. Load only the selected skill and its declared capability dependencies.
+6. Read deeper product or harness documentation only when the selected route points to it.
 
-Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, or proof claims. A harness-operation route is not a skill and cannot omit mandatory operation inputs.
+Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims.
 
-Do not preload every skill, capability, plan, or handoff. Progressive disclosure is a repository requirement.
+Progressive disclosure is a repository requirement. Do not preload every skill, capability, plan, or handoff.
+
+End-to-end proof is the default merge and release target for executable or integration-affecting changes; unit tests are fast diagnostics, not completion proof.
+
+## Agent operating principles
+
+- **Evidence before action:** inspect repository, branch, PR, worktree, contracts, and existing evidence before mutation.
+- **Floor before furniture:** establish governance, safety boundaries, validation, and rollback before convenience features.
+- **Bounded sprints with declared scope:** every writing sprint declares its lane, mission, owned scope, forbidden scope, artifacts, validation, and proof ceiling.
+- **One writer per branch:** parallel agents use isolated branches or worktrees and do not make competing writes.
+- **Reuse before replacing:** search for canonical authorities, helpers, scripts, schemas, validators, and naming patterns before inventing.
+- **No completion without proof:** plans, acknowledgments, summaries, generated text, and unexecuted commands are not completion.
+
+## Instruction precedence
+
+When instructions conflict, use this order:
+
+1. Platform, security, legal, and repo-owner instructions.
+2. This governance contract.
+3. Task-specific prompts.
+4. Generic defaults.
+
+At the same level, stop expansion, identify the conflicting authorities, and make the smallest safe correction that restores one source of truth.
+
+## Mandatory sprint declaration
+
+Before every writing sprint, state:
+
+- repo and branch;
+- lane and mission;
+- owned scope and forbidden scope;
+- expected artifacts and validation commands;
+- proof ceiling: the highest claim the planned evidence can support.
+
+Preserve existing work and keep mutation inside owned scope. Checkpoint coherent tracked work before broad validation, long diagnostics, runtime proof, or refactoring expansion.
+
+## SysAdminSuite virtual-machine doctrine
+
+- The SysAdminSuite VM is Python-generated. Never assume Hyper-V, invent a VM name, or substitute a provider-specific launcher without repository or operator evidence.
+- Before VM-dependent work, locate the canonical Python generator/launcher and its documented guest identity, startup, readiness, shutdown, rollback, and evidence paths.
+- A complete VM workflow includes: start or resume the VM, wait for guest and network readiness, execute the requested action inside the intended guest, capture sanitized evidence, and perform the required shutdown, rollback, or destruction step.
+- Do not hand over only an inner guest command when the task requires the VM to be started from the admin box.
+- Use the VM for isolated package qualification, management-boundary network or Kerberos certification, reproducible Windows runtime proof, and other tasks whose evidence must originate inside that guest.
+- Do not start the VM for static analysis, documentation-only work, offline validators, or an approved host-native workflow that does not require guest evidence.
+- If the canonical Python startup authority is absent or cannot be proven, report that exact gap; do not fabricate a launcher.
 
 ## Universal invariants
 
-- Treat the repository and current Git state as the source of truth over remembered chat context.
-- Preserve existing work. Inspect dirty files before switching, restoring, cleaning, rebasing, or deleting.
-- State repo, branch, PR/sprint, lane, owned scope, forbidden scope, and expected artifacts before mutation.
-- Keep changes bounded. Reuse existing contracts, helpers, schemas, workflows, and validators before inventing new ones.
-- Checkpoint coherent tracked work before broad validation, long diagnostics, runtime proof, or refactoring expansion.
-- End-to-end proof is the default merge and release target for executable or integration-affecting changes; unit tests are fast diagnostics, not completion proof.
+- Treat repository and current Git evidence as authoritative over remembered conversation context.
 - Never commit secrets, credentials, personal data, live targets, machine-local paths, raw runtime evidence, generated logs, or local reference material.
-- Survey and dashboard probe lanes are read-only toward targets. Deployment or repair mutation requires explicit authorization and its lane-specific gate.
-- Do not claim a higher proof level than the evidence supports. Static checks, launcher success, command ACK, observed behavior, and live runtime proof are distinct.
+- Survey and dashboard probe lanes are read-only toward targets; deployment or repair mutation requires explicit authorization and its lane-specific gate.
+- Do not claim a higher proof level than the evidence supports. Static checks, launcher success, command acknowledgment, observed behavior, and live runtime proof are distinct.
 - Preserve active PowerShell tooling. Bash-first does not mean PowerShell is dead, deprecated, or safe to delete.
-- Use short, repeatable technician entrypoints. Hide composition complexity behind repo-owned scripts, launchers, profiles, and evidence summaries.
+- Use short technician entrypoints and hide composition complexity behind repository-owned scripts, launchers, profiles, and evidence summaries.
 
 ## Skill router
 
@@ -43,44 +82,35 @@ Do not preload every skill, capability, plan, or handoff. Progressive disclosure
 | WezTerm/tmux setup, persistent coding workspace, workstation repair, or agent readiness | [Developer Workstation](.claude/skills/developer-workstation/SKILL.md) |
 | EXE/MSI/archive inspection, installer behavior inference, large private package intake | [Package Static Analysis](.claude/skills/package-static-analysis/SKILL.md) |
 
-Load multiple skills only when the task genuinely crosses lanes. A skill may compose several capabilities; do not copy capability text into a new prompt.
-
-## Source-of-truth precedence
-
-When instructions appear to conflict, use this order:
-
-1. Explicit user scope and safety constraints.
-2. This file's universal invariants.
-3. The selected skill.
-4. The capability dependencies named by that skill.
-5. Canonical machine-readable policy, schemas, routing, and workflow specs.
-6. Product docs and runbooks.
-7. Historical plans, handoffs, PR bodies, and comments.
-
-If two same-level sources conflict, stop expansion, cite both paths, and make the smallest correction that restores one authority.
-
 ## Canonical repo authorities
 
-- `docs/AI_HARNESS_ENTRYPOINT.md` — fresh-agent inspection, routing, artifact, validation, and handoff sequence.
 - `CODEBASE_MAP.md` — minimal context routing.
-- `harness/api/agent-capability-manifest.json` — complete skill and capability inventory.
-- `harness/api/agent-routing-manifest.json` — deterministic task-signal routing and ambiguity rules.
-- `harness/workflows/agent-sprint-capsule.yaml` and `tools/New-SasSprintCapsule.ps1` — final handoff compression using the canonical run context and artifact registry.
+- `docs/AI_HARNESS_ENTRYPOINT.md` — fresh-agent workflow.
+- `docs/HARNESS_DISCIPLINE.md` — Git, branch, PR, worktree, and evidence discipline.
+- `docs/END_TO_END_TESTING_POSTURE.md` — validation and merge/release proof posture.
+- `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.
 - `Config/operational-posture.json` and `docs/OPERATIONAL_POSTURE.md` — lane and mutation posture.
-- `docs/HARNESS_DISCIPLINE.md` — full Git/PR/worktree operation contract.
-- `docs/END_TO_END_TESTING_POSTURE.md` — default validation and merge/release proof posture.
-- `docs/LOCAL_REFERENCE_POLICY.md`, `.gitignore`, and `.claudeignore` — local data boundaries.
-- `survey/naabu_profiles.json` — approved Naabu doctrine profiles.
-- `tools/validate-ai-layer.ps1` — manifest-driven agent instruction, skill, capability, routing, and handoff validation.
+- `harness/api/agent-capability-manifest.json` and `harness/api/agent-routing-manifest.json` — machine-readable capability and routing authority.
+- `harness/workflows/agent-sprint-capsule.yaml` and `tools/New-SasSprintCapsule.ps1` — final handoff compression.
+- `tools/validate-ai-layer.ps1` and `Tests/survey/test_agent_governance_doctrine_contracts.py` — instruction and governance enforcement.
 
-## Delivery floor
+## Completion standard
 
-Before reporting completion:
+A task is complete only when:
 
-1. Review `git diff --check`, `git status --short`, `git diff --stat`, and the final diff when locally available.
-2. Run targeted diagnostics, then the applicable E2E journey, then broader checks.
-3. Report exact passes, failures, and skipped commands.
-4. Report changed files, commit SHA, push/PR state, remaining gaps, proof level, and one exact next command.
-5. When another agent or chat must continue, generate a schema-backed sprint capsule; do not paste an unbounded transcript as the handoff.
+1. changed files are named;
+2. validation commands were actually run and exact results reported;
+3. a commit SHA exists;
+4. push and PR state are reported;
+5. one exact next command is given.
 
-A checkpoint, green unit test, or green static contract is not automatically merge readiness or runtime proof.
+Also report skipped checks, remaining gaps or risks, and the proof ceiling reached. A green static validator is not automatically runtime, target, deployment, or operator-acceptance proof.
+
+## Forbidden behaviors
+
+- Acknowledgment without mutation when mutation is authorized and required.
+- Plans without execution.
+- Summaries without proof.
+- Completion claims without running checks.
+- Secret, credential, live-target, or private-evidence exposure.
+- Destructive cleanup, force-push, default-branch mutation, or scope expansion without explicit authority.

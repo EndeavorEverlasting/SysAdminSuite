@@ -20,6 +20,9 @@ Use this skill for survey, preflight, packet-probe, Naabu/Nmap, target-intake, o
 - Write artifacts only to local ignored output paths.
 - Classify guest-network failures as `ENVIRONMENT_BLOCKED_GUEST_NETWORK`, not product failure.
 - Treat `feature/naabu-docs-consolidation` as superseded by current `main`; do not revive or merge it without explicit user authorization.
+- Port-fallback classification requests route through this skill and its existing capability dependencies. Do not create a second low-noise instruction system.
+- Output at this stage is a bounded plan or contract-shaped decision requirement. Network activity, target mutation, approval, and proof escalation require separate authorization.
+- The `network_preflight` profile in `Config/low-noise-policy.json` (ports `135,445,3389,9100`) is a separate field preflight profile. Do not confuse it with the canonical Cybernet key-port profile (`80,443,135,445,3389,5985,5986`) from `survey/naabu_profiles.json`.
 
 ## Change process
 

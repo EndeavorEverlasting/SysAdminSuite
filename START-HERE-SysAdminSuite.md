@@ -127,7 +127,7 @@ Output: `dist/SysAdminSuiteDashboard/SysAdminSuite Dashboard.exe` (gitignored, b
 
 ## When do I use CLI commands?
 
-Only when the dashboard tells you to copy a command, or a runbook explicitly asks for Bash survey steps. CLI commands are optional and specific — they are not the default front door.
+Only when the dashboard tells you to copy a command, or a runbook explicitly asks for Bash survey or deployment steps. CLI commands are optional and specific — they are not the default front door.
 
 ## Where is the Cybernet / Neuron survey tutorial?
 
@@ -137,13 +137,21 @@ Only when the dashboard tells you to copy a command, or a runbook explicitly ask
 
 ## Where is the software deployment tutorial?
 
-The **web interface is the canonical technician tutorial**.
+The **web interface is the canonical technician tutorial** for the standard software-deployment proof and pilot workflow.
 
 - Open the dashboard and click **Start Software Deployment**.
 - Direct route: `http://127.0.0.1:5000/dashboard/?tutorial=software-deployment`
 - The web wizard guides the generated dummy-installer proof, exact evidence review, one-target WhatIf plan, confirmation-enabled pilot, and stop/expand decision.
 - Supporting written runbook: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Implementation and evidence reference: [`docs/SOFTWARE_INSTALL_E2E.md`](docs/SOFTWARE_INSTALL_E2E.md)
+
+For the implemented **Cybernet admin-share and Task Scheduler lane** used when WinRM is unavailable:
+
+- Start page: [`START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md`](START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md)
+- Full one-workstation and multi-workstation tutorial: [`docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`](docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md)
+- Technical transport reference: [`docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md`](docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md)
+
+That lane requires Git Bash on an approved Windows admin workstation or admin VM, one authorized pilot before expansion, explicit targets, and separate technician application acceptance.
 
 ## What files should I never commit?
 

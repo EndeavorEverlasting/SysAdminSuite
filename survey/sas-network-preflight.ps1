@@ -62,6 +62,13 @@ if (-not (Test-Path -LiteralPath $lowNoiseModule)) {
     throw "Missing shared low-noise policy module: $lowNoiseModule"
 }
 Import-Module $lowNoiseModule -Force
+
+$portFallbackModule = Join-Path $repoGuess 'scripts/SasPortFallbackDecision.psm1'
+if (-not (Test-Path -LiteralPath $portFallbackModule)) {
+    throw "Missing shared port-fallback decision module: $portFallbackModule"
+}
+Import-Module $portFallbackModule -Force
+
 $englishRenderer = Join-Path $repoGuess 'scripts/Render-SasEnglishReport.ps1'
 if (-not (Test-Path -LiteralPath $englishRenderer)) {
     throw "Missing shared English report renderer: $englishRenderer"
@@ -462,8 +469,77 @@ foreach ($target in $targets) {
     }
 }
 
-Write-SasStageProgress -Step 4 -Total 4 -Message 'Writing network_preflight.csv' -Percent 100
+Write-SasStageProgress -Step 4 -Total 5 -Message 'Writing network_preflight.csv' -Percent 80
 $rows | Export-Csv -LiteralPath $outputCsv -NoTypeInformation -Encoding UTF8
+
+Write-SasStageProgress -Step 5 -Total 5 -Message 'Classifying port-fallback evidence' -Percent 90
+
+$fallbackTargets = @{}
+foreach ($row in $rows) {
+    $t = $row.Target
+    if (-not $fallbackTargets.ContainsKey($t)) {
+        $fallbackTargets[$t] = @{
+            PortStatuses = @{}
+            HasOpenDefault = $false
+            HasWebOnly = $false
+            HasAdminSurface = $false
+            NotCheckedCount = 0
+        }
+    }
+    $port = [int]$row.Port
+    $status = $row.PortStatus
+    $fallbackTargets[$t].PortStatuses[$port] = $status
+
+    if ($status -eq 'NotChecked') {
+        $fallbackTargets[$t].NotCheckedCount++
+    } elseif ($status -eq 'Open') {
+        $fallbackTargets[$t].HasOpenDefault = $true
+        if ($port -in @(80, 443)) { $fallbackTargets[$t].HasWebOnly = $true }
+        if ($port -in @(135, 445, 3389, 5985, 5986, 9100)) { $fallbackTargets[$t].HasAdminSurface = $true }
+    }
+}
+
+$openDefaultCount = 0
+$webOnlyCount = 0
+$adminSurfaceCount = 0
+$silentCount = 0
+$untestedCount = 0
+$testedCount = 0
+
+foreach ($target in $targets) {
+    $info = $fallbackTargets[$target]
+    if (-not $info) {
+        $untestedCount++
+        continue
+    }
+    if ($info.NotCheckedCount -eq $Ports.Count) {
+        $untestedCount++
+        continue
+    }
+    $testedCount++
+    if ($info.HasOpenDefault) {
+        $openDefaultCount++
+        if ($info.HasWebOnly -and -not $info.HasAdminSurface) { $webOnlyCount++ }
+        if ($info.HasAdminSurface) { $adminSurfaceCount++ }
+    } else {
+        $silentCount++
+    }
+}
+
+$fallbackDecision = New-SasPortFallbackDecision `
+    -TargetCount $targets.Count `
+    -TestedTargetCount $testedCount `
+    -UntestedTargetCount $untestedCount `
+    -OpenDefaultPortTargetCount $openDefaultCount `
+    -WebOnlyReachableCount $webOnlyCount `
+    -AdminSurfaceReachableCount $adminSurfaceCount `
+    -SilentOnDefaultProfileCount $silentCount `
+    -SourceProfileId $PolicyProfile `
+    -ProfileSource $portsSource `
+    -EffectivePorts $Ports
+
+$decisionPath = Join-Path $outputDirectoryFull "port_fallback_decision.json"
+$fallbackDecision | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $decisionPath -Encoding UTF8
 
 $nextAction = 'Use fresh reachability evidence to avoid immediate repeat probes; route silent or unresolved rows to review before a time-diverse retry.'
 $lowNoiseContext = New-SasLowNoiseContextObject `
@@ -506,6 +582,18 @@ $summary = New-SasLowNoiseSummaryObject -Properties @{
     target_mutation_performed = $false
     action_decision = 'Record bounded reachability evidence without changing target systems.'
     next_action = $nextAction
+    tested_target_count = $testedCount
+    untested_target_count = $untestedCount
+    open_default_port_target_count = $openDefaultCount
+    web_only_reachable_count = $webOnlyCount
+    admin_surface_reachable_count = $adminSurfaceCount
+    default_ports_blocked_or_filtered_count = $silentCount
+    fallback_decision = $fallbackDecision.decision
+    fallback_profile_recommended = $fallbackDecision.recommended_profile_id
+    fallback_requires_approval = $fallbackDecision.approval_required
+    fallback_required_gate = $fallbackDecision.required_gate
+    source_profile_id = $PolicyProfile
+    port_fallback_decision_path = $decisionPath
 }
 $summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryJson -Encoding UTF8
 
@@ -516,6 +604,7 @@ $artifactRegistry = [ordered]@{
     artifacts = @(
         [ordered]@{ role = 'source'; path = $selectedTargetFile; tracked = $false; contains_live_data = $true; generated = $false; description = 'Approved target source consumed by this run.' }
         [ordered]@{ role = 'raw_result'; path = $outputCsv; tracked = $false; contains_live_data = $true; generated = $true; description = 'Machine-readable reachability results.' }
+        [ordered]@{ role = 'port_fallback_decision'; path = $decisionPath; tracked = $false; contains_live_data = $true; generated = $true; description = 'Port-fallback classification decision.' }
         [ordered]@{ role = 'summary'; path = $summaryJson; tracked = $false; contains_live_data = $true; generated = $true; description = 'Structured run summary and low-noise context.' }
         [ordered]@{ role = 'registry'; path = $artifactRegistryPath; tracked = $false; contains_live_data = $true; generated = $true; description = 'Registry linking source, machine, handoff, and English artifacts.' }
         [ordered]@{ role = 'handoff'; path = $handoffPath; tracked = $false; contains_live_data = $true; generated = $true; description = 'Operator next-action handoff.' }
@@ -533,9 +622,16 @@ $artifactRegistry | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $artifact
     "CSV output: $outputCsv",
     "Summary JSON: $summaryJson",
     '',
+    "Port-fallback decision: $($fallbackDecision.decision)",
+    "Recommended profile: $($fallbackDecision.recommended_profile_id)",
+    "Approval required: $($fallbackDecision.approval_required)",
+    "Required gate: $($fallbackDecision.required_gate)",
+    "Next action: $($fallbackDecision.next_action)",
+    '',
     (Get-SasLowNoiseOperatorLines),
     '',
     'Network activity performed: true',
+    'No fallback scan was launched automatically during this run.',
     'Do not repeat probes by habit. If a target was recently reachable or identity-confirmed, prefer using fresh evidence instead of immediate repetition.',
     'If retrying silent or stale rows, prefer a different time of day or different day of week.'
 ) | Set-Content -LiteralPath $handoffPath -Encoding UTF8

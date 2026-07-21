@@ -64,7 +64,7 @@
   "profiles": [
     {
       "id": "network_preflight",
-      "purpose": "PowerShell field network preflight",
+      "purpose": "PowerShell field network preflight with intentional printer port inclusion (separate from canonical Cybernet key-port profile)",
       "target_source": "approved_manifest",
       "ports": [
         135,
@@ -80,7 +80,8 @@
       "silent_output": true,
       "machine_output": "json",
       "local_evidence_only": true,
-      "target_mutation": "never"
+      "target_mutation": "never",
+      "note": "Port 9100 (HP JetDirect/laser printer) is an intentional field-usable inclusion. This profile is distinct from the canonical Cybernet key-port profile (80,443,135,445,3389,5985,5986) in survey/naabu_profiles.json."
     },
     {
       "id": "keyports_cybernet_json",
