@@ -42,6 +42,7 @@ def test_api_manifest_declares_gated_operator_execute_surface():
         "allow_target_mutation",
         "software_share_root",
         "installer_arguments",
+        "schema_valid_transport_result",
     }
     assert set(op["inputs"]) == required_inputs
 
@@ -56,6 +57,9 @@ def test_api_manifest_declares_gated_operator_execute_surface():
         "Run_specific_staging_cleanup_attempted_on_all_failure_paths",
         "Prune_empty_SysAdminSuite_target_directories",
         "Local_gitignored_evidence_only",
+        "Schema_valid_transport_decision_required",
+        "No_transport_guessing",
+        "No_silent_fallback_after_mutation_begins",
     }
     assert required_guardrails <= set(op["guardrails"])
 
