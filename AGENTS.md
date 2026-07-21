@@ -47,7 +47,7 @@ Before every writing sprint, state:
 - expected artifacts and validation commands;
 - proof ceiling: the highest claim the planned evidence can support.
 
-Preserve existing work, keep mutation inside owned scope, and checkpoint coherent tracked changes before broad validation or long diagnostics.
+Preserve existing work and keep mutation inside owned scope. Checkpoint coherent tracked work before broad validation, long diagnostics, runtime proof, or refactoring expansion.
 
 ## SysAdminSuite virtual-machine doctrine
 
