@@ -1,0 +1,408 @@
+#!/usr/bin/env python3
+"""Dependency-free contracts for the software deployment transport floor."""
+from __future__ import annotations
+
+import copy
+import json
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+RESULT_SCHEMA = ROOT / "schemas/harness/software-deployment-transport-result.schema.json"
+RECEIPT_SCHEMA = ROOT / "schemas/harness/software-deployment-transport-receipt.schema.json"
+FIXTURES = ROOT / "Tests/Fixtures/software-deployment-transport"
+API = ROOT / "harness/api/sas-harness-api.json"
+WORKFLOW = ROOT / "harness/workflows/software-deployment-transport.yaml"
+DOC = ROOT / "docs/SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md"
+CI = ROOT / ".github/workflows/harness-contracts.yml"
+RUNNER = ROOT / "tests/survey/run_offline_survey_tests.sh"
+
+RESULT_VERSION = "sas-software-deployment-transport-result/v1"
+RECEIPT_VERSION = "sas-software-deployment-transport-receipt/v1"
+CLASSIFICATIONS = {
+    "kerberos_smb_task_ready",
+    "winrm_ready",
+    "no_supported_transport",
+    "transport_reachable_authorization_denied",
+    "inconclusive",
+}
+TRANSPORTS = {"kerberos_smb_task", "winrm", "none"}
+OPERATION_IDS = {
+    "software_install.transport_preflight",
+    "software_install.transport_live_cert",
+    "software_install.transport_proof_ingest",
+}
+RESULT_KEYS = {
+    "schema_version",
+    "workflow_id",
+    "evidence_class",
+    "target_scope",
+    "observations",
+    "decision",
+    "proof",
+    "network_activity_performed",
+    "target_mutation_performed",
+    "proof_ceiling",
+}
+OBSERVATION_KEYS = {
+    "dns",
+    "identity",
+    "service_tickets",
+    "tcp",
+    "winrm_session",
+    "admin_share",
+    "schedule_service",
+    "scheduled_task_query",
+}
+RECEIPT_KEYS = {
+    "schema_version",
+    "workflow_id",
+    "outcome",
+    "reason_codes",
+    "source",
+    "decision",
+    "certification",
+    "privacy",
+    "proof_level",
+    "proof_ceiling",
+}
+RECEIPT_SOURCE_KEYS = {
+    "source_schema_version",
+    "source_evidence_sha256",
+    "source_evidence_size_bytes",
+    "source_evidence_retained_operator_local",
+    "source_evidence_copied_to_output",
+    "contract_fixture",
+    "operator_confirmed",
+}
+RECEIPT_DECISION_KEYS = {"preflight_classification", "selected_transport"}
+CERTIFICATION_KEYS = {
+    "task_created",
+    "executed_as_system",
+    "result_retrieved",
+    "task_deleted",
+    "staging_deleted",
+    "zero_remnants_verified",
+    "software_installation_performed",
+    "harmless_payload_only",
+}
+PRIVACY_KEYS = {
+    "hostnames_emitted",
+    "usernames_emitted",
+    "ticket_bytes_emitted",
+    "credentials_emitted",
+    "package_paths_emitted",
+    "machine_local_paths_emitted",
+    "raw_evidence_emitted",
+}
+
+
+def read(path: Path) -> str:
+    assert path.is_file(), f"missing {path.relative_to(ROOT).as_posix()}"
+    return path.read_text(encoding="utf-8")
+
+
+def load(path: Path) -> dict:
+    return json.loads(read(path))
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise ValueError(message)
+
+
+def kerberos_smb_ready(observations: dict) -> bool:
+    return all(
+        [
+            observations["dns"] == {
+                **observations["dns"],
+                "attempted": True,
+                "resolved": True,
+                "timed_out": False,
+            },
+            observations["identity"]["domain_joined"] is True,
+            observations["identity"]["tgt_present"] is True,
+            observations["service_tickets"]["cifs"]["requested"] is True,
+            observations["service_tickets"]["cifs"]["issued"] is True,
+            observations["tcp"]["port_445"]["tested"] is True,
+            observations["tcp"]["port_445"]["reachable"] is True,
+            observations["tcp"]["port_135"]["tested"] is True,
+            observations["tcp"]["port_135"]["reachable"] is True,
+            observations["admin_share"] == {
+                "attempted": True,
+                "authorized": True,
+                "authorization_denied": False,
+            },
+            observations["schedule_service"] == {
+                "queried": True,
+                "running": True,
+                "authorization_denied": False,
+            },
+            observations["scheduled_task_query"] == {
+                "queried": True,
+                "succeeded": True,
+                "authorization_denied": False,
+            },
+        ]
+    )
+
+
+def winrm_ready(observations: dict) -> bool:
+    port_ready = any(
+        observations["tcp"][name]["tested"] and observations["tcp"][name]["reachable"]
+        for name in ("port_5985", "port_5986")
+    )
+    return port_ready and observations["winrm_session"] == {
+        "attempted": True,
+        "authorized": True,
+        "authorization_denied": False,
+    }
+
+
+def validate_result(payload: dict) -> None:
+    require(set(payload) == RESULT_KEYS, "result must be a closed object")
+    require(payload["schema_version"] == RESULT_VERSION, "unsupported result schema")
+    require(payload["workflow_id"] == "software-deployment-transport", "wrong workflow")
+    require(set(payload["observations"]) == OBSERVATION_KEYS, "observation set is not closed")
+    require(payload["decision"]["classification"] in CLASSIFICATIONS, "unknown classification")
+    require(payload["decision"]["selected_transport"] in TRANSPORTS, "unknown transport")
+    require(payload["decision"]["silent_fallback_permitted"] is False, "silent fallback enabled")
+    require(payload["decision"]["fallback_after_mutation_permitted"] is False, "post-mutation fallback enabled")
+    require(payload["target_mutation_performed"] is False, "preflight cannot claim mutation")
+    require(payload["target_scope"]["identifier_emitted"] is False, "target identifier leaked")
+    require(1 <= payload["target_scope"]["target_count"] <= 25, "target count is unbounded")
+    for ticket in ("http", "host", "cifs"):
+        require(payload["observations"]["service_tickets"][ticket]["ticket_bytes_emitted"] is False, "ticket bytes leaked")
+    require(payload["observations"]["identity"]["ticket_bytes_emitted"] is False, "ticket bytes leaked")
+    for flag in ("task_creation_proven", "system_execution_proven", "result_retrieval_proven", "cleanup_proven"):
+        require(payload["proof"][flag] is False, f"preflight overclaims {flag}")
+    if payload["evidence_class"] == "sanitized_fixture":
+        require(payload["network_activity_performed"] is False, "fixture claims network activity")
+        require(payload["proof"]["live_runtime"] is False, "fixture claims live runtime")
+
+    classification = payload["decision"]["classification"]
+    observations = payload["observations"]
+    if classification == "kerberos_smb_task_ready":
+        require(payload["decision"]["selected_transport"] == "kerberos_smb_task", "wrong SMB selection")
+        require(kerberos_smb_ready(observations), "SMB readiness prerequisite missing")
+        require(payload["proof"]["transport_authorization_proven"] is True, "SMB authorization not proven")
+    elif classification == "winrm_ready":
+        require(payload["decision"]["selected_transport"] == "winrm", "wrong WinRM selection")
+        require(winrm_ready(observations), "WinRM authorization prerequisite missing")
+        require(payload["proof"]["transport_authorization_proven"] is True, "WinRM authorization not proven")
+    else:
+        require(payload["decision"]["selected_transport"] == "none", "failure classification selected a transport")
+        require(payload["proof"]["transport_authorization_proven"] is False, "failure classification claims authorization")
+    if classification == "transport_reachable_authorization_denied":
+        denied = observations["winrm_session"]["authorization_denied"] or observations["admin_share"]["authorization_denied"] or observations["schedule_service"]["authorization_denied"] or observations["scheduled_task_query"]["authorization_denied"]
+        require(denied, "authorization-denied classification lacks a denial observation")
+    if classification == "no_supported_transport":
+        reachable = any(observations["tcp"][name]["reachable"] for name in observations["tcp"])
+        require(not reachable, "no-supported-transport contradicts reachable transport ports")
+
+
+def validate_receipt(payload: dict) -> None:
+    require(set(payload) == RECEIPT_KEYS, "receipt must be a closed public object")
+    require(payload["schema_version"] == RECEIPT_VERSION, "unsupported receipt schema")
+    require(payload["workflow_id"] == "software-deployment-transport-proof-ingest", "wrong receipt workflow")
+    require(set(payload["source"]) == RECEIPT_SOURCE_KEYS, "receipt source is not closed")
+    require(set(payload["decision"]) == RECEIPT_DECISION_KEYS, "receipt decision is not closed")
+    require(set(payload["certification"]) == CERTIFICATION_KEYS, "receipt certification is not closed")
+    require(set(payload["privacy"]) == PRIVACY_KEYS, "receipt privacy block is not closed")
+    require(re.fullmatch(r"[a-f0-9]{64}", payload["source"]["source_evidence_sha256"]) is not None, "invalid source digest")
+    require(payload["source"]["source_evidence_retained_operator_local"] is True, "source not retained locally")
+    require(payload["source"]["source_evidence_copied_to_output"] is False, "private source copied")
+    require(all(value is False for value in payload["privacy"].values()), "receipt privacy flag is not false")
+    require(payload["certification"]["software_installation_performed"] is False, "live cert installed software")
+    require(payload["certification"]["harmless_payload_only"] is True, "live cert payload not harmless")
+    allowed_privacy_keys = set(payload["privacy"])
+
+    def reject_sensitive_keys(value: object, path: tuple[str, ...] = ()) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if not (path == ("privacy",) and key in allowed_privacy_keys):
+                    lowered = key.lower()
+                    require(
+                        not any(fragment in lowered for fragment in ("hostname", "username", "ticket_bytes", "credential", "package_path", "machine_local_path", "raw_evidence")),
+                        f"public receipt contains forbidden field: {key}",
+                    )
+                reject_sensitive_keys(child, (*path, key))
+        elif isinstance(value, list):
+            for item in value:
+                reject_sensitive_keys(item, path)
+
+    reject_sensitive_keys(payload)
+    serialized = json.dumps(payload).lower()
+    for forbidden in ("target_hostname", "ticket_cache", "begin kerberos", "c:\\users\\", "/home/"):
+        require(forbidden not in serialized, f"public receipt contains forbidden field or value: {forbidden}")
+    if payload["outcome"] == "contract_only":
+        require(payload["source"]["contract_fixture"] is True, "contract receipt not fixture-bound")
+        require(payload["proof_level"] == "sanitized_fixture_contract", "fixture overclaims proof")
+        for flag in ("task_created", "executed_as_system", "result_retrieved", "task_deleted", "staging_deleted", "zero_remnants_verified"):
+            require(payload["certification"][flag] is False, f"fixture overclaims {flag}")
+    if payload["outcome"] == "live_cert_pass":
+        require(payload["source"]["contract_fixture"] is False, "fixture became live proof")
+        require(payload["source"]["operator_confirmed"] is True, "live proof lacks confirmation")
+        require(payload["proof_level"] == "live_transport_execution_and_cleanup", "wrong live proof level")
+        for flag in ("task_created", "executed_as_system", "result_retrieved", "task_deleted", "staging_deleted", "zero_remnants_verified"):
+            require(payload["certification"][flag] is True, f"live cert pass lacks {flag}")
+
+
+def test_schemas_freeze_closed_vocabularies_and_privacy() -> None:
+    result = load(RESULT_SCHEMA)
+    receipt = load(RECEIPT_SCHEMA)
+    assert result["additionalProperties"] is False
+    assert receipt["additionalProperties"] is False
+    assert result["properties"]["schema_version"]["const"] == RESULT_VERSION
+    assert receipt["properties"]["schema_version"]["const"] == RECEIPT_VERSION
+    assert set(result["properties"]["decision"]["properties"]["classification"]["enum"]) == CLASSIFICATIONS
+    assert result["properties"]["target_mutation_performed"]["const"] is False
+    assert receipt["properties"]["privacy"]["additionalProperties"] is False
+    for field in receipt["properties"]["privacy"]["required"]:
+        assert receipt["properties"]["privacy"]["properties"][field]["const"] is False
+
+
+def test_valid_fixture_matrix_is_dependency_free_and_fail_closed() -> None:
+    result_files = sorted(FIXTURES.glob("*.fixture.json"))
+    assert [path.name for path in result_files] == [
+        "authorization-denied.fixture.json",
+        "inconclusive.fixture.json",
+        "kerberos-smb-task-ready.fixture.json",
+        "no-supported-transport.fixture.json",
+        "public-receipt.fixture.json",
+        "winrm-ready.fixture.json",
+    ]
+    seen = set()
+    for path in result_files:
+        payload = load(path)
+        if payload.get("schema_version") == RESULT_VERSION:
+            validate_result(payload)
+            seen.add(payload["decision"]["classification"])
+        else:
+            validate_receipt(payload)
+    assert seen == CLASSIFICATIONS
+
+
+def test_invalid_fixtures_and_unknown_classification_are_rejected() -> None:
+    for path in sorted(FIXTURES.glob("*.invalid.json")):
+        payload = load(path)
+        try:
+            if payload.get("schema_version") == RECEIPT_VERSION:
+                validate_receipt(payload)
+            else:
+                validate_result(payload)
+        except (KeyError, TypeError, ValueError):
+            pass
+        else:
+            raise AssertionError(f"invalid fixture was accepted: {path.name}")
+
+    unknown = copy.deepcopy(load(FIXTURES / "inconclusive.fixture.json"))
+    unknown["decision"]["classification"] = "automatic_best_effort_fallback"
+    try:
+        validate_result(unknown)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unknown classification was accepted")
+
+
+def test_json_schema_validation_when_available() -> None:
+    try:
+        import jsonschema  # type: ignore
+    except ImportError:
+        return
+    result_schema = load(RESULT_SCHEMA)
+    receipt_schema = load(RECEIPT_SCHEMA)
+    validators = {
+        RESULT_VERSION: jsonschema.Draft202012Validator(result_schema),
+        RECEIPT_VERSION: jsonschema.Draft202012Validator(receipt_schema),
+    }
+    for path in FIXTURES.glob("*.fixture.json"):
+        payload = load(path)
+        validators[payload["schema_version"]].validate(payload)
+    for path in FIXTURES.glob("*.invalid.json"):
+        payload = load(path)
+        version = payload.get("schema_version", RESULT_VERSION)
+        assert not validators[version].is_valid(payload), f"schema accepted invalid fixture: {path.name}"
+
+
+def test_harness_operations_are_frozen_and_do_not_grant_hidden_authority() -> None:
+    api = load(API)
+    operations = {item["id"]: item for item in api["operations"]}
+    assert OPERATION_IDS <= set(operations)
+    preflight = operations["software_install.transport_preflight"]
+    assert preflight["mode"] == "operator_execute"
+    assert preflight["network_activity"] is True
+    assert preflight["target_mutation"] is False
+    live_cert = operations["software_install.transport_live_cert"]
+    assert live_cert["network_activity"] is True
+    assert live_cert["target_mutation"] is True
+    assert "No_software_installation" in live_cert["guardrails"]
+    ingest = operations["software_install.transport_proof_ingest"]
+    assert ingest["mode"] == "local_transform"
+    assert ingest["network_activity"] is False
+    assert ingest["target_mutation"] is False
+    execute = operations["software_install.operator_execute"]
+    assert "schema_valid_transport_result" in execute["inputs"]
+    assert "Schema_valid_transport_decision_required" in execute["guardrails"]
+    assert "No_silent_fallback_after_mutation_begins" in execute["guardrails"]
+
+
+def test_workflow_docs_ci_and_offline_runner_preserve_authority_boundary() -> None:
+    workflow = read(WORKFLOW)
+    for marker in (
+        "contract_status: frozen_v1",
+        "software_install.transport_preflight",
+        "software_install.transport_live_cert",
+        "software_install.transport_proof_ingest",
+        "implementation_status: deferred_to_p02",
+        "No fallback is permitted after mutation begins.",
+    ):
+        assert marker in workflow
+    doc = read(DOC)
+    for marker in (
+        RESULT_VERSION,
+        RECEIPT_VERSION,
+        "Reachability and authorization are separate observations.",
+        "Application behavior remains authoritative in repository scripts and modules",
+        "does not implement a transport",
+        "does not prove transport implementation",
+    ):
+        assert marker in doc
+    test_path = "Tests/survey/test_software_deployment_transport_contracts.py"
+    assert test_path in read(CI)
+    assert f"python3 {test_path}" in read(RUNNER)
+
+
+def test_tracked_transport_floor_has_no_live_or_machine_local_evidence() -> None:
+    paths = [RESULT_SCHEMA, RECEIPT_SCHEMA, WORKFLOW, DOC, *sorted(FIXTURES.glob("*.json"))]
+    combined = "\n".join(read(path) for path in paths)
+    forbidden_patterns = (
+        r"(?i)[a-z]:\\users\\",
+        r"(?i)/home/[a-z0-9._-]+",
+        r"(?i)begin.*kerberos",
+        r"(?i)session[_ -]?key",
+        r"(?i)password\s*[:=]",
+        r"(?i)\\\\[^\\\s]+\\(?:admin\$|packages)"
+    )
+    for pattern in forbidden_patterns:
+        assert not re.search(pattern, combined), f"private/live evidence pattern found: {pattern}"
+
+
+def main() -> None:
+    tests = [
+        test_schemas_freeze_closed_vocabularies_and_privacy,
+        test_valid_fixture_matrix_is_dependency_free_and_fail_closed,
+        test_invalid_fixtures_and_unknown_classification_are_rejected,
+        test_json_schema_validation_when_available,
+        test_harness_operations_are_frozen_and_do_not_grant_hidden_authority,
+        test_workflow_docs_ci_and_offline_runner_preserve_authority_boundary,
+        test_tracked_transport_floor_has_no_live_or_machine_local_evidence,
+    ]
+    for test in tests:
+        test()
+    print(f"PASS: {len(tests)} software deployment transport contract groups")
+
+
+if __name__ == "__main__":
+    main()
