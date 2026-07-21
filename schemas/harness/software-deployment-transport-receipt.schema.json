@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/software-deployment-transport-receipt.schema.json",
+  "title": "SysAdminSuite software deployment transport proof receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workflow_id",
+    "outcome",
+    "reason_codes",
+    "source",
+    "decision",
+    "certification",
+    "privacy",
+    "proof_level",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-software-deployment-transport-receipt/v1"
+    },
+    "workflow_id": {
+      "const": "software-deployment-transport-proof-ingest"
+    },
+    "outcome": {
+      "enum": [
+        "contract_only",
+        "live_cert_pass",
+        "live_cert_failed",
+        "blocked"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "sanitized_fixture_contract",
+          "execution_and_cleanup_proven",
+          "execution_failed",
+          "cleanup_incomplete",
+          "operator_confirmation_missing",
+          "source_digest_mismatch",
+          "private_field_detected"
+        ]
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_schema_version",
+        "source_evidence_sha256",
+        "source_evidence_size_bytes",
+        "source_evidence_retained_operator_local",
+        "source_evidence_copied_to_output",
+        "contract_fixture",
+        "operator_confirmed"
+      ],
+      "properties": {
+        "source_schema_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source_evidence_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_evidence_size_bytes": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "source_evidence_retained_operator_local": {
+          "const": true
+        },
+        "source_evidence_copied_to_output": {
+          "const": false
+        },
+        "contract_fixture": {
+          "type": "boolean"
+        },
+        "operator_confirmed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preflight_classification",
+        "selected_transport"
+      ],
+      "properties": {
+        "preflight_classification": {
+          "enum": [
+            "kerberos_smb_task_ready",
+            "winrm_ready",
+            "no_supported_transport",
+            "transport_reachable_authorization_denied",
+            "inconclusive"
+          ]
+        },
+        "selected_transport": {
+          "enum": [
+            "kerberos_smb_task",
+            "winrm",
+            "none"
+          ]
+        }
+      }
+    },
+    "certification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_created",
+        "executed_as_system",
+        "result_retrieved",
+        "task_deleted",
+        "staging_deleted",
+        "zero_remnants_verified",
+        "software_installation_performed",
+        "harmless_payload_only"
+      ],
+      "properties": {
+        "task_created": {
+          "type": "boolean"
+        },
+        "executed_as_system": {
+          "type": "boolean"
+        },
+        "result_retrieved": {
+          "type": "boolean"
+        },
+        "task_deleted": {
+          "type": "boolean"
+        },
+        "staging_deleted": {
+          "type": "boolean"
+        },
+        "zero_remnants_verified": {
+          "type": "boolean"
+        },
+        "software_installation_performed": {
+          "const": false
+        },
+        "harmless_payload_only": {
+          "const": true
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hostnames_emitted",
+        "usernames_emitted",
+        "ticket_bytes_emitted",
+        "credentials_emitted",
+        "package_paths_emitted",
+        "machine_local_paths_emitted",
+        "raw_evidence_emitted"
+      ],
+      "properties": {
+        "hostnames_emitted": {
+          "const": false
+        },
+        "usernames_emitted": {
+          "const": false
+        },
+        "ticket_bytes_emitted": {
+          "const": false
+        },
+        "credentials_emitted": {
+          "const": false
+        },
+        "package_paths_emitted": {
+          "const": false
+        },
+        "machine_local_paths_emitted": {
+          "const": false
+        },
+        "raw_evidence_emitted": {
+          "const": false
+        }
+      }
+    },
+    "proof_level": {
+      "enum": [
+        "sanitized_fixture_contract",
+        "live_transport_execution_and_cleanup",
+        "insufficient"
+      ]
+    },
+    "proof_ceiling": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 1024
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "contract_only"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "properties": {
+              "contract_fixture": {
+                "const": true
+              },
+              "operator_confirmed": {
+                "const": false
+              }
+            }
+          },
+          "proof_level": {
+            "const": "sanitized_fixture_contract"
+          },
+          "certification": {
+            "properties": {
+              "task_created": {
+                "const": false
+              },
+              "executed_as_system": {
+                "const": false
+              },
+              "result_retrieved": {
+                "const": false
+              },
+              "task_deleted": {
+                "const": false
+              },
+              "staging_deleted": {
+                "const": false
+              },
+              "zero_remnants_verified": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "live_cert_pass"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "properties": {
+              "contract_fixture": {
+                "const": false
+              },
+              "operator_confirmed": {
+                "const": true
+              }
+            }
+          },
+          "decision": {
+            "properties": {
+              "preflight_classification": {
+                "const": "kerberos_smb_task_ready"
+              },
+              "selected_transport": {
+                "const": "kerberos_smb_task"
+              }
+            }
+          },
+          "proof_level": {
+            "const": "live_transport_execution_and_cleanup"
+          },
+          "certification": {
+            "properties": {
+              "task_created": {
+                "const": true
+              },
+              "executed_as_system": {
+                "const": true
+              },
+              "result_retrieved": {
+                "const": true
+              },
+              "task_deleted": {
+                "const": true
+              },
+              "staging_deleted": {
+                "const": true
+              },
+              "zero_remnants_verified": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
