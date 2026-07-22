@@ -7,6 +7,8 @@ on:
       - 'Hardware/Cybernet/Invoke-CybernetClientConfiguration.ps1'
       - 'Hardware/Cybernet/Invoke-CybernetClientPilot.ps1'
       - 'Run-CybernetClientConfiguration.cmd'
+      - 'Run-CybernetLiveCert.cmd'
+      - 'scripts/SasTargetNameResolution.psm1'
       - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
       - 'scripts/Invoke-SasSoftwareDeploymentTransportLiveCert.ps1'
       - 'docs/tutorials/CYBERNET_CLIENT_PILOT.md'
@@ -16,6 +18,7 @@ on:
       - 'Hardware/Cybernet/README.md'
       - 'START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md'
       - 'Tests/Pester/CybernetClientConfiguration.Tests.ps1'
+      - 'Tests/Pester/TargetNameResolution.Tests.ps1'
       - 'Tests/survey/test_cybernet_client_configuration_contracts.py'
       - 'Tests/survey/test_cybernet_client_pilot_contracts.py'
       - 'Tests/survey/test_cybernet_operator_documentation_contracts.py'
@@ -29,6 +32,8 @@ on:
       - 'Hardware/Cybernet/Invoke-CybernetClientConfiguration.ps1'
       - 'Hardware/Cybernet/Invoke-CybernetClientPilot.ps1'
       - 'Run-CybernetClientConfiguration.cmd'
+      - 'Run-CybernetLiveCert.cmd'
+      - 'scripts/SasTargetNameResolution.psm1'
       - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
       - 'scripts/Invoke-SasSoftwareDeploymentTransportLiveCert.ps1'
       - 'docs/tutorials/CYBERNET_CLIENT_PILOT.md'
@@ -38,6 +43,7 @@ on:
       - 'Hardware/Cybernet/README.md'
       - 'START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md'
       - 'Tests/Pester/CybernetClientConfiguration.Tests.ps1'
+      - 'Tests/Pester/TargetNameResolution.Tests.ps1'
       - 'Tests/survey/test_cybernet_client_configuration_contracts.py'
       - 'Tests/survey/test_cybernet_client_pilot_contracts.py'
       - 'Tests/survey/test_cybernet_operator_documentation_contracts.py'
@@ -66,7 +72,7 @@ jobs:
         shell: pwsh
         run: python Tests/survey/test_cybernet_client_configuration_contracts.py
 
-      - name: Run one-command pilot contracts
+      - name: Run clickable live-cert contracts
         shell: pwsh
         run: python Tests/survey/test_cybernet_client_pilot_contracts.py
 
@@ -79,7 +85,8 @@ jobs:
         run: |
           foreach ($path in @(
             'Hardware/Cybernet/Invoke-CybernetClientConfiguration.ps1',
-            'Hardware/Cybernet/Invoke-CybernetClientPilot.ps1'
+            'Hardware/Cybernet/Invoke-CybernetClientPilot.ps1',
+            'scripts/SasTargetNameResolution.psm1'
           )) {
             $tokens = $null
             $errors = $null
@@ -96,7 +103,9 @@ jobs:
 
       - name: Run launcher help smoke
         shell: cmd
-        run: Run-CybernetClientConfiguration.cmd Help
+        run: |
+          Run-CybernetClientConfiguration.cmd Help
+          Run-CybernetLiveCert.cmd Help
 
       - name: Run complete fixture client configuration
         shell: pwsh
@@ -153,6 +162,8 @@ jobs:
         run: |
           .\tools\Test-Pester5Suite.ps1 `
             -TestPath .\Tests\Pester\CybernetClientConfiguration.Tests.ps1
+          .\tools\Test-Pester5Suite.ps1 `
+            -TestPath .\Tests\Pester\TargetNameResolution.Tests.ps1
 
       - name: Check pull-request patch whitespace
         if: github.event_name == 'pull_request'
