@@ -98,6 +98,7 @@ echo Evidence:
 echo   survey\output\cybernet_live_cert\cybernet-live-cert-*
 echo   OPEN-ME-CYBERNET-LIVE-CERT.txt
 echo   cybernet_live_cert_summary.json
+echo   cybernet_client_configuration_summary.json
 echo   technician_software_acceptance.txt
 echo.
 echo Safety:
