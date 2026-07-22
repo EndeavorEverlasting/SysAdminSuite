@@ -8,6 +8,8 @@ on:
     branches: [main, 'feat/**', 'repair/**', 'refactor/**', 'docs/**', 'harness/**']
     paths:
       - 'AGENTS.md'
+      - 'Config/cybernet-client-preferences.json'
+      - 'configs/software-packages/windows-native-package-sets.json'
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
       - '.claude/skills/**'
@@ -45,6 +47,8 @@ on:
   pull_request:
     paths:
       - 'AGENTS.md'
+      - 'Config/cybernet-client-preferences.json'
+      - 'configs/software-packages/windows-native-package-sets.json'
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
       - '.claude/skills/**'
