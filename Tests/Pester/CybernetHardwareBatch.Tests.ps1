@@ -18,6 +18,16 @@ BeforeAll {
     ) | ForEach-Object { Join-Path $script:hardwareRoot $_ }
 }
 
+BeforeEach {
+    $script:testOutputRoot = Join-Path $script:repoRoot ('survey\output\cybernet-hardware-pester-' + [guid]::NewGuid().ToString('N'))
+}
+
+AfterEach {
+    if ($script:testOutputRoot -and (Test-Path -LiteralPath $script:testOutputRoot)) {
+        Remove-Item -LiteralPath $script:testOutputRoot -Recurse -Force
+    }
+}
+
 Describe 'Cybernet hardware batch PowerShell surfaces' {
     It 'parses every tracked module and script' {
         foreach ($path in $script:paths) {
@@ -40,15 +50,14 @@ Describe 'Cybernet hardware batch PowerShell surfaces' {
     }
 
     It 'executes the complete Apply workflow in fixture mode without network or mutation' {
-        $outputRoot = Join-Path $TestDrive 'cybernet-hardware'
         $console = @(& $script:engine -NoProfile -File $script:batchScript `
             -Mode Apply `
             -ComputerName 'CYBERNET-FIXTURE-01' `
             -FixtureMode `
-            -OutputRoot $outputRoot 2>&1 | ForEach-Object { $_.ToString() })
+            -OutputRoot $script:testOutputRoot 2>&1 | ForEach-Object { $_.ToString() })
         $LASTEXITCODE | Should -Be 0 -Because ($console -join "`n")
 
-        $summaryPath = Get-ChildItem -LiteralPath $outputRoot -Filter 'cybernet_batch_configuration_summary.json' -File -Recurse |
+        $summaryPath = Get-ChildItem -LiteralPath $script:testOutputRoot -Filter 'cybernet_batch_configuration_summary.json' -File -Recurse |
             Sort-Object LastWriteTimeUtc -Descending |
             Select-Object -First 1 -ExpandProperty FullName
         $summaryPath | Should -Not -BeNullOrEmpty
@@ -63,14 +72,13 @@ Describe 'Cybernet hardware batch PowerShell surfaces' {
     }
 
     It 'keeps Plan request-only' {
-        $outputRoot = Join-Path $TestDrive 'cybernet-plan'
         $console = @(& $script:engine -NoProfile -File $script:batchScript `
             -Mode Plan `
             -ComputerName 'CYBERNET-FIXTURE-01' `
-            -OutputRoot $outputRoot 2>&1 | ForEach-Object { $_.ToString() })
+            -OutputRoot $script:testOutputRoot 2>&1 | ForEach-Object { $_.ToString() })
         $LASTEXITCODE | Should -Be 0 -Because ($console -join "`n")
 
-        $summaryPath = Get-ChildItem -LiteralPath $outputRoot -Filter 'cybernet_batch_configuration_summary.json' -File -Recurse |
+        $summaryPath = Get-ChildItem -LiteralPath $script:testOutputRoot -Filter 'cybernet_batch_configuration_summary.json' -File -Recurse |
             Sort-Object LastWriteTimeUtc -Descending |
             Select-Object -First 1 -ExpandProperty FullName
         $summaryPath | Should -Not -BeNullOrEmpty
