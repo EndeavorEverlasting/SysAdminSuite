@@ -43,6 +43,7 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $profilePath = Join-Path $repoRoot 'Config\cybernet-client-preferences.json'
 $packageSetPath = Join-Path $repoRoot 'configs\software-packages\windows-native-package-sets.json'
 $softwareControllerPath = Join-Path $repoRoot 'bash\apps\sas-install-apps.sh'
+$softwareControllerArgument = 'bash/apps/sas-install-apps.sh'
 foreach ($requiredPath in @($commonPath, $hardwareBatchPath, $stageRunnerPath, $profilePath, $packageSetPath, $softwareControllerPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Missing Cybernet client-configuration dependency: $requiredPath"
@@ -101,10 +102,11 @@ function Get-SasGitBashPath {
         if (-not (Test-Path -LiteralPath $BashPath -PathType Leaf)) { throw "Git Bash not found: $BashPath" }
         return (Resolve-Path -LiteralPath $BashPath).Path
     }
-    $candidates = @(
-        (Join-Path $env:ProgramFiles 'Git\bin\bash.exe'),
-        (Join-Path $env:ProgramFiles 'Git\usr\bin\bash.exe')
-    )
+    $candidates = @()
+    if ($env:ProgramFiles) {
+        $candidates += (Join-Path $env:ProgramFiles 'Git\bin\bash.exe')
+        $candidates += (Join-Path $env:ProgramFiles 'Git\usr\bin\bash.exe')
+    }
     if (${env:ProgramFiles(x86)}) {
         $candidates += (Join-Path ${env:ProgramFiles(x86)} 'Git\bin\bash.exe')
     }
@@ -167,7 +169,7 @@ function Invoke-SasSoftwareStage {
     $consolePath = Join-Path $run.run_root 'approved-software.console.log'
     $targetArgument = @($targets) -join ','
     $arguments = @(
-        $softwareControllerPath,
+        $softwareControllerArgument,
         '--targets', $targetArgument,
         '--package-set', $packageSetId,
         '--allow-legacy',
@@ -245,13 +247,13 @@ $failedStages = @($stages | Where-Object exit_code -ne 0)
 $status = if ($failedStages.Count -gt 0) {
     'ACTION_REQUIRED'
 }
-elif ($FixtureMode) {
+elseif ($FixtureMode) {
     'FIXTURE_PASS'
 }
-elif ($Mode -eq 'Plan') {
+elseif ($Mode -eq 'Plan') {
     'PLAN_READY'
 }
-elif ($Mode -eq 'Validate') {
+elseif ($Mode -eq 'Validate') {
     'HARDWARE_VALIDATED_SOFTWARE_ACCEPTANCE_REQUIRED'
 }
 else {
