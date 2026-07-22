@@ -70,3 +70,5 @@ Still separate from this floor:
 ## Current repository action
 
 Use the P08 convergence handoff above. PRs #229 and #233 are already merged; this historical file no longer directs operators to mark or merge them.
+
+The current transport floor also includes merged P01–P07 contract, preflight, canonical SMB adapter, E2E/routing, harmless live-cert, and public-safe proof-ingest work through `89347aeaf9bbfe51e94edfe239b64c88fc7efa50`. One operator-confirmed harmless transport receipt reached `live_cert_pass` / `live_transport_execution_and_cleanup`; its public-safe SHA-256 reference is recorded only in `deployment-transport-convergence.md`. This continuity does not authorize another target, install software, or expand the historical BCA pilot.

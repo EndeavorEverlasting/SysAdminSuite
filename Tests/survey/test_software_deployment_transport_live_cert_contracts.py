@@ -159,7 +159,10 @@ def test_workflow_ci_offline_runner_and_docs_are_wired() -> None:
     doc = read(DOC)
     assert "Invoke-SasSoftwareDeploymentTransportLiveCert.ps1" in doc
     assert r"C:\ProgramData\SysAdminSuite\TransportLiveCert\<run_id>" in doc
-    assert "does not prove a live target run" in doc
+    assert "live_cert_pass" in doc
+    assert "live_transport_execution_and_cleanup" in doc
+    for ceiling in ("software installation", "WinRM certification", "fleet readiness", "application acceptance"):
+        assert ceiling in doc
 
 
 if __name__ == "__main__":
