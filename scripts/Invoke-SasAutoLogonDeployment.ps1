@@ -278,8 +278,10 @@ function New-SasFixturePreflight {
 
 function New-SasFixtureHostPolicy {
     param([string[]]$Targets, [string]$Scenario, [string]$Destination)
-    $pattern = if ($Scenario -eq 'blocked') { '^fixture-host-never-matches$' }
-        else { '^(?:{0})$' -f ((@($Targets | ForEach-Object { [regex]::Escape($_) })) -join '|') }
+    $pattern = '^(?:{0})$' -f ((@($Targets | ForEach-Object { [regex]::Escape($_) })) -join '|')
+    # The host-eligibility authority intentionally permits unmatched fixture hosts.
+    # A deterministic blocked fixture must therefore match and deny the fixture action.
+    $actions = if ($Scenario -eq 'blocked') { @('local') } else { @('fixture') }
     $policy = [pscustomobject][ordered]@{
         schema_version = 'sas-host-eligibility-policy/v1'
         policy_id = 'autologon-canonical-fixture'
@@ -288,7 +290,7 @@ function New-SasFixtureHostPolicy {
             name = 'fixture-targets'
             match_type = 'regex'
             regex = $pattern
-            actions = @('fixture')
+            actions = @($actions)
         })
     }
     Write-SasAutoLogonJson -Path $Destination -Value $policy
