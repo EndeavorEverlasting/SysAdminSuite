@@ -89,7 +89,7 @@ def load_json(path: Path) -> dict:
 
 
 def assert_tracked() -> None:
-    for path in (GOVERNANCE, VALIDATOR):
+    for path in (GOVERNANCE, VALIDATOR, CYBERNET_PROFILE, PACKAGE_CATALOG):
         relative = path.relative_to(ROOT).as_posix()
         completed = subprocess.run(
             ["git", "ls-files", "--error-unmatch", relative],
@@ -166,8 +166,9 @@ def main() -> int:
     assert_precedence_order(text)
     assert_cybernet_profile_contract()
     assert_compact_and_safe(text)
-    print("[PASS] AGENTS.md and its validator are tracked, ordered, compact, and governance-complete")
-    print("[PASS] Device profiles fail closed and shared/user-login profiles forbid AutoLogon")
+    print("[PASS] Governance, validator, and consumed profile authorities are tracked")
+    print("[PASS] AGENTS.md is ordered, compact, safe, and governance-complete")
+    print("[PASS] Governance text fails closed across profiles and forbids AutoLogon on shared/user-login profiles")
     print("[PASS] The current Cybernet profile selects AutoLogon exactly once and last")
     print("[PASS] Python-generated SysAdminSuite VM doctrine is explicit and fail-closed")
     return 0
