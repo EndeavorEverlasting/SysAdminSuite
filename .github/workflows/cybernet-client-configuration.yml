@@ -5,7 +5,11 @@ on:
     paths:
       - 'Config/cybernet-client-preferences.json'
       - 'Hardware/Cybernet/Invoke-CybernetClientConfiguration.ps1'
+      - 'Hardware/Cybernet/Invoke-CybernetClientPilot.ps1'
       - 'Run-CybernetClientConfiguration.cmd'
+      - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
+      - 'scripts/Invoke-SasSoftwareDeploymentTransportLiveCert.ps1'
+      - 'docs/tutorials/CYBERNET_CLIENT_PILOT.md'
       - 'docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md'
       - 'docs/tutorials/CYBERNET_CLIENT_CONFIGURATION_TROUBLESHOOTING.md'
       - 'docs/launch-and-doc-index.md'
@@ -13,6 +17,7 @@ on:
       - 'START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md'
       - 'Tests/Pester/CybernetClientConfiguration.Tests.ps1'
       - 'Tests/survey/test_cybernet_client_configuration_contracts.py'
+      - 'Tests/survey/test_cybernet_client_pilot_contracts.py'
       - 'Tests/survey/test_cybernet_operator_documentation_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/cybernet-client-configuration.yml'
@@ -22,7 +27,11 @@ on:
     paths:
       - 'Config/cybernet-client-preferences.json'
       - 'Hardware/Cybernet/Invoke-CybernetClientConfiguration.ps1'
+      - 'Hardware/Cybernet/Invoke-CybernetClientPilot.ps1'
       - 'Run-CybernetClientConfiguration.cmd'
+      - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
+      - 'scripts/Invoke-SasSoftwareDeploymentTransportLiveCert.ps1'
+      - 'docs/tutorials/CYBERNET_CLIENT_PILOT.md'
       - 'docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md'
       - 'docs/tutorials/CYBERNET_CLIENT_CONFIGURATION_TROUBLESHOOTING.md'
       - 'docs/launch-and-doc-index.md'
@@ -30,6 +39,7 @@ on:
       - 'START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md'
       - 'Tests/Pester/CybernetClientConfiguration.Tests.ps1'
       - 'Tests/survey/test_cybernet_client_configuration_contracts.py'
+      - 'Tests/survey/test_cybernet_client_pilot_contracts.py'
       - 'Tests/survey/test_cybernet_operator_documentation_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
       - '.github/workflows/cybernet-client-configuration.yml'
@@ -56,23 +66,32 @@ jobs:
         shell: pwsh
         run: python Tests/survey/test_cybernet_client_configuration_contracts.py
 
+      - name: Run one-command pilot contracts
+        shell: pwsh
+        run: python Tests/survey/test_cybernet_client_pilot_contracts.py
+
       - name: Run dependency-free operator documentation contracts
         shell: pwsh
         run: python Tests/survey/test_cybernet_operator_documentation_contracts.py
 
-      - name: Parse composed PowerShell surface
+      - name: Parse composed PowerShell surfaces
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path -LiteralPath 'Hardware/Cybernet/Invoke-CybernetClientConfiguration.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
-          if (@($errors).Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            throw 'Cybernet client configuration parser validation failed.'
+          foreach ($path in @(
+            'Hardware/Cybernet/Invoke-CybernetClientConfiguration.ps1',
+            'Hardware/Cybernet/Invoke-CybernetClientPilot.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if (@($errors).Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "${path}: $($_.Message)" }
+              throw "Cybernet PowerShell parser validation failed: $path"
+            }
           }
 
       - name: Run launcher help smoke
