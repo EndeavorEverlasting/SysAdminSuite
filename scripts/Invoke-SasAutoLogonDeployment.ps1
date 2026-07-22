@@ -108,10 +108,35 @@ function Get-SasAutoLogonTargets {
             }
         }
     }
-    $targets = @($items | Sort-Object -Unique)
+    $seen = @{}
+    $targets = @($items | Where-Object {
+        if ($seen.ContainsKey($_)) { $false }
+        else { $seen[$_] = $true; $true }
+    })
     if ($targets.Count -eq 0) { throw 'No explicit targets were supplied. Use -ComputerName or -TargetsCsv.' }
     if ($targets.Count -gt $Limit) { throw "Target count $($targets.Count) exceeds MaxTargets $Limit." }
     return $targets
+}
+
+function Resolve-SasAutoLogonPreflightPath {
+    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$RepoRoot)
+    $candidate = if ([IO.Path]::IsPathRooted($Path)) {
+        [IO.Path]::GetFullPath($Path)
+    } else {
+        [IO.Path]::GetFullPath((Join-Path $RepoRoot $Path))
+    }
+    $approvedRoots = @(
+        [IO.Path]::GetFullPath((Join-Path $RepoRoot 'survey\input')),
+        [IO.Path]::GetFullPath((Join-Path $RepoRoot 'survey\output'))
+    )
+    $insideApprovedRoot = @($approvedRoots | Where-Object {
+        $candidate.Equals($_, [StringComparison]::OrdinalIgnoreCase) -or
+        $candidate.StartsWith(($_.TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)
+    }).Count -gt 0
+    if (-not $insideApprovedRoot) {
+        throw 'Transport preflight must remain under survey/input or survey/output.'
+    }
+    return $candidate
 }
 
 function Get-SasApprovedAutoLogonPackage {
@@ -479,8 +504,11 @@ Import-Module $runContextModule -Force
 Import-Module $requestModule -Force
 Import-Module $transportModule -Force
 
-if ([string]::IsNullOrWhiteSpace($ApprovedAppsPath)) {
-    $ApprovedAppsPath = Join-Path $repoRoot 'configs\software-packages\approved-apps.json'
+$canonicalApprovedAppsPath = Join-Path $repoRoot 'configs\software-packages\approved-apps.json'
+if ([string]::IsNullOrWhiteSpace($ApprovedAppsPath)) { $ApprovedAppsPath = $canonicalApprovedAppsPath }
+elseif (-not $FixtureMode -and
+    -not ([IO.Path]::GetFullPath($ApprovedAppsPath)).Equals([IO.Path]::GetFullPath($canonicalApprovedAppsPath), [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Live AutoLogon deployment requires the repository-owned approved apps catalog.'
 }
 $package = Get-SasApprovedAutoLogonPackage -CatalogPath $ApprovedAppsPath -ExpectedPackageId $PackageId `
     -ExpectedPackageName $PackageName -RequestedShareRoot $SoftwareShareRoot `
@@ -511,8 +539,15 @@ if ($InstallerSha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw 'InstallerSha256 mus
 if ($RequireValidSignature -and [string]::IsNullOrWhiteSpace($ExpectedSignerThumbprint)) {
     throw '-RequireValidSignature requires -ExpectedSignerThumbprint.'
 }
+if (-not $RequireValidSignature -and -not [string]::IsNullOrWhiteSpace($ExpectedSignerThumbprint)) {
+    throw '-ExpectedSignerThumbprint requires -RequireValidSignature.'
+}
 
 $targets = @(Get-SasAutoLogonTargets -DirectTargets $ComputerName -CsvPath $TargetsCsv -Limit $MaxTargets)
+if (-not $FixtureMode) {
+    $invalidFqdns = @($targets | Where-Object { -not (Test-SasDeploymentFqdn -ComputerName $_) })
+    if ($invalidFqdns.Count -gt 0) { throw 'Live canonical AutoLogon targets must be exact authorized FQDNs.' }
+}
 $runId = 'autologon-deploy-{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8))
 $contextParameters = @{
     WorkflowId = 'autologon-proof'
@@ -559,7 +594,7 @@ for ($index = 0; $index -lt $targets.Count; $index++) {
         New-SasFixturePreflight -Scenario $FixtureScenario `
             -Destination (Join-Path $context.directories.actions ("transport_preflight_{0}.json" -f ($index + 1))) `
             -RepoRoot $repoRoot
-    } else { [string]$TransportPreflightPath[$index] }
+    } else { Resolve-SasAutoLogonPreflightPath -Path ([string]$TransportPreflightPath[$index]) -RepoRoot $repoRoot }
     $preflightPaths += $preflightPath
     try {
         $decision = Resolve-SasSoftwareDeploymentTransport -Transport $Transport -PreflightResultPath $preflightPath `
@@ -605,6 +640,7 @@ if ($transportFailure) {
 }
 
 $canonicalResults = @()
+$fixtureAdapterResults = @()
 $canonicalFrontDoorUsed = $false
 if ($WhatIfPreference -and -not $FixtureMode) {
     for ($index = 0; $index -lt $targets.Count; $index++) {
@@ -696,6 +732,26 @@ for ($gateIndex = 0; $gateIndex -lt $gatePassedTargets.Count; $gateIndex++) {
                 -Transport $Transport -TransportPreflightPath @($preflightPaths[$originalIndex]) `
                 -PreflightMaxAgeMinutes $PreflightMaxAgeMinutes -ResultTimeoutSeconds $ResultTimeoutSeconds `
                 -AllowFixtures -WhatIf
+            $adapterScenario = switch ($FixtureScenario) {
+                'ready' { 'success' }
+                'hash_mismatch' { 'source_hash_mismatch' }
+                'task_failure' { 'task_run_failure' }
+                'validation_failure' { 'success' }
+                'teardown_failure' { 'run_root_deletion_failure' }
+                default { 'success' }
+            }
+            $adapter = Invoke-SasSmbScheduledTaskDeploymentFixture `
+                -FixtureRoot (Join-Path $context.directories.evidence ("canonical_adapter_{0}" -f ($originalIndex + 1))) `
+                -Scenario $adapterScenario
+            if ($FixtureScenario -eq 'validation_failure') {
+                $adapter.validation.before_payload_cleanup_succeeded = $false
+                $adapter.validation.after_payload_cleanup_succeeded = $false
+                $adapter.status = 'deployment_failed_cleaned'
+                $adapter.error = 'Synthetic required package validation failed.'
+            }
+            $fixtureAdapterPath = Join-Path $context.directories.evidence ("canonical_adapter_result_{0}.json" -f ($originalIndex + 1))
+            Write-SasAutoLogonJson -Path $fixtureAdapterPath -Value $adapter
+            $fixtureAdapterResults += $adapter
         }
         else {
             $canonicalResults += & $validatedDeploymentScript -RequestPath $requestPaths[$originalIndex] -OutputRoot $targetOutput `
@@ -843,6 +899,7 @@ $summary = [pscustomobject][ordered]@{
     startup_persistence_created = $false
     default_password_value_collected = $false
     canonical_front_door_used = $canonicalFrontDoorUsed
+    fixture_adapter_result_count = $fixtureAdapterResults.Count
     final_gate_passed = $gatePassed
     deployment_result_classification = $classification
     state_result_classification = [string]$stateResult.classification

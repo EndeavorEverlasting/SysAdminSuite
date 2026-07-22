@@ -22,6 +22,7 @@ def test_authority_moves_to_canonical_front_door() -> None:
         "Invoke-SasValidatedSoftwareDeployment.ps1",
         "SasSoftwareDeploymentAdapter.psm1",
         "Resolve-SasSoftwareDeploymentTransport",
+        "Invoke-SasSmbScheduledTaskDeploymentFixture",
         "Invoke-SasAutoLogonFinalStepGate.ps1",
         "Invoke-SasAutoLogonStateDelta.ps1",
         "SasRunContext.psm1",
@@ -78,6 +79,9 @@ def test_preflight_and_gate_order_fail_closed() -> None:
     assert "final_gate_passed" in content
     assert "mutation_cancelled_before_canonical_front_door" in content
     assert "WinRM selection is not authorized" in content
+    assert "Live canonical AutoLogon targets must be exact authorized FQDNs" in content
+    assert "Transport preflight must remain under survey/input or survey/output" in content
+    assert "Sort-Object -Unique" not in content
 
 
 def test_baseline_reduction_and_package_preservation_are_retained() -> None:
@@ -156,6 +160,11 @@ def test_fixture_matrix_is_closed_and_complete() -> None:
         assert item["network_activity_performed"] is False
         assert item["target_mutation_performed"] is False
         assert item["live_runtime_proven"] is False
+
+    content = read(SCRIPT)
+    for adapter_scenario in ("source_hash_mismatch", "task_run_failure", "run_root_deletion_failure"):
+        assert f"'{adapter_scenario}'" in content
+    assert "Synthetic required package validation failed" in content
 
 
 def test_fixture_matrix_has_executable_pester_coverage() -> None:

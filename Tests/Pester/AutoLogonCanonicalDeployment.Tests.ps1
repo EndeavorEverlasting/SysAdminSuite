@@ -42,6 +42,8 @@ Describe 'Canonical AutoLogon deployment fixture matrix' {
                 $deployment.deployment.cleanup_verified | Should -BeFalse
                 $deployment.deployment.zero_remnants_verified | Should -BeFalse
                 $deployment.proof_level | Should -Be 'sanitized_fixture_contract'
+                $summary = Get-Content -LiteralPath $result.summary_json -Raw -Encoding UTF8 | ConvertFrom-Json
+                $summary.fixture_adapter_result_count | Should -Be $(if ([bool]$scenario.canonical_front_door_used) { 1 } else { 0 })
             }
             finally {
                 if ([IO.Directory]::Exists($outputRoot)) { [IO.Directory]::Delete($outputRoot, $true) }
