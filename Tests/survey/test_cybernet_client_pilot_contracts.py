@@ -35,9 +35,9 @@ def test_pilot_orders_proof_before_production() -> None:
     pilot = read(PILOT)
     ordered_markers = (
         "Invoke-SasPilotConfigurationMode -Mode Plan",
-        "Test-SasSoftwareDeploymentTransport.ps1",
-        "Invoke-SasSoftwareDeploymentTransportLiveCert.ps1",
-        "LIVE CERT PASS",
+        "$preflight = & $preflightScript",
+        "$liveCert = & $liveCertScript",
+        "[string]$liveCert.disposition -ne 'LIVE CERT PASS'",
         "$PSCmdlet.ShouldProcess",
         "Invoke-SasPilotConfigurationMode -Mode Apply",
         "Invoke-SasPilotConfigurationMode -Mode Validate",
