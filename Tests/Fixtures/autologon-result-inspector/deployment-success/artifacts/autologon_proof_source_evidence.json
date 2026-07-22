@@ -1,0 +1,20 @@
+{
+  "schema_version": "sas-autologon-proof-source-evidence/v1",
+  "evidence_class": "operator_local",
+  "classification": "deployment_proven_runtime_pending",
+  "reason_codes": ["runtime_proof_pending"],
+  "contract_fixture": false,
+  "target_binding_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "artifact_digests": [
+    {"role": "deployment_result", "sha256": "2222222222222222222222222222222222222222222222222222222222222222", "size_bytes": 100},
+    {"role": "final_step_gate_result", "sha256": "3333333333333333333333333333333333333333333333333333333333333333", "size_bytes": 100},
+    {"role": "state_proof_result", "sha256": "4444444444444444444444444444444444444444444444444444444444444444", "size_bytes": 100},
+    {"role": "session_access_proof", "sha256": "5555555555555555555555555555555555555555555555555555555555555555", "size_bytes": 100},
+    {"role": "technician_runtime_proof", "sha256": "6666666666666666666666666666666666666666666666666666666666666666", "size_bytes": 100}
+  ],
+  "proof": {"administrator_approved": true, "canonical_transport_used": true, "deployment_succeeded": true, "reboot_observed": false, "automatic_sign_in_observed": false, "expected_account_match": false, "session_access_proven": false, "application_behavior_proven": false, "cleanup_verified": true},
+  "operator_confirmation": false,
+  "privacy": {"status": "operator_local_private", "source_retained_operator_local": true, "source_copied_to_public_output": false, "default_password_value_present": false, "credentials_present": false},
+  "proof_level": "deployment_execution",
+  "proof_ceiling": "Deployment execution and cleanup only; reboot, automatic sign-in, current-token access, application behavior, and operator acceptance remain pending."
+}

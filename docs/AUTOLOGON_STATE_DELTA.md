@@ -151,7 +151,7 @@ Target
 ```
 
 Live target material belongs under ignored local roots such as `targets/local/`; it must not be
-committed. The collector caps a run at 25 targets by default. Use a two-workstation pilot first.
+committed. The collector caps a run at 25 targets by default. Use a one-workstation pilot first.
 
 Example local file:
 
@@ -161,8 +161,7 @@ targets/local/autologon-pilot.csv
 
 ```csv
 ComputerName
-WORKSTATION001
-WORKSTATION002
+<AUTHORIZED_TARGET_FQDN>
 ```
 
 ## Decisions
@@ -296,11 +295,11 @@ mutation.
 
 ## Pilot acceptance gate
 
-Before expanding beyond the first two workstations, require:
+Before expanding beyond the first workstation, require:
 
-1. Both baseline snapshots collected successfully.
-2. The approved auto-logon lane ran against only those two targets.
-3. Both after snapshots collected successfully.
+1. The baseline snapshot collected successfully.
+2. The approved AutoLogon lane ran against only that target.
+3. The after snapshot collected successfully.
 4. Expected transitions are classified correctly.
 5. At least one reboot/logon observation confirms the configured account actually logs on.
 6. No password data appears in local artifacts.

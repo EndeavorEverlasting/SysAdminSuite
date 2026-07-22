@@ -114,6 +114,16 @@ Use this map to load only the files needed for a task.
 - `harness/e2e/e2e-profiles.json` — dedicated `autologon` profile and `autologon-canonical-fixture-e2e` journey; the default profile remains unchanged.
 - `Tests/survey/test_autologon_canonical_e2e_contracts.py`, `Tests/Pester/AutoLogonCanonicalE2E.Tests.ps1`, and `.github/workflows/autologon-canonical-e2e.yml` — offline, Windows PowerShell 5.1 parser/Pester, executable journey, and sanitized artifact gates.
 
+## AutoLogon administrator and runtime operations
+
+- `docs/AUTOLOGON_DEPLOYMENT_WORKFLOW.md` — launch-order authority for plan, fixture, one-target canonical deployment, result review, controlled reboot observation, signed-in access, application behavior, failure review, and recovery.
+- `docs/AUTOLOGON_PHYSICAL_PILOT_CHECKLIST.md` — one-target go/no-go checklist; it is not an alternate command authority.
+- `scripts/Invoke-SasAutoLogonDeployment.ps1` — canonical administrator entrypoint with closed request, fresh P02 preflight, Before snapshot, final-step gate, Kerberos/SMB scheduled-task execution, cleanup, and normalized results.
+- `scripts/Show-SasAutoLogonResult.ps1` and `Inspect-LatestAutoLogon.cmd` — read-only public-safe classification, cleanup/remnant, digest-continuity, and proof-ceiling presentation without identities or paths.
+- `scripts/Invoke-SasAutoLogonSessionAccessProof.ps1` — bounded expected-account current-token path access and optional create/remove marker proof from the real signed-in session.
+- `scripts/Start-SasAutoLogonTechnicianRuntimeProof.cmd` and `scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1` — bounded application readiness and technician behavior observation from the real signed-in session.
+- `Tests/Fixtures/autologon-result-inspector/`, `Tests/Pester/AutoLogonCanonicalResultPresenter.Tests.ps1`, and `Tests/survey/test_autologon_admin_runtime_runbook_contracts.py` — safe presenter fixture, Windows execution, documentation, privacy, command, index, and CI contracts.
+
 ## Repo doctrine
 
 - `README.md` — user entrypoint, repo layout, runtime policy, and local source folder policy.

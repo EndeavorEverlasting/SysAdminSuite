@@ -1,0 +1,10 @@
+{
+  "schema_version": "sas-autologon-proof-receipt/v1",
+  "source_evidence_sha256": "42ae0f83776706e439aa4184347fcec85070076d2620313799c466ddfaa59189",
+  "source_evidence_size_bytes": 1784,
+  "classification": "blocked",
+  "proof_level": "deployment_execution",
+  "reason_codes": ["runtime_proof_pending"],
+  "operator_confirmed": false,
+  "privacy_status": "public_safe_source_hashed_not_copied"
+}

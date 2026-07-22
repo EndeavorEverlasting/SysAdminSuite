@@ -10,6 +10,8 @@ Start here when you need to know which local surface to use.
 | Run the canonical software-deployment tutorial | Dashboard → **Start Software Deployment** |
 | Open the deployment tutorial directly | `http://127.0.0.1:5000/dashboard/?tutorial=software-deployment` |
 | Read the supporting deployment runbook | `docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md` |
+| Run an approved AutoLogon pilot | `docs/AUTOLOGON_DEPLOYMENT_WORKFLOW.md` |
+| Inspect the latest AutoLogon result safely | `Inspect-LatestAutoLogon.cmd` |
 | Create or enter the PR #142 harness-foundation worktree | `scripts/Ensure-Pr142HarnessFoundationWorktree.ps1` |
 | Run the full harness contract suite on Windows | `Run-HarnessContracts.cmd` |
 | Run the synthetic harness validator | `Run-HarnessValidation.cmd` |
@@ -31,6 +33,11 @@ Start here when you need to know which local surface to use.
 | SMB/Task Scheduler compatibility controller | `bash/apps/sas-install-apps.sh` |
 | Canonical transport adapter | `scripts/SasSoftwareDeploymentAdapter.psm1` |
 | Validated PowerShell deployment front door | `scripts/Invoke-SasValidatedSoftwareDeployment.ps1` |
+| Canonical AutoLogon administrator deployment | `scripts/Invoke-SasAutoLogonDeployment.ps1` |
+| Public-safe AutoLogon result presenter | `scripts/Show-SasAutoLogonResult.ps1` |
+| Signed-in AutoLogon access proof | `scripts/Invoke-SasAutoLogonSessionAccessProof.ps1` |
+| AutoLogon technician runtime proof | `scripts/Start-SasAutoLogonTechnicianRuntimeProof.cmd` |
+| Dedicated AutoLogon fixture E2E | `scripts/Invoke-SasEndToEndValidation.ps1 -Profile autologon` |
 | Generated dummy installer | `Tests/fixtures/software-install/DummyInstaller.cs` -> `scripts/Build-SasSoftwareInstallFixtureExecutable.ps1` |
 | Software-install E2E | `scripts/Invoke-SasSoftwareInstallE2E.ps1` -> `scripts/Invoke-SasSoftwareInstall.ps1` |
 | PR #142 worktree bootstrap | `scripts/Ensure-Pr142HarnessFoundationWorktree.ps1` |
@@ -66,6 +73,9 @@ Dashboard: START-HERE-SysAdminSuite-Dashboard.bat
 Software deployment UI: http://127.0.0.1:5000/dashboard/?tutorial=software-deployment
 Supporting deployment runbook: docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md
 Software install E2E: scripts/Invoke-SasSoftwareInstallE2E.ps1
+AutoLogon runbook: docs/AUTOLOGON_DEPLOYMENT_WORKFLOW.md
+AutoLogon result: Inspect-LatestAutoLogon.cmd
+AutoLogon fixture E2E: scripts/Invoke-SasEndToEndValidation.ps1 -Profile autologon
 Transport contract: docs/SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md
 Transport convergence: docs/handoff/deployment-transport-convergence.md
 Bootstrap: scripts/Ensure-Pr142HarnessFoundationWorktree.ps1
