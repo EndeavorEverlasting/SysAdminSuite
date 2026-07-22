@@ -114,6 +114,14 @@ jobs:
       - name: Parse harness workflow spec
         run: >-
           python -c "import pathlib,yaml; p=pathlib.Path('harness/workflows/agent-sprint-capsule.yaml'); d=yaml.safe_load(p.read_text()); assert d['mode']=='local_transform' and d['network_activity'] is False and d['target_mutation'] is False; print('PASS: agent sprint capsule workflow')"
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --check "origin/${{ github.base_ref }}...HEAD"
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        run: git show --check --oneline --no-renames HEAD
 
   ai-layer-validator:
     runs-on: windows-latest
