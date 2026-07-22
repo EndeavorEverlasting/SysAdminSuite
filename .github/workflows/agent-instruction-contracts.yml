@@ -128,7 +128,12 @@ jobs:
         run: |
           before="${{ github.event.before }}"
           if [[ "$before" =~ ^0+$ ]]; then
-            git show --check --oneline --no-renames HEAD
+            git fetch origin "${{ github.sha }}" --depth=2
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              git diff --check HEAD^ HEAD
+            else
+              git show --check --oneline --no-renames HEAD
+            fi
           else
             git fetch origin "$before" "${{ github.sha }}" --depth=1
             git diff --check "$before" "${{ github.sha }}"
