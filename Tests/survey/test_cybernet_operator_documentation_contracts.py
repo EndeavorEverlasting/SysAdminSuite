@@ -124,7 +124,7 @@ def test_csv_batch_documentation_matches_target_resolver() -> None:
     for implementation_root in ("targets/local", "logs/targets", "survey/input"):
         assert implementation_root in intake
 
-    assert "-TargetsCsv '.\\targets\\local\\cybernet-approved-batch.csv'" in guide
+    assert r"-TargetsCsv '.\targets\local\cybernet-approved-batch.csv'" in guide
     assert "deduplicated case-insensitively" in guide
     assert "hard maximum is 25" in guide
 
