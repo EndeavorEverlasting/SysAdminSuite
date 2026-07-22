@@ -6,7 +6,7 @@ Use this surface for the first authorized Cybernet production target:
 
 ```powershell
 & {
-    $RepoRoot = 'C:\Users\Cheex\Desktop\dev\SysAdminSuite'
+    $RepoRoot = '<SYSADMINSUITE-REPO-ROOT>'
     $CybernetFqdn = '<AUTHORIZED-CYBERNET-FQDN>'
 
     Set-Location -LiteralPath $RepoRoot
