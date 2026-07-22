@@ -39,9 +39,9 @@ Describe 'Cybernet hardware batch PowerShell surfaces' {
 
     It 'keeps the batch default in request-only Plan mode' {
         $text = Get-Content -LiteralPath (Join-Path $script:hardwareRoot 'Invoke-CybernetBatchConfiguration.ps1') -Raw
-        $text | Should -Match "\[string\]\$Mode\s*=\s*'Plan'"
-        $text | Should -Match "Apply requires -AllowTargetMutation"
-        $text | Should -Match "com_mutation_performed = \$false"
+        $text | Should -Match '\[string\]\$Mode\s*=\s*''Plan'''
+        $text | Should -Match 'Apply requires -AllowTargetMutation'
+        $text | Should -Match 'com_mutation_performed\s*=\s*\$false'
     }
 
     It 'uses the tracked JSON splat runner for child-process composition' {
