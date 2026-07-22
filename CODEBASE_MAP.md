@@ -106,6 +106,14 @@ Use this map to load only the files needed for a task.
 - `harness/api/agent-capability-manifest.json` and `harness/api/agent-routing-manifest.json` — deterministic plan, admin, and runtime activation authority.
 - `Tests/survey/test_autologon_agent_harness_contracts.py` — activation, collision, ambiguity, negative-routing, prompt/application separation, and proof-ceiling contracts.
 
+## AutoLogon canonical fixture E2E
+
+- `scripts/Invoke-SasAutoLogonE2E.ps1` — composed zero-network runner for the real AutoLogon entrypoint, harmless generated installer, canonical SMB/task fixture adapter, final gate, state failure matrix, teardown, and sanitized receipt ingest.
+- `Tests/Fixtures/autologon-canonical-e2e/scenarios.json` — closed success and deterministic failure matrix; fixture identity and S-1-5-18 markers never become live proof.
+- `schemas/harness/autologon-canonical-e2e-result.schema.json` — closed composed-result contract with explicit simulated-SYSTEM and no-live-proof boundaries.
+- `harness/e2e/e2e-profiles.json` — dedicated `autologon` profile and `autologon-canonical-fixture-e2e` journey; the default profile remains unchanged.
+- `Tests/survey/test_autologon_canonical_e2e_contracts.py`, `Tests/Pester/AutoLogonCanonicalE2E.Tests.ps1`, and `.github/workflows/autologon-canonical-e2e.yml` — offline, Windows PowerShell 5.1 parser/Pester, executable journey, and sanitized artifact gates.
+
 ## Repo doctrine
 
 - `README.md` — user entrypoint, repo layout, runtime policy, and local source folder policy.

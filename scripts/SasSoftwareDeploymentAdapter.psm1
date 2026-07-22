@@ -527,7 +527,7 @@ function Invoke-SasSmbScheduledTaskDeploymentFixture {
         [Parameter(Mandatory = $true)]
         [ValidateSet(
             'success','source_hash_mismatch','target_hash_mismatch','admin_share_denied',
-            'task_creation_failure','task_run_failure','result_timeout','malformed_result',
+            'task_creation_failure','task_run_failure','installer_failure','result_timeout','malformed_result',
             'task_deletion_failure','run_root_deletion_failure','remaining_task','remaining_file'
         )]
         [string]$Scenario
@@ -589,6 +589,16 @@ function Invoke-SasSmbScheduledTaskDeploymentFixture {
                         [IO.File]::WriteAllText($workerResultPath, '{malformed')
                         $result.result_retrieval.malformed = $true
                         $result.error = 'Retrieved worker result is malformed.'
+                    }
+                    elseif ($Scenario -eq 'installer_failure') {
+                        [IO.File]::WriteAllText($workerResultPath, '{"schema_version":"fixture-closed-result/v1"}')
+                        $result.result_retrieval.succeeded = $true
+                        $result.result_retrieval.local_path = $workerResultPath
+                        $result.execution.identity_sid = 'S-1-5-18'
+                        $result.execution.as_system = $true
+                        $result.execution.installer_exit_code = 40
+                        $result.execution.installer_status = 'not_started'
+                        $result.error = 'Synthetic harmless installer returned a non-zero exit code.'
                     }
                     else {
                         [IO.File]::WriteAllText($workerResultPath, '{"schema_version":"fixture-closed-result/v1"}')

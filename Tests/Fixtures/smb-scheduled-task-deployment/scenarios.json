@@ -9,6 +9,7 @@
     { "id": "admin_share_denied", "expected_status": "failed_before_staging" },
     { "id": "task_creation_failure", "expected_status": "deployment_failed_cleaned" },
     { "id": "task_run_failure", "expected_status": "deployment_failed_cleaned" },
+    { "id": "installer_failure", "expected_status": "deployment_failed_cleaned" },
     { "id": "result_timeout", "expected_status": "deployment_failed_cleaned" },
     { "id": "malformed_result", "expected_status": "deployment_failed_cleaned" },
     { "id": "task_deletion_failure", "expected_status": "cleanup_failed" },

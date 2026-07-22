@@ -45,7 +45,10 @@ param(
     [int]$MaxTargets = 25,
 
     [Parameter(Mandatory = $false)]
-    [switch]$AllowTargetMutation
+    [switch]$AllowTargetMutation,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$AllowFixtures
 )
 
 Set-StrictMode -Version 2.0
@@ -213,6 +216,12 @@ $eventPath = Join-Path -Path $runRoot -ChildPath 'software_install_events.jsonl'
 $summaryPath = Join-Path -Path $runRoot -ChildPath 'software_install_summary.json'
 $handoffPath = Join-Path -Path $runRoot -ChildPath 'operator_handoff.txt'
 $approvedSoftwareShareRoots = @(Get-SasApprovedSoftwareShareRoots)
+if ($AllowFixtures -and -not $WhatIfPreference) {
+    throw '-AllowFixtures is restricted to non-mutating -WhatIf planning.'
+}
+if ($AllowFixtures -and $WhatIfPreference) {
+    $approvedSoftwareShareRoots += Normalize-SasUncRoot -Path '\\fixture.invalid\'
+}
 if ([string]::IsNullOrWhiteSpace($SoftwareShareRoot)) {
     $SoftwareShareRoot = $approvedSoftwareShareRoots[0]
 }

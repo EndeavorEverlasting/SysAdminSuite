@@ -140,7 +140,7 @@ def test_failure_matrix_is_complete_and_pester_drives_it() -> None:
     actual = {item["id"] for item in fixture["scenarios"]}
     expected = {
         "success", "source_hash_mismatch", "target_hash_mismatch", "admin_share_denied",
-        "task_creation_failure", "task_run_failure", "result_timeout", "malformed_result",
+        "task_creation_failure", "task_run_failure", "installer_failure", "result_timeout", "malformed_result",
         "task_deletion_failure", "run_root_deletion_failure", "remaining_task", "remaining_file",
     }
     assert actual == expected

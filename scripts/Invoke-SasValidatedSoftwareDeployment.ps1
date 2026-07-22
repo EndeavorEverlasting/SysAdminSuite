@@ -82,6 +82,11 @@ function Resolve-ValidatedInstallerPath {
     $manifestPath = Join-Path $repoRoot 'harness/api/sas-harness-api.json'
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $approvedRoots = @($manifest.posture.approved_software_sources | ForEach-Object { Normalize-UncRoot ([string]$_) } | Sort-Object -Unique)
+    # The synthetic root is authorized only for the non-mutating fixture planning lane.
+    # It is never added for a contact-capable invocation, even when -AllowFixtures is set.
+    if ($AllowFixtures -and $WhatIfPreference) {
+        $approvedRoots += Normalize-UncRoot '\\fixture.invalid\'
+    }
     $root = Normalize-UncRoot ([string]$Request.software_share_root)
     if (@($approvedRoots | Where-Object { $_.Equals($root, [StringComparison]::OrdinalIgnoreCase) }).Count -eq 0) {
         throw "Software share root is not approved by the harness API: $root"
@@ -197,7 +202,10 @@ if ($WhatIfPreference -or $selectedTransport -eq 'WinRM') {
         MaxTargets = 25
     }
     if ($AllowTargetMutation) { $installParameters.AllowTargetMutation = $true }
-    if ($WhatIfPreference) { $installParameters.WhatIf = $true }
+    if ($WhatIfPreference) {
+        $installParameters.WhatIf = $true
+        if ($AllowFixtures) { $installParameters.AllowFixtures = $true }
+    }
     else { $installParameters.Confirm = $false }
 
     $summary = & $installerScript @installParameters
