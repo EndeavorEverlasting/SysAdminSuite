@@ -1,0 +1,15 @@
+{
+  "schema_version": "sas-software-deployment-transport-live-cert-fixture-scenarios/v1",
+  "scenarios": [
+    {"id": "success", "expected_status": "certified", "expected_zero_remnants": true},
+    {"id": "worker_hash_mismatch", "expected_status": "certification_failed_cleaned", "expected_zero_remnants": true},
+    {"id": "task_creation_failure", "expected_status": "certification_failed_cleaned", "expected_zero_remnants": true},
+    {"id": "task_run_failure", "expected_status": "certification_failed_cleaned", "expected_zero_remnants": true},
+    {"id": "result_timeout", "expected_status": "certification_failed_cleaned", "expected_zero_remnants": true},
+    {"id": "malformed_result", "expected_status": "certification_failed_cleaned", "expected_zero_remnants": true},
+    {"id": "not_system", "expected_status": "certification_failed_cleaned", "expected_zero_remnants": true},
+    {"id": "wrong_nonce", "expected_status": "certification_failed_cleaned", "expected_zero_remnants": true},
+    {"id": "task_deletion_failure", "expected_status": "teardown_failed", "expected_zero_remnants": false},
+    {"id": "staging_deletion_failure", "expected_status": "teardown_failed", "expected_zero_remnants": false}
+  ]
+}

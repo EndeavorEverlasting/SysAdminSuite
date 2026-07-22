@@ -186,11 +186,14 @@
       "inputs": [
         "schema_valid_transport_result",
         "authorized_single_target",
+        "allow_network_activity",
         "allow_target_mutation",
         "harmless_certification_payload"
       ],
       "outputs": [
         "operator_local_transport_live_cert_result.json",
+        "private_lifecycle_result.json",
+        "english_summary.txt",
         "artifact_registry.json",
         "operator_handoff.txt"
       ],
@@ -199,6 +202,7 @@
         "Kerberos_SMB_Task_ready_decision_required",
         "No_software_installation",
         "Harmless_payload_only",
+        "Staged_worker_SHA256_verified_before_task_creation",
         "Run_scoped_task_and_staging_only",
         "Result_retrieval_before_teardown",
         "Task_deletion_staging_deletion_and_zero_remnants_required",
