@@ -348,7 +348,9 @@ $result = [pscustomobject][ordered]@{
         classification='contract_only'; proof_level='sanitized_fixture_contract'
         source_evidence_copied=$false; live_proof_promoted=$false
     }
-    scenarios=@($scenarioRows)
+    # Windows PowerShell 5.1 can throw "Argument types do not match" when @(...)
+    # directly wraps a generic List[T]. Materialize an ordinary array explicitly.
+    scenarios=$scenarioRows.ToArray()
     proof_ceiling='Composed sanitized fixture E2E only. No real package deployment, target contact, scheduled task, SYSTEM token, Winlogon mutation, reboot, automatic sign-in, current-token access, application behavior, or operator acceptance is proven.'
 }
 Write-E2EJson -Path $resultPath -Value $result
@@ -357,7 +359,7 @@ Add-ValidationArtifact -List $validationArtifacts -Role 'autologon-canonical-e2e
 
 $artifactManifestPath = Join-Path $rawRoot 'durable-artifact-validation-manifest.json'
 Write-E2EJson -Path $artifactManifestPath -Value ([pscustomobject][ordered]@{
-    schema_version='sas-autologon-e2e-artifact-validation/v1'; artifacts=@($validationArtifacts)
+    schema_version='sas-autologon-e2e-artifact-validation/v1'; artifacts=$validationArtifacts.ToArray()
 })
 $python = Get-Command python -ErrorAction SilentlyContinue
 $pythonArguments = @($validatorScript,'--manifest',$artifactManifestPath)

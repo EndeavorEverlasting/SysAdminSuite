@@ -111,9 +111,13 @@ def test_runner_crosses_real_composition_without_live_authority() -> None:
         "live_proof_promoted=$false",
         "validate_autologon_e2e_artifacts.py",
         "[AllowEmptyCollection()][Collections.Generic.List[object]]$List",
+        "scenarios=$scenarioRows.ToArray()",
+        "artifacts=$validationArtifacts.ToArray()",
     )
     for marker in required:
         assert marker in runner, marker
+    assert "scenarios=@($scenarioRows)" not in runner
+    assert "artifacts=@($validationArtifacts)" not in runner
     for scenario in (
         "baseline_failure",
         "installer_failure",
