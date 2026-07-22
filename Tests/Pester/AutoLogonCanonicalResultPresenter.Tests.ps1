@@ -16,6 +16,7 @@ Describe 'AutoLogon public-safe result presenter' {
     It 'presents deployment success as runtime pending without paths or identities' {
         $runRoot = Join-Path $script:repoRoot ('survey\output\runs\autologon-proof\autologon-deploy-presenter-' + [guid]::NewGuid().ToString('N'))
         try {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $runRoot) -Force | Out-Null
             Copy-Item -LiteralPath $script:fixture -Destination $runRoot -Recurse -Force
             $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script:presenter -RunRoot $runRoot 2>&1 | Out-String
             $LASTEXITCODE | Should -Be 0
@@ -35,6 +36,7 @@ Describe 'AutoLogon public-safe result presenter' {
     It 'fails closed when source and receipt digest continuity disagree' {
         $runRoot = Join-Path $script:repoRoot ('survey\output\runs\autologon-proof\autologon-deploy-presenter-' + [guid]::NewGuid().ToString('N'))
         try {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $runRoot) -Force | Out-Null
             Copy-Item -LiteralPath $script:fixture -Destination $runRoot -Recurse -Force
             $receiptPath = Join-Path $runRoot 'artifacts\autologon_proof_receipt.json'
             $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
