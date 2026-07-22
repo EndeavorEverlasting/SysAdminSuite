@@ -397,6 +397,7 @@ $matrixLines.Add('')
 foreach ($row in $scenarioRows) { $matrixLines.Add("[$($row.status)] $($row.id) - $($row.classification)") }
 $matrixLines.Add('')
 $matrixLines.Add("Result: $($result.counts.passed) passed / $($result.counts.failed) failed")
+foreach ($failure in $failures) { $matrixLines.Add(("E2E_FAILURE|{0}" -f $failure)) }
 $matrixLines.Add([string]$result.proof_ceiling)
 $matrixLines | Set-Content -LiteralPath $matrixOutputPath -Encoding UTF8
 

@@ -122,6 +122,7 @@ def test_runner_crosses_real_composition_without_live_authority() -> None:
     assert "scenarios=@($scenarioRows)" not in runner
     assert "artifacts=@($validationArtifacts)" not in runner
     assert "Write-Error $failure" not in runner
+    assert '$matrixLines.Add(("E2E_FAILURE|{0}"' in runner
     for scenario in (
         "baseline_failure",
         "installer_failure",
