@@ -3,6 +3,11 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 title SysAdminSuite - Cybernet Live Cert
 
+if /I "%~1"=="Help" goto help
+if /I "%~1"=="-h" goto help
+if /I "%~1"=="--help" goto help
+if /I "%~1"=="/?" goto help
+
 set "TARGET=%~1"
 if not defined TARGET (
   echo.
@@ -50,3 +55,17 @@ if "%EXITCODE%"=="0" (
 echo.
 pause
 endlocal & exit /b %EXITCODE%
+
+:help
+echo SysAdminSuite Cybernet Live Cert
+echo.
+echo Double-click this file and enter one authorized short Cybernet hostname.
+echo The launcher resolves one canonical FQDN, runs Plan, read-only preflight,
+echo harmless live certification, separate production confirmation, Apply, and Validate.
+echo It opens OPEN-ME-CYBERNET-LIVE-CERT.txt and the local evidence folder.
+echo.
+echo Optional command-line form:
+echo   Run-CybernetLiveCert.cmd CYBERNET-HOST
+echo.
+echo Never use for a shared or normal user-login workstation.
+exit /b 0
