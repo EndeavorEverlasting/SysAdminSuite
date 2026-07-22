@@ -58,8 +58,11 @@ Describe 'Canonical AutoLogon composed E2E harness' {
         $content | Should -Match 'E2E_FAILURE\|\{0\}'
         $content | Should -Match '\$matrixLines\.Add\(\("E2E_FAILURE\|\{0\}"'
         $content | Should -Not -Match 'Write-Error \$failure'
+        $content | Should -Match '\$localFixtureCleanupVerified = \$false\s+try \{'
+        $content | Should -Match 'finally \{\s+# Remove both the harmless installed state'
         $content | Should -Match 'foreach \(\$fixtureCleanupRoot in @\(\$fixtureTarget,\$generatedRoot\)\)'
         $content | Should -Match 'Remove-Item -LiteralPath \$fixtureCleanupRoot -Recurse -Force -ErrorAction Stop'
+        $content | Should -Match '\$adapterCleanupVerified = \(\[bool\]\$adapter\.cleanup\.attempted -and'
         $content | Should -Match '\$composedCleanupVerified = \(\$adapterCleanupVerified -and \$localFixtureCleanupVerified\)'
         $content | Should -Match '\$composedZeroRemnantsVerified = \(\$zeroRunScopedRemnants -and \$localFixtureCleanupVerified\)'
 
