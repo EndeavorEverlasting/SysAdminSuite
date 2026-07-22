@@ -1,29 +1,21 @@
-# Cybernet one-target pilot
+# Cybernet clickable live certification
 
-## Technician command
+## Technician action
 
-Use this surface for the first authorized Cybernet production target:
+1. Update the SysAdminSuite repository through the approved pull command supplied by the project lead.
+2. Open the SysAdminSuite folder in File Explorer.
+3. Double-click `Run-CybernetLiveCert.cmd`.
+4. Enter the authorized short Cybernet hostname from the assignment or device label.
 
-```powershell
-& {
-    $RepoRoot = '<SYSADMINSUITE-REPO-ROOT>'
-    $CybernetFqdn = '<AUTHORIZED-CYBERNET-FQDN>'
+Do not derive, append, or type a DNS domain. The script resolves and validates one canonical FQDN from the approved controller's DNS context.
 
-    Set-Location -LiteralPath $RepoRoot
-    git fetch --all --prune
-    git switch main
-    git pull --ff-only origin main
-    .\Run-CybernetClientConfiguration.cmd Pilot $CybernetFqdn
-}
-```
+Do not reconstruct the workflow from individual PowerShell scripts. The root live-cert CMD owns the technician sequence, keeps the window open, and opens the generated handoff and evidence when the run stops or completes.
 
-Do not reconstruct the workflow from individual scripts. The root CMD owns the technician sequence.
+## Eligibility boundary
 
-## Eligibility gate
+Use this surface only when the assignment, inventory record, and equipment label identify the target as an authorized **Cybernet clinical workstation**.
 
-Proceed only when the assignment, inventory record, equipment label, and fully qualified DNS name all identify the same authorized **Cybernet clinical workstation**.
-
-Never run this pilot against:
+Never run it against:
 
 - a shared or normal user-login workstation;
 - a Neuron;
@@ -32,30 +24,32 @@ Never run this pilot against:
 - another equipment profile;
 - a target with unknown, ambiguous, or conflicting identity/profile evidence.
 
-A serial number, hostname, MAC address, model, or successful probe is identity evidence; none of those alone authorizes the Cybernet profile. Stop on ambiguity.
+A serial number, hostname, MAC address, model, successful DNS response, or reachable transport is identity evidence. None of those alone authorizes the Cybernet profile.
 
-## What the single Pilot command does
+## What the CMD owns
 
-The launcher advances through bounded gates in this order:
+The launcher performs these bounded gates in order:
 
-1. **Deployment dry run** — validates the tracked Cybernet profile and six-package order without contacting the target or software share.
-2. **Read-only live preflight** — tests only the authorized Kerberos SMB/Task Scheduler transport for the one FQDN.
-3. **Harmless live certification** — creates one run-scoped noninteractive SYSTEM task, retrieves nonce-bound proof, and verifies task and staging teardown. It installs no software.
-4. **Production confirmation** — pauses before higher-impact configuration. Read the target and action carefully.
-5. **Production Apply** — configures and validates no-sleep, the physical power button, the integrated display Privacy/Menu and display power-button lock, and COM readiness; then installs the approved software set with AutoLogon last.
-6. **Post-validation** — rechecks the Cybernet hardware profile without reinstalling software.
+1. **Controller network gate** — confirms the approved Northwell controller network posture.
+2. **Canonical name gate** — accepts the short hostname, derives candidates from the controller DNS search context, and requires exactly one matching canonical FQDN. Zero matches, aliases to a different host, or multiple FQDNs stop the run.
+3. **Deployment dry run** — validates the tracked Cybernet profile and approved six-package order without contacting the target or software share.
+4. **Read-only live preflight** — checks only the selected Kerberos SMB/Task Scheduler transport for the resolved FQDN.
+5. **Harmless live certification** — creates one run-scoped SYSTEM task, retrieves nonce-bound proof, and verifies task and staging teardown. It installs no software.
+6. **Production confirmation** — pauses before higher-impact configuration.
+7. **Production Apply** — applies and validates the Cybernet hardware profile, installs the approved package set with AutoLogon last, and produces technician acceptance evidence.
+8. **Post-validation** — rechecks hardware without reinstalling software.
 
-Any failed gate stops the pilot before the next higher-impact stage. Do not bypass or blindly retry a failed gate.
+Any unresolved, ambiguous, or failed gate produces `ACTION_REQUIRED` and stops before the next higher-impact stage. Do not bypass or blindly retry it.
 
-## Production profile applied
+## Production profile
 
-The tracked Cybernet profile requires:
+The tracked Cybernet profile applies:
 
-- standby and hibernate set to Never on AC and DC;
+- standby and hibernation set to Never on AC and DC;
 - the Windows physical power button set to Do nothing;
 - supported integrated-display Privacy/Menu and display power-button events disabled through MCCS VCP `0xCA = 0x0303`;
 - COM readiness at `COM1, COM2, COM3, COM4`;
-- the approved software installed in this exact order:
+- the approved software in this exact order:
   1. Allscripts EEHR Shortcut UAI 2.2
   2. Epic Downtime Guide Shortcut 1.0
   3. Nuance Dragon Medical One 2025
@@ -63,41 +57,22 @@ The tracked Cybernet profile requires:
   5. Epic BCA Web Shortcut 1.0
   6. NW AutoLogon Setup x64
 
-AutoLogon must remain last. The pilot never reboots the target.
+AutoLogon must remain last. The launcher never reboots the target.
 
-## Required completion result
+## Results
 
-The final launcher result must be:
+The CMD opens:
+
+```text
+survey\output\cybernet_live_cert\cybernet-live-cert-*\OPEN-ME-CYBERNET-LIVE-CERT.txt
+```
+
+The required completed automated status is:
 
 ```text
 PILOT_COMPLETE_TECHNICIAN_ACCEPTANCE_REQUIRED
 ```
 
-This proves the bounded automated pilot completed. It does not prove application behavior or post-reboot AutoLogon behavior.
+That status proves the bounded automated path completed. It does not prove application behavior or post-reboot AutoLogon behavior.
 
-Review generated evidence under:
-
-```text
-survey\output\runs\software-deployment-transport-*
-survey\output\runs\software-deployment-transport-live-cert-*
-survey\output\cybernet_hardware\client-configuration-*
-```
-
-Complete the generated `technician_software_acceptance.txt` checklist. Confirm every expected shortcut/application opens through the normal user workflow.
-
-Record AutoLogon as installed only. Automatic sign-in may be claimed only after a separately authorized reboot and direct observation. Never place credentials, private lifecycle evidence, or target identifiers in Git.
-
-## Stop conditions
-
-Stop and escalate when:
-
-- the target is not positively classified as Cybernet;
-- Plan does not return `PLAN_READY`;
-- preflight does not classify `kerberos_smb_task_ready`;
-- harmless certification does not return `LIVE CERT PASS`;
-- the launcher reports `ACTION_REQUIRED` or exits nonzero;
-- hardware or COM validation fails;
-- the software order differs from the tracked package set;
-- AutoLogon would not be last;
-- an unexpected reboot occurs;
-- task or staging cleanup cannot be proven.
+Complete the generated `technician_software_acceptance.txt`. Record AutoLogon as installed only. Automatic sign-in may be claimed only after a separately authorized reboot and direct observation.
