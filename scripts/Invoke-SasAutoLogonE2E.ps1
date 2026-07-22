@@ -328,9 +328,27 @@ if ([string]$sourceEvidence.classification -ne 'fixture_contract_only' -or [bool
     $failures.Add('sanitized receipt ingestion promoted fixture evidence beyond contract_only')
 }
 
-# Remove the harmless installed fixture state after proving the executable behavior.
-if (Test-Path -LiteralPath $fixtureTarget) { Remove-Item -LiteralPath $fixtureTarget -Recurse -Force }
-if (Test-Path -LiteralPath $fixtureTarget) { $failures.Add('harmless installer fixture target survived E2E teardown') }
+# Remove both the harmless installed state and the generated executable/build manifest.
+# Cleanup remains fail-closed while preserving the other raw fixture evidence needed by
+# the durable schema validator later in this run.
+$localFixtureCleanupVerified = $true
+foreach ($fixtureCleanupRoot in @($fixtureTarget,$generatedRoot)) {
+    try {
+        if (Test-Path -LiteralPath $fixtureCleanupRoot) {
+            Remove-Item -LiteralPath $fixtureCleanupRoot -Recurse -Force -ErrorAction Stop
+        }
+    }
+    catch {
+        $localFixtureCleanupVerified = $false
+        $failures.Add('local generated installer fixture teardown failed')
+    }
+    if (Test-Path -LiteralPath $fixtureCleanupRoot) {
+        $localFixtureCleanupVerified = $false
+        $failures.Add('local generated installer fixture remnant survived teardown')
+    }
+}
+$composedCleanupVerified = ($adapterCleanupVerified -and $localFixtureCleanupVerified)
+$composedZeroRemnantsVerified = ($zeroRunScopedRemnants -and $localFixtureCleanupVerified)
 
 $scenarioFailed = @($scenarioRows | Where-Object { $_.status -ne 'PASS' }).Count
 $resultPath = Join-Path $OutputRoot 'autologon_canonical_e2e_result.json'
@@ -355,8 +373,8 @@ $result = [pscustomobject][ordered]@{
         simulated_execution_identity_sid='S-1-5-18'
         system_execution_is_simulated=$true
         closed_result_retrieved=[bool]$adapter.result_retrieval.succeeded
-        cleanup_verified=[bool]$adapterCleanupVerified
-        zero_run_scoped_remnants_verified=[bool]$zeroRunScopedRemnants
+        cleanup_verified=[bool]$composedCleanupVerified
+        zero_run_scoped_remnants_verified=[bool]$composedZeroRemnantsVerified
     }
     receipt=[pscustomobject][ordered]@{
         classification='contract_only'; proof_level='sanitized_fixture_contract'
