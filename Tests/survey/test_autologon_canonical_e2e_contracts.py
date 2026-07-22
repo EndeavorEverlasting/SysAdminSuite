@@ -14,6 +14,7 @@ PROFILES = ROOT / "harness" / "e2e" / "e2e-profiles.json"
 RUNNER = ROOT / "scripts" / "Invoke-SasAutoLogonE2E.ps1"
 APPLICATION = ROOT / "scripts" / "Invoke-SasAutoLogonDeployment.ps1"
 ADAPTER = ROOT / "scripts" / "SasSoftwareDeploymentAdapter.psm1"
+VALIDATED_DEPLOYMENT = ROOT / "scripts" / "Invoke-SasValidatedSoftwareDeployment.ps1"
 VALIDATOR = ROOT / "tools" / "validate_autologon_e2e_artifacts.py"
 PESTER = ROOT / "Tests" / "Pester" / "AutoLogonCanonicalE2E.Tests.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "autologon-canonical-e2e.yml"
@@ -95,6 +96,7 @@ def test_runner_crosses_real_composition_without_live_authority() -> None:
     runner = read(RUNNER)
     application = read(APPLICATION)
     adapter = read(ADAPTER)
+    validated_deployment = read(VALIDATED_DEPLOYMENT)
     required = (
         "Build-SasSoftwareInstallFixtureExecutable.ps1",
         "Invoke-SasAutoLogonDeployment.ps1",
@@ -131,6 +133,8 @@ def test_runner_crosses_real_composition_without_live_authority() -> None:
     ):
         assert f"'{scenario}'" in application
     assert "'installer_failure'" in adapter
+    assert "if ($AllowFixtures -and $WhatIfPreference)" in validated_deployment
+    assert "Normalize-UncRoot '\\\\fixture.invalid\\'" in validated_deployment
     for forbidden in (
         r"Test-NetConnection",
         r"Resolve-DnsName",

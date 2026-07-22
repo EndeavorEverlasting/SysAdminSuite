@@ -5,13 +5,14 @@ BeforeAll {
     $script:runner = Join-Path $script:repoRoot 'scripts\Invoke-SasAutoLogonE2E.ps1'
     $script:application = Join-Path $script:repoRoot 'scripts\Invoke-SasAutoLogonDeployment.ps1'
     $script:adapter = Join-Path $script:repoRoot 'scripts\SasSoftwareDeploymentAdapter.psm1'
+    $script:validatedDeployment = Join-Path $script:repoRoot 'scripts\Invoke-SasValidatedSoftwareDeployment.ps1'
     $script:matrixPath = Join-Path $script:repoRoot 'Tests\Fixtures\autologon-canonical-e2e\scenarios.json'
     $script:schemaPath = Join-Path $script:repoRoot 'schemas\harness\autologon-canonical-e2e-result.schema.json'
 }
 
 Describe 'Canonical AutoLogon composed E2E harness' {
     It 'parses every owned PowerShell surface under Windows PowerShell syntax' {
-        foreach ($path in @($script:runner,$script:application,$script:adapter)) {
+        foreach ($path in @($script:runner,$script:application,$script:adapter,$script:validatedDeployment)) {
             $tokens = $null
             $errors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
@@ -56,5 +57,9 @@ Describe 'Canonical AutoLogon composed E2E harness' {
         $content | Should -Match 'E2E_FAILURE\|\{0\}'
         $content | Should -Match '\$matrixLines\.Add\(\("E2E_FAILURE\|\{0\}"'
         $content | Should -Not -Match 'Write-Error \$failure'
+
+        $frontDoorContent = Get-Content -LiteralPath $script:validatedDeployment -Raw -Encoding UTF8
+        $frontDoorContent | Should -Match 'if \(\$AllowFixtures -and \$WhatIfPreference\)'
+        $frontDoorContent | Should -Match "Normalize-UncRoot '\\\\fixture\.invalid\\'"
     }
 }
