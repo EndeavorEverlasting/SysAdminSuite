@@ -13,13 +13,21 @@ import hashlib
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "sas-software-deployment-transport-receipt/v1"
 WORKFLOW_ID = "software-deployment-transport-proof-ingest"
 SOURCE_SCHEMA_VERSION = "sas-software-deployment-transport-live-cert-result/v1"
+SOURCE_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "schemas/harness/software-deployment-transport-live-cert-result.schema.json"
+)
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+RFC3339_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+)
 
 VALID_CLASSIFICATIONS = {
     "kerberos_smb_task_ready",
@@ -90,15 +98,108 @@ def _load_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _validate_source_schema(payload: dict[str, Any]) -> None:
-    sv = payload.get("schema_version", "")
-    if sv != SOURCE_SCHEMA_VERSION:
+def _schema_error(path: tuple[str, ...], message: str) -> IngestError:
+    location = ".".join(path) if path else "$"
+    return IngestError(f"source schema validation failed at {location}: {message}")
+
+
+def _validate_datetime(value: str, path: tuple[str, ...]) -> None:
+    if not RFC3339_RE.fullmatch(value):
+        raise _schema_error(path, "must be an RFC 3339 date-time")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise _schema_error(path, "must be an RFC 3339 date-time") from exc
+    if parsed.tzinfo is None:
+        raise _schema_error(path, "date-time must include a UTC offset")
+
+
+def _validate_schema_value(
+    value: Any,
+    schema: dict[str, Any],
+    path: tuple[str, ...] = (),
+) -> None:
+    """Validate the live-cert source against the keywords used by its v1 schema."""
+    expected_type = schema.get("type")
+    type_matches = {
+        "object": isinstance(value, dict),
+        "string": isinstance(value, str),
+        "boolean": isinstance(value, bool),
+    }
+    if expected_type is not None and expected_type not in type_matches:
+        raise IngestError(f"live-cert source schema uses unsupported type: {expected_type}")
+    if expected_type in type_matches and not type_matches[expected_type]:
+        raise _schema_error(path, f"must be {expected_type}")
+
+    if "const" in schema and value != schema["const"]:
+        raise _schema_error(path, f"must equal {schema['const']!r}")
+    if "enum" in schema and value not in schema["enum"]:
+        raise _schema_error(path, f"must be one of {schema['enum']!r}")
+
+    if isinstance(value, str):
+        if len(value) < schema.get("minLength", 0):
+            raise _schema_error(path, f"must contain at least {schema['minLength']} characters")
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            raise _schema_error(path, f"must contain at most {schema['maxLength']} characters")
+        if schema.get("format") == "date-time":
+            _validate_datetime(value, path)
+
+    if isinstance(value, dict):
+        properties = schema.get("properties", {})
+        missing = [key for key in schema.get("required", []) if key not in value]
+        if missing:
+            raise _schema_error(path, f"missing required properties: {missing!r}")
+        if schema.get("additionalProperties") is False:
+            extra = sorted(set(value) - set(properties))
+            if extra:
+                raise _schema_error(path, f"additional properties are not allowed: {extra!r}")
+        for key, child_schema in properties.items():
+            if key in value:
+                _validate_schema_value(value[key], child_schema, (*path, key))
+
+    for condition in schema.get("allOf", []):
+        if_schema = condition.get("if")
+        then_schema = condition.get("then")
+        if if_schema is None or then_schema is None:
+            _validate_schema_value(value, condition, path)
+            continue
+        try:
+            _validate_schema_value(value, if_schema, path)
+        except IngestError:
+            continue
+        _validate_schema_value(value, then_schema, path)
+
+
+def _ensure_supported_schema(schema: dict[str, Any], path: tuple[str, ...] = ()) -> None:
+    supported_keywords = {
+        "$schema", "$id", "title", "type", "additionalProperties", "required",
+        "properties", "const", "enum", "format", "minLength", "maxLength",
+        "allOf", "if", "then",
+    }
+    unknown = sorted(set(schema) - supported_keywords)
+    if unknown:
+        location = ".".join(path) if path else "$"
         raise IngestError(
-            f"unsupported source schema version: {sv} (expected {SOURCE_SCHEMA_VERSION})"
+            f"live-cert source schema uses unsupported keywords at {location}: {unknown!r}"
         )
-    wf = payload.get("workflow_id", "")
-    if wf != "software-deployment-transport-live-cert":
-        raise IngestError(f"unexpected source workflow_id: {wf}")
+    for name, child in schema.get("properties", {}).items():
+        _ensure_supported_schema(child, (*path, "properties", name))
+    for index, child in enumerate(schema.get("allOf", [])):
+        _ensure_supported_schema(child, (*path, "allOf", str(index)))
+    for keyword in ("if", "then"):
+        if keyword in schema:
+            _ensure_supported_schema(schema[keyword], (*path, keyword))
+
+
+def _validate_source_against_schema(payload: dict[str, Any]) -> None:
+    try:
+        schema = json.loads(SOURCE_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise IngestError(f"live-cert source schema is unavailable or invalid: {exc}") from exc
+    if not isinstance(schema, dict):
+        raise IngestError("live-cert source schema root must be an object")
+    _ensure_supported_schema(schema)
+    _validate_schema_value(payload, schema)
 
 
 def _validate_decision(decision: dict[str, Any]) -> list[str]:
@@ -162,19 +263,34 @@ def _scan_forbidden_fields(payload: dict[str, Any], path: tuple[str, ...] = ()) 
 
 
 def _determine_outcome_and_reasons(
-    cert: dict[str, Any],
+    source: dict[str, Any],
     contract_fixture: bool,
     operator_confirmed: bool,
 ) -> tuple[str, list[str]]:
     if contract_fixture:
         return "contract_only", [REASON_CONTRACT_FIXTURE]
 
+    cert = source["certification"]
     reasons: list[str] = []
     cert_reasons = _validate_certification(cert)
     reasons.extend(cert_reasons)
 
+    decision = source["decision"]
+    if decision != {
+        "preflight_classification": "kerberos_smb_task_ready",
+        "selected_transport": "kerberos_smb_task",
+    }:
+        reasons.append(REASON_EXECUTION_FAILED)
+
+    if source["network_activity_performed"] is not True:
+        reasons.append(REASON_EXECUTION_FAILED)
+    if source["target_mutation_performed"] is not True:
+        reasons.append(REASON_EXECUTION_FAILED)
+
     if not operator_confirmed:
         reasons.append(REASON_OPERATOR_MISSING)
+
+    reasons = list(dict.fromkeys(reasons))
 
     if reasons:
         if REASON_CLEANUP_INCOMPLETE in reasons:
@@ -319,21 +435,22 @@ def main(argv: list[str] | None = None) -> None:
 
     # Load and validate
     source = _load_json(source_path)
-    _validate_source_schema(source)
+
+    # Reject private source fields before reporting structural schema errors so the
+    # privacy boundary remains explicit to the operator.
+    _scan_forbidden_fields(source)
+    _validate_source_against_schema(source)
     decision = source.get("decision", {})
     _validate_decision(decision)
     cert = source.get("certification", {})
     privacy = source.get("privacy", {})
-
-    # Scan for forbidden private fields
-    _scan_forbidden_fields(source)
 
     # Validate privacy block
     _validate_privacy(privacy)
 
     # Determine outcome
     outcome, reason_codes = _determine_outcome_and_reasons(
-        cert, args.contract_fixture, args.operator_confirmed
+        source, args.contract_fixture, args.operator_confirmed
     )
 
     # Build receipt

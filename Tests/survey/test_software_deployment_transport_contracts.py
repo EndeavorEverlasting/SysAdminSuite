@@ -457,6 +457,98 @@ def test_receipt_ingest_produces_valid_receipt_from_fixture() -> None:
         assert summary["privacy_clean"] is True
 
 
+def test_receipt_ingest_validates_the_complete_live_cert_source_schema() -> None:
+    """Every source field is validated through the tracked live-cert schema."""
+    import subprocess
+    import tempfile
+
+    source = load(FIXTURES / "live-cert-result.fixture.json")
+    invalid_sources: list[tuple[str, dict]] = []
+
+    missing_timestamp = copy.deepcopy(source)
+    missing_timestamp.pop("generated_at_utc")
+    invalid_sources.append(("missing timestamp", missing_timestamp))
+
+    invalid_timestamp = copy.deepcopy(source)
+    invalid_timestamp["generated_at_utc"] = "not-a-date"
+    invalid_sources.append(("invalid timestamp", invalid_timestamp))
+
+    non_boolean_activity = copy.deepcopy(source)
+    non_boolean_activity["network_activity_performed"] = "true"
+    invalid_sources.append(("non-boolean activity", non_boolean_activity))
+
+    short_proof_ceiling = copy.deepcopy(source)
+    short_proof_ceiling["proof_ceiling"] = "too short"
+    invalid_sources.append(("short proof ceiling", short_proof_ceiling))
+
+    extra_root_property = copy.deepcopy(source)
+    extra_root_property["unexpected"] = False
+    invalid_sources.append(("extra root property", extra_root_property))
+
+    extra_decision_property = copy.deepcopy(source)
+    extra_decision_property["decision"]["fallback"] = "winrm"
+    invalid_sources.append(("extra decision property", extra_decision_property))
+
+    extra_certification_property = copy.deepcopy(source)
+    extra_certification_property["certification"]["installer_started"] = False
+    invalid_sources.append(("extra certification property", extra_certification_property))
+
+    for label, candidate in invalid_sources:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = Path(tmpdir) / "invalid_source.json"
+            source_path.write_text(json.dumps(candidate), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(INGEST_SCRIPT),
+                 "--source", str(source_path),
+                 "--output-dir", str(Path(tmpdir) / "out")],
+                capture_output=True, text=True, timeout=30,
+            )
+            assert result.returncode != 0, f"schema accepted {label}"
+            assert "source schema validation failed" in result.stderr.lower(), result.stderr
+
+
+def test_live_cert_pass_requires_activity_mutation_and_smb_decision() -> None:
+    """Operator confirmation and certification flags cannot create false proof."""
+    import subprocess
+    import tempfile
+
+    source = load(FIXTURES / "live-cert-result.fixture.json")
+    invalid_pass_inputs: list[tuple[str, dict]] = []
+
+    no_network = copy.deepcopy(source)
+    no_network["network_activity_performed"] = False
+    invalid_pass_inputs.append(("network activity false", no_network))
+
+    no_mutation = copy.deepcopy(source)
+    no_mutation["target_mutation_performed"] = False
+    invalid_pass_inputs.append(("target mutation false", no_mutation))
+
+    winrm = copy.deepcopy(source)
+    winrm["decision"] = {
+        "preflight_classification": "winrm_ready",
+        "selected_transport": "winrm",
+    }
+    invalid_pass_inputs.append(("WinRM decision", winrm))
+
+    for label, candidate in invalid_pass_inputs:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = Path(tmpdir) / "source.json"
+            source_path.write_text(json.dumps(candidate), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(INGEST_SCRIPT),
+                 "--source", str(source_path),
+                 "--output-dir", str(Path(tmpdir) / "out"),
+                 "--operator-confirmed"],
+                capture_output=True, text=True, timeout=30,
+            )
+            assert result.returncode == 0, f"ingest failed for {label}: {result.stderr}"
+            output = json.loads(result.stdout)
+            receipt = load(Path(output["receipt"]))
+            assert receipt["outcome"] == "live_cert_failed", f"false pass for {label}"
+            assert receipt["proof_level"] == "insufficient"
+            assert "execution_failed" in receipt["reason_codes"]
+
+
 def test_receipt_ingest_rejects_private_fields() -> None:
     """The receipt ingest rejects source evidence containing forbidden private fields."""
     require(INGEST_SCRIPT.exists(), f"receipt ingest script missing: {INGEST_SCRIPT}")
@@ -517,6 +609,8 @@ def main() -> None:
         test_tracked_transport_floor_has_no_live_or_machine_local_evidence,
         test_live_cert_result_schema_is_closed_and_frozen,
         test_receipt_ingest_produces_valid_receipt_from_fixture,
+        test_receipt_ingest_validates_the_complete_live_cert_source_schema,
+        test_live_cert_pass_requires_activity_mutation_and_smb_decision,
         test_receipt_ingest_rejects_private_fields,
         test_receipt_ingest_powershell_script_exists,
     ]

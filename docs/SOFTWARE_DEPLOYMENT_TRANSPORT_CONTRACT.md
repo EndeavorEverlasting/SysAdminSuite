@@ -1,6 +1,6 @@
 # Software deployment transport contract floor
 
-This document is the authority boundary for selecting, certifying, and reporting a SysAdminSuite software-deployment transport. The frozen v1 schemas remain unchanged. The read-only preflight implementation is now present; live certification, software execution, and public proof ingestion remain separately gated.
+This document is the authority boundary for selecting, certifying, and reporting a SysAdminSuite software-deployment transport. The frozen v1 result and public-receipt schemas remain unchanged. The read-only preflight and local public-receipt ingest implementations are present; the harmless live-cert producer and software execution remain separately gated.
 
 Low-noise execution and target-user visibility are defined in [`SOFTWARE_DEPLOYMENT_LOW_NOISE.md`](SOFTWARE_DEPLOYMENT_LOW_NOISE.md).
 
@@ -82,7 +82,7 @@ Every run also emits `low_noise_context.json`, which records the canonical polic
 
 The receipt binds a future operator-local live-cert result by lowercase SHA-256 and byte length. The source evidence remains operator-local and is not copied into public output. The closed receipt rejects hostname, username, Kerberos ticket bytes, credentials, package paths, machine-local paths, and raw evidence.
 
-A `live_cert_pass` receipt requires operator confirmation and affirmative proof that the harmless task was created, ran as SYSTEM, returned a result, was deleted, had its staging removed, and left zero run-scoped remnants. It also requires `software_installation_performed` to remain false.
+A `live_cert_pass` receipt requires operator confirmation, `network_activity_performed` and `target_mutation_performed` to be true, and affirmative proof that the harmless task was created, ran as SYSTEM, returned a result, was deleted, had its staging removed, and left zero run-scoped remnants. It also requires `software_installation_performed` to remain false. P07 accepts live pass proof only for `kerberos_smb_task_ready` with `kerberos_smb_task`; WinRM cannot produce a P07 live pass.
 
 Sanitized fixtures can prove only the contract. They can never become live certification proof.
 
@@ -95,8 +95,17 @@ Sanitized fixtures can prove only the contract. They can never become live certi
 
 These registrations define interfaces, not permission.
 
+## Adapter staging boundaries
+
+The application adapters retain separate target staging roots:
+
+- the WinRM adapter owns `C:\ProgramData\SysAdminSuite\SoftwareInstall\<run_id>`;
+- the SMB/Task Scheduler compatibility adapter owns `C:\ProgramData\SysAdminSuite\AppInstall\<run_id>`.
+
+Neither adapter may inspect, reuse, or delete the other adapter's staging root. The P07 receipt ingest is local-only and does not access either target staging root.
+
 ## Evidence and proof ceiling
 
 Tracked fixtures use synthetic, identifier-free observations. Raw corporate evidence, target names, usernames, ticket caches, package paths, and local run artifacts must remain in ignored operator-local evidence roots.
 
-The current implementation reaches parser, unit/contract, sanitized fixture, schema, run-context, artifact-registry, low-noise-context, public-safe receipt ingest (P07), and CI proof. It does not prove live corporate-network traffic, scheduled-task creation, SYSTEM execution, result retrieval, teardown, software installation, absence of vendor UI, or application acceptance.
+The current implementation reaches parser, unit/contract, sanitized fixture, schema, run-context, artifact-registry, low-noise-context, and public-safe receipt ingest (P07) proof. The ingest validates the complete operator-local source against `schemas/harness/software-deployment-transport-live-cert-result.schema.json` before classification. No repository-owned harmless live-cert producer exists yet, so no public live receipt can be claimed until that producer runs successfully and its operator-local result is ingested. Current proof does not establish live corporate-network traffic, scheduled-task creation, SYSTEM execution, result retrieval, teardown, software installation, absence of vendor UI, or application acceptance.

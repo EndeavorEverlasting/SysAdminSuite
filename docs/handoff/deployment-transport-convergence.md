@@ -12,13 +12,13 @@ This handoff records the preserved deployment-transport contributions, canonical
 
 | Sprint contribution | Repository evidence | Disposition |
 |---|---|---|
-| P01 contract floor | PR #242, frozen result and receipt schemas, sanitized fixtures, API operations, workflow, contracts, and CI | Preserved on the P08 convergence branch; source PR remains open until the convergence PR lands. |
-| P02 preflight | The frozen `software_install.transport_preflight` operation exists. No runnable producer that emits `sas-software-deployment-transport-result/v1` was present on `main` or an identified P02 head. | Contract preserved; implementation remains an explicit blocker and is not invented during closeout. |
-| P03 application transport | PR #229 is merged. PR #238 adds approved package sets and fixes to the existing SMB/Task Scheduler controller. | Merged #229 behavior retained; unique #238 work preserved on the convergence branch. |
+| P01 contract floor | PR #242, frozen result and receipt schemas, sanitized fixtures, API operations, workflow, contracts, and CI | Landed on `main`; the frozen contract remains the authority for later producers and ingest. |
+| P02 preflight | PR #244 added the runnable `software_install.transport_preflight` producer for `sas-software-deployment-transport-result/v1`. | Implemented on `main` as a read-only, intent-scoped preflight; it does not prove target mutation. |
+| P03 application transport | PR #229 is merged, and PR #246 promoted the existing Kerberos SMB/Task Scheduler controller. | Application transport is present, but it is not a substitute for the harmless live-cert producer. |
 | P04 E2E and proof ingestion | PR #177 established default E2E, PR #180 established validated finalization, and PR #232 established production-proof ingestion. | Already on `main`; retained without duplicating their authorities. |
 | P05 agent harness | PR #151 established the software-install harness. PR #174 and PR #224 established skill/capability routing. PR #237 factors E2E procedure into the project skill. | Merged harness/routing retained; unique #237 factoring reconciled with current governance and preserved on the convergence branch. |
 | P06 operator documentation | PR #233 published the Task Scheduler tutorial and PR #234 published the one-target floor handoff/index. | Already on `main`; terminology and navigation are repaired by P08. |
-| P07 terminal receipt | No public-safe P07 receipt, digest, or terminal classification was present in tracked files, source PRs, or the supplied sprint material. | Raw evidence was not accessed. Digest and classification remain `unavailable`; receipt-continuity proof is blocked until a schema-valid public receipt is supplied. |
+| P07 terminal receipt | PR #249 implements `software_install.transport_proof_ingest`, the closed live-cert source schema, a sanitized fixture, and the public-safe receipt wrapper. | The receipt producer is implemented on an open PR. No public live receipt exists until a repository-owned harmless live-cert producer runs successfully and its operator-local result is ingested. Raw evidence was not accessed. |
 
 No source branch is deleted by P08. A source PR may be closed as superseded only after its unique work is present on `main`.
 
@@ -26,8 +26,9 @@ No source branch is deleted by P08. A source PR may be closed as superseded only
 
 | Concern | Canonical authority | Current limit |
 |---|---|---|
-| Transport result | `schemas/harness/software-deployment-transport-result.schema.json` | Contract only until a runnable preflight producer is integrated. |
-| Public receipt | `schemas/harness/software-deployment-transport-receipt.schema.json` | Binds operator-local evidence by SHA-256 without copying it. |
+| Transport result | `schemas/harness/software-deployment-transport-result.schema.json` and `scripts/Test-SasSoftwareDeploymentTransport.ps1` | Runnable read-only preflight; no mutation proof. |
+| Public receipt | `schemas/harness/software-deployment-transport-receipt.schema.json` and `scripts/Invoke-SasTransportProofIngest.ps1` | Binds a schema-valid operator-local source by SHA-256 without copying it; no public live receipt exists yet. |
+| Live-cert source | `schemas/harness/software-deployment-transport-live-cert-result.schema.json` | Closed source contract only; the repository-owned harmless result producer is still missing. |
 | Selection operations | `harness/api/sas-harness-api.json` and `harness/workflows/software-deployment-transport.yaml` | Registration grants no network or mutation authority. |
 | Validated deployment front door | `scripts/Invoke-SasValidatedSoftwareDeployment.ps1` | Currently delegates to the WinRM implementation and does not consume the transport decision. |
 | WinRM application adapter | `scripts/Invoke-SasSoftwareInstall.ps1` | Uses `C:\ProgramData\SysAdminSuite\SoftwareInstall\<run_id>` only for explicit staging. |
@@ -59,18 +60,19 @@ No source branch is deleted by P08. A source PR may be closed as superseded only
 | #237 | open, conflicting with current governance | Unique E2E skill factoring preserved and conflict-repaired on P08; do not close until P08 lands. |
 | #238 | open draft, mergeable | Unique package-set work preserved on P08; do not close until P08 lands. |
 | #242 | open draft, mergeable | Complete P01 floor preserved on P08; do not close until P08 lands. |
+| #243 | merged | P08 convergence is now on `main`; this ledger is repaired by P07 instead of treating sprint numbers as a linear merge order. |
+| #249 | open, mergeable at P07 intake | Receipt ingest is implemented here; live receipt continuity remains blocked by the missing harmless producer and absent operator-local run. |
 
 PR #241 and all other non-transport PRs are unrelated to this convergence lane and must not be mutated by P08.
 
 ## Merge readiness blockers
 
-1. A runnable preflight producer is not present for `sas-software-deployment-transport-result/v1`.
+1. No repository-owned producer performs only the harmless run-scoped SMB task, result retrieval, teardown, zero-remnant verification, and live-cert result emission.
 2. The validated front door does not consume and enforce a schema-valid transport decision.
-3. No public-safe P07 receipt was available, so its digest and terminal classification cannot be verified.
-4. Source PRs #237, #238, and #242 must remain open until this preserved convergence head is merged.
+3. PR #249 implements downstream receipt ingest, but no public-safe live receipt is available until the missing producer runs and its operator-local result is ingested.
 
-These blockers prevent claiming one fully implemented cross-transport controller or P07 receipt continuity. They do not invalidate the preserved schema, fixture E2E, existing transport-specific implementations, or CI proof.
+These blockers prevent claiming one fully implemented cross-transport controller or live P07 receipt continuity. They do not invalidate the runnable P02 preflight, P07 receipt producer, preserved schemas, fixture E2E, existing transport-specific implementations, or CI proof.
 
 ## Proof ceiling
 
-P08 can prove repository preservation, authority consistency, parser/contracts, synthetic SMB fixture E2E, default fixture/loopback E2E in CI, agent-routing validation, documentation contracts, and final-head CI. It does not prove a new live target, fleet rollout, package installation, business acceptance, or the missing P07 receipt.
+The convergence and P07 fixture gates can prove repository preservation, authority consistency, parser/contracts, schema-valid sanitized ingest, synthetic SMB fixture E2E, default fixture/loopback E2E in CI, agent-routing validation, and documentation contracts. They do not prove a new live target, harmless scheduled-task execution, cleanup on a target, a public live receipt, fleet rollout, package installation, or business acceptance.

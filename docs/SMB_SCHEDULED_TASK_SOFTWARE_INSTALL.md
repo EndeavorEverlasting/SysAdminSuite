@@ -11,7 +11,7 @@ This page covers the canonical PowerShell transport and the preserved
 
 Use `SmbScheduledTask` when an authorized Windows target does not accept WinRM but Kerberos-authenticated administrative shares and remote Task Scheduler are certified. The canonical path is no longer a legacy fallback: `Invoke-SasValidatedSoftwareDeployment.ps1` consumes the closed request and fresh P02 decision. Run it from an approved Windows admin workstation or approved Windows admin VM.
 
-The controller uses the current Windows admin token. It does not require `smbclient`, collect credentials, enable WinRM, change firewall policy, or weaken endpoint controls. The repository does not provision or authorize the controller VM. This fallback does not provide the canonical WinRM lane; WinRM remains an optional separately certified adapter, not a universal requirement.
+The controller uses the current Windows admin token. It does not require `smbclient`, collect credentials, enable WinRM, change firewall policy, or weaken endpoint controls. The repository does not provision or authorize the controller VM. This compatibility path is not the validated PowerShell front door; WinRM remains an optional separately certified adapter, not a universal requirement.
 
 ## Canonical selection and execution
 
