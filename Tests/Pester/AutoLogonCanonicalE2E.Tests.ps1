@@ -46,5 +46,6 @@ Describe 'Canonical AutoLogon composed E2E harness' {
         }
         $content | Should -Match 'system_execution_is_simulated=\$true'
         $content | Should -Match 'default_password_value_read=\$false'
+        $content | Should -Match '\[AllowEmptyCollection\(\)\]\[Collections\.Generic\.List\[object\]\]\$List'
     }
 }

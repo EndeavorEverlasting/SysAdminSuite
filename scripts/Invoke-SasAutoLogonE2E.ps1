@@ -42,7 +42,7 @@ function Copy-E2EObject {
 
 function Add-ValidationArtifact {
     param(
-        [Parameter(Mandatory = $true)][Collections.Generic.List[object]]$List,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][Collections.Generic.List[object]]$List,
         [Parameter(Mandatory = $true)][string]$Role,
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Schema

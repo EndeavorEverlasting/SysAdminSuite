@@ -110,6 +110,7 @@ def test_runner_crosses_real_composition_without_live_authority() -> None:
         "source_evidence_copied=$false",
         "live_proof_promoted=$false",
         "validate_autologon_e2e_artifacts.py",
+        "[AllowEmptyCollection()][Collections.Generic.List[object]]$List",
     )
     for marker in required:
         assert marker in runner, marker
