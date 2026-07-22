@@ -653,6 +653,8 @@ if ($transportFailure) {
         target_count = $targets.Count; eligible_install_count = 0; install_planned_count = 0; install_completed_count = 0
         confirmed_state_transition_count = 0; cleanup_failure_count = 0; repo_artifact_remaining_count = 0
         target_mutation_performed = $false; startup_persistence_created = $false; default_password_value_collected = $false
+        canonical_front_door_used = $false; fixture_adapter_result_count = 0; final_gate_passed = $false
+        deployment_result_classification = [string]$deployment.classification; state_result_classification = 'not_started'
         review_required = $true; artifact_count = 0; blocker = $transportFailure
     }
     Complete-SasAutoLogonRun -Context $context -DeploymentResult $deployment -GateResult $null -StateResult $null -Summary $summary
@@ -685,6 +687,8 @@ if ($WhatIfPreference -and -not $FixtureMode) {
         target_count = $targets.Count; eligible_install_count = 0; install_planned_count = $targets.Count; install_completed_count = 0
         confirmed_state_transition_count = 0; cleanup_failure_count = 0; repo_artifact_remaining_count = 0
         target_mutation_performed = $false; startup_persistence_created = $false; default_password_value_collected = $false
+        canonical_front_door_used = $canonicalFrontDoorUsed; fixture_adapter_result_count = 0; final_gate_passed = $false
+        deployment_result_classification = [string]$deployment.classification; state_result_classification = 'not_started'
         review_required = $false; artifact_count = 0
     }
     Complete-SasAutoLogonRun -Context $context -DeploymentResult $deployment -GateResult $null -StateResult $null -Summary $summary

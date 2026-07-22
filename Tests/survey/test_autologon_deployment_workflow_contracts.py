@@ -118,6 +118,7 @@ def test_p09_results_and_artifacts_are_emitted() -> None:
     )
     for marker in required:
         assert marker in content, f"missing P09 emission contract: {marker}"
+    assert content.count("fixture_adapter_result_count") >= 3, "every terminal summary path must emit the fixture adapter count"
 
 
 def test_fixture_mode_stays_non_runtime_and_uses_synthetic_fqdn() -> None:
