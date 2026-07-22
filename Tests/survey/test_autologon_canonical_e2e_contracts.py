@@ -120,8 +120,11 @@ def test_runner_crosses_real_composition_without_live_authority() -> None:
         "failed_gate_ids=",
         "cleanup_failures=",
         'E2E_FAILURE|{0}',
+        "$localFixtureCleanupVerified = $false\ntry {",
+        "finally {\n    # Remove both the harmless installed state",
         "foreach ($fixtureCleanupRoot in @($fixtureTarget,$generatedRoot))",
         "Remove-Item -LiteralPath $fixtureCleanupRoot -Recurse -Force -ErrorAction Stop",
+        "$adapterCleanupVerified = ([bool]$adapter.cleanup.attempted -and",
         "$composedCleanupVerified = ($adapterCleanupVerified -and $localFixtureCleanupVerified)",
         "$composedZeroRemnantsVerified = ($zeroRunScopedRemnants -and $localFixtureCleanupVerified)",
     )

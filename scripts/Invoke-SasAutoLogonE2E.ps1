@@ -101,12 +101,14 @@ $fixtureTarget = Join-Path $rawRoot 'harmless-installer-target'
 $applicationRoot = Join-Path $rawRoot 'application-scenarios'
 $gateRoot = Join-Path $rawRoot 'final-gate-scenarios'
 $adapterRoot = Join-Path $rawRoot 'canonical-adapter'
-New-Item -ItemType Directory -Path $generatedRoot,$fixtureTarget,$applicationRoot,$gateRoot,$adapterRoot -Force | Out-Null
-
-$matrix = Get-Content -LiteralPath $matrixPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $scenarioRows = New-Object Collections.Generic.List[object]
 $validationArtifacts = New-Object Collections.Generic.List[object]
 $failures = New-Object Collections.Generic.List[string]
+New-Item -ItemType Directory -Path $generatedRoot,$fixtureTarget,$applicationRoot,$gateRoot,$adapterRoot -Force | Out-Null
+
+$localFixtureCleanupVerified = $false
+try {
+    $matrix = Get-Content -LiteralPath $matrixPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 # Build and execute a harmless generated Windows executable against an isolated local fixture root.
 $installerPath = Join-Path $generatedRoot 'sysadminsuite-autologon-fixture.exe'
@@ -140,7 +142,8 @@ Write-E2EJson -Path $adapterResultPath -Value $adapter
 $stagedHashVerified = ([bool]$adapter.hashes_verified -and
     [string]$adapter.source_sha256 -eq [string]$adapter.target_sha256 -and
     [string]$adapter.worker_source_sha256 -eq [string]$adapter.worker_target_sha256)
-$adapterCleanupVerified = ([bool]$adapter.cleanup.task_deletion_succeeded -and
+$adapterCleanupVerified = ([bool]$adapter.cleanup.attempted -and
+    [bool]$adapter.cleanup.task_deletion_succeeded -and
     [bool]$adapter.cleanup.run_root_deletion_succeeded -and
     -not [bool]$adapter.cleanup.task_remaining -and
     -not [bool]$adapter.cleanup.run_root_remaining)
@@ -327,24 +330,26 @@ if ([string]$sourceEvidence.classification -ne 'fixture_contract_only' -or [bool
     [string]$receipt.classification -ne 'contract_only') {
     $failures.Add('sanitized receipt ingestion promoted fixture evidence beyond contract_only')
 }
-
-# Remove both the harmless installed state and the generated executable/build manifest.
-# Cleanup remains fail-closed while preserving the other raw fixture evidence needed by
-# the durable schema validator later in this run.
-$localFixtureCleanupVerified = $true
-foreach ($fixtureCleanupRoot in @($fixtureTarget,$generatedRoot)) {
-    try {
-        if (Test-Path -LiteralPath $fixtureCleanupRoot) {
-            Remove-Item -LiteralPath $fixtureCleanupRoot -Recurse -Force -ErrorAction Stop
+}
+finally {
+    # Remove both the harmless installed state and the generated executable/build manifest.
+    # Cleanup remains fail-closed while preserving the other raw fixture evidence needed by
+    # the durable schema validator later in this run.
+    $localFixtureCleanupVerified = $true
+    foreach ($fixtureCleanupRoot in @($fixtureTarget,$generatedRoot)) {
+        try {
+            if (Test-Path -LiteralPath $fixtureCleanupRoot) {
+                Remove-Item -LiteralPath $fixtureCleanupRoot -Recurse -Force -ErrorAction Stop
+            }
         }
-    }
-    catch {
-        $localFixtureCleanupVerified = $false
-        $failures.Add('local generated installer fixture teardown failed')
-    }
-    if (Test-Path -LiteralPath $fixtureCleanupRoot) {
-        $localFixtureCleanupVerified = $false
-        $failures.Add('local generated installer fixture remnant survived teardown')
+        catch {
+            $localFixtureCleanupVerified = $false
+            $failures.Add('local generated installer fixture teardown failed')
+        }
+        if (Test-Path -LiteralPath $fixtureCleanupRoot) {
+            $localFixtureCleanupVerified = $false
+            $failures.Add('local generated installer fixture remnant survived teardown')
+        }
     }
 }
 $composedCleanupVerified = ($adapterCleanupVerified -and $localFixtureCleanupVerified)
