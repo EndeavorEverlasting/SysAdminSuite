@@ -1,0 +1,103 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: operational-harness-maintenance
+mode: local_transform
+network_activity: false
+target_mutation: false
+purpose: >-
+  Maintain the repository harness floor so a fresh agent can inspect the repo,
+  select a workflow, validate safely, produce artifacts, and hand off without
+  changing product behavior or the governance contract.
+
+inputs:
+  required:
+    - repository_root
+    - current_branch
+    - owned_scope
+    - forbidden_scope
+  optional:
+    - failure_log
+    - existing_pull_request
+
+stages:
+  - id: inspect
+    order: 1
+    actions:
+      - read AGENTS.md without modifying it
+      - inspect git status, current branch, and active pull requests
+      - read CODEBASE_MAP.md
+      - read harness/api/operational-harness-manifest.json
+      - inspect existing validators, hooks, skills, reports, and artifact contracts
+    stop_conditions:
+      - repository cannot be resolved
+      - unrelated uncommitted work would be overwritten
+
+  - id: route
+    order: 2
+    actions:
+      - choose the smallest existing skill and workflow that match the task
+      - fail closed when equal-priority routes conflict
+      - declare lane, mission, owned scope, forbidden scope, artifacts, validation, and proof ceiling
+
+  - id: implement
+    order: 3
+    actions:
+      - reuse canonical harness components before creating new ones
+      - keep writes inside maps, workflows, validators, registries, hooks, skills, reports, schemas, and harness CI
+      - preserve product code and AGENTS.md
+      - keep generated evidence under ignored survey/output roots
+
+  - id: validate
+    order: 4
+    actions:
+      - python Tests/survey/test_operational_harness_completeness_contracts.py
+      - python scripts/check-repo-text-policy.py --cached
+      - python Tests/survey/test_local_harness_contracts.py
+      - bash tests/survey/run_offline_survey_tests.sh
+      - git diff --check
+    escalation:
+      - run broader Pester or E2E only when changed files intersect those contracts
+
+  - id: failure
+    order: 5
+    actions:
+      - stop at the first failed proof boundary
+      - classify the failure as contract, dependency, representation, integration, or runtime
+      - preserve logs and generated evidence outside Git
+      - repair the smallest owning harness component
+      - rerun the failed validator before broader suites
+    forbidden:
+      - bypassing a failed validator
+      - deleting unrelated work
+      - claiming runtime proof from static checks
+
+  - id: commit
+    order: 6
+    actions:
+      - name every changed file
+      - commit coherent harness work
+      - push the isolated branch
+      - open or update one pull request
+
+  - id: handoff
+    order: 7
+    actions:
+      - report validation commands and exact results
+      - report commit SHA and push or PR state
+      - state skipped checks, known gaps, risks, and proof ceiling
+      - provide one exact next command
+      - use tools/New-SasSprintCapsule.ps1 when a compressed next-agent handoff is needed
+
+outputs:
+  tracked:
+    - harness/api/operational-harness-manifest.json
+    - harness/api/harness-artifact-registry.json
+    - schemas/harness/operational-harness-manifest.schema.json
+    - docs/HARNESS_STATUS.md
+  generated_local:
+    - survey/output/harness-validator/harness-proof-*/
+    - survey/output/<workflow>/<run_id>/operator_handoff.txt
+    - survey/output/<workflow>/<run_id>/artifact_registry.json
+
+proof_ceiling: >-
+  Static repository structure, tracking, schema, workflow, hook, text-policy,
+  and contract proof only unless a separate executable or live-runtime gate is run.
