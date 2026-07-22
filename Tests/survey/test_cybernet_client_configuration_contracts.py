@@ -38,6 +38,12 @@ def test_profile_matches_client_preferences() -> None:
     assert profile["workflow"]["pilot_target_count"] == 1
     assert profile["workflow"]["maximum_target_count"] == 25
     assert profile["workflow"]["automatic_reboot_forbidden"] is True
+    assert profile["workflow"]["apply_order"] == [
+        "hardware_apply_and_validate",
+        "approved_software_package_set_install",
+        "hardware_post_software_validate",
+        "technician_software_acceptance",
+    ]
 
 
 def test_profile_uses_exact_approved_package_set_order() -> None:
@@ -67,10 +73,9 @@ def test_orchestrator_reuses_authoritative_lanes() -> None:
         "APPLIED_TECHNICIAN_ACCEPTANCE_REQUIRED",
         "HARDWARE_VALIDATED_SOFTWARE_ACCEPTANCE_REQUIRED",
         "technician_software_acceptance.txt",
+        "if (@($stages | Where-Object exit_code -ne 0).Count -eq 0)",
     ):
         assert marker in script
-    assert script.index("hardware-apply") < script.index("approved-software-install")
-    assert script.index("approved-software-install") < script.index("hardware-post-software-validation")
 
 
 def test_orchestrator_fails_closed_and_does_not_bypass_boundaries() -> None:
