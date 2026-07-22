@@ -62,10 +62,8 @@ echo Run from the SysAdminSuite repository root on an approved Windows admin con
 echo This launcher accepts one explicit authorized Cybernet target only.
 echo Pilot requires the target's fully qualified DNS name.
 echo.
-echo Preferred one-target pilot:
+echo Usage:
 echo   Run-CybernetClientConfiguration.cmd Pilot CYBERNET-HOST.domain.example
-echo.
-echo Other modes:
 echo   Run-CybernetClientConfiguration.cmd Plan CYBERNET-HOST
 echo   Run-CybernetClientConfiguration.cmd DryRun CYBERNET-HOST
 echo   Run-CybernetClientConfiguration.cmd Apply CYBERNET-HOST
