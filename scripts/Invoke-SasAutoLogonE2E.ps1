@@ -166,8 +166,10 @@ $catalog = [pscustomobject][ordered]@{
     packages = @([pscustomobject][ordered]@{
         id='autologon'; display_name='NW AutoLogon Setup x64'; source_folder_relative_path='packages\AutoLogonSetup'
         installer_file='SysAdminSuiteAutoLogonFixture.exe'; default_install_mode='CopyThenInstall'
-        default_installer_arguments=@(); requires_validated_installer_arguments=$true; install_enabled=$true
-        readiness='sanitized_fixture'; acceptance=[pscustomobject]@{}; notes='Sanitized E2E fixture only.'
+        default_installer_arguments=@(); requires_validated_installer_arguments=$false
+        installer_arguments_policy='approved_empty'; installer_arguments_reference='sanitized fixture no-argument record'
+        install_enabled=$true; readiness='installer_and_no_arguments_confirmed'
+        acceptance=[pscustomobject]@{}; notes='Sanitized E2E fixture only.'
     })
 }
 $catalogPath = Join-Path $rawRoot 'approved-apps.fixture.json'
