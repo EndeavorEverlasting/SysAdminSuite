@@ -1,0 +1,36 @@
+{
+  "schema_version": "sas-autologon-proof-source-evidence/v1",
+  "evidence_class": "sanitized_fixture",
+  "classification": "fixture_contract_only",
+  "reason_codes": ["sanitized_fixture_chain_validated"],
+  "contract_fixture": true,
+  "target_binding_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "artifact_digests": [
+    { "role": "deployment_result", "sha256": "2222222222222222222222222222222222222222222222222222222222222222", "size_bytes": 512 },
+    { "role": "final_step_gate_result", "sha256": "3333333333333333333333333333333333333333333333333333333333333333", "size_bytes": 384 },
+    { "role": "state_proof_result", "sha256": "4444444444444444444444444444444444444444444444444444444444444444", "size_bytes": 640 },
+    { "role": "session_access_proof", "sha256": "5555555555555555555555555555555555555555555555555555555555555555", "size_bytes": 448 },
+    { "role": "technician_runtime_proof", "sha256": "6666666666666666666666666666666666666666666666666666666666666666", "size_bytes": 704 }
+  ],
+  "proof": {
+    "administrator_approved": false,
+    "canonical_transport_used": false,
+    "deployment_succeeded": false,
+    "reboot_observed": false,
+    "automatic_sign_in_observed": false,
+    "expected_account_match": false,
+    "session_access_proven": false,
+    "application_behavior_proven": false,
+    "cleanup_verified": false
+  },
+  "operator_confirmation": false,
+  "privacy": {
+    "status": "sanitized_fixture",
+    "source_retained_operator_local": true,
+    "source_copied_to_public_output": false,
+    "default_password_value_present": false,
+    "credentials_present": false
+  },
+  "proof_level": "sanitized_fixture_contract",
+  "proof_ceiling": "Sanitized proof-chain fixture only; no deployment, reboot, automatic sign-in, access, or application behavior is proven."
+}

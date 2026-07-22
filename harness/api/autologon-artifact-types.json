@@ -1,0 +1,73 @@
+{
+  "schema_version": "sas-autologon-artifact-types/v1",
+  "workflow_id": "autologon-proof",
+  "run_context": {
+    "module_path": "scripts/SasRunContext.psm1",
+    "schema_version": "sas-run-context/v1",
+    "artifact_registry_schema": "schemas/harness/artifact-registry.schema.json",
+    "required_files": [
+      "context.json",
+      "artifact_registry.json",
+      "summary.json",
+      "operator_handoff.txt"
+    ]
+  },
+  "artifact_types": [
+    {
+      "id": "autologon_deployment_result",
+      "filename": "autologon_deployment_result.json",
+      "schema_path": "schemas/harness/autologon-deployment-result.schema.json",
+      "privacy_class": "operator_local",
+      "durable": true,
+      "register_in_artifact_registry": true
+    },
+    {
+      "id": "autologon_final_step_gate_result",
+      "filename": "autologon_final_step_gate_result.json",
+      "schema_path": "schemas/harness/autologon-final-step-gate-result.schema.json",
+      "privacy_class": "operator_local",
+      "durable": true,
+      "register_in_artifact_registry": true
+    },
+    {
+      "id": "autologon_state_proof_result",
+      "filename": "autologon_state_proof_result.json",
+      "schema_path": "schemas/harness/autologon-state-proof-result.schema.json",
+      "privacy_class": "operator_local",
+      "durable": true,
+      "register_in_artifact_registry": true
+    },
+    {
+      "id": "autologon_session_access_proof",
+      "filename": "autologon_session_access_proof.json",
+      "schema_path": "schemas/harness/autologon-session-access-proof.schema.json",
+      "privacy_class": "operator_local",
+      "durable": true,
+      "register_in_artifact_registry": true
+    },
+    {
+      "id": "autologon_technician_runtime_proof",
+      "filename": "autologon_technician_runtime_proof.json",
+      "schema_path": "schemas/harness/autologon-technician-runtime-proof.schema.json",
+      "privacy_class": "operator_local",
+      "durable": true,
+      "register_in_artifact_registry": true
+    },
+    {
+      "id": "autologon_proof_source_evidence",
+      "filename": "autologon_proof_source_evidence.json",
+      "schema_path": "schemas/harness/autologon-proof-source-evidence.schema.json",
+      "privacy_class": "operator_local",
+      "durable": true,
+      "register_in_artifact_registry": true
+    },
+    {
+      "id": "autologon_proof_receipt",
+      "filename": "autologon_proof_receipt.json",
+      "schema_path": "schemas/harness/autologon-proof-receipt.schema.json",
+      "privacy_class": "public_safe",
+      "durable": true,
+      "register_in_artifact_registry": true
+    }
+  ]
+}

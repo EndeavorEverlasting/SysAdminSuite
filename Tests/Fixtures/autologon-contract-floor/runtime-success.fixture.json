@@ -1,0 +1,26 @@
+{
+  "schema_version": "sas-autologon-technician-runtime-proof/v2",
+  "operation_id": "autologon.technician_runtime_proof",
+  "evidence_class": "sanitized_fixture",
+  "classification": "fixture_contract_pass",
+  "reason_codes": ["synthetic_runtime_contract_validated"],
+  "fixture_mode": true,
+  "proof": {
+    "reboot_observed": false,
+    "automatic_sign_in_observed": false,
+    "expected_account_match": false,
+    "session_access_proven": false,
+    "application_started": false,
+    "application_ready": false,
+    "technician_behavior_observed": false
+  },
+  "technician_confirmation": false,
+  "privacy": {
+    "operator_local": true,
+    "default_password_value_collected": false,
+    "credentials_collected": false,
+    "personal_data_recorded": false
+  },
+  "proof_level": "sanitized_fixture_contract",
+  "proof_ceiling": "Sanitized runtime fixture only; no reboot, sign-in, token access, application launch, or behavior is proven."
+}

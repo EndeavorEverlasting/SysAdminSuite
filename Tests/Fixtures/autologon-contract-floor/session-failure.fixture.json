@@ -1,0 +1,27 @@
+{
+  "schema_version": "sas-autologon-session-access-proof/v2",
+  "operation_id": "autologon.session_access_proof",
+  "evidence_class": "sanitized_fixture",
+  "classification": "fixture_contract_failed",
+  "reason_codes": ["synthetic_identity_mismatch"],
+  "fixture_mode": true,
+  "proof": {
+    "expected_account_match": false,
+    "current_token_access_proven": false,
+    "write_probe_requested": false,
+    "write_probe_cleanup_proven": false
+  },
+  "path_count": 1,
+  "confirmed_path_count": 0,
+  "failed_path_count": 1,
+  "privacy": {
+    "account_identifier_present": false,
+    "path_values_present": false,
+    "path_contents_recorded": false,
+    "credentials_collected": false,
+    "impersonation_used": false,
+    "persistence_created": false
+  },
+  "proof_level": "sanitized_fixture_contract",
+  "proof_ceiling": "Sanitized session failure fixture only; it proves fail-closed classification and no live access."
+}

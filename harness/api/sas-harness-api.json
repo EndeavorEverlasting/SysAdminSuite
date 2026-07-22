@@ -237,6 +237,165 @@
       ]
     },
     {
+      "id": "autologon.plan",
+      "summary": "Validate an AutoLogon request and emit a fixture-safe or operator-local plan without contacting a target or reading the package source.",
+      "mode": "plan_only",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "approved_target_scope",
+        "approved_package_reference",
+        "autologon_deployment_result_schema",
+        "autologon_artifact_type_registry"
+      ],
+      "outputs": [
+        "autologon_deployment_result.json",
+        "artifact_registry.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Request_validation_only",
+        "No_package_source_read",
+        "No_network_activity",
+        "No_target_mutation",
+        "No_secret_values",
+        "Uses_canonical_SasRunContext"
+      ]
+    },
+    {
+      "id": "autologon.admin_deploy",
+      "summary": "Deploy approved AutoLogon through the canonical Kerberos SMB scheduled-task front door after the final-step gate passes.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": true,
+      "inputs": [
+        "approved_administrator_authorization",
+        "schema_valid_kerberos_smb_task_transport_result",
+        "schema_valid_final_step_gate_result",
+        "approved_package_reference",
+        "explicit_target_mutation_approval"
+      ],
+      "outputs": [
+        "autologon_deployment_result.json",
+        "autologon_final_step_gate_result.json",
+        "artifact_registry.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Canonical_Kerberos_SMB_scheduled_task_front_door_required",
+        "No_direct_legacy_WinRM_delegation",
+        "Final_step_gate_must_pass",
+        "No_fallback_after_mutation_begins",
+        "Run_scoped_cleanup_and_zero_remnants_required",
+        "No_password_or_DefaultPassword_value_in_artifacts",
+        "Operator_local_gitignored_evidence_only"
+      ]
+    },
+    {
+      "id": "autologon.state_proof",
+      "summary": "Classify bounded before-and-after AutoLogon configuration evidence without claiming reboot or automatic sign-in unless separately observed.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": false,
+      "inputs": [
+        "approved_target_scope",
+        "before_state_snapshot",
+        "after_state_snapshot",
+        "autologon_state_proof_result_schema"
+      ],
+      "outputs": [
+        "autologon_state_proof_result.json",
+        "artifact_registry.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Read_only_state_collection",
+        "No_DefaultPassword_value_read_or_emit",
+        "State_delta_does_not_prove_reboot_or_sign_in",
+        "No_human_actor_attribution",
+        "Operator_local_gitignored_evidence_only"
+      ]
+    },
+    {
+      "id": "autologon.session_access_proof",
+      "summary": "Verify expected-account current-token access to explicit paths inside the real AutoLogon session with bounded optional marker cleanup.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": false,
+      "inputs": [
+        "expected_account_reference",
+        "explicit_access_paths",
+        "optional_write_probe_authorization",
+        "autologon_session_access_proof_schema"
+      ],
+      "outputs": [
+        "autologon_session_access_proof.json",
+        "artifact_registry.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Run_inside_actual_AutoLogon_session",
+        "No_impersonation_or_credentials",
+        "No_path_content_or_directory_entry_capture",
+        "Optional_marker_is_unique_zero_byte_and_immediately_removed",
+        "Fixture_cannot_claim_current_token_access",
+        "Operator_local_gitignored_evidence_only"
+      ]
+    },
+    {
+      "id": "autologon.technician_runtime_proof",
+      "summary": "Record post-reboot automatic sign-in, expected-account access, application readiness, and technician-observed behavior as one operator-local proof result.",
+      "mode": "operator_execute",
+      "network_activity": true,
+      "target_mutation": true,
+      "inputs": [
+        "approved_runtime_config",
+        "reboot_observation",
+        "automatic_sign_in_observation",
+        "schema_valid_session_access_proof",
+        "technician_behavior_confirmation"
+      ],
+      "outputs": [
+        "autologon_technician_runtime_proof.json",
+        "autologon_proof_source_evidence.json",
+        "artifact_registry.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Technician_confirmation_required_for_live_success",
+        "Fixture_cannot_claim_reboot_sign_in_access_or_application_behavior",
+        "No_personal_or_production_save_data",
+        "No_credentials_or_password_values",
+        "Operator_local_gitignored_evidence_only"
+      ]
+    },
+    {
+      "id": "autologon.proof_receipt_ingest",
+      "summary": "Hash the operator-local AutoLogon source evidence in place and emit the closed public-safe receipt without copying private evidence.",
+      "mode": "local_transform",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "schema_valid_autologon_proof_source_evidence",
+        "source_evidence_sha256",
+        "source_evidence_size_bytes",
+        "operator_confirmation"
+      ],
+      "outputs": [
+        "autologon_proof_receipt.json",
+        "artifact_registry.json",
+        "operator_handoff.txt"
+      ],
+      "guardrails": [
+        "Source_evidence_hashed_in_place_and_not_copied",
+        "Receipt_contains_only_digest_size_classification_proof_reason_confirmation_and_privacy",
+        "No_hostname_account_package_path_or_raw_evidence",
+        "Fixture_cannot_produce_operator_accepted_runtime",
+        "No_network_activity",
+        "No_target_mutation"
+      ]
+    },
+    {
       "id": "software_install.operator_execute",
       "summary": "Install approved software on authorized target computers from approved read-only software shares after consuming a schema-valid transport decision.",
       "mode": "operator_execute",

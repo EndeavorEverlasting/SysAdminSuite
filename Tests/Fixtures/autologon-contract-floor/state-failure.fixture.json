@@ -1,0 +1,25 @@
+{
+  "schema_version": "sas-autologon-state-proof-result/v1",
+  "operation_id": "autologon.state_proof",
+  "evidence_class": "sanitized_fixture",
+  "classification": "fixture_contract_failed",
+  "reason_codes": ["after_snapshot_unavailable"],
+  "fixture_mode": true,
+  "target_count": 1,
+  "proof": {
+    "before_snapshot_captured": true,
+    "after_snapshot_captured": false,
+    "state_change_observed": false,
+    "expected_account_match": false,
+    "reboot_observed": false,
+    "automatic_sign_in_observed": false
+  },
+  "safety": {
+    "collector_target_mutation_performed": false,
+    "target_side_sysadminsuite_artifacts_written": false,
+    "default_password_value_collected": false,
+    "human_actor_attribution_claimed": false
+  },
+  "proof_level": "sanitized_fixture_contract",
+  "proof_ceiling": "Sanitized incomplete-state fixture only; it proves no state or runtime conclusion can be promoted."
+}

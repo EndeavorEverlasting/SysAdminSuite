@@ -88,6 +88,16 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_e2e_default_posture_contracts.py` — default-posture, software-install, and profile contract.
 - `.github/workflows/default-e2e-validation.yml` — executable default E2E CI gate.
 
+## AutoLogon proof contract floor
+
+- `docs/AUTOLOGON_PROOF_CONTRACT_FLOOR.md` — frozen operation IDs, existing-emission ledger, migration boundaries, proof classifications, and privacy ceiling.
+- `schemas/harness/autologon-*.schema.json` — canonical deployment, final-gate, state, session-access, technician-runtime, operator-local source-evidence, and public-receipt contracts.
+- `harness/api/autologon-artifact-types.json` — closed artifact-role registry and canonical run-context requirements.
+- `harness/workflows/autologon-proof-contract-floor.yaml` — frozen workflow mapping without application or live-execution authority.
+- `Tests/Fixtures/autologon-contract-floor/` — sanitized success, failure, overclaim, and private-field fixtures.
+- `Tests/survey/test_autologon_proof_contract_floor_contracts.py` — dependency-free schema, fixture, operation, artifact, privacy, proof-ceiling, migration, and CI validator.
+- `.github/workflows/autologon-proof-contract-floor.yml` — focused offline contract and Draft 2020-12 validation gate.
+
 ## Repo doctrine
 
 - `README.md` — user entrypoint, repo layout, runtime policy, and local source folder policy.

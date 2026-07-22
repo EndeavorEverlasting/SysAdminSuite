@@ -1,0 +1,21 @@
+{
+  "schema_version": "sas-autologon-final-step-gate-result/v1",
+  "gate_id": "autologon-final-step",
+  "gate_version": "1.0.0",
+  "evidence_class": "sanitized_fixture",
+  "classification": "fixture_gate_blocked",
+  "reason_codes": ["before_snapshot_missing"],
+  "fixture_mode": true,
+  "target_identifier_emitted": false,
+  "prerequisites": [
+    { "id": "run_id_format", "mandatory": true, "passed": true, "reason_code": "valid_fixture_run_id" },
+    { "id": "host_eligibility", "mandatory": true, "passed": true, "reason_code": "synthetic_target_eligible" },
+    { "id": "approved_catalog", "mandatory": true, "passed": true, "reason_code": "synthetic_catalog_entry_valid" },
+    { "id": "before_snapshot", "mandatory": true, "passed": false, "reason_code": "before_snapshot_missing" }
+  ],
+  "overall_pass": false,
+  "default_password_value_read": false,
+  "secret_value_emitted": false,
+  "proof_level": "sanitized_fixture_contract",
+  "proof_ceiling": "Sanitized blocked-gate fixture only; it proves the mandatory prerequisite failure remains fail closed."
+}
