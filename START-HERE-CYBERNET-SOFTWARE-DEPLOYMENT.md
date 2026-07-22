@@ -1,10 +1,26 @@
 # Start Here — Cybernet Software Deployment
 
-Use this page when an authorized technician or administrator needs to install one approved package on one or more Cybernet workstations through the Windows-native admin-share and Task Scheduler lane.
+Use this page when an authorized technician or administrator needs to install approved software on Cybernet workstations.
+
+## Complete client configuration
+
+When the assignment includes the client's power-button, Privacy/Menu-button, no-sleep, COM-port, and software preferences together, use the composed workflow instead of running disconnected procedures:
+
+- **Complete technician guide:** [`docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md`](docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md)
+- **One-target launcher:** `Run-CybernetClientConfiguration.cmd`
+- **PowerShell entrypoint:** `Hardware/Cybernet/Invoke-CybernetClientConfiguration.ps1`
+- **Preference source of truth:** `Config/cybernet-client-preferences.json`
+
+The composed workflow applies and validates hardware first, installs the approved six-package clinical set with AutoLogon last, validates hardware again, and emits a technician software-acceptance checklist. It never reboots a target or repairs COM ports remotely.
+
+## Software-only workflow
+
+Use the software-only path when the hardware preferences have already been independently applied and validated.
 
 ## Choose the right guide
 
-- **Step-by-step operator tutorial:** [`docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`](docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md)
+- **Complete hardware-and-software guide:** [`docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md`](docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md)
+- **Step-by-step software operator tutorial:** [`docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`](docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md)
 - **Technical transport reference:** [`docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md`](docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md)
 - **Approved-package lifecycle:** [`docs/AUTODIDACT_INSTALL_WORKFLOW.md`](docs/AUTODIDACT_INSTALL_WORKFLOW.md)
 - **Teardown doctrine:** [`docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md`](docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md)
