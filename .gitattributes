@@ -1,2 +1,3 @@
 *.sh text eol=lf
 *.fixture text eol=lf
+Tests/Fixtures/autologon-result-inspector/deployment-success/artifacts/autologon_proof_source_evidence.json text eol=lf
