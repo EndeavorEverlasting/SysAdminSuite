@@ -32,7 +32,7 @@ echo.
 goto help_error
 
 :pilot
-powershell.exe -NoProfile -File "%SCRIPT_DIR%Hardware\Cybernet\Invoke-CybernetClientPilot.ps1" -ComputerName "%TARGET%"
+powershell.exe -NoProfile -File "%SCRIPT_DIR%Hardware\Cybernet\Invoke-CybernetClientPilot.ps1" -ComputerName "%TARGET%" -OpenResults
 goto done
 
 :plan
@@ -60,11 +60,12 @@ echo SysAdminSuite Cybernet Client Configuration
 echo.
 echo Run from the SysAdminSuite repository root on an approved Windows admin controller.
 echo This launcher accepts one explicit authorized Cybernet target only.
-echo Pilot requires the target's fully qualified DNS name.
+echo Pilot accepts the short hostname and resolves one canonical FQDN automatically.
 echo.
 echo Usage:
 echo Preferred one-target pilot:
-echo   Run-CybernetClientConfiguration.cmd Pilot CYBERNET-HOST.domain.example
+echo   Double-click Run-CybernetLiveCert.cmd and enter the short Cybernet hostname.
+echo   Or: Run-CybernetClientConfiguration.cmd Pilot CYBERNET-HOST
 echo.
 echo Other modes:
 echo   Run-CybernetClientConfiguration.cmd Plan CYBERNET-HOST
@@ -74,10 +75,10 @@ echo   Run-CybernetClientConfiguration.cmd Validate CYBERNET-HOST
 echo   Run-CybernetClientConfiguration.cmd Help
 echo.
 echo Modes:
-echo   Pilot     Recommended first production surface for one authorized Cybernet FQDN.
-echo             Runs the deployment dry run, bounded read-only transport preflight,
-echo             harmless transport live cert, production confirmation, Apply, and Validate.
-echo             Any failed gate stops the pilot before the next higher-impact stage.
+echo   Pilot     Recommended first production surface for one authorized Cybernet hostname.
+echo             Resolves the FQDN, runs the deployment dry run, bounded read-only transport
+echo             preflight, harmless live cert, production confirmation, Apply, and Validate.
+echo             Any unresolved, ambiguous, or failed gate stops before higher-impact work.
 echo   Plan      Validate the profile, create the hardware plan, and run the approved
 echo             six-package software controller in dry-run mode. No target or share contact.
 echo   DryRun    Alias for Plan.
@@ -94,11 +95,9 @@ echo   APPLIED_TECHNICIAN_ACCEPTANCE_REQUIRED
 echo   HARDWARE_VALIDATED_SOFTWARE_ACCEPTANCE_REQUIRED
 echo.
 echo Evidence:
-echo   survey\output\runs\software-deployment-transport-*
-echo   survey\output\runs\software-deployment-transport-live-cert-*
-echo   survey\output\cybernet_hardware\client-configuration-*
-echo   cybernet_client_configuration_summary.json
-echo   operator_handoff.txt
+echo   survey\output\cybernet_live_cert\cybernet-live-cert-*
+echo   OPEN-ME-CYBERNET-LIVE-CERT.txt
+echo   cybernet_live_cert_summary.json
 echo   technician_software_acceptance.txt
 echo.
 echo Safety:
