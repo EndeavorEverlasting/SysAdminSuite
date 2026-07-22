@@ -202,7 +202,10 @@ if ($WhatIfPreference -or $selectedTransport -eq 'WinRM') {
         MaxTargets = 25
     }
     if ($AllowTargetMutation) { $installParameters.AllowTargetMutation = $true }
-    if ($WhatIfPreference) { $installParameters.WhatIf = $true }
+    if ($WhatIfPreference) {
+        $installParameters.WhatIf = $true
+        if ($AllowFixtures) { $installParameters.AllowFixtures = $true }
+    }
     else { $installParameters.Confirm = $false }
 
     $summary = & $installerScript @installParameters
