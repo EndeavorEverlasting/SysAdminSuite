@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/autologon-canonical-e2e-result.schema.json",
+  "title": "SysAdminSuite composed AutoLogon fixture E2E result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "profile_id",
+    "journey_id",
+    "proof_class",
+    "counts",
+    "safety",
+    "fixture_execution",
+    "receipt",
+    "scenarios",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-autologon-canonical-e2e-result/v1" },
+    "status": { "enum": ["PASS", "FAIL"] },
+    "profile_id": { "const": "autologon" },
+    "journey_id": { "const": "autologon-canonical-fixture-e2e" },
+    "proof_class": { "const": "composed-sanitized-fixture-e2e" },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 13 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "external_network_activity_performed",
+        "live_target_mutation_performed",
+        "real_scheduled_task_created",
+        "reboot_performed",
+        "automatic_sign_in_observed",
+        "current_token_access_proven",
+        "application_behavior_proven",
+        "default_password_value_read",
+        "secret_value_emitted"
+      ],
+      "properties": {
+        "external_network_activity_performed": { "const": false },
+        "live_target_mutation_performed": { "const": false },
+        "real_scheduled_task_created": { "const": false },
+        "reboot_performed": { "const": false },
+        "automatic_sign_in_observed": { "const": false },
+        "current_token_access_proven": { "const": false },
+        "application_behavior_proven": { "const": false },
+        "default_password_value_read": { "const": false },
+        "secret_value_emitted": { "const": false }
+      }
+    },
+    "fixture_execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generated_installer_executed",
+        "generated_installer_sha256",
+        "pinned_source_hash_verified",
+        "staged_hash_verified",
+        "fixture_task_lifecycle_simulated",
+        "simulated_execution_identity_sid",
+        "system_execution_is_simulated",
+        "closed_result_retrieved",
+        "cleanup_verified",
+        "zero_run_scoped_remnants_verified"
+      ],
+      "properties": {
+        "generated_installer_executed": { "type": "boolean" },
+        "generated_installer_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "pinned_source_hash_verified": { "type": "boolean" },
+        "staged_hash_verified": { "type": "boolean" },
+        "fixture_task_lifecycle_simulated": { "type": "boolean" },
+        "simulated_execution_identity_sid": { "const": "S-1-5-18" },
+        "system_execution_is_simulated": { "const": true },
+        "closed_result_retrieved": { "type": "boolean" },
+        "cleanup_verified": { "type": "boolean" },
+        "zero_run_scoped_remnants_verified": { "type": "boolean" }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "proof_level",
+        "source_evidence_copied",
+        "live_proof_promoted"
+      ],
+      "properties": {
+        "classification": { "const": "contract_only" },
+        "proof_level": { "const": "sanitized_fixture_contract" },
+        "source_evidence_copied": { "const": false },
+        "live_proof_promoted": { "const": false }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 13,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "classification", "reason_codes"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,63}$" },
+          "status": { "enum": ["PASS", "FAIL"] },
+          "classification": {
+            "enum": [
+              "fixture_pass",
+              "transport_rejected",
+              "hash_mismatch",
+              "baseline_failed",
+              "already_configured",
+              "installer_failed",
+              "validation_failed",
+              "cleanup_failed",
+              "state_mismatch",
+              "authorization_rejected",
+              "password_presence_missing",
+              "final_gate_before_missing",
+              "final_gate_catalog_disabled"
+            ]
+          },
+          "reason_codes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,95}$" }
+          }
+        }
+      }
+    },
+    "proof_ceiling": { "type": "string", "minLength": 80, "maxLength": 1024 }
+  }
+}

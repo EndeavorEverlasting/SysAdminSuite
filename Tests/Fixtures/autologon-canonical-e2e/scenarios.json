@@ -1,0 +1,99 @@
+{
+  "schema_version": "sas-autologon-canonical-e2e-scenarios/v1",
+  "proof_class": "composed-sanitized-fixture-e2e",
+  "network_scope": "none",
+  "live_target_mutation": false,
+  "scenarios": [
+    {
+      "id": "canonical_success",
+      "kind": "application",
+      "application_scenario": "ready",
+      "expected_classification": "fixture_pass",
+      "expected_reason_code": "fixture_canonical_path_validated"
+    },
+    {
+      "id": "transport_rejection",
+      "kind": "application",
+      "application_scenario": "transport_rejection",
+      "expected_classification": "transport_rejected",
+      "expected_reason_code": "transport_preflight_rejected"
+    },
+    {
+      "id": "hash_mismatch",
+      "kind": "application",
+      "application_scenario": "hash_mismatch",
+      "expected_classification": "hash_mismatch",
+      "expected_reason_code": "installer_hash_mismatch"
+    },
+    {
+      "id": "baseline_failure",
+      "kind": "application",
+      "application_scenario": "baseline_failure",
+      "expected_classification": "baseline_failed",
+      "expected_reason_code": "baseline_collection_failed"
+    },
+    {
+      "id": "already_configured",
+      "kind": "application",
+      "application_scenario": "already_configured",
+      "expected_classification": "already_configured",
+      "expected_reason_code": "already_configured_skipped"
+    },
+    {
+      "id": "installer_failure",
+      "kind": "application",
+      "application_scenario": "installer_failure",
+      "expected_classification": "installer_failed",
+      "expected_reason_code": "installer_execution_failed"
+    },
+    {
+      "id": "validation_failure",
+      "kind": "application",
+      "application_scenario": "validation_failure",
+      "expected_classification": "validation_failed",
+      "expected_reason_code": "package_validation_failed"
+    },
+    {
+      "id": "cleanup_failure",
+      "kind": "application",
+      "application_scenario": "teardown_failure",
+      "expected_classification": "cleanup_failed",
+      "expected_reason_code": "run_scoped_teardown_failed"
+    },
+    {
+      "id": "state_mismatch",
+      "kind": "application",
+      "application_scenario": "state_mismatch",
+      "expected_classification": "state_mismatch",
+      "expected_reason_code": "state_mismatch_detected"
+    },
+    {
+      "id": "missing_authorization",
+      "kind": "request_rejection",
+      "application_scenario": "ready",
+      "expected_classification": "authorization_rejected",
+      "expected_reason_code": "authorization_field_invalid"
+    },
+    {
+      "id": "missing_password_presence",
+      "kind": "application",
+      "application_scenario": "missing_password_presence",
+      "expected_classification": "password_presence_missing",
+      "expected_reason_code": "default_password_presence_signal_missing"
+    },
+    {
+      "id": "missing_before_evidence",
+      "kind": "final_gate",
+      "application_scenario": null,
+      "expected_classification": "final_gate_before_missing",
+      "expected_reason_code": "before_snapshot_missing"
+    },
+    {
+      "id": "disabled_catalog",
+      "kind": "final_gate",
+      "application_scenario": null,
+      "expected_classification": "final_gate_catalog_disabled",
+      "expected_reason_code": "approved_catalog_disabled"
+    }
+  ]
+}

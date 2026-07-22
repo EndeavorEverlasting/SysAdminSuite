@@ -67,11 +67,15 @@ param(
         'ready',
         'blocked',
         'already_configured',
+        'baseline_failure',
         'hash_mismatch',
         'transport_rejection',
         'task_failure',
+        'installer_failure',
         'validation_failure',
-        'teardown_failure'
+        'teardown_failure',
+        'state_mismatch',
+        'missing_password_presence'
     )]
     [string]$FixtureScenario = 'ready'
 )
@@ -247,6 +251,44 @@ function Set-SasFixtureAlreadyConfigured {
         $snapshot.autologon.default_password_present = $true
         $snapshot.autologon.expected_user_match = $true
         $snapshot.autologon.status = 'autologon_ready'
+        Write-SasAutoLogonJson -Path $file.FullName -Value $snapshot
+    }
+}
+
+function Set-SasFixtureBaselineFailure {
+    param([Parameter(Mandatory = $true)][string]$BeforeDirectory)
+    foreach ($file in @(Get-ChildItem -LiteralPath $BeforeDirectory -Filter '*.json' -File)) {
+        $snapshot = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        $snapshot.collection_status = 'failed'
+        $snapshot.error = 'Synthetic baseline collection failure.'
+        Write-SasAutoLogonJson -Path $file.FullName -Value $snapshot
+    }
+}
+
+function Set-SasFixtureStateFailure {
+    param(
+        [Parameter(Mandatory = $true)]$AfterSummary,
+        [Parameter(Mandatory = $true)][ValidateSet('state_mismatch','missing_password_presence')][string]$Scenario,
+        [Parameter(Mandatory = $true)][string]$AfterDirectory
+    )
+    $AfterSummary.confirmed_state_transition_count = 0
+    $AfterSummary.partial_change_review_count = 1
+    foreach ($row in @($AfterSummary.results)) {
+        if ($row.PSObject.Properties.Name -contains 'ExpectedUserMatch') { $row.ExpectedUserMatch = $false }
+        if ($row.PSObject.Properties.Name -contains 'Decision') { $row.Decision = 'PARTIAL_CHANGE_REVIEW' }
+    }
+    foreach ($file in @(Get-ChildItem -LiteralPath $AfterDirectory -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
+        $snapshot = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        $snapshot.autologon.expected_user_match = $false
+        if ($Scenario -eq 'missing_password_presence') {
+            $snapshot.autologon.default_password_present = $false
+            $snapshot.autologon.status = 'configured_password_missing'
+        }
+        else {
+            $snapshot.autologon.default_user_name = 'SYNTHETIC-MISMATCH'
+            $snapshot.autologon.status = 'configured_user_mismatch'
+        }
+        $snapshot.autologon.default_password_value_collected = $false
         Write-SasAutoLogonJson -Path $file.FullName -Value $snapshot
     }
 }
@@ -705,6 +747,7 @@ if ($FixtureMode) { $beforeParams.FixtureMode = $true }
 $before = & $stateDeltaScript @beforeParams
 $beforeDirectory = Join-Path $before.output_root 'before'
 if ($FixtureMode -and $FixtureScenario -eq 'already_configured') { Set-SasFixtureAlreadyConfigured -BeforeDirectory $beforeDirectory }
+if ($FixtureMode -and $FixtureScenario -eq 'baseline_failure') { Set-SasFixtureBaselineFailure -BeforeDirectory $beforeDirectory }
 $eligibility = @(Get-SasBaselineEligibility -BeforeDirectory $beforeDirectory)
 $eligibleTargets = @($eligibility | Where-Object { $_.eligibility_decision -eq 'ELIGIBLE_FOR_INSTALL' } | ForEach-Object { $_.computer_name })
 $baselineFailureTargets = @($eligibility | Where-Object { $_.eligibility_decision -eq 'SKIP_BASELINE_COLLECTION_FAILED' } | ForEach-Object { $_.computer_name })
@@ -760,6 +803,7 @@ for ($gateIndex = 0; $gateIndex -lt $gatePassedTargets.Count; $gateIndex++) {
                 'ready' { 'success' }
                 'hash_mismatch' { 'source_hash_mismatch' }
                 'task_failure' { 'task_run_failure' }
+                'installer_failure' { 'installer_failure' }
                 'validation_failure' { 'success' }
                 'teardown_failure' { 'run_root_deletion_failure' }
                 default { 'success' }
@@ -795,7 +839,9 @@ for ($gateIndex = 0; $gateIndex -lt $gatePassedTargets.Count; $gateIndex++) {
     }
 }
 
-$captureAfter = (-not $FixtureMode) -or $FixtureScenario -in @('ready','already_configured','validation_failure','teardown_failure')
+$captureAfter = (-not $FixtureMode) -or $FixtureScenario -in @(
+    'ready','already_configured','validation_failure','teardown_failure','state_mismatch','missing_password_presence'
+)
 $after = $null
 $afterSummary = $null
 if ($captureAfter) {
@@ -806,6 +852,10 @@ if ($captureAfter) {
     if ($FixtureMode) { $afterParams.FixtureMode = $true }
     $after = & $stateDeltaScript @afterParams
     $afterSummary = Get-Content -LiteralPath $after.summary_json -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($FixtureMode -and $FixtureScenario -in @('state_mismatch','missing_password_presence')) {
+        Set-SasFixtureStateFailure -AfterSummary $afterSummary -Scenario $FixtureScenario `
+            -AfterDirectory (Join-Path $after.output_root 'after')
+    }
 }
 
 $installRows = @()
@@ -864,11 +914,15 @@ $reasonCode = if ($FixtureMode) {
         'ready' { 'fixture_canonical_path_validated' }
         'blocked' { 'final_step_gate_blocked' }
         'already_configured' { 'already_configured_skipped' }
+        'baseline_failure' { 'baseline_collection_failed' }
         'hash_mismatch' { 'installer_hash_mismatch' }
         'transport_rejection' { 'transport_preflight_rejected' }
         'task_failure' { 'scheduled_task_execution_failed' }
+        'installer_failure' { 'installer_execution_failed' }
         'validation_failure' { 'package_validation_failed' }
         'teardown_failure' { 'run_scoped_teardown_failed' }
+        'state_mismatch' { 'state_mismatch_detected' }
+        'missing_password_presence' { 'default_password_presence_signal_missing' }
     }
 }
 elseif ($liveSuccess) { 'canonical_deployment_validated_and_finalized' }

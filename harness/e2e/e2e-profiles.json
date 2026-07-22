@@ -65,6 +65,16 @@
       "required": true
     },
     {
+      "id": "autologon-canonical-fixture-e2e",
+      "summary": "Run the canonical AutoLogon application, generated harmless installer, SMB scheduled-task fixture adapter, final gate, state transitions, failure matrix, cleanup, and public-safe receipt ingest.",
+      "runtime_candidates": ["powershell.exe", "powershell", "pwsh"],
+      "script": "scripts/Invoke-SasAutoLogonE2E.ps1",
+      "arguments": ["-OutputRoot", "{journey_output}"],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
       "id": "dashboard-relay-cancel-loopback",
       "summary": "Start the real dashboard relay and prove authenticated loopback cancellation preserves partial evidence and stops later targets.",
       "runtime_candidates": ["python", "python3"],
@@ -97,6 +107,13 @@
         "software-install-result-presentation",
         "dashboard-relay-cancel-loopback",
         "dashboard-relay-abort-loopback"
+      ]
+    },
+    {
+      "id": "autologon",
+      "proof_class": "fixture-loopback-e2e",
+      "journey_ids": [
+        "autologon-canonical-fixture-e2e"
       ]
     }
   ]
