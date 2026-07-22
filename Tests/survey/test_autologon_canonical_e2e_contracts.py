@@ -115,11 +115,13 @@ def test_runner_crosses_real_composition_without_live_authority() -> None:
         "artifacts=$validationArtifacts.ToArray()",
         "failed_gate_ids=",
         "cleanup_failures=",
+        'E2E_FAILURE|{0}',
     )
     for marker in required:
         assert marker in runner, marker
     assert "scenarios=@($scenarioRows)" not in runner
     assert "artifacts=@($validationArtifacts)" not in runner
+    assert "Write-Error $failure" not in runner
     for scenario in (
         "baseline_failure",
         "installer_failure",

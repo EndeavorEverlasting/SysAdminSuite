@@ -402,6 +402,8 @@ $matrixLines | Set-Content -LiteralPath $matrixOutputPath -Encoding UTF8
 
 foreach ($line in $matrixLines) { Write-Host $line }
 if ([string]$result.status -ne 'PASS') {
-    foreach ($failure in $failures) { Write-Error $failure }
+    # Write-Error is terminating under the runner's Stop preference and hides the
+    # remaining bounded diagnostics. Emit sanitized review lines, then fail closed.
+    foreach ($failure in $failures) { Write-Host ("E2E_FAILURE|{0}" -f $failure) }
     exit 1
 }
