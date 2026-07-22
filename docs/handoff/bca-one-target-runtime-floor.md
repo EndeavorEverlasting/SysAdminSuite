@@ -10,6 +10,8 @@ Record the repository floor required before the live Admin-VM → one Cybernet B
 
 This document is coordination evidence only. It does not authorize live installation, claim application behavior, or replace technician acceptance.
 
+For the current cross-transport preservation ledger, canonical authorities, compatibility boundaries, and PR dispositions, read [`deployment-transport-convergence.md`](deployment-transport-convergence.md). This file retains the historical BCA one-target merge floor.
+
 ## Required merge floor
 
 | Order | PR | Branch | Role | Merge SHA |
@@ -65,6 +67,6 @@ Still separate from this floor:
 - uninstall / fleet acceptance
 - credential embedding, WinRM/firewall/GPO weakening, AutoLogon, personal-data mutation
 
-## Next safe repository action
+## Current repository action
 
-Mark #229 ready when checks are green, merge it when authority exists, then land #233 and only afterward start the one-target live proof on an approved admin VM.
+Use the P08 convergence handoff above. PRs #229 and #233 are already merged; this historical file no longer directs operators to mark or merge them.

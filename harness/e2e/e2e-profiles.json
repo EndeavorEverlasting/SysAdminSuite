@@ -31,6 +31,16 @@
       "required": true
     },
     {
+      "id": "software-install-smb-task-fixture",
+      "summary": "Run the real SMB and Task Scheduler compatibility controller through its synthetic admin-share, scheduled-task, package-set, result-retrieval, failure, and cleanup lifecycle.",
+      "runtime_candidates": ["bash"],
+      "script": "Tests/bash/test_smb_scheduled_task_install_contracts.sh",
+      "arguments": [],
+      "network_scope": "none",
+      "target_mutation": false,
+      "required": true
+    },
+    {
       "id": "software-install-validated-finalization",
       "summary": "Run the real validated-deployment orchestrator with a generated installer in CopyThenInstall mode, validate the package, remove an injected run-scoped transient, and prove the package remains.",
       "runtime_candidates": ["pwsh", "powershell.exe", "powershell"],
@@ -82,6 +92,7 @@
       "journey_ids": [
         "harness-one-command-synthetic",
         "software-install-fixture",
+        "software-install-smb-task-fixture",
         "software-install-validated-finalization",
         "software-install-result-presentation",
         "dashboard-relay-cancel-loopback",

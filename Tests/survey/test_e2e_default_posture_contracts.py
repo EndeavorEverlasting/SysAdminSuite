@@ -96,12 +96,18 @@ def test_profile_is_fail_closed_and_loopback_only() -> None:
     scripts = {j["script"] for j in journeys.values()}
     assert "scripts/validate-sysadmin-harness.ps1" in scripts
     assert "scripts/Invoke-SasSoftwareInstallE2E.ps1" in scripts
+    assert "Tests/bash/test_smb_scheduled_task_install_contracts.sh" in scripts
     assert "dashboard/test_relay_cancel_e2e.py" in scripts
     assert "dashboard/test_relay_abort_e2e.js" in scripts
     install_journey = journeys["software-install-fixture"]
     assert install_journey["network_scope"] == "none"
     assert install_journey["target_mutation"] is False
     assert install_journey["arguments"] == ["-OutputRoot", "{journey_output}"]
+    smb_journey = journeys["software-install-smb-task-fixture"]
+    assert smb_journey["runtime_candidates"] == ["bash"]
+    assert smb_journey["network_scope"] == "none"
+    assert smb_journey["target_mutation"] is False
+    assert smb_journey["required"] is True
 
 
 def test_runner_emits_gate_artifacts_and_proof_boundaries() -> None:

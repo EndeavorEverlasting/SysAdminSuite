@@ -23,6 +23,9 @@ Start here when you need to know which local surface to use.
 | Browser deployment tutorial | `dashboard/js/software-deployment-tutorial.js` |
 | Browser tutorial loader | `dashboard/js/launch-repo-setup-tutorial.js` |
 | Supporting written runbook | `docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md` |
+| Transport selection contract | `docs/SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md` |
+| SMB/Task Scheduler compatibility controller | `bash/apps/sas-install-apps.sh` |
+| Validated PowerShell deployment front door | `scripts/Invoke-SasValidatedSoftwareDeployment.ps1` |
 | Generated dummy installer | `Tests/fixtures/software-install/DummyInstaller.cs` -> `scripts/Build-SasSoftwareInstallFixtureExecutable.ps1` |
 | Software-install E2E | `scripts/Invoke-SasSoftwareInstallE2E.ps1` -> `scripts/Invoke-SasSoftwareInstall.ps1` |
 | PR #142 worktree bootstrap | `scripts/Ensure-Pr142HarnessFoundationWorktree.ps1` |
@@ -46,6 +49,7 @@ The harness validator is a synthetic, offline proof only. One command detects th
 | AI harness doctrine | `docs/AI_LAYER_HARNESS_TOOLING_PLAN.md` |
 | Parallel-agent coordination | `docs/handoff/sysadminsuite-agent-coordination.md` |
 | BCA one-target runtime floor | `docs/handoff/bca-one-target-runtime-floor.md` |
+| Deployment transport convergence | `docs/handoff/deployment-transport-convergence.md` |
 | English report variables | `docs/ENGLISH_LOG_ARTIFACT_CONTRACT.md` |
 | Local harness usage | `docs/LOCAL_DEVELOPMENT_HARNESS.md` |
 | Harness plan | `docs/plans/executable-ai-harness-foundation.plan.md` |
@@ -57,6 +61,8 @@ Dashboard: START-HERE-SysAdminSuite-Dashboard.bat
 Software deployment UI: http://127.0.0.1:5000/dashboard/?tutorial=software-deployment
 Supporting deployment runbook: docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md
 Software install E2E: scripts/Invoke-SasSoftwareInstallE2E.ps1
+Transport contract: docs/SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md
+Transport convergence: docs/handoff/deployment-transport-convergence.md
 Bootstrap: scripts/Ensure-Pr142HarnessFoundationWorktree.ps1
 Contracts: Run-HarnessContracts.cmd
 Contracts implementation: scripts/Invoke-SasHarnessContracts.ps1

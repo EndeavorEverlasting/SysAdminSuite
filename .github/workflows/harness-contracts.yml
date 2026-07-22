@@ -11,6 +11,7 @@ on:
       - 'Tests/survey/test_software_deployment_transport_contracts.py'
       - 'Tests/survey/test_software_deployment_transport_preflight_contracts.py'
       - 'Tests/survey/test_canonical_smb_task_deployment_contracts.py'
+      - 'Tests/survey/test_deployment_transport_convergence_contracts.py'
       - 'Tests/Pester/SoftwareDeploymentTransport.Tests.ps1'
       - 'Tests/Pester/SmbScheduledTaskDeployment.Tests.ps1'
       - 'Tests/Fixtures/software-deployment-transport/**'
@@ -45,6 +46,9 @@ on:
       - 'harness/workflows/software-deployment-transport.yaml'
       - 'docs/SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md'
       - 'docs/SOFTWARE_DEPLOYMENT_LOW_NOISE.md'
+      - 'docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md'
+      - 'docs/handoff/deployment-transport-convergence.md'
+      - 'docs/launch-and-doc-index.md'
       - 'survey/fixtures/english-log/**'
       - 'survey/workflows/**'
   push:
@@ -71,6 +75,10 @@ jobs:
       - name: Software deployment transport contracts
         shell: bash
         run: python3 Tests/survey/test_software_deployment_transport_contracts.py
+
+      - name: Deployment transport convergence contracts
+        shell: bash
+        run: python3 Tests/survey/test_deployment_transport_convergence_contracts.py
 
       - name: Software deployment low-noise and preflight contracts
         shell: bash

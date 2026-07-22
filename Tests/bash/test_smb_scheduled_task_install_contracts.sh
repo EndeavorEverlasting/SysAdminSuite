@@ -11,6 +11,7 @@ fail() {
 
 SCRIPT="bash/apps/sas-install-apps.sh"
 CATALOG="configs/software-packages/approved-apps.json"
+SET_CATALOG="configs/software-packages/windows-native-package-sets.json"
 DOC="docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -34,6 +35,57 @@ assert bca["default_install_mode"] == "CopyThenInstall"
 assert bca["default_installer_arguments"] == ["/qn", "/norestart"]
 assert bca["requires_validated_installer_arguments"] is False
 assert bca["install_enabled"] is True
+PY
+
+python3 - "$SET_CATALOG" <<'PY' || exit 1
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8-sig") as handle:
+    catalog = json.load(handle)
+
+assert catalog["schema_version"] == "sas-windows-native-package-sets/v1"
+package_set = next(item for item in catalog["package_sets"] if item["id"] == "cybernet-clinical-workstation")
+assert package_set["package_ids"] == [
+    "allscripts-eehr-shortcut-uai-2-2",
+    "epic-downtime-guide-shortcut-1-0",
+    "nuance-dragon-medical-one-2025",
+    "hyland-fos-epic-integration-23-1-33-1000",
+    "bca",
+    "autologon",
+]
+autologon_recovery = next(item for item in catalog["package_sets"] if item["id"] == "cybernet-autologon-only")
+assert autologon_recovery["package_ids"] == ["autologon"]
+bca_autologon_recovery = next(item for item in catalog["package_sets"] if item["id"] == "cybernet-bca-autologon-recovery")
+assert bca_autologon_recovery["package_ids"] == ["bca", "autologon"]
+packages = {item["id"]: item for item in catalog["packages"]}
+assert packages["allscripts-eehr-shortcut-uai-2-2"]["entrypoint_file"] == "Allscripts_EEHR-Shortcut-UAI_2.2.msi"
+assert packages["allscripts-eehr-shortcut-uai-2-2"]["installer_arguments"] == ["/qb", "/norestart"]
+assert packages["epic-downtime-guide-shortcut-1-0"]["staged_files"] == [
+    "Epic_Epic_Downtime_Guide-Shortcut_1.0.msi",
+    "Install.cmd",
+]
+assert packages["nuance-dragon-medical-one-2025"]["staged_files"] == [
+    "cab1.cab",
+    "DMO.Mst",
+    "Dragon Medical One.lnk",
+    "Install.cmd",
+    "Nuance_Dragon_Edge_Extension.msi",
+    "Standalone.msi",
+]
+assert packages["hyland-fos-epic-integration-23-1-33-1000"]["staged_files"] == [
+    "EPICFOSCONFIG.XML",
+    "FrontOfficeScanning.exe",
+    "Hyland Integration for Epic.msi",
+    "Hyland_Integration_EPIC.cab",
+    "Hyland_Integration_EPIC.Mst",
+    "Install.cmd",
+    "VC_redist.x64.exe",
+]
+assert packages["bca"]["entrypoint_file"] == "EPIC_BCA_Web-Shortcut_1.0.msi"
+assert packages["bca"]["installer_arguments"] == ["/qn", "/norestart"]
+assert packages["autologon"]["entrypoint_file"] == "NW_AutoLogon_Setup_x64.exe"
+assert all(package["install_enabled"] is True for package in packages.values())
 PY
 
 DRY_OUTPUT="$TMP_ROOT/dry-run.txt"
@@ -68,6 +120,73 @@ if grep -Fq '$path:' "$WORKER"; then
 fi
 grep -Fq '${path}:' "$WORKER" || fail "worker teardown warning must delimit the path variable"
 
+SET_DRY_OUTPUT="$TMP_ROOT/package-set-dry-run.txt"
+bash "$SCRIPT" \
+  --targets SYNTHETIC001 \
+  --package-set cybernet-clinical-workstation \
+  --allow-legacy \
+  --dry-run \
+  --log-dir "$TMP_ROOT/package-set-output" >"$SET_DRY_OUTPUT" 2>&1 \
+  || fail "clinical package-set dry run must succeed offline"
+
+for fragment in \
+  "Approved package set: Cybernet clinical workstation applications (cybernet-clinical-workstation)" \
+  "Allscripts_EEHR-Shortcut-UAI_2.2.msi" \
+  "Epic_Epic_Downtime_Guide-Shortcut_1.0.msi" \
+  "Nuance_DragonMedicalOne_2025\\DMO.Mst" \
+  "Nuance_DragonMedicalOne_2025\\Dragon Medical One.lnk" \
+  "Hyland_FOS_Epic-Integration_23.1.33.1000\\Hyland Integration for Epic.msi" \
+  "EPIC_BCA_Web-Shortcut_1.0\\EPIC_BCA_Web-Shortcut_1.0.msi" \
+  "AutoLogonSetup\\NW_AutoLogon_Setup_x64.exe" \
+  "DRY_RUN_OK"; do
+  grep -Fq -- "$fragment" "$SET_DRY_OUTPUT" || fail "package-set dry run missing: $fragment"
+done
+
+SET_WORKER="$(find "$TMP_ROOT/package-set-output" -maxdepth 1 -type f -name 'sas-install-worker-package-set-cybernet-clinical-workstation-*.ps1' -print -quit)"
+[[ -n "$SET_WORKER" ]] || fail "package-set dry run did not generate a worker"
+[[ "$(grep -Fc '$Results += Install-App' "$SET_WORKER")" -eq 6 ]] || fail "package-set worker must contain six ordered installs"
+grep -Fq -- "-Type 'cmd'" "$SET_WORKER" || fail "package-set worker must support approved CMD bundle entrypoints"
+grep -Fq -- "-Type 'exe'" "$SET_WORKER" || fail "package-set worker must run the elevated AutoLogon EXE"
+grep -Fq '$cmdArguments = '\''/d /s /c ""{0}""' "$SET_WORKER" || fail "CMD bundle execution must preserve quoted entrypoint paths"
+grep -Fq 'if (@($SilentArgs).Count -gt 0)' "$SET_WORKER" || fail "EXE execution must distinguish populated and empty argument arrays"
+grep -Fq 'Start-Process -FilePath $installer -Wait -PassThru -NoNewWindow' "$SET_WORKER" || fail "argument-free EXE execution must omit ArgumentList"
+grep -Fq '_package_label="${_package_label%$'\''\r'\''}"' "$SCRIPT" || fail "Windows CRLF must be removed from package-set staging labels"
+if grep -Fq 'Start-Process -FilePath $installer -ArgumentList $SilentArgs -Wait -PassThru -NoNewWindow' "$SET_WORKER" && \
+   ! grep -Fq 'if (@($SilentArgs).Count -gt 0)' "$SET_WORKER"; then
+  fail "EXE execution must not pass an empty ArgumentList"
+fi
+
+AUTOLOGON_DRY_OUTPUT="$TMP_ROOT/autologon-dry-run.txt"
+bash "$SCRIPT" \
+  --targets SYNTHETIC001 \
+  --package-set cybernet-autologon-only \
+  --allow-legacy \
+  --dry-run \
+  --log-dir "$TMP_ROOT/autologon-output" >"$AUTOLOGON_DRY_OUTPUT" 2>&1 \
+  || fail "AutoLogon recovery dry run must succeed offline"
+grep -Fq 'Approved package set: Cybernet AutoLogon recovery (cybernet-autologon-only)' "$AUTOLOGON_DRY_OUTPUT" \
+  || fail "AutoLogon recovery dry run must resolve the recovery set"
+AUTOLOGON_WORKER="$(find "$TMP_ROOT/autologon-output" -maxdepth 1 -type f -name 'sas-install-worker-package-set-cybernet-autologon-only-*.ps1' -print -quit)"
+[[ -n "$AUTOLOGON_WORKER" ]] || fail "AutoLogon recovery dry run did not generate a worker"
+[[ "$(grep -Fc '$Results += Install-App' "$AUTOLOGON_WORKER")" -eq 1 ]] || fail "AutoLogon recovery worker must contain exactly one install"
+grep -Fq -- "-Name 'NW AutoLogon Setup x64'" "$AUTOLOGON_WORKER" || fail "AutoLogon recovery worker must contain only the approved AutoLogon executable"
+
+BCA_AUTOLOGON_DRY_OUTPUT="$TMP_ROOT/bca-autologon-dry-run.txt"
+bash "$SCRIPT" \
+  --targets SYNTHETIC001 \
+  --package-set cybernet-bca-autologon-recovery \
+  --allow-legacy \
+  --dry-run \
+  --log-dir "$TMP_ROOT/bca-autologon-output" >"$BCA_AUTOLOGON_DRY_OUTPUT" 2>&1 \
+  || fail "BCA and AutoLogon recovery dry run must succeed offline"
+grep -Fq 'Approved package set: Cybernet BCA and AutoLogon recovery (cybernet-bca-autologon-recovery)' "$BCA_AUTOLOGON_DRY_OUTPUT" \
+  || fail "BCA and AutoLogon recovery dry run must resolve the recovery set"
+BCA_AUTOLOGON_WORKER="$(find "$TMP_ROOT/bca-autologon-output" -maxdepth 1 -type f -name 'sas-install-worker-package-set-cybernet-bca-autologon-recovery-*.ps1' -print -quit)"
+[[ -n "$BCA_AUTOLOGON_WORKER" ]] || fail "BCA and AutoLogon recovery dry run did not generate a worker"
+[[ "$(grep -Fc '$Results += Install-App' "$BCA_AUTOLOGON_WORKER")" -eq 2 ]] || fail "BCA and AutoLogon recovery worker must contain exactly two installs"
+grep -Fq -- "-Name 'Epic BCA Web Shortcut 1.0'" "$BCA_AUTOLOGON_WORKER" || fail "recovery worker must install BCA"
+grep -Fq -- "-Name 'NW AutoLogon Setup x64'" "$BCA_AUTOLOGON_WORKER" || fail "recovery worker must install AutoLogon"
+
 # Windows Python emits CRLF. Reproduce that behavior on Linux and prove that
 # package metadata is normalized before it reaches paths or console output.
 CRLF_BIN="$TMP_ROOT/crlf-bin"
@@ -95,7 +214,7 @@ fi
 if bash "$SCRIPT" --targets SYNTHETIC001 --list workstation-baseline --package bca --allow-legacy --dry-run --log-dir "$TMP_ROOT/both" >"$TMP_ROOT/both.txt" 2>&1; then
   fail "list and package together must fail closed"
 fi
-grep -Fq 'use exactly one of --list or --package' "$TMP_ROOT/both.txt" || fail "selection conflict must be explained"
+grep -Fq 'use exactly one of --list, --package, or --package-set' "$TMP_ROOT/both.txt" || fail "selection conflict must be explained"
 
 if bash "$SCRIPT" --targets SYNTHETIC001 --package not-approved --allow-legacy --dry-run --log-dir "$TMP_ROOT/unknown" >"$TMP_ROOT/unknown.txt" 2>&1; then
   fail "unknown package must fail closed"
@@ -159,6 +278,38 @@ for action in /Create /Run /Query /Delete; do
 done
 
 : > "$SIM_TASK_LOG"
+SET_LIVE_OUTPUT="$TMP_ROOT/package-set-live-success.txt"
+PATH="$FAKE_BIN:$PATH" \
+SIM_REMOTE_ROOT="$SIM_REMOTE_ROOT" \
+SIM_TASK_STATE="$SIM_TASK_STATE" \
+SIM_TASK_LOG="$SIM_TASK_LOG" \
+SKIP_NMAP=1 \
+bash "$SCRIPT" \
+  --targets SYNTHETIC001 \
+  --package-set cybernet-clinical-workstation \
+  --allow-legacy \
+  --wait-timeout 10 \
+  --log-dir "$TMP_ROOT/package-set-live-output" >"$SET_LIVE_OUTPUT" 2>&1 \
+  || fail "fixture Windows-native clinical package-set install must succeed"
+
+for fragment in \
+  'transport=windows-native' \
+  'Staged approved package set: cybernet-clinical-workstation (18 files)' \
+  'Task triggered; waiting up to 10s' \
+  'Result copied locally:' \
+  'HOST_OK' \
+  'Cleanup complete: task and run-scoped staging removed or already absent.'; do
+  grep -Fq -- "$fragment" "$SET_LIVE_OUTPUT" || fail "fixture package-set run missing: $fragment"
+done
+SET_RESULT="$(find "$TMP_ROOT/package-set-live-output" -maxdepth 1 -type f -name '*.results.csv' -print -quit)"
+[[ -n "$SET_RESULT" ]] || fail "fixture package-set result CSV was not copied"
+[[ "$(tail -n +2 "$SET_RESULT" | wc -l | tr -d ' ')" -eq 6 ]] || fail "fixture package-set result must contain six package rows"
+[[ ! -e "$SIM_TASK_STATE" ]] || fail "fixture package-set scheduled task was not removed"
+if find "$SIM_REMOTE_ROOT" -type d -name 'app-install-*' -print -quit | grep -q .; then
+  fail "fixture package-set run-scoped target staging was not removed"
+fi
+
+: > "$SIM_TASK_LOG"
 FAILED_OUTPUT="$TMP_ROOT/live-failure.txt"
 if PATH="$FAKE_BIN:$PATH" \
   SIM_REMOTE_ROOT="$SIM_REMOTE_ROOT" \
@@ -196,7 +347,12 @@ for fragment in \
   'does not require `smbclient`' \
   'does not accept WinRM' \
   '--package bca' \
-  'This fallback does not provide the canonical WinRM lane'; do
+  '--package-set cybernet-clinical-workstation' \
+  'Allscripts EEHR Shortcut UAI 2.2' \
+  'Nuance Dragon Medical One 2025' \
+  'Hyland FOS Epic Integration 23.1.33.1000' \
+  'AutoLogon runs last' \
+  'This compatibility controller does not provide the validated PowerShell lane'; do
   grep -Fq -- "$fragment" "$DOC" || fail "documentation missing: $fragment"
 done
 

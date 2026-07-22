@@ -78,7 +78,6 @@ Selection, reason codes, and fallback prohibitions live separately under `decisi
 Preflight results always set `target_mutation_performed` to false. They cannot claim task creation, SYSTEM execution, result retrieval, cleanup, software installation, or operator acceptance. Sanitized fixtures additionally set `network_activity_performed` and `live_runtime` to false.
 
 Every run also emits `low_noise_context.json`, which records the canonical policy identity and exact effective port subset.
-
 ## Public receipt boundary
 
 The receipt binds a future operator-local live-cert result by lowercase SHA-256 and byte length. The source evidence remains operator-local and is not copied into public output. The closed receipt rejects hostname, username, Kerberos ticket bytes, credentials, package paths, machine-local paths, and raw evidence.

@@ -38,7 +38,7 @@ function Tail-Text {
     param([string[]]$Lines, [int]$Maximum = 12)
     if (-not $Lines -or $Lines.Count -eq 0) { return @() }
     $start = [Math]::Max(0, $Lines.Count - $Maximum)
-    return @($Lines[$start..($Lines.Count - 1)])
+    return ,@($Lines[$start..($Lines.Count - 1)])
 }
 
 function Test-AllUnittestCasesSkipped {
@@ -53,7 +53,8 @@ function Test-AllUnittestCasesSkipped {
 }
 
 $catalog = Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json
-$profileRecord = @($catalog.profiles | Where-Object id -eq $Profile)
+$allProfiles = @($catalog.profiles)
+$profileRecord = @($allProfiles | Where-Object { $_.id -eq $Profile })
 if ($profileRecord.Count -ne 1) {
     throw "Unknown or ambiguous E2E profile '$Profile'."
 }
@@ -151,9 +152,9 @@ try {
 }
 
 $failedRequired = @($results | Where-Object { $_.required -and $_.status -ne 'PASS' })
-$passed = @($results | Where-Object status -eq 'PASS').Count
-$skipped = @($results | Where-Object status -eq 'SKIP').Count
-$failed = @($results | Where-Object status -eq 'FAIL').Count
+$passed = @(@($results) | Where-Object status -eq 'PASS').Count
+$skipped = @(@($results) | Where-Object status -eq 'SKIP').Count
+$failed = @(@($results) | Where-Object status -eq 'FAIL').Count
 $matrixPath = Join-Path $runRoot 'e2e_validation_matrix.txt'
 $jsonPath = Join-Path $runRoot 'e2e_validation_result.json'
 $matrix = [Collections.Generic.List[string]]::new()
