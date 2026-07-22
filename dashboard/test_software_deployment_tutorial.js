@@ -11,12 +11,12 @@ const invalidationApi = global.__sasSoftwareDeploymentInputInvalidationApi;
 assert(invalidationApi, 'software deployment input invalidation API was not exposed');
 
 assert(api.DRY_RUN_COMMAND.includes('Invoke-SasSoftwareInstallE2E.ps1'));
-assert(api.DRY_RUN_COMMAND.includes('survey\output\software-install-e2e'));
+assert(api.DRY_RUN_COMMAND.includes('survey\\output\\software-install-e2e'));
 
 const validInput = {
   target: 'WNH269OPR009',
   packageName: "Vendor's Approved Tool",
-  installerPath: 'packages\Vendor\Package\setup.exe',
+  installerPath: 'packages\\Vendor\\Package\\setup.exe',
   installerArguments: '/quiet\n/norestart',
   installMode: 'UncDirect'
 };
@@ -48,10 +48,10 @@ for (const badTarget of ['HOST1,HOST2', 'HOST1 HOST2', '*', 'HOST1;HOST2']) {
 }
 
 for (const badPath of [
-  '\\server\share\setup.exe',
-  'C:\packages\setup.exe',
-  '..\packages\setup.exe',
-  'packages\..\setup.exe'
+  '\\\\server\\share\\setup.exe',
+  'C:\\packages\\setup.exe',
+  '..\\packages\\setup.exe',
+  'packages\\..\\setup.exe'
 ]) {
   const result = api.validatePilot({ ...validInput, installerPath: badPath });
   assert.strictEqual(result.valid, false, `unsafe path accepted: ${badPath}`);
