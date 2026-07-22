@@ -98,6 +98,14 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_autologon_proof_contract_floor_contracts.py` — dependency-free schema, fixture, operation, artifact, privacy, proof-ceiling, migration, and CI validator.
 - `.github/workflows/autologon-proof-contract-floor.yml` — focused offline contract and Draft 2020-12 validation gate.
 
+## AutoLogon agent routing
+
+- `.claude/skills/autologon-deployment/SKILL.md` — progressive-disclosure orchestration for planning, canonical admin deployment, and post-reboot proof.
+- `.claude/capabilities/autologon-deployment-orchestration.md` — admin identity, authority, canonical entrypoint, guardrail, and deployment-ceiling contract.
+- `.claude/capabilities/autologon-runtime-proof.md` — signed-in identity, current-token access, application observation, and runtime-ceiling contract.
+- `harness/api/agent-capability-manifest.json` and `harness/api/agent-routing-manifest.json` — deterministic plan, admin, and runtime activation authority.
+- `Tests/survey/test_autologon_agent_harness_contracts.py` — activation, collision, ambiguity, negative-routing, prompt/application separation, and proof-ceiling contracts.
+
 ## Repo doctrine
 
 - `README.md` — user entrypoint, repo layout, runtime policy, and local source folder policy.

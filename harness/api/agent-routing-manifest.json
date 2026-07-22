@@ -284,6 +284,133 @@
       "proof_ceiling": "Profile, fixture, and bounded runtime proof for the observed host only."
     },
     {
+      "id": "autologon-plan-trigger",
+      "summary": "Route read-only AutoLogon planning to the workflow skill without granting target or change authority.",
+      "deterministic_task_signals": [
+        "plan AutoLogon",
+        "AutoLogon deployment plan"
+      ],
+      "priority": 75,
+      "composition_mode": "primary",
+      "target_type": "skill",
+      "target": "autologon-deployment",
+      "required_inputs": [
+        "intended AutoLogon operation",
+        "proof target"
+      ],
+      "outputs": [
+        "selected AutoLogon lane",
+        "required gates and inputs",
+        "canonical entrypoints",
+        "proof ceiling"
+      ],
+      "preconditions": [
+        "frozen AutoLogon operation contracts are available"
+      ],
+      "guardrails": [
+        "no network activity",
+        "no target mutation",
+        "no credential collection",
+        "mixed admin and runtime intent fails closed"
+      ],
+      "owner": "AutoLogon Harness",
+      "validators": [
+        "Tests/survey/test_autologon_agent_harness_contracts.py",
+        "Tests/survey/test_agent_routing_manifest_contracts.py"
+      ],
+      "proof_ceiling": "Deterministic planning-route proof only; no deployment or runtime behavior is proven."
+    },
+    {
+      "id": "autologon-admin-deployment-trigger",
+      "summary": "Route explicit AutoLogon administrator deployment intent to the canonical gated orchestration capability.",
+      "deterministic_task_signals": [
+        "deploy AutoLogon",
+        "AutoLogon as admin",
+        "AutoLogon pilot"
+      ],
+      "priority": 80,
+      "composition_mode": "primary",
+      "target_type": "capability",
+      "target": "autologon-deployment-orchestration",
+      "required_inputs": [
+        "explicit approved targets",
+        "non-secret package metadata",
+        "authorization and change references",
+        "current transport preflight evidence",
+        "applicable policy paths"
+      ],
+      "outputs": [
+        "autologon.admin_deploy result",
+        "cleanup status",
+        "operator-local handoff"
+      ],
+      "preconditions": [
+        "target and change authority are explicit",
+        "canonical AutoLogon deployment entrypoint is available",
+        "final-step gate remains mandatory"
+      ],
+      "guardrails": [
+        "trigger grants no target authority",
+        "default network activity is false",
+        "default target mutation is false",
+        "application mutation gate remains explicit",
+        "never route through disposable package VM or direct legacy WinRM",
+        "never request or render password data",
+        "deployment is not post-reboot runtime proof"
+      ],
+      "owner": "AutoLogon Admin Deployment",
+      "validators": [
+        "Tests/survey/test_autologon_agent_harness_contracts.py",
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_autologon_proof_contract_floor_contracts.py"
+      ],
+      "proof_ceiling": "Canonical deployment routing and manifest proof only; target execution, reboot, sign-in, access, and application behavior remain unproven."
+    },
+    {
+      "id": "autologon-runtime-proof-trigger",
+      "summary": "Route explicit post-reboot AutoLogon session and application proof to the signed-in runtime capability.",
+      "deterministic_task_signals": [
+        "prove AutoLogon after reboot",
+        "AutoLogon session access",
+        "technician runtime proof"
+      ],
+      "priority": 80,
+      "composition_mode": "primary",
+      "target_type": "capability",
+      "target": "autologon-runtime-proof",
+      "required_inputs": [
+        "non-secret runtime configuration",
+        "actual signed-in AutoLogon session",
+        "expected-account rule",
+        "explicit bounded access paths",
+        "technician observations"
+      ],
+      "outputs": [
+        "autologon.session_access_proof result",
+        "autologon.technician_runtime_proof result",
+        "operator-local proof classification"
+      ],
+      "preconditions": [
+        "reboot and automatic sign-in were separately observed",
+        "runtime entrypoints are available in the actual signed-in session"
+      ],
+      "guardrails": [
+        "runtime request never routes to admin deployment",
+        "trigger grants no reboot, network, write-probe, or mutation authority",
+        "current-session identity must match",
+        "fixture proof is not live runtime proof",
+        "never request or render password data",
+        "operator-local evidence remains ignored"
+      ],
+      "owner": "AutoLogon Runtime Proof",
+      "validators": [
+        "Tests/survey/test_autologon_agent_harness_contracts.py",
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_autologon_proof_contract_floor_contracts.py"
+      ],
+      "proof_ceiling": "Signed-in runtime routing and manifest proof only; no reboot, sign-in, current-token access, application behavior, or acceptance is proven."
+    },
+    {
       "id": "package-static-analysis-trigger",
       "summary": "Route non-executing EXE, MSI, archive, and semantic package inspection requests.",
       "deterministic_task_signals": [

@@ -41,3 +41,5 @@ dependencies for harness consumers and future bounded adapters.
 | [Package Semantic Enrichment](package-semantic-enrichment.md) | Convert static structure into bounded semantic harness requirements. |
 | [Package Offline Trust Verification](package-offline-trust-verification.md) | Cache-only Authenticode and explicit trust-policy gating. |
 | [Package VM Qualification Validation](package-vm-qualification-validation.md) | Fail-closed disposable-VM qualification without starting a VM. |
+| [AutoLogon Deployment Orchestration](autologon-deployment-orchestration.md) | Route authorized deployment through the canonical final-gated transport front door. |
+| [AutoLogon Runtime Proof](autologon-runtime-proof.md) | Route current-token and application proof inside the actual signed-in session. |

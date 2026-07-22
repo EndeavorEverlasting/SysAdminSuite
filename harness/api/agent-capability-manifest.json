@@ -443,6 +443,61 @@
         "Tests/survey/test_package_vm_qualification_profile_contracts.py",
         "Tests/survey/test_agent_capability_manifest_contracts.py"
       ]
+    },
+    {
+      "id": "autologon-deployment-orchestration",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/autologon-deployment-orchestration.md",
+      "summary": "Route authorized AutoLogon deployment through the canonical gated Kerberos SMB scheduled-task front door.",
+      "lanes": [
+        "autologon",
+        "deployment",
+        "harness",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "scripts/Invoke-SasAutoLogonDeployment.ps1",
+        "scripts/Invoke-SasValidatedSoftwareDeployment.ps1",
+        "docs/AUTOLOGON_DEPLOYMENT_WORKFLOW.md",
+        "harness/workflows/autologon-proof-contract-floor.yaml"
+      ],
+      "validators": [
+        "Tests/survey/test_autologon_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_routing_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "autologon-runtime-proof",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/autologon-runtime-proof.md",
+      "summary": "Route post-reboot current-token access and application proof inside the actual signed-in AutoLogon session.",
+      "lanes": [
+        "autologon",
+        "runtime-proof",
+        "field-workflow",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "scripts/Invoke-SasAutoLogonSessionAccessProof.ps1",
+        "scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1",
+        "docs/AUTOLOGON_SESSION_ACCESS_PROOF.md",
+        "docs/AUTOLOGON_TECHNICIAN_RUNTIME_PROOF.md",
+        "harness/workflows/autologon-proof-contract-floor.yaml"
+      ],
+      "validators": [
+        "Tests/survey/test_autologon_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_routing_manifest_contracts.py"
+      ]
     }
   ],
   "skills": [
@@ -725,6 +780,44 @@
         "Tests/survey/test_package_vm_qualification_profile_contracts.py",
         "Tests/survey/test_agent_capability_manifest_contracts.py",
         "Tests/survey/test_agent_routing_manifest_contracts.py"
+      ]
+    },
+    {
+      "id": "autologon-deployment",
+      "path": ".claude/skills/autologon-deployment/SKILL.md",
+      "summary": "Route AutoLogon planning, canonical admin deployment, and signed-in runtime proof to distinct governed capabilities.",
+      "capability_ids": [
+        "autologon-deployment-orchestration",
+        "autologon-runtime-proof",
+        "language-runtime-selection",
+        "mutation-and-evidence-boundaries",
+        "proof-and-checkpointing",
+        "end-to-end-testing",
+        "field-command-design"
+      ],
+      "lanes": [
+        "autologon",
+        "planning",
+        "deployment",
+        "runtime-proof",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "gated-target",
+      "target_mutation_mode": "gated-target",
+      "authority_paths": [
+        "harness/workflows/autologon-proof-contract-floor.yaml",
+        "docs/AUTOLOGON_DEPLOYMENT_WORKFLOW.md",
+        "scripts/Invoke-SasAutoLogonDeployment.ps1",
+        "scripts/Invoke-SasAutoLogonSessionAccessProof.ps1",
+        "scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1"
+      ],
+      "validators": [
+        "Tests/survey/test_autologon_agent_harness_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py",
+        "Tests/survey/test_agent_routing_manifest_contracts.py",
+        "Tests/survey/test_agent_instruction_factoring_contracts.py"
       ]
     }
   ]
