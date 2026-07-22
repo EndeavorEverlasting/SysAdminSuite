@@ -121,8 +121,8 @@ jobs:
       - name: Check pull-request patch whitespace
         if: github.event_name == 'pull_request'
         run: |
-          git fetch origin "${{ github.base_ref }}" --depth=1
-          git diff --check "origin/${{ github.base_ref }}...HEAD"
+          git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
       - name: Check pushed commit whitespace
         if: github.event_name != 'pull_request'
         run: git show --check --oneline --no-renames HEAD
