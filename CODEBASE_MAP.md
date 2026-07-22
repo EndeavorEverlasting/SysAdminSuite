@@ -108,6 +108,18 @@ Use this map to load only the files needed for a task.
 - `docs/HARNESS_DISCIPLINE.md` — full repository mutation and PR/worktree operation contract.
 - `docs/LOCAL_REFERENCE_POLICY.md` — gitignored operator-local reference rules.
 
+## Cybernet hardware batch configuration
+
+- `Hardware/Cybernet/README.md` — operator sequence, authority boundaries, COM local-only rule, and proof ceiling.
+- `Hardware/Cybernet/Invoke-CybernetBatchConfiguration.ps1` — Plan/Apply/Validate orchestrator; Plan is the default.
+- `Hardware/Cybernet/Set-NoSleep.ps1` — bounded AC/DC standby and hibernate idle timeout configuration with readback.
+- `Hardware/Cybernet/Set-PowerButtonDoNothing.ps1` — wrapper for the canonical Windows physical power-button hardening lane.
+- `Hardware/Cybernet/Disable-PrivacyButton.ps1` and `Enable-PrivacyButton.ps1` — DDC/CI VCP `0xCA` apply and exact-manifest restore wrappers.
+- `Hardware/Cybernet/COM-Port-Check.ps1` — read-only COM1-COM4 validation and local AutoFix routing.
+- `Hardware/Cybernet/PostInstall-Validation.ps1` — read-only composed hardware validation.
+- `Run-CybernetBatchConfiguration.cmd` — one-target Plan/Apply/Validate launcher.
+- `Tests/survey/test_cybernet_hardware_batch_contracts.py`, `Tests/Pester/CybernetHardwareBatch.Tests.ps1`, and `.github/workflows/cybernet-hardware-batch.yml` — static, parser, fixture, composition, and CI proof.
+
 ## Cybernet power and display-button control
 
 - `docs/CYBERNET_POWER_HARDENING.md` — operator contract, proof ceilings, pilot sequence, and rollback guidance for Windows power-button and MCCS display-button control.

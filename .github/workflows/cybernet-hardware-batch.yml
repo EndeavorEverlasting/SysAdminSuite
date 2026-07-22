@@ -1,0 +1,140 @@
+name: Cybernet Hardware Batch
+
+on:
+  pull_request:
+    paths:
+      - 'Hardware/Cybernet/**'
+      - 'Run-CybernetBatchConfiguration.cmd'
+      - 'Tests/Pester/CybernetHardwareBatch.Tests.ps1'
+      - 'Tests/survey/test_cybernet_hardware_batch_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - 'CODEBASE_MAP.md'
+      - '.github/workflows/cybernet-hardware-batch.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Hardware/Cybernet/**'
+      - 'Run-CybernetBatchConfiguration.cmd'
+      - 'Tests/Pester/CybernetHardwareBatch.Tests.ps1'
+      - 'Tests/survey/test_cybernet_hardware_batch_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - 'CODEBASE_MAP.md'
+      - '.github/workflows/cybernet-hardware-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-and-contracts:
+    runs-on: windows-2025
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run dependency-free contracts
+        shell: pwsh
+        run: python Tests/survey/test_cybernet_hardware_batch_contracts.py
+
+      - name: Parse Cybernet hardware PowerShell surfaces
+        shell: pwsh
+        run: |
+          $paths = @(
+            'Hardware/Cybernet/CybernetHardware.Common.psm1',
+            'Hardware/Cybernet/Invoke-CybernetStage.ps1',
+            'Hardware/Cybernet/Invoke-CybernetBatchConfiguration.ps1',
+            'Hardware/Cybernet/Disable-PrivacyButton.ps1',
+            'Hardware/Cybernet/Enable-PrivacyButton.ps1',
+            'Hardware/Cybernet/Set-NoSleep.ps1',
+            'Hardware/Cybernet/Set-PowerButtonDoNothing.ps1',
+            'Hardware/Cybernet/COM-Port-Check.ps1',
+            'Hardware/Cybernet/PostInstall-Validation.ps1'
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if (@($errors).Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$path :: $($_.Message)" }
+              throw "PowerShell parser validation failed: $path"
+            }
+          }
+          Write-Host 'PASS: Cybernet hardware PowerShell surfaces parse cleanly.'
+
+      - name: Run complete fixture batch journey
+        shell: pwsh
+        run: |
+          $outputRoot = Join-Path $PWD 'survey/output/cybernet-hardware-ci'
+          if (Test-Path -LiteralPath $outputRoot) {
+            Remove-Item -LiteralPath $outputRoot -Recurse -Force
+          }
+          $consolePath = Join-Path $outputRoot 'batch-fixture-console.log'
+          New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+          $console = @(& pwsh -NoProfile -File .\Hardware\Cybernet\Invoke-CybernetBatchConfiguration.ps1 `
+            -Mode Apply `
+            -ComputerName 'CYBERNET-FIXTURE-01' `
+            -FixtureMode `
+            -OutputRoot $outputRoot 2>&1 | ForEach-Object { $_.ToString() })
+          $exitCode = $LASTEXITCODE
+          $console | Tee-Object -FilePath $consolePath | Write-Host
+          if ($exitCode -ne 0) {
+            throw "Fixture batch exited $exitCode. See $consolePath and the uploaded evidence artifact."
+          }
+          $summaryPath = Get-ChildItem -LiteralPath $outputRoot -Filter 'cybernet_batch_configuration_summary.json' -File -Recurse |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $summaryPath) { throw 'Fixture batch did not emit a summary.' }
+          $summary = Get-Content -LiteralPath $summaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($summary.status -ne 'APPLIED_AND_VALIDATED') { throw "Unexpected fixture status: $($summary.status)" }
+          if ($summary.network_activity_performed -or $summary.target_mutation_performed -or $summary.com_mutation_performed) {
+            throw 'Fixture batch overclaimed network or mutation behavior.'
+          }
+          if (@($summary.stages | Where-Object exit_code -ne 0).Count -ne 0) {
+            throw 'One or more fixture stages failed.'
+          }
+          Write-Host "PASS: fixture batch summary $summaryPath"
+
+      - name: Upload fixture batch evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cybernet-hardware-batch-fixture
+          path: survey/output/cybernet-hardware-ci
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run focused Pester module tests
+        shell: pwsh
+        run: |
+          .\tools\Test-Pester5Suite.ps1 `
+            -TestPath .\Tests\Pester\CybernetHardwareBatch.Tests.ps1
+
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --check "origin/${{ github.base_ref }}...HEAD"
+
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        run: git show --check --oneline --no-renames HEAD
