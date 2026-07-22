@@ -27,9 +27,10 @@ def test_preservation_and_pr_ledgers_are_complete() -> None:
     handoff = read(HANDOFF)
     for sprint in ("P01", "P02", "P03", "P04", "P05", "P06", "P07"):
         assert f"| {sprint} " in handoff, f"missing preservation entry: {sprint}"
-    for pr in ("#151", "#177", "#180", "#229", "#232", "#233", "#234", "#237", "#238", "#242"):
+    for pr in ("#151", "#177", "#180", "#229", "#232", "#233", "#234", "#237", "#238", "#242", "#243", "#249"):
         assert f"| {pr} |" in handoff, f"missing PR disposition: {pr}"
-    assert "Digest and classification remain `unavailable`" in handoff
+    assert "The receipt producer is implemented on an open PR" in handoff
+    assert "No public live receipt exists" in handoff
     assert "Raw evidence was not accessed" in handoff
 
 
@@ -39,6 +40,8 @@ def test_canonical_authorities_and_staging_boundaries_are_explicit() -> None:
     for marker in (
         "schemas/harness/software-deployment-transport-result.schema.json",
         "schemas/harness/software-deployment-transport-receipt.schema.json",
+        "schemas/harness/software-deployment-transport-live-cert-result.schema.json",
+        "scripts/Invoke-SasTransportProofIngest.ps1",
         "scripts/Invoke-SasValidatedSoftwareDeployment.ps1",
         "scripts/Invoke-SasSoftwareInstall.ps1",
         "bash/apps/sas-install-apps.sh",
@@ -58,7 +61,8 @@ def test_legacy_and_primary_terminology_is_not_contradictory() -> None:
     smb_doc = read(SMB_DOC).lower()
     tutorial = read(TUTORIAL).lower()
     manifest_doc = read(MANIFEST_DOC).lower()
-    assert "intentionally supported smb/task scheduler compatibility controller" in controller
+    assert "compatibility wrapper for the canonical powershell validated-deployment front" in controller
+    assert "--request mode does not require --allow-legacy" in controller
     assert "legacy deployment lane" not in controller
     assert "guarded fallback" not in smb_doc
     assert "canonical winrm lane" not in smb_doc
@@ -83,6 +87,11 @@ def test_frozen_operations_and_e2e_authority_remain_registered() -> None:
     journeys = {item["id"] for item in e2e["journeys"]}
     assert "software-install-fixture" in journeys
     assert "software-install-validated-finalization" in journeys
+
+    workflow = read(ROOT / "harness/workflows/software-deployment-transport.yaml")
+    assert "implementation_status: deferred_to_p03_and_p07" in workflow
+    assert "implementation_status: implemented_p07" in workflow
+    assert "application_entrypoint: scripts/Invoke-SasTransportProofIngest.ps1" in workflow
 
 
 def test_convergence_docs_are_indexed_and_public_safe() -> None:

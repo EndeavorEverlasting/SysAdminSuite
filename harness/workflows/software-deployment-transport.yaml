@@ -45,13 +45,20 @@ operations:
       - operator_local_transport_live_cert_result.json
     mutation_authority: harmless run-scoped certification task only
   - id: software_install.transport_proof_ingest
-    implementation_status: deferred_to_p06
+    implementation_status: implemented_p07
+    contract_floor_transition: "implementation_status: deferred_to_p06 -> implemented_p07"
+    application_entrypoint: scripts/Invoke-SasTransportProofIngest.ps1
+    implementation_modules:
+      - tools/production-install-proof/ingest_transport_proof.py
     consumes:
       - operator-local live-cert result
       - SHA-256 binding
       - operator confirmation
     produces:
       - software_deployment_transport_receipt.json
+      - receipt_summary.json
+      - artifact_registry.json
+      - operator_handoff.txt
     mutation_authority: none
 selection:
   precedence:
