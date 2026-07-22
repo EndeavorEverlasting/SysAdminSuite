@@ -1,0 +1,90 @@
+name: Cybernet Hardware Batch
+
+on:
+  pull_request:
+    paths:
+      - 'Hardware/Cybernet/**'
+      - 'Run-CybernetBatchConfiguration.cmd'
+      - 'Tests/Pester/CybernetHardwareBatch.Tests.ps1'
+      - 'Tests/survey/test_cybernet_hardware_batch_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - 'CODEBASE_MAP.md'
+      - '.github/workflows/cybernet-hardware-batch.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Hardware/Cybernet/**'
+      - 'Run-CybernetBatchConfiguration.cmd'
+      - 'Tests/Pester/CybernetHardwareBatch.Tests.ps1'
+      - 'Tests/survey/test_cybernet_hardware_batch_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - 'CODEBASE_MAP.md'
+      - '.github/workflows/cybernet-hardware-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-and-contracts:
+    runs-on: windows-2025
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run dependency-free contracts
+        shell: pwsh
+        run: python Tests/survey/test_cybernet_hardware_batch_contracts.py
+
+      - name: Parse Cybernet hardware PowerShell surfaces
+        shell: pwsh
+        run: |
+          $paths = @(
+            'Hardware/Cybernet/CybernetHardware.Common.psm1',
+            'Hardware/Cybernet/Invoke-CybernetStage.ps1',
+            'Hardware/Cybernet/Invoke-CybernetBatchConfiguration.ps1',
+            'Hardware/Cybernet/Disable-PrivacyButton.ps1',
+            'Hardware/Cybernet/Enable-PrivacyButton.ps1',
+            'Hardware/Cybernet/Set-NoSleep.ps1',
+            'Hardware/Cybernet/Set-PowerButtonDoNothing.ps1',
+            'Hardware/Cybernet/COM-Port-Check.ps1',
+            'Hardware/Cybernet/PostInstall-Validation.ps1'
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if (@($errors).Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$path :: $($_.Message)" }
+              throw "PowerShell parser validation failed: $path"
+            }
+          }
+          Write-Host 'PASS: Cybernet hardware PowerShell surfaces parse cleanly.'
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run fixture and composition tests
+        shell: pwsh
+        run: |
+          .\tools\Test-Pester5Suite.ps1 `
+            -TestPath .\Tests\Pester\CybernetHardwareBatch.Tests.ps1
+
+      - name: Check patch whitespace
+        shell: pwsh
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git diff --check "origin/${{ github.base_ref }}...HEAD"
