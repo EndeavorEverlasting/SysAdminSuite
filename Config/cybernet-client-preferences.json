@@ -1,0 +1,59 @@
+{
+  "schema_version": "sas-cybernet-client-preferences/v1",
+  "profile_id": "cybernet-clinical-workstation-default",
+  "display_name": "Cybernet clinical workstation client preferences",
+  "hardware": {
+    "standby_ac_minutes": 0,
+    "standby_dc_minutes": 0,
+    "hibernate_ac_minutes": 0,
+    "hibernate_dc_minutes": 0,
+    "physical_power_button_action": "do_nothing",
+    "display_button_control": {
+      "protocol": "MCCS_2_2_DDCCI",
+      "vcp_code": "0xCA",
+      "desired_value": "0x0303",
+      "meaning": "disable OSD/Menu button events and display power-button events"
+    },
+    "ready_com_ports": [
+      "COM1",
+      "COM2",
+      "COM3",
+      "COM4"
+    ],
+    "repairable_com_ports": [
+      "COM3",
+      "COM4",
+      "COM5",
+      "COM6"
+    ],
+    "com_repair_policy": "local_only_existing_autofix_with_reboot_gate"
+  },
+  "software": {
+    "package_set_id": "cybernet-clinical-workstation",
+    "package_count": 6,
+    "package_ids": [
+      "allscripts-eehr-shortcut-uai-2-2",
+      "epic-downtime-guide-shortcut-1-0",
+      "nuance-dragon-medical-one-2025",
+      "hyland-fos-epic-integration-23-1-33-1000",
+      "bca",
+      "autologon"
+    ],
+    "autologon_must_be_last": true,
+    "software_acceptance_required": true,
+    "restart_policy": "separately_authorized_only"
+  },
+  "workflow": {
+    "pilot_target_count": 1,
+    "maximum_target_count": 25,
+    "apply_order": [
+      "hardware_apply_and_validate",
+      "approved_software_package_set_install",
+      "hardware_post_software_validate",
+      "technician_software_acceptance"
+    ],
+    "credentials_in_command_forbidden": true,
+    "automatic_reboot_forbidden": true,
+    "live_evidence_in_git_forbidden": true
+  }
+}
