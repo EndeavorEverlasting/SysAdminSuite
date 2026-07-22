@@ -55,7 +55,6 @@ def test_runbook_uses_only_current_canonical_entrypoints_and_parameters() -> Non
         "-Profile autologon",
         "-TransportPreflightPath",
         "-InstallerSha256",
-        "-InstallerArgumentsReference",
         "-AuthorizedBy",
         "-RequestReference",
         "-ChangeReference",
@@ -64,6 +63,8 @@ def test_runbook_uses_only_current_canonical_entrypoints_and_parameters() -> Non
     )
     for marker in required:
         assert marker in doc, marker
+    assert "installer_and_no_arguments_confirmed" in doc
+    assert "Do not add switches to the AutoLogon executable" in doc
     for parameter in re.findall(r"(?<![A-Za-z0-9])-([A-Z][A-Za-z0-9]+)", doc):
         if parameter in {"NoProfile", "ExecutionPolicy", "File", "Profile", "OutputRoot", "PassThru", "Confirm", "Force"}:
             continue

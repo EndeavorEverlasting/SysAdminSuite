@@ -26,6 +26,23 @@ Describe 'Validated software deployment request runtime contract' {
         $errors.Count | Should -Be 0
     }
 
+    It 'accepts only explicitly approved empty installer arguments' {
+        $approved = New-ValidDeploymentRequest
+        $approved.installer_arguments = @()
+        $approved | Add-Member -NotePropertyName 'installer_arguments_policy' -NotePropertyValue 'approved_empty'
+        @(Test-SasValidatedDeploymentRequest -Request $approved).Count | Should -Be 0
+
+        $unapproved = New-ValidDeploymentRequest
+        $unapproved.installer_arguments = @()
+        @(Test-SasValidatedDeploymentRequest -Request $unapproved) |
+            Should -Contain 'INSTALLER_ARGUMENTS_EMPTY_NOT_APPROVED'
+
+        $unexpected = New-ValidDeploymentRequest
+        $unexpected | Add-Member -NotePropertyName 'installer_arguments_policy' -NotePropertyValue 'approved_empty'
+        @(Test-SasValidatedDeploymentRequest -Request $unexpected) |
+            Should -Contain 'INSTALLER_ARGUMENTS_POLICY_UNEXPECTED'
+    }
+
     It 'rejects unknown root properties instead of ignoring typos' {
         $request = New-ValidDeploymentRequest
         $request | Add-Member -NotePropertyName 'installer_argumnts' -NotePropertyValue @('/quiet')

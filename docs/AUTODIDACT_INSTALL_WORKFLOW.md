@@ -67,7 +67,7 @@ The tracked catalog is folder-first. Each entry records the confirmed package fo
 | Epic Satellite | `epic-satellite` | `packages\Epic\Satellite` | Not yet confirmed | Before snapshot allowed; plan/install blocked |
 | Epic BCA Web Shortcut 1.0 | `bca` | `packages\Epic\EPIC_BCA_Web-Shortcut_1.0` | `EPIC_BCA_Web-Shortcut_1.0.msi` | Path and unattended MSI arguments confirmed for a guarded pilot |
 | AllScripts TouchWorks 22.1 | `allscripts-touchworks-22-1` | `packages\TouchWork_22.1` | `TWInstaller.exe` | Path confirmed; vendor arguments still required for live install |
-| NW AutoLogon Setup x64 | `autologon` | `packages\AutoLogonSetup` | `NW_AutoLogon_Setup_x64.exe` | Path confirmed; vendor arguments still required for live install |
+| NW AutoLogon Setup x64 | `autologon` | `packages\AutoLogonSetup` | `NW_AutoLogon_Setup_x64.exe` | Elevated no-argument invocation confirmed by the approved catalog |
 
 Resolved file paths for the pinned entries are:
 

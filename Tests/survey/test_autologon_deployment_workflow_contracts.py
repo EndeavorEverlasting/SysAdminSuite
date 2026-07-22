@@ -33,7 +33,7 @@ def test_authority_moves_to_canonical_front_door() -> None:
     assert "Join-Path $PSScriptRoot 'Invoke-SasSoftwareInstall.ps1'" not in content
 
 
-def test_closed_request_requires_identity_hash_arguments_authorization_and_cleanup() -> None:
+def test_closed_request_requires_identity_hash_approved_empty_arguments_authorization_and_cleanup() -> None:
     content = read(SCRIPT)
     required = (
         "[ValidateSet('autologon')]",
@@ -55,7 +55,9 @@ def test_closed_request_requires_identity_hash_arguments_authorization_and_clean
     for marker in required:
         assert marker in content, f"missing closed request contract: {marker}"
     assert "A pinned 64-character -InstallerSha256 is required" in content
-    assert "Explicit vendor-validated -InstallerArguments are required" in content
+    assert "Empty installer arguments are not explicitly approved by the AutoLogon catalog" in content
+    assert "The approved AutoLogon invocation accepts no installer arguments" in content
+    assert "installer_arguments_policy" in content
 
 
 def test_catalog_is_authoritative_without_committed_private_defaults() -> None:

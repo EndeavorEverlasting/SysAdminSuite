@@ -80,9 +80,11 @@
       "installer_file": "NW_AutoLogon_Setup_x64.exe",
       "default_install_mode": "CopyThenInstall",
       "default_installer_arguments": [],
-      "requires_validated_installer_arguments": true,
+      "requires_validated_installer_arguments": false,
+      "installer_arguments_policy": "approved_empty",
+      "installer_arguments_reference": "configs/software-packages/windows-native-package-sets.json#autologon",
       "install_enabled": true,
-      "readiness": "installer_path_confirmed_arguments_pending",
+      "readiness": "installer_and_no_arguments_confirmed",
       "acceptance": {
         "application_process_names": [],
         "application_window_title_pattern": null,
@@ -93,7 +95,7 @@
         "require_current_session_match": true,
         "require_reboot_after_before_snapshot": true
       },
-      "notes": "The folder and installer filename are confirmed. Live installation still requires vendor-validated installer arguments. Acceptance checks Winlogon configuration, password-value-name presence, current session identity, and reboot evidence without reading DefaultPassword data."
+      "notes": "The approved invocation runs the pinned executable elevated with no arguments. Acceptance checks Winlogon configuration, password-value-name presence, current session identity, and reboot evidence without reading DefaultPassword data."
     }
   ]
 }

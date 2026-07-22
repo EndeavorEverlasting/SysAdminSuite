@@ -206,6 +206,9 @@ function Get-SasApprovedAutoLogonPackage {
         software_share_root = $approvedRoot
         installer_relative_path = $approvedRelative
         install_mode = [string]$package.default_install_mode
+        installer_arguments = @($package.default_installer_arguments)
+        installer_arguments_policy = [string]$package.installer_arguments_policy
+        installer_arguments_reference = [string]$package.installer_arguments_reference
     }
 }
 
@@ -346,6 +349,9 @@ function New-SasAutoLogonValidatedRequest {
             )
         }
         cleanup_policy = 'repo_owned_run_scoped_only'
+    }
+    if (@($Arguments).Count -eq 0) {
+        $request | Add-Member -NotePropertyName installer_arguments_policy -NotePropertyValue 'approved_empty'
     }
     if ($SignatureRequired) { $request | Add-Member -NotePropertyName require_valid_signature -NotePropertyValue $true }
     if (-not [string]::IsNullOrWhiteSpace($SignerThumbprint)) {
@@ -589,8 +595,17 @@ else {
     if ([string]::IsNullOrWhiteSpace($InstallerSha256) -or $InstallerSha256 -notmatch '^[A-Fa-f0-9]{64}$') {
         throw 'A pinned 64-character -InstallerSha256 is required.'
     }
-    if (@($InstallerArguments).Count -eq 0) { throw 'Explicit vendor-validated -InstallerArguments are required.' }
-    if ([string]::IsNullOrWhiteSpace($InstallerArgumentsReference)) { throw '-InstallerArgumentsReference is required.' }
+    if (@($InstallerArguments).Count -eq 0) {
+        if ([string]$package.installer_arguments_policy -ne 'approved_empty' -or
+            @($package.installer_arguments).Count -ne 0 -or
+            [string]::IsNullOrWhiteSpace([string]$package.installer_arguments_reference)) {
+            throw 'Empty installer arguments are not explicitly approved by the AutoLogon catalog.'
+        }
+        $InstallerArgumentsReference = [string]$package.installer_arguments_reference
+    }
+    else {
+        throw 'The approved AutoLogon invocation accepts no installer arguments.'
+    }
     foreach ($entry in @{
         AuthorizedBy = $AuthorizedBy; RequestReference = $RequestReference; ChangeReference = $ChangeReference; TicketReference = $TicketReference
     }.GetEnumerator()) {

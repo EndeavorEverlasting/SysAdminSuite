@@ -9,7 +9,7 @@ Use this checklist with `AUTOLOGON_DEPLOYMENT_WORKFLOW.md`. It is a gate sheet, 
 - [ ] One exact authorized target FQDN is stored only in an ignored operator-local input.
 - [ ] The package remains enabled in `configs/software-packages/approved-apps.json`.
 - [ ] Current installer SHA-256 is pinned in the operator request.
-- [ ] Silent arguments have been validated by the package owner and have a non-secret reference.
+- [ ] The catalog records `installer_and_no_arguments_confirmed`; no installer switches are supplied.
 - [ ] Approver, request, change, and ticket references are present.
 - [ ] Product-owner rollback/recovery steps are approved and a technician is available.
 - [ ] No password, account identifier, private package root, hostname, or raw evidence will be committed.

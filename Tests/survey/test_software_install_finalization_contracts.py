@@ -48,6 +48,7 @@ def test_surfaces_exist_and_json_parses() -> None:
     assert schema["properties"]["schema_version"]["const"] == "sas-validated-software-deployment-request/v1"
     assert schema["properties"]["cleanup_policy"]["const"] == "repo_owned_run_scoped_only"
     assert schema["allOf"][0]["then"]["required"] == ["expected_signer_thumbprint"]
+    assert schema["allOf"][1]["then"]["required"] == ["installer_arguments_policy"]
     example = json.loads(read(EXAMPLE))
     try:
         import jsonschema
@@ -56,6 +57,10 @@ def test_surfaces_exist_and_json_parses() -> None:
     if jsonschema is not None:
         jsonschema.Draft202012Validator.check_schema(schema)
         jsonschema.validate(example, schema)
+        approved_empty = dict(example)
+        approved_empty["installer_arguments"] = []
+        approved_empty["installer_arguments_policy"] = "approved_empty"
+        jsonschema.validate(approved_empty, schema)
 
 
 def test_request_contract_is_pinned_authorized_and_bounded() -> None:
@@ -79,6 +84,8 @@ def test_runtime_validator_enforces_closed_schema_guardrails() -> None:
         "VALIDATION_FIELD_UNKNOWN",
         "VALIDATION_CHECK_FIELD_UNKNOWN",
         "INSTALLER_ARGUMENTS_NOT_ARRAY",
+        "INSTALLER_ARGUMENTS_EMPTY_NOT_APPROVED",
+        "INSTALLER_ARGUMENTS_POLICY_UNEXPECTED",
         "TARGETS_NOT_ARRAY",
         "TARGET_DUPLICATE",
         "REQUIRE_VALID_SIGNATURE_TYPE_INVALID",
@@ -93,6 +100,7 @@ def test_runtime_validator_enforces_closed_schema_guardrails() -> None:
     pester = read(PESTER_REQUEST)
     for fragment in (
         "accepts the tracked schema-valid example",
+        "accepts only explicitly approved empty installer arguments",
         "rejects unknown root properties",
         "rejects scalar target input and case-insensitive duplicate targets",
         "requires an actual boolean for signature enforcement",
