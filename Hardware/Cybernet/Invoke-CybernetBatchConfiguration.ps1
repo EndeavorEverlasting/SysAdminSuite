@@ -34,7 +34,10 @@ if ($Mode -eq 'Apply' -and -not $FixtureMode -and -not $AllowTargetMutation) {
 }
 
 $common = Join-Path $PSScriptRoot 'CybernetHardware.Common.psm1'
-if (-not (Test-Path -LiteralPath $common -PathType Leaf)) { throw "Missing shared Cybernet hardware module: $common" }
+$stageRunner = Join-Path $PSScriptRoot 'Invoke-CybernetStage.ps1'
+foreach ($required in @($common, $stageRunner)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Missing Cybernet batch dependency: $required" }
+}
 Import-Module $common -Force
 $repoRoot = Get-SasCybernetRepositoryRoot
 $targets = @(Resolve-SasCybernetTargets -ComputerName $ComputerName -TargetsCsv $TargetsCsv -MaxTargets $MaxTargets -RepoRoot $repoRoot -Role 'Cybernet batch configuration target CSV')
@@ -56,14 +59,21 @@ function Invoke-SasCybernetStage {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)][string]$ScriptPath,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][hashtable]$Parameters,
         [Parameter(Mandatory = $true)][string]$StageOutput
     )
 
     if (-not (Test-Path -LiteralPath $ScriptPath -PathType Leaf)) { throw "Missing Cybernet batch stage: $ScriptPath" }
     $engine = Get-SasPowerShellEngine
     $consolePath = Join-Path $run.run_root ("{0}.console.log" -f $Name)
-    $childArguments = @('-NoProfile', '-File', $ScriptPath) + $Arguments + @('-OutputRoot', $StageOutput, '-MaxTargets', [string]$MaxTargets)
+    $parameterPath = Join-Path $run.run_root ("{0}.parameters.json" -f $Name)
+    $document = [ordered]@{}
+    foreach ($key in $Parameters.Keys) { $document[$key] = $Parameters[$key] }
+    $document['OutputRoot'] = $StageOutput
+    $document['MaxTargets'] = $MaxTargets
+    Write-SasCybernetHardwareJson -Path $parameterPath -Value $document
+
+    $childArguments = @('-NoProfile', '-File', $stageRunner, '-ScriptPath', $ScriptPath, '-ParameterJson', $parameterPath)
     $output = @(& $engine @childArguments 2>&1 | ForEach-Object { $_.ToString() })
     $exitCode = $LASTEXITCODE
     $output | Set-Content -LiteralPath $consolePath -Encoding UTF8 -WhatIf:$false
@@ -73,39 +83,41 @@ function Invoke-SasCybernetStage {
         exit_code = $exitCode
         status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
         output_root = $StageOutput
+        parameter_document = $parameterPath
         console_log = $consolePath
     }
 }
 
-$targetArguments = @('-ComputerName') + @($targets)
-$commonArguments = @($targetArguments)
-if ($FixtureMode) { $commonArguments += '-FixtureMode' }
+$baseParameters = @{ ComputerName = @($targets) }
+if ($FixtureMode) { $baseParameters.FixtureMode = $true }
 $stages = @()
 
 if ($Mode -eq 'Plan') {
-    $stages += Invoke-SasCybernetStage -Name 'no-sleep-plan' -ScriptPath (Join-Path $PSScriptRoot 'Set-NoSleep.ps1') -StageOutput (Join-Path $run.run_root 'no-sleep') -Arguments ($commonArguments + '-WhatIf')
-    $stages += Invoke-SasCybernetStage -Name 'power-button-plan' -ScriptPath (Join-Path $PSScriptRoot 'Set-PowerButtonDoNothing.ps1') -StageOutput (Join-Path $run.run_root 'power-button') -Arguments ($commonArguments + '-WhatIf')
-    $stages += Invoke-SasCybernetStage -Name 'privacy-button-plan' -ScriptPath (Join-Path $PSScriptRoot 'Disable-PrivacyButton.ps1') -StageOutput (Join-Path $run.run_root 'privacy-button') -Arguments ($commonArguments + @('-MonitorIndex', [string]$MonitorIndex, '-WhatIf'))
-    $stages += Invoke-SasCybernetStage -Name 'validation-plan' -ScriptPath (Join-Path $PSScriptRoot 'PostInstall-Validation.ps1') -StageOutput (Join-Path $run.run_root 'validation') -Arguments ($targetArguments + @('-MonitorIndex', [string]$MonitorIndex, '-PlanOnly'))
+    $stages += Invoke-SasCybernetStage -Name 'no-sleep-plan' -ScriptPath (Join-Path $PSScriptRoot 'Set-NoSleep.ps1') -StageOutput (Join-Path $run.run_root 'no-sleep') -Parameters (@{ ComputerName = @($targets); WhatIf = $true })
+    $stages += Invoke-SasCybernetStage -Name 'power-button-plan' -ScriptPath (Join-Path $PSScriptRoot 'Set-PowerButtonDoNothing.ps1') -StageOutput (Join-Path $run.run_root 'power-button') -Parameters (@{ ComputerName = @($targets); WhatIf = $true })
+    $stages += Invoke-SasCybernetStage -Name 'privacy-button-plan' -ScriptPath (Join-Path $PSScriptRoot 'Disable-PrivacyButton.ps1') -StageOutput (Join-Path $run.run_root 'privacy-button') -Parameters (@{ ComputerName = @($targets); MonitorIndex = $MonitorIndex; WhatIf = $true })
+    $stages += Invoke-SasCybernetStage -Name 'validation-plan' -ScriptPath (Join-Path $PSScriptRoot 'PostInstall-Validation.ps1') -StageOutput (Join-Path $run.run_root 'validation') -Parameters (@{ ComputerName = @($targets); MonitorIndex = $MonitorIndex; PlanOnly = $true })
 }
 elseif ($Mode -eq 'Validate') {
-    $validateArgs = $commonArguments + @('-MonitorIndex', [string]$MonitorIndex)
-    $stages += Invoke-SasCybernetStage -Name 'postinstall-validation' -ScriptPath (Join-Path $PSScriptRoot 'PostInstall-Validation.ps1') -StageOutput (Join-Path $run.run_root 'validation') -Arguments $validateArgs
+    $validateParameters = @{ ComputerName = @($targets); MonitorIndex = $MonitorIndex }
+    if ($FixtureMode) { $validateParameters.FixtureMode = $true }
+    $stages += Invoke-SasCybernetStage -Name 'postinstall-validation' -ScriptPath (Join-Path $PSScriptRoot 'PostInstall-Validation.ps1') -StageOutput (Join-Path $run.run_root 'validation') -Parameters $validateParameters
 }
 else {
     if (-not $FixtureMode) {
         $scope = $targets -join ','
-        if (-not $PSCmdlet.ShouldProcess($scope, 'Apply no-sleep, physical power-button, and DDC/CI Privacy/Menu controls, then validate')) {
-            return
-        }
-        $commonArguments += @('-AllowTargetMutation', '-Confirm:$false')
+        if (-not $PSCmdlet.ShouldProcess($scope, 'Apply no-sleep, physical power-button, and DDC/CI Privacy/Menu controls, then validate')) { return }
+        $baseParameters.AllowTargetMutation = $true
+        $baseParameters.Confirm = $false
     }
-    $stages += Invoke-SasCybernetStage -Name 'no-sleep-apply' -ScriptPath (Join-Path $PSScriptRoot 'Set-NoSleep.ps1') -StageOutput (Join-Path $run.run_root 'no-sleep') -Arguments $commonArguments
-    $stages += Invoke-SasCybernetStage -Name 'power-button-apply' -ScriptPath (Join-Path $PSScriptRoot 'Set-PowerButtonDoNothing.ps1') -StageOutput (Join-Path $run.run_root 'power-button') -Arguments $commonArguments
-    $stages += Invoke-SasCybernetStage -Name 'privacy-button-apply' -ScriptPath (Join-Path $PSScriptRoot 'Disable-PrivacyButton.ps1') -StageOutput (Join-Path $run.run_root 'privacy-button') -Arguments ($commonArguments + @('-MonitorIndex', [string]$MonitorIndex))
-    $validationArgs = $targetArguments + @('-MonitorIndex', [string]$MonitorIndex)
-    if ($FixtureMode) { $validationArgs += '-FixtureMode' }
-    $stages += Invoke-SasCybernetStage -Name 'postinstall-validation' -ScriptPath (Join-Path $PSScriptRoot 'PostInstall-Validation.ps1') -StageOutput (Join-Path $run.run_root 'validation') -Arguments $validationArgs
+    $stages += Invoke-SasCybernetStage -Name 'no-sleep-apply' -ScriptPath (Join-Path $PSScriptRoot 'Set-NoSleep.ps1') -StageOutput (Join-Path $run.run_root 'no-sleep') -Parameters $baseParameters
+    $stages += Invoke-SasCybernetStage -Name 'power-button-apply' -ScriptPath (Join-Path $PSScriptRoot 'Set-PowerButtonDoNothing.ps1') -StageOutput (Join-Path $run.run_root 'power-button') -Parameters $baseParameters
+    $privacyParameters = @{} + $baseParameters
+    $privacyParameters.MonitorIndex = $MonitorIndex
+    $stages += Invoke-SasCybernetStage -Name 'privacy-button-apply' -ScriptPath (Join-Path $PSScriptRoot 'Disable-PrivacyButton.ps1') -StageOutput (Join-Path $run.run_root 'privacy-button') -Parameters $privacyParameters
+    $validationParameters = @{ ComputerName = @($targets); MonitorIndex = $MonitorIndex }
+    if ($FixtureMode) { $validationParameters.FixtureMode = $true }
+    $stages += Invoke-SasCybernetStage -Name 'postinstall-validation' -ScriptPath (Join-Path $PSScriptRoot 'PostInstall-Validation.ps1') -StageOutput (Join-Path $run.run_root 'validation') -Parameters $validationParameters
 }
 
 $failedStages = @($stages | Where-Object { $_.exit_code -ne 0 })
