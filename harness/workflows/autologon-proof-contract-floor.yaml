@@ -1,0 +1,121 @@
+schema_version: sas-harness-workflow/v1
+id: autologon-proof-contract-floor
+summary: Freeze canonical AutoLogon deployment, state, post-reboot runtime, source-evidence, and public-receipt contracts.
+mode: contract_floor
+contract_status: frozen_v1
+run_context:
+  module: scripts/SasRunContext.psm1
+  schema_version: sas-run-context/v1
+  artifact_registry_schema: schemas/harness/artifact-registry.schema.json
+  runtime_root: survey/output/runs
+  required_files:
+    - context.json
+    - artifact_registry.json
+    - summary.json
+    - operator_handoff.txt
+artifact_types: harness/api/autologon-artifact-types.json
+schemas:
+  deployment_result: schemas/harness/autologon-deployment-result.schema.json
+  final_step_gate_result: schemas/harness/autologon-final-step-gate-result.schema.json
+  state_proof_result: schemas/harness/autologon-state-proof-result.schema.json
+  session_access_proof: schemas/harness/autologon-session-access-proof.schema.json
+  technician_runtime_proof: schemas/harness/autologon-technician-runtime-proof.schema.json
+  source_evidence: schemas/harness/autologon-proof-source-evidence.schema.json
+  public_receipt: schemas/harness/autologon-proof-receipt.schema.json
+operations:
+  - id: autologon.plan
+    implementation_status: contract_frozen_emitter_alignment_pending
+    network_activity: false
+    target_mutation: false
+  - id: autologon.admin_deploy
+    implementation_status: contract_frozen_canonical_transport_refactor_pending
+    required_transport: kerberos_smb_task
+    final_step_gate_required: true
+  - id: autologon.state_proof
+    implementation_status: contract_frozen_emitter_alignment_pending
+    network_activity: bounded_read_only_when_live
+    target_mutation: false
+  - id: autologon.session_access_proof
+    implementation_status: contract_frozen_v2_emitter_alignment_pending
+    execution_context: actual_autologon_session
+  - id: autologon.technician_runtime_proof
+    implementation_status: contract_frozen_v2_emitter_alignment_pending
+    technician_confirmation_required: true
+  - id: autologon.proof_receipt_ingest
+    implementation_status: contract_frozen_producer_pending
+    source_copy_permitted: false
+terminal_classifications:
+  fixture_only:
+    - fixture_contract_pass
+    - fixture_contract_failed
+    - fixture_gate_passed
+    - fixture_gate_blocked
+    - fixture_contract_only
+    - contract_only
+  operator_local_intermediate:
+    - deployment_planned
+    - deployment_blocked
+    - deployment_succeeded
+    - deployment_failed
+    - gate_passed
+    - gate_blocked
+    - baseline_captured
+    - confirmed_state_transition
+    - already_configured_before
+    - no_material_change
+    - partial_change_review
+    - regression_review
+    - inconclusive
+    - identity_mismatch
+    - session_access_confirmed
+    - session_access_partial
+    - session_access_failed
+    - technician_observed_live_runtime
+    - live_runtime_behavior_failed
+    - live_runtime_incomplete
+    - deployment_proven_runtime_pending
+    - acceptance_failed
+    - insufficient_evidence
+  public_receipt:
+    - acceptance_proven
+    - acceptance_failed
+    - blocked
+privacy_boundary:
+  operator_local:
+    - autologon_deployment_result.json
+    - autologon_final_step_gate_result.json
+    - autologon_state_proof_result.json
+    - autologon_session_access_proof.json
+    - autologon_technician_runtime_proof.json
+    - autologon_proof_source_evidence.json
+  public_safe:
+    - autologon_proof_receipt.json
+  receipt_allowed_fields:
+    - schema_version
+    - source_evidence_sha256
+    - source_evidence_size_bytes
+    - classification
+    - proof_level
+    - reason_codes
+    - operator_confirmed
+    - privacy_status
+  source_handling:
+    - hash source evidence in place
+    - retain source evidence under the ignored operator-local run root
+    - never copy source evidence into the public receipt output
+migration_boundaries:
+  - existing sas-autologon-deployment-summary/v1 remains unchanged until the application lane emits sas-autologon-deployment-result/v1
+  - the unversioned final-step gate result remains legacy until the application lane emits sas-autologon-final-step-gate-result/v1
+  - existing state snapshot, delta, run, summary, and operator-state v1 artifacts remain legacy inputs to sas-autologon-state-proof-result/v1
+  - existing sas-autologon-session-access-proof/v1 remains supported until a producer emits the frozen v2 contract
+  - existing sas-autologon-technician-runtime-proof/v1 remains supported until a producer emits the frozen v2 post-reboot contract
+  - existing file-access posture v1 artifacts are inventoried but are not renamed or replaced by this sprint
+guardrails:
+  - This contract floor authorizes no network activity, target mutation, installer execution, or reboot.
+  - Fixture classifications never prove live deployment, reboot, sign-in, current-token access, or application behavior.
+  - DefaultPassword values, passwords, credentials, hostnames, account names, private package paths, and raw evidence are never public receipt fields.
+  - The final-step gate cannot be weakened or bypassed.
+  - Application transport refactoring is outside this contract-floor sprint.
+validators:
+  - Tests/survey/test_autologon_proof_contract_floor_contracts.py
+proof_ceiling: Frozen repository schemas, operations, artifact roles, sanitized fixtures, dependency-free validators, and CI only; no live deployment, reboot, automatic sign-in, current-token access, application behavior, or operator acceptance is claimed.

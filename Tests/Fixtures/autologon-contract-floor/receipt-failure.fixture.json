@@ -1,0 +1,10 @@
+{
+  "schema_version": "sas-autologon-proof-receipt/v1",
+  "source_evidence_sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+  "source_evidence_size_bytes": 1536,
+  "classification": "blocked",
+  "proof_level": "insufficient",
+  "reason_codes": ["operator_confirmation_missing"],
+  "operator_confirmed": false,
+  "privacy_status": "public_safe_source_hashed_not_copied"
+}

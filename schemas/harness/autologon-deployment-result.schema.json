@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/autologon-deployment-result.schema.json",
+  "title": "SysAdminSuite AutoLogon canonical deployment result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation_id",
+    "evidence_class",
+    "classification",
+    "reason_codes",
+    "fixture_mode",
+    "target_scope",
+    "transport",
+    "authorization",
+    "deployment",
+    "network_activity_performed",
+    "target_mutation_performed",
+    "proof_level",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-autologon-deployment-result/v1" },
+    "operation_id": { "const": "autologon.admin_deploy" },
+    "evidence_class": { "enum": ["sanitized_fixture", "operator_local"] },
+    "classification": {
+      "enum": [
+        "deployment_planned",
+        "deployment_blocked",
+        "fixture_contract_pass",
+        "fixture_contract_failed",
+        "deployment_succeeded",
+        "deployment_failed"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,95}$" }
+    },
+    "fixture_mode": { "type": "boolean" },
+    "target_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_count", "identifiers_emitted"],
+      "properties": {
+        "target_count": { "type": "integer", "minimum": 1, "maximum": 25 },
+        "identifiers_emitted": { "type": "boolean" }
+      }
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preflight_classification", "selected_transport", "canonical_front_door_used"],
+      "properties": {
+        "preflight_classification": {
+          "enum": [
+            "not_run",
+            "kerberos_smb_task_ready",
+            "winrm_ready",
+            "no_supported_transport",
+            "transport_reachable_authorization_denied",
+            "inconclusive"
+          ]
+        },
+        "selected_transport": { "enum": ["kerberos_smb_task", "winrm", "none"] },
+        "canonical_front_door_used": { "type": "boolean" }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["administrator_approved", "target_mutation_approved"],
+      "properties": {
+        "administrator_approved": { "type": "boolean" },
+        "target_mutation_approved": { "type": "boolean" }
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "final_gate_passed",
+        "task_created",
+        "executed_as_system",
+        "installer_executed",
+        "result_retrieved",
+        "cleanup_verified",
+        "zero_remnants_verified"
+      ],
+      "properties": {
+        "final_gate_passed": { "type": "boolean" },
+        "task_created": { "type": "boolean" },
+        "executed_as_system": { "type": "boolean" },
+        "installer_executed": { "type": "boolean" },
+        "result_retrieved": { "type": "boolean" },
+        "cleanup_verified": { "type": "boolean" },
+        "zero_remnants_verified": { "type": "boolean" }
+      }
+    },
+    "network_activity_performed": { "type": "boolean" },
+    "target_mutation_performed": { "type": "boolean" },
+    "proof_level": { "enum": ["sanitized_fixture_contract", "planned", "deployment_execution", "insufficient"] },
+    "proof_ceiling": { "type": "string", "minLength": 40, "maxLength": 1024 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "fixture_mode": { "const": true } }, "required": ["fixture_mode"] },
+      "then": {
+        "properties": {
+          "evidence_class": { "const": "sanitized_fixture" },
+          "classification": { "enum": ["fixture_contract_pass", "fixture_contract_failed"] },
+          "target_scope": { "properties": { "identifiers_emitted": { "const": false } } },
+          "network_activity_performed": { "const": false },
+          "target_mutation_performed": { "const": false },
+          "proof_level": { "const": "sanitized_fixture_contract" },
+          "deployment": {
+            "properties": {
+              "task_created": { "const": false },
+              "executed_as_system": { "const": false },
+              "installer_executed": { "const": false },
+              "result_retrieved": { "const": false },
+              "cleanup_verified": { "const": false },
+              "zero_remnants_verified": { "const": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "classification": { "const": "deployment_succeeded" } }, "required": ["classification"] },
+      "then": {
+        "properties": {
+          "evidence_class": { "const": "operator_local" },
+          "fixture_mode": { "const": false },
+          "transport": {
+            "properties": {
+              "preflight_classification": { "const": "kerberos_smb_task_ready" },
+              "selected_transport": { "const": "kerberos_smb_task" },
+              "canonical_front_door_used": { "const": true }
+            }
+          },
+          "authorization": {
+            "properties": {
+              "administrator_approved": { "const": true },
+              "target_mutation_approved": { "const": true }
+            }
+          },
+          "deployment": {
+            "properties": {
+              "final_gate_passed": { "const": true },
+              "task_created": { "const": true },
+              "executed_as_system": { "const": true },
+              "installer_executed": { "const": true },
+              "result_retrieved": { "const": true },
+              "cleanup_verified": { "const": true },
+              "zero_remnants_verified": { "const": true }
+            }
+          },
+          "network_activity_performed": { "const": true },
+          "target_mutation_performed": { "const": true },
+          "proof_level": { "const": "deployment_execution" }
+        }
+      }
+    }
+  ]
+}

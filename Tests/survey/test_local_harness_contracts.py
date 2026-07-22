@@ -142,6 +142,20 @@ def test_harness_api_manifest_is_local_first_and_has_required_operations():
             assert op["mode"] == "local_transform"
             assert op["network_activity"] is False
             assert op["target_mutation"] is False
+        elif op_id == "autologon.admin_deploy":
+            assert op["mode"] == "operator_execute"
+            assert op["network_activity"] is True
+            assert op["target_mutation"] is True
+            assert "Canonical_Kerberos_SMB_scheduled_task_front_door_required" in op["guardrails"]
+            assert "No_direct_legacy_WinRM_delegation" in op["guardrails"]
+        elif op_id in {"autologon.state_proof", "autologon.session_access_proof"}:
+            assert op["mode"] == "operator_execute"
+            assert op["network_activity"] is True
+            assert op["target_mutation"] is False
+        elif op_id == "autologon.technician_runtime_proof":
+            assert op["mode"] == "operator_execute"
+            assert op["network_activity"] is True
+            assert op["target_mutation"] is True
         else:
             assert op["network_activity"] is False, f"planner/local API must be non-network: {op_id}"
             assert op["target_mutation"] is False, f"planner/local API must not mutate targets: {op_id}"
@@ -190,6 +204,8 @@ def test_local_mcp_catalog_only_exposes_allowed_apis():
         assert server["allowed_apis"], server["id"]
         assert set(server["allowed_apis"]) <= allowed_api_ids, server["id"]
         assert "software_install.operator_execute" not in set(server["allowed_apis"]), server["id"]
+        assert "autologon.admin_deploy" not in set(server["allowed_apis"]), server["id"]
+        assert "autologon.technician_runtime_proof" not in set(server["allowed_apis"]), server["id"]
         assert server["guardrails"], server["id"]
 
     reporter = next(server for server in servers if server["id"] == "sas-evidence-reporter")

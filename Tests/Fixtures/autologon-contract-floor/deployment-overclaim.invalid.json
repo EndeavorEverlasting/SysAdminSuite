@@ -1,0 +1,28 @@
+{
+  "schema_version": "sas-autologon-deployment-result/v1",
+  "operation_id": "autologon.admin_deploy",
+  "evidence_class": "sanitized_fixture",
+  "classification": "fixture_contract_pass",
+  "reason_codes": ["fixture_contract_validated"],
+  "fixture_mode": true,
+  "target_scope": { "target_count": 1, "identifiers_emitted": false },
+  "transport": {
+    "preflight_classification": "kerberos_smb_task_ready",
+    "selected_transport": "kerberos_smb_task",
+    "canonical_front_door_used": true
+  },
+  "authorization": { "administrator_approved": false, "target_mutation_approved": false },
+  "deployment": {
+    "final_gate_passed": true,
+    "task_created": true,
+    "executed_as_system": true,
+    "installer_executed": true,
+    "result_retrieved": true,
+    "cleanup_verified": true,
+    "zero_remnants_verified": true
+  },
+  "network_activity_performed": true,
+  "target_mutation_performed": true,
+  "proof_level": "deployment_execution",
+  "proof_ceiling": "Invalid fixture intentionally overclaims live deployment and must always be rejected by the contract validator."
+}

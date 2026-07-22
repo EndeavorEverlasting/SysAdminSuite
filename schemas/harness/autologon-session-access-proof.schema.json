@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/autologon-session-access-proof.schema.json",
+  "title": "SysAdminSuite AutoLogon current-token session access proof",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation_id",
+    "evidence_class",
+    "classification",
+    "reason_codes",
+    "fixture_mode",
+    "proof",
+    "path_count",
+    "confirmed_path_count",
+    "failed_path_count",
+    "privacy",
+    "proof_level",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-autologon-session-access-proof/v2" },
+    "operation_id": { "const": "autologon.session_access_proof" },
+    "evidence_class": { "enum": ["sanitized_fixture", "operator_local"] },
+    "classification": {
+      "enum": [
+        "fixture_contract_pass",
+        "fixture_contract_failed",
+        "identity_mismatch",
+        "session_access_confirmed",
+        "session_access_partial",
+        "session_access_failed"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,95}$" }
+    },
+    "fixture_mode": { "type": "boolean" },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected_account_match", "current_token_access_proven", "write_probe_requested", "write_probe_cleanup_proven"],
+      "properties": {
+        "expected_account_match": { "type": "boolean" },
+        "current_token_access_proven": { "type": "boolean" },
+        "write_probe_requested": { "type": "boolean" },
+        "write_probe_cleanup_proven": { "type": "boolean" }
+      }
+    },
+    "path_count": { "type": "integer", "minimum": 1, "maximum": 12 },
+    "confirmed_path_count": { "type": "integer", "minimum": 0, "maximum": 12 },
+    "failed_path_count": { "type": "integer", "minimum": 0, "maximum": 12 },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "account_identifier_present",
+        "path_values_present",
+        "path_contents_recorded",
+        "credentials_collected",
+        "impersonation_used",
+        "persistence_created"
+      ],
+      "properties": {
+        "account_identifier_present": { "type": "boolean" },
+        "path_values_present": { "type": "boolean" },
+        "path_contents_recorded": { "const": false },
+        "credentials_collected": { "const": false },
+        "impersonation_used": { "const": false },
+        "persistence_created": { "const": false }
+      }
+    },
+    "proof_level": { "enum": ["sanitized_fixture_contract", "current_token_session_access", "insufficient"] },
+    "proof_ceiling": { "type": "string", "minLength": 40, "maxLength": 1024 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "fixture_mode": { "const": true } }, "required": ["fixture_mode"] },
+      "then": {
+        "properties": {
+          "evidence_class": { "const": "sanitized_fixture" },
+          "classification": { "enum": ["fixture_contract_pass", "fixture_contract_failed"] },
+          "proof_level": { "const": "sanitized_fixture_contract" },
+          "proof": { "properties": { "current_token_access_proven": { "const": false } } },
+          "privacy": {
+            "properties": {
+              "account_identifier_present": { "const": false },
+              "path_values_present": { "const": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "classification": { "const": "session_access_confirmed" } }, "required": ["classification"] },
+      "then": {
+        "properties": {
+          "fixture_mode": { "const": false },
+          "evidence_class": { "const": "operator_local" },
+          "proof_level": { "const": "current_token_session_access" },
+          "proof": {
+            "properties": {
+              "expected_account_match": { "const": true },
+              "current_token_access_proven": { "const": true }
+            }
+          },
+          "failed_path_count": { "const": 0 }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/autologon-state-proof-result.schema.json",
+  "title": "SysAdminSuite AutoLogon canonical state proof result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation_id",
+    "evidence_class",
+    "classification",
+    "reason_codes",
+    "fixture_mode",
+    "target_count",
+    "proof",
+    "safety",
+    "proof_level",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-autologon-state-proof-result/v1" },
+    "operation_id": { "const": "autologon.state_proof" },
+    "evidence_class": { "enum": ["sanitized_fixture", "operator_local"] },
+    "classification": {
+      "enum": [
+        "fixture_contract_pass",
+        "fixture_contract_failed",
+        "baseline_captured",
+        "confirmed_state_transition",
+        "already_configured_before",
+        "no_material_change",
+        "partial_change_review",
+        "regression_review",
+        "inconclusive"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,95}$" }
+    },
+    "fixture_mode": { "type": "boolean" },
+    "target_count": { "type": "integer", "minimum": 1, "maximum": 25 },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "before_snapshot_captured",
+        "after_snapshot_captured",
+        "state_change_observed",
+        "expected_account_match",
+        "reboot_observed",
+        "automatic_sign_in_observed"
+      ],
+      "properties": {
+        "before_snapshot_captured": { "type": "boolean" },
+        "after_snapshot_captured": { "type": "boolean" },
+        "state_change_observed": { "type": "boolean" },
+        "expected_account_match": { "type": "boolean" },
+        "reboot_observed": { "type": "boolean" },
+        "automatic_sign_in_observed": { "type": "boolean" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "collector_target_mutation_performed",
+        "target_side_sysadminsuite_artifacts_written",
+        "default_password_value_collected",
+        "human_actor_attribution_claimed"
+      ],
+      "properties": {
+        "collector_target_mutation_performed": { "const": false },
+        "target_side_sysadminsuite_artifacts_written": { "const": false },
+        "default_password_value_collected": { "const": false },
+        "human_actor_attribution_claimed": { "const": false }
+      }
+    },
+    "proof_level": { "enum": ["sanitized_fixture_contract", "operator_local_state_delta", "insufficient"] },
+    "proof_ceiling": { "type": "string", "minLength": 40, "maxLength": 1024 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "fixture_mode": { "const": true } }, "required": ["fixture_mode"] },
+      "then": {
+        "properties": {
+          "evidence_class": { "const": "sanitized_fixture" },
+          "classification": { "enum": ["fixture_contract_pass", "fixture_contract_failed"] },
+          "proof_level": { "const": "sanitized_fixture_contract" },
+          "proof": {
+            "properties": {
+              "reboot_observed": { "const": false },
+              "automatic_sign_in_observed": { "const": false }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

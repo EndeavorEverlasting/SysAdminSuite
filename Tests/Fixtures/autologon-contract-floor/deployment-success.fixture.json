@@ -1,0 +1,28 @@
+{
+  "schema_version": "sas-autologon-deployment-result/v1",
+  "operation_id": "autologon.admin_deploy",
+  "evidence_class": "sanitized_fixture",
+  "classification": "fixture_contract_pass",
+  "reason_codes": ["fixture_contract_validated"],
+  "fixture_mode": true,
+  "target_scope": { "target_count": 1, "identifiers_emitted": false },
+  "transport": {
+    "preflight_classification": "kerberos_smb_task_ready",
+    "selected_transport": "kerberos_smb_task",
+    "canonical_front_door_used": false
+  },
+  "authorization": { "administrator_approved": false, "target_mutation_approved": false },
+  "deployment": {
+    "final_gate_passed": true,
+    "task_created": false,
+    "executed_as_system": false,
+    "installer_executed": false,
+    "result_retrieved": false,
+    "cleanup_verified": false,
+    "zero_remnants_verified": false
+  },
+  "network_activity_performed": false,
+  "target_mutation_performed": false,
+  "proof_level": "sanitized_fixture_contract",
+  "proof_ceiling": "Sanitized fixture contract only; no target contact, deployment, cleanup, or runtime behavior is proven."
+}

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/autologon-technician-runtime-proof.schema.json",
+  "title": "SysAdminSuite AutoLogon post-reboot technician runtime proof",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation_id",
+    "evidence_class",
+    "classification",
+    "reason_codes",
+    "fixture_mode",
+    "proof",
+    "technician_confirmation",
+    "privacy",
+    "proof_level",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-autologon-technician-runtime-proof/v2" },
+    "operation_id": { "const": "autologon.technician_runtime_proof" },
+    "evidence_class": { "enum": ["sanitized_fixture", "operator_local"] },
+    "classification": {
+      "enum": [
+        "fixture_contract_pass",
+        "fixture_contract_failed",
+        "technician_observed_live_runtime",
+        "live_runtime_behavior_failed",
+        "live_runtime_incomplete"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,95}$" }
+    },
+    "fixture_mode": { "type": "boolean" },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reboot_observed",
+        "automatic_sign_in_observed",
+        "expected_account_match",
+        "session_access_proven",
+        "application_started",
+        "application_ready",
+        "technician_behavior_observed"
+      ],
+      "properties": {
+        "reboot_observed": { "type": "boolean" },
+        "automatic_sign_in_observed": { "type": "boolean" },
+        "expected_account_match": { "type": "boolean" },
+        "session_access_proven": { "type": "boolean" },
+        "application_started": { "type": "boolean" },
+        "application_ready": { "type": "boolean" },
+        "technician_behavior_observed": { "type": "boolean" }
+      }
+    },
+    "technician_confirmation": { "type": "boolean" },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operator_local", "default_password_value_collected", "credentials_collected", "personal_data_recorded"],
+      "properties": {
+        "operator_local": { "const": true },
+        "default_password_value_collected": { "const": false },
+        "credentials_collected": { "const": false },
+        "personal_data_recorded": { "const": false }
+      }
+    },
+    "proof_level": { "enum": ["sanitized_fixture_contract", "technician_observed_live_runtime", "live_runtime_failed", "insufficient"] },
+    "proof_ceiling": { "type": "string", "minLength": 40, "maxLength": 1024 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "fixture_mode": { "const": true } }, "required": ["fixture_mode"] },
+      "then": {
+        "properties": {
+          "evidence_class": { "const": "sanitized_fixture" },
+          "classification": { "enum": ["fixture_contract_pass", "fixture_contract_failed"] },
+          "technician_confirmation": { "const": false },
+          "proof_level": { "const": "sanitized_fixture_contract" },
+          "proof": {
+            "properties": {
+              "reboot_observed": { "const": false },
+              "automatic_sign_in_observed": { "const": false },
+              "expected_account_match": { "const": false },
+              "session_access_proven": { "const": false },
+              "application_started": { "const": false },
+              "application_ready": { "const": false },
+              "technician_behavior_observed": { "const": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "classification": { "const": "technician_observed_live_runtime" } }, "required": ["classification"] },
+      "then": {
+        "properties": {
+          "evidence_class": { "const": "operator_local" },
+          "fixture_mode": { "const": false },
+          "technician_confirmation": { "const": true },
+          "proof_level": { "const": "technician_observed_live_runtime" },
+          "proof": {
+            "properties": {
+              "reboot_observed": { "const": true },
+              "automatic_sign_in_observed": { "const": true },
+              "expected_account_match": { "const": true },
+              "session_access_proven": { "const": true },
+              "application_started": { "const": true },
+              "application_ready": { "const": true },
+              "technician_behavior_observed": { "const": true }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

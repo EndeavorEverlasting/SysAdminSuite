@@ -1,0 +1,10 @@
+{
+  "schema_version": "sas-autologon-proof-receipt/v1",
+  "source_evidence_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+  "source_evidence_size_bytes": 2048,
+  "classification": "contract_only",
+  "proof_level": "sanitized_fixture_contract",
+  "reason_codes": ["sanitized_fixture_contract"],
+  "operator_confirmed": false,
+  "privacy_status": "public_safe_source_hashed_not_copied"
+}

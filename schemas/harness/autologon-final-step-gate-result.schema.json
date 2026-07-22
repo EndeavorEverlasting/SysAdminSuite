@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/autologon-final-step-gate-result.schema.json",
+  "title": "SysAdminSuite AutoLogon final-step gate result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "gate_id",
+    "gate_version",
+    "evidence_class",
+    "classification",
+    "reason_codes",
+    "fixture_mode",
+    "target_identifier_emitted",
+    "prerequisites",
+    "overall_pass",
+    "default_password_value_read",
+    "secret_value_emitted",
+    "proof_level",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": { "const": "sas-autologon-final-step-gate-result/v1" },
+    "gate_id": { "const": "autologon-final-step" },
+    "gate_version": { "const": "1.0.0" },
+    "evidence_class": { "enum": ["sanitized_fixture", "operator_local"] },
+    "classification": { "enum": ["gate_passed", "gate_blocked", "fixture_gate_passed", "fixture_gate_blocked"] },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,95}$" }
+    },
+    "fixture_mode": { "type": "boolean" },
+    "target_identifier_emitted": { "type": "boolean" },
+    "prerequisites": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "mandatory", "passed", "reason_code"],
+        "properties": {
+          "id": { "enum": ["run_id_format", "host_eligibility", "approved_catalog", "before_snapshot", "runtime_proof", "file_access_posture"] },
+          "mandatory": { "type": "boolean" },
+          "passed": { "type": "boolean" },
+          "reason_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,95}$" }
+        }
+      }
+    },
+    "overall_pass": { "type": "boolean" },
+    "default_password_value_read": { "const": false },
+    "secret_value_emitted": { "const": false },
+    "proof_level": { "enum": ["sanitized_fixture_contract", "operator_local_gate", "insufficient"] },
+    "proof_ceiling": { "type": "string", "minLength": 40, "maxLength": 1024 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "fixture_mode": { "const": true } }, "required": ["fixture_mode"] },
+      "then": {
+        "properties": {
+          "evidence_class": { "const": "sanitized_fixture" },
+          "classification": { "enum": ["fixture_gate_passed", "fixture_gate_blocked"] },
+          "target_identifier_emitted": { "const": false },
+          "proof_level": { "const": "sanitized_fixture_contract" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "classification": { "enum": ["gate_passed", "fixture_gate_passed"] } }, "required": ["classification"] },
+      "then": { "properties": { "overall_pass": { "const": true } } }
+    },
+    {
+      "if": { "properties": { "classification": { "enum": ["gate_blocked", "fixture_gate_blocked"] } }, "required": ["classification"] },
+      "then": { "properties": { "overall_pass": { "const": false } } }
+    }
+  ]
+}

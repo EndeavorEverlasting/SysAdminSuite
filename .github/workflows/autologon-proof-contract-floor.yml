@@ -1,0 +1,57 @@
+name: AutoLogon Proof Contract Floor
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/autologon-proof-contract-floor.yml'
+      - 'schemas/harness/autologon-*.schema.json'
+      - 'harness/api/autologon-artifact-types.json'
+      - 'harness/api/sas-harness-api.json'
+      - 'harness/workflows/autologon-proof-contract-floor.yaml'
+      - 'Tests/Fixtures/autologon-contract-floor/**'
+      - 'Tests/survey/test_autologon_proof_contract_floor_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - 'docs/AUTOLOGON_PROOF_CONTRACT_FLOOR.md'
+      - 'CODEBASE_MAP.md'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run dependency-free AutoLogon proof contracts
+        run: python3 Tests/survey/test_autologon_proof_contract_floor_contracts.py
+
+      - name: Install JSON Schema validator
+        run: python -m pip install jsonschema
+
+      - name: Re-run with Draft 2020-12 schema validation
+        run: python3 Tests/survey/test_autologon_proof_contract_floor_contracts.py
+
+      - name: Verify JSON parsing
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          paths = list(Path('schemas/harness').glob('autologon-*.schema.json'))
+          paths += list(Path('Tests/Fixtures/autologon-contract-floor').glob('*.json'))
+          paths += [Path('harness/api/autologon-artifact-types.json'), Path('harness/api/sas-harness-api.json')]
+          for path in paths:
+              json.loads(path.read_text(encoding='utf-8'))
+          print(f'JSON PARSE PASS: {len(paths)} files')
+          PY
