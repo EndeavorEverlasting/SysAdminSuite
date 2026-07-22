@@ -89,7 +89,7 @@ jobs:
               [ref]$errors
             ) | Out-Null
             if (@($errors).Count -gt 0) {
-              $errors | ForEach-Object { Write-Error "$path: $($_.Message)" }
+              $errors | ForEach-Object { Write-Error "${path}: $($_.Message)" }
               throw "Cybernet PowerShell parser validation failed: $path"
             }
           }
