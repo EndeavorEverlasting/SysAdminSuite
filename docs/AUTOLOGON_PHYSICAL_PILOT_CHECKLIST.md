@@ -1,139 +1,74 @@
-# AutoLogon Physical Pilot Readiness Checklist
+# AutoLogon one-target physical pilot checklist
 
-## Purpose
+Use this checklist with `AUTOLOGON_DEPLOYMENT_WORKFLOW.md`. It is a gate sheet, not an alternate command authority.
 
-This checklist defines what must be in place before a physical AutoLogon pilot runs on real shared workstations. It is the bridge between static contract tests (which prove the code is structurally correct) and live deployment (which proves the code works on real hardware).
+## Repository and operator readiness
 
-## Pre-pilot prerequisites
+- [ ] Current `origin/main` contains the canonical AutoLogon deployment, deterministic routing, frozen proof contracts, and dedicated fixture E2E.
+- [ ] Working tree is clean and the approved change references the intended commit.
+- [ ] One exact authorized target FQDN is stored only in an ignored operator-local input.
+- [ ] The package remains enabled in `configs/software-packages/approved-apps.json`.
+- [ ] Current installer SHA-256 is pinned in the operator request.
+- [ ] Silent arguments have been validated by the package owner and have a non-secret reference.
+- [ ] Approver, request, change, and ticket references are present.
+- [ ] Product-owner rollback/recovery steps are approved and a technician is available.
+- [ ] No password, account identifier, private package root, hostname, or raw evidence will be committed.
 
-### 1. Repository readiness
+## Static and fixture gate
 
-- [ ] PR #167 (autologon-state-delta) is merged to main
-- [ ] PR #168 (autologon-deployment-workflow) is merged to main (or conflicts resolved)
-- [ ] PR #175 (autodidact-install-capsule) is merged to main (or catalog adopted)
-- [ ] This PR (autologon-final-step-gate) is merged to main
-- [ ] All Pester tests pass on main
-- [ ] All Python contract tests pass on main
-- [ ] `Test-SasHostEligibility.ps1` exists on main (from Sprint 1)
-- [ ] `configs/software-packages/approved-apps.json` exists on main with `autologon` entry
+- [ ] `python .\Tests\survey\test_autologon_deployment_workflow_contracts.py` passes.
+- [ ] `python .\Tests\survey\test_autologon_admin_runtime_runbook_contracts.py` passes.
+- [ ] Dedicated `autologon` E2E profile passes under Windows PowerShell 5.1.
+- [ ] Fixture classification remains `contract_only` / `sanitized_fixture_contract`.
+- [ ] Fixture output makes no live scheduled-task, SYSTEM, reboot, sign-in, access, or application claim.
 
-### 2. Target workstation readiness
+## Plan and preflight gate
 
-- [ ] Target workstations are in the `Managed_Shared` OU
-- [ ] AD user accounts exist for each target hostname (short name mapping)
-- [ ] PostInstall registry key `HKLM\SOFTWARE\NSLIJHS\PostInstall` contains `SetAutoLogon` = `Autologon_YES`
-- [ ] Target workstations are reachable via admin share (`\\HOST\c$`)
-- [ ] Target workstations have been assessed (autologon_assessment.csv shows `intent_only` or `setup_incomplete`)
+- [ ] Fresh one-target `kerberos_smb_task` preflight completed with explicit read-only network approval.
+- [ ] Classification is `kerberos_smb_task_ready`.
+- [ ] Selected transport is `kerberos_smb_task`; no WinRM fallback is accepted.
+- [ ] Plan-only AutoLogon invocation returns `deployment_planned`.
+- [ ] Plan output shows no target mutation.
+- [ ] Operator reviewed the exact closed request and confirmation remains enabled.
 
-### 3. Operator readiness
+## Administrator deployment gate
 
-- [ ] Operator is logged in with admin context
-- [ ] `Run-AutoLogonStateDelta.cmd` launcher works on admin box
-- [ ] `configs/software-packages/approved-apps.json` is present and valid
-- [ ] `Config/host-eligibility-policy.local.json` includes target hostnames (or policy is absent for fail-closed test)
-- [ ] Approved target CSV exists (e.g., `targets/local/autologon-pilot.csv`)
-- [ ] Technician label is prepared (e.g., `pilot-wave-1`)
+- [ ] AutoLogon is the final security-sensitive product mutation.
+- [ ] Before snapshot succeeded for the target.
+- [ ] Target was not skipped as baseline failed or already configured.
+- [ ] Final-step gate passed with no bypass.
+- [ ] Canonical front door was used.
+- [ ] Scheduled task was created and executed as SYSTEM in the live result.
+- [ ] Installer result was retrieved.
+- [ ] SysAdminSuite cleanup was verified.
+- [ ] Zero run-scoped SysAdminSuite remnants were verified.
+- [ ] State result is expected and does not require review.
+- [ ] `Inspect-LatestAutoLogon.cmd -RequireDeploymentSucceeded` returns `DEPLOYMENT_SUCCEEDED_RUNTIME_PENDING`.
 
-### 4. Package readiness
+## Controlled reboot and signed-in proof
 
-- [ ] `NW_AutoLogon_Setup_x64.exe` is pinned in `approved-apps.json`
-- [ ] Package is accessible from the approved share (`\\nt2kwb972sms01\packages\AutoLogonSetup\`)
-- [ ] Vendor-validated installer arguments are documented (or empty array is intentional)
+- [ ] Technician remains present for the approved reboot; no unattended reboot command is used.
+- [ ] Reboot completion is directly observed.
+- [ ] Automatic sign-in is directly observed separately from current-session identity.
+- [ ] Current session matches the expected AutoLogon account.
+- [ ] Every required local, mapped, and UNC path passes current-token proof.
+- [ ] Any write-probe marker was removed immediately; none remains.
+- [ ] Approved application starts and reaches its configured ready surface.
+- [ ] Technician performs only the approved disposable action.
+- [ ] Concrete expected behavior is observed and recorded without personal data.
+- [ ] Exact runtime proof level is recorded; a process ACK alone is not accepted.
 
-## Pilot execution sequence
+## Failure and recovery gate
 
-### Step 1: Capture Before state
+- [ ] Any blocked or failed stage stops expansion.
+- [ ] Operator-local evidence is preserved before troubleshooting.
+- [ ] No blind retry, transport broadening, gate bypass, or log clearing occurs.
+- [ ] Cleanup recovery removes only identified run-scoped SysAdminSuite artifacts.
+- [ ] Package-owner rollback is used when required; no improvised registry command is used.
+- [ ] Post-recovery state and separately approved sign-in behavior are rechecked.
 
-```powershell
-.\scripts\Start-SasAutoLogonStateDelta.ps1 `
-  -Action Before `
-  -TargetsCsv targets\local\autologon-pilot.csv `
-  -TechnicianLabel pilot-wave-1
-```
+## Expansion decision
 
-Verify:
-- `run_manifest_before.json` exists in the output directory
-- Phase is `before_complete`
-- All target hostnames are in the `targets` array
-
-### Step 2: Run final-step gate
-
-```powershell
-$gateResult = .\scripts\Invoke-SasAutoLogonFinalStepGate.ps1 `
-  -Target TARGET_HOSTNAME `
-  -RunId AUTLOGON_DELTA_RUNID `
-  -BeforeSnapshotPath survey\output\autologon_state_delta\RUNID\run_manifest_before.json `
-  -ApprovedAppsPath configs\software-packages\approved-apps.json `
-  -OutputRoot survey\output\autologon_state_delta `
-  -TechnicianLabel pilot-wave-1
-```
-
-Verify:
-- `overall_pass` is `true`
-- All 4 mandatory prerequisites passed
-- `autologon_final_step_gate.json` is written
-
-### Step 3: Execute approved software install
-
-```powershell
-.\scripts\Invoke-SasSoftwareInstall.ps1 `
-  -ComputerName TARGET_HOSTNAME `
-  -PackageName autologon `
-  -InstallerRelativePath AutoLogonSetup\NW_AutoLogon_Setup_x64.exe `
-  -SoftwareShareRoot \\nt2kwb972sms01\ `
-  -InstallMode CopyThenInstall `
-  -OutputRoot survey\output\software_install `
-  -AllowTargetMutation
-```
-
-Verify:
-- Install summary shows success
-- No staging artifacts remain on target after cleanup
-
-### Step 4: Capture After state
-
-```powershell
-.\scripts\Start-SasAutoLogonStateDelta.ps1 `
-  -Action After `
-  -ComputerName TARGET_HOSTNAME `
-  -RunId AUTLOGON_DELTA_RUNID
-```
-
-Verify:
-- `run_manifest_after.json` exists
-- Phase is `after_complete`
-
-### Step 5: Review state delta
-
-```powershell
-.\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
-  -Mode Assess `
-  -ComputerName TARGET_HOSTNAME `
-  -RunId AUTLOGON_DELTA_RUNID
-```
-
-Verify:
-- Decision is `CONFIRMED_STATE_TRANSITION` (not `NO_MATERIAL_CHANGE` or `REGRESSION_REVIEW`)
-- Before/After snapshots show expected registry changes
-
-## Failure recovery
-
-| Failure | Recovery |
-|---|---|
-| Gate `overall_pass` is false | Check which prerequisite failed; fix the issue; re-run gate |
-| Before snapshot missing target | Re-run Before capture with correct target list |
-| Install fails on target | Check target reachability, admin share, package availability |
-| After snapshot shows no change | Installer may not have run; check install summary |
-| State delta shows regression | Do NOT proceed; investigate; escalate |
-
-## Post-pilot evidence
-
-After the pilot, collect:
-
-1. `autologon_final_step_gate.json` — gate result
-2. `run_manifest_before.json` — Before state
-3. `run_manifest_after.json` — After state
-4. `software_install_summary.json` — install result
-5. `autologon_assessment.csv` — pre-pilot assessment
-
-These artifacts stay in gitignored local output. Do not commit them to the repository.
+- [ ] All administrator, cleanup, state, reboot, sign-in, current-token, application, and technician gates passed.
+- [ ] Proof ceiling and any remaining acceptance gap are documented.
+- [ ] Product owner and change authority approved expansion beyond the one-target pilot.

@@ -1,15 +1,15 @@
 {
   "schema_version": "sas-autologon-technician-runtime-config/v1",
-  "expected_user_name": "WORKSTATION001",
+  "expected_user_name": "EXPECTED_AUTOLOGON_ACCOUNT",
   "access_paths": [
-    "C:\\ProgramData\\VendorApp",
-    "Z:\\OperationalData",
-    "\\\\approved-fileserver\\approved-share\\OperationalData"
+    "C:\\Path\\To\\ApprovedAppData",
+    "Z:\\ApprovedData",
+    "\\\\approved-server.invalid\\approved-share\\ApprovedData"
   ],
-  "evidence_directory": "\\\\approved-fileserver\\approved-share\\SysAdminSuiteRuntimeEvidence",
-  "application_path": "C:\\Program Files\\VendorApp\\VendorApp.exe",
+  "evidence_directory": "\\\\approved-server.invalid\\approved-share\\SysAdminSuiteRuntimeEvidence",
+  "application_path": "C:\\Path\\To\\ApprovedApp.exe",
   "application_arguments": [],
-  "expected_process_name": "VendorApp",
+  "expected_process_name": "ApprovedApp",
   "surface_ready_mode": "RespondingWindow",
   "window_title_pattern": "",
   "stop_existing_process": false,

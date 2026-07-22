@@ -42,10 +42,11 @@ Before a technician starts:
 - the evidence directory must be an approved location writable by the AutoLogon account;
 - the site owner must decide whether stopping a stale application process is safe.
 
-PR #168 remains stacked on #167. The current #167 P1 must be resolved before repository merge because
-the state classifier can otherwise overstate readiness when `DefaultPassword` is absent. Runtime
-execution on a controlled pilot may proceed only when the operator independently verifies the
-approved AutoLogon configuration and accepts that repository dependency gap.
+The historical state-classifier dependency is resolved on current `main`: missing password-value-name
+presence is fail-closed, and canonical deployment is routed through the Kerberos/SMB scheduled-task
+front door. Runtime execution still requires a successful current deployment result, clean teardown,
+an understood state result, and the separate controlled reboot observation described in
+`AUTOLOGON_DEPLOYMENT_WORKFLOW.md`.
 
 ## Prepare one config per workstation or site pattern
 

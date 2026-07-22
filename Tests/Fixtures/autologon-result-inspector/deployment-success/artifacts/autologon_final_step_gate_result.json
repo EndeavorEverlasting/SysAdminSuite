@@ -1,0 +1,21 @@
+{
+  "schema_version": "sas-autologon-final-step-gate-result/v1",
+  "gate_id": "autologon-final-step",
+  "gate_version": "1.0.0",
+  "evidence_class": "operator_local",
+  "classification": "gate_passed",
+  "reason_codes": ["all_mandatory_prerequisites_passed"],
+  "fixture_mode": false,
+  "target_identifier_emitted": false,
+  "prerequisites": [
+    {"id": "run_id_format", "mandatory": true, "passed": true, "reason_code": "run_id_format_passed"},
+    {"id": "host_eligibility", "mandatory": true, "passed": true, "reason_code": "host_eligibility_passed"},
+    {"id": "approved_catalog", "mandatory": true, "passed": true, "reason_code": "approved_catalog_passed"},
+    {"id": "before_snapshot", "mandatory": true, "passed": true, "reason_code": "before_snapshot_passed"}
+  ],
+  "overall_pass": true,
+  "default_password_value_read": false,
+  "secret_value_emitted": false,
+  "proof_level": "operator_local_gate",
+  "proof_ceiling": "Local prerequisite validation only; installer execution, reboot, automatic sign-in, current-token access, and application behavior are not proven."
+}

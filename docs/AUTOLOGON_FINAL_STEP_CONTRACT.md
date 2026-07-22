@@ -14,7 +14,7 @@ The final-step gate exists because:
 
 The final-step gate must be called before any of the following:
 
-- `Invoke-SasSoftwareInstall.ps1` with the `autologon` package
+- the canonical `Invoke-SasAutoLogonDeployment.ps1` application before it reaches its validated deployment front door
 - `Start-SasAutoLogonStateDelta.ps1` in `After` mode
 - Any direct Winlogon registry mutation for auto-logon configuration
 - `NW_AutoLogon_Setup_x64.exe` execution on a target workstation
@@ -56,53 +56,17 @@ Recommended prerequisites do **not** block execution. They are recorded in the g
 
 ## Gate result structure
 
-The gate produces a JSON result at `survey/output/autologon_state_delta/<run_id>/autologon_final_step_gate.json`:
+The standalone gate writes operator-local detail beneath the ignored state-delta output. Canonical
+deployment normalizes that detail to `artifacts/autologon_final_step_gate_result.json` with schema
+`sas-autologon-final-step-gate-result/v1`. The normalized object exposes classification, reason codes,
+prerequisite IDs and booleans, privacy flags, proof level, and proof ceiling without a target identifier.
+Do not copy raw operator-local gate evidence into documentation or public reports.
 
-```json
-{
-  "gate_id": "autologon-final-step",
-  "gate_version": "1.0.0",
-  "target": "SAMPLE301MSO001",
-  "run_id": "autologon-delta-20260714-143000-1a2b3c4d",
-  "timestamp_utc": "2026-07-14T14:30:00.0000000Z",
-  "technician_label": "pilot-wave-1",
-  "fixture_mode": false,
-  "prerequisites": [
-    {
-      "id": "run_id_format",
-      "description": "Run ID matches autologon-delta format",
-      "passed": true,
-      "mandatory": true,
-      "detail": "Run ID 'autologon-delta-20260714-143000-1a2b3c4d' is valid"
-    },
-    {
-      "id": "host_eligibility",
-      "description": "Target host is eligible for package execution",
-      "passed": true,
-      "mandatory": true,
-      "detail": "Host 'SAMPLE301MSO001' is eligible for local execution context"
-    },
-    {
-      "id": "approved_catalog",
-      "description": "Autologon package exists in approved software catalog",
-      "passed": true,
-      "mandatory": true,
-      "detail": "Package 'autologon' found: NW AutoLogon Setup x64, installer=NW_AutoLogon_Setup_x64.exe"
-    },
-    {
-      "id": "before_snapshot",
-      "description": "State-delta Before snapshot captured for this run",
-      "passed": true,
-      "mandatory": true,
-      "detail": "Before snapshot validated for run 'autologon-delta-20260714-143000-1a2b3c4d', target 'SAMPLE301MSO001'"
-    }
-  ],
-  "overall_pass": true,
-  "blocked_reason": null
-}
-```
+## Standalone fixture and diagnostic usage
 
-## Usage
+The normal live operator does not compose these commands; `Invoke-SasAutoLogonDeployment.ps1` owns the
+Before capture and final-step gate. The standalone surface remains for focused fixture validation and
+approved diagnosis.
 
 ### Prerequisite check (before installer)
 
@@ -149,38 +113,19 @@ The gate produces a JSON result at `survey/output/autologon_state_delta/<run_id>
 The full AutoLogon deployment sequence is:
 
 ```
-1. Assessment (read-only)
-   survey/sas-assess-autologon.sh --manifest targets.csv
-   -> autologon_assessment.csv
-   -> identifies intent_only, setup_incomplete, autologon_ready
-
-2. Host eligibility check
-   scripts/Test-SasHostEligibility.ps1 -Target HOSTNAME -ExecContext local
-   -> eligible / not_eligible
-
-3. Before snapshot (read-only)
-   scripts/Start-SasAutoLogonStateDelta.ps1 -Action Before -ComputerName HOSTNAME
-   -> run_manifest_before.json
-
-4. FINAL-STEP GATE (this script)
-   scripts/Invoke-SasAutoLogonFinalStepGate.ps1 -Target HOSTNAME -RunId RUNID
-   -> autologon_final_step_gate.json
-   -> overall_pass must be true
-
-5. Approved software install (mutation)
-   scripts/Invoke-SasSoftwareInstall.ps1 -ComputerName HOSTNAME -InstallerRelativePath ...
-   -> install execution
-
-6. After snapshot (read-only)
-   scripts/Start-SasAutoLogonStateDelta.ps1 -Action After -ComputerName HOSTNAME
-   -> run_manifest_after.json
-
-7. State delta comparison (read-only)
-   scripts/Invoke-SasAutoLogonStateDelta.ps1 -Mode Assess -ComputerName HOSTNAME
-   -> delta decision: CONFIRMED_STATE_TRANSITION, NO_MATERIAL_CHANGE, etc.
+1. Canonical request and fresh Kerberos/SMB preflight validation
+2. Before snapshot (read-only)
+3. Host eligibility and approved-catalog prerequisites
+4. FINAL-STEP GATE (this script; overall_pass must be true)
+5. Invoke-SasValidatedSoftwareDeployment.ps1 (canonical mutation front door)
+6. Kerberos/SMB scheduled-task result retrieval and run-scoped cleanup
+7. After snapshot and normalized state proof (read-only)
+8. Public-safe result presentation (runtime remains pending)
 ```
 
-The final-step gate (step 4) is the **single point** where all prerequisites are validated before the mutation (step 5) occurs.
+The application owns this order. The older `Invoke-SasSoftwareInstall.ps1` surface may remain behind the
+generic validated front door as compatibility code, but it is not a direct AutoLogon command authority.
+The final-step gate is the **single point** where all prerequisites are validated before mutation.
 
 ## Safety
 
@@ -195,19 +140,19 @@ The final-step gate (step 4) is the **single point** where all prerequisites are
 | File | Role |
 |---|---|
 | `scripts/Invoke-SasAutoLogonFinalStepGate.ps1` | Prerequisite validator |
-| `scripts/Invoke-SasAutoLogonStateDelta.ps1` | Read-only state-delta collector (PR #167) |
-| `scripts/Start-SasAutoLogonStateDelta.ps1` | Stateful technician launcher (PR #167) |
+| `scripts/Invoke-SasAutoLogonStateDelta.ps1` | Read-only state-delta collector |
+| `scripts/Start-SasAutoLogonStateDelta.ps1` | Stateful technician launcher |
 | `scripts/Test-SasHostEligibility.ps1` | Host eligibility gate (Sprint 1) |
-| `configs/software-packages/approved-apps.json` | Approved software catalog (PR #175) |
+| `configs/software-packages/approved-apps.json` | Approved software catalog |
 | `docs/AUTOLOGON_ASSESSMENT.md` | AutoLogon assessment lifecycle |
 | `docs/AUTOLOGON_STATE_DELTA.md` | State-delta workflow documentation |
 | `docs/SOFTWARE_INSTALL_HARNESS.md` | Admin software install harness |
-| `docs/AUTOLOGON_UNIQUE_BEHAVIOR_MATRIX.md` | Reconciliation of PRs #167, #168, #175 |
+| `docs/AUTOLOGON_UNIQUE_BEHAVIOR_MATRIX.md` | Unique-behavior reconciliation |
 | `docs/AUTOLOGON_PHYSICAL_PILOT_CHECKLIST.md` | Pre-pilot readiness checklist |
 
 ## Unique-Behavior Reconciliation
 
-This gate reconciles unique behavior from PRs #167, #168, and #175. See `AUTOLOGON_UNIQUE_BEHAVIOR_MATRIX.md` for the full matrix.
+This gate reconciles the state-delta, deployment-workflow, and approved-catalog behavior. See `AUTOLOGON_UNIQUE_BEHAVIOR_MATRIX.md` for the full matrix.
 
 **Key invariants:**
 1. AutoLogon is the **final mutation** — no other mutations after AutoLogon

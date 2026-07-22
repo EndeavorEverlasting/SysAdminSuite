@@ -1,0 +1,16 @@
+{
+  "schema_version": "sas-autologon-deployment-result/v1",
+  "operation_id": "autologon.admin_deploy",
+  "evidence_class": "operator_local",
+  "classification": "deployment_succeeded",
+  "reason_codes": ["canonical_deployment_validated_and_finalized"],
+  "fixture_mode": false,
+  "target_scope": {"target_count": 1, "identifiers_emitted": false},
+  "transport": {"preflight_classification": "kerberos_smb_task_ready", "selected_transport": "kerberos_smb_task", "canonical_front_door_used": true},
+  "authorization": {"administrator_approved": true, "target_mutation_approved": true},
+  "deployment": {"final_gate_passed": true, "task_created": true, "executed_as_system": true, "installer_executed": true, "result_retrieved": true, "cleanup_verified": true, "zero_remnants_verified": true},
+  "network_activity_performed": true,
+  "target_mutation_performed": true,
+  "proof_level": "deployment_execution",
+  "proof_ceiling": "Canonical administrator deployment and state-delta evidence only; reboot, automatic sign-in, current-token file access, application behavior, and operator acceptance remain unproven."
+}
