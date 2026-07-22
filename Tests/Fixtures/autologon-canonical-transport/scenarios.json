@@ -1,0 +1,86 @@
+{
+  "schema_version": "sas-autologon-canonical-fixture-matrix/v1",
+  "proof_ceiling": "Sanitized application fixtures only; no network, mutation, task, installer, cleanup, reboot, sign-in, current-token access, or application behavior is proven.",
+  "scenarios": [
+    {
+      "id": "ready",
+      "classification": "fixture_contract_pass",
+      "reason_code": "fixture_canonical_path_validated",
+      "final_gate_passed": true,
+      "canonical_front_door_used": true,
+      "network_activity_performed": false,
+      "target_mutation_performed": false,
+      "live_runtime_proven": false
+    },
+    {
+      "id": "blocked",
+      "classification": "fixture_contract_failed",
+      "reason_code": "final_step_gate_blocked",
+      "final_gate_passed": false,
+      "canonical_front_door_used": false,
+      "network_activity_performed": false,
+      "target_mutation_performed": false,
+      "live_runtime_proven": false
+    },
+    {
+      "id": "already_configured",
+      "classification": "fixture_contract_pass",
+      "reason_code": "already_configured_skipped",
+      "final_gate_passed": false,
+      "canonical_front_door_used": false,
+      "network_activity_performed": false,
+      "target_mutation_performed": false,
+      "live_runtime_proven": false
+    },
+    {
+      "id": "hash_mismatch",
+      "classification": "fixture_contract_failed",
+      "reason_code": "installer_hash_mismatch",
+      "final_gate_passed": true,
+      "canonical_front_door_used": true,
+      "network_activity_performed": false,
+      "target_mutation_performed": false,
+      "live_runtime_proven": false
+    },
+    {
+      "id": "transport_rejection",
+      "classification": "fixture_contract_failed",
+      "reason_code": "transport_preflight_rejected",
+      "final_gate_passed": false,
+      "canonical_front_door_used": false,
+      "network_activity_performed": false,
+      "target_mutation_performed": false,
+      "live_runtime_proven": false
+    },
+    {
+      "id": "task_failure",
+      "classification": "fixture_contract_failed",
+      "reason_code": "scheduled_task_execution_failed",
+      "final_gate_passed": true,
+      "canonical_front_door_used": true,
+      "network_activity_performed": false,
+      "target_mutation_performed": false,
+      "live_runtime_proven": false
+    },
+    {
+      "id": "validation_failure",
+      "classification": "fixture_contract_failed",
+      "reason_code": "package_validation_failed",
+      "final_gate_passed": true,
+      "canonical_front_door_used": true,
+      "network_activity_performed": false,
+      "target_mutation_performed": false,
+      "live_runtime_proven": false
+    },
+    {
+      "id": "teardown_failure",
+      "classification": "fixture_contract_failed",
+      "reason_code": "run_scoped_teardown_failed",
+      "final_gate_passed": true,
+      "canonical_front_door_used": true,
+      "network_activity_performed": false,
+      "target_mutation_performed": false,
+      "live_runtime_proven": false
+    }
+  ]
+}
