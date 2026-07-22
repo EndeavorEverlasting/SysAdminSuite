@@ -3,9 +3,12 @@
 
 const assert = require('assert');
 require('./js/software-deployment-tutorial.js');
+require('./js/software-deployment-input-invalidation.js');
 
 const api = global.__sasSoftwareDeploymentTutorialApi;
 assert(api, 'software deployment tutorial API was not exposed');
+const invalidationApi = global.__sasSoftwareDeploymentInputInvalidationApi;
+assert(invalidationApi, 'software deployment input invalidation API was not exposed');
 
 assert(api.DRY_RUN_COMMAND.includes('Invoke-SasSoftwareInstallE2E.ps1'));
 assert(api.DRY_RUN_COMMAND.includes('survey\\output\\software-install-e2e'));
@@ -57,4 +60,25 @@ for (const badPath of [
 const noArgs = api.validatePilot({ ...validInput, installerArguments: '' });
 assert.strictEqual(noArgs.valid, false, 'empty silent arguments must fail closed');
 
-console.log('PASS: browser software deployment command and safety runtime smoke');
+assert.deepStrictEqual(
+  invalidationApi.INPUT_IDS,
+  [
+    'software-deployment-target',
+    'software-deployment-package',
+    'software-deployment-path',
+    'software-deployment-args',
+    'software-deployment-mode'
+  ]
+);
+const invalidated = invalidationApi.invalidateReviewState({
+  inputRevision: 7,
+  copiedRevision: 7,
+  planReviewed: true,
+  approvals: [true, true, true, true]
+});
+assert.strictEqual(invalidated.inputRevision, 8);
+assert.strictEqual(invalidated.copiedRevision, -1, 'edited pilot input must revoke copied-command state');
+assert.strictEqual(invalidated.planReviewed, false, 'edited pilot input must revoke WhatIf acknowledgement');
+assert.deepStrictEqual(invalidated.approvals, [false, false, false, false], 'edited pilot input must revoke every live approval');
+
+console.log('PASS: browser software deployment command, safety, and input invalidation smoke');
