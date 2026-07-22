@@ -41,6 +41,14 @@ Describe 'Validated software deployment request runtime contract' {
         $unexpected | Add-Member -NotePropertyName 'installer_arguments_policy' -NotePropertyValue 'approved_empty'
         @(Test-SasValidatedDeploymentRequest -Request $unexpected) |
             Should -Contain 'INSTALLER_ARGUMENTS_POLICY_UNEXPECTED'
+
+        $wrongType = New-ValidDeploymentRequest
+        $wrongType.installer_arguments = @()
+        $wrongPolicy = New-Object System.Text.StringBuilder
+        [void]$wrongPolicy.Append('approved_empty')
+        $wrongType | Add-Member -NotePropertyName 'installer_arguments_policy' -NotePropertyValue $wrongPolicy
+        @(Test-SasValidatedDeploymentRequest -Request $wrongType) |
+            Should -Contain 'INSTALLER_ARGUMENTS_EMPTY_NOT_APPROVED'
     }
 
     It 'rejects unknown root properties instead of ignoring typos' {

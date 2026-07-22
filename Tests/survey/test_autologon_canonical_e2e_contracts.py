@@ -106,6 +106,8 @@ def test_runner_crosses_real_composition_without_live_authority() -> None:
         "requires_validated_installer_arguments=$false",
         "installer_arguments_policy='approved_empty'",
         "installer_arguments_reference='sanitized fixture no-argument record'",
+        "$approvedEmptyRequestVerified",
+        "@($closedRequest.installer_arguments).Count -eq 0",
         "Invoke-SasSmbScheduledTaskDeploymentFixture",
         "generated_installer_executed",
         "pinned_source_hash_verified",

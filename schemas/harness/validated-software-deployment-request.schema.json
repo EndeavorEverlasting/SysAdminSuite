@@ -353,6 +353,20 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "required": [
+          "installer_arguments_policy"
+        ]
+      },
+      "then": {
+        "properties": {
+          "installer_arguments": {
+            "maxItems": 0
+          }
+        }
+      }
     }
   ]
 }

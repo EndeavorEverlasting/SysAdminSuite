@@ -49,6 +49,7 @@ def test_surfaces_exist_and_json_parses() -> None:
     assert schema["properties"]["cleanup_policy"]["const"] == "repo_owned_run_scoped_only"
     assert schema["allOf"][0]["then"]["required"] == ["expected_signer_thumbprint"]
     assert schema["allOf"][1]["then"]["required"] == ["installer_arguments_policy"]
+    assert schema["allOf"][2]["then"]["properties"]["installer_arguments"]["maxItems"] == 0
     example = json.loads(read(EXAMPLE))
     try:
         import jsonschema
@@ -56,11 +57,15 @@ def test_surfaces_exist_and_json_parses() -> None:
         jsonschema = None
     if jsonschema is not None:
         jsonschema.Draft202012Validator.check_schema(schema)
-        jsonschema.validate(example, schema)
+        validator = jsonschema.Draft202012Validator(schema)
+        assert not list(validator.iter_errors(example))
         approved_empty = dict(example)
         approved_empty["installer_arguments"] = []
         approved_empty["installer_arguments_policy"] = "approved_empty"
-        jsonschema.validate(approved_empty, schema)
+        assert not list(validator.iter_errors(approved_empty))
+        unexpected_policy = dict(example)
+        unexpected_policy["installer_arguments_policy"] = "approved_empty"
+        assert list(validator.iter_errors(unexpected_policy))
 
 
 def test_request_contract_is_pinned_authorized_and_bounded() -> None:
@@ -86,6 +91,7 @@ def test_runtime_validator_enforces_closed_schema_guardrails() -> None:
         "INSTALLER_ARGUMENTS_NOT_ARRAY",
         "INSTALLER_ARGUMENTS_EMPTY_NOT_APPROVED",
         "INSTALLER_ARGUMENTS_POLICY_UNEXPECTED",
+        "$Request.installer_arguments_policy -isnot [string]",
         "TARGETS_NOT_ARRAY",
         "TARGET_DUPLICATE",
         "REQUIRE_VALID_SIGNATURE_TYPE_INVALID",

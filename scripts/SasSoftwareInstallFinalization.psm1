@@ -72,6 +72,7 @@ function Test-SasValidatedDeploymentRequest {
     }
     if ($arguments.Count -eq 0) {
         if ($Request.PSObject.Properties.Name -notcontains 'installer_arguments_policy' -or
+            $Request.installer_arguments_policy -isnot [string] -or
             [string]$Request.installer_arguments_policy -ne 'approved_empty') {
             $errors += 'INSTALLER_ARGUMENTS_EMPTY_NOT_APPROVED'
         }

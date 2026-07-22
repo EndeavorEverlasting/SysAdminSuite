@@ -584,7 +584,15 @@ $package = Get-SasApprovedAutoLogonPackage -CatalogPath $ApprovedAppsPath -Expec
 
 if ($FixtureMode) {
     if ([string]::IsNullOrWhiteSpace($InstallerSha256)) { $InstallerSha256 = ('0' * 64) }
-    if (@($InstallerArguments).Count -eq 0) { $InstallerArguments = @('/fixture-quiet', '/fixture-no-restart') }
+    if (@($InstallerArguments).Count -eq 0 -and
+        [string]$package.installer_arguments_policy -eq 'approved_empty' -and
+        @($package.installer_arguments).Count -eq 0 -and
+        -not [string]::IsNullOrWhiteSpace([string]$package.installer_arguments_reference)) {
+        $InstallerArgumentsReference = [string]$package.installer_arguments_reference
+    }
+    elseif (@($InstallerArguments).Count -eq 0) {
+        $InstallerArguments = @('/fixture-quiet', '/fixture-no-restart')
+    }
     if ([string]::IsNullOrWhiteSpace($InstallerArgumentsReference)) { $InstallerArgumentsReference = 'sanitized fixture packaging record' }
     if ([string]::IsNullOrWhiteSpace($AuthorizedBy)) { $AuthorizedBy = 'fixture approver' }
     if ([string]::IsNullOrWhiteSpace($RequestReference)) { $RequestReference = 'FIXTURE-REQUEST' }

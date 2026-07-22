@@ -217,8 +217,17 @@ foreach ($scenario in @($matrix.scenarios)) {
                     -not [bool]$deployment.target_mutation_performed -and
                     [string]$deployment.proof_level -eq 'sanitized_fixture_contract')
                 if ($id -eq 'canonical_success') {
+                    $requestCandidates = @(Get-ChildItem -LiteralPath $scenarioOutput -Filter 'validated_deployment_request_1.json' -File -Recurse)
+                    $approvedEmptyRequestVerified = $false
+                    if ($requestCandidates.Count -eq 1) {
+                        $closedRequest = Get-Content -LiteralPath $requestCandidates[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+                        $approvedEmptyRequestVerified = (@($closedRequest.installer_arguments).Count -eq 0 -and
+                            [string]$closedRequest.installer_arguments_policy -eq 'approved_empty' -and
+                            [string]$closedRequest.installer_arguments_reference -eq 'sanitized fixture no-argument record')
+                    }
                     $scenarioPassed = ($scenarioPassed -and [bool]$deployment.deployment.final_gate_passed -and
-                        [bool]$deployment.transport.canonical_front_door_used -and [int]$summary.fixture_adapter_result_count -eq 1)
+                        [bool]$deployment.transport.canonical_front_door_used -and [int]$summary.fixture_adapter_result_count -eq 1 -and
+                        $approvedEmptyRequestVerified)
                 }
                 elseif ($id -eq 'cleanup_failure') {
                     $scenarioPassed = ($scenarioPassed -and [int]$summary.cleanup_failure_count -eq 1 -and
