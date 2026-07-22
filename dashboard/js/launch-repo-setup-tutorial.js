@@ -4,19 +4,39 @@
 (function () {
   'use strict';
 
+  function showLoadError(message) {
+    const status = document.getElementById('repo-setup-hero-status');
+    if (status) {
+      status.textContent = message;
+      status.classList.remove('hidden');
+      status.classList.add('is-error');
+    }
+  }
+
+  function loadSoftwareDeploymentInputInvalidation() {
+    if (document.getElementById('sas-software-deployment-input-invalidation-script')) return;
+    const guard = document.createElement('script');
+    guard.id = 'sas-software-deployment-input-invalidation-script';
+    guard.src = 'js/software-deployment-input-invalidation.js';
+    guard.async = false;
+    guard.onerror = function () {
+      showLoadError('Software Deployment approval guard could not load. Live pilot progression is unavailable; reload the dashboard.');
+    };
+    document.head.appendChild(guard);
+  }
+
   function loadSoftwareDeploymentTutorial() {
-    if (document.getElementById('sas-software-deployment-script')) return;
+    if (document.getElementById('sas-software-deployment-script')) {
+      loadSoftwareDeploymentInputInvalidation();
+      return;
+    }
     const script = document.createElement('script');
     script.id = 'sas-software-deployment-script';
     script.src = 'js/software-deployment-tutorial.js';
     script.async = false;
+    script.onload = loadSoftwareDeploymentInputInvalidation;
     script.onerror = function () {
-      const status = document.getElementById('repo-setup-hero-status');
-      if (status) {
-        status.textContent = 'Software Deployment tutorial could not load. Reload the dashboard.';
-        status.classList.remove('hidden');
-        status.classList.add('is-error');
-      }
+      showLoadError('Software Deployment tutorial could not load. Reload the dashboard.');
     };
     document.head.appendChild(script);
   }
