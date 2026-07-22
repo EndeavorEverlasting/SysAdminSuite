@@ -88,6 +88,26 @@ function Write-SasAutoLogonJson {
     $Value | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $Path -Encoding UTF8 -WhatIf:$false
 }
 
+function Test-SasAutoLogonBooleanEvidence {
+    param(
+        $InputObject,
+        [Parameter(Mandatory = $true)][string]$PropertyName,
+        [Parameter(Mandatory = $true)][bool]$ExpectedValue
+    )
+    if ($null -eq $InputObject) { return $false }
+    $property = $InputObject.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) { return $false }
+    return ([bool]$property.Value -eq $ExpectedValue)
+}
+
+function Get-SasAutoLogonEvidenceValue {
+    param($InputObject, [Parameter(Mandatory = $true)][string]$PropertyName)
+    if ($null -eq $InputObject) { return $null }
+    $property = $InputObject.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
 function Get-SasAutoLogonTargets {
     param([string[]]$DirectTargets, [string]$CsvPath, [int]$Limit)
     $items = New-Object System.Collections.Generic.List[string]
@@ -794,12 +814,32 @@ foreach ($canonical in @($canonicalResults)) {
     }
 }
 $allRows = $installRows.Count -gt 0 -and $installRows.Count -eq $gatePassedTargets.Count
-$taskCreated = $allRows -and @($installRows | Where-Object { -not [bool]$_.task_created }).Count -eq 0
-$executedAsSystem = $allRows -and @($installRows | Where-Object { -not [bool]$_.execution_as_system }).Count -eq 0
-$installerExecuted = $allRows -and @($installRows | Where-Object { [string]$_.status -ne 'completed' }).Count -eq 0
-$resultRetrieved = $allRows -and @($installRows | Where-Object { -not [bool]$_.result_retrieved }).Count -eq 0
-$cleanupVerified = $allRows -and @($installRows | Where-Object { -not [bool]$_.cleanup_succeeded }).Count -eq 0
-$zeroRemnants = $allRows -and @($installRows | Where-Object { [bool]$_.repo_artifact_remaining }).Count -eq 0
+$taskCreated = $allRows -and @($installRows | Where-Object {
+    -not (Test-SasAutoLogonBooleanEvidence -InputObject $_ -PropertyName 'task_created' -ExpectedValue $true)
+}).Count -eq 0
+$executedAsSystem = $allRows -and @($installRows | Where-Object {
+    -not (Test-SasAutoLogonBooleanEvidence -InputObject $_ -PropertyName 'execution_as_system' -ExpectedValue $true)
+}).Count -eq 0
+$installerExecuted = $allRows -and @($installRows | Where-Object {
+    [string](Get-SasAutoLogonEvidenceValue -InputObject $_ -PropertyName 'status') -ne 'completed'
+}).Count -eq 0
+$resultRetrieved = $allRows -and @($installRows | Where-Object {
+    -not (Test-SasAutoLogonBooleanEvidence -InputObject $_ -PropertyName 'result_retrieved' -ExpectedValue $true)
+}).Count -eq 0
+$cleanupVerified = $allRows -and @($installRows | Where-Object {
+    -not (Test-SasAutoLogonBooleanEvidence -InputObject $_ -PropertyName 'cleanup_succeeded' -ExpectedValue $true)
+}).Count -eq 0
+$zeroRemnants = $allRows -and @($installRows | Where-Object {
+    -not (Test-SasAutoLogonBooleanEvidence -InputObject $_ -PropertyName 'repo_artifact_remaining' -ExpectedValue $false)
+}).Count -eq 0
+$fixtureCleanupFailureCount = @($fixtureAdapterResults | Where-Object {
+    [bool]$_.cleanup.attempted -and (-not [bool]$_.cleanup.task_deletion_succeeded -or
+        -not [bool]$_.cleanup.run_root_deletion_succeeded -or [bool]$_.cleanup.task_remaining -or
+        [bool]$_.cleanup.run_root_remaining)
+}).Count
+$fixtureRepoArtifactRemainingCount = @($fixtureAdapterResults | Where-Object {
+    [bool]$_.cleanup.task_remaining -or [bool]$_.cleanup.run_root_remaining
+}).Count
 $gatePassed = $gateResults.Count -gt 0 -and $gateResults.Count -eq $eligibleTargets.Count -and @($gateResults | Where-Object { -not [bool]$_.overall_pass }).Count -eq 0
 
 $confirmedCount = if ($afterSummary) { [int]$afterSummary.confirmed_state_transition_count } else { 0 }
@@ -891,10 +931,16 @@ $summary = [pscustomobject][ordered]@{
     baseline_failure_count = $baselineFailureTargets.Count
     already_configured_count = $alreadyConfiguredTargets.Count
     install_planned_count = if ($FixtureMode -and $canonicalFrontDoorUsed) { $gatePassedTargets.Count } else { 0 }
-    install_completed_count = if ($FixtureMode) { 0 } else { @($installRows | Where-Object { [string]$_.status -eq 'completed' }).Count }
+    install_completed_count = if ($FixtureMode) { 0 } else { @($installRows | Where-Object {
+        [string](Get-SasAutoLogonEvidenceValue -InputObject $_ -PropertyName 'status') -eq 'completed'
+    }).Count }
     confirmed_state_transition_count = $confirmedCount
-    cleanup_failure_count = if ($FixtureMode -and $FixtureScenario -eq 'teardown_failure') { 1 } else { @($installRows | Where-Object { -not [bool]$_.cleanup_succeeded }).Count }
-    repo_artifact_remaining_count = if ($FixtureMode -and $FixtureScenario -eq 'teardown_failure') { 1 } else { @($installRows | Where-Object { [bool]$_.repo_artifact_remaining }).Count }
+    cleanup_failure_count = if ($FixtureMode) { $fixtureCleanupFailureCount } else { @($installRows | Where-Object {
+        -not (Test-SasAutoLogonBooleanEvidence -InputObject $_ -PropertyName 'cleanup_succeeded' -ExpectedValue $true)
+    }).Count }
+    repo_artifact_remaining_count = if ($FixtureMode) { $fixtureRepoArtifactRemainingCount } else { @($installRows | Where-Object {
+        Test-SasAutoLogonBooleanEvidence -InputObject $_ -PropertyName 'repo_artifact_remaining' -ExpectedValue $true
+    }).Count }
     target_mutation_performed = [bool]$deployment.target_mutation_performed
     startup_persistence_created = $false
     default_password_value_collected = $false
