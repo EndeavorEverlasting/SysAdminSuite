@@ -17,6 +17,7 @@ python3 Tests/survey/test_cybernet_power_hardening_contracts.py
 python3 Tests/survey/test_cybernet_display_button_control_contracts.py
 python3 Tests/survey/test_cybernet_hardware_batch_contracts.py
 python3 Tests/survey/test_cybernet_client_configuration_contracts.py
+python3 Tests/survey/test_cybernet_operator_documentation_contracts.py
 python3 Tests/survey/test_cybernet_software_deployment_documentation_contracts.py
 python3 Tests/survey/test_software_deployment_input_invalidation_contracts.py
 python3 Tests/survey/test_checkpoint_discipline_contracts.py
