@@ -2,6 +2,23 @@
   "schema_version": "sas-cybernet-client-preferences/v1",
   "profile_id": "cybernet-clinical-workstation-default",
   "display_name": "Cybernet clinical workstation client preferences",
+  "target_identity": {
+    "operator_input": "short_hostname_or_fqdn",
+    "canonical_transport_identity": "unique_dns_fqdn",
+    "resolution_sources": [
+      "controller_dns_search",
+      "windows_suffix_search_list",
+      "active_adapter_connection_suffix",
+      "user_dns_domain",
+      "ip_global_properties_domain",
+      "SAS_TARGET_DNS_SUFFIXES"
+    ],
+    "unresolved_policy": "fail_closed",
+    "ambiguous_policy": "fail_closed",
+    "canonical_name_mismatch_policy": "fail_closed",
+    "manual_domain_append_forbidden": true,
+    "tracked_internal_dns_suffix_forbidden": true
+  },
   "hardware": {
     "standby_ac_minutes": 0,
     "standby_dc_minutes": 0,
