@@ -1,8 +1,31 @@
 # Cybernet Hardware Batch Configuration
 
-This directory is the canonical technician/deployment surface for Cybernet-specific hardware policy and post-install validation.
+This directory is the canonical technician/deployment surface for Cybernet-specific hardware policy, the complete client configuration, and post-install validation.
 
-## One-command workflow
+## Complete client workflow
+
+Use the composed workflow when the technician needs the client's hardware preferences and the approved software set applied together:
+
+```powershell
+.\Hardware\Cybernet\Invoke-CybernetClientConfiguration.ps1 `
+  -Mode Plan `
+  -ComputerName '<AUTHORIZED-CYBERNET>'
+```
+
+After reviewing the Plan, apply one authorized pilot:
+
+```powershell
+.\Hardware\Cybernet\Invoke-CybernetClientConfiguration.ps1 `
+  -Mode Apply `
+  -ComputerName '<AUTHORIZED-CYBERNET>' `
+  -AllowTargetMutation
+```
+
+The root `Run-CybernetClientConfiguration.cmd` launcher provides the same one-target Plan, Apply, and Validate flow. The machine-readable source of truth is `Config/cybernet-client-preferences.json`; the technician guide is `docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md`.
+
+The composed order is hardware Apply/validation, approved six-package software installation with AutoLogon last, post-software hardware validation, then technician software acceptance. The workflow never reboots a target or repairs COM ports remotely.
+
+## Hardware-only workflow
 
 Plan one target without contacting it:
 
@@ -29,7 +52,7 @@ Validate without changing the target:
   -ComputerName '<AUTHORIZED-CYBERNET>'
 ```
 
-A root `Run-CybernetBatchConfiguration.cmd` launcher provides the same one-target Plan, Apply, and Validate flow. Use the PowerShell entrypoint with an approved local target CSV only after the one-target pilot is accepted.
+A root `Run-CybernetBatchConfiguration.cmd` launcher provides the same one-target hardware-only Plan, Apply, and Validate flow. Use the PowerShell entrypoint with an approved local target CSV only after the one-target pilot is accepted.
 
 ## Applied configuration
 
@@ -39,6 +62,7 @@ A root `Run-CybernetBatchConfiguration.cmd` launcher provides the same one-targe
 | Physical Windows power button | `scripts/Invoke-SasCybernetPowerHardening.ps1` via `Set-PowerButtonDoNothing.ps1` | Sets the physical power-button action to Do nothing for AC/DC and verifies every parsed scheme. |
 | Privacy/Menu and display power buttons | `scripts/Invoke-SasCybernetDisplayButtonControl.ps1` via `Disable-PrivacyButton.ps1` | Uses MCCS 2.2 VCP `0xCA`; only eligible displays are set to `0x0303`, read back, and given a restore manifest. |
 | COM ports | `COM-Port-Check.ps1` and the existing local COM AutoFix | Read-only batch classification. It never performs remote registry/PnP changes or a remote reboot. |
+| Approved software | `bash/apps/sas-install-apps.sh` and package set `cybernet-clinical-workstation` | Installs six reviewed packages through the Windows-native SMB/Task Scheduler lane, with AutoLogon last. |
 | Final verification | `PostInstall-Validation.ps1` | Read-only checks for no-sleep, power-button Do nothing, VCP `0xCA = 0x0303`, and COM1-COM4. |
 
 ## Privacy button authority
@@ -72,4 +96,5 @@ For the exact repairable condition, run `Run-CybernetComPortAutoFix-DryRun.cmd` 
 - Apply requires `-AllowTargetMutation` and high-impact confirmation.
 - Outputs remain under ignored `survey/output/cybernet_hardware` roots.
 - No credentials, live target lists, raw evidence, or machine-local paths belong in Git.
+- Software installer results do not prove application behavior; technician acceptance remains mandatory.
 - Fixture and CI passes prove contracts and composition only. They do not prove a real display supports VCP `0xCA`, a real Cybernet was configured, a reboot succeeded, or an operator accepted a batch.
