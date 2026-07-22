@@ -72,7 +72,8 @@ def test_guide_matches_current_modes_statuses_and_artifacts() -> None:
         assert artifact in guide
 
     for boundary in (
-        "The workflow never reboots a target or repairs COM ports remotely",
+        "The combined workflow never changes COM mappings remotely",
+        "The combined workflow does not reboot the target",
         "There is no one-command rollback for the complete client profile",
         "does **not** mean application behavior",
         "Fixture and CI proof",
@@ -167,7 +168,7 @@ def test_display_restore_documentation_matches_exact_manifest_contract() -> None
         "-RestoreManifest '<EXACT-RESTORE-MANIFEST-PATH>'",
         "-WhatIf",
         "-AllowTargetMutation",
-        "never invent a factory value",
+        "refuses to invent a factory value",
     ):
         assert marker.lower() in troubleshooting.lower(), marker
 
