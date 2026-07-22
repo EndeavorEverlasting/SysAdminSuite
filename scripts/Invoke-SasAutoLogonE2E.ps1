@@ -239,6 +239,20 @@ foreach ($scenario in @($matrix.scenarios)) {
                         $scenarioPassed = ($scenarioPassed -and $passwordSignalMissing)
                     }
                 }
+                if (-not $scenarioPassed) {
+                    $failedGateIds = @()
+                    if ($application.final_gate_result_json -and
+                        (Test-Path -LiteralPath ([string]$application.final_gate_result_json) -PathType Leaf)) {
+                        $gateDiagnostic = Get-Content -LiteralPath $application.final_gate_result_json -Raw -Encoding UTF8 | ConvertFrom-Json
+                        $failedGateIds = @($gateDiagnostic.prerequisites | Where-Object { -not [bool]$_.passed } |
+                            ForEach-Object { [string]$_.id })
+                    }
+                    $failures.Add(('{0} diagnostics: deployment={1}; reasons={2}; gate={3}; failed_gate_ids={4}; canonical={5}; adapters={6}; cleanup_failures={7}; remnants={8}' -f
+                        $id, [string]$deployment.classification, (@($deployment.reason_codes) -join ','),
+                        [bool]$deployment.deployment.final_gate_passed, ($failedGateIds -join ','),
+                        [bool]$deployment.transport.canonical_front_door_used, [int]$summary.fixture_adapter_result_count,
+                        [int]$summary.cleanup_failure_count, [int]$summary.repo_artifact_remaining_count))
+                }
                 Add-ValidationArtifact -List $validationArtifacts -Role "$id-deployment" -Path ([string]$application.deployment_result_json) `
                     -Schema 'schemas/harness/autologon-deployment-result.schema.json'
                 if ($application.final_gate_result_json) {

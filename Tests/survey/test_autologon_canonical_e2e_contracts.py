@@ -113,6 +113,8 @@ def test_runner_crosses_real_composition_without_live_authority() -> None:
         "[AllowEmptyCollection()][Collections.Generic.List[object]]$List",
         "scenarios=$scenarioRows.ToArray()",
         "artifacts=$validationArtifacts.ToArray()",
+        "failed_gate_ids=",
+        "cleanup_failures=",
     )
     for marker in required:
         assert marker in runner, marker

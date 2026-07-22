@@ -51,5 +51,7 @@ Describe 'Canonical AutoLogon composed E2E harness' {
         $content | Should -Match 'artifacts=\$validationArtifacts\.ToArray\(\)'
         $content | Should -Not -Match 'scenarios=@\(\$scenarioRows\)'
         $content | Should -Not -Match 'artifacts=@\(\$validationArtifacts\)'
+        $content | Should -Match 'failed_gate_ids='
+        $content | Should -Match 'cleanup_failures='
     }
 }
