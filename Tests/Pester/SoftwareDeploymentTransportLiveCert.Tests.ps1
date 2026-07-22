@@ -34,7 +34,8 @@ Describe 'Harmless software deployment transport live certification' {
         $worker | Should -Match 'S-1-5-18'
         $worker | Should -Match 'harmless_payload_only'
         $worker | Should -Match 'software_installation_performed'
-        $worker | Should -Not -Match 'Start-Process|msiexec|\.msi|\.exe|Invoke-Expression|DownloadFile|WebClient'
+        $worker | Should -Match '\.execution_identity_sid'
+        $worker | Should -Not -Match 'Start-Process|msiexec|\b[A-Za-z0-9_.-]+\.(?:msi|exe)\b|Invoke-Expression|DownloadFile|WebClient'
     }
 
     It 'rejects a worker result with the wrong nonce or a software-install claim' {
