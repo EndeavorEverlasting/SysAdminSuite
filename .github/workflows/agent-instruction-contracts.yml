@@ -8,6 +8,8 @@ on:
     branches: [main, 'feat/**', 'repair/**', 'refactor/**', 'docs/**', 'harness/**']
     paths:
       - 'AGENTS.md'
+      - 'Config/cybernet-client-preferences.json'
+      - 'configs/software-packages/windows-native-package-sets.json'
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
       - '.claude/skills/**'
@@ -28,6 +30,7 @@ on:
       - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/Fixtures/capsules/**'
       - 'Tests/Pester/SprintCapsule.Tests.ps1'
+      - 'Tests/survey/test_agent_governance_doctrine_contracts.py'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
       - 'Tests/survey/test_agent_routing_manifest_contracts.py'
@@ -44,6 +47,8 @@ on:
   pull_request:
     paths:
       - 'AGENTS.md'
+      - 'Config/cybernet-client-preferences.json'
+      - 'configs/software-packages/windows-native-package-sets.json'
       - 'CLAUDE.md'
       - 'CODEBASE_MAP.md'
       - '.claude/skills/**'
@@ -64,6 +69,7 @@ on:
       - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/Fixtures/capsules/**'
       - 'Tests/Pester/SprintCapsule.Tests.ps1'
+      - 'Tests/survey/test_agent_governance_doctrine_contracts.py'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
       - 'Tests/survey/test_agent_routing_manifest_contracts.py'
@@ -93,6 +99,7 @@ jobs:
       - name: Compile agent harness contracts
         run: >-
           python -m py_compile
+          Tests/survey/test_agent_governance_doctrine_contracts.py
           Tests/survey/test_agent_instruction_factoring_contracts.py
           Tests/survey/test_agent_capability_manifest_contracts.py
           Tests/survey/test_agent_routing_manifest_contracts.py
@@ -100,6 +107,7 @@ jobs:
           Tests/survey/test_agent_sprint_capsule_contracts.py
       - name: Skill, capability, routing, and handoff contracts
         run: |
+          python3 Tests/survey/test_agent_governance_doctrine_contracts.py
           python3 Tests/survey/test_agent_instruction_factoring_contracts.py
           python3 Tests/survey/test_agent_capability_manifest_contracts.py
           python3 Tests/survey/test_agent_routing_manifest_contracts.py
@@ -110,6 +118,14 @@ jobs:
       - name: Parse harness workflow spec
         run: >-
           python -c "import pathlib,yaml; p=pathlib.Path('harness/workflows/agent-sprint-capsule.yaml'); d=yaml.safe_load(p.read_text()); assert d['mode']=='local_transform' and d['network_activity'] is False and d['target_mutation'] is False; print('PASS: agent sprint capsule workflow')"
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        run: git show --check --oneline --no-renames HEAD
 
   ai-layer-validator:
     runs-on: windows-latest
