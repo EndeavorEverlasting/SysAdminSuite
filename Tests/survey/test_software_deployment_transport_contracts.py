@@ -410,6 +410,7 @@ def test_live_cert_result_schema_is_closed_and_frozen() -> None:
     assert schema["additionalProperties"] is False
     assert schema["properties"]["schema_version"]["const"] == LIVE_CERT_VERSION
     assert schema["properties"]["workflow_id"]["const"] == "software-deployment-transport-live-cert"
+    assert "allOf" not in schema, "source schema must permit failed or partial certification results"
     # Certification block must be closed
     cert_props = schema["properties"]["certification"]["properties"]
     assert set(cert_props) == CERTIFICATION_KEYS
@@ -463,6 +464,8 @@ def test_receipt_ingest_validates_the_complete_live_cert_source_schema() -> None
     import tempfile
 
     source = load(FIXTURES / "live-cert-result.fixture.json")
+    source["network_activity_performed"] = True
+    source["target_mutation_performed"] = True
     invalid_sources: list[tuple[str, dict]] = []
 
     missing_timestamp = copy.deepcopy(source)
@@ -513,24 +516,30 @@ def test_live_cert_pass_requires_activity_mutation_and_smb_decision() -> None:
     import tempfile
 
     source = load(FIXTURES / "live-cert-result.fixture.json")
-    invalid_pass_inputs: list[tuple[str, dict]] = []
+    source["network_activity_performed"] = True
+    source["target_mutation_performed"] = True
+    invalid_pass_inputs: list[tuple[str, dict, str]] = []
 
     no_network = copy.deepcopy(source)
     no_network["network_activity_performed"] = False
-    invalid_pass_inputs.append(("network activity false", no_network))
+    invalid_pass_inputs.append(("network activity false", no_network, "execution_failed"))
 
     no_mutation = copy.deepcopy(source)
     no_mutation["target_mutation_performed"] = False
-    invalid_pass_inputs.append(("target mutation false", no_mutation))
+    invalid_pass_inputs.append(("target mutation false", no_mutation, "execution_failed"))
+
+    incomplete_cleanup = copy.deepcopy(source)
+    incomplete_cleanup["certification"]["zero_remnants_verified"] = False
+    invalid_pass_inputs.append(("cleanup incomplete", incomplete_cleanup, "cleanup_incomplete"))
 
     winrm = copy.deepcopy(source)
     winrm["decision"] = {
         "preflight_classification": "winrm_ready",
         "selected_transport": "winrm",
     }
-    invalid_pass_inputs.append(("WinRM decision", winrm))
+    invalid_pass_inputs.append(("WinRM decision", winrm, "execution_failed"))
 
-    for label, candidate in invalid_pass_inputs:
+    for label, candidate, expected_reason in invalid_pass_inputs:
         with tempfile.TemporaryDirectory() as tmpdir:
             source_path = Path(tmpdir) / "source.json"
             source_path.write_text(json.dumps(candidate), encoding="utf-8")
@@ -546,7 +555,7 @@ def test_live_cert_pass_requires_activity_mutation_and_smb_decision() -> None:
             receipt = load(Path(output["receipt"]))
             assert receipt["outcome"] == "live_cert_failed", f"false pass for {label}"
             assert receipt["proof_level"] == "insufficient"
-            assert "execution_failed" in receipt["reason_codes"]
+            assert expected_reason in receipt["reason_codes"]
 
 
 def test_receipt_ingest_rejects_private_fields() -> None:

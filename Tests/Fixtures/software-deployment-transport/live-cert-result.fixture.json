@@ -25,7 +25,7 @@
     "machine_local_paths_emitted": false,
     "raw_evidence_emitted": false
   },
-  "network_activity_performed": true,
-  "target_mutation_performed": true,
+  "network_activity_performed": false,
+  "target_mutation_performed": false,
   "proof_ceiling": "Sanitized live-cert fixture contract only; no live transport execution or cleanup is claimed."
 }

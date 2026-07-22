@@ -139,46 +139,5 @@
       "minLength": 40,
       "maxLength": 1024
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "decision": {
-            "properties": {
-              "preflight_classification": {
-                "const": "kerberos_smb_task_ready"
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "certification": {
-            "properties": {
-              "task_created": {
-                "const": true
-              },
-              "executed_as_system": {
-                "const": true
-              },
-              "result_retrieved": {
-                "const": true
-              },
-              "task_deleted": {
-                "const": true
-              },
-              "staging_deleted": {
-                "const": true
-              },
-              "zero_remnants_verified": {
-                "const": true
-              }
-            }
-          }
-        }
-      }
-    }
-  ]
+  }
 }

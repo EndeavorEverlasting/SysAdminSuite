@@ -202,15 +202,13 @@ def _validate_source_against_schema(payload: dict[str, Any]) -> None:
     _validate_schema_value(payload, schema)
 
 
-def _validate_decision(decision: dict[str, Any]) -> list[str]:
-    reasons: list[str] = []
+def _validate_decision(decision: dict[str, Any]) -> None:
     classification = decision.get("preflight_classification", "")
     transport = decision.get("selected_transport", "")
     if classification not in VALID_CLASSIFICATIONS:
         raise IngestError(f"invalid preflight_classification: {classification}")
     if transport not in VALID_TRANSPORTS:
         raise IngestError(f"invalid selected_transport: {transport}")
-    return reasons
 
 
 def _validate_certification(cert: dict[str, Any]) -> list[str]:
@@ -293,8 +291,6 @@ def _determine_outcome_and_reasons(
     reasons = list(dict.fromkeys(reasons))
 
     if reasons:
-        if REASON_CLEANUP_INCOMPLETE in reasons:
-            return "live_cert_failed", reasons
         return "live_cert_failed", reasons
 
     return "live_cert_pass", [REASON_EXECUTION_PROVEN]
