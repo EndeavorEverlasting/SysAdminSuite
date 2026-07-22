@@ -79,6 +79,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 | Survey, preflight, target intake, Naabu/Nmap, packet probes, dashboard probes | [Survey Low-Noise](.claude/skills/survey-low-noise/SKILL.md) |
 | WezTerm/tmux setup, persistent coding workspace, workstation repair, or agent readiness | [Developer Workstation](.claude/skills/developer-workstation/SKILL.md) |
 | EXE/MSI/archive inspection, installer behavior inference, large private package intake | [Package Static Analysis](.claude/skills/package-static-analysis/SKILL.md) |
+| AutoLogon planning, canonical admin deployment, post-reboot session or technician runtime proof | [AutoLogon Deployment](.claude/skills/autologon-deployment/SKILL.md) |
 
 ## Canonical repo authorities
 

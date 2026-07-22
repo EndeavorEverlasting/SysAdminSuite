@@ -21,6 +21,7 @@ python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
 python3 Tests/survey/test_agent_routing_manifest_contracts.py
+python3 Tests/survey/test_autologon_agent_harness_contracts.py
 python3 Tests/survey/test_agent_sprint_capsule_contracts.py
 python3 Tests/survey/test_developer_workstation_agent_harness_contracts.py
 python3 Tests/survey/test_developer_workstation_profile_contracts.py
