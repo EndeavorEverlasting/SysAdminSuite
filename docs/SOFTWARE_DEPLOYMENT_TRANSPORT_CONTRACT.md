@@ -90,7 +90,7 @@ Sanitized fixtures can prove only the contract. They can never become live certi
 
 - `software_install.transport_preflight` is read-only toward targets and requires explicit network acknowledgement for live mode.
 - `software_install.transport_live_cert` is separately mutation-gated, limited to one authorized target and a harmless run-scoped task, and cannot install software.
-- `software_install.transport_proof_ingest` is local-only and hashes source evidence in place.
+- `software_install.transport_proof_ingest` is local-only and hashes source evidence in place. The implementation reads an operator-local live-cert result, computes its SHA-256 digest, and emits a public-safe receipt conforming to `sas-software-deployment-transport-receipt/v1`. No hostnames, usernames, ticket bytes, credentials, package paths, machine-local paths, or raw evidence are copied into the receipt.
 - `software_install.operator_execute` declares a schema-valid transport result as an input. Canonical-controller integration remains a later bounded sprint.
 
 These registrations define interfaces, not permission.
@@ -99,4 +99,4 @@ These registrations define interfaces, not permission.
 
 Tracked fixtures use synthetic, identifier-free observations. Raw corporate evidence, target names, usernames, ticket caches, package paths, and local run artifacts must remain in ignored operator-local evidence roots.
 
-The current implementation reaches parser, unit/contract, sanitized fixture, schema, run-context, artifact-registry, low-noise-context, and CI proof. It does not prove live corporate-network traffic, scheduled-task creation, SYSTEM execution, result retrieval, teardown, software installation, absence of vendor UI, or application acceptance.
+The current implementation reaches parser, unit/contract, sanitized fixture, schema, run-context, artifact-registry, low-noise-context, public-safe receipt ingest (P07), and CI proof. It does not prove live corporate-network traffic, scheduled-task creation, SYSTEM execution, result retrieval, teardown, software installation, absence of vendor UI, or application acceptance.

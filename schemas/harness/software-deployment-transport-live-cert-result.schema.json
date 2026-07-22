@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/software-deployment-transport-live-cert-result.schema.json",
+  "title": "SysAdminSuite software deployment transport live-cert result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workflow_id",
+    "generated_at_utc",
+    "decision",
+    "certification",
+    "privacy",
+    "network_activity_performed",
+    "target_mutation_performed",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-software-deployment-transport-live-cert-result/v1"
+    },
+    "workflow_id": {
+      "const": "software-deployment-transport-live-cert"
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preflight_classification",
+        "selected_transport"
+      ],
+      "properties": {
+        "preflight_classification": {
+          "enum": [
+            "kerberos_smb_task_ready",
+            "winrm_ready",
+            "no_supported_transport",
+            "transport_reachable_authorization_denied",
+            "inconclusive"
+          ]
+        },
+        "selected_transport": {
+          "enum": [
+            "kerberos_smb_task",
+            "winrm",
+            "none"
+          ]
+        }
+      }
+    },
+    "certification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_created",
+        "executed_as_system",
+        "result_retrieved",
+        "task_deleted",
+        "staging_deleted",
+        "zero_remnants_verified",
+        "software_installation_performed",
+        "harmless_payload_only"
+      ],
+      "properties": {
+        "task_created": {
+          "type": "boolean"
+        },
+        "executed_as_system": {
+          "type": "boolean"
+        },
+        "result_retrieved": {
+          "type": "boolean"
+        },
+        "task_deleted": {
+          "type": "boolean"
+        },
+        "staging_deleted": {
+          "type": "boolean"
+        },
+        "zero_remnants_verified": {
+          "type": "boolean"
+        },
+        "software_installation_performed": {
+          "const": false
+        },
+        "harmless_payload_only": {
+          "const": true
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hostnames_emitted",
+        "usernames_emitted",
+        "ticket_bytes_emitted",
+        "credentials_emitted",
+        "package_paths_emitted",
+        "machine_local_paths_emitted",
+        "raw_evidence_emitted"
+      ],
+      "properties": {
+        "hostnames_emitted": {
+          "const": false
+        },
+        "usernames_emitted": {
+          "const": false
+        },
+        "ticket_bytes_emitted": {
+          "const": false
+        },
+        "credentials_emitted": {
+          "const": false
+        },
+        "package_paths_emitted": {
+          "const": false
+        },
+        "machine_local_paths_emitted": {
+          "const": false
+        },
+        "raw_evidence_emitted": {
+          "const": false
+        }
+      }
+    },
+    "network_activity_performed": {
+      "type": "boolean"
+    },
+    "target_mutation_performed": {
+      "type": "boolean"
+    },
+    "proof_ceiling": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 1024
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "preflight_classification": {
+                "const": "kerberos_smb_task_ready"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "certification": {
+            "properties": {
+              "task_created": {
+                "const": true
+              },
+              "executed_as_system": {
+                "const": true
+              },
+              "result_retrieved": {
+                "const": true
+              },
+              "task_deleted": {
+                "const": true
+              },
+              "staging_deleted": {
+                "const": true
+              },
+              "zero_remnants_verified": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

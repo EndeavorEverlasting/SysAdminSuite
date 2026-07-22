@@ -1,0 +1,31 @@
+{
+  "schema_version": "sas-software-deployment-transport-live-cert-result/v1",
+  "workflow_id": "software-deployment-transport-live-cert",
+  "generated_at_utc": "2026-07-22T00:00:00Z",
+  "decision": {
+    "preflight_classification": "kerberos_smb_task_ready",
+    "selected_transport": "kerberos_smb_task"
+  },
+  "certification": {
+    "task_created": true,
+    "executed_as_system": true,
+    "result_retrieved": true,
+    "task_deleted": true,
+    "staging_deleted": true,
+    "zero_remnants_verified": true,
+    "software_installation_performed": false,
+    "harmless_payload_only": true
+  },
+  "privacy": {
+    "hostnames_emitted": false,
+    "usernames_emitted": false,
+    "ticket_bytes_emitted": false,
+    "credentials_emitted": false,
+    "package_paths_emitted": false,
+    "machine_local_paths_emitted": false,
+    "raw_evidence_emitted": false
+  },
+  "network_activity_performed": true,
+  "target_mutation_performed": true,
+  "proof_ceiling": "Sanitized live-cert fixture contract only; no live transport execution or cleanup is claimed."
+}
