@@ -33,7 +33,7 @@ Never put any of the following in a command, tracked file, screenshot, public re
 - the approved private package root;
 - raw corporate evidence or machine-local evidence paths.
 
-Use the repository-owned catalog for package identity and source resolution. The operator supplies only the approved target FQDN, current pinned SHA-256, vendor-validated silent arguments, the argument-validation reference, and non-secret authorization/change references.
+Use the repository-owned catalog for package identity, source resolution, and the approved elevated no-argument invocation. The operator supplies only the approved target FQDN, current pinned SHA-256, and non-secret authorization/change references.
 
 ## Inputs required before a live pilot
 
@@ -43,14 +43,14 @@ Prepare these operator-local values:
 |---|---|
 | Target | One exact authorized FQDN for the first pilot |
 | Package digest | Current approved installer SHA-256, exactly 64 hexadecimal characters |
-| Installer arguments | Vendor-validated silent arguments; the catalog intentionally has no default |
-| Argument reference | Non-secret packaging/vendor validation record |
+| Installer arguments | None; the catalog explicitly approves the elevated no-argument invocation |
+| Argument reference | Repository-owned catalog reference; derived by the application |
 | Authorization | Approver, request, change, and ticket references |
 | Host policy | Applicable eligibility policy when the default is not sufficient |
 | Runtime config | Uncommitted copy of `docs\examples\autologon-runtime-proof.example.json` with approved local values |
 | Recovery | Product-owner-approved rollback/recovery procedure and an available technician |
 
-Do not begin a live pilot while the catalog readiness remains `installer_path_confirmed_arguments_pending` unless the required argument validation has been completed and referenced in the command.
+Do not add switches to the AutoLogon executable. The catalog readiness must be `installer_and_no_arguments_confirmed`.
 
 ## Proof stages
 
@@ -74,8 +74,6 @@ Use the same closed inputs for the application plan. This `-WhatIf` invocation p
 $Plan = .\scripts\Invoke-SasAutoLogonDeployment.ps1 `
   -ComputerName '<AUTHORIZED_TARGET_FQDN>' `
   -InstallerSha256 '<APPROVED_SHA256>' `
-  -InstallerArguments @('<VALIDATED_SILENT_ARGUMENT>') `
-  -InstallerArgumentsReference '<NON_SECRET_ARGUMENT_VALIDATION_REFERENCE>' `
   -AuthorizedBy '<APPROVER_REFERENCE>' `
   -RequestReference '<REQUEST_REFERENCE>' `
   -ChangeReference '<CHANGE_REFERENCE>' `
@@ -118,8 +116,6 @@ Re-run the preflight immediately before the change if the earlier result is outs
 $Pilot = .\scripts\Invoke-SasAutoLogonDeployment.ps1 `
   -ComputerName '<AUTHORIZED_TARGET_FQDN>' `
   -InstallerSha256 '<APPROVED_SHA256>' `
-  -InstallerArguments @('<VALIDATED_SILENT_ARGUMENT>') `
-  -InstallerArgumentsReference '<NON_SECRET_ARGUMENT_VALIDATION_REFERENCE>' `
   -AuthorizedBy '<APPROVER_REFERENCE>' `
   -RequestReference '<REQUEST_REFERENCE>' `
   -ChangeReference '<CHANGE_REFERENCE>' `

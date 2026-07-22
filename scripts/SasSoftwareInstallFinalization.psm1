@@ -45,7 +45,7 @@ function Test-SasValidatedDeploymentRequest {
         'installer_sha256','installer_arguments','installer_arguments_reference','install_mode','targets',
         'authorization','validation','cleanup_policy'
     )
-    $optional = @('require_valid_signature','expected_signer_thumbprint')
+    $optional = @('require_valid_signature','expected_signer_thumbprint','installer_arguments_policy')
     $errors += @(Get-SasUnknownPropertyErrors -Value $Request -Allowed @($required + $optional) -Prefix 'REQUEST_FIELD_UNKNOWN')
     foreach ($name in $required) {
         if ($Request.PSObject.Properties.Name -notcontains $name) { $errors += "REQUEST_FIELD_MISSING:$name" }
@@ -66,9 +66,19 @@ function Test-SasValidatedDeploymentRequest {
 
     if ($Request.installer_arguments -isnot [System.Array]) { $errors += 'INSTALLER_ARGUMENTS_NOT_ARRAY' }
     $arguments = @($Request.installer_arguments)
-    if ($arguments.Count -lt 1 -or $arguments.Count -gt 32 -or
+    if ($arguments.Count -gt 32 -or
         @($arguments | Where-Object { -not (Test-SasStringRange -Value $_ -Minimum 1 -Maximum 1024) }).Count -gt 0) {
         $errors += 'INSTALLER_ARGUMENTS_INVALID'
+    }
+    if ($arguments.Count -eq 0) {
+        if ($Request.PSObject.Properties.Name -notcontains 'installer_arguments_policy' -or
+            $Request.installer_arguments_policy -isnot [string] -or
+            [string]$Request.installer_arguments_policy -ne 'approved_empty') {
+            $errors += 'INSTALLER_ARGUMENTS_EMPTY_NOT_APPROVED'
+        }
+    }
+    elseif ($Request.PSObject.Properties.Name -contains 'installer_arguments_policy') {
+        $errors += 'INSTALLER_ARGUMENTS_POLICY_UNEXPECTED'
     }
     if (-not (Test-SasStringRange -Value $Request.installer_arguments_reference -Minimum 3 -Maximum 512)) { $errors += 'INSTALLER_ARGUMENTS_REFERENCE_INVALID' }
     if ($Request.install_mode -isnot [string] -or [string]$Request.install_mode -notin @('UncDirect','CopyThenInstall')) { $errors += 'INSTALL_MODE_INVALID' }

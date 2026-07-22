@@ -79,13 +79,18 @@ def test_catalog_records_epic_bca_allscripts_and_autologon_paths() -> None:
     assert autologon["source_folder_relative_path"] == r"packages\AutoLogonSetup"
     assert autologon["installer_file"] == "NW_AutoLogon_Setup_x64.exe"
     assert autologon["default_install_mode"] == "CopyThenInstall"
+    assert autologon["default_installer_arguments"] == []
+    assert autologon["requires_validated_installer_arguments"] is False
+    assert autologon["installer_arguments_policy"] == "approved_empty"
+    assert autologon["installer_arguments_reference"]
     assert autologon["install_enabled"] is True
+    assert autologon["readiness"] == "installer_and_no_arguments_confirmed"
 
     for package_id, package in packages.items():
         folder = package["source_folder_relative_path"]
         assert not folder.startswith("\\\\")
         assert ".." not in folder.split("\\")
-        if package_id != "bca":
+        if package_id not in {"bca", "autologon"}:
             assert package["default_installer_arguments"] == []
             assert package["requires_validated_installer_arguments"] is True
 
