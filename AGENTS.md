@@ -48,6 +48,13 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - Whenever AutoLogon is selected for an eligible non-shared profile, it must be the final package and final mutating configuration step. Complete all other software and settings first; only validation, technician acceptance, and a separately authorized reboot may follow.
 - A successful probe or test for one profile is not proof for another profile. Cross-profile conflation is a blocking defect, not a warning.
 
+## Technician execution doctrine
+- Field technicians use repository-owned CMD launchers instead of reconstructing PowerShell commands or individual script sequences whenever a tracked launcher covers the workflow.
+- The launcher owns target-name resolution, dry-run and live-cert gates, production confirmation, failure handling, artifact generation, and opening the operator handoff. PowerShell instructions are limited to pulling the current repository and revealing or selecting the launcher.
+- Technicians enter the approved short hostname from the assignment or device label. The script resolves and validates exactly one canonical FQDN from approved local DNS context; zero matches, alias mismatch, or multiple matches fail closed before mutation.
+- Where runtime eligibility or transport is uncertain, the launcher must complete live-cert dry run before live-cert production. Production cannot run unless dry run and harmless live certification pass.
+- Operator instructions name the one file to click and the one value to enter; implementation complexity remains inside repository-owned CMD and script surfaces.
+
 ## SysAdminSuite virtual-machine doctrine
 - The SysAdminSuite VM is Python-generated. Never assume Hyper-V, invent a VM name, or substitute a provider-specific launcher without repository or operator evidence.
 - Before VM-dependent work, locate the canonical Python generator/launcher and its documented guest identity, startup, readiness, shutdown, rollback, and evidence paths.

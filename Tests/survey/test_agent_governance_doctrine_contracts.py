@@ -17,6 +17,7 @@ REQUIRED_HEADINGS = (
     "## Instruction precedence",
     "## Mandatory sprint declaration",
     "## Device-profile and deployment doctrine",
+    "## Technician execution doctrine",
     "## SysAdminSuite virtual-machine doctrine",
     "## Completion standard",
     "## Forbidden behaviors",
@@ -61,6 +62,18 @@ PROFILE_MARKERS = (
     "AutoLogon is selected for an eligible non-shared profile",
     "final package and final mutating configuration step",
     "Cross-profile conflation is a blocking defect",
+)
+
+TECHNICIAN_MARKERS = (
+    "Field technicians use repository-owned CMD launchers instead of reconstructing PowerShell commands or individual script sequences",
+    "target-name resolution, dry-run and live-cert gates, production confirmation, failure handling, artifact generation, and opening the operator handoff",
+    "PowerShell instructions are limited to pulling the current repository and revealing or selecting the launcher",
+    "Technicians enter the approved short hostname",
+    "exactly one canonical FQDN from approved local DNS context",
+    "zero matches, alias mismatch, or multiple matches fail closed before mutation",
+    "live-cert dry run before live-cert production",
+    "Production cannot run unless dry run and harmless live certification pass",
+    "one file to click and the one value to enter",
 )
 
 VM_MARKERS = (
@@ -109,7 +122,7 @@ def assert_headings_and_markers(text: str) -> None:
         positions.append(index)
     assert positions == sorted(positions), "governance headings are out of contract order"
 
-    for marker in REQUIRED_MARKERS + PROFILE_MARKERS + VM_MARKERS:
+    for marker in REQUIRED_MARKERS + PROFILE_MARKERS + TECHNICIAN_MARKERS + VM_MARKERS:
         assert marker in text, f"missing governance marker: {marker}"
 
 
@@ -168,6 +181,7 @@ def main() -> int:
     assert_compact_and_safe(text)
     print("[PASS] Governance, validator, and consumed profile authorities are tracked")
     print("[PASS] AGENTS.md is ordered, compact, safe, and governance-complete")
+    print("[PASS] Governance requires clickable CMD technician entrypoints, short-hostname resolution, and dry-run/live-cert gates")
     print("[PASS] Governance text fails closed across profiles and forbids AutoLogon on shared/user-login profiles")
     print("[PASS] The current Cybernet profile selects AutoLogon exactly once and last")
     print("[PASS] Python-generated SysAdminSuite VM doctrine is explicit and fail-closed")
