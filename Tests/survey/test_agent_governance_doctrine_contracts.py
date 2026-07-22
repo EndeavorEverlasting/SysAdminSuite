@@ -2,16 +2,21 @@
 """Enforce the repository-root SysAdminSuite agent governance doctrine."""
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GOVERNANCE = ROOT / "AGENTS.md"
+VALIDATOR = ROOT / "Tests/survey/test_agent_governance_doctrine_contracts.py"
+CYBERNET_PROFILE = ROOT / "Config/cybernet-client-preferences.json"
+PACKAGE_CATALOG = ROOT / "configs/software-packages/windows-native-package-sets.json"
 
 REQUIRED_HEADINGS = (
     "## Agent operating principles",
     "## Instruction precedence",
     "## Mandatory sprint declaration",
+    "## Device-profile and deployment doctrine",
     "## SysAdminSuite virtual-machine doctrine",
     "## Completion standard",
     "## Forbidden behaviors",
@@ -46,6 +51,18 @@ REQUIRED_MARKERS = (
     "Secret, credential",
 )
 
+PROFILE_MARKERS = (
+    "Serial number, hostname, MAC address, model, subnet, or probe response is identity evidence, not permission to infer a profile.",
+    "Cybernet, shared/user-login workstation, Neuron, tablet, Kronos clock",
+    "Unknown, ambiguous, conflicting, or unsupported profile evidence fails closed to read-only review.",
+    "Config/cybernet-client-preferences.json",
+    "AutoLogon is forbidden on every shared/user-login workstation profile.",
+    "A package set containing AutoLogon is invalid for that profile",
+    "AutoLogon is selected for an eligible non-shared profile",
+    "final package and final mutating configuration step",
+    "Cross-profile conflation is a blocking defect",
+)
+
 VM_MARKERS = (
     "The SysAdminSuite VM is Python-generated.",
     "Never assume Hyper-V",
@@ -66,15 +83,22 @@ def read_governance() -> str:
     return GOVERNANCE.read_text(encoding="utf-8-sig")
 
 
+def load_json(path: Path) -> dict:
+    assert path.is_file(), f"missing governance authority: {path.relative_to(ROOT)}"
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
 def assert_tracked() -> None:
-    completed = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", "AGENTS.md"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert completed.returncode == 0, "AGENTS.md is not tracked by git"
+    for path in (GOVERNANCE, VALIDATOR):
+        relative = path.relative_to(ROOT).as_posix()
+        completed = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", relative],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode == 0, f"{relative} is not tracked by git"
 
 
 def assert_headings_and_markers(text: str) -> None:
@@ -85,11 +109,8 @@ def assert_headings_and_markers(text: str) -> None:
         positions.append(index)
     assert positions == sorted(positions), "governance headings are out of contract order"
 
-    for marker in REQUIRED_MARKERS:
+    for marker in REQUIRED_MARKERS + PROFILE_MARKERS + VM_MARKERS:
         assert marker in text, f"missing governance marker: {marker}"
-
-    for marker in VM_MARKERS:
-        assert marker in text, f"missing VM governance marker: {marker}"
 
 
 def assert_precedence_order(text: str) -> None:
@@ -103,6 +124,26 @@ def assert_precedence_order(text: str) -> None:
     indexes = [section.find(item) for item in ordered]
     assert all(index >= 0 for index in indexes), "instruction precedence list is incomplete"
     assert indexes == sorted(indexes), "instruction precedence order is incorrect"
+
+
+def assert_cybernet_profile_contract() -> None:
+    profile = load_json(CYBERNET_PROFILE)
+    catalog = load_json(PACKAGE_CATALOG)
+
+    assert profile["schema_version"] == "sas-cybernet-client-preferences/v1"
+    assert profile["profile_id"] == "cybernet-clinical-workstation-default"
+    software = profile["software"]
+    assert software["package_set_id"] == "cybernet-clinical-workstation"
+    assert software["autologon_must_be_last"] is True
+
+    package_set = next(
+        item for item in catalog["package_sets"]
+        if item["id"] == software["package_set_id"]
+    )
+    assert package_set["package_ids"], "Cybernet package set is empty"
+    assert package_set["package_ids"] == software["package_ids"]
+    assert package_set["package_ids"][-1] == "autologon"
+    assert package_set["package_ids"].count("autologon") == 1
 
 
 def assert_compact_and_safe(text: str) -> None:
@@ -123,8 +164,11 @@ def main() -> int:
     assert_tracked()
     assert_headings_and_markers(text)
     assert_precedence_order(text)
+    assert_cybernet_profile_contract()
     assert_compact_and_safe(text)
-    print("[PASS] AGENTS.md is tracked, ordered, compact, and governance-complete")
+    print("[PASS] AGENTS.md and its validator are tracked, ordered, compact, and governance-complete")
+    print("[PASS] Device profiles fail closed and shared/user-login profiles forbid AutoLogon")
+    print("[PASS] The current Cybernet profile selects AutoLogon exactly once and last")
     print("[PASS] Python-generated SysAdminSuite VM doctrine is explicit and fail-closed")
     return 0
 
