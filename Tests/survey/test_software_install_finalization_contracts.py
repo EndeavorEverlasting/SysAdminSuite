@@ -84,6 +84,8 @@ def test_runtime_validator_enforces_closed_schema_guardrails() -> None:
         "REQUIRE_VALID_SIGNATURE_TYPE_INVALID",
         "EXPECTED_SIGNER_THUMBPRINT_INVALID",
         "VALIDATION_SERVICE_STATUS_INVALID",
+        "$parsedChecks = ConvertFrom-Json -InputObject $ChecksJson",
+        "foreach ($parsedCheck in $parsedChecks)",
         "Select-Object -Unique",
     ):
         assert fragment in module, f"runtime request validator is missing: {fragment}"
@@ -96,6 +98,7 @@ def test_runtime_validator_enforces_closed_schema_guardrails() -> None:
         "requires an actual boolean for signature enforcement",
         "rejects unknown validation-check properties",
         "rejects unsupported service states before target execution",
+        "keeps JSON validation-check arrays distinct on Windows PowerShell 5.1",
     ):
         assert fragment in pester, f"missing executable request rejection proof: {fragment}"
     for forbidden in ("Invoke-Command", "Start-Process", "New-PSSession", "AllowTargetMutation"):

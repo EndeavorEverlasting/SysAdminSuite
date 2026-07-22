@@ -233,7 +233,14 @@ function Get-SasSoftwareValidationScriptBlock {
     return {
         param([string]$ChecksJson)
         $ErrorActionPreference = 'Stop'
-        $checks = @($ChecksJson | ConvertFrom-Json)
+        # Windows PowerShell 5.1 writes a JSON array from ConvertFrom-Json as one
+        # pipeline object. Normalize it explicitly so each validation check stays
+        # distinct instead of combining its properties through member enumeration.
+        $parsedChecks = ConvertFrom-Json -InputObject $ChecksJson
+        $checks = @()
+        foreach ($parsedCheck in $parsedChecks) {
+            $checks += $parsedCheck
+        }
         $results = @()
 
         function Resolve-ExactPath {
