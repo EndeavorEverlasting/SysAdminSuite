@@ -10,7 +10,7 @@
 5. Load only the selected skill and its declared capability dependencies.
 6. Read deeper product or harness documentation only when the selected route points to it.
 
-Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims. Progressive disclosure is required; do not preload every skill, capability, plan, or handoff.
+Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims. Progressive disclosure is a repository requirement; do not preload every skill, capability, plan, or handoff.
 
 ## Agent operating principles
 - **Evidence before action:** inspect repository, branch, PR, worktree, contracts, and existing evidence before mutation.
