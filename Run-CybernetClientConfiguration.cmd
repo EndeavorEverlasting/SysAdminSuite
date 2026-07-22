@@ -63,7 +63,10 @@ echo This launcher accepts one explicit authorized Cybernet target only.
 echo Pilot requires the target's fully qualified DNS name.
 echo.
 echo Usage:
+echo Preferred one-target pilot:
 echo   Run-CybernetClientConfiguration.cmd Pilot CYBERNET-HOST.domain.example
+echo.
+echo Other modes:
 echo   Run-CybernetClientConfiguration.cmd Plan CYBERNET-HOST
 echo   Run-CybernetClientConfiguration.cmd DryRun CYBERNET-HOST
 echo   Run-CybernetClientConfiguration.cmd Apply CYBERNET-HOST
