@@ -29,7 +29,7 @@ def test_preservation_and_pr_ledgers_are_complete() -> None:
         assert f"| {sprint} " in handoff, f"missing preservation entry: {sprint}"
     for pr in ("#151", "#177", "#180", "#229", "#232", "#233", "#234", "#237", "#238", "#242", "#243", "#249"):
         assert f"| {pr} |" in handoff, f"missing PR disposition: {pr}"
-    assert "The receipt producer is implemented on an open PR" in handoff
+    assert "Merged on `main`" in handoff
     assert "No public live receipt exists" in handoff
     assert "Raw evidence was not accessed" in handoff
 
@@ -89,7 +89,8 @@ def test_frozen_operations_and_e2e_authority_remain_registered() -> None:
     assert "software-install-validated-finalization" in journeys
 
     workflow = read(ROOT / "harness/workflows/software-deployment-transport.yaml")
-    assert "implementation_status: deferred_to_p03_and_p07" in workflow
+    assert "implementation_status: implemented_harmless_smb_live_cert" in workflow
+    assert "application_entrypoint: scripts/Invoke-SasSoftwareDeploymentTransportLiveCert.ps1" in workflow
     assert "implementation_status: implemented_p07" in workflow
     assert "application_entrypoint: scripts/Invoke-SasTransportProofIngest.ps1" in workflow
 

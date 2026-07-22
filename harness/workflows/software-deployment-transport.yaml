@@ -36,13 +36,25 @@ operations:
       - artifact_registry.json
     mutation_authority: none
   - id: software_install.transport_live_cert
-    implementation_status: deferred_to_p03_and_p07
+    implementation_status: implemented_harmless_smb_live_cert
+    contract_floor_transition: "implementation_status: deferred_to_p03_and_p07 -> implemented_harmless_smb_live_cert"
+    application_entrypoint: scripts/Invoke-SasSoftwareDeploymentTransportLiveCert.ps1
+    implementation_modules:
+      - scripts/SasSoftwareDeploymentLiveCert.psm1
+      - scripts/SasSoftwareDeploymentAdapter.psm1
+      - scripts/SasRunContext.psm1
     consumes:
       - schema-valid kerberos_smb_task_ready result
       - one explicitly authorized target
+      - explicit network activity acknowledgement
       - explicit live-cert mutation approval
+      - optional sanitized fixture scenario with no network or target mutation
     produces:
       - operator_local_transport_live_cert_result.json
+      - private_lifecycle_result.json
+      - english_summary.txt
+      - artifact_registry.json
+      - operator_handoff.txt
     mutation_authority: harmless run-scoped certification task only
   - id: software_install.transport_proof_ingest
     implementation_status: implemented_p07
@@ -104,12 +116,15 @@ guardrails:
   - Contracts do not authorize network activity or target mutation.
   - Preflight evidence cannot claim task creation, SYSTEM execution, result retrieval, cleanup, or software installation.
   - Live-cert operation cannot install software.
+  - Live-cert staging is isolated to C:\ProgramData\SysAdminSuite\TransportLiveCert\<run_id> and must be absent at completion.
   - Raw target identifiers, usernames, credentials, ticket bytes, package paths, and private evidence remain operator-local.
   - Public receipts bind source evidence by SHA-256 without copying it.
   - Target deployment uses a noninteractive SYSTEM scheduled task without /IT, and approved installer execution is required to remain silent.
 validators:
   - Tests/survey/test_software_deployment_transport_contracts.py
   - Tests/survey/test_software_deployment_transport_preflight_contracts.py
+  - Tests/survey/test_software_deployment_transport_live_cert_contracts.py
   - Tests/Pester/SoftwareDeploymentTransport.Tests.ps1
+  - Tests/Pester/SoftwareDeploymentTransportLiveCert.Tests.ps1
   - Tests/bash/test_smb_scheduled_task_install_contracts.sh
-proof_ceiling: Read-only intent-scoped preflight implementation, sanitized fixture, schema, run-context, low-noise artifact, validator, and CI proof only; no live target observation, task creation, software execution, or operator acceptance is claimed.
+proof_ceiling: Read-only preflight, harmless live-cert producer, sanitized lifecycle fixtures, schemas, run-context artifacts, validators, and CI proof only; no live corporate target execution, software installation, WinRM certification, fleet readiness, or operator acceptance is claimed.

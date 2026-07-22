@@ -10,11 +10,14 @@ on:
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
       - 'Tests/survey/test_software_deployment_transport_contracts.py'
       - 'Tests/survey/test_software_deployment_transport_preflight_contracts.py'
+      - 'Tests/survey/test_software_deployment_transport_live_cert_contracts.py'
       - 'Tests/survey/test_canonical_smb_task_deployment_contracts.py'
       - 'Tests/survey/test_deployment_transport_convergence_contracts.py'
       - 'Tests/Pester/SoftwareDeploymentTransport.Tests.ps1'
+      - 'Tests/Pester/SoftwareDeploymentTransportLiveCert.Tests.ps1'
       - 'Tests/Pester/SmbScheduledTaskDeployment.Tests.ps1'
       - 'Tests/Fixtures/software-deployment-transport/**'
+      - 'Tests/Fixtures/software-deployment-transport-live-cert/**'
       - 'Tests/Fixtures/smb-scheduled-task-deployment/**'
       - 'Tests/bash/test_harness_command_surface.sh'
       - 'Tests/bash/test_pr142_scope_boundary_contracts.sh'
@@ -37,7 +40,9 @@ on:
       - 'scripts/SasSoftwareDeploymentTransport.psm1'
       - 'scripts/SasSoftwareDeploymentLowNoise.psm1'
       - 'scripts/SasSoftwareDeploymentAdapter.psm1'
+      - 'scripts/SasSoftwareDeploymentLiveCert.psm1'
       - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
+      - 'scripts/Invoke-SasSoftwareDeploymentTransportLiveCert.ps1'
       - 'scripts/Invoke-SasValidatedSoftwareDeployment.ps1'
       - 'scripts/Test-SasSmbScheduledTaskDeploymentFixture.ps1'
       - 'bash/apps/sas-install-apps.sh'
@@ -84,6 +89,10 @@ jobs:
         shell: bash
         run: python3 Tests/survey/test_software_deployment_transport_preflight_contracts.py
 
+      - name: Harmless software deployment transport live-cert contracts
+        shell: bash
+        run: python3 Tests/survey/test_software_deployment_transport_live_cert_contracts.py
+
       - name: Canonical SMB scheduled-task deployment contracts
         shell: bash
         run: python3 Tests/survey/test_canonical_smb_task_deployment_contracts.py
@@ -109,8 +118,10 @@ jobs:
           $null = [scriptblock]::Create((Get-Content .\scripts\SasLowNoisePolicy.psm1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\Test-SasSoftwareDeploymentTransport.ps1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentAdapter.psm1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentLiveCert.psm1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\Invoke-SasValidatedSoftwareDeployment.ps1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\Test-SasSmbScheduledTaskDeploymentFixture.ps1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\Invoke-SasSoftwareDeploymentTransportLiveCert.ps1 -Raw))
           'PARSE OK'
 
       - name: Install Pester 5
@@ -128,6 +139,12 @@ jobs:
         run: |
           $result = Invoke-Pester -Path .\Tests\Pester\SmbScheduledTaskDeployment.Tests.ps1 -PassThru
           if ($result.FailedCount -gt 0) { throw "$($result.FailedCount) canonical SMB scheduled-task Pester test(s) failed." }
+
+      - name: Run focused harmless transport live-cert Pester
+        shell: powershell
+        run: |
+          $result = Invoke-Pester -Path .\Tests\Pester\SoftwareDeploymentTransportLiveCert.Tests.ps1 -PassThru
+          if ($result.FailedCount -gt 0) { throw "$($result.FailedCount) harmless transport live-cert Pester test(s) failed." }
 
       - name: Execute offline SMB-ready fixture
         shell: powershell
@@ -152,6 +169,22 @@ jobs:
           $resultPath = Get-ChildItem .\survey\output\transport-preflight-ci -Filter software_deployment_transport_result.json -File -Recurse | Select-Object -First 1 -ExpandProperty FullName
           python -c "import json,jsonschema,sys; jsonschema.validate(json.load(open(sys.argv[1],encoding='utf-8-sig')),json.load(open(sys.argv[2],encoding='utf-8-sig'))); print('SCHEMA VALID')" $resultPath .\schemas\harness\software-deployment-transport-result.schema.json
 
+      - name: Execute and schema-validate harmless live-cert fixture
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $execution = .\scripts\Invoke-SasSoftwareDeploymentTransportLiveCert.ps1 `
+            -FixtureMode `
+            -FixtureScenario success `
+            -PreflightResultPath .\Tests\Fixtures\software-deployment-transport\kerberos-smb-task-ready.fixture.json `
+            -OutputRoot .\survey\output\transport-live-cert-ci `
+            -PassThru
+          if ($execution.disposition -ne 'CONTRACT FIXTURE ONLY') { throw 'Fixture was promoted beyond contract proof.' }
+          if ($execution.result.network_activity_performed) { throw 'Fixture claimed network activity.' }
+          if ($execution.result.target_mutation_performed) { throw 'Fixture claimed target mutation.' }
+          python -c "import json,jsonschema,sys; jsonschema.validate(json.load(open(sys.argv[1],encoding='utf-8-sig')),json.load(open(sys.argv[2],encoding='utf-8-sig'))); print('SCHEMA VALID')" $execution.result_path .\schemas\harness\software-deployment-transport-live-cert-result.schema.json
+          if ($LASTEXITCODE -ne 0) { throw 'Live-cert fixture schema validation failed.' }
+
       - name: Execute and schema-validate canonical SMB task fixture matrix
         shell: powershell
         run: |
@@ -167,5 +200,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: software-deployment-transport-preflight-fixture
-          path: survey/output/transport-preflight-ci
+          path: |
+            survey/output/transport-preflight-ci
+            survey/output/transport-live-cert-ci
           if-no-files-found: error
