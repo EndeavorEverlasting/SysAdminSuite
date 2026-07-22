@@ -78,7 +78,7 @@ function Invoke-SasCybernetStage {
 }
 
 $targetArguments = @('-ComputerName') + @($targets)
-$commonArguments = $targetArguments
+$commonArguments = @($targetArguments)
 if ($FixtureMode) { $commonArguments += '-FixtureMode' }
 $stages = @()
 
@@ -88,7 +88,7 @@ if ($Mode -eq 'Plan') {
     $stages += Invoke-SasCybernetStage -Name 'privacy-button-plan' -ScriptPath (Join-Path $PSScriptRoot 'Disable-PrivacyButton.ps1') -StageOutput (Join-Path $run.run_root 'privacy-button') -Arguments ($commonArguments + @('-MonitorIndex', [string]$MonitorIndex, '-WhatIf'))
     $stages += Invoke-SasCybernetStage -Name 'validation-plan' -ScriptPath (Join-Path $PSScriptRoot 'PostInstall-Validation.ps1') -StageOutput (Join-Path $run.run_root 'validation') -Arguments ($targetArguments + @('-MonitorIndex', [string]$MonitorIndex, '-PlanOnly'))
 }
-elif ($Mode -eq 'Validate') {
+elseif ($Mode -eq 'Validate') {
     $validateArgs = $commonArguments + @('-MonitorIndex', [string]$MonitorIndex)
     $stages += Invoke-SasCybernetStage -Name 'postinstall-validation' -ScriptPath (Join-Path $PSScriptRoot 'PostInstall-Validation.ps1') -StageOutput (Join-Path $run.run_root 'validation') -Arguments $validateArgs
 }
@@ -124,7 +124,7 @@ $summary = [ordered]@{
     stages = @($stages)
     failed_stage_count = $failedStages.Count
     network_activity_performed = ($Mode -ne 'Plan' -and -not $FixtureMode)
-    target_mutation_performed = ($Mode -eq 'Apply' -and -not $FixtureMode -and $failedStages.Count -lt $stages.Count)
+    target_mutation_performed = ($Mode -eq 'Apply' -and -not $FixtureMode -and @($stages | Where-Object { $_.name -like '*apply' -and $_.exit_code -eq 0 }).Count -gt 0)
     com_mutation_performed = $false
     com_repair_policy = 'LOCAL_ONLY_EXISTING_AUTOFIX'
     summary_path = $summaryPath
