@@ -61,7 +61,7 @@ flowchart TD
 
    `http://127.0.0.1:5000/dashboard/?tutorial=setup`
 
-3. The browser tab shows the Harold icon. Follow **Repo Setup** first, then click **Start Cybernet Survey** for field survey work.
+3. The browser tab shows the Harold icon. Follow **Repo Setup**, then choose **Software Deployment**, **Cybernet Survey**, or another guided workflow.
 
 On first run, the launcher may **automatically prepare the dashboard app** for a minute before the browser opens. If Microsoft .NET 8 dependencies are missing, it can download official Microsoft installers, verify them, and build the local dashboard host. You do not need to run any command yourself.
 
@@ -127,207 +127,7 @@ Output: `dist/SysAdminSuiteDashboard/SysAdminSuite Dashboard.exe` (gitignored, b
 
 ## When do I use CLI commands?
 
-Only when the dashboard tells you to copy a command, or a runbook explicitly asks for Bash survey steps. CLI commands are optional and specific — they are not the default front door.
-
-## Tutorial: check workstations for AutoLogon status
-
-Use this workflow when you need to determine whether approved workstations are configured for AutoLogon. The assessment is **read-only**. It checks workstation and directory evidence but does not install AutoLogon, modify the registry, or prove that a human technician performed the change.
-
-### Before you begin
-
-You need:
-
-1. An authorized admin workstation with the current SysAdminSuite repo.
-2. Git Bash on Windows for the primary command path.
-3. An approved target list stored locally, not committed to git.
-4. Network and administrative access to the target workstations.
-5. AD read access only when you use `--ad-live`.
-
-Create a CSV under `targets/local/`, for example `targets/local/autologon-check.csv`:
-
-```csv
-HostName
-WORKSTATION001
-WORKSTATION002
-```
-
-Do not put real target lists in `targets/sanitized/` or commit them.
-
-### Run the check
-
-Open Git Bash in the SysAdminSuite repo root and run:
-
-```bash
-bash survey/sas-assess-autologon.sh \
-  --manifest ./targets/local/autologon-check.csv \
-  --preflight \
-  --ad-live \
-  --output ./survey/output/autologon_assessment.csv \
-  --dashboard ./survey/output/autologon_dashboard.html \
-  --open
-```
-
-The command performs a bounded readiness check, reads the AutoLogon-related registry posture, optionally checks the matching AD user and computer OU, writes local evidence, and opens an HTML report.
-
-### Read the result
-
-Use the `OverallStatus` column in the CSV or the status shown in the HTML dashboard:
-
-| Status | What it means | Operator action |
-|---|---|---|
-| `autologon_ready` | Intent, Winlogon settings, AD user, and OU evidence align. | Record the workstation as configuration-ready, then use a controlled reboot and direct observation when runtime proof is required. |
-| `shared_device` | The PostInstall AutoLogon intent marker is absent. | Confirm whether the workstation is supposed to receive AutoLogon before requesting installation. |
-| `intent_only` | AutoLogon intent exists, but Winlogon setup is not complete. | Route for installation or remediation. |
-| `setup_incomplete` | Winlogon values do not match the expected workstation identity. | Stop expansion and review the workstation. |
-| `account_missing` | The expected AD user was not found. | Resolve the directory account dependency before installation. |
-| `ou_mismatch` | The computer is not in the expected managed shared-workstation OU. | Correct or approve the OU posture before installation. |
-| `unreachable` | The host or admin share could not be reached. | Do not infer status. Fix connectivity or access and rerun only that target. |
-| `probe_failed` | The workstation was reachable but registry evidence could not be read. | Review permissions and the reported probe error. |
-
-`autologon_ready` is configuration evidence, not complete runtime proof. When a successful automatic sign-in must be demonstrated, reboot an approved pilot workstation and directly observe the sign-in behavior.
-
-### Break-glass local check
-
-Use this only when remote access is unavailable and you are physically at the workstation:
-
-```bash
-bash survey/sas-assess-autologon.sh \
-  --local \
-  --output ./survey/output/autologon_local.csv \
-  --open
-```
-
-### Evidence and safety
-
-The live CSV and HTML files stay under `survey/output/` on the admin workstation. They can contain real hostnames, usernames, and OU paths. Do not commit or attach them to a public issue or PR.
-
-Full evidence contract and status logic: [`docs/AUTOLOGON_ASSESSMENT.md`](docs/AUTOLOGON_ASSESSMENT.md).
-
-## Tutorial: install approved software from the server
-
-Use this workflow only for approved software, approved targets, and an authorized change or request. The canonical installer is `scripts/Invoke-SasSoftwareInstall.ps1`.
-
-The approved software source list is controlled by `harness/api/sas-harness-api.json`. The initial approved root is:
-
-```text
-\\nt2kwb972sms01\
-```
-
-The installer path you provide must be **relative** to that root. Do not embed credentials, use an unapproved server, or copy installer packages into the repo.
-
-### Before you begin
-
-Confirm all of the following:
-
-1. You have the approved package name and the exact relative installer path on the server.
-2. You have vendor-supported silent arguments for that exact installer version.
-3. The target list is authorized and contains no more than 25 workstations.
-4. Your admin session can create the required Windows remote session to the target.
-5. The software request, change, or ticket authorizes target mutation.
-6. You will start with one approved pilot workstation.
-
-A target CSV may use `ComputerName`, `Hostname`, or `Target` as its column name:
-
-```csv
-ComputerName
-WORKSTATION001
-```
-
-Store it under `targets/local/`, for example `targets/local/software-pilot.csv`.
-
-### Step 1: request-only dry run
-
-Open PowerShell in the SysAdminSuite repo root. Replace the example package path and arguments with the approved values:
-
-```powershell
-.\scripts\Invoke-SasSoftwareInstall.ps1 `
-  -TargetsCsv .\targets\local\software-pilot.csv `
-  -PackageName 'ApprovedVendorTool' `
-  -InstallerRelativePath 'packages\ApprovedVendorTool\setup.exe' `
-  -InstallerArguments @('/quiet', '/norestart') `
-  -InstallMode UncDirect `
-  -WhatIf
-```
-
-`-WhatIf` validates the request and writes local planning evidence. It does **not** contact the installer share, open a remote session, copy a payload, or start the installer.
-
-Review the generated folder under:
-
-```text
-survey/output/software_install/<run_id>/
-```
-
-Check `software_install_summary.json` and `operator_handoff.txt`. Verify the target count, package name, relative path, mode, and planned status before moving to execution.
-
-### Step 2: approved pilot execution
-
-After the dry run is reviewed, run the same request with the explicit mutation gate. Leave confirmation enabled for the first pilot:
-
-```powershell
-.\scripts\Invoke-SasSoftwareInstall.ps1 `
-  -TargetsCsv .\targets\local\software-pilot.csv `
-  -PackageName 'ApprovedVendorTool' `
-  -InstallerRelativePath 'packages\ApprovedVendorTool\setup.exe' `
-  -InstallerArguments @('/quiet', '/norestart') `
-  -InstallMode UncDirect `
-  -AllowTargetMutation
-```
-
-PowerShell asks for confirmation before each target. Confirm only the approved pilot target.
-
-`UncDirect` is the preferred mode because SysAdminSuite does not stage the installer on the target. Use `CopyThenInstall` only when direct UNC execution is not practical and the change owner accepts the temporary staging and cleanup risk.
-
-### Step 3: review the evidence
-
-Each run writes admin-box evidence similar to:
-
-```text
-survey/output/software_install/<run_id>/
-  software_install_events.jsonl
-  software_install_summary.json
-  operator_handoff.txt
-```
-
-Review these fields in `software_install_summary.json`:
-
-| Field | Acceptable pilot result |
-|---|---|
-| `completed_count` | `1` for a one-target successful pilot |
-| `failed_count` | `0` |
-| `cleanup_failure_count` | `0` |
-| `repo_artifact_remaining_count` | `0` |
-| target `status` | `completed` |
-| target `exit_code` | `0` |
-
-A nonzero installer exit code is treated as a failure by the current wrapper. Review the vendor's exit-code documentation before retrying or deciding that a reboot code represents success.
-
-### Step 4: verify the installed result
-
-The SysAdminSuite summary proves what the wrapper attempted and what the installer returned. It does not replace application-specific verification. Use the approved detection method for the package, such as a known executable version, an uninstall-registry entry, a service state, or the vendor's own validation command.
-
-Do not expand beyond the pilot until:
-
-1. the wrapper summary is clean;
-2. the software-specific detection passes;
-3. no SysAdminSuite-owned staging remains on the target;
-4. any required reboot behavior is understood;
-5. the change owner approves the next batch.
-
-### Stop conditions
-
-Stop and review instead of retrying broadly when:
-
-- the server path is rejected as unapproved;
-- the relative path contains `..` or resolves outside the approved root;
-- the installer cannot be read from the target context;
-- remote session creation fails;
-- the installer times out or returns a nonzero exit code;
-- cleanup fails or `repo_artifact_remaining_count` is greater than zero;
-- the target list or package details differ from the approved request.
-
-The installer does not clear Windows logs, suppress monitoring, collect credentials, create hidden persistence, or remove records created by Windows or the approved installer.
-
-Full operator contract and cleanup boundary: [`docs/SOFTWARE_INSTALL_HARNESS.md`](docs/SOFTWARE_INSTALL_HARNESS.md).
+Only when the dashboard tells you to copy a command, or a runbook explicitly asks for Bash survey or deployment steps. CLI commands are optional and specific — they are not the default front door.
 
 ## Where is the Cybernet / Neuron survey tutorial?
 
@@ -335,9 +135,27 @@ Full operator contract and cleanup boundary: [`docs/SOFTWARE_INSTALL_HARNESS.md`
 - CLI runbook (advanced): [`START-HERE-CYBERNET-NEURON-SURVEY.md`](START-HERE-CYBERNET-NEURON-SURVEY.md)
 - Full step-by-step: [`docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md)
 
+## Where is the software deployment tutorial?
+
+The **web interface is the canonical technician tutorial** for the standard software-deployment proof and pilot workflow.
+
+- Open the dashboard and click **Start Software Deployment**.
+- Direct route: `http://127.0.0.1:5000/dashboard/?tutorial=software-deployment`
+- The web wizard guides the generated dummy-installer proof, exact evidence review, one-target WhatIf plan, confirmation-enabled pilot, and stop/expand decision.
+- Supporting written runbook: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
+- Implementation and evidence reference: [`docs/SOFTWARE_INSTALL_E2E.md`](docs/SOFTWARE_INSTALL_E2E.md)
+
+For the implemented **Cybernet admin-share and Task Scheduler lane** used when WinRM is unavailable:
+
+- Start page: [`START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md`](START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md)
+- Full one-workstation and multi-workstation tutorial: [`docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`](docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md)
+- Technical transport reference: [`docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md`](docs/SMB_SCHEDULED_TASK_SOFTWARE_INSTALL.md)
+
+That lane requires Git Bash on an approved Windows admin workstation or admin VM, one authorized pilot before expansion, explicit targets, and separate technician application acceptance.
+
 ## What files should I never commit?
 
-Live target CSVs, scan output, packaged ZIPs, serials, MACs, and site evidence. Keep them on your admin workstation only.
+Live target CSVs, scan output, packaged ZIPs, generated installer executables, software-install evidence, serials, MACs, and site evidence. Keep them on your admin workstation only.
 
 ### Where to put local Cybernet sources
 
@@ -352,7 +170,5 @@ Policy and naming rules: [`docs/TARGETS_FOLDER_POLICY.md`](docs/TARGETS_FOLDER_P
 
 ## More help
 
-- AutoLogon assessment contract: [`docs/AUTOLOGON_ASSESSMENT.md`](docs/AUTOLOGON_ASSESSMENT.md)
-- Server software install contract: [`docs/SOFTWARE_INSTALL_HARNESS.md`](docs/SOFTWARE_INSTALL_HARNESS.md)
 - Agent/IT canonical reference: [`docs/DASHBOARD_ENTRYPOINT.md`](docs/DASHBOARD_ENTRYPOINT.md)
 - Dashboard UI: [`dashboard/README.md`](dashboard/README.md)
