@@ -83,4 +83,40 @@ Describe 'Validated software deployment request runtime contract' {
 
         @(Test-SasValidatedDeploymentRequest -Request $request) | Should -Contain 'VALIDATION_SERVICE_STATUS_INVALID:installed-file'
     }
+
+    It 'keeps JSON validation-check arrays distinct on Windows PowerShell 5.1' {
+        $installedPath = Join-Path $TestDrive 'installed.txt'
+        $manifestPath = Join-Path $TestDrive 'manifest.json'
+        Set-Content -LiteralPath $installedPath -Value 'installed' -Encoding UTF8
+        @{ package_name = 'Fixture Package' } |
+            ConvertTo-Json |
+            Set-Content -LiteralPath $manifestPath -Encoding UTF8
+
+        $checks = @(
+            [ordered]@{
+                id = 'installed-file'
+                type = 'FileExists'
+                required = $true
+                path = $installedPath
+            },
+            [ordered]@{
+                id = 'manifest-package'
+                type = 'JsonPropertyEquals'
+                required = $true
+                path = $manifestPath
+                property_path = 'package_name'
+                expected_value = 'Fixture Package'
+            }
+        )
+        $checksJson = $checks | ConvertTo-Json -Depth 8 -Compress
+        $validationScript = Get-SasSoftwareValidationScriptBlock
+        $validation = & $validationScript $checksJson
+
+        $validation.succeeded | Should -BeTrue
+        $validation.required_check_count | Should -Be 2
+        $validation.failed_required_check_count | Should -Be 0
+        @($validation.checks).Count | Should -Be 2
+        @($validation.checks).id | Should -Be @('installed-file', 'manifest-package')
+        @($validation.checks).type | Should -Be @('FileExists', 'JsonPropertyEquals')
+    }
 }
