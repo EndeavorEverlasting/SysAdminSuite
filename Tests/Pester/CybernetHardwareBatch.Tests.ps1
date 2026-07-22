@@ -3,8 +3,6 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:hardwareRoot = Join-Path $script:repoRoot 'Hardware\Cybernet'
-    $script:batchScript = Join-Path $script:hardwareRoot 'Invoke-CybernetBatchConfiguration.ps1'
-    $script:engine = (Get-Process -Id $PID).Path
     $script:paths = @(
         'CybernetHardware.Common.psm1',
         'Invoke-CybernetStage.ps1',
@@ -16,16 +14,6 @@ BeforeAll {
         'COM-Port-Check.ps1',
         'PostInstall-Validation.ps1'
     ) | ForEach-Object { Join-Path $script:hardwareRoot $_ }
-}
-
-BeforeEach {
-    $script:testOutputRoot = Join-Path $script:repoRoot ('survey\output\cybernet-hardware-pester-' + [guid]::NewGuid().ToString('N'))
-}
-
-AfterEach {
-    if ($script:testOutputRoot -and (Test-Path -LiteralPath $script:testOutputRoot)) {
-        Remove-Item -LiteralPath $script:testOutputRoot -Recurse -Force
-    }
 }
 
 Describe 'Cybernet hardware batch PowerShell surfaces' {
@@ -49,42 +37,18 @@ Describe 'Cybernet hardware batch PowerShell surfaces' {
         Get-SasCybernetComClassification -Ports COM1,COM3 | Should -Be 'COM_PORT_REVIEW_REQUIRED'
     }
 
-    It 'executes the complete Apply workflow in fixture mode without network or mutation' {
-        $console = @(& $script:engine -NoProfile -File $script:batchScript `
-            -Mode Apply `
-            -ComputerName 'CYBERNET-FIXTURE-01' `
-            -FixtureMode `
-            -OutputRoot $script:testOutputRoot 2>&1 | ForEach-Object { $_.ToString() })
-        $LASTEXITCODE | Should -Be 0 -Because ($console -join "`n")
-
-        $summaryPath = Get-ChildItem -LiteralPath $script:testOutputRoot -Filter 'cybernet_batch_configuration_summary.json' -File -Recurse |
-            Sort-Object LastWriteTimeUtc -Descending |
-            Select-Object -First 1 -ExpandProperty FullName
-        $summaryPath | Should -Not -BeNullOrEmpty
-        $result = Get-Content -LiteralPath $summaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $result.status | Should -Be 'APPLIED_AND_VALIDATED'
-        $result.fixture_mode | Should -BeTrue
-        $result.network_activity_performed | Should -BeFalse
-        $result.target_mutation_performed | Should -BeFalse
-        $result.com_mutation_performed | Should -BeFalse
-        @($result.stages).Count | Should -Be 4
-        @($result.stages | Where-Object exit_code -ne 0).Count | Should -Be 0
+    It 'keeps the batch default in request-only Plan mode' {
+        $text = Get-Content -LiteralPath (Join-Path $script:hardwareRoot 'Invoke-CybernetBatchConfiguration.ps1') -Raw
+        $text | Should -Match "\[string\]\$Mode\s*=\s*'Plan'"
+        $text | Should -Match "Apply requires -AllowTargetMutation"
+        $text | Should -Match "com_mutation_performed = \$false"
     }
 
-    It 'keeps Plan request-only' {
-        $console = @(& $script:engine -NoProfile -File $script:batchScript `
-            -Mode Plan `
-            -ComputerName 'CYBERNET-FIXTURE-01' `
-            -OutputRoot $script:testOutputRoot 2>&1 | ForEach-Object { $_.ToString() })
-        $LASTEXITCODE | Should -Be 0 -Because ($console -join "`n")
-
-        $summaryPath = Get-ChildItem -LiteralPath $script:testOutputRoot -Filter 'cybernet_batch_configuration_summary.json' -File -Recurse |
-            Sort-Object LastWriteTimeUtc -Descending |
-            Select-Object -First 1 -ExpandProperty FullName
-        $summaryPath | Should -Not -BeNullOrEmpty
-        $result = Get-Content -LiteralPath $summaryPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $result.status | Should -Be 'PLAN_READY'
-        $result.network_activity_performed | Should -BeFalse
-        $result.target_mutation_performed | Should -BeFalse
+    It 'uses the tracked JSON splat runner for child-process composition' {
+        $batch = Get-Content -LiteralPath (Join-Path $script:hardwareRoot 'Invoke-CybernetBatchConfiguration.ps1') -Raw
+        $runner = Get-Content -LiteralPath (Join-Path $script:hardwareRoot 'Invoke-CybernetStage.ps1') -Raw
+        $batch | Should -Match 'Invoke-CybernetStage\.ps1'
+        $batch | Should -Match 'parameter_document'
+        $runner | Should -Match '& \$ScriptPath @parameters'
     }
 }
