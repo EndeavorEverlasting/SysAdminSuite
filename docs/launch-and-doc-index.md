@@ -24,7 +24,12 @@ Start here when you need to know which local surface to use.
 | Browser tutorial loader | `dashboard/js/launch-repo-setup-tutorial.js` |
 | Supporting written runbook | `docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md` |
 | Transport selection contract | `docs/SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md` |
+| Deployment transport convergence and public-safe receipt ledger | `docs/handoff/deployment-transport-convergence.md` |
+| Transport preflight | `scripts/Test-SasSoftwareDeploymentTransport.ps1` |
+| Harmless SMB live certification | `scripts/Invoke-SasSoftwareDeploymentTransportLiveCert.ps1` |
+| Public-safe transport proof ingest | `scripts/Invoke-SasTransportProofIngest.ps1` |
 | SMB/Task Scheduler compatibility controller | `bash/apps/sas-install-apps.sh` |
+| Canonical transport adapter | `scripts/SasSoftwareDeploymentAdapter.psm1` |
 | Validated PowerShell deployment front door | `scripts/Invoke-SasValidatedSoftwareDeployment.ps1` |
 | Generated dummy installer | `Tests/fixtures/software-install/DummyInstaller.cs` -> `scripts/Build-SasSoftwareInstallFixtureExecutable.ps1` |
 | Software-install E2E | `scripts/Invoke-SasSoftwareInstallE2E.ps1` -> `scripts/Invoke-SasSoftwareInstall.ps1` |
