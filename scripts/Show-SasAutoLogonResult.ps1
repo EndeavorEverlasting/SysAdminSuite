@@ -49,6 +49,7 @@ function Read-SasAutoLogonJson {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Role,
+        [AllowEmptyCollection()]
         [Parameter(Mandatory = $true)][Collections.Generic.List[string]]$Errors
     )
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
