@@ -51,11 +51,23 @@ def test_progress_fails_closed_until_current_request_is_reapproved() -> None:
     assert "}, true);" in guard
 
 
-def test_guard_loads_only_after_the_primary_tutorial() -> None:
+def test_guard_loads_only_after_the_primary_tutorial_and_fails_closed() -> None:
     loader = read(LOADER)
     assert "software-deployment-input-invalidation.js" in loader
     assert "script.onload = loadSoftwareDeploymentInputInvalidation" in loader
-    assert "Live pilot progression is unavailable" in loader
+    assert "disableSoftwareDeploymentProgression" in loader
+    assert "__sasSoftwareDeploymentApprovalGuardUnavailable = true" in loader
+    for control_id in (
+        "software-deployment-next",
+        "software-deployment-copy",
+        "hero-start-deployment",
+        "hero-deployment-dry-run",
+        "hero-open-deployment",
+    ):
+        assert control_id in loader
+    assert "Live pilot progression is disabled" in loader
+    assert "control.disabled = true" in loader
+    assert "aria-disabled" in loader
 
 
 def test_runtime_smoke_executes_the_invalidation_helper() -> None:
