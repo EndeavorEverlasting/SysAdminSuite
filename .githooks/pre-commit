@@ -9,6 +9,7 @@ python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_probe_socket_access_contracts.py
 python3 Tests/survey/test_standard_corporate_tooling_contracts.py
 python3 Tests/survey/test_software_install_harness_contracts.py
+python3 Tests/survey/test_canonical_smb_task_deployment_contracts.py
 
 blocked=0
 while IFS= read -r path; do

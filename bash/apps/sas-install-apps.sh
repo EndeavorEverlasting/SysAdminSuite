@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # SysAdminSuite — sas-install-apps.sh
-# Orchestrates silent installation of apps on remote Windows hosts.
+# Compatibility wrapper for the canonical PowerShell validated-deployment front
+# door, plus the preserved named-list/package controller until parity is retired.
 # For each target: verifies admin-share access, drops a generated PowerShell
 # worker script (sas-install-worker.ps1), then creates and triggers a scheduled
 # task mirroring the pattern in mapping/Controllers/Map-Run-Controller.ps1.
-# Intentionally supported SMB/Task Scheduler compatibility controller.
-# Its historical gate remains --allow-legacy or SAS_ALLOW_LEGACY_TOOLS=1.
+# The canonical --request mode does not require --allow-legacy. The older
+# --list/--package compatibility mode retains that explicit gate.
 #
 # Usage:
 #   ./bash/apps/sas-install-apps.sh --targets HOST1,HOST2 --list LIST_NAME [options]
@@ -30,7 +31,12 @@ source "$SAS_REPO_ROOT/survey/lib/sas-network-guard.sh"
 TARGETS_RAW=""
 LIST_NAME=""
 PACKAGE_ID=""
+REQUEST_PATH=""
+CANONICAL_TRANSPORT="WinRM"
 PACKAGE_SET_ID=""
+REQUEST_PATH=""
+CANONICAL_TRANSPORT="WinRM"
+TRANSPORT_PREFLIGHT_PATH=""
 SOURCES_YAML="Config/sources.yaml"
 PACKAGE_CATALOG="configs/software-packages/approved-apps.json"
 PACKAGE_SET_CATALOG="configs/software-packages/windows-native-package-sets.json"
@@ -54,9 +60,14 @@ usage() {
 SysAdminSuite — Remote App Installer Orchestrator
 
 Usage:
+  ./bash/apps/sas-install-apps.sh --request PATH --transport VALUE [--transport-preflight PATH] [--dry-run]
   ./bash/apps/sas-install-apps.sh --targets HOST1,HOST2,... (--list LIST_NAME | --package PACKAGE_ID | --package-set PACKAGE_SET_ID) [options]
 
 Options:
+  --request PATH      Closed validated-deployment request for the canonical PowerShell front door
+  --transport VALUE  Auto, WinRM, or SmbScheduledTask (default: WinRM)
+  --transport-preflight PATH
+                      Fresh single-target P02 result required by Auto/SmbScheduledTask
   --targets HOSTS     Comma-separated target hostnames (maximum 25)
   --list NAME         Named app list from sources.yaml
   --package ID        One package from configs/software-packages/approved-apps.json
@@ -76,7 +87,7 @@ Options:
   --timeout SEC       SMB timeout seconds (default: 10)
   --wait-timeout SEC  Maximum installer-result wait per target (default: 1800)
   --dry-run           Generate worker script and print schtasks commands without executing
-  --allow-legacy      Enable this compatibility controller for this run
+  --allow-legacy      Enable only the preserved --list/--package compatibility mode
   --no-teardown       Debug only: leave transient worker/launcher/task artifacts on targets
   --log-dir PATH      Output log directory (default: bash/apps/output)
   -h, --help          Show help
@@ -85,6 +96,9 @@ Environment variables:
   SAS_SMB_USER, SAS_SMB_PASS, SAS_SMB_DOMAIN, SAS_REPO_ROOT
 
 Notes:
+  - --request delegates to scripts/Invoke-SasValidatedSoftwareDeployment.ps1 and is the primary supported path.
+  - The canonical SmbScheduledTask mode uses the current Windows token and never accepts SMB secrets.
+  - --list/--package is temporary compatibility mode and retains its legacy gate until parity tests pass.
   - On Windows, uses the current approved admin token with PowerShell Copy-Item and schtasks.exe.
   - On non-Windows hosts, smbclient remains available for admin-share transport.
   - The generated worker script (sas-install-worker.ps1) is dropped via admin share,
@@ -111,6 +125,9 @@ windows_path() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --targets)     TARGETS_RAW="${2:?missing value for --targets}"; shift 2 ;;
+    --request)     REQUEST_PATH="${2:?missing value for --request}"; shift 2 ;;
+    --transport)   CANONICAL_TRANSPORT="${2:?missing value for --transport}"; shift 2 ;;
+    --transport-preflight) TRANSPORT_PREFLIGHT_PATH="${2:?missing value for --transport-preflight}"; shift 2 ;;
     --list)        LIST_NAME="${2:?missing value for --list}"; shift 2 ;;
     --package)     PACKAGE_ID="${2:?missing value for --package}"; shift 2 ;;
     --package-set) PACKAGE_SET_ID="${2:?missing value for --package-set}"; shift 2 ;;
@@ -137,6 +154,38 @@ while [[ $# -gt 0 ]]; do
     *) fail "Unexpected argument: $1" ;;
   esac
 done
+
+if [[ -n "$REQUEST_PATH" ]]; then
+  [[ -z "$TARGETS_RAW" && -z "$LIST_NAME" && -z "$PACKAGE_ID" ]] \
+    || fail "--request cannot be combined with the --targets/--list/--package compatibility mode"
+  [[ "$CANONICAL_TRANSPORT" =~ ^(Auto|WinRM|SmbScheduledTask)$ ]] \
+    || fail "--transport must be Auto, WinRM, or SmbScheduledTask"
+  [[ "$ALLOW_LEGACY" -eq 0 ]] || fail "--allow-legacy is not used by the canonical --request mode"
+  [[ "$NO_TEARDOWN" -eq 0 ]] || fail "--no-teardown is forbidden by the canonical --request mode"
+  [[ -z "$SMB_USER" && -z "$SMB_PASS" && -z "$SMB_DOMAIN" ]] \
+    || fail "canonical deployment uses the current Windows token; do not supply SMB credential options or environment variables"
+  [[ -f "$REQUEST_PATH" ]] || fail "validated deployment request not found: $REQUEST_PATH"
+  if [[ "$CANONICAL_TRANSPORT" =~ ^(Auto|SmbScheduledTask)$ ]]; then
+    [[ -n "$TRANSPORT_PREFLIGHT_PATH" ]] || fail "$CANONICAL_TRANSPORT requires --transport-preflight PATH"
+    [[ -f "$TRANSPORT_PREFLIGHT_PATH" ]] || fail "transport preflight result not found: $TRANSPORT_PREFLIGHT_PATH"
+  fi
+  has_cmd powershell.exe || fail "canonical --request mode requires Windows PowerShell (powershell.exe)"
+
+  CANONICAL_SCRIPT="$(windows_path "$SAS_REPO_ROOT/scripts/Invoke-SasValidatedSoftwareDeployment.ps1")"
+  REQUEST_WINDOWS="$(windows_path "$REQUEST_PATH")"
+  CANONICAL_ARGS=(-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$CANONICAL_SCRIPT" -RequestPath "$REQUEST_WINDOWS" -Transport "$CANONICAL_TRANSPORT")
+  if [[ -n "$TRANSPORT_PREFLIGHT_PATH" ]]; then
+    PREFLIGHT_WINDOWS="$(windows_path "$TRANSPORT_PREFLIGHT_PATH")"
+    CANONICAL_ARGS+=(-TransportPreflightPath "$PREFLIGHT_WINDOWS")
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    CANONICAL_ARGS+=(-WhatIf)
+  else
+    CANONICAL_ARGS+=(-AllowTargetMutation)
+  fi
+  MSYS_NO_PATHCONV=1 powershell.exe "${CANONICAL_ARGS[@]}"
+  exit $?
+fi
 
 LEGACY_GATE_ARGS=(--tool "bash/apps/sas-install-apps.sh")
 if [[ "${DRY_RUN:-0}" != "1" && "${SKIP_NMAP:-0}" != "1" ]]; then
