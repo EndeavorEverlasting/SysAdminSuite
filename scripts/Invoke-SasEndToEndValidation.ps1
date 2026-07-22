@@ -38,7 +38,7 @@ function Tail-Text {
     param([string[]]$Lines, [int]$Maximum = 12)
     if (-not $Lines -or $Lines.Count -eq 0) { return @() }
     $start = [Math]::Max(0, $Lines.Count - $Maximum)
-    return @($Lines[$start..($Lines.Count - 1)])
+    return ,@($Lines[$start..($Lines.Count - 1)])
 }
 
 function Test-AllUnittestCasesSkipped {
