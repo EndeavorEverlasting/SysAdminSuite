@@ -1,0 +1,168 @@
+{
+  "schema_version": "sas-operational-harness-manifest/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "default_workflow": "harness/workflows/operational-harness-maintenance.yaml",
+  "components": [
+    {
+      "id": "codebase-map",
+      "kind": "codebase_map",
+      "path": "CODEBASE_MAP.md",
+      "required": true,
+      "tracked": true,
+      "purpose": "Routes a fresh agent to the smallest relevant repository surface.",
+      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "maintenance-workflow",
+      "kind": "workflow",
+      "path": "harness/workflows/operational-harness-maintenance.yaml",
+      "required": true,
+      "tracked": true,
+      "purpose": "Defines task pickup, routing, validation, failure handling, commit, and handoff stages.",
+      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "artifact-registry",
+      "kind": "artifact_registry",
+      "path": "harness/api/harness-artifact-registry.json",
+      "required": true,
+      "tracked": true,
+      "purpose": "Defines tracked and generated harness artifacts, locations, generators, and naming.",
+      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "manifest-schema",
+      "kind": "schema",
+      "path": "schemas/harness/operational-harness-manifest.schema.json",
+      "required": true,
+      "tracked": true,
+      "purpose": "Fails closed when the central operational harness manifest is malformed.",
+      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "completeness-validator",
+      "kind": "validator",
+      "path": "Tests/survey/test_operational_harness_completeness_contracts.py",
+      "required": true,
+      "tracked": true,
+      "purpose": "Proves required harness files exist, are tracked, ordered, and wired into hooks and CI.",
+      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "text-policy-validator",
+      "kind": "validator",
+      "path": "scripts/check-repo-text-policy.py",
+      "required": true,
+      "tracked": true,
+      "purpose": "Rejects CRLF stored in Git text blobs and trailing whitespace in changed files.",
+      "validation": "python scripts/check-repo-text-policy.py --commit HEAD"
+    },
+    {
+      "id": "line-ending-policy",
+      "kind": "text_policy",
+      "path": ".gitattributes",
+      "required": true,
+      "tracked": true,
+      "purpose": "Stores text as normalized LF in Git while allowing Windows checkout endings.",
+      "validation": "git check-attr text eol -- Start-CybernetSurveyTutorial.cmd"
+    },
+    {
+      "id": "pre-commit-hook",
+      "kind": "hook",
+      "path": ".githooks/pre-commit",
+      "required": true,
+      "tracked": true,
+      "purpose": "Runs staged harness and repository-text guardrails and blocks generated evidence.",
+      "validation": "bash -n .githooks/pre-commit"
+    },
+    {
+      "id": "pre-push-hook",
+      "kind": "hook",
+      "path": ".githooks/pre-push",
+      "required": true,
+      "tracked": true,
+      "purpose": "Runs the offline harness suite and pushed-commit text policy before remote updates.",
+      "validation": "bash -n .githooks/pre-push"
+    },
+    {
+      "id": "hook-installer",
+      "kind": "hook_installer",
+      "path": "scripts/install-local-harness-hooks.sh",
+      "required": true,
+      "tracked": true,
+      "purpose": "Installs the repository-owned Git hooks without modifying global Git configuration.",
+      "validation": "bash -n scripts/install-local-harness-hooks.sh"
+    },
+    {
+      "id": "repository-sprint-skill",
+      "kind": "skill",
+      "path": ".claude/skills/repository-sprint/SKILL.md",
+      "required": true,
+      "tracked": true,
+      "purpose": "Provides repository intake, safe branching, validation, commit, PR, and recovery procedure.",
+      "validation": "python Tests/survey/test_agent_instruction_factoring_contracts.py"
+    },
+    {
+      "id": "scoped-validation-skill",
+      "kind": "skill",
+      "path": ".claude/skills/scoped-validation/SKILL.md",
+      "required": true,
+      "tracked": true,
+      "purpose": "Chooses the smallest validators that can support the declared proof ceiling.",
+      "validation": "python Tests/survey/test_agent_instruction_factoring_contracts.py"
+    },
+    {
+      "id": "e2e-validation-skill",
+      "kind": "skill",
+      "path": ".claude/skills/end-to-end-validation/SKILL.md",
+      "required": true,
+      "tracked": true,
+      "purpose": "Escalates executable and integration changes to composed journey proof when required.",
+      "validation": "python Tests/survey/test_e2e_default_posture_contracts.py"
+    },
+    {
+      "id": "run-context",
+      "kind": "run_context",
+      "path": "scripts/SasRunContext.psm1",
+      "required": true,
+      "tracked": true,
+      "purpose": "Creates bounded run directories, artifact registries, reports, and handoff locations.",
+      "validation": "python Tests/survey/test_run_context_contracts.py"
+    },
+    {
+      "id": "operator-status-report",
+      "kind": "operator_report",
+      "path": "docs/HARNESS_STATUS.md",
+      "required": true,
+      "tracked": true,
+      "purpose": "Summarizes working components, broken boundaries, missing proof, and operator next actions.",
+      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "sprint-handoff",
+      "kind": "handoff",
+      "path": "tools/New-SasSprintCapsule.ps1",
+      "required": true,
+      "tracked": true,
+      "purpose": "Produces a compressed next-agent handoff with scope, validation, Git state, and next command.",
+      "validation": "pwsh -NoProfile -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester/SprintCapsule.Tests.ps1"
+    },
+    {
+      "id": "harness-ci",
+      "kind": "ci",
+      "path": ".github/workflows/harness-infrastructure.yml",
+      "required": true,
+      "tracked": true,
+      "purpose": "Runs completeness, local harness, text policy, syntax, and whitespace checks on harness changes.",
+      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    }
+  ],
+  "validation_commands": [
+    "python Tests/survey/test_operational_harness_completeness_contracts.py",
+    "python scripts/check-repo-text-policy.py --commit HEAD",
+    "python Tests/survey/test_local_harness_contracts.py",
+    "bash tests/survey/run_offline_survey_tests.sh",
+    "git diff --check"
+  ],
+  "proof_ceiling": "Static harness structure, Git tracking, workflow, schema, hook, artifact, report, and repository-text policy proof; no product behavior or live target proof."
+}
