@@ -451,7 +451,7 @@ function New-SasDelta {
 
     $beforeSoftware = @(Get-SasProperty -Object $Before -Name 'installed_software' -Default @())
     $afterSoftware = @(Get-SasProperty -Object $After -Name 'installed_software' -Default @())
-    $softwareChanges = Compare-SasSoftware -BeforeRows $beforeSoftware -AfterRows $afterSoftware
+    $softwareChanges = @(Compare-SasSoftware -BeforeRows $beforeSoftware -AfterRows $afterSoftware)
 
     $beforeReady = $beforeStatus -eq 'autologon_ready'
     $afterReady = $afterStatus -eq 'autologon_ready'
