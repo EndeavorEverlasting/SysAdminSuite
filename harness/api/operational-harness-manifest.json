@@ -18,7 +18,16 @@
       "path": "harness/workflows/operational-harness-maintenance.yaml",
       "required": true,
       "tracked": true,
-      "purpose": "Defines task pickup, routing, validation, failure handling, commit, and handoff stages.",
+      "purpose": "Defines local task pickup, routing, validation, failure handling, commit, and handoff stages.",
+      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "publish-workflow",
+      "kind": "workflow",
+      "path": "harness/workflows/operational-harness-publish.yaml",
+      "required": true,
+      "tracked": true,
+      "purpose": "Separates operator-approved Git push and pull-request publication from local harness maintenance.",
       "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
     },
     {
@@ -63,7 +72,7 @@
       "path": ".gitattributes",
       "required": true,
       "tracked": true,
-      "purpose": "Stores text as normalized LF in Git while allowing Windows checkout endings.",
+      "purpose": "Stores text as normalized LF in Git while limiting explicit checkout endings to execution-sensitive surfaces.",
       "validation": "git check-attr text eol -- Start-CybernetSurveyTutorial.cmd"
     },
     {
@@ -81,7 +90,7 @@
       "path": ".githooks/pre-push",
       "required": true,
       "tracked": true,
-      "purpose": "Runs the offline harness suite and pushed-commit text policy before remote updates.",
+      "purpose": "Runs the offline harness suite and validates the exact destination commit range before remote updates.",
       "validation": "bash -n .githooks/pre-push"
     },
     {
