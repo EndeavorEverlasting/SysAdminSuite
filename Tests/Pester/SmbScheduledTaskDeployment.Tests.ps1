@@ -131,6 +131,32 @@ Describe 'Canonical SMB scheduled-task deployment adapter' {
         { Invoke-SasSmbScheduledTaskDeployment -Password 'forbidden' } | Should -Throw
     }
 
+    It 'preserves the approved empty installer-argument collection through worker generation' {
+        foreach ($commandName in @('Invoke-SasSmbScheduledTaskDeployment','New-SasSmbTaskWorker')) {
+            $command = Get-Command $commandName
+            @($command.Parameters['InstallerArguments'].Attributes | Where-Object {
+                $_ -is [Management.Automation.AllowEmptyCollectionAttribute]
+            }).Count | Should -Be 1
+        }
+
+        $workerPath = Join-Path $TestDrive 'empty-arguments-worker.ps1'
+        New-SasSmbTaskWorker -Path $workerPath `
+            -RunId 'software-install-20000101-000000-00000000' `
+            -PackageName 'Fixture Package' `
+            -InstallerPath 'C:\ProgramData\SysAdminSuite\SoftwareInstall\software-install-20000101-000000-00000000\fixture.exe' `
+            -ExpectedSha256 ('0' * 64) `
+            -InstallerArguments @() `
+            -ValidationChecks @([pscustomobject]@{ id='fixture-file'; type='FileExists'; required=$true; path='C:\Fixture\installed.txt' }) `
+            -ResultPath 'C:\ProgramData\SysAdminSuite\SoftwareInstall\software-install-20000101-000000-00000000\worker-result.json'
+
+        $worker = Get-Content -LiteralPath $workerPath -Raw
+        $encodedConfig = [regex]::Match($worker, "FromBase64String\('(?<config>[^']+)'\)").Groups['config'].Value
+        $encodedConfig | Should -Not -BeNullOrEmpty
+        $config = ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encodedConfig))) | ConvertFrom-Json
+        @($config.installer_arguments).Count | Should -Be 0
+        $worker | Should -Match 'if \(\$arguments\.Count -gt 0\) \{ \$start\.ArgumentList = \$arguments \}'
+    }
+
     It 'generates a target-side hash and SYSTEM-verifying worker without automatic reboot' {
         $workerPath = Join-Path $TestDrive 'worker.ps1'
         New-SasSmbTaskWorker -Path $workerPath `

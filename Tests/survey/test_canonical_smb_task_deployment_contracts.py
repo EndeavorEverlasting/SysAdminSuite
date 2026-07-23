@@ -85,6 +85,10 @@ def test_smb_adapter_pins_hashes_system_identity_and_complete_teardown() -> None
     parameter_region = text.split("function Invoke-SasSmbScheduledTaskDeployment {", 1)[1].split(")\n\n    if", 1)[0]
     for forbidden_parameter in ("Credential", "Password", "SmbPass", "SmbUser", "Secret"):
         assert forbidden_parameter not in parameter_region
+    assert text.count(
+        "[Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$InstallerArguments"
+    ) == 2
+    assert "-InstallerArguments @()" in read(PESTER)
 
 
 def test_front_door_keeps_winrm_optional_and_smb_first_class() -> None:
