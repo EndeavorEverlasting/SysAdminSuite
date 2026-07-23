@@ -111,6 +111,11 @@ def test_ci_runs_manifest_routing_and_handoff_contracts() -> None:
         assert f"python3 {path}" in text
     assert "tools\\validate-ai-layer.ps1" in text
     assert "SprintCapsule.Tests.ps1" in text
+    assert 'before="${{ github.event.before }}"' in text
+    assert 'git diff --check "$before" "${{ github.sha }}"' in text
+    assert 'git fetch origin "${{ github.sha }}" --depth=2' in text
+    assert "git diff --check HEAD^ HEAD" in text
+    assert "git show --check --oneline --no-renames HEAD" in text
 
 
 def main() -> None:
