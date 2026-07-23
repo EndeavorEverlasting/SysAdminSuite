@@ -171,6 +171,10 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
     for marker in (
         "*.cmd text",
         "*.bat text",
+        "Run-CybernetComPortQrPack.cmd -text",
+        "Run-FieldHotfixesGui.cmd -text",
+        "Start-CybernetSurveyTutorial.cmd -text",
+        "survey/sas-reg-query.cmd -text",
         "*.sh text eol=lf",
         "*.fixture text eol=lf",
         "*.jsonl text",
@@ -181,10 +185,16 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
     for forbidden in ("*.cmd text eol=crlf", "*.bat text eol=crlf"):
         assert forbidden not in attributes, f"checkout rewriting is forbidden: {forbidden}"
 
-    cmd_attr = git("check-attr", "text", "eol", "--", "Start-CybernetSurveyTutorial.cmd")
-    assert cmd_attr.returncode == 0
-    assert "text: set" in cmd_attr.stdout
-    assert "eol: unspecified" in cmd_attr.stdout
+    generic_cmd = git("check-attr", "text", "eol", "--", "Future-Harness-Launcher.cmd")
+    assert generic_cmd.returncode == 0
+    assert "text: set" in generic_cmd.stdout
+    assert "eol: unspecified" in generic_cmd.stdout
+
+    legacy_cmd = git("check-attr", "text", "eol", "--", "Start-CybernetSurveyTutorial.cmd")
+    assert legacy_cmd.returncode == 0
+    assert "text: unset" in legacy_cmd.stdout
+    assert "eol: unspecified" in legacy_cmd.stdout
+
     sh_attr = git("check-attr", "text", "eol", "--", "tests/survey/run_offline_survey_tests.sh")
     assert sh_attr.returncode == 0
     assert "eol: lf" in sh_attr.stdout
@@ -244,6 +254,7 @@ def test_hooks_ci_map_and_operator_report_are_wired() -> None:
         "git diff --check",
         "bash -n .githooks/pre-commit .githooks/pre-push",
         "windows-sprint-capsule",
+        "Prove checkout is clean",
         "Prove validator leaves a clean worktree",
         "SprintCapsule.Tests.ps1",
     ):
