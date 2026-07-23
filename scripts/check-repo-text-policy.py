@@ -25,6 +25,7 @@ TEXT_SUFFIXES = {
     ".hpp",
     ".ini",
     ".json",
+    ".jsonl",
     ".lua",
     ".md",
     ".ps1",
