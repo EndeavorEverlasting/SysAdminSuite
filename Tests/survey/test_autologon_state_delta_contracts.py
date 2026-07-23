@@ -137,6 +137,14 @@ def test_summary_materializes_generic_list_without_binder_failure() -> None:
     assert "results = @($rows)" not in content
 
 
+def test_singleton_software_delta_remains_an_array_on_windows_powershell() -> None:
+    content = read(PS_SCRIPT)
+    assert (
+        "$softwareChanges = @(Compare-SasSoftware -BeforeRows $beforeSoftware -AfterRows $afterSoftware)"
+        in content
+    )
+
+
 def test_technician_launcher_remembers_run_and_targets() -> None:
     launcher = read(TECH_LAUNCHER)
     required = (
@@ -270,6 +278,7 @@ def main() -> None:
         test_installed_software_inventory_avoids_product_class_queries,
         test_evidence_stays_on_admin_box_and_collection_is_read_only,
         test_summary_materializes_generic_list_without_binder_failure,
+        test_singleton_software_delta_remains_an_array_on_windows_powershell,
         test_technician_launcher_remembers_run_and_targets,
         test_generated_handoff_uses_launcher_not_memorized_command,
         test_technician_launcher_has_menu_file_picker_and_safe_ambiguity_handling,

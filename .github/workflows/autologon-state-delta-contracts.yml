@@ -152,6 +152,37 @@ jobs:
             exit 1
           }
 
+      - name: Preserve singleton software delta on Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $runId = 'autologon-delta-20260722-235959-51a22a51'
+          $outputRoot = Join-Path $PWD 'survey\output\autologon_state_delta_ps51'
+
+          .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
+            -Mode Before `
+            -ComputerName SAMPLE001 `
+            -RunId $runId `
+            -OutputRoot $outputRoot `
+            -TechnicianLabel 'synthetic-ci' `
+            -FixtureMode | Out-Null
+
+          $after = .\scripts\Invoke-SasAutoLogonStateDelta.ps1 `
+            -Mode After `
+            -ComputerName SAMPLE001 `
+            -RunId $runId `
+            -OutputRoot $outputRoot `
+            -TechnicianLabel 'synthetic-ci' `
+            -FixtureMode
+
+          $summary = Get-Content -LiteralPath $after.summary_json -Raw | ConvertFrom-Json
+          if ($summary.confirmed_state_transition_count -ne 1) {
+            throw "Expected one confirmed transition; found $($summary.confirmed_state_transition_count)."
+          }
+          if ($summary.results[0].SoftwareAddedCount -ne 1) {
+            throw "Expected one software addition; found $($summary.results[0].SoftwareAddedCount)."
+          }
+          Write-Host 'PASS: Windows PowerShell 5.1 preserved the singleton software delta array.'
+
       - name: Reject invalid source before target reads
         shell: pwsh
         run: |
