@@ -174,9 +174,12 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\SprintCapsule.Tests.ps1
 
-      - name: Diagnose full Pester failures concisely
+      - name: Capture full Pester diagnostic
+        id: full-pester
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Path .\_out -Force | Out-Null
+          $summaryPath = '.\_out\pester-full-summary.txt'
           $output = @(& pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester 2>&1 | ForEach-Object { $_.ToString() })
           $exitCode = $LASTEXITCODE
           if ($exitCode -ne 0) {
@@ -188,11 +191,32 @@ jobs:
               }
             }
             if ($start -ge 0) {
-              $output[$start..($output.Count - 1)] | Write-Host
+              $summary = @($output[$start..($output.Count - 1)])
             }
             else {
-              $output | Select-Object -Last 80 | Write-Host
+              $summary = @($output | Select-Object -Last 120)
             }
-            throw "Full Pester suite failed with exit code $exitCode"
+            $summary | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+            'failed=true' | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding UTF8
           }
-          Write-Host "PASS: full Pester suite ($($output.Count) output lines suppressed)"
+          else {
+            "PASS: full Pester suite ($($output.Count) output lines suppressed)" | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+            'failed=false' | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding UTF8
+          }
+          Get-Content -LiteralPath $summaryPath | Write-Host
+
+      - name: Upload full Pester diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operational-harness-full-pester-summary
+          path: _out/pester-full-summary.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce full Pester result
+        if: steps.full-pester.outputs.failed == 'true'
+        shell: pwsh
+        run: |
+          Get-Content -LiteralPath .\_out\pester-full-summary.txt | Write-Host
+          throw 'Full Pester suite failed. Review operational-harness-full-pester-summary.'
