@@ -29,7 +29,7 @@ The technician does not compose PowerShell commands, re-enter the RunId, or supp
 The launcher delegates this closed sequence to `scripts/Invoke-SasAutoLogonWinRmRecovery.ps1`:
 
 1. Validate that the selected run is under `survey/output/runs/autologon-proof`.
-2. Require exactly one preserved validated deployment request and one exact FQDN.
+2. Require exactly one preserved validated deployment request, one exact FQDN, and the approved AutoLogon package identity.
 3. Refuse automatic recovery if software-install or SMB deployment evidence already exists; this prevents an unclassified duplicate install.
 4. Run a fresh, narrow `kerberos_smb_task` P02 preflight.
 5. Run the harmless SMB/Task Scheduler live certification.
@@ -37,10 +37,12 @@ The launcher delegates this closed sequence to `scripts/Invoke-SasAutoLogonWinRm
 7. Retrieve a nonce-bound closed state result.
 8. Delete the task and staging root and verify both are absent.
 9. If the new baseline is already `autologon_ready`, stop without reinstalling.
-10. Otherwise, execute the preserved request only through `Invoke-SasValidatedSoftwareDeployment.ps1 -Transport SmbScheduledTask`.
-11. Require validated deployment completion and zero repo-owned remnants.
-12. Capture After state through the same transient SMB task boundary and verify teardown again.
-13. Emit an English summary and structured recovery result under the preserved run's ignored `recovery/` directory.
+10. Otherwise, build a fresh Before manifest from the successful SMB baseline and rerun the canonical AutoLogon final-step gate.
+11. Require the final-step gate to prove host eligibility, approved package identity, and the fresh Before state. A missing, malformed, unmatched, shared/user-login, or otherwise ineligible local policy fails closed.
+12. Only after the gate passes, execute the preserved request through `Invoke-SasValidatedSoftwareDeployment.ps1 -Transport SmbScheduledTask`. Because recovery accepts exactly one request and that request must be AutoLogon, AutoLogon remains the final mutating package in this recovery sequence.
+13. Require validated deployment completion and zero repo-owned remnants.
+14. Capture After state through the same transient SMB task boundary and verify teardown again.
+15. Emit an English summary and structured recovery result under the preserved run's ignored `recovery/` directory.
 
 ## Safety boundaries
 
@@ -53,6 +55,8 @@ The recovery:
 - never performs an automatic reboot;
 - never silently falls back to another transport;
 - never installs when prior deployment evidence exists;
+- never installs unless the canonical AutoLogon final-step gate passes against the fresh SMB baseline;
+- fails closed when the operator-local host-eligibility policy is missing, malformed, ambiguous, unmatched, or disallows remote package execution;
 - uses one run-scoped scheduled task and one run-scoped staging directory for each state capture;
 - requires task deletion, task-absence verification, staging deletion, and zero-remnant verification;
 - preserves the original interrupted run and writes new evidence only under its ignored recovery root.
@@ -62,9 +66,10 @@ The transient state worker and scheduled task are target mutations. They are exp
 ## Terminal classifications
 
 - `ALREADY_CONFIGURED_RUNTIME_PENDING` — current state is already complete; no recovery installation was run.
-- `RECOVERED_DEPLOYMENT_SUCCEEDED_RUNTIME_PENDING` — canonical SMB deployment and post-install state succeeded with teardown verified.
+- `RECOVERED_DEPLOYMENT_SUCCEEDED_RUNTIME_PENDING` — final-step gate, canonical SMB deployment, post-install state, and teardown succeeded.
 - `RECOVERED_DEPLOYMENT_STATE_REVIEW` — deployment completed, but final AutoLogon registry posture is not fully ready.
 - `RECOVERY_BLOCKED_EXISTING_DEPLOYMENT_EVIDENCE` — automatic recovery stopped to avoid duplicate installation.
+- `RECOVERY_FINAL_GATE_BLOCKED` — the canonical final-step gate did not prove eligibility or prerequisites; no installation was attempted.
 - `RECOVERY_TRANSPORT_BLOCKED` — fresh SMB preflight or harmless live certification did not pass.
 - `RECOVERY_CLEANUP_REVIEW_REQUIRED` — a transient task or staging root could not be proven absent.
 - `RECOVERY_FAILED` — another bounded recovery gate failed.
@@ -83,6 +88,8 @@ Important artifacts include:
 
 ```text
 artifacts/autologon_winrm_recovery_result.json
+actions/autologon_final_step_gate_input.json
+actions/final-gate/<gate-run>/autologon_final_step_gate.json
 reports/english_summary.txt
 evidence/baseline_snapshot.json
 evidence/after_snapshot.json
@@ -97,6 +104,7 @@ Successful recovery can prove:
 - fresh Kerberos SMB scheduled-task transport readiness;
 - harmless SYSTEM task execution and teardown;
 - read-only AutoLogon registry and software state captured without password data;
+- canonical final-step gate disposition against the fresh Before state;
 - canonical validated deployment execution when required;
 - package validation and repo-owned deployment teardown;
 - post-install AutoLogon registry posture.
