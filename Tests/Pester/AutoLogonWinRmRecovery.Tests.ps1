@@ -24,12 +24,15 @@ Describe 'AutoLogon WinRM-blocker recovery' {
         Test-SasAutoLogonRecoveryFqdn -ComputerName 'bad name.example.invalid' | Should -BeFalse
     }
 
-    It 'completes the fixture recovery without network, target mutation, WinRM changes, or reboot claims' {
+    It 'completes the fixture recovery only after the canonical final-step gate passes' {
         $root = Join-Path $script:repoRoot ('survey\output\tests\autologon-winrm-recovery-' + [guid]::NewGuid().ToString('N'))
         try {
             $result = & $script:orchestratorPath -FixtureMode -FixtureScenario success -OutputRoot $root -PassThru
             $result.classification | Should -Be 'RECOVERED_DEPLOYMENT_SUCCEEDED_RUNTIME_PENDING'
             $result.result.fixture_mode | Should -BeTrue
+            $result.result.final_gate_passed | Should -BeTrue
+            $result.result.final_gate_run_id | Should -Match '^autologon-delta-'
+            Test-Path -LiteralPath $result.result.final_gate_result_path -PathType Leaf | Should -BeTrue
             $result.result.network_activity_performed | Should -BeFalse
             $result.result.target_mutation_performed | Should -BeFalse
             $result.result.configuration_mutation_performed | Should -BeFalse
@@ -49,11 +52,12 @@ Describe 'AutoLogon WinRM-blocker recovery' {
         }
     }
 
-    It 'stops without deployment when the SMB baseline is already configured' {
+    It 'stops without deployment or a final-step gate when the SMB baseline is already configured' {
         $root = Join-Path $script:repoRoot ('survey\output\tests\autologon-winrm-recovery-' + [guid]::NewGuid().ToString('N'))
         try {
             $result = & $script:orchestratorPath -FixtureMode -FixtureScenario already_configured -OutputRoot $root -PassThru
             $result.classification | Should -Be 'ALREADY_CONFIGURED_RUNTIME_PENDING'
+            $result.result.final_gate_passed | Should -BeFalse
             $result.result.deployment_complete | Should -BeFalse
             $result.result.configuration_mutation_performed | Should -BeFalse
             $result.result.baseline_status | Should -Be 'autologon_ready'
@@ -74,6 +78,7 @@ Describe 'AutoLogon WinRM-blocker recovery' {
             $resultFile | Should -Not -BeNullOrEmpty
             $closed = Get-Content -LiteralPath $resultFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
             $closed.classification | Should -Be 'RECOVERY_CLEANUP_REVIEW_REQUIRED'
+            $closed.final_gate_passed | Should -BeFalse
             $closed.runtime_proof_pending | Should -BeFalse
             $closed.default_password_value_collected | Should -BeFalse
         }
@@ -82,7 +87,7 @@ Describe 'AutoLogon WinRM-blocker recovery' {
         }
     }
 
-    It 'fails closed on a synthetic deployment failure' {
+    It 'fails closed on a synthetic deployment failure after the final-step gate' {
         $root = Join-Path $script:repoRoot ('survey\output\tests\autologon-winrm-recovery-' + [guid]::NewGuid().ToString('N'))
         try {
             { & $script:orchestratorPath -FixtureMode -FixtureScenario deployment_failure -OutputRoot $root -PassThru } |
@@ -90,6 +95,7 @@ Describe 'AutoLogon WinRM-blocker recovery' {
             $resultFile = Get-ChildItem -LiteralPath $root -Filter 'autologon_winrm_recovery_result.json' -File -Recurse |
                 Select-Object -First 1
             $closed = Get-Content -LiteralPath $resultFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            $closed.final_gate_passed | Should -BeTrue
             $closed.deployment_complete | Should -BeFalse
             $closed.configuration_mutation_performed | Should -BeFalse
         }
