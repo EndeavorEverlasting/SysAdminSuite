@@ -92,12 +92,7 @@ jobs:
           fi
 
       - name: Parse hook and runner shell surfaces
-        run: >-
-          bash -n
-          .githooks/pre-commit
-          .githooks/pre-push
-          scripts/install-local-harness-hooks.sh
-          tests/survey/run_offline_survey_tests.sh
+        run: bash -n .githooks/pre-commit .githooks/pre-push scripts/install-local-harness-hooks.sh tests/survey/run_offline_survey_tests.sh
 
       - name: Check pull-request patch whitespace
         if: github.event_name == 'pull_request'
