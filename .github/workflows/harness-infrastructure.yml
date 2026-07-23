@@ -88,7 +88,12 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             python scripts/check-repo-text-policy.py --range "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
           else
-            python scripts/check-repo-text-policy.py --commit HEAD
+            before="${{ github.event.before }}"
+            if [[ "$before" =~ ^0+$ ]]; then
+              python scripts/check-repo-text-policy.py --commit HEAD
+            else
+              python scripts/check-repo-text-policy.py --range "$before" "${{ github.sha }}"
+            fi
           fi
 
       - name: Parse hook and runner shell surfaces
@@ -100,4 +105,14 @@ jobs:
 
       - name: Check pushed commit whitespace
         if: github.event_name != 'pull_request'
-        run: git show --check --oneline --no-renames HEAD
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              git diff --check HEAD^ HEAD
+            else
+              git show --check --oneline --no-renames HEAD
+            fi
+          else
+            git diff --check "$before" "${{ github.sha }}"
+          fi
