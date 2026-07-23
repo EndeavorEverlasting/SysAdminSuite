@@ -19,6 +19,7 @@ PRE_COMMIT = ROOT / ".githooks/pre-commit"
 PRE_PUSH = ROOT / ".githooks/pre-push"
 CI = ROOT / ".github/workflows/harness-infrastructure.yml"
 TEXT_VALIDATOR = ROOT / "scripts/check-repo-text-policy.py"
+DIGEST_FIXTURE = "Tests/Fixtures/autologon-result-inspector/deployment-success/artifacts/autologon_proof_source_evidence.json"
 
 
 def read(path: Path) -> str:
@@ -177,6 +178,7 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
         "survey/sas-reg-query.cmd -text",
         "*.sh text eol=lf",
         "*.fixture text eol=lf",
+        f"{DIGEST_FIXTURE} text eol=lf",
         "*.jsonl text",
         "*.pcap binary",
         "Canonical LF storage for changed text blobs is enforced by scripts/check-repo-text-policy.py",
@@ -198,6 +200,10 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
     sh_attr = git("check-attr", "text", "eol", "--", "tests/survey/run_offline_survey_tests.sh")
     assert sh_attr.returncode == 0
     assert "eol: lf" in sh_attr.stdout
+    digest_attr = git("check-attr", "text", "eol", "--", DIGEST_FIXTURE)
+    assert digest_attr.returncode == 0
+    assert "text: set" in digest_attr.stdout
+    assert "eol: lf" in digest_attr.stdout
     ps_attr = git("check-attr", "text", "eol", "--", "tools/New-SasSprintCapsule.ps1")
     assert ps_attr.returncode == 0
     assert "text: unspecified" in ps_attr.stdout
@@ -257,6 +263,8 @@ def test_hooks_ci_map_and_operator_report_are_wired() -> None:
         "Prove checkout is clean",
         "Prove validator leaves a clean worktree",
         "SprintCapsule.Tests.ps1",
+        "Capture full Pester diagnostic",
+        "operational-harness-full-pester-summary",
     ):
         assert marker in ci, f"harness CI missing: {marker}"
 
