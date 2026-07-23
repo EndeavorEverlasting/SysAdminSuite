@@ -125,7 +125,7 @@
       ],
       "installer_type": "exe",
       "installer_arguments": [],
-      "install_enabled": false,
+      "install_enabled": true,
       "canonical_system_install_enabled": false,
       "canonical_system_qualification": {
         "status": "failed_runtime_validation",
