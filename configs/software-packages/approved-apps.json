@@ -83,7 +83,7 @@
       "requires_validated_installer_arguments": false,
       "installer_arguments_policy": "approved_empty",
       "installer_arguments_reference": "configs/software-packages/windows-native-package-sets.json#autologon",
-      "install_enabled": false,
+      "install_enabled": true,
       "canonical_system_install_enabled": false,
       "canonical_system_qualification": {
         "status": "failed_runtime_validation",
@@ -95,7 +95,7 @@
         "qualified_installer_arguments": null,
         "qualification_receipt_reference": null
       },
-      "readiness": "canonical_system_qualification_required",
+      "readiness": "installer_and_no_arguments_confirmed",
       "acceptance": {
         "application_process_names": [],
         "application_window_title_pattern": null,
