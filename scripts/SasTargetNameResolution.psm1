@@ -65,7 +65,7 @@ function Get-SasLocalDnsSuffixCandidates {
         ForEach-Object { $_.Trim().TrimStart('.').TrimEnd('.').ToLowerInvariant() } |
         Where-Object { $_ -and (Test-SasCanonicalFqdn -Value ("probe.{0}" -f $_)) } |
         Sort-Object -Unique)
-    return $normalized
+    return ,$normalized
 }
 
 function Invoke-SasTargetDnsLookup {
