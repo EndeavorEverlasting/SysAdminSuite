@@ -252,12 +252,12 @@ PACKAGE_ARGUMENTS_JSON="[]"
 PACKAGE_SET_METADATA_FILE=""
 
 if [[ -n "$PACKAGE_ID" ]]; then
-  PACKAGE_METADATA="$(python3 - "$PACKAGE_CATALOG" "harness/api/sas-harness-api.json" "$PACKAGE_ID" <<'PY'
+  PACKAGE_METADATA="$(python3 - "$PACKAGE_CATALOG" "harness/api/sas-harness-api.json" "$PACKAGE_ID" "$DRY_RUN" <<'PY'
 import json
 import ntpath
 import sys
 
-catalog_path, api_path, package_id = sys.argv[1:]
+catalog_path, api_path, package_id, dry_run = sys.argv[1:]
 with open(catalog_path, encoding="utf-8-sig") as handle:
     catalog = json.load(handle)
 with open(api_path, encoding="utf-8-sig") as handle:
@@ -277,6 +277,10 @@ if len(matches) != 1:
 package = matches[0]
 if not package.get("install_enabled"):
     raise SystemExit(f"package is not enabled for installation: {package_id}")
+if dry_run != "1" and package.get("canonical_system_install_enabled") is False:
+    raise SystemExit(
+        f"package canonical SYSTEM installation is blocked pending qualification: {package_id}"
+    )
 
 folder = str(package.get("source_folder_relative_path") or "").strip().strip("\\/").replace("/", "\\")
 installer = str(package.get("installer_file") or "").strip().lstrip("\\/")
@@ -321,12 +325,12 @@ fi
 
 if [[ -n "$PACKAGE_SET_ID" ]]; then
   PACKAGE_SET_METADATA_FILE="$LOG_DIR/package-set-${PACKAGE_SET_ID}-${STAMP}.json"
-  if ! python3 - "$PACKAGE_SET_CATALOG" "harness/api/sas-harness-api.json" "$PACKAGE_SET_ID" > "$PACKAGE_SET_METADATA_FILE" <<'PY'; then
+  if ! python3 - "$PACKAGE_SET_CATALOG" "harness/api/sas-harness-api.json" "$PACKAGE_SET_ID" "$DRY_RUN" > "$PACKAGE_SET_METADATA_FILE" <<'PY'; then
 import json
 import ntpath
 import sys
 
-catalog_path, api_path, package_set_id = sys.argv[1:]
+catalog_path, api_path, package_set_id, dry_run = sys.argv[1:]
 with open(catalog_path, encoding="utf-8-sig") as handle:
     catalog = json.load(handle)
 with open(api_path, encoding="utf-8-sig") as handle:
@@ -363,6 +367,10 @@ for package_id in package_ids:
     package = matches[0]
     if not package.get("install_enabled"):
         raise SystemExit(f"package-set member is not enabled for installation: {package_id}")
+    if dry_run != "1" and package.get("canonical_system_install_enabled") is False:
+        raise SystemExit(
+            f"package-set member canonical SYSTEM installation is blocked pending qualification: {package_id}"
+        )
 
     folder = str(package.get("source_folder_relative_path") or "").strip().strip("\\/").replace("/", "\\")
     entrypoint = str(package.get("entrypoint_file") or "").strip().strip("\\/").replace("/", "\\")

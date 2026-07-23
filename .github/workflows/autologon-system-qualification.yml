@@ -1,0 +1,124 @@
+name: AutoLogon SYSTEM Qualification
+
+on:
+  pull_request:
+    paths:
+      - 'Qualify-AutoLogonSystemPackage.cmd'
+      - 'scripts/Invoke-SasAutoLogonSystemQualification.ps1'
+      - 'scripts/Invoke-SasAutoLogonDeployment.ps1'
+      - 'scripts/Start-SasApprovedSoftwareInstall.ps1'
+      - 'bash/apps/sas-install-apps.sh'
+      - 'configs/software-packages/autologon-system-qualification*.json'
+      - 'configs/software-packages/approved-apps.json'
+      - 'configs/software-packages/windows-native-package-sets.json'
+      - 'docs/AUTOLOGON_SYSTEM_QUALIFICATION.md'
+      - 'Tests/survey/test_autologon_system_qualification_contracts.py'
+      - 'Tests/Pester/AutoLogonSystemQualification.Tests.ps1'
+      - '.github/workflows/autologon-system-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Export affected source for bounded repair
+        uses: actions/upload-artifact@v4
+        with:
+          name: autologon-system-qualification-source
+          retention-days: 1
+          include-hidden-files: true
+          path: |
+            Qualify-AutoLogonSystemPackage.cmd
+            scripts/Invoke-SasAutoLogonSystemQualification.ps1
+            scripts/Invoke-SasAutoLogonDeployment.ps1
+            scripts/Start-SasApprovedSoftwareInstall.ps1
+            bash/apps/sas-install-apps.sh
+            configs/software-packages/approved-apps.json
+            configs/software-packages/windows-native-package-sets.json
+            configs/software-packages/autologon-system-qualification.json
+            configs/software-packages/autologon-system-qualification-catalog.json
+            configs/software-packages/autologon-system-qualification-request.example.json
+            docs/AUTOLOGON_SYSTEM_QUALIFICATION.md
+            docs/AUTOLOGON_DEPLOYMENT_WORKFLOW.md
+            Tests/survey/test_autologon_system_qualification_contracts.py
+            Tests/survey/test_autologon_admin_runtime_runbook_contracts.py
+            Tests/survey/test_autodidact_install_capsule_contracts.py
+            Tests/survey/test_cybernet_client_configuration_contracts.py
+            Tests/bash/test_smb_scheduled_task_install_contracts.sh
+            Tests/Pester/AutoLogonSystemQualification.Tests.ps1
+            .github/workflows/approved-software-catalog-contracts.yml
+            .github/workflows/approved-software-acceptance-contracts.yml
+            .github/workflows/autologon-system-qualification.yml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run AutoLogon SYSTEM qualification contracts
+        run: python Tests/survey/test_autologon_system_qualification_contracts.py
+
+      - name: Run adjacent AutoLogon and Cybernet contracts
+        run: |
+          python Tests/survey/test_autologon_deployment_workflow_contracts.py
+          python Tests/survey/test_autologon_admin_runtime_runbook_contracts.py
+          python Tests/survey/test_cybernet_client_configuration_contracts.py
+          python Tests/survey/test_autodidact_install_capsule_contracts.py
+
+      - name: Compile qualification contract
+        run: python -m py_compile Tests/survey/test_autologon_system_qualification_contracts.py
+
+      - name: Check patch whitespace
+        run: git diff --check origin/main...HEAD
+
+  windows-fixture:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Parse qualification PowerShell under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $paths = @(
+            'scripts\Invoke-SasAutoLogonSystemQualification.ps1',
+            'Tests\Pester\AutoLogonSystemQualification.Tests.ps1'
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $path),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -gt 0) {
+              $errors | Format-List | Out-String | Write-Error
+              exit 1
+            }
+          }
+
+      - name: Install Pester 5
+        shell: powershell
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run qualification FixtureMode Pester
+        shell: powershell
+        run: |
+          Import-Module Pester -MinimumVersion 5.0.0
+          $result = Invoke-Pester -Path '.\Tests\Pester\AutoLogonSystemQualification.Tests.ps1' -PassThru
+          if ($result.FailedCount -gt 0) { exit 1 }

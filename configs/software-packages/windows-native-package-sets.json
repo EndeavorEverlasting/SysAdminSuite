@@ -125,7 +125,17 @@
       ],
       "installer_type": "exe",
       "installer_arguments": [],
-      "install_enabled": true
+      "install_enabled": true,
+      "canonical_system_install_enabled": false,
+      "canonical_system_qualification": {
+        "status": "failed_runtime_validation",
+        "policy_reference": "configs/software-packages/autologon-system-qualification.json",
+        "blocked_reason": "No-argument LocalSystem execution returned 0 without setting AutoAdminLogon=1.",
+        "qualified_installer_sha256": null,
+        "qualified_package_version": null,
+        "qualified_installer_arguments": null,
+        "qualification_receipt_reference": null
+      }
     }
   ]
 }

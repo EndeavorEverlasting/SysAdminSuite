@@ -279,6 +279,38 @@ done
 
 : > "$SIM_TASK_LOG"
 SET_LIVE_OUTPUT="$TMP_ROOT/package-set-live-success.txt"
+BLOCKED_AUTOLOGON_OUTPUT="$TMP_ROOT/package-set-live-blocked.txt"
+if PATH="$FAKE_BIN:$PATH" \
+  SIM_REMOTE_ROOT="$SIM_REMOTE_ROOT" \
+  SIM_TASK_STATE="$SIM_TASK_STATE" \
+  SIM_TASK_LOG="$SIM_TASK_LOG" \
+  SKIP_NMAP=1 \
+  bash "$SCRIPT" \
+    --targets SYNTHETIC001 \
+    --package-set cybernet-clinical-workstation \
+    --allow-legacy \
+    --wait-timeout 10 \
+    --log-dir "$TMP_ROOT/package-set-blocked-output" >"$BLOCKED_AUTOLOGON_OUTPUT" 2>&1; then
+  fail "production package-set must block unqualified canonical AutoLogon before worker generation"
+fi
+grep -Fq 'package-set member canonical SYSTEM installation is blocked pending qualification: autologon' "$BLOCKED_AUTOLOGON_OUTPUT" \
+  || fail "production package-set qualification blocker must be explicit"
+[[ ! -s "$SIM_TASK_LOG" ]] || fail "blocked AutoLogon package-set must not create or run a task"
+
+SET_FIXTURE_CATALOG="$TMP_ROOT/windows-native-package-sets-qualified-fixture.json"
+python3 - "$SET_CATALOG" "$SET_FIXTURE_CATALOG" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8-sig") as handle:
+    catalog = json.load(handle)
+for package in catalog["packages"]:
+    if package["id"] == "autologon":
+        package["canonical_system_install_enabled"] = True
+with open(sys.argv[2], "w", encoding="utf-8") as handle:
+    json.dump(catalog, handle)
+PY
+
 PATH="$FAKE_BIN:$PATH" \
 SIM_REMOTE_ROOT="$SIM_REMOTE_ROOT" \
 SIM_TASK_STATE="$SIM_TASK_STATE" \
@@ -287,6 +319,7 @@ SKIP_NMAP=1 \
 bash "$SCRIPT" \
   --targets SYNTHETIC001 \
   --package-set cybernet-clinical-workstation \
+  --package-set-catalog "$SET_FIXTURE_CATALOG" \
   --allow-legacy \
   --wait-timeout 10 \
   --log-dir "$TMP_ROOT/package-set-live-output" >"$SET_LIVE_OUTPUT" 2>&1 \
