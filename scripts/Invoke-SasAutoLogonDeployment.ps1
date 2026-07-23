@@ -209,6 +209,9 @@ function Get-SasApprovedAutoLogonPackage {
         installer_arguments = @($package.default_installer_arguments)
         installer_arguments_policy = [string]$package.installer_arguments_policy
         installer_arguments_reference = [string]$package.installer_arguments_reference
+        canonical_system_install_enabled = $(if ($null -ne $package.PSObject.Properties['canonical_system_install_enabled']) {
+            [bool]$package.canonical_system_install_enabled
+        } else { $true })
     }
 }
 
@@ -758,6 +761,10 @@ if ($WhatIfPreference -and -not $FixtureMode) {
     }
     Complete-SasAutoLogonRun -Context $context -DeploymentResult $deployment -GateResult $null -StateResult $null -Summary $summary
     return
+}
+
+if (-not $FixtureMode -and -not [bool]$package.canonical_system_install_enabled) {
+    throw "Canonical AutoLogon deployment is blocked because canonical_system_install_enabled is false. Complete and promote canonical SYSTEM qualification before worker generation."
 }
 
 $stateRunId = 'autologon-delta-{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8))
