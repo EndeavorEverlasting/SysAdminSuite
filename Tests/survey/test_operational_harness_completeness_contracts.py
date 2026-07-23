@@ -144,7 +144,6 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
         "* text=auto",
         "*.cmd text eol=crlf",
         "*.bat text eol=crlf",
-        "*.ps1 text eol=crlf",
         "*.sh text eol=lf",
         "*.fixture text eol=lf",
         "*.pcap binary",
@@ -158,6 +157,10 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
     sh_attr = git("check-attr", "text", "eol", "--", "tests/survey/run_offline_survey_tests.sh")
     assert sh_attr.returncode == 0
     assert "eol: lf" in sh_attr.stdout
+    ps_attr = git("check-attr", "text", "eol", "--", "tools/New-SasSprintCapsule.ps1")
+    assert ps_attr.returncode == 0
+    assert "text: auto" in ps_attr.stdout
+    assert "eol: unspecified" in ps_attr.stdout
     json_attr = git("check-attr", "text", "eol", "--", "Config/cybernet-naabu-profiles.json")
     assert json_attr.returncode == 0
     assert "text: auto" in json_attr.stdout
