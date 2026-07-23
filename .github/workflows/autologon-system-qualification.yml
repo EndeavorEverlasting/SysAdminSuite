@@ -6,6 +6,7 @@ on:
       - 'Qualify-AutoLogonSystemPackage.cmd'
       - 'scripts/Invoke-SasAutoLogonSystemQualification.ps1'
       - 'scripts/Invoke-SasAutoLogonDeployment.ps1'
+      - 'scripts/Start-SasApprovedSoftwareInstall.ps1'
       - 'bash/apps/sas-install-apps.sh'
       - 'configs/software-packages/autologon-system-qualification*.json'
       - 'configs/software-packages/approved-apps.json'
@@ -39,6 +40,7 @@ jobs:
             Qualify-AutoLogonSystemPackage.cmd
             scripts/Invoke-SasAutoLogonSystemQualification.ps1
             scripts/Invoke-SasAutoLogonDeployment.ps1
+            scripts/Start-SasApprovedSoftwareInstall.ps1
             bash/apps/sas-install-apps.sh
             configs/software-packages/approved-apps.json
             configs/software-packages/windows-native-package-sets.json
