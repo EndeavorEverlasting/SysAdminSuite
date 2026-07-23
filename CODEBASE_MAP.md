@@ -16,6 +16,18 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
 - `Tests/survey/test_agent_routing_manifest_contracts.py` — deterministic routing and package-operation wiring contract.
 
+## Operational harness infrastructure
+
+- `harness/api/operational-harness-manifest.json` — central machine-readable inventory of maps, workflows, validators, hooks, skills, reports, run context, handoff, text policy, and CI.
+- `schemas/harness/operational-harness-manifest.schema.json` — fail-closed schema for the central harness inventory.
+- `harness/workflows/operational-harness-maintenance.yaml` — task pickup, workflow selection, bounded implementation, validation, failure handling, commit, and handoff sequence.
+- `harness/api/harness-artifact-registry.json` — artifact types, generators, locations, naming conventions, tracking, and live-data boundaries.
+- `Tests/survey/test_operational_harness_completeness_contracts.py` — proves required components exist, are tracked, and are wired into hooks, CI, reports, and the codebase map.
+- `scripts/check-repo-text-policy.py` and `.gitattributes` — validate canonical LF storage in Git while allowing Windows checkout endings; prevent CRLF from being misreported as trailing whitespace.
+- `.githooks/pre-commit`, `.githooks/pre-push`, and `scripts/install-local-harness-hooks.sh` — local staged, push, evidence, and contract guardrails.
+- `docs/HARNESS_STATUS.md` — English operator report of working components, repaired boundaries, known gaps, and proof ceilings.
+- `.github/workflows/harness-infrastructure.yml` — dedicated completeness, schema, local-harness, text-policy, syntax, and whitespace CI gate.
+
 ## Package analysis
 
 - `.claude/skills/package-static-analysis/SKILL.md` — umbrella package workflow across static, semantic, offline trust, and VM qualification.
@@ -66,6 +78,7 @@ Use this map to load only the files needed for a task.
 - `harness/api/developer-workstation-agent-routing.json` — deterministic trigger and terminal-context record.
 - `schemas/harness/developer-workstation-agent-routing.schema.json` — fail-closed routing contract.
 - `Tests/survey/test_developer_workstation_agent_harness_contracts.py` — trigger uniqueness, path, manifest, context, and prompt/application separation tests.
+
 ## Native Linux workstation host
 
 - `scripts/invoke-sas-linux-tmux-workspace.sh` — native Plan/Apply/Start/Status/Stop/Repair/Rollback lifecycle implementation.
