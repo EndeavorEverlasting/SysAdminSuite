@@ -14,10 +14,13 @@ The repository has an operational harness floor for fresh-agent intake, task rou
 - **Hooks:** `.githooks/pre-commit` blocks generated/private evidence and runs focused contracts; `.githooks/pre-push` runs the offline harness floor and validates commits against the actual destination ref.
 - **Reports and handoff:** English report renderers and `tools/New-SasSprintCapsule.ps1` provide human summaries and compressed handoffs.
 - **Repository text policy:** `.gitattributes` classifies CMD/BAT, shell/fixture files, JSONL, and binaries without forcing Windows worktree rewrites. `scripts/check-repo-text-policy.py` independently enforces canonical LF bytes and no trailing whitespace in every changed Git text blob. PowerShell, JSON, documentation, and other existing formats retain their established checkout behavior.
+- **Digest continuity:** the pre-existing LF rule for `Tests/Fixtures/autologon-result-inspector/deployment-success/artifacts/autologon_proof_source_evidence.json` remains explicit so Windows checkout cannot invalidate its public-safe receipt hash.
 
 ## Repaired boundary
 
 A prior push-only whitespace check reported every line of a Windows CMD file as trailing whitespace because the Git blob contained CRLF bytes. The harness now validates the bytes stored in Git without forcing checkout conversion. Future changed text blobs are checked through the same staged, destination-range, PR, and pushed-commit validator, while a focused Windows CI gate proves the AI validator leaves a clean worktree before Sprint Capsule handoff generation.
+
+Four historical CRLF launchers are preserved byte-for-byte until product work legitimately changes them: `Run-CybernetComPortQrPack.cmd`, `Run-FieldHotfixesGui.cmd`, `Start-CybernetSurveyTutorial.cmd`, and `survey/sas-reg-query.cmd`. Their compatibility exceptions prevent false dirty-worktree results; the Git-blob validator still rejects CRLF when any of those paths is part of a changed commit.
 
 ## Known gaps and proof limits
 
