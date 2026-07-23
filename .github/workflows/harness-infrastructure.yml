@@ -197,13 +197,15 @@ jobs:
               $summary = @($output | Select-Object -Last 120)
             }
             $summary | Set-Content -LiteralPath $summaryPath -Encoding UTF8
-            'failed=true' | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding UTF8
+            $failed = 'true'
           }
           else {
             "PASS: full Pester suite ($($output.Count) output lines suppressed)" | Set-Content -LiteralPath $summaryPath -Encoding UTF8
-            'failed=false' | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding UTF8
+            $failed = 'false'
           }
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "failed=$failed`n", [Text.UTF8Encoding]::new($false))
           Get-Content -LiteralPath $summaryPath | Write-Host
+          exit 0
 
       - name: Upload full Pester diagnostic
         if: always()
