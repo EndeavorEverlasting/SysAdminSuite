@@ -109,6 +109,10 @@ def test_recovery_orchestrator_runs_certified_smb_path_only() -> None:
         "-TransportIntent kerberos_smb_task",
         "Invoke-SasSoftwareDeploymentTransportLiveCert.ps1",
         "LIVE CERT PASS",
+        "Invoke-SasAutoLogonFinalStepGate.ps1",
+        "New-SasRecoveryGateInput",
+        "AutoLogon final-step gate blocked recovery",
+        "final_gate_passed",
         "Invoke-SasValidatedSoftwareDeployment.ps1",
         "-Transport SmbScheduledTask",
         "Invoke-SasAutoLogonSmbStateCapture",
@@ -116,6 +120,10 @@ def test_recovery_orchestrator_runs_certified_smb_path_only() -> None:
         "deployment_cleanup_verified",
     ):
         assert marker in text, f"missing canonical recovery step: {marker}"
+
+    gate_position = text.index("$gateResult = & $finalGateScript")
+    deployment_position = text.index("$deployment = & $validatedDeploymentScript")
+    assert gate_position < deployment_position, "final-step gate must run before validated deployment"
 
     lowered = text.lower()
     for forbidden in (
@@ -137,6 +145,7 @@ def test_recovery_classifications_and_proof_ceiling_are_explicit() -> None:
         "RECOVERED_DEPLOYMENT_SUCCEEDED_RUNTIME_PENDING",
         "RECOVERED_DEPLOYMENT_STATE_REVIEW",
         "RECOVERY_BLOCKED_EXISTING_DEPLOYMENT_EVIDENCE",
+        "RECOVERY_FINAL_GATE_BLOCKED",
         "RECOVERY_TRANSPORT_BLOCKED",
         "RECOVERY_CLEANUP_REVIEW_REQUIRED",
         "runtime_proof_pending",
@@ -185,6 +194,7 @@ def test_runbook_forbids_winrm_repair_and_states_proof_limit() -> None:
         "recover-autologonwinrmblocker.cmd",
         "exactly one preserved validated deployment request",
         "refuse automatic recovery if software-install or smb deployment evidence already exists",
+        "canonical autologon final-step gate",
         "type:",
         "recover",
         "it does **not** prove reboot behavior, automatic sign-in",
