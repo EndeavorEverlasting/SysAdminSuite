@@ -173,7 +173,7 @@ function New-SasSmbTaskWorker {
         [Parameter(Mandatory = $true)][string]$PackageName,
         [Parameter(Mandatory = $true)][string]$InstallerPath,
         [Parameter(Mandatory = $true)][string]$ExpectedSha256,
-        [Parameter(Mandatory = $true)][string[]]$InstallerArguments,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$InstallerArguments,
         [Parameter(Mandatory = $true)]$ValidationChecks,
         [Parameter(Mandatory = $true)][string]$ResultPath,
         [ValidateRange(10, 7200)][int]$InstallerTimeoutSeconds = 1800
@@ -363,7 +363,7 @@ function Invoke-SasSmbScheduledTaskDeployment {
         [Parameter(Mandatory = $true)][string]$InstallerPath,
         [Parameter(Mandatory = $true)][string]$ExpectedSourceSha256,
         [Parameter(Mandatory = $true)][string]$PackageName,
-        [Parameter(Mandatory = $true)][string[]]$InstallerArguments,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$InstallerArguments,
         [Parameter(Mandatory = $true)]$ValidationChecks,
         [Parameter(Mandatory = $true)][string]$RunId,
         [Parameter(Mandatory = $true)][string]$LocalRunRoot,
