@@ -169,8 +169,8 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
     attributes = read(ATTRIBUTES)
     assert "* text=auto" not in attributes
     for marker in (
-        "*.cmd text eol=crlf",
-        "*.bat text eol=crlf",
+        "*.cmd text",
+        "*.bat text",
         "*.sh text eol=lf",
         "*.fixture text eol=lf",
         "*.jsonl text",
@@ -178,11 +178,13 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
         "Canonical LF storage for changed text blobs is enforced by scripts/check-repo-text-policy.py",
     ):
         assert marker in attributes, f"line-ending policy missing: {marker}"
+    for forbidden in ("*.cmd text eol=crlf", "*.bat text eol=crlf"):
+        assert forbidden not in attributes, f"checkout rewriting is forbidden: {forbidden}"
 
     cmd_attr = git("check-attr", "text", "eol", "--", "Start-CybernetSurveyTutorial.cmd")
     assert cmd_attr.returncode == 0
     assert "text: set" in cmd_attr.stdout
-    assert "eol: crlf" in cmd_attr.stdout
+    assert "eol: unspecified" in cmd_attr.stdout
     sh_attr = git("check-attr", "text", "eol", "--", "tests/survey/run_offline_survey_tests.sh")
     assert sh_attr.returncode == 0
     assert "eol: lf" in sh_attr.stdout
@@ -241,6 +243,9 @@ def test_hooks_ci_map_and_operator_report_are_wired() -> None:
         "check-repo-text-policy.py --range",
         "git diff --check",
         "bash -n .githooks/pre-commit .githooks/pre-push",
+        "windows-sprint-capsule",
+        "Prove validator leaves a clean worktree",
+        "SprintCapsule.Tests.ps1",
     ):
         assert marker in ci, f"harness CI missing: {marker}"
 
