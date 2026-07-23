@@ -12,6 +12,9 @@ QUALIFICATION_CATALOG = ROOT / "configs" / "software-packages" / "autologon-syst
 APPROVED = ROOT / "configs" / "software-packages" / "approved-apps.json"
 PACKAGE_SETS = ROOT / "configs" / "software-packages" / "windows-native-package-sets.json"
 SCRIPT = ROOT / "scripts" / "Invoke-SasAutoLogonSystemQualification.ps1"
+AUTOLOGON_DEPLOYMENT = ROOT / "scripts" / "Invoke-SasAutoLogonDeployment.ps1"
+APPROVED_INSTALL = ROOT / "scripts" / "Start-SasApprovedSoftwareInstall.ps1"
+BASH_INSTALL = ROOT / "bash" / "apps" / "sas-install-apps.sh"
 CMD = ROOT / "Qualify-AutoLogonSystemPackage.cmd"
 DOC = ROOT / "docs" / "AUTOLOGON_SYSTEM_QUALIFICATION.md"
 PESTER = ROOT / "Tests" / "Pester" / "AutoLogonSystemQualification.Tests.ps1"
@@ -51,18 +54,30 @@ def test_runtime_failure_is_recorded_as_contract_not_administration() -> None:
     assert "AutoAdminLogon=1" in observed["required_postcondition"]
 
 
-def test_production_catalogs_fail_closed_before_worker_generation() -> None:
+def test_production_catalogs_remain_plannable_but_fail_closed_before_worker_generation() -> None:
     approved = package(load(APPROVED), "autologon")
     native = package(load(PACKAGE_SETS), "autologon")
     for item in (approved, native):
-        assert item["install_enabled"] is False
+        assert item["install_enabled"] is True
         assert item["canonical_system_install_enabled"] is False
         qualification = item["canonical_system_qualification"]
         assert qualification["status"] == "failed_runtime_validation"
         assert qualification["qualified_installer_sha256"] is None
         assert qualification["qualified_package_version"] is None
         assert qualification["qualified_installer_arguments"] is None
-    assert approved["readiness"] == "canonical_system_qualification_required"
+    assert approved["readiness"] == "installer_and_no_arguments_confirmed"
+
+    autologon_deployment = read(AUTOLOGON_DEPLOYMENT)
+    approved_install = read(APPROVED_INSTALL)
+    bash_install = read(BASH_INSTALL)
+    for content in (autologon_deployment, approved_install, bash_install):
+        assert "canonical_system_install_enabled" in content
+        assert "blocked" in content.lower()
+    assert autologon_deployment.index("if ($WhatIfPreference -and -not $FixtureMode)") < (
+        autologon_deployment.index(
+            "if (-not $FixtureMode -and -not [bool]$package.canonical_system_install_enabled)"
+        )
+    )
 
 
 def test_qualification_catalog_is_narrow_and_not_a_production_promotion() -> None:
@@ -116,9 +131,21 @@ def test_live_lane_uses_only_certified_canonical_system_boundary() -> None:
         "canonical_catalog_promoted = $false",
         "automatic_reboot_performed = $false",
         "automatic_sign_in_observed = $false",
+        "Resolve-SasQualificationApprovedShareRoot",
+        "Resolve-SasQualificationTargetIdentity",
+        "Test-SasQualificationSnapshotIdentity",
+        "installer_arguments_policy",
+        "$null -ne $installerExitCode",
     )
     for marker in required:
         assert marker in script, marker
+    assert script.index("Resolve-SasQualificationApprovedShareRoot") < script.index(
+        "Test-Path -LiteralPath $installerPath"
+    )
+    assert "$errorMessage -match" not in script
+    assert "promotion_required = true" not in script
+    assert "reboot_observed = false" not in script
+    assert "automatic_sign_in_observed = false" not in script
     lowered = script.lower()
     for forbidden in (
         "enable-psremoting",
