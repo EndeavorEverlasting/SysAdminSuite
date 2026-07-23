@@ -5,9 +5,10 @@ Recover one interrupted AutoLogon deployment whose state proof was blocked by un
 .DESCRIPTION
 Preserves the original run, reuses its closed validated deployment request, proves the canonical
 Kerberos SMB scheduled-task boundary with a fresh P02 preflight and harmless live certification,
-captures a new baseline through a transient read-only SYSTEM task, and only then resumes the
-canonical validated deployment. After-state is captured through the same transport and all
-transient tasks and staging roots must be absent before success is reported.
+captures a new baseline through a transient read-only SYSTEM task, re-runs the canonical AutoLogon
+final-step gate, and only then resumes the canonical validated deployment. After-state is captured
+through the same transport and all transient tasks and staging roots must be absent before success
+is reported.
 
 This script never enables WinRM, opens a port, accepts credentials, reboots the target, or reads
 DefaultPassword data. It refuses automatic recovery when the interrupted run already contains
@@ -37,6 +38,8 @@ param(
     [Parameter(Mandatory = $false, ParameterSetName = 'Fixture')]
     [ValidateSet('success','already_configured','capture_failure','cleanup_failure','deployment_failure')]
     [string]$FixtureScenario = 'success',
+
+    [string]$HostEligibilityPolicyPath,
 
     [ValidateRange(1, 1440)]
     [int]$PreflightMaxAgeMinutes = 15,
@@ -98,6 +101,12 @@ function Get-SasRecoveryRequest {
     }
     try { $request = Get-Content -LiteralPath $requests[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json }
     catch { throw "Preserved validated request is malformed: $($_.Exception.Message)" }
+    if ([string]$request.schema_version -ne 'sas-validated-software-deployment-request/v1') {
+        throw 'Preserved validated request schema is unsupported.'
+    }
+    if ([string]$request.package_name -ne 'NW AutoLogon Setup x64') {
+        throw 'Preserved request is not the approved AutoLogon package.'
+    }
     $targets = @($request.targets | ForEach-Object { [string]$_ })
     if ($targets.Count -ne 1) { throw 'WinRM-blocker recovery is intentionally limited to one target.' }
     return [pscustomobject]@{ path = $requests[0].FullName; request = $request; target = $targets[0] }
@@ -142,24 +151,68 @@ function Test-SasCaptureLifecycleComplete {
         -not [bool]$Lifecycle.cleanup.run_root_remaining)
 }
 
+function New-SasRecoveryGateInput {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$RunId,
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][string]$BaselineSnapshotPath
+    )
+    $input = [pscustomobject][ordered]@{
+        run_id = $RunId
+        phase = 'before_complete'
+        targets = @([pscustomobject][ordered]@{ computer_name = $Target; hostname = $Target })
+        baseline_snapshot_path = $BaselineSnapshotPath
+        baseline_snapshot_sha256 = (Get-FileHash -LiteralPath $BaselineSnapshotPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        collection_transport = 'kerberos_smb_task'
+    }
+    Write-SasRecoveryJson -Path $Path -Value $input
+    return $Path
+}
+
+function New-SasRecoveryFixtureHostPolicy {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Target
+    )
+    $policy = [pscustomobject][ordered]@{
+        schema_version = 'sas-host-eligibility-policy/v1'
+        policy_id = 'autologon-winrm-recovery-fixture'
+        policy_version = '1.0.0'
+        patterns = @([pscustomobject][ordered]@{
+            name = 'fixture-autologon-target'
+            match_type = 'regex'
+            regex = ('^{0}$' -f [regex]::Escape($Target))
+            actions = @('fixture')
+        })
+    }
+    Write-SasRecoveryJson -Path $Path -Value $policy
+    return $Path
+}
+
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $stateModulePath = Join-Path $PSScriptRoot 'SasAutoLogonSmbStateRecovery.psm1'
 $preflightScript = Join-Path $PSScriptRoot 'Test-SasSoftwareDeploymentTransport.ps1'
 $liveCertScript = Join-Path $PSScriptRoot 'Invoke-SasSoftwareDeploymentTransportLiveCert.ps1'
+$finalGateScript = Join-Path $PSScriptRoot 'Invoke-SasAutoLogonFinalStepGate.ps1'
 $validatedDeploymentScript = Join-Path $PSScriptRoot 'Invoke-SasValidatedSoftwareDeployment.ps1'
 $networkGuardModule = Join-Path $PSScriptRoot 'SasNetworkGuard.psm1'
-foreach ($required in @($stateModulePath,$preflightScript,$liveCertScript,$validatedDeploymentScript,$networkGuardModule)) {
+$approvedAppsPath = Join-Path $repoRoot 'configs\software-packages\approved-apps.json'
+foreach ($required in @($stateModulePath,$preflightScript,$liveCertScript,$finalGateScript,$validatedDeploymentScript,$networkGuardModule,$approvedAppsPath)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Missing AutoLogon recovery dependency: $required" }
 }
 Import-Module $stateModulePath -Force
 
 $recoveryRunId = 'autologon-recovery-{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8))
+$gateRunId = 'autologon-delta-{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8))
 $classification = 'RECOVERY_FAILED'
 $errorMessage = $null
 $target = $null
 $requestPath = $null
 $preflightPath = $null
 $liveCertPath = $null
+$finalGatePath = $null
+$finalGatePassed = $false
 $deploymentResultPath = $null
 $installSummaryPath = $null
 $baselinePath = $null
@@ -207,9 +260,10 @@ else {
 
 New-Item -ItemType Directory -Path $recoveryRoot -Force | Out-Null
 $artifactsRoot = Join-Path $recoveryRoot 'artifacts'
+$actionsRoot = Join-Path $recoveryRoot 'actions'
 $evidenceRoot = Join-Path $recoveryRoot 'evidence'
 $reportsRoot = Join-Path $recoveryRoot 'reports'
-New-Item -ItemType Directory -Path $artifactsRoot,$evidenceRoot,$reportsRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $artifactsRoot,$actionsRoot,$evidenceRoot,$reportsRoot -Force | Out-Null
 $resultPath = Join-Path $artifactsRoot 'autologon_winrm_recovery_result.json'
 $summaryPath = Join-Path $reportsRoot 'english_summary.txt'
 
@@ -234,6 +288,16 @@ try {
             $runtimeProofPending = $true
         }
         else {
+            $gateInputPath = New-SasRecoveryGateInput -Path (Join-Path $actionsRoot 'autologon_final_step_gate_input.json') `
+                -RunId $gateRunId -Target $target -BaselineSnapshotPath $baselinePath
+            $fixturePolicyPath = New-SasRecoveryFixtureHostPolicy -Path (Join-Path $actionsRoot 'fixture_host_eligibility_policy.json') -Target $target
+            $gateResult = & $finalGateScript -Target $target -RunId $gateRunId -BeforeSnapshotPath $gateInputPath `
+                -ApprovedAppsPath $approvedAppsPath -HostEligibilityPolicyPath $fixturePolicyPath `
+                -OutputRoot (Join-Path $actionsRoot 'final-gate') -ExecContext fixture -FixtureMode
+            $finalGatePassed = [bool]$gateResult.overall_pass
+            $finalGatePath = Join-Path (Join-Path (Join-Path $actionsRoot 'final-gate') $gateRunId) 'autologon_final_step_gate.json'
+            if (-not $finalGatePassed) { throw "AutoLogon final-step gate blocked recovery: $($gateResult.blocked_reason)" }
+
             $deploymentComplete = ($FixtureScenario -ne 'deployment_failure')
             if (-not $deploymentComplete) { throw 'Synthetic validated deployment failure.' }
             $afterLifecycle = Invoke-SasAutoLogonSmbStateCaptureFixture -FixtureRoot (Join-Path $evidenceRoot 'after') -Phase after -Scenario success
@@ -294,6 +358,24 @@ try {
             $runtimeProofPending = $true
         }
         else {
+            $gateInputPath = New-SasRecoveryGateInput -Path (Join-Path $actionsRoot 'autologon_final_step_gate_input.json') `
+                -RunId $gateRunId -Target $target -BaselineSnapshotPath $baselinePath
+            $gateParameters = @{
+                Target = $target
+                RunId = $gateRunId
+                BeforeSnapshotPath = $gateInputPath
+                ApprovedAppsPath = $approvedAppsPath
+                OutputRoot = (Join-Path $actionsRoot 'final-gate')
+                ExecContext = 'remote'
+            }
+            if (-not [string]::IsNullOrWhiteSpace($HostEligibilityPolicyPath)) {
+                $gateParameters.HostEligibilityPolicyPath = $HostEligibilityPolicyPath
+            }
+            $gateResult = & $finalGateScript @gateParameters
+            $finalGatePassed = [bool]$gateResult.overall_pass
+            $finalGatePath = Join-Path (Join-Path (Join-Path $actionsRoot 'final-gate') $gateRunId) 'autologon_final_step_gate.json'
+            if (-not $finalGatePassed) { throw "AutoLogon final-step gate blocked recovery: $($gateResult.blocked_reason)" }
+
             try {
                 $deployment = & $validatedDeploymentScript -RequestPath $requestPath `
                     -OutputRoot (Join-Path $recoveryRoot 'deployment') -Transport SmbScheduledTask `
@@ -311,8 +393,9 @@ try {
             $configurationMutationPerformed = $true
             $targetMutationPerformed = $true
             $deploymentComplete = [bool]$deployment.deployment_complete
-            $deploymentResultPath = @(Get-ChildItem -LiteralPath (Join-Path $recoveryRoot 'deployment') -Filter 'validated_deployment_result.json' -File -Recurse |
-                Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).FullName
+            $deploymentResultFile = @(Get-ChildItem -LiteralPath (Join-Path $recoveryRoot 'deployment') -Filter 'validated_deployment_result.json' -File -Recurse |
+                Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1)
+            if ($deploymentResultFile.Count -gt 0) { $deploymentResultPath = $deploymentResultFile[0].FullName }
             $installSummaryPath = [string]$deployment.install_summary_path
             if (-not $deploymentComplete) { throw "Validated recovery deployment did not complete: $($deployment.classification)" }
             if (-not (Test-Path -LiteralPath $installSummaryPath -PathType Leaf)) { throw 'Recovery install summary is missing.' }
@@ -349,6 +432,7 @@ catch {
     $errorMessage = $_.Exception.Message
     if ($classification -notin @('ALREADY_CONFIGURED_RUNTIME_PENDING','RECOVERED_DEPLOYMENT_SUCCEEDED_RUNTIME_PENDING','RECOVERED_DEPLOYMENT_STATE_REVIEW')) {
         $classification = if ($errorMessage -match 'deployment evidence already exists') { 'RECOVERY_BLOCKED_EXISTING_DEPLOYMENT_EVIDENCE' }
+            elseif ($errorMessage -match 'final-step gate') { 'RECOVERY_FINAL_GATE_BLOCKED' }
             elseif ($errorMessage -match 'cleanup|remnant|teardown') { 'RECOVERY_CLEANUP_REVIEW_REQUIRED' }
             elseif ($errorMessage -match 'preflight|live certification') { 'RECOVERY_TRANSPORT_BLOCKED' }
             else { 'RECOVERY_FAILED' }
@@ -358,6 +442,7 @@ catch {
 $result = [pscustomobject][ordered]@{
     schema_version = 'sas-autologon-winrm-recovery-result/v1'
     recovery_run_id = $recoveryRunId
+    final_gate_run_id = $gateRunId
     classification = $classification
     reason = $errorMessage
     fixture_mode = [bool]$FixtureMode
@@ -366,6 +451,8 @@ $result = [pscustomobject][ordered]@{
     request_path = $requestPath
     preflight_result_path = $preflightPath
     live_cert_result_path = $liveCertPath
+    final_gate_result_path = $finalGatePath
+    final_gate_passed = $finalGatePassed
     deployment_result_path = $deploymentResultPath
     install_summary_path = $installSummaryPath
     baseline_snapshot_path = $baselinePath
@@ -384,10 +471,10 @@ $result = [pscustomobject][ordered]@{
     automatic_reboot_performed = $false
     winrm_enabled_or_modified = $false
     proof_level = $(if ($FixtureMode) { 'sanitized_fixture_contract' }
-        elseif ($classification -eq 'RECOVERED_DEPLOYMENT_SUCCEEDED_RUNTIME_PENDING') { 'deployment_execution_and_post_install_state' }
+        elseif ($classification -eq 'RECOVERED_DEPLOYMENT_SUCCEEDED_RUNTIME_PENDING') { 'final_gate_deployment_execution_and_post_install_state' }
         elseif ($classification -eq 'ALREADY_CONFIGURED_RUNTIME_PENDING') { 'current_state_capture' }
         else { 'insufficient_or_review_required' })
-    proof_ceiling = 'Recovery can prove canonical SMB transport, transient collector cleanup, validated deployment execution, and post-install registry posture. Reboot, automatic sign-in, current-token access, application behavior, and technician acceptance remain unproven.'
+    proof_ceiling = 'Recovery can prove canonical SMB transport, transient collector cleanup, final-step gate disposition, validated deployment execution, and post-install registry posture. Reboot, automatic sign-in, current-token access, application behavior, and technician acceptance remain unproven.'
 }
 Write-SasRecoveryJson -Path $resultPath -Value $result
 
@@ -395,6 +482,7 @@ $summary = @(
     'SysAdminSuite AutoLogon WinRM-blocker recovery'
     "Classification: $classification"
     "Recovery run: $recoveryRunId"
+    "Final-step gate passed: $finalGatePassed"
     "Baseline status: $baselineStatus"
     "After status: $afterStatus"
     "Software added: $softwareAddedCount"
