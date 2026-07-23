@@ -68,7 +68,9 @@
       "format": "text",
       "tracked": false,
       "contains_live_data": "workflow-dependent",
-      "purpose": "Human-readable next action, proof ceiling, failures, and artifact locations."
+      "parser_facing": false,
+      "consumption": "clean local pipe and direct human review",
+      "purpose": "Clean local text handoff containing the human-readable next action, proof ceiling, failures, and artifact locations; it is not parser-facing evidence."
     },
     {
       "id": "sprint-capsule",
