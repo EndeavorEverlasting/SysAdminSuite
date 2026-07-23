@@ -13,11 +13,11 @@ The repository has an operational harness floor for fresh-agent intake, task rou
 - **Validation:** dependency-free Python contracts, Pester suites, Bash syntax checks, schemas, manifests, dedicated workflows, and default E2E profiles are available.
 - **Hooks:** `.githooks/pre-commit` blocks generated/private evidence and runs focused contracts; `.githooks/pre-push` runs the offline harness floor and validates commits against the actual destination ref.
 - **Reports and handoff:** English report renderers and `tools/New-SasSprintCapsule.ps1` provide human summaries and compressed handoffs.
-- **Repository text policy:** `.gitattributes` applies narrow checkout rules only to CMD/BAT launchers, shell/fixture files, JSONL, and binaries. `scripts/check-repo-text-policy.py` independently enforces canonical LF bytes and no trailing whitespace in every changed Git text blob. PowerShell, JSON, documentation, and other existing formats retain their established checkout behavior.
+- **Repository text policy:** `.gitattributes` classifies CMD/BAT, shell/fixture files, JSONL, and binaries without forcing Windows worktree rewrites. `scripts/check-repo-text-policy.py` independently enforces canonical LF bytes and no trailing whitespace in every changed Git text blob. PowerShell, JSON, documentation, and other existing formats retain their established checkout behavior.
 
 ## Repaired boundary
 
-A prior push-only whitespace check reported every line of a Windows CMD file as trailing whitespace because the Git blob contained CRLF bytes. The harness now validates the bytes stored in Git while keeping checkout transformations narrow. Future changed text blobs are checked through the same staged, destination-range, PR, and pushed-commit validator without rewriting unrelated PowerShell or data files on Windows.
+A prior push-only whitespace check reported every line of a Windows CMD file as trailing whitespace because the Git blob contained CRLF bytes. The harness now validates the bytes stored in Git without forcing checkout conversion. Future changed text blobs are checked through the same staged, destination-range, PR, and pushed-commit validator, while a focused Windows CI gate proves the AI validator leaves a clean worktree before Sprint Capsule handoff generation.
 
 ## Known gaps and proof limits
 
