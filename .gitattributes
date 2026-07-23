@@ -1,8 +1,9 @@
-# Repository checkout policy: keep explicit EOL rules narrow and let existing platform behavior stand elsewhere.
+# Repository text classification: normalize changed Git blobs without forcing Windows checkout rewrites.
 
-# Windows command launchers are stored as LF in Git and checked out as CRLF.
-*.cmd text eol=crlf
-*.bat text eol=crlf
+# Windows command launchers are text. Their stored Git blobs must use LF;
+# checkout endings remain controlled by the operator's existing Git configuration.
+*.cmd text
+*.bat text
 
 # Shell and fixture surfaces must remain LF on every platform.
 *.sh text eol=lf
