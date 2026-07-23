@@ -1,0 +1,27 @@
+{
+  "schema_version": "sas-autologon-system-qualification-request/v1",
+  "candidate_id": "replace-with-bounded-candidate-id",
+  "package_version": "replace-with-file-or-vendor-version",
+  "target_fqdn": "authorized-cybernet.example.invalid",
+  "software_share_root": "\\\\approved-server\\",
+  "installer_relative_path": "packages\\AutoLogonSetup\\REPLACE_WITH_CANDIDATE.exe",
+  "installer_sha256": "REPLACE_WITH_64_HEX_CHARACTERS",
+  "installer_arguments": [
+    "REPLACE_WITH_VENDOR_VALIDATED_SWITCH"
+  ],
+  "installer_arguments_reference": "REPLACE_WITH_VENDOR_DOCUMENTATION_OR_PACKAGE_OWNER_REFERENCE",
+  "failed_invocation": {
+    "installer_sha256": "REPLACE_WITH_FAILED_CANDIDATE_SHA256",
+    "installer_arguments": []
+  },
+  "authorization": {
+    "authorized_by": "REPLACE_WITH_APPROVER",
+    "request_reference": "REPLACE_WITH_REQUEST",
+    "change_reference": "REPLACE_WITH_CHANGE",
+    "ticket_reference": "REPLACE_WITH_TICKET"
+  },
+  "signature": {
+    "require_valid_signature": false,
+    "expected_signer_thumbprint": null
+  }
+}
