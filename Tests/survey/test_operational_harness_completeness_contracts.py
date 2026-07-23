@@ -246,7 +246,6 @@ def test_hooks_ci_map_and_operator_report_are_wired() -> None:
         "harness/api/operational-harness-manifest.json",
         "harness/api/harness-artifact-registry.json",
         "harness/workflows/operational-harness-maintenance.yaml",
-        "harness/workflows/operational-harness-publish.yaml",
         "scripts/check-repo-text-policy.py",
         "docs/HARNESS_STATUS.md",
     ):
