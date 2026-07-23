@@ -191,7 +191,7 @@ $liveCertScript = Join-Path $PSScriptRoot 'Invoke-SasSoftwareDeploymentTransport
 $validatedDeploymentScript = Join-Path $PSScriptRoot 'Invoke-SasValidatedSoftwareDeployment.ps1'
 $finalGateScript = Join-Path $PSScriptRoot 'Invoke-SasAutoLogonFinalStepGate.ps1'
 $networkGuardModule = Join-Path $PSScriptRoot 'SasNetworkGuard.psm1'
-$approvedAppsPath = Join-Path $repoRoot 'configs\software-packages\approved-apps.json'
+$approvedAppsPath = Join-Path $repoRoot 'configs\software-packages\autologon-system-qualification-catalog.json'
 foreach ($requiredPath in @($policyPath,$stateModulePath,$preflightScript,$liveCertScript,$validatedDeploymentScript,$finalGateScript,$networkGuardModule,$approvedAppsPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) { throw "Missing qualification dependency: $requiredPath" }
 }
