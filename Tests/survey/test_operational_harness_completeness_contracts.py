@@ -160,18 +160,22 @@ def test_artifact_registry_names_locations_generators_and_privacy() -> None:
             assert field in item, f"artifact {item['id']} missing {field}"
         if item["contains_live_data"] is True or item["contains_live_data"] == "workflow-dependent":
             assert item["tracked"] is False, f"live-data artifact cannot be tracked: {item['id']}"
+    handoff = next(item for item in artifacts if item["id"] == "operator-handoff")
+    assert handoff["parser_facing"] is False
+    assert handoff["consumption"] == "clean local pipe and direct human review"
 
 
 def test_repository_text_policy_is_explicit_and_git_visible() -> None:
     attributes = read(ATTRIBUTES)
+    assert "* text=auto" not in attributes
     for marker in (
-        "* text=auto",
         "*.cmd text eol=crlf",
         "*.bat text eol=crlf",
         "*.sh text eol=lf",
         "*.fixture text eol=lf",
         "*.jsonl text",
         "*.pcap binary",
+        "Canonical LF storage for changed text blobs is enforced by scripts/check-repo-text-policy.py",
     ):
         assert marker in attributes, f"line-ending policy missing: {marker}"
 
@@ -184,11 +188,11 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
     assert "eol: lf" in sh_attr.stdout
     ps_attr = git("check-attr", "text", "eol", "--", "tools/New-SasSprintCapsule.ps1")
     assert ps_attr.returncode == 0
-    assert "text: auto" in ps_attr.stdout
+    assert "text: unspecified" in ps_attr.stdout
     assert "eol: unspecified" in ps_attr.stdout
     json_attr = git("check-attr", "text", "eol", "--", "Config/cybernet-naabu-profiles.json")
     assert json_attr.returncode == 0
-    assert "text: auto" in json_attr.stdout
+    assert "text: unspecified" in json_attr.stdout
     assert "eol: unspecified" in json_attr.stdout
     jsonl_attr = git("check-attr", "text", "eol", "--", "survey/output/example/events.jsonl")
     assert jsonl_attr.returncode == 0
