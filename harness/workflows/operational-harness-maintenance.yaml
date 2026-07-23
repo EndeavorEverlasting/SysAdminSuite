@@ -4,9 +4,9 @@ mode: local_transform
 network_activity: false
 target_mutation: false
 purpose: >-
-  Maintain the repository harness floor so a fresh agent can inspect the repo,
-  select a workflow, validate safely, produce artifacts, and hand off without
-  changing product behavior or the governance contract.
+  Maintain the repository harness floor so a fresh agent can inspect local repo
+  state, select a workflow, validate safely, produce artifacts, and hand off
+  without changing product behavior or the governance contract.
 
 inputs:
   required:
@@ -16,14 +16,14 @@ inputs:
     - forbidden_scope
   optional:
     - failure_log
-    - existing_pull_request
+    - supplied_pull_request_metadata
 
 stages:
   - id: inspect
     order: 1
     actions:
       - read AGENTS.md without modifying it
-      - inspect git status, current branch, and active pull requests
+      - inspect local git status, current branch, refs, and supplied PR metadata
       - read CODEBASE_MAP.md
       - read harness/api/operational-harness-manifest.json
       - inspect existing validators, hooks, skills, reports, and artifact contracts
@@ -74,15 +74,15 @@ stages:
     order: 6
     actions:
       - name every changed file
-      - commit coherent harness work
-      - push the isolated branch
-      - open or update one pull request
+      - commit coherent harness work locally
+      - emit the exact operator-approved publish command
+      - route remote push and PR actions to operational-harness-publish
 
   - id: handoff
     order: 7
     actions:
       - report validation commands and exact results
-      - report commit SHA and push or PR state
+      - report local commit SHA and supplied push or PR state
       - state skipped checks, known gaps, risks, and proof ceiling
       - provide one exact next command
       - use tools/New-SasSprintCapsule.ps1 when a compressed next-agent handoff is needed
@@ -97,7 +97,9 @@ outputs:
     - survey/output/harness-validator/harness-proof-*/
     - survey/output/<workflow>/<run_id>/operator_handoff.txt
     - survey/output/<workflow>/<run_id>/artifact_registry.json
+    - survey/output/<workflow>/<run_id>/review/publish-request.json
 
 proof_ceiling: >-
-  Static repository structure, tracking, schema, workflow, hook, text-policy,
-  and contract proof only unless a separate executable or live-runtime gate is run.
+  Static local repository structure, tracking, schema, workflow, hook,
+  text-policy, and contract proof only; remote publication requires the separate
+  operator-approved operational-harness-publish workflow.
