@@ -164,10 +164,35 @@ jobs:
           }
           Write-Host 'PASS: AI layer validator left a clean worktree'
 
-      - name: Install Pester 5
+      - name: Install Pester 5 quietly
         shell: pwsh
-        run: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck | Out-Null
 
       - name: Run focused Sprint Capsule Pester contracts
         shell: pwsh
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\SprintCapsule.Tests.ps1
+
+      - name: Diagnose full Pester failures concisely
+        shell: pwsh
+        run: |
+          $output = @(& pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester 2>&1 | ForEach-Object { $_.ToString() })
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) {
+            $start = -1
+            for ($i = 0; $i -lt $output.Count; $i++) {
+              if ($output[$i] -match 'PESTER FAILURE SUMMARY') {
+                $start = $i
+                break
+              }
+            }
+            if ($start -ge 0) {
+              $output[$start..($output.Count - 1)] | Write-Host
+            }
+            else {
+              $output | Select-Object -Last 80 | Write-Host
+            }
+            throw "Full Pester suite failed with exit code $exitCode"
+          }
+          Write-Host "PASS: full Pester suite ($($output.Count) output lines suppressed)"
