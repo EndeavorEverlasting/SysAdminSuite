@@ -122,12 +122,19 @@ jobs:
   windows-sprint-capsule:
     runs-on: windows-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-          show-progress: false
-          persist-credentials: false
+      - name: Quiet shallow checkout
+        shell: pwsh
+        run: |
+          git init . | Out-Null
+          git remote add origin https://github.com/EndeavorEverlasting/SysAdminSuite.git
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            $ref = 'refs/pull/${{ github.event.pull_request.number }}/merge'
+          } else {
+            $ref = '${{ github.sha }}'
+          }
+          git -c protocol.version=2 fetch --quiet --depth=2 origin $ref
+          git checkout --quiet FETCH_HEAD
+          Write-Host "Checked out $(git rev-parse HEAD)"
 
       - name: Run AI layer validator
         shell: pwsh
