@@ -1,18 +1,16 @@
 # Repository text policy: normalize text to LF in Git, with checkout endings explicit only where execution requires them.
 * text=auto
 
-# Windows operator surfaces are stored as LF in Git and checked out as CRLF.
+# Windows command launchers are stored as LF in Git and checked out as CRLF.
 *.cmd text eol=crlf
 *.bat text eol=crlf
-*.ps1 text eol=crlf
-*.psm1 text eol=crlf
 
 # Shell and fixture surfaces must remain LF on every platform.
 *.sh text eol=lf
 *.bash text eol=lf
 *.fixture text eol=lf
 
-# Other text formats use Git's platform checkout behavior while remaining normalized in the repository.
+# PowerShell, data, documentation, and other text formats use Git's platform checkout behavior while remaining normalized in the repository.
 
 # Binary artifacts must never be line-ending normalized.
 *.png binary
