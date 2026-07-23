@@ -1,0 +1,47 @@
+{
+  "schema_version": "sas-autologon-system-qualification-policy/v1",
+  "package_id": "autologon",
+  "display_name": "NW AutoLogon Setup x64",
+  "canonical_execution_context": "LocalSystem",
+  "status": "qualification_required",
+  "canonical_system_install_enabled": false,
+  "failed_runtime_observation": {
+    "installer_file": "NW_AutoLogon_Setup_x64.exe",
+    "installer_arguments": [],
+    "execution_identity": "S-1-5-18",
+    "installer_exit_code": 0,
+    "required_postcondition": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon::AutoAdminLogon=1",
+    "observed_postcondition": "AutoAdminLogon was not set to 1",
+    "classification": "exit_zero_required_postcondition_missing",
+    "evidence_class": "operator_local_live"
+  },
+  "candidate_requirements": {
+    "one_target_per_pilot": true,
+    "exact_fqdn_required": true,
+    "fresh_kerberos_smb_task_preflight_required": true,
+    "harmless_transport_live_cert_required": true,
+    "candidate_must_differ_from_failed_hash_or_arguments": true,
+    "installer_sha256_required": true,
+    "package_version_required": true,
+    "installer_arguments_reference_required": true,
+    "valid_signature_may_be_required": true,
+    "automatic_reboot_forbidden": true,
+    "sequential_candidate_retry_on_same_dirty_baseline_forbidden": true
+  },
+  "qualification_success": {
+    "installer_exit_code": [
+      0,
+      3010
+    ],
+    "executed_as_system": true,
+    "set_autologon": "Autologon_YES",
+    "auto_admin_logon": "1",
+    "default_password_value_name_present": true,
+    "expected_user_match": true,
+    "task_cleanup_verified": true,
+    "staging_cleanup_verified": true,
+    "reboot_observed": false,
+    "automatic_sign_in_observed": false
+  },
+  "promotion_rule": "A successful controlled pilot emits a qualification receipt. Canonical catalogs remain blocked until that receipt is reviewed and the qualified SHA-256, version, and arguments are committed in a separate bounded change."
+}
