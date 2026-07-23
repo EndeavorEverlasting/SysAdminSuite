@@ -12,7 +12,7 @@ The repository has an operational harness floor for fresh-agent intake, task rou
 - **Validation:** dependency-free Python contracts, Pester suites, Bash syntax checks, schemas, manifests, dedicated workflows, and default E2E profiles are available.
 - **Hooks:** `.githooks/pre-commit` blocks generated/private evidence and runs focused contracts; `.githooks/pre-push` runs the offline harness floor.
 - **Reports and handoff:** English report renderers and `tools/New-SasSprintCapsule.ps1` provide human summaries and compressed handoffs.
-- **Repository text policy:** `.gitattributes` normalizes text to LF in Git while allowing Windows CMD, BAT, and PowerShell files to check out as CRLF. `scripts/check-repo-text-policy.py` verifies changed Git blobs rather than misclassifying checkout carriage returns as trailing whitespace.
+- **Repository text policy:** `.gitattributes` normalizes text to LF in Git while allowing Windows CMD/BAT launchers to check out as CRLF. PowerShell, data, and documentation retain the repository's existing platform checkout behavior. `scripts/check-repo-text-policy.py` verifies changed Git blobs rather than misclassifying checkout carriage returns as trailing whitespace.
 
 ## Repaired boundary
 
