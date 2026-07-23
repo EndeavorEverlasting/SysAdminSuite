@@ -83,7 +83,7 @@
       "requires_validated_installer_arguments": false,
       "installer_arguments_policy": "approved_empty",
       "installer_arguments_reference": "configs/software-packages/windows-native-package-sets.json#autologon",
-      "install_enabled": true,
+      "install_enabled": false,
       "canonical_system_install_enabled": false,
       "canonical_system_qualification": {
         "status": "failed_runtime_validation",
