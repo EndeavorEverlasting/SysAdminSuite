@@ -5,6 +5,14 @@
 *.cmd text
 *.bat text
 
+# Four legacy CRLF CMD blobs are preserved byte-for-byte until product work
+# legitimately touches them. The Git-blob validator still rejects CRLF when
+# any of these paths appears in a changed commit.
+Run-CybernetComPortQrPack.cmd -text
+Run-FieldHotfixesGui.cmd -text
+Start-CybernetSurveyTutorial.cmd -text
+survey/sas-reg-query.cmd -text
+
 # Shell and fixture surfaces must remain LF on every platform.
 *.sh text eol=lf
 *.bash text eol=lf
