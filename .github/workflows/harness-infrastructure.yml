@@ -128,10 +128,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install Pester 5
-        shell: pwsh
-        run: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
-
       - name: Run AI layer validator
         shell: pwsh
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
@@ -144,9 +140,13 @@ jobs:
             Write-Host 'AI layer validator left repository changes:'
             $status | ForEach-Object { Write-Host $_ }
             git diff --stat
-            throw 'AI layer validator must leave a clean worktree before Sprint Capsule proof.'
+            throw "AI layer validator left repository changes: $($status -join '; ')"
           }
           Write-Host 'PASS: AI layer validator left a clean worktree'
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
 
       - name: Run focused Sprint Capsule Pester contracts
         shell: pwsh
