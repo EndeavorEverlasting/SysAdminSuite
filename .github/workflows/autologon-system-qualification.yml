@@ -5,6 +5,8 @@ on:
     paths:
       - 'Qualify-AutoLogonSystemPackage.cmd'
       - 'scripts/Invoke-SasAutoLogonSystemQualification.ps1'
+      - 'scripts/Invoke-SasAutoLogonDeployment.ps1'
+      - 'bash/apps/sas-install-apps.sh'
       - 'configs/software-packages/autologon-system-qualification*.json'
       - 'configs/software-packages/approved-apps.json'
       - 'configs/software-packages/windows-native-package-sets.json'
@@ -26,6 +28,34 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Export affected source for bounded repair
+        uses: actions/upload-artifact@v4
+        with:
+          name: autologon-system-qualification-source
+          retention-days: 1
+          include-hidden-files: true
+          path: |
+            Qualify-AutoLogonSystemPackage.cmd
+            scripts/Invoke-SasAutoLogonSystemQualification.ps1
+            scripts/Invoke-SasAutoLogonDeployment.ps1
+            bash/apps/sas-install-apps.sh
+            configs/software-packages/approved-apps.json
+            configs/software-packages/windows-native-package-sets.json
+            configs/software-packages/autologon-system-qualification.json
+            configs/software-packages/autologon-system-qualification-catalog.json
+            configs/software-packages/autologon-system-qualification-request.example.json
+            docs/AUTOLOGON_SYSTEM_QUALIFICATION.md
+            docs/AUTOLOGON_DEPLOYMENT_WORKFLOW.md
+            Tests/survey/test_autologon_system_qualification_contracts.py
+            Tests/survey/test_autologon_admin_runtime_runbook_contracts.py
+            Tests/survey/test_autodidact_install_capsule_contracts.py
+            Tests/survey/test_cybernet_client_configuration_contracts.py
+            Tests/bash/test_smb_scheduled_task_install_contracts.sh
+            Tests/Pester/AutoLogonSystemQualification.Tests.ps1
+            .github/workflows/approved-software-catalog-contracts.yml
+            .github/workflows/approved-software-acceptance-contracts.yml
+            .github/workflows/autologon-system-qualification.yml
 
       - name: Set up Python
         uses: actions/setup-python@v5
