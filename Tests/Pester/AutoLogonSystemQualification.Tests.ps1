@@ -20,16 +20,37 @@ Describe 'AutoLogon canonical LocalSystem qualification' {
         @($errors).Count | Should -Be 0
     }
 
-    It 'blocks the failed production artifact in both production catalogs' {
+    It 'keeps the package plannable but blocks canonical SYSTEM execution in both production catalogs' {
         $approved = Get-Content -LiteralPath $script:approvedCatalog -Raw -Encoding UTF8 | ConvertFrom-Json
         $native = Get-Content -LiteralPath $script:packageSetCatalog -Raw -Encoding UTF8 | ConvertFrom-Json
         foreach ($catalog in @($approved, $native)) {
             $autologon = @($catalog.packages | Where-Object id -eq 'autologon')
             $autologon.Count | Should -Be 1
-            $autologon[0].install_enabled | Should -BeFalse
+            $autologon[0].install_enabled | Should -BeTrue
             $autologon[0].canonical_system_install_enabled | Should -BeFalse
             $autologon[0].canonical_system_qualification.status | Should -Be 'failed_runtime_validation'
         }
+    }
+
+    It 'enforces qualification before real worker generation without blocking WhatIf' {
+        $deployment = Get-Content -LiteralPath (Join-Path $script:repoRoot 'scripts\Invoke-SasAutoLogonDeployment.ps1') -Raw -Encoding UTF8
+        $approvedInstall = Get-Content -LiteralPath (Join-Path $script:repoRoot 'scripts\Start-SasApprovedSoftwareInstall.ps1') -Raw -Encoding UTF8
+        $bashInstall = Get-Content -LiteralPath (Join-Path $script:repoRoot 'bash\apps\sas-install-apps.sh') -Raw -Encoding UTF8
+        $deployment.IndexOf('if ($WhatIfPreference -and -not $FixtureMode)') |
+            Should -BeLessThan ($deployment.IndexOf('if (-not $FixtureMode -and -not [bool]$package.canonical_system_install_enabled)'))
+        $approvedInstall | Should -Match 'canonical_system_install_enabled is false'
+        $bashInstall | Should -Match 'canonical SYSTEM installation is blocked pending qualification'
+    }
+
+    It 'contains the reviewed fail-closed qualification controls' {
+        $content = Get-Content -LiteralPath $script:qualificationScript -Raw -Encoding UTF8
+        $content | Should -Match 'Resolve-SasQualificationApprovedShareRoot'
+        $content | Should -Match 'Resolve-SasQualificationTargetIdentity'
+        $content | Should -Match 'Test-SasQualificationSnapshotIdentity'
+        $content | Should -Match "installer_arguments_policy -NotePropertyValue 'approved_empty'"
+        $content | Should -Match '\$null -ne \$installerExitCode'
+        $content | Should -Not -Match '\$errorMessage -match'
+        $content | Should -Not -Match 'promotion_required = true'
     }
 
     It 'keeps the final-step exception narrow and qualification-only' {
