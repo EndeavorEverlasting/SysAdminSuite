@@ -13,7 +13,7 @@ Observed live behavior:
 
 Exit code `0` therefore does not satisfy the package contract. Repeating the same hash-and-arguments invocation is forbidden.
 
-Production catalogs keep the package identity for historical and interactive-reference purposes, but `install_enabled` and `canonical_system_install_enabled` are false. This blocks:
+Production catalogs keep the package identity available for inventory, fixture validation, and non-mutating planning with `install_enabled = true`. Real worker generation remains blocked by `canonical_system_install_enabled = false`. This blocks live execution through:
 
 - the dedicated canonical AutoLogon deployment workflow;
 - the AutoLogon-only package set;
@@ -75,21 +75,23 @@ Do not enter speculative switches. A candidate argument must come from vendor do
 The live lane performs exactly this sequence:
 
 1. Require Northwell network posture.
-2. Resolve and hash the candidate from the approved share.
-3. Validate Authenticode when requested.
-4. Run a fresh narrow `kerberos_smb_task` transport preflight.
-5. Run the harmless SMB scheduled-task live cert.
-6. Capture a read-only AutoLogon baseline through a transient LocalSystem task.
-7. Verify task deletion, task absence, staging deletion, and zero remnants.
-8. Require a clean pilot baseline:
+2. Reject any share root not approved by the harness API before contacting it.
+3. Resolve the exact target FQDN to one canonical identity and one address.
+4. Resolve and hash the candidate from the approved share.
+5. Validate Authenticode when requested.
+6. Run a fresh narrow `kerberos_smb_task` transport preflight.
+7. Run the harmless SMB scheduled-task live cert.
+8. Capture a read-only AutoLogon baseline through a transient LocalSystem task and verify endpoint identity.
+9. Verify task deletion, task absence, staging deletion, and zero remnants.
+10. Require a clean pilot baseline:
    - AutoLogon status is `not_configured`;
    - no existing `NW AutoLogon Setup` uninstall entry is present.
-9. Re-run the canonical AutoLogon final-step host-eligibility and package gate using the qualification-only catalog.
-10. Execute one candidate through `Invoke-SasValidatedSoftwareDeployment.ps1 -Transport SmbScheduledTask`.
-11. Require source and target hashes, LocalSystem execution, result retrieval, package validation, and run-scoped teardown.
-12. Capture After state through the same transient SMB task boundary.
-13. Require the complete pre-reboot registry posture.
-14. Emit a result and, only on success, a qualification receipt.
+11. Re-run the canonical AutoLogon final-step host-eligibility and package gate using the qualification-only catalog.
+12. Execute one candidate through `Invoke-SasValidatedSoftwareDeployment.ps1 -Transport SmbScheduledTask`.
+13. Require source and target hashes, LocalSystem execution, exit code `0` or `3010`, result retrieval, package validation, and run-scoped teardown.
+14. Capture After state through the same transient SMB task boundary and re-verify endpoint identity.
+15. Require the complete pre-reboot registry posture.
+16. Emit a result and, only on success, a qualification receipt.
 
 The workflow does not reboot and does not automatically edit either production catalog.
 
@@ -152,7 +154,6 @@ The receipt records the exact candidate:
 Promotion is a separate bounded change. Review the operator-local receipt, then update both production catalogs with the exact qualified hash, version, and arguments. Only that promotion change may set:
 
 ```text
-install_enabled = true
 canonical_system_install_enabled = true
 canonical_system_qualification.status = qualified
 ```
