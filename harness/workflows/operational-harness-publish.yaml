@@ -1,0 +1,91 @@
+schema_version: sas-operational-harness-publish-workflow/v1
+workflow_id: operational-harness-publish
+mode: operator_execute
+network_activity: true
+target_network_activity: false
+target_mutation: false
+purpose: >-
+  Publish an already validated harness commit through the configured Git remote
+  and create or update one pull request. This workflow never contacts product
+  targets or changes product behavior.
+
+authorization:
+  operator_approval_required: true
+  allowed_network_scope:
+    - configured_git_remote
+    - repository_pull_request_api
+  forbidden_network_scope:
+    - product_targets
+    - software_shares
+    - survey_targets
+    - credential_collection
+
+inputs:
+  required:
+    - repository_root
+    - local_branch
+    - destination_remote
+    - destination_branch
+    - validated_commit_sha
+    - validation_results
+    - pull_request_title
+  optional:
+    - existing_pull_request
+    - pull_request_body
+
+preconditions:
+  - local working tree is clean or unrelated work is preserved
+  - validated_commit_sha resolves to local_branch
+  - operational harness completeness passed on validated_commit_sha
+  - repository text policy passed on the destination commit range
+  - git diff --check passed
+
+stages:
+  - id: verify
+    order: 1
+    actions:
+      - verify local branch and validated commit SHA
+      - verify configured destination remote without exposing credentials
+      - verify supplied validation results and proof ceiling
+    stop_conditions:
+      - operator approval absent
+      - commit moved after validation
+      - destination is ambiguous
+      - credentials would be written to output
+
+  - id: push
+    order: 2
+    actions:
+      - push local_branch to destination_remote without force
+      - preserve one writer per branch
+      - capture pushed commit SHA and remote ref
+    forbidden:
+      - force push
+      - deleting remote refs
+      - pushing generated evidence
+
+  - id: pull_request
+    order: 3
+    actions:
+      - open one pull request when none exists
+      - update the existing pull request when one is supplied
+      - include changed files, validation results, proof ceiling, and one next command
+      - capture pull request number and state
+
+  - id: handoff
+    order: 4
+    actions:
+      - report commit SHA, push state, and pull request state
+      - report skipped checks and unresolved review threads
+      - provide one exact next command
+
+outputs:
+  - pushed_commit_sha
+  - remote_ref
+  - pull_request_number
+  - pull_request_state
+  - operator_handoff
+
+proof_ceiling: >-
+  Git push and pull-request publication proof for an already validated harness
+  commit; no product target, deployment, application, or live-runtime proof.
