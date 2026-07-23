@@ -5,6 +5,8 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
 echo "[sas-harness] pre-commit: running static guardrails"
+python3 Tests/survey/test_operational_harness_completeness_contracts.py
+python3 scripts/check-repo-text-policy.py --cached
 python3 Tests/survey/test_local_harness_contracts.py
 python3 Tests/survey/test_probe_socket_access_contracts.py
 python3 Tests/survey/test_standard_corporate_tooling_contracts.py

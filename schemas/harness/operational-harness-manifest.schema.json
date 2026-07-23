@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.invalid/schemas/harness/operational-harness-manifest.schema.json",
+  "title": "SysAdminSuite operational harness manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "default_workflow",
+    "components",
+    "validation_commands",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-operational-harness-manifest/v1"
+    },
+    "repository": {
+      "const": "EndeavorEverlasting/SysAdminSuite"
+    },
+    "default_workflow": {
+      "type": "string",
+      "minLength": 1
+    },
+    "components": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "path", "required", "tracked", "purpose", "validation"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]+$"
+          },
+          "kind": {
+            "enum": [
+              "codebase_map",
+              "workflow",
+              "artifact_registry",
+              "validator",
+              "hook",
+              "hook_installer",
+              "skill",
+              "operator_report",
+              "handoff",
+              "run_context",
+              "schema",
+              "text_policy",
+              "ci"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "tracked": {
+            "type": "boolean"
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 8
+          },
+          "validation": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "validation_commands": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "proof_ceiling": {
+      "type": "string",
+      "minLength": 16
+    }
+  }
+}

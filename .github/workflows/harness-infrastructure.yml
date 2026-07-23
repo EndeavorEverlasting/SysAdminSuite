@@ -1,0 +1,224 @@
+name: Operational Harness Infrastructure
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - '.gitattributes'
+      - 'CODEBASE_MAP.md'
+      - '.githooks/**'
+      - 'scripts/install-local-harness-hooks.sh'
+      - 'scripts/check-repo-text-policy.py'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/workflows/operational-harness-maintenance.yaml'
+      - 'harness/workflows/operational-harness-publish.yaml'
+      - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'docs/HARNESS_STATUS.md'
+      - 'Tests/survey/test_operational_harness_completeness_contracts.py'
+      - 'Tests/survey/test_local_harness_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/harness-infrastructure.yml'
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'refactor/**', 'docs/**', 'harness/**']
+    paths:
+      - '.gitattributes'
+      - 'CODEBASE_MAP.md'
+      - '.githooks/**'
+      - 'scripts/install-local-harness-hooks.sh'
+      - 'scripts/check-repo-text-policy.py'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/workflows/operational-harness-maintenance.yaml'
+      - 'harness/workflows/operational-harness-publish.yaml'
+      - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'docs/HARNESS_STATUS.md'
+      - 'Tests/survey/test_operational_harness_completeness_contracts.py'
+      - 'Tests/survey/test_local_harness_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/harness-infrastructure.yml'
+  workflow_dispatch:
+
+jobs:
+  completeness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install schema dependency
+        run: python -m pip install jsonschema
+
+      - name: Compile harness validators
+        run: >-
+          python -m py_compile
+          Tests/survey/test_operational_harness_completeness_contracts.py
+          Tests/survey/test_local_harness_contracts.py
+          scripts/check-repo-text-policy.py
+
+      - name: Validate operational harness manifest schema
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import jsonschema
+          manifest = json.loads(Path('harness/api/operational-harness-manifest.json').read_text(encoding='utf-8'))
+          schema = json.loads(Path('schemas/harness/operational-harness-manifest.schema.json').read_text(encoding='utf-8'))
+          jsonschema.Draft202012Validator(schema).validate(manifest)
+          print('PASS: operational harness manifest schema')
+          PY
+
+      - name: Run harness completeness contracts
+        run: python Tests/survey/test_operational_harness_completeness_contracts.py
+
+      - name: Run existing local harness contracts
+        run: python Tests/survey/test_local_harness_contracts.py
+
+      - name: Check changed Git text blobs
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            python scripts/check-repo-text-policy.py --range "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+          else
+            before="${{ github.event.before }}"
+            if [[ "$before" =~ ^0+$ ]]; then
+              python scripts/check-repo-text-policy.py --commit HEAD
+            else
+              python scripts/check-repo-text-policy.py --range "$before" "${{ github.sha }}"
+            fi
+          fi
+
+      - name: Parse hook and runner shell surfaces
+        run: bash -n .githooks/pre-commit .githooks/pre-push scripts/install-local-harness-hooks.sh tests/survey/run_offline_survey_tests.sh
+
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              git diff --check HEAD^ HEAD
+            else
+              git show --check --oneline --no-renames HEAD
+            fi
+          else
+            git diff --check "$before" "${{ github.sha }}"
+          fi
+
+  windows-sprint-capsule:
+    runs-on: windows-latest
+    steps:
+      - name: Quiet shallow checkout
+        shell: pwsh
+        run: |
+          git init . | Out-Null
+          git remote add origin https://github.com/EndeavorEverlasting/SysAdminSuite.git
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            $ref = 'refs/pull/${{ github.event.pull_request.number }}/merge'
+          } else {
+            $ref = '${{ github.sha }}'
+          }
+          git -c protocol.version=2 fetch --quiet --depth=2 origin $ref
+          git checkout --quiet FETCH_HEAD
+          Write-Host "Checked out $(git rev-parse HEAD)"
+
+      - name: Prove checkout is clean
+        shell: pwsh
+        run: |
+          $status = @(git status --porcelain=v1 --untracked-files=all)
+          if ($status.Count -gt 0) {
+            throw "Checkout is dirty before validation: $($status -join '; ')"
+          }
+          Write-Host 'PASS: checkout is clean before validation'
+
+      - name: Run AI layer validator quietly
+        shell: pwsh
+        run: |
+          $output = @(& pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1 2>&1 | ForEach-Object { $_.ToString() })
+          if ($LASTEXITCODE -ne 0) {
+            $output | Write-Host
+            throw "AI layer validator failed with exit code $LASTEXITCODE"
+          }
+          Write-Host "PASS: AI layer validator ($($output.Count) output lines suppressed)"
+
+      - name: Prove validator leaves a clean worktree
+        shell: pwsh
+        run: |
+          $status = @(git status --porcelain=v1 --untracked-files=all)
+          if ($status.Count -gt 0) {
+            throw "AI layer validator left repository changes: $($status -join '; ')"
+          }
+          Write-Host 'PASS: AI layer validator left a clean worktree'
+
+      - name: Install Pester 5 quietly
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck | Out-Null
+
+      - name: Run focused Sprint Capsule Pester contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\SprintCapsule.Tests.ps1
+
+      - name: Capture full Pester diagnostic
+        id: full-pester
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .\_out -Force | Out-Null
+          $summaryPath = '.\_out\pester-full-summary.txt'
+          $output = @(& pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester 2>&1 | ForEach-Object { $_.ToString() })
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) {
+            $start = -1
+            for ($i = 0; $i -lt $output.Count; $i++) {
+              if ($output[$i] -match 'PESTER FAILURE SUMMARY') {
+                $start = $i
+                break
+              }
+            }
+            if ($start -ge 0) {
+              $summary = @($output[$start..($output.Count - 1)])
+            }
+            else {
+              $summary = @($output | Select-Object -Last 120)
+            }
+            $summary | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+            $failed = 'true'
+          }
+          else {
+            "PASS: full Pester suite ($($output.Count) output lines suppressed)" | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+            $failed = 'false'
+          }
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "failed=$failed`n", [Text.UTF8Encoding]::new($false))
+          Get-Content -LiteralPath $summaryPath | Write-Host
+          exit 0
+
+      - name: Upload full Pester diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operational-harness-full-pester-summary
+          path: _out/pester-full-summary.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce full Pester result
+        if: steps.full-pester.outputs.failed == 'true'
+        shell: pwsh
+        run: |
+          Get-Content -LiteralPath .\_out\pester-full-summary.txt | Write-Host
+          throw 'Full Pester suite failed. Review operational-harness-full-pester-summary.'

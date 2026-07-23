@@ -1,3 +1,44 @@
+# Repository text classification: normalize changed Git blobs without forcing Windows checkout rewrites.
+
+# Windows command launchers are text. Their stored Git blobs must use LF;
+# checkout endings remain controlled by the operator's existing Git configuration.
+*.cmd text
+*.bat text
+
+# Four legacy CRLF CMD blobs are preserved byte-for-byte until product work
+# legitimately touches them. The Git-blob validator still rejects CRLF when
+# any of these paths appears in a changed commit.
+Run-CybernetComPortQrPack.cmd -text
+Run-FieldHotfixesGui.cmd -text
+Start-CybernetSurveyTutorial.cmd -text
+survey/sas-reg-query.cmd -text
+
+# Shell and fixture surfaces must remain LF on every platform.
 *.sh text eol=lf
+*.bash text eol=lf
 *.fixture text eol=lf
+
+# Preserve the existing digest-sensitive AutoLogon fixture contract exactly.
 Tests/Fixtures/autologon-result-inspector/deployment-success/artifacts/autologon_proof_source_evidence.json text eol=lf
+
+# Parser-facing JSONL is always treated as text, but retains platform checkout behavior.
+*.jsonl text
+
+# PowerShell, data, documentation, and other text formats retain the repository's existing checkout behavior.
+# Canonical LF storage for changed text blobs is enforced by scripts/check-repo-text-policy.py.
+
+# Binary artifacts must never be line-ending normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.7z binary
+*.exe binary
+*.dll binary
+*.msi binary
+*.pcap binary
+*.pcapng binary
+*.evtx binary

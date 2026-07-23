@@ -1,0 +1,85 @@
+{
+  "schema_version": "sas-harness-artifact-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "naming": {
+    "run_id": "<workflow>-<utc-YYYYMMDD-HHMMSS>-<8hex>",
+    "generated_root": "survey/output/<workflow>/<run_id>/",
+    "tracked_documents": "stable names under docs/, harness/, schemas/, Tests/, scripts/, or tools/"
+  },
+  "artifacts": [
+    {
+      "id": "operational-harness-manifest",
+      "path": "harness/api/operational-harness-manifest.json",
+      "generator": "maintained with harness infrastructure changes",
+      "format": "json",
+      "tracked": true,
+      "contains_live_data": false,
+      "purpose": "Machine-readable inventory of required harness components and validation commands."
+    },
+    {
+      "id": "harness-status-report",
+      "path": "docs/HARNESS_STATUS.md",
+      "generator": "maintained from completeness-validator evidence",
+      "format": "markdown",
+      "tracked": true,
+      "contains_live_data": false,
+      "purpose": "Human-readable statement of working components, known gaps, and proof ceilings."
+    },
+    {
+      "id": "harness-completeness-result",
+      "path": "console output or CI log from Tests/survey/test_operational_harness_completeness_contracts.py",
+      "generator": "python Tests/survey/test_operational_harness_completeness_contracts.py",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Pass/fail proof that required harness components exist, are tracked, and are wired together."
+    },
+    {
+      "id": "repository-text-policy-result",
+      "path": "console output or CI log from scripts/check-repo-text-policy.py",
+      "generator": "python scripts/check-repo-text-policy.py --range <base> <head>",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Proof that changed text blobs use normalized LF storage and contain no trailing whitespace."
+    },
+    {
+      "id": "local-harness-proof",
+      "path": "survey/output/harness-validator/harness-proof-*/",
+      "generator": "pwsh -NoProfile -File scripts/validate-sysadmin-harness.ps1",
+      "format": "directory",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Ignored local run context, registry, English report, summary, and handoff for synthetic harness proof."
+    },
+    {
+      "id": "run-artifact-registry",
+      "path": "survey/output/<workflow>/<run_id>/artifact_registry.json",
+      "generator": "scripts/SasRunContext.psm1",
+      "format": "json",
+      "tracked": false,
+      "contains_live_data": "workflow-dependent",
+      "purpose": "Per-run inventory of source, generated, evidence, report, and handoff artifacts."
+    },
+    {
+      "id": "operator-handoff",
+      "path": "survey/output/<workflow>/<run_id>/operator_handoff.txt",
+      "generator": "workflow-specific runner or tools/New-SasSprintCapsule.ps1",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": "workflow-dependent",
+      "parser_facing": false,
+      "consumption": "clean local pipe and direct human review",
+      "purpose": "Clean local text handoff containing the human-readable next action, proof ceiling, failures, and artifact locations; it is not parser-facing evidence."
+    },
+    {
+      "id": "sprint-capsule",
+      "path": "survey/output/<workflow>/<run_id>/review/sprint-capsule.*",
+      "generator": "tools/New-SasSprintCapsule.ps1",
+      "format": "json and markdown",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Compressed next-agent handoff with repo, branch, scope, validation, Git state, and next command."
+    }
+  ]
+}
