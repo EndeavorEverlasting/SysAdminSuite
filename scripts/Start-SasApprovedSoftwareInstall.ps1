@@ -239,6 +239,10 @@ function Assert-SasPackageLiveReady {
     )
 
     $null = Assert-SasPackagePlanReady -Package $Package
+    $canonicalSystemFlag = $Package.PSObject.Properties['canonical_system_install_enabled']
+    if ($null -ne $canonicalSystemFlag -and -not [bool]$canonicalSystemFlag.Value) {
+        throw "Live installation of '$($Package.display_name)' is blocked because canonical_system_install_enabled is false. Complete and promote canonical SYSTEM qualification before worker generation."
+    }
     if ([bool]$Package.requires_validated_installer_arguments -and $Arguments.Count -eq 0) {
         throw "Live installation of '$($Package.display_name)' requires explicit vendor-validated installer arguments. No arguments are cataloged or supplied."
     }
