@@ -1,5 +1,4 @@
-# Repository text policy: normalize text to LF in Git, with checkout endings explicit only where execution requires them.
-* text=auto
+# Repository checkout policy: keep explicit EOL rules narrow and let existing platform behavior stand elsewhere.
 
 # Windows command launchers are stored as LF in Git and checked out as CRLF.
 *.cmd text eol=crlf
@@ -13,7 +12,8 @@
 # Parser-facing JSONL is always treated as text, but retains platform checkout behavior.
 *.jsonl text
 
-# PowerShell, data, documentation, and other text formats use Git's platform checkout behavior while remaining normalized in the repository.
+# PowerShell, data, documentation, and other text formats retain the repository's existing checkout behavior.
+# Canonical LF storage for changed text blobs is enforced by scripts/check-repo-text-policy.py.
 
 # Binary artifacts must never be line-ending normalized.
 *.png binary
