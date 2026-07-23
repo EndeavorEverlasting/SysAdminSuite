@@ -118,3 +118,36 @@ jobs:
           else
             git diff --check "$before" "${{ github.sha }}"
           fi
+
+  windows-sprint-capsule:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run AI layer validator
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
+
+      - name: Prove validator leaves a clean worktree
+        shell: pwsh
+        run: |
+          $status = @(git status --porcelain=v1 --untracked-files=all)
+          if ($status.Count -gt 0) {
+            Write-Host 'AI layer validator left repository changes:'
+            $status | ForEach-Object { Write-Host $_ }
+            git diff --stat
+            throw 'AI layer validator must leave a clean worktree before Sprint Capsule proof.'
+          }
+          Write-Host 'PASS: AI layer validator left a clean worktree'
+
+      - name: Run focused Sprint Capsule Pester contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\SprintCapsule.Tests.ps1
