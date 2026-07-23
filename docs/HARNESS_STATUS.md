@@ -8,9 +8,10 @@ The repository has an operational harness floor for fresh-agent intake, task rou
 
 - **Repository orientation:** `AGENTS.md` defines governance and `CODEBASE_MAP.md` routes agents to the smallest relevant surface.
 - **Workflow selection:** scoped skills and machine-readable routing manifests distinguish repository, validation, field, survey, package, workstation, and AutoLogon work.
+- **Local/remote boundary:** `harness/workflows/operational-harness-maintenance.yaml` remains network-free; operator-approved Git push and pull-request publication are isolated in `harness/workflows/operational-harness-publish.yaml`.
 - **Run context and artifacts:** `scripts/SasRunContext.psm1` creates bounded run roots, per-run artifact registries, reports, review paths, and operator handoffs.
 - **Validation:** dependency-free Python contracts, Pester suites, Bash syntax checks, schemas, manifests, dedicated workflows, and default E2E profiles are available.
-- **Hooks:** `.githooks/pre-commit` blocks generated/private evidence and runs focused contracts; `.githooks/pre-push` runs the offline harness floor.
+- **Hooks:** `.githooks/pre-commit` blocks generated/private evidence and runs focused contracts; `.githooks/pre-push` runs the offline harness floor and validates commits against the actual destination ref.
 - **Reports and handoff:** English report renderers and `tools/New-SasSprintCapsule.ps1` provide human summaries and compressed handoffs.
 - **Repository text policy:** `.gitattributes` normalizes text to LF in Git while allowing Windows CMD/BAT launchers to check out as CRLF. PowerShell, data, and documentation retain the repository's existing platform checkout behavior. `scripts/check-repo-text-policy.py` verifies changed Git blobs rather than misclassifying checkout carriage returns as trailing whitespace.
 
