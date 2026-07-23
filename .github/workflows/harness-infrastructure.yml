@@ -136,18 +136,30 @@ jobs:
           git checkout --quiet FETCH_HEAD
           Write-Host "Checked out $(git rev-parse HEAD)"
 
-      - name: Run AI layer validator
+      - name: Prove checkout is clean
         shell: pwsh
-        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1
+        run: |
+          $status = @(git status --porcelain=v1 --untracked-files=all)
+          if ($status.Count -gt 0) {
+            throw "Checkout is dirty before validation: $($status -join '; ')"
+          }
+          Write-Host 'PASS: checkout is clean before validation'
+
+      - name: Run AI layer validator quietly
+        shell: pwsh
+        run: |
+          $output = @(& pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-ai-layer.ps1 2>&1 | ForEach-Object { $_.ToString() })
+          if ($LASTEXITCODE -ne 0) {
+            $output | Write-Host
+            throw "AI layer validator failed with exit code $LASTEXITCODE"
+          }
+          Write-Host "PASS: AI layer validator ($($output.Count) output lines suppressed)"
 
       - name: Prove validator leaves a clean worktree
         shell: pwsh
         run: |
           $status = @(git status --porcelain=v1 --untracked-files=all)
           if ($status.Count -gt 0) {
-            Write-Host 'AI layer validator left repository changes:'
-            $status | ForEach-Object { Write-Host $_ }
-            git diff --stat
             throw "AI layer validator left repository changes: $($status -join '; ')"
           }
           Write-Host 'PASS: AI layer validator left a clean worktree'
