@@ -84,7 +84,18 @@
       "installer_arguments_policy": "approved_empty",
       "installer_arguments_reference": "configs/software-packages/windows-native-package-sets.json#autologon",
       "install_enabled": true,
-      "readiness": "installer_and_no_arguments_confirmed",
+      "canonical_system_install_enabled": false,
+      "canonical_system_qualification": {
+        "status": "failed_runtime_validation",
+        "policy_reference": "configs/software-packages/autologon-system-qualification.json",
+        "blocked_invocation": "pinned executable as LocalSystem with no arguments",
+        "blocked_reason": "Installer returned 0 but did not establish AutoAdminLogon=1.",
+        "qualified_installer_sha256": null,
+        "qualified_package_version": null,
+        "qualified_installer_arguments": null,
+        "qualification_receipt_reference": null
+      },
+      "readiness": "canonical_system_qualification_required",
       "acceptance": {
         "application_process_names": [],
         "application_window_title_pattern": null,
@@ -95,7 +106,7 @@
         "require_current_session_match": true,
         "require_reboot_after_before_snapshot": true
       },
-      "notes": "The approved invocation runs the pinned executable elevated with no arguments. Acceptance checks Winlogon configuration, password-value-name presence, current session identity, and reboot evidence without reading DefaultPassword data."
+      "notes": "Interactive elevated execution remains a separate operator-authorized path, but canonical LocalSystem deployment is blocked. The no-argument EXE returned 0 without setting AutoAdminLogon=1. Use Qualify-AutoLogonSystemPackage.cmd with a materially different, evidence-backed version or switch; promote the exact SHA-256, version, and arguments only after a controlled SYSTEM pilot succeeds."
     }
   ]
 }
