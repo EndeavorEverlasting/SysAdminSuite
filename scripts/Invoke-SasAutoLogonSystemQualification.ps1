@@ -88,6 +88,59 @@ function Resolve-SasQualificationInputPath {
     return $candidate
 }
 
+function Resolve-SasQualificationApprovedShareRoot {
+    param(
+        [Parameter(Mandatory = $true)][string]$ShareRoot,
+        [Parameter(Mandatory = $true)][string]$RepoRoot
+    )
+    $normalized = $ShareRoot.Trim().Replace('/', '\')
+    if ($normalized -notmatch '^\\\\[^\\]+\\?$') { throw 'software_share_root must be a UNC server root.' }
+    $normalized = $normalized.TrimEnd('\') + '\'
+
+    $manifestPath = Join-Path $RepoRoot 'harness\api\sas-harness-api.json'
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $approvedRoots = @($manifest.posture.approved_software_sources | ForEach-Object {
+        ([string]$_).Trim().Replace('/', '\').TrimEnd('\') + '\'
+    } | Sort-Object -Unique)
+    if (@($approvedRoots | Where-Object {
+        $_.Equals($normalized, [StringComparison]::OrdinalIgnoreCase)
+    }).Count -ne 1) {
+        throw "software_share_root is not approved by the harness API: $normalized"
+    }
+    return $normalized
+}
+
+function Resolve-SasQualificationTargetIdentity {
+    param([Parameter(Mandatory = $true)][string]$TargetFqdn)
+    $resolution = Resolve-SasCanonicalTargetFqdn -TargetName $TargetFqdn
+    if (-not ([string]$resolution.fqdn).Equals(
+        $TargetFqdn.Trim().TrimEnd('.'),
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw 'DNS returned a canonical target identity that differs from the approved FQDN.'
+    }
+    if (@($resolution.addresses).Count -ne 1) {
+        throw 'The approved FQDN must resolve to exactly one target address for this one-target qualification.'
+    }
+    return $resolution
+}
+
+function Test-SasQualificationSnapshotIdentity {
+    param(
+        $Snapshot,
+        [Parameter(Mandatory = $true)]$TargetResolution
+    )
+    if ($null -eq $Snapshot) { return $false }
+    $expectedShort = [string]$TargetResolution.short_name
+    $observedShort = [string]$Snapshot.computer_name
+    $requestedTarget = [string]$Snapshot.requested_target
+    return ($observedShort.Equals($expectedShort, [StringComparison]::OrdinalIgnoreCase) -and
+        $requestedTarget.Trim().TrimEnd('.').Equals(
+            [string]$TargetResolution.fqdn,
+            [StringComparison]::OrdinalIgnoreCase
+        ))
+}
+
 function Read-SasQualificationRequest {
     param([Parameter(Mandatory = $true)][string]$Path)
     try { $request = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json }
@@ -191,11 +244,13 @@ $liveCertScript = Join-Path $PSScriptRoot 'Invoke-SasSoftwareDeploymentTransport
 $validatedDeploymentScript = Join-Path $PSScriptRoot 'Invoke-SasValidatedSoftwareDeployment.ps1'
 $finalGateScript = Join-Path $PSScriptRoot 'Invoke-SasAutoLogonFinalStepGate.ps1'
 $networkGuardModule = Join-Path $PSScriptRoot 'SasNetworkGuard.psm1'
+$targetResolutionModule = Join-Path $PSScriptRoot 'SasTargetNameResolution.psm1'
 $approvedAppsPath = Join-Path $repoRoot 'configs\software-packages\autologon-system-qualification-catalog.json'
-foreach ($requiredPath in @($policyPath,$stateModulePath,$preflightScript,$liveCertScript,$validatedDeploymentScript,$finalGateScript,$networkGuardModule,$approvedAppsPath)) {
+foreach ($requiredPath in @($policyPath,$stateModulePath,$preflightScript,$liveCertScript,$validatedDeploymentScript,$finalGateScript,$networkGuardModule,$targetResolutionModule,$approvedAppsPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) { throw "Missing qualification dependency: $requiredPath" }
 }
 Import-Module $stateModulePath -Force
+Import-Module $targetResolutionModule -Force
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $repoRoot 'survey\output\runs\autologon-system-qualification'
@@ -309,6 +364,9 @@ if ([string]::IsNullOrWhiteSpace($QualificationRequestPath)) {
 }
 $QualificationRequestPath = Resolve-SasQualificationInputPath -Path $QualificationRequestPath -RepoRoot $repoRoot
 $request = Read-SasQualificationRequest -Path $QualificationRequestPath
+$approvedSourceRoot = Resolve-SasQualificationApprovedShareRoot `
+    -ShareRoot ([string]$request.software_share_root) `
+    -RepoRoot $repoRoot
 
 if ($Action -eq 'Plan') {
     $plan = [pscustomobject][ordered]@{
@@ -384,12 +442,22 @@ $collectorCleanupVerified = $false
 $sourceHashVerified = $false
 $signatureStatus = 'not_required'
 $target = [string]$request.target_fqdn
+$targetResolution = $null
+$targetResolutionPath = $null
+$failureClassification = 'QUALIFICATION_FAILED'
 
 try {
     Import-Module $networkGuardModule -Force
     Assert-SasNorthwellWifi
 
-    $sourceRoot = ([string]$request.software_share_root).Trim().Replace('/', '\').TrimEnd('\') + '\'
+    $failureClassification = 'QUALIFICATION_TRANSPORT_BLOCKED'
+    $targetResolution = Resolve-SasQualificationTargetIdentity -TargetFqdn $target
+    $target = [string]$targetResolution.fqdn
+    $targetResolutionPath = Join-Path $evidenceRoot 'target_resolution.json'
+    Write-SasQualificationJson -Path $targetResolutionPath -Value $targetResolution
+
+    $failureClassification = 'QUALIFICATION_SOURCE_BLOCKED'
+    $sourceRoot = $approvedSourceRoot
     $installerPath = $sourceRoot + ([string]$request.installer_relative_path).Trim().Replace('/', '\').TrimStart('\')
     if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) { throw "Qualification candidate not found: $installerPath" }
     $observedHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -405,6 +473,7 @@ try {
         }
     }
 
+    $failureClassification = 'QUALIFICATION_TRANSPORT_BLOCKED'
     $preflight = & $preflightScript -ComputerName $target -AllowNetworkActivity -TransportIntent kerberos_smb_task `
         -OutputRoot (Join-Path $runRoot 'preflight') -PassThru
     $preflightPath = [string]$preflight.result_path
@@ -420,6 +489,7 @@ try {
         throw "Qualification transport live cert failed: $($liveCert.disposition) / $($liveCert.lifecycle_status)"
     }
 
+    $failureClassification = 'QUALIFICATION_BASELINE_FAILED'
     $baseline = Invoke-SasAutoLogonSmbStateCapture -ComputerName $target -RunId $stateRunId -Phase baseline `
         -PreflightResultPath $preflightPath -LocalRunRoot (Join-Path $evidenceRoot 'baseline') `
         -AllowNetworkActivity -AllowTargetMutation -PreflightMaxAgeMinutes $PreflightMaxAgeMinutes `
@@ -430,8 +500,12 @@ try {
         Write-SasQualificationJson -Path $baselinePath -Value $baseline.snapshot
     }
     if (-not (Test-SasQualificationCaptureComplete -Lifecycle $baseline)) { throw "Qualification baseline capture or cleanup failed: $($baseline.status). $($baseline.error)" }
+    if (-not (Test-SasQualificationSnapshotIdentity -Snapshot $baseline.snapshot -TargetResolution $targetResolution)) {
+        throw 'Qualification baseline was returned by a different endpoint identity than the approved target.'
+    }
     $collectorCleanupVerified = $true
     if (-not (Test-SasQualificationCleanBaseline -Snapshot $baseline.snapshot)) {
+        $failureClassification = 'QUALIFICATION_BLOCKED_DIRTY_BASELINE'
         throw 'Qualification requires a clean baseline: AutoLogon not configured and no existing NW AutoLogon Setup uninstall entry. Use a fresh or explicitly reset pilot.'
     }
 
@@ -444,6 +518,7 @@ try {
     $beforeManifestPath = Join-Path $actionsRoot 'qualification_before_manifest.json'
     Write-SasQualificationJson -Path $beforeManifestPath -Value $beforeManifest
     $gateOutputRoot = Join-Path $evidenceRoot 'final-gate'
+    $failureClassification = 'QUALIFICATION_FINAL_GATE_BLOCKED'
     $gate = & $finalGateScript -Target $target -RunId $gateRunId -BeforeSnapshotPath $beforeManifestPath `
         -ApprovedAppsPath $approvedAppsPath -OutputRoot $gateOutputRoot -ExecContext remote `
         -TechnicianLabel "AutoLogon SYSTEM qualification $qualificationRunId"
@@ -485,9 +560,13 @@ try {
         $validatedRequest | Add-Member -NotePropertyName require_valid_signature -NotePropertyValue $true
         $validatedRequest | Add-Member -NotePropertyName expected_signer_thumbprint -NotePropertyValue ([string]$request.signature.expected_signer_thumbprint).ToUpperInvariant()
     }
+    if (@($validatedRequest.installer_arguments).Count -eq 0) {
+        $validatedRequest | Add-Member -NotePropertyName installer_arguments_policy -NotePropertyValue 'approved_empty'
+    }
     $validatedRequestPath = Join-Path $actionsRoot 'validated_system_qualification_request.json'
     Write-SasQualificationJson -Path $validatedRequestPath -Value $validatedRequest
 
+    $failureClassification = 'QUALIFICATION_DEPLOYMENT_FAILED'
     try {
         $deployment = & $validatedDeploymentScript -RequestPath $validatedRequestPath `
             -OutputRoot (Join-Path $runRoot 'deployment') -Transport SmbScheduledTask `
@@ -498,7 +577,12 @@ try {
         $errorMessage = $_.Exception.Message
         $candidate = @(Get-ChildItem -LiteralPath (Join-Path $runRoot 'deployment') -Filter 'validated_deployment_result.json' -File -Recurse -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1)
-        if ($candidate.Count -gt 0) { $deployment = Get-Content -LiteralPath $candidate[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json }
+        if ($candidate.Count -gt 0) {
+            $deployment = Get-Content -LiteralPath $candidate[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        }
+        else {
+            throw
+        }
     }
 
     $deploymentResultFile = @(Get-ChildItem -LiteralPath (Join-Path $runRoot 'deployment') -Filter 'validated_deployment_result.json' -File -Recurse -ErrorAction SilentlyContinue |
@@ -512,6 +596,7 @@ try {
         $deploymentCleanupVerified = ([int]$installSummary.cleanup_failure_count -eq 0 -and [int]$installSummary.repo_artifact_remaining_count -eq 0)
     }
 
+    $failureClassification = 'QUALIFICATION_POSTCONDITION_FAILED'
     $after = Invoke-SasAutoLogonSmbStateCapture -ComputerName $target -RunId $stateRunId -Phase after `
         -PreflightResultPath $preflightPath -LocalRunRoot (Join-Path $evidenceRoot 'after') `
         -AllowNetworkActivity -AllowTargetMutation -PreflightMaxAgeMinutes $PreflightMaxAgeMinutes `
@@ -522,12 +607,16 @@ try {
         Write-SasQualificationJson -Path $afterPath -Value $after.snapshot
     }
     $collectorCleanupVerified = ($collectorCleanupVerified -and (Test-SasQualificationCaptureComplete -Lifecycle $after))
+    if (-not (Test-SasQualificationSnapshotIdentity -Snapshot $after.snapshot -TargetResolution $targetResolution)) {
+        throw 'Qualification After state was returned by a different endpoint identity than the approved target.'
+    }
     if (-not $collectorCleanupVerified -or -not $deploymentCleanupVerified) {
         $classification = 'QUALIFICATION_CLEANUP_REVIEW_REQUIRED'
     }
     else {
         $post = $after.snapshot.autologon
         $qualified = ($deployment -and [bool]$deployment.deployment_complete -and
+            $null -ne $installerExitCode -and [int]$installerExitCode -in @(0, 3010) -and
             [string]$post.postinstall_set_autologon -eq 'Autologon_YES' -and [string]$post.auto_admin_logon -eq '1' -and
             [bool]$post.default_password_present -and [bool]$post.expected_user_match -and [string]$post.status -eq 'autologon_ready')
         if ($qualified) { $classification = 'QUALIFIED_FOR_CANONICAL_SYSTEM' }
@@ -537,12 +626,7 @@ try {
 catch {
     if (-not $errorMessage) { $errorMessage = $_.Exception.Message }
     if ($classification -eq 'QUALIFICATION_FAILED') {
-        $classification = if ($errorMessage -match 'identical') { 'QUALIFICATION_BLOCKED_IDENTICAL_FAILED_CANDIDATE' }
-            elseif ($errorMessage -match 'clean baseline') { 'QUALIFICATION_BLOCKED_DIRTY_BASELINE' }
-            elseif ($errorMessage -match 'preflight|live cert|ADMIN\$|C\$') { 'QUALIFICATION_TRANSPORT_BLOCKED' }
-            elseif ($errorMessage -match 'cleanup|remnant|teardown') { 'QUALIFICATION_CLEANUP_REVIEW_REQUIRED' }
-            elseif ($errorMessage -match 'final-step gate') { 'QUALIFICATION_FINAL_GATE_BLOCKED' }
-            else { 'QUALIFICATION_FAILED' }
+        $classification = $failureClassification
     }
 }
 
@@ -555,6 +639,7 @@ $result = [pscustomobject][ordered]@{
     candidate_id = [string]$request.candidate_id
     package_version = [string]$request.package_version
     target = $target
+    target_resolution_path = $targetResolutionPath
     candidate_sha256 = ([string]$request.installer_sha256).ToLowerInvariant()
     candidate_arguments = @($request.installer_arguments)
     candidate_arguments_reference = [string]$request.installer_arguments_reference
@@ -604,10 +689,10 @@ if ($classification -eq 'QUALIFIED_FOR_CANONICAL_SYSTEM') {
         expected_user_match = $result.postcondition_expected_user_match
         cleanup_verified = ($result.collector_cleanup_verified -and $result.deployment_cleanup_verified)
         canonical_catalog_promoted = $false
-        promotion_required = true
+        promotion_required = $true
         promotion_instruction = 'Review this operator-local receipt, then commit the exact qualified SHA-256, version, and arguments in a separate bounded catalog-promotion PR.'
-        reboot_observed = false
-        automatic_sign_in_observed = false
+        reboot_observed = $false
+        automatic_sign_in_observed = $false
     }
     Write-SasQualificationJson -Path $receiptPath -Value $receipt
 }
