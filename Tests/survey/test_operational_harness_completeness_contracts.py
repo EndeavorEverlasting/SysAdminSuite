@@ -146,10 +146,7 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
         "*.bat text eol=crlf",
         "*.ps1 text eol=crlf",
         "*.sh text eol=lf",
-        "*.py text eol=lf",
-        "*.json text eol=lf",
-        "*.yaml text eol=lf",
-        "*.md text eol=lf",
+        "*.fixture text eol=lf",
         "*.pcap binary",
     ):
         assert marker in attributes, f"line-ending policy missing: {marker}"
@@ -161,6 +158,10 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
     sh_attr = git("check-attr", "text", "eol", "--", "tests/survey/run_offline_survey_tests.sh")
     assert sh_attr.returncode == 0
     assert "eol: lf" in sh_attr.stdout
+    json_attr = git("check-attr", "text", "eol", "--", "Config/cybernet-naabu-profiles.json")
+    assert json_attr.returncode == 0
+    assert "text: auto" in json_attr.stdout
+    assert "eol: unspecified" in json_attr.stdout
 
     validator = read(TEXT_VALIDATOR)
     for marker in (
