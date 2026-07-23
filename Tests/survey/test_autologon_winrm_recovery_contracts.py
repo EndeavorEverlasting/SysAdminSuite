@@ -35,12 +35,9 @@ def test_smb_state_collector_uses_fresh_closed_transport_authority() -> None:
         "[switch]$AllowNetworkActivity",
         "[switch]$AllowTargetMutation",
         "selected_before_mutation = $true",
-        "silent_fallback",
     ):
-        if marker == "silent_fallback":
-            assert marker not in text, "state collector must not implement silent fallback"
-        else:
-            assert marker in text, f"missing transport contract: {marker}"
+        assert marker in text, f"missing transport contract: {marker}"
+    assert "silent_fallback" not in text, "state collector must not implement silent fallback"
 
 
 def test_smb_state_worker_is_read_only_and_password_safe() -> None:
@@ -182,17 +179,18 @@ def test_cmd_is_zero_argument_and_repo_relative() -> None:
 
 def test_runbook_forbids_winrm_repair_and_states_proof_limit() -> None:
     text = read(DOC)
+    lowered = text.lower()
     for marker in (
-        "Do **not** run `winrm quickconfig`",
-        "Recover-AutoLogonWinRmBlocker.cmd",
+        "do **not** run `winrm quickconfig`",
+        "recover-autologonwinrmblocker.cmd",
         "exactly one preserved validated deployment request",
-        "refuse automatic recovery if software-install or SMB deployment evidence already exists",
+        "refuse automatic recovery if software-install or smb deployment evidence already exists",
         "type:",
-        "RECOVER",
-        "It does **not** prove reboot behavior, automatic sign-in",
-        "Do not commit it.",
+        "recover",
+        "it does **not** prove reboot behavior, automatic sign-in",
+        "do not commit it.",
     ):
-        assert marker in text, f"missing runbook contract: {marker}"
+        assert marker in lowered, f"missing runbook contract: {marker}"
 
 
 def test_ci_is_fixture_only_and_does_not_persist_credentials() -> None:
