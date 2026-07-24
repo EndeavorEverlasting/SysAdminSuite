@@ -11,6 +11,10 @@ MANIFEST = ROOT / "harness/api/operational-harness-manifest.json"
 VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
 COMMANDS = ROOT / "harness/api/harness-command-registry.json"
 ARTIFACTS = ROOT / "harness/api/harness-artifact-registry.json"
+MANIFEST_SCHEMA = ROOT / "schemas/harness/operational-harness-manifest.schema.json"
+VALIDATOR_SCHEMA = ROOT / "schemas/harness/harness-validator-registry.schema.json"
+COMMAND_SCHEMA = ROOT / "schemas/harness/harness-command-registry.schema.json"
+ARTIFACT_SCHEMA = ROOT / "schemas/harness/harness-artifact-registry.schema.json"
 FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
 SKILL = ROOT / ".claude/skills/harness-maintenance/SKILL.md"
 STATUS = ROOT / "docs/HARNESS_STATUS.md"
@@ -53,6 +57,21 @@ def test_manifest_components() -> None:
         if component.get("tracked", False):
             assert tracked(path), f"manifest component is not tracked: {path}"
         assert str(component.get("validation", "")).strip(), f"component missing validation: {component['id']}"
+
+
+def test_registry_schema_authorities() -> None:
+    expected = {
+        MANIFEST_SCHEMA: "sas-operational-harness-manifest/v1",
+        COMMAND_SCHEMA: "sas-harness-command-registry/v1",
+        VALIDATOR_SCHEMA: "sas-harness-validator-registry/v1",
+        ARTIFACT_SCHEMA: "sas-harness-artifact-registry/v1",
+    }
+    for path, version in expected.items():
+        schema = load(path)
+        assert schema["$schema"].endswith("draft/2020-12/schema"), f"schema draft mismatch: {path.name}"
+        assert schema["properties"]["schema_version"]["const"] == version, f"schema version mismatch: {path.name}"
+        relative = path.relative_to(ROOT).as_posix()
+        assert tracked(relative), f"registry schema is not tracked: {relative}"
 
 
 def test_validator_registry() -> None:
@@ -158,6 +177,7 @@ def test_artifact_and_report_wiring() -> None:
 
 def main() -> int:
     test_manifest_components()
+    test_registry_schema_authorities()
     test_validator_registry()
     test_command_registry()
     test_fresh_agent_wiring()
