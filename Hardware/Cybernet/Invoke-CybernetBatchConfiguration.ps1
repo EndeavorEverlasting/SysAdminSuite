@@ -40,10 +40,11 @@ foreach ($required in @($common, $stageRunner)) {
 }
 Import-Module $common -Force
 $repoRoot = Get-SasCybernetRepositoryRoot
+$networkGate = Join-Path $repoRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
+if ($Mode -ne 'Plan' -and -not $FixtureMode -and -not (Test-Path -LiteralPath $networkGate -PathType Leaf)) {
+    throw "Missing Cybernet network gate: $networkGate"
+}
 $targets = @(Resolve-SasCybernetTargets -ComputerName $ComputerName -TargetsCsv $TargetsCsv -MaxTargets $MaxTargets -RepoRoot $repoRoot -Role 'Cybernet batch configuration target CSV')
-$run = New-SasCybernetRunRoot -OutputRoot $OutputRoot -RepoRoot $repoRoot -Prefix 'batch-configuration' -Role 'Cybernet batch configuration output root'
-$summaryPath = Join-Path $run.run_root 'cybernet_batch_configuration_summary.json'
-$handoffPath = Join-Path $run.run_root 'operator_handoff.txt'
 
 function Get-SasPowerShellEngine {
     $processPath = (Get-Process -Id $PID -ErrorAction SilentlyContinue).Path
@@ -54,6 +55,22 @@ function Get-SasPowerShellEngine {
     }
     throw 'No PowerShell engine is available for bounded child-script execution.'
 }
+
+if ($Mode -ne 'Plan' -and -not $FixtureMode) {
+    $engine = Get-SasPowerShellEngine
+    $purpose = "Cybernet $Mode batch for $($targets.Count) target(s)"
+    $gateOutput = @(& $engine -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate -Purpose $purpose 2>&1 | ForEach-Object { $_.ToString() })
+    $gateExit = $LASTEXITCODE
+    foreach ($line in $gateOutput) { Write-Host $line }
+    if ($gateExit -ne 0) {
+        Write-Host "Cybernet $Mode batch canceled or blocked by the network gate before target contact. Exit code $gateExit." -ForegroundColor Yellow
+        exit $gateExit
+    }
+}
+
+$run = New-SasCybernetRunRoot -OutputRoot $OutputRoot -RepoRoot $repoRoot -Prefix 'batch-configuration' -Role 'Cybernet batch configuration output root'
+$summaryPath = Join-Path $run.run_root 'cybernet_batch_configuration_summary.json'
+$handoffPath = Join-Path $run.run_root 'operator_handoff.txt'
 
 function Invoke-SasCybernetStage {
     param(
