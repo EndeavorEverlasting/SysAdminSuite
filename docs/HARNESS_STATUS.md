@@ -27,6 +27,8 @@ The original operational harness contained the core map, workflow, artifact regi
 
 The first implementation placed the harness-maintenance procedure under `.claude/skills/`. The existing AI-layer validator correctly rejected that because every `.claude/skills/` entry is governed by the P00 capability manifest and human router. Rather than expand scope into `AGENTS.md`, the procedure was moved to `harness/skills/harness-maintenance.md`, and fresh-agent/maintenance workflows now load it explicitly only for the harness-infrastructure lane.
 
+The harness branch also preserves the AutoLogon long-path regression introduced on current `main`: `tests/survey/run_offline_survey_tests.sh` runs `Tests/survey/test_autologon_s4u_path_budget_contracts.py` before the harness registry validator. This prevents the harness PR from regressing the field fix while keeping AutoLogon product logic outside harness-owned changes.
+
 A prior push-only whitespace check reported every line of a Windows CMD file as trailing whitespace because the Git blob contained CRLF bytes. The harness continues to validate bytes stored in Git without forcing checkout conversion. Four historical CRLF launchers remain preserved byte-for-byte until product work legitimately changes them: `Run-CybernetComPortQrPack.cmd`, `Run-FieldHotfixesGui.cmd`, `Start-CybernetSurveyTutorial.cmd`, and `survey/sas-reg-query.cmd`.
 
 ## Known gaps and proof limits
