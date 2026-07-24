@@ -17,6 +17,9 @@ on:
       - 'harness/validators/**'
       - 'harness/reports/**'
       - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'schemas/harness/harness-command-registry.schema.json'
+      - 'schemas/harness/harness-validator-registry.schema.json'
+      - 'schemas/harness/harness-artifact-registry.schema.json'
       - 'docs/HARNESS_STATUS.md'
       - 'Tests/survey/test_operational_harness_completeness_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -36,6 +39,9 @@ on:
       - 'harness/validators/**'
       - 'harness/reports/**'
       - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'schemas/harness/harness-command-registry.schema.json'
+      - 'schemas/harness/harness-validator-registry.schema.json'
+      - 'schemas/harness/harness-artifact-registry.schema.json'
       - 'docs/HARNESS_STATUS.md'
       - 'Tests/survey/test_operational_harness_completeness_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -58,10 +64,32 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install schema validator
+        run: python -m pip install jsonschema
+
       - name: Compile registry tools
         run: |
           python -m py_compile harness/validators/validate-harness-registries.py
           python -m py_compile harness/reports/render-harness-status.py
+
+      - name: Validate registry JSON schemas
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import jsonschema
+          pairs = [
+              ('harness/api/operational-harness-manifest.json', 'schemas/harness/operational-harness-manifest.schema.json'),
+              ('harness/api/harness-command-registry.json', 'schemas/harness/harness-command-registry.schema.json'),
+              ('harness/api/harness-validator-registry.json', 'schemas/harness/harness-validator-registry.schema.json'),
+              ('harness/api/harness-artifact-registry.json', 'schemas/harness/harness-artifact-registry.schema.json'),
+          ]
+          for document_path, schema_path in pairs:
+              document = json.loads(Path(document_path).read_text(encoding='utf-8'))
+              schema = json.loads(Path(schema_path).read_text(encoding='utf-8'))
+              jsonschema.Draft202012Validator(schema).validate(document)
+              print(f'PASS: {document_path} schema')
+          PY
 
       - name: Validate harness registries
         run: python harness/validators/validate-harness-registries.py
