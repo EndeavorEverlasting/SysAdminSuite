@@ -141,7 +141,7 @@
     {
       "id": "harness-maintenance-skill",
       "kind": "skill",
-      "path": ".claude/skills/harness-maintenance/SKILL.md",
+      "path": "harness/skills/harness-maintenance/SKILL.md",
       "required": true,
       "tracked": true,
       "purpose": "Provides scoped procedures for extending or repairing harness infrastructure without changing product behavior or AGENTS.md.",
