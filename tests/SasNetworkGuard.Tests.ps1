@@ -27,6 +27,21 @@ SSID                   : Guest-WiFi
     if ($parsed -ne 'Guest-WiFi') { throw "Expected Guest-WiFi, got $parsed" }
     if (Test-SasNorthwellWifiSsid -Ssid $parsed) { throw 'BSSID was mistaken for SSID' }
 
+    $wlanSuccessXml = @'
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+  <System><EventID>8001</EventID></System>
+  <EventData>
+    <Data Name="InterfaceGuid">{11111111-2222-3333-4444-555555555555}</Data>
+    <Data Name="ProfileName">NSLIJHS-WAB(WPA2)</Data>
+    <Data Name="SSID">NSLIJHS-WAB</Data>
+  </EventData>
+</Event>
+'@
+    $wlanSuccess = Get-SasWlanConnectionFromEventXml -XmlText $wlanSuccessXml
+    if ($null -eq $wlanSuccess) { throw 'Expected WLAN success event to parse.' }
+    if ($wlanSuccess.ssid -ne 'NSLIJHS-WAB') { throw "Expected WLAN event SSID NSLIJHS-WAB, got $($wlanSuccess.ssid)" }
+    if ($wlanSuccess.profile_name -ne 'NSLIJHS-WAB(WPA2)') { throw "Expected WLAN profile name, got $($wlanSuccess.profile_name)" }
+
     $connectionProfiles = @(
         [pscustomobject]@{ Name = 'Ethernet Network'; InterfaceAlias = 'Ethernet' },
         [pscustomobject]@{ Name = 'NSLIJHS-WAB'; InterfaceAlias = 'Wi-Fi' }
