@@ -27,6 +27,21 @@ SSID                   : Guest-WiFi
     if ($parsed -ne 'Guest-WiFi') { throw "Expected Guest-WiFi, got $parsed" }
     if (Test-SasNorthwellWifiSsid -Ssid $parsed) { throw 'BSSID was mistaken for SSID' }
 
+    $connectionProfiles = @(
+        [pscustomobject]@{ Name = 'Ethernet Network'; InterfaceAlias = 'Ethernet' },
+        [pscustomobject]@{ Name = 'NSLIJHS-WAB'; InterfaceAlias = 'Wi-Fi' }
+    )
+    $profileSsid = Get-SasWifiSsidFromConnectionProfiles -Profiles $connectionProfiles
+    if ($profileSsid -ne 'NSLIJHS-WAB') { throw "Expected connection-profile fallback NSLIJHS-WAB, got $profileSsid" }
+
+    $guestProfiles = @([pscustomobject]@{ Name = 'Guest-WiFi'; InterfaceAlias = 'Wi-Fi' })
+    $guestProfileSsid = Get-SasWifiSsidFromConnectionProfiles -Profiles $guestProfiles
+    if ($guestProfileSsid -ne 'Guest-WiFi') { throw "Expected Guest-WiFi fallback, got $guestProfileSsid" }
+
+    $wiredOnlyProfiles = @([pscustomobject]@{ Name = 'Corporate LAN'; InterfaceAlias = 'Ethernet' })
+    $wiredOnlySsid = Get-SasWifiSsidFromConnectionProfiles -Profiles $wiredOnlyProfiles
+    if ($wiredOnlySsid -ne 'unknown') { throw "Wired profile must not be reported as Wi-Fi SSID; got $wiredOnlySsid" }
+
     $networkText = @'
 Windows IP Configuration
    Primary Dns Suffix  . . . . . . . : corp.example.invalid
