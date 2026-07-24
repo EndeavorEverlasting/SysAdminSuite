@@ -48,7 +48,7 @@ if not exist "%NETWORK_GATE%" (
   echo ERROR: Network gate was not found: %NETWORK_GATE%
   exit /b 2
 )
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%NETWORK_GATE%" -Purpose "Cybernet Apply for %TARGET%"
+powershell.exe -NoLogo -NoProfile -File "%NETWORK_GATE%" -Purpose "Cybernet Apply for %TARGET%"
 set "NETWORK_EXIT=%ERRORLEVEL%"
 if not "%NETWORK_EXIT%"=="0" (
   echo Cybernet Apply canceled or blocked before target mutation. Network gate exit code %NETWORK_EXIT%.
@@ -62,7 +62,7 @@ if not exist "%NETWORK_GATE%" (
   echo ERROR: Network gate was not found: %NETWORK_GATE%
   exit /b 2
 )
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%NETWORK_GATE%" -Purpose "Cybernet Validate for %TARGET%"
+powershell.exe -NoLogo -NoProfile -File "%NETWORK_GATE%" -Purpose "Cybernet Validate for %TARGET%"
 set "NETWORK_EXIT=%ERRORLEVEL%"
 if not "%NETWORK_EXIT%"=="0" (
   echo Cybernet Validate canceled or blocked before target contact. Network gate exit code %NETWORK_EXIT%.
