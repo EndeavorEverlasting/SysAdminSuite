@@ -41,7 +41,7 @@ stages:
     order: 3
     actions:
       - use harness/api/agent-routing-manifest.json for normal task-signal routing
-      - when the declared lane is harness infrastructure, load .claude/skills/harness-maintenance/SKILL.md
+      - when the declared lane is harness infrastructure, load harness/skills/harness-maintenance/SKILL.md
       - fail closed to .claude/skills/repository-sprint/SKILL.md when routing is unknown or conflicting
       - declare repo, branch, lane, mission, owned scope, forbidden scope, expected artifacts, validators, and proof ceiling before writing
 
@@ -87,7 +87,7 @@ outputs:
     - harness/api/harness-command-registry.json
     - harness/api/harness-validator-registry.json
     - harness/api/harness-artifact-registry.json
-    - .claude/skills/harness-maintenance/SKILL.md
+    - harness/skills/harness-maintenance/SKILL.md
   generated_local:
     - survey/output/<workflow>/<run_id>/artifact_registry.json
     - survey/output/<workflow>/<run_id>/operator_handoff.txt
