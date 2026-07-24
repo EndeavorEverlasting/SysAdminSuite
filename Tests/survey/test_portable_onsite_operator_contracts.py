@@ -63,15 +63,15 @@ def test_network_gate_is_manual_switch_recheck_or_cancel_only() -> None:
         assert forbidden.lower() not in gate.lower()
 
 
-def test_cybernet_target_operations_are_gated_at_launcher_and_engine() -> None:
+def test_cybernet_target_operations_are_gated_in_engine_for_cmd_and_csv_paths() -> None:
     launcher = read("Run-CybernetBatchConfiguration.cmd")
     engine = read("Hardware/Cybernet/Invoke-CybernetBatchConfiguration.ps1")
-    assert "Confirm-SasNorthwellNetwork.ps1" in launcher
-    assert "Cybernet Apply canceled or blocked before target mutation" in launcher
-    assert "Cybernet Validate canceled or blocked before target contact" in launcher
+    assert "Invoke-CybernetBatchConfiguration.ps1" in launcher
+    assert "-Mode Apply" in launcher
+    assert "-Mode Validate" in launcher
     assert "Confirm-SasNorthwellNetwork.ps1" in engine
     assert "$Mode -ne 'Plan' -and -not $FixtureMode" in engine
-    assert "before target contact" in engine
+    assert "Cybernet $Mode batch canceled or blocked by the network gate before target contact" in engine
     assert "exit $gateExit" in engine
 
 
