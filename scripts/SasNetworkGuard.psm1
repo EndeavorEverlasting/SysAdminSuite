@@ -86,8 +86,9 @@ function Get-SasNetworkGuardConfigPath {
     [CmdletBinding()]
     param()
     if ($env:SAS_NETWORK_GUARD_CONFIG) { return $env:SAS_NETWORK_GUARD_CONFIG }
-    if ($env:SAS_REPO_ROOT) { return (Join-Path $env:SAS_REPO_ROOT 'Config/sas-network-guard.local.json') }
-    return 'Config/sas-network-guard.local.json'
+    if ($env:SAS_REPO_ROOT) { return (Join-Path $env:SAS_REPO_ROOT 'Config\sas-network-guard.local.json') }
+    $moduleRepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+    return (Join-Path $moduleRepoRoot 'Config\sas-network-guard.local.json')
 }
 
 function Split-SasCsvEnv {
