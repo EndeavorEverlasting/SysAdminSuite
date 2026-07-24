@@ -76,12 +76,39 @@
       "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
     },
     {
+      "id": "command-registry-schema",
+      "kind": "schema",
+      "path": "schemas/harness/harness-command-registry.schema.json",
+      "required": true,
+      "tracked": true,
+      "purpose": "Fails closed when the canonical harness command registry is malformed.",
+      "validation": "python harness/validators/validate-harness-registries.py"
+    },
+    {
+      "id": "validator-registry-schema",
+      "kind": "schema",
+      "path": "schemas/harness/harness-validator-registry.schema.json",
+      "required": true,
+      "tracked": true,
+      "purpose": "Fails closed when the canonical harness validator registry is malformed.",
+      "validation": "python harness/validators/validate-harness-registries.py"
+    },
+    {
+      "id": "artifact-registry-schema",
+      "kind": "schema",
+      "path": "schemas/harness/harness-artifact-registry.schema.json",
+      "required": true,
+      "tracked": true,
+      "purpose": "Fails closed when the canonical harness artifact registry is malformed.",
+      "validation": "python harness/validators/validate-harness-registries.py"
+    },
+    {
       "id": "registry-validator",
       "kind": "validator",
       "path": "harness/validators/validate-harness-registries.py",
       "required": true,
       "tracked": true,
-      "purpose": "Validates registry integrity, canonical source paths, fresh-agent workflow wiring, skill wiring, and report contracts.",
+      "purpose": "Validates registry integrity, canonical source paths, tracked schema authorities, fresh-agent workflow wiring, scoped skill wiring, and report contracts.",
       "validation": "python harness/validators/validate-harness-registries.py"
     },
     {
@@ -189,7 +216,7 @@
       "path": "docs/HARNESS_STATUS.md",
       "required": true,
       "tracked": true,
-      "purpose": "Summarizes working components, broken boundaries, missing proof, and operator next actions.",
+      "purpose": "Summarizes working components, repaired boundaries, missing proof, and operator next actions.",
       "validation": "python harness/validators/validate-harness-registries.py"
     },
     {
@@ -225,7 +252,7 @@
       "path": ".github/workflows/harness-registry-integrity.yml",
       "required": true,
       "tracked": true,
-      "purpose": "Runs registry integrity, completeness, report rendering, hook syntax, and whitespace checks whenever registry-facing harness files change.",
+      "purpose": "Runs registry schema integrity, completeness, report rendering, hook syntax, and whitespace checks whenever registry-facing harness files change.",
       "validation": "python harness/validators/validate-harness-registries.py"
     }
   ],
