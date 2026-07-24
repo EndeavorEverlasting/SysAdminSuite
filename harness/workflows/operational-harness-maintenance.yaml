@@ -38,7 +38,7 @@ stages:
     order: 2
     actions:
       - choose the smallest existing skill and workflow that match the task
-      - use .claude/skills/harness-maintenance/SKILL.md for harness-infrastructure-owned work
+      - use harness/skills/harness-maintenance/SKILL.md for harness-infrastructure-owned work
       - fail closed when equal-priority routes conflict
       - declare lane, mission, owned scope, forbidden scope, artifacts, validation, and proof ceiling
 
@@ -99,7 +99,7 @@ outputs:
     - harness/api/harness-validator-registry.json
     - harness/api/harness-artifact-registry.json
     - harness/workflows/fresh-agent-intake.yaml
-    - .claude/skills/harness-maintenance/SKILL.md
+    - harness/skills/harness-maintenance/SKILL.md
     - schemas/harness/operational-harness-manifest.schema.json
     - docs/HARNESS_STATUS.md
   generated_local:
