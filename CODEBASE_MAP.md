@@ -6,8 +6,8 @@ Use this map to load only the files needed for a task.
 
 - `AGENTS.md` — compact universal invariants and task-to-skill router; keep detailed procedures out of this file.
 - `CLAUDE.md` — progressive-disclosure front door for Claude-compatible agents.
-- `.claude/skills/*/SKILL.md` — task workflows that compose reusable capabilities.
-- `.claude/capabilities/*.md` — stable atomic rules shared by multiple skills.
+- `.claude/skills/*/SKILL.md` — governance-routed task workflows that compose reusable capabilities.
+- `.claude/capabilities/*.md` — stable atomic rules shared by multiple governance-routed skills.
 - `harness/api/agent-capability-manifest.json` — machine-readable skill/capability catalog and dependency graph.
 - `harness/api/agent-routing-manifest.json` — deterministic task-signal catalog; equal-priority primary conflicts fail closed.
 - `schemas/harness/agent-capability-manifest.schema.json` — fail-closed catalog schema.
@@ -19,13 +19,13 @@ Use this map to load only the files needed for a task.
 ## Operational harness infrastructure
 
 - `harness/workflows/fresh-agent-intake.yaml` — canonical fresh-agent sequence: governance, Git preservation, orientation, routing, execution, validator selection, artifacts, and handoff.
-- `harness/api/operational-harness-manifest.json` — central machine-readable inventory of maps, workflows, registries, schemas, validators, hooks, skills, reports, run context, handoff, text policy, and CI.
+- `harness/api/operational-harness-manifest.json` — central machine-readable inventory of maps, workflows, registries, schemas, validators, hooks, scoped procedures, reports, run context, handoff, text policy, and CI.
 - `harness/api/harness-command-registry.json` — canonical build, test, run, and deployment-facing command index with mutation/network classification.
 - `harness/api/harness-validator-registry.json` — canonical validator commands, scope selection, blocking posture, escalation, and proof descriptions.
 - `harness/api/harness-artifact-registry.json` — artifact types, generators, locations, naming conventions, tracking, and live-data boundaries.
 - `schemas/harness/harness-command-registry.schema.json`, `harness-validator-registry.schema.json`, and `harness-artifact-registry.schema.json` — Draft 2020-12 fail-closed registry schemas.
-- `.claude/skills/harness-maintenance/SKILL.md` — scoped procedure for harness-only changes without modifying product behavior or `AGENTS.md`.
-- `harness/validators/validate-harness-registries.py` — dependency-free integrity check for registries, tracked schema authorities, source paths, fresh-agent workflow, skill, and report wiring.
+- `harness/skills/harness-maintenance.md` — harness-scoped maintenance procedure kept outside the P00 `.claude/skills/` governance router.
+- `harness/validators/validate-harness-registries.py` — dependency-free integrity check for registries, tracked schema authorities, source paths, fresh-agent workflow, scoped procedure, and report wiring.
 - `harness/reports/render-harness-status.py` — renders a current English registry/path status without modifying tracked docs.
 - `schemas/harness/operational-harness-manifest.schema.json` — fail-closed schema for the central harness inventory.
 - `harness/workflows/operational-harness-maintenance.yaml` — bounded implementation, validation, failure handling, commit, and handoff sequence.
