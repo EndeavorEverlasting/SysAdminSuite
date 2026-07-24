@@ -1,0 +1,90 @@
+name: Harness Registry Integrity
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'CODEBASE_MAP.md'
+      - '.claude/skills/harness-maintenance/**'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/workflows/operational-harness-maintenance.yaml'
+      - 'harness/validators/**'
+      - 'harness/reports/**'
+      - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'docs/HARNESS_STATUS.md'
+      - 'Tests/survey/test_operational_harness_completeness_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.githooks/**'
+      - '.github/workflows/harness-registry-integrity.yml'
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'harness/**']
+    paths:
+      - 'CODEBASE_MAP.md'
+      - '.claude/skills/harness-maintenance/**'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/workflows/operational-harness-maintenance.yaml'
+      - 'harness/validators/**'
+      - 'harness/reports/**'
+      - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'docs/HARNESS_STATUS.md'
+      - 'Tests/survey/test_operational_harness_completeness_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.githooks/**'
+      - '.github/workflows/harness-registry-integrity.yml'
+  workflow_dispatch:
+
+jobs:
+  registry-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compile registry tools
+        run: |
+          python -m py_compile harness/validators/validate-harness-registries.py
+          python -m py_compile harness/reports/render-harness-status.py
+
+      - name: Validate harness registries
+        run: python harness/validators/validate-harness-registries.py
+
+      - name: Run operational harness completeness
+        run: python Tests/survey/test_operational_harness_completeness_contracts.py
+
+      - name: Render operator status
+        run: python harness/reports/render-harness-status.py
+
+      - name: Check workflow and hook syntax
+        run: bash -n .githooks/pre-commit .githooks/pre-push tests/survey/run_offline_survey_tests.sh
+
+      - name: Check pull-request whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check pushed whitespace
+        if: github.event_name != 'pull_request'
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            git show --check --oneline --no-renames HEAD
+          else
+            git diff --check "$before" "${{ github.sha }}"
+          fi
