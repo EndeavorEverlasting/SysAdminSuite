@@ -23,7 +23,7 @@ python3 Tests/survey/test_portable_onsite_operator_contracts.py
 python3 Tests/survey/test_portable_onsite_runtime_fixture.py
 python3 Tests/survey/test_network_switch_verification_contracts.py
 python3 Tests/survey/test_network_guard_wlan_event_contracts.py
-python3 Tests/survey/test_autologon_interactive_token_contracts.py
+python3 Tests/survey/test_autologon_kerberos_s4u_contracts.py
 python3 Tests/survey/test_software_deployment_input_invalidation_contracts.py
 python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
