@@ -26,15 +26,54 @@ function Get-SasCurrentWifiSsidFromNetshText {
     }
 }
 
+function Get-SasWifiSsidFromConnectionProfiles {
+    [CmdletBinding()]
+    param([AllowNull()][object[]]$Profiles)
+
+    $items = @($Profiles)
+    foreach ($profile in $items) {
+        if ($null -eq $profile) { continue }
+        $name = [string]$profile.Name
+        $alias = [string]$profile.InterfaceAlias
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        if ($alias -match '(?i)(wi-?fi|wireless|wlan)' -and (Test-SasNorthwellWifiSsid -Ssid $name)) {
+            return $name
+        }
+    }
+
+    foreach ($profile in $items) {
+        if ($null -eq $profile) { continue }
+        $name = [string]$profile.Name
+        $alias = [string]$profile.InterfaceAlias
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        if ($alias -match '(?i)(wi-?fi|wireless|wlan)') { return $name }
+    }
+
+    return 'unknown'
+}
+
 function Get-SasCurrentWifiSsid {
     [CmdletBinding()]
     param()
+
     try {
         $output = & netsh wlan show interfaces 2>$null | Out-String
-        return Get-SasCurrentWifiSsidFromNetshText -Text $output
-    } catch {
-        return 'unknown'
+        $ssid = Get-SasCurrentWifiSsidFromNetshText -Text $output
+        if ($ssid -ne 'unknown') { return $ssid }
     }
+    catch {}
+
+    # Windows 11 can withhold WLAN interface details from netsh when location access is restricted.
+    # Get-NetConnectionProfile remains a read-only fallback and commonly exposes the active Wi-Fi
+    # network name through the Wi-Fi interface profile.
+    try {
+        $profiles = @(Get-NetConnectionProfile -ErrorAction Stop)
+        $ssid = Get-SasWifiSsidFromConnectionProfiles -Profiles $profiles
+        if ($ssid -ne 'unknown') { return $ssid }
+    }
+    catch {}
+
+    return 'unknown'
 }
 
 function Test-SasNorthwellWifiSsid {
@@ -181,4 +220,4 @@ function Assert-SasNorthwellWifi {
     throw "Network check failed: this script must be run from an approved Northwell network. Connect to Wi-Fi SSID starting with $script:SasNetworkGuardRequiredPrefix or approved Northwell wired Ethernet and rerun. Current SSID: $ssid. Wired evidence: $script:SasNetworkGuardLastWiredEvidence."
 }
 
-Export-ModuleMember -Function Get-SasCurrentWifiSsidFromNetshText, Get-SasCurrentWifiSsid, Test-SasNorthwellWifiSsid, Get-SasNetworkGuardConfig, Get-SasLocalNetworkText, Test-SasIpInCidr, Test-SasNorthwellWiredEvidence, Test-SasNorthwellNetworkPosture, Assert-SasNorthwellWifi
+Export-ModuleMember -Function Get-SasCurrentWifiSsidFromNetshText, Get-SasWifiSsidFromConnectionProfiles, Get-SasCurrentWifiSsid, Test-SasNorthwellWifiSsid, Get-SasNetworkGuardConfig, Get-SasLocalNetworkText, Test-SasIpInCidr, Test-SasNorthwellWiredEvidence, Test-SasNorthwellNetworkPosture, Assert-SasNorthwellWifi
