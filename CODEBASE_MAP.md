@@ -30,13 +30,14 @@ Use this map to load only the files needed for a task.
 
 ## Package analysis
 
-- `.claude/skills/package-static-analysis/SKILL.md` — umbrella package workflow across static, semantic, offline trust, and VM qualification.
-- `.claude/capabilities/package-*.md` — atomic package inspection, semantic enrichment, offline trust, and VM-qualification capabilities.
+- `.claude/skills/package-static-analysis/SKILL.md` — umbrella package workflow across static, semantic, offline trust, strong-name, and VM qualification.
+- `.claude/capabilities/package-*.md` — atomic package inspection, semantic enrichment, offline trust, strong-name, and VM-qualification capabilities.
 - `harness/workflows/package-analysis.yaml` — canonical package-analysis workflow mapping inputs to entrypoints.
-- `harness/api/package-static-analysis-skill.json`, `package-semantic-analysis-skill.json`, `package-trust-verification-skill.json`, `package-vm-qualification-skill.json` — operation manifests.
+- `harness/api/package-static-analysis-skill.json`, `package-semantic-analysis-skill.json`, `package-trust-verification-skill.json`, `package-strong-name-verification-skill.json`, `package-vm-qualification-skill.json` — operation manifests.
 - `scripts/Invoke-SasPackageTrust.ps1` and `tools/package-analysis/SasPackageTrustInterop.cs` — cache-only WinTrust trust gate.
+- `tools/package-analysis/verify_dotnet_strong_name.py` — offline CLR strong-name integrity producer.
 - `tools/package-analysis/validate_vm_qualification_profile.py` — fail-closed disposable-VM qualification validator; never starts a VM.
-- `docs/PACKAGE_STATIC_ANALYSIS.md`, `PACKAGE_SEMANTIC_ANALYSIS.md`, `PACKAGE_TRUST_VERIFICATION.md`, `PACKAGE_VM_QUALIFICATION_PROFILES.md` — operator guides and proof ceilings.
+- `docs/PACKAGE_STATIC_ANALYSIS.md`, `PACKAGE_SEMANTIC_ANALYSIS.md`, `PACKAGE_TRUST_VERIFICATION.md`, `PACKAGE_STRONG_NAME_VERIFICATION.md`, `PACKAGE_VM_QUALIFICATION_PROFILES.md` — operator guides and proof ceilings.
 - `Tests/survey/test_package_*_contracts.py` and `Tests/survey/Test-PackageTrustVerificationContracts.ps1` — focused package contracts.
 - `.github/workflows/package-static-analysis.yml` — Ubuntu/Windows package-analysis CI gate.
 
