@@ -62,6 +62,7 @@ python3 Tests/survey/test_package_static_analysis_contracts.py
 python3 Tests/survey/test_package_semantic_analysis_contracts.py
 python3 Tests/survey/test_package_vm_qualification_profile_contracts.py
 
+
 has_powershell=0
 if command -v pwsh >/dev/null 2>&1; then
   pwsh_path=$(command -v pwsh)
