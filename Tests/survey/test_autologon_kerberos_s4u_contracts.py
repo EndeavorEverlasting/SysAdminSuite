@@ -16,8 +16,8 @@ def read(path: Path) -> str:
 def test_s4u_requires_no_target_login_or_password() -> None:
     text = read(SCRIPT)
     for marker in (
-        "LogonType = 2",
-        "RunLevel = 1",
+        "'/RU',$PrincipalName,'/NP'",
+        "'/RL','HIGHEST'",
         "logon_type = 'S4U'",
         "target_user_session_required = $false",
         "password_stored = $false",
@@ -28,6 +28,7 @@ def test_s4u_requires_no_target_login_or_password() -> None:
         assert marker in text, marker
     assert "InteractiveToken" not in text
     assert "No logged-on user session" not in text
+    assert "'/RP'" not in text.upper()
 
 
 def test_current_controller_identity_is_kerberos_and_target_authorized() -> None:
@@ -56,8 +57,11 @@ def test_s4u_task_principal_is_current_named_domain_identity_and_elevated() -> N
         "identity_matches_expected_sid",
         "WindowsBuiltInRole]::Administrator",
         "KERBEROS_S4U_PRINCIPAL_NOT_ELEVATED",
-        "RegisterTaskDefinition",
-        "$definition.Principal.UserId = $PrincipalName",
+        "'/Create','/S',$Target",
+        "'/RU',$PrincipalName,'/NP'",
+        "'/Run','/S',$Target",
+        "'/Delete','/S',$Target",
+        "'/Query','/S',$Target",
     ):
         assert marker in text, marker
 
@@ -72,6 +76,7 @@ def test_package_is_staged_locally_before_s4u_install() -> None:
     assert source_hash < stage < target_hash < probe < install
     assert "installer_arguments = @()" in text
     assert "installer_arguments_policy -ne 'approved_empty'" in text
+    assert "network_access_from_task_expected = $false" in text
 
 
 def test_final_gate_and_system_state_proof_surround_s4u_installer() -> None:
@@ -108,7 +113,8 @@ def test_password_and_autologon_secret_data_are_not_collected() -> None:
         "get-credential",
         "pscredential",
         "securestring",
-        "/rp",
+        "'/rp'",
+        '"/rp"',
         "defaultpassword).",
         "getvalue('defaultpassword'",
     ):
