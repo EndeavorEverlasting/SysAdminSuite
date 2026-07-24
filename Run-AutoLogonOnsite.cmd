@@ -7,7 +7,7 @@ if not "%~3"=="" (
   echo ERROR: This launcher accepts ACTION and optional TARGET only.
   echo Examples:
   echo   Run-AutoLogonOnsite.cmd Prepare
-  echo   Run-AutoLogonOnsite.cmd Interactive HOST
+  echo   Run-AutoLogonOnsite.cmd Remote HOST
   exit /b 2
 )
 
