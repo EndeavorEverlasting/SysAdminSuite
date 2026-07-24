@@ -13,8 +13,8 @@
       "platform": "python3",
       "command": "python harness/validators/validate-harness-registries.py",
       "blocking": true,
-      "scope": ["harness/api/**", "harness/workflows/**", ".claude/skills/harness-maintenance/**", "CODEBASE_MAP.md", "docs/HARNESS_STATUS.md"],
-      "proof": "Registry shape, path existence, fresh-agent wiring, command authority, and report renderer contract."
+      "scope": ["harness/api/**", "harness/workflows/**", "harness/skills/**", "harness/validators/**", "harness/reports/**", "schemas/harness/harness-*-registry.schema.json", "CODEBASE_MAP.md", "docs/HARNESS_STATUS.md"],
+      "proof": "Registry shape, tracked schema authority, path existence, fresh-agent wiring, command authority, scoped-procedure wiring, and report renderer contract."
     },
     {
       "id": "operational-harness-completeness",
