@@ -102,7 +102,7 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host "Repo: $repoRoot"
     Write-Host ''
     Write-Host '  sas autologon                       AutoLogon on-site menu'
-    Write-Host '  sas autologon Interactive HOST      Logged-on elevated AutoLogon pilot'
+    Write-Host '  sas autologon Remote HOST           Remote Kerberos/S4U AutoLogon; no target login'
     Write-Host '  sas cybernet Plan HOST              Local Cybernet plan'
     Write-Host '  sas cybernet Apply HOST             Network-gated Cybernet apply'
     Write-Host '  sas cybernet Validate HOST          Network-gated Cybernet validation'
