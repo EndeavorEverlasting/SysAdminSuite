@@ -4,7 +4,7 @@
 
 Remove per-PC/per-user path editing from SysAdminSuite field work while keeping target operations fail-closed on Guest or otherwise unapproved network posture.
 
-The portable command is user-local. It does not require administrator rights and does not change Wi-Fi profiles or credentials.
+The portable command is user-local. It does not require administrator rights and does not create Wi-Fi profiles or store credentials.
 
 ## One-time setup per Windows user / PC
 
@@ -72,24 +72,30 @@ The template still requires a materially different approved AutoLogon candidate.
 
 ## Guest-to-Northwell transition
 
-Before live AutoLogon qualification, Cybernet Apply, or Cybernet Validate, `Confirm-SasNorthwellNetwork.ps1` classifies only local network evidence.
+Before live AutoLogon qualification, Cybernet Apply, or Cybernet Validate, `Confirm-SasNorthwellNetwork.ps1` classifies local network evidence.
 
-When approved posture is not detected, the operator receives these bounded choices:
+If one or more already-saved Wi-Fi profiles match the repo's approved Northwell SSID policy, the operator can select:
 
 ```text
-[R] I switched networks - recheck now
+[S] Switch to a saved approved Northwell Wi-Fi profile
+```
+
+The launcher then requires the operator to type `SWITCH` before calling Windows `netsh wlan connect` for that saved approved profile. It never creates a profile, changes a saved profile, embeds credentials, or chooses an unapproved profile.
+
+When approved posture is not detected, the remaining bounded choices are:
+
+```text
+[R] I switched networks manually - recheck now
 [W] Open Windows Wi-Fi settings, then recheck
 [C] Cancel this target operation
 ```
 
-The script never calls `netsh wlan connect`, adds a Wi-Fi profile, changes credentials, scans a subnet, contacts a target, or mutates a target while blocked.
-
-Choosing Cancel exits before target contact. Choosing Wi-Fi settings opens Windows settings; the technician performs the actual network switch, confirms, and the gate rechecks fresh local evidence.
+Choosing Cancel exits before target contact. Choosing Wi-Fi settings opens Windows settings; the technician performs the network switch and the gate rechecks fresh local evidence.
 
 ## Cybernet batch boundary
 
-`Run-CybernetBatchConfiguration.cmd` gates Apply and Validate before target contact. Plan remains local-only.
+`Run-CybernetBatchConfiguration.cmd` continues to call the canonical Cybernet batch engine. Plan remains local-only.
 
-The underlying `Hardware/Cybernet/Invoke-CybernetBatchConfiguration.ps1` also enforces the same gate for direct PowerShell / CSV batch invocation, so bypassing the root CMD does not bypass the Guest-network stop.
+`Hardware/Cybernet/Invoke-CybernetBatchConfiguration.ps1` enforces the same network gate for both the root CMD path and direct PowerShell / CSV batch invocation, so bypassing the root CMD does not bypass the Guest-network stop.
 
 Fixture mode remains offline and does not require network posture.
