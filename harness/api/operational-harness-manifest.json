@@ -1,7 +1,7 @@
 {
   "schema_version": "sas-operational-harness-manifest/v1",
   "repository": "EndeavorEverlasting/SysAdminSuite",
-  "default_workflow": "harness/workflows/fresh-agent-intake.yaml",
+  "default_workflow": "harness/workflows/operational-harness-maintenance.yaml",
   "components": [
     {
       "id": "codebase-map",
@@ -216,8 +216,17 @@
       "path": ".github/workflows/harness-infrastructure.yml",
       "required": true,
       "tracked": true,
-      "purpose": "Runs registry integrity, completeness, local harness, text policy, syntax, whitespace, and Windows handoff checks on harness changes.",
+      "purpose": "Runs completeness, local harness, text policy, syntax, whitespace, and Windows handoff checks on harness changes.",
       "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "harness-registry-ci",
+      "kind": "ci",
+      "path": ".github/workflows/harness-registry-integrity.yml",
+      "required": true,
+      "tracked": true,
+      "purpose": "Runs registry integrity, completeness, report rendering, hook syntax, and whitespace checks whenever registry-facing harness files change.",
+      "validation": "python harness/validators/validate-harness-registries.py"
     }
   ],
   "validation_commands": [
