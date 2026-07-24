@@ -24,6 +24,7 @@ python3 Tests/survey/test_portable_onsite_runtime_fixture.py
 python3 Tests/survey/test_network_switch_verification_contracts.py
 python3 Tests/survey/test_network_guard_wlan_event_contracts.py
 python3 Tests/survey/test_autologon_kerberos_s4u_contracts.py
+python3 harness/validators/validate-harness-registries.py
 python3 Tests/survey/test_software_deployment_input_invalidation_contracts.py
 python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
@@ -59,7 +60,6 @@ python3 Tests/survey/test_qr_field_command_capsule_contracts.py
 python3 Tests/survey/test_package_static_analysis_contracts.py
 python3 Tests/survey/test_package_semantic_analysis_contracts.py
 python3 Tests/survey/test_package_vm_qualification_profile_contracts.py
-
 
 has_powershell=0
 if command -v pwsh >/dev/null 2>&1; then
