@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-<##
+<#
 .SYNOPSIS
 Fail-closed local network posture gate for on-site target operations.
 
@@ -8,7 +8,7 @@ Reads only local Wi-Fi and network configuration evidence through SasNetworkGuar
 It never changes Wi-Fi profiles, connects to a network, probes a target, or mutates a target.
 When the current posture is not approved, an interactive operator may open Windows Wi-Fi
 settings, switch networks manually, and recheck, or cancel before the target operation starts.
-##>
+#>
 [CmdletBinding()]
 param(
     [string]$Purpose = 'target operation',
@@ -30,20 +30,18 @@ Import-Module $guardModule -Force
 
 $outputRoot = Join-Path $repoRoot 'survey\output\network_posture'
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+$callerSuppliedSsid = $PSBoundParameters.ContainsKey('Ssid')
+$callerNetworkTextPath = if ($NetworkTextPath) {
+    (Resolve-Path -LiteralPath $NetworkTextPath -ErrorAction Stop).Path
+}
+else {
+    $null
+}
 
 function Get-SasOperatorNetworkPosture {
-    $effectiveSsid = if ($PSBoundParameters.ContainsKey('Ssid')) {
-        [string]$Ssid
-    }
-    elseif ($script:CallerSuppliedSsid) {
-        [string]$script:CallerSsid
-    }
-    else {
-        Get-SasCurrentWifiSsid
-    }
-
-    $networkText = if ($script:CallerNetworkTextPath) {
-        Get-Content -LiteralPath $script:CallerNetworkTextPath -Raw -ErrorAction Stop
+    $effectiveSsid = if ($callerSuppliedSsid) { [string]$Ssid } else { Get-SasCurrentWifiSsid }
+    $networkText = if ($callerNetworkTextPath) {
+        Get-Content -LiteralPath $callerNetworkTextPath -Raw -ErrorAction Stop
     }
     else {
         Get-SasLocalNetworkText
@@ -89,21 +87,13 @@ function Write-SasOperatorNetworkEvidence {
     return $path
 }
 
-$script:CallerSuppliedSsid = $PSBoundParameters.ContainsKey('Ssid')
-$script:CallerSsid = $Ssid
-$script:CallerNetworkTextPath = if ($NetworkTextPath) {
-    (Resolve-Path -LiteralPath $NetworkTextPath -ErrorAction Stop).Path
-}
-else {
-    $null
-}
-
 while ($true) {
     $posture = Get-SasOperatorNetworkPosture
     $evidencePath = Write-SasOperatorNetworkEvidence -Posture $posture
 
     Write-Host ''
-    Write-Host "Network gate: $($posture.classification)" -ForegroundColor $(if ($posture.allowed_for_target_operation) { 'Green' } else { 'Yellow' })
+    $color = if ($posture.allowed_for_target_operation) { 'Green' } else { 'Yellow' }
+    Write-Host "Network gate: $($posture.classification)" -ForegroundColor $color
     Write-Host "Purpose: $Purpose"
     Write-Host "Wi-Fi SSID: $($posture.wifi_ssid)"
     Write-Host "Evidence: $evidencePath"
