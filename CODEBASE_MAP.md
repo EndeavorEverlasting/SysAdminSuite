@@ -19,12 +19,13 @@ Use this map to load only the files needed for a task.
 ## Operational harness infrastructure
 
 - `harness/workflows/fresh-agent-intake.yaml` — canonical fresh-agent sequence: governance, Git preservation, orientation, routing, execution, validator selection, artifacts, and handoff.
-- `harness/api/operational-harness-manifest.json` — central machine-readable inventory of maps, workflows, registries, validators, hooks, skills, reports, run context, handoff, text policy, and CI.
+- `harness/api/operational-harness-manifest.json` — central machine-readable inventory of maps, workflows, registries, schemas, validators, hooks, skills, reports, run context, handoff, text policy, and CI.
 - `harness/api/harness-command-registry.json` — canonical build, test, run, and deployment-facing command index with mutation/network classification.
 - `harness/api/harness-validator-registry.json` — canonical validator commands, scope selection, blocking posture, escalation, and proof descriptions.
 - `harness/api/harness-artifact-registry.json` — artifact types, generators, locations, naming conventions, tracking, and live-data boundaries.
+- `schemas/harness/harness-command-registry.schema.json`, `harness-validator-registry.schema.json`, and `harness-artifact-registry.schema.json` — Draft 2020-12 fail-closed registry schemas.
 - `.claude/skills/harness-maintenance/SKILL.md` — scoped procedure for harness-only changes without modifying product behavior or `AGENTS.md`.
-- `harness/validators/validate-harness-registries.py` — dependency-free integrity check for registries, source paths, fresh-agent workflow, skill, and report wiring.
+- `harness/validators/validate-harness-registries.py` — dependency-free integrity check for registries, tracked schema authorities, source paths, fresh-agent workflow, skill, and report wiring.
 - `harness/reports/render-harness-status.py` — renders a current English registry/path status without modifying tracked docs.
 - `schemas/harness/operational-harness-manifest.schema.json` — fail-closed schema for the central harness inventory.
 - `harness/workflows/operational-harness-maintenance.yaml` — bounded implementation, validation, failure handling, commit, and handoff sequence.
@@ -33,7 +34,8 @@ Use this map to load only the files needed for a task.
 - `scripts/check-repo-text-policy.py` and `.gitattributes` — validate canonical LF storage in Git while allowing Windows checkout endings; prevent CRLF from being misreported as trailing whitespace.
 - `.githooks/pre-commit`, `.githooks/pre-push`, and `scripts/install-local-harness-hooks.sh` — local staged, push, evidence, and contract guardrails.
 - `docs/HARNESS_STATUS.md` — English operator report of working components, repaired boundaries, known gaps, and proof ceilings.
-- `.github/workflows/harness-infrastructure.yml` — dedicated registry, completeness, schema, local-harness, text-policy, syntax, whitespace, and Windows handoff CI gate.
+- `.github/workflows/harness-infrastructure.yml` — established completeness, local-harness, text-policy, syntax, whitespace, and Windows handoff CI gate.
+- `.github/workflows/harness-registry-integrity.yml` — focused registry-schema, fresh-agent wiring, report-rendering, hook-syntax, and whitespace CI gate.
 
 ## Package analysis
 
@@ -194,26 +196,8 @@ Use this map to load only the files needed for a task.
 - `dashboard/test_relay_cancel_e2e.py` — real relay cancellation journey over loopback.
 - `dashboard/test_relay_abort_e2e.js` — real relay/client abort journey over loopback.
 
-## Canonical build, test, and deployment commands
-
-The machine-readable authority is `harness/api/harness-command-registry.json`; do not reconstruct commands from memory.
-
-| Intent | Canonical command | Boundary |
-|---|---|---|
-| Harness registry validation | `python harness/validators/validate-harness-registries.py` | Local/read-only |
-| Harness completeness | `python Tests/survey/test_operational_harness_completeness_contracts.py` | Local/read-only |
-| Broad offline floor | `bash tests/survey/run_offline_survey_tests.sh` | Local/read-only |
-| PowerShell tests | `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester` | Local/read-only |
-| Managed tests | `dotnet test SysAdminSuite.sln -c Release --verbosity normal` | Build/test only |
-| Dashboard build | `dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost` | Build output only |
-| Cybernet plan | `sas cybernet Plan HOST` | No target contact |
-| Cybernet apply | `sas cybernet Apply HOST` | Authorized target mutation only |
-| AutoLogon remote | `sas autologon Remote HOST` | Authorized Kerberos/SMB/S4U target mutation only |
-
 ## Validation and tests
 
-- `harness/api/harness-validator-registry.json` — canonical validator selection by changed surface and proof ceiling.
-- `harness/validators/validate-harness-registries.py` — first harness integrity gate.
 - `tools/validate-ai-layer.ps1` — PowerShell validator for the AI harness layer.
 - `tests/survey/run_offline_survey_tests.sh` — offline survey/harness contract runner.
 - `tests/bash/` — Bash contract and smoke tests.
