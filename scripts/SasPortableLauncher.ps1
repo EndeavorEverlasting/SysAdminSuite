@@ -13,6 +13,7 @@ $ErrorActionPreference = 'Stop'
 
 $stateRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite'
 $cachePath = Join-Path $stateRoot 'repo-root.txt'
+$PathLengthThreshold = 100
 New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
 
 function Test-SasRepoRoot {
@@ -94,6 +95,55 @@ will cache that user's repo location and rediscover common Desktop/dev and OneDr
 "@
 }
 
+function Get-SasAvailableSubstDrive {
+    foreach ($letter in @('S','R','Q','P','O','N','M','L','K','J')) {
+        $driveRoot = "${letter}:\"
+        $existing = Get-PSDrive -Name $letter -ErrorAction SilentlyContinue
+        if ($null -eq $existing -and -not (Test-Path -LiteralPath $driveRoot)) {
+            return "${letter}:"
+        }
+    }
+    throw 'No free temporary drive letter is available for the SysAdminSuite short-path alias.'
+}
+
+function Invoke-SasPortableRepoCommand {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [AllowNull()][string[]]$Arguments
+    )
+
+    $entryPoint = Join-Path $RepoRoot $RelativePath
+    $isLocalDrivePath = $RepoRoot -match '^[A-Za-z]:\\'
+    if (-not $isLocalDrivePath -or $RepoRoot.Length -lt $PathLengthThreshold) {
+        & $entryPoint @Arguments
+        return [int]$LASTEXITCODE
+    }
+
+    $drive = Get-SasAvailableSubstDrive
+    $substExe = Join-Path $env:WINDIR 'System32\subst.exe'
+    $created = $false
+    $commandExit = 1
+    try {
+        & $substExe $drive $RepoRoot | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not create temporary short-path alias $drive for the SysAdminSuite repository."
+        }
+        $created = $true
+        $shortRoot = "$drive\"
+        $shortEntryPoint = Join-Path $shortRoot $RelativePath
+        Write-Host "Long repository path detected; using temporary short-path alias $drive for this command." -ForegroundColor Cyan
+        & $shortEntryPoint @Arguments
+        $commandExit = [int]$LASTEXITCODE
+    }
+    finally {
+        if ($created) {
+            & $substExe $drive '/D' | Out-Null
+        }
+    }
+    return $commandExit
+}
+
 $repoRoot = Resolve-SasRepoRoot
 $normalized = if ($Command) { $Command.Trim().ToLowerInvariant() } else { '' }
 
@@ -126,12 +176,12 @@ switch ($normalized) {
         exit $LASTEXITCODE
     }
     { $_ -in @('autologon','qualify') } {
-        & (Join-Path $repoRoot 'Run-AutoLogonOnsite.cmd') @CommandArgs
-        exit $LASTEXITCODE
+        $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-AutoLogonOnsite.cmd' -Arguments $CommandArgs
+        exit $exitCode
     }
     'cybernet' {
-        & (Join-Path $repoRoot 'Run-CybernetBatchConfiguration.cmd') @CommandArgs
-        exit $LASTEXITCODE
+        $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-CybernetBatchConfiguration.cmd' -Arguments $CommandArgs
+        exit $exitCode
     }
     default {
         Write-Host "Unknown sas command: $Command" -ForegroundColor Red
