@@ -9,8 +9,17 @@
       "path": "CODEBASE_MAP.md",
       "required": true,
       "tracked": true,
-      "purpose": "Routes a fresh agent to the smallest relevant repository surface.",
+      "purpose": "Routes a fresh agent to the smallest relevant repository surface and canonical command registries.",
       "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "fresh-agent-workflow",
+      "kind": "workflow",
+      "path": "harness/workflows/fresh-agent-intake.yaml",
+      "required": true,
+      "tracked": true,
+      "purpose": "Provides deterministic intake from governance and Git state through routing, validation, artifacts, and handoff.",
+      "validation": "python harness/validators/validate-harness-registries.py"
     },
     {
       "id": "maintenance-workflow",
@@ -18,7 +27,7 @@
       "path": "harness/workflows/operational-harness-maintenance.yaml",
       "required": true,
       "tracked": true,
-      "purpose": "Defines local task pickup, routing, validation, failure handling, commit, and handoff stages.",
+      "purpose": "Defines bounded local harness implementation, validation, failure handling, commit, and handoff stages.",
       "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
     },
     {
@@ -36,8 +45,26 @@
       "path": "harness/api/harness-artifact-registry.json",
       "required": true,
       "tracked": true,
-      "purpose": "Defines tracked and generated harness artifacts, locations, generators, and naming.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+      "purpose": "Defines tracked and generated harness artifacts, locations, generators, naming, and live-data boundaries.",
+      "validation": "python harness/validators/validate-harness-registries.py"
+    },
+    {
+      "id": "validator-registry",
+      "kind": "validator_registry",
+      "path": "harness/api/harness-validator-registry.json",
+      "required": true,
+      "tracked": true,
+      "purpose": "Defines canonical validators, commands, scopes, blocking posture, escalation, and proof descriptions.",
+      "validation": "python harness/validators/validate-harness-registries.py"
+    },
+    {
+      "id": "command-registry",
+      "kind": "command_registry",
+      "path": "harness/api/harness-command-registry.json",
+      "required": true,
+      "tracked": true,
+      "purpose": "Indexes canonical build, test, run, and deployment-facing commands with mutation and network classifications.",
+      "validation": "python harness/validators/validate-harness-registries.py"
     },
     {
       "id": "manifest-schema",
@@ -47,6 +74,15 @@
       "tracked": true,
       "purpose": "Fails closed when the central operational harness manifest is malformed.",
       "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "registry-validator",
+      "kind": "validator",
+      "path": "harness/validators/validate-harness-registries.py",
+      "required": true,
+      "tracked": true,
+      "purpose": "Validates registry integrity, canonical source paths, fresh-agent workflow wiring, skill wiring, and report contracts.",
+      "validation": "python harness/validators/validate-harness-registries.py"
     },
     {
       "id": "completeness-validator",
@@ -103,6 +139,15 @@
       "validation": "bash -n scripts/install-local-harness-hooks.sh"
     },
     {
+      "id": "harness-maintenance-skill",
+      "kind": "skill",
+      "path": ".claude/skills/harness-maintenance/SKILL.md",
+      "required": true,
+      "tracked": true,
+      "purpose": "Provides scoped procedures for extending or repairing harness infrastructure without changing product behavior or AGENTS.md.",
+      "validation": "python harness/validators/validate-harness-registries.py"
+    },
+    {
       "id": "repository-sprint-skill",
       "kind": "skill",
       "path": ".claude/skills/repository-sprint/SKILL.md",
@@ -145,7 +190,16 @@
       "required": true,
       "tracked": true,
       "purpose": "Summarizes working components, broken boundaries, missing proof, and operator next actions.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+      "validation": "python harness/validators/validate-harness-registries.py"
+    },
+    {
+      "id": "status-renderer",
+      "kind": "operator_report",
+      "path": "harness/reports/render-harness-status.py",
+      "required": true,
+      "tracked": true,
+      "purpose": "Renders a fresh human-readable harness inventory from tracked registries without changing product state.",
+      "validation": "python harness/reports/render-harness-status.py"
     },
     {
       "id": "sprint-handoff",
@@ -162,16 +216,26 @@
       "path": ".github/workflows/harness-infrastructure.yml",
       "required": true,
       "tracked": true,
-      "purpose": "Runs completeness, local harness, text policy, syntax, and whitespace checks on harness changes.",
+      "purpose": "Runs completeness, local harness, text policy, syntax, whitespace, and Windows handoff checks on harness changes.",
       "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "harness-registry-ci",
+      "kind": "ci",
+      "path": ".github/workflows/harness-registry-integrity.yml",
+      "required": true,
+      "tracked": true,
+      "purpose": "Runs registry integrity, completeness, report rendering, hook syntax, and whitespace checks whenever registry-facing harness files change.",
+      "validation": "python harness/validators/validate-harness-registries.py"
     }
   ],
   "validation_commands": [
+    "python harness/validators/validate-harness-registries.py",
     "python Tests/survey/test_operational_harness_completeness_contracts.py",
     "python scripts/check-repo-text-policy.py --commit HEAD",
     "python Tests/survey/test_local_harness_contracts.py",
     "bash tests/survey/run_offline_survey_tests.sh",
     "git diff --check"
   ],
-  "proof_ceiling": "Static harness structure, Git tracking, workflow, schema, hook, artifact, report, and repository-text policy proof; no product behavior or live target proof."
+  "proof_ceiling": "Static harness structure, Git tracking, workflow, registry, schema, hook, artifact, report, build-command authority, and repository-text policy proof; no product behavior or live target proof."
 }
