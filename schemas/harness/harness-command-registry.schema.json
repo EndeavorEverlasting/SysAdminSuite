@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.invalid/schemas/harness/harness-command-registry.schema.json",
+  "title": "SysAdminSuite harness command registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "commands"],
+  "properties": {
+    "schema_version": {"const": "sas-harness-command-registry/v1"},
+    "repository": {"const": "EndeavorEverlasting/SysAdminSuite"},
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "command", "source_of_truth", "mutation", "network", "purpose"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+          "kind": {"enum": ["validate", "test", "build", "run", "deploy-plan", "deploy"]},
+          "command": {"type": "string", "minLength": 1},
+          "source_of_truth": {"type": "string", "minLength": 1},
+          "mutation": {"enum": ["none", "repository_read_only", "repository_build_output_only", "local_runtime", "authorized_target_mutation"]},
+          "network": {
+            "oneOf": [
+              {"type": "boolean"},
+              {"enum": ["restore_may_require_package_source", "workflow_dependent"]}
+            ]
+          },
+          "purpose": {"type": "string", "minLength": 8}
+        }
+      }
+    }
+  }
+}
