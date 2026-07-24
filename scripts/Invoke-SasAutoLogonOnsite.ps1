@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-<##
+<#
 .SYNOPSIS
 Operator-friendly AutoLogon qualification launcher for field use.
 
@@ -8,7 +8,7 @@ Keeps request preparation and validation available on guest/off-network connecti
 all live target activity on approved Northwell network posture. If no local qualification request
 exists, copies the tracked example into the ignored survey/input workspace and opens it for editing
 instead of failing with a raw missing-file exception.
-##>
+#>
 [CmdletBinding()]
 param(
     [ValidateSet('Menu','Prepare','Validate','Pilot','Evidence')]
@@ -102,23 +102,23 @@ switch ($Action) {
     'Validate' {
         if (-not (Confirm-SasRequestExists)) { exit 4 }
         & $qualificationScript -Action Plan
-        exit $LASTEXITCODE
+        return
     }
     'Pilot' {
         if (-not (Confirm-SasRequestExists)) { exit 4 }
         Write-Host ''
         Write-Host 'Checking local network posture before any target contact...' -ForegroundColor Cyan
-        & $networkGate -Purpose 'AutoLogon LocalSystem qualification pilot'
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate -Purpose 'AutoLogon LocalSystem qualification pilot'
         $networkExit = $LASTEXITCODE
         if ($networkExit -ne 0) {
             Write-Host "AutoLogon pilot stopped by the network gate with exit code $networkExit." -ForegroundColor Yellow
             exit $networkExit
         }
         & $qualificationScript -Action Live
-        exit $LASTEXITCODE
+        return
     }
     'Evidence' {
         & $qualificationScript -Action OpenLatest
-        exit $LASTEXITCODE
+        return
     }
 }
