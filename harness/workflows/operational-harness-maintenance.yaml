@@ -29,7 +29,7 @@ stages:
       - read harness/api/harness-command-registry.json
       - read harness/api/harness-validator-registry.json
       - read harness/api/harness-artifact-registry.json
-      - inspect existing validators, hooks, skills, reports, and artifact contracts
+      - inspect existing validators, hooks, scoped procedures, reports, and artifact contracts
     stop_conditions:
       - repository cannot be resolved
       - unrelated uncommitted work would be overwritten
@@ -37,8 +37,8 @@ stages:
   - id: route
     order: 2
     actions:
-      - choose the smallest existing skill and workflow that match the task
-      - use .claude/skills/harness-maintenance/SKILL.md for harness-infrastructure-owned work
+      - preserve the AGENTS.md skill router for normal product and repository task routing
+      - use harness/skills/harness-maintenance.md for explicitly harness-infrastructure-owned work
       - fail closed when equal-priority routes conflict
       - declare lane, mission, owned scope, forbidden scope, artifacts, validation, and proof ceiling
 
@@ -46,7 +46,7 @@ stages:
     order: 3
     actions:
       - reuse canonical harness components before creating new ones
-      - keep writes inside maps, workflows, validators, registries, hooks, skills, reports, schemas, and harness CI
+      - keep writes inside maps, workflows, validators, registries, hooks, scoped harness procedures, reports, schemas, and harness CI
       - preserve product code and AGENTS.md
       - keep generated evidence under ignored survey/output roots
 
@@ -99,8 +99,11 @@ outputs:
     - harness/api/harness-validator-registry.json
     - harness/api/harness-artifact-registry.json
     - harness/workflows/fresh-agent-intake.yaml
-    - .claude/skills/harness-maintenance/SKILL.md
+    - harness/skills/harness-maintenance.md
     - schemas/harness/operational-harness-manifest.schema.json
+    - schemas/harness/harness-command-registry.schema.json
+    - schemas/harness/harness-validator-registry.schema.json
+    - schemas/harness/harness-artifact-registry.schema.json
     - docs/HARNESS_STATUS.md
   generated_local:
     - survey/output/harness-validator/harness-proof-*/
