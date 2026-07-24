@@ -1,6 +1,7 @@
 @echo off
 setlocal
 set "SCRIPT_DIR=%~dp0"
+set "NETWORK_GATE=%SCRIPT_DIR%scripts\Confirm-SasNorthwellNetwork.ps1"
 title SysAdminSuite - Cybernet Batch Configuration
 
 if "%~1"=="" (
@@ -15,7 +16,9 @@ if "%~1"=="" (
   echo Validate one target:
   echo   Run-CybernetBatchConfiguration.cmd Validate CYBERNET-HOST
   echo.
-  echo Apply requires an interactive high-impact confirmation. COM repair is never performed remotely.
+  echo Plan is local-only. Apply and Validate require approved Northwell network posture.
+  echo If Guest is detected, the operator can switch/recheck or cancel before target contact.
+  echo Apply still requires the existing interactive high-impact confirmation. COM repair is never performed remotely.
   exit /b 2
 )
 
@@ -41,10 +44,30 @@ powershell.exe -NoProfile -File "%SCRIPT_DIR%Hardware\Cybernet\Invoke-CybernetBa
 goto done
 
 :apply
+if not exist "%NETWORK_GATE%" (
+  echo ERROR: Network gate was not found: %NETWORK_GATE%
+  exit /b 2
+)
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%NETWORK_GATE%" -Purpose "Cybernet Apply for %TARGET%"
+set "NETWORK_EXIT=%ERRORLEVEL%"
+if not "%NETWORK_EXIT%"=="0" (
+  echo Cybernet Apply canceled or blocked before target mutation. Network gate exit code %NETWORK_EXIT%.
+  exit /b %NETWORK_EXIT%
+)
 powershell.exe -NoProfile -File "%SCRIPT_DIR%Hardware\Cybernet\Invoke-CybernetBatchConfiguration.ps1" -Mode Apply -ComputerName "%TARGET%" -AllowTargetMutation
 goto done
 
 :validate
+if not exist "%NETWORK_GATE%" (
+  echo ERROR: Network gate was not found: %NETWORK_GATE%
+  exit /b 2
+)
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%NETWORK_GATE%" -Purpose "Cybernet Validate for %TARGET%"
+set "NETWORK_EXIT=%ERRORLEVEL%"
+if not "%NETWORK_EXIT%"=="0" (
+  echo Cybernet Validate canceled or blocked before target contact. Network gate exit code %NETWORK_EXIT%.
+  exit /b %NETWORK_EXIT%
+)
 powershell.exe -NoProfile -File "%SCRIPT_DIR%Hardware\Cybernet\Invoke-CybernetBatchConfiguration.ps1" -Mode Validate -ComputerName "%TARGET%"
 
 :done
