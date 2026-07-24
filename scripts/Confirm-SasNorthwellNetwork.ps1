@@ -148,15 +148,22 @@ while ($true) {
     Write-Host ''
     Write-Host 'No target contact or mutation has occurred.' -ForegroundColor Yellow
     if ($approvedProfiles.Count -gt 0) {
-        Write-Host '[S] Switch to a saved approved Northwell Wi-Fi profile (explicit confirmation required)'
+        Write-Host '[1/S] Switch to a saved approved Northwell Wi-Fi profile (explicit confirmation required)'
     }
-    Write-Host '[R] I switched networks manually - recheck now'
+    Write-Host '[2/R] I switched networks manually - recheck now'
     if (-not $NoOpenWifiSettings) {
-        Write-Host '[W] Open Windows Wi-Fi settings, then recheck'
+        Write-Host '[3/W] Open Windows Wi-Fi settings, then recheck'
     }
-    Write-Host '[C] Cancel this target operation'
+    Write-Host '[Q/C] Cancel this target operation'
 
     $choice = (Read-Host 'Choose an action').Trim().ToUpperInvariant()
+    switch ($choice) {
+        '1' { $choice = 'S' }
+        '2' { $choice = 'R' }
+        '3' { $choice = 'W' }
+        'Q' { $choice = 'C' }
+    }
+
     switch ($choice) {
         'S' {
             if ($approvedProfiles.Count -eq 0) {
