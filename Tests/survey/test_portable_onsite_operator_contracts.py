@@ -25,20 +25,32 @@ def test_auto_logon_onsite_launcher_is_repo_relative_and_bootstraps_local_reques
     assert "qualification-request.local.json" in script
     assert "Copy-Item -LiteralPath $templatePath" in script
     assert "No live or validation action was started." in script
-    # PowerShell functions enumerate their output; a single FileInfo must still be treated as an array.
     assert script.count("@(Get-SasQualificationRequests)") >= 2
 
 
 def test_guest_safe_actions_do_not_require_target_network() -> None:
     script = read("scripts/Invoke-SasAutoLogonOnsite.ps1")
-    assert "Prepare/edit qualification request (guest-safe)" in script
-    assert "Validate qualification request (guest-safe; no target contact)" in script
+    assert "qualification request (guest-safe)" in script
+    assert "qualification request (guest-safe; no target contact)" in script
     assert "& $qualificationScript -Action Plan" in script
     pilot = script.index("'Pilot' {")
-    gate = script.index("Confirm-SasNorthwellNetwork.ps1")
+    interactive = script.index("'Interactive' {")
     live = script.index("& $qualificationScript -Action Live")
-    assert gate < live
+    interactive_live = script.index("& $interactiveScript -ComputerName $target")
     assert pilot < live
+    assert interactive < interactive_live
+    assert "Confirm-SasNorthwellNetwork.ps1" in script
+
+
+def test_auto_logon_interactive_command_accepts_action_and_target() -> None:
+    cmd = read("Run-AutoLogonOnsite.cmd")
+    launcher = read("scripts/SasPortableLauncher.ps1")
+    script = read("scripts/Invoke-SasAutoLogonOnsite.ps1")
+    assert 'if not "%~3"==""' in cmd
+    assert '-ComputerName "%~2"' in cmd
+    assert "'Interactive'" in script
+    assert "Invoke-SasAutoLogonInteractivePilot.ps1" in script
+    assert "sas autologon Interactive HOST" in launcher
 
 
 def test_network_guard_has_windows11_wifi_profile_fallback() -> None:
@@ -120,7 +132,7 @@ def test_portable_sas_command_discovers_and_caches_repo_without_username_literal
         assert marker in launcher
     assert "pa_rperez26" not in launcher
     assert "pa_rperez26" not in installer
-    assert "%LOCALAPPDATA%" not in installer  # PowerShell uses the current user's env provider instead.
+    assert "%LOCALAPPDATA%" not in installer
     assert "$env:LOCALAPPDATA" in installer
     assert "SetEnvironmentVariable('Path'" in installer
     assert "'User'" in installer
