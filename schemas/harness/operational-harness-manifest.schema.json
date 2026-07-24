@@ -40,6 +40,8 @@
               "codebase_map",
               "workflow",
               "artifact_registry",
+              "validator_registry",
+              "command_registry",
               "validator",
               "hook",
               "hook_installer",
