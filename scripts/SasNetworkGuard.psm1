@@ -52,6 +52,72 @@ function Get-SasWifiSsidFromConnectionProfiles {
     return 'unknown'
 }
 
+function Get-SasWlanConnectionFromEventXml {
+    [CmdletBinding()]
+    param([AllowNull()][string]$XmlText)
+
+    if ([string]::IsNullOrWhiteSpace($XmlText)) { return $null }
+    try {
+        [xml]$document = $XmlText
+        $values = @{}
+        foreach ($node in @($document.Event.EventData.Data)) {
+            $name = [string]$node.GetAttribute('Name')
+            if ([string]::IsNullOrWhiteSpace($name)) { continue }
+            $values[$name] = [string]$node.InnerText
+        }
+        return [pscustomobject][ordered]@{
+            ssid = [string]$values['SSID']
+            profile_name = [string]$values['ProfileName']
+            interface_guid = [string]$values['InterfaceGuid']
+        }
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-SasCurrentWifiSsidFromWlanEventLog {
+    [CmdletBinding()]
+    param([ValidateRange(1,20)][int]$MaxEvents = 8)
+
+    try {
+        $profiles = @(Get-NetConnectionProfile -ErrorAction Stop | Where-Object {
+            ([string]$_.InterfaceAlias) -match '(?i)(wi-?fi|wireless|wlan)' -and (
+                ([string]$_.IPv4Connectivity) -in @('Subnet','LocalNetwork','Internet') -or
+                ([string]$_.IPv6Connectivity) -in @('Subnet','LocalNetwork','Internet')
+            )
+        })
+        if ($profiles.Count -eq 0) { return 'unknown' }
+
+        $activeProfile = $profiles[0]
+        $activeGuid = ''
+        try {
+            $adapter = Get-NetAdapter -InterfaceIndex $activeProfile.InterfaceIndex -ErrorAction Stop
+            $activeGuid = ([string]$adapter.InterfaceGuid).Trim('{}')
+        }
+        catch {}
+
+        $events = @(Get-WinEvent -FilterHashtable @{
+            LogName = 'Microsoft-Windows-WLAN-AutoConfig/Operational'
+            Id = 8001
+        } -MaxEvents $MaxEvents -ErrorAction Stop)
+
+        foreach ($event in $events) {
+            $connection = Get-SasWlanConnectionFromEventXml -XmlText $event.ToXml()
+            if ($null -eq $connection) { continue }
+            $eventGuid = ([string]$connection.interface_guid).Trim('{}')
+            if (-not [string]::IsNullOrWhiteSpace($activeGuid) -and -not [string]::IsNullOrWhiteSpace($eventGuid) -and -not $activeGuid.Equals($eventGuid, [StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string]$connection.ssid)) { return [string]$connection.ssid }
+            if (-not [string]::IsNullOrWhiteSpace([string]$connection.profile_name)) { return [string]$connection.profile_name }
+        }
+    }
+    catch {}
+
+    return 'unknown'
+}
+
 function Get-SasCurrentWifiSsid {
     [CmdletBinding()]
     param()
@@ -64,8 +130,12 @@ function Get-SasCurrentWifiSsid {
     catch {}
 
     # Windows 11 can withhold WLAN interface details from netsh when location access is restricted.
-    # Get-NetConnectionProfile remains a read-only fallback and commonly exposes the active Wi-Fi
-    # network name through the Wi-Fi interface profile.
+    # The WLAN-AutoConfig operational log records successful WLAN connections with ProfileName/SSID.
+    # Use the newest success event for the currently connected Wi-Fi adapter before falling back to
+    # the generic Windows connection-profile label (which may be a domain such as nslijhs.net).
+    $eventSsid = Get-SasCurrentWifiSsidFromWlanEventLog
+    if ($eventSsid -ne 'unknown') { return $eventSsid }
+
     try {
         $profiles = @(Get-NetConnectionProfile -ErrorAction Stop)
         $ssid = Get-SasWifiSsidFromConnectionProfiles -Profiles $profiles
@@ -221,4 +291,4 @@ function Assert-SasNorthwellWifi {
     throw "Network check failed: this script must be run from an approved Northwell network. Connect to Wi-Fi SSID starting with $script:SasNetworkGuardRequiredPrefix or approved Northwell wired Ethernet and rerun. Current SSID: $ssid. Wired evidence: $script:SasNetworkGuardLastWiredEvidence."
 }
 
-Export-ModuleMember -Function Get-SasCurrentWifiSsidFromNetshText, Get-SasWifiSsidFromConnectionProfiles, Get-SasCurrentWifiSsid, Test-SasNorthwellWifiSsid, Get-SasNetworkGuardConfig, Get-SasLocalNetworkText, Test-SasIpInCidr, Test-SasNorthwellWiredEvidence, Test-SasNorthwellNetworkPosture, Assert-SasNorthwellWifi
+Export-ModuleMember -Function Get-SasCurrentWifiSsidFromNetshText, Get-SasWifiSsidFromConnectionProfiles, Get-SasWlanConnectionFromEventXml, Get-SasCurrentWifiSsidFromWlanEventLog, Get-SasCurrentWifiSsid, Test-SasNorthwellWifiSsid, Get-SasNetworkGuardConfig, Get-SasLocalNetworkText, Test-SasIpInCidr, Test-SasNorthwellWiredEvidence, Test-SasNorthwellNetworkPosture, Assert-SasNorthwellWifi
