@@ -40,11 +40,15 @@ def test_guest_safe_actions_do_not_require_target_network() -> None:
     assert pilot < live
 
 
-def test_network_gate_is_manual_switch_recheck_or_cancel_only() -> None:
+def test_network_gate_allows_only_confirmed_saved_profile_switch_or_manual_recheck() -> None:
     gate = read("scripts/Confirm-SasNorthwellNetwork.ps1")
     for marker in (
         "ENVIRONMENT_BLOCKED_GUEST_NETWORK",
-        "[R] I switched networks - recheck now",
+        "[S] Switch to a saved approved Northwell Wi-Fi profile",
+        "Type SWITCH to connect using the saved profile",
+        "& netsh wlan connect name=\"$profile\"",
+        "Test-SasNorthwellWifiSsid -Ssid $name",
+        "[R] I switched networks manually - recheck now",
         "[W] Open Windows Wi-Fi settings, then recheck",
         "[C] Cancel this target operation",
         "ms-settings:network-wifi",
@@ -54,11 +58,13 @@ def test_network_gate_is_manual_switch_recheck_or_cancel_only() -> None:
     ):
         assert marker in gate
     for forbidden in (
-        "netsh wlan connect",
         "netsh wlan add profile",
+        "netsh wlan set profileparameter",
         "Set-NetConnectionProfile",
         "New-NetIPAddress",
         "rasdial",
+        "password=",
+        "keymaterial",
     ):
         assert forbidden.lower() not in gate.lower()
 
