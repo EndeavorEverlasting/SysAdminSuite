@@ -15,6 +15,17 @@
       ]
     },
     {
+      "id": "cybernet-clinical-core",
+      "display_name": "Cybernet clinical workstation applications excluding AutoLogon",
+      "package_ids": [
+        "allscripts-eehr-shortcut-uai-2-2",
+        "epic-downtime-guide-shortcut-1-0",
+        "nuance-dragon-medical-one-2025",
+        "hyland-fos-epic-integration-23-1-33-1000",
+        "bca"
+      ]
+    },
+    {
       "id": "cybernet-autologon-only",
       "display_name": "Cybernet AutoLogon recovery",
       "package_ids": [
