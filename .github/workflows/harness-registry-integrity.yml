@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - 'CODEBASE_MAP.md'
-      - '.claude/skills/harness-maintenance/**'
+      - 'harness/skills/**'
       - 'harness/api/operational-harness-manifest.json'
       - 'harness/api/harness-command-registry.json'
       - 'harness/api/harness-validator-registry.json'
@@ -29,7 +29,7 @@ on:
     branches: [main, 'feat/**', 'repair/**', 'harness/**']
     paths:
       - 'CODEBASE_MAP.md'
-      - '.claude/skills/harness-maintenance/**'
+      - 'harness/skills/**'
       - 'harness/api/operational-harness-manifest.json'
       - 'harness/api/harness-command-registry.json'
       - 'harness/api/harness-validator-registry.json'
