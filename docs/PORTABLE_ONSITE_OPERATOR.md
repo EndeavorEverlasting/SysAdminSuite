@@ -70,25 +70,26 @@ and opens it in Notepad. `survey/input/*` is ignored by git, so live site, ticke
 
 The template still requires a materially different approved AutoLogon candidate. The launcher does not invent installer switches, hashes, or authorization references.
 
+## Network detection on Windows 11
+
+The operator gate first reads `netsh wlan show interfaces`. If Windows returns no usable SSID, it falls back read-only to `Get-NetConnectionProfile` and inspects the active Wi-Fi interface profile name. This handles Windows 11 systems where WLAN details are withheld from `netsh` even though Settings shows an active Wi-Fi connection.
+
+Saved Wi-Fi profiles alone are not treated as proof of the current network.
+
 ## Guest-to-Northwell transition
 
 Before live AutoLogon qualification, Cybernet Apply, or Cybernet Validate, `Confirm-SasNorthwellNetwork.ps1` classifies local network evidence.
 
-If one or more already-saved Wi-Fi profiles match the repo's approved Northwell SSID policy, the operator can select:
+When approved posture is not detected, the operator receives:
 
 ```text
-[S] Switch to a saved approved Northwell Wi-Fi profile
+[1/S] Switch to a saved approved Northwell Wi-Fi profile
+[2/R] I switched networks manually - recheck now
+[3/W] Open Windows Wi-Fi settings, then recheck
+[Q/C] Cancel this target operation
 ```
 
-The launcher then requires the operator to type `SWITCH` before calling Windows `netsh wlan connect` for that saved approved profile. It never creates a profile, changes a saved profile, embeds credentials, or chooses an unapproved profile.
-
-When approved posture is not detected, the remaining bounded choices are:
-
-```text
-[R] I switched networks manually - recheck now
-[W] Open Windows Wi-Fi settings, then recheck
-[C] Cancel this target operation
-```
+If one or more already-saved Wi-Fi profiles match the repo's approved Northwell SSID policy, `1` or `S` selects the bounded saved-profile path. The launcher then requires the operator to type `SWITCH` before calling Windows `netsh wlan connect` for that saved approved profile. It never creates a profile, changes a saved profile, embeds credentials, or chooses an unapproved profile.
 
 Choosing Cancel exits before target contact. Choosing Wi-Fi settings opens Windows settings; the technician performs the network switch and the gate rechecks fresh local evidence.
 
