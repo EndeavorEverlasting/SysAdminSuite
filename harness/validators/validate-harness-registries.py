@@ -16,7 +16,7 @@ VALIDATOR_SCHEMA = ROOT / "schemas/harness/harness-validator-registry.schema.jso
 COMMAND_SCHEMA = ROOT / "schemas/harness/harness-command-registry.schema.json"
 ARTIFACT_SCHEMA = ROOT / "schemas/harness/harness-artifact-registry.schema.json"
 FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
-SKILL = ROOT / ".claude/skills/harness-maintenance/SKILL.md"
+SKILL = ROOT / "harness/skills/harness-maintenance.md"
 STATUS = ROOT / "docs/HARNESS_STATUS.md"
 RENDERER = ROOT / "harness/reports/render-harness-status.py"
 
@@ -141,7 +141,7 @@ def test_fresh_agent_wiring() -> None:
         "harness/api/harness-command-registry.json",
         "harness/api/harness-validator-registry.json",
         "harness/api/harness-artifact-registry.json",
-        ".claude/skills/harness-maintenance/SKILL.md",
+        "harness/skills/harness-maintenance.md",
         "python harness/validators/validate-harness-registries.py",
         "git diff --check",
         "tools/New-SasSprintCapsule.ps1",
@@ -156,8 +156,9 @@ def test_fresh_agent_wiring() -> None:
         "harness/workflows/fresh-agent-intake.yaml",
         "harness/api/harness-command-registry.json",
         "harness/api/harness-validator-registry.json",
+        "Do not place harness-only procedures under `.claude/skills/`",
     ):
-        assert marker in skill, f"harness-maintenance skill missing: {marker}"
+        assert marker in skill, f"harness-maintenance procedure missing: {marker}"
 
 
 def test_artifact_and_report_wiring() -> None:
