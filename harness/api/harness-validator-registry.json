@@ -1,0 +1,101 @@
+{
+  "schema_version": "sas-harness-validator-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "selection_policy": {
+    "default": "run the smallest blocking validator set that covers every changed surface",
+    "escalation": "add broader Pester, managed build, or E2E validation only when the changed surface or declared proof ceiling requires it",
+    "failure": "stop at the first failed proof boundary, repair the owning component, and rerun that validator before broader suites"
+  },
+  "validators": [
+    {
+      "id": "harness-registry-integrity",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python harness/validators/validate-harness-registries.py",
+      "blocking": true,
+      "scope": ["harness/api/**", "harness/workflows/**", ".claude/skills/harness-maintenance/**", "CODEBASE_MAP.md", "docs/HARNESS_STATUS.md"],
+      "proof": "Registry shape, path existence, fresh-agent wiring, command authority, and report renderer contract."
+    },
+    {
+      "id": "operational-harness-completeness",
+      "category": "harness",
+      "platform": "python3+git",
+      "command": "python Tests/survey/test_operational_harness_completeness_contracts.py",
+      "blocking": true,
+      "scope": ["harness/**", ".githooks/**", ".github/workflows/harness-infrastructure.yml", "schemas/harness/**", "CODEBASE_MAP.md", "docs/HARNESS_STATUS.md"],
+      "proof": "Required operational harness components exist, are tracked, and are wired into hooks, CI, maps, and reports."
+    },
+    {
+      "id": "local-harness-contracts",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python Tests/survey/test_local_harness_contracts.py",
+      "blocking": true,
+      "scope": ["harness/**", "scripts/SasRunContext.psm1", "tools/**"],
+      "proof": "Local harness and run-context contracts remain intact."
+    },
+    {
+      "id": "repository-text-policy-staged",
+      "category": "format",
+      "platform": "python3+git",
+      "command": "python scripts/check-repo-text-policy.py --cached",
+      "blocking": true,
+      "scope": ["changed tracked text"],
+      "proof": "Staged Git text blobs use canonical repository byte policy and contain no trailing whitespace."
+    },
+    {
+      "id": "repository-text-policy-commit",
+      "category": "format",
+      "platform": "python3+git",
+      "command": "python scripts/check-repo-text-policy.py --commit HEAD",
+      "blocking": true,
+      "scope": ["committed tracked text"],
+      "proof": "The destination commit satisfies repository text policy."
+    },
+    {
+      "id": "patch-whitespace",
+      "category": "format",
+      "platform": "git",
+      "command": "git diff --check",
+      "blocking": true,
+      "scope": ["working tree diff"],
+      "proof": "No whitespace errors are present in the current patch."
+    },
+    {
+      "id": "offline-survey-floor",
+      "category": "integration",
+      "platform": "bash+python3",
+      "command": "bash tests/survey/run_offline_survey_tests.sh",
+      "blocking": true,
+      "scope": ["survey/**", "harness/**", "Tests/survey/**"],
+      "proof": "Dependency-free offline survey and harness contracts pass without target contact."
+    },
+    {
+      "id": "pester-full",
+      "category": "powershell",
+      "platform": "PowerShell+Pester5",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester",
+      "blocking": false,
+      "scope": ["*.ps1", "*.psm1", "Tests/Pester/**"],
+      "proof": "PowerShell parser, fixture, and behavioral contracts pass on a Pester 5 host."
+    },
+    {
+      "id": "managed-tests-release",
+      "category": "managed",
+      "platform": ".NET 8",
+      "command": "dotnet test SysAdminSuite.sln -c Release --verbosity normal",
+      "blocking": false,
+      "scope": ["src/**", "managed-tests/**", "SysAdminSuite.sln"],
+      "proof": "Managed solution restores, builds, and passes unit tests in Release configuration."
+    },
+    {
+      "id": "dashboard-publish",
+      "category": "build",
+      "platform": ".NET 8",
+      "command": "dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost",
+      "blocking": false,
+      "scope": ["src/SysAdminSuite.DashboardHost/**"],
+      "proof": "DashboardHost produces the framework-dependent win-x64 publish artifact used by its build contract."
+    }
+  ]
+}
