@@ -28,29 +28,29 @@ def test_auto_logon_onsite_launcher_is_repo_relative_and_bootstraps_local_reques
     assert script.count("@(Get-SasQualificationRequests)") >= 2
 
 
-def test_guest_safe_actions_do_not_require_target_network() -> None:
+def test_local_system_candidate_actions_remain_separate_from_remote_s4u() -> None:
     script = read("scripts/Invoke-SasAutoLogonOnsite.ps1")
-    assert "qualification request (guest-safe)" in script
-    assert "qualification request (guest-safe; no target contact)" in script
+    assert "Validate LocalSystem qualification request (no target contact)" in script
     assert "& $qualificationScript -Action Plan" in script
     pilot = script.index("'Pilot' {")
-    interactive = script.index("'Interactive' {")
     live = script.index("& $qualificationScript -Action Live")
-    interactive_live = script.index("& $interactiveScript -ComputerName $target")
+    remote = script.index("{ $_ -in @('Remote','S4U') } {")
+    s4u_live = script.index("& $s4uScript -ComputerName $target")
     assert pilot < live
-    assert interactive < interactive_live
+    assert remote < s4u_live
     assert "Confirm-SasNorthwellNetwork.ps1" in script
 
 
-def test_auto_logon_interactive_command_accepts_action_and_target() -> None:
+def test_auto_logon_remote_command_accepts_action_and_target() -> None:
     cmd = read("Run-AutoLogonOnsite.cmd")
     launcher = read("scripts/SasPortableLauncher.ps1")
     script = read("scripts/Invoke-SasAutoLogonOnsite.ps1")
     assert 'if not "%~3"==""' in cmd
     assert '-ComputerName "%~2"' in cmd
-    assert "'Interactive'" in script
-    assert "Invoke-SasAutoLogonInteractivePilot.ps1" in script
-    assert "sas autologon Interactive HOST" in launcher
+    assert "'Remote','S4U'" in script
+    assert "Invoke-SasAutoLogonKerberosS4UPilot.ps1" in script
+    assert "sas autologon Remote HOST" in launcher
+    assert "no target login" in script.lower()
 
 
 def test_network_guard_has_windows11_wifi_profile_fallback() -> None:
