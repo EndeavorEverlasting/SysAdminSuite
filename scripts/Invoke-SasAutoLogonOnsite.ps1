@@ -53,7 +53,7 @@ function New-SasLocalQualificationRequest {
 }
 
 function Confirm-SasRequestExists {
-    $requests = Get-SasQualificationRequests
+    $requests = @(Get-SasQualificationRequests)
     if ($requests.Count -gt 0) { return $true }
     [void](New-SasLocalQualificationRequest)
     Write-Host ''
@@ -85,7 +85,7 @@ if ($Action -eq 'Menu') {
 
 switch ($Action) {
     'Prepare' {
-        $requests = Get-SasQualificationRequests
+        $requests = @(Get-SasQualificationRequests)
         if ($requests.Count -eq 0) {
             [void](New-SasLocalQualificationRequest)
         }
