@@ -4,7 +4,6 @@
 These tests inspect tracked launcher and safety boundaries only. They do not connect
 Wi-Fi, contact a target, mutate a target, install software, or change AutoLogon state.
 """
-
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,6 +25,8 @@ def test_auto_logon_onsite_launcher_is_repo_relative_and_bootstraps_local_reques
     assert "qualification-request.local.json" in script
     assert "Copy-Item -LiteralPath $templatePath" in script
     assert "No live or validation action was started." in script
+    # PowerShell functions enumerate their output; a single FileInfo must still be treated as an array.
+    assert script.count("@(Get-SasQualificationRequests)") >= 2
 
 
 def test_guest_safe_actions_do_not_require_target_network() -> None:
@@ -40,17 +41,36 @@ def test_guest_safe_actions_do_not_require_target_network() -> None:
     assert pilot < live
 
 
-def test_network_gate_allows_only_confirmed_saved_profile_switch_or_manual_recheck() -> None:
+def test_network_guard_has_windows11_wifi_profile_fallback() -> None:
+    guard = read("scripts/SasNetworkGuard.psm1")
+    for marker in (
+        "Get-SasWifiSsidFromConnectionProfiles",
+        "Get-NetConnectionProfile -ErrorAction Stop",
+        "InterfaceAlias",
+        "wi-?fi|wireless|wlan",
+        "Test-SasNorthwellWifiSsid -Ssid $name",
+    ):
+        assert marker in guard
+    netsh = guard.index("netsh wlan show interfaces")
+    fallback = guard.index("Get-NetConnectionProfile -ErrorAction Stop")
+    assert netsh < fallback
+
+
+def test_network_gate_allows_confirmed_saved_profile_switch_numeric_or_letter_choices() -> None:
     gate = read("scripts/Confirm-SasNorthwellNetwork.ps1")
     for marker in (
         "ENVIRONMENT_BLOCKED_GUEST_NETWORK",
-        "[S] Switch to a saved approved Northwell Wi-Fi profile",
+        "[1/S] Switch to a saved approved Northwell Wi-Fi profile",
+        "[2/R] I switched networks manually - recheck now",
+        "[3/W] Open Windows Wi-Fi settings, then recheck",
+        "[Q/C] Cancel this target operation",
+        "'1' { $choice = 'S' }",
+        "'2' { $choice = 'R' }",
+        "'3' { $choice = 'W' }",
+        "'Q' { $choice = 'C' }",
         "Type SWITCH to connect using the saved profile",
         "& netsh wlan connect name=\"$profile\"",
         "Test-SasNorthwellWifiSsid -Ssid $name",
-        "[R] I switched networks manually - recheck now",
-        "[W] Open Windows Wi-Fi settings, then recheck",
-        "[C] Cancel this target operation",
         "ms-settings:network-wifi",
         "exit 1223",
         "target_contact_performed = $false",
