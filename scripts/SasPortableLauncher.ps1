@@ -101,13 +101,14 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host 'SysAdminSuite portable operator command' -ForegroundColor Cyan
     Write-Host "Repo: $repoRoot"
     Write-Host ''
-    Write-Host '  sas autologon              AutoLogon on-site request/qualification menu'
-    Write-Host '  sas cybernet Plan HOST     Local Cybernet plan'
-    Write-Host '  sas cybernet Apply HOST    Network-gated Cybernet apply'
-    Write-Host '  sas cybernet Validate HOST Network-gated Cybernet validation'
-    Write-Host '  sas network                Check/recheck approved Northwell network posture'
-    Write-Host '  sas repo                   Print resolved repository path'
-    Write-Host '  sas open                   Open repository in Explorer'
+    Write-Host '  sas autologon                       AutoLogon on-site menu'
+    Write-Host '  sas autologon Remote HOST           Remote Kerberos/S4U AutoLogon; no target login'
+    Write-Host '  sas cybernet Plan HOST              Local Cybernet plan'
+    Write-Host '  sas cybernet Apply HOST             Network-gated Cybernet apply'
+    Write-Host '  sas cybernet Validate HOST          Network-gated Cybernet validation'
+    Write-Host '  sas network                         Check/recheck approved Northwell network posture'
+    Write-Host '  sas repo                            Print resolved repository path'
+    Write-Host '  sas open                            Open repository in Explorer'
     exit 0
 }
 

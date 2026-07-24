@@ -1,18 +1,18 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Operator-friendly AutoLogon qualification launcher for field use.
+Operator-friendly AutoLogon launcher for field use.
 
 .DESCRIPTION
-Keeps request preparation and validation available on guest/off-network connections, but gates
-all live target activity on approved Northwell network posture. If no local qualification request
-exists, copies the tracked example into the ignored survey/input workspace and opens it for editing
-instead of failing with a raw missing-file exception.
+Keeps canonical LocalSystem qualification available for a future materially different candidate,
+and exposes the current package through a separate remote Kerberos/S4U administrator-task lane.
+The remote lane does not require a user session on the target and does not store a task password.
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Menu','Prepare','Validate','Pilot','Evidence')]
-    [string]$Action = 'Menu'
+    [ValidateSet('Menu','Prepare','Validate','Pilot','Remote','S4U','Evidence')]
+    [string]$Action = 'Menu',
+    [string]$ComputerName
 )
 
 Set-StrictMode -Version 2.0
@@ -22,11 +22,12 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $requestDirectory = Join-Path $repoRoot 'survey\input\autologon-system-qualification'
 $templatePath = Join-Path $repoRoot 'configs\software-packages\autologon-system-qualification-request.example.json'
 $qualificationScript = Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonSystemQualification.ps1'
+$s4uScript = Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonKerberosS4UPilot.ps1'
 $networkGate = Join-Path $repoRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
 
-foreach ($required in @($templatePath,$qualificationScript,$networkGate)) {
+foreach ($required in @($templatePath,$qualificationScript,$s4uScript,$networkGate)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-        throw "Missing on-site qualification dependency: $required"
+        throw "Missing on-site AutoLogon dependency: $required"
     }
 }
 
@@ -62,24 +63,34 @@ function Confirm-SasRequestExists {
     return $false
 }
 
+function Resolve-SasRemoteTarget {
+    param([string]$RequestedTarget)
+    if (-not [string]::IsNullOrWhiteSpace($RequestedTarget)) { return $RequestedTarget.Trim() }
+    $typed = (Read-Host 'Enter the exact authorized Cybernet hostname or FQDN').Trim()
+    if ([string]::IsNullOrWhiteSpace($typed)) { throw 'An explicit target is required for the remote AutoLogon pilot.' }
+    return $typed
+}
+
 if ($Action -eq 'Menu') {
     Clear-Host
-    Write-Host 'SysAdminSuite AutoLogon On-Site Qualification' -ForegroundColor Cyan
-    Write-Host 'Paths are repo-relative. Guest network is safe for request preparation/validation only.' -ForegroundColor DarkCyan
+    Write-Host 'SysAdminSuite AutoLogon On-Site' -ForegroundColor Cyan
+    Write-Host 'Remote Kerberos/S4U is the field lane; LocalSystem qualification remains a separate future-candidate lane.' -ForegroundColor DarkCyan
     Write-Host ''
-    Write-Host '[1] Prepare/edit qualification request (guest-safe)'
-    Write-Host '[2] Validate qualification request (guest-safe; no target contact)'
-    Write-Host '[3] Run controlled LocalSystem pilot (Northwell network required)'
-    Write-Host '[4] Open latest qualification evidence'
+    Write-Host '[1] Remote AutoLogon via Kerberos SMB + passwordless S4U admin task (no target login)'
+    Write-Host '[2] Prepare/edit LocalSystem qualification request for a different candidate'
+    Write-Host '[3] Validate LocalSystem qualification request (no target contact)'
+    Write-Host '[4] Run controlled LocalSystem qualification pilot (requires different candidate)'
+    Write-Host '[5] Open latest LocalSystem qualification evidence'
     Write-Host '[Q] Quit'
     $choice = (Read-Host 'Choose an action').Trim().ToUpperInvariant()
     switch ($choice) {
-        '1' { $Action = 'Prepare' }
-        '2' { $Action = 'Validate' }
-        '3' { $Action = 'Pilot' }
-        '4' { $Action = 'Evidence' }
+        '1' { $Action = 'Remote' }
+        '2' { $Action = 'Prepare' }
+        '3' { $Action = 'Validate' }
+        '4' { $Action = 'Pilot' }
+        '5' { $Action = 'Evidence' }
         'Q' { return }
-        default { throw 'No valid on-site qualification action was selected.' }
+        default { throw 'No valid on-site AutoLogon action was selected.' }
     }
 }
 
@@ -111,10 +122,23 @@ switch ($Action) {
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate -Purpose 'AutoLogon LocalSystem qualification pilot'
         $networkExit = $LASTEXITCODE
         if ($networkExit -ne 0) {
-            Write-Host "AutoLogon pilot stopped by the network gate with exit code $networkExit." -ForegroundColor Yellow
+            Write-Host "AutoLogon SYSTEM pilot stopped by the network gate with exit code $networkExit." -ForegroundColor Yellow
             exit $networkExit
         }
         & $qualificationScript -Action Live
+        return
+    }
+    { $_ -in @('Remote','S4U') } {
+        $target = Resolve-SasRemoteTarget -RequestedTarget $ComputerName
+        Write-Host ''
+        Write-Host 'Checking local network posture before any target contact...' -ForegroundColor Cyan
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate -Purpose "AutoLogon Kerberos S4U remote pilot for $target"
+        $networkExit = $LASTEXITCODE
+        if ($networkExit -ne 0) {
+            Write-Host "AutoLogon remote pilot stopped by the network gate with exit code $networkExit." -ForegroundColor Yellow
+            exit $networkExit
+        }
+        & $s4uScript -ComputerName $target
         return
     }
     'Evidence' {
