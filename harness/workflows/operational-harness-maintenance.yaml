@@ -9,14 +9,8 @@ purpose: >-
   without changing product behavior or the governance contract.
 
 inputs:
-  required:
-    - repository_root
-    - current_branch
-    - owned_scope
-    - forbidden_scope
-  optional:
-    - failure_log
-    - supplied_pull_request_metadata
+  required: [repository_root, current_branch, owned_scope, forbidden_scope]
+  optional: [failure_log, supplied_pull_request_metadata]
 
 stages:
   - id: inspect
@@ -26,7 +20,10 @@ stages:
       - inspect local git status, current branch, refs, and supplied PR metadata
       - read CODEBASE_MAP.md
       - read harness/api/operational-harness-manifest.json
-      - inspect existing validators, hooks, skills, reports, and artifact contracts
+      - read harness/api/harness-command-registry.json
+      - read harness/api/harness-validator-registry.json
+      - read harness/api/harness-artifact-registry.json
+      - inspect existing validators, hooks, scoped procedures, reports, and artifact contracts
     stop_conditions:
       - repository cannot be resolved
       - unrelated uncommitted work would be overwritten
@@ -34,7 +31,8 @@ stages:
   - id: route
     order: 2
     actions:
-      - choose the smallest existing skill and workflow that match the task
+      - preserve the AGENTS.md skill router for normal product and repository task routing
+      - use harness/skills/harness-maintenance.md for explicitly harness-infrastructure-owned work
       - fail closed when equal-priority routes conflict
       - declare lane, mission, owned scope, forbidden scope, artifacts, validation, and proof ceiling
 
@@ -42,20 +40,21 @@ stages:
     order: 3
     actions:
       - reuse canonical harness components before creating new ones
-      - keep writes inside maps, workflows, validators, registries, hooks, skills, reports, schemas, and harness CI
+      - keep writes inside maps, workflows, validators, registries, hooks, scoped harness procedures, reports, schemas, and harness CI
       - preserve product code and AGENTS.md
       - keep generated evidence under ignored survey/output roots
 
   - id: validate
     order: 4
     actions:
+      - python harness/validators/validate-harness-registries.py
       - python Tests/survey/test_operational_harness_completeness_contracts.py
       - python scripts/check-repo-text-policy.py --cached
       - python Tests/survey/test_local_harness_contracts.py
       - bash tests/survey/run_offline_survey_tests.sh
       - git diff --check
     escalation:
-      - run broader Pester or E2E only when changed files intersect those contracts
+      - use harness/api/harness-validator-registry.json to add broader Pester, build, or E2E validation only when changed files intersect those contracts
 
   - id: failure
     order: 5
@@ -90,16 +89,24 @@ stages:
 outputs:
   tracked:
     - harness/api/operational-harness-manifest.json
+    - harness/api/harness-command-registry.json
+    - harness/api/harness-validator-registry.json
     - harness/api/harness-artifact-registry.json
+    - harness/workflows/fresh-agent-intake.yaml
+    - harness/skills/harness-maintenance.md
     - schemas/harness/operational-harness-manifest.schema.json
+    - schemas/harness/harness-command-registry.schema.json
+    - schemas/harness/harness-validator-registry.schema.json
+    - schemas/harness/harness-artifact-registry.schema.json
     - docs/HARNESS_STATUS.md
   generated_local:
     - survey/output/harness-validator/harness-proof-*/
+    - survey/output/harness-status/<run-id>/harness-status.md
     - survey/output/<workflow>/<run_id>/operator_handoff.txt
     - survey/output/<workflow>/<run_id>/artifact_registry.json
     - survey/output/<workflow>/<run_id>/review/publish-request.json
 
 proof_ceiling: >-
-  Static local repository structure, tracking, schema, workflow, hook,
-  text-policy, and contract proof only; remote publication requires the separate
-  operator-approved operational-harness-publish workflow.
+  Static local repository structure, tracking, schema, workflow, registry, hook,
+  text-policy, command-authority, and contract proof only; remote publication requires
+  the separate operator-approved operational-harness-publish workflow.
