@@ -49,13 +49,13 @@ Describe 'AutoLogon Kerberos S4U remote pilot' {
 
     It 'keeps S4U separate from the failed LocalSystem qualification state' {
         $content = Get-Content -LiteralPath $script:s4uScript -Raw -Encoding UTF8
-        $content | Should -Match "'/RU',\$PrincipalName,'/NP'"
-        $content | Should -Match "'/RL','HIGHEST'"
-        $content | Should -Match "target_user_session_required = \$false"
-        $content | Should -Match "password_supplied_or_stored = \$false"
-        $content | Should -Match "canonical_system_qualification_changed = \$false"
+        $content | Should -Match ([regex]::Escape("'/RU',`$PrincipalName,'/NP'"))
+        $content | Should -Match ([regex]::Escape("'/RL','HIGHEST'"))
+        $content | Should -Match 'target_user_session_required = \$false'
+        $content | Should -Match 'password_supplied_or_stored = \$false'
+        $content | Should -Match 'canonical_system_qualification_changed = \$false'
         $content | Should -Not -Match 'QUALIFIED_FOR_CANONICAL_SYSTEM'
         $content | Should -Not -Match 'InteractiveToken'
-        $content | Should -Not -Match "['\"]\/RP['\"]"
+        $content | Should -Not -Match '(?i)[\x27"]/RP[\x27"]'
     }
 }
