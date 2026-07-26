@@ -156,7 +156,7 @@ def main() -> int:
         "## Critical artifacts",
         "## Forbidden stopping patterns",
         "sas autologon Remote HOST",
-        "do not reinstall them merely to reach AutoLogon",
+        "Do not reinstall them merely to reach AutoLogon",
         "TECHNICIAN_OBSERVED_LIVE_RUNTIME",
         "hours of live searching",
     ):
