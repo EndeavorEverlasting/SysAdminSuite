@@ -154,11 +154,11 @@
     {
       "id": "cybernet-client-configuration-summary",
       "path": "survey/output/cybernet_hardware/client-configuration-<timestamp>-<8hex>/cybernet_client_configuration_summary.json",
-      "generator": "sas cybernet Plan HOST or sas cybernet Apply HOST",
+      "generator": "Run-CybernetClientConfiguration.cmd Plan HOST or Run-CybernetClientConfiguration.cmd Apply HOST",
       "format": "json",
       "tracked": false,
       "contains_live_data": "workflow-dependent",
-      "purpose": "Canonical Cybernet plan/apply summary proving stage outcomes and whether target mutation was attempted."
+      "purpose": "Canonical full Cybernet client plan/apply summary proving stage outcomes and whether target mutation was attempted."
     },
     {
       "id": "autologon-s4u-pilot-result",
