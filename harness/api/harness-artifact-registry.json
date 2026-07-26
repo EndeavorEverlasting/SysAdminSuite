@@ -35,6 +35,15 @@
       "purpose": "Canonical build, test, run, and deployment-facing command index with mutation and network classifications."
     },
     {
+      "id": "harness-outcome-registry",
+      "path": "harness/api/harness-outcome-registry.json",
+      "generator": "maintained when canonical commands or terminal outcome rules change",
+      "format": "json",
+      "tracked": true,
+      "contains_live_data": false,
+      "purpose": "Maps every canonical command to a concrete success artifact or terminal outcome and same-turn continuations for unfinished requested goals."
+    },
+    {
       "id": "harness-status-report",
       "path": "docs/HARNESS_STATUS.md",
       "generator": "maintained from completeness-validator and registry evidence",
@@ -71,6 +80,15 @@
       "purpose": "Pass/fail proof that validator, command, artifact, workflow, skill, and report wiring is internally consistent."
     },
     {
+      "id": "harness-outcome-validation-result",
+      "path": "console output or CI log from harness/validators/validate-outcome-contracts.py",
+      "generator": "python harness/validators/validate-outcome-contracts.py",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Pass/fail proof that intermediate validation cannot become a status-only endpoint and every canonical command has a registered terminal outcome contract."
+    },
+    {
       "id": "repository-text-policy-result",
       "path": "console output or CI log from scripts/check-repo-text-policy.py",
       "generator": "python scripts/check-repo-text-policy.py --range <base> <head>",
@@ -78,6 +96,60 @@
       "tracked": false,
       "contains_live_data": false,
       "purpose": "Proof that changed text blobs use normalized LF storage and contain no trailing whitespace."
+    },
+    {
+      "id": "offline-survey-floor-result",
+      "path": "console output or CI log from tests/survey/run_offline_survey_tests.sh",
+      "generator": "bash tests/survey/run_offline_survey_tests.sh",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Broad dependency-free offline survey and harness validation result used as an admission artifact rather than a terminal deployment substitute."
+    },
+    {
+      "id": "pester-suite-result",
+      "path": "console output or CI artifact from tools/Test-Pester5Suite.ps1",
+      "generator": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "PowerShell contract result used as admission evidence for PowerShell-owned changes."
+    },
+    {
+      "id": "managed-tests-result",
+      "path": "console output or CI log from dotnet test SysAdminSuite.sln -c Release",
+      "generator": "dotnet test SysAdminSuite.sln -c Release --verbosity normal",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Managed Release test result used as admission evidence for managed code."
+    },
+    {
+      "id": "dashboard-publish-output",
+      "path": "tools/publish/SysAdminSuite.DashboardHost/",
+      "generator": "dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost",
+      "format": "directory",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Framework-dependent Windows dashboard build artifact."
+    },
+    {
+      "id": "cybernet-client-configuration-summary",
+      "path": "survey/output/cybernet_hardware/client-configuration-<timestamp>-<8hex>/cybernet_client_configuration_summary.json",
+      "generator": "sas cybernet Plan HOST or sas cybernet Apply HOST",
+      "format": "json",
+      "tracked": false,
+      "contains_live_data": "workflow-dependent",
+      "purpose": "Canonical Cybernet plan/apply summary proving stage outcomes and whether target mutation was attempted."
+    },
+    {
+      "id": "autologon-s4u-pilot-result",
+      "path": "survey/output/runs/autologon-kerberos-s4u/autologon-kerberos-s4u-<timestamp>-<8hex>/autologon_kerberos_s4u_pilot_result.json",
+      "generator": "sas autologon Remote HOST",
+      "format": "json",
+      "tracked": false,
+      "contains_live_data": true,
+      "purpose": "Canonical live AutoLogon Kerberos/S4U result proving the achieved pre-reboot deployment state or exact blocking classification."
     },
     {
       "id": "local-harness-proof",
