@@ -4,8 +4,8 @@ mode: local_read_then_route
 network_activity: false
 target_mutation: false
 purpose: >-
-  Give a fresh agent one deterministic route from repository intake to the smallest
-  authorized workflow, validator set, artifact contract, outcome contract, and next-agent handoff.
+  Give a fresh agent one deterministic route from repository intake to the smallest authorized
+  workflow, desired-state contract, validator set, artifact contract, outcome contract, and handoff.
 
 inputs:
   required:
@@ -17,6 +17,9 @@ inputs:
     - owned_scope
     - forbidden_scope
     - supplied_pull_request_metadata
+    - explicit_target
+    - target_profile
+    - existing_state_evidence
 
 stages:
   - id: governance
@@ -37,7 +40,8 @@ stages:
       - read harness/api/harness-command-registry.json for canonical build, test, run, and deploy surfaces
       - read harness/api/harness-validator-registry.json for proof selection
       - read harness/api/harness-artifact-registry.json before producing or moving artifacts
-      - read harness/api/harness-outcome-registry.json before treating any validator, dry run, plan, build, or deploy command as terminal
+      - read harness/api/harness-outcome-registry.json before treating any validator, dry run, plan, build, deploy, or runtime command as terminal
+      - when AutoLogon, Cybernet, live cert, deployment, or runtime proof is involved, read harness/api/deployment-state-registry.json before selecting the command chain
 
   - id: route
     order: 3
@@ -45,8 +49,10 @@ stages:
       - use harness/api/agent-routing-manifest.json for normal task-signal routing
       - when the declared lane is harness infrastructure, load harness/skills/harness-maintenance/SKILL.md
       - when the requested goal extends beyond validation or planning, load harness/skills/outcome-driven-execution/SKILL.md after normal task routing
+      - for AutoLogon/Cybernet test, live-cert, deployment, or runtime-proof work, load harness/skills/cybernet-autologon-deployment-state/SKILL.md after the normal P00 route is selected
+      - resolve desired product/runtime state before interpreting test, live cert, deploy, or runtime-proof wording
       - fail closed to .claude/skills/repository-sprint/SKILL.md when routing is unknown or conflicting
-      - declare repo, branch, lane, mission, owned scope, forbidden scope, artifacts, validators, requested goal, and proof ceiling before writing
+      - declare repo, branch, lane, mission, owned scope, forbidden scope, artifacts, validators, requested goal, desired state when applicable, and proof ceiling before writing
 
   - id: execute
     order: 4
@@ -55,7 +61,9 @@ stages:
       - reuse existing maps, registries, schemas, validators, hooks, and skills before creating new authorities
       - keep product mutation outside harness-only sprints
       - keep live or operator-local evidence under ignored output roots
-      - treat validators, dry runs, plans, and harmless live certs as admission gates when the requested goal remains unproven
+      - treat validators, dry runs, plans, fixtures, and harmless transport live certs as admission gates when the requested goal remains unproven
+      - for an authorized Cybernet AutoLogon apply/test/live-cert goal, do not substitute transport proof for the real autologon-remote state transition
+      - preserve already-proven Cybernet clinical-core installation/acceptance instead of blindly reinstalling it to reach AutoLogon
       - follow registered same-turn continuations instead of handing safe executable work back to the operator
 
   - id: validate
@@ -63,6 +71,7 @@ stages:
     actions:
       - python harness/validators/validate-harness-registries.py
       - python harness/validators/validate-outcome-contracts.py
+      - python harness/validators/validate-deployment-state-contracts.py
       - select additional validators from harness/api/harness-validator-registry.json by changed surface
       - run git diff --check before commit
       - escalate to Pester, managed build, or E2E only when the changed surface or proof ceiling requires it
@@ -76,18 +85,20 @@ stages:
     actions:
       - resolve output roles and naming through harness/api/harness-artifact-registry.json
       - resolve success and continuation behavior through harness/api/harness-outcome-registry.json
+      - resolve AutoLogon/Cybernet critical state artifacts through harness/api/deployment-state-registry.json
       - keep generated evidence untracked unless a registry entry explicitly marks it tracked
       - render the current English harness view with python harness/reports/render-harness-status.py when a human status report is required
 
   - id: handoff
     order: 7
     actions:
-      - report requested goal and terminal outcome before intermediate validation details
+      - report requested goal, desired state when applicable, and terminal outcome before intermediate validation details
       - name changed files and exact validation results
       - report commit SHA, push state, PR state, skipped checks, gaps, risks, and proof ceiling
       - use tools/New-SasSprintCapsule.ps1 for compressed next-agent transfer when needed
       - provide one exact next command only when a real unproven gate remains
-      - never stop at tests passed, status reported, command printed, or wait for next chat when a registered safe continuation remains executable
+      - when AutoLogon deployment is proven and runtime remains requested, identify the separately authorized attended reboot/direct sign-in gate rather than returning to more tests
+      - never stop at tests passed, transport live cert passed, status reported, command printed, or wait for next chat when a registered safe continuation remains executable
 
 outputs:
   tracked_authorities:
@@ -97,14 +108,16 @@ outputs:
     - harness/api/harness-validator-registry.json
     - harness/api/harness-artifact-registry.json
     - harness/api/harness-outcome-registry.json
+    - harness/api/deployment-state-registry.json
     - harness/skills/harness-maintenance/SKILL.md
     - harness/skills/outcome-driven-execution/SKILL.md
+    - harness/skills/cybernet-autologon-deployment-state/SKILL.md
   generated_local:
     - survey/output/<workflow>/<run_id>/artifact_registry.json
     - survey/output/<workflow>/<run_id>/operator_handoff.txt
     - survey/output/<workflow>/<run_id>/review/sprint-capsule.*
 
 proof_ceiling: >-
-  Fresh-agent routing, canonical command selection, validator selection, artifact boundaries,
-  outcome continuation, and handoff structure only. No product, target, deployment, reboot,
-  application, or live-runtime proof is created by intake itself.
+  Fresh-agent routing, desired-state selection, canonical command selection, validator selection,
+  artifact boundaries, outcome continuation, and handoff structure only. Intake itself creates no
+  product, target, deployment, reboot, application, or live-runtime proof.
