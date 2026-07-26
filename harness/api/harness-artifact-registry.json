@@ -158,7 +158,16 @@
       "format": "json",
       "tracked": false,
       "contains_live_data": "workflow-dependent",
-      "purpose": "Canonical full Cybernet client plan/apply summary proving stage outcomes and whether target mutation was attempted."
+      "purpose": "Historical full Cybernet client plan/apply summary. The live six-package path is not the current clinical-core production route while canonical SYSTEM AutoLogon is blocked."
+    },
+    {
+      "id": "cybernet-clinical-core-deployment-summary",
+      "path": "survey/output/runs/cybernet-clinical-core/cybernet-clinical-core-<timestamp>-<8hex>/cybernet_clinical_core_deployment_summary.json",
+      "generator": "Deploy-CybernetClinicalCore.cmd Plan HOST or sas cybernet Deploy HOST",
+      "format": "json",
+      "tracked": false,
+      "contains_live_data": "workflow-dependent",
+      "purpose": "Current five-package Cybernet clinical-core plan/deployment summary. CLINICAL_CORE_DEPLOYMENT_COMPLETED proves the controller finished successfully; application acceptance remains separate and AutoLogon is excluded."
     },
     {
       "id": "autologon-s4u-pilot-result",
