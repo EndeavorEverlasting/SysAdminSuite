@@ -71,7 +71,14 @@ def main() -> int:
             assert continuation["same_turn"] is True, f"continuation must be same-turn: {command_id} -> {next_id}"
         assert contract["failure_outcome"] == "blocked_with_actionable_gate"
 
-    assert contract_by_command["cybernet-plan"]["continuations"][0]["command_id"] == "cybernet-apply"
+    # The historical six-package Cybernet plan may still be inspected, but live continuation
+    # must converge onto the five-package clinical-core lane while SYSTEM AutoLogon is blocked.
+    legacy_next = [c for c in contract_by_command["cybernet-plan"]["continuations"] if c["when_goal"] == "deploy"]
+    assert len(legacy_next) == 1
+    assert legacy_next[0]["command_id"] == "cybernet-core-deploy"
+    assert contract_by_command["cybernet-core-plan"]["continuations"][0]["command_id"] == "cybernet-core-deploy"
+    assert contract_by_command["cybernet-core-deploy"]["success_outcome"] == "product_deployed"
+    assert contract_by_command["cybernet-core-deploy"]["success_artifact_id"] == "cybernet-clinical-core-deployment-summary"
     assert contract_by_command["deployment-state-validate"]["success_outcome"] == "artifact_created"
     assert contract_by_command["deployment-state-validate"]["success_artifact_id"] == "deployment-state-validation-result"
     assert contract_by_command["autologon-remote"]["success_outcome"] == "product_deployed"
