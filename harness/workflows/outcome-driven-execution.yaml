@@ -4,10 +4,11 @@ mode: execute_until_terminal_outcome
 network_activity: workflow_dependent
 target_mutation: workflow_dependent
 purpose: >-
-  Prevent green validators, dry runs, plans, status checks, or command printouts from becoming
-  artificial stopping points. Execute admission gates as part of the requested workflow, emit
-  their canonical artifacts, and continue in the same agent turn until the requested artifact,
-  build, runtime, or deployment outcome is reached or a real external gate blocks progress.
+  Prevent green validators, dry runs, plans, transport live certifications, status checks, or command
+  printouts from becoming artificial stopping points. Resolve the desired product/runtime state first,
+  execute admission gates as part of that workflow, emit canonical artifacts, and continue until the
+  requested artifact, build, runtime, deployment, or runtime-proof outcome is reached or a real external
+  gate blocks progress.
 
 inputs:
   required:
@@ -17,6 +18,8 @@ inputs:
   optional:
     - explicit_target
     - mutation_authorization
+    - target_profile
+    - existing_state_evidence
     - owned_scope
     - forbidden_scope
     - proof_ceiling
@@ -26,14 +29,17 @@ stages:
     order: 1
     actions:
       - read harness/api/harness-outcome-registry.json
-      - resolve requested_goal before choosing validators or commands
-      - choose the smallest canonical command chain whose terminal_goals contain requested_goal
-      - reject status-only, tests-only, wait-for-next-chat, and operator-repeats-agent-work endpoints
+      - for AutoLogon, Cybernet, live-cert, deployment, or runtime-proof requests also read harness/api/deployment-state-registry.json
+      - resolve requested_goal and desired product/runtime state before choosing validators or commands
+      - choose the smallest canonical command chain whose terminal_goals or deployment states satisfy requested_goal
+      - for test AutoLogon on an authorized Cybernet with mutation authority, resolve the goal to real AutoLogon apply rather than fixture or transport testing
+      - reject status-only, tests-only, transport-live-cert-only, wait-for-next-chat, and operator-repeats-agent-work endpoints
 
   - id: admission
     order: 2
     actions:
       - run required validators and dry runs as admission gates, not as the requested deliverable
+      - treat harmless transport live certification and fixture E2E as admission only when the desired state is live deployment
       - require every successful validation or dry run to resolve a registered success_artifact_id
       - record each produced artifact before advancing
       - stop only on a failed proof boundary or missing required authorization
@@ -42,27 +48,33 @@ stages:
     order: 3
     actions:
       - when requested_goal remains unproven, follow the registered continuation in the same agent turn
+      - when deployment-state routing names a real apply command, execute it once its authorization and dependencies are satisfied
       - do not ask the operator to rerun a command the agent can safely execute itself
       - do not end after printing the next command when the next command is safe, authorized, dependency-satisfied, and tool-accessible
       - preserve explicit confirmation gates required by repository governance or target-mutation policy
+      - preserve already-proven Cybernet clinical-core state instead of blindly reinstalling it to reach AutoLogon
 
   - id: terminal-outcome
     order: 4
     actions:
       - accept artifact_created only when the requested goal is validation, planning, or artifact production
       - accept build_artifact_created only when the requested goal is build or artifact production
-      - accept runtime_started only when the requested goal is local runtime launch
+      - accept runtime_started only when the requested goal is local runtime launch without a stronger behavior-proof requirement
       - accept product_deployed only when the deployment command and its registered evidence artifact prove the declared deployment ceiling
+      - accept runtime_proven only when the actual-session runtime command and registered runtime artifact prove the required live behavior classification
+      - for AutoLogon pre-reboot deployment require autologon-s4u-pilot-result with KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING
+      - for AutoLogon runtime proof require autologon-technician-runtime-proof with TECHNICIAN_OBSERVED_LIVE_RUNTIME and successful runtime flags
       - otherwise classify blocked_with_actionable_gate and name the exact owner, dependency, command or operator action, and expected artifact
 
   - id: handoff
     order: 5
     actions:
-      - report the requested goal and terminal outcome first
+      - report the requested goal, desired state, and terminal outcome first
       - list admission gates only as supporting evidence, never as the headline accomplishment
-      - name the canonical artifact path or deployment evidence produced
+      - name the canonical artifact path or deployment/runtime evidence produced
       - provide a next command only when a real unproven gate remains
-      - never use wait, monitor, review later, rerun this test, or send me the logs as a substitute for executable continuation
+      - when the real blocker is an attended reboot, direct sign-in observation, authorization, or protected runtime, name that exact gate instead of falling back to more tests
+      - never use wait, monitor, review later, rerun this test, live search, or send me the logs as a substitute for executable continuation
 
 outputs:
   required:
@@ -72,13 +84,15 @@ outputs:
     - executed_command_ids
     - proof_ceiling_reached
   conditional:
+    - desired_state
+    - highest_proven_state
     - blocker_owner
     - blocker_dependency
     - blocker_action
     - blocker_expected_artifact
 
 proof_ceiling: >-
-  This workflow can enforce that repository validation and dry-run steps either produce registered
-  artifacts or continue toward the requested safe executable outcome. It cannot override explicit
-  authorization, credentials, protected runtime access, physical technician acceptance, or other
-  genuine external gates.
+  This workflow can enforce that repository validation, dry-run, fixture, and transport-cert steps either
+  produce registered artifacts or continue toward the requested safe executable deployment/runtime state.
+  It cannot override explicit authorization, credentials, attended reboot authority, protected runtime
+  access, physical technician observation, or other genuine external gates.
