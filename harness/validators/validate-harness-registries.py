@@ -26,6 +26,8 @@ SKILL = ROOT / "harness/skills/harness-maintenance/SKILL.md"
 OUTCOME_SKILL = ROOT / "harness/skills/outcome-driven-execution/SKILL.md"
 DEPLOYMENT_SKILL = ROOT / "harness/skills/cybernet-autologon-deployment-state/SKILL.md"
 DEPLOYMENT_VALIDATOR = ROOT / "harness/validators/validate-deployment-state-contracts.py"
+PRE_COMMIT = ROOT / ".githooks/pre-commit"
+REGISTRY_CI = ROOT / ".github/workflows/harness-registry-integrity.yml"
 STATUS = ROOT / "docs/HARNESS_STATUS.md"
 RENDERER = ROOT / "harness/reports/render-harness-status.py"
 
@@ -127,6 +129,14 @@ def test_command_registry() -> None:
         if item["mutation"] == "authorized_target_mutation":
             assert item.get("network") is True, f"target mutation must declare network activity: {item['id']}"
 
+    by_id = {item["id"]: item for item in commands}
+    assert by_id["cybernet-plan"]["command"] == "Run-CybernetClientConfiguration.cmd Plan HOST"
+    assert by_id["cybernet-apply"]["command"] == "Run-CybernetClientConfiguration.cmd Apply HOST"
+    assert by_id["cybernet-plan"]["source_of_truth"] == "Run-CybernetClientConfiguration.cmd"
+    assert by_id["cybernet-apply"]["source_of_truth"] == "Run-CybernetClientConfiguration.cmd"
+    assert "sas cybernet" not in by_id["cybernet-plan"]["command"].lower()
+    assert "sas cybernet" not in by_id["cybernet-apply"]["command"].lower()
+
 
 def test_outcome_registry_wiring() -> None:
     outcomes = load(OUTCOMES)
@@ -166,6 +176,26 @@ def test_deployment_state_wiring() -> None:
         assert tracked(path.relative_to(ROOT).as_posix()), f"deployment-state component is not tracked: {path.relative_to(ROOT)}"
 
 
+def test_guardrail_wiring() -> None:
+    pre_commit = read(PRE_COMMIT)
+    for marker in (
+        "git checkout-index --all --force --prefix=\"$snapshot/\"",
+        "GIT_DIR=\"$git_dir\"",
+        "GIT_WORK_TREE=\"$snapshot\"",
+        "pre-commit: validating the exact staged snapshot",
+        "validate-harness-registries.py",
+        "validate-outcome-contracts.py",
+        "validate-deployment-state-contracts.py",
+    ):
+        assert marker in pre_commit, f"pre-commit staged-snapshot guard missing: {marker}"
+
+    registry_ci = read(REGISTRY_CI)
+    assert "if: github.event_name == 'push'" in registry_ci
+    assert "if: github.event_name == 'workflow_dispatch'" in registry_ci
+    assert "if: github.event_name != 'pull_request'" not in registry_ci
+    assert "Check manual-dispatch whitespace" in registry_ci
+
+
 def test_fresh_agent_wiring() -> None:
     workflow = read(FRESH_AGENT)
     skill = read(SKILL)
@@ -199,6 +229,9 @@ def test_artifact_and_report_wiring() -> None:
         "cybernet-client-configuration-summary", "autologon-s4u-pilot-result", "autologon-technician-runtime-proof",
     ):
         assert required in ids, f"artifact registry missing: {required}"
+    cybernet_artifact = next(item for item in registry["artifacts"] if item["id"] == "cybernet-client-configuration-summary")
+    assert "Run-CybernetClientConfiguration.cmd Plan HOST" in cybernet_artifact["generator"]
+    assert "Run-CybernetClientConfiguration.cmd Apply HOST" in cybernet_artifact["generator"]
     renderer = read(RENDERER)
     assert "sas-harness-status-report/v1" in renderer
     assert "harness-validator-registry.json" in renderer
@@ -221,6 +254,7 @@ def main() -> int:
     test_command_registry()
     test_outcome_registry_wiring()
     test_deployment_state_wiring()
+    test_guardrail_wiring()
     test_fresh_agent_wiring()
     test_artifact_and_report_wiring()
     print("PASS: harness registry integrity")
