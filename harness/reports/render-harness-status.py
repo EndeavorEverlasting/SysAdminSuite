@@ -19,6 +19,7 @@ def render() -> str:
     commands = load("harness/api/harness-command-registry.json")
     artifacts = load("harness/api/harness-artifact-registry.json")
     outcomes = load("harness/api/harness-outcome-registry.json")
+    deployment_states = load("harness/api/deployment-state-registry.json")
     required = [item for item in manifest["components"] if item.get("required")]
     missing = [item["path"] for item in required if not (ROOT / item["path"]).is_file()]
     blocking = [item for item in validators["validators"] if item.get("blocking")]
@@ -29,17 +30,33 @@ def render() -> str:
         for contract in outcomes["contracts"]
         for continuation in contract.get("continuations", [])
     ]
+    cybernet = next(item for item in deployment_states["contexts"] if item["id"] == "cybernet-autologon")
+    truth = cybernet["current_product_truth"]
+    states = {item["id"]: item for item in cybernet["states"]}
+    pre_reboot = states["autologon_pre_reboot_configured"]
+    runtime = states["autologon_runtime_proven"]
+
     lines = [
         "# SysAdminSuite Operational Harness Generated Status", "", "Schema: `sas-harness-status-report/v1`", "",
         "## Summary", "", f"- Required harness components: **{len(required)}**", f"- Missing required components: **{len(missing)}**",
         f"- Registered validators: **{len(validators['validators'])}** ({len(blocking)} blocking)",
         f"- Registered canonical commands: **{len(commands['commands'])}**",
         f"- Registered outcome contracts: **{len(outcomes['contracts'])}** ({len(continuations)} same-turn continuations)",
+        f"- Registered deployment-state contexts: **{len(deployment_states['contexts'])}**",
         f"- Registered artifact roles: **{len(artifacts['artifacts'])}** ({len(local_artifacts)} generated/local)", "", "## Working", "",
         "Required-component inventory is **not complete**; see Missing below." if missing else "All required component paths declared by the operational harness manifest are present in this checkout.",
         "", "## Outcome-driven execution", "",
         "Validation is an admission gate, not completion, when the requested goal remains unproven.",
         "Successful dry/test/build/plan commands must resolve a registered artifact; registered safe continuations remain same-turn.",
+        "", "## AutoLogon / Cybernet desired state", "",
+        f"- Current field AutoLogon apply command: `{truth['current_live_apply_command_id']}`.",
+        f"- Required pre-reboot classification: `{pre_reboot['positive_classification']}`.",
+        f"- Required pre-reboot artifact: `{pre_reboot['artifact_id']}`.",
+        f"- Canonical LocalSystem AutoLogon enabled: `{str(truth['canonical_system_install_enabled']).lower()}`; qualification: `{truth['canonical_system_qualification_status']}`.",
+        "- Transport live certification and fixture proof are admission only; they are not AutoLogon application.",
+        "- When the Cybernet clinical core is already proven installed/accepted, preserve it instead of reinstalling it merely to reach AutoLogon.",
+        f"- Actual-session runtime command: `{runtime['command_id']}`; required runtime classification: `{runtime['positive_classification']}`; artifact: `{runtime['artifact_id']}`.",
+        "- Deployment plus runtime proof requires real apply first, then a separately authorized attended reboot/direct automatic-sign-in observation, then actual-session runtime proof.",
         "", "## Blocking validator floor", "",
     ]
     lines.extend(f"- `{item['id']}` — `{item['command']}`" for item in blocking)
@@ -54,7 +71,7 @@ def render() -> str:
     lines.extend(f"- `{item['id']}` — `{item['command']}` — mutation: `{item['mutation']}`" for item in deploy)
     lines += ["", "## Missing", ""]
     lines.extend((f"- `{path}`" for path in missing) if missing else ["- None in the required component inventory."])
-    lines += ["", "## Proof ceiling", "", manifest["proof_ceiling"], "", "This generated report is a registry/path view. It does not claim that validators were executed in the current checkout unless their command output is separately recorded.", ""]
+    lines += ["", "## Proof ceiling", "", manifest["proof_ceiling"], "", "This generated report is a registry/path view. It does not claim that validators, target deployment, reboot, or runtime proof were executed in the current checkout unless their command/artifact output is separately recorded.", ""]
     return "\n".join(lines)
 
 
