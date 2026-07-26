@@ -5,8 +5,8 @@ network_activity: false
 target_mutation: false
 purpose: >-
   Maintain the repository harness floor so a fresh agent can inspect local repo
-  state, select a workflow, validate safely, produce artifacts, and hand off
-  without changing product behavior or the governance contract.
+  state, select a workflow, validate safely, produce artifacts, advance toward the
+  requested terminal outcome, and hand off without changing product behavior or the governance contract.
 
 inputs:
   required:
@@ -14,6 +14,7 @@ inputs:
     - current_branch
     - owned_scope
     - forbidden_scope
+    - requested_goal
   optional:
     - failure_log
     - supplied_pull_request_metadata
@@ -29,6 +30,7 @@ stages:
       - read harness/api/harness-command-registry.json
       - read harness/api/harness-validator-registry.json
       - read harness/api/harness-artifact-registry.json
+      - read harness/api/harness-outcome-registry.json
       - inspect existing validators, hooks, skills, reports, and artifact contracts
     stop_conditions:
       - repository cannot be resolved
@@ -39,8 +41,9 @@ stages:
     actions:
       - choose the smallest existing skill and workflow that match the task
       - use harness/skills/harness-maintenance/SKILL.md for harness-infrastructure-owned work
+      - use harness/skills/outcome-driven-execution/SKILL.md when intermediate tests or dry runs could otherwise become artificial endpoints
       - fail closed when equal-priority routes conflict
-      - declare lane, mission, owned scope, forbidden scope, artifacts, validation, and proof ceiling
+      - declare lane, mission, owned scope, forbidden scope, artifacts, validation, requested goal, and proof ceiling
 
   - id: implement
     order: 3
@@ -49,11 +52,13 @@ stages:
       - keep writes inside maps, workflows, validators, registries, hooks, skills, reports, schemas, and harness CI
       - preserve product code and AGENTS.md
       - keep generated evidence under ignored survey/output roots
+      - encode every canonical command with an outcome contract so a green validator or dry run cannot silently become completion
 
   - id: validate
     order: 4
     actions:
       - python harness/validators/validate-harness-registries.py
+      - python harness/validators/validate-outcome-contracts.py
       - python Tests/survey/test_operational_harness_completeness_contracts.py
       - python scripts/check-repo-text-policy.py --cached
       - python Tests/survey/test_local_harness_contracts.py
@@ -61,6 +66,7 @@ stages:
       - git diff --check
     escalation:
       - use harness/api/harness-validator-registry.json to add broader Pester, build, or E2E validation only when changed files intersect those contracts
+      - after a successful admission validator, continue in the same turn when requested_goal remains unproven and harness/api/harness-outcome-registry.json registers a safe authorized continuation
 
   - id: failure
     order: 5
@@ -74,6 +80,7 @@ stages:
       - bypassing a failed validator
       - deleting unrelated work
       - claiming runtime proof from static checks
+      - ending with tests passed or command printed when the requested goal remains unproven and a safe continuation exists
 
   - id: commit
     order: 6
@@ -86,10 +93,11 @@ stages:
   - id: handoff
     order: 7
     actions:
-      - report validation commands and exact results
+      - report requested goal and terminal outcome first
+      - report validation commands and exact results as supporting evidence
       - report local commit SHA and supplied push or PR state
       - state skipped checks, known gaps, risks, and proof ceiling
-      - provide one exact next command
+      - provide one exact next command only when a real external or unproven gate remains
       - use tools/New-SasSprintCapsule.ps1 when a compressed next-agent handoff is needed
 
 outputs:
@@ -98,9 +106,13 @@ outputs:
     - harness/api/harness-command-registry.json
     - harness/api/harness-validator-registry.json
     - harness/api/harness-artifact-registry.json
+    - harness/api/harness-outcome-registry.json
     - harness/workflows/fresh-agent-intake.yaml
+    - harness/workflows/outcome-driven-execution.yaml
     - harness/skills/harness-maintenance/SKILL.md
+    - harness/skills/outcome-driven-execution/SKILL.md
     - schemas/harness/operational-harness-manifest.schema.json
+    - schemas/harness/harness-outcome-registry.schema.json
     - docs/HARNESS_STATUS.md
   generated_local:
     - survey/output/harness-validator/harness-proof-*/
@@ -111,5 +123,5 @@ outputs:
 
 proof_ceiling: >-
   Static local repository structure, tracking, schema, workflow, registry, hook,
-  text-policy, command-authority, and contract proof only; remote publication requires
+  text-policy, command-authority, outcome-continuation, and contract proof only; remote publication requires
   the separate operator-approved operational-harness-publish workflow.
