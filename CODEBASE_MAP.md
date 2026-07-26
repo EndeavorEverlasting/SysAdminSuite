@@ -18,28 +18,32 @@ Use this map to load only the files needed for a task.
 
 ## Operational harness infrastructure
 
-- `harness/workflows/fresh-agent-intake.yaml` — canonical fresh-agent sequence: governance, Git preservation, requested-goal resolution, routing, execution, validator selection, artifacts, outcome continuation, and handoff.
+- `harness/workflows/fresh-agent-intake.yaml` — canonical fresh-agent sequence: governance, Git preservation, requested-goal/desired-state resolution, routing, execution, validator selection, artifacts, continuation, and handoff.
 - `harness/api/operational-harness-manifest.json` — central machine-readable inventory of maps, workflows, registries, validators, hooks, skills, reports, run context, handoff, text policy, and CI.
-- `harness/api/harness-command-registry.json` — canonical build, test, run, and deployment-facing command index with mutation/network classification.
+- `harness/api/harness-command-registry.json` — canonical build, test, run, deployment, S4U AutoLogon apply, and runtime-proof command index with mutation/network classification.
 - `harness/api/harness-validator-registry.json` — canonical validator commands, scope selection, blocking posture, escalation, and proof descriptions.
-- `harness/api/harness-artifact-registry.json` — artifact types, generators, locations, naming conventions, tracking, and live-data boundaries.
+- `harness/api/harness-artifact-registry.json` — artifact types, generators, locations, naming conventions, tracking, live-data boundaries, and critical deployment/runtime proof roles.
 - `harness/api/harness-outcome-registry.json` — command-by-command success artifact, terminal outcome, and same-turn continuation authority; a green validator or dry run is not completion when the requested goal remains unproven.
-- `schemas/harness/harness-outcome-registry.schema.json` — fail-closed schema for outcome and continuation contracts.
+- `harness/api/deployment-state-registry.json` — AutoLogon/Cybernet desired-state authority. Resolves test/live-cert/deploy/runtime wording, current package truth, clinical-core preservation, real apply command, critical artifacts, and state ordering.
+- `schemas/harness/harness-outcome-registry.schema.json` and `schemas/harness/deployment-state-registry.schema.json` — fail-closed schemas for outcome/continuation and desired-state contracts.
 - `harness/skills/harness-maintenance/SKILL.md` — scoped procedure for harness-only changes without modifying product behavior or `AGENTS.md`.
-- `harness/skills/outcome-driven-execution/SKILL.md` — prevents agents from handing safe executable work back to the operator after tests, plans, or dry runs.
-- `harness/validators/validate-harness-registries.py` — dependency-free integrity check for registries, source paths, fresh-agent workflow, skills, and report wiring.
+- `harness/skills/outcome-driven-execution/SKILL.md` — prevents agents from handing safe executable work back to the operator after tests, plans, fixtures, or transport live certs.
+- `harness/skills/cybernet-autologon-deployment-state/SKILL.md` — makes AutoLogon test/live-cert/deploy requests converge on real S4U application and then separately authorized runtime proof, preserving already-proven clinical-core state.
+- `harness/validators/validate-harness-registries.py` — dependency-free integrity check for registries, source paths, fresh-agent workflow, skills, deployment-state wiring, and report wiring.
 - `harness/validators/validate-outcome-contracts.py` — proves every canonical command resolves a concrete artifact/outcome and deploy-plan continuations stay same-turn.
-- `harness/reports/render-harness-status.py` — renders a current English registry/path status without modifying tracked docs.
+- `harness/validators/validate-deployment-state-contracts.py` — cross-checks desired-state routing against package catalogs, real S4U/runtime entrypoints, command/outcome registries, and critical artifacts.
+- `harness/reports/render-harness-status.py` — renders a current English registry, desired-state, and proof status without modifying tracked docs.
 - `schemas/harness/operational-harness-manifest.schema.json` — fail-closed schema for the central harness inventory.
-- `harness/workflows/operational-harness-maintenance.yaml` — bounded implementation, validation, failure handling, commit, outcome continuation, and handoff sequence.
-- `harness/workflows/outcome-driven-execution.yaml` — treats validation/dry-run success as an admission gate and continues until artifact, build, runtime, deployment, or a real external blocker.
+- `harness/workflows/operational-harness-maintenance.yaml` — bounded implementation, validation, failure handling, commit, desired-state/outcome continuation, and handoff sequence.
+- `harness/workflows/outcome-driven-execution.yaml` — treats validation/dry-run/fixture/transport-cert success as admission and continues until artifact, deployment, runtime proof, or a real external blocker.
+- `harness/workflows/cybernet-autologon-deployment-state.yaml` — explicit Cybernet clinical-core → AutoLogon S4U apply → attended reboot/sign-in → actual-session runtime proof state chain.
 - `harness/workflows/operational-harness-publish.yaml` — separate operator-approved push and pull-request publication sequence.
-- `Tests/survey/test_operational_harness_completeness_contracts.py` — proves required components exist, are tracked, and are wired into hooks, CI, reports, and this map.
+- `Tests/survey/test_operational_harness_completeness_contracts.py` — proves required manifest components exist, are tracked, and are wired into hooks, CI, reports, and this map.
 - `scripts/check-repo-text-policy.py` and `.gitattributes` — validate canonical LF storage in Git while allowing Windows checkout endings; prevent CRLF from being misreported as trailing whitespace.
-- `.githooks/pre-commit`, `.githooks/pre-push`, and `scripts/install-local-harness-hooks.sh` — local staged, push, evidence, outcome-contract, and contract guardrails.
-- `docs/HARNESS_STATUS.md` — English operator report of working components, repaired boundaries, outcome rules, known gaps, and proof ceilings.
-- `.github/workflows/harness-infrastructure.yml` — completeness, outcome-contract, local-harness, text-policy, syntax, whitespace, and Windows handoff CI gate.
-- `.github/workflows/harness-registry-integrity.yml` — focused registry/schema/outcome integrity, fresh-agent wiring, report-rendering, hook-syntax, and whitespace CI gate.
+- `.githooks/pre-commit`, `.githooks/pre-push`, and `scripts/install-local-harness-hooks.sh` — local staged, push, evidence, outcome-contract, deployment-state, and contract guardrails.
+- `docs/HARNESS_STATUS.md` — English operator report of working components, AutoLogon/Cybernet desired-state behavior, repaired boundaries, known gaps, and proof ceilings.
+- `.github/workflows/harness-infrastructure.yml` — completeness, outcome/deployment-state contract, local-harness, text-policy, syntax, whitespace, and Windows handoff CI gate.
+- `.github/workflows/harness-registry-integrity.yml` — focused registry/schema/outcome/deployment-state integrity, fresh-agent wiring, report-rendering, hook-syntax, and whitespace CI gate; it also reruns when the AutoLogon/Cybernet product truths it validates change.
 
 ## Package analysis
 
@@ -143,12 +147,25 @@ Use this map to load only the files needed for a task.
 ## AutoLogon administrator and runtime operations
 
 - `docs/AUTOLOGON_DEPLOYMENT_WORKFLOW.md` — launch-order authority for plan, fixture, one-target canonical deployment, result review, controlled reboot observation, signed-in access, application behavior, failure review, and recovery.
+- `docs/AUTOLOGON_KERBEROS_S4U_PILOT.md` — current one-target field AutoLogon apply path when canonical LocalSystem AutoLogon remains blocked; stages and executes the package through Kerberos SMB/S4U and proves pre-reboot Winlogon state.
 - `docs/AUTOLOGON_PHYSICAL_PILOT_CHECKLIST.md` — one-target go/no-go checklist; it is not an alternate command authority.
-- `scripts/Invoke-SasAutoLogonDeployment.ps1` — canonical administrator entrypoint with closed request, fresh P02 preflight, Before snapshot, final-step gate, Kerberos/SMB scheduled-task execution, cleanup, and normalized results.
+- `scripts/Invoke-SasAutoLogonDeployment.ps1` — canonical administrator SYSTEM entrypoint, usable only when its package disposition/gates permit it; current package catalog keeps canonical SYSTEM AutoLogon blocked.
+- `scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1` — current real field apply entrypoint behind `sas autologon Remote HOST`; executes the AutoLogon package and emits `autologon_kerberos_s4u_pilot_result.json`.
 - `scripts/Show-SasAutoLogonResult.ps1` and `Inspect-LatestAutoLogon.cmd` — read-only public-safe classification, cleanup/remnant, digest-continuity, and proof-ceiling presentation without identities or paths.
 - `scripts/Invoke-SasAutoLogonSessionAccessProof.ps1` — bounded expected-account current-token path access and optional create/remove marker proof from the real signed-in session.
-- `scripts/Start-SasAutoLogonTechnicianRuntimeProof.cmd` and `scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1` — bounded application readiness and technician behavior observation from the real signed-in session.
+- `scripts/Start-SasAutoLogonTechnicianRuntimeProof.cmd` and `scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1` — actual-session application readiness and technician behavior observation; success requires `TECHNICIAN_OBSERVED_LIVE_RUNTIME`.
 - `Tests/Fixtures/autologon-result-inspector/`, `Tests/Pester/AutoLogonCanonicalResultPresenter.Tests.ps1`, and `Tests/survey/test_autologon_admin_runtime_runbook_contracts.py` — safe presenter fixture, Windows execution, documentation, privacy, command, index, and CI contracts.
+
+## AutoLogon / Cybernet field desired state
+
+- `configs/software-packages/windows-native-package-sets.json` defines `cybernet-clinical-core` (five apps), `cybernet-autologon-only`, and full `cybernet-clinical-workstation` with AutoLogon last.
+- `configs/software-packages/approved-apps.json` and the package-set catalog currently mark AutoLogon install-enabled but canonical LocalSystem install disabled after failed runtime validation; do not infer that the six-package SYSTEM path is safe.
+- `harness/api/deployment-state-registry.json` is the harness authority for interpreting field intent against that current product truth.
+- When the five clinical-core apps are already proven installed/accepted, preserve them; do not reinstall them merely to reach AutoLogon.
+- `test AutoLogon`, `deploy AutoLogon`, or AutoLogon/Cybernet `live cert` with one authorized Cybernet and mutation authority resolves to `sas autologon Remote HOST`, not fixture or transport-only certification.
+- Pre-reboot application is proven only by `autologon_kerberos_s4u_pilot_result.json` with `KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING`.
+- When runtime proof is also requested, the next genuine gate is a separately authorized attended reboot plus direct automatic-sign-in observation; then run `scripts\Start-SasAutoLogonTechnicianRuntimeProof.cmd targets\local\autologon-runtime.json` from the actual AutoLogon desktop.
+- Runtime completion requires `runtime-proof-summary.json` with `TECHNICIAN_OBSERVED_LIVE_RUNTIME`, `runtime_proof=true`, and `overall_success=true`.
 
 ## Repo doctrine
 
@@ -200,29 +217,33 @@ Use this map to load only the files needed for a task.
 - `dashboard/test_relay_cancel_e2e.py` — real relay cancellation journey over loopback.
 - `dashboard/test_relay_abort_e2e.js` — real relay/client abort journey over loopback.
 
-## Canonical build, test, and deployment commands
+## Canonical build, test, deployment, and runtime commands
 
-The machine-readable command authority is `harness/api/harness-command-registry.json`; do not reconstruct commands from memory. The terminal-outcome authority is `harness/api/harness-outcome-registry.json`. A validator, dry run, or plan is an admission gate when the requested goal is build/run/deploy; after it passes, follow the registered same-turn continuation instead of handing the next command back to the operator.
+The machine-readable command authority is `harness/api/harness-command-registry.json`; do not reconstruct commands from memory. The terminal-outcome authority is `harness/api/harness-outcome-registry.json`. For AutoLogon/Cybernet field work, also resolve `harness/api/deployment-state-registry.json` before treating a test, live cert, or runtime proof as complete.
 
 | Intent | Canonical command | Boundary |
 |---|---|---|
 | Harness registry validation | `python harness/validators/validate-harness-registries.py` | Local/read-only; emits registered validation result |
 | Outcome contract validation | `python harness/validators/validate-outcome-contracts.py` | Local/read-only; rejects tests-only/status-only endpoints |
+| Deployment-state validation | `python harness/validators/validate-deployment-state-contracts.py` | Local/read-only; rejects AutoLogon/Cybernet diagnostic-only substitutes and product-truth drift |
 | Harness completeness | `python Tests/survey/test_operational_harness_completeness_contracts.py` | Local/read-only |
 | Broad offline floor | `bash tests/survey/run_offline_survey_tests.sh` | Local/read-only |
 | PowerShell tests | `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester` | Local/read-only |
 | Managed tests | `dotnet test SysAdminSuite.sln -c Release --verbosity normal` | Build/test only |
 | Dashboard build | `dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost` | Build output only; continue to launcher when requested goal is run |
-| Cybernet plan | `sas cybernet Plan HOST` | No target contact; emits summary and continues to Apply in the same turn when deployment is authorized/requested |
-| Cybernet apply | `sas cybernet Apply HOST` | Authorized target mutation only |
-| AutoLogon remote | `sas autologon Remote HOST` | Authorized Kerberos/SMB/S4U target mutation; emits canonical S4U result |
+| Cybernet plan | `sas cybernet Plan HOST` | No target contact; emits summary and continues only when the selected product path is currently permitted |
+| Cybernet generic apply | `sas cybernet Apply HOST` | Authorized target mutation; not the current substitute for S4U AutoLogon while canonical SYSTEM AutoLogon is blocked |
+| AutoLogon field apply/test/live-cert | `sas autologon Remote HOST` | Authorized Cybernet Kerberos/SMB/S4U mutation; must emit positive S4U pre-reboot result |
+| AutoLogon actual-session runtime proof | `scripts\Start-SasAutoLogonTechnicianRuntimeProof.cmd targets\local\autologon-runtime.json` | Run after correlated positive deployment artifact, attended reboot authority, and direct automatic-sign-in observation |
 
 ## Validation and tests
 
 - `harness/api/harness-validator-registry.json` — canonical validator selection by changed surface and proof ceiling.
-- `harness/api/harness-outcome-registry.json` — maps validation/build/plan/deploy commands to terminal artifacts and safe continuations.
+- `harness/api/harness-outcome-registry.json` — maps validation/build/plan/deploy/runtime commands to terminal artifacts and safe continuations.
+- `harness/api/deployment-state-registry.json` — maps AutoLogon/Cybernet field intent and existing state to the required product/runtime state chain.
 - `harness/validators/validate-harness-registries.py` — first harness integrity gate.
 - `harness/validators/validate-outcome-contracts.py` — rejects command chains that can stop at a green test while the requested goal remains unproven.
+- `harness/validators/validate-deployment-state-contracts.py` — rejects state chains that confuse transport/fixture proof with AutoLogon application or runtime proof.
 - `tools/validate-ai-layer.ps1` — PowerShell validator for the AI harness layer.
 - `tests/survey/run_offline_survey_tests.sh` — offline survey/harness contract runner.
 - `tests/bash/` — Bash contract and smoke tests.
