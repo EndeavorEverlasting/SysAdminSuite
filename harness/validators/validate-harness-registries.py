@@ -103,8 +103,9 @@ def test_command_registry() -> None:
     commands = registry["commands"]
     require_unique(commands, "command registry")
     required = {
-        "harness-validate", "harness-completeness", "offline-floor", "powershell-tests", "managed-tests",
-        "dashboard-build", "dashboard-launch", "cybernet-plan", "cybernet-apply", "autologon-remote",
+        "harness-validate", "harness-outcome-validate", "harness-completeness", "offline-floor",
+        "powershell-tests", "managed-tests", "dashboard-build", "dashboard-launch", "cybernet-plan",
+        "cybernet-apply", "autologon-remote",
     }
     assert required <= {item["id"] for item in commands}
     for item in commands:
@@ -158,7 +159,7 @@ def test_fresh_agent_wiring() -> None:
     for marker in (
         "## Trigger", "## Required inputs", "## Procedure", "## Expected outputs", "## Proof ceiling",
         "harness/workflows/fresh-agent-intake.yaml", "harness/api/harness-command-registry.json",
-        "harness/api/harness-validator-registry.json",
+        "harness/api/harness-validator-registry.json", "harness/api/harness-outcome-registry.json",
     ):
         assert marker in skill, f"harness-maintenance skill missing: {marker}"
 
@@ -176,6 +177,8 @@ def test_artifact_and_report_wiring() -> None:
     assert "sas-harness-status-report/v1" in renderer
     assert "harness-validator-registry.json" in renderer
     assert "harness-command-registry.json" in renderer
+    assert "harness-outcome-registry.json" in renderer
+    assert "Same-turn continuations" in renderer
     status = read(STATUS)
     assert "Harness registry integrity" in status
     assert "Fresh-agent intake" in status
