@@ -18,21 +18,38 @@ def render() -> str:
     validators = load("harness/api/harness-validator-registry.json")
     commands = load("harness/api/harness-command-registry.json")
     artifacts = load("harness/api/harness-artifact-registry.json")
+    outcomes = load("harness/api/harness-outcome-registry.json")
     required = [item for item in manifest["components"] if item.get("required")]
     missing = [item["path"] for item in required if not (ROOT / item["path"]).is_file()]
     blocking = [item for item in validators["validators"] if item.get("blocking")]
     deploy = [item for item in commands["commands"] if item.get("kind") in {"deploy", "deploy-plan"}]
     local_artifacts = [item for item in artifacts["artifacts"] if not item.get("tracked")]
+    continuations = [
+        (contract["command_id"], continuation)
+        for contract in outcomes["contracts"]
+        for continuation in contract.get("continuations", [])
+    ]
     lines = [
         "# SysAdminSuite Operational Harness Generated Status", "", "Schema: `sas-harness-status-report/v1`", "",
         "## Summary", "", f"- Required harness components: **{len(required)}**", f"- Missing required components: **{len(missing)}**",
         f"- Registered validators: **{len(validators['validators'])}** ({len(blocking)} blocking)",
         f"- Registered canonical commands: **{len(commands['commands'])}**",
+        f"- Registered outcome contracts: **{len(outcomes['contracts'])}** ({len(continuations)} same-turn continuations)",
         f"- Registered artifact roles: **{len(artifacts['artifacts'])}** ({len(local_artifacts)} generated/local)", "", "## Working", "",
         "Required-component inventory is **not complete**; see Missing below." if missing else "All required component paths declared by the operational harness manifest are present in this checkout.",
+        "", "## Outcome-driven execution", "",
+        "Validation is an admission gate, not completion, when the requested goal remains unproven.",
+        "Successful dry/test/build/plan commands must resolve a registered artifact; registered safe continuations remain same-turn.",
         "", "## Blocking validator floor", "",
     ]
     lines.extend(f"- `{item['id']}` — `{item['command']}`" for item in blocking)
+    lines += ["", "## Same-turn continuations", ""]
+    lines.extend(
+        f"- `{source}` -> `{item['command_id']}` when goal is `{item['when_goal']}`; authorization required: `{item['requires_authorization']}`"
+        for source, item in continuations
+    )
+    if not continuations:
+        lines.append("- None registered.")
     lines += ["", "## Canonical deployment-facing commands", ""]
     lines.extend(f"- `{item['id']}` — `{item['command']}` — mutation: `{item['mutation']}`" for item in deploy)
     lines += ["", "## Missing", ""]
