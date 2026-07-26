@@ -24,6 +24,7 @@ function Test-SasRepoRoot {
         (Test-Path -LiteralPath $candidate -PathType Container) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Run-AutoLogonOnsite.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Run-CybernetBatchConfiguration.cmd') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetClinicalCore.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'scripts\SasNetworkGuard.psm1') -PathType Leaf)
     )
 }
@@ -153,9 +154,10 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host ''
     Write-Host '  sas autologon                       AutoLogon on-site menu'
     Write-Host '  sas autologon Remote HOST           Remote Kerberos/S4U AutoLogon; no target login'
-    Write-Host '  sas cybernet Plan HOST              Local Cybernet plan'
-    Write-Host '  sas cybernet Apply HOST             Network-gated Cybernet apply'
-    Write-Host '  sas cybernet Validate HOST          Network-gated Cybernet validation'
+    Write-Host '  sas cybernet Deploy HOST            Deploy five approved clinical-core applications; AutoLogon separate'
+    Write-Host '  sas cybernet Plan HOST              Hardware-only Cybernet plan'
+    Write-Host '  sas cybernet Apply HOST             Hardware-only Cybernet apply'
+    Write-Host '  sas cybernet Validate HOST          Hardware-only Cybernet validation'
     Write-Host '  sas network                         Check/recheck approved Northwell network posture'
     Write-Host '  sas repo                            Print resolved repository path'
     Write-Host '  sas open                            Open repository in Explorer'
@@ -180,7 +182,13 @@ switch ($normalized) {
         exit $exitCode
     }
     'cybernet' {
-        $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-CybernetBatchConfiguration.cmd' -Arguments $CommandArgs
+        $args = @($CommandArgs)
+        if ($args.Count -gt 0 -and [string]$args[0] -and ([string]$args[0]).Trim().ToLowerInvariant() -eq 'deploy') {
+            $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Deploy-CybernetClinicalCore.cmd' -Arguments $args
+        }
+        else {
+            $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-CybernetBatchConfiguration.cmd' -Arguments $args
+        }
         exit $exitCode
     }
     default {
