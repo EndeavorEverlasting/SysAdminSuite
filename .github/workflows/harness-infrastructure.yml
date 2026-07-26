@@ -16,10 +16,12 @@ on:
       - 'harness/api/harness-command-registry.json'
       - 'harness/api/harness-validator-registry.json'
       - 'harness/api/harness-outcome-registry.json'
+      - 'harness/api/deployment-state-registry.json'
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/workflows/operational-harness-maintenance.yaml'
       - 'harness/workflows/operational-harness-publish.yaml'
       - 'harness/workflows/outcome-driven-execution.yaml'
+      - 'harness/workflows/cybernet-autologon-deployment-state.yaml'
       - 'harness/skills/**'
       - 'harness/validators/**'
       - 'schemas/harness/**'
@@ -41,10 +43,12 @@ on:
       - 'harness/api/harness-command-registry.json'
       - 'harness/api/harness-validator-registry.json'
       - 'harness/api/harness-outcome-registry.json'
+      - 'harness/api/deployment-state-registry.json'
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/workflows/operational-harness-maintenance.yaml'
       - 'harness/workflows/operational-harness-publish.yaml'
       - 'harness/workflows/outcome-driven-execution.yaml'
+      - 'harness/workflows/cybernet-autologon-deployment-state.yaml'
       - 'harness/skills/**'
       - 'harness/validators/**'
       - 'schemas/harness/**'
@@ -80,26 +84,32 @@ jobs:
           Tests/survey/test_local_harness_contracts.py
           harness/validators/validate-harness-registries.py
           harness/validators/validate-outcome-contracts.py
+          harness/validators/validate-deployment-state-contracts.py
           scripts/check-repo-text-policy.py
 
-      - name: Validate operational harness manifest schema
+      - name: Validate operational harness schemas
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           import jsonschema
-          manifest = json.loads(Path('harness/api/operational-harness-manifest.json').read_text(encoding='utf-8'))
-          schema = json.loads(Path('schemas/harness/operational-harness-manifest.schema.json').read_text(encoding='utf-8'))
-          jsonschema.Draft202012Validator(schema).validate(manifest)
-          print('PASS: operational harness manifest schema')
-          outcome = json.loads(Path('harness/api/harness-outcome-registry.json').read_text(encoding='utf-8'))
-          outcome_schema = json.loads(Path('schemas/harness/harness-outcome-registry.schema.json').read_text(encoding='utf-8'))
-          jsonschema.Draft202012Validator(outcome_schema).validate(outcome)
-          print('PASS: harness outcome registry schema')
+          pairs = [
+              ('harness/api/operational-harness-manifest.json', 'schemas/harness/operational-harness-manifest.schema.json'),
+              ('harness/api/harness-outcome-registry.json', 'schemas/harness/harness-outcome-registry.schema.json'),
+              ('harness/api/deployment-state-registry.json', 'schemas/harness/deployment-state-registry.schema.json'),
+          ]
+          for document_path, schema_path in pairs:
+              document = json.loads(Path(document_path).read_text(encoding='utf-8'))
+              schema = json.loads(Path(schema_path).read_text(encoding='utf-8'))
+              jsonschema.Draft202012Validator(schema).validate(document)
+              print(f'PASS: {document_path} schema')
           PY
 
       - name: Validate outcome-driven execution contracts
         run: python harness/validators/validate-outcome-contracts.py
+
+      - name: Validate AutoLogon Cybernet deployment-state contracts
+        run: python harness/validators/validate-deployment-state-contracts.py
 
       - name: Run harness completeness contracts
         run: python Tests/survey/test_operational_harness_completeness_contracts.py
