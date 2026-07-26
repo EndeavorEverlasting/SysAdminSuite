@@ -13,9 +13,16 @@ on:
       - 'scripts/check-repo-text-policy.py'
       - 'harness/api/operational-harness-manifest.json'
       - 'harness/api/harness-artifact-registry.json'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/harness-outcome-registry.json'
+      - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/workflows/operational-harness-maintenance.yaml'
       - 'harness/workflows/operational-harness-publish.yaml'
-      - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'harness/workflows/outcome-driven-execution.yaml'
+      - 'harness/skills/**'
+      - 'harness/validators/**'
+      - 'schemas/harness/**'
       - 'docs/HARNESS_STATUS.md'
       - 'Tests/survey/test_operational_harness_completeness_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
@@ -31,9 +38,16 @@ on:
       - 'scripts/check-repo-text-policy.py'
       - 'harness/api/operational-harness-manifest.json'
       - 'harness/api/harness-artifact-registry.json'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/harness-outcome-registry.json'
+      - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/workflows/operational-harness-maintenance.yaml'
       - 'harness/workflows/operational-harness-publish.yaml'
-      - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'harness/workflows/outcome-driven-execution.yaml'
+      - 'harness/skills/**'
+      - 'harness/validators/**'
+      - 'schemas/harness/**'
       - 'docs/HARNESS_STATUS.md'
       - 'Tests/survey/test_operational_harness_completeness_contracts.py'
       - 'Tests/survey/test_local_harness_contracts.py'
@@ -64,6 +78,8 @@ jobs:
           python -m py_compile
           Tests/survey/test_operational_harness_completeness_contracts.py
           Tests/survey/test_local_harness_contracts.py
+          harness/validators/validate-harness-registries.py
+          harness/validators/validate-outcome-contracts.py
           scripts/check-repo-text-policy.py
 
       - name: Validate operational harness manifest schema
@@ -76,7 +92,14 @@ jobs:
           schema = json.loads(Path('schemas/harness/operational-harness-manifest.schema.json').read_text(encoding='utf-8'))
           jsonschema.Draft202012Validator(schema).validate(manifest)
           print('PASS: operational harness manifest schema')
+          outcome = json.loads(Path('harness/api/harness-outcome-registry.json').read_text(encoding='utf-8'))
+          outcome_schema = json.loads(Path('schemas/harness/harness-outcome-registry.schema.json').read_text(encoding='utf-8'))
+          jsonschema.Draft202012Validator(outcome_schema).validate(outcome)
+          print('PASS: harness outcome registry schema')
           PY
+
+      - name: Validate outcome-driven execution contracts
+        run: python harness/validators/validate-outcome-contracts.py
 
       - name: Run harness completeness contracts
         run: python Tests/survey/test_operational_harness_completeness_contracts.py
