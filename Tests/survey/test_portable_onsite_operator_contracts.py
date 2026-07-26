@@ -113,6 +113,24 @@ def test_cybernet_target_operations_are_gated_in_engine_for_cmd_and_csv_paths() 
     assert "exit $gateExit" in engine
 
 
+def test_portable_sas_cybernet_deploy_routes_to_clinical_core_and_keeps_hardware_separate() -> None:
+    launcher = read("scripts/SasPortableLauncher.ps1")
+    cmd = read("Deploy-CybernetClinicalCore.cmd")
+    script = read("scripts/Invoke-SasCybernetClinicalCoreDeployment.ps1")
+    assert "sas cybernet Deploy HOST" in launcher
+    assert "Deploy-CybernetClinicalCore.cmd" in launcher
+    assert "Run-CybernetBatchConfiguration.cmd" in launcher
+    assert "Hardware-only Cybernet apply" in launcher
+    assert "-Mode Deploy" in cmd
+    assert "-AllowTargetMutation -ConfirmDeployment" in cmd
+    assert "cybernet-clinical-core" in script
+    assert "AutoLogon must not be part of the clinical-core deployment lane" in script
+    assert "Confirm-SasNorthwellNetwork.ps1" in script
+    assert "$env:SKIP_NMAP = '1'" in script
+    assert "CLINICAL_CORE_DEPLOYMENT_COMPLETED" in script
+    assert "sas autologon Remote $target" in script
+
+
 def test_portable_sas_command_discovers_and_caches_repo_without_username_literals() -> None:
     launcher = read("scripts/SasPortableLauncher.ps1")
     installer = read("scripts/Install-SasPortableLauncher.ps1")
@@ -125,6 +143,7 @@ def test_portable_sas_command_discovers_and_caches_repo_without_username_literal
         "OG Laptop Backup\\Desktop\\dev\\SysAdminSuite",
         "Run-AutoLogonOnsite.cmd",
         "Run-CybernetBatchConfiguration.cmd",
+        "Deploy-CybernetClinicalCore.cmd",
         "'autologon'",
         "'cybernet'",
         "'network'",
