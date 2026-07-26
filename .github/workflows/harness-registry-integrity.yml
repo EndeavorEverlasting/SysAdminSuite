@@ -13,9 +13,11 @@ on:
       - 'harness/api/harness-validator-registry.json'
       - 'harness/api/harness-artifact-registry.json'
       - 'harness/api/harness-outcome-registry.json'
+      - 'harness/api/deployment-state-registry.json'
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/workflows/operational-harness-maintenance.yaml'
       - 'harness/workflows/outcome-driven-execution.yaml'
+      - 'harness/workflows/cybernet-autologon-deployment-state.yaml'
       - 'harness/validators/**'
       - 'harness/reports/**'
       - 'schemas/harness/operational-harness-manifest.schema.json'
@@ -23,6 +25,7 @@ on:
       - 'schemas/harness/harness-validator-registry.schema.json'
       - 'schemas/harness/harness-artifact-registry.schema.json'
       - 'schemas/harness/harness-outcome-registry.schema.json'
+      - 'schemas/harness/deployment-state-registry.schema.json'
       - 'docs/HARNESS_STATUS.md'
       - 'Tests/survey/test_operational_harness_completeness_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -38,9 +41,11 @@ on:
       - 'harness/api/harness-validator-registry.json'
       - 'harness/api/harness-artifact-registry.json'
       - 'harness/api/harness-outcome-registry.json'
+      - 'harness/api/deployment-state-registry.json'
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/workflows/operational-harness-maintenance.yaml'
       - 'harness/workflows/outcome-driven-execution.yaml'
+      - 'harness/workflows/cybernet-autologon-deployment-state.yaml'
       - 'harness/validators/**'
       - 'harness/reports/**'
       - 'schemas/harness/operational-harness-manifest.schema.json'
@@ -48,6 +53,7 @@ on:
       - 'schemas/harness/harness-validator-registry.schema.json'
       - 'schemas/harness/harness-artifact-registry.schema.json'
       - 'schemas/harness/harness-outcome-registry.schema.json'
+      - 'schemas/harness/deployment-state-registry.schema.json'
       - 'docs/HARNESS_STATUS.md'
       - 'Tests/survey/test_operational_harness_completeness_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -74,6 +80,7 @@ jobs:
         run: |
           python -m py_compile harness/validators/validate-harness-registries.py
           python -m py_compile harness/validators/validate-outcome-contracts.py
+          python -m py_compile harness/validators/validate-deployment-state-contracts.py
           python -m py_compile harness/reports/render-harness-status.py
       - name: Validate registry JSON schemas
         run: |
@@ -87,6 +94,7 @@ jobs:
               ('harness/api/harness-validator-registry.json', 'schemas/harness/harness-validator-registry.schema.json'),
               ('harness/api/harness-artifact-registry.json', 'schemas/harness/harness-artifact-registry.schema.json'),
               ('harness/api/harness-outcome-registry.json', 'schemas/harness/harness-outcome-registry.schema.json'),
+              ('harness/api/deployment-state-registry.json', 'schemas/harness/deployment-state-registry.schema.json'),
           ]
           for document_path, schema_path in pairs:
               document = json.loads(Path(document_path).read_text(encoding='utf-8'))
@@ -98,6 +106,8 @@ jobs:
         run: python harness/validators/validate-harness-registries.py
       - name: Validate outcome contracts
         run: python harness/validators/validate-outcome-contracts.py
+      - name: Validate deployment-state contracts
+        run: python harness/validators/validate-deployment-state-contracts.py
       - name: Run operational harness completeness
         run: python Tests/survey/test_operational_harness_completeness_contracts.py
       - name: Render operator status
