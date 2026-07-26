@@ -36,22 +36,22 @@ Describe 'Cybernet clinical-core deployment surface' {
 
     It 'requires explicit deployment authority and runs dry proof before live execution' {
         $text = Get-Content -LiteralPath $script:deploymentScript -Raw
-        $text | Should -Match "Deploy requires both -AllowTargetMutation and -ConfirmDeployment"
-        $text | Should -Match "--dry-run"
-        $text.IndexOf("--dry-run") | Should -BeLessThan $text.IndexOf("LIVE CLINICAL CORE DEPLOYMENT")
-        $text | Should -Match "Confirm-SasNorthwellNetwork.ps1"
-        $text | Should -Match "\$env:SKIP_NMAP = '1'"
-        $text | Should -Match "CLINICAL_CORE_DEPLOYMENT_COMPLETED"
-        $text | Should -Match "do not blindly rerun"
+        $text | Should -Match 'Deploy requires both -AllowTargetMutation and -ConfirmDeployment'
+        $text | Should -Match '--dry-run'
+        $text.IndexOf('--dry-run') | Should -BeLessThan $text.IndexOf('LIVE CLINICAL CORE DEPLOYMENT')
+        $text | Should -Match 'Confirm-SasNorthwellNetwork.ps1'
+        $text | Should -Match '\$env:SKIP_NMAP\s*=\s*''1'''
+        $text | Should -Match 'CLINICAL_CORE_DEPLOYMENT_COMPLETED'
+        $text | Should -Match 'do not blindly rerun'
     }
 
     It 'keeps AutoLogon separate and never reboots' {
         $text = Get-Content -LiteralPath $script:deploymentScript -Raw
-        $text | Should -Match "autologon_included = \$false"
-        $text | Should -Match "sas autologon Remote \$target"
-        $text | Should -Match "automatic_reboot_performed = \$false"
-        $text | Should -Not -Match "Restart-Computer"
-        $text | Should -Not -Match "shutdown.exe"
+        $text | Should -Match 'autologon_included\s*=\s*\$false'
+        $text | Should -Match 'sas autologon Remote \$target'
+        $text | Should -Match 'automatic_reboot_performed\s*=\s*\$false'
+        $text | Should -Not -Match 'Restart-Computer'
+        $text | Should -Not -Match 'shutdown.exe'
     }
 
     It 'exposes one direct portable deploy command' {
