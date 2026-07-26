@@ -11,6 +11,7 @@
       "build_artifact_created",
       "runtime_started",
       "product_deployed",
+      "runtime_proven",
       "blocked_with_actionable_gate"
     ],
     "forbidden_terminal_outcomes": [
@@ -34,6 +35,14 @@
       "command_id": "harness-outcome-validate",
       "success_outcome": "artifact_created",
       "success_artifact_id": "harness-outcome-validation-result",
+      "terminal_goals": ["validate", "artifact"],
+      "continuations": [],
+      "failure_outcome": "blocked_with_actionable_gate"
+    },
+    {
+      "command_id": "deployment-state-validate",
+      "success_outcome": "artifact_created",
+      "success_artifact_id": "deployment-state-validation-result",
       "terminal_goals": ["validate", "artifact"],
       "continuations": [],
       "failure_outcome": "blocked_with_actionable_gate"
@@ -123,6 +132,14 @@
       "success_outcome": "product_deployed",
       "success_artifact_id": "autologon-s4u-pilot-result",
       "terminal_goals": ["deploy", "pre-reboot-proof"],
+      "continuations": [],
+      "failure_outcome": "blocked_with_actionable_gate"
+    },
+    {
+      "command_id": "autologon-runtime-proof",
+      "success_outcome": "runtime_proven",
+      "success_artifact_id": "autologon-technician-runtime-proof",
+      "terminal_goals": ["runtime-proof", "acceptance"],
       "continuations": [],
       "failure_outcome": "blocked_with_actionable_gate"
     }
