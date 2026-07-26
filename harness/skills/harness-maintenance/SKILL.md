@@ -2,7 +2,7 @@
 
 ## Trigger
 
-Use this skill when the task explicitly owns repository harness infrastructure: codebase maps, harness workflows, validator registries, artifact registries, hooks, scoped skills, operator reports, harness schemas, or harness CI.
+Use this skill when the task explicitly owns repository harness infrastructure: codebase maps, harness workflows, command/validator/artifact/outcome registries, hooks, scoped skills, operator reports, harness schemas, or harness CI.
 
 Do not use this skill to change product behavior, deployment logic, device profiles, credentials, secrets, or the root governance contract in `AGENTS.md`.
 
@@ -11,7 +11,7 @@ Do not use this skill to change product behavior, deployment logic, device profi
 - repository root and current branch
 - owned scope and forbidden scope
 - expected harness artifacts
-- requested proof ceiling
+- requested goal and proof ceiling
 - current Git/PR evidence when available
 
 ## Load order
@@ -21,8 +21,9 @@ Do not use this skill to change product behavior, deployment logic, device profi
 3. Read `CODEBASE_MAP.md`.
 4. Read `harness/api/operational-harness-manifest.json`.
 5. Read `harness/workflows/fresh-agent-intake.yaml` and `harness/workflows/operational-harness-maintenance.yaml`.
-6. Read `harness/api/harness-command-registry.json`, `harness/api/harness-validator-registry.json`, and `harness/api/harness-artifact-registry.json`.
-7. Inspect only the harness components implicated by the requested change.
+6. Read `harness/api/harness-command-registry.json`, `harness/api/harness-validator-registry.json`, `harness/api/harness-artifact-registry.json`, and `harness/api/harness-outcome-registry.json`.
+7. Read `harness/workflows/outcome-driven-execution.yaml` when validators, dry runs, plans, or preflights could become artificial stopping points.
+8. Inspect only the harness components implicated by the requested change.
 
 ## Procedure
 
@@ -31,6 +32,7 @@ Do not use this skill to change product behavior, deployment logic, device profi
 - Identify existing authorities before creating new files.
 - Confirm every requested harness component is either present and complete or has one concrete gap.
 - Treat generated output, operator evidence, machine-local paths, and live data as untracked unless the artifact registry explicitly says otherwise.
+- Resolve the user's requested terminal goal before choosing validation so the harness can distinguish an admission test from the actual deliverable.
 
 ### 2. Implement
 
@@ -38,7 +40,8 @@ Do not use this skill to change product behavior, deployment logic, device profi
 - Keep codebase maps factual and point to canonical entrypoints instead of embedding large implementation narratives.
 - Keep workflow stages ordered and fail closed at unresolved routing, validation, or evidence boundaries.
 - Hooks must run local/offline proof only; they must not contact product targets or perform deployment mutation.
-- Operator reports must separate working state, known gaps, validation commands, and proof ceiling.
+- Operator reports must separate working state, known gaps, validation commands, outcome continuation, and proof ceiling.
+- Every canonical command must have an outcome contract. A validation/dry-run/build/plan success must resolve a registered artifact; deployment-oriented plans must name the same-turn continuation that advances an authorized deployment goal.
 
 ### 3. Validate
 
@@ -46,6 +49,7 @@ Always run the focused harness floor first:
 
 ```text
 python harness/validators/validate-harness-registries.py
+python harness/validators/validate-outcome-contracts.py
 python Tests/survey/test_operational_harness_completeness_contracts.py
 python Tests/survey/test_local_harness_contracts.py
 git diff --check
@@ -59,13 +63,16 @@ bash tests/survey/run_offline_survey_tests.sh
 
 Run full Pester, managed tests, build, or E2E only when the changed surface or declared proof ceiling requires them.
 
+A passing validator is supporting evidence. When the requested goal remains unproven and `harness/api/harness-outcome-registry.json` names a safe, authorized, dependency-satisfied continuation, execute that continuation in the same turn rather than ending with the pass result.
+
 ### 4. Failure handling
 
 - Stop at the first failed proof boundary.
-- Classify the failure as structure, schema/registry, hook/CI wiring, text policy, dependency, integration, or runtime.
+- Classify the failure as structure, schema/registry, outcome/continuation, hook/CI wiring, text policy, dependency, integration, or runtime.
 - Repair the smallest owning harness component.
 - Rerun the failed validator before broader validation.
 - Never weaken a validator merely to make the harness green.
+- When the blocker is genuinely external, record the exact blocker owner, dependency, executable action, and artifact/proof the action will produce.
 
 ### 5. Commit and publish
 
@@ -73,16 +80,18 @@ Run full Pester, managed tests, build, or E2E only when the changed surface or d
 - Use an isolated branch or worktree when unrelated work exists.
 - Do not force-push or mutate `main` directly.
 - When remote publication is authorized, follow `harness/workflows/operational-harness-publish.yaml` and open/update one PR.
+- Do not treat PR creation, CI status display, or a validator pass as the terminal user outcome when safe executable work remains inside the requested goal.
 
 ## Expected outputs
 
 - tracked harness component changes
-- passing focused completeness and registry checks
+- passing focused registry, outcome, and completeness checks
 - broader validation results when required
 - commit SHA
 - push/PR evidence when authorized
-- exact next command that advances the first remaining unproven gate
+- requested goal and registered terminal outcome
+- exact next command only when a real remaining gate prevents further safe execution
 
 ## Proof ceiling
 
-This skill can prove repository harness structure, routing, registries, hooks, CI wiring, documentation, and static/build contract status. It cannot by itself prove product behavior, target reachability, deployment success, reboot behavior, application behavior, or technician acceptance.
+This skill can prove repository harness structure, routing, registries, outcome contracts, hooks, CI wiring, documentation, and static/build contract status. It cannot by itself prove product behavior, target reachability, deployment success, reboot behavior, application behavior, or technician acceptance.
