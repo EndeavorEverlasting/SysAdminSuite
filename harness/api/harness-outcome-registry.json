@@ -113,18 +113,10 @@
     },
     {
       "command_id": "cybernet-apply",
-      "success_outcome": "blocked_with_actionable_gate",
+      "success_outcome": "product_deployed",
       "success_artifact_id": "cybernet-client-configuration-summary",
-      "terminal_goals": ["legacy-full-profile-review"],
-      "continuations": [
-        {
-          "when_goal": "deploy",
-          "command_id": "cybernet-core-deploy",
-          "same_turn": true,
-          "requires_authorization": true,
-          "dependency": "canonical SYSTEM AutoLogon remains blocked and the requested goal is deployable clinical-core software"
-        }
-      ],
+      "terminal_goals": ["legacy-full-profile-deploy"],
+      "continuations": [],
       "failure_outcome": "blocked_with_actionable_gate"
     },
     {
