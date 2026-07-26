@@ -27,6 +27,8 @@
         "canonical_system_install_enabled": false,
         "canonical_system_qualification_status": "failed_runtime_validation",
         "canonical_system_blocked_reason_contains": "did not establish AutoAdminLogon=1",
+        "current_clinical_core_apply_command_id": "cybernet-core-deploy",
+        "current_clinical_core_positive_status": "CLINICAL_CORE_DEPLOYMENT_COMPLETED",
         "current_live_apply_lane": "kerberos_s4u_named_admin",
         "current_live_apply_command_id": "autologon-remote",
         "current_live_apply_positive_classification": "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
@@ -74,16 +76,19 @@
           "signals": ["complete cybernet profile", "finish cybernet workstation", "cybernet profile with autologon"],
           "goal_state": "cybernet_profile_autologon_runtime_proven",
           "requires_apply": true,
-          "notes": "Reuse already-proven clinical-core installation. Do not reinstall the five clinical-core applications merely to reach AutoLogon. AutoLogon remains last."
+          "notes": "Reuse already-proven clinical-core installation. If clinical-core is unproven, use cybernet-core-deploy for the five deployable applications. Do not reinstall accepted core applications merely to reach AutoLogon. AutoLogon remains last."
         }
       ],
       "states": [
         {
           "id": "clinical_core_ready",
           "terminal": false,
-          "satisfied_by": ["existing approved deployment evidence", "existing technician/application acceptance", "explicit operator-provided installed-state evidence"],
+          "command_id": "cybernet-core-deploy",
+          "artifact_id": "cybernet-clinical-core-deployment-summary",
+          "positive_classification": "CLINICAL_CORE_DEPLOYMENT_COMPLETED",
+          "satisfied_by": ["existing approved deployment evidence", "existing technician/application acceptance", "explicit operator-provided installed-state evidence", "cybernet-clinical-core-deployment-summary with status CLINICAL_CORE_DEPLOYMENT_COMPLETED"],
           "on_satisfied": "skip clinical-core reinstall",
-          "on_unproven": "do not assume installed and do not blindly reinstall; resolve the existing clinical-core deployment/acceptance lane before declaring the full Cybernet profile complete"
+          "on_unproven": "run sas cybernet Deploy HOST for the explicitly authorized target; do not substitute the blocked six-package LocalSystem path"
         },
         {
           "id": "autologon_pre_reboot_configured",
@@ -116,6 +121,11 @@
       ],
       "critical_artifact_chain": [
         {
+          "artifact_id": "cybernet-clinical-core-deployment-summary",
+          "required_value": "status=CLINICAL_CORE_DEPLOYMENT_COMPLETED",
+          "proves_state": "clinical_core_ready"
+        },
+        {
           "artifact_id": "autologon-s4u-pilot-result",
           "required_value": "classification=KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
           "proves_state": "autologon_pre_reboot_configured"
@@ -135,7 +145,7 @@
         "process started",
         "command acknowledgement",
         "canonical_system_install_enabled flag without matching proof receipt",
-        "six-package LocalSystem Cybernet apply as a substitute for the current S4U AutoLogon lane"
+        "six-package LocalSystem Cybernet apply as a substitute for the current clinical-core plus S4U AutoLogon lanes"
       ]
     }
   ]
