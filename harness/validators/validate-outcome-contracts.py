@@ -37,11 +37,8 @@ def main() -> int:
     assert policy["dry_run_must_emit_artifact"] is True
     assert "runtime_proven" in policy["allowed_terminal_outcomes"]
     for forbidden in (
-        "tests_passed_only",
-        "status_reported_only",
-        "command_printed_only",
-        "wait_for_next_chat",
-        "operator_repeats_agent_work",
+        "tests_passed_only", "status_reported_only", "command_printed_only",
+        "wait_for_next_chat", "operator_repeats_agent_work",
     ):
         assert forbidden in policy["forbidden_terminal_outcomes"], f"missing forbidden terminal outcome: {forbidden}"
 
@@ -71,11 +68,10 @@ def main() -> int:
             assert continuation["same_turn"] is True, f"continuation must be same-turn: {command_id} -> {next_id}"
         assert contract["failure_outcome"] == "blocked_with_actionable_gate"
 
-    # The historical six-package Cybernet plan may still be inspected, but live continuation
-    # must converge onto the five-package clinical-core lane while SYSTEM AutoLogon is blocked.
-    legacy_next = [c for c in contract_by_command["cybernet-plan"]["continuations"] if c["when_goal"] == "deploy"]
-    assert len(legacy_next) == 1
-    assert legacy_next[0]["command_id"] == "cybernet-core-deploy"
+    # Keep the historical full-profile contract internally stable while proving the new
+    # field-safe clinical-core chain independently. Deployment-state routing selects the
+    # clinical-core command while canonical SYSTEM AutoLogon remains blocked.
+    assert contract_by_command["cybernet-plan"]["continuations"][0]["command_id"] == "cybernet-apply"
     assert contract_by_command["cybernet-core-plan"]["continuations"][0]["command_id"] == "cybernet-core-deploy"
     assert contract_by_command["cybernet-core-deploy"]["success_outcome"] == "product_deployed"
     assert contract_by_command["cybernet-core-deploy"]["success_artifact_id"] == "cybernet-clinical-core-deployment-summary"
@@ -86,9 +82,15 @@ def main() -> int:
     assert contract_by_command["autologon-runtime-proof"]["success_outcome"] == "runtime_proven"
     assert contract_by_command["autologon-runtime-proof"]["success_artifact_id"] == "autologon-technician-runtime-proof"
 
+    context = next(item for item in deployment_states["contexts"] if item["id"] == "cybernet-autologon")
     assert deployment_states["policy"]["tests_are_admission_not_target_state"] is True
     assert deployment_states["policy"]["test_autologon_with_authorized_target_means_apply_pilot"] is True
     assert deployment_states["policy"]["deploy_plus_runtime_requires_apply_first"] is True
+    assert context["current_product_truth"]["current_clinical_core_apply_command_id"] == "cybernet-core-deploy"
+    clinical_core = next(item for item in context["states"] if item["id"] == "clinical_core_ready")
+    assert clinical_core["command_id"] == "cybernet-core-deploy"
+    assert clinical_core["artifact_id"] == "cybernet-clinical-core-deployment-summary"
+    assert clinical_core["positive_classification"] == "CLINICAL_CORE_DEPLOYMENT_COMPLETED"
 
     workflow = read(WORKFLOW)
     for marker in (
@@ -96,23 +98,16 @@ def main() -> int:
         "validators and dry runs as admission gates, not as the requested deliverable",
         "follow the registered continuation in the same agent turn",
         "do not ask the operator to rerun a command the agent can safely execute itself",
-        "harness/api/deployment-state-registry.json",
-        "runtime_proven",
-        "blocked_with_actionable_gate",
+        "harness/api/deployment-state-registry.json", "runtime_proven", "blocked_with_actionable_gate",
     ):
         assert marker in workflow, f"outcome workflow missing marker: {marker}"
 
     skill = read(SKILL)
     for marker in (
-        "## Trigger",
-        "## Required inputs",
-        "## Procedure",
-        "## Forbidden stopping patterns",
-        "## Expected outputs",
-        "harness/api/harness-outcome-registry.json",
+        "## Trigger", "## Required inputs", "## Procedure", "## Forbidden stopping patterns",
+        "## Expected outputs", "harness/api/harness-outcome-registry.json",
         "harness/api/deployment-state-registry.json",
-        "Do not hand a safe executable continuation back to the operator",
-        "test AutoLogon",
+        "Do not hand a safe executable continuation back to the operator", "test AutoLogon",
     ):
         assert marker in skill, f"outcome skill missing marker: {marker}"
 
