@@ -31,6 +31,14 @@
       "failure_outcome": "blocked_with_actionable_gate"
     },
     {
+      "command_id": "harness-outcome-validate",
+      "success_outcome": "artifact_created",
+      "success_artifact_id": "harness-outcome-validation-result",
+      "terminal_goals": ["validate", "artifact"],
+      "continuations": [],
+      "failure_outcome": "blocked_with_actionable_gate"
+    },
+    {
       "command_id": "harness-completeness",
       "success_outcome": "artifact_created",
       "success_artifact_id": "harness-completeness-result",
