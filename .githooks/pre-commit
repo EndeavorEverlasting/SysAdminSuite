@@ -6,6 +6,7 @@ cd "$repo_root"
 
 echo "[sas-harness] pre-commit: running static guardrails"
 python3 harness/validators/validate-harness-registries.py
+python3 harness/validators/validate-outcome-contracts.py
 python3 Tests/survey/test_operational_harness_completeness_contracts.py
 python3 scripts/check-repo-text-policy.py --cached
 python3 Tests/survey/test_local_harness_contracts.py
