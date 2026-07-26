@@ -18,23 +18,28 @@ Use this map to load only the files needed for a task.
 
 ## Operational harness infrastructure
 
-- `harness/workflows/fresh-agent-intake.yaml` — canonical fresh-agent sequence: governance, Git preservation, orientation, routing, execution, validator selection, artifacts, and handoff.
+- `harness/workflows/fresh-agent-intake.yaml` — canonical fresh-agent sequence: governance, Git preservation, requested-goal resolution, routing, execution, validator selection, artifacts, outcome continuation, and handoff.
 - `harness/api/operational-harness-manifest.json` — central machine-readable inventory of maps, workflows, registries, validators, hooks, skills, reports, run context, handoff, text policy, and CI.
 - `harness/api/harness-command-registry.json` — canonical build, test, run, and deployment-facing command index with mutation/network classification.
 - `harness/api/harness-validator-registry.json` — canonical validator commands, scope selection, blocking posture, escalation, and proof descriptions.
 - `harness/api/harness-artifact-registry.json` — artifact types, generators, locations, naming conventions, tracking, and live-data boundaries.
-- `.claude/skills/harness-maintenance/SKILL.md` — scoped procedure for harness-only changes without modifying product behavior or `AGENTS.md`.
-- `harness/validators/validate-harness-registries.py` — dependency-free integrity check for registries, source paths, fresh-agent workflow, skill, and report wiring.
+- `harness/api/harness-outcome-registry.json` — command-by-command success artifact, terminal outcome, and same-turn continuation authority; a green validator or dry run is not completion when the requested goal remains unproven.
+- `schemas/harness/harness-outcome-registry.schema.json` — fail-closed schema for outcome and continuation contracts.
+- `harness/skills/harness-maintenance/SKILL.md` — scoped procedure for harness-only changes without modifying product behavior or `AGENTS.md`.
+- `harness/skills/outcome-driven-execution/SKILL.md` — prevents agents from handing safe executable work back to the operator after tests, plans, or dry runs.
+- `harness/validators/validate-harness-registries.py` — dependency-free integrity check for registries, source paths, fresh-agent workflow, skills, and report wiring.
+- `harness/validators/validate-outcome-contracts.py` — proves every canonical command resolves a concrete artifact/outcome and deploy-plan continuations stay same-turn.
 - `harness/reports/render-harness-status.py` — renders a current English registry/path status without modifying tracked docs.
 - `schemas/harness/operational-harness-manifest.schema.json` — fail-closed schema for the central harness inventory.
-- `harness/workflows/operational-harness-maintenance.yaml` — bounded implementation, validation, failure handling, commit, and handoff sequence.
+- `harness/workflows/operational-harness-maintenance.yaml` — bounded implementation, validation, failure handling, commit, outcome continuation, and handoff sequence.
+- `harness/workflows/outcome-driven-execution.yaml` — treats validation/dry-run success as an admission gate and continues until artifact, build, runtime, deployment, or a real external blocker.
 - `harness/workflows/operational-harness-publish.yaml` — separate operator-approved push and pull-request publication sequence.
 - `Tests/survey/test_operational_harness_completeness_contracts.py` — proves required components exist, are tracked, and are wired into hooks, CI, reports, and this map.
 - `scripts/check-repo-text-policy.py` and `.gitattributes` — validate canonical LF storage in Git while allowing Windows checkout endings; prevent CRLF from being misreported as trailing whitespace.
-- `.githooks/pre-commit`, `.githooks/pre-push`, and `scripts/install-local-harness-hooks.sh` — local staged, push, evidence, and contract guardrails.
-- `docs/HARNESS_STATUS.md` — English operator report of working components, repaired boundaries, known gaps, and proof ceilings.
-- `.github/workflows/harness-infrastructure.yml` — established completeness, local-harness, text-policy, syntax, whitespace, and Windows handoff CI gate.
-- `.github/workflows/harness-registry-integrity.yml` — focused registry-integrity, fresh-agent wiring, report-rendering, hook-syntax, and whitespace CI gate.
+- `.githooks/pre-commit`, `.githooks/pre-push`, and `scripts/install-local-harness-hooks.sh` — local staged, push, evidence, outcome-contract, and contract guardrails.
+- `docs/HARNESS_STATUS.md` — English operator report of working components, repaired boundaries, outcome rules, known gaps, and proof ceilings.
+- `.github/workflows/harness-infrastructure.yml` — completeness, outcome-contract, local-harness, text-policy, syntax, whitespace, and Windows handoff CI gate.
+- `.github/workflows/harness-registry-integrity.yml` — focused registry/schema/outcome integrity, fresh-agent wiring, report-rendering, hook-syntax, and whitespace CI gate.
 
 ## Package analysis
 
@@ -197,24 +202,27 @@ Use this map to load only the files needed for a task.
 
 ## Canonical build, test, and deployment commands
 
-The machine-readable authority is `harness/api/harness-command-registry.json`; do not reconstruct commands from memory.
+The machine-readable command authority is `harness/api/harness-command-registry.json`; do not reconstruct commands from memory. The terminal-outcome authority is `harness/api/harness-outcome-registry.json`. A validator, dry run, or plan is an admission gate when the requested goal is build/run/deploy; after it passes, follow the registered same-turn continuation instead of handing the next command back to the operator.
 
 | Intent | Canonical command | Boundary |
 |---|---|---|
-| Harness registry validation | `python harness/validators/validate-harness-registries.py` | Local/read-only |
+| Harness registry validation | `python harness/validators/validate-harness-registries.py` | Local/read-only; emits registered validation result |
+| Outcome contract validation | `python harness/validators/validate-outcome-contracts.py` | Local/read-only; rejects tests-only/status-only endpoints |
 | Harness completeness | `python Tests/survey/test_operational_harness_completeness_contracts.py` | Local/read-only |
 | Broad offline floor | `bash tests/survey/run_offline_survey_tests.sh` | Local/read-only |
 | PowerShell tests | `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester` | Local/read-only |
 | Managed tests | `dotnet test SysAdminSuite.sln -c Release --verbosity normal` | Build/test only |
-| Dashboard build | `dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost` | Build output only |
-| Cybernet plan | `sas cybernet Plan HOST` | No target contact |
+| Dashboard build | `dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost` | Build output only; continue to launcher when requested goal is run |
+| Cybernet plan | `sas cybernet Plan HOST` | No target contact; emits summary and continues to Apply in the same turn when deployment is authorized/requested |
 | Cybernet apply | `sas cybernet Apply HOST` | Authorized target mutation only |
-| AutoLogon remote | `sas autologon Remote HOST` | Authorized Kerberos/SMB/S4U target mutation only |
+| AutoLogon remote | `sas autologon Remote HOST` | Authorized Kerberos/SMB/S4U target mutation; emits canonical S4U result |
 
 ## Validation and tests
 
 - `harness/api/harness-validator-registry.json` — canonical validator selection by changed surface and proof ceiling.
+- `harness/api/harness-outcome-registry.json` — maps validation/build/plan/deploy commands to terminal artifacts and safe continuations.
 - `harness/validators/validate-harness-registries.py` — first harness integrity gate.
+- `harness/validators/validate-outcome-contracts.py` — rejects command chains that can stop at a green test while the requested goal remains unproven.
 - `tools/validate-ai-layer.ps1` — PowerShell validator for the AI harness layer.
 - `tests/survey/run_offline_survey_tests.sh` — offline survey/harness contract runner.
 - `tests/bash/` — Bash contract and smoke tests.
