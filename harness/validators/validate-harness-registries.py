@@ -11,12 +11,16 @@ MANIFEST = ROOT / "harness/api/operational-harness-manifest.json"
 VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
 COMMANDS = ROOT / "harness/api/harness-command-registry.json"
 ARTIFACTS = ROOT / "harness/api/harness-artifact-registry.json"
+OUTCOMES = ROOT / "harness/api/harness-outcome-registry.json"
 MANIFEST_SCHEMA = ROOT / "schemas/harness/operational-harness-manifest.schema.json"
 VALIDATOR_SCHEMA = ROOT / "schemas/harness/harness-validator-registry.schema.json"
 COMMAND_SCHEMA = ROOT / "schemas/harness/harness-command-registry.schema.json"
 ARTIFACT_SCHEMA = ROOT / "schemas/harness/harness-artifact-registry.schema.json"
+OUTCOME_SCHEMA = ROOT / "schemas/harness/harness-outcome-registry.schema.json"
 FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
+OUTCOME_WORKFLOW = ROOT / "harness/workflows/outcome-driven-execution.yaml"
 SKILL = ROOT / "harness/skills/harness-maintenance/SKILL.md"
+OUTCOME_SKILL = ROOT / "harness/skills/outcome-driven-execution/SKILL.md"
 STATUS = ROOT / "docs/HARNESS_STATUS.md"
 RENDERER = ROOT / "harness/reports/render-harness-status.py"
 
@@ -42,7 +46,7 @@ def tracked(relative: str) -> bool:
 
 
 def require_unique(items: list[dict], label: str) -> None:
-    ids = [str(item.get("id", "")).strip() for item in items]
+    ids = [str(item.get("id", item.get("command_id", ""))).strip() for item in items]
     assert all(ids), f"{label} contains an empty id"
     assert len(ids) == len(set(ids)), f"{label} contains duplicate ids"
 
@@ -65,6 +69,7 @@ def test_registry_schema_authorities() -> None:
         COMMAND_SCHEMA: "sas-harness-command-registry/v1",
         VALIDATOR_SCHEMA: "sas-harness-validator-registry/v1",
         ARTIFACT_SCHEMA: "sas-harness-artifact-registry/v1",
+        OUTCOME_SCHEMA: "sas-harness-outcome-registry/v1",
     }
     for path, version in expected.items():
         schema = load(path)
@@ -80,9 +85,9 @@ def test_validator_registry() -> None:
     validators = registry["validators"]
     require_unique(validators, "validator registry")
     required = {
-        "harness-registry-integrity", "operational-harness-completeness", "local-harness-contracts",
-        "repository-text-policy-staged", "repository-text-policy-commit", "patch-whitespace",
-        "offline-survey-floor", "pester-full", "managed-tests-release", "dashboard-publish",
+        "harness-registry-integrity", "harness-outcome-contracts", "operational-harness-completeness",
+        "local-harness-contracts", "repository-text-policy-staged", "repository-text-policy-commit",
+        "patch-whitespace", "offline-survey-floor", "pester-full", "managed-tests-release", "dashboard-publish",
     }
     assert required <= {item["id"] for item in validators}
     for item in validators:
@@ -113,14 +118,41 @@ def test_command_registry() -> None:
             assert item.get("network") is True, f"target mutation must declare network activity: {item['id']}"
 
 
+def test_outcome_registry_wiring() -> None:
+    outcomes = load(OUTCOMES)
+    commands = load(COMMANDS)["commands"]
+    artifacts = load(ARTIFACTS)["artifacts"]
+    assert outcomes["schema_version"] == "sas-harness-outcome-registry/v1"
+    assert outcomes["policy"]["validation_is_admission_not_completion"] is True
+    assert outcomes["policy"]["dry_run_must_emit_artifact"] is True
+    require_unique(outcomes["contracts"], "outcome registry")
+    command_ids = {item["id"] for item in commands}
+    artifact_ids = {item["id"] for item in artifacts}
+    contracts = {item["command_id"]: item for item in outcomes["contracts"]}
+    assert set(contracts) == command_ids, "outcome registry must cover every canonical command"
+    for command_id, contract in contracts.items():
+        artifact_id = contract.get("success_artifact_id")
+        if artifact_id is not None:
+            assert artifact_id in artifact_ids, f"outcome references unknown artifact: {command_id} -> {artifact_id}"
+        for continuation in contract.get("continuations", []):
+            assert continuation["command_id"] in command_ids, f"outcome references unknown continuation: {command_id}"
+            assert continuation["same_turn"] is True, f"continuation must stay in the same turn: {command_id}"
+    assert tracked(OUTCOMES.relative_to(ROOT).as_posix())
+    assert tracked(OUTCOME_WORKFLOW.relative_to(ROOT).as_posix())
+    assert tracked(OUTCOME_SKILL.relative_to(ROOT).as_posix())
+
+
 def test_fresh_agent_wiring() -> None:
     workflow = read(FRESH_AGENT)
     skill = read(SKILL)
     for marker in (
         "workflow_id: fresh-agent-intake", "read AGENTS.md without modifying it",
         "harness/api/harness-command-registry.json", "harness/api/harness-validator-registry.json",
-        "harness/api/harness-artifact-registry.json", "harness/skills/harness-maintenance/SKILL.md",
-        "python harness/validators/validate-harness-registries.py", "git diff --check", "tools/New-SasSprintCapsule.ps1",
+        "harness/api/harness-artifact-registry.json", "harness/api/harness-outcome-registry.json",
+        "harness/skills/harness-maintenance/SKILL.md", "harness/skills/outcome-driven-execution/SKILL.md",
+        "python harness/validators/validate-harness-registries.py", "python harness/validators/validate-outcome-contracts.py",
+        "git diff --check", "tools/New-SasSprintCapsule.ps1",
+        "follow registered same-turn continuations instead of handing safe executable work back to the operator",
     ):
         assert marker in workflow, f"fresh-agent workflow missing: {marker}"
     for marker in (
@@ -135,8 +167,11 @@ def test_artifact_and_report_wiring() -> None:
     registry = load(ARTIFACTS)
     require_unique(registry["artifacts"], "artifact registry")
     ids = {item["id"] for item in registry["artifacts"]}
-    assert "harness-registry-validation-result" in ids
-    assert "generated-harness-status-report" in ids
+    for required in (
+        "harness-registry-validation-result", "harness-outcome-validation-result",
+        "generated-harness-status-report", "cybernet-client-configuration-summary", "autologon-s4u-pilot-result",
+    ):
+        assert required in ids, f"artifact registry missing: {required}"
     renderer = read(RENDERER)
     assert "sas-harness-status-report/v1" in renderer
     assert "harness-validator-registry.json" in renderer
@@ -144,6 +179,7 @@ def test_artifact_and_report_wiring() -> None:
     status = read(STATUS)
     assert "Harness registry integrity" in status
     assert "Fresh-agent intake" in status
+    assert "Outcome-driven execution" in status
 
 
 def main() -> int:
@@ -151,6 +187,7 @@ def main() -> int:
     test_registry_schema_authorities()
     test_validator_registry()
     test_command_registry()
+    test_outcome_registry_wiring()
     test_fresh_agent_wiring()
     test_artifact_and_report_wiring()
     print("PASS: harness registry integrity")
