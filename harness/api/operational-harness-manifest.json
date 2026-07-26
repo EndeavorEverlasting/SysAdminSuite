@@ -18,7 +18,7 @@
       "path": "harness/workflows/fresh-agent-intake.yaml",
       "required": true,
       "tracked": true,
-      "purpose": "Provides deterministic intake from governance and Git state through routing, validation, artifacts, and handoff.",
+      "purpose": "Provides deterministic intake from governance and Git state through routing, validation, artifacts, outcome continuation, and handoff.",
       "validation": "python harness/validators/validate-harness-registries.py"
     },
     {
@@ -27,8 +27,17 @@
       "path": "harness/workflows/operational-harness-maintenance.yaml",
       "required": true,
       "tracked": true,
-      "purpose": "Defines bounded local harness implementation, validation, failure handling, commit, and handoff stages.",
+      "purpose": "Defines bounded local harness implementation, validation, failure handling, commit, outcome continuation, and handoff stages.",
       "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
+    },
+    {
+      "id": "outcome-driven-workflow",
+      "kind": "workflow",
+      "path": "harness/workflows/outcome-driven-execution.yaml",
+      "required": true,
+      "tracked": true,
+      "purpose": "Treats tests and dry runs as admission gates and continues safe authorized work in the same turn until an artifact, build, runtime, deployment, or real blocker is reached.",
+      "validation": "python harness/validators/validate-outcome-contracts.py"
     },
     {
       "id": "publish-workflow",
@@ -67,6 +76,15 @@
       "validation": "python harness/validators/validate-harness-registries.py"
     },
     {
+      "id": "outcome-registry",
+      "kind": "outcome_registry",
+      "path": "harness/api/harness-outcome-registry.json",
+      "required": true,
+      "tracked": true,
+      "purpose": "Maps each canonical command to a concrete success artifact or terminal outcome and same-turn continuations when the requested goal remains unproven.",
+      "validation": "python harness/validators/validate-outcome-contracts.py"
+    },
+    {
       "id": "manifest-schema",
       "kind": "schema",
       "path": "schemas/harness/operational-harness-manifest.schema.json",
@@ -103,6 +121,15 @@
       "validation": "python harness/validators/validate-harness-registries.py"
     },
     {
+      "id": "outcome-registry-schema",
+      "kind": "schema",
+      "path": "schemas/harness/harness-outcome-registry.schema.json",
+      "required": true,
+      "tracked": true,
+      "purpose": "Fails closed when command success, artifact, continuation, or terminal-outcome contracts are malformed.",
+      "validation": "python harness/validators/validate-outcome-contracts.py"
+    },
+    {
       "id": "registry-validator",
       "kind": "validator",
       "path": "harness/validators/validate-harness-registries.py",
@@ -110,6 +137,15 @@
       "tracked": true,
       "purpose": "Validates registry integrity, canonical source paths, tracked schema authorities, fresh-agent workflow wiring, scoped skill wiring, and report contracts.",
       "validation": "python harness/validators/validate-harness-registries.py"
+    },
+    {
+      "id": "outcome-validator",
+      "kind": "validator",
+      "path": "harness/validators/validate-outcome-contracts.py",
+      "required": true,
+      "tracked": true,
+      "purpose": "Rejects tests-only and status-only endpoints by requiring every canonical command to resolve a registered artifact or terminal outcome and safe continuations to remain same-turn.",
+      "validation": "python harness/validators/validate-outcome-contracts.py"
     },
     {
       "id": "completeness-validator",
@@ -144,7 +180,7 @@
       "path": ".githooks/pre-commit",
       "required": true,
       "tracked": true,
-      "purpose": "Runs staged harness and repository-text guardrails and blocks generated evidence.",
+      "purpose": "Runs staged harness, outcome, and repository-text guardrails and blocks generated evidence.",
       "validation": "bash -n .githooks/pre-commit"
     },
     {
@@ -153,7 +189,7 @@
       "path": ".githooks/pre-push",
       "required": true,
       "tracked": true,
-      "purpose": "Runs the offline harness suite and validates the exact destination commit range before remote updates.",
+      "purpose": "Runs the offline harness suite, outcome contracts, and exact destination commit-range text validation before remote updates.",
       "validation": "bash -n .githooks/pre-push"
     },
     {
@@ -173,6 +209,15 @@
       "tracked": true,
       "purpose": "Provides scoped procedures for extending or repairing harness infrastructure without changing product behavior or AGENTS.md.",
       "validation": "python harness/validators/validate-harness-registries.py"
+    },
+    {
+      "id": "outcome-driven-skill",
+      "kind": "skill",
+      "path": "harness/skills/outcome-driven-execution/SKILL.md",
+      "required": true,
+      "tracked": true,
+      "purpose": "Prevents agents from handing back safe executable continuations after green tests and requires progress to the requested terminal outcome or a real blocker.",
+      "validation": "python harness/validators/validate-outcome-contracts.py"
     },
     {
       "id": "repository-sprint-skill",
@@ -216,7 +261,7 @@
       "path": "docs/HARNESS_STATUS.md",
       "required": true,
       "tracked": true,
-      "purpose": "Summarizes working components, repaired boundaries, missing proof, and operator next actions.",
+      "purpose": "Summarizes working components, repaired boundaries, outcome continuation behavior, missing proof, and operator next actions.",
       "validation": "python harness/validators/validate-harness-registries.py"
     },
     {
@@ -243,7 +288,7 @@
       "path": ".github/workflows/harness-infrastructure.yml",
       "required": true,
       "tracked": true,
-      "purpose": "Runs completeness, local harness, text policy, syntax, whitespace, and Windows handoff checks on harness changes.",
+      "purpose": "Runs completeness, outcome, local harness, text policy, syntax, whitespace, and Windows handoff checks on harness changes.",
       "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
     },
     {
@@ -252,17 +297,18 @@
       "path": ".github/workflows/harness-registry-integrity.yml",
       "required": true,
       "tracked": true,
-      "purpose": "Runs registry schema integrity, completeness, report rendering, hook syntax, and whitespace checks whenever registry-facing harness files change.",
+      "purpose": "Runs registry and outcome schema integrity, completeness, report rendering, hook syntax, and whitespace checks whenever registry-facing harness files change.",
       "validation": "python harness/validators/validate-harness-registries.py"
     }
   ],
   "validation_commands": [
     "python harness/validators/validate-harness-registries.py",
+    "python harness/validators/validate-outcome-contracts.py",
     "python Tests/survey/test_operational_harness_completeness_contracts.py",
     "python scripts/check-repo-text-policy.py --commit HEAD",
     "python Tests/survey/test_local_harness_contracts.py",
     "bash tests/survey/run_offline_survey_tests.sh",
     "git diff --check"
   ],
-  "proof_ceiling": "Static harness structure, Git tracking, workflow, registry, schema, hook, artifact, report, build-command authority, and repository-text policy proof; no product behavior or live target proof."
+  "proof_ceiling": "Static harness structure, Git tracking, workflow, registry, outcome, schema, hook, artifact, report, build-command authority, continuation behavior, and repository-text policy proof; no product behavior or live target proof."
 }
