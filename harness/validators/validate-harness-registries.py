@@ -12,15 +12,20 @@ VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
 COMMANDS = ROOT / "harness/api/harness-command-registry.json"
 ARTIFACTS = ROOT / "harness/api/harness-artifact-registry.json"
 OUTCOMES = ROOT / "harness/api/harness-outcome-registry.json"
+DEPLOYMENT_STATES = ROOT / "harness/api/deployment-state-registry.json"
 MANIFEST_SCHEMA = ROOT / "schemas/harness/operational-harness-manifest.schema.json"
 VALIDATOR_SCHEMA = ROOT / "schemas/harness/harness-validator-registry.schema.json"
 COMMAND_SCHEMA = ROOT / "schemas/harness/harness-command-registry.schema.json"
 ARTIFACT_SCHEMA = ROOT / "schemas/harness/harness-artifact-registry.schema.json"
 OUTCOME_SCHEMA = ROOT / "schemas/harness/harness-outcome-registry.schema.json"
+DEPLOYMENT_STATE_SCHEMA = ROOT / "schemas/harness/deployment-state-registry.schema.json"
 FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
 OUTCOME_WORKFLOW = ROOT / "harness/workflows/outcome-driven-execution.yaml"
+DEPLOYMENT_WORKFLOW = ROOT / "harness/workflows/cybernet-autologon-deployment-state.yaml"
 SKILL = ROOT / "harness/skills/harness-maintenance/SKILL.md"
 OUTCOME_SKILL = ROOT / "harness/skills/outcome-driven-execution/SKILL.md"
+DEPLOYMENT_SKILL = ROOT / "harness/skills/cybernet-autologon-deployment-state/SKILL.md"
+DEPLOYMENT_VALIDATOR = ROOT / "harness/validators/validate-deployment-state-contracts.py"
 STATUS = ROOT / "docs/HARNESS_STATUS.md"
 RENDERER = ROOT / "harness/reports/render-harness-status.py"
 
@@ -55,6 +60,8 @@ def test_manifest_components() -> None:
     manifest = load(MANIFEST)
     assert manifest["schema_version"] == "sas-operational-harness-manifest/v1"
     require_unique(manifest["components"], "operational harness components")
+    kinds = {item["kind"] for item in manifest["components"]}
+    assert "deployment_state_registry" in kinds
     for component in manifest["components"]:
         path = str(component["path"])
         assert (ROOT / path).is_file(), f"manifest component missing: {path}"
@@ -70,6 +77,7 @@ def test_registry_schema_authorities() -> None:
         VALIDATOR_SCHEMA: "sas-harness-validator-registry/v1",
         ARTIFACT_SCHEMA: "sas-harness-artifact-registry/v1",
         OUTCOME_SCHEMA: "sas-harness-outcome-registry/v1",
+        DEPLOYMENT_STATE_SCHEMA: "sas-deployment-state-registry/v1",
     }
     for path, version in expected.items():
         schema = load(path)
@@ -85,9 +93,10 @@ def test_validator_registry() -> None:
     validators = registry["validators"]
     require_unique(validators, "validator registry")
     required = {
-        "harness-registry-integrity", "harness-outcome-contracts", "operational-harness-completeness",
-        "local-harness-contracts", "repository-text-policy-staged", "repository-text-policy-commit",
-        "patch-whitespace", "offline-survey-floor", "pester-full", "managed-tests-release", "dashboard-publish",
+        "harness-registry-integrity", "harness-outcome-contracts", "deployment-state-contracts",
+        "operational-harness-completeness", "local-harness-contracts", "repository-text-policy-staged",
+        "repository-text-policy-commit", "patch-whitespace", "offline-survey-floor", "pester-full",
+        "managed-tests-release", "dashboard-publish",
     }
     assert required <= {item["id"] for item in validators}
     for item in validators:
@@ -103,9 +112,9 @@ def test_command_registry() -> None:
     commands = registry["commands"]
     require_unique(commands, "command registry")
     required = {
-        "harness-validate", "harness-outcome-validate", "harness-completeness", "offline-floor",
-        "powershell-tests", "managed-tests", "dashboard-build", "dashboard-launch", "cybernet-plan",
-        "cybernet-apply", "autologon-remote",
+        "harness-validate", "harness-outcome-validate", "deployment-state-validate", "harness-completeness",
+        "offline-floor", "powershell-tests", "managed-tests", "dashboard-build", "dashboard-launch",
+        "cybernet-plan", "cybernet-apply", "autologon-remote", "autologon-runtime-proof",
     }
     assert required <= {item["id"] for item in commands}
     for item in commands:
@@ -126,6 +135,7 @@ def test_outcome_registry_wiring() -> None:
     assert outcomes["schema_version"] == "sas-harness-outcome-registry/v1"
     assert outcomes["policy"]["validation_is_admission_not_completion"] is True
     assert outcomes["policy"]["dry_run_must_emit_artifact"] is True
+    assert "runtime_proven" in outcomes["policy"]["allowed_terminal_outcomes"]
     require_unique(outcomes["contracts"], "outcome registry")
     command_ids = {item["id"] for item in commands}
     artifact_ids = {item["id"] for item in artifacts}
@@ -138,9 +148,22 @@ def test_outcome_registry_wiring() -> None:
         for continuation in contract.get("continuations", []):
             assert continuation["command_id"] in command_ids, f"outcome references unknown continuation: {command_id}"
             assert continuation["same_turn"] is True, f"continuation must stay in the same turn: {command_id}"
+    assert contracts["autologon-runtime-proof"]["success_outcome"] == "runtime_proven"
     assert tracked(OUTCOMES.relative_to(ROOT).as_posix())
     assert tracked(OUTCOME_WORKFLOW.relative_to(ROOT).as_posix())
     assert tracked(OUTCOME_SKILL.relative_to(ROOT).as_posix())
+
+
+def test_deployment_state_wiring() -> None:
+    registry = load(DEPLOYMENT_STATES)
+    assert registry["schema_version"] == "sas-deployment-state-registry/v1"
+    assert registry["policy"]["test_autologon_with_authorized_target_means_apply_pilot"] is True
+    assert registry["policy"]["transport_live_cert_is_admission_only"] is True
+    assert registry["policy"]["do_not_reinstall_verified_core_apps"] is True
+    context_ids = {item["id"] for item in registry["contexts"]}
+    assert "cybernet-autologon" in context_ids
+    for path in (DEPLOYMENT_STATES, DEPLOYMENT_STATE_SCHEMA, DEPLOYMENT_WORKFLOW, DEPLOYMENT_SKILL, DEPLOYMENT_VALIDATOR):
+        assert tracked(path.relative_to(ROOT).as_posix()), f"deployment-state component is not tracked: {path.relative_to(ROOT)}"
 
 
 def test_fresh_agent_wiring() -> None:
@@ -150,9 +173,10 @@ def test_fresh_agent_wiring() -> None:
         "workflow_id: fresh-agent-intake", "read AGENTS.md without modifying it",
         "harness/api/harness-command-registry.json", "harness/api/harness-validator-registry.json",
         "harness/api/harness-artifact-registry.json", "harness/api/harness-outcome-registry.json",
-        "harness/skills/harness-maintenance/SKILL.md", "harness/skills/outcome-driven-execution/SKILL.md",
+        "harness/api/deployment-state-registry.json", "harness/skills/harness-maintenance/SKILL.md",
+        "harness/skills/outcome-driven-execution/SKILL.md", "harness/skills/cybernet-autologon-deployment-state/SKILL.md",
         "python harness/validators/validate-harness-registries.py", "python harness/validators/validate-outcome-contracts.py",
-        "git diff --check", "tools/New-SasSprintCapsule.ps1",
+        "python harness/validators/validate-deployment-state-contracts.py", "git diff --check", "tools/New-SasSprintCapsule.ps1",
         "follow registered same-turn continuations instead of handing safe executable work back to the operator",
     ):
         assert marker in workflow, f"fresh-agent workflow missing: {marker}"
@@ -160,6 +184,7 @@ def test_fresh_agent_wiring() -> None:
         "## Trigger", "## Required inputs", "## Procedure", "## Expected outputs", "## Proof ceiling",
         "harness/workflows/fresh-agent-intake.yaml", "harness/api/harness-command-registry.json",
         "harness/api/harness-validator-registry.json", "harness/api/harness-outcome-registry.json",
+        "harness/api/deployment-state-registry.json",
     ):
         assert marker in skill, f"harness-maintenance skill missing: {marker}"
 
@@ -170,7 +195,8 @@ def test_artifact_and_report_wiring() -> None:
     ids = {item["id"] for item in registry["artifacts"]}
     for required in (
         "harness-registry-validation-result", "harness-outcome-validation-result",
-        "generated-harness-status-report", "cybernet-client-configuration-summary", "autologon-s4u-pilot-result",
+        "deployment-state-validation-result", "deployment-state-registry", "generated-harness-status-report",
+        "cybernet-client-configuration-summary", "autologon-s4u-pilot-result", "autologon-technician-runtime-proof",
     ):
         assert required in ids, f"artifact registry missing: {required}"
     renderer = read(RENDERER)
@@ -178,11 +204,14 @@ def test_artifact_and_report_wiring() -> None:
     assert "harness-validator-registry.json" in renderer
     assert "harness-command-registry.json" in renderer
     assert "harness-outcome-registry.json" in renderer
+    assert "deployment-state-registry.json" in renderer
     assert "Same-turn continuations" in renderer
+    assert "AutoLogon / Cybernet desired state" in renderer
     status = read(STATUS)
     assert "Harness registry integrity" in status
     assert "Fresh-agent intake" in status
     assert "Outcome-driven execution" in status
+    assert "AutoLogon / Cybernet desired-state execution" in status
 
 
 def main() -> int:
@@ -191,6 +220,7 @@ def main() -> int:
     test_validator_registry()
     test_command_registry()
     test_outcome_registry_wiring()
+    test_deployment_state_wiring()
     test_fresh_agent_wiring()
     test_artifact_and_report_wiring()
     print("PASS: harness registry integrity")
