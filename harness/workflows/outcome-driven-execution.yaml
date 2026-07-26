@@ -1,0 +1,84 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: outcome-driven-execution
+mode: execute_until_terminal_outcome
+network_activity: workflow_dependent
+target_mutation: workflow_dependent
+purpose: >-
+  Prevent green validators, dry runs, plans, status checks, or command printouts from becoming
+  artificial stopping points. Execute admission gates as part of the requested workflow, emit
+  their canonical artifacts, and continue in the same agent turn until the requested artifact,
+  build, runtime, or deployment outcome is reached or a real external gate blocks progress.
+
+inputs:
+  required:
+    - repository_root
+    - requested_goal
+    - task_request
+  optional:
+    - explicit_target
+    - mutation_authorization
+    - owned_scope
+    - forbidden_scope
+    - proof_ceiling
+
+stages:
+  - id: resolve-goal
+    order: 1
+    actions:
+      - read harness/api/harness-outcome-registry.json
+      - resolve requested_goal before choosing validators or commands
+      - choose the smallest canonical command chain whose terminal_goals contain requested_goal
+      - reject status-only, tests-only, wait-for-next-chat, and operator-repeats-agent-work endpoints
+
+  - id: admission
+    order: 2
+    actions:
+      - run required validators and dry runs as admission gates, not as the requested deliverable
+      - require every successful validation or dry run to resolve a registered success_artifact_id
+      - record each produced artifact before advancing
+      - stop only on a failed proof boundary or missing required authorization
+
+  - id: continue
+    order: 3
+    actions:
+      - when requested_goal remains unproven, follow the registered continuation in the same agent turn
+      - do not ask the operator to rerun a command the agent can safely execute itself
+      - do not end after printing the next command when the next command is safe, authorized, dependency-satisfied, and tool-accessible
+      - preserve explicit confirmation gates required by repository governance or target-mutation policy
+
+  - id: terminal-outcome
+    order: 4
+    actions:
+      - accept artifact_created only when the requested goal is validation, planning, or artifact production
+      - accept build_artifact_created only when the requested goal is build or artifact production
+      - accept runtime_started only when the requested goal is local runtime launch
+      - accept product_deployed only when the deployment command and its registered evidence artifact prove the declared deployment ceiling
+      - otherwise classify blocked_with_actionable_gate and name the exact owner, dependency, command or operator action, and expected artifact
+
+  - id: handoff
+    order: 5
+    actions:
+      - report the requested goal and terminal outcome first
+      - list admission gates only as supporting evidence, never as the headline accomplishment
+      - name the canonical artifact path or deployment evidence produced
+      - provide a next command only when a real unproven gate remains
+      - never use wait, monitor, review later, rerun this test, or send me the logs as a substitute for executable continuation
+
+outputs:
+  required:
+    - requested_goal
+    - terminal_outcome
+    - produced_artifact_ids
+    - executed_command_ids
+    - proof_ceiling_reached
+  conditional:
+    - blocker_owner
+    - blocker_dependency
+    - blocker_action
+    - blocker_expected_artifact
+
+proof_ceiling: >-
+  This workflow can enforce that repository validation and dry-run steps either produce registered
+  artifacts or continue toward the requested safe executable outcome. It cannot override explicit
+  authorization, credentials, protected runtime access, physical technician acceptance, or other
+  genuine external gates.
