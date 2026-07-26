@@ -1,0 +1,115 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: cybernet-autologon-deployment-state
+mode: execute_to_desired_state
+network_activity: workflow_dependent
+target_mutation: workflow_dependent
+purpose: >-
+  Convert AutoLogon and Cybernet field requests into explicit desired workstation states so
+  tests, dry runs, transport live certification, installer exit codes, and command acknowledgements
+  cannot be mistaken for deployment or runtime completion.
+
+inputs:
+  required:
+    - requested_goal
+    - target_profile
+  conditional:
+    - authorized_target
+    - target_mutation_authority
+    - clinical_core_state_evidence
+    - attended_reboot_authority
+    - runtime_proof_config
+
+stages:
+  - id: resolve-intent
+    order: 1
+    actions:
+      - read harness/api/deployment-state-registry.json
+      - resolve requested_goal to one deployment state before selecting commands
+      - treat test AutoLogon as a real one-target apply pilot when an authorized Cybernet target and mutation authority are present
+      - treat AutoLogon/Cybernet live-cert apply intent as a deployment chain; transport live certification remains admission only
+      - keep runtime-proof-only requests non-mutating unless a separate deployment request or authority is present
+
+  - id: resolve-existing-state
+    order: 2
+    actions:
+      - require the target profile to be Cybernet before any AutoLogon mutation
+      - if approved clinical-core installation or acceptance is already proven, preserve it and skip reinstall
+      - if clinical-core state is unproven, do not guess and do not reinstall merely to reach AutoLogon
+      - read configs/software-packages/approved-apps.json and configs/software-packages/windows-native-package-sets.json for current package disposition
+      - fail closed if the tracked package truth no longer matches the deployment-state registry
+
+  - id: apply-autologon
+    order: 3
+    when: requested goal requires autologon_pre_reboot_configured and prior state is not already proven
+    actions:
+      - use command id autologon-remote
+      - run the real Kerberos/S4U one-target AutoLogon lane after its network, identity, baseline, final-step, and acknowledgement gates
+      - require artifact id autologon-s4u-pilot-result
+      - require classification KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING
+      - reject deployment_planned, fixture results, transport LIVE CERT PASS, installer exit code alone, or process start as deployment completion
+    stop_conditions:
+      - target is not an explicitly authorized Cybernet
+      - mutation authority is absent
+      - current identity or Kerberos/SMB/S4U gates fail
+      - baseline is dirty or target identity is ambiguous
+      - final-step gate fails
+      - postconditions or cleanup fail
+
+  - id: attended-reboot
+    order: 4
+    when: requested goal requires autologon_runtime_proven
+    actions:
+      - require the correlated positive autologon-s4u-pilot-result for the same target before reboot proof
+      - require separately authorized attended reboot
+      - require direct observation of automatic sign-in to the expected workstation account
+      - do not infer sign-in from registry state, process state, or an administrator session
+    stop_conditions:
+      - positive pre-reboot deployment artifact is missing or mismatched
+      - attended reboot authority is absent
+      - automatic sign-in is not directly observed
+
+  - id: runtime-proof
+    order: 5
+    when: requested goal requires autologon_runtime_proven
+    actions:
+      - run command id autologon-runtime-proof from the actual AutoLogon desktop session
+      - require artifact id autologon-technician-runtime-proof
+      - require proof_level TECHNICIAN_OBSERVED_LIVE_RUNTIME
+      - require runtime_proof true and overall_success true
+      - keep application behavior and technician acceptance separate from the deployment artifact
+
+  - id: cybernet-convergence
+    order: 6
+    when: requested goal is cybernet_profile_autologon_runtime_proven
+    actions:
+      - require clinical_core_ready from existing accepted evidence or its separate owning workflow
+      - require autologon_runtime_proven
+      - enforce ordering clinical core before AutoLogon and AutoLogon last
+      - do not run the six-package LocalSystem Cybernet set as a substitute for the current S4U AutoLogon lane while canonical SYSTEM AutoLogon remains blocked
+
+  - id: handoff
+    order: 7
+    actions:
+      - report desired state first
+      - report the exact highest proven state and canonical artifact that proves it
+      - list admission tests only as supporting evidence
+      - when blocked, name the smallest real gate and the exact action that advances it
+      - never tell the operator to repeat a safe command already executable by the agent
+
+outputs:
+  required:
+    - requested_goal
+    - desired_state
+    - highest_proven_state
+    - critical_artifact_ids
+    - proof_ceiling_reached
+  conditional:
+    - blocker
+    - blocker_owner
+    - blocker_action
+    - blocker_expected_artifact
+
+proof_ceiling: >-
+  This workflow can bind a field request to real AutoLogon apply and runtime proof states using
+  existing product entrypoints and canonical artifacts. It does not bypass target authorization,
+  attended reboot authority, physical observation, or product-owned package behavior.

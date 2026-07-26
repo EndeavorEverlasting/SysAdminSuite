@@ -4,7 +4,7 @@
   "naming": {
     "run_id": "<workflow>-<utc-YYYYMMDD-HHMMSS>-<8hex>",
     "generated_root": "survey/output/<workflow>/<run_id>/",
-    "tracked_documents": "stable names under docs/, harness/, schemas/, Tests/, scripts/, or tools/"
+    "tracked_documents": "stable names under docs/, harness/, schemas/, Tests/, scripts/, tools/, or .claude/"
   },
   "artifacts": [
     {
@@ -17,13 +17,58 @@
       "purpose": "Machine-readable inventory of required harness components and validation commands."
     },
     {
+      "id": "harness-validator-registry",
+      "path": "harness/api/harness-validator-registry.json",
+      "generator": "maintained with harness validator changes",
+      "format": "json",
+      "tracked": true,
+      "contains_live_data": false,
+      "purpose": "Canonical validator selection, commands, scopes, blocking posture, and proof descriptions."
+    },
+    {
+      "id": "harness-command-registry",
+      "path": "harness/api/harness-command-registry.json",
+      "generator": "maintained when canonical build, test, run, or deployment entrypoints change",
+      "format": "json",
+      "tracked": true,
+      "contains_live_data": false,
+      "purpose": "Canonical build, test, run, and deployment-facing command index with mutation and network classifications."
+    },
+    {
+      "id": "harness-outcome-registry",
+      "path": "harness/api/harness-outcome-registry.json",
+      "generator": "maintained when canonical commands or terminal outcome rules change",
+      "format": "json",
+      "tracked": true,
+      "contains_live_data": false,
+      "purpose": "Maps every canonical command to a concrete success artifact or terminal outcome and same-turn continuations for unfinished requested goals."
+    },
+    {
+      "id": "deployment-state-registry",
+      "path": "harness/api/deployment-state-registry.json",
+      "generator": "maintained when AutoLogon/Cybernet desired states, product disposition, command routing, or critical proof artifacts change",
+      "format": "json",
+      "tracked": true,
+      "contains_live_data": false,
+      "purpose": "Binds field intent such as test, live cert, deploy, and runtime proof to explicit AutoLogon/Cybernet workstation states and their required live artifacts."
+    },
+    {
       "id": "harness-status-report",
       "path": "docs/HARNESS_STATUS.md",
-      "generator": "maintained from completeness-validator evidence",
+      "generator": "maintained from completeness-validator and registry evidence",
       "format": "markdown",
       "tracked": true,
       "contains_live_data": false,
       "purpose": "Human-readable statement of working components, known gaps, and proof ceilings."
+    },
+    {
+      "id": "generated-harness-status-report",
+      "path": "survey/output/harness-status/<run-id>/harness-status.md",
+      "generator": "python harness/reports/render-harness-status.py --output survey/output/harness-status/<run-id>/harness-status.md",
+      "format": "markdown",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Generated human-readable registry/path status for operator review without modifying tracked documentation."
     },
     {
       "id": "harness-completeness-result",
@@ -35,6 +80,33 @@
       "purpose": "Pass/fail proof that required harness components exist, are tracked, and are wired together."
     },
     {
+      "id": "harness-registry-validation-result",
+      "path": "console output or CI log from harness/validators/validate-harness-registries.py",
+      "generator": "python harness/validators/validate-harness-registries.py",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Pass/fail proof that validator, command, artifact, workflow, skill, and report wiring is internally consistent."
+    },
+    {
+      "id": "harness-outcome-validation-result",
+      "path": "console output or CI log from harness/validators/validate-outcome-contracts.py",
+      "generator": "python harness/validators/validate-outcome-contracts.py",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Pass/fail proof that intermediate validation cannot become a status-only endpoint and every canonical command has a registered terminal outcome contract."
+    },
+    {
+      "id": "deployment-state-validation-result",
+      "path": "console output or CI log from harness/validators/validate-deployment-state-contracts.py",
+      "generator": "python harness/validators/validate-deployment-state-contracts.py",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Pass/fail proof that AutoLogon/Cybernet test, live-cert, deployment, and runtime intents resolve to real apply/runtime states and current product truths."
+    },
+    {
       "id": "repository-text-policy-result",
       "path": "console output or CI log from scripts/check-repo-text-policy.py",
       "generator": "python scripts/check-repo-text-policy.py --range <base> <head>",
@@ -42,6 +114,69 @@
       "tracked": false,
       "contains_live_data": false,
       "purpose": "Proof that changed text blobs use normalized LF storage and contain no trailing whitespace."
+    },
+    {
+      "id": "offline-survey-floor-result",
+      "path": "console output or CI log from tests/survey/run_offline_survey_tests.sh",
+      "generator": "bash tests/survey/run_offline_survey_tests.sh",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Broad dependency-free offline survey and harness validation result used as an admission artifact rather than a terminal deployment substitute."
+    },
+    {
+      "id": "pester-suite-result",
+      "path": "console output or CI artifact from tools/Test-Pester5Suite.ps1",
+      "generator": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "PowerShell contract result used as admission evidence for PowerShell-owned changes."
+    },
+    {
+      "id": "managed-tests-result",
+      "path": "console output or CI log from dotnet test SysAdminSuite.sln -c Release",
+      "generator": "dotnet test SysAdminSuite.sln -c Release --verbosity normal",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Managed Release test result used as admission evidence for managed code."
+    },
+    {
+      "id": "dashboard-publish-output",
+      "path": "tools/publish/SysAdminSuite.DashboardHost/",
+      "generator": "dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost",
+      "format": "directory",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Framework-dependent Windows dashboard build artifact."
+    },
+    {
+      "id": "cybernet-client-configuration-summary",
+      "path": "survey/output/cybernet_hardware/client-configuration-<timestamp>-<8hex>/cybernet_client_configuration_summary.json",
+      "generator": "Run-CybernetClientConfiguration.cmd Plan HOST or Run-CybernetClientConfiguration.cmd Apply HOST",
+      "format": "json",
+      "tracked": false,
+      "contains_live_data": "workflow-dependent",
+      "purpose": "Canonical full Cybernet client plan/apply summary proving stage outcomes and whether target mutation was attempted."
+    },
+    {
+      "id": "autologon-s4u-pilot-result",
+      "path": "survey/output/runs/autologon-kerberos-s4u/autologon-kerberos-s4u-<timestamp>-<8hex>/autologon_kerberos_s4u_pilot_result.json",
+      "generator": "sas autologon Remote HOST",
+      "format": "json",
+      "tracked": false,
+      "contains_live_data": true,
+      "purpose": "Canonical live AutoLogon Kerberos/S4U result. Only classification KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING proves the requested pre-reboot deployment state."
+    },
+    {
+      "id": "autologon-technician-runtime-proof",
+      "path": "<approved-runtime-evidence-directory>/autologon-runtime-<timestamp>-<8hex>/runtime-proof-summary.json",
+      "generator": "scripts\\Start-SasAutoLogonTechnicianRuntimeProof.cmd targets\\local\\autologon-runtime.json",
+      "format": "json",
+      "tracked": false,
+      "contains_live_data": true,
+      "purpose": "Canonical actual-session AutoLogon runtime artifact. Runtime completion requires TECHNICIAN_OBSERVED_LIVE_RUNTIME with runtime_proof=true and overall_success=true."
     },
     {
       "id": "local-harness-proof",

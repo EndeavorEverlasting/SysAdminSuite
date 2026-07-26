@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.invalid/schemas/harness/harness-outcome-registry.schema.json",
+  "title": "SysAdminSuite harness outcome registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "policy", "contracts"],
+  "properties": {
+    "schema_version": {"const": "sas-harness-outcome-registry/v1"},
+    "repository": {"const": "EndeavorEverlasting/SysAdminSuite"},
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested_goal_required", "validation_is_admission_not_completion", "dry_run_must_emit_artifact", "same_turn_continuation_required", "allowed_terminal_outcomes", "forbidden_terminal_outcomes"],
+      "properties": {
+        "requested_goal_required": {"const": true},
+        "validation_is_admission_not_completion": {"const": true},
+        "dry_run_must_emit_artifact": {"const": true},
+        "same_turn_continuation_required": {"type": "string", "minLength": 20},
+        "allowed_terminal_outcomes": {"type": "array", "minItems": 5, "items": {"enum": ["artifact_created", "build_artifact_created", "runtime_started", "product_deployed", "runtime_proven", "blocked_with_actionable_gate"]}, "uniqueItems": true},
+        "forbidden_terminal_outcomes": {"type": "array", "minItems": 3, "items": {"type": "string", "minLength": 3}, "uniqueItems": true}
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command_id", "success_outcome", "success_artifact_id", "terminal_goals", "continuations", "failure_outcome"],
+        "properties": {
+          "command_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+          "success_outcome": {"enum": ["artifact_created", "build_artifact_created", "runtime_started", "product_deployed", "runtime_proven"]},
+          "success_artifact_id": {"type": ["string", "null"], "minLength": 1},
+          "terminal_goals": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+          "continuations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["when_goal", "command_id", "same_turn", "requires_authorization", "dependency"],
+              "properties": {
+                "when_goal": {"type": "string", "minLength": 1},
+                "command_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+                "same_turn": {"const": true},
+                "requires_authorization": {"type": "boolean"},
+                "dependency": {"type": "string", "minLength": 8}
+              }
+            }
+          },
+          "failure_outcome": {"const": "blocked_with_actionable_gate"}
+        }
+      }
+    }
+  }
+}

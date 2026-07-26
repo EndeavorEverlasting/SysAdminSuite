@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.invalid/schemas/harness/harness-validator-registry.schema.json",
+  "title": "SysAdminSuite harness validator registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "selection_policy", "validators"],
+  "properties": {
+    "schema_version": {"const": "sas-harness-validator-registry/v1"},
+    "repository": {"const": "EndeavorEverlasting/SysAdminSuite"},
+    "selection_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default", "escalation", "failure"],
+      "properties": {
+        "default": {"type": "string", "minLength": 8},
+        "escalation": {"type": "string", "minLength": 8},
+        "failure": {"type": "string", "minLength": 8}
+      }
+    },
+    "validators": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category", "platform", "command", "blocking", "scope", "proof"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
+          "category": {"type": "string", "minLength": 1},
+          "platform": {"type": "string", "minLength": 1},
+          "command": {"type": "string", "minLength": 1},
+          "blocking": {"type": "boolean"},
+          "scope": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "proof": {"type": "string", "minLength": 8}
+        }
+      }
+    }
+  }
+}

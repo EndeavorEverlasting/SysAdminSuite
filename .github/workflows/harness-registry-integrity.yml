@@ -1,0 +1,139 @@
+name: Harness Registry Integrity
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'CODEBASE_MAP.md'
+      - 'harness/skills/**'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/api/harness-outcome-registry.json'
+      - 'harness/api/deployment-state-registry.json'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/workflows/operational-harness-maintenance.yaml'
+      - 'harness/workflows/outcome-driven-execution.yaml'
+      - 'harness/workflows/cybernet-autologon-deployment-state.yaml'
+      - 'harness/validators/**'
+      - 'harness/reports/**'
+      - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'schemas/harness/harness-command-registry.schema.json'
+      - 'schemas/harness/harness-validator-registry.schema.json'
+      - 'schemas/harness/harness-artifact-registry.schema.json'
+      - 'schemas/harness/harness-outcome-registry.schema.json'
+      - 'schemas/harness/deployment-state-registry.schema.json'
+      - 'configs/software-packages/approved-apps.json'
+      - 'configs/software-packages/windows-native-package-sets.json'
+      - 'scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1'
+      - 'scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1'
+      - 'docs/HARNESS_STATUS.md'
+      - 'Tests/survey/test_operational_harness_completeness_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.githooks/**'
+      - '.github/workflows/harness-registry-integrity.yml'
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'harness/**']
+    paths:
+      - 'CODEBASE_MAP.md'
+      - 'harness/skills/**'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/api/harness-outcome-registry.json'
+      - 'harness/api/deployment-state-registry.json'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/workflows/operational-harness-maintenance.yaml'
+      - 'harness/workflows/outcome-driven-execution.yaml'
+      - 'harness/workflows/cybernet-autologon-deployment-state.yaml'
+      - 'harness/validators/**'
+      - 'harness/reports/**'
+      - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'schemas/harness/harness-command-registry.schema.json'
+      - 'schemas/harness/harness-validator-registry.schema.json'
+      - 'schemas/harness/harness-artifact-registry.schema.json'
+      - 'schemas/harness/harness-outcome-registry.schema.json'
+      - 'schemas/harness/deployment-state-registry.schema.json'
+      - 'configs/software-packages/approved-apps.json'
+      - 'configs/software-packages/windows-native-package-sets.json'
+      - 'scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1'
+      - 'scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1'
+      - 'docs/HARNESS_STATUS.md'
+      - 'Tests/survey/test_operational_harness_completeness_contracts.py'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.githooks/**'
+      - '.github/workflows/harness-registry-integrity.yml'
+  workflow_dispatch:
+
+jobs:
+  registry-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install schema validator
+        run: python -m pip install jsonschema
+      - name: Compile registry tools
+        run: |
+          python -m py_compile harness/validators/validate-harness-registries.py
+          python -m py_compile harness/validators/validate-outcome-contracts.py
+          python -m py_compile harness/validators/validate-deployment-state-contracts.py
+          python -m py_compile harness/reports/render-harness-status.py
+      - name: Validate registry JSON schemas
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import jsonschema
+          pairs = [
+              ('harness/api/operational-harness-manifest.json', 'schemas/harness/operational-harness-manifest.schema.json'),
+              ('harness/api/harness-command-registry.json', 'schemas/harness/harness-command-registry.schema.json'),
+              ('harness/api/harness-validator-registry.json', 'schemas/harness/harness-validator-registry.schema.json'),
+              ('harness/api/harness-artifact-registry.json', 'schemas/harness/harness-artifact-registry.schema.json'),
+              ('harness/api/harness-outcome-registry.json', 'schemas/harness/harness-outcome-registry.schema.json'),
+              ('harness/api/deployment-state-registry.json', 'schemas/harness/deployment-state-registry.schema.json'),
+          ]
+          for document_path, schema_path in pairs:
+              document = json.loads(Path(document_path).read_text(encoding='utf-8'))
+              schema = json.loads(Path(schema_path).read_text(encoding='utf-8'))
+              jsonschema.Draft202012Validator(schema).validate(document)
+              print(f'PASS: {document_path} schema')
+          PY
+      - name: Validate harness registries
+        run: python harness/validators/validate-harness-registries.py
+      - name: Validate outcome contracts
+        run: python harness/validators/validate-outcome-contracts.py
+      - name: Validate deployment-state contracts
+        run: python harness/validators/validate-deployment-state-contracts.py
+      - name: Run operational harness completeness
+        run: python Tests/survey/test_operational_harness_completeness_contracts.py
+      - name: Render operator status
+        run: python harness/reports/render-harness-status.py
+      - name: Check workflow and hook syntax
+        run: bash -n .githooks/pre-commit .githooks/pre-push tests/survey/run_offline_survey_tests.sh
+      - name: Check pull-request whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+      - name: Check pushed whitespace
+        if: github.event_name == 'push'
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            git show --check --oneline --no-renames HEAD
+          else
+            git diff --check "$before" "${{ github.sha }}"
+          fi
+      - name: Check manual-dispatch whitespace
+        if: github.event_name == 'workflow_dispatch'
+        run: git show --check --oneline --no-renames HEAD

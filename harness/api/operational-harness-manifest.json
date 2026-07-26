@@ -3,175 +3,54 @@
   "repository": "EndeavorEverlasting/SysAdminSuite",
   "default_workflow": "harness/workflows/operational-harness-maintenance.yaml",
   "components": [
-    {
-      "id": "codebase-map",
-      "kind": "codebase_map",
-      "path": "CODEBASE_MAP.md",
-      "required": true,
-      "tracked": true,
-      "purpose": "Routes a fresh agent to the smallest relevant repository surface.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
-    },
-    {
-      "id": "maintenance-workflow",
-      "kind": "workflow",
-      "path": "harness/workflows/operational-harness-maintenance.yaml",
-      "required": true,
-      "tracked": true,
-      "purpose": "Defines local task pickup, routing, validation, failure handling, commit, and handoff stages.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
-    },
-    {
-      "id": "publish-workflow",
-      "kind": "workflow",
-      "path": "harness/workflows/operational-harness-publish.yaml",
-      "required": true,
-      "tracked": true,
-      "purpose": "Separates operator-approved Git push and pull-request publication from local harness maintenance.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
-    },
-    {
-      "id": "artifact-registry",
-      "kind": "artifact_registry",
-      "path": "harness/api/harness-artifact-registry.json",
-      "required": true,
-      "tracked": true,
-      "purpose": "Defines tracked and generated harness artifacts, locations, generators, and naming.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
-    },
-    {
-      "id": "manifest-schema",
-      "kind": "schema",
-      "path": "schemas/harness/operational-harness-manifest.schema.json",
-      "required": true,
-      "tracked": true,
-      "purpose": "Fails closed when the central operational harness manifest is malformed.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
-    },
-    {
-      "id": "completeness-validator",
-      "kind": "validator",
-      "path": "Tests/survey/test_operational_harness_completeness_contracts.py",
-      "required": true,
-      "tracked": true,
-      "purpose": "Proves required harness files exist, are tracked, ordered, and wired into hooks and CI.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
-    },
-    {
-      "id": "text-policy-validator",
-      "kind": "validator",
-      "path": "scripts/check-repo-text-policy.py",
-      "required": true,
-      "tracked": true,
-      "purpose": "Rejects CRLF stored in Git text blobs and trailing whitespace in changed files.",
-      "validation": "python scripts/check-repo-text-policy.py --commit HEAD"
-    },
-    {
-      "id": "line-ending-policy",
-      "kind": "text_policy",
-      "path": ".gitattributes",
-      "required": true,
-      "tracked": true,
-      "purpose": "Stores text as normalized LF in Git while limiting explicit checkout endings to execution-sensitive surfaces.",
-      "validation": "git check-attr text eol -- Start-CybernetSurveyTutorial.cmd"
-    },
-    {
-      "id": "pre-commit-hook",
-      "kind": "hook",
-      "path": ".githooks/pre-commit",
-      "required": true,
-      "tracked": true,
-      "purpose": "Runs staged harness and repository-text guardrails and blocks generated evidence.",
-      "validation": "bash -n .githooks/pre-commit"
-    },
-    {
-      "id": "pre-push-hook",
-      "kind": "hook",
-      "path": ".githooks/pre-push",
-      "required": true,
-      "tracked": true,
-      "purpose": "Runs the offline harness suite and validates the exact destination commit range before remote updates.",
-      "validation": "bash -n .githooks/pre-push"
-    },
-    {
-      "id": "hook-installer",
-      "kind": "hook_installer",
-      "path": "scripts/install-local-harness-hooks.sh",
-      "required": true,
-      "tracked": true,
-      "purpose": "Installs the repository-owned Git hooks without modifying global Git configuration.",
-      "validation": "bash -n scripts/install-local-harness-hooks.sh"
-    },
-    {
-      "id": "repository-sprint-skill",
-      "kind": "skill",
-      "path": ".claude/skills/repository-sprint/SKILL.md",
-      "required": true,
-      "tracked": true,
-      "purpose": "Provides repository intake, safe branching, validation, commit, PR, and recovery procedure.",
-      "validation": "python Tests/survey/test_agent_instruction_factoring_contracts.py"
-    },
-    {
-      "id": "scoped-validation-skill",
-      "kind": "skill",
-      "path": ".claude/skills/scoped-validation/SKILL.md",
-      "required": true,
-      "tracked": true,
-      "purpose": "Chooses the smallest validators that can support the declared proof ceiling.",
-      "validation": "python Tests/survey/test_agent_instruction_factoring_contracts.py"
-    },
-    {
-      "id": "e2e-validation-skill",
-      "kind": "skill",
-      "path": ".claude/skills/end-to-end-validation/SKILL.md",
-      "required": true,
-      "tracked": true,
-      "purpose": "Escalates executable and integration changes to composed journey proof when required.",
-      "validation": "python Tests/survey/test_e2e_default_posture_contracts.py"
-    },
-    {
-      "id": "run-context",
-      "kind": "run_context",
-      "path": "scripts/SasRunContext.psm1",
-      "required": true,
-      "tracked": true,
-      "purpose": "Creates bounded run directories, artifact registries, reports, and handoff locations.",
-      "validation": "python Tests/survey/test_run_context_contracts.py"
-    },
-    {
-      "id": "operator-status-report",
-      "kind": "operator_report",
-      "path": "docs/HARNESS_STATUS.md",
-      "required": true,
-      "tracked": true,
-      "purpose": "Summarizes working components, broken boundaries, missing proof, and operator next actions.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
-    },
-    {
-      "id": "sprint-handoff",
-      "kind": "handoff",
-      "path": "tools/New-SasSprintCapsule.ps1",
-      "required": true,
-      "tracked": true,
-      "purpose": "Produces a compressed next-agent handoff with scope, validation, Git state, and next command.",
-      "validation": "pwsh -NoProfile -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester/SprintCapsule.Tests.ps1"
-    },
-    {
-      "id": "harness-ci",
-      "kind": "ci",
-      "path": ".github/workflows/harness-infrastructure.yml",
-      "required": true,
-      "tracked": true,
-      "purpose": "Runs completeness, local harness, text policy, syntax, and whitespace checks on harness changes.",
-      "validation": "python Tests/survey/test_operational_harness_completeness_contracts.py"
-    }
+    {"id":"codebase-map","kind":"codebase_map","path":"CODEBASE_MAP.md","required":true,"tracked":true,"purpose":"Routes a fresh agent to the smallest relevant repository surface and canonical command, outcome, and deployment-state registries.","validation":"python Tests/survey/test_operational_harness_completeness_contracts.py"},
+    {"id":"fresh-agent-workflow","kind":"workflow","path":"harness/workflows/fresh-agent-intake.yaml","required":true,"tracked":true,"purpose":"Provides deterministic intake from governance and Git state through desired-state routing, validation, artifacts, continuation, and handoff.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"maintenance-workflow","kind":"workflow","path":"harness/workflows/operational-harness-maintenance.yaml","required":true,"tracked":true,"purpose":"Defines bounded local harness implementation, validation, failure handling, commit, outcome continuation, and handoff stages.","validation":"python Tests/survey/test_operational_harness_completeness_contracts.py"},
+    {"id":"outcome-driven-workflow","kind":"workflow","path":"harness/workflows/outcome-driven-execution.yaml","required":true,"tracked":true,"purpose":"Treats tests, dry runs, fixtures, and transport certification as admission gates and continues toward the requested artifact, deployment, or runtime outcome.","validation":"python harness/validators/validate-outcome-contracts.py"},
+    {"id":"cybernet-autologon-deployment-state-workflow","kind":"workflow","path":"harness/workflows/cybernet-autologon-deployment-state.yaml","required":true,"tracked":true,"purpose":"Binds AutoLogon and Cybernet test, live-cert, deploy, and runtime requests to explicit target states, real apply commands, and critical artifacts.","validation":"python harness/validators/validate-deployment-state-contracts.py"},
+    {"id":"publish-workflow","kind":"workflow","path":"harness/workflows/operational-harness-publish.yaml","required":true,"tracked":true,"purpose":"Separates operator-approved Git push and pull-request publication from local harness maintenance.","validation":"python Tests/survey/test_operational_harness_completeness_contracts.py"},
+    {"id":"artifact-registry","kind":"artifact_registry","path":"harness/api/harness-artifact-registry.json","required":true,"tracked":true,"purpose":"Defines tracked and generated harness artifacts, locations, generators, naming, live-data boundaries, and critical deployment/runtime evidence.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"validator-registry","kind":"validator_registry","path":"harness/api/harness-validator-registry.json","required":true,"tracked":true,"purpose":"Defines canonical validators, commands, scopes, blocking posture, escalation, and proof descriptions.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"command-registry","kind":"command_registry","path":"harness/api/harness-command-registry.json","required":true,"tracked":true,"purpose":"Indexes canonical build, test, run, deployment, AutoLogon S4U apply, and runtime-proof commands with mutation and network classifications.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"outcome-registry","kind":"outcome_registry","path":"harness/api/harness-outcome-registry.json","required":true,"tracked":true,"purpose":"Maps each canonical command to a concrete success artifact or terminal outcome and same-turn continuations when the requested goal remains unproven.","validation":"python harness/validators/validate-outcome-contracts.py"},
+    {"id":"deployment-state-registry","kind":"deployment_state_registry","path":"harness/api/deployment-state-registry.json","required":true,"tracked":true,"purpose":"Maps AutoLogon/Cybernet field intent and existing workstation state to required deployment/runtime states, commands, classifications, and critical artifacts.","validation":"python harness/validators/validate-deployment-state-contracts.py"},
+    {"id":"manifest-schema","kind":"schema","path":"schemas/harness/operational-harness-manifest.schema.json","required":true,"tracked":true,"purpose":"Fails closed when the central operational harness manifest is malformed.","validation":"python Tests/survey/test_operational_harness_completeness_contracts.py"},
+    {"id":"command-registry-schema","kind":"schema","path":"schemas/harness/harness-command-registry.schema.json","required":true,"tracked":true,"purpose":"Fails closed when the canonical harness command registry is malformed.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"validator-registry-schema","kind":"schema","path":"schemas/harness/harness-validator-registry.schema.json","required":true,"tracked":true,"purpose":"Fails closed when the canonical harness validator registry is malformed.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"artifact-registry-schema","kind":"schema","path":"schemas/harness/harness-artifact-registry.schema.json","required":true,"tracked":true,"purpose":"Fails closed when the canonical harness artifact registry is malformed.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"outcome-registry-schema","kind":"schema","path":"schemas/harness/harness-outcome-registry.schema.json","required":true,"tracked":true,"purpose":"Fails closed when command success, artifact, continuation, runtime-proof, or terminal-outcome contracts are malformed.","validation":"python harness/validators/validate-outcome-contracts.py"},
+    {"id":"deployment-state-registry-schema","kind":"schema","path":"schemas/harness/deployment-state-registry.schema.json","required":true,"tracked":true,"purpose":"Fails closed when AutoLogon/Cybernet desired-state, intent, ordering, artifact, or product-truth contracts are malformed.","validation":"python harness/validators/validate-deployment-state-contracts.py"},
+    {"id":"registry-validator","kind":"validator","path":"harness/validators/validate-harness-registries.py","required":true,"tracked":true,"purpose":"Validates registry integrity, canonical source paths, tracked schema authorities, fresh-agent workflow wiring, scoped skills, deployment-state wiring, and report contracts.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"outcome-validator","kind":"validator","path":"harness/validators/validate-outcome-contracts.py","required":true,"tracked":true,"purpose":"Rejects tests-only and status-only endpoints by requiring every canonical command to resolve a registered artifact or terminal outcome and safe continuations to remain same-turn.","validation":"python harness/validators/validate-outcome-contracts.py"},
+    {"id":"deployment-state-validator","kind":"validator","path":"harness/validators/validate-deployment-state-contracts.py","required":true,"tracked":true,"purpose":"Rejects AutoLogon/Cybernet routes that confuse tests or transport certification with application, reinstall proven core apps, or fail to require canonical deployment/runtime artifacts.","validation":"python harness/validators/validate-deployment-state-contracts.py"},
+    {"id":"completeness-validator","kind":"validator","path":"Tests/survey/test_operational_harness_completeness_contracts.py","required":true,"tracked":true,"purpose":"Proves required harness files exist, are tracked, ordered, and wired into hooks and CI.","validation":"python Tests/survey/test_operational_harness_completeness_contracts.py"},
+    {"id":"text-policy-validator","kind":"validator","path":"scripts/check-repo-text-policy.py","required":true,"tracked":true,"purpose":"Rejects CRLF stored in Git text blobs and trailing whitespace in changed files.","validation":"python scripts/check-repo-text-policy.py --commit HEAD"},
+    {"id":"line-ending-policy","kind":"text_policy","path":".gitattributes","required":true,"tracked":true,"purpose":"Stores text as normalized LF in Git while limiting explicit checkout endings to execution-sensitive surfaces.","validation":"git check-attr text eol -- Start-CybernetSurveyTutorial.cmd"},
+    {"id":"pre-commit-hook","kind":"hook","path":".githooks/pre-commit","required":true,"tracked":true,"purpose":"Runs staged harness, outcome, deployment-state, and repository-text guardrails and blocks generated evidence.","validation":"bash -n .githooks/pre-commit"},
+    {"id":"pre-push-hook","kind":"hook","path":".githooks/pre-push","required":true,"tracked":true,"purpose":"Runs the offline harness suite, outcome and deployment-state contracts, and exact destination commit-range text validation before remote updates.","validation":"bash -n .githooks/pre-push"},
+    {"id":"hook-installer","kind":"hook_installer","path":"scripts/install-local-harness-hooks.sh","required":true,"tracked":true,"purpose":"Installs the repository-owned Git hooks without modifying global Git configuration.","validation":"bash -n scripts/install-local-harness-hooks.sh"},
+    {"id":"harness-maintenance-skill","kind":"skill","path":"harness/skills/harness-maintenance/SKILL.md","required":true,"tracked":true,"purpose":"Provides scoped procedures for extending or repairing harness infrastructure without changing product behavior or AGENTS.md.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"outcome-driven-skill","kind":"skill","path":"harness/skills/outcome-driven-execution/SKILL.md","required":true,"tracked":true,"purpose":"Prevents agents from handing back safe executable continuations after green tests and requires progress to the requested terminal outcome or a real blocker.","validation":"python harness/validators/validate-outcome-contracts.py"},
+    {"id":"cybernet-autologon-deployment-state-skill","kind":"skill","path":"harness/skills/cybernet-autologon-deployment-state/SKILL.md","required":true,"tracked":true,"purpose":"Makes AutoLogon testing and live certification converge on real S4U application and then attended runtime proof while preserving already-proven Cybernet core applications.","validation":"python harness/validators/validate-deployment-state-contracts.py"},
+    {"id":"repository-sprint-skill","kind":"skill","path":".claude/skills/repository-sprint/SKILL.md","required":true,"tracked":true,"purpose":"Provides repository intake, safe branching, validation, commit, PR, and recovery procedure.","validation":"python Tests/survey/test_agent_instruction_factoring_contracts.py"},
+    {"id":"scoped-validation-skill","kind":"skill","path":".claude/skills/scoped-validation/SKILL.md","required":true,"tracked":true,"purpose":"Chooses the smallest validators that can support the declared proof ceiling.","validation":"python Tests/survey/test_agent_instruction_factoring_contracts.py"},
+    {"id":"e2e-validation-skill","kind":"skill","path":".claude/skills/end-to-end-validation/SKILL.md","required":true,"tracked":true,"purpose":"Escalates executable and integration changes to composed journey proof when required.","validation":"python Tests/survey/test_e2e_default_posture_contracts.py"},
+    {"id":"run-context","kind":"run_context","path":"scripts/SasRunContext.psm1","required":true,"tracked":true,"purpose":"Creates bounded run directories, artifact registries, reports, and handoff locations.","validation":"python Tests/survey/test_run_context_contracts.py"},
+    {"id":"operator-status-report","kind":"operator_report","path":"docs/HARNESS_STATUS.md","required":true,"tracked":true,"purpose":"Summarizes working components, desired-state execution, repaired boundaries, missing proof, and operator next actions.","validation":"python harness/validators/validate-harness-registries.py"},
+    {"id":"status-renderer","kind":"operator_report","path":"harness/reports/render-harness-status.py","required":true,"tracked":true,"purpose":"Renders a fresh human-readable harness inventory, desired-state rules, and canonical deployment/runtime proof expectations from tracked registries.","validation":"python harness/reports/render-harness-status.py"},
+    {"id":"sprint-handoff","kind":"handoff","path":"tools/New-SasSprintCapsule.ps1","required":true,"tracked":true,"purpose":"Produces a compressed next-agent handoff with scope, validation, Git state, and next command.","validation":"pwsh -NoProfile -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester/SprintCapsule.Tests.ps1"},
+    {"id":"harness-ci","kind":"ci","path":".github/workflows/harness-infrastructure.yml","required":true,"tracked":true,"purpose":"Runs completeness, outcome, deployment-state, local harness, text policy, syntax, whitespace, and Windows handoff checks on harness changes.","validation":"python Tests/survey/test_operational_harness_completeness_contracts.py"},
+    {"id":"harness-registry-ci","kind":"ci","path":".github/workflows/harness-registry-integrity.yml","required":true,"tracked":true,"purpose":"Runs registry, outcome, and deployment-state schema integrity, completeness, report rendering, hook syntax, and whitespace checks whenever registry-facing harness files change.","validation":"python harness/validators/validate-harness-registries.py"}
   ],
   "validation_commands": [
+    "python harness/validators/validate-harness-registries.py",
+    "python harness/validators/validate-outcome-contracts.py",
+    "python harness/validators/validate-deployment-state-contracts.py",
     "python Tests/survey/test_operational_harness_completeness_contracts.py",
     "python scripts/check-repo-text-policy.py --commit HEAD",
     "python Tests/survey/test_local_harness_contracts.py",
     "bash tests/survey/run_offline_survey_tests.sh",
     "git diff --check"
   ],
-  "proof_ceiling": "Static harness structure, Git tracking, workflow, schema, hook, artifact, report, and repository-text policy proof; no product behavior or live target proof."
+  "proof_ceiling": "Static harness structure, Git tracking, workflow, registry, outcome, deployment-state, schema, hook, artifact, report, command authority, continuation behavior, and repository-text policy proof; no product behavior or live target deployment/runtime proof is created by harness validation itself."
 }

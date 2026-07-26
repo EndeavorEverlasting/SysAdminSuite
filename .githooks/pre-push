@@ -6,6 +6,9 @@ remote_name="${1:-origin}"
 cd "$repo_root"
 
 echo "[sas-harness] pre-push: running offline survey guardrails"
+python3 harness/validators/validate-harness-registries.py
+python3 harness/validators/validate-outcome-contracts.py
+python3 harness/validators/validate-deployment-state-contracts.py
 bash tests/survey/run_offline_survey_tests.sh
 python3 Tests/survey/test_operational_harness_completeness_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py
