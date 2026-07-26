@@ -126,7 +126,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
       - name: Check pushed whitespace
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push'
         run: |
           before="${{ github.event.before }}"
           if [[ "$before" =~ ^0+$ ]]; then
@@ -134,3 +134,6 @@ jobs:
           else
             git diff --check "$before" "${{ github.sha }}"
           fi
+      - name: Check manual-dispatch whitespace
+        if: github.event_name == 'workflow_dispatch'
+        run: git show --check --oneline --no-renames HEAD
