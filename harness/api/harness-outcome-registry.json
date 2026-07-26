@@ -23,102 +23,32 @@
     ]
   },
   "contracts": [
-    {
-      "command_id": "harness-validate",
-      "success_outcome": "artifact_created",
-      "success_artifact_id": "harness-registry-validation-result",
-      "terminal_goals": ["validate", "artifact"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "harness-outcome-validate",
-      "success_outcome": "artifact_created",
-      "success_artifact_id": "harness-outcome-validation-result",
-      "terminal_goals": ["validate", "artifact"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "deployment-state-validate",
-      "success_outcome": "artifact_created",
-      "success_artifact_id": "deployment-state-validation-result",
-      "terminal_goals": ["validate", "artifact"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "harness-completeness",
-      "success_outcome": "artifact_created",
-      "success_artifact_id": "harness-completeness-result",
-      "terminal_goals": ["validate", "artifact"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "offline-floor",
-      "success_outcome": "artifact_created",
-      "success_artifact_id": "offline-survey-floor-result",
-      "terminal_goals": ["validate", "artifact"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "powershell-tests",
-      "success_outcome": "artifact_created",
-      "success_artifact_id": "pester-suite-result",
-      "terminal_goals": ["validate", "artifact"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "managed-tests",
-      "success_outcome": "artifact_created",
-      "success_artifact_id": "managed-tests-result",
-      "terminal_goals": ["validate", "artifact"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "dashboard-build",
-      "success_outcome": "build_artifact_created",
-      "success_artifact_id": "dashboard-publish-output",
-      "terminal_goals": ["build", "artifact"],
-      "continuations": [
-        {
-          "when_goal": "run",
-          "command_id": "dashboard-launch",
-          "same_turn": true,
-          "requires_authorization": false,
-          "dependency": "dashboard publish output exists"
-        }
-      ],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "dashboard-launch",
-      "success_outcome": "runtime_started",
-      "success_artifact_id": null,
-      "terminal_goals": ["run"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
+    {"command_id":"harness-validate","success_outcome":"artifact_created","success_artifact_id":"harness-registry-validation-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"harness-outcome-validate","success_outcome":"artifact_created","success_artifact_id":"harness-outcome-validation-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"deployment-state-validate","success_outcome":"artifact_created","success_artifact_id":"deployment-state-validation-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"harness-completeness","success_outcome":"artifact_created","success_artifact_id":"harness-completeness-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"offline-floor","success_outcome":"artifact_created","success_artifact_id":"offline-survey-floor-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"powershell-tests","success_outcome":"artifact_created","success_artifact_id":"pester-suite-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"managed-tests","success_outcome":"artifact_created","success_artifact_id":"managed-tests-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"dashboard-build","success_outcome":"build_artifact_created","success_artifact_id":"dashboard-publish-output","terminal_goals":["build","artifact"],"continuations":[{"when_goal":"run","command_id":"dashboard-launch","same_turn":true,"requires_authorization":false,"dependency":"dashboard publish output exists"}],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"dashboard-launch","success_outcome":"runtime_started","success_artifact_id":null,"terminal_goals":["run"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {
       "command_id": "cybernet-plan",
       "success_outcome": "artifact_created",
       "success_artifact_id": "cybernet-client-configuration-summary",
       "terminal_goals": ["plan", "artifact"],
-      "continuations": [],
+      "continuations": [
+        {
+          "when_goal": "deploy",
+          "command_id": "cybernet-core-deploy",
+          "same_turn": true,
+          "requires_authorization": true,
+          "dependency": "historical full-profile plan cannot be executed live while canonical SYSTEM AutoLogon is blocked; converge to the deployable clinical core"
+        }
+      ],
       "failure_outcome": "blocked_with_actionable_gate"
     },
-    {
-      "command_id": "cybernet-apply",
-      "success_outcome": "product_deployed",
-      "success_artifact_id": "cybernet-client-configuration-summary",
-      "terminal_goals": ["legacy-full-profile-deploy"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
+    {"command_id":"cybernet-apply","success_outcome":"product_deployed","success_artifact_id":"cybernet-client-configuration-summary","terminal_goals":["legacy-full-profile-deploy"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {
       "command_id": "cybernet-core-plan",
       "success_outcome": "artifact_created",
@@ -135,29 +65,8 @@
       ],
       "failure_outcome": "blocked_with_actionable_gate"
     },
-    {
-      "command_id": "cybernet-core-deploy",
-      "success_outcome": "product_deployed",
-      "success_artifact_id": "cybernet-clinical-core-deployment-summary",
-      "terminal_goals": ["deploy", "clinical-core-ready"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "autologon-remote",
-      "success_outcome": "product_deployed",
-      "success_artifact_id": "autologon-s4u-pilot-result",
-      "terminal_goals": ["deploy", "pre-reboot-proof"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    },
-    {
-      "command_id": "autologon-runtime-proof",
-      "success_outcome": "runtime_proven",
-      "success_artifact_id": "autologon-technician-runtime-proof",
-      "terminal_goals": ["runtime-proof", "acceptance"],
-      "continuations": [],
-      "failure_outcome": "blocked_with_actionable_gate"
-    }
+    {"command_id":"cybernet-core-deploy","success_outcome":"product_deployed","success_artifact_id":"cybernet-clinical-core-deployment-summary","terminal_goals":["deploy","clinical-core-ready"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"autologon-remote","success_outcome":"product_deployed","success_artifact_id":"autologon-s4u-pilot-result","terminal_goals":["deploy","pre-reboot-proof"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"autologon-runtime-proof","success_outcome":"runtime_proven","success_artifact_id":"autologon-technician-runtime-proof","terminal_goals":["runtime-proof","acceptance"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"}
   ]
 }
