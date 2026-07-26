@@ -85,7 +85,7 @@
           "terminal": false,
           "command_id": "cybernet-core-deploy",
           "artifact_id": "cybernet-clinical-core-deployment-summary",
-          "positive_status": "CLINICAL_CORE_DEPLOYMENT_COMPLETED",
+          "positive_classification": "CLINICAL_CORE_DEPLOYMENT_COMPLETED",
           "satisfied_by": ["existing approved deployment evidence", "existing technician/application acceptance", "explicit operator-provided installed-state evidence", "cybernet-clinical-core-deployment-summary with status CLINICAL_CORE_DEPLOYMENT_COMPLETED"],
           "on_satisfied": "skip clinical-core reinstall",
           "on_unproven": "run sas cybernet Deploy HOST for the explicitly authorized target; do not substitute the blocked six-package LocalSystem path"
