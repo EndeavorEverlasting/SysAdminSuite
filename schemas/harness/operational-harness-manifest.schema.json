@@ -42,6 +42,7 @@
               "artifact_registry",
               "validator_registry",
               "command_registry",
+              "outcome_registry",
               "validator",
               "hook",
               "hook_installer",
