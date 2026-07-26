@@ -2,19 +2,8 @@
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
+git_dir="$(git rev-parse --absolute-git-dir)"
 cd "$repo_root"
-
-echo "[sas-harness] pre-commit: running static guardrails"
-python3 harness/validators/validate-harness-registries.py
-python3 harness/validators/validate-outcome-contracts.py
-python3 harness/validators/validate-deployment-state-contracts.py
-python3 Tests/survey/test_operational_harness_completeness_contracts.py
-python3 scripts/check-repo-text-policy.py --cached
-python3 Tests/survey/test_local_harness_contracts.py
-python3 Tests/survey/test_probe_socket_access_contracts.py
-python3 Tests/survey/test_standard_corporate_tooling_contracts.py
-python3 Tests/survey/test_software_install_harness_contracts.py
-python3 Tests/survey/test_canonical_smb_task_deployment_contracts.py
 
 blocked=0
 while IFS= read -r path; do
@@ -30,5 +19,30 @@ if [[ "$blocked" -ne 0 ]]; then
   echo "[sas-harness] generated evidence must stay local/gitignored; commit schema, docs, and tests instead." >&2
   exit 1
 fi
+
+snapshot="$(mktemp -d "${TMPDIR:-/tmp}/sas-harness-index.XXXXXX")"
+cleanup() {
+  rm -rf "$snapshot"
+}
+trap cleanup EXIT HUP INT TERM
+
+git checkout-index --all --force --prefix="$snapshot/"
+
+echo "[sas-harness] pre-commit: validating the exact staged snapshot"
+(
+  export GIT_DIR="$git_dir"
+  export GIT_WORK_TREE="$snapshot"
+  cd "$snapshot"
+  python3 harness/validators/validate-harness-registries.py
+  python3 harness/validators/validate-outcome-contracts.py
+  python3 harness/validators/validate-deployment-state-contracts.py
+  python3 Tests/survey/test_operational_harness_completeness_contracts.py
+  python3 scripts/check-repo-text-policy.py --cached
+  python3 Tests/survey/test_local_harness_contracts.py
+  python3 Tests/survey/test_probe_socket_access_contracts.py
+  python3 Tests/survey/test_standard_corporate_tooling_contracts.py
+  python3 Tests/survey/test_software_install_harness_contracts.py
+  python3 Tests/survey/test_canonical_smb_task_deployment_contracts.py
+)
 
 echo "[sas-harness] pre-commit: ok"
