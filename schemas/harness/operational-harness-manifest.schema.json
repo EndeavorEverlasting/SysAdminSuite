@@ -43,6 +43,7 @@
               "validator_registry",
               "command_registry",
               "outcome_registry",
+              "deployment_state_registry",
               "validator",
               "hook",
               "hook_installer",
