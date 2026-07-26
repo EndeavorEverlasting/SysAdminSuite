@@ -52,5 +52,5 @@
     "bash tests/survey/run_offline_survey_tests.sh",
     "git diff --check"
   ],
-  "proof_ceiling": "Static harness structure, Git tracking, workflow, registry, outcome, deployment-state, schema, hook, artifact, report, command authority, continuation behavior, and repository-text policy proof; no live target deployment or runtime proof is created by harness validation itself."
+  "proof_ceiling": "Static harness structure, Git tracking, workflow, registry, outcome, deployment-state, schema, hook, artifact, report, command authority, continuation behavior, and repository-text policy proof; no product behavior or live target deployment/runtime proof is created by harness validation itself."
 }
