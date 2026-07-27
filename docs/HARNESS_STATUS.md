@@ -11,6 +11,7 @@ The repository has an operational harness floor for fresh-agent intake, task rou
 - **Command authority:** `harness/api/harness-command-registry.json` records canonical build, test, run, full Cybernet software deployment, AutoLogon-only restart-complete deployment, and optional actual-session runtime-proof entrypoints together with mutation/network classifications.
 - **Outcome authority:** `harness/api/harness-outcome-registry.json` requires every canonical command to resolve a registered success artifact or terminal outcome, including `product_deployed` and `runtime_proven`, and records same-turn continuations when the requested goal remains unproven.
 - **Deployment-state authority:** `harness/api/deployment-state-registry.json` binds AutoLogon/Cybernet `test`, `live cert`, `deploy`, and `runtime proof` wording to explicit desired states and critical artifacts instead of allowing a diagnostic pass to masquerade as application.
+- **Cybernet profile source authority:** the deployment-state registry pins the five operator-confirmed BCA, Epic Downtime Guide, Dragon Medical One, Allscripts, and AutoLogon source folders/entrypoints; the deployment-state validator cross-checks them against the canonical package-set catalog.
 - **Harness registry integrity:** `harness/validators/validate-harness-registries.py` checks manifest components, tracked registry schemas, command/outcome/deployment-state wiring, fresh-agent workflow wiring, harness-scoped skills, artifact roles, and the report renderer.
 - **Outcome contract integrity:** `harness/validators/validate-outcome-contracts.py` rejects tests-only, status-only, command-printed-only, wait-for-next-chat, and operator-repeats-agent-work endpoints.
 - **Deployment-state integrity:** `harness/validators/validate-deployment-state-contracts.py` cross-checks desired-state routing against the current approved AutoLogon package disposition, Cybernet package-set ordering, S4U apply engine, restart-complete wrappers, command/outcome registries, and critical artifacts.
@@ -47,6 +48,14 @@ For one authorized Cybernet:
 5. **AutoLogon-only deployment completes after restart.** `autologon_s4u_deployment_result.json` must report `AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED`, `automatic_reboot_performed=true`, `restart_offline_observed=true`, and `restart_online_observed=true`.
 6. **Full Cybernet software deployment completes after restart.** `cybernet_software_deployment_result.json` must report `CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED`, with AutoLogon last and the restart cycle observed.
 7. **Runtime proof is optional higher-ceiling evidence.** When explicitly requested after deployment, run the actual-session runtime proof and require `TECHNICIAN_OBSERVED_LIVE_RUNTIME`, `runtime_proof=true`, and `overall_success=true`. Runtime proof must not delay deployment completion.
+
+The five operator-confirmed package sources are:
+
+- `bca` → `packages\Epic\EPIC_BCA_Web-Shortcut_1.0\EPIC_BCA_Web-Shortcut_1.0.msi`
+- `epic-downtime-guide-shortcut-1-0` → `packages\Epic\Epic_Epic_Downtime_Guide-Shortcut_1.0\Epic_Epic_Downtime_Guide-Shortcut_1.0.msi`
+- `nuance-dragon-medical-one-2025` → `packages\Nuance_DragonMedicalOne_2025\Install.cmd`
+- `allscripts-eehr-shortcut-uai-2-2` → `packages\TouchWork_22.1\Allscripts_Shortcut\Allscripts_EEHR-Shortcut-UAI_2.2.msi`
+- `autologon` → `packages\AutoLogonSetup\NW_AutoLogon_Setup_x64.exe`
 
 The critical state chain is therefore:
 

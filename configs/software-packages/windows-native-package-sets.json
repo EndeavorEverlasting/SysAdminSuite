@@ -61,21 +61,23 @@
     {
       "id": "epic-downtime-guide-shortcut-1-0",
       "display_name": "Epic Downtime Guide Shortcut 1.0",
-      "source_folder_relative_path": "packages\\Epic_TPI_Installer\\TPI\\Epic_Epic_Downtime_Guide-Shortcut_1.0",
-      "package_kind": "bundle",
-      "entrypoint_file": "Install.cmd",
+      "source_folder_relative_path": "packages\\Epic\\Epic_Epic_Downtime_Guide-Shortcut_1.0",
+      "package_kind": "single",
+      "entrypoint_file": "Epic_Epic_Downtime_Guide-Shortcut_1.0.msi",
       "staged_files": [
-        "Epic_Epic_Downtime_Guide-Shortcut_1.0.msi",
-        "Install.cmd"
+        "Epic_Epic_Downtime_Guide-Shortcut_1.0.msi"
       ],
-      "installer_type": "cmd",
-      "installer_arguments": [],
+      "installer_type": "msi",
+      "installer_arguments": [
+        "/qn",
+        "/norestart"
+      ],
       "install_enabled": true
     },
     {
       "id": "nuance-dragon-medical-one-2025",
       "display_name": "Nuance Dragon Medical One 2025",
-      "source_folder_relative_path": "packages\\Epic_TPI_Installer\\TPI\\Nuance_DragonMedicalOne_2025",
+      "source_folder_relative_path": "packages\\Nuance_DragonMedicalOne_2025",
       "package_kind": "bundle",
       "entrypoint_file": "Install.cmd",
       "staged_files": [

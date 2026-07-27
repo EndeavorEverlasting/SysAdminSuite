@@ -34,6 +34,7 @@ stages:
       - require the target profile to be Cybernet before any AutoLogon mutation
       - if approved clinical-core installation or acceptance is already proven, preserve it and skip reinstall
       - read configs/software-packages/approved-apps.json and configs/software-packages/windows-native-package-sets.json for current package disposition
+      - verify the five operator-confirmed package source paths against current package ids, folders, and entrypoints
       - require AutoLogon to be the final package in the full profile
       - fail closed if the tracked package truth no longer matches the deployment-state registry
 

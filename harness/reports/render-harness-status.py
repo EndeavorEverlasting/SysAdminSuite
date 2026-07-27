@@ -37,6 +37,7 @@ def render() -> str:
     restart_complete = states["autologon_restart_completed"]
     full_deployment = states["cybernet_software_deployed"]
     runtime = states["autologon_runtime_proven"]
+    confirmed_sources = truth["operator_confirmed_profile_sources"]
 
     lines = [
         "# SysAdminSuite Operational Harness Generated Status", "", "Schema: `sas-harness-status-report/v1`", "",
@@ -56,6 +57,11 @@ def render() -> str:
         f"- Internal pre-reboot S4U gate: `{pre_reboot['positive_classification']}` from `{pre_reboot['artifact_id']}`. This is not deployment completion.",
         f"- Canonical LocalSystem AutoLogon enabled: `{str(truth['canonical_system_install_enabled']).lower()}`; qualification: `{truth['canonical_system_qualification_status']}`.",
         "- Full deployment installs the five clinical applications first, AutoLogon last, then automatically restarts the target and requires the restart cycle to be observed.",
+        f"- Operator-confirmed Cybernet package sources pinned in the deployment-state registry: **{len(confirmed_sources)}**.",
+        *(
+            f"  - `{item['package_id']}` -> `{item['source_folder_relative_path']}\\{item['entrypoint_file']}`"
+            for item in confirmed_sources
+        ),
         "- Transport live certification, fixture proof, and dry runs are admission only; they do not replace authorized deployment.",
         "- When the Cybernet clinical core is already proven installed/accepted, preserve it and use the AutoLogon-only restart-complete deployment instead of reinstalling the core.",
         f"- Optional actual-session runtime command: `{runtime['command_id']}`; runtime classification: `{runtime['positive_classification']}`; artifact: `{runtime['artifact_id']}`.",

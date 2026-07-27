@@ -24,7 +24,7 @@ Use this map to load only the files needed for a task.
 - `harness/api/harness-validator-registry.json` — canonical validator commands, scope selection, blocking posture, escalation, and proof descriptions.
 - `harness/api/harness-artifact-registry.json` — artifact types, generators, locations, naming conventions, tracking, live-data boundaries, and critical deployment/runtime proof roles.
 - `harness/api/harness-outcome-registry.json` — command-by-command success artifact, terminal outcome, and same-turn continuation authority; a green validator or dry run is not completion when the requested goal remains unproven.
-- `harness/api/deployment-state-registry.json` — AutoLogon/Cybernet desired-state authority. Resolves test/live-cert/deploy/runtime wording, current package truth, clinical-core preservation, AutoLogon-last ordering, required restart, critical artifacts, and state ordering.
+- `harness/api/deployment-state-registry.json` — AutoLogon/Cybernet desired-state authority. Resolves test/live-cert/deploy/runtime wording, pins the five operator-confirmed package source paths, preserves proven clinical-core state, enforces AutoLogon-last ordering and restart, and names critical artifacts.
 - `schemas/harness/harness-outcome-registry.schema.json` and `schemas/harness/deployment-state-registry.schema.json` — fail-closed schemas for outcome/continuation and desired-state contracts.
 - `harness/skills/harness-maintenance/SKILL.md` — scoped procedure for harness-only changes without modifying product behavior or `AGENTS.md`.
 - `harness/skills/outcome-driven-execution/SKILL.md` — prevents agents from handing safe executable work back to the operator after tests, plans, fixtures, or transport live certs.
@@ -161,6 +161,7 @@ Use this map to load only the files needed for a task.
 ## AutoLogon / Cybernet field desired state
 
 - `configs/software-packages/windows-native-package-sets.json` defines `cybernet-clinical-core` (five apps), `cybernet-autologon-only`, and full `cybernet-clinical-workstation` with AutoLogon last.
+- The five operator-confirmed source entries are pinned by `harness/api/deployment-state-registry.json`; `harness/validators/validate-deployment-state-contracts.py` cross-checks each package id, folder, entrypoint, and enabled state against the package-set catalog.
 - `configs/software-packages/approved-apps.json` and the package-set catalog currently mark AutoLogon install-enabled but canonical LocalSystem install disabled after failed runtime validation; do not infer that the six-package SYSTEM path is safe.
 - `harness/api/deployment-state-registry.json` is the harness authority for interpreting field intent against that current product truth.
 - Full software deployment resolves to `sas cybernet Deploy HOST`: five clinical applications first, AutoLogon last through S4U, then the required target restart. Terminal status is `CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED`.

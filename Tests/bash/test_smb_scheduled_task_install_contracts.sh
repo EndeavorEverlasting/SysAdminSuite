@@ -61,10 +61,19 @@ assert bca_autologon_recovery["package_ids"] == ["bca", "autologon"]
 packages = {item["id"]: item for item in catalog["packages"]}
 assert packages["allscripts-eehr-shortcut-uai-2-2"]["entrypoint_file"] == "Allscripts_EEHR-Shortcut-UAI_2.2.msi"
 assert packages["allscripts-eehr-shortcut-uai-2-2"]["installer_arguments"] == ["/qb", "/norestart"]
+assert packages["epic-downtime-guide-shortcut-1-0"]["source_folder_relative_path"] == (
+    r"packages\Epic\Epic_Epic_Downtime_Guide-Shortcut_1.0"
+)
+assert packages["epic-downtime-guide-shortcut-1-0"]["entrypoint_file"] == (
+    "Epic_Epic_Downtime_Guide-Shortcut_1.0.msi"
+)
 assert packages["epic-downtime-guide-shortcut-1-0"]["staged_files"] == [
     "Epic_Epic_Downtime_Guide-Shortcut_1.0.msi",
-    "Install.cmd",
 ]
+assert packages["epic-downtime-guide-shortcut-1-0"]["installer_arguments"] == ["/qn", "/norestart"]
+assert packages["nuance-dragon-medical-one-2025"]["source_folder_relative_path"] == (
+    r"packages\Nuance_DragonMedicalOne_2025"
+)
 assert packages["nuance-dragon-medical-one-2025"]["staged_files"] == [
     "cab1.cab",
     "DMO.Mst",
@@ -327,7 +336,7 @@ bash "$SCRIPT" \
 
 for fragment in \
   'transport=windows-native' \
-  'Staged approved package set: cybernet-clinical-workstation (18 files)' \
+  'Staged approved package set: cybernet-clinical-workstation (17 files)' \
   'Task triggered; waiting up to 10s' \
   'Result copied locally:' \
   'HOST_OK' \
