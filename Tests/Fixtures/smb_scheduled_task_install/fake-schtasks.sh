@@ -26,7 +26,6 @@ case "${1:-}" in
       required_files=(
         'allscripts-eehr-shortcut-uai-2-2/Allscripts_EEHR-Shortcut-UAI_2.2.msi'
         'epic-downtime-guide-shortcut-1-0/Epic_Epic_Downtime_Guide-Shortcut_1.0.msi'
-        'epic-downtime-guide-shortcut-1-0/Install.cmd'
         'nuance-dragon-medical-one-2025/cab1.cab'
         'nuance-dragon-medical-one-2025/DMO.Mst'
         'nuance-dragon-medical-one-2025/Dragon Medical One.lnk'
