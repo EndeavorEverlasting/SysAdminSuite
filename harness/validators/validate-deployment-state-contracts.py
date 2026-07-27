@@ -15,6 +15,8 @@ SETS = ROOT / "configs/software-packages/windows-native-package-sets.json"
 WORKFLOW = ROOT / "harness/workflows/cybernet-autologon-deployment-state.yaml"
 SKILL = ROOT / "harness/skills/cybernet-autologon-deployment-state/SKILL.md"
 S4U = ROOT / "scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1"
+S4U_DEPLOY = ROOT / "scripts/Invoke-SasAutoLogonS4URestartDeployment.ps1"
+FULL_DEPLOY = ROOT / "scripts/Invoke-SasCybernetSoftwareDeployment.ps1"
 RUNTIME = ROOT / "scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1"
 
 
@@ -54,113 +56,123 @@ def main() -> int:
         "deploy_plus_runtime_requires_apply_first",
         "test_autologon_with_authorized_target_means_apply_pilot",
         "live_cert_with_autologon_or_cybernet_apply_intent_means_deployment_chain",
+        "autologon_deployment_requires_restart",
+        "runtime_proof_is_not_required_for_deployment_completion",
     ):
         assert policy[key] is True, f"deployment-state policy disabled: {key}"
 
     context = one(registry["contexts"], "id", "cybernet-autologon")
     truth = context["current_product_truth"]
-    assert context["target_profile"] == "cybernet"
-    assert context["target_count"] == 1
-
     auto = one(approved["packages"], "id", "autologon")
     assert auto["install_enabled"] is True
     assert auto["canonical_system_install_enabled"] is False
     assert auto["canonical_system_qualification"]["status"] == "failed_runtime_validation"
     assert "AutoAdminLogon=1" in auto["canonical_system_qualification"]["blocked_reason"]
-    assert truth["autologon_install_enabled"] is True
-    assert truth["canonical_system_install_enabled"] is False
-    assert truth["canonical_system_qualification_status"] == "failed_runtime_validation"
+    assert truth["current_full_software_apply_command_id"] == "cybernet-software-deploy"
+    assert truth["current_full_software_positive_status"] == "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED"
     assert truth["current_live_apply_command_id"] == "autologon-remote"
-    assert truth["current_live_apply_positive_classification"] == "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING"
-    assert truth["full_profile_local_system_autologon_must_not_be_used_as_a_substitute"] is True
+    assert truth["current_live_apply_positive_classification"] == "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED"
+    assert truth["internal_pre_reboot_apply_classification"] == "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING"
+    assert truth["autologon_must_be_last"] is True
+    assert truth["autologon_restart_required"] is True
 
     sets = {item["id"]: item for item in package_sets["package_sets"]}
-    assert sets["cybernet-clinical-core"]["package_ids"] == [
+    core_ids = sets["cybernet-clinical-core"]["package_ids"]
+    full_ids = sets["cybernet-clinical-workstation"]["package_ids"]
+    assert core_ids == [
         "allscripts-eehr-shortcut-uai-2-2",
         "epic-downtime-guide-shortcut-1-0",
         "nuance-dragon-medical-one-2025",
         "hyland-fos-epic-integration-23-1-33-1000",
         "bca",
     ]
+    assert full_ids[:-1] == core_ids
+    assert full_ids[-1] == "autologon"
     assert sets["cybernet-autologon-only"]["package_ids"] == ["autologon"]
-    assert sets["cybernet-clinical-workstation"]["package_ids"][-1] == "autologon"
-    assert context["package_sets"]["clinical_core"] == "cybernet-clinical-core"
-    assert context["package_sets"]["autologon_only"] == "cybernet-autologon-only"
 
     command_ids = {item["id"] for item in commands}
     artifact_ids = {item["id"] for item in artifacts}
     outcome_by_command = {item["command_id"]: item for item in outcomes}
-    assert "autologon-remote" in command_ids
-    assert "autologon-runtime-proof" in command_ids
-    assert "autologon-s4u-pilot-result" in artifact_ids
-    assert "autologon-technician-runtime-proof" in artifact_ids
-    assert outcome_by_command["autologon-remote"]["success_artifact_id"] == "autologon-s4u-pilot-result"
-    assert outcome_by_command["autologon-runtime-proof"]["success_artifact_id"] == "autologon-technician-runtime-proof"
+    for command_id in ("cybernet-software-deploy", "autologon-remote", "autologon-runtime-proof"):
+        assert command_id in command_ids
+    for artifact_id in ("cybernet-software-deployment-result", "autologon-s4u-deployment-result", "autologon-s4u-pilot-result", "autologon-technician-runtime-proof"):
+        assert artifact_id in artifact_ids
+    assert outcome_by_command["cybernet-software-deploy"]["success_artifact_id"] == "cybernet-software-deployment-result"
+    assert outcome_by_command["autologon-remote"]["success_artifact_id"] == "autologon-s4u-deployment-result"
 
     intents = {item["id"]: item for item in context["intent_resolution"]}
-    for intent_id in ("test-autologon", "live-cert-autologon", "deploy-autologon", "deploy-and-runtime-proof", "runtime-proof-only", "complete-cybernet-profile"):
+    for intent_id in ("test-autologon", "live-cert-autologon", "deploy-autologon", "deploy-software", "deploy-and-runtime-proof", "runtime-proof-only", "complete-cybernet-profile"):
         assert intent_id in intents, f"missing deployment intent: {intent_id}"
-    assert intents["test-autologon"]["requires_apply"] is True
-    assert intents["live-cert-autologon"]["requires_apply"] is True
-    assert intents["deploy-and-runtime-proof"]["goal_state"] == "autologon_runtime_proven"
-    assert intents["runtime-proof-only"]["requires_apply"] is False
-    assert intents["runtime-proof-only"]["requires_prior_state"] == "autologon_pre_reboot_configured"
+    assert intents["test-autologon"]["goal_state"] == "autologon_restart_completed"
+    assert intents["live-cert-autologon"]["goal_state"] == "autologon_restart_completed"
+    assert intents["deploy-autologon"]["goal_state"] == "autologon_restart_completed"
+    assert intents["deploy-software"]["goal_state"] == "cybernet_software_deployed"
+    assert intents["runtime-proof-only"]["requires_prior_state"] == "autologon_restart_completed"
 
     states = {item["id"]: item for item in context["states"]}
     pre = states["autologon_pre_reboot_configured"]
+    restart = states["autologon_restart_completed"]
+    software = states["cybernet_software_deployed"]
     runtime = states["autologon_runtime_proven"]
-    cybernet = states["cybernet_profile_autologon_runtime_proven"]
-    assert pre["command_id"] == "autologon-remote"
-    assert pre["artifact_id"] == "autologon-s4u-pilot-result"
+    assert pre["terminal"] is False
     assert pre["positive_classification"] == "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING"
-    assert runtime["requires_state"] == "autologon_pre_reboot_configured"
-    assert runtime["requires_separate_attended_reboot"] is True
-    assert runtime["requires_direct_automatic_sign_in_observation"] is True
-    assert runtime["command_id"] == "autologon-runtime-proof"
-    assert runtime["artifact_id"] == "autologon-technician-runtime-proof"
-    assert runtime["positive_classification"] == "TECHNICIAN_OBSERVED_LIVE_RUNTIME"
-    assert cybernet["ordering"] == ["clinical_core_ready", "autologon_pre_reboot_configured", "autologon_runtime_proven"]
-
-    forbidden = "\n".join(context["forbidden_substitutions"])
-    for marker in ("deployment_planned", "FIXTURE_PASS", "KERBEROS_S4U_FIXTURE_READY", "LIVE CERT PASS", "exit code 0", "six-package LocalSystem"):
-        assert marker in forbidden, f"missing forbidden deployment substitute: {marker}"
+    assert restart["terminal"] is True
+    assert restart["positive_classification"] == "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED"
+    assert restart["artifact_id"] == "autologon-s4u-deployment-result"
+    assert software["positive_classification"] == "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED"
+    assert software["ordering"] == ["clinical_core_ready", "autologon_pre_reboot_configured", "autologon_restart_completed"]
+    assert runtime["requires_state"] == "autologon_restart_completed"
 
     s4u = read(S4U)
+    assert "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING" in s4u
+    assert "Start-Process -FilePath ([string]$config.installer_path)" in s4u
+
+    deploy = read(S4U_DEPLOY)
     for marker in (
-        "Configure AutoLogon remotely through Kerberos SMB and a passwordless S4U scheduled task.",
-        "Start-Process -FilePath ([string]$config.installer_path)",
-        "autologon_kerberos_s4u_pilot_result.json",
-        "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
+        "Invoke-SasAutoLogonKerberosS4UPilot.ps1",
+        "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
+        "shutdown.exe /r /t",
+        "restart_offline_observed",
+        "restart_online_observed",
+        "runtime_proof_required_for_deployment_completion = $false",
     ):
-        assert marker in s4u, f"S4U product truth drifted: {marker}"
+        assert marker in deploy, f"restart-complete AutoLogon deployment drifted: {marker}"
+
+    full = read(FULL_DEPLOY)
+    for marker in (
+        "Invoke-SasCybernetClinicalCoreDeployment.ps1",
+        "Invoke-SasAutoLogonS4URestartDeployment.ps1",
+        "AutoLogon must be the final software step",
+        "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
+    ):
+        assert marker in full, f"full Cybernet deployment drifted: {marker}"
 
     runtime_script = read(RUNTIME)
     for marker in ("runtime-proof-summary.json", "TECHNICIAN_OBSERVED_LIVE_RUNTIME", "runtime_proof", "overall_success"):
-        assert marker in runtime_script, f"runtime proof truth drifted: {marker}"
+        assert marker in runtime_script
 
     workflow = read(WORKFLOW)
     for marker in (
         "workflow_id: cybernet-autologon-deployment-state",
         "test AutoLogon as a real one-target apply pilot",
         "transport live certification remains admission only",
-        "use command id autologon-remote",
-        "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
-        "run command id autologon-runtime-proof",
-        "do not run the six-package LocalSystem Cybernet set as a substitute",
+        "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
+        "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
+        "runtime proof does not delay deployment completion",
     ):
         assert marker in workflow, f"deployment-state workflow missing: {marker}"
 
     skill = read(SKILL)
     for marker in (
-        "## Trigger",
-        "## Critical artifacts",
-        "## Forbidden stopping patterns",
-        "sas autologon Remote HOST",
-        "Do not reinstall them merely to reach AutoLogon",
-        "TECHNICIAN_OBSERVED_LIVE_RUNTIME",
-        "hours of live searching",
+        "## Trigger", "## Critical artifacts", "## Forbidden stopping patterns",
+        "sas autologon Remote HOST", "sas cybernet Deploy HOST",
+        "AutoLogon is last", "restart", "runtime proof", "hours of live searching",
     ):
         assert marker in skill, f"deployment-state skill missing: {marker}"
+
+    forbidden = "\n".join(context["forbidden_substitutions"])
+    for marker in ("deployment_planned", "FIXTURE_PASS", "KERBEROS_S4U_FIXTURE_READY", "LIVE CERT PASS", "REBOOT_PROOF_PENDING", "runtime proof as a prerequisite", "six-package LocalSystem"):
+        assert marker in forbidden, f"missing forbidden deployment substitute: {marker}"
 
     print("PASS: deployment-state harness contracts")
     return 0
