@@ -2,110 +2,38 @@
 
 ## Audience and current operator workflow
 
-This tutorial is for authorized technicians and Windows administrators deploying the approved Cybernet clinical software stack and, when requested, completing AutoLogon through its separate final lane.
+This tutorial is for authorized technicians and Windows administrators deploying the approved Cybernet clinical software stack and AutoLogon.
 
-The **primary technician surface** is the installed portable operator command:
+The primary field surface is:
 
 ```powershell
 sas
 ```
 
-For one explicitly authorized Cybernet, the current field sequence is:
-
-```powershell
-sas cybernet Deploy <AUTHORIZED-CYBERNET>
-sas autologon Remote <AUTHORIZED-CYBERNET>
-```
-
-Do not reconstruct the deployment from older manual package-set examples when the current operator surface is available.
-
-## Current state model
-
-The clinical workstation software state is intentionally split:
-
-1. `cybernet-clinical-core` — five approved applications;
-2. AutoLogon — separate and last through Kerberos SMB/S4U;
-3. attended reboot and direct automatic-sign-in observation when runtime proof is requested;
-4. runtime proof from the actual AutoLogon desktop session.
-
-The historical six-package LocalSystem `cybernet-clinical-workstation` set is **not** the current field AutoLogon route while canonical SYSTEM AutoLogon remains blocked by failed runtime qualification. The current AutoLogon apply lane is `sas autologon Remote HOST`.
-
-If the five clinical-core applications are already proven installed and accepted, preserve them and skip reinstall. Move directly to the remaining requested AutoLogon state.
-
-## Roles and boundaries
-
-| Location | Operator action | What happens there |
-| --- | --- | --- |
-| Windows admin workstation or admin VM | Run `sas cybernet Deploy HOST` and review local evidence | Package-set validation, Northwell network gate, dry admission check, live SYSTEM deployment, result collection, cleanup verification |
-| Approved software share | Read-only source | Supplies only the exact catalog-pinned MSI/EXE payloads |
-| Target Cybernet workstation | No manual command required during clinical-core deployment | Receives run-scoped payloads; Task Scheduler launches approved installers as SYSTEM |
-| Windows admin workstation | Run `sas autologon Remote HOST` | Stages and executes the approved AutoLogon installer through Kerberos SMB/S4U without requiring a target-side login |
-| Technician at target / attended session | Observe reboot/sign-in and run runtime proof | Directly proves automatic sign-in and actual-session application/runtime behavior |
-
-These lanes do not embed passwords, enable WinRM, weaken firewall policy, or reboot a workstation without separate authorization.
-
-## Prerequisites
-
-Before live deployment confirm:
-
-- the change/ticket, target, maintenance window, and operator are authorized;
-- the controller is an approved Windows admin workstation or admin VM on a network accepted by the SysAdminSuite network guard;
-- the current Windows identity has the required package-share and target administrative access;
-- Git for Windows, Python 3, Windows PowerShell, and Task Scheduler tooling are available;
-- the target is one explicit hostname/FQDN for the initial pilot;
-- local evidence remains outside Git.
-
-Never paste a password into a deployment command.
-
-## 1. Deploy the five-package clinical core
-
-Run:
+For one explicitly authorized Cybernet, a complete software deployment is:
 
 ```powershell
 sas cybernet Deploy <AUTHORIZED-CYBERNET>
 ```
 
-This single invocation performs:
+That command owns the complete ordered software state:
 
-1. exact validation of the tracked `cybernet-clinical-core` package-set membership and order;
-2. confirmation that AutoLogon is not part of the clinical-core set;
-3. the current PowerShell Northwell network gate;
-4. the controller dry run as an admission gate;
-5. immediate continuation into live deployment when that admission gate passes;
-6. per-package result collection;
-7. scheduled-task and run-scoped staging cleanup verification.
-
-The command does **not** reboot the target.
+1. five approved clinical applications;
+2. AutoLogon **last**;
+3. automatic target restart;
+4. bounded observation that the target left and returned on the already-proven SMB service.
 
 Required terminal status:
 
 ```text
-CLINICAL_CORE_DEPLOYMENT_COMPLETED
+CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED
 ```
 
-Canonical summary:
+The historical six-package LocalSystem `cybernet-clinical-workstation` controller remains unsuitable because canonical SYSTEM AutoLogon is still blocked by failed runtime qualification. The current orchestrator therefore composes the proven five-package clinical-core engine with the Kerberos/S4U AutoLogon engine and restart-complete wrapper.
 
-```text
-survey\output\runs\cybernet-clinical-core\cybernet-clinical-core-*\cybernet_clinical_core_deployment_summary.json
-```
+## When the clinical apps are already installed
 
-The summary must identify:
-
-```text
-package_set_id=cybernet-clinical-core
-autologon_included=false
-status=CLINICAL_CORE_DEPLOYMENT_COMPLETED
-```
-
-Preserve the referenced controller results CSV. If the deployment returns nonzero or reports `ACTION_REQUIRED`, preserve the emitted evidence and do not blindly rerun the target.
-
-## 2. Technician acceptance for the clinical core
-
-A successful installer exit does not prove the application works. Confirm the expected shortcuts/applications exist and open through the normal technician workflow.
-
-When the five clinical-core applications are already accepted from prior work, preserve that evidence instead of reinstalling them just to reach AutoLogon.
-
-## 3. Apply AutoLogon separately and last
+Preserve accepted application state. Do not reinstall the five clinical apps merely to reach AutoLogon.
 
 Run:
 
@@ -113,46 +41,85 @@ Run:
 sas autologon Remote <AUTHORIZED-CYBERNET>
 ```
 
-This is the current real AutoLogon apply lane. It stages the approved AutoLogon package through Kerberos SMB, executes it through a passwordless S4U scheduled task under the authorized domain principal, validates the resulting pre-reboot state, and performs cleanup.
+That command applies AutoLogon and restarts the target automatically. Required success classification:
 
-Required positive classification:
+```text
+AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED
+```
+
+The intermediate S4U status:
 
 ```text
 KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING
 ```
 
-Canonical deployment artifact:
+is an internal apply gate only. It is **not** the technician stopping point because AutoLogon does not become effective until the restart occurs.
+
+## What `sas cybernet Deploy` actually does
+
+The orchestrator validates that the tracked full profile equals the clinical-core order plus `autologon` as the final package ID. It then:
+
+1. runs the current Northwell network gate;
+2. dry-runs the five-package clinical core as an internal admission gate;
+3. continues into live clinical-core deployment in the same invocation;
+4. applies AutoLogon last through Kerberos SMB/S4U;
+5. requires clean pre-reboot AutoLogon state and S4U cleanup;
+6. creates one bounded SYSTEM restart task;
+7. starts the restart;
+8. waits for TCP/445 to leave and return;
+9. verifies the one-time restart task is absent or removes it;
+10. writes the final deployment artifact.
+
+The technician is not required to run a separate fixture, transport live-cert, or runtime-proof loop before deployment can complete.
+
+## Canonical artifacts
+
+Full software deployment:
 
 ```text
-survey\output\runs\autologon-kerberos-s4u\autologon-kerberos-s4u-*\autologon_kerberos_s4u_pilot_result.json
+survey\output\runs\cybernet-software-deployment\cybernet-software-deployment-*\cybernet_software_deployment_result.json
 ```
 
-The following are **not substitutes** for that positive deployment artifact:
+Required values:
 
-- fixture E2E success;
-- transport-only `LIVE CERT PASS`;
-- installer process start;
-- installer exit code `0` or `3010` by itself;
-- expected registry settings without the correlated S4U deployment result.
+```text
+status=CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED
+autologon_was_last_software_step=true
+automatic_reboot_performed=true
+restart_offline_observed=true
+restart_online_observed=true
+```
 
-## 4. Reboot/sign-in is not yet proven — continue when runtime proof is requested
+AutoLogon-only deployment:
 
-`KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING` proves the pre-reboot AutoLogon configuration ceiling only.
+```text
+survey\output\runs\autologon-s4u-deployment\autologon-s4u-deployment-*\autologon_s4u_deployment_result.json
+```
 
-**The work item is not finished when deployment plus runtime proof was requested.**
+Required values:
 
-The next state transition is:
+```text
+classification=AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED
+autologon_applied=true
+autologon_was_last_software_step=true
+automatic_reboot_performed=true
+restart_offline_observed=true
+restart_online_observed=true
+```
 
-1. obtain the separately required authorization for an attended reboot;
-2. reboot the same target through the approved site process;
-3. directly observe automatic sign-in to the expected workstation account;
-4. from that actual AutoLogon desktop, run the runtime proof.
+## Deployment means mutation, not another test loop
 
-Do not infer reboot/sign-in from the S4U artifact. Do not fall back to fixture, transport, or live-search testing after the positive pre-reboot classification.
+When an authorized technician asks to deploy software, test AutoLogon on the target, or live-cert the path with deployment authority, a green fixture or transport check is only admission. It must not replace the actual deployment step.
 
-## 5. Run actual-session runtime proof
+The full and AutoLogon-only commands above perform real target mutation. If an internal dry run or preflight fails, the command stops before mutation and records the gate. If those gates pass, the same invocation continues.
 
-From the actual automatically signed-in desktop session:
+Do not tell the technician that a process exit code, fixture result, or transport-only certificate is deployment completion.
+
+## Runtime proof after deployment
+
+Software deployment completes after the required restart cycle. Automatic sign-in is expected to take effect on that restart, but the deployment artifact does not falsely claim somebody visually observed the desktop.
+
+When a separate runtime-proof request exists, run the bounded proof from the actual AutoLogon desktop:
 
 ```powershell
 scripts\Start-SasAutoLogonTechnicianRuntimeProof.cmd targets\local\autologon-runtime.json
@@ -164,15 +131,7 @@ Required runtime classification:
 TECHNICIAN_OBSERVED_LIVE_RUNTIME
 ```
 
-The runtime summary must report:
-
-```text
-proof_level=TECHNICIAN_OBSERVED_LIVE_RUNTIME
-runtime_proof=true
-overall_success=true
-```
-
-Pre-reboot deployment and runtime proof are separate artifacts. Neither one substitutes for the other.
+Runtime proof is a higher evidence ceiling and is not required to call software deployment complete.
 
 ## Generic single-package controller — advanced/reference use
 
@@ -182,7 +141,7 @@ The underlying compatibility controller remains:
 bash/apps/sas-install-apps.sh
 ```
 
-Use it only for a specifically approved package-level workflow that is not already covered by the higher-level technician command. A single package must be enabled in `configs/software-packages/approved-apps.json`; an ordered package set must be enabled in `configs/software-packages/windows-native-package-sets.json`.
+Use it only for a specifically approved package-level workflow not already covered by the higher-level technician command. A single package must be enabled in `configs/software-packages/approved-apps.json`.
 
 Example BCA dry run:
 
@@ -194,7 +153,7 @@ bash bash/apps/sas-install-apps.sh \
   --dry-run
 ```
 
-Example BCA live run after the approved review gate:
+Example BCA live run after the approved admission gate:
 
 ```bash
 bash bash/apps/sas-install-apps.sh \
@@ -203,57 +162,54 @@ bash bash/apps/sas-install-apps.sh \
   --allow-legacy
 ```
 
-The controller creates a unique run-scoped staging folder, uses a one-time SYSTEM scheduled task, retrieves the result, and removes only that task and run-scoped staging root.
+Do **not** use the generic controller to reconstruct the historical six-package `cybernet-clinical-workstation` live path for AutoLogon. Current field AutoLogon is the S4U restart-complete lane above.
 
-Do **not** use the generic controller to reconstruct the historical six-package `cybernet-clinical-workstation` live path for AutoLogon. Current field AutoLogon is the S4U lane above.
+## Roles and boundaries
+
+| Location | Operator action | What happens there |
+| --- | --- | --- |
+| Windows admin workstation or approved admin VM | Run `sas cybernet Deploy HOST` | Full ordered software deployment, AutoLogon last, restart, evidence collection |
+| Windows admin workstation or approved admin VM | Run `sas autologon Remote HOST` | AutoLogon-only S4U deployment plus restart |
+| Approved software share | Read-only source | Supplies exact catalog-pinned payloads |
+| Target Cybernet workstation | No manual command required during deployment | Receives staged payloads, executes approved tasks, restarts after AutoLogon |
+| Technician target session | Optional runtime proof when separately requested | Directly observes automatic sign-in/application behavior |
+
+The deployment lanes do not embed passwords, enable WinRM, weaken firewall policy, or use the blocked canonical SYSTEM AutoLogon install path.
 
 ## Troubleshooting
 
-### `Admin share unavailable or access denied`
+### Clinical-core stage fails
 
-Confirm the exact hostname/FQDN, current network context, current Windows admin token, and `\\TARGET\C$` access. Do not add credentials to the command or weaken endpoint policy.
+Preserve `cybernet_clinical_core_deployment_summary.json` and the controller CSV. Do not blindly rerun the target.
 
-### Northwell network gate stops the deployment
+### AutoLogon S4U stage fails
 
-Do not bypass it. Use the bounded network choices offered by SysAdminSuite and rerun only after the approved network posture is confirmed.
+Preserve the S4U result and the wrapper result. Do not require a target-side login and do not switch back to the blocked SYSTEM AutoLogon path.
 
-### Clinical-core dry run fails
+### Restart task cannot be created or started
 
-Live clinical-core deployment was not started. Read the emitted `cybernet_clinical_core_deployment_summary.json` and dry-run console log, repair the named gate, and then retry the same authorized target.
+Deployment is not complete. Preserve `autologon_s4u_deployment_result.json`; fix the exact remote Task Scheduler authorization/failure and retry only after reviewing the target state.
 
-### Clinical-core live deployment fails
+### Target leaves but does not return within the restart window
 
-Preserve the summary, deploy console log, and controller result CSV. Do not blindly retry. Inspect the exact failed package/task/staging/cleanup boundary first.
-
-### AutoLogon S4U deployment fails
-
-Preserve `autologon_kerberos_s4u_pilot_result.json` and classify the exact S4U failure. Do not switch back to the blocked canonical SYSTEM AutoLogon path and do not require a technician to log in locally merely to install AutoLogon.
-
-### AutoLogon reaches `KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING`
-
-That is **success for the pre-reboot deployment state**, but it is not runtime proof. If runtime proof is part of the requested work, proceed to the separately authorized attended reboot and direct automatic-sign-in observation. Do not restart diagnostic loops.
-
-### Exit code `3010`
-
-Record `restart required`. No deployment lane in this tutorial authorizes an automatic reboot. Use the separately approved site reboot process.
+The result is `ACTION_REQUIRED`. Treat it as restart recovery uncertainty, not as permission to reinstall software blindly.
 
 ### Cleanup cannot be proven
 
-Do not classify that deployment stage as complete. Inspect only the unique task and run root named in the controller evidence. Never delete the parent staging tree broadly.
+Do not classify deployment complete. Only the unique run-scoped task/staging artifacts named in the evidence may be repaired; never perform broad destructive cleanup.
 
 ## Operator closeout checklist
 
 - [ ] Exact authorized target used.
-- [ ] Five-package clinical core was either already proven accepted or reached `CLINICAL_CORE_DEPLOYMENT_COMPLETED`.
-- [ ] Clinical-core controller result CSV retained locally.
-- [ ] AutoLogon, when requested, ran through `sas autologon Remote HOST` rather than the historical SYSTEM package-set path.
-- [ ] Pre-reboot AutoLogon reached `KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING` before any runtime claim.
-- [ ] Reboot/sign-in was **not** claimed from the pre-reboot artifact.
-- [ ] Separately authorized attended reboot was performed when runtime proof was requested.
-- [ ] Automatic sign-in was directly observed on the real target.
-- [ ] Runtime proof reached `TECHNICIAN_OBSERVED_LIVE_RUNTIME` with `runtime_proof=true` and `overall_success=true` when required.
+- [ ] Five clinical applications completed before AutoLogon in the full profile.
+- [ ] AutoLogon was the final software step.
+- [ ] Required pre-reboot AutoLogon state passed.
+- [ ] Target restart was initiated automatically by the deployment command.
+- [ ] Target left and returned on the proven SMB service.
+- [ ] Restart task cleanup was verified.
+- [ ] Final deployment result reports completion.
 - [ ] Failed targets were reviewed individually before retry.
-- [ ] No credentials, live evidence, or machine-local artifacts were committed.
+- [ ] No credentials, live hostnames, raw logs, or machine-local evidence were committed.
 
 ## Related references
 
