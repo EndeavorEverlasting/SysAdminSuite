@@ -88,13 +88,13 @@ def test_current_controller_boundaries_are_documented() -> None:
     script = read(SCRIPT)
     combined = tutorial + "\n" + reference
     for marker in (
-        "current approved Windows administrative token",
-        "does not enable WinRM",
-        "Transport cleanup is not software rollback",
-        "does not implement a general uninstall",
+        "current Windows admin token",
+        "enable WinRM",
+        "Transport cleanup is not an uninstall",
+        "does not implement a general software rollback",
         "HOST_OK",
         "technician",
-        "does not restart",
+        "never restarts",
         "--no-teardown",
     ):
         assert marker.lower() in combined.lower(), f"missing boundary: {marker}"
