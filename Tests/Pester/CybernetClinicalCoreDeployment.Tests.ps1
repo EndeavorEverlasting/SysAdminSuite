@@ -6,13 +6,14 @@ BeforeAll {
     $script:deploymentCmd = Join-Path $script:repoRoot 'Deploy-CybernetClinicalCore.cmd'
     $script:fullDeploymentScript = Join-Path $script:repoRoot 'scripts\Invoke-SasCybernetSoftwareDeployment.ps1'
     $script:fullDeploymentCmd = Join-Path $script:repoRoot 'Deploy-CybernetSoftware.cmd'
+    $script:autoRestartScript = Join-Path $script:repoRoot 'scripts\Invoke-SasAutoLogonS4URestartDeployment.ps1'
     $script:portableLauncher = Join-Path $script:repoRoot 'scripts\SasPortableLauncher.ps1'
     $script:packageSetPath = Join-Path $script:repoRoot 'configs\software-packages\windows-native-package-sets.json'
 }
 
 Describe 'Cybernet clinical-core and full software deployment surfaces' {
-    It 'parses both deployment PowerShell surfaces cleanly' {
-        foreach ($path in @($script:deploymentScript,$script:fullDeploymentScript)) {
+    It 'parses all production deployment PowerShell surfaces cleanly' {
+        foreach ($path in @($script:deploymentScript,$script:fullDeploymentScript,$script:autoRestartScript)) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors) | Out-Null
@@ -51,5 +52,22 @@ Describe 'Cybernet clinical-core and full software deployment surfaces' {
         $launcher | Should -Match 'Deploy-CybernetSoftware.cmd'
         $launcher | Should -Match 'restart included'
         $launcher | Should -Match 'Hardware-only Cybernet apply'
+    }
+
+    It 'completes AutoLogon deployment through a bounded SYSTEM restart without credentials' {
+        $text = Get-Content -LiteralPath $script:autoRestartScript -Raw
+        $text | Should -Match 'Invoke-SasAutoLogonKerberosS4UPilot.ps1'
+        $text | Should -Match 'KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING'
+        $text | Should -Match 'shutdown\.exe /r /t \{0\} /f /d p:4:1'
+        $text | Should -Match "'/RU','SYSTEM'"
+        $text | Should -Match "'/Z'"
+        $text | Should -Match 'Test-SasAutoLogonTcp445'
+        $text | Should -Match 'restart_offline_observed'
+        $text | Should -Match 'restart_online_observed'
+        $text | Should -Match 'Confirm-SasAutoLogonRestartTaskCleanup'
+        $text | Should -Match 'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED'
+        $text | Should -Match 'runtime_proof_required_for_deployment_completion\s*=\s*\$false'
+        $text.ToLowerInvariant() | Should -Not -Match "'/rp'"
+        $text.ToLowerInvariant() | Should -Not -Match 'get-credential|pscredential|securestring'
     }
 }
