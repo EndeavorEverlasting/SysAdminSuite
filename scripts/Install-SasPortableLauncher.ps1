@@ -46,16 +46,16 @@ Write-Host "Resolved repo: $repoRoot"
 Write-Host "Command: $cmdDestination"
 Write-Host ''
 Write-Host 'Open a new terminal and use:' -ForegroundColor Cyan
-Write-Host '  sas                                      Show current deployment/runtime guidance'
-Write-Host '  sas cybernet Deploy HOST                 Deploy five approved clinical-core applications'
-Write-Host '  sas autologon Remote HOST                Apply AutoLogon through Kerberos/S4U'
+Write-Host '  sas                                      Show current deployment guidance'
+Write-Host '  sas cybernet Deploy HOST                 Deploy full software profile; AutoLogon last; restart included'
+Write-Host '  sas autologon Remote HOST                Deploy AutoLogon only; restart included'
 Write-Host '  sas cybernet Plan HOST                   Hardware-only Cybernet plan'
 Write-Host '  sas cybernet Apply HOST                  Hardware-only Cybernet apply'
 Write-Host '  sas cybernet Validate HOST               Hardware-only Cybernet validation'
 Write-Host '  sas network                              Check approved Northwell network posture'
 Write-Host ''
-Write-Host 'After positive S4U pre-reboot proof, reboot/sign-in are NOT yet proven.' -ForegroundColor Yellow
-Write-Host 'When runtime proof is requested: obtain separate attended reboot authorization, directly observe' -ForegroundColor Yellow
-Write-Host 'automatic sign-in, then run the actual-session runtime proof shown by `sas`.' -ForegroundColor Yellow
+Write-Host 'Deployment completion includes the required target restart when AutoLogon is installed.' -ForegroundColor Green
+Write-Host 'Fixture, live-cert, and runtime-proof loops are not prerequisites for software deployment completion.' -ForegroundColor Green
+Write-Host 'Runtime proof remains available when explicitly requested, but it must not delay deployment.' -ForegroundColor Cyan
 Write-Host ''
-Write-Host 'No administrator rights are required to install/refresh the command itself. Run this installer for each Windows user/PC after updating the repo guidance.'
+Write-Host 'No administrator rights are required to install/refresh the command itself. Run this installer for each Windows user/PC after updating the repo.'
