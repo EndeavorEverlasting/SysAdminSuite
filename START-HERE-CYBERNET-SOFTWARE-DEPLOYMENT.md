@@ -127,6 +127,11 @@ sas cybernet Validate <AUTHORIZED-CYBERNET>
 
 Those commands own hardware preferences such as power/no-sleep/display/COM behavior. They are **not** the current clinical software deployment or AutoLogon commands.
 
+For the complete hardware/client workflow and safe retry guidance, keep these current references available:
+
+- [Complete Cybernet client configuration guide](docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md)
+- [Cybernet client configuration troubleshooting](docs/tutorials/CYBERNET_CLIENT_CONFIGURATION_TROUBLESHOOTING.md)
+
 ## Technical references
 
 - Clinical-core deployment implementation: `scripts/Invoke-SasCybernetClinicalCoreDeployment.ps1`
