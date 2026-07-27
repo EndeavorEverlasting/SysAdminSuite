@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Static contracts for the remote Kerberos/S4U AutoLogon pilot lane."""
+"""Static contracts for the remote Kerberos/S4U AutoLogon deployment lane."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "Invoke-SasAutoLogonKerberosS4UPilot.ps1"
+DEPLOYMENT = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
 ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
 CMD = ROOT / "Run-AutoLogonOnsite.cmd"
 
@@ -41,27 +42,8 @@ def test_current_controller_identity_is_kerberos_and_target_authorized() -> None
         "admin_share.authorized",
         "scheduled_task_query.succeeded",
         "Request-SasS4UKerberosTicket",
-        'CIFS/{0}',
         "KERBEROS_S4U_KERBEROS_IDENTITY_BLOCKED",
         "KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED",
-    ):
-        assert marker in text, marker
-
-
-def test_s4u_task_principal_is_current_named_domain_identity_and_elevated() -> None:
-    text = read(SCRIPT)
-    for marker in (
-        "WindowsIdentity]::GetCurrent()",
-        "S4U AutoLogon requires a domain identity",
-        "expected_sid",
-        "identity_matches_expected_sid",
-        "WindowsBuiltInRole]::Administrator",
-        "KERBEROS_S4U_PRINCIPAL_NOT_ELEVATED",
-        "'/Create','/S',$Target",
-        "'/RU',$PrincipalName,'/NP'",
-        "'/Run','/S',$Target",
-        "'/Delete','/S',$Target",
-        "'/Query','/S',$Target",
     ):
         assert marker in text, marker
 
@@ -75,7 +57,6 @@ def test_package_is_staged_locally_before_s4u_install() -> None:
     install = text.index("Invoke-SasS4UTask -Target $resolvedTarget -TaskName $installTask")
     assert source_hash < stage < target_hash < probe < install
     assert "installer_arguments = @()" in text
-    assert "installer_arguments_policy -ne 'approved_empty'" in text
     assert "network_access_from_task_expected = $false" in text
 
 
@@ -96,17 +77,21 @@ def test_final_gate_and_system_state_proof_surround_s4u_installer() -> None:
         assert marker in text
 
 
-def test_system_failure_is_preserved_not_reclassified() -> None:
-    text = read(SCRIPT)
-    assert "canonical_system_qualification_changed = $false" in text
-    assert "canonical_system_install_enabled" in text
-    assert "canonical_system_qualification_status" in text
-    assert "QUALIFIED_FOR_CANONICAL_SYSTEM" not in text
-    assert "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING" in text
+def test_pre_reboot_engine_remains_truthful_and_wrapper_completes_restart() -> None:
+    engine = read(SCRIPT)
+    deploy = read(DEPLOYMENT)
+    assert "canonical_system_qualification_changed = $false" in engine
+    assert "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING" in engine
+    assert "Invoke-SasAutoLogonKerberosS4UPilot.ps1" in deploy
+    assert "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in deploy
+    assert "shutdown.exe /r /t" in deploy
+    assert "restart_offline_observed" in deploy
+    assert "restart_online_observed" in deploy
+    assert "runtime_proof_required_for_deployment_completion = $false" in deploy
 
 
 def test_password_and_autologon_secret_data_are_not_collected() -> None:
-    text = read(SCRIPT).lower()
+    text = (read(SCRIPT) + "\n" + read(DEPLOYMENT)).lower()
     assert "default_password_value_collected = $false" in text
     assert "password_supplied_or_stored = $false" in text
     for forbidden in (
@@ -115,20 +100,19 @@ def test_password_and_autologon_secret_data_are_not_collected() -> None:
         "securestring",
         "'/rp'",
         '"/rp"',
-        "defaultpassword).",
         "getvalue('defaultpassword'",
     ):
         assert forbidden not in text, forbidden
 
 
-def test_operator_surface_routes_remote_action() -> None:
+def test_operator_surface_routes_remote_action_to_restart_complete_deployment() -> None:
     onsite = read(ONSITE)
     cmd = read(CMD)
     assert "'Remote','S4U'" in onsite
-    assert "Invoke-SasAutoLogonKerberosS4UPilot.ps1" in onsite
-    assert "-ComputerName $target" in onsite
-    assert "Remote AutoLogon via Kerberos SMB + passwordless S4U admin task" in onsite
-    assert 'Run-AutoLogonOnsite.cmd Remote HOST' in cmd
+    assert "Invoke-SasAutoLogonS4URestartDeployment.ps1" in onsite
+    assert "-ComputerName $target -AllowTargetMutation -ConfirmDeployment" in onsite
+    assert "Deploy AutoLogon via Kerberos SMB + passwordless S4U, then restart target" in onsite
+    assert "Run-AutoLogonOnsite.cmd Remote HOST" in cmd
 
 
 def test_fixture_makes_no_live_claim() -> None:

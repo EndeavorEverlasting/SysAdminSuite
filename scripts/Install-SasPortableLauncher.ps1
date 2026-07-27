@@ -41,15 +41,21 @@ if (-not (($env:Path -split ';') -contains $installRoot)) {
     $env:Path = $env:Path.TrimEnd(';') + ';' + $installRoot
 }
 
-Write-Host 'SysAdminSuite portable operator command installed for the current Windows user.' -ForegroundColor Green
+Write-Host 'SysAdminSuite portable operator command installed/refreshed for the current Windows user.' -ForegroundColor Green
 Write-Host "Resolved repo: $repoRoot"
 Write-Host "Command: $cmdDestination"
 Write-Host ''
 Write-Host 'Open a new terminal and use:' -ForegroundColor Cyan
-Write-Host '  sas autologon'
-Write-Host '  sas network'
-Write-Host '  sas cybernet Plan HOST'
-Write-Host '  sas cybernet Apply HOST'
-Write-Host '  sas cybernet Validate HOST'
+Write-Host '  sas                                      Show current deployment guidance'
+Write-Host '  sas cybernet Deploy HOST                 Deploy full software profile; AutoLogon last; restart included'
+Write-Host '  sas autologon Remote HOST                Deploy AutoLogon only; restart included'
+Write-Host '  sas cybernet Plan HOST                   Hardware-only Cybernet plan'
+Write-Host '  sas cybernet Apply HOST                  Hardware-only Cybernet apply'
+Write-Host '  sas cybernet Validate HOST               Hardware-only Cybernet validation'
+Write-Host '  sas network                              Check approved Northwell network posture'
 Write-Host ''
-Write-Host 'No administrator rights are required. Run this installer once for each Windows user/PC.'
+Write-Host 'Deployment completion includes the required target restart when AutoLogon is installed.' -ForegroundColor Green
+Write-Host 'Fixture, live-cert, and runtime-proof loops are not prerequisites for software deployment completion.' -ForegroundColor Green
+Write-Host 'Runtime proof remains available when explicitly requested, but it must not delay deployment.' -ForegroundColor Cyan
+Write-Host ''
+Write-Host 'No administrator rights are required to install/refresh the command itself. Run this installer for each Windows user/PC after updating the repo.'

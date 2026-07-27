@@ -24,6 +24,7 @@ function Test-SasRepoRoot {
         (Test-Path -LiteralPath $candidate -PathType Container) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Run-AutoLogonOnsite.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Run-CybernetBatchConfiguration.cmd') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetSoftware.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetClinicalCore.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'scripts\SasNetworkGuard.psm1') -PathType Leaf)
     )
@@ -152,15 +153,23 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host 'SysAdminSuite portable operator command' -ForegroundColor Cyan
     Write-Host "Repo: $repoRoot"
     Write-Host ''
+    Write-Host '  sas cybernet Deploy HOST            DEPLOY full Cybernet software profile; AutoLogon last; restart included'
+    Write-Host '  sas autologon Remote HOST           DEPLOY AutoLogon only through Kerberos/S4U; restart included'
     Write-Host '  sas autologon                       AutoLogon on-site menu'
-    Write-Host '  sas autologon Remote HOST           Remote Kerberos/S4U AutoLogon; no target login'
-    Write-Host '  sas cybernet Deploy HOST            Deploy five approved clinical-core applications; AutoLogon separate'
     Write-Host '  sas cybernet Plan HOST              Hardware-only Cybernet plan'
     Write-Host '  sas cybernet Apply HOST             Hardware-only Cybernet apply'
     Write-Host '  sas cybernet Validate HOST          Hardware-only Cybernet validation'
     Write-Host '  sas network                         Check/recheck approved Northwell network posture'
     Write-Host '  sas repo                            Print resolved repository path'
     Write-Host '  sas open                            Open repository in Explorer'
+    Write-Host ''
+    Write-Host 'Software deployment behavior:' -ForegroundColor Cyan
+    Write-Host '  - Full Cybernet deployment installs the five clinical applications first.'
+    Write-Host '  - AutoLogon is always the final software step.'
+    Write-Host '  - AutoLogon deployment automatically restarts the target and waits for it to return.'
+    Write-Host '  - Success: CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED or AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED.'
+    Write-Host '  - Fixture/live-cert/runtime-proof loops are NOT prerequisites for deployment completion.' -ForegroundColor Green
+    Write-Host '  - Runtime proof remains available only when explicitly requested; it must not delay deployment.' -ForegroundColor Cyan
     exit 0
 }
 
@@ -184,7 +193,7 @@ switch ($normalized) {
     'cybernet' {
         $args = @($CommandArgs)
         if ($args.Count -gt 0 -and [string]$args[0] -and ([string]$args[0]).Trim().ToLowerInvariant() -eq 'deploy') {
-            $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Deploy-CybernetClinicalCore.cmd' -Arguments $args
+            $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Deploy-CybernetSoftware.cmd' -Arguments $args
         }
         else {
             $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-CybernetBatchConfiguration.cmd' -Arguments $args

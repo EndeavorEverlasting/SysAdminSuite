@@ -2,7 +2,8 @@
 """Dependency-free contracts for the portable on-site operator surface.
 
 These tests inspect tracked launcher and safety boundaries only. They do not connect
-Wi-Fi, contact a target, mutate a target, install software, or change AutoLogon state.
+Wi-Fi, contact a target, mutate a target, install software, reboot a workstation, or
+change AutoLogon state.
 """
 from pathlib import Path
 
@@ -35,22 +36,27 @@ def test_local_system_candidate_actions_remain_separate_from_remote_s4u() -> Non
     pilot = script.index("'Pilot' {")
     live = script.index("& $qualificationScript -Action Live")
     remote = script.index("{ $_ -in @('Remote','S4U') } {")
-    s4u_live = script.index("& $s4uScript -ComputerName $target")
+    deploy = script.index("& $s4uDeploymentScript -ComputerName $target")
     assert pilot < live
-    assert remote < s4u_live
+    assert remote < deploy
     assert "Confirm-SasNorthwellNetwork.ps1" in script
 
 
-def test_auto_logon_remote_command_accepts_action_and_target() -> None:
+def test_auto_logon_remote_command_accepts_action_and_target_and_restarts() -> None:
     cmd = read("Run-AutoLogonOnsite.cmd")
     launcher = read("scripts/SasPortableLauncher.ps1")
-    script = read("scripts/Invoke-SasAutoLogonOnsite.ps1")
+    onsite = read("scripts/Invoke-SasAutoLogonOnsite.ps1")
+    deployment = read("scripts/Invoke-SasAutoLogonS4URestartDeployment.ps1")
     assert 'if not "%~3"==""' in cmd
     assert '-ComputerName "%~2"' in cmd
-    assert "'Remote','S4U'" in script
-    assert "Invoke-SasAutoLogonKerberosS4UPilot.ps1" in script
+    assert "'Remote','S4U'" in onsite
+    assert "Invoke-SasAutoLogonS4URestartDeployment.ps1" in onsite
     assert "sas autologon Remote HOST" in launcher
-    assert "no target login" in script.lower()
+    assert "restart included" in launcher
+    assert "Invoke-SasAutoLogonKerberosS4UPilot.ps1" in deployment
+    assert "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in deployment
+    assert "automatic_reboot_performed" in deployment
+    assert "shutdown.exe /r /t" in deployment
 
 
 def test_network_guard_has_windows11_wifi_profile_fallback() -> None:
@@ -113,22 +119,47 @@ def test_cybernet_target_operations_are_gated_in_engine_for_cmd_and_csv_paths() 
     assert "exit $gateExit" in engine
 
 
-def test_portable_sas_cybernet_deploy_routes_to_clinical_core_and_keeps_hardware_separate() -> None:
+def test_portable_sas_cybernet_deploy_routes_to_full_profile_and_keeps_hardware_separate() -> None:
     launcher = read("scripts/SasPortableLauncher.ps1")
-    cmd = read("Deploy-CybernetClinicalCore.cmd")
-    script = read("scripts/Invoke-SasCybernetClinicalCoreDeployment.ps1")
+    cmd = read("Deploy-CybernetSoftware.cmd")
+    orchestrator = read("scripts/Invoke-SasCybernetSoftwareDeployment.ps1")
+    core = read("scripts/Invoke-SasCybernetClinicalCoreDeployment.ps1")
     assert "sas cybernet Deploy HOST" in launcher
-    assert "Deploy-CybernetClinicalCore.cmd" in launcher
+    assert "Deploy-CybernetSoftware.cmd" in launcher
     assert "Run-CybernetBatchConfiguration.cmd" in launcher
     assert "Hardware-only Cybernet apply" in launcher
-    assert "-Mode Deploy" in cmd
+    assert "full Cybernet software profile" in launcher
     assert "-AllowTargetMutation -ConfirmDeployment" in cmd
-    assert "cybernet-clinical-core" in script
-    assert "AutoLogon must not be part of the clinical-core deployment lane" in script
-    assert "Confirm-SasNorthwellNetwork.ps1" in script
-    assert "$env:SKIP_NMAP = '1'" in script
-    assert "CLINICAL_CORE_DEPLOYMENT_COMPLETED" in script
-    assert "sas autologon Remote $target" in script
+    assert "Invoke-SasCybernetClinicalCoreDeployment.ps1" in orchestrator
+    assert "Invoke-SasAutoLogonS4URestartDeployment.ps1" in orchestrator
+    assert "AutoLogon must be the final software step" in orchestrator
+    assert "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED" in orchestrator
+    assert "cybernet-clinical-core" in core
+    assert "AutoLogon must not be part of the clinical-core deployment lane" in core
+
+
+def test_technician_guidance_deploys_then_restarts_without_test_loop_requirement() -> None:
+    launcher = read("scripts/SasPortableLauncher.ps1")
+    start_here = read("START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md")
+    tutorial = read("docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md")
+
+    for text in (launcher, start_here, tutorial):
+        assert "sas cybernet Deploy" in text
+        assert "sas autologon Remote" in text
+        assert "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in text
+        assert "restart" in text.lower()
+
+    for text in (start_here, tutorial):
+        lowered = text.lower()
+        assert "autologon" in lowered
+        assert "last" in lowered
+        assert "automatic" in lowered and "restart" in lowered
+        assert "not a prerequisite" in lowered or "not required" in lowered
+        assert "fixture" in lowered and "live-cert" in lowered
+        assert "technician" in lowered
+
+    assert "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED" in launcher
+    assert "Fixture/live-cert/runtime-proof loops are NOT prerequisites" in launcher
 
 
 def test_portable_sas_command_discovers_and_caches_repo_without_username_literals() -> None:
@@ -143,6 +174,7 @@ def test_portable_sas_command_discovers_and_caches_repo_without_username_literal
         "OG Laptop Backup\\Desktop\\dev\\SysAdminSuite",
         "Run-AutoLogonOnsite.cmd",
         "Run-CybernetBatchConfiguration.cmd",
+        "Deploy-CybernetSoftware.cmd",
         "Deploy-CybernetClinicalCore.cmd",
         "'autologon'",
         "'cybernet'",

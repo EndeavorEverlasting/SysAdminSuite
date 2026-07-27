@@ -174,11 +174,15 @@ def test_outcome_driven_execution_floor() -> None:
 
     command_ids = [item["command_id"] for item in registry["contracts"]]
     assert len(command_ids) == len(set(command_ids))
-    cybernet = next(item for item in registry["contracts"] if item["command_id"] == "cybernet-plan")
-    assert any(item["when_goal"] == "deploy" and item["command_id"] == "cybernet-apply" and item["same_turn"] for item in cybernet["continuations"])
+    clinical_core = next(item for item in registry["contracts"] if item["command_id"] == "cybernet-core-deploy")
+    assert clinical_core["success_outcome"] == "product_deployed"
+    assert clinical_core["success_artifact_id"] == "cybernet-clinical-core-deployment-summary"
+    full_deploy = next(item for item in registry["contracts"] if item["command_id"] == "cybernet-software-deploy")
+    assert full_deploy["success_outcome"] == "product_deployed"
+    assert full_deploy["success_artifact_id"] == "cybernet-software-deployment-result"
     autologon = next(item for item in registry["contracts"] if item["command_id"] == "autologon-remote")
     assert autologon["success_outcome"] == "product_deployed"
-    assert autologon["success_artifact_id"] == "autologon-s4u-pilot-result"
+    assert autologon["success_artifact_id"] == "autologon-s4u-deployment-result"
 
     for marker in (
         "workflow_id: outcome-driven-execution",
@@ -223,7 +227,11 @@ def test_artifact_registry_names_locations_generators_and_privacy() -> None:
         "repository-text-policy-result",
         "offline-survey-floor-result",
         "cybernet-client-configuration-summary",
+        "cybernet-clinical-core-deployment-summary",
+        "cybernet-software-deployment-result",
         "autologon-s4u-pilot-result",
+        "autologon-s4u-deployment-result",
+        "autologon-technician-runtime-proof",
         "local-harness-proof",
         "run-artifact-registry",
         "operator-handoff",

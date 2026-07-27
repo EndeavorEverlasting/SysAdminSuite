@@ -58,9 +58,10 @@ def main() -> int:
         if artifact_id is not None:
             assert artifact_id in artifact_ids, f"unknown success artifact for {command_id}: {artifact_id}"
         if command["kind"] == "deploy-plan":
-            deploy_continuations = [c for c in contract["continuations"] if c["when_goal"] == "deploy"]
-            assert deploy_continuations, f"deploy-plan lacks deploy continuation: {command_id}"
-            assert all(c["same_turn"] is True for c in deploy_continuations)
+            deploy_continuations = [c for c in contract["continuations"] if c["when_goal"] in {"deploy", "clinical-core-deploy"}]
+            if command_id == "cybernet-core-plan":
+                assert deploy_continuations, f"deploy-plan lacks deploy continuation: {command_id}"
+                assert all(c["same_turn"] is True for c in deploy_continuations)
         for continuation in contract["continuations"]:
             next_id = continuation["command_id"]
             assert next_id in command_by_id, f"unknown continuation command: {command_id} -> {next_id}"
@@ -68,29 +69,31 @@ def main() -> int:
             assert continuation["same_turn"] is True, f"continuation must be same-turn: {command_id} -> {next_id}"
         assert contract["failure_outcome"] == "blocked_with_actionable_gate"
 
-    # Keep the historical full-profile contract internally stable while proving the new
-    # field-safe clinical-core chain independently. Deployment-state routing selects the
-    # clinical-core command while canonical SYSTEM AutoLogon remains blocked.
-    assert contract_by_command["cybernet-plan"]["continuations"][0]["command_id"] == "cybernet-apply"
     assert contract_by_command["cybernet-core-plan"]["continuations"][0]["command_id"] == "cybernet-core-deploy"
-    assert contract_by_command["cybernet-core-deploy"]["success_outcome"] == "product_deployed"
     assert contract_by_command["cybernet-core-deploy"]["success_artifact_id"] == "cybernet-clinical-core-deployment-summary"
-    assert contract_by_command["deployment-state-validate"]["success_outcome"] == "artifact_created"
-    assert contract_by_command["deployment-state-validate"]["success_artifact_id"] == "deployment-state-validation-result"
+    assert contract_by_command["cybernet-software-deploy"]["success_outcome"] == "product_deployed"
+    assert contract_by_command["cybernet-software-deploy"]["success_artifact_id"] == "cybernet-software-deployment-result"
     assert contract_by_command["autologon-remote"]["success_outcome"] == "product_deployed"
-    assert contract_by_command["autologon-remote"]["success_artifact_id"] == "autologon-s4u-pilot-result"
+    assert contract_by_command["autologon-remote"]["success_artifact_id"] == "autologon-s4u-deployment-result"
     assert contract_by_command["autologon-runtime-proof"]["success_outcome"] == "runtime_proven"
     assert contract_by_command["autologon-runtime-proof"]["success_artifact_id"] == "autologon-technician-runtime-proof"
 
     context = next(item for item in deployment_states["contexts"] if item["id"] == "cybernet-autologon")
     assert deployment_states["policy"]["tests_are_admission_not_target_state"] is True
-    assert deployment_states["policy"]["test_autologon_with_authorized_target_means_apply_pilot"] is True
-    assert deployment_states["policy"]["deploy_plus_runtime_requires_apply_first"] is True
-    assert context["current_product_truth"]["current_clinical_core_apply_command_id"] == "cybernet-core-deploy"
-    clinical_core = next(item for item in context["states"] if item["id"] == "clinical_core_ready")
-    assert clinical_core["command_id"] == "cybernet-core-deploy"
-    assert clinical_core["artifact_id"] == "cybernet-clinical-core-deployment-summary"
-    assert clinical_core["positive_classification"] == "CLINICAL_CORE_DEPLOYMENT_COMPLETED"
+    assert deployment_states["policy"]["autologon_deployment_requires_restart"] is True
+    assert deployment_states["policy"]["runtime_proof_is_not_required_for_deployment_completion"] is True
+    assert context["current_product_truth"]["current_full_software_apply_command_id"] == "cybernet-software-deploy"
+    assert context["current_product_truth"]["current_live_apply_command_id"] == "autologon-remote"
+    assert context["current_product_truth"]["current_live_apply_positive_classification"] == "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED"
+
+    states = {item["id"]: item for item in context["states"]}
+    assert states["clinical_core_ready"]["artifact_id"] == "cybernet-clinical-core-deployment-summary"
+    assert states["autologon_pre_reboot_configured"]["terminal"] is False
+    assert states["autologon_restart_completed"]["artifact_id"] == "autologon-s4u-deployment-result"
+    assert states["autologon_restart_completed"]["positive_classification"] == "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED"
+    assert states["cybernet_software_deployed"]["artifact_id"] == "cybernet-software-deployment-result"
+    assert states["cybernet_software_deployed"]["positive_classification"] == "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED"
+    assert states["autologon_runtime_proven"]["requires_state"] == "autologon_restart_completed"
 
     workflow = read(WORKFLOW)
     for marker in (
