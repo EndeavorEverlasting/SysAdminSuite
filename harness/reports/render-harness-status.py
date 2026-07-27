@@ -34,6 +34,8 @@ def render() -> str:
     truth = cybernet["current_product_truth"]
     states = {item["id"]: item for item in cybernet["states"]}
     pre_reboot = states["autologon_pre_reboot_configured"]
+    restart_complete = states["autologon_restart_completed"]
+    full_deployment = states["cybernet_software_deployed"]
     runtime = states["autologon_runtime_proven"]
 
     lines = [
@@ -49,14 +51,15 @@ def render() -> str:
         "Validation is an admission gate, not completion, when the requested goal remains unproven.",
         "Successful dry/test/build/plan commands must resolve a registered artifact; registered safe continuations remain same-turn.",
         "", "## AutoLogon / Cybernet desired state", "",
-        f"- Current field AutoLogon apply command: `{truth['current_live_apply_command_id']}`.",
-        f"- Required pre-reboot classification: `{pre_reboot['positive_classification']}`.",
-        f"- Required pre-reboot artifact: `{pre_reboot['artifact_id']}`.",
+        f"- Full Cybernet software deployment command: `{truth['current_full_software_apply_command_id']}`; required status: `{full_deployment['positive_classification']}`; artifact: `{full_deployment['artifact_id']}`.",
+        f"- AutoLogon-only deployment command: `{truth['current_live_apply_command_id']}`; required classification: `{restart_complete['positive_classification']}`; artifact: `{restart_complete['artifact_id']}`.",
+        f"- Internal pre-reboot S4U gate: `{pre_reboot['positive_classification']}` from `{pre_reboot['artifact_id']}`. This is not deployment completion.",
         f"- Canonical LocalSystem AutoLogon enabled: `{str(truth['canonical_system_install_enabled']).lower()}`; qualification: `{truth['canonical_system_qualification_status']}`.",
-        "- Transport live certification and fixture proof are admission only; they are not AutoLogon application.",
-        "- When the Cybernet clinical core is already proven installed/accepted, preserve it instead of reinstalling it merely to reach AutoLogon.",
-        f"- Actual-session runtime command: `{runtime['command_id']}`; required runtime classification: `{runtime['positive_classification']}`; artifact: `{runtime['artifact_id']}`.",
-        "- Deployment plus runtime proof requires real apply first, then a separately authorized attended reboot/direct automatic-sign-in observation, then actual-session runtime proof.",
+        "- Full deployment installs the five clinical applications first, AutoLogon last, then automatically restarts the target and requires the restart cycle to be observed.",
+        "- Transport live certification, fixture proof, and dry runs are admission only; they do not replace authorized deployment.",
+        "- When the Cybernet clinical core is already proven installed/accepted, preserve it and use the AutoLogon-only restart-complete deployment instead of reinstalling the core.",
+        f"- Optional actual-session runtime command: `{runtime['command_id']}`; runtime classification: `{runtime['positive_classification']}`; artifact: `{runtime['artifact_id']}`.",
+        "- Runtime proof is a higher evidence ceiling after deployment. It is not a prerequisite for software deployment completion and must not delay deployment.",
         "", "## Blocking validator floor", "",
     ]
     lines.extend(f"- `{item['id']}` — `{item['command']}`" for item in blocking)
@@ -71,7 +74,7 @@ def render() -> str:
     lines.extend(f"- `{item['id']}` — `{item['command']}` — mutation: `{item['mutation']}`" for item in deploy)
     lines += ["", "## Missing", ""]
     lines.extend((f"- `{path}`" for path in missing) if missing else ["- None in the required component inventory."])
-    lines += ["", "## Proof ceiling", "", manifest["proof_ceiling"], "", "This generated report is a registry/path view. It does not claim that validators, target deployment, reboot, or runtime proof were executed in the current checkout unless their command/artifact output is separately recorded.", ""]
+    lines += ["", "## Proof ceiling", "", manifest["proof_ceiling"], "", "This generated report is a registry/path view. It does not claim that validators, target deployment, restart, automatic sign-in, or runtime proof were executed in the current checkout unless their command/artifact output is separately recorded.", ""]
     return "\n".join(lines)
 
 
