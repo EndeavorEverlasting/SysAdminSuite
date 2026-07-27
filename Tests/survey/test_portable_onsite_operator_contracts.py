@@ -2,7 +2,8 @@
 """Dependency-free contracts for the portable on-site operator surface.
 
 These tests inspect tracked launcher and safety boundaries only. They do not connect
-Wi-Fi, contact a target, mutate a target, install software, or change AutoLogon state.
+Wi-Fi, contact a target, mutate a target, install software, reboot a workstation, or
+change AutoLogon state.
 """
 from pathlib import Path
 
@@ -121,6 +122,7 @@ def test_portable_sas_cybernet_deploy_routes_to_clinical_core_and_keeps_hardware
     assert "Deploy-CybernetClinicalCore.cmd" in launcher
     assert "Run-CybernetBatchConfiguration.cmd" in launcher
     assert "Hardware-only Cybernet apply" in launcher
+    assert "DEPLOY five approved clinical-core applications" in launcher
     assert "-Mode Deploy" in cmd
     assert "-AllowTargetMutation -ConfirmDeployment" in cmd
     assert "cybernet-clinical-core" in script
@@ -129,6 +131,34 @@ def test_portable_sas_cybernet_deploy_routes_to_clinical_core_and_keeps_hardware
     assert "$env:SKIP_NMAP = '1'" in script
     assert "CLINICAL_CORE_DEPLOYMENT_COMPLETED" in script
     assert "sas autologon Remote $target" in script
+
+
+def test_technician_guidance_continues_from_deployment_to_reboot_signin_and_runtime_proof() -> None:
+    launcher = read("scripts/SasPortableLauncher.ps1")
+    start_here = read("START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md")
+    tutorial = read("docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md")
+
+    for text in (launcher, start_here, tutorial):
+        assert "sas cybernet Deploy" in text
+        assert "sas autologon Remote" in text
+        assert "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING" in text
+        assert "TECHNICIAN_OBSERVED_LIVE_RUNTIME" in text
+        assert "Start-SasAutoLogonTechnicianRuntimeProof.cmd" in text
+
+    for text in (start_here, tutorial):
+        lowered = text.lower()
+        assert "reboot/sign-in" in lowered
+        assert "not" in lowered
+        assert "attended reboot" in lowered
+        assert "directly observe" in lowered or "direct observation" in lowered
+        assert "actual autologon desktop" in lowered or "actual automatically signed-in" in lowered
+        assert "do not" in lowered and "fixture" in lowered
+
+    assert "Do not return to fixture/transport testing after the positive S4U pre-reboot state." in launcher
+    assert "The work item is not finished" in start_here
+    assert "The work item is not finished" in tutorial
+    assert "historical six-package LocalSystem" in start_here
+    assert "historical six-package" in tutorial
 
 
 def test_portable_sas_command_discovers_and_caches_repo_without_username_literals() -> None:
