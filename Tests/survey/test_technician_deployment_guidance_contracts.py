@@ -24,22 +24,22 @@ def main() -> int:
     for text in (launcher, installer, start_here, tutorial):
         assert "sas cybernet Deploy" in text
         assert "sas autologon Remote" in text
+        assert "restart" in text.lower()
 
     for text in (launcher, start_here, tutorial):
-        assert "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING" in text
-        assert "TECHNICIAN_OBSERVED_LIVE_RUNTIME" in text
-        assert "Start-SasAutoLogonTechnicianRuntimeProof.cmd" in text
+        assert "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in text
+        assert "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED" in text
 
-    for text in (installer, start_here, tutorial):
+    for text in (start_here, tutorial):
         lowered = text.lower()
-        assert "reboot/sign-in" in lowered
-        assert "not" in lowered
-        assert "attended reboot" in lowered
-        assert "automatic sign-in" in lowered
+        assert "autologon" in lowered and "last" in lowered
+        assert "automatic" in lowered and "restart" in lowered
+        assert "fixture" in lowered and "live-cert" in lowered
+        assert "not a prerequisite" in lowered or "not required" in lowered
+        assert "runtime proof" in lowered
 
-    assert "Do not return to fixture/transport testing after the positive S4U pre-reboot state." in launcher
-    assert "The work item is not finished" in start_here
-    assert "The work item is not finished" in tutorial
+    assert "restart included" in installer
+    assert "Fixture/live-cert/runtime-proof loops are NOT prerequisites" in launcher
     assert "historical six-package LocalSystem" in start_here
     assert "historical six-package" in tutorial
     assert "install/refresh" in installer
