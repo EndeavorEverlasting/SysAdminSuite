@@ -77,6 +77,7 @@ def main() -> int:
     assert truth["autologon_restart_required"] is True
 
     sets = {item["id"]: item for item in package_sets["package_sets"]}
+    packages = {item["id"]: item for item in package_sets["packages"]}
     core_ids = sets["cybernet-clinical-core"]["package_ids"]
     full_ids = sets["cybernet-clinical-workstation"]["package_ids"]
     assert core_ids == [
@@ -89,6 +90,26 @@ def main() -> int:
     assert full_ids[:-1] == core_ids
     assert full_ids[-1] == "autologon"
     assert sets["cybernet-autologon-only"]["package_ids"] == ["autologon"]
+
+    expected_confirmed_sources = [
+        ("bca", r"packages\Epic\EPIC_BCA_Web-Shortcut_1.0", "EPIC_BCA_Web-Shortcut_1.0.msi"),
+        ("epic-downtime-guide-shortcut-1-0", r"packages\Epic\Epic_Epic_Downtime_Guide-Shortcut_1.0", "Epic_Epic_Downtime_Guide-Shortcut_1.0.msi"),
+        ("nuance-dragon-medical-one-2025", r"packages\Nuance_DragonMedicalOne_2025", "Install.cmd"),
+        ("allscripts-eehr-shortcut-uai-2-2", r"packages\TouchWork_22.1\Allscripts_Shortcut", "Allscripts_EEHR-Shortcut-UAI_2.2.msi"),
+        ("autologon", r"packages\AutoLogonSetup", "NW_AutoLogon_Setup_x64.exe"),
+    ]
+    confirmed_sources = truth["operator_confirmed_profile_sources"]
+    assert [
+        (item["package_id"], item["source_folder_relative_path"], item["entrypoint_file"])
+        for item in confirmed_sources
+    ] == expected_confirmed_sources
+    assert package_sets["software_share_root"] == "\\\\nt2kwb972sms01\\"
+    for package_id, source_folder, entrypoint in expected_confirmed_sources:
+        package = packages[package_id]
+        assert package_id in full_ids
+        assert package["source_folder_relative_path"] == source_folder
+        assert package["entrypoint_file"] == entrypoint
+        assert package["install_enabled"] is True
 
     command_ids = {item["id"] for item in commands}
     artifact_ids = {item["id"] for item in artifacts}
@@ -159,6 +180,7 @@ def main() -> int:
         "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
         "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
         "runtime proof does not delay deployment completion",
+        "verify the five operator-confirmed package source paths",
     ):
         assert marker in workflow, f"deployment-state workflow missing: {marker}"
 
