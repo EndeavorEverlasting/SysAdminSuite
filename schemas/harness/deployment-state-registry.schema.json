@@ -20,7 +20,9 @@
         "runtime_only_does_not_imply_deployment_authority",
         "deploy_plus_runtime_requires_apply_first",
         "test_autologon_with_authorized_target_means_apply_pilot",
-        "live_cert_with_autologon_or_cybernet_apply_intent_means_deployment_chain"
+        "live_cert_with_autologon_or_cybernet_apply_intent_means_deployment_chain",
+        "autologon_deployment_requires_restart",
+        "runtime_proof_is_not_required_for_deployment_completion"
       ],
       "properties": {
         "resolve_desired_state_before_commands": {"const": true},
@@ -31,7 +33,9 @@
         "runtime_only_does_not_imply_deployment_authority": {"const": true},
         "deploy_plus_runtime_requires_apply_first": {"const": true},
         "test_autologon_with_authorized_target_means_apply_pilot": {"const": true},
-        "live_cert_with_autologon_or_cybernet_apply_intent_means_deployment_chain": {"const": true}
+        "live_cert_with_autologon_or_cybernet_apply_intent_means_deployment_chain": {"const": true},
+        "autologon_deployment_requires_restart": {"const": true},
+        "runtime_proof_is_not_required_for_deployment_completion": {"const": true}
       }
     },
     "contexts": {
