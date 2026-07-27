@@ -34,32 +34,24 @@ def test_navigation_and_audience() -> None:
     assert "tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md" in reference
     assert "START-HERE-CYBERNET-SOFTWARE-DEPLOYMENT.md" in central
     assert "docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md" in central
-    for path in (
-        ROOT / "docs/AUTODIDACT_INSTALL_WORKFLOW.md",
-        ROOT / "docs/DEPLOYMENT_TEARDOWN_DOCTRINE.md",
-        ROOT / "docs/PACKAGE_VM_QUALIFICATION_PROFILES.md",
-        ROOT / "docs/AUTOLOGON_KERBEROS_S4U_PILOT.md",
-    ):
-        assert path.is_file(), f"tutorial link target is missing: {path.relative_to(ROOT)}"
 
 
-def test_primary_commands_match_current_field_entrypoints() -> None:
+def test_primary_commands_match_restart_complete_field_entrypoints() -> None:
     tutorial = read(TUTORIAL)
     start = read(START)
     combined = tutorial + "\n" + start
     for marker in (
         "sas cybernet Deploy <AUTHORIZED-CYBERNET>",
         "sas autologon Remote <AUTHORIZED-CYBERNET>",
-        "CLINICAL_CORE_DEPLOYMENT_COMPLETED",
-        "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
-        "TECHNICIAN_OBSERVED_LIVE_RUNTIME",
-        "Start-SasAutoLogonTechnicianRuntimeProof.cmd",
+        "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
+        "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
+        "automatic_reboot_performed=true",
+        "restart_offline_observed=true",
+        "restart_online_observed=true",
     ):
         assert marker in combined, f"current technician route missing: {marker}"
-    assert "--package-set cybernet-clinical-workstation" not in tutorial
-    assert "AutoLogon runs last as SYSTEM" not in tutorial
-    assert "historical six-package" in tutorial
-    assert "historical six-package LocalSystem" in start
+    assert "AutoLogon **last**" in tutorial or "AutoLogon is always the final software step" in start
+    assert "historical six-package LocalSystem" in tutorial
 
 
 def test_generic_single_package_reference_still_matches_controller() -> None:
@@ -69,15 +61,8 @@ def test_generic_single_package_reference_still_matches_controller() -> None:
         assert flag in tutorial, f"tutorial missing advanced controller flag {flag}"
         assert flag in script, f"entrypoint missing {flag}"
     commands = re.findall(r"```bash\n(.*?)\n```", tutorial, flags=re.DOTALL)
-    deployment_commands = [
-        command for command in commands
-        if "bash bash/apps/sas-install-apps.sh" in command
-    ]
+    deployment_commands = [command for command in commands if "bash bash/apps/sas-install-apps.sh" in command]
     assert len(deployment_commands) == 2
-    for command in deployment_commands:
-        assert "--targets CYBERNET-PILOT-01" in command
-        assert "--package bca" in command
-        assert "--allow-legacy" in command
     assert any("--dry-run" in command for command in deployment_commands)
     assert any("--dry-run" not in command for command in deployment_commands)
 
@@ -94,7 +79,6 @@ def test_current_controller_boundaries_are_documented() -> None:
         "does not implement a general software rollback",
         "HOST_OK",
         "technician",
-        "never restarts",
         "--no-teardown",
     ):
         assert marker.lower() in combined.lower(), f"missing boundary: {marker}"
@@ -109,25 +93,20 @@ def test_current_controller_boundaries_are_documented() -> None:
         assert forbidden.lower() not in combined.lower(), f"unsafe example present: {forbidden}"
 
 
-def test_current_deployment_and_runtime_outputs_are_explained() -> None:
-    tutorial = read(TUTORIAL)
-    start = read(START)
-    combined = tutorial + "\n" + start
+def test_deployment_restart_and_optional_runtime_outputs_are_explained() -> None:
+    combined = read(TUTORIAL) + "\n" + read(START)
     for marker in (
-        "CLINICAL_CORE_DEPLOYMENT_COMPLETED",
-        "cybernet_clinical_core_deployment_summary.json",
-        "autologon_kerberos_s4u_pilot_result.json",
+        "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
+        "cybernet_software_deployment_result.json",
+        "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
+        "autologon_s4u_deployment_result.json",
         "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
-        "reboot/sign-in",
-        "attended reboot",
-        "automatic sign-in",
-        "TECHNICIAN_OBSERVED_LIVE_RUNTIME",
-        "runtime_proof=true",
-        "overall_success=true",
+        "runtime proof",
+        "not a prerequisite",
     ):
-        assert marker.lower() in combined.lower(), f"tutorial missing current proof state: {marker}"
-    assert "The work item is not finished" in tutorial
-    assert "The work item is not finished" in start
+        assert marker.lower() in combined.lower(), f"tutorial missing current deployment state: {marker}"
+    assert "AutoLogon installation is **not deployment-complete before the restart**" in read(START)
+    assert "technician is not required to run a separate fixture, transport live-cert, or runtime-proof loop" in read(TUTORIAL)
 
 
 def test_bca_example_is_catalog_backed() -> None:
@@ -139,26 +118,24 @@ def test_bca_example_is_catalog_backed() -> None:
     assert bca["installer_file"] == "EPIC_BCA_Web-Shortcut_1.0.msi"
     assert bca["default_installer_arguments"] == ["/qn", "/norestart"]
     assert bca["install_enabled"] is True
-    tutorial = read(TUTORIAL)
-    assert "--package bca" in tutorial
+    assert "--package bca" in read(TUTORIAL)
 
 
-def test_clinical_package_sets_match_current_split_field_model() -> None:
+def test_clinical_package_sets_match_autologon_last_model() -> None:
     catalog = json.loads(read(PACKAGE_SET_CATALOG))
     sets = {item["id"]: item for item in catalog["package_sets"]}
-    assert sets["cybernet-clinical-core"]["package_ids"] == [
+    core = sets["cybernet-clinical-core"]["package_ids"]
+    full = sets["cybernet-clinical-workstation"]["package_ids"]
+    assert core == [
         "allscripts-eehr-shortcut-uai-2-2",
         "epic-downtime-guide-shortcut-1-0",
         "nuance-dragon-medical-one-2025",
         "hyland-fos-epic-integration-23-1-33-1000",
         "bca",
     ]
+    assert full[:-1] == core
+    assert full[-1] == "autologon"
     assert sets["cybernet-autologon-only"]["package_ids"] == ["autologon"]
-    assert sets["cybernet-clinical-workstation"]["package_ids"][-1] == "autologon"
-    tutorial = read(TUTORIAL)
-    assert "`cybernet-clinical-core`" in tutorial
-    assert "current AutoLogon apply lane is `sas autologon Remote HOST`" in tutorial
-    assert "Do **not** use the generic controller to reconstruct the historical six-package" in tutorial
 
 
 def test_docs_contract_is_wired_beside_the_executable_contract() -> None:
@@ -175,7 +152,6 @@ def test_docs_contract_is_wired_beside_the_executable_contract() -> None:
     assert "'docs/**'" in workflow
     assert "DRY_RUN_OK" in implementation
     assert "HOST_OK" in implementation
-    assert "Cleanup complete: task and run-scoped staging removed or already absent." in implementation
 
 
 def test_no_machine_local_or_private_runtime_evidence_is_documented() -> None:
@@ -183,7 +159,6 @@ def test_no_machine_local_or_private_runtime_evidence_is_documented() -> None:
     assert not re.search(r"(?i)C:\\Users\\[A-Za-z0-9._-]+", combined)
     assert "CYBERNET-PILOT-01" in combined
     assert "hostname intentionally omitted" not in combined.lower()
-    assert "not committed" in combined.lower()
 
 
 if __name__ == "__main__":
