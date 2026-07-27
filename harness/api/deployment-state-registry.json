@@ -10,7 +10,9 @@
     "runtime_only_does_not_imply_deployment_authority": true,
     "deploy_plus_runtime_requires_apply_first": true,
     "test_autologon_with_authorized_target_means_apply_pilot": true,
-    "live_cert_with_autologon_or_cybernet_apply_intent_means_deployment_chain": true
+    "live_cert_with_autologon_or_cybernet_apply_intent_means_deployment_chain": true,
+    "autologon_deployment_requires_restart": true,
+    "runtime_proof_is_not_required_for_deployment_completion": true
   },
   "contexts": [
     {
@@ -29,54 +31,66 @@
         "canonical_system_blocked_reason_contains": "did not establish AutoAdminLogon=1",
         "current_clinical_core_apply_command_id": "cybernet-core-deploy",
         "current_clinical_core_positive_status": "CLINICAL_CORE_DEPLOYMENT_COMPLETED",
-        "current_live_apply_lane": "kerberos_s4u_named_admin",
+        "current_full_software_apply_command_id": "cybernet-software-deploy",
+        "current_full_software_positive_status": "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
+        "current_live_apply_lane": "kerberos_s4u_named_admin_then_restart",
         "current_live_apply_command_id": "autologon-remote",
-        "current_live_apply_positive_classification": "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
+        "current_live_apply_positive_classification": "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
+        "internal_pre_reboot_apply_classification": "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
+        "autologon_must_be_last": true,
+        "autologon_restart_required": true,
         "full_profile_local_system_autologon_must_not_be_used_as_a_substitute": true
       },
       "intent_resolution": [
         {
           "id": "test-autologon",
           "signals": ["test autologon", "test auto logon", "try autologon", "pilot autologon"],
-          "goal_state": "autologon_pre_reboot_configured",
+          "goal_state": "autologon_restart_completed",
           "requires_apply": true,
-          "notes": "With one authorized Cybernet target and mutation authority, testing AutoLogon means executing the real one-target S4U apply lane and evaluating its canonical deployment artifact. Fixture-only success is insufficient."
+          "notes": "With one authorized Cybernet target and mutation authority, testing AutoLogon means executing the real S4U apply plus required restart. Fixture-only or transport-only success is insufficient."
         },
         {
           "id": "live-cert-autologon",
           "signals": ["live cert autologon", "live certification autologon", "cybernet live cert", "live cert the cybernet"],
-          "goal_state": "autologon_pre_reboot_configured",
+          "goal_state": "autologon_restart_completed",
           "requires_apply": true,
-          "notes": "Transport live certification is an admission gate. For AutoLogon/Cybernet apply intent, live cert is complete only when the S4U installer lane reaches its positive pre-reboot classification or a real blocker is recorded."
+          "notes": "Transport live certification is admission only. With deployment intent, the work item continues through real AutoLogon apply and target restart."
         },
         {
           "id": "deploy-autologon",
           "signals": ["deploy autologon", "apply autologon", "install autologon", "configure autologon"],
-          "goal_state": "autologon_pre_reboot_configured",
+          "goal_state": "autologon_restart_completed",
           "requires_apply": true,
-          "notes": "Route directly to the S4U deployment command after its gates; do not substitute WhatIf, fixture E2E, transport live-cert, or process exit code."
+          "notes": "Route directly to sas autologon Remote HOST. Deployment is not complete at the pre-reboot S4U gate; the target must restart and return."
+        },
+        {
+          "id": "deploy-software",
+          "signals": ["deploy software", "deploy cybernet software", "install cybernet software", "complete cybernet software"],
+          "goal_state": "cybernet_software_deployed",
+          "requires_apply": true,
+          "notes": "Route to sas cybernet Deploy HOST. The five clinical applications are deployed first, AutoLogon is last, and the target restart is part of completion."
         },
         {
           "id": "deploy-and-runtime-proof",
           "signals": ["deploy autologon and runtime proof", "deploy software and do runtime proof", "apply autologon and prove runtime", "live cert and runtime proof"],
           "goal_state": "autologon_runtime_proven",
           "requires_apply": true,
-          "notes": "The same work item spans separate proof stages: real apply first, then separately authorized attended reboot/sign-in observation, then runtime proof from the actual AutoLogon desktop."
+          "notes": "Complete the restart-required deployment first. Runtime proof is a later higher-ceiling action and must not delay deployment completion."
         },
         {
           "id": "runtime-proof-only",
           "signals": ["runtime proof", "prove autologon runtime", "prove automatic sign in"],
           "goal_state": "autologon_runtime_proven",
           "requires_apply": false,
-          "requires_prior_state": "autologon_pre_reboot_configured",
-          "notes": "A runtime-only request does not create deployment authority. It requires a correlated positive deployment artifact for the same target before runtime proof can begin."
+          "requires_prior_state": "autologon_restart_completed",
+          "notes": "A runtime-only request requires a correlated restart-complete deployment artifact for the same target."
         },
         {
           "id": "complete-cybernet-profile",
           "signals": ["complete cybernet profile", "finish cybernet workstation", "cybernet profile with autologon"],
-          "goal_state": "cybernet_profile_autologon_runtime_proven",
+          "goal_state": "cybernet_software_deployed",
           "requires_apply": true,
-          "notes": "Reuse already-proven clinical-core installation. If clinical-core is unproven, use cybernet-core-deploy for the five deployable applications. Do not reinstall accepted core applications merely to reach AutoLogon. AutoLogon remains last."
+          "notes": "Use sas cybernet Deploy HOST for an unproven full software profile. If the five clinical applications are already proven, preserve them and use sas autologon Remote HOST. AutoLogon remains last and restart is mandatory."
         }
       ],
       "states": [
@@ -88,63 +102,65 @@
           "positive_classification": "CLINICAL_CORE_DEPLOYMENT_COMPLETED",
           "satisfied_by": ["existing approved deployment evidence", "existing technician/application acceptance", "explicit operator-provided installed-state evidence", "cybernet-clinical-core-deployment-summary with status CLINICAL_CORE_DEPLOYMENT_COMPLETED"],
           "on_satisfied": "skip clinical-core reinstall",
-          "on_unproven": "run sas cybernet Deploy HOST for the explicitly authorized target; do not substitute the blocked six-package LocalSystem path"
+          "on_unproven": "run the clinical-core stage through sas cybernet Deploy HOST"
         },
         {
           "id": "autologon_pre_reboot_configured",
-          "terminal": true,
+          "terminal": false,
           "command_id": "autologon-remote",
           "artifact_id": "autologon-s4u-pilot-result",
           "positive_classification": "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
+          "proof_ceiling": "Internal apply gate only. AutoLogon package executed and pre-reboot state is ready, but deployment is not complete until restart."
+        },
+        {
+          "id": "autologon_restart_completed",
+          "terminal": true,
+          "requires_state": "autologon_pre_reboot_configured",
+          "command_id": "autologon-remote",
+          "artifact_id": "autologon-s4u-deployment-result",
+          "positive_classification": "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
           "requires_target_mutation_authority": true,
           "requires_network": true,
-          "proof_ceiling": "AutoLogon package executed on the authorized target through the S4U lane; required pre-reboot Winlogon state and cleanup proved; reboot and automatic sign-in remain unproven."
+          "proof_ceiling": "AutoLogon was applied through S4U, was the final software step, and the target restart cycle was observed. Direct visual automatic-sign-in observation is not claimed."
+        },
+        {
+          "id": "cybernet_software_deployed",
+          "terminal": true,
+          "requires_states": ["clinical_core_ready", "autologon_restart_completed"],
+          "command_id": "cybernet-software-deploy",
+          "artifact_id": "cybernet-software-deployment-result",
+          "positive_classification": "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
+          "ordering": ["clinical_core_ready", "autologon_pre_reboot_configured", "autologon_restart_completed"],
+          "proof_ceiling": "Five clinical applications deployed before AutoLogon, AutoLogon applied last, and required target restart cycle completed."
         },
         {
           "id": "autologon_runtime_proven",
           "terminal": true,
-          "requires_state": "autologon_pre_reboot_configured",
-          "requires_separate_attended_reboot": true,
+          "requires_state": "autologon_restart_completed",
           "requires_direct_automatic_sign_in_observation": true,
           "command_id": "autologon-runtime-proof",
           "artifact_id": "autologon-technician-runtime-proof",
           "positive_classification": "TECHNICIAN_OBSERVED_LIVE_RUNTIME",
-          "proof_ceiling": "Actual AutoLogon desktop session identity, current-token access, application readiness, approved disposable behavior observation, and technician runtime proof."
-        },
-        {
-          "id": "cybernet_profile_autologon_runtime_proven",
-          "terminal": true,
-          "requires_states": ["clinical_core_ready", "autologon_runtime_proven"],
-          "ordering": ["clinical_core_ready", "autologon_pre_reboot_configured", "autologon_runtime_proven"],
-          "proof_ceiling": "The Cybernet clinical core is already accepted or separately proven, AutoLogon was applied last through S4U, and attended runtime proof passed."
+          "proof_ceiling": "Optional higher-ceiling proof from the actual AutoLogon desktop. It is not required for deployment completion."
         }
       ],
       "critical_artifact_chain": [
-        {
-          "artifact_id": "cybernet-clinical-core-deployment-summary",
-          "required_value": "status=CLINICAL_CORE_DEPLOYMENT_COMPLETED",
-          "proves_state": "clinical_core_ready"
-        },
-        {
-          "artifact_id": "autologon-s4u-pilot-result",
-          "required_value": "classification=KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
-          "proves_state": "autologon_pre_reboot_configured"
-        },
-        {
-          "artifact_id": "autologon-technician-runtime-proof",
-          "required_value": "proof_level=TECHNICIAN_OBSERVED_LIVE_RUNTIME and runtime_proof=true and overall_success=true",
-          "proves_state": "autologon_runtime_proven"
-        }
+        {"artifact_id":"cybernet-clinical-core-deployment-summary","required_value":"status=CLINICAL_CORE_DEPLOYMENT_COMPLETED","proves_state":"clinical_core_ready"},
+        {"artifact_id":"autologon-s4u-pilot-result","required_value":"classification=KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING","proves_state":"autologon_pre_reboot_configured"},
+        {"artifact_id":"autologon-s4u-deployment-result","required_value":"classification=AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED and automatic_reboot_performed=true and restart_offline_observed=true and restart_online_observed=true","proves_state":"autologon_restart_completed"},
+        {"artifact_id":"cybernet-software-deployment-result","required_value":"status=CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED and autologon_was_last_software_step=true and automatic_reboot_performed=true","proves_state":"cybernet_software_deployed"},
+        {"artifact_id":"autologon-technician-runtime-proof","required_value":"proof_level=TECHNICIAN_OBSERVED_LIVE_RUNTIME and runtime_proof=true and overall_success=true","proves_state":"autologon_runtime_proven"}
       ],
       "forbidden_substitutions": [
         "deployment_planned",
         "FIXTURE_PASS",
         "KERBEROS_S4U_FIXTURE_READY",
         "LIVE CERT PASS transport-only result",
+        "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING as final deployment completion",
         "installer exit code 0 or 3010 by itself",
         "process started",
         "command acknowledgement",
-        "canonical_system_install_enabled flag without matching proof receipt",
+        "runtime proof as a prerequisite that delays deployment",
         "six-package LocalSystem Cybernet apply as a substitute for the current clinical-core plus S4U AutoLogon lanes"
       ]
     }
