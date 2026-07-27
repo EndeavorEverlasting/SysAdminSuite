@@ -153,14 +153,26 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host "Repo: $repoRoot"
     Write-Host ''
     Write-Host '  sas autologon                       AutoLogon on-site menu'
-    Write-Host '  sas autologon Remote HOST           Remote Kerberos/S4U AutoLogon; no target login'
-    Write-Host '  sas cybernet Deploy HOST            Deploy five approved clinical-core applications; AutoLogon separate'
+    Write-Host '  sas autologon Remote HOST           APPLY AutoLogon through Kerberos/S4U; no target login'
+    Write-Host '  sas cybernet Deploy HOST            DEPLOY five approved clinical-core applications; AutoLogon separate'
     Write-Host '  sas cybernet Plan HOST              Hardware-only Cybernet plan'
     Write-Host '  sas cybernet Apply HOST             Hardware-only Cybernet apply'
     Write-Host '  sas cybernet Validate HOST          Hardware-only Cybernet validation'
     Write-Host '  sas network                         Check/recheck approved Northwell network posture'
     Write-Host '  sas repo                            Print resolved repository path'
     Write-Host '  sas open                            Open repository in Explorer'
+    Write-Host ''
+    Write-Host 'Clinical workstation deployment sequence:' -ForegroundColor Cyan
+    Write-Host '  1. sas cybernet Deploy HOST'
+    Write-Host '  2. sas autologon Remote HOST'
+    Write-Host '     Required pre-reboot state: KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING'
+    Write-Host '  3. Reboot/sign-in are NOT yet proven. Obtain separate attended reboot authorization,' -ForegroundColor Yellow
+    Write-Host '     reboot, and directly observe automatic sign-in to the expected workstation account.' -ForegroundColor Yellow
+    Write-Host '  4. From that actual AutoLogon desktop run:'
+    Write-Host '     scripts\Start-SasAutoLogonTechnicianRuntimeProof.cmd targets\local\autologon-runtime.json'
+    Write-Host '     Required runtime proof: TECHNICIAN_OBSERVED_LIVE_RUNTIME'
+    Write-Host ''
+    Write-Host 'Do not return to fixture/transport testing after the positive S4U pre-reboot state.' -ForegroundColor Yellow
     exit 0
 }
 
