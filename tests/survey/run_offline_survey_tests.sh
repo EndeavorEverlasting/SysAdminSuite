@@ -20,6 +20,7 @@ python3 Tests/survey/test_cybernet_client_configuration_contracts.py
 python3 Tests/survey/test_cybernet_operator_documentation_contracts.py
 python3 Tests/survey/test_cybernet_software_deployment_documentation_contracts.py
 python3 Tests/survey/test_portable_onsite_operator_contracts.py
+python3 Tests/survey/test_technician_deployment_guidance_contracts.py
 python3 Tests/survey/test_portable_onsite_runtime_fixture.py
 python3 Tests/survey/test_network_switch_verification_contracts.py
 python3 Tests/survey/test_network_guard_wlan_event_contracts.py
