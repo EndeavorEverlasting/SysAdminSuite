@@ -134,6 +134,48 @@ function Wait-SasAutoLogonRestartCycle {
     }
 }
 
+function Confirm-SasAutoLogonRestartTaskCleanup {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][string]$TaskName,
+        [Parameter(Mandatory = $true)][string]$SchtasksPath,
+        [ValidateRange(10,120)][int]$TimeoutSeconds = 60
+    )
+
+    # SMB often becomes reachable before Task Scheduler RPC is fully ready after boot.
+    # Retry bounded queries rather than misclassifying that transient recovery window as cleanup failure.
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $taskSeen = $false
+    while ((Get-Date) -lt $deadline) {
+        $query = Invoke-SasAutoLogonDeploymentNative -FilePath $SchtasksPath -Arguments @('/Query','/S',$Target,'/TN',$TaskName)
+        if ($query.exit_code -ne 0 -and (Test-SasAutoLogonRestartTaskAbsentText -Text $query.output)) {
+            return $true
+        }
+        if ($query.exit_code -eq 0) {
+            $taskSeen = $true
+            break
+        }
+        Start-Sleep -Seconds 3
+    }
+
+    if (-not $taskSeen) { return $false }
+
+    $delete = Invoke-SasAutoLogonDeploymentNative -FilePath $SchtasksPath -Arguments @('/Delete','/S',$Target,'/TN',$TaskName,'/F')
+    if ($delete.exit_code -ne 0 -and -not (Test-SasAutoLogonRestartTaskAbsentText -Text $delete.output)) {
+        return $false
+    }
+
+    $verifyDeadline = (Get-Date).AddSeconds(30)
+    while ((Get-Date) -lt $verifyDeadline) {
+        $verify = Invoke-SasAutoLogonDeploymentNative -FilePath $SchtasksPath -Arguments @('/Query','/S',$Target,'/TN',$TaskName)
+        if ($verify.exit_code -ne 0 -and (Test-SasAutoLogonRestartTaskAbsentText -Text $verify.output)) {
+            return $true
+        }
+        Start-Sleep -Seconds 2
+    }
+    return $false
+}
+
 $result = [ordered]@{
     schema_version = 'sas-autologon-s4u-deployment-result/v1'
     run_id = $runId
@@ -194,7 +236,7 @@ try {
     $restartTask = 'SysAdminSuite-AutoLogonRestart-{0}' -f ([guid]::NewGuid().ToString('N'))
     $result.restart_task_name = $restartTask
     $startTime = (Get-Date).AddMinutes(2).ToString('HH:mm')
-    $restartCommand = 'C:\Windows\System32\shutdown.exe /r /t {0} /f /d p:4:1 /c "SysAdminSuite AutoLogon deployment"' -f $RestartDelaySeconds
+    $restartCommand = 'C:\Windows\System32\shutdown.exe /r /t {0} /f /d p:4:1' -f $RestartDelaySeconds
 
     Write-Host "`n=== AUTOLOGON RESTART: $resolvedTarget ===" -ForegroundColor Cyan
     $create = Invoke-SasAutoLogonDeploymentNative -FilePath $schtasks -Arguments @(
@@ -222,17 +264,10 @@ try {
     $result.automatic_reboot_performed = ($result.restart_offline_observed -and $result.restart_online_observed)
     Save-SasAutoLogonDeploymentResult -Value $result
 
-    $query = Invoke-SasAutoLogonDeploymentNative -FilePath $schtasks -Arguments @('/Query','/S',$resolvedTarget,'/TN',$restartTask)
-    if ($query.exit_code -ne 0 -and (Test-SasAutoLogonRestartTaskAbsentText -Text $query.output)) {
-        $result.restart_task_cleanup_verified = $true
-    }
-    else {
-        $delete = Invoke-SasAutoLogonDeploymentNative -FilePath $schtasks -Arguments @('/Delete','/S',$resolvedTarget,'/TN',$restartTask,'/F')
-        $verify = Invoke-SasAutoLogonDeploymentNative -FilePath $schtasks -Arguments @('/Query','/S',$resolvedTarget,'/TN',$restartTask)
-        $result.restart_task_cleanup_verified = ($delete.exit_code -eq 0 -and $verify.exit_code -ne 0 -and (Test-SasAutoLogonRestartTaskAbsentText -Text $verify.output))
-    }
+    $result.restart_task_cleanup_verified = Confirm-SasAutoLogonRestartTaskCleanup `
+        -Target $resolvedTarget -TaskName $restartTask -SchtasksPath $schtasks -TimeoutSeconds 60
     if (-not $result.restart_task_cleanup_verified) {
-        throw 'AutoLogon restart completed, but cleanup of the one-time restart task could not be verified.'
+        throw 'AutoLogon restart completed, but cleanup of the one-time restart task could not be verified after the bounded post-boot Task Scheduler recovery window.'
     }
 
     $result.classification = 'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED'
