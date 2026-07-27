@@ -141,7 +141,9 @@ The underlying compatibility controller remains:
 bash/apps/sas-install-apps.sh
 ```
 
-Use it only for a specifically approved package-level workflow not already covered by the higher-level technician command. A single package must be enabled in `configs/software-packages/approved-apps.json`.
+`--allow-legacy` is the retained **compatibility-controller gate** for this advanced package-level path. It does not grant deployment authorization, credentials, a transport decision, or permission to bypass the higher-level Cybernet deployment orchestration.
+
+Use the compatibility controller only for a specifically approved package-level workflow not already covered by the higher-level technician command. A single package must be enabled in `configs/software-packages/approved-apps.json`.
 
 Example BCA dry run:
 
