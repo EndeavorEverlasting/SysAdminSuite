@@ -80,7 +80,7 @@ A fixture result, transport `LIVE CERT PASS`, process exit code `0`/`3010`, proc
 
 ### 3. Reboot and sign-in proof is the next state, not optional cleanup
 
-After `KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING`, the deployment/runtime work item is **not finished** when runtime proof was requested.
+After `KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING`, **the work item is not finished when runtime proof was requested**.
 
 The next state transition is:
 
