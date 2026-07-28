@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-<#+
+<#
 .SYNOPSIS
 Find the newest SysAdminSuite deployment/runtime evidence without contacting a target.
 
@@ -230,6 +230,7 @@ function Get-SasEvidenceSummary {
 }
 
 $summaries = @($ordered | ForEach-Object { Get-SasEvidenceSummary -Item $_ })
+$searchedCheckoutCount = @($repoCandidates | Where-Object { Test-SasEvidenceRepoRoot -Path $_ }).Count
 $index = [ordered]@{
     schema_version = 'sas-operator-evidence-recovery/v1'
     generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
@@ -237,7 +238,7 @@ $index = [ordered]@{
     target_contact_performed = $false
     search_kind = $kind
     result_count = $summaries.Count
-    searched_checkout_count = @($repoCandidates | Where-Object { Test-SasEvidenceRepoRoot -Path $_ }).Count
+    searched_checkout_count = $searchedCheckoutCount
     results = $summaries
 }
 $index | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $indexPath -Encoding UTF8
