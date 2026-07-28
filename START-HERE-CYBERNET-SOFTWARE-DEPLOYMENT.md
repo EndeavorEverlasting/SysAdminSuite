@@ -93,6 +93,42 @@ TECHNICIAN_OBSERVED_LIVE_RUNTIME
 
 Runtime proof is a higher proof ceiling. It is **not a prerequisite for software deployment completion** and must not delay deployment.
 
+## Terminal closed or crashed — recover evidence before retrying
+
+A closed PowerShell window is not a reason to redeploy.
+
+Run this **offline** first:
+
+```powershell
+sas evidence
+```
+
+It searches the current checkout plus bounded SysAdminSuite checkouts under the current Windows user's Desktop/OneDrive layouts, including `SysAdminSuite-portable-onsite` and `SysAdminSuite-Live`, and prints the newest deployment/runtime artifact plus the next safe action. It performs **no network activity and no target contact**.
+
+Useful variants:
+
+```powershell
+sas evidence All
+sas evidence AutoLogon
+sas evidence Cybernet
+sas evidence Runtime
+sas evidence Open
+```
+
+The stable machine-local recovery index is:
+
+```text
+%LOCALAPPDATA%\SysAdminSuite\last-evidence.json
+```
+
+When the installed `sas` command is stale or unavailable but the repo is open, use:
+
+```powershell
+.\Find-SasEvidence.cmd
+```
+
+Full recovery guidance and artifact locations: [Operator Evidence Recovery](docs/OPERATOR_EVIDENCE_RECOVERY.md).
+
 ## Hardware-only Cybernet work
 
 The portable operator command keeps hardware configuration separate:
@@ -118,10 +154,11 @@ For the complete hardware/client workflow and safe retry guidance:
 - AutoLogon S4U apply engine: `scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1`
 - AutoLogon restart-complete deployment wrapper: `scripts/Invoke-SasAutoLogonS4URestartDeployment.ps1`
 - AutoLogon runtime proof: `scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1`
+- Crash-safe evidence recovery: `scripts/Show-SasOperatorEvidence.ps1`
 - Approved package-set catalog: `configs/software-packages/windows-native-package-sets.json`
 - Approved package catalog: `configs/software-packages/approved-apps.json`
 - Detailed software deployment tutorial: `docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`
 
 ## Failure boundary
 
-On any nonzero result, preserve the emitted summary and controller evidence and do not blindly rerun a changed target. Repository docs and CI prove routing/contract shape only; real target deployment still requires the authorized administrator workstation and protected network context.
+On any nonzero result, preserve the emitted summary and controller evidence and do not blindly rerun a changed target. If the terminal disappeared, use `sas evidence` before deciding whether anything should be rerun. Repository docs and CI prove routing/contract shape only; real target deployment still requires the authorized administrator workstation and protected network context.
