@@ -26,6 +26,7 @@ function Test-SasRepoRoot {
         (Test-Path -LiteralPath (Join-Path $candidate 'Run-CybernetBatchConfiguration.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetSoftware.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetClinicalCore.cmd') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $candidate 'Find-SasEvidence.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'scripts\SasNetworkGuard.psm1') -PathType Leaf)
     )
 }
@@ -62,18 +63,26 @@ function Resolve-SasRepoRoot {
     foreach ($root in $roots) {
         foreach ($relative in @(
             'SysAdminSuite',
+            'SysAdminSuite-portable-onsite',
+            'SysAdminSuite-Live',
             'dev\SysAdminSuite',
+            'dev\SysAdminSuite-portable-onsite',
+            'dev\SysAdminSuite-Live',
             'Desktop\dev\SysAdminSuite',
-            'OG Laptop Backup\Desktop\dev\SysAdminSuite'
+            'Desktop\dev\SysAdminSuite-portable-onsite',
+            'Desktop\dev\SysAdminSuite-Live',
+            'OG Laptop Backup\Desktop\dev\SysAdminSuite',
+            'OG Laptop Backup\Desktop\dev\SysAdminSuite-portable-onsite',
+            'OG Laptop Backup\Desktop\dev\SysAdminSuite-Live'
         )) {
             Add-SasCandidate -List $candidates -Path (Join-Path $root $relative)
         }
     }
 
     foreach ($pattern in @(
-        (Join-Path $env:USERPROFILE '*\Desktop\dev\SysAdminSuite'),
-        (Join-Path $env:USERPROFILE '*\*\Desktop\dev\SysAdminSuite'),
-        (Join-Path $env:USERPROFILE '*\*\*\Desktop\dev\SysAdminSuite')
+        (Join-Path $env:USERPROFILE '*\Desktop\dev\SysAdminSuite*'),
+        (Join-Path $env:USERPROFILE '*\*\Desktop\dev\SysAdminSuite*'),
+        (Join-Path $env:USERPROFILE '*\*\*\Desktop\dev\SysAdminSuite*')
     )) {
         try {
             foreach ($match in @(Get-Item -Path $pattern -ErrorAction SilentlyContinue)) {
@@ -155,6 +164,9 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host ''
     Write-Host '  sas cybernet Deploy HOST            DEPLOY full Cybernet software profile; AutoLogon last; restart included'
     Write-Host '  sas autologon Remote HOST           DEPLOY AutoLogon only through Kerberos/S4U; restart included'
+    Write-Host '  sas evidence                        OFFLINE: find newest deployment/runtime evidence and next action'
+    Write-Host '  sas evidence All                    OFFLINE: list recent evidence across known SysAdminSuite checkouts'
+    Write-Host '  sas evidence Open                   OFFLINE: find newest evidence and open its folder'
     Write-Host '  sas autologon                       AutoLogon on-site menu'
     Write-Host '  sas cybernet Plan HOST              Hardware-only Cybernet plan'
     Write-Host '  sas cybernet Apply HOST             Hardware-only Cybernet apply'
@@ -170,6 +182,7 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  - Success: CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED or AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED.'
     Write-Host '  - Fixture/live-cert/runtime-proof loops are NOT prerequisites for deployment completion.' -ForegroundColor Green
     Write-Host '  - Runtime proof remains available only when explicitly requested; it must not delay deployment.' -ForegroundColor Cyan
+    Write-Host '  - If the terminal closes or crashes, run `sas evidence`; do not redeploy just to recreate console output.' -ForegroundColor Yellow
     exit 0
 }
 
@@ -181,6 +194,10 @@ switch ($normalized) {
     'open' {
         Start-Process -FilePath 'explorer.exe' -ArgumentList @($repoRoot) | Out-Null
         exit 0
+    }
+    'evidence' {
+        $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Find-SasEvidence.cmd' -Arguments $CommandArgs
+        exit $exitCode
     }
     'network' {
         & (Join-Path $repoRoot 'scripts\Confirm-SasNorthwellNetwork.ps1') -Purpose 'manual SysAdminSuite operator check'
