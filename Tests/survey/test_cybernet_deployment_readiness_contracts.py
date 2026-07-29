@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 READINESS = ROOT / "scripts/Invoke-SasCybernetDeploymentReadiness.ps1"
 TARGET_RESOLVER = ROOT / "scripts/SasTargetNameResolution.psm1"
+PROBE_FIXTURE = ROOT / "Tests/Fixtures/cybernet-deployment-readiness/kerberos-smb-task-ready.fixture.json"
 PROBE_CMD = ROOT / "Probe-CybernetSoftware.cmd"
 DEPLOYMENT = ROOT / "scripts/Invoke-SasCybernetSoftwareDeployment.ps1"
 DEPLOY_CMD = ROOT / "Deploy-CybernetSoftware.cmd"
@@ -64,6 +65,21 @@ def test_readiness_schema_is_fail_closed_and_identifier_safe() -> None:
     require("CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY" in properties["status"]["enum"], "fixture readiness status missing from schema")
 
 
+def test_narrow_fixture_contains_no_winrm_or_non_cifs_observations() -> None:
+    fixture = load(PROBE_FIXTURE)
+    observations = fixture["observations"]
+    require(observations["service_tickets"]["cifs"] == {"requested": True, "issued": True, "ticket_bytes_emitted": False}, "readiness fixture does not prove CIFS only")
+    for ticket in ("http", "host"):
+        require(observations["service_tickets"][ticket]["requested"] is False, f"readiness fixture requests {ticket} ticket")
+        require(observations["service_tickets"][ticket]["issued"] is False, f"readiness fixture issues {ticket} ticket")
+    require(observations["tcp"]["port_5985"]["tested"] is False, "readiness fixture tests WinRM 5985")
+    require(observations["tcp"]["port_5986"]["tested"] is False, "readiness fixture tests WinRM 5986")
+    require(observations["tcp"]["port_445"]["tested"] is True, "readiness fixture omits TCP 445")
+    require(observations["tcp"]["port_135"]["tested"] is True, "readiness fixture omits TCP 135")
+    require(fixture["network_activity_performed"] is False, "readiness fixture claims live network activity")
+    require(fixture["target_mutation_performed"] is False, "readiness fixture claims target mutation")
+
+
 def test_readiness_surface_is_one_target_read_only_and_artifact_backed() -> None:
     readiness = read(READINESS)
     probe = read(PROBE_CMD)
@@ -101,19 +117,21 @@ def test_readiness_surface_is_one_target_read_only_and_artifact_backed() -> None
         require(forbidden.lower() not in readiness.lower(), f"readiness surface gained forbidden behavior: {forbidden}")
 
 
-def test_readiness_uses_canonical_identity_and_keeps_fixtures_offline() -> None:
+def test_readiness_uses_canonical_identity_after_local_network_gate() -> None:
     readiness = read(READINESS)
     resolver = read(TARGET_RESOLVER)
     require("Resolve-SasCanonicalTargetFqdn" in resolver, "canonical target resolver is missing")
     require("different canonical host identity" in resolver, "canonical resolver no longer rejects identity mismatch")
     require("multiple canonical FQDNs" in resolver, "canonical resolver no longer rejects multiple identities")
     require("Unable to resolve one canonical FQDN" in resolver, "canonical resolver no longer rejects zero identities")
-    require("if ($FixtureMode)" in readiness, "fixture/live target resolution split missing")
-    fixture_check = readiness.index("Fixture mode requires one syntactically valid FQDN")
-    canonical_call = readiness.index("Resolve-SasCanonicalTargetFqdn -TargetName $targetInput")
-    require(fixture_check < canonical_call, "fixture validation is not separated from live canonical DNS resolution")
-    require("Test-SasCanonicalFqdn -Value $targetInput" in readiness, "fixture mode does not validate its offline FQDN")
+    require("Fixture mode requires one syntactically valid FQDN" in readiness, "fixture mode no longer fails closed without offline FQDN")
+    require("Test-SasCanonicalFqdn -Value $targetInput" in readiness, "fixture/live input syntax is not validated")
     require("$targetResolution.disposition" in readiness and "UNIQUE_CANONICAL_FQDN" in readiness, "live readiness does not require unique canonical identity")
+
+    gate_call = readiness.index("& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGatePath")
+    canonical_call = readiness.index("$targetResolution = Resolve-SasCanonicalTargetFqdn -TargetName $targetInput")
+    transport_call = readiness.index("$transport = & $transportPath")
+    require(gate_call < canonical_call < transport_call, "live readiness order is not local network gate -> canonical DNS identity -> narrow transport")
 
 
 def test_readiness_stages_stop_before_broadening_or_mutation() -> None:
