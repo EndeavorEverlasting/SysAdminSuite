@@ -50,8 +50,14 @@ Import-Module $targetResolutionModulePath -Force
 Import-Module $runContextModulePath -Force
 
 $targetInput = $ComputerName.Trim().TrimEnd('.')
-if ($targetInput -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
-    throw "Invalid Cybernet hostname or FQDN: $targetInput"
+$inputIsFqdn = $targetInput.Contains('.')
+if ($inputIsFqdn) {
+    if (-not (Test-SasCanonicalFqdn -Value $targetInput)) {
+        throw 'Target name is not a valid fully qualified DNS name.'
+    }
+}
+elseif (-not (Test-SasDnsHostLabel -Value $targetInput)) {
+    throw 'Target name must be one valid short hostname or fully qualified DNS name.'
 }
 if ($PSCmdlet.ParameterSetName -eq 'Live' -and -not $AllowNetworkActivity) {
     throw 'Live Cybernet deployment readiness requires explicit -AllowNetworkActivity acknowledgement.'
@@ -59,12 +65,15 @@ if ($PSCmdlet.ParameterSetName -eq 'Live' -and -not $AllowNetworkActivity) {
 if ($PSCmdlet.ParameterSetName -eq 'Fixture' -and -not (Test-Path -LiteralPath $FixturePath -PathType Leaf)) {
     throw "Fixture file not found: $FixturePath"
 }
+if ($FixtureMode -and -not $inputIsFqdn) {
+    throw 'Fixture mode requires one syntactically valid FQDN and performs no DNS lookup.'
+}
 
 function Get-SasTargetFingerprint {
-    param([Parameter(Mandatory = $true)][string]$TargetFqdn)
+    param([Parameter(Mandatory = $true)][string]$TargetValue)
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
-        $bytes = [Text.Encoding]::UTF8.GetBytes($TargetFqdn.ToLowerInvariant())
+        $bytes = [Text.Encoding]::UTF8.GetBytes($TargetValue.ToLowerInvariant())
         return (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join '')
     }
     finally {
@@ -72,20 +81,7 @@ function Get-SasTargetFingerprint {
     }
 }
 
-if ($FixtureMode) {
-    if (-not (Test-SasCanonicalFqdn -Value $targetInput)) {
-        throw 'Fixture mode requires one syntactically valid FQDN and performs no DNS lookup.'
-    }
-    $targetFqdn = $targetInput.ToLowerInvariant()
-}
-else {
-    $targetResolution = Resolve-SasCanonicalTargetFqdn -TargetName $targetInput
-    if ([string]$targetResolution.disposition -ne 'UNIQUE_CANONICAL_FQDN' -or [string]::IsNullOrWhiteSpace([string]$targetResolution.fqdn)) {
-        throw 'Canonical target resolution did not produce exactly one approved FQDN.'
-    }
-    $targetFqdn = ([string]$targetResolution.fqdn).Trim().TrimEnd('.').ToLowerInvariant()
-}
-
+$targetFqdn = if ($FixtureMode) { $targetInput.ToLowerInvariant() } else { $null }
 $networkActivityDescription = if ($FixtureMode) {
     'No network activity performed.'
 }
@@ -115,9 +111,9 @@ $result = [ordered]@{
     run_id = $context.run_id
     target_scope = [ordered]@{
         target_count = 1
-        target_fingerprint = Get-SasTargetFingerprint -TargetFqdn $targetFqdn
+        target_fingerprint = Get-SasTargetFingerprint -TargetValue $(if ($FixtureMode) { $targetFqdn } else { $targetInput })
         identifier_emitted = $false
-        input_was_fqdn = $targetInput.Contains('.')
+        input_was_fqdn = $inputIsFqdn
     }
     evidence_class = if ($FixtureMode) { 'sanitized_fixture' } else { 'operator_local_live' }
     network_gate_required = (-not $FixtureMode)
@@ -158,6 +154,16 @@ try {
             throw "Northwell network posture gate stopped the readiness probe with exit code $gateExit."
         }
         $result.network_gate_passed = $true
+        Save-SasReadinessResult
+
+        $result.network_activity_performed = $true
+        Save-SasReadinessResult
+        $targetResolution = Resolve-SasCanonicalTargetFqdn -TargetName $targetInput
+        if ([string]$targetResolution.disposition -ne 'UNIQUE_CANONICAL_FQDN' -or [string]::IsNullOrWhiteSpace([string]$targetResolution.fqdn)) {
+            throw 'Canonical target resolution did not produce exactly one approved FQDN.'
+        }
+        $targetFqdn = ([string]$targetResolution.fqdn).Trim().TrimEnd('.').ToLowerInvariant()
+        $result.target_scope.target_fingerprint = Get-SasTargetFingerprint -TargetValue $targetFqdn
         Save-SasReadinessResult
     }
 
