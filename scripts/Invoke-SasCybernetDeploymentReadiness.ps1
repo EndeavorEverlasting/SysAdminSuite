@@ -3,10 +3,10 @@
 .SYNOPSIS
 Runs the one-target low-noise readiness chain used by Cybernet software deployment.
 .DESCRIPTION
-Checks the local Northwell network posture, resolves a short authorized hostname to the
-current domain FQDN without a discovery scan, and runs only the Kerberos SMB plus Remote
-Task Scheduler transport preflight. The command creates no remote task, writes nothing to
-the target, installs no software, and never broadens to WinRM or automatic transport discovery.
+Checks the local Northwell network posture, resolves one authorized hostname through the
+canonical repository target resolver, and runs only the Kerberos SMB plus Remote Task Scheduler
+transport preflight. The command creates no remote task, writes nothing to the target, installs
+no software, and never broadens to WinRM or automatic transport discovery.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Live')]
 param(
@@ -38,13 +38,15 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $networkGatePath = Join-Path $PSScriptRoot 'Confirm-SasNorthwellNetwork.ps1'
 $transportPath = Join-Path $PSScriptRoot 'Test-SasSoftwareDeploymentTransport.ps1'
 $transportModulePath = Join-Path $PSScriptRoot 'SasSoftwareDeploymentTransport.psm1'
+$targetResolutionModulePath = Join-Path $PSScriptRoot 'SasTargetNameResolution.psm1'
 $runContextModulePath = Join-Path $PSScriptRoot 'SasRunContext.psm1'
-foreach ($requiredPath in @($networkGatePath, $transportPath, $transportModulePath, $runContextModulePath)) {
+foreach ($requiredPath in @($networkGatePath, $transportPath, $transportModulePath, $targetResolutionModulePath, $runContextModulePath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Missing Cybernet deployment-readiness dependency: $requiredPath"
     }
 }
 Import-Module $transportModulePath -Force
+Import-Module $targetResolutionModulePath -Force
 Import-Module $runContextModulePath -Force
 
 $targetInput = $ComputerName.Trim().TrimEnd('.')
@@ -56,42 +58,6 @@ if ($PSCmdlet.ParameterSetName -eq 'Live' -and -not $AllowNetworkActivity) {
 }
 if ($PSCmdlet.ParameterSetName -eq 'Fixture' -and -not (Test-Path -LiteralPath $FixturePath -PathType Leaf)) {
     throw "Fixture file not found: $FixturePath"
-}
-
-function Resolve-SasAuthorizedTargetFqdn {
-    param([Parameter(Mandatory = $true)][string]$Target)
-
-    if ($Target.Contains('.')) {
-        if (-not (Test-SasFqdn -ComputerName $Target)) {
-            throw 'The supplied target contains a dot but is not a valid fully qualified DNS name.'
-        }
-        return $Target.ToLowerInvariant()
-    }
-
-    $suffix = [string]$env:USERDNSDOMAIN
-    if ([string]::IsNullOrWhiteSpace($suffix)) {
-        try {
-            $system = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
-            if ([bool]$system.PartOfDomain) { $suffix = [string]$system.Domain }
-        }
-        catch {
-            try {
-                $system = Get-WmiObject -Class Win32_ComputerSystem -ErrorAction Stop
-                if ([bool]$system.PartOfDomain) { $suffix = [string]$system.Domain }
-            }
-            catch { }
-        }
-    }
-    $suffix = $suffix.Trim().Trim('.')
-    if ([string]::IsNullOrWhiteSpace($suffix) -or -not $suffix.Contains('.')) {
-        throw 'A short hostname cannot be resolved safely because the current administrator session has no usable DNS domain suffix. Supply the authorized FQDN.'
-    }
-
-    $candidate = ('{0}.{1}' -f $Target, $suffix).ToLowerInvariant()
-    if (-not (Test-SasFqdn -ComputerName $candidate)) {
-        throw 'The short hostname plus the current DNS domain suffix did not form a valid FQDN.'
-    }
-    return $candidate
 }
 
 function Get-SasTargetFingerprint {
@@ -106,12 +72,25 @@ function Get-SasTargetFingerprint {
     }
 }
 
-$targetFqdn = Resolve-SasAuthorizedTargetFqdn -Target $targetInput
+if ($FixtureMode) {
+    if (-not (Test-SasCanonicalFqdn -Value $targetInput)) {
+        throw 'Fixture mode requires one syntactically valid FQDN and performs no DNS lookup.'
+    }
+    $targetFqdn = $targetInput.ToLowerInvariant()
+}
+else {
+    $targetResolution = Resolve-SasCanonicalTargetFqdn -TargetName $targetInput
+    if ([string]$targetResolution.disposition -ne 'UNIQUE_CANONICAL_FQDN' -or [string]::IsNullOrWhiteSpace([string]$targetResolution.fqdn)) {
+        throw 'Canonical target resolution did not produce exactly one approved FQDN.'
+    }
+    $targetFqdn = ([string]$targetResolution.fqdn).Trim().TrimEnd('.').ToLowerInvariant()
+}
+
 $networkActivityDescription = if ($FixtureMode) {
     'No network activity performed.'
 }
 else {
-    'Bounded Kerberos SMB plus Task Scheduler readiness observations for one authorized target.'
+    'Bounded canonical DNS resolution plus Kerberos SMB and Task Scheduler readiness observations for one authorized target.'
 }
 $requestSummary = if ($FixtureMode) {
     'Offline sanitized Cybernet software deployment readiness fixture.'
