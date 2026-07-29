@@ -20,6 +20,7 @@ SURVEY_SKILL = ROOT / ".claude/skills/survey-low-noise/SKILL.md"
 COMMANDS = ROOT / "harness/api/harness-command-registry.json"
 ARTIFACTS = ROOT / "harness/api/harness-artifact-registry.json"
 OUTCOMES = ROOT / "harness/api/harness-outcome-registry.json"
+SCHEMA = ROOT / "schemas/harness/cybernet-deployment-readiness-result.schema.json"
 RUNNER = ROOT / "tests/survey/run_offline_survey_tests.sh"
 PESTER = ROOT / "Tests/Pester/CybernetDeploymentReadiness.Tests.ps1"
 
@@ -39,7 +40,27 @@ def load(path: Path) -> dict:
 
 
 def by_id(items: list[dict]) -> dict[str, dict]:
-    return {item["id"]: item for item in items}
+    result: dict[str, dict] = {}
+    for item in items:
+        identifier = item.get("id", item.get("command_id"))
+        require(isinstance(identifier, str) and bool(identifier), "registry item is missing id/command_id")
+        result[identifier] = item
+    return result
+
+
+def test_readiness_schema_is_fail_closed_and_identifier_safe() -> None:
+    schema = load(SCHEMA)
+    require(schema["$schema"].endswith("draft/2020-12/schema"), "readiness schema draft drifted")
+    require(schema["$id"] == "schemas/harness/cybernet-deployment-readiness-result.schema.json", "readiness schema id drifted")
+    require(schema["additionalProperties"] is False, "readiness schema permits unregistered fields")
+    properties = schema["properties"]
+    require(properties["schema_version"]["const"] == "sas-cybernet-deployment-readiness-result/v1", "readiness schema version drifted")
+    require(properties["target_scope"]["properties"]["identifier_emitted"]["const"] is False, "readiness schema permits target identifier emission")
+    require(properties["target_mutation_performed"]["const"] is False, "readiness schema permits target mutation")
+    require(properties["transport_intent"]["const"] == "kerberos_smb_task", "readiness schema permits broad transport intent")
+    require(set(properties["tested_ports"]["items"]["enum"]) == {445, 135}, "readiness schema permits ports outside SMB/Task Scheduler dependencies")
+    require("CYBERNET_DEPLOYMENT_READINESS_READY" in properties["status"]["enum"], "live readiness status missing from schema")
+    require("CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY" in properties["status"]["enum"], "fixture readiness status missing from schema")
 
 
 def test_readiness_surface_is_one_target_read_only_and_artifact_backed() -> None:
@@ -102,8 +123,10 @@ def test_full_deployment_owns_readiness_before_any_mutation() -> None:
         "readiness_result_path",
         "readiness_status",
         "readiness_transport_classification",
+        "readiness_selected_transport",
         "readiness_tested_ports",
         "CYBERNET_DEPLOYMENT_READINESS_READY",
+        "kerberos_smb_task_ready",
         "kerberos_smb_task",
         "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
         "Run sas evidence before any retry",
