@@ -183,7 +183,6 @@ try {
     }
 
     $transportParameters = @{
-        ComputerName = $targetFqdn
         TransportIntent = 'kerberos_smb_task'
         TimeoutSeconds = $TimeoutSeconds
         OutputRoot = (Join-Path $context.run_root 'transport')
@@ -194,6 +193,7 @@ try {
         $transportParameters.FixturePath = $FixturePath
     }
     else {
+        $transportParameters.ComputerName = $targetFqdn
         $transportParameters.AllowNetworkActivity = $true
     }
 
