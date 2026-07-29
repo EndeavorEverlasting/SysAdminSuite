@@ -208,6 +208,8 @@ Those commands own hardware preferences such as power/no-sleep/display/COM behav
 - AutoLogon S4U apply engine: `scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1`
 - AutoLogon restart-complete deployment wrapper: `scripts/Invoke-SasAutoLogonS4URestartDeployment.ps1`
 - AutoLogon runtime proof: `scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1`
+- Hardware/client configuration guide: `docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md`
+- Hardware/client troubleshooting: `docs/tutorials/CYBERNET_CLIENT_CONFIGURATION_TROUBLESHOOTING.md`
 - Crash-safe evidence recovery: `scripts/Show-SasOperatorEvidence.ps1`
 - Approved package-set catalog: `configs/software-packages/windows-native-package-sets.json`
 - Detailed software deployment tutorial: `docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`
