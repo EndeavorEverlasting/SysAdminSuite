@@ -94,6 +94,7 @@ $result = [ordered]@{
     readiness_result_path = $null
     readiness_status = $null
     readiness_transport_classification = $null
+    readiness_selected_transport = $null
     readiness_tested_ports = @()
     clinical_core_result_path = $null
     clinical_core_status = $null
@@ -125,12 +126,21 @@ try {
     $result.readiness_result_path = [string]$readiness.result_path
     $result.readiness_status = [string]$readiness.status
     $result.readiness_transport_classification = [string]$readiness.transport_classification
+    $result.readiness_selected_transport = [string]$readiness.selected_transport
     $result.readiness_tested_ports = @($readiness.tested_ports)
     $result.execution_target = [string]$readiness.resolved_fqdn
     Save-SasCybernetSoftwareDeploymentResult
 
-    if ([string]$readiness.status -ne 'CYBERNET_DEPLOYMENT_READINESS_READY' -or -not [bool]$readiness.ready_for_deployment) {
-        throw "Low-noise deployment readiness did not pass: $($readiness.status)"
+    $readinessReady = (
+        [string]$readiness.status -eq 'CYBERNET_DEPLOYMENT_READINESS_READY' -and
+        [bool]$readiness.ready_for_deployment -and
+        [string]$readiness.transport_classification -eq 'kerberos_smb_task_ready' -and
+        [string]$readiness.selected_transport -eq 'kerberos_smb_task' -and
+        [bool]$readiness.transport_preflight_complete -and
+        [bool]$readiness.transport_authorization_proven
+    )
+    if (-not $readinessReady) {
+        throw "Low-noise deployment readiness did not prove kerberos_smb_task readiness: $($readiness.status) / $($readiness.transport_classification). Live deployment was not started."
     }
     if (@($readiness.tested_ports | Where-Object { $_ -in @(5985,5986) }).Count -gt 0) {
         throw 'Low-noise readiness unexpectedly tested WinRM ports. Live deployment was not started.'
