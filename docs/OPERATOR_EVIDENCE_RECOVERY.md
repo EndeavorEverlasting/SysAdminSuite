@@ -5,7 +5,7 @@ Use this page when a SysAdminSuite terminal closed, crashed, was disconnected, o
 1. **Where did the result go?**
 2. **What is the next safe action?**
 
-Do not redeploy a target merely to recreate console output.
+Do not repeat a readiness probe or redeploy a target merely to recreate console output.
 
 ## One command
 
@@ -63,6 +63,22 @@ and common placements such as:
 The recovery command does **not** recursively scan the whole workstation. It searches only known SysAdminSuite output roots beneath bounded candidate checkouts plus the runtime evidence directory explicitly named by a local `targets\local\autologon-runtime.json` config when present.
 
 ## Critical evidence locations
+
+### One-target Cybernet deployment readiness
+
+```text
+survey\output\runs\cybernet-deployment-readiness\cybernet-deployment-readiness-*\artifacts\cybernet_deployment_readiness_result.json
+```
+
+Successful live read-only state:
+
+```text
+CYBERNET_DEPLOYMENT_READINESS_READY
+```
+
+This means the staged Kerberos SMB plus Task Scheduler readiness chain passed for one authorized target. It is **not deployment completion** and it grants no mutation authority. When deployment is explicitly authorized, use `sas cybernet Deploy HOST`; that command runs a fresh readiness gate in the same transaction before mutation.
+
+The fixture-only state `CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY` proves contract shape only. No target was contacted or authorized.
 
 ### Full Cybernet software deployment
 
@@ -142,12 +158,14 @@ That file records the discovered local artifact paths, timestamps, public state 
 ## Recovery rules
 
 - A closed terminal does **not** erase an artifact that was already written to disk.
-- Do not rerun deployment merely because console output disappeared.
+- Do not repeat a readiness probe or deployment merely because console output disappeared.
+- `CYBERNET_DEPLOYMENT_READINESS_READY` means one-target read-only transport readiness passed; it is not deployment completion.
+- `CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY` is fixture-only proof and does not authorize target contact.
 - `CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED` means full Cybernet software deployment completed through restart.
 - `AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED` means AutoLogon-only deployment completed through restart.
 - `KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING` is an older/internal pre-reboot ceiling, not current deployment completion.
 - `CLINICAL_CORE_DEPLOYMENT_COMPLETED` means preserve the five installed applications and continue only with the remaining AutoLogon state when required.
-- A failed/blocked artifact must be preserved and diagnosed before another target mutation. Do not blindly retry.
+- A failed/blocked artifact must be preserved and diagnosed before another probe or target mutation. Do not blindly retry or broaden ports.
 - Absence of local evidence does not prove success or failure. It means no conclusion should be manufactured from the missing console window.
 
 ## Refresh the portable operator command
