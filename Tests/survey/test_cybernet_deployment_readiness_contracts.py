@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 READINESS = ROOT / "scripts/Invoke-SasCybernetDeploymentReadiness.ps1"
+TARGET_RESOLVER = ROOT / "scripts/SasTargetNameResolution.psm1"
 PROBE_CMD = ROOT / "Probe-CybernetSoftware.cmd"
 DEPLOYMENT = ROOT / "scripts/Invoke-SasCybernetSoftwareDeployment.ps1"
 DEPLOY_CMD = ROOT / "Deploy-CybernetSoftware.cmd"
@@ -70,6 +71,8 @@ def test_readiness_surface_is_one_target_read_only_and_artifact_backed() -> None
         "Invoke-SasCybernetDeploymentReadiness",
         "Confirm-SasNorthwellNetwork.ps1",
         "Test-SasSoftwareDeploymentTransport.ps1",
+        "SasTargetNameResolution.psm1",
+        "Resolve-SasCanonicalTargetFqdn -TargetName $targetInput",
         "TransportIntent = 'kerberos_smb_task'",
         "CYBERNET_DEPLOYMENT_READINESS_READY",
         "CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY",
@@ -98,6 +101,21 @@ def test_readiness_surface_is_one_target_read_only_and_artifact_backed() -> None
         require(forbidden.lower() not in readiness.lower(), f"readiness surface gained forbidden behavior: {forbidden}")
 
 
+def test_readiness_uses_canonical_identity_and_keeps_fixtures_offline() -> None:
+    readiness = read(READINESS)
+    resolver = read(TARGET_RESOLVER)
+    require("Resolve-SasCanonicalTargetFqdn" in resolver, "canonical target resolver is missing")
+    require("different canonical host identity" in resolver, "canonical resolver no longer rejects identity mismatch")
+    require("multiple canonical FQDNs" in resolver, "canonical resolver no longer rejects multiple identities")
+    require("Unable to resolve one canonical FQDN" in resolver, "canonical resolver no longer rejects zero identities")
+    require("if ($FixtureMode)" in readiness, "fixture/live target resolution split missing")
+    fixture_check = readiness.index("Fixture mode requires one syntactically valid FQDN")
+    canonical_call = readiness.index("Resolve-SasCanonicalTargetFqdn -TargetName $targetInput")
+    require(fixture_check < canonical_call, "fixture validation is not separated from live canonical DNS resolution")
+    require("Test-SasCanonicalFqdn -Value $targetInput" in readiness, "fixture mode does not validate its offline FQDN")
+    require("$targetResolution.disposition" in readiness and "UNIQUE_CANONICAL_FQDN" in readiness, "live readiness does not require unique canonical identity")
+
+
 def test_readiness_stages_stop_before_broadening_or_mutation() -> None:
     readiness = read(READINESS)
     transport_call = readiness.index("$transport = & $transportPath")
@@ -108,8 +126,6 @@ def test_readiness_stages_stop_before_broadening_or_mutation() -> None:
     require("Where-Object { $_ -in @(5985, 5986) }" in readiness, "WinRM broadening guard missing")
     require("The Cybernet readiness probe broadened into WinRM ports" in readiness, "WinRM broadening does not fail closed")
     require("Do not broaden ports or retry" in readiness, "iterative probe failure guidance missing")
-    require("A short hostname cannot be resolved safely" in readiness, "short hostname resolution does not fail closed")
-    require("$env:USERDNSDOMAIN" in readiness, "current domain DNS suffix is not used for short-host completion")
 
 
 def test_full_deployment_owns_readiness_before_any_mutation() -> None:
