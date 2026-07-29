@@ -7,7 +7,7 @@ Describe 'Cybernet deployment readiness' {
         $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         $script:entrypoint = Join-Path $repoRoot 'scripts/Invoke-SasCybernetDeploymentReadiness.ps1'
         $script:deployment = Join-Path $repoRoot 'scripts/Invoke-SasCybernetSoftwareDeployment.ps1'
-        $script:fixturePath = Join-Path $repoRoot 'Tests/Fixtures/software-deployment-transport/kerberos-smb-task-ready.fixture.json'
+        $script:fixturePath = Join-Path $repoRoot 'Tests/Fixtures/cybernet-deployment-readiness/kerberos-smb-task-ready.fixture.json'
     }
 
     It 'parses the readiness and full deployment PowerShell surfaces' {
