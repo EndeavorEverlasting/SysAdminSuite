@@ -13,8 +13,10 @@ sas
 For a full Cybernet software deployment on one explicitly authorized target:
 
 ```powershell
-sas cybernet Deploy <AUTHORIZED-CYBERNET-HOST-OR-FQDN>
+sas cybernet Deploy <AUTHORIZED-CYBERNET>
 ```
+
+The target may be the authorized short hostname or FQDN. Short names are completed from the current domain DNS suffix and fail closed when that cannot be done safely.
 
 That is the complete current field transaction. It automatically:
 
@@ -26,6 +28,8 @@ That is the complete current field transaction. It automatically:
 6. emits a final deployment artifact.
 
 A separate probe is **not required** before deployment. The deployment command owns the same gate and stops before mutation when readiness is not proven.
+
+The historical six-package LocalSystem path remains blocked because canonical SYSTEM AutoLogon has not passed runtime qualification. The current field route intentionally uses the five-package clinical core followed by Kerberos/S4U AutoLogon and restart.
 
 Required success status:
 
@@ -54,13 +58,13 @@ The summary must report:
 Use the standalone probe only when the requested goal is diagnosis/readiness rather than immediate authorized deployment:
 
 ```powershell
-sas cybernet Probe <AUTHORIZED-CYBERNET-HOST-OR-FQDN>
+sas cybernet Probe <AUTHORIZED-CYBERNET>
 ```
 
 Equivalent short alias:
 
 ```powershell
-sas network <AUTHORIZED-CYBERNET-HOST-OR-FQDN>
+sas network <AUTHORIZED-CYBERNET>
 ```
 
 The probe is read-only with respect to the target. It runs this dependency chain and suppresses every later step after an earlier failure:
@@ -155,7 +159,7 @@ Run this **offline** first:
 sas evidence
 ```
 
-It searches the current checkout plus bounded SysAdminSuite checkouts under the current Windows user's Desktop/OneDrive layouts and prints the newest deployment/runtime artifact plus the next safe action. It performs **no network activity and no target contact**.
+It searches the current checkout plus bounded SysAdminSuite checkouts under the current Windows user's Desktop/OneDrive layouts and prints the newest readiness/deployment/runtime artifact plus the next safe action. It performs **no network activity and no target contact**.
 
 Useful variants:
 
