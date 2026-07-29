@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Find the newest SysAdminSuite deployment/runtime evidence without contacting a target.
+Find the newest SysAdminSuite deployment/readiness/runtime evidence without contacting a target.
 
 .DESCRIPTION
 Searches only bounded SysAdminSuite output roots in the current checkout and common per-user
@@ -109,6 +109,7 @@ foreach ($pattern in @(
 }
 
 $definitions = @(
+    [pscustomobject]@{ category='Cybernet'; role='one-target deployment readiness'; relative_root='survey\output\runs\cybernet-deployment-readiness'; filter='cybernet_deployment_readiness_result.json' },
     [pscustomobject]@{ category='Cybernet'; role='full software deployment'; relative_root='survey\output\runs\cybernet-software-deployment'; filter='cybernet_software_deployment_result.json' },
     [pscustomobject]@{ category='AutoLogon'; role='restart-complete AutoLogon deployment'; relative_root='survey\output\runs\autologon-s4u-deployment'; filter='autologon_s4u_deployment_result.json' },
     [pscustomobject]@{ category='AutoLogon'; role='S4U pre-reboot apply'; relative_root='survey\output\runs\autologon-kerberos-s4u'; filter='autologon_kerberos_s4u_pilot_result.json' },
@@ -205,6 +206,12 @@ function Get-SasEvidenceSummary {
 
     $state = if (-not [string]::IsNullOrWhiteSpace([string]$summary.classification)) { [string]$summary.classification } else { [string]$summary.status }
     switch ($state) {
+        'CYBERNET_DEPLOYMENT_READINESS_READY' {
+            $summary.next_action = 'Read-only Kerberos SMB plus Task Scheduler readiness passed. This is not deployment completion. When deployment is explicitly authorized, use sas cybernet Deploy HOST; that command runs a fresh readiness gate in the same transaction before mutation.'
+        }
+        'CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY' {
+            $summary.next_action = 'The sanitized fixture satisfies the readiness contract, but no target was contacted or authorized. Do not promote fixture evidence to live readiness or deployment.'
+        }
         'CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED' {
             $summary.next_action = 'Deployment is complete. Do not redeploy this target merely to recreate console output. Runtime proof is optional only when separately requested.'
         }
@@ -266,15 +273,13 @@ foreach ($summary in $summaries) {
     if ($null -ne $summary.overall_success) { Write-Host "    Overall success: $($summary.overall_success)" }
     if (-not [string]::IsNullOrWhiteSpace([string]$summary.reason)) { Write-Host "    Reason: $($summary.reason)" }
     Write-Host "    File: $($summary.path)"
-    Write-Host "    Next: $($summary.next_action)"
+    Write-Host "    Next: $($summary.next_action)" -ForegroundColor Cyan
     Write-Host ''
 }
 
-if ($openLatest) {
-    $parent = Split-Path -Parent $summaries[0].path
-    if (Test-Path -LiteralPath $parent -PathType Container) {
-        Start-Process -FilePath 'explorer.exe' -ArgumentList @($parent) | Out-Null
-    }
+if ($openLatest -and $summaries.Count -gt 0) {
+    $folder = Split-Path -Parent ([string]$summaries[0].path)
+    Start-Process -FilePath 'explorer.exe' -ArgumentList @($folder) | Out-Null
 }
 
 exit 0
