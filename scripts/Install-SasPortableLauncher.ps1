@@ -47,15 +47,19 @@ Write-Host "Command: $cmdDestination"
 Write-Host ''
 Write-Host 'Open a new terminal and use:' -ForegroundColor Cyan
 Write-Host '  sas                                      Show current deployment guidance'
-Write-Host '  sas cybernet Deploy HOST                 Deploy full software profile; AutoLogon last; restart included'
+Write-Host '  sas cybernet Probe HOST                  Read-only one-target Kerberos SMB/Task Scheduler readiness'
+Write-Host '  sas network HOST                         Alias for the same read-only readiness probe'
+Write-Host '  sas cybernet Deploy HOST                 Deploy full software profile; readiness included; AutoLogon last; restart included'
 Write-Host '  sas autologon Remote HOST                Deploy AutoLogon only; restart included'
-Write-Host '  sas evidence                             Find newest local deployment/runtime evidence; no network needed'
+Write-Host '  sas evidence                             Find newest local readiness/deployment/runtime evidence; no network needed'
 Write-Host '  sas evidence All                         List recent local evidence across known Desktop/OneDrive checkouts'
 Write-Host '  sas cybernet Plan HOST                   Hardware-only Cybernet plan'
 Write-Host '  sas cybernet Apply HOST                  Hardware-only Cybernet apply'
 Write-Host '  sas cybernet Validate HOST               Hardware-only Cybernet validation'
-Write-Host '  sas network                              Check approved Northwell network posture'
+Write-Host '  sas network                              Check approved Northwell network posture only'
 Write-Host ''
+Write-Host 'Full deployment runs its own staged low-noise readiness gate before any target mutation.' -ForegroundColor Green
+Write-Host 'The standalone Probe is optional diagnosis; it is not a prerequisite loop before Deploy.' -ForegroundColor Green
 Write-Host 'Deployment completion includes the required target restart when AutoLogon is installed.' -ForegroundColor Green
 Write-Host 'Fixture, live-cert, and runtime-proof loops are not prerequisites for software deployment completion.' -ForegroundColor Green
 Write-Host 'If a terminal closes or crashes, use `sas evidence` before retrying anything.' -ForegroundColor Yellow
