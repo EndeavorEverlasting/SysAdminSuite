@@ -73,11 +73,14 @@ def test_recovery_considers_portable_user_desktop_and_onedrive_layouts() -> None
 def test_recovery_knows_critical_artifacts_and_interprets_them() -> None:
     script = read(SCRIPT)
     for marker in (
+        "cybernet_deployment_readiness_result.json",
         "cybernet_software_deployment_result.json",
         "autologon_s4u_deployment_result.json",
         "autologon_kerberos_s4u_pilot_result.json",
         "cybernet_clinical_core_deployment_summary.json",
         "runtime-proof-summary.json",
+        "CYBERNET_DEPLOYMENT_READINESS_READY",
+        "CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY",
         "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
         "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
         "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
@@ -86,6 +89,10 @@ def test_recovery_knows_critical_artifacts_and_interprets_them() -> None:
         "Do not blindly rerun",
     ):
         assert marker in script, marker
+    assert "This is not deployment completion" in script
+    assert "sas cybernet Deploy HOST" in script
+    assert "runs a fresh readiness gate in the same transaction" in script
+    assert "Do not promote fixture evidence to live readiness or deployment" in script
 
 
 def test_recovery_writes_stable_local_pointer_without_committing_evidence() -> None:
@@ -101,7 +108,9 @@ def test_recovery_writes_stable_local_pointer_without_committing_evidence() -> N
         assert marker in script, marker
     assert "%LOCALAPPDATA%\\SysAdminSuite\\last-evidence.json" in doc
     assert "must not be committed" in doc
-    assert "Do not redeploy a target merely to recreate console output" in doc
+    assert "Do not repeat a readiness probe or redeploy a target merely to recreate console output" in doc
+    assert "CYBERNET_DEPLOYMENT_READINESS_READY" in doc
+    assert "CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY" in doc
 
 
 def test_harness_registers_evidence_recovery_command_artifact_and_outcome() -> None:

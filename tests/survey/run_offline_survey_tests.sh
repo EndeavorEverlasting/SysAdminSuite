@@ -19,6 +19,7 @@ python3 Tests/survey/test_cybernet_hardware_batch_contracts.py
 python3 Tests/survey/test_cybernet_client_configuration_contracts.py
 python3 Tests/survey/test_cybernet_operator_documentation_contracts.py
 python3 Tests/survey/test_cybernet_software_deployment_documentation_contracts.py
+python3 Tests/survey/test_cybernet_deployment_readiness_contracts.py
 python3 Tests/survey/test_portable_onsite_operator_contracts.py
 python3 Tests/survey/test_technician_deployment_guidance_contracts.py
 python3 Tests/survey/test_operator_evidence_recovery_contracts.py

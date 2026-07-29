@@ -4,10 +4,11 @@
 Deploy the complete Cybernet clinical software profile and restart after AutoLogon.
 
 .DESCRIPTION
-The current full field deployment sequence is intentionally split across two proven engines:
-  1. deploy the five-package cybernet-clinical-core set;
-  2. apply AutoLogon last through the Kerberos/S4U lane;
-  3. restart the same target and wait for the restart cycle to complete.
+The current full field deployment sequence is intentionally split across proven engines:
+  1. run the one-target Kerberos SMB plus Task Scheduler low-noise readiness chain;
+  2. deploy the five-package cybernet-clinical-core set;
+  3. apply AutoLogon last through the Kerberos/S4U lane;
+  4. restart the same target and wait for the restart cycle to complete.
 
 The historical six-package LocalSystem package-set controller is not used because canonical SYSTEM
 AutoLogon remains blocked by failed runtime qualification. This orchestrator preserves that truth
@@ -28,6 +29,9 @@ param(
     [ValidateRange(60,900)]
     [int]$RestartTimeoutSeconds = 300,
 
+    [ValidateRange(1,30)]
+    [int]$ReadinessTimeoutSeconds = 5,
+
     [string]$OutputRoot,
     [switch]$AllowTargetMutation,
     [switch]$ConfirmDeployment,
@@ -42,14 +46,15 @@ if (-not $AllowTargetMutation -or -not $ConfirmDeployment) {
 }
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$readinessScript = Join-Path $PSScriptRoot 'Invoke-SasCybernetDeploymentReadiness.ps1'
 $coreScript = Join-Path $PSScriptRoot 'Invoke-SasCybernetClinicalCoreDeployment.ps1'
 $autoScript = Join-Path $PSScriptRoot 'Invoke-SasAutoLogonS4URestartDeployment.ps1'
 $catalogPath = Join-Path $repoRoot 'configs\software-packages\windows-native-package-sets.json'
-foreach ($required in @($coreScript,$autoScript,$catalogPath)) {
+foreach ($required in @($readinessScript,$coreScript,$autoScript,$catalogPath)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Missing full Cybernet deployment dependency: $required" }
 }
 
-$target = $ComputerName.Trim()
+$target = $ComputerName.Trim().TrimEnd('.')
 if ($target -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
     throw "Invalid Cybernet hostname or FQDN: $target"
 }
@@ -80,10 +85,17 @@ $result = [ordered]@{
     schema_version = 'sas-cybernet-software-deployment-result/v1'
     run_id = $runId
     target = $target
+    execution_target = $null
     package_set_id = 'cybernet-clinical-workstation'
     package_ids = $fullIds
     autologon_included = $true
     autologon_was_last_software_step = $true
+    low_noise_transport_preflight_required = $true
+    readiness_result_path = $null
+    readiness_status = $null
+    readiness_transport_classification = $null
+    readiness_selected_transport = $null
+    readiness_tested_ports = @()
     clinical_core_result_path = $null
     clinical_core_status = $null
     autologon_result_path = $null
@@ -105,10 +117,41 @@ Save-SasCybernetSoftwareDeploymentResult
 try {
     Write-Host "`n==================================================" -ForegroundColor Cyan
     Write-Host " CYBERNET SOFTWARE DEPLOYMENT: $target" -ForegroundColor Cyan
-    Write-Host ' Clinical applications first; AutoLogon last; restart included.' -ForegroundColor Cyan
+    Write-Host ' Low-noise readiness first; clinical applications next; AutoLogon last; restart included.' -ForegroundColor Cyan
     Write-Host "==================================================" -ForegroundColor Cyan
 
-    $coreResult = & $coreScript -Mode Deploy -ComputerName $target -SoftwareWaitTimeout $SoftwareWaitTimeout `
+    Write-Host "`n=== LOW-NOISE DEPLOYMENT READINESS ===" -ForegroundColor Cyan
+    $readiness = & $readinessScript -ComputerName $target -AllowNetworkActivity `
+        -TimeoutSeconds $ReadinessTimeoutSeconds -OutputRoot (Join-Path $runRoot 'readiness') -PassThru
+    $result.readiness_result_path = [string]$readiness.result_path
+    $result.readiness_status = [string]$readiness.status
+    $result.readiness_transport_classification = [string]$readiness.transport_classification
+    $result.readiness_selected_transport = [string]$readiness.selected_transport
+    $result.readiness_tested_ports = @($readiness.tested_ports)
+    $result.execution_target = [string]$readiness.resolved_fqdn
+    Save-SasCybernetSoftwareDeploymentResult
+
+    $readinessReady = (
+        [string]$readiness.status -eq 'CYBERNET_DEPLOYMENT_READINESS_READY' -and
+        [bool]$readiness.ready_for_deployment -and
+        [string]$readiness.transport_classification -eq 'kerberos_smb_task_ready' -and
+        [string]$readiness.selected_transport -eq 'kerberos_smb_task' -and
+        [bool]$readiness.transport_preflight_complete -and
+        [bool]$readiness.transport_authorization_proven
+    )
+    if (-not $readinessReady) {
+        throw "Low-noise deployment readiness did not prove kerberos_smb_task readiness: $($readiness.status) / $($readiness.transport_classification). Live deployment was not started."
+    }
+    if (@($readiness.tested_ports | Where-Object { $_ -in @(5985,5986) }).Count -gt 0) {
+        throw 'Low-noise readiness unexpectedly tested WinRM ports. Live deployment was not started.'
+    }
+
+    $executionTarget = [string]$readiness.resolved_fqdn
+    if ([string]::IsNullOrWhiteSpace($executionTarget)) {
+        throw 'Low-noise readiness did not return the authorized target FQDN. Live deployment was not started.'
+    }
+
+    $coreResult = & $coreScript -Mode Deploy -ComputerName $executionTarget -SoftwareWaitTimeout $SoftwareWaitTimeout `
         -OutputRoot (Join-Path $runRoot 'clinical-core') -AllowTargetMutation -ConfirmDeployment -PassThru
     $result.clinical_core_result_path = [string]$coreResult.summary_path
     $result.clinical_core_status = [string]$coreResult.status
@@ -118,7 +161,7 @@ try {
     }
 
     Write-Host "`n=== FINAL SOFTWARE STEP: AUTOLOGON ===" -ForegroundColor Cyan
-    $autoResult = & $autoScript -ComputerName $target -RestartDelaySeconds $RestartDelaySeconds `
+    $autoResult = & $autoScript -ComputerName $executionTarget -RestartDelaySeconds $RestartDelaySeconds `
         -RestartTimeoutSeconds $RestartTimeoutSeconds -OutputRoot (Join-Path $runRoot 'autologon') `
         -AllowTargetMutation -ConfirmDeployment -PassThru
 
@@ -141,6 +184,7 @@ try {
     Save-SasCybernetSoftwareDeploymentResult
 
     Write-Host "`nCYBERNET SOFTWARE DEPLOYMENT COMPLETED." -ForegroundColor Green
+    Write-Host 'Low-noise Kerberos SMB plus Task Scheduler readiness passed.' -ForegroundColor Green
     Write-Host 'Five clinical applications deployed.' -ForegroundColor Green
     Write-Host 'AutoLogon deployed last.' -ForegroundColor Green
     Write-Host 'Target restart cycle completed.' -ForegroundColor Green
@@ -153,6 +197,7 @@ catch {
     Save-SasCybernetSoftwareDeploymentResult
     Write-Host "`nACTION REQUIRED: $($result.reason)" -ForegroundColor Yellow
     Write-Host "Evidence: $resultPath"
+    Write-Host 'Run sas evidence before any retry if the console output is incomplete.' -ForegroundColor Yellow
     throw
 }
 

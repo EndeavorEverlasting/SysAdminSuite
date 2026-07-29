@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/cybernet-deployment-readiness-result.schema.json",
+  "title": "SysAdminSuite Cybernet deployment readiness result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "target_scope",
+    "evidence_class",
+    "network_gate_required",
+    "network_gate_passed",
+    "transport_intent",
+    "transport_result_path",
+    "transport_classification",
+    "selected_transport",
+    "tested_ports",
+    "transport_preflight_complete",
+    "transport_authorization_proven",
+    "network_activity_performed",
+    "target_mutation_performed",
+    "ready_for_deployment",
+    "status",
+    "reason",
+    "result_path",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {"const": "sas-cybernet-deployment-readiness-result/v1"},
+    "run_id": {"type": "string", "pattern": "^cybernet-deployment-readiness-[0-9]{8}-[0-9]{6}-[a-f0-9]{8}$"},
+    "target_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_count", "target_fingerprint", "identifier_emitted", "input_was_fqdn"],
+      "properties": {
+        "target_count": {"const": 1},
+        "target_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "identifier_emitted": {"const": false},
+        "input_was_fqdn": {"type": "boolean"}
+      }
+    },
+    "evidence_class": {"enum": ["sanitized_fixture", "operator_local_live"]},
+    "network_gate_required": {"type": "boolean"},
+    "network_gate_passed": {"type": ["boolean", "null"]},
+    "transport_intent": {"const": "kerberos_smb_task"},
+    "transport_result_path": {"type": ["string", "null"]},
+    "transport_classification": {"type": ["string", "null"]},
+    "selected_transport": {"enum": ["none", "kerberos_smb_task"]},
+    "tested_ports": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": [445, 135]}
+    },
+    "transport_preflight_complete": {"type": "boolean"},
+    "transport_authorization_proven": {"type": "boolean"},
+    "network_activity_performed": {"type": "boolean"},
+    "target_mutation_performed": {"const": false},
+    "ready_for_deployment": {"type": "boolean"},
+    "status": {"enum": ["STARTED", "CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY", "CYBERNET_DEPLOYMENT_READINESS_READY", "ACTION_REQUIRED"]},
+    "reason": {"type": ["string", "null"]},
+    "result_path": {"type": "string", "minLength": 1},
+    "proof_ceiling": {"type": "string", "minLength": 20}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "CYBERNET_DEPLOYMENT_READINESS_READY"}}},
+      "then": {
+        "properties": {
+          "evidence_class": {"const": "operator_local_live"},
+          "network_gate_required": {"const": true},
+          "network_gate_passed": {"const": true},
+          "transport_classification": {"const": "kerberos_smb_task_ready"},
+          "selected_transport": {"const": "kerberos_smb_task"},
+          "transport_preflight_complete": {"const": true},
+          "transport_authorization_proven": {"const": true},
+          "network_activity_performed": {"const": true},
+          "ready_for_deployment": {"const": true}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY"}}},
+      "then": {
+        "properties": {
+          "evidence_class": {"const": "sanitized_fixture"},
+          "network_gate_required": {"const": false},
+          "network_gate_passed": {"const": null},
+          "transport_classification": {"const": "kerberos_smb_task_ready"},
+          "selected_transport": {"const": "kerberos_smb_task"},
+          "transport_preflight_complete": {"const": true},
+          "transport_authorization_proven": {"const": true},
+          "network_activity_performed": {"const": false},
+          "ready_for_deployment": {"const": false}
+        }
+      }
+    }
+  ]
+}

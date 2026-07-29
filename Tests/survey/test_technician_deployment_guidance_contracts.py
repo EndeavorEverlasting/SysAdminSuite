@@ -34,10 +34,13 @@ def main() -> int:
     }
     for name, text in surfaces.items():
         require("sas cybernet Deploy" in text, f"{name} missing full Cybernet deployment command")
+        require("sas cybernet Probe" in text, f"{name} missing one-target readiness command")
         require("sas autologon Remote" in text, f"{name} missing AutoLogon-only deployment command")
         require("restart" in text.lower(), f"{name} missing required restart guidance")
+        require("readiness" in text.lower(), f"{name} missing integrated readiness guidance")
 
     for name, text in (("launcher", launcher), ("start-here", start_here), ("tutorial", tutorial)):
+        require("CYBERNET_DEPLOYMENT_READINESS_READY" in text, f"{name} missing readiness status")
         require("AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in text, f"{name} missing AutoLogon restart-complete classification")
         require("CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED" in text, f"{name} missing full software restart-complete status")
 
@@ -48,12 +51,17 @@ def main() -> int:
         require("fixture" in lowered and "live-cert" in lowered, f"{name} does not reject diagnostic-only substitutes")
         require("not a prerequisite" in lowered or "not required" in lowered, f"{name} makes extra proof look mandatory for deployment")
         require("runtime proof" in lowered, f"{name} does not preserve optional runtime-proof guidance")
+        require("winrm" in lowered, f"{name} does not preserve the narrow transport boundary")
+        require("nmap" in lowered and "naabu" in lowered, f"{name} does not reject broad scan substitutes")
 
     require("restart included" in installer, "installer output does not advertise restart-complete deployment")
+    require("readiness included" in installer, "installer output does not advertise integrated readiness")
+    require("The standalone Probe is optional diagnosis; it is not a prerequisite loop before Deploy" in installer, "installer turns readiness into a prerequisite loop")
     require(
         "Fixture/live-cert/runtime-proof loops are NOT prerequisites" in launcher,
         "portable launcher does not explicitly prevent test loops from delaying deployment",
     )
+    require("The standalone Probe is optional diagnosis; it is NOT a prerequisite loop before Deploy" in launcher, "portable launcher turns Probe into a required loop")
     require("historical six-package LocalSystem" in start_here, "start-here does not preserve the blocked LocalSystem boundary")
     require("historical six-package" in tutorial, "tutorial does not preserve the blocked LocalSystem boundary")
     require("install/refresh" in installer, "operator command refresh behavior is not documented")

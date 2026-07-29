@@ -24,6 +24,7 @@ function Test-SasRepoRoot {
         (Test-Path -LiteralPath $candidate -PathType Container) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Run-AutoLogonOnsite.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Run-CybernetBatchConfiguration.cmd') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $candidate 'Probe-CybernetSoftware.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetSoftware.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetClinicalCore.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Find-SasEvidence.cmd') -PathType Leaf) -and
@@ -125,7 +126,7 @@ function Invoke-SasPortableRepoCommand {
     )
 
     $entryPoint = Join-Path $RepoRoot $RelativePath
-    $isLocalDrivePath = $RepoRoot -match '^[A-Za-z]:\\'
+    $isLocalDrivePath = $RepoRoot -match '^[A-Za-z]:\'
     if (-not $isLocalDrivePath -or $RepoRoot.Length -lt $PathLengthThreshold) {
         & $entryPoint @Arguments
         return [int]$LASTEXITCODE
@@ -162,7 +163,9 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host 'SysAdminSuite portable operator command' -ForegroundColor Cyan
     Write-Host "Repo: $repoRoot"
     Write-Host ''
-    Write-Host '  sas cybernet Deploy HOST            DEPLOY full Cybernet software profile; AutoLogon last; restart included'
+    Write-Host '  sas cybernet Probe HOST             READ-ONLY: one-target low-noise deployment readiness'
+    Write-Host '  sas network HOST                    Alias for the same one-target deployment readiness probe'
+    Write-Host '  sas cybernet Deploy HOST            DEPLOY full Cybernet software profile; readiness included; AutoLogon last; restart included'
     Write-Host '  sas autologon Remote HOST           DEPLOY AutoLogon only through Kerberos/S4U; restart included'
     Write-Host '  sas evidence                        OFFLINE: find newest deployment/runtime evidence and next action'
     Write-Host '  sas evidence All                    OFFLINE: list recent evidence across known SysAdminSuite checkouts'
@@ -171,15 +174,18 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas cybernet Plan HOST              Hardware-only Cybernet plan'
     Write-Host '  sas cybernet Apply HOST             Hardware-only Cybernet apply'
     Write-Host '  sas cybernet Validate HOST          Hardware-only Cybernet validation'
-    Write-Host '  sas network                         Check/recheck approved Northwell network posture'
+    Write-Host '  sas network                         Check/recheck approved Northwell network posture only'
     Write-Host '  sas repo                            Print resolved repository path'
     Write-Host '  sas open                            Open repository in Explorer'
     Write-Host ''
     Write-Host 'Software deployment behavior:' -ForegroundColor Cyan
+    Write-Host '  - Full deployment automatically runs the narrow Kerberos SMB plus Task Scheduler readiness chain first.'
+    Write-Host '  - The readiness chain stops at the first failed dependency and never broadens to WinRM or auto discovery.'
     Write-Host '  - Full Cybernet deployment installs the five clinical applications first.'
     Write-Host '  - AutoLogon is always the final software step.'
     Write-Host '  - AutoLogon deployment automatically restarts the target and waits for it to return.'
     Write-Host '  - Success: CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED or AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED.'
+    Write-Host '  - The standalone Probe is optional diagnosis; it is NOT a prerequisite loop before Deploy.' -ForegroundColor Green
     Write-Host '  - Fixture/live-cert/runtime-proof loops are NOT prerequisites for deployment completion.' -ForegroundColor Green
     Write-Host '  - Runtime proof remains available only when explicitly requested; it must not delay deployment.' -ForegroundColor Cyan
     Write-Host '  - If the terminal closes or crashes, run `sas evidence`; do not redeploy just to recreate console output.' -ForegroundColor Yellow
@@ -200,8 +206,17 @@ switch ($normalized) {
         exit $exitCode
     }
     'network' {
-        & (Join-Path $repoRoot 'scripts\Confirm-SasNorthwellNetwork.ps1') -Purpose 'manual SysAdminSuite operator check'
-        exit $LASTEXITCODE
+        $args = @($CommandArgs)
+        if ($args.Count -eq 0) {
+            & (Join-Path $repoRoot 'scripts\Confirm-SasNorthwellNetwork.ps1') -Purpose 'manual SysAdminSuite operator check'
+            exit $LASTEXITCODE
+        }
+        if ($args.Count -eq 1 -and -not [string]::IsNullOrWhiteSpace([string]$args[0])) {
+            $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Probe-CybernetSoftware.cmd' -Arguments @('Probe', [string]$args[0])
+            exit $exitCode
+        }
+        Write-Host 'Usage: sas network  OR  sas network HOST' -ForegroundColor Red
+        exit 2
     }
     { $_ -in @('autologon','qualify') } {
         $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-AutoLogonOnsite.cmd' -Arguments $CommandArgs
@@ -209,12 +224,18 @@ switch ($normalized) {
     }
     'cybernet' {
         $args = @($CommandArgs)
-        if ($args.Count -gt 0 -and [string]$args[0] -and ([string]$args[0]).Trim().ToLowerInvariant() -eq 'deploy') {
-            $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Deploy-CybernetSoftware.cmd' -Arguments $args
+        if ($args.Count -gt 0 -and [string]$args[0]) {
+            $mode = ([string]$args[0]).Trim().ToLowerInvariant()
+            if ($mode -eq 'probe') {
+                $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Probe-CybernetSoftware.cmd' -Arguments $args
+                exit $exitCode
+            }
+            if ($mode -eq 'deploy') {
+                $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Deploy-CybernetSoftware.cmd' -Arguments $args
+                exit $exitCode
+            }
         }
-        else {
-            $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-CybernetBatchConfiguration.cmd' -Arguments $args
-        }
+        $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-CybernetBatchConfiguration.cmd' -Arguments $args
         exit $exitCode
     }
     default {
