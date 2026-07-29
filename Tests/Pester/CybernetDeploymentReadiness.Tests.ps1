@@ -33,7 +33,9 @@ Describe 'Cybernet deployment readiness' {
             $execution.transport_authorization_proven | Should -BeTrue
             $execution.network_activity_performed | Should -BeFalse
             $execution.target_mutation_performed | Should -BeFalse
-            @($execution.tested_ports) | Should -Be @(445, 135)
+            @($execution.tested_ports).Count | Should -Be 2
+            @($execution.tested_ports)[0] | Should -Be 445
+            @($execution.tested_ports)[1] | Should -Be 135
             Test-Path -LiteralPath $execution.result_path -PathType Leaf | Should -BeTrue
 
             $stored = Get-Content -LiteralPath $execution.result_path -Raw | ConvertFrom-Json
@@ -54,9 +56,9 @@ Describe 'Cybernet deployment readiness' {
 
     It 'keeps the fixture result below live deployment authority' {
         $content = Get-Content -LiteralPath $script:entrypoint -Raw
-        $content | Should -Match "CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY"
-        $content | Should -Match "ready_for_deployment = \$false"
-        $content | Should -Match "target_mutation_performed = \$false"
+        $content | Should -Match 'CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY'
+        $content | Should -Match 'ready_for_deployment = \$false'
+        $content | Should -Match 'target_mutation_performed = \$false'
         $content | Should -Match "TransportIntent = 'kerberos_smb_task'"
         $content | Should -Not -Match "TransportIntent = 'auto'"
         $content | Should -Not -Match '(?i)\bnmap\b|\bnaabu\b'
