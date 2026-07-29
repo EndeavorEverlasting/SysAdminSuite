@@ -13,8 +13,10 @@ sas
 For one explicitly authorized Cybernet, a complete software deployment is:
 
 ```powershell
-sas cybernet Deploy <AUTHORIZED-CYBERNET-HOST-OR-FQDN>
+sas cybernet Deploy <AUTHORIZED-CYBERNET>
 ```
+
+The target argument may be the authorized short hostname or FQDN. The deployment-readiness layer completes a short hostname with the current domain DNS suffix and fails closed when that cannot be done safely.
 
 That command owns the complete ordered transaction:
 
@@ -37,13 +39,13 @@ The historical six-package LocalSystem `cybernet-clinical-workstation` controlle
 A separate readiness command exists when the requested goal is diagnosis rather than immediate authorized deployment:
 
 ```powershell
-sas cybernet Probe <AUTHORIZED-CYBERNET-HOST-OR-FQDN>
+sas cybernet Probe <AUTHORIZED-CYBERNET>
 ```
 
 Equivalent alias:
 
 ```powershell
-sas network <AUTHORIZED-CYBERNET-HOST-OR-FQDN>
+sas network <AUTHORIZED-CYBERNET>
 ```
 
 This probe is read-only with respect to the target. It performs only:
@@ -123,7 +125,7 @@ The orchestrator validates that the tracked full profile equals the clinical-cor
 13. verifies the one-time restart task is absent or removes it;
 14. writes the final deployment artifact.
 
-The technician is not required to run a separate probe, fixture, transport live-cert, or runtime-proof loop before deployment can complete.
+The technician is not required to run a separate fixture, transport live-cert, or runtime-proof loop before deployment can complete. The optional Probe is diagnostic only and is not another required deployment step.
 
 ## Canonical artifacts
 
@@ -199,7 +201,28 @@ bash/apps/sas-install-apps.sh
 
 `--allow-legacy` is the retained **compatibility-controller gate** for this advanced package-level path. It does not grant deployment authorization, credentials, a transport decision, or permission to bypass the higher-level Cybernet deployment orchestration.
 
-Use the compatibility controller only for a specifically approved package-level workflow not already covered by the higher-level technician command. Do **not** use it to reconstruct the historical six-package live path for AutoLogon.
+Use the compatibility controller only for a specifically approved package-level workflow not already covered by the higher-level technician command. A single package must be enabled in `configs/software-packages/approved-apps.json`.
+
+Example BCA dry run:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets CYBERNET-PILOT-01 \
+  --package bca \
+  --allow-legacy \
+  --dry-run
+```
+
+Example BCA live run after the approved admission gate:
+
+```bash
+bash bash/apps/sas-install-apps.sh \
+  --targets CYBERNET-PILOT-01 \
+  --package bca \
+  --allow-legacy
+```
+
+Do **not** use the generic controller to reconstruct the historical six-package live path for AutoLogon. Current field AutoLogon is the S4U restart-complete lane above.
 
 ## Roles and boundaries
 
@@ -212,7 +235,7 @@ Use the compatibility controller only for a specifically approved package-level 
 | Target Cybernet workstation | No manual command required during deployment | Receives staged payloads, executes approved tasks, restarts after AutoLogon |
 | Technician target session | Optional runtime proof when separately requested | Directly observes automatic sign-in/application behavior |
 
-The deployment lanes do not embed passwords, enable WinRM, weaken firewall policy, or use the blocked canonical SYSTEM AutoLogon install path.
+The deployment lanes use the current Windows admin token and do not embed passwords, enable WinRM, weaken firewall policy, or use the blocked canonical SYSTEM AutoLogon install path.
 
 ## Troubleshooting
 
