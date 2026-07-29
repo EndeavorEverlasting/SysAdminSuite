@@ -107,16 +107,23 @@ function Get-SasTargetFingerprint {
 }
 
 $targetFqdn = Resolve-SasAuthorizedTargetFqdn -Target $targetInput
+$networkActivityDescription = if ($FixtureMode) {
+    'No network activity performed.'
+}
+else {
+    'Bounded Kerberos SMB plus Task Scheduler readiness observations for one authorized target.'
+}
+$requestSummary = if ($FixtureMode) {
+    'Offline sanitized Cybernet software deployment readiness fixture.'
+}
+else {
+    'One-target low-noise Cybernet software deployment readiness probe.'
+}
 $contextParameters = @{
     WorkflowId = 'cybernet-deployment-readiness'
     RepoRoot = $repoRoot
     Survey = $true
-    RequestSummary = if ($FixtureMode) {
-        'Offline sanitized Cybernet software deployment readiness fixture.'
-    }
-    else {
-        'One-target low-noise Cybernet software deployment readiness probe.'
-    }
+    RequestSummary = $requestSummary
     CreatedBy = 'Invoke-SasCybernetDeploymentReadiness'
 }
 if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) { $contextParameters.OutputRoot = $OutputRoot }
@@ -152,13 +159,13 @@ $result = [ordered]@{
     proof_ceiling = 'Read-only one-target deployment transport readiness only; no task creation, software execution, target mutation, restart, or runtime acceptance is proven.'
 }
 
-$artifactRegistered = $false
+$script:artifactRegistered = $false
 function Save-SasReadinessResult {
     $result | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $resultPath -Encoding UTF8
 }
 function Register-SasReadinessArtifact {
     if ($script:artifactRegistered) { return }
-    Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'cybernet_deployment_readiness' -Path $resultPath -Tracked $false -LiveData (-not $FixtureMode) -Generated $true -Description 'One-target low-noise Cybernet deployment readiness classification without target identifiers.' -NetworkActivity (if ($FixtureMode) { 'No network activity performed.' } else { 'Bounded Kerberos SMB plus Task Scheduler readiness observations for one authorized target.' }) -CreatedBy 'Invoke-SasCybernetDeploymentReadiness' | Out-Null
+    Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'cybernet_deployment_readiness' -Path $resultPath -Tracked $false -LiveData (-not $FixtureMode) -Generated $true -Description 'One-target low-noise Cybernet deployment readiness classification without target identifiers.' -NetworkActivity $networkActivityDescription -CreatedBy 'Invoke-SasCybernetDeploymentReadiness' | Out-Null
     $script:artifactRegistered = $true
 }
 Save-SasReadinessResult
@@ -247,9 +254,10 @@ try {
     )
     $summary | Set-Content -LiteralPath $summaryPath -Encoding UTF8
     $summary | Set-Content -LiteralPath $context.operator_handoff_path -Encoding UTF8
-    Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'english_summary' -Path $summaryPath -Tracked $false -LiveData (-not $FixtureMode) -Generated $true -Description 'Technician-readable readiness status, tested port subset, and proof ceiling.' -NetworkActivity (if ($FixtureMode) { 'No network activity performed.' } else { 'Bounded readiness observations only.' }) -CreatedBy 'Invoke-SasCybernetDeploymentReadiness' | Out-Null
+    Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'english_summary' -Path $summaryPath -Tracked $false -LiveData (-not $FixtureMode) -Generated $true -Description 'Technician-readable readiness status, tested port subset, and proof ceiling.' -NetworkActivity $networkActivityDescription -CreatedBy 'Invoke-SasCybernetDeploymentReadiness' | Out-Null
 
-    Write-Host "`nCYBERNET DEPLOYMENT READINESS: $($result.status)" -ForegroundColor $(if ($result.status -like '*READY') { 'Green' } else { 'Yellow' })
+    $statusColor = if ($result.status -like '*READY') { 'Green' } else { 'Yellow' }
+    Write-Host "`nCYBERNET DEPLOYMENT READINESS: $($result.status)" -ForegroundColor $statusColor
     Write-Host "Transport: $($result.transport_classification)"
     Write-Host "Ports tested: $(@($result.tested_ports) -join ', ')"
     Write-Host "Evidence: $resultPath"
@@ -272,6 +280,7 @@ catch {
     Register-SasReadinessArtifact
     Write-Host "`nACTION REQUIRED: $($result.reason)" -ForegroundColor Yellow
     Write-Host "Evidence: $resultPath"
+    Write-Host 'Run sas evidence before any repeated probe if the console output is incomplete.' -ForegroundColor Yellow
     throw
 }
 
