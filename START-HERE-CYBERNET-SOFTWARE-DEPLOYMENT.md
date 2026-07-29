@@ -1,6 +1,6 @@
 # Start Here — Cybernet Software Deployment
 
-Use this page when an authorized technician or administrator asks SysAdminSuite how to deploy the clinical software stack or AutoLogon on a Cybernet workstation.
+Use this page when an authorized technician or administrator asks SysAdminSuite how to deploy the clinical software stack or how to run the smallest useful deployment-readiness probe on a Cybernet workstation.
 
 ## Technician quick answer
 
@@ -13,16 +13,19 @@ sas
 For a full Cybernet software deployment on one explicitly authorized target:
 
 ```powershell
-sas cybernet Deploy <AUTHORIZED-CYBERNET>
+sas cybernet Deploy <AUTHORIZED-CYBERNET-HOST-OR-FQDN>
 ```
 
-That command is the complete current field transaction:
+That is the complete current field transaction. It automatically:
 
-1. deploy the five approved clinical applications;
-2. deploy AutoLogon **last** through Kerberos SMB/S4U;
-3. automatically restart the same target;
-4. wait for the target to leave and return on the already-proven SMB service;
-5. emit a final deployment artifact.
+1. runs the one-target low-noise Kerberos SMB plus Task Scheduler readiness chain;
+2. deploys the five approved clinical applications;
+3. deploys AutoLogon **last** through Kerberos SMB/S4U;
+4. automatically restarts the same target;
+5. waits for the target to leave and return on the already-proven SMB service;
+6. emits a final deployment artifact.
+
+A separate probe is **not required** before deployment. The deployment command owns the same gate and stops before mutation when readiness is not proven.
 
 Required success status:
 
@@ -36,7 +39,56 @@ Canonical summary:
 survey\output\runs\cybernet-software-deployment\cybernet-software-deployment-*\cybernet_software_deployment_result.json
 ```
 
-The summary must report `autologon_was_last_software_step=true`, `automatic_reboot_performed=true`, `restart_offline_observed=true`, and `restart_online_observed=true`.
+The summary must report:
+
+- `low_noise_transport_preflight_required=true`;
+- `readiness_status=CYBERNET_DEPLOYMENT_READINESS_READY`;
+- `readiness_transport_classification=kerberos_smb_task_ready`;
+- `autologon_was_last_software_step=true`;
+- `automatic_reboot_performed=true`;
+- `restart_offline_observed=true`;
+- `restart_online_observed=true`.
+
+## Low-noise iterative readiness probe
+
+Use the standalone probe only when the requested goal is diagnosis/readiness rather than immediate authorized deployment:
+
+```powershell
+sas cybernet Probe <AUTHORIZED-CYBERNET-HOST-OR-FQDN>
+```
+
+Equivalent short alias:
+
+```powershell
+sas network <AUTHORIZED-CYBERNET-HOST-OR-FQDN>
+```
+
+The probe is read-only with respect to the target. It runs this dependency chain and suppresses every later step after an earlier failure:
+
+1. local approved Northwell network posture;
+2. one authorized target DNS resolution;
+3. one CIFS Kerberos service-ticket request;
+4. TCP 445;
+5. `ADMIN$` read authorization;
+6. TCP 135 only after `ADMIN$` is authorized;
+7. Schedule service state;
+8. one reserved nonexistent task query without enumerating the task library.
+
+It does **not** probe WinRM, use `auto` transport discovery, run Naabu/Nmap, enumerate the subnet, create a task, copy a package, install software, restart the target, or mutate target state.
+
+Required live readiness status:
+
+```text
+CYBERNET_DEPLOYMENT_READINESS_READY
+```
+
+Canonical readiness summary:
+
+```text
+survey\output\runs\cybernet-deployment-readiness\cybernet-deployment-readiness-*\artifacts\cybernet_deployment_readiness_result.json
+```
+
+A failed readiness run is an actionable gate. Review its exact classification and tested port subset; do not broaden ports or repeat the same probe blindly.
 
 ## AutoLogon-only deployment
 
@@ -73,7 +125,7 @@ AutoLogon installation is **not deployment-complete before the restart**. The in
 
 When the technician asks to deploy, test AutoLogon on an authorized target, or live-cert the deployment path with mutation authority, SysAdminSuite must run the real deployment lane rather than stop at a fixture, transport-only certificate, dry run, process exit code, or registry expectation.
 
-A dry run may be an internal admission gate, but the same authorized deployment command continues into target mutation. The technician should not be sent through repeated fixture/live-cert loops before the software is deployed.
+The integrated low-noise readiness probe is an admission gate inside deployment. It is not a replacement for deployment and must not become a repeated manual loop when mutation is already authorized.
 
 ## Runtime proof is optional after deployment
 
@@ -95,7 +147,7 @@ Runtime proof is a higher proof ceiling. It is **not a prerequisite for software
 
 ## Terminal closed or crashed — recover evidence before retrying
 
-A closed PowerShell window is not a reason to redeploy.
+A closed PowerShell window is not a reason to redeploy or repeat a readiness probe.
 
 Run this **offline** first:
 
@@ -103,7 +155,7 @@ Run this **offline** first:
 sas evidence
 ```
 
-It searches the current checkout plus bounded SysAdminSuite checkouts under the current Windows user's Desktop/OneDrive layouts, including `SysAdminSuite-portable-onsite` and `SysAdminSuite-Live`, and prints the newest deployment/runtime artifact plus the next safe action. It performs **no network activity and no target contact**.
+It searches the current checkout plus bounded SysAdminSuite checkouts under the current Windows user's Desktop/OneDrive layouts and prints the newest deployment/runtime artifact plus the next safe action. It performs **no network activity and no target contact**.
 
 Useful variants:
 
@@ -141,13 +193,11 @@ sas cybernet Validate <AUTHORIZED-CYBERNET>
 
 Those commands own hardware preferences such as power/no-sleep/display/COM behavior. They are not the current software deployment commands.
 
-For the complete hardware/client workflow and safe retry guidance:
-
-- [Complete Cybernet client configuration guide](docs/tutorials/CYBERNET_CLIENT_CONFIGURATION.md)
-- [Cybernet client configuration troubleshooting](docs/tutorials/CYBERNET_CLIENT_CONFIGURATION_TROUBLESHOOTING.md)
-
 ## Technical references
 
+- Readiness launcher: `Probe-CybernetSoftware.cmd`
+- Readiness orchestrator: `scripts/Invoke-SasCybernetDeploymentReadiness.ps1`
+- Narrow transport preflight: `scripts/Test-SasSoftwareDeploymentTransport.ps1`
 - Full software orchestrator: `scripts/Invoke-SasCybernetSoftwareDeployment.ps1`
 - Full software launcher: `Deploy-CybernetSoftware.cmd`
 - Five-package clinical-core engine: `scripts/Invoke-SasCybernetClinicalCoreDeployment.ps1`
@@ -156,7 +206,6 @@ For the complete hardware/client workflow and safe retry guidance:
 - AutoLogon runtime proof: `scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1`
 - Crash-safe evidence recovery: `scripts/Show-SasOperatorEvidence.ps1`
 - Approved package-set catalog: `configs/software-packages/windows-native-package-sets.json`
-- Approved package catalog: `configs/software-packages/approved-apps.json`
 - Detailed software deployment tutorial: `docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md`
 
 ## Failure boundary
