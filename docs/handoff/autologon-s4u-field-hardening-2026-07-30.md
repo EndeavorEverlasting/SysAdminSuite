@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Preserve the field-proven findings from the July 30 Cybernet AutoLogon deployment work so a new terminal, workstation, or agent does not rediscover the same launcher, path, Kerberos, software-source identity, or baseline-classification failures.
+Preserve the field-proven findings from the July 30 Cybernet AutoLogon deployment work so a new terminal, workstation, or agent does not rediscover the same launcher, path, Kerberos, software-source identity, baseline-classification, or host-eligibility failures.
 
 This handoff intentionally contains no live username, password, AutoLogon secret, or authorized target identifier.
 
@@ -34,6 +34,12 @@ This handoff intentionally contains no live username, password, AutoLogon secret
    - `intent_only` is accepted only when every inert-state condition is satisfied: `Autologon_YES` intent, `AutoAdminLogon` disabled, no user/domain, no `ForceAutoLogon`, no `AutoLogonCount`, no `DefaultPassword` value present, no expected-user match, and no installed AutoLogon package.
    - Any active, partial, mismatched, password-bearing, or package-present state remains fail-closed.
    - `test_autologon_intent_only_baseline_contracts.py` locks this distinction.
+
+6. **Real deployment targets require explicit operator-local host eligibility authority.**
+   - `Test-SasHostEligibility.ps1` intentionally fails closed when `Config/host-eligibility-policy.local.json` is absent, malformed, unmatched, or does not permit the requested execution context.
+   - The tracked sample policy is synthetic and must not authorize live hosts.
+   - `Set-SasHostEligibilityLocalTarget.ps1` creates or updates only the gitignored local policy after explicit `-ConfirmLocalAuthorization`, inserts an exact escaped hostname pattern for `remote`, and immediately re-runs the existing eligibility validator.
+   - Broad wildcard authorization is not required for field deployment and should not be introduced merely to clear the final-step gate.
 
 ## Field proof achieved after the HOST-ticket correction
 
@@ -93,18 +99,31 @@ This state is **not** an active or half-installed AutoLogon configuration. It is
 
 The previous `KERBEROS_S4U_DIRTY_BASELINE` result was therefore a coarse classifier defect, not proof of a dirty target.
 
-At that stop:
+## Host-eligibility field stop
+
+After the structural baseline classifier patch passed parser/contract checks and the canonical software-source correction remained present, the next live attempt advanced through protected-network gating and the accepted first-install baseline, then stopped at:
+
+`KERBEROS_S4U_FINAL_GATE_BLOCKED`
+
+with mandatory prerequisite failure:
+
+`host_eligibility`
+
+The deployment result still recorded:
 
 - `autologon_applied = false`
 - `pre_reboot_autologon_ready = false`
 - `automatic_reboot_performed = false`
-- baseline capture completed before installation
+- `restart_offline_observed = false`
+- `restart_online_observed = false`
+
+Therefore the next action is to establish the already-authorized target in the operator-local host eligibility policy and re-run the existing fail-closed validator. Do not disable or bypass the final-step gate.
 
 ## Current remaining integration boundary
 
-The repository now contains the durable canonical software-source identity module and the durable intent-only baseline policy module. The executable S4U lane must consume both before the field-hardening branch is considered fully integrated.
+The repository now contains durable canonical software-source identity, intent-only baseline policy, and exact operator-local host-authorization helpers. The executable S4U lane must consume the durable source/baseline modules before the field-hardening branch is considered fully integrated.
 
-Do not weaken the baseline rule into a generic dirty-baseline bypass. Only the exact inert `intent_only` posture above is eligible.
+Do not weaken the baseline rule into a generic dirty-baseline bypass and do not weaken host eligibility into a broad remote wildcard. Only the exact inert `intent_only` posture and explicitly authorized exact target should pass.
 
 ## Non-regression boundaries
 
@@ -112,6 +131,7 @@ Do not weaken the baseline rule into a generic dirty-baseline bypass. Only the e
 - Keep the current named-domain S4U principal and `/NP` passwordless task model.
 - Do not collect or serialize `DefaultPassword`.
 - Keep source identity fail-closed to the approved alias plus verified canonical DNS identity.
+- Keep exact operator-local host eligibility; do not replace it with a broad wildcard.
 - Do not weaken hash, final-step, cleanup, or restart-observation gates.
 - Do not treat automatic desktop sign-in observation as required for deployment-complete classification.
 - Do not reinstall clinical-core applications merely to reach AutoLogon when they are already independently proven accepted.
@@ -123,4 +143,4 @@ AutoLogon-only deployment is complete only at:
 
 `AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED`
 
-That classification remains downstream of accepted first-install baseline state, required pre-reboot AutoLogon configuration, restart initiation, observed SMB offline/online restart cycle, and restart-task cleanup verification.
+That classification remains downstream of accepted first-install baseline state, explicit exact-target host eligibility, required pre-reboot AutoLogon configuration, restart initiation, observed SMB offline/online restart cycle, and restart-task cleanup verification.
