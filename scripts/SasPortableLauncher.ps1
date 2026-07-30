@@ -127,7 +127,7 @@ function Invoke-SasPortableRepoCommand {
     )
 
     $entryPoint = Join-Path $RepoRoot $RelativePath
-    $isLocalDrivePath = $RepoRoot -match '^[A-Za-z]:\'
+    $isLocalDrivePath = $RepoRoot -match '^[A-Za-z]:\\'
     if (-not $isLocalDrivePath -or $RepoRoot.Length -lt $PathLengthThreshold) {
         & $entryPoint @Arguments
         return [int]$LASTEXITCODE
