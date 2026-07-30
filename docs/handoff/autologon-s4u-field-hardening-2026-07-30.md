@@ -59,27 +59,48 @@ The proof established all of the following without target mutation:
 - The same approved installer was readable through the canonical FQDN UNC path.
 - Target mutation remained false.
 
-Therefore the remaining source failure is not package absence, target authorization, or a missing TGT. It is a source-name/SPN mismatch: the S4U caller currently requests CIFS for the catalog short alias even though Kerberos and SMB access are proven on the DNS-canonical identity.
+Therefore the source failure was not package absence, target authorization, or a missing TGT. It was a source-name/SPN mismatch: the S4U caller requested CIFS for the catalog short alias even though Kerberos and SMB access were proven on the DNS-canonical identity.
+
+## Canonical-source field proof
+
+A bounded field patch then used the approved alias only as source authority, required alias/canonical address overlap, requested the canonical CIFS SPN, and read the same approved installer through the canonical UNC.
+
+That run advanced past `KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED` and reached the baseline guard. This proves the canonical source identity correction is functionally correct for the AutoLogon lane.
+
+The run stopped at:
+
+`KERBEROS_S4U_DIRTY_BASELINE`
+
+No AutoLogon installation or restart was performed by that attempt. The next action is evidence inspection, not reinstall. The baseline is considered clean only when both are true:
+
+- `snapshot.autologon.status == not_configured`
+- no installed-software row matches `NW AutoLogon Setup`
+
+Any other state must be classified from the captured `baseline_snapshot.json` before deciding whether the target is already configured, partially configured, or has package-only residue.
 
 ## Current remaining deployment blocker
 
-The production S4U caller still needs to consume the canonical source identity before AutoLogon can proceed normally. The permanent caller change must:
+The current blocker is the target's dirty AutoLogon baseline, not Kerberos transport or software-source access.
 
-1. retain the tracked catalog short alias as the approved source authority;
-2. resolve that alias through `Resolve-SasCanonicalSoftwareSourceIdentity`;
-3. require alias/canonical address overlap;
-4. request the canonical `CIFS/<fqdn>` service ticket;
-5. read the approved installer through the canonical UNC root;
-6. preserve all existing clean-baseline, hash, final-step, S4U, cleanup, and restart gates.
+Do not blindly rerun the installer. Inspect the newest S4U `baseline_snapshot.json` and report at minimum:
 
-Until that caller integration lands, do not change SPNs, purge Kerberos tickets, prompt for alternate credentials, switch package sources, or weaken `KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED`.
+- `postinstall_set_autologon`
+- `auto_admin_logon`
+- `default_user_name`
+- `default_domain_name`
+- `force_auto_logon`
+- `auto_logon_count`
+- `default_password_present` (presence only; never the value)
+- `expected_user_match`
+- `autologon.status`
+- any installed-software rows matching `NW AutoLogon Setup`
 
 At the latest stop:
 
 - `autologon_applied = false`
 - `pre_reboot_autologon_ready = false`
 - `automatic_reboot_performed = false`
-- no retry should be treated as an already-completed install
+- the baseline capture completed before installation
 
 ## Non-regression boundaries
 
