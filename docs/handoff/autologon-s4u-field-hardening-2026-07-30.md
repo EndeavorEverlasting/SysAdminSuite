@@ -2,21 +2,21 @@
 
 ## Purpose
 
-Preserve the field-proven findings from the July 30 Cybernet AutoLogon deployment work so a new terminal, workstation, or agent does not rediscover the same launcher, path, Kerberos, and evidence-root failures.
+Preserve the field-proven findings from the July 30 Cybernet AutoLogon deployment work so a new terminal, workstation, or agent does not rediscover the same launcher, path, Kerberos, software-source identity, or baseline-classification failures.
 
 This handoff intentionally contains no live username, password, AutoLogon secret, or authorized target identifier.
 
 ## Proven wins now represented in the repository
 
-1. **Kerberos target readiness now produces every ticket the S4U consumer requires.**
+1. **Kerberos target readiness produces every ticket the S4U consumer requires.**
    - `SasSoftwareDeploymentLowNoise.psm1` requests both `CIFS/<target>` and `HOST/<target>` for `kerberos_smb_task` readiness.
    - SMB/admin/Task Scheduler probing does not continue until both tickets are issued.
-   - `test_autologon_kerberos_s4u_contracts.py` locks the producer/consumer contract so `service_tickets.host.issued` cannot silently regress to an unpopulated field.
+   - `test_autologon_kerberos_s4u_contracts.py` locks the producer/consumer contract.
 
 2. **Long repository paths must be shortened without leaving approved evidence roots.**
-   - The portable launcher on this sprint already owns a temporary `SUBST` repo alias for long paths.
-   - Direct/manual recovery must alias the *repository root* and keep evidence under the aliased repo (`<drive>:\runs` or `<drive>:\survey\output\runs`).
-   - Do not redirect deployment evidence to an arbitrary short folder such as `%LOCALAPPDATA%\SASAL`; `SasRunContext` correctly rejects output outside approved repo-local roots.
+   - The portable launcher owns a temporary `SUBST` repo alias for long paths.
+   - Direct/manual recovery must alias the repository root and keep evidence under the aliased repo (`<drive>:\runs` or `<drive>:\survey\output\runs`).
+   - Do not redirect deployment evidence to an arbitrary short folder outside approved repo-local roots.
 
 3. **Fresh-box operator bootstrap is per Windows user / PC.**
    - If `%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd` does not exist, install the portable operator command once from a checkout, then run the Guest-side refresh workflow.
@@ -26,7 +26,14 @@ This handoff intentionally contains no live username, password, AutoLogon secret
    - `SasSoftwareSourceIdentity.psm1` resolves the catalog-approved server alias to its canonical FQDN.
    - The canonical name is accepted only when it resolves to at least one address also returned for the approved alias.
    - The resolver emits the canonical `CIFS/<fqdn>` SPN and canonical UNC root without collecting credentials or ticket bytes and without target mutation.
-   - The approved catalog alias remains the authority; DNS canonicalization is a runtime Kerberos-access identity, not an alternate package source.
+   - The approved catalog alias remains the source authority; DNS canonicalization is only the runtime Kerberos-access identity.
+
+5. **An inert Northwell AutoLogon intent marker is not an installed/active AutoLogon configuration.**
+   - `SasAutoLogonBaselinePolicy.psm1` now encodes the first-install baseline rule.
+   - `not_configured` remains accepted when no `NW AutoLogon Setup` package is installed.
+   - `intent_only` is accepted only when every inert-state condition is satisfied: `Autologon_YES` intent, `AutoAdminLogon` disabled, no user/domain, no `ForceAutoLogon`, no `AutoLogonCount`, no `DefaultPassword` value present, no expected-user match, and no installed AutoLogon package.
+   - Any active, partial, mismatched, password-bearing, or package-present state remains fail-closed.
+   - `test_autologon_intent_only_baseline_contracts.py` locks this distinction.
 
 ## Field proof achieved after the HOST-ticket correction
 
@@ -46,7 +53,7 @@ This proves the earlier `KERBEROS_S4U_KERBEROS_IDENTITY_BLOCKED` result was a pr
 
 ## Software-source identity proof
 
-The next bounded diagnostic reached:
+A bounded diagnostic reached:
 
 `SOFTWARE_SOURCE_KERBEROS_READY_FQDN_ONLY`
 
@@ -59,55 +66,53 @@ The proof established all of the following without target mutation:
 - The same approved installer was readable through the canonical FQDN UNC path.
 - Target mutation remained false.
 
-Therefore the source failure was not package absence, target authorization, or a missing TGT. It was a source-name/SPN mismatch: the S4U caller requested CIFS for the catalog short alias even though Kerberos and SMB access were proven on the DNS-canonical identity.
+Therefore the source failure was a source-name/SPN mismatch, not package absence, target authorization failure, or a missing TGT.
 
 ## Canonical-source field proof
 
-A bounded field patch then used the approved alias only as source authority, required alias/canonical address overlap, requested the canonical CIFS SPN, and read the same approved installer through the canonical UNC.
+A bounded field patch used the approved alias only as source authority, required alias/canonical address overlap, requested the canonical CIFS SPN, and read the same approved installer through the canonical UNC.
 
 That run advanced past `KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED` and reached the baseline guard. This proves the canonical source identity correction is functionally correct for the AutoLogon lane.
 
-The run stopped at:
+## Baseline field proof
 
-`KERBEROS_S4U_DIRTY_BASELINE`
+The captured `baseline_snapshot.json` was then classified as an exact inert intent-only first-install baseline:
 
-No AutoLogon installation or restart was performed by that attempt. The next action is evidence inspection, not reinstall. The baseline is considered clean only when both are true:
+- `autologon.status = intent_only`
+- `postinstall_set_autologon = Autologon_YES`
+- `auto_admin_logon = 0`
+- no default username
+- no default domain
+- no `ForceAutoLogon`
+- no `AutoLogonCount`
+- `default_password_present = false`
+- `expected_user_match = false`
+- no installed-software row matching `NW AutoLogon Setup`
 
-- `snapshot.autologon.status == not_configured`
-- no installed-software row matches `NW AutoLogon Setup`
+This state is **not** an active or half-installed AutoLogon configuration. It is an intent marker on an otherwise inactive baseline and is safe for a first AutoLogon installation under the fail-closed policy above.
 
-Any other state must be classified from the captured `baseline_snapshot.json` before deciding whether the target is already configured, partially configured, or has package-only residue.
+The previous `KERBEROS_S4U_DIRTY_BASELINE` result was therefore a coarse classifier defect, not proof of a dirty target.
 
-## Current remaining deployment blocker
-
-The current blocker is the target's dirty AutoLogon baseline, not Kerberos transport or software-source access.
-
-Do not blindly rerun the installer. Inspect the newest S4U `baseline_snapshot.json` and report at minimum:
-
-- `postinstall_set_autologon`
-- `auto_admin_logon`
-- `default_user_name`
-- `default_domain_name`
-- `force_auto_logon`
-- `auto_logon_count`
-- `default_password_present` (presence only; never the value)
-- `expected_user_match`
-- `autologon.status`
-- any installed-software rows matching `NW AutoLogon Setup`
-
-At the latest stop:
+At that stop:
 
 - `autologon_applied = false`
 - `pre_reboot_autologon_ready = false`
 - `automatic_reboot_performed = false`
-- the baseline capture completed before installation
+- baseline capture completed before installation
+
+## Current remaining integration boundary
+
+The repository now contains the durable canonical software-source identity module and the durable intent-only baseline policy module. The executable S4U lane must consume both before the field-hardening branch is considered fully integrated.
+
+Do not weaken the baseline rule into a generic dirty-baseline bypass. Only the exact inert `intent_only` posture above is eligible.
 
 ## Non-regression boundaries
 
 - Keep the protected-network gate before target contact.
 - Keep the current named-domain S4U principal and `/NP` passwordless task model.
 - Do not collect or serialize `DefaultPassword`.
-- Do not weaken the clean-baseline, hash, final-step, cleanup, or restart-observation gates.
+- Keep source identity fail-closed to the approved alias plus verified canonical DNS identity.
+- Do not weaken hash, final-step, cleanup, or restart-observation gates.
 - Do not treat automatic desktop sign-in observation as required for deployment-complete classification.
 - Do not reinstall clinical-core applications merely to reach AutoLogon when they are already independently proven accepted.
 - After a terminal failure or crash, inspect recorded evidence before mutation or retry.
@@ -118,4 +123,4 @@ AutoLogon-only deployment is complete only at:
 
 `AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED`
 
-That classification remains downstream of clean pre-reboot AutoLogon state, required restart initiation, observed SMB offline/online restart cycle, and restart-task cleanup verification.
+That classification remains downstream of accepted first-install baseline state, required pre-reboot AutoLogon configuration, restart initiation, observed SMB offline/online restart cycle, and restart-task cleanup verification.
