@@ -78,6 +78,12 @@ The five tracked package-source entrypoints represented by the current deploymen
 - `allscripts-eehr-shortcut-uai-2-2` → `packages\TouchWork_22.1\Allscripts_Shortcut\Allscripts_EEHR-Shortcut-UAI_2.2.msi`
 - `autologon` → `packages\AutoLogonSetup\NW_AutoLogon_Setup_x64.exe`
 
+## Repaired boundary
+
+The pre-existing harness already prevented tests, plans, fixture evidence, and transport checks from becoming artificial completion. This sprint closes the next recurring boundary: a future agent must not lose terminal/network/run state, mutate a target before source readiness, guess around package-catalog drift, retry with cleanup unresolved, hide a child failure behind exit zero, or burn a field window on unrelated validation side quests.
+
+Those lessons are now machine-readable in `harness/api/rework-prevention-registry.json`, executable as `harness/workflows/rework-prevention-recovery.yaml`, enforced by hooks and dedicated CI, and readable in `docs/HARNESS_REWORK_PREVENTION.md`.
+
 ## Known gaps and proof limits
 
 - Repository hooks are tracked but must be enabled once per clone with `bash scripts/install-local-harness-hooks.sh`.
