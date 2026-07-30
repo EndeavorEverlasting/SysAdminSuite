@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1"
 RECOVERY = ROOT / "scripts" / "Invoke-SasCybernetCoreRecovery.ps1"
 PREFLIGHT = ROOT / "scripts" / "Test-SasCybernetClinicalCoreSources.ps1"
+READINESS = ROOT / "scripts" / "Invoke-SasCybernetDeploymentReadiness.ps1"
 SESSION = ROOT / "scripts" / "SasOperatorSession.psm1"
 CONTEXT = ROOT / "scripts" / "Show-SasOperatorContext.ps1"
 EVIDENCE = ROOT / "scripts" / "Show-SasOperatorEvidence.ps1"
@@ -27,6 +28,19 @@ def test_native_core_has_no_python_or_git_bash_dependency() -> None:
     assert "bash.exe" not in text
     assert "git bash" not in text
     assert "windowspowershell" in text or "windows powershell" in text
+
+
+def test_core_requires_explicit_cybernet_profile_authority() -> None:
+    text = read(SCRIPT)
+    launcher = read(LAUNCHER)
+    assert "[ValidateSet('Cybernet')][string]$EquipmentProfile" in text
+    assert "$EquipmentProfile -ne 'Cybernet'" in text
+    assert "Config\\cybernet-client-preferences.json" in text
+    assert "profile_eligibility_proven=$true" in text
+    assert "explicit_tracked_sas_cybernet_core_command" in text
+    assert "target_locked=$true" in text
+    assert "-EquipmentProfile Cybernet" in launcher
+    assert "explicit equipment-profile authority" in launcher
 
 
 def test_core_preserves_disabled_autologon_and_profiles_imprivata() -> None:
@@ -55,19 +69,27 @@ def test_no_reboot_lane_rejects_reboot_initiated_exit() -> None:
     assert "reboot_required_but_not_performed" in text
 
 
-def test_complete_source_preflight_precedes_any_target_contact_or_mutation() -> None:
+def test_complete_source_preflight_and_transport_readiness_precede_target_mutation() -> None:
     text = read(SCRIPT)
-    preflight = text.index("Test-SasCybernetClinicalCoreSources.ps1")
+    preflight_call = text.index("& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $preflightPath")
     source_ready = text.index("[3/7] SOURCES READY 5/5")
+    readiness_call = text.index("$readiness=& $readinessPath")
+    readiness_ready = text.index("TRANSPORT READY: KERBEROS SMB + TASK")
     admin_access = text.index('$adminRoot="\\\\$target\\ADMIN$"')
     c_access = text.index('$cRoot="\\\\$target\\C$"')
     remote_create = text.index("New-Item -ItemType Directory -Path $remoteRunUnc")
-    assert preflight < source_ready < admin_access
-    assert preflight < source_ready < c_access
-    assert source_ready < remote_create
+    assert preflight_call < source_ready < readiness_call < readiness_ready
+    assert readiness_ready < admin_access < remote_create
+    assert readiness_ready < c_access < remote_create
+    assert "source_preflight_complete_before_target_contact=$false" in text
     assert "source_preflight_complete_before_target_mutation=$false" in text
     assert "target_contact_performed=$false" in text
     assert "target_mutation_performed=$false" in text
+    assert "CYBERNET_DEPLOYMENT_READINESS_READY" in text
+    assert "kerberos_smb_task_ready" in text
+    readiness = read(READINESS)
+    assert "target_mutation_performed = $false" in readiness
+    assert "transport_authorization_proven" in readiness
 
 
 def test_bundle_authority_records_real_inventory_and_drift() -> None:
@@ -140,15 +162,18 @@ def test_machine_local_operator_session_is_persistent_and_terminal_agnostic() ->
     assert "$env:LOCALAPPDATA" in text
     for field in (
         "repo_root", "repo_head", "launcher_head", "current_network_classification",
-        "current_terminal", "target_input", "target_fqdn", "equipment_profile",
-        "deployment_lane", "package_set", "expected_autologon_state",
-        "imprivata_disposition", "latest_run_id", "latest_status", "cleanup_outstanding",
+        "last_network_classification", "last_network_label", "current_terminal",
+        "target_input", "target_fqdn", "target_locked", "equipment_profile",
+        "profile_eligibility_proven", "profile_eligibility_source", "deployment_lane",
+        "package_set", "expected_autologon_state", "imprivata_disposition",
+        "latest_run_id", "latest_status", "cleanup_outstanding",
         "target_mutation_performed", "package_execution_started", "completed_package_ids",
         "next_required_network", "next_command", "evidence_path",
     ):
         assert field in text, field
+    assert "Values.ContainsKey('current_network_classification')" in text
     assert "field-ready*" in text
-    assert "PowerShell:" not in text  # terminal is discovered metadata, not hard-coded workflow state
+    assert "PowerShell:" not in text
 
 
 def test_context_next_and_refresh_recover_state_without_target_literal() -> None:
@@ -157,6 +182,7 @@ def test_context_next_and_refresh_recover_state_without_target_literal() -> None
     sas = read(SAS)
     assert "Sync-SasOperatorSessionFromEvidence" in context
     assert "-TargetFqdn $targetFilter" in context
+    assert "Previous network:" in context
     assert "NEXT NETWORK:" in context and "NEXT COMMAND:" in context
     assert "Sync-SasOperatorSessionFromEvidence" in refresh
     assert "SAS_OPERATOR_REFRESH_READY" in refresh
@@ -188,6 +214,7 @@ def test_operator_launchers_route_deploy_through_one_transaction() -> None:
     compat = read(COMPAT_LAUNCHER)
     sas = read(SAS)
     assert "Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1" in cmd
+    assert "-EquipmentProfile Cybernet" in cmd
     assert "Test-SasCybernetClinicalCoreSources.ps1" not in cmd
     assert "Deploy-CybernetProfiledClinicalCore.cmd" in compat
     assert "sas cybernet Core HOST" in sas
