@@ -2,21 +2,16 @@
 setlocal EnableExtensions
 set "SCRIPT_DIR=%~dp0"
 if "%~1"=="" goto help
-echo Preflighting all five approved package sources before any target staging...
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Test-SasCybernetClinicalCoreSources.ps1"
-if errorlevel 1 (
-  set "EXITCODE=%ERRORLEVEL%"
-  echo SOURCE PREFLIGHT FAILED. No target staging was authorized by this launcher.
-  for %%# in (%EXITCODE%) do endlocal ^& exit /b %%#
-)
+
+echo NETWORK REQUIRED: PROTECTED NORTHWELL
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1" -ComputerName "%~1" -AllowTargetMutation -ConfirmDeployment
 set "EXITCODE=%ERRORLEVEL%"
-if not "%EXITCODE%"=="0" echo Profiled clinical-core deployment finished with exit code %EXITCODE%. Preserve emitted evidence before any retry.
+if not "%EXITCODE%"=="0" echo Profiled clinical-core transaction finished with exit code %EXITCODE%. Use sas context or sas next; do not reconstruct the run manually.
 for %%# in (%EXITCODE%) do endlocal ^& exit /b %%#
 
 :help
 echo Usage: Deploy-CybernetProfiledClinicalCore.cmd CYBERNET-HOST
-echo Preflights every pinned source file before target staging.
-echo Deploys the five clinical-core applications without AutoLogon, captures before/after Cybernet profile state,
-echo records Imprivata as observational/external state only, performs no reboot, and cleans run-scoped staging.
+echo One transaction owns: protected-network gate, exact prior-run recovery, all-five source preflight,
+echo staging/hash verification, SYSTEM execution, before/after Cybernet profile capture, final evidence, and exact cleanup.
+echo AutoLogon is observed/preserved only. Imprivata is observational/external. No reboot is performed.
 exit /b 2
