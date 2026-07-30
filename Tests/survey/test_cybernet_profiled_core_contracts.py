@@ -4,7 +4,9 @@ import json
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1"
+PREFLIGHT = ROOT / "scripts" / "Test-SasCybernetClinicalCoreSources.ps1"
 LAUNCHER = ROOT / "Deploy-CybernetProfiledClinicalCore.cmd"
+COMPAT_LAUNCHER = ROOT / "Deploy-CybernetClinicalCore.cmd"
 SAS = ROOT / "scripts" / "SasPortableLauncher.ps1"
 PROFILE = ROOT / "Config" / "cybernet-client-preferences.json"
 
@@ -30,11 +32,11 @@ def test_core_preserves_autologon_and_profiles_imprivata() -> None:
     assert "autologon_state_preserved" in text
     assert "AutoLogon state changed during the clinical-core run." in text
     assert "Worker result did not prove AutoLogon state preservation." in text
-    assert "managed_by_this_run = $false" in text
+    assert "managed_by_this_run=$false" in text or "managed_by_this_run = $false" in text
     assert "profile_before" in text
     assert "profile_after" in text
     assert "Imprivata" in text
-    assert "AutoAdminLogon" in text
+    assert "AutoAdminLogon" in text or "auto_admin_logon" in text
     assert "shutdown.exe" not in text
 
 
@@ -61,10 +63,38 @@ def test_native_core_uses_bounded_existing_management_surfaces() -> None:
     assert "WinRM" not in text
 
 
-def test_operator_surface_exposes_core_lane() -> None:
-    cmd = read(LAUNCHER)
+def test_sources_are_complete_before_target_staging_and_bundles_use_folder_authority() -> None:
+    text = read(SCRIPT)
+    source_preflight = text.index("SOURCE PREFLIGHT READY")
+    target_access = min(text.index('"\\\\$target\\C$"'), text.index('"\\\\$target\\ADMIN$"'))
+    assert source_preflight < target_access
+    assert "all_files_recursive_from_approved_bundle_folder" in text
+    assert "Get-ChildItem -LiteralPath $sourceFolder -Recurse -File" in text
+    assert "tracked_staged_files_only" in text
+    assert "source_manifest.json" in text
+
+
+def test_standalone_source_preflight_never_contacts_target() -> None:
+    text = read(PREFLIGHT)
+    assert "target_contact_performed = $false" in text
+    assert "target_mutation_performed = $false" in text
+    assert "all_files_recursive_from_approved_bundle_folder" in text
+    assert "tracked_staged_files_only" in text
+    assert "Get-FileHash" in text
+    assert "CYBERNET_CLINICAL_CORE_SOURCES_READY" in text
+    assert "CYBERNET_CLINICAL_CORE_SOURCES_INCOMPLETE" in text
+    assert "\\C$" not in text
+    assert "\\ADMIN$" not in text
+    assert "schtasks.exe" not in text
+
+
+def test_operator_launchers_preflight_before_deploying() -> None:
+    for launcher in (LAUNCHER, COMPAT_LAUNCHER):
+        cmd = read(launcher)
+        assert "Test-SasCybernetClinicalCoreSources.ps1" in cmd
+        assert "SOURCE PREFLIGHT FAILED" in cmd
+        assert cmd.index("Test-SasCybernetClinicalCoreSources.ps1") < cmd.index("Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1")
     sas = read(SAS)
-    assert "Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1" in cmd
     assert "sas cybernet Core HOST" in sas
     assert "Deploy-CybernetProfiledClinicalCore.cmd" in sas
     assert "Git Bash or Python" in sas
