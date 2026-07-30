@@ -49,7 +49,7 @@ foreach ($argument in @($Arguments)) {
 
 function Add-SasUniquePath {
     param(
-        [Parameter(Mandatory = $true)][System.Collections.Generic.List[string]]$List,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$List,
         [AllowNull()][string]$Path
     )
     if ([string]::IsNullOrWhiteSpace($Path)) { return }
