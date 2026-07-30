@@ -16,9 +16,8 @@ $network = Get-SasOperatorNetworkClassification -RepoRoot $repoRoot
     current_network_label=$network.label
 })
 $session = Read-SasOperatorSession
-if ($session.target_fqdn) {
-    $session = Sync-SasOperatorSessionFromEvidence -RepoRoot $repoRoot -TargetFqdn ([string]$session.target_fqdn)
-}
+$targetFilter = if ($session.target_fqdn) { [string]$session.target_fqdn } else { $null }
+$session = Sync-SasOperatorSessionFromEvidence -RepoRoot $repoRoot -TargetFqdn $targetFilter
 
 if ($NextOnly) {
     Write-Host "NEXT NETWORK: $($session.next_required_network)" -ForegroundColor Cyan
@@ -30,6 +29,7 @@ Write-Host 'SYSADMINSUITE OPERATOR CONTEXT' -ForegroundColor Cyan
 Write-Host "Repo: $($session.repo_root)"
 Write-Host "HEAD: $($session.repo_head)"
 Write-Host "Network: $($session.current_network_classification) [$($session.current_network_label)]"
+Write-Host "Terminal: $($session.current_terminal) (informational only)"
 Write-Host "Target: $($session.target_input) -> $($session.target_fqdn)"
 Write-Host "Equipment profile: $($session.equipment_profile)"
 Write-Host "Deployment lane: $($session.deployment_lane)"
