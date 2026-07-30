@@ -28,6 +28,7 @@ function Test-SasRepoRoot {
         (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetSoftware.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetClinicalCore.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Find-SasEvidence.cmd') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $candidate 'Refresh-SasOperatorCommand.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'scripts\SasNetworkGuard.psm1') -PathType Leaf)
     )
 }
@@ -163,6 +164,7 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host 'SysAdminSuite portable operator command' -ForegroundColor Cyan
     Write-Host "Repo: $repoRoot"
     Write-Host ''
+    Write-Host '  sas refresh                          GUEST-SAFE: sync origin/main into isolated field-ready checkout and refresh sas'
     Write-Host '  sas cybernet Probe HOST             READ-ONLY: one-target low-noise deployment readiness'
     Write-Host '  sas network HOST                    Alias for the same one-target deployment readiness probe'
     Write-Host '  sas cybernet Deploy HOST            DEPLOY full Cybernet software profile; readiness included; AutoLogon last; restart included'
@@ -177,6 +179,13 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas network                         Check/recheck approved Northwell network posture only'
     Write-Host '  sas repo                            Print resolved repository path'
     Write-Host '  sas open                            Open repository in Explorer'
+    Write-Host ''
+    Write-Host 'Field sequence:' -ForegroundColor Cyan
+    Write-Host '  1. On Guest/Internet: sas refresh' -ForegroundColor Green
+    Write-Host '  2. Verify the refresh reports SAS_OPERATOR_REFRESH_READY.' -ForegroundColor Green
+    Write-Host '  3. Move to the approved protected network.' -ForegroundColor Green
+    Write-Host '  4. Run sas cybernet Deploy HOST. Readiness is included automatically.' -ForegroundColor Green
+    Write-Host '  5. If the terminal closes, run sas evidence before any retry.' -ForegroundColor Yellow
     Write-Host ''
     Write-Host 'Software deployment behavior:' -ForegroundColor Cyan
     Write-Host '  - Full deployment automatically runs the narrow Kerberos SMB plus Task Scheduler readiness chain first.'
@@ -200,6 +209,14 @@ switch ($normalized) {
     'open' {
         Start-Process -FilePath 'explorer.exe' -ArgumentList @($repoRoot) | Out-Null
         exit 0
+    }
+    'refresh' {
+        $refresh = Join-Path $repoRoot 'scripts\Refresh-SasOperatorCommand.ps1'
+        if (-not (Test-Path -LiteralPath $refresh -PathType Leaf)) {
+            throw "Current checkout is missing the refresh workflow: $refresh"
+        }
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $refresh -RepositoryRoot $repoRoot
+        exit $LASTEXITCODE
     }
     'evidence' {
         $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Find-SasEvidence.cmd' -Arguments $CommandArgs
