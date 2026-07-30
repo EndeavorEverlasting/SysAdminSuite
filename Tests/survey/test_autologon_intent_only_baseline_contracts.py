@@ -50,10 +50,18 @@ def test_current_s4u_guard_is_the_integration_point() -> None:
     assert "Do not reinstall blindly" in text
 
 
-def test_field_handoff_records_intent_only_baseline_boundary() -> None:
+def test_field_handoff_records_proven_intent_only_baseline_boundary() -> None:
     text = read(HANDOFF).lower()
-    assert "dirty autologon baseline" in text or "dirty baseline" in text
-    assert "baseline_snapshot.json" in text
+    for marker in (
+        "baseline field proof",
+        "autologon.status = intent_only",
+        "auto_admin_logon = 0",
+        "default_password_present = false",
+        "no installed-software row matching `nw autologon setup`",
+        "coarse classifier defect",
+        "baseline_snapshot.json",
+    ):
+        assert marker in text, marker
 
 
 def main() -> None:
