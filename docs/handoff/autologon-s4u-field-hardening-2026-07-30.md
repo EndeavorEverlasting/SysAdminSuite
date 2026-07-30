@@ -22,6 +22,12 @@ This handoff intentionally contains no live username, password, AutoLogon secret
    - If `%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd` does not exist, install the portable operator command once from a checkout, then run the Guest-side refresh workflow.
    - `SAS_OPERATOR_REFRESH_READY` plus the printed field-ready HEAD is the sync proof before moving to the protected network.
 
+4. **Approved software-source aliases must be canonicalized before Kerberos CIFS use.**
+   - `SasSoftwareSourceIdentity.psm1` resolves the catalog-approved server alias to its canonical FQDN.
+   - The canonical name is accepted only when it resolves to at least one address also returned for the approved alias.
+   - The resolver emits the canonical `CIFS/<fqdn>` SPN and canonical UNC root without collecting credentials or ticket bytes and without target mutation.
+   - The approved catalog alias remains the authority; DNS canonicalization is a runtime Kerberos-access identity, not an alternate package source.
+
 ## Field proof achieved after the HOST-ticket correction
 
 A bounded read-only Kerberos readiness run reached `kerberos_smb_task_ready` with all of the following true:
@@ -38,22 +44,42 @@ A bounded read-only Kerberos readiness run reached `kerberos_smb_task_ready` wit
 
 This proves the earlier `KERBEROS_S4U_KERBEROS_IDENTITY_BLOCKED` result was a producer/consumer contract defect, not evidence that the operator identity lacked the required target authorization.
 
+## Software-source identity proof
+
+The next bounded diagnostic reached:
+
+`SOFTWARE_SOURCE_KERBEROS_READY_FQDN_ONLY`
+
+The proof established all of the following without target mutation:
+
+- TGT remained present.
+- The catalog-approved short server alias resolved to a canonical FQDN.
+- The short CIFS ticket was not issued.
+- The canonical FQDN CIFS ticket was issued.
+- The same approved installer was readable through the canonical FQDN UNC path.
+- Target mutation remained false.
+
+Therefore the remaining source failure is not package absence, target authorization, or a missing TGT. It is a source-name/SPN mismatch: the S4U caller currently requests CIFS for the catalog short alias even though Kerberos and SMB access are proven on the DNS-canonical identity.
+
 ## Current remaining deployment blocker
 
-After target Kerberos readiness passed, AutoLogon advanced to:
+The production S4U caller still needs to consume the canonical source identity before AutoLogon can proceed normally. The permanent caller change must:
 
-`KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED`
+1. retain the tracked catalog short alias as the approved source authority;
+2. resolve that alias through `Resolve-SasCanonicalSoftwareSourceIdentity`;
+3. require alias/canonical address overlap;
+4. request the canonical `CIFS/<fqdn>` service ticket;
+5. read the approved installer through the canonical UNC root;
+6. preserve all existing clean-baseline, hash, final-step, S4U, cleanup, and restart gates.
 
-Meaning: the controller could not obtain the required Kerberos service ticket for the **approved software source server** recorded by the package catalog/harness.
+Until that caller integration lands, do not change SPNs, purge Kerberos tickets, prompt for alternate credentials, switch package sources, or weaken `KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED`.
 
-At this stop:
+At the latest stop:
 
 - `autologon_applied = false`
 - `pre_reboot_autologon_ready = false`
 - `automatic_reboot_performed = false`
 - no retry should be treated as an already-completed install
-
-The next diagnostic must stay narrow: resolve the approved software-source server from tracked catalog data, inspect/request its CIFS Kerberos ticket, and distinguish name/SPN/ticket issuance from SMB/package availability. Do not broaden to WinRM, subnet discovery, credential prompts, or a different package source.
 
 ## Non-regression boundaries
 
