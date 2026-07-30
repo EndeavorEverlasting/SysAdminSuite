@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "Invoke-SasAutoLogonKerberosS4UPilot.ps1"
 DEPLOYMENT = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
 ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
+LOW_NOISE = ROOT / "scripts" / "SasSoftwareDeploymentLowNoise.psm1"
 CMD = ROOT / "Run-AutoLogonOnsite.cmd"
 
 
@@ -46,6 +47,17 @@ def test_current_controller_identity_is_kerberos_and_target_authorized() -> None
         "KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED",
     ):
         assert marker in text, marker
+
+
+def test_low_noise_preflight_produces_the_host_ticket_s4u_consumes() -> None:
+    text = read(LOW_NOISE)
+    cifs_request = '"get CIFS/{0}" -f $ComputerName'
+    host_request = '"get HOST/{0}" -f $ComputerName'
+    combined_gate = "if ($tickets.cifs.issued -and $tickets.host.issued)"
+    assert cifs_request in text, "Kerberos SMB readiness must explicitly request CIFS/<target>."
+    assert host_request in text, "S4U consumes service_tickets.host.issued, so the producer must request HOST/<target>."
+    assert combined_gate in text, "SMB authorization probing must not continue until both required target service tickets are issued."
+    assert text.index(cifs_request) < text.index(host_request) < text.index(combined_gate)
 
 
 def test_package_is_staged_locally_before_s4u_install() -> None:
