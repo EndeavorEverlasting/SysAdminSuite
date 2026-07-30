@@ -58,7 +58,50 @@
     ],
     "autologon_must_be_last": true,
     "software_acceptance_required": true,
-    "restart_policy": "separately_authorized_only"
+    "restart_policy": "separately_authorized_only",
+    "deployment_lanes": {
+      "full_profile": {
+        "package_set_id": "cybernet-clinical-workstation",
+        "autologon_behavior": "final_separate_mutating_step",
+        "profile_capture": "supported"
+      },
+      "profiled_clinical_core": {
+        "package_set_id": "cybernet-clinical-core",
+        "package_count": 5,
+        "autologon_behavior": "observe_only_do_not_enable_disable_or_repair",
+        "automatic_reboot": false,
+        "runtime_dependencies": [
+          "windows_powershell_5_1_or_newer"
+        ],
+        "git_bash_required": false,
+        "python_required": false,
+        "profile_capture": "required_before_and_after"
+      }
+    },
+    "conditional_observations": {
+      "imprivata": {
+        "presence": "conditional_external_state",
+        "managed_by_sysadminsuite_clinical_core": false,
+        "package_membership": "none",
+        "capture_before_and_after": true,
+        "comparison_fields": [
+          "installed_display_names",
+          "services",
+          "service_status",
+          "service_start_type"
+        ],
+        "interpretation": "Imprivata may already be pushed/configured by another management lane. Its observed state must be retained in Cybernet profile evidence without treating it as a clinical-core install, removal, configuration, or completion requirement."
+      },
+      "autologon": {
+        "capture_before_and_after": true,
+        "core_lane_mutation": "forbidden",
+        "comparison_fields": [
+          "AutoAdminLogon",
+          "enabled"
+        ],
+        "interpretation": "The profiled clinical-core lane preserves the current AutoLogon state. AutoLogon enablement or repair belongs only to its separately authorized final lane."
+      }
+    }
   },
   "workflow": {
     "pilot_target_count": 1,
