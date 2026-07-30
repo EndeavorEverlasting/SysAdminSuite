@@ -13,16 +13,9 @@
     "proof_ceiling"
   ],
   "properties": {
-    "schema_version": {
-      "const": "sas-operational-harness-manifest/v1"
-    },
-    "repository": {
-      "const": "EndeavorEverlasting/SysAdminSuite"
-    },
-    "default_workflow": {
-      "type": "string",
-      "minLength": 1
-    },
+    "schema_version": {"const": "sas-operational-harness-manifest/v1"},
+    "repository": {"const": "EndeavorEverlasting/SysAdminSuite"},
+    "default_workflow": {"type": "string", "minLength": 1},
     "components": {
       "type": "array",
       "minItems": 10,
@@ -31,10 +24,7 @@
         "additionalProperties": false,
         "required": ["id", "kind", "path", "required", "tracked", "purpose", "validation"],
         "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9._-]+$"
-          },
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]+$"},
           "kind": {
             "enum": [
               "codebase_map",
@@ -44,6 +34,7 @@
               "command_registry",
               "outcome_registry",
               "deployment_state_registry",
+              "rework_prevention_registry",
               "validator",
               "hook",
               "hook_installer",
@@ -56,38 +47,15 @@
               "ci"
             ]
           },
-          "path": {
-            "type": "string",
-            "minLength": 1
-          },
-          "required": {
-            "type": "boolean"
-          },
-          "tracked": {
-            "type": "boolean"
-          },
-          "purpose": {
-            "type": "string",
-            "minLength": 8
-          },
-          "validation": {
-            "type": "string",
-            "minLength": 1
-          }
+          "path": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean"},
+          "tracked": {"type": "boolean"},
+          "purpose": {"type": "string", "minLength": 8},
+          "validation": {"type": "string", "minLength": 1}
         }
       }
     },
-    "validation_commands": {
-      "type": "array",
-      "minItems": 4,
-      "items": {
-        "type": "string",
-        "minLength": 1
-      }
-    },
-    "proof_ceiling": {
-      "type": "string",
-      "minLength": 16
-    }
+    "validation_commands": {"type": "array", "minItems": 4, "items": {"type": "string", "minLength": 1}},
+    "proof_ceiling": {"type": "string", "minLength": 16}
   }
 }
