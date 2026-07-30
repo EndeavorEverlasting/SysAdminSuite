@@ -27,6 +27,7 @@ function Test-SasRepoRoot {
         (Test-Path -LiteralPath (Join-Path $candidate 'Probe-CybernetSoftware.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetSoftware.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetClinicalCore.cmd') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $candidate 'Deploy-CybernetProfiledClinicalCore.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Find-SasEvidence.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'Refresh-SasOperatorCommand.cmd') -PathType Leaf) -and
         (Test-Path -LiteralPath (Join-Path $candidate 'scripts\SasNetworkGuard.psm1') -PathType Leaf)
@@ -167,6 +168,7 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas refresh                          GUEST-SAFE: sync origin/main into isolated field-ready checkout and refresh sas'
     Write-Host '  sas cybernet Probe HOST             READ-ONLY: one-target low-noise deployment readiness'
     Write-Host '  sas network HOST                    Alias for the same one-target deployment readiness probe'
+    Write-Host '  sas cybernet Core HOST              DEPLOY five clinical apps only; profile before/after; AutoLogon untouched; no reboot'
     Write-Host '  sas cybernet Deploy HOST            DEPLOY full Cybernet software profile; readiness included; AutoLogon last; restart included'
     Write-Host '  sas autologon Remote HOST           DEPLOY AutoLogon only through Kerberos/S4U; restart included'
     Write-Host '  sas evidence                        OFFLINE: find newest deployment/runtime evidence and next action'
@@ -184,19 +186,16 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  1. On Guest/Internet: sas refresh' -ForegroundColor Green
     Write-Host '  2. Verify the refresh reports SAS_OPERATOR_REFRESH_READY.' -ForegroundColor Green
     Write-Host '  3. Move to the approved protected network.' -ForegroundColor Green
-    Write-Host '  4. Run sas cybernet Deploy HOST. Readiness is included automatically.' -ForegroundColor Green
+    Write-Host '  4. Use sas cybernet Core HOST when AutoLogon must remain untouched, or sas cybernet Deploy HOST for the full profile.' -ForegroundColor Green
     Write-Host '  5. If the terminal closes, run sas evidence before any retry.' -ForegroundColor Yellow
     Write-Host ''
     Write-Host 'Software deployment behavior:' -ForegroundColor Cyan
+    Write-Host '  - Core is Windows-native and does not require Git Bash or Python.' -ForegroundColor Green
+    Write-Host '  - Core captures before/after Cybernet profile observations, including AutoLogon state and observational Imprivata state.'
+    Write-Host '  - Core installs the five clinical applications only, never enables AutoLogon, and never reboots.'
     Write-Host '  - Full deployment automatically runs the narrow Kerberos SMB plus Task Scheduler readiness chain first.'
-    Write-Host '  - The readiness chain stops at the first failed dependency and never broadens to WinRM or auto discovery.'
-    Write-Host '  - Full Cybernet deployment installs the five clinical applications first.'
-    Write-Host '  - AutoLogon is always the final software step.'
-    Write-Host '  - AutoLogon deployment automatically restarts the target and waits for it to return.'
-    Write-Host '  - Success: CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED or AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED.'
-    Write-Host '  - The standalone Probe is optional diagnosis; it is NOT a prerequisite loop before Deploy.' -ForegroundColor Green
-    Write-Host '  - Fixture/live-cert/runtime-proof loops are NOT prerequisites for deployment completion.' -ForegroundColor Green
-    Write-Host '  - Runtime proof remains available only when explicitly requested; it must not delay deployment.' -ForegroundColor Cyan
+    Write-Host '  - Full deployment installs the five clinical applications first and AutoLogon last.'
+    Write-Host '  - Full AutoLogon deployment automatically restarts the target and waits for it to return.'
     Write-Host '  - If the terminal closes or crashes, run `sas evidence`; do not redeploy just to recreate console output.' -ForegroundColor Yellow
     exit 0
 }
@@ -212,9 +211,7 @@ switch ($normalized) {
     }
     'refresh' {
         $refresh = Join-Path $repoRoot 'scripts\Refresh-SasOperatorCommand.ps1'
-        if (-not (Test-Path -LiteralPath $refresh -PathType Leaf)) {
-            throw "Current checkout is missing the refresh workflow: $refresh"
-        }
+        if (-not (Test-Path -LiteralPath $refresh -PathType Leaf)) { throw "Current checkout is missing the refresh workflow: $refresh" }
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $refresh -RepositoryRoot $repoRoot
         exit $LASTEXITCODE
     }
@@ -245,6 +242,14 @@ switch ($normalized) {
             $mode = ([string]$args[0]).Trim().ToLowerInvariant()
             if ($mode -eq 'probe') {
                 $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Probe-CybernetSoftware.cmd' -Arguments $args
+                exit $exitCode
+            }
+            if ($mode -in @('core','profiled-core')) {
+                if ($args.Count -ne 2 -or [string]::IsNullOrWhiteSpace([string]$args[1])) {
+                    Write-Host 'Usage: sas cybernet Core HOST' -ForegroundColor Red
+                    exit 2
+                }
+                $exitCode = Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Deploy-CybernetProfiledClinicalCore.cmd' -Arguments @([string]$args[1])
                 exit $exitCode
             }
             if ($mode -eq 'deploy') {
