@@ -99,29 +99,41 @@ This state is **not** an active or half-installed AutoLogon configuration. It is
 
 The previous `KERBEROS_S4U_DIRTY_BASELINE` result was therefore a coarse classifier defect, not proof of a dirty target.
 
-## Host-eligibility field stop
+## Host-eligibility field proof
 
-After the structural baseline classifier patch passed parser/contract checks and the canonical software-source correction remained present, the next live attempt advanced through protected-network gating and the accepted first-install baseline, then stopped at:
+After exact operator-local authorization was created for the already-authorized target, the existing host-eligibility validator returned:
 
-`KERBEROS_S4U_FINAL_GATE_BLOCKED`
+- `eligible = true`
+- `decision = allowed`
+- `reason_code = PATTERN_MATCH_AND_CONTEXT_ALLOWED`
+- `allowed_contexts = remote`
 
-with mandatory prerequisite failure:
+This cleared the prior `KERBEROS_S4U_FINAL_GATE_BLOCKED` / `host_eligibility` stop without disabling or bypassing the final-step gate.
 
-`host_eligibility`
+## Interrupted live-run recovery boundary
 
-The deployment result still recorded:
+The first live attempt after host eligibility passed advanced into the S4U AutoLogon lane and printed the normal target/principal/package header. The operator then observed no further console output for an extended period and interrupted the run with `Ctrl-C`.
 
-- `autologon_applied = false`
-- `pre_reboot_autologon_ready = false`
-- `automatic_reboot_performed = false`
-- `restart_offline_observed = false`
-- `restart_online_observed = false`
+Because the interruption occurred after the final-step prerequisites had been cleared, the deployment must now be treated as **state unknown until exact-run recovery proves otherwise**. Do not infer `autologon_applied = false` from any earlier result file and do not rerun the installer blindly.
 
-Therefore the next action is to establish the already-authorized target in the operator-local host eligibility policy and re-run the existing fail-closed validator. Do not disable or bypass the final-step gate.
+The S4U implementation has long silent sections between the header and the later `Starting AutoLogon remotely...` message. During that interval it may perform transport preflight, source-ticket proof, baseline capture, final-step gate, source hashing, target staging, and the S4U probe task. A `Ctrl-C` can therefore occur before or after target staging/task creation.
+
+Required recovery order after an interruption:
+
+1. identify the newest exact S4U run directory under the current deployment run;
+2. inspect local result/lifecycle/checkpoint evidence first;
+3. query only exact SysAdminSuite task names/run roots associated with that run;
+4. retrieve any completed worker result before cleanup;
+5. determine whether AutoLogon was actually installed/configured before considering any retry;
+6. perform only exact run-scoped cleanup after evidence retrieval.
+
+No new installer execution is allowed until this recovery classification is closed.
 
 ## Current remaining integration boundary
 
 The repository now contains durable canonical software-source identity, intent-only baseline policy, and exact operator-local host-authorization helpers. The executable S4U lane must consume the durable source/baseline modules before the field-hardening branch is considered fully integrated.
+
+The immediate field action is crash recovery for the interrupted run, not another deployment attempt.
 
 Do not weaken the baseline rule into a generic dirty-baseline bypass and do not weaken host eligibility into a broad remote wildcard. Only the exact inert `intent_only` posture and explicitly authorized exact target should pass.
 
