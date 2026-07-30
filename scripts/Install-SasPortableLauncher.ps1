@@ -75,6 +75,7 @@ Write-Host '  sas                                      Show current deployment g
 Write-Host '  sas refresh                              Fetch current origin/main into an isolated field-ready worktree and refresh sas'
 Write-Host '  sas cybernet Probe HOST                  Read-only one-target Kerberos SMB/Task Scheduler readiness'
 Write-Host '  sas network HOST                         Alias for the same read-only readiness probe'
+Write-Host '  sas cybernet Core HOST                   Five clinical apps only; profile before/after; AutoLogon untouched; no reboot'
 Write-Host '  sas cybernet Deploy HOST                 Deploy full software profile; readiness included; AutoLogon last; restart included'
 Write-Host '  sas autologon Remote HOST                Deploy AutoLogon only; restart included'
 Write-Host '  sas evidence                             Find newest local readiness/deployment/runtime evidence; no network needed'
@@ -86,6 +87,8 @@ Write-Host '  sas network                              Check approved Northwell 
 Write-Host ''
 Write-Host 'The installed sas shim now self-refreshes its dispatcher from the cached repo before every command.' -ForegroundColor Green
 Write-Host 'Use `sas refresh` when you need the latest origin/main without touching or resetting an existing working tree.' -ForegroundColor Green
+Write-Host 'Core deployment is Windows-native and does not require Git Bash or Python.' -ForegroundColor Green
+Write-Host 'Core deployment preserves AutoLogon state and treats Imprivata as an observational conditional profile state.' -ForegroundColor Green
 Write-Host 'Full deployment runs its own staged low-noise readiness gate before any target mutation.' -ForegroundColor Green
 Write-Host 'The standalone Probe is optional diagnosis; it is not a prerequisite loop before Deploy.' -ForegroundColor Green
 Write-Host 'Deployment completion includes the required target restart when AutoLogon is installed.' -ForegroundColor Green
