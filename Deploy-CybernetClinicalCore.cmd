@@ -25,7 +25,7 @@ powershell.exe -NoLogo -NoProfile -File "%SCRIPT_DIR%scripts\Invoke-SasCybernetC
 goto done
 
 :deploy
-powershell.exe -NoLogo -NoProfile -File "%SCRIPT_DIR%scripts\Invoke-SasCybernetClinicalCoreDeployment.ps1" -Mode Deploy -ComputerName "%~2" -AllowTargetMutation -ConfirmDeployment
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1" -ComputerName "%~2" -AllowTargetMutation -ConfirmDeployment
 goto done
 
 :help_ok
@@ -43,14 +43,15 @@ echo Usage:
 echo   Deploy-CybernetClinicalCore.cmd Plan CYBERNET-HOST
 echo   Deploy-CybernetClinicalCore.cmd Deploy CYBERNET-HOST
 echo.
-echo Plan performs the exact five-package controller dry run without target mutation.
-echo Deploy runs the current PowerShell Northwell network gate, repeats the dry run, then
-echo continues directly into live deployment of the five approved clinical-core applications.
+echo Plan retains the legacy non-mutating controller dry run.
+echo Deploy uses the Windows-native profiled lane: no Git Bash or Python dependency.
+echo It stages and hash-verifies the five approved clinical-core applications, executes them once as SYSTEM,
+echo captures before/after Cybernet profile state including observational Imprivata and AutoLogon state,
+echo and removes run-scoped staging after result retrieval.
 echo.
-echo AutoLogon is NOT included. It remains a separate last step through:
-echo   sas autologon Remote CYBERNET-HOST
-echo.
-echo No reboot is performed. On any nonzero deployment result, preserve evidence and do not blindly rerun.
+echo AutoLogon is NOT included, changed, repaired, or enabled by Deploy.
+echo Imprivata is observed only and is never installed, removed, or configured by this lane.
+echo No reboot is performed.
 exit /b 0
 
 :done
