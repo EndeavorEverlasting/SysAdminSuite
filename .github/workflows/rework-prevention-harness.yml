@@ -1,0 +1,112 @@
+name: Rework Prevention Harness
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'harness/api/rework-prevention-registry.json'
+      - 'schemas/harness/rework-prevention-registry.schema.json'
+      - 'harness/workflows/rework-prevention-recovery.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/workflows/operational-harness-maintenance.yaml'
+      - 'harness/skills/rework-prevention/**'
+      - 'harness/validators/validate-rework-prevention-contracts.py'
+      - 'harness/reports/render-rework-prevention-report.py'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'docs/HARNESS_REWORK_PREVENTION.md'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - '.github/workflows/rework-prevention-harness.yml'
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'harness/**', 'fix/**']
+    paths:
+      - 'harness/api/rework-prevention-registry.json'
+      - 'schemas/harness/rework-prevention-registry.schema.json'
+      - 'harness/workflows/rework-prevention-recovery.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/workflows/operational-harness-maintenance.yaml'
+      - 'harness/skills/rework-prevention/**'
+      - 'harness/validators/validate-rework-prevention-contracts.py'
+      - 'harness/reports/render-rework-prevention-report.py'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'docs/HARNESS_REWORK_PREVENTION.md'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - '.github/workflows/rework-prevention-harness.yml'
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install schema validator
+        run: python -m pip install jsonschema
+
+      - name: Compile rework-prevention tools
+        run: >-
+          python -m py_compile
+          harness/validators/validate-rework-prevention-contracts.py
+          harness/reports/render-rework-prevention-report.py
+
+      - name: Validate rework-prevention schema
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import jsonschema
+          document = json.loads(Path('harness/api/rework-prevention-registry.json').read_text(encoding='utf-8'))
+          schema = json.loads(Path('schemas/harness/rework-prevention-registry.schema.json').read_text(encoding='utf-8'))
+          jsonschema.Draft202012Validator(schema).validate(document)
+          print('PASS: rework-prevention registry schema')
+          PY
+
+      - name: Validate rework-prevention contracts
+        run: python harness/validators/validate-rework-prevention-contracts.py
+
+      - name: Validate operational harness registry
+        run: python harness/validators/validate-harness-registries.py
+
+      - name: Run harness completeness contracts
+        run: python Tests/survey/test_operational_harness_completeness_contracts.py
+
+      - name: Render human rework-prevention report
+        run: python harness/reports/render-rework-prevention-report.py > /tmp/rework-prevention.md
+
+      - name: Check hook syntax
+        run: bash -n .githooks/pre-commit .githooks/pre-push
+
+      - name: Check changed Git text blobs
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            python scripts/check-repo-text-policy.py --range "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+          elif [[ "${{ github.event_name }}" == "push" && ! "${{ github.event.before }}" =~ ^0+$ ]]; then
+            python scripts/check-repo-text-policy.py --range "${{ github.event.before }}" "${{ github.sha }}"
+          else
+            python scripts/check-repo-text-policy.py --commit HEAD
+          fi
+
+      - name: Check patch whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check commit whitespace
+        if: github.event_name != 'pull_request'
+        run: git show --check --oneline --no-renames HEAD
