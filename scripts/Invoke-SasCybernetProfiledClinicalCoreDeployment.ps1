@@ -47,33 +47,65 @@ $setIds = @($set[0].package_ids | ForEach-Object { [string]$_ })
 if (($setIds -join '|') -ne ($expectedIds -join '|')) { throw 'Tracked clinical-core membership/order drifted.' }
 if ($setIds -contains 'autologon') { throw 'AutoLogon is forbidden in the profiled clinical-core lane.' }
 
-$packageById = @{}
-foreach ($package in @($catalog.packages)) { $packageById[[string]$package.id] = $package }
-$packages = foreach ($id in $expectedIds) {
-    if (-not $packageById.ContainsKey($id)) { throw "Missing package definition: $id" }
-    $p = $packageById[$id]
-    if (-not [bool]$p.install_enabled) { throw "Package is disabled: $id" }
-    [pscustomobject][ordered]@{
-        id = $id
-        display_name = [string]$p.display_name
-        source_folder_relative_path = [string]$p.source_folder_relative_path
-        package_kind = [string]$p.package_kind
-        entrypoint_file = [string]$p.entrypoint_file
-        staged_files = @($p.staged_files | ForEach-Object { [string]$_ })
-        installer_type = [string]$p.installer_type
-        installer_arguments = @($p.installer_arguments | ForEach-Object { [string]$_ })
-    }
-}
-
-$shareRoot = ([string]$catalog.software_share_root).TrimEnd('\')
-if ($shareRoot -notmatch '^\\\\[^\\]+$') { throw "Unexpected software share root: $shareRoot" }
+$shareRoot = ([string]$catalog.software_share_root).Trim().TrimEnd('\')
 $harnessApi = Get-Content -LiteralPath $harnessApiPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $approvedRoots = @($harnessApi.posture.approved_software_sources | ForEach-Object { ([string]$_).Trim().TrimEnd('\') })
 if (@($approvedRoots | Where-Object { $_.Equals($shareRoot,[StringComparison]::OrdinalIgnoreCase) }).Count -ne 1) {
     throw "Software share root is not the single approved package source: $shareRoot"
 }
 
-$runId = 'cybernet-profiled-core-{0}-{1}' -f (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0,8))
+$packageById = @{}
+foreach ($package in @($catalog.packages)) { $packageById[[string]$package.id] = $package }
+
+# Source authority is resolved and fully hashed before ADMIN$, C$, staging, or task creation.
+$sourcePlan = @()
+foreach ($id in $expectedIds) {
+    if (-not $packageById.ContainsKey($id)) { throw "Missing package definition: $id" }
+    $package = $packageById[$id]
+    if (-not [bool]$package.install_enabled) { throw "Package is disabled: $id" }
+    $sourceFolder = Join-Path $shareRoot ([string]$package.source_folder_relative_path)
+    if (-not (Test-Path -LiteralPath $sourceFolder -PathType Container)) { throw "Package source folder not found: $sourceFolder" }
+    $entrypoint = Join-Path $sourceFolder ([string]$package.entrypoint_file)
+    if (-not (Test-Path -LiteralPath $entrypoint -PathType Leaf)) { throw "Package entrypoint not found: $entrypoint" }
+
+    $sourceFiles = @()
+    if ([string]$package.package_kind -eq 'bundle') {
+        $sourceFiles = @(Get-ChildItem -LiteralPath $sourceFolder -Recurse -File -ErrorAction Stop)
+    }
+    else {
+        foreach ($relativeFile in @($package.staged_files | ForEach-Object { [string]$_ })) {
+            if ([string]::IsNullOrWhiteSpace($relativeFile) -or $relativeFile -match '(^|\\)\.\.(\\|$)') { throw "Unsafe staged file path in ${id}: $relativeFile" }
+            $sourceFile = Join-Path $sourceFolder $relativeFile
+            if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf)) { throw "Pinned package file not found: $sourceFile" }
+            $sourceFiles += Get-Item -LiteralPath $sourceFile -ErrorAction Stop
+        }
+    }
+    if ($sourceFiles.Count -eq 0) { throw "Package source is empty: $sourceFolder" }
+
+    $files = @($sourceFiles | ForEach-Object {
+        [pscustomobject][ordered]@{
+            relative_path = $_.FullName.Substring($sourceFolder.Length).TrimStart('\')
+            source_path = $_.FullName
+            length = [int64]$_.Length
+            sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    } | Sort-Object relative_path)
+
+    $sourcePlan += [pscustomobject][ordered]@{
+        id = $id
+        display_name = [string]$package.display_name
+        package_kind = [string]$package.package_kind
+        installer_type = [string]$package.installer_type
+        installer_arguments = @($package.installer_arguments | ForEach-Object { [string]$_ })
+        source_folder = $sourceFolder
+        entrypoint_file = [string]$package.entrypoint_file
+        files = $files
+        source_selection = $(if ([string]$package.package_kind -eq 'bundle') { 'all_files_recursive_from_approved_bundle_folder' } else { 'tracked_staged_files_only' })
+    }
+}
+Write-Host 'SOURCE PREFLIGHT READY: 5/5 packages; no target mutation has occurred.' -ForegroundColor Green
+
+$runId = 'cybernet-profiled-core-{0}-{1}' -f (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss'),([guid]::NewGuid().ToString('N').Substring(0,8))
 $runRoot = Join-Path $repoRoot "survey\output\runs\cybernet-profiled-clinical-core\$runId"
 New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 $summaryPath = Join-Path $runRoot 'cybernet_profiled_clinical_core_result.json'
@@ -81,13 +113,15 @@ $profileBeforePath = Join-Path $runRoot 'cybernet_profile_before.json'
 $profileAfterPath = Join-Path $runRoot 'cybernet_profile_after.json'
 $workerResultLocal = Join-Path $runRoot 'worker_result.json'
 $workerLocal = Join-Path $runRoot 'Invoke-CybernetProfiledCoreWorker.ps1'
+$sourceManifestPath = Join-Path $runRoot 'source_manifest.json'
+$sourcePlan | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $sourceManifestPath -Encoding UTF8
 
 $cRoot = "\\$target\C$"
 $adminRoot = "\\$target\ADMIN$"
 $remoteRunWindows = "C:\ProgramData\SysAdminSuite\CybernetProfiledCore\$runId"
 $remoteRunUnc = Join-Path $cRoot "ProgramData\SysAdminSuite\CybernetProfiledCore\$runId"
-$remoteWorkerWindows = Join-Path $remoteRunWindows 'Invoke-CybernetProfiledCoreWorker.ps1'
-$remoteWorkerUnc = Join-Path $remoteRunUnc 'Invoke-CybernetProfiledCoreWorker.ps1'
+$remoteWorkerWindows = Join-Path $remoteRunWindows 'worker.ps1'
+$remoteWorkerUnc = Join-Path $remoteRunUnc 'worker.ps1'
 $remoteResultWindows = Join-Path $remoteRunWindows 'worker_result.json'
 $remoteResultUnc = Join-Path $remoteRunUnc 'worker_result.json'
 $taskName = 'SysAdminSuite-CybernetProfiledCore-{0}' -f ([guid]::NewGuid().ToString('N'))
@@ -100,6 +134,9 @@ $result = [ordered]@{
     target_resolution = $resolution
     package_set_id = 'cybernet-clinical-core'
     package_ids = $expectedIds
+    source_manifest_path = $sourceManifestPath
+    source_preflight_complete_before_target_mutation = $true
+    bundle_source_policy = 'copy_and_hash_all_files_recursive_from_approved_bundle_folder'
     autologon_included = $false
     autologon_state_preserved = $null
     automatic_reboot_performed = $false
@@ -122,6 +159,7 @@ $result = [ordered]@{
 function Save-Result { $result | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $summaryPath -Encoding UTF8 }
 Save-Result
 
+$failure = $null
 $stagedPlan = @()
 try {
     if (-not (Test-Path -LiteralPath $adminRoot -PathType Container)) { throw 'ADMIN$ access denied or unavailable.' }
@@ -130,85 +168,64 @@ try {
     $result.staging_started = $true
     Save-Result
 
-    foreach ($package in $packages) {
-        $sourceFolder = Join-Path $shareRoot $package.source_folder_relative_path
-        if (-not (Test-Path -LiteralPath $sourceFolder -PathType Container)) { throw "Package source folder not found: $sourceFolder" }
+    foreach ($package in $sourcePlan) {
         $remotePackageUnc = Join-Path $remoteRunUnc $package.id
         $remotePackageWindows = Join-Path $remoteRunWindows $package.id
         New-Item -ItemType Directory -Path $remotePackageUnc -Force | Out-Null
-        $fileRows = @()
-        foreach ($relativeFile in $package.staged_files) {
-            if ([string]::IsNullOrWhiteSpace($relativeFile) -or $relativeFile -match '(^|\\)\.\.(\\|$)') { throw "Unsafe staged file path in $($package.id): $relativeFile" }
-            $sourceFile = Join-Path $sourceFolder $relativeFile
-            if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf)) { throw "Pinned package file not found: $sourceFile" }
-            $destination = Join-Path $remotePackageUnc $relativeFile
+        foreach ($file in @($package.files)) {
+            $destination = Join-Path $remotePackageUnc ([string]$file.relative_path)
             $destinationParent = Split-Path -Parent $destination
             if (-not (Test-Path -LiteralPath $destinationParent -PathType Container)) { New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null }
-            $sourceHash = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
-            Copy-Item -LiteralPath $sourceFile -Destination $destination -Force -ErrorAction Stop
+            Copy-Item -LiteralPath ([string]$file.source_path) -Destination $destination -Force -ErrorAction Stop
             $targetHash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($targetHash -ne $sourceHash) { throw "Target hash mismatch after staging $($package.id)\$relativeFile" }
-            $fileRows += [pscustomobject][ordered]@{ relative_path=$relativeFile; sha256=$sourceHash }
+            if ($targetHash -ne [string]$file.sha256) { throw "Target hash mismatch after staging $($package.id)\$($file.relative_path)" }
         }
-        $entrypointWindows = Join-Path $remotePackageWindows $package.entrypoint_file
         $stagedPlan += [pscustomobject][ordered]@{
             id = $package.id
             display_name = $package.display_name
             installer_type = $package.installer_type
-            entrypoint = $entrypointWindows
+            entrypoint = Join-Path $remotePackageWindows $package.entrypoint_file
             working_directory = $remotePackageWindows
             installer_arguments = @($package.installer_arguments)
-            files = $fileRows
         }
     }
+    Write-Host 'TARGET STAGING HASH-VERIFIED: 5/5 packages.' -ForegroundColor Green
 
     $workerConfig = [ordered]@{ run_id=$runId; target=$target; result_path=$remoteResultWindows; packages=$stagedPlan }
-    $workerConfigJson = $workerConfig | ConvertTo-Json -Depth 24 -Compress
-    $workerConfigB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($workerConfigJson))
-
+    $workerConfigB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($workerConfig | ConvertTo-Json -Depth 20 -Compress)))
     $workerTemplate = @'
 #Requires -Version 5.1
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $config = ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__CONFIG_B64__'))) | ConvertFrom-Json
-
 function Get-CybernetProfile {
     $autoAdminLogon = $null
     try {
         $winlogon = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -ErrorAction Stop
         $autoAdminLogon = if ($null -eq $winlogon.AutoAdminLogon) { $null } else { [string]$winlogon.AutoAdminLogon }
     } catch {}
-    $imprivataApps = New-Object System.Collections.Generic.List[string]
+    $imprivataApps = @()
     foreach ($root in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
-        foreach ($app in @(Get-ItemProperty -Path $root -ErrorAction SilentlyContinue)) {
-            if ([string]$app.DisplayName -match '(?i)imprivata') { [void]$imprivataApps.Add([string]$app.DisplayName) }
-        }
+        $imprivataApps += @(Get-ItemProperty -Path $root -ErrorAction SilentlyContinue | Where-Object { [string]$_.DisplayName -match '(?i)imprivata' } | ForEach-Object { [string]$_.DisplayName })
     }
     $imprivataServices = @()
     foreach ($service in @(Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)imprivata' -or $_.DisplayName -match '(?i)imprivata' })) {
-        $startType = $null
-        try { $startType = [string]$service.StartType } catch {}
-        $imprivataServices += [pscustomobject][ordered]@{ name=$service.Name; display_name=$service.DisplayName; status=[string]$service.Status; start_type=$startType }
+        $imprivataServices += [pscustomobject][ordered]@{ name=$service.Name; display_name=$service.DisplayName; status=[string]$service.Status }
     }
     [pscustomobject][ordered]@{
-        captured_at_utc = (Get-Date).ToUniversalTime().ToString('o')
-        computer_name = $env:COMPUTERNAME
-        autologon = [ordered]@{ auto_admin_logon=$autoAdminLogon; enabled=($autoAdminLogon -eq '1') }
-        imprivata = [ordered]@{
-            observed = ($imprivataApps.Count -gt 0 -or $imprivataServices.Count -gt 0)
-            installed_display_names = @($imprivataApps | Sort-Object -Unique)
-            services = $imprivataServices
-            managed_by_this_run = $false
-            interpretation = 'Observational only. Imprivata is a pre-existing/externally managed Cybernet condition and is not installed, removed, or configured by this clinical-core run.'
+        captured_at_utc=(Get-Date).ToUniversalTime().ToString('o')
+        computer_name=$env:COMPUTERNAME
+        autologon=[ordered]@{ auto_admin_logon=$autoAdminLogon; enabled=($autoAdminLogon -eq '1') }
+        imprivata=[ordered]@{
+            observed=($imprivataApps.Count -gt 0 -or $imprivataServices.Count -gt 0)
+            installed_display_names=@($imprivataApps | Sort-Object -Unique)
+            services=$imprivataServices
+            managed_by_this_run=$false
+            interpretation='Observational only. Imprivata is a pre-existing or externally managed Cybernet condition and is not installed, removed, or configured by this clinical-core run.'
         }
     }
 }
-
-$result = [ordered]@{
-    schema_version='sas-cybernet-profiled-clinical-core-worker/v1'; run_id=[string]$config.run_id
-    execution_identity_sid=$null; execution_as_system=$false
-    profile_before=$null; profile_after=$null; packages=@(); overall_success=$false; reboot_required=$false; autologon_state_preserved=$null; error=$null
-}
+$result = [ordered]@{ schema_version='sas-cybernet-profiled-clinical-core-worker/v1'; run_id=[string]$config.run_id; execution_identity_sid=$null; execution_as_system=$false; profile_before=$null; profile_after=$null; packages=@(); overall_success=$false; reboot_required=$false; autologon_state_preserved=$null; error=$null }
 $packageResults = @()
 try {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -216,38 +233,33 @@ try {
     $result.execution_as_system = ($result.execution_identity_sid -eq 'S-1-5-18')
     if (-not $result.execution_as_system) { throw 'Worker did not execute as LocalSystem.' }
     $result.profile_before = Get-CybernetProfile
-
     foreach ($package in @($config.packages)) {
         $entry = [string]$package.entrypoint
         $working = [string]$package.working_directory
         if (-not (Test-Path -LiteralPath $entry -PathType Leaf)) { throw "Staged entrypoint missing: $entry" }
         $type = ([string]$package.installer_type).ToLowerInvariant()
-        $exitCode = $null
         if ($type -eq 'msi') {
-            $msiArgs = @('/i', ('"{0}"' -f $entry)) + @($package.installer_arguments | ForEach-Object { [string]$_ })
-            $p = Start-Process -FilePath "$env:WINDIR\System32\msiexec.exe" -ArgumentList ($msiArgs -join ' ') -WorkingDirectory $working -Wait -PassThru
-            $exitCode = [int]$p.ExitCode
-        }
-        elseif ($type -eq 'exe') {
-            $args = @($package.installer_arguments | ForEach-Object { [string]$_ })
-            $p = Start-Process -FilePath $entry -ArgumentList $args -WorkingDirectory $working -Wait -PassThru
-            $exitCode = [int]$p.ExitCode
+            $arguments = @('/i',('"{0}"' -f $entry)) + @($package.installer_arguments | ForEach-Object { [string]$_ })
+            $exitCode = [int](Start-Process -FilePath "$env:WINDIR\System32\msiexec.exe" -ArgumentList $arguments -WorkingDirectory $working -Wait -PassThru -NoNewWindow).ExitCode
         }
         elseif ($type -eq 'cmd') {
-            $cmdArgs = '/d /s /c ""{0}""' -f $entry
-            $p = Start-Process -FilePath $env:ComSpec -ArgumentList $cmdArgs -WorkingDirectory $working -Wait -PassThru
-            $exitCode = [int]$p.ExitCode
+            $arguments = '/d /s /c ""{0}""' -f $entry
+            $exitCode = [int](Start-Process -FilePath $env:ComSpec -ArgumentList $arguments -WorkingDirectory $working -Wait -PassThru -NoNewWindow).ExitCode
+        }
+        elseif ($type -eq 'exe') {
+            $arguments = @($package.installer_arguments | ForEach-Object { [string]$_ })
+            $exitCode = [int](Start-Process -FilePath $entry -ArgumentList $arguments -WorkingDirectory $working -Wait -PassThru -NoNewWindow).ExitCode
         }
         else { throw "Unsupported installer type: $type" }
-        if ($exitCode -eq 1641) { throw "Package initiated an unauthorized reboot: $($package.id) exit 1641" }
-        $ok = ($exitCode -in @(0,3010))
+        if ($exitCode -eq 1641) { throw "Package $($package.id) initiated an unauthorized reboot (exit 1641)." }
+        $success = ($exitCode -in @(0,3010))
         if ($exitCode -eq 3010) { $result.reboot_required = $true }
-        $packageResults += [pscustomobject][ordered]@{ id=[string]$package.id; display_name=[string]$package.display_name; installer_type=$type; exit_code=$exitCode; success=$ok }
+        $packageResults += [pscustomobject][ordered]@{ id=[string]$package.id; display_name=[string]$package.display_name; installer_type=$type; exit_code=$exitCode; success=$success }
         $result.packages = $packageResults
-        if (-not $ok) { throw "Package failed: $($package.id) exit $exitCode" }
+        if (-not $success) { throw "Package failed: $($package.id) exit $exitCode" }
     }
     $result.profile_after = Get-CybernetProfile
-    $result.autologon_state_preserved = ([string]$result.profile_before.autologon.auto_admin_logon -eq [string]$result.profile_after.autologon.auto_admin_logon -and [bool]$result.profile_before.autologon.enabled -eq [bool]$result.profile_after.autologon.enabled)
+    $result.autologon_state_preserved = ([bool]$result.profile_before.autologon.enabled -eq [bool]$result.profile_after.autologon.enabled)
     if (-not $result.autologon_state_preserved) { throw 'AutoLogon state changed during the clinical-core run.' }
     $result.overall_success = $true
 }
@@ -255,22 +267,19 @@ catch {
     $result.packages = $packageResults
     $result.error = $_.Exception.Message
     if (-not $result.profile_after) { try { $result.profile_after = Get-CybernetProfile } catch {} }
-    if ($result.profile_before -and $result.profile_after) {
-        $result.autologon_state_preserved = ([string]$result.profile_before.autologon.auto_admin_logon -eq [string]$result.profile_after.autologon.auto_admin_logon -and [bool]$result.profile_before.autologon.enabled -eq [bool]$result.profile_after.autologon.enabled)
-    }
 }
 finally { $result | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath ([string]$config.result_path) -Encoding UTF8 }
-if ($result.overall_success) { exit 0 } else { exit 1 }
+exit $(if ($result.overall_success) { 0 } else { 1 })
 '@
     $workerText = $workerTemplate.Replace('__CONFIG_B64__',$workerConfigB64)
     [IO.File]::WriteAllText($workerLocal,$workerText,(New-Object Text.UTF8Encoding($false)))
-    $parseTokens = $null; $parseErrors = $null
-    [void][System.Management.Automation.Language.Parser]::ParseFile($workerLocal,[ref]$parseTokens,[ref]$parseErrors)
-    if (@($parseErrors).Count -gt 0) { throw "Generated worker has PowerShell parse errors: $($parseErrors[0].Message)" }
+    $tokens=$null; $parseErrors=$null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($workerLocal,[ref]$tokens,[ref]$parseErrors)
+    if (@($parseErrors).Count -gt 0) { throw "Generated worker parse failure: $($parseErrors[0].Message)" }
     Copy-Item -LiteralPath $workerLocal -Destination $remoteWorkerUnc -Force -ErrorAction Stop
 
     $when = (Get-Date).AddMinutes(1).ToString('HH:mm')
-    $taskCommand = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$remoteWorkerWindows`""
+    $taskCommand = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}"' -f $remoteWorkerWindows
     $createOutput = @(& "$env:WINDIR\System32\schtasks.exe" /Create /S $target /RU SYSTEM /SC ONCE /ST $when /TN $taskName /TR $taskCommand /RL HIGHEST /F 2>&1 | ForEach-Object { [string]$_ })
     if ($LASTEXITCODE -ne 0) { throw "Scheduled-task creation failed: $($createOutput -join ' | ')" }
     $result.scheduled_task_created = $true; Save-Result
@@ -284,47 +293,56 @@ if ($result.overall_success) { exit 0 } else { exit 1 }
         if ((Get-Date) -ge $deadline) { throw "Timed out waiting for worker result after $ResultTimeoutSeconds seconds." }
         Start-Sleep -Seconds 2
     }
-    Copy-Item -LiteralPath $remoteResultUnc -Destination $workerResultLocal -Force
+    Copy-Item -LiteralPath $remoteResultUnc -Destination $workerResultLocal -Force -ErrorAction Stop
     $workerResult = Get-Content -LiteralPath $workerResultLocal -Raw -Encoding UTF8 | ConvertFrom-Json
     $result.worker_result_retrieved = $true
     $workerResult.profile_before | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $profileBeforePath -Encoding UTF8
     $workerResult.profile_after | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $profileAfterPath -Encoding UTF8
-    $result.autologon_state_preserved = [bool]$workerResult.autologon_state_preserved
+    $result.autologon_state_preserved = $workerResult.autologon_state_preserved
     $result.reboot_required_but_not_performed = [bool]$workerResult.reboot_required
+    $result.package_results = $workerResult.packages
     if (-not [bool]$workerResult.execution_as_system) { throw 'Worker result did not prove LocalSystem execution.' }
     if (-not [bool]$workerResult.autologon_state_preserved) { throw 'Worker result did not prove AutoLogon state preservation.' }
     if (-not [bool]$workerResult.overall_success) { throw "Clinical-core worker failed: $($workerResult.error)" }
-
-    $result.status = 'CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED'; Save-Result
+    $result.status = 'CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED'
+    Save-Result
     Write-Host "`nCYBERNET PROFILED CLINICAL CORE COMPLETED" -ForegroundColor Green
     Write-Host 'Packages: 5 approved clinical-core applications' -ForegroundColor Green
-    Write-Host 'AutoLogon: NOT INCLUDED; before/after state preservation proven.' -ForegroundColor Yellow
+    Write-Host 'AutoLogon: NOT INCLUDED; existing state preserved.' -ForegroundColor Yellow
     Write-Host 'Imprivata: observational profile only; not managed by this run.' -ForegroundColor Yellow
-    if ($result.reboot_required_but_not_performed) { Write-Host 'Reboot: required by at least one installer but intentionally NOT performed by this lane.' -ForegroundColor Yellow }
-    else { Write-Host 'Reboot: not requested and not performed.' -ForegroundColor Green }
+    Write-Host 'Reboot: NOT PERFORMED.' -ForegroundColor Yellow
     Write-Host "Profile before: $profileBeforePath"
     Write-Host "Profile after:  $profileAfterPath"
     Write-Host "Summary:        $summaryPath"
 }
 catch {
-    $result.status = 'ACTION_REQUIRED'; $result.reason = $_.Exception.Message; Save-Result
-    Write-Host "`nACTION REQUIRED: $($result.reason)" -ForegroundColor Yellow
+    $failure = $_.Exception.Message
+    $result.status = 'ACTION_REQUIRED'
+    $result.reason = $failure
+    Save-Result
+    Write-Host "`nACTION REQUIRED: $failure" -ForegroundColor Yellow
     Write-Host "Summary: $summaryPath"
-    throw
 }
 finally {
     $result.cleanup_attempted = $true
-    $taskDeleted = $false; $runDeleted = $false
-    try {
-        $deleteOutput = @(& "$env:WINDIR\System32\schtasks.exe" /Delete /S $target /TN $taskName /F 2>&1 | ForEach-Object { [string]$_ })
-        $taskDeleted = ($LASTEXITCODE -eq 0 -or ($deleteOutput -join ' ') -match '(?i)cannot find|does not exist|not exist')
-    } catch {}
-    try {
-        if (Test-Path -LiteralPath $remoteRunUnc) { Remove-Item -LiteralPath $remoteRunUnc -Recurse -Force -ErrorAction Stop }
-        $runDeleted = (-not (Test-Path -LiteralPath $remoteRunUnc))
-    } catch {}
-    $result.cleanup_succeeded = ($taskDeleted -and $runDeleted); Save-Result
+    $taskDeleted = (-not $result.scheduled_task_created)
+    $runDeleted = (-not $result.staging_started)
+    if ($result.scheduled_task_created) {
+        try {
+            $deleteOutput = @(& "$env:WINDIR\System32\schtasks.exe" /Delete /S $target /TN $taskName /F 2>&1 | ForEach-Object { [string]$_ })
+            $taskDeleted = ($LASTEXITCODE -eq 0 -or ($deleteOutput -join ' ') -match '(?i)cannot find|does not exist|not exist')
+        } catch { $taskDeleted = $false }
+    }
+    if ($result.staging_started) {
+        try {
+            if (Test-Path -LiteralPath $remoteRunUnc) { Remove-Item -LiteralPath $remoteRunUnc -Recurse -Force -ErrorAction Stop }
+            $runDeleted = (-not (Test-Path -LiteralPath $remoteRunUnc))
+        } catch { $runDeleted = $false }
+    }
+    $result.cleanup_succeeded = ($taskDeleted -and $runDeleted)
+    Save-Result
 }
 
 if ($PassThru) { [pscustomobject]$result }
+if ($failure) { throw $failure }
 exit 0
