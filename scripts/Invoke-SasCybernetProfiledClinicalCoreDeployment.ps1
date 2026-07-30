@@ -101,7 +101,9 @@ $result = [ordered]@{
     package_set_id = 'cybernet-clinical-core'
     package_ids = $expectedIds
     autologon_included = $false
+    autologon_state_preserved = $null
     automatic_reboot_performed = $false
+    reboot_required_but_not_performed = $false
     imprivata_managed_by_this_run = $false
     network_gate_passed = $true
     staging_started = $false
@@ -205,7 +207,7 @@ function Get-CybernetProfile {
 $result = [ordered]@{
     schema_version='sas-cybernet-profiled-clinical-core-worker/v1'; run_id=[string]$config.run_id
     execution_identity_sid=$null; execution_as_system=$false
-    profile_before=$null; profile_after=$null; packages=@(); overall_success=$false; reboot_required=$false; error=$null
+    profile_before=$null; profile_after=$null; packages=@(); overall_success=$false; reboot_required=$false; autologon_state_preserved=$null; error=$null
 }
 $packageResults = @()
 try {
@@ -237,19 +239,25 @@ try {
             $exitCode = [int]$p.ExitCode
         }
         else { throw "Unsupported installer type: $type" }
-        $ok = ($exitCode -in @(0,3010,1641))
-        if ($exitCode -in @(3010,1641)) { $result.reboot_required = $true }
+        if ($exitCode -eq 1641) { throw "Package initiated an unauthorized reboot: $($package.id) exit 1641" }
+        $ok = ($exitCode -in @(0,3010))
+        if ($exitCode -eq 3010) { $result.reboot_required = $true }
         $packageResults += [pscustomobject][ordered]@{ id=[string]$package.id; display_name=[string]$package.display_name; installer_type=$type; exit_code=$exitCode; success=$ok }
         $result.packages = $packageResults
         if (-not $ok) { throw "Package failed: $($package.id) exit $exitCode" }
     }
     $result.profile_after = Get-CybernetProfile
+    $result.autologon_state_preserved = ([string]$result.profile_before.autologon.auto_admin_logon -eq [string]$result.profile_after.autologon.auto_admin_logon -and [bool]$result.profile_before.autologon.enabled -eq [bool]$result.profile_after.autologon.enabled)
+    if (-not $result.autologon_state_preserved) { throw 'AutoLogon state changed during the clinical-core run.' }
     $result.overall_success = $true
 }
 catch {
     $result.packages = $packageResults
     $result.error = $_.Exception.Message
     if (-not $result.profile_after) { try { $result.profile_after = Get-CybernetProfile } catch {} }
+    if ($result.profile_before -and $result.profile_after) {
+        $result.autologon_state_preserved = ([string]$result.profile_before.autologon.auto_admin_logon -eq [string]$result.profile_after.autologon.auto_admin_logon -and [bool]$result.profile_before.autologon.enabled -eq [bool]$result.profile_after.autologon.enabled)
+    }
 }
 finally { $result | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath ([string]$config.result_path) -Encoding UTF8 }
 if ($result.overall_success) { exit 0 } else { exit 1 }
@@ -281,14 +289,19 @@ if ($result.overall_success) { exit 0 } else { exit 1 }
     $result.worker_result_retrieved = $true
     $workerResult.profile_before | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $profileBeforePath -Encoding UTF8
     $workerResult.profile_after | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $profileAfterPath -Encoding UTF8
+    $result.autologon_state_preserved = [bool]$workerResult.autologon_state_preserved
+    $result.reboot_required_but_not_performed = [bool]$workerResult.reboot_required
     if (-not [bool]$workerResult.execution_as_system) { throw 'Worker result did not prove LocalSystem execution.' }
+    if (-not [bool]$workerResult.autologon_state_preserved) { throw 'Worker result did not prove AutoLogon state preservation.' }
     if (-not [bool]$workerResult.overall_success) { throw "Clinical-core worker failed: $($workerResult.error)" }
 
     $result.status = 'CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED'; Save-Result
     Write-Host "`nCYBERNET PROFILED CLINICAL CORE COMPLETED" -ForegroundColor Green
     Write-Host 'Packages: 5 approved clinical-core applications' -ForegroundColor Green
-    Write-Host 'AutoLogon: NOT INCLUDED; existing state was observationally profiled.' -ForegroundColor Yellow
+    Write-Host 'AutoLogon: NOT INCLUDED; before/after state preservation proven.' -ForegroundColor Yellow
     Write-Host 'Imprivata: observational profile only; not managed by this run.' -ForegroundColor Yellow
+    if ($result.reboot_required_but_not_performed) { Write-Host 'Reboot: required by at least one installer but intentionally NOT performed by this lane.' -ForegroundColor Yellow }
+    else { Write-Host 'Reboot: not requested and not performed.' -ForegroundColor Green }
     Write-Host "Profile before: $profileBeforePath"
     Write-Host "Profile after:  $profileAfterPath"
     Write-Host "Summary:        $summaryPath"
