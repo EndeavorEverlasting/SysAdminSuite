@@ -111,6 +111,7 @@ foreach ($pattern in @(
 $definitions = @(
     [pscustomobject]@{ category='Cybernet'; role='one-target deployment readiness'; relative_root='survey\output\runs\cybernet-deployment-readiness'; filter='cybernet_deployment_readiness_result.json' },
     [pscustomobject]@{ category='Cybernet'; role='full software deployment'; relative_root='survey\output\runs\cybernet-software-deployment'; filter='cybernet_software_deployment_result.json' },
+    [pscustomobject]@{ category='Cybernet'; role='profiled clinical-core deployment'; relative_root='survey\output\runs\cybernet-profiled-clinical-core'; filter='cybernet_profiled_clinical_core_result.json' },
     [pscustomobject]@{ category='AutoLogon'; role='restart-complete AutoLogon deployment'; relative_root='survey\output\runs\autologon-s4u-deployment'; filter='autologon_s4u_deployment_result.json' },
     [pscustomobject]@{ category='AutoLogon'; role='S4U pre-reboot apply'; relative_root='survey\output\runs\autologon-kerberos-s4u'; filter='autologon_kerberos_s4u_pilot_result.json' },
     [pscustomobject]@{ category='Cybernet'; role='clinical-core deployment stage'; relative_root='survey\output\runs\cybernet-clinical-core'; filter='cybernet_clinical_core_deployment_summary.json' },
@@ -214,6 +215,9 @@ function Get-SasEvidenceSummary {
         }
         'CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED' {
             $summary.next_action = 'Deployment is complete. Do not redeploy this target merely to recreate console output. Runtime proof is optional only when separately requested.'
+        }
+        'CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED' {
+            $summary.next_action = 'The five clinical applications completed through the profiled core lane. Preserve the before/after Cybernet profile evidence. AutoLogon was intentionally untouched and Imprivata was observational only; do not run the full AutoLogon lane unless separately authorized.'
         }
         'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED' {
             $summary.next_action = 'AutoLogon deployment and restart are complete. Do not rerun the installer merely to recreate console output.'
