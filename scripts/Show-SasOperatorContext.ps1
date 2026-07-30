@@ -25,13 +25,17 @@ if ($NextOnly) {
     exit 0
 }
 
+$targetLocked=[bool](Get-SasObjectPropertyValue $session 'target_locked' $false)
+$profileProven=[bool](Get-SasObjectPropertyValue $session 'profile_eligibility_proven' $false)
+$profileSource=[string](Get-SasObjectPropertyValue $session 'profile_eligibility_source')
 Write-Host 'SYSADMINSUITE OPERATOR CONTEXT' -ForegroundColor Cyan
 Write-Host "Repo: $($session.repo_root)"
 Write-Host "HEAD: $($session.repo_head)"
 Write-Host "Network: $($session.current_network_classification) [$($session.current_network_label)]"
 Write-Host "Terminal: $($session.current_terminal) (informational only)"
-Write-Host "Target: $($session.target_input) -> $($session.target_fqdn)"
-Write-Host "Equipment profile: $($session.equipment_profile)"
+Write-Host "Authorized/locked target: $(if ($targetLocked) { 'YES' } else { 'NO/LEGACY' }) | $($session.target_input) -> $($session.target_fqdn)"
+Write-Host "Equipment profile: $($session.equipment_profile) | eligibility: $(if ($profileProven) { 'PROVEN' } else { 'LEGACY/UNKNOWN' })"
+if ($profileSource) { Write-Host "Profile authority: $profileSource" }
 Write-Host "Deployment lane: $($session.deployment_lane)"
 Write-Host "Package set: $($session.package_set)"
 Write-Host "AutoLogon expected: $($session.expected_autologon_state)"
