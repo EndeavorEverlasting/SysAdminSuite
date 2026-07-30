@@ -50,7 +50,7 @@ if exist "%SAS_CACHE%" (
 
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_INSTALLED%" %*
 set "SAS_EXIT=!ERRORLEVEL!"
-endlocal & exit /b %SAS_EXIT%
+for %%# in (!SAS_EXIT!) do endlocal & exit /b %%#
 '@
 Set-Content -LiteralPath $cmdDestination -Value $cmd -Encoding ASCII
 
