@@ -74,14 +74,18 @@ if ($LASTEXITCODE -ne 0) { throw "Operator-command refresh installer failed with
 $sessionModule=Join-Path $fieldReady 'scripts\SasOperatorSession.psm1'
 Import-Module $sessionModule -Force
 $session=Read-SasOperatorSession
-$nextTarget=if ($session.target_input) { [string]$session.target_input } else { 'WPJ075OPR046' }
+$targetFilter=if ($session.target_fqdn) { [string]$session.target_fqdn } else { $null }
+$session=Sync-SasOperatorSessionFromEvidence -RepoRoot $fieldReady -TargetFqdn $targetFilter
+$nextTarget=if ($session.target_input) { [string]$session.target_input } else { $null }
+$nextCommand=if ($nextTarget) { "sas cybernet Core $nextTarget" } else { 'sas context' }
+$nextNetwork=if ($nextTarget) { 'PROTECTED NORTHWELL' } else { 'ANY / OFFLINE' }
 [void](Set-SasOperatorSessionValues -Values @{
     repo_root=$fieldReady
     repo_head=$head
     launcher_head=$head
     current_network_classification='GUEST_INTERNET'
-    next_required_network='PROTECTED NORTHWELL'
-    next_command="sas cybernet Core $nextTarget"
+    next_required_network=$nextNetwork
+    next_command=$nextCommand
 })
 
 Write-Host ''
@@ -89,5 +93,5 @@ Write-Host 'SAS_OPERATOR_REFRESH_READY' -ForegroundColor Green
 Write-Host "Field-ready repo: $fieldReady"
 Write-Host "HEAD: $head"
 Write-Host 'Existing source worktree was not reset or cleaned.' -ForegroundColor Green
-Write-Host 'NEXT NETWORK: PROTECTED NORTHWELL' -ForegroundColor Cyan
-Write-Host "NEXT COMMAND: sas cybernet Core $nextTarget" -ForegroundColor Green
+Write-Host "NEXT NETWORK: $nextNetwork" -ForegroundColor Cyan
+Write-Host "NEXT COMMAND: $nextCommand" -ForegroundColor Green
