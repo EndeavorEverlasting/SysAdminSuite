@@ -87,6 +87,9 @@ $required = @(
     'scripts\SasPortableLauncher.ps1',
     'Find-SasEvidence.cmd',
     'Deploy-CybernetSoftware.cmd',
+    'Deploy-CybernetClinicalCore.cmd',
+    'Deploy-CybernetProfiledClinicalCore.cmd',
+    'scripts\Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1',
     'Probe-CybernetSoftware.cmd'
 )
 foreach ($relative in $required) {
