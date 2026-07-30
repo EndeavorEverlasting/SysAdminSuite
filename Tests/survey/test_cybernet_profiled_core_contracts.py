@@ -27,12 +27,24 @@ def test_core_preserves_autologon_and_profiles_imprivata() -> None:
     assert "cybernet-clinical-core" in text
     assert "autologon_included = $false" in text
     assert "automatic_reboot_performed = $false" in text
+    assert "autologon_state_preserved" in text
+    assert "AutoLogon state changed during the clinical-core run." in text
+    assert "Worker result did not prove AutoLogon state preservation." in text
     assert "managed_by_this_run = $false" in text
     assert "profile_before" in text
     assert "profile_after" in text
     assert "Imprivata" in text
     assert "AutoAdminLogon" in text
     assert "shutdown.exe" not in text
+
+
+def test_no_reboot_lane_rejects_reboot_initiated_exit() -> None:
+    text = read(SCRIPT)
+    assert "$exitCode -eq 1641" in text
+    assert "initiated an unauthorized reboot" in text
+    assert "$exitCode -in @(0,3010)" in text
+    assert "$exitCode -in @(0,3010,1641)" not in text
+    assert "reboot_required_but_not_performed" in text
 
 
 def test_native_core_uses_bounded_existing_management_surfaces() -> None:
@@ -65,6 +77,7 @@ def test_profile_models_conditional_imprivata_and_autologon() -> None:
     assert lane["package_count"] == 5
     assert lane["git_bash_required"] is False
     assert lane["python_required"] is False
+    assert lane["automatic_reboot"] is False
     assert lane["autologon_behavior"] == "observe_only_do_not_enable_disable_or_repair"
     obs = profile["software"]["conditional_observations"]
     assert obs["imprivata"]["managed_by_sysadminsuite_clinical_core"] is False
