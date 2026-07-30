@@ -7,33 +7,26 @@ if /I "%~1"=="Help" goto help_ok
 if /I "%~1"=="-h" goto help_ok
 if /I "%~1"=="--help" goto help_ok
 if /I "%~1"=="/?" goto help_ok
-
 if "%~1"=="" goto help_error
 if "%~2"=="" goto help_error
 if not "%~3"=="" (
   echo ERROR: Provide one mode and one explicit authorized Cybernet hostname or FQDN.
   goto help_error
 )
-
 if /I "%~1"=="Plan" goto plan
 if /I "%~1"=="Deploy" goto deploy
 echo ERROR: Mode must be Plan or Deploy.
 goto help_error
 
 :plan
+echo NETWORK REQUIRED: PROTECTED NORTHWELL
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Test-SasCybernetClinicalCoreSources.ps1"
 if errorlevel 1 goto done
 powershell.exe -NoLogo -NoProfile -File "%SCRIPT_DIR%scripts\Invoke-SasCybernetClinicalCoreDeployment.ps1" -Mode Plan -ComputerName "%~2"
 goto done
 
 :deploy
-echo Preflighting all five approved package sources before any target staging...
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Test-SasCybernetClinicalCoreSources.ps1"
-if errorlevel 1 (
-  echo SOURCE PREFLIGHT FAILED. No target staging was authorized by this launcher.
-  goto done
-)
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1" -ComputerName "%~2" -AllowTargetMutation -ConfirmDeployment
+call "%SCRIPT_DIR%Deploy-CybernetProfiledClinicalCore.cmd" "%~2"
 goto done
 
 :help_ok
@@ -51,19 +44,13 @@ echo Usage:
 echo   Deploy-CybernetClinicalCore.cmd Plan CYBERNET-HOST
 echo   Deploy-CybernetClinicalCore.cmd Deploy CYBERNET-HOST
 echo.
-echo Before target staging, both Plan and Deploy validate every pinned file for all five clinical-core packages.
-echo Missing or stale source metadata fails closed with an inventory report and no target mutation from this launcher.
-echo Deploy uses the Windows-native profiled lane: no Git Bash or Python dependency.
-echo It stages and hash-verifies the five approved clinical-core applications, executes them once as SYSTEM,
-echo captures before/after Cybernet profile state including observational Imprivata and AutoLogon state,
-echo and removes run-scoped staging after result retrieval.
-echo.
-echo AutoLogon is NOT included, changed, repaired, or enabled by Deploy.
-echo Imprivata is observed only and is never installed, removed, or configured by this lane.
-echo No reboot is performed.
+echo Deploy routes through the same stateful Windows-native transaction as sas cybernet Core HOST.
+echo It owns exact prior-run recovery, source preflight before new staging, SYSTEM execution,
+echo before/after AutoLogon + Imprivata profile evidence, no reboot, and verified run-scoped cleanup.
+echo AutoLogon is NOT included. Imprivata is observational/external only.
 exit /b 0
 
 :done
 set "EXITCODE=%ERRORLEVEL%"
-if not "%EXITCODE%"=="0" echo Clinical-core deployment finished with exit code %EXITCODE%. Review the emitted evidence before retrying.
+if not "%EXITCODE%"=="0" echo Clinical-core operation finished with exit code %EXITCODE%. Use sas context or sas next before retrying.
 for %%# in (%EXITCODE%) do endlocal ^& exit /b %%#
