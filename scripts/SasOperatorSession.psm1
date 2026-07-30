@@ -17,10 +17,15 @@ function New-SasOperatorSession {
         launcher_head=$null
         current_network_classification='UNKNOWN'
         current_network_label=$null
+        last_network_classification='UNKNOWN'
+        last_network_label=$null
         current_terminal=$null
         target_input=$null
         target_fqdn=$null
+        target_locked=$false
         equipment_profile=$null
+        profile_eligibility_proven=$false
+        profile_eligibility_source=$null
         deployment_lane=$null
         package_set=$null
         expected_autologon_state=$null
@@ -73,6 +78,12 @@ function Write-SasOperatorSession {
 function Set-SasOperatorSessionValues {
     param([Parameter(Mandatory=$true)][hashtable]$Values)
     $session=Read-SasOperatorSession
+    if ($Values.ContainsKey('current_network_classification')) {
+        $previousClassification=[string](Get-SasObjectPropertyValue $session 'current_network_classification' 'UNKNOWN')
+        $previousLabel=Get-SasObjectPropertyValue $session 'current_network_label'
+        if (-not $Values.ContainsKey('last_network_classification')) { $Values['last_network_classification']=$previousClassification }
+        if (-not $Values.ContainsKey('last_network_label')) { $Values['last_network_label']=$previousLabel }
+    }
     foreach ($name in $Values.Keys) {
         $property=$session.PSObject.Properties[$name]
         if ($property) { $property.Value=$Values[$name] }
@@ -127,7 +138,10 @@ function Initialize-SasCybernetCoreSession {
         current_terminal=(Get-SasTerminalLabel)
         target_input=$TargetInput
         target_fqdn=$TargetFqdn
+        target_locked=$true
         equipment_profile='Cybernet'
+        profile_eligibility_proven=$true
+        profile_eligibility_source='explicit_tracked_sas_cybernet_core_command'
         deployment_lane='profiled_clinical_core'
         package_set='cybernet-clinical-core'
         expected_autologon_state='disabled_preserve_only'
@@ -190,12 +204,17 @@ function Sync-SasOperatorSessionFromEvidence {
     $valueTarget=[string](Get-SasObjectPropertyValue $value 'target_fqdn' $TargetFqdn)
     $nextNetwork=if ($status -eq 'CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED') { 'NONE' } else { 'PROTECTED NORTHWELL' }
     $nextCommand=if ($status -eq 'CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED') { 'sas evidence Cybernet' } elseif (-not $cleanupSucceeded) { "sas cybernet Recover $targetInput" } else { "sas cybernet Core $targetInput" }
+    $profileProven=[bool](Get-SasObjectPropertyValue $value 'profile_eligibility_proven' $false)
+    $profileSource=[string](Get-SasObjectPropertyValue $value 'profile_eligibility_source' 'legacy_profiled_core_evidence')
     return (Set-SasOperatorSessionValues -Values @{
         repo_root=$RepoRoot
         repo_head=(Get-SasRepoHead -RepoRoot $RepoRoot)
         target_input=$targetInput
         target_fqdn=$valueTarget
+        target_locked=(-not [string]::IsNullOrWhiteSpace($valueTarget))
         equipment_profile='Cybernet'
+        profile_eligibility_proven=$profileProven
+        profile_eligibility_source=$profileSource
         deployment_lane='profiled_clinical_core'
         package_set='cybernet-clinical-core'
         expected_autologon_state='disabled_preserve_only'
@@ -217,4 +236,4 @@ function Sync-SasOperatorSessionFromEvidence {
     })
 }
 
-Export-ModuleMember -Function Get-SasOperatorStateRoot,Get-SasOperatorSessionPath,New-SasOperatorSession,Get-SasObjectPropertyValue,Read-SasOperatorSession,Write-SasOperatorSession,Set-SasOperatorSessionValues,Get-SasRepoHead,Get-SasOperatorNetworkClassification,Set-SasOperatorNextAction,Initialize-SasCybernetCoreSession,Get-SasEvidenceRoots,Find-SasLatestCybernetCoreEvidence,Sync-SasOperatorSessionFromEvidence
+Export-ModuleMember -Function Get-SasOperatorStateRoot,Get-SasOperatorSessionPath,New-SasOperatorSession,Get-SasObjectPropertyValue,Read-SasOperatorSession,Write-SasOperatorSession,Set-SasOperatorSessionValues,Get-SasRepoHead,Get-SasTerminalLabel,Get-SasOperatorNetworkClassification,Set-SasOperatorNextAction,Initialize-SasCybernetCoreSession,Get-SasEvidenceRoots,Find-SasLatestCybernetCoreEvidence,Sync-SasOperatorSessionFromEvidence
