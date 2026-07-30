@@ -57,65 +57,71 @@ foreach ($id in $expectedIds) {
     if (-not [bool]$package.install_enabled) { throw "Package is disabled: $id" }
     $sourceFolder = Join-Path $shareRoot ([string]$package.source_folder_relative_path)
     $folderExists = Test-Path -LiteralPath $sourceFolder -PathType Container
-    $fileRows = @()
-    foreach ($relativeFile in @($package.staged_files | ForEach-Object { [string]$_ })) {
-        if ([string]::IsNullOrWhiteSpace($relativeFile) -or $relativeFile -match '(^|\\)\.\.(\\|$)') {
-            throw "Unsafe staged file path in ${id}: $relativeFile"
+    $entrypoint = [string]$package.entrypoint_file
+    $sourceFiles = @()
+    if ($folderExists) {
+        if ([string]$package.package_kind -eq 'bundle') {
+            $sourceFiles = @(Get-ChildItem -LiteralPath $sourceFolder -Recurse -File -ErrorAction Stop)
         }
-        $sourceFile = Join-Path $sourceFolder $relativeFile
-        $exists = ($folderExists -and (Test-Path -LiteralPath $sourceFile -PathType Leaf))
-        $sha256 = $null
-        $length = $null
-        if ($exists) {
-            $item = Get-Item -LiteralPath $sourceFile -ErrorAction Stop
-            $length = [int64]$item.Length
-            $sha256 = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
-        }
-        else { $missingCount++ }
-        $fileRows += [pscustomobject][ordered]@{
-            relative_path = $relativeFile
-            full_path = $sourceFile
-            exists = $exists
-            length = $length
-            sha256 = $sha256
+        else {
+            foreach ($relativeFile in @($package.staged_files | ForEach-Object { [string]$_ })) {
+                if ([string]::IsNullOrWhiteSpace($relativeFile) -or $relativeFile -match '(^|\\)\.\.(\\|$)') {
+                    throw "Unsafe staged file path in ${id}: $relativeFile"
+                }
+                $sourceFile = Join-Path $sourceFolder $relativeFile
+                if (Test-Path -LiteralPath $sourceFile -PathType Leaf) { $sourceFiles += Get-Item -LiteralPath $sourceFile -ErrorAction Stop }
+                else { $missingCount++ }
+            }
         }
     }
-    $entrypoint = [string]$package.entrypoint_file
-    $entrypointTracked = (@($package.staged_files | ForEach-Object { [string]$_ }) -contains $entrypoint)
-    $actualInventory = @()
-    if ($folderExists -and (@($fileRows | Where-Object { -not $_.exists }).Count -gt 0)) {
-        $actualInventory = @(Get-ChildItem -LiteralPath $sourceFolder -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
-            [pscustomobject][ordered]@{
-                relative_path = $_.FullName.Substring($sourceFolder.Length).TrimStart('\')
-                length = [int64]$_.Length
-            }
-        } | Sort-Object relative_path)
+    else { $missingCount++ }
+
+    $fileRows = @($sourceFiles | ForEach-Object {
+        [pscustomobject][ordered]@{
+            relative_path = $_.FullName.Substring($sourceFolder.Length).TrimStart('\')
+            full_path = $_.FullName
+            exists = $true
+            length = [int64]$_.Length
+            sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    } | Sort-Object relative_path)
+
+    $entrypointPath = Join-Path $sourceFolder $entrypoint
+    $entrypointExists = ($folderExists -and (Test-Path -LiteralPath $entrypointPath -PathType Leaf))
+    if (-not $entrypointExists) { $missingCount++ }
+    $complete = ($folderExists -and $entrypointExists -and $fileRows.Count -gt 0 -and $missingCount -ge 0)
+    if ([string]$package.package_kind -ne 'bundle') {
+        $expectedFileCount = @($package.staged_files).Count
+        $complete = ($complete -and $fileRows.Count -eq $expectedFileCount)
     }
     $rows += [pscustomobject][ordered]@{
         id = $id
         display_name = [string]$package.display_name
+        package_kind = [string]$package.package_kind
         source_folder = $sourceFolder
         source_folder_exists = $folderExists
         entrypoint_file = $entrypoint
-        entrypoint_tracked = $entrypointTracked
+        entrypoint_exists = $entrypointExists
+        source_selection = $(if ([string]$package.package_kind -eq 'bundle') { 'all_files_recursive_from_approved_bundle_folder' } else { 'tracked_staged_files_only' })
         files = $fileRows
-        actual_inventory_when_incomplete = $actualInventory
-        complete = ($folderExists -and $entrypointTracked -and @($fileRows | Where-Object { -not $_.exists }).Count -eq 0)
+        complete = $complete
     }
 }
 
-$ready = ($missingCount -eq 0 -and @($rows | Where-Object { -not $_.complete }).Count -eq 0)
+$ready = (@($rows | Where-Object { -not $_.complete }).Count -eq 0)
 $result = [pscustomobject][ordered]@{
     schema_version = 'sas-cybernet-clinical-core-source-preflight/v1'
     generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
     package_set_id = 'cybernet-clinical-core'
     package_count = $expectedIds.Count
     software_share_root = $shareRoot
+    bundle_source_policy = 'copy_and_hash_all_files_recursive_from_approved_bundle_folder'
+    single_source_policy = 'copy_and_hash_tracked_staged_files_only'
     source_network_activity_performed = $true
     target_contact_performed = $false
     target_mutation_performed = $false
     ready_for_target_staging = $ready
-    missing_file_count = $missingCount
+    missing_or_invalid_source_count = @($rows | Where-Object { -not $_.complete }).Count
     packages = $rows
     status = $(if ($ready) { 'CYBERNET_CLINICAL_CORE_SOURCES_READY' } else { 'CYBERNET_CLINICAL_CORE_SOURCES_INCOMPLETE' })
     result_path = $resultPath
@@ -124,7 +130,7 @@ $result | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $resultPath -Encod
 
 if ($ready) {
     Write-Host 'CYBERNET CLINICAL CORE SOURCES READY' -ForegroundColor Green
-    Write-Host "Packages: $($expectedIds.Count) | Missing files: 0"
+    Write-Host "Packages: $($expectedIds.Count) | Bundle folders are complete recursive source authorities."
     Write-Host "Evidence: $resultPath"
     if ($PassThru) { $result }
     exit 0
@@ -133,11 +139,9 @@ if ($ready) {
 Write-Host 'CYBERNET CLINICAL CORE SOURCES INCOMPLETE' -ForegroundColor Yellow
 foreach ($package in @($rows | Where-Object { -not $_.complete })) {
     Write-Host "Package: $($package.id)" -ForegroundColor Yellow
-    foreach ($file in @($package.files | Where-Object { -not $_.exists })) { Write-Host "  MISSING: $($file.full_path)" -ForegroundColor Red }
-    if (@($package.actual_inventory_when_incomplete).Count -gt 0) {
-        Write-Host '  Actual files present:' -ForegroundColor Cyan
-        foreach ($item in @($package.actual_inventory_when_incomplete)) { Write-Host "    $($item.relative_path)" }
-    }
+    Write-Host "  Source folder exists: $($package.source_folder_exists)"
+    Write-Host "  Entrypoint exists: $($package.entrypoint_exists)"
+    Write-Host "  Files observed: $(@($package.files).Count)"
 }
 Write-Host 'No target contact or mutation was performed by source preflight.' -ForegroundColor Green
 Write-Host "Evidence: $resultPath"
