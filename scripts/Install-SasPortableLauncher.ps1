@@ -78,14 +78,16 @@ Write-Host '  sas cybernet Core HOST              PROTECTED NORTHWELL: five clin
 Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact prior-run recovery only'
 Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
 Write-Host '  sas evidence Cybernet               OFFLINE: recover newest Cybernet run evidence and next action'
-Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full profile lane'
-Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: AutoLogon-only lane'
+Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full profile; readiness included; AutoLogon last; restart included'
+Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: AutoLogon-only lane; restart included'
 Write-Host '  sas network                          Read-only approved Northwell network posture'
 Write-Host ''
 Write-Host 'The installed sas shim self-refreshes its dispatcher from the cached field-ready repo before every command.' -ForegroundColor Green
 Write-Host 'operator-session.json remains machine-local under %LOCALAPPDATA%\SysAdminSuite and survives terminal/shell changes.' -ForegroundColor Green
 Write-Host 'Core is one Windows-native transaction: recovery, source preflight, staging, SYSTEM execution, profile capture, evidence, and cleanup.' -ForegroundColor Green
 Write-Host 'Core never installs/enables/repairs AutoLogon and never manages Imprivata. Core never performs an automatic reboot.' -ForegroundColor Green
+Write-Host 'Full deployment retains readiness included, AutoLogon last, and restart included behavior.' -ForegroundColor Green
+Write-Host 'The standalone Probe is optional diagnosis; it is not a prerequisite loop before Deploy.' -ForegroundColor Green
 Write-Host 'If a terminal closes or crashes, use `sas context` or `sas next`; do not reconstruct try/catch/finally fragments.' -ForegroundColor Yellow
 Write-Host ''
 Write-Host 'No administrator rights are required to install/refresh the operator command itself.'
