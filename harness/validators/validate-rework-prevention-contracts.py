@@ -19,8 +19,7 @@ VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
 ARTIFACTS = ROOT / "harness/api/harness-artifact-registry.json"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
 PRE_PUSH = ROOT / ".githooks/pre-push"
-CI = ROOT / ".github/workflows/harness-infrastructure.yml"
-REGISTRY_CI = ROOT / ".github/workflows/harness-registry-integrity.yml"
+REWORK_CI = ROOT / ".github/workflows/rework-prevention-harness.yml"
 
 
 def read(path: Path) -> str:
@@ -163,6 +162,7 @@ def main() -> int:
         "rework-prevention-validator",
         "rework-prevention-report",
         "rework-prevention-renderer",
+        "rework-prevention-ci",
     } <= component_ids
     assert "python harness/validators/validate-rework-prevention-contracts.py" in manifest["validation_commands"]
 
@@ -175,9 +175,14 @@ def main() -> int:
     artifact_ids = {item["id"] for item in artifact_registry["artifacts"]}
     assert {"rework-prevention-registry", "rework-prevention-validation-result", "rework-prevention-report"} <= artifact_ids
 
-    for path in (PRE_COMMIT, PRE_PUSH, CI, REGISTRY_CI):
+    for path in (PRE_COMMIT, PRE_PUSH, REWORK_CI):
         text = read(path)
         assert "validate-rework-prevention-contracts.py" in text, f"validator not wired into {path.relative_to(ROOT)}"
+
+    rework_ci = read(REWORK_CI)
+    assert "Validate rework-prevention schema" in rework_ci
+    assert "Run harness completeness contracts" in rework_ci
+    assert "git diff --check" in rework_ci
 
     combined = "\n".join(read(path) for path in (REGISTRY, WORKFLOW, SKILL, REPORT))
     for forbidden_literal in ("pa_rperez26", "WPJ075OPR046", "nslijhs.net\\C$", "password", "credential="):
