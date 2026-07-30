@@ -97,13 +97,21 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas cybernet Core HOST              PROTECTED NORTHWELL: five clinical apps; AutoLogon untouched; no reboot'
     Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact previous-run cleanup/recovery only'
     Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
-    Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full profile; AutoLogon lane included separately'
+    Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full profile; readiness included; AutoLogon last; restart included'
     Write-Host '  sas evidence Cybernet               OFFLINE: recover newest Cybernet evidence'
-    Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: AutoLogon-only lane'
+    Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: AutoLogon-only lane; restart included'
     Write-Host '  sas network                          Read-only Northwell network posture'
     Write-Host '  sas repo                             Print resolved repository path'
     Write-Host '  sas open                             Open repository in Explorer'
     Write-Host ''
+    Write-Host 'GUEST-SAFE refresh: On Guest/Internet: sas refresh' -ForegroundColor Cyan
+    Write-Host 'After refresh, Move to the approved protected network. `sas next` retains the target/lane.' -ForegroundColor Cyan
+    Write-Host 'Core completion marker: CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED' -ForegroundColor DarkGray
+    Write-Host 'Readiness marker: CYBERNET_DEPLOYMENT_READINESS_READY' -ForegroundColor DarkGray
+    Write-Host 'AutoLogon marker: AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED' -ForegroundColor DarkGray
+    Write-Host 'Full deployment marker: CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED' -ForegroundColor DarkGray
+    Write-Host 'Fixture/live-cert/runtime-proof loops are NOT prerequisites for software deployment completion.' -ForegroundColor Green
+    Write-Host 'The standalone Probe is optional diagnosis; it is NOT a prerequisite loop before Deploy.' -ForegroundColor Green
     Write-Host 'Use `sas next` after a terminal/network/conversation change. The harness remembers the lane.' -ForegroundColor Green
     exit 0
 }
@@ -134,9 +142,7 @@ switch ($normalized) {
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Refresh-SasOperatorCommand.ps1') -RepositoryRoot $repoRoot
         exit $LASTEXITCODE
     }
-    'evidence' {
-        exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Find-SasEvidence.cmd' -Arguments $CommandArgs)
-    }
+    'evidence' { exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Find-SasEvidence.cmd' -Arguments $CommandArgs) }
     'network' {
         $args = @($CommandArgs)
         if ($args.Count -eq 0) { & (Join-Path $repoRoot 'scripts\Confirm-SasNorthwellNetwork.ps1') -Purpose 'manual SysAdminSuite operator check'; exit $LASTEXITCODE }
