@@ -15,7 +15,8 @@ def read(path: Path) -> str:
 
 def test_double_click_surface_calls_only_repo_owned_local_network_return() -> None:
     text = read(CMD)
-    assert "%~dp0scripts\\Return-SasOperatorToPreviousNetwork.ps1" in text
+    assert 'set "SCRIPT_DIR=%~dp0"' in text
+    assert '"%SCRIPT_DIR%scripts\\Return-SasOperatorToPreviousNetwork.ps1"' in text
     assert "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass" in text
     assert "pause" in text.lower()
     assert "exit /b" in text.lower()
