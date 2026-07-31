@@ -40,6 +40,17 @@ function Test-SasSameTarget {
     return ($left.Split('.')[0] -eq $right.Split('.')[0])
 }
 
+function Get-SasOptionalJsonString {
+    param(
+        [AllowNull()]$Object,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+    if ($null -eq $Object) { return '' }
+    $property=$Object.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) { return '' }
+    return [string]$property.Value
+}
+
 function Get-SasInterruptedS4UCandidates {
     $files=New-Object 'System.Collections.Generic.List[object]'
     $seen=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
@@ -57,10 +68,18 @@ function Get-SasInterruptedS4UCandidates {
     foreach ($file in $files) {
         try { $lifecycle=Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json }
         catch { continue }
-        if ([string]$lifecycle.mode -ne 'Probe') { continue }
-        if (-not (Test-SasSameTarget -Recorded ([string]$lifecycle.target) -Requested $ComputerName)) { continue }
-        $runId=[string]$lifecycle.run_id
-        $taskName=[string]$lifecycle.task_name
+
+        # Older probe lifecycle records predate the explicit `mode` field. Because discovery is
+        # already restricted to the exact filename s4u_probe_lifecycle.json, a missing mode is
+        # backward-compatible probe evidence. If mode exists, it must still explicitly be Probe.
+        $mode=Get-SasOptionalJsonString -Object $lifecycle -Name 'mode'
+        if (-not [string]::IsNullOrWhiteSpace($mode) -and $mode -ne 'Probe') { continue }
+
+        $recordedTarget=Get-SasOptionalJsonString -Object $lifecycle -Name 'target'
+        if (-not (Test-SasSameTarget -Recorded $recordedTarget -Requested $ComputerName)) { continue }
+
+        $runId=Get-SasOptionalJsonString -Object $lifecycle -Name 'run_id'
+        $taskName=Get-SasOptionalJsonString -Object $lifecycle -Name 'task_name'
         if ($runId -notmatch '^autologon-kerberos-s4u-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$') { continue }
         if ($taskName -notmatch '^SysAdminSuite-AutoLogonS4UProbe-[0-9a-f]{32}$') { continue }
 
@@ -74,7 +93,7 @@ function Get-SasInterruptedS4UCandidates {
         if (Test-Path -LiteralPath $recovered -PathType Leaf) {
             try {
                 $previous=Get-Content -LiteralPath $recovered -Raw -Encoding UTF8 | ConvertFrom-Json
-                if ([string]$previous.status -eq 'COMPLETED') { continue }
+                if ((Get-SasOptionalJsonString -Object $previous -Name 'status') -eq 'COMPLETED') { continue }
             }
             catch { }
         }
@@ -90,13 +109,13 @@ function Get-SasInterruptedS4UCandidates {
         [void]$items.Add([pscustomobject][ordered]@{
             run_id=$runId
             task_name=$taskName
-            target=[string]$lifecycle.target
+            target=$recordedTarget
             lifecycle_path=$file.FullName
             local_s4u_root=$s4uRoot
             install_or_after_evidence_present=$installPresent
             last_write_utc=$file.LastWriteTimeUtc
-            lifecycle_classification=[string]$lifecycle.classification
-            lifecycle_stage=[string]$lifecycle.current_stage
+            lifecycle_classification=Get-SasOptionalJsonString -Object $lifecycle -Name 'classification'
+            lifecycle_stage=Get-SasOptionalJsonString -Object $lifecycle -Name 'current_stage'
         })
     }
     return @($items | Sort-Object last_write_utc)
@@ -134,7 +153,7 @@ $recovered=New-Object 'System.Collections.Generic.List[object]'
 foreach ($item in $safe) {
     Write-Host "Recovering exact run $($item.run_id) / task $($item.task_name)" -ForegroundColor Cyan
     $one=& $recoveryScript -ComputerName ([string]$item.target) -RunId ([string]$item.run_id) -TaskName ([string]$item.task_name) -LocalS4URoot ([string]$item.local_s4u_root) -ConfirmRecovery -TimeoutSeconds $TimeoutSeconds
-    if ([string]$one.classification -ne 'S4U_PROBE_CREATE_HANG_RECOVERED' -or [string]$one.status -ne 'COMPLETED') {
+    if ($null -eq $one -or [string]$one.classification -ne 'S4U_PROBE_CREATE_HANG_RECOVERED' -or [string]$one.status -ne 'COMPLETED') {
         throw "Exact recovery did not complete for $($item.run_id)."
     }
     [void]$recovered.Add($one)
