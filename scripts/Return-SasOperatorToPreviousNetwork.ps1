@@ -1,13 +1,15 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Return the operator workstation from protected Northwell Wi-Fi to its previously recorded guest/internet Wi-Fi profile.
+Return the operator workstation from protected Northwell Wi-Fi to the Guest/Internet Wi-Fi profile recorded by the last successful field refresh.
 
 .DESCRIPTION
-Reads the machine-local SysAdminSuite operator session, requires an exact previously recorded
-GUEST_INTERNET Wi-Fi label, proves that label is a saved Windows WLAN profile, requests that saved
-profile through bounded local netsh, verifies the exact transition locally, and updates the operator
-session. It performs no target contact or target mutation and never reads or stores Wi-Fi secrets.
+Reads the dedicated machine-local SysAdminSuite return-network bookmark written while the operator is
+actually on Guest/Internet. For backward compatibility only, it can fall back to the older session
+last-network fields when no bookmark exists. The command requires an exact GUEST_INTERNET Wi-Fi label,
+proves that label is a saved Windows WLAN profile, requests that saved profile through bounded local
+netsh, verifies the exact transition locally, and updates the operator session. It performs no target
+contact or target mutation and never reads or stores Wi-Fi secrets.
 #>
 [CmdletBinding()]
 param(
@@ -23,32 +25,52 @@ $sessionModule=Join-Path -Path $PSScriptRoot -ChildPath 'SasOperatorSession.psm1
 $networkModule=Join-Path -Path $PSScriptRoot -ChildPath 'SasNetworkGuard.psm1'
 $boundedModule=Join-Path -Path $PSScriptRoot -ChildPath 'SasBoundedNative.psm1'
 foreach ($required in @($sessionModule,$networkModule,$boundedModule)) {
-    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-        throw "Missing network-return dependency: $required"
-    }
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Missing network-return dependency: $required" }
 }
 Import-Module $sessionModule -Force
 Import-Module $networkModule -Force
 Import-Module $boundedModule -Force
 
+$stateRoot=Get-SasOperatorStateRoot
+$returnBookmarkPath=Join-Path -Path $stateRoot -ChildPath 'return-network.json'
 $session=Read-SasOperatorSession
-$previousClassification=[string](Get-SasObjectPropertyValue -Object $session -Name 'last_network_classification' -Default 'UNKNOWN')
-$previousLabel=[string](Get-SasObjectPropertyValue -Object $session -Name 'last_network_label' -Default $null)
+$previousClassification='UNKNOWN'
+$previousLabel=$null
+$bookmarkSource='none'
+
+if (Test-Path -LiteralPath $returnBookmarkPath -PathType Leaf) {
+    try {
+        $bookmark=Get-Content -LiteralPath $returnBookmarkPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$bookmark.schema_version -eq 'sas-operator-return-network/v1') {
+            $previousClassification=[string]$bookmark.classification
+            $previousLabel=[string]$bookmark.label
+            $bookmarkSource='return-network.json'
+        }
+    }
+    catch { throw "The saved return-network bookmark is unreadable. Nothing was changed. $($_.Exception.Message)" }
+}
+
+if ($bookmarkSource -eq 'none') {
+    $previousClassification=[string](Get-SasObjectPropertyValue -Object $session -Name 'last_network_classification' -Default 'UNKNOWN')
+    $previousLabel=[string](Get-SasObjectPropertyValue -Object $session -Name 'last_network_label' -Default $null)
+    $bookmarkSource='legacy operator-session last-network fields'
+}
 $current=Get-SasOperatorNetworkClassification -RepoRoot $repoRoot
 
 if ($previousClassification -ne 'GUEST_INTERNET') {
-    throw "No previously recorded guest/internet network is available. Recorded previous classification: $previousClassification"
+    throw "No recorded Guest/Internet return network is available. Source: $bookmarkSource. Classification: $previousClassification"
 }
 if ([string]::IsNullOrWhiteSpace($previousLabel) -or $previousLabel -eq 'unknown') {
-    throw 'The previous guest/internet Wi-Fi label was not recorded. Nothing was changed.'
+    throw "The recorded Guest/Internet return Wi-Fi label is empty. Source: $bookmarkSource. Nothing was changed."
 }
 if (Test-SasNorthwellWifiSsid -Ssid $previousLabel) {
-    throw 'The recorded previous Wi-Fi label is an approved protected Northwell profile; refusing to use it as the leave-protected destination.'
+    throw 'The recorded return Wi-Fi label is an approved protected Northwell profile; refusing to use it as the leave-protected destination.'
 }
 
-Write-Host "`n=== RETURN TO PREVIOUS NETWORK ===" -ForegroundColor Cyan
-Write-Host "Current:  $($current.classification) [$($current.label)]"
-Write-Host "Previous: $previousClassification [$previousLabel]"
+Write-Host "`n=== RETURN TO RECORDED GUEST / INTERNET NETWORK ===" -ForegroundColor Cyan
+Write-Host "Current: $($current.classification) [$($current.label)]"
+Write-Host "Return:  $previousClassification [$previousLabel]"
+Write-Host "Bookmark: $bookmarkSource"
 Write-Host 'Target contact: NO' -ForegroundColor Green
 Write-Host 'Target mutation: NO' -ForegroundColor Green
 
@@ -57,7 +79,7 @@ if ([string]$current.label -eq $previousLabel) {
         current_network_classification='GUEST_INTERNET'
         current_network_label=$previousLabel
     })
-    Write-Host 'Already connected to the previously recorded guest/internet network.' -ForegroundColor Green
+    Write-Host 'Already connected to the recorded Guest/Internet network.' -ForegroundColor Green
     Write-Host 'SAS_OPERATOR_RETURNED_TO_PREVIOUS_NETWORK' -ForegroundColor Green
     exit 0
 }
@@ -74,10 +96,10 @@ foreach ($line in (([string]$profiles.output) -split "`r?`n")) {
     if ($name -and -not $savedProfiles.Contains($name)) { [void]$savedProfiles.Add($name) }
 }
 if (-not $savedProfiles.Contains($previousLabel)) {
-    throw "The previously recorded guest/internet network is not a saved Windows WLAN profile: $previousLabel"
+    throw "The recorded Guest/Internet return network is not a saved Windows WLAN profile: $previousLabel"
 }
 
-Write-Host "Connecting to saved previous profile: $previousLabel" -ForegroundColor Cyan
+Write-Host "Connecting to saved return profile: $previousLabel" -ForegroundColor Cyan
 $connect=Invoke-SasBoundedNative -FilePath $netsh -Arguments @('wlan','connect',("name={0}" -f $previousLabel)) -TimeoutSeconds $NativeTimeoutSeconds
 if ($connect.timed_out) { throw "Timed out asking Windows to connect to $previousLabel." }
 if ($connect.exit_code -ne 0) { throw "Windows rejected the saved-profile connection request. Exit=$($connect.exit_code) $($connect.error)" }
@@ -90,7 +112,7 @@ while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 2
 }
 if ([string]::IsNullOrWhiteSpace($observed) -or -not $observed.Equals($previousLabel,[StringComparison]::OrdinalIgnoreCase)) {
-    throw "Windows accepted the saved-profile request, but the exact previous network was not observed within $TransitionTimeoutSeconds seconds. Last observed label: $observed"
+    throw "Windows accepted the saved-profile request, but the exact recorded return network was not observed within $TransitionTimeoutSeconds seconds. Last observed label: $observed"
 }
 
 [void](Set-SasOperatorSessionValues -Values @{
