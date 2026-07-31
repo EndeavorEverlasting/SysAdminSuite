@@ -42,9 +42,13 @@ This handoff intentionally contains no live username, password, AutoLogon secret
    - Broad wildcard authorization is not required for field deployment and should not be introduced merely to clear the final-step gate.
 
 7. **A local-only observer now distinguishes quiet console output from a real S4U stall.**
-   - `Show-SasAutoLogonS4URunState.ps1` inspects only repo-local run evidence.
+   - `Show-SasAutoLogonS4URunState.ps1` / `Get-SasAutoLogonS4URunStatus.ps1` inspect only repo-local run evidence.
    - The observer performs no network activity, target contact, task queries, or mutation.
    - It classifies progress through transport preflight, source identity, baseline, final gate, probe, install, after-state, and terminal-result stages.
+
+8. **Bounded recovery primitives are now tracked.**
+   - `Invoke-SasBoundedNativeProcess.ps1` provides a bounded child-process wrapper for native utilities so `schtasks.exe` cannot block the operator forever.
+   - Exact-run cleanup helpers are being added for the S4U staging root; cleanup must validate the exact run identity and expected contents before deletion.
 
 ## Field proof achieved after the HOST-ticket correction
 
@@ -137,7 +141,7 @@ with all of the following evidence:
 - no terminal pilot result;
 - newest local artifact older than ten minutes.
 
-Therefore the AutoLogon installer had **not started** at this point, but target staging and/or a probe scheduled task may already exist.
+A local process classifier then proved the exact blocking call was `schtasks.exe /Create` for the S4U probe task. The native process was a child of the active deployment PowerShell. Therefore the AutoLogon installer had **not started**; the transaction was wedged before probe task creation returned.
 
 The implementation explains why the advertised probe timeout did not protect the operator:
 
@@ -148,33 +152,72 @@ The implementation explains why the advertised probe timeout did not protect the
 
 This is a harness defect, not acceptable quiet progress. The executable lane must use bounded native task operations, bounded result-existence probes, and persist the exact task name/run checkpoint **before** remote task creation.
 
-## Interrupted live-run recovery boundary
+## Exact stalled-run recovery achieved
 
-Once a run reaches probe preparation/execution, treat target state as unknown until exact-run recovery closes it. Do not infer `autologon_applied = false` merely because there is no install result; target staging and the probe task may exist even though the installer worker has not been created.
+Recovery of the confirmed probe-create hang established the following:
 
-Required recovery order after an interruption or confirmed probe stall:
+- the exact local hung `schtasks.exe /Create` process was verified by PID, parent PID, target, task name, and S4U run ID before termination;
+- that exact native process was terminated;
+- the owning old deployment PowerShell was terminated so its unbounded `finally` block could not hang again on `/Delete` or `/Query`;
+- no exact local `schtasks.exe` process from that run remained;
+- protected-network posture was re-proven before remote recovery;
+- no completed remote probe result existed;
+- bounded exact-name task query proved the probe task did **not** exist;
+- exact probe-task absence was verified;
+- local evidence still showed no install worker, no install result, and no after snapshot.
 
-1. identify the newest exact S4U run directory under the current deployment run;
-2. inspect local result/lifecycle/checkpoint evidence first;
-3. determine the exact current local blocking primitive before terminating the operator process;
-4. query only exact SysAdminSuite task names/run roots associated with that run when the task identity can be proven;
-5. retrieve any completed worker result before cleanup;
-6. confirm no install worker/result exists before considering a retry;
-7. perform only exact run-scoped cleanup after evidence retrieval.
+Therefore the stalled run did **not** reach AutoLogon installer execution.
 
-No new installer execution is allowed until this recovery classification is closed.
+The next cleanup attempt failed only when trying to remove the exact staging run root through `cmd.exe`; exit code 1 was returned. Do not interpret that as an AutoLogon state change. The correct cleanup implementation is a bounded child PowerShell that inventories the exact UNC run root first, accepts only the expected staging entries, removes only that exact run directory, and independently verifies absence.
 
-## Current remaining integration boundary
+A subsequent inline cleanup attempt did **not** reach the network gate or target. It stopped immediately after printing `COMPLETE EXACT S4U HANG RECOVERY` because a multiline positional `Join-Path` paste unexpectedly entered interactive parameter prompting (`Path[0]:`). Treat this as an operator-snippet construction defect. Cancel that prompt with `Ctrl+C`. Future field snippets must avoid multiline positional `Join-Path`; use one-line named parameters such as `Join-Path -Path $LocalS4URoot -ChildPath 'evidence\after_snapshot.json'` or direct literal path construction.
 
-The repository now contains durable canonical software-source identity, intent-only baseline policy, exact operator-local host-authorization helpers, and a local-only S4U run observer.
+## Current field state
 
-The executable S4U lane still needs three hardening changes before another unattended field run is trustworthy:
+The interrupted deployment transaction is locally stopped. The exact remote probe task is absent. The AutoLogon installer was not run by that transaction. The only unresolved recovery item from that run is whether its exact staging directory still exists and, if so, removing only that run-scoped staging directory with the bounded exact-run cleanup implementation.
 
-1. consume the durable source-identity and baseline-policy modules directly;
-2. bound every native `schtasks.exe` operation and every remote-result existence probe;
-3. persist task/checkpoint identity before remote mutation and emit operator-visible stage heartbeats.
+Do **not** start another AutoLogon deployment until exact staging cleanup is closed and the executable S4U lane is hardened.
 
-The immediate field action is exact recovery of the stalled probe run, not another deployment attempt.
+## Current remaining implementation boundary
+
+Before another live AutoLogon deployment attempt, finish these items in the repository and validate them:
+
+1. **Integrate durable policy modules into the executable S4U lane.**
+   - `Invoke-SasAutoLogonKerberosS4UPilot.ps1` must import/use `SasSoftwareSourceIdentity.psm1` instead of field-only canonical-source text patches.
+   - It must import/use `SasAutoLogonBaselinePolicy.psm1` instead of field-only clean-baseline function replacement.
+
+2. **Bound every potentially blocking remote/native primitive.**
+   - `/Create`, `/Run`, `/Delete`, `/Query` for `schtasks.exe` must run through the bounded native-process helper with explicit timeout classification.
+   - UNC result existence checks must be performed in a bounded child process or another genuinely bounded mechanism; no direct potentially blocking `Test-Path` may sit ahead of the timeout check.
+
+3. **Persist lifecycle identity before mutation.**
+   - Write task name, mode, run ID, remote worker path, expected result path, principal, and checkpoint to local evidence **before** `schtasks.exe /Create`.
+   - Update checkpoints after create, run, result retrieval, delete, and absence verification.
+   - Recovery must be able to identify the exact task/run without process inspection.
+
+4. **Emit operator-visible progress.**
+   - Print concise stage messages before/after transport preflight, source Kerberos, baseline capture, final gate, staging/hash, probe task, installer task, after capture, cleanup, and restart handoff.
+   - A quiet console must never again be the only sign of progress.
+
+5. **Finish exact staging cleanup for the already-stopped probe run.**
+   - Use the tracked bounded exact-run cleanup helper or its validated equivalent.
+   - Inventory first; accept only expected staged AutoLogon installer/probe-worker/result names.
+   - Remove only the exact S4U run root and verify absence.
+   - Re-prove from local evidence that installer phase was never entered.
+
+6. **Add/strengthen contracts.**
+   - native task operations cannot hang indefinitely;
+   - result-path probing is bounded;
+   - lifecycle identity is persisted before `/Create`;
+   - probe-create timeout yields a recoverable terminal classification and exact cleanup path;
+   - no installer worker is created when probe creation fails/times out;
+   - exact `intent_only` baseline remains allowed and all active/partial states remain blocked;
+   - canonical source FQDN identity remains tied to the approved alias by address overlap;
+   - exact operator-local host eligibility remains required.
+
+7. **Run CI and merge only when current PR head is green.**
+   - PR #298 is the active integration branch.
+   - Do not merge on remembered green state from an earlier head.
 
 ## Non-regression boundaries
 
@@ -187,6 +230,7 @@ The immediate field action is exact recovery of the stalled probe run, not anoth
 - Do not treat automatic desktop sign-in observation as required for deployment-complete classification.
 - Do not reinstall clinical-core applications merely to reach AutoLogon when they are already independently proven accepted.
 - After a terminal failure or crash, inspect recorded evidence before mutation or retry.
+- Every multiline operator sequence should be wrapped in one `& { ... }` block, but avoid fragile multiline positional invocations inside that block when named parameters or direct path literals are safer.
 
 ## Required successful terminal classification
 
