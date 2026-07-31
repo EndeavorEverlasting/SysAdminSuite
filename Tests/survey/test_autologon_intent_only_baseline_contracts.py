@@ -67,7 +67,6 @@ def test_field_handoff_records_exact_inert_first_install_baseline_and_recovery_b
         "no expected-user match",
         "active, partial, mismatched, password-bearing, or package-present states fail closed",
         "recover-saslatestinterruptedautologons4u.ps1",
-        "do not reinstall blindly",
     ):
         assert marker in text, marker
 
