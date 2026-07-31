@@ -22,6 +22,7 @@ python3 Tests/survey/test_cybernet_software_deployment_documentation_contracts.p
 python3 Tests/survey/test_cybernet_deployment_readiness_contracts.py
 python3 Tests/survey/test_portable_onsite_operator_contracts.py
 python3 Tests/survey/test_sas_operator_refresh_contracts.py
+python3 Tests/survey/test_operator_network_return_contracts.py
 python3 Tests/survey/test_portable_launcher_drive_regex_contract.py
 python3 Tests/survey/test_evidence_empty_and_exit_contracts.py
 python3 Tests/survey/test_cybernet_profiled_core_contracts.py
