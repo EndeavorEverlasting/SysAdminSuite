@@ -7,7 +7,7 @@ echo NETWORK REQUIRED: PROTECTED NORTHWELL
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1" -ComputerName "%~1" -EquipmentProfile Cybernet -AllowTargetMutation -ConfirmDeployment
 set "EXITCODE=%ERRORLEVEL%"
 if not "%EXITCODE%"=="0" echo Profiled clinical-core transaction finished with exit code %EXITCODE%. Use sas context or sas next; do not reconstruct the run manually.
-for %%# in (%EXITCODE%) do endlocal ^& exit /b %%#
+endlocal & exit /b %EXITCODE%
 
 :help
 echo Usage: Deploy-CybernetProfiledClinicalCore.cmd CYBERNET-HOST
