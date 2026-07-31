@@ -66,7 +66,7 @@ def test_discovery_invokes_exact_recovery_with_recorded_identity_only() -> None:
     assert "exact_cleanup_only=$true" in text
 
 
-def test_exact_recovery_can_remove_only_the_recorded_task_then_exact_run_root() -> None:
+def test_exact_recovery_can_remove_only_recorded_task_then_probe_only_run_root() -> None:
     text = read(EXACT)
     query = text.index("@('/Query','/S',$ComputerName,'/TN',$TaskName)")
     delete = text.index("@('/Delete','/S',$ComputerName,'/TN',$TaskName,'/F')", query)
@@ -74,11 +74,14 @@ def test_exact_recovery_can_remove_only_the_recorded_task_then_exact_run_root() 
     cleanup = text.index("& $cleanupScript -ComputerName $ComputerName -RunId $RunId", verify)
     assert query < delete < verify < cleanup
     for marker in (
+        "-AllowedArtifactProfile ProbeOnly",
+        "allowed_artifact_profile -ne 'ProbeOnly'",
         "task_initially_present",
         "task_delete_attempted",
         "task_delete_succeeded",
         "task_absent_before_cleanup",
         "task_absent_after_cleanup",
+        "allowed_artifact_profile = [string]$cleanup.allowed_artifact_profile",
         "exact_run_root_absent",
     ):
         assert marker in text, marker
