@@ -8,12 +8,20 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $sourceLauncher = Join-Path $repoRoot 'scripts\SasPortableLauncher.ps1'
 $networkReturnCmd = Join-Path $repoRoot 'Switch-Back-To-Previous-Network.cmd'
+$autoLogonCmd = Join-Path $repoRoot 'Run-AutoLogonOnsite.cmd'
 $requiredOperatorScripts = @(
     $sourceLauncher,
     (Join-Path $repoRoot 'scripts\SasOperatorSession.psm1'),
     (Join-Path $repoRoot 'scripts\Show-SasOperatorContext.ps1'),
     (Join-Path $repoRoot 'scripts\Return-SasOperatorToPreviousNetwork.ps1'),
     (Join-Path $repoRoot 'scripts\SasBoundedNative.psm1'),
+    (Join-Path $repoRoot 'scripts\Recover-SasLatestInterruptedAutoLogonS4U.ps1'),
+    (Join-Path $repoRoot 'scripts\Complete-SasInterruptedAutoLogonS4URecovery.ps1'),
+    (Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonOnsite.ps1'),
+    (Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonS4URestartDeployment.ps1'),
+    (Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonKerberosS4UPilot.ps1'),
+    (Join-Path $repoRoot 'scripts\SasSoftwareSourceIdentity.psm1'),
+    (Join-Path $repoRoot 'scripts\SasAutoLogonBaselinePolicy.psm1'),
     (Join-Path $repoRoot 'scripts\Invoke-SasCybernetCoreRecovery.ps1'),
     (Join-Path $repoRoot 'scripts\Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1'),
     (Join-Path $repoRoot 'scripts\Test-SasCybernetClinicalCoreSources.ps1')
@@ -25,8 +33,8 @@ foreach ($scriptPath in $requiredOperatorScripts) {
     [void][System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$parseTokens, [ref]$parseErrors)
     if (@($parseErrors).Count -gt 0) { throw "Operator script has PowerShell parse errors; refusing to install: $scriptPath :: $($parseErrors[0].Message)" }
 }
-if (-not (Test-Path -LiteralPath $networkReturnCmd -PathType Leaf)) {
-    throw "Required double-click network return command is missing: $networkReturnCmd"
+foreach ($cmdPath in @($networkReturnCmd,$autoLogonCmd)) {
+    if (-not (Test-Path -LiteralPath $cmdPath -PathType Leaf)) { throw "Required operator command is missing: $cmdPath" }
 }
 
 $installRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\bin'
@@ -97,17 +105,19 @@ Write-Host '  sas next                             Show only the required networ
 Write-Host '  sas refresh                          GUEST / INTERNET: refresh current tracked branch field-ready checkout'
 Write-Host '  sas leave                            LOCAL ONLY: return to recorded previous guest/internet Wi-Fi'
 Write-Host '  sas cybernet Core HOST              PROTECTED NORTHWELL: five clinical apps; AutoLogon preserved; no reboot'
-Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact prior-run recovery only'
+Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact prior-run Cybernet cleanup/recovery only'
 Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
 Write-Host '  sas evidence Cybernet               OFFLINE: recover newest Cybernet run evidence and next action'
 Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full profile; readiness included; AutoLogon last; restart included'
-Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: AutoLogon-only lane; restart included'
+Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: recover recorded probe interruption, AutoLogon-only apply, restart'
+Write-Host '  sas autologon Recover HOST          PROTECTED NORTHWELL: recover recorded probe-only interruptions; no install'
 Write-Host '  sas network                          Read-only approved Northwell network posture'
 Write-Host ''
 Write-Host 'The installed sas shim self-refreshes its dispatcher from the cached field-ready repo before every command.' -ForegroundColor Green
 Write-Host 'operator-session.json remains machine-local under %LOCALAPPDATA%\SysAdminSuite and survives terminal/shell changes.' -ForegroundColor Green
 Write-Host 'Core is one Windows-native transaction: recovery, source preflight, staging, SYSTEM execution, profile capture, evidence, and cleanup.' -ForegroundColor Green
 Write-Host 'Core never installs/enables/repairs AutoLogon and never manages Imprivata. Core never performs an automatic reboot.' -ForegroundColor Green
+Write-Host 'AutoLogon Remote performs its local interrupted-run gate before a new apply; do not reconstruct recovery fragments.' -ForegroundColor Green
 Write-Host 'Full deployment retains readiness included, AutoLogon last, and restart included behavior.' -ForegroundColor Green
 Write-Host 'The standalone Probe is optional diagnosis; it is not a prerequisite loop before Deploy.' -ForegroundColor Green
 Write-Host 'If a terminal closes or crashes, use `sas context` or `sas next`; do not reconstruct try/catch/finally fragments.' -ForegroundColor Yellow
