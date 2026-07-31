@@ -7,6 +7,7 @@ Describe 'Cybernet profiled clinical-core operator harness' {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         $script:changedPowerShell = @(
             'scripts/Install-SasPortableLauncher.ps1',
+            'scripts/Invoke-SasCybernetDeploymentReadiness.ps1',
             'scripts/Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1',
             'scripts/Invoke-SasCybernetCoreRecovery.ps1',
             'scripts/Refresh-SasOperatorCommand.ps1',
@@ -45,6 +46,19 @@ Describe 'Cybernet profiled clinical-core operator harness' {
         $launcher | Should -Match 'sas cybernet Core HOST'
         $launcher | Should -Match 'sas cybernet Recover HOST'
         $core | Should -Match 'NETWORK REQUIRED: PROTECTED NORTHWELL'
+    }
+
+    It 'streams Core output, preserves child exit codes, and bounds nested readiness paths' {
+        $launcher = Get-Content -LiteralPath (Join-Path $script:repoRoot 'scripts/SasPortableLauncher.ps1') -Raw
+        $core = Get-Content -LiteralPath (Join-Path $script:repoRoot 'Deploy-CybernetProfiledClinicalCore.cmd') -Raw
+        $readiness = Get-Content -LiteralPath (Join-Path $script:repoRoot 'scripts/Invoke-SasCybernetDeploymentReadiness.ps1') -Raw
+        $launcher | Should -Match '\| Out-Host'
+        $core | Should -Match 'endlocal & exit /b %EXITCODE%'
+        $core | Should -Not -Match 'for %%#'
+        $readiness | Should -Match 'transportOutputRoot'
+        $readiness | Should -Match 'survey\\output\\t'
+        $readiness | Should -Match 'OutputRoot = \$transportOutputRoot'
+        $readiness | Should -Not -Match "OutputRoot = \(Join-Path \$context.run_root 'transport'\)"
     }
 
     It 'preflights all sources before target access or mutation' {
