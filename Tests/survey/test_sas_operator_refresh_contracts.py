@@ -31,12 +31,15 @@ def test_repo_local_refresh_surface_exists_and_is_guest_safe() -> None:
         assert forbidden.lower() not in script.lower(), forbidden
 
 
-def test_refresh_preserves_active_branch_and_detached_remote_provenance() -> None:
+def test_refresh_preserves_active_branch_detached_remote_and_session_provenance() -> None:
     script = read("scripts/Refresh-SasOperatorCommand.ps1")
     for marker in (
         "Resolve-SasRefreshBranch",
         "branch --show-current",
         "branch -r --points-at HEAD",
+        "Get-SasPersistedRefreshRef",
+        "operator-session.json",
+        "repo_ref",
         "origin/",
         "refs/heads/${refreshBranch}:${remoteTrackingRef}",
         "$remoteDisplay=\"origin/$refreshBranch\"",
@@ -47,9 +50,13 @@ def test_refresh_preserves_active_branch_and_detached_remote_provenance() -> Non
     ):
         assert marker in script, marker
 
-    # Old / detached checkouts may fall back to main, but a feature checkout must never be
+    remote_probe = script.index("branch -r --points-at HEAD")
+    persisted_ref = script.index("$candidate=Get-SasPersistedRefreshRef")
+    main_fallback = script.index("$candidate='main'")
+    assert remote_probe < persisted_ref < main_fallback
+
+    # Old checkouts may fall back to main, but a known feature checkout must never be
     # unconditionally replaced with origin/main.
-    assert "$candidate='main'" in script
     assert "fetch --prune origin main" not in script
     assert "worktree add --detach $fieldReady origin/main" not in script
     assert "checkout --detach origin/main" not in script
