@@ -9,7 +9,7 @@ HANDOFF = ROOT / "docs" / "handoff" / "autologon-s4u-field-hardening-2026-07-30.
 
 def read(path: Path) -> str:
     assert path.is_file(), f"missing required file: {path.relative_to(ROOT)}"
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8-sig")
 
 
 def test_canonical_source_identity_is_fail_closed() -> None:
@@ -29,25 +29,31 @@ def test_canonical_source_identity_is_fail_closed() -> None:
         assert marker in text, marker
 
 
-def test_field_handoff_preserves_alias_vs_canonical_discovery() -> None:
-    text = read(HANDOFF)
+def test_field_handoff_preserves_alias_authority_and_verified_canonical_identity() -> None:
+    text = read(HANDOFF).lower()
     for marker in (
-        "SOFTWARE_SOURCE_KERBEROS_READY_FQDN_ONLY",
-        "short CIFS ticket",
-        "canonical FQDN",
-        "same approved installer",
-        "target mutation remained false",
+        "software-source identity",
+        "approved catalog alias remains the source authority",
+        "canonical fqdn and approved alias share resolved address evidence",
+        "canonical `cifs/<fqdn>` spn",
+        "canonical unc identity",
+        "no credentials or ticket bytes are collected",
     ):
-        assert marker.lower() in text.lower(), marker
+        assert marker in text, marker
 
 
-def test_s4u_still_requires_explicit_source_ticket_before_source_read() -> None:
+def test_s4u_consumes_durable_source_identity_then_ticket_before_canonical_source_read() -> None:
     text = read(S4U)
-    ticket = text.index("$shareTicket = Request-SasS4UKerberosTicket")
-    ticket_gate = text.index("if (-not [bool]$shareTicket.issued)")
-    source_read = text.index("$sourcePath = $package.source_root + $package.installer_relative_path")
-    assert ticket < ticket_gate < source_read
+    module_import = text.index("SasSoftwareSourceIdentity.psm1")
+    resolve = text.index("Resolve-SasCanonicalSoftwareSourceIdentity -ApprovedServer $package.source_server", module_import)
+    overlap_gate = text.index("if (-not [bool]$sourceIdentity.address_overlap_verified)", resolve)
+    ticket = text.index("$shareTicket = Request-SasS4UKerberosTicket -Spn ([string]$sourceIdentity.cifs_spn)", overlap_gate)
+    ticket_gate = text.index("if (-not [bool]$shareTicket.issued)", ticket)
+    source_read = text.index("$sourcePath = ([string]$sourceIdentity.canonical_unc_root) + $package.installer_relative_path", ticket_gate)
+    assert module_import < resolve < overlap_gate < ticket < ticket_gate < source_read
+    assert "KERBEROS_S4U_SOFTWARE_SOURCE_IDENTITY_BLOCKED" in text
     assert "KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED" in text
+    assert "$sourcePath = $package.source_root + $package.installer_relative_path" not in text
 
 
 def main() -> None:
