@@ -24,6 +24,12 @@ Therefore field prechecks must evaluate the same canonical FQDN. A policy that i
 
 For a live authorized target, resolve and use the canonical FQDN consistently for eligibility validation, legacy recovery, and the final `sas autologon Remote` invocation.
 
+## Preserved legacy run identity
+
+The July 30 interrupted run may be visible through both its physical field-ready checkout path and an existing `subst` drive such as `S:`. Those are two path aliases for one preserved run, not two independent transactions.
+
+For the one-time legacy recovery, prefer the physical preserved field-ready path when it exists. Do not recursively search both that physical root and its `subst` alias and then count both matches as separate runs. Never delete or remove the `subst` mapping merely to deduplicate evidence.
+
 ## Lane A — ordinary Internet
 
 Use ordinary Internet only to acquire canonical `main`. Earlier field runs intentionally persisted the feature-branch ref, so do not rely on an unqualified `sas refresh` for this one convergence step.
