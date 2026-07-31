@@ -64,7 +64,7 @@ function Invoke-SasPortableRepoCommand {
     $entryPoint = Join-Path $RepoRoot $RelativePath
     $isLocalDrivePath = $RepoRoot -match '^[A-Za-z]:\\'
     if (-not $isLocalDrivePath -or $RepoRoot.Length -lt $PathLengthThreshold) {
-        & $entryPoint @Arguments
+        & $entryPoint @Arguments | Out-Host
         return [int]$LASTEXITCODE
     }
     $drive = Get-SasAvailableSubstDrive
@@ -75,7 +75,7 @@ function Invoke-SasPortableRepoCommand {
         & $substExe $drive $RepoRoot | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Could not create temporary short-path alias $drive" }
         $created = $true
-        & (Join-Path "$drive\" $RelativePath) @Arguments
+        & (Join-Path "$drive\" $RelativePath) @Arguments | Out-Host
         $commandExit = [int]$LASTEXITCODE
     }
     finally { if ($created) { & $substExe $drive '/D' | Out-Null } }
