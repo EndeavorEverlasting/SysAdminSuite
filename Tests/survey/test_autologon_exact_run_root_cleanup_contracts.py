@@ -25,15 +25,31 @@ def test_cleanup_is_exact_and_bounded() -> None:
         assert marker in text, marker
 
 
-def test_cleanup_refuses_unexpected_remote_entries() -> None:
+def test_cleanup_profiles_fail_closed_before_deletion() -> None:
     text = read()
     for marker in (
+        "ValidateSet('FullS4U','ProbeOnly')",
+        "$AllowedArtifactProfile = 'FullS4U'",
+        "$probeOnlyNames = @(",
         "NW_AutoLogon_Setup_x64.exe",
         "s4u-probe-worker.ps1",
         "s4u-probe-result.json",
-        "contains unexpected entries; refusing cleanup",
+        "$fullS4UNames = @(",
+        "s4u-install-worker.ps1",
+        "s4u-install-result.json",
+        "$unexpected = @($inventory.names",
+        "outside the $AllowedArtifactProfile cleanup profile; refusing cleanup",
     ):
         assert marker in text, marker
+    unexpected = text.index("$unexpected = @($inventory.names")
+    refusal = text.index("outside the $AllowedArtifactProfile cleanup profile; refusing cleanup", unexpected)
+    deletion = text.index("Remove-Item -LiteralPath `$root -Recurse -Force", refusal)
+    assert unexpected < refusal < deletion
+
+
+def test_cleanup_reports_selected_profile() -> None:
+    text = read()
+    assert "allowed_artifact_profile = $AllowedArtifactProfile" in text
 
 
 def test_cleanup_does_not_disable_safety_controls() -> None:
