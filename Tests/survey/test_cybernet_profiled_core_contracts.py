@@ -90,6 +90,9 @@ def test_complete_source_preflight_and_transport_readiness_precede_target_mutati
     readiness = read(READINESS)
     assert "target_mutation_performed = $false" in readiness
     assert "transport_authorization_proven" in readiness
+    assert "$transportOutputRoot = Join-Path $repoRoot 'survey\\output\\t'" in readiness
+    assert "OutputRoot = $transportOutputRoot" in readiness
+    assert "OutputRoot = (Join-Path $context.run_root 'transport')" not in readiness
 
 
 def test_bundle_authority_records_real_inventory_and_drift() -> None:
@@ -216,9 +219,13 @@ def test_operator_launchers_route_deploy_through_one_transaction() -> None:
     assert "Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1" in cmd
     assert "-EquipmentProfile Cybernet" in cmd
     assert "Test-SasCybernetClinicalCoreSources.ps1" not in cmd
+    assert "endlocal & exit /b %EXITCODE%" in cmd
+    assert "for %%#" not in cmd
     assert "Deploy-CybernetProfiledClinicalCore.cmd" in compat
     assert "sas cybernet Core HOST" in sas
     assert "Deploy-CybernetProfiledClinicalCore.cmd" in sas
+    assert "& $entryPoint @Arguments | Out-Host" in sas
+    assert "& (Join-Path \"$drive\\\" $RelativePath) @Arguments | Out-Host" in sas
 
 
 def test_profile_models_conditional_imprivata_and_autologon() -> None:
