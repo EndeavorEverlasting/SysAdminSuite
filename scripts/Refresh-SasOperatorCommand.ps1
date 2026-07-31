@@ -20,6 +20,20 @@ if (-not $git) { throw 'Git for Windows is required to refresh the field-ready S
 & $git.Source -C $RepositoryRoot rev-parse --is-inside-work-tree *> $null
 if ($LASTEXITCODE -ne 0) { throw "Not a Git working tree: $RepositoryRoot" }
 
+function Get-SasPersistedRefreshRef {
+    $sessionPath=Join-Path -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite') -ChildPath 'operator-session.json'
+    if (-not (Test-Path -LiteralPath $sessionPath -PathType Leaf)) { return $null }
+    try {
+        $session=Get-Content -LiteralPath $sessionPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $repoRefProperty=$session.PSObject.Properties['repo_ref']
+        if ($repoRefProperty -and -not [string]::IsNullOrWhiteSpace([string]$repoRefProperty.Value)) {
+            return ([string]$repoRefProperty.Value).Trim()
+        }
+    }
+    catch { }
+    return $null
+}
+
 function Resolve-SasRefreshBranch {
     param([AllowNull()][string]$RequestedRef)
 
@@ -43,7 +57,13 @@ function Resolve-SasRefreshBranch {
             if ($LASTEXITCODE -eq 0 -and $remoteMatches.Count -eq 1) { $candidate=$remoteMatches[0] }
         }
 
-        # Main remains the safe fallback for an old checkout that has no usable branch provenance.
+        # Terminal/worktree churn can advance the shared remote-tracking ref away from a detached
+        # checkout's HEAD. Preserve the last explicitly refreshed branch before considering main.
+        if ([string]::IsNullOrWhiteSpace([string]$candidate)) {
+            $candidate=Get-SasPersistedRefreshRef
+        }
+
+        # Main is only the final fallback for an old checkout with no branch provenance at all.
         if ([string]::IsNullOrWhiteSpace([string]$candidate)) { $candidate='main' }
     }
 
