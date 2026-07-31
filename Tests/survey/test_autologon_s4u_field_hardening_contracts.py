@@ -118,19 +118,24 @@ def test_durable_source_and_baseline_policy_are_consumed_directly() -> None:
     assert "function Test-SasS4UCleanBaseline" not in text
 
 
-def test_exact_cleanup_accepts_only_known_run_scoped_staging_names() -> None:
-    text = read(CLEANUP)
+def test_exact_cleanup_profiles_are_scoped_and_probe_recovery_selects_probe_only() -> None:
+    cleanup = read(CLEANUP)
+    recovery = read(RECOVERY)
     for marker in (
+        "ValidateSet('FullS4U','ProbeOnly')",
         "NW_AutoLogon_Setup_x64.exe",
         "s4u-probe-worker.ps1",
         "s4u-probe-result.json",
         "s4u-install-worker.ps1",
         "s4u-install-result.json",
-        "contains unexpected entries; refusing cleanup",
+        "outside the $AllowedArtifactProfile cleanup profile; refusing cleanup",
         "exact_autologon_s4u_run_root_only",
         "Remove-Item -LiteralPath `$root -Recurse -Force",
     ):
-        assert marker in text, marker
+        assert marker in cleanup, marker
+    assert "-AllowedArtifactProfile ProbeOnly" in recovery
+    assert "allowed_artifact_profile -ne 'ProbeOnly'" in recovery
+    assert "installer_phase_entered = $false" in recovery
 
 
 def test_exact_interrupted_recovery_never_launches_autologon() -> None:
@@ -143,6 +148,7 @@ def test_exact_interrupted_recovery_never_launches_autologon() -> None:
         "Remove-SasExactRemoteAutoLogonRunRoot.ps1",
         "'/Query'",
         "ConfirmRecovery",
+        "AllowedArtifactProfile ProbeOnly",
     ):
         assert marker in text, marker
     for forbidden in (
