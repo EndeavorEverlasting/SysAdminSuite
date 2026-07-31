@@ -16,6 +16,10 @@ The implementation deliberately uses ordinary PowerShell arrays rather than gene
 Windows PowerShell 5.1 can throw a runtime binder error ("Argument types do not match") when some
 enterprise hosts enumerate generic lists through array subexpressions. This field surface must remain
 compatible with Windows PowerShell 5.1.
+
+After writing the operator-local policy, the helper also activates that exact file through the process-
+scoped SAS_NETWORK_GUARD_CONFIG environment variable. This prevents stale SAS_REPO_ROOT state from
+redirecting a later recovery/deployment in the same shell to an older checkout's network policy.
 #>
 [CmdletBinding()]
 param(
@@ -97,6 +101,8 @@ $policy = [pscustomobject][ordered]@{
 }
 $policy | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $configPath -Encoding UTF8
 
+$env:SAS_NETWORK_GUARD_CONFIG = $configPath
+
 $result = [pscustomobject][ordered]@{
     schema_version = 'sas-vpn-network-guard-bootstrap/v1'
     status = 'COMPLETED'
@@ -104,6 +110,7 @@ $result = [pscustomobject][ordered]@{
     config_path = $configPath
     allowed_local_ip_cidrs = $addresses
     domain_authenticated_profiles = $profileEvidence
+    process_environment_config_activated = $true
     target_contact_performed = $false
     target_mutation_performed = $false
     secret_material_collected = $false
@@ -112,5 +119,6 @@ $result = [pscustomobject][ordered]@{
 Write-Host 'SAS_VPN_NETWORK_GUARD_READY' -ForegroundColor Green
 Write-Host "Config: $configPath"
 Write-Host ('Exact active VPN/LAN IP authority: ' + ($addresses -join ', '))
+Write-Host 'Activated SAS_NETWORK_GUARD_CONFIG for this PowerShell process.' -ForegroundColor Green
 Write-Host 'No target contact or mutation occurred.' -ForegroundColor Green
 $result
