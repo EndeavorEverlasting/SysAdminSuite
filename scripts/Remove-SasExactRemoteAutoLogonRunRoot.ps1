@@ -12,6 +12,9 @@ param(
     [Parameter(Mandatory = $true)]
     [switch]$ConfirmExactCleanup,
 
+    [ValidateSet('FullS4U','ProbeOnly')]
+    [string]$AllowedArtifactProfile = 'FullS4U',
+
     [ValidateRange(5,60)]
     [int]$TimeoutSeconds = 15
 )
@@ -24,15 +27,20 @@ if (-not $ConfirmExactCleanup) {
 }
 
 $remoteRoot = "\\$ComputerName\C$\ProgramData\SysAdminSuite\AutoLogonKerberosS4U\$RunId"
-$expectedNames = @(
+$probeOnlyNames = @(
     'NW_AutoLogon_Setup_x64.exe',
     's4u-probe-worker.ps1',
     's4u-probe-result.json',
-    's4u-probe-result.json.tmp',
-    's4u-install-worker.ps1',
-    's4u-install-result.json',
-    's4u-install-result.json.tmp'
+    's4u-probe-result.json.tmp'
 )
+$fullS4UNames = @(
+    $probeOnlyNames + @(
+        's4u-install-worker.ps1',
+        's4u-install-result.json',
+        's4u-install-result.json.tmp'
+    )
+)
+$expectedNames = if ($AllowedArtifactProfile -eq 'ProbeOnly') { @($probeOnlyNames) } else { @($fullS4UNames) }
 
 function Invoke-SasBoundedChildPowerShell {
     param(
@@ -96,7 +104,7 @@ $inventory = $inventoryProbe.output | ConvertFrom-Json
 
 $unexpected = @($inventory.names | Where-Object { [string]$_ -notin $expectedNames })
 if ($unexpected.Count -gt 0) {
-    throw "Exact remote run root contains unexpected entries; refusing cleanup: $($unexpected -join ', ')"
+    throw "Exact remote run root contains entries outside the $AllowedArtifactProfile cleanup profile; refusing cleanup: $($unexpected -join ', ')"
 }
 
 if ([bool]$inventory.exists) {
@@ -128,6 +136,7 @@ if ($verify.exit_code -ne 0) { throw 'Exact remote AutoLogon run root remains af
     classification = 'EXACT_REMOTE_AUTOLOGON_RUN_ROOT_CLEANED'
     target = $ComputerName
     run_id = $RunId
+    allowed_artifact_profile = $AllowedArtifactProfile
     root_existed_before_cleanup = [bool]$inventory.exists
     inventory_names = @($inventory.names)
     exact_run_root_absent = $true
