@@ -117,13 +117,21 @@ def test_password_and_autologon_secret_data_are_not_collected() -> None:
         assert forbidden not in text, forbidden
 
 
-def test_operator_surface_routes_remote_action_to_restart_complete_deployment() -> None:
+def test_operator_surface_routes_recovery_gate_then_remote_action_to_restart_complete_deployment() -> None:
     onsite = read(ONSITE)
     cmd = read(CMD)
     assert "'Remote','S4U'" in onsite
     assert "Invoke-SasAutoLogonS4URestartDeployment.ps1" in onsite
-    assert "-ComputerName $target -AllowTargetMutation -ConfirmDeployment" in onsite
-    assert "Deploy AutoLogon via Kerberos SMB + passwordless S4U, then restart target" in onsite
+    recovery = onsite.index("& $s4uRecoveryScript -ComputerName $target -ConfirmRecovery -PassThru")
+    deploy = onsite.index("& $s4uDeploymentScript -ComputerName $target -AllowTargetMutation -ConfirmDeployment", recovery)
+    assert recovery < deploy
+    for marker in (
+        "Deploy AutoLogon via Kerberos SMB + passwordless S4U",
+        "recover recorded probe-only interruption first",
+        "then restart target",
+        "Interrupted-run gate:",
+    ):
+        assert marker in onsite, marker
     assert "Run-AutoLogonOnsite.cmd Remote HOST" in cmd
 
 
