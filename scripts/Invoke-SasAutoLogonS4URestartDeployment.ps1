@@ -4,13 +4,10 @@
 Apply AutoLogon through Kerberos/S4U and complete deployment by restarting the authorized target.
 
 .DESCRIPTION
-The existing Kerberos/S4U pilot is the apply engine. This wrapper requires its positive clean
+The hardened Kerberos/S4U pilot is the apply engine. This wrapper requires its positive clean
 pre-reboot state, then creates one bounded SYSTEM restart task on the same authorized target and
-waits for the previously proven SMB service to leave and return. AutoLogon deployment is therefore
-not reported complete before the required restart cycle occurs.
-
-No fixture, transport live-cert, or technician runtime-proof loop is required for deployment
-completion. Automatic sign-in is not claimed unless separately observed.
+waits for the previously proven SMB service to leave and return. All Task Scheduler operations are
+bounded and checkpointed. Automatic sign-in is not claimed unless separately observed.
 #>
 [CmdletBinding()]
 param(
@@ -23,6 +20,9 @@ param(
 
     [ValidateRange(60,900)]
     [int]$RestartTimeoutSeconds = 300,
+
+    [ValidateRange(5,120)]
+    [int]$NativeTaskTimeoutSeconds = 30,
 
     [string]$OutputRoot,
     [switch]$AllowTargetMutation,
@@ -37,11 +37,15 @@ if (-not $AllowTargetMutation -or -not $ConfirmDeployment) {
     throw 'AutoLogon deployment requires both -AllowTargetMutation and -ConfirmDeployment. Use sas autologon Remote HOST.'
 }
 
-$repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-$s4uScript = Join-Path $PSScriptRoot 'Invoke-SasAutoLogonKerberosS4UPilot.ps1'
-if (-not (Test-Path -LiteralPath $s4uScript -PathType Leaf)) {
-    throw "Missing AutoLogon S4U dependency: $s4uScript"
+$repoRoot = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '..')).Path
+$s4uScript = Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-SasAutoLogonKerberosS4UPilot.ps1'
+$boundedNativeModule = Join-Path -Path $PSScriptRoot -ChildPath 'SasBoundedNative.psm1'
+foreach ($required in @($s4uScript,$boundedNativeModule)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Missing AutoLogon S4U dependency: $required"
+    }
 }
+Import-Module $boundedNativeModule -Force
 
 $target = $ComputerName.Trim()
 if ($target -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
@@ -49,34 +53,58 @@ if ($target -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
-    $OutputRoot = Join-Path $repoRoot 'survey\output\runs\autologon-s4u-deployment'
+    $OutputRoot = Join-Path -Path $repoRoot -ChildPath 'survey\output\runs\autologon-s4u-deployment'
 }
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 $runId = 'autologon-s4u-deployment-{0}-{1}' -f (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0,8))
-$runRoot = Join-Path $OutputRoot $runId
-New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
-$resultPath = Join-Path $runRoot 'autologon_s4u_deployment_result.json'
+$runRoot = Join-Path -Path $OutputRoot -ChildPath $runId
+$evidenceRoot = Join-Path -Path $runRoot -ChildPath 'evidence'
+New-Item -ItemType Directory -Path $runRoot,$evidenceRoot -Force | Out-Null
+$resultPath = Join-Path -Path $runRoot -ChildPath 'autologon_s4u_deployment_result.json'
 
 function Save-SasAutoLogonDeploymentResult {
     param([Parameter(Mandatory = $true)]$Value)
     $Value | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $resultPath -Encoding UTF8
 }
 
-function Invoke-SasAutoLogonDeploymentNative {
+function Write-SasAutoLogonRestartStage {
     param(
-        [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(Mandatory = $true)][string[]]$Arguments
+        [Parameter(Mandatory = $true)][ValidateRange(19,22)][int]$Number,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][ValidateSet('START','PASS','FAIL','INFO')][string]$Status,
+        [string]$Detail
     )
-    $lines = @(& $FilePath @Arguments 2>&1 | ForEach-Object { [string]$_ })
-    [pscustomobject]@{
-        exit_code = [int]$LASTEXITCODE
-        output = ($lines -join [Environment]::NewLine)
+    $record = [pscustomobject][ordered]@{
+        schema_version = 'sas-autologon-s4u-progress/v1'
+        run_id = $runId
+        stage_number = $Number
+        stage_name = $Name
+        status = $Status
+        detail = $Detail
+        timestamp_utc = (Get-Date).ToUniversalTime().ToString('o')
     }
+    $record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path -Path $evidenceRoot -ChildPath 'progress_checkpoint.json') -Encoding UTF8
+    ($record | ConvertTo-Json -Depth 8 -Compress) | Add-Content -LiteralPath (Join-Path -Path $evidenceRoot -ChildPath 'progress_history.jsonl') -Encoding UTF8
+    $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { " - $Detail" }
+    Write-Host ("[{0}/22] {1}: {2}{3}" -f $Number,$Name,$Status,$suffix) -ForegroundColor Cyan
 }
 
 function Test-SasAutoLogonRestartTaskAbsentText {
     param([string]$Text)
     return ([string]$Text -match '(?i)cannot find|does not exist|not exist|cannot find the file|the system cannot find')
+}
+
+function Invoke-SasAutoLogonBoundedTask {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string]$Operation
+    )
+    $schtasks = Join-Path -Path $env:WINDIR -ChildPath 'System32\schtasks.exe'
+    $native = Invoke-SasBoundedNative -FilePath $schtasks -Arguments $Arguments -TimeoutSeconds $NativeTaskTimeoutSeconds
+    if ([bool]$native.timed_out) {
+        throw "AutoLogon restart Task Scheduler $Operation timed out after $NativeTaskTimeoutSeconds seconds."
+    }
+    return $native
 }
 
 function Test-SasAutoLogonTcp445 {
@@ -95,63 +123,49 @@ function Test-SasAutoLogonTcp445 {
     finally { $client.Close() }
 }
 
-function Wait-SasAutoLogonRestartCycle {
+function Wait-SasAutoLogonRestartOffline {
     param(
         [Parameter(Mandatory = $true)][string]$Target,
         [Parameter(Mandatory = $true)][int]$TimeoutSeconds
     )
-
-    $offlineObserved = $false
-    $offlineDeadline = (Get-Date).AddSeconds([Math]::Min(120, $TimeoutSeconds))
-    while ((Get-Date) -lt $offlineDeadline) {
-        if (-not (Test-SasAutoLogonTcp445 -Target $Target)) {
-            $offlineObserved = $true
-            break
-        }
+    $deadline = (Get-Date).AddSeconds([Math]::Min(120, $TimeoutSeconds))
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Test-SasAutoLogonTcp445 -Target $Target)) { return $true }
         Start-Sleep -Seconds 2
     }
-    if (-not $offlineObserved) {
-        throw 'Restart task started, but the target did not leave the previously proven SMB service within the bounded observation window.'
-    }
+    return $false
+}
 
-    $onlineObserved = $false
-    $onlineDeadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    while ((Get-Date) -lt $onlineDeadline) {
-        if (Test-SasAutoLogonTcp445 -Target $Target) {
-            $onlineObserved = $true
-            break
-        }
+function Wait-SasAutoLogonRestartOnline {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-SasAutoLogonTcp445 -Target $Target) { return $true }
         Start-Sleep -Seconds 3
     }
-    if (-not $onlineObserved) {
-        throw 'Target left for restart but did not return on the previously proven SMB service within the bounded observation window.'
-    }
-
-    [pscustomobject][ordered]@{
-        offline_observed = $offlineObserved
-        online_observed = $onlineObserved
-        observation = 'tcp_445_restart_cycle'
-    }
+    return $false
 }
 
 function Confirm-SasAutoLogonRestartTaskCleanup {
     param(
         [Parameter(Mandatory = $true)][string]$Target,
         [Parameter(Mandatory = $true)][string]$TaskName,
-        [Parameter(Mandatory = $true)][string]$SchtasksPath,
         [ValidateRange(10,120)][int]$TimeoutSeconds = 60
     )
 
-    # SMB often becomes reachable before Task Scheduler RPC is fully ready after boot.
-    # Retry bounded queries rather than misclassifying that transient recovery window as cleanup failure.
+    # SMB may return before Task Scheduler RPC is ready. Every individual query remains bounded.
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $taskSeen = $false
     while ((Get-Date) -lt $deadline) {
-        $query = Invoke-SasAutoLogonDeploymentNative -FilePath $SchtasksPath -Arguments @('/Query','/S',$Target,'/TN',$TaskName)
-        if ($query.exit_code -ne 0 -and (Test-SasAutoLogonRestartTaskAbsentText -Text $query.output)) {
+        $query = Invoke-SasAutoLogonBoundedTask -Operation 'query' -Arguments @('/Query','/S',$Target,'/TN',$TaskName)
+        $queryText = ([string]$query.output) + "`n" + ([string]$query.error)
+        if ([int]$query.exit_code -ne 0 -and (Test-SasAutoLogonRestartTaskAbsentText -Text $queryText)) {
             return $true
         }
-        if ($query.exit_code -eq 0) {
+        if ([int]$query.exit_code -eq 0) {
             $taskSeen = $true
             break
         }
@@ -160,15 +174,17 @@ function Confirm-SasAutoLogonRestartTaskCleanup {
 
     if (-not $taskSeen) { return $false }
 
-    $delete = Invoke-SasAutoLogonDeploymentNative -FilePath $SchtasksPath -Arguments @('/Delete','/S',$Target,'/TN',$TaskName,'/F')
-    if ($delete.exit_code -ne 0 -and -not (Test-SasAutoLogonRestartTaskAbsentText -Text $delete.output)) {
+    $delete = Invoke-SasAutoLogonBoundedTask -Operation 'delete' -Arguments @('/Delete','/S',$Target,'/TN',$TaskName,'/F')
+    $deleteText = ([string]$delete.output) + "`n" + ([string]$delete.error)
+    if ([int]$delete.exit_code -ne 0 -and -not (Test-SasAutoLogonRestartTaskAbsentText -Text $deleteText)) {
         return $false
     }
 
     $verifyDeadline = (Get-Date).AddSeconds(30)
     while ((Get-Date) -lt $verifyDeadline) {
-        $verify = Invoke-SasAutoLogonDeploymentNative -FilePath $SchtasksPath -Arguments @('/Query','/S',$Target,'/TN',$TaskName)
-        if ($verify.exit_code -ne 0 -and (Test-SasAutoLogonRestartTaskAbsentText -Text $verify.output)) {
+        $verify = Invoke-SasAutoLogonBoundedTask -Operation 'query' -Arguments @('/Query','/S',$Target,'/TN',$TaskName)
+        $verifyText = ([string]$verify.output) + "`n" + ([string]$verify.error)
+        if ([int]$verify.exit_code -ne 0 -and (Test-SasAutoLogonRestartTaskAbsentText -Text $verifyText)) {
             return $true
         }
         Start-Sleep -Seconds 2
@@ -177,7 +193,7 @@ function Confirm-SasAutoLogonRestartTaskCleanup {
 }
 
 $result = [ordered]@{
-    schema_version = 'sas-autologon-s4u-deployment-result/v1'
+    schema_version = 'sas-autologon-s4u-deployment-result/v2'
     run_id = $runId
     target = $target
     classification = 'AUTOLOGON_DEPLOYMENT_STARTED'
@@ -197,6 +213,7 @@ $result = [ordered]@{
     automatic_sign_in_observed = $false
     runtime_proof_required_for_deployment_completion = $false
     target_mutation_performed = $false
+    native_task_timeout_seconds = $NativeTaskTimeoutSeconds
     status = 'STARTED'
     reason = $null
     result_path = $resultPath
@@ -206,11 +223,10 @@ Save-SasAutoLogonDeploymentResult -Value $result
 $taskCreated = $false
 $resolvedTarget = $target
 $restartTask = $null
-$schtasks = Join-Path $env:WINDIR 'System32\schtasks.exe'
 
 try {
     Write-Host "`n=== AUTOLOGON APPLY: $target ===" -ForegroundColor Cyan
-    $s4u = & $s4uScript -ComputerName $target -OutputRoot (Join-Path $runRoot 's4u') `
+    $s4u = & $s4uScript -ComputerName $target -OutputRoot (Join-Path -Path $runRoot -ChildPath 's4u') `
         -AllowTargetMutation -ConfirmS4U -PassThru
 
     $result.s4u_result_path = [string]$s4u.result_path
@@ -233,42 +249,59 @@ try {
     $result.classification = 'AUTOLOGON_APPLIED_RESTART_REQUIRED'
     Save-SasAutoLogonDeploymentResult -Value $result
 
+    Write-SasAutoLogonRestartStage -Number 19 -Name 'restart handoff' -Status START
     $restartTask = 'SysAdminSuite-AutoLogonRestart-{0}' -f ([guid]::NewGuid().ToString('N'))
     $result.restart_task_name = $restartTask
+    Save-SasAutoLogonDeploymentResult -Value $result
+
     $startTime = (Get-Date).AddMinutes(2).ToString('HH:mm')
     $restartCommand = 'C:\Windows\System32\shutdown.exe /r /t {0} /f /d p:4:1' -f $RestartDelaySeconds
 
     Write-Host "`n=== AUTOLOGON RESTART: $resolvedTarget ===" -ForegroundColor Cyan
-    $create = Invoke-SasAutoLogonDeploymentNative -FilePath $schtasks -Arguments @(
+    $create = Invoke-SasAutoLogonBoundedTask -Operation 'create' -Arguments @(
         '/Create','/S',$resolvedTarget,'/RU','SYSTEM','/SC','ONCE','/ST',$startTime,
         '/TN',$restartTask,'/TR',$restartCommand,'/RL','HIGHEST','/F','/Z'
     )
-    if ($create.exit_code -ne 0) {
-        throw "Could not create the one-time AutoLogon restart task: $($create.output)"
+    if ([int]$create.exit_code -ne 0) {
+        throw "Could not create the one-time AutoLogon restart task: $($create.output) $($create.error)"
     }
     $taskCreated = $true
     $result.restart_task_created = $true
     Save-SasAutoLogonDeploymentResult -Value $result
 
-    $run = Invoke-SasAutoLogonDeploymentNative -FilePath $schtasks -Arguments @('/Run','/S',$resolvedTarget,'/TN',$restartTask)
-    if ($run.exit_code -ne 0) {
-        throw "Could not start the one-time AutoLogon restart task: $($run.output)"
+    $run = Invoke-SasAutoLogonBoundedTask -Operation 'run' -Arguments @('/Run','/S',$resolvedTarget,'/TN',$restartTask)
+    if ([int]$run.exit_code -ne 0) {
+        throw "Could not start the one-time AutoLogon restart task: $($run.output) $($run.error)"
     }
     $result.restart_task_started = $true
     $result.classification = 'AUTOLOGON_RESTART_INITIATED'
     Save-SasAutoLogonDeploymentResult -Value $result
+    Write-SasAutoLogonRestartStage -Number 19 -Name 'restart handoff' -Status PASS
 
-    $cycle = Wait-SasAutoLogonRestartCycle -Target $resolvedTarget -TimeoutSeconds $RestartTimeoutSeconds
-    $result.restart_offline_observed = [bool]$cycle.offline_observed
-    $result.restart_online_observed = [bool]$cycle.online_observed
+    Write-SasAutoLogonRestartStage -Number 20 -Name 'offline observation' -Status START
+    $result.restart_offline_observed = Wait-SasAutoLogonRestartOffline -Target $resolvedTarget -TimeoutSeconds $RestartTimeoutSeconds
+    Save-SasAutoLogonDeploymentResult -Value $result
+    if (-not $result.restart_offline_observed) {
+        throw 'Restart task started, but the target did not leave the previously proven SMB service within the bounded observation window.'
+    }
+    Write-SasAutoLogonRestartStage -Number 20 -Name 'offline observation' -Status PASS
+
+    Write-SasAutoLogonRestartStage -Number 21 -Name 'online observation' -Status START
+    $result.restart_online_observed = Wait-SasAutoLogonRestartOnline -Target $resolvedTarget -TimeoutSeconds $RestartTimeoutSeconds
     $result.automatic_reboot_performed = ($result.restart_offline_observed -and $result.restart_online_observed)
     Save-SasAutoLogonDeploymentResult -Value $result
+    if (-not $result.restart_online_observed) {
+        throw 'Target left for restart but did not return on the previously proven SMB service within the bounded observation window.'
+    }
+    Write-SasAutoLogonRestartStage -Number 21 -Name 'online observation' -Status PASS
 
+    Write-SasAutoLogonRestartStage -Number 22 -Name 'restart-task cleanup' -Status START
     $result.restart_task_cleanup_verified = Confirm-SasAutoLogonRestartTaskCleanup `
-        -Target $resolvedTarget -TaskName $restartTask -SchtasksPath $schtasks -TimeoutSeconds 60
+        -Target $resolvedTarget -TaskName $restartTask -TimeoutSeconds 60
     if (-not $result.restart_task_cleanup_verified) {
         throw 'AutoLogon restart completed, but cleanup of the one-time restart task could not be verified after the bounded post-boot Task Scheduler recovery window.'
     }
+    Write-SasAutoLogonRestartStage -Number 22 -Name 'restart-task cleanup' -Status PASS
 
     $result.classification = 'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED'
     $result.status = 'COMPLETED'
@@ -300,8 +333,10 @@ catch {
 }
 finally {
     if ($taskCreated -and $restartTask -and -not [bool]$result.restart_task_cleanup_verified -and -not [bool]$result.restart_offline_observed) {
-        try { [void](Invoke-SasAutoLogonDeploymentNative -FilePath $schtasks -Arguments @('/Delete','/S',$resolvedTarget,'/TN',$restartTask,'/F')) }
-        catch {}
+        try {
+            [void](Invoke-SasAutoLogonBoundedTask -Operation 'delete' -Arguments @('/Delete','/S',$resolvedTarget,'/TN',$restartTask,'/F'))
+        }
+        catch { }
     }
 }
 
