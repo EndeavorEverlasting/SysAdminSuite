@@ -34,6 +34,13 @@ def test_vpn_bootstrap_authorizes_only_exact_current_ipv4_addresses() -> None:
     assert "allowedWindowsDomains = @()" in text
 
 
+def test_vpn_bootstrap_activates_exact_policy_for_current_process() -> None:
+    text = read()
+    assert "$env:SAS_NETWORK_GUARD_CONFIG = $configPath" in text
+    assert "process_environment_config_activated = $true" in text
+    assert "Activated SAS_NETWORK_GUARD_CONFIG for this PowerShell process." in text
+
+
 def test_vpn_bootstrap_is_local_only_and_emits_structured_success() -> None:
     text = read()
     assert "SAS_VPN_NETWORK_GUARD_READY" in text
@@ -46,5 +53,6 @@ if __name__ == "__main__":
     test_vpn_bootstrap_avoids_windows_powershell_generic_list_binder_trap()
     test_vpn_bootstrap_requires_domain_authenticated_non_wifi_posture()
     test_vpn_bootstrap_authorizes_only_exact_current_ipv4_addresses()
+    test_vpn_bootstrap_activates_exact_policy_for_current_process()
     test_vpn_bootstrap_is_local_only_and_emits_structured_success()
     print("VPN network guard bootstrap contracts passed")
