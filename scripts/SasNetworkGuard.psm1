@@ -129,10 +129,6 @@ function Get-SasCurrentWifiSsid {
     }
     catch {}
 
-    # Windows 11 can withhold WLAN interface details from netsh when location access is restricted.
-    # The WLAN-AutoConfig operational log records successful WLAN connections with ProfileName/SSID.
-    # Use the newest success event for the currently connected Wi-Fi adapter before falling back to
-    # the generic Windows connection-profile label (which may be a domain such as nslijhs.net).
     $eventSsid = Get-SasCurrentWifiSsidFromWlanEventLog
     if ($eventSsid -ne 'unknown') { return $eventSsid }
 
@@ -155,10 +151,27 @@ function Test-SasNorthwellWifiSsid {
 function Get-SasNetworkGuardConfigPath {
     [CmdletBinding()]
     param()
-    if ($env:SAS_NETWORK_GUARD_CONFIG) { return $env:SAS_NETWORK_GUARD_CONFIG }
-    if ($env:SAS_REPO_ROOT) { return (Join-Path $env:SAS_REPO_ROOT 'Config\sas-network-guard.local.json') }
+
+    if ($env:SAS_NETWORK_GUARD_CONFIG) {
+        return $env:SAS_NETWORK_GUARD_CONFIG
+    }
+
     $moduleRepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-    return (Join-Path $moduleRepoRoot 'Config\sas-network-guard.local.json')
+    $moduleConfigPath = Join-Path $moduleRepoRoot 'Config\sas-network-guard.local.json'
+
+    # The executing checkout owns its operator-local policy. A stale SAS_REPO_ROOT from an older
+    # field checkout must not redirect a newly refreshed recovery/deployment to unrelated state.
+    if (Test-Path -LiteralPath $moduleConfigPath -PathType Leaf) {
+        return $moduleConfigPath
+    }
+
+    # Preserve compatibility for legacy callers that intentionally provide only SAS_REPO_ROOT and
+    # have no config beside the executing module.
+    if ($env:SAS_REPO_ROOT) {
+        return (Join-Path $env:SAS_REPO_ROOT 'Config\sas-network-guard.local.json')
+    }
+
+    return $moduleConfigPath
 }
 
 function Split-SasCsvEnv {
