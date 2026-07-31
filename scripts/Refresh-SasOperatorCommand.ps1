@@ -87,6 +87,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remoteHead)) { throw "
 $stateRoot=Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
 $preferred=Join-Path -Path $stateRoot -ChildPath 'field-ready'
 $refStatePath=Join-Path -Path $stateRoot -ChildPath 'repo-ref.txt'
+$returnNetworkPath=Join-Path -Path $stateRoot -ChildPath 'return-network.json'
 New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
 
 function Test-SameRepository([string]$Candidate) {
@@ -157,6 +158,22 @@ if ($LASTEXITCODE -ne 0) { throw "Operator-command refresh installer failed with
 
 $sessionModule=Join-Path -Path $fieldReady -ChildPath 'scripts\SasOperatorSession.psm1'
 Import-Module $sessionModule -Force
+$currentNetwork=Get-SasOperatorNetworkClassification -RepoRoot $fieldReady
+if ([string]$currentNetwork.classification -ne 'GUEST_INTERNET' -or [string]::IsNullOrWhiteSpace([string]$currentNetwork.label) -or [string]$currentNetwork.label -eq 'unknown') {
+    throw "Guest/Internet return-network bookmark could not be established after refresh. Current classification: $($currentNetwork.classification); label: $($currentNetwork.label)"
+}
+$returnBookmark=[pscustomobject][ordered]@{
+    schema_version='sas-operator-return-network/v1'
+    classification='GUEST_INTERNET'
+    label=[string]$currentNetwork.label
+    recorded_utc=(Get-Date).ToUniversalTime().ToString('o')
+    recorded_by='Refresh-SasOperatorCommand'
+    target_contact_performed=$false
+    target_mutation_performed=$false
+    secret_material_collected=$false
+}
+$returnBookmark | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $returnNetworkPath -Encoding UTF8
+
 $session=Read-SasOperatorSession
 $targetFilter=if ($session.target_fqdn) { [string]$session.target_fqdn } else { $null }
 $session=Sync-SasOperatorSessionFromEvidence -RepoRoot $fieldReady -TargetFqdn $targetFilter
@@ -169,6 +186,7 @@ Set-Content -LiteralPath $refStatePath -Value $refreshBranch -Encoding ASCII
     repo_head=$head
     launcher_head=$head
     current_network_classification='GUEST_INTERNET'
+    current_network_label=[string]$currentNetwork.label
     next_required_network=$nextNetwork
     next_command=$nextCommand
 })
@@ -178,6 +196,7 @@ Write-Host 'SAS_OPERATOR_REFRESH_READY' -ForegroundColor Green
 Write-Host "Field-ready repo: $fieldReady"
 Write-Host "REF: $refreshBranch"
 Write-Host "HEAD: $head"
+Write-Host "RETURN NETWORK: $($currentNetwork.label)" -ForegroundColor Green
 Write-Host 'Existing source worktree was not reset or cleaned.' -ForegroundColor Green
 Write-Host "NEXT NETWORK: $nextNetwork" -ForegroundColor Cyan
 Write-Host "NEXT COMMAND: $nextCommand" -ForegroundColor Green
