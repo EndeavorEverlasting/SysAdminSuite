@@ -7,10 +7,13 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $sourceLauncher = Join-Path $repoRoot 'scripts\SasPortableLauncher.ps1'
+$networkReturnCmd = Join-Path $repoRoot 'Switch-Back-To-Previous-Network.cmd'
 $requiredOperatorScripts = @(
     $sourceLauncher,
     (Join-Path $repoRoot 'scripts\SasOperatorSession.psm1'),
     (Join-Path $repoRoot 'scripts\Show-SasOperatorContext.ps1'),
+    (Join-Path $repoRoot 'scripts\Return-SasOperatorToPreviousNetwork.ps1'),
+    (Join-Path $repoRoot 'scripts\SasBoundedNative.psm1'),
     (Join-Path $repoRoot 'scripts\Invoke-SasCybernetCoreRecovery.ps1'),
     (Join-Path $repoRoot 'scripts\Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1'),
     (Join-Path $repoRoot 'scripts\Test-SasCybernetClinicalCoreSources.ps1')
@@ -22,11 +25,15 @@ foreach ($scriptPath in $requiredOperatorScripts) {
     [void][System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$parseTokens, [ref]$parseErrors)
     if (@($parseErrors).Count -gt 0) { throw "Operator script has PowerShell parse errors; refusing to install: $scriptPath :: $($parseErrors[0].Message)" }
 }
+if (-not (Test-Path -LiteralPath $networkReturnCmd -PathType Leaf)) {
+    throw "Required double-click network return command is missing: $networkReturnCmd"
+}
 
 $installRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\bin'
 $stateRoot = Split-Path -Parent $installRoot
 $launcherDestination = Join-Path $installRoot 'SasPortableLauncher.ps1'
 $cmdDestination = Join-Path $installRoot 'sas.cmd'
+$leaveDestination = Join-Path $installRoot 'sas-leave.cmd'
 $cachePath = Join-Path $stateRoot 'repo-root.txt'
 New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
 Copy-Item -LiteralPath $sourceLauncher -Destination $launcherDestination -Force
@@ -57,6 +64,19 @@ for %%# in (!SAS_EXIT!) do endlocal & exit /b %%#
 '@
 Set-Content -LiteralPath $cmdDestination -Value $cmd -Encoding ASCII
 
+# This installed CMD is intentionally double-clickable. It delegates to the same repo-owned
+# `sas leave` path as the terminal surface and therefore never embeds SSIDs or credentials.
+$leaveCmd = @'
+@echo off
+setlocal EnableExtensions
+call "%~dp0sas.cmd" leave
+set "SAS_EXIT=%ERRORLEVEL%"
+echo.
+pause
+for %%# in (%SAS_EXIT%) do endlocal & exit /b %%#
+'@
+Set-Content -LiteralPath $leaveDestination -Value $leaveCmd -Encoding ASCII
+
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $segments = @($userPath -split ';' | ForEach-Object { $_.Trim().TrimEnd('\') } | Where-Object { $_ })
 $alreadyPresent = @($segments | Where-Object { $_.Equals($installRoot.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
@@ -69,11 +89,13 @@ if (-not (($env:Path -split ';') -contains $installRoot)) { $env:Path = $env:Pat
 Write-Host 'SysAdminSuite portable operator command installed/refreshed for the current Windows user.' -ForegroundColor Green
 Write-Host "Resolved repo: $repoRoot"
 Write-Host "Command: $cmdDestination"
+Write-Host "Double-click network return: $leaveDestination"
 Write-Host ''
 Write-Host 'Open either CMD or PowerShell and use:' -ForegroundColor Cyan
 Write-Host '  sas context                          Show persistent repo/network/target/lane/run/cleanup state'
 Write-Host '  sas next                             Show only the required network and one next command'
-Write-Host '  sas refresh                          GUEST / INTERNET: refresh current origin/main field-ready checkout'
+Write-Host '  sas refresh                          GUEST / INTERNET: refresh current tracked branch field-ready checkout'
+Write-Host '  sas leave                            LOCAL ONLY: return to recorded previous guest/internet Wi-Fi'
 Write-Host '  sas cybernet Core HOST              PROTECTED NORTHWELL: five clinical apps; AutoLogon preserved; no reboot'
 Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact prior-run recovery only'
 Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
