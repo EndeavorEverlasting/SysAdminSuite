@@ -23,9 +23,32 @@ def test_double_click_surface_calls_only_repo_owned_local_network_return() -> No
         assert forbidden.lower() not in text.lower(), forbidden
 
 
-def test_return_requires_exact_recorded_guest_network_and_rejects_protected_destination() -> None:
+def test_refresh_records_a_dedicated_guest_return_network_bookmark() -> None:
+    text = read(REFRESH)
+    for marker in (
+        "return-network.json",
+        "sas-operator-return-network/v1",
+        "Get-SasOperatorNetworkClassification -RepoRoot $fieldReady",
+        "$currentNetwork.classification -ne 'GUEST_INTERNET'",
+        "label=[string]$currentNetwork.label",
+        "target_contact_performed=$false",
+        "target_mutation_performed=$false",
+        "secret_material_collected=$false",
+        "RETURN NETWORK: $($currentNetwork.label)",
+    ):
+        assert marker in text, marker
+    bookmark = text.index("$returnBookmark=[pscustomobject]")
+    next_network = text.index("$nextNetwork=if", bookmark)
+    assert bookmark < next_network
+
+
+def test_return_prefers_dedicated_bookmark_and_has_legacy_fallback() -> None:
     text = read(SCRIPT)
     for marker in (
+        "return-network.json",
+        "sas-operator-return-network/v1",
+        "$bookmarkSource='return-network.json'",
+        "$bookmarkSource -eq 'none'",
         "last_network_classification",
         "last_network_label",
         "$previousClassification -ne 'GUEST_INTERNET'",
@@ -34,6 +57,9 @@ def test_return_requires_exact_recorded_guest_network_and_rejects_protected_dest
         "SAS_OPERATOR_RETURNED_TO_PREVIOUS_NETWORK",
     ):
         assert marker in text, marker
+    dedicated = text.index("Test-Path -LiteralPath $returnBookmarkPath")
+    fallback = text.index("last_network_classification", dedicated)
+    assert dedicated < fallback
 
 
 def test_return_uses_only_saved_profile_and_bounded_local_netsh() -> None:
