@@ -58,7 +58,7 @@ Describe 'Cybernet profiled clinical-core operator harness' {
         $readiness | Should -Match 'transportOutputRoot'
         $readiness | Should -Match 'survey\\output\\t'
         $readiness | Should -Match 'OutputRoot = \$transportOutputRoot'
-        $readiness | Should -Not -Match "OutputRoot = \(Join-Path \$context.run_root 'transport'\)"
+        $readiness | Should -Not -Match 'OutputRoot = \(Join-Path \$context\.run_root ''transport''\)'
     }
 
     It 'preflights all sources before target access or mutation' {
