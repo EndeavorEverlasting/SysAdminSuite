@@ -49,8 +49,9 @@ def test_s4u_consumes_durable_source_identity_then_ticket_before_canonical_sourc
     overlap_gate = text.index("if (-not [bool]$sourceIdentity.address_overlap_verified)", resolve)
     ticket = text.index("$shareTicket = Request-SasS4UKerberosTicket -Spn ([string]$sourceIdentity.cifs_spn)", overlap_gate)
     ticket_gate = text.index("if (-not [bool]$shareTicket.issued)", ticket)
-    source_read = text.index("$sourcePath = ([string]$sourceIdentity.canonical_unc_root) + $package.installer_relative_path", ticket_gate)
-    assert module_import < resolve < overlap_gate < ticket < ticket_gate < source_read
+    canonical_root = text.index("$canonicalSourceRoot = ([string]$sourceIdentity.canonical_unc_root).TrimEnd('\\') + '\\'", ticket_gate)
+    source_read = text.index("$sourcePath = $canonicalSourceRoot + $package.installer_relative_path", canonical_root)
+    assert module_import < resolve < overlap_gate < ticket < ticket_gate < canonical_root < source_read
     assert "KERBEROS_S4U_SOFTWARE_SOURCE_IDENTITY_BLOCKED" in text
     assert "KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED" in text
     assert "$sourcePath = $package.source_root + $package.installer_relative_path" not in text
