@@ -38,6 +38,16 @@ def test_discovery_uses_only_local_durable_probe_lifecycle_identity() -> None:
         assert forbidden not in text, forbidden
 
 
+def test_discovery_accepts_pre_mode_probe_lifecycle_without_strictmode_property_failure() -> None:
+    text = read(DISCOVERY)
+    assert "function Get-SasOptionalJsonString" in text
+    assert "$mode=Get-SasOptionalJsonString -Object $lifecycle -Name 'mode'" in text
+    assert "if (-not [string]::IsNullOrWhiteSpace($mode) -and $mode -ne 'Probe') { continue }" in text
+    assert "[string]$lifecycle.mode" not in text
+    assert "Get-SasOptionalJsonString -Object $lifecycle -Name 'classification'" in text
+    assert "Get-SasOptionalJsonString -Object $lifecycle -Name 'current_stage'" in text
+
+
 def test_discovery_fails_closed_if_install_or_after_evidence_exists() -> None:
     text = read(DISCOVERY)
     for marker in (
