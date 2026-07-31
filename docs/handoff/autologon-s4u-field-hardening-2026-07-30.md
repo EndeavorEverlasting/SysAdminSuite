@@ -1,241 +1,306 @@
 # AutoLogon S4U field hardening — 2026-07-30
 
-## Purpose
+## Status
 
-Preserve the field-proven findings from the July 30 Cybernet AutoLogon deployment work so a new terminal, workstation, or agent does not rediscover the same launcher, path, Kerberos, software-source identity, baseline-classification, host-eligibility, or silent S4U probe failures.
+The repository implementation for the July 30 S4U probe-create hang is now hardened on PR #298.
+This file is an operational contract, not a remaining-work checklist.
 
-This handoff intentionally contains no live username, password, AutoLogon secret, or authorized target identifier.
+The field-proven failure was a synchronous `schtasks.exe /Create` call that could block the owning
+PowerShell indefinitely before a probe result or normal lifecycle evidence existed. The interrupted
+transaction had not entered the AutoLogon installer phase. The same field session also demonstrated
+that hand-built recovery snippets created unacceptable operator work and could fail independently
+(e.g. multiline positional `Join-Path` prompting).
 
-## Proven wins now represented in the repository
+The supported path must therefore own refresh, branch provenance, interruption recovery, task/run
+identity, timeouts, progress, exact cleanup, evidence, and local network transitions.
 
-1. **Kerberos target readiness produces every ticket the S4U consumer requires.**
-   - `SasSoftwareDeploymentLowNoise.psm1` requests both `CIFS/<target>` and `HOST/<target>` for `kerberos_smb_task` readiness.
-   - SMB/admin/Task Scheduler probing does not continue until both tickets are issued.
-   - `test_autologon_kerberos_s4u_contracts.py` locks the producer/consumer contract.
+This handoff contains no live username, password, Wi-Fi secret, AutoLogon secret, or target identifier.
 
-2. **Long repository paths must be shortened without leaving approved evidence roots.**
-   - The portable launcher owns a temporary `SUBST` repo alias for long paths.
-   - Direct/manual recovery must alias the repository root and keep evidence under the aliased repo (`<drive>:\runs` or `<drive>:\survey\output\runs`).
-   - Do not redirect deployment evidence to an arbitrary short folder outside approved repo-local roots.
+## Supported field path
 
-3. **Fresh-box operator bootstrap is per Windows user / PC.**
-   - If `%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd` does not exist, install the portable operator command once from a checkout, then run the Guest-side refresh workflow.
-   - `SAS_OPERATOR_REFRESH_READY` plus the printed field-ready HEAD is the sync proof before moving to the protected network.
+### Guest / Internet
 
-4. **Approved software-source aliases must be canonicalized before Kerberos CIFS use.**
-   - `SasSoftwareSourceIdentity.psm1` resolves the catalog-approved server alias to its canonical FQDN.
-   - The canonical name is accepted only when it resolves to at least one address also returned for the approved alias.
-   - The resolver emits the canonical `CIFS/<fqdn>` SPN and canonical UNC root without collecting credentials or ticket bytes and without target mutation.
-   - The approved catalog alias remains the source authority; DNS canonicalization is only the runtime Kerberos-access identity.
+Use:
 
-5. **An inert Northwell AutoLogon intent marker is not an installed/active AutoLogon configuration.**
-   - `SasAutoLogonBaselinePolicy.psm1` now encodes the first-install baseline rule.
-   - `not_configured` remains accepted when no `NW AutoLogon Setup` package is installed.
-   - `intent_only` is accepted only when every inert-state condition is satisfied: `Autologon_YES` intent, `AutoAdminLogon` disabled, no user/domain, no `ForceAutoLogon`, no `AutoLogonCount`, no `DefaultPassword` value present, no expected-user match, and no installed AutoLogon package.
-   - Any active, partial, mismatched, password-bearing, or package-present state remains fail-closed.
-   - `test_autologon_intent_only_baseline_contracts.py` locks this distinction.
+```text
+sas refresh
+```
 
-6. **Real deployment targets require explicit operator-local host eligibility authority.**
-   - `Test-SasHostEligibility.ps1` intentionally fails closed when `Config/host-eligibility-policy.local.json` is absent, malformed, unmatched, or does not permit the requested execution context.
-   - The tracked sample policy is synthetic and must not authorize live hosts.
-   - `Set-SasHostEligibilityLocalTarget.ps1` creates or updates only the gitignored local policy after explicit `-ConfirmLocalAuthorization`, inserts an exact escaped hostname pattern for `remote`, and immediately re-runs the existing eligibility validator.
-   - Broad wildcard authorization is not required for field deployment and should not be introduced merely to clear the final-step gate.
+`Refresh-SasOperatorCommand.ps1` now preserves the intended branch rather than unconditionally
+switching the field-ready checkout to `origin/main`:
 
-7. **A local-only observer now distinguishes quiet console output from a real S4U stall.**
-   - `Show-SasAutoLogonS4URunState.ps1` / `Get-SasAutoLogonS4URunStatus.ps1` inspect only repo-local run evidence.
-   - The observer performs no network activity, target contact, task queries, or mutation.
-   - It classifies progress through transport preflight, source identity, baseline, final gate, probe, install, after-state, and terminal-result stages.
+1. use an explicit `-Ref` when supplied;
+2. otherwise use the source checkout's current branch;
+3. for a detached field-ready checkout, recover the single `origin/<branch>` ref pointing at HEAD;
+4. if that shared tracking ref has advanced, recover the last successful branch from
+   `%LOCALAPPDATA%\SysAdminSuite\repo-ref.txt`;
+5. fall back to `main` only when no branch provenance exists.
 
-8. **Bounded recovery primitives are now tracked.**
-   - `Invoke-SasBoundedNativeProcess.ps1` provides a bounded child-process wrapper for native utilities so `schtasks.exe` cannot block the operator forever.
-   - Exact-run cleanup helpers are being added for the S4U staging root; cleanup must validate the exact run identity and expected contents before deletion.
+The fetch updates the selected remote-tracking ref without force. Dirty or separately owned
+field-ready work is not reset or cleaned. A refreshed checkout is accepted only when its HEAD equals
+the fetched remote head and all required operator surfaces exist.
 
-## Field proof achieved after the HOST-ticket correction
+Successful refresh emits:
 
-A bounded read-only Kerberos readiness run reached `kerberos_smb_task_ready` with all of the following true:
+```text
+SAS_OPERATOR_REFRESH_READY
+REF: <branch>
+HEAD: <sha>
+```
 
-- domain joined
-- TGT present
-- CIFS ticket requested and issued
-- HOST ticket requested and issued
-- TCP 445 reachable
-- ADMIN$ authorized
-- TCP 135 reachable
-- Schedule service running
-- scheduled-task query authorized
+### Protected Northwell
 
-This proves the earlier `KERBEROS_S4U_KERBEROS_IDENTITY_BLOCKED` result was a producer/consumer contract defect, not evidence that the operator identity lacked the required target authorization.
+For AutoLogon-only deployment use:
 
-## Software-source identity proof
+```text
+sas autologon Remote HOST
+```
 
-A bounded diagnostic reached:
+Do not reconstruct S4U task creation, recovery, cleanup, restart, or state capture manually.
 
-`SOFTWARE_SOURCE_KERBEROS_READY_FQDN_ONLY`
+The normal `Remote` action now owns an interrupted-run gate before a new AutoLogon apply. It searches
+machine-local SysAdminSuite evidence only for durable probe lifecycle records belonging to the target.
 
-The proof established all of the following without target mutation:
+- no recorded interrupted probe run -> continue;
+- one or more safely recorded probe-only interrupted runs -> recover each exact task/run, then continue;
+- any unfinished run with install or after-state evidence -> fail closed and do not redeploy.
 
-- TGT remained present.
-- The catalog-approved short server alias resolved to a canonical FQDN.
-- The short CIFS ticket was not issued.
-- The canonical FQDN CIFS ticket was issued.
-- The same approved installer was readable through the canonical FQDN UNC path.
-- Target mutation remained false.
+An explicit recovery-only action also exists:
 
-Therefore the source failure was a source-name/SPN mismatch, not package absence, target authorization failure, or a missing TGT.
+```text
+sas autologon Recover HOST
+```
 
-## Canonical-source field proof
+### Leave protected Wi-Fi
 
-A bounded field patch used the approved alias only as source authority, required alias/canonical address overlap, requested the canonical CIFS SPN, and read the same approved installer through the canonical UNC.
+Use either:
 
-That run advanced past `KERBEROS_S4U_SOFTWARE_SOURCE_KERBEROS_BLOCKED` and reached the baseline guard. This proves the canonical source identity correction is functionally correct for the AutoLogon lane.
+```text
+sas leave
+```
 
-## Baseline field proof
+or double-click:
 
-The captured `baseline_snapshot.json` was then classified as an exact inert intent-only first-install baseline:
+```text
+Switch-Back-To-Previous-Network.cmd
+```
 
-- `autologon.status = intent_only`
-- `postinstall_set_autologon = Autologon_YES`
-- `auto_admin_logon = 0`
-- no default username
-- no default domain
-- no `ForceAutoLogon`
-- no `AutoLogonCount`
-- `default_password_present = false`
-- `expected_user_match = false`
-- no installed-software row matching `NW AutoLogon Setup`
+The installer also creates:
 
-This state is **not** an active or half-installed AutoLogon configuration. It is an intent marker on an otherwise inactive baseline and is safe for a first AutoLogon installation under the fail-closed policy above.
+```text
+%LOCALAPPDATA%\SysAdminSuite\bin\sas-leave.cmd
+```
 
-The previous `KERBEROS_S4U_DIRTY_BASELINE` result was therefore a coarse classifier defect, not proof of a dirty target.
+The return path is local-only. It requires the operator session's previously recorded network to be
+`GUEST_INTERNET`, rejects an approved protected Northwell profile as the destination, requires an
+existing saved Windows WLAN profile, uses bounded local `netsh`, verifies the exact previous Wi-Fi
+label after the connection request, and updates machine-local operator state. It does not contact or
+mutate any deployment target and does not read or store WLAN credentials.
 
-## Host-eligibility field proof
+## S4U execution invariants
 
-After exact operator-local authorization was created for the already-authorized target, the existing host-eligibility validator returned:
+### Target readiness
 
-- `eligible = true`
-- `decision = allowed`
-- `reason_code = PATTERN_MATCH_AND_CONTEXT_ALLOWED`
-- `allowed_contexts = remote`
+Kerberos SMB + Task readiness requires all of the following before S4U staging/task execution:
 
-This cleared the prior `KERBEROS_S4U_FINAL_GATE_BLOCKED` / `host_eligibility` stop without disabling or bypassing the final-step gate.
+- domain joined;
+- TGT present;
+- target `CIFS/<target>` ticket issued;
+- target `HOST/<target>` ticket issued;
+- TCP 445 reachable;
+- ADMIN$ authorized;
+- TCP 135 reachable;
+- Schedule service running;
+- exact scheduled-task read query authorized.
 
-## Live S4U probe stall proof
+The earlier missing-HOST-ticket failure was a producer/consumer defect and is fixed in the tracked
+low-noise transport implementation and contracts.
 
-A subsequent live run passed network, transport, software-source identity, baseline, and final-step prerequisites, then stopped producing console output after the normal S4U header.
+### Software-source identity
 
-The local-only observer identified the exact stage as:
+`SasSoftwareSourceIdentity.psm1` is consumed directly by the executable S4U lane.
 
-`PROBE_TASK_PREPARATION_OR_EXECUTION`
+The approved catalog alias remains the source authority. Runtime canonicalization is accepted only
+when the canonical FQDN and approved alias share resolved address evidence. Kerberos then requests
+the canonical `CIFS/<fqdn>` SPN and reads the same approved source through the canonical UNC identity.
+No credentials or ticket bytes are collected.
 
-with all of the following evidence:
+### First-install baseline
 
-- transport preflight result present;
-- software-source identity and Kerberos ticket evidence present;
-- baseline snapshot present;
-- final-step gate result present;
-- `s4u-probe-worker.ps1` present;
-- no probe result;
-- no install worker;
-- no install result;
-- no after snapshot;
-- no terminal pilot result;
-- newest local artifact older than ten minutes.
+`SasAutoLogonBaselinePolicy.psm1` is consumed directly by the executable lane.
 
-A local process classifier then proved the exact blocking call was `schtasks.exe /Create` for the S4U probe task. The native process was a child of the active deployment PowerShell. Therefore the AutoLogon installer had **not started**; the transaction was wedged before probe task creation returned.
+Allowed first-install states are:
 
-The implementation explains why the advertised probe timeout did not protect the operator:
+- `not_configured` with no installed AutoLogon package; or
+- exact inert `intent_only`: `Autologon_YES` intent, AutoAdminLogon disabled, no user/domain,
+  no ForceAutoLogon, no AutoLogonCount, no DefaultPassword value present, no expected-user match,
+  and no installed AutoLogon package.
 
-- `Invoke-SasS4UNative` invokes native utilities synchronously without a timeout;
-- `schtasks.exe /Create`, `/Run`, `/Delete`, and `/Query` are therefore potentially unbounded;
-- the result polling loop calls UNC `Test-Path` before checking its deadline, so an SMB `Test-Path` stall can also exceed the nominal timeout indefinitely;
-- no lifecycle file is written until `Invoke-SasS4UTask` returns, leaving the exact task name unavailable from normal local evidence while the call is wedged.
+Active, partial, mismatched, password-bearing, or package-present states fail closed.
 
-This is a harness defect, not acceptable quiet progress. The executable lane must use bounded native task operations, bounded result-existence probes, and persist the exact task name/run checkpoint **before** remote task creation.
+### Host eligibility
 
-## Exact stalled-run recovery achieved
+Live targets still require exact operator-local host eligibility authority. The tracked sample policy
+must never authorize real hosts, and broad wildcard authorization must not be introduced merely to
+clear the final-step gate.
 
-Recovery of the confirmed probe-create hang established the following:
+## Bounded task and result lifecycle
 
-- the exact local hung `schtasks.exe /Create` process was verified by PID, parent PID, target, task name, and S4U run ID before termination;
-- that exact native process was terminated;
-- the owning old deployment PowerShell was terminated so its unbounded `finally` block could not hang again on `/Delete` or `/Query`;
-- no exact local `schtasks.exe` process from that run remained;
-- protected-network posture was re-proven before remote recovery;
-- no completed remote probe result existed;
-- bounded exact-name task query proved the probe task did **not** exist;
-- exact probe-task absence was verified;
-- local evidence still showed no install worker, no install result, and no after snapshot.
+`SasBoundedNative.psm1` is the shared timeout primitive. It isolates native work in a child process
+and kills that isolated process tree on timeout.
 
-Therefore the stalled run did **not** reach AutoLogon installer execution.
+The S4U apply lane bounds every Task Scheduler verb:
 
-The next cleanup attempt failed only when trying to remove the exact staging run root through `cmd.exe`; exit code 1 was returned. Do not interpret that as an AutoLogon state change. The correct cleanup implementation is a bounded child PowerShell that inventories the exact UNC run root first, accepts only the expected staging entries, removes only that exact run directory, and independently verifies absence.
+- `/Create`
+- `/Run`
+- `/Delete`
+- `/Query`
 
-A subsequent inline cleanup attempt did **not** reach the network gate or target. It stopped immediately after printing `COMPLETE EXACT S4U HANG RECOVERY` because a multiline positional `Join-Path` paste unexpectedly entered interactive parameter prompting (`Path[0]:`). Treat this as an operator-snippet construction defect. Cancel that prompt with `Ctrl+C`. Future field snippets must avoid multiline positional `Join-Path`; use one-line named parameters such as `Join-Path -Path $LocalS4URoot -ChildPath 'evidence\after_snapshot.json'` or direct literal path construction.
+The restart-completion wrapper uses the same bounded Task Scheduler ownership.
 
-## Current field state
+Remote S4U result existence checks and result retrieval are isolated in bounded child PowerShell;
+a potentially blocking UNC `Test-Path` no longer sits ahead of the nominal result deadline in the
+owning deployment process.
 
-The interrupted deployment transaction is locally stopped. The exact remote probe task is absent. The AutoLogon installer was not run by that transaction. The only unresolved recovery item from that run is whether its exact staging directory still exists and, if so, removing only that run-scoped staging directory with the bounded exact-run cleanup implementation.
+The bounded module also exposes reusable bounded path, directory, file-copy, and SHA-256 primitives
+for recovery/operator paths that must touch UNC resources without hanging the owning shell.
 
-Do **not** start another AutoLogon deployment until exact staging cleanup is closed and the executable S4U lane is hardened.
+Timeouts have explicit classifications such as probe-create, probe-run, result, and cleanup failures.
+A timeout is never treated as success.
 
-## Current remaining implementation boundary
+## Durable task/run identity
 
-Before another live AutoLogon deployment attempt, finish these items in the repository and validate them:
+Before `schtasks.exe /Create`, the S4U lifecycle evidence records the exact:
 
-1. **Integrate durable policy modules into the executable S4U lane.**
-   - `Invoke-SasAutoLogonKerberosS4UPilot.ps1` must import/use `SasSoftwareSourceIdentity.psm1` instead of field-only canonical-source text patches.
-   - It must import/use `SasAutoLogonBaselinePolicy.psm1` instead of field-only clean-baseline function replacement.
-
-2. **Bound every potentially blocking remote/native primitive.**
-   - `/Create`, `/Run`, `/Delete`, `/Query` for `schtasks.exe` must run through the bounded native-process helper with explicit timeout classification.
-   - UNC result existence checks must be performed in a bounded child process or another genuinely bounded mechanism; no direct potentially blocking `Test-Path` may sit ahead of the timeout check.
-
-3. **Persist lifecycle identity before mutation.**
-   - Write task name, mode, run ID, remote worker path, expected result path, principal, and checkpoint to local evidence **before** `schtasks.exe /Create`.
-   - Update checkpoints after create, run, result retrieval, delete, and absence verification.
-   - Recovery must be able to identify the exact task/run without process inspection.
-
-4. **Emit operator-visible progress.**
-   - Print concise stage messages before/after transport preflight, source Kerberos, baseline capture, final gate, staging/hash, probe task, installer task, after capture, cleanup, and restart handoff.
-   - A quiet console must never again be the only sign of progress.
-
-5. **Finish exact staging cleanup for the already-stopped probe run.**
-   - Use the tracked bounded exact-run cleanup helper or its validated equivalent.
-   - Inventory first; accept only expected staged AutoLogon installer/probe-worker/result names.
-   - Remove only the exact S4U run root and verify absence.
-   - Re-prove from local evidence that installer phase was never entered.
-
-6. **Add/strengthen contracts.**
-   - native task operations cannot hang indefinitely;
-   - result-path probing is bounded;
-   - lifecycle identity is persisted before `/Create`;
-   - probe-create timeout yields a recoverable terminal classification and exact cleanup path;
-   - no installer worker is created when probe creation fails/times out;
-   - exact `intent_only` baseline remains allowed and all active/partial states remain blocked;
-   - canonical source FQDN identity remains tied to the approved alias by address overlap;
-   - exact operator-local host eligibility remains required.
-
-7. **Run CI and merge only when current PR head is green.**
-   - PR #298 is the active integration branch.
-   - Do not merge on remembered green state from an earlier head.
-
-## Non-regression boundaries
-
-- Keep the protected-network gate before target contact.
-- Keep the current named-domain S4U principal and `/NP` passwordless task model.
-- Do not collect or serialize `DefaultPassword`.
-- Keep source identity fail-closed to the approved alias plus verified canonical DNS identity.
-- Keep exact operator-local host eligibility; do not replace it with a broad wildcard.
-- Do not weaken hash, final-step, cleanup, or restart-observation gates.
-- Do not treat automatic desktop sign-in observation as required for deployment-complete classification.
-- Do not reinstall clinical-core applications merely to reach AutoLogon when they are already independently proven accepted.
-- After a terminal failure or crash, inspect recorded evidence before mutation or retry.
-- Every multiline operator sequence should be wrapped in one `& { ... }` block, but avoid fragile multiline positional invocations inside that block when named parameters or direct path literals are safer.
-
-## Required successful terminal classification
+- run ID;
+- mode;
+- target;
+- task name;
+- S4U principal;
+- remote worker path;
+- remote result path;
+- local result path;
+- create/run/retrieve/delete/absence flags;
+- current stage and timestamps.
+
+Lifecycle evidence is updated after each transition. A terminal crash no longer requires local
+process inspection to rediscover task/run ownership for hardened runs.
+
+Probe failure/timeout remains upstream of installer-worker generation. The install worker is not
+created or launched until the probe result proves the expected SID and elevated administrator token.
+
+## Operator-visible progress
+
+The apply + restart lane persists and streams the 22-stage progression. Major checkpoints cover:
+
+1. transport preflight;
+2. canonical source resolution;
+3. source CIFS ticket;
+4. baseline capture;
+5. baseline eligibility;
+6. final-step gate;
+7. source hash;
+8. staging/hash verification;
+9-12. probe create/run/result/cleanup;
+13-16. install create/run/result/cleanup;
+17. after-state capture;
+18. exact staging cleanup;
+19. restart handoff;
+20. offline observation;
+21. online observation;
+22. restart-task cleanup.
+
+`progress_checkpoint.json` and `progress_history.jsonl` make quiet console periods diagnosable from
+local evidence without touching the target.
+
+## Exact interrupted-run recovery
+
+`Complete-SasInterruptedAutoLogonS4URecovery.ps1` now owns the exact destructive recovery operation.
+It requires protected-network posture and exact recorded target/run/task/local-run identity.
+
+Recovery order is deliberate:
+
+1. prove local evidence never entered install/after-state;
+2. bounded-check the exact remote probe result and retrieve it before cleanup when present;
+3. bounded-query only the recorded exact task name;
+4. if that exact task exists, bounded-delete only that task;
+5. independently bounded-query the same name until absence is proven;
+6. inventory only the exact recorded S4U run root;
+7. refuse unexpected names;
+8. remove only that exact run root;
+9. independently prove exact run-root absence;
+10. prove exact task absence again;
+11. write `S4U_PROBE_CREATE_HANG_RECOVERED` local evidence.
+
+The recovery helper never launches AutoLogon and never broadens cleanup to parent SysAdminSuite
+directories or unrelated scheduled tasks.
+
+`Recover-SasLatestInterruptedAutoLogonS4U.ps1` is the local discovery/orchestration layer used by the
+normal `Remote` deployment. It never enumerates remote scheduled tasks. It discovers ownership only
+from durable local S4U probe lifecycle evidence and invokes the exact helper with those recorded values.
+
+## Legacy July 30 interrupted run boundary
+
+The original field hang occurred before pre-create lifecycle identity persistence existed. That old
+run therefore cannot be safely auto-discovered from the new lifecycle file because the file did not
+exist at the time of the hang.
+
+Field evidence already proved the old installer phase was not entered and the exact old probe task
+was absent after the wedged local process was terminated. If its exact staging run root remains, close
+that one legacy root using the recorded exact identity from the preserved field evidence and the
+tracked exact recovery/cleanup helpers. Do not encode the live target, task GUID, username, or run ID
+into tracked source merely to automate a one-time legacy cleanup.
+
+All new hardened runs persist the information required for automatic exact recovery.
+
+## Security and non-regression boundaries
+
+- protected-network gate before target contact;
+- named-domain passwordless S4U (`/NP`) model preserved;
+- no task password stored;
+- no `DefaultPassword` value collection or serialization;
+- source identity tied to approved alias + verified canonical identity;
+- exact operator-local host eligibility preserved;
+- hash, final-step, exact-cleanup, and restart-observation gates preserved;
+- no broad task discovery for interruption recovery;
+- no automatic fallback after target mutation;
+- no clinical-core redeployment merely to reach AutoLogon;
+- runtime automatic desktop sign-in observation is not fabricated as a deployment-complete proof;
+- terminal crashes resume from recorded evidence instead of reconstructed `try/catch/finally` fragments.
+
+## Validation contracts
+
+The offline/CI harness includes contracts for:
+
+- bounded S4U task verbs;
+- bounded remote result probing;
+- process-tree termination on native timeout;
+- pre-create identity persistence;
+- probe-before-installer ordering;
+- durable software-source identity consumption;
+- exact inert baseline policy consumption;
+- exact run-root cleanup scope;
+- recovery-before-apply orchestration;
+- refusal when interrupted install/after-state evidence exists;
+- exact recorded-task delete/verify ordering;
+- probe-result retrieval before destructive cleanup;
+- branch-preserving, non-force field refresh;
+- durable detached-checkout ref provenance;
+- local-only saved-profile network return;
+- installed and repo-root double-click leave surfaces;
+- no live user/target/secret literals.
+
+PR #298 CI on the **current head** remains the merge gate. Never merge based on a remembered green
+status from an older SHA.
+
+## Required deployment completion classification
 
 AutoLogon-only deployment is complete only at:
 
-`AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED`
+```text
+AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED
+```
 
-That classification remains downstream of accepted first-install baseline state, explicit exact-target host eligibility, required pre-reboot AutoLogon configuration, restart initiation, observed SMB offline/online restart cycle, and restart-task cleanup verification.
+That classification remains downstream of accepted baseline state, exact target eligibility,
+passwordless elevated S4U probe, hash-verified AutoLogon install, required pre-reboot state, exact
+S4U cleanup, restart initiation, observed SMB offline/online restart cycle, and restart-task cleanup.
