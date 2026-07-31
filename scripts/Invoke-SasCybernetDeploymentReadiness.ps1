@@ -106,6 +106,13 @@ $context = New-SasRunContext @contextParameters
 $resultPath = Join-Path $context.directories.artifacts 'cybernet_deployment_readiness_result.json'
 $summaryPath = Join-Path $context.directories.reports 'english_summary.txt'
 
+# Keep the child transport run under a bounded repo-local output root rather than nesting a
+# second workflow/run-id tree beneath the readiness run. Windows PowerShell 5.1 field paths can
+# otherwise exceed the legacy path boundary before request.json is written, even when the parent
+# deployment already uses a short-path alias.
+$transportOutputRoot = Join-Path $repoRoot 'survey\output\t'
+New-Item -ItemType Directory -Path $transportOutputRoot -Force | Out-Null
+
 $result = [ordered]@{
     schema_version = 'sas-cybernet-deployment-readiness-result/v1'
     run_id = $context.run_id
@@ -170,7 +177,7 @@ try {
     $transportParameters = @{
         TransportIntent = 'kerberos_smb_task'
         TimeoutSeconds = $TimeoutSeconds
-        OutputRoot = (Join-Path $context.run_root 'transport')
+        OutputRoot = $transportOutputRoot
         PassThru = $true
     }
     if ($FixtureMode) {
