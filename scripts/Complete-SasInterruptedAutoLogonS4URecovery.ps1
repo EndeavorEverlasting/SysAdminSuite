@@ -7,8 +7,8 @@ Close one exact interrupted AutoLogon S4U probe run without launching AutoLogon.
 Uses only recorded exact run/task identity. Re-proves the protected network, retrieves an exact
 probe result when one exists, queries/deletes/verifies only the recorded probe task through bounded
 schtasks, proves local evidence never entered installer phase, inventories/removes only the exact
-recorded remote S4U run root, verifies absence, and writes a terminal recovery result into the
-preserved local run evidence.
+recorded remote S4U run root under the ProbeOnly artifact profile, verifies absence, and writes a
+terminal recovery result into the preserved local run evidence.
 
 This command never launches the AutoLogon installer and never broadens cleanup beyond the recorded
 task name and recorded run root.
@@ -116,11 +116,16 @@ $taskAbsentBeforeCleanup = ([int]$verifyTask.exit_code -ne 0 -and (Test-SasRecov
 if (-not $taskAbsentBeforeCleanup) { throw 'Exact recorded probe task still exists; refusing run-root cleanup.' }
 Write-Host 'Exact recorded probe task absence: VERIFIED' -ForegroundColor Green
 
-$cleanup = & $cleanupScript -ComputerName $ComputerName -RunId $RunId -ConfirmExactCleanup -TimeoutSeconds $TimeoutSeconds
+# Probe-only recovery must refuse remote installer artifacts before deletion. The generic cleanup
+# helper also serves normal post-install teardown, so select the stricter profile explicitly here.
+$cleanup = & $cleanupScript -ComputerName $ComputerName -RunId $RunId -ConfirmExactCleanup -AllowedArtifactProfile ProbeOnly -TimeoutSeconds $TimeoutSeconds
 if ([string]$cleanup.classification -ne 'EXACT_REMOTE_AUTOLOGON_RUN_ROOT_CLEANED' -or -not [bool]$cleanup.exact_run_root_absent) {
-    throw 'Exact recorded remote S4U run-root cleanup did not prove absence.'
+    throw 'Exact recorded remote S4U probe-only run-root cleanup did not prove absence.'
 }
-Write-Host 'Exact recorded remote S4U run root absent: PASS' -ForegroundColor Green
+if ([string]$cleanup.allowed_artifact_profile -ne 'ProbeOnly') {
+    throw 'Interrupted S4U recovery did not use the required ProbeOnly cleanup profile.'
+}
+Write-Host 'Exact recorded remote S4U probe-only run root absent: PASS' -ForegroundColor Green
 
 $verify = Invoke-SasBoundedNative -FilePath $schtasks -Arguments @('/Query','/S',$ComputerName,'/TN',$TaskName) -TimeoutSeconds $TimeoutSeconds
 if ([bool]$verify.timed_out) { throw 'Timed out verifying exact recorded probe-task absence after cleanup.' }
@@ -151,6 +156,7 @@ $result = [pscustomobject][ordered]@{
     task_delete_succeeded = $taskDeleteSucceeded
     task_absent_before_cleanup = $taskAbsentBeforeCleanup
     task_absent_after_cleanup = $taskAbsentAfterCleanup
+    allowed_artifact_profile = [string]$cleanup.allowed_artifact_profile
     exact_run_root_absent = [bool]$cleanup.exact_run_root_absent
     exact_remote_inventory = @($cleanup.inventory_names)
     cleanup_scope = [string]$cleanup.cleanup_scope
