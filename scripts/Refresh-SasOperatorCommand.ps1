@@ -21,16 +21,15 @@ if (-not $git) { throw 'Git for Windows is required to refresh the field-ready S
 if ($LASTEXITCODE -ne 0) { throw "Not a Git working tree: $RepositoryRoot" }
 
 function Get-SasPersistedRefreshRef {
-    $sessionPath=Join-Path -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite') -ChildPath 'operator-session.json'
-    if (-not (Test-Path -LiteralPath $sessionPath -PathType Leaf)) { return $null }
-    try {
-        $session=Get-Content -LiteralPath $sessionPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $repoRefProperty=$session.PSObject.Properties['repo_ref']
-        if ($repoRefProperty -and -not [string]::IsNullOrWhiteSpace([string]$repoRefProperty.Value)) {
-            return ([string]$repoRefProperty.Value).Trim()
+    $state=Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
+    $refPath=Join-Path -Path $state -ChildPath 'repo-ref.txt'
+    if (Test-Path -LiteralPath $refPath -PathType Leaf) {
+        try {
+            $value=(Get-Content -LiteralPath $refPath -Raw -Encoding ASCII).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($value)) { return $value }
         }
+        catch { }
     }
-    catch { }
     return $null
 }
 
@@ -59,9 +58,7 @@ function Resolve-SasRefreshBranch {
 
         # Terminal/worktree churn can advance the shared remote-tracking ref away from a detached
         # checkout's HEAD. Preserve the last explicitly refreshed branch before considering main.
-        if ([string]::IsNullOrWhiteSpace([string]$candidate)) {
-            $candidate=Get-SasPersistedRefreshRef
-        }
+        if ([string]::IsNullOrWhiteSpace([string]$candidate)) { $candidate=Get-SasPersistedRefreshRef }
 
         # Main is only the final fallback for an old checkout with no branch provenance at all.
         if ([string]::IsNullOrWhiteSpace([string]$candidate)) { $candidate='main' }
@@ -89,6 +86,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remoteHead)) { throw "
 
 $stateRoot=Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
 $preferred=Join-Path -Path $stateRoot -ChildPath 'field-ready'
+$refStatePath=Join-Path -Path $stateRoot -ChildPath 'repo-ref.txt'
 New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
 
 function Test-SameRepository([string]$Candidate) {
@@ -122,18 +120,22 @@ else {
 }
 
 $head=(& $git.Source -C $fieldReady rev-parse HEAD).Trim()
-if ($LASTEXITCODE -ne 0 -or $head -ne $remoteHead) {
-    throw "Field-ready HEAD mismatch for $remoteDisplay. Expected $remoteHead; got $head"
-}
+if ($LASTEXITCODE -ne 0 -or $head -ne $remoteHead) { throw "Field-ready HEAD mismatch for $remoteDisplay. Expected $remoteHead; got $head" }
 
 $required=@(
     'Install-SasOperatorCommand.cmd',
     'Switch-Back-To-Previous-Network.cmd',
+    'Run-AutoLogonOnsite.cmd',
     'scripts\Install-SasPortableLauncher.ps1',
     'scripts\SasPortableLauncher.ps1',
     'scripts\SasOperatorSession.psm1',
     'scripts\Show-SasOperatorContext.ps1',
     'scripts\Return-SasOperatorToPreviousNetwork.ps1',
+    'scripts\Recover-SasLatestInterruptedAutoLogonS4U.ps1',
+    'scripts\Complete-SasInterruptedAutoLogonS4URecovery.ps1',
+    'scripts\Invoke-SasAutoLogonOnsite.ps1',
+    'scripts\Invoke-SasAutoLogonS4URestartDeployment.ps1',
+    'scripts\Invoke-SasAutoLogonKerberosS4UPilot.ps1',
     'scripts\Invoke-SasCybernetCoreRecovery.ps1',
     'Find-SasEvidence.cmd',
     'Deploy-CybernetSoftware.cmd',
@@ -161,11 +163,11 @@ $session=Sync-SasOperatorSessionFromEvidence -RepoRoot $fieldReady -TargetFqdn $
 $nextTarget=if ($session.target_input) { [string]$session.target_input } else { $null }
 $nextCommand=if ($nextTarget) { "sas cybernet Core $nextTarget" } else { 'sas context' }
 $nextNetwork=if ($nextTarget) { 'PROTECTED NORTHWELL' } else { 'ANY / OFFLINE' }
+Set-Content -LiteralPath $refStatePath -Value $refreshBranch -Encoding ASCII
 [void](Set-SasOperatorSessionValues -Values @{
     repo_root=$fieldReady
     repo_head=$head
     launcher_head=$head
-    repo_ref=$refreshBranch
     current_network_classification='GUEST_INTERNET'
     next_required_network=$nextNetwork
     next_command=$nextCommand
