@@ -27,7 +27,11 @@ $remoteRoot = "\\$ComputerName\C$\ProgramData\SysAdminSuite\AutoLogonKerberosS4U
 $expectedNames = @(
     'NW_AutoLogon_Setup_x64.exe',
     's4u-probe-worker.ps1',
-    's4u-probe-result.json'
+    's4u-probe-result.json',
+    's4u-probe-result.json.tmp',
+    's4u-install-worker.ps1',
+    's4u-install-result.json',
+    's4u-install-result.json.tmp'
 )
 
 function Invoke-SasBoundedChildPowerShell {
@@ -53,7 +57,12 @@ function Invoke-SasBoundedChildPowerShell {
         $stderr = $process.StandardError.ReadToEndAsync()
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
             try { $process.Kill() } catch { }
-            return [pscustomobject]@{ timed_out=$true; exit_code=-1; output=''; error="Timed out after $TimeoutSeconds seconds." }
+            return [pscustomobject]@{
+                timed_out=$true
+                exit_code=-1
+                output=''
+                error="Timed out after $TimeoutSeconds seconds."
+            }
         }
         $process.WaitForExit()
         [pscustomobject]@{
