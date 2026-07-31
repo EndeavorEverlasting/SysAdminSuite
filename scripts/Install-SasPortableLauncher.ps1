@@ -48,9 +48,9 @@ Copy-Item -LiteralPath $sourceLauncher -Destination $launcherDestination -Force
 Set-Content -LiteralPath $cachePath -Value $repoRoot -Encoding ASCII
 
 # Keep the CMD shim deliberately small and stable. Before every invocation it checks the
-# cached repo's tracked launcher. If that source changed and parses cleanly, the shim
-# refreshes the installed PowerShell dispatcher automatically. The operator-facing command
-# therefore behaves the same from CMD and PowerShell and does not depend on shell variables.
+# cached repo's tracked launcher. If that source parses cleanly, the shim refreshes the
+# installed dispatcher directly. Avoid Get-FileHash here: some constrained enterprise
+# PowerShell hosts do not expose that cmdlet even though the rest of the operator surface works.
 $cmd = @'
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
@@ -62,7 +62,7 @@ if exist "%SAS_CACHE%" (
   set /p SAS_REPO=<"%SAS_CACHE%"
   if defined SAS_REPO if exist "!SAS_REPO!\scripts\SasPortableLauncher.ps1" (
     set "SAS_SOURCE=!SAS_REPO!\scripts\SasPortableLauncher.ps1"
-    powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$s=$env:SAS_SOURCE; $d=$env:SAS_INSTALLED; try { $t=$null; $e=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($s,[ref]$t,[ref]$e); if (@($e).Count -gt 0) { Write-Warning 'Repo launcher changed but has parse errors; preserving installed launcher.'; exit 0 }; $copy=(-not (Test-Path -LiteralPath $d -PathType Leaf)); if (-not $copy) { $copy=((Get-FileHash -Algorithm SHA256 -LiteralPath $s).Hash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $d).Hash) }; if ($copy) { Copy-Item -LiteralPath $s -Destination $d -Force; Write-Host 'sas launcher refreshed from cached SysAdminSuite repo.' -ForegroundColor DarkCyan } } catch { Write-Warning ('Could not self-refresh sas launcher; preserving installed copy. ' + $_.Exception.Message) }"
+    powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$s=$env:SAS_SOURCE; $d=$env:SAS_INSTALLED; try { $t=$null; $e=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($s,[ref]$t,[ref]$e); if (@($e).Count -gt 0) { Write-Warning 'Repo launcher changed but has parse errors; preserving installed launcher.'; exit 0 }; Copy-Item -LiteralPath $s -Destination $d -Force } catch { Write-Warning ('Could not self-refresh sas launcher; preserving installed copy. ' + $_.Exception.Message) }"
   )
 )
 
