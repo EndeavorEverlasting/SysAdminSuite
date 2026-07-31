@@ -10,8 +10,32 @@ on:
       - 'harness/workflows/autologon-proof-contract-floor.yaml'
       - 'Tests/Fixtures/autologon-contract-floor/**'
       - 'Tests/survey/test_autologon_proof_contract_floor_contracts.py'
+      - 'Tests/survey/test_autologon_kerberos_s4u_contracts.py'
+      - 'Tests/survey/test_autologon_s4u_field_hardening_contracts.py'
+      - 'Tests/survey/test_autologon_interrupted_recovery_orchestration_contracts.py'
+      - 'Tests/survey/test_autologon_exact_run_root_cleanup_contracts.py'
+      - 'Tests/survey/test_autologon_intent_only_baseline_contracts.py'
+      - 'Tests/survey/test_software_source_identity_contracts.py'
+      - 'Tests/survey/test_sas_operator_refresh_contracts.py'
+      - 'Tests/survey/test_operator_network_return_contracts.py'
+      - 'scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1'
+      - 'scripts/Invoke-SasAutoLogonS4URestartDeployment.ps1'
+      - 'scripts/Invoke-SasAutoLogonOnsite.ps1'
+      - 'scripts/Recover-SasLatestInterruptedAutoLogonS4U.ps1'
+      - 'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1'
+      - 'scripts/Remove-SasExactRemoteAutoLogonRunRoot.ps1'
+      - 'scripts/SasBoundedNative.psm1'
+      - 'scripts/SasSoftwareSourceIdentity.psm1'
+      - 'scripts/SasAutoLogonBaselinePolicy.psm1'
+      - 'scripts/Refresh-SasOperatorCommand.ps1'
+      - 'scripts/Return-SasOperatorToPreviousNetwork.ps1'
+      - 'scripts/SasPortableLauncher.ps1'
+      - 'scripts/Install-SasPortableLauncher.ps1'
+      - 'Run-AutoLogonOnsite.cmd'
+      - 'Switch-Back-To-Previous-Network.cmd'
       - 'tests/survey/run_offline_survey_tests.sh'
       - 'docs/AUTOLOGON_PROOF_CONTRACT_FLOOR.md'
+      - 'docs/handoff/autologon-s4u-field-hardening-2026-07-30.md'
       - 'CODEBASE_MAP.md'
   push:
     branches:
@@ -35,6 +59,24 @@ jobs:
 
       - name: Run dependency-free AutoLogon proof contracts
         run: python3 Tests/survey/test_autologon_proof_contract_floor_contracts.py
+
+      - name: Run AutoLogon field-hardening contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Tests/survey/test_autologon_kerberos_s4u_contracts.py
+          python3 Tests/survey/test_autologon_s4u_field_hardening_contracts.py
+          python3 Tests/survey/test_autologon_interrupted_recovery_orchestration_contracts.py
+          python3 Tests/survey/test_autologon_exact_run_root_cleanup_contracts.py
+          python3 Tests/survey/test_autologon_intent_only_baseline_contracts.py
+          python3 Tests/survey/test_software_source_identity_contracts.py
+
+      - name: Run operator field-friction contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Tests/survey/test_sas_operator_refresh_contracts.py
+          python3 Tests/survey/test_operator_network_return_contracts.py
 
       - name: Install JSON Schema validator
         run: python -m pip install jsonschema

@@ -85,6 +85,7 @@ def test_low_noise_collector_probes_only_the_requested_transport() -> None:
         "[ValidateSet('kerberos_smb_task', 'winrm')]",
         '"get HTTP/{0}"',
         '"get CIFS/{0}"',
+        '"get HOST/{0}"',
         "port_5985",
         "port_5986",
         "port_445",
@@ -96,13 +97,12 @@ def test_low_noise_collector_probes_only_the_requested_transport() -> None:
     ):
         assert token in text, f"low-noise collector missing {token}"
 
-    assert "get HOST/" not in text
     assert '"/Query /S {0} /FO CSV /NH"' not in text
     assert '"/Query /S {0} /TN {1} /FO LIST"' in text
     assert "-Filter (\"TaskName='{0}'\"" in text
 
-    # SMB is staged: identity/ticket -> 445 -> ADMIN$ -> 135 -> scheduler reads.
-    assert text.index("if ($tickets.cifs.issued)") < text.index("-Port 445")
+    # SMB is staged: required CIFS+HOST tickets -> 445 -> ADMIN$ -> 135 -> scheduler reads.
+    assert text.index("if ($tickets.cifs.issued -and $tickets.host.issued)") < text.index("-Port 445")
     assert text.index("if ($tcp.port_445.reachable)") < text.index("ADMIN$")
     assert text.index("if ($adminShare.authorized)") < text.index("-Port 135")
     assert text.index("if ($tcp.port_135.reachable)") < text.index("Name='Schedule'")

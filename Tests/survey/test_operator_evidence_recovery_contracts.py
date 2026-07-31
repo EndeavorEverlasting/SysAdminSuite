@@ -31,13 +31,10 @@ def test_offline_recovery_surface_is_wired() -> None:
     cmd = read(CMD)
     launcher = read(LAUNCHER)
     installer = read(INSTALLER)
-    for marker in (
-        "sas evidence",
-        "Find-SasEvidence.cmd",
-    ):
-        assert marker in launcher
+    assert "sas evidence" in launcher
+    assert "Find-SasEvidence.cmd" in launcher
     assert "Show-SasOperatorEvidence.ps1" in cmd
-    assert "sas evidence" in installer
+    assert "sas evidence Cybernet" in installer
     assert "Network activity: NONE | Target contact: NONE" in script
     for forbidden in (
         "Test-NetConnection",
@@ -51,9 +48,11 @@ def test_offline_recovery_surface_is_wired() -> None:
         assert forbidden.lower() not in script.lower(), forbidden
 
 
-def test_recovery_considers_portable_user_desktop_and_onedrive_layouts() -> None:
+def test_recovery_considers_machine_local_field_ready_and_portable_layouts() -> None:
     script = read(SCRIPT)
     for marker in (
+        "$env:LOCALAPPDATA",
+        "field-ready*",
         "$env:USERPROFILE",
         "$env:OneDrive",
         "$env:OneDriveCommercial",
@@ -70,47 +69,64 @@ def test_recovery_considers_portable_user_desktop_and_onedrive_layouts() -> None
     assert "Get-ChildItem -Path $env:USERPROFILE -Recurse" not in script
 
 
-def test_recovery_knows_critical_artifacts_and_interprets_them() -> None:
+def test_recovery_knows_profiled_core_artifacts_and_failure_boundary() -> None:
     script = read(SCRIPT)
     for marker in (
+        "cybernet_profiled_clinical_core_result.json",
+        "profiled clinical-core recovery",
+        "cybernet_clinical_core_source_preflight.json",
         "cybernet_deployment_readiness_result.json",
         "cybernet_software_deployment_result.json",
         "autologon_s4u_deployment_result.json",
         "autologon_kerberos_s4u_pilot_result.json",
-        "cybernet_clinical_core_deployment_summary.json",
         "runtime-proof-summary.json",
-        "CYBERNET_DEPLOYMENT_READINESS_READY",
-        "CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY",
-        "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED",
-        "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
-        "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
-        "CLINICAL_CORE_DEPLOYMENT_COMPLETED",
-        "TECHNICIAN_OBSERVED_LIVE_RUNTIME",
+        "CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED",
+        "CYBERNET_PROFILED_CLINICAL_CORE_RECOVERY_VERIFIED",
+        "CYBERNET_CLINICAL_CORE_SOURCES_READY",
+        "CYBERNET_CLINICAL_CORE_SOURCES_INCOMPLETE",
+        "ACTION_REQUIRED",
         "Do not blindly rerun",
     ):
         assert marker in script, marker
-    assert "This is not deployment completion" in script
-    assert "sas cybernet Deploy HOST" in script
-    assert "runs a fresh readiness gate in the same transaction" in script
-    assert "Do not promote fixture evidence to live readiness or deployment" in script
+    for field in (
+        "run_id",
+        "target",
+        "phase",
+        "checkpoint",
+        "completed_packages",
+        "failed_package",
+        "cleanup_succeeded",
+        "target_mutated",
+        "next_network",
+        "next_command",
+    ):
+        assert field in script, field
+    assert "AutoLogon was preserved/untouched" in script
+    assert "Imprivata was observational only" in script
+    assert "no reboot was performed" in script
+
+
+def test_action_required_emits_exact_network_and_command_without_target_contact() -> None:
+    script = read(SCRIPT)
+    assert "NEXT NETWORK:" in script
+    assert "NEXT COMMAND:" in script
+    assert "sas cybernet Recover $short" in script
+    assert "sas cybernet Core $short" in script
+    assert "target_mutated" in script
+    assert "cleanup_succeeded" in script
+    assert "network_activity_performed=$false" in script
+    assert "target_contact_performed=$false" in script
 
 
 def test_recovery_writes_stable_local_pointer_without_committing_evidence() -> None:
     script = read(SCRIPT)
     doc = read(DOC)
-    for marker in (
-        "$env:LOCALAPPDATA",
-        "last-evidence.json",
-        "sas-operator-evidence-recovery/v1",
-        "target_contact_performed = $false",
-        "network_activity_performed = $false",
-    ):
-        assert marker in script, marker
+    assert "$env:LOCALAPPDATA" in script
+    assert "last-evidence.json" in script
+    assert "sas-operator-evidence-recovery/v2" in script
     assert "%LOCALAPPDATA%\\SysAdminSuite\\last-evidence.json" in doc
     assert "must not be committed" in doc
     assert "Do not repeat a readiness probe or redeploy a target merely to recreate console output" in doc
-    assert "CYBERNET_DEPLOYMENT_READINESS_READY" in doc
-    assert "CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY" in doc
 
 
 def test_harness_registers_evidence_recovery_command_artifact_and_outcome() -> None:
@@ -136,7 +152,7 @@ def test_offline_floor_runs_recovery_contracts() -> None:
 
 def test_no_user_specific_literals() -> None:
     combined = "\n".join(read(path) for path in (SCRIPT, CMD, LAUNCHER, INSTALLER, DOC))
-    for forbidden in ("pa_rperez26", "Cheex", "rperez26@", "rperez@"):
+    for forbidden in ("pa_rperez26", "WPJ075OPR046", "Cheex", "rperez26@", "rperez@"):
         assert forbidden.lower() not in combined.lower(), forbidden
 
 

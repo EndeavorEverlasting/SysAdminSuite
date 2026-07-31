@@ -127,7 +127,8 @@ Describe 'Software deployment transport preflight' {
         $lowNoiseText = Get-Content -LiteralPath $script:lowNoiseModulePath -Raw
         $entrypointText | Should -Match 'if \(\$TransportIntent -eq ''auto''\)'
         $entrypointText | Should -Match 'Invoke-SasSoftwareDeploymentLowNoiseObservation'
-        $lowNoiseText | Should -Not -Match 'get HOST/'
+        $lowNoiseText | Should -Match 'get HOST/\{0\}'
+        $lowNoiseText | Should -Match '\$tickets\.cifs\.issued -and \$tickets\.host\.issued'
         $lowNoiseText | Should -Match '/Query /S \{0\} /TN \{1\} /FO LIST'
         $lowNoiseText | Should -Not -Match '/Query /S \{0\} /FO CSV /NH'
     }

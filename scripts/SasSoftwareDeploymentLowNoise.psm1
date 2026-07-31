@@ -246,8 +246,11 @@ function Invoke-SasSoftwareDeploymentLowNoiseObservation {
         if ($identityReady) {
             $ticketResult = Invoke-SasLowNoiseBoundedProcess -FilePath 'klist.exe' -Arguments ("get CIFS/{0}" -f $ComputerName) -TimeoutSeconds $TimeoutSeconds
             $tickets.cifs = New-SasLowNoiseTicketObservation -Requested $true -Issued (-not $ticketResult.timed_out -and $ticketResult.exit_code -eq 0)
+
+            $hostTicketResult = Invoke-SasLowNoiseBoundedProcess -FilePath 'klist.exe' -Arguments ("get HOST/{0}" -f $ComputerName) -TimeoutSeconds $TimeoutSeconds
+            $tickets.host = New-SasLowNoiseTicketObservation -Requested $true -Issued (-not $hostTicketResult.timed_out -and $hostTicketResult.exit_code -eq 0)
         }
-        if ($tickets.cifs.issued) {
+        if ($tickets.cifs.issued -and $tickets.host.issued) {
             $tcp.port_445 = Test-SasLowNoiseTcpPort -ComputerName $ComputerName -Port 445 -TimeoutSeconds $TimeoutSeconds
         }
         if ($tcp.port_445.reachable) {

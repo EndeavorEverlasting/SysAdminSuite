@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 set "SCRIPT_DIR=%~dp0"
 title SysAdminSuite - Cybernet Clinical Core Deployment
 
@@ -7,25 +7,26 @@ if /I "%~1"=="Help" goto help_ok
 if /I "%~1"=="-h" goto help_ok
 if /I "%~1"=="--help" goto help_ok
 if /I "%~1"=="/?" goto help_ok
-
 if "%~1"=="" goto help_error
 if "%~2"=="" goto help_error
 if not "%~3"=="" (
   echo ERROR: Provide one mode and one explicit authorized Cybernet hostname or FQDN.
   goto help_error
 )
-
 if /I "%~1"=="Plan" goto plan
 if /I "%~1"=="Deploy" goto deploy
 echo ERROR: Mode must be Plan or Deploy.
 goto help_error
 
 :plan
+echo NETWORK REQUIRED: PROTECTED NORTHWELL
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Test-SasCybernetClinicalCoreSources.ps1"
+if errorlevel 1 goto done
 powershell.exe -NoLogo -NoProfile -File "%SCRIPT_DIR%scripts\Invoke-SasCybernetClinicalCoreDeployment.ps1" -Mode Plan -ComputerName "%~2"
 goto done
 
 :deploy
-powershell.exe -NoLogo -NoProfile -File "%SCRIPT_DIR%scripts\Invoke-SasCybernetClinicalCoreDeployment.ps1" -Mode Deploy -ComputerName "%~2" -AllowTargetMutation -ConfirmDeployment
+call "%SCRIPT_DIR%Deploy-CybernetProfiledClinicalCore.cmd" "%~2"
 goto done
 
 :help_ok
@@ -43,17 +44,13 @@ echo Usage:
 echo   Deploy-CybernetClinicalCore.cmd Plan CYBERNET-HOST
 echo   Deploy-CybernetClinicalCore.cmd Deploy CYBERNET-HOST
 echo.
-echo Plan performs the exact five-package controller dry run without target mutation.
-echo Deploy runs the current PowerShell Northwell network gate, repeats the dry run, then
-echo continues directly into live deployment of the five approved clinical-core applications.
-echo.
-echo AutoLogon is NOT included. It remains a separate last step through:
-echo   sas autologon Remote CYBERNET-HOST
-echo.
-echo No reboot is performed. On any nonzero deployment result, preserve evidence and do not blindly rerun.
+echo Deploy routes through the same stateful Windows-native transaction as sas cybernet Core HOST.
+echo It owns exact prior-run recovery, source preflight before new staging, SYSTEM execution,
+echo before/after AutoLogon + Imprivata profile evidence, no reboot, and verified run-scoped cleanup.
+echo AutoLogon is NOT included. Imprivata is observational/external only.
 exit /b 0
 
 :done
 set "EXITCODE=%ERRORLEVEL%"
-if not "%EXITCODE%"=="0" echo Clinical-core deployment finished with exit code %EXITCODE%. Review the emitted evidence before retrying.
-endlocal & exit /b %EXITCODE%
+if not "%EXITCODE%"=="0" echo Clinical-core operation finished with exit code %EXITCODE%. Use sas context or sas next before retrying.
+for %%# in (%EXITCODE%) do endlocal ^& exit /b %%#
