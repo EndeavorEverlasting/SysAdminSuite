@@ -19,7 +19,8 @@ function Test-SasRepoRoot {
     foreach ($relative in @(
         'Run-AutoLogonOnsite.cmd','Run-CybernetBatchConfiguration.cmd','Probe-CybernetSoftware.cmd',
         'Deploy-CybernetSoftware.cmd','Deploy-CybernetClinicalCore.cmd','Deploy-CybernetProfiledClinicalCore.cmd',
-        'Find-SasEvidence.cmd','Refresh-SasOperatorCommand.cmd','scripts\SasNetworkGuard.psm1'
+        'Find-SasEvidence.cmd','Refresh-SasOperatorCommand.cmd','Switch-Back-To-Previous-Network.cmd',
+        'scripts\SasNetworkGuard.psm1','scripts\Return-SasOperatorToPreviousNetwork.ps1'
     )) {
         if (-not (Test-Path -LiteralPath (Join-Path $candidate $relative) -PathType Leaf)) { return $false }
     }
@@ -93,7 +94,8 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host ''
     Write-Host '  sas context                          Show persistent operator/session state'
     Write-Host '  sas next                             Show only next network + one next command'
-    Write-Host '  sas refresh                          GUEST / INTERNET: refresh origin/main field-ready checkout'
+    Write-Host '  sas refresh                          GUEST / INTERNET: refresh the current tracked branch'
+    Write-Host '  sas leave                            LOCAL ONLY: return to recorded previous guest/internet Wi-Fi'
     Write-Host '  sas cybernet Core HOST              PROTECTED NORTHWELL: five clinical apps; AutoLogon untouched; no reboot'
     Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact previous-run cleanup/recovery only'
     Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
@@ -108,7 +110,8 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas open                             Open repository in Explorer'
     Write-Host ''
     Write-Host 'GUEST-SAFE refresh: On Guest/Internet: sas refresh' -ForegroundColor Cyan
-    Write-Host 'After refresh, Move to the approved protected network. `sas next` retains the target/lane.' -ForegroundColor Cyan
+    Write-Host 'After refresh, move to the approved protected network. `sas next` retains the target/lane.' -ForegroundColor Cyan
+    Write-Host 'After protected work, use `sas leave` or double-click Switch-Back-To-Previous-Network.cmd.' -ForegroundColor Cyan
     Write-Host 'Core completion marker: CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED' -ForegroundColor DarkGray
     Write-Host 'Readiness marker: CYBERNET_DEPLOYMENT_READINESS_READY' -ForegroundColor DarkGray
     Write-Host 'AutoLogon marker: AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED' -ForegroundColor DarkGray
@@ -139,10 +142,15 @@ switch ($normalized) {
                 Write-Host "CURRENT NETWORK: $($network.classification) [$($network.label)]" -ForegroundColor Yellow
                 Write-Host 'NEXT NETWORK: GUEST / INTERNET' -ForegroundColor Cyan
                 Write-Host 'NEXT COMMAND: sas refresh' -ForegroundColor Green
+                Write-Host 'LOCAL RETURN COMMAND: sas leave' -ForegroundColor Green
                 exit 20
             }
         }
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Refresh-SasOperatorCommand.ps1') -RepositoryRoot $repoRoot
+        exit $LASTEXITCODE
+    }
+    { $_ -in @('leave','guest','return-network') } {
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Return-SasOperatorToPreviousNetwork.ps1')
         exit $LASTEXITCODE
     }
     'evidence' { exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Find-SasEvidence.cmd' -Arguments $CommandArgs) }
