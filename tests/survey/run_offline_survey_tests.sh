@@ -31,7 +31,12 @@ python3 Tests/survey/test_portable_onsite_runtime_fixture.py
 python3 Tests/survey/test_network_switch_verification_contracts.py
 python3 Tests/survey/test_network_guard_wlan_event_contracts.py
 python3 Tests/survey/test_autologon_kerberos_s4u_contracts.py
+python3 Tests/survey/test_autologon_s4u_field_hardening_contracts.py
 python3 Tests/survey/test_software_source_identity_contracts.py
+python3 Tests/survey/test_autologon_intent_only_baseline_contracts.py
+python3 Tests/survey/test_autologon_exact_run_root_cleanup_contracts.py
+python3 Tests/survey/test_autologon_s4u_local_run_status_contracts.py
+python3 Tests/survey/test_host_eligibility_local_authorizer_contracts.py
 python3 Tests/survey/test_autologon_s4u_path_budget_contracts.py
 python3 harness/validators/validate-harness-registries.py
 python3 harness/validators/validate-outcome-contracts.py
