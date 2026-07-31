@@ -43,23 +43,31 @@ def test_policy_never_collects_or_serializes_password_value() -> None:
         assert forbidden.lower() not in text.lower(), forbidden
 
 
-def test_current_s4u_guard_is_the_integration_point() -> None:
+def test_current_s4u_lane_consumes_the_durable_baseline_policy_directly() -> None:
     text = read(S4U)
-    assert "function Test-SasS4UCleanBaseline" in text
+    assert "SasAutoLogonBaselinePolicy.psm1" in text
+    assert "Import-Module $baselinePolicyModule -Force" in text
+    assert "Test-SasAutoLogonFirstInstallBaseline -Snapshot $baseline.snapshot" in text
+    assert "function Test-SasS4UCleanBaseline" not in text
     assert "KERBEROS_S4U_DIRTY_BASELINE" in text
     assert "Do not reinstall blindly" in text
 
 
-def test_field_handoff_records_proven_intent_only_baseline_boundary() -> None:
+def test_field_handoff_records_exact_inert_first_install_baseline_and_recovery_boundary() -> None:
     text = read(HANDOFF).lower()
     for marker in (
-        "baseline field proof",
-        "autologon.status = intent_only",
-        "auto_admin_logon = 0",
-        "default_password_present = false",
-        "no installed-software row matching `nw autologon setup`",
-        "coarse classifier defect",
-        "baseline_snapshot.json",
+        "first-install baseline",
+        "`not_configured` with no installed autologon package",
+        "exact inert `intent_only`",
+        "autologon_yes",
+        "autoadminlogon disabled",
+        "no forceautologon",
+        "no autologoncount",
+        "no defaultpassword value present",
+        "no expected-user match",
+        "active, partial, mismatched, password-bearing, or package-present states fail closed",
+        "recover-saslatestinterruptedautologons4u.ps1",
+        "do not reinstall blindly",
     ):
         assert marker in text, marker
 
