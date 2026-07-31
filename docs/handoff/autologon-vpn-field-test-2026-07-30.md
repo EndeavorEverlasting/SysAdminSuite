@@ -9,6 +9,7 @@ This document is an operator sequence, not a replacement transport or deployment
 ## Current canonical state
 
 - PR #298 merged the hardened Cybernet clinical-core and AutoLogon S4U field path to `main`.
+- PR #298 merge commit: `ede5170f55b38b8e6593c6501372eab3629ee509`.
 - The supported AutoLogon deployment command is `sas autologon Remote HOST`.
 - The Remote lane performs the protected-network gate, safe interrupted probe-only recovery, AutoLogon S4U deployment, and restart-completion observation.
 - Do not rerun `sas cybernet Core HOST` merely to reach AutoLogon.
@@ -17,13 +18,32 @@ This document is an operator sequence, not a replacement transport or deployment
 
 ## Lane A — ordinary Internet
 
-Use ordinary Internet only to acquire the current canonical operator surface.
+Use ordinary Internet only to acquire canonical `main`. Earlier field runs intentionally persisted the feature-branch ref, so do not rely on an unqualified `sas refresh` for this one convergence step.
 
 ```powershell
 $ErrorActionPreference = 'Stop'
 $Sas = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\bin\sas.cmd'
-& $Sas refresh
+if (-not (Test-Path -LiteralPath $Sas -PathType Leaf)) {
+    throw "sas is not installed at $Sas"
+}
+
+$Repo = (& $Sas repo | Select-Object -Last 1).Trim()
+if ([string]::IsNullOrWhiteSpace($Repo)) { throw 'sas repo returned no repository path.' }
+$Refresh = Join-Path $Repo 'scripts\Refresh-SasOperatorCommand.ps1'
+if (-not (Test-Path -LiteralPath $Refresh -PathType Leaf)) { throw "Missing refresh script: $Refresh" }
+
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $Refresh -RepositoryRoot $Repo -Ref main
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+# The refresh installer may move the cached repo root to the isolated field-ready main checkout.
+$Repo = (& $Sas repo | Select-Object -Last 1).Trim()
+$Head = (git -C $Repo rev-parse HEAD).Trim()
+git -C $Repo merge-base --is-ancestor ede5170f55b38b8e6593c6501372eab3629ee509 $Head
+if ($LASTEXITCODE -ne 0) {
+    throw "Refreshed HEAD does not contain merged PR #298. HEAD=$Head"
+}
+
+Write-Host "CANONICAL MAIN READY: $Head" -ForegroundColor Green
 & $Sas context
 exit $LASTEXITCODE
 ```
@@ -32,7 +52,8 @@ Expected proof:
 
 - `SAS_OPERATOR_REFRESH_READY`
 - `REF: main`
-- a concrete `HEAD:`
+- `CANONICAL MAIN READY: <sha>`
+- PR #298 merge commit is an ancestor of the refreshed HEAD
 - no target contact or target mutation
 
 Then manually enable the approved Northwell VPN.
