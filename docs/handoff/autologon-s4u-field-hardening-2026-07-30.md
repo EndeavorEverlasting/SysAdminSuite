@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Preserve the field-proven findings from the July 30 Cybernet AutoLogon deployment work so a new terminal, workstation, or agent does not rediscover the same launcher, path, Kerberos, software-source identity, baseline-classification, or host-eligibility failures.
+Preserve the field-proven findings from the July 30 Cybernet AutoLogon deployment work so a new terminal, workstation, or agent does not rediscover the same launcher, path, Kerberos, software-source identity, baseline-classification, host-eligibility, or silent S4U probe failures.
 
 This handoff intentionally contains no live username, password, AutoLogon secret, or authorized target identifier.
 
@@ -40,6 +40,11 @@ This handoff intentionally contains no live username, password, AutoLogon secret
    - The tracked sample policy is synthetic and must not authorize live hosts.
    - `Set-SasHostEligibilityLocalTarget.ps1` creates or updates only the gitignored local policy after explicit `-ConfirmLocalAuthorization`, inserts an exact escaped hostname pattern for `remote`, and immediately re-runs the existing eligibility validator.
    - Broad wildcard authorization is not required for field deployment and should not be introduced merely to clear the final-step gate.
+
+7. **A local-only observer now distinguishes quiet console output from a real S4U stall.**
+   - `Show-SasAutoLogonS4URunState.ps1` inspects only repo-local run evidence.
+   - The observer performs no network activity, target contact, task queries, or mutation.
+   - It classifies progress through transport preflight, source identity, baseline, final gate, probe, install, after-state, and terminal-result stages.
 
 ## Field proof achieved after the HOST-ticket correction
 
@@ -110,32 +115,66 @@ After exact operator-local authorization was created for the already-authorized 
 
 This cleared the prior `KERBEROS_S4U_FINAL_GATE_BLOCKED` / `host_eligibility` stop without disabling or bypassing the final-step gate.
 
+## Live S4U probe stall proof
+
+A subsequent live run passed network, transport, software-source identity, baseline, and final-step prerequisites, then stopped producing console output after the normal S4U header.
+
+The local-only observer identified the exact stage as:
+
+`PROBE_TASK_PREPARATION_OR_EXECUTION`
+
+with all of the following evidence:
+
+- transport preflight result present;
+- software-source identity and Kerberos ticket evidence present;
+- baseline snapshot present;
+- final-step gate result present;
+- `s4u-probe-worker.ps1` present;
+- no probe result;
+- no install worker;
+- no install result;
+- no after snapshot;
+- no terminal pilot result;
+- newest local artifact older than ten minutes.
+
+Therefore the AutoLogon installer had **not started** at this point, but target staging and/or a probe scheduled task may already exist.
+
+The implementation explains why the advertised probe timeout did not protect the operator:
+
+- `Invoke-SasS4UNative` invokes native utilities synchronously without a timeout;
+- `schtasks.exe /Create`, `/Run`, `/Delete`, and `/Query` are therefore potentially unbounded;
+- the result polling loop calls UNC `Test-Path` before checking its deadline, so an SMB `Test-Path` stall can also exceed the nominal timeout indefinitely;
+- no lifecycle file is written until `Invoke-SasS4UTask` returns, leaving the exact task name unavailable from normal local evidence while the call is wedged.
+
+This is a harness defect, not acceptable quiet progress. The executable lane must use bounded native task operations, bounded result-existence probes, and persist the exact task name/run checkpoint **before** remote task creation.
+
 ## Interrupted live-run recovery boundary
 
-The first live attempt after host eligibility passed advanced into the S4U AutoLogon lane and printed the normal target/principal/package header. The operator then observed no further console output for an extended period and interrupted the run with `Ctrl-C`.
+Once a run reaches probe preparation/execution, treat target state as unknown until exact-run recovery closes it. Do not infer `autologon_applied = false` merely because there is no install result; target staging and the probe task may exist even though the installer worker has not been created.
 
-Because the interruption occurred after the final-step prerequisites had been cleared, the deployment must now be treated as **state unknown until exact-run recovery proves otherwise**. Do not infer `autologon_applied = false` from any earlier result file and do not rerun the installer blindly.
-
-The S4U implementation has long silent sections between the header and the later `Starting AutoLogon remotely...` message. During that interval it may perform transport preflight, source-ticket proof, baseline capture, final-step gate, source hashing, target staging, and the S4U probe task. A `Ctrl-C` can therefore occur before or after target staging/task creation.
-
-Required recovery order after an interruption:
+Required recovery order after an interruption or confirmed probe stall:
 
 1. identify the newest exact S4U run directory under the current deployment run;
 2. inspect local result/lifecycle/checkpoint evidence first;
-3. query only exact SysAdminSuite task names/run roots associated with that run;
-4. retrieve any completed worker result before cleanup;
-5. determine whether AutoLogon was actually installed/configured before considering any retry;
-6. perform only exact run-scoped cleanup after evidence retrieval.
+3. determine the exact current local blocking primitive before terminating the operator process;
+4. query only exact SysAdminSuite task names/run roots associated with that run when the task identity can be proven;
+5. retrieve any completed worker result before cleanup;
+6. confirm no install worker/result exists before considering a retry;
+7. perform only exact run-scoped cleanup after evidence retrieval.
 
 No new installer execution is allowed until this recovery classification is closed.
 
 ## Current remaining integration boundary
 
-The repository now contains durable canonical software-source identity, intent-only baseline policy, and exact operator-local host-authorization helpers. The executable S4U lane must consume the durable source/baseline modules before the field-hardening branch is considered fully integrated.
+The repository now contains durable canonical software-source identity, intent-only baseline policy, exact operator-local host-authorization helpers, and a local-only S4U run observer.
 
-The immediate field action is crash recovery for the interrupted run, not another deployment attempt.
+The executable S4U lane still needs three hardening changes before another unattended field run is trustworthy:
 
-Do not weaken the baseline rule into a generic dirty-baseline bypass and do not weaken host eligibility into a broad remote wildcard. Only the exact inert `intent_only` posture and explicitly authorized exact target should pass.
+1. consume the durable source-identity and baseline-policy modules directly;
+2. bound every native `schtasks.exe` operation and every remote-result existence probe;
+3. persist task/checkpoint identity before remote mutation and emit operator-visible stage heartbeats.
+
+The immediate field action is exact recovery of the stalled probe run, not another deployment attempt.
 
 ## Non-regression boundaries
 
