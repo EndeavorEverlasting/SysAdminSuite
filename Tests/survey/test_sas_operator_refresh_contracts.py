@@ -31,21 +31,20 @@ def test_repo_local_refresh_surface_exists_and_is_guest_safe() -> None:
         assert forbidden.lower() not in script.lower(), forbidden
 
 
-def test_refresh_preserves_active_branch_detached_remote_and_session_provenance() -> None:
+def test_refresh_preserves_active_branch_detached_remote_and_persisted_provenance() -> None:
     script = read("scripts/Refresh-SasOperatorCommand.ps1")
     for marker in (
         "Resolve-SasRefreshBranch",
         "branch --show-current",
         "branch -r --points-at HEAD",
         "Get-SasPersistedRefreshRef",
-        "operator-session.json",
-        "repo_ref",
+        "repo-ref.txt",
         "origin/",
         "refs/heads/${refreshBranch}:${remoteTrackingRef}",
         "$remoteDisplay=\"origin/$refreshBranch\"",
         "worktree add --detach $fieldReady $remoteDisplay",
         "checkout --detach $remoteDisplay",
-        "repo_ref=$refreshBranch",
+        "Set-Content -LiteralPath $refStatePath -Value $refreshBranch -Encoding ASCII",
         "REF: $refreshBranch",
     ):
         assert marker in script, marker
@@ -80,23 +79,28 @@ def test_installed_shim_self_refreshes_dispatcher_from_cached_repo() -> None:
         "Copy-Item -LiteralPath $s -Destination $d -Force",
         "sas launcher refreshed from cached SysAdminSuite repo.",
         "preserving installed launcher",
+        "sas-leave.cmd",
+        "Double-click network return",
     ):
         assert marker in installer, marker
     assert "ParseFile($s" in installer
     assert "parse errors" in installer.lower()
 
 
-def test_launcher_exposes_refresh_before_live_target_work() -> None:
+def test_launcher_exposes_refresh_and_local_return_before_live_target_work() -> None:
     launcher = read("scripts/SasPortableLauncher.ps1")
     assert "sas refresh" in launcher
+    assert "sas leave" in launcher
     assert "GUEST-SAFE" in launcher
     assert "On Guest/Internet: sas refresh" in launcher
-    assert "Move to the approved protected network." in launcher
+    assert "Return-SasOperatorToPreviousNetwork.ps1" in launcher
+    assert "Move to the approved protected network.".lower() in launcher.lower()
     assert "sas cybernet Deploy HOST" in launcher
     refresh_case = launcher.index("'refresh' {")
+    leave_case = launcher.index("'leave','guest','return-network'")
     evidence_case = launcher.index("'evidence' {")
     cybernet_case = launcher.index("'cybernet' {")
-    assert refresh_case < evidence_case < cybernet_case
+    assert refresh_case < leave_case < evidence_case < cybernet_case
     assert "Refresh-SasOperatorCommand.ps1" in launcher
 
 
@@ -105,9 +109,15 @@ def test_refresh_requires_current_deployment_recovery_and_network_return_entrypo
     for marker in (
         "Install-SasOperatorCommand.cmd",
         "Switch-Back-To-Previous-Network.cmd",
+        "Run-AutoLogonOnsite.cmd",
         "scripts\\Install-SasPortableLauncher.ps1",
         "scripts\\SasPortableLauncher.ps1",
         "scripts\\Return-SasOperatorToPreviousNetwork.ps1",
+        "scripts\\Recover-SasLatestInterruptedAutoLogonS4U.ps1",
+        "scripts\\Complete-SasInterruptedAutoLogonS4URecovery.ps1",
+        "scripts\\Invoke-SasAutoLogonOnsite.ps1",
+        "scripts\\Invoke-SasAutoLogonS4URestartDeployment.ps1",
+        "scripts\\Invoke-SasAutoLogonKerberosS4UPilot.ps1",
         "Find-SasEvidence.cmd",
         "Deploy-CybernetSoftware.cmd",
         "Probe-CybernetSoftware.cmd",
