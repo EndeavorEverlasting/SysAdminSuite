@@ -31,6 +31,7 @@ python3 Tests/survey/test_operator_evidence_recovery_contracts.py
 python3 Tests/survey/test_portable_onsite_runtime_fixture.py
 python3 Tests/survey/test_network_switch_verification_contracts.py
 python3 Tests/survey/test_network_guard_wlan_event_contracts.py
+python3 Tests/survey/test_vpn_network_guard_bootstrap_contracts.py
 python3 Tests/survey/test_autologon_kerberos_s4u_contracts.py
 python3 Tests/survey/test_autologon_s4u_field_hardening_contracts.py
 python3 Tests/survey/test_autologon_interrupted_recovery_orchestration_contracts.py
