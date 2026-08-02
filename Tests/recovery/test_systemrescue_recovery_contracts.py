@@ -61,6 +61,7 @@ def test_source_and_image_layers_fail_closed_read_only() -> None:
         "require_mount_option \"$mountpoint\" ro",
         "status=$(cryptsetup status \"$name\")",
         "require_basename",
+        "require_absolute_no_symlink_components",
     ):
         assert marker in text, marker
 
@@ -103,6 +104,21 @@ def test_user_copy_scope_is_explicit_and_verifiable() -> None:
         assert marker in text, marker
     assert "--delete" not in text
     assert "|'Public'|" not in text
+
+
+def test_loop_state_is_atomic_and_cleanup_binds_it_to_the_expected_image() -> None:
+    text = read(RUNNER)
+    for marker in (
+        "printf 'LOOP=%s\\nIMAGE=%s\\n'",
+        "set -o noclobber",
+        "state file validation failed",
+        '[[ "$loopdev" =~ ^/dev/loop[0-9]+$ ]]',
+        "state image mismatch",
+        "losetup --noheadings --raw --output BACK-FILE",
+        "loop backing-file mismatch",
+        "--loop-state-file, and --image are required",
+    ):
+        assert marker in text, marker
 
 
 def test_forbidden_source_repair_and_secret_collection_are_absent() -> None:
