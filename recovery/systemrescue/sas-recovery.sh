@@ -15,6 +15,19 @@ require_file() { [ -f "$1" ] || die "required file missing: $1"; }
 require_dir() { [ -d "$1" ] || die "required directory missing: $1"; }
 require_basename() { [ -n "$1" ] && [ "${1##*/}" = "$1" ] && [ "$1" != "." ] && [ "$1" != ".." ] || die "expected a filename without path separators: $1"; }
 shell_quote() { printf '%q' "$1"; }
+canonical_path() { readlink -f -- "$1"; }
+require_absolute_no_symlink_components() {
+  local path=$1 current='' part
+  local -a parts=()
+  [[ "$path" = /* ]] || die "absolute path required: $path"
+  case "/$path/" in *'/../'*|*'/./'*) die "dot path components rejected: $path";; esac
+  IFS='/' read -r -a parts <<< "$path"
+  for part in "${parts[@]}"; do
+    [ -n "$part" ] || continue
+    current="$current/$part"
+    [ ! -L "$current" ] || die "symlink path component rejected: $current"
+  done
+}
 require_ro_block() { [ "$(blockdev --getro "$1")" = "1" ] || die "block device is not read-only: $1"; }
 require_mount_option() {
   local target=$1 option=$2 opts
@@ -52,7 +65,7 @@ Usage:
   sas-recovery.sh mount-ntfs --mapper DEV --mount DIR
   sas-recovery.sh audit-user-data --source-root DIR --report FILE [--include-appdata]
   sas-recovery.sh copy-user-data --source-root DIR --destination-root DIR --log FILE [--include-appdata]
-  sas-recovery.sh cleanup --mount DIR --mapper-name NAME --loop-state-file FILE
+  sas-recovery.sh cleanup --mount DIR --mapper-name NAME --loop-state-file FILE --image FILE
   sas-recovery.sh qr-catalog --repo-mount DIR [--max-chars N]
 
 Safety contract:
@@ -241,7 +254,7 @@ cmd_capture_checkpoint() {
 }
 
 cmd_attach_image() {
-  require_root; need losetup; need lsblk
+  require_root; need losetup; need lsblk; need readlink
   local image='' state_file=''
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -252,11 +265,21 @@ cmd_attach_image() {
   done
   [ -n "$image" ] && [ -n "$state_file" ] || die "--image and --state-file are required"
   require_file "$image"; assert_safe_path "$state_file"
-  local loopdev
-  loopdev=$(losetup --find --show --read-only --partscan "$image")
+  local state_parent image_real loopdev
+  state_parent=$(dirname "$state_file")
+  require_absolute_no_symlink_components "$state_parent"
+  require_dir "$state_parent"; require_mount_option "$state_parent" rw
+  [ ! -e "$state_file" ] && [ ! -L "$state_file" ] || die "state file already exists or is a symlink: $state_file"
+  image_real=$(canonical_path "$image")
+  case "$image_real" in *$'\n'*) die "newline in image path is unsupported";; esac
+  loopdev=$(losetup --find --show --read-only --partscan "$image_real")
   [ "$(blockdev --getro "$loopdev")" = "1" ] || { losetup -d "$loopdev"; die "loop device did not become read-only"; }
-  printf '%s\n' "$loopdev" > "$state_file"
-  log "image attached read-only: $image -> $loopdev"
+  if ! (umask 077; set -o noclobber; printf 'LOOP=%s\nIMAGE=%s\n' "$loopdev" "$image_real" > "$state_file") 2>/dev/null; then
+    losetup -d "$loopdev"
+    die "could not create state file atomically without clobbering: $state_file"
+  fi
+  [ -f "$state_file" ] && [ ! -L "$state_file" ] || { losetup -d "$loopdev"; die "state file validation failed: $state_file"; }
+  log "image attached read-only: $image_real -> $loopdev"
   lsblk -rpn -o NAME,SIZE,FSTYPE,LABEL,TYPE,RO,MOUNTPOINTS "$loopdev"
 }
 
@@ -408,17 +431,31 @@ cmd_copy_user_data() {
 }
 
 cmd_cleanup() {
-  require_root; need findmnt; need cryptsetup; need losetup
-  local mountpoint='' mapper_name='' loop_state_file=''
+  require_root; need findmnt; need cryptsetup; need losetup; need readlink
+  local mountpoint='' mapper_name='' loop_state_file='' image=''
   while [ $# -gt 0 ]; do
     case "$1" in
       --mount) mountpoint=${2:-}; shift 2;;
       --mapper-name) mapper_name=${2:-}; shift 2;;
       --loop-state-file) loop_state_file=${2:-}; shift 2;;
+      --image) image=${2:-}; shift 2;;
       *) die "unknown cleanup argument: $1";;
     esac
   done
-  [ -n "$mountpoint" ] && [ -n "$mapper_name" ] && [ -n "$loop_state_file" ] || die "--mount, --mapper-name, and --loop-state-file are required"
+  [ -n "$mountpoint" ] && [ -n "$mapper_name" ] && [ -n "$loop_state_file" ] && [ -n "$image" ] || die "--mount, --mapper-name, --loop-state-file, and --image are required"
+  require_file "$image"; require_file "$loop_state_file"
+  require_absolute_no_symlink_components "$(dirname "$loop_state_file")"
+  [ ! -L "$loop_state_file" ] || die "loop state file must not be a symlink: $loop_state_file"
+  local expected_image state_image loopdev backing_file
+  expected_image=$(canonical_path "$image")
+  loopdev=$(sed -n 's/^LOOP=//p' "$loop_state_file")
+  state_image=$(sed -n 's/^IMAGE=//p' "$loop_state_file")
+  [[ "$loopdev" =~ ^/dev/loop[0-9]+$ ]] || die "invalid loop device in state file: ${loopdev:-missing}"
+  [ "$state_image" = "$expected_image" ] || die "state image mismatch: expected $expected_image, got ${state_image:-missing}"
+  require_block "$loopdev"; require_ro_block "$loopdev"
+  backing_file=$(losetup --noheadings --raw --output BACK-FILE "$loopdev" | sed 's/[[:space:]]*$//')
+  backing_file=$(canonical_path "$backing_file")
+  [ "$backing_file" = "$expected_image" ] || die "loop backing-file mismatch: expected $expected_image, got $backing_file"
   if findmnt -rn --target "$mountpoint" >/dev/null 2>&1; then
     local mounted_source
     mounted_source=$(findmnt -n -o SOURCE --target "$mountpoint")
@@ -426,12 +463,8 @@ cmd_cleanup() {
     umount "$mountpoint"
   fi
   if cryptsetup status "$mapper_name" >/dev/null 2>&1; then cryptsetup close "$mapper_name"; fi
-  if [ -f "$loop_state_file" ]; then
-    local loopdev
-    loopdev=$(head -n 1 "$loop_state_file")
-    [ -z "$loopdev" ] || losetup -d "$loopdev"
-    rm -f "$loop_state_file"
-  fi
+  losetup -d "$loopdev"
+  rm -f "$loop_state_file"
   log "read-only image stack cleaned up"
 }
 
@@ -480,7 +513,7 @@ cmd_qr_catalog() {
   fi
   emit_qr 5 'bash "$R" capture-checkpoint --workdir "$W" --map "$MAP" --tag post-image' "$max"
   emit_qr 6 'bash "$R" attach-image --image "$W/$IMG" --state-file "$W/loop.state"' "$max"
-  emit_qr 7 'bash "$R" open-bitlocker --partition "$(cat "$W/loop.state")p$BP" --name sas_image_bitlk' "$max"
+  emit_qr 7 'bash "$R" open-bitlocker --partition "$(sed -n s/^LOOP=//p "$W/loop.state")p$BP" --name sas_image_bitlk' "$max"
   emit_qr 8 'bash "$R" mount-ntfs --mapper /dev/mapper/sas_image_bitlk --mount /mnt/recovery-image' "$max"
   emit_qr 9 'bash "$R" audit-user-data --source-root /mnt/recovery-image/Users --report "$W/user-audit.txt"' "$max"
   emit_qr 10 'bash "$R" copy-user-data --source-root /mnt/recovery-image/Users --destination-root "$W/RECOVERED_USER_DATA" --log "$W/user-copy.log"' "$max"
