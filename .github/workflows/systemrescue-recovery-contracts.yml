@@ -1,0 +1,39 @@
+name: SystemRescue recovery contracts
+
+on:
+  pull_request:
+    paths:
+      - "recovery/systemrescue/**"
+      - "Tests/recovery/test_systemrescue_recovery_contracts.py"
+      - "START-HERE-SYSTEMRESCUE-RECOVERY.md"
+      - ".github/workflows/systemrescue-recovery-contracts.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "recovery/systemrescue/**"
+      - "Tests/recovery/test_systemrescue_recovery_contracts.py"
+      - "START-HERE-SYSTEMRESCUE-RECOVERY.md"
+      - ".github/workflows/systemrescue-recovery-contracts.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse shell entrypoint and libraries
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n recovery/systemrescue/sas-recovery.sh
+          for file in recovery/systemrescue/lib/*.sh; do
+            bash -n "$file"
+          done
+      - name: Run recovery contract tests
+        run: python Tests/recovery/test_systemrescue_recovery_contracts.py
+      - name: Compile Python contract test
+        run: python -m py_compile Tests/recovery/test_systemrescue_recovery_contracts.py
