@@ -64,15 +64,16 @@ The current implementation accepts an exFAT destination and verifies the mount i
 Use this only when the image and mapfile do not exist:
 
 ```bash
-bash /mnt/sas/recovery/systemrescue/sas-recovery.sh start-image --source /dev/nvme0n1 --workdir /mnt/expansion/CASE_RECOVERY --image full-disk.img --map full-disk.map --confirm-new-image
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh start-image --source /dev/nvme0n1 --destination-partition /dev/sda2 --destination-mount /mnt/expansion --workdir /mnt/expansion/CASE_RECOVERY --image full-disk.img --map full-disk.map --confirm-new-image
 ```
 
 The harness verifies source read-only state, destination free space, and artifact absence before starting GNU ddrescue.
+It also verifies that the selected destination partition is the exact device mounted at the declared destination mount and that the work directory resolves on that filesystem.
 
 ### 4B. Resume an interrupted image
 
 ```bash
-bash /mnt/sas/recovery/systemrescue/sas-recovery.sh resume-image --source /dev/nvme0n1 --workdir /mnt/expansion/CASE_RECOVERY --image full-disk.img --map full-disk.map
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh resume-image --source /dev/nvme0n1 --destination-partition /dev/sda2 --destination-mount /mnt/expansion --workdir /mnt/expansion/CASE_RECOVERY --image full-disk.img --map full-disk.map
 ```
 
 This refuses to run without the existing image and mapfile. The fixed broad-pass policy is currently:
@@ -88,7 +89,7 @@ Do not add direct I/O, reverse mode, retries, scraping, trimming overrides, or s
 After ddrescue returns to the prompt:
 
 ```bash
-bash /mnt/sas/recovery/systemrescue/sas-recovery.sh capture-checkpoint --workdir /mnt/expansion/CASE_RECOVERY --map full-disk.map --tag pass1
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh capture-checkpoint --destination-partition /dev/sda2 --destination-mount /mnt/expansion --workdir /mnt/expansion/CASE_RECOVERY --map full-disk.map --tag pass1
 ```
 
 This writes and syncs:
@@ -102,7 +103,7 @@ If the kernel disabled the source after a timeout/reset failure, do not issue an
 ### 6. Attach and inspect the image read-only
 
 ```bash
-bash /mnt/sas/recovery/systemrescue/sas-recovery.sh attach-image --image /mnt/expansion/CASE_RECOVERY/full-disk.img --state-file /mnt/expansion/CASE_RECOVERY/loop.state
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh attach-image --destination-partition /dev/sda2 --destination-mount /mnt/expansion --image /mnt/expansion/CASE_RECOVERY/full-disk.img --state-file /mnt/expansion/CASE_RECOVERY/loop.state
 ```
 
 The loop device is written to `loop.state`. Inspect the printed partitions before choosing the BitLocker partition.
@@ -124,7 +125,7 @@ bash /mnt/sas/recovery/systemrescue/sas-recovery.sh mount-ntfs --mapper /dev/map
 ### 9. Audit extraction scope before copying
 
 ```bash
-bash /mnt/sas/recovery/systemrescue/sas-recovery.sh audit-user-data --source-root /mnt/recovery-image/Users --report /mnt/expansion/CASE_RECOVERY/user-audit.txt
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh audit-user-data --source-root /mnt/recovery-image/Users --destination-partition /dev/sda2 --destination-mount /mnt/expansion --report /mnt/expansion/CASE_RECOVERY/user-audit.txt
 ```
 
 The audit lists profiles, profile-root entries, and non-regular entries such as junctions, reparse points, and sockets. This makes skipped OneDrive links and similar cases visible before claiming full evacuation.
@@ -132,7 +133,7 @@ The audit lists profiles, profile-root entries, and non-regular entries such as 
 ### 10. Copy user data
 
 ```bash
-bash /mnt/sas/recovery/systemrescue/sas-recovery.sh copy-user-data --source-root /mnt/recovery-image/Users --destination-root /mnt/expansion/CASE_RECOVERY/RECOVERED_USER_DATA --log /mnt/expansion/CASE_RECOVERY/user-copy.log
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh copy-user-data --source-root /mnt/recovery-image/Users --destination-partition /dev/sda2 --destination-mount /mnt/expansion --destination-root /mnt/expansion/CASE_RECOVERY/RECOVERED_USER_DATA --log /mnt/expansion/CASE_RECOVERY/user-copy.log
 ```
 
 Default scope:
