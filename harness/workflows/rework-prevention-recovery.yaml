@@ -1,0 +1,107 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: rework-prevention-recovery
+mode: local_read_then_route
+network_activity: false
+target_mutation: false
+purpose: >-
+  Prevent repeat field failures by forcing evidence-first recovery, explicit environment classification,
+  source-before-mutation ordering, run-scoped cleanup, focused validation, and one exact next action.
+
+inputs:
+  required:
+    - repository_root
+    - current_branch
+    - requested_goal
+  optional:
+    - prior_run_id
+    - prior_evidence_path
+    - operator_session_state
+    - current_network_classification
+    - target_lock
+    - failure_signal
+
+stages:
+  - id: inspect_previous_run
+    order: 1
+    actions:
+      - read harness/api/rework-prevention-registry.json
+      - inspect tracked Git state and machine-local operator/run evidence when available
+      - recover the latest proven checkpoint, cleanup state, completed work, and exact failure boundary
+      - do not ask the operator to re-explain state already present in tracked or local evidence
+    stop_conditions:
+      - prior evidence is contradictory and the contradiction affects safe mutation
+
+  - id: classify_environment
+    order: 2
+    actions:
+      - treat terminal or shell identity as informational metadata only
+      - classify the network required by the next canonical command
+      - retain the locked target, equipment profile, deployment lane, and expected state from evidence when proven
+      - fail early with one exact network transition when the active network is wrong
+    forbidden:
+      - shell-specific interactive state as a workflow dependency
+      - guessing target, profile, or network from convenience signals
+
+  - id: prove_sources_before_mutation
+    order: 3
+    actions:
+      - when the workflow consumes multiple files or packages, validate every required source before target staging or execution
+      - record actual inventory, expected entrypoint, hashes, missing files, unexpected files, and catalog drift
+      - use one tracked bundle authority; never invent a replacement filename
+    proof_boundary:
+      - source readiness is complete before target mutation starts
+
+  - id: bounded_recovery
+    order: 4
+    actions:
+      - if cleanup is unproven, inspect only exact run-owned resources
+      - recover run-owned checkpoint or result evidence before cleanup when available
+      - remove only exact run-owned transient resources
+      - verify absence and preserve completed work before any retry
+    forbidden:
+      - broad ProgramData cleanup
+      - blind retry after an unresolved run
+      - repeating work already proven complete
+
+  - id: execute_owned_transaction
+    order: 5
+    actions:
+      - use the canonical repository-owned launcher or workflow
+      - keep stage, execute, retrieve, profile, cleanup, and final evidence under one run owner
+      - emit stable checkpoints as each proof boundary completes
+      - propagate every nonzero child exit code
+    forbidden:
+      - interactive try/catch/finally fragments
+      - hidden child failures
+
+  - id: focused_validation
+    order: 6
+    actions:
+      - select validators from harness/api/harness-validator-registry.json by changed surface
+      - run parser, schema, static, and focused contract gates before broad suites
+      - classify every failure as changed-surface or unrelated baseline before repair
+      - rerun the failed owning gate after repair
+      - python harness/validators/validate-rework-prevention-contracts.py
+    forbidden:
+      - unrelated diagnostic expansion while the changed-surface gate is still failing
+
+  - id: exact_next_action
+    order: 7
+    actions:
+      - if the requested goal is complete, report the terminal artifact and proof ceiling
+      - if a real dependency remains, name its owner, required environment, one exact command or operator action, expected artifact, and completion gate
+      - never end with generic advice, status-only output, or a request to reconstruct implementation details
+
+outputs:
+  tracked_authorities:
+    - harness/api/rework-prevention-registry.json
+    - schemas/harness/rework-prevention-registry.schema.json
+    - harness/skills/rework-prevention/SKILL.md
+    - docs/HARNESS_REWORK_PREVENTION.md
+  generated_local:
+    - survey/output/<workflow>/<run_id>/artifact_registry.json
+    - survey/output/<workflow>/<run_id>/operator_handoff.txt
+
+proof_ceiling: >-
+  Static and workflow proof that repeat-failure controls are encoded, routed, validated, and reportable.
+  This workflow does not itself prove a live target, source share, deployment, cleanup, or runtime outcome.

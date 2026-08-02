@@ -5,8 +5,9 @@ network_activity: false
 target_mutation: false
 purpose: >-
   Maintain the repository harness floor so a fresh agent can inspect local repo state, select a workflow,
-  resolve desired product/runtime state, validate safely, produce artifacts, advance toward the requested
-  terminal outcome, and hand off without changing product behavior or the governance contract.
+  recover known failure boundaries without rework, resolve desired product/runtime state, validate safely,
+  produce artifacts, advance toward the requested terminal outcome, and hand off without changing product behavior
+  or the governance contract.
 
 inputs:
   required:
@@ -18,6 +19,7 @@ inputs:
   optional:
     - failure_log
     - supplied_pull_request_metadata
+    - prior_run_evidence
 
 stages:
   - id: inspect
@@ -32,7 +34,8 @@ stages:
       - read harness/api/harness-artifact-registry.json
       - read harness/api/harness-outcome-registry.json
       - read harness/api/deployment-state-registry.json
-      - inspect existing validators, hooks, skills, reports, desired-state contracts, and artifact contracts
+      - read harness/api/rework-prevention-registry.json
+      - inspect existing validators, hooks, skills, reports, desired-state contracts, rework-prevention controls, and artifact contracts
     stop_conditions:
       - repository cannot be resolved
       - unrelated uncommitted work would be overwritten
@@ -42,6 +45,7 @@ stages:
     actions:
       - choose the smallest existing skill and workflow that match the task
       - use harness/skills/harness-maintenance/SKILL.md for harness-infrastructure-owned work
+      - use harness/skills/rework-prevention/SKILL.md after failed/interrupted work, context loss, cleanup uncertainty, source/catalog drift, hidden exit codes, or repeated diagnostics
       - use harness/skills/outcome-driven-execution/SKILL.md when intermediate tests, fixtures, transport certs, or dry runs could otherwise become artificial endpoints
       - use harness/skills/cybernet-autologon-deployment-state/SKILL.md when AutoLogon/Cybernet desired-state routing is implicated
       - fail closed when equal-priority routes conflict
@@ -55,6 +59,8 @@ stages:
       - preserve product code and AGENTS.md
       - keep generated evidence under ignored survey/output roots
       - encode every canonical command with an outcome contract so a green validator or dry run cannot silently become completion
+      - encode durable repeat-failure lessons in harness/api/rework-prevention-registry.json instead of relying on chat memory
+      - require explicit network routing, terminal-independent entrypoints, source-before-target ordering, run-scoped recovery, checkpoint/exit-code integrity, and focused-validation sequencing when those controls apply
       - encode deployment-oriented field intent as desired states tied to current product truth and critical artifacts so live-cert or test cannot substitute for application
       - preserve already-proven workstation state rather than teaching agents to reinstall software without need
 
@@ -64,6 +70,7 @@ stages:
       - python harness/validators/validate-harness-registries.py
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
+      - python harness/validators/validate-rework-prevention-contracts.py
       - python Tests/survey/test_operational_harness_completeness_contracts.py
       - python scripts/check-repo-text-policy.py --cached
       - python Tests/survey/test_local_harness_contracts.py
@@ -77,7 +84,8 @@ stages:
     order: 5
     actions:
       - stop at the first failed proof boundary
-      - classify the failure as contract, deployment-state/product-truth, dependency, representation, integration, or runtime
+      - map repeated or previously seen signals through harness/api/rework-prevention-registry.json before inventing a new recovery pattern
+      - classify the failure as contract, deployment-state/product-truth, dependency, representation, integration, runtime, environment-context, source-drift, cleanup, or baseline
       - preserve logs and generated evidence outside Git
       - repair the smallest owning harness component
       - rerun the failed validator before broader suites
@@ -86,6 +94,8 @@ stages:
       - deleting unrelated work
       - claiming runtime proof from static checks
       - confusing transport live certification with AutoLogon application
+      - asking the operator to re-explain state already present in evidence
+      - retrying a mutating workflow while previous cleanup remains unproven
       - ending with tests passed or command printed when the requested goal remains unproven and a safe continuation exists
 
   - id: commit
@@ -114,24 +124,30 @@ outputs:
     - harness/api/harness-artifact-registry.json
     - harness/api/harness-outcome-registry.json
     - harness/api/deployment-state-registry.json
+    - harness/api/rework-prevention-registry.json
     - harness/workflows/fresh-agent-intake.yaml
+    - harness/workflows/rework-prevention-recovery.yaml
     - harness/workflows/outcome-driven-execution.yaml
     - harness/workflows/cybernet-autologon-deployment-state.yaml
     - harness/skills/harness-maintenance/SKILL.md
+    - harness/skills/rework-prevention/SKILL.md
     - harness/skills/outcome-driven-execution/SKILL.md
     - harness/skills/cybernet-autologon-deployment-state/SKILL.md
     - schemas/harness/operational-harness-manifest.schema.json
+    - schemas/harness/rework-prevention-registry.schema.json
     - schemas/harness/harness-outcome-registry.schema.json
     - schemas/harness/deployment-state-registry.schema.json
     - docs/HARNESS_STATUS.md
+    - docs/HARNESS_REWORK_PREVENTION.md
   generated_local:
     - survey/output/harness-validator/harness-proof-*/
     - survey/output/harness-status/<run-id>/harness-status.md
+    - survey/output/harness-rework-prevention/<run-id>/rework-prevention.md
     - survey/output/<workflow>/<run_id>/operator_handoff.txt
     - survey/output/<workflow>/<run_id>/artifact_registry.json
     - survey/output/<workflow>/<run_id>/review/publish-request.json
 
 proof_ceiling: >-
   Static local repository structure, tracking, schema, workflow, registry, hook, text-policy,
-  command-authority, outcome-continuation, deployment-state, and contract proof only; remote publication
-  requires the separate operator-approved operational-harness-publish workflow.
+  command-authority, outcome-continuation, deployment-state, rework-prevention, and contract proof only;
+  remote publication requires the separate operator-approved operational-harness-publish workflow.

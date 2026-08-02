@@ -1,0 +1,149 @@
+{
+  "schema_version": "sas-rework-prevention-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "policy": {
+    "evidence_before_retry": true,
+    "shell_is_metadata_only": true,
+    "network_context_must_be_explicit": true,
+    "source_validation_before_target_mutation": true,
+    "unresolved_previous_run_blocks_retry": true,
+    "cleanup_requires_positive_evidence": true,
+    "narrow_validation_before_broad_suites": true,
+    "forbidden_retry_patterns": [
+      "interactive_try_catch_finally_fragments",
+      "implicit_or_assumed_network_context",
+      "implicit_or_assumed_terminal_state",
+      "partial_target_staging_before_complete_source_preflight",
+      "retry_without_previous_run_recovery_or_absence_proof",
+      "swallowed_nonzero_exit_code",
+      "invented_package_filename_to_mask_catalog_drift",
+      "unrelated_diagnostic_expansion_while_changed_surface_is_unproven"
+    ]
+  },
+  "controls": [
+    {
+      "id": "persistent-operator-context",
+      "trigger": "terminal closure, shell change, conversation change, restart, or operator handoff",
+      "required_behavior": "Persist repo/head, network classification, target lock, lane, package set, expected state, latest run, cleanup state, completed work, evidence path, and exact next action outside the repository working tree.",
+      "forbidden_behavior": "Require the operator to re-explain terminal, network, target, lane, or prior failure state.",
+      "proof_artifact": "operator-context-or-run-state",
+      "validation": "rework-prevention-contracts"
+    },
+    {
+      "id": "explicit-network-routing",
+      "trigger": "command requires public Internet/GitHub access or protected target/share access",
+      "required_behavior": "Classify the current network and print the required network before execution; wrong-network failures stop early with one exact next action.",
+      "forbidden_behavior": "Run unrelated diagnostics or protected target operations on the Internet/Guest lane, or Git refresh operations on the protected-only lane by assumption.",
+      "proof_artifact": "operator-context-or-run-state",
+      "validation": "rework-prevention-contracts"
+    },
+    {
+      "id": "terminal-agnostic-entrypoints",
+      "trigger": "field technician or operator execution",
+      "required_behavior": "Use repository-owned launchers that do not depend on pre-existing interactive variables or shell fragments and behave consistently from CMD and PowerShell.",
+      "forbidden_behavior": "Require operators to reconstruct multi-page PowerShell, paste try/catch/finally blocks, or switch shells to continue the same lane.",
+      "proof_artifact": "operator-command-contract",
+      "validation": "rework-prevention-contracts"
+    },
+    {
+      "id": "complete-source-preflight-before-target",
+      "trigger": "deployment consumes multiple packages or a bundle from an approved source",
+      "required_behavior": "Validate every required package source, entrypoint, actual file inventory, hashes, and catalog drift before target contact or mutation where practical and always before staging or execution.",
+      "forbidden_behavior": "Start target staging while any required source remains unresolved or invent a replacement filename for stale bundle metadata.",
+      "proof_artifact": "source-preflight-result",
+      "validation": "rework-prevention-contracts"
+    },
+    {
+      "id": "transactional-run-ownership",
+      "trigger": "workflow creates remote staging, scheduled tasks, generated evidence, or other transient resources",
+      "required_behavior": "One tracked process owns stage, execute, retrieve, profile, cleanup, and final evidence for a unique run ID.",
+      "forbidden_behavior": "Move cleanup into an interactive follow-up fragment or broad-delete shared directories.",
+      "proof_artifact": "run-result-with-cleanup-state",
+      "validation": "rework-prevention-contracts"
+    },
+    {
+      "id": "prior-run-recovery-gate",
+      "trigger": "latest run failed, terminal crashed, cleanup is missing, or cleanup is unproven",
+      "required_behavior": "Inspect exact run evidence, recover any run-owned checkpoint/result, clean only exact run-owned resources, verify absence, and preserve proven completed work before a new mutation begins.",
+      "forbidden_behavior": "Blindly start a new deployment or repeat work already proven complete.",
+      "proof_artifact": "recovery-result",
+      "validation": "rework-prevention-contracts"
+    },
+    {
+      "id": "checkpoint-and-exit-code-integrity",
+      "trigger": "multi-phase command, dispatcher, wrapper, or long-running field operation",
+      "required_behavior": "Write stable phase/package checkpoints as proof boundaries and propagate every nonzero child exit code to the caller and final artifact.",
+      "forbidden_behavior": "Return success while a child command, evidence dispatcher, cleanup step, or required phase failed.",
+      "proof_artifact": "run-result-with-checkpoints",
+      "validation": "rework-prevention-contracts"
+    },
+    {
+      "id": "catalog-drift-is-data",
+      "trigger": "tracked package metadata differs from the actual approved source tree",
+      "required_behavior": "Record expected versus actual inventory, missing/unexpected files, hashes, and drift interpretation; choose one explicit bundle authority and fail or proceed according to that tracked policy.",
+      "forbidden_behavior": "Silently ignore drift, guess a missing file, or partially stage a bundle before the drift decision is recorded.",
+      "proof_artifact": "source-preflight-result",
+      "validation": "rework-prevention-contracts"
+    },
+    {
+      "id": "focused-validation-ladder",
+      "trigger": "a changed surface fails or new code needs merge proof",
+      "required_behavior": "Run parse/schema/static/contract checks for changed surfaces first, classify failures as changed-surface or baseline, rerun the failed gate after repair, and broaden only when the declared proof ceiling requires it.",
+      "forbidden_behavior": "Expand into unrelated architecture or diagnostics while the owning changed-surface failure remains unresolved.",
+      "proof_artifact": "validator-result",
+      "validation": "rework-prevention-contracts"
+    }
+  ],
+  "known_failure_patterns": [
+    {
+      "id": "stale-installed-launcher",
+      "signal": "operator command points at missing or outdated machine-local launcher content",
+      "prevention_controls": ["persistent-operator-context", "terminal-agnostic-entrypoints", "checkpoint-and-exit-code-integrity"]
+    },
+    {
+      "id": "windows-drive-path-assumption",
+      "signal": "portable launcher mishandles a normal Windows drive path",
+      "prevention_controls": ["terminal-agnostic-entrypoints", "focused-validation-ladder"]
+    },
+    {
+      "id": "empty-evidence-list-binder-failure",
+      "signal": "evidence recovery crashes when zero matching artifacts exist",
+      "prevention_controls": ["checkpoint-and-exit-code-integrity", "focused-validation-ladder"]
+    },
+    {
+      "id": "dispatcher-hides-failure",
+      "signal": "wrapper returns exit zero after an inner evidence or deployment failure",
+      "prevention_controls": ["checkpoint-and-exit-code-integrity"]
+    },
+    {
+      "id": "unexpected-shell-runtime-dependency",
+      "signal": "Windows-native operator flow unexpectedly requires Git Bash, python3, or an interactive shell-specific variable",
+      "prevention_controls": ["terminal-agnostic-entrypoints", "focused-validation-ladder"]
+    },
+    {
+      "id": "package-catalog-drift",
+      "signal": "tracked source inventory references a file that no longer exists in the approved package bundle",
+      "prevention_controls": ["complete-source-preflight-before-target", "catalog-drift-is-data"]
+    },
+    {
+      "id": "target-mutation-before-source-readiness",
+      "signal": "target staging or task creation starts before all required package sources are proven ready",
+      "prevention_controls": ["complete-source-preflight-before-target", "transactional-run-ownership"]
+    },
+    {
+      "id": "cleanup-escapes-transaction",
+      "signal": "operator is instructed to paste a standalone finally/cleanup fragment after the owning process has ended",
+      "prevention_controls": ["transactional-run-ownership", "prior-run-recovery-gate"]
+    },
+    {
+      "id": "operator-context-reacclimation",
+      "signal": "operator must restate terminal, network, target, lane, expected state, or latest run before work can resume",
+      "prevention_controls": ["persistent-operator-context", "explicit-network-routing"]
+    },
+    {
+      "id": "diagnostic-side-quest-expansion",
+      "signal": "field window is consumed by broad unrelated tests instead of the smallest changed-surface validator and next actionable gate",
+      "prevention_controls": ["focused-validation-ladder"]
+    }
+  ]
+}
