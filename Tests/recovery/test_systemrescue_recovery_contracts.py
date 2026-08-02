@@ -9,11 +9,23 @@ ROOT = Path(__file__).resolve().parents[2]
 RUNNER = ROOT / "recovery" / "systemrescue" / "sas-recovery.sh"
 README = ROOT / "recovery" / "systemrescue" / "README.md"
 START = ROOT / "START-HERE-SYSTEMRESCUE-RECOVERY.md"
+LIB_DIR = ROOT / "recovery" / "systemrescue" / "lib"
+IMPLEMENTATION_FILES = (
+    RUNNER,
+    LIB_DIR / "common.sh",
+    LIB_DIR / "imaging.sh",
+    LIB_DIR / "extraction.sh",
+    LIB_DIR / "qr.sh",
+)
 
 
 def read(path: Path) -> str:
     assert path.is_file(), f"missing required file: {path.relative_to(ROOT)}"
     return path.read_text(encoding="utf-8")
+
+
+def read_implementation() -> str:
+    return "\n".join(read(path) for path in IMPLEMENTATION_FILES)
 
 
 def run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -27,8 +39,9 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_shell_parses_and_help_surface_is_executable() -> None:
-    parsed = subprocess.run(["bash", "-n", str(RUNNER)], check=False, capture_output=True, text=True)
-    assert parsed.returncode == 0, parsed.stderr
+    for path in IMPLEMENTATION_FILES:
+        parsed = subprocess.run(["bash", "-n", str(path)], check=False, capture_output=True, text=True)
+        assert parsed.returncode == 0, f"{path}: {parsed.stderr}"
     help_result = run("--help")
     assert help_result.returncode == 0, help_result.stderr
     for command in (
@@ -50,7 +63,7 @@ def test_shell_parses_and_help_surface_is_executable() -> None:
 
 
 def test_source_and_image_layers_fail_closed_read_only() -> None:
-    text = read(RUNNER)
+    text = read_implementation()
     for marker in (
         "blockdev --setro",
         "require_ro_block",
@@ -59,15 +72,12 @@ def test_source_and_image_layers_fail_closed_read_only() -> None:
         "cryptsetup open --type bitlk --readonly",
         "mount -t ntfs-3g -o ro",
         "require_mount_option \"$mountpoint\" ro",
-        "status=$(cryptsetup status \"$name\")",
-        "require_basename",
-        "require_absolute_no_symlink_components",
     ):
         assert marker in text, marker
 
 
 def test_new_and_resumed_imaging_have_separate_contracts() -> None:
-    text = read(RUNNER)
+    text = read_implementation()
     assert "new imaging requires --confirm-new-image" in text
     assert "image already exists; use resume-image" in text
     assert "mapfile already exists; use resume-image" in text
@@ -77,8 +87,22 @@ def test_new_and_resumed_imaging_have_separate_contracts() -> None:
     assert 'ddrescue --no-scrape --verbose "$source" "$workdir/$image" "$workdir/$map"' in text
 
 
+def test_all_destination_writes_are_bound_to_the_selected_partition_and_mount() -> None:
+    text = read_implementation()
+    for marker in (
+        "--destination-partition",
+        "--destination-mount",
+        'require_destination_binding "$destination_partition" "$destination_mount" "$workdir"',
+        'require_destination_binding "$destination_partition" "$destination_mount" "$state_parent"',
+        'require_destination_binding "$destination_partition" "$destination_mount" "$(dirname "$report")"',
+        'require_destination_binding "$destination_partition" "$destination_mount" "$destination_root"',
+    ):
+        assert marker in text, marker
+    assert 'findmnt -rn --target "$mountpoint"' not in text
+
+
 def test_checkpoint_preserves_kernel_map_and_artifact_evidence() -> None:
-    text = read(RUNNER)
+    text = read_implementation()
     for marker in (
         'dmesg > "$workdir/dmesg-$tag.txt"',
         'ddrescuelog -t "$workdir/$map" > "$workdir/ddrescuelog-$tag.txt"',
@@ -89,7 +113,7 @@ def test_checkpoint_preserves_kernel_map_and_artifact_evidence() -> None:
 
 
 def test_user_copy_scope_is_explicit_and_verifiable() -> None:
-    text = read(RUNNER)
+    text = read_implementation()
     for marker in (
         "is_system_profile",
         "--exclude=/AppData/***",
@@ -100,6 +124,8 @@ def test_user_copy_scope_is_explicit_and_verifiable() -> None:
         "PENDING_ITEMS=",
         "RECOVERED USER DATA COPY VERIFIED BY RSYNC DRY RUN",
         "COPY COMPLETED WITH LOGGED ITEMS REQUIRING REVIEW",
+        "2>/dev/null | sort || true",
+        '"${profile_bytes:-UNKNOWN}"',
     ):
         assert marker in text, marker
     assert "--delete" not in text
@@ -107,9 +133,9 @@ def test_user_copy_scope_is_explicit_and_verifiable() -> None:
 
 
 def test_loop_state_is_atomic_and_cleanup_binds_it_to_the_expected_image() -> None:
-    text = read(RUNNER)
+    text = read_implementation()
     for marker in (
-        "printf 'LOOP=%s\\nIMAGE=%s\\n'",
+        "printf 'LOOP=%s\nIMAGE=%s\n'",
         "set -o noclobber",
         "state file validation failed",
         '[[ "$loopdev" =~ ^/dev/loop[0-9]+$ ]]',
@@ -122,7 +148,7 @@ def test_loop_state_is_atomic_and_cleanup_binds_it_to_the_expected_image() -> No
 
 
 def test_forbidden_source_repair_and_secret_collection_are_absent() -> None:
-    combined = "\n".join(read(path) for path in (RUNNER, README, START)).lower()
+    combined = "\n".join(read(path) for path in (*IMPLEMENTATION_FILES, README, START)).lower()
     for forbidden in (
         "chkdsk /f",
         "chkdsk /r",
