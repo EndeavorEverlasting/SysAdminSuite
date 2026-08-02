@@ -13,6 +13,8 @@ require_root() { [ "$(id -u)" -eq 0 ] || die "run as root in SystemRescue"; }
 require_block() { [ -b "$1" ] || die "not a block device: $1"; }
 require_file() { [ -f "$1" ] || die "required file missing: $1"; }
 require_dir() { [ -d "$1" ] || die "required directory missing: $1"; }
+require_basename() { [ -n "$1" ] && [ "${1##*/}" = "$1" ] && [ "$1" != "." ] && [ "$1" != ".." ] || die "expected a filename without path separators: $1"; }
+shell_quote() { printf '%q' "$1"; }
 require_ro_block() { [ "$(blockdev --getro "$1")" = "1" ] || die "block device is not read-only: $1"; }
 require_mount_option() {
   local target=$1 option=$2 opts
@@ -139,6 +141,7 @@ cmd_verify_workdir() {
     esac
   done
   [ -n "$workdir" ] && [ -n "$image" ] && [ -n "$map" ] || die "--workdir, --image, and --map are required"
+  require_basename "$image"; require_basename "$map"
   require_dir "$workdir"; require_file "$workdir/$image"; require_file "$workdir/$map"
   log "existing recovery artifacts verified"
   ls -lh -- "$workdir/$image" "$workdir/$map"
@@ -159,6 +162,7 @@ cmd_start_image() {
     esac
   done
   [ -n "$source" ] && [ -n "$workdir" ] && [ -n "$image" ] && [ -n "$map" ] || die "--source, --workdir, --image, and --map are required"
+  require_basename "$image"; require_basename "$map"
   [ "$confirm" -eq 1 ] || die "new imaging requires --confirm-new-image"
   require_block "$source"; require_ro_block "$source"; require_source_not_mounted "$source"
   assert_safe_path "$workdir"; mkdir -p "$workdir"; require_mount_option "$workdir" rw
@@ -186,6 +190,7 @@ cmd_resume_image() {
     esac
   done
   [ -n "$source" ] && [ -n "$workdir" ] && [ -n "$image" ] && [ -n "$map" ] || die "--source, --workdir, --image, and --map are required"
+  require_basename "$image"; require_basename "$map"
   require_block "$source"; require_ro_block "$source"; require_source_not_mounted "$source"
   require_dir "$workdir"; require_file "$workdir/$image"; require_file "$workdir/$map"
   require_mount_option "$workdir" rw
@@ -206,6 +211,7 @@ cmd_image_status() {
     esac
   done
   [ -n "$workdir" ] && [ -n "$image" ] && [ -n "$map" ] || die "--workdir, --image, and --map are required"
+  require_basename "$image"; require_basename "$map"
   require_file "$workdir/$image"; require_file "$workdir/$map"
   ls -lh -- "$workdir/$image" "$workdir/$map"
   ddrescuelog -t "$workdir/$map"
@@ -223,6 +229,7 @@ cmd_capture_checkpoint() {
     esac
   done
   [ -n "$workdir" ] && [ -n "$map" ] && [ -n "$tag" ] || die "--workdir, --map, and --tag are required"
+  require_basename "$map"
   require_dir "$workdir"; require_file "$workdir/$map"; require_mount_option "$workdir" rw
   [[ "$tag" =~ ^[A-Za-z0-9._-]+$ ]] || die "unsafe checkpoint tag: $tag"
   dmesg > "$workdir/dmesg-$tag.txt"
@@ -267,7 +274,10 @@ cmd_open_bitlocker() {
   require_block "$partition"; require_ro_block "$partition"
   [[ "$name" =~ ^[A-Za-z0-9_.-]+$ ]] || die "unsafe mapper name: $name"
   cryptsetup open --type bitlk --readonly "$partition" "$name"
-  cryptsetup status "$name" | tee /dev/stderr | grep -q 'mode:[[:space:]]*readonly' || { cryptsetup close "$name" || true; die "BitLocker mapper is not read-only"; }
+  local status
+  status=$(cryptsetup status "$name")
+  printf '%s\n' "$status"
+  grep -q 'mode:[[:space:]]*readonly' <<<"$status" || { cryptsetup close "$name" || true; die "BitLocker mapper is not read-only"; }
   log "BitLocker mapper opened read-only: /dev/mapper/$name"
 }
 
@@ -291,7 +301,7 @@ cmd_mount_ntfs() {
 }
 
 is_system_profile() {
-  case "$1" in 'All Users'|'Default'|'Default User'|'Public'|'desktop.ini') return 0;; *) return 1;; esac
+  case "$1" in 'All Users'|'Default'|'Default User'|'desktop.ini') return 0;; *) return 1;; esac
 }
 
 build_rsync_excludes() {
@@ -376,10 +386,14 @@ cmd_copy_user_data() {
     [ -d "$profile" ] || continue
     name=$(basename "$profile")
     is_system_profile "$name" && continue
+    local verify_output
+    verify_output=$(mktemp)
     set +e
-    verify_count=$(rsync -rltni --omit-dir-times --no-perms --no-owner --no-group --safe-links "${excludes[@]}" -- "$profile/" "$destination_root/$name/" 2>>"$logfile" | wc -l)
-    verify_one=${PIPESTATUS[0]}
+    rsync -rltni --omit-dir-times --no-perms --no-owner --no-group --safe-links "${excludes[@]}" -- "$profile/" "$destination_root/$name/" >"$verify_output" 2>>"$logfile"
+    verify_one=$?
     set -e
+    verify_count=$(wc -l < "$verify_output")
+    rm -f "$verify_output"
     pending=$((pending + verify_count))
     [ "$verify_one" -eq 0 ] || verify_rc=$verify_one
   done
@@ -405,7 +419,12 @@ cmd_cleanup() {
     esac
   done
   [ -n "$mountpoint" ] && [ -n "$mapper_name" ] && [ -n "$loop_state_file" ] || die "--mount, --mapper-name, and --loop-state-file are required"
-  if findmnt -rn --target "$mountpoint" >/dev/null 2>&1; then umount "$mountpoint"; fi
+  if findmnt -rn --target "$mountpoint" >/dev/null 2>&1; then
+    local mounted_source
+    mounted_source=$(findmnt -n -o SOURCE --target "$mountpoint")
+    [ "$mounted_source" = "/dev/mapper/$mapper_name" ] || die "cleanup mount source mismatch: $mounted_source"
+    umount "$mountpoint"
+  fi
   if cryptsetup status "$mapper_name" >/dev/null 2>&1; then cryptsetup close "$mapper_name"; fi
   if [ -f "$loop_state_file" ]; then
     local loopdev
@@ -424,29 +443,36 @@ emit_qr() {
 }
 
 cmd_qr_catalog() {
-  local repo_mount='' source='' destination='' dest_mount='/mnt/expansion' workdir='' image='' map='' mode='resume' max=$QR_LIMIT_DEFAULT
+  local repo_mount='' source='' expect_model='' expect_serial='' destination='' destination_label='' dest_mount='/mnt/expansion' workdir='' image='' map='' bitlocker_partition='' mode='resume' max=$QR_LIMIT_DEFAULT
   while [ $# -gt 0 ]; do
     case "$1" in
       --repo-mount) repo_mount=${2:-}; shift 2;;
       --source) source=${2:-}; shift 2;;
+      --expect-model) expect_model=${2:-}; shift 2;;
+      --expect-serial) expect_serial=${2:-}; shift 2;;
       --destination) destination=${2:-}; shift 2;;
+      --destination-label) destination_label=${2:-}; shift 2;;
       --destination-mount) dest_mount=${2:-}; shift 2;;
       --workdir) workdir=${2:-}; shift 2;;
       --image) image=${2:-}; shift 2;;
       --map) map=${2:-}; shift 2;;
+      --bitlocker-partition-number) bitlocker_partition=${2:-}; shift 2;;
       --mode) mode=${2:-}; shift 2;;
       --max-chars) max=${2:-}; shift 2;;
       *) die "unknown qr-catalog argument: $1";;
     esac
   done
-  [ -n "$repo_mount" ] && [ -n "$source" ] && [ -n "$destination" ] && [ -n "$workdir" ] && [ -n "$image" ] && [ -n "$map" ] || die "qr-catalog requires --repo-mount, --source, --destination, --workdir, --image, and --map"
+  [ -n "$repo_mount" ] && [ -n "$source" ] && [ -n "$expect_model" ] && [ -n "$expect_serial" ] && [ -n "$destination" ] && [ -n "$destination_label" ] && [ -n "$workdir" ] && [ -n "$image" ] && [ -n "$map" ] && [ -n "$bitlocker_partition" ] || die "qr-catalog requires confirmed source model/serial, destination label, paths, filenames, and BitLocker partition number"
+  require_basename "$image"; require_basename "$map"
+  [[ "$bitlocker_partition" =~ ^[1-9][0-9]*$ ]] || die "--bitlocker-partition-number must be a positive integer"
   case "$mode" in start|resume) ;; *) die "--mode must be start or resume";; esac
   [[ "$max" =~ ^[0-9]+$ ]] || die "--max-chars must be numeric"
   local runner="$repo_mount/recovery/systemrescue/sas-recovery.sh"
-  local state="export R='$runner' SRC='$source' DST='$destination' M='$dest_mount' W='$workdir' IMG='$image' MAP='$map'"
+  local state
+  state="export R=$(shell_quote "$runner") SRC=$(shell_quote "$source") MODEL=$(shell_quote "$expect_model") SERIAL=$(shell_quote "$expect_serial") DST=$(shell_quote "$destination") DL=$(shell_quote "$destination_label") M=$(shell_quote "$dest_mount") W=$(shell_quote "$workdir") IMG=$(shell_quote "$image") MAP=$(shell_quote "$map") BP=$(shell_quote "$bitlocker_partition")"
   emit_qr 1 "$state" "$max"
-  emit_qr 2 'bash "$R" protect-source --source "$SRC"' "$max"
-  emit_qr 3 'bash "$R" mount-destination --partition "$DST" --mount "$M"' "$max"
+  emit_qr 2 'bash "$R" protect-source --source "$SRC" --expect-model "$MODEL" --expect-serial "$SERIAL"' "$max"
+  emit_qr 3 'bash "$R" mount-destination --partition "$DST" --mount "$M" --expect-label "$DL"' "$max"
   if [ "$mode" = "start" ]; then
     emit_qr 4 'bash "$R" start-image --source "$SRC" --workdir "$W" --image "$IMG" --map "$MAP" --confirm-new-image' "$max"
   else
@@ -454,9 +480,10 @@ cmd_qr_catalog() {
   fi
   emit_qr 5 'bash "$R" capture-checkpoint --workdir "$W" --map "$MAP" --tag post-image' "$max"
   emit_qr 6 'bash "$R" attach-image --image "$W/$IMG" --state-file "$W/loop.state"' "$max"
-  emit_qr 7 'bash "$R" open-bitlocker --partition "$(cat "$W/loop.state")p3" --name sas_image_bitlk' "$max"
+  emit_qr 7 'bash "$R" open-bitlocker --partition "$(cat "$W/loop.state")p$BP" --name sas_image_bitlk' "$max"
   emit_qr 8 'bash "$R" mount-ntfs --mapper /dev/mapper/sas_image_bitlk --mount /mnt/recovery-image' "$max"
-  emit_qr 9 'bash "$R" copy-user-data --source-root /mnt/recovery-image/Users --destination-root "$W/RECOVERED_USER_DATA" --log "$W/user-copy.log"' "$max"
+  emit_qr 9 'bash "$R" audit-user-data --source-root /mnt/recovery-image/Users --report "$W/user-audit.txt"' "$max"
+  emit_qr 10 'bash "$R" copy-user-data --source-root /mnt/recovery-image/Users --destination-root "$W/RECOVERED_USER_DATA" --log "$W/user-copy.log"' "$max"
 }
 
 main() {
