@@ -59,6 +59,8 @@ def test_source_and_image_layers_fail_closed_read_only() -> None:
         "cryptsetup open --type bitlk --readonly",
         "mount -t ntfs-3g -o ro",
         "require_mount_option \"$mountpoint\" ro",
+        "status=$(cryptsetup status \"$name\")",
+        "require_basename",
     ):
         assert marker in text, marker
 
@@ -93,12 +95,14 @@ def test_user_copy_scope_is_explicit_and_verifiable() -> None:
         "--exclude=/NTUSER.DAT*",
         "--safe-links",
         "--ignore-errors",
+        "mktemp",
         "PENDING_ITEMS=",
         "RECOVERED USER DATA COPY VERIFIED BY RSYNC DRY RUN",
         "COPY COMPLETED WITH LOGGED ITEMS REQUIRING REVIEW",
     ):
         assert marker in text, marker
     assert "--delete" not in text
+    assert "|'Public'|" not in text
 
 
 def test_forbidden_source_repair_and_secret_collection_are_absent() -> None:
@@ -121,17 +125,21 @@ def test_qr_catalog_enforces_practical_limit_and_emits_short_pointer_commands() 
         "qr-catalog",
         "--repo-mount", "/mnt/sas",
         "--source", "/dev/nvme0n1",
+        "--expect-model", "Lexar SSD NQ700 2TB",
+        "--expect-serial", "SERIAL123",
         "--destination", "/dev/sda2",
+        "--destination-label", "Expansion",
         "--workdir", "/mnt/expansion/CASE",
         "--image", "disk.img",
         "--map", "disk.map",
+        "--bitlocker-partition-number", "3",
         "--mode", "resume",
         "--max-chars", "240",
     )
     assert result.returncode == 0, result.stderr
     lines = result.stdout.splitlines()
     counts = [int(line.split("=", 1)[1]) for line in lines if line.startswith("QR_") and "_CHARS=" in line]
-    assert len(counts) == 9, counts
+    assert len(counts) == 10, counts
     assert max(counts) <= 240, counts
     assert "H4sI" not in result.stdout
     assert "base64" not in result.stdout
@@ -144,10 +152,14 @@ def test_qr_catalog_rejects_a_limit_below_generated_command_size() -> None:
         "qr-catalog",
         "--repo-mount", "/mnt/sas",
         "--source", "/dev/nvme0n1",
+        "--expect-model", "Lexar SSD NQ700 2TB",
+        "--expect-serial", "SERIAL123",
         "--destination", "/dev/sda2",
+        "--destination-label", "Expansion",
         "--workdir", "/mnt/expansion/CASE",
         "--image", "disk.img",
         "--map", "disk.map",
+        "--bitlocker-partition-number", "3",
         "--max-chars", "20",
     )
     assert result.returncode != 0
