@@ -135,7 +135,7 @@ def test_user_copy_scope_is_explicit_and_verifiable() -> None:
 def test_loop_state_is_atomic_and_cleanup_binds_it_to_the_expected_image() -> None:
     text = read_implementation()
     for marker in (
-        "printf 'LOOP=%s\nIMAGE=%s\n'",
+        r"printf 'LOOP=%s\nIMAGE=%s\n'",
         "set -o noclobber",
         "state file validation failed",
         '[[ "$loopdev" =~ ^/dev/loop[0-9]+$ ]]',
