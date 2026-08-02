@@ -148,6 +148,14 @@ Use `--include-appdata` only when application state is explicitly required and d
 
 This profile-copy pass does not include volume-root folders such as `ProgramData`, custom root directories, or application installations. Add those as separate evidence-backed copy lanes instead of silently broadening the default scope.
 
+### 11. Clean up the read-only image stack
+
+```bash
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh cleanup --mount /mnt/recovery-image --mapper-name sas_image_bitlk --loop-state-file /mnt/expansion/CASE_RECOVERY/loop.state --image /mnt/expansion/CASE_RECOVERY/full-disk.img
+```
+
+Cleanup refuses to detach a loop device unless the state file is a regular non-symlink file, names a valid read-only loop device, records the same canonical image path supplied by the operator, and matches the loop device's current backing file.
+
 ## QR-safe command catalog
 
 The repository follows **QR = pointer, not payload**. Do not embed full shell scripts in QR codes.
