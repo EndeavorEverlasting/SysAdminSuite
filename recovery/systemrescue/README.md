@@ -155,7 +155,7 @@ The repository follows **QR = pointer, not payload**. Do not embed full shell sc
 After device paths and case paths are confirmed, generate exact commands:
 
 ```bash
-bash recovery/systemrescue/sas-recovery.sh qr-catalog --repo-mount /mnt/sas --source /dev/nvme0n1 --destination /dev/sda2 --workdir /mnt/expansion/CASE_RECOVERY --image full-disk.img --map full-disk.map --mode resume --max-chars 240
+bash recovery/systemrescue/sas-recovery.sh qr-catalog --repo-mount /mnt/sas --source /dev/nvme0n1 --expect-model 'CONFIRMED MODEL' --expect-serial 'CONFIRMED SERIAL' --destination /dev/sda2 --destination-label Expansion --workdir /mnt/expansion/CASE_RECOVERY --image full-disk.img --map full-disk.map --bitlocker-partition-number 3 --mode resume --max-chars 240
 ```
 
 The catalog:
@@ -163,6 +163,7 @@ The catalog:
 - emits numbered commands;
 - reports each exact character count;
 - fails if any command exceeds the selected limit;
+- requires confirmed source model/serial, destination label, and BitLocker partition number;
 - uses one short environment-setting QR followed by pointer commands;
 - contains no base64 script payloads.
 
