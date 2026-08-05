@@ -54,6 +54,7 @@ def test_discovery_deduplicates_subst_alias_and_physical_paths() -> None:
     for marker in (
         "function Get-SasPhysicalPathIdentity",
         "QueryDosDevice",
+        "$root[2] -eq [char]92",
         "physical_identity",
         "$seen.Add($identity)",
         "path_aliases_deduplicated=$true",
@@ -72,6 +73,15 @@ def test_completed_recovery_is_terminal_and_never_rediscovered() -> None:
     assert "classification='NO_INTERRUPTED_PROBE_RUN_FOUND'" in text
 
 
+def test_discovery_recanonicalizes_legacy_short_identity_before_exact_cleanup() -> None:
+    text = read(DISCOVERY)
+    resolution = text.index("Resolve-SasCanonicalTargetFqdn -TargetName $Recorded")
+    candidate = text.index("canonical_recovery_target=$ComputerName", resolution)
+    exact = text.index("$one = & $recoveryScript -ComputerName $ComputerName", candidate)
+    assert resolution < candidate < exact
+    assert "$one = & $recoveryScript -ComputerName ([string]$item.target)" not in text
+
+
 def test_discovery_fails_closed_if_install_or_after_evidence_exists() -> None:
     text = read(DISCOVERY)
     for marker in (
@@ -86,9 +96,9 @@ def test_discovery_fails_closed_if_install_or_after_evidence_exists() -> None:
     assert text.index("if ($unsafe.Count -gt 0)") < text.index("$one = & $recoveryScript")
 
 
-def test_discovery_invokes_exact_recovery_with_recorded_identity_only() -> None:
+def test_discovery_invokes_exact_recovery_with_recorded_identity_and_canonical_target_only() -> None:
     text = read(DISCOVERY)
-    call = text.index("$one = & $recoveryScript -ComputerName ([string]$item.target)")
+    call = text.index("$one = & $recoveryScript -ComputerName $ComputerName")
     for marker in (
         "-RunId ([string]$item.run_id)",
         "-TaskName ([string]$item.task_name)",
