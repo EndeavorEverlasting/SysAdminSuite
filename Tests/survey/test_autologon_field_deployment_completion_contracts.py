@@ -41,6 +41,41 @@ def test_apply_is_unreachable_without_completed_safe_recovery_gate() -> None:
     assert "Interrupted-run gate did not return a completed result. AutoLogon apply was not started." in text
 
 
+def test_terminal_completion_and_atomic_target_lock_precede_recovery_apply() -> None:
+    field = read(FIELD)
+    state = read(STATE)
+    lock = field.index("$targetMutexAcquired = $targetMutex.WaitOne(0)")
+    prior = field.index("Find-SasLatestAutoLogonFieldResult", lock)
+    terminal = field.index("AUTOLOGON_DEPLOYMENT_ALREADY_COMPLETED", prior)
+    recovery = field.index("$recovery = & $recoveryScript", terminal)
+    apply = field.index("$deployment = & $deploymentScript", recovery)
+    assert lock < prior < terminal < recovery < apply
+    for marker in (
+        "AUTOLOGON_FIELD_TARGET_LOCKED",
+        "ReleaseMutex()",
+        "existing_terminal_result_path",
+        "ExcludePath $resultPath",
+        "STOP - durable terminal deployment evidence already exists; do not rerun.",
+    ):
+        assert marker in field, marker
+    assert "$terminal = @(" in state
+    assert "if ($terminal.Count -gt 0) { return $terminal }" in state
+    assert "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in state
+
+
+def test_legacy_short_recovery_is_recanonicalized_and_exact_helper_uses_canonical_target() -> None:
+    text = read(RECOVERY)
+    for marker in (
+        "Resolve-SasCanonicalTargetFqdn -TargetName $Recorded",
+        "canonical_recovery_target=$ComputerName",
+        "$one = & $recoveryScript -ComputerName $ComputerName",
+        "$root[2] -eq [char]92",
+        "QueryDosDevice",
+    ):
+        assert marker in text, marker
+    assert "$one = & $recoveryScript -ComputerName ([string]$item.target)" not in text
+
+
 def test_terminal_success_requires_every_restart_completion_flag() -> None:
     text = read(FIELD)
     start = text.index("if ([string]$result.deployment_status")
@@ -76,6 +111,7 @@ def test_operator_state_stops_rerun_after_completion_or_mutation() -> None:
     text = read(STATE)
     assert "STOP - AutoLogon deployment completed; do not rerun." in text
     assert "STOP - inspect persisted AutoLogon evidence; do not rerun." in text
+    assert "STOP - another AutoLogon transaction owns this target" in text
     assert "sas autologon Remote $requested" in text
 
 
