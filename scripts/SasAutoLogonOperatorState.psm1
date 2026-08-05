@@ -92,9 +92,17 @@ function Find-SasLatestAutoLogonFieldResult {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
-        [AllowNull()][string]$Target
+        [AllowNull()][string]$Target,
+        [AllowNull()][string]$ExcludePath
     )
     $items = @()
+    $normalizedExclude = $null
+    if (-not [string]::IsNullOrWhiteSpace($ExcludePath)) {
+        try { $normalizedExclude = [IO.Path]::GetFullPath($ExcludePath).TrimEnd('\') }
+        catch { $normalizedExclude = $ExcludePath.TrimEnd('\') }
+    }
+    $targetIsFqdn = (-not [string]::IsNullOrWhiteSpace($Target) -and $Target.Contains('.'))
+
     foreach ($root in @(Get-SasEvidenceRoots -RepoRoot $RepoRoot)) {
         foreach ($relative in @(
             'survey\output\runs\autologon-field-deployment',
@@ -106,14 +114,28 @@ function Find-SasLatestAutoLogonFieldResult {
                 Get-ChildItem -LiteralPath $searchRoot -Filter 'autologon_field_deployment_result.json' `
                     -File -Recurse -ErrorAction SilentlyContinue
             )) {
+                if ($normalizedExclude) {
+                    try { $candidatePath = [IO.Path]::GetFullPath($file.FullName).TrimEnd('\') }
+                    catch { $candidatePath = $file.FullName.TrimEnd('\') }
+                    if ($candidatePath.Equals($normalizedExclude, [StringComparison]::OrdinalIgnoreCase)) {
+                        continue
+                    }
+                }
                 try {
                     $value = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
                     $requested = [string](Get-SasObjectPropertyValue $value 'requested_target')
                     $resolved = [string](Get-SasObjectPropertyValue $value 'resolved_target_fqdn')
-                    if ($Target -and
-                        -not (Test-SasAutoLogonSameTarget -Left $requested -Right $Target) -and
-                        -not (Test-SasAutoLogonSameTarget -Left $resolved -Right $Target)) {
-                        continue
+                    if ($Target) {
+                        if (-not [string]::IsNullOrWhiteSpace($resolved)) {
+                            if (-not (Test-SasAutoLogonSameTarget -Left $resolved -Right $Target)) { continue }
+                        }
+                        elseif ($targetIsFqdn) {
+                            # A canonical target must not trust a result that never recorded canonical identity.
+                            continue
+                        }
+                        elseif (-not (Test-SasAutoLogonSameTarget -Left $requested -Right $Target)) {
+                            continue
+                        }
                     }
                     $items += [pscustomobject]@{
                         path=$file.FullName
@@ -125,6 +147,14 @@ function Find-SasLatestAutoLogonFieldResult {
             }
         }
     }
+
+    $terminal = @(
+        $items | Where-Object {
+            [string](Get-SasObjectPropertyValue $_.value 'status') -eq 'COMPLETED' -and
+            [string](Get-SasObjectPropertyValue $_.value 'classification') -eq 'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED'
+        } | Sort-Object last_write_utc -Descending | Select-Object -First 1
+    )
+    if ($terminal.Count -gt 0) { return $terminal }
     return @($items | Sort-Object last_write_utc -Descending | Select-Object -First 1)
 }
 
@@ -151,8 +181,9 @@ function Find-SasLatestCompletedAutoLogonRecovery {
                     if ($status -ne 'COMPLETED' -or $classification -ne 'S4U_PROBE_CREATE_HANG_RECOVERED') {
                         continue
                     }
-                    if ($Target -and -not (Test-SasAutoLogonSameTarget -Left $recordedTarget -Right $Target)) {
-                        continue
+                    if ($Target) {
+                        if ($Target.Contains('.') -and -not $recordedTarget.Contains('.')) { continue }
+                        if (-not (Test-SasAutoLogonSameTarget -Left $recordedTarget -Right $Target)) { continue }
                     }
                     $items += [pscustomobject]@{
                         path=$file.FullName
@@ -262,6 +293,10 @@ function Sync-SasAutoLogonOperatorState {
         if ($completed) {
             $updates['next_required_network'] = 'NONE'
             $updates['next_command'] = 'STOP - AutoLogon deployment completed; do not rerun.'
+        }
+        elseif ($classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') {
+            $updates['next_required_network'] = 'NONE'
+            $updates['next_command'] = 'STOP - another AutoLogon transaction owns this target; inspect sas context after it finishes.'
         }
         elseif ($started -or $mutated) {
             $updates['next_required_network'] = 'NONE'
