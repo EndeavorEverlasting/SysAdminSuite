@@ -20,12 +20,13 @@ if (-not $git) { throw 'Git for Windows is required to refresh the field-ready S
 & $git.Source -C $RepositoryRoot rev-parse --is-inside-work-tree *> $null
 if ($LASTEXITCODE -ne 0) { throw "Not a Git working tree: $RepositoryRoot" }
 
+$operatorStateRoot = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
+$persistedRefPath = Join-Path -Path $operatorStateRoot -ChildPath 'repo-ref.txt'
+
 function Get-SasPersistedRefreshRef {
-    $state = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
-    $refPath = Join-Path -Path $state -ChildPath 'repo-ref.txt'
-    if (Test-Path -LiteralPath $refPath -PathType Leaf) {
+    if (Test-Path -LiteralPath $persistedRefPath -PathType Leaf) {
         try {
-            $value = (Get-Content -LiteralPath $refPath -Raw -Encoding ASCII).Trim()
+            $value = (Get-Content -LiteralPath $persistedRefPath -Raw -Encoding ASCII).Trim()
             if (-not [string]::IsNullOrWhiteSpace($value)) { return $value }
         }
         catch { }
@@ -33,17 +34,37 @@ function Get-SasPersistedRefreshRef {
     return $null
 }
 
+function Clear-SasPersistedRefreshRef {
+    try {
+        if (Test-Path -LiteralPath $persistedRefPath -PathType Leaf) {
+            Remove-Item -LiteralPath $persistedRefPath -Force
+        }
+    }
+    catch {
+        Write-Warning "Could not clear stale persisted refresh ref: $($_.Exception.Message)"
+    }
+}
+
+function Test-SasRemoteRefreshBranch {
+    param([Parameter(Mandatory = $true)][string]$Branch)
+    & $git.Source -C $RepositoryRoot ls-remote --exit-code --heads origin "refs/heads/$Branch" *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
 function Resolve-SasRefreshBranch {
     param([AllowNull()][string]$RequestedRef)
 
+    $candidateSource = 'explicit'
     if (-not [string]::IsNullOrWhiteSpace($RequestedRef)) {
         $candidate = $RequestedRef.Trim()
     }
     else {
+        $candidateSource = 'current_branch'
         $candidate = (& $git.Source -C $RepositoryRoot branch --show-current 2>$null | Select-Object -First 1)
         if ($LASTEXITCODE -eq 0 -and $candidate) { $candidate = ([string]$candidate).Trim() }
 
         if ([string]::IsNullOrWhiteSpace([string]$candidate)) {
+            $candidateSource = 'unique_remote_at_head'
             $remoteMatches = @(
                 & $git.Source -C $RepositoryRoot branch -r --points-at HEAD --format='%(refname:short)' 2>$null |
                     ForEach-Object { ([string]$_).Trim() } |
@@ -53,13 +74,33 @@ function Resolve-SasRefreshBranch {
             )
             if ($LASTEXITCODE -eq 0 -and $remoteMatches.Count -eq 1) { $candidate = $remoteMatches[0] }
         }
-        if ([string]::IsNullOrWhiteSpace([string]$candidate)) { $candidate = Get-SasPersistedRefreshRef }
-        if ([string]::IsNullOrWhiteSpace([string]$candidate)) { $candidate = 'main' }
+        if ([string]::IsNullOrWhiteSpace([string]$candidate)) {
+            $candidateSource = 'persisted'
+            $candidate = Get-SasPersistedRefreshRef
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$candidate)) {
+            $candidateSource = 'default_main'
+            $candidate = 'main'
+        }
     }
 
     $candidate = ([string]$candidate).Trim()
     & $git.Source check-ref-format --branch $candidate *> $null
     if ($LASTEXITCODE -ne 0) { throw "Refresh ref is not a valid branch name: $candidate" }
+
+    if (-not (Test-SasRemoteRefreshBranch -Branch $candidate)) {
+        if ($candidateSource -eq 'persisted') {
+            Clear-SasPersistedRefreshRef
+            $candidate = 'main'
+            if (-not (Test-SasRemoteRefreshBranch -Branch $candidate)) {
+                throw 'Persisted refresh ref was stale and origin/main could not be verified.'
+            }
+            Write-Warning 'Persisted refresh ref was stale; cleared it and repaired refresh provenance to origin/main.'
+        }
+        else {
+            throw "Refresh branch does not exist on origin: $candidate"
+        }
+    }
     return $candidate
 }
 
@@ -76,9 +117,9 @@ if ($LASTEXITCODE -ne 0) { throw "git fetch origin $refreshBranch failed with ex
 $remoteHead = (& $git.Source -C $RepositoryRoot rev-parse $remoteDisplay).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remoteHead)) { throw "Could not resolve $remoteDisplay after fetch." }
 
-$stateRoot = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
+$stateRoot = $operatorStateRoot
 $preferred = Join-Path -Path $stateRoot -ChildPath 'field-ready'
-$refStatePath = Join-Path -Path $stateRoot -ChildPath 'repo-ref.txt'
+$refStatePath = $persistedRefPath
 $returnNetworkPath = Join-Path -Path $stateRoot -ChildPath 'return-network.json'
 New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
 
@@ -181,7 +222,6 @@ if (Get-Command -Name Sync-SasAutoLogonOperatorState -ErrorAction SilentlyContin
     $nextNetwork = [string](Get-SasObjectPropertyValue $session 'next_required_network' 'ANY / OFFLINE')
 }
 else {
-    # Compatibility fallback for a checkout that predates AutoLogon operator-state convergence.
     $session = Sync-SasOperatorSessionFromEvidence -RepoRoot $fieldReady -TargetFqdn $targetFilter
     $nextTarget = if ($session.target_input) { [string]$session.target_input } else { $null }
     $nextCommand = if ($nextTarget) { "sas cybernet Core $nextTarget" } else { 'sas context' }
