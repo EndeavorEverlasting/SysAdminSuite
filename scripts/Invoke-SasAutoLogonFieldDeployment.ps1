@@ -8,10 +8,11 @@ Owns the normal product path behind `sas autologon Remote HOST` and the recovery
 path behind `sas autologon Recover HOST`.
 
 The transaction proves the protected network before DNS/target contact, canonicalizes
-the requested target before exact host eligibility inside the apply engine, converges
-any safely recorded unfinished probe-only recovery, invokes the restart-complete S4U
-deployment exactly once, and persists a terminal field result. It never deploys the
-clinical-core package set and never reads DefaultPassword data.
+the requested target before exact host eligibility inside the apply engine, acquires one
+atomic per-target operator lock, converges any safely recorded unfinished probe-only
+recovery, refuses to downgrade or repeat durable terminal completion, invokes the
+restart-complete S4U deployment exactly once, and persists a terminal field result.
+It never deploys the clinical-core package set and never reads DefaultPassword data.
 #>
 [CmdletBinding()]
 param(
@@ -79,6 +80,18 @@ function Save-SasAutoLogonFieldResult {
     Move-Item -LiteralPath $temporary -Destination $resultPath -Force
 }
 
+function Get-SasAutoLogonTargetMutexName {
+    param([Parameter(Mandatory = $true)][string]$CanonicalTarget)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($CanonicalTarget.Trim().TrimEnd('.').ToLowerInvariant())
+        $digest = $algorithm.ComputeHash($bytes)
+    }
+    finally { $algorithm.Dispose() }
+    $token = ([BitConverter]::ToString($digest)).Replace('-','').Substring(0,32)
+    return "Local\SysAdminSuite-AutoLogon-$token"
+}
+
 function Get-SasLatestInnerDeploymentResult {
     $files = @(
         Get-ChildItem -LiteralPath $runRoot -Filter 'autologon_s4u_deployment_result.json' `
@@ -127,6 +140,10 @@ $result = [ordered]@{
     resolved_addresses = @()
     resolution_sources = @()
     resolution_evidence_path = $null
+    target_lock_name = $null
+    target_lock_acquired = $false
+    prior_field_result_path = $null
+    existing_terminal_result_path = $null
     network_classification = 'UNPROVEN'
     network_gate_completed = $false
     historical_recovery_status = 'UNKNOWN'
@@ -136,6 +153,7 @@ $result = [ordered]@{
     recovery_classification = $null
     recovery_result = $null
     autologon_deployment_started = $false
+    autologon_deployment_completed = $false
     apply_invocation_count = 0
     clinical_core_invoked = $false
     deployment_status = $null
@@ -160,6 +178,8 @@ $result = [ordered]@{
 }
 Save-SasAutoLogonFieldResult -Value $result
 
+$targetMutex = $null
+$targetMutexAcquired = $false
 try {
     Write-Host "`n=== PROTECTED NETWORK GATE ===" -ForegroundColor Cyan
     & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate `
@@ -188,9 +208,67 @@ try {
     $result.final_target = $resolvedTarget
     Save-SasAutoLogonFieldResult -Value $result
 
+    $lockName = Get-SasAutoLogonTargetMutexName -CanonicalTarget $resolvedTarget
+    $result.target_lock_name = $lockName
+    $targetMutex = [System.Threading.Mutex]::new($false, $lockName)
+    try { $targetMutexAcquired = $targetMutex.WaitOne(0) }
+    catch [System.Threading.AbandonedMutexException] { $targetMutexAcquired = $true }
+    if (-not $targetMutexAcquired) {
+        throw "Another AutoLogon field transaction already owns canonical target $resolvedTarget."
+    }
+    $result.target_lock_acquired = $true
+    Save-SasAutoLogonFieldResult -Value $result
+
     [void](Initialize-SasAutoLogonOperatorState -RepoRoot $repoRoot `
         -RequestedTarget $requestedTarget -ResolvedTargetFqdn $resolvedTarget `
         -ResolutionAddresses @($resolution.addresses) -ResolutionSources @($resolution.resolution_sources))
+
+    $priorField = @(Find-SasLatestAutoLogonFieldResult -RepoRoot $repoRoot `
+        -Target $resolvedTarget -ExcludePath $resultPath)
+    if ($priorField.Count -gt 0) {
+        $priorValue = $priorField[0].value
+        $result.prior_field_result_path = [string]$priorField[0].path
+        $priorStatus = [string](Get-SasObjectPropertyValue $priorValue 'status')
+        $priorClassification = [string](Get-SasObjectPropertyValue $priorValue 'classification')
+        $priorCompleted = ($priorStatus -eq 'COMPLETED' -and
+            $priorClassification -eq 'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED')
+
+        if ($Action -eq 'Remote' -and $priorCompleted) {
+            $result.status = 'COMPLETED'
+            $result.classification = 'AUTOLOGON_DEPLOYMENT_ALREADY_COMPLETED'
+            $result.autologon_deployment_completed = $true
+            $result.existing_terminal_result_path = [string]$priorField[0].path
+            $result.next_action = 'STOP - durable terminal deployment evidence already exists; do not rerun.'
+            Save-SasAutoLogonFieldResult -Value $result
+            [void](Set-SasAutoLogonOperatorStateValues -Values @{
+                autologon_deployment_started=$true
+                autologon_deployment_completed=$true
+                latest_status='COMPLETED'
+                latest_phase='terminal'
+                latest_checkpoint='AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED'
+                evidence_path=[string]$priorField[0].path
+                next_required_network='NONE'
+                next_command='STOP - AutoLogon deployment completed; do not rerun.'
+            })
+            Write-Host 'AUTOLOGON_DEPLOYMENT_ALREADY_COMPLETED' -ForegroundColor Green
+            Write-Host "Existing terminal evidence: $($priorField[0].path)"
+            if ($PassThru) { return [pscustomobject]$result }
+            return
+        }
+
+        $priorStarted = [bool](Get-SasObjectPropertyValue $priorValue 'autologon_deployment_started' $false)
+        $priorPostApply = (
+            [bool](Get-SasObjectPropertyValue $priorValue 'target_mutation_performed' $false) -or
+            [bool](Get-SasObjectPropertyValue $priorValue 'autologon_applied' $false) -or
+            [bool](Get-SasObjectPropertyValue $priorValue 'pre_reboot_autologon_ready' $false) -or
+            [bool](Get-SasObjectPropertyValue $priorValue 'automatic_reboot_performed' $false) -or
+            $priorClassification -eq 'AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED'
+        )
+        $priorAmbiguousStarted = ($priorStatus -eq 'STARTED' -and $priorStarted)
+        if ($Action -eq 'Remote' -and ($priorPostApply -or $priorAmbiguousStarted)) {
+            throw "Prior AutoLogon field evidence requires evidence-led review before any new apply: $($priorField[0].path)"
+        }
+    }
 
     $historical = @(Find-SasLatestCompletedAutoLogonRecovery -RepoRoot $repoRoot -Target $resolvedTarget)
     if ($historical.Count -gt 0) {
@@ -254,7 +332,7 @@ try {
         Write-Host $result.classification -ForegroundColor Green
         Write-Host "Evidence: $resultPath"
         if ($PassThru) { return [pscustomobject]$result }
-        exit 0
+        return
     }
 
     $result.autologon_deployment_started = $true
@@ -296,6 +374,7 @@ try {
 
     $result.status = 'COMPLETED'
     $result.classification = 'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED'
+    $result.autologon_deployment_completed = $true
     $result.final_target = $resolvedTarget
     $result.next_action = 'STOP - deployment is complete. Do not run AutoLogon again.'
     Save-SasAutoLogonFieldResult -Value $result
@@ -332,7 +411,10 @@ catch {
         [bool]$result.automatic_reboot_performed -or
         [bool]$result.restart_offline_observed -or
         [bool]$result.restart_online_observed)
-    if ($mustStop) {
+    if ($_.Exception.Message -like 'Another AutoLogon field transaction already owns canonical target*') {
+        $result.classification = 'AUTOLOGON_FIELD_TARGET_LOCKED'
+    }
+    elseif ($mustStop) {
         $result.classification = 'AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED'
     }
     elseif ([bool]$result.autologon_deployment_started) {
@@ -346,7 +428,9 @@ catch {
     }
     $result.reason = $_.Exception.Message
 
-    $result.next_action = if ($mustStop) {
+    $result.next_action = if ($result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') {
+        'STOP - another AutoLogon transaction owns this canonical target; do not start a second transaction.'
+    } elseif ($mustStop -or $result.reason -like 'Prior AutoLogon field evidence requires evidence-led review*') {
         "STOP - inspect durable evidence at $resultPath; do not rerun."
     } else {
         "Fix the pre-apply defect, then rerun once: sas autologon Remote $requestedTarget"
@@ -361,7 +445,7 @@ catch {
         latest_checkpoint=[string]$result.classification
         target_mutation_performed=[bool]$result.target_mutation_performed
         evidence_path=$resultPath
-        next_required_network=$(if ($mustStop) { 'NONE' } else { 'PROTECTED NORTHWELL' })
+        next_required_network=$(if ($mustStop -or $result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') { 'NONE' } else { 'PROTECTED NORTHWELL' })
         next_command=[string]$result.next_action
     })
 
@@ -370,6 +454,12 @@ catch {
     Write-Host "Evidence: $resultPath"
     throw
 }
+finally {
+    if ($targetMutexAcquired -and $null -ne $targetMutex) {
+        try { $targetMutex.ReleaseMutex() } catch { }
+    }
+    if ($null -ne $targetMutex) { $targetMutex.Dispose() }
+}
 
 if ($PassThru) { return [pscustomobject]$result }
-exit 0
+return
