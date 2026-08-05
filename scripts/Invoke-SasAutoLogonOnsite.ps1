@@ -5,11 +5,9 @@ Operator-friendly AutoLogon launcher for field use.
 
 .DESCRIPTION
 Keeps canonical LocalSystem qualification available for a future materially different candidate,
-and exposes the current package through a separate remote Kerberos/S4U administrator-task lane.
-The remote deployment lane does not require a user session on the target, does not store a task
-password, recovers any safely recorded interrupted probe-only S4U runs before a new apply, and
-completes AutoLogon deployment by restarting the target after the required pre-reboot state is
-established.
+and routes the supported field deployment through one AutoLogon-only transaction that owns
+protected-network proof, canonical target resolution, interrupted probe-only recovery, S4U apply,
+bounded restart observation, cleanup proof, persistent operator state, and terminal evidence.
 #>
 [CmdletBinding()]
 param(
@@ -25,12 +23,13 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $requestDirectory = Join-Path $repoRoot 'survey\input\autologon-system-qualification'
 $templatePath = Join-Path $repoRoot 'configs\software-packages\autologon-system-qualification-request.example.json'
 $qualificationScript = Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonSystemQualification.ps1'
-$s4uDeploymentScript = Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonS4URestartDeployment.ps1'
-$s4uRecoveryScript = Join-Path $repoRoot 'scripts\Recover-SasLatestInterruptedAutoLogonS4U.ps1'
+$fieldDeploymentScript = Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonFieldDeployment.ps1'
 $networkGate = Join-Path $repoRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
 
-foreach ($required in @($templatePath,$qualificationScript,$s4uDeploymentScript,$s4uRecoveryScript,$networkGate)) {
-    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Missing on-site AutoLogon dependency: $required" }
+foreach ($required in @($templatePath,$qualificationScript,$fieldDeploymentScript,$networkGate)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Missing on-site AutoLogon dependency: $required"
+    }
 }
 
 function Get-SasQualificationRequests {
@@ -45,7 +44,9 @@ function New-SasLocalQualificationRequest {
         Copy-Item -LiteralPath $templatePath -Destination $destination
         Write-Host 'Created an operator-local qualification request from the tracked template.' -ForegroundColor Green
     }
-    else { Write-Host 'Using the existing operator-local qualification request.' -ForegroundColor Cyan }
+    else {
+        Write-Host 'Using the existing operator-local qualification request.' -ForegroundColor Cyan
+    }
     Write-Host "Request: $destination"
     Write-Host 'This path is ignored by git. Replace every REPLACE/placeholder field with approved real values.' -ForegroundColor Yellow
     try { Start-Process -FilePath 'notepad.exe' -ArgumentList @($destination) | Out-Null }
@@ -65,9 +66,13 @@ function Confirm-SasRequestExists {
 
 function Resolve-SasRemoteTarget {
     param([string]$RequestedTarget)
-    if (-not [string]::IsNullOrWhiteSpace($RequestedTarget)) { return $RequestedTarget.Trim() }
+    if (-not [string]::IsNullOrWhiteSpace($RequestedTarget)) {
+        return $RequestedTarget.Trim()
+    }
     $typed = (Read-Host 'Enter the exact authorized Cybernet hostname or FQDN').Trim()
-    if ([string]::IsNullOrWhiteSpace($typed)) { throw 'An explicit target is required for the remote AutoLogon deployment.' }
+    if ([string]::IsNullOrWhiteSpace($typed)) {
+        throw 'An explicit target is required for the remote AutoLogon deployment.'
+    }
     return $typed
 }
 
@@ -77,16 +82,18 @@ function Assert-SasAutoLogonProtectedNetwork {
     Write-Host 'Checking local network posture before any target contact...' -ForegroundColor Cyan
     & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate -Purpose $Purpose
     $networkExit = $LASTEXITCODE
-    if ($networkExit -ne 0) { throw "AutoLogon operation stopped by the network gate with exit code $networkExit." }
+    if ($networkExit -ne 0) {
+        throw "AutoLogon operation stopped by the network gate with exit code $networkExit."
+    }
 }
 
 if ($Action -eq 'Menu') {
     Clear-Host
     Write-Host 'SysAdminSuite AutoLogon On-Site' -ForegroundColor Cyan
-    Write-Host 'Remote Kerberos/S4U is the field deployment lane; LocalSystem qualification remains a separate future-candidate lane.' -ForegroundColor DarkCyan
+    Write-Host 'Remote Kerberos/S4U is the supported field deployment lane; LocalSystem qualification remains a separate future-candidate lane.' -ForegroundColor DarkCyan
     Write-Host ''
-    Write-Host '[1] Deploy AutoLogon via Kerberos SMB + passwordless S4U, recover recorded probe-only interruption first, then restart target'
-    Write-Host '[2] Recover recorded interrupted probe-only S4U runs without installing AutoLogon'
+    Write-Host '[1] Deploy AutoLogon: canonicalize target, converge safe probe recovery, apply once, restart, verify cleanup'
+    Write-Host '[2] Recover safely recorded interrupted probe-only runs without installing AutoLogon'
     Write-Host '[3] Prepare/edit LocalSystem qualification request for a different candidate'
     Write-Host '[4] Validate LocalSystem qualification request (no target contact)'
     Write-Host '[5] Run controlled LocalSystem qualification pilot (requires different candidate)'
@@ -108,7 +115,9 @@ if ($Action -eq 'Menu') {
 switch ($Action) {
     'Prepare' {
         $requests = @(Get-SasQualificationRequests)
-        if ($requests.Count -eq 0) { [void](New-SasLocalQualificationRequest) }
+        if ($requests.Count -eq 0) {
+            [void](New-SasLocalQualificationRequest)
+        }
         elseif ($requests.Count -eq 1) {
             Write-Host "Opening request: $($requests[0].FullName)"
             Start-Process -FilePath 'notepad.exe' -ArgumentList @($requests[0].FullName) | Out-Null
@@ -132,22 +141,12 @@ switch ($Action) {
     }
     'Recover' {
         $target = Resolve-SasRemoteTarget -RequestedTarget $ComputerName
-        Assert-SasAutoLogonProtectedNetwork -Purpose "Recover recorded interrupted AutoLogon S4U runs for $target"
-        & $s4uRecoveryScript -ComputerName $target -ConfirmRecovery
+        & $fieldDeploymentScript -Action Recover -ComputerName $target
         exit $LASTEXITCODE
     }
     { $_ -in @('Remote','S4U') } {
         $target = Resolve-SasRemoteTarget -RequestedTarget $ComputerName
-        Assert-SasAutoLogonProtectedNetwork -Purpose "AutoLogon Kerberos S4U deployment for $target"
-
-        Write-Host "`n=== INTERRUPTED-RUN GATE ===" -ForegroundColor Cyan
-        $recovery = & $s4uRecoveryScript -ComputerName $target -ConfirmRecovery -PassThru
-        if ($null -eq $recovery -or [string]$recovery.status -ne 'COMPLETED') {
-            throw 'Interrupted-run gate did not return a completed classification. AutoLogon was not started.'
-        }
-        Write-Host "Interrupted-run gate: $($recovery.classification)" -ForegroundColor Green
-
-        & $s4uDeploymentScript -ComputerName $target -AllowTargetMutation -ConfirmDeployment
+        & $fieldDeploymentScript -Action Remote -ComputerName $target
         exit $LASTEXITCODE
     }
     'Evidence' {

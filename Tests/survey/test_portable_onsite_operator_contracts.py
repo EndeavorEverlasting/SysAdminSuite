@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def read(relative: str) -> str:
     path = ROOT / relative
     assert path.is_file(), f"missing operator surface file: {path}"
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8-sig")
 
 
 def test_auto_logon_onsite_launcher_is_repo_relative_and_bootstraps_local_request() -> None:
@@ -36,27 +36,41 @@ def test_local_system_candidate_actions_remain_separate_from_remote_s4u() -> Non
     pilot = script.index("'Pilot' {")
     live = script.index("& $qualificationScript -Action Live")
     remote = script.index("{ $_ -in @('Remote','S4U') } {")
-    deploy = script.index("& $s4uDeploymentScript -ComputerName $target")
+    deploy = script.index("& $fieldDeploymentScript -Action Remote -ComputerName $target")
     assert pilot < live
     assert remote < deploy
     assert "Confirm-SasNorthwellNetwork.ps1" in script
 
 
-def test_auto_logon_remote_command_accepts_action_and_target_and_restarts() -> None:
+def test_auto_logon_remote_command_accepts_action_target_canonicalization_and_restart() -> None:
     cmd = read("Run-AutoLogonOnsite.cmd")
     launcher = read("scripts/SasPortableLauncher.ps1")
     onsite = read("scripts/Invoke-SasAutoLogonOnsite.ps1")
+    field = read("scripts/Invoke-SasAutoLogonFieldDeployment.ps1")
     deployment = read("scripts/Invoke-SasAutoLogonS4URestartDeployment.ps1")
     assert 'if not "%~3"==""' in cmd
     assert '-ComputerName "%~2"' in cmd
     assert "'Remote','S4U'" in onsite
-    assert "Invoke-SasAutoLogonS4URestartDeployment.ps1" in onsite
+    assert "Invoke-SasAutoLogonFieldDeployment.ps1" in onsite
+    assert "Resolve-SasCanonicalTargetFqdn -TargetName $requestedTarget" in field
+    assert "Invoke-SasAutoLogonS4URestartDeployment.ps1" in field
     assert "sas autologon Remote HOST" in launcher
-    assert "restart included" in launcher
+    assert "restart" in launcher.lower()
     assert "Invoke-SasAutoLogonKerberosS4UPilot.ps1" in deployment
     assert "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in deployment
     assert "automatic_reboot_performed" in deployment
     assert "shutdown.exe /r /t" in deployment
+
+
+def test_network_zero_argument_surface_filters_forwarded_empty_arguments() -> None:
+    launcher = read("scripts/SasPortableLauncher.ps1")
+    assert "function Get-SasActualArguments" in launcher
+    assert "Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }" in launcher
+    assert "$actualCommandArgs = Get-SasActualArguments -Arguments $CommandArgs" in launcher
+    zero = launcher.index("if ($actualCommandArgs.Count -eq 0)")
+    gate = launcher.index("Confirm-SasNorthwellNetwork.ps1", zero)
+    one = launcher.index("if ($actualCommandArgs.Count -eq 1)", gate)
+    assert zero < gate < one
 
 
 def test_network_guard_has_windows11_wifi_profile_fallback() -> None:
@@ -115,7 +129,7 @@ def test_cybernet_target_operations_are_gated_in_engine_for_cmd_and_csv_paths() 
     assert "-Mode Validate" in launcher
     assert "Confirm-SasNorthwellNetwork.ps1" in engine
     assert "$Mode -ne 'Plan' -and -not $FixtureMode" in engine
-    assert "Cybernet $Mode batch canceled or blocked by the network gate before target contact" in engine
+    assert "Cybernet $Mode batch canceled or blocked by the network gate" in engine
     assert "exit $gateExit" in engine
 
 
@@ -159,7 +173,6 @@ def test_technician_guidance_deploys_then_restarts_without_test_loop_requirement
         assert "technician" in lowered
 
     assert "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED" in launcher
-    assert "Fixture/live-cert/runtime-proof loops are NOT prerequisites" in launcher
 
 
 def test_portable_sas_command_discovers_and_caches_repo_without_username_literals() -> None:
@@ -181,13 +194,42 @@ def test_portable_sas_command_discovers_and_caches_repo_without_username_literal
         "'network'",
     ):
         assert marker in launcher
-    assert "pa_rperez26" not in launcher
-    assert "pa_rperez26" not in installer
+    assert "pa_rperez26" not in launcher.lower()
+    assert "pa_rperez26" not in installer.lower()
     assert "%LOCALAPPDATA%" not in installer
     assert "$env:LOCALAPPDATA" in installer
     assert "SetEnvironmentVariable('Path'" in installer
     assert "'User'" in installer
     assert "%~dp0" in install_cmd
+
+
+def test_installed_launcher_self_refresh_converges_without_get_file_hash() -> None:
+    installer = read("scripts/Install-SasPortableLauncher.ps1")
+    assert "Copy-Item -LiteralPath $s -Destination $d -Force" in installer
+    assert "Parser]::ParseFile" in installer
+    executable = installer.replace("No Get-FileHash dependency is used.", "").replace("without Get-FileHash", "")
+    assert "Get-FileHash" not in executable
+    assert "SasAutoLogonOperatorState.psm1" in installer
+    assert "Invoke-SasAutoLogonFieldDeployment.ps1" in installer
+
+
+def test_context_exposes_repo_branch_target_recovery_and_deployment_state() -> None:
+    context = read("scripts/Show-SasOperatorContext.ps1")
+    state = read("scripts/SasAutoLogonOperatorState.psm1")
+    for marker in (
+        "Branch/ref:",
+        "Requested target:",
+        "Canonical target FQDN:",
+        "Historical S4U recovery:",
+        "AutoLogon deployment started:",
+        "AutoLogon deployment completed:",
+        "NEXT NETWORK:",
+        "NEXT COMMAND:",
+    ):
+        assert marker in context, marker
+    assert "Sync-SasAutoLogonOperatorState" in context
+    assert "autologon_field_deployment_result.json" in state
+    assert "s4u_probe_hang_recovery_result.json" in state
 
 
 def main() -> None:

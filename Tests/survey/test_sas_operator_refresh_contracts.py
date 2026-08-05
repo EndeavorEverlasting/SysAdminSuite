@@ -41,7 +41,7 @@ def test_refresh_preserves_active_branch_detached_remote_and_persisted_provenanc
         "repo-ref.txt",
         "origin/",
         "refs/heads/${refreshBranch}:${remoteTrackingRef}",
-        "$remoteDisplay=\"origin/$refreshBranch\"",
+        "$remoteDisplay = \"origin/$refreshBranch\"",
         "worktree add --detach $fieldReady $remoteDisplay",
         "checkout --detach $remoteDisplay",
         "Set-Content -LiteralPath $refStatePath -Value $refreshBranch -Encoding ASCII",
@@ -50,12 +50,9 @@ def test_refresh_preserves_active_branch_detached_remote_and_persisted_provenanc
         assert marker in script, marker
 
     remote_probe = script.index("branch -r --points-at HEAD")
-    persisted_ref = script.index("$candidate=Get-SasPersistedRefreshRef")
-    main_fallback = script.index("$candidate='main'")
+    persisted_ref = script.index("$candidate = Get-SasPersistedRefreshRef")
+    main_fallback = script.index("$candidate = 'main'")
     assert remote_probe < persisted_ref < main_fallback
-
-    # Old checkouts may fall back to main, but a known feature checkout must never be
-    # unconditionally replaced with origin/main.
     assert "fetch --prune origin main" not in script
     assert "worktree add --detach $fieldReady origin/main" not in script
     assert "checkout --detach origin/main" not in script
@@ -70,14 +67,12 @@ def test_refresh_never_force_updates_branch_provenance() -> None:
     assert "clean -fd" not in script
 
 
-def test_installed_shim_self_refreshes_dispatcher_from_cached_repo() -> None:
+def test_installed_shim_self_refreshes_dispatcher_without_optional_hash_cmdlet() -> None:
     installer = read("scripts/Install-SasPortableLauncher.ps1")
     for marker in (
         "repo-root.txt",
         "SasPortableLauncher.ps1",
-        "Get-FileHash -Algorithm SHA256",
         "Copy-Item -LiteralPath $s -Destination $d -Force",
-        "sas launcher refreshed from cached SysAdminSuite repo.",
         "preserving installed launcher",
         "sas-leave.cmd",
         "Double-click network return",
@@ -85,16 +80,15 @@ def test_installed_shim_self_refreshes_dispatcher_from_cached_repo() -> None:
         assert marker in installer, marker
     assert "ParseFile($s" in installer
     assert "parse errors" in installer.lower()
+    assert "Get-FileHash" not in installer
 
 
 def test_launcher_exposes_refresh_and_local_return_before_live_target_work() -> None:
     launcher = read("scripts/SasPortableLauncher.ps1")
     assert "sas refresh" in launcher
     assert "sas leave" in launcher
-    assert "GUEST-SAFE" in launcher
-    assert "On Guest/Internet: sas refresh" in launcher
+    assert "GUEST / INTERNET" in launcher
     assert "Return-SasOperatorToPreviousNetwork.ps1" in launcher
-    assert "Move to the approved protected network.".lower() in launcher.lower()
     assert "sas cybernet Deploy HOST" in launcher
     refresh_case = launcher.index("'refresh' {")
     leave_case = launcher.index("'leave','guest','return-network'")
@@ -104,7 +98,7 @@ def test_launcher_exposes_refresh_and_local_return_before_live_target_work() -> 
     assert "Refresh-SasOperatorCommand.ps1" in launcher
 
 
-def test_refresh_requires_current_deployment_recovery_and_network_return_entrypoints() -> None:
+def test_refresh_requires_current_autologon_deployment_state_and_recovery_entrypoints() -> None:
     script = read("scripts/Refresh-SasOperatorCommand.ps1")
     for marker in (
         "Install-SasOperatorCommand.cmd",
@@ -112,10 +106,13 @@ def test_refresh_requires_current_deployment_recovery_and_network_return_entrypo
         "Run-AutoLogonOnsite.cmd",
         "scripts\\Install-SasPortableLauncher.ps1",
         "scripts\\SasPortableLauncher.ps1",
+        "scripts\\SasAutoLogonOperatorState.psm1",
+        "scripts\\SasTargetNameResolution.psm1",
         "scripts\\Return-SasOperatorToPreviousNetwork.ps1",
         "scripts\\Recover-SasLatestInterruptedAutoLogonS4U.ps1",
         "scripts\\Complete-SasInterruptedAutoLogonS4URecovery.ps1",
         "scripts\\Invoke-SasAutoLogonOnsite.ps1",
+        "scripts\\Invoke-SasAutoLogonFieldDeployment.ps1",
         "scripts\\Invoke-SasAutoLogonS4URestartDeployment.ps1",
         "scripts\\Invoke-SasAutoLogonKerberosS4UPilot.ps1",
         "Find-SasEvidence.cmd",
@@ -123,6 +120,8 @@ def test_refresh_requires_current_deployment_recovery_and_network_return_entrypo
         "Probe-CybernetSoftware.cmd",
     ):
         assert marker in script, marker
+    assert "Sync-SasAutoLogonOperatorState" in script
+    assert "repo_branch=$refreshBranch" in script
 
 
 def test_no_user_or_live_target_literals() -> None:

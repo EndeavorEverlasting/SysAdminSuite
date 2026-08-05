@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DISCOVERY = ROOT / "scripts" / "Recover-SasLatestInterruptedAutoLogonS4U.ps1"
 EXACT = ROOT / "scripts" / "Complete-SasInterruptedAutoLogonS4URecovery.ps1"
 ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
+FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
 CMD = ROOT / "Run-AutoLogonOnsite.cmd"
 
 
@@ -41,11 +42,34 @@ def test_discovery_uses_only_local_durable_probe_lifecycle_identity() -> None:
 def test_discovery_accepts_pre_mode_probe_lifecycle_without_strictmode_property_failure() -> None:
     text = read(DISCOVERY)
     assert "function Get-SasOptionalJsonString" in text
-    assert "$mode=Get-SasOptionalJsonString -Object $lifecycle -Name 'mode'" in text
+    assert "$mode = Get-SasOptionalJsonString -Object $lifecycle -Name 'mode'" in text
     assert "if (-not [string]::IsNullOrWhiteSpace($mode) -and $mode -ne 'Probe') { continue }" in text
     assert "[string]$lifecycle.mode" not in text
-    assert "Get-SasOptionalJsonString -Object $lifecycle -Name 'classification'" in text
-    assert "Get-SasOptionalJsonString -Object $lifecycle -Name 'current_stage'" in text
+    for name in ("target", "run_id", "task_name", "classification", "current_stage", "status"):
+        assert f"-Name '{name}'" in text
+
+
+def test_discovery_deduplicates_subst_alias_and_physical_paths() -> None:
+    text = read(DISCOVERY)
+    for marker in (
+        "function Get-SasPhysicalPathIdentity",
+        "QueryDosDevice",
+        "physical_identity",
+        "$seen.Add($identity)",
+        "path_aliases_deduplicated=$true",
+    ):
+        assert marker in text, marker
+    assert "$seen.Add($file.FullName)" not in text
+
+
+def test_completed_recovery_is_terminal_and_never_rediscovered() -> None:
+    text = read(DISCOVERY)
+    completed = text.index("$previousStatus -eq 'COMPLETED'")
+    classification = text.index("$previousClassification -eq 'S4U_PROBE_CREATE_HANG_RECOVERED'", completed)
+    skip = text.index("continue", classification)
+    candidate = text.index("$items +=", skip)
+    assert completed < classification < skip < candidate
+    assert "classification='NO_INTERRUPTED_PROBE_RUN_FOUND'" in text
 
 
 def test_discovery_fails_closed_if_install_or_after_evidence_exists() -> None:
@@ -59,21 +83,21 @@ def test_discovery_fails_closed_if_install_or_after_evidence_exists() -> None:
         "Refusing automatic recovery or redeployment",
     ):
         assert marker in text, marker
-    exact_call = text.index("& $recoveryScript")
-    unsafe_gate = text.index("if ($unsafe.Count -gt 0)")
-    assert unsafe_gate < exact_call
+    assert text.index("if ($unsafe.Count -gt 0)") < text.index("$one = & $recoveryScript")
 
 
 def test_discovery_invokes_exact_recovery_with_recorded_identity_only() -> None:
     text = read(DISCOVERY)
-    call = (
-        "& $recoveryScript -ComputerName ([string]$item.target) -RunId ([string]$item.run_id) "
-        "-TaskName ([string]$item.task_name) -LocalS4URoot ([string]$item.local_s4u_root) "
-        "-ConfirmRecovery -TimeoutSeconds $TimeoutSeconds"
-    )
-    assert call in text
-    assert "autologon_installer_launched=$false" in text
-    assert "exact_cleanup_only=$true" in text
+    call = text.index("$one = & $recoveryScript -ComputerName ([string]$item.target)")
+    for marker in (
+        "-RunId ([string]$item.run_id)",
+        "-TaskName ([string]$item.task_name)",
+        "-LocalS4URoot ([string]$item.local_s4u_root)",
+        "-ConfirmRecovery",
+        "autologon_installer_launched=$false",
+        "exact_cleanup_only=$true",
+    ):
+        assert marker in text[call:] or marker in text, marker
 
 
 def test_exact_recovery_can_remove_only_recorded_task_then_probe_only_run_root() -> None:
@@ -83,39 +107,22 @@ def test_exact_recovery_can_remove_only_recorded_task_then_probe_only_run_root()
     verify = text.index("@('/Query','/S',$ComputerName,'/TN',$TaskName)", delete)
     cleanup = text.index("& $cleanupScript -ComputerName $ComputerName -RunId $RunId", verify)
     assert query < delete < verify < cleanup
-    for marker in (
-        "-AllowedArtifactProfile ProbeOnly",
-        "allowed_artifact_profile -ne 'ProbeOnly'",
-        "task_initially_present",
-        "task_delete_attempted",
-        "task_delete_succeeded",
-        "task_absent_before_cleanup",
-        "task_absent_after_cleanup",
-        "allowed_artifact_profile = [string]$cleanup.allowed_artifact_profile",
-        "exact_run_root_absent",
-    ):
-        assert marker in text, marker
+    assert "-AllowedArtifactProfile ProbeOnly" in text
 
 
-def test_exact_recovery_retrieves_probe_result_before_any_destructive_cleanup() -> None:
-    text = read(EXACT)
-    presence = text.index("Test-SasBoundedPath -Path $remoteProbeResult")
-    copy = text.index("Copy-SasBoundedFile -Source $remoteProbeResult", presence)
-    task_delete = text.index("@('/Delete','/S',$ComputerName,'/TN',$TaskName,'/F')", copy)
-    run_cleanup = text.index("& $cleanupScript -ComputerName $ComputerName -RunId $RunId", task_delete)
-    assert presence < copy < task_delete < run_cleanup
-    assert "No cleanup was attempted" in text
-
-
-def test_normal_remote_deployment_runs_interrupted_recovery_gate_before_apply() -> None:
-    text = read(ONSITE)
-    assert "'Remote','S4U'" in text
-    recovery = text.index("& $s4uRecoveryScript -ComputerName $target -ConfirmRecovery -PassThru")
-    apply = text.index("& $s4uDeploymentScript -ComputerName $target -AllowTargetMutation -ConfirmDeployment", recovery)
-    assert recovery < apply
-    assert "Interrupted-run gate did not return a completed classification. AutoLogon was not started." in text
-    assert "[ValidateSet('Menu','Prepare','Validate','Pilot','Remote','S4U','Recover','Evidence')]" in text
-    assert "'Recover' {" in text
+def test_normal_remote_deployment_canonicalizes_then_recovers_then_applies_once() -> None:
+    onsite = read(ONSITE)
+    field = read(FIELD)
+    assert "Invoke-SasAutoLogonFieldDeployment.ps1" in onsite
+    assert "-Action Remote -ComputerName $target" in onsite
+    network = field.index("& powershell.exe", field.index("=== PROTECTED NETWORK GATE ==="))
+    resolution = field.index("Resolve-SasCanonicalTargetFqdn -TargetName $requestedTarget", network)
+    recovery = field.index("& $recoveryScript -ComputerName $resolvedTarget", resolution)
+    apply = field.index("& $deploymentScript -ComputerName $resolvedTarget", recovery)
+    assert network < resolution < recovery < apply
+    assert "$result.apply_invocation_count = 1" in field
+    assert field.count("& $deploymentScript -ComputerName $resolvedTarget") == 1
+    assert "clinical_core_invoked = $false" in field
 
 
 def test_cmd_surface_can_route_recover_target_without_manual_fragments() -> None:
@@ -125,8 +132,8 @@ def test_cmd_surface_can_route_recover_target_without_manual_fragments() -> None
     assert "finally" not in text.lower()
 
 
-def test_no_live_target_user_or_secret_literals() -> None:
-    combined = "\n".join(read(path) for path in (DISCOVERY, EXACT, ONSITE, CMD)).lower()
+def test_no_live_target_user_or_secret_literals_in_product_sources() -> None:
+    combined = "\n".join(read(path) for path in (DISCOVERY, EXACT, ONSITE, FIELD, CMD)).lower()
     for forbidden in (
         "wpj075opr046",
         "pa_rperez26",

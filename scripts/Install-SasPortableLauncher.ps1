@@ -5,26 +5,29 @@ param()
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-$sourceLauncher = Join-Path $repoRoot 'scripts\SasPortableLauncher.ps1'
-$networkReturnCmd = Join-Path $repoRoot 'Switch-Back-To-Previous-Network.cmd'
-$autoLogonCmd = Join-Path $repoRoot 'Run-AutoLogonOnsite.cmd'
+$repoRoot = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '..')).Path
+$sourceLauncher = Join-Path -Path $repoRoot -ChildPath 'scripts\SasPortableLauncher.ps1'
+$networkReturnCmd = Join-Path -Path $repoRoot -ChildPath 'Switch-Back-To-Previous-Network.cmd'
+$autoLogonCmd = Join-Path -Path $repoRoot -ChildPath 'Run-AutoLogonOnsite.cmd'
 $requiredOperatorScripts = @(
     $sourceLauncher,
-    (Join-Path $repoRoot 'scripts\SasOperatorSession.psm1'),
-    (Join-Path $repoRoot 'scripts\Show-SasOperatorContext.ps1'),
-    (Join-Path $repoRoot 'scripts\Return-SasOperatorToPreviousNetwork.ps1'),
-    (Join-Path $repoRoot 'scripts\SasBoundedNative.psm1'),
-    (Join-Path $repoRoot 'scripts\Recover-SasLatestInterruptedAutoLogonS4U.ps1'),
-    (Join-Path $repoRoot 'scripts\Complete-SasInterruptedAutoLogonS4URecovery.ps1'),
-    (Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonOnsite.ps1'),
-    (Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonS4URestartDeployment.ps1'),
-    (Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonKerberosS4UPilot.ps1'),
-    (Join-Path $repoRoot 'scripts\SasSoftwareSourceIdentity.psm1'),
-    (Join-Path $repoRoot 'scripts\SasAutoLogonBaselinePolicy.psm1'),
-    (Join-Path $repoRoot 'scripts\Invoke-SasCybernetCoreRecovery.ps1'),
-    (Join-Path $repoRoot 'scripts\Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1'),
-    (Join-Path $repoRoot 'scripts\Test-SasCybernetClinicalCoreSources.ps1')
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\SasOperatorSession.psm1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\SasAutoLogonOperatorState.psm1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Show-SasOperatorContext.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Return-SasOperatorToPreviousNetwork.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\SasBoundedNative.psm1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Recover-SasLatestInterruptedAutoLogonS4U.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Complete-SasInterruptedAutoLogonS4URecovery.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Invoke-SasAutoLogonOnsite.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Invoke-SasAutoLogonFieldDeployment.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Invoke-SasAutoLogonS4URestartDeployment.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Invoke-SasAutoLogonKerberosS4UPilot.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\SasTargetNameResolution.psm1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\SasSoftwareSourceIdentity.psm1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\SasAutoLogonBaselinePolicy.psm1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Invoke-SasCybernetCoreRecovery.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Invoke-SasCybernetProfiledClinicalCoreDeployment.ps1'),
+    (Join-Path -Path $repoRoot -ChildPath 'scripts\Test-SasCybernetClinicalCoreSources.ps1')
 )
 foreach ($scriptPath in $requiredOperatorScripts) {
     if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) { throw "Required operator script is missing: $scriptPath" }
@@ -37,20 +40,18 @@ foreach ($cmdPath in @($networkReturnCmd,$autoLogonCmd)) {
     if (-not (Test-Path -LiteralPath $cmdPath -PathType Leaf)) { throw "Required operator command is missing: $cmdPath" }
 }
 
-$installRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\bin'
+$installRoot = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite\bin'
 $stateRoot = Split-Path -Parent $installRoot
-$launcherDestination = Join-Path $installRoot 'SasPortableLauncher.ps1'
-$cmdDestination = Join-Path $installRoot 'sas.cmd'
-$leaveDestination = Join-Path $installRoot 'sas-leave.cmd'
-$cachePath = Join-Path $stateRoot 'repo-root.txt'
+$launcherDestination = Join-Path -Path $installRoot -ChildPath 'SasPortableLauncher.ps1'
+$cmdDestination = Join-Path -Path $installRoot -ChildPath 'sas.cmd'
+$leaveDestination = Join-Path -Path $installRoot -ChildPath 'sas-leave.cmd'
+$cachePath = Join-Path -Path $stateRoot -ChildPath 'repo-root.txt'
 New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
 Copy-Item -LiteralPath $sourceLauncher -Destination $launcherDestination -Force
 Set-Content -LiteralPath $cachePath -Value $repoRoot -Encoding ASCII
 
-# Keep the CMD shim deliberately small and stable. Before every invocation it checks the
-# cached repo's tracked launcher. If that source parses cleanly, the shim refreshes the
-# installed dispatcher directly. Avoid Get-FileHash here: some constrained enterprise
-# PowerShell hosts do not expose that cmdlet even though the rest of the operator surface works.
+# Before every invocation, refresh the installed dispatcher from the cached repository only
+# after the repository source parses. No optional cryptographic-hash cmdlet dependency is used.
 $cmd = @'
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
@@ -72,8 +73,6 @@ for %%# in (!SAS_EXIT!) do endlocal & exit /b %%#
 '@
 Set-Content -LiteralPath $cmdDestination -Value $cmd -Encoding ASCII
 
-# This installed CMD is intentionally double-clickable. It delegates to the same repo-owned
-# `sas leave` path as the terminal surface and therefore never embeds SSIDs or credentials.
 $leaveCmd = @'
 @echo off
 setlocal EnableExtensions
@@ -99,27 +98,14 @@ Write-Host "Resolved repo: $repoRoot"
 Write-Host "Command: $cmdDestination"
 Write-Host "Double-click network return: $leaveDestination"
 Write-Host ''
-Write-Host 'Open either CMD or PowerShell and use:' -ForegroundColor Cyan
-Write-Host '  sas context                          Show persistent repo/network/target/lane/run/cleanup state'
-Write-Host '  sas next                             Show only the required network and one next command'
-Write-Host '  sas refresh                          GUEST / INTERNET: refresh current tracked branch field-ready checkout'
-Write-Host '  sas leave                            LOCAL ONLY: return to recorded previous guest/internet Wi-Fi'
-Write-Host '  sas cybernet Core HOST              PROTECTED NORTHWELL: five clinical apps; AutoLogon preserved; no reboot'
-Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact prior-run Cybernet cleanup/recovery only'
-Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
-Write-Host '  sas evidence Cybernet               OFFLINE: recover newest Cybernet run evidence and next action'
-Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full profile; readiness included; AutoLogon last; restart included'
-Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: recover recorded probe interruption, AutoLogon-only apply, restart'
-Write-Host '  sas autologon Recover HOST          PROTECTED NORTHWELL: recover recorded probe-only interruptions; no install'
+Write-Host 'Supported field surfaces:' -ForegroundColor Cyan
+Write-Host '  sas context                          Persistent repo/branch/network/target/recovery/deployment state'
+Write-Host '  sas next                             Required network and one exact next command'
+Write-Host '  sas autologon Remote HOST           Canonicalize, recover safe probe-only state, apply AutoLogon once, restart'
+Write-Host '  sas autologon Recover HOST          Recovery only; never install AutoLogon'
 Write-Host '  sas network                          Read-only approved Northwell network posture'
+Write-Host '  sas network HOST                     Optional read-only target readiness probe'
 Write-Host ''
-Write-Host 'The installed sas shim self-refreshes its dispatcher from the cached field-ready repo before every command.' -ForegroundColor Green
-Write-Host 'operator-session.json remains machine-local under %LOCALAPPDATA%\SysAdminSuite and survives terminal/shell changes.' -ForegroundColor Green
-Write-Host 'Core is one Windows-native transaction: recovery, source preflight, staging, SYSTEM execution, profile capture, evidence, and cleanup.' -ForegroundColor Green
-Write-Host 'Core never installs/enables/repairs AutoLogon and never manages Imprivata. Core never performs an automatic reboot.' -ForegroundColor Green
-Write-Host 'AutoLogon Remote performs its local interrupted-run gate before a new apply; do not reconstruct recovery fragments.' -ForegroundColor Green
-Write-Host 'Full deployment retains readiness included, AutoLogon last, and restart included behavior.' -ForegroundColor Green
-Write-Host 'The standalone Probe is optional diagnosis; it is not a prerequisite loop before Deploy.' -ForegroundColor Green
-Write-Host 'If a terminal closes or crashes, use `sas context` or `sas next`; do not reconstruct try/catch/finally fragments.' -ForegroundColor Yellow
-Write-Host ''
-Write-Host 'No administrator rights are required to install/refresh the operator command itself.'
+Write-Host 'The installed sas shim self-refreshes from the cached field-ready repo without an optional cryptographic-hash cmdlet.' -ForegroundColor Green
+Write-Host 'Core is already separate. AutoLogon Remote never deploys the five clinical-core applications.' -ForegroundColor Green
+Write-Host 'If a terminal closes, use sas context or sas next. Do not reconstruct task or recovery fragments.' -ForegroundColor Yellow
