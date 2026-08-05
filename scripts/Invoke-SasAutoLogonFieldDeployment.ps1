@@ -8,8 +8,8 @@ Owns the normal product path behind `sas autologon Remote HOST` and the recovery
 path behind `sas autologon Recover HOST`.
 
 The transaction proves the protected network before DNS/target contact, canonicalizes
-the requested target before exact host eligibility inside the apply engine, acquires one
-atomic per-target operator lock, converges any safely recorded unfinished probe-only
+the requested target, proves exact local host-policy eligibility before recovery, acquires
+one atomic per-target operator lock, converges any safely recorded unfinished probe-only
 recovery, refuses to downgrade or repeat durable terminal completion, invokes the
 restart-complete S4U deployment exactly once, and persists a terminal field result.
 It never deploys the clinical-core package set and never reads DefaultPassword data.
@@ -37,12 +37,13 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '..')).Path
 $networkGate = Join-Path -Path $PSScriptRoot -ChildPath 'Confirm-SasNorthwellNetwork.ps1'
 $targetModule = Join-Path -Path $PSScriptRoot -ChildPath 'SasTargetNameResolution.psm1'
+$eligibilityScript = Join-Path -Path $PSScriptRoot -ChildPath 'Test-SasHostEligibility.ps1'
 $sessionModule = Join-Path -Path $PSScriptRoot -ChildPath 'SasOperatorSession.psm1'
 $stateModule = Join-Path -Path $PSScriptRoot -ChildPath 'SasAutoLogonOperatorState.psm1'
 $recoveryScript = Join-Path -Path $PSScriptRoot -ChildPath 'Recover-SasLatestInterruptedAutoLogonS4U.ps1'
 $deploymentScript = Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-SasAutoLogonS4URestartDeployment.ps1'
 
-foreach ($required in @($networkGate,$targetModule,$sessionModule,$stateModule,$recoveryScript,$deploymentScript)) {
+foreach ($required in @($networkGate,$targetModule,$eligibilityScript,$sessionModule,$stateModule,$recoveryScript,$deploymentScript)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Missing AutoLogon field-deployment dependency: $required"
     }
@@ -140,6 +141,12 @@ $result = [ordered]@{
     resolved_addresses = @()
     resolution_sources = @()
     resolution_evidence_path = $null
+    host_eligibility_proven = $false
+    host_eligibility_reason_code = $null
+    host_eligibility_pattern = $null
+    host_eligibility_policy_path = $null
+    host_eligibility_policy_version = $null
+    host_eligibility_evidence_path = $null
     target_lock_name = $null
     target_lock_acquired = $false
     prior_field_result_path = $null
@@ -208,6 +215,38 @@ try {
     $result.final_target = $resolvedTarget
     Save-SasAutoLogonFieldResult -Value $result
 
+    [void](Initialize-SasAutoLogonOperatorState -RepoRoot $repoRoot `
+        -RequestedTarget $requestedTarget -ResolvedTargetFqdn $resolvedTarget `
+        -ResolutionAddresses @($resolution.addresses) -ResolutionSources @($resolution.resolution_sources))
+
+    Write-Host "`n=== EXACT LOCAL HOST ELIGIBILITY ===" -ForegroundColor Cyan
+    $eligibility = & $eligibilityScript -Target $resolvedTarget -ExecContext remote -RepoRoot $repoRoot
+    if ($null -eq $eligibility) {
+        throw 'Host eligibility gate returned no structured result.'
+    }
+    $eligibilityPath = Join-Path -Path $evidenceRoot -ChildPath 'host_eligibility.json'
+    $eligibility | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $eligibilityPath -Encoding UTF8
+
+    $result.host_eligibility_proven = [bool](Get-SasObjectPropertyValue $eligibility 'eligible' $false)
+    $result.host_eligibility_reason_code = [string](Get-SasObjectPropertyValue $eligibility 'reason_code')
+    $result.host_eligibility_pattern = [string](Get-SasObjectPropertyValue $eligibility 'matched_pattern')
+    $result.host_eligibility_policy_path = [string](Get-SasObjectPropertyValue $eligibility 'policy_path')
+    $result.host_eligibility_policy_version = [string](Get-SasObjectPropertyValue $eligibility 'policy_version')
+    $result.host_eligibility_evidence_path = $eligibilityPath
+    Save-SasAutoLogonFieldResult -Value $result
+
+    if (-not [bool]$result.host_eligibility_proven -or
+        [string](Get-SasObjectPropertyValue $eligibility 'decision') -ne 'allowed') {
+        throw "Canonical target failed exact local host eligibility: $($result.host_eligibility_reason_code)"
+    }
+
+    [void](Set-SasAutoLogonOperatorStateValues -Values @{
+        equipment_profile='Cybernet'
+        profile_eligibility_proven=$true
+        profile_eligibility_source='Test-SasHostEligibility.ps1 canonical FQDN remote policy gate'
+        profile_eligibility_evidence_path=$eligibilityPath
+    })
+
     $lockName = Get-SasAutoLogonTargetMutexName -CanonicalTarget $resolvedTarget
     $result.target_lock_name = $lockName
     $targetMutex = [System.Threading.Mutex]::new($false, $lockName)
@@ -218,10 +257,6 @@ try {
     }
     $result.target_lock_acquired = $true
     Save-SasAutoLogonFieldResult -Value $result
-
-    [void](Initialize-SasAutoLogonOperatorState -RepoRoot $repoRoot `
-        -RequestedTarget $requestedTarget -ResolvedTargetFqdn $resolvedTarget `
-        -ResolutionAddresses @($resolution.addresses) -ResolutionSources @($resolution.resolution_sources))
 
     $priorField = @(Find-SasLatestAutoLogonFieldResult -RepoRoot $repoRoot `
         -Target $resolvedTarget -ExcludePath $resultPath)
@@ -239,7 +274,7 @@ try {
             $result.autologon_deployment_completed = $true
             $result.existing_terminal_result_path = [string]$priorField[0].path
             $result.next_action = 'STOP - durable terminal deployment evidence already exists; do not rerun.'
-            Save-SasAutoLogonFieldResult -Value $result
+            Save-SasAutoLogOnFieldResult -Value $result
             [void](Set-SasAutoLogonOperatorStateValues -Values @{
                 autologon_deployment_started=$true
                 autologon_deployment_completed=$true
@@ -283,6 +318,7 @@ try {
 
     Write-Host "Requested target: $requestedTarget"
     Write-Host "Canonical target: $resolvedTarget" -ForegroundColor Green
+    Write-Host "Exact local host eligibility: PASS" -ForegroundColor Green
 
     Write-Host "`n=== INTERRUPTED PROBE RECOVERY GATE ===" -ForegroundColor Cyan
     $recovery = & $recoveryScript -ComputerName $resolvedTarget -ConfirmRecovery `
@@ -411,6 +447,7 @@ catch {
         [bool]$result.automatic_reboot_performed -or
         [bool]$result.restart_offline_observed -or
         [bool]$result.restart_online_observed)
+    $evidenceReviewRequired = ($_.Exception.Message -like 'Prior AutoLogon field evidence requires evidence-led review*')
     if ($_.Exception.Message -like 'Another AutoLogon field transaction already owns canonical target*') {
         $result.classification = 'AUTOLOGON_FIELD_TARGET_LOCKED'
     }
@@ -430,7 +467,7 @@ catch {
 
     $result.next_action = if ($result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') {
         'STOP - another AutoLogon transaction owns this canonical target; do not start a second transaction.'
-    } elseif ($mustStop -or $result.reason -like 'Prior AutoLogon field evidence requires evidence-led review*') {
+    } elseif ($mustStop -or $evidenceReviewRequired) {
         "STOP - inspect durable evidence at $resultPath; do not rerun."
     } else {
         "Fix the pre-apply defect, then rerun once: sas autologon Remote $requestedTarget"
@@ -441,11 +478,11 @@ catch {
         autologon_deployment_started=[bool]$result.autologon_deployment_started
         autologon_deployment_completed=$false
         latest_status='ACTION_REQUIRED'
-        latest_phase=$(if ($mustStop) { 'post_apply_review' } else { 'pre_apply_blocked' })
+        latest_phase=$(if ($mustStop -or $evidenceReviewRequired) { 'post_apply_review' } else { 'pre_apply_blocked' })
         latest_checkpoint=[string]$result.classification
         target_mutation_performed=[bool]$result.target_mutation_performed
         evidence_path=$resultPath
-        next_required_network=$(if ($mustStop -or $result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') { 'NONE' } else { 'PROTECTED NORTHWELL' })
+        next_required_network=$(if ($mustStop -or $evidenceReviewRequired -or $result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') { 'NONE' } else { 'PROTECTED NORTHWELL' })
         next_command=[string]$result.next_action
     })
 
