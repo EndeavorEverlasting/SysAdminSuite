@@ -7,6 +7,10 @@ FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
 RECOVERY = ROOT / "scripts" / "Recover-SasLatestInterruptedAutoLogonS4U.ps1"
 STATE = ROOT / "scripts" / "SasAutoLogonOperatorState.psm1"
 DOC = ROOT / "docs" / "AUTOLOGON_FIELD_DEPLOYMENT_COMPLETION.md"
+ARTIFACTS = ROOT / "harness" / "api" / "harness-artifact-registry.json"
+OUTCOMES = ROOT / "harness" / "api" / "harness-outcome-registry.json"
+DEPLOYMENT_STATE = ROOT / "harness" / "api" / "deployment-state-registry.json"
+WORKFLOW = ROOT / "harness" / "workflows" / "cybernet-autologon-deployment-state.yaml"
 
 
 def read(path: Path) -> str:
@@ -18,8 +22,8 @@ def test_deterministic_legacy_completion_then_apply_boundary_once() -> None:
     """Synthetic source-level E2E: old probe schema + completed recovery + short target."""
     field = read(FIELD)
     recovery = read(RECOVERY)
-    requested_target = "WPJ075OPR046"
-    resolved_target = "wpj075opr046.nslijhs.net"
+    requested_target = "AUTHORIZEDHOST01"
+    resolved_target = "authorizedhost01.example.net"
     assert requested_target.split(".")[0].lower() == resolved_target.split(".")[0].lower()
     assert "Get-SasOptionalJsonString -Object $lifecycle -Name 'mode'" in recovery
     assert "$previousStatus -eq 'COMPLETED'" in recovery
@@ -29,6 +33,25 @@ def test_deterministic_legacy_completion_then_apply_boundary_once() -> None:
     assert "$result.apply_invocation_count = 1" in field
     assert field.count("& $deploymentScript -ComputerName $resolvedTarget") == 1
     assert "clinical_core_invoked = $false" in field
+
+
+def test_network_resolution_exact_eligibility_lock_recovery_apply_order() -> None:
+    text = read(FIELD)
+    network = text.index("=== PROTECTED NETWORK GATE ===")
+    resolution = text.index("Resolve-SasCanonicalTargetFqdn -TargetName $requestedTarget", network)
+    eligibility = text.index("& $eligibilityScript -Target $resolvedTarget -ExecContext remote -RepoRoot $repoRoot", resolution)
+    eligibility_pass = text.index("profile_eligibility_proven=$true", eligibility)
+    lock = text.index("$targetMutexAcquired = $targetMutex.WaitOne(0)", eligibility_pass)
+    recovery = text.index("$recovery = & $recoveryScript", lock)
+    apply = text.index("$deployment = & $deploymentScript", recovery)
+    assert network < resolution < eligibility < eligibility_pass < lock < recovery < apply
+    for marker in (
+        "Test-SasHostEligibility.ps1",
+        "host_eligibility_proven",
+        "host_eligibility_evidence_path",
+        "Canonical target failed exact local host eligibility",
+    ):
+        assert marker in text, marker
 
 
 def test_apply_is_unreachable_without_completed_safe_recovery_gate() -> None:
@@ -63,6 +86,17 @@ def test_terminal_completion_and_atomic_target_lock_precede_recovery_apply() -> 
     assert "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in state
 
 
+def test_dns_resolution_does_not_claim_profile_eligibility() -> None:
+    state = read(STATE)
+    initialize = state[state.index("function Initialize-SasAutoLogonOperatorState"):state.index("function Find-SasLatestAutoLogonFieldResult")]
+    assert "equipment_profile='unknown'" in initialize
+    assert "profile_eligibility_proven=$false" in initialize
+    assert "unproven_pending_exact_local_host_policy" in initialize
+    assert "profile_eligibility_proven=$true" not in initialize
+    assert "host_eligibility_proven" in state
+    assert "Test-SasHostEligibility.ps1 canonical FQDN remote policy gate" in state
+
+
 def test_legacy_short_recovery_is_recanonicalized_and_exact_helper_uses_canonical_target() -> None:
     text = read(RECOVERY)
     for marker in (
@@ -93,6 +127,19 @@ def test_terminal_success_requires_every_restart_completion_flag() -> None:
         assert marker in gate, marker
 
 
+def test_outer_field_result_is_canonical_harness_terminal_artifact() -> None:
+    artifacts = read(ARTIFACTS)
+    outcomes = read(OUTCOMES)
+    deployment = read(DEPLOYMENT_STATE)
+    workflow = read(WORKFLOW)
+    assert '"id":"autologon-field-deployment-result"' in artifacts
+    assert "autologon_field_deployment_result.json" in artifacts
+    assert '"command_id":"autologon-remote","success_outcome":"product_deployed","success_artifact_id":"autologon-field-deployment-result"' in outcomes
+    assert '"artifact_id": "autologon-field-deployment-result"' in deployment
+    assert "require artifact id autologon-field-deployment-result" in workflow
+    assert "host_eligibility_proven true" in workflow
+
+
 def test_default_password_and_clinical_core_boundaries_are_explicit() -> None:
     text = read(FIELD).lower()
     assert "default_password_value_collected = $false" in text
@@ -115,19 +162,29 @@ def test_operator_state_stops_rerun_after_completion_or_mutation() -> None:
     assert "sas autologon Remote $requested" in text
 
 
-def test_runbook_preserves_exact_field_contract() -> None:
+def test_runbook_is_sanitized_and_preserves_field_contract() -> None:
     text = read(DOC)
     for marker in (
-        "WPJ075OPR046",
-        "wpj075opr046.nslijhs.net",
+        "AUTHORIZED_SHORT_HOST",
+        "authorized-host.example.net",
         "NSLIJHS-WAB",
-        "sas autologon Remote WPJ075OPR046",
         "S4U_PROBE_CREATE_HANG_RECOVERED",
         "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
+        "host_eligibility_proven = true",
         "do not manually reboot",
         "does not prove human-observed interactive desktop sign-in",
     ):
         assert marker.lower() in text.lower(), marker
+    combined = (text + "\n" + read(Path(__file__))).lower()
+    for forbidden in (
+        "wpj075opr046",
+        "nslijhs.net",
+        "pa_rperez26",
+        "sysadminsuite-autologons4uprobe-",
+        "autologon-s4u-deployment-2026",
+        "autologon-kerberos-s4u-2026",
+    ):
+        assert forbidden not in combined, forbidden
 
 
 def main() -> None:
