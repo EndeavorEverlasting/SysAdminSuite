@@ -70,9 +70,10 @@ function Initialize-SasAutoLogonOperatorState {
         resolved_target_addresses=@($ResolutionAddresses)
         resolution_sources=@($ResolutionSources)
         target_locked=$true
-        equipment_profile='Cybernet'
-        profile_eligibility_proven=$true
-        profile_eligibility_source='canonical_fqdn_then_exact_local_host_policy'
+        equipment_profile='unknown'
+        profile_eligibility_proven=$false
+        profile_eligibility_source='unproven_pending_exact_local_host_policy'
+        profile_eligibility_evidence_path=$null
         deployment_lane='autologon_only'
         package_set='cybernet-autologon-only'
         expected_autologon_state='enabled_after_restart'
@@ -130,7 +131,6 @@ function Find-SasLatestAutoLogonFieldResult {
                             if (-not (Test-SasAutoLogonSameTarget -Left $resolved -Right $Target)) { continue }
                         }
                         elseif ($targetIsFqdn) {
-                            # A canonical target must not trust a result that never recorded canonical identity.
                             continue
                         }
                         elseif (-not (Test-SasAutoLogonSameTarget -Left $requested -Right $Target)) {
@@ -241,6 +241,8 @@ function Sync-SasAutoLogonOperatorState {
         $completed = ($status -eq 'COMPLETED' -and
             $classification -eq 'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED')
         $mutated = [bool](Get-SasObjectPropertyValue $value 'target_mutation_performed' $false)
+        $eligibilityProven = [bool](Get-SasObjectPropertyValue $value 'host_eligibility_proven' $false)
+        $eligibilityEvidence = [string](Get-SasObjectPropertyValue $value 'host_eligibility_evidence_path' '')
 
         if ($requested) {
             $updates['target_input'] = $requested
@@ -258,9 +260,14 @@ function Sync-SasAutoLogonOperatorState {
         $updates['resolution_sources'] = @(
             Get-SasObjectPropertyValue $value 'resolution_sources' @()
         )
-        $updates['equipment_profile'] = 'Cybernet'
-        $updates['profile_eligibility_proven'] = (-not [string]::IsNullOrWhiteSpace($resolved))
-        $updates['profile_eligibility_source'] = 'canonical_fqdn_then_exact_local_host_policy'
+        $updates['equipment_profile'] = $(if ($eligibilityProven) { 'Cybernet' } else { 'unknown' })
+        $updates['profile_eligibility_proven'] = $eligibilityProven
+        $updates['profile_eligibility_source'] = $(if ($eligibilityProven) {
+            'Test-SasHostEligibility.ps1 canonical FQDN remote policy gate'
+        } else {
+            'unproven_pending_exact_local_host_policy'
+        })
+        $updates['profile_eligibility_evidence_path'] = $eligibilityEvidence
         $updates['deployment_lane'] = 'autologon_only'
         $updates['package_set'] = 'cybernet-autologon-only'
         $updates['expected_autologon_state'] = 'enabled_after_restart'
