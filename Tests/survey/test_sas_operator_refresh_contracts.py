@@ -58,6 +58,26 @@ def test_refresh_preserves_active_branch_detached_remote_and_persisted_provenanc
     assert "checkout --detach origin/main" not in script
 
 
+def test_stale_persisted_branch_is_validated_cleared_and_repaired() -> None:
+    script = read("scripts/Refresh-SasOperatorCommand.ps1")
+    for marker in (
+        "function Test-SasRemoteRefreshBranch",
+        "ls-remote --exit-code --heads origin",
+        "function Clear-SasPersistedRefreshRef",
+        "$candidateSource = 'persisted'",
+        "if ($candidateSource -eq 'persisted')",
+        "Clear-SasPersistedRefreshRef",
+        "Persisted refresh ref was stale",
+        "origin/main could not be verified",
+    ):
+        assert marker in script, marker
+    persisted = script.index("$candidate = Get-SasPersistedRefreshRef")
+    validate = script.index("if (-not (Test-SasRemoteRefreshBranch -Branch $candidate))", persisted)
+    clear = script.index("Clear-SasPersistedRefreshRef", validate)
+    repair = script.index("$candidate = 'main'", clear)
+    assert persisted < validate < clear < repair
+
+
 def test_refresh_never_force_updates_branch_provenance() -> None:
     script = read("scripts/Refresh-SasOperatorCommand.ps1")
     assert "Do not force-update the remote-tracking ref" in script
