@@ -7,7 +7,8 @@ Recover locally recorded interrupted probe-only AutoLogon S4U runs for one targe
 Searches only machine-local SysAdminSuite evidence roots for exact durable probe lifecycle records.
 It deduplicates physical paths and subst aliases, skips terminal or already-completed recovery
 records, fails closed on any install/after-state evidence, and invokes only the exact recorded
-recovery helper. It never discovers remote tasks broadly and never launches AutoLogon.
+recovery helper against the canonical requested target. It never discovers remote tasks broadly
+and never launches AutoLogon.
 #>
 [CmdletBinding()]
 param(
@@ -22,13 +23,15 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '..')).Path
 $sessionModule = Join-Path -Path $PSScriptRoot -ChildPath 'SasOperatorSession.psm1'
+$targetModule = Join-Path -Path $PSScriptRoot -ChildPath 'SasTargetNameResolution.psm1'
 $recoveryScript = Join-Path -Path $PSScriptRoot -ChildPath 'Complete-SasInterruptedAutoLogonS4URecovery.ps1'
-foreach ($required in @($sessionModule,$recoveryScript)) {
+foreach ($required in @($sessionModule,$targetModule,$recoveryScript)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Missing AutoLogon interrupted-recovery dependency: $required"
     }
 }
 Import-Module $sessionModule -Force
+Import-Module $targetModule -Force
 
 if (-not $ConfirmRecovery) {
     throw 'Interrupted AutoLogon recovery requires -ConfirmRecovery.'
@@ -62,10 +65,22 @@ function Test-SasSameTarget {
     $left = $Recorded.Trim().TrimEnd('.').ToLowerInvariant()
     $right = $Requested.Trim().TrimEnd('.').ToLowerInvariant()
     if ($left -eq $right) { return $true }
+
     $leftIsFqdn = $left.Contains('.')
     $rightIsFqdn = $right.Contains('.')
-    if ($leftIsFqdn -and $rightIsFqdn) { return $false }
-    return ($left.Split('.')[0] -eq $right.Split('.')[0])
+    if ($rightIsFqdn) {
+        if ($leftIsFqdn) { return $false }
+        try {
+            $legacyResolution = Resolve-SasCanonicalTargetFqdn -TargetName $Recorded
+            return ([string]$legacyResolution.fqdn).Trim().TrimEnd('.').Equals(
+                $right,
+                [StringComparison]::OrdinalIgnoreCase
+            )
+        }
+        catch { return $false }
+    }
+    if ($leftIsFqdn) { return $false }
+    return ($left -eq $right)
 }
 
 function Get-SasOptionalJsonString {
@@ -85,7 +100,9 @@ function Get-SasPhysicalPathIdentity {
 
     $full = [IO.Path]::GetFullPath($Path)
     $root = [IO.Path]::GetPathRoot($full)
-    if ([string]::IsNullOrWhiteSpace($root) -or $root -notmatch '^[A-Za-z]:\$') {
+    $isDriveRoot = (-not [string]::IsNullOrWhiteSpace($root) -and
+        $root.Length -eq 3 -and $root[1] -eq ':' -and $root[2] -eq [char]92)
+    if (-not $isDriveRoot) {
         return $full.TrimEnd('\').ToLowerInvariant()
     }
 
@@ -146,8 +163,6 @@ function Get-SasInterruptedS4UCandidates {
         }
         catch { continue }
 
-        # A missing mode is accepted only because discovery is restricted to the exact
-        # s4u_probe_lifecycle.json filename. If mode exists, it must explicitly be Probe.
         $mode = Get-SasOptionalJsonString -Object $lifecycle -Name 'mode'
         if (-not [string]::IsNullOrWhiteSpace($mode) -and $mode -ne 'Probe') { continue }
 
@@ -197,6 +212,7 @@ function Get-SasInterruptedS4UCandidates {
             run_id=$runId
             task_name=$taskName
             target=$recordedTarget
+            canonical_recovery_target=$ComputerName
             lifecycle_path=$file.FullName
             lifecycle_physical_identity=$entry.physical_identity
             local_s4u_root=$s4uRoot
@@ -246,7 +262,7 @@ Write-Host "Probe-only runs to recover: $($safe.Count)"
 $recovered = @()
 foreach ($item in $safe) {
     Write-Host "Recovering exact run $($item.run_id) / task $($item.task_name)" -ForegroundColor Cyan
-    $one = & $recoveryScript -ComputerName ([string]$item.target) `
+    $one = & $recoveryScript -ComputerName $ComputerName `
         -RunId ([string]$item.run_id) -TaskName ([string]$item.task_name) `
         -LocalS4URoot ([string]$item.local_s4u_root) -ConfirmRecovery `
         -TimeoutSeconds $TimeoutSeconds
