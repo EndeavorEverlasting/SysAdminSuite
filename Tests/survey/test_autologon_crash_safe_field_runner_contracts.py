@@ -34,6 +34,8 @@ def test_offline_evidence_recovery_runs_after_child() -> None:
     assert "Show-SasOperatorEvidence.ps1" in text
     assert "'AutoLogon', '20'" in text
     assert "last-evidence.json" in text
+    assert "$result.evidence_recovery_exit_code = [int]$LASTEXITCODE" in text
+    assert "[int]$result.evidence_recovery_exit_code -ne 0" in text
     assert "target_contact_performed_by_runner = $false" in text
     assert "target_mutation_performed_by_runner = $false" in text
 
