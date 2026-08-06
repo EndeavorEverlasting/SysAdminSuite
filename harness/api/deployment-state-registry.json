@@ -36,6 +36,7 @@
         "current_live_apply_lane": "kerberos_s4u_named_admin_then_restart",
         "current_live_apply_command_id": "autologon-remote",
         "current_live_apply_positive_classification": "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
+        "current_live_apply_artifact_id": "autologon-field-deployment-result",
         "internal_pre_reboot_apply_classification": "KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING",
         "operator_confirmed_profile_sources": [
           {
@@ -144,11 +145,11 @@
           "terminal": true,
           "requires_state": "autologon_pre_reboot_configured",
           "command_id": "autologon-remote",
-          "artifact_id": "autologon-s4u-deployment-result",
+          "artifact_id": "autologon-field-deployment-result",
           "positive_classification": "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
           "requires_target_mutation_authority": true,
           "requires_network": true,
-          "proof_ceiling": "AutoLogon was applied through S4U, was the final software step, and the target restart cycle was observed. Direct visual automatic-sign-in observation is not claimed."
+          "proof_ceiling": "The outer field transaction proved protected network posture, canonical identity, exact local host eligibility, recovery convergence, apply-once admission, S4U application, and the bounded restart cycle. Direct visual automatic-sign-in observation is not claimed."
         },
         {
           "id": "cybernet_software_deployed",
@@ -174,7 +175,7 @@
       "critical_artifact_chain": [
         {"artifact_id":"cybernet-clinical-core-deployment-summary","required_value":"status=CLINICAL_CORE_DEPLOYMENT_COMPLETED","proves_state":"clinical_core_ready"},
         {"artifact_id":"autologon-s4u-pilot-result","required_value":"classification=KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING","proves_state":"autologon_pre_reboot_configured"},
-        {"artifact_id":"autologon-s4u-deployment-result","required_value":"classification=AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED and automatic_reboot_performed=true and restart_offline_observed=true and restart_online_observed=true","proves_state":"autologon_restart_completed"},
+        {"artifact_id":"autologon-field-deployment-result","required_value":"status=COMPLETED and classification=AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED and host_eligibility_proven=true and automatic_reboot_performed=true and restart_offline_observed=true and restart_online_observed=true and restart_task_cleanup_verified=true","proves_state":"autologon_restart_completed"},
         {"artifact_id":"cybernet-software-deployment-result","required_value":"status=CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED and autologon_was_last_software_step=true and automatic_reboot_performed=true","proves_state":"cybernet_software_deployed"},
         {"artifact_id":"autologon-technician-runtime-proof","required_value":"proof_level=TECHNICIAN_OBSERVED_LIVE_RUNTIME and runtime_proof=true and overall_success=true","proves_state":"autologon_runtime_proven"}
       ],

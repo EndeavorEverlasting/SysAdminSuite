@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "Invoke-SasAutoLogonKerberosS4UPilot.ps1"
 DEPLOYMENT = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
 ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
+FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
 LOW_NOISE = ROOT / "scripts" / "SasSoftwareDeploymentLowNoise.psm1"
 CMD = ROOT / "Run-AutoLogonOnsite.cmd"
 
@@ -117,19 +118,27 @@ def test_password_and_autologon_secret_data_are_not_collected() -> None:
         assert forbidden not in text, forbidden
 
 
-def test_operator_surface_routes_recovery_gate_then_remote_action_to_restart_complete_deployment() -> None:
+def test_operator_surface_routes_canonical_field_transaction_then_recovery_gate_then_restart_complete_apply() -> None:
     onsite = read(ONSITE)
+    field = read(FIELD)
     cmd = read(CMD)
     assert "'Remote','S4U'" in onsite
-    assert "Invoke-SasAutoLogonS4URestartDeployment.ps1" in onsite
-    recovery = onsite.index("& $s4uRecoveryScript -ComputerName $target -ConfirmRecovery -PassThru")
-    deploy = onsite.index("& $s4uDeploymentScript -ComputerName $target -AllowTargetMutation -ConfirmDeployment", recovery)
-    assert recovery < deploy
+    assert "Invoke-SasAutoLogonFieldDeployment.ps1" in onsite
+    assert "Invoke-SasAutoLogonS4URestartDeployment.ps1" in field
+
+    route = onsite.index("& $fieldDeploymentScript -Action Remote -ComputerName $target")
+    resolution = field.index("Resolve-SasCanonicalTargetFqdn -TargetName $requestedTarget")
+    recovery = field.index("$recovery = & $recoveryScript -ComputerName $resolvedTarget", resolution)
+    deploy = field.index("$deployment = & $deploymentScript -ComputerName $resolvedTarget", recovery)
+    assert route >= 0
+    assert resolution < recovery < deploy
+    assert "$result.apply_invocation_count = 1" in field
+    assert field.count("& $deploymentScript -ComputerName $resolvedTarget") == 1
+
     for marker in (
-        "Deploy AutoLogon via Kerberos SMB + passwordless S4U",
-        "recover recorded probe-only interruption first",
-        "then restart target",
-        "Interrupted-run gate:",
+        "Remote Kerberos/S4U is the supported field deployment lane",
+        "Deploy AutoLogon: canonicalize target, converge safe probe recovery, apply once, restart, verify cleanup",
+        "Recover safely recorded interrupted probe-only runs without installing AutoLogon",
     ):
         assert marker in onsite, marker
     assert "Run-AutoLogonOnsite.cmd Remote HOST" in cmd

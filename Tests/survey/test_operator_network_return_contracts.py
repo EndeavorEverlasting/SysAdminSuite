@@ -38,9 +38,10 @@ def test_refresh_records_a_dedicated_guest_return_network_bookmark() -> None:
         "RETURN NETWORK: $($currentNetwork.label)",
     ):
         assert marker in text, marker
-    bookmark = text.index("$returnBookmark=[pscustomobject]")
-    next_network = text.index("$nextNetwork=if", bookmark)
-    assert bookmark < next_network
+    bookmark = text.index("$returnBookmark = [pscustomobject][ordered]@{")
+    state_sync = text.index("$session = Read-SasOperatorSession", bookmark)
+    next_network = text.index("$nextNetwork = ", state_sync)
+    assert bookmark < state_sync < next_network
 
 
 def test_return_prefers_dedicated_bookmark_and_has_legacy_fallback() -> None:

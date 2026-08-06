@@ -74,7 +74,11 @@ def main() -> int:
     assert contract_by_command["cybernet-software-deploy"]["success_outcome"] == "product_deployed"
     assert contract_by_command["cybernet-software-deploy"]["success_artifact_id"] == "cybernet-software-deployment-result"
     assert contract_by_command["autologon-remote"]["success_outcome"] == "product_deployed"
-    assert contract_by_command["autologon-remote"]["success_artifact_id"] == "autologon-s4u-deployment-result"
+    assert contract_by_command["autologon-remote"]["success_artifact_id"] == "autologon-field-deployment-result"
+    assert contract_by_command["autologon-recover"]["success_outcome"] == "artifact_created"
+    assert contract_by_command["autologon-recover"]["success_artifact_id"] == "autologon-field-deployment-result"
+    assert contract_by_command["operator-context"]["success_artifact_id"] == "operator-session-state"
+    assert contract_by_command["operator-next"]["success_artifact_id"] == "operator-session-state"
     assert contract_by_command["autologon-runtime-proof"]["success_outcome"] == "runtime_proven"
     assert contract_by_command["autologon-runtime-proof"]["success_artifact_id"] == "autologon-technician-runtime-proof"
 
@@ -85,11 +89,12 @@ def main() -> int:
     assert context["current_product_truth"]["current_full_software_apply_command_id"] == "cybernet-software-deploy"
     assert context["current_product_truth"]["current_live_apply_command_id"] == "autologon-remote"
     assert context["current_product_truth"]["current_live_apply_positive_classification"] == "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED"
+    assert context["current_product_truth"]["current_live_apply_artifact_id"] == "autologon-field-deployment-result"
 
     states = {item["id"]: item for item in context["states"]}
     assert states["clinical_core_ready"]["artifact_id"] == "cybernet-clinical-core-deployment-summary"
     assert states["autologon_pre_reboot_configured"]["terminal"] is False
-    assert states["autologon_restart_completed"]["artifact_id"] == "autologon-s4u-deployment-result"
+    assert states["autologon_restart_completed"]["artifact_id"] == "autologon-field-deployment-result"
     assert states["autologon_restart_completed"]["positive_classification"] == "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED"
     assert states["cybernet_software_deployed"]["artifact_id"] == "cybernet-software-deployment-result"
     assert states["cybernet_software_deployed"]["positive_classification"] == "CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED"
