@@ -48,7 +48,7 @@ def test_cmd_keeps_visible_failure_boundary() -> None:
     text = read(CMD)
     assert "Invoke-SasAutoLogonCrashSafeFieldRun.ps1" in text
     assert "pause" in text.lower()
-    assert "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\autologon" in text
+    assert "%%LOCALAPPDATA%%\\SysAdminSuite\\field-runs\\autologon" in text
 
 
 def test_no_live_target_or_secret_literal() -> None:
