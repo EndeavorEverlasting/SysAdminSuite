@@ -73,6 +73,7 @@ $result = [ordered]@{
     completed_at_utc = $null
     status = 'RUNNING'
     child_exit_code = $null
+    evidence_recovery_exit_code = $null
     failure_message = $null
     transcript_path = $transcriptPath
     child_output_path = $childOutputPath
@@ -119,19 +120,25 @@ try {
     & powershell.exe @evidenceArguments 2>&1 |
         Tee-Object -FilePath $evidenceOutputPath |
         Out-Host
+    $result.evidence_recovery_exit_code = [int]$LASTEXITCODE
 
     if (Test-Path -LiteralPath $stableEvidenceIndex -PathType Leaf) {
         Copy-Item -LiteralPath $stableEvidenceIndex -Destination $copiedEvidenceIndex -Force
         $result.evidence_index_path = $copiedEvidenceIndex
     }
 
-    if ([int]$result.child_exit_code -eq 0) {
-        $result.status = 'COMPLETED'
-    }
-    else {
+    if ([int]$result.child_exit_code -ne 0) {
         $result.status = 'FAILED'
         $result.failure_message = "AutoLogon child process returned exit code $($result.child_exit_code)."
         $pendingFailure = $result.failure_message
+    }
+    elseif ([int]$result.evidence_recovery_exit_code -ne 0) {
+        $result.status = 'FAILED'
+        $result.failure_message = "Offline evidence recovery returned exit code $($result.evidence_recovery_exit_code)."
+        $pendingFailure = $result.failure_message
+    }
+    else {
+        $result.status = 'COMPLETED'
     }
 }
 catch {
@@ -157,6 +164,8 @@ finally {
         child_output_path = $childOutputPath
         evidence_output_path = $evidenceOutputPath
         evidence_index_path = $result.evidence_index_path
+        child_exit_code = $result.child_exit_code
+        evidence_recovery_exit_code = $result.evidence_recovery_exit_code
     }
     $pointer | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $latestPointerPath -Encoding UTF8
 
