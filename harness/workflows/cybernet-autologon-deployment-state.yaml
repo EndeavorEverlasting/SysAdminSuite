@@ -32,6 +32,8 @@ stages:
     order: 2
     actions:
       - require the target profile to be Cybernet before any AutoLogon mutation
+      - canonicalize the operator target before exact local host-policy eligibility
+      - require exact local host-policy eligibility before interrupted-run recovery or apply
       - if approved clinical-core installation or acceptance is already proven, preserve it and skip reinstall
       - read configs/software-packages/approved-apps.json and configs/software-packages/windows-native-package-sets.json for current package disposition
       - verify the five operator-confirmed package source paths against current package ids, folders, and entrypoints
@@ -57,17 +59,23 @@ stages:
     actions:
       - use command id autologon-remote
       - run sas autologon Remote HOST
+      - require protected network proof, canonical target resolution, exact local host eligibility, and the per-target lock before recovery or apply
       - the S4U apply engine may emit KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING as an internal gate
       - do not stop at that intermediate gate
-      - require artifact id autologon-s4u-deployment-result
+      - require artifact id autologon-field-deployment-result
       - require classification AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED
+      - require host_eligibility_proven true
       - require automatic_reboot_performed true
       - require restart_offline_observed true and restart_online_observed true
+      - require restart_task_cleanup_verified true
       - reject deployment_planned, fixture results, transport LIVE CERT PASS, installer exit code alone, process start, or pre-reboot state alone as deployment completion
     stop_conditions:
       - target is not an explicitly authorized Cybernet
       - mutation authority is absent
       - current identity or Kerberos/SMB/S4U gates fail
+      - exact local host-policy eligibility fails
+      - another field transaction owns the canonical target lock
+      - prior durable terminal or ambiguous post-apply evidence requires a stop
       - baseline is dirty or target identity is ambiguous
       - final-step gate fails
       - pre-reboot postconditions fail
@@ -78,7 +86,7 @@ stages:
     when: requested goal explicitly requires autologon_runtime_proven
     actions:
       - runtime proof does not delay deployment completion
-      - require the correlated restart-complete deployment artifact for the same target
+      - require the correlated outer restart-complete deployment artifact for the same target
       - run command id autologon-runtime-proof from the actual AutoLogon desktop session
       - require artifact id autologon-technician-runtime-proof
       - require proof_level TECHNICIAN_OBSERVED_LIVE_RUNTIME
@@ -89,7 +97,7 @@ stages:
     actions:
       - report desired state first
       - report the exact highest proven state and canonical artifact that proves it
-      - list admission tests only as supporting evidence
+      - list admission tests and inner engine results only as supporting evidence
       - when blocked, name the smallest real gate and the exact action that advances it
       - never tell the operator to repeat a safe command already executable by the agent
 
@@ -109,5 +117,6 @@ outputs:
 proof_ceiling: >-
   This workflow binds software deployment requests to real target mutation. Full Cybernet deployment
   reaches CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED; AutoLogon-only deployment reaches
-  AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED. Runtime proof is optional higher-ceiling evidence and must
-  not delay deployment. Authorization and real target access remain mandatory.
+  AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED in the outer field transaction artifact. Runtime proof is
+  optional higher-ceiling evidence and must not delay deployment. Authorization and real target access
+  remain mandatory.

@@ -2,13 +2,13 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)][string]$Command,
-    [Parameter(ValueFromRemainingArguments = $true)][string[]]$CommandArgs
+    [Parameter(ValueFromRemainingArguments = $true)][AllowEmptyString()][string[]]$CommandArgs
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
-$stateRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite'
-$cachePath = Join-Path $stateRoot 'repo-root.txt'
+$stateRoot = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
+$cachePath = Join-Path -Path $stateRoot -ChildPath 'repo-root.txt'
 $PathLengthThreshold = 100
 New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
 
@@ -20,9 +20,10 @@ function Test-SasRepoRoot {
         'Run-AutoLogonOnsite.cmd','Run-CybernetBatchConfiguration.cmd','Probe-CybernetSoftware.cmd',
         'Deploy-CybernetSoftware.cmd','Deploy-CybernetClinicalCore.cmd','Deploy-CybernetProfiledClinicalCore.cmd',
         'Find-SasEvidence.cmd','Refresh-SasOperatorCommand.cmd','Switch-Back-To-Previous-Network.cmd',
-        'scripts\SasNetworkGuard.psm1','scripts\Return-SasOperatorToPreviousNetwork.ps1'
+        'scripts\SasNetworkGuard.psm1','scripts\Return-SasOperatorToPreviousNetwork.ps1',
+        'scripts\Invoke-SasAutoLogonFieldDeployment.ps1'
     )) {
-        if (-not (Test-Path -LiteralPath (Join-Path $candidate $relative) -PathType Leaf)) { return $false }
+        if (-not (Test-Path -LiteralPath (Join-Path -Path $candidate -ChildPath $relative) -PathType Leaf)) { return $false }
     }
     return $true
 }
@@ -37,11 +38,13 @@ function Add-SasCandidate {
 function Resolve-SasRepoRoot {
     $candidates = New-Object 'System.Collections.Generic.List[string]'
     Add-SasCandidate -List $candidates -Path $env:SAS_REPO_ROOT
-    if (Test-Path -LiteralPath $cachePath -PathType Leaf) { try { Add-SasCandidate -List $candidates -Path ((Get-Content -LiteralPath $cachePath -Raw).Trim()) } catch {} }
-    try { Add-SasCandidate -List $candidates -Path (& git -C (Get-Location).Path rev-parse --show-toplevel 2>$null | Select-Object -First 1) } catch {}
+    if (Test-Path -LiteralPath $cachePath -PathType Leaf) {
+        try { Add-SasCandidate -List $candidates -Path ((Get-Content -LiteralPath $cachePath -Raw).Trim()) } catch { }
+    }
+    try { Add-SasCandidate -List $candidates -Path (& git -C (Get-Location).Path rev-parse --show-toplevel 2>$null | Select-Object -First 1) } catch { }
     foreach ($root in @($env:USERPROFILE,$env:OneDrive,$env:OneDriveCommercial,$env:OneDriveConsumer) | Where-Object { $_ } | Select-Object -Unique) {
         foreach ($relative in @('SysAdminSuite','SysAdminSuite-portable-onsite','SysAdminSuite-Live','dev\SysAdminSuite','Desktop\dev\SysAdminSuite','OG Laptop Backup\Desktop\dev\SysAdminSuite')) {
-            Add-SasCandidate -List $candidates -Path (Join-Path $root $relative)
+            Add-SasCandidate -List $candidates -Path (Join-Path -Path $root -ChildPath $relative)
         }
     }
     foreach ($candidate in $candidates) {
@@ -53,6 +56,11 @@ function Resolve-SasRepoRoot {
     throw 'SysAdminSuite could not be located. Run Install-SasOperatorCommand.cmd once from a valid checkout.'
 }
 
+function Get-SasActualArguments {
+    param([AllowNull()][string[]]$Arguments)
+    return @($Arguments | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+}
+
 function Get-SasAvailableSubstDrive {
     foreach ($letter in @('S','R','Q','P','O','N','M','L','K','J')) {
         if ($null -eq (Get-PSDrive -Name $letter -ErrorAction SilentlyContinue) -and -not (Test-Path -LiteralPath "${letter}:\")) { return "${letter}:" }
@@ -62,14 +70,15 @@ function Get-SasAvailableSubstDrive {
 
 function Invoke-SasPortableRepoCommand {
     param([string]$RepoRoot,[string]$RelativePath,[AllowNull()][string[]]$Arguments)
-    $entryPoint = Join-Path $RepoRoot $RelativePath
+    $Arguments = @(Get-SasActualArguments -Arguments $Arguments)
+    $entryPoint = Join-Path -Path $RepoRoot -ChildPath $RelativePath
     $isLocalDrivePath = $RepoRoot -match '^[A-Za-z]:\\'
     if (-not $isLocalDrivePath -or $RepoRoot.Length -lt $PathLengthThreshold) {
         & $entryPoint @Arguments | Out-Host
         return [int]$LASTEXITCODE
     }
     $drive = Get-SasAvailableSubstDrive
-    $substExe = Join-Path $env:WINDIR 'System32\subst.exe'
+    $substExe = Join-Path -Path $env:WINDIR -ChildPath 'System32\subst.exe'
     $created = $false
     $commandExit = 1
     try {
@@ -85,7 +94,8 @@ function Invoke-SasPortableRepoCommand {
 
 $repoRoot = Resolve-SasRepoRoot
 $normalized = if ($Command) { $Command.Trim().ToLowerInvariant() } else { '' }
-$sessionModule = Join-Path $repoRoot 'scripts\SasOperatorSession.psm1'
+$actualCommandArgs = Get-SasActualArguments -Arguments $CommandArgs
+$sessionModule = Join-Path -Path $repoRoot -ChildPath 'scripts\SasOperatorSession.psm1'
 if (Test-Path -LiteralPath $sessionModule -PathType Leaf) { Import-Module $sessionModule -Force }
 
 if ([string]::IsNullOrWhiteSpace($normalized)) {
@@ -99,26 +109,20 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas cybernet Core HOST              PROTECTED NORTHWELL: five clinical apps; AutoLogon untouched; no reboot'
     Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact previous-run cleanup/recovery only'
     Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
-    Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full Cybernet software profile; readiness included; AutoLogon last; restart included'
+    Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full Cybernet software profile; AutoLogon last; restart included'
     Write-Host '  sas cybernet Plan HOST              Hardware-only Cybernet plan'
     Write-Host '  sas cybernet Apply HOST             Hardware-only Cybernet apply'
     Write-Host '  sas cybernet Validate HOST          Hardware-only Cybernet validation'
     Write-Host '  sas evidence Cybernet               OFFLINE: recover newest Cybernet evidence'
-    Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: AutoLogon-only lane; restart included'
+    Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: canonicalize, recover safe probe-only state, AutoLogon-only apply, restart'
+    Write-Host '  sas autologon Recover HOST          PROTECTED NORTHWELL: recovery gate only; never install AutoLogon'
     Write-Host '  sas network                          Read-only Northwell network posture'
+    Write-Host '  sas network HOST                     Optional one-target read-only readiness probe'
     Write-Host '  sas repo                             Print resolved repository path'
     Write-Host '  sas open                             Open repository in Explorer'
     Write-Host ''
-    Write-Host 'GUEST-SAFE refresh: On Guest/Internet: sas refresh' -ForegroundColor Cyan
-    Write-Host 'After refresh, move to the approved protected network. `sas next` retains the target/lane.' -ForegroundColor Cyan
-    Write-Host 'After protected work, use `sas leave` or double-click Switch-Back-To-Previous-Network.cmd.' -ForegroundColor Cyan
-    Write-Host 'Core completion marker: CYBERNET_PROFILED_CLINICAL_CORE_COMPLETED' -ForegroundColor DarkGray
-    Write-Host 'Readiness marker: CYBERNET_DEPLOYMENT_READINESS_READY' -ForegroundColor DarkGray
-    Write-Host 'AutoLogon marker: AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED' -ForegroundColor DarkGray
-    Write-Host 'Full deployment marker: CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED' -ForegroundColor DarkGray
-    Write-Host 'Fixture/live-cert/runtime-proof loops are NOT prerequisites for software deployment completion.' -ForegroundColor Green
-    Write-Host 'The standalone Probe is optional diagnosis; it is NOT a prerequisite loop before Deploy.' -ForegroundColor Green
-    Write-Host 'Use `sas next` after a terminal/network/conversation change. The harness remembers the lane.' -ForegroundColor Green
+    Write-Host 'AutoLogon terminal marker: AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED' -ForegroundColor DarkGray
+    Write-Host 'This marker does not claim human-observed interactive desktop sign-in.' -ForegroundColor Green
     exit 0
 }
 
@@ -126,11 +130,11 @@ switch ($normalized) {
     'repo' { Write-Output $repoRoot; exit 0 }
     'open' { Start-Process -FilePath 'explorer.exe' -ArgumentList @($repoRoot) | Out-Null; exit 0 }
     'context' {
-        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Show-SasOperatorContext.ps1')
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path -Path $repoRoot -ChildPath 'scripts\Show-SasOperatorContext.ps1')
         exit $LASTEXITCODE
     }
     'next' {
-        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Show-SasOperatorContext.ps1') -NextOnly
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path -Path $repoRoot -ChildPath 'scripts\Show-SasOperatorContext.ps1') -NextOnly
         exit $LASTEXITCODE
     }
     'refresh' {
@@ -146,38 +150,49 @@ switch ($normalized) {
                 exit 20
             }
         }
-        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Refresh-SasOperatorCommand.ps1') -RepositoryRoot $repoRoot
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path -Path $repoRoot -ChildPath 'scripts\Refresh-SasOperatorCommand.ps1') -RepositoryRoot $repoRoot
         exit $LASTEXITCODE
     }
     { $_ -in @('leave','guest','return-network') } {
-        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Return-SasOperatorToPreviousNetwork.ps1')
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path -Path $repoRoot -ChildPath 'scripts\Return-SasOperatorToPreviousNetwork.ps1')
         exit $LASTEXITCODE
     }
-    'evidence' { exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Find-SasEvidence.cmd' -Arguments $CommandArgs) }
+    'evidence' { exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Find-SasEvidence.cmd' -Arguments $actualCommandArgs) }
     'network' {
-        $args = @($CommandArgs)
-        if ($args.Count -eq 0) { & (Join-Path $repoRoot 'scripts\Confirm-SasNorthwellNetwork.ps1') -Purpose 'manual SysAdminSuite operator check'; exit $LASTEXITCODE }
-        if ($args.Count -eq 1 -and $args[0]) { exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Probe-CybernetSoftware.cmd' -Arguments @('Probe',[string]$args[0])) }
-        Write-Host 'Usage: sas network  OR  sas network HOST' -ForegroundColor Red; exit 2
+        if ($actualCommandArgs.Count -eq 0) {
+            & (Join-Path -Path $repoRoot -ChildPath 'scripts\Confirm-SasNorthwellNetwork.ps1') -Purpose 'manual SysAdminSuite operator check'
+            exit $LASTEXITCODE
+        }
+        if ($actualCommandArgs.Count -eq 1) {
+            exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Probe-CybernetSoftware.cmd' -Arguments @('Probe',[string]$actualCommandArgs[0]))
+        }
+        Write-Host 'Usage: sas network  OR  sas network HOST' -ForegroundColor Red
+        exit 2
     }
-    { $_ -in @('autologon','qualify') } { exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-AutoLogonOnsite.cmd' -Arguments $CommandArgs) }
+    { $_ -in @('autologon','qualify') } {
+        exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-AutoLogonOnsite.cmd' -Arguments $actualCommandArgs)
+    }
     'cybernet' {
-        $args = @($CommandArgs)
-        if ($args.Count -gt 0 -and $args[0]) {
+        $args = @($actualCommandArgs)
+        if ($args.Count -gt 0) {
             $mode = ([string]$args[0]).Trim().ToLowerInvariant()
             if ($mode -eq 'probe') { exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Probe-CybernetSoftware.cmd' -Arguments $args) }
             if ($mode -in @('core','profiled-core')) {
-                if ($args.Count -ne 2 -or -not $args[1]) { Write-Host 'Usage: sas cybernet Core HOST' -ForegroundColor Red; exit 2 }
+                if ($args.Count -ne 2) { Write-Host 'Usage: sas cybernet Core HOST' -ForegroundColor Red; exit 2 }
                 exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Deploy-CybernetProfiledClinicalCore.cmd' -Arguments @([string]$args[1]))
             }
             if ($mode -eq 'recover') {
-                if ($args.Count -ne 2 -or -not $args[1]) { Write-Host 'Usage: sas cybernet Recover HOST' -ForegroundColor Red; exit 2 }
-                & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\Invoke-SasCybernetCoreRecovery.ps1') -ComputerName ([string]$args[1])
+                if ($args.Count -ne 2) { Write-Host 'Usage: sas cybernet Recover HOST' -ForegroundColor Red; exit 2 }
+                & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path -Path $repoRoot -ChildPath 'scripts\Invoke-SasCybernetCoreRecovery.ps1') -ComputerName ([string]$args[1])
                 exit $LASTEXITCODE
             }
             if ($mode -eq 'deploy') { exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Deploy-CybernetSoftware.cmd' -Arguments $args) }
         }
         exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-CybernetBatchConfiguration.cmd' -Arguments $args)
     }
-    default { Write-Host "Unknown sas command: $Command" -ForegroundColor Red; Write-Host 'Run `sas` for available commands.'; exit 2 }
+    default {
+        Write-Host "Unknown sas command: $Command" -ForegroundColor Red
+        Write-Host 'Run `sas` for available commands.'
+        exit 2
+    }
 }

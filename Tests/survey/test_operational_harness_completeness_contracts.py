@@ -157,7 +157,6 @@ def test_outcome_driven_execution_floor() -> None:
     workflow = read(OUTCOME_WORKFLOW)
     skill = read(OUTCOME_SKILL)
     validator = read(OUTCOME_VALIDATOR)
-
     assert schema["$schema"].endswith("draft/2020-12/schema")
     assert schema["properties"]["schema_version"]["const"] == "sas-harness-outcome-registry/v1"
     assert registry["schema_version"] == "sas-harness-outcome-registry/v1"
@@ -182,7 +181,7 @@ def test_outcome_driven_execution_floor() -> None:
     assert full_deploy["success_artifact_id"] == "cybernet-software-deployment-result"
     autologon = next(item for item in registry["contracts"] if item["command_id"] == "autologon-remote")
     assert autologon["success_outcome"] == "product_deployed"
-    assert autologon["success_artifact_id"] == "autologon-s4u-deployment-result"
+    assert autologon["success_artifact_id"] == "autologon-field-deployment-result"
 
     for marker in (
         "workflow_id: outcome-driven-execution",
@@ -231,6 +230,7 @@ def test_artifact_registry_names_locations_generators_and_privacy() -> None:
         "cybernet-software-deployment-result",
         "autologon-s4u-pilot-result",
         "autologon-s4u-deployment-result",
+        "autologon-field-deployment-result",
         "autologon-technician-runtime-proof",
         "local-harness-proof",
         "run-artifact-registry",
