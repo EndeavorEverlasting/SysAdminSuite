@@ -11,9 +11,40 @@ This is the **canonical field path** for mapping shared printers to Northwell Wi
 - The remote mapping action runs as **SYSTEM** and uses `rundll32 printui.dll,PrintUIEntry /ga`, the Windows per-computer printer-connection path.
 - A run is not reported successful merely because a command launched. Each target must return evidence that every requested queue exists under the machine-wide HKLM printer-connection registry location.
 
-## The one script technicians should use
+## Technician path: double-click one file
 
-From an **elevated PowerShell window** at the SysAdminSuite repo root, on the authorized Northwell network:
+On an authorized Northwell Windows admin box, open the current SysAdminSuite folder and double-click:
+
+```text
+Map-NorthwellPrinter-SystemWide.cmd
+```
+
+The launcher requests Administrator rights if needed, then asks for only:
+
+1. **Target PC hostname(s)** — one or more hostnames, comma-separated.
+2. **Printer queue(s)** — `\\server\queue`, `//server/queue`, or queue name only; comma-separated when mapping more than one.
+
+The launcher stays open after success or failure so the result cannot disappear with the terminal.
+
+Example answers:
+
+```text
+Target PC hostname(s), comma-separated: PC001,PC002,PC003
+Printer queue(s), comma-separated: \\PRINTSERVER\QUEUE01
+```
+
+or, when only the queue name is known:
+
+```text
+Target PC hostname(s), comma-separated: PC001
+Printer queue(s), comma-separated: QUEUE01
+```
+
+For queue-only input, the suite resolves the published queue through Active Directory. It **does not guess a print server**. If the queue is unpublished or ambiguous, the run stops before changing a target and asks for the full `\\server\queue` path.
+
+## PowerShell path for agents and advanced operators
+
+The CMD launcher delegates to `mapping\Start-NorthwellPrinterMapping.ps1`, which delegates to the canonical engine:
 
 ```powershell
 .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer '\\PRINTSERVER\QUEUE01'
@@ -43,9 +74,7 @@ Queue name only:
 .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer 'QUEUE01'
 ```
 
-For queue-only input, the suite resolves the published queue through Active Directory. It **does not guess a print server**. If the queue is unpublished or ambiguous, the run stops before changing a target and asks for the full `\\server\queue` path.
-
-If the technician knows the print server but was given only the queue name:
+If the operator knows the print server but was given only the queue name:
 
 ```powershell
 .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer 'QUEUE01' -PrintServer 'PRINTSERVER'
@@ -53,7 +82,7 @@ If the technician knows the print server but was given only the queue name:
 
 ## Safe preview
 
-Use `-WhatIf` to resolve hostnames and queues, validate print-server DNS, and write the local resolved plan without staging anything remotely:
+Agents and advanced operators can use `-WhatIf` to resolve hostnames and queues, validate print-server DNS, and write the local resolved plan without staging anything remotely:
 
 ```powershell
 .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer 'QUEUE01' -WhatIf
@@ -70,7 +99,7 @@ For each target the runner:
 5. Stages a run-scoped agent under `C:\ProgramData\SysAdminSuite\Mapping\NorthwellPrinterMap\...`.
 6. Runs that agent as **SYSTEM** through Task Scheduler.
 7. Adds each queue using **PrintUIEntry `/ga`** (per-computer / all-users registration).
-8. Verifies each requested `\\server\queue` from `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections`.
+8. Polls and verifies each requested `\\server\queue` from `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections`.
 9. Copies `Status.json` and `Agent.log` back to the controller before cleanup.
 10. Fails the overall run if even one target lacks SYSTEM identity or machine-wide registry proof.
 
@@ -92,7 +121,7 @@ Key artifacts:
 - `<target>\Agent.log` — endpoint-side PrintUI and verification trace.
 - `Summary.json` — authoritative all-target result.
 
-Do **not** diagnose a failed run from a vanished terminal alone. Use these artifacts. The runner throws only after preserving the collected evidence.
+Do **not** diagnose a failed run from a vanished terminal alone. Use these artifacts. The runner throws only after preserving the collected evidence, and the CMD launcher pauses before closing.
 
 Common failures are intentionally explicit:
 
@@ -108,11 +137,11 @@ Common failures are intentionally explicit:
 
 Archived scripts under `mapping\Archive\` are historical evidence, not the technician entrypoint.
 
-Workers under `mapping\Workers\` remain implementation/reference surfaces. Techs should start with `mapping\Invoke-NorthwellPrinterMapping.ps1` so input validation, queue resolution, SYSTEM execution, cleanup, and evidence checks stay consistent.
+Workers under `mapping\Workers\` remain implementation/reference surfaces. Techs should start with `Map-NorthwellPrinter-SystemWide.cmd` so elevation, prompts, input validation, queue resolution, SYSTEM execution, cleanup, evidence checks, and terminal persistence stay consistent.
 
 ## Agent / ChatGPT routing rule
 
-When a technician asks how to map a printer on a Northwell PC, answer with this workflow first. Ask only for the missing concrete inputs:
+When a technician asks how to map a printer on a Northwell PC, answer with the **CMD launcher first**. Ask only for the missing concrete inputs:
 
 - target PC hostname(s), and
 - printer queue(s): either `\\server\queue` or queue name.
