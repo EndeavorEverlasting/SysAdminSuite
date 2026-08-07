@@ -13,13 +13,7 @@
       "platform": "python3",
       "command": "python harness/validators/validate-harness-registries.py",
       "blocking": true,
-      "scope": [
-        "harness/api/**",
-        "harness/workflows/**",
-        "harness/skills/**",
-        "CODEBASE_MAP.md",
-        "docs/HARNESS_STATUS.md"
-      ],
+      "scope": ["harness/api/**", "harness/workflows/**", "harness/skills/**", "CODEBASE_MAP.md", "docs/HARNESS_STATUS.md"],
       "proof": "Registry shape, path existence, fresh-agent wiring, command authority, deployment-state authority, and report renderer contract."
     },
     {
@@ -28,14 +22,7 @@
       "platform": "python3",
       "command": "python harness/validators/validate-outcome-contracts.py",
       "blocking": true,
-      "scope": [
-        "harness/api/harness-outcome-registry.json",
-        "harness/api/harness-command-registry.json",
-        "harness/api/harness-artifact-registry.json",
-        "harness/api/deployment-state-registry.json",
-        "harness/workflows/outcome-driven-execution.yaml",
-        "harness/skills/outcome-driven-execution/**"
-      ],
+      "scope": ["harness/api/harness-outcome-registry.json", "harness/api/harness-command-registry.json", "harness/api/harness-artifact-registry.json", "harness/api/deployment-state-registry.json", "harness/workflows/outcome-driven-execution.yaml", "harness/skills/outcome-driven-execution/**"],
       "proof": "Every canonical command terminates in a registered artifact/runtime/deployment outcome or same-turn continuation, preventing tests-only and status-only stopping points."
     },
     {
@@ -44,17 +31,17 @@
       "platform": "python3",
       "command": "python harness/validators/validate-deployment-state-contracts.py",
       "blocking": true,
-      "scope": [
-        "harness/api/deployment-state-registry.json",
-        "harness/api/harness-command-registry.json",
-        "harness/api/harness-artifact-registry.json",
-        "harness/api/harness-outcome-registry.json",
-        "harness/workflows/cybernet-autologon-deployment-state.yaml",
-        "harness/skills/cybernet-autologon-deployment-state/**",
-        "configs/software-packages/approved-apps.json",
-        "configs/software-packages/windows-native-package-sets.json"
-      ],
+      "scope": ["harness/api/deployment-state-registry.json", "harness/api/harness-command-registry.json", "harness/api/harness-artifact-registry.json", "harness/api/harness-outcome-registry.json", "harness/workflows/cybernet-autologon-deployment-state.yaml", "harness/skills/cybernet-autologon-deployment-state/**", "configs/software-packages/approved-apps.json", "configs/software-packages/windows-native-package-sets.json"],
       "proof": "AutoLogon/Cybernet intents resolve to current apply/runtime states, the five operator-confirmed package sources remain pinned, proven clinical-core state is preserved, and canonical S4U/runtime artifacts cannot be replaced by fixture or transport results."
+    },
+    {
+      "id": "terminal-evidence-survival",
+      "category": "harness",
+      "platform": "python3+git",
+      "command": "python harness/validators/validate-terminal-evidence-survival.py",
+      "blocking": true,
+      "scope": ["Run-AutoLogonCrashSafe.cmd", "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1", "scripts/Show-SasOperatorEvidence.ps1", "Tests/survey/test_autologon_crash_safe_field_runner_contracts.py", "harness/api/terminal-evidence-survival-registry.json", "schemas/harness/terminal-evidence-survival-registry.schema.json", "harness/api/harness-command-registry.json", "harness/api/harness-artifact-registry.json", "harness/workflows/terminal-evidence-survival.yaml", "harness/skills/terminal-evidence-survival/**", "docs/TERMINAL_EVIDENCE_SURVIVAL.md", ".githooks/**", ".github/workflows/terminal-evidence-survival.yml"],
+      "proof": "Registered field front doors persist result, transcript, child output, recovery output, latest pointer, and independent exit disposition beyond terminal lifetime; recovery remains offline and generated evidence remains untracked."
     },
     {
       "id": "autologon-field-completion-contracts",
@@ -62,15 +49,7 @@
       "platform": "python3",
       "command": "python Tests/survey/test_autologon_field_deployment_completion_contracts.py",
       "blocking": true,
-      "scope": [
-        "scripts/Invoke-SasAutoLogonFieldDeployment.ps1",
-        "scripts/Invoke-SasAutoLogonOnsite.ps1",
-        "scripts/Recover-SasLatestInterruptedAutoLogonS4U.ps1",
-        "scripts/SasAutoLogonOperatorState.psm1",
-        "scripts/Show-SasOperatorContext.ps1",
-        "scripts/SasPortableLauncher.ps1",
-        "docs/AUTOLOGON_FIELD_DEPLOYMENT_COMPLETION.md"
-      ],
+      "scope": ["scripts/Invoke-SasAutoLogonFieldDeployment.ps1", "scripts/Invoke-SasAutoLogonOnsite.ps1", "scripts/Recover-SasLatestInterruptedAutoLogonS4U.ps1", "scripts/SasAutoLogonOperatorState.psm1", "scripts/Show-SasOperatorContext.ps1", "scripts/SasPortableLauncher.ps1", "docs/AUTOLOGON_FIELD_DEPLOYMENT_COMPLETION.md"],
       "proof": "Canonical target resolution precedes recovery/apply, completed recovery is terminal, physical/subst aliases deduplicate, apply occurs exactly once, Core remains excluded, restart-complete flags are mandatory, and persistent next-action state fails closed after mutation."
     },
     {
@@ -79,14 +58,7 @@
       "platform": "python3+git",
       "command": "python Tests/survey/test_operational_harness_completeness_contracts.py",
       "blocking": true,
-      "scope": [
-        "harness/**",
-        ".githooks/**",
-        ".github/workflows/harness-infrastructure.yml",
-        "schemas/harness/**",
-        "CODEBASE_MAP.md",
-        "docs/HARNESS_STATUS.md"
-      ],
+      "scope": ["harness/**", ".githooks/**", ".github/workflows/harness-infrastructure.yml", "schemas/harness/**", "CODEBASE_MAP.md", "docs/HARNESS_STATUS.md"],
       "proof": "Required operational harness components exist, are tracked, and are wired into hooks, CI, maps, and reports."
     },
     {
@@ -95,95 +67,15 @@
       "platform": "python3",
       "command": "python Tests/survey/test_local_harness_contracts.py",
       "blocking": true,
-      "scope": [
-        "harness/**",
-        "scripts/SasRunContext.psm1",
-        "tools/**"
-      ],
+      "scope": ["harness/**", "scripts/SasRunContext.psm1", "tools/**"],
       "proof": "Local harness and run-context contracts remain intact."
     },
-    {
-      "id": "repository-text-policy-staged",
-      "category": "format",
-      "platform": "python3+git",
-      "command": "python scripts/check-repo-text-policy.py --cached",
-      "blocking": true,
-      "scope": [
-        "changed tracked text"
-      ],
-      "proof": "Staged Git text blobs use canonical repository byte policy and contain no trailing whitespace."
-    },
-    {
-      "id": "repository-text-policy-commit",
-      "category": "format",
-      "platform": "python3+git",
-      "command": "python scripts/check-repo-text-policy.py --commit HEAD",
-      "blocking": true,
-      "scope": [
-        "committed tracked text"
-      ],
-      "proof": "The destination commit satisfies repository text policy."
-    },
-    {
-      "id": "patch-whitespace",
-      "category": "format",
-      "platform": "git",
-      "command": "git diff --check",
-      "blocking": true,
-      "scope": [
-        "working tree diff"
-      ],
-      "proof": "No whitespace errors are present in the current patch."
-    },
-    {
-      "id": "offline-survey-floor",
-      "category": "integration",
-      "platform": "bash+python3",
-      "command": "bash tests/survey/run_offline_survey_tests.sh",
-      "blocking": true,
-      "scope": [
-        "survey/**",
-        "harness/**",
-        "Tests/survey/**"
-      ],
-      "proof": "Dependency-free offline survey and harness contracts pass without target contact."
-    },
-    {
-      "id": "pester-full",
-      "category": "powershell",
-      "platform": "PowerShell+Pester5",
-      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester",
-      "blocking": false,
-      "scope": [
-        "*.ps1",
-        "*.psm1",
-        "Tests/Pester/**"
-      ],
-      "proof": "PowerShell parser, fixture, and behavioral contracts pass on a Pester 5 host."
-    },
-    {
-      "id": "managed-tests-release",
-      "category": "managed",
-      "platform": ".NET 8",
-      "command": "dotnet test SysAdminSuite.sln -c Release --verbosity normal",
-      "blocking": false,
-      "scope": [
-        "src/**",
-        "managed-tests/**",
-        "SysAdminSuite.sln"
-      ],
-      "proof": "Managed solution restores, builds, and passes unit tests in Release configuration."
-    },
-    {
-      "id": "dashboard-publish",
-      "category": "build",
-      "platform": ".NET 8",
-      "command": "dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost",
-      "blocking": false,
-      "scope": [
-        "src/SysAdminSuite.DashboardHost/**"
-      ],
-      "proof": "DashboardHost produces the framework-dependent win-x64 publish artifact used by its build contract."
-    }
+    {"id":"repository-text-policy-staged","category":"format","platform":"python3+git","command":"python scripts/check-repo-text-policy.py --cached","blocking":true,"scope":["changed tracked text"],"proof":"Staged Git text blobs use canonical repository byte policy and contain no trailing whitespace."},
+    {"id":"repository-text-policy-commit","category":"format","platform":"python3+git","command":"python scripts/check-repo-text-policy.py --commit HEAD","blocking":true,"scope":["committed tracked text"],"proof":"The destination commit satisfies repository text policy."},
+    {"id":"patch-whitespace","category":"format","platform":"git","command":"git diff --check","blocking":true,"scope":["working tree diff"],"proof":"No whitespace errors are present in the current patch."},
+    {"id":"offline-survey-floor","category":"integration","platform":"bash+python3","command":"bash tests/survey/run_offline_survey_tests.sh","blocking":true,"scope":["survey/**", "harness/**", "Tests/survey/**"],"proof":"Dependency-free offline survey and harness contracts pass without target contact."},
+    {"id":"pester-full","category":"powershell","platform":"PowerShell+Pester5","command":"pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester","blocking":false,"scope":["*.ps1", "*.psm1", "Tests/Pester/**"],"proof":"PowerShell parser, fixture, and behavioral contracts pass on a Pester 5 host."},
+    {"id":"managed-tests-release","category":"managed","platform":".NET 8","command":"dotnet test SysAdminSuite.sln -c Release --verbosity normal","blocking":false,"scope":["src/**", "managed-tests/**", "SysAdminSuite.sln"],"proof":"Managed solution restores, builds, and passes unit tests in Release configuration."},
+    {"id":"dashboard-publish","category":"build","platform":".NET 8","command":"dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost","blocking":false,"scope":["src/SysAdminSuite.DashboardHost/**"],"proof":"DashboardHost produces the framework-dependent win-x64 publish artifact used by its build contract."}
   ]
 }
