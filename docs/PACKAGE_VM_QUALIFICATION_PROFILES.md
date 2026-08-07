@@ -117,4 +117,4 @@ Physical Cybernet acceptance is not implied by a successful VM profile or VM run
 
 A green validator proves only that the package-specific qualification profile is closed, internally consistent, fail-closed, and truthful about evidence completion, references, authorization, acceptance, isolation, and rollback requirements.
 
-It does not prove online revocation, strong-name validity, exact SAPIEN recovery, MSI behavior, installer success, reboot behavior, application behavior, rollback, Allscripts approval, Cybernet compatibility, AutoLogon, or operator acceptance.
+It does not prove online revocation, exact SAPIEN recovery, MSI behavior, installer success, reboot behavior, application behavior, rollback, Allscripts approval, Cybernet compatibility, AutoLogon, or operator acceptance. Strong-name cryptographic validity is proven only by the separate `package_analysis.strong_name` result referenced from the profile.
