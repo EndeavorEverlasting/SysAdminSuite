@@ -1,6 +1,6 @@
 # Field Workflow Skill
 
-Use this skill for technician commands, launchers, menus, QR command capsules, operator runbooks, or dashboard entry guidance.
+Use this skill for technician commands, launchers, menus, QR command capsules, operator runbooks, dashboard entry guidance, and Northwell shared-printer mapping.
 
 ## Capability dependencies
 
@@ -12,11 +12,26 @@ Use this skill for technician commands, launchers, menus, QR command capsules, o
 
 Load only the references that match the selected field lane:
 
+- Northwell shared-printer mapping: [`START-HERE-NORTHWELL-PRINTER-MAPPING.md`](../../../START-HERE-NORTHWELL-PRINTER-MAPPING.md)
+- Canonical Northwell printer runner: [`mapping/Invoke-NorthwellPrinterMapping.ps1`](../../../mapping/Invoke-NorthwellPrinterMapping.ps1)
 - Dashboard front door and fallback: [`docs/DASHBOARD_ENTRYPOINT.md`](../../../docs/DASHBOARD_ENTRYPOINT.md)
 - Software deployment tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](../../../docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Software installation safety contract: [`docs/SOFTWARE_INSTALL_HARNESS.md`](../../../docs/SOFTWARE_INSTALL_HARNESS.md)
 - Executable fixture proof: [`docs/SOFTWARE_INSTALL_E2E.md`](../../../docs/SOFTWARE_INSTALL_E2E.md)
 - Software-install result presentation: [`docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md`](../../../docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md)
+
+## Northwell printer mapping route
+
+When a technician asks to map, add, install, or connect a printer on a Northwell Windows PC:
+
+1. Treat **system-wide/per-computer** mapping as a hard client requirement because the workstation may have multiple users.
+2. Ask only for missing operational inputs: target PC hostname(s) and printer queue(s).
+3. Accept printer queue input as `\\server\queue`, `//server/queue`, or queue name only. Do not ask for or recommend a printer IP address.
+4. Route the technician to `mapping\Invoke-NorthwellPrinterMapping.ps1`; do not substitute `Utilities\Map-Printer.ps1` or `Add-Printer -ConnectionName`, which are per-user paths.
+5. Let the canonical runner resolve queue-only input from Active Directory, normalize short Northwell hostnames, reject IP/URL inputs, run the endpoint action as SYSTEM, and use `PrintUIEntry /ga`.
+6. Do not call the mapping successful unless the run returns SYSTEM identity plus the requested queue under the HKLM per-computer printer-connection registry evidence.
+7. If the user was already signed in when `/ga` ran, explain that sign-out/sign-in may be needed before the printer becomes visible in that user's shell session; do not remap it per-user as a workaround.
+8. On failure, direct diagnosis to the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json` instead of reconstructing the vanished terminal output.
 
 ## Workflow
 
@@ -35,3 +50,4 @@ Load only the references that match the selected field lane:
 - Do not hide scope, mutation, or failure classifications.
 - A launcher ACK is not proof that the intended behavior occurred.
 - Installer completion is not package-level post-install acceptance; present the remaining verification gate.
+- For Northwell printer mapping, direct-IP installation and per-user-only mapping are blocking contract violations, not fallbacks.
