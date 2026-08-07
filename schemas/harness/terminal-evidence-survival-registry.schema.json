@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.invalid/schemas/harness/terminal-evidence-survival-registry.schema.json",
+  "title": "SysAdminSuite terminal evidence survival registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "policy", "front_doors"],
+  "properties": {
+    "schema_version": {"const": "sas-terminal-evidence-survival-registry/v1"},
+    "repository": {"const": "EndeavorEverlasting/SysAdminSuite"},
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "terminal_lifetime_is_not_evidence_lifetime",
+        "persist_before_failure_propagation",
+        "latest_pointer_required",
+        "child_exit_code_required",
+        "recovery_exit_code_required",
+        "offline_recovery_must_not_contact_target",
+        "generated_evidence_must_remain_untracked",
+        "registered_crash_safe_front_door_required_when_available"
+      ],
+      "properties": {
+        "terminal_lifetime_is_not_evidence_lifetime": {"const": true},
+        "persist_before_failure_propagation": {"const": true},
+        "latest_pointer_required": {"const": true},
+        "child_exit_code_required": {"const": true},
+        "recovery_exit_code_required": {"const": true},
+        "offline_recovery_must_not_contact_target": {"const": true},
+        "generated_evidence_must_remain_untracked": {"const": true},
+        "registered_crash_safe_front_door_required_when_available": {"const": true}
+      }
+    },
+    "front_doors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "command_id", "operator_command", "operator_entrypoint", "runner",
+          "inner_entrypoint", "inner_action", "offline_recovery_entrypoint", "stable_run_root",
+          "latest_pointer", "success_artifact_id", "survival_artifact_ids",
+          "required_runner_markers", "required_launcher_markers"
+        ],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "command_id": {"type": "string", "minLength": 1},
+          "operator_command": {"type": "string", "minLength": 1},
+          "operator_entrypoint": {"type": "string", "minLength": 1},
+          "runner": {"type": "string", "minLength": 1},
+          "inner_entrypoint": {"type": "string", "minLength": 1},
+          "inner_action": {"type": "string", "minLength": 1},
+          "offline_recovery_entrypoint": {"type": "string", "minLength": 1},
+          "stable_run_root": {"type": "string", "minLength": 1},
+          "latest_pointer": {"type": "string", "minLength": 1},
+          "success_artifact_id": {"type": "string", "minLength": 1},
+          "survival_artifact_ids": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "required_runner_markers": {"type": "array", "minItems": 4, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "required_launcher_markers": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    }
+  }
+}

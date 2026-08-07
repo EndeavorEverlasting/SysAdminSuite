@@ -58,7 +58,9 @@ stages:
     when: clinical-core state is already proven and requested goal requires AutoLogon deployment
     actions:
       - use command id autologon-remote
-      - run sas autologon Remote HOST
+      - resolve its operator front door through harness/api/terminal-evidence-survival-registry.json
+      - run Run-AutoLogonCrashSafe.cmd HOST so terminal loss cannot destroy the outer diagnostic evidence
+      - the crash-safe wrapper delegates to the existing Remote product transaction and does not weaken product gates
       - require protected network proof, canonical target resolution, exact local host eligibility, and the per-target lock before recovery or apply
       - the S4U apply engine may emit KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING as an internal gate
       - do not stop at that intermediate gate
@@ -68,6 +70,7 @@ stages:
       - require automatic_reboot_performed true
       - require restart_offline_observed true and restart_online_observed true
       - require restart_task_cleanup_verified true
+      - require crash-safe field-run result, transcript, child output, recovery output, and latest pointer to remain machine-local and untracked
       - reject deployment_planned, fixture results, transport LIVE CERT PASS, installer exit code alone, process start, or pre-reboot state alone as deployment completion
     stop_conditions:
       - target is not an explicitly authorized Cybernet
@@ -97,7 +100,8 @@ stages:
     actions:
       - report desired state first
       - report the exact highest proven state and canonical artifact that proves it
-      - list admission tests and inner engine results only as supporting evidence
+      - list admission tests, crash-safe diagnostic envelope, and inner engine results only as supporting evidence
+      - when a terminal vanished, inspect the stable latest pointer and preserved run root before proposing any rerun
       - when blocked, name the smallest real gate and the exact action that advances it
       - never tell the operator to repeat a safe command already executable by the agent
 
@@ -117,6 +121,6 @@ outputs:
 proof_ceiling: >-
   This workflow binds software deployment requests to real target mutation. Full Cybernet deployment
   reaches CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED; AutoLogon-only deployment reaches
-  AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED in the outer field transaction artifact. Runtime proof is
-  optional higher-ceiling evidence and must not delay deployment. Authorization and real target access
-  remain mandatory.
+  AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED in the outer field transaction artifact while its crash-safe
+  operator envelope persists diagnostics beyond terminal lifetime. Runtime proof is optional higher-ceiling
+  evidence and must not delay deployment. Authorization and real target access remain mandatory.
