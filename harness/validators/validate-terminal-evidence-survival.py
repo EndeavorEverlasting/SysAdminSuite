@@ -74,8 +74,8 @@ def main() -> int:
     assert front["offline_recovery_entrypoint"] == "scripts/Show-SasOperatorEvidence.ps1"
 
     command = one(commands, "id", "autologon-remote")
-    assert command["command"] == front["operator_command"]
-    assert command["source_of_truth"] == front["operator_entrypoint"]
+    assert command["command"] == "sas autologon Remote HOST"
+    assert command["source_of_truth"] == "scripts/Invoke-SasAutoLogonFieldDeployment.ps1"
     assert command["mutation"] == "authorized_target_mutation"
     assert command["network"] is True
 
@@ -102,6 +102,8 @@ def main() -> int:
         assert marker in runner, f"runner lost evidence-survival marker: {marker}"
     assert "target_contact_performed_by_runner = $false" in runner
     assert "target_mutation_performed_by_runner = $false" in runner
+    assert "Invoke-SasAutoLogonOnsite.ps1" in runner
+    assert "'-Action', 'Remote'" in runner
     initial_result = runner.index("$result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $resultPath")
     child_launch = runner.index("& powershell.exe @childArguments")
     recovery_launch = runner.index("& powershell.exe @evidenceArguments")
@@ -155,7 +157,7 @@ def main() -> int:
     for path in (PRE_COMMIT, PRE_PUSH, OFFLINE, CI):
         assert validator_marker in read(path), f"terminal evidence validator not wired: {path.relative_to(ROOT)}"
 
-    for path in (REGISTRY, SCHEMA, Path(front["operator_entrypoint"]) if False else WORKFLOW, SKILL, REPORT, CI):
+    for path in (REGISTRY, SCHEMA, WORKFLOW, SKILL, REPORT, CI, LAUNCHER, RUNNER, PRODUCT_CONTRACT):
         assert tracked(path), f"terminal evidence component is not tracked: {path.relative_to(ROOT)}"
 
     print("PASS: terminal evidence survival harness contracts")
