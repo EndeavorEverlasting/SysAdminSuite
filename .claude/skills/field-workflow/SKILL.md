@@ -13,7 +13,8 @@ Use this skill for technician commands, launchers, menus, QR command capsules, o
 Load only the references that match the selected field lane:
 
 - Northwell shared-printer mapping: [`START-HERE-NORTHWELL-PRINTER-MAPPING.md`](../../../START-HERE-NORTHWELL-PRINTER-MAPPING.md)
-- Canonical Northwell printer runner: [`mapping/Invoke-NorthwellPrinterMapping.ps1`](../../../mapping/Invoke-NorthwellPrinterMapping.ps1)
+- Northwell technician front door: [`Map-NorthwellPrinter-SystemWide.cmd`](../../../Map-NorthwellPrinter-SystemWide.cmd)
+- Canonical Northwell printer engine: [`mapping/Invoke-NorthwellPrinterMapping.ps1`](../../../mapping/Invoke-NorthwellPrinterMapping.ps1)
 - Dashboard front door and fallback: [`docs/DASHBOARD_ENTRYPOINT.md`](../../../docs/DASHBOARD_ENTRYPOINT.md)
 - Software deployment tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](../../../docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Software installation safety contract: [`docs/SOFTWARE_INSTALL_HARNESS.md`](../../../docs/SOFTWARE_INSTALL_HARNESS.md)
@@ -27,11 +28,12 @@ When a technician asks to map, add, install, or connect a printer on a Northwell
 1. Treat **system-wide/per-computer** mapping as a hard client requirement because the workstation may have multiple users.
 2. Ask only for missing operational inputs: target PC hostname(s) and printer queue(s).
 3. Accept printer queue input as `\\server\queue`, `//server/queue`, or queue name only. Do not ask for or recommend a printer IP address.
-4. Route the technician to `mapping\Invoke-NorthwellPrinterMapping.ps1`; do not substitute `Utilities\Map-Printer.ps1` or `Add-Printer -ConnectionName`, which are per-user paths.
-5. Let the canonical runner resolve queue-only input from Active Directory, normalize short Northwell hostnames, reject IP/URL inputs, run the endpoint action as SYSTEM, and use `PrintUIEntry /ga`.
-6. Do not call the mapping successful unless the run returns SYSTEM identity plus the requested queue under the HKLM per-computer printer-connection registry evidence.
-7. If the user was already signed in when `/ga` ran, explain that sign-out/sign-in may be needed before the printer becomes visible in that user's shell session; do not remap it per-user as a workaround.
-8. On failure, direct diagnosis to the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json` instead of reconstructing the vanished terminal output.
+4. Route the technician to **double-click `Map-NorthwellPrinter-SystemWide.cmd`**. The launcher owns elevation, prompts, terminal persistence, and delegation to the validated PowerShell engine.
+5. Do not substitute `Utilities\Map-Printer.ps1` or `Add-Printer -ConnectionName`, which are per-user paths.
+6. Let the canonical runner resolve queue-only input from Active Directory, normalize short Northwell hostnames, reject IP/URL inputs, run the endpoint action as SYSTEM, and use `PrintUIEntry /ga`.
+7. Do not call the mapping successful unless the run returns SYSTEM identity plus the requested queue under the HKLM per-computer printer-connection registry evidence.
+8. If the user was already signed in when `/ga` ran, explain that sign-out/sign-in may be needed before the printer becomes visible in that user's shell session; do not remap it per-user as a workaround.
+9. On failure, direct diagnosis to the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json` instead of reconstructing the vanished terminal output.
 
 ## Workflow
 
