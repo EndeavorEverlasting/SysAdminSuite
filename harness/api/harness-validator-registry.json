@@ -57,6 +57,29 @@
       "proof": "AutoLogon/Cybernet intents resolve to current apply/runtime states, the five operator-confirmed package sources remain pinned, proven clinical-core state is preserved, and canonical S4U/runtime artifacts cannot be replaced by fixture or transport results."
     },
     {
+      "id": "terminal-evidence-survival",
+      "category": "harness",
+      "platform": "python3+git",
+      "command": "python harness/validators/validate-terminal-evidence-survival.py",
+      "blocking": true,
+      "scope": [
+        "Run-AutoLogonCrashSafe.cmd",
+        "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
+        "scripts/Show-SasOperatorEvidence.ps1",
+        "Tests/survey/test_autologon_crash_safe_field_runner_contracts.py",
+        "harness/api/terminal-evidence-survival-registry.json",
+        "schemas/harness/terminal-evidence-survival-registry.schema.json",
+        "harness/api/harness-command-registry.json",
+        "harness/api/harness-artifact-registry.json",
+        "harness/workflows/terminal-evidence-survival.yaml",
+        "harness/skills/terminal-evidence-survival/**",
+        "docs/TERMINAL_EVIDENCE_SURVIVAL.md",
+        ".githooks/**",
+        ".github/workflows/terminal-evidence-survival.yml"
+      ],
+      "proof": "Registered field front doors persist result, transcript, child output, recovery output, latest pointer, and independent exit disposition beyond terminal lifetime; recovery remains offline and generated evidence remains untracked."
+    },
+    {
       "id": "autologon-field-completion-contracts",
       "category": "powershell-contract",
       "platform": "python3",
