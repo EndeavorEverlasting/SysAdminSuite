@@ -124,8 +124,10 @@ Describe 'Technician front-door contract' {
     It 'has one root CMD launcher that self-elevates and delegates to the interactive wrapper' {
         Test-Path -LiteralPath $script:cmdPath | Should -BeTrue
         $content = Get-Content -LiteralPath $script:cmdPath -Raw
-        $content | Should -Match 'net session'
+        $content | Should -Match 'WindowsBuiltInRole\]::Administrator'
+        $content | Should -Not -Match '(?im)^net session'
         $content | Should -Match 'Start-Process.*-Verb RunAs'
+        $content | Should -Match '\$env:ComSpec'
         $content | Should -Match 'Start-NorthwellPrinterMapping\.ps1'
         $content | Should -Match '(?i)pause'
         $content | Should -Match 'ALL users'
