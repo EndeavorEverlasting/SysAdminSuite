@@ -105,7 +105,7 @@ foreach ($server in $printServers) {
     }
 }
 
-$runToken = Get-Date -Format 'yyyyMMdd-HHmmss'
+$runToken = New-SasNorthwellPrinterRunToken
 if ([string]::IsNullOrWhiteSpace($SessionRoot)) {
     $SessionRoot = Join-Path (Join-Path $PSScriptRoot 'Logs') "NorthwellPrinterMap-$runToken"
 }
@@ -120,18 +120,6 @@ function Write-ControllerLog {
     $line = '[{0}] {1}' -f (Get-Date -Format s), $Message
     Write-Host $line
     $line | Out-File -LiteralPath $controllerLog -Encoding utf8 -Append
-}
-
-function Get-OptionalPropertyValue {
-    param(
-        [Parameter(Mandatory)]$InputObject,
-        [Parameter(Mandatory)][string]$Name,
-        $DefaultValue = $null
-    )
-
-    $property = $InputObject.PSObject.Properties[$Name]
-    if ($null -eq $property) { return $DefaultValue }
-    return $property.Value
 }
 
 function Write-RunSummary {
@@ -358,12 +346,8 @@ foreach ($computer in $resolvedComputers) {
         ) -join [Environment]::NewLine
         Set-Content -LiteralPath $remoteLauncherAdmin -Value $launcher -Encoding ASCII
 
-        $when = (Get-Date).AddMinutes(2)
-        Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Create' -Arguments @(
-            '/Create','/F','/S',$computer,'/RU','SYSTEM','/RL','HIGHEST',
-            '/SC','ONCE','/SD',$when.ToShortDateString(),'/ST',$when.ToString('HH:mm'),
-            '/TN',$taskName,'/TR',$remoteLauncherLocal
-        )
+        $createArguments = New-SasNorthwellPrinterTaskCreateArguments -Computer $computer -TaskName $taskName -RemoteLauncherLocal $remoteLauncherLocal
+        Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Create' -Arguments $createArguments
         $taskCreated = $true
         Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Run' -Arguments @('/Run','/S',$computer,'/TN',$taskName)
 
@@ -377,30 +361,7 @@ foreach ($computer in $resolvedComputers) {
         }
 
         $status = Get-Content -LiteralPath $remoteStatusAdmin -Raw | ConvertFrom-Json
-        $statusSuccess = [bool](Get-OptionalPropertyValue -InputObject $status -Name 'Success' -DefaultValue $false)
-        $statusError = [string](Get-OptionalPropertyValue -InputObject $status -Name 'Error' -DefaultValue '')
-        $statusMissing = @(Get-OptionalPropertyValue -InputObject $status -Name 'Missing' -DefaultValue @())
-        if (-not $statusSuccess) {
-            if (-not [string]::IsNullOrWhiteSpace($statusError)) { throw $statusError }
-            if ($statusMissing.Count -gt 0) { throw ('Missing machine-wide queue(s): ' + ($statusMissing -join ', ')) }
-            throw 'Agent returned Success=false without a more specific error.'
-        }
-
-        $identity = [string](Get-OptionalPropertyValue -InputObject $status -Name 'Identity' -DefaultValue '')
-        if ($identity -notmatch 'SYSTEM$') {
-            throw "Remote worker did not run as SYSTEM (identity: $identity)."
-        }
-
-        $machineWideValue = Get-OptionalPropertyValue -InputObject $status -Name 'MachineWideUNC' -DefaultValue @()
-        $verified = @($machineWideValue | ForEach-Object { ([string]$_).ToLowerInvariant() })
-        $missingControllerProof = @(
-            $resolvedPrinters |
-                ForEach-Object { $_.ToLowerInvariant() } |
-                Where-Object { $verified -notcontains $_ }
-        )
-        if ($missingControllerProof.Count -gt 0) {
-            throw "Status.json did not prove requested machine-wide connection(s): $($missingControllerProof -join ', ')"
-        }
+        $null = Assert-SasNorthwellPrinterStatusProof -Status $status -RequestedPrinters $resolvedPrinters
 
         $hostResult.Success = $true
         $hostResult.Stage = 'VerifiedMachineWide'
