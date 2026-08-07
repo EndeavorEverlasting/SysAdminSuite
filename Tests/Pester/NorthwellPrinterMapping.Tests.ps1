@@ -69,54 +69,57 @@ Describe 'Northwell printer input contract' {
 Describe 'Northwell workstation target contract' {
     BeforeEach {
         $script:canonicalResolver = {
-            param($name)
-            if ($name -ieq 'WPJ001OPR001.nslijhs.net') {
-                return [pscustomobject]@{
-                    canonical_name = 'WPJ001OPR001.nslijhs.net'
-                    addresses = @('10.20.30.50')
-                }
+            param($name, $suffix)
+            return [pscustomobject]@{
+                fqdn = 'wpj001opr001.nslijhs.net'
+                disposition = 'UNIQUE_CANONICAL_FQDN'
             }
-            return $null
         }
     }
 
     It 'resolves a short hostname through the canonical Northwell FQDN authority' {
-        Resolve-SasNorthwellTargetComputer -ComputerName 'WPJ001OPR001' -DnsResolver $script:canonicalResolver |
+        Resolve-SasNorthwellTargetComputer -ComputerName 'WPJ001OPR001' -CanonicalResolver $script:canonicalResolver |
             Should -Be 'wpj001opr001.nslijhs.net'
     }
 
     It 'preserves an explicitly canonical Northwell FQDN after DNS identity proof' {
-        Resolve-SasNorthwellTargetComputer -ComputerName 'WPJ001OPR001.nslijhs.net' -DnsResolver $script:canonicalResolver |
+        Resolve-SasNorthwellTargetComputer -ComputerName 'WPJ001OPR001.nslijhs.net' -CanonicalResolver $script:canonicalResolver |
             Should -Be 'wpj001opr001.nslijhs.net'
     }
 
     It 'rejects target-PC IP addresses' {
-        { Resolve-SasNorthwellTargetComputer -ComputerName '10.20.30.50' -DnsResolver $script:canonicalResolver } |
+        { Resolve-SasNorthwellTargetComputer -ComputerName '10.20.30.50' -CanonicalResolver $script:canonicalResolver } |
             Should -Throw '*IP address*'
     }
 
     It 'rejects a canonical DNS identity with a different host label' {
         $aliasResolver = {
-            param($name)
+            param($name, $suffix)
             return [pscustomobject]@{
-                canonical_name = 'DIFFERENTHOST.nslijhs.net'
-                addresses = @('10.20.30.50')
+                fqdn = 'differenthost.nslijhs.net'
+                disposition = 'UNIQUE_CANONICAL_FQDN'
             }
         }
-        { Resolve-SasNorthwellTargetComputer -ComputerName 'WPJ001OPR001' -DnsResolver $aliasResolver } |
+        { Resolve-SasNorthwellTargetComputer -ComputerName 'WPJ001OPR001' -CanonicalResolver $aliasResolver } |
             Should -Throw '*different canonical host identity*'
     }
 
     It 'rejects a canonical FQDN outside the approved Northwell suffix' {
         $outsideResolver = {
-            param($name)
+            param($name, $suffix)
             return [pscustomobject]@{
-                canonical_name = 'WPJ001OPR001.example.org'
-                addresses = @('10.20.30.50')
+                fqdn = 'wpj001opr001.example.org'
+                disposition = 'UNIQUE_CANONICAL_FQDN'
             }
         }
-        { Resolve-SasNorthwellTargetComputer -ComputerName 'WPJ001OPR001.example.org' -DnsResolver $outsideResolver } |
+        { Resolve-SasNorthwellTargetComputer -ComputerName 'WPJ001OPR001.example.org' -CanonicalResolver $outsideResolver } |
             Should -Throw '*approved Northwell DNS suffix*'
+    }
+
+    It 'routes production resolution through the repository canonical resolver' {
+        $content = Get-Content -LiteralPath $script:modulePath -Raw
+        $content | Should -Match 'SasTargetNameResolution\.psm1'
+        $content | Should -Match 'Resolve-SasCanonicalTargetFqdn'
     }
 }
 
@@ -125,7 +128,7 @@ Describe 'Northwell controller executable safety helpers' {
         $tokens = @(1..20 | ForEach-Object { New-SasNorthwellPrinterRunToken })
         @($tokens | Sort-Object -Unique).Count | Should -Be 20
         foreach ($token in $tokens) {
-            $token | Should -Match '^\d{17}-[0-9a-f]{12}$'
+            $token | Should -Match '^\d{8}-\d{9}-[0-9a-f]{12}$'
         }
     }
 
@@ -232,7 +235,7 @@ Describe 'Canonical Northwell system-wide runner contract' {
 
     It 'keeps the default live evidence tree ignored with exact path casing' {
         $ignore = Get-Content -LiteralPath $script:gitIgnorePath -Raw
-        $ignore | Should -Match '(?m)^mapping/Logs/\*$'
+        $ignore | Should -Match '(?m)^mapping/Logs/\*\r?$'
     }
 }
 
