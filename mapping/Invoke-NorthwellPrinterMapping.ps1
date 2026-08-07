@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Canonical Northwell field entrypoint for system-wide shared-printer mapping.
+    Canonical Northwell field engine for system-wide shared-printer mapping.
 
 .DESCRIPTION
     Maps one or more Windows shared printer queues to one or more Northwell PCs.
@@ -25,9 +25,11 @@
     .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName WPJ001OPR001 -Printer 'QUEUE01' -PrintServer PRINTSERVER
 
 .NOTES
-    Run elevated from an authorized Windows controller on the Northwell network.
-    The operator must have administrative C$ and remote Task Scheduler access to
-    the target PCs. Runtime evidence is preserved locally even when a target fails.
+    Technicians should normally launch Map-NorthwellPrinter-SystemWide.cmd at the
+    repository root. Run this engine elevated from an authorized Windows controller
+    on the Northwell network. The operator must have administrative C$ and remote
+    Task Scheduler access to the target PCs. Runtime evidence is preserved locally
+    even when a target fails.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -248,13 +250,10 @@ try {
             throw "Unsafe/non-UNC queue reached agent: $queue"
         }
         Write-AgentLog "ADD /ga $queue"
-        $process = Start-Process -FilePath 'rundll32.exe' -ArgumentList @(
-            'printui.dll,PrintUIEntry',
-            '/ga',
-            "/n$queue"
-        ) -WindowStyle Hidden -Wait -PassThru
-        if ($process.ExitCode -ne 0) {
-            throw "PrintUIEntry /ga failed for $queue with exit code $($process.ExitCode)."
+        & "$env:SystemRoot\System32\rundll32.exe" 'printui.dll,PrintUIEntry' '/ga' "/n$queue"
+        $printUiExitCode = $LASTEXITCODE
+        if ($printUiExitCode -ne 0) {
+            throw "PrintUIEntry /ga failed for $queue with exit code $printUiExitCode."
         }
     }
 
@@ -266,16 +265,20 @@ try {
         Write-AgentLog "WARN gpupdate: $($_.Exception.Message)"
     }
 
-    Start-Sleep -Seconds 2
-    $machineWide = @(Get-MachineWidePrinterConnections)
-    $missing = @($queues | Where-Object { $machineWide -notcontains $_ })
-    $success = ($missing.Count -eq 0)
+    $verifyDeadline = (Get-Date).AddSeconds(30)
+    do {
+        $machineWide = @(Get-MachineWidePrinterConnections)
+        $missing = @($queues | Where-Object { $machineWide -notcontains $_ })
+        if ($missing.Count -eq 0) { break }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $verifyDeadline)
 
+    $success = ($missing.Count -eq 0)
     if ($success) {
         Write-AgentLog 'Verified every requested queue under HKLM machine-wide printer connections.'
     }
     else {
-        Write-AgentLog "VERIFY FAIL missing from HKLM: $($missing -join ', ')"
+        Write-AgentLog "VERIFY FAIL missing from HKLM after 30 seconds: $($missing -join ', ')"
     }
 
     @{
