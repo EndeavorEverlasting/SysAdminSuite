@@ -4,16 +4,16 @@
 
 .DESCRIPTION
     Maps one or more Windows shared printer queues to one or more Northwell PCs.
-    The remote action runs as SYSTEM and uses PrintUIEntry /ga, which creates a
-    per-computer printer connection for all users of the PC. Printer IP addresses
-    are deliberately rejected.
+    The endpoint action runs as SYSTEM and uses PrintUIEntry /ga so the printer
+    registration is per-computer, not tied to the technician's signed-in profile.
 
-    Printer input may be either:
-      - \\server\queue (or //server/queue), or
-      - queue name only. Queue-only input is resolved through Active Directory,
-        or combined with -PrintServer when supplied explicitly.
+    Printer input may be:
+      - \\server\queue
+      - //server/queue
+      - queue name only (resolved from Active Directory, or paired with -PrintServer)
 
-    Target input is a workstation hostname/FQDN, never an IP address.
+    Direct printer IPs, IP print servers, target-PC IPs, URLs, and ambiguous queue
+    names are rejected before endpoint mutation.
 
 .EXAMPLE
     .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName WPJ001OPR001 -Printer '\\PRINTSERVER\QUEUE01'
@@ -25,9 +25,9 @@
     .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName WPJ001OPR001 -Printer 'QUEUE01' -PrintServer PRINTSERVER
 
 .NOTES
-    Run from an elevated Windows PowerShell or PowerShell session on the
-    authorized Northwell network. The operator account must have administrative
-    access to the target PCs' C$ shares and remote Task Scheduler.
+    Run elevated from an authorized Windows controller on the Northwell network.
+    The operator must have administrative C$ and remote Task Scheduler access to
+    the target PCs. Runtime evidence is preserved locally even when a target fails.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -88,13 +88,15 @@ $resolvedPrinters = @(
 if ($resolvedComputers.Count -eq 0) { throw 'No valid target computers were supplied.' }
 if ($resolvedPrinters.Count -eq 0) { throw 'No valid shared printer queues were supplied.' }
 
-# Fail before touching endpoints if a referenced print-server hostname cannot resolve.
-$printServers = @($resolvedPrinters | ForEach-Object {
-    if ($_ -match '^\\\\([^\\]+)\\') { $Matches[1] }
-} | Where-Object { $_ } | Sort-Object -Unique)
+$printServers = @(
+    $resolvedPrinters | ForEach-Object {
+        if ($_ -match '^\\\\([^\\]+)\\') { $Matches[1] }
+    } | Where-Object { $_ } | Sort-Object -Unique
+)
 foreach ($server in $printServers) {
     try {
-        $null = [System.Net.Dns]::GetHostAddresses($server)
+        $addresses = @([System.Net.Dns]::GetHostAddresses($server))
+        if ($addresses.Count -eq 0) { throw 'No addresses returned.' }
     }
     catch {
         throw "Print server '$server' did not resolve in DNS. No endpoint changes were made. $($_.Exception.Message)"
@@ -109,12 +111,63 @@ New-Item -ItemType Directory -Path $SessionRoot -Force | Out-Null
 $controllerLog = Join-Path $SessionRoot 'Controller.log'
 $planPath = Join-Path $SessionRoot 'ResolvedPlan.json'
 $summaryPath = Join-Path $SessionRoot 'Summary.json'
+$results = New-Object System.Collections.Generic.List[object]
 
 function Write-ControllerLog {
     param([Parameter(Mandatory)][string]$Message)
     $line = '[{0}] {1}' -f (Get-Date -Format s), $Message
     Write-Host $line
     $line | Out-File -LiteralPath $controllerLog -Encoding utf8 -Append
+}
+
+function Get-OptionalPropertyValue {
+    param(
+        [Parameter(Mandatory)]$InputObject,
+        [Parameter(Mandatory)][string]$Name,
+        $DefaultValue = $null
+    )
+
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $DefaultValue }
+    return $property.Value
+}
+
+function Write-RunSummary {
+    $failedCount = @($results | Where-Object { -not $_.Success }).Count
+    [ordered]@{
+        RunToken = $runToken
+        Success = ($results.Count -eq $resolvedComputers.Count -and $failedCount -eq 0)
+        Mode = 'MachineWidePerComputer'
+        RemoteIdentity = 'SYSTEM'
+        PrinterCommand = 'rundll32 printui.dll,PrintUIEntry /ga'
+        Computers = $resolvedComputers
+        Printers = $resolvedPrinters
+        CompletedTargets = $results.Count
+        TotalTargets = $resolvedComputers.Count
+        Results = @($results)
+        PlanPath = $planPath
+        ControllerLog = $controllerLog
+        Updated = (Get-Date).ToString('o')
+    } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+}
+
+function Invoke-RemoteTaskScheduler {
+    param(
+        [Parameter(Mandatory)][string[]]$Arguments,
+        [Parameter(Mandatory)][string]$Computer,
+        [Parameter(Mandatory)][string]$Stage
+    )
+
+    $output = @(& schtasks.exe @Arguments 2>&1)
+    $exitCode = $LASTEXITCODE
+    foreach ($line in $output) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
+            Write-ControllerLog "[$Computer][$Stage] $line"
+        }
+    }
+    if ($exitCode -ne 0) {
+        throw "Remote Task Scheduler $Stage failed with exit code $exitCode."
+    }
 }
 
 @{
@@ -134,6 +187,7 @@ Write-ControllerLog "Queues : $($resolvedPrinters -join ', ')"
 Write-ControllerLog "Evidence: $SessionRoot"
 Write-ControllerLog 'Policy: shared queue names only; direct printer IP mapping is rejected.'
 Write-ControllerLog 'Scope: per-computer (/ga), executed as SYSTEM for multi-user PCs.'
+Write-RunSummary
 
 if ($WhatIfPreference) {
     foreach ($computer in $resolvedComputers) {
@@ -142,6 +196,7 @@ if ($WhatIfPreference) {
         }
     }
     Write-ControllerLog 'WhatIf complete. No remote files, tasks, or printer connections were changed.'
+    Write-RunSummary
     return
 }
 
@@ -170,7 +225,7 @@ function Get-MachineWidePrinterConnections {
             try {
                 $item = Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction Stop
                 if ($item.Server -and $item.Printer) {
-                    ('\\{0}\{1}' -f ([string]$item.Server).TrimStart('\'), [string]$item.Printer).ToLowerInvariant()
+                    ('\\{0}\{1}' -f ([string]$item.Server).TrimStart([char[]]'\'), [string]$item.Printer).ToLowerInvariant()
                 }
             }
             catch {}
@@ -183,7 +238,9 @@ try {
     $queues = @($config.Printers | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
     if ($queues.Count -eq 0) { throw 'No queues in staged configuration.' }
 
-    Write-AgentLog "Running as $([Security.Principal.WindowsIdentity]::GetCurrent().Name) on $env:COMPUTERNAME"
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    Write-AgentLog "Running as $identity on $env:COMPUTERNAME"
+    if ($identity -notmatch 'SYSTEM$') { throw "Worker identity is not SYSTEM: $identity" }
     Write-AgentLog "Requested machine-wide queues: $($queues -join ', ')"
 
     foreach ($queue in $queues) {
@@ -223,7 +280,7 @@ try {
 
     @{
         ComputerName = $env:COMPUTERNAME
-        Identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+        Identity = $identity
         Mode = 'MachineWidePerComputer'
         Success = $success
         Requested = $queues
@@ -233,10 +290,11 @@ try {
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statusPath -Encoding UTF8
 }
 catch {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     Write-AgentLog "FATAL: $($_.Exception.Message)"
     @{
         ComputerName = $env:COMPUTERNAME
-        Identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+        Identity = $identity
         Mode = 'MachineWidePerComputer'
         Success = $false
         Error = $_.Exception.Message
@@ -244,8 +302,6 @@ catch {
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statusPath -Encoding UTF8
 }
 '@
-
-$results = New-Object System.Collections.Generic.List[object]
 
 foreach ($computer in $resolvedComputers) {
     $safeComputer = ($computer -replace '[^A-Za-z0-9.-]', '_')
@@ -256,11 +312,13 @@ foreach ($computer in $resolvedComputers) {
     $remoteAdminDir = "\\$computer\C$\$remoteRel"
     $remoteAgentAdmin = Join-Path $remoteAdminDir 'Agent.ps1'
     $remoteConfigAdmin = Join-Path $remoteAdminDir 'Config.json'
+    $remoteLauncherAdmin = Join-Path $remoteAdminDir 'Start-Agent.cmd'
     $remoteStatusAdmin = Join-Path $remoteAdminDir 'Status.json'
     $remoteLogAdmin = Join-Path $remoteAdminDir 'Agent.log'
     $remoteAgentLocal = "C:\$remoteRel\Agent.ps1"
     $remoteConfigLocal = "C:\$remoteRel\Config.json"
     $remoteWorkLocal = "C:\$remoteRel"
+    $remoteLauncherLocal = "C:\$remoteRel\Start-Agent.cmd"
     $taskName = "SysAdminSuite_NorthwellPrinterMap_$runToken"
     $taskCreated = $false
 
@@ -278,42 +336,33 @@ foreach ($computer in $resolvedComputers) {
             throw "Admin share unavailable: \\$computer\C$. Confirm Northwell network, DNS, credentials, firewall, and admin rights."
         }
 
-        $query = Start-Process -FilePath 'schtasks.exe' -ArgumentList @('/Query','/S',$computer,'/FO','LIST') -NoNewWindow -Wait -PassThru
-        if ($query.ExitCode -ne 0) {
-            throw "Remote Task Scheduler query failed with exit code $($query.ExitCode)."
-        }
+        Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Query' -Arguments @('/Query','/S',$computer,'/FO','LIST')
 
         if (-not $PSCmdlet.ShouldProcess($computer, "Map $($resolvedPrinters.Count) shared printer queue(s) machine-wide as SYSTEM")) {
             $hostResult.Stage = 'Skipped'
             $hostResult.Message = 'ShouldProcess declined.'
-            $results.Add([pscustomobject]$hostResult)
             continue
         }
 
         New-Item -ItemType Directory -Path $remoteAdminDir -Force | Out-Null
         Set-Content -LiteralPath $remoteAgentAdmin -Value $agentCode -Encoding UTF8
-        @{
-            Printers = $resolvedPrinters
-        } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $remoteConfigAdmin -Encoding UTF8
+        @{ Printers = $resolvedPrinters } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $remoteConfigAdmin -Encoding UTF8
+
+        $launcher = @(
+            '@echo off',
+            ('"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File {0} -ConfigPath {1} -WorkDir {2}' -f $remoteAgentLocal,$remoteConfigLocal,$remoteWorkLocal),
+            'exit /b %ERRORLEVEL%'
+        ) -join [Environment]::NewLine
+        Set-Content -LiteralPath $remoteLauncherAdmin -Value $launcher -Encoding ASCII
 
         $when = (Get-Date).AddMinutes(2)
-        $taskArgs = @(
-            '/Create','/F',
-            '/S',$computer,
-            '/RU','SYSTEM',
-            '/RL','HIGHEST',
-            '/SC','ONCE',
-            '/SD',$when.ToShortDateString(),
-            '/ST',$when.ToString('HH:mm'),
-            '/TN',$taskName,
-            '/TR',("C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"{0}`" -ConfigPath `"{1}`" -WorkDir `"{2}`"" -f $remoteAgentLocal,$remoteConfigLocal,$remoteWorkLocal)
+        Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Create' -Arguments @(
+            '/Create','/F','/S',$computer,'/RU','SYSTEM','/RL','HIGHEST',
+            '/SC','ONCE','/SD',$when.ToShortDateString(),'/ST',$when.ToString('HH:mm'),
+            '/TN',$taskName,'/TR',$remoteLauncherLocal
         )
-        $create = Start-Process -FilePath 'schtasks.exe' -ArgumentList $taskArgs -NoNewWindow -Wait -PassThru
-        if ($create.ExitCode -ne 0) { throw "SCHTASKS /Create failed with exit code $($create.ExitCode)." }
         $taskCreated = $true
-
-        $run = Start-Process -FilePath 'schtasks.exe' -ArgumentList @('/Run','/S',$computer,'/TN',$taskName) -NoNewWindow -Wait -PassThru
-        if ($run.ExitCode -ne 0) { throw "SCHTASKS /Run failed with exit code $($run.ExitCode)." }
+        Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Run' -Arguments @('/Run','/S',$computer,'/TN',$taskName)
 
         $hostResult.Stage = 'WaitingForProof'
         $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -324,22 +373,28 @@ foreach ($computer in $resolvedComputers) {
             throw "Timed out after $TimeoutSeconds seconds waiting for Status.json. Remote evidence was not observed."
         }
 
-        Copy-Item -LiteralPath $remoteStatusAdmin -Destination (Join-Path $localHostDir 'Status.json') -Force
-        if (Test-Path -LiteralPath $remoteLogAdmin) {
-            Copy-Item -LiteralPath $remoteLogAdmin -Destination (Join-Path $localHostDir 'Agent.log') -Force
-        }
-
         $status = Get-Content -LiteralPath $remoteStatusAdmin -Raw | ConvertFrom-Json
-        if (-not [bool]$status.Success) {
-            $detail = if ($status.Error) { [string]$status.Error } elseif ($status.Missing) { 'Missing machine-wide queue(s): ' + (@($status.Missing) -join ', ') } else { 'Agent returned Success=false.' }
-            throw $detail
-        }
-        if ([string]$status.Identity -notmatch 'SYSTEM$') {
-            throw "Remote worker did not run as SYSTEM (identity: $($status.Identity))."
+        $statusSuccess = [bool](Get-OptionalPropertyValue -InputObject $status -Name 'Success' -DefaultValue $false)
+        $statusError = [string](Get-OptionalPropertyValue -InputObject $status -Name 'Error' -DefaultValue '')
+        $statusMissing = @(Get-OptionalPropertyValue -InputObject $status -Name 'Missing' -DefaultValue @())
+        if (-not $statusSuccess) {
+            if (-not [string]::IsNullOrWhiteSpace($statusError)) { throw $statusError }
+            if ($statusMissing.Count -gt 0) { throw ('Missing machine-wide queue(s): ' + ($statusMissing -join ', ')) }
+            throw 'Agent returned Success=false without a more specific error.'
         }
 
-        $verified = @($status.MachineWideUNC | ForEach-Object { ([string]$_).ToLowerInvariant() })
-        $missingControllerProof = @($resolvedPrinters | ForEach-Object { $_.ToLowerInvariant() } | Where-Object { $verified -notcontains $_ })
+        $identity = [string](Get-OptionalPropertyValue -InputObject $status -Name 'Identity' -DefaultValue '')
+        if ($identity -notmatch 'SYSTEM$') {
+            throw "Remote worker did not run as SYSTEM (identity: $identity)."
+        }
+
+        $machineWideValue = Get-OptionalPropertyValue -InputObject $status -Name 'MachineWideUNC' -DefaultValue @()
+        $verified = @($machineWideValue | ForEach-Object { ([string]$_).ToLowerInvariant() })
+        $missingControllerProof = @(
+            $resolvedPrinters |
+                ForEach-Object { $_.ToLowerInvariant() } |
+                Where-Object { $verified -notcontains $_ }
+        )
         if ($missingControllerProof.Count -gt 0) {
             throw "Status.json did not prove requested machine-wide connection(s): $($missingControllerProof -join ', ')"
         }
@@ -356,40 +411,48 @@ foreach ($computer in $resolvedComputers) {
         Write-ControllerLog "[$computer] FAIL: $($_.Exception.Message)"
     }
     finally {
+        foreach ($remoteEvidence in @(
+            @{ Source = $remoteStatusAdmin; Name = 'Status.json' },
+            @{ Source = $remoteLogAdmin; Name = 'Agent.log' }
+        )) {
+            try {
+                if (Test-Path -LiteralPath $remoteEvidence.Source) {
+                    Copy-Item -LiteralPath $remoteEvidence.Source -Destination (Join-Path $localHostDir $remoteEvidence.Name) -Force -ErrorAction Stop
+                }
+            }
+            catch {
+                Write-ControllerLog "[$computer] WARN evidence copy '$($remoteEvidence.Name)': $($_.Exception.Message)"
+            }
+        }
+
         if ($taskCreated) {
             try {
-                $null = Start-Process -FilePath 'schtasks.exe' -ArgumentList @('/Delete','/S',$computer,'/TN',$taskName,'/F') -NoNewWindow -Wait -PassThru
+                Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Delete' -Arguments @('/Delete','/S',$computer,'/TN',$taskName,'/F')
             }
-            catch { Write-ControllerLog "[$computer] WARN task cleanup: $($_.Exception.Message)" }
+            catch {
+                Write-ControllerLog "[$computer] WARN task cleanup: $($_.Exception.Message)"
+            }
         }
+
         if (-not $KeepRemoteArtifacts) {
             try {
                 if (Test-Path -LiteralPath $remoteAdminDir) {
                     Remove-Item -LiteralPath $remoteAdminDir -Recurse -Force -ErrorAction Stop
                 }
             }
-            catch { Write-ControllerLog "[$computer] WARN remote artifact cleanup: $($_.Exception.Message)" }
+            catch {
+                Write-ControllerLog "[$computer] WARN remote artifact cleanup: $($_.Exception.Message)"
+            }
         }
+
+        $results.Add([pscustomobject]$hostResult)
+        Write-RunSummary
     }
-
-    $results.Add([pscustomobject]$hostResult)
 }
-
-$summary = [ordered]@{
-    RunToken = $runToken
-    Success = (@($results | Where-Object { -not $_.Success }).Count -eq 0)
-    Mode = 'MachineWidePerComputer'
-    Computers = $resolvedComputers
-    Printers = $resolvedPrinters
-    Results = @($results)
-    PlanPath = $planPath
-    ControllerLog = $controllerLog
-    Finished = (Get-Date).ToString('o')
-}
-$summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
 
 $results | Format-Table Computer,Success,Stage,Message -AutoSize
 Write-ControllerLog "Summary: $summaryPath"
+Write-RunSummary
 
 $failures = @($results | Where-Object { -not $_.Success })
 if ($failures.Count -gt 0) {
@@ -397,3 +460,4 @@ if ($failures.Count -gt 0) {
 }
 
 Write-ControllerLog 'PASS: every target returned SYSTEM-context, HKLM machine-wide queue proof.'
+Write-RunSummary
