@@ -24,7 +24,7 @@ stages:
       - read harness/api/terminal-evidence-survival-registry.json
       - match command_id to exactly one registered crash-safe front door
       - fail closed when a registered front door exists but the proposed operator command bypasses it
-      - treat terminal lifetime as not evidence lifetime
+      - terminal lifetime is not evidence lifetime; recover persistent evidence instead of trusting console survival
 
   - id: execute
     order: 2
