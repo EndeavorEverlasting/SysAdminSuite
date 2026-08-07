@@ -58,8 +58,8 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 ## Northwell printer mapping doctrine
 - A request to map, add, install, or connect a printer on a Northwell Windows PC routes to the Field Workflow skill and `START-HERE-NORTHWELL-PRINTER-MAPPING.md`.
 - Northwell printer mapping is **system-wide/per-computer**. Per-user-only connections do not satisfy the client requirement for shared PCs with multiple users.
-- The canonical technician entrypoint is `mapping/Invoke-NorthwellPrinterMapping.ps1`. It accepts target-PC hostname(s) plus `\\server\queue`, `//server/queue`, or queue-name-only printer input.
-- Printer IP addresses, IP print-server paths, IPP/HTTP URLs, and target-PC IP addresses are forbidden inputs. Do not suggest direct-IP printing as a fallback.
+- The canonical technician front door is `Map-NorthwellPrinter-SystemWide.cmd`; it self-elevates, prompts for target-PC hostname(s) and printer queue(s), preserves terminal results, and delegates to `mapping/Invoke-NorthwellPrinterMapping.ps1`.
+- Accepted printer input is `\\server\queue`, `//server/queue`, or queue-name-only. Printer IP addresses, IP print-server paths, IPP/HTTP URLs, and target-PC IP addresses are forbidden inputs. Do not suggest direct-IP printing as a fallback.
 - Queue-name-only input must resolve uniquely through the directory or be paired with an explicit print-server hostname. Never guess a print server.
 - The canonical endpoint action runs as SYSTEM and uses `PrintUIEntry /ga`. Do not substitute `Utilities/Map-Printer.ps1` or `Add-Printer -ConnectionName`; those are per-user paths.
 - Success requires requested-queue proof from the HKLM per-computer printer-connection state plus SYSTEM identity. Command launch, task creation, or a per-user printer list is not sufficient proof.
@@ -98,7 +98,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 
 ## Canonical repo authorities
 - `CODEBASE_MAP.md` — minimal context routing.
-- `START-HERE-NORTHWELL-PRINTER-MAPPING.md` — Northwell shared-printer operator contract and canonical field examples.
+- `START-HERE-NORTHWELL-PRINTER-MAPPING.md` and `Map-NorthwellPrinter-SystemWide.cmd` — Northwell shared-printer operator contract and canonical field front door.
 - `docs/AI_HARNESS_ENTRYPOINT.md` and `docs/HARNESS_DISCIPLINE.md` — fresh-agent, Git, branch, PR, worktree, and evidence discipline.
 - `docs/END_TO_END_TESTING_POSTURE.md` — validation and merge/release proof posture.
 - `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.
