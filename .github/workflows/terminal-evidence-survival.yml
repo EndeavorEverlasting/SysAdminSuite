@@ -1,0 +1,116 @@
+name: Terminal Evidence Survival Harness
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'Run-AutoLogonCrashSafe.cmd'
+      - 'scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
+      - 'scripts/Show-SasOperatorEvidence.ps1'
+      - 'Tests/survey/test_autologon_crash_safe_field_runner_contracts.py'
+      - 'harness/api/terminal-evidence-survival-registry.json'
+      - 'schemas/harness/terminal-evidence-survival-registry.schema.json'
+      - 'harness/validators/validate-terminal-evidence-survival.py'
+      - 'harness/workflows/terminal-evidence-survival.yaml'
+      - 'harness/skills/terminal-evidence-survival/**'
+      - 'docs/TERMINAL_EVIDENCE_SURVIVAL.md'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/operational-harness-manifest.json'
+      - '.githooks/**'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/terminal-evidence-survival.yml'
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'fix/**', 'harness/**']
+    paths:
+      - 'Run-AutoLogonCrashSafe.cmd'
+      - 'scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
+      - 'scripts/Show-SasOperatorEvidence.ps1'
+      - 'Tests/survey/test_autologon_crash_safe_field_runner_contracts.py'
+      - 'harness/api/terminal-evidence-survival-registry.json'
+      - 'schemas/harness/terminal-evidence-survival-registry.schema.json'
+      - 'harness/validators/validate-terminal-evidence-survival.py'
+      - 'harness/workflows/terminal-evidence-survival.yaml'
+      - 'harness/skills/terminal-evidence-survival/**'
+      - 'docs/TERMINAL_EVIDENCE_SURVIVAL.md'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/operational-harness-manifest.json'
+      - '.githooks/**'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/terminal-evidence-survival.yml'
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install schema validator
+        run: python -m pip install jsonschema
+      - name: Compile focused validator
+        run: python -m py_compile harness/validators/validate-terminal-evidence-survival.py Tests/survey/test_autologon_crash_safe_field_runner_contracts.py
+      - name: Validate terminal evidence registry schema
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import jsonschema
+          document = json.loads(Path('harness/api/terminal-evidence-survival-registry.json').read_text(encoding='utf-8'))
+          schema = json.loads(Path('schemas/harness/terminal-evidence-survival-registry.schema.json').read_text(encoding='utf-8'))
+          jsonschema.Draft202012Validator(schema).validate(document)
+          print('PASS: terminal evidence survival registry schema')
+          PY
+      - name: Validate terminal evidence survival harness
+        run: python harness/validators/validate-terminal-evidence-survival.py
+      - name: Validate merged crash-safe product contracts
+        run: python Tests/survey/test_autologon_crash_safe_field_runner_contracts.py
+      - name: Validate operational harness completeness
+        run: python Tests/survey/test_operational_harness_completeness_contracts.py
+      - name: Validate harness registries
+        run: python harness/validators/validate-harness-registries.py
+      - name: Check pull-request whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+      - name: Check pushed whitespace
+        if: github.event_name == 'push'
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            git show --check --oneline --no-renames HEAD
+          else
+            git diff --check "$before" "${{ github.sha }}"
+          fi
+      - name: Check manual-dispatch whitespace
+        if: github.event_name == 'workflow_dispatch'
+        run: git show --check --oneline --no-renames HEAD
+
+  powershell-parse:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse crash-safe runner under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if (@($errors).Count -gt 0) {
+            $errors | Format-List * | Out-Host
+            throw 'Crash-safe field runner has PowerShell parse errors.'
+          }
+          Write-Host 'PASS: crash-safe runner parses under Windows PowerShell 5.1'

@@ -37,6 +37,7 @@ python3 Tests/survey/test_autologon_kerberos_s4u_contracts.py
 python3 Tests/survey/test_autologon_s4u_field_hardening_contracts.py
 python3 Tests/survey/test_autologon_interrupted_recovery_orchestration_contracts.py
 python3 Tests/survey/test_autologon_field_deployment_completion_contracts.py
+python3 Tests/survey/test_autologon_crash_safe_field_runner_contracts.py
 python3 Tests/survey/test_software_source_identity_contracts.py
 python3 Tests/survey/test_autologon_intent_only_baseline_contracts.py
 python3 Tests/survey/test_autologon_exact_run_root_cleanup_contracts.py
@@ -46,6 +47,7 @@ python3 Tests/survey/test_autologon_s4u_path_budget_contracts.py
 python3 harness/validators/validate-harness-registries.py
 python3 harness/validators/validate-outcome-contracts.py
 python3 harness/validators/validate-deployment-state-contracts.py
+python3 harness/validators/validate-terminal-evidence-survival.py
 python3 Tests/survey/test_software_deployment_input_invalidation_contracts.py
 python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
