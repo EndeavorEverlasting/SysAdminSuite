@@ -7,11 +7,11 @@ rem This is the Northwell multi-user printer front door.
 rem The delegated PowerShell engine rejects IP-based printer mapping and proves
 rem the requested shared queue under HKLM after running PrintUIEntry /ga as SYSTEM.
 
-net session >nul 2>&1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 1 }"
 if not "%ERRORLEVEL%"=="0" (
     echo Requesting Administrator rights required for machine-wide mapping...
     set "SAS_NORTHWELL_PRINTER_LAUNCHER=%~f0"
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { $p = Start-Process -FilePath $env:SAS_NORTHWELL_PRINTER_LAUNCHER -Verb RunAs -PassThru -Wait; exit $p.ExitCode } catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 1 }"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { $p = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',('""{0}""' -f $env:SAS_NORTHWELL_PRINTER_LAUNCHER)) -Verb RunAs -PassThru -Wait; exit $p.ExitCode } catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 1 }"
     exit /b %ERRORLEVEL%
 )
 
