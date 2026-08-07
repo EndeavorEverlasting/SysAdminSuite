@@ -10,7 +10,9 @@ on:
       - 'AGENTS.md'
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
+      - 'Map-NorthwellPrinter-SystemWide.cmd'
       - 'mapping/README.md'
+      - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'Utilities/Map-Printer.ps1'
@@ -21,7 +23,9 @@ on:
       - 'AGENTS.md'
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
+      - 'Map-NorthwellPrinter-SystemWide.cmd'
       - 'mapping/README.md'
+      - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'Utilities/Map-Printer.ps1'
@@ -41,6 +45,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $files = @(
+            '.\mapping\Start-NorthwellPrinterMapping.ps1',
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
             '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
             '.\Utilities\Map-Printer.ps1',
