@@ -1,5 +1,4 @@
 # Agent Governance for SysAdminSuite
-
 `AGENTS.md` is the repository-root governance contract and the single source of truth for how agents operate in SysAdminSuite. Compact routing lives here; detailed procedures remain in task skills under `.claude/skills/`, reusable rules in `.claude/capabilities/`, and machine-readable execution contracts under `harness/`.
 
 ## Required loading sequence
@@ -55,6 +54,10 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - Where runtime eligibility or transport is uncertain, the launcher must complete live-cert dry run before live-cert production. Production cannot run unless dry run and harmless live certification pass.
 - Operator instructions name the one file to click and the one value to enter; implementation complexity remains inside repository-owned CMD and script surfaces.
 
+## Northwell printer mapping doctrine
+- Northwell printer requests route to the Field Workflow skill, `START-HERE-NORTHWELL-PRINTER-MAPPING.md`, and the self-elevating `Map-NorthwellPrinter-SystemWide.cmd`; mapping is system-wide/per-computer for multi-user PCs, accepts target hostnames plus `\\server\queue`, `//server/queue`, or uniquely resolvable queue names, and forbids printer/target IPs, IPP/HTTP URLs, guessed print servers, and per-user substitutes such as `Utilities/Map-Printer.ps1` or `Add-Printer -ConnectionName`.
+- The canonical engine runs as SYSTEM with `PrintUIEntry /ga`; success requires SYSTEM identity plus requested-queue proof from HKLM per-computer printer connections, while failures are diagnosed from local/untracked `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json`.
+
 ## SysAdminSuite virtual-machine doctrine
 - The SysAdminSuite VM is Python-generated. Never assume Hyper-V, invent a VM name, or substitute a provider-specific launcher without repository or operator evidence.
 - Before VM-dependent work, locate the canonical Python generator/launcher and its documented guest identity, startup, readiness, shutdown, rollback, and evidence paths.
@@ -77,7 +80,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 |---|---|
 | Repository intake, sprint selection, Git/PR lifecycle, interrupted work recovery | [Repository Sprint](.claude/skills/repository-sprint/SKILL.md) |
 | Choosing Bash, PowerShell, Windows-native, or managed implementation surfaces | [Language and Runtime](.claude/skills/language-runtime/SKILL.md) |
-| Technician commands, double-click launchers, field runbooks, QR command capsules | [Field Workflow](.claude/skills/field-workflow/SKILL.md) |
+| Technician commands, double-click launchers, field runbooks, QR command capsules, **Northwell printer mapping** | [Field Workflow](.claude/skills/field-workflow/SKILL.md) |
 | Selecting parsers, unit tests, contracts, and bounded validators | [Scoped Validation](.claude/skills/scoped-validation/SKILL.md) |
 | Integration gates, composed workflows, browser/launcher journeys, merge/release proof | [End-to-End Validation](.claude/skills/end-to-end-validation/SKILL.md) |
 | Reading, generating, moving, or staging local/live evidence | [Live Data Guard](.claude/skills/live-data-guard/SKILL.md) |
@@ -88,6 +91,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 
 ## Canonical repo authorities
 - `CODEBASE_MAP.md` — minimal context routing.
+- `START-HERE-NORTHWELL-PRINTER-MAPPING.md` and `Map-NorthwellPrinter-SystemWide.cmd` — Northwell shared-printer operator contract and canonical field front door.
 - `docs/AI_HARNESS_ENTRYPOINT.md` and `docs/HARNESS_DISCIPLINE.md` — fresh-agent, Git, branch, PR, worktree, and evidence discipline.
 - `docs/END_TO_END_TESTING_POSTURE.md` — validation and merge/release proof posture.
 - `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.

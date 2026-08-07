@@ -1,0 +1,113 @@
+name: Northwell printer mapping contracts
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'repair/**']
+    paths:
+      - 'AGENTS.md'
+      - '.claude/skills/field-workflow/**'
+      - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
+      - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'mapping/README.md'
+      - 'mapping/Start-NorthwellPrinterMapping.ps1'
+      - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
+      - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'Utilities/Map-Printer.ps1'
+      - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - '.github/workflows/northwell-printer-mapping-contracts.yml'
+  pull_request:
+    paths:
+      - 'AGENTS.md'
+      - '.claude/skills/field-workflow/**'
+      - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
+      - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'mapping/README.md'
+      - 'mapping/Start-NorthwellPrinterMapping.ps1'
+      - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
+      - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'Utilities/Map-Printer.ps1'
+      - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - '.github/workflows/northwell-printer-mapping-contracts.yml'
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Parse PowerShell surfaces
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            '.\mapping\Start-NorthwellPrinterMapping.ps1',
+            '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
+            '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
+            '.\Utilities\Map-Printer.ps1',
+            '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1'
+          )
+          $allErrors = @()
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $file),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $allErrors += $errors | ForEach-Object { "$file :: $($_.Message)" }
+            }
+          }
+          if ($allErrors.Count -gt 0) {
+            throw ($allErrors -join [Environment]::NewLine)
+          }
+          Write-Host 'PASS: Northwell printer PowerShell surfaces parse.'
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pester = Get-Module -ListAvailable -Name Pester |
+            Where-Object { $_.Version.Major -ge 5 } |
+            Sort-Object Version -Descending |
+            Select-Object -First 1
+          if (-not $pester) {
+            Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.5.0
+          }
+
+      - name: Run targeted printer contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            git fetch origin "${{ github.sha }}" --depth=2
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              git diff --check HEAD^ HEAD
+            else
+              git show --check --oneline --no-renames HEAD
+            fi
+          else
+            git fetch origin "$before" "${{ github.sha }}" --depth=1
+            git diff --check "$before" "${{ github.sha }}"
+          fi

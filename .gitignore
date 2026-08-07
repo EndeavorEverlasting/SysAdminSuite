@@ -1,6 +1,7 @@
 # Runtime log output — never commit live run logs
 Mapping/Logs/*
 Mapping/logs/*
+mapping/Logs/*
 !Mapping/Logs/.gitkeep
 
 # Canonical harness and developer-workstation runtime evidence
