@@ -8,7 +8,7 @@ function Test-SasIpLiteral {
     )
 
     $parsed = $null
-    return [System.Net.IPAddress]::TryParse($Value.Trim().Trim('[', ']'), [ref]$parsed)
+    return [System.Net.IPAddress]::TryParse($Value.Trim().Trim([char[]]'[]'), [ref]$parsed)
 }
 
 function ConvertTo-SasLdapFilterValue {
@@ -149,8 +149,8 @@ function ConvertTo-SasNorthwellPrinterUnc {
     }
 
     if (-not [string]::IsNullOrWhiteSpace($PrintServer)) {
-        $server = $PrintServer.Trim().TrimStart('\', '/')
-        if ($server -match '[\\/]' -or $server -match '^[a-zA-Z]+://' -or (Test-SasIpLiteral -Value $server)) {
+        $server = $PrintServer.Trim().TrimStart([char[]]'\/')
+        if ([string]::IsNullOrWhiteSpace($server) -or $server -match '[\\/]' -or $server -match '^[a-zA-Z]+://' -or (Test-SasIpLiteral -Value $server)) {
             throw "PrintServer '$PrintServer' must be a server hostname/FQDN, never an IP address or path."
         }
         return "\\$server\$value"
