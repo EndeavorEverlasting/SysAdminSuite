@@ -1,5 +1,4 @@
 # Agent Governance for SysAdminSuite
-
 `AGENTS.md` is the repository-root governance contract and the single source of truth for how agents operate in SysAdminSuite. Compact routing lives here; detailed procedures remain in task skills under `.claude/skills/`, reusable rules in `.claude/capabilities/`, and machine-readable execution contracts under `harness/`.
 
 ## Required loading sequence
