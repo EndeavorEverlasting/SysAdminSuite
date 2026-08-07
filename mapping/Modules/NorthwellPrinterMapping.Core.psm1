@@ -11,6 +11,17 @@ function Test-SasIpLiteral {
     return [System.Net.IPAddress]::TryParse($Value.Trim().Trim([char[]]'[]'), [ref]$parsed)
 }
 
+function Test-SasHostnameValue {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Value
+    )
+
+    $name = $Value.Trim()
+    return $name -match '^(?=.{1,253}$)([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(\.([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$'
+}
+
 function ConvertTo-SasLdapFilterValue {
     [CmdletBinding()]
     param(
@@ -51,7 +62,7 @@ function Resolve-SasNorthwellTargetComputer {
     if (Test-SasIpLiteral -Value $name) {
         throw "Target '$ComputerName' is an IP address. Northwell workstation targets must be specified by hostname/FQDN."
     }
-    if ($name -notmatch '^(?=.{1,253}$)([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(\.([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$') {
+    if (-not (Test-SasHostnameValue -Value $name)) {
         throw "Target '$ComputerName' is not a valid hostname/FQDN."
     }
 
@@ -135,6 +146,9 @@ function ConvertTo-SasNorthwellPrinterUnc {
         if (Test-SasIpLiteral -Value $server) {
             throw "Printer '$Printer' uses an IP address as the print server. Northwell printers must be mapped by shared queue name."
         }
+        if (-not (Test-SasHostnameValue -Value $server)) {
+            throw "Printer '$Printer' contains an invalid print-server hostname. Use \\server\queue with a hostname/FQDN, never an IP or port."
+        }
         if (Test-SasIpLiteral -Value $queue) {
             throw "Printer '$Printer' looks like a direct-IP mapping. Northwell printers must be mapped by queue name."
         }
@@ -150,8 +164,8 @@ function ConvertTo-SasNorthwellPrinterUnc {
 
     if (-not [string]::IsNullOrWhiteSpace($PrintServer)) {
         $server = $PrintServer.Trim().TrimStart([char[]]'\/')
-        if ([string]::IsNullOrWhiteSpace($server) -or $server -match '[\\/]' -or $server -match '^[a-zA-Z]+://' -or (Test-SasIpLiteral -Value $server)) {
-            throw "PrintServer '$PrintServer' must be a server hostname/FQDN, never an IP address or path."
+        if ([string]::IsNullOrWhiteSpace($server) -or (Test-SasIpLiteral -Value $server) -or -not (Test-SasHostnameValue -Value $server)) {
+            throw "PrintServer '$PrintServer' must be a server hostname/FQDN, never an IP address, port, or path."
         }
         return "\\$server\$value"
     }
