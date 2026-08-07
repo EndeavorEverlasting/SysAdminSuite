@@ -55,6 +55,16 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - Where runtime eligibility or transport is uncertain, the launcher must complete live-cert dry run before live-cert production. Production cannot run unless dry run and harmless live certification pass.
 - Operator instructions name the one file to click and the one value to enter; implementation complexity remains inside repository-owned CMD and script surfaces.
 
+## Northwell printer mapping doctrine
+- A request to map, add, install, or connect a printer on a Northwell Windows PC routes to the Field Workflow skill and `START-HERE-NORTHWELL-PRINTER-MAPPING.md`.
+- Northwell printer mapping is **system-wide/per-computer**. Per-user-only connections do not satisfy the client requirement for shared PCs with multiple users.
+- The canonical technician entrypoint is `mapping/Invoke-NorthwellPrinterMapping.ps1`. It accepts target-PC hostname(s) plus `\\server\queue`, `//server/queue`, or queue-name-only printer input.
+- Printer IP addresses, IP print-server paths, IPP/HTTP URLs, and target-PC IP addresses are forbidden inputs. Do not suggest direct-IP printing as a fallback.
+- Queue-name-only input must resolve uniquely through the directory or be paired with an explicit print-server hostname. Never guess a print server.
+- The canonical endpoint action runs as SYSTEM and uses `PrintUIEntry /ga`. Do not substitute `Utilities/Map-Printer.ps1` or `Add-Printer -ConnectionName`; those are per-user paths.
+- Success requires requested-queue proof from the HKLM per-computer printer-connection state plus SYSTEM identity. Command launch, task creation, or a per-user printer list is not sufficient proof.
+- Runtime evidence remains local/untracked. On failure or terminal loss, diagnose from the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json`.
+
 ## SysAdminSuite virtual-machine doctrine
 - The SysAdminSuite VM is Python-generated. Never assume Hyper-V, invent a VM name, or substitute a provider-specific launcher without repository or operator evidence.
 - Before VM-dependent work, locate the canonical Python generator/launcher and its documented guest identity, startup, readiness, shutdown, rollback, and evidence paths.
@@ -77,7 +87,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 |---|---|
 | Repository intake, sprint selection, Git/PR lifecycle, interrupted work recovery | [Repository Sprint](.claude/skills/repository-sprint/SKILL.md) |
 | Choosing Bash, PowerShell, Windows-native, or managed implementation surfaces | [Language and Runtime](.claude/skills/language-runtime/SKILL.md) |
-| Technician commands, double-click launchers, field runbooks, QR command capsules | [Field Workflow](.claude/skills/field-workflow/SKILL.md) |
+| Technician commands, double-click launchers, field runbooks, QR command capsules, **Northwell printer mapping** | [Field Workflow](.claude/skills/field-workflow/SKILL.md) |
 | Selecting parsers, unit tests, contracts, and bounded validators | [Scoped Validation](.claude/skills/scoped-validation/SKILL.md) |
 | Integration gates, composed workflows, browser/launcher journeys, merge/release proof | [End-to-End Validation](.claude/skills/end-to-end-validation/SKILL.md) |
 | Reading, generating, moving, or staging local/live evidence | [Live Data Guard](.claude/skills/live-data-guard/SKILL.md) |
@@ -88,6 +98,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 
 ## Canonical repo authorities
 - `CODEBASE_MAP.md` — minimal context routing.
+- `START-HERE-NORTHWELL-PRINTER-MAPPING.md` — Northwell shared-printer operator contract and canonical field examples.
 - `docs/AI_HARNESS_ENTRYPOINT.md` and `docs/HARNESS_DISCIPLINE.md` — fresh-agent, Git, branch, PR, worktree, and evidence discipline.
 - `docs/END_TO_END_TESTING_POSTURE.md` — validation and merge/release proof posture.
 - `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.
