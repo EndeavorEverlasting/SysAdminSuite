@@ -1,5 +1,12 @@
 Set-StrictMode -Version Latest
 
+$script:RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$script:TargetResolutionModule = Join-Path $script:RepoRoot 'scripts\SasTargetNameResolution.psm1'
+if (-not (Test-Path -LiteralPath $script:TargetResolutionModule)) {
+    throw "Canonical target-resolution module not found: $script:TargetResolutionModule"
+}
+Import-Module $script:TargetResolutionModule -Force -ErrorAction Stop
+
 function Test-SasIpLiteral {
     [CmdletBinding()]
     param(
@@ -49,10 +56,12 @@ function Resolve-SasNorthwellTargetComputer {
         [Parameter(Mandatory)]
         [string]$ComputerName,
 
-        [string]$DnsSuffix = 'nslijhs.net'
+        [string]$DnsSuffix = 'nslijhs.net',
+
+        [scriptblock]$DnsResolver
     )
 
-    $name = $ComputerName.Trim()
+    $name = $ComputerName.Trim().TrimEnd('.')
     if ([string]::IsNullOrWhiteSpace($name)) {
         throw 'Target computer name cannot be blank.'
     }
@@ -66,13 +75,29 @@ function Resolve-SasNorthwellTargetComputer {
         throw "Target '$ComputerName' is not a valid hostname/FQDN."
     }
 
-    if ($name.Contains('.')) {
-        return $name
+    $suffix = $DnsSuffix.Trim().Trim('.')
+    $resolveParameters = @{
+        TargetName = $name
+        SuffixCandidates = @($suffix)
     }
-    if ([string]::IsNullOrWhiteSpace($DnsSuffix)) {
-        return $name
+    if ($DnsResolver) {
+        $resolveParameters.DnsResolver = $DnsResolver
     }
-    return "$name.$($DnsSuffix.Trim('.'))"
+
+    $resolution = Resolve-SasCanonicalTargetFqdn @resolveParameters
+    $fqdn = [string]$resolution.fqdn
+    if ([string]::IsNullOrWhiteSpace($fqdn)) {
+        throw "Target '$ComputerName' did not resolve to one canonical FQDN."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($suffix)) {
+        $approvedSuffix = ".{0}" -f $suffix
+        if (-not $fqdn.EndsWith($approvedSuffix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Target '$ComputerName' resolved outside the approved Northwell DNS suffix '$suffix'. Stop before target mutation."
+        }
+    }
+
+    return $fqdn
 }
 
 function Resolve-SasPrinterQueueFromDirectory {
@@ -188,9 +213,87 @@ function ConvertTo-SasNorthwellPrinterUnc {
     return ConvertTo-SasNorthwellPrinterUnc -Printer $matches[0]
 }
 
+function New-SasNorthwellPrinterRunToken {
+    [CmdletBinding()]
+    param()
+
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmssfff'
+    $unique = [guid]::NewGuid().ToString('N').Substring(0, 12)
+    return "$timestamp-$unique"
+}
+
+function New-SasNorthwellPrinterTaskCreateArguments {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Computer,
+        [Parameter(Mandatory)][string]$TaskName,
+        [Parameter(Mandatory)][string]$RemoteLauncherLocal
+    )
+
+    return @(
+        '/Create','/F','/S',$Computer,'/RU','SYSTEM','/RL','HIGHEST',
+        '/SC','ONSTART','/TN',$TaskName,'/TR',$RemoteLauncherLocal
+    )
+}
+
+function Assert-SasNorthwellPrinterStatusProof {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Status,
+        [Parameter(Mandatory)][string[]]$RequestedPrinters
+    )
+
+    $successProperty = $Status.PSObject.Properties['Success']
+    $success = ($null -ne $successProperty -and [bool]$successProperty.Value)
+    if (-not $success) {
+        $errorProperty = $Status.PSObject.Properties['Error']
+        if ($null -ne $errorProperty -and -not [string]::IsNullOrWhiteSpace([string]$errorProperty.Value)) {
+            throw [string]$errorProperty.Value
+        }
+
+        $missingProperty = $Status.PSObject.Properties['Missing']
+        $missing = if ($null -ne $missingProperty) { @($missingProperty.Value) } else { @() }
+        if ($missing.Count -gt 0) {
+            throw ('Missing machine-wide queue(s): ' + ($missing -join ', '))
+        }
+        throw 'Agent returned Success=false without a more specific error.'
+    }
+
+    $identityProperty = $Status.PSObject.Properties['Identity']
+    $identity = if ($null -ne $identityProperty) { [string]$identityProperty.Value } else { '' }
+    if ($identity -notmatch 'SYSTEM$') {
+        throw "Remote worker did not run as SYSTEM (identity: $identity)."
+    }
+
+    $machineWideProperty = $Status.PSObject.Properties['MachineWideUNC']
+    $machineWide = if ($null -ne $machineWideProperty) { @($machineWideProperty.Value) } else { @() }
+    $verified = @(
+        $machineWide |
+            ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Sort-Object -Unique
+    )
+    $missingControllerProof = @(
+        $RequestedPrinters |
+            ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } |
+            Where-Object { $verified -notcontains $_ }
+    )
+    if ($missingControllerProof.Count -gt 0) {
+        throw "Status.json did not prove requested machine-wide connection(s): $($missingControllerProof -join ', ')"
+    }
+
+    return [pscustomobject]@{
+        Identity = $identity
+        VerifiedMachineWide = $verified
+    }
+}
+
 Export-ModuleMember -Function @(
     'Test-SasIpLiteral',
     'Resolve-SasNorthwellTargetComputer',
     'Resolve-SasPrinterQueueFromDirectory',
-    'ConvertTo-SasNorthwellPrinterUnc'
+    'ConvertTo-SasNorthwellPrinterUnc',
+    'New-SasNorthwellPrinterRunToken',
+    'New-SasNorthwellPrinterTaskCreateArguments',
+    'Assert-SasNorthwellPrinterStatusProof'
 )
