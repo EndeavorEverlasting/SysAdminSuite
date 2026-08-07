@@ -56,14 +56,8 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - Operator instructions name the one file to click and the one value to enter; implementation complexity remains inside repository-owned CMD and script surfaces.
 
 ## Northwell printer mapping doctrine
-- A request to map, add, install, or connect a printer on a Northwell Windows PC routes to the Field Workflow skill and `START-HERE-NORTHWELL-PRINTER-MAPPING.md`.
-- Northwell printer mapping is **system-wide/per-computer**. Per-user-only connections do not satisfy the client requirement for shared PCs with multiple users.
-- The canonical technician front door is `Map-NorthwellPrinter-SystemWide.cmd`; it self-elevates, prompts for target-PC hostname(s) and printer queue(s), preserves terminal results, and delegates to `mapping/Invoke-NorthwellPrinterMapping.ps1`.
-- Accepted printer input is `\\server\queue`, `//server/queue`, or queue-name-only. Printer IP addresses, IP print-server paths, IPP/HTTP URLs, and target-PC IP addresses are forbidden inputs. Do not suggest direct-IP printing as a fallback.
-- Queue-name-only input must resolve uniquely through the directory or be paired with an explicit print-server hostname. Never guess a print server.
-- The canonical endpoint action runs as SYSTEM and uses `PrintUIEntry /ga`. Do not substitute `Utilities/Map-Printer.ps1` or `Add-Printer -ConnectionName`; those are per-user paths.
-- Success requires requested-queue proof from the HKLM per-computer printer-connection state plus SYSTEM identity. Command launch, task creation, or a per-user printer list is not sufficient proof.
-- Runtime evidence remains local/untracked. On failure or terminal loss, diagnose from the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json`.
+- Northwell printer requests route to the Field Workflow skill, `START-HERE-NORTHWELL-PRINTER-MAPPING.md`, and the self-elevating `Map-NorthwellPrinter-SystemWide.cmd`; mapping is system-wide/per-computer for multi-user PCs, accepts target hostnames plus `\\server\queue`, `//server/queue`, or uniquely resolvable queue names, and forbids printer/target IPs, IPP/HTTP URLs, guessed print servers, and per-user substitutes such as `Utilities/Map-Printer.ps1` or `Add-Printer -ConnectionName`.
+- The canonical engine runs as SYSTEM with `PrintUIEntry /ga`; success requires SYSTEM identity plus requested-queue proof from HKLM per-computer printer connections, while failures are diagnosed from local/untracked `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json`.
 
 ## SysAdminSuite virtual-machine doctrine
 - The SysAdminSuite VM is Python-generated. Never assume Hyper-V, invent a VM name, or substitute a provider-specific launcher without repository or operator evidence.
