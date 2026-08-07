@@ -58,7 +58,7 @@ function Resolve-SasNorthwellTargetComputer {
 
         [string]$DnsSuffix = 'nslijhs.net',
 
-        [scriptblock]$DnsResolver
+        [scriptblock]$CanonicalResolver
     )
 
     $name = $ComputerName.Trim().TrimEnd('.')
@@ -76,18 +76,30 @@ function Resolve-SasNorthwellTargetComputer {
     }
 
     $suffix = $DnsSuffix.Trim().Trim('.')
-    $resolveParameters = @{
-        TargetName = $name
-        SuffixCandidates = @($suffix)
+    if ($CanonicalResolver) {
+        $resolution = & $CanonicalResolver $name $suffix
     }
-    if ($DnsResolver) {
-        $resolveParameters.DnsResolver = $DnsResolver
+    else {
+        $resolution = Resolve-SasCanonicalTargetFqdn -TargetName $name -SuffixCandidates @($suffix)
     }
 
-    $resolution = Resolve-SasCanonicalTargetFqdn @resolveParameters
+    if ($null -eq $resolution) {
+        throw "Target '$ComputerName' did not resolve to one canonical FQDN."
+    }
+
     $fqdn = [string]$resolution.fqdn
     if ([string]::IsNullOrWhiteSpace($fqdn)) {
         throw "Target '$ComputerName' did not resolve to one canonical FQDN."
+    }
+    $fqdn = $fqdn.Trim().TrimEnd('.').ToLowerInvariant()
+
+    $inputShort = $name.Split('.')[0]
+    $resolvedShort = $fqdn.Split('.')[0]
+    if (-not $resolvedShort.Equals($inputShort, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'DNS resolved the supplied name to a different canonical host identity. Stop before target mutation.'
+    }
+    if ($name.Contains('.') -and -not $fqdn.Equals($name, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'DNS resolved the supplied FQDN to a different canonical host identity. Stop before target mutation.'
     }
 
     if (-not [string]::IsNullOrWhiteSpace($suffix)) {
