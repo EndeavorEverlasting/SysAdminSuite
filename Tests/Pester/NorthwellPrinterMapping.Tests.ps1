@@ -4,6 +4,8 @@ BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:modulePath = Join-Path $script:repoRoot 'mapping\Modules\NorthwellPrinterMapping.Core.psm1'
     $script:runnerPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterMapping.ps1'
+    $script:interactivePath = Join-Path $script:repoRoot 'mapping\Start-NorthwellPrinterMapping.ps1'
+    $script:cmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
     Import-Module $script:modulePath -Force
 }
 
@@ -11,6 +13,11 @@ Describe 'Northwell printer input contract' {
     It 'accepts canonical UNC queue input' {
         ConvertTo-SasNorthwellPrinterUnc -Printer '\\PRINTSRV01\QUEUE01' |
             Should -Be '\\PRINTSRV01\QUEUE01'
+    }
+
+    It 'preserves queue names containing spaces' {
+        ConvertTo-SasNorthwellPrinterUnc -Printer '\\PRINTSRV01\Nursing Station Printer' |
+            Should -Be '\\PRINTSRV01\Nursing Station Printer'
     }
 
     It 'accepts //server/queue input and normalizes it to UNC' {
@@ -38,6 +45,13 @@ Describe 'Northwell printer input contract' {
     It 'rejects a printer-server IP even when written as a UNC path' {
         { ConvertTo-SasNorthwellPrinterUnc -Printer '\\10.20.30.40\QUEUE01' } |
             Should -Throw '*IP address*'
+    }
+
+    It 'rejects malformed print-server hostnames and ports' {
+        { ConvertTo-SasNorthwellPrinterUnc -Printer '\\PRINTSRV01:9100\QUEUE01' } |
+            Should -Throw '*invalid print-server hostname*'
+        { ConvertTo-SasNorthwellPrinterUnc -Printer 'QUEUE01' -PrintServer 'PRINTSRV01:9100' } |
+            Should -Throw '*hostname/FQDN*'
     }
 
     It 'rejects a raw printer IP address' {
@@ -76,9 +90,17 @@ Describe 'Canonical Northwell system-wide runner contract' {
         $content | Should -Match 'MachineWidePerComputer'
     }
 
-    It 'verifies requested queues from HKLM machine-wide printer connections' {
+    It 'passes the printer queue as a native argument instead of Start-Process string joining' {
+        $content = Get-Content -LiteralPath $script:runnerPath -Raw
+        $content | Should -Match '& "\$env:SystemRoot\\System32\\rundll32\.exe"'
+        $content | Should -Match '"/n\$queue"'
+        $content | Should -Not -Match "Start-Process -FilePath 'rundll32\.exe'"
+    }
+
+    It 'polls for requested HKLM machine-wide proof before failing' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
         $content | Should -Match 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Print\\Connections'
+        $content | Should -Match 'AddSeconds\(30\)'
         $content | Should -Match 'Missing'
         $content | Should -Match 'VerifiedMachineWide'
     }
@@ -95,5 +117,27 @@ Describe 'Canonical Northwell system-wide runner contract' {
         $content | Should -Match 'Status\.json'
         $content | Should -Match 'Agent\.log'
         $content | Should -Not -Match '(?m)^\s*exit\s+[1-9]'
+    }
+}
+
+Describe 'Technician front-door contract' {
+    It 'has one root CMD launcher that self-elevates and delegates to the interactive wrapper' {
+        Test-Path -LiteralPath $script:cmdPath | Should -BeTrue
+        $content = Get-Content -LiteralPath $script:cmdPath -Raw
+        $content | Should -Match 'net session'
+        $content | Should -Match 'Start-Process.*-Verb RunAs'
+        $content | Should -Match 'Start-NorthwellPrinterMapping\.ps1'
+        $content | Should -Match '(?i)pause'
+        $content | Should -Match 'ALL users'
+        $content | Should -Match 'Printer IP addresses are NOT allowed'
+    }
+
+    It 'prompts only for missing hostnames and queues and delegates to the canonical engine' {
+        Test-Path -LiteralPath $script:interactivePath | Should -BeTrue
+        $content = Get-Content -LiteralPath $script:interactivePath -Raw
+        $content | Should -Match "Read-Host 'Target PC hostname\(s\), comma-separated'"
+        $content | Should -Match "Read-Host 'Printer queue\(s\), comma-separated'"
+        $content | Should -Match 'Invoke-NorthwellPrinterMapping\.ps1'
+        $content | Should -Match 'SYSTEM-WIDE for all users'
     }
 }
