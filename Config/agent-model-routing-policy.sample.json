@@ -1,0 +1,41 @@
+{
+  "schema_version": "sas-agent-model-routing/v2",
+  "authority": "AgentSwitchboard",
+  "agent_switchboard_policy_path": "%LOCALAPPDATA%\\AgentSwitchboard\\GnhfFleet\\model-route-policy.json",
+  "selection_order": [
+    "agy-natural-free",
+    "opencode-limited-free",
+    "free",
+    "paid"
+  ],
+  "allow_paid_fallback": true,
+  "default_heavy_workload": true,
+  "fallback_policy": {
+    "from_agy_only_on": [
+      "quota-exhausted"
+    ],
+    "require_no_mutation": true,
+    "generic_failure_action": "stop-for-review"
+  },
+  "agy_policy": {
+    "model_mode": "agy-default",
+    "permanent_model_pin": false,
+    "gnhf_adapter": "agentswitchboard-pi-jsonl-bridge"
+  },
+  "deepseek_pricing": {
+    "mode": "flat",
+    "official_source": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "verified_at": "2026-07-16T00:00:00Z",
+    "windows_utc": [],
+    "operator_override_required_for_time_windows": true
+  },
+  "guards": {
+    "automatic_authentication": false,
+    "credentials_in_policy": false,
+    "automatic_push": false,
+    "automatic_post_mutation_fallback": false,
+    "quota_exhaustion_fallback_only": true,
+    "require_clean_repository": true,
+    "require_gnhf_compatibility_proof": true
+  }
+}
