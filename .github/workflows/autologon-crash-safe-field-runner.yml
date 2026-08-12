@@ -3,8 +3,10 @@ name: AutoLogon Crash-Safe Field Runner
 on:
   pull_request:
     paths:
+      - 'Bootstrap-SysAdminSuiteAutoLogon.ps1'
       - 'scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
       - 'Run-AutoLogonCrashSafe.cmd'
+      - 'Tests/survey/test_autologon_clone_deploy_bootstrap_contracts.py'
       - 'Tests/survey/test_autologon_crash_safe_field_runner_contracts.py'
       - '.github/workflows/autologon-crash-safe-field-runner.yml'
   workflow_dispatch:
@@ -17,6 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+      - name: Validate clone-and-deploy bootstrap contracts
+        run: python3 Tests/survey/test_autologon_clone_deploy_bootstrap_contracts.py
       - name: Validate crash-safe field runner contracts
         run: python3 Tests/survey/test_autologon_crash_safe_field_runner_contracts.py
 
@@ -24,17 +28,22 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Parse crash-safe field runner under Windows PowerShell 5.1
+      - name: Parse AutoLogon field surfaces under Windows PowerShell 5.1
         shell: powershell
         run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $PWD 'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          )
-          if (@($errors).Count -gt 0) {
-            $errors | Format-List * | Out-Host
-            throw 'Crash-safe field runner has PowerShell parse errors.'
+          foreach ($relativePath in @(
+            'Bootstrap-SysAdminSuiteAutoLogon.ps1',
+            'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $relativePath),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -gt 0) {
+              $errors | Format-List * | Out-Host
+              throw "$relativePath has PowerShell parse errors."
+            }
           }
