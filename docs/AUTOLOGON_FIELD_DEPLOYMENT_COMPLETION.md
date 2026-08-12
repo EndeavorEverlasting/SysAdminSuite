@@ -22,6 +22,24 @@ sas autologon Remote authorized-host.example.net
 
 Live target names, exact run IDs, task IDs, usernames, and evidence paths belong only in ignored operator-local state and field evidence. They must not be committed to tracked documentation or fixtures.
 
+## Clean acquisition and field launch
+
+When the admin workstation does not already have a usable checkout, use the tracked root bootstrap:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Bootstrap-SysAdminSuiteAutoLogon.ps1 -ComputerName AUTHORIZED_SHORT_HOST -ConfirmVpnPosture
+```
+
+The bootstrap resolves the Windows Desktop **known folder** instead of hardcoding a physical OneDrive path. Its durable default checkout is therefore the redirected-or-local equivalent of:
+
+```text
+Desktop\dev\SysAdminSuite
+```
+
+If the durable checkout is missing, it clones the official repository there. If a Git checkout already exists, it preserves the current branch and local work, fetches `origin/main`, and creates a detached field worktree under `%LOCALAPPDATA%\SysAdminSuite\field-proof-worktrees`. An existing non-Git `SysAdminSuite` folder is never overwritten. `-ExpectedCommit` may be supplied by a field runbook to pin the exact fetched `origin/main` commit before deployment begins.
+
+The bootstrap then activates the repository VPN guard and launches `Run-AutoLogonCrashSafe.cmd`. It does not embed a live target or credential and does not weaken any host, recovery, baseline, restart, or completion gate owned by the canonical AutoLogon lane.
+
 ## Protected network
 
 On site, the approved direct protected network is `NSLIJHS-WAB`. VPN use is supported only when the repository VPN bootstrap has produced and activated fail-closed `/32` evidence for an active non-Wi-Fi `DomainAuthenticated` profile. Ordinary Internet Wi-Fi does not authorize the target operation.
