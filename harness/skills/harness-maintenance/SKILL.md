@@ -62,8 +62,8 @@ python harness/validators/validate-harness-registries.py
 python harness/validators/validate-repository-freshness-contracts.py
 python harness/validators/validate-outcome-contracts.py
 python harness/validators/validate-deployment-state-contracts.py
-python Tests/survey/test_operational-harness-completeness-contracts.py
-python Tests/survey/test_local-harness-contracts.py
+python Tests/survey/test_operational_harness_completeness_contracts.py
+python Tests/survey/test_local_harness_contracts.py
 git diff --check
 ```
 
