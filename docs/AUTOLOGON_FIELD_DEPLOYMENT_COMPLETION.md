@@ -24,25 +24,27 @@ Live target names, exact run IDs, task IDs, usernames, and evidence paths belong
 
 ## Clean acquisition and field launch
 
-When the admin workstation does not already have a usable checkout, use the tracked root bootstrap:
+When the admin workstation does not already have a trusted short runtime, use the tracked root bootstrap:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Bootstrap-SysAdminSuiteAutoLogon.ps1 -ComputerName AUTHORIZED_SHORT_HOST -ConfirmVpnPosture
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Bootstrap-SysAdminSuiteAutoLogon.ps1 -ComputerName AUTHORIZED_SHORT_HOST
 ```
 
-The bootstrap resolves the Windows Desktop **known folder** instead of hardcoding a physical OneDrive path. Its durable default checkout is therefore the redirected-or-local equivalent of:
+The bootstrap uses `C:\SASAL` as the stable short execution runtime. It resolves `git.exe` explicitly from PATH or standard Git for Windows locations, validates the official SysAdminSuite origin, fetches only `origin/main`, and pins the runtime to the exact fetched commit before any field transaction begins. `-ExpectedCommit` may be supplied to require an exact known `origin/main` commit.
 
-```text
-Desktop\dev\SysAdminSuite
-```
+A long, redirected, copied, backup, dirty, or even non-Git legacy `SysAdminSuite` folder is **not** required to be execution authority. When such a folder is available, the bootstrap may retain it only as a bounded machine-local evidence/configuration fallback through `SAS_REPO_ROOT`. A local `Config\sas-network-guard.local.json` there may be exposed to the shared network guard through `SAS_NETWORK_GUARD_CONFIG`; that policy still has to match the workstation's current network evidence and is never an authorization bypass.
 
-If the durable checkout is missing, it clones the official repository there. If a Git checkout already exists, it preserves the current branch and local work, fetches `origin/main`, and creates a detached field worktree under `%LOCALAPPDATA%\SysAdminSuite\field-proof-worktrees`. An existing non-Git `SysAdminSuite` folder is never overwritten. `-ExpectedCommit` may be supplied by a field runbook to pin the exact fetched `origin/main` commit before deployment begins.
+If `C:\SASAL` is absent, the bootstrap clones the official repository there. If it already exists, it must be a usable Git worktree with the approved origin and a clean working state. An unrelated, malformed, or dirty `C:\SASAL` is never reset, cleaned, deleted, or overwritten automatically.
 
-The bootstrap then activates the repository VPN guard and launches `Run-AutoLogonCrashSafe.cmd`. It does not embed a live target or credential and does not weaken any host, recovery, baseline, restart, or completion gate owned by the canonical AutoLogon lane.
+The bootstrap validates the crash-safe runner, on-site launcher, and canonical network-gate PowerShell surfaces, then launches `Invoke-SasAutoLogonCrashSafeFieldRun.ps1`. The child deployment output, offline evidence recovery, and stable latest-run pointer remain under `%LOCALAPPDATA%\SysAdminSuite`, so terminal closure does not erase the operator's diagnostic trail.
+
+`-ConfirmVpnPosture` remains accepted only for compatibility with older command cards. It is an acknowledgement and does **not** grant network authority or write an allowlist.
 
 ## Protected network
 
-On site, the approved direct protected network is `NSLIJHS-WAB`. VPN use is supported only when the repository VPN bootstrap has produced and activated fail-closed `/32` evidence for an active non-Wi-Fi `DomainAuthenticated` profile. Ordinary Internet Wi-Fi does not authorize the target operation.
+Protected-network admission is owned only by the canonical AutoLogon field transaction through `Confirm-SasNorthwellNetwork.ps1` and the shared `SasNetworkGuard` policy. The supported bootstrap does not run `Enable-SasNorthwellVpnNetworkGuard.ps1` as a mandatory pre-step and does not equate the presence of a VPN with authorization.
+
+On site, the approved direct protected network includes `NSLIJHS-WAB`. A VPN or wired path may also pass only when the canonical shared guard proves the current Windows/network evidence against an approved local policy. Ordinary Internet/guest connectivity, an arbitrary active Ethernet interface, or VPN presence alone does not authorize target contact or mutation.
 
 Run these read-only surfaces before mutation when diagnosis is needed:
 
@@ -53,7 +55,7 @@ sas network
 sas next
 ```
 
-`SAS_NETWORK_GUARD_CONFIG` is the highest-priority network policy override. Otherwise the executing checkout owns its local policy; a stale `SAS_REPO_ROOT` cannot supersede a valid policy beside the executing module.
+`SAS_NETWORK_GUARD_CONFIG` is the highest-priority local network-policy override when explicitly set by the supported bootstrap. Otherwise the executing checkout owns its local policy, with `SAS_REPO_ROOT` retained only as the documented fallback for a legacy evidence/configuration root.
 
 ## Closed historical interrupted transaction
 
@@ -123,7 +125,7 @@ Record the machine-local outer result path emitted by the command. Do not commit
 | Field | Required value |
 |---|---|
 | Requested command | `sas autologon Remote AUTHORIZED_SHORT_HOST` |
-| Protected network | `NSLIJHS-WAB` or separately proven approved VPN |
+| Protected network | canonical shared guard PASS on current approved Northwell network/VPN evidence |
 | Final target | Exact canonical FQDN from machine-local target resolution evidence |
 | Host eligibility | `host_eligibility_proven = true` |
 | Status | `COMPLETED` |
