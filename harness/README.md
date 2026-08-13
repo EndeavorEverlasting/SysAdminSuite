@@ -20,10 +20,11 @@ The repository-root governance authority remains `AGENTS.md`. This file does not
 
 Fetching a remote ref does **not** update the checked-out branch or files in the current worktree. In particular, fetching `origin/main` does not update local `main`.
 
-If a tracked launcher or other expected surface appears to be missing, do not invent a replacement from a stale checkout. Refresh the intended remote ref, compare local `HEAD` with the fetched commit, and then:
+Routing into repository freshness does not itself authorize network access or branch mutation. Before contacting the Git remote, the workflow requires explicit repository-network authority. If a tracked launcher or other expected surface appears to be missing, do not invent a replacement from a stale checkout. After an authorized refresh, compare local `HEAD` with the fetched commit, and then:
 
-- use a **fast-forward-only** update when the current branch is clean, owned, and strictly behind;
-- use an **isolated worktree** at the fetched commit when the current worktree is dirty, diverged, or separately owned;
+- preserve the default branch and use an **isolated worktree** unless default-branch update authority is explicit;
+- use a **fast-forward-only** update on a clean owned non-default branch only when branch-update authority is explicit;
+- use an **isolated worktree** when the current worktree is dirty, diverged, separately owned, or branch-update authority is absent;
 - verify the expected path in the selected executing tree before reconstructing any command or workflow.
 
 This rule is enforced by `validators/validate-repository-freshness-contracts.py` and documented in `reports/REPOSITORY_FRESHNESS_STATUS.md`.
@@ -80,20 +81,22 @@ bash tests/survey/run_offline_survey_tests.sh
 
 - Do not modify `AGENTS.md` during a harness-infrastructure sprint; governance is a separate lane.
 - Do not mistake a successful `git fetch` for an updated executing worktree; fetching does not update the checked-out branch.
+- Do not contact the Git remote merely because freshness routing was selected; repository-network authority must be explicit.
+- Do not fast-forward `main` or another default branch merely because it is clean and behind; default-branch update authority must be explicit.
 - Do not infer that an expected tracked launcher is absent from the repository until it has been checked at the refreshed intended commit.
 - Do not change product/runtime behavior to make a harness validator green.
 - Do not run deployment or target-mutation commands merely to validate harness structure.
 - Do not commit generated run evidence or machine-local output.
 - Do not treat a dry run, fixture pass, parser pass, or successful validator as proof of live deployment/runtime behavior.
-- Do not force-push or clean/reset another agent's worktree. Use an isolated worktree when ownership is unclear.
+- Do not force-push or clean/reset another agent's worktree. Use an isolated worktree when ownership or mutation authority is unclear.
 - Do not stop at a green admission gate when a safe, authorized continuation is still required by the requested outcome; follow the outcome registry.
 
 ## Artifact and handoff discipline
 
 Generated artifacts must be resolved from `api/harness-artifact-registry.json`. Tracked registry/schema/report files may be committed; live or workflow-dependent evidence stays in ignored run roots.
 
-A clean handoff names the repository, branch, owned and forbidden scope, changed files, exact validators actually run, proof ceiling, commit SHA, push/PR state, repository freshness classification when relevant, remaining blocker or gap, and one exact next command when safe unproven work remains.
+A clean handoff names the repository, branch, owned and forbidden scope, changed files, exact validators actually run, proof ceiling, commit SHA, push/PR state, repository freshness classification and authorization basis when relevant, remaining blocker or gap, and one exact next command when safe unproven work remains.
 
 ## Proof ceiling
 
-The harness can prove tracked structure, repository selection, routing, registry/schema integrity, validator wiring, hook/CI integration, artifact/outcome contracts, and human-readable reporting. Harness validation alone does not prove product behavior, target contact, software deployment, restart success, or live runtime acceptance.
+The harness can prove tracked structure, authorized repository selection, routing, registry/schema integrity, validator wiring, hook/CI integration, artifact/outcome contracts, and human-readable reporting. Harness validation alone does not prove product behavior, target contact, software deployment, restart success, or live runtime acceptance.
