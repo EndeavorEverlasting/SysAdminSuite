@@ -1,0 +1,16 @@
+name: AutoLogon Field Path Regression
+on: [pull_request]
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python Tests/survey/test_autologon_field_path_network_regression_contracts.py
+      - run: python Tests/survey/test_autologon_field_deployment_completion_contracts.py
+      - run: python Tests/survey/test_autologon_s4u_path_budget_contracts.py
+      - run: git diff --check
