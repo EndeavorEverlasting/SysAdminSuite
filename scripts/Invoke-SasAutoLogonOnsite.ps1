@@ -8,6 +8,11 @@ Keeps canonical LocalSystem qualification available for a future materially diff
 and routes the supported field deployment through one AutoLogon-only transaction that owns
 protected-network proof, canonical target resolution, interrupted probe-only recovery, S4U apply,
 bounded restart observation, cleanup proof, persistent operator state, and terminal evidence.
+
+Long physical repository paths are never used as the runtime root for Remote/S4U/Recover. The
+launcher materializes an exact-HEAD detached worktree under LOCALAPPDATA and re-enters itself from
+that short physical path before any target-facing field transaction starts. This keeps every nested
+run/evidence path under the Windows PowerShell 5.1 path budget without changing product semantics.
 #>
 [CmdletBinding()]
 param(
@@ -20,6 +25,80 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$FieldPathThreshold = 80
+
+function Invoke-SasAutoLogonShortRuntime {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceRepoRoot,
+        [Parameter(Mandatory = $true)][string]$RequestedAction,
+        [AllowNull()][string]$RequestedComputerName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        throw 'LOCALAPPDATA is required for the short AutoLogon field runtime.'
+    }
+
+    $sourceHead = (& git -C $SourceRepoRoot rev-parse HEAD 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$sourceHead)) {
+        throw "Could not resolve the committed SysAdminSuite HEAD for short field runtime: $SourceRepoRoot"
+    }
+    $sourceHead = ([string]$sourceHead).Trim()
+
+    $runtimeParent = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\field-runtime\autologon'
+    $runtimeRoot = Join-Path $runtimeParent $sourceHead.Substring(0,12)
+    New-Item -ItemType Directory -Path $runtimeParent -Force | Out-Null
+
+    if (-not (Test-Path -LiteralPath $runtimeRoot -PathType Container)) {
+        Write-Host "Long repository path detected; materializing exact-HEAD field runtime: $runtimeRoot" -ForegroundColor Cyan
+        & git -C $SourceRepoRoot worktree add --detach $runtimeRoot $sourceHead | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not create the exact-HEAD short AutoLogon field worktree at $runtimeRoot"
+        }
+    }
+
+    $runtimeHead = (& git -C $runtimeRoot rev-parse HEAD 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0 -or ([string]$runtimeHead).Trim() -ne $sourceHead) {
+        throw "Short AutoLogon field runtime HEAD does not match source HEAD $sourceHead. Refusing target operation."
+    }
+
+    $runtimeDirty = @(& git -C $runtimeRoot status --porcelain 2>$null)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not verify the short AutoLogon field runtime worktree state.'
+    }
+    if (@($runtimeDirty | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) {
+        throw "Short AutoLogon field runtime is dirty: $runtimeRoot. Refusing to overwrite or clean it automatically."
+    }
+
+    $runtimeScript = Join-Path $runtimeRoot 'scripts\Invoke-SasAutoLogonOnsite.ps1'
+    if (-not (Test-Path -LiteralPath $runtimeScript -PathType Leaf)) {
+        throw "Short AutoLogon field runtime is missing the canonical on-site launcher: $runtimeScript"
+    }
+
+    # Preserve the source checkout as a secondary evidence/config root. The executing short worktree
+    # remains code authority, while ignored operator-local network policy can still be read from the
+    # source checkout by SasNetworkGuard's documented fallback.
+    $env:SAS_REPO_ROOT = $SourceRepoRoot
+
+    Write-Host "Short AutoLogon field runtime ready at exact HEAD $sourceHead" -ForegroundColor Green
+    $childArgs = @(
+        '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass',
+        '-File',$runtimeScript,
+        '-Action',$RequestedAction
+    )
+    if (-not [string]::IsNullOrWhiteSpace($RequestedComputerName)) {
+        $childArgs += @('-ComputerName',$RequestedComputerName)
+    }
+
+    & powershell.exe @childArgs
+    exit $LASTEXITCODE
+}
+
+# Remote field lanes can create several nested evidence trees. Re-enter from a short physical
+# worktree before those paths exist. Non-target local qualification/help actions stay in place.
+if ($Action -in @('Remote','S4U','Recover') -and $repoRoot.Length -gt $FieldPathThreshold) {
+    Invoke-SasAutoLogonShortRuntime -SourceRepoRoot $repoRoot -RequestedAction $Action -RequestedComputerName $ComputerName
+}
+
 $requestDirectory = Join-Path $repoRoot 'survey\input\autologon-system-qualification'
 $templatePath = Join-Path $repoRoot 'configs\software-packages\autologon-system-qualification-request.example.json'
 $qualificationScript = Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonSystemQualification.ps1'
