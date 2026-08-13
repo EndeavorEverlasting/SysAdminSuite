@@ -163,7 +163,7 @@ if (-not (Test-Path -LiteralPath $RuntimeRoot)) {
 
 $originUrl = Get-SasGitScalar -Root $RuntimeRoot -Arguments @('remote','get-url','origin') -FailureMessage 'Unable to resolve short-runtime origin.'
 if (-not (Test-SasExpectedOrigin -Url $originUrl)) {
-    throw "Refusing unexpected SysAdminSuite origin at $RuntimeRoot: $originUrl"
+    throw ('Refusing unexpected SysAdminSuite origin at {0}: {1}' -f $RuntimeRoot,$originUrl)
 }
 
 $dirty = @(Invoke-SasBootstrapGit -Root $RuntimeRoot -Arguments @('status','--porcelain') -FailureMessage 'Unable to inspect short-runtime worktree state.' -Quiet)
