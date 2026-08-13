@@ -1,0 +1,17 @@
+name: AutoLogon Field Path Windows Parse
+on: [pull_request]
+permissions:
+  contents: read
+jobs:
+  parse:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse on-site field launcher
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts\Invoke-SasAutoLogonOnsite.ps1'), [ref]$tokens, [ref]$errors)
+          if (@($errors).Count -gt 0) { $errors | Format-List * | Out-Host; throw 'AutoLogon on-site field launcher parse failed.' }
+          Write-Host 'PASS: AutoLogon on-site field launcher parses under Windows PowerShell 5.1'

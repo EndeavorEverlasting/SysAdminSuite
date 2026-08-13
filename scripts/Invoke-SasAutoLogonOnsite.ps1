@@ -8,6 +8,11 @@ Keeps canonical LocalSystem qualification available for a future materially diff
 and routes the supported field deployment through one AutoLogon-only transaction that owns
 protected-network proof, canonical target resolution, interrupted probe-only recovery, S4U apply,
 bounded restart observation, cleanup proof, persistent operator state, and terminal evidence.
+
+Remote/S4U/Recover always execute from one stable, short, exact-HEAD field worktree at C:\SASAL.
+The field transaction writes its ignored run tree under C:\SASAL\runs. This avoids recursive
+OneDrive/backup path growth while preserving the existing repository-local `runs/` evidence contract
+and monotonic prior-result discovery across source-code refreshes.
 #>
 [CmdletBinding()]
 param(
@@ -20,11 +25,121 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$fieldRuntimeRoot = 'C:\SASAL'
+
+function Get-SasNormalizedPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return ([IO.Path]::GetFullPath($Path)).TrimEnd('\')
+}
+
+function Get-SasGitCommonDirectory {
+    param([Parameter(Mandatory = $true)][string]$Root)
+    $common = (& git -C $Root rev-parse --git-common-dir 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$common)) { return $null }
+    $common = ([string]$common).Trim()
+    if (-not [IO.Path]::IsPathRooted($common)) { $common = Join-Path $Root $common }
+    try { return (Get-SasNormalizedPath -Path $common) } catch { return $null }
+}
+
+function Invoke-SasAutoLogonShortRuntime {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceRepoRoot,
+        [Parameter(Mandatory = $true)][string]$RequestedAction,
+        [AllowNull()][string]$RequestedComputerName
+    )
+
+    $sourceHead = (& git -C $SourceRepoRoot rev-parse HEAD 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$sourceHead)) {
+        throw "Could not resolve the committed SysAdminSuite HEAD for the short field runtime: $SourceRepoRoot"
+    }
+    $sourceHead = ([string]$sourceHead).Trim()
+    $sourceCommon = Get-SasGitCommonDirectory -Root $SourceRepoRoot
+    if ([string]::IsNullOrWhiteSpace($sourceCommon)) {
+        throw 'Could not resolve the source SysAdminSuite Git common directory.'
+    }
+
+    if (-not (Test-Path -LiteralPath $fieldRuntimeRoot -PathType Container)) {
+        Write-Host "Creating stable short AutoLogon field worktree: $fieldRuntimeRoot" -ForegroundColor Cyan
+        & git -C $SourceRepoRoot worktree add --detach $fieldRuntimeRoot $sourceHead | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not create the short AutoLogon field worktree at $fieldRuntimeRoot. The field lane requires a writable C:\ root or an existing valid owned worktree."
+        }
+    }
+
+    $runtimeCommon = Get-SasGitCommonDirectory -Root $fieldRuntimeRoot
+    if ([string]::IsNullOrWhiteSpace($runtimeCommon) -or
+        -not $runtimeCommon.Equals($sourceCommon, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "C:\SASAL exists but is not an owned worktree of this SysAdminSuite checkout. Refusing to overwrite or remove it."
+    }
+
+    $runtimeDirty = @(& git -C $fieldRuntimeRoot status --porcelain 2>$null)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not verify the short AutoLogon field worktree state.'
+    }
+    if (@($runtimeDirty | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) {
+        throw "Short AutoLogon field worktree is dirty: $fieldRuntimeRoot. Refusing to overwrite or clean it automatically."
+    }
+
+    $runtimeHead = (& git -C $fieldRuntimeRoot rev-parse HEAD 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$runtimeHead)) {
+        throw 'Could not resolve the short AutoLogon field runtime HEAD.'
+    }
+    $runtimeHead = ([string]$runtimeHead).Trim()
+
+    if ($runtimeHead -ne $sourceHead) {
+        Write-Host "Advancing owned short field worktree to source HEAD $sourceHead" -ForegroundColor Cyan
+        & git -C $fieldRuntimeRoot checkout --detach $sourceHead | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not move the clean short field worktree to source HEAD $sourceHead"
+        }
+        $runtimeHead = (& git -C $fieldRuntimeRoot rev-parse HEAD 2>$null | Select-Object -First 1)
+        if ($LASTEXITCODE -ne 0 -or ([string]$runtimeHead).Trim() -ne $sourceHead) {
+            throw "Short AutoLogon field runtime did not converge to source HEAD $sourceHead"
+        }
+    }
+
+    $runtimeScript = Join-Path $fieldRuntimeRoot 'scripts\Invoke-SasAutoLogonOnsite.ps1'
+    if (-not (Test-Path -LiteralPath $runtimeScript -PathType Leaf)) {
+        throw "Short AutoLogon field runtime is missing the canonical on-site launcher: $runtimeScript"
+    }
+
+    # Preserve the source checkout as a secondary evidence/config root. The short runtime remains
+    # execution authority. SasNetworkGuard can therefore consume the source checkout's ignored local
+    # network policy when C:\SASAL has no operator-local config file.
+    $env:SAS_REPO_ROOT = $SourceRepoRoot
+
+    Write-Host "Short AutoLogon field runtime ready: $fieldRuntimeRoot" -ForegroundColor Green
+    Write-Host "Exact committed HEAD: $sourceHead" -ForegroundColor Green
+
+    $childArgs = @(
+        '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass',
+        '-File',$runtimeScript,
+        '-Action',$RequestedAction
+    )
+    if (-not [string]::IsNullOrWhiteSpace($RequestedComputerName)) {
+        $childArgs += @('-ComputerName',$RequestedComputerName)
+    }
+
+    & powershell.exe @childArgs
+    exit $LASTEXITCODE
+}
+
+$isShortRuntime = (Get-SasNormalizedPath -Path $repoRoot).Equals(
+    (Get-SasNormalizedPath -Path $fieldRuntimeRoot),
+    [StringComparison]::OrdinalIgnoreCase
+)
+
+# Field target actions always enter the stable short physical worktree before network/target work.
+if ($Action -in @('Remote','S4U','Recover') -and -not $isShortRuntime) {
+    Invoke-SasAutoLogonShortRuntime -SourceRepoRoot $repoRoot -RequestedAction $Action -RequestedComputerName $ComputerName
+}
+
 $requestDirectory = Join-Path $repoRoot 'survey\input\autologon-system-qualification'
 $templatePath = Join-Path $repoRoot 'configs\software-packages\autologon-system-qualification-request.example.json'
 $qualificationScript = Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonSystemQualification.ps1'
 $fieldDeploymentScript = Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonFieldDeployment.ps1'
 $networkGate = Join-Path $repoRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
+$fieldOutputRoot = Join-Path $repoRoot 'runs'
 
 foreach ($required in @($templatePath,$qualificationScript,$fieldDeploymentScript,$networkGate)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
@@ -76,17 +191,6 @@ function Resolve-SasRemoteTarget {
     return $typed
 }
 
-function Assert-SasAutoLogonProtectedNetwork {
-    param([Parameter(Mandatory = $true)][string]$Purpose)
-    Write-Host ''
-    Write-Host 'Checking local network posture before any target contact...' -ForegroundColor Cyan
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate -Purpose $Purpose
-    $networkExit = $LASTEXITCODE
-    if ($networkExit -ne 0) {
-        throw "AutoLogon operation stopped by the network gate with exit code $networkExit."
-    }
-}
-
 if ($Action -eq 'Menu') {
     Clear-Host
     Write-Host 'SysAdminSuite AutoLogon On-Site' -ForegroundColor Cyan
@@ -135,18 +239,19 @@ switch ($Action) {
     }
     'Pilot' {
         if (-not (Confirm-SasRequestExists)) { exit 4 }
-        Assert-SasAutoLogonProtectedNetwork -Purpose 'AutoLogon LocalSystem qualification pilot'
         & $qualificationScript -Action Live
-        return
+        exit $LASTEXITCODE
     }
     'Recover' {
         $target = Resolve-SasRemoteTarget -RequestedTarget $ComputerName
-        & $fieldDeploymentScript -Action Recover -ComputerName $target
+        New-Item -ItemType Directory -Path $fieldOutputRoot -Force | Out-Null
+        & $fieldDeploymentScript -Action Recover -ComputerName $target -OutputRoot $fieldOutputRoot
         exit $LASTEXITCODE
     }
     { $_ -in @('Remote','S4U') } {
         $target = Resolve-SasRemoteTarget -RequestedTarget $ComputerName
-        & $fieldDeploymentScript -Action Remote -ComputerName $target
+        New-Item -ItemType Directory -Path $fieldOutputRoot -Force | Out-Null
+        & $fieldDeploymentScript -Action Remote -ComputerName $target -OutputRoot $fieldOutputRoot
         exit $LASTEXITCODE
     }
     'Evidence' {
