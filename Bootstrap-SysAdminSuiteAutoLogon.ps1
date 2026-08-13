@@ -1,17 +1,19 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Acquires a durable SysAdminSuite checkout and launches the crash-safe AutoLogon field lane.
+Acquire or refresh the short SysAdminSuite AutoLogon runtime and launch the crash-safe field lane.
 
 .DESCRIPTION
-Resolves the Windows Desktop known folder, keeps the durable checkout under
-Desktop\dev\SysAdminSuite, fetches official origin/main without rewriting an
-existing checkout, creates a detached field worktree, activates the fail-closed
-VPN network guard, and launches the canonical crash-safe AutoLogon runner.
+Uses a stable short runtime at C:\SASAL (or -RuntimeRoot), resolves git.exe explicitly, fetches the
+official origin/main without touching an operator's long or dirty working copy, pins the exact fetched
+commit, preserves any legacy checkout only as an evidence/network-policy fallback, and launches the
+crash-safe AutoLogon child runner.
 
-The script never embeds a live target, credential, or secret. The target is
-operator supplied. Existing repository edits are preserved because deployment
-runs from a detached worktree at the fetched origin/main commit.
+Protected-network admission is owned only by the canonical field transaction through
+Confirm-SasNorthwellNetwork.ps1. The legacy DomainAuthenticated-only VPN bootstrap is not a prerequisite
+and this script never writes a local network allowlist.
+
+Existing unexpected or dirty runtime content is never reset, cleaned, removed, or overwritten.
 #>
 [CmdletBinding()]
 param(
@@ -21,166 +23,211 @@ param(
 
     [string]$RepoUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git',
 
-    [string]$InstallRoot,
+    [string]$RuntimeRoot = 'C:\SASAL',
+
+    [string]$LegacyEvidenceRoot,
 
     [string]$ExpectedCommit,
 
+    # Backward-compatible acknowledgement only. Canonical network admission is still performed later.
     [switch]$ConfirmVpnPosture
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
+function Resolve-SasGitExecutable {
+    $candidates = New-Object 'System.Collections.Generic.List[string]'
+    $command = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($command -and $command.Source) { [void]$candidates.Add([string]$command.Source) }
+
+    foreach ($candidate in @(
+        (Join-Path $env:ProgramFiles 'Git\cmd\git.exe'),
+        (Join-Path $env:ProgramFiles 'Git\bin\git.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\Git\cmd\git.exe')
+    )) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and -not $candidates.Contains($candidate)) {
+            [void]$candidates.Add($candidate)
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return [IO.Path]::GetFullPath($candidate)
+        }
+    }
+
+    throw 'Git for Windows could not be resolved. Checked PATH, Program Files\Git, and LocalAppData\Programs\Git.'
+}
+
+$script:SasGitExe = Resolve-SasGitExecutable
+
 function Invoke-SasBootstrapGit {
     [CmdletBinding()]
     param(
         [string]$Root,
         [Parameter(Mandatory)][string[]]$Arguments,
-        [Parameter(Mandatory)][string]$FailureMessage
+        [Parameter(Mandatory)][string]$FailureMessage,
+        [switch]$Quiet
     )
 
-    if ($Root) {
-        & git.exe -C $Root @Arguments
+    $lines = if ([string]::IsNullOrWhiteSpace($Root)) {
+        @(& $script:SasGitExe @Arguments 2>&1)
     } else {
-        & git.exe @Arguments
+        @(& $script:SasGitExe -C $Root @Arguments 2>&1)
+    }
+    $exitCode = $LASTEXITCODE
+    $text = (@($lines | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+
+    if (-not $Quiet -and -not [string]::IsNullOrWhiteSpace($text)) {
+        Write-Host $text
+    }
+    if ($exitCode -ne 0) {
+        $detail = if ([string]::IsNullOrWhiteSpace($text)) { '(git produced no diagnostic text)' } else { $text }
+        throw "$FailureMessage (git exit $exitCode)`n$detail"
     }
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "$FailureMessage (git exit $LASTEXITCODE)"
-    }
+    return @($lines | ForEach-Object { [string]$_ })
 }
 
-function Resolve-SasDurableInstallRoot {
-    [CmdletBinding()]
-    param([string]$RequestedRoot)
-
-    if (-not [string]::IsNullOrWhiteSpace($RequestedRoot)) {
-        $resolved = [System.IO.Path]::GetFullPath($RequestedRoot)
-    } else {
-        $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
-        if ([string]::IsNullOrWhiteSpace($desktop)) {
-            throw 'Windows did not resolve a Desktop known-folder path.'
-        }
-        $resolved = Join-Path (Join-Path $desktop 'dev') 'SysAdminSuite'
-        $resolved = [System.IO.Path]::GetFullPath($resolved)
-    }
-
-    if ((Split-Path -Leaf $resolved) -ne 'SysAdminSuite') {
-        throw "InstallRoot must end in SysAdminSuite: $resolved"
-    }
-
-    return $resolved
+function Get-SasGitScalar {
+    param(
+        [Parameter(Mandatory)][string]$Root,
+        [Parameter(Mandatory)][string[]]$Arguments,
+        [Parameter(Mandatory)][string]$FailureMessage
+    )
+    $lines = @(Invoke-SasBootstrapGit -Root $Root -Arguments $Arguments -FailureMessage $FailureMessage -Quiet)
+    $value = [string]($lines | Select-Object -First 1)
+    if ([string]::IsNullOrWhiteSpace($value)) { throw "$FailureMessage (empty git output)" }
+    return $value.Trim()
 }
 
 function Test-SasExpectedOrigin {
-    [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Url)
-
     $normalized = $Url.Trim().TrimEnd('/').ToLowerInvariant()
-    $allowed = @(
+    return $normalized -in @(
         'https://github.com/endeavoreverlasting/sysadminsuite.git',
         'https://github.com/endeavoreverlasting/sysadminsuite',
         'git@github.com:endeavoreverlasting/sysadminsuite.git'
     )
-
-    return $allowed -contains $normalized
 }
 
-if (-not $ConfirmVpnPosture) {
-    throw 'AutoLogon field bootstrap requires -ConfirmVpnPosture.'
+function Resolve-SasLegacyEvidenceRoot {
+    param([string]$RequestedRoot,[string]$Runtime)
+
+    $candidates = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($candidate in @($RequestedRoot, [string](Get-Location))) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and -not $candidates.Contains($candidate)) {
+            [void]$candidates.Add($candidate)
+        }
+    }
+
+    $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
+    if (-not [string]::IsNullOrWhiteSpace($desktop)) {
+        $durable = Join-Path (Join-Path $desktop 'dev') 'SysAdminSuite'
+        if (-not $candidates.Contains($durable)) { [void]$candidates.Add($durable) }
+    }
+
+    foreach ($candidate in $candidates) {
+        try { $full = [IO.Path]::GetFullPath($candidate) } catch { continue }
+        if ($full.TrimEnd('\').Equals($Runtime.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) { continue }
+        if (-not (Test-Path -LiteralPath $full -PathType Container)) { continue }
+        if ((Test-Path -LiteralPath (Join-Path $full 'survey\output') -PathType Container) -or
+            (Test-Path -LiteralPath (Join-Path $full 'Config') -PathType Container) -or
+            (Test-Path -LiteralPath (Join-Path $full 'scripts\Invoke-SasAutoLogonFieldDeployment.ps1') -PathType Leaf)) {
+            return $full
+        }
+    }
+    return $null
 }
 
-if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) {
-    throw 'git.exe is not available on PATH. Install Git for Windows before field deployment.'
-}
+$RuntimeRoot = [IO.Path]::GetFullPath($RuntimeRoot)
+$runtimeParent = Split-Path -Parent $RuntimeRoot
+Write-Host "Git executable: $script:SasGitExe" -ForegroundColor Cyan
+Write-Host "Short AutoLogon runtime: $RuntimeRoot" -ForegroundColor Cyan
 
-$install = Resolve-SasDurableInstallRoot -RequestedRoot $InstallRoot
-$parent = Split-Path -Parent $install
-
-Write-Host "Durable SysAdminSuite checkout: $install" -ForegroundColor Cyan
-
-if (-not (Test-Path -LiteralPath $install)) {
-    New-Item -ItemType Directory -Path $parent -Force | Out-Null
-    Write-Host 'No checkout exists. Cloning official SysAdminSuite...' -ForegroundColor Cyan
-    Invoke-SasBootstrapGit -Arguments @('clone', '--origin', 'origin', $RepoUrl, $install) -FailureMessage 'SysAdminSuite clone failed.'
-} elseif (-not (Test-Path -LiteralPath (Join-Path $install '.git'))) {
-    throw "Refusing to overwrite existing non-Git folder: $install"
+if (-not (Test-Path -LiteralPath $RuntimeRoot)) {
+    New-Item -ItemType Directory -Path $runtimeParent -Force | Out-Null
+    Write-Host 'Short runtime does not exist; cloning official SysAdminSuite...' -ForegroundColor Cyan
+    [void](Invoke-SasBootstrapGit -Arguments @('clone','--origin','origin',$RepoUrl,$RuntimeRoot) -FailureMessage 'Cloning the short SysAdminSuite runtime failed.')
 } else {
-    Write-Host 'Existing SysAdminSuite checkout found; preserving its branch and local work.' -ForegroundColor Cyan
+    if (-not (Test-Path -LiteralPath $RuntimeRoot -PathType Container)) {
+        throw "Refusing runtime path because it is not a directory: $RuntimeRoot"
+    }
+    $inside = Get-SasGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','--is-inside-work-tree') -FailureMessage "Existing short runtime is not a usable Git worktree: $RuntimeRoot"
+    if ($inside -ne 'true') {
+        throw "Existing short runtime is not a Git worktree: $RuntimeRoot"
+    }
+    Write-Host 'Existing short runtime found; preserving it and validating ownership.' -ForegroundColor Cyan
 }
 
-$originUrl = (& git.exe -C $install remote get-url origin 2>$null | Select-Object -First 1)
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$originUrl)) {
-    throw "Unable to resolve origin for $install"
-}
-$originUrl = ([string]$originUrl).Trim()
+$originUrl = Get-SasGitScalar -Root $RuntimeRoot -Arguments @('remote','get-url','origin') -FailureMessage 'Unable to resolve short-runtime origin.'
 if (-not (Test-SasExpectedOrigin -Url $originUrl)) {
-    throw "Refusing unexpected SysAdminSuite origin: $originUrl"
+    throw "Refusing unexpected SysAdminSuite origin at $RuntimeRoot: $originUrl"
 }
 
-Invoke-SasBootstrapGit -Root $install -Arguments @('fetch', '--no-tags', '--prune', 'origin', 'refs/heads/main:refs/remotes/origin/main') -FailureMessage 'Fetching origin/main failed.'
-
-$head = (& git.exe -C $install rev-parse 'refs/remotes/origin/main' 2>$null | Select-Object -First 1)
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$head)) {
-    throw 'Unable to resolve fetched origin/main.'
+$dirty = @(Invoke-SasBootstrapGit -Root $RuntimeRoot -Arguments @('status','--porcelain') -FailureMessage 'Unable to inspect short-runtime worktree state.' -Quiet)
+if (@($dirty | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) {
+    throw "Short runtime contains uncommitted/untracked work and will not be reset or cleaned: $RuntimeRoot"
 }
-$head = ([string]$head).Trim()
+
+[void](Invoke-SasBootstrapGit -Root $RuntimeRoot -Arguments @('fetch','--no-tags','--prune','origin','refs/heads/main:refs/remotes/origin/main') -FailureMessage 'Fetching official origin/main failed. VPN/internet access may be required for refresh.')
+$head = Get-SasGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','refs/remotes/origin/main') -FailureMessage 'Unable to resolve fetched origin/main.'
 
 if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit) -and $head -ne $ExpectedCommit.Trim()) {
     throw "origin/main changed. Expected $($ExpectedCommit.Trim()), resolved $head."
 }
 
-$fieldRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\field-proof-worktrees'
-New-Item -ItemType Directory -Path $fieldRoot -Force | Out-Null
-$field = Join-Path $fieldRoot ("autologon-{0}-{1}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $head.Substring(0, 12))
+[void](Invoke-SasBootstrapGit -Root $RuntimeRoot -Arguments @('checkout','--detach',$head) -FailureMessage "Unable to pin short runtime to fetched main $head")
+$runtimeHead = Get-SasGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','HEAD') -FailureMessage 'Unable to verify short-runtime HEAD after checkout.'
+if ($runtimeHead -ne $head) { throw "Short-runtime HEAD mismatch after checkout. Expected $head, resolved $runtimeHead" }
 
-Invoke-SasBootstrapGit -Root $install -Arguments @('worktree', 'add', '--detach', $field, $head) -FailureMessage 'Creating isolated AutoLogon field worktree failed.'
+$legacyRoot = Resolve-SasLegacyEvidenceRoot -RequestedRoot $LegacyEvidenceRoot -Runtime $RuntimeRoot
+if ($legacyRoot) {
+    $env:SAS_REPO_ROOT = $legacyRoot
+    $legacyNetworkConfig = Join-Path $legacyRoot 'Config\sas-network-guard.local.json'
+    if (Test-Path -LiteralPath $legacyNetworkConfig -PathType Leaf) {
+        $env:SAS_NETWORK_GUARD_CONFIG = $legacyNetworkConfig
+    }
+    Write-Host "Legacy evidence/config fallback: $legacyRoot" -ForegroundColor Cyan
+} else {
+    Remove-Item Env:SAS_REPO_ROOT -ErrorAction SilentlyContinue
+    Remove-Item Env:SAS_NETWORK_GUARD_CONFIG -ErrorAction SilentlyContinue
+    Write-Host 'Legacy evidence/config fallback: none resolved.' -ForegroundColor Yellow
+}
 
-Write-Host "Field worktree: $field" -ForegroundColor Cyan
-Write-Host "Field commit:   $head" -ForegroundColor Cyan
+if ($ConfirmVpnPosture) {
+    Write-Host '-ConfirmVpnPosture acknowledged. It does not grant network authority; the canonical field guard will verify current posture.' -ForegroundColor DarkCyan
+}
 
-$vpnBootstrap = Join-Path $field 'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1'
-$crashSafeScript = Join-Path $field 'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
-$launcher = Join-Path $field 'Run-AutoLogonCrashSafe.cmd'
+$crashSafeScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
+$onsiteScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonOnsite.ps1'
+$networkGate = Join-Path $RuntimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
+foreach ($required in @($crashSafeScript,$onsiteScript,$networkGate)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required field deployment surface is missing: $required" }
 
-foreach ($required in @($vpnBootstrap, $crashSafeScript, $launcher)) {
-    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-        throw "Required field deployment surface is missing: $required"
+    $tokens = $null
+    $parseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$tokens,[ref]$parseErrors)
+    if (@($parseErrors).Count -gt 0) {
+        $parseErrors | Format-List * | Out-Host
+        throw "PowerShell parser gate failed: $required"
     }
 }
 
-$tokens = $null
-$parseErrors = $null
-[void][System.Management.Automation.Language.Parser]::ParseFile($vpnBootstrap, [ref]$tokens, [ref]$parseErrors)
-if (@($parseErrors).Count -gt 0) {
-    $parseErrors | Format-List * | Out-Host
-    throw 'VPN network-guard bootstrap failed the PowerShell parser gate.'
-}
-
-$tokens = $null
-$parseErrors = $null
-[void][System.Management.Automation.Language.Parser]::ParseFile($crashSafeScript, [ref]$tokens, [ref]$parseErrors)
-if (@($parseErrors).Count -gt 0) {
-    $parseErrors | Format-List * | Out-Host
-    throw 'Crash-safe AutoLogon runner failed the PowerShell parser gate.'
-}
-
-& $vpnBootstrap -ConfirmVpnPosture
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
-if ([string]::IsNullOrWhiteSpace($env:SAS_NETWORK_GUARD_CONFIG)) {
-    throw 'VPN network guard completed without activating SAS_NETWORK_GUARD_CONFIG.'
-}
-
 Write-Host ''
-Write-Host 'VPN GATE PASSED - STARTING CRASH-SAFE AUTOLOGON DEPLOYMENT' -ForegroundColor Green
-& $launcher $ComputerName
+Write-Host 'SHORT RUNTIME PINNED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION' -ForegroundColor Green
+Write-Host "Runtime HEAD: $runtimeHead" -ForegroundColor Green
+Write-Host 'Network authority: canonical Confirm-SasNorthwellNetwork.ps1 inside the field transaction' -ForegroundColor Green
+
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $crashSafeScript `
+    -ComputerName $ComputerName -RepositoryRoot $RuntimeRoot -ConfirmDeployment
 $deploymentExit = $LASTEXITCODE
 
 $latestPointer = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\last-autologon-field-run.json'
 Write-Host ''
 Write-Host "Crash-safe latest pointer: $latestPointer" -ForegroundColor Cyan
-Write-Host "Field worktree retained:    $field" -ForegroundColor Cyan
+Write-Host "Short runtime retained:     $RuntimeRoot" -ForegroundColor Cyan
+Write-Host "Runtime commit:             $runtimeHead" -ForegroundColor Cyan
 
 exit $deploymentExit
