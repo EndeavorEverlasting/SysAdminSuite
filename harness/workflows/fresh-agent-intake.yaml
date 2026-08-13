@@ -20,6 +20,9 @@ inputs:
     - explicit_target
     - target_profile
     - existing_state_evidence
+    - repository_network_authorized
+    - branch_update_authorized
+    - default_branch_update_authorized
 
 stages:
   - id: governance
@@ -28,6 +31,14 @@ stages:
       - read AGENTS.md without modifying it
       - inspect git status, current branch, worktrees, and supplied pull-request metadata
       - preserve unrelated or separately owned work
+      - when an expected tracked launcher, validator, workflow, registry, or report is missing locally, route through harness/workflows/repository-freshness-before-launch.yaml before command reconstruction
+      - when the task depends on current remote repository behavior, route through harness/workflows/repository-freshness-before-launch.yaml before interpreting the executing worktree as repository truth
+      - remember that fetching origin/main alone does not update local main or the current worktree
+      - remember that freshness routing does not grant repository-network or branch-update authority
+      - require repository-network authority before the freshness workflow contacts the configured Git remote
+      - preserve the default branch in an isolated worktree unless default-branch update authority is explicit
+      - preserve dirty, diverged, or separately owned work with an isolated worktree
+      - allow a clean owned non-default branch to use fast-forward-only convergence only when branch-update authority is explicit
     stop_conditions:
       - repository cannot be resolved
       - requested work conflicts with governance or would overwrite unrelated work
@@ -70,6 +81,7 @@ stages:
     order: 5
     actions:
       - python harness/validators/validate-harness-registries.py
+      - python harness/validators/validate-repository-freshness-contracts.py
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
       - select additional validators from harness/api/harness-validator-registry.json by changed surface
@@ -109,6 +121,7 @@ outputs:
     - harness/api/harness-artifact-registry.json
     - harness/api/harness-outcome-registry.json
     - harness/api/deployment-state-registry.json
+    - harness/workflows/repository-freshness-before-launch.yaml
     - harness/skills/harness-maintenance/SKILL.md
     - harness/skills/outcome-driven-execution/SKILL.md
     - harness/skills/cybernet-autologon-deployment-state/SKILL.md
@@ -118,6 +131,7 @@ outputs:
     - survey/output/<workflow>/<run_id>/review/sprint-capsule.*
 
 proof_ceiling: >-
-  Fresh-agent routing, desired-state selection, canonical command selection, validator selection,
-  artifact boundaries, outcome continuation, and handoff structure only. Intake itself creates no
-  product, target, deployment, reboot, application, or live-runtime proof.
+  Fresh-agent routing, authorized repository-freshness selection, desired-state selection, canonical
+  command selection, validator selection, artifact boundaries, outcome continuation, and handoff
+  structure only. Intake itself creates no product, target, deployment, reboot, application, or
+  live-runtime proof.

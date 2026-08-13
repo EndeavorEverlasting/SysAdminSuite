@@ -1,0 +1,135 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: repository-freshness-before-launch
+mode: git_remote_refresh_then_preserve
+network_activity: true
+target_network_activity: false
+target_mutation: false
+purpose: >-
+  Prevent agents from treating a stale local checkout as current repository truth. Before an agent
+  concludes that a launcher, validator, workflow, or artifact authority is missing, refresh the Git
+  remote only with repository-network authority, compare the executing worktree to the intended
+  remote ref, and preserve the existing branch unless branch-update authority is explicit.
+
+triggers:
+  - an expected tracked launcher, script, validator, workflow, registry, or report is missing locally
+  - the task depends on latest or current repository behavior
+  - origin/main or another intended remote ref has been fetched but the executing worktree was not updated
+  - local HEAD predates repository evidence supplied by the operator, PR, release, or remote branch
+  - deployment or runtime guidance would otherwise be reconstructed because a canonical tracked entrypoint appears absent
+
+inputs:
+  required:
+    - repository_root
+    - intended_remote
+    - intended_remote_ref
+    - current_head
+    - current_branch
+    - default_branch
+    - repository_network_authorized
+  optional:
+    - expected_path
+    - expected_commit
+    - current_status
+    - current_worktree_ownership
+    - branch_update_authorized
+    - default_branch_update_authorized
+
+invariants:
+  - routing into this workflow does not grant repository-network or branch-mutation authority
+  - fetching a remote ref does not update the checked-out branch or worktree
+  - a missing path in a stale worktree is not evidence that the path is absent from the intended remote ref
+  - never reset, clean, checkout-overwrite, or force-update unrelated or separately owned work
+  - never switch or fast-forward a dirty worktree unless the sprint explicitly owns those edits
+  - never fast-forward the default branch unless default_branch_update_authorized is explicitly true
+  - a clean owned non-default branch may fast-forward only when branch_update_authorized is explicitly true
+  - otherwise preserve the current branch and use an isolated worktree at the fetched remote commit
+  - verify the expected path against the refreshed commit before inventing an alternate launcher or implementation
+  - repository refresh may contact only the configured Git remote; it grants no target-network or product-mutation authority
+
+stages:
+  - id: inspect-local
+    order: 1
+    actions:
+      - run git status --short
+      - run git branch --show-current
+      - resolve local HEAD with git rev-parse HEAD
+      - inspect configured remote and intended remote ref
+      - record whether the worktree is clean and whether its current work is owned by this sprint
+
+  - id: authorize-refresh
+    order: 2
+    actions:
+      - require repository_network_authorized to be explicitly true before contacting the configured Git remote
+      - when authority is absent, stop with the exact fetch command as the blocked operator action without executing it
+    stop_conditions:
+      - repository_network_authorized is not explicitly true
+
+  - id: refresh-remote
+    order: 3
+    actions:
+      - fetch the intended remote without force and without rewriting the worktree
+      - resolve the exact fetched intended remote commit
+      - when expected_commit is supplied, fail closed if the fetched remote commit differs
+    stop_conditions:
+      - configured remote cannot be resolved
+      - remote fetch fails
+      - expected_commit was supplied and does not match fetched repository truth
+
+  - id: compare
+    order: 4
+    actions:
+      - compare local HEAD to the fetched intended remote commit
+      - classify local state as equal, strictly-behind, ahead-or-diverged, or unresolved
+      - if expected_path is supplied, test that path at the fetched commit rather than only in the executing worktree
+    decisions:
+      equal:
+        - continue in the current worktree
+      strictly-behind-clean-owned-default-branch:
+        - when default_branch_update_authorized is explicitly true, fast-forward only with a fast-forward-only operation
+        - otherwise preserve the default branch and create an isolated detached or feature worktree at the fetched remote commit
+      strictly-behind-clean-owned-non-default-branch:
+        - when branch_update_authorized is explicitly true, fast-forward only with a fast-forward-only operation
+        - otherwise preserve the branch and create an isolated detached or feature worktree at the fetched remote commit
+      strictly-behind-dirty-or-unowned:
+        - create an isolated detached or feature worktree at the fetched remote commit
+      ahead-or-diverged:
+        - preserve the current branch and use an isolated worktree unless the sprint explicitly owns integration
+      unresolved:
+        - stop before command reconstruction or deployment guidance
+
+  - id: prove-executing-tree
+    order: 5
+    actions:
+      - resolve HEAD again in the worktree that will execute the task
+      - require that executing HEAD equals the selected refreshed commit when current repository behavior is required
+      - verify expected_path exists in that executing tree when supplied
+      - only after freshness proof, load command, workflow, validator, artifact, and deployment-state authorities
+    forbidden_outcomes:
+      - fetched origin/main but continued executing an older local main
+      - remote fetch executed without repository-network authority
+      - default branch fast-forwarded without explicit default-branch update authority
+      - missing launcher inferred from an unrefreshed or stale worktree
+      - alternate direct script invented before checking the expected path at the refreshed commit
+      - dirty work discarded to make the branch current
+
+  - id: continue
+    order: 6
+    actions:
+      - return to fresh-agent-intake routing using the refreshed executing worktree
+      - use the canonical tracked entrypoint now present at the selected commit
+      - preserve the freshness classification, selected commit, worktree path, authorization basis, and expected-path proof in the handoff
+
+outputs:
+  - selected_repository_commit
+  - executing_worktree
+  - freshness_classification
+  - expected_path_present_when_requested
+  - preservation_decision
+  - repository_network_authorization_basis
+  - branch_update_authorization_basis
+
+proof_ceiling: >-
+  Proves only that the executing repository tree is intentionally selected from authorized refreshed
+  Git evidence and that unrelated/default-branch work was preserved unless separate update authority
+  was explicit. It does not prove target reachability, deployment, restart, application behavior, or
+  runtime acceptance.

@@ -34,6 +34,7 @@ echo "[sas-harness] pre-commit: validating the exact staged snapshot"
   export GIT_WORK_TREE="$snapshot"
   cd "$snapshot"
   python3 harness/validators/validate-harness-registries.py
+  python3 harness/validators/validate-repository-freshness-contracts.py
   python3 harness/validators/validate-outcome-contracts.py
   python3 harness/validators/validate-deployment-state-contracts.py
   python3 Tests/survey/test_operational_harness_completeness_contracts.py

@@ -23,6 +23,24 @@
       "proof": "Registry shape, path existence, fresh-agent wiring, command authority, deployment-state authority, and report renderer contract."
     },
     {
+      "id": "repository-freshness-contracts",
+      "category": "harness",
+      "platform": "python3+git",
+      "command": "python harness/validators/validate-repository-freshness-contracts.py",
+      "blocking": true,
+      "scope": [
+        "harness/workflows/repository-freshness-before-launch.yaml",
+        "harness/workflows/fresh-agent-intake.yaml",
+        "harness/skills/harness-maintenance/**",
+        "harness/api/operational-harness-manifest.json",
+        "harness/api/harness-validator-registry.json",
+        "harness/reports/REPOSITORY_FRESHNESS_STATUS.md",
+        ".githooks/**",
+        ".github/workflows/harness-registry-integrity.yml"
+      ],
+      "proof": "Fetching a remote ref cannot be mistaken for updating the executing worktree; missing tracked paths are checked against refreshed repository truth and stale branches converge only by fast-forward-only update or preserved isolated worktree."
+    },
+    {
       "id": "harness-outcome-contracts",
       "category": "harness",
       "platform": "python3",
