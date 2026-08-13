@@ -2,12 +2,16 @@
 """Contracts for the fresh-agent operational harness front door."""
 from __future__ import annotations
 
+import json
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 README = ROOT / "harness" / "README.md"
 STATUS = ROOT / "docs" / "HARNESS_STATUS.md"
+RENDERER = ROOT / "harness" / "reports" / "render-harness-status.py"
+DEPLOYMENT_STATES = ROOT / "harness" / "api" / "deployment-state-registry.json"
 
 REQUIRED_TRACKED = (
     "AGENTS.md",
@@ -36,6 +40,10 @@ REQUIRED_TRACKED = (
 def read(path: Path) -> str:
     assert path.is_file(), f"missing required harness file: {path.relative_to(ROOT).as_posix()}"
     return path.read_text(encoding="utf-8-sig")
+
+
+def load(path: Path) -> dict:
+    return json.loads(read(path))
 
 
 def git(*args: str) -> subprocess.CompletedProcess[str]:
@@ -90,12 +98,35 @@ def test_entrypoint_names_the_minimum_validator_floor() -> None:
         assert command in text, f"missing harness validation command: {command}"
 
 
-def test_operator_report_states_working_and_gaps() -> None:
+def test_operator_report_tracks_registry_derived_state() -> None:
     status = read(STATUS)
-    assert "## Working" in status
-    assert "## Known gaps and proof limits" in status
-    assert "## Operator validation" in status
-    assert "PASS: operational harness completeness" in status
+    for marker in ("## Working", "## Known gaps and proof limits", "## Operator validation", "PASS: operational harness completeness"):
+        assert marker in status
+
+    rendered = subprocess.run(
+        [sys.executable, str(RENDERER)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert rendered.returncode == 0, rendered.stderr
+
+    deployment_states = load(DEPLOYMENT_STATES)
+    cybernet = next(item for item in deployment_states["contexts"] if item["id"] == "cybernet-autologon")
+    truth = cybernet["current_product_truth"]
+    states = {item["id"]: item for item in cybernet["states"]}
+    derived_markers = (
+        truth["current_full_software_apply_command_id"],
+        truth["current_live_apply_command_id"],
+        states["autologon_pre_reboot_configured"]["positive_classification"],
+        states["autologon_restart_completed"]["positive_classification"],
+        states["cybernet_software_deployed"]["positive_classification"],
+        states["autologon_runtime_proven"]["positive_classification"],
+    )
+    for marker in derived_markers:
+        assert marker in rendered.stdout, f"renderer omitted current registry value: {marker}"
+        assert marker in status, f"committed operator report is stale for registry value: {marker}"
 
 
 def test_entrypoint_does_not_claim_live_product_proof() -> None:
