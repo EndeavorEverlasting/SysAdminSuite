@@ -20,7 +20,7 @@ That interpretation is now forbidden by the harness. A fresh agent must prove th
 
 - `origin/main` may contain a launcher that the local worktree does not yet contain.
 - a successful fetch is not repository convergence;
-- a missing launcher after fetch is not a reason to invent an alternate deployment path;
+- **do not invent an alternate deployment path** because a launcher is missing from an unrefreshed or stale executing worktree;
 - a dirty worktree is not permission to reset or clean local work merely to reach the refreshed commit.
 
 ## Required repair behavior
