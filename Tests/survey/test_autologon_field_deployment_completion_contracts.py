@@ -175,16 +175,20 @@ def test_runbook_is_sanitized_and_preserves_field_contract() -> None:
         "does not prove human-observed interactive desktop sign-in",
     ):
         assert marker.lower() in text.lower(), marker
+
+    # Build sensitive sentinels at runtime so the validator can safely scan its own source without
+    # guaranteeing a false positive merely by declaring the strings it is supposed to forbid.
     combined = (text + "\n" + read(Path(__file__))).lower()
-    for forbidden in (
-        "wpj075opr046",
-        "nslijhs.net",
-        "pa_rperez26",
-        "sysadminsuite-autologons4uprobe-",
-        "autologon-s4u-deployment-2026",
-        "autologon-kerberos-s4u-2026",
-    ):
-        assert forbidden not in combined, forbidden
+    forbidden = (
+        "wpj" + "075opr046",
+        "nslijhs" + ".net",
+        "pa_" + "rperez26",
+        "sysadminsuite-autologon" + "s4uprobe-",
+        "autologon-s4u-deployment-" + "2026",
+        "autologon-kerberos-s4u-" + "2026",
+    )
+    for marker in forbidden:
+        assert marker not in combined, marker
 
 
 def main() -> None:
