@@ -45,9 +45,15 @@ def test_freshness_workflow() -> None:
         "repository-freshness-before-launch",
         "fetching a remote ref does not update the checked-out branch or worktree",
         "missing path in a stale worktree is not evidence",
+        "repository_network_authorized",
+        "routing into this workflow does not grant repository-network or branch-mutation authority",
+        "default_branch_update_authorized",
+        "never fast-forward the default branch unless default_branch_update_authorized is explicitly true",
         "fast-forward-only",
         "isolated worktree",
         "fetched origin/main but continued executing an older local main",
+        "remote fetch executed without repository-network authority",
+        "default branch fast-forwarded without explicit default-branch update authority",
         "alternate direct script invented",
         "target_network_activity: false",
         "target_mutation: false",
@@ -55,23 +61,26 @@ def test_freshness_workflow() -> None:
         assert marker in text, marker
 
 
-def test_fresh_agent_routes_before_reconstruction() -> None:
+def test_fresh_agent_routes_before_reconstruction_and_preserves_authority() -> None:
     text = read(FRESH).lower()
     freshness = "harness/workflows/repository-freshness-before-launch.yaml"
     canonical = "use the canonical command or workflow instead of reconstructing implementation details"
     assert freshness in text
     assert "missing locally" in text
     assert "fetching origin/main alone does not update local main" in text
+    assert "freshness routing does not grant repository-network or branch-update authority" in text
+    assert "default branch" in text and "isolated worktree" in text
     assert "fast-forward-only" in text
-    assert "isolated worktree" in text
     assert text.index(freshness) < text.index(canonical)
 
 
-def test_front_door_and_skill_repeat_the_rule() -> None:
+def test_front_door_and_skill_repeat_the_rule_and_authority_boundary() -> None:
     for text in (read(README).lower(), read(SKILL).lower()):
         assert "repository-freshness-before-launch.yaml" in text
         assert "does not update" in text
         assert "stale" in text
+        assert "repository-network" in text
+        assert "default branch" in text
         assert "fast-forward" in text
         assert "isolated worktree" in text
 
@@ -99,24 +108,37 @@ def test_manifest_and_validator_registry_track_freshness_contract() -> None:
     assert "repository-freshness-before-launch.yaml" in scope
 
 
-def test_hooks_and_ci_enforce_freshness_validator() -> None:
+def test_pre_commit_and_ci_enforce_freshness_validator() -> None:
     marker = "validate-repository-freshness-contracts.py"
     assert marker in read(PRE_COMMIT)
-    assert marker in read(PRE_PUSH)
     ci = read(CI)
     assert marker in ci
     assert "Validate repository freshness contracts" in ci
     assert "repository-freshness-before-launch.yaml" in ci
 
 
-def test_operator_report_records_incident_and_repair() -> None:
+def test_pre_push_validates_exact_ref_tip_not_live_worktree() -> None:
+    text = read(PRE_PUSH)
+    assert "validate_freshness_tip" in text
+    assert "git worktree add --detach --quiet" in text
+    assert "python3 harness/validators/validate-repository-freshness-contracts.py" in text
+    assert "dirty local files cannot mask failures" in text
+    top = text.index('echo "[sas-harness] pre-push: running offline survey guardrails"')
+    function = text.index("validate_freshness_tip()")
+    assert "validate-repository-freshness-contracts.py" not in text[top:function]
+
+
+def test_operator_report_records_incident_repair_and_authority() -> None:
     text = read(REPORT).lower()
     for marker in (
         "fetching origin/main did not update local main",
         "missing launcher",
+        "repository-network",
+        "default branch",
         "fast-forward-only",
         "isolated worktree",
         "do not invent an alternate deployment path",
+        "exact pushed ref-update tip",
         "remaining proof limits",
     ):
         assert marker in text, marker
