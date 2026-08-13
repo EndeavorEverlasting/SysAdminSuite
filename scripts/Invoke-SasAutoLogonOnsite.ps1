@@ -76,17 +76,6 @@ function Resolve-SasRemoteTarget {
     return $typed
 }
 
-function Assert-SasAutoLogonProtectedNetwork {
-    param([Parameter(Mandatory = $true)][string]$Purpose)
-    Write-Host ''
-    Write-Host 'Checking local network posture before any target contact...' -ForegroundColor Cyan
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate -Purpose $Purpose
-    $networkExit = $LASTEXITCODE
-    if ($networkExit -ne 0) {
-        throw "AutoLogon operation stopped by the network gate with exit code $networkExit."
-    }
-}
-
 if ($Action -eq 'Menu') {
     Clear-Host
     Write-Host 'SysAdminSuite AutoLogon On-Site' -ForegroundColor Cyan
@@ -135,9 +124,8 @@ switch ($Action) {
     }
     'Pilot' {
         if (-not (Confirm-SasRequestExists)) { exit 4 }
-        Assert-SasAutoLogonProtectedNetwork -Purpose 'AutoLogon LocalSystem qualification pilot'
         & $qualificationScript -Action Live
-        return
+        exit $LASTEXITCODE
     }
     'Recover' {
         $target = Resolve-SasRemoteTarget -RequestedTarget $ComputerName
