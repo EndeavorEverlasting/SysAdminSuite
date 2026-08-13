@@ -2,31 +2,40 @@
 
 ## Problem
 
-AutoLogon Remote produces several nested evidence trees. A checkout under a long OneDrive/backup path can therefore exceed the practical Windows PowerShell 5.1 path budget even when the top-level launcher itself is reached through a temporary drive alias. The observed failure happened before AutoLogon apply because the restart wrapper could not persist `autologon_s4u_deployment_result.json` beneath the deeply nested physical checkout path.
+AutoLogon Remote produces several nested evidence trees. A checkout under a long OneDrive/backup path can therefore exceed the practical Windows PowerShell 5.1 path budget even when the top-level launcher itself is reachable. The observed failure happened before AutoLogon apply because the restart wrapper could not persist `autologon_s4u_deployment_result.json` beneath the deeply nested physical checkout path.
+
+The prior portable trampoline used a checkout-root length threshold. That was insufficient: a repository root can be shorter than the threshold while the generated AutoLogon child path still exceeds the Windows path budget.
 
 ## Runtime contract
 
-`Invoke-SasAutoLogonOnsite.ps1` is the field front door behind `sas autologon Remote HOST`, `S4U`, and `Recover`. When its physical repository root is longer than the bounded field threshold, it must re-enter the requested field action from an exact-HEAD detached worktree under:
+`Invoke-SasAutoLogonOnsite.ps1` is the field front door behind `sas autologon Remote HOST`, `S4U`, and `Recover`. Every target-facing AutoLogon action re-enters the request from one stable short worktree:
 
 ```text
-%LOCALAPPDATA%\SysAdminSuite\field-runtime\autologon\<12-char-head>\
+C:\SASAL\
 ```
 
-The worktree is created only from the already-present local Git object database. No repository-network access is required. The source checkout is not reset, cleaned, switched, or overwritten.
+Live field evidence is written beneath the repository's already-ignored short run root:
 
-Before re-entry the launcher must prove:
+```text
+C:\SASAL\runs\
+```
+
+This retains the existing `<repo>\runs` evidence-discovery contract while removing OneDrive/backup checkout length from the nested S4U path budget.
+
+The short worktree is created only from the already-present local Git object database. No repository-network access is required. Before re-entry the launcher must prove:
 
 - source committed HEAD resolves;
-- the short runtime worktree exists or can be added detached at that exact HEAD;
-- short-runtime HEAD equals source HEAD;
-- short runtime is clean;
-- the canonical on-site launcher exists in the short runtime.
+- `C:\SASAL` is absent or is an owned worktree of the same Git common directory;
+- the runtime worktree is clean;
+- the runtime can move to the exact source HEAD without touching the source checkout;
+- runtime HEAD equals source HEAD;
+- the canonical on-site launcher exists in the runtime worktree.
 
-A dirty, malformed, or mismatched short runtime fails closed. The launcher does not destructively repair it.
+A dirty, unrelated, malformed, or non-owned `C:\SASAL` fails closed. The launcher does not delete, reset, or clean an unexpected path.
 
-The original source checkout is retained in process-scoped `SAS_REPO_ROOT`. That gives existing evidence discovery access to prior results from the original checkout and lets `SasNetworkGuard` use the source checkout's ignored `Config\sas-network-guard.local.json` fallback when the short worktree has no operator-local policy file.
+The source checkout is retained in process-scoped `SAS_REPO_ROOT`. Existing evidence discovery can therefore consider both the stable short runtime and the original checkout, while `SasNetworkGuard` can use the source checkout's ignored `Config\sas-network-guard.local.json` fallback when `C:\SASAL` has no operator-local policy file.
 
-Generated AutoLogon evidence remains under the executing repository's existing registered `survey\output` structure. The change is the physical runtime root, not the deployment artifact schema or terminal proof contract.
+The `runs/` root is already gitignored. Generated live evidence stays untracked. Artifact schemas, result filenames, target policy, S4U behavior, restart semantics, and terminal proof classification are unchanged.
 
 ## Network authority
 
