@@ -18,7 +18,7 @@ Do not use this skill to change product behavior, deployment logic, device profi
 
 1. Read `AGENTS.md` without modifying it.
 2. Preserve current Git state and unrelated work.
-3. If current remote behavior matters or an expected tracked surface is missing, read `harness/workflows/repository-freshness-before-launch.yaml` and prove the executing repository tree before command selection.
+3. If current remote behavior matters or an expected tracked surface is missing, read `harness/workflows/repository-freshness-before-launch.yaml`; do not contact the remote until repository-network authority is explicit.
 4. Read `CODEBASE_MAP.md`.
 5. Read `harness/api/operational-harness-manifest.json`.
 6. Read `harness/workflows/fresh-agent-intake.yaml` and `harness/workflows/operational-harness-maintenance.yaml`.
@@ -37,15 +37,18 @@ Do not use this skill to change product behavior, deployment logic, device profi
 - Resolve the user's requested terminal goal before choosing validation so the harness can distinguish an admission test from the actual deliverable.
 - For deployment-oriented harness work, resolve desired product/runtime state and compare it to current product truth without modifying product files.
 - Treat repository freshness as a prerequisite to absence claims: fetching a remote ref does not update the checked-out branch or worktree.
-- If the local branch is stale, use a fast-forward-only update only when the branch is clean and owned; otherwise preserve it and use an isolated worktree at the fetched commit.
-- Never invent an alternate launcher, validator, or workflow because a path is missing from a stale executing tree; check the refreshed intended commit first.
+- A freshness trigger does not grant repository-network or branch-update authority. If repository-network authority is absent, stop before fetch with the exact blocked action.
+- Never update the default branch solely because it is clean and behind. Preserve it in an isolated worktree unless default-branch update authority is explicit.
+- A clean owned non-default branch may use fast-forward-only convergence only when branch-update authority is explicit; otherwise use an isolated worktree.
+- Never invent an alternate launcher, validator, or workflow because a path is missing from a stale executing tree; check the authorized refreshed intended commit first.
 
 ### 2. Implement
 
 - Prefer extending the existing operational manifest and registries over creating parallel authorities.
 - Keep codebase maps factual and point to canonical entrypoints instead of embedding large implementation narratives.
-- Keep workflow stages ordered and fail closed at unresolved routing, repository-freshness, validation, product-truth, or evidence boundaries.
-- Hooks must run local/offline proof only; they must not contact product targets or perform deployment mutation.
+- Keep workflow stages ordered and fail closed at unresolved routing, repository-freshness, authorization, validation, product-truth, or evidence boundaries.
+- Hooks must not contact product targets or perform deployment mutation.
+- Pre-push repository-freshness proof must run against the exact pushed ref-update commit, not a dirty live worktree or staged-only state.
 - Operator reports must separate working state, desired-state behavior, known gaps, validation commands, outcome continuation, and proof ceiling.
 - Every canonical command must have an outcome contract. A validation/dry-run/build/plan success must resolve a registered artifact; deployment-oriented plans must name the continuation that advances an authorized deployment goal.
 - AutoLogon/Cybernet desired-state rules must be checked against the tracked package catalogs and real product entrypoints so weaker agents cannot mistake transport proof for application or regress to a blocked LocalSystem lane.
@@ -59,8 +62,8 @@ python harness/validators/validate-harness-registries.py
 python harness/validators/validate-repository-freshness-contracts.py
 python harness/validators/validate-outcome-contracts.py
 python harness/validators/validate-deployment-state-contracts.py
-python Tests/survey/test_operational_harness_completeness_contracts.py
-python Tests/survey/test_local_harness_contracts.py
+python Tests/survey/test_operational-harness-completeness-contracts.py
+python Tests/survey/test_local-harness-contracts.py
 git diff --check
 ```
 
@@ -77,7 +80,7 @@ A passing validator is supporting evidence. When the requested goal remains unpr
 ### 4. Failure handling
 
 - Stop at the first failed proof boundary.
-- Classify the failure as repository-freshness, structure, schema/registry, outcome/continuation, deployment-state/product-truth, hook/CI wiring, text policy, dependency, integration, or runtime.
+- Classify the failure as repository-freshness, authorization, structure, schema/registry, outcome/continuation, deployment-state/product-truth, hook/CI wiring, text policy, dependency, integration, or runtime.
 - Repair the smallest owning harness component.
 - Rerun the failed validator before broader validation.
 - Never weaken a validator merely to make the harness green.
@@ -87,7 +90,7 @@ A passing validator is supporting evidence. When the requested goal remains unpr
 
 - Name every changed file.
 - Use an isolated branch or worktree when unrelated work exists.
-- Do not force-push or mutate `main` directly.
+- Do not force-push or mutate `main` directly without explicit default-branch update authority.
 - When remote publication is authorized, follow `harness/workflows/operational-harness-publish.yaml` and open/update one PR.
 - Do not treat PR creation, CI status display, or a validator pass as the terminal user outcome when safe executable work remains inside the requested goal.
 
@@ -103,4 +106,4 @@ A passing validator is supporting evidence. When the requested goal remains unpr
 
 ## Proof ceiling
 
-This skill can prove repository selection, harness structure, routing, registries, desired-state contracts, outcome contracts, hooks, CI wiring, documentation, and static/build contract status. It cannot by itself prove product behavior, target reachability, deployment success, reboot behavior, application behavior, or technician acceptance.
+This skill can prove authorized repository selection, harness structure, routing, registries, desired-state contracts, outcome contracts, hooks, CI wiring, documentation, and static/build contract status. It cannot by itself prove product behavior, target reachability, deployment success, reboot behavior, application behavior, or technician acceptance.
