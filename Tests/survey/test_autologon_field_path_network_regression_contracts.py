@@ -13,16 +13,31 @@ def main() -> None:
     field = FIELD.read_text(encoding="utf-8")
     s4u = S4U.read_text(encoding="utf-8")
 
-    # The outer transaction is the sole authority for protected-network admission.
+    # The outer transaction remains the sole authority for protected-network admission.
     assert "Confirm-SasNorthwellNetwork.ps1" in field
     assert "Enable-SasNorthwellVpnNetworkGuard.ps1" not in onsite
     assert "Assert-SasAutoLogonProtectedNetwork" not in onsite
 
-    # Nested evidence must not depend on the caller's potentially long OneDrive checkout path.
-    assert "SAS_AUTOLOGON_OUTPUT_ROOT" in field
-    assert "SysAdminSuite\\field-runs\\autologon-deployment" in field
-    assert "-OutputRoot $deploymentOutputRoot" in field
-    assert "New-Item -ItemType Directory -Path $OutputRoot" in s4u
+    # Long physical checkouts must re-enter an exact committed short worktree before field mutation.
+    required = (
+        "FieldPathThreshold",
+        "Invoke-SasAutoLogonShortRuntime",
+        "SysAdminSuite\\field-runtime\\autologon",
+        "worktree add --detach",
+        "rev-parse HEAD",
+        "status --porcelain",
+        "Short AutoLogon field runtime is dirty",
+        "$env:SAS_REPO_ROOT = $SourceRepoRoot",
+        "& powershell.exe @childArgs",
+        "exit $LASTEXITCODE",
+    )
+    missing = [marker for marker in required if marker not in onsite]
+    assert not missing, f"missing short-runtime markers: {missing}"
+
+    # The inner engine still creates its result directory before first persistence; the short runtime
+    # fixes the physical path budget rather than weakening or relocating product proof semantics.
+    assert "New-Item -ItemType Directory -Path $runRoot,$evidenceRoot -Force" in s4u
+    assert "autologon_s4u_deployment_result.json" in s4u
 
     print("PASS: AutoLogon field path/network regression contracts")
 
