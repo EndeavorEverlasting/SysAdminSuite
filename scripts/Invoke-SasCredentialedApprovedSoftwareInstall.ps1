@@ -11,6 +11,11 @@ PowerShell session, verifies source/target SHA-256 equality, proves the remote t
 Administrator token, executes the installer, captures bounded before/after state, and removes
 only the run-scoped SysAdminSuite staging directory.
 
+This lane is additive. It does not replace current-token WinRM, SMB scheduled-task,
+AutoLogon S4U/recovery, or crash-safe AutoLogon field deployment. Operators select one
+transport before target mutation; a failed run may inform a later explicitly selected lane,
+but this script never performs automatic post-mutation transport fallback.
+
 The credential is never serialized, exported, written to evidence, converted to plaintext,
 or placed in a command line. This lane never changes EnableLUA, UAC policy,
 LocalAccountTokenFilterPolicy, WinRM configuration, TrustedHosts, or firewall policy.
@@ -292,39 +297,35 @@ try {
                     default_domain_value_name_present = ($names -contains 'DefaultDomainName')
                     default_password_value_name_present = ($names -contains 'DefaultPassword')
                 }
-            } finally { if ($key) { $key.Dispose() } }
+            }
+            finally { if ($key) { $key.Dispose() } }
         }
         [pscustomobject][ordered]@{
             captured_at_utc = (Get-Date).ToUniversalTime().ToString('o')
-            matching_installed_package_count = $matches.Count
-            matching_installed_packages = $matches
+            software_matches = @($matches)
             autologon = $auto
         }
     }
 
-    $remoteExecute = {
+    $remoteInstall = {
         param([string]$InstallerPath, [string[]]$Arguments)
         Set-StrictMode -Version 2.0
         $ErrorActionPreference = 'Stop'
-        $extension = [IO.Path]::GetExtension($InstallerPath)
-        if ($extension.Equals('.msi', [StringComparison]::OrdinalIgnoreCase)) {
-            $filePath = Join-Path $env:WINDIR 'System32\msiexec.exe'
-            $effectiveArguments = @('/i', ('"{0}"' -f $InstallerPath)) + @($Arguments)
+        $extension = [IO.Path]::GetExtension($InstallerPath).ToLowerInvariant()
+        if ($extension -eq '.msi') {
+            $msiArgs = @('/i', $InstallerPath) + @($Arguments)
+            $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $msiArgs -Wait -PassThru
         }
-        else {
-            $filePath = $InstallerPath
-            $effectiveArguments = @($Arguments)
+        elseif ($extension -eq '.exe') {
+            $process = Start-Process -FilePath $InstallerPath -ArgumentList @($Arguments) -Wait -PassThru
         }
-        $process = Start-Process -FilePath $filePath -ArgumentList $effectiveArguments -Wait -PassThru
-        $code = [int]$process.ExitCode
+        else { throw "Unsupported installer extension: $extension" }
         [pscustomobject][ordered]@{
-            installer_exit_code = $code
-            success = ($code -in @(0, 1641, 3010))
-            reboot_required = ($code -in @(1641, 3010))
+            exit_code = [int]$process.ExitCode
+            reboot_required = ([int]$process.ExitCode -in @(1641, 3010))
+            accepted_exit_code = ([int]$process.ExitCode -in @(0, 1641, 3010))
         }
     }
-
-    $captureAutoLogon = ([string](Get-SasPropertyValue -Object $package.acceptance -Name 'autologon_profile' -Default 'none')) -eq 'windows_winlogon'
 
     foreach ($target in $canonicalTargets) {
         $session = $null
@@ -333,111 +334,114 @@ try {
             target = $target
             status = 'started'
             administrator_token = $false
-            target_mutation_performed = $false
-            source_sha256 = $sourceHash
-            target_sha256 = $null
+            local_system = $null
             before = $null
+            target_sha256 = $null
             execution = $null
             after = $null
-            cleanup_succeeded = $false
-            failure_reason = $null
+            target_mutation_performed = $false
+            cleanup = [ordered]@{ attempted = $false; succeeded = $false; stage_root_remaining = $null; error = $null }
+            error = $null
         }
         try {
-            Write-SasEvent -Name 'target_session_starting' -Data @{ target = $target }
-            $sessionOption = New-PSSessionOption -OpenTimeout 30000 -OperationTimeout 3600000
-            $session = New-PSSession -ComputerName $target -Credential $Credential -Authentication Negotiate -SessionOption $sessionOption
-
+            Write-SasEvent -Name 'target_session_opening' -Data @{ target = $target }
+            $option = New-PSSessionOption -OpenTimeout 30000 -OperationTimeout 3600000
+            $session = New-PSSession -ComputerName $target -Credential $Credential -Authentication Negotiate -SessionOption $option
             $token = Invoke-Command -Session $session -ScriptBlock $remoteTokenProbe
+            $targetResult.administrator_token = [bool]$token.administrator_token
+            $targetResult.local_system = [bool]$token.local_system
             if (-not [bool]$token.administrator_token) {
-                throw 'Credential authenticated, but the WinRM session does not hold an Administrator token. Refusing to alter UAC/LUA or token-filter policy.'
+                throw 'Authenticated remote token is not an Administrator token. Refusing to alter UAC/LUA or token-filter policy.'
             }
-            $targetResult.administrator_token = $true
-            Write-SasEvent -Name 'target_admin_token_proved' -Data @{ target = $target; local_system = [bool]$token.local_system }
+            Write-SasEvent -Name 'administrator_token_proved' -Data @{ target = $target; local_system = [bool]$token.local_system }
 
+            $captureAutoLogon = ([string]$package.id -eq 'autologon')
             $targetResult.before = Invoke-Command -Session $session -ScriptBlock $remoteSnapshot -ArgumentList ([string]$package.display_name), $captureAutoLogon
 
             $stageRoot = Invoke-Command -Session $session -ScriptBlock {
                 param([string]$RunId)
-                Set-StrictMode -Version 2.0
-                $base = Join-Path $env:ProgramData 'SysAdminSuite\CredentialedSoftwareInstall'
-                $path = Join-Path $base $RunId
-                $expected = [IO.Path]::GetFullPath($path)
-                $expectedBase = [IO.Path]::GetFullPath($base).TrimEnd('\') + '\'
-                if (-not $expected.StartsWith($expectedBase, [StringComparison]::OrdinalIgnoreCase)) { throw 'Run staging path escaped the credentialed install root.' }
-                New-Item -ItemType Directory -Path $expected -Force | Out-Null
-                $expected
+                $root = Join-Path $env:ProgramData ("SysAdminSuite\CredentialedSoftwareInstall\{0}" -f $RunId)
+                New-Item -ItemType Directory -Path $root -Force | Out-Null
+                return $root
             } -ArgumentList $runId
-
-            # Creating the run-scoped directory is the first target mutation. Persist that
-            # boundary before any copy or installer execution so a failed transfer cannot
-            # be misreported as a no-mutation transaction.
             $result.target_mutation_performed = $true
             $targetResult.target_mutation_performed = $true
             Write-SasJson -Path $resultPath -Value ([pscustomobject]$result)
-            Write-SasEvent -Name 'target_staging_created' -Data @{ target = $target; target_mutation_performed = $true }
+            Write-SasEvent -Name 'target_staging_created' -Data @{ target = $target }
 
             $remoteInstaller = Join-Path $stageRoot $installerFile
             Copy-Item -LiteralPath $installerPath -Destination $remoteInstaller -ToSession $session -Force
-            $targetHash = Invoke-Command -Session $session -ScriptBlock { param($Path) (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() } -ArgumentList $remoteInstaller
+            $targetHash = Invoke-Command -Session $session -ScriptBlock {
+                param([string]$Path)
+                (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+            } -ArgumentList $remoteInstaller
             $targetResult.target_sha256 = [string]$targetHash
-            if (-not $sourceHash.Equals([string]$targetHash, [StringComparison]::OrdinalIgnoreCase)) {
+            if (-not ([string]$targetHash).Equals($sourceHash, [StringComparison]::OrdinalIgnoreCase)) {
                 throw "Target installer SHA-256 mismatch for $target."
             }
-            Write-SasEvent -Name 'target_installer_staged' -Data @{ target = $target; target_sha256 = [string]$targetHash }
+            Write-SasEvent -Name 'installer_staged_and_verified' -Data @{ target = $target; source_sha256 = $sourceHash; target_sha256 = [string]$targetHash }
 
-            $targetResult.execution = Invoke-Command -Session $session -ScriptBlock $remoteExecute -ArgumentList $remoteInstaller, $arguments
-            if (-not [bool]$targetResult.execution.success) {
-                throw "Installer returned exit code $($targetResult.execution.installer_exit_code) on $target."
+            $targetResult.execution = Invoke-Command -Session $session -ScriptBlock $remoteInstall -ArgumentList $remoteInstaller, @($arguments)
+            if (-not [bool]$targetResult.execution.accepted_exit_code) {
+                throw "Installer returned unsupported exit code $($targetResult.execution.exit_code) on $target."
             }
-            if ([bool]$targetResult.execution.reboot_required) { $result.reboot_required = $true }
+            $result.reboot_required = ($result.reboot_required -or [bool]$targetResult.execution.reboot_required)
+            Write-SasEvent -Name 'installer_completed' -Data @{ target = $target; exit_code = [int]$targetResult.execution.exit_code; reboot_required = [bool]$targetResult.execution.reboot_required }
 
             $targetResult.after = Invoke-Command -Session $session -ScriptBlock $remoteSnapshot -ArgumentList ([string]$package.display_name), $captureAutoLogon
             $targetResult.status = if ($QualificationOnly) { 'qualification_completed_review_required' } else { 'completed' }
-            Write-SasEvent -Name 'target_execution_completed' -Data @{ target = $target; exit_code = [int]$targetResult.execution.installer_exit_code; qualification_only = $QualificationOnly.IsPresent }
         }
         catch {
             $targetResult.status = 'failed'
-            $targetResult.failure_reason = $_.Exception.Message
-            Write-SasEvent -Name 'target_failed' -Data @{ target = $target; reason = $_.Exception.Message }
+            $targetResult.error = $_.Exception.Message
             throw
         }
         finally {
             if ($session -and $stageRoot) {
+                $targetResult.cleanup.attempted = $true
                 try {
-                    $cleanup = Invoke-Command -Session $session -ScriptBlock {
-                        param([string]$Path, [string]$RunId)
-                        Set-StrictMode -Version 2.0
-                        $base = [IO.Path]::GetFullPath((Join-Path $env:ProgramData 'SysAdminSuite\CredentialedSoftwareInstall')).TrimEnd('\') + '\'
-                        $candidate = [IO.Path]::GetFullPath($Path)
-                        if ($RunId -notmatch '^credentialed-winrm-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$' -or -not $candidate.StartsWith($base, [StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $candidate) -ne $RunId) {
-                            throw 'Refusing cleanup outside the exact credentialed deployment run root.'
-                        }
-                        if (Test-Path -LiteralPath $candidate) { Remove-Item -LiteralPath $candidate -Recurse -Force }
-                        -not (Test-Path -LiteralPath $candidate)
-                    } -ArgumentList $stageRoot, $runId
-                    $targetResult.cleanup_succeeded = [bool]$cleanup
+                    $remaining = Invoke-Command -Session $session -ScriptBlock {
+                        param([string]$RunId, [string]$ExpectedRoot)
+                        $base = [IO.Path]::GetFullPath((Join-Path $env:ProgramData 'SysAdminSuite\CredentialedSoftwareInstall'))
+                        $expected = [IO.Path]::GetFullPath((Join-Path $base $RunId))
+                        $actual = [IO.Path]::GetFullPath($ExpectedRoot)
+                        if (-not $actual.Equals($expected, [StringComparison]::OrdinalIgnoreCase)) { throw 'Refusing cleanup outside exact run-scoped staging root.' }
+                        if (Test-Path -LiteralPath $actual) { Remove-Item -LiteralPath $actual -Recurse -Force }
+                        return (Test-Path -LiteralPath $actual)
+                    } -ArgumentList $runId, $stageRoot
+                    $targetResult.cleanup.stage_root_remaining = [bool]$remaining
+                    $targetResult.cleanup.succeeded = -not [bool]$remaining
                 }
                 catch {
-                    $targetResult.cleanup_succeeded = $false
-                    Write-SasEvent -Name 'target_cleanup_failed' -Data @{ target = $target; reason = $_.Exception.Message }
+                    $targetResult.cleanup.error = $_.Exception.Message
+                    $targetResult.cleanup.succeeded = $false
                 }
             }
             if ($session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue }
-            $result.target_results += [pscustomobject]$targetResult
+            $result.target_results = @($result.target_results) + @([pscustomobject]$targetResult)
             Write-SasJson -Path $resultPath -Value ([pscustomobject]$result)
         }
     }
 
-    $result.cleanup_complete = @($result.target_results | Where-Object { -not [bool]$_.cleanup_succeeded }).Count -eq 0
-    $result.status = if ($QualificationOnly) { 'CREDENTIALED_WINRM_QUALIFICATION_COMPLETED_REVIEW_REQUIRED' } else { 'CREDENTIALED_WINRM_DEPLOYMENT_COMPLETED' }
-    Write-SasEvent -Name 'run_completed' -Data @{ status = $result.status; reboot_required = [bool]$result.reboot_required; cleanup_complete = [bool]$result.cleanup_complete }
+    $allCleanup = @($result.target_results | Where-Object { -not [bool]$_.cleanup.succeeded }).Count -eq 0
+    $result.cleanup_complete = $allCleanup
+    if (-not $allCleanup) { throw 'One or more targets retained run-scoped SysAdminSuite staging. Review cleanup evidence before another mutation attempt.' }
+
+    if ($QualificationOnly) {
+        $result.status = 'qualification_completed_review_required'
+        Write-Host 'CREDENTIALED_WINRM_QUALIFICATION_COMPLETED_REVIEW_REQUIRED' -ForegroundColor Yellow
+    }
+    else {
+        $result.status = 'completed'
+        Write-Host 'CREDENTIALED_WINRM_DEPLOYMENT_COMPLETED' -ForegroundColor Green
+    }
 }
 catch {
-    $result.status = 'CREDENTIALED_WINRM_DEPLOYMENT_FAILED'
-    if ([string]::IsNullOrWhiteSpace([string]$result.failure_stage)) { $result.failure_stage = 'credentialed_winrm_transaction' }
+    $result.status = 'failed'
+    $result.failure_stage = 'credentialed_winrm_transaction'
     $result.failure_reason = $_.Exception.Message
-    Write-SasEvent -Name 'run_failed' -Data @{ reason = $_.Exception.Message }
-    throw
+    Write-SasEvent -Name 'run_failed' -Data @{ reason = $_.Exception.Message; target_mutation_performed = [bool]$result.target_mutation_performed }
+    Write-Error $_
 }
 finally {
     $result.completed_at_utc = (Get-Date).ToUniversalTime().ToString('o')
@@ -449,11 +453,13 @@ finally {
         result_path = $resultPath
         event_path = $eventPath
         status = $result.status
+        target_mutation_performed = [bool]$result.target_mutation_performed
         updated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
     })
-    if ($null -ne $Credential) { Remove-Variable Credential -ErrorAction SilentlyContinue }
+    Remove-Variable Credential -ErrorAction SilentlyContinue
+    Write-Host "Result: $resultPath"
+    Write-Host "Latest: $latestPointerPath"
 }
 
-$output = [pscustomobject]$result
-if ($PassThru) { return $output }
-$output | Format-List status, run_id, package_id, package_name, qualification_only, canonical_targets, reboot_required, cleanup_complete, result_path, event_path
+if ($PassThru) { [pscustomobject]$result }
+if ($result.status -eq 'failed') { exit 1 }
