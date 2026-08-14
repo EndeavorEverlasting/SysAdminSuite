@@ -17,6 +17,9 @@ RUNNER = ROOT / "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1"
 PRODUCT_CONTRACT = ROOT / "Tests/survey/test_autologon_crash_safe_field_runner_contracts.py"
 WORKFLOW = ROOT / "harness/workflows/terminal-evidence-survival.yaml"
 SKILL = ROOT / "harness/skills/terminal-evidence-survival/SKILL.md"
+FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
+DEPLOYMENT_WORKFLOW = ROOT / "harness/workflows/cybernet-autologon-deployment-state.yaml"
+DEPLOYMENT_SKILL = ROOT / "harness/skills/cybernet-autologon-deployment-state/SKILL.md"
 REPORT = ROOT / "docs/TERMINAL_EVIDENCE_SURVIVAL.md"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
 PRE_PUSH = ROOT / ".githooks/pre-push"
@@ -124,6 +127,9 @@ def main() -> int:
 
     workflow = read(WORKFLOW)
     skill = read(SKILL)
+    fresh_agent = read(FRESH_AGENT)
+    deployment_workflow = read(DEPLOYMENT_WORKFLOW)
+    deployment_skill = read(DEPLOYMENT_SKILL)
     report = read(REPORT)
     for marker in (
         "workflow_id: terminal-evidence-survival",
@@ -145,6 +151,27 @@ def main() -> int:
     ):
         assert marker in skill, f"terminal skill missing: {marker}"
     for marker in (
+        "harness/api/terminal-evidence-survival-registry.json",
+        "harness/skills/terminal-evidence-survival/SKILL.md",
+        "Run-AutoLogonCrashSafe.cmd HOST",
+        "recover the stable latest pointer",
+    ):
+        assert marker in fresh_agent, f"fresh-agent terminal routing missing: {marker}"
+    for marker in (
+        "harness/api/terminal-evidence-survival-registry.json",
+        "Run-AutoLogonCrashSafe.cmd HOST",
+        "crash-safe field-run result",
+        "inspect the stable latest pointer",
+    ):
+        assert marker in deployment_workflow, f"deployment workflow terminal routing missing: {marker}"
+    for marker in (
+        "harness/api/terminal-evidence-survival-registry.json",
+        "Run-AutoLogonCrashSafe.cmd HOST",
+        "last-autologon-field-run.json",
+        "rerunning merely because the terminal closed",
+    ):
+        assert marker in deployment_skill, f"deployment skill terminal routing missing: {marker}"
+    for marker in (
         "What survives",
         "What remains unproven",
         "Run-AutoLogonCrashSafe.cmd HOST",
@@ -157,7 +184,20 @@ def main() -> int:
     for path in (PRE_COMMIT, PRE_PUSH, OFFLINE, CI):
         assert validator_marker in read(path), f"terminal evidence validator not wired: {path.relative_to(ROOT)}"
 
-    for path in (REGISTRY, SCHEMA, WORKFLOW, SKILL, REPORT, CI, LAUNCHER, RUNNER, PRODUCT_CONTRACT):
+    for path in (
+        REGISTRY,
+        SCHEMA,
+        WORKFLOW,
+        SKILL,
+        FRESH_AGENT,
+        DEPLOYMENT_WORKFLOW,
+        DEPLOYMENT_SKILL,
+        REPORT,
+        CI,
+        LAUNCHER,
+        RUNNER,
+        PRODUCT_CONTRACT,
+    ):
         assert tracked(path), f"terminal evidence component is not tracked: {path.relative_to(ROOT)}"
 
     print("PASS: terminal evidence survival harness contracts")
