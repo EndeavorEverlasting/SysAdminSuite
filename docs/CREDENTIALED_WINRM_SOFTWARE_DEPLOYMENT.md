@@ -2,90 +2,99 @@
 
 ## Purpose
 
-Provide an admin-box transport for approved software when the operator can authenticate to the target with an authorized administrator account but the target should not be required to authenticate back to the software share.
+Credentialed WinRM is an **additional** SysAdminSuite software transport for cases where an authorized administrator can authenticate from the admin box and the target should not need to authenticate back to the software share.
 
-The operator runs `Deploy-ApprovedSoftwareCredentialed.cmd TARGET_FQDN PACKAGE_ID` or calls `scripts/Invoke-SasCredentialedApprovedSoftwareInstall.ps1` directly. If no `PSCredential` is supplied, the PowerShell entrypoint calls `Get-Credential` once and holds the resulting credential in memory only.
+It does not replace:
 
-This capability is **additive**. It does not replace the repository's current-token WinRM, SMB scheduled-task, AutoLogon S4U/recovery, or crash-safe AutoLogon field lanes. SysAdminSuite should retain multiple bounded deployment paths so an operator can select the path that fits the package, execution identity, network posture, target state, and failure evidence.
+- current-token WinRM in `Invoke-SasSoftwareInstall.ps1`;
+- `Auto`, `WinRM`, or `SmbScheduledTask` selection in `Invoke-SasValidatedSoftwareDeployment.ps1`;
+- AutoLogon `Remote`, `Recover`, Kerberos S4U, restart-observation, or crash-safe field deployment;
+- Cybernet profiled clinical-core deployment.
 
-## Parallel deployment lanes
+One transport is selected **before mutation**. A failed lane leaves evidence. A later run may explicitly choose another lane, but credentialed WinRM never silently falls through to another transport after target mutation.
 
-Credentialed WinRM joins an existing deployment portfolio instead of becoming a universal transport:
+## Security and trust boundary
 
-| Lane | Best fit | Execution identity / transport | Key boundary |
-| --- | --- | --- | --- |
-| Current-token WinRM | The admin box already has sufficient remote authority and the package can use the existing WinRM engine | Current Windows token over WinRM | Do not add credentials merely because this path exists. |
-| SMB scheduled task | A package is qualified for SYSTEM execution and the P02/SMB task preflight is satisfied | Staged pinned payload + bounded scheduled task | Requires its existing preflight and cleanup contracts. |
-| AutoLogon S4U / Remote | AutoLogon-specific protected field deployment, restart, recovery, and lifecycle evidence | Passwordless S4U task lifecycle owned by the AutoLogon lane | Remains the canonical hardened AutoLogon production path until another path is separately qualified and promoted. |
-| Credentialed WinRM | The operator has an authorized administrator credential, needs administrator-user-context execution, or wants to avoid the target authenticating back to the software share | Runtime-only `PSCredential` + authenticated WinRM + `Copy-Item -ToSession` | Package must explicitly opt in; filtered/non-admin tokens fail closed. |
+The credential is a runtime-only `PSCredential` acquired by `Get-Credential` unless one is supplied in memory by an authorized caller. It is never exported, serialized, converted to plaintext, embedded in a command line, or written to evidence.
 
-These lanes may be iterated deliberately. A failure in one lane can inform a later attempt through another lane, but transport selection must happen **before target mutation**. SysAdminSuite must not silently or automatically fall back to a different transport after a run has created staging, started an installer, changed target state, or otherwise crossed that lane's mutation boundary.
+This lane never modifies `EnableLUA`, UAC policy, `LocalAccountTokenFilterPolicy`, WinRM configuration, TrustedHosts, firewall policy, or other target security settings merely to obtain an administrator token. If authentication succeeds but the WinRM token is not an Administrator token, the run fails closed.
 
-Preserve the evidence from the failed path, classify the owning failure, then start a new explicitly selected run if another lane is appropriate. This keeps alternate capabilities available without mixing ownership, cleanup, or proof semantics across transports.
+A pinned installer **filename is not enough**. Before any target PSSession is opened, the selected package must have an independently reviewed `credentialed_winrm_expected_sha256` in `configs/software-packages/approved-apps.json`. The admin box hashes the source bytes and refuses the run if that digest does not equal the catalog pin. After copy-through-session, the target file must equal the same independent pin.
 
-## Security boundary
-
-This lane does **not** disable or modify UAC/LUA. It does not write `EnableLUA`, `LocalAccountTokenFilterPolicy`, WSMan TrustedHosts, firewall policy, or WinRM configuration. If Windows authenticates the credential but returns a filtered/non-administrator remote token, the deployment fails closed.
-
-The credential is never exported, serialized, converted to plaintext, embedded in a command line, written to JSON, or committed. Evidence records only that runtime credential mode was used.
+Installer arguments are also closed: caller-supplied `-InstallerArguments` are accepted only when they exactly equal the catalog list, in order. They cannot override package policy. AutoLogon retains its approved-empty argument contract.
 
 ## Transport model
 
-1. Prove the existing protected-network gate.
-2. Resolve every requested target to one canonical FQDN.
-3. Require the existing operator-local host eligibility policy for each FQDN.
-4. Load one package from `configs/software-packages/approved-apps.json`.
-5. Require an explicit package-level credentialed WinRM opt-in.
-6. Access the approved software source from the admin box.
-7. Open an authenticated `New-PSSession -Credential ... -Authentication Negotiate` to the target.
-8. Prove that the remote session holds an Administrator token.
-9. Capture a bounded before snapshot.
-10. Copy the installer with `Copy-Item -ToSession`; the target never authenticates to the source share.
-11. Compare source and target SHA-256.
-12. Execute the EXE or MSI in the authenticated administrator session.
-13. Capture bounded after-state evidence.
-14. Remove only `%ProgramData%\SysAdminSuite\CredentialedSoftwareInstall\<run_id>`.
-15. Persist the result and event stream under `%LOCALAPPDATA%\SysAdminSuite\field-runs\credentialed-winrm`.
+1. Prove protected Northwell network posture.
+2. Resolve each requested target to one canonical FQDN.
+3. Require the operator-local host eligibility policy for each FQDN.
+4. Load one approved package from `configs/software-packages/approved-apps.json`.
+5. Require explicit credentialed-WinRM package promotion or qualification opt-in.
+6. For AutoLogon qualification, require `-EquipmentProfile Cybernet` and validate `Config/cybernet-client-preferences.json` as the profile authority.
+7. Resolve the approved software source on the admin box.
+8. Require and verify the independently pinned source SHA-256.
+9. Require exact catalog installer arguments.
+10. Acquire one runtime-only credential.
+11. Open `New-PSSession -Credential ... -Authentication Negotiate`.
+12. Prove an Administrator remote token.
+13. Capture before-state evidence.
+14. Create only the run-scoped target staging directory and immediately record the mutation boundary.
+15. Copy the installer through the authenticated PSSession; the target never authenticates to the source share.
+16. Verify the staged file against the same independent SHA-256 pin.
+17. Execute the approved MSI/EXE and capture exit/reboot evidence.
+18. Capture after-state evidence.
+19. Remove only the exact run-scoped staging directory.
+20. Fail with `CREDENTIALED_WINRM_CLEANUP_REQUIRED` if cleanup is unproven.
+21. If an earlier target completed and a later target fails, emit `CREDENTIALED_WINRM_PARTIAL_COMPLETION_REVIEW_REQUIRED` instead of hiding the partial mutation behind a generic failure.
+22. Persist result/event evidence under `%LOCALAPPDATA%\SysAdminSuite\field-runs\credentialed-winrm`.
 
-The stable pointer is `%LOCALAPPDATA%\SysAdminSuite\last-credentialed-winrm-run.json`, so a lost terminal is not a reason to blindly redeploy.
+The stable pointer is `%LOCALAPPDATA%\SysAdminSuite\last-credentialed-winrm-run.json`.
 
-## Package promotion
+## Package promotion state
 
-Normal use requires `credentialed_winrm_install_enabled: true` in the approved catalog. A one-target experiment requires `credentialed_winrm_qualification_enabled: true` plus `-QualificationOnly`.
+The transport is implemented, but **no package is automatically trusted merely because this code exists**.
 
-At introduction:
+At this revision:
 
-- `bca` is enabled for normal credentialed WinRM deployment because its MSI and unattended arguments are already cataloged.
-- `autologon` is **qualification-only**. The earlier LocalSystem qualification remains failed and unchanged. The new lane tests the separate hypothesis that the installer requires an administrator user context.
-- `allscripts-touchworks-22-1` remains blocked because vendor-validated live arguments are not yet cataloged.
-- `epic-satellite` remains blocked because its installer filename is not pinned.
+- `bca`: cataloged filename and unattended arguments exist, but credentialed WinRM remains disabled until an independently reviewed MSI SHA-256 is committed and the package opt-in is promoted.
+- `autologon`: retained as a separate administrator-user-context qualification hypothesis, but qualification remains disabled until an independent SHA-256 is committed and the qualification opt-in is promoted. It additionally requires the explicit Cybernet equipment profile.
+- `allscripts-touchworks-22-1`: blocked by missing approved live arguments and SHA-256 pin.
+- `epic-satellite`: blocked by missing installer filename and SHA-256 pin.
 
-A credentialed AutoLogon qualification cannot promote itself. Promotion requires review of the result, post-restart technician acceptance, and a separate catalog change. Even after promotion, it remains another supported path rather than deleting or superseding the S4U/Remote capability.
+This intentionally separates **transport capability** from **package promotion**.
 
-## AutoLogon privacy rule
+## AutoLogon profile and privacy rules
 
-For the Winlogon profile, the qualification snapshot may record `AutoAdminLogon` state and whether `DefaultUserName`, `DefaultDomainName`, and `DefaultPassword` value names exist. It never reads or records the `DefaultPassword` value.
+AutoLogon is forbidden on shared/user-login workstation profiles. The credentialed qualification lane therefore requires `-EquipmentProfile Cybernet` and validates the tracked Cybernet profile authority before it can proceed.
 
-## Operator commands
+For Winlogon evidence, the lane may record `AutoAdminLogon` state and whether `DefaultUserName`, `DefaultDomainName`, and `DefaultPassword` value names exist. It never reads or records the `DefaultPassword` value.
 
-Normal approved package:
+A successful qualification cannot promote itself. Promotion still requires review of the run evidence, package/hash approval, technician post-restart acceptance, and a separate catalog change.
 
-```powershell
-.\Deploy-ApprovedSoftwareCredentialed.cmd wpj075opr046.nslijhs.net bca
+## Operator front door
+
+Use synthetic examples in tracked documentation; live target identifiers belong only in operator/runtime input.
+
+Normal package mode:
+
+```cmd
+Deploy-ApprovedSoftwareCredentialed.cmd authorized-cybernet.example.invalid bca
 ```
 
-AutoLogon qualification:
+AutoLogon qualification mode:
 
-```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasCredentialedApprovedSoftwareInstall.ps1 `
-  -ComputerName wpj075opr046.nslijhs.net `
-  -PackageId autologon `
-  -QualificationOnly `
-  -ConfirmDeployment
+```cmd
+Deploy-ApprovedSoftwareCredentialed.cmd authorized-cybernet.example.invalid autologon QUALIFY
 ```
 
-The AutoLogon qualification completion classification is:
+`QUALIFY` adds the explicit qualification switch and Cybernet equipment-profile selection. Both examples will still fail closed before target contact until the chosen package has an approved SHA-256 pin and transport opt-in in the catalog.
 
-`CREDENTIALED_WINRM_QUALIFICATION_COMPLETED_REVIEW_REQUIRED`
+## Terminal classifications
 
-That classification is intentionally not a production deployment-complete marker.
+- `CREDENTIALED_WINRM_DEPLOYMENT_COMPLETED`
+- `CREDENTIALED_WINRM_QUALIFICATION_COMPLETED_REVIEW_REQUIRED`
+- `CREDENTIALED_WINRM_PARTIAL_COMPLETION_REVIEW_REQUIRED`
+- `CREDENTIALED_WINRM_CLEANUP_REQUIRED`
+- `CREDENTIALED_WINRM_DEPLOYMENT_FAILED`
+
+A cleanup-required or partial-completion result is not permission to blindly retry or switch transports. Inspect the durable result and explicitly select remaining work.
