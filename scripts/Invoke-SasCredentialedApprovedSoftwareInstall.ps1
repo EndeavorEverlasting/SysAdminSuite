@@ -1,23 +1,24 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Deploy an approved software package over credentialed WinRM from an admin box.
+Deploy one catalog-approved software package over credentialed WinRM from an admin box.
 
 .DESCRIPTION
-Prompts for or accepts one runtime-only PSCredential, proves protected-network posture,
-resolves canonical target FQDNs, enforces the operator-local host eligibility policy,
-loads only a catalog-approved package, copies the pinned installer through an authenticated
-PowerShell session, verifies source/target SHA-256 equality, proves the remote token is an
-Administrator token, executes the installer, captures bounded before/after state, and removes
-only the run-scoped SysAdminSuite staging directory.
+Credentialed WinRM is an additive transport. It does not replace current-token WinRM,
+SMB scheduled-task deployment, AutoLogon S4U/recovery, or crash-safe AutoLogon field work.
+The operator selects this transport before mutation; this script never performs automatic
+post-mutation fallback to another transport.
 
-The credential is never serialized, exported, written to evidence, converted to plaintext,
-or placed in a command line. This lane never changes EnableLUA, UAC policy,
-LocalAccountTokenFilterPolicy, WinRM configuration, TrustedHosts, or firewall policy.
+The lane requires protected-network posture, canonical FQDN resolution, operator-local host
+eligibility, a package-specific transport opt-in, an independently pinned catalog SHA-256,
+exact catalog-approved installer arguments, and an Administrator WinRM token. AutoLogon
+qualification additionally requires the explicit Cybernet equipment profile and the tracked
+Cybernet profile authority.
 
-Packages must opt in through credentialed_winrm_install_enabled. A package may separately
-allow a one-target qualification run through credentialed_winrm_qualification_enabled.
-Qualification completion is evidence for review; it does not promote the package.
+The credential remains a runtime-only PSCredential. It is never serialized, converted to
+plaintext, placed on a command line, or written to evidence. This lane never changes UAC/LUA,
+LocalAccountTokenFilterPolicy, WinRM configuration, TrustedHosts, firewall policy, or target
+security posture merely to make remoting succeed.
 #>
 [CmdletBinding()]
 param(
@@ -34,6 +35,10 @@ param(
 
     [Parameter(Mandatory = $false)]
     [string[]]$InstallerArguments = @(),
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('Cybernet')]
+    [string]$EquipmentProfile,
 
     [Parameter(Mandatory = $false)]
     [switch]$QualificationOnly,
@@ -64,16 +69,76 @@ $harnessApiPath = Join-Path $repoRoot 'harness\api\sas-harness-api.json'
 $networkGatePath = Join-Path $PSScriptRoot 'Confirm-SasNorthwellNetwork.ps1'
 $eligibilityPath = Join-Path $PSScriptRoot 'Test-SasHostEligibility.ps1'
 $targetResolverPath = Join-Path $PSScriptRoot 'SasTargetNameResolution.psm1'
+$cybernetProfilePath = Join-Path $repoRoot 'Config\cybernet-client-preferences.json'
 
 foreach ($required in @($catalogPath, $harnessApiPath, $networkGatePath, $eligibilityPath, $targetResolverPath)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Missing credentialed deployment dependency: $required"
     }
 }
-
 if (-not $ConfirmDeployment) {
     throw 'Explicit -ConfirmDeployment is required. This lane can install software on remote targets.'
 }
+
+function Write-SasJson {
+    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)]$Value)
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path -LiteralPath $parent -PathType Container)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    $Value | ConvertTo-Json -Depth 28 | Set-Content -LiteralPath $Path -Encoding UTF8
+}
+
+function Write-SasEvent {
+    param([Parameter(Mandatory = $true)][string]$Name, [hashtable]$Data = @{})
+    $payload = [ordered]@{
+        timestamp_utc = (Get-Date).ToUniversalTime().ToString('o')
+        event = $Name
+        run_id = $runId
+    }
+    foreach ($key in $Data.Keys) { $payload[$key] = $Data[$key] }
+    $payload | ConvertTo-Json -Depth 18 -Compress | Add-Content -LiteralPath $eventPath -Encoding UTF8
+}
+
+function Get-SasPropertyValue {
+    param($Object, [string]$Name, $Default = $null)
+    if ($null -eq $Object) { return $Default }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $Default }
+    return $property.Value
+}
+
+function Normalize-SasUncRoot {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $normalized = $Path.Trim().Replace('/', '\')
+    if ($normalized -notmatch '^\\\\[^\\]+\\?$') { throw "Software share root must be UNC: $Path" }
+    return ($normalized.TrimEnd('\') + '\')
+}
+
+function Assert-SasSafeRelativeInstallerPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $relative = $Path.Trim().Replace('/', '\')
+    if ([string]::IsNullOrWhiteSpace($relative) -or
+        [IO.Path]::IsPathRooted($relative) -or
+        $relative.StartsWith('\') -or
+        $relative -match '(^|\\)\.\.(\\|$)') {
+        throw "Unsafe installer relative path: $Path"
+    }
+    return $relative
+}
+
+function Test-SasStringArrayExact {
+    param([string[]]$Left = @(), [string[]]$Right = @())
+    $a = @($Left)
+    $b = @($Right)
+    if ($a.Count -ne $b.Count) { return $false }
+    for ($i = 0; $i -lt $a.Count; $i++) {
+        if (-not ([string]$a[$i]).Equals([string]$b[$i], [StringComparison]::Ordinal)) { return $false }
+    }
+    return $true
+}
+
+Import-Module $targetResolverPath -Force
 
 $stateRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite'
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
@@ -89,67 +154,27 @@ $eventPath = Join-Path $runRoot 'credentialed_winrm_events.jsonl'
 $resultPath = Join-Path $runRoot 'credentialed_winrm_result.json'
 $latestPointerPath = Join-Path $stateRoot 'last-credentialed-winrm-run.json'
 
-function Write-SasJson {
-    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)]$Value)
-    $parent = Split-Path -Parent $Path
-    if ($parent -and -not (Test-Path -LiteralPath $parent -PathType Container)) {
-        New-Item -ItemType Directory -Path $parent -Force | Out-Null
-    }
-    $Value | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $Path -Encoding UTF8
-}
-
-function Write-SasEvent {
-    param([Parameter(Mandatory = $true)][string]$Name, [hashtable]$Data = @{})
-    $payload = [ordered]@{
-        timestamp_utc = (Get-Date).ToUniversalTime().ToString('o')
-        event = $Name
-        run_id = $runId
-    }
-    foreach ($key in $Data.Keys) { $payload[$key] = $Data[$key] }
-    $payload | ConvertTo-Json -Depth 16 -Compress | Add-Content -LiteralPath $eventPath -Encoding UTF8
-}
-
-function Normalize-SasUncRoot {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    $normalized = $Path.Trim().Replace('/', '\')
-    if ($normalized -notmatch '^\\\\[^\\]+\\?$') { throw "Software share root must be UNC: $Path" }
-    return ($normalized.TrimEnd('\') + '\')
-}
-
-function Get-SasPropertyValue {
-    param($Object, [string]$Name, $Default = $null)
-    if ($null -eq $Object) { return $Default }
-    $property = $Object.PSObject.Properties[$Name]
-    if ($null -eq $property) { return $Default }
-    return $property.Value
-}
-
-function Assert-SasSafeRelativeInstallerPath {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    $relative = $Path.Trim().Replace('/', '\')
-    if ([string]::IsNullOrWhiteSpace($relative) -or [IO.Path]::IsPathRooted($relative) -or $relative.StartsWith('\') -or $relative -match '(^|\\)\.\.(\\|$)') {
-        throw "Unsafe installer relative path: $Path"
-    }
-    return $relative
-}
-
-Import-Module $targetResolverPath -Force
-
 $result = [ordered]@{
-    schema_version = 'sas-credentialed-winrm-deployment-result/v1'
+    schema_version = 'sas-credentialed-winrm-deployment-result/v2'
     run_id = $runId
     status = 'started'
+    disposition = 'preflight'
     started_at_utc = (Get-Date).ToUniversalTime().ToString('o')
     completed_at_utc = $null
     package_id = $PackageId.Trim().ToLowerInvariant()
     package_name = $null
     qualification_only = $QualificationOnly.IsPresent
+    equipment_profile = $null
+    profile_authority_path = $null
     credential_mode = 'runtime_pscredential_only'
     credential_persisted = $false
     protected_network_passed = $false
     canonical_targets = @()
     target_results = @()
+    expected_source_sha256 = $null
     source_sha256 = $null
+    completed_target_count = 0
+    failed_target_count = 0
     reboot_required = $false
     target_mutation_performed = $false
     cleanup_complete = $false
@@ -166,6 +191,7 @@ Write-SasJson -Path $latestPointerPath -Value ([pscustomobject][ordered]@{
     run_root = $runRoot
     result_path = $resultPath
     event_path = $eventPath
+    status = $result.status
     updated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
 })
 Write-SasEvent -Name 'run_started' -Data @{ qualification_only = $QualificationOnly.IsPresent; requested_target_count = @($ComputerName).Count }
@@ -200,10 +226,14 @@ try {
     Write-SasEvent -Name 'targets_authorized' -Data @{ target_count = $canonicalTargets.Count }
 
     $catalog = Get-Content -LiteralPath $catalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([string]$catalog.schema_version -ne 'sas-approved-software-catalog/v1') { throw "Unsupported approved software catalog schema: $($catalog.schema_version)" }
+    if ([string]$catalog.schema_version -ne 'sas-approved-software-catalog/v1') {
+        throw "Unsupported approved software catalog schema: $($catalog.schema_version)"
+    }
     $packageMatches = @($catalog.packages | Where-Object { ([string]$_.id).Equals($PackageId.Trim(), [StringComparison]::OrdinalIgnoreCase) })
     if ($packageMatches.Count -ne 1) { throw "Approved package id not found or ambiguous: $PackageId" }
     $package = $packageMatches[0]
+    $packageIdNormalized = ([string]$package.id).Trim().ToLowerInvariant()
+    $result.package_id = $packageIdNormalized
     $result.package_name = [string]$package.display_name
 
     if (-not [bool](Get-SasPropertyValue -Object $package -Name 'install_enabled' -Default $false)) {
@@ -214,10 +244,32 @@ try {
             throw "Package '$($package.display_name)' is not approved for credentialed WinRM qualification."
         }
     }
-    else {
-        if (-not [bool](Get-SasPropertyValue -Object $package -Name 'credentialed_winrm_install_enabled' -Default $false)) {
-            throw "Package '$($package.display_name)' is not promoted for credentialed WinRM installation. Use QualificationOnly only when the catalog explicitly allows qualification."
+    elseif (-not [bool](Get-SasPropertyValue -Object $package -Name 'credentialed_winrm_install_enabled' -Default $false)) {
+        throw "Package '$($package.display_name)' is not promoted for credentialed WinRM installation."
+    }
+
+    if ($packageIdNormalized -eq 'autologon') {
+        if (-not $QualificationOnly) {
+            throw 'AutoLogon is not promoted for normal credentialed WinRM deployment; qualification is a separate evidence lane.'
         }
+        if ($EquipmentProfile -ne 'Cybernet') {
+            throw 'AutoLogon credentialed qualification requires explicit -EquipmentProfile Cybernet. Unknown/shared profiles fail closed before package execution.'
+        }
+        if (-not (Test-Path -LiteralPath $cybernetProfilePath -PathType Leaf)) {
+            throw "Cybernet profile authority is missing: $cybernetProfilePath"
+        }
+        $profileAuthority = Get-Content -LiteralPath $cybernetProfilePath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $profilePackageIds = @($profileAuthority.software.package_ids | ForEach-Object { [string]$_ })
+        $fullProfileLane = $profileAuthority.software.deployment_lanes.full_profile
+        if ([string]$profileAuthority.profile_id -ne 'cybernet-clinical-workstation-default' -or
+            'autologon' -notin $profilePackageIds -or
+            -not [bool]$profileAuthority.software.autologon_must_be_last -or
+            [string]$fullProfileLane.autologon_behavior -ne 'final_separate_mutating_step') {
+            throw 'Tracked Cybernet profile authority does not authorize AutoLogon as the final separate mutating step.'
+        }
+        $result.equipment_profile = 'Cybernet'
+        $result.profile_authority_path = $cybernetProfilePath
+        Write-SasEvent -Name 'equipment_profile_authorized' -Data @{ equipment_profile = 'Cybernet'; authority = 'Config/cybernet-client-preferences.json' }
     }
 
     $catalogRoot = Normalize-SasUncRoot -Path ([string]$catalog.software_share_root)
@@ -234,21 +286,38 @@ try {
     }
     $installerRelativePath = Assert-SasSafeRelativeInstallerPath -Path ("$folder\$installerFile")
     $installerPath = "$catalogRoot$installerRelativePath"
-    if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) { throw "Pinned installer was not found on the approved source: $installerPath" }
-
-    $arguments = @($InstallerArguments | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
-    if ($arguments.Count -eq 0) { $arguments = @($package.default_installer_arguments | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) }
-    if ([bool](Get-SasPropertyValue -Object $package -Name 'requires_validated_installer_arguments' -Default $false) -and $arguments.Count -eq 0) {
-        throw "Package '$($package.display_name)' requires vendor-validated installer arguments before live execution."
+    if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+        throw "Pinned installer was not found on the approved source: $installerPath"
     }
 
+    $catalogArguments = @($package.default_installer_arguments | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $requestedArguments = @($InstallerArguments | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($requestedArguments.Count -gt 0 -and -not (Test-SasStringArrayExact -Left $requestedArguments -Right $catalogArguments)) {
+        throw "InstallerArguments override is not authorized for '$($package.display_name)'. Credentialed WinRM requires exact catalog argument equality."
+    }
+    $arguments = @($catalogArguments)
+    if ([string](Get-SasPropertyValue -Object $package -Name 'installer_arguments_policy' -Default '') -eq 'approved_empty' -and $arguments.Count -ne 0) {
+        throw "Package '$($package.display_name)' requires the approved-empty installer argument policy."
+    }
+    if ([bool](Get-SasPropertyValue -Object $package -Name 'requires_validated_installer_arguments' -Default $false) -and $arguments.Count -eq 0) {
+        throw "Package '$($package.display_name)' requires cataloged vendor-validated installer arguments before live execution."
+    }
+
+    $expectedSourceHash = ([string](Get-SasPropertyValue -Object $package -Name 'credentialed_winrm_expected_sha256' -Default '')).Trim().ToLowerInvariant()
+    if ($expectedSourceHash -notmatch '^[0-9a-f]{64}$') {
+        throw "Package '$($package.display_name)' has no independently pinned credentialed_winrm_expected_sha256. Pin approved bytes before this transport may contact the target."
+    }
+    $result.expected_source_sha256 = $expectedSourceHash
     $sourceHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $result.source_sha256 = $sourceHash
-    Write-SasEvent -Name 'package_source_validated' -Data @{ package_id = [string]$package.id; source_sha256 = $sourceHash; argument_count = $arguments.Count }
+    if (-not $sourceHash.Equals($expectedSourceHash, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Approved source SHA-256 mismatch for '$($package.display_name)'. Expected $expectedSourceHash; observed $sourceHash"
+    }
+    Write-SasEvent -Name 'package_source_trust_proved' -Data @{ package_id = $packageIdNormalized; source_sha256 = $sourceHash; argument_count = $arguments.Count }
 
     if ($null -eq $Credential) {
         if ($NonInteractive) { throw 'Credential is required in NonInteractive mode.' }
-        $Credential = Get-Credential -Message "Enter an authorized administrator credential for the credentialed WinRM deployment. The credential remains in memory only."
+        $Credential = Get-Credential -Message 'Enter an authorized administrator credential. It remains in memory only.'
         if ($null -eq $Credential) { throw 'Credential prompt was cancelled.' }
     }
     Write-SasEvent -Name 'runtime_credential_acquired' -Data @{ credential_persisted = $false }
@@ -275,9 +344,14 @@ try {
                 try {
                     $item = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction Stop
                     if (([string]$item.DisplayName).Equals($DisplayName, [StringComparison]::OrdinalIgnoreCase)) {
-                        $matches += [pscustomobject][ordered]@{ display_name = [string]$item.DisplayName; version = [string]$item.DisplayVersion; publisher = [string]$item.Publisher }
+                        $matches += [pscustomobject][ordered]@{
+                            display_name = [string]$item.DisplayName
+                            version = [string]$item.DisplayVersion
+                            publisher = [string]$item.Publisher
+                        }
                     }
-                } catch {}
+                }
+                catch {}
             }
         }
         $auto = $null
@@ -285,19 +359,23 @@ try {
             $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon')
             try {
                 $names = @($key.GetValueNames())
-                $autoValue = if ($names -contains 'AutoAdminLogon') { [string]$key.GetValue('AutoAdminLogon', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } else { $null }
+                $autoValue = if ($names -contains 'AutoAdminLogon') {
+                    [string]$key.GetValue('AutoAdminLogon', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                }
+                else { $null }
                 $auto = [pscustomobject][ordered]@{
                     auto_admin_logon_enabled = ($autoValue -eq '1')
                     default_username_value_name_present = ($names -contains 'DefaultUserName')
                     default_domain_value_name_present = ($names -contains 'DefaultDomainName')
                     default_password_value_name_present = ($names -contains 'DefaultPassword')
                 }
-            } finally { if ($key) { $key.Dispose() } }
+            }
+            finally { if ($key) { $key.Dispose() } }
         }
         [pscustomobject][ordered]@{
             captured_at_utc = (Get-Date).ToUniversalTime().ToString('o')
             matching_installed_package_count = $matches.Count
-            matching_installed_packages = $matches
+            matching_installed_packages = @($matches)
             autologon = $auto
         }
     }
@@ -311,10 +389,11 @@ try {
             $filePath = Join-Path $env:WINDIR 'System32\msiexec.exe'
             $effectiveArguments = @('/i', ('"{0}"' -f $InstallerPath)) + @($Arguments)
         }
-        else {
+        elseif ($extension.Equals('.exe', [StringComparison]::OrdinalIgnoreCase)) {
             $filePath = $InstallerPath
             $effectiveArguments = @($Arguments)
         }
+        else { throw "Unsupported installer extension: $extension" }
         $process = Start-Process -FilePath $filePath -ArgumentList $effectiveArguments -Wait -PassThru
         $code = [int]$process.ExitCode
         [pscustomobject][ordered]@{
@@ -324,7 +403,7 @@ try {
         }
     }
 
-    $captureAutoLogon = ([string](Get-SasPropertyValue -Object $package.acceptance -Name 'autologon_profile' -Default 'none')) -eq 'windows_winlogon'
+    $captureAutoLogon = ($packageIdNormalized -eq 'autologon')
 
     foreach ($target in $canonicalTargets) {
         $session = $null
@@ -333,12 +412,14 @@ try {
             target = $target
             status = 'started'
             administrator_token = $false
+            local_system = $null
             target_mutation_performed = $false
             source_sha256 = $sourceHash
             target_sha256 = $null
             before = $null
             execution = $null
             after = $null
+            cleanup_attempted = $false
             cleanup_succeeded = $false
             failure_reason = $null
         }
@@ -346,12 +427,12 @@ try {
             Write-SasEvent -Name 'target_session_starting' -Data @{ target = $target }
             $sessionOption = New-PSSessionOption -OpenTimeout 30000 -OperationTimeout 3600000
             $session = New-PSSession -ComputerName $target -Credential $Credential -Authentication Negotiate -SessionOption $sessionOption
-
             $token = Invoke-Command -Session $session -ScriptBlock $remoteTokenProbe
+            $targetResult.administrator_token = [bool]$token.administrator_token
+            $targetResult.local_system = [bool]$token.local_system
             if (-not [bool]$token.administrator_token) {
                 throw 'Credential authenticated, but the WinRM session does not hold an Administrator token. Refusing to alter UAC/LUA or token-filter policy.'
             }
-            $targetResult.administrator_token = $true
             Write-SasEvent -Name 'target_admin_token_proved' -Data @{ target = $target; local_system = [bool]$token.local_system }
 
             $targetResult.before = Invoke-Command -Session $session -ScriptBlock $remoteSnapshot -ArgumentList ([string]$package.display_name), $captureAutoLogon
@@ -360,17 +441,15 @@ try {
                 param([string]$RunId)
                 Set-StrictMode -Version 2.0
                 $base = Join-Path $env:ProgramData 'SysAdminSuite\CredentialedSoftwareInstall'
-                $path = Join-Path $base $RunId
-                $expected = [IO.Path]::GetFullPath($path)
+                $candidate = [IO.Path]::GetFullPath((Join-Path $base $RunId))
                 $expectedBase = [IO.Path]::GetFullPath($base).TrimEnd('\') + '\'
-                if (-not $expected.StartsWith($expectedBase, [StringComparison]::OrdinalIgnoreCase)) { throw 'Run staging path escaped the credentialed install root.' }
-                New-Item -ItemType Directory -Path $expected -Force | Out-Null
-                $expected
+                if (-not $candidate.StartsWith($expectedBase, [StringComparison]::OrdinalIgnoreCase)) {
+                    throw 'Run staging path escaped the credentialed install root.'
+                }
+                New-Item -ItemType Directory -Path $candidate -Force | Out-Null
+                $candidate
             } -ArgumentList $runId
 
-            # Creating the run-scoped directory is the first target mutation. Persist that
-            # boundary before any copy or installer execution so a failed transfer cannot
-            # be misreported as a no-mutation transaction.
             $result.target_mutation_performed = $true
             $targetResult.target_mutation_performed = $true
             Write-SasJson -Path $resultPath -Value ([pscustomobject]$result)
@@ -378,10 +457,13 @@ try {
 
             $remoteInstaller = Join-Path $stageRoot $installerFile
             Copy-Item -LiteralPath $installerPath -Destination $remoteInstaller -ToSession $session -Force
-            $targetHash = Invoke-Command -Session $session -ScriptBlock { param($Path) (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() } -ArgumentList $remoteInstaller
+            $targetHash = Invoke-Command -Session $session -ScriptBlock {
+                param([string]$Path)
+                (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+            } -ArgumentList $remoteInstaller
             $targetResult.target_sha256 = [string]$targetHash
-            if (-not $sourceHash.Equals([string]$targetHash, [StringComparison]::OrdinalIgnoreCase)) {
-                throw "Target installer SHA-256 mismatch for $target."
+            if (-not $expectedSourceHash.Equals([string]$targetHash, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Target installer SHA-256 mismatch for $target. Expected independently pinned $expectedSourceHash; observed $targetHash"
             }
             Write-SasEvent -Name 'target_installer_staged' -Data @{ target = $target; target_sha256 = [string]$targetHash }
 
@@ -403,13 +485,16 @@ try {
         }
         finally {
             if ($session -and $stageRoot) {
+                $targetResult.cleanup_attempted = $true
                 try {
                     $cleanup = Invoke-Command -Session $session -ScriptBlock {
                         param([string]$Path, [string]$RunId)
                         Set-StrictMode -Version 2.0
                         $base = [IO.Path]::GetFullPath((Join-Path $env:ProgramData 'SysAdminSuite\CredentialedSoftwareInstall')).TrimEnd('\') + '\'
                         $candidate = [IO.Path]::GetFullPath($Path)
-                        if ($RunId -notmatch '^credentialed-winrm-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$' -or -not $candidate.StartsWith($base, [StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $candidate) -ne $RunId) {
+                        if ($RunId -notmatch '^credentialed-winrm-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$' -or
+                            -not $candidate.StartsWith($base, [StringComparison]::OrdinalIgnoreCase) -or
+                            (Split-Path -Leaf $candidate) -ne $RunId) {
                             throw 'Refusing cleanup outside the exact credentialed deployment run root.'
                         }
                         if (Test-Path -LiteralPath $candidate) { Remove-Item -LiteralPath $candidate -Recurse -Force }
@@ -423,21 +508,49 @@ try {
                 }
             }
             if ($session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue }
-            $result.target_results += [pscustomobject]$targetResult
+            $result.target_results = @($result.target_results) + @([pscustomobject]$targetResult)
             Write-SasJson -Path $resultPath -Value ([pscustomobject]$result)
         }
     }
 
-    $result.cleanup_complete = @($result.target_results | Where-Object { -not [bool]$_.cleanup_succeeded }).Count -eq 0
+    $result.completed_target_count = @($result.target_results | Where-Object { [string]$_.status -in @('completed','qualification_completed_review_required') }).Count
+    $result.failed_target_count = @($result.target_results | Where-Object { [string]$_.status -eq 'failed' }).Count
+    $result.cleanup_complete = @($result.target_results | Where-Object { [bool]$_.target_mutation_performed -and -not [bool]$_.cleanup_succeeded }).Count -eq 0
+    if (-not $result.cleanup_complete) {
+        $result.status = 'CREDENTIALED_WINRM_CLEANUP_REQUIRED'
+        $result.disposition = 'do_not_retry_or_switch_transport_until_exact_run_cleanup_is_resolved'
+        $result.failure_stage = 'cleanup'
+        throw 'One or more mutated targets retained or have unproven run-scoped staging. Resolve exact-run cleanup before another mutation attempt.'
+    }
+
     $result.status = if ($QualificationOnly) { 'CREDENTIALED_WINRM_QUALIFICATION_COMPLETED_REVIEW_REQUIRED' } else { 'CREDENTIALED_WINRM_DEPLOYMENT_COMPLETED' }
-    Write-SasEvent -Name 'run_completed' -Data @{ status = $result.status; reboot_required = [bool]$result.reboot_required; cleanup_complete = [bool]$result.cleanup_complete }
+    $result.disposition = if ($QualificationOnly) { 'review_evidence_then_separately_authorize_promotion_or_restart' } else { 'technician_acceptance_required' }
+    Write-SasEvent -Name 'run_completed' -Data @{ status = $result.status; completed_target_count = $result.completed_target_count; cleanup_complete = $result.cleanup_complete }
 }
 catch {
-    $result.status = 'CREDENTIALED_WINRM_DEPLOYMENT_FAILED'
-    if ([string]::IsNullOrWhiteSpace([string]$result.failure_stage)) { $result.failure_stage = 'credentialed_winrm_transaction' }
-    $result.failure_reason = $_.Exception.Message
-    Write-SasEvent -Name 'run_failed' -Data @{ reason = $_.Exception.Message }
-    throw
+    $caught = $_
+    $result.completed_target_count = @($result.target_results | Where-Object { [string]$_.status -in @('completed','qualification_completed_review_required') }).Count
+    $result.failed_target_count = @($result.target_results | Where-Object { [string]$_.status -eq 'failed' }).Count
+    $cleanupOutstanding = @($result.target_results | Where-Object { [bool]$_.target_mutation_performed -and -not [bool]$_.cleanup_succeeded }).Count -gt 0
+
+    if ($cleanupOutstanding) {
+        $result.status = 'CREDENTIALED_WINRM_CLEANUP_REQUIRED'
+        $result.disposition = 'do_not_retry_or_switch_transport_until_exact_run_cleanup_is_resolved'
+        $result.failure_stage = 'cleanup'
+    }
+    elseif ($result.completed_target_count -gt 0) {
+        $result.status = 'CREDENTIALED_WINRM_PARTIAL_COMPLETION_REVIEW_REQUIRED'
+        $result.disposition = 'preserve_completed_targets_and_select_any_retry_targets_explicitly'
+        if ([string]::IsNullOrWhiteSpace([string]$result.failure_stage)) { $result.failure_stage = 'later_target_failed' }
+    }
+    else {
+        $result.status = 'CREDENTIALED_WINRM_DEPLOYMENT_FAILED'
+        $result.disposition = if ([bool]$result.target_mutation_performed) { 'mutation_may_have_occurred_review_target_result_before_retry' } else { 'no_recorded_target_mutation' }
+        if ([string]::IsNullOrWhiteSpace([string]$result.failure_stage)) { $result.failure_stage = 'credentialed_winrm_transaction' }
+    }
+    $result.failure_reason = $caught.Exception.Message
+    Write-SasEvent -Name 'run_failed' -Data @{ status = $result.status; reason = $result.failure_reason; completed_target_count = $result.completed_target_count; target_mutation_performed = [bool]$result.target_mutation_performed }
+    throw $caught
 }
 finally {
     $result.completed_at_utc = (Get-Date).ToUniversalTime().ToString('o')
@@ -449,6 +562,7 @@ finally {
         result_path = $resultPath
         event_path = $eventPath
         status = $result.status
+        disposition = $result.disposition
         updated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
     })
     if ($null -ne $Credential) { Remove-Variable Credential -ErrorAction SilentlyContinue }
@@ -456,4 +570,4 @@ finally {
 
 $output = [pscustomobject]$result
 if ($PassThru) { return $output }
-$output | Format-List status, run_id, package_id, package_name, qualification_only, canonical_targets, reboot_required, cleanup_complete, result_path, event_path
+$output | Format-List status, disposition, run_id, package_id, package_name, qualification_only, equipment_profile, canonical_targets, completed_target_count, failed_target_count, reboot_required, cleanup_complete, result_path, event_path
