@@ -14,8 +14,9 @@ def read(path: Path) -> str:
 
 def test_empty_generic_evidence_lists_are_valid_inputs() -> None:
     text = read(EVIDENCE)
-    marker = "[Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$List"
-    assert marker in text
+    compact = "".join(text.split())
+    marker = "[Parameter(Mandatory=$true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$List"
+    assert marker in compact
     assert "NO MATCHING EVIDENCE FOUND" in text
     assert "exit 23" in text
 

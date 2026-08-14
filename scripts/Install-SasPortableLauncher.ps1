@@ -101,11 +101,16 @@ Write-Host ''
 Write-Host 'Supported field surfaces:' -ForegroundColor Cyan
 Write-Host '  sas context                          Persistent repo/branch/network/target/recovery/deployment state'
 Write-Host '  sas next                             Required network and one exact next command'
+Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
+Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full Cybernet software profile; readiness included; AutoLogon last; restart included'
+Write-Host '  sas evidence Cybernet               OFFLINE: recover newest Cybernet evidence without target contact'
 Write-Host '  sas autologon Remote HOST           Canonicalize, recover safe probe-only state, apply AutoLogon once, restart'
 Write-Host '  sas autologon Recover HOST          Recovery only; never install AutoLogon'
 Write-Host '  sas network                          Read-only approved Northwell network posture'
 Write-Host '  sas network HOST                     Optional read-only target readiness probe'
 Write-Host ''
-Write-Host 'The installed sas shim self-refreshes from the cached field-ready repo without an optional cryptographic-hash cmdlet.' -ForegroundColor Green
+Write-Host 'The standalone Probe is optional diagnosis; it is not a prerequisite loop before Deploy' -ForegroundColor Green
+Write-Host 'Fixture/live-cert/runtime-proof loops are NOT prerequisites for deployment.' -ForegroundColor Green
+Write-Host 'The installed sas shim self-refreshes from the cached field-ready repo on every install/refresh without an optional cryptographic-hash cmdlet.' -ForegroundColor Green
 Write-Host 'Core is already separate. AutoLogon Remote never deploys the five clinical-core applications.' -ForegroundColor Green
-Write-Host 'If a terminal closes, use sas context or sas next. Do not reconstruct task or recovery fragments.' -ForegroundColor Yellow
+Write-Host 'If a terminal closes, use sas evidence Cybernet, sas context, or sas next before any rerun. Do not reconstruct task or recovery fragments.' -ForegroundColor Yellow

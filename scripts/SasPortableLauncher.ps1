@@ -109,7 +109,9 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas cybernet Core HOST              PROTECTED NORTHWELL: five clinical apps; AutoLogon untouched; no reboot'
     Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact previous-run cleanup/recovery only'
     Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
-    Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full Cybernet software profile; AutoLogon last; restart included'
+    Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full Cybernet software profile; readiness included; AutoLogon last; restart included'
+    Write-Host '  The standalone Probe is optional diagnosis; it is NOT a prerequisite loop before Deploy'
+    Write-Host '  Fixture/live-cert/runtime-proof loops are NOT prerequisites for deployment'
     Write-Host '  sas cybernet Plan HOST              Hardware-only Cybernet plan'
     Write-Host '  sas cybernet Apply HOST             Hardware-only Cybernet apply'
     Write-Host '  sas cybernet Validate HOST          Hardware-only Cybernet validation'
@@ -121,8 +123,10 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas repo                             Print resolved repository path'
     Write-Host '  sas open                             Open repository in Explorer'
     Write-Host ''
+    Write-Host 'Cybernet readiness marker: CYBERNET_DEPLOYMENT_READINESS_READY (read-only; not deployment completion)' -ForegroundColor DarkGray
+    Write-Host 'Cybernet terminal marker: CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED' -ForegroundColor DarkGray
     Write-Host 'AutoLogon terminal marker: AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED' -ForegroundColor DarkGray
-    Write-Host 'This marker does not claim human-observed interactive desktop sign-in.' -ForegroundColor Green
+    Write-Host 'These markers do not claim human-observed interactive desktop sign-in.' -ForegroundColor Green
     exit 0
 }
 

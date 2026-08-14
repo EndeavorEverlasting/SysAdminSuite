@@ -155,7 +155,8 @@ function Get-SasEvidenceSummary {
         }
         'CYBERNET_CLINICAL_CORE_SOURCES_READY' { $summary.next_action='All five package sources are ready; this source-only artifact does not prove target deployment.' }
         'CYBERNET_CLINICAL_CORE_SOURCES_INCOMPLETE' { $summary.next_network='PROTECTED NORTHWELL'; $summary.next_action='Source preflight failed before target contact/mutation. Correct the approved source/catalog issue before deployment.' }
-        'CYBERNET_DEPLOYMENT_READINESS_READY' { $summary.next_action='Read-only target readiness passed. This is not deployment completion.' }
+        'CYBERNET_DEPLOYMENT_READINESS_READY' { $summary.next_action='Read-only target readiness passed. This is not deployment completion. When deployment is explicitly authorized, continue with sas cybernet Deploy HOST; that command re-runs readiness before mutation.' }
+        'CYBERNET_DEPLOYMENT_READINESS_FIXTURE_READY' { $summary.next_action='Offline readiness fixture passed. This is not deployment completion and is not live target evidence.' }
         'CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED' { $summary.next_action='Full software deployment is complete. Do not redeploy merely to recreate output.' }
         'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED' { $summary.next_action='AutoLogon deployment and restart are complete. Do not rerun merely to recreate output.' }
         'TECHNICIAN_OBSERVED_LIVE_RUNTIME' { $summary.next_action='Runtime proof is complete. Preserve this artifact.' }

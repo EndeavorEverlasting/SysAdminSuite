@@ -1,0 +1,53 @@
+{
+  "schema_version": "sas-terminal-evidence-survival-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "policy": {
+    "terminal_lifetime_is_not_evidence_lifetime": true,
+    "persist_before_failure_propagation": true,
+    "latest_pointer_required": true,
+    "child_exit_code_required": true,
+    "recovery_exit_code_required": true,
+    "offline_recovery_must_not_contact_target": true,
+    "generated_evidence_must_remain_untracked": true,
+    "registered_crash_safe_front_door_required_when_available": true
+  },
+  "front_doors": [
+    {
+      "id": "autologon-crash-safe-field-run",
+      "command_id": "autologon-remote",
+      "operator_command": "Run-AutoLogonCrashSafe.cmd HOST",
+      "operator_entrypoint": "Run-AutoLogonCrashSafe.cmd",
+      "runner": "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
+      "inner_entrypoint": "scripts/Invoke-SasAutoLogonOnsite.ps1",
+      "inner_action": "Remote",
+      "offline_recovery_entrypoint": "scripts/Show-SasOperatorEvidence.ps1",
+      "stable_run_root": "%LOCALAPPDATA%/SysAdminSuite/field-runs/autologon/<run_id>/",
+      "latest_pointer": "%LOCALAPPDATA%/SysAdminSuite/last-autologon-field-run.json",
+      "success_artifact_id": "autologon-field-deployment-result",
+      "survival_artifact_ids": [
+        "autologon-crash-safe-field-run-result",
+        "autologon-crash-safe-latest-pointer",
+        "autologon-crash-safe-operator-transcript",
+        "autologon-crash-safe-child-output",
+        "autologon-crash-safe-recovery-output",
+        "operator-evidence-recovery-index"
+      ],
+      "required_runner_markers": [
+        "Start-Transcript",
+        "Tee-Object -FilePath $childOutputPath",
+        "field-run-result.json",
+        "last-autologon-field-run.json",
+        "Show-SasOperatorEvidence.ps1",
+        "evidence_recovery_exit_code",
+        "finally",
+        "Diagnostics were preserved under:"
+      ],
+      "required_launcher_markers": [
+        "Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
+        "pause",
+        "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\autologon",
+        "exit /b"
+      ]
+    }
+  ]
+}

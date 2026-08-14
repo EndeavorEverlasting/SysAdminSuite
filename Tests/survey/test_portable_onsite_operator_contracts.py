@@ -83,9 +83,10 @@ def test_network_guard_has_windows11_wifi_profile_fallback() -> None:
         "Test-SasNorthwellWifiSsid -Ssid $name",
     ):
         assert marker in guard
-    netsh = guard.index("netsh wlan show interfaces")
-    fallback = guard.index("Get-NetConnectionProfile -ErrorAction Stop")
-    assert netsh < fallback
+    current_wifi = guard.index("function Get-SasCurrentWifiSsid {")
+    netsh = guard.index("netsh wlan show interfaces", current_wifi)
+    fallback = guard.index("Get-NetConnectionProfile -ErrorAction Stop", netsh)
+    assert current_wifi < netsh < fallback
 
 
 def test_network_gate_allows_confirmed_saved_profile_switch_numeric_or_letter_choices() -> None:
@@ -196,8 +197,10 @@ def test_portable_sas_command_discovers_and_caches_repo_without_username_literal
         assert marker in launcher
     assert "pa_rperez26" not in launcher.lower()
     assert "pa_rperez26" not in installer.lower()
-    assert "%LOCALAPPDATA%" not in installer
-    assert "$env:LOCALAPPDATA" in installer
+    powershell_installer = installer.split("$cmd = @'", 1)[0]
+    assert "%LOCALAPPDATA%" not in powershell_installer
+    assert "$env:LOCALAPPDATA" in powershell_installer
+    assert 'set "SAS_CACHE=%LOCALAPPDATA%\\SysAdminSuite\\repo-root.txt"' in installer
     assert "SetEnvironmentVariable('Path'" in installer
     assert "'User'" in installer
     assert "%~dp0" in install_cmd
