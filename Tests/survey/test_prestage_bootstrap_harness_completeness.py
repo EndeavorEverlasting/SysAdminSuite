@@ -19,6 +19,7 @@ COMPONENTS = {
     "pre_commit": ".githooks/pre-commit",
     "pre_push": ".githooks/pre-push",
     "fresh_agent": "harness/workflows/fresh-agent-intake.yaml",
+    "repository_sprint_skill": ".claude/skills/repository-sprint/SKILL.md",
     "freshness_workflow": "harness/workflows/repository-freshness-before-launch.yaml",
 }
 
@@ -69,12 +70,22 @@ def test_hooks_and_ci_execute_scoped_checks_at_safe_boundaries() -> None:
     assert "python harness/validators/validate-prestage-bootstrap-safety.py" in ci
     assert "python Tests/survey/test_prestage_bootstrap_harness_completeness.py" in ci
     assert "python -m pip install jsonschema" in ci
+    assert ".claude/skills/repository-sprint/SKILL.md" in ci
     assert "TargetNameResolution.Tests.ps1" in ci
 
 
 def test_freshness_workflow_routes_to_scoped_harness() -> None:
     text = read(COMPONENTS["freshness_workflow"])
     assert "failure before stage 1" in text.lower()
+    assert "harness/workflows/prestage-bootstrap-safety.yaml" in text
+    assert "harness/skills/prestage-bootstrap-safety/SKILL.md" in text
+
+
+def test_registered_repository_sprint_skill_routes_prestage_signature() -> None:
+    text = read(COMPONENTS["repository_sprint_skill"])
+    assert "failure before stage 1" in text.lower()
+    assert "StrictMode" in text
+    assert "harness/workflows/repository-freshness-before-launch.yaml" in text
     assert "harness/workflows/prestage-bootstrap-safety.yaml" in text
     assert "harness/skills/prestage-bootstrap-safety/SKILL.md" in text
 

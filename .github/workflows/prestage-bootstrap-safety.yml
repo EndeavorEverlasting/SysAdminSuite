@@ -10,6 +10,7 @@ on:
       - 'harness/workflows/prestage-bootstrap-safety.yaml'
       - 'harness/workflows/repository-freshness-before-launch.yaml'
       - 'harness/workflows/fresh-agent-intake.yaml'
+      - '.claude/skills/repository-sprint/SKILL.md'
       - 'harness/api/prestage-bootstrap-artifact-registry.json'
       - 'schemas/harness/prestage-bootstrap-artifact-registry.schema.json'
       - 'harness/validators/validate-prestage-bootstrap-safety.py'
@@ -30,6 +31,7 @@ on:
       - 'harness/workflows/prestage-bootstrap-safety.yaml'
       - 'harness/workflows/repository-freshness-before-launch.yaml'
       - 'harness/workflows/fresh-agent-intake.yaml'
+      - '.claude/skills/repository-sprint/SKILL.md'
       - 'harness/api/prestage-bootstrap-artifact-registry.json'
       - 'schemas/harness/prestage-bootstrap-artifact-registry.schema.json'
       - 'harness/validators/validate-prestage-bootstrap-safety.py'
@@ -63,6 +65,10 @@ jobs:
         run: python Tests/survey/test_prestage_bootstrap_harness_completeness.py
       - name: Validate repository freshness integration
         run: python harness/validators/validate-repository-freshness-contracts.py
+      - name: Validate agent capability manifest integration
+        run: python Tests/survey/test_agent_capability_manifest_contracts.py
+      - name: Validate agent routing manifest integration
+        run: python Tests/survey/test_agent_routing_manifest_contracts.py
       - name: Validate existing S4U contracts
         run: python Tests/survey/test_autologon_kerberos_s4u_contracts.py
       - name: Check pull-request whitespace

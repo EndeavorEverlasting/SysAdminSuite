@@ -11,6 +11,7 @@ MAP = ROOT / "harness/maps/prestage-bootstrap-map.md"
 WORKFLOW = ROOT / "harness/workflows/prestage-bootstrap-safety.yaml"
 FRESHNESS = ROOT / "harness/workflows/repository-freshness-before-launch.yaml"
 FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
+REPOSITORY_SPRINT_SKILL = ROOT / ".claude/skills/repository-sprint/SKILL.md"
 REGISTRY = ROOT / "harness/api/prestage-bootstrap-artifact-registry.json"
 SCHEMA = ROOT / "schemas/harness/prestage-bootstrap-artifact-registry.schema.json"
 SKILL = ROOT / "harness/skills/prestage-bootstrap-safety/SKILL.md"
@@ -152,6 +153,19 @@ def test_existing_freshness_workflow_routes_known_prestage_signature() -> None:
         assert marker in text, marker
 
 
+def test_canonical_repository_sprint_fallback_routes_prestage_signature() -> None:
+    text = read(REPOSITORY_SPRINT_SKILL).lower()
+    for marker in (
+        "failure before stage 1",
+        "strictmode",
+        "harness/workflows/repository-freshness-before-launch.yaml",
+        "harness/workflows/prestage-bootstrap-safety.yaml",
+        "harness/skills/prestage-bootstrap-safety/skill.md",
+        "before product diagnosis or any field rerun",
+    ):
+        assert marker in text, marker
+
+
 def test_fresh_agent_routes_known_prestage_signature_without_p00_mutation() -> None:
     text = read(FRESH_AGENT).lower()
     for marker in (
@@ -204,6 +218,7 @@ def test_hooks_ci_skill_report_and_completeness_are_wired() -> None:
     ci = read(CI)
     assert command in ci and completeness in ci
     assert "python -m pip install jsonschema" in ci
+    assert ".claude/skills/repository-sprint/SKILL.md" in ci
 
     skill = read(SKILL)
     for marker in (
@@ -233,6 +248,7 @@ def test_required_components_are_tracked() -> None:
         WORKFLOW,
         FRESHNESS,
         FRESH_AGENT,
+        REPOSITORY_SPRINT_SKILL,
         REGISTRY,
         SCHEMA,
         SKILL,
