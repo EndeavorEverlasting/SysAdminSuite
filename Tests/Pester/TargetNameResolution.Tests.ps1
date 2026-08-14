@@ -31,6 +31,28 @@ Describe 'Canonical target-name resolution' {
         $result.fqdn | Should -Be 'cybernet-test-01.example.test'
         $result.disposition | Should -Be 'UNIQUE_CANONICAL_FQDN'
         $result.addresses | Should -Contain '192.0.2.10'
+        $result.suffix_candidate_count | Should -Be 1
+    }
+
+    It 'resolves an already-canonical FQDN with zero suffix candidates under StrictMode' {
+        $resolver = {
+            param($Name)
+            if ($Name -eq 'CYBERNET-TEST-01.example.test') {
+                [pscustomobject]@{
+                    canonical_name = 'CYBERNET-TEST-01.example.test'
+                    addresses = @('192.0.2.10')
+                }
+            }
+        }
+
+        $result = Resolve-SasCanonicalTargetFqdn `
+            -TargetName 'CYBERNET-TEST-01.example.test' `
+            -DnsResolver $resolver
+
+        $result.fqdn | Should -Be 'cybernet-test-01.example.test'
+        $result.disposition | Should -Be 'UNIQUE_CANONICAL_FQDN'
+        $result.addresses | Should -Contain '192.0.2.10'
+        $result.suffix_candidate_count | Should -Be 0
     }
 
     It 'fails closed when one short hostname maps to multiple canonical FQDNs' {
