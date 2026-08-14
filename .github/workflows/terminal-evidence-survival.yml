@@ -79,6 +79,8 @@ jobs:
         run: python Tests/survey/test_operational_harness_completeness_contracts.py
       - name: Validate harness registries
         run: python harness/validators/validate-harness-registries.py
+      - name: Run blocking offline survey floor
+        run: bash tests/survey/run_offline_survey_tests.sh
       - name: Check pull-request whitespace
         if: github.event_name == 'pull_request'
         run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
