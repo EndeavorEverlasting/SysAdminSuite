@@ -83,9 +83,10 @@ def test_network_guard_has_windows11_wifi_profile_fallback() -> None:
         "Test-SasNorthwellWifiSsid -Ssid $name",
     ):
         assert marker in guard
-    netsh = guard.index("netsh wlan show interfaces")
-    fallback = guard.index("Get-NetConnectionProfile -ErrorAction Stop")
-    assert netsh < fallback
+    current_wifi = guard.index("function Get-SasCurrentWifiSsid {")
+    netsh = guard.index("netsh wlan show interfaces", current_wifi)
+    fallback = guard.index("Get-NetConnectionProfile -ErrorAction Stop", netsh)
+    assert current_wifi < netsh < fallback
 
 
 def test_network_gate_allows_confirmed_saved_profile_switch_numeric_or_letter_choices() -> None:
