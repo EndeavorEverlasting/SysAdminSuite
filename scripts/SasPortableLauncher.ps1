@@ -122,8 +122,9 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas repo                             Print resolved repository path'
     Write-Host '  sas open                             Open repository in Explorer'
     Write-Host ''
+    Write-Host 'Cybernet terminal marker: CYBERNET_SOFTWARE_DEPLOYMENT_COMPLETED_RESTARTED' -ForegroundColor DarkGray
     Write-Host 'AutoLogon terminal marker: AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED' -ForegroundColor DarkGray
-    Write-Host 'This marker does not claim human-observed interactive desktop sign-in.' -ForegroundColor Green
+    Write-Host 'These markers do not claim human-observed interactive desktop sign-in.' -ForegroundColor Green
     exit 0
 }
 
