@@ -9,6 +9,7 @@ on:
       - 'harness/maps/prestage-bootstrap-map.md'
       - 'harness/workflows/prestage-bootstrap-safety.yaml'
       - 'harness/workflows/repository-freshness-before-launch.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/api/prestage-bootstrap-artifact-registry.json'
       - 'schemas/harness/prestage-bootstrap-artifact-registry.schema.json'
       - 'harness/validators/validate-prestage-bootstrap-safety.py'
@@ -28,6 +29,7 @@ on:
       - 'harness/maps/prestage-bootstrap-map.md'
       - 'harness/workflows/prestage-bootstrap-safety.yaml'
       - 'harness/workflows/repository-freshness-before-launch.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/api/prestage-bootstrap-artifact-registry.json'
       - 'schemas/harness/prestage-bootstrap-artifact-registry.schema.json'
       - 'harness/validators/validate-prestage-bootstrap-safety.py'
@@ -51,6 +53,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Install schema validator
+        run: python -m pip install jsonschema
       - name: Compile scoped validators
         run: python -m py_compile harness/validators/validate-prestage-bootstrap-safety.py Tests/survey/test_prestage_bootstrap_harness_completeness.py
       - name: Validate pre-stage bootstrap harness

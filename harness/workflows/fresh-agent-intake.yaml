@@ -6,7 +6,7 @@ target_mutation: false
 purpose: >-
   Give a fresh agent one deterministic route from repository intake to the smallest authorized
   workflow, desired-state contract, validator set, artifact contract, outcome contract, terminal-evidence
-  contract, and handoff.
+  contract, pre-stage bootstrap safety contract, and handoff.
 
 inputs:
   required:
@@ -34,6 +34,7 @@ stages:
       - preserve unrelated or separately owned work
       - when an expected tracked launcher, validator, workflow, registry, or report is missing locally, route through harness/workflows/repository-freshness-before-launch.yaml before command reconstruction
       - when the task depends on current remote repository behavior, route through harness/workflows/repository-freshness-before-launch.yaml before interpreting the executing worktree as repository truth
+      - when AutoLogon or S4U reports a failure before stage 1, or Windows PowerShell StrictMode reports a Count-property bootstrap failure and the controller checkout may be stale, route through harness/workflows/repository-freshness-before-launch.yaml before product or field diagnosis
       - remember that fetching origin/main alone does not update local main or the current worktree
       - remember that freshness routing does not grant repository-network or branch-update authority
       - require repository-network authority before the freshness workflow contacts the configured Git remote
@@ -54,6 +55,7 @@ stages:
       - read harness/api/harness-artifact-registry.json before producing or moving artifacts
       - read harness/api/harness-outcome-registry.json before treating any validator, dry run, plan, build, deploy, or runtime command as terminal
       - read harness/api/terminal-evidence-survival-registry.json before executing or recovering a registered terminal-sensitive field command
+      - read harness/api/prestage-bootstrap-artifact-registry.json when the failure is classified as pre-stage bootstrap
       - when AutoLogon, Cybernet, live cert, deployment, or runtime proof is involved, read harness/api/deployment-state-registry.json before selecting the command chain
 
   - id: route
@@ -64,6 +66,7 @@ stages:
       - when the requested goal extends beyond validation or planning, load harness/skills/outcome-driven-execution/SKILL.md after normal task routing
       - for AutoLogon/Cybernet test, live-cert, deployment, or runtime-proof work, load harness/skills/cybernet-autologon-deployment-state/SKILL.md after the normal P00 route is selected
       - for a vanished, closed, crashed, interrupted, or terminal-sensitive registered field command, load harness/skills/terminal-evidence-survival/SKILL.md before choosing the operator entrypoint
+      - after repository-freshness classification of a failure before stage 1 or StrictMode Count-property bootstrap failure, load harness/workflows/prestage-bootstrap-safety.yaml and harness/skills/prestage-bootstrap-safety/SKILL.md before any field rerun or S4U-task diagnosis
       - resolve desired product/runtime state before interpreting test, live cert, deploy, or runtime-proof wording
       - fail closed to .claude/skills/repository-sprint/SKILL.md when routing is unknown or conflicting
       - declare repo, branch, lane, mission, owned scope, forbidden scope, artifacts, validators, requested goal, desired state when applicable, and proof ceiling before writing
@@ -87,6 +90,7 @@ stages:
     actions:
       - python harness/validators/validate-harness-registries.py
       - python harness/validators/validate-repository-freshness-contracts.py
+      - python harness/validators/validate-prestage-bootstrap-safety.py when pre-stage bootstrap routing, artifacts, hooks, or current target-resolution regression dependencies change
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
       - python harness/validators/validate-terminal-evidence-survival.py when terminal-evidence routing, artifacts, hooks, runner contracts, or front doors change
@@ -104,6 +108,7 @@ stages:
       - resolve output roles and naming through harness/api/harness-artifact-registry.json
       - resolve success and continuation behavior through harness/api/harness-outcome-registry.json
       - resolve terminal-sensitive stable evidence and offline recovery through harness/api/terminal-evidence-survival-registry.json
+      - resolve pre-stage bootstrap map/status/validation roles through harness/api/prestage-bootstrap-artifact-registry.json
       - resolve AutoLogon/Cybernet critical state artifacts through harness/api/deployment-state-registry.json
       - keep generated evidence untracked unless a registry entry explicitly marks it tracked
       - render the current English harness view with python harness/reports/render-harness-status.py when a human status report is required
@@ -130,11 +135,15 @@ outputs:
     - harness/api/harness-outcome-registry.json
     - harness/api/deployment-state-registry.json
     - harness/api/terminal-evidence-survival-registry.json
+    - harness/api/prestage-bootstrap-artifact-registry.json
     - harness/workflows/repository-freshness-before-launch.yaml
+    - harness/workflows/prestage-bootstrap-safety.yaml
     - harness/skills/harness-maintenance/SKILL.md
     - harness/skills/outcome-driven-execution/SKILL.md
     - harness/skills/cybernet-autologon-deployment-state/SKILL.md
     - harness/skills/terminal-evidence-survival/SKILL.md
+    - harness/skills/prestage-bootstrap-safety/SKILL.md
+    - harness/reports/PRESTAGE_BOOTSTRAP_SAFETY_STATUS.md
   generated_local:
     - survey/output/<workflow>/<run_id>/artifact_registry.json
     - survey/output/<workflow>/<run_id>/operator_handoff.txt
@@ -142,7 +151,7 @@ outputs:
     - %LOCALAPPDATA%/SysAdminSuite/last-autologon-field-run.json
 
 proof_ceiling: >-
-  Fresh-agent routing, authorized repository-freshness selection, desired-state selection, canonical command
-  and terminal-evidence front-door selection, validator selection, artifact boundaries, outcome continuation,
-  and handoff structure only. Intake itself creates no product, target, deployment, reboot, application, or
-  live-runtime proof.
+  Fresh-agent routing, authorized repository-freshness selection, pre-stage failure classification, desired-state
+  selection, canonical command and terminal-evidence front-door selection, validator selection, artifact boundaries,
+  outcome continuation, and handoff structure only. Intake itself creates no product, target, deployment, reboot,
+  application, or live-runtime proof.

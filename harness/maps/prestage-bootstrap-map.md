@@ -6,6 +6,7 @@ Use this map when an AutoLogon/S4U field attempt fails before stage 1, especiall
 
 - `AGENTS.md` — governance and preservation rules; do not modify from this lane.
 - `CODEBASE_MAP.md` — repository-wide routing map.
+- `harness/workflows/fresh-agent-intake.yaml` — canonical intake detects the pre-stage/StrictMode signature, proves repository freshness first, then loads this scoped workflow/skill without changing P00 routers.
 - `harness/workflows/repository-freshness-before-launch.yaml` — canonical stale-checkout convergence workflow. Fetching a remote ref alone does not update the executing tree.
 - `harness/workflows/prestage-bootstrap-safety.yaml` — incident-specific workflow for failures before S4U stage 1.
 - `harness/skills/prestage-bootstrap-safety/SKILL.md` — repeatable diagnostic procedure and handoff contract.
