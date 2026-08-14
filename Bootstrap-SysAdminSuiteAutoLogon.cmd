@@ -6,8 +6,8 @@ if "%~1"=="" (
   echo.
   echo Runs the canonical SysAdminSuite AutoLogon bootstrap under Windows PowerShell 5.1.
   echo EXPECTED_MAIN_COMMIT is optional but recommended for a pinned field attempt.
-  echo LEGACY_REPO_ROOT is optional and is used only to carry ignored operator-local policy/evidence fallback.
-  echo The launcher explicitly authorizes only HOST for remote execution in the ignored short-runtime policy.
+  echo LEGACY_REPO_ROOT is optional and is used only as evidence/config fallback.
+  echo The bootstrap authorizes only the canonical resolved FQDN after protected-network admission.
   exit /b 2
 )
 
@@ -18,8 +18,6 @@ set "SAS_RUNTIME=%~dp0"
 if "%SAS_RUNTIME:~-1%"=="\" set "SAS_RUNTIME=%SAS_RUNTIME:~0,-1%"
 set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "SAS_BOOTSTRAP=%SAS_RUNTIME%\Bootstrap-SysAdminSuiteAutoLogon.ps1"
-set "SAS_AUTHORIZER=%SAS_RUNTIME%\scripts\Set-SasHostEligibilityLocalTarget.ps1"
-set "SAS_POLICY=host-eligibility-policy.local.json"
 
 if not exist "%SAS_PS%" (
   echo ERROR: Windows PowerShell 5.1 was not found at:
@@ -33,41 +31,6 @@ if not exist "%SAS_BOOTSTRAP%" (
   exit /b 4
 )
 
-if not exist "%SAS_AUTHORIZER%" (
-  echo ERROR: Exact-target host eligibility authorizer is missing:
-  echo   %SAS_AUTHORIZER%
-  exit /b 5
-)
-
-rem The host-eligibility policy is intentionally ignored by Git. Carry a legacy
-rem policy only when supplied and the short runtime does not already own one.
-rem A missing legacy policy is not a blocker: the exact target is authorized below.
-if defined SAS_LEGACY (
-  if exist "%SAS_LEGACY%\Config\%SAS_POLICY%" (
-    if not exist "%SAS_RUNTIME%\Config" mkdir "%SAS_RUNTIME%\Config" >nul 2>&1
-    if exist "%SAS_RUNTIME%\Config\%SAS_POLICY%" (
-      echo Preserving existing short-runtime host eligibility policy.
-    ) else (
-      copy /Y "%SAS_LEGACY%\Config\%SAS_POLICY%" "%SAS_RUNTIME%\Config\%SAS_POLICY%" >nul
-      if errorlevel 1 (
-        echo ERROR: Could not carry the operator-local host eligibility policy into the short runtime.
-        exit /b 6
-      )
-      echo Carried operator-local host eligibility policy into the short runtime.
-    )
-  )
-)
-
-echo.
-echo === EXACT TARGET AUTHORIZATION ===
-"%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_AUTHORIZER%" -Target "%SAS_TARGET%" -ExecContext remote -RepoRoot "%SAS_RUNTIME%" -PolicyPath "%SAS_RUNTIME%\Config\%SAS_POLICY%" -ConfirmLocalAuthorization -PassThru >nul
-set "SAS_AUTH_RC=%ERRORLEVEL%"
-if not "%SAS_AUTH_RC%"=="0" (
-  echo ERROR: Exact-target host eligibility authorization failed with exit code %SAS_AUTH_RC%.
-  exit /b %SAS_AUTH_RC%
-)
-echo Authorized exact target for remote execution in the ignored short-runtime policy.
-
 echo.
 echo === SYSADMINSUITE AUTOLOGON BOOTSTRAP ===
 echo Runtime: %SAS_RUNTIME%
@@ -77,9 +40,9 @@ if defined SAS_EXPECTED echo Expected main: %SAS_EXPECTED%
 echo.
 
 if defined SAS_EXPECTED (
-  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_BOOTSTRAP%" -ComputerName "%SAS_TARGET%" -RuntimeRoot "%SAS_RUNTIME%" -LegacyEvidenceRoot "%SAS_LEGACY%" -ExpectedCommit "%SAS_EXPECTED%" -ConfirmVpnPosture
+  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_BOOTSTRAP%" -ComputerName "%SAS_TARGET%" -RuntimeRoot "%SAS_RUNTIME%" -LegacyEvidenceRoot "%SAS_LEGACY%" -ExpectedCommit "%SAS_EXPECTED%" -ConfirmLocalTargetAuthorization -ConfirmVpnPosture
 ) else (
-  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_BOOTSTRAP%" -ComputerName "%SAS_TARGET%" -RuntimeRoot "%SAS_RUNTIME%" -LegacyEvidenceRoot "%SAS_LEGACY%" -ConfirmVpnPosture
+  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_BOOTSTRAP%" -ComputerName "%SAS_TARGET%" -RuntimeRoot "%SAS_RUNTIME%" -LegacyEvidenceRoot "%SAS_LEGACY%" -ConfirmLocalTargetAuthorization -ConfirmVpnPosture
 )
 
 set "SAS_RC=%ERRORLEVEL%"
