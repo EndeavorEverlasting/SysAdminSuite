@@ -1,0 +1,108 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: prestage-bootstrap-safety
+mode: repository_truth_before_field_diagnosis
+network_activity: false
+target_network_activity: false
+target_mutation: false
+purpose: >-
+  Prevent a controller-side bootstrap defect or stale checkout from being misclassified as an S4U,
+  transport, target, or field-environment failure when execution never established stage 1.
+
+triggers:
+  - AutoLogon or S4U execution failed before stage 1 was written or established
+  - Windows PowerShell 5.1 or StrictMode reports that property Count cannot be found on an object during bootstrap
+  - an outer field transaction canonicalized a hostname but an inner S4U bootstrap fails while resolving the canonical FQDN
+  - the controller checkout is behind the intended current repository ref
+
+inputs:
+  required:
+    - repository_root
+    - current_head
+    - current_branch
+    - intended_remote_ref
+    - failure_phase
+  optional:
+    - failure_message
+    - stage_marker_observed
+    - expected_current_commit
+    - repository_network_authorized
+    - branch_update_authorized
+    - default_branch_update_authorized
+
+invariants:
+  - no stage 1 means do not attribute the failure to S4U task creation or target-side apply without separate evidence
+  - repository freshness is proven before source-code diagnosis or field rerun
+  - fetching a remote ref alone does not update the executing worktree
+  - product code is read-only in this harness lane
+  - no live hostname, credential, secret, or machine-local evidence is committed
+  - current product regression tests are evidence dependencies, not permission to modify product behavior
+  - target network contact and mutation remain forbidden until the normal deployment lane separately authorizes them
+
+stages:
+  - id: classify-phase
+    order: 1
+    actions:
+      - record whether stage 1 was observed
+      - if stage 1 was not observed, classify the incident as controller pre-stage bootstrap until contrary evidence exists
+      - preserve the exact exception class/message in local evidence without committing live target data
+
+  - id: reconcile-repository
+    order: 2
+    actions:
+      - route through harness/workflows/repository-freshness-before-launch.yaml before diagnosing missing or defective current code
+      - compare the executing HEAD to the intended refreshed ref
+      - preserve dirty or separately owned work and use an isolated worktree when update authority is absent
+    stop_conditions:
+      - executing repository freshness cannot be proven
+      - required repository-network authority is absent and refreshed remote truth is required
+
+  - id: inspect-prestage-surfaces
+    order: 3
+    actions:
+      - inspect scripts/SasNetworkGuard.psm1 read-only
+      - inspect scripts/SasTargetNameResolution.psm1 read-only
+      - inspect scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1 read-only
+      - do not patch product code from this harness lane
+
+  - id: prove-current-regression
+    order: 4
+    actions:
+      - run python harness/validators/validate-prestage-bootstrap-safety.py
+      - run python Tests/survey/test_prestage_bootstrap_harness_completeness.py
+      - on a Windows PowerShell-capable host run pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester/TargetNameResolution.Tests.ps1
+      - require the already-canonical FQDN regression to report zero suffix candidates under StrictMode
+    stop_conditions:
+      - the current target-name resolver no longer contains the direct empty-array assignment for already-canonical FQDN input
+      - the focused StrictMode FQDN regression is absent or failing
+
+  - id: decide
+    order: 5
+    decisions:
+      stale-checkout-with-current-regression-green:
+        - classify the field incident as stale-controller-code until a current-tree rerun proves otherwise
+        - do not patch product code from the stale checkout
+        - refresh or isolate to the selected current commit through the repository freshness workflow
+      current-tree-regression-fails:
+        - open a separate product-code repair lane; this harness lane stops without modifying product behavior
+      current-tree-regression-green-and-runtime-still-fails-before-stage1:
+        - preserve diagnostics and open a bounded new pre-stage diagnosis against current code; do not jump to S4U task or target mutation claims
+
+  - id: handoff
+    order: 6
+    actions:
+      - record selected repository commit, freshness classification, stage-1 observation, focused validator results, focused Pester result when available, and one exact next action
+      - reference harness/reports/PRESTAGE_BOOTSTRAP_SAFETY_STATUS.md
+
+outputs:
+  - selected_repository_commit
+  - freshness_classification
+  - failure_phase_classification
+  - stage_1_observed
+  - prestage_harness_validation_result
+  - target_name_resolution_regression_result
+  - next_action
+
+proof_ceiling: >-
+  Proves repository/harness routing and the presence or execution of focused pre-stage regression evidence.
+  It does not prove target reachability, S4U task creation, registry application, restart, automatic sign-in,
+  or operator acceptance.

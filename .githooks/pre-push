@@ -7,6 +7,9 @@ cd "$repo_root"
 
 echo "[sas-harness] pre-push: running offline survey guardrails"
 python3 harness/validators/validate-harness-registries.py
+python3 harness/validators/validate-repository-freshness-contracts.py
+python3 harness/validators/validate-prestage-bootstrap-safety.py
+python3 Tests/survey/test_prestage_bootstrap_harness_completeness.py
 python3 harness/validators/validate-outcome-contracts.py
 python3 harness/validators/validate-deployment-state-contracts.py
 python3 harness/validators/validate-terminal-evidence-survival.py
@@ -50,6 +53,10 @@ validate_freshness_tip() {
   (
     cd "$wt"
     python3 harness/validators/validate-repository-freshness-contracts.py
+    if [[ -f harness/validators/validate-prestage-bootstrap-safety.py ]]; then
+      python3 harness/validators/validate-prestage-bootstrap-safety.py
+      python3 Tests/survey/test_prestage_bootstrap_harness_completeness.py
+    fi
   )
   git worktree remove --force "$wt" >/dev/null
   rm -rf "$root"
