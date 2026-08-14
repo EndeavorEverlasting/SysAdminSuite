@@ -201,7 +201,7 @@ def test_transport_is_additive_not_replacement() -> None:
 def test_no_automatic_post_mutation_fallback() -> None:
     text = read(SCRIPT)
     assert "never performs automatic" in text
-    assert "SmbScheduledTask" in text  # documentation-only acknowledgement of another lane
+    assert "SMB scheduled-task" in text
     executable = re.sub(r"<#.*?#>", "", text, flags=re.S)
     assert "Invoke-SasSmbScheduledTaskDeployment" not in executable
     assert "Invoke-SasAutoLogonKerberosS4UPilot" not in executable
