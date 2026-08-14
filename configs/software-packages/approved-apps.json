@@ -10,7 +10,10 @@
     "require_pinned_installer_file_for_plan_or_install": true,
     "require_vendor_validated_installer_arguments_for_live_install": true,
     "never_collect_default_password_value": true,
-    "never_collect_application_command_line": true
+    "never_collect_application_command_line": true,
+    "credentialed_winrm_requires_explicit_package_opt_in": true,
+    "credentialed_winrm_never_persists_pscredential": true,
+    "credentialed_winrm_never_changes_uac_lua_or_token_filter_policy": true
   },
   "packages": [
     {
@@ -22,6 +25,8 @@
       "default_installer_arguments": [],
       "requires_validated_installer_arguments": true,
       "install_enabled": false,
+      "credentialed_winrm_install_enabled": false,
+      "credentialed_winrm_qualification_enabled": false,
       "readiness": "installer_file_pending",
       "acceptance": {
         "application_process_names": [],
@@ -44,6 +49,8 @@
       ],
       "requires_validated_installer_arguments": false,
       "install_enabled": true,
+      "credentialed_winrm_install_enabled": true,
+      "credentialed_winrm_qualification_enabled": false,
       "readiness": "installer_and_arguments_confirmed",
       "acceptance": {
         "application_process_names": [],
@@ -52,7 +59,7 @@
         "autologon_profile": "none",
         "expected_autologon_user_rule": null
       },
-      "notes": "The pinned MSI and standard unattended Windows Installer arguments are confirmed for pilot use. Exit-code evidence does not prove that the installed web shortcut launches or reaches its destination; complete technician acceptance after installation."
+      "notes": "The pinned MSI and standard unattended Windows Installer arguments are confirmed for pilot use. Credentialed WinRM may copy the exact installer through an authenticated admin-box PSSession; exit-code evidence still requires technician acceptance for the resulting shortcut."
     },
     {
       "id": "allscripts-touchworks-22-1",
@@ -63,6 +70,8 @@
       "default_installer_arguments": [],
       "requires_validated_installer_arguments": true,
       "install_enabled": true,
+      "credentialed_winrm_install_enabled": false,
+      "credentialed_winrm_qualification_enabled": false,
       "readiness": "installer_path_confirmed_arguments_pending",
       "acceptance": {
         "application_process_names": [],
@@ -71,7 +80,7 @@
         "autologon_profile": "none",
         "expected_autologon_user_rule": null
       },
-      "notes": "The folder and installer filename are confirmed. Live installation still requires vendor-validated installer arguments. Add the approved application process name before automated launch observation."
+      "notes": "The folder and installer filename are confirmed. Live installation still requires vendor-validated installer arguments. Credentialed WinRM remains blocked until those arguments and acceptance checks are approved."
     },
     {
       "id": "autologon",
@@ -84,6 +93,23 @@
       "installer_arguments_policy": "approved_empty",
       "installer_arguments_reference": "configs/software-packages/windows-native-package-sets.json#autologon",
       "install_enabled": true,
+      "credentialed_winrm_install_enabled": false,
+      "credentialed_winrm_qualification_enabled": true,
+      "credentialed_winrm_qualification": {
+        "status": "unproven_user_admin_context",
+        "target_limit": 1,
+        "promotion_requires": [
+          "administrator_token_proved",
+          "source_target_sha256_equal",
+          "installer_exit_code_success",
+          "after_snapshot_auto_admin_logon_enabled",
+          "after_snapshot_default_username_value_name_present",
+          "after_snapshot_default_password_value_name_present",
+          "run_scoped_cleanup_succeeded",
+          "technician_post_restart_acceptance"
+        ],
+        "promotion_is_manual": true
+      },
       "canonical_system_install_enabled": false,
       "canonical_system_qualification": {
         "status": "failed_runtime_validation",
@@ -106,7 +132,7 @@
         "require_current_session_match": true,
         "require_reboot_after_before_snapshot": true
       },
-      "notes": "Interactive elevated execution remains a separate operator-authorized path, but canonical LocalSystem deployment is blocked. The no-argument EXE returned 0 without setting AutoAdminLogon=1. Use Qualify-AutoLogonSystemPackage.cmd with a materially different, evidence-backed version or switch; promote the exact SHA-256, version, and arguments only after a controlled SYSTEM pilot succeeds."
+      "notes": "Canonical LocalSystem deployment remains blocked. Credentialed WinRM is enabled only as a one-target qualification lane because the installer may depend on an administrator user context. The lane never reads the DefaultPassword value, never changes UAC/LUA or token-filter policy, and cannot promote itself."
     }
   ]
 }
