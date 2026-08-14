@@ -197,8 +197,10 @@ def test_portable_sas_command_discovers_and_caches_repo_without_username_literal
         assert marker in launcher
     assert "pa_rperez26" not in launcher.lower()
     assert "pa_rperez26" not in installer.lower()
-    assert "%LOCALAPPDATA%" not in installer
-    assert "$env:LOCALAPPDATA" in installer
+    powershell_installer = installer.split("$cmd = @'", 1)[0]
+    assert "%LOCALAPPDATA%" not in powershell_installer
+    assert "$env:LOCALAPPDATA" in powershell_installer
+    assert 'set "SAS_CACHE=%LOCALAPPDATA%\\SysAdminSuite\\repo-root.txt"' in installer
     assert "SetEnvironmentVariable('Path'" in installer
     assert "'User'" in installer
     assert "%~dp0" in install_cmd
