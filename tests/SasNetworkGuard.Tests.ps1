@@ -76,11 +76,78 @@ Ethernet adapter Ethernet:
     if (-not (Test-SasNorthwellWiredEvidence -NetworkText $networkText)) { throw 'approved wired evidence should pass' }
     if (-not (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText $networkText)) { throw 'approved wired evidence should pass with guest Wi-Fi' }
 
+    @{
+        allowedDnsSuffixes = @()
+        allowedWindowsDomains = @()
+        allowedLocalIpCidrs = @('100.100.27.140/32')
+        allowedGatewayCidrs = @()
+        allowedDnsServerCidrs = @()
+    } | ConvertTo-Json | Set-Content -LiteralPath $env:SAS_NETWORK_GUARD_CONFIG
+
+    $vpnProfiles = @(
+        [pscustomobject]@{
+            Name = 'nslijhs.net'
+            InterfaceAlias = 'Citrix Virtual Adapter'
+            InterfaceIndex = 9
+            NetworkCategory = 'DomainAuthenticated'
+            IPv4Connectivity = 'Internet'
+            IPv6Connectivity = 'NoTraffic'
+        }
+    )
+    $vpnResolver = {
+        param($InterfaceIndex)
+        if ($InterfaceIndex -eq 9) {
+            return @([pscustomobject]@{ IPAddress = '100.100.27.140' })
+        }
+        return @()
+    }
+
+    if (-not (Test-SasNorthwellDomainAuthenticatedEvidence -ConnectionProfiles $vpnProfiles -AddressResolver $vpnResolver)) {
+        throw 'exact /32 on active DomainAuthenticated non-Wi-Fi VPN interface should pass'
+    }
+    if (-not (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText '' -ConnectionProfiles $vpnProfiles -AddressResolver $vpnResolver)) {
+        throw 'guest Wi-Fi plus exact approved DomainAuthenticated VPN interface should pass'
+    }
+
+    $wifiOnlyDomain = @(
+        [pscustomobject]@{
+            Name = 'Guest-WiFi'
+            InterfaceAlias = 'Wi-Fi'
+            InterfaceIndex = 4
+            NetworkCategory = 'DomainAuthenticated'
+            IPv4Connectivity = 'Internet'
+            IPv6Connectivity = 'NoTraffic'
+        }
+    )
+    $wifiResolver = { param($InterfaceIndex) @([pscustomobject]@{ IPAddress = '100.100.27.140' }) }
+    if (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText '' -ConnectionProfiles $wifiOnlyDomain -AddressResolver $wifiResolver) {
+        throw 'DomainAuthenticated Wi-Fi must not be converted into VPN/LAN authority'
+    }
+
+    $wrongVpnResolver = { param($InterfaceIndex) @([pscustomobject]@{ IPAddress = '100.100.27.141' }) }
+    if (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText '' -ConnectionProfiles $vpnProfiles -AddressResolver $wrongVpnResolver) {
+        throw 'DomainAuthenticated VPN with a non-allowlisted IP must fail closed'
+    }
+
+    $privateOnly = @(
+        [pscustomobject]@{
+            Name = 'Public Internet'
+            InterfaceAlias = 'Citrix Virtual Adapter'
+            InterfaceIndex = 9
+            NetworkCategory = 'Private'
+            IPv4Connectivity = 'Internet'
+            IPv6Connectivity = 'NoTraffic'
+        }
+    )
+    if (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText '' -ConnectionProfiles $privateOnly -AddressResolver $vpnResolver) {
+        throw 'non-DomainAuthenticated virtual adapter must not authorize target operations'
+    }
+
     '{}' | Set-Content -LiteralPath $env:SAS_NETWORK_GUARD_CONFIG
-    if (Test-SasNorthwellWiredEvidence -NetworkText $networkText) { throw 'missing wired allowlist should fail' }
+    if (Test-SasNorthwellWiredEvidence -NetworkText $networkText -ConnectionProfiles @() -AddressResolver { param($i) @() }) { throw 'missing wired allowlist should fail' }
 
     '{ not json' | Set-Content -LiteralPath $env:SAS_NETWORK_GUARD_CONFIG
-    if (Test-SasNorthwellWiredEvidence -NetworkText $networkText) { throw 'malformed config should fail closed' }
+    if (Test-SasNorthwellWiredEvidence -NetworkText $networkText -ConnectionProfiles @() -AddressResolver { param($i) @() }) { throw 'malformed config should fail closed' }
 
     Write-Host 'SasNetworkGuard PowerShell tests passed'
 } finally {

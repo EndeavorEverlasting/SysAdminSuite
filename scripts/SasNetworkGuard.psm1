@@ -240,9 +240,67 @@ function Test-SasIpInCidr {
     } catch { return $false }
 }
 
+function Test-SasNorthwellDomainAuthenticatedEvidence {
+    [CmdletBinding()]
+    param(
+        [AllowNull()][object[]]$ConnectionProfiles,
+        [AllowNull()][scriptblock]$AddressResolver
+    )
+
+    $config = Get-SasNetworkGuardConfig
+    if ($null -eq $config) {
+        $script:SasNetworkGuardLastWiredEvidence = "config_error:$script:SasNetworkGuardConfigError"
+        return $false
+    }
+    if (@($config.allowedLocalIpCidrs).Count -eq 0) { return $false }
+
+    if (-not $PSBoundParameters.ContainsKey('ConnectionProfiles')) {
+        try { $ConnectionProfiles = @(Get-NetConnectionProfile -ErrorAction Stop) }
+        catch { return $false }
+    }
+    if ($null -eq $AddressResolver) {
+        $AddressResolver = {
+            param($InterfaceIndex)
+            @(Get-NetIPAddress -InterfaceIndex $InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue)
+        }
+    }
+
+    $usableConnectivity = @('Subnet','LocalNetwork','Internet')
+    foreach ($profile in @($ConnectionProfiles)) {
+        if ($null -eq $profile) { continue }
+        $alias = [string]$profile.InterfaceAlias
+        if ([string]$profile.NetworkCategory -ne 'DomainAuthenticated') { continue }
+        if ($alias -match '(?i)(wi-?fi|wireless|wlan)') { continue }
+        if (([string]$profile.IPv4Connectivity -notin $usableConnectivity) -and
+            ([string]$profile.IPv6Connectivity -notin $usableConnectivity)) { continue }
+
+        $interfaceIndex = [int]$profile.InterfaceIndex
+        try { $addresses = @(& $AddressResolver $interfaceIndex) }
+        catch { continue }
+
+        foreach ($address in $addresses) {
+            if ($null -eq $address) { continue }
+            $ip = if ($address -is [string]) { [string]$address } else { [string]$address.IPAddress }
+            $ip = $ip.Trim()
+            if ([string]::IsNullOrWhiteSpace($ip) -or $ip -match '^127\.' -or $ip -match '^169\.254\.') { continue }
+            foreach ($cidr in @($config.allowedLocalIpCidrs)) {
+                if (Test-SasIpInCidr -Ip $ip -Cidr $cidr) {
+                    $script:SasNetworkGuardLastWiredEvidence = "domain_authenticated_interface=$alias;local_ip=$ip;local_ip_cidr=$cidr"
+                    return $true
+                }
+            }
+        }
+    }
+    return $false
+}
+
 function Test-SasNorthwellWiredEvidence {
     [CmdletBinding()]
-    param([AllowNull()][string]$NetworkText)
+    param(
+        [AllowNull()][string]$NetworkText,
+        [AllowNull()][object[]]$ConnectionProfiles,
+        [AllowNull()][scriptblock]$AddressResolver
+    )
     $script:SasNetworkGuardLastWiredEvidence = 'none'
     $config = Get-SasNetworkGuardConfig
     if ($null -eq $config) {
@@ -284,14 +342,29 @@ function Test-SasNorthwellWiredEvidence {
     foreach ($ip in $localIps) { foreach ($cidr in $config.allowedLocalIpCidrs) { if (Test-SasIpInCidr -Ip $ip -Cidr $cidr) { $script:SasNetworkGuardLastWiredEvidence = "local_ip_cidr=$cidr"; return $true } } }
     foreach ($ip in $gatewayIps) { foreach ($cidr in $config.allowedGatewayCidrs) { if (Test-SasIpInCidr -Ip $ip -Cidr $cidr) { $script:SasNetworkGuardLastWiredEvidence = "gateway_cidr=$cidr"; return $true } } }
     foreach ($ip in $dnsIps) { foreach ($cidr in $config.allowedDnsServerCidrs) { if (Test-SasIpInCidr -Ip $ip -Cidr $cidr) { $script:SasNetworkGuardLastWiredEvidence = "dns_server_cidr=$cidr"; return $true } } }
+
+    $liveEvidenceArgs = @{}
+    if ($PSBoundParameters.ContainsKey('ConnectionProfiles')) { $liveEvidenceArgs.ConnectionProfiles = $ConnectionProfiles }
+    if ($PSBoundParameters.ContainsKey('AddressResolver')) { $liveEvidenceArgs.AddressResolver = $AddressResolver }
+    if (Test-SasNorthwellDomainAuthenticatedEvidence @liveEvidenceArgs) { return $true }
+
     return $false
 }
 
 function Test-SasNorthwellNetworkPosture {
     [CmdletBinding()]
-    param([AllowNull()][string]$Ssid, [AllowNull()][string]$NetworkText)
+    param(
+        [AllowNull()][string]$Ssid,
+        [AllowNull()][string]$NetworkText,
+        [AllowNull()][object[]]$ConnectionProfiles,
+        [AllowNull()][scriptblock]$AddressResolver
+    )
     if (Test-SasNorthwellWifiSsid -Ssid $Ssid) { return $true }
-    return (Test-SasNorthwellWiredEvidence -NetworkText $NetworkText)
+
+    $wiredArgs = @{ NetworkText = $NetworkText }
+    if ($PSBoundParameters.ContainsKey('ConnectionProfiles')) { $wiredArgs.ConnectionProfiles = $ConnectionProfiles }
+    if ($PSBoundParameters.ContainsKey('AddressResolver')) { $wiredArgs.AddressResolver = $AddressResolver }
+    return (Test-SasNorthwellWiredEvidence @wiredArgs)
 }
 
 function Assert-SasNorthwellWifi {
@@ -301,7 +374,7 @@ function Assert-SasNorthwellWifi {
     if (Test-SasNorthwellWifiSsid -Ssid $ssid) { return }
     $networkText = Get-SasLocalNetworkText
     if (Test-SasNorthwellWiredEvidence -NetworkText $networkText) { return }
-    throw "Network check failed: this script must be run from an approved Northwell network. Connect to Wi-Fi SSID starting with $script:SasNetworkGuardRequiredPrefix or approved Northwell wired Ethernet and rerun. Current SSID: $ssid. Wired evidence: $script:SasNetworkGuardLastWiredEvidence."
+    throw "Network check failed: this script must be run from an approved Northwell network. Connect to Wi-Fi SSID starting with $script:SasNetworkGuardRequiredPrefix or an approved DomainAuthenticated non-Wi-Fi VPN/LAN interface and rerun. Current SSID: $ssid. Wired/VPN evidence: $script:SasNetworkGuardLastWiredEvidence."
 }
 
-Export-ModuleMember -Function Get-SasCurrentWifiSsidFromNetshText, Get-SasWifiSsidFromConnectionProfiles, Get-SasWlanConnectionFromEventXml, Get-SasCurrentWifiSsidFromWlanEventLog, Get-SasCurrentWifiSsid, Test-SasNorthwellWifiSsid, Get-SasNetworkGuardConfig, Get-SasLocalNetworkText, Test-SasIpInCidr, Test-SasNorthwellWiredEvidence, Test-SasNorthwellNetworkPosture, Assert-SasNorthwellWifi
+Export-ModuleMember -Function Get-SasCurrentWifiSsidFromNetshText, Get-SasWifiSsidFromConnectionProfiles, Get-SasWlanConnectionFromEventXml, Get-SasCurrentWifiSsidFromWlanEventLog, Get-SasCurrentWifiSsid, Test-SasNorthwellWifiSsid, Get-SasNetworkGuardConfig, Get-SasLocalNetworkText, Test-SasIpInCidr, Test-SasNorthwellDomainAuthenticatedEvidence, Test-SasNorthwellWiredEvidence, Test-SasNorthwellNetworkPosture, Assert-SasNorthwellWifi
