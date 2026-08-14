@@ -116,7 +116,16 @@ function Resolve-SasCanonicalTargetFqdn {
         $DnsResolver = { param($Name) Invoke-SasTargetDnsLookup -Name $Name }
     }
 
-    $suffixes = if ($inputIsFqdn) { @() } else { @(Get-SasLocalDnsSuffixCandidates -AdditionalSuffixes $SuffixCandidates) }
+    # Assign the empty FQDN suffix collection directly. Under Windows PowerShell 5.1 an
+    # `if` expression that emits @() is pipeline-enumerated to $null; StrictMode then makes
+    # `$suffixes.Count` throw before an already-canonical FQDN can enter the S4U field lane.
+    if ($inputIsFqdn) {
+        $suffixes = @()
+    }
+    else {
+        $suffixes = @(Get-SasLocalDnsSuffixCandidates -AdditionalSuffixes $SuffixCandidates)
+    }
+
     $lookupNames = New-Object System.Collections.Generic.List[string]
     [void]$lookupNames.Add($normalizedInput)
     if (-not $inputIsFqdn) {

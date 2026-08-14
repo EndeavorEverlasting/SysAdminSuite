@@ -6,6 +6,7 @@ on:
       - 'harness/e2e/e2e-profiles.json'
       - 'schemas/harness/autologon-*.schema.json'
       - 'scripts/Invoke-SasAutoLogon*.ps1'
+      - 'scripts/SasTargetNameResolution.psm1'
       - 'scripts/Show-SasAutoLogonResult.ps1'
       - 'Inspect-LatestAutoLogon.cmd'
       - 'docs/AUTOLOGON_*.md'
@@ -20,6 +21,7 @@ on:
       - 'Tests/Fixtures/smb-scheduled-task-deployment/**'
       - 'Tests/fixtures/software-install/**'
       - 'Tests/Pester/AutoLogonCanonical*.Tests.ps1'
+      - 'Tests/Pester/TargetNameResolution.Tests.ps1'
       - 'Tests/survey/test_autologon_*contracts.py'
       - 'Tests/survey/test_canonical_smb_task_deployment_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -32,6 +34,7 @@ on:
       - 'harness/e2e/e2e-profiles.json'
       - 'schemas/harness/autologon-*.schema.json'
       - 'scripts/Invoke-SasAutoLogon*.ps1'
+      - 'scripts/SasTargetNameResolution.psm1'
       - 'scripts/Show-SasAutoLogonResult.ps1'
       - 'Inspect-LatestAutoLogon.cmd'
       - 'docs/AUTOLOGON_*.md'
@@ -46,6 +49,7 @@ on:
       - 'Tests/Fixtures/smb-scheduled-task-deployment/**'
       - 'Tests/fixtures/software-install/**'
       - 'Tests/Pester/AutoLogonCanonical*.Tests.ps1'
+      - 'Tests/Pester/TargetNameResolution.Tests.ps1'
       - 'Tests/survey/test_autologon_*contracts.py'
       - 'Tests/survey/test_canonical_smb_task_deployment_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -93,7 +97,8 @@ jobs:
           $result = Invoke-Pester -Path @(
             '.\Tests\Pester\AutoLogonCanonicalDeployment.Tests.ps1',
             '.\Tests\Pester\AutoLogonCanonicalE2E.Tests.ps1',
-            '.\Tests\Pester\AutoLogonCanonicalResultPresenter.Tests.ps1'
+            '.\Tests\Pester\AutoLogonCanonicalResultPresenter.Tests.ps1',
+            '.\Tests\Pester\TargetNameResolution.Tests.ps1'
           ) -PassThru
           if ($result.FailedCount -gt 0) { throw "$($result.FailedCount) focused Pester tests failed." }
       - name: Run dedicated AutoLogon profile under Windows PowerShell 5.1
