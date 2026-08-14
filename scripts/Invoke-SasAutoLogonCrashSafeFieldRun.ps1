@@ -105,6 +105,10 @@ try {
         '-ComputerName', [string]$result.target
     )
 
+    # StrictMode treats an unread automatic variable as an error. Prime LASTEXITCODE
+    # before each native child PowerShell so the result envelope is deterministic even
+    # in a fresh operator session where no prior native process initialized the variable.
+    $LASTEXITCODE = 0
     & powershell.exe @childArguments 2>&1 |
         Tee-Object -FilePath $childOutputPath |
         Out-Host
@@ -117,6 +121,7 @@ try {
         '-File', $evidenceScript,
         'AutoLogon', '20'
     )
+    $LASTEXITCODE = 0
     & powershell.exe @evidenceArguments 2>&1 |
         Tee-Object -FilePath $evidenceOutputPath |
         Out-Host
