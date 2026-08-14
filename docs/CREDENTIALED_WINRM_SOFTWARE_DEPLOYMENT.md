@@ -6,6 +6,23 @@ Provide an admin-box transport for approved software when the operator can authe
 
 The operator runs `Deploy-ApprovedSoftwareCredentialed.cmd TARGET_FQDN PACKAGE_ID` or calls `scripts/Invoke-SasCredentialedApprovedSoftwareInstall.ps1` directly. If no `PSCredential` is supplied, the PowerShell entrypoint calls `Get-Credential` once and holds the resulting credential in memory only.
 
+This capability is **additive**. It does not replace the repository's current-token WinRM, SMB scheduled-task, AutoLogon S4U/recovery, or crash-safe AutoLogon field lanes. SysAdminSuite should retain multiple bounded deployment paths so an operator can select the path that fits the package, execution identity, network posture, target state, and failure evidence.
+
+## Parallel deployment lanes
+
+Credentialed WinRM joins an existing deployment portfolio instead of becoming a universal transport:
+
+| Lane | Best fit | Execution identity / transport | Key boundary |
+| --- | --- | --- | --- |
+| Current-token WinRM | The admin box already has sufficient remote authority and the package can use the existing WinRM engine | Current Windows token over WinRM | Do not add credentials merely because this path exists. |
+| SMB scheduled task | A package is qualified for SYSTEM execution and the P02/SMB task preflight is satisfied | Staged pinned payload + bounded scheduled task | Requires its existing preflight and cleanup contracts. |
+| AutoLogon S4U / Remote | AutoLogon-specific protected field deployment, restart, recovery, and lifecycle evidence | Passwordless S4U task lifecycle owned by the AutoLogon lane | Remains the canonical hardened AutoLogon production path until another path is separately qualified and promoted. |
+| Credentialed WinRM | The operator has an authorized administrator credential, needs administrator-user-context execution, or wants to avoid the target authenticating back to the software share | Runtime-only `PSCredential` + authenticated WinRM + `Copy-Item -ToSession` | Package must explicitly opt in; filtered/non-admin tokens fail closed. |
+
+These lanes may be iterated deliberately. A failure in one lane can inform a later attempt through another lane, but transport selection must happen **before target mutation**. SysAdminSuite must not silently or automatically fall back to a different transport after a run has created staging, started an installer, changed target state, or otherwise crossed that lane's mutation boundary.
+
+Preserve the evidence from the failed path, classify the owning failure, then start a new explicitly selected run if another lane is appropriate. This keeps alternate capabilities available without mixing ownership, cleanup, or proof semantics across transports.
+
 ## Security boundary
 
 This lane does **not** disable or modify UAC/LUA. It does not write `EnableLUA`, `LocalAccountTokenFilterPolicy`, WSMan TrustedHosts, firewall policy, or WinRM configuration. If Windows authenticates the credential but returns a filtered/non-administrator remote token, the deployment fails closed.
@@ -43,7 +60,7 @@ At introduction:
 - `allscripts-touchworks-22-1` remains blocked because vendor-validated live arguments are not yet cataloged.
 - `epic-satellite` remains blocked because its installer filename is not pinned.
 
-A credentialed AutoLogon qualification cannot promote itself. Promotion requires review of the result, post-restart technician acceptance, and a separate catalog change.
+A credentialed AutoLogon qualification cannot promote itself. Promotion requires review of the result, post-restart technician acceptance, and a separate catalog change. Even after promotion, it remains another supported path rather than deleting or superseding the S4U/Remote capability.
 
 ## AutoLogon privacy rule
 
