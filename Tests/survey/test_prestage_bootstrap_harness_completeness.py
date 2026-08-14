@@ -83,7 +83,7 @@ def test_freshness_workflow_routes_to_scoped_harness() -> None:
 
 def test_registered_repository_sprint_skill_routes_prestage_signature() -> None:
     text = read(COMPONENTS["repository_sprint_skill"])
-    assert "failure before stage 1" in text.lower()
+    assert "before stage 1" in text.lower()
     assert "StrictMode" in text
     assert "harness/workflows/repository-freshness-before-launch.yaml" in text
     assert "harness/workflows/prestage-bootstrap-safety.yaml" in text

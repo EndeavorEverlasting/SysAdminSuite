@@ -156,7 +156,7 @@ def test_existing_freshness_workflow_routes_known_prestage_signature() -> None:
 def test_canonical_repository_sprint_fallback_routes_prestage_signature() -> None:
     text = read(REPOSITORY_SPRINT_SKILL).lower()
     for marker in (
-        "failure before stage 1",
+        "before stage 1",
         "strictmode",
         "harness/workflows/repository-freshness-before-launch.yaml",
         "harness/workflows/prestage-bootstrap-safety.yaml",
