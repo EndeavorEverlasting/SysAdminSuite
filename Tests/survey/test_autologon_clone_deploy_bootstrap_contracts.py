@@ -26,6 +26,17 @@ def test_git_executable_is_resolved_explicitly() -> None:
     assert "(git exit $exitCode)" in text
 
 
+def test_native_exit_codes_are_primed_before_strict_mode_reads() -> None:
+    text = read()
+    assert text.count("$LASTEXITCODE = 0") >= 2
+    assert "$exitCode = [int]$LASTEXITCODE" in text
+    assert "$deploymentExit = [int]$LASTEXITCODE" in text
+    git_prime = text.index("$LASTEXITCODE = 0", text.index("function Invoke-SasBootstrapGit"))
+    git_call = text.index("@(& $script:SasGitExe", git_prime)
+    git_capture = text.index("$exitCode = [int]$LASTEXITCODE", git_call)
+    assert git_prime < git_call < git_capture
+
+
 def test_runtime_clone_and_origin_validation() -> None:
     text = read()
     assert "@('clone','--origin','origin',$RepoUrl,$RuntimeRoot)" in text
