@@ -195,7 +195,8 @@ def test_transport_is_additive_not_replacement() -> None:
     assert "[ValidateSet('Auto', 'WinRM', 'SmbScheduledTask')]" in validated
     assert "Recover" in onsite and "Remote" in onsite
     assert "S4U" in s4u
-    assert "last-autologon-field-run.json" in field
+    assert "autologon_field_deployment_result.json" in field
+    assert "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in field
 
 
 def test_no_automatic_post_mutation_fallback() -> None:
