@@ -1,0 +1,85 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: terminal-evidence-survival
+mode: route_to_crash_safe_front_door
+network_activity: workflow_dependent
+target_mutation: workflow_dependent
+purpose: >-
+  Make terminal lifetime independent from evidence lifetime. When a registered field action can fail,
+  crash, or close its shell, route through a crash-safe front door that persists local evidence before
+  propagating failure and provides offline evidence recovery after the terminal disappears.
+
+inputs:
+  required:
+    - requested_goal
+    - command_id
+  conditional:
+    - authorized_target
+    - target_mutation_authority
+    - prior_terminal_failure
+
+stages:
+  - id: resolve-front-door
+    order: 1
+    actions:
+      - read harness/api/terminal-evidence-survival-registry.json
+      - match command_id to exactly one registered crash-safe front door
+      - fail closed when a registered front door exists but the proposed operator command bypasses it
+      - terminal lifetime is not evidence lifetime; recover persistent evidence instead of trusting console survival
+
+  - id: execute
+    order: 2
+    actions:
+      - for AutoLogon command id autologon-remote run Run-AutoLogonCrashSafe.cmd HOST
+      - require explicit target mutation authority before the inner product transaction may contact or mutate a target
+      - let the crash-safe runner delegate to scripts/Invoke-SasAutoLogonOnsite.ps1 Remote rather than duplicating product logic
+      - persist the run envelope before launching the child process
+      - capture the operator transcript and child output to stable machine-local files
+      - propagate every nonzero exit code after evidence is persisted
+
+  - id: recover
+    order: 3
+    actions:
+      - after child completion attempt offline evidence recovery through scripts/Show-SasOperatorEvidence.ps1
+      - when the operator terminal vanished, read %LOCALAPPDATA%/SysAdminSuite/last-autologon-field-run.json first
+      - use sas evidence only as offline evidence recovery; do not re-contact the target merely to reconstruct lost console text
+      - preserve child and recovery exit codes independently
+      - keep generated field evidence untracked
+
+  - id: validate
+    order: 4
+    actions:
+      - python harness/validators/validate-terminal-evidence-survival.py
+      - python Tests/survey/test_autologon_crash_safe_field_runner_contracts.py
+      - python Tests/survey/test_operational_harness_completeness_contracts.py
+      - git diff --check
+    failure:
+      - stop at the first failed evidence-survival boundary
+      - repair the owning harness component without weakening product deployment gates
+      - rerun the failed validator before broader suites
+
+  - id: handoff
+    order: 5
+    actions:
+      - report the stable run root, latest pointer, result, transcript, child output, recovery output, and canonical product artifact when present
+      - distinguish evidence survival from product deployment success
+      - name the exact child exit code and offline recovery exit code
+      - provide the next authorized action only after the preserved evidence is inspected
+
+outputs:
+  tracked_authorities:
+    - harness/api/terminal-evidence-survival-registry.json
+    - schemas/harness/terminal-evidence-survival-registry.schema.json
+    - harness/skills/terminal-evidence-survival/SKILL.md
+    - harness/validators/validate-terminal-evidence-survival.py
+    - docs/TERMINAL_EVIDENCE_SURVIVAL.md
+  generated_local:
+    - %LOCALAPPDATA%/SysAdminSuite/field-runs/autologon/<run_id>/field-run-result.json
+    - %LOCALAPPDATA%/SysAdminSuite/field-runs/autologon/<run_id>/operator-transcript.txt
+    - %LOCALAPPDATA%/SysAdminSuite/field-runs/autologon/<run_id>/autologon-child-output.txt
+    - %LOCALAPPDATA%/SysAdminSuite/field-runs/autologon/<run_id>/offline-evidence-recovery.txt
+    - %LOCALAPPDATA%/SysAdminSuite/last-autologon-field-run.json
+
+proof_ceiling: >-
+  Harness routing and contract proof that the already-merged crash-safe AutoLogon front door persists
+  local diagnostic evidence and exit codes independently of terminal lifetime. This workflow does not
+  itself prove a live deployment, target mutation, restart, automatic sign-in, or operator acceptance.
