@@ -34,3 +34,8 @@ jobs:
           if ([int]$result.suffix_candidate_count -ne 0) { throw "Expected zero suffix candidates for canonical FQDN, got $($result.suffix_candidate_count)" }
           if (@($result.addresses).Count -ne 1) { throw 'Expected one synthetic resolved address.' }
           Write-Host 'PASS: canonical FQDN resolution preserves an empty suffix array under Windows PowerShell 5.1 StrictMode'
+      - name: Validate DomainAuthenticated VPN authority under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          & .\tests\SasNetworkGuard.Tests.ps1
+          if ($LASTEXITCODE -ne 0) { throw "SasNetworkGuard regression exited $LASTEXITCODE." }
