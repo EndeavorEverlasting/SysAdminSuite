@@ -6,12 +6,15 @@ Acquire or refresh the short SysAdminSuite AutoLogon runtime and launch the cras
 .DESCRIPTION
 Uses a stable short runtime at C:\SASAL (or -RuntimeRoot), resolves git.exe explicitly, fetches the
 official origin/main without touching an operator's long or dirty working copy, pins the exact fetched
-commit, preserves any legacy checkout only as an evidence/network-policy fallback, and launches the
-crash-safe AutoLogon child runner.
+commit, preserves any legacy checkout only as an evidence fallback, and launches the crash-safe
+AutoLogon child runner.
 
-Protected-network admission is owned only by the canonical field transaction through
-Confirm-SasNorthwellNetwork.ps1. The legacy DomainAuthenticated-only VPN bootstrap is not a prerequisite
-and this script never writes a local network allowlist.
+Protected-network admission remains owned by the canonical field transaction through
+Confirm-SasNorthwellNetwork.ps1. When -ConfirmVpnPosture is supplied, this bootstrap first establishes a
+process-local exact /32 allowlist from the currently active DomainAuthenticated non-Wi-Fi VPN/LAN
+interface by invoking Enable-SasNorthwellVpnNetworkGuard.ps1. That helper performs no target contact or
+mutation; the canonical field guard independently verifies the resulting current posture again before
+any target operation.
 
 Existing unexpected or dirty runtime content is never reset, cleaned, removed, or overwritten.
 #>
@@ -29,7 +32,7 @@ param(
 
     [string]$ExpectedCommit,
 
-    # Backward-compatible acknowledgement only. Canonical network admission is still performed later.
+    # Explicitly establish exact current DomainAuthenticated VPN/LAN authority before the canonical gate.
     [switch]$ConfirmVpnPosture
 )
 
@@ -189,25 +192,17 @@ if ($runtimeHead -ne $head) { throw "Short-runtime HEAD mismatch after checkout.
 $legacyRoot = Resolve-SasLegacyEvidenceRoot -RequestedRoot $LegacyEvidenceRoot -Runtime $RuntimeRoot
 if ($legacyRoot) {
     $env:SAS_REPO_ROOT = $legacyRoot
-    $legacyNetworkConfig = Join-Path $legacyRoot 'Config\sas-network-guard.local.json'
-    if (Test-Path -LiteralPath $legacyNetworkConfig -PathType Leaf) {
-        $env:SAS_NETWORK_GUARD_CONFIG = $legacyNetworkConfig
-    }
-    Write-Host "Legacy evidence/config fallback: $legacyRoot" -ForegroundColor Cyan
+    Write-Host "Legacy evidence fallback: $legacyRoot" -ForegroundColor Cyan
 } else {
     Remove-Item Env:SAS_REPO_ROOT -ErrorAction SilentlyContinue
-    Remove-Item Env:SAS_NETWORK_GUARD_CONFIG -ErrorAction SilentlyContinue
-    Write-Host 'Legacy evidence/config fallback: none resolved.' -ForegroundColor Yellow
-}
-
-if ($ConfirmVpnPosture) {
-    Write-Host '-ConfirmVpnPosture acknowledged. It does not grant network authority; the canonical field guard will verify current posture.' -ForegroundColor DarkCyan
+    Write-Host 'Legacy evidence fallback: none resolved.' -ForegroundColor Yellow
 }
 
 $crashSafeScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
 $onsiteScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonOnsite.ps1'
 $networkGate = Join-Path $RuntimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
-foreach ($required in @($crashSafeScript,$onsiteScript,$networkGate)) {
+$networkBootstrap = Join-Path $RuntimeRoot 'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1'
+foreach ($required in @($crashSafeScript,$onsiteScript,$networkGate,$networkBootstrap)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required field deployment surface is missing: $required" }
 
     $tokens = $null
@@ -217,6 +212,30 @@ foreach ($required in @($crashSafeScript,$onsiteScript,$networkGate)) {
         $parseErrors | Format-List * | Out-Host
         throw "PowerShell parser gate failed: $required"
     }
+}
+
+if ($ConfirmVpnPosture) {
+    Write-Host ''
+    Write-Host 'ESTABLISHING EXACT CURRENT DOMAIN-AUTHENTICATED VPN/LAN AUTHORITY' -ForegroundColor Cyan
+    $authority = @(& $networkBootstrap -ConfirmVpnPosture) | Select-Object -Last 1
+    if ($null -eq $authority) {
+        throw 'Domain transport authority bootstrap returned no structured result.'
+    }
+    if ([string]$authority.classification -ne 'SAS_VPN_NETWORK_GUARD_READY') {
+        throw "Domain transport authority bootstrap did not complete: $($authority.classification)"
+    }
+    if ([bool]$authority.target_contact_performed -or [bool]$authority.target_mutation_performed) {
+        throw 'Domain transport authority bootstrap violated the no-target-contact safety contract.'
+    }
+    $authorityConfig = [string]$authority.config_path
+    if ([string]::IsNullOrWhiteSpace($authorityConfig) -or -not (Test-Path -LiteralPath $authorityConfig -PathType Leaf)) {
+        throw "Domain transport authority config was not created: $authorityConfig"
+    }
+    $env:SAS_NETWORK_GUARD_CONFIG = $authorityConfig
+    Write-Host "Exact current domain transport authority activated: $authorityConfig" -ForegroundColor Green
+    Write-Host 'The canonical field guard will independently verify this posture before target contact.' -ForegroundColor Green
+} else {
+    Remove-Item Env:SAS_NETWORK_GUARD_CONFIG -ErrorAction SilentlyContinue
 }
 
 Write-Host ''

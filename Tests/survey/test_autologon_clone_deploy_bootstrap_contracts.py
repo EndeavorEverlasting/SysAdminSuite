@@ -53,19 +53,32 @@ def test_existing_runtime_is_preserved() -> None:
     assert "clean -fd" not in text
 
 
-def test_legacy_checkout_is_fallback_not_execution_authority() -> None:
+def test_legacy_checkout_is_evidence_fallback_not_network_authority() -> None:
     text = read()
     assert "Resolve-SasLegacyEvidenceRoot" in text
     assert "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)" in text
     assert "$env:SAS_REPO_ROOT = $legacyRoot" in text
-    assert "$env:SAS_NETWORK_GUARD_CONFIG = $legacyNetworkConfig" in text
+    assert "$env:SAS_NETWORK_GUARD_CONFIG = $legacyNetworkConfig" not in text
+    assert "Legacy evidence fallback" in text
 
 
-def test_canonical_network_guard_replaces_old_bootstrap_guard() -> None:
+def test_confirm_vpn_posture_bootstraps_exact_current_domain_transport_authority() -> None:
+    text = read()
+    assert "Enable-SasNorthwellVpnNetworkGuard.ps1" in text
+    assert "$authority = @(& $networkBootstrap -ConfirmVpnPosture) | Select-Object -Last 1" in text
+    assert "SAS_VPN_NETWORK_GUARD_READY" in text
+    assert "$env:SAS_NETWORK_GUARD_CONFIG = $authorityConfig" in text
+    assert "target_contact_performed" in text
+    assert "target_mutation_performed" in text
+    assert "DomainAuthenticated non-Wi-Fi VPN/LAN" in text
+    assert "Exact current domain transport authority activated" in text
+
+
+def test_canonical_network_guard_still_owns_target_admission() -> None:
     text = read()
     assert "Confirm-SasNorthwellNetwork.ps1" in text
-    assert "Enable-SasNorthwellVpnNetworkGuard.ps1" not in text
-    assert "does not grant network authority" in text
+    assert "canonical field guard will independently verify" in text.lower()
+    assert "Network authority: canonical Confirm-SasNorthwellNetwork.ps1 inside the field transaction" in text
 
 
 def test_crash_safe_runner_and_parser_gate() -> None:
