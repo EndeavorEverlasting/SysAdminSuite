@@ -70,7 +70,8 @@ def test_confirm_vpn_posture_bootstraps_exact_current_domain_transport_authority
     assert "$env:SAS_NETWORK_GUARD_CONFIG = $authorityConfig" in text
     assert "target_contact_performed" in text
     assert "target_mutation_performed" in text
-    assert "exact current DomainAuthenticated non-Wi-Fi VPN/LAN" in text
+    assert "DomainAuthenticated non-Wi-Fi VPN/LAN" in text
+    assert "Exact current domain transport authority activated" in text
 
 
 def test_canonical_network_guard_still_owns_target_admission() -> None:
