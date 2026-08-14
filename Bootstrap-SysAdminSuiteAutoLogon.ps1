@@ -16,6 +16,12 @@ interface by invoking Enable-SasNorthwellVpnNetworkGuard.ps1. That helper perfor
 mutation; the canonical field guard independently verifies the resulting current posture again before
 any target operation.
 
+When -ConfirmLocalTargetAuthorization is supplied, the bootstrap runs the canonical network gate before
+DNS resolution, resolves the requested target to the canonical FQDN, and writes only that exact resolved
+FQDN into the gitignored operator-local host eligibility policy using the repository authorizer. The
+normal field transaction still repeats network, canonical resolution, and eligibility validation before
+any target mutation.
+
 Existing unexpected or dirty runtime content is never reset, cleaned, removed, or overwritten.
 #>
 [CmdletBinding()]
@@ -31,6 +37,9 @@ param(
     [string]$LegacyEvidenceRoot,
 
     [string]$ExpectedCommit,
+
+    # Explicitly authorize only the canonical resolved FQDN in the ignored local host policy.
+    [switch]$ConfirmLocalTargetAuthorization,
 
     # Explicitly establish exact current DomainAuthenticated VPN/LAN authority before the canonical gate.
     [switch]$ConfirmVpnPosture
@@ -202,7 +211,9 @@ $crashSafeScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonCrashSafeF
 $onsiteScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonOnsite.ps1'
 $networkGate = Join-Path $RuntimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
 $networkBootstrap = Join-Path $RuntimeRoot 'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1'
-foreach ($required in @($crashSafeScript,$onsiteScript,$networkGate,$networkBootstrap)) {
+$targetModule = Join-Path $RuntimeRoot 'scripts\SasTargetNameResolution.psm1'
+$hostAuthorizer = Join-Path $RuntimeRoot 'scripts\Set-SasHostEligibilityLocalTarget.ps1'
+foreach ($required in @($crashSafeScript,$onsiteScript,$networkGate,$networkBootstrap,$targetModule,$hostAuthorizer)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required field deployment surface is missing: $required" }
 
     $tokens = $null
@@ -236,6 +247,43 @@ if ($ConfirmVpnPosture) {
     Write-Host 'The canonical field guard will independently verify this posture before target contact.' -ForegroundColor Green
 } else {
     Remove-Item Env:SAS_NETWORK_GUARD_CONFIG -ErrorAction SilentlyContinue
+}
+
+if ($ConfirmLocalTargetAuthorization) {
+    if (-not $ConfirmVpnPosture) {
+        throw 'Exact canonical target authorization requires -ConfirmVpnPosture so protected-network admission precedes DNS resolution.'
+    }
+
+    Write-Host ''
+    Write-Host 'PROVING NETWORK BEFORE CANONICAL TARGET AUTHORIZATION' -ForegroundColor Cyan
+    $LASTEXITCODE = 0
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate `
+        -Purpose "AutoLogon bootstrap authorization for $ComputerName"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Canonical target authorization stopped by the protected network gate with exit code $LASTEXITCODE."
+    }
+
+    Import-Module $targetModule -Force
+    $authorizationResolution = Resolve-SasCanonicalTargetFqdn -TargetName $ComputerName
+    if (@($authorizationResolution.addresses).Count -lt 1) {
+        throw 'Canonical target authorization resolution returned no address.'
+    }
+    $resolvedAuthorizationTarget = [string]$authorizationResolution.fqdn
+    if ([string]::IsNullOrWhiteSpace($resolvedAuthorizationTarget)) {
+        throw 'Canonical target authorization resolution returned an empty FQDN.'
+    }
+
+    Write-Host ''
+    Write-Host 'AUTHORIZING EXACT CANONICAL AUTOLOGON TARGET' -ForegroundColor Cyan
+    $authorization = & $hostAuthorizer -Target $resolvedAuthorizationTarget -ExecContext remote `
+        -RepoRoot $RuntimeRoot -ConfirmLocalAuthorization -PassThru
+    if ($null -eq $authorization -or -not [bool]$authorization.eligible -or
+        [string]$authorization.decision -ne 'allowed') {
+        throw "Exact canonical target authorization failed for $resolvedAuthorizationTarget."
+    }
+    Write-Host "Canonical target authorized: $resolvedAuthorizationTarget" -ForegroundColor Green
+    Write-Host "Operator-local policy: $($authorization.policy_path)" -ForegroundColor Green
+    Write-Host 'The canonical field transaction will independently re-resolve and revalidate this exact target.' -ForegroundColor Green
 }
 
 Write-Host ''
