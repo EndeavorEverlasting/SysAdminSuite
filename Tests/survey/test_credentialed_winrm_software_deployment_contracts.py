@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import json
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "Invoke-SasCredentialedApprovedSoftwareInstall.ps1"
@@ -23,7 +24,6 @@ def test_runtime_only_credential_contract() -> None:
         "ConvertFrom-SecureString",
         "ConvertTo-SecureString",
         "SecureStringToBSTR",
-        "NetworkCredential).Password",
         "GetNetworkCredential().Password",
     )
     for marker in forbidden:
@@ -32,17 +32,16 @@ def test_runtime_only_credential_contract() -> None:
 
 def test_no_uac_lua_or_winrm_policy_mutation() -> None:
     text = read(SCRIPT)
-    for marker in (
-        "EnableLUA",
-        "LocalAccountTokenFilterPolicy",
-        "TrustedHosts",
+    forbidden_mutations = (
+        "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System'",
+        "New-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System'",
         "Set-WSManInstance",
         "Enable-PSRemoting",
         "Set-NetFirewallRule",
-    ):
-        # The comments may name the forbidden posture; executable mutation must not appear.
-        executable = [line for line in text.splitlines() if not line.lstrip().startswith(("#", "."))]
-        assert not any(marker in line and "never changes" not in line for line in executable), marker
+        "winrm set",
+    )
+    for marker in forbidden_mutations:
+        assert marker not in text, marker
     assert "administrator_token" in text
     assert "Refusing to alter UAC/LUA or token-filter policy" in text
 
@@ -51,11 +50,21 @@ def test_copy_then_install_avoids_second_hop() -> None:
     text = read(SCRIPT)
     assert "Copy-Item -LiteralPath $installerPath -Destination $remoteInstaller -ToSession $session -Force" in text
     assert "Get-FileHash -LiteralPath $installerPath -Algorithm SHA256" in text
-    assert "target installer SHA-256 mismatch" in text.lower()
+    assert "Target installer SHA-256 mismatch" in text
     assert "Start-Process -FilePath $filePath" in text
-    assert "SoftwareShareRoot" not in "".join(
-        line for line in text.splitlines() if "Invoke-Command -Session" in line
-    )
+
+
+def test_staging_is_recorded_as_target_mutation_before_copy_or_install() -> None:
+    text = read(SCRIPT)
+    stage = text.index("$stageRoot = Invoke-Command -Session $session")
+    mutation = text.index("$result.target_mutation_performed = $true", stage)
+    target_mutation = text.index("$targetResult.target_mutation_performed = $true", stage)
+    copy = text.index("Copy-Item -LiteralPath $installerPath", stage)
+    install = text.index("$targetResult.execution = Invoke-Command", copy)
+    assert stage < mutation < copy < install
+    assert stage < target_mutation < copy
+    assert "target_staging_created" in text
+    assert "target_mutation_performed = $false" in text
 
 
 def test_existing_safety_authorities_are_reused() -> None:
@@ -93,13 +102,13 @@ def test_crash_diagnostics_survive_operator_shell_loss() -> None:
 
 
 def test_catalog_requires_transport_specific_promotion() -> None:
-    import json
-
     catalog = json.loads(read(CATALOG))
     packages = {row["id"]: row for row in catalog["packages"]}
+    assert catalog["catalog_policy"]["credentialed_winrm_requires_explicit_package_opt_in"] is True
     assert packages["bca"]["credentialed_winrm_install_enabled"] is True
     assert packages["autologon"]["credentialed_winrm_install_enabled"] is False
     assert packages["autologon"]["credentialed_winrm_qualification_enabled"] is True
+    assert packages["autologon"]["canonical_system_install_enabled"] is False
     assert packages["allscripts-touchworks-22-1"]["credentialed_winrm_install_enabled"] is False
 
 

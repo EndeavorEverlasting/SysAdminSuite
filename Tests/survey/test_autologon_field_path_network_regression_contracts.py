@@ -6,6 +6,8 @@ ROOT = Path(__file__).resolve().parents[2]
 ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
 FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
 S4U = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
+NETWORK_GUARD = ROOT / "scripts" / "SasNetworkGuard.psm1"
+VPN_BOOTSTRAP = ROOT / "scripts" / "Enable-SasNorthwellVpnNetworkGuard.ps1"
 GITIGNORE = ROOT / ".gitignore"
 
 
@@ -13,12 +15,31 @@ def main() -> None:
     onsite = ONSITE.read_text(encoding="utf-8")
     field = FIELD.read_text(encoding="utf-8")
     s4u = S4U.read_text(encoding="utf-8")
+    network_guard = NETWORK_GUARD.read_text(encoding="utf-8")
+    vpn_bootstrap = VPN_BOOTSTRAP.read_text(encoding="utf-8")
     gitignore = GITIGNORE.read_text(encoding="utf-8")
 
     # The outer transaction remains the sole authority for protected-network admission.
     assert "Confirm-SasNorthwellNetwork.ps1" in field
     assert "Enable-SasNorthwellVpnNetworkGuard.ps1" not in onsite
     assert "Assert-SasAutoLogonProtectedNetwork" not in onsite
+
+    # VPN bootstrap and canonical guard must agree on the authority model: an active
+    # DomainAuthenticated non-Wi-Fi interface plus an exact allowlisted local IP.
+    required_guard = (
+        "Test-SasNorthwellDomainAuthenticatedEvidence",
+        "NetworkCategory",
+        "DomainAuthenticated",
+        "Get-NetConnectionProfile",
+        "Get-NetIPAddress",
+        "allowedLocalIpCidrs",
+        "Test-SasIpInCidr",
+        "wi-?fi|wireless|wlan",
+    )
+    missing_guard = [marker for marker in required_guard if marker not in network_guard]
+    assert not missing_guard, f"missing live VPN guard markers: {missing_guard}"
+    for marker in ("DomainAuthenticated", "Get-NetConnectionProfile", "Get-NetIPAddress", "allowedLocalIpCidrs", "/32"):
+        assert marker in vpn_bootstrap, f"VPN bootstrap lost authority marker: {marker}"
 
     # Every target-facing AutoLogon action must re-enter a stable short physical worktree.
     required = (

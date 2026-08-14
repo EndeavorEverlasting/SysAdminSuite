@@ -333,6 +333,7 @@ try {
             target = $target
             status = 'started'
             administrator_token = $false
+            target_mutation_performed = $false
             source_sha256 = $sourceHash
             target_sha256 = $null
             before = $null
@@ -367,6 +368,14 @@ try {
                 $expected
             } -ArgumentList $runId
 
+            # Creating the run-scoped directory is the first target mutation. Persist that
+            # boundary before any copy or installer execution so a failed transfer cannot
+            # be misreported as a no-mutation transaction.
+            $result.target_mutation_performed = $true
+            $targetResult.target_mutation_performed = $true
+            Write-SasJson -Path $resultPath -Value ([pscustomobject]$result)
+            Write-SasEvent -Name 'target_staging_created' -Data @{ target = $target; target_mutation_performed = $true }
+
             $remoteInstaller = Join-Path $stageRoot $installerFile
             Copy-Item -LiteralPath $installerPath -Destination $remoteInstaller -ToSession $session -Force
             $targetHash = Invoke-Command -Session $session -ScriptBlock { param($Path) (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() } -ArgumentList $remoteInstaller
@@ -376,7 +385,6 @@ try {
             }
             Write-SasEvent -Name 'target_installer_staged' -Data @{ target = $target; target_sha256 = [string]$targetHash }
 
-            $result.target_mutation_performed = $true
             $targetResult.execution = Invoke-Command -Session $session -ScriptBlock $remoteExecute -ArgumentList $remoteInstaller, $arguments
             if (-not [bool]$targetResult.execution.success) {
                 throw "Installer returned exit code $($targetResult.execution.installer_exit_code) on $target."
