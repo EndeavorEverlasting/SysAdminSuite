@@ -37,6 +37,7 @@ echo "[sas-harness] pre-commit: validating the exact staged snapshot"
   python3 harness/validators/validate-repository-freshness-contracts.py
   python3 harness/validators/validate-outcome-contracts.py
   python3 harness/validators/validate-deployment-state-contracts.py
+  python3 harness/validators/validate-terminal-evidence-survival.py
   python3 Tests/survey/test_operational_harness_completeness_contracts.py
   python3 scripts/check-repo-text-policy.py --cached
   python3 Tests/survey/test_local_harness_contracts.py
