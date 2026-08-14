@@ -71,12 +71,16 @@ function Invoke-SasBootstrapGit {
         [switch]$Quiet
     )
 
+    # StrictMode treats an unread automatic variable as an error. Prime LASTEXITCODE
+    # before every native Git invocation so bootstrap diagnostics remain deterministic
+    # even in a fresh PowerShell session where no native process has run yet.
+    $LASTEXITCODE = 0
     $lines = if ([string]::IsNullOrWhiteSpace($Root)) {
         @(& $script:SasGitExe @Arguments 2>&1)
     } else {
         @(& $script:SasGitExe -C $Root @Arguments 2>&1)
     }
-    $exitCode = $LASTEXITCODE
+    $exitCode = [int]$LASTEXITCODE
     $text = (@($lines | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
 
     if (-not $Quiet -and -not [string]::IsNullOrWhiteSpace($text)) {
@@ -220,9 +224,11 @@ Write-Host 'SHORT RUNTIME PINNED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTI
 Write-Host "Runtime HEAD: $runtimeHead" -ForegroundColor Green
 Write-Host 'Network authority: canonical Confirm-SasNorthwellNetwork.ps1 inside the field transaction' -ForegroundColor Green
 
+# Prime LASTEXITCODE for the same StrictMode reason as native Git above.
+$LASTEXITCODE = 0
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $crashSafeScript `
     -ComputerName $ComputerName -RepositoryRoot $RuntimeRoot -ConfirmDeployment
-$deploymentExit = $LASTEXITCODE
+$deploymentExit = [int]$LASTEXITCODE
 
 $latestPointer = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\last-autologon-field-run.json'
 Write-Host ''

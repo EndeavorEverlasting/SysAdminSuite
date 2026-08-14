@@ -19,6 +19,19 @@ def test_child_process_contains_internal_exit() -> None:
     assert "exit $ExitCode" not in text
 
 
+def test_native_child_exit_codes_are_primed_under_strict_mode() -> None:
+    text = read(SCRIPT)
+    assert text.count("$LASTEXITCODE = 0") >= 2
+    child_prime = text.index("$LASTEXITCODE = 0", text.index("$childArguments = @("))
+    child_call = text.index("& powershell.exe @childArguments", child_prime)
+    child_capture = text.index("$result.child_exit_code = [int]$LASTEXITCODE", child_call)
+    evidence_prime = text.index("$LASTEXITCODE = 0", child_capture)
+    evidence_call = text.index("& powershell.exe @evidenceArguments", evidence_prime)
+    evidence_capture = text.index("$result.evidence_recovery_exit_code = [int]$LASTEXITCODE", evidence_call)
+    assert child_prime < child_call < child_capture
+    assert evidence_prime < evidence_call < evidence_capture
+
+
 def test_stable_diagnostics_survive_terminal_loss() -> None:
     text = read(SCRIPT)
     assert "Start-Transcript" in text
