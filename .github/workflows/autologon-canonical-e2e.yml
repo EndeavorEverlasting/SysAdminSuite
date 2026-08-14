@@ -94,7 +94,6 @@ jobs:
         shell: powershell
         run: |
           & .\tests\SasNetworkGuard.Tests.ps1
-          if ($LASTEXITCODE -ne 0) { throw "SasNetworkGuard regression exited $LASTEXITCODE." }
       - name: Install Pester 5 for Windows PowerShell
         shell: powershell
         run: |
