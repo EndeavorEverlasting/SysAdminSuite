@@ -27,18 +27,34 @@ def test_launcher_delegates_to_canonical_bootstrap() -> None:
     assert "git fetch" not in text.lower()
 
 
-def test_launcher_carries_only_ignored_operator_host_policy() -> None:
+def test_launcher_authorizes_exact_target_in_short_runtime() -> None:
+    text = read()
+    assert "Set-SasHostEligibilityLocalTarget.ps1" in text
+    assert '-Target "%SAS_TARGET%"' in text
+    assert "-ExecContext remote" in text
+    assert '-RepoRoot "%SAS_RUNTIME%"' in text
+    assert '-PolicyPath "%SAS_RUNTIME%\\Config\\%SAS_POLICY%"' in text
+    assert "-ConfirmLocalAuthorization" in text
+    assert "-PassThru" in text
+    assert "Authorized exact target for remote execution" in text
+    assert "regex = '.*'" not in text
+    assert 'regex = ".*"' not in text
+
+
+def test_launcher_treats_legacy_policy_as_optional_carryover() -> None:
     text = read()
     assert "host-eligibility-policy.local.json" in text
     assert '"%SAS_LEGACY%\\Config\\%SAS_POLICY%"' in text
     assert '"%SAS_RUNTIME%\\Config\\%SAS_POLICY%"' in text
     assert "Preserving existing short-runtime host eligibility policy" in text
-    assert "Never print policy contents" in text
+    assert "A missing legacy policy is not a blocker" in text
     assert "sas-network-guard.local.json" not in text
 
 
-def test_launcher_propagates_bootstrap_exit_code() -> None:
+def test_launcher_propagates_authorizer_and_bootstrap_exit_codes() -> None:
     text = read()
+    assert 'set "SAS_AUTH_RC=%ERRORLEVEL%"' in text
+    assert 'exit /b %SAS_AUTH_RC%' in text
     assert 'set "SAS_RC=%ERRORLEVEL%"' in text
     assert "exit /b %SAS_RC%" in text
 
