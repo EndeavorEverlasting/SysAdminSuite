@@ -6,6 +6,12 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "Invoke-SasCredentialedApprovedSoftwareInstall.ps1"
 CMD = ROOT / "Deploy-ApprovedSoftwareCredentialed.cmd"
 CATALOG = ROOT / "configs" / "software-packages" / "approved-apps.json"
+DOC = ROOT / "docs" / "CREDENTIALED_WINRM_SOFTWARE_DEPLOYMENT.md"
+VALIDATED_DEPLOYMENT = ROOT / "scripts" / "Invoke-SasValidatedSoftwareDeployment.ps1"
+CURRENT_TOKEN_WINRM = ROOT / "scripts" / "Invoke-SasSoftwareInstall.ps1"
+AUTOLOGON_ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
+AUTOLOGON_S4U = ROOT / "scripts" / "Invoke-SasAutoLogonKerberosS4UPilot.ps1"
+AUTOLOGON_CRASH_SAFE = ROOT / "Run-AutoLogonCrashSafe.cmd"
 
 
 def read(path: Path) -> str:
@@ -82,6 +88,30 @@ def test_existing_safety_authorities_are_reused() -> None:
         "QualificationOnly is intentionally limited to exactly one target",
     ):
         assert marker in text, marker
+
+
+def test_transport_portfolio_remains_additive() -> None:
+    doc = read(DOC)
+    validated = read(VALIDATED_DEPLOYMENT)
+    current_winrm = read(CURRENT_TOKEN_WINRM)
+    onsite = read(AUTOLOGON_ONSITE)
+    read(AUTOLOGON_S4U)
+    read(AUTOLOGON_CRASH_SAFE)
+
+    assert "This capability is **additive**" in doc
+    assert "does not replace" in doc
+    assert "Current-token WinRM" in doc
+    assert "SMB scheduled task" in doc
+    assert "AutoLogon S4U / Remote" in doc
+    assert "Credentialed WinRM" in doc
+    assert "selection must happen **before target mutation**" in doc
+    assert "must not silently or automatically fall back" in doc
+
+    assert "[ValidateSet('Auto', 'WinRM', 'SmbScheduledTask')]" in validated
+    assert "Invoke-SasSmbScheduledTaskDeployment" in validated
+    assert "New-PSSession -ComputerName $target -SessionOption $sessionOption" in current_winrm
+    for marker in ("'Remote'", "'S4U'", "'Recover'"):
+        assert marker in onsite, marker
 
 
 def test_autologon_password_value_is_never_collected() -> None:
