@@ -7,6 +7,7 @@ on:
       - 'schemas/harness/autologon-*.schema.json'
       - 'scripts/Invoke-SasAutoLogon*.ps1'
       - 'scripts/SasTargetNameResolution.psm1'
+      - 'scripts/SasNetworkGuard.psm1'
       - 'scripts/Show-SasAutoLogonResult.ps1'
       - 'Inspect-LatestAutoLogon.cmd'
       - 'docs/AUTOLOGON_*.md'
@@ -22,6 +23,7 @@ on:
       - 'Tests/fixtures/software-install/**'
       - 'Tests/Pester/AutoLogonCanonical*.Tests.ps1'
       - 'Tests/Pester/TargetNameResolution.Tests.ps1'
+      - 'tests/SasNetworkGuard.Tests.ps1'
       - 'Tests/survey/test_autologon_*contracts.py'
       - 'Tests/survey/test_canonical_smb_task_deployment_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -35,6 +37,7 @@ on:
       - 'schemas/harness/autologon-*.schema.json'
       - 'scripts/Invoke-SasAutoLogon*.ps1'
       - 'scripts/SasTargetNameResolution.psm1'
+      - 'scripts/SasNetworkGuard.psm1'
       - 'scripts/Show-SasAutoLogonResult.ps1'
       - 'Inspect-LatestAutoLogon.cmd'
       - 'docs/AUTOLOGON_*.md'
@@ -50,6 +53,7 @@ on:
       - 'Tests/fixtures/software-install/**'
       - 'Tests/Pester/AutoLogonCanonical*.Tests.ps1'
       - 'Tests/Pester/TargetNameResolution.Tests.ps1'
+      - 'tests/SasNetworkGuard.Tests.ps1'
       - 'Tests/survey/test_autologon_*contracts.py'
       - 'Tests/survey/test_canonical_smb_task_deployment_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -86,6 +90,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Validate network guard under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          & .\tests\SasNetworkGuard.Tests.ps1
+          if ($LASTEXITCODE -ne 0) { throw "SasNetworkGuard regression exited $LASTEXITCODE." }
       - name: Install Pester 5 for Windows PowerShell
         shell: powershell
         run: |
