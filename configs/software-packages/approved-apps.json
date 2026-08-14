@@ -12,6 +12,8 @@
     "never_collect_default_password_value": true,
     "never_collect_application_command_line": true,
     "credentialed_winrm_requires_explicit_package_opt_in": true,
+    "credentialed_winrm_requires_independently_pinned_sha256": true,
+    "credentialed_winrm_requires_exact_catalog_arguments": true,
     "credentialed_winrm_never_persists_pscredential": true,
     "credentialed_winrm_never_changes_uac_lua_or_token_filter_policy": true
   },
@@ -27,6 +29,7 @@
       "install_enabled": false,
       "credentialed_winrm_install_enabled": false,
       "credentialed_winrm_qualification_enabled": false,
+      "credentialed_winrm_expected_sha256": null,
       "readiness": "installer_file_pending",
       "acceptance": {
         "application_process_names": [],
@@ -49,8 +52,10 @@
       ],
       "requires_validated_installer_arguments": false,
       "install_enabled": true,
-      "credentialed_winrm_install_enabled": true,
+      "credentialed_winrm_install_enabled": false,
       "credentialed_winrm_qualification_enabled": false,
+      "credentialed_winrm_expected_sha256": null,
+      "credentialed_winrm_promotion_status": "blocked_pending_independent_sha256_pin",
       "readiness": "installer_and_arguments_confirmed",
       "acceptance": {
         "application_process_names": [],
@@ -59,7 +64,7 @@
         "autologon_profile": "none",
         "expected_autologon_user_rule": null
       },
-      "notes": "The pinned MSI and standard unattended Windows Installer arguments are confirmed for pilot use. Credentialed WinRM may copy the exact installer through an authenticated admin-box PSSession; exit-code evidence still requires technician acceptance for the resulting shortcut."
+      "notes": "The pinned MSI filename and unattended arguments are confirmed. Credentialed WinRM remains intentionally disabled until an independently reviewed SHA-256 for the approved MSI is committed; the runtime then requires exact source and target equality to that pin."
     },
     {
       "id": "allscripts-touchworks-22-1",
@@ -72,6 +77,7 @@
       "install_enabled": true,
       "credentialed_winrm_install_enabled": false,
       "credentialed_winrm_qualification_enabled": false,
+      "credentialed_winrm_expected_sha256": null,
       "readiness": "installer_path_confirmed_arguments_pending",
       "acceptance": {
         "application_process_names": [],
@@ -80,7 +86,7 @@
         "autologon_profile": "none",
         "expected_autologon_user_rule": null
       },
-      "notes": "The folder and installer filename are confirmed. Live installation still requires vendor-validated installer arguments. Credentialed WinRM remains blocked until those arguments and acceptance checks are approved."
+      "notes": "The folder and installer filename are confirmed. Live installation still requires vendor-validated installer arguments. Credentialed WinRM remains blocked until arguments, an independent SHA-256 pin, and acceptance checks are approved."
     },
     {
       "id": "autologon",
@@ -94,13 +100,19 @@
       "installer_arguments_reference": "configs/software-packages/windows-native-package-sets.json#autologon",
       "install_enabled": true,
       "credentialed_winrm_install_enabled": false,
-      "credentialed_winrm_qualification_enabled": true,
+      "credentialed_winrm_qualification_enabled": false,
+      "credentialed_winrm_expected_sha256": null,
       "credentialed_winrm_qualification": {
-        "status": "unproven_user_admin_context",
+        "status": "blocked_pending_independent_sha256_pin",
+        "equipment_profile": "Cybernet",
+        "profile_authority": "Config/cybernet-client-preferences.json",
         "target_limit": 1,
         "promotion_requires": [
+          "independently_pinned_source_sha256",
+          "explicit_cybernet_equipment_profile",
           "administrator_token_proved",
           "source_target_sha256_equal",
+          "exact_approved_empty_installer_arguments",
           "installer_exit_code_success",
           "after_snapshot_auto_admin_logon_enabled",
           "after_snapshot_default_username_value_name_present",
@@ -132,7 +144,7 @@
         "require_current_session_match": true,
         "require_reboot_after_before_snapshot": true
       },
-      "notes": "Canonical LocalSystem deployment remains blocked. Credentialed WinRM is enabled only as a one-target qualification lane because the installer may depend on an administrator user context. The lane never reads the DefaultPassword value, never changes UAC/LUA or token-filter policy, and cannot promote itself."
+      "notes": "Canonical LocalSystem deployment remains blocked. Credentialed WinRM is retained as a separate administrator-user-context qualification path but is not live until an independent SHA-256 is pinned and the qualification opt-in is separately promoted. The lane requires the explicit Cybernet profile authority, never reads DefaultPassword, never changes UAC/LUA or token-filter policy, and cannot promote itself."
     }
   ]
 }
