@@ -15,3 +15,22 @@ jobs:
           [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts\Invoke-SasAutoLogonOnsite.ps1'), [ref]$tokens, [ref]$errors)
           if (@($errors).Count -gt 0) { $errors | Format-List * | Out-Host; throw 'AutoLogon on-site field launcher parse failed.' }
           Write-Host 'PASS: AutoLogon on-site field launcher parses under Windows PowerShell 5.1'
+      - name: Resolve canonical FQDN under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          Set-StrictMode -Version Latest
+          Import-Module (Join-Path $PWD 'scripts\SasTargetNameResolution.psm1') -Force
+          $resolver = {
+            param($Name)
+            if ($Name -eq 'fixture-target.example.invalid') {
+              [pscustomobject]@{
+                canonical_name = 'fixture-target.example.invalid'
+                addresses = @('192.0.2.10')
+              }
+            }
+          }
+          $result = Resolve-SasCanonicalTargetFqdn -TargetName 'fixture-target.example.invalid' -DnsResolver $resolver
+          if ($result.fqdn -ne 'fixture-target.example.invalid') { throw "Unexpected canonical FQDN: $($result.fqdn)" }
+          if ([int]$result.suffix_candidate_count -ne 0) { throw "Expected zero suffix candidates for canonical FQDN, got $($result.suffix_candidate_count)" }
+          if (@($result.addresses).Count -ne 1) { throw 'Expected one synthetic resolved address.' }
+          Write-Host 'PASS: canonical FQDN resolution preserves an empty suffix array under Windows PowerShell 5.1 StrictMode'
