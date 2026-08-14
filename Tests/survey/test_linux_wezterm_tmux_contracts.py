@@ -143,7 +143,9 @@ def test_safety_and_native_only_contract() -> None:
     assert "curl |" not in text and "curl -" not in text and "wsl" not in text.lower()
     assert "sudo" in text and "install_missing" in text and "--install-missing" in text
     assert "${TMUX:-}" in text and "tmux kill-session -t" in text
-    assert "nohup wezterm start --always-new-process" in text
+    assert "nohup wezterm start --always-new-process" not in text
+    assert "wezterm cli list --format json" in text
+    assert "wezterm cli activate-pane --pane-id" in text
     assert "AGENT_SWITCHBOARD_ALLOW_WINDOWS_BRIDGE=0" in text
 
 
