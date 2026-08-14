@@ -111,6 +111,7 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas cybernet Probe HOST             PROTECTED NORTHWELL: optional read-only readiness'
     Write-Host '  sas cybernet Deploy HOST            PROTECTED NORTHWELL: full Cybernet software profile; readiness included; AutoLogon last; restart included'
     Write-Host '  The standalone Probe is optional diagnosis; it is NOT a prerequisite loop before Deploy'
+    Write-Host '  Fixture/live-cert/runtime-proof loops are NOT prerequisites for deployment'
     Write-Host '  sas cybernet Plan HOST              Hardware-only Cybernet plan'
     Write-Host '  sas cybernet Apply HOST             Hardware-only Cybernet apply'
     Write-Host '  sas cybernet Validate HOST          Hardware-only Cybernet validation'
