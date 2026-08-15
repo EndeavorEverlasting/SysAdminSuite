@@ -226,6 +226,7 @@ if ($ConfirmVpnPosture) {
     }
     $env:SAS_NETWORK_GUARD_CONFIG = $authorityConfig
     Write-Host "Exact current domain transport authority activated: $authorityConfig" -ForegroundColor Green
+    Write-Host 'The canonical field guard will independently verify this posture before target contact.' -ForegroundColor Green
 } else {
     Remove-Item Env:SAS_NETWORK_GUARD_CONFIG -ErrorAction SilentlyContinue
 }
