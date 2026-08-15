@@ -124,13 +124,15 @@ sas autologon Remote <AUTHORIZED-CYBERNET>
 
 The installed `sas` launcher reads the sealed runtime manifest and invokes `C:\SASAL\Bootstrap-SysAdminSuiteAutoLogon.cmd` at the prepared commit.
 
+For this canonical one-target AutoLogon command, the explicit `HOST` argument is the deployment authority. The CMD carries that target only inside its process tree. The host eligibility gate accepts only that same non-local hostname or its canonical FQDN. A pre-existing `Config\host-eligibility-policy.local.json` file is **not required, generated, copied, or consulted as a veto** for this transaction. A different hostname, localhost, fixture/VM/local execution, and unrelated software paths retain their normal fail-closed behavior.
+
 The protected bootstrap performs only local Git verification (`HEAD`, clean state, no remotes). It does not clone, fetch, pull, checkout, reset, clean, or discover another checkout. It then owns:
 
 1. sealed-runtime verification;
 2. exact DomainAuthenticated VPN/LAN authority when requested;
 3. canonical protected-network gate;
-4. canonical FQDN resolution;
-5. exact FQDN-only local host authorization;
+4. canonical FQDN resolution inside the field transaction;
+5. exact process-scoped operator target authorization;
 6. crash-safe AutoLogon field transaction;
 7. required restart and offline/online observation;
 8. terminal evidence preservation.
