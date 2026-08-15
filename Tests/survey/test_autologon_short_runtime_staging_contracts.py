@@ -58,9 +58,7 @@ def test_protected_bootstrap_is_verification_only_for_git() -> None:
     assert "AUTOLOGON_RUNTIME_UNSEALED" in text
     assert "PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION" in text
 
-    # Protected-side Git use is read-only verification only.
-    allowed = ("rev-parse", "status", "remote")
-    for command in allowed:
+    for command in ("rev-parse", "status", "remote"):
         assert command in text
     lowered = text.lower()
     for forbidden in (
@@ -74,6 +72,16 @@ def test_protected_bootstrap_is_verification_only_for_git() -> None:
         "repo_url",
     ):
         assert forbidden not in lowered, forbidden
+
+
+def test_protected_bootstrap_legacy_evidence_fallback_is_explicit_only() -> None:
+    text = read(BOOTSTRAP)
+    assert "Legacy evidence fallback is opt-in only" in text
+    assert "if (-not [string]::IsNullOrWhiteSpace($LegacyEvidenceRoot))" in text
+    assert "Legacy evidence fallback: disabled." in text
+    assert "GetFolderPath" not in text
+    assert "Desktop\\dev" not in text
+    assert "OG Laptop Backup" not in text
 
 
 def test_protected_bootstrap_does_not_merge_native_stderr_into_error_stream() -> None:
@@ -98,6 +106,8 @@ def test_sas_autologon_remote_consumes_sealed_runtime() -> None:
 def test_runbook_declares_two_phase_network_boundary() -> None:
     text = read(DOC).lower()
     assert "guest / internet" in text
+    assert "sync-cache" in text
+    assert "field-ready" in text
     assert "protected" in text
     assert "sas refresh" in text
     assert "sas autologon remote" in text
