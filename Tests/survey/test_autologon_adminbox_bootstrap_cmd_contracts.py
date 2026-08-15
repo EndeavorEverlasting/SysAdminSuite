@@ -18,13 +18,16 @@ def test_launcher_forces_windows_powershell_51() -> None:
     assert "engine:  windows powershell 5.1" in text
 
 
-def test_launcher_delegates_network_and_target_authorization_to_canonical_bootstrap() -> None:
+def test_launcher_is_protected_local_only_and_delegates_authorization() -> None:
     text = read(LAUNCHER)
     assert "Bootstrap-SysAdminSuiteAutoLogon.ps1" in text
     assert '-RuntimeRoot "%SAS_RUNTIME%"' in text
     assert "-ConfirmVpnPosture" in text
     assert "-ConfirmLocalTargetAuthorization" in text
     assert '-ExpectedCommit "%SAS_EXPECTED%"' in text
+    assert "EXPECTED_PREPARED_COMMIT" in text
+    assert "runtime must already be sealed by sas refresh on Guest/Internet" in text
+    assert "Git network activity: NONE" in text
     assert "git clone" not in text.lower()
     assert "git fetch" not in text.lower()
     assert "Set-SasHostEligibilityLocalTarget.ps1" not in text
