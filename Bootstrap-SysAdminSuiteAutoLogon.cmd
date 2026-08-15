@@ -2,11 +2,12 @@
 setlocal EnableExtensions DisableDelayedExpansion
 
 if "%~1"=="" (
-  echo Usage: Bootstrap-SysAdminSuiteAutoLogon.cmd HOST [EXPECTED_MAIN_COMMIT] [LEGACY_REPO_ROOT]
+  echo Usage: Bootstrap-SysAdminSuiteAutoLogon.cmd HOST [EXPECTED_PREPARED_COMMIT] [LEGACY_EVIDENCE_ROOT]
   echo.
-  echo Runs the canonical SysAdminSuite AutoLogon bootstrap under Windows PowerShell 5.1.
-  echo EXPECTED_MAIN_COMMIT is optional but recommended for a pinned field attempt.
-  echo LEGACY_REPO_ROOT is optional and is used only as evidence/config fallback.
+  echo Runs the protected SysAdminSuite AutoLogon bootstrap under Windows PowerShell 5.1.
+  echo The runtime must already be sealed by sas refresh on Guest/Internet.
+  echo EXPECTED_PREPARED_COMMIT is optional but recommended for a pinned field attempt.
+  echo LEGACY_EVIDENCE_ROOT is optional and used only when explicitly supplied.
   echo The bootstrap authorizes only the canonical resolved FQDN after protected-network admission.
   exit /b 2
 )
@@ -32,11 +33,12 @@ if not exist "%SAS_BOOTSTRAP%" (
 )
 
 echo.
-echo === SYSADMINSUITE AUTOLOGON BOOTSTRAP ===
+echo === SYSADMINSUITE PROTECTED AUTOLOGON BOOTSTRAP ===
 echo Runtime: %SAS_RUNTIME%
 echo Target:  %SAS_TARGET%
 echo Engine:  Windows PowerShell 5.1
-if defined SAS_EXPECTED echo Expected main: %SAS_EXPECTED%
+if defined SAS_EXPECTED echo Expected prepared commit: %SAS_EXPECTED%
+echo Git network activity: NONE
 echo.
 
 if defined SAS_EXPECTED (
