@@ -9,6 +9,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $stateRoot = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
 $cachePath = Join-Path -Path $stateRoot -ChildPath 'repo-root.txt'
+$autoLogonRuntimeStatePath = Join-Path -Path $stateRoot -ChildPath 'autologon-short-runtime.json'
 $PathLengthThreshold = 100
 New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
 
@@ -61,6 +62,35 @@ function Get-SasActualArguments {
     return @($Arguments | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
 }
 
+function Resolve-SasPreparedAutoLogonRuntime {
+    if (-not (Test-Path -LiteralPath $autoLogonRuntimeStatePath -PathType Leaf)) {
+        throw "AutoLogon short runtime is not prepared. Run 'sas refresh' on Guest/Internet before switching to the protected network."
+    }
+    try { $state = Get-Content -LiteralPath $autoLogonRuntimeStatePath -Raw -Encoding UTF8 | ConvertFrom-Json }
+    catch { throw "AutoLogon short-runtime manifest is unreadable. Run 'sas refresh' on Guest/Internet: $($_.Exception.Message)" }
+    if ([string]$state.schema_version -ne 'sas-autologon-short-runtime/v1') {
+        throw "AutoLogon short-runtime manifest schema is unsupported. Run 'sas refresh' on Guest/Internet."
+    }
+    $runtimeRoot = [IO.Path]::GetFullPath([string]$state.runtime_root)
+    if (-not (Test-Path -LiteralPath $runtimeRoot -PathType Container)) {
+        throw "Prepared AutoLogon runtime is missing: $runtimeRoot. Run 'sas refresh' on Guest/Internet."
+    }
+    $preparedCommit = ([string]$state.prepared_commit).Trim()
+    if ([string]::IsNullOrWhiteSpace($preparedCommit)) {
+        throw "Prepared AutoLogon runtime has no sealed commit. Run 'sas refresh' on Guest/Internet."
+    }
+    if ([string]$state.preparation_network_classification -ne 'GUEST_INTERNET' -or
+        [string]$state.runtime_git_transport -ne 'LOCAL_FILESYSTEM_ONLY' -or
+        [bool]$state.protected_bootstrap_git_network_allowed) {
+        throw "Prepared AutoLogon runtime does not satisfy the Guest-to-protected staging contract. Run 'sas refresh' on Guest/Internet."
+    }
+    $bootstrap = Join-Path $runtimeRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd'
+    if (-not (Test-Path -LiteralPath $bootstrap -PathType Leaf)) {
+        throw "Prepared AutoLogon runtime is missing the protected launcher: $bootstrap"
+    }
+    return [pscustomobject]@{ root=$runtimeRoot; commit=$preparedCommit; bootstrap=$bootstrap }
+}
+
 function Get-SasAvailableSubstDrive {
     foreach ($letter in @('S','R','Q','P','O','N','M','L','K','J')) {
         if ($null -eq (Get-PSDrive -Name $letter -ErrorAction SilentlyContinue) -and -not (Test-Path -LiteralPath "${letter}:\")) { return "${letter}:" }
@@ -104,7 +134,7 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host ''
     Write-Host '  sas context                          Show persistent operator/session state'
     Write-Host '  sas next                             Show only next network + one next command'
-    Write-Host '  sas refresh                          GUEST / INTERNET: refresh the current tracked branch'
+    Write-Host '  sas refresh                          GUEST / INTERNET: refresh repo and seal C:\SASAL for protected AutoLogon'
     Write-Host '  sas leave                            LOCAL ONLY: return to recorded previous guest/internet Wi-Fi'
     Write-Host '  sas cybernet Core HOST              PROTECTED NORTHWELL: five clinical apps; AutoLogon untouched; no reboot'
     Write-Host '  sas cybernet Recover HOST           PROTECTED NORTHWELL: exact previous-run cleanup/recovery only'
@@ -116,8 +146,8 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas cybernet Apply HOST             Hardware-only Cybernet apply'
     Write-Host '  sas cybernet Validate HOST          Hardware-only Cybernet validation'
     Write-Host '  sas evidence Cybernet               OFFLINE: recover newest Cybernet evidence'
-    Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: canonicalize, recover safe probe-only state, AutoLogon-only apply, restart'
-    Write-Host '  sas autologon Recover HOST          PROTECTED NORTHWELL: recovery gate only; never install AutoLogon'
+    Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: use sealed C:\SASAL; no Git network I/O; apply + restart'
+    Write-Host '  sas autologon Recover HOST          PROTECTED NORTHWELL: recovery gate from sealed C:\SASAL'
     Write-Host '  sas network                          Read-only Northwell network posture'
     Write-Host '  sas network HOST                     Optional one-target read-only readiness probe'
     Write-Host '  sas repo                             Print resolved repository path'
@@ -173,7 +203,28 @@ switch ($normalized) {
         Write-Host 'Usage: sas network  OR  sas network HOST' -ForegroundColor Red
         exit 2
     }
-    { $_ -in @('autologon','qualify') } {
+    'autologon' {
+        if ($actualCommandArgs.Count -eq 2) {
+            $mode = ([string]$actualCommandArgs[0]).Trim().ToLowerInvariant()
+            $target = [string]$actualCommandArgs[1]
+            if ($mode -eq 'remote') {
+                $runtime = Resolve-SasPreparedAutoLogonRuntime
+                Write-Host "Using sealed AutoLogon runtime: $($runtime.root)" -ForegroundColor Cyan
+                Write-Host "Prepared commit: $($runtime.commit)" -ForegroundColor Cyan
+                Write-Host 'Protected-side Git network I/O: NONE' -ForegroundColor Green
+                & $runtime.bootstrap $target $runtime.commit
+                exit $LASTEXITCODE
+            }
+            if ($mode -eq 'recover') {
+                $runtime = Resolve-SasPreparedAutoLogonRuntime
+                $recoveryLauncher = Join-Path $runtime.root 'Run-AutoLogonOnsite.cmd'
+                & $recoveryLauncher 'Recover' $target
+                exit $LASTEXITCODE
+            }
+        }
+        exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-AutoLogonOnsite.cmd' -Arguments $actualCommandArgs)
+    }
+    'qualify' {
         exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-AutoLogonOnsite.cmd' -Arguments $actualCommandArgs)
     }
     'cybernet' {

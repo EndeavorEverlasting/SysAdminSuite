@@ -44,6 +44,9 @@ python3 Tests/survey/test_autologon_exact_run_root_cleanup_contracts.py
 python3 Tests/survey/test_autologon_s4u_local_run_status_contracts.py
 python3 Tests/survey/test_host_eligibility_local_authorizer_contracts.py
 python3 Tests/survey/test_autologon_s4u_path_budget_contracts.py
+python3 Tests/survey/test_autologon_adminbox_bootstrap_cmd_contracts.py
+python3 Tests/survey/test_autologon_short_runtime_staging_contracts.py
+python3 Tests/survey/test_autologon_protected_bootstrap_contracts.py
 python3 harness/validators/validate-harness-registries.py
 python3 harness/validators/validate-outcome-contracts.py
 python3 harness/validators/validate-deployment-state-contracts.py

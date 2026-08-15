@@ -1,165 +1,196 @@
 #Requires -Version 5.1
+<#
+.SYNOPSIS
+Refresh the SysAdminSuite operator surface on Guest/Internet and seal the protected AutoLogon runtime.
+
+.DESCRIPTION
+The caller checkout is used only to locate the network classifier and this refresh entrypoint. All remote
+Git operations are isolated to %LOCALAPPDATA%\SysAdminSuite\sync-cache and are blocked unless the current
+network classifies as GUEST_INTERNET. A clean field-ready worktree is derived from that cache, the installed
+`sas` dispatcher is refreshed from field-ready, and C:\SASAL is then staged by local filesystem Git transfer
+and stripped of remotes for protected-network use.
+
+No target contact or target mutation occurs in this script.
+#>
 [CmdletBinding()]
 param(
     [string]$RepositoryRoot,
-    [string]$Ref
+    [string]$Ref,
+    [string]$RepoUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git'
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
 if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
     $RepositoryRoot = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '..')).Path
-}
-else {
+} else {
     $RepositoryRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 }
 
-$git = Get-Command git.exe -ErrorAction SilentlyContinue
-if (-not $git) { $git = Get-Command git -ErrorAction SilentlyContinue }
-if (-not $git) { throw 'Git for Windows is required to refresh the field-ready SysAdminSuite checkout.' }
-& $git.Source -C $RepositoryRoot rev-parse --is-inside-work-tree *> $null
-if ($LASTEXITCODE -ne 0) { throw "Not a Git working tree: $RepositoryRoot" }
+$operatorStateRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite'
+$syncCache = Join-Path $operatorStateRoot 'sync-cache'
+$preferredFieldReady = Join-Path $operatorStateRoot 'field-ready'
+$persistedRefPath = Join-Path $operatorStateRoot 'repo-ref.txt'
+$returnNetworkPath = Join-Path $operatorStateRoot 'return-network.json'
+New-Item -ItemType Directory -Path $operatorStateRoot -Force | Out-Null
 
-$operatorStateRoot = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
-$persistedRefPath = Join-Path -Path $operatorStateRoot -ChildPath 'repo-ref.txt'
-
-function Get-SasPersistedRefreshRef {
-    if (Test-Path -LiteralPath $persistedRefPath -PathType Leaf) {
-        try {
-            $value = (Get-Content -LiteralPath $persistedRefPath -Raw -Encoding ASCII).Trim()
-            if (-not [string]::IsNullOrWhiteSpace($value)) { return $value }
-        }
-        catch { }
+function Resolve-SasGitExecutable {
+    $command = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $command) { $command = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1 }
+    if ($command -and $command.Source) { return [IO.Path]::GetFullPath([string]$command.Source) }
+    foreach ($candidate in @(
+        (Join-Path $env:ProgramFiles 'Git\cmd\git.exe'),
+        (Join-Path $env:ProgramFiles 'Git\bin\git.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\Git\cmd\git.exe')
+    )) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return [IO.Path]::GetFullPath($candidate) }
     }
-    return $null
+    throw 'Git for Windows is required to refresh the SysAdminSuite sync cache.'
 }
 
-function Clear-SasPersistedRefreshRef {
+$script:SasGitExe = Resolve-SasGitExecutable
+
+function Invoke-SasRefreshGit {
+    param(
+        [AllowNull()][string]$Root,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string]$FailureMessage,
+        [switch]$Quiet
+    )
+
+    $stderrPath = Join-Path $env:TEMP ('sas-refresh-git-' + [guid]::NewGuid().ToString('N') + '.err')
+    $previousPreference = $ErrorActionPreference
     try {
-        if (Test-Path -LiteralPath $persistedRefPath -PathType Leaf) {
-            Remove-Item -LiteralPath $persistedRefPath -Force
+        $ErrorActionPreference = 'Continue'
+        $LASTEXITCODE = 0
+        $stdout = if ([string]::IsNullOrWhiteSpace($Root)) {
+            @(& $script:SasGitExe @Arguments 2> $stderrPath)
+        } else {
+            @(& $script:SasGitExe -C $Root @Arguments 2> $stderrPath)
         }
+        $exitCode = [int]$LASTEXITCODE
     }
-    catch {
-        Write-Warning "Could not clear stale persisted refresh ref: $($_.Exception.Message)"
+    finally {
+        $ErrorActionPreference = $previousPreference
     }
+
+    $stderr = ''
+    if (Test-Path -LiteralPath $stderrPath) {
+        try {
+            $stderrRaw = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
+            $stderr = $stderrRaw.Trim()
+        }
+        finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
+    }
+    $stdoutText = (@($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+    if ($exitCode -ne 0) {
+        $detail = @($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine
+        if ([string]::IsNullOrWhiteSpace($detail)) { $detail = '(git produced no diagnostic text)' }
+        throw "$FailureMessage (git exit $exitCode)`n$detail"
+    }
+    if (-not $Quiet) {
+        if (-not [string]::IsNullOrWhiteSpace($stdoutText)) { Write-Host $stdoutText }
+        if (-not [string]::IsNullOrWhiteSpace($stderr)) { Write-Host $stderr -ForegroundColor DarkGray }
+    }
+    return @($stdout | ForEach-Object { [string]$_ })
 }
 
-function Test-SasRemoteRefreshBranch {
-    param([Parameter(Mandatory = $true)][string]$Branch)
-    & $git.Source -C $RepositoryRoot ls-remote --exit-code --heads origin "refs/heads/$Branch" *> $null
-    return ($LASTEXITCODE -eq 0)
+function Get-SasRefreshGitScalar {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string]$FailureMessage
+    )
+    $lines = @(Invoke-SasRefreshGit -Root $Root -Arguments $Arguments -FailureMessage $FailureMessage -Quiet)
+    $value = [string]($lines | Select-Object -First 1)
+    if ([string]::IsNullOrWhiteSpace($value)) { throw "$FailureMessage (empty git output)" }
+    return $value.Trim()
 }
 
-function Resolve-SasRefreshBranch {
-    param([AllowNull()][string]$RequestedRef)
-
-    $candidateSource = 'explicit'
-    if (-not [string]::IsNullOrWhiteSpace($RequestedRef)) {
-        $candidate = $RequestedRef.Trim()
-    }
-    else {
-        $candidateSource = 'current_branch'
-        $candidate = (& $git.Source -C $RepositoryRoot branch --show-current 2>$null | Select-Object -First 1)
-        if ($LASTEXITCODE -eq 0 -and $candidate) { $candidate = ([string]$candidate).Trim() }
-
-        if ([string]::IsNullOrWhiteSpace([string]$candidate)) {
-            $candidateSource = 'unique_remote_at_head'
-            $remoteMatches = @(
-                & $git.Source -C $RepositoryRoot branch -r --points-at HEAD --format='%(refname:short)' 2>$null |
-                    ForEach-Object { ([string]$_).Trim() } |
-                    Where-Object { $_ -match '^origin/.+' -and $_ -notmatch '^origin/HEAD\s*->' } |
-                    ForEach-Object { $_.Substring('origin/'.Length) } |
-                    Sort-Object -Unique
-            )
-            if ($LASTEXITCODE -eq 0 -and $remoteMatches.Count -eq 1) { $candidate = $remoteMatches[0] }
-        }
-        if ([string]::IsNullOrWhiteSpace([string]$candidate)) {
-            $candidateSource = 'persisted'
-            $candidate = Get-SasPersistedRefreshRef
-        }
-        if ([string]::IsNullOrWhiteSpace([string]$candidate)) {
-            $candidateSource = 'default_main'
-            $candidate = 'main'
-        }
-    }
-
-    $candidate = ([string]$candidate).Trim()
-    & $git.Source check-ref-format --branch $candidate *> $null
-    if ($LASTEXITCODE -ne 0) { throw "Refresh ref is not a valid branch name: $candidate" }
-
-    if (-not (Test-SasRemoteRefreshBranch -Branch $candidate)) {
-        if ($candidateSource -eq 'persisted') {
-            Clear-SasPersistedRefreshRef
-            $candidate = 'main'
-            if (-not (Test-SasRemoteRefreshBranch -Branch $candidate)) {
-                throw 'Persisted refresh ref was stale and origin/main could not be verified.'
-            }
-            Write-Warning 'Persisted refresh ref was stale; cleared it and repaired refresh provenance to origin/main.'
-        }
-        else {
-            throw "Refresh branch does not exist on origin: $candidate"
-        }
-    }
-    return $candidate
+function Test-SasExpectedOrigin {
+    param([Parameter(Mandatory = $true)][string]$Url)
+    $normalized = $Url.Trim().TrimEnd('/').ToLowerInvariant()
+    return $normalized -in @(
+        'https://github.com/endeavoreverlasting/sysadminsuite.git',
+        'https://github.com/endeavoreverlasting/sysadminsuite',
+        'git@github.com:endeavoreverlasting/sysadminsuite.git'
+    )
 }
 
-$refreshBranch = Resolve-SasRefreshBranch -RequestedRef $Ref
+$networkModule = Join-Path $RepositoryRoot 'scripts\SasOperatorSession.psm1'
+if (-not (Test-Path -LiteralPath $networkModule -PathType Leaf)) {
+    throw "Operator network classifier is missing from the bootstrap checkout: $networkModule"
+}
+Import-Module $networkModule -Force
+$preRefreshNetwork = Get-SasOperatorNetworkClassification -RepoRoot $RepositoryRoot
+
+Write-Host 'NETWORK REQUIRED: GUEST / INTERNET' -ForegroundColor Cyan
+Write-Host "CURRENT NETWORK: $($preRefreshNetwork.classification) [$($preRefreshNetwork.label)]"
+if ([string]$preRefreshNetwork.classification -ne 'GUEST_INTERNET') {
+    throw "SAS_REFRESH_REMOTE_GIT_BLOCKED: repository sync is Guest/Internet-only. Current classification: $($preRefreshNetwork.classification); label: $($preRefreshNetwork.label). No remote Git operation was started."
+}
+Write-Host 'PASS: Guest/Internet proved before remote repository maintenance.' -ForegroundColor Green
+
+$refreshBranch = if ([string]::IsNullOrWhiteSpace($Ref)) { 'main' } else { $Ref.Trim() }
+$refCheck = @(Invoke-SasRefreshGit -Arguments @('check-ref-format','--branch',$refreshBranch) -FailureMessage "Refresh ref is not valid: $refreshBranch" -Quiet)
+$null = $refCheck
 $remoteTrackingRef = "refs/remotes/origin/$refreshBranch"
 $remoteDisplay = "origin/$refreshBranch"
 
-Write-Host 'NETWORK REQUIRED: GUEST / INTERNET' -ForegroundColor Cyan
-Write-Host "Refreshing SysAdminSuite operator surface from $remoteDisplay..." -ForegroundColor Cyan
-
-# Do not force-update the remote-tracking ref. A non-fast-forward rewrite fails closed.
-& $git.Source -C $RepositoryRoot fetch --prune origin "refs/heads/${refreshBranch}:${remoteTrackingRef}"
-if ($LASTEXITCODE -ne 0) { throw "git fetch origin $refreshBranch failed with exit code $LASTEXITCODE" }
-$remoteHead = (& $git.Source -C $RepositoryRoot rev-parse $remoteDisplay).Trim()
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remoteHead)) { throw "Could not resolve $remoteDisplay after fetch." }
-
-$stateRoot = $operatorStateRoot
-$preferred = Join-Path -Path $stateRoot -ChildPath 'field-ready'
-$refStatePath = $persistedRefPath
-$returnNetworkPath = Join-Path -Path $stateRoot -ChildPath 'return-network.json'
-New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
-
-function Test-SameRepository([string]$Candidate) {
-    if (-not (Test-Path -LiteralPath $Candidate -PathType Container)) { return $false }
-    try {
-        $candidateOrigin = (& $git.Source -C $Candidate remote get-url origin 2>$null | Select-Object -First 1)
-        $sourceOrigin = (& $git.Source -C $RepositoryRoot remote get-url origin 2>$null | Select-Object -First 1)
-        return ($LASTEXITCODE -eq 0 -and $candidateOrigin -and $sourceOrigin -and
-            ([string]$candidateOrigin).Trim().Equals(([string]$sourceOrigin).Trim(),[StringComparison]::OrdinalIgnoreCase))
+if (-not (Test-Path -LiteralPath $syncCache)) {
+    Write-Host "Creating Guest-only SysAdminSuite sync cache: $syncCache" -ForegroundColor Cyan
+    [void](Invoke-SasRefreshGit -Arguments @('clone','--origin','origin','--no-tags','--branch',$refreshBranch,'--single-branch',$RepoUrl,$syncCache) -FailureMessage 'Creating the Guest-only SysAdminSuite sync cache failed.')
+} else {
+    if (-not (Test-Path -LiteralPath $syncCache -PathType Container)) {
+        throw "Sync-cache path exists but is not a directory: $syncCache"
     }
-    catch { return $false }
+    $inside = Get-SasRefreshGitScalar -Root $syncCache -Arguments @('rev-parse','--is-inside-work-tree') -FailureMessage 'Existing sync cache is not a usable Git worktree.'
+    if ($inside -ne 'true') { throw "Existing sync cache is not a Git worktree: $syncCache" }
+    $origin = Get-SasRefreshGitScalar -Root $syncCache -Arguments @('remote','get-url','origin') -FailureMessage 'Could not resolve sync-cache origin.'
+    if (-not (Test-SasExpectedOrigin -Url $origin)) { throw "Unexpected sync-cache origin: $origin" }
+    $syncDirty = @(Invoke-SasRefreshGit -Root $syncCache -Arguments @('status','--porcelain') -FailureMessage 'Could not inspect sync-cache state.' -Quiet)
+    if (@($syncDirty | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) {
+        $syncDirty | Out-Host
+        throw "Guest sync cache contains local work. Nothing was reset or cleaned: $syncCache"
+    }
 }
 
-$fieldReady = $preferred
+Write-Host "Refreshing Guest-only sync cache from $remoteDisplay..." -ForegroundColor Cyan
+[void](Invoke-SasRefreshGit -Root $syncCache -Arguments @('fetch','--no-tags','--prune','origin',"refs/heads/${refreshBranch}:${remoteTrackingRef}") -FailureMessage "Fetching $remoteDisplay failed.")
+$remoteHead = Get-SasRefreshGitScalar -Root $syncCache -Arguments @('rev-parse',$remoteDisplay) -FailureMessage "Could not resolve $remoteDisplay after fetch."
+
+$fieldReady = $preferredFieldReady
 if (Test-Path -LiteralPath $fieldReady) {
-    $sameRepo = Test-SameRepository -Candidate $fieldReady
-    $dirty = @()
-    if ($sameRepo) { $dirty = @(& $git.Source -C $fieldReady status --porcelain 2>$null) }
-    if (-not $sameRepo -or $LASTEXITCODE -ne 0 -or $dirty.Count -gt 0) {
-        $fieldReady = Join-Path -Path $stateRoot -ChildPath ('field-ready-' + (Get-Date).ToString('yyyyMMdd-HHmmss'))
+    $usable = $true
+    try {
+        $fieldInside = Get-SasRefreshGitScalar -Root $fieldReady -Arguments @('rev-parse','--is-inside-work-tree') -FailureMessage 'Field-ready checkout is not a Git worktree.'
+        if ($fieldInside -ne 'true') { $usable = $false }
+        $fieldDirty = @(Invoke-SasRefreshGit -Root $fieldReady -Arguments @('status','--porcelain') -FailureMessage 'Could not inspect field-ready state.' -Quiet)
+        if (@($fieldDirty | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) { $usable = $false }
+    }
+    catch { $usable = $false }
+    if (-not $usable) {
+        $fieldReady = Join-Path $operatorStateRoot ('field-ready-' + (Get-Date).ToString('yyyyMMdd-HHmmss'))
     }
 }
 
 if (-not (Test-Path -LiteralPath $fieldReady)) {
-    & $git.Source -C $RepositoryRoot worktree add --detach $fieldReady $remoteDisplay
-    if ($LASTEXITCODE -ne 0) { throw "Could not create isolated field-ready worktree: $fieldReady" }
-}
-else {
-    & $git.Source -C $fieldReady checkout --detach $remoteDisplay
-    if ($LASTEXITCODE -ne 0) { throw "Could not refresh isolated field-ready worktree: $fieldReady" }
+    [void](Invoke-SasRefreshGit -Root $syncCache -Arguments @('worktree','add','--detach',$fieldReady,$remoteHead) -FailureMessage "Could not create isolated field-ready worktree: $fieldReady")
+} else {
+    [void](Invoke-SasRefreshGit -Root $fieldReady -Arguments @('checkout','--detach',$remoteHead) -FailureMessage "Could not refresh isolated field-ready worktree: $fieldReady")
 }
 
-$head = (& $git.Source -C $fieldReady rev-parse HEAD).Trim()
-if ($LASTEXITCODE -ne 0 -or $head -ne $remoteHead) { throw "Field-ready HEAD mismatch for $remoteDisplay. Expected $remoteHead; got $head" }
+$head = Get-SasRefreshGitScalar -Root $fieldReady -Arguments @('rev-parse','HEAD') -FailureMessage 'Could not resolve field-ready HEAD.'
+if ($head -ne $remoteHead) { throw "Field-ready HEAD mismatch. Expected $remoteHead; got $head" }
 
 $required = @(
     'Install-SasOperatorCommand.cmd',
     'Switch-Back-To-Previous-Network.cmd',
     'Run-AutoLogonOnsite.cmd',
+    'Bootstrap-SysAdminSuiteAutoLogon.cmd',
+    'Bootstrap-SysAdminSuiteAutoLogon.ps1',
+    'scripts\Prepare-SasAutoLogonShortRuntime.ps1',
     'scripts\Install-SasPortableLauncher.ps1',
     'scripts\SasPortableLauncher.ps1',
     'scripts\SasOperatorSession.psm1',
@@ -183,23 +214,37 @@ $required = @(
     'Probe-CybernetSoftware.cmd'
 )
 foreach ($relative in $required) {
-    if (-not (Test-Path -LiteralPath (Join-Path -Path $fieldReady -ChildPath $relative) -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath (Join-Path $fieldReady $relative) -PathType Leaf)) {
         throw "Refreshed $remoteDisplay is missing required operator surface: $relative"
     }
 }
 
-$installer = Join-Path -Path $fieldReady -ChildPath 'scripts\Install-SasPortableLauncher.ps1'
-& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $installer
-if ($LASTEXITCODE -ne 0) { throw "Operator-command refresh installer failed with exit code $LASTEXITCODE" }
-
-$sessionModule = Join-Path -Path $fieldReady -ChildPath 'scripts\SasOperatorSession.psm1'
-$autoLogonStateModule = Join-Path -Path $fieldReady -ChildPath 'scripts\SasAutoLogonOperatorState.psm1'
+$sessionModule = Join-Path $fieldReady 'scripts\SasOperatorSession.psm1'
+$autoLogonStateModule = Join-Path $fieldReady 'scripts\SasAutoLogonOperatorState.psm1'
 Import-Module $sessionModule -Force
 Import-Module $autoLogonStateModule -Force
 $currentNetwork = Get-SasOperatorNetworkClassification -RepoRoot $fieldReady
-if ([string]$currentNetwork.classification -ne 'GUEST_INTERNET' -or [string]::IsNullOrWhiteSpace([string]$currentNetwork.label) -or [string]$currentNetwork.label -eq 'unknown') {
-    throw "Guest/Internet return-network bookmark could not be established after refresh. Current classification: $($currentNetwork.classification); label: $($currentNetwork.label)"
+if ([string]$currentNetwork.classification -ne 'GUEST_INTERNET' -or
+    [string]::IsNullOrWhiteSpace([string]$currentNetwork.label) -or
+    [string]$currentNetwork.label -eq 'unknown') {
+    throw "Guest/Internet posture changed during refresh. Current classification: $($currentNetwork.classification); label: $($currentNetwork.label). Short AutoLogon runtime was not staged."
 }
+
+$runtimePreparer = Join-Path $fieldReady 'scripts\Prepare-SasAutoLogonShortRuntime.ps1'
+Write-Host ''
+Write-Host 'STAGING SHORT AUTOLOGON RUNTIME BEFORE LEAVING GUEST' -ForegroundColor Cyan
+$LASTEXITCODE = 0
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $runtimePreparer `
+    -SourceRoot $fieldReady -RuntimeRoot 'C:\SASAL' -ExpectedCommit $head
+if ($LASTEXITCODE -ne 0) {
+    throw "Short AutoLogon runtime staging failed with exit code $LASTEXITCODE. Remain on Guest/Internet and repair before protected deployment."
+}
+
+$installer = Join-Path $fieldReady 'scripts\Install-SasPortableLauncher.ps1'
+$LASTEXITCODE = 0
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $installer
+if ($LASTEXITCODE -ne 0) { throw "Operator-command refresh installer failed with exit code $LASTEXITCODE" }
+
 $returnBookmark = [pscustomobject][ordered]@{
     schema_version='sas-operator-return-network/v1'
     classification='GUEST_INTERNET'
@@ -220,14 +265,13 @@ if (Get-Command -Name Sync-SasAutoLogonOperatorState -ErrorAction SilentlyContin
     $session = Sync-SasAutoLogonOperatorState -RepoRoot $fieldReady -Target $targetFilter
     $nextCommand = [string](Get-SasObjectPropertyValue $session 'next_command' 'sas context')
     $nextNetwork = [string](Get-SasObjectPropertyValue $session 'next_required_network' 'ANY / OFFLINE')
-}
-else {
+} else {
     $session = Sync-SasOperatorSessionFromEvidence -RepoRoot $fieldReady -TargetFqdn $targetFilter
     $nextTarget = if ($session.target_input) { [string]$session.target_input } else { $null }
     $nextCommand = if ($nextTarget) { "sas cybernet Core $nextTarget" } else { 'sas context' }
     $nextNetwork = if ($nextTarget) { 'PROTECTED NORTHWELL' } else { 'ANY / OFFLINE' }
 }
-Set-Content -LiteralPath $refStatePath -Value $refreshBranch -Encoding ASCII
+Set-Content -LiteralPath $persistedRefPath -Value $refreshBranch -Encoding ASCII
 [void](Set-SasOperatorSessionValues -Values @{
     repo_root=$fieldReady
     repo_head=$head
@@ -241,10 +285,13 @@ Set-Content -LiteralPath $refStatePath -Value $refreshBranch -Encoding ASCII
 
 Write-Host ''
 Write-Host 'SAS_OPERATOR_REFRESH_READY' -ForegroundColor Green
+Write-Host "Guest sync cache: $syncCache"
 Write-Host "Field-ready repo: $fieldReady"
+Write-Host 'Short AutoLogon runtime: C:\SASAL'
 Write-Host "REF: $refreshBranch"
 Write-Host "HEAD: $head"
 Write-Host "RETURN NETWORK: $($currentNetwork.label)" -ForegroundColor Green
-Write-Host 'Existing source worktree was not reset or cleaned.' -ForegroundColor Green
+Write-Host 'Bootstrap checkout was not reset or cleaned.' -ForegroundColor Green
+Write-Host 'Protected-side Git network I/O: DISABLED' -ForegroundColor Green
 Write-Host "NEXT NETWORK: $nextNetwork" -ForegroundColor Cyan
 Write-Host "NEXT COMMAND: $nextCommand" -ForegroundColor Green

@@ -4,9 +4,12 @@ on:
   pull_request:
     paths:
       - 'Bootstrap-SysAdminSuiteAutoLogon.ps1'
+      - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
+      - 'scripts/Refresh-SasOperatorCommand.ps1'
+      - 'scripts/SasPortableLauncher.ps1'
       - 'scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
       - 'Run-AutoLogonCrashSafe.cmd'
-      - 'Tests/survey/test_autologon_clone_deploy_bootstrap_contracts.py'
+      - 'Tests/survey/test_autologon_protected_bootstrap_contracts.py'
       - 'Tests/survey/test_autologon_crash_safe_field_runner_contracts.py'
       - '.github/workflows/autologon-crash-safe-field-runner.yml'
   workflow_dispatch:
@@ -19,8 +22,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Validate clone-and-deploy bootstrap contracts
-        run: python3 Tests/survey/test_autologon_clone_deploy_bootstrap_contracts.py
+      - name: Validate Guest-staged protected bootstrap contracts
+        run: python3 Tests/survey/test_autologon_protected_bootstrap_contracts.py
       - name: Validate crash-safe field runner contracts
         run: python3 Tests/survey/test_autologon_crash_safe_field_runner_contracts.py
 
@@ -33,6 +36,9 @@ jobs:
         run: |
           foreach ($relativePath in @(
             'Bootstrap-SysAdminSuiteAutoLogon.ps1',
+            'scripts\Prepare-SasAutoLogonShortRuntime.ps1',
+            'scripts\Refresh-SasOperatorCommand.ps1',
+            'scripts\SasPortableLauncher.ps1',
             'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
           )) {
             $tokens = $null

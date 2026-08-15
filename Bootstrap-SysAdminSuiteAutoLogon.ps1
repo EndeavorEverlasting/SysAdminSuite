@@ -1,30 +1,31 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Acquire or refresh the short SysAdminSuite AutoLogon runtime and launch the crash-safe field lane.
+Launch the crash-safe AutoLogon field lane from a pre-staged short runtime.
 
 .DESCRIPTION
-Uses a stable short runtime at C:\SASAL (or -RuntimeRoot), resolves git.exe explicitly, fetches the
-official origin/main without touching an operator's long or dirty working copy, pins the exact fetched
-commit, preserves any legacy checkout only as an evidence fallback, and launches the crash-safe
-AutoLogon child runner.
+Protected-network execution is deliberately local-only. This bootstrap never acquires repository data,
+never updates the checkout, and never performs Git network I/O. The exact C:\SASAL runtime must already
+have been staged by `sas refresh` while on Guest/Internet and sealed by
+scripts\Prepare-SasAutoLogonShortRuntime.ps1.
 
-Protected-network admission remains owned by the canonical field transaction through
-Confirm-SasNorthwellNetwork.ps1. When -ConfirmVpnPosture is supplied, this bootstrap first establishes a
-process-local exact /32 allowlist from the currently active DomainAuthenticated non-Wi-Fi VPN/LAN
-interface by invoking Enable-SasNorthwellVpnNetworkGuard.ps1. That helper performs no target contact or
-mutation; the canonical field guard independently verifies the resulting current posture again before
-any target operation.
+The bootstrap verifies the local staging manifest, exact commit, clean worktree, and absence of Git remotes
+before it establishes DomainAuthenticated VPN/LAN authority. It then runs the canonical protected-network
+gate, resolves the requested target to its canonical FQDN, writes only that exact FQDN into the gitignored
+operator-local host eligibility policy, and starts the crash-safe AutoLogon field transaction. The normal
+field transaction independently repeats network, canonical resolution, and eligibility validation before
+any target mutation.
+
+Legacy evidence fallback is opt-in only through -LegacyEvidenceRoot. The protected runtime never scans the
+operator Desktop/OneDrive tree to discover another checkout implicitly.
 
 Existing unexpected or dirty runtime content is never reset, cleaned, removed, or overwritten.
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)]
+    [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
     [string]$ComputerName,
-
-    [string]$RepoUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git',
 
     [string]$RuntimeRoot = 'C:\SASAL',
 
@@ -32,7 +33,8 @@ param(
 
     [string]$ExpectedCommit,
 
-    # Explicitly establish exact current DomainAuthenticated VPN/LAN authority before the canonical gate.
+    [switch]$ConfirmLocalTargetAuthorization,
+
     [switch]$ConfirmVpnPosture
 )
 
@@ -40,169 +42,162 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 function Resolve-SasGitExecutable {
-    $candidates = New-Object 'System.Collections.Generic.List[string]'
     $command = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($command -and $command.Source) { [void]$candidates.Add([string]$command.Source) }
-
+    if ($command -and $command.Source -and (Test-Path -LiteralPath $command.Source -PathType Leaf)) {
+        return [IO.Path]::GetFullPath([string]$command.Source)
+    }
     foreach ($candidate in @(
         (Join-Path $env:ProgramFiles 'Git\cmd\git.exe'),
         (Join-Path $env:ProgramFiles 'Git\bin\git.exe'),
         (Join-Path $env:LOCALAPPDATA 'Programs\Git\cmd\git.exe')
     )) {
-        if (-not [string]::IsNullOrWhiteSpace($candidate) -and -not $candidates.Contains($candidate)) {
-            [void]$candidates.Add($candidate)
+        if (-not [string]::IsNullOrWhiteSpace([string]$candidate) -and
+            (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            return [IO.Path]::GetFullPath([string]$candidate)
         }
     }
-
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return [IO.Path]::GetFullPath($candidate)
-        }
-    }
-
-    throw 'Git for Windows could not be resolved. Checked PATH, Program Files\Git, and LocalAppData\Programs\Git.'
+    throw 'Git for Windows could not be resolved for local runtime verification.'
 }
 
 $script:SasGitExe = Resolve-SasGitExecutable
 
-function Invoke-SasBootstrapGit {
-    [CmdletBinding()]
+function Invoke-SasLocalGit {
     param(
-        [string]$Root,
-        [Parameter(Mandatory)][string[]]$Arguments,
-        [Parameter(Mandatory)][string]$FailureMessage,
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string]$FailureMessage,
         [switch]$Quiet
     )
 
-    # StrictMode treats an unread automatic variable as an error. Prime LASTEXITCODE
-    # before every native Git invocation so bootstrap diagnostics remain deterministic
-    # even in a fresh PowerShell session where no native process has run yet.
-    $LASTEXITCODE = 0
-    $lines = if ([string]::IsNullOrWhiteSpace($Root)) {
-        @(& $script:SasGitExe @Arguments 2>&1)
-    } else {
-        @(& $script:SasGitExe -C $Root @Arguments 2>&1)
+    $stderrPath = Join-Path $env:TEMP ('sas-local-git-' + [guid]::NewGuid().ToString('N') + '.err')
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $LASTEXITCODE = 0
+        $stdout = @(& $script:SasGitExe -C $Root @Arguments 2> $stderrPath)
+        $exitCode = [int]$LASTEXITCODE
     }
-    $exitCode = [int]$LASTEXITCODE
-    $text = (@($lines | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
 
-    if (-not $Quiet -and -not [string]::IsNullOrWhiteSpace($text)) {
-        Write-Host $text
+    $stderr = ''
+    if (Test-Path -LiteralPath $stderrPath) {
+        try {
+            $stderrRaw = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
+            $stderr = $stderrRaw.Trim()
+        }
+        finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
     }
+    $stdoutText = (@($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+
     if ($exitCode -ne 0) {
-        $detail = if ([string]::IsNullOrWhiteSpace($text)) { '(git produced no diagnostic text)' } else { $text }
+        $detail = @($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine
+        if ([string]::IsNullOrWhiteSpace($detail)) { $detail = '(git produced no diagnostic text)' }
         throw "$FailureMessage (git exit $exitCode)`n$detail"
     }
-
-    return @($lines | ForEach-Object { [string]$_ })
+    if (-not $Quiet) {
+        if (-not [string]::IsNullOrWhiteSpace($stdoutText)) { Write-Host $stdoutText }
+        if (-not [string]::IsNullOrWhiteSpace($stderr)) { Write-Host $stderr -ForegroundColor DarkGray }
+    }
+    return @($stdout | ForEach-Object { [string]$_ })
 }
 
-function Get-SasGitScalar {
+function Get-SasLocalGitScalar {
     param(
-        [Parameter(Mandatory)][string]$Root,
-        [Parameter(Mandatory)][string[]]$Arguments,
-        [Parameter(Mandatory)][string]$FailureMessage
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string]$FailureMessage
     )
-    $lines = @(Invoke-SasBootstrapGit -Root $Root -Arguments $Arguments -FailureMessage $FailureMessage -Quiet)
+    $lines = @(Invoke-SasLocalGit -Root $Root -Arguments $Arguments -FailureMessage $FailureMessage -Quiet)
     $value = [string]($lines | Select-Object -First 1)
     if ([string]::IsNullOrWhiteSpace($value)) { throw "$FailureMessage (empty git output)" }
     return $value.Trim()
 }
 
-function Test-SasExpectedOrigin {
-    param([Parameter(Mandatory)][string]$Url)
-    $normalized = $Url.Trim().TrimEnd('/').ToLowerInvariant()
-    return $normalized -in @(
-        'https://github.com/endeavoreverlasting/sysadminsuite.git',
-        'https://github.com/endeavoreverlasting/sysadminsuite',
-        'git@github.com:endeavoreverlasting/sysadminsuite.git'
-    )
-}
-
-function Resolve-SasLegacyEvidenceRoot {
-    param([string]$RequestedRoot,[string]$Runtime)
-
-    $candidates = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($candidate in @($RequestedRoot, [string](Get-Location))) {
-        if (-not [string]::IsNullOrWhiteSpace($candidate) -and -not $candidates.Contains($candidate)) {
-            [void]$candidates.Add($candidate)
-        }
-    }
-
-    $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
-    if (-not [string]::IsNullOrWhiteSpace($desktop)) {
-        $durable = Join-Path (Join-Path $desktop 'dev') 'SysAdminSuite'
-        if (-not $candidates.Contains($durable)) { [void]$candidates.Add($durable) }
-    }
-
-    foreach ($candidate in $candidates) {
-        try { $full = [IO.Path]::GetFullPath($candidate) } catch { continue }
-        if ($full.TrimEnd('\').Equals($Runtime.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) { continue }
-        if (-not (Test-Path -LiteralPath $full -PathType Container)) { continue }
-        if ((Test-Path -LiteralPath (Join-Path $full 'survey\output') -PathType Container) -or
-            (Test-Path -LiteralPath (Join-Path $full 'Config') -PathType Container) -or
-            (Test-Path -LiteralPath (Join-Path $full 'scripts\Invoke-SasAutoLogonFieldDeployment.ps1') -PathType Leaf)) {
-            return $full
-        }
-    }
-    return $null
-}
-
 $RuntimeRoot = [IO.Path]::GetFullPath($RuntimeRoot)
-$runtimeParent = Split-Path -Parent $RuntimeRoot
-Write-Host "Git executable: $script:SasGitExe" -ForegroundColor Cyan
-Write-Host "Short AutoLogon runtime: $RuntimeRoot" -ForegroundColor Cyan
+$statePath = Join-Path (Join-Path $env:LOCALAPPDATA 'SysAdminSuite') 'autologon-short-runtime.json'
 
-if (-not (Test-Path -LiteralPath $RuntimeRoot)) {
-    New-Item -ItemType Directory -Path $runtimeParent -Force | Out-Null
-    Write-Host 'Short runtime does not exist; cloning official SysAdminSuite...' -ForegroundColor Cyan
-    [void](Invoke-SasBootstrapGit -Arguments @('clone','--origin','origin',$RepoUrl,$RuntimeRoot) -FailureMessage 'Cloning the short SysAdminSuite runtime failed.')
-} else {
-    if (-not (Test-Path -LiteralPath $RuntimeRoot -PathType Container)) {
-        throw "Refusing runtime path because it is not a directory: $RuntimeRoot"
+Write-Host 'PROTECTED AUTOLOGON RUNTIME VERIFICATION' -ForegroundColor Cyan
+Write-Host "Short AutoLogon runtime: $RuntimeRoot"
+Write-Host 'Git network I/O: DISABLED' -ForegroundColor Green
+Write-Host 'Checkout mutation: DISABLED' -ForegroundColor Green
+
+if (-not (Test-Path -LiteralPath $RuntimeRoot -PathType Container)) {
+    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: $RuntimeRoot does not exist. Run 'sas refresh' on Guest/Internet first."
+}
+if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
+    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: staging manifest missing: $statePath. Run 'sas refresh' on Guest/Internet first."
+}
+
+try { $runtimeState = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json }
+catch { throw "AUTOLOGON_RUNTIME_NOT_PREPARED: staging manifest is unreadable: $($_.Exception.Message)" }
+
+if ([string]$runtimeState.schema_version -ne 'sas-autologon-short-runtime/v1') {
+    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: unsupported staging manifest schema: $($runtimeState.schema_version)"
+}
+$manifestRoot = [IO.Path]::GetFullPath([string]$runtimeState.runtime_root)
+if (-not $manifestRoot.TrimEnd('\').Equals($RuntimeRoot.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: manifest runtime mismatch. Manifest=$manifestRoot Runtime=$RuntimeRoot"
+}
+if ([string]$runtimeState.preparation_network_classification -ne 'GUEST_INTERNET') {
+    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: runtime was not sealed on Guest/Internet. Classification=$($runtimeState.preparation_network_classification)"
+}
+if ([string]$runtimeState.runtime_git_transport -ne 'LOCAL_FILESYSTEM_ONLY' -or
+    -not [bool]$runtimeState.runtime_remotes_removed -or
+    [bool]$runtimeState.protected_bootstrap_git_network_allowed) {
+    throw 'AUTOLOGON_RUNTIME_NOT_PREPARED: staging manifest does not prove local-only sealed runtime posture.'
+}
+
+$inside = Get-SasLocalGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','--is-inside-work-tree') -FailureMessage 'Could not verify short runtime Git state.'
+if ($inside -ne 'true') { throw "AUTOLOGON_RUNTIME_NOT_PREPARED: $RuntimeRoot is not a Git worktree." }
+
+$runtimeHead = Get-SasLocalGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','HEAD') -FailureMessage 'Could not resolve short runtime HEAD.'
+$preparedCommit = ([string]$runtimeState.prepared_commit).Trim()
+if ([string]::IsNullOrWhiteSpace($preparedCommit) -or $runtimeHead -ne $preparedCommit) {
+    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: runtime HEAD differs from sealed commit. Runtime=$runtimeHead Prepared=$preparedCommit"
+}
+if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit) -and $runtimeHead -ne $ExpectedCommit.Trim()) {
+    throw "AUTOLOGON_RUNTIME_COMMIT_MISMATCH: expected $($ExpectedCommit.Trim()); staged runtime is $runtimeHead. Refresh on Guest/Internet before protected deployment."
+}
+
+$dirty = @(Invoke-SasLocalGit -Root $RuntimeRoot -Arguments @('status','--porcelain') -FailureMessage 'Could not inspect short runtime worktree state.' -Quiet)
+if (@($dirty | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) {
+    $dirty | Out-Host
+    throw "AUTOLOGON_RUNTIME_DIRTY: $RuntimeRoot contains local work. Nothing was reset or cleaned."
+}
+$remotes = @(Invoke-SasLocalGit -Root $RuntimeRoot -Arguments @('remote') -FailureMessage 'Could not inspect short runtime remotes.' -Quiet)
+if (@($remotes | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) {
+    throw 'AUTOLOGON_RUNTIME_UNSEALED: protected deployment requires a runtime with no Git remotes. Run sas refresh on Guest/Internet.'
+}
+
+Write-Host "Prepared runtime HEAD: $runtimeHead" -ForegroundColor Green
+Write-Host "Prepared on: $($runtimeState.preparation_network_classification) [$($runtimeState.preparation_network_label)]" -ForegroundColor Green
+Write-Host 'PASS: no remote Git endpoint is configured in the protected runtime.' -ForegroundColor Green
+
+if (-not [string]::IsNullOrWhiteSpace($LegacyEvidenceRoot)) {
+    try { $legacyRoot = [IO.Path]::GetFullPath($LegacyEvidenceRoot) }
+    catch { throw "Legacy evidence root is invalid: $LegacyEvidenceRoot" }
+    if (-not (Test-Path -LiteralPath $legacyRoot -PathType Container)) {
+        throw "Explicit legacy evidence root does not exist: $legacyRoot"
     }
-    $inside = Get-SasGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','--is-inside-work-tree') -FailureMessage "Existing short runtime is not a usable Git worktree: $RuntimeRoot"
-    if ($inside -ne 'true') {
-        throw "Existing short runtime is not a Git worktree: $RuntimeRoot"
+    if ($legacyRoot.TrimEnd('\').Equals($RuntimeRoot.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Legacy evidence root must be different from the protected runtime.'
     }
-    Write-Host 'Existing short runtime found; preserving it and validating ownership.' -ForegroundColor Cyan
-}
-
-$originUrl = Get-SasGitScalar -Root $RuntimeRoot -Arguments @('remote','get-url','origin') -FailureMessage 'Unable to resolve short-runtime origin.'
-if (-not (Test-SasExpectedOrigin -Url $originUrl)) {
-    throw ('Refusing unexpected SysAdminSuite origin at {0}: {1}' -f $RuntimeRoot,$originUrl)
-}
-
-$dirty = @(Invoke-SasBootstrapGit -Root $RuntimeRoot -Arguments @('status','--porcelain') -FailureMessage 'Unable to inspect short-runtime worktree state.' -Quiet)
-if (@($dirty | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) {
-    throw "Short runtime contains uncommitted/untracked work and will not be reset or cleaned: $RuntimeRoot"
-}
-
-[void](Invoke-SasBootstrapGit -Root $RuntimeRoot -Arguments @('fetch','--no-tags','--prune','origin','refs/heads/main:refs/remotes/origin/main') -FailureMessage 'Fetching official origin/main failed. VPN/internet access may be required for refresh.')
-$head = Get-SasGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','refs/remotes/origin/main') -FailureMessage 'Unable to resolve fetched origin/main.'
-
-if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit) -and $head -ne $ExpectedCommit.Trim()) {
-    throw "origin/main changed. Expected $($ExpectedCommit.Trim()), resolved $head."
-}
-
-[void](Invoke-SasBootstrapGit -Root $RuntimeRoot -Arguments @('checkout','--detach',$head) -FailureMessage "Unable to pin short runtime to fetched main $head")
-$runtimeHead = Get-SasGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','HEAD') -FailureMessage 'Unable to verify short-runtime HEAD after checkout.'
-if ($runtimeHead -ne $head) { throw "Short-runtime HEAD mismatch after checkout. Expected $head, resolved $runtimeHead" }
-
-$legacyRoot = Resolve-SasLegacyEvidenceRoot -RequestedRoot $LegacyEvidenceRoot -Runtime $RuntimeRoot
-if ($legacyRoot) {
     $env:SAS_REPO_ROOT = $legacyRoot
     Write-Host "Legacy evidence fallback: $legacyRoot" -ForegroundColor Cyan
 } else {
     Remove-Item Env:SAS_REPO_ROOT -ErrorAction SilentlyContinue
-    Write-Host 'Legacy evidence fallback: none resolved.' -ForegroundColor Yellow
+    Write-Host 'Legacy evidence fallback: disabled.' -ForegroundColor DarkGray
 }
 
 $crashSafeScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
 $onsiteScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonOnsite.ps1'
 $networkGate = Join-Path $RuntimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
 $networkBootstrap = Join-Path $RuntimeRoot 'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1'
-foreach ($required in @($crashSafeScript,$onsiteScript,$networkGate,$networkBootstrap)) {
+$targetModule = Join-Path $RuntimeRoot 'scripts\SasTargetNameResolution.psm1'
+$hostAuthorizer = Join-Path $RuntimeRoot 'scripts\Set-SasHostEligibilityLocalTarget.ps1'
+foreach ($required in @($crashSafeScript,$onsiteScript,$networkGate,$networkBootstrap,$targetModule,$hostAuthorizer)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required field deployment surface is missing: $required" }
 
     $tokens = $null
@@ -218,9 +213,7 @@ if ($ConfirmVpnPosture) {
     Write-Host ''
     Write-Host 'ESTABLISHING EXACT CURRENT DOMAIN-AUTHENTICATED VPN/LAN AUTHORITY' -ForegroundColor Cyan
     $authority = @(& $networkBootstrap -ConfirmVpnPosture) | Select-Object -Last 1
-    if ($null -eq $authority) {
-        throw 'Domain transport authority bootstrap returned no structured result.'
-    }
+    if ($null -eq $authority) { throw 'Domain transport authority bootstrap returned no structured result.' }
     if ([string]$authority.classification -ne 'SAS_VPN_NETWORK_GUARD_READY') {
         throw "Domain transport authority bootstrap did not complete: $($authority.classification)"
     }
@@ -238,12 +231,48 @@ if ($ConfirmVpnPosture) {
     Remove-Item Env:SAS_NETWORK_GUARD_CONFIG -ErrorAction SilentlyContinue
 }
 
-Write-Host ''
-Write-Host 'SHORT RUNTIME PINNED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION' -ForegroundColor Green
-Write-Host "Runtime HEAD: $runtimeHead" -ForegroundColor Green
-Write-Host 'Network authority: canonical Confirm-SasNorthwellNetwork.ps1 inside the field transaction' -ForegroundColor Green
+if ($ConfirmLocalTargetAuthorization) {
+    if (-not $ConfirmVpnPosture) {
+        throw 'Exact canonical target authorization requires -ConfirmVpnPosture so protected-network admission precedes DNS resolution.'
+    }
 
-# Prime LASTEXITCODE for the same StrictMode reason as native Git above.
+    Write-Host ''
+    Write-Host 'PROVING NETWORK BEFORE CANONICAL TARGET AUTHORIZATION' -ForegroundColor Cyan
+    $LASTEXITCODE = 0
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate `
+        -Purpose "AutoLogon bootstrap authorization for $ComputerName"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Canonical target authorization stopped by the protected network gate with exit code $LASTEXITCODE."
+    }
+
+    Import-Module $targetModule -Force
+    $authorizationResolution = Resolve-SasCanonicalTargetFqdn -TargetName $ComputerName
+    if (@($authorizationResolution.addresses).Count -lt 1) {
+        throw 'Canonical target authorization resolution returned no address.'
+    }
+    $resolvedAuthorizationTarget = [string]$authorizationResolution.fqdn
+    if ([string]::IsNullOrWhiteSpace($resolvedAuthorizationTarget)) {
+        throw 'Canonical target authorization resolution returned an empty FQDN.'
+    }
+
+    Write-Host ''
+    Write-Host 'AUTHORIZING EXACT CANONICAL AUTOLOGON TARGET' -ForegroundColor Cyan
+    $authorization = & $hostAuthorizer -Target $resolvedAuthorizationTarget -ExecContext remote `
+        -RepoRoot $RuntimeRoot -ConfirmLocalAuthorization -PassThru
+    if ($null -eq $authorization -or -not [bool]$authorization.eligible -or
+        [string]$authorization.decision -ne 'allowed') {
+        throw "Exact canonical target authorization failed for $resolvedAuthorizationTarget."
+    }
+    Write-Host "Canonical target authorized: $resolvedAuthorizationTarget" -ForegroundColor Green
+    Write-Host "Operator-local policy: $($authorization.policy_path)" -ForegroundColor Green
+    Write-Host 'The field transaction will independently re-resolve and revalidate this exact target.' -ForegroundColor Green
+}
+
+Write-Host ''
+Write-Host 'PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION' -ForegroundColor Green
+Write-Host "Runtime HEAD: $runtimeHead" -ForegroundColor Green
+Write-Host 'Protected-side repository network activity: NONE' -ForegroundColor Green
+
 $LASTEXITCODE = 0
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $crashSafeScript `
     -ComputerName $ComputerName -RepositoryRoot $RuntimeRoot -ConfirmDeployment

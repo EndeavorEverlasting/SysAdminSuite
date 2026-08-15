@@ -1,6 +1,31 @@
 # Guest Sync to Protected-Network Deployment
 
-Use this runbook when a technician has Internet/GitHub access on Guest but must move to the approved protected network before contacting a Cybernet or software source.
+Use this runbook when a technician has Internet/GitHub access on Guest but must move to the approved protected network or DomainAuthenticated VPN before contacting a Cybernet or software source.
+
+## Non-negotiable network split
+
+SysAdminSuite repository acquisition and refresh happen **only on Guest / Internet**.
+
+Protected Northwell/VPN deployment consumes a pre-staged short runtime at `C:\SASAL` and performs **no Git network I/O**. The protected runtime is sealed with no Git remotes so an accidental `fetch`, `pull`, or clone cannot occur from that runtime during field deployment.
+
+The expected operator rhythm is:
+
+```text
+Guest / Internet  ->  sas refresh  ->  sync-cache -> field-ready -> C:\SASAL sealed
+Protected / VPN   ->  sas autologon Remote HOST
+```
+
+Do not combine those phases in one command.
+
+## Runtime layers
+
+SysAdminSuite deliberately keeps three repository/runtime roles separate:
+
+1. `%LOCALAPPDATA%\SysAdminSuite\sync-cache` — **Guest-only GitHub-facing cache**. This is the only field runtime layer allowed to own a GitHub remote.
+2. `%LOCALAPPDATA%\SysAdminSuite\field-ready` — clean operator worktree derived from the sync cache at the exact fetched commit.
+3. `C:\SASAL` — protected AutoLogon execution authority. It is populated from field-ready by local Git object transfer and then has every Git remote removed.
+
+The operator's OneDrive/Desktop development checkout is not the field sync cache and is not the protected deployment runtime. Git failures, dirty work, long paths, or unavailable local policy files in that development checkout therefore do not become field-deployment prerequisites. Legacy evidence fallback is disabled unless a caller explicitly supplies one.
 
 ## Required sequence
 
@@ -14,49 +39,51 @@ Refresh the operator surface before switching networks:
 sas refresh
 ```
 
-Expected terminal marker:
+`refresh` fails closed before its first remote Git operation unless the current network classifies as `GUEST_INTERNET`.
+
+Expected terminal markers:
 
 ```text
+SAS_AUTOLOGON_SHORT_RUNTIME_READY
 SAS_OPERATOR_REFRESH_READY
 ```
 
-`refresh` performs only repository/operator maintenance:
+`refresh` performs repository/operator maintenance only:
 
-1. resolves the cached SysAdminSuite repository;
-2. fetches current `origin/main` from GitHub;
-3. creates or refreshes an isolated `%LOCALAPPDATA%\SysAdminSuite\field-ready` worktree at that exact `origin/main` commit;
-4. does not reset, clean, merge, or overwrite the technician's normal working tree;
-5. verifies the deployment, probe, evidence, launcher, and installer entrypoints exist;
-6. reinstalls the user-local `sas` dispatcher from the field-ready worktree.
+1. proves the current network is Guest/Internet before any remote Git operation;
+2. creates or reuses the dedicated `%LOCALAPPDATA%\SysAdminSuite\sync-cache`;
+3. validates that cache belongs to the official SysAdminSuite origin and contains no local work;
+4. fetches `origin/main` by default, or an explicitly requested ref, **only from that Guest-only cache**;
+5. creates or refreshes an isolated `%LOCALAPPDATA%\SysAdminSuite\field-ready` worktree at that exact fetched commit;
+6. rechecks Guest/Internet before staging protected runtime state;
+7. locally transfers that already-fetched commit from field-ready into `C:\SASAL`;
+8. pins `C:\SASAL` to the exact commit and refuses to overwrite dirty runtime work;
+9. removes every Git remote from `C:\SASAL`;
+10. writes `%LOCALAPPDATA%\SysAdminSuite\autologon-short-runtime.json` proving the staged commit and Guest preparation posture;
+11. verifies the deployment, recovery, evidence, launcher, and installer entrypoints exist;
+12. reinstalls the user-local `sas` dispatcher from field-ready.
 
 It performs no Cybernet target contact, no software-share access, no scheduled-task action, no package installation, and no restart.
 
-If the installed `sas` command predates `sas refresh`, use the one-time stale-launcher bootstrap in the next section.
-
 ### One-time stale-launcher bootstrap
 
-This is specifically for machines where `%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd` exists but rejects newer commands such as `evidence` or `refresh`.
+This is only for machines where `%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd` exists but rejects `refresh` or the current operator command set.
 
-From a normal Windows terminal while still on Guest, use the cached repo path to fetch `origin/main`, extract the tracked refresh script directly from the fetched commit, and execute it without changing the old working tree:
+Do this while still on Guest/Internet. Never perform this Git bootstrap on protected Northwell/VPN.
 
-```cmd
-for /f "usebackq delims=" %R in ("%LOCALAPPDATA%\SysAdminSuite\repo-root.txt") do set "SAS_REPO=%R"
-git -C "%SAS_REPO%" fetch --prune origin main
-git -C "%SAS_REPO%" show origin/main:scripts/Refresh-SasOperatorCommand.ps1 > "%TEMP%\Refresh-SasOperatorCommand.ps1"
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\Refresh-SasOperatorCommand.ps1" -RepositoryRoot "%SAS_REPO%"
+From any existing checkout that contains the current refresh script:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\scripts\Refresh-SasOperatorCommand.ps1 -RepositoryRoot (Get-Location).Path
 ```
 
-Require:
+The caller checkout is used only to locate the refresh/network-classifier code. Remote Git still occurs only in the dedicated sync cache.
 
-```text
-SAS_OPERATOR_REFRESH_READY
-```
+Require both runtime/refresh markers before leaving Guest.
 
-After that one bootstrap, the installed shim is self-refreshing from the cached field-ready repo and `sas refresh` becomes the normal Guest-side sync command.
+If no usable checkout exists, clone SysAdminSuite **while on Guest/Internet**, install the operator command once, and immediately run `sas refresh`. Do not clone on the protected network.
 
-If `repo-root.txt` is missing, open any existing SysAdminSuite checkout and run `Install-SasOperatorCommand.cmd` once, then run `sas refresh` while still on Guest.
-
-### Phase 2 — verify before leaving Guest
+### Phase 2 — verify the sealed runtime before leaving Guest
 
 Run:
 
@@ -64,46 +91,71 @@ Run:
 sas
 ```
 
-The help must include all of these commands:
+The help must include:
 
 ```text
 sas refresh
+sas autologon Remote HOST
+sas autologon Recover HOST
 sas cybernet Deploy HOST
-sas cybernet Probe HOST
 sas evidence
 ```
 
-Optional repo confirmation:
+The short AutoLogon runtime must exist:
 
 ```powershell
-sas repo
+Test-Path C:\SASAL
+Get-Content "$env:LOCALAPPDATA\SysAdminSuite\autologon-short-runtime.json"
 ```
 
-The resolved repo should normally be the isolated field-ready checkout created by refresh.
+The manifest must identify `GUEST_INTERNET`, the exact prepared commit, `LOCAL_FILESYSTEM_ONLY`, `runtime_remotes_removed=true`, and `protected_bootstrap_git_network_allowed=false`.
 
-Do not run the target probe or deployment while still on Guest.
+Do not run target deployment while still on Guest.
 
-### Phase 3 — move to the approved protected network
+### Phase 3 — move to approved protected Northwell or DomainAuthenticated VPN
 
-After the Guest-side refresh is complete, connect to the approved network required for Cybernet administration and package access.
+Switch networks only after `sas refresh` has completed successfully.
 
-For a full authorized deployment:
+For the AutoLogon-only case where the five clinical-core applications are already proven and must not be reinstalled:
+
+```powershell
+sas autologon Remote <AUTHORIZED-CYBERNET>
+```
+
+The installed `sas` launcher reads the sealed runtime manifest and invokes `C:\SASAL\Bootstrap-SysAdminSuiteAutoLogon.cmd` at the prepared commit.
+
+The protected bootstrap performs only local Git verification (`HEAD`, clean state, no remotes). It does not clone, fetch, pull, checkout, reset, clean, or discover another checkout. It then owns:
+
+1. sealed-runtime verification;
+2. exact DomainAuthenticated VPN/LAN authority when requested;
+3. canonical protected-network gate;
+4. canonical FQDN resolution;
+5. exact FQDN-only local host authorization;
+6. crash-safe AutoLogon field transaction;
+7. required restart and offline/online observation;
+8. terminal evidence preservation.
+
+Required AutoLogon-only success:
+
+```text
+AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED
+```
+
+If durable terminal evidence already exists, the transaction may instead return:
+
+```text
+AUTOLOGON_DEPLOYMENT_ALREADY_COMPLETED
+```
+
+Stop after either terminal completion marker. Do not run the same target from a second Admin Box merely because another terminal is available.
+
+For a full authorized Cybernet deployment where the clinical-core applications are not already proven:
 
 ```powershell
 sas cybernet Deploy <AUTHORIZED-CYBERNET>
 ```
 
-Do not run a separate probe first unless the goal is diagnosis rather than deployment. Full deployment owns a fresh readiness gate in the same transaction before any target mutation.
-
-The full deployment sequence is:
-
-1. approved local network posture;
-2. canonical one-target identity resolution;
-3. bounded Kerberos SMB plus Task Scheduler readiness;
-4. five approved clinical-core applications;
-5. AutoLogon last through the current S4U lane;
-6. required restart and offline/online restart observation;
-7. final crash-recoverable result artifact.
+Do not run a separate probe first unless the goal is diagnosis rather than deployment. Full deployment owns a fresh readiness gate in the same transaction before target mutation.
 
 Required full success:
 
@@ -123,26 +175,29 @@ sas evidence Cybernet Open
 
 This recovery action is local/offline with respect to targets. Inspect the newest readiness, clinical-core, controller, AutoLogon, or full-deployment artifact and continue only from the recorded state.
 
-If the five clinical-core applications are already proven complete but AutoLogon remains incomplete, preserve the core and use the AutoLogon-only lane instead of reinstalling the applications:
-
-```powershell
-sas autologon Remote <AUTHORIZED-CYBERNET>
-```
-
-Required AutoLogon-only success:
+For the AutoLogon-only lane, inspect:
 
 ```text
-AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED
+%LOCALAPPDATA%\SysAdminSuite\last-autologon-field-run.json
+C:\SASAL\runs\...\autologon_field_deployment_result.json
 ```
 
-## Staleness rule
+If the previous result reports target mutation, pre-reboot readiness, restart activity, or ambiguous started state, do not blind-rerun from another Admin Box. Use the recorded recovery path.
 
-The user-local `sas.cmd` is now a stable shim. Before each command it compares the cached repository's tracked `SasPortableLauncher.ps1` with the installed copy. If the repo copy changed and parses cleanly, the shim refreshes the installed dispatcher automatically. If the repo copy has parse errors, the previously installed launcher is preserved.
+## Protected runtime staleness rule
 
-That self-refresh does **not** fetch GitHub by itself. Use `sas refresh` on Guest whenever you need current `origin/main` before protected-network field work.
+The protected bootstrap never refreshes itself.
+
+If `C:\SASAL` is missing, dirty, has a Git remote, has a HEAD different from the seal, or the sealed commit differs from the requested commit, protected deployment fails with an `AUTOLOGON_RUNTIME_*` error and instructs the operator to return to Guest/Internet and run:
+
+```powershell
+sas refresh
+```
+
+That is intentional. Field deployment does not repair repository state on the protected network.
 
 ## Safety boundary
 
 Guest sync is repository maintenance only. Protected-network deployment is target work. Keep those phases separate.
 
-Never substitute broad subnet discovery, Naabu/Nmap, WinRM discovery, fixture loops, or repeated blind probes for the bounded one-target deployment path.
+Never substitute broad subnet discovery, Naabu/Nmap, WinRM discovery, fixture loops, repeated blind probes, or a second Admin Box attempt for the bounded one-target deployment and evidence-recovery path.
