@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static contracts for guest-safe, branch-preserving operator refresh and stale-launcher recovery."""
+"""Static contracts for guest-safe, branch-preserving operator refresh and protected runtime staging."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +19,8 @@ def test_repo_local_refresh_surface_exists_and_is_guest_safe() -> None:
     assert "SAS_OPERATOR_REFRESH_READY" in script
     assert "Existing source worktree was not reset or cleaned." in script
     assert "NETWORK REQUIRED: GUEST / INTERNET" in script
+    assert "SAS_REFRESH_REMOTE_GIT_BLOCKED" in script
+    assert "No remote Git operation was started" in script
     for forbidden in (
         "Test-NetConnection",
         "schtasks.exe",
@@ -29,6 +31,21 @@ def test_repo_local_refresh_surface_exists_and_is_guest_safe() -> None:
         "Probe-CybernetSoftware.cmd' -Arguments",
     ):
         assert forbidden.lower() not in script.lower(), forbidden
+
+
+def test_guest_network_gate_precedes_every_remote_git_probe_or_fetch() -> None:
+    script = read("scripts/Refresh-SasOperatorCommand.ps1")
+    gate = script.index("$preRefreshNetwork = Get-SasOperatorNetworkClassification")
+    reject = script.index("SAS_REFRESH_REMOTE_GIT_BLOCKED")
+    resolver = script.index("$refreshBranch = Resolve-SasRefreshBranch")
+    remote_probe = script.index("ls-remote --exit-code --heads origin")
+    remote_fetch = script.index('fetch --prune origin "refs/heads/${refreshBranch}:${remoteTrackingRef}"')
+    assert gate < reject < resolver
+    # Function text may appear before the call site, so enforce the called resolver only after the gate,
+    # and the actual fetch statement after the gate. The remote probe can execute only through resolver.
+    assert gate < remote_fetch
+    assert "Resolve-SasRefreshBranch -RequestedRef $Ref" in script
+    assert remote_probe < resolver
 
 
 def test_refresh_preserves_active_branch_detached_remote_and_persisted_provenance() -> None:
@@ -87,6 +104,22 @@ def test_refresh_never_force_updates_branch_provenance() -> None:
     assert "clean -fd" not in script
 
 
+def test_refresh_stages_short_autologon_runtime_before_network_switch() -> None:
+    script = read("scripts/Refresh-SasOperatorCommand.ps1")
+    for marker in (
+        "scripts\\Prepare-SasAutoLogonShortRuntime.ps1",
+        "STAGING SHORT AUTOLOGON RUNTIME BEFORE LEAVING GUEST",
+        "-SourceRoot $fieldReady -RuntimeRoot 'C:\\SASAL' -ExpectedCommit $head",
+        "Short AutoLogon runtime: C:\\SASAL",
+        "Protected-side Git network I/O: DISABLED",
+    ):
+        assert marker in script, marker
+    guest_recheck = script.index("Guest/Internet posture changed during refresh")
+    stage = script.index("STAGING SHORT AUTOLOGON RUNTIME BEFORE LEAVING GUEST")
+    ready = script.index("SAS_OPERATOR_REFRESH_READY")
+    assert guest_recheck < stage < ready
+
+
 def test_installed_shim_self_refreshes_dispatcher_without_optional_hash_cmdlet() -> None:
     installer = read("scripts/Install-SasPortableLauncher.ps1")
     for marker in (
@@ -103,18 +136,23 @@ def test_installed_shim_self_refreshes_dispatcher_without_optional_hash_cmdlet()
     assert "Get-FileHash" not in installer
 
 
-def test_launcher_exposes_refresh_and_local_return_before_live_target_work() -> None:
+def test_launcher_exposes_refresh_and_routes_remote_autologon_to_sealed_runtime() -> None:
     launcher = read("scripts/SasPortableLauncher.ps1")
     assert "sas refresh" in launcher
     assert "sas leave" in launcher
     assert "GUEST / INTERNET" in launcher
     assert "Return-SasOperatorToPreviousNetwork.ps1" in launcher
     assert "sas cybernet Deploy HOST" in launcher
+    assert "Resolve-SasPreparedAutoLogonRuntime" in launcher
+    assert "autologon-short-runtime.json" in launcher
+    assert "Protected-side Git network I/O: NONE" in launcher
+    assert "& $runtime.bootstrap $target $runtime.commit" in launcher
     refresh_case = launcher.index("'refresh' {")
     leave_case = launcher.index("'leave','guest','return-network'")
     evidence_case = launcher.index("'evidence' {")
+    autologon_case = launcher.index("'autologon' {")
     cybernet_case = launcher.index("'cybernet' {")
-    assert refresh_case < leave_case < evidence_case < cybernet_case
+    assert refresh_case < leave_case < evidence_case < autologon_case < cybernet_case
     assert "Refresh-SasOperatorCommand.ps1" in launcher
 
 
@@ -124,6 +162,9 @@ def test_refresh_requires_current_autologon_deployment_state_and_recovery_entryp
         "Install-SasOperatorCommand.cmd",
         "Switch-Back-To-Previous-Network.cmd",
         "Run-AutoLogonOnsite.cmd",
+        "Bootstrap-SysAdminSuiteAutoLogon.cmd",
+        "Bootstrap-SysAdminSuiteAutoLogon.ps1",
+        "scripts\\Prepare-SasAutoLogonShortRuntime.ps1",
         "scripts\\Install-SasPortableLauncher.ps1",
         "scripts\\SasPortableLauncher.ps1",
         "scripts\\SasAutoLogonOperatorState.psm1",
@@ -150,6 +191,7 @@ def test_no_user_or_live_target_literals() -> None:
         for path in (
             "Refresh-SasOperatorCommand.cmd",
             "scripts/Refresh-SasOperatorCommand.ps1",
+            "scripts/Prepare-SasAutoLogonShortRuntime.ps1",
             "scripts/Install-SasPortableLauncher.ps1",
             "scripts/SasPortableLauncher.ps1",
             "Switch-Back-To-Previous-Network.cmd",
