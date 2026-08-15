@@ -7,11 +7,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Parse Admin Box and on-site field entrypoints
+      - name: Parse Admin Box, refresh, and protected runtime entrypoints
         shell: powershell
         run: |
           foreach ($relative in @(
             'Bootstrap-SysAdminSuiteAutoLogon.ps1',
+            'scripts\Prepare-SasAutoLogonShortRuntime.ps1',
+            'scripts\Refresh-SasOperatorCommand.ps1',
+            'scripts\SasPortableLauncher.ps1',
             'scripts\Invoke-SasAutoLogonOnsite.ps1'
           )) {
             $path = Join-Path $PWD $relative
