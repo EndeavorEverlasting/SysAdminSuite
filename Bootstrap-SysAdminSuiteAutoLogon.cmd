@@ -8,7 +8,7 @@ if "%~1"=="" (
   echo The runtime must already be sealed by sas refresh on Guest/Internet.
   echo EXPECTED_PREPARED_COMMIT is optional but recommended for a pinned field attempt.
   echo LEGACY_EVIDENCE_ROOT is optional and used only when explicitly supplied.
-  echo The bootstrap authorizes only the canonical resolved FQDN after protected-network admission.
+  echo The explicit HOST argument authorizes only that one remote target for this process tree.
   exit /b 2
 )
 
@@ -19,6 +19,7 @@ set "SAS_RUNTIME=%~dp0"
 if "%SAS_RUNTIME:~-1%"=="\" set "SAS_RUNTIME=%SAS_RUNTIME:~0,-1%"
 set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 set "SAS_BOOTSTRAP=%SAS_RUNTIME%\Bootstrap-SysAdminSuiteAutoLogon.ps1"
+set "SAS_EXPLICIT_REMOTE_TARGET_REQUEST=%SAS_TARGET%"
 
 if not exist "%SAS_PS%" (
   echo ERROR: Windows PowerShell 5.1 was not found at:
@@ -39,12 +40,13 @@ echo Target:  %SAS_TARGET%
 echo Engine:  Windows PowerShell 5.1
 if defined SAS_EXPECTED echo Expected prepared commit: %SAS_EXPECTED%
 echo Git network activity: NONE
+echo Target authority: explicit one-target operator command
 echo.
 
 if defined SAS_EXPECTED (
-  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_BOOTSTRAP%" -ComputerName "%SAS_TARGET%" -RuntimeRoot "%SAS_RUNTIME%" -LegacyEvidenceRoot "%SAS_LEGACY%" -ExpectedCommit "%SAS_EXPECTED%" -ConfirmLocalTargetAuthorization -ConfirmVpnPosture
+  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_BOOTSTRAP%" -ComputerName "%SAS_TARGET%" -RuntimeRoot "%SAS_RUNTIME%" -LegacyEvidenceRoot "%SAS_LEGACY%" -ExpectedCommit "%SAS_EXPECTED%" -ConfirmVpnPosture
 ) else (
-  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_BOOTSTRAP%" -ComputerName "%SAS_TARGET%" -RuntimeRoot "%SAS_RUNTIME%" -LegacyEvidenceRoot "%SAS_LEGACY%" -ConfirmLocalTargetAuthorization -ConfirmVpnPosture
+  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_BOOTSTRAP%" -ComputerName "%SAS_TARGET%" -RuntimeRoot "%SAS_RUNTIME%" -LegacyEvidenceRoot "%SAS_LEGACY%" -ConfirmVpnPosture
 )
 
 set "SAS_RC=%ERRORLEVEL%"
