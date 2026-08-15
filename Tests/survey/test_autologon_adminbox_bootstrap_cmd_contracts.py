@@ -7,7 +7,7 @@ BOOTSTRAP = ROOT / "Bootstrap-SysAdminSuiteAutoLogon.ps1"
 
 
 def read(path: Path) -> str:
-    assert path.is_file(), f"missing required file: {path.relative_to(ROOT)}"
+    assert path.is_file(), f"missing required launcher: {path.relative_to(ROOT)}"
     return path.read_text(encoding="utf-8-sig")
 
 
@@ -41,20 +41,23 @@ def test_bootstrap_authorizes_resolved_fqdn_only_after_protected_network_admissi
     assert "@($authorizationResolution.addresses).Count -lt 1" in text
     assert "Canonical target authorized: $resolvedAuthorizationTarget" in text
 
+    runtime = text.index("PROTECTED AUTOLOGON RUNTIME VERIFICATION")
     network = text.index("PROVING NETWORK BEFORE CANONICAL TARGET AUTHORIZATION")
     resolution = text.index("Resolve-SasCanonicalTargetFqdn -TargetName $ComputerName")
     authorization = text.index("& $hostAuthorizer -Target $resolvedAuthorizationTarget")
-    transaction = text.index("STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION")
-    assert network < resolution < authorization < transaction
+    transaction = text.index("PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION")
+    assert runtime < network < resolution < authorization < transaction
 
 
-def test_missing_legacy_policy_is_not_an_external_launcher_precondition() -> None:
+def test_legacy_policy_or_checkout_is_not_external_launcher_precondition() -> None:
     launcher = read(LAUNCHER)
     bootstrap = read(BOOTSTRAP)
     assert "host-eligibility-policy.local.json" not in launcher
     assert "Required operator-local host eligibility policy is missing" not in launcher
     assert "Required operator-local host eligibility policy is missing" not in bootstrap
     assert "LegacyEvidenceRoot" in bootstrap
+    assert "Legacy evidence fallback: disabled." in bootstrap
+    assert "GetFolderPath" not in bootstrap
 
 
 def test_launcher_propagates_bootstrap_exit_code() -> None:
