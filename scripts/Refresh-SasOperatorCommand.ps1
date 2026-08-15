@@ -20,6 +20,21 @@ if (-not $git) { throw 'Git for Windows is required to refresh the field-ready S
 & $git.Source -C $RepositoryRoot rev-parse --is-inside-work-tree *> $null
 if ($LASTEXITCODE -ne 0) { throw "Not a Git working tree: $RepositoryRoot" }
 
+# Remote Git maintenance is Guest/Internet-only. Prove that posture before any
+# ls-remote or fetch so the protected Northwell/VPN phase never performs repo acquisition.
+$preRefreshNetworkModule = Join-Path $RepositoryRoot 'scripts\SasOperatorSession.psm1'
+if (-not (Test-Path -LiteralPath $preRefreshNetworkModule -PathType Leaf)) {
+    throw "Operator network classifier is missing: $preRefreshNetworkModule"
+}
+Import-Module $preRefreshNetworkModule -Force
+$preRefreshNetwork = Get-SasOperatorNetworkClassification -RepoRoot $RepositoryRoot
+Write-Host 'NETWORK REQUIRED: GUEST / INTERNET' -ForegroundColor Cyan
+Write-Host "CURRENT NETWORK: $($preRefreshNetwork.classification) [$($preRefreshNetwork.label)]"
+if ([string]$preRefreshNetwork.classification -ne 'GUEST_INTERNET') {
+    throw "SAS_REFRESH_REMOTE_GIT_BLOCKED: GitHub sync is Guest/Internet-only. Current classification: $($preRefreshNetwork.classification); label: $($preRefreshNetwork.label). No remote Git operation was started."
+}
+Write-Host 'PASS: remote repository maintenance is allowed on the current Guest/Internet network.' -ForegroundColor Green
+
 $operatorStateRoot = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SysAdminSuite'
 $persistedRefPath = Join-Path -Path $operatorStateRoot -ChildPath 'repo-ref.txt'
 
@@ -108,7 +123,6 @@ $refreshBranch = Resolve-SasRefreshBranch -RequestedRef $Ref
 $remoteTrackingRef = "refs/remotes/origin/$refreshBranch"
 $remoteDisplay = "origin/$refreshBranch"
 
-Write-Host 'NETWORK REQUIRED: GUEST / INTERNET' -ForegroundColor Cyan
 Write-Host "Refreshing SysAdminSuite operator surface from $remoteDisplay..." -ForegroundColor Cyan
 
 # Do not force-update the remote-tracking ref. A non-fast-forward rewrite fails closed.
@@ -160,6 +174,9 @@ $required = @(
     'Install-SasOperatorCommand.cmd',
     'Switch-Back-To-Previous-Network.cmd',
     'Run-AutoLogonOnsite.cmd',
+    'Bootstrap-SysAdminSuiteAutoLogon.cmd',
+    'Bootstrap-SysAdminSuiteAutoLogon.ps1',
+    'scripts\Prepare-SasAutoLogonShortRuntime.ps1',
     'scripts\Install-SasPortableLauncher.ps1',
     'scripts\SasPortableLauncher.ps1',
     'scripts\SasOperatorSession.psm1',
@@ -198,8 +215,19 @@ Import-Module $sessionModule -Force
 Import-Module $autoLogonStateModule -Force
 $currentNetwork = Get-SasOperatorNetworkClassification -RepoRoot $fieldReady
 if ([string]$currentNetwork.classification -ne 'GUEST_INTERNET' -or [string]::IsNullOrWhiteSpace([string]$currentNetwork.label) -or [string]$currentNetwork.label -eq 'unknown') {
-    throw "Guest/Internet return-network bookmark could not be established after refresh. Current classification: $($currentNetwork.classification); label: $($currentNetwork.label)"
+    throw "Guest/Internet posture changed during refresh. Current classification: $($currentNetwork.classification); label: $($currentNetwork.label). Short AutoLogon runtime was not staged."
 }
+
+$runtimePreparer = Join-Path $fieldReady 'scripts\Prepare-SasAutoLogonShortRuntime.ps1'
+Write-Host ''
+Write-Host 'STAGING SHORT AUTOLOGON RUNTIME BEFORE LEAVING GUEST' -ForegroundColor Cyan
+$LASTEXITCODE = 0
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $runtimePreparer `
+    -SourceRoot $fieldReady -RuntimeRoot 'C:\SASAL' -ExpectedCommit $head
+if ($LASTEXITCODE -ne 0) {
+    throw "Short AutoLogon runtime staging failed with exit code $LASTEXITCODE. Remain on Guest/Internet and repair before protected deployment."
+}
+
 $returnBookmark = [pscustomobject][ordered]@{
     schema_version='sas-operator-return-network/v1'
     classification='GUEST_INTERNET'
@@ -242,9 +270,11 @@ Set-Content -LiteralPath $refStatePath -Value $refreshBranch -Encoding ASCII
 Write-Host ''
 Write-Host 'SAS_OPERATOR_REFRESH_READY' -ForegroundColor Green
 Write-Host "Field-ready repo: $fieldReady"
+Write-Host 'Short AutoLogon runtime: C:\SASAL'
 Write-Host "REF: $refreshBranch"
 Write-Host "HEAD: $head"
 Write-Host "RETURN NETWORK: $($currentNetwork.label)" -ForegroundColor Green
 Write-Host 'Existing source worktree was not reset or cleaned.' -ForegroundColor Green
+Write-Host 'Protected-side Git network I/O: DISABLED' -ForegroundColor Green
 Write-Host "NEXT NETWORK: $nextNetwork" -ForegroundColor Cyan
 Write-Host "NEXT COMMAND: $nextCommand" -ForegroundColor Green
