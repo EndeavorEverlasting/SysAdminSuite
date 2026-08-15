@@ -114,7 +114,7 @@ function Test-SasExpectedOrigin {
     return $normalized -in @(
         'https://github.com/endeavoreverlasting/sysadminsuite.git',
         'https://github.com/endeavoreverlasting/sysadminsuite',
-        'git@github.com:endeavorelasting/sysadminsuite.git'
+        'git@github.com:endeavoreverlasting/sysadminsuite.git'
     )
 }
 
