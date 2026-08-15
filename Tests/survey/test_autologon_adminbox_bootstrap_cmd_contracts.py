@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER = ROOT / "Bootstrap-SysAdminSuiteAutoLogon.cmd"
 BOOTSTRAP = ROOT / "Bootstrap-SysAdminSuiteAutoLogon.ps1"
+ELIGIBILITY = ROOT / "scripts" / "Test-SasHostEligibility.ps1"
 
 
 def read(path: Path) -> str:
@@ -18,12 +19,14 @@ def test_launcher_forces_windows_powershell_51() -> None:
     assert "engine:  windows powershell 5.1" in text
 
 
-def test_launcher_is_protected_local_only_and_delegates_authorization() -> None:
+def test_launcher_is_protected_local_only_and_explicit_target_is_authority() -> None:
     text = read(LAUNCHER)
     assert "Bootstrap-SysAdminSuiteAutoLogon.ps1" in text
     assert '-RuntimeRoot "%SAS_RUNTIME%"' in text
     assert "-ConfirmVpnPosture" in text
-    assert "-ConfirmLocalTargetAuthorization" in text
+    assert "-ConfirmLocalTargetAuthorization" not in text
+    assert 'set "SAS_EXPLICIT_REMOTE_TARGET_REQUEST=%SAS_TARGET%"' in text
+    assert "Target authority: explicit one-target operator command" in text
     assert '-ExpectedCommit "%SAS_EXPECTED%"' in text
     assert "EXPECTED_PREPARED_COMMIT" in text
     assert "runtime must already be sealed by sas refresh on Guest/Internet" in text
@@ -33,23 +36,28 @@ def test_launcher_is_protected_local_only_and_delegates_authorization() -> None:
     assert "Set-SasHostEligibilityLocalTarget.ps1" not in text
 
 
-def test_bootstrap_authorizes_resolved_fqdn_only_after_protected_network_admission() -> None:
-    text = read(BOOTSTRAP)
-    assert "[switch]$ConfirmLocalTargetAuthorization" in text
-    assert "SasTargetNameResolution.psm1" in text
-    assert "Set-SasHostEligibilityLocalTarget.ps1" in text
-    assert "-ConfirmLocalAuthorization" in text
-    assert "-Target $resolvedAuthorizationTarget" in text
-    assert "-ExecContext remote" in text
-    assert "@($authorizationResolution.addresses).Count -lt 1" in text
-    assert "Canonical target authorized: $resolvedAuthorizationTarget" in text
+def test_eligibility_gate_accepts_only_process_scoped_exact_remote_target() -> None:
+    text = read(ELIGIBILITY)
+    assert "SAS_EXPLICIT_REMOTE_TARGET_REQUEST" in text
+    assert "Test-SasExplicitRemoteTargetRequest" in text
+    assert "EXPLICIT_REMOTE_TARGET_AUTHORIZED" in text
+    assert "operator-explicit-target" in text
+    assert "$ExecContext -eq 'remote'" in text
+    assert "$resolved.StartsWith(($requested + '.')" in text
+    assert "LOCAL_FALLBACK_BLOCKED" in text
+    assert "POLICY_FILE_MISSING" in text
 
-    runtime = text.index("PROTECTED AUTOLOGON RUNTIME VERIFICATION")
-    network = text.index("PROVING NETWORK BEFORE CANONICAL TARGET AUTHORIZATION")
-    resolution = text.index("Resolve-SasCanonicalTargetFqdn -TargetName $ComputerName")
-    authorization = text.index("& $hostAuthorizer -Target $resolvedAuthorizationTarget")
-    transaction = text.index("PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION")
-    assert runtime < network < resolution < authorization < transaction
+    explicit = text.index("SAS_EXPLICIT_REMOTE_TARGET_REQUEST")
+    missing_policy = text.index("POLICY_FILE_MISSING")
+    assert explicit < missing_policy
+
+
+def test_bootstrap_keeps_optional_legacy_policy_authorizer_out_of_standard_launcher() -> None:
+    launcher = read(LAUNCHER)
+    bootstrap = read(BOOTSTRAP)
+    assert "[switch]$ConfirmLocalTargetAuthorization" in bootstrap
+    assert "Set-SasHostEligibilityLocalTarget.ps1" in bootstrap
+    assert "-ConfirmLocalTargetAuthorization" not in launcher
 
 
 def test_legacy_policy_or_checkout_is_not_external_launcher_precondition() -> None:
