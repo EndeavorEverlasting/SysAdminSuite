@@ -11,11 +11,21 @@ Protected Northwell/VPN deployment consumes a pre-staged short runtime at `C:\SA
 The expected operator rhythm is:
 
 ```text
-Guest / Internet  ->  sas refresh  ->  C:\SASAL sealed
+Guest / Internet  ->  sas refresh  ->  sync-cache -> field-ready -> C:\SASAL sealed
 Protected / VPN   ->  sas autologon Remote HOST
 ```
 
 Do not combine those phases in one command.
+
+## Runtime layers
+
+SysAdminSuite deliberately keeps three repository/runtime roles separate:
+
+1. `%LOCALAPPDATA%\SysAdminSuite\sync-cache` — **Guest-only GitHub-facing cache**. This is the only field runtime layer allowed to own a GitHub remote.
+2. `%LOCALAPPDATA%\SysAdminSuite\field-ready` — clean operator worktree derived from the sync cache at the exact fetched commit.
+3. `C:\SASAL` — protected AutoLogon runtime. It is populated from field-ready by local Git object transfer and then has every Git remote removed.
+
+The operator's OneDrive/Desktop development checkout is not the field sync cache and is not the protected deployment runtime. Git failures, dirty work, or long paths in that development checkout therefore do not become field-deployment prerequisites.
 
 ## Required sequence
 
@@ -29,7 +39,7 @@ Refresh the operator surface before switching networks:
 sas refresh
 ```
 
-`refresh` now fails closed before its first remote Git probe unless the current network classifies as `GUEST_INTERNET`.
+`refresh` fails closed before its first remote Git operation unless the current network classifies as `GUEST_INTERNET`.
 
 Expected terminal markers:
 
@@ -40,16 +50,18 @@ SAS_OPERATOR_REFRESH_READY
 
 `refresh` performs repository/operator maintenance only:
 
-1. proves the current network is Guest/Internet **before** any `ls-remote` or fetch;
-2. resolves the cached SysAdminSuite repository;
-3. fetches the selected tracked branch from GitHub;
-4. creates or refreshes an isolated `%LOCALAPPDATA%\SysAdminSuite\field-ready` worktree at that exact fetched commit;
-5. locally transfers that already-fetched commit into `C:\SASAL` without contacting GitHub from the runtime;
-6. pins `C:\SASAL` to the exact commit and refuses to overwrite dirty runtime work;
-7. removes every Git remote from `C:\SASAL`;
-8. writes `%LOCALAPPDATA%\SysAdminSuite\autologon-short-runtime.json` proving the staged commit and Guest preparation posture;
-9. verifies the deployment, recovery, evidence, launcher, and installer entrypoints exist;
-10. reinstalls the user-local `sas` dispatcher from the field-ready worktree.
+1. proves the current network is Guest/Internet before any remote Git operation;
+2. creates or reuses the dedicated `%LOCALAPPDATA%\SysAdminSuite\sync-cache`;
+3. validates that cache belongs to the official SysAdminSuite origin and contains no local work;
+4. fetches `origin/main` by default, or an explicitly requested ref, **only from that Guest-only cache**;
+5. creates or refreshes an isolated `%LOCALAPPDATA%\SysAdminSuite\field-ready` worktree at that exact fetched commit;
+6. rechecks Guest/Internet before staging protected runtime state;
+7. locally transfers that already-fetched commit from field-ready into `C:\SASAL`;
+8. pins `C:\SASAL` to the exact commit and refuses to overwrite dirty runtime work;
+9. removes every Git remote from `C:\SASAL`;
+10. writes `%LOCALAPPDATA%\SysAdminSuite\autologon-short-runtime.json` proving the staged commit and Guest preparation posture;
+11. verifies the deployment, recovery, evidence, launcher, and installer entrypoints exist;
+12. reinstalls the user-local `sas` dispatcher from field-ready.
 
 It performs no Cybernet target contact, no software-share access, no scheduled-task action, no package installation, and no restart.
 
@@ -59,11 +71,13 @@ This is only for machines where `%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd` exist
 
 Do this while still on Guest/Internet. Never perform this Git bootstrap on protected Northwell/VPN.
 
-From any existing SysAdminSuite checkout:
+From any existing checkout that contains the current refresh script:
 
 ```powershell
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\scripts\Refresh-SasOperatorCommand.ps1 -RepositoryRoot (Get-Location).Path
 ```
+
+The caller checkout is used only to locate the refresh/network-classifier code. Remote Git still occurs only in the dedicated sync cache.
 
 Require both runtime/refresh markers before leaving Guest.
 
@@ -94,7 +108,7 @@ Test-Path C:\SASAL
 Get-Content "$env:LOCALAPPDATA\SysAdminSuite\autologon-short-runtime.json"
 ```
 
-The manifest must identify `GUEST_INTERNET`, the exact prepared commit, `LOCAL_FILESYSTEM_ONLY`, and `protected_bootstrap_git_network_allowed=false`.
+The manifest must identify `GUEST_INTERNET`, the exact prepared commit, `LOCAL_FILESYSTEM_ONLY`, `runtime_remotes_removed=true`, and `protected_bootstrap_git_network_allowed=false`.
 
 Do not run target deployment while still on Guest.
 
