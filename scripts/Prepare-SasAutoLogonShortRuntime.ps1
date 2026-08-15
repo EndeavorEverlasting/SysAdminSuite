@@ -32,8 +32,11 @@ $statePath = Join-Path $stateRoot 'autologon-short-runtime.json'
 New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
 
 function Resolve-SasGitExecutable {
+    $command = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($command -and $command.Source -and (Test-Path -LiteralPath $command.Source -PathType Leaf)) {
+        return [IO.Path]::GetFullPath([string]$command.Source)
+    }
     foreach ($candidate in @(
-        (Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1),
         (Join-Path $env:ProgramFiles 'Git\cmd\git.exe'),
         (Join-Path $env:ProgramFiles 'Git\bin\git.exe'),
         (Join-Path $env:LOCALAPPDATA 'Programs\Git\cmd\git.exe')
@@ -68,10 +71,14 @@ function Invoke-SasLocalGit {
         $ErrorActionPreference = $previousPreference
     }
 
-    $stderr = if (Test-Path -LiteralPath $stderrPath) {
-        try { (Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue).Trim() }
+    $stderr = ''
+    if (Test-Path -LiteralPath $stderrPath) {
+        try {
+            $stderrRaw = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
+            $stderr = $stderrRaw.Trim()
+        }
         finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
-    } else { '' }
+    }
     $stdoutText = (@($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
 
     if ($exitCode -ne 0) {
