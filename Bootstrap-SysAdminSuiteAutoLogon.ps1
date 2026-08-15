@@ -16,6 +16,9 @@ operator-local host eligibility policy, and starts the crash-safe AutoLogon fiel
 field transaction independently repeats network, canonical resolution, and eligibility validation before
 any target mutation.
 
+Legacy evidence fallback is opt-in only through -LegacyEvidenceRoot. The protected runtime never scans the
+operator Desktop/OneDrive tree to discover another checkout implicitly.
+
 Existing unexpected or dirty runtime content is never reset, cleaned, removed, or overwritten.
 #>
 [CmdletBinding()]
@@ -39,8 +42,11 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 function Resolve-SasGitExecutable {
+    $command = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($command -and $command.Source -and (Test-Path -LiteralPath $command.Source -PathType Leaf)) {
+        return [IO.Path]::GetFullPath([string]$command.Source)
+    }
     foreach ($candidate in @(
-        (Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1),
         (Join-Path $env:ProgramFiles 'Git\cmd\git.exe'),
         (Join-Path $env:ProgramFiles 'Git\bin\git.exe'),
         (Join-Path $env:LOCALAPPDATA 'Programs\Git\cmd\git.exe')
@@ -75,10 +81,14 @@ function Invoke-SasLocalGit {
         $ErrorActionPreference = $previousPreference
     }
 
-    $stderr = if (Test-Path -LiteralPath $stderrPath) {
-        try { (Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue).Trim() }
+    $stderr = ''
+    if (Test-Path -LiteralPath $stderrPath) {
+        try {
+            $stderrRaw = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
+            $stderr = $stderrRaw.Trim()
+        }
         finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
-    } else { '' }
+    }
     $stdoutText = (@($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
 
     if ($exitCode -ne 0) {
@@ -103,35 +113,6 @@ function Get-SasLocalGitScalar {
     $value = [string]($lines | Select-Object -First 1)
     if ([string]::IsNullOrWhiteSpace($value)) { throw "$FailureMessage (empty git output)" }
     return $value.Trim()
-}
-
-function Resolve-SasLegacyEvidenceRoot {
-    param([string]$RequestedRoot,[string]$Runtime)
-
-    $candidates = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($candidate in @($RequestedRoot, [string](Get-Location))) {
-        if (-not [string]::IsNullOrWhiteSpace($candidate) -and -not $candidates.Contains($candidate)) {
-            [void]$candidates.Add($candidate)
-        }
-    }
-
-    $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
-    if (-not [string]::IsNullOrWhiteSpace($desktop)) {
-        $durable = Join-Path (Join-Path $desktop 'dev') 'SysAdminSuite'
-        if (-not $candidates.Contains($durable)) { [void]$candidates.Add($durable) }
-    }
-
-    foreach ($candidate in $candidates) {
-        try { $full = [IO.Path]::GetFullPath($candidate) } catch { continue }
-        if ($full.TrimEnd('\').Equals($Runtime.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) { continue }
-        if (-not (Test-Path -LiteralPath $full -PathType Container)) { continue }
-        if ((Test-Path -LiteralPath (Join-Path $full 'survey\output') -PathType Container) -or
-            (Test-Path -LiteralPath (Join-Path $full 'Config') -PathType Container) -or
-            (Test-Path -LiteralPath (Join-Path $full 'scripts\Invoke-SasAutoLogonFieldDeployment.ps1') -PathType Leaf)) {
-            return $full
-        }
-    }
-    return $null
 }
 
 $RuntimeRoot = [IO.Path]::GetFullPath($RuntimeRoot)
@@ -194,13 +175,20 @@ Write-Host "Prepared runtime HEAD: $runtimeHead" -ForegroundColor Green
 Write-Host "Prepared on: $($runtimeState.preparation_network_classification) [$($runtimeState.preparation_network_label)]" -ForegroundColor Green
 Write-Host 'PASS: no remote Git endpoint is configured in the protected runtime.' -ForegroundColor Green
 
-$legacyRoot = Resolve-SasLegacyEvidenceRoot -RequestedRoot $LegacyEvidenceRoot -Runtime $RuntimeRoot
-if ($legacyRoot) {
+if (-not [string]::IsNullOrWhiteSpace($LegacyEvidenceRoot)) {
+    try { $legacyRoot = [IO.Path]::GetFullPath($LegacyEvidenceRoot) }
+    catch { throw "Legacy evidence root is invalid: $LegacyEvidenceRoot" }
+    if (-not (Test-Path -LiteralPath $legacyRoot -PathType Container)) {
+        throw "Explicit legacy evidence root does not exist: $legacyRoot"
+    }
+    if ($legacyRoot.TrimEnd('\').Equals($RuntimeRoot.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Legacy evidence root must be different from the protected runtime.'
+    }
     $env:SAS_REPO_ROOT = $legacyRoot
     Write-Host "Legacy evidence fallback: $legacyRoot" -ForegroundColor Cyan
 } else {
     Remove-Item Env:SAS_REPO_ROOT -ErrorAction SilentlyContinue
-    Write-Host 'Legacy evidence fallback: none resolved.' -ForegroundColor DarkGray
+    Write-Host 'Legacy evidence fallback: disabled.' -ForegroundColor DarkGray
 }
 
 $crashSafeScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
