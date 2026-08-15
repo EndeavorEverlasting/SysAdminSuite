@@ -23,9 +23,9 @@ SysAdminSuite deliberately keeps three repository/runtime roles separate:
 
 1. `%LOCALAPPDATA%\SysAdminSuite\sync-cache` — **Guest-only GitHub-facing cache**. This is the only field runtime layer allowed to own a GitHub remote.
 2. `%LOCALAPPDATA%\SysAdminSuite\field-ready` — clean operator worktree derived from the sync cache at the exact fetched commit.
-3. `C:\SASAL` — protected AutoLogon runtime. It is populated from field-ready by local Git object transfer and then has every Git remote removed.
+3. `C:\SASAL` — protected AutoLogon execution authority. It is populated from field-ready by local Git object transfer and then has every Git remote removed.
 
-The operator's OneDrive/Desktop development checkout is not the field sync cache and is not the protected deployment runtime. Git failures, dirty work, or long paths in that development checkout therefore do not become field-deployment prerequisites.
+The operator's OneDrive/Desktop development checkout is not the field sync cache and is not the protected deployment runtime. Git failures, dirty work, long paths, or unavailable local policy files in that development checkout therefore do not become field-deployment prerequisites. Legacy evidence fallback is disabled unless a caller explicitly supplies one.
 
 ## Required sequence
 
@@ -124,7 +124,7 @@ sas autologon Remote <AUTHORIZED-CYBERNET>
 
 The installed `sas` launcher reads the sealed runtime manifest and invokes `C:\SASAL\Bootstrap-SysAdminSuiteAutoLogon.cmd` at the prepared commit.
 
-The protected bootstrap performs only local Git verification (`HEAD`, clean state, no remotes). It does not clone, fetch, pull, checkout, reset, or clean the runtime. It then owns:
+The protected bootstrap performs only local Git verification (`HEAD`, clean state, no remotes). It does not clone, fetch, pull, checkout, reset, clean, or discover another checkout. It then owns:
 
 1. sealed-runtime verification;
 2. exact DomainAuthenticated VPN/LAN authority when requested;
