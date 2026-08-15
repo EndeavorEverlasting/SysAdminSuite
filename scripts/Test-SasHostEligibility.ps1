@@ -78,7 +78,7 @@ function Resolve-SasPolicyPath {
 
 function New-SasHostEligibilityResult {
     param(
-        [Parameter(Mandatory = $true)][string]$ExecutionContext,
+        [Parameter(Mandatory = $true)][string]$ContextName,
         [Parameter(Mandatory = $true)][bool]$Eligible,
         [Parameter(Mandatory = $true)][string]$Decision,
         [Parameter(Mandatory = $true)][string]$ReasonCode,
@@ -91,7 +91,7 @@ function New-SasHostEligibilityResult {
 
     return [pscustomobject]@{
         schema_version     = 'sas-host-eligibility-result/v1'
-        execution_context  = $ExecutionContext
+        execution_context  = $ContextName
         target             = '[redacted]'
         eligible           = $Eligible
         decision           = $Decision
@@ -151,7 +151,7 @@ function Test-SasHostEligibility {
     $resolvedPolicyPath = Resolve-SasPolicyPath -ExplicitPath $PolicyPath -RepoRootPath $RepoRoot
 
     if ([string]::IsNullOrWhiteSpace($Target)) {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'TARGET_EMPTY' -Reason 'Target hostname is empty. No empty target is eligible for package execution.' `
             -ResolvedPolicyPath $resolvedPolicyPath
     }
@@ -164,7 +164,7 @@ function Test-SasHostEligibility {
     }).Count -gt 0
 
     if ($ExecContext -in @('remote', 'vm') -and $isLocalTarget) {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'LOCAL_FALLBACK_BLOCKED' `
             -Reason "ExecutionContext '$ExecContext' requires a non-local target. Implicit localhost fallback is not permitted." `
             -ResolvedPolicyPath $resolvedPolicyPath
@@ -176,14 +176,14 @@ function Test-SasHostEligibility {
     # policy is deliberately not consulted, so missing/stale policy cannot veto Deploy.
     if ($ExecContext -eq 'remote' -and
         (Test-SasExplicitRemoteTargetRequest -RequestedTarget $env:SAS_EXPLICIT_REMOTE_TARGET_REQUEST -ResolvedTarget $normalizedTarget)) {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $true -Decision 'allowed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $true -Decision 'allowed' `
             -ReasonCode 'EXPLICIT_REMOTE_TARGET_AUTHORIZED' `
             -Reason 'Explicit one-target operator command authorized this exact remote target; operator-local policy is not required for this invocation.' `
             -ResolvedPolicyPath $resolvedPolicyPath -MatchedPattern 'operator-explicit-target' -AllowedContexts @('remote')
     }
 
     if (-not (Test-Path -LiteralPath $resolvedPolicyPath -PathType Leaf)) {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'POLICY_FILE_MISSING' `
             -Reason 'Host eligibility policy file not found. Gate fails closed when no explicit operator target authorization is present.' `
             -ResolvedPolicyPath $resolvedPolicyPath
@@ -193,13 +193,13 @@ function Test-SasHostEligibility {
         $policy = Get-Content -LiteralPath $resolvedPolicyPath -Raw -Encoding UTF8 | ConvertFrom-Json
     }
     catch {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'POLICY_MALFORMED_JSON' -Reason 'Host eligibility policy file is not valid JSON.' `
             -ResolvedPolicyPath $resolvedPolicyPath
     }
 
     if ([string]$policy.schema_version -ne 'sas-host-eligibility-policy/v1') {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'POLICY_SCHEMA_UNSUPPORTED' `
             -Reason 'Host eligibility policy schema version is not supported. Expected sas-host-eligibility-policy/v1.' `
             -ResolvedPolicyPath $resolvedPolicyPath
@@ -207,7 +207,7 @@ function Test-SasHostEligibility {
 
     if ([string]::IsNullOrWhiteSpace([string]$policy.policy_id) -or
         [string]::IsNullOrWhiteSpace([string]$policy.policy_version)) {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'POLICY_ID_OR_VERSION_MISSING' `
             -Reason 'Host eligibility policy is missing required policy_id or policy_version.' `
             -ResolvedPolicyPath $resolvedPolicyPath
@@ -215,7 +215,7 @@ function Test-SasHostEligibility {
 
     $patterns = @($policy.patterns)
     if ($patterns.Count -eq 0) {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'POLICY_NO_PATTERNS' -Reason 'Host eligibility policy defines no patterns.' `
             -ResolvedPolicyPath $resolvedPolicyPath -PolicyVersion ([string]$policy.policy_version)
     }
@@ -223,7 +223,7 @@ function Test-SasHostEligibility {
     foreach ($pattern in $patterns) {
         if ([string]::IsNullOrWhiteSpace([string]$pattern.name) -or
             [string]::IsNullOrWhiteSpace([string]$pattern.regex)) {
-            return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+            return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
                 -ReasonCode 'POLICY_PATTERN_INVALID' `
                 -Reason 'Host eligibility policy contains a pattern with missing name or regex.' `
                 -ResolvedPolicyPath $resolvedPolicyPath -PolicyVersion ([string]$policy.policy_version)
@@ -238,7 +238,7 @@ function Test-SasHostEligibility {
         Where-Object { $_.Count -gt 1 }
     )
     if ($duplicates.Count -gt 0) {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'POLICY_DUPLICATE_PATTERNS' `
             -Reason 'Host eligibility policy contains duplicate pattern names.' `
             -ResolvedPolicyPath $resolvedPolicyPath -PolicyVersion ([string]$policy.policy_version)
@@ -248,7 +248,7 @@ function Test-SasHostEligibility {
     foreach ($pattern in $patterns) {
         try { $regex = [regex]::new([string]$pattern.regex) }
         catch {
-            return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+            return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
                 -ReasonCode 'POLICY_PATTERN_INVALID' -Reason 'Host eligibility policy contains an invalid regular expression.' `
                 -ResolvedPolicyPath $resolvedPolicyPath -PolicyVersion ([string]$policy.policy_version)
         }
@@ -266,20 +266,20 @@ function Test-SasHostEligibility {
 
     if ($null -eq $matchedPattern) {
         if ($ExecContext -in @('fixture', 'vm')) {
-            return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $true -Decision 'allowed' `
+            return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $true -Decision 'allowed' `
                 -ReasonCode 'UNSUPPORTED_HOST_FIT_FOR_FIXTURE_OR_VM' `
                 -Reason "ExecutionContext '$ExecContext' allows execution on hosts not explicitly listed in the policy." `
                 -ResolvedPolicyPath $resolvedPolicyPath -PolicyVersion ([string]$policy.policy_version) `
                 -AllowedContexts @($ExecContext)
         }
 
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'NO_PATTERN_MATCH' -Reason 'Target hostname did not match any pattern in the host eligibility policy.' `
             -ResolvedPolicyPath $resolvedPolicyPath -PolicyVersion ([string]$policy.policy_version)
     }
 
     if ($ExecContext -notin $patternActions) {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'CONTEXT_NOT_ALLOWED_FOR_PATTERN' `
             -Reason "Target matched pattern '$matchedPatternName' but ExecutionContext '$ExecContext' is not in the pattern's allowed actions." `
             -ResolvedPolicyPath $resolvedPolicyPath -PolicyVersion ([string]$policy.policy_version) `
@@ -287,14 +287,14 @@ function Test-SasHostEligibility {
     }
 
     if ($ExecContext -eq 'local' -and -not $isLocalTarget) {
-        return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $false -Decision 'closed' `
+        return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $false -Decision 'closed' `
             -ReasonCode 'LOCAL_CONTEXT_TARGET_MISMATCH' `
             -Reason 'ExecutionContext is local but the target does not match the local machine identity.' `
             -ResolvedPolicyPath $resolvedPolicyPath -PolicyVersion ([string]$policy.policy_version) `
             -MatchedPattern $matchedPatternName -AllowedContexts $patternActions
     }
 
-    return New-SasHostEligibilityResult -ExecutionContext $ExecContext -Eligible $true -Decision 'allowed' `
+    return New-SasHostEligibilityResult -ContextName $ExecContext -Eligible $true -Decision 'allowed' `
         -ReasonCode 'PATTERN_MATCH_AND_CONTEXT_ALLOWED' `
         -Reason "Target matched pattern '$matchedPatternName' and ExecutionContext '$ExecContext' is an allowed action." `
         -ResolvedPolicyPath $resolvedPolicyPath -PolicyVersion ([string]$policy.policy_version) `
