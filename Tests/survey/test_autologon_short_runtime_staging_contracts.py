@@ -13,7 +13,7 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
 
-def test_prepare_is_guest_only_and_local_transport_only() -> None:
+def test_prepare_is_guest_only_local_transport_and_hash_sealed() -> None:
     text = read(PREPARE)
     assert "GUEST_INTERNET" in text
     assert "AUTOLOGON_RUNTIME_STAGE_BLOCKED" in text
@@ -23,6 +23,12 @@ def test_prepare_is_guest_only_and_local_transport_only() -> None:
     assert "target_contact_performed = $false" in text
     assert "target_mutation_performed = $false" in text
     assert "SAS_AUTOLOGON_SHORT_RUNTIME_READY" in text
+    assert "sas-autologon-short-runtime/v2" in text
+    assert "tracked_file_hash_algorithm = 'SHA256'" in text
+    assert "tracked_file_count = $trackedFileHashes.Count" in text
+    assert "tracked_file_hashes = @($trackedFileHashes)" in text
+    assert "@('ls-files')" in text
+    assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in text
     lowered = text.lower()
     for forbidden in (
         "github.com",
@@ -45,23 +51,35 @@ def test_prepare_preserves_dirty_runtime_and_removes_all_remotes() -> None:
     assert "clean -fd" not in text
 
 
-def test_protected_bootstrap_is_verification_only_for_git() -> None:
+def test_protected_bootstrap_is_git_free_and_verifies_guest_seal() -> None:
     text = read(BOOTSTRAP)
     assert "autologon-short-runtime.json" in text
-    assert "Git network I/O: DISABLED" in text
+    assert "sas-autologon-short-runtime/v2" in text
+    assert "Git activity after protected-network transition: NONE" in text
     assert "Checkout mutation: DISABLED" in text
     assert "runtime_git_transport" in text
     assert "LOCAL_FILESYSTEM_ONLY" in text
     assert "runtime_remotes_removed" in text
     assert "protected_bootstrap_git_network_allowed" in text
+    assert "tracked_file_hash_algorithm" in text
+    assert "tracked_file_hashes" in text
+    assert "tracked_file_count" in text
+    assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in text
     assert "AUTOLOGON_RUNTIME_NOT_PREPARED" in text
-    assert "AUTOLOGON_RUNTIME_UNSEALED" in text
+    assert "AUTOLOGON_RUNTIME_SEAL_INVALID" in text
+    assert "AUTOLOGON_RUNTIME_SEAL_MISMATCH" in text
+    assert "PASS: sealed tracked runtime content verified without Git" in text
+    assert "Protected-side Git activity: NONE" in text
     assert "PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION" in text
 
-    for command in ("rev-parse", "status", "remote"):
-        assert command in text
-    lowered = text.lower()
     for forbidden in (
+        "Resolve-SasGitExecutable",
+        "Invoke-SasLocalGit",
+        "Get-SasLocalGitScalar",
+        "git.exe",
+        "rev-parse",
+        "@('status','--porcelain')",
+        "@('remote')",
         "git fetch",
         "git clone",
         "git pull",
@@ -71,7 +89,7 @@ def test_protected_bootstrap_is_verification_only_for_git() -> None:
         "ls-remote",
         "repo_url",
     ):
-        assert forbidden not in lowered, forbidden
+        assert forbidden not in text, forbidden
 
 
 def test_protected_bootstrap_legacy_evidence_fallback_is_explicit_only() -> None:
@@ -84,15 +102,16 @@ def test_protected_bootstrap_legacy_evidence_fallback_is_explicit_only() -> None
     assert "OG Laptop Backup" not in text
 
 
-def test_protected_bootstrap_does_not_merge_native_stderr_into_error_stream() -> None:
-    text = read(BOOTSTRAP)
+def test_native_git_stderr_handling_is_guest_side_only() -> None:
+    bootstrap = read(BOOTSTRAP)
     prepare = read(PREPARE)
-    assert "2> $stderrPath" in text
     assert "2> $stderrPath" in prepare
-    assert "2>&1" not in text
-    assert "2>&1" not in prepare
-    assert "$ErrorActionPreference = 'Continue'" in text
     assert "$ErrorActionPreference = 'Continue'" in prepare
+    assert "2>&1" not in prepare
+    assert "2> $stderrPath" not in bootstrap
+    assert "$ErrorActionPreference = 'Continue'" not in bootstrap
+    assert "Resolve-SasGitExecutable" not in bootstrap
+    assert "2>&1" not in bootstrap
 
 
 def test_sas_autologon_remote_consumes_sealed_runtime() -> None:
