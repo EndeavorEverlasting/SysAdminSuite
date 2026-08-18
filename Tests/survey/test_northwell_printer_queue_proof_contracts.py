@@ -63,6 +63,17 @@ def test_proof_ceiling_distinguishes_ack_from_physical_output() -> None:
     assert "LIVE_PHYSICAL_PRINT_PROOF_PASS" in text
     assert "LIVE_PHYSICAL_OUTPUT_OPERATOR_OBSERVED" in text
     assert "Did a physical test page emerge" in text
+    assert "diagnostic_warnings = @()" in text
+    assert "REMOTE_QUERY_TIMEOUT_DESPITE_PHYSICAL_PRINT" in text
+    assert "TEST_PAGE_CALL_TIMEOUT_DESPITE_PHYSICAL_PRINT" in text
+
+    physical_gate = "if ($PrintTestPage -and $result.physical_output_observed -eq $true)"
+    dynamic_failure = "elseif ($result.remote_query.status -eq 'TIMEOUT' -and $rpcDynamicStalled)"
+    assert physical_gate in text
+    assert dynamic_failure in text
+    assert text.index(physical_gate) < text.index(dynamic_failure), (
+        "operator-confirmed physical output must outrank diagnostic RPC timeout classifications"
+    )
 
 
 def test_known_rpc_failure_and_dynamic_port_classes_are_preserved() -> None:
@@ -71,6 +82,8 @@ def test_known_rpc_failure_and_dynamic_port_classes_are_preserved() -> None:
     assert "REMOTE_PRINT_QUERY_TIMEOUT" in text
     assert "PRINT_TEST_RPC_SERVER_UNAVAILABLE_1722" in text
     assert "$_.remote_port -ne 135 -and $_.state -eq 'SynSent'" in text
+    assert "$_.remote_port -ne 135 -and $_.state -eq 'Established'" in text
+    assert "$rpcDynamicStalled = $rpcSynSent -and -not $rpcDynamicEstablished" in text
 
 
 def test_evidence_is_runtime_local_and_structured() -> None:

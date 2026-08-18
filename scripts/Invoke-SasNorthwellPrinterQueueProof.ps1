@@ -241,6 +241,7 @@ $result = [ordered]@{
     test_page = $null
     physical_output_observed = $null
     proof_level = 'DIAGNOSTIC_ONLY'
+    diagnostic_warnings = @()
     evidence_path = $resultPath
     error = $null
     completed_utc = $null
@@ -454,8 +455,39 @@ if (-not `$p) { throw 'Mapped printer object not found.' }
     $rpcSynSent = @($result.observed_rpc_connections | Where-Object {
         $_.remote_port -ne 135 -and $_.state -eq 'SynSent'
     }).Count -gt 0
+    $rpcDynamicEstablished = @($result.observed_rpc_connections | Where-Object {
+        $_.remote_port -ne 135 -and $_.state -eq 'Established'
+    }).Count -gt 0
+    $rpcDynamicStalled = $rpcSynSent -and -not $rpcDynamicEstablished
 
-    if (-not $result.spooler.running) {
+    # Physical output from the explicitly requested test page is the strongest
+    # end-to-end proof available to this lane. Diagnostic calls may time out even
+    # after the spooler successfully submits and the device prints. Preserve those
+    # anomalies as warnings, but never let them downgrade observed physical output.
+    if ($PrintTestPage -and $result.physical_output_observed -eq $true) {
+        $warnings = New-Object System.Collections.Generic.List[string]
+        if ($result.remote_query.status -eq 'TIMEOUT') {
+            [void]$warnings.Add('REMOTE_QUERY_TIMEOUT_DESPITE_PHYSICAL_PRINT')
+        }
+        if ($result.test_page -and $result.test_page.status -eq 'TIMEOUT') {
+            [void]$warnings.Add('TEST_PAGE_CALL_TIMEOUT_DESPITE_PHYSICAL_PRINT')
+        }
+        if ($rpcSynSent -and $rpcDynamicEstablished) {
+            [void]$warnings.Add('TRANSIENT_RPC_SYN_SENT_WITH_ESTABLISHED_DYNAMIC_RPC')
+        }
+        elseif ($rpcDynamicStalled) {
+            [void]$warnings.Add('RPC_DYNAMIC_PORT_STALL_OBSERVED_DESPITE_PHYSICAL_PRINT')
+        }
+        if ($result.test_page -and $result.test_page.return_value -eq 1722) {
+            [void]$warnings.Add('PRINT_TEST_RPC_1722_DESPITE_PHYSICAL_PRINT')
+        }
+
+        $result.diagnostic_warnings = @($warnings)
+        $result.classification = 'LIVE_PHYSICAL_PRINT_PROOF_PASS'
+        $result.status = 'PASS'
+        $result.proof_level = 'LIVE_PHYSICAL_OUTPUT_OPERATOR_OBSERVED'
+    }
+    elseif (-not $result.spooler.running) {
         $result.classification = 'LOCAL_SPOOLER_NOT_RUNNING'
         $result.status = 'FAIL'
     }
@@ -471,7 +503,7 @@ if (-not `$p) { throw 'Mapped printer object not found.' }
         $result.classification = 'RPC_ENDPOINT_MAPPER_UNREACHABLE'
         $result.status = 'FAIL'
     }
-    elseif ($result.remote_query.status -eq 'TIMEOUT' -and $rpcSynSent) {
+    elseif ($result.remote_query.status -eq 'TIMEOUT' -and $rpcDynamicStalled) {
         $result.classification = 'PRINT_RPC_DYNAMIC_PORT_STALLED'
         $result.status = 'FAIL'
     }
@@ -482,11 +514,6 @@ if (-not `$p) { throw 'Mapped printer object not found.' }
     elseif ($PrintTestPage -and $result.test_page -and $result.test_page.return_value -eq 1722) {
         $result.classification = 'PRINT_TEST_RPC_SERVER_UNAVAILABLE_1722'
         $result.status = 'FAIL'
-    }
-    elseif ($PrintTestPage -and $result.physical_output_observed -eq $true) {
-        $result.classification = 'LIVE_PHYSICAL_PRINT_PROOF_PASS'
-        $result.status = 'PASS'
-        $result.proof_level = 'LIVE_PHYSICAL_OUTPUT_OPERATOR_OBSERVED'
     }
     elseif ($PrintTestPage -and $result.test_page -and $result.test_page.status -eq 'ACCEPTED') {
         $result.classification = 'TEST_PAGE_ACCEPTED_PHYSICAL_OUTPUT_UNPROVEN'
@@ -520,6 +547,9 @@ Write-Host '=== NORTHWELL PRINTER QUEUE PROOF ===' -ForegroundColor Cyan
 Write-Host ("Status:         {0}" -f $result.status)
 Write-Host ("Classification: {0}" -f $result.classification)
 Write-Host ("Proof level:    {0}" -f $result.proof_level)
+if ($result.diagnostic_warnings.Count -gt 0) {
+    Write-Host ("Warnings:       {0}" -f ($result.diagnostic_warnings -join ', '))
+}
 Write-Host ("Evidence:       {0}" -f $resultPath)
 Write-Host 'Direct-IP mapping performed: NO'
 Write-Host ''
