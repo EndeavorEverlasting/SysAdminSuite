@@ -12,17 +12,25 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
 
-def test_protected_runtime_is_prepared_and_commit_pinned_without_checkout_mutation() -> None:
+def test_protected_runtime_is_prepared_and_commit_pinned_without_git() -> None:
     text = read(BOOTSTRAP)
     assert "[string]$RuntimeRoot = 'C:\\SASAL'" in text
     assert "autologon-short-runtime.json" in text
+    assert "sas-autologon-short-runtime/v2" in text
     assert "prepared_commit" in text
     assert "AUTOLOGON_RUNTIME_COMMIT_MISMATCH" in text
-    assert "Git network I/O: DISABLED" in text
+    assert "Git activity after protected-network transition: NONE" in text
     assert "Checkout mutation: DISABLED" in text
-    assert "Protected-side repository network activity: NONE" in text
-    lowered = text.lower()
+    assert "Protected-side Git activity: NONE" in text
     for forbidden in (
+        "Resolve-SasGitExecutable",
+        "Invoke-SasLocalGit",
+        "Get-SasLocalGitScalar",
+        "& git",
+        "git.exe",
+        "rev-parse",
+        "@('status','--porcelain')",
+        "@('remote')",
         "git clone",
         "git fetch",
         "git pull",
@@ -30,12 +38,11 @@ def test_protected_runtime_is_prepared_and_commit_pinned_without_checkout_mutati
         "reset --hard",
         "clean -fd",
         "ls-remote",
-        "refs/heads/main:refs/remotes/origin/main",
     ):
-        assert forbidden not in lowered, forbidden
+        assert forbidden not in text, forbidden
 
 
-def test_guest_refresh_owns_remote_acquisition_and_seals_runtime() -> None:
+def test_guest_refresh_owns_remote_acquisition_and_creates_hash_seal() -> None:
     refresh = read(REFRESH)
     prepare = read(PREPARE)
     assert "$syncCache = Join-Path $operatorStateRoot 'sync-cache'" in refresh
@@ -49,6 +56,13 @@ def test_guest_refresh_owns_remote_acquisition_and_seals_runtime() -> None:
     assert "runtime_remotes_removed = $true" in prepare
     assert "protected_bootstrap_git_network_allowed = $false" in prepare
     assert "remote','remove'" in prepare
+    assert "sas-autologon-short-runtime/v2" in prepare
+    assert "tracked_file_hash_algorithm = 'SHA256'" in prepare
+    assert "tracked_file_count = $trackedFileHashes.Count" in prepare
+    assert "tracked_file_hashes = @($trackedFileHashes)" in prepare
+    assert "@('ls-files')" in prepare
+    assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in prepare
+    assert "Protected-side Git activity: NONE" in prepare
 
     gate = refresh.index("$preRefreshNetwork = Get-SasOperatorNetworkClassification")
     rejection = refresh.index("SAS_REFRESH_REMOTE_GIT_BLOCKED")
@@ -58,14 +72,17 @@ def test_guest_refresh_owns_remote_acquisition_and_seals_runtime() -> None:
     assert gate < rejection < clone < remote_fetch < stage
 
 
-def test_protected_runtime_verifies_clean_state_and_has_no_remote() -> None:
+def test_protected_runtime_verifies_sealed_tracked_files_with_filesystem_hashing() -> None:
     text = read(BOOTSTRAP)
-    assert "@('status','--porcelain')" in text
-    assert "AUTOLOGON_RUNTIME_DIRTY" in text
-    assert "@('remote')" in text
-    assert "AUTOLOGON_RUNTIME_UNSEALED" in text
-    assert "PASS: no remote Git endpoint is configured in the protected runtime." in text
-    assert "Nothing was reset or cleaned" in text
+    assert "tracked_file_hash_algorithm" in text
+    assert "tracked_file_hashes" in text
+    assert "tracked_file_count" in text
+    assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in text
+    assert "AUTOLOGON_RUNTIME_SEAL_INVALID" in text
+    assert "AUTOLOGON_RUNTIME_SEAL_MISMATCH" in text
+    assert "tracked runtime file changed after Guest staging" in text
+    assert "PASS: sealed tracked runtime content verified without Git" in text
+    assert "staging manifest records runtime remotes removed before protected transition" in text
 
 
 def test_legacy_checkout_is_explicit_evidence_fallback_only() -> None:
@@ -79,13 +96,16 @@ def test_legacy_checkout_is_explicit_evidence_fallback_only() -> None:
     assert "$env:SAS_NETWORK_GUARD_CONFIG = $legacyNetworkConfig" not in text
 
 
-def test_native_git_stderr_is_not_promoted_to_terminating_powershell_error() -> None:
-    for path in (BOOTSTRAP, PREPARE, REFRESH):
+def test_native_git_stderr_handling_remains_guest_side_only() -> None:
+    for path in (PREPARE, REFRESH):
         text = read(path)
         assert "2> $stderrPath" in text
         assert "$ErrorActionPreference = 'Continue'" in text
         assert "$exitCode = [int]$LASTEXITCODE" in text
         assert "2>&1" not in text
+    bootstrap = read(BOOTSTRAP)
+    assert "2> $stderrPath" not in bootstrap
+    assert "Resolve-SasGitExecutable" not in bootstrap
 
 
 def test_vpn_authority_and_canonical_guard_still_own_protected_admission() -> None:
@@ -116,10 +136,10 @@ def test_exact_canonical_target_authorization_precedes_crash_safe_transaction() 
     assert network < resolve < authorize < deploy
 
 
-def test_crash_safe_runner_and_parser_gate_remain_required() -> None:
+def test_crash_safe_runner_receives_sealed_commit_and_parser_gate_remains_required() -> None:
     text = read(BOOTSTRAP)
     assert "Invoke-SasAutoLogonCrashSafeFieldRun.ps1" in text
-    assert "-RepositoryRoot $RuntimeRoot -ConfirmDeployment" in text
+    assert "-RepositoryRoot $RuntimeRoot -RepositoryHead $preparedCommit -ConfirmDeployment" in text
     assert "last-autologon-field-run.json" in text
     assert "System.Management.Automation.Language.Parser" in text
     assert "field-proof-worktrees" not in text

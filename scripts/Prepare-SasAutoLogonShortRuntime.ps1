@@ -7,7 +7,7 @@ Stage the short AutoLogon runtime from an already-refreshed local checkout.
 This script is intentionally local-only. It never names or contacts GitHub and never contacts a field target.
 It must run while the operator is on Guest/Internet, copies the exact already-fetched commit into C:\SASAL
 through local Git object transfer, removes runtime remotes so protected-network code cannot accidentally fetch,
-and writes a local preparation manifest consumed by the protected AutoLogon bootstrap.
+and writes a SHA-256 tracked-file seal consumed by the protected AutoLogon bootstrap.
 
 Existing dirty runtime content is never reset, cleaned, removed, or overwritten.
 #>
@@ -127,7 +127,8 @@ if (@($sourceDirty | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_
 if (-not (Test-Path -LiteralPath $RuntimeRoot)) {
     New-Item -ItemType Directory -Path $RuntimeRoot -Force | Out-Null
     [void](Invoke-SasLocalGit -Root $RuntimeRoot -Arguments @('init') -FailureMessage "Could not initialize short runtime: $RuntimeRoot")
-} elseif (-not (Test-Path -LiteralPath $RuntimeRoot -PathType Container)) {
+}
+elseif (-not (Test-Path -LiteralPath $RuntimeRoot -PathType Container)) {
     throw "Short runtime path exists but is not a directory: $RuntimeRoot"
 }
 
@@ -180,8 +181,38 @@ foreach ($relative in $required) {
     }
 }
 
+$trackedRelativePaths = @(
+    Invoke-SasLocalGit -Root $RuntimeRoot -Arguments @('ls-files') `
+        -FailureMessage 'Could not enumerate tracked runtime files for the protected-runtime seal.' -Quiet |
+        ForEach-Object { ([string]$_).Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Sort-Object -Unique
+)
+if ($trackedRelativePaths.Count -lt 1) {
+    throw 'Protected-runtime seal cannot be created because Git returned no tracked files.'
+}
+
+$runtimePrefix = $RuntimeRoot.TrimEnd('\') + '\'
+$trackedFileHashes = New-Object 'System.Collections.Generic.List[object]'
+foreach ($relative in $trackedRelativePaths) {
+    $canonicalRelative = ([string]$relative).Replace('\','/')
+    $relativeWindows = $canonicalRelative.Replace('/', '\')
+    $fullPath = [IO.Path]::GetFullPath((Join-Path $RuntimeRoot $relativeWindows))
+    if (-not $fullPath.StartsWith($runtimePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Tracked runtime path escapes the short runtime: $canonicalRelative"
+    }
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        throw "Tracked runtime file is missing while creating the seal: $canonicalRelative"
+    }
+    $hash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    [void]$trackedFileHashes.Add([pscustomobject][ordered]@{
+        path = $canonicalRelative
+        sha256 = $hash
+    })
+}
+
 $manifest = [pscustomobject][ordered]@{
-    schema_version = 'sas-autologon-short-runtime/v1'
+    schema_version = 'sas-autologon-short-runtime/v2'
     runtime_root = $RuntimeRoot
     source_root = $SourceRoot
     prepared_commit = $runtimeHead
@@ -191,6 +222,9 @@ $manifest = [pscustomobject][ordered]@{
     runtime_git_transport = 'LOCAL_FILESYSTEM_ONLY'
     runtime_remotes_removed = $true
     protected_bootstrap_git_network_allowed = $false
+    tracked_file_hash_algorithm = 'SHA256'
+    tracked_file_count = $trackedFileHashes.Count
+    tracked_file_hashes = @($trackedFileHashes)
     target_contact_performed = $false
     target_mutation_performed = $false
 }
@@ -201,4 +235,5 @@ Write-Host 'SAS_AUTOLOGON_SHORT_RUNTIME_READY' -ForegroundColor Green
 Write-Host "Runtime:  $RuntimeRoot"
 Write-Host "HEAD:     $runtimeHead"
 Write-Host "Manifest: $statePath"
-Write-Host 'Protected-side Git network I/O: DISABLED' -ForegroundColor Green
+Write-Host "Tracked files sealed: $($trackedFileHashes.Count)" -ForegroundColor Green
+Write-Host 'Protected-side Git activity: NONE' -ForegroundColor Green
