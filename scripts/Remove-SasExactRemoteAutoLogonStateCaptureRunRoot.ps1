@@ -55,10 +55,12 @@ New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
 $resultPath = Join-Path $EvidenceRoot 'autologon-state-capture-cleanup-result.json'
 
 $remoteRoot = "\\$ComputerName\C$\ProgramData\SysAdminSuite\AutoLogonStateRecovery\$RunId"
+$remoteParent = Split-Path -Parent $remoteRoot
 $remotePhaseRoot = Join-Path $remoteRoot $Phase
 $remoteWorkerResult = Join-Path $remotePhaseRoot 'worker-result.json'
 
 $root64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($remoteRoot))
+$parent64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($remoteParent))
 $phaseResult64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($remoteWorkerResult))
 $inventoryScript = @"
 `$ErrorActionPreference = 'Stop'
@@ -149,8 +151,37 @@ $verify = Invoke-SasBoundedPowerShell -ScriptText $verifyScript -TimeoutSeconds 
 if ($verify.timed_out) { throw 'Timed out verifying exact AutoLogon state-capture run-root absence.' }
 if ($verify.exit_code -ne 0) { throw 'Exact AutoLogon state-capture run root remains after cleanup.' }
 
+$parentInventoryScript = @"
+`$ErrorActionPreference = 'Stop'
+`$parent = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$parent64'))
+if (-not (Test-Path -LiteralPath `$parent -PathType Container)) {
+    [Console]::Out.Write(([pscustomobject]@{ exists=`$false; entries=@() } | ConvertTo-Json -Depth 6 -Compress))
+    exit 0
+}
+`$entries = @(
+    Get-ChildItem -LiteralPath `$parent -Force -Recurse -ErrorAction Stop | ForEach-Object {
+        `$relative = `$_.FullName.Substring(`$parent.Length).TrimStart('\')
+        [pscustomobject]@{
+            path = [string]`$relative
+            kind = `$(if (`$_.PSIsContainer) { 'directory' } else { 'file' })
+        }
+    }
+)
+[Console]::Out.Write(([pscustomobject]@{ exists=`$true; entries=@(`$entries) } | ConvertTo-Json -Depth 8 -Compress))
+exit 0
+"@
+$parentInventoryRun = Invoke-SasBoundedPowerShell -ScriptText $parentInventoryScript -TimeoutSeconds $TimeoutSeconds
+if ($parentInventoryRun.timed_out) { throw 'Timed out inventorying the AutoLogon state-recovery parent.' }
+if ($parentInventoryRun.exit_code -ne 0) { throw "State-recovery parent inventory failed: $($parentInventoryRun.error)" }
+if ([string]::IsNullOrWhiteSpace([string]$parentInventoryRun.output)) { throw 'State-recovery parent inventory returned no result.' }
+$parentInventory = $parentInventoryRun.output | ConvertFrom-Json
+$parentPolicy = Test-SasAutoLogonStateCaptureParentInventory -Entries @($parentInventory.entries)
+if (-not [bool]$parentPolicy.operationally_clean) {
+    throw "Active AutoLogon state-reader residue remains outside the exact cleaned run root: $(@($parentPolicy.active_residue_paths) -join ', ')"
+}
+
 $result = [pscustomobject][ordered]@{
-    schema_version = 'sas-autologon-state-capture-exact-cleanup/v1'
+    schema_version = 'sas-autologon-state-capture-exact-cleanup/v2'
     classification = 'EXACT_REMOTE_AUTOLOGON_STATE_CAPTURE_RUN_ROOT_CLEANED'
     target = $ComputerName
     run_id = $RunId
@@ -162,6 +193,10 @@ $result = [pscustomobject][ordered]@{
     worker_result_identity_verified = [bool]$identity.valid
     state_reader_task_count_before_cleanup = $stateReaderTasks.Count
     exact_run_root_absent = $true
+    parent_operationally_clean = [bool]$parentPolicy.operationally_clean
+    active_parent_residue_paths = @($parentPolicy.active_residue_paths)
+    inert_empty_run_roots = @($parentPolicy.inert_empty_run_roots)
+    inert_empty_run_roots_preserved = $true
     cleanup_scope = 'exact_autologon_state_capture_run_root_only'
     target_mutation_performed = [bool]$inventory.exists
     autologon_configuration_mutation_performed = $false
