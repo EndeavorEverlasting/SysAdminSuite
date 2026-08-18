@@ -14,7 +14,9 @@ When a field workflow needs more than one shell statement, the workflow belongs 
 
 Do not reconstruct a terminal session from chat output.
 
-## Northwell printer queue proof capsule
+Do not append `exit $LASTEXITCODE`, `exit $rc`, or another caller-shell `exit` to an operator copy/paste command. A diagnostic command must not close the PowerShell or Windows Terminal session the operator is using to collect and share evidence.
+
+## Northwell printer operational capsule
 
 Printer mapping already has a canonical machine-wide launcher:
 
@@ -22,25 +24,73 @@ Printer mapping already has a canonical machine-wide launcher:
 Map-NorthwellPrinter-SystemWide.cmd
 ```
 
-After a shared queue is mapped, use the proof capsule instead of pasting a diagnostic PowerShell block:
+After a shared queue is mapped, use:
 
 ```text
 Prove-NorthwellPrinter-Queue.cmd
 ```
 
-The proof capsule asks for the canonical `\\server\queue`. It may also accept a printer IP **for diagnostics only**; that IP is never used to create or remap a printer.
+Despite the compatibility name, the normal launcher is now an **operational check**, not a repeated physical proof transaction.
 
-The proof engine performs one bounded transaction:
+**The normal launcher never prints a test page.** It does not ask for one and does not pass the diagnostic engine's explicit `-PrintTestPage` switch. A prior successful physical print is durable evidence; follow-up status checks do not consume paper merely to prove the same thing again.
 
-- validates the shared-queue contract;
-- records local Spooler and queue state;
-- resolves the print server;
-- probes TCP 445 and RPC Endpoint Mapper TCP 135 with bounded waits;
-- performs one bounded remote queue query while observing the actual RPC TCP connections selected afterward;
-- optionally issues one bounded Windows test page and asks whether physical output was observed;
-- writes a structured JSON result under `%LOCALAPPDATA%\SysAdminSuite\field-runs\printer-queue-proof`.
+The default operational engine:
 
-A command acknowledgement or accepted test-page request is not physical-print proof. `LIVE_PHYSICAL_PRINT_PROOF_PASS` is emitted only when the operator reports that the requested physical printer actually produced the page.
+- validates the shared `\\server\queue` workflow;
+- invokes the bounded diagnostic engine with `-NonInteractive` and no test-page switch;
+- records current local Spooler, queue, DNS, SMB/RPC transport, and optional TCP 9100 evidence;
+- treats remote administrative/status-query timeouts as telemetry degradation when current queue/transport evidence is healthy;
+- preserves a previous `physical_output_observed=true` artifact for the same queue as prior physical proof instead of printing again;
+- never remaps the printer by IP;
+- never modifies Northwell firewall, RPC, or Group Policy;
+- preserves the raw diagnostic result unchanged and emits a separate operational result.
+
+## Durable evidence
+
+Every run publishes stable aliases beneath:
+
+```text
+%LOCALAPPDATA%\SysAdminSuite\field-runs\printer-queue-proof
+```
+
+The important files are:
+
+```text
+latest.txt
+latest.json
+LATEST-PATH.txt
+latest-diagnostic.stdout.txt
+latest-diagnostic.stderr.txt
+```
+
+`latest.txt` is the human-readable summary. `latest.json` is the machine-readable operational result. `LATEST-PATH.txt` points back to the exact per-run directory and raw diagnostic artifact.
+
+Closing a terminal does not remove these files.
+
+To reopen the evidence later without reconstructing a terminal transcript, run:
+
+```text
+Open-NorthwellPrinter-Queue-Proof-Logs.cmd
+```
+
+That opens the evidence directory plus the stable latest summary/result in Explorer and Notepad.
+
+## Proof precedence
+
+Evidence is ranked by what it actually proves:
+
+1. A previously observed physical page for the same queue is durable end-to-end proof of successful printing at that time.
+2. Current local queue state, `WorkOffline`, SMB reachability, optional TCP 9100 reachability, and observed established RPC connections describe current health.
+3. A remote `Get-Printer` timeout is status/administrative telemetry. It does not by itself prove that printing is broken.
+4. A transient `SynSent` sample does not prove an RPC stall when an established dynamic RPC connection was also observed.
+
+Accordingly, a healthy current queue plus preserved physical proof is classified `QUEUE_OPERATIONAL_PHYSICAL_PROOF_PRESERVED`. A healthy current queue with established transport but a remote status timeout is `QUEUE_OPERATIONAL_STATUS_TELEMETRY_DEGRADED`, not a print failure.
+
+Current hard failures still win: missing local queue, stopped Spooler, unreachable SMB path, or an explicitly supplied printer IP whose TCP 9100 path is unreachable are not hidden by older proof.
+
+## Explicit physical test capability
+
+The lower-level diagnostic engine retains an explicit `-PrintTestPage` switch for a future incident where a physical print genuinely needs to be tested. That switch is **not** part of the normal launcher or normal follow-up workflow.
 
 ## Copy-safe output rule for agents and UI
 
@@ -51,4 +101,4 @@ PS C:\Users\someone>
 >>
 ```
 
-Do not include output tables, error prose, or a second shell transcript in the same copy target. If the action cannot fit safely in one complete command, add or reuse a tracked script/CMD launcher and give the operator that launcher instead.
+Do not include output tables, error prose, or a second shell transcript in the same copy target. Do not terminate the caller's terminal merely to propagate a diagnostic exit code. If the action cannot fit safely in one complete command, add or reuse a tracked script/CMD launcher and give the operator that launcher instead.

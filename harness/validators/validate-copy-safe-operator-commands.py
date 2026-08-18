@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate copy-safe field command capsules and transcript-separation contracts."""
+"""Validate copy-safe field command capsules and durable operator-evidence contracts."""
 
 from __future__ import annotations
 
@@ -33,6 +33,9 @@ def main() -> None:
         "no-continuation-prompts",
         "launcher-first",
         "single-command-copy",
+        "no-parent-shell-exit",
+        "durable-latest-evidence",
+        "no-repeat-physical-proof-by-default",
     }
     missing = required.difference(rules)
     if missing:
@@ -46,59 +49,91 @@ def main() -> None:
         fail("copy-safe policy has no registered capsules")
 
     for capsule in capsules:
-        launcher = ROOT / capsule["launcher"]
-        engine = ROOT / capsule["engine"]
-        documentation = ROOT / capsule["documentation"]
-        for path in (launcher, engine, documentation):
+        paths = {
+            "launcher": ROOT / capsule["launcher"],
+            "engine": ROOT / capsule["engine"],
+            "diagnostic_engine": ROOT / capsule["diagnostic_engine"],
+            "logs_launcher": ROOT / capsule["logs_launcher"],
+            "documentation": ROOT / capsule["documentation"],
+        }
+        for label, path in paths.items():
             if not path.is_file():
-                fail(f"registered capsule path does not exist: {path}")
-        if launcher.suffix.lower() != ".cmd":
-            fail(f"field capsule launcher must be CMD: {launcher}")
+                fail(f"registered capsule {label} does not exist: {path}")
+
+        if paths["launcher"].suffix.lower() != ".cmd":
+            fail(f"field capsule launcher must be CMD: {paths['launcher']}")
+        if paths["logs_launcher"].suffix.lower() != ".cmd":
+            fail(f"field capsule log launcher must be CMD: {paths['logs_launcher']}")
         if capsule.get("direct_ip_mapping") is not False:
             fail(f"printer capsule must explicitly forbid direct-IP mapping: {capsule['id']}")
+        if capsule.get("default_test_page") is not False:
+            fail(f"printer capsule must default to no test page: {capsule['id']}")
+        if capsule.get("mutation") != "none":
+            fail(f"default printer capsule must be non-mutating: {capsule['id']}")
+        if not capsule.get("latest_result") or not capsule.get("latest_summary"):
+            fail(f"capsule must publish stable latest evidence aliases: {capsule['id']}")
 
-        launcher_text = launcher.read_text(encoding="utf-8-sig")
+        launcher_text = paths["launcher"].read_text(encoding="utf-8-sig")
         for line in launcher_text.splitlines():
             if prompt_re.match(line) or continuation_re.match(line):
-                fail(f"terminal transcript marker embedded in launcher {launcher}: {line!r}")
+                fail(f"terminal transcript marker embedded in launcher {paths['launcher']}: {line!r}")
+        if "PrintTestPage" in launcher_text or "Issue one bounded Windows test page" in launcher_text:
+            fail("operator launcher regressed to requesting a physical test page")
+        for marker in ("latest.txt", "latest.json", "This window will NOT close automatically"):
+            if marker not in launcher_text:
+                fail(f"operator launcher lost durable/persistent marker: {marker}")
+
+        engine_text = paths["engine"].read_text(encoding="utf-8-sig")
+        if "PrintTestPage" in engine_text or "-PrintTestPage" in engine_text:
+            fail("default operational engine must never request a test page")
+        for marker in (
+            "sas-northwell-printer-queue-operational/v1",
+            "QUEUE_OPERATIONAL_PHYSICAL_PROOF_PRESERVED",
+            "QUEUE_OPERATIONAL_STATUS_TELEMETRY_DEGRADED",
+            "latest.json",
+            "latest.txt",
+            "Evidence is durable. Closing this terminal does not lose the result.",
+        ):
+            if marker not in engine_text:
+                fail(f"operational engine lost required marker: {marker}")
+
+        diagnostic_text = paths["diagnostic_engine"].read_text(encoding="utf-8-sig")
+        for marker in (
+            "sas-northwell-printer-queue-proof/v1",
+            "direct_ip_mapping_performed = $false",
+            "Get-Printer -ComputerName",
+            "Get-NetTCPConnection -RemoteAddress",
+        ):
+            if marker not in diagnostic_text:
+                fail(f"bounded diagnostic engine lost required marker: {marker}")
+
+        forbidden_mapping = [
+            r"Add-Printer\s+-PortName",
+            r"Add-PrinterPort",
+            r"PrintUIEntry[^\r\n]*/if",
+        ]
+        for text, label in ((engine_text, "operational engine"), (diagnostic_text, "diagnostic engine")):
+            for pattern in forbidden_mapping:
+                if re.search(pattern, text, flags=re.IGNORECASE):
+                    fail(f"{label} contains direct-IP/local-port mapping behavior: {pattern}")
 
     doc_text = DOC.read_text(encoding="utf-8")
     required_doc_markers = [
         "Do not reconstruct a terminal session from chat output.",
         "one physical line",
-        "Prove-NorthwellPrinter-Queue.cmd",
-        "LIVE_PHYSICAL_PRINT_PROOF_PASS",
+        "The normal launcher never prints a test page.",
+        "latest.txt",
+        "latest.json",
+        "Do not append `exit $LASTEXITCODE`",
+        "Open-NorthwellPrinter-Queue-Proof-Logs.cmd",
     ]
     for marker in required_doc_markers:
         if marker not in doc_text:
             fail(f"copy-safe documentation lost required marker: {marker}")
 
-    engine_text = (ROOT / "scripts" / "Invoke-SasNorthwellPrinterQueueProof.ps1").read_text(encoding="utf-8-sig")
-    engine_markers = [
-        "sas-northwell-printer-queue-proof/v1",
-        "direct_ip_mapping_performed = $false",
-        "Get-Printer -ComputerName",
-        "Get-NetTCPConnection -RemoteAddress",
-        "PrintTestPage",
-        "LIVE_PHYSICAL_PRINT_PROOF_PASS",
-        "field-runs\\printer-queue-proof",
-    ]
-    for marker in engine_markers:
-        if marker not in engine_text:
-            fail(f"printer queue proof engine lost required marker: {marker}")
-
-    forbidden_mapping = [
-        r"Add-Printer\s+-PortName",
-        r"Add-PrinterPort",
-        r"PrintUIEntry[^\r\n]*/if",
-    ]
-    for pattern in forbidden_mapping:
-        if re.search(pattern, engine_text, flags=re.IGNORECASE):
-            fail(f"proof engine contains direct-IP/local-port mapping behavior: {pattern}")
-
     print(f"PASS: {len(capsules)} registered copy-safe operator command capsule(s)")
-    print("PASS: transcript prompt markers are forbidden from launcher payloads")
-    print("PASS: Northwell printer queue proof remains shared-queue-first and bounded")
+    print("PASS: default printer flow is non-printing and direct-IP mapping remains forbidden")
+    print("PASS: caller-shell preservation and stable latest evidence are enforced")
 
 
 if __name__ == "__main__":

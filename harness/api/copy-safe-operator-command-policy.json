@@ -1,6 +1,6 @@
 {
   "schema_version": "sas-copy-safe-operator-command-policy/v1",
-  "purpose": "Prevent terminal transcripts from being presented as executable operator payloads and route multi-step field work through tracked launchers.",
+  "purpose": "Prevent terminal transcripts from becoming executable payloads, keep field windows operator-controlled, and make durable evidence discoverable without repeated physical mutations.",
   "rules": [
     {
       "id": "no-powershell-prompts",
@@ -14,21 +14,38 @@
     },
     {
       "id": "launcher-first",
-      "meaning": "When a tracked CMD launcher covers the field workflow, operators receive the launcher name plus field values instead of reconstructed multi-line shell commands."
+      "meaning": "When a tracked launcher covers the field workflow, operators receive the launcher and concrete field values instead of reconstructed multi-line shell sessions."
     },
     {
       "id": "single-command-copy",
       "meaning": "Any copyable inline command is one complete physical line containing executable text only. Multi-step work belongs in a tracked script or launcher."
+    },
+    {
+      "id": "no-parent-shell-exit",
+      "meaning": "Operator copy/paste commands must not terminate the caller's PowerShell or Windows Terminal session with exit. Launchers may return an exit code after preserving evidence and explicitly yielding window closure to the operator."
+    },
+    {
+      "id": "durable-latest-evidence",
+      "meaning": "Every field capsule must publish stable latest result and summary paths so terminal closure does not destroy the operator's ability to recover or share evidence."
+    },
+    {
+      "id": "no-repeat-physical-proof-by-default",
+      "meaning": "A successful physical proof is durable evidence. Normal follow-up diagnostics must not print another test page merely to re-prove already observed functionality."
     }
   ],
   "registered_capsules": [
     {
       "id": "northwell.printer.queue-proof",
       "launcher": "Prove-NorthwellPrinter-Queue.cmd",
-      "engine": "scripts/Invoke-SasNorthwellPrinterQueueProof.ps1",
+      "engine": "scripts/Invoke-SasNorthwellPrinterQueueOperationalCheck.ps1",
+      "diagnostic_engine": "scripts/Invoke-SasNorthwellPrinterQueueProof.ps1",
+      "logs_launcher": "Open-NorthwellPrinter-Queue-Proof-Logs.cmd",
       "documentation": "docs/COPY_SAFE_OPERATOR_COMMANDS.md",
       "evidence": "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\printer-queue-proof",
-      "mutation": "optional-single-test-page-only",
+      "latest_result": "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\printer-queue-proof\\latest.json",
+      "latest_summary": "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\printer-queue-proof\\latest.txt",
+      "mutation": "none",
+      "default_test_page": false,
       "direct_ip_mapping": false
     }
   ]
