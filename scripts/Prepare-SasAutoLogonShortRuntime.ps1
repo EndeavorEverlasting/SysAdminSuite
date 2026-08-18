@@ -7,7 +7,8 @@ Stage the short AutoLogon runtime from an already-refreshed local checkout.
 This script is intentionally local-only. It never names or contacts GitHub and never contacts a field target.
 It must run while the operator is on Guest/Internet, copies the exact already-fetched commit into C:\SASAL
 through local Git object transfer, removes runtime remotes so protected-network code cannot accidentally fetch,
-and writes a SHA-256 tracked-file seal consumed by the protected AutoLogon bootstrap.
+writes a SHA-256 tracked-file seal using .NET cryptography, and refreshes the installed `sas` operator shim
+from the same sealed source before declaring the runtime ready.
 
 Existing dirty runtime content is never reset, cleaned, removed, or overwritten.
 #>
@@ -118,6 +119,28 @@ function Get-SasLocalGitScalar {
     return ([string]$value).Trim()
 }
 
+function Get-SasSha256Hex {
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [IO.File]::Open(
+            $LiteralPath,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        $bytes = $sha256.ComputeHash($stream)
+        return ([BitConverter]::ToString($bytes)).Replace('-','').ToLowerInvariant()
+    }
+    finally {
+        if ($null -ne $sha256) { $sha256.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
+}
+
 $networkModule = Join-Path $SourceRoot 'scripts\SasOperatorSession.psm1'
 if (-not (Test-Path -LiteralPath $networkModule -PathType Leaf)) {
     throw "Operator network module missing from source runtime: $networkModule"
@@ -186,7 +209,9 @@ $required = @(
     'scripts\Invoke-SasAutoLogonOnsite.ps1',
     'scripts\Invoke-SasAutoLogonFieldDeployment.ps1',
     'scripts\Set-SasHostEligibilityLocalTarget.ps1',
-    'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1'
+    'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1',
+    'scripts\Install-SasPortableLauncher.ps1',
+    'scripts\SasPortableLauncher.ps1'
 )
 foreach ($relative in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $RuntimeRoot $relative) -PathType Leaf)) {
@@ -220,13 +245,23 @@ foreach ($relative in $trackedRelativePaths) {
     if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
         throw "Tracked runtime file is missing while creating the seal: $canonicalRelative"
     }
-    $hash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $hash = Get-SasSha256Hex -LiteralPath $fullPath
     $trackedFileHashes += [pscustomobject][ordered]@{
         path = $canonicalRelative
         sha256 = $hash
     }
 }
 $trackedFileHashCount = $trackedFileHashes.Count
+
+$operatorInstaller = Join-Path $SourceRoot 'scripts\Install-SasPortableLauncher.ps1'
+Write-Host ''
+Write-Host 'REFRESHING INSTALLED SAS OPERATOR SHIM FROM SEALED SOURCE' -ForegroundColor Cyan
+$LASTEXITCODE = 0
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $operatorInstaller
+if ($LASTEXITCODE -ne 0) {
+    throw "Installed sas operator shim refresh failed with exit code $LASTEXITCODE. Protected runtime was not declared operator-ready."
+}
+Write-Host 'PASS: installed sas operator shim refreshed from sealed source commit.' -ForegroundColor Green
 
 $manifest = [pscustomobject][ordered]@{
     schema_version = 'sas-autologon-short-runtime/v2'

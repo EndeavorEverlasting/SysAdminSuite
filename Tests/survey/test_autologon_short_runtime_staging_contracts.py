@@ -28,7 +28,10 @@ def test_prepare_is_guest_only_local_transport_and_hash_sealed() -> None:
     assert "tracked_file_count = $trackedFileHashCount" in text
     assert "tracked_file_hashes = $trackedFileHashes" in text
     assert "@('ls-files')" in text
-    assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in text
+    assert "function Get-SasSha256Hex" in text
+    assert "[Security.Cryptography.SHA256]::Create()" in text
+    assert "$hash = Get-SasSha256Hex -LiteralPath $fullPath" in text
+    assert "Get-FileHash" not in text
     lowered = text.lower()
     for forbidden in (
         "github.com",
@@ -40,6 +43,19 @@ def test_prepare_is_guest_only_local_transport_and_hash_sealed() -> None:
         "test-netconnection",
     ):
         assert forbidden not in lowered, forbidden
+
+
+def test_prepare_refreshes_installed_sas_shim_before_ready_manifest() -> None:
+    text = read(PREPARE)
+    assert "scripts\\Install-SasPortableLauncher.ps1" in text
+    assert "$operatorInstaller = Join-Path $SourceRoot 'scripts\\Install-SasPortableLauncher.ps1'" in text
+    assert "REFRESHING INSTALLED SAS OPERATOR SHIM FROM SEALED SOURCE" in text
+    assert "PASS: installed sas operator shim refreshed from sealed source commit." in text
+    assert "Protected runtime was not declared operator-ready" in text
+    install = text.index("$operatorInstaller = Join-Path $SourceRoot")
+    manifest = text.index("$manifest = [pscustomobject][ordered]@{")
+    ready = text.index("SAS_AUTOLOGON_SHORT_RUNTIME_READY")
+    assert install < manifest < ready
 
 
 def test_prepare_preserves_dirty_runtime_and_removes_all_remotes() -> None:
@@ -89,7 +105,10 @@ def test_protected_bootstrap_is_git_free_and_verifies_guest_seal() -> None:
     assert "tracked_file_hash_algorithm" in text
     assert "tracked_file_hashes" in text
     assert "tracked_file_count" in text
-    assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in text
+    assert "function Get-SasSha256Hex" in text
+    assert "[Security.Cryptography.SHA256]::Create()" in text
+    assert "$actualHash = Get-SasSha256Hex -LiteralPath $fullPath" in text
+    assert "Get-FileHash" not in text
     assert "AUTOLOGON_RUNTIME_NOT_PREPARED" in text
     assert "AUTOLOGON_RUNTIME_SEAL_INVALID" in text
     assert "AUTOLOGON_RUNTIME_SEAL_MISMATCH" in text

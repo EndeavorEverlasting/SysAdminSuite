@@ -65,8 +65,18 @@ def test_guest_refresh_owns_remote_acquisition_and_creates_hash_seal() -> None:
     assert "System.Collections.Generic.List[object]" not in prepare
     assert "tracked_file_hashes = @($trackedFileHashes)" not in prepare
     assert "@('ls-files')" in prepare
-    assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in prepare
+    assert "function Get-SasSha256Hex" in prepare
+    assert "[Security.Cryptography.SHA256]::Create()" in prepare
+    assert "$hash = Get-SasSha256Hex -LiteralPath $fullPath" in prepare
+    assert "Get-FileHash" not in prepare
+    assert "scripts\\Install-SasPortableLauncher.ps1" in prepare
+    assert "PASS: installed sas operator shim refreshed from sealed source commit." in prepare
     assert "Protected-side Git activity: NONE" in prepare
+
+    installer = prepare.index("$operatorInstaller = Join-Path $SourceRoot")
+    manifest = prepare.index("$manifest = [pscustomobject][ordered]@{")
+    ready = prepare.index("SAS_AUTOLOGON_SHORT_RUNTIME_READY")
+    assert installer < manifest < ready
 
     gate = refresh.index("$preRefreshNetwork = Get-SasOperatorNetworkClassification")
     rejection = refresh.index("SAS_REFRESH_REMOTE_GIT_BLOCKED")
@@ -76,12 +86,15 @@ def test_guest_refresh_owns_remote_acquisition_and_creates_hash_seal() -> None:
     assert gate < rejection < clone < remote_fetch < stage
 
 
-def test_protected_runtime_verifies_sealed_tracked_files_with_filesystem_hashing() -> None:
+def test_protected_runtime_verifies_sealed_tracked_files_with_dotnet_hashing() -> None:
     text = read(BOOTSTRAP)
     assert "tracked_file_hash_algorithm" in text
     assert "tracked_file_hashes" in text
     assert "tracked_file_count" in text
-    assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in text
+    assert "function Get-SasSha256Hex" in text
+    assert "[Security.Cryptography.SHA256]::Create()" in text
+    assert "$actualHash = Get-SasSha256Hex -LiteralPath $fullPath" in text
+    assert "Get-FileHash" not in text
     assert "AUTOLOGON_RUNTIME_SEAL_INVALID" in text
     assert "AUTOLOGON_RUNTIME_SEAL_MISMATCH" in text
     assert "tracked runtime file changed after Guest staging" in text

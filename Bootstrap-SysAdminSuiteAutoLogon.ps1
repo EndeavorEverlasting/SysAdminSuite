@@ -10,10 +10,10 @@ The exact C:\SASAL runtime must already have been staged by `sas refresh` while 
 sealed by scripts\Prepare-SasAutoLogonShortRuntime.ps1.
 
 The bootstrap verifies the local staging manifest, exact prepared commit, and SHA-256 hashes for every
-tracked runtime file using ordinary filesystem APIs. It then establishes DomainAuthenticated VPN/LAN
-authority, runs the canonical protected-network gate, and starts the crash-safe AutoLogon field transaction.
-The normal field transaction independently repeats network, canonical resolution, and eligibility validation
-before any target mutation.
+tracked runtime file using ordinary filesystem APIs plus .NET cryptography. It then establishes
+DomainAuthenticated VPN/LAN authority, runs the canonical protected-network gate, and starts the crash-safe
+AutoLogon field transaction. The normal field transaction independently repeats network, canonical resolution,
+and eligibility validation before any target mutation.
 
 Legacy evidence fallback is opt-in only through -LegacyEvidenceRoot. The protected runtime never scans the
 operator Desktop/OneDrive tree to discover another checkout implicitly.
@@ -37,6 +37,28 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
+function Get-SasSha256Hex {
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [IO.File]::Open(
+            $LiteralPath,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        $bytes = $sha256.ComputeHash($stream)
+        return ([BitConverter]::ToString($bytes)).Replace('-','').ToLowerInvariant()
+    }
+    finally {
+        if ($null -ne $sha256) { $sha256.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
+}
 
 $RuntimeRoot = [IO.Path]::GetFullPath($RuntimeRoot)
 $statePath = Join-Path (Join-Path $env:LOCALAPPDATA 'SysAdminSuite') 'autologon-short-runtime.json'
@@ -114,7 +136,7 @@ foreach ($entry in $sealEntries) {
         throw "AUTOLOGON_RUNTIME_SEAL_MISMATCH: tracked runtime file is missing: $relative"
     }
 
-    $actualHash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actualHash = Get-SasSha256Hex -LiteralPath $fullPath
     if ($actualHash -ne $expectedHash) {
         throw "AUTOLOGON_RUNTIME_SEAL_MISMATCH: tracked runtime file changed after Guest staging: $relative"
     }
