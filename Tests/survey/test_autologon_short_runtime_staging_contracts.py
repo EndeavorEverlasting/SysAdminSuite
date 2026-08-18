@@ -84,6 +84,8 @@ def test_protected_bootstrap_is_git_free_and_verifies_guest_seal() -> None:
     assert "AUTOLOGON_RUNTIME_SEAL_MISMATCH" in text
     assert "PASS: sealed tracked runtime content verified without Git" in text
     assert "Protected-side Git activity: NONE" in text
+    assert "[StringComparison]::OrdinalIgnoreCase" in text
+    assert "$preparedCommit.Equals($ExpectedCommit.Trim(), [StringComparison]::OrdinalIgnoreCase)" in text
     assert "PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION" in text
 
     for forbidden in (
@@ -128,12 +130,26 @@ def test_native_git_stderr_handling_is_guest_side_only() -> None:
     assert "2>&1" not in bootstrap
 
 
-def test_sas_autologon_remote_consumes_sealed_runtime() -> None:
+def test_sas_autologon_remote_consumes_v2_sealed_runtime_before_repo_discovery() -> None:
     text = read(LAUNCHER)
     assert "autologon-short-runtime.json" in text
     assert "Resolve-SasPreparedAutoLogonRuntime" in text
+    assert "sas-autologon-short-runtime/v2" in text
+    assert "-not [bool]$state.runtime_remotes_removed" in text
+    assert "tracked_file_hash_algorithm" in text
+    assert "tracked_file_hashes" in text
+    assert "tracked_file_count" in text
+    assert "complete SHA-256 tracked-file seal" in text
     assert "& $runtime.bootstrap $target $runtime.commit" in text
-    assert "Protected-side Git network I/O: NONE" in text
+    assert "Protected-side Git activity: NONE" in text
+    assert text.count("& $runtime.bootstrap $target $runtime.commit") == 1
+
+    dispatch = text.index("if ($normalized -eq 'autologon' -and $actualCommandArgs.Count -eq 2)")
+    repo_discovery = text.index("$repoRoot = Resolve-SasRepoRoot")
+    remote_call = text.index("& $runtime.bootstrap $target $runtime.commit")
+    recover_call = text.index("& $recoveryLauncher 'Recover' $target")
+    assert dispatch < remote_call < repo_discovery
+    assert dispatch < recover_call < repo_discovery
 
 
 def test_runbook_declares_two_phase_network_boundary() -> None:
