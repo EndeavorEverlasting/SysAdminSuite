@@ -34,7 +34,7 @@ function Assert-SasPowerShellParses {
 function Write-SasRepairEvidence {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][hashtable]$Record
+        [Parameter(Mandatory = $true)]$Record
     )
     $parent = Split-Path -Parent $Path
     if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
@@ -153,20 +153,24 @@ try {
         if ($hasNativeMarker -or $hasConfirmationMarker) {
             throw 'Runtime contains only part of the S4U create-timeout confirmation repair; refusing partial mutation.'
         }
-        if (-not $original.Contains($nativeAnchor)) {
+
+        $lineEnding = if ($original.Contains("`r`n")) { "`r`n" } else { "`n" }
+        $normalized = $original.Replace("`r`n", "`n")
+        if (-not $normalized.Contains($nativeAnchor)) {
             throw 'Native lifecycle anchor was not found exactly once in the protected runtime.'
         }
-        if ($original.IndexOf($nativeAnchor) -ne $original.LastIndexOf($nativeAnchor)) {
+        if ($normalized.IndexOf($nativeAnchor) -ne $normalized.LastIndexOf($nativeAnchor)) {
             throw 'Native lifecycle anchor is ambiguous; refusing repair.'
         }
-        if (-not $original.Contains($createAnchor)) {
+        if (-not $normalized.Contains($createAnchor)) {
             throw 'Create-timeout handling anchor was not found exactly once in the protected runtime.'
         }
-        if ($original.IndexOf($createAnchor) -ne $original.LastIndexOf($createAnchor)) {
+        if ($normalized.IndexOf($createAnchor) -ne $normalized.LastIndexOf($createAnchor)) {
             throw 'Create-timeout handling anchor is ambiguous; refusing repair.'
         }
 
-        $repaired = $original.Replace($nativeAnchor, $nativeReplacement).Replace($createAnchor, $createReplacement)
+        $repairedNormalized = $normalized.Replace($nativeAnchor, $nativeReplacement).Replace($createAnchor, $createReplacement)
+        $repaired = if ($lineEnding -eq "`r`n") { $repairedNormalized.Replace("`n", "`r`n") } else { $repairedNormalized }
         [IO.File]::WriteAllText($pilotPath, $repaired, (New-Object Text.UTF8Encoding($false)))
         Assert-SasPowerShellParses -Path $pilotPath
 
