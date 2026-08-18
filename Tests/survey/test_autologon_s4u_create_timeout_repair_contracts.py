@@ -61,9 +61,13 @@ def test_repair_is_crlf_lf_safe_and_exact_anchor_scoped() -> None:
     for marker in (
         '$lineEnding = if ($original.Contains("`r`n"))',
         '$normalized = $original.Replace("`r`n", "`n")',
-        "$normalized.IndexOf($nativeAnchor) -ne $normalized.LastIndexOf($nativeAnchor)",
-        "$normalized.IndexOf($createAnchor) -ne $normalized.LastIndexOf($createAnchor)",
-        "$repairedNormalized = $normalized.Replace($nativeAnchor, $nativeReplacement).Replace($createAnchor, $createReplacement)",
+        '$nativeAnchorNormalized = $nativeAnchor.Replace("`r`n", "`n")',
+        '$nativeReplacementNormalized = $nativeReplacement.Replace("`r`n", "`n")',
+        '$createAnchorNormalized = $createAnchor.Replace("`r`n", "`n")',
+        '$createReplacementNormalized = $createReplacement.Replace("`r`n", "`n")',
+        "$normalized.IndexOf($nativeAnchorNormalized) -ne $normalized.LastIndexOf($nativeAnchorNormalized)",
+        "$normalized.IndexOf($createAnchorNormalized) -ne $normalized.LastIndexOf($createAnchorNormalized)",
+        "$repairedNormalized = $normalized.Replace($nativeAnchorNormalized, $nativeReplacementNormalized).Replace($createAnchorNormalized, $createReplacementNormalized)",
         'New-Object Text.UTF8Encoding($false)',
     ):
         assert marker in text, marker
