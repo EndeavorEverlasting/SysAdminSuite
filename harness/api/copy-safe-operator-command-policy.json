@@ -1,0 +1,35 @@
+{
+  "schema_version": "sas-copy-safe-operator-command-policy/v1",
+  "purpose": "Prevent terminal transcripts from being presented as executable operator payloads and route multi-step field work through tracked launchers.",
+  "rules": [
+    {
+      "id": "no-powershell-prompts",
+      "pattern": "^\\s*PS\\s+[^>\\r\\n]+>\\s*",
+      "meaning": "PowerShell prompt prefixes are transcript metadata, never executable payload."
+    },
+    {
+      "id": "no-continuation-prompts",
+      "pattern": "^\\s*>>\\s*",
+      "meaning": "PowerShell continuation prompts are transcript metadata, never executable payload."
+    },
+    {
+      "id": "launcher-first",
+      "meaning": "When a tracked CMD launcher covers the field workflow, operators receive the launcher name plus field values instead of reconstructed multi-line shell commands."
+    },
+    {
+      "id": "single-command-copy",
+      "meaning": "Any copyable inline command is one complete physical line containing executable text only. Multi-step work belongs in a tracked script or launcher."
+    }
+  ],
+  "registered_capsules": [
+    {
+      "id": "northwell.printer.queue-proof",
+      "launcher": "Prove-NorthwellPrinter-Queue.cmd",
+      "engine": "scripts/Invoke-SasNorthwellPrinterQueueProof.ps1",
+      "documentation": "docs/COPY_SAFE_OPERATOR_COMMANDS.md",
+      "evidence": "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\printer-queue-proof",
+      "mutation": "optional-single-test-page-only",
+      "direct_ip_mapping": false
+    }
+  ]
+}
