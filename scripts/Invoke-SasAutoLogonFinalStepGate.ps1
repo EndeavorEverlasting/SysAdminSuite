@@ -64,6 +64,7 @@ $ErrorActionPreference = 'Stop'
 
 $finalGatePathBudgetChars = 240
 $finalGateFileName = 'autologon_final_step_gate.json'
+$finalGateFallbackRoot = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'runs') 'final-gate'
 
 # ── Gate result structure ──────────────────────────────────────────────
 $gateResult = [ordered]@{
@@ -82,6 +83,8 @@ $gateResult = [ordered]@{
     output_path_requested         = $null
     output_path                   = $null
     output_path_compacted         = $false
+    output_path_compaction_mode   = 'none'
+    output_path_fallback_root     = $null
 }
 
 # ── Prerequisite check functions ───────────────────────────────────────
@@ -300,44 +303,51 @@ if (-not $gateResult.overall_pass) {
 # ── Write gate result ──────────────────────────────────────────────────
 if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
     $resolvedOutputRoot = [IO.Path]::GetFullPath($OutputRoot)
-    $requestedGateDir = Join-Path $resolvedOutputRoot $RunId
-    $requestedGatePath = Join-Path $requestedGateDir $finalGateFileName
+    $requestedGatePath = Join-Path (Join-Path $resolvedOutputRoot $RunId) $finalGateFileName
     $flatGatePath = Join-Path $resolvedOutputRoot $finalGateFileName
+    $fallbackGatePath = Join-Path (Join-Path $finalGateFallbackRoot $RunId) $finalGateFileName
 
-    $gateDir = $requestedGateDir
     $gatePath = $requestedGatePath
-    $compacted = $false
+    $compactionMode = 'none'
 
     if ($requestedGatePath.Length -gt $finalGatePathBudgetChars) {
-        if ($flatGatePath.Length -gt $finalGatePathBudgetChars) {
-            throw "AutoLogon final-step gate output path exceeds the $finalGatePathBudgetChars-character budget even after compaction: $flatGatePath"
+        if ($flatGatePath.Length -le $finalGatePathBudgetChars) {
+            $gatePath = $flatGatePath
+            $compactionMode = 'requested_root'
+        }
+        elseif ($fallbackGatePath.Length -le $finalGatePathBudgetChars) {
+            $gatePath = $fallbackGatePath
+            $compactionMode = 'repository_runs'
+        }
+        else {
+            throw "AutoLogon final-step gate output path exceeds the $finalGatePathBudgetChars-character budget after all approved compaction candidates: $fallbackGatePath"
         }
 
-        if (Test-Path -LiteralPath $flatGatePath -PathType Leaf) {
+        if (Test-Path -LiteralPath $gatePath -PathType Leaf) {
             try {
-                $existing = Get-Content -LiteralPath $flatGatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+                $existing = Get-Content -LiteralPath $gatePath -Raw -Encoding UTF8 | ConvertFrom-Json
             }
             catch {
-                throw "Compacted final-step gate output already exists but is unreadable; refusing overwrite: $flatGatePath"
+                throw "Compacted final-step gate output already exists but is unreadable; refusing overwrite: $gatePath"
             }
             if ([string]$existing.run_id -ne $RunId) {
                 throw "Compacted final-step gate output collision: existing run '$($existing.run_id)' does not match '$RunId'."
             }
         }
 
-        $gateDir = $resolvedOutputRoot
-        $gatePath = $flatGatePath
-        $compacted = $true
-        Write-Warning "FINAL_GATE_OUTPUT_PATH_COMPACTED: using $gatePath"
+        Write-Warning "FINAL_GATE_OUTPUT_PATH_COMPACTED: mode=$compactionMode using $gatePath"
     }
 
+    $gateDir = Split-Path -Parent $gatePath
     if (-not (Test-Path -LiteralPath $gateDir -PathType Container)) {
         New-Item -ItemType Directory -Path $gateDir -Force | Out-Null
     }
 
     $gateResult.output_path_requested = $requestedGatePath
     $gateResult.output_path = $gatePath
-    $gateResult.output_path_compacted = $compacted
+    $gateResult.output_path_compacted = ($compactionMode -ne 'none')
+    $gateResult.output_path_compaction_mode = $compactionMode
+    $gateResult.output_path_fallback_root = $(if ($compactionMode -eq 'repository_runs') { [IO.Path]::GetFullPath($finalGateFallbackRoot) } else { $null })
 
     $gateResult | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $gatePath -Encoding UTF8
 }
