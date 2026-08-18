@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Contracts for the protected-runtime S4U create-timeout confirmation repair."""
+"""Contracts for the protected-runtime S4U create-timeout confirmation and recovery lane."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 REPAIR = ROOT / "scripts" / "Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1"
+RECOVERY = ROOT / "scripts" / "Complete-SasInterruptedAutoLogonS4URecovery.ps1"
 WINDOWS_FIXTURE = ROOT / "Tests" / "PowerShell" / "Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1"
 
 
@@ -73,6 +74,34 @@ def test_repair_is_crlf_lf_safe_and_exact_anchor_scoped() -> None:
         assert marker in text, marker
 
 
+def test_terminal_probe_timeout_result_is_recovery_eligible_only_fail_closed() -> None:
+    text = read(RECOVERY)
+    for marker in (
+        "S4U_PROBE_CREATE_TIMEOUT",
+        "S4U_PROBE_CREATE_TIMEOUT_CONFIRMED_ABSENT",
+        "S4U_PROBE_CREATE_TIMEOUT_CONFIRMATION_UNVERIFIED",
+        "terminal_pilot_recovery_eligible",
+        "Terminal S4U pilot probe task identity does not match requested recovery task",
+        "Terminal S4U pilot result contains installer lifecycle evidence; refusing probe-only recovery.",
+        "Terminal S4U pilot result contains an installer exit code; refusing probe-only recovery.",
+        "Terminal S4U pilot result reports pre-reboot AutoLogon ready; refusing probe-only recovery.",
+        "Terminal S4U pilot result reports automatic reboot; refusing probe-only recovery.",
+        "Terminal S4U pilot result references after-state evidence; refusing probe-only recovery.",
+        "-AllowedArtifactProfile ProbeOnly",
+        "task_absent_before_cleanup",
+        "task_absent_after_cleanup",
+        "autologon_installer_launched_by_recovered_transaction = $false",
+    ):
+        assert marker in text, marker
+    assert "A terminal S4U pilot result already exists; use that result instead of interrupted recovery." not in text
+    for forbidden in (
+        "Invoke-SasAutoLogonKerberosS4UPilot.ps1",
+        "Invoke-SasAutoLogonS4URestartDeployment.ps1",
+        "Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
+    ):
+        assert forbidden not in text, forbidden
+
+
 def test_windows_execution_fixture_is_registered() -> None:
     text = read(WINDOWS_FIXTURE)
     for marker in (
@@ -95,7 +124,7 @@ def main() -> None:
     tests = [value for name, value in sorted(globals().items()) if name.startswith("test_")]
     for test in tests:
         test()
-    print(f"PASS: AutoLogon S4U create-timeout repair contracts ({len(tests)} groups)")
+    print(f"PASS: AutoLogon S4U create-timeout repair/recovery contracts ({len(tests)} groups)")
 
 
 if __name__ == "__main__":
