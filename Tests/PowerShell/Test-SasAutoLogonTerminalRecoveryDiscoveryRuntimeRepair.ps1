@@ -16,11 +16,12 @@ $installPresent = $false
 $items = @()
 function Get-SasOptionalJsonString { param($Object,[string]$Name) return '' }
 function Get-SasInterruptedS4UCandidates {
-    $terminalResult = $terminal
-    if (Test-Path -LiteralPath $terminal -PathType Leaf) { continue }
-    $items += [pscustomobject][ordered]@{
-        install_or_after_evidence_present=$installPresent
-        last_write_utc=$file.LastWriteTimeUtc
+    if ($true) {
+        if (Test-Path -LiteralPath $terminal -PathType Leaf) { continue }
+        $items += [pscustomobject][ordered]@{
+            install_or_after_evidence_present=$installPresent
+            last_write_utc=$file.LastWriteTimeUtc
+        }
     }
     return @($items)
 }
