@@ -11,6 +11,7 @@ on:
       - 'harness/api/copy-safe-operator-command-policy.json'
       - 'harness/validators/validate-copy-safe-operator-commands.py'
       - 'Tests/survey/test_northwell_printer_queue_proof_contracts.py'
+      - 'Tests/survey/test_northwell_printer_queue_proof_dns.ps1'
       - 'docs/COPY_SAFE_OPERATOR_COMMANDS.md'
       - '.github/workflows/printer-queue-proof-contracts.yml'
   push:
@@ -21,6 +22,7 @@ on:
       - 'harness/api/copy-safe-operator-command-policy.json'
       - 'harness/validators/validate-copy-safe-operator-commands.py'
       - 'Tests/survey/test_northwell_printer_queue_proof_contracts.py'
+      - 'Tests/survey/test_northwell_printer_queue_proof_dns.ps1'
       - 'docs/COPY_SAFE_OPERATOR_COMMANDS.md'
       - '.github/workflows/printer-queue-proof-contracts.yml'
 
@@ -59,6 +61,10 @@ jobs:
             throw ($errors | ForEach-Object { $_.Message } | Out-String)
           }
           Write-Host 'PASS: printer queue proof engine parses under Windows PowerShell 5.1.'
+
+      - name: Reproduce heterogeneous DNS records under StrictMode
+        shell: powershell
+        run: powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\test_northwell_printer_queue_proof_dns.ps1
 
       - name: Check patch whitespace
         shell: bash

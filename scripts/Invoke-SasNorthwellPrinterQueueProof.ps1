@@ -81,6 +81,41 @@ function Test-SasTcpBounded {
     return [pscustomobject]$result
 }
 
+function ConvertTo-SasDnsARecordRows {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [AllowNull()]
+        [object]$Record
+    )
+
+    process {
+        if ($null -eq $Record) { return }
+
+        # Resolve-DnsName can emit heterogeneous records even for an A query
+        # (for example a CNAME followed by an A record). Under StrictMode,
+        # touching a missing .IPAddress property throws and aborts the whole
+        # proof lane. Inspect the property bag before reading optional fields.
+        $ipProperty = $Record.PSObject.Properties['IPAddress']
+        if ($null -eq $ipProperty) { return }
+
+        $ipText = [string]$ipProperty.Value
+        if ([string]::IsNullOrWhiteSpace($ipText)) { return }
+
+        $parsedIp = $null
+        if (-not [System.Net.IPAddress]::TryParse($ipText, [ref]$parsedIp)) { return }
+        if ($parsedIp.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) { return }
+
+        $nameProperty = $Record.PSObject.Properties['Name']
+        $recordName = if ($null -ne $nameProperty) { [string]$nameProperty.Value } else { '' }
+
+        [pscustomobject]([ordered]@{
+            name = $recordName
+            ip_address = $parsedIp.ToString()
+        })
+    }
+}
+
 function ConvertTo-SasPowerShellLiteral {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
     return "'" + $Value.Replace("'", "''") + "'"
@@ -218,16 +253,8 @@ try {
         running = ($spooler.Status -eq 'Running')
     }
 
-    $dnsRows = @(
-        Resolve-DnsName -Name $server -Type A -QuickTimeout -ErrorAction Stop |
-            Where-Object { $_.IPAddress } |
-            ForEach-Object {
-                [ordered]@{
-                    name = [string]$_.Name
-                    ip_address = [string]$_.IPAddress
-                }
-            }
-    )
+    $dnsRecords = @(Resolve-DnsName -Name $server -Type A -QuickTimeout -ErrorAction Stop)
+    $dnsRows = @($dnsRecords | ConvertTo-SasDnsARecordRows)
     $result.dns = $dnsRows
     if ($dnsRows.Count -eq 0) {
         throw "Print server '$server' did not resolve to an IPv4 address."
