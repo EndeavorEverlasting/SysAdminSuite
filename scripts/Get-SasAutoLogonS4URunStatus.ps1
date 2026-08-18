@@ -36,6 +36,16 @@ function Test-SasLocalArtifact {
     Test-Path -LiteralPath (Join-Path $s4uRoot $RelativePath) -PathType Leaf
 }
 
+function Test-SasStatusPathUnderRoot {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Root
+    )
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+    return $fullPath.StartsWith($fullRoot, [StringComparison]::OrdinalIgnoreCase)
+}
+
 $allFiles = @(Get-ChildItem -LiteralPath $s4uRoot -File -Recurse -ErrorAction SilentlyContinue)
 $latest = $allFiles | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
 $latestAgeSeconds = if ($latest) {
@@ -46,6 +56,27 @@ else {
 }
 
 $preflightResult = $allFiles | Where-Object { $_.Name -eq 'software_deployment_transport_result.json' } | Select-Object -First 1
+$preflightLinkFile = $allFiles | Where-Object { $_.Name -eq 'transport_preflight_link.json' } | Select-Object -First 1
+$preflightLinkValid = $false
+$preflightResultPath = $(if ($preflightResult) { $preflightResult.FullName } else { $null })
+if ($null -eq $preflightResult -and $null -ne $preflightLinkFile) {
+    try {
+        $link = Get-Content -LiteralPath $preflightLinkFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        $linkedPath = [string]$link.result_path
+        $approvedTransportRoot = Join-Path $repoRoot 'runs'
+        if ([string]$link.schema_version -eq 'sas-software-deployment-transport-link/v1' -and
+            -not [string]::IsNullOrWhiteSpace($linkedPath) -and
+            [IO.Path]::GetFileName($linkedPath) -eq 'software_deployment_transport_result.json' -and
+            (Test-SasStatusPathUnderRoot -Path $linkedPath -Root $approvedTransportRoot) -and
+            (Test-Path -LiteralPath $linkedPath -PathType Leaf)) {
+            $preflightLinkValid = $true
+            $preflightResultPath = [IO.Path]::GetFullPath($linkedPath)
+            $preflightResult = Get-Item -LiteralPath $preflightResultPath
+        }
+    }
+    catch { }
+}
+
 $sourceIdentity = Test-SasLocalArtifact 'evidence\software_source_identity.json'
 $sourceTicket = Test-SasLocalArtifact 'evidence\software_source_kerberos_ticket.json'
 $baselineLifecycle = Test-SasLocalArtifact 'evidence\baseline_lifecycle.json'
@@ -121,6 +152,10 @@ if ($pilotResult) {
     latest_local_artifact = $(if ($latest) { $latest.FullName } else { $null })
     latest_local_artifact_age_seconds = $latestAgeSeconds
     preflight_result_present = ($null -ne $preflightResult)
+    preflight_result_path = $preflightResultPath
+    preflight_link_present = ($null -ne $preflightLinkFile)
+    preflight_link_valid = $preflightLinkValid
+    preflight_link_path = $(if ($preflightLinkFile) { $preflightLinkFile.FullName } else { $null })
     software_source_identity_present = $sourceIdentity
     software_source_ticket_present = $sourceTicket
     baseline_snapshot_present = $baselineSnapshot

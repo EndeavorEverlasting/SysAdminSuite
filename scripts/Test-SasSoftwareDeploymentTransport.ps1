@@ -26,9 +26,13 @@ Selects offline fixture execution. Cannot be combined with live parameters.
 .PARAMETER FixturePath
 Path to a sanitized JSON fixture containing an observations object.
 .PARAMETER OutputRoot
-Approved ignored local output root. Defaults to survey/output/runs.
+Approved ignored local output root. Defaults to survey/output/runs. If a caller
+supplies a root whose generated transport artifact tree would exceed the
+conservative Windows PowerShell 5.1 path budget, the run is compacted to the
+canonical repository runs root. A small owner-side link is written beside the
+requested child root so lifecycle/status tooling can resolve the compact result.
 .PARAMETER PassThru
-Returns the run context, result, and artifact paths.
+Returns the run context, result, owner link, and artifact paths.
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'Live')]
@@ -73,6 +77,44 @@ Import-Module $transportModulePath -Force
 Import-Module $lowNoiseTransportModulePath -Force
 Import-Module $lowNoisePolicyModulePath -Force
 Import-Module $runContextModulePath -Force
+
+# New-SasRunContext adds both the workflow id and another timestamped run id below
+# the caller-supplied OutputRoot. A deeply nested AutoLogon S4U caller can therefore
+# exceed the practical Windows PowerShell 5.1 path budget before request.json is written.
+# Project the longest transport artifact path up front and compact only when required.
+$transportWindowsPathBudget = 240
+$transportOwnerLinkPath = $null
+function Get-SasTransportProjectedArtifactPath {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$CandidateOutputRoot)
+
+    $resolved = [IO.Path]::GetFullPath($CandidateOutputRoot)
+    $workflowRoot = Join-Path $resolved 'software-deployment-transport'
+    $sampleRunId = 'software-deployment-transport-99999999-999999-ffffffff'
+    $sampleRunRoot = Join-Path $workflowRoot $sampleRunId
+    return (Join-Path (Join-Path $sampleRunRoot 'artifacts') 'software_deployment_transport_result.json')
+}
+
+if ($OutputRoot) {
+    $requestedOutputRoot = [IO.Path]::GetFullPath($OutputRoot)
+    # Compaction must not turn an otherwise-disallowed caller path into an accepted one.
+    Assert-SasLocalOutputRoot -OutputRoot $requestedOutputRoot -RepoRoot $repoRoot
+    $projectedArtifactPath = Get-SasTransportProjectedArtifactPath -CandidateOutputRoot $requestedOutputRoot
+    if ($projectedArtifactPath.Length -ge $transportWindowsPathBudget) {
+        $ownerRoot = Split-Path -Parent $requestedOutputRoot
+        $transportOwnerLinkPath = Join-Path $ownerRoot 'transport_preflight_link.json'
+        if ($transportOwnerLinkPath.Length -ge $transportWindowsPathBudget) {
+            throw "TRANSPORT_OWNER_LINK_PATH_BUDGET_BLOCKED: owner-side linkage still exceeds $transportWindowsPathBudget characters."
+        }
+        $compactOutputRoot = Join-Path $repoRoot 'runs'
+        $compactProjectedArtifactPath = Get-SasTransportProjectedArtifactPath -CandidateOutputRoot $compactOutputRoot
+        if ($compactProjectedArtifactPath.Length -ge $transportWindowsPathBudget) {
+            throw "TRANSPORT_OUTPUT_ROOT_PATH_BUDGET_BLOCKED: canonical compact run root still exceeds $transportWindowsPathBudget characters."
+        }
+        Write-Warning "TRANSPORT_OUTPUT_ROOT_COMPACTED: requested transport run root would exceed the Windows path budget; using $compactOutputRoot."
+        $OutputRoot = $compactOutputRoot
+    }
+}
 
 if ($PSCmdlet.ParameterSetName -eq 'Live' -and -not (Test-SasFqdn -ComputerName $ComputerName)) {
     throw 'ComputerName must be a fully qualified DNS name.'
@@ -216,6 +258,22 @@ $storedContext = Get-Content -LiteralPath $contextPath -Raw | ConvertFrom-Json
 $storedContext.network_activity = $networkDescription
 $storedContext | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $contextPath -Encoding UTF8
 
+if (-not [string]::IsNullOrWhiteSpace([string]$transportOwnerLinkPath)) {
+    $ownerLinkParent = Split-Path -Parent $transportOwnerLinkPath
+    if (-not (Test-Path -LiteralPath $ownerLinkParent -PathType Container)) {
+        New-Item -ItemType Directory -Path $ownerLinkParent -Force | Out-Null
+    }
+    [pscustomobject][ordered]@{
+        schema_version = 'sas-software-deployment-transport-link/v1'
+        transport_run_root = $context.run_root
+        result_path = $resultPath
+        artifact_registry_path = $context.artifact_registry_path
+        network_activity_performed = $networkActivity
+        target_mutation_performed = $false
+        created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+    } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $transportOwnerLinkPath -Encoding UTF8
+}
+
 $output = [pscustomobject]@{
     run_root = $context.run_root
     result_path = $resultPath
@@ -223,6 +281,7 @@ $output = [pscustomobject]@{
     low_noise_context_path = $lowNoisePath
     english_summary_path = $summaryPath
     artifact_registry_path = $context.artifact_registry_path
+    owner_link_path = $transportOwnerLinkPath
     result = $result
 }
 
