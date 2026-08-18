@@ -7,10 +7,12 @@ on:
       - 'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1'
       - 'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1'
       - 'scripts/Repair-SasAutoLogonTerminalProbeRecoveryRuntime.ps1'
+      - 'scripts/Repair-SasAutoLogonTerminalRecoveryDiscoveryRuntime.ps1'
       - 'Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py'
       - 'Tests/survey/test_autologon_terminal_recovery_discovery_contracts.py'
       - 'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
       - 'Tests/PowerShell/Test-SasAutoLogonTerminalProbeRecoveryRuntimeRepair.ps1'
+      - 'Tests/PowerShell/Test-SasAutoLogonTerminalRecoveryDiscoveryRuntimeRepair.ps1'
       - '.github/workflows/autologon-s4u-create-timeout-repair.yml'
   push:
     paths:
@@ -18,10 +20,12 @@ on:
       - 'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1'
       - 'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1'
       - 'scripts/Repair-SasAutoLogonTerminalProbeRecoveryRuntime.ps1'
+      - 'scripts/Repair-SasAutoLogonTerminalRecoveryDiscoveryRuntime.ps1'
       - 'Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py'
       - 'Tests/survey/test_autologon_terminal_recovery_discovery_contracts.py'
       - 'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
       - 'Tests/PowerShell/Test-SasAutoLogonTerminalProbeRecoveryRuntimeRepair.ps1'
+      - 'Tests/PowerShell/Test-SasAutoLogonTerminalRecoveryDiscoveryRuntimeRepair.ps1'
       - '.github/workflows/autologon-s4u-create-timeout-repair.yml'
 
 permissions:
@@ -46,8 +50,10 @@ jobs:
             'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1',
             'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1',
             'scripts/Repair-SasAutoLogonTerminalProbeRecoveryRuntime.ps1',
+            'scripts/Repair-SasAutoLogonTerminalRecoveryDiscoveryRuntime.ps1',
             'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1',
-            'Tests/PowerShell/Test-SasAutoLogonTerminalProbeRecoveryRuntimeRepair.ps1'
+            'Tests/PowerShell/Test-SasAutoLogonTerminalProbeRecoveryRuntimeRepair.ps1',
+            'Tests/PowerShell/Test-SasAutoLogonTerminalRecoveryDiscoveryRuntimeRepair.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -61,6 +67,9 @@ jobs:
       - name: Execute terminal recovery repair fixtures
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File Tests/PowerShell/Test-SasAutoLogonTerminalProbeRecoveryRuntimeRepair.ps1
+      - name: Execute terminal recovery discovery repair fixtures
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File Tests/PowerShell/Test-SasAutoLogonTerminalRecoveryDiscoveryRuntimeRepair.ps1
       - name: Diff hygiene
         shell: pwsh
         run: git diff --check
