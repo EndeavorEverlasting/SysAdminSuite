@@ -31,6 +31,10 @@
     {
       "id": "no-repeat-physical-proof-by-default",
       "meaning": "A successful physical proof is durable evidence. Normal follow-up diagnostics must not print another test page merely to re-prove already observed functionality."
+    },
+    {
+      "id": "repair-evidence-without-reexecution",
+      "meaning": "When an implementation bug misclassified already-captured evidence, repair the derived classification from the preserved artifact without repeating target contact, network activity, or physical mutation."
     }
   ],
   "registered_capsules": [
@@ -39,6 +43,8 @@
       "launcher": "Prove-NorthwellPrinter-Queue.cmd",
       "engine": "scripts/Invoke-SasNorthwellPrinterQueueOperationalCheck.ps1",
       "diagnostic_engine": "scripts/Invoke-SasNorthwellPrinterQueueProof.ps1",
+      "evidence_repair_launcher": "Repair-NorthwellPrinter-Queue-Evidence.cmd",
+      "evidence_repair_engine": "scripts/Repair-SasNorthwellPrinterQueueEvidence.ps1",
       "logs_launcher": "Open-NorthwellPrinter-Queue-Proof-Logs.cmd",
       "documentation": "docs/COPY_SAFE_OPERATOR_COMMANDS.md",
       "evidence": "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\printer-queue-proof",

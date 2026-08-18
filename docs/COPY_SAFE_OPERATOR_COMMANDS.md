@@ -43,11 +43,30 @@ The default operational engine:
 - preserves a previous `physical_output_observed=true` artifact for the same queue as prior physical proof instead of printing again;
 - never remaps the printer by IP;
 - never modifies Northwell firewall, RPC, or Group Policy;
-- preserves the raw diagnostic result unchanged and emits a separate operational result.
+- preserves the raw bounded diagnostic result unchanged and emits a separate operational result.
+
+## Repairing already-captured physical evidence
+
+If a harness bug misclassified a run that already recorded `physical_output_observed=true`, do **not** contact the printer again. Run:
+
+```text
+Repair-NorthwellPrinter-Queue-Evidence.cmd
+```
+
+Optionally pass the canonical `\\server\queue` as its first argument. The repair engine reads local JSON evidence only. It performs:
+
+```text
+network_activity = NONE
+target_contact = NONE
+target_mutation = NONE
+test_page_requested_by_repair = false
+```
+
+The original raw artifact is preserved unchanged. The repair emits a derived `DURABLE_PHYSICAL_PRINT_EVIDENCE_PASS` result and refreshes the stable latest aliases. This is the correct path when the evidence was good and the classifier was wrong.
 
 ## Durable evidence
 
-Every run publishes stable aliases beneath:
+Every run or evidence repair publishes stable aliases beneath:
 
 ```text
 %LOCALAPPDATA%\SysAdminSuite\field-runs\printer-queue-proof
@@ -63,7 +82,7 @@ latest-diagnostic.stdout.txt
 latest-diagnostic.stderr.txt
 ```
 
-`latest.txt` is the human-readable summary. `latest.json` is the machine-readable operational result. `LATEST-PATH.txt` points back to the exact per-run directory and raw diagnostic artifact.
+`latest.txt` is the human-readable summary. `latest.json` is the machine-readable operational or repaired result. `LATEST-PATH.txt` points back to the exact per-run directory and source/raw artifact.
 
 Closing a terminal does not remove these files.
 

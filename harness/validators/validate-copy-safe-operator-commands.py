@@ -36,6 +36,7 @@ def main() -> None:
         "no-parent-shell-exit",
         "durable-latest-evidence",
         "no-repeat-physical-proof-by-default",
+        "repair-evidence-without-reexecution",
     }
     missing = required.difference(rules)
     if missing:
@@ -53,6 +54,8 @@ def main() -> None:
             "launcher": ROOT / capsule["launcher"],
             "engine": ROOT / capsule["engine"],
             "diagnostic_engine": ROOT / capsule["diagnostic_engine"],
+            "evidence_repair_launcher": ROOT / capsule["evidence_repair_launcher"],
+            "evidence_repair_engine": ROOT / capsule["evidence_repair_engine"],
             "logs_launcher": ROOT / capsule["logs_launcher"],
             "documentation": ROOT / capsule["documentation"],
         }
@@ -64,6 +67,8 @@ def main() -> None:
             fail(f"field capsule launcher must be CMD: {paths['launcher']}")
         if paths["logs_launcher"].suffix.lower() != ".cmd":
             fail(f"field capsule log launcher must be CMD: {paths['logs_launcher']}")
+        if paths["evidence_repair_launcher"].suffix.lower() != ".cmd":
+            fail(f"evidence repair launcher must be CMD: {paths['evidence_repair_launcher']}")
         if capsule.get("direct_ip_mapping") is not False:
             fail(f"printer capsule must explicitly forbid direct-IP mapping: {capsule['id']}")
         if capsule.get("default_test_page") is not False:
@@ -97,6 +102,29 @@ def main() -> None:
             if marker not in engine_text:
                 fail(f"operational engine lost required marker: {marker}")
 
+        repair_text = paths["evidence_repair_engine"].read_text(encoding="utf-8-sig")
+        for marker in (
+            "sas-northwell-printer-evidence-reclassification/v1",
+            "DURABLE_PHYSICAL_PRINT_EVIDENCE_PASS",
+            "source_preserved_unchanged = $true",
+            "test_page_requested_by_repair = $false",
+            "network_activity = 'NONE'",
+            "target_contact = 'NONE'",
+            "target_mutation = 'NONE'",
+            "latest.json",
+            "latest.txt",
+        ):
+            if marker not in repair_text:
+                fail(f"evidence repair engine lost required marker: {marker}")
+        for forbidden in ("Resolve-DnsName", "Get-Printer", "Test-NetConnection", "PrintTestPage", "Add-Printer"):
+            if forbidden in repair_text:
+                fail(f"evidence repair engine must stay local-only; found forbidden token: {forbidden}")
+
+        repair_launcher_text = paths["evidence_repair_launcher"].read_text(encoding="utf-8-sig")
+        for marker in ("NO PRINT / NO NETWORK", "latest.json", "latest.txt", "This window will NOT close automatically"):
+            if marker not in repair_launcher_text:
+                fail(f"evidence repair launcher lost required marker: {marker}")
+
         diagnostic_text = paths["diagnostic_engine"].read_text(encoding="utf-8-sig")
         for marker in (
             "sas-northwell-printer-queue-proof/v1",
@@ -112,7 +140,7 @@ def main() -> None:
             r"Add-PrinterPort",
             r"PrintUIEntry[^\r\n]*/if",
         ]
-        for text, label in ((engine_text, "operational engine"), (diagnostic_text, "diagnostic engine")):
+        for text, label in ((engine_text, "operational engine"), (diagnostic_text, "diagnostic engine"), (repair_text, "repair engine")):
             for pattern in forbidden_mapping:
                 if re.search(pattern, text, flags=re.IGNORECASE):
                     fail(f"{label} contains direct-IP/local-port mapping behavior: {pattern}")
@@ -125,6 +153,7 @@ def main() -> None:
         "latest.txt",
         "latest.json",
         "Do not append `exit $LASTEXITCODE`",
+        "Repair-NorthwellPrinter-Queue-Evidence.cmd",
         "Open-NorthwellPrinter-Queue-Proof-Logs.cmd",
     ]
     for marker in required_doc_markers:
@@ -133,6 +162,7 @@ def main() -> None:
 
     print(f"PASS: {len(capsules)} registered copy-safe operator command capsule(s)")
     print("PASS: default printer flow is non-printing and direct-IP mapping remains forbidden")
+    print("PASS: misclassified physical evidence can be repaired without re-execution")
     print("PASS: caller-shell preservation and stable latest evidence are enforced")
 
 
