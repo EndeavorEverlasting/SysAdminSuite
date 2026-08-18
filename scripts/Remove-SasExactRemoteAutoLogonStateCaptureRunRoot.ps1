@@ -73,7 +73,7 @@ if (-not (Test-Path -LiteralPath `$root -PathType Container)) {
         `$relative = `$_.FullName.Substring(`$root.Length).TrimStart('\')
         [pscustomobject]@{
             path = [string]`$relative
-            kind = $(if (`$_.PSIsContainer) { 'directory' } else { 'file' })
+            kind = `$(if (`$_.PSIsContainer) { 'directory' } else { 'file' })
         }
     }
 )
