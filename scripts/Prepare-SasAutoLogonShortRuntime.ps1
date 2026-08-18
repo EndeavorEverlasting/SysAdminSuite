@@ -206,7 +206,10 @@ if ($trackedRelativePaths.Count -lt 1) {
 }
 
 $runtimePrefix = $RuntimeRoot.TrimEnd('\') + '\'
-$trackedFileHashes = New-Object 'System.Collections.Generic.List[object]'
+# Use an ordinary PowerShell object array here. Windows PowerShell 5.1 can throw
+# "Argument types do not match" when a generic List[object] is embedded through
+# an array subexpression inside a PSCustomObject/ordered manifest.
+$trackedFileHashes = @()
 foreach ($relative in $trackedRelativePaths) {
     $canonicalRelative = ([string]$relative).Replace('\','/')
     $relativeWindows = $canonicalRelative.Replace('/', '\')
@@ -218,11 +221,12 @@ foreach ($relative in $trackedRelativePaths) {
         throw "Tracked runtime file is missing while creating the seal: $canonicalRelative"
     }
     $hash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    [void]$trackedFileHashes.Add([pscustomobject][ordered]@{
+    $trackedFileHashes += [pscustomobject][ordered]@{
         path = $canonicalRelative
         sha256 = $hash
-    })
+    }
 }
+$trackedFileHashCount = $trackedFileHashes.Count
 
 $manifest = [pscustomobject][ordered]@{
     schema_version = 'sas-autologon-short-runtime/v2'
@@ -236,8 +240,8 @@ $manifest = [pscustomobject][ordered]@{
     runtime_remotes_removed = $true
     protected_bootstrap_git_network_allowed = $false
     tracked_file_hash_algorithm = 'SHA256'
-    tracked_file_count = $trackedFileHashes.Count
-    tracked_file_hashes = @($trackedFileHashes)
+    tracked_file_count = $trackedFileHashCount
+    tracked_file_hashes = $trackedFileHashes
     target_contact_performed = $false
     target_mutation_performed = $false
 }
@@ -248,5 +252,5 @@ Write-Host 'SAS_AUTOLOGON_SHORT_RUNTIME_READY' -ForegroundColor Green
 Write-Host "Runtime:  $RuntimeRoot"
 Write-Host "HEAD:     $runtimeHead"
 Write-Host "Manifest: $statePath"
-Write-Host "Tracked files sealed: $($trackedFileHashes.Count)" -ForegroundColor Green
+Write-Host "Tracked files sealed: $trackedFileHashCount" -ForegroundColor Green
 Write-Host 'Protected-side Git activity: NONE' -ForegroundColor Green
