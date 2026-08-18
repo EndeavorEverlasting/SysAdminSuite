@@ -1,0 +1,82 @@
+name: Controller Network Mode Harness
+
+on:
+  pull_request:
+    paths:
+      - "harness/maps/controller-network-mode-map.md"
+      - "harness/workflows/controller-network-mode-serialization.yaml"
+      - "harness/workflows/fresh-agent-intake.yaml"
+      - "harness/api/controller-network-mode-artifact-registry.json"
+      - "schemas/harness/controller-network-mode-artifact-registry.schema.json"
+      - "harness/validators/validate-controller-network-mode.py"
+      - "harness/skills/controller-network-mode-serialization/SKILL.md"
+      - "harness/reports/CONTROLLER_NETWORK_MODE_STATUS.md"
+      - "Tests/survey/test_controller_network_mode_harness_completeness.py"
+      - ".claude/skills/repository-sprint/SKILL.md"
+      - ".githooks/pre-commit"
+      - ".githooks/pre-push"
+      - ".github/workflows/controller-network-mode-harness.yml"
+      - "scripts/Enable-SasNorthwellVpnNetworkGuard.ps1"
+      - "scripts/Confirm-SasNorthwellNetwork.ps1"
+      - "scripts/Invoke-SasAutoLogonFieldDeployment.ps1"
+      - "scripts/Invoke-SasAutoLogonOnsite.ps1"
+  push:
+    paths:
+      - "harness/maps/controller-network-mode-map.md"
+      - "harness/workflows/controller-network-mode-serialization.yaml"
+      - "harness/workflows/fresh-agent-intake.yaml"
+      - "harness/api/controller-network-mode-artifact-registry.json"
+      - "schemas/harness/controller-network-mode-artifact-registry.schema.json"
+      - "harness/validators/validate-controller-network-mode.py"
+      - "harness/skills/controller-network-mode-serialization/SKILL.md"
+      - "harness/reports/CONTROLLER_NETWORK_MODE_STATUS.md"
+      - "Tests/survey/test_controller_network_mode_harness_completeness.py"
+      - ".claude/skills/repository-sprint/SKILL.md"
+      - ".githooks/pre-commit"
+      - ".githooks/pre-push"
+      - ".github/workflows/controller-network-mode-harness.yml"
+      - "scripts/Enable-SasNorthwellVpnNetworkGuard.ps1"
+      - "scripts/Confirm-SasNorthwellNetwork.ps1"
+      - "scripts/Invoke-SasAutoLogonFieldDeployment.ps1"
+      - "scripts/Invoke-SasAutoLogonOnsite.ps1"
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Compile focused harness checks
+        run: |
+          python -m py_compile harness/validators/validate-controller-network-mode.py
+          python -m py_compile Tests/survey/test_controller_network_mode_harness_completeness.py
+      - name: Validate controller network-mode serialization
+        run: python harness/validators/validate-controller-network-mode.py
+      - name: Prove controller network-mode harness completeness
+        run: python Tests/survey/test_controller_network_mode_harness_completeness.py
+      - name: Re-run adjacent pre-stage safety contract
+        run: python harness/validators/validate-prestage-bootstrap-safety.py
+      - name: Re-run repository freshness contract
+        run: python harness/validators/validate-repository-freshness-contracts.py
+      - name: Check whitespace
+        run: git diff --check
+
+  windows-parse:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Run focused harness checks on Windows
+        shell: pwsh
+        run: |
+          python harness/validators/validate-controller-network-mode.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python Tests/survey/test_controller_network_mode_harness_completeness.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

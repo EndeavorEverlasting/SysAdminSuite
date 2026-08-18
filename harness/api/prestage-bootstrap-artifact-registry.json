@@ -1,0 +1,55 @@
+{
+  "schema_version": "sas-prestage-bootstrap-artifact-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "naming": {
+    "tracked_report": "harness/reports/PRESTAGE_BOOTSTRAP_SAFETY_STATUS.md",
+    "validation_result": "console output or CI log; never commit machine-local field evidence"
+  },
+  "artifacts": [
+    {
+      "id": "prestage-bootstrap-map",
+      "path": "harness/maps/prestage-bootstrap-map.md",
+      "generator": "maintained with pre-stage bootstrap harness changes",
+      "format": "markdown",
+      "tracked": true,
+      "contains_live_data": false,
+      "purpose": "Routes a fresh agent to repository freshness authority, read-only pre-stage product surfaces, focused tests, and the gated field front door."
+    },
+    {
+      "id": "prestage-bootstrap-safety-status",
+      "path": "harness/reports/PRESTAGE_BOOTSTRAP_SAFETY_STATUS.md",
+      "generator": "maintained from repository truth and focused validator evidence",
+      "format": "markdown",
+      "tracked": true,
+      "contains_live_data": false,
+      "purpose": "Human-readable incident status, repaired boundary, known trap, proof ceiling, and next gate."
+    },
+    {
+      "id": "prestage-bootstrap-validation-result",
+      "path": "console output or CI log from harness/validators/validate-prestage-bootstrap-safety.py",
+      "generator": "python harness/validators/validate-prestage-bootstrap-safety.py",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Focused pass/fail proof that pre-stage failures route through freshness first and current target-resolution regression evidence remains present."
+    },
+    {
+      "id": "prestage-bootstrap-completeness-result",
+      "path": "console output or CI log from Tests/survey/test_prestage_bootstrap_harness_completeness.py",
+      "generator": "python Tests/survey/test_prestage_bootstrap_harness_completeness.py",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Pass/fail proof that the scoped map, workflow, registry, schema, validator, hooks, skill, report, and CI component are tracked and wired."
+    },
+    {
+      "id": "target-name-resolution-strictmode-regression-result",
+      "path": "console output or CI log from Tests/Pester/TargetNameResolution.Tests.ps1",
+      "generator": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester/TargetNameResolution.Tests.ps1",
+      "format": "text",
+      "tracked": false,
+      "contains_live_data": false,
+      "purpose": "Executable Windows regression proving an already-canonical FQDN has zero suffix candidates without a StrictMode scalar/null .Count failure."
+    }
+  ]
+}

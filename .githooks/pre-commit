@@ -8,7 +8,7 @@ cd "$repo_root"
 blocked=0
 while IFS= read -r path; do
   case "$path" in
-    logs/*|survey/output/*|survey/artifacts/*|survey/input/serial_network_preflight/*|survey/output/serial_network_preflight/*|survey/output/target_reduction/*|*.pcap|*.pcapng|*.evtx)
+    logs/*|survey/output/*|survey/artifacts/*|survey/input/serial_network_preflight/*|survey/output/serial_network_preflight/*|survey/output/target_reduction/*|*controller-handoff*|*.pcap|*.pcapng|*.evtx)
       echo "[sas-harness] refusing staged generated/operator artifact: $path" >&2
       blocked=1
       ;;
@@ -35,6 +35,10 @@ echo "[sas-harness] pre-commit: validating the exact staged snapshot"
   cd "$snapshot"
   python3 harness/validators/validate-harness-registries.py
   python3 harness/validators/validate-repository-freshness-contracts.py
+  python3 harness/validators/validate-prestage-bootstrap-safety.py
+  python3 Tests/survey/test_prestage_bootstrap_harness_completeness.py
+  python3 harness/validators/validate-controller-network-mode.py
+  python3 Tests/survey/test_controller_network_mode_harness_completeness.py
   python3 harness/validators/validate-outcome-contracts.py
   python3 harness/validators/validate-deployment-state-contracts.py
   python3 harness/validators/validate-terminal-evidence-survival.py

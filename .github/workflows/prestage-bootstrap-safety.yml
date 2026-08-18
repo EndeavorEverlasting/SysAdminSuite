@@ -1,0 +1,86 @@
+name: Prestage Bootstrap Safety Harness
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'harness/maps/prestage-bootstrap-map.md'
+      - 'harness/workflows/prestage-bootstrap-safety.yaml'
+      - 'harness/workflows/repository-freshness-before-launch.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - '.claude/skills/repository-sprint/SKILL.md'
+      - 'harness/api/prestage-bootstrap-artifact-registry.json'
+      - 'schemas/harness/prestage-bootstrap-artifact-registry.schema.json'
+      - 'harness/validators/validate-prestage-bootstrap-safety.py'
+      - 'harness/skills/prestage-bootstrap-safety/**'
+      - 'harness/reports/PRESTAGE_BOOTSTRAP_SAFETY_STATUS.md'
+      - 'Tests/survey/test_prestage_bootstrap_harness_completeness.py'
+      - 'scripts/SasTargetNameResolution.psm1'
+      - 'scripts/SasNetworkGuard.psm1'
+      - 'scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1'
+      - 'Tests/Pester/TargetNameResolution.Tests.ps1'
+      - 'Tests/survey/test_autologon_kerberos_s4u_contracts.py'
+      - '.githooks/**'
+      - '.github/workflows/prestage-bootstrap-safety.yml'
+  push:
+    branches: [main, 'feat/**', 'fix/**', 'harness/**']
+    paths:
+      - 'harness/maps/prestage-bootstrap-map.md'
+      - 'harness/workflows/prestage-bootstrap-safety.yaml'
+      - 'harness/workflows/repository-freshness-before-launch.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - '.claude/skills/repository-sprint/SKILL.md'
+      - 'harness/api/prestage-bootstrap-artifact-registry.json'
+      - 'schemas/harness/prestage-bootstrap-artifact-registry.schema.json'
+      - 'harness/validators/validate-prestage-bootstrap-safety.py'
+      - 'harness/skills/prestage-bootstrap-safety/**'
+      - 'harness/reports/PRESTAGE_BOOTSTRAP_SAFETY_STATUS.md'
+      - 'Tests/survey/test_prestage_bootstrap_harness_completeness.py'
+      - 'scripts/SasTargetNameResolution.psm1'
+      - 'scripts/SasNetworkGuard.psm1'
+      - 'scripts/Invoke-SasAutoLogonKerberosS4UPilot.ps1'
+      - 'Tests/Pester/TargetNameResolution.Tests.ps1'
+      - 'Tests/survey/test_autologon_kerberos_s4u_contracts.py'
+      - '.githooks/**'
+      - '.github/workflows/prestage-bootstrap-safety.yml'
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install schema validator
+        run: python -m pip install jsonschema
+      - name: Compile scoped validators
+        run: python -m py_compile harness/validators/validate-prestage-bootstrap-safety.py Tests/survey/test_prestage_bootstrap_harness_completeness.py
+      - name: Validate pre-stage bootstrap harness
+        run: python harness/validators/validate-prestage-bootstrap-safety.py
+      - name: Validate pre-stage bootstrap completeness
+        run: python Tests/survey/test_prestage_bootstrap_harness_completeness.py
+      - name: Validate repository freshness integration
+        run: python harness/validators/validate-repository-freshness-contracts.py
+      - name: Validate existing S4U contracts
+        run: python Tests/survey/test_autologon_kerberos_s4u_contracts.py
+      - name: Check pull-request whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+      - name: Check pushed whitespace
+        if: github.event_name == 'push'
+        run: git show --check --oneline --no-renames HEAD
+      - name: Check manual-dispatch whitespace
+        if: github.event_name == 'workflow_dispatch'
+        run: git show --check --oneline --no-renames HEAD
+
+  target-name-resolution-pester:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run focused StrictMode FQDN regression
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester/TargetNameResolution.Tests.ps1

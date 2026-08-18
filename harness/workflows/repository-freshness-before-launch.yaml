@@ -16,6 +16,8 @@ triggers:
   - origin/main or another intended remote ref has been fetched but the executing worktree was not updated
   - local HEAD predates repository evidence supplied by the operator, PR, release, or remote branch
   - deployment or runtime guidance would otherwise be reconstructed because a canonical tracked entrypoint appears absent
+  - an AutoLogon or S4U attempt reports a failure before stage 1 while current repository behavior is required
+  - a Windows PowerShell 5.1 StrictMode bootstrap failure reports that property Count cannot be found and the controller checkout may be stale
 
 inputs:
   required:
@@ -117,6 +119,7 @@ stages:
     actions:
       - return to fresh-agent-intake routing using the refreshed executing worktree
       - use the canonical tracked entrypoint now present at the selected commit
+      - when the incident signature is failure before stage 1 or a StrictMode Count bootstrap exception, load harness/workflows/prestage-bootstrap-safety.yaml and harness/skills/prestage-bootstrap-safety/SKILL.md before any field rerun or S4U-task diagnosis
       - preserve the freshness classification, selected commit, worktree path, authorization basis, and expected-path proof in the handoff
 
 outputs:

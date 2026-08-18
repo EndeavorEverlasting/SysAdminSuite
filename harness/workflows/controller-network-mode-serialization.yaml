@@ -1,0 +1,184 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: controller-network-mode-serialization
+mode: serialized_controller_phases
+network_activity: phase_scoped
+target_mutation: product_owned_after_all_gates
+purpose: >-
+  Prevent controller commands from mixing repository/Git preparation with protected-network deployment.
+  Finish Git-dependent proof off the protected network, serialize exact checkout identity, transition networks,
+  then consume the handoff without Git before any target operation.
+
+triggers:
+  - git works off network but is blocked on vpn
+  - firewall blocks git on protected network
+  - connect vpn before deployment
+  - could not read the local certified checkout head after connecting vpn
+  - remote branch disappears between clone and certification fetch
+  - a field command mixes clone or fetch with protected-network deployment
+  - repository freshness is proven but controller network mode is not
+
+inputs:
+  required:
+    - repository_root
+    - repository_identity
+    - selected_branch
+    - selected_commit
+  optional:
+    - pull_request
+    - owning_validators
+    - target_operation
+    - operator_network_transition
+
+invariants:
+  - remote_git_off_network_only
+  - no_git_after_transition
+  - serialized_checkout_identity_is_the_protected_phase_authority
+  - pull_request_head_ref_is_certification_authority_when_pr_is_known
+  - remote_tracking_branch_is_not_certification_authority
+  - protected_network_gate_precedes_target_contact
+  - harness_lane_does_not_patch_product_runtime_git_dependencies
+  - live_hostnames_secrets_and_machine_specific_evidence_remain_untracked
+
+phases:
+  - id: OFF_NETWORK_REPOSITORY_PREP
+    order: 1
+    git_allowed: true
+    protected_network_required: false
+    target_contact_allowed: false
+    remote_ref_resolution:
+      pull_request_known:
+        fetch_ref: "refs/pull/<pr>/head"
+        local_certification_ref: "refs/sas-cert/pr-<pr>"
+        rule: >-
+          Fetch the GitHub pull-request head ref with --no-force into the private local certification ref,
+          then verify that ref equals selected_commit. The selected branch name is descriptive metadata only.
+      pull_request_unknown:
+        fetch_ref: "refs/heads/<branch>"
+        local_certification_ref: "refs/sas-cert/branch"
+        rule: >-
+          Fetch the explicit branch head into a private local certification ref and verify it equals selected_commit.
+          If the branch moved or disappeared, stop instead of silently accepting another commit.
+    actions:
+      - resolve repository governance, branch, dirty state, worktrees, pull request, and exact selected commit
+      - when pull_request is supplied, prefer refs/pull/<pr>/head over refs/remotes/origin/<branch> for certification
+      - fetch without force when current remote proof is required
+      - fetch into a private refs/sas-cert/* ref so branch pruning or remote-tracking updates cannot erase certification authority
+      - verify the private certification ref equals the exact selected_commit before creating the certified worktree
+      - preserve dirty or separately owned work with an isolated worktree
+      - run owning validators before field transition
+      - run git diff --check when a tracked change is being prepared
+      - create the serialized controller certification artifact before leaving this phase
+    certification_artifact:
+      path: "%LOCALAPPDATA%/SysAdminSuite/controller-handoff/controller-repo-certification.json"
+      schema_version: sas-controller-repo-certification/v1
+      required_fields:
+        - schema_version
+        - repository
+        - branch
+        - commit
+        - source_repo_root
+        - generated_at_utc
+        - phase
+        - validators
+      required_phase_value: OFF_NETWORK_REPOSITORY_PREP
+      example_generation: >-
+        Create a JSON object from already-proven local values and write it with ConvertTo-Json/Set-Content.
+        The generation step itself may use Git because it occurs before the network transition.
+    failure_classifications:
+      REMOTE_PR_HEAD_UNAVAILABLE_OR_MOVED: >-
+        The expected pull-request head ref could not be fetched or did not resolve to selected_commit.
+        Do not fall back to refs/remotes/origin/<branch>; refresh PR metadata off-network and restart certification.
+      REMOTE_BRANCH_HEAD_UNAVAILABLE_OR_MOVED: >-
+        No pull request was supplied and the explicit branch head could not be fetched or no longer equals selected_commit.
+    completion_gate:
+      - exact selected commit is known
+      - private certification ref resolves exactly to selected_commit
+      - owning validators pass
+      - certification artifact exists and records the exact commit and source checkout path
+      - no target contact occurred
+
+  - id: TRANSITION_TO_PROTECTED_NETWORK
+    order: 2
+    git_allowed: false
+    protected_network_required: transition
+    target_contact_allowed: false
+    actions:
+      - stop all git and gh commands before changing network posture
+      - retain the certified checkout without moving, cleaning, fetching, or re-proving it through Git
+      - connect the approved VPN or protected network
+      - carry forward only the serialized certification artifact and ordinary filesystem path
+    forbidden_commands:
+      - git
+      - gh
+      - git clone
+      - git fetch
+      - git pull
+      - git rev-parse
+      - git status
+      - git worktree
+      - git checkout
+    completion_gate:
+      - protected-network transition is complete
+      - no Git command has been used after transition
+
+  - id: PROTECTED_NETWORK_DEPLOYMENT
+    order: 3
+    git_allowed: false
+    protected_network_required: true
+    target_contact_allowed: only_after_network_gate
+    actions:
+      - read controller-repo-certification.json with filesystem APIs; do not invoke Git
+      - verify schema_version, repository, commit, phase, and source_repo_root from the serialized artifact
+      - run scripts/Enable-SasNorthwellVpnNetworkGuard.ps1 -ConfirmVpnPosture when VPN authority is required
+      - run scripts/Confirm-SasNorthwellNetwork.ps1 -NonInteractive -NoOpenWifiSettings before target contact
+      - inspect the registered product entrypoint dependency contract established during OFF_NETWORK_REPOSITORY_PREP
+      - if the canonical product entrypoint still requires Git in this phase, stop with PRODUCT_RUNTIME_GIT_DEPENDENCY
+      - otherwise continue through the registered canonical product entrypoint under its normal authorization gates
+    forbidden_commands:
+      - git
+      - gh
+      - git clone
+      - git fetch
+      - git pull
+      - git rev-parse
+      - git status
+      - git worktree
+      - git checkout
+    failure_classifications:
+      NETWORK_POSTURE_UNPROVEN: protected-network gate did not certify the controller
+      CERTIFICATION_ARTIFACT_INVALID: serialized repository proof is missing, malformed, or does not match the planned operation
+      PRODUCT_RUNTIME_GIT_DEPENDENCY: canonical product execution still invokes Git after the protected-network transition
+    completion_gate:
+      - serialized repository certification is accepted without Git
+      - approved protected-network posture is proven
+      - canonical product path is confirmed Git-independent for this phase before any target contact
+      - target operation, if authorized, remains product-owned
+
+failure_handling:
+  - never reconnect public/off-network access merely to run a Git check in the middle of a protected transaction
+  - never weaken the protected-network gate to preserve Git access
+  - never use a mutable refs/remotes/origin/<branch> ref as PR certification authority when refs/pull/<pr>/head is available
+  - never reconstruct an unregistered deployment path to bypass PRODUCT_RUNTIME_GIT_DEPENDENCY
+  - return to OFF_NETWORK_REPOSITORY_PREP only after abandoning the protected transaction with no target mutation in flight
+  - product runtime Git dependency repairs require a separate product-code lane
+
+validation:
+  commands:
+    - python harness/validators/validate-controller-network-mode.py
+    - python Tests/survey/test_controller_network_mode_harness_completeness.py
+    - python harness/validators/validate-prestage-bootstrap-safety.py
+    - python harness/validators/validate-repository-freshness-contracts.py
+    - git diff --check
+  proof_ceiling: >-
+    Static harness proof that controller phases are serialized, PR certification uses an immutable PR-head ref,
+    network proof precedes target contact, and a current product Git dependency is surfaced rather than bypassed.
+    No live VPN, Git-block, target-contact, target-mutation, restart, or AutoLogon success is claimed.
+
+handoff:
+  required:
+    - exact repository, branch, pull request when known, and commit from the serialized certification
+    - phase reached and whether network transition occurred
+    - validator results
+    - protected-network evidence path when generated
+    - failure classification when blocked
+    - explicit statement that no target proof is claimed unless product evidence exists
