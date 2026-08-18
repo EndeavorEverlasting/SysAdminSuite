@@ -101,11 +101,18 @@ foreach ($ending in @('crlf','lf')) {
         Assert-True ($requested.Length -ge 260 -and $requested.Length -le 280) `
             "$ending repair fixture did not reproduce the field path class: $($requested.Length)"
 
-        $run = & $fixture -RunId $runId -OutputRoot $longRoot
-        Assert-True ([bool]$run.output_path_compacted) "$ending repaired fixture did not compact the output path."
-        Assert-True ([string]$run.output_path -eq ([IO.Path]::GetFullPath($flat))) "$ending repaired fixture chose the wrong compacted path."
+        $runOutput = @(& $fixture -RunId $runId -OutputRoot $longRoot)
+        $gateRun = @($runOutput | Where-Object { $_.PSObject.Properties.Name -contains 'overall_pass' }) | Select-Object -Last 1
+        Assert-True ($null -ne $gateRun -and [bool]$gateRun.overall_pass) "$ending repaired fixture did not return its gate success object."
         Assert-True (Test-Path -LiteralPath $flat -PathType Leaf) "$ending compacted gate evidence was not written."
         Assert-True (-not (Test-Path -LiteralPath $requested -PathType Leaf)) "$ending over-budget nested evidence unexpectedly exists."
+
+        $written = Get-Content -LiteralPath $flat -Raw -Encoding UTF8 | ConvertFrom-Json
+        Assert-True ([bool]$written.output_path_compacted) "$ending compacted artifact did not record compaction."
+        Assert-True ([string]$written.output_path -eq ([IO.Path]::GetFullPath($flat))) "$ending compacted artifact recorded the wrong actual path."
+        Assert-True ([string]$written.output_path_requested -eq ([IO.Path]::GetFullPath($requested))) "$ending compacted artifact lost the requested path."
+        Assert-True ([int]$written.output_path_budget_chars -eq 240) "$ending compacted artifact lost the 240-character budget."
+        Assert-True ([string]$written.run_id -eq $runId) "$ending compacted artifact lost run identity."
 
         $second = & $repairScript -RuntimeRoot $root -EvidenceRoot $evidenceTwo -ConfirmRepair -PassThru
         Assert-True ([string]$second.classification -eq 'AUTOLOGON_FINAL_GATE_PATH_RUNTIME_REPAIR_ALREADY_PRESENT') `
@@ -113,7 +120,7 @@ foreach ($ending in @('crlf','lf')) {
         Assert-True (-not [bool]$second.changed) "$ending second repair reported an unexpected change."
         Assert-True ([bool]$second.semantic_verification) "$ending second repair lost semantic verification."
 
-        Write-Host "PASS: $ending final-step gate runtime repair, ~270-character compaction, and idempotence"
+        Write-Host "PASS: $ending final-step gate runtime repair, ~270-character artifact compaction, and idempotence"
     }
     finally {
         if (Test-Path -LiteralPath $root -PathType Container) {
