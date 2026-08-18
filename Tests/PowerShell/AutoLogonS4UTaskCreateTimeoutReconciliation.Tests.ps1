@@ -85,7 +85,7 @@ Assert-True ([int]$normal.timeout_seconds -eq 60) 'S4U create did not receive th
 Assert-True ([int]$normal.requested_timeout_seconds -eq 30) 'S4U create lost the caller-requested timeout.'
 Assert-True ([string]$normal.timeout_policy -eq 's4u_task_create_minimum_60') 'S4U create timeout policy was not recorded.'
 Assert-True (-not [bool]$normal.reconciled_after_timeout) 'Normal S4U create was incorrectly marked reconciled.'
-$normalTimeouts = Get-FixtureObservedTimeouts -Module $module
+$normalTimeouts = @(Get-FixtureObservedTimeouts -Module $module)
 Assert-True ($normalTimeouts.Count -eq 1 -and [int]$normalTimeouts[0] -eq 60) 'Normal S4U create did not invoke the bounded child with 60 seconds.'
 
 # 2. A controller timeout may be reconciled only by querying the exact unique task identity.
@@ -105,7 +105,7 @@ Assert-True ($null -ne $reconciled.reconciliation) 'Reconciled S4U create did no
 Assert-True ([string]$reconciled.reconciliation.arguments[0] -eq '/Query') 'Reconciliation did not use Task Scheduler query.'
 Assert-True ([string]$reconciled.reconciliation.arguments[2] -eq $target) 'Reconciliation changed the target identity.'
 Assert-True ([string]$reconciled.reconciliation.arguments[4] -eq $installTask) 'Reconciliation changed the exact task identity.'
-$reconcileTimeouts = Get-FixtureObservedTimeouts -Module $module
+$reconcileTimeouts = @(Get-FixtureObservedTimeouts -Module $module)
 Assert-True ($reconcileTimeouts.Count -eq 2) 'Reconciled create did not perform exactly one create and one query native call.'
 Assert-True ([int]$reconcileTimeouts[0] -eq 60 -and [int]$reconcileTimeouts[1] -eq 30) 'Reconciliation bounds were not 60 seconds for create and 30 seconds for exact query.'
 
