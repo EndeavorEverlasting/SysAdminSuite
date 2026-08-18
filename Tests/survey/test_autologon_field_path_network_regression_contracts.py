@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
 FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
+STATE = ROOT / "scripts" / "SasAutoLogonOperatorState.psm1"
 S4U = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
 NETWORK_GUARD = ROOT / "scripts" / "SasNetworkGuard.psm1"
 VPN_BOOTSTRAP = ROOT / "scripts" / "Enable-SasNorthwellVpnNetworkGuard.ps1"
@@ -14,6 +15,7 @@ GITIGNORE = ROOT / ".gitignore"
 def main() -> None:
     onsite = ONSITE.read_text(encoding="utf-8")
     field = FIELD.read_text(encoding="utf-8")
+    state = STATE.read_text(encoding="utf-8")
     s4u = S4U.read_text(encoding="utf-8")
     network_guard = NETWORK_GUARD.read_text(encoding="utf-8")
     vpn_bootstrap = VPN_BOOTSTRAP.read_text(encoding="utf-8")
@@ -36,6 +38,13 @@ def main() -> None:
     assert gate_classification in field
     assert "Get-SasOperatorNetworkClassification -RepoRoot $repoRoot" not in field
     assert field.index(gate_call) < field.index(gate_classification) < field.index(target_resolution)
+
+    # The state module is a nested consumer of SasOperatorSession. It must not force-reload that
+    # dependency and erase session helpers already exported into the field transaction's scope.
+    assert "Import-Module $sessionModule -ErrorAction Stop" in state
+    assert "Import-Module $sessionModule -Force" not in state
+    assert "Do not force-reload it" in state
+    assert "Get-SasObjectPropertyValue" in field
 
     # VPN bootstrap and canonical guard must agree on the authority model: an active
     # DomainAuthenticated non-Wi-Fi interface plus an exact allowlisted local IP.
