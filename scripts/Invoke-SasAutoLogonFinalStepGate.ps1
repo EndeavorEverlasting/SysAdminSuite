@@ -62,19 +62,26 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
+$finalGatePathBudgetChars = 240
+$finalGateFileName = 'autologon_final_step_gate.json'
+
 # ── Gate result structure ──────────────────────────────────────────────
 $gateResult = [ordered]@{
-    gate_id          = 'autologon-final-step'
-    gate_version     = '1.0.0'
-    target           = $Target
-    run_id           = $RunId
-    exec_context     = $ExecContext
-    timestamp_utc    = (Get-Date).ToUniversalTime().ToString('o')
-    technician_label = $TechnicianLabel
-    fixture_mode     = $FixtureMode.IsPresent
-    prerequisites    = @()
-    overall_pass     = $false
-    blocked_reason   = $null
+    gate_id                       = 'autologon-final-step'
+    gate_version                  = '1.0.0'
+    target                        = $Target
+    run_id                        = $RunId
+    exec_context                  = $ExecContext
+    timestamp_utc                 = (Get-Date).ToUniversalTime().ToString('o')
+    technician_label              = $TechnicianLabel
+    fixture_mode                  = $FixtureMode.IsPresent
+    prerequisites                 = @()
+    overall_pass                  = $false
+    blocked_reason                = $null
+    output_path_budget_chars      = $finalGatePathBudgetChars
+    output_path_requested         = $null
+    output_path                   = $null
+    output_path_compacted         = $false
 }
 
 # ── Prerequisite check functions ───────────────────────────────────────
@@ -206,7 +213,7 @@ function Test-HostEligibility {
 
     try {
         $params = @{
-            Target     = $TargetName
+            Target      = $TargetName
             ExecContext = $ExecContext
         }
         if (-not [string]::IsNullOrWhiteSpace($PolicyPath)) {
@@ -256,7 +263,6 @@ Add-Prerequisite -Id 'before_snapshot' -Description 'State-delta Before snapshot
 # 5. Technician runtime proof (recommended)
 $runtimeProofDetail = 'Not checked'
 if ($RequireRuntimeProof.IsPresent) {
-    # Check for runtime proof file in expected location
     $proofPath = $null
     if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
         $candidate = Join-Path $OutputRoot $RunId | Join-Path -ChildPath 'technician_runtime_proof.json'
@@ -293,11 +299,46 @@ if (-not $gateResult.overall_pass) {
 
 # ── Write gate result ──────────────────────────────────────────────────
 if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
-    $gateDir = Join-Path $OutputRoot $RunId
-    if (-not (Test-Path -LiteralPath $gateDir)) {
+    $resolvedOutputRoot = [IO.Path]::GetFullPath($OutputRoot)
+    $requestedGateDir = Join-Path $resolvedOutputRoot $RunId
+    $requestedGatePath = Join-Path $requestedGateDir $finalGateFileName
+    $flatGatePath = Join-Path $resolvedOutputRoot $finalGateFileName
+
+    $gateDir = $requestedGateDir
+    $gatePath = $requestedGatePath
+    $compacted = $false
+
+    if ($requestedGatePath.Length -gt $finalGatePathBudgetChars) {
+        if ($flatGatePath.Length -gt $finalGatePathBudgetChars) {
+            throw "AutoLogon final-step gate output path exceeds the $finalGatePathBudgetChars-character budget even after compaction: $flatGatePath"
+        }
+
+        if (Test-Path -LiteralPath $flatGatePath -PathType Leaf) {
+            try {
+                $existing = Get-Content -LiteralPath $flatGatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+            }
+            catch {
+                throw "Compacted final-step gate output already exists but is unreadable; refusing overwrite: $flatGatePath"
+            }
+            if ([string]$existing.run_id -ne $RunId) {
+                throw "Compacted final-step gate output collision: existing run '$($existing.run_id)' does not match '$RunId'."
+            }
+        }
+
+        $gateDir = $resolvedOutputRoot
+        $gatePath = $flatGatePath
+        $compacted = $true
+        Write-Warning "FINAL_GATE_OUTPUT_PATH_COMPACTED: using $gatePath"
+    }
+
+    if (-not (Test-Path -LiteralPath $gateDir -PathType Container)) {
         New-Item -ItemType Directory -Path $gateDir -Force | Out-Null
     }
-    $gatePath = Join-Path $gateDir 'autologon_final_step_gate.json'
+
+    $gateResult.output_path_requested = $requestedGatePath
+    $gateResult.output_path = $gatePath
+    $gateResult.output_path_compacted = $compacted
+
     $gateResult | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $gatePath -Encoding UTF8
 }
 
