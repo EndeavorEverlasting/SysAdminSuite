@@ -8,6 +8,7 @@ FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
 STATE = ROOT / "scripts" / "SasAutoLogonOperatorState.psm1"
 S4U = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
 TRANSPORT = ROOT / "scripts" / "Test-SasSoftwareDeploymentTransport.ps1"
+S4U_STATUS = ROOT / "scripts" / "Get-SasAutoLogonS4URunStatus.ps1"
 NETWORK_GUARD = ROOT / "scripts" / "SasNetworkGuard.psm1"
 VPN_BOOTSTRAP = ROOT / "scripts" / "Enable-SasNorthwellVpnNetworkGuard.ps1"
 GITIGNORE = ROOT / ".gitignore"
@@ -19,6 +20,7 @@ def main() -> None:
     state = STATE.read_text(encoding="utf-8")
     s4u = S4U.read_text(encoding="utf-8")
     transport = TRANSPORT.read_text(encoding="utf-8")
+    s4u_status = S4U_STATUS.read_text(encoding="utf-8")
     network_guard = NETWORK_GUARD.read_text(encoding="utf-8")
     vpn_bootstrap = VPN_BOOTSTRAP.read_text(encoding="utf-8")
     gitignore = GITIGNORE.read_text(encoding="utf-8")
@@ -82,8 +84,27 @@ def main() -> None:
         "Get-SasTransportProjectedArtifactPath",
         "TRANSPORT_OUTPUT_ROOT_COMPACTED",
         "$compactOutputRoot = Join-Path $repoRoot 'runs'",
+        "Assert-SasLocalOutputRoot -OutputRoot $requestedOutputRoot -RepoRoot $repoRoot",
+        "transport_preflight_link.json",
+        "sas-software-deployment-transport-link/v1",
+        "owner_link_path = $transportOwnerLinkPath",
     ):
-        assert marker in transport, f"missing transport path-budget marker: {marker}"
+        assert marker in transport, f"missing transport path-budget/link marker: {marker}"
+
+    # Compaction must not make the transport evidence invisible to the S4U owner. The local status
+    # observer follows only a canonical link whose result remains under <repo>/runs and has the exact
+    # transport result filename; it never turns the pointer into network or target authority.
+    for marker in (
+        "transport_preflight_link.json",
+        "sas-software-deployment-transport-link/v1",
+        "$approvedTransportRoot = Join-Path $repoRoot 'runs'",
+        "Test-SasStatusPathUnderRoot",
+        "software_deployment_transport_result.json",
+        "preflight_link_valid",
+        "network_activity_performed_by_observer = $false",
+        "target_mutation_performed_by_observer = $false",
+    ):
+        assert marker in s4u_status, f"missing S4U compact-link status marker: {marker}"
 
     # VPN bootstrap and canonical guard must agree on the authority model: an active
     # DomainAuthenticated non-Wi-Fi interface plus an exact allowlisted local IP.
