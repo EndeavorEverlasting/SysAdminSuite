@@ -53,7 +53,7 @@ function New-LongOutputRoot {
     param([Parameter(Mandatory = $true)][string]$BaseRoot)
     $root = Join-Path $BaseRoot 'fg'
     while ((Join-Path $root 'autologon_final_step_gate.json').Length -lt 220) {
-        $root = Join-Path $root ('segment-' + ('y' * 28))
+        $root = Join-Path $root ('seg-' + ('y' * 14))
     }
     $flat = Join-Path $root 'autologon_final_step_gate.json'
     if ($flat.Length -gt 240) { throw "Repair fixture flat path exceeded budget: $($flat.Length)" }
