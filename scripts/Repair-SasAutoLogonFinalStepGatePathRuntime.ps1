@@ -100,7 +100,7 @@ if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
 
 # ── Output ─────────────────────────────────────────────────────────────
 '@
-    $candidate = $text.Substring(0,$start) + $replacement + $text.Substring($end)
+    $candidate = $text.Substring(0,$start) + $replacement + "`n" + $text.Substring($end)
     if ($newline -eq "`r`n") { $candidate = $candidate.Replace("`n","`r`n") }
 
     try {
