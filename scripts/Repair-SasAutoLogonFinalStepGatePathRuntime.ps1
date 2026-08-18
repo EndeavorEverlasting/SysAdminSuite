@@ -49,12 +49,10 @@ if (-not (Test-RepairPresent $source)) {
     $text = $source.Replace("`r`n","`n").Replace("`r","`n")
 
     $gateAnchor = '$gateResult = [ordered]@{'
-    if (($text.IndexOf($gateAnchor, [StringComparison]::Ordinal)) -lt 0 -or $text.IndexOf($gateAnchor, $text.IndexOf($gateAnchor) + 1, [StringComparison]::Ordinal) -ge 0) {
+    $gateFirst = $text.IndexOf($gateAnchor, [StringComparison]::Ordinal)
+    if ($gateFirst -lt 0 -or $text.IndexOf($gateAnchor, $gateFirst + 1, [StringComparison]::Ordinal) -ge 0) {
         throw 'Final-step gate repair gate-result anchor is missing or ambiguous.'
     }
-    $constants = "$finalGatePathBudgetChars = 240`n$finalGateFileName = 'autologon_final_step_gate.json'`n`n$gateResult = [ordered]@{"
-    $constants = $constants.Replace('$finalGatePathBudgetChars', '`$finalGatePathBudgetChars').Replace('$finalGateFileName', '`$finalGateFileName').Replace('$gateResult', '`$gateResult')
-    $constants = $constants.Replace('`$','`$')
     $constants = @'
 $finalGatePathBudgetChars = 240
 $finalGateFileName = 'autologon_final_step_gate.json'
