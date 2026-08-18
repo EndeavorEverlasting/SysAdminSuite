@@ -33,8 +33,9 @@ function Assert-Parse([string]$Text) {
 function Test-RepairPresent([string]$Text) {
     return ($Text.Contains('$finalGatePathBudgetChars = 240') -and
         $Text.Contains("`$finalGateFileName = 'autologon_final_step_gate.json'") -and
+        $Text.Contains('$finalGateFallbackRoot = Join-Path') -and
         $Text.Contains('FINAL_GATE_OUTPUT_PATH_COMPACTED') -and
-        $Text.Contains("`$gateResult['output_path_compacted'] = `$compacted") -and
+        $Text.Contains("`$gateResult['output_path_compaction_mode'] = `$compactionMode") -and
         $Text.Contains('Compacted final-step gate output collision'))
 }
 
@@ -56,6 +57,7 @@ if (-not (Test-RepairPresent $source)) {
     $constants = @'
 $finalGatePathBudgetChars = 240
 $finalGateFileName = 'autologon_final_step_gate.json'
+$finalGateFallbackRoot = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'runs') 'final-gate'
 
 $gateResult = [ordered]@{
 '@
@@ -76,25 +78,36 @@ if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
     $resolvedOutputRoot = [IO.Path]::GetFullPath($OutputRoot)
     $requestedGatePath = Join-Path (Join-Path $resolvedOutputRoot $RunId) $finalGateFileName
     $flatGatePath = Join-Path $resolvedOutputRoot $finalGateFileName
+    $fallbackGatePath = Join-Path (Join-Path $finalGateFallbackRoot $RunId) $finalGateFileName
     $gatePath = $requestedGatePath
-    $compacted = $false
+    $compactionMode = 'none'
     if ($requestedGatePath.Length -gt $finalGatePathBudgetChars) {
-        if ($flatGatePath.Length -gt $finalGatePathBudgetChars) { throw "AutoLogon final-step gate output path exceeds the $finalGatePathBudgetChars-character budget even after compaction: $flatGatePath" }
-        if (Test-Path -LiteralPath $flatGatePath -PathType Leaf) {
-            try { $existing = Get-Content -LiteralPath $flatGatePath -Raw -Encoding UTF8 | ConvertFrom-Json }
-            catch { throw "Compacted final-step gate output already exists but is unreadable; refusing overwrite: $flatGatePath" }
+        if ($flatGatePath.Length -le $finalGatePathBudgetChars) {
+            $gatePath = $flatGatePath
+            $compactionMode = 'requested_root'
+        }
+        elseif ($fallbackGatePath.Length -le $finalGatePathBudgetChars) {
+            $gatePath = $fallbackGatePath
+            $compactionMode = 'repository_runs'
+        }
+        else {
+            throw "AutoLogon final-step gate output path exceeds the $finalGatePathBudgetChars-character budget after all approved compaction candidates: $fallbackGatePath"
+        }
+        if (Test-Path -LiteralPath $gatePath -PathType Leaf) {
+            try { $existing = Get-Content -LiteralPath $gatePath -Raw -Encoding UTF8 | ConvertFrom-Json }
+            catch { throw "Compacted final-step gate output already exists but is unreadable; refusing overwrite: $gatePath" }
             if ([string]$existing.run_id -ne $RunId) { throw "Compacted final-step gate output collision: existing run '$($existing.run_id)' does not match '$RunId'." }
         }
-        $gatePath = $flatGatePath
-        $compacted = $true
-        Write-Warning "FINAL_GATE_OUTPUT_PATH_COMPACTED: using $gatePath"
+        Write-Warning "FINAL_GATE_OUTPUT_PATH_COMPACTED: mode=$compactionMode using $gatePath"
     }
     $gateDir = Split-Path -Parent $gatePath
     if (-not (Test-Path -LiteralPath $gateDir -PathType Container)) { New-Item -ItemType Directory -Path $gateDir -Force | Out-Null }
     $gateResult['output_path_budget_chars'] = $finalGatePathBudgetChars
     $gateResult['output_path_requested'] = $requestedGatePath
     $gateResult['output_path'] = $gatePath
-    $gateResult['output_path_compacted'] = $compacted
+    $gateResult['output_path_compacted'] = ($compactionMode -ne 'none')
+    $gateResult['output_path_compaction_mode'] = $compactionMode
+    $gateResult['output_path_fallback_root'] = $(if ($compactionMode -eq 'repository_runs') { [IO.Path]::GetFullPath($finalGateFallbackRoot) } else { $null })
     $gateResult | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $gatePath -Encoding UTF8
 }
 
@@ -121,8 +134,8 @@ Assert-Parse $final
 if (-not (Test-RepairPresent $final)) { throw 'Final-step gate path repair markers are absent after repair.' }
 $afterSha = Get-RepairHash $targetPath
 $result = [pscustomobject][ordered]@{
-    schema_version='sas-autologon-final-gate-path-runtime-repair/v1'; classification=$classification; runtime_root=$RuntimeRoot; target_path=$targetPath; changed=$changed
-    before_sha256=$beforeSha; after_sha256=$afterSha; path_budget_chars=240; flattened_filename='autologon_final_step_gate.json'
+    schema_version='sas-autologon-final-gate-path-runtime-repair/v2'; classification=$classification; runtime_root=$RuntimeRoot; target_path=$targetPath; changed=$changed
+    before_sha256=$beforeSha; after_sha256=$afterSha; path_budget_chars=240; flattened_filename='autologon_final_step_gate.json'; repository_fallback_relative='runs\final-gate'
     powershell_parse_passed=$true; semantic_verification=$true; git_performed=$false; network_activity_performed=$false; target_contact_performed=$false; target_mutation_performed=$false
     evidence_path=$resultPath; completed_at_utc=(Get-Date).ToUniversalTime().ToString('o')
 }
