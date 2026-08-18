@@ -57,6 +57,21 @@ def test_front_door_contract_is_bounded_explicit_and_noninteractive() -> None:
     assert "-NetworkActivityPerformed $networkActivity" in text
 
 
+def test_output_root_compaction_precedes_run_context_and_fails_closed() -> None:
+    text = read(ENTRYPOINT)
+    for token in (
+        "$transportWindowsPathBudget = 240",
+        "Get-SasTransportProjectedArtifactPath",
+        "software_deployment_transport_result.json",
+        "$compactOutputRoot = Join-Path $repoRoot 'runs'",
+        "TRANSPORT_OUTPUT_ROOT_COMPACTED",
+        "TRANSPORT_OUTPUT_ROOT_PATH_BUDGET_BLOCKED",
+    ):
+        assert token in text, f"transport path-budget contract missing {token}"
+    assert text.index("if ($OutputRoot)") < text.index("$contextParameters = @{")
+    assert text.index("Get-SasTransportProjectedArtifactPath") < text.index("New-SasRunContext @contextParameters")
+
+
 def test_broad_collector_remains_explicit_and_read_only() -> None:
     text = read(MODULE)
     for token in (
