@@ -97,4 +97,50 @@ function Test-SasAutoLogonStateCaptureWorkerResultIdentity {
     }
 }
 
-Export-ModuleMember -Function Test-SasAutoLogonStateCaptureCleanupInventory,Test-SasAutoLogonStateCaptureWorkerResultIdentity
+function Test-SasAutoLogonStateCaptureParentInventory {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Entries
+    )
+
+    $runIdPattern = '^autologon-recovery-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$'
+    $normalized = @()
+    foreach ($entry in @($Entries)) {
+        $path = ([string]$entry.path).Trim().TrimStart('\').Replace('/','\')
+        $kind = ([string]$entry.kind).Trim().ToLowerInvariant()
+        if ([string]::IsNullOrWhiteSpace($path)) {
+            throw 'State-capture parent inventory contains an empty relative path.'
+        }
+        if ($path.Contains('..')) {
+            throw "State-capture parent inventory contains a parent traversal segment: $path"
+        }
+        if ($kind -notin @('file','directory')) {
+            throw "State-capture parent inventory contains an unsupported entry kind for ${path}: $kind"
+        }
+        $normalized += [pscustomobject]@{ path=$path; kind=$kind }
+    }
+
+    $activeResidue = @()
+    $inertEmptyRunRoots = @()
+    foreach ($entry in @($normalized)) {
+        $path = [string]$entry.path
+        $isTopLevel = (-not $path.Contains('\'))
+        $isRunRoot = ($path -match $runIdPattern)
+        if ($entry.kind -eq 'directory' -and $isTopLevel -and $isRunRoot) {
+            $inertEmptyRunRoots += $path
+            continue
+        }
+        $activeResidue += $path
+    }
+
+    [pscustomobject][ordered]@{
+        operationally_clean = ($activeResidue.Count -eq 0)
+        active_residue_paths = @($activeResidue)
+        inert_empty_run_roots = @($inertEmptyRunRoots)
+        inventory_paths = @($normalized | ForEach-Object { [string]$_.path })
+        parent_policy = 'allow_only_empty_top_level_autologon_recovery_run_roots'
+    }
+}
+
+Export-ModuleMember -Function Test-SasAutoLogonStateCaptureCleanupInventory,Test-SasAutoLogonStateCaptureWorkerResultIdentity,Test-SasAutoLogonStateCaptureParentInventory
