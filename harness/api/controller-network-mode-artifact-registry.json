@@ -1,0 +1,76 @@
+{
+  "schema_version": "sas-controller-network-mode-artifact-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "schema": "schemas/harness/controller-network-mode-artifact-registry.schema.json",
+  "naming": {
+    "tracked_report": "harness/reports/CONTROLLER_NETWORK_MODE_STATUS.md",
+    "runtime_certification": "%LOCALAPPDATA%/SysAdminSuite/controller-handoff/controller-repo-certification.json",
+    "network_evidence": "survey/output/network_posture/operator_network_posture_<timestamp>.json"
+  },
+  "artifacts": [
+    {
+      "id": "controller-network-mode-map",
+      "kind": "map",
+      "path": "harness/maps/controller-network-mode-map.md",
+      "generator": "maintained with controller network-mode harness changes",
+      "tracked": true,
+      "purpose": "Repository/controller map for serialized off-network Git preparation and protected-network deployment."
+    },
+    {
+      "id": "controller-network-mode-workflow",
+      "kind": "workflow",
+      "path": "harness/workflows/controller-network-mode-serialization.yaml",
+      "generator": "maintained with controller network-mode harness changes",
+      "tracked": true,
+      "purpose": "Machine-readable phase ordering, invariants, failure handling, validation, and handoff."
+    },
+    {
+      "id": "controller-network-mode-skill",
+      "kind": "skill",
+      "path": "harness/skills/controller-network-mode-serialization/SKILL.md",
+      "generator": "maintained with controller network-mode harness changes",
+      "tracked": true,
+      "purpose": "Repeatable procedure for agents handling Git-blocked protected network field work."
+    },
+    {
+      "id": "controller-network-mode-status",
+      "kind": "report",
+      "path": "harness/reports/CONTROLLER_NETWORK_MODE_STATUS.md",
+      "generator": "maintained from repository truth and focused validator evidence",
+      "tracked": true,
+      "purpose": "Human-readable state, repaired boundary, current product blocker, missing proof, and next gate."
+    },
+    {
+      "id": "controller-repo-certification",
+      "kind": "runtime_handoff",
+      "path": "%LOCALAPPDATA%/SysAdminSuite/controller-handoff/controller-repo-certification.json",
+      "generator": "OFF_NETWORK_REPOSITORY_PREP phase in harness/workflows/controller-network-mode-serialization.yaml",
+      "tracked": false,
+      "purpose": "Serialized exact checkout identity and validator proof consumed after network transition without invoking Git."
+    },
+    {
+      "id": "controller-network-posture-evidence",
+      "kind": "runtime_evidence",
+      "path": "survey/output/network_posture/operator_network_posture_<timestamp>.json",
+      "generator": "scripts/Confirm-SasNorthwellNetwork.ps1",
+      "tracked": false,
+      "purpose": "Protected-network gate evidence generated before target contact."
+    },
+    {
+      "id": "controller-network-mode-validation-result",
+      "kind": "validation",
+      "path": "console output or CI log from harness/validators/validate-controller-network-mode.py",
+      "generator": "python harness/validators/validate-controller-network-mode.py",
+      "tracked": false,
+      "purpose": "Focused proof that the phase boundary, artifacts, routing, hooks, CI, and product dependency observations remain coherent."
+    },
+    {
+      "id": "controller-network-mode-completeness-result",
+      "kind": "validation",
+      "path": "console output or CI log from Tests/survey/test_controller_network_mode_harness_completeness.py",
+      "generator": "python Tests/survey/test_controller_network_mode_harness_completeness.py",
+      "tracked": false,
+      "purpose": "Proof that every scoped controller network-mode harness component exists and is wired."
+    }
+  ]
+}

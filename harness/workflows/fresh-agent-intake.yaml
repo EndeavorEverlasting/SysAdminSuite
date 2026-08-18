@@ -6,7 +6,7 @@ target_mutation: false
 purpose: >-
   Give a fresh agent one deterministic route from repository intake to the smallest authorized
   workflow, desired-state contract, validator set, artifact contract, outcome contract, terminal-evidence
-  contract, pre-stage bootstrap safety contract, and handoff.
+  contract, pre-stage bootstrap safety contract, controller network-mode serialization contract, and handoff.
 
 inputs:
   required:
@@ -35,12 +35,14 @@ stages:
       - when an expected tracked launcher, validator, workflow, registry, or report is missing locally, route through harness/workflows/repository-freshness-before-launch.yaml before command reconstruction
       - when the task depends on current remote repository behavior, route through harness/workflows/repository-freshness-before-launch.yaml before interpreting the executing worktree as repository truth
       - when AutoLogon or S4U reports a failure before stage 1, or Windows PowerShell StrictMode reports a Count-property bootstrap failure and the controller checkout may be stale, route through harness/workflows/repository-freshness-before-launch.yaml before product or field diagnosis
+      - when Git is available before a protected-network transition but may be blocked afterward, route through harness/workflows/controller-network-mode-serialization.yaml before combining repository proof with protected-network work
       - remember that fetching origin/main alone does not update local main or the current worktree
       - remember that freshness routing does not grant repository-network or branch-update authority
       - require repository-network authority before the freshness workflow contacts the configured Git remote
       - preserve the default branch in an isolated worktree unless default-branch update authority is explicit
       - preserve dirty, diverged, or separately owned work with an isolated worktree
       - allow a clean owned non-default branch to use fast-forward-only convergence only when branch-update authority is explicit
+      - honor no_git_after_transition after controller network-mode serialization enters the protected-network phase
     stop_conditions:
       - repository cannot be resolved
       - requested work conflicts with governance or would overwrite unrelated work
@@ -56,6 +58,7 @@ stages:
       - read harness/api/harness-outcome-registry.json before treating any validator, dry run, plan, build, deploy, or runtime command as terminal
       - read harness/api/terminal-evidence-survival-registry.json before executing or recovering a registered terminal-sensitive field command
       - read harness/api/prestage-bootstrap-artifact-registry.json when the failure is classified as pre-stage bootstrap
+      - read harness/api/controller-network-mode-artifact-registry.json when repository work and protected-network work must be serialized
       - when AutoLogon, Cybernet, live cert, deployment, or runtime proof is involved, read harness/api/deployment-state-registry.json before selecting the command chain
 
   - id: route
@@ -67,6 +70,7 @@ stages:
       - for AutoLogon/Cybernet test, live-cert, deployment, or runtime-proof work, load harness/skills/cybernet-autologon-deployment-state/SKILL.md after the normal P00 route is selected
       - for a vanished, closed, crashed, interrupted, or terminal-sensitive registered field command, load harness/skills/terminal-evidence-survival/SKILL.md before choosing the operator entrypoint
       - after repository-freshness classification of a failure before stage 1 or StrictMode Count-property bootstrap failure, load harness/workflows/prestage-bootstrap-safety.yaml and harness/skills/prestage-bootstrap-safety/SKILL.md before any field rerun or S4U-task diagnosis
+      - when controller Git access and protected-network access cannot coexist, load harness/workflows/controller-network-mode-serialization.yaml and harness/skills/controller-network-mode-serialization/SKILL.md before field command selection
       - resolve desired product/runtime state before interpreting test, live cert, deploy, or runtime-proof wording
       - fail closed to .claude/skills/repository-sprint/SKILL.md when routing is unknown or conflicting
       - declare repo, branch, lane, mission, owned scope, forbidden scope, artifacts, validators, requested goal, desired state when applicable, and proof ceiling before writing
@@ -84,6 +88,8 @@ stages:
       - when a terminal vanished, recover the stable latest pointer and local artifacts before any target re-contact or rerun
       - preserve already-proven Cybernet clinical-core installation/acceptance instead of blindly reinstalling it to reach AutoLogon
       - follow registered same-turn continuations instead of handing safe executable work back to the operator
+      - for controller network-mode serialization, complete Git-dependent proof and write controller-repo-certification.json before transition; after transition consume that artifact without Git
+      - if the canonical protected-network product entrypoint still invokes Git, stop with PRODUCT_RUNTIME_GIT_DEPENDENCY instead of reconstructing an alternate launcher
 
   - id: validate
     order: 5
@@ -91,11 +97,12 @@ stages:
       - python harness/validators/validate-harness-registries.py
       - python harness/validators/validate-repository-freshness-contracts.py
       - python harness/validators/validate-prestage-bootstrap-safety.py when pre-stage bootstrap routing, artifacts, hooks, or current target-resolution regression dependencies change
+      - python harness/validators/validate-controller-network-mode.py when controller network-mode routing, artifacts, hooks, network dependencies, or protected-network entrypoint dependencies change
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
       - python harness/validators/validate-terminal-evidence-survival.py when terminal-evidence routing, artifacts, hooks, runner contracts, or front doors change
       - select additional validators from harness/api/harness-validator-registry.json by changed surface
-      - run git diff --check before commit
+      - run git diff --check before commit while Git is available
       - escalate to Pester, managed build, or E2E only when the changed surface or proof ceiling requires it
     failure:
       - stop at the first failed proof boundary
@@ -109,6 +116,7 @@ stages:
       - resolve success and continuation behavior through harness/api/harness-outcome-registry.json
       - resolve terminal-sensitive stable evidence and offline recovery through harness/api/terminal-evidence-survival-registry.json
       - resolve pre-stage bootstrap map/status/validation roles through harness/api/prestage-bootstrap-artifact-registry.json
+      - resolve controller network-mode map/status/certification roles through harness/api/controller-network-mode-artifact-registry.json
       - resolve AutoLogon/Cybernet critical state artifacts through harness/api/deployment-state-registry.json
       - keep generated evidence untracked unless a registry entry explicitly marks it tracked
       - render the current English harness view with python harness/reports/render-harness-status.py when a human status report is required
@@ -121,6 +129,8 @@ stages:
       - report commit SHA, push state, PR state, skipped checks, gaps, risks, and proof ceiling
       - use tools/New-SasSprintCapsule.ps1 for compressed next-agent transfer when needed
       - provide one exact next command only when a real unproven gate remains
+      - when controller network modes were serialized, report the exact certified commit and last completed phase; never require Git after the protected-network transition
+      - when PRODUCT_RUNTIME_GIT_DEPENDENCY is present, hand off to a separately authorized product-code lane before target contact
       - when AutoLogon deployment is proven and runtime remains requested, identify the separately authorized attended reboot/direct sign-in gate rather than returning to more tests
       - when a terminal vanished, report the preserved latest pointer and run root before proposing any new target action
       - never stop at tests passed, transport live cert passed, status reported, command printed, or wait for next chat when a registered safe continuation remains executable
@@ -136,22 +146,27 @@ outputs:
     - harness/api/deployment-state-registry.json
     - harness/api/terminal-evidence-survival-registry.json
     - harness/api/prestage-bootstrap-artifact-registry.json
+    - harness/api/controller-network-mode-artifact-registry.json
     - harness/workflows/repository-freshness-before-launch.yaml
     - harness/workflows/prestage-bootstrap-safety.yaml
+    - harness/workflows/controller-network-mode-serialization.yaml
     - harness/skills/harness-maintenance/SKILL.md
     - harness/skills/outcome-driven-execution/SKILL.md
     - harness/skills/cybernet-autologon-deployment-state/SKILL.md
     - harness/skills/terminal-evidence-survival/SKILL.md
     - harness/skills/prestage-bootstrap-safety/SKILL.md
+    - harness/skills/controller-network-mode-serialization/SKILL.md
     - harness/reports/PRESTAGE_BOOTSTRAP_SAFETY_STATUS.md
+    - harness/reports/CONTROLLER_NETWORK_MODE_STATUS.md
   generated_local:
     - survey/output/<workflow>/<run_id>/artifact_registry.json
     - survey/output/<workflow>/<run_id>/operator_handoff.txt
     - survey/output/<workflow>/<run_id>/review/sprint-capsule.*
     - %LOCALAPPDATA%/SysAdminSuite/last-autologon-field-run.json
+    - %LOCALAPPDATA%/SysAdminSuite/controller-handoff/controller-repo-certification.json
 
 proof_ceiling: >-
-  Fresh-agent routing, authorized repository-freshness selection, pre-stage failure classification, desired-state
-  selection, canonical command and terminal-evidence front-door selection, validator selection, artifact boundaries,
-  outcome continuation, and handoff structure only. Intake itself creates no product, target, deployment, reboot,
-  application, or live-runtime proof.
+  Fresh-agent routing, authorized repository-freshness selection, pre-stage failure classification, controller
+  network-mode serialization, desired-state selection, canonical command and terminal-evidence front-door selection,
+  validator selection, artifact boundaries, outcome continuation, and handoff structure only. Intake itself creates
+  no product, target, deployment, reboot, application, or live-runtime proof.

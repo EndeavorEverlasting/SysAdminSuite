@@ -1,0 +1,157 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: controller-network-mode-serialization
+mode: serialized_controller_phases
+network_activity: phase_scoped
+target_mutation: product_owned_after_all_gates
+purpose: >-
+  Prevent controller commands from mixing repository/Git preparation with protected-network deployment.
+  Finish Git-dependent proof off the protected network, serialize exact checkout identity, transition networks,
+  then consume the handoff without Git before any target operation.
+
+triggers:
+  - git works off network but is blocked on vpn
+  - firewall blocks git on protected network
+  - connect vpn before deployment
+  - could not read the local certified checkout head after connecting vpn
+  - a field command mixes clone or fetch with protected-network deployment
+  - repository freshness is proven but controller network mode is not
+
+inputs:
+  required:
+    - repository_root
+    - repository_identity
+    - selected_branch
+    - selected_commit
+  optional:
+    - pull_request
+    - owning_validators
+    - target_operation
+    - operator_network_transition
+
+invariants:
+  - remote_git_off_network_only
+  - no_git_after_transition
+  - serialized_checkout_identity_is_the_protected_phase_authority
+  - protected_network_gate_precedes_target_contact
+  - harness_lane_does_not_patch_product_runtime_git_dependencies
+  - live_hostnames_secrets_and_machine_specific_evidence_remain_untracked
+
+phases:
+  - id: OFF_NETWORK_REPOSITORY_PREP
+    order: 1
+    git_allowed: true
+    protected_network_required: false
+    target_contact_allowed: false
+    actions:
+      - resolve repository governance, branch, dirty state, worktrees, pull request, and exact selected commit
+      - fetch without force when current remote proof is required
+      - preserve dirty or separately owned work with an isolated worktree
+      - run owning validators before field transition
+      - run git diff --check when a tracked change is being prepared
+      - create the serialized controller certification artifact before leaving this phase
+    certification_artifact:
+      path: "%LOCALAPPDATA%/SysAdminSuite/controller-handoff/controller-repo-certification.json"
+      schema_version: sas-controller-repo-certification/v1
+      required_fields:
+        - schema_version
+        - repository
+        - branch
+        - commit
+        - source_repo_root
+        - generated_at_utc
+        - phase
+        - validators
+      required_phase_value: OFF_NETWORK_REPOSITORY_PREP
+      example_generation: >-
+        Create a JSON object from already-proven local values and write it with ConvertTo-Json/Set-Content.
+        The generation step itself may use Git because it occurs before the network transition.
+    completion_gate:
+      - exact selected commit is known
+      - owning validators pass
+      - certification artifact exists and records the exact commit and source checkout path
+      - no target contact occurred
+
+  - id: TRANSITION_TO_PROTECTED_NETWORK
+    order: 2
+    git_allowed: false
+    protected_network_required: transition
+    target_contact_allowed: false
+    actions:
+      - stop all git and gh commands before changing network posture
+      - retain the certified checkout without moving, cleaning, fetching, or re-proving it through Git
+      - connect the approved VPN or protected network
+      - carry forward only the serialized certification artifact and ordinary filesystem path
+    forbidden_commands:
+      - git
+      - gh
+      - git clone
+      - git fetch
+      - git pull
+      - git rev-parse
+      - git status
+      - git worktree
+      - git checkout
+    completion_gate:
+      - protected-network transition is complete
+      - no Git command has been used after transition
+
+  - id: PROTECTED_NETWORK_DEPLOYMENT
+    order: 3
+    git_allowed: false
+    protected_network_required: true
+    target_contact_allowed: only_after_network_gate
+    actions:
+      - read controller-repo-certification.json with filesystem APIs; do not invoke Git
+      - verify schema_version, repository, commit, phase, and source_repo_root from the serialized artifact
+      - run scripts/Enable-SasNorthwellVpnNetworkGuard.ps1 -ConfirmVpnPosture when VPN authority is required
+      - run scripts/Confirm-SasNorthwellNetwork.ps1 -NonInteractive -NoOpenWifiSettings before target contact
+      - inspect the registered product entrypoint dependency contract established during OFF_NETWORK_REPOSITORY_PREP
+      - if the canonical product entrypoint still requires Git in this phase, stop with PRODUCT_RUNTIME_GIT_DEPENDENCY
+      - otherwise continue through the registered canonical product entrypoint under its normal authorization gates
+    forbidden_commands:
+      - git
+      - gh
+      - git clone
+      - git fetch
+      - git pull
+      - git rev-parse
+      - git status
+      - git worktree
+      - git checkout
+    failure_classifications:
+      NETWORK_POSTURE_UNPROVEN: protected-network gate did not certify the controller
+      CERTIFICATION_ARTIFACT_INVALID: serialized repository proof is missing, malformed, or does not match the planned operation
+      PRODUCT_RUNTIME_GIT_DEPENDENCY: canonical product execution still invokes Git after the protected-network transition
+    completion_gate:
+      - serialized repository certification is accepted without Git
+      - approved protected-network posture is proven
+      - canonical product path is confirmed Git-independent for this phase before any target contact
+      - target operation, if authorized, remains product-owned
+
+failure_handling:
+  - never reconnect public/off-network access merely to run a Git check in the middle of a protected transaction
+  - never weaken the protected-network gate to preserve Git access
+  - never reconstruct an unregistered deployment path to bypass PRODUCT_RUNTIME_GIT_DEPENDENCY
+  - return to OFF_NETWORK_REPOSITORY_PREP only after abandoning the protected transaction with no target mutation in flight
+  - product runtime Git dependency repairs require a separate product-code lane
+
+validation:
+  commands:
+    - python harness/validators/validate-controller-network-mode.py
+    - python Tests/survey/test_controller_network_mode_harness_completeness.py
+    - python harness/validators/validate-prestage-bootstrap-safety.py
+    - python harness/validators/validate-repository-freshness-contracts.py
+    - git diff --check
+  proof_ceiling: >-
+    Static harness proof that controller phases are serialized, network proof precedes target contact,
+    and a current product Git dependency is surfaced rather than bypassed. No live VPN, Git-block,
+    target-contact, target-mutation, restart, or AutoLogon success is claimed.
+
+handoff:
+  required:
+    - exact repository, branch, and commit from the serialized certification
+    - phase reached and whether network transition occurred
+    - validator results
+    - protected-network evidence path when generated
+    - failure classification when blocked
+    - explicit statement that no target proof is claimed unless product evidence exists

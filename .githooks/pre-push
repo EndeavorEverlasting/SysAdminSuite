@@ -54,6 +54,10 @@ validate_freshness_tip() {
       python3 harness/validators/validate-prestage-bootstrap-safety.py
       python3 Tests/survey/test_prestage_bootstrap_harness_completeness.py
     fi
+    if [[ -f harness/validators/validate-controller-network-mode.py ]]; then
+      python3 harness/validators/validate-controller-network-mode.py
+      python3 Tests/survey/test_controller_network_mode_harness_completeness.py
+    fi
   )
   git worktree remove --force "$wt" >/dev/null
   rm -rf "$root"
