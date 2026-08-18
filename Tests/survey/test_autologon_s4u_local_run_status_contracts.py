@@ -47,6 +47,24 @@ def test_observer_distinguishes_silent_s4u_stages() -> None:
         assert marker in text, marker
 
 
+def test_observer_follows_only_approved_compact_transport_links() -> None:
+    text = read()
+    for marker in (
+        "transport_preflight_link.json",
+        "sas-software-deployment-transport-link/v1",
+        "software_deployment_transport_result.json",
+        "$approvedTransportRoot = Join-Path $repoRoot 'runs'",
+        "Test-SasStatusPathUnderRoot",
+        "preflight_result_path = $preflightResultPath",
+        "preflight_link_present",
+        "preflight_link_valid",
+    ):
+        assert marker in text, marker
+    # A compact pointer is local evidence, never authority to follow an arbitrary path.
+    assert "[IO.Path]::GetFileName($linkedPath) -eq 'software_deployment_transport_result.json'" in text
+    assert "Test-Path -LiteralPath $linkedPath -PathType Leaf" in text
+
+
 def main() -> None:
     tests = [value for name, value in sorted(globals().items()) if name.startswith("test_")]
     for test in tests:
