@@ -77,7 +77,8 @@ $preparedCommit = ([string]$runtimeState.prepared_commit).Trim()
 if ([string]::IsNullOrWhiteSpace($preparedCommit)) {
     throw 'AUTOLOGON_RUNTIME_NOT_PREPARED: staging manifest has no prepared commit.'
 }
-if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit) -and $preparedCommit -ne $ExpectedCommit.Trim()) {
+if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit) -and
+    -not $preparedCommit.Equals($ExpectedCommit.Trim(), [StringComparison]::OrdinalIgnoreCase)) {
     throw "AUTOLOGON_RUNTIME_COMMIT_MISMATCH: expected $($ExpectedCommit.Trim()); staged runtime is $preparedCommit. Refresh on Guest/Internet before protected deployment."
 }
 
