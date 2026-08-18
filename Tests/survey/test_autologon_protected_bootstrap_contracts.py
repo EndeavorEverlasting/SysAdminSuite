@@ -58,8 +58,12 @@ def test_guest_refresh_owns_remote_acquisition_and_creates_hash_seal() -> None:
     assert "remote','remove'" in prepare
     assert "sas-autologon-short-runtime/v2" in prepare
     assert "tracked_file_hash_algorithm = 'SHA256'" in prepare
-    assert "tracked_file_count = $trackedFileHashes.Count" in prepare
-    assert "tracked_file_hashes = @($trackedFileHashes)" in prepare
+    assert "$trackedFileHashes = @()" in prepare
+    assert "$trackedFileHashCount = $trackedFileHashes.Count" in prepare
+    assert "tracked_file_count = $trackedFileHashCount" in prepare
+    assert "tracked_file_hashes = $trackedFileHashes" in prepare
+    assert "System.Collections.Generic.List[object]" not in prepare
+    assert "tracked_file_hashes = @($trackedFileHashes)" not in prepare
     assert "@('ls-files')" in prepare
     assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in prepare
     assert "Protected-side Git activity: NONE" in prepare
