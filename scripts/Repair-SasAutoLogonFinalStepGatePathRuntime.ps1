@@ -51,6 +51,22 @@ function Assert-SasRepairParseText {
     }
 }
 
+function Get-SasLiteralOccurrenceCount {
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [Parameter(Mandatory = $true)][string]$Needle
+    )
+    $count = 0
+    $offset = 0
+    while ($offset -lt $Text.Length) {
+        $index = $Text.IndexOf($Needle, $offset, [StringComparison]::Ordinal)
+        if ($index -lt 0) { break }
+        $count++
+        $offset = $index + $Needle.Length
+    }
+    return $count
+}
+
 function Test-SasFinalGatePathRepairPresent {
     param([Parameter(Mandatory = $true)][string]$Text)
     foreach ($marker in @(
@@ -149,10 +165,10 @@ if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
 }
 '@
 
-    if (($normalized.Split($preludeAnchor).Count - 1) -ne 1) {
+    if ((Get-SasLiteralOccurrenceCount -Text $normalized -Needle $preludeAnchor) -ne 1) {
         throw 'Final-step gate repair prelude anchor is missing or ambiguous.'
     }
-    if (($normalized.Split($oldWriteBlock).Count - 1) -ne 1) {
+    if ((Get-SasLiteralOccurrenceCount -Text $normalized -Needle $oldWriteBlock) -ne 1) {
         throw 'Final-step gate repair write-block anchor is missing or ambiguous.'
     }
 
