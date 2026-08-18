@@ -60,6 +60,15 @@ function New-LongOutputRoot {
     return $root
 }
 
+function New-TooDeepOutputRoot {
+    param([Parameter(Mandatory = $true)][string]$BaseRoot)
+    $root = Join-Path $BaseRoot 'deep'
+    while ((Join-Path $root 'autologon_final_step_gate.json').Length -le 250) {
+        $root = Join-Path $root ('deep-' + ('q' * 14))
+    }
+    return $root
+}
+
 foreach ($ending in @('crlf','lf')) {
     $root = Join-Path ([IO.Path]::GetTempPath()) ('sas-final-gate-repair-' + $ending + '-' + [guid]::NewGuid().ToString('N'))
     $scripts = Join-Path $root 'scripts'
@@ -81,13 +90,15 @@ foreach ($ending in @('crlf','lf')) {
         Assert-True (-not [bool]$first.network_activity_performed) "$ending repair performed network activity."
         Assert-True (-not [bool]$first.target_contact_performed) "$ending repair contacted a target."
         Assert-True (-not [bool]$first.target_mutation_performed) "$ending repair mutated a target."
+        Assert-True ([string]$first.schema_version -eq 'sas-autologon-final-gate-path-runtime-repair/v2') "$ending repair evidence schema did not advance to v2."
 
         $repaired = [IO.File]::ReadAllText($fixture)
         foreach ($marker in @(
             '$finalGatePathBudgetChars = 240',
             "`$finalGateFileName = 'autologon_final_step_gate.json'",
+            '$finalGateFallbackRoot = Join-Path',
             'FINAL_GATE_OUTPUT_PATH_COMPACTED',
-            "`$gateResult['output_path_compacted'] = `$compacted",
+            "`$gateResult['output_path_compaction_mode'] = `$compactionMode",
             'Compacted final-step gate output collision'
         )) {
             Assert-True ($repaired.Contains($marker)) "$ending repaired fixture missing marker: $marker"
@@ -109,10 +120,26 @@ foreach ($ending in @('crlf','lf')) {
 
         $written = Get-Content -LiteralPath $flat -Raw -Encoding UTF8 | ConvertFrom-Json
         Assert-True ([bool]$written.output_path_compacted) "$ending compacted artifact did not record compaction."
+        Assert-True ([string]$written.output_path_compaction_mode -eq 'requested_root') "$ending field-class artifact did not record requested-root compaction."
         Assert-True ([string]$written.output_path -eq ([IO.Path]::GetFullPath($flat))) "$ending compacted artifact recorded the wrong actual path."
         Assert-True ([string]$written.output_path_requested -eq ([IO.Path]::GetFullPath($requested))) "$ending compacted artifact lost the requested path."
         Assert-True ([int]$written.output_path_budget_chars -eq 240) "$ending compacted artifact lost the 240-character budget."
         Assert-True ([string]$written.run_id -eq $runId) "$ending compacted artifact lost run identity."
+
+        $deepRoot = New-TooDeepOutputRoot -BaseRoot (Join-Path $root 'too-deep-output')
+        $deepFlat = Join-Path $deepRoot 'autologon_final_step_gate.json'
+        Assert-True ($deepFlat.Length -gt 240) "$ending deep fixture did not exceed the flat path budget."
+        $fallbackExpected = Join-Path (Join-Path (Join-Path (Join-Path $root 'runs') 'final-gate') $runId) 'autologon_final_step_gate.json'
+        Assert-True ($fallbackExpected.Length -le 240) "$ending repaired fallback path unexpectedly exceeds budget."
+
+        $deepOutput = @(& $fixture -RunId $runId -OutputRoot $deepRoot)
+        $deepGateRun = @($deepOutput | Where-Object { $_.PSObject.Properties.Name -contains 'overall_pass' }) | Select-Object -Last 1
+        Assert-True ($null -ne $deepGateRun -and [bool]$deepGateRun.overall_pass) "$ending deep-root repaired gate did not return success."
+        Assert-True (Test-Path -LiteralPath $fallbackExpected -PathType Leaf) "$ending repaired gate did not write repository fallback evidence."
+        $deepWritten = Get-Content -LiteralPath $fallbackExpected -Raw -Encoding UTF8 | ConvertFrom-Json
+        Assert-True ([string]$deepWritten.output_path_compaction_mode -eq 'repository_runs') "$ending deep-root artifact did not record repository-runs mode."
+        Assert-True ([string]$deepWritten.output_path -eq ([IO.Path]::GetFullPath($fallbackExpected))) "$ending deep-root artifact recorded the wrong fallback path."
+        Assert-True ([string]$deepWritten.run_id -eq $runId) "$ending deep-root artifact lost run identity."
 
         $second = & $repairScript -RuntimeRoot $root -EvidenceRoot $evidenceTwo -ConfirmRepair -PassThru
         Assert-True ([string]$second.classification -eq 'AUTOLOGON_FINAL_GATE_PATH_RUNTIME_REPAIR_ALREADY_PRESENT') `
@@ -120,7 +147,7 @@ foreach ($ending in @('crlf','lf')) {
         Assert-True (-not [bool]$second.changed) "$ending second repair reported an unexpected change."
         Assert-True ([bool]$second.semantic_verification) "$ending second repair lost semantic verification."
 
-        Write-Host "PASS: $ending final-step gate runtime repair, ~270-character artifact compaction, and idempotence"
+        Write-Host "PASS: $ending final-step gate runtime repair, field-class compaction, deep-root fallback, and idempotence"
     }
     finally {
         if (Test-Path -LiteralPath $root -PathType Container) {
