@@ -156,20 +156,25 @@ try {
 
         $lineEnding = if ($original.Contains("`r`n")) { "`r`n" } else { "`n" }
         $normalized = $original.Replace("`r`n", "`n")
-        if (-not $normalized.Contains($nativeAnchor)) {
+        $nativeAnchorNormalized = $nativeAnchor.Replace("`r`n", "`n")
+        $nativeReplacementNormalized = $nativeReplacement.Replace("`r`n", "`n")
+        $createAnchorNormalized = $createAnchor.Replace("`r`n", "`n")
+        $createReplacementNormalized = $createReplacement.Replace("`r`n", "`n")
+
+        if (-not $normalized.Contains($nativeAnchorNormalized)) {
             throw 'Native lifecycle anchor was not found exactly once in the protected runtime.'
         }
-        if ($normalized.IndexOf($nativeAnchor) -ne $normalized.LastIndexOf($nativeAnchor)) {
+        if ($normalized.IndexOf($nativeAnchorNormalized) -ne $normalized.LastIndexOf($nativeAnchorNormalized)) {
             throw 'Native lifecycle anchor is ambiguous; refusing repair.'
         }
-        if (-not $normalized.Contains($createAnchor)) {
+        if (-not $normalized.Contains($createAnchorNormalized)) {
             throw 'Create-timeout handling anchor was not found exactly once in the protected runtime.'
         }
-        if ($normalized.IndexOf($createAnchor) -ne $normalized.LastIndexOf($createAnchor)) {
+        if ($normalized.IndexOf($createAnchorNormalized) -ne $normalized.LastIndexOf($createAnchorNormalized)) {
             throw 'Create-timeout handling anchor is ambiguous; refusing repair.'
         }
 
-        $repairedNormalized = $normalized.Replace($nativeAnchor, $nativeReplacement).Replace($createAnchor, $createReplacement)
+        $repairedNormalized = $normalized.Replace($nativeAnchorNormalized, $nativeReplacementNormalized).Replace($createAnchorNormalized, $createReplacementNormalized)
         $repaired = if ($lineEnding -eq "`r`n") { $repairedNormalized.Replace("`n", "`r`n") } else { $repairedNormalized }
         [IO.File]::WriteAllText($pilotPath, $repaired, (New-Object Text.UTF8Encoding($false)))
         Assert-SasPowerShellParses -Path $pilotPath
