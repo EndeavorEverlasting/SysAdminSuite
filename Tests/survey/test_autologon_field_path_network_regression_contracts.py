@@ -46,6 +46,17 @@ def main() -> None:
     assert "Do not force-reload it" in state
     assert "Get-SasObjectPropertyValue" in field
 
+    # Protected AutoLogon operator-state bookkeeping consumes the already-sealed manifest identity
+    # instead of invoking Git for HEAD/branch metadata after the network transition.
+    assert "Get-SasAutoLogonPreparedRuntimeIdentity" in state
+    assert "autologon-short-runtime.json" in state
+    assert "prepared_commit" in state
+    assert "git_invoked = $false" in state
+    assert "repo_branch=$runtimeIdentity.branch" in state
+    assert "repo_head=$runtimeIdentity.commit" in state
+    assert "Get-SasRepoHead -RepoRoot $RepoRoot" not in state
+    assert "& git" not in state
+
     # VPN bootstrap and canonical guard must agree on the authority model: an active
     # DomainAuthenticated non-Wi-Fi interface plus an exact allowlisted local IP.
     required_guard = (
