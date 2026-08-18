@@ -71,7 +71,7 @@ function Test-SasFinalGatePathRepairPresent {
     param([Parameter(Mandatory = $true)][string]$Text)
     foreach ($marker in @(
         '$finalGatePathBudgetChars = 240',
-        "$finalGateFileName = 'autologon_final_step_gate.json'",
+        '$finalGateFileName = ''autologon_final_step_gate.json''',
         'FINAL_GATE_OUTPUT_PATH_COMPACTED',
         "`$gateResult['output_path_compacted'] = `$compacted",
         'Compacted final-step gate output collision'
