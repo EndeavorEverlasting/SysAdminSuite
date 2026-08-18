@@ -25,8 +25,8 @@ def test_prepare_is_guest_only_local_transport_and_hash_sealed() -> None:
     assert "SAS_AUTOLOGON_SHORT_RUNTIME_READY" in text
     assert "sas-autologon-short-runtime/v2" in text
     assert "tracked_file_hash_algorithm = 'SHA256'" in text
-    assert "tracked_file_count = $trackedFileHashes.Count" in text
-    assert "tracked_file_hashes = @($trackedFileHashes)" in text
+    assert "tracked_file_count = $trackedFileHashCount" in text
+    assert "tracked_file_hashes = $trackedFileHashes" in text
     assert "@('ls-files')" in text
     assert "Get-FileHash -LiteralPath $fullPath -Algorithm SHA256" in text
     lowered = text.lower()
@@ -63,6 +63,17 @@ def test_guest_git_capture_treats_empty_stderr_as_empty_string() -> None:
     assert "if ($stdoutLines.Count -gt 0)" in text
     assert "return @($stdoutLines)" in text
     assert "return ([string]$value).Trim()" in text
+
+
+def test_winps_manifest_seal_avoids_generic_list_array_binding() -> None:
+    text = read(PREPARE)
+    assert "$trackedFileHashes = @()" in text
+    assert "$trackedFileHashes += [pscustomobject][ordered]@{" in text
+    assert "$trackedFileHashCount = $trackedFileHashes.Count" in text
+    assert "tracked_file_count = $trackedFileHashCount" in text
+    assert "tracked_file_hashes = $trackedFileHashes" in text
+    assert "System.Collections.Generic.List[object]" not in text
+    assert "tracked_file_hashes = @($trackedFileHashes)" not in text
 
 
 def test_protected_bootstrap_is_git_free_and_verifies_guest_seal() -> None:
