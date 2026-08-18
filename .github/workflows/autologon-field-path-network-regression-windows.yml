@@ -31,8 +31,8 @@ jobs:
       - name: Execute CRLF and LF S4U path-budget runtime repair fixtures
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
           & .\Tests\PowerShell\AutoLogonS4UPathBudgetRuntimeRepair.Tests.ps1
-          if ($LASTEXITCODE -ne 0) { throw "Runtime repair fixture suite failed with exit code $LASTEXITCODE" }
       - name: Resolve canonical FQDN under Windows PowerShell 5.1
         shell: powershell
         run: |
