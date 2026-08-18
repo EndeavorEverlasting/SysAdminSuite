@@ -17,6 +17,7 @@ on:
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
       - '.github/workflows/northwell-printer-mapping-contracts.yml'
   pull_request:
     paths:
@@ -30,6 +31,7 @@ on:
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
       - '.github/workflows/northwell-printer-mapping-contracts.yml'
 
 jobs:
@@ -49,7 +51,8 @@ jobs:
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
             '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
             '.\Utilities\Map-Printer.ps1',
-            '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1'
+            '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterMappingCollisionRepair.Tests.ps1'
           )
           $allErrors = @()
           foreach ($file in $files) {
@@ -87,6 +90,13 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File
           .\tools\Test-Pester5Suite.ps1
           -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+
+      - name: Run stale direct-IP collision repair contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterMappingCollisionRepair.Tests.ps1
 
       - name: Check pull-request patch whitespace
         if: github.event_name == 'pull_request'

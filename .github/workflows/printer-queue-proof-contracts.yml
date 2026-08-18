@@ -1,0 +1,103 @@
+name: Printer queue proof contracts
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'Prove-NorthwellPrinter-Queue.cmd'
+      - 'Repair-NorthwellPrinter-Queue-Evidence.cmd'
+      - 'Open-NorthwellPrinter-Queue-Proof-Logs.cmd'
+      - 'scripts/Invoke-SasNorthwellPrinterQueueOperationalCheck.ps1'
+      - 'scripts/Invoke-SasNorthwellPrinterQueueProof.ps1'
+      - 'scripts/Repair-SasNorthwellPrinterQueueEvidence.ps1'
+      - 'harness/api/copy-safe-operator-command-policy.json'
+      - 'harness/validators/validate-copy-safe-operator-commands.py'
+      - 'Tests/survey/test_northwell_printer_queue_proof_contracts.py'
+      - 'Tests/survey/test_northwell_printer_queue_proof_dns.ps1'
+      - 'Tests/survey/test_northwell_printer_operational_outcome.ps1'
+      - 'Tests/survey/test_northwell_printer_evidence_repair.ps1'
+      - 'docs/COPY_SAFE_OPERATOR_COMMANDS.md'
+      - '.github/workflows/printer-queue-proof-contracts.yml'
+  push:
+    branches: [main, 'feat/**', 'repair/**']
+    paths:
+      - 'Prove-NorthwellPrinter-Queue.cmd'
+      - 'Repair-NorthwellPrinter-Queue-Evidence.cmd'
+      - 'Open-NorthwellPrinter-Queue-Proof-Logs.cmd'
+      - 'scripts/Invoke-SasNorthwellPrinterQueueOperationalCheck.ps1'
+      - 'scripts/Invoke-SasNorthwellPrinterQueueProof.ps1'
+      - 'scripts/Repair-SasNorthwellPrinterQueueEvidence.ps1'
+      - 'harness/api/copy-safe-operator-command-policy.json'
+      - 'harness/validators/validate-copy-safe-operator-commands.py'
+      - 'Tests/survey/test_northwell_printer_queue_proof_contracts.py'
+      - 'Tests/survey/test_northwell_printer_queue_proof_dns.ps1'
+      - 'Tests/survey/test_northwell_printer_operational_outcome.ps1'
+      - 'Tests/survey/test_northwell_printer_evidence_repair.ps1'
+      - 'docs/COPY_SAFE_OPERATOR_COMMANDS.md'
+      - '.github/workflows/printer-queue-proof-contracts.yml'
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate copy-safe harness policy
+        shell: pwsh
+        run: python .\harness\validators\validate-copy-safe-operator-commands.py
+
+      - name: Run printer queue operational contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_northwell_printer_queue_proof_contracts.py
+
+      - name: Parse Windows PowerShell 5.1 engines
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($path in @(
+            '.\scripts\Invoke-SasNorthwellPrinterQueueProof.ps1',
+            '.\scripts\Invoke-SasNorthwellPrinterQueueOperationalCheck.ps1',
+            '.\scripts\Repair-SasNorthwellPrinterQueueEvidence.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $path),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              throw ("Parser failures in ${path}:`n" + ($errors | ForEach-Object { $_.Message } | Out-String))
+            }
+          }
+          Write-Host 'PASS: printer diagnostic, operational, and evidence-repair engines parse under Windows PowerShell 5.1.'
+
+      - name: Reproduce heterogeneous DNS records under StrictMode
+        shell: powershell
+        run: powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\test_northwell_printer_queue_proof_dns.ps1
+
+      - name: Prove no-print operational outcome precedence
+        shell: powershell
+        run: powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\test_northwell_printer_operational_outcome.ps1
+
+      - name: Reclassify existing physical evidence without re-execution
+        shell: powershell
+        run: powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Tests\survey\test_northwell_printer_evidence_repair.ps1
+
+      - name: Check patch whitespace
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+            git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+          else
+            git show --check --oneline --no-renames HEAD
+          fi

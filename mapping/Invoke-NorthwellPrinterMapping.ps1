@@ -113,6 +113,7 @@ New-Item -ItemType Directory -Path $SessionRoot -Force | Out-Null
 $controllerLog = Join-Path $SessionRoot 'Controller.log'
 $planPath = Join-Path $SessionRoot 'ResolvedPlan.json'
 $summaryPath = Join-Path $SessionRoot 'Summary.json'
+$latestPath = Join-Path (Join-Path $PSScriptRoot 'Logs') 'LATEST-PATH.txt'
 $results = New-Object System.Collections.Generic.List[object]
 
 function Write-ControllerLog {
@@ -130,6 +131,9 @@ function Write-RunSummary {
         Mode = 'MachineWidePerComputer'
         RemoteIdentity = 'SYSTEM'
         PrinterCommand = 'rundll32 printui.dll,PrintUIEntry /ga'
+        Repairs = @($results | ForEach-Object { @($_.Repairs) })
+        PrinterPortsDeleted = $false
+        TestPagesPrinted = $false
         Computers = $resolvedComputers
         Printers = $resolvedPrinters
         CompletedTargets = $results.Count
@@ -137,8 +141,10 @@ function Write-RunSummary {
         Results = @($results)
         PlanPath = $planPath
         ControllerLog = $controllerLog
+        SessionRoot = $SessionRoot
         Updated = (Get-Date).ToString('o')
     } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+    $SessionRoot | Set-Content -LiteralPath $latestPath -Encoding UTF8
 }
 
 function Invoke-RemoteTaskScheduler {
@@ -166,6 +172,9 @@ function Invoke-RemoteTaskScheduler {
     Transport = 'SMB+C$+RemoteTaskScheduler'
     RemoteIdentity = 'SYSTEM'
     PrinterCommand = 'rundll32 printui.dll,PrintUIEntry /ga'
+    CollisionRepair = 'same-queue local direct-IP printer object only; printer port preserved'
+    PrinterPortsDeleted = $false
+    TestPagesPrinted = $false
     Computers = $resolvedComputers
     Printers = $resolvedPrinters
     Created = (Get-Date).ToString('o')
@@ -176,7 +185,8 @@ Write-ControllerLog "Targets: $($resolvedComputers -join ', ')"
 Write-ControllerLog "Queues : $($resolvedPrinters -join ', ')"
 Write-ControllerLog "Evidence: $SessionRoot"
 Write-ControllerLog 'Policy: shared queue names only; direct printer IP mapping is rejected.'
-Write-ControllerLog 'Scope: per-computer (/ga), executed as SYSTEM for multi-user PCs.'
+Write-ControllerLog 'Repair: exact same-queue local direct-IP printer collisions are removed; TCP/IP ports are preserved.'
+Write-ControllerLog 'Scope: per-computer (/ga), executed as SYSTEM for multi-user PCs. No test page is emitted.'
 Write-RunSummary
 
 if ($WhatIfPreference) {
@@ -223,6 +233,41 @@ function Get-MachineWidePrinterConnections {
     )
 }
 
+function Get-StaleLocalIpQueueCollision {
+    param([Parameter(Mandatory)][string]$Queue)
+
+    if ($Queue -notmatch '^\\\\[^\\]+\\([^\\]+)$') {
+        throw "Unsafe/non-UNC queue reached collision repair: $Queue"
+    }
+    $queueLeaf = [string]$Matches[1]
+
+    $candidates = @(
+        Get-Printer -ErrorAction Stop | Where-Object {
+            $name = [string]$_.Name
+            $share = [string]$_.ShareName
+            $computer = [string]$_.ComputerName
+            $port = [string]$_.PortName
+
+            $sameQueue = [string]::Equals($name, $Queue, [System.StringComparison]::OrdinalIgnoreCase) -or
+                [string]::Equals($name, $queueLeaf, [System.StringComparison]::OrdinalIgnoreCase) -or
+                [string]::Equals($share, $queueLeaf, [System.StringComparison]::OrdinalIgnoreCase)
+            $localObject = [string]::IsNullOrWhiteSpace($computer)
+            $directIpPort = $port -match '^(?i:(?:IP_|TCP_)?\d{1,3}(?:\.\d{1,3}){3}(?:_\d+)?)$'
+
+            $sameQueue -and $localObject -and $directIpPort
+        }
+    )
+
+    if ($candidates.Count -gt 1) {
+        $details = @($candidates | ForEach-Object { '{0} [{1}]' -f $_.Name,$_.PortName }) -join ', '
+        throw "AMBIGUOUS_LOCAL_IP_QUEUE_COLLISION for $Queue: $details"
+    }
+
+    return @($candidates)
+}
+
+$repairs = New-Object System.Collections.Generic.List[object]
+
 try {
     $config = Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
     $queues = @($config.Printers | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
@@ -237,6 +282,24 @@ try {
         if ($queue -notmatch '^\\\\[^\\]+\\[^\\]+$') {
             throw "Unsafe/non-UNC queue reached agent: $queue"
         }
+
+        $collision = @(Get-StaleLocalIpQueueCollision -Queue $queue)
+        if ($collision.Count -eq 1) {
+            $staleName = [string]$collision[0].Name
+            $stalePort = [string]$collision[0].PortName
+            Write-AgentLog "REPAIR REPAIRED_STALE_DIRECT_IP_QUEUE_COLLISION queue=$queue printer=$staleName port=$stalePort"
+            Write-AgentLog 'Repair scope: remove stale printer object only; preserve its TCP/IP port.'
+            Remove-Printer -Name $staleName -Confirm:$false -ErrorAction Stop
+            [void]$repairs.Add([pscustomobject]@{
+                Classification = 'REPAIRED_STALE_DIRECT_IP_QUEUE_COLLISION'
+                Queue = $queue
+                RemovedPrinter = $staleName
+                PreservedPort = $stalePort
+                PrinterPortDeleted = $false
+                TestPagePrinted = $false
+            })
+        }
+
         Write-AgentLog "ADD /ga $queue"
         & "$env:SystemRoot\System32\rundll32.exe" 'printui.dll,PrintUIEntry' '/ga' "/n$queue"
         $printUiExitCode = $LASTEXITCODE
@@ -277,6 +340,9 @@ try {
         Requested = $queues
         MachineWideUNC = $machineWide
         Missing = $missing
+        Repairs = @($repairs)
+        PrinterPortsDeleted = $false
+        TestPagesPrinted = $false
         Finished = (Get-Date).ToString('o')
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statusPath -Encoding UTF8
 }
@@ -288,6 +354,9 @@ catch {
         Identity = $identity
         Mode = 'MachineWidePerComputer'
         Success = $false
+        Repairs = @($repairs)
+        PrinterPortsDeleted = $false
+        TestPagesPrinted = $false
         Error = $_.Exception.Message
         Finished = (Get-Date).ToString('o')
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statusPath -Encoding UTF8
@@ -318,6 +387,7 @@ foreach ($computer in $resolvedComputers) {
         Success = $false
         Stage = 'Preflight'
         Message = ''
+        Repairs = @()
         Evidence = $localHostDir
     }
 
@@ -363,10 +433,17 @@ foreach ($computer in $resolvedComputers) {
         $status = Get-Content -LiteralPath $remoteStatusAdmin -Raw | ConvertFrom-Json
         $null = Assert-SasNorthwellPrinterStatusProof -Status $status -RequestedPrinters $resolvedPrinters
 
+        $repairCount = @($status.Repairs).Count
+        $hostResult.Repairs = @($status.Repairs)
         $hostResult.Success = $true
         $hostResult.Stage = 'VerifiedMachineWide'
-        $hostResult.Message = 'SYSTEM /ga completed and all requested queues were verified under HKLM.'
-        Write-ControllerLog "[$computer] PASS: machine-wide registration verified."
+        if ($repairCount -gt 0) {
+            $hostResult.Message = "Repaired $repairCount stale direct-IP queue collision(s), then SYSTEM /ga completed and HKLM proof passed."
+        }
+        else {
+            $hostResult.Message = 'SYSTEM /ga completed and all requested queues were verified under HKLM; no stale same-queue IP collision was found.'
+        }
+        Write-ControllerLog "[$computer] PASS: machine-wide registration verified; collision repairs=$repairCount."
     }
     catch {
         $hostResult.Success = $false
