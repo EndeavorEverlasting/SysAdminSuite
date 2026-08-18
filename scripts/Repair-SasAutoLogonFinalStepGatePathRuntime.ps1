@@ -93,16 +93,12 @@ if (-not $alreadyPresent) {
     $newline = if ($source.Contains("`r`n")) { "`r`n" } else { "`n" }
     $normalized = $source.Replace("`r`n","`n").Replace("`r","`n")
 
-    $preludeAnchor = @'
-Set-StrictMode -Version 2.0
-$ErrorActionPreference = 'Stop'
-'@
-    $preludeReplacement = @'
-Set-StrictMode -Version 2.0
-$ErrorActionPreference = 'Stop'
-
+    $gateResultAnchor = '$gateResult = [ordered]@{'
+    $gateResultReplacement = @'
 $finalGatePathBudgetChars = 240
 $finalGateFileName = 'autologon_final_step_gate.json'
+
+$gateResult = [ordered]@{
 '@
 
     $oldWriteBlock = @'
@@ -165,14 +161,14 @@ if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
 }
 '@
 
-    if ((Get-SasLiteralOccurrenceCount -Text $normalized -Needle $preludeAnchor) -ne 1) {
-        throw 'Final-step gate repair prelude anchor is missing or ambiguous.'
+    if ((Get-SasLiteralOccurrenceCount -Text $normalized -Needle $gateResultAnchor) -ne 1) {
+        throw 'Final-step gate repair gate-result anchor is missing or ambiguous.'
     }
     if ((Get-SasLiteralOccurrenceCount -Text $normalized -Needle $oldWriteBlock) -ne 1) {
         throw 'Final-step gate repair write-block anchor is missing or ambiguous.'
     }
 
-    $candidate = $normalized.Replace($preludeAnchor, $preludeReplacement).Replace($oldWriteBlock, $newWriteBlock)
+    $candidate = $normalized.Replace($gateResultAnchor, $gateResultReplacement).Replace($oldWriteBlock, $newWriteBlock)
     if ($newline -eq "`r`n") { $candidate = $candidate.Replace("`n","`r`n") }
 
     try {
