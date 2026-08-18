@@ -1,0 +1,47 @@
+name: AutoLogon S4U Create Timeout Repair
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1'
+      - 'Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py'
+      - 'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
+      - '.github/workflows/autologon-s4u-create-timeout-repair.yml'
+  push:
+    paths:
+      - 'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1'
+      - 'Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py'
+      - 'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
+      - '.github/workflows/autologon-s4u-create-timeout-repair.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  windows-repair-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static repair contracts
+        shell: pwsh
+        run: python Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py
+      - name: Windows PowerShell 5.1 parse repair surfaces
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($path in @(
+            'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1',
+            'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw "$path parse failed: $($errors[0].Message)" }
+          }
+          Write-Host 'PASS: Windows PowerShell 5.1 parse'
+      - name: Execute LF CRLF and idempotence fixtures
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1
+      - name: Diff hygiene
+        shell: pwsh
+        run: git diff --check
