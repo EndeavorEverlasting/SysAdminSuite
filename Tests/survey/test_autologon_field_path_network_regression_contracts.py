@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
 FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
+STATE = ROOT / "scripts" / "SasAutoLogonOperatorState.psm1"
 S4U = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
 NETWORK_GUARD = ROOT / "scripts" / "SasNetworkGuard.psm1"
 VPN_BOOTSTRAP = ROOT / "scripts" / "Enable-SasNorthwellVpnNetworkGuard.ps1"
@@ -14,6 +15,7 @@ GITIGNORE = ROOT / ".gitignore"
 def main() -> None:
     onsite = ONSITE.read_text(encoding="utf-8")
     field = FIELD.read_text(encoding="utf-8")
+    state = STATE.read_text(encoding="utf-8")
     s4u = S4U.read_text(encoding="utf-8")
     network_guard = NETWORK_GUARD.read_text(encoding="utf-8")
     vpn_bootstrap = VPN_BOOTSTRAP.read_text(encoding="utf-8")
@@ -23,6 +25,37 @@ def main() -> None:
     assert "Confirm-SasNorthwellNetwork.ps1" in field
     assert "Enable-SasNorthwellVpnNetworkGuard.ps1" not in onsite
     assert "Assert-SasAutoLogonProtectedNetwork" not in onsite
+
+    # A successful canonical network-gate process is itself the transaction's protected-network
+    # authority. Do not perform a second caller-scope classification after state-module imports:
+    # that redundant lookup can disappear when SasOperatorSession is force-reloaded in module scope.
+    gate_call = "& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate"
+    gate_classification = "$result.network_classification = 'PROTECTED_NORTHWELL'"
+    target_resolution = "=== CANONICAL TARGET RESOLUTION ==="
+    assert gate_call in field
+    assert "canonical protected-network authority" in field
+    assert "OK_NETWORK_POSTURE" in field
+    assert gate_classification in field
+    assert "Get-SasOperatorNetworkClassification -RepoRoot $repoRoot" not in field
+    assert field.index(gate_call) < field.index(gate_classification) < field.index(target_resolution)
+
+    # The state module is a nested consumer of SasOperatorSession. It must not force-reload that
+    # dependency and erase session helpers already exported into the field transaction's scope.
+    assert "Import-Module $sessionModule -ErrorAction Stop" in state
+    assert "Import-Module $sessionModule -Force" not in state
+    assert "Do not force-reload it" in state
+    assert "Get-SasObjectPropertyValue" in field
+
+    # Protected AutoLogon operator-state bookkeeping consumes the already-sealed manifest identity
+    # instead of invoking Git for HEAD/branch metadata after the network transition.
+    assert "Get-SasAutoLogonPreparedRuntimeIdentity" in state
+    assert "autologon-short-runtime.json" in state
+    assert "prepared_commit" in state
+    assert "git_invoked = $false" in state
+    assert "repo_branch=$runtimeIdentity.branch" in state
+    assert "repo_head=$runtimeIdentity.commit" in state
+    assert "Get-SasRepoHead -RepoRoot $RepoRoot" not in state
+    assert "& git" not in state
 
     # VPN bootstrap and canonical guard must agree on the authority model: an active
     # DomainAuthenticated non-Wi-Fi interface plus an exact allowlisted local IP.

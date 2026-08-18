@@ -194,8 +194,11 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "AutoLogon field deployment stopped by the network gate with exit code $LASTEXITCODE."
     }
-    $network = Get-SasOperatorNetworkClassification -RepoRoot $repoRoot
-    $result.network_classification = [string]$network.classification
+    # Confirm-SasNorthwellNetwork.ps1 is the canonical protected-network authority.
+    # A zero exit code means the gate already emitted OK_NETWORK_POSTURE evidence.
+    # Do not reclassify here: nested state-module imports may reload the session module
+    # in module scope, and a second classifier neither strengthens nor owns admission.
+    $result.network_classification = 'PROTECTED_NORTHWELL'
     $result.network_gate_completed = $true
     Save-SasAutoLogonFieldResult -Value $result
 

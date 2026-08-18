@@ -5,7 +5,35 @@ $sessionModule = Join-Path -Path $PSScriptRoot -ChildPath 'SasOperatorSession.ps
 if (-not (Test-Path -LiteralPath $sessionModule -PathType Leaf)) {
     throw "Missing AutoLogon operator-state dependency: $sessionModule"
 }
-Import-Module $sessionModule -Force
+# This is a nested dependency import. Do not force-reload it: callers such as the field
+# transaction may already have imported SasOperatorSession and rely on its exported helpers.
+Import-Module $sessionModule -ErrorAction Stop
+
+function Get-SasAutoLogonPreparedRuntimeIdentity {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+
+    $statePath = Join-Path (Get-SasOperatorStateRoot) 'autologon-short-runtime.json'
+    $preparedCommit = $null
+    $schemaVersion = $null
+    if (Test-Path -LiteralPath $statePath -PathType Leaf) {
+        try {
+            $state = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $preparedCommit = ([string](Get-SasObjectPropertyValue $state 'prepared_commit' '')).Trim()
+            $schemaVersion = [string](Get-SasObjectPropertyValue $state 'schema_version' '')
+        }
+        catch { }
+    }
+
+    return [pscustomobject][ordered]@{
+        repo_root = $RepoRoot
+        commit = $(if ([string]::IsNullOrWhiteSpace($preparedCommit)) { $null } else { $preparedCommit })
+        branch = 'sealed-runtime'
+        manifest_schema = $schemaVersion
+        manifest_path = $statePath
+        git_invoked = $false
+    }
+}
 
 function Test-SasAutoLogonSameTarget {
     [CmdletBinding()]
@@ -28,16 +56,7 @@ function Test-SasAutoLogonSameTarget {
 function Get-SasAutoLogonRepoBranch {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$RepoRoot)
-    try {
-        $value = (& git -C $RepoRoot branch --show-current 2>$null | Select-Object -First 1)
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace([string]$value)) {
-            return ([string]$value).Trim()
-        }
-        $value = (& git -C $RepoRoot rev-parse --short HEAD 2>$null | Select-Object -First 1)
-        if ($LASTEXITCODE -eq 0 -and $value) { return "detached@$(([string]$value).Trim())" }
-    }
-    catch { }
-    return 'unknown'
+    return [string](Get-SasAutoLogonPreparedRuntimeIdentity -RepoRoot $RepoRoot).branch
 }
 
 function Set-SasAutoLogonOperatorStateValues {
@@ -56,11 +75,12 @@ function Initialize-SasAutoLogonOperatorState {
         [string[]]$ResolutionSources = @()
     )
     $command = "sas autologon Remote $RequestedTarget"
+    $runtimeIdentity = Get-SasAutoLogonPreparedRuntimeIdentity -RepoRoot $RepoRoot
     return (Set-SasAutoLogonOperatorStateValues -Values @{
         repo_root=$RepoRoot
-        repo_head=(Get-SasRepoHead -RepoRoot $RepoRoot)
-        repo_branch=(Get-SasAutoLogonRepoBranch -RepoRoot $RepoRoot)
-        launcher_head=(Get-SasRepoHead -RepoRoot $RepoRoot)
+        repo_head=$runtimeIdentity.commit
+        repo_branch=$runtimeIdentity.branch
+        launcher_head=$runtimeIdentity.commit
         current_terminal=(Get-SasTerminalLabel)
         target_input=$RequestedTarget
         target_fqdn=$ResolvedTargetFqdn
@@ -214,11 +234,12 @@ function Sync-SasAutoLogonOperatorState {
 
     $field = @(Find-SasLatestAutoLogonFieldResult -RepoRoot $RepoRoot -Target $filter)
     $recovery = @(Find-SasLatestCompletedAutoLogonRecovery -RepoRoot $RepoRoot -Target $filter)
+    $runtimeIdentity = Get-SasAutoLogonPreparedRuntimeIdentity -RepoRoot $RepoRoot
 
     $updates = @{
         repo_root=$RepoRoot
-        repo_head=(Get-SasRepoHead -RepoRoot $RepoRoot)
-        repo_branch=(Get-SasAutoLogonRepoBranch -RepoRoot $RepoRoot)
+        repo_head=$runtimeIdentity.commit
+        repo_branch=$runtimeIdentity.branch
         current_terminal=(Get-SasTerminalLabel)
     }
 
@@ -328,4 +349,4 @@ function Sync-SasAutoLogonOperatorState {
     return (Read-SasOperatorSession)
 }
 
-Export-ModuleMember -Function Test-SasAutoLogonSameTarget,Get-SasAutoLogonRepoBranch,Set-SasAutoLogonOperatorStateValues,Initialize-SasAutoLogonOperatorState,Find-SasLatestAutoLogonFieldResult,Find-SasLatestCompletedAutoLogonRecovery,Sync-SasAutoLogonOperatorState
+Export-ModuleMember -Function Get-SasAutoLogonPreparedRuntimeIdentity,Test-SasAutoLogonSameTarget,Get-SasAutoLogonRepoBranch,Set-SasAutoLogonOperatorStateValues,Initialize-SasAutoLogonOperatorState,Find-SasLatestAutoLogonFieldResult,Find-SasLatestCompletedAutoLogonRecovery,Sync-SasAutoLogonOperatorState
