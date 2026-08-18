@@ -3,19 +3,23 @@ name: AutoLogon S4U Create Timeout Repair
 on:
   pull_request:
     paths:
+      - 'scripts/Recover-SasLatestInterruptedAutoLogonS4U.ps1'
       - 'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1'
       - 'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1'
       - 'scripts/Repair-SasAutoLogonTerminalProbeRecoveryRuntime.ps1'
       - 'Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py'
+      - 'Tests/survey/test_autologon_terminal_recovery_discovery_contracts.py'
       - 'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
       - 'Tests/PowerShell/Test-SasAutoLogonTerminalProbeRecoveryRuntimeRepair.ps1'
       - '.github/workflows/autologon-s4u-create-timeout-repair.yml'
   push:
     paths:
+      - 'scripts/Recover-SasLatestInterruptedAutoLogonS4U.ps1'
       - 'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1'
       - 'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1'
       - 'scripts/Repair-SasAutoLogonTerminalProbeRecoveryRuntime.ps1'
       - 'Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py'
+      - 'Tests/survey/test_autologon_terminal_recovery_discovery_contracts.py'
       - 'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
       - 'Tests/PowerShell/Test-SasAutoLogonTerminalProbeRecoveryRuntimeRepair.ps1'
       - '.github/workflows/autologon-s4u-create-timeout-repair.yml'
@@ -30,12 +34,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Static repair and recovery contracts
         shell: pwsh
-        run: python Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py
+        run: |
+          python Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py
+          python Tests/survey/test_autologon_terminal_recovery_discovery_contracts.py
       - name: Windows PowerShell 5.1 parse repair surfaces
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           foreach ($path in @(
+            'scripts/Recover-SasLatestInterruptedAutoLogonS4U.ps1',
             'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1',
             'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1',
             'scripts/Repair-SasAutoLogonTerminalProbeRecoveryRuntime.ps1',
