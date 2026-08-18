@@ -5,7 +5,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 REPAIR = ROOT / "scripts" / "Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1"
 RECOVERY = ROOT / "scripts" / "Complete-SasInterruptedAutoLogonS4URecovery.ps1"
+TERMINAL_REPAIR = ROOT / "scripts" / "Repair-SasAutoLogonTerminalProbeRecoveryRuntime.ps1"
 WINDOWS_FIXTURE = ROOT / "Tests" / "PowerShell" / "Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1"
+TERMINAL_WINDOWS_FIXTURE = ROOT / "Tests" / "PowerShell" / "Test-SasAutoLogonTerminalProbeRecoveryRuntimeRepair.ps1"
 
 
 def read(path: Path) -> str:
@@ -102,8 +104,37 @@ def test_terminal_probe_timeout_result_is_recovery_eligible_only_fail_closed() -
         assert forbidden not in text, forbidden
 
 
-def test_windows_execution_fixture_is_registered() -> None:
+def test_terminal_recovery_runtime_repair_is_local_only_and_exact() -> None:
+    text = read(TERMINAL_REPAIR)
+    for marker in (
+        "terminal-probe-recovery-runtime-repair-result.json",
+        "PASS_ALREADY_APPLIED",
+        "FAILED_RESTORED",
+        "terminal guard",
+        "result schema",
+        "terminal result fields",
+        "S4U_PROBE_CREATE_TIMEOUT_CONFIRMED_ABSENT",
+        "S4U_PROBE_CREATE_TIMEOUT_CONFIRMATION_UNVERIFIED",
+        "terminal_pilot_recovery_eligible = $terminalPilotRecoveryEligible",
+        "Git activity during repair: NONE",
+        "Network activity during repair: NONE",
+        "Target contact during repair: NONE",
+        "Target mutation during repair: NONE",
+    ):
+        assert marker in text, marker
+    for forbidden in (
+        "git fetch",
+        "Invoke-WebRequest",
+        "Invoke-RestMethod",
+        "Complete-SasInterruptedAutoLogonS4URecovery.ps1 -ComputerName",
+        "Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
+    ):
+        assert forbidden not in text, forbidden
+
+
+def test_windows_execution_fixtures_are_registered() -> None:
     text = read(WINDOWS_FIXTURE)
+    terminal = read(TERMINAL_WINDOWS_FIXTURE)
     for marker in (
         "LF",
         "CRLF",
@@ -118,6 +149,16 @@ def test_windows_execution_fixture_is_registered() -> None:
         "target_mutation",
     ):
         assert marker in text, marker
+    for marker in (
+        "LF",
+        "CRLF",
+        "PASS_REPAIRED",
+        "PASS_ALREADY_APPLIED",
+        "terminal_pilot_recovery_eligible = $terminalPilotRecoveryEligible",
+        "sas-autologon-s4u-interrupted-recovery/v3",
+        "old terminal-result refusal remains",
+    ):
+        assert marker in terminal, marker
 
 
 def main() -> None:
