@@ -17,6 +17,16 @@ function Assert-True {
     if (-not $Condition) { throw $Message }
 }
 
+function Test-BoundedStateRepairInvocation {
+    param([Parameter(Mandatory = $true)][string]$Text)
+    $pattern = 'Invoke-SasBoundedNative(?:\s|`)+-FilePath(?:\s|`)+\$schtasksPath(?:\s|`)+-Arguments(?:\s|`)+\$Arguments(?:\s|`)+-TimeoutSeconds(?:\s|`)+\$TimeoutSeconds'
+    return [regex]::IsMatch(
+        $Text,
+        $pattern,
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase
+    )
+}
+
 function Write-FixtureBoundedNativeModule {
     param([Parameter(Mandatory = $true)][string]$Path)
     @'
@@ -66,6 +76,8 @@ function Invoke-RepairFixture {
         Assert-True ($first.classification -eq 'AUTOLOGON_SMB_STATE_CAPTURE_RUNTIME_REPAIR_APPLIED') `
             "$LineEnding first repair classification was $($first.classification)"
         Assert-True ([bool]$first.powershell_parse_passed) "$LineEnding repair did not record parse proof."
+        Assert-True ([bool]$first.bounded_invocation_semantic_verification) `
+            "$LineEnding repair did not record semantic bounded-invocation proof."
         Assert-True (-not [bool]$first.git_performed) "$LineEnding repair performed Git activity."
         Assert-True (-not [bool]$first.network_activity_performed) "$LineEnding repair performed network activity."
         Assert-True (-not [bool]$first.target_contact_performed) "$LineEnding repair contacted a target."
@@ -75,12 +87,18 @@ function Invoke-RepairFixture {
         $repaired = [IO.File]::ReadAllText($modulePath)
         foreach ($marker in @(
             'native_stderr_is_data_not_terminating_error',
-            'Invoke-SasBoundedNative -FilePath $schtasksPath',
+            "Join-Path `$PSScriptRoot 'SasBoundedNative.psm1'",
             '$lines += ([string]$run.error).Trim()',
             'timed_out = [bool]$run.timed_out'
         )) {
             Assert-True ($repaired.Contains($marker)) "$LineEnding repaired module missing marker: $marker"
         }
+        Assert-True (Test-BoundedStateRepairInvocation -Text $repaired) `
+            "$LineEnding repaired module failed semantic bounded invocation verification."
+        Assert-True ($repaired.Contains('Invoke-SasBoundedNative `')) `
+            "$LineEnding repaired module did not preserve the field-style multiline command continuation."
+        Assert-True (-not $repaired.Contains('Invoke-SasBoundedNative -FilePath $schtasksPath')) `
+            "$LineEnding fixture unexpectedly collapsed the bounded invocation to the brittle single-line form."
         Assert-True (-not $repaired.Contains('$output = @(& "$env:WINDIR\System32\schtasks.exe" @Arguments 2>&1')) `
             "$LineEnding repaired module retained the unsafe direct schtasks wrapper."
 
@@ -102,9 +120,11 @@ function Invoke-RepairFixture {
         Remove-Module SasBoundedNative -Force -ErrorAction SilentlyContinue
         $second = & $repairScript -RuntimeRoot $root -EvidenceRoot $evidence2 -ConfirmRepair -PassThru
         Assert-True ($second.classification -eq 'AUTOLOGON_SMB_STATE_CAPTURE_RUNTIME_REPAIR_ALREADY_PRESENT') `
-            "$LineEnding second repair was not idempotent: $($second.classification)"
+            "$LineEnding multiline second repair was not idempotent: $($second.classification)"
+        Assert-True ([bool]$second.bounded_invocation_semantic_verification) `
+            "$LineEnding multiline second repair lost semantic verification proof."
 
-        Write-Host "PASS: $LineEnding state-capture runtime repair, stderr preservation, and idempotence"
+        Write-Host "PASS: $LineEnding multiline state-capture repair, stderr preservation, semantic verification, and idempotence"
     }
     finally {
         Remove-Module SasAutoLogonSmbStateRecovery -Force -ErrorAction SilentlyContinue
