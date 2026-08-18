@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "Invoke-SasAutoLogonHardwiredLocalRepair.ps1"
 CMD = ROOT / "Run-AutoLogonHardwiredLocalRepair.cmd"
+DOC = ROOT / "docs" / "AUTOLOGON_HARDWIRED_LOCAL_REPAIR.md"
 
 
 def read(path: Path) -> str:
@@ -49,11 +50,26 @@ def test_hardwired_repair_proves_domain_authenticated_non_wifi_before_copy_or_ta
     assert network < copy < deploy
 
 
-def test_repair_is_bounded_by_previous_sealed_tracked_file_list_and_hash_parity() -> None:
+def test_repair_is_bounded_by_previous_seal_plus_exact_lane_additions() -> None:
     text = read(SCRIPT)
     for marker in (
         "previous sealed runtime manifest is missing",
         "$previousEntries = @($previousManifest.tracked_file_hashes)",
+        "$repairLaneAddedTrackedPaths = @(",
+        "Run-AutoLogonHardwiredLocalRepair.cmd",
+        "scripts/Invoke-SasAutoLogonHardwiredLocalRepair.ps1",
+        "Tests/survey/test_autologon_hardwired_local_repair_contracts.py",
+        "docs/AUTOLOGON_HARDWIRED_LOCAL_REPAIR.md",
+        "$copyPaths = @($previousEntries",
+        "$copyPaths = @($copyPaths | Sort-Object -Unique)",
+        "repair_lane_added_tracked_paths = $repairLaneAddedTrackedPaths",
+    ):
+        assert marker in text, marker
+
+
+def test_repair_copies_only_bounded_local_files_and_proves_hash_parity() -> None:
+    text = read(SCRIPT)
+    for marker in (
         "runtime_remotes_removed",
         "protected_bootstrap_git_network_allowed",
         "Copy-Item -LiteralPath $sourcePath -Destination $runtimePath -Force",
@@ -61,6 +77,8 @@ def test_repair_is_bounded_by_previous_sealed_tracked_file_list_and_hash_parity(
         "Get-SasSha256Hex -LiteralPath $runtimePath",
         "local copy hash mismatch",
         "tracked_file_hash_algorithm = 'SHA256'",
+        "runtime_content_commit = $ExpectedCommit",
+        "runtime_git_metadata_ignored = $true",
     ):
         assert marker in text, marker
 
@@ -107,8 +125,17 @@ def test_cmd_is_short_and_forwards_exact_target_and_commit() -> None:
         assert marker in text, marker
 
 
+def test_doc_keeps_remote_git_guest_only_but_allows_local_hardwired_repair() -> None:
+    text = read(DOC).lower()
+    assert "normal repository acquisition and remote git remain guest/internet-only" in text
+    assert "no git command" in text
+    assert "domainauthenticated non-wi-fi" in text
+    assert "previous sealed tracked-file list" in text
+    assert "existing crash-safe autologon-only transaction" in text
+
+
 def test_no_live_target_secret_or_private_operator_literal() -> None:
-    combined = "\n".join(read(path) for path in (SCRIPT, CMD)).lower()
+    combined = "\n".join(read(path) for path in (SCRIPT, CMD, DOC)).lower()
     for forbidden in (
         "wpj075opr046",
         "pa_rperez26",

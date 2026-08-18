@@ -10,9 +10,9 @@ runtime must be repaired before deployment. It performs no Git command and no re
 
 The script proves the local source worktree is detached at the operator-supplied expected commit by reading
 Git metadata as ordinary files, proves a DomainAuthenticated non-Wi-Fi interface before target work, rebuilds
-C:\SASAL from the previously sealed tracked-file list by local file copy, verifies SHA-256 parity with .NET,
-refreshes the installed sas shim, writes an explicit hardwired-local-repair manifest, and then enters the
-existing crash-safe AutoLogon field transaction.
+C:\SASAL from the previously sealed tracked-file list plus this lane's explicitly declared new tracked files,
+verifies SHA-256 parity with .NET, refreshes the installed sas shim, writes an explicit hardwired-local-repair
+manifest, and then enters the existing crash-safe AutoLogon field transaction.
 
 No target is contacted until the existing protected-network guard is established. Clinical-core packages are
 never deployed by this lane.
@@ -129,8 +129,22 @@ if ($previousEntries.Count -lt 1) {
     throw 'HARDWIRED_LOCAL_REPAIR_BLOCKED: previous manifest has no tracked-file list to bound the repair copy.'
 }
 
+# This lane is stacked directly on the sealed-runtime commit. Its only new tracked files are declared
+# here so the repaired runtime content set can converge to the exact lane commit without enumerating Git.
+$repairLaneAddedTrackedPaths = @(
+    'Run-AutoLogonHardwiredLocalRepair.cmd',
+    'scripts/Invoke-SasAutoLogonHardwiredLocalRepair.ps1',
+    'Tests/survey/test_autologon_hardwired_local_repair_contracts.py',
+    'docs/AUTOLOGON_HARDWIRED_LOCAL_REPAIR.md'
+)
+$copyPaths = @($previousEntries | ForEach-Object { ([string]$_.path).Replace('\','/').Trim() } | Where-Object { $_ })
+foreach ($addedPath in $repairLaneAddedTrackedPaths) {
+    $canonicalAddedPath = $addedPath.Replace('\','/')
+    if ($copyPaths -notcontains $canonicalAddedPath) { $copyPaths += $canonicalAddedPath }
+}
+$copyPaths = @($copyPaths | Sort-Object -Unique)
+
 $networkBootstrap = Join-Path $SourceRoot 'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1'
-$crashSafeScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
 $operatorInstaller = Join-Path $SourceRoot 'scripts\Install-SasPortableLauncher.ps1'
 foreach ($required in @($networkBootstrap,$operatorInstaller)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required hardwired repair dependency is missing: $required" }
@@ -155,16 +169,15 @@ Write-Host 'LOCAL-ONLY HARDWIRED RUNTIME REPAIR - NO GIT COMMANDS' -ForegroundCo
 Write-Host "Source:   $SourceRoot"
 Write-Host "Runtime:  $RuntimeRoot"
 Write-Host "Commit:   $ExpectedCommit"
-Write-Host "Files:    $($previousEntries.Count)"
+Write-Host "Files:    $($copyPaths.Count)"
 
 $runtimePrefix = $RuntimeRoot.TrimEnd('\') + '\'
 $sourcePrefix = $SourceRoot.TrimEnd('\') + '\'
 $newHashes = @()
 $copied = 0
-foreach ($entry in $previousEntries) {
-    $relative = ([string]$entry.path).Replace('\','/').Trim()
+foreach ($relative in $copyPaths) {
     if ([string]::IsNullOrWhiteSpace($relative) -or [IO.Path]::IsPathRooted($relative)) {
-        throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: invalid tracked path in previous manifest: '$relative'"
+        throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: invalid tracked path in repair plan: '$relative'"
     }
     $relativeWindows = $relative.Replace('/','\')
     $sourcePath = [IO.Path]::GetFullPath((Join-Path $SourceRoot $relativeWindows))
@@ -212,12 +225,15 @@ $manifest = [pscustomobject][ordered]@{
     preparation_git_transport = 'NONE'
     preparation_remote_git_performed = $false
     source_head_verified_without_git = $true
+    runtime_content_commit = $ExpectedCommit
+    runtime_git_metadata_ignored = $true
     runtime_git_transport = 'LOCAL_FILESYSTEM_ONLY'
     runtime_remotes_removed = $true
     protected_bootstrap_git_network_allowed = $false
     tracked_file_hash_algorithm = 'SHA256'
     tracked_file_count = $newHashes.Count
     tracked_file_hashes = $newHashes
+    repair_lane_added_tracked_paths = $repairLaneAddedTrackedPaths
     local_copy_file_count = $copied
     target_contact_performed = $false
     target_mutation_performed = $false
@@ -226,7 +242,7 @@ $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -En
 
 Write-Host ''
 Write-Host 'PASS: HARDWIRED LOCAL RUNTIME REPAIR COMPLETE' -ForegroundColor Green
-Write-Host "Runtime commit: $ExpectedCommit"
+Write-Host "Runtime content commit: $ExpectedCommit"
 Write-Host "Local files repaired and verified: $copied"
 Write-Host 'Remote Git performed: NO' -ForegroundColor Green
 Write-Host 'Target contact during repair: NO' -ForegroundColor Green
