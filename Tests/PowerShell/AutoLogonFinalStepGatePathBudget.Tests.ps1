@@ -28,7 +28,7 @@ function New-LongOutputRoot {
     $root = Join-Path $BaseRoot 'fg'
     $fileName = 'autologon_final_step_gate.json'
     while ((Join-Path $root $fileName).Length -lt 220) {
-        $root = Join-Path $root ('segment-' + ('x' * 28))
+        $root = Join-Path $root ('seg-' + ('x' * 14))
     }
     $flatPath = Join-Path $root $fileName
     if ($flatPath.Length -gt 240) {
