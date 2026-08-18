@@ -16,8 +16,10 @@ jobs:
             'scripts\Refresh-SasOperatorCommand.ps1',
             'scripts\SasPortableLauncher.ps1',
             'scripts\Invoke-SasAutoLogonOnsite.ps1',
+            'scripts\Invoke-SasAutoLogonFinalStepGate.ps1',
             'scripts\Repair-SasAutoLogonS4UPathBudgetRuntime.ps1',
             'scripts\Repair-SasAutoLogonSmbStateCaptureRuntime.ps1',
+            'scripts\Repair-SasAutoLogonFinalStepGatePathRuntime.ps1',
             'scripts\SasAutoLogonStateCaptureCleanupPolicy.psm1',
             'scripts\Remove-SasExactRemoteAutoLogonStateCaptureRunRoot.ps1'
           )) {
@@ -46,6 +48,16 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\Tests\PowerShell\AutoLogonStateCaptureResidueCleanup.Tests.ps1
+      - name: Validate final-step gate evidence path compaction
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Tests\PowerShell\AutoLogonFinalStepGatePathBudget.Tests.ps1
+      - name: Execute final-step gate runtime path repair fixtures
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Tests\PowerShell\AutoLogonFinalStepGatePathRuntimeRepair.Tests.ps1
       - name: Resolve canonical FQDN under Windows PowerShell 5.1
         shell: powershell
         run: |
