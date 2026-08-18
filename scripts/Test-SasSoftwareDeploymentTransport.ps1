@@ -26,7 +26,10 @@ Selects offline fixture execution. Cannot be combined with live parameters.
 .PARAMETER FixturePath
 Path to a sanitized JSON fixture containing an observations object.
 .PARAMETER OutputRoot
-Approved ignored local output root. Defaults to survey/output/runs.
+Approved ignored local output root. Defaults to survey/output/runs. If a caller
+supplies a root whose generated transport artifact tree would exceed the
+conservative Windows PowerShell 5.1 path budget, the run is compacted to the
+canonical repository runs root and the returned paths remain authoritative.
 .PARAMETER PassThru
 Returns the run context, result, and artifact paths.
 #>
@@ -73,6 +76,36 @@ Import-Module $transportModulePath -Force
 Import-Module $lowNoiseTransportModulePath -Force
 Import-Module $lowNoisePolicyModulePath -Force
 Import-Module $runContextModulePath -Force
+
+# New-SasRunContext adds both the workflow id and another timestamped run id below
+# the caller-supplied OutputRoot. A deeply nested AutoLogon S4U caller can therefore
+# exceed the practical Windows PowerShell 5.1 path budget before request.json is written.
+# Project the longest transport artifact path up front and compact only when required.
+$transportWindowsPathBudget = 240
+function Get-SasTransportProjectedArtifactPath {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$CandidateOutputRoot)
+
+    $resolved = [IO.Path]::GetFullPath($CandidateOutputRoot)
+    $workflowRoot = Join-Path $resolved 'software-deployment-transport'
+    $sampleRunId = 'software-deployment-transport-99999999-999999-ffffffff'
+    $sampleRunRoot = Join-Path $workflowRoot $sampleRunId
+    return (Join-Path (Join-Path $sampleRunRoot 'artifacts') 'software_deployment_transport_result.json')
+}
+
+if ($OutputRoot) {
+    $requestedOutputRoot = [IO.Path]::GetFullPath($OutputRoot)
+    $projectedArtifactPath = Get-SasTransportProjectedArtifactPath -CandidateOutputRoot $requestedOutputRoot
+    if ($projectedArtifactPath.Length -ge $transportWindowsPathBudget) {
+        $compactOutputRoot = Join-Path $repoRoot 'runs'
+        $compactProjectedArtifactPath = Get-SasTransportProjectedArtifactPath -CandidateOutputRoot $compactOutputRoot
+        if ($compactProjectedArtifactPath.Length -ge $transportWindowsPathBudget) {
+            throw "TRANSPORT_OUTPUT_ROOT_PATH_BUDGET_BLOCKED: canonical compact run root still exceeds $transportWindowsPathBudget characters."
+        }
+        Write-Warning "TRANSPORT_OUTPUT_ROOT_COMPACTED: requested transport run root would exceed the Windows path budget; using $compactOutputRoot."
+        $OutputRoot = $compactOutputRoot
+    }
+}
 
 if ($PSCmdlet.ParameterSetName -eq 'Live' -and -not (Test-SasFqdn -ComputerName $ComputerName)) {
     throw 'ComputerName must be a fully qualified DNS name.'
