@@ -35,6 +35,25 @@ The returned bounded-native object records the requested/effective timeout polic
 
 `Repair-SasBoundedNativeS4UCreateRuntime.ps1` applies the same function-bounded change to an already-sealed protected runtime. It backs up the module, parser-validates the transformed module, restores the original on failure, is CRLF/LF-safe and idempotent, and records that it performs no Git, network activity, target contact, or target mutation.
 
+## Terminal timeout recovery v3
+
+A follow-up protected recovery exposed a second durability gap: the pilot had already written its terminal `S4U_PROBE_CREATE_TIMEOUT` result, so the tracked interrupted-run discovery and exact-recovery scripts treated the run as terminal and refused the same exact cleanup that was still safe and required.
+
+The recovery contract now admits that terminal result only when all of the following are simultaneously true:
+
+- the pilot result uses the expected v2 schema and names the exact same run and target;
+- the terminal and nested Probe lifecycle classifications are both exactly `S4U_PROBE_CREATE_TIMEOUT`;
+- the nested Probe lifecycle names the exact checkpointed Probe task;
+- the Install lifecycle and installer exit code are absent;
+- no after-state snapshot or pre-reboot AutoLogon-ready state exists;
+- the outer staging cleanup is already verified;
+- no reboot or automatic-sign-in proof exists;
+- the existing local evidence scan finds no installer worker/result/lifecycle or after-state evidence.
+
+Every other terminal pilot result remains excluded from discovery and is rejected by exact recovery. The accepted path still queries, deletes if necessary, and verifies absence of only the checkpointed GUID-unique Probe task; invokes the existing `ProbeOnly` exact remote run-root cleanup; verifies task absence again; records recovery schema v3; and never launches the installer.
+
+This promotes the field-proven local recovery behavior into the tracked repository without broadening cleanup or weakening any deployment gate.
+
 ## Regression contract
 
 Windows PowerShell 5.1 fixtures prove:
@@ -45,8 +64,10 @@ Windows PowerShell 5.1 fixtures prove:
 - generic Task Scheduler create and S4U delete operations remain at their requested timeout;
 - the protected-runtime repair works for CRLF and LF module shapes and is idempotent.
 
-Static contracts also require the GUID-unique task-name scope, exact `/Query /S <target> /TN <task>` reconciliation, and local-only repair evidence.
+Static interrupted-recovery contracts additionally require the terminal timeout admission to remain exact-run, exact-target, exact-task, Probe-only, cleanup-verified, installer/after-state/reboot-free, and schema-v3 recorded. They explicitly reject restoring the old unconditional terminal-result skip/refusal behavior.
 
 ## Proof ceiling
 
-Repository and CI proof cannot establish that the protected target accepts S4U task creation. The next field attempt must first prove the previous probe task is absent and the previous exact staging run root is absent, apply the local bounded-native repair, re-establish protected-network authority, and perform exactly one crash-safe retry. Stage 9 (`Probe task create`) must PASS, or the new exact reconciliation evidence must prove the timed-out create committed, before later probe execution, installer execution, after-state, restart, or terminal completion claims are made.
+Repository and CI proof cannot establish that the protected target accepts S4U task creation. A completed exact recovery proves only that the previously checkpointed Probe task and Probe-only remote run root were absent after bounded cleanup and that the recovery itself did not launch the installer.
+
+The next protected field attempt must apply or verify the local bounded-native S4U create repair, re-establish protected-network authority, and perform exactly one supported crash-safe AutoLogon retry. Stage 9 (`Probe task create`) must PASS, or the new exact reconciliation evidence must prove the timed-out create committed, before later probe execution, installer execution, after-state, restart, or terminal completion claims are made.
