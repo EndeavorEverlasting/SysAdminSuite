@@ -5,7 +5,9 @@ $sessionModule = Join-Path -Path $PSScriptRoot -ChildPath 'SasOperatorSession.ps
 if (-not (Test-Path -LiteralPath $sessionModule -PathType Leaf)) {
     throw "Missing AutoLogon operator-state dependency: $sessionModule"
 }
-Import-Module $sessionModule -Force
+# This is a nested dependency import. Do not force-reload it: callers such as the field
+# transaction may already have imported SasOperatorSession and rely on its exported helpers.
+Import-Module $sessionModule -ErrorAction Stop
 
 function Test-SasAutoLogonSameTarget {
     [CmdletBinding()]
