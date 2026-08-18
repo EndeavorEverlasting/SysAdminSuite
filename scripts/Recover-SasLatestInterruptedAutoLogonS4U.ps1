@@ -5,10 +5,10 @@ Recover locally recorded interrupted probe-only AutoLogon S4U runs for one targe
 
 .DESCRIPTION
 Searches only machine-local SysAdminSuite evidence roots for exact durable probe lifecycle records.
-It deduplicates physical paths and subst aliases, skips terminal or already-completed recovery
-records, fails closed on any install/after-state evidence, and invokes only the exact recorded
-recovery helper against the canonical requested target. It never discovers remote tasks broadly
-and never launches AutoLogon.
+It deduplicates physical paths and subst aliases, accepts only recovery-eligible terminal probe-create-timeout
+results, skips unrelated terminal or already-completed recovery records, fails closed on unreadable terminal
+or any install/after-state evidence, and invokes only the exact recorded recovery helper against the canonical
+requested target. It never discovers remote tasks broadly and never launches AutoLogon.
 #>
 [CmdletBinding()]
 param(
@@ -182,7 +182,28 @@ function Get-SasInterruptedS4UCandidates {
         $terminal = Join-Path -Path $s4uRoot -ChildPath 'autologon_kerberos_s4u_pilot_result.json'
         $recovered = Join-Path -Path $s4uRoot -ChildPath 's4u_probe_hang_recovery_result.json'
 
-        if (Test-Path -LiteralPath $terminal -PathType Leaf) { continue }
+        $terminalPilotPresent = Test-Path -LiteralPath $terminal -PathType Leaf
+        $terminalPilotClassification = ''
+        $terminalPilotRecoveryEligible = $false
+        $terminalPilotParseFailed = $false
+        if ($terminalPilotPresent) {
+            try {
+                $terminalPilot = Get-Content -LiteralPath $terminal -Raw -Encoding UTF8 | ConvertFrom-Json
+                $terminalPilotClassification = Get-SasOptionalJsonString -Object $terminalPilot -Name 'classification'
+            }
+            catch {
+                $terminalPilotParseFailed = $true
+            }
+
+            if (-not $terminalPilotParseFailed) {
+                $terminalPilotRecoveryEligible = $terminalPilotClassification -in @(
+                    'S4U_PROBE_CREATE_TIMEOUT',
+                    'S4U_PROBE_CREATE_TIMEOUT_CONFIRMED_ABSENT',
+                    'S4U_PROBE_CREATE_TIMEOUT_CONFIRMATION_UNVERIFIED'
+                )
+                if (-not $terminalPilotRecoveryEligible) { continue }
+            }
+        }
 
         if (Test-Path -LiteralPath $recovered -PathType Leaf) {
             try {
@@ -217,6 +238,10 @@ function Get-SasInterruptedS4UCandidates {
             lifecycle_physical_identity=$entry.physical_identity
             local_s4u_root=$s4uRoot
             install_or_after_evidence_present=$installPresent
+            terminal_pilot_present=$terminalPilotPresent
+            terminal_pilot_classification=$terminalPilotClassification
+            terminal_pilot_recovery_eligible=$terminalPilotRecoveryEligible
+            terminal_pilot_parse_failed=$terminalPilotParseFailed
             last_write_utc=$file.LastWriteTimeUtc
             lifecycle_classification=(Get-SasOptionalJsonString -Object $lifecycle -Name 'classification')
             lifecycle_stage=(Get-SasOptionalJsonString -Object $lifecycle -Name 'current_stage')
@@ -227,6 +252,12 @@ function Get-SasInterruptedS4UCandidates {
 }
 
 $candidates = @(Get-SasInterruptedS4UCandidates)
+$unreadableTerminal = @($candidates | Where-Object { $_.terminal_pilot_parse_failed })
+if ($unreadableTerminal.Count -gt 0) {
+    $paths = @($unreadableTerminal | ForEach-Object { $_.local_s4u_root }) -join '; '
+    throw "Interrupted AutoLogon terminal evidence is unreadable. Refusing target contact or automatic recovery. Review: $paths"
+}
+
 $unsafe = @($candidates | Where-Object { $_.install_or_after_evidence_present })
 if ($unsafe.Count -gt 0) {
     $paths = @($unsafe | ForEach-Object { $_.local_s4u_root }) -join '; '
@@ -236,7 +267,7 @@ if ($unsafe.Count -gt 0) {
 $safe = @($candidates | Where-Object { -not $_.install_or_after_evidence_present })
 if ($safe.Count -eq 0) {
     $result = [pscustomobject][ordered]@{
-        schema_version='sas-autologon-s4u-recovery-discovery/v2'
+        schema_version='sas-autologon-s4u-recovery-discovery/v3'
         status='COMPLETED'
         classification='NO_INTERRUPTED_PROBE_RUN_FOUND'
         target=$ComputerName
@@ -276,7 +307,7 @@ foreach ($item in $safe) {
 }
 
 $result = [pscustomobject][ordered]@{
-    schema_version='sas-autologon-s4u-recovery-discovery/v2'
+    schema_version='sas-autologon-s4u-recovery-discovery/v3'
     status='COMPLETED'
     classification='INTERRUPTED_PROBE_RUNS_RECOVERED'
     target=$ComputerName
