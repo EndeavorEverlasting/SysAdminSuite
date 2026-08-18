@@ -61,6 +61,8 @@ function Invoke-SasLocalGit {
 
     $stderrPath = Join-Path $env:TEMP ('sas-local-git-' + [guid]::NewGuid().ToString('N') + '.err')
     $previousPreference = $ErrorActionPreference
+    $stdout = @()
+    $exitCode = 0
     try {
         $ErrorActionPreference = 'Continue'
         $LASTEXITCODE = 0
@@ -74,12 +76,23 @@ function Invoke-SasLocalGit {
     $stderr = ''
     if (Test-Path -LiteralPath $stderrPath) {
         try {
-            $stderrRaw = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
-            $stderr = $stderrRaw.Trim()
+            # Windows PowerShell 5.1 can return $null for Get-Content -Raw on an empty
+            # redirected stderr file. Treat that as ordinary empty stderr instead of
+            # calling .Trim() on a null value after a successful native Git command.
+            $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+            if ($null -ne $stderrRaw) {
+                $stderr = ([string]$stderrRaw).Trim()
+            }
         }
         finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
     }
-    $stdoutText = (@($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+
+    $stdoutLines = @($stdout | ForEach-Object { [string]$_ })
+    $stdoutText = if ($stdoutLines.Count -gt 0) {
+        ($stdoutLines -join [Environment]::NewLine).Trim()
+    } else {
+        ''
+    }
 
     if ($exitCode -ne 0) {
         $detail = @($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine
@@ -90,7 +103,7 @@ function Invoke-SasLocalGit {
         if (-not [string]::IsNullOrWhiteSpace($stdoutText)) { Write-Host $stdoutText }
         if (-not [string]::IsNullOrWhiteSpace($stderr)) { Write-Host $stderr -ForegroundColor DarkGray }
     }
-    return @($stdout | ForEach-Object { [string]$_ })
+    return @($stdoutLines)
 }
 
 function Get-SasLocalGitScalar {
@@ -100,9 +113,9 @@ function Get-SasLocalGitScalar {
         [Parameter(Mandatory = $true)][string]$FailureMessage
     )
     $lines = @(Invoke-SasLocalGit -Root $Root -Arguments $Arguments -FailureMessage $FailureMessage -Quiet)
-    $value = [string]($lines | Select-Object -First 1)
-    if ([string]::IsNullOrWhiteSpace($value)) { throw "$FailureMessage (empty git output)" }
-    return $value.Trim()
+    $value = $lines | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace([string]$value)) { throw "$FailureMessage (empty git output)" }
+    return ([string]$value).Trim()
 }
 
 $networkModule = Join-Path $SourceRoot 'scripts\SasOperatorSession.psm1'
