@@ -16,7 +16,10 @@ jobs:
             'scripts\Refresh-SasOperatorCommand.ps1',
             'scripts\SasPortableLauncher.ps1',
             'scripts\Invoke-SasAutoLogonOnsite.ps1',
-            'scripts\Repair-SasAutoLogonS4UPathBudgetRuntime.ps1'
+            'scripts\Repair-SasAutoLogonS4UPathBudgetRuntime.ps1',
+            'scripts\Repair-SasAutoLogonSmbStateCaptureRuntime.ps1',
+            'scripts\SasAutoLogonStateCaptureCleanupPolicy.psm1',
+            'scripts\Remove-SasExactRemoteAutoLogonStateCaptureRunRoot.ps1'
           )) {
             $path = Join-Path $PWD $relative
             $tokens = $null
@@ -33,6 +36,16 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & .\Tests\PowerShell\AutoLogonS4UPathBudgetRuntimeRepair.Tests.ps1
+      - name: Execute SMB state-capture stderr runtime repair fixtures
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Tests\PowerShell\AutoLogonSmbStateCaptureRuntimeRepair.Tests.ps1
+      - name: Validate exact state-capture residue cleanup policy
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Tests\PowerShell\AutoLogonStateCaptureResidueCleanup.Tests.ps1
       - name: Resolve canonical FQDN under Windows PowerShell 5.1
         shell: powershell
         run: |
