@@ -95,7 +95,8 @@ try {
     $written = Get-Content -LiteralPath $flatLong -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ([string]$written.run_id -eq $runId) 'Compacted evidence lost run identity.'
     Assert-True ([bool]$written.output_path_compacted) 'Compacted evidence did not record compaction.'
-    Assert-True ([string]$written.output_path -eq ([IO.Path]::GetFullPath($flatLong)) 'Compacted evidence did not record its actual path.'
+    Assert-True (([string]$written.output_path) -eq ([IO.Path]::GetFullPath($flatLong))) `
+        'Compacted evidence did not record its actual path.'
 
     $collisionRoot = New-LongOutputRoot -BaseRoot (Join-Path $tempRoot 'collision')
     New-Item -ItemType Directory -Path $collisionRoot -Force | Out-Null
@@ -123,7 +124,7 @@ try {
     Assert-True ([string]$collisionAfter.run_id -eq 'autologon-delta-20000101-000000-deadbeef') `
         'Collision refusal overwrote existing evidence.'
 
-    Write-Host "PASS: final-step gate compacts an over-budget ~270-character evidence path without weakening gate semantics"
+    Write-Host 'PASS: final-step gate compacts an over-budget ~270-character evidence path without weakening gate semantics'
 }
 finally {
     if (Test-Path -LiteralPath $tempRoot -PathType Container) {
