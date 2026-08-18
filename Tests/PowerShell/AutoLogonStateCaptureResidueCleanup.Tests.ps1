@@ -73,14 +73,59 @@ Assert-True (-not [bool](Test-SasAutoLogonStateCaptureWorkerResultIdentity -RunI
 $missing = Test-SasAutoLogonStateCaptureWorkerResultIdentity -RunId $runId -Phase $phase -WorkerResult $null
 Assert-True (-not [bool]$missing.present -and [bool]$missing.valid) 'Missing result should not block cleanup of an otherwise exact interrupted staging root.'
 
+$historicalEmptyRoots = @(
+    [pscustomobject]@{ path='autologon-recovery-20000101-010101-11111111'; kind='directory' },
+    [pscustomobject]@{ path='autologon-recovery-20000101-020202-22222222'; kind='directory' },
+    [pscustomobject]@{ path='autologon-recovery-20000101-030303-33333333'; kind='directory' },
+    [pscustomobject]@{ path='autologon-recovery-20000101-040404-44444444'; kind='directory' },
+    [pscustomobject]@{ path='autologon-recovery-20000101-050505-55555555'; kind='directory' }
+)
+$parentClean = Test-SasAutoLogonStateCaptureParentInventory -Entries $historicalEmptyRoots
+Assert-True ([bool]$parentClean.operationally_clean) 'Empty historical run-root directories should not be treated as active state-reader residue.'
+Assert-True (@($parentClean.inert_empty_run_roots).Count -eq 5) 'Historical empty run roots were not preserved as inert evidence.'
+Assert-True (@($parentClean.active_residue_paths).Count -eq 0) 'Historical empty run roots produced active residue paths.'
+
+$nestedPhase = @($historicalEmptyRoots + [pscustomobject]@{
+    path='autologon-recovery-20000101-010101-11111111\baseline'
+    kind='directory'
+})
+$nestedPhasePolicy = Test-SasAutoLogonStateCaptureParentInventory -Entries $nestedPhase
+Assert-True (-not [bool]$nestedPhasePolicy.operationally_clean) 'A nested baseline phase directory was incorrectly treated as inert.'
+Assert-True (@($nestedPhasePolicy.active_residue_paths) -contains 'autologon-recovery-20000101-010101-11111111\baseline') `
+    'Nested baseline phase directory was not reported as active residue.'
+
+$nestedFile = @($historicalEmptyRoots + [pscustomobject]@{
+    path='autologon-recovery-20000101-020202-22222222\baseline\worker-result.json'
+    kind='file'
+})
+$nestedFilePolicy = Test-SasAutoLogonStateCaptureParentInventory -Entries $nestedFile
+Assert-True (-not [bool]$nestedFilePolicy.operationally_clean) 'A nested state-reader file was incorrectly treated as inert.'
+
+$foreignRoot = @($historicalEmptyRoots + [pscustomobject]@{ path='manual-recovery'; kind='directory' })
+$foreignPolicy = Test-SasAutoLogonStateCaptureParentInventory -Entries $foreignRoot
+Assert-True (-not [bool]$foreignPolicy.operationally_clean) 'A foreign parent directory was incorrectly treated as an inert AutoLogon run root.'
+
+$parentTraversalBlocked = $false
+try {
+    $null = Test-SasAutoLogonStateCaptureParentInventory -Entries @(
+        [pscustomobject]@{ path='autologon-recovery-20000101-010101-11111111\..\outside'; kind='directory' }
+    )
+}
+catch { $parentTraversalBlocked = $true }
+Assert-True $parentTraversalBlocked 'Parent-level traversal entry was not rejected.'
+
 $cleanupText = [IO.File]::ReadAllText($cleanupPath)
 foreach ($marker in @(
     'AutoLogonStateRecovery\$RunId',
     'SysAdminSuite-AutoLogonStateRead-',
     'Test-SasAutoLogonStateCaptureCleanupInventory',
     'Test-SasAutoLogonStateCaptureWorkerResultIdentity',
+    'Test-SasAutoLogonStateCaptureParentInventory',
     "classification = 'EXACT_REMOTE_AUTOLOGON_STATE_CAPTURE_RUN_ROOT_CLEANED'",
     "cleanup_scope = 'exact_autologon_state_capture_run_root_only'",
+    'parent_operationally_clean = [bool]$parentPolicy.operationally_clean',
+    'inert_empty_run_roots = @($parentPolicy.inert_empty_run_roots)',
+    'inert_empty_run_roots_preserved = $true',
     'autologon_configuration_mutation_performed = $false',
     'software_mutation_performed = $false',
     'automatic_reboot_performed = $false',
@@ -93,12 +138,14 @@ $policyIndex = $cleanupText.IndexOf('Test-SasAutoLogonStateCaptureCleanupInvento
 $identityIndex = $cleanupText.IndexOf('Test-SasAutoLogonStateCaptureWorkerResultIdentity -RunId $RunId')
 $taskIndex = $cleanupText.IndexOf("'/Query','/S',`$ComputerName")
 $removeIndex = $cleanupText.IndexOf('Remove-Item -LiteralPath `$root -Recurse -Force -ErrorAction Stop')
-Assert-True ($policyIndex -ge 0 -and $identityIndex -gt $policyIndex -and $taskIndex -gt $identityIndex -and $removeIndex -gt $taskIndex) `
-    'Cleanup ordering must be inventory policy -> worker identity -> task absence -> exact removal.'
+$parentPolicyIndex = $cleanupText.IndexOf('Test-SasAutoLogonStateCaptureParentInventory -Entries @($parentInventory.entries)')
+Assert-True ($policyIndex -ge 0 -and $identityIndex -gt $policyIndex -and $taskIndex -gt $identityIndex -and $removeIndex -gt $taskIndex -and $parentPolicyIndex -gt $removeIndex) `
+    'Cleanup ordering must be exact inventory -> worker identity -> task absence -> exact removal -> parent active-residue classification.'
 
 foreach ($forbidden in @(
     "'/Delete'",
     'Remove-Item -Path ',
+    'Remove-Item -LiteralPath `$parent',
     'AutoLogonKerberosS4U\$RunId',
     'DefaultPassword',
     'NW_AutoLogon_Setup_x64.exe'
@@ -106,4 +153,4 @@ foreach ($forbidden in @(
     Assert-True (-not $cleanupText.Contains($forbidden)) "Exact state-capture cleanup contains forbidden broader behavior: $forbidden"
 }
 
-Write-Host 'PASS: exact AutoLogon state-capture residue cleanup policy and ordering contracts'
+Write-Host 'PASS: exact AutoLogon state-capture cleanup permits inert empty historical roots while blocking active residue'
