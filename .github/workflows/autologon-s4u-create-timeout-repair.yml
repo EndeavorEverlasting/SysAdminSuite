@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - 'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1'
+      - 'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1'
       - 'Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py'
       - 'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
       - '.github/workflows/autologon-s4u-create-timeout-repair.yml'
   push:
     paths:
       - 'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1'
+      - 'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1'
       - 'Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py'
       - 'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
       - '.github/workflows/autologon-s4u-create-timeout-repair.yml'
@@ -22,7 +24,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Static repair contracts
+      - name: Static repair and recovery contracts
         shell: pwsh
         run: python Tests/survey/test_autologon_s4u_create_timeout_repair_contracts.py
       - name: Windows PowerShell 5.1 parse repair surfaces
@@ -31,6 +33,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           foreach ($path in @(
             'scripts/Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1',
+            'scripts/Complete-SasInterruptedAutoLogonS4URecovery.ps1',
             'Tests/PowerShell/Test-SasAutoLogonS4UCreateTimeoutRuntimeRepair.ps1'
           )) {
             $tokens = $null
