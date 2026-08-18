@@ -4,38 +4,19 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '..\..')).Path
 $repairScript = Join-Path -Path $repoRoot -ChildPath 'scripts\Repair-SasAutoLogonS4UCreateTimeoutRuntime.ps1'
-if (-not (Test-Path -LiteralPath $repairScript -PathType Leaf)) {
-    throw "Missing repair script: $repairScript"
+$sourcePilot = Join-Path -Path $repoRoot -ChildPath 'scripts\Invoke-SasAutoLogonKerberosS4UPilot.ps1'
+foreach ($required in @($repairScript,$sourcePilot)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Missing required fixture dependency: $required"
+    }
 }
-
-$fixtureLf = @'
-function Invoke-SasS4UTask {
-    $lifecycle = [ordered]@{
-        native = [ordered]@{
-            create = $null
-            run = $null
-            delete = $null
-            query = $null
-            result_probe_last = $null
-            result_copy = $null
-        }
-    }
-    $create = Invoke-SasBoundedNative -FilePath "$env:WINDIR\System32\schtasks.exe" -Arguments @(
-        '/Create','/S',$Target,'/RU',$PrincipalName,'/NP','/SC','ONCE','/ST',$startTime,
-        '/TN',$TaskName,'/TR',$taskCommand,'/RL','HIGHEST','/F'
-    ) -TimeoutSeconds $NativeTimeoutSeconds
-    $lifecycle.native.create = $create
-    if ([bool]$create.timed_out) {
-        $lifecycle.classification = "S4U_${modeUpper}_CREATE_TIMEOUT"
-        throw "S4U $Mode task creation timed out after $NativeTimeoutSeconds seconds."
-    }
-    if ([int]$create.exit_code -ne 0) {
-        $lifecycle.classification = "S4U_${modeUpper}_CREATE_FAILED"
-        throw "S4U $Mode task creation failed: $($create.output) $($create.error)"
-    }
-    $lifecycle.create_succeeded = $true
+$sourcePilotLf = [IO.File]::ReadAllText($sourcePilot).Replace("`r`n", "`n")
+if (-not $sourcePilotLf.Contains('S4U_${modeUpper}_CREATE_TIMEOUT')) {
+    throw 'Tracked S4U pilot no longer contains the pre-repair create-timeout anchor.'
 }
-'@
+if ($sourcePilotLf.Contains('S4U_${modeUpper}_CREATE_TIMEOUT_CONFIRMED_PRESENT')) {
+    throw 'Tracked S4U pilot already contains the repair; fixture must exercise the protected-runtime transformation.'
+}
 
 function Get-LatestEvidence {
     param([Parameter(Mandatory = $true)][string]$EvidenceRoot)
@@ -61,7 +42,7 @@ try {
         $evidenceRoot = Join-Path -Path $tempRoot -ChildPath ('evidence-' + $case.Name)
         New-Item -ItemType Directory -Path $scriptsRoot,$evidenceRoot -Force | Out-Null
         $pilot = Join-Path -Path $scriptsRoot -ChildPath 'Invoke-SasAutoLogonKerberosS4UPilot.ps1'
-        $fixture = $fixtureLf.Replace("`n", [string]$case.NewLine)
+        $fixture = if ($case.Name -eq 'CRLF') { $sourcePilotLf.Replace("`n", "`r`n") } else { $sourcePilotLf }
         [IO.File]::WriteAllText($pilot, $fixture, (New-Object Text.UTF8Encoding($false)))
 
         & $repairScript -RuntimeRoot $runtimeRoot -EvidenceRoot $evidenceRoot | Out-Host
@@ -85,7 +66,13 @@ try {
         )) {
             if (-not $repaired.Contains($marker)) { throw "$($case.Name): repaired fixture missing $marker" }
         }
-        if ($repaired.Contains('S4U_${modeUpper}_CREATE_TIMEOUT"')) {
+        $legacyImmediateThrow = @'
+        if ([bool]$create.timed_out) {
+            $lifecycle.classification = "S4U_${modeUpper}_CREATE_TIMEOUT"
+            throw "S4U $Mode task creation timed out after $NativeTimeoutSeconds seconds."
+        }
+'@.Replace("`r`n", "`n")
+        if ($repaired.Replace("`r`n", "`n").Contains($legacyImmediateThrow)) {
             throw "$($case.Name): legacy immediate create-timeout throw remains"
         }
         if ($case.Name -eq 'CRLF' -and -not $repaired.Contains("`r`n")) { throw 'CRLF: line ending was not preserved' }
@@ -99,7 +86,7 @@ try {
         }
     }
 
-    Write-Host 'PASS: S4U create-timeout runtime repair Windows fixtures (LF + CRLF + idempotence)' -ForegroundColor Green
+    Write-Host 'PASS: S4U create-timeout runtime repair Windows fixtures (tracked pilot LF + CRLF + idempotence)' -ForegroundColor Green
 }
 finally {
     if (Test-Path -LiteralPath $tempRoot -PathType Container) {
