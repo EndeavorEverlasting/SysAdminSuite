@@ -63,13 +63,24 @@ function Configure-FixtureModule {
         $script:SasRepairFixtureQueue = New-Object System.Collections.Queue
         $script:SasRepairObservedTimeouts = New-Object System.Collections.Generic.List[int]
         foreach ($item in @($FixtureResults)) { $script:SasRepairFixtureQueue.Enqueue($item) }
-        function Invoke-SasBoundedPowerShell {
+        $fixtureBody = {
             param([string]$ScriptText,[int]$TimeoutSeconds = 30)
             $script:SasRepairObservedTimeouts.Add([int]$TimeoutSeconds)
             if ($script:SasRepairFixtureQueue.Count -eq 0) { throw 'repair fixture queue exhausted' }
             return $script:SasRepairFixtureQueue.Dequeue()
         }
+        Set-Item -Path Function:script:Invoke-SasBoundedPowerShell -Value $fixtureBody -Force
     } $Results
+}
+
+function Get-RepairObservedTimeouts {
+    param([Parameter(Mandatory = $true)]$Module)
+    & $Module {
+        [pscustomobject][ordered]@{
+            count = [int]$script:SasRepairObservedTimeouts.Count
+            values = @($script:SasRepairObservedTimeouts | ForEach-Object { [int]$_ })
+        }
+    }
 }
 
 foreach ($ending in @('crlf','lf')) {
@@ -96,8 +107,9 @@ foreach ($ending in @('crlf','lf')) {
 
         $repaired = [IO.File]::ReadAllText($fixture)
         foreach ($marker in @(
+            'function Invoke-SasBoundedNativeCore {',
             "`$timeoutPolicy = 's4u_task_create_minimum_60'",
-            'reconciled_after_timeout = $true',
+            'NotePropertyName reconciled_after_timeout',
             "'^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$'",
             "'/Query','/S',`$s4uCreateTarget,'/TN',`$s4uCreateTaskName"
         )) {
@@ -115,8 +127,8 @@ foreach ($ending in @('crlf','lf')) {
         ) -TimeoutSeconds 30
         Assert-True ([bool]$run.reconciled_after_timeout) "$ending repaired module did not reconcile the exact timed-out task."
         Assert-True (-not [bool]$run.timed_out -and [int]$run.exit_code -eq 0) "$ending repaired module did not return reconciled success."
-        $observed = @(& $module { @($script:SasRepairObservedTimeouts) })
-        Assert-True ($observed.Count -eq 2 -and [int]$observed[0] -eq 60 -and [int]$observed[1] -eq 30) "$ending repaired module did not preserve the 60/30 bounded sequence."
+        $observed = Get-RepairObservedTimeouts -Module $module
+        Assert-True ([int]$observed.count -eq 2 -and [int]$observed.values[0] -eq 60 -and [int]$observed.values[1] -eq 30) "$ending repaired module did not preserve the 60/30 bounded sequence."
         Remove-Module $module -Force
 
         $second = & $repairScript -RuntimeRoot $root -EvidenceRoot $evidenceTwo -ConfirmRepair -PassThru
