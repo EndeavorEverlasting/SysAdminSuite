@@ -24,6 +24,19 @@ def main() -> None:
     assert "Enable-SasNorthwellVpnNetworkGuard.ps1" not in onsite
     assert "Assert-SasAutoLogonProtectedNetwork" not in onsite
 
+    # A successful canonical network-gate process is itself the transaction's protected-network
+    # authority. Do not perform a second caller-scope classification after state-module imports:
+    # that redundant lookup can disappear when SasOperatorSession is force-reloaded in module scope.
+    gate_call = "& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate"
+    gate_classification = "$result.network_classification = 'PROTECTED_NORTHWELL'"
+    target_resolution = "=== CANONICAL TARGET RESOLUTION ==="
+    assert gate_call in field
+    assert "canonical protected-network authority" in field
+    assert "OK_NETWORK_POSTURE" in field
+    assert gate_classification in field
+    assert "Get-SasOperatorNetworkClassification -RepoRoot $repoRoot" not in field
+    assert field.index(gate_call) < field.index(gate_classification) < field.index(target_resolution)
+
     # VPN bootstrap and canonical guard must agree on the authority model: an active
     # DomainAuthenticated non-Wi-Fi interface plus an exact allowlisted local IP.
     required_guard = (
