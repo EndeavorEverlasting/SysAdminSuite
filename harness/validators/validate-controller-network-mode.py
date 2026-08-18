@@ -165,7 +165,7 @@ def validate_product_observations() -> None:
     onsite = read(ONSITE)
     require_tokens("onsite launcher current product dependency", onsite, [
         "git -C $SourceRepoRoot rev-parse HEAD",
-        "git worktree add --detach",
+        "git -C $SourceRepoRoot worktree add --detach",
         "git -C $fieldRuntimeRoot status",
         "git -C $fieldRuntimeRoot checkout --detach",
     ])
