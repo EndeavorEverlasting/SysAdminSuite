@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Close one exact interrupted AutoLogon S4U probe run without launching AutoLogon.
+Close one exact interrupted or terminal-failed AutoLogon S4U probe run without launching AutoLogon.
 
 .DESCRIPTION
 Uses only recorded exact run/task identity. Re-proves the protected network, retrieves an exact
@@ -9,6 +9,10 @@ probe result when one exists, queries/deletes/verifies only the recorded probe t
 schtasks, proves local evidence never entered installer phase, inventories/removes only the exact
 recorded remote S4U run root under the ProbeOnly artifact profile, verifies absence, and writes a
 terminal recovery result into the preserved local run evidence.
+
+A terminal S4U pilot result is accepted only when it is an exact probe-create-timeout family failure,
+its recorded probe task identity matches the requested task, and the terminal result independently
+proves no installer, pre-reboot-ready state, or reboot was reached. Other terminal results fail closed.
 
 This command never launches the AutoLogon installer and never broadens cleanup beyond the recorded
 task name and recorded run root.
@@ -53,11 +57,66 @@ $installLifecycle = Join-Path -Path $evidenceRoot -ChildPath 's4u_install_lifecy
 $afterSnapshot = Join-Path -Path $evidenceRoot -ChildPath 'after_snapshot.json'
 $terminalResult = Join-Path -Path $LocalS4URoot -ChildPath 'autologon_kerberos_s4u_pilot_result.json'
 
+function Get-SasRecoveryPropertyValue {
+    param(
+        $Object,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+    if ($null -eq $Object) { return $null }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
 if (-not (Test-Path -LiteralPath $probeWorker -PathType Leaf)) { throw 'Recorded interrupted run does not contain the expected local probe worker.' }
 $forbiddenLocal = @($installWorker,$installResult,$installLifecycle,$afterSnapshot)
 $presentForbidden = @($forbiddenLocal | Where-Object { Test-Path -LiteralPath $_ })
 if ($presentForbidden.Count -gt 0) { throw "Installer/after-state evidence exists; refusing probe-run recovery: $($presentForbidden -join ', ')" }
-if (Test-Path -LiteralPath $terminalResult -PathType Leaf) { throw 'A terminal S4U pilot result already exists; use that result instead of interrupted recovery.' }
+
+$terminalPilotPresent = Test-Path -LiteralPath $terminalResult -PathType Leaf
+$terminalPilotClassification = $null
+$terminalPilotRecoveryEligible = $false
+if ($terminalPilotPresent) {
+    try {
+        $terminalPilot = Get-Content -LiteralPath $terminalResult -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    catch {
+        throw "Terminal S4U pilot result cannot be parsed; refusing recovery: $($_.Exception.Message)"
+    }
+
+    $terminalPilotClassification = [string](Get-SasRecoveryPropertyValue -Object $terminalPilot -Name 'classification')
+    $allowedTerminalClassifications = @(
+        'S4U_PROBE_CREATE_TIMEOUT',
+        'S4U_PROBE_CREATE_TIMEOUT_CONFIRMED_ABSENT',
+        'S4U_PROBE_CREATE_TIMEOUT_CONFIRMATION_UNVERIFIED'
+    )
+    if ($terminalPilotClassification -notin $allowedTerminalClassifications) {
+        throw "Terminal S4U pilot classification is not probe-create-timeout recovery eligible: $terminalPilotClassification"
+    }
+
+    $terminalProbe = Get-SasRecoveryPropertyValue -Object $terminalPilot -Name 'probe'
+    if ($null -eq $terminalProbe) { throw 'Terminal S4U pilot result does not contain recorded probe lifecycle identity.' }
+    $terminalProbeTaskName = [string](Get-SasRecoveryPropertyValue -Object $terminalProbe -Name 'task_name')
+    if ([string]::IsNullOrWhiteSpace($terminalProbeTaskName) -or
+        -not $terminalProbeTaskName.Equals($TaskName, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Terminal S4U pilot probe task identity does not match requested recovery task: $TaskName"
+    }
+
+    $terminalInstall = Get-SasRecoveryPropertyValue -Object $terminalPilot -Name 'install'
+    $terminalInstallerExitCode = Get-SasRecoveryPropertyValue -Object $terminalPilot -Name 'installer_exit_code'
+    $terminalPreRebootReady = Get-SasRecoveryPropertyValue -Object $terminalPilot -Name 'pre_reboot_autologon_ready'
+    $terminalAutomaticReboot = Get-SasRecoveryPropertyValue -Object $terminalPilot -Name 'automatic_reboot_performed'
+    $terminalAfterSnapshotPath = [string](Get-SasRecoveryPropertyValue -Object $terminalPilot -Name 'after_snapshot_path')
+
+    if ($null -ne $terminalInstall) { throw 'Terminal S4U pilot result contains installer lifecycle evidence; refusing probe-only recovery.' }
+    if ($null -ne $terminalInstallerExitCode) { throw 'Terminal S4U pilot result contains an installer exit code; refusing probe-only recovery.' }
+    if ($terminalPreRebootReady -eq $true) { throw 'Terminal S4U pilot result reports pre-reboot AutoLogon ready; refusing probe-only recovery.' }
+    if ($terminalAutomaticReboot -eq $true) { throw 'Terminal S4U pilot result reports automatic reboot; refusing probe-only recovery.' }
+    if (-not [string]::IsNullOrWhiteSpace($terminalAfterSnapshotPath)) { throw 'Terminal S4U pilot result references after-state evidence; refusing probe-only recovery.' }
+
+    $terminalPilotRecoveryEligible = $true
+    Write-Host "Terminal probe-timeout result accepted for exact recovery: $terminalPilotClassification" -ForegroundColor Green
+}
 
 Write-Host "`n=== EXACT S4U INTERRUPTED-RUN RECOVERY ===" -ForegroundColor Cyan
 Assert-SasNorthwellWifi
@@ -134,7 +193,7 @@ $taskAbsentAfterCleanup = ([int]$verify.exit_code -ne 0 -and
 if (-not $taskAbsentAfterCleanup) { throw 'Exact recorded probe-task absence was not preserved after cleanup.' }
 
 $result = [pscustomobject][ordered]@{
-    schema_version = 'sas-autologon-s4u-interrupted-recovery/v2'
+    schema_version = 'sas-autologon-s4u-interrupted-recovery/v3'
     status = 'COMPLETED'
     classification = 'S4U_PROBE_CREATE_HANG_RECOVERED'
     target = $ComputerName
@@ -148,7 +207,9 @@ $result = [pscustomobject][ordered]@{
     installer_result_present = $false
     installer_lifecycle_present = $false
     after_snapshot_present = $false
-    terminal_pilot_result_present = $false
+    terminal_pilot_result_present = $terminalPilotPresent
+    terminal_pilot_classification = $terminalPilotClassification
+    terminal_pilot_recovery_eligible = $terminalPilotRecoveryEligible
     installer_phase_entered = $false
     task_initially_present = $taskInitiallyPresent
     task_initially_absent = $taskInitiallyAbsent
@@ -161,7 +222,7 @@ $result = [pscustomobject][ordered]@{
     exact_remote_inventory = @($cleanup.inventory_names)
     cleanup_scope = [string]$cleanup.cleanup_scope
     autologon_installer_launched_by_recovered_transaction = $false
-    next_action = 'Run AutoLogon once through the supported hardened command after refreshing the intended branch on Guest/Internet.'
+    next_action = 'Run exactly one AutoLogon attempt through the supported crash-safe command after re-establishing protected network authority.'
     completed_utc = (Get-Date).ToUniversalTime().ToString('o')
 }
 $result | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $resultPath -Encoding UTF8
