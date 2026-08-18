@@ -6,11 +6,13 @@ Use this skill when repository/Git work must happen off the protected network an
 - "Connect to the VPN and then deploy."
 - "Could not read the local certified checkout HEAD" after a network transition.
 - A proposed field command mixes clone/fetch/rev-parse/worktree operations with protected-network target work.
+- A successful clone is followed by a branch fetch that reports the remote branch deleted or leaves `refs/remotes/origin/<branch>` ambiguous.
 
 ## Required inputs
 
 - repository root and repository identity
 - selected branch and exact selected commit
+- pull request number when the work is PR-backed
 - owning validators for the planned field operation
 - intended protected-network operation
 - current dirty/concurrent-work constraints
@@ -22,7 +24,17 @@ Do not require a live hostname in tracked documentation or harness artifacts.
 1. **OFF_NETWORK_REPOSITORY_PREP**
    - Read `AGENTS.md`, `CODEBASE_MAP.md`, and `harness/maps/controller-network-mode-map.md`.
    - Resolve dirty state, worktrees, branch/PR state, and repository freshness while Git is available.
-   - Fetch without force when remote proof is required.
+   - When a pull request is known, fetch the immutable GitHub PR head ref into a private certification ref instead of relying on the mutable remote-tracking branch:
+
+     ```text
+     git fetch --no-force origin "refs/pull/<pr>/head:refs/sas-cert/pr-<pr>"
+     git rev-parse "refs/sas-cert/pr-<pr>"
+     ```
+
+   - Verify that `refs/sas-cert/pr-<pr>` equals the exact expected PR head SHA before creating or selecting the certified worktree.
+   - Treat the branch name as descriptive metadata only for PR certification. A missing, moved, pruned, or briefly unavailable `refs/remotes/origin/<branch>` is not allowed to substitute for or invalidate the PR-head proof.
+   - If `refs/pull/<pr>/head` cannot be fetched or resolves to a different SHA, classify `REMOTE_PR_HEAD_UNAVAILABLE_OR_MOVED`, stop off-network, refresh PR metadata, and restart certification. Do not fall back to a stale branch ref.
+   - If there is no PR, fetch the explicit `refs/heads/<branch>` into a private `refs/sas-cert/*` ref and verify it equals the selected commit.
    - Preserve unrelated work with an isolated worktree.
    - Run `python harness/validators/validate-controller-network-mode.py` and the owning field/regression validators.
    - Serialize the exact repository, branch, commit, source checkout path, UTC timestamp, phase, and validator results to `%LOCALAPPDATA%\SysAdminSuite\controller-handoff\controller-repo-certification.json`.
@@ -44,6 +56,8 @@ Do not require a live hostname in tracked documentation or harness artifacts.
 
 - Fetching before VPN and then running `git rev-parse` after VPN is still a phase violation.
 - A temporary clone path is not proof after transition unless its exact identity was serialized before transition.
+- `refs/remotes/origin/<branch>` is mutable remote-tracking state, not immutable PR certification authority.
+- A branch can disappear or move between clone and explicit fetch. For PR-backed work, certify `refs/pull/<pr>/head` against the expected SHA instead.
 - Do not weaken the network gate to keep Git working.
 - Do not reconstruct an alternate deployment path from inner scripts to bypass a product runtime Git dependency.
 - A harness validator passing does not prove live VPN, target reachability, target mutation, restart, or AutoLogon.
@@ -75,4 +89,4 @@ git diff --check
 
 ## Handoff
 
-Report the exact certified commit, source checkout path, last completed phase, network evidence path if any, current failure classification, and proof ceiling. If `PRODUCT_RUNTIME_GIT_DEPENDENCY` is present, the next owner is the product-code lane; the harness lane must not patch product code.
+Report the exact certified commit, source checkout path, pull request when known, last completed phase, network evidence path if any, current failure classification, and proof ceiling. If `REMOTE_PR_HEAD_UNAVAILABLE_OR_MOVED` is present, stay off-network and refresh PR metadata before retrying certification. If `PRODUCT_RUNTIME_GIT_DEPENDENCY` is present, the next owner is the product-code lane; the harness lane must not patch product code.

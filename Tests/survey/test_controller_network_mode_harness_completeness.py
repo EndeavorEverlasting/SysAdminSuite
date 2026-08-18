@@ -53,10 +53,27 @@ def main() -> int:
         "TRANSITION_TO_PROTECTED_NETWORK",
         "PROTECTED_NETWORK_DEPLOYMENT",
         "no_git_after_transition",
+        "refs/pull/<pr>/head",
+        "refs/sas-cert/pr-<pr>",
+        "REMOTE_PR_HEAD_UNAVAILABLE_OR_MOVED",
         "PRODUCT_RUNTIME_GIT_DEPENDENCY",
     ):
         if token not in workflow:
             fail(f"workflow missing {token}")
+    groups += 1
+
+    docs = (
+        text("harness/maps/controller-network-mode-map.md")
+        + text("harness/skills/controller-network-mode-serialization/SKILL.md")
+        + text("harness/reports/CONTROLLER_NETWORK_MODE_STATUS.md")
+    )
+    for token in (
+        "refs/pull/<pr>/head",
+        "refs/sas-cert/pr-<pr>",
+        "REMOTE_PR_HEAD_UNAVAILABLE_OR_MOVED",
+    ):
+        if token not in docs:
+            fail(f"map/skill/report missing PR certification token {token}")
     groups += 1
 
     hooks = text(".githooks/pre-commit") + text(".githooks/pre-push")

@@ -114,6 +114,11 @@ def validate_phase_contract() -> None:
         "remote_git_off_network_only",
         "no_git_after_transition",
         "controller-repo-certification.json",
+        "pull_request_head_ref_is_certification_authority_when_pr_is_known",
+        "remote_tracking_branch_is_not_certification_authority",
+        "refs/pull/<pr>/head",
+        "refs/sas-cert/pr-<pr>",
+        "REMOTE_PR_HEAD_UNAVAILABLE_OR_MOVED",
         "PRODUCT_RUNTIME_GIT_DEPENDENCY",
         "CERTIFICATION_ARTIFACT_INVALID",
         "NETWORK_POSTURE_UNPROVEN",
@@ -124,6 +129,14 @@ def validate_phase_contract() -> None:
         fail("off-network phase must precede transition")
     if workflow.index("TRANSITION_TO_PROTECTED_NETWORK") > workflow.index("PROTECTED_NETWORK_DEPLOYMENT"):
         fail("transition must precede protected-network phase")
+    off_network = workflow.split("- id: OFF_NETWORK_REPOSITORY_PREP", 1)[1].split("- id: TRANSITION_TO_PROTECTED_NETWORK", 1)[0]
+    require_tokens("off-network phase", off_network, [
+        "fetch_ref: \"refs/pull/<pr>/head\"",
+        "local_certification_ref: \"refs/sas-cert/pr-<pr>\"",
+        "fetch into a private refs/sas-cert/* ref",
+        "verify the private certification ref equals the exact selected_commit",
+        "Do not fall back to refs/remotes/origin/<branch>",
+    ])
     protected = workflow.split("- id: PROTECTED_NETWORK_DEPLOYMENT", 1)[1]
     require_tokens("protected phase", protected, [
         "git_allowed: false",
@@ -139,6 +152,9 @@ def validate_docs() -> None:
         "no_git_after_transition",
         "PRODUCT_RUNTIME_GIT_DEPENDENCY",
         "controller-repo-certification.json",
+        "refs/pull/<pr>/head",
+        "refs/sas-cert/pr-<pr>",
+        "REMOTE_PR_HEAD_UNAVAILABLE_OR_MOVED",
     ]
     require_tokens("map", read(MAP), common + ["TRANSITION_TO_PROTECTED_NETWORK", "CODEBASE_MAP.md"])
     require_tokens("skill", read(SKILL), common + ["Required inputs", "Expected outputs", "Validation", "Handoff"])

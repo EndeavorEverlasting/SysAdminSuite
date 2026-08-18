@@ -13,6 +13,7 @@ triggers:
   - firewall blocks git on protected network
   - connect vpn before deployment
   - could not read the local certified checkout head after connecting vpn
+  - remote branch disappears between clone and certification fetch
   - a field command mixes clone or fetch with protected-network deployment
   - repository freshness is proven but controller network mode is not
 
@@ -32,6 +33,8 @@ invariants:
   - remote_git_off_network_only
   - no_git_after_transition
   - serialized_checkout_identity_is_the_protected_phase_authority
+  - pull_request_head_ref_is_certification_authority_when_pr_is_known
+  - remote_tracking_branch_is_not_certification_authority
   - protected_network_gate_precedes_target_contact
   - harness_lane_does_not_patch_product_runtime_git_dependencies
   - live_hostnames_secrets_and_machine_specific_evidence_remain_untracked
@@ -42,9 +45,25 @@ phases:
     git_allowed: true
     protected_network_required: false
     target_contact_allowed: false
+    remote_ref_resolution:
+      pull_request_known:
+        fetch_ref: "refs/pull/<pr>/head"
+        local_certification_ref: "refs/sas-cert/pr-<pr>"
+        rule: >-
+          Fetch the GitHub pull-request head ref with --no-force into the private local certification ref,
+          then verify that ref equals selected_commit. The selected branch name is descriptive metadata only.
+      pull_request_unknown:
+        fetch_ref: "refs/heads/<branch>"
+        local_certification_ref: "refs/sas-cert/branch"
+        rule: >-
+          Fetch the explicit branch head into a private local certification ref and verify it equals selected_commit.
+          If the branch moved or disappeared, stop instead of silently accepting another commit.
     actions:
       - resolve repository governance, branch, dirty state, worktrees, pull request, and exact selected commit
+      - when pull_request is supplied, prefer refs/pull/<pr>/head over refs/remotes/origin/<branch> for certification
       - fetch without force when current remote proof is required
+      - fetch into a private refs/sas-cert/* ref so branch pruning or remote-tracking updates cannot erase certification authority
+      - verify the private certification ref equals the exact selected_commit before creating the certified worktree
       - preserve dirty or separately owned work with an isolated worktree
       - run owning validators before field transition
       - run git diff --check when a tracked change is being prepared
@@ -65,8 +84,15 @@ phases:
       example_generation: >-
         Create a JSON object from already-proven local values and write it with ConvertTo-Json/Set-Content.
         The generation step itself may use Git because it occurs before the network transition.
+    failure_classifications:
+      REMOTE_PR_HEAD_UNAVAILABLE_OR_MOVED: >-
+        The expected pull-request head ref could not be fetched or did not resolve to selected_commit.
+        Do not fall back to refs/remotes/origin/<branch>; refresh PR metadata off-network and restart certification.
+      REMOTE_BRANCH_HEAD_UNAVAILABLE_OR_MOVED: >-
+        No pull request was supplied and the explicit branch head could not be fetched or no longer equals selected_commit.
     completion_gate:
       - exact selected commit is known
+      - private certification ref resolves exactly to selected_commit
       - owning validators pass
       - certification artifact exists and records the exact commit and source checkout path
       - no target contact occurred
@@ -131,6 +157,7 @@ phases:
 failure_handling:
   - never reconnect public/off-network access merely to run a Git check in the middle of a protected transaction
   - never weaken the protected-network gate to preserve Git access
+  - never use a mutable refs/remotes/origin/<branch> ref as PR certification authority when refs/pull/<pr>/head is available
   - never reconstruct an unregistered deployment path to bypass PRODUCT_RUNTIME_GIT_DEPENDENCY
   - return to OFF_NETWORK_REPOSITORY_PREP only after abandoning the protected transaction with no target mutation in flight
   - product runtime Git dependency repairs require a separate product-code lane
@@ -143,13 +170,13 @@ validation:
     - python harness/validators/validate-repository-freshness-contracts.py
     - git diff --check
   proof_ceiling: >-
-    Static harness proof that controller phases are serialized, network proof precedes target contact,
-    and a current product Git dependency is surfaced rather than bypassed. No live VPN, Git-block,
-    target-contact, target-mutation, restart, or AutoLogon success is claimed.
+    Static harness proof that controller phases are serialized, PR certification uses an immutable PR-head ref,
+    network proof precedes target contact, and a current product Git dependency is surfaced rather than bypassed.
+    No live VPN, Git-block, target-contact, target-mutation, restart, or AutoLogon success is claimed.
 
 handoff:
   required:
-    - exact repository, branch, and commit from the serialized certification
+    - exact repository, branch, pull request when known, and commit from the serialized certification
     - phase reached and whether network transition occurred
     - validator results
     - protected-network evidence path when generated

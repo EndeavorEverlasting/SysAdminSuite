@@ -46,6 +46,8 @@ Allowed and expected:
 
 - `git clone`, `git fetch --no-force`, `git rev-parse`, `git status`, `git worktree`, local validators, and PR checks.
 - Select and verify the exact repository branch/commit.
+- When a pull request is known, fetch `refs/pull/<pr>/head` into a private local certification ref such as `refs/sas-cert/pr-<pr>` and verify that ref equals the expected immutable PR head SHA.
+- Treat the branch name as descriptive metadata only during PR certification. Do not make `refs/remotes/origin/<branch>` the certification authority because a mutable branch can move or temporarily disappear while the PR head SHA remains the intended proof target.
 - Run the owning harness/product regression validators required before field work.
 - Write `%LOCALAPPDATA%\SysAdminSuite\controller-handoff\controller-repo-certification.json`.
 - Record the exact source checkout path and commit identity in that runtime artifact.
@@ -54,6 +56,7 @@ Forbidden:
 
 - Target contact or mutation.
 - Treating a fetch as execution-tree convergence.
+- Falling back from a missing/moved PR head to a stale remote-tracking branch.
 - Connecting the protected-network phase before the certification artifact is complete.
 
 ### 2. TRANSITION_TO_PROTECTED_NETWORK
@@ -83,9 +86,11 @@ Forbidden:
 - Reconstructing an alternate product deployment path just to avoid a product dependency.
 - Target contact before protected-network proof.
 
-## Known trap and current blocker
+## Known traps and current blockers
 
 A command can be repository-correct and still be operationally invalid if it mixes phases. A command that clones off-network, asks the operator to connect VPN, then runs `git rev-parse` or creates a Git worktree is a harness failure even when each individual command is otherwise valid.
+
+A second trap is using the mutable remote-tracking branch as the certification ref for PR work. The observed signature is a successful clone followed by a fetch reporting the branch as deleted and then `fatal: ambiguous argument 'refs/remotes/origin/<branch>'`. That condition is `REMOTE_PR_HEAD_UNAVAILABLE_OR_MOVED` until the immutable PR head ref is fetched and verified; do not infer that the local checkout or the PR itself is invalid from the missing branch ref alone.
 
 At the current inspected product surface, `scripts/Invoke-SasAutoLogonOnsite.ps1` still uses local Git to prepare `C:\SASAL`. If the protected environment blocks Git execution, classify the gate as `PRODUCT_RUNTIME_GIT_DEPENDENCY`. Stop before target contact and hand the issue to a separate product-code lane. Do not weaken the network gate and do not invent an alternate field launcher inside this harness lane.
 
