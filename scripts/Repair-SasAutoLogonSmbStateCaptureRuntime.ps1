@@ -89,6 +89,19 @@ function Assert-SasStateRepairParse {
     }
 }
 
+function Test-SasStateRepairBoundedInvocation {
+    param([Parameter(Mandatory = $true)][string]$Text)
+
+    # Field repairs may format PowerShell continuation arguments across lines.
+    # Verify command semantics rather than requiring one exact source line.
+    $pattern = 'Invoke-SasBoundedNative(?:\s|`)+-FilePath(?:\s|`)+\$schtasksPath(?:\s|`)+-Arguments(?:\s|`)+\$Arguments(?:\s|`)+-TimeoutSeconds(?:\s|`)+\$TimeoutSeconds'
+    return [regex]::IsMatch(
+        $Text,
+        $pattern,
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase
+    )
+}
+
 function Replace-SasStateRepairFunction {
     param(
         [Parameter(Mandatory = $true)][string]$Text,
@@ -119,7 +132,7 @@ try {
     $text = [IO.File]::ReadAllText($modulePath)
 
     $alreadyPresent = (
-        $text.Contains('Invoke-SasBoundedNative -FilePath $schtasksPath') -and
+        (Test-SasStateRepairBoundedInvocation -Text $text) -and
         $text.Contains('native_stderr_is_data_not_terminating_error') -and
         -not $text.Contains('$output = @(& "$env:WINDIR\System32\schtasks.exe" @Arguments 2>&1')
     )
@@ -145,7 +158,10 @@ function Invoke-SasAutoLogonRecoverySchtasksCommand {
     $boundedModule = Join-Path $PSScriptRoot 'SasBoundedNative.psm1'
     Import-Module $boundedModule -ErrorAction Stop
     $schtasksPath = Join-Path $env:WINDIR 'System32\schtasks.exe'
-    $run = Invoke-SasBoundedNative -FilePath $schtasksPath -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds
+    $run = Invoke-SasBoundedNative `
+        -FilePath $schtasksPath `
+        -Arguments $Arguments `
+        -TimeoutSeconds $TimeoutSeconds
 
     $lines = @()
     if (-not [string]::IsNullOrWhiteSpace([string]$run.output)) {
@@ -173,13 +189,15 @@ function Invoke-SasAutoLogonRecoverySchtasksCommand {
         foreach ($marker in @(
             'native_stderr_is_data_not_terminating_error',
             "Join-Path `$PSScriptRoot 'SasBoundedNative.psm1'",
-            'Invoke-SasBoundedNative -FilePath $schtasksPath',
             '$lines += ([string]$run.error).Trim()',
             'timed_out = [bool]$run.timed_out'
         )) {
             if (-not $text.Contains($marker)) {
                 throw "State-capture repair marker missing: $marker"
             }
+        }
+        if (-not (Test-SasStateRepairBoundedInvocation -Text $text)) {
+            throw 'State-capture repair semantic verification did not find the bounded schtasks invocation.'
         }
         if ($text.Contains('$output = @(& "$env:WINDIR\System32\schtasks.exe" @Arguments 2>&1')) {
             throw 'Unsafe direct schtasks wrapper remains after repair.'
@@ -207,6 +225,7 @@ $result = [pscustomobject][ordered]@{
     module_sha256_after = $afterSha256
     powershell_parse_passed = $true
     bounded_native_task_scheduler = $true
+    bounded_invocation_semantic_verification = $true
     native_stderr_preserved_as_data = $true
     git_performed = $false
     network_activity_performed = $false
