@@ -158,6 +158,46 @@ Describe 'Software deployment transport preflight' {
         }
     }
 
+    It 'compacts an AutoLogon-style over-budget output root before creating the transport run context' {
+        $fixturePath = Join-Path $script:fixtureRoot 'kerberos-smb-task-ready.fixture.json'
+        $nestedRelative = @(
+            'runs',
+            'autologon-field-deployment-99999999-999999-ffffffff',
+            'deployment',
+            'autologon-s4u-deployment-99999999-999999-ffffffff',
+            's4u',
+            'autologon-kerberos-s4u-99999999-999999-ffffffff',
+            'preflight'
+        ) -join '\'
+        $requestedRoot = Join-Path $repoRoot $nestedRelative
+        $execution = $null
+        try {
+            $projectedRequest = Join-Path $requestedRoot 'software-deployment-transport\software-deployment-transport-99999999-999999-ffffffff\request.json'
+            $projectedRequest.Length | Should -BeGreaterThan 260
+
+            $execution = & $script:entrypoint -FixtureMode -FixturePath $fixturePath -OutputRoot $requestedRoot -PassThru
+            $compactWorkflowRoot = Join-Path (Join-Path $repoRoot 'runs') 'software-deployment-transport'
+            $execution.run_root.StartsWith($compactWorkflowRoot, [StringComparison]::OrdinalIgnoreCase) | Should -BeTrue
+            $execution.result.decision.classification | Should -Be 'kerberos_smb_task_ready'
+            $execution.result.network_activity_performed | Should -BeFalse
+            $execution.result.target_mutation_performed | Should -BeFalse
+            $execution.result_path.Length | Should -BeLessThan 240
+            Test-Path -LiteralPath $execution.result_path -PathType Leaf | Should -BeTrue
+            Test-Path -LiteralPath $requestedRoot | Should -BeFalse
+        }
+        finally {
+            if ($null -ne $execution -and (Test-Path -LiteralPath $execution.run_root -PathType Container)) {
+                $workflowRoot = Split-Path -Parent $execution.run_root
+                Remove-Item -LiteralPath $execution.run_root -Recurse -Force
+                if ((Test-Path -LiteralPath $workflowRoot -PathType Container) -and
+                    @(Get-ChildItem -LiteralPath $workflowRoot -Force).Count -eq 0) {
+                    Remove-Item -LiteralPath $workflowRoot -Force
+                }
+            }
+            if (Test-Path -LiteralPath $requestedRoot) { Remove-Item -LiteralPath $requestedRoot -Recurse -Force }
+        }
+    }
+
     It 'does not leak ticket bytes, target identifiers, usernames, credentials, or raw faults' {
         $fixture = Read-TransportFixture 'kerberos-smb-task-ready.fixture.json'
         $result = New-SasSoftwareDeploymentTransportResult -Observations $fixture.observations -EvidenceClass sanitized_fixture -NetworkActivityPerformed $false
