@@ -44,8 +44,9 @@ function Assert-Parse([string]$Text) {
 }
 
 function Test-RepairPresent([string]$Text) {
-    return ($Text.Contains("`$timeoutPolicy = 's4u_task_create_minimum_60'") -and
-        $Text.Contains('reconciled_after_timeout = $true') -and
+    return ($Text.Contains('function Invoke-SasBoundedNativeCore {') -and
+        $Text.Contains("`$timeoutPolicy = 's4u_task_create_minimum_60'") -and
+        $Text.Contains('reconciled_after_timeout') -and
         $Text.Contains("'^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$'") -and
         $Text.Contains("'/Query','/S',`$s4uCreateTarget,'/TN',`$s4uCreateTaskName"))
 }
@@ -60,19 +61,25 @@ if (-not (Test-RepairPresent $source)) {
     $newline = if ($source.Contains("`r`n")) { "`r`n" } else { "`n" }
     $text = $source.Replace("`r`n","`n").Replace("`r","`n")
 
-    $startMarker = 'function Invoke-SasBoundedNative {'
-    $endMarker = 'function Test-SasBoundedPath {'
-    $start = $text.IndexOf($startMarker, [StringComparison]::Ordinal)
-    $end = $text.IndexOf($endMarker, [StringComparison]::Ordinal)
-    if ($start -lt 0 -or $end -le $start) {
+    $oldFunctionMarker = 'function Invoke-SasBoundedNative {'
+    $nextFunctionMarker = 'function Test-SasBoundedPath {'
+    $oldFunctionIndex = $text.IndexOf($oldFunctionMarker, [StringComparison]::Ordinal)
+    $nextFunctionIndex = $text.IndexOf($nextFunctionMarker, [StringComparison]::Ordinal)
+    if ($oldFunctionIndex -lt 0 -or $nextFunctionIndex -le $oldFunctionIndex) {
         throw 'Bounded-native repair function boundaries were not found.'
     }
-    if ($text.IndexOf($startMarker, $start + 1, [StringComparison]::Ordinal) -ge 0 -or
-        $text.IndexOf($endMarker, $end + 1, [StringComparison]::Ordinal) -ge 0) {
+    if ($text.IndexOf($oldFunctionMarker, $oldFunctionIndex + 1, [StringComparison]::Ordinal) -ge 0 -or
+        $text.IndexOf($nextFunctionMarker, $nextFunctionIndex + 1, [StringComparison]::Ordinal) -ge 0) {
         throw 'Bounded-native repair function boundaries are ambiguous.'
     }
 
-    $replacement = @'
+    $text = $text.Remove($oldFunctionIndex, $oldFunctionMarker.Length).Insert(
+        $oldFunctionIndex,
+        'function Invoke-SasBoundedNativeCore {'
+    )
+    $nextFunctionIndex = $text.IndexOf($nextFunctionMarker, [StringComparison]::Ordinal)
+
+    $wrapper = @'
 function Invoke-SasBoundedNative {
     [CmdletBinding()]
     param(
@@ -81,9 +88,6 @@ function Invoke-SasBoundedNative {
         [ValidateRange(1,300)][int]$TimeoutSeconds = 30
     )
 
-    # S4U task creation is a remote RPC operation. A controller-side timeout does not prove that
-    # the exact GUID-unique task failed to commit remotely. Give only the AutoLogon S4U create
-    # operation a larger bounded window and, if it still times out, reconcile only that exact task.
     $requestedTimeoutSeconds = $TimeoutSeconds
     $effectiveTimeoutSeconds = $TimeoutSeconds
     $timeoutPolicy = 'requested'
@@ -92,7 +96,9 @@ function Invoke-SasBoundedNative {
     $isExactS4UCreate = $false
 
     if ([IO.Path]::GetFileName($FilePath).Equals('schtasks.exe', [StringComparison]::OrdinalIgnoreCase)) {
-        $hasCreate = @($Arguments | Where-Object { ([string]$_).Equals('/Create', [StringComparison]::OrdinalIgnoreCase) }).Count -eq 1
+        $hasCreate = @($Arguments | Where-Object {
+            ([string]$_).Equals('/Create', [StringComparison]::OrdinalIgnoreCase)
+        }).Count -eq 1
         for ($i = 0; $i -lt $Arguments.Count - 1; $i++) {
             if (([string]$Arguments[$i]).Equals('/S', [StringComparison]::OrdinalIgnoreCase)) {
                 $s4uCreateTarget = [string]$Arguments[$i + 1]
@@ -106,87 +112,48 @@ function Invoke-SasBoundedNative {
             [string]$s4uCreateTaskName -match '^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$')
     }
 
-    if ($isExactS4UCreate -and $effectiveTimeoutSeconds -lt 60) {
+    if (-not $isExactS4UCreate) {
+        return Invoke-SasBoundedNativeCore -FilePath $FilePath -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds
+    }
+
+    if ($effectiveTimeoutSeconds -lt 60) {
         $effectiveTimeoutSeconds = 60
         $timeoutPolicy = 's4u_task_create_minimum_60'
     }
 
-    $payload = [pscustomobject]@{ file_path=$FilePath; arguments=@($Arguments) } | ConvertTo-Json -Depth 4 -Compress
-    $payload64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($payload))
-    $child = @'
-$ErrorActionPreference = 'Stop'
-$p = ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__PAYLOAD__'))) | ConvertFrom-Json
-try {
-    $lines = @(& ([string]$p.file_path) @($p.arguments | ForEach-Object { [string]$_ }) 2>&1 | ForEach-Object { [string]$_ })
-    if ($lines.Count -gt 0) { [Console]::Out.Write(($lines -join [Environment]::NewLine)) }
-    exit [int]$LASTEXITCODE
-}
-catch {
-    [Console]::Error.Write($_.Exception.Message)
-    exit 1
-}
-'@.Replace('__PAYLOAD__', $payload64)
-
-    $result = Invoke-SasBoundedPowerShell -ScriptText $child -TimeoutSeconds $effectiveTimeoutSeconds
+    $result = Invoke-SasBoundedNativeCore -FilePath $FilePath -Arguments $Arguments -TimeoutSeconds $effectiveTimeoutSeconds
     $initialTimedOut = [bool]$result.timed_out
-    $reconciledAfterTimeout = $false
     $reconciliation = $null
+    $reconciledAfterTimeout = $false
 
-    if ($isExactS4UCreate -and $initialTimedOut) {
-        $reconciliation = Invoke-SasBoundedNative -FilePath $FilePath -Arguments @(
+    if ($initialTimedOut) {
+        $reconciliation = Invoke-SasBoundedNativeCore -FilePath $FilePath -Arguments @(
             '/Query','/S',$s4uCreateTarget,'/TN',$s4uCreateTaskName
         ) -TimeoutSeconds $requestedTimeoutSeconds
         $reconciledAfterTimeout = (-not [bool]$reconciliation.timed_out -and [int]$reconciliation.exit_code -eq 0)
     }
 
+    $result | Add-Member -NotePropertyName requested_timeout_seconds -NotePropertyValue $requestedTimeoutSeconds -Force
+    $result | Add-Member -NotePropertyName timeout_policy -NotePropertyValue $timeoutPolicy -Force
+    $result | Add-Member -NotePropertyName initial_timed_out -NotePropertyValue $initialTimedOut -Force
+    $result | Add-Member -NotePropertyName reconciled_after_timeout -NotePropertyValue $reconciledAfterTimeout -Force
+    $result | Add-Member -NotePropertyName reconciliation -NotePropertyValue $reconciliation -Force
+    $result | Add-Member -NotePropertyName initial_error -NotePropertyValue $(if ($initialTimedOut) { [string]$result.error } else { $null }) -Force
+
     if ($reconciledAfterTimeout) {
-        return [pscustomobject][ordered]@{
-            file_path = $FilePath
-            arguments = @($Arguments)
-            process_id = $result.process_id
-            exit_code = 0
-            timed_out = $false
-            timeout_seconds = $effectiveTimeoutSeconds
-            requested_timeout_seconds = $requestedTimeoutSeconds
-            timeout_policy = $timeoutPolicy
-            initial_timed_out = $true
-            reconciled_after_timeout = $true
-            reconciliation = $reconciliation
-            child_tree_termination_attempted = $result.child_tree_termination_attempted
-            child_tree_terminated = $result.child_tree_terminated
-            output = [string]$reconciliation.output
-            error = ''
-            initial_error = [string]$result.error
-            started_utc = $result.started_utc
-            completed_utc = $reconciliation.completed_utc
-        }
+        $result.exit_code = 0
+        $result.timed_out = $false
+        $result.output = [string]$reconciliation.output
+        $result.error = ''
+        $result.completed_utc = [string]$reconciliation.completed_utc
     }
 
-    [pscustomobject][ordered]@{
-        file_path = $FilePath
-        arguments = @($Arguments)
-        process_id = $result.process_id
-        exit_code = $result.exit_code
-        timed_out = $result.timed_out
-        timeout_seconds = $effectiveTimeoutSeconds
-        requested_timeout_seconds = $requestedTimeoutSeconds
-        timeout_policy = $timeoutPolicy
-        initial_timed_out = $initialTimedOut
-        reconciled_after_timeout = $false
-        reconciliation = $reconciliation
-        child_tree_termination_attempted = $result.child_tree_termination_attempted
-        child_tree_terminated = $result.child_tree_terminated
-        output = $result.output
-        error = $result.error
-        initial_error = $null
-        started_utc = $result.started_utc
-        completed_utc = $result.completed_utc
-    }
+    return $result
 }
 
 '@
 
-    $candidate = $text.Substring(0,$start) + $replacement + $text.Substring($end)
+    $candidate = $text.Insert($nextFunctionIndex, $wrapper)
     if ($newline -eq "`r`n") { $candidate = $candidate.Replace("`n","`r`n") }
 
     try {
@@ -211,7 +178,7 @@ if (-not (Test-RepairPresent $final)) {
 }
 $afterSha = Get-RepairHash $targetPath
 $result = [pscustomobject][ordered]@{
-    schema_version = 'sas-autologon-s4u-create-timeout-runtime-repair/v1'
+    schema_version = 'sas-autologon-s4u-create-timeout-runtime-repair/v2'
     classification = $classification
     runtime_root = $RuntimeRoot
     target_path = $targetPath
@@ -221,6 +188,7 @@ $result = [pscustomobject][ordered]@{
     s4u_create_minimum_timeout_seconds = 60
     exact_task_name_pattern = '^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$'
     exact_query_reconciliation = $true
+    repair_strategy = 'rename_core_and_insert_wrapper'
     powershell_parse_passed = $true
     semantic_verification = $true
     git_performed = $false
