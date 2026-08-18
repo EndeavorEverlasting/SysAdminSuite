@@ -70,7 +70,9 @@ Required closed-state facts are:
 - exact task absent after cleanup: true
 - exact run root absent: true
 
-The exact historical run/task identifiers and recovery path remain in ignored machine-local evidence. The normal `Remote` command discovers only approved local durable evidence, skips a completed recovery record, and returns `NO_INTERRUPTED_PROBE_RUN_FOUND` when no newer unfinished safe probe-only transaction remains. `sas autologon Recover HOST` remains recovery-only and never installs AutoLogon.
+The exact historical run/task identifiers and recovery path remain in ignored machine-local evidence. The normal `Remote` command discovers only approved local durable evidence, skips a completed recovery record, and returns `NO_INTERRUPTED_PROBE_RUN_FOUND` when no newer safe recovery candidate remains. `sas autologon Recover HOST` remains recovery-only and never installs AutoLogon.
+
+A terminal pilot result is not automatically equivalent to a completed or safe-to-ignore transaction. Recovery v3 admits **only the exact safe terminal Probe-create timeout shape**: terminal and nested Probe classifications must both be `S4U_PROBE_CREATE_TIMEOUT`, run/target/task identity must match, outer staging cleanup must already be verified, and installer/after-state/reboot proof must be absent. Every other terminal pilot result remains excluded from discovery and refused by exact interrupted recovery.
 
 ## Transaction behavior
 
@@ -82,9 +84,9 @@ The exact historical run/task identifiers and recovery path remain in ignored ma
 4. Acquires one atomic per-canonical-target operator lock.
 5. Stops without applying if durable terminal deployment evidence already exists.
 6. Discovers and deduplicates approved local S4U probe evidence, including physical paths and subst aliases.
-7. Skips terminal pilot and completed recovery records.
+7. Skips completed recovery records and all terminal pilot results except the exact safe `S4U_PROBE_CREATE_TIMEOUT` recovery-v3 shape.
 8. Fails closed on install or after-state evidence.
-9. Recovers only an exact safely recorded unfinished probe-only transaction against the canonical target.
+9. Recovers only an exact safely recorded probe-only transaction against the canonical target, including the admitted terminal Probe-create-timeout case when every v3 guard passes.
 10. Invokes the hardened AutoLogon S4U apply exactly once.
 11. Requires the clean intent-only baseline before mutation.
 12. Stages and hash-verifies the approved AutoLogon package.
