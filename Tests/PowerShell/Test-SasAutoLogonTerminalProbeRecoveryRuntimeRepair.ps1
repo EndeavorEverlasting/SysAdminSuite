@@ -6,7 +6,7 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath
 $repairScript = Join-Path -Path $repoRoot -ChildPath 'scripts\Repair-SasAutoLogonTerminalProbeRecoveryRuntime.ps1'
 if (-not (Test-Path -LiteralPath $repairScript -PathType Leaf)) { throw "Missing repair script: $repairScript" }
 
-$fixtureLf = @'
+$fixtureSource = @'
 #Requires -Version 5.1
 Set-StrictMode -Version 2.0
 $terminalResult = 'terminal.json'
@@ -20,6 +20,7 @@ $result = [pscustomobject][ordered]@{
 }
 $result
 '@
+$fixtureLf = $fixtureSource.Replace("`r`n","`n")
 
 function Get-LatestEvidence {
     param([Parameter(Mandatory = $true)][string]$EvidenceRoot)
