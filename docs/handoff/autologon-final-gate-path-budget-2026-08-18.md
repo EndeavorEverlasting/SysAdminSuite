@@ -17,11 +17,17 @@ Stage 6 (`final-step gate`) failed before package hashing, staging, S4U probe, i
 
 ## Repair
 
-`Invoke-SasAutoLogonFinalStepGate.ps1` now uses a conservative 240-character budget. Normal short paths preserve the existing nested `<OutputRoot>\<RunId>\autologon_final_step_gate.json` contract. When only the nested path exceeds the budget, the result is flattened to `<OutputRoot>\autologon_final_step_gate.json`, which remains inside the owning S4U run tree and therefore remains discoverable by the existing local run-status observer.
+`Invoke-SasAutoLogonFinalStepGate.ps1` now uses a conservative 240-character budget and a three-level local placement policy:
 
-The gate records the requested path, actual path, 240-character budget, and whether compaction occurred. A pre-existing flattened result for a different run ID is a hard collision and is never overwritten. If the flattened path itself exceeds 240 characters, the gate fails closed before directory creation.
+1. normal short paths preserve `<OutputRoot>\<RunId>\autologon_final_step_gate.json`;
+2. when only the nested path is too long, the result is flattened to `<OutputRoot>\autologon_final_step_gate.json` inside the requested owning evidence tree;
+3. when the requested output root itself is already too deep for the flattened filename, the gate falls back to the repository-local `runs\final-gate\<RunId>\autologon_final_step_gate.json` tree.
 
-`Repair-SasAutoLogonFinalStepGatePathRuntime.ps1` applies the same bounded behavior to an already-sealed protected runtime without Git, network activity, or target contact.
+The gate records the requested path, actual path, 240-character budget, compaction state, compaction mode, and repository fallback root when used. A pre-existing compacted result whose embedded run ID differs from the requested run is a hard collision and is never overwritten. The gate still fails closed if no approved candidate fits the 240-character budget.
+
+The repository fallback was added after the canonical fixture E2E deliberately produced an output root so deep that even the first flattened result remained over budget. The fallback keeps that condition bounded without weakening the path budget or changing prerequisite evaluation.
+
+`Repair-SasAutoLogonFinalStepGatePathRuntime.ps1` applies the same hierarchy to an already-sealed protected runtime without Git, network activity, or target contact.
 
 ## Regression contract
 
@@ -30,9 +36,10 @@ Windows PowerShell 5.1 CI proves:
 - the permanent final-step gate source parses;
 - a normal short path remains nested;
 - a synthetic requested path in the approximately 260-280 character field class is flattened below 240 characters;
-- gate prerequisite results and run identity are preserved;
+- a deeper output root whose flat result is still over budget moves to the repository-local run-scoped fallback;
+- gate prerequisite results and run identity are preserved across all three placement modes;
 - different-run compacted evidence collisions are rejected without overwrite;
-- the protected-runtime repair works for CRLF and LF files and is idempotent.
+- the protected-runtime repair works for CRLF and LF files, exercises both compaction levels, and is idempotent.
 
 ## Proof ceiling
 
