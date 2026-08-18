@@ -15,6 +15,7 @@ Load only the references that match the selected field lane:
 - Northwell shared-printer mapping: [`START-HERE-NORTHWELL-PRINTER-MAPPING.md`](../../../START-HERE-NORTHWELL-PRINTER-MAPPING.md)
 - Northwell technician front door: [`Map-NorthwellPrinter-SystemWide.cmd`](../../../Map-NorthwellPrinter-SystemWide.cmd)
 - Canonical Northwell printer engine: [`mapping/Invoke-NorthwellPrinterMapping.ps1`](../../../mapping/Invoke-NorthwellPrinterMapping.ps1)
+- Northwell printer evidence precedence: [`harness/api/northwell-printer-mapping-evidence-policy.json`](../../../harness/api/northwell-printer-mapping-evidence-policy.json)
 - Dashboard front door and fallback: [`docs/DASHBOARD_ENTRYPOINT.md`](../../../docs/DASHBOARD_ENTRYPOINT.md)
 - Software deployment tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](../../../docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Software installation safety contract: [`docs/SOFTWARE_INSTALL_HARNESS.md`](../../../docs/SOFTWARE_INSTALL_HARNESS.md)
@@ -31,9 +32,10 @@ When a technician asks to map, add, install, or connect a printer on a Northwell
 4. Route the technician to **double-click `Map-NorthwellPrinter-SystemWide.cmd`**. The launcher owns elevation, prompts, terminal persistence, and delegation to the validated PowerShell engine.
 5. Do not substitute `Utilities\Map-Printer.ps1` or `Add-Printer -ConnectionName`, which are per-user paths.
 6. Let the canonical runner resolve queue-only input from Active Directory, normalize short Northwell hostnames, reject IP/URL inputs, run the endpoint action as SYSTEM, and use `PrintUIEntry /ga`.
-7. Do not call the mapping successful unless the run returns SYSTEM identity plus the requested queue under the HKLM per-computer printer-connection registry evidence.
+7. Do not call the mapping successful merely because a command launched. The canonical mapping engine proves SYSTEM identity plus the requested queue under the HKLM per-computer printer-connection registry evidence.
 8. If the user was already signed in when `/ga` ran, explain that sign-out/sign-in may be needed before the printer becomes visible in that user's shell session; do not remap it per-user as a workaround.
-9. On failure, direct diagnosis to the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json` instead of reconstructing the vanished terminal output.
+9. If the operator reports that a real requested document printed successfully after the canonical mapping workflow, treat that as **runtime acceptance evidence that the mapped print path works**. Do not request another test page, remove/rebuild the printer, or reinterpret the mapping as failed solely because local `PortName`, `WorkOffline`, CIM, RPC, SMB, or remote `Get-Printer` telemetry looks contradictory. Preserve that lower-ranked telemetry as diagnostic context unless a later observed print failure reopens the incident.
+10. On failure, direct diagnosis to the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json` instead of reconstructing vanished terminal output.
 
 ## Workflow
 
@@ -53,3 +55,4 @@ When a technician asks to map, add, install, or connect a printer on a Northwell
 - A launcher ACK is not proof that the intended behavior occurred.
 - Installer completion is not package-level post-install acceptance; present the remaining verification gate.
 - For Northwell printer mapping, direct-IP installation and per-user-only mapping are blocking contract violations, not fallbacks.
+- For Northwell printer diagnosis, successful real-world document output after canonical mapping outranks contradictory diagnostic telemetry. Do not turn a proven working mapping into a repair target solely to make lower-level telemetry look cleaner.

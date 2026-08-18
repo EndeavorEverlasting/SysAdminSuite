@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [main, 'feat/**', 'repair/**']
+    branches: [main, 'feat/**', 'fix/**', 'repair/**']
     paths:
       - 'AGENTS.md'
       - '.claude/skills/field-workflow/**'
@@ -15,6 +15,7 @@ on:
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
@@ -29,6 +30,7 @@ on:
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
@@ -72,6 +74,16 @@ jobs:
           }
           Write-Host 'PASS: Northwell printer PowerShell surfaces parse.'
 
+      - name: Parse printer mapping evidence policy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $policy = Get-Content -LiteralPath '.\harness\api\northwell-printer-mapping-evidence-policy.json' -Raw | ConvertFrom-Json
+          if ($policy.schema_version -ne 'sas-northwell-printer-mapping-evidence/v1') {
+            throw "Unexpected printer mapping evidence schema: $($policy.schema_version)"
+          }
+          Write-Host 'PASS: printer mapping evidence policy parses.'
+
       - name: Install Pester 5
         shell: pwsh
         run: |
@@ -91,7 +103,7 @@ jobs:
           .\tools\Test-Pester5Suite.ps1
           -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
 
-      - name: Run stale direct-IP collision repair contracts
+      - name: Run printer mapping evidence precedence contracts
         shell: pwsh
         run: >-
           pwsh -NoProfile -ExecutionPolicy Bypass -File

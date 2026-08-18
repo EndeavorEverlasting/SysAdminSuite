@@ -21,7 +21,7 @@ echo ================================================================
 echo  NORTHWELL SYSTEM-WIDE PRINTER MAPPING
 echo ================================================================
 echo  Use target PC HOSTNAMES and printer QUEUE NAMES only.
-echo  Accepted printer input: \server\queue, //server/queue, or queue name.
+echo  Accepted printer input: \\server\queue, //server/queue, or queue name.
 echo  Printer IP addresses are NOT allowed as mapping targets.
 echo  Mapping is per-computer for ALL users, not just the signed-in user.
 echo.
