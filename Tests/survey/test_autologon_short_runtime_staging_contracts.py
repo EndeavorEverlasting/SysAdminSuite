@@ -51,6 +51,20 @@ def test_prepare_preserves_dirty_runtime_and_removes_all_remotes() -> None:
     assert "clean -fd" not in text
 
 
+def test_guest_git_capture_treats_empty_stderr_as_empty_string() -> None:
+    text = read(PREPARE)
+    assert "$stdout = @()" in text
+    assert "$exitCode = 0" in text
+    assert "$stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue" in text
+    assert "if ($null -ne $stderrRaw)" in text
+    assert "$stderr = ([string]$stderrRaw).Trim()" in text
+    assert "$stderrRaw.Trim()" not in text
+    assert "$stdoutLines = @($stdout | ForEach-Object { [string]$_ })" in text
+    assert "if ($stdoutLines.Count -gt 0)" in text
+    assert "return @($stdoutLines)" in text
+    assert "return ([string]$value).Trim()" in text
+
+
 def test_protected_bootstrap_is_git_free_and_verifies_guest_seal() -> None:
     text = read(BOOTSTRAP)
     assert "autologon-short-runtime.json" in text
