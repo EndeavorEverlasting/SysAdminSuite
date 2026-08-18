@@ -79,7 +79,7 @@ function Assert-SasRepairParse {
     [void][System.Management.Automation.Language.Parser]::ParseInput($Text,[ref]$tokens,[ref]$errors)
     if (@($errors).Count -gt 0) {
         $detail = (@($errors | ForEach-Object { $_.Message }) -join '; ')
-        throw "PowerShell parser rejected repaired surface $Label: $detail"
+        throw "PowerShell parser rejected repaired surface ${Label}: $detail"
     }
 }
 
