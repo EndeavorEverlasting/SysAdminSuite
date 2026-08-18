@@ -34,7 +34,7 @@ function Test-SasAutoLogonStateCaptureCleanupInventory {
             throw "State-capture cleanup inventory contains a parent traversal segment: $path"
         }
         if ($kind -notin @('file','directory')) {
-            throw "State-capture cleanup inventory contains an unsupported entry kind for $path: $kind"
+            throw "State-capture cleanup inventory contains an unsupported entry kind for ${path}: $kind"
         }
         $normalized += [pscustomobject]@{ path=$path; kind=$kind }
     }
