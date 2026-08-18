@@ -47,7 +47,7 @@ function Set-FixtureQueue {
         foreach ($item in @($FixtureResults)) {
             $script:SasBoundedNativeFixtureQueue.Enqueue($item)
         }
-        function Invoke-SasBoundedPowerShell {
+        $fixtureBody = {
             param(
                 [Parameter(Mandatory = $true)][string]$ScriptText,
                 [ValidateRange(1,300)][int]$TimeoutSeconds = 30
@@ -58,6 +58,7 @@ function Set-FixtureQueue {
             }
             return $script:SasBoundedNativeFixtureQueue.Dequeue()
         }
+        Set-Item -Path Function:script:Invoke-SasBoundedPowerShell -Value $fixtureBody -Force
     } $Results
 }
 
