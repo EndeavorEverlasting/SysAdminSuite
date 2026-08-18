@@ -7,6 +7,7 @@ ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
 FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
 STATE = ROOT / "scripts" / "SasAutoLogonOperatorState.psm1"
 S4U = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
+TRANSPORT = ROOT / "scripts" / "Test-SasSoftwareDeploymentTransport.ps1"
 NETWORK_GUARD = ROOT / "scripts" / "SasNetworkGuard.psm1"
 VPN_BOOTSTRAP = ROOT / "scripts" / "Enable-SasNorthwellVpnNetworkGuard.ps1"
 GITIGNORE = ROOT / ".gitignore"
@@ -17,6 +18,7 @@ def main() -> None:
     field = FIELD.read_text(encoding="utf-8")
     state = STATE.read_text(encoding="utf-8")
     s4u = S4U.read_text(encoding="utf-8")
+    transport = TRANSPORT.read_text(encoding="utf-8")
     network_guard = NETWORK_GUARD.read_text(encoding="utf-8")
     vpn_bootstrap = VPN_BOOTSTRAP.read_text(encoding="utf-8")
     gitignore = GITIGNORE.read_text(encoding="utf-8")
@@ -56,6 +58,32 @@ def main() -> None:
     assert "repo_head=$runtimeIdentity.commit" in state
     assert "Get-SasRepoHead -RepoRoot $RepoRoot" not in state
     assert "& git" not in state
+
+    # Transport preflight owns a complete SasRunContext tree. Nesting that workflow/run tree beneath
+    # the already nested field/deployment/S4U run overflows the practical Windows PowerShell 5.1 path
+    # budget. The preflight must compact an over-budget requested root back to the canonical short
+    # repository runs root while returning its actual result_path to the S4U caller.
+    overflow_request = (
+        r"C:\SASAL\runs\autologon-field-deployment-99999999-999999-ffffffff"
+        r"\deployment\autologon-s4u-deployment-99999999-999999-ffffffff"
+        r"\s4u\autologon-kerberos-s4u-99999999-999999-ffffffff"
+        r"\preflight\software-deployment-transport"
+        r"\software-deployment-transport-99999999-999999-ffffffff\request.json"
+    )
+    compact_result = (
+        r"C:\SASAL\runs\software-deployment-transport"
+        r"\software-deployment-transport-99999999-999999-ffffffff"
+        r"\artifacts\software_deployment_transport_result.json"
+    )
+    assert len(overflow_request) > 260, len(overflow_request)
+    assert len(compact_result) < 240, len(compact_result)
+    for marker in (
+        "$transportWindowsPathBudget = 240",
+        "Get-SasTransportProjectedArtifactPath",
+        "TRANSPORT_OUTPUT_ROOT_COMPACTED",
+        "$compactOutputRoot = Join-Path $repoRoot 'runs'",
+    ):
+        assert marker in transport, f"missing transport path-budget marker: {marker}"
 
     # VPN bootstrap and canonical guard must agree on the authority model: an active
     # DomainAuthenticated non-Wi-Fi interface plus an exact allowlisted local IP.
@@ -101,14 +129,15 @@ def main() -> None:
     assert "autologon_s4u_deployment_result.json" in s4u
     assert "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED" in field
 
-    # Conservative path model for the longest currently registered nested field chain.
+    # Conservative path model for the longest ordinary nested field artifact after transport
+    # preflight is compacted into its own short run tree.
     representative = (
-        r"C:\SASAL\runs\autologon-field-deployment-20260813-212232-6f78044c"
-        r"\deployment\autologon-s4u-deployment-20260813-212244-8b335f50"
-        r"\s4u\autologon-kerberos-s4u-20260813-212250-8b335f50"
-        r"\preflight\software_deployment_transport_preflight_result.json"
+        r"C:\SASAL\runs\autologon-field-deployment-99999999-999999-ffffffff"
+        r"\deployment\autologon-s4u-deployment-99999999-999999-ffffffff"
+        r"\s4u\autologon-kerberos-s4u-99999999-999999-ffffffff"
+        r"\evidence\s4u_probe_lifecycle.json"
     )
-    assert len(representative) < 250, len(representative)
+    assert len(representative) < 240, len(representative)
 
     print("PASS: AutoLogon field path/network regression contracts")
 
