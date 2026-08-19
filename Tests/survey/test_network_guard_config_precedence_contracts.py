@@ -25,8 +25,17 @@ def test_executing_checkout_policy_precedes_legacy_repo_root() -> None:
 
 def test_legacy_repo_root_is_fallback_only() -> None:
     text = read()
-    assert "Preserve compatibility for legacy callers" in text
-    assert "Join-Path $env:SAS_REPO_ROOT 'Config\\sas-network-guard.local.json'" in text
+    module_policy = text.index("if (Test-Path -LiteralPath $moduleConfigPath -PathType Leaf)")
+    module_policy_return = text.index("return $moduleConfigPath", module_policy)
+    legacy_root = text.index("if ($env:SAS_REPO_ROOT)")
+    legacy_return = text.index("return (Join-Path $env:SAS_REPO_ROOT 'Config\\sas-network-guard.local.json')", legacy_root)
+    final_module_fallback = text.rindex("return $moduleConfigPath")
+
+    # Prove precedence from executable control flow, not a comment that can be
+    # removed without changing behavior: executing-checkout policy wins first,
+    # the legacy repository root is consulted only afterward, and the module
+    # path remains the final fallback when neither source resolves a file.
+    assert module_policy < module_policy_return < legacy_root < legacy_return < final_module_fallback
 
 
 if __name__ == "__main__":

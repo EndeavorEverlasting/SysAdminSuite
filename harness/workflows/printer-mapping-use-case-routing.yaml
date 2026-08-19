@@ -1,0 +1,97 @@
+schema_version: sas-printer-mapping-use-case-workflow/v1
+workflow_id: printer-mapping-use-case-routing
+mode: local_read_then_route
+network_activity: false
+target_mutation: false
+purpose: >-
+  Resolve printer mapping as an organization/site-specific use case before any product
+  launcher, engine, mapping mechanism, proof contract, or technician instruction is selected.
+
+inputs:
+  required:
+    - organization_id
+    - requested_action
+  optional:
+    - site_id
+    - organization_name
+    - site_name
+    - existing_evidence
+    - requested_printer
+    - requested_target
+
+stages:
+  - id: context
+    order: 1
+    actions:
+      - treat organization_id and site_id as part of printer-mapping identity, not descriptive metadata
+      - do not infer organization or site authority from network similarity, Windows similarity, printer model, acquisition history, or remembered procedure
+      - read harness/api/printer-mapping-use-case-registry.json before selecting any mapping implementation
+
+  - id: select
+    order: 2
+    actions:
+      - select an exact site override first when organization_id plus site_id matches a registered site_override
+      - otherwise select the registered organization default when one exists and the site is not explicitly represented by a conflicting override
+      - when the organization is unknown, return BLOCK_FOR_DISCOVERY
+      - when the site is known to operate independently but no exact site override exists, return BLOCK_FOR_DISCOVERY instead of silently inheriting the organization default
+      - never inherit a use case across organizations
+    precedence:
+      - exact site override
+      - registered organization default
+      - BLOCK_FOR_DISCOVERY
+
+  - id: admission
+    order: 3
+    actions:
+      - when status is proven, load only the product workflow, launcher, engine, evidence policy, and assumptions registered on that selected use_case_id
+      - when status is discovery_required, do not emit a mapping command or product mutation; surface the registered discovery requirements
+      - when status is unsupported or deprecated, do not route to product execution
+      - do not copy Northwell assumptions into Health & Hospitals or any other organization/site context
+
+  - id: execute
+    order: 4
+    actions:
+      - route a proven use case to its registered product workflow without changing product behavior in this harness workflow
+      - require normal field-workflow mutation, authorization, and evidence gates after use-case selection
+      - keep this workflow read-only toward product targets
+
+  - id: evidence
+    order: 5
+    actions:
+      - bind registration proof and runtime acceptance to the same use_case_id and organization/site context that produced them
+      - never use a successful print from one organization or site as runtime acceptance for another use case
+      - preserve lower-ranked diagnostic telemetry under the proof policy selected by the same use case
+
+  - id: failure
+    order: 6
+    actions:
+      - fail closed when context is missing, ambiguous, unknown, independently operated without an override, or discovery_required
+      - report the missing registry facts instead of guessing a mapping mechanism
+      - do not manufacture a launcher, queue convention, print-server authority, mapping scope, or proof rule
+
+  - id: handoff
+    order: 7
+    actions:
+      - report organization_id, site_id when supplied, selected use_case_id, status, scope_type, and source registry
+      - for proven cases, report the exact registered product workflow and proof ceiling
+      - for discovery_required cases, report the discovery checklist and explicitly state that no mapping implementation is authorized yet
+      - when a newly acquired or independently operated hospital differs from its parent organization, add a new explicit site_override only after its standards are learned and documented
+
+outputs:
+  selected_use_case:
+    - organization_id
+    - site_id
+    - use_case_id
+    - scope_type
+    - status
+    - product_workflow
+    - product_launcher
+    - evidence_policy
+  blocked_discovery:
+    - discovery_requirements
+    - blocker_classification
+
+proof_ceiling: >-
+  This workflow proves deterministic organization/site use-case selection and isolation only.
+  It does not prove printer mapping behavior, target reachability, registration, document output,
+  organization policy, or runtime acceptance.
