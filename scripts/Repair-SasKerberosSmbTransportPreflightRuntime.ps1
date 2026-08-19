@@ -128,6 +128,36 @@ function Replace-SasUniqueRange {
     return $Text.Substring(0,$start) + $Replacement + $Text.Substring($end)
 }
 
+function Insert-SasAfterLiteralInUniqueRange {
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [Parameter(Mandatory = $true)][string]$StartLiteral,
+        [Parameter(Mandatory = $true)][string]$EndLiteral,
+        [Parameter(Mandatory = $true)][string]$Literal,
+        [Parameter(Mandatory = $true)][string]$Insertion
+    )
+
+    $start = $Text.IndexOf($StartLiteral,[StringComparison]::Ordinal)
+    if ($start -lt 0) { throw "Repair range start missing: $StartLiteral" }
+    if ($Text.IndexOf($StartLiteral,$start + $StartLiteral.Length,[StringComparison]::Ordinal) -ge 0) {
+        throw "Repair range start is ambiguous: $StartLiteral"
+    }
+
+    $end = $Text.IndexOf($EndLiteral,$start + $StartLiteral.Length,[StringComparison]::Ordinal)
+    if ($end -lt 0) { throw "Repair range end missing after $StartLiteral`: $EndLiteral" }
+
+    $rangeLength = $end - $start
+    $rangeText = $Text.Substring($start,$rangeLength)
+    $relative = $rangeText.IndexOf($Literal,[StringComparison]::Ordinal)
+    if ($relative -lt 0) { throw "Repair anchor missing inside $StartLiteral range: $Literal" }
+    if ($rangeText.IndexOf($Literal,$relative + $Literal.Length,[StringComparison]::Ordinal) -ge 0) {
+        throw "Repair anchor is ambiguous inside $StartLiteral range: $Literal"
+    }
+
+    $absolute = $start + $relative + $Literal.Length
+    return $Text.Insert($absolute,$Insertion)
+}
+
 $sourceModuleText = [IO.File]::ReadAllText($HardBoundedModuleSourcePath)
 Assert-SasRepairParseText -Text $sourceModuleText -Label 'Hard-bounded source module'
 if (-not (Test-SasHardBoundedModuleSemantics -Text $sourceModuleText)) {
@@ -266,7 +296,9 @@ else {
                 -Insertion "`n    `"Probe engine: `$(`$probeDiagnostic.engine)`"`n    `"Hard child-process isolation: `$(`$probeDiagnostic.child_process_isolation)`"`n    `"Probe timeout stage: `$(if ([string]::IsNullOrWhiteSpace([string]`$probeDiagnostic.timeout_stage)) { 'none' } else { [string]`$probeDiagnostic.timeout_stage })`""
         }
         if (-not $text.Contains('probe_diagnostic = $probeDiagnostic')) {
-            $text = Insert-SasAfterUniqueLiteral -Text $text `
+            $text = Insert-SasAfterLiteralInUniqueRange -Text $text `
+                -StartLiteral '$output = [pscustomobject]@{' `
+                -EndLiteral '    result = $result' `
                 -Literal '    artifact_registry_path = $context.artifact_registry_path' `
                 -Insertion "`n    probe_diagnostic = `$probeDiagnostic"
         }
