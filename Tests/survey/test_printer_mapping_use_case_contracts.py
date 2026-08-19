@@ -2,9 +2,11 @@
 """Focused contracts for printer-mapping organization/site use-case isolation."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -12,6 +14,7 @@ REGISTRY = ROOT / "harness/api/printer-mapping-use-case-registry.json"
 ROUTING = ROOT / "harness/api/agent-routing-manifest.json"
 MANIFEST = ROOT / "harness/api/operational-harness-manifest.json"
 VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
+VALIDATOR_PATH = ROOT / "harness/validators/validate-printer-mapping-use-cases.py"
 
 
 def load(path: Path = REGISTRY) -> dict:
@@ -20,6 +23,23 @@ def load(path: Path = REGISTRY) -> dict:
 
 def cases() -> dict[str, dict]:
     return {item["id"]: item for item in load()["use_cases"]}
+
+
+def load_validator_module():
+    spec = importlib.util.spec_from_file_location("printer_use_case_validator", VALIDATOR_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def assert_shape_rejected(document: dict) -> None:
+    validator = load_validator_module()
+    try:
+        validator.validate_dependency_free_shape(document)
+    except AssertionError:
+        return
+    raise AssertionError("dependency-free printer registry validation unexpectedly accepted invalid data")
 
 
 def test_selection_policy_requires_explicit_context_and_no_cross_org_inheritance() -> None:
@@ -56,6 +76,26 @@ def test_health_and_hospitals_advertises_no_fake_product_authority() -> None:
         assert h_and_h[field] is None
     assert len(h_and_h["discovery_requirements"]) >= 8
     assert any("independently operated hospitals" in item for item in h_and_h["discovery_requirements"])
+
+
+def test_dependency_free_validator_rejects_schema_authority_drift() -> None:
+    base = load()
+
+    bad_status = deepcopy(base)
+    bad_status["use_cases"][0]["status"] = "looks_proven"
+    assert_shape_rejected(bad_status)
+
+    bad_scope = deepcopy(base)
+    bad_scope["use_cases"][0]["scope_type"] = "closest_match"
+    assert_shape_rejected(bad_scope)
+
+    unknown_field = deepcopy(base)
+    unknown_field["use_cases"][0]["portable_default"] = True
+    assert_shape_rejected(unknown_field)
+
+    missing_field = deepcopy(base)
+    del missing_field["use_cases"][0]["proof"]
+    assert_shape_rejected(missing_field)
 
 
 def test_generic_printer_requests_reach_the_field_workflow_route() -> None:
@@ -101,7 +141,7 @@ def test_central_harness_registries_inventory_the_use_case_family() -> None:
 
 def test_focused_validator_passes() -> None:
     result = subprocess.run(
-        [sys.executable, str(ROOT / "harness/validators/validate-printer-mapping-use-cases.py")],
+        [sys.executable, str(VALIDATOR_PATH)],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -119,6 +159,7 @@ def main() -> None:
         test_northwell_and_health_and_hospitals_are_distinct_use_cases,
         test_northwell_assumptions_cannot_become_generic_fallback,
         test_health_and_hospitals_advertises_no_fake_product_authority,
+        test_dependency_free_validator_rejects_schema_authority_drift,
         test_generic_printer_requests_reach_the_field_workflow_route,
         test_central_harness_registries_inventory_the_use_case_family,
         test_focused_validator_passes,
