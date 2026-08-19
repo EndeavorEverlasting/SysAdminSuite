@@ -28,7 +28,7 @@ Path to a sanitized JSON fixture containing an observations object.
 .PARAMETER OutputRoot
 Approved ignored local output root. Defaults to survey/output/runs.
 .PARAMETER PassThru
-Returns the run context, result, and artifact paths.
+Returns the run context, result, diagnostic, and artifact paths.
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'Live')]
@@ -67,10 +67,12 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $transportModulePath = Join-Path $PSScriptRoot 'SasSoftwareDeploymentTransport.psm1'
 $lowNoiseTransportModulePath = Join-Path $PSScriptRoot 'SasSoftwareDeploymentLowNoise.psm1'
+$hardBoundedKerberosSmbModulePath = Join-Path $PSScriptRoot 'SasSoftwareDeploymentKerberosSmbHardBounded.psm1'
 $lowNoisePolicyModulePath = Join-Path $PSScriptRoot 'SasLowNoisePolicy.psm1'
 $runContextModulePath = Join-Path $PSScriptRoot 'SasRunContext.psm1'
 Import-Module $transportModulePath -Force
 Import-Module $lowNoiseTransportModulePath -Force
+Import-Module $hardBoundedKerberosSmbModulePath -Force
 Import-Module $lowNoisePolicyModulePath -Force
 Import-Module $runContextModulePath -Force
 
@@ -101,6 +103,17 @@ $contextParameters = @{
 if ($OutputRoot) { $contextParameters.OutputRoot = $OutputRoot }
 $context = New-SasRunContext @contextParameters
 
+$probeDiagnostic = [pscustomobject]@{
+    engine = 'fixture'
+    timeout_stage = ''
+    per_operation_timeout_seconds = $TimeoutSeconds
+    child_process_isolation = $false
+    target_identifier_emitted = $false
+    username_emitted = $false
+    credential_emitted = $false
+    target_mutation_performed = $false
+}
+
 if ($FixtureMode) {
     $fixture = Get-Content -LiteralPath $FixturePath -Raw -ErrorAction Stop | ConvertFrom-Json
     if ($null -eq $fixture.observations) { throw 'Fixture must contain an observations object.' }
@@ -115,12 +128,42 @@ else {
     }
     if ($PSBoundParameters.ContainsKey('Credential')) { $observationParameters.Credential = $Credential }
 
-    if ($TransportIntent -eq 'auto') {
+    if ($TransportIntent -eq 'kerberos_smb_task' -and $null -eq $Credential) {
+        # The standard AutoLogon/S4U field path uses the current domain token and no supplied
+        # credential. Keep every potentially blocking remote Windows call in a killable child
+        # process so a VPN/ACL black hole cannot strand this parent PowerShell process.
+        $hardBounded = Invoke-SasSoftwareDeploymentKerberosSmbHardBoundedObservation `
+            -ComputerName $ComputerName `
+            -TimeoutSeconds $TimeoutSeconds
+        $observations = $hardBounded.observations
+        $probeDiagnostic = $hardBounded.diagnostic
+    }
+    elseif ($TransportIntent -eq 'auto') {
         $observations = Invoke-SasSoftwareDeploymentTransportObservation @observationParameters
+        $probeDiagnostic = [pscustomobject]@{
+            engine = 'explicit_broad_collector'
+            timeout_stage = ''
+            per_operation_timeout_seconds = $TimeoutSeconds
+            child_process_isolation = $false
+            target_identifier_emitted = $false
+            username_emitted = $false
+            credential_emitted = $false
+            target_mutation_performed = $false
+        }
     }
     else {
         $observationParameters.TransportIntent = $TransportIntent
         $observations = Invoke-SasSoftwareDeploymentLowNoiseObservation @observationParameters
+        $probeDiagnostic = [pscustomobject]@{
+            engine = 'credential_or_winrm_low_noise'
+            timeout_stage = ''
+            per_operation_timeout_seconds = $TimeoutSeconds
+            child_process_isolation = $false
+            target_identifier_emitted = $false
+            username_emitted = $false
+            credential_emitted = $false
+            target_mutation_performed = $false
+        }
     }
     $evidenceClass = 'operator_local_live'
     $networkActivity = $true
@@ -131,13 +174,27 @@ $result = New-SasSoftwareDeploymentTransportResult `
     -EvidenceClass $evidenceClass `
     -NetworkActivityPerformed $networkActivity
 
+# The frozen v1 public result schema intentionally has no per-surface timeout field for
+# ADMIN$/DCOM/task authorization observations. Preserve schema compatibility while promoting
+# a hard child-process timeout to the existing fail-closed observation_timeout reason code.
+if (-not [string]::IsNullOrWhiteSpace([string]$probeDiagnostic.timeout_stage)) {
+    $result.decision.classification = 'inconclusive'
+    $result.decision.selected_transport = 'none'
+    $result.decision.reason_codes = @('observation_timeout','required_observation_missing')
+    $result.proof.preflight_complete = $false
+    $result.proof.transport_authorization_proven = $false
+}
+
 $testedPorts = @()
 foreach ($port in @(5985, 5986, 445, 135)) {
     $name = "port_$port"
     if ([bool]$observations.tcp.$name.tested) { $testedPorts += $port }
 }
 
-$nextAction = if ($result.decision.classification -in @('kerberos_smb_task_ready', 'winrm_ready')) {
+$nextAction = if (-not [string]::IsNullOrWhiteSpace([string]$probeDiagnostic.timeout_stage)) {
+    "A hard-bounded transport read timed out at $($probeDiagnostic.timeout_stage). Keep the target unmodified and review the VPN/ACL path before another deployment attempt."
+}
+elseif ($result.decision.classification -in @('kerberos_smb_task_ready', 'winrm_ready')) {
     'Review the schema-valid result and obtain separate authorization before any target mutation.'
 }
 else {
@@ -177,9 +234,13 @@ $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $resultPath -Encod
 } | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $observationPath -Encoding UTF8
 $lowNoiseContext | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $lowNoisePath -Encoding UTF8
 
+$timeoutStageText = if ([string]::IsNullOrWhiteSpace([string]$probeDiagnostic.timeout_stage)) { 'none' } else { [string]$probeDiagnostic.timeout_stage }
 $englishSummary = @(
     'Software deployment transport preflight'
     "Transport intent: $TransportIntent"
+    "Probe engine: $($probeDiagnostic.engine)"
+    "Hard child-process isolation: $($probeDiagnostic.child_process_isolation)"
+    "Probe timeout stage: $timeoutStageText"
     "Ports actually tested: $($testedPorts -join ', ')"
     "Classification: $($result.decision.classification)"
     "Selected transport: $($result.decision.selected_transport)"
@@ -195,7 +256,7 @@ $englishSummary | Set-Content -LiteralPath $summaryPath -Encoding UTF8
 $englishSummary | Set-Content -LiteralPath $context.operator_handoff_path -Encoding UTF8
 
 $networkDescription = if ($networkActivity) {
-    "Authorized bounded read-only observations for intent $TransportIntent; tested ports: $($testedPorts -join ',')."
+    "Authorized bounded read-only observations for intent $TransportIntent; tested ports: $($testedPorts -join ','); engine: $($probeDiagnostic.engine); timeout stage: $timeoutStageText."
 }
 else {
     'No network activity performed.'
@@ -203,7 +264,7 @@ else {
 Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'transport_result' -Path $resultPath -Tracked $false -LiveData (-not $FixtureMode) -Generated $true -Description 'Schema-valid sanitized transport observations and fail-closed decision.' -NetworkActivity $networkDescription -CreatedBy 'Test-SasSoftwareDeploymentTransport' | Out-Null
 Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'sanitized_observations' -Path $observationPath -Tracked $false -LiveData (-not $FixtureMode) -Generated $true -Description 'Sanitized observation evidence without identifiers, credentials, ticket bytes, or raw faults.' -NetworkActivity $networkDescription -CreatedBy 'Test-SasSoftwareDeploymentTransport' | Out-Null
 Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'low_noise_context' -Path $lowNoisePath -Tracked $false -LiveData (-not $FixtureMode) -Generated $true -Description 'Canonical low-noise rationale and exact effective port subset.' -NetworkActivity $networkDescription -CreatedBy 'Test-SasSoftwareDeploymentTransport' | Out-Null
-Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'english_summary' -Path $summaryPath -Tracked $false -LiveData (-not $FixtureMode) -Generated $true -Description 'Concise English rendering of the transport decision, low-noise context, and proof ceiling.' -NetworkActivity $networkDescription -CreatedBy 'Test-SasSoftwareDeploymentTransport' | Out-Null
+Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role 'english_summary' -Path $summaryPath -Tracked $false -LiveData (-not $FixtureMode) -Generated $true -Description 'Concise English rendering of the transport decision, low-noise context, timeout stage, and proof ceiling.' -NetworkActivity $networkDescription -CreatedBy 'Test-SasSoftwareDeploymentTransport' | Out-Null
 
 $summary = Get-Content -LiteralPath $context.summary_path -Raw | ConvertFrom-Json
 $summary.network_activity = $networkDescription
@@ -223,6 +284,7 @@ $output = [pscustomobject]@{
     low_noise_context_path = $lowNoisePath
     english_summary_path = $summaryPath
     artifact_registry_path = $context.artifact_registry_path
+    probe_diagnostic = $probeDiagnostic
     result = $result
 }
 

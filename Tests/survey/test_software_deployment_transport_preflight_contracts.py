@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ENTRYPOINT = ROOT / "scripts/Test-SasSoftwareDeploymentTransport.ps1"
 MODULE = ROOT / "scripts/SasSoftwareDeploymentTransport.psm1"
 LOW_NOISE_MODULE = ROOT / "scripts/SasSoftwareDeploymentLowNoise.psm1"
+HARD_BOUNDED_MODULE = ROOT / "scripts/SasSoftwareDeploymentKerberosSmbHardBounded.psm1"
 LOW_NOISE_POLICY = ROOT / "scripts/SasLowNoisePolicy.psm1"
 DEPLOYMENT_SCRIPT = ROOT / "bash/apps/sas-install-apps.sh"
 CATALOG = ROOT / "configs/software-packages/approved-apps.json"
@@ -40,6 +41,7 @@ def test_front_door_contract_is_bounded_explicit_and_noninteractive() -> None:
         "[ValidateRange(1, 30)]",
         "[int]$TimeoutSeconds = 5",
         "SasSoftwareDeploymentLowNoise.psm1",
+        "SasSoftwareDeploymentKerberosSmbHardBounded.psm1",
         "SasLowNoisePolicy.psm1",
         "New-SasRunContext",
         "Register-SasArtifact",
@@ -54,7 +56,10 @@ def test_front_door_contract_is_bounded_explicit_and_noninteractive() -> None:
     assert text.index("if ($FixtureMode)") < text.index("Invoke-SasSoftwareDeploymentTransportObservation")
     assert "if ($TransportIntent -eq 'auto')" in text
     assert "Invoke-SasSoftwareDeploymentLowNoiseObservation" in text
+    assert "Invoke-SasSoftwareDeploymentKerberosSmbHardBoundedObservation" in text
+    assert "$TransportIntent -eq 'kerberos_smb_task' -and $null -eq $Credential" in text
     assert "-NetworkActivityPerformed $networkActivity" in text
+    assert "probe_diagnostic = $probeDiagnostic" in text
 
 
 def test_broad_collector_remains_explicit_and_read_only() -> None:
@@ -129,6 +134,42 @@ def test_low_noise_collector_probes_only_the_requested_transport() -> None:
     )
     for pattern in forbidden:
         assert re.search(pattern, text, re.IGNORECASE) is None, f"forbidden target mutation surface: {pattern}"
+
+
+def test_default_kerberos_smb_observer_uses_hard_process_bounds() -> None:
+    entrypoint = read(ENTRYPOINT)
+    text = read(HARD_BOUNDED_MODULE)
+
+    assert "Invoke-SasSoftwareDeploymentKerberosSmbHardBoundedObservation" in entrypoint
+    assert "$TransportIntent -eq 'kerberos_smb_task' -and $null -eq $Credential" in entrypoint
+    assert "reason_codes = @('observation_timeout','required_observation_missing')" in entrypoint
+    assert "Probe timeout stage:" in entrypoint
+
+    for token in (
+        "Invoke-SasTransportHardBoundedProcess",
+        "Invoke-SasTransportHardBoundedPowerShell",
+        "$process.WaitForExit($TimeoutSeconds * 1000)",
+        "$process.Kill()",
+        "-EncodedCommand",
+        "timeout_stage",
+        "child_process_isolation = $true",
+        "timeoutStage = 'admin_share'",
+        "timeoutStage = 'schedule_service'",
+        "timeoutStage = 'scheduled_task_query'",
+        "target_mutation_performed = $false",
+    ):
+        assert token in text, f"hard-bounded observer missing {token}"
+
+    forbidden = (
+        r"\bRegister-ScheduledTask\b",
+        r"\bNew-ScheduledTask\b",
+        r"schtasks(?:\.exe)?\s+/(?:Create|Delete|Run|Change)",
+        r"\bSet-ItemProperty\b",
+        r"\bNew-ItemProperty\b",
+        r"\bInvoke-Command\b",
+    )
+    for pattern in forbidden:
+        assert re.search(pattern, text, re.IGNORECASE) is None, f"hard-bounded observer gained mutation surface: {pattern}"
 
 
 def test_low_noise_policy_and_artifact_context_are_reused() -> None:
@@ -209,6 +250,8 @@ def test_pester_ci_workflow_and_offline_runner_are_wired() -> None:
         "runtime-only PSCredential",
         "no interactive prompt",
         "low-noise",
+        "hard-bounded observer",
+        "hard-kills a blocked child process",
         "does not leak ticket bytes",
     ):
         assert scenario in pester, f"focused Pester coverage missing {scenario}"
@@ -219,11 +262,14 @@ def test_pester_ci_workflow_and_offline_runner_are_wired() -> None:
     assert "test_software_deployment_transport_preflight_contracts.py" in ci
     assert "SoftwareDeploymentTransport.Tests.ps1" in ci
     assert "Test-SasSoftwareDeploymentTransport.ps1" in ci
+    assert "SasSoftwareDeploymentKerberosSmbHardBounded.psm1" in ci
     assert "test_software_deployment_transport_preflight_contracts.py" in offline
     assert "scripts/Test-SasSoftwareDeploymentTransport.ps1" in workflow
     assert "scripts/SasSoftwareDeploymentLowNoise.psm1" in workflow
+    assert "scripts/SasSoftwareDeploymentKerberosSmbHardBounded.psm1" in workflow
     assert "low_noise_context.json" in workflow
     assert "implementation_status: implemented_p02" in workflow
+    assert "hard process bounds" in workflow
 
 
 def main() -> int:

@@ -1,0 +1,90 @@
+name: Kerberos SMB Hard-Bounded Preflight
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/kerberos-smb-hard-bounded-preflight.yml'
+      - 'scripts/SasSoftwareDeploymentKerberosSmbHardBounded.psm1'
+      - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
+      - 'scripts/Repair-SasKerberosSmbTransportPreflightRuntime.ps1'
+      - 'Tests/Pester/SoftwareDeploymentTransport.Tests.ps1'
+      - 'Tests/PowerShell/KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1'
+      - 'Tests/survey/test_software_deployment_transport_preflight_contracts.py'
+      - 'Tests/survey/test_autologon_vpn_transport_timeout_contracts.py'
+      - 'harness/workflows/software-deployment-transport.yaml'
+      - 'docs/handoff/autologon-vpn-transport-preflight-timeout.md'
+      - '.github/workflows/harness-contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run transport static contracts
+        run: python Tests/survey/test_software_deployment_transport_preflight_contracts.py
+
+      - name: Run AutoLogon VPN timeout handoff contracts
+        run: python Tests/survey/test_autologon_vpn_transport_timeout_contracts.py
+
+      - name: Check patch whitespace
+        shell: bash
+        run: git diff --check "origin/${{ github.base_ref }}...HEAD"
+
+  windows-powershell-51:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse runtime surfaces under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($relative in @(
+            'scripts\SasSoftwareDeploymentKerberosSmbHardBounded.psm1',
+            'scripts\Test-SasSoftwareDeploymentTransport.ps1',
+            'scripts\Repair-SasKerberosSmbTransportPreflightRuntime.ps1',
+            'Tests\PowerShell\KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $relative),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -gt 0) {
+              $errors | Format-List * | Out-Host
+              throw "PowerShell 5.1 parser rejected $relative"
+            }
+            Write-Host "PASS: $relative parses"
+          }
+
+      - name: Execute CRLF and LF protected-runtime repair fixtures
+        shell: powershell
+        run: .\Tests\PowerShell\KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1
+
+      - name: Install Pester 5
+        shell: powershell
+        run: Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run focused transport Pester
+        shell: powershell
+        run: |
+          $result = Invoke-Pester -Path .\Tests\Pester\SoftwareDeploymentTransport.Tests.ps1 -PassThru
+          if ($result.FailedCount -gt 0) {
+            throw "$($result.FailedCount) focused transport Pester test(s) failed."
+          }
