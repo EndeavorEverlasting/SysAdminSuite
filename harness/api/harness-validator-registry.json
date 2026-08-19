@@ -98,6 +98,29 @@
       "proof": "Registered field front doors persist result, transcript, child output, recovery output, latest pointer, and independent exit disposition beyond terminal lifetime; recovery remains offline and generated evidence remains untracked."
     },
     {
+      "id": "printer-mapping-use-case-contracts",
+      "category": "harness",
+      "platform": "python3+git",
+      "command": "python harness/validators/validate-printer-mapping-use-cases.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/printer-mapping-use-case-registry.json",
+        "schemas/harness/printer-mapping-use-case-registry.schema.json",
+        "harness/api/agent-routing-manifest.json",
+        "harness/api/operational-harness-manifest.json",
+        "harness/api/harness-validator-registry.json",
+        "harness/workflows/printer-mapping-use-case-routing.yaml",
+        "harness/workflows/fresh-agent-intake.yaml",
+        "harness/skills/printer-mapping-use-case-routing/**",
+        "harness/maps/PRINTER_MAPPING_USE_CASE_MAP.md",
+        "harness/reports/PRINTER_MAPPING_USE_CASES.md",
+        ".claude/skills/field-workflow/SKILL.md",
+        ".githooks/**",
+        ".github/workflows/printer-mapping-use-case-contracts.yml"
+      ],
+      "proof": "Printer mapping is routed by explicit organization/site identity; exact site overrides outrank organization defaults, cross-organization inheritance is blocked, Northwell product assumptions remain scoped to Northwell, and discovery-only environments expose no fake product authority."
+    },
+    {
       "id": "autologon-field-completion-contracts",
       "category": "powershell-contract",
       "platform": "python3",
