@@ -9,10 +9,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / "harness/api/printer-mapping-use-case-registry.json"
+ROUTING = ROOT / "harness/api/agent-routing-manifest.json"
+MANIFEST = ROOT / "harness/api/operational-harness-manifest.json"
+VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
 
 
-def load() -> dict:
-    return json.loads(REGISTRY.read_text(encoding="utf-8"))
+def load(path: Path = REGISTRY) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def cases() -> dict[str, dict]:
@@ -55,6 +58,47 @@ def test_health_and_hospitals_advertises_no_fake_product_authority() -> None:
     assert any("independently operated hospitals" in item for item in h_and_h["discovery_requirements"])
 
 
+def test_generic_printer_requests_reach_the_field_workflow_route() -> None:
+    routing = load(ROUTING)
+    field_route = next(item for item in routing["triggers"] if item["target"] == "field-workflow")
+    signals = {item.lower() for item in field_route["deterministic_task_signals"]}
+    for signal in (
+        "map a printer",
+        "printer mapping",
+        "add a printer",
+        "northwell printer mapping",
+        "health & hospitals printer mapping",
+    ):
+        assert signal in signals
+    assert "Tests/survey/test_printer_mapping_use_case_contracts.py" in field_route["validators"]
+    assert any("organization/site" in item for item in field_route["guardrails"])
+    assert any("Northwell" in item for item in field_route["guardrails"])
+
+
+def test_central_harness_registries_inventory_the_use_case_family() -> None:
+    manifest = load(MANIFEST)
+    component_ids = {item["id"] for item in manifest["components"]}
+    required = {
+        "printer-mapping-use-case-registry",
+        "printer-mapping-use-case-registry-schema",
+        "printer-mapping-use-case-workflow",
+        "printer-mapping-use-case-skill",
+        "printer-mapping-use-case-map",
+        "printer-mapping-use-case-report",
+        "printer-mapping-use-case-validator",
+        "printer-mapping-use-case-contracts",
+        "printer-mapping-use-case-ci",
+    }
+    assert required.issubset(component_ids)
+    assert "python harness/validators/validate-printer-mapping-use-cases.py" in manifest["validation_commands"]
+
+    validators = load(VALIDATORS)
+    focused = next(item for item in validators["validators"] if item["id"] == "printer-mapping-use-case-contracts")
+    assert focused["blocking"] is True
+    assert focused["command"] == "python harness/validators/validate-printer-mapping-use-cases.py"
+    assert "harness/api/agent-routing-manifest.json" in focused["scope"]
+
+
 def test_focused_validator_passes() -> None:
     result = subprocess.run(
         [sys.executable, str(ROOT / "harness/validators/validate-printer-mapping-use-cases.py")],
@@ -65,6 +109,8 @@ def test_focused_validator_passes() -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "PASS: Northwell proven behavior is isolated from Health & Hospitals discovery" in result.stdout
+    assert "PASS: generic printer requests reach field-workflow and compose the use-case gate" in result.stdout
+    assert "PASS: printer-mapping surfaces are registered centrally and enforced by hooks and CI" in result.stdout
 
 
 def main() -> None:
@@ -73,6 +119,8 @@ def main() -> None:
         test_northwell_and_health_and_hospitals_are_distinct_use_cases,
         test_northwell_assumptions_cannot_become_generic_fallback,
         test_health_and_hospitals_advertises_no_fake_product_authority,
+        test_generic_printer_requests_reach_the_field_workflow_route,
+        test_central_harness_registries_inventory_the_use_case_family,
         test_focused_validator_passes,
     ]
     for fn in tests:
