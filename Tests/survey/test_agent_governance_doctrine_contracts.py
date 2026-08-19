@@ -52,6 +52,17 @@ REQUIRED_MARKERS = (
     "Secret, credential",
 )
 
+ORGANIZATION_PROFILE_MARKERS = (
+    "Organization boundaries are profile boundaries",
+    "organization and site/hospital context are independent profile authorities",
+    "Northwell, NYC Health + Hospitals (Health & Hospitals), Mount Sinai",
+    "kiosk login/startup, update, deployment, launcher, or proof rules",
+    "Resolve both the organization/site profile and the equipment profile before selecting mutation behavior.",
+    "one profile layer must not override the particulars of the other",
+    "Unknown, ambiguous, conflicting, or unsupported organization/site evidence fails closed to discovery or read-only review.",
+    "Do not reuse another organization's defaults as a convenience fallback.",
+)
+
 PROFILE_MARKERS = (
     "Serial number, hostname, MAC address, model, subnet, or probe response is identity evidence, not permission to infer a profile.",
     "Cybernet, shared/user-login workstation, Neuron, tablet, Kronos clock",
@@ -122,7 +133,13 @@ def assert_headings_and_markers(text: str) -> None:
         positions.append(index)
     assert positions == sorted(positions), "governance headings are out of contract order"
 
-    for marker in REQUIRED_MARKERS + PROFILE_MARKERS + TECHNICIAN_MARKERS + VM_MARKERS:
+    for marker in (
+        REQUIRED_MARKERS
+        + ORGANIZATION_PROFILE_MARKERS
+        + PROFILE_MARKERS
+        + TECHNICIAN_MARKERS
+        + VM_MARKERS
+    ):
         assert marker in text, f"missing governance marker: {marker}"
 
 
@@ -161,7 +178,7 @@ def assert_cybernet_profile_contract() -> None:
 
 def assert_compact_and_safe(text: str) -> None:
     line_count = len(text.splitlines())
-    assert line_count <= 120, f"AGENTS.md exceeds compact line budget: {line_count}/120"
+    assert line_count <= 124, f"AGENTS.md exceeds compact line budget: {line_count}/124"
     forbidden = (
         "BEGIN PRIVATE KEY",
         "password=",
@@ -181,8 +198,9 @@ def main() -> int:
     assert_compact_and_safe(text)
     print("[PASS] Governance, validator, and consumed profile authorities are tracked")
     print("[PASS] AGENTS.md is ordered, compact, safe, and governance-complete")
+    print("[PASS] Governance fails closed across organization/site profiles and prevents cross-organization kiosk/update policy inheritance")
     print("[PASS] Governance requires clickable CMD technician entrypoints, short-hostname resolution, and dry-run/live-cert gates")
-    print("[PASS] Governance text fails closed across profiles and forbids AutoLogon on shared/user-login profiles")
+    print("[PASS] Governance text fails closed across equipment profiles and forbids AutoLogon on shared/user-login profiles")
     print("[PASS] The current Cybernet profile selects AutoLogon exactly once and last")
     print("[PASS] Python-generated SysAdminSuite VM doctrine is explicit and fail-closed")
     return 0
