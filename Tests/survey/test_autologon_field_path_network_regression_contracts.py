@@ -7,6 +7,7 @@ ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
 FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
 S4U = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
 NETWORK_GUARD = ROOT / "scripts" / "SasNetworkGuard.psm1"
+VPN_REPAIR = ROOT / "scripts" / "Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1"
 VPN_BOOTSTRAP = ROOT / "scripts" / "Enable-SasNorthwellVpnNetworkGuard.ps1"
 GITIGNORE = ROOT / ".gitignore"
 
@@ -16,6 +17,7 @@ def main() -> None:
     field = FIELD.read_text(encoding="utf-8")
     s4u = S4U.read_text(encoding="utf-8")
     network_guard = NETWORK_GUARD.read_text(encoding="utf-8")
+    vpn_repair = VPN_REPAIR.read_text(encoding="utf-8")
     vpn_bootstrap = VPN_BOOTSTRAP.read_text(encoding="utf-8")
     gitignore = GITIGNORE.read_text(encoding="utf-8")
 
@@ -24,22 +26,45 @@ def main() -> None:
     assert "Enable-SasNorthwellVpnNetworkGuard.ps1" not in onsite
     assert "Assert-SasAutoLogonProtectedNetwork" not in onsite
 
-    # VPN bootstrap and canonical guard must agree on the authority model: an active
-    # DomainAuthenticated non-Wi-Fi interface plus an exact allowlisted local IP.
+    # Live Windows DomainAuthenticated non-Wi-Fi authority must outrank the visible physical uplink.
+    # A guest Wi-Fi label must not block an authenticated VPN/LAN path, and a changed VPN address
+    # must not require regenerating an exact /32 allowlist.
     required_guard = (
+        "SasNetworkGuardDomainAuthPrecedence",
+        "live_domain_authenticated_non_wifi_v1",
         "Test-SasNorthwellDomainAuthenticatedEvidence",
         "NetworkCategory",
         "DomainAuthenticated",
         "Get-NetConnectionProfile",
         "Get-NetIPAddress",
-        "allowedLocalIpCidrs",
-        "Test-SasIpInCidr",
         "wi-?fi|wireless|wlan",
+        "Live Windows domain authentication is stronger than the physical uplink label",
+        "domain_authenticated_interface=$alias;interface_index=$interfaceIndex;local_ip=$ip",
     )
     missing_guard = [marker for marker in required_guard if marker not in network_guard]
     assert not missing_guard, f"missing live VPN guard markers: {missing_guard}"
-    for marker in ("DomainAuthenticated", "Get-NetConnectionProfile", "Get-NetIPAddress", "allowedLocalIpCidrs", "/32"):
-        assert marker in vpn_bootstrap, f"VPN bootstrap lost authority marker: {marker}"
+    assert "if (@($config.allowedLocalIpCidrs).Count -eq 0) { return $false }" not in network_guard
+
+    domain_auth = network_guard.index("function Test-SasNorthwellDomainAuthenticatedEvidence")
+    wired = network_guard.index("function Test-SasNorthwellWiredEvidence")
+    live_call = network_guard.index("Test-SasNorthwellDomainAuthenticatedEvidence @liveEvidenceArgs", wired)
+    config = network_guard.index("$config = Get-SasNetworkGuardConfig", wired)
+    assert domain_auth < wired < live_call < config, "live DomainAuthenticated authority must be evaluated before optional allowlist config"
+
+    # The legacy bootstrap may remain for compatibility, but the canonical guard no longer depends
+    # on exact /32 policy for an already DomainAuthenticated VPN.
+    for marker in ("DomainAuthenticated", "Get-NetConnectionProfile", "Get-NetIPAddress"):
+        assert marker in vpn_bootstrap, f"VPN bootstrap lost compatibility marker: {marker}"
+
+    for marker in (
+        "sas-vpn-domain-auth-precedence-runtime-repair/v1",
+        "VPN_DOMAIN_AUTH_PRECEDENCE_RUNTIME_REPAIR_APPLIED",
+        "guest_wifi_may_coexist = $true",
+        "exact_local_ip_allowlist_required_for_domain_authenticated_vpn = $false",
+        "target_contact_performed = $false",
+        "target_mutation_performed = $false",
+    ):
+        assert marker in vpn_repair, f"runtime VPN repair lost marker: {marker}"
 
     # Every target-facing AutoLogon action must re-enter a stable short physical worktree.
     required = (

@@ -76,14 +76,6 @@ Ethernet adapter Ethernet:
     if (-not (Test-SasNorthwellWiredEvidence -NetworkText $networkText)) { throw 'approved wired evidence should pass' }
     if (-not (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText $networkText)) { throw 'approved wired evidence should pass with guest Wi-Fi' }
 
-    @{
-        allowedDnsSuffixes = @()
-        allowedWindowsDomains = @()
-        allowedLocalIpCidrs = @('100.100.27.140/32')
-        allowedGatewayCidrs = @()
-        allowedDnsServerCidrs = @()
-    } | ConvertTo-Json | Set-Content -LiteralPath $env:SAS_NETWORK_GUARD_CONFIG
-
     $vpnProfiles = @(
         [pscustomobject]@{
             Name = 'nslijhs.net'
@@ -97,16 +89,31 @@ Ethernet adapter Ethernet:
     $vpnResolver = {
         param($InterfaceIndex)
         if ($InterfaceIndex -eq 9) {
-            return @([pscustomobject]@{ IPAddress = '100.100.27.140' })
+            return @([pscustomobject]@{ IPAddress = '100.100.27.141' })
         }
         return @()
     }
 
+    # Regression: a live DomainAuthenticated VPN must not depend on an old exact /32 policy.
+    @{
+        allowedDnsSuffixes = @()
+        allowedWindowsDomains = @()
+        allowedLocalIpCidrs = @('100.100.27.140/32')
+        allowedGatewayCidrs = @()
+        allowedDnsServerCidrs = @()
+    } | ConvertTo-Json | Set-Content -LiteralPath $env:SAS_NETWORK_GUARD_CONFIG
+
     if (-not (Test-SasNorthwellDomainAuthenticatedEvidence -ConnectionProfiles $vpnProfiles -AddressResolver $vpnResolver)) {
-        throw 'exact /32 on active DomainAuthenticated non-Wi-Fi VPN interface should pass'
+        throw 'live DomainAuthenticated non-Wi-Fi VPN interface should pass even when its current IP differs from stale local /32 policy'
     }
     if (-not (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText '' -ConnectionProfiles $vpnProfiles -AddressResolver $vpnResolver)) {
-        throw 'guest Wi-Fi plus exact approved DomainAuthenticated VPN interface should pass'
+        throw 'guest Wi-Fi plus live DomainAuthenticated VPN interface should pass'
+    }
+
+    # Regression: valid live VPN authority must be evaluated before optional config parsing.
+    '{ not json' | Set-Content -LiteralPath $env:SAS_NETWORK_GUARD_CONFIG
+    if (-not (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText '' -ConnectionProfiles $vpnProfiles -AddressResolver $vpnResolver)) {
+        throw 'live DomainAuthenticated VPN authority must not be blocked by stale/malformed optional wired allowlist state'
     }
 
     $wifiOnlyDomain = @(
@@ -119,14 +126,9 @@ Ethernet adapter Ethernet:
             IPv6Connectivity = 'NoTraffic'
         }
     )
-    $wifiResolver = { param($InterfaceIndex) @([pscustomobject]@{ IPAddress = '100.100.27.140' }) }
+    $wifiResolver = { param($InterfaceIndex) @([pscustomobject]@{ IPAddress = '100.100.27.141' }) }
     if (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText '' -ConnectionProfiles $wifiOnlyDomain -AddressResolver $wifiResolver) {
         throw 'DomainAuthenticated Wi-Fi must not be converted into VPN/LAN authority'
-    }
-
-    $wrongVpnResolver = { param($InterfaceIndex) @([pscustomobject]@{ IPAddress = '100.100.27.141' }) }
-    if (Test-SasNorthwellNetworkPosture -Ssid 'Guest-WiFi' -NetworkText '' -ConnectionProfiles $vpnProfiles -AddressResolver $wrongVpnResolver) {
-        throw 'DomainAuthenticated VPN with a non-allowlisted IP must fail closed'
     }
 
     $privateOnly = @(
@@ -144,10 +146,10 @@ Ethernet adapter Ethernet:
     }
 
     '{}' | Set-Content -LiteralPath $env:SAS_NETWORK_GUARD_CONFIG
-    if (Test-SasNorthwellWiredEvidence -NetworkText $networkText -ConnectionProfiles @() -AddressResolver { param($i) @() }) { throw 'missing wired allowlist should fail' }
+    if (Test-SasNorthwellWiredEvidence -NetworkText $networkText -ConnectionProfiles @() -AddressResolver { param($i) @() }) { throw 'missing wired allowlist should fail without live DomainAuthenticated authority' }
 
     '{ not json' | Set-Content -LiteralPath $env:SAS_NETWORK_GUARD_CONFIG
-    if (Test-SasNorthwellWiredEvidence -NetworkText $networkText -ConnectionProfiles @() -AddressResolver { param($i) @() }) { throw 'malformed config should fail closed' }
+    if (Test-SasNorthwellWiredEvidence -NetworkText $networkText -ConnectionProfiles @() -AddressResolver { param($i) @() }) { throw 'malformed config should fail closed when no live DomainAuthenticated authority exists' }
 
     Write-Host 'SasNetworkGuard PowerShell tests passed'
 } finally {
