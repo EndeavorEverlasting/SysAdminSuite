@@ -14,12 +14,30 @@ Cross-organization inheritance is forbidden. Site inheritance is never implicit.
 
 | Use case | Organization/site | Status | Product authority |
 |---|---|---|---|
-| `northwell.shared-printer.organization-default` | Northwell Health / organization default | `proven` | `START-HERE-NORTHWELL-PRINTER-MAPPING.md` → `Map-NorthwellPrinter-SystemWide.cmd` → `mapping/Invoke-NorthwellPrinterMapping.ps1` |
+| `northwell.shared-printer.organization-default` | Northwell Health / organization default | `proven` | `START-HERE-NORTHWELL-PRINTER-MAPPING.md` → Northwell technician CMDs → `mapping/Invoke-NorthwellPrinterMapping.ps1` |
 | `health-and-hospitals.shared-printer.discovery` | Health & Hospitals / organization default | `discovery_required` | **no product launcher is registered** |
 
 Northwell Health is the learned implementation. Its mapping scope, identity, queue form, `/ga` behavior, HKLM registration proof, and runtime acceptance rules stay inside that use case.
 
 Health & Hospitals is intentionally separate. Until its standards are observed and tracked, no Northwell assumption is executable authority there.
+
+## Northwell technician entrypoints
+
+After the Northwell use case is selected, there are three clickable CMDs:
+
+```text
+Map-NorthwellPrinter-SystemWide.cmd
+Edit-NorthwellPrinter-Batch.cmd
+Map-NorthwellPrinters-Batch.cmd
+```
+
+- `Map-NorthwellPrinter-SystemWide.cmd` — ad-hoc quick mapping. It accepts one or more target PCs and repeated print-server/queue sets.
+- `Edit-NorthwellPrinter-Batch.cmd` — creates/opens the local gitignored `mapping\NorthwellPrinterBatch.csv` from the tracked example.
+- `Map-NorthwellPrinters-Batch.cmd` — executes explicit CSV row groups through the same canonical engine.
+
+Batch rule: **one CSV row = every queue in that row maps to every computer in that row**. Multiple computers or queues inside a cell are separated with semicolons.
+
+The known field-proven Northwell starter queue is `\\SYKPNHPHPS01V\LS001-EMS01`. It is an example/default only inside the selected Northwell use case; it is not portable authority for another organization or an independently operated hospital.
 
 ## Key harness directories
 
@@ -41,9 +59,15 @@ The use-case registry chooses an implementation; it does not implement printer m
 For Northwell, product behavior remains in:
 - `START-HERE-NORTHWELL-PRINTER-MAPPING.md`
 - `Map-NorthwellPrinter-SystemWide.cmd`
+- `Edit-NorthwellPrinter-Batch.cmd`
+- `Map-NorthwellPrinters-Batch.cmd`
 - `mapping/Start-NorthwellPrinterMapping.ps1`
+- `mapping/Start-NorthwellPrinterBatch.ps1`
+- `mapping/Examples/NorthwellPrinterBatch.example.csv`
 - `mapping/Invoke-NorthwellPrinterMapping.ps1`
 - `mapping/Modules/NorthwellPrinterMapping.Core.psm1`
+
+The batch wrapper is orchestration only. The canonical engine remains the only Northwell mapping implementation.
 
 The harness must not rewrite those files merely to onboard another organization.
 
@@ -70,8 +94,14 @@ bash tests/survey/run_offline_survey_tests.sh
 git diff --check
 ```
 
-The dedicated CI authority is `.github/workflows/printer-mapping-use-case-contracts.yml`.
+Northwell product validation:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+```
+
+The dedicated CI authorities are `.github/workflows/printer-mapping-use-case-contracts.yml` and `.github/workflows/northwell-printer-mapping-contracts.yml`.
 
 ## Proof boundary
 
-A green harness proves use-case isolation, file wiring, and deterministic selection. It does not prove Health & Hospitals behavior before discovery, and it does not turn one successful Northwell print into proof for another organization or hospital.
+A green harness proves use-case isolation, file wiring, and deterministic selection. Northwell product CI proves quick/batch contract behavior and canonical-engine delegation. Neither proves Health & Hospitals behavior before discovery, and neither turns one successful Northwell print into proof for another organization or hospital.

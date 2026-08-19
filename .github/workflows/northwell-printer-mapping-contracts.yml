@@ -11,8 +11,12 @@ on:
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Map-NorthwellPrinters-Batch.cmd'
+      - 'Edit-NorthwellPrinter-Batch.cmd'
       - 'mapping/README.md'
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
+      - 'mapping/Start-NorthwellPrinterBatch.ps1'
+      - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'scripts/SasNetworkGuard.psm1'
@@ -23,14 +27,19 @@ on:
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterNetworkGuard.Tests.ps1'
       - '.github/workflows/northwell-printer-mapping-contracts.yml'
+      - '.gitignore'
   pull_request:
     paths:
       - 'AGENTS.md'
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Map-NorthwellPrinters-Batch.cmd'
+      - 'Edit-NorthwellPrinter-Batch.cmd'
       - 'mapping/README.md'
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
+      - 'mapping/Start-NorthwellPrinterBatch.ps1'
+      - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'scripts/SasNetworkGuard.psm1'
@@ -41,6 +50,7 @@ on:
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterNetworkGuard.Tests.ps1'
       - '.github/workflows/northwell-printer-mapping-contracts.yml'
+      - '.gitignore'
 
 jobs:
   contracts:
@@ -56,6 +66,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $files = @(
             '.\mapping\Start-NorthwellPrinterMapping.ps1',
+            '.\mapping\Start-NorthwellPrinterBatch.ps1',
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
             '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
             '.\scripts\SasNetworkGuard.psm1',
@@ -82,6 +93,22 @@ jobs:
             throw ($allErrors -join [Environment]::NewLine)
           }
           Write-Host 'PASS: Northwell printer PowerShell surfaces parse.'
+
+      - name: Validate batch example shape
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = '.\mapping\Examples\NorthwellPrinterBatch.example.csv'
+          $rows = @(Import-Csv -LiteralPath $path)
+          if ($rows.Count -ne 1) { throw 'Tracked batch example must contain exactly one starter row.' }
+          foreach ($column in @('ComputerName','PrintServer','QueueName')) {
+            if ($null -eq $rows[0].PSObject.Properties[$column]) { throw "Missing batch example column: $column" }
+          }
+          if ($rows[0].ComputerName -ne 'REPLACE-WITH-PC-HOSTNAME') { throw 'Tracked batch example must retain the blocked placeholder hostname.' }
+          if ($rows[0].PrintServer -ne 'SYKPNHPHPS01V' -or $rows[0].QueueName -ne 'LS001-EMS01') {
+            throw 'Tracked batch example no longer contains the field-proven Northwell printer example.'
+          }
+          Write-Host 'PASS: tracked Northwell printer batch example is safe and usable.'
 
       - name: Parse printer mapping evidence policy
         shell: pwsh

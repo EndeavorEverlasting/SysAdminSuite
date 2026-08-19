@@ -225,6 +225,81 @@ function ConvertTo-SasNorthwellPrinterUnc {
     return ConvertTo-SasNorthwellPrinterUnc -Printer $matches[0]
 }
 
+function Split-SasNorthwellPrinterBatchField {
+    [CmdletBinding()]
+    param(
+        [AllowNull()][string]$Value,
+        [Parameter(Mandatory)][string]$Label
+    )
+
+    $items = @(
+        ([string]$Value) -split '\s*;\s*' |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+    if ($items.Count -eq 0) {
+        throw "$Label cannot be blank. Use semicolons inside a CSV cell when listing more than one value."
+    }
+    return $items
+}
+
+function ConvertTo-SasNorthwellPrinterBatchGroups {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object[]]$Rows,
+        [scriptblock]$PrinterResolver
+    )
+
+    if (@($Rows).Count -eq 0) {
+        throw 'Northwell printer batch contains no data rows.'
+    }
+
+    $groups = New-Object System.Collections.Generic.List[object]
+    $rowNumber = 1
+    foreach ($row in @($Rows)) {
+        $rowNumber++
+        foreach ($required in @('ComputerName','PrintServer','QueueName')) {
+            if ($null -eq $row.PSObject.Properties[$required]) {
+                throw "Northwell printer batch is missing required CSV column '$required'."
+            }
+        }
+
+        $computers = @(Split-SasNorthwellPrinterBatchField -Value ([string]$row.ComputerName) -Label "Row $rowNumber ComputerName")
+        $queues = @(Split-SasNorthwellPrinterBatchField -Value ([string]$row.QueueName) -Label "Row $rowNumber QueueName")
+        $server = ([string]$row.PrintServer).Trim()
+
+        foreach ($computer in $computers) {
+            if ($computer -match '(?i)(REPLACE-WITH|EXAMPLE|PC-HOSTNAME)') {
+                throw "Row $rowNumber still contains the example ComputerName '$computer'. Replace it with a real Northwell hostname before mapping."
+            }
+        }
+
+        $resolvedPrinters = @(
+            foreach ($queue in $queues) {
+                if ($PrinterResolver) {
+                    & $PrinterResolver $queue $server
+                }
+                elseif ([string]::IsNullOrWhiteSpace($server)) {
+                    ConvertTo-SasNorthwellPrinterUnc -Printer $queue
+                }
+                else {
+                    ConvertTo-SasNorthwellPrinterUnc -Printer $queue -PrintServer $server
+                }
+            }
+        )
+        $resolvedPrinters = @($resolvedPrinters | Sort-Object -Unique)
+
+        $groups.Add([pscustomobject][ordered]@{
+            RowNumber = $rowNumber
+            Computers = @($computers | Sort-Object -Unique)
+            Printers = $resolvedPrinters
+            PrintServer = if ([string]::IsNullOrWhiteSpace($server)) { $null } else { $server }
+        })
+    }
+
+    return @($groups)
+}
+
 function New-SasNorthwellPrinterRunToken {
     [CmdletBinding()]
     param()
@@ -305,6 +380,8 @@ Export-ModuleMember -Function @(
     'Resolve-SasNorthwellTargetComputer',
     'Resolve-SasPrinterQueueFromDirectory',
     'ConvertTo-SasNorthwellPrinterUnc',
+    'Split-SasNorthwellPrinterBatchField',
+    'ConvertTo-SasNorthwellPrinterBatchGroups',
     'New-SasNorthwellPrinterRunToken',
     'New-SasNorthwellPrinterTaskCreateArguments',
     'Assert-SasNorthwellPrinterStatusProof'

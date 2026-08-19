@@ -5,7 +5,11 @@ BeforeAll {
     $script:modulePath = Join-Path $script:repoRoot 'mapping\Modules\NorthwellPrinterMapping.Core.psm1'
     $script:runnerPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterMapping.ps1'
     $script:interactivePath = Join-Path $script:repoRoot 'mapping\Start-NorthwellPrinterMapping.ps1'
+    $script:batchPath = Join-Path $script:repoRoot 'mapping\Start-NorthwellPrinterBatch.ps1'
     $script:cmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
+    $script:batchCmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinters-Batch.cmd'
+    $script:editBatchCmdPath = Join-Path $script:repoRoot 'Edit-NorthwellPrinter-Batch.cmd'
+    $script:batchExamplePath = Join-Path $script:repoRoot 'mapping\Examples\NorthwellPrinterBatch.example.csv'
     $script:gitIgnorePath = Join-Path $script:repoRoot '.gitignore'
     Import-Module $script:modulePath -Force
 }
@@ -120,6 +124,55 @@ Describe 'Northwell workstation target contract' {
         $content = Get-Content -LiteralPath $script:modulePath -Raw
         $content | Should -Match 'SasTargetNameResolution\.psm1'
         $content | Should -Match 'Resolve-SasCanonicalTargetFqdn'
+    }
+}
+
+Describe 'Northwell batch planning contract' {
+    It 'turns one row into many-computers by many-queues using semicolon cells' {
+        $rows = @(
+            [pscustomobject]@{
+                ComputerName = 'PC001;PC002;PC003'
+                PrintServer = 'PRINTSRV01'
+                QueueName = 'QUEUE01;QUEUE02'
+            }
+        )
+        $resolver = { param($queue, $server) "\\$server\$queue" }
+        $groups = @(ConvertTo-SasNorthwellPrinterBatchGroups -Rows $rows -PrinterResolver $resolver)
+
+        $groups.Count | Should -Be 1
+        $groups[0].Computers | Should -Be @('PC001','PC002','PC003')
+        $groups[0].Printers | Should -Be @('\\PRINTSRV01\QUEUE01','\\PRINTSRV01\QUEUE02')
+        $groups[0].RowNumber | Should -Be 2
+    }
+
+    It 'keeps separate CSV rows as separate explicit mapping groups' {
+        $rows = @(
+            [pscustomobject]@{ ComputerName = 'PC001;PC002'; PrintServer = 'PRINTSRV01'; QueueName = 'QUEUE01' },
+            [pscustomobject]@{ ComputerName = 'PC003'; PrintServer = 'PRINTSRV02'; QueueName = 'QUEUE02;QUEUE03' }
+        )
+        $resolver = { param($queue, $server) "\\$server\$queue" }
+        $groups = @(ConvertTo-SasNorthwellPrinterBatchGroups -Rows $rows -PrinterResolver $resolver)
+
+        $groups.Count | Should -Be 2
+        $groups[0].Computers.Count | Should -Be 2
+        $groups[1].Printers.Count | Should -Be 2
+    }
+
+    It 'rejects the shipped placeholder computer before any mapping can run' {
+        $rows = @(
+            [pscustomobject]@{ ComputerName = 'REPLACE-WITH-PC-HOSTNAME'; PrintServer = 'PRINTSRV01'; QueueName = 'QUEUE01' }
+        )
+        $resolver = { param($queue, $server) "\\$server\$queue" }
+        { ConvertTo-SasNorthwellPrinterBatchGroups -Rows $rows -PrinterResolver $resolver } |
+            Should -Throw '*Replace it with a real Northwell hostname*'
+    }
+
+    It 'fails closed when a required CSV column is missing' {
+        $rows = @(
+            [pscustomobject]@{ ComputerName = 'PC001'; QueueName = 'QUEUE01' }
+        )
+        { ConvertTo-SasNorthwellPrinterBatchGroups -Rows $rows } |
+            Should -Throw "*missing required CSV column 'PrintServer'*"
     }
 }
 
@@ -239,8 +292,8 @@ Describe 'Canonical Northwell system-wide runner contract' {
     }
 }
 
-Describe 'Technician front-door contract' {
-    It 'has one root CMD launcher that self-elevates and delegates to the interactive wrapper' {
+Describe 'Technician quick front-door contract' {
+    It 'has a root CMD launcher that self-elevates and delegates to the interactive wrapper' {
         Test-Path -LiteralPath $script:cmdPath | Should -BeTrue
         $content = Get-Content -LiteralPath $script:cmdPath -Raw
         $content | Should -Match 'WindowsBuiltInRole\]::Administrator'
@@ -251,14 +304,72 @@ Describe 'Technician front-door contract' {
         $content | Should -Match '(?i)pause'
         $content | Should -Match 'ALL users'
         $content | Should -Match 'Printer IP addresses are NOT allowed'
+        $content | Should -Match '\\\\SYKPNHPHPS01V\\LS001-EMS01'
+        $content | Should -Match 'Map-NorthwellPrinters-Batch\.cmd'
+        $content | Should -Not -Match 'Remove-Printer'
+        $content | Should -Not -Match 'direct-IP printer OBJECT may be removed'
     }
 
-    It 'prompts only for missing hostnames and queues and delegates to the canonical engine' {
+    It 'collects repeated print-server queue sets and delegates to the canonical engine' {
         Test-Path -LiteralPath $script:interactivePath | Should -BeTrue
         $content = Get-Content -LiteralPath $script:interactivePath -Raw
         $content | Should -Match "Read-Host 'Target PC hostname\(s\), comma-separated'"
-        $content | Should -Match "Read-Host 'Printer queue\(s\), comma-separated'"
+        $content | Should -Match 'Print server hostname \[\$defaultPrintServer\]'
+        $content | Should -Match 'Queue name\(s\), comma-separated \[\$defaultPrinterQueue\]'
+        $content | Should -Match 'Add another print server / queue set\? \[y/N\]'
+        $content | Should -Match 'SYKPNHPHPS01V'
+        $content | Should -Match 'LS001-EMS01'
         $content | Should -Match 'Invoke-NorthwellPrinterMapping\.ps1'
         $content | Should -Match 'SYSTEM-WIDE for all users'
+    }
+}
+
+Describe 'Technician batch front-door contract' {
+    It 'ships clickable batch edit and map CMDs plus a tracked example CSV' {
+        Test-Path -LiteralPath $script:batchCmdPath | Should -BeTrue
+        Test-Path -LiteralPath $script:editBatchCmdPath | Should -BeTrue
+        Test-Path -LiteralPath $script:batchExamplePath | Should -BeTrue
+
+        $example = Get-Content -LiteralPath $script:batchExamplePath -Raw
+        $example | Should -Match '^ComputerName,PrintServer,QueueName'
+        $example | Should -Match 'REPLACE-WITH-PC-HOSTNAME,SYKPNHPHPS01V,LS001-EMS01'
+
+        $ignore = Get-Content -LiteralPath $script:gitIgnorePath -Raw
+        $ignore | Should -Match '(?m)^!mapping/Examples/\*\.example\.csv\r?$'
+    }
+
+    It 'keeps editing local and execution separate' {
+        $edit = Get-Content -LiteralPath $script:editBatchCmdPath -Raw
+        $edit | Should -Match 'NorthwellPrinterBatch\.example\.csv'
+        $edit | Should -Match 'NorthwellPrinterBatch\.csv'
+        $edit | Should -Match 'notepad\.exe'
+        $edit | Should -Match 'Map-NorthwellPrinters-Batch\.cmd'
+        $edit | Should -Not -Match 'Start-NorthwellPrinterBatch\.ps1'
+
+        $run = Get-Content -LiteralPath $script:batchCmdPath -Raw
+        $run | Should -Match 'WindowsBuiltInRole\]::Administrator'
+        $run | Should -Match 'Start-Process.*-Verb RunAs'
+        $run | Should -Match 'Start-NorthwellPrinterBatch\.ps1'
+        $run | Should -Match 'ComputerName,PrintServer,QueueName'
+        $run | Should -Match 'PC001;PC002,SYKPNHPHPS01V,LS001-EMS01;QUEUE02'
+        $run | Should -Match '(?i)pause'
+        $run | Should -Match 'NO TEST PAGE'
+    }
+
+    It 'delegates every batch row to the canonical engine and preserves parent evidence' {
+        Test-Path -LiteralPath $script:batchPath | Should -BeTrue
+        $content = Get-Content -LiteralPath $script:batchPath -Raw
+        $content | Should -Match 'Import-Csv'
+        $content | Should -Match 'ConvertTo-SasNorthwellPrinterBatchGroups'
+        $content | Should -Match 'Invoke-NorthwellPrinterMapping\.ps1'
+        $content | Should -Match 'BatchPlan\.json'
+        $content | Should -Match 'Summary\.json'
+        $content | Should -Match 'LATEST-PATH\.txt'
+        $content | Should -Match 'NorthwellPrinterBatch-'
+        $content | Should -Match 'RuntimePrintObservedByEngine = \$false'
+        $content | Should -Match 'TestPagesPrinted = \$false'
+        $content | Should -Not -Match 'Add-Printer\s+-ConnectionName'
+        $content | Should -Not -Match 'Remove-Printer'
+        $content | Should -Not -Match 'PrintTestPage'
     }
 }

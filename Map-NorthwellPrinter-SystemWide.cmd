@@ -1,13 +1,11 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
-title SysAdminSuite - Northwell System-Wide Printer Mapping
+title SysAdminSuite - Northwell Quick Printer Mapping
 
-rem Canonical Northwell multi-user printer front door.
+rem Canonical Northwell quick technician front door.
 rem Mapping remains shared-queue-only and machine-wide through SYSTEM + PrintUIEntry /ga.
-rem If an exact same-queue local printer object is bound to a direct-IP port, the
-rem delegated engine may remove that stale printer OBJECT before /ga. It never
-rem deletes the TCP/IP port and never prints a test page.
+rem This launcher does not remove printers or ports and never prints a test page.
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 1 }"
 if not "%ERRORLEVEL%"=="0" (
@@ -18,18 +16,23 @@ if not "%ERRORLEVEL%"=="0" (
 )
 
 echo ================================================================
-echo  NORTHWELL SYSTEM-WIDE PRINTER MAPPING
+echo  NORTHWELL QUICK SYSTEM-WIDE PRINTER MAPPING
 echo ================================================================
-echo  Use target PC HOSTNAMES and printer QUEUE NAMES only.
-echo  Accepted printer input: \\server\queue, //server/queue, or queue name.
+echo  1. Enter one or more target PC HOSTNAMES.
+echo  2. Enter a print SERVER and one or more QUEUE NAMES.
+echo  3. Add another server/queue set if needed.
+echo.
+echo  Known field-proven example:
+echo    \\SYKPNHPHPS01V\LS001-EMS01
+echo  Press Enter at both printer prompts to accept that example.
+echo.
 echo  Printer IP addresses are NOT allowed as mapping targets.
 echo  Mapping is per-computer for ALL users, not just the signed-in user.
+echo  NO TEST PAGE is printed.
 echo.
-echo  Repair behavior:
-echo    - exact same-queue local direct-IP printer OBJECT may be removed
-echo    - its TCP/IP PORT is preserved
-echo    - ambiguous collisions fail closed
-echo    - NO TEST PAGE is printed
+echo  For spreadsheet-style batches, use:
+echo    Edit-NorthwellPrinter-Batch.cmd
+echo    Map-NorthwellPrinters-Batch.cmd
 echo ================================================================
 echo.
 

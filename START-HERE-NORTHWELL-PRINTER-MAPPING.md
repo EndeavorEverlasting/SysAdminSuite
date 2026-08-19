@@ -1,102 +1,170 @@
 # Northwell Printer Mapping — Start Here
 
-This is the **canonical field path** for mapping shared printers to Northwell Windows PCs.
+This is the **canonical Northwell field path** for shared-printer mapping. Northwell printer behavior is organization-specific; do not reuse these commands for Health & Hospitals or another organization unless that use case is separately registered and proven.
 
-## Non-negotiable client contract
+## Non-negotiable Northwell contract
 
-- **System-wide / per-computer only.** These PCs have multiple users. A printer mapped only for the technician's current profile is not acceptable.
-- **Shared queue names only.** Use `\\server\queue`, `//server/queue`, or a queue name such as `QUEUE01`.
-- **Never map a Northwell printer by printer IP address.** The field entrypoint rejects IP-based printer inputs.
-- **Target PCs are hostnames/FQDNs, not IP addresses.** Short Northwell hostnames are normalized to the `nslijhs.net` DNS suffix.
-- The remote mapping action runs as **SYSTEM** and uses `rundll32 printui.dll,PrintUIEntry /ga`, the Windows per-computer printer-connection path.
-- A mapping run is not reported successful merely because a command launched. Each target must return SYSTEM identity plus the requested queue under the machine-wide HKLM printer-connection registry location.
-- The canonical mapper does **not** print test pages. A real requested document printed after mapping is separate runtime acceptance evidence.
+- **System-wide / per-computer only.** These PCs have multiple users.
+- **Shared queue names only.** Use `\\server\queue`, `//server/queue`, or a queue name.
+- **Never map by printer IP address.**
+- **Target PCs are hostnames/FQDNs, not IP addresses.**
+- Endpoint mapping runs as **SYSTEM** with `rundll32 printui.dll,PrintUIEntry /ga`.
+- Success requires SYSTEM identity plus the requested queue under the machine-wide HKLM printer-connection registry location.
+- The canonical mapper **does not print test pages**.
+- A real requested document printed after mapping is separate, higher-value runtime acceptance evidence.
 
-## Technician path: double-click one file
+## Technician CMDs
 
-On an authorized Northwell Windows admin box, open the current SysAdminSuite folder and double-click:
+Choose the CMD that matches the job. All are at the repository root.
+
+### 1. Quick mapping
+
+Double-click:
 
 ```text
 Map-NorthwellPrinter-SystemWide.cmd
 ```
 
-The launcher requests Administrator rights if needed, then asks for only:
+Use this for one-off work. The launcher:
 
-1. **Target PC hostname(s)** — one or more hostnames, comma-separated.
-2. **Printer queue(s)** — `\\server\queue`, `//server/queue`, or queue name only; comma-separated when mapping more than one.
+1. asks for one or more target PC hostnames;
+2. asks for a print server and one or more queue names;
+3. lets you add another server/queue set;
+4. maps every requested queue to every requested computer;
+5. preserves evidence and leaves the window open.
 
-The launcher stays open after success or failure. It prints the exact run evidence directory and opens the run `Summary.json`, so the mapping record remains recoverable after a terminal closes.
-
-Example answers:
-
-```text
-Target PC hostname(s), comma-separated: PC001,PC002,PC003
-Printer queue(s), comma-separated: \\PRINTSERVER\QUEUE01
-```
-
-or, when only the queue name is known:
+Known field-proven Northwell example:
 
 ```text
-Target PC hostname(s), comma-separated: PC001
-Printer queue(s), comma-separated: QUEUE01
+\\SYKPNHPHPS01V\LS001-EMS01
 ```
 
-For queue-only input, the suite resolves the published queue through Active Directory. It **does not guess a print server**. If the queue is unpublished or ambiguous, the run stops before changing a target and asks for the full `\\server\queue` path.
+The quick launcher shows that server and queue as defaults. **Press Enter at both printer prompts only when you intentionally want that example.** There is no default target computer; the technician must always enter the intended PC hostname(s).
 
-## Evidence precedence: do not repair a working mapping
-
-The mapping engine and the diagnostic tools observe different proof layers. Keep them separate.
-
-1. **Post-mapping real document print observed** — runtime acceptance. If a requested document actually prints after the canonical mapping workflow, the mapped print path is working for that observed case.
-2. **SYSTEM + HKLM per-computer queue proof** — machine-wide registration proof. This is what the canonical mapper itself proves.
-3. **Local queue/CIM/PortName/WorkOffline/SMB/RPC/remote `Get-Printer` telemetry** — diagnostic context. These observations may explain a problem, but they do not outrank observed successful output.
-
-Therefore, once real requested output has been observed after mapping:
-
-- do **not** print another test page merely to prove printing again;
-- do **not** remove or rebuild the printer solely because a local `PortName` looks like `IP_*`, `TCP_*`, or a raw address;
-- do **not** declare the mapping failed solely because remote `Get-Printer`, RPC, CIM, or status telemetry times out or disagrees;
-- preserve contradictory telemetry as a warning unless a later observed print failure reopens diagnosis.
-
-The machine-readable authority for this ordering is:
+Examples of what the quick launcher supports:
 
 ```text
-harness\api\northwell-printer-mapping-evidence-policy.json
+1 PC  -> 1 printer
+5 PCs -> 1 printer
+1 PC  -> 4 printers
+5 PCs -> 4 printers
 ```
+
+If the queues live on two print servers, enter the first server/queue set and answer `y` when asked to add another set.
+
+### 2. Edit a batch
+
+Double-click:
+
+```text
+Edit-NorthwellPrinter-Batch.cmd
+```
+
+It creates or opens this **local, gitignored** file:
+
+```text
+mapping\NorthwellPrinterBatch.csv
+```
+
+The tracked starter template is:
+
+```text
+mapping\Examples\NorthwellPrinterBatch.example.csv
+```
+
+CSV columns:
+
+```text
+ComputerName,PrintServer,QueueName
+```
+
+Use semicolons inside a cell for multiple values. One row means:
+
+> map every queue in this row to every computer in this row.
+
+Examples:
+
+```text
+ComputerName,PrintServer,QueueName
+PC001;PC002,SYKPNHPHPS01V,LS001-EMS01
+PC003;PC004,PRINTSERVER02,QUEUE01;QUEUE02
+PC005,,\\PRINTSERVER03\QUEUE03;\\PRINTSERVER04\QUEUE04
+```
+
+Rules:
+
+- `ComputerName`: one or more Northwell hostnames, separated by `;`.
+- `PrintServer`: one server hostname for queue-name entries; blank is allowed when the queue cell contains full UNC paths or when queue-only AD resolution is intended.
+- `QueueName`: one or more queue names or full UNC paths, separated by `;`.
+- The shipped `REPLACE-WITH-PC-HOSTNAME` placeholder is blocked from execution.
+
+### 3. Run the batch
+
+After saving the CSV, double-click:
+
+```text
+Map-NorthwellPrinters-Batch.cmd
+```
+
+The batch launcher self-elevates, validates the CSV, checks Northwell network authority, and delegates each CSV row to the **same canonical engine** used by quick mapping. Batch mode is orchestration only; it does not implement a second printer-mapping mechanism.
+
+Each row gets its own child evidence directory. The parent batch run writes:
+
+```text
+BatchPlan.json
+Summary.json
+Group-001\Summary.json
+Group-002\Summary.json
+...
+```
+
+`mapping\Logs\LATEST-PATH.txt` points back to the parent batch evidence directory when the batch finishes.
+
+## Why the batch model is row-based
+
+A row is a simple mapping group. That keeps technician intent visible:
+
+```text
+these computers -> these printers
+```
+
+It also allows different hospitals, departments, or printer servers to be expressed as separate rows without hiding the assignment inside code.
 
 ## PowerShell path for agents and advanced operators
 
-The CMD launcher delegates to `mapping\Start-NorthwellPrinterMapping.ps1`, which delegates to the canonical engine:
+Quick wrapper:
+
+```powershell
+.\mapping\Start-NorthwellPrinterMapping.ps1
+```
+
+Batch wrapper:
+
+```powershell
+.\mapping\Start-NorthwellPrinterBatch.ps1
+```
+
+Canonical engine:
 
 ```powershell
 .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer '\\PRINTSERVER\QUEUE01'
 ```
 
-Multiple PCs:
+The engine natively accepts multiple PCs and multiple queues:
 
 ```powershell
-.\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001,PC002,PC003 -Printer '\\PRINTSERVER\QUEUE01'
+.\mapping\Invoke-NorthwellPrinterMapping.ps1 `
+  -ComputerName PC001,PC002,PC003 `
+  -Printer '\\PRINTSERVER\QUEUE01','\\PRINTSERVER\QUEUE02'
 ```
 
-Multiple queues:
-
-```powershell
-.\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer '\\PRINTSERVER\QUEUE01','\\PRINTSERVER\QUEUE02'
-```
-
-Forward-slash UNC notation is accepted and normalized:
-
-```powershell
-.\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer '//PRINTSERVER/QUEUE01'
-```
-
-Queue name only:
+Queue-only input is allowed:
 
 ```powershell
 .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer 'QUEUE01'
 ```
 
-If the operator knows the print server but was given only the queue name:
+Explicit server + queue name:
 
 ```powershell
 .\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer 'QUEUE01' -PrintServer 'PRINTSERVER'
@@ -104,80 +172,113 @@ If the operator knows the print server but was given only the queue name:
 
 ## Safe preview
 
-Agents and advanced operators can use `-WhatIf` to resolve hostnames and queues, validate print-server DNS, and write the local resolved plan without staging anything remotely:
+Advanced operators can use `-WhatIf`:
 
 ```powershell
-.\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer 'QUEUE01' -WhatIf
+.\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer '\\PRINTSERVER\QUEUE01' -WhatIf
+.\mapping\Start-NorthwellPrinterBatch.ps1 -WhatIf
 ```
 
-## What the tool proves
+`-WhatIf` is planning only and does not claim machine-wide registration or live printing.
 
-For each target the runner:
+## What the canonical engine proves
 
-1. Validates the target is a hostname/FQDN and the printer is a shared queue, not an IP/IPP/HTTP target.
-2. Resolves queue-only input through AD, or uses the explicit `-PrintServer`.
-3. Resolves each print-server hostname in DNS before any endpoint mutation.
-4. Verifies the target administrative share (`C$`) and remote Task Scheduler are reachable.
-5. Stages a run-scoped agent under `C:\ProgramData\SysAdminSuite\Mapping\NorthwellPrinterMap\...`.
-6. Runs that agent as **SYSTEM** through Task Scheduler.
-7. Adds each queue using **PrintUIEntry `/ga`** (per-computer / all-users registration).
-8. Polls and verifies each requested `\\server\queue` from `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections`.
-9. Copies `Status.json` and `Agent.log` back to the controller before cleanup.
-10. Fails the overall run if even one target lacks SYSTEM identity or machine-wide registry proof.
+For each target the engine:
 
-The mapper deliberately does not infer runtime print success from registration alone. Conversely, when a later real document is actually observed printing, agents must not downgrade that runtime acceptance because a lower-level diagnostic looks odd.
+1. validates hostname and shared-queue input;
+2. rejects direct-IP/URL printer targets;
+3. resolves queue-only input through AD or an explicit print server;
+4. resolves print-server DNS before endpoint mutation;
+5. verifies `C$` and remote Task Scheduler access;
+6. stages a run-scoped worker under `C:\ProgramData\SysAdminSuite\Mapping\NorthwellPrinterMap\...`;
+7. runs the worker as **SYSTEM**;
+8. adds each queue with **PrintUIEntry `/ga`**;
+9. verifies the requested `\\server\queue` values under `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections`;
+10. copies `Status.json` and `Agent.log` back before cleanup;
+11. fails the overall engine run if any target lacks SYSTEM identity or machine-wide registration proof.
 
-Windows applies a `/ga` per-computer connection for users when they log on. If a user was already signed in during the mapping, have that user **sign out and back in** before treating the UI-visible printer list as final.
+The batch wrapper never bypasses these checks. It only calls the engine repeatedly with explicit row-level groups.
 
-## Evidence and troubleshooting
+## Evidence precedence: do not repair a working mapping
 
-Every run writes a local evidence directory under:
+Keep these proof layers separate:
+
+1. **Real requested document printed after mapping** → runtime acceptance.
+2. **SYSTEM + HKLM queue proof** → machine-wide registration proof.
+3. **PortName / WorkOffline / CIM / RPC / SMB / remote `Get-Printer` telemetry** → diagnostic context.
+
+If a real requested document actually printed after the canonical mapping workflow:
+
+- do **not** demand another test page;
+- do **not** remove/rebuild the printer only because a port looks like `IP_*`, `TCP_*`, or a raw address;
+- do **not** downgrade the successful mapping solely because RPC/CIM/remote status telemetry disagrees;
+- reopen diagnosis only when later observed printing actually fails or higher-ranked evidence changes.
+
+Machine-readable authority:
+
+```text
+harness\api\northwell-printer-mapping-evidence-policy.json
+```
+
+## Evidence locations
+
+Quick engine runs:
 
 ```text
 mapping\Logs\NorthwellPrinterMap-YYYYMMDD-HHMMSS-...
 ```
 
-The engine also refreshes:
+Batch runs:
+
+```text
+mapping\Logs\NorthwellPrinterBatch-YYYYMMDD-HHMMSS-...
+```
+
+Latest pointer:
 
 ```text
 mapping\Logs\LATEST-PATH.txt
 ```
 
-That pointer contains the exact latest mapping evidence directory used by the launcher.
+Quick-run artifacts include:
 
-Key artifacts:
+- `ResolvedPlan.json`
+- `Controller.log`
+- `<target>\Status.json`
+- `<target>\Agent.log`
+- `Summary.json`
 
-- `ResolvedPlan.json` — exact normalized PCs and shared queues before remote work.
-- `Controller.log` — timestamped controller trace.
-- `<target>\Status.json` — SYSTEM identity, requested queues, HKLM machine-wide queues, missing queues, success/failure, and explicit mapping proof level.
-- `<target>\Agent.log` — endpoint-side PrintUI and registration-verification trace.
-- `Summary.json` — authoritative all-target result and exact `SessionRoot`.
+Batch-run artifacts include:
 
-Do **not** diagnose a failed run from a vanished terminal alone. Use these artifacts. The runner throws only after preserving the collected evidence, and the CMD launcher prints the exact directory, opens `Summary.json`, and pauses before closing.
+- `BatchPlan.json`
+- `Summary.json`
+- `Group-NNN\...` canonical engine evidence
 
-Common failures are intentionally explicit:
+Both technician mapping CMDs leave their windows open and open the relevant `Summary.json` when available.
 
-- `Admin share unavailable` → verify Northwell network posture, DNS, credentials/admin rights, and endpoint firewall.
-- `Remote Task Scheduler query failed` → RPC/Task Scheduler access is blocked or the operator lacks authority.
-- `Queue ... was not uniquely published in Active Directory` → use the exact `\\server\queue`, or provide `-PrintServer` with the queue name.
-- `Print server ... did not resolve in DNS` → correct the print-server hostname before mapping.
-- `Missing machine-wide queue(s)` → the `/ga` registration did not produce HKLM machine-wide proof; treat that target as failed.
+## Common failures
 
-A local `IP_*` port name or a remote status/RPC timeout is **not** by itself a mapping failure classification after real successful document output has been observed.
+- `Admin share unavailable` → verify Northwell network posture, DNS, admin rights, and endpoint firewall.
+- `Remote Task Scheduler ... failed` → RPC/Task Scheduler authority is missing.
+- `Queue ... was not uniquely published in Active Directory` → use exact `\\server\queue` or an explicit print server.
+- `Print server ... did not resolve in DNS` → correct the server hostname.
+- `Missing machine-wide queue(s)` → `/ga` did not produce required HKLM proof.
+- `REPLACE-WITH-PC-HOSTNAME` → edit the local batch CSV before running it.
 
-## What NOT to use for this client requirement
+A local `IP_*` port or remote RPC timeout is **not** by itself a mapping failure after successful real document output has been observed.
 
-`Utilities\Map-Printer.ps1` wraps `Add-Printer -ConnectionName` and is **per-user**. It is not the Northwell multi-user deployment path.
+## Do not use these as substitutes
 
-Archived scripts under `mapping\Archive\` are historical evidence, not the technician entrypoint.
+`Utilities\Map-Printer.ps1` uses the per-user `Add-Printer -ConnectionName` path and does not satisfy the Northwell multi-user requirement.
 
-Workers under `mapping\Workers\` remain implementation/reference surfaces. Techs should start with `Map-NorthwellPrinter-SystemWide.cmd` so elevation, prompts, input validation, queue resolution, SYSTEM execution, cleanup, evidence checks, and terminal persistence stay consistent.
+Archived scripts under `mapping\Archive\` are historical/reference surfaces, not technician entrypoints.
 
-## Agent / ChatGPT routing rule
+## Agent routing rule
 
-When a technician asks how to map a printer on a Northwell PC, answer with the **CMD launcher first**. Ask only for the missing concrete inputs:
+When the organization is Northwell and a technician asks to map printers:
 
-- target PC hostname(s), and
-- printer queue(s): either `\\server\queue` or queue name.
-
-Do not recommend direct-IP printer installation or a per-user `Add-Printer -ConnectionName` command. If real requested output has already printed successfully after mapping, do not demand another test page or invent a remapping problem solely from diagnostic telemetry.
+- use `Map-NorthwellPrinter-SystemWide.cmd` for ad-hoc one/many mapping;
+- use `Edit-NorthwellPrinter-Batch.cmd` + `Map-NorthwellPrinters-Batch.cmd` when assignments are naturally tabular or repeated;
+- ask only for missing hostnames, print-server names, and queue names;
+- never invent a direct-IP or per-user fallback;
+- never transfer these Northwell commands to Health & Hospitals without a separately proven H&H use case.

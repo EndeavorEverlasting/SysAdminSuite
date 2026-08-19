@@ -77,6 +77,7 @@ data/updated/*
 !Config/cybernet_location_prefixes.example.csv
 !input/cybernet-serials.example.csv
 !input/site-subnets.example.csv
+!mapping/Examples/*.example.csv
 !survey/fixtures/ad_registered_cybernet.sample.csv
 !survey/fixtures/ad_evidence_manifest.sample.csv
 !survey/fixtures/ad_network_evidence.sample.csv
