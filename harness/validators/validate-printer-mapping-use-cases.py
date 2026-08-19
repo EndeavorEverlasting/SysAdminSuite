@@ -15,10 +15,25 @@ MAP = ROOT / "harness/maps/PRINTER_MAPPING_USE_CASE_MAP.md"
 REPORT = ROOT / "harness/reports/PRINTER_MAPPING_USE_CASES.md"
 FIELD_SKILL = ROOT / ".claude/skills/field-workflow/SKILL.md"
 FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
+AGENT_ROUTING = ROOT / "harness/api/agent-routing-manifest.json"
+MANIFEST = ROOT / "harness/api/operational-harness-manifest.json"
+VALIDATOR_REGISTRY = ROOT / "harness/api/harness-validator-registry.json"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
 PRE_PUSH = ROOT / ".githooks/pre-push"
 CI = ROOT / ".github/workflows/printer-mapping-use-case-contracts.yml"
 TEST = ROOT / "Tests/survey/test_printer_mapping_use_case_contracts.py"
+
+REQUIRED_COMPONENT_IDS = {
+    "printer-mapping-use-case-registry",
+    "printer-mapping-use-case-registry-schema",
+    "printer-mapping-use-case-workflow",
+    "printer-mapping-use-case-skill",
+    "printer-mapping-use-case-map",
+    "printer-mapping-use-case-report",
+    "printer-mapping-use-case-validator",
+    "printer-mapping-use-case-contracts",
+    "printer-mapping-use-case-ci",
+}
 
 
 def read(path: Path) -> str:
@@ -176,6 +191,28 @@ def main() -> None:
         for marker in required:
             assert marker in text, f"{path.relative_to(ROOT)} missing marker: {marker}"
 
+    routing = load(AGENT_ROUTING)
+    field_route = next(item for item in routing["triggers"] if item["target"] == "field-workflow")
+    normalized_signals = {signal.lower() for signal in field_route["deterministic_task_signals"]}
+    for signal in ("map a printer", "printer mapping", "add a printer", "northwell printer mapping", "health & hospitals printer mapping"):
+        assert signal in normalized_signals, f"field-workflow route missing printer signal: {signal}"
+    assert "Tests/survey/test_printer_mapping_use_case_contracts.py" in field_route["validators"]
+    assert any("organization/site" in item for item in field_route["guardrails"])
+    assert any("Northwell" in item for item in field_route["guardrails"])
+
+    manifest = load(MANIFEST)
+    component_ids = {item["id"] for item in manifest["components"]}
+    missing_components = REQUIRED_COMPONENT_IDS.difference(component_ids)
+    assert not missing_components, f"operational manifest missing printer components: {sorted(missing_components)}"
+    assert "python harness/validators/validate-printer-mapping-use-cases.py" in manifest["validation_commands"]
+
+    validator_registry = load(VALIDATOR_REGISTRY)
+    focused = next(item for item in validator_registry["validators"] if item["id"] == "printer-mapping-use-case-contracts")
+    assert focused["blocking"] is True
+    assert focused["command"] == "python harness/validators/validate-printer-mapping-use-cases.py"
+    assert "harness/api/agent-routing-manifest.json" in focused["scope"]
+    assert "harness/api/operational-harness-manifest.json" in focused["scope"]
+
     for hook in (PRE_COMMIT, PRE_PUSH):
         assert "validate-printer-mapping-use-cases.py" in read(hook), f"{hook.name} does not run printer use-case validator"
 
@@ -183,8 +220,12 @@ def main() -> None:
     for marker in (
         "printer-mapping-use-case-registry.json",
         "printer-mapping-use-case-registry.schema.json",
+        "agent-routing-manifest.json",
+        "operational-harness-manifest.json",
+        "harness-validator-registry.json",
         "validate-printer-mapping-use-cases.py",
         "test_printer_mapping_use_case_contracts.py",
+        "test_agent_routing_manifest_contracts.py",
         "test_operational_harness_completeness_contracts.py",
         "git diff --check",
     ):
@@ -192,7 +233,7 @@ def main() -> None:
 
     tracked = (
         REGISTRY, SCHEMA, WORKFLOW, SKILL, MAP, REPORT, FIELD_SKILL, FRESH_AGENT,
-        PRE_COMMIT, PRE_PUSH, CI, TEST,
+        AGENT_ROUTING, MANIFEST, VALIDATOR_REGISTRY, PRE_COMMIT, PRE_PUSH, CI, TEST,
     )
     for path in tracked:
         assert_tracked(path)
@@ -200,7 +241,8 @@ def main() -> None:
     print(f"PASS: {len(use_cases)} printer-mapping use cases explicitly registered")
     print("PASS: exact site override > registered organization default > discovery block")
     print("PASS: Northwell proven behavior is isolated from Health & Hospitals discovery")
-    print("PASS: printer-mapping use-case validator is wired into fresh-agent routing, hooks, and CI")
+    print("PASS: generic printer requests reach field-workflow and compose the use-case gate")
+    print("PASS: printer-mapping surfaces are registered centrally and enforced by hooks and CI")
 
 
 if __name__ == "__main__":
