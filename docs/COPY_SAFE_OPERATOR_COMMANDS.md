@@ -16,6 +16,30 @@ Do not reconstruct a terminal session from chat output.
 
 Do not append `exit $LASTEXITCODE`, `exit $rc`, or another caller-shell `exit` to an operator copy/paste command. A diagnostic command must not close the PowerShell or Windows Terminal session the operator is using to collect and share evidence.
 
+## Source freshness and supersession
+
+**Canonical mainline wins after merge.** Once a registered field capsule has merged or a newer merge has superseded its behavior, operator next-actions resolve from the capsule's declared canonical ref (`main`). A historical PR branch or pinned historical SHA is review evidence, not the field retry source.
+
+A command may pin a PR SHA only while proving that exact **unmerged** PR. After merge, do not carry that branch/SHA forward into a technician command merely because it appeared in an earlier handoff.
+
+**A SHA mismatch is a supersession/reconciliation signal.** If a remote branch no longer equals a previously pinned SHA, the safety check did its job. Stop that stale command and reconcile current repository truth on `main`; the mismatch is not a reason to chase the old commit, recreate an old detached worktree, or force the branch backward.
+
+For registered capsules, source-resolution metadata lives in:
+
+```text
+harness\api\copy-safe-operator-command-policy.json
+```
+
+The Northwell printer capsule declares:
+
+```text
+canonical_ref = main
+default_branch_wins_after_merge = true
+historical_pr_ref_allowed_for_operator_retry = false
+pinned_historical_sha_allowed_after_merge = false
+ref_mismatch_action = RECONCILE_CURRENT_MAINLINE
+```
+
 ## Northwell printer operational capsule
 
 Printer mapping already has a canonical machine-wide launcher:
@@ -45,9 +69,21 @@ The default operational engine:
 - never modifies Northwell firewall, RPC, or Group Policy;
 - preserves the raw bounded diagnostic result unchanged and emits a separate operational result.
 
+A successful real client-requested document print after the canonical mapping workflow is runtime acceptance evidence that the mapped print path worked for that observed case. Do not demote that outcome merely because lower-level queue, port, CIM, SMB, RPC, or remote status telemetry looks odd.
+
 ## Repairing already-captured physical evidence
 
-If a harness bug misclassified a run that already recorded `physical_output_observed=true`, do **not** contact the printer again. Run:
+`Repair-NorthwellPrinter-Queue-Evidence.cmd` is **artifact reclassification only**.
+
+Use it only when a preserved local JSON artifact already records:
+
+```text
+physical_output_observed=true
+```
+
+and an implementation/classifier bug derived the wrong result from that artifact.
+
+If that condition exists, do **not** contact the printer again. Run:
 
 ```text
 Repair-NorthwellPrinter-Queue-Evidence.cmd
@@ -62,11 +98,13 @@ target_mutation = NONE
 test_page_requested_by_repair = false
 ```
 
-The original raw artifact is preserved unchanged. The repair emits a derived `DURABLE_PHYSICAL_PRINT_EVIDENCE_PASS` result and refreshes the stable latest aliases. This is the correct path when the evidence was good and the classifier was wrong.
+The original raw artifact is preserved unchanged. The repair emits a derived `DURABLE_PHYSICAL_PRINT_EVIDENCE_PASS` result and refreshes the stable latest aliases.
+
+The repair launcher is **not required after a successful real document print** merely to make historical diagnostic metadata agree. If the printer has already produced the requested document and no preserved artifact specifically needs reclassification, the correct action is to preserve that runtime acceptance and stop re-proving the printer.
 
 ## Durable evidence
 
-Every run or evidence repair publishes stable aliases beneath:
+Every run or eligible evidence repair publishes stable aliases beneath:
 
 ```text
 %LOCALAPPDATA%\SysAdminSuite\field-runs\printer-queue-proof
@@ -98,14 +136,15 @@ That opens the evidence directory plus the stable latest summary/result in Explo
 
 Evidence is ranked by what it actually proves:
 
-1. A previously observed physical page for the same queue is durable end-to-end proof of successful printing at that time.
-2. Current local queue state, `WorkOffline`, SMB reachability, optional TCP 9100 reachability, and observed established RPC connections describe current health.
-3. A remote `Get-Printer` timeout is status/administrative telemetry. It does not by itself prove that printing is broken.
-4. A transient `SynSent` sample does not prove an RPC stall when an established dynamic RPC connection was also observed.
+1. A real document observed printing after canonical mapping is runtime acceptance of the mapped print path for that observed case.
+2. A previously observed physical page recorded in durable evidence remains end-to-end proof of successful printing at that time.
+3. Current local queue state, `WorkOffline`, SMB reachability, optional TCP 9100 reachability, and observed established RPC connections describe current health.
+4. A remote `Get-Printer` timeout is status/administrative telemetry. It does not by itself prove that printing is broken.
+5. A transient `SynSent` sample does not prove an RPC stall when an established dynamic RPC connection was also observed.
 
 Accordingly, a healthy current queue plus preserved physical proof is classified `QUEUE_OPERATIONAL_PHYSICAL_PROOF_PRESERVED`. A healthy current queue with established transport but a remote status timeout is `QUEUE_OPERATIONAL_STATUS_TELEMETRY_DEGRADED`, not a print failure.
 
-Current hard failures still win: missing local queue, stopped Spooler, unreachable SMB path, or an explicitly supplied printer IP whose TCP 9100 path is unreachable are not hidden by older proof.
+Current hard failures still matter when they are current observed failures: missing local queue, stopped Spooler, unreachable SMB path, or an explicitly supplied printer IP whose TCP 9100 path is unreachable. They do not retroactively erase a previously observed successful print.
 
 ## Explicit physical test capability
 
@@ -121,3 +160,5 @@ PS C:\Users\someone>
 ```
 
 Do not include output tables, error prose, or a second shell transcript in the same copy target. Do not terminate the caller's terminal merely to propagate a diagnostic exit code. If the action cannot fit safely in one complete command, add or reuse a tracked script/CMD launcher and give the operator that launcher instead.
+
+Before emitting an operator continuation for a registered capsule, reconcile current repository truth. If the relevant capability is already merged, use canonical `main` and the tracked launcher there. Historical PR worktrees are for review/reproduction only, not for normal field continuation.

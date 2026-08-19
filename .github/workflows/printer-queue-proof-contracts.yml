@@ -19,9 +19,10 @@ on:
       - 'Tests/survey/test_northwell_printer_operational_outcome.ps1'
       - 'Tests/survey/test_northwell_printer_evidence_repair.ps1'
       - 'docs/COPY_SAFE_OPERATOR_COMMANDS.md'
+      - '.claude/skills/field-workflow/**'
       - '.github/workflows/printer-queue-proof-contracts.yml'
   push:
-    branches: [main, 'feat/**', 'repair/**']
+    branches: [main, 'feat/**', 'fix/**', 'repair/**']
     paths:
       - 'Prove-NorthwellPrinter-Queue.cmd'
       - 'Repair-NorthwellPrinter-Queue-Evidence.cmd'
@@ -36,6 +37,7 @@ on:
       - 'Tests/survey/test_northwell_printer_operational_outcome.ps1'
       - 'Tests/survey/test_northwell_printer_evidence_repair.ps1'
       - 'docs/COPY_SAFE_OPERATOR_COMMANDS.md'
+      - '.claude/skills/field-workflow/**'
       - '.github/workflows/printer-queue-proof-contracts.yml'
 
 jobs:
