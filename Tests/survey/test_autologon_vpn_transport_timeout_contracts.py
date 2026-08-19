@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 HARD = ROOT / "scripts" / "SasSoftwareDeploymentKerberosSmbHardBounded.psm1"
 REPAIR = ROOT / "scripts" / "Repair-SasKerberosSmbTransportPreflightRuntime.ps1"
+REPAIR_TEST = ROOT / "Tests" / "PowerShell" / "KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1"
 HANDOFF = ROOT / "docs" / "handoff" / "autologon-vpn-transport-preflight-timeout.md"
 
 
@@ -15,6 +16,7 @@ def read(path: Path) -> str:
 def main() -> None:
     hard = read(HARD)
     repair = read(REPAIR)
+    repair_test = read(REPAIR_TEST)
     handoff = read(HANDOFF)
 
     for marker in (
@@ -34,9 +36,13 @@ def main() -> None:
         "network_activity_performed = $false",
         "target_contact_performed = $false",
         "target_mutation_performed = $false",
-        "TRANSPORT_OUTPUT_ROOT_COMPACTED",
     ):
         assert marker in repair, marker
+
+    # The transport repair does not own the separate path-budget implementation. Its CRLF/LF
+    # fixture carries those markers into the runtime and proves the surgical repair preserves them.
+    assert "TRANSPORT_OUTPUT_ROOT_COMPACTED" in repair_test
+    assert "$transportWindowsPathBudget = 240" in repair_test
 
     assert "Do not immediately retry the full AutoLogon transaction" in handoff
     assert "read-only `kerberos_smb_task` preflight" in handoff
