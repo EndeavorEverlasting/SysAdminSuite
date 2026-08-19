@@ -220,16 +220,13 @@ else {
             -Replacement $replacement
 
         if (-not $text.Contains("reason_codes = @('observation_timeout','required_observation_missing')")) {
-            # Anchor to the complete result-builder statement rather than the repeated
-            # -NetworkActivityPerformed token, which also appears in the low-noise context.
-            $resultAnchor = @'
+            # Replace the complete unique result region. The shorter
+            # -NetworkActivityPerformed token is intentionally repeated later in the file.
+            $resultRegion = @'
 $result = New-SasSoftwareDeploymentTransportResult `
     -Observations $observations `
     -EvidenceClass $evidenceClass `
     -NetworkActivityPerformed $networkActivity
-'@
-            $timeoutOverride = @'
-
 
 if (-not [string]::IsNullOrWhiteSpace([string]$probeDiagnostic.timeout_stage)) {
     $result.decision.classification = 'inconclusive'
@@ -238,8 +235,12 @@ if (-not [string]::IsNullOrWhiteSpace([string]$probeDiagnostic.timeout_stage)) {
     $result.proof.preflight_complete = $false
     $result.proof.transport_authorization_proven = $false
 }
+
 '@
-            $text = Insert-SasAfterUniqueLiteral -Text $text -Literal $resultAnchor -Insertion $timeoutOverride
+            $text = Replace-SasUniqueRange -Text $text `
+                -StartLiteral '$result = New-SasSoftwareDeploymentTransportResult' `
+                -EndLiteral '$testedPorts = @()' `
+                -Replacement $resultRegion
         }
 
         $nextActionReplacement = @'
