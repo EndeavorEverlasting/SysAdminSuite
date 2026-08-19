@@ -3,6 +3,7 @@ Set-StrictMode -Version 2.0
 $script:SasNetworkGuardRequiredPrefix = if ($env:SAS_NETWORK_GUARD_PREFIX) { $env:SAS_NETWORK_GUARD_PREFIX } else { 'NSLIJHS-WAB' }
 $script:SasNetworkGuardLastWiredEvidence = 'none'
 $script:SasNetworkGuardConfigError = ''
+$script:SasNetworkGuardDomainAuthPrecedence = 'live_domain_authenticated_non_wifi_v1'
 
 function Get-SasCurrentWifiSsidFromNetshText {
     [CmdletBinding()]
@@ -159,14 +160,10 @@ function Get-SasNetworkGuardConfigPath {
     $moduleRepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
     $moduleConfigPath = Join-Path $moduleRepoRoot 'Config\sas-network-guard.local.json'
 
-    # The executing checkout owns its operator-local policy. A stale SAS_REPO_ROOT from an older
-    # field checkout must not redirect a newly refreshed recovery/deployment to unrelated state.
     if (Test-Path -LiteralPath $moduleConfigPath -PathType Leaf) {
         return $moduleConfigPath
     }
 
-    # Preserve compatibility for legacy callers that intentionally provide only SAS_REPO_ROOT and
-    # have no config beside the executing module.
     if ($env:SAS_REPO_ROOT) {
         return (Join-Path $env:SAS_REPO_ROOT 'Config\sas-network-guard.local.json')
     }
@@ -247,13 +244,6 @@ function Test-SasNorthwellDomainAuthenticatedEvidence {
         [AllowNull()][scriptblock]$AddressResolver
     )
 
-    $config = Get-SasNetworkGuardConfig
-    if ($null -eq $config) {
-        $script:SasNetworkGuardLastWiredEvidence = "config_error:$script:SasNetworkGuardConfigError"
-        return $false
-    }
-    if (@($config.allowedLocalIpCidrs).Count -eq 0) { return $false }
-
     if (-not $PSBoundParameters.ContainsKey('ConnectionProfiles')) {
         try { $ConnectionProfiles = @(Get-NetConnectionProfile -ErrorAction Stop) }
         catch { return $false }
@@ -283,12 +273,8 @@ function Test-SasNorthwellDomainAuthenticatedEvidence {
             $ip = if ($address -is [string]) { [string]$address } else { [string]$address.IPAddress }
             $ip = $ip.Trim()
             if ([string]::IsNullOrWhiteSpace($ip) -or $ip -match '^127\.' -or $ip -match '^169\.254\.') { continue }
-            foreach ($cidr in @($config.allowedLocalIpCidrs)) {
-                if (Test-SasIpInCidr -Ip $ip -Cidr $cidr) {
-                    $script:SasNetworkGuardLastWiredEvidence = "domain_authenticated_interface=$alias;local_ip=$ip;local_ip_cidr=$cidr"
-                    return $true
-                }
-            }
+            $script:SasNetworkGuardLastWiredEvidence = "domain_authenticated_interface=$alias;interface_index=$interfaceIndex;local_ip=$ip"
+            return $true
         }
     }
     return $false
@@ -302,6 +288,15 @@ function Test-SasNorthwellWiredEvidence {
         [AllowNull()][scriptblock]$AddressResolver
     )
     $script:SasNetworkGuardLastWiredEvidence = 'none'
+
+    # Live Windows domain authentication is stronger than the physical uplink label. A workstation
+    # may legitimately remain on guest/Internet Wi-Fi while a corporate VPN supplies the protected
+    # route. Evaluate that live non-Wi-Fi authority before any optional static allowlist.
+    $liveEvidenceArgs = @{}
+    if ($PSBoundParameters.ContainsKey('ConnectionProfiles')) { $liveEvidenceArgs.ConnectionProfiles = $ConnectionProfiles }
+    if ($PSBoundParameters.ContainsKey('AddressResolver')) { $liveEvidenceArgs.AddressResolver = $AddressResolver }
+    if (Test-SasNorthwellDomainAuthenticatedEvidence @liveEvidenceArgs) { return $true }
+
     $config = Get-SasNetworkGuardConfig
     if ($null -eq $config) {
         $script:SasNetworkGuardLastWiredEvidence = "config_error:$script:SasNetworkGuardConfigError"
@@ -343,11 +338,6 @@ function Test-SasNorthwellWiredEvidence {
     foreach ($ip in $gatewayIps) { foreach ($cidr in $config.allowedGatewayCidrs) { if (Test-SasIpInCidr -Ip $ip -Cidr $cidr) { $script:SasNetworkGuardLastWiredEvidence = "gateway_cidr=$cidr"; return $true } } }
     foreach ($ip in $dnsIps) { foreach ($cidr in $config.allowedDnsServerCidrs) { if (Test-SasIpInCidr -Ip $ip -Cidr $cidr) { $script:SasNetworkGuardLastWiredEvidence = "dns_server_cidr=$cidr"; return $true } } }
 
-    $liveEvidenceArgs = @{}
-    if ($PSBoundParameters.ContainsKey('ConnectionProfiles')) { $liveEvidenceArgs.ConnectionProfiles = $ConnectionProfiles }
-    if ($PSBoundParameters.ContainsKey('AddressResolver')) { $liveEvidenceArgs.AddressResolver = $AddressResolver }
-    if (Test-SasNorthwellDomainAuthenticatedEvidence @liveEvidenceArgs) { return $true }
-
     return $false
 }
 
@@ -374,7 +364,7 @@ function Assert-SasNorthwellWifi {
     if (Test-SasNorthwellWifiSsid -Ssid $ssid) { return }
     $networkText = Get-SasLocalNetworkText
     if (Test-SasNorthwellWiredEvidence -NetworkText $networkText) { return }
-    throw "Network check failed: this script must be run from an approved Northwell network. Connect to Wi-Fi SSID starting with $script:SasNetworkGuardRequiredPrefix or an approved DomainAuthenticated non-Wi-Fi VPN/LAN interface and rerun. Current SSID: $ssid. Wired/VPN evidence: $script:SasNetworkGuardLastWiredEvidence."
+    throw "Network check failed: this script must be run from an approved Northwell network. Connect to Wi-Fi SSID starting with $script:SasNetworkGuardRequiredPrefix or an active Windows DomainAuthenticated non-Wi-Fi VPN/LAN interface and rerun. Current SSID: $ssid. Wired/VPN evidence: $script:SasNetworkGuardLastWiredEvidence."
 }
 
 Export-ModuleMember -Function Get-SasCurrentWifiSsidFromNetshText, Get-SasWifiSsidFromConnectionProfiles, Get-SasWlanConnectionFromEventXml, Get-SasCurrentWifiSsidFromWlanEventLog, Get-SasCurrentWifiSsid, Test-SasNorthwellWifiSsid, Get-SasNetworkGuardConfig, Get-SasLocalNetworkText, Test-SasIpInCidr, Test-SasNorthwellDomainAuthenticatedEvidence, Test-SasNorthwellWiredEvidence, Test-SasNorthwellNetworkPosture, Assert-SasNorthwellWifi

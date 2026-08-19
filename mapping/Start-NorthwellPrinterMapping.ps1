@@ -56,6 +56,18 @@ if (-not $Printer -or $Printer.Count -eq 0) {
     $Printer = @(Split-SasFieldList -Value $rawPrinters -Label 'Printer queue')
 }
 
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$guardModule = Join-Path $repoRoot 'scripts\SasNetworkGuard.psm1'
+if (-not (Test-Path -LiteralPath $guardModule -PathType Leaf)) {
+    throw "Shared Northwell network guard not found: $guardModule"
+}
+
+if (-not $WhatIf) {
+    Import-Module $guardModule -Force -ErrorAction Stop
+    Assert-SasNorthwellWifi
+    Write-Host 'Approved Northwell network posture detected. Guest Wi-Fi may remain connected when a live DomainAuthenticated VPN/LAN path is active.' -ForegroundColor Green
+}
+
 $engine = Join-Path $PSScriptRoot 'Invoke-NorthwellPrinterMapping.ps1'
 if (-not (Test-Path -LiteralPath $engine)) {
     throw "Canonical printer engine not found: $engine"

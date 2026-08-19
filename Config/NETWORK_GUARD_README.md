@@ -4,9 +4,11 @@ Live SysAdminSuite operational scripts require an approved Northwell network pos
 
 Wi-Fi is accepted when the connected SSID starts with `NSLIJHS-WAB`.
 
-Wired Ethernet is accepted only when the workstation has local evidence that matches a local allowlist. The local allowlist is intentionally not committed to the public repo.
+A live Windows `DomainAuthenticated` non-Wi-Fi interface is also accepted directly. This is the normal VPN/LAN authority path: the workstation may remain connected to ordinary Internet/guest Wi-Fi while the corporate VPN supplies the protected route. The visible Wi-Fi label does not override a stronger live `DomainAuthenticated` VPN/LAN posture, and VPN address changes do not require regenerating an exact `/32` allowlist.
 
-## Local wired setup
+Static local allowlists remain supported as a fallback for approved wired environments that do not expose a usable `DomainAuthenticated` connection profile. The local allowlist is intentionally not committed to the public repo.
+
+## Local wired fallback setup
 
 1. Copy the example file:
 
@@ -38,7 +40,7 @@ The committed example uses documentation ranges and placeholder names only. Do n
 
 ## Environment variable alternative
 
-Operators can also provide allowlists through comma-separated environment variables:
+Operators can also provide fallback allowlists through comma-separated environment variables:
 
 - `SAS_NETWORK_GUARD_ALLOWED_DNS_SUFFIXES`
 - `SAS_NETWORK_GUARD_ALLOWED_WINDOWS_DOMAINS`
@@ -46,7 +48,7 @@ Operators can also provide allowlists through comma-separated environment variab
 - `SAS_NETWORK_GUARD_ALLOWED_GATEWAY_CIDRS`
 - `SAS_NETWORK_GUARD_ALLOWED_DNS_SERVER_CIDRS`
 
-The local JSON file and environment variables can be used together.
+The local JSON file and environment variables can be used together. They are not required when a live usable non-Wi-Fi `DomainAuthenticated` interface is present.
 
 ## Guard-only local checks
 
@@ -69,6 +71,6 @@ Assert-SasNorthwellWifi
 
 ## Failure behavior
 
-If Wi-Fi does not match `NSLIJHS-WAB*` and no approved wired evidence is configured or matched, live scripts fail closed before expensive or target-facing work begins.
+If neither approved `NSLIJHS-WAB*` Wi-Fi nor a live usable non-Wi-Fi `DomainAuthenticated` interface is present, the guard falls back to approved wired allowlist evidence and otherwise fails closed before target-facing work begins.
 
-Malformed local JSON also fails closed. Fix the local file instead of bypassing the guard.
+Malformed local JSON still fails closed for the fallback allowlist path. It does not invalidate stronger live Windows `DomainAuthenticated` VPN/LAN evidence.
