@@ -214,8 +214,9 @@ else {
 }
 
 '@
+        $observationStart = 'if ($FixtureMode) {' + "`n" + '    $fixture = Get-Content -LiteralPath $FixturePath -Raw -ErrorAction Stop | ConvertFrom-Json'
         $text = Replace-SasUniqueRange -Text $text `
-            -StartLiteral 'if ($FixtureMode) {' `
+            -StartLiteral $observationStart `
             -EndLiteral '$result = New-SasSoftwareDeploymentTransportResult' `
             -Replacement $replacement
 
