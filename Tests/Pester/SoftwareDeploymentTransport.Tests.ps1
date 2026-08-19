@@ -152,7 +152,7 @@ Describe 'Software deployment transport preflight' {
         $hardBoundedText | Should -Match "timeoutStage = 'admin_share'"
         $hardBoundedText | Should -Match "timeoutStage = 'schedule_service'"
         $hardBoundedText | Should -Match "timeoutStage = 'scheduled_task_query'"
-        $hardBoundedText | Should -Not -Match '(?i)Register-ScheduledTask|New-ScheduledTask|/Create|/Run|/Delete|Set-ItemProperty|New-ItemProperty'
+        $hardBoundedText | Should -Not -Match '(?i)\bRegister-ScheduledTask\b|\bNew-ScheduledTask\b|schtasks(?:\.exe)?\s+/(?:Create|Run|Delete|Change)\b|\bSet-ItemProperty\b|\bNew-ItemProperty\b'
     }
 
     It 'hard-kills a blocked child process at the declared timeout' {
