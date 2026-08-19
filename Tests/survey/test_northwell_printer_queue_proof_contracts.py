@@ -47,6 +47,7 @@ def test_launcher_is_no_print_and_window_safe() -> None:
     assert "NO TEST PAGE" in text
     assert "This launcher does NOT print a test page" in text
     assert "This window will NOT close automatically" in text
+    assert r"Enter the canonical shared queue as \\server\queue." in text
     assert "latest.txt" in text
     assert "latest.json" in text
     assert "Open-NorthwellPrinter-Queue-Proof-Logs.cmd" in text

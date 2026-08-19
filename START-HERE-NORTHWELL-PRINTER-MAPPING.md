@@ -9,8 +9,8 @@ This is the **canonical field path** for mapping shared printers to Northwell Wi
 - **Never map a Northwell printer by printer IP address.** The field entrypoint rejects IP-based printer inputs.
 - **Target PCs are hostnames/FQDNs, not IP addresses.** Short Northwell hostnames are normalized to the `nslijhs.net` DNS suffix.
 - The remote mapping action runs as **SYSTEM** and uses `rundll32 printui.dll,PrintUIEntry /ga`, the Windows per-computer printer-connection path.
-- A run is not reported successful merely because a command launched. Each target must return evidence that every requested queue exists under the machine-wide HKLM printer-connection registry location.
-- Mapping never prints a test page. Print output is not used as a substitute for correcting an incorrect queue registration.
+- A mapping run is not reported successful merely because a command launched. Each target must return SYSTEM identity plus the requested queue under the machine-wide HKLM printer-connection registry location.
+- The canonical mapper does **not** print test pages. A real requested document printed after mapping is separate runtime acceptance evidence.
 
 ## Technician path: double-click one file
 
@@ -25,7 +25,7 @@ The launcher requests Administrator rights if needed, then asks for only:
 1. **Target PC hostname(s)** — one or more hostnames, comma-separated.
 2. **Printer queue(s)** — `\\server\queue`, `//server/queue`, or queue name only; comma-separated when mapping more than one.
 
-The launcher stays open after success or failure. It also prints the exact run evidence directory and opens the run `Summary.json`, so a closed terminal is not required to recover the mapping record.
+The launcher stays open after success or failure. It prints the exact run evidence directory and opens the run `Summary.json`, so the mapping record remains recoverable after a terminal closes.
 
 Example answers:
 
@@ -43,24 +43,26 @@ Printer queue(s), comma-separated: QUEUE01
 
 For queue-only input, the suite resolves the published queue through Active Directory. It **does not guess a print server**. If the queue is unpublished or ambiguous, the run stops before changing a target and asks for the full `\\server\queue` path.
 
-## Same-queue direct-IP collision repair
+## Evidence precedence: do not repair a working mapping
 
-The canonical SYSTEM worker checks for one narrow stale-registration pattern before it runs `/ga`:
+The mapping engine and the diagnostic tools observe different proof layers. Keep them separate.
 
-- the local printer object's **Name** exactly matches either the requested `\\server\queue` or queue leaf, or its **ShareName** exactly matches the queue leaf;
-- the object is local rather than a remote printer connection; and
-- its `PortName` is a direct-IP style port such as `IP_10.20.30.40`, `TCP_10.20.30.40`, or a raw IPv4 address.
+1. **Post-mapping real document print observed** — runtime acceptance. If a requested document actually prints after the canonical mapping workflow, the mapped print path is working for that observed case.
+2. **SYSTEM + HKLM per-computer queue proof** — machine-wide registration proof. This is what the canonical mapper itself proves.
+3. **Local queue/CIM/PortName/WorkOffline/SMB/RPC/remote `Get-Printer` telemetry** — diagnostic context. These observations may explain a problem, but they do not outrank observed successful output.
 
-When **exactly one** object matches, the worker removes that stale **printer object only**, records `REPAIRED_STALE_DIRECT_IP_QUEUE_COLLISION`, preserves the TCP/IP port, and then performs the normal SYSTEM `/ga` shared-queue registration.
+Therefore, once real requested output has been observed after mapping:
 
-If more than one object matches, the run fails closed with `AMBIGUOUS_LOCAL_IP_QUEUE_COLLISION`; it does not guess which object to remove.
+- do **not** print another test page merely to prove printing again;
+- do **not** remove or rebuild the printer solely because a local `PortName` looks like `IP_*`, `TCP_*`, or a raw address;
+- do **not** declare the mapping failed solely because remote `Get-Printer`, RPC, CIM, or status telemetry times out or disagrees;
+- preserve contradictory telemetry as a warning unless a later observed print failure reopens diagnosis.
 
-This repair does **not**:
+The machine-readable authority for this ordering is:
 
-- map a printer by IP;
-- delete or modify the TCP/IP port;
-- use `Add-Printer -ConnectionName`;
-- print a test page.
+```text
+harness\api\northwell-printer-mapping-evidence-policy.json
+```
 
 ## PowerShell path for agents and advanced operators
 
@@ -118,11 +120,12 @@ For each target the runner:
 4. Verifies the target administrative share (`C$`) and remote Task Scheduler are reachable.
 5. Stages a run-scoped agent under `C:\ProgramData\SysAdminSuite\Mapping\NorthwellPrinterMap\...`.
 6. Runs that agent as **SYSTEM** through Task Scheduler.
-7. Repairs one exact same-queue local direct-IP printer-object collision when present, while preserving its TCP/IP port; ambiguity fails closed.
-8. Adds each queue using **PrintUIEntry `/ga`** (per-computer / all-users registration).
-9. Polls and verifies each requested `\\server\queue` from `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections`.
-10. Copies `Status.json` and `Agent.log` back to the controller before cleanup.
-11. Fails the overall run if even one target lacks SYSTEM identity or machine-wide registry proof.
+7. Adds each queue using **PrintUIEntry `/ga`** (per-computer / all-users registration).
+8. Polls and verifies each requested `\\server\queue` from `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections`.
+9. Copies `Status.json` and `Agent.log` back to the controller before cleanup.
+10. Fails the overall run if even one target lacks SYSTEM identity or machine-wide registry proof.
+
+The mapper deliberately does not infer runtime print success from registration alone. Conversely, when a later real document is actually observed printing, agents must not downgrade that runtime acceptance because a lower-level diagnostic looks odd.
 
 Windows applies a `/ga` per-computer connection for users when they log on. If a user was already signed in during the mapping, have that user **sign out and back in** before treating the UI-visible printer list as final.
 
@@ -144,10 +147,10 @@ That pointer contains the exact latest mapping evidence directory used by the la
 
 Key artifacts:
 
-- `ResolvedPlan.json` — exact normalized PCs and shared queues before remote work, including the bounded collision-repair policy.
+- `ResolvedPlan.json` — exact normalized PCs and shared queues before remote work.
 - `Controller.log` — timestamped controller trace.
-- `<target>\Status.json` — SYSTEM identity, requested queues, collision repairs, HKLM machine-wide queues, missing queues, success/failure, and negative proof that no port/test page was used.
-- `<target>\Agent.log` — endpoint-side collision-repair, PrintUI, and verification trace.
+- `<target>\Status.json` — SYSTEM identity, requested queues, HKLM machine-wide queues, missing queues, success/failure, and explicit mapping proof level.
+- `<target>\Agent.log` — endpoint-side PrintUI and registration-verification trace.
 - `Summary.json` — authoritative all-target result and exact `SessionRoot`.
 
 Do **not** diagnose a failed run from a vanished terminal alone. Use these artifacts. The runner throws only after preserving the collected evidence, and the CMD launcher prints the exact directory, opens `Summary.json`, and pauses before closing.
@@ -158,8 +161,9 @@ Common failures are intentionally explicit:
 - `Remote Task Scheduler query failed` → RPC/Task Scheduler access is blocked or the operator lacks authority.
 - `Queue ... was not uniquely published in Active Directory` → use the exact `\\server\queue`, or provide `-PrintServer` with the queue name.
 - `Print server ... did not resolve in DNS` → correct the print-server hostname before mapping.
-- `AMBIGUOUS_LOCAL_IP_QUEUE_COLLISION` → multiple local direct-IP objects match the requested queue leaf; inspect `<target>\Agent.log` and remove ambiguity deliberately rather than guessing.
 - `Missing machine-wide queue(s)` → the `/ga` registration did not produce HKLM machine-wide proof; treat that target as failed.
+
+A local `IP_*` port name or a remote status/RPC timeout is **not** by itself a mapping failure classification after real successful document output has been observed.
 
 ## What NOT to use for this client requirement
 
@@ -167,7 +171,7 @@ Common failures are intentionally explicit:
 
 Archived scripts under `mapping\Archive\` are historical evidence, not the technician entrypoint.
 
-Workers under `mapping\Workers\` remain implementation/reference surfaces. Techs should start with `Map-NorthwellPrinter-SystemWide.cmd` so elevation, prompts, input validation, queue resolution, SYSTEM execution, bounded collision repair, cleanup, evidence checks, and terminal persistence stay consistent.
+Workers under `mapping\Workers\` remain implementation/reference surfaces. Techs should start with `Map-NorthwellPrinter-SystemWide.cmd` so elevation, prompts, input validation, queue resolution, SYSTEM execution, cleanup, evidence checks, and terminal persistence stay consistent.
 
 ## Agent / ChatGPT routing rule
 
@@ -176,4 +180,4 @@ When a technician asks how to map a printer on a Northwell PC, answer with the *
 - target PC hostname(s), and
 - printer queue(s): either `\\server\queue` or queue name.
 
-Do not recommend direct-IP printer installation, a per-user `Add-Printer -ConnectionName` command, or repeated test pages for this use case.
+Do not recommend direct-IP printer installation or a per-user `Add-Printer -ConnectionName` command. If real requested output has already printed successfully after mapping, do not demand another test page or invent a remapping problem solely from diagnostic telemetry.

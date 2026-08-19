@@ -14,7 +14,7 @@ if not defined SAS_QUEUE (
     echo ================================================================
     echo  NORTHWELL PRINTER OPERATIONAL CHECK - NO TEST PAGE
     echo ================================================================
-    echo  Enter the canonical shared queue as \server\queue.
+    echo  Enter the canonical shared queue as \\server\queue.
     echo  This launcher does NOT print a test page.
     echo  It does NOT map the printer by IP.
     echo ================================================================

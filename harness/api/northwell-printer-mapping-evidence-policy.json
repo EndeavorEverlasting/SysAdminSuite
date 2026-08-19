@@ -1,0 +1,53 @@
+{
+  "schema_version": "sas-northwell-printer-mapping-evidence/v1",
+  "canonical_mapper": "Map-NorthwellPrinter-SystemWide.cmd",
+  "canonical_engine": "mapping/Invoke-NorthwellPrinterMapping.ps1",
+  "evidence_precedence": [
+    {
+      "id": "POST_MAPPING_CLIENT_DOCUMENT_PRINT_OBSERVED",
+      "rank": 100,
+      "proof_level": "RUNTIME_ACCEPTANCE",
+      "meaning": "A real requested document was observed printing successfully after the canonical mapping workflow.",
+      "mapping_interpretation": "MAPPING_PATH_WORKING",
+      "overrides_negative_diagnostic_telemetry": true
+    },
+    {
+      "id": "HKLM_MACHINE_WIDE_QUEUE_PROOF",
+      "rank": 80,
+      "proof_level": "MACHINE_WIDE_REGISTRATION",
+      "meaning": "The requested shared queue is registered under the canonical HKLM per-computer printer connection path by SYSTEM /ga.",
+      "mapping_interpretation": "MACHINE_WIDE_REGISTRATION_PROVEN",
+      "overrides_negative_diagnostic_telemetry": true
+    },
+    {
+      "id": "LOCAL_QUEUE_OR_PORT_TELEMETRY",
+      "rank": 30,
+      "proof_level": "DIAGNOSTIC_TELEMETRY",
+      "meaning": "Local queue status, WorkOffline, PortName, CIM, SMB, RPC, or remote Get-Printer observations are diagnostic context only.",
+      "mapping_interpretation": "DO_NOT_INFER_REMAP_FROM_TELEMETRY_ALONE",
+      "overrides_negative_diagnostic_telemetry": false
+    }
+  ],
+  "rules": {
+    "successful_real_document_print_after_mapping_is_acceptance": true,
+    "diagnostic_port_name_can_invalidate_observed_print_success": false,
+    "remote_status_timeout_can_invalidate_observed_print_success": false,
+    "repeat_test_page_after_observed_real_print": false,
+    "remove_printer_object_based_only_on_port_telemetry": false,
+    "delete_printer_port_based_only_on_port_telemetry": false,
+    "direct_ip_mapping_fallback": false,
+    "per_user_mapping_fallback": false,
+    "later_observed_print_failure_may_reopen_diagnosis": true
+  },
+  "forbidden_inferences": [
+    "A local IP_* or TCP_* PortName proves the canonical mapping failed.",
+    "A remote Get-Printer or RPC timeout proves a mapping failure after a real document printed successfully.",
+    "Successful real-world printing should be ignored until another synthetic test page is printed."
+  ],
+  "required_agent_behavior": [
+    "Treat a reported successful real document print after canonical mapping as runtime acceptance evidence for that mapping path.",
+    "Do not remap, remove a printer object, delete a port, or request another test page solely to reconcile lower-ranked diagnostic telemetry.",
+    "Preserve contradictory telemetry as a warning or diagnostic note unless a later observed failure reopens the incident.",
+    "Keep machine-wide registration proof and runtime print acceptance as distinct proof layers rather than pretending the mapper itself observed physical output."
+  ]
+}
