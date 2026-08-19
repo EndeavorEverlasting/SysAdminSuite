@@ -13,6 +13,11 @@ Remote/S4U/Recover always execute from one stable, short, exact-HEAD field workt
 The field transaction writes its ignored run tree under C:\SASAL\runs. This avoids recursive
 OneDrive/backup path growth while preserving the existing repository-local `runs/` evidence contract
 and monotonic prior-result discovery across source-code refreshes.
+
+For Remote/S4U, this launcher carries the operator's exact requested target in the process-scoped
+SAS_EXPLICIT_REMOTE_TARGET_REQUEST marker before field preflight begins. Host eligibility accepts
+only that same remote target (or its canonical FQDN expansion), so a missing machine-local policy
+cannot veto an explicit one-target command and cannot broaden authority to other hosts or contexts.
 #>
 [CmdletBinding()]
 param(
@@ -181,14 +186,26 @@ function Confirm-SasRequestExists {
 
 function Resolve-SasRemoteTarget {
     param([string]$RequestedTarget)
-    if (-not [string]::IsNullOrWhiteSpace($RequestedTarget)) {
-        return $RequestedTarget.Trim()
+
+    $resolvedTarget = if (-not [string]::IsNullOrWhiteSpace($RequestedTarget)) {
+        $RequestedTarget.Trim()
     }
-    $typed = (Read-Host 'Enter the exact authorized Cybernet hostname or FQDN').Trim()
-    if ([string]::IsNullOrWhiteSpace($typed)) {
-        throw 'An explicit target is required for the remote AutoLogon deployment.'
+    else {
+        $typed = (Read-Host 'Enter the exact authorized Cybernet hostname or FQDN').Trim()
+        if ([string]::IsNullOrWhiteSpace($typed)) {
+            throw 'An explicit target is required for the remote AutoLogon deployment.'
+        }
+        $typed
     }
-    return $typed
+
+    if ($Action -in @('Remote','S4U')) {
+        # This is process-scoped and intentionally exact. Test-SasHostEligibility permits only
+        # this same remote hostname (or its canonical FQDN expansion) and still fails closed for
+        # localhost, different hosts, fixture/vm contexts, or implicit fallback.
+        $env:SAS_EXPLICIT_REMOTE_TARGET_REQUEST = $resolvedTarget
+    }
+
+    return $resolvedTarget
 }
 
 if ($Action -eq 'Menu') {
