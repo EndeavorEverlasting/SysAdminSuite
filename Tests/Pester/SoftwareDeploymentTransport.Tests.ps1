@@ -141,7 +141,7 @@ Describe 'Software deployment transport preflight' {
         $hardBoundedText = Get-Content -LiteralPath $script:hardBoundedModulePath -Raw
 
         $entrypointText | Should -Match 'SasSoftwareDeploymentKerberosSmbHardBounded\.psm1'
-        $entrypointText | Should -Match "\$TransportIntent -eq 'kerberos_smb_task' -and \$null -eq \$Credential"
+        $entrypointText | Should -Match '\$TransportIntent -eq ''kerberos_smb_task'' -and \$null -eq \$Credential'
         $entrypointText | Should -Match 'Invoke-SasSoftwareDeploymentKerberosSmbHardBoundedObservation'
         $entrypointText | Should -Match "reason_codes = @\('observation_timeout','required_observation_missing'\)"
         $entrypointText | Should -Match 'Probe timeout stage:'
