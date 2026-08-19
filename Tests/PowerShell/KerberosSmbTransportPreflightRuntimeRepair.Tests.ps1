@@ -70,7 +70,7 @@ function New-TransportFixture {
         'else {',
         '    ''blocked''',
         '}',
-        '$lowNoiseContext = New-SasLowNoiseContextObject -ProfileId ''admin_surface_reachability'' -ProfileSource ''explicit_subset_override'' -EvidenceSource ''fixture'' -Disposition ''fixture'' -Reason ''fixture'' -NetworkActivityPerformed $false -TargetMutationPerformed $false -NextAction $nextAction -EffectivePorts @()',
+        '$lowNoiseContext = New-SasLowNoiseContextObject -ProfileId ''admin_surface_reachability'' -ProfileSource ''explicit_subset_override'' -EvidenceSource ''fixture'' -Disposition ''fixture'' -Reason ''fixture'' -NetworkActivityPerformed $networkActivity -TargetMutationPerformed $false -NextAction $nextAction -EffectivePorts @()',
         '$resultPath = ''fixture-result''',
         '$observationPath = ''fixture-observations''',
         '$lowNoisePath = ''fixture-low-noise''',
@@ -108,8 +108,16 @@ try {
     )) {
         $runtime = Join-Path $tempRoot $case.name
         New-TransportFixture -Root $runtime -NewLine $case.newline
-        $evidence = Join-Path $runtime 'evidence'
+        $entrypointBefore = Join-Path $runtime 'scripts\Test-SasSoftwareDeploymentTransport.ps1'
+        $fixtureText = [IO.File]::ReadAllText($entrypointBefore)
+        $duplicateTokenCount = [regex]::Matches(
+            $fixtureText,
+            [regex]::Escape('-NetworkActivityPerformed $networkActivity')
+        ).Count
+        Assert-True ($duplicateTokenCount -eq 2) `
+            "Fixture did not reproduce the real duplicate network-activity token for $($case.name): $duplicateTokenCount"
 
+        $evidence = Join-Path $runtime 'evidence'
         $first = & $repairScript `
             -RuntimeRoot $runtime `
             -HardBoundedModuleSourcePath $hardBoundedModule `
