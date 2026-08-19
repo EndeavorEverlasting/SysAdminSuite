@@ -298,7 +298,7 @@ else {
         if (-not $text.Contains('probe_diagnostic = $probeDiagnostic')) {
             $text = Insert-SasAfterLiteralInUniqueRange -Text $text `
                 -StartLiteral '$output = [pscustomobject]@{' `
-                -EndLiteral 'if ($PassThru) {' `
+                -EndLiteral '    result = $result' `
                 -Literal '    artifact_registry_path = $context.artifact_registry_path' `
                 -Insertion "`n    probe_diagnostic = `$probeDiagnostic"
         }
