@@ -75,13 +75,18 @@
     },
     {
       "id": "field-workflow-trigger",
-      "summary": "Route technician launchers, dashboard help, runbooks, and bounded command capsules.",
+      "summary": "Route technician launchers, printer mapping use-case selection, dashboard help, runbooks, and bounded command capsules.",
       "deterministic_task_signals": [
         "technician launcher",
         "field runbook",
         "double-click entrypoint",
         "QR command capsule",
-        "dashboard tutorial"
+        "dashboard tutorial",
+        "map a printer",
+        "printer mapping",
+        "add a printer",
+        "Northwell printer mapping",
+        "Health & Hospitals printer mapping"
       ],
       "priority": 40,
       "composition_mode": "primary",
@@ -91,21 +96,25 @@
         "user journey"
       ],
       "outputs": [
-        "field entrypoint or runbook"
+        "field entrypoint or runbook",
+        "selected printer mapping use case or discovery block when printer mapping is requested"
       ],
       "preconditions": [
-        "product-owned command exists or prerequisite is named"
+        "product-owned command exists or a registered discovery prerequisite is named"
       ],
       "guardrails": [
         "never hide mutation",
-        "preserve preview and confirmation"
+        "preserve preview and confirmation",
+        "resolve printer organization/site use case before selecting a mapping implementation",
+        "never transfer Northwell printer rules across organizations or independent site overrides"
       ],
       "owner": "Harness Spine",
       "validators": [
         "Tests/survey/test_agent_routing_manifest_contracts.py",
-        "Tests/survey/test_agent_instruction_factoring_contracts.py"
+        "Tests/survey/test_agent_instruction_factoring_contracts.py",
+        "Tests/survey/test_printer_mapping_use_case_contracts.py"
       ],
-      "proof_ceiling": "Launcher, documentation, and fixture proof only."
+      "proof_ceiling": "Launcher, documentation, use-case routing, and fixture proof only."
     },
     {
       "id": "scoped-validation-trigger",
