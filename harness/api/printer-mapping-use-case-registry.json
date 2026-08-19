@@ -1,0 +1,88 @@
+{
+  "schema_version": "sas-printer-mapping-use-case-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "selection_policy": {
+    "context_fields": [
+      "organization_id",
+      "site_id"
+    ],
+    "site_override_precedence": true,
+    "organization_default_allowed": true,
+    "unknown_organization_action": "BLOCK_FOR_DISCOVERY",
+    "unknown_site_action": "USE_REGISTERED_ORGANIZATION_DEFAULT_OR_BLOCK",
+    "cross_organization_inheritance": false,
+    "implicit_site_inheritance": false,
+    "runtime_acceptance_scope": "same use_case_id and organization/site context only",
+    "rule": "Printer mapping behavior is organization/site-specific. Technical similarity is never authority to reuse another use case."
+  },
+  "status_definitions": {
+    "proven": "Tracked product workflow exists and its assumptions/proof contract are explicitly registered for this organization/site context.",
+    "discovery_required": "No mapping implementation is authorized yet. Observe and document the organization's actual standards before creating a product workflow.",
+    "unsupported": "The context is known but SysAdminSuite intentionally has no supported mapping implementation.",
+    "deprecated": "Historical use case retained for traceability; it must not be selected for new work."
+  },
+  "use_cases": [
+    {
+      "id": "northwell.shared-printer.organization-default",
+      "organization_id": "northwell-health",
+      "organization_name": "Northwell Health",
+      "scope_type": "organization_default",
+      "site_id": null,
+      "site_name": null,
+      "status": "proven",
+      "parent_use_case_id": null,
+      "inherited_fields": [],
+      "product_workflow": "START-HERE-NORTHWELL-PRINTER-MAPPING.md",
+      "product_launcher": "Map-NorthwellPrinter-SystemWide.cmd",
+      "product_engine": "mapping/Invoke-NorthwellPrinterMapping.ps1",
+      "evidence_policy": "harness/api/northwell-printer-mapping-evidence-policy.json",
+      "agent_skill": ".claude/skills/field-workflow/SKILL.md",
+      "assumptions": {
+        "mapping_scope": "system-wide/per-computer",
+        "target_identity": "hostname-or-fqdn",
+        "queue_identity": "shared-unc-or-uniquely-resolvable-queue",
+        "execution_identity": "SYSTEM",
+        "mapping_mechanism": "PrintUIEntry /ga",
+        "machine_registration": "HKLM per-computer printer connection",
+        "direct_ip_mapping": false,
+        "per_user_fallback": false,
+        "guess_print_server": false
+      },
+      "proof": {
+        "registration": "SYSTEM identity plus requested queue in HKLM per-computer printer-connection evidence",
+        "runtime_acceptance": "real requested document observed printing after this use case's canonical workflow",
+        "lower_ranked_telemetry_cannot_override_runtime_acceptance": true
+      },
+      "discovery_requirements": []
+    },
+    {
+      "id": "health-and-hospitals.shared-printer.discovery",
+      "organization_id": "health-and-hospitals",
+      "organization_name": "Health & Hospitals",
+      "scope_type": "organization_default",
+      "site_id": null,
+      "site_name": null,
+      "status": "discovery_required",
+      "parent_use_case_id": null,
+      "inherited_fields": [],
+      "product_workflow": null,
+      "product_launcher": null,
+      "product_engine": null,
+      "evidence_policy": null,
+      "agent_skill": "harness/skills/printer-mapping-use-case-routing/SKILL.md",
+      "assumptions": null,
+      "proof": null,
+      "discovery_requirements": [
+        "organization-specific workstation and user-session requirements",
+        "approved target naming and administrator authority",
+        "queue discovery and print-server authority",
+        "mapping scope: per-user, per-computer, or another organization-defined model",
+        "approved Windows mapping mechanism and elevation identity",
+        "network and authentication prerequisites",
+        "machine-visible registration evidence",
+        "runtime acceptance and failure classifications",
+        "site-specific exceptions for newly acquired or independently operated hospitals"
+      ]
+    }
+  ]
+}
