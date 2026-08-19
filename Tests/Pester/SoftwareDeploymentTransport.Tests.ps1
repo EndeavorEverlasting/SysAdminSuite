@@ -7,10 +7,12 @@ Describe 'Software deployment transport preflight' {
         $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         $script:modulePath = Join-Path $repoRoot 'scripts/SasSoftwareDeploymentTransport.psm1'
         $script:lowNoiseModulePath = Join-Path $repoRoot 'scripts/SasSoftwareDeploymentLowNoise.psm1'
+        $script:hardBoundedModulePath = Join-Path $repoRoot 'scripts/SasSoftwareDeploymentKerberosSmbHardBounded.psm1'
         $script:entrypoint = Join-Path $repoRoot 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
         $script:fixtureRoot = Join-Path $repoRoot 'Tests/Fixtures/software-deployment-transport'
         Import-Module $script:modulePath -Force
         Import-Module $script:lowNoiseModulePath -Force
+        Import-Module $script:hardBoundedModulePath -Force
 
         function Read-TransportFixture([string]$Name) {
             Get-Content -LiteralPath (Join-Path $script:fixtureRoot $Name) -Raw | ConvertFrom-Json
@@ -22,6 +24,7 @@ Describe 'Software deployment transport preflight' {
     }
 
     AfterAll {
+        Remove-Module SasSoftwareDeploymentKerberosSmbHardBounded -ErrorAction SilentlyContinue
         Remove-Module SasSoftwareDeploymentLowNoise -ErrorAction SilentlyContinue
         Remove-Module SasSoftwareDeploymentTransport -ErrorAction SilentlyContinue
     }
@@ -133,6 +136,42 @@ Describe 'Software deployment transport preflight' {
         $lowNoiseText | Should -Not -Match '/Query /S \{0\} /FO CSV /NH'
     }
 
+    It 'routes the default no-credential SMB intent through the hard-bounded observer' {
+        $entrypointText = Get-Content -LiteralPath $script:entrypoint -Raw
+        $hardBoundedText = Get-Content -LiteralPath $script:hardBoundedModulePath -Raw
+
+        $entrypointText | Should -Match 'SasSoftwareDeploymentKerberosSmbHardBounded\.psm1'
+        $entrypointText | Should -Match "\$TransportIntent -eq 'kerberos_smb_task' -and \$null -eq \$Credential"
+        $entrypointText | Should -Match 'Invoke-SasSoftwareDeploymentKerberosSmbHardBoundedObservation'
+        $entrypointText | Should -Match "reason_codes = @\('observation_timeout','required_observation_missing'\)"
+        $entrypointText | Should -Match 'Probe timeout stage:'
+
+        $hardBoundedText | Should -Match 'WaitForExit\(\$TimeoutSeconds \* 1000\)'
+        $hardBoundedText | Should -Match '\$process\.Kill\(\)'
+        $hardBoundedText | Should -Match '-EncodedCommand'
+        $hardBoundedText | Should -Match "timeoutStage = 'admin_share'"
+        $hardBoundedText | Should -Match "timeoutStage = 'schedule_service'"
+        $hardBoundedText | Should -Match "timeoutStage = 'scheduled_task_query'"
+        $hardBoundedText | Should -Not -Match '(?i)Register-ScheduledTask|New-ScheduledTask|/Create|/Run|/Delete|Set-ItemProperty|New-ItemProperty'
+    }
+
+    It 'hard-kills a blocked child process at the declared timeout' {
+        InModuleScope SasSoftwareDeploymentKerberosSmbHardBounded {
+            $exe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $scriptText = 'Start-Sleep -Seconds 10'
+            $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($scriptText))
+            $watch = [Diagnostics.Stopwatch]::StartNew()
+            $probe = Invoke-SasTransportHardBoundedProcess -FilePath $exe `
+                -Arguments ("-NoLogo -NoProfile -NonInteractive -EncodedCommand {0}" -f $encoded) `
+                -TimeoutSeconds 1
+            $watch.Stop()
+
+            $probe.timed_out | Should -BeTrue
+            $probe.exit_code | Should -Be -1
+            $watch.Elapsed.TotalSeconds | Should -BeLessThan 5
+        }
+    }
+
     It 'allows the no-argument klist TGT query through bounded process binding' {
         InModuleScope SasSoftwareDeploymentTransport {
             $wherePath = Join-Path $env:WINDIR 'System32\where.exe'
@@ -148,6 +187,7 @@ Describe 'Software deployment transport preflight' {
             $execution.result.decision.classification | Should -Be 'kerberos_smb_task_ready'
             $execution.result.network_activity_performed | Should -BeFalse
             $execution.result.target_mutation_performed | Should -BeFalse
+            $execution.probe_diagnostic.engine | Should -Be 'fixture'
             Test-Path -LiteralPath $execution.result_path -PathType Leaf | Should -BeTrue
             Test-Path -LiteralPath $execution.low_noise_context_path -PathType Leaf | Should -BeTrue
             Test-Path -LiteralPath $execution.english_summary_path -PathType Leaf | Should -BeTrue
