@@ -9,6 +9,7 @@ on:
       - 'scripts/Repair-SasKerberosSmbTransportPreflightRuntime.ps1'
       - 'Tests/Pester/SoftwareDeploymentTransport.Tests.ps1'
       - 'Tests/PowerShell/KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1'
+      - 'Tests/PowerShell/KerberosSmbTransportPreflightPathBudgetRuntimeRepair.Tests.ps1'
       - 'Tests/survey/test_software_deployment_transport_preflight_contracts.py'
       - 'Tests/survey/test_autologon_vpn_transport_timeout_contracts.py'
       - 'harness/workflows/software-deployment-transport.yaml'
@@ -57,7 +58,8 @@ jobs:
             'scripts\SasSoftwareDeploymentKerberosSmbHardBounded.psm1',
             'scripts\Test-SasSoftwareDeploymentTransport.ps1',
             'scripts\Repair-SasKerberosSmbTransportPreflightRuntime.ps1',
-            'Tests\PowerShell\KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1'
+            'Tests\PowerShell\KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1',
+            'Tests\PowerShell\KerberosSmbTransportPreflightPathBudgetRuntimeRepair.Tests.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -76,6 +78,10 @@ jobs:
       - name: Execute CRLF and LF protected-runtime repair fixtures
         shell: powershell
         run: .\Tests\PowerShell\KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1
+
+      - name: Execute path-budget owner-link repair fixtures
+        shell: powershell
+        run: .\Tests\PowerShell\KerberosSmbTransportPreflightPathBudgetRuntimeRepair.Tests.ps1
 
       - name: Install Pester 5
         shell: powershell
