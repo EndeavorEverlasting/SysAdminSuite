@@ -255,13 +255,7 @@ try {
         }
     }
 
-    try {
-        $gp = Start-Process -FilePath 'gpupdate.exe' -ArgumentList @('/target:computer','/force') -WindowStyle Hidden -Wait -PassThru
-        Write-AgentLog "gpupdate exit code: $($gp.ExitCode)"
-    }
-    catch {
-        Write-AgentLog "WARN gpupdate: $($_.Exception.Message)"
-    }
+    Write-AgentLog 'PrintUIEntry /ga returned. Verifying the owning HKLM machine-wide registration directly; no synchronous gpupdate is required for this proof level.'
 
     $verifyDeadline = (Get-Date).AddSeconds(30)
     do {
@@ -373,6 +367,22 @@ foreach ($computer in $resolvedComputers) {
             Start-Sleep -Seconds 2
         }
         if (-not (Test-Path -LiteralPath $remoteStatusAdmin)) {
+            if (Test-Path -LiteralPath $remoteLogAdmin) {
+                try {
+                    foreach ($line in @(Get-Content -LiteralPath $remoteLogAdmin -Tail 20 -ErrorAction Stop)) {
+                        Write-ControllerLog "[$computer][Agent] $line"
+                    }
+                }
+                catch {
+                    Write-ControllerLog "[$computer] WARN timeout Agent.log read: $($_.Exception.Message)"
+                }
+            }
+            try {
+                Invoke-RemoteTaskScheduler -Computer $computer -Stage 'TimeoutQuery' -Arguments @('/Query','/S',$computer,'/TN',$taskName,'/V','/FO','LIST')
+            }
+            catch {
+                Write-ControllerLog "[$computer] WARN timeout task query: $($_.Exception.Message)"
+            }
             throw "Timed out after $TimeoutSeconds seconds waiting for Status.json. Remote evidence was not observed."
         }
 
