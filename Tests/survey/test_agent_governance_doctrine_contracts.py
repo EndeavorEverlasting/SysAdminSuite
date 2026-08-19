@@ -178,7 +178,7 @@ def assert_cybernet_profile_contract() -> None:
 
 def assert_compact_and_safe(text: str) -> None:
     line_count = len(text.splitlines())
-    assert line_count <= 124, f"AGENTS.md exceeds compact line budget: {line_count}/124"
+    assert line_count <= 120, f"AGENTS.md exceeds compact line budget: {line_count}/120"
     forbidden = (
         "BEGIN PRIVATE KEY",
         "password=",
