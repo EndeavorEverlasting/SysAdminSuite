@@ -44,6 +44,7 @@
               "command_registry",
               "outcome_registry",
               "deployment_state_registry",
+              "use_case_registry",
               "validator",
               "hook",
               "hook_installer",
