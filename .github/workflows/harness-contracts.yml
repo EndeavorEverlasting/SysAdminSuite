@@ -41,6 +41,7 @@ on:
       - 'scripts/SasLowNoisePolicy.psm1'
       - 'scripts/SasSoftwareDeploymentTransport.psm1'
       - 'scripts/SasSoftwareDeploymentLowNoise.psm1'
+      - 'scripts/SasSoftwareDeploymentKerberosSmbHardBounded.psm1'
       - 'scripts/SasSoftwareDeploymentAdapter.psm1'
       - 'scripts/SasSoftwareDeploymentLiveCert.psm1'
       - 'scripts/SasSoftwareInstallFinalization.psm1'
@@ -118,6 +119,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentTransport.psm1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentLowNoise.psm1 -Raw))
+          $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentKerberosSmbHardBounded.psm1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\SasLowNoisePolicy.psm1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\Test-SasSoftwareDeploymentTransport.ps1 -Raw))
           $null = [scriptblock]::Create((Get-Content .\scripts\SasSoftwareDeploymentAdapter.psm1 -Raw))
