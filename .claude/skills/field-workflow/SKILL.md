@@ -16,7 +16,10 @@ Load only the references that match the selected field lane:
 - Printer mapping use-case workflow: [`harness/workflows/printer-mapping-use-case-routing.yaml`](../../../harness/workflows/printer-mapping-use-case-routing.yaml)
 - Printer mapping use-case skill: [`harness/skills/printer-mapping-use-case-routing/SKILL.md`](../../../harness/skills/printer-mapping-use-case-routing/SKILL.md)
 - Northwell shared-printer mapping: [`START-HERE-NORTHWELL-PRINTER-MAPPING.md`](../../../START-HERE-NORTHWELL-PRINTER-MAPPING.md)
-- Northwell technician front door: [`Map-NorthwellPrinter-SystemWide.cmd`](../../../Map-NorthwellPrinter-SystemWide.cmd)
+- Northwell quick technician front door: [`Map-NorthwellPrinter-SystemWide.cmd`](../../../Map-NorthwellPrinter-SystemWide.cmd)
+- Northwell local-default editor: [`Edit-NorthwellPrinter-Defaults.cmd`](../../../Edit-NorthwellPrinter-Defaults.cmd)
+- Northwell batch editor: [`Edit-NorthwellPrinter-Batch.cmd`](../../../Edit-NorthwellPrinter-Batch.cmd)
+- Northwell batch mapper: [`Map-NorthwellPrinters-Batch.cmd`](../../../Map-NorthwellPrinters-Batch.cmd)
 - Canonical Northwell printer engine: [`mapping/Invoke-NorthwellPrinterMapping.ps1`](../../../mapping/Invoke-NorthwellPrinterMapping.ps1)
 - Northwell printer evidence precedence: [`harness/api/northwell-printer-mapping-evidence-policy.json`](../../../harness/api/northwell-printer-mapping-evidence-policy.json)
 - Copy-safe capsule source policy: [`harness/api/copy-safe-operator-command-policy.json`](../../../harness/api/copy-safe-operator-command-policy.json)
@@ -54,16 +57,24 @@ Before applying **any** printer-mapping implementation:
 Only after `northwell.shared-printer.organization-default` is selected, when a technician asks to map, add, install, or connect a printer on a Northwell Windows PC:
 
 1. Treat **system-wide/per-computer** mapping as a hard client requirement because the workstation may have multiple users.
-2. Ask only for missing operational inputs: target PC hostname(s) and printer queue(s).
+2. Ask only for missing operational inputs: target PC hostname(s), print-server hostname(s), and printer queue(s).
 3. Accept printer queue input as `\\server\queue`, `//server/queue`, or queue name only. Do not ask for or recommend a printer IP address.
-4. Route the technician to **double-click `Map-NorthwellPrinter-SystemWide.cmd`**. The launcher owns elevation, prompts, terminal persistence, and delegation to the validated PowerShell engine.
-5. Do not substitute `Utilities\Map-Printer.ps1` or `Add-Printer -ConnectionName`, which are per-user paths.
-6. Let the canonical runner resolve queue-only input from Active Directory, normalize short Northwell hostnames, reject IP/URL inputs, run the endpoint action as SYSTEM, and use `PrintUIEntry /ga`.
-7. Do not call the mapping successful merely because a command launched. The canonical mapping engine proves SYSTEM identity plus the requested queue under the HKLM per-computer printer-connection registry evidence.
-8. If the user was already signed in when `/ga` ran, explain that sign-out/sign-in may be needed before the printer becomes visible in that user's shell session; do not remap it per-user as a workaround.
-9. If the operator reports that a real requested document printed successfully after the canonical mapping workflow, treat that as **runtime acceptance evidence that the mapped print path works**. Do not request another test page, remove/rebuild the printer, or reinterpret the mapping as failed solely because local `PortName`, `WorkOffline`, CIM, RPC, SMB, or remote `Get-Printer` telemetry looks contradictory. Preserve that lower-ranked telemetry as diagnostic context unless a later observed print failure reopens the incident.
-10. `Repair-NorthwellPrinter-Queue-Evidence.cmd` is **artifact reclassification only**. Use it only when preserved local JSON explicitly records `physical_output_observed=true` and the derived classifier is wrong. Do not use it merely because a real requested document already printed successfully.
-11. On failure, direct diagnosis to the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json` instead of reconstructing vanished terminal output.
+4. Choose the technician front door by task shape:
+   - **Ad-hoc / one-off / one shared printer set:** double-click `Map-NorthwellPrinter-SystemWide.cmd`.
+   - **Maintain one approved local default pair:** double-click `Edit-NorthwellPrinter-Defaults.cmd`; this edits only `Config\northwell-printer-defaults.local.json` and does not map a printer.
+   - **Repeated or tabular assignments:** double-click `Edit-NorthwellPrinter-Batch.cmd`, edit `mapping\NorthwellPrinterBatch.csv`, then double-click `Map-NorthwellPrinters-Batch.cmd`.
+5. In the batch CSV, one row means **every queue in that row maps to every computer in that row**. Use semicolons inside `ComputerName` and `QueueName` cells for multiple values. Do not invent a different batch format.
+6. Never commit a live print server/queue as a default or example. Tracked examples use synthetic `REPLACE-WITH-*` values only. Approved convenience defaults live in the gitignored `Config\northwell-printer-defaults.local.json`; the target computer never has a default.
+7. Batch mode performs a local-only shape/placeholder pass first. It must then pass `Assert-SasNorthwellWifi` **before** any AD/DNS-backed queue resolution.
+8. Batch mode must display/write the complete resolved plan and require exact `MAP` confirmation before live mutation unless an advanced caller explicitly supplies `-ConfirmBatch`.
+9. Batch mode is orchestration only. It must delegate each row to `mapping\Invoke-NorthwellPrinterMapping.ps1`; do not implement a second mapping engine in a batch helper.
+10. Do not substitute `Utilities\Map-Printer.ps1` or `Add-Printer -ConnectionName`, which are per-user paths.
+11. Let the canonical runner resolve queue-only input from Active Directory, normalize short Northwell hostnames, reject IP/URL inputs, run the endpoint action as SYSTEM, and use `PrintUIEntry /ga`.
+12. Do not call the mapping successful merely because a command launched. The canonical mapping engine proves SYSTEM identity plus the requested queue under the HKLM per-computer printer-connection registry evidence.
+13. If the user was already signed in when `/ga` ran, explain that sign-out/sign-in may be needed before the printer becomes visible in that user's shell session; do not remap it per-user as a workaround.
+14. If the operator reports that a real requested document printed successfully after the canonical mapping workflow, treat that as **runtime acceptance evidence that the mapped print path works**. Do not request another test page, remove/rebuild the printer, or reinterpret the mapping as failed solely because local `PortName`, `WorkOffline`, CIM, RPC, SMB, or remote `Get-Printer` telemetry looks contradictory. Preserve that lower-ranked telemetry as diagnostic context unless a later observed print failure reopens the incident.
+15. `Repair-NorthwellPrinter-Queue-Evidence.cmd` is **artifact reclassification only**. Use it only when preserved local JSON explicitly records `physical_output_observed=true` and the derived classifier is wrong. Do not use it merely because a real requested document already printed successfully.
+16. On failure, direct diagnosis to the run-scoped evidence. Quick runs use `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json`; batch runs add parent `BatchPlan.json`, parent `Summary.json`, and `Group-NNN` child engine evidence.
 
 ## Workflow
 
@@ -88,4 +99,6 @@ Only after `northwell.shared-printer.organization-default` is selected, when a t
 - For printer mapping, do not select an implementation until the organization/site use case is registered and proven.
 - Never use one organization's printer-mapping rules as another organization's defaults.
 - For Northwell printer mapping, direct-IP installation and per-user-only mapping are blocking contract violations, not fallbacks.
+- Never commit `mapping\NorthwellPrinterBatch.csv` or `Config\northwell-printer-defaults.local.json`; they may contain live assignment/infrastructure data. Only synthetic examples are tracked.
+- For Northwell batch mapping, network authority must precede AD/DNS-backed resolution and production mapping requires the displayed-plan `MAP` confirmation (or explicit advanced `-ConfirmBatch`).
 - For Northwell printer diagnosis, successful real-world document output after canonical mapping outranks contradictory diagnostic telemetry. Do not turn a proven working mapping into a repair target solely to make lower-level telemetry look cleaner.
