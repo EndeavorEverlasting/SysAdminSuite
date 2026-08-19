@@ -22,6 +22,8 @@ echo  1. Enter one or more target PC HOSTNAMES.
 echo  2. Enter a print SERVER and one or more QUEUE NAMES.
 echo  3. Add another server/queue set if needed.
 echo.
+echo  Accepted printer input: \\server\queue, //server/queue, or server + queue prompts.
+echo.
 echo  Known field-proven example:
 echo    \\SYKPNHPHPS01V\LS001-EMS01
 echo  Press Enter at both printer prompts to accept that example.
