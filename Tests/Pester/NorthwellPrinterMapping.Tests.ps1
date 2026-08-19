@@ -161,6 +161,11 @@ Describe 'Canonical Northwell system-wide runner contract' {
         $content | Should -Match 'New-SasNorthwellPrinterTaskCreateArguments'
         $content | Should -Match 'Assert-SasNorthwellPrinterStatusProof'
     }
+    It 'serializes result snapshots without the Windows PowerShell 5.1 generic-list array binder' {
+        $content = Get-Content -LiteralPath $script:runnerPath -Raw
+        $content | Should -Match 'Results = \$results\.ToArray\(\)'
+        $content | Should -Not -Match 'Results = @\(\$results\)'
+    }
     It 'passes the printer queue as a native argument instead of Start-Process string joining' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
         $content | Should -Match '& "\$env:SystemRoot\\System32\\rundll32\.exe"'

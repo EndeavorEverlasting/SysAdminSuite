@@ -138,7 +138,7 @@ function Write-RunSummary {
         Printers = $resolvedPrinters
         CompletedTargets = $results.Count
         TotalTargets = $resolvedComputers.Count
-        Results = @($results)
+        Results = $results.ToArray()
         PlanPath = $planPath
         ControllerLog = $controllerLog
         SessionRoot = $SessionRoot
