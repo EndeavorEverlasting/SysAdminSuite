@@ -16,6 +16,7 @@ REPAIR_LAUNCHER = ROOT / "Repair-NorthwellPrinter-Queue-Evidence.cmd"
 LOG_LAUNCHER = ROOT / "Open-NorthwellPrinter-Queue-Proof-Logs.cmd"
 POLICY = ROOT / "harness" / "api" / "copy-safe-operator-command-policy.json"
 DOC = ROOT / "docs" / "COPY_SAFE_OPERATOR_COMMANDS.md"
+FIELD_SKILL = ROOT / ".claude" / "skills" / "field-workflow" / "SKILL.md"
 
 
 def read(path: Path) -> str:
@@ -23,11 +24,15 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
 
-def test_surfaces_and_policy_registration() -> None:
-    for path in (OP_ENGINE, DIAG_ENGINE, REPAIR_ENGINE, LAUNCHER, REPAIR_LAUNCHER, LOG_LAUNCHER, POLICY, DOC):
-        assert path.is_file(), f"missing surface: {path}"
+def printer_capsule() -> dict:
     data = json.loads(POLICY.read_text(encoding="utf-8"))
-    capsule = next(item for item in data["registered_capsules"] if item["id"] == "northwell.printer.queue-proof")
+    return next(item for item in data["registered_capsules"] if item["id"] == "northwell.printer.queue-proof")
+
+
+def test_surfaces_and_policy_registration() -> None:
+    for path in (OP_ENGINE, DIAG_ENGINE, REPAIR_ENGINE, LAUNCHER, REPAIR_LAUNCHER, LOG_LAUNCHER, POLICY, DOC, FIELD_SKILL):
+        assert path.is_file(), f"missing surface: {path}"
+    capsule = printer_capsule()
     assert capsule["launcher"] == "Prove-NorthwellPrinter-Queue.cmd"
     assert capsule["engine"] == "scripts/Invoke-SasNorthwellPrinterQueueOperationalCheck.ps1"
     assert capsule["diagnostic_engine"] == "scripts/Invoke-SasNorthwellPrinterQueueProof.ps1"
@@ -39,6 +44,26 @@ def test_surfaces_and_policy_registration() -> None:
     assert capsule["mutation"] == "none"
     assert capsule["latest_result"].endswith("latest.json")
     assert capsule["latest_summary"].endswith("latest.txt")
+
+
+def test_merged_capsule_source_resolution_blocks_historical_retry() -> None:
+    capsule = printer_capsule()
+    source = capsule["source_resolution"]
+    assert source["canonical_ref"] == "main"
+    assert source["default_branch_wins_after_merge"] is True
+    assert source["historical_pr_ref_allowed_for_operator_retry"] is False
+    assert source["pinned_historical_sha_allowed_after_merge"] is False
+    assert source["ref_mismatch_action"] == "RECONCILE_CURRENT_MAINLINE"
+
+    policy = json.loads(POLICY.read_text(encoding="utf-8"))
+    rule_ids = {rule["id"] for rule in policy["rules"]}
+    assert "canonical-mainline-after-merge" in rule_ids
+    assert "stale-ref-mismatch-reconcile-current-floor" in rule_ids
+
+    skill = read(FIELD_SKILL)
+    assert "canonical `main`" in skill
+    assert "historical PR branch or pinned SHA" in skill
+    assert "reconcile current repository truth" in skill
 
 
 def test_launcher_is_no_print_and_window_safe() -> None:
@@ -91,9 +116,19 @@ def test_repair_engine_counts_existing_physical_proof_without_reexecution() -> N
 
     launcher = read(REPAIR_LAUNCHER)
     assert "NO PRINT / NO NETWORK" in launcher
+    assert "ARTIFACT RECLASSIFICATION ONLY" in launcher
+    assert "NOT required after a successful real document print" in launcher
     assert "latest.json" in launcher
     assert "latest.txt" in launcher
     assert "This window will NOT close automatically" in launcher
+
+    eligibility = printer_capsule()["evidence_repair_eligibility"]
+    assert eligibility["scope"] == "PRESERVED_ARTIFACT_RECLASSIFICATION_ONLY"
+    assert eligibility["requires_marker"] == "physical_output_observed=true"
+    assert eligibility["required_after_reported_real_document_print"] is False
+    assert eligibility["network_activity"] == "NONE"
+    assert eligibility["target_contact"] == "NONE"
+    assert eligibility["target_mutation"] == "NONE"
 
 
 def test_diagnostic_engine_remains_bounded_and_nonmapping() -> None:
@@ -119,7 +154,7 @@ def test_logs_are_recoverable_after_terminal_closure() -> None:
     assert "notepad.exe" in text
 
 
-def test_docs_forbid_repeat_print_and_parent_shell_exit() -> None:
+def test_docs_forbid_stale_retry_repeat_print_and_parent_shell_exit() -> None:
     text = read(DOC)
     assert "The normal launcher never prints a test page." in text
     assert "Do not append `exit $LASTEXITCODE`" in text
@@ -127,17 +162,22 @@ def test_docs_forbid_repeat_print_and_parent_shell_exit() -> None:
     assert "Open-NorthwellPrinter-Queue-Proof-Logs.cmd" in text
     assert "latest.txt" in text
     assert "latest.json" in text
+    assert "Canonical mainline wins after merge" in text
+    assert "A SHA mismatch is a supersession/reconciliation signal" in text
+    assert "not a reason to chase the old commit" in text
+    assert "artifact reclassification only" in text
 
 
 def main() -> None:
     tests = [
         test_surfaces_and_policy_registration,
+        test_merged_capsule_source_resolution_blocks_historical_retry,
         test_launcher_is_no_print_and_window_safe,
         test_operational_engine_never_prints_and_preserves_evidence,
         test_repair_engine_counts_existing_physical_proof_without_reexecution,
         test_diagnostic_engine_remains_bounded_and_nonmapping,
         test_logs_are_recoverable_after_terminal_closure,
-        test_docs_forbid_repeat_print_and_parent_shell_exit,
+        test_docs_forbid_stale_retry_repeat_print_and_parent_shell_exit,
     ]
     for test in tests:
         test()

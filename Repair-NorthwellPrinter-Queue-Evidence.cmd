@@ -22,7 +22,14 @@ if not exist "%SAS_ENGINE%" (
 
 echo ================================================================
 echo  REPAIR EXISTING PRINTER EVIDENCE - NO PRINT / NO NETWORK
+echo  ARTIFACT RECLASSIFICATION ONLY
 echo ================================================================
+echo  Use only when preserved local JSON already records physical output
+echo  and the derived classifier needs repair.
+echo.
+echo  This launcher is NOT required after a successful real document print.
+echo  A working mapped printer does not need another proof or repair step.
+echo.
 echo  This reads existing local JSON evidence only.
 echo  It never contacts the printer or print server.
 echo  It never prints a test page.

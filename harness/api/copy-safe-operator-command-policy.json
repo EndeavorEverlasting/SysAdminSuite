@@ -1,6 +1,6 @@
 {
   "schema_version": "sas-copy-safe-operator-command-policy/v1",
-  "purpose": "Prevent terminal transcripts from becoming executable payloads, keep field windows operator-controlled, and make durable evidence discoverable without repeated physical mutations.",
+  "purpose": "Prevent terminal transcripts from becoming executable payloads, keep field windows operator-controlled, make durable evidence discoverable without repeated physical mutations, and keep operator continuations on the current canonical implementation.",
   "rules": [
     {
       "id": "no-powershell-prompts",
@@ -35,6 +35,18 @@
     {
       "id": "repair-evidence-without-reexecution",
       "meaning": "When an implementation bug misclassified already-captured evidence, repair the derived classification from the preserved artifact without repeating target contact, network activity, or physical mutation."
+    },
+    {
+      "id": "canonical-mainline-after-merge",
+      "meaning": "Once a registered capsule is merged or superseded, operator next-actions resolve from its canonical mainline ref. Historical PR branches and pinned historical SHAs are review evidence, not field retry sources."
+    },
+    {
+      "id": "stale-ref-mismatch-reconcile-current-floor",
+      "meaning": "If a historical branch no longer equals an expected pinned SHA, stop that command and reconcile the current default-branch implementation. Do not ask the operator to chase the old SHA or recreate a historical worktree."
+    },
+    {
+      "id": "repair-launcher-requires-repairable-artifact",
+      "meaning": "Evidence repair is eligible only when a preserved artifact explicitly needs reclassification. A reported successful real document print does not itself require the repair launcher."
     }
   ],
   "registered_capsules": [
@@ -52,7 +64,22 @@
       "latest_summary": "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\printer-queue-proof\\latest.txt",
       "mutation": "none",
       "default_test_page": false,
-      "direct_ip_mapping": false
+      "direct_ip_mapping": false,
+      "source_resolution": {
+        "canonical_ref": "main",
+        "default_branch_wins_after_merge": true,
+        "historical_pr_ref_allowed_for_operator_retry": false,
+        "pinned_historical_sha_allowed_after_merge": false,
+        "ref_mismatch_action": "RECONCILE_CURRENT_MAINLINE"
+      },
+      "evidence_repair_eligibility": {
+        "scope": "PRESERVED_ARTIFACT_RECLASSIFICATION_ONLY",
+        "requires_marker": "physical_output_observed=true",
+        "required_after_reported_real_document_print": false,
+        "network_activity": "NONE",
+        "target_contact": "NONE",
+        "target_mutation": "NONE"
+      }
     }
   ]
 }

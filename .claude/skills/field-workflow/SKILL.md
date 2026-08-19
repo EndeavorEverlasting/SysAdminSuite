@@ -16,11 +16,21 @@ Load only the references that match the selected field lane:
 - Northwell technician front door: [`Map-NorthwellPrinter-SystemWide.cmd`](../../../Map-NorthwellPrinter-SystemWide.cmd)
 - Canonical Northwell printer engine: [`mapping/Invoke-NorthwellPrinterMapping.ps1`](../../../mapping/Invoke-NorthwellPrinterMapping.ps1)
 - Northwell printer evidence precedence: [`harness/api/northwell-printer-mapping-evidence-policy.json`](../../../harness/api/northwell-printer-mapping-evidence-policy.json)
+- Copy-safe capsule source policy: [`harness/api/copy-safe-operator-command-policy.json`](../../../harness/api/copy-safe-operator-command-policy.json)
 - Dashboard front door and fallback: [`docs/DASHBOARD_ENTRYPOINT.md`](../../../docs/DASHBOARD_ENTRYPOINT.md)
 - Software deployment tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](../../../docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Software installation safety contract: [`docs/SOFTWARE_INSTALL_HARNESS.md`](../../../docs/SOFTWARE_INSTALL_HARNESS.md)
 - Executable fixture proof: [`docs/SOFTWARE_INSTALL_E2E.md`](../../../docs/SOFTWARE_INSTALL_E2E.md)
 - Software-install result presentation: [`docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md`](../../../docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md)
+
+## Source freshness before field continuation
+
+Before emitting a next command for a registered field capsule, **reconcile current repository truth** rather than reusing a branch/SHA from an earlier handoff.
+
+- Once the capability is merged or superseded, canonical `main` is the executable source of truth.
+- A historical PR branch or pinned SHA may be used to review or reproduce that exact old state, but it is not an operator retry source after merge.
+- If a branch no longer equals a previously expected SHA, treat the mismatch as a supersession/reconciliation signal. Do not ask the technician to chase the old commit, force the branch backward, or create a detached worktree for a superseded implementation.
+- Resolve the current tracked launcher from the capsule policy and use the current canonical implementation.
 
 ## Northwell printer mapping route
 
@@ -35,18 +45,20 @@ When a technician asks to map, add, install, or connect a printer on a Northwell
 7. Do not call the mapping successful merely because a command launched. The canonical mapping engine proves SYSTEM identity plus the requested queue under the HKLM per-computer printer-connection registry evidence.
 8. If the user was already signed in when `/ga` ran, explain that sign-out/sign-in may be needed before the printer becomes visible in that user's shell session; do not remap it per-user as a workaround.
 9. If the operator reports that a real requested document printed successfully after the canonical mapping workflow, treat that as **runtime acceptance evidence that the mapped print path works**. Do not request another test page, remove/rebuild the printer, or reinterpret the mapping as failed solely because local `PortName`, `WorkOffline`, CIM, RPC, SMB, or remote `Get-Printer` telemetry looks contradictory. Preserve that lower-ranked telemetry as diagnostic context unless a later observed print failure reopens the incident.
-10. On failure, direct diagnosis to the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json` instead of reconstructing vanished terminal output.
+10. `Repair-NorthwellPrinter-Queue-Evidence.cmd` is **artifact reclassification only**. Use it only when preserved local JSON explicitly records `physical_output_observed=true` and the derived classifier is wrong. Do not use it merely because a real requested document already printed successfully.
+11. On failure, direct diagnosis to the run-scoped `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json` instead of reconstructing vanished terminal output.
 
 ## Workflow
 
 1. Identify the field user, target environment, and mutation posture.
-2. Prefer an existing launcher, profile, menu, or wrapper.
-3. Reduce the technician action to one short entrypoint when practical.
-4. Put target validation, elevation, retries, teardown, progress, evidence, and classification inside the repo-owned workflow.
-5. For software-install results, use `Inspect-LatestSoftwareInstall.cmd` as the field front door. Agents invoke `scripts/Show-SasSoftwareInstallResult.ps1` immediately after the install, when recovering an interrupted run, and before saying deployment succeeded.
-6. Keep developer diagnostics separate from the field front door.
-7. Provide a dry-run or review mode before mutation when the operation supports it.
-8. Validate the launcher contract and the delegated workflow separately.
+2. Reconcile the current repository floor before reusing any branch, SHA, worktree, or next-command from a prior chat/handoff.
+3. Prefer an existing launcher, profile, menu, or wrapper.
+4. Reduce the technician action to one short entrypoint when practical.
+5. Put target validation, elevation, retries, teardown, progress, evidence, and classification inside the repo-owned workflow.
+6. For software-install results, use `Inspect-LatestSoftwareInstall.cmd` as the field front door. Agents invoke `scripts/Show-SasSoftwareInstallResult.ps1` immediately after the install, when recovering an interrupted run, and before saying deployment succeeded.
+7. Keep developer diagnostics separate from the field front door.
+8. Provide a dry-run or review mode before mutation when the operation supports it.
+9. Validate the launcher contract and the delegated workflow separately.
 
 ## Guardrails
 
@@ -54,5 +66,6 @@ When a technician asks to map, add, install, or connect a printer on a Northwell
 - Do not hide scope, mutation, or failure classifications.
 - A launcher ACK is not proof that the intended behavior occurred.
 - Installer completion is not package-level post-install acceptance; present the remaining verification gate.
+- For merged registered capsules, do not emit historical PR branches or pinned SHAs as normal operator retry sources.
 - For Northwell printer mapping, direct-IP installation and per-user-only mapping are blocking contract violations, not fallbacks.
 - For Northwell printer diagnosis, successful real-world document output after canonical mapping outranks contradictory diagnostic telemetry. Do not turn a proven working mapping into a repair target solely to make lower-level telemetry look cleaner.
