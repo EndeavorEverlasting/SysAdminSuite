@@ -297,7 +297,7 @@ function ConvertTo-SasNorthwellPrinterBatchGroups {
         })
     }
 
-    return @($groups)
+    return $groups.ToArray()
 }
 
 function New-SasNorthwellPrinterRunToken {
