@@ -6,6 +6,11 @@ import json
 import subprocess
 from pathlib import Path
 
+try:
+    import jsonschema  # type: ignore
+except ImportError:  # Local hooks stay dependency-free; CI installs jsonschema.
+    jsonschema = None
+
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / "harness/api/printer-mapping-use-case-registry.json"
 SCHEMA = ROOT / "schemas/harness/printer-mapping-use-case-registry.schema.json"
@@ -34,6 +39,21 @@ REQUIRED_COMPONENT_IDS = {
     "printer-mapping-use-case-contracts",
     "printer-mapping-use-case-ci",
 }
+ROOT_KEYS = {"schema_version", "repository", "selection_policy", "status_definitions", "use_cases"}
+POLICY_KEYS = {
+    "context_fields", "site_override_precedence", "organization_default_allowed",
+    "unknown_organization_action", "unknown_site_action", "cross_organization_inheritance",
+    "implicit_site_inheritance", "runtime_acceptance_scope", "rule",
+}
+STATUS_DEFINITION_KEYS = {"proven", "discovery_required", "unsupported", "deprecated"}
+USE_CASE_KEYS = {
+    "id", "organization_id", "organization_name", "scope_type", "site_id", "site_name",
+    "status", "parent_use_case_id", "inherited_fields", "product_workflow", "product_launcher",
+    "product_engine", "evidence_policy", "agent_skill", "assumptions", "proof",
+    "discovery_requirements",
+}
+ALLOWED_SCOPE_TYPES = {"organization_default", "site_override"}
+ALLOWED_STATUSES = {"proven", "discovery_required", "unsupported", "deprecated"}
 
 
 def read(path: Path) -> str:
@@ -44,6 +64,95 @@ def read(path: Path) -> str:
 
 def load(path: Path) -> dict:
     return json.loads(read(path))
+
+
+def assert_exact_keys(value: dict, expected: set[str], label: str) -> None:
+    actual = set(value)
+    missing = expected - actual
+    unknown = actual - expected
+    assert not missing, f"{label} missing required keys: {sorted(missing)}"
+    assert not unknown, f"{label} contains unknown keys: {sorted(unknown)}"
+
+
+def assert_string(value: object, label: str, *, nullable: bool = False) -> None:
+    if nullable and value is None:
+        return
+    assert isinstance(value, str) and value.strip(), f"{label} must be a non-empty string"
+
+
+def validate_dependency_free_shape(data: dict) -> None:
+    """Mirror authority-critical schema rules for bare-Python local hooks."""
+    assert isinstance(data, dict), "printer-mapping registry root must be an object"
+    assert_exact_keys(data, ROOT_KEYS, "printer-mapping registry")
+    assert data["schema_version"] == "sas-printer-mapping-use-case-registry/v1"
+    assert data["repository"] == "EndeavorEverlasting/SysAdminSuite"
+
+    policy = data["selection_policy"]
+    assert isinstance(policy, dict), "selection_policy must be an object"
+    assert_exact_keys(policy, POLICY_KEYS, "selection_policy")
+    assert policy["context_fields"] == ["organization_id", "site_id"]
+    for field in (
+        "site_override_precedence", "organization_default_allowed",
+        "cross_organization_inheritance", "implicit_site_inheritance",
+    ):
+        assert isinstance(policy[field], bool), f"selection_policy.{field} must be boolean"
+    assert policy["site_override_precedence"] is True
+    assert policy["organization_default_allowed"] is True
+    assert policy["cross_organization_inheritance"] is False
+    assert policy["implicit_site_inheritance"] is False
+    assert policy["unknown_organization_action"] == "BLOCK_FOR_DISCOVERY"
+    assert policy["unknown_site_action"] == "USE_REGISTERED_ORGANIZATION_DEFAULT_OR_BLOCK"
+    assert_string(policy["runtime_acceptance_scope"], "selection_policy.runtime_acceptance_scope")
+    assert_string(policy["rule"], "selection_policy.rule")
+
+    status_definitions = data["status_definitions"]
+    assert isinstance(status_definitions, dict), "status_definitions must be an object"
+    assert_exact_keys(status_definitions, STATUS_DEFINITION_KEYS, "status_definitions")
+    for key, value in status_definitions.items():
+        assert_string(value, f"status_definitions.{key}")
+
+    use_cases = data["use_cases"]
+    assert isinstance(use_cases, list) and len(use_cases) >= 2, "use_cases must contain at least two records"
+    for index, item in enumerate(use_cases):
+        label = f"use_cases[{index}]"
+        assert isinstance(item, dict), f"{label} must be an object"
+        assert_exact_keys(item, USE_CASE_KEYS, label)
+        for field in ("id", "organization_id", "organization_name", "agent_skill"):
+            assert_string(item[field], f"{label}.{field}")
+        assert item["scope_type"] in ALLOWED_SCOPE_TYPES, f"{label}.scope_type is unsupported: {item['scope_type']!r}"
+        assert item["status"] in ALLOWED_STATUSES, f"{label}.status is unsupported: {item['status']!r}"
+        assert_string(item["site_id"], f"{label}.site_id", nullable=True)
+        assert_string(item["site_name"], f"{label}.site_name", nullable=True)
+        assert_string(item["parent_use_case_id"], f"{label}.parent_use_case_id", nullable=True)
+        for field in ("product_workflow", "product_launcher", "product_engine", "evidence_policy"):
+            assert_string(item[field], f"{label}.{field}", nullable=True)
+        assert isinstance(item["inherited_fields"], list), f"{label}.inherited_fields must be an array"
+        assert len(item["inherited_fields"]) == len(set(item["inherited_fields"])), f"{label}.inherited_fields must be unique"
+        assert all(isinstance(value, str) and value.strip() for value in item["inherited_fields"]), f"{label}.inherited_fields must contain strings"
+        assert isinstance(item["discovery_requirements"], list), f"{label}.discovery_requirements must be an array"
+        assert len(item["discovery_requirements"]) == len(set(item["discovery_requirements"])), f"{label}.discovery_requirements must be unique"
+        assert all(isinstance(value, str) and value.strip() for value in item["discovery_requirements"]), f"{label}.discovery_requirements must contain strings"
+        assert item["assumptions"] is None or isinstance(item["assumptions"], dict), f"{label}.assumptions must be object or null"
+        assert item["proof"] is None or isinstance(item["proof"], dict), f"{label}.proof must be object or null"
+
+        if item["scope_type"] == "organization_default":
+            assert item["site_id"] is None and item["site_name"] is None, f"{label} organization default cannot name a site"
+            assert item["parent_use_case_id"] is None, f"{label} organization default cannot inherit"
+            assert item["inherited_fields"] == [], f"{label} organization default cannot inherit fields"
+        else:
+            assert_string(item["site_id"], f"{label}.site_id")
+            assert_string(item["site_name"], f"{label}.site_name")
+
+        if item["status"] == "proven":
+            for field in ("product_workflow", "product_launcher", "product_engine", "evidence_policy"):
+                assert_string(item[field], f"{label}.{field}")
+            assert isinstance(item["assumptions"], dict), f"{label}.assumptions must be an object when proven"
+            assert isinstance(item["proof"], dict), f"{label}.proof must be an object when proven"
+            assert item["discovery_requirements"] == [], f"{label} proven record cannot retain discovery requirements"
+        elif item["status"] == "discovery_required":
+            for field in ("product_workflow", "product_launcher", "product_engine", "evidence_policy", "assumptions", "proof"):
+                assert item[field] is None, f"{label}.{field} must be null while discovery_required"
+            assert item["discovery_requirements"], f"{label} discovery_required record must name discovery requirements"
 
 
 def assert_tracked(path: Path) -> None:
@@ -60,17 +169,15 @@ def assert_tracked(path: Path) -> None:
 def main() -> None:
     data = load(REGISTRY)
     schema = load(SCHEMA)
-    assert data["schema_version"] == "sas-printer-mapping-use-case-registry/v1"
+    validate_dependency_free_shape(data)
     assert schema["properties"]["schema_version"]["const"] == data["schema_version"]
+    if jsonschema is not None:
+        jsonschema.Draft202012Validator(schema).validate(data)
+        print("PASS: declared Draft 2020-12 printer registry schema")
+    else:
+        print("PASS: dependency-free printer registry shape (jsonschema unavailable locally)")
 
     policy = data["selection_policy"]
-    assert policy["context_fields"] == ["organization_id", "site_id"]
-    assert policy["site_override_precedence"] is True
-    assert policy["organization_default_allowed"] is True
-    assert policy["unknown_organization_action"] == "BLOCK_FOR_DISCOVERY"
-    assert policy["unknown_site_action"] == "USE_REGISTERED_ORGANIZATION_DEFAULT_OR_BLOCK"
-    assert policy["cross_organization_inheritance"] is False
-    assert policy["implicit_site_inheritance"] is False
     assert "same use_case_id" in policy["runtime_acceptance_scope"]
 
     use_cases = data["use_cases"]
@@ -84,11 +191,7 @@ def main() -> None:
         if item["scope_type"] == "organization_default":
             assert item["organization_id"] not in org_defaults, f"duplicate organization default: {item['organization_id']}"
             org_defaults.add(item["organization_id"])
-            assert item["site_id"] is None and item["site_name"] is None
-            assert item["parent_use_case_id"] is None
-            assert item["inherited_fields"] == []
         else:
-            assert item["site_id"] and item["site_name"]
             key = (item["organization_id"], item["site_id"])
             assert key not in site_keys, f"duplicate site override: {key}"
             site_keys.add(key)
@@ -104,15 +207,7 @@ def main() -> None:
         if item["status"] == "proven":
             for field in ("product_workflow", "product_launcher", "product_engine", "evidence_policy", "agent_skill"):
                 value = item[field]
-                assert value, f"proven use case missing {field}: {item['id']}"
                 assert (ROOT / value).is_file(), f"proven use case path missing: {value}"
-            assert isinstance(item["assumptions"], dict) and item["assumptions"]
-            assert isinstance(item["proof"], dict) and item["proof"]
-            assert item["discovery_requirements"] == []
-        elif item["status"] == "discovery_required":
-            for field in ("product_workflow", "product_launcher", "product_engine", "evidence_policy", "assumptions", "proof"):
-                assert item[field] is None, f"discovery use case must advertise no product authority: {item['id']} {field}"
-            assert item["discovery_requirements"], f"discovery use case lacks checklist: {item['id']}"
 
     northwell = by_id["northwell.shared-printer.organization-default"]
     assert northwell["organization_id"] == "northwell-health"
