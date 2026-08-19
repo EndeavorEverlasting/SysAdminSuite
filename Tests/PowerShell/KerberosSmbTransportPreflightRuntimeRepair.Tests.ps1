@@ -44,9 +44,16 @@ function New-TransportFixture {
         'Import-Module $lowNoisePolicyModulePath -Force',
         '$transportWindowsPathBudget = 240',
         'Write-Warning ''TRANSPORT_OUTPUT_ROOT_COMPACTED: fixture sentinel''',
+        '$requestSummary = if ($FixtureMode) {',
+        '    ''fixture request''',
+        '}',
+        'else {',
+        '    ''live request''',
+        '}',
         '$context = [pscustomobject]@{ run_root=''fixture''; artifact_registry_path=''fixture-registry''; directories=[pscustomobject]@{ artifacts=''.''; evidence=''.''; reports=''.'' }; operator_handoff_path=''fixture-handoff'' }',
         'if ($FixtureMode) {',
-        '    $fixture = [pscustomobject]@{ observations = [pscustomobject]@{} }',
+        '    $fixture = Get-Content -LiteralPath $FixturePath -Raw -ErrorAction Stop | ConvertFrom-Json',
+        '    if ($null -eq $fixture.observations) { throw ''Fixture must contain an observations object.'' }',
         '    $observations = $fixture.observations',
         '    $evidenceClass = ''sanitized_fixture''',
         '    $networkActivity = $false',
@@ -110,12 +117,20 @@ try {
         New-TransportFixture -Root $runtime -NewLine $case.newline
         $entrypointBefore = Join-Path $runtime 'scripts\Test-SasSoftwareDeploymentTransport.ps1'
         $fixtureText = [IO.File]::ReadAllText($entrypointBefore)
-        $duplicateTokenCount = [regex]::Matches(
+
+        $duplicateNetworkTokenCount = [regex]::Matches(
             $fixtureText,
             [regex]::Escape('-NetworkActivityPerformed $networkActivity')
         ).Count
-        Assert-True ($duplicateTokenCount -eq 2) `
-            "Fixture did not reproduce the real duplicate network-activity token for $($case.name): $duplicateTokenCount"
+        Assert-True ($duplicateNetworkTokenCount -eq 2) `
+            "Fixture did not reproduce the real duplicate network-activity token for $($case.name): $duplicateNetworkTokenCount"
+
+        $fixtureModeBranchCount = [regex]::Matches(
+            $fixtureText,
+            [regex]::Escape('if ($FixtureMode) {')
+        ).Count
+        Assert-True ($fixtureModeBranchCount -eq 2) `
+            "Fixture did not reproduce both real fixture-mode branches for $($case.name): $fixtureModeBranchCount"
 
         $evidence = Join-Path $runtime 'evidence'
         $first = & $repairScript `
