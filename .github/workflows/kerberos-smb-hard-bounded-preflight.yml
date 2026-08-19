@@ -10,7 +10,9 @@ on:
       - 'Tests/Pester/SoftwareDeploymentTransport.Tests.ps1'
       - 'Tests/PowerShell/KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1'
       - 'Tests/survey/test_software_deployment_transport_preflight_contracts.py'
+      - 'Tests/survey/test_autologon_vpn_transport_timeout_contracts.py'
       - 'harness/workflows/software-deployment-transport.yaml'
+      - 'docs/handoff/autologon-vpn-transport-preflight-timeout.md'
       - '.github/workflows/harness-contracts.yml'
   workflow_dispatch:
 
@@ -33,6 +35,9 @@ jobs:
 
       - name: Run transport static contracts
         run: python Tests/survey/test_software_deployment_transport_preflight_contracts.py
+
+      - name: Run AutoLogon VPN timeout handoff contracts
+        run: python Tests/survey/test_autologon_vpn_transport_timeout_contracts.py
 
       - name: Check patch whitespace
         shell: bash
