@@ -1,0 +1,348 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.invalid/schemas/harness/printer-mapping-use-case-registry.schema.json",
+  "title": "SysAdminSuite printer mapping use-case registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "selection_policy",
+    "status_definitions",
+    "use_cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-printer-mapping-use-case-registry/v1"
+    },
+    "repository": {
+      "const": "EndeavorEverlasting/SysAdminSuite"
+    },
+    "selection_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context_fields",
+        "site_override_precedence",
+        "organization_default_allowed",
+        "unknown_organization_action",
+        "unknown_site_action",
+        "cross_organization_inheritance",
+        "implicit_site_inheritance",
+        "runtime_acceptance_scope",
+        "rule"
+      ],
+      "properties": {
+        "context_fields": {
+          "const": [
+            "organization_id",
+            "site_id"
+          ]
+        },
+        "site_override_precedence": {
+          "const": true
+        },
+        "organization_default_allowed": {
+          "const": true
+        },
+        "unknown_organization_action": {
+          "const": "BLOCK_FOR_DISCOVERY"
+        },
+        "unknown_site_action": {
+          "const": "USE_REGISTERED_ORGANIZATION_DEFAULT_OR_BLOCK"
+        },
+        "cross_organization_inheritance": {
+          "const": false
+        },
+        "implicit_site_inheritance": {
+          "const": false
+        },
+        "runtime_acceptance_scope": {
+          "type": "string",
+          "minLength": 8
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 16
+        }
+      }
+    },
+    "status_definitions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proven",
+        "discovery_required",
+        "unsupported",
+        "deprecated"
+      ],
+      "properties": {
+        "proven": {
+          "type": "string",
+          "minLength": 8
+        },
+        "discovery_required": {
+          "type": "string",
+          "minLength": 8
+        },
+        "unsupported": {
+          "type": "string",
+          "minLength": 8
+        },
+        "deprecated": {
+          "type": "string",
+          "minLength": 8
+        }
+      }
+    },
+    "use_cases": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "organization_id",
+          "organization_name",
+          "scope_type",
+          "site_id",
+          "site_name",
+          "status",
+          "parent_use_case_id",
+          "inherited_fields",
+          "product_workflow",
+          "product_launcher",
+          "product_engine",
+          "evidence_policy",
+          "agent_skill",
+          "assumptions",
+          "proof",
+          "discovery_requirements"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]+$"
+          },
+          "organization_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]+$"
+          },
+          "organization_name": {
+            "type": "string",
+            "minLength": 2
+          },
+          "scope_type": {
+            "enum": [
+              "organization_default",
+              "site_override"
+            ]
+          },
+          "site_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "site_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "proven",
+              "discovery_required",
+              "unsupported",
+              "deprecated"
+            ]
+          },
+          "parent_use_case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inherited_fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "product_workflow": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_launcher": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_engine": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agent_skill": {
+            "type": "string",
+            "minLength": 1
+          },
+          "assumptions": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "proof": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "discovery_requirements": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 4
+            },
+            "uniqueItems": true
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "scope_type": {
+                  "const": "organization_default"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "site_id": {
+                  "type": "null"
+                },
+                "site_name": {
+                  "type": "null"
+                },
+                "parent_use_case_id": {
+                  "type": "null"
+                },
+                "inherited_fields": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "scope_type": {
+                  "const": "site_override"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "site_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "site_name": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "proven"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "product_workflow": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "product_launcher": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "product_engine": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidence_policy": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "assumptions": {
+                  "type": "object"
+                },
+                "proof": {
+                  "type": "object"
+                },
+                "discovery_requirements": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "discovery_required"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "product_workflow": {
+                  "type": "null"
+                },
+                "product_launcher": {
+                  "type": "null"
+                },
+                "product_engine": {
+                  "type": "null"
+                },
+                "evidence_policy": {
+                  "type": "null"
+                },
+                "assumptions": {
+                  "type": "null"
+                },
+                "proof": {
+                  "type": "null"
+                },
+                "discovery_requirements": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

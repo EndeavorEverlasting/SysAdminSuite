@@ -1,6 +1,6 @@
 # Field Workflow Skill
 
-Use this skill for technician commands, launchers, menus, QR command capsules, operator runbooks, dashboard entry guidance, and Northwell shared-printer mapping.
+Use this skill for technician commands, launchers, menus, QR command capsules, operator runbooks, dashboard entry guidance, and organization-scoped shared-printer mapping.
 
 ## Capability dependencies
 
@@ -12,6 +12,9 @@ Use this skill for technician commands, launchers, menus, QR command capsules, o
 
 Load only the references that match the selected field lane:
 
+- Printer mapping use-case registry: [`harness/api/printer-mapping-use-case-registry.json`](../../../harness/api/printer-mapping-use-case-registry.json)
+- Printer mapping use-case workflow: [`harness/workflows/printer-mapping-use-case-routing.yaml`](../../../harness/workflows/printer-mapping-use-case-routing.yaml)
+- Printer mapping use-case skill: [`harness/skills/printer-mapping-use-case-routing/SKILL.md`](../../../harness/skills/printer-mapping-use-case-routing/SKILL.md)
 - Northwell shared-printer mapping: [`START-HERE-NORTHWELL-PRINTER-MAPPING.md`](../../../START-HERE-NORTHWELL-PRINTER-MAPPING.md)
 - Northwell technician front door: [`Map-NorthwellPrinter-SystemWide.cmd`](../../../Map-NorthwellPrinter-SystemWide.cmd)
 - Canonical Northwell printer engine: [`mapping/Invoke-NorthwellPrinterMapping.ps1`](../../../mapping/Invoke-NorthwellPrinterMapping.ps1)
@@ -32,9 +35,23 @@ Before emitting a next command for a registered field capsule, **reconcile curre
 - If a branch no longer equals a previously expected SHA, treat the mismatch as a supersession/reconciliation signal. Do not ask the technician to chase the old commit, force the branch backward, or create a detached worktree for a superseded implementation.
 - Resolve the current tracked launcher from the capsule policy and use the current canonical implementation.
 
+## Printer mapping context gate
+
+Before applying **any** printer-mapping implementation:
+
+1. Read `harness/api/printer-mapping-use-case-registry.json`.
+2. Treat organization and site/hospital as part of printer-mapping identity, not optional descriptive context.
+3. Select an exact `site_override` first when one exists; otherwise use the registered organization default.
+4. If the organization is unknown, the site is known to operate independently without an override, or the selected record is `discovery_required`, stop before mapping and surface the discovery requirements.
+5. Load mapping scope, queue conventions, execution identity, launcher, engine, and proof rules only from the selected `proven` use case.
+6. **Northwell rules are not portable defaults.** Never infer another organization uses SYSTEM, `/ga`, UNC queues, HKLM registration, or the same network/authentication model merely because Northwell does.
+7. **Health & Hospitals is currently `discovery_required`.** Do not route it to the Northwell launcher, engine, mapping mechanism, or proof policy until a separate Health & Hospitals implementation is learned, tracked, and validated.
+8. Newly acquired or independently operated hospitals that differ from their parent organization require an explicit `site_override`; do not silently inherit the organization default.
+9. Runtime acceptance and failure evidence apply only to the same selected use case and organization/site context that produced them.
+
 ## Northwell printer mapping route
 
-When a technician asks to map, add, install, or connect a printer on a Northwell Windows PC:
+Only after `northwell.shared-printer.organization-default` is selected, when a technician asks to map, add, install, or connect a printer on a Northwell Windows PC:
 
 1. Treat **system-wide/per-computer** mapping as a hard client requirement because the workstation may have multiple users.
 2. Ask only for missing operational inputs: target PC hostname(s) and printer queue(s).
@@ -50,15 +67,16 @@ When a technician asks to map, add, install, or connect a printer on a Northwell
 
 ## Workflow
 
-1. Identify the field user, target environment, and mutation posture.
-2. Reconcile the current repository floor before reusing any branch, SHA, worktree, or next-command from a prior chat/handoff.
-3. Prefer an existing launcher, profile, menu, or wrapper.
-4. Reduce the technician action to one short entrypoint when practical.
-5. Put target validation, elevation, retries, teardown, progress, evidence, and classification inside the repo-owned workflow.
-6. For software-install results, use `Inspect-LatestSoftwareInstall.cmd` as the field front door. Agents invoke `scripts/Show-SasSoftwareInstallResult.ps1` immediately after the install, when recovering an interrupted run, and before saying deployment succeeded.
-7. Keep developer diagnostics separate from the field front door.
-8. Provide a dry-run or review mode before mutation when the operation supports it.
-9. Validate the launcher contract and the delegated workflow separately.
+1. Identify the field user, organization, site/hospital when relevant, target environment, and mutation posture.
+2. For printer mapping, resolve the registered organization/site use case before selecting any launcher or implementation.
+3. Reconcile the current repository floor before reusing any branch, SHA, worktree, or next-command from a prior chat/handoff.
+4. Prefer an existing launcher, profile, menu, or wrapper.
+5. Reduce the technician action to one short entrypoint when practical.
+6. Put target validation, elevation, retries, teardown, progress, evidence, and classification inside the repo-owned workflow.
+7. For software-install results, use `Inspect-LatestSoftwareInstall.cmd` as the field front door. Agents invoke `scripts/Show-SasSoftwareInstallResult.ps1` immediately after the install, when recovering an interrupted run, and before saying deployment succeeded.
+8. Keep developer diagnostics separate from the field front door.
+9. Provide a dry-run or review mode before mutation when the operation supports it.
+10. Validate the launcher contract and the delegated workflow separately.
 
 ## Guardrails
 
@@ -67,5 +85,7 @@ When a technician asks to map, add, install, or connect a printer on a Northwell
 - A launcher ACK is not proof that the intended behavior occurred.
 - Installer completion is not package-level post-install acceptance; present the remaining verification gate.
 - For merged registered capsules, do not emit historical PR branches or pinned SHAs as normal operator retry sources.
+- For printer mapping, do not select an implementation until the organization/site use case is registered and proven.
+- Never use one organization's printer-mapping rules as another organization's defaults.
 - For Northwell printer mapping, direct-IP installation and per-user-only mapping are blocking contract violations, not fallbacks.
 - For Northwell printer diagnosis, successful real-world document output after canonical mapping outranks contradictory diagnostic telemetry. Do not turn a proven working mapping into a repair target solely to make lower-level telemetry look cleaner.

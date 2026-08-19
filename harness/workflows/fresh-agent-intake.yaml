@@ -5,8 +5,8 @@ network_activity: false
 target_mutation: false
 purpose: >-
   Give a fresh agent one deterministic route from repository intake to the smallest authorized
-  workflow, desired-state contract, validator set, artifact contract, outcome contract, terminal-evidence
-  contract, and handoff.
+  workflow, use-case contract, desired-state contract, validator set, artifact contract, outcome
+  contract, terminal-evidence contract, and handoff.
 
 inputs:
   required:
@@ -20,6 +20,8 @@ inputs:
     - supplied_pull_request_metadata
     - explicit_target
     - target_profile
+    - organization_context
+    - site_context
     - existing_state_evidence
     - repository_network_authorized
     - branch_update_authorized
@@ -54,6 +56,7 @@ stages:
       - read harness/api/harness-artifact-registry.json before producing or moving artifacts
       - read harness/api/harness-outcome-registry.json before treating any validator, dry run, plan, build, deploy, or runtime command as terminal
       - read harness/api/terminal-evidence-survival-registry.json before executing or recovering a registered terminal-sensitive field command
+      - for any printer-mapping request, read harness/api/printer-mapping-use-case-registry.json before selecting a launcher, engine, mapping mechanism, or proof policy
       - when AutoLogon, Cybernet, live cert, deployment, or runtime proof is involved, read harness/api/deployment-state-registry.json before selecting the command chain
 
   - id: route
@@ -62,6 +65,7 @@ stages:
       - use harness/api/agent-routing-manifest.json for normal task-signal routing
       - when the declared lane is harness infrastructure, load harness/skills/harness-maintenance/SKILL.md
       - when the requested goal extends beyond validation or planning, load harness/skills/outcome-driven-execution/SKILL.md after normal task routing
+      - for any printer-mapping request, load harness/skills/printer-mapping-use-case-routing/SKILL.md and resolve organization/site use-case identity before the field-workflow implementation
       - for AutoLogon/Cybernet test, live-cert, deployment, or runtime-proof work, load harness/skills/cybernet-autologon-deployment-state/SKILL.md after the normal P00 route is selected
       - for a vanished, closed, crashed, interrupted, or terminal-sensitive registered field command, load harness/skills/terminal-evidence-survival/SKILL.md before choosing the operator entrypoint
       - resolve desired product/runtime state before interpreting test, live cert, deploy, or runtime-proof wording
@@ -75,6 +79,7 @@ stages:
       - reuse existing maps, registries, schemas, validators, hooks, and skills before creating new authorities
       - keep product mutation outside harness-only sprints
       - keep live or operator-local evidence under ignored output roots
+      - for printer mapping, do not copy Northwell assumptions into another organization/site; only the selected proven use_case_id authorizes product behavior
       - treat validators, dry runs, plans, fixtures, and harmless transport live certs as admission gates when the requested goal remains unproven
       - for an authorized Cybernet AutoLogon apply/test/live-cert goal, do not substitute transport proof for the real autologon-remote state transition
       - when command id autologon-remote is executed by an operator, use the registered Run-AutoLogonCrashSafe.cmd HOST front door rather than handing out the inner product command
@@ -89,6 +94,7 @@ stages:
       - python harness/validators/validate-repository-freshness-contracts.py
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
+      - python harness/validators/validate-printer-mapping-use-cases.py when printer-mapping routing, use cases, field skill, or organization/site contracts change
       - python harness/validators/validate-terminal-evidence-survival.py when terminal-evidence routing, artifacts, hooks, runner contracts, or front doors change
       - select additional validators from harness/api/harness-validator-registry.json by changed surface
       - run git diff --check before commit
@@ -103,6 +109,7 @@ stages:
     actions:
       - resolve output roles and naming through harness/api/harness-artifact-registry.json
       - resolve success and continuation behavior through harness/api/harness-outcome-registry.json
+      - resolve printer-mapping organization/site identity through harness/api/printer-mapping-use-case-registry.json
       - resolve terminal-sensitive stable evidence and offline recovery through harness/api/terminal-evidence-survival-registry.json
       - resolve AutoLogon/Cybernet critical state artifacts through harness/api/deployment-state-registry.json
       - keep generated evidence untracked unless a registry entry explicitly marks it tracked
@@ -111,7 +118,7 @@ stages:
   - id: handoff
     order: 7
     actions:
-      - report requested goal, desired state when applicable, and terminal outcome before intermediate validation details
+      - report requested goal, selected printer use case when applicable, desired state when applicable, and terminal outcome before intermediate validation details
       - name changed files and exact validation results
       - report commit SHA, push state, PR state, skipped checks, gaps, risks, and proof ceiling
       - use tools/New-SasSprintCapsule.ps1 for compressed next-agent transfer when needed
@@ -130,6 +137,9 @@ outputs:
     - harness/api/harness-outcome-registry.json
     - harness/api/deployment-state-registry.json
     - harness/api/terminal-evidence-survival-registry.json
+    - harness/api/printer-mapping-use-case-registry.json
+    - harness/workflows/printer-mapping-use-case-routing.yaml
+    - harness/skills/printer-mapping-use-case-routing/SKILL.md
     - harness/workflows/repository-freshness-before-launch.yaml
     - harness/skills/harness-maintenance/SKILL.md
     - harness/skills/outcome-driven-execution/SKILL.md
@@ -139,10 +149,11 @@ outputs:
     - survey/output/<workflow>/<run_id>/artifact_registry.json
     - survey/output/<workflow>/<run_id>/operator_handoff.txt
     - survey/output/<workflow>/<run_id>/review/sprint-capsule.*
-    - %LOCALAPPDATA%/SysAdminSuite/last-autologon-field-run.json
+    - '%LOCALAPPDATA%/SysAdminSuite/last-autologon-field-run.json'
 
 proof_ceiling: >-
-  Fresh-agent routing, authorized repository-freshness selection, desired-state selection, canonical command
-  and terminal-evidence front-door selection, validator selection, artifact boundaries, outcome continuation,
-  and handoff structure only. Intake itself creates no product, target, deployment, reboot, application, or
-  live-runtime proof.
+  Fresh-agent routing, authorized repository-freshness selection, printer-mapping organization/site
+  use-case selection, desired-state selection, canonical command and terminal-evidence front-door
+  selection, validator selection, artifact boundaries, outcome continuation, and handoff structure
+  only. Intake itself creates no product, target, deployment, reboot, application, printer-mapping,
+  or live-runtime proof.
