@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER = ROOT / "Bootstrap-SysAdminSuiteAutoLogon.cmd"
 BOOTSTRAP = ROOT / "Bootstrap-SysAdminSuiteAutoLogon.ps1"
+ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
 ELIGIBILITY = ROOT / "scripts" / "Test-SasHostEligibility.ps1"
 
 
@@ -34,6 +35,24 @@ def test_launcher_is_protected_local_only_and_explicit_target_is_authority() -> 
     assert "git clone" not in text.lower()
     assert "git fetch" not in text.lower()
     assert "Set-SasHostEligibilityLocalTarget.ps1" not in text
+
+
+def test_direct_onsite_launcher_carries_exact_target_authority() -> None:
+    text = read(ONSITE)
+    assert "$Action -in @('Remote','S4U')" in text
+    assert "$env:SAS_EXPLICIT_REMOTE_TARGET_REQUEST = $resolvedTarget" in text
+    assert "Test-SasHostEligibility permits only" in text
+    assert "localhost, different hosts, fixture/vm contexts" in text
+
+    resolver = text.index("function Resolve-SasRemoteTarget")
+    authority = text.index("$env:SAS_EXPLICIT_REMOTE_TARGET_REQUEST = $resolvedTarget", resolver)
+    deployment = text.index("& $fieldDeploymentScript -Action Remote", authority)
+    assert resolver < authority < deployment
+
+    # Recover is cleanup-only and must not silently gain install/deploy authority from this marker.
+    condition = text[text.rfind("if ($Action", resolver, authority):authority]
+    assert "'Remote','S4U'" in condition
+    assert "'Recover'" not in condition
 
 
 def test_eligibility_gate_accepts_only_process_scoped_exact_remote_target() -> None:
@@ -78,7 +97,7 @@ def test_launcher_propagates_bootstrap_exit_code() -> None:
 
 
 def test_launcher_and_bootstrap_contain_no_live_target_secret_or_private_path() -> None:
-    text = (read(LAUNCHER) + "\n" + read(BOOTSTRAP)).lower()
+    text = (read(LAUNCHER) + "\n" + read(BOOTSTRAP) + "\n" + read(ONSITE)).lower()
     for forbidden in (
         "wpj075",
         "nslijhs.net",
