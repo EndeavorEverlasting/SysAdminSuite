@@ -220,7 +220,14 @@ else {
             -Replacement $replacement
 
         if (-not $text.Contains("reason_codes = @('observation_timeout','required_observation_missing')")) {
-            $resultAnchor = '-NetworkActivityPerformed $networkActivity'
+            # Anchor to the complete result-builder statement rather than the repeated
+            # -NetworkActivityPerformed token, which also appears in the low-noise context.
+            $resultAnchor = @'
+$result = New-SasSoftwareDeploymentTransportResult `
+    -Observations $observations `
+    -EvidenceClass $evidenceClass `
+    -NetworkActivityPerformed $networkActivity
+'@
             $timeoutOverride = @'
 
 
