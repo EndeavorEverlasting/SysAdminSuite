@@ -472,6 +472,7 @@ foreach ($computer in $resolvedComputers) {
     $remoteConfigLocal = $null
     $remoteWorkLocal = $null
     $remoteLauncherLocal = $null
+    $remoteTaskAction = $null
     if ($null -ne $staging) {
         $remoteAdminDir = Join-Path $staging.AdminRoot $staging.AdminRelative
         $remoteAgentAdmin = Join-Path $remoteAdminDir 'Agent.ps1'
@@ -483,6 +484,12 @@ foreach ($computer in $resolvedComputers) {
         $remoteAgentLocal = Join-Path $remoteWorkLocal 'Agent.ps1'
         $remoteConfigLocal = Join-Path $remoteWorkLocal 'Config.json'
         $remoteLauncherLocal = Join-Path $remoteWorkLocal 'Start-Agent.cmd'
+        $remoteTaskAction = if ($staging.Name -eq 'ADMIN$') {
+            'cmd.exe /d /s /c ""{0}""' -f $remoteLauncherLocal
+        }
+        else {
+            $remoteLauncherLocal
+        }
     }
     $taskName = "SysAdminSuite_NorthwellPrinterState_$runToken"
     $taskCreated = $false
@@ -524,7 +531,7 @@ foreach ($computer in $resolvedComputers) {
         ) -join [Environment]::NewLine
         Set-Content -LiteralPath $remoteLauncherAdmin -Value $launcher -Encoding ASCII
 
-        $createArguments = New-SasNorthwellPrinterTaskCreateArguments -Computer $computer -TaskName $taskName -RemoteLauncherLocal $remoteLauncherLocal
+        $createArguments = New-SasNorthwellPrinterTaskCreateArguments -Computer $computer -TaskName $taskName -RemoteLauncherLocal $remoteTaskAction
         Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Create' -Arguments $createArguments
         $taskCreated = $true
         Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Run' -Arguments @('/Run','/S',$computer,'/TN',$taskName)
