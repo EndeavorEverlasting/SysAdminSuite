@@ -7,6 +7,8 @@ PLATFORM = ROOT / 'scripts' / 'SasFieldPlatform.psm1'
 LAUNCHER = ROOT / 'scripts' / 'Invoke-SasUniversalField.ps1'
 INSTALLER = ROOT / 'scripts' / 'Install-SasUniversalFieldLauncher.ps1'
 PRINTER_BOOTSTRAP = ROOT / 'Bootstrap-SysAdminSuitePrinter.ps1'
+AUTOLOGON_BOOTSTRAP_CMD = ROOT / 'Bootstrap-SysAdminSuiteAutoLogon.cmd'
+AUTOLOGON_BOOTSTRAP_PS1 = ROOT / 'Bootstrap-SysAdminSuiteAutoLogon.ps1'
 INSTALL_CMD = ROOT / 'Install-SasOperatorCommand.cmd'
 DOC = ROOT / 'docs' / 'UNIVERSAL_FIELD_PLATFORM.md'
 
@@ -21,6 +23,8 @@ def main() -> None:
     launcher = read(LAUNCHER)
     installer = read(INSTALLER)
     printer_bootstrap = read(PRINTER_BOOTSTRAP)
+    autologon_bootstrap_cmd = read(AUTOLOGON_BOOTSTRAP_CMD)
+    autologon_bootstrap_ps1 = read(AUTOLOGON_BOOTSTRAP_PS1)
     install_cmd = read(INSTALL_CMD)
     doc = read(DOC)
 
@@ -48,8 +52,8 @@ def main() -> None:
 
     for marker in (
         'Assert-SasProtectedNetworkAuthority', "'refresh'", "'printer'", "'clipboard'", "'autologon'", "'cybernet'",
-        'Bootstrap-SysAdminSuitePrinter.ps1', 'Reset-SasClipboard.ps1', 'Run-AutoLogonOnsite.cmd',
-        'Confirm-SasNorthwellNetwork.ps1', '$env:SAS_RUNTIME_ROOT = $runtimeRoot',
+        'Bootstrap-SysAdminSuitePrinter.ps1', 'Bootstrap-SysAdminSuiteAutoLogon.cmd', 'Reset-SasClipboard.ps1',
+        'Run-AutoLogonOnsite.cmd', 'Confirm-SasNorthwellNetwork.ps1', '$env:SAS_RUNTIME_ROOT = $runtimeRoot',
         '$env:SAS_REPO_ROOT = $controllerRoot', '$actualArgs = @(', 'LOCAL_MACHINE_ONLY',
     ):
         assert marker in launcher, marker
@@ -69,6 +73,29 @@ def main() -> None:
     assert "$sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps1'" in installer
     assert "$printerBootstrapDestination = Join-Path $installRoot 'Bootstrap-SysAdminSuitePrinter.ps1'" in installer
     assert 'Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force' in installer
+
+    # AutoLogon Remote is target-mutating and must always enter the sealed crash-safe bootstrap.
+    # Recover remains recovery-only and is intentionally not converted into deployment.
+    autologon_block = launcher.split("    'autologon' {", 1)[1].split("\n    'cybernet' {", 1)[0]
+    for marker in (
+        'Resolve-SasInstalledAutoLogonBootstrap',
+        "Join-Path $runtimeRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd'",
+        "if ($mode -eq 'remote')",
+        '& $bootstrap $target',
+        'durable field evidence REQUIRED',
+        "Join-Path $runtimeRoot 'Run-AutoLogonOnsite.cmd'",
+        '& $recoveryLauncher Recover $target',
+    ):
+        assert marker in launcher if marker.startswith('Resolve-SasInstalledAutoLogonBootstrap') or marker.startswith('Join-Path $runtimeRoot') else marker in autologon_block, marker
+    assert '& $recoveryLauncher Remote $target' not in autologon_block
+    assert '& $launcher $action $target' not in autologon_block
+
+    assert 'Bootstrap-SysAdminSuiteAutoLogon.ps1' in autologon_bootstrap_cmd
+    assert '-ConfirmVpnPosture' in autologon_bootstrap_cmd
+    assert 'Invoke-SasAutoLogonCrashSafeFieldRun.ps1' in autologon_bootstrap_ps1
+    assert 'PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION' in autologon_bootstrap_ps1
+    assert '-ComputerName $ComputerName -RepositoryRoot $RuntimeRoot -ConfirmDeployment' in autologon_bootstrap_ps1
+    assert 'last-autologon-field-run.json' in autologon_bootstrap_ps1
 
     # Bootstrap reuse is printer-scoped: unrelated field work does not create another SysAdminSuite
     # runtime, but every current printer dependency—including active-user finalization—fails closed.
@@ -104,7 +131,7 @@ def main() -> None:
     assert 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasUniversalField.ps1" %*' in installer
     assert 'if defined SAS_RUNTIME_ROOT' not in installer
 
-    combined = '\n'.join((platform, launcher, installer, printer_bootstrap, install_cmd))
+    combined = '\n'.join((platform, launcher, installer, printer_bootstrap, autologon_bootstrap_cmd, autologon_bootstrap_ps1, install_cmd))
     for forbidden in (
         'pa_rperez26', 'CheeksMcClappeth', 'Cheex', 'Richard Perez',
         'Desktop\\dev\\SysAdminSuite', 'OG Laptop Backup',
