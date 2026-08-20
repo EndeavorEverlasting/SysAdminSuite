@@ -1,0 +1,54 @@
+#Requires -Modules Pester
+
+BeforeAll {
+    $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $script:startPath = Join-Path $script:repoRoot 'mapping\Start-NorthwellPrinterMapping.ps1'
+    $script:enginePath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterMapping.ps1'
+    $script:cmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
+}
+
+Describe 'Northwell quick mapping low-noise acceptance contract' {
+    It 'does not add ICMP reachability rituals to the active quick-map path' {
+        $text = (Get-Content -LiteralPath $script:startPath -Raw) + "`n" +
+                (Get-Content -LiteralPath $script:enginePath -Raw) + "`n" +
+                (Get-Content -LiteralPath $script:cmdPath -Raw)
+        $text | Should -Not -Match '(?i)Test-Connection'
+        $text | Should -Not -Match '(?i)\bping(?:\.exe)?\b'
+        $text | Should -Not -Match '(?i)-Count\s+5\b'
+    }
+
+    It 'captures lower-level engine chatter instead of dumping it into the technician terminal' {
+        $text = Get-Content -LiteralPath $script:startPath -Raw
+        $text | Should -Match '& \$engine @invokeParameters \*>&1'
+        $text | Should -Match 'Mapping \{0\} queue\(s\) on \{1\} target\(s\)'
+        $text | Should -Match 'PASS: requested printer mapping is proven SYSTEM-wide in HKLM'
+        $text | Should -Match 'FAIL: authoritative machine-wide printer proof was not obtained'
+    }
+
+    It 'allows final SYSTEM plus HKLM proof to supersede lower-level controller noise' {
+        $text = Get-Content -LiteralPath $script:startPath -Raw
+        $text | Should -Match 'Test-SasLatestAuthoritativePrinterProof'
+        $text | Should -Match '\[string\]\$status\.Identity -notmatch ''SYSTEM\$'''
+        $text | Should -Match '@\(\$status\.Missing\)\.Count -gt 0'
+        $text | Should -Match '\$status\.MachineWideUNC'
+        $text | Should -Match '\$status\.Requested'
+        $text | Should -Match 'RecoveredFromLowerLevelError'
+        $text | Should -Match 'superseded by authoritative final printer-state proof'
+    }
+
+    It 'keeps the CMD front door short and avoids reparsing evidence paths' {
+        $text = Get-Content -LiteralPath $script:cmdPath -Raw
+        $text | Should -Match '%SystemRoot%\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe'
+        $text | Should -Match 'Start-NorthwellPrinterMapping\.ps1'
+        $text | Should -Not -Match 'SAS_LATEST_DIR'
+        $text | Should -Not -Match 'set /p'
+        $text | Should -Not -Match 'Primary artifacts:'
+    }
+
+    It 'preserves the current HKLM child-key proof fix from main' {
+        $text = Get-Content -LiteralPath $script:enginePath -Raw
+        $text | Should -Match 'ConvertFrom-MachineWideConnectionKeyName'
+        $text | Should -Match 'RawConnectionKeys'
+        $text | Should -Match 'PSChildName'
+    }
+}
