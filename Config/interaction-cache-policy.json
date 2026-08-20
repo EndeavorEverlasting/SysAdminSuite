@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "sas-interaction-cache-policy/v1",
+  "cacheSchemaVersion": "sas-interaction-cache/v1",
+  "storage": {
+    "scope": "per-user-localappdata",
+    "relativePath": "SysAdminSuite\\Cache\\interactions.v1.json",
+    "authoritative": false
+  },
+  "freshness": {
+    "ttlDays": 90,
+    "invalidation": "passive-expiry-plus-version-rollover",
+    "writeEligibility": "authoritative-success-only"
+  },
+  "capacity": {
+    "maxEntries": 200,
+    "maxEntriesPerKind": 75,
+    "eviction": "least-recent-success-first"
+  },
+  "concurrency": {
+    "lockTimeoutMilliseconds": 1500,
+    "writeMode": "bounded-file-lock-plus-atomic-replace",
+    "onLockTimeout": "fail-open-without-cache-write"
+  },
+  "observability": {
+    "metricsFile": "cache-metrics.v1.jsonl",
+    "maxBytes": 262144,
+    "rawValuesAllowed": false,
+    "events": [
+      "hit",
+      "miss",
+      "stale_miss",
+      "malformed_fail_open",
+      "write",
+      "lock_timeout_fail_open",
+      "write_fail_open"
+    ]
+  },
+  "security": {
+    "allowedKinds": ["Host", "Printer", "Server"],
+    "tenantBoundary": "explicit-scope",
+    "secretsAllowed": false,
+    "maxValueCharacters": 512
+  },
+  "failureBehavior": {
+    "cacheUnavailable": "continue-to-authoritative-origin",
+    "malformedCache": "quarantine-and-continue-empty",
+    "staleEntry": "suggestion-expired-never-authoritative",
+    "negativeCaching": "disabled"
+  }
+}
