@@ -5,6 +5,7 @@ BeforeAll {
     $script:finalizerPath = Join-Path $script:repoRoot 'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1'
     $script:batchFinalizerPath = Join-Path $script:repoRoot 'mapping\Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1'
     $script:agentPath = Join-Path $script:repoRoot 'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1'
+    $script:sharelessActiveUserPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterSharelessActiveUser.ps1'
     $script:operatorPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterOperatorRun.ps1'
     $script:quickCmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
     $script:batchCmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinters-Batch.cmd'
@@ -12,7 +13,7 @@ BeforeAll {
 
 Describe 'Northwell active-user printer materialization regression' {
     It 'parses the Windows PowerShell 5.1 finalization surfaces' {
-        foreach ($path in @($script:finalizerPath, $script:batchFinalizerPath, $script:agentPath, $script:operatorPath)) {
+        foreach ($path in @($script:finalizerPath, $script:batchFinalizerPath, $script:agentPath, $script:sharelessActiveUserPath, $script:operatorPath)) {
             $tokens = $null
             $errors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile(
@@ -24,9 +25,12 @@ Describe 'Northwell active-user printer materialization regression' {
         }
     }
 
-    It 'preserves durable /ga proof while adding immediate /in for the existing user token' {
+    It 'preserves durable /ga proof while adding quiet immediate /in for the existing user token' {
         $text = Get-Content -LiteralPath $script:agentPath -Raw
-        $text | Should -Match "'printui\.dll,PrintUIEntry' '/in'"
+        $text | Should -Match "'printui\.dll,PrintUIEntry' '/in' '/q'"
+        $text | Should -Match 'PrintUI native UI is advisory'
+        $text | Should -Match "ProofAuthority = 'CURRENT_USER_PRINTER_CONNECTION_REGISTRY'"
+        $text | Should -Match "NativePrintUi = 'QUIET_ADVISORY_ONLY'"
         $text | Should -Match 'TASK_LOGON_INTERACTIVE_TOKEN'
         $text | Should -Match 'RegisterTaskDefinition'
         $text | Should -Match 'LogonType = 3'
@@ -34,6 +38,16 @@ Describe 'Northwell active-user printer materialization regression' {
         $text | Should -Match 'HKEY_USERS\\\$Sid\\Printers\\Connections'
         $text | Should -Match 'HKEY_CURRENT_USER\\Printers\\Connections'
         $text | Should -Match 'ACTIVE_USER_CONNECTION_VERIFIED'
+    }
+
+    It 'keeps shareless active-user PrintUI quiet and trusts HKU proof over native dialog noise' {
+        $text = Get-Content -LiteralPath $script:sharelessActiveUserPath -Raw
+        $text | Should -Match 'PrintUIEntry /in /q /n'
+        $text | Should -Match 'Native Windows printer-install dialogs are advisory only'
+        $text | Should -Match 'Get-SasRemoteUserPrinterConnections'
+        $text | Should -Match '\$missing = @\(\$Queues \| Where-Object \{ \$observed -notcontains \$_ \}\)'
+        $text | Should -Match 'requested printer connection is proven in every loaded interactive user hive'
+        $text | Should -Not -Match 'PrintTestPage|Add-Printer\s+-ConnectionName'
     }
 
     It 'fails closed when an already logged-on user connection is not actually observed' {
@@ -60,7 +74,8 @@ Describe 'Northwell active-user printer materialization regression' {
     It 'does not introduce a test page, direct-IP mapping, stored-password flow, or Add-Printer fallback' {
         $text = (Get-Content -LiteralPath $script:finalizerPath -Raw) + "`n" +
             (Get-Content -LiteralPath $script:batchFinalizerPath -Raw) + "`n" +
-            (Get-Content -LiteralPath $script:agentPath -Raw)
+            (Get-Content -LiteralPath $script:agentPath -Raw) + "`n" +
+            (Get-Content -LiteralPath $script:sharelessActiveUserPath -Raw)
         $text | Should -Not -Match 'PrintTestPage'
         $text | Should -Not -Match 'Add-Printer\s+-ConnectionName'
         $text | Should -Not -Match 'Get-Credential'
