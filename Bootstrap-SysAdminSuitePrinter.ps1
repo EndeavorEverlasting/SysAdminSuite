@@ -16,7 +16,7 @@ left in place so the mapper's gitignored evidence remains available after the ru
 [CmdletBinding()]
 param(
     [string]$Branch = 'main',
-    [string]$RequiredCommit = '5463c0ed3fedc4f9c5fe8048ead3cfc6bf2c434f',
+    [string]$RequiredCommit = '66d38dd45881692303f77267e29e4fa44b4a9351',
     [string]$CacheRoot,
     [ValidateSet('Quick','File')][string]$Mode = 'Quick',
     [switch]$NoLaunch
