@@ -28,6 +28,7 @@
         "do_not_assume_current_directory",
         "do_not_require_operator_to_retype_repo_path",
         "propagate_child_exit_code",
+        "preserve_operator_shell_on_child_failure",
         "fail_closed_when_location_or_entrypoint_is_unproven"
       ],
       "properties": {
@@ -38,6 +39,7 @@
         "do_not_assume_current_directory": {"const": true},
         "do_not_require_operator_to_retype_repo_path": {"const": true},
         "propagate_child_exit_code": {"const": true},
+        "preserve_operator_shell_on_child_failure": {"const": true},
         "fail_closed_when_location_or_entrypoint_is_unproven": {"const": true}
       }
     },
