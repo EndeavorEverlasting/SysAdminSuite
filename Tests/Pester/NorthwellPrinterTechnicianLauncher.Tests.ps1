@@ -9,6 +9,7 @@ BeforeAll {
     $script:managementPath = Join-Path $script:repoRoot 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
     $script:useCaseMapPath = Join-Path $script:repoRoot 'harness\maps\PRINTER_MAPPING_USE_CASE_MAP.md'
     $script:useCaseReportPath = Join-Path $script:repoRoot 'harness\reports\PRINTER_MAPPING_USE_CASES.md'
+    $script:agentsPath = Join-Path $script:repoRoot 'AGENTS.md'
 }
 
 Describe 'Northwell non-technical technician printer launcher' {
@@ -71,6 +72,14 @@ Describe 'Northwell non-technical technician printer launcher' {
         $tutorial | Should -Match 'does not by itself claim that a physical document was printed'
         $management | Should -Match 'Advanced Operations'
         $management | Should -Match 'Map-NorthwellPrinter-SystemWide\.cmd'
+    }
+
+    It 'keeps repository governance aligned with human front door versus runtime launcher' {
+        $agents = Get-Content -LiteralPath $script:agentsPath -Raw
+        $agents | Should -Match '`Map-NorthwellPrinter\.cmd` is the routine human-facing quick/recent-selection technician entrypoint'
+        $agents | Should -Match '`Map-NorthwellPrinter-SystemWide\.cmd` remains the trusted current-runtime quick launcher'
+        $agents | Should -Match 'installer-owned sibling `sas\.cmd printer` or a sibling trusted printer bootstrap'
+        $agents | Should -Match 'routine technician front door, trusted current-runtime quick launcher'
     }
 
     It 'keeps the use-case harness explicit about human front door versus runtime launcher' {
