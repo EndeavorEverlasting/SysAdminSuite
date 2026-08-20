@@ -3,12 +3,14 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $script:repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
         $script:fallbackPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterTaskRegistryFallback.ps1'
         $script:resilientPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterResilientQuick.ps1'
+        $script:operatorPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterOperatorRun.ps1'
         $script:activeRouterPath = Join-Path $script:repoRoot 'mapping\Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1'
         $script:sharelessActivePath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterSharelessActiveUser.ps1'
         $script:cmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
         $script:corePath = Join-Path $script:repoRoot 'mapping\Modules\NorthwellPrinterMapping.Core.psm1'
         $script:fallbackText = Get-Content -LiteralPath $script:fallbackPath -Raw
         $script:resilientText = Get-Content -LiteralPath $script:resilientPath -Raw
+        $script:operatorText = Get-Content -LiteralPath $script:operatorPath -Raw
         $script:activeRouterText = Get-Content -LiteralPath $script:activeRouterPath -Raw
         $script:sharelessActiveText = Get-Content -LiteralPath $script:sharelessActivePath -Raw
         $script:cmdText = Get-Content -LiteralPath $script:cmdPath -Raw
@@ -139,6 +141,7 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
 
     It 'verifies all resilient helper files are tracked and clean at runtime HEAD before execution' {
         foreach ($name in @(
+            'Invoke-NorthwellPrinterOperatorRun.ps1',
             'Invoke-NorthwellPrinterResilientQuick.ps1',
             'Invoke-NorthwellPrinterTaskRegistryFallback.ps1',
             'Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1',
@@ -147,14 +150,17 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $script:cmdText | Should -Match 'ls-files --error-unmatch'
         $script:cmdText | Should -Match 'diff --quiet HEAD'
         $integrityIndex = $script:cmdText.IndexOf('ls-files --error-unmatch',[System.StringComparison]::Ordinal)
-        $launchIndex = $script:cmdText.IndexOf('-File "%~dp0mapping\Invoke-NorthwellPrinterResilientQuick.ps1"',[System.StringComparison]::Ordinal)
+        $launchIndex = $script:cmdText.IndexOf('-File "%~dp0mapping\Invoke-NorthwellPrinterOperatorRun.ps1" -Action Map',[System.StringComparison]::Ordinal)
         $integrityIndex | Should -BeGreaterThan -1
         $launchIndex | Should -BeGreaterThan $integrityIndex
     }
 
-    It 'routes the quick mapper through resilient mapping and resilient active-user finalization' {
-        $script:cmdText | Should -Match 'Invoke-NorthwellPrinterResilientQuick\.ps1'
-        $script:cmdText | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterializationResilient\.ps1'
+    It 'routes the quick mapper through the operator wrapper, resilient mapping, and resilient active-user finalization' {
+        $script:cmdText | Should -Match 'Invoke-NorthwellPrinterOperatorRun\.ps1'
+        $script:operatorText | Should -Match 'Invoke-NorthwellPrinterResilientQuick\.ps1'
+        $script:operatorText | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterializationResilient\.ps1'
+        $script:operatorText | Should -Match '& \$mapper -Action \$Action'
+        $script:operatorText | Should -Match '-File \$finalizer -EvidenceRoot \$evidenceRoot'
         $script:cmdText | Should -Match 'Start-NorthwellPrinterMapping\.ps1 -Action Map'
         $script:cmdText | Should -Not -Match '-File "%~dp0mapping\\Start-NorthwellPrinterMapping\.ps1" -Action Map'
         $script:cmdText | Should -Not -Match '-File "%~dp0mapping\\Confirm-NorthwellPrinterActiveUserMaterialization\.ps1"'
