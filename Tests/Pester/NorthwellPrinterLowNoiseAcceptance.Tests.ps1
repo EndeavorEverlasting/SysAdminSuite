@@ -4,6 +4,7 @@ BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:startPath = Join-Path $script:repoRoot 'mapping\Start-NorthwellPrinterMapping.ps1'
     $script:enginePath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterMapping.ps1'
+    $script:statePath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterState.ps1'
     $script:cmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
 }
 
@@ -11,6 +12,7 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
     It 'does not add ICMP reachability rituals to the active quick-map path' {
         $text = (Get-Content -LiteralPath $script:startPath -Raw) + "`n" +
                 (Get-Content -LiteralPath $script:enginePath -Raw) + "`n" +
+                (Get-Content -LiteralPath $script:statePath -Raw) + "`n" +
                 (Get-Content -LiteralPath $script:cmdPath -Raw)
         $text | Should -Not -Match '(?i)Test-Connection'
         $text | Should -Not -Match '(?im)^\s*ping(?:\.exe)?\s+'
@@ -21,8 +23,8 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
     It 'captures lower-level engine chatter instead of dumping it into the technician terminal' {
         $text = Get-Content -LiteralPath $script:startPath -Raw
         $text | Should -Match '& \$engine @invokeParameters \*>&1'
-        $text | Should -Match 'Mapping \{0\} queue\(s\) on \{1\} target\(s\)'
-        $text | Should -Match 'PASS: requested printer mapping is proven SYSTEM-wide in HKLM'
+        $text | Should -Match '\{0\}ing \{1\} queue\(s\) on \{2\} target\(s\)'
+        $text | Should -Match 'PASS: requested printer \{0\} is proven SYSTEM-wide in HKLM'
         $text | Should -Match 'FAIL: authoritative machine-wide printer proof was not obtained'
     }
 
@@ -69,8 +71,8 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text | Should -Not -Match 'Primary artifacts:'
     }
 
-    It 'preserves the current HKLM child-key proof fix from main' {
-        $text = Get-Content -LiteralPath $script:enginePath -Raw
+    It 'preserves the current HKLM child-key proof fix inside the canonical reversible engine' {
+        $text = Get-Content -LiteralPath $script:statePath -Raw
         $text | Should -Match 'ConvertFrom-MachineWideConnectionKeyName'
         $text | Should -Match 'RawConnectionKeys'
         $text | Should -Match 'PSChildName'

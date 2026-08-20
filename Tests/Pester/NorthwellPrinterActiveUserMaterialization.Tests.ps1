@@ -3,14 +3,15 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:finalizerPath = Join-Path $script:repoRoot 'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1'
+    $script:batchFinalizerPath = Join-Path $script:repoRoot 'mapping\Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1'
     $script:agentPath = Join-Path $script:repoRoot 'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1'
     $script:quickCmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
     $script:batchCmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinters-Batch.cmd'
 }
 
 Describe 'Northwell active-user printer materialization regression' {
-    It 'parses the new Windows PowerShell 5.1 surfaces' {
-        foreach ($path in @($script:finalizerPath, $script:agentPath)) {
+    It 'parses the Windows PowerShell 5.1 finalization surfaces' {
+        foreach ($path in @($script:finalizerPath, $script:batchFinalizerPath, $script:agentPath)) {
             $tokens = $null
             $errors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile(
@@ -56,7 +57,9 @@ Describe 'Northwell active-user printer materialization regression' {
     }
 
     It 'does not introduce a test page, direct-IP mapping, stored-password flow, or Add-Printer fallback' {
-        $text = (Get-Content -LiteralPath $script:finalizerPath -Raw) + "`n" + (Get-Content -LiteralPath $script:agentPath -Raw)
+        $text = (Get-Content -LiteralPath $script:finalizerPath -Raw) + "`n" +
+            (Get-Content -LiteralPath $script:batchFinalizerPath -Raw) + "`n" +
+            (Get-Content -LiteralPath $script:agentPath -Raw)
         $text | Should -Not -Match 'PrintTestPage'
         $text | Should -Not -Match 'Add-Printer\s+-ConnectionName'
         $text | Should -Not -Match 'Get-Credential'
@@ -72,13 +75,25 @@ Describe 'Northwell active-user printer materialization regression' {
         $text | Should -Match 'New-SasNorthwellPrinterTaskCreateArguments'
     }
 
-    It 'runs the finalizer after successful quick and batch registration before returning success' {
-        foreach ($path in @($script:quickCmdPath, $script:batchCmdPath)) {
-            $text = Get-Content -LiteralPath $path -Raw
-            $finalizerIndex = $text.IndexOf('Confirm-NorthwellPrinterActiveUserMaterialization.ps1')
-            $startIndex = $text.IndexOf('Start-NorthwellPrinter')
-            $finalizerIndex | Should -BeGreaterThan $startIndex
-            $text | Should -Match 'Mapping is NOT complete|mapping is not complete'
-        }
+    It 'keeps the quick mapper on the canonical active-user finalizer' {
+        $text = Get-Content -LiteralPath $script:quickCmdPath -Raw
+        $finalizerIndex = $text.IndexOf('Confirm-NorthwellPrinterActiveUserMaterialization.ps1')
+        $startIndex = $text.IndexOf('Start-NorthwellPrinterMapping.ps1')
+        $finalizerIndex | Should -BeGreaterThan $startIndex
+        $text | Should -Match 'Mapping is NOT complete|mapping is not complete'
+    }
+
+    It 'finalizes batch Map groups without reconnecting Unmap groups' {
+        $batchCmd = Get-Content -LiteralPath $script:batchCmdPath -Raw
+        $batchCmd | Should -Match 'Confirm-NorthwellPrinterBatchActiveUserMaterialization\.ps1'
+        $batchCmd | Should -Match 'Map rows only'
+
+        $batchFinalizer = Get-Content -LiteralPath $script:batchFinalizerPath -Raw
+        $batchFinalizer | Should -Match '\$action\s*='
+        $batchFinalizer | Should -Match '\$action\.Equals'
+        $batchFinalizer | Should -Match '\$skippedUnmapGroups\+\+'
+        $batchFinalizer | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
+        $batchFinalizer | Should -Match 'SkippedUnmapGroups = \$skippedUnmapGroups'
+        $batchFinalizer | Should -Match 'Machine-wide batch state succeeded, but active-user finalization failed'
     }
 }
