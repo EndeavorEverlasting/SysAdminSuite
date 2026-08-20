@@ -37,12 +37,12 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
     }
 
     It 'defines canonical HKLM connection-key conversion to lowercase UNC' {
-        $script:convertFnText | Should -Match [regex]::Escape("'^,,([^,]+),(.+)$'")
-        $script:convertFnText | Should -Match [regex]::Escape("('\\{0}\{1}' -f `$Matches[1],`$Matches[2]).ToLowerInvariant()")
+        $script:convertFnText | Should -Match ([regex]::Escape("'^,,([^,]+),(.+)$'"))
+        $script:convertFnText | Should -Match ([regex]::Escape("('\\{0}\{1}' -f `$Matches[1],`$Matches[2]).ToLowerInvariant()"))
     }
 
     It 'builds a direct rundll32 task action without cmd or a staged script' {
-        $script:taskActionFnText | Should -Match [regex]::Escape("Join-Path `$SystemRoot 'System32\rundll32.exe'")
+        $script:taskActionFnText | Should -Match ([regex]::Escape("Join-Path `$SystemRoot 'System32\rundll32.exe'"))
         $script:taskActionFnText | Should -Match 'printui\.dll,PrintUIEntry'
         $script:taskActionFnText | Should -Match '\{1\} /n"\{2\}"'
         $script:taskActionFnText | Should -Not -Match '(?i)cmd\.exe|powershell|\.ps1'
@@ -93,7 +93,18 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $fallbackIndex | Should -BeGreaterThan $preserveIndex
     }
 
-    It 'routes the quick mapper through the resilient orchestrator' {
+    It 'verifies both shareless helper files are tracked and clean at runtime HEAD before execution' {
+        $script:cmdText | Should -Match 'Invoke-NorthwellPrinterResilientQuick\.ps1'
+        $script:cmdText | Should -Match 'Invoke-NorthwellPrinterTaskRegistryFallback\.ps1'
+        $script:cmdText | Should -Match 'ls-files --error-unmatch'
+        $script:cmdText | Should -Match 'diff --quiet HEAD'
+        $integrityIndex = $script:cmdText.IndexOf('ls-files --error-unmatch',[System.StringComparison]::Ordinal)
+        $launchIndex = $script:cmdText.IndexOf('-File "%~dp0mapping\Invoke-NorthwellPrinterResilientQuick.ps1"',[System.StringComparison]::Ordinal)
+        $integrityIndex | Should -BeGreaterThan -1
+        $launchIndex | Should -BeGreaterThan $integrityIndex
+    }
+
+    It 'routes the quick mapper through the resilient orchestrator and keeps canonical mapping as its first hop' {
         $script:cmdText | Should -Match 'Invoke-NorthwellPrinterResilientQuick\.ps1'
         $script:cmdText | Should -Match 'Start-NorthwellPrinterMapping\.ps1 -Action Map'
         $script:cmdText | Should -Not -Match '-File "%~dp0mapping\\Start-NorthwellPrinterMapping\.ps1" -Action Map'
