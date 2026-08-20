@@ -7,7 +7,7 @@ BeforeAll {
     $script:requiredFixturePaths = @(
         'Map-NorthwellPrinter-SystemWide.cmd',
         'mapping\Start-NorthwellPrinterMapping.ps1',
-        'mapping\Invoke-NorthwellPrinterMapping.ps1',
+        'mapping\Invoke-NorthwellPrinterState.ps1',
         'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
         'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
         'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1',
@@ -27,7 +27,6 @@ BeforeAll {
             $value = if ($relativePath -like '*.json') { '{"schemaVersion":"fixture"}' } elseif ($relativePath -like '*.cmd') { '@echo off' } else { "# fixture: $relativePath" }
             Set-Content -LiteralPath $path -Value $value -Encoding ASCII
         }
-
         & git.exe -C $Root init | Out-Null
         & git.exe -C $Root config user.email 'fixture@example.invalid'
         & git.exe -C $Root config user.name 'SysAdminSuite Fixture'
@@ -39,112 +38,103 @@ BeforeAll {
     }
 }
 
-Describe 'Northwell printer from-anywhere bootstrap contract' {
+Describe 'Northwell printer current-runtime bootstrap contract' {
     It 'does not require the caller to already be inside a Git repository' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         $text | Should -Not -Match 'rev-parse\s+--show-toplevel'
-        $text | Should -Match 'Current directory is not used as repository authority'
+        $text | Should -Match 'Current directory and dirty operator checkouts are not repository authority'
         $text | Should -Match 'SAS_RUNTIME_ROOT'
         $text | Should -Match 'C:\\SASAL'
         $text | Should -Match 'SAS_REPO_ROOT'
-        $text | Should -Match 'LOCALAPPDATA'
     }
 
-    It 'pins the active-user printer baseline and accepts newer mainline by ancestry' {
+    It 'treats RequiredCommit only as a safety baseline and proves the exact fetched branch head before default launch' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         $text.Contains("[string]`$RequiredCommit = '66d38dd45881692303f77267e29e4fa44b4a9351'") | Should -BeTrue
-        $text | Should -Match "merge-base','--is-ancestor"
-        $text | Should -Match 'Current origin/\$Branch does not contain required printer fix commit'
-        $text | Should -Not -Match 'origin/main.*-ne.*RequiredCommit'
+        $text | Should -Match "fetch','--no-tags','--prune','origin'"
+        $text | Should -Match 'refs/remotes/origin/\$Branch'
+        $text | Should -Match '\$remoteHead = Get-SasGitScalar'
+        $text | Should -Match 'if \(\$runtimeHead -ne \$remoteHead\)'
+        $text | Should -Match 'CURRENT_ORIGIN_BRANCH_HEAD_PROVEN'
+        $text | Should -Match 'Stale local printer code will not be launched'
+        $text | Should -Not -Match 'Find-SasEligiblePrinterRuntime -Required \$RequiredCommit'
     }
 
-    It 'requires complete printer-owned runtime authority and preserves unrelated operator work' {
+    It 'requires the current reversible state engine instead of the stale mapping-only engine as runtime authority' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
-        foreach ($path in @(
-            'mapping\\Invoke-NorthwellPrinterMapping\.ps1',
-            'NorthwellPrinterMapping\.Core\.psm1',
-            'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1',
-            'Invoke-NorthwellPrinterActiveUserAgent\.ps1',
-            'SasTargetNameResolution\.psm1',
-            'SasNetworkGuard\.psm1',
-            'SasInteractionCache\.psm1',
-            'interaction-cache-policy\.json'
-        )) { $text | Should -Match $path }
+        $text | Should -Match 'mapping\\Invoke-NorthwellPrinterState\.ps1'
+        $text | Should -Not -Match "'mapping\\Invoke-NorthwellPrinterMapping\.ps1'"
+        $text | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
+        $text | Should -Match 'Invoke-NorthwellPrinterActiveUserAgent\.ps1'
+    }
+
+    It 'keeps operator checkout changes outside runtime authority and never destroys them' {
+        $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         $text | Should -Match "status','--porcelain','--untracked-files=no','--'"
         $text | Should -Match '\$statusArguments \+= @\(\$script:requiredRuntimePaths\)'
-        $text | Should -Match 'Test-SasTrackedRuntimeClean -Root \$candidate'
-        $text | Should -Match "worktree','add','--detach'"
         $text | Should -Not -Match 'reset\s+--hard'
         $text | Should -Not -Match 'clean\s+-[a-zA-Z]*f'
+        $text | Should -Not -Match 'stash\b'
+        $text | Should -Not -Match 'git\s+commit'
         $text | Should -Not -Match 'checkout\s+-f'
-        $text | Should -Match 'latest-runtime\.txt'
     }
 
-    It 'binds an existing dedicated cache to that exact root rather than an enclosing repository' {
-        $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
-        $text | Should -Match 'Test-SasDedicatedCacheRoot'
-        $text.Contains("Join-Path `$Root '.git'") | Should -BeTrue
-        $text | Should -Match "rev-parse','--is-inside-work-tree"
-        $text | Should -Match 'not the dedicated Git worktree'
-    }
-
-    It 'serializes dedicated cache/runtime creation instead of racing shared worktree paths' {
+    It 'serializes exact-head cache/runtime creation and validates the dedicated origin' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         $text | Should -Match 'System\.Threading\.Mutex'
         $text | Should -Match 'SysAdminSuitePrinterBootstrapCache'
-        $text | Should -Match 'WaitOne'
-        $text | Should -Match 'ReleaseMutex'
+        $text | Should -Match 'Test-SasDedicatedCacheRoot'
+        $text | Should -Match 'Test-SasExpectedOrigin'
+        $text | Should -Match "worktree','add','--detach'"
+        $text | Should -Match 'latest-runtime\.txt'
     }
 
-    It 'does not expose a repository URL that conflicts with fixed origin validation' {
+    It 'keeps an explicit local-only escape hatch separate from normal sas printer currentness claims' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
-        $text.Contains("`$repositoryUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git'") | Should -BeTrue
-        $text | Should -Not -Match '\[string\]\$RepositoryUrl'
+        $text | Should -Match '\[switch\]\$UseLocalRuntimeOnly'
+        $text | Should -Match 'EXPLICIT_LOCAL_ONLY_NO_ORIGIN_CURRENTNESS_CLAIM'
+        $text | Should -Match 'if \(\$UseLocalRuntimeOnly\)'
+        $text | Should -Match 'else \{\s*\$mutex = New-Object System\.Threading\.Mutex'
     }
 
-    It 'adds no reachability ritual before printer mapping' {
+    It 'adds no reachability or test-page ritual before printer mapping' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         $text | Should -Not -Match '(?im)^\s*Test-Connection\b'
         $text | Should -Not -Match '(?im)^\s*&?\s*ping(?:\.exe)?\b'
-        $text | Should -Not -Match '(?i)-Count\s+5\b'
+        $text | Should -Not -Match '(?i)PrintTestPage'
     }
 
-    It 'keeps the clickable wrapper self-relative, baseline-pinned, and exit-code preserving' {
+    It 'keeps the clickable wrapper self-relative and exit-code preserving' {
         Test-Path -LiteralPath $script:bootstrapCmdPath | Should -BeTrue
         $cmd = Get-Content -LiteralPath $script:bootstrapCmdPath -Raw
         $cmd | Should -Match '%~dp0Bootstrap-SysAdminSuitePrinter\.ps1'
         $cmd | Should -Match '%SystemRoot%\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe'
-        $cmd | Should -Match '-RequiredCommit 66d38dd45881692303f77267e29e4fa44b4a9351'
         $cmd | Should -Match 'exit /b %ERRORLEVEL%'
     }
 
-    It 'resolves a valid runtime from an arbitrary non-repository working directory' {
+    It 'can explicitly resolve a clean local fixture from an arbitrary non-repository directory without claiming latest origin' {
         $fixture = Join-Path $TestDrive 'runtime'
         $arbitraryCwd = Join-Path $TestDrive 'not-a-repo'
         $localAppData = Join-Path $TestDrive 'localappdata'
-        New-Item -ItemType Directory -Path $arbitraryCwd -Force | Out-Null
-        New-Item -ItemType Directory -Path $localAppData -Force | Out-Null
+        New-Item -ItemType Directory -Path $arbitraryCwd,$localAppData -Force | Out-Null
         $head = New-SasPrinterBootstrapFixture -Root $fixture
 
-        $oldRuntime = $env:SAS_RUNTIME_ROOT
-        $oldRepo = $env:SAS_REPO_ROOT
-        $oldLocalAppData = $env:LOCALAPPDATA
+        $oldRuntime = $env:SAS_RUNTIME_ROOT; $oldRepo = $env:SAS_REPO_ROOT; $oldLocalAppData = $env:LOCALAPPDATA
         try {
             $env:SAS_RUNTIME_ROOT = $fixture
             Remove-Item Env:SAS_REPO_ROOT -ErrorAction SilentlyContinue
             $env:LOCALAPPDATA = $localAppData
             Push-Location $arbitraryCwd
             try {
-                $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:bootstrapPath -RequiredCommit $head -NoLaunch 2>&1)
+                $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:bootstrapPath -RequiredCommit $head -UseLocalRuntimeOnly -NoLaunch 2>&1)
                 $bootstrapExit = [int]$LASTEXITCODE
-                if ($bootstrapExit -ne 0) {
-                    throw "Bootstrap fixture exited $bootstrapExit.`n$($output -join [Environment]::NewLine)"
-                }
+                if ($bootstrapExit -ne 0) { throw "Bootstrap fixture exited $bootstrapExit.`n$($output -join [Environment]::NewLine)" }
             }
             finally { Pop-Location }
 
             $outputText = $output -join "`n"
             $outputText | Should -Match 'PASS: printer runtime resolved; launcher not executed'
+            $outputText | Should -Match 'EXPLICIT_LOCAL_ONLY_NO_ORIGIN_CURRENTNESS_CLAIM'
             $outputText.Contains($fixture) | Should -BeTrue
         }
         finally {
@@ -154,26 +144,22 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
         }
     }
 
-    It 'rejects a dirty printer-owned reusable runtime instead of executing tracked local edits' {
+    It 'rejects printer-owned local edits in explicit local-only mode instead of executing or committing them' {
         $fixture = Join-Path $TestDrive 'dirty-runtime'
         $localAppData = Join-Path $TestDrive 'dirty-localappdata'
-        $badCache = Join-Path $localAppData 'bad-cache'
         New-Item -ItemType Directory -Path $localAppData -Force | Out-Null
-        New-Item -ItemType Directory -Path $badCache -Force | Out-Null
         $head = New-SasPrinterBootstrapFixture -Root $fixture
         Add-Content -LiteralPath (Join-Path $fixture 'mapping\Start-NorthwellPrinterMapping.ps1') -Value '# tracked local edit'
 
-        $oldRuntime = $env:SAS_RUNTIME_ROOT
-        $oldRepo = $env:SAS_REPO_ROOT
-        $oldLocalAppData = $env:LOCALAPPDATA
+        $oldRuntime = $env:SAS_RUNTIME_ROOT; $oldRepo = $env:SAS_REPO_ROOT; $oldLocalAppData = $env:LOCALAPPDATA
         try {
             $env:SAS_RUNTIME_ROOT = $fixture
             Remove-Item Env:SAS_REPO_ROOT -ErrorAction SilentlyContinue
             $env:LOCALAPPDATA = $localAppData
-            $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:bootstrapPath -RequiredCommit $head -CacheRoot $badCache -NoLaunch 2>&1)
+            $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:bootstrapPath -RequiredCommit $head -UseLocalRuntimeOnly -NoLaunch 2>&1)
             $LASTEXITCODE | Should -Not -Be 0
-            ($output -join "`n") | Should -Match 'cache path already exists but is not the dedicated Git worktree'
-            ($output -join "`n") | Should -Not -Match 'PASS: printer runtime resolved'
+            ($output -join "`n") | Should -Match 'No clean local printer runtime contains the required baseline'
+            (& git.exe -C $fixture status --porcelain) | Should -Match 'Start-NorthwellPrinterMapping\.ps1'
         }
         finally {
             if ($null -eq $oldRuntime) { Remove-Item Env:SAS_RUNTIME_ROOT -ErrorAction SilentlyContinue } else { $env:SAS_RUNTIME_ROOT = $oldRuntime }
