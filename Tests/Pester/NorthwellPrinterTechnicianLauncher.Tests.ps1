@@ -3,8 +3,10 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:launcherPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter.cmd'
+    $script:runtimeLauncherPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
     $script:installerPath = Join-Path $script:repoRoot 'scripts\Install-SasUniversalFieldLauncher.ps1'
     $script:operatorRunPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterOperatorRun.ps1'
+    $script:journalModulePath = Join-Path $script:repoRoot 'scripts\SasPrinterRunJournal.psm1'
     $script:startHerePath = Join-Path $script:repoRoot 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
     $script:generalStartHerePath = Join-Path $script:repoRoot 'START-HERE-SysAdminSuite.md'
     $script:techTutorialPath = Join-Path $script:repoRoot 'docs\tutorials\NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md'
@@ -58,8 +60,17 @@ Describe 'Northwell non-technical technician printer launcher' {
         $installer | Should -Match 'Printer technician CMD:'
     }
 
-    It 'documents the current operator outcome layer without claiming new live proof' {
+    It 'keeps the registered runtime launcher on the operator wrapper and local journal layer' {
+        Test-Path -LiteralPath $script:runtimeLauncherPath -PathType Leaf | Should -BeTrue
         Test-Path -LiteralPath $script:operatorRunPath -PathType Leaf | Should -BeTrue
+        Test-Path -LiteralPath $script:journalModulePath -PathType Leaf | Should -BeTrue
+        $runtime = Get-Content -LiteralPath $script:runtimeLauncherPath -Raw
+        $runtime | Should -Match 'Invoke-NorthwellPrinterOperatorRun\.ps1'
+        $runtime | Should -Match 'SasPrinterRunJournal\.psm1'
+        $runtime | Should -Not -Match '-File "%~dp0mapping\\Invoke-NorthwellPrinterResilientQuick\.ps1" -Action Map'
+    }
+
+    It 'documents the current operator outcome layer without claiming new live proof' {
         $operatorRun = Get-Content -LiteralPath $script:operatorRunPath -Raw
         $tutorial = Get-Content -LiteralPath $script:techTutorialPath -Raw
         $operatorRun | Should -Match 'MAPPED NOW:'
