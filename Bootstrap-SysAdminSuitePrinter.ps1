@@ -5,18 +5,20 @@ Launch the canonical Northwell printer mapper without requiring the current shel
 
 .DESCRIPTION
 This bootstrap is intentionally independent of the caller's current directory. It reuses only a complete,
-clean local SysAdminSuite runtime that contains the required printer fix by Git ancestry. If no eligible local
-runtime exists, it uses a dedicated LOCALAPPDATA Git cache, fetches main without force, proves the required
-fix is contained in main, and creates a persistent detached printer runtime keyed by the fetched commit.
+printer-clean local SysAdminSuite runtime that contains the required printer fix by Git ancestry. Unrelated
+tracked edits outside the printer-owned surface do not force a second runtime. If no eligible local runtime
+exists, it uses a dedicated machine-local Git cache when possible, fetches main without force, proves the
+required fix is contained in main, and creates a persistent detached printer runtime keyed by the fetched commit.
 
 The bootstrap never resets, cleans, or checks out an arbitrary operator repository. A dedicated runtime is
-left in place so the mapper's gitignored evidence remains available after the run.
+left in one controller-local state root so the mapper's gitignored evidence remains available after the run.
 #>
 [CmdletBinding()]
 param(
     [string]$Branch = 'main',
-    [string]$RequiredCommit = '5463c0ed3fedc4f9c5fe8048ead3cfc6bf2c434f',
+    [string]$RequiredCommit = '66d38dd45881692303f77267e29e4fa44b4a9351',
     [string]$CacheRoot,
+    [ValidateSet('Quick','File')][string]$Mode = 'Quick',
     [switch]$NoLaunch
 )
 
@@ -30,11 +32,21 @@ $requiredRuntimePaths = @(
     'mapping\Start-NorthwellPrinterMapping.ps1',
     'mapping\Invoke-NorthwellPrinterMapping.ps1',
     'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
+    'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
+    'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1',
     'scripts\SasTargetNameResolution.psm1',
     'scripts\SasNetworkGuard.psm1',
     'scripts\SasInteractionCache.psm1',
     'Config\interaction-cache-policy.json'
 )
+if ($Mode -eq 'File') {
+    $requiredRuntimePaths += @(
+        'Map-NorthwellPrinters-FromFile.cmd',
+        'Map-NorthwellPrinters-Batch.cmd',
+        'mapping\Start-NorthwellPrinterBatch.ps1',
+        'mapping\Examples\NorthwellPrinterBatch.example.csv'
+    )
+}
 
 function Resolve-SasGitExecutable {
     $command = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -50,7 +62,7 @@ function Resolve-SasGitExecutable {
             return [IO.Path]::GetFullPath([string]$candidate)
         }
     }
-    throw 'Git for Windows is required to prove printer runtime commit ancestry and clean tracked state.'
+    throw 'Git for Windows is required to prove printer runtime commit ancestry and printer-owned tracked state.'
 }
 
 function Invoke-SasGit {
@@ -162,7 +174,11 @@ function Test-SasCommitAncestor {
 
 function Test-SasTrackedRuntimeClean {
     param([Parameter(Mandatory = $true)][string]$Root)
-    $result = Invoke-SasGit -Root $Root -Arguments @('status','--porcelain','--untracked-files=no') -FailureMessage 'Could not inspect local runtime tracked state.' -AllowFailure
+    # Printer usability must not depend on unrelated local work. Scope tracked-state authority to
+    # exactly the printer files this mode will execute; edits to any of those files still fail closed.
+    $statusArguments = @('status','--porcelain','--untracked-files=no','--')
+    $statusArguments += @($script:requiredRuntimePaths)
+    $result = Invoke-SasGit -Root $Root -Arguments $statusArguments -FailureMessage 'Could not inspect printer-owned runtime tracked state.' -AllowFailure
     if ($result.ExitCode -ne 0) { return $false }
     return @($result.Lines | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0
 }
@@ -212,10 +228,46 @@ function Find-SasEligiblePrinterRuntime {
     return $null
 }
 
-if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { throw 'LOCALAPPDATA is required for the printer bootstrap state/cache.' }
+function Resolve-SasPrinterStateRoot {
+    # Prefer one controller-local state root so multiple technicians on the same machine reuse the
+    # same printer runtime instead of growing per-user copies. LOCALAPPDATA is compatibility-only for
+    # standalone bootstrap use on a machine where no writable machine runtime/state root exists yet.
+    $candidates = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($base in @($env:SAS_RUNTIME_ROOT, 'C:\SASAL')) {
+        if ([string]::IsNullOrWhiteSpace([string]$base)) { continue }
+        try { $fullBase = [IO.Path]::GetFullPath([string]$base) } catch { continue }
+        if ($fullBase -notmatch '^[A-Za-z]:\\' -or -not (Test-Path -LiteralPath $fullBase -PathType Container)) { continue }
+        $candidate = Join-Path $fullBase '.state\printer-bootstrap'
+        if (-not $candidates.Contains($candidate)) { [void]$candidates.Add($candidate) }
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$env:ProgramData)) {
+        $candidate = Join-Path $env:ProgramData 'SysAdminSuite\printer-bootstrap'
+        if (-not $candidates.Contains($candidate)) { [void]$candidates.Add($candidate) }
+    }
+
+    foreach ($candidate in $candidates) {
+        try {
+            New-Item -ItemType Directory -Path $candidate -Force -ErrorAction Stop | Out-Null
+            $probe = Join-Path $candidate ('.write-probe-' + [guid]::NewGuid().ToString('N'))
+            [IO.File]::WriteAllText($probe,'ok')
+            Remove-Item -LiteralPath $probe -Force -ErrorAction Stop
+            return [IO.Path]::GetFullPath($candidate)
+        }
+        catch { }
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$env:LOCALAPPDATA)) {
+        throw 'No writable machine-local printer state root is available, and LOCALAPPDATA fallback is unavailable.'
+    }
+    $fallback = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\printer-bootstrap'
+    New-Item -ItemType Directory -Path $fallback -Force -ErrorAction Stop | Out-Null
+    Write-Warning 'Machine-local printer state was not writable; using current-user compatibility state. Run the universal installer elevated to restore shared machine state.'
+    return [IO.Path]::GetFullPath($fallback)
+}
+
 $RequiredCommit = $RequiredCommit.Trim()
 if ([string]::IsNullOrWhiteSpace($RequiredCommit)) { throw 'RequiredCommit cannot be blank.' }
-$stateRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\printer-bootstrap'
+$stateRoot = Resolve-SasPrinterStateRoot
 if ([string]::IsNullOrWhiteSpace($CacheRoot)) { $CacheRoot = Join-Path $stateRoot 'source' }
 $CacheRoot = [IO.Path]::GetFullPath($CacheRoot)
 $runtimeParent = Join-Path $stateRoot 'runtimes'
@@ -234,7 +286,6 @@ if ([string]::IsNullOrWhiteSpace($runtimeRoot)) {
         catch [System.Threading.AbandonedMutexException] { $lockTaken = $true }
         if (-not $lockTaken) { throw 'Printer bootstrap cache is busy in another local process. No mapper was launched.' }
 
-        # Another process may have completed a runtime while this process waited for the lock.
         $selected = Find-SasEligiblePrinterRuntime -Required $RequiredCommit
         if ($null -ne $selected) {
             $runtimeRoot = [string]$selected.Root
@@ -279,7 +330,7 @@ if ([string]::IsNullOrWhiteSpace($runtimeRoot)) {
                 Invoke-SasGit -Root $CacheRoot -Arguments @('worktree','add','--detach',$runtimeRoot,$remoteHead) -FailureMessage 'Could not create the dedicated detached printer runtime.' | Out-Null
             }
             if (-not (Test-SasPrinterRuntimeRoot -Root $runtimeRoot)) { throw "Acquired runtime is incomplete for canonical printer mapping: $runtimeRoot" }
-            if (-not (Test-SasTrackedRuntimeClean -Root $runtimeRoot)) { throw "Acquired runtime contains tracked modifications and will not be used: $runtimeRoot" }
+            if (-not (Test-SasTrackedRuntimeClean -Root $runtimeRoot)) { throw "Acquired runtime contains tracked printer modifications and will not be used: $runtimeRoot" }
             $runtimeHead = Get-SasRuntimeHead -Root $runtimeRoot
             if (-not (Test-SasCommitAncestor -Root $runtimeRoot -Ancestor $RequiredCommit -Descendant $runtimeHead)) {
                 throw "Acquired runtime does not contain required printer fix commit $RequiredCommit."
@@ -297,6 +348,8 @@ Write-Host 'SysAdminSuite printer bootstrap' -ForegroundColor Cyan
 Write-Host ("Runtime: {0}" -f $runtimeRoot)
 Write-Host ("Commit:  {0}" -f $runtimeHead)
 Write-Host ("Required fix: {0}" -f $RequiredCommit)
+Write-Host ("Mode: {0}" -f $Mode)
+Write-Host ("State root: {0}" -f $stateRoot)
 Write-Host 'Current directory is not used as repository authority.' -ForegroundColor DarkGray
 
 if ($NoLaunch) {
@@ -304,8 +357,9 @@ if ($NoLaunch) {
     exit 0
 }
 
-$launcher = Join-Path $runtimeRoot 'Map-NorthwellPrinter-SystemWide.cmd'
-Write-Host 'Launching Northwell system-wide printer mapper...' -ForegroundColor Green
+$launcherName = if ($Mode -eq 'File') { 'Map-NorthwellPrinters-FromFile.cmd' } else { 'Map-NorthwellPrinter-SystemWide.cmd' }
+$launcher = Join-Path $runtimeRoot $launcherName
+Write-Host ("Launching Northwell printer mapper: {0}" -f $Mode) -ForegroundColor Green
 & $launcher
 $exitCode = [int]$LASTEXITCODE
 exit $exitCode
