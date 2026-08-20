@@ -76,7 +76,7 @@ try {
     [IO.File]::WriteAllText($firstPath,'first',[Text.Encoding]::UTF8)
     [IO.File]::WriteAllText($secondPath,'second',[Text.Encoding]::UTF8)
 
-    $preparedCommit = ('a' * 40)
+    $preparedCommit = (('a' * 40) -join '')
     $manifest = [pscustomobject][ordered]@{
         schema_version = 'sas-autologon-short-runtime/v2'
         runtime_root = $runtime
@@ -91,8 +91,8 @@ try {
         tracked_file_hash_algorithm = 'SHA256'
         tracked_file_count = 2
         tracked_file_hashes = @(
-            [pscustomobject][ordered]@{ path='scripts/one.ps1'; sha256=('0' * 64) },
-            [pscustomobject][ordered]@{ path='scripts/two.ps1'; sha256=('1' * 64) }
+            [pscustomobject][ordered]@{ path='scripts/one.ps1'; sha256=(('0' * 64) -join '') },
+            [pscustomobject][ordered]@{ path='scripts/two.ps1'; sha256=(('1' * 64) -join '') }
         )
         target_contact_performed = $false
         target_mutation_performed = $false
