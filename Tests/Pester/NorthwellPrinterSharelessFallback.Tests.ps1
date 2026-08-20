@@ -3,10 +3,14 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $script:repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
         $script:fallbackPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterTaskRegistryFallback.ps1'
         $script:resilientPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterResilientQuick.ps1'
+        $script:activeRouterPath = Join-Path $script:repoRoot 'mapping\Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1'
+        $script:sharelessActivePath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterSharelessActiveUser.ps1'
         $script:cmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
         $script:corePath = Join-Path $script:repoRoot 'mapping\Modules\NorthwellPrinterMapping.Core.psm1'
         $script:fallbackText = Get-Content -LiteralPath $script:fallbackPath -Raw
         $script:resilientText = Get-Content -LiteralPath $script:resilientPath -Raw
+        $script:activeRouterText = Get-Content -LiteralPath $script:activeRouterPath -Raw
+        $script:sharelessActiveText = Get-Content -LiteralPath $script:sharelessActivePath -Raw
         $script:cmdText = Get-Content -LiteralPath $script:cmdPath -Raw
 
         $tokens = $null
@@ -16,6 +20,14 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $tokens = $null
         $errors = $null
         $script:resilientAst = [System.Management.Automation.Language.Parser]::ParseFile($script:resilientPath,[ref]$tokens,[ref]$errors)
+        if (@($errors).Count -gt 0) { throw ($errors | ForEach-Object Message | Out-String) }
+        $tokens = $null
+        $errors = $null
+        $script:activeRouterAst = [System.Management.Automation.Language.Parser]::ParseFile($script:activeRouterPath,[ref]$tokens,[ref]$errors)
+        if (@($errors).Count -gt 0) { throw ($errors | ForEach-Object Message | Out-String) }
+        $tokens = $null
+        $errors = $null
+        $script:sharelessActiveAst = [System.Management.Automation.Language.Parser]::ParseFile($script:sharelessActivePath,[ref]$tokens,[ref]$errors)
         if (@($errors).Count -gt 0) { throw ($errors | ForEach-Object Message | Out-String) }
 
         $script:convertFnText = ($script:fallbackAst.Find({
@@ -31,9 +43,11 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         Import-Module $script:corePath -Force
     }
 
-    It 'parses both new PowerShell entrypoints' {
+    It 'parses all resilient mapping and active-user entrypoints' {
         $script:fallbackAst | Should -Not -BeNullOrEmpty
         $script:resilientAst | Should -Not -BeNullOrEmpty
+        $script:activeRouterAst | Should -Not -BeNullOrEmpty
+        $script:sharelessActiveAst | Should -Not -BeNullOrEmpty
     }
 
     It 'defines canonical HKLM connection-key conversion to lowercase UNC' {
@@ -76,6 +90,8 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
     It 'does not introduce test-page or direct-IP printer behavior' {
         $script:fallbackText | Should -Not -Match '(?i)PrintTestPage|TestPagePrinted\s*=\s*\$true|Add-PrinterPort|Standard TCP/IP|/if\b'
         $script:fallbackText | Should -Match 'TestPagesPrinted\s*=\s*\$false'
+        $script:sharelessActiveText | Should -Not -Match '(?i)PrintTestPage|Add-PrinterPort|Standard TCP/IP'
+        $script:sharelessActiveText | Should -Match 'TestPagesPrinted=\$false'
     }
 
     It 'permits replay only for complete pre-mutation administrative-staging failures' {
@@ -93,9 +109,35 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $fallbackIndex | Should -BeGreaterThan $preserveIndex
     }
 
-    It 'verifies both shareless helper files are tracked and clean at runtime HEAD before execution' {
-        $script:cmdText | Should -Match 'Invoke-NorthwellPrinterResilientQuick\.ps1'
-        $script:cmdText | Should -Match 'Invoke-NorthwellPrinterTaskRegistryFallback\.ps1'
+    It 'routes active-user finalization according to the successful machine-wide transport' {
+        $script:activeRouterText | Should -Match ([regex]::Escape("REMOTE_TASK_SCHEDULER+REMOTE_REGISTRY_NO_ADMIN_SHARE"))
+        $script:activeRouterText | Should -Match 'Invoke-NorthwellPrinterSharelessActiveUser\.ps1'
+        $script:activeRouterText | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
+    }
+
+    It 'uses remote InteractiveToken tasks and HKU proof for loaded users without SMB staging' {
+        $script:sharelessActiveText | Should -Match "New-Object -ComObject 'Schedule\.Service'"
+        $script:sharelessActiveText | Should -Match '\.Connect\(\$Computer\)'
+        $script:sharelessActiveText | Should -Match 'Principal\.LogonType = 3'
+        $script:sharelessActiveText | Should -Match 'RegisterTaskDefinition'
+        $script:sharelessActiveText | Should -Match 'PrintUIEntry /in'
+        $script:sharelessActiveText | Should -Match 'HKU\\\$Sid\\Printers\\Connections'
+        $script:sharelessActiveText | Should -Match 'Assert-SasNorthwellPrinterStatusProof'
+        $script:sharelessActiveText | Should -Not -Match '(?i)\\C\$|\\ADMIN\$|Copy-Item.+\\\\'
+    }
+
+    It 'reports no loaded interactive user as durable machine-wide registration pending next logon' {
+        $script:sharelessActiveText | Should -Match 'MACHINE_WIDE_REGISTERED_PENDING_NEXT_LOGON'
+        $script:sharelessActiveText | Should -Match 'PendingNextLogon=\$true'
+    }
+
+    It 'verifies all resilient helper files are tracked and clean at runtime HEAD before execution' {
+        foreach ($name in @(
+            'Invoke-NorthwellPrinterResilientQuick.ps1',
+            'Invoke-NorthwellPrinterTaskRegistryFallback.ps1',
+            'Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1',
+            'Invoke-NorthwellPrinterSharelessActiveUser.ps1'
+        )) { $script:cmdText | Should -Match ([regex]::Escape($name)) }
         $script:cmdText | Should -Match 'ls-files --error-unmatch'
         $script:cmdText | Should -Match 'diff --quiet HEAD'
         $integrityIndex = $script:cmdText.IndexOf('ls-files --error-unmatch',[System.StringComparison]::Ordinal)
@@ -104,9 +146,11 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $launchIndex | Should -BeGreaterThan $integrityIndex
     }
 
-    It 'routes the quick mapper through the resilient orchestrator and keeps canonical mapping as its first hop' {
+    It 'routes the quick mapper through resilient mapping and resilient active-user finalization' {
         $script:cmdText | Should -Match 'Invoke-NorthwellPrinterResilientQuick\.ps1'
+        $script:cmdText | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterializationResilient\.ps1'
         $script:cmdText | Should -Match 'Start-NorthwellPrinterMapping\.ps1 -Action Map'
         $script:cmdText | Should -Not -Match '-File "%~dp0mapping\\Start-NorthwellPrinterMapping\.ps1" -Action Map'
+        $script:cmdText | Should -Not -Match '-File "%~dp0mapping\\Confirm-NorthwellPrinterActiveUserMaterialization\.ps1"'
     }
 }
