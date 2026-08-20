@@ -9,6 +9,9 @@ on:
     paths:
       - 'AGENTS.md'
       - 'Map-NorthwellPrinter.cmd'
+      - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'mapping/Invoke-NorthwellPrinterOperatorRun.ps1'
+      - 'scripts/SasPrinterRunJournal.psm1'
       - 'scripts/Install-SasUniversalFieldLauncher.ps1'
       - 'START-HERE-SysAdminSuite.md'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
@@ -23,6 +26,9 @@ on:
     paths:
       - 'AGENTS.md'
       - 'Map-NorthwellPrinter.cmd'
+      - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'mapping/Invoke-NorthwellPrinterOperatorRun.ps1'
+      - 'scripts/SasPrinterRunJournal.psm1'
       - 'scripts/Install-SasUniversalFieldLauncher.ps1'
       - 'START-HERE-SysAdminSuite.md'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
@@ -43,12 +49,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Parse installer under Windows PowerShell 5.1
+      - name: Parse owned and dependent PowerShell surfaces under Windows PowerShell 5.1
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           foreach ($relative in @(
             'scripts\Install-SasUniversalFieldLauncher.ps1',
+            'mapping\Invoke-NorthwellPrinterOperatorRun.ps1',
+            'scripts\SasPrinterRunJournal.psm1',
             'Tests\Pester\NorthwellPrinterTechnicianLauncher.Tests.ps1'
           )) {
             $tokens = $null
