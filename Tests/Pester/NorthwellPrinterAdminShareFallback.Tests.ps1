@@ -34,7 +34,7 @@ Describe 'Northwell printer administrative staging fallback' {
         $script:engineText | Should -Match "LocalRoot = 'C:\\ProgramData'"
         $script:engineText | Should -Match 'AdminRelative = "System32\\config\\systemprofile\\AppData\\Local\\\$remoteSubPath"'
         $script:engineText | Should -Match "LocalRoot = '%SystemRoot%\\System32\\config\\systemprofile\\AppData\\Local'"
-        $script:engineText | Should -Not -Match "AdminRelative = \"Temp\\"
+        $script:engineText | Should -Not -Match 'AdminRelative = "Temp\\'
         $script:engineText | Should -Not -Match "LocalRoot = '%SystemRoot%\\Temp'"
     }
 
@@ -67,7 +67,7 @@ Describe 'Northwell printer administrative staging fallback' {
     It 'surfaces the selected staging route in read-only evidence diagnostics' {
         $script:engineText | Should -Match 'StagingShare = \$null'
         $script:engineText | Should -Match '\$hostResult\.StagingShare = \[string\]\$staging\.Name'
-        $script:diagnosticText | Should -Match "Get-SasStatusString -Status \$Result -Name 'StagingShare'"
+        $script:diagnosticText | Should -Match 'Get-SasStatusString -Status \$Result -Name ''StagingShare'''
         $script:diagnosticText | Should -Match 'SUMMARY_STAGING_SHARE='
         $script:diagnosticText | Should -Match 'staging_share = \$stagingShare'
     }
