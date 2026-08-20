@@ -19,6 +19,31 @@ Describe 'Northwell printer low-rework interaction UX' {
         $content | Should -Match "Get-SasRecentInteractionValues -Kind Server"
     }
 
+    It 'accepts an empty recent-value list under Windows PowerShell 5.1' {
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:interactivePath,[ref]$tokens,[ref]$parseErrors)
+        @($parseErrors).Count | Should -Be 0
+        $functionAst = $ast.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Show-SasRecentValues'
+        },$true)
+        $functionAst | Should -Not -BeNullOrEmpty
+
+        $fixturePath = Join-Path $TestDrive 'empty-recent-values.ps1'
+        Set-Content -LiteralPath $fixturePath -Encoding ASCII -Value @(
+            '$ErrorActionPreference = ''Stop'''
+            $functionAst.Extent.Text
+            "Show-SasRecentValues -Title 'Recent proven target PCs:' -Values @()"
+            "Write-Output 'EMPTY_RECENT_VALUES_OK'"
+        )
+        $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $output = @(& $windowsPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $fixturePath 2>&1)
+        $exitCode = [int]$LASTEXITCODE
+        if ($exitCode -ne 0) { throw "Windows PowerShell empty-recent-values fixture exited $exitCode.`n$($output -join [Environment]::NewLine)" }
+        ($output -join "`n") | Should -Match 'EMPTY_RECENT_VALUES_OK'
+    }
+
     It 'records history only after fresh authoritative SYSTEM plus HKLM proof succeeds' {
         $content = Get-Content -LiteralPath $script:interactivePath -Raw
         $successIndex = $content.IndexOf('$authoritativeSuccess =')
