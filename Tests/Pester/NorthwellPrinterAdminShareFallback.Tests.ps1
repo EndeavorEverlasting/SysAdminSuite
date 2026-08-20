@@ -26,10 +26,10 @@ Describe 'Northwell printer administrative staging fallback' {
     }
 
     It 'uses safe matching local paths for each administrative share' {
-        $script:engineText | Should -Match "AdminRelative = \"ProgramData\\\\\$remoteSubPath\""
-        $script:engineText | Should -Match "LocalRoot = 'C:\\\\ProgramData'"
-        $script:engineText | Should -Match "AdminRelative = \"Temp\\\\\$remoteSubPath\""
-        $script:engineText | Should -Match "LocalRoot = '%SystemRoot%\\\\Temp'"
+        $script:engineText | Should -Match 'AdminRelative = "ProgramData\\\$remoteSubPath"'
+        $script:engineText | Should -Match "LocalRoot = 'C:\\ProgramData'"
+        $script:engineText | Should -Match 'AdminRelative = "Temp\\\$remoteSubPath"'
+        $script:engineText | Should -Match "LocalRoot = '%SystemRoot%\\Temp'"
         $script:engineText | Should -Match 'StagingShare = if'
     }
 
