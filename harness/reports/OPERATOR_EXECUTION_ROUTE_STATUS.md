@@ -17,7 +17,15 @@
 
 Previously, a fresh agent could select the correct product command (`sas autologon Remote HOST`) yet still hand it to the operator without resolving where to run it. That forced the operator to reacquire repository context and bypassed the stronger crash-safe launcher already registered elsewhere in the harness.
 
-Review also exposed three failure modes in the first route implementation: mutable working-tree state could affect pre-push proof, malformed registry documents were not fully schema-validated, and raw target interpolation/partial dependency checks could make the generated one-liner unsafe or late-failing. The current route makes pushed-tip validation, Draft 2020-12 schema enforcement, encoded target transport, complete dependency proof, and operator-shell preservation executable contracts.
+Review also exposed three failure modes in the first route implementation: mutable working-tree state could affect pre-push proof, malformed registry documents were not fully schema-validated, and raw target interpolation/partial dependency checks could make the generated one-liner unsafe or late-failing. The current route makes pushed-tip validation, Draft 2020-12 schema enforcement, encoded target transport, complete dependency proof, deterministic target-rejection dispositions, and operator-shell preservation executable contracts.
+
+## VPN-only field expectation
+
+- The existing protected-network authority accepts a live Windows `DomainAuthenticated` non-Wi-Fi path supplied by either approved Ethernet/LAN or an authenticated VPN adapter.
+- For this field run, VPN is the expected access path. Feedback that says the operator is on VPN is therefore context, not a failure classification by itself.
+- Interpret the run from the live protected-network and transport evidence (`OK_NETWORK_POSTURE`, transport classification/reason codes, timeout stage, and authorization result) rather than requiring an on-site Ethernet path.
+- Do not tell the operator to disconnect an approved VPN or switch to guest/off-network connectivity to make the command run.
+- If the protected-network gate or transport authorization fails on VPN, stop at that exact network/authorization boundary and use the durable field result for the next decision.
 
 ## Missing / not proven
 
@@ -33,9 +41,10 @@ Review also exposed three failure modes in the first route implementation: mutab
 - target transport: validated hostname/FQDN -> UTF-8 Base64 -> positional `-File` argument -> decode/revalidate
 - operator front door: `Run-AutoLogonCrashSafe.cmd HOST`
 - inner product command: `sas autologon Remote HOST`
+- required network: protected Northwell; authenticated `DomainAuthenticated` VPN is an approved path when that is the live protected interface
 - durable result: `%LOCALAPPDATA%\SysAdminSuite\field-runs\autologon\<run_id>\field-run-result.json`
 - latest pointer: `%LOCALAPPDATA%\SysAdminSuite\last-autologon-field-run.json`
 
 ## Operator expectation
 
-A correct handoff does not say only “run this command.” It either runs the registered route from the proven location, or gives one command that resolves the location and runs the tracked helper/front door without asking the operator to reconstruct the path. A failed child command leaves the operator shell available for evidence and recovery work.
+A correct handoff does not say only “run this command.” It either runs the registered route from the proven location, or gives one command that resolves the location and runs the tracked helper/front door without asking the operator to reconstruct the path. A failed child command leaves the operator shell available for evidence and recovery work. For VPN-confined execution, report VPN as the expected path type and let the live `DomainAuthenticated` network/transport evidence decide authorization.
