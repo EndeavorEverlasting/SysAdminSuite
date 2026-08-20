@@ -7,6 +7,16 @@ BeforeAll {
     $script:statePath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterState.ps1'
     $script:diagnosticPath = Join-Path $script:repoRoot 'mapping\Diagnose-NorthwellPrinterEvidence.ps1'
     $script:cmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
+
+    function Invoke-SasEvidenceDiagnosticFixture {
+        param([Parameter(Mandatory)][string]$Root)
+        $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:diagnosticPath -EvidenceRoot $Root 2>&1)
+        $exitCode = [int]$LASTEXITCODE
+        if ($exitCode -ne 0) {
+            throw "Printer evidence diagnostic fixture exited $exitCode.`n$($output -join [Environment]::NewLine)"
+        }
+        return $output
+    }
 }
 
 Describe 'Northwell quick mapping low-noise acceptance contract' {
@@ -108,8 +118,7 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
             RawConnectionKeys = @('{synthetic-guid}')
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $target 'Status.json') -Encoding UTF8
 
-        $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:diagnosticPath -EvidenceRoot $root 2>&1)
-        $LASTEXITCODE | Should -Be 0
+        $output = @(Invoke-SasEvidenceDiagnosticFixture -Root $root)
         $text = $output -join "`n"
         $text | Should -Match 'DIAGNOSTIC_STATUS=COMPLETED'
         $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
@@ -137,8 +146,7 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
             Missing=@();StillPresent=@();RawConnectionKeys=@(',,PRINTSRV01,QUEUE01')
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $target 'Status.json') -Encoding UTF8
 
-        $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:diagnosticPath -EvidenceRoot $root 2>&1)
-        $LASTEXITCODE | Should -Be 0
+        $output = @(Invoke-SasEvidenceDiagnosticFixture -Root $root)
         $text = $output -join "`n"
         $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_PRESENT'
         $text | Should -Match 'EVIDENCE_SET=COMPLETE'
@@ -161,8 +169,7 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
             ChangedPrinters=@('\\PRINTSRV01\QUEUE01');AlreadyDesiredPrinters=@();Missing=@();StillPresent=@();RawConnectionKeys=@(',,PRINTSRV01,QUEUE01')
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $target 'Status.json') -Encoding UTF8
 
-        $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:diagnosticPath -EvidenceRoot $root 2>&1)
-        $LASTEXITCODE | Should -Be 0
+        $output = @(Invoke-SasEvidenceDiagnosticFixture -Root $root)
         $text = $output -join "`n"
         $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
         $text | Should -Match 'EVIDENCE_SET=PARTIAL_STATUS_EVIDENCE'
@@ -184,8 +191,7 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
             })
         } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
 
-        $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:diagnosticPath -EvidenceRoot $root 2>&1)
-        $LASTEXITCODE | Should -Be 0
+        $output = @(Invoke-SasEvidenceDiagnosticFixture -Root $root)
         $text = $output -join "`n"
         $text | Should -Match 'DIAGNOSTIC_STATUS=COMPLETED'
         $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
