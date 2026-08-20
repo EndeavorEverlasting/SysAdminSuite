@@ -14,6 +14,7 @@ on:
       - 'harness/maps/OPERATOR_EXECUTION_ROUTE_MAP.md'
       - 'harness/reports/OPERATOR_EXECUTION_ROUTE_STATUS.md'
       - 'harness/validators/validate-operator-execution-route.py'
+      - 'Tests/PowerShell/OperatorExecutionRouteHarness.Tests.ps1'
       - 'harness/api/harness-command-registry.json'
       - 'harness/api/terminal-evidence-survival-registry.json'
       - 'Run-AutoLogonCrashSafe.cmd'
@@ -34,6 +35,7 @@ on:
       - 'harness/maps/OPERATOR_EXECUTION_ROUTE_MAP.md'
       - 'harness/reports/OPERATOR_EXECUTION_ROUTE_STATUS.md'
       - 'harness/validators/validate-operator-execution-route.py'
+      - 'Tests/PowerShell/OperatorExecutionRouteHarness.Tests.ps1'
       - 'Run-AutoLogonCrashSafe.cmd'
       - '.githooks/pre-commit'
       - '.githooks/pre-push'
@@ -65,3 +67,13 @@ jobs:
       - name: Validate commit whitespace
         if: github.event_name != 'pull_request'
         run: git diff --check HEAD^ HEAD
+
+  windows-route:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute route-and-run template under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Tests\PowerShell\OperatorExecutionRouteHarness.Tests.ps1
