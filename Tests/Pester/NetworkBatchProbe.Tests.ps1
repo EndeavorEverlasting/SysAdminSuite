@@ -37,7 +37,7 @@ Describe 'SysAdminSuite bounded batch network probe' {
     It 'routes sas network probe through the batch helper while preserving one-target readiness' {
         $content = Get-Content -LiteralPath $script:universalLauncher -Raw
         $content | Should -Match ([regex]::Escape('sas network probe HOST1 [HOST2 ...]'))
-        $content | Should -Match ([regex]::Escape("Join-Path $controllerRoot 'survey\sas-network-batch-probe.ps1'"))
+        $content | Should -Match ([regex]::Escape('Join-Path $controllerRoot ''survey\sas-network-batch-probe.ps1'''))
         $content | Should -Match ([regex]::Escape('Batch network probe for $($targets.Count) explicit targets'))
         $content | Should -Match ([regex]::Escape('Network readiness probe for $($actualArgs[0])'))
         $content | Should -Match ([regex]::Escape('& $batchProbe -Target $targets'))
