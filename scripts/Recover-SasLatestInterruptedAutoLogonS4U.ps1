@@ -5,7 +5,8 @@ Recover locally recorded interrupted probe-only AutoLogon S4U runs for one targe
 
 .DESCRIPTION
 Searches only machine-local SysAdminSuite evidence roots for exact durable probe lifecycle records.
-It deduplicates physical paths and subst aliases, skips terminal or already-completed recovery
+It deduplicates physical paths and subst aliases, accepts only the exact terminal probe-create-timeout
+shape that remains safe for bounded cleanup, skips other terminal or already-completed recovery
 records, fails closed on any install/after-state evidence, and invokes only the exact recorded
 recovery helper against the canonical requested target. It never discovers remote tasks broadly
 and never launches AutoLogon.
@@ -92,6 +93,62 @@ function Get-SasOptionalJsonString {
     $property = $Object.PSObject.Properties[$Name]
     if ($null -eq $property -or $null -eq $property.Value) { return '' }
     return [string]$property.Value
+}
+
+function Test-SasTerminalProbeCreateTimeoutRecoverable {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$RunId,
+        [Parameter(Mandatory = $true)][string]$TaskName,
+        [Parameter(Mandatory = $true)][string]$RequestedTarget,
+        [Parameter(Mandatory = $true)][ref]$Classification
+    )
+
+    $Classification.Value = ''
+    try {
+        $terminal = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+        $schema = Get-SasOptionalJsonString -Object $terminal -Name 'schema_version'
+        $classification = Get-SasOptionalJsonString -Object $terminal -Name 'classification'
+        $terminalRunId = Get-SasOptionalJsonString -Object $terminal -Name 'run_id'
+        $terminalTarget = Get-SasOptionalJsonString -Object $terminal -Name 'target'
+        $probeProperty = $terminal.PSObject.Properties['probe']
+        $installProperty = $terminal.PSObject.Properties['install']
+        $installerExitProperty = $terminal.PSObject.Properties['installer_exit_code']
+        $afterPathProperty = $terminal.PSObject.Properties['after_snapshot_path']
+        $preRebootProperty = $terminal.PSObject.Properties['pre_reboot_autologon_ready']
+        $cleanupProperty = $terminal.PSObject.Properties['staging_cleanup_verified']
+        $rebootProperty = $terminal.PSObject.Properties['automatic_reboot_performed']
+        $signInProperty = $terminal.PSObject.Properties['automatic_sign_in_observed']
+
+        if ($schema -ne 'sas-autologon-kerberos-s4u-pilot-result/v2' -or
+            $classification -ne 'S4U_PROBE_CREATE_TIMEOUT' -or
+            $terminalRunId -ne $RunId -or
+            -not (Test-SasSameTarget -Recorded $terminalTarget -Requested $RequestedTarget) -or
+            $null -eq $probeProperty -or $null -eq $probeProperty.Value -or
+            $null -eq $installProperty -or $null -ne $installProperty.Value -or
+            $null -eq $installerExitProperty -or $null -ne $installerExitProperty.Value -or
+            $null -eq $afterPathProperty -or -not [string]::IsNullOrWhiteSpace([string]$afterPathProperty.Value) -or
+            $null -eq $preRebootProperty -or [bool]$preRebootProperty.Value -or
+            $null -eq $cleanupProperty -or -not [bool]$cleanupProperty.Value -or
+            $null -eq $rebootProperty -or [bool]$rebootProperty.Value -or
+            $null -eq $signInProperty -or [bool]$signInProperty.Value) {
+            return $false
+        }
+
+        $probe = $probeProperty.Value
+        if ((Get-SasOptionalJsonString -Object $probe -Name 'classification') -ne 'S4U_PROBE_CREATE_TIMEOUT' -or
+            (Get-SasOptionalJsonString -Object $probe -Name 'run_id') -ne $RunId -or
+            (Get-SasOptionalJsonString -Object $probe -Name 'task_name') -ne $TaskName) {
+            return $false
+        }
+
+        $Classification.Value = $classification
+        return $true
+    }
+    catch {
+        return $false
+    }
 }
 
 function Get-SasPhysicalPathIdentity {
@@ -182,7 +239,15 @@ function Get-SasInterruptedS4UCandidates {
         $terminal = Join-Path -Path $s4uRoot -ChildPath 'autologon_kerberos_s4u_pilot_result.json'
         $recovered = Join-Path -Path $s4uRoot -ChildPath 's4u_probe_hang_recovery_result.json'
 
-        if (Test-Path -LiteralPath $terminal -PathType Leaf) { continue }
+        $terminalPresent = (Test-Path -LiteralPath $terminal -PathType Leaf)
+        $terminalClassification = ''
+        $terminalProbeTimeoutAccepted = $false
+        if ($terminalPresent) {
+            $terminalProbeTimeoutAccepted = Test-SasTerminalProbeCreateTimeoutRecoverable -Path $terminal `
+                -RunId $runId -TaskName $taskName -RequestedTarget $ComputerName `
+                -Classification ([ref]$terminalClassification)
+            if (-not $terminalProbeTimeoutAccepted) { continue }
+        }
 
         if (Test-Path -LiteralPath $recovered -PathType Leaf) {
             try {
@@ -217,6 +282,9 @@ function Get-SasInterruptedS4UCandidates {
             lifecycle_physical_identity=$entry.physical_identity
             local_s4u_root=$s4uRoot
             install_or_after_evidence_present=$installPresent
+            terminal_pilot_result_present=$terminalPresent
+            terminal_pilot_classification=$terminalClassification
+            terminal_probe_timeout_accepted=$terminalProbeTimeoutAccepted
             last_write_utc=$file.LastWriteTimeUtc
             lifecycle_classification=(Get-SasOptionalJsonString -Object $lifecycle -Name 'classification')
             lifecycle_stage=(Get-SasOptionalJsonString -Object $lifecycle -Name 'current_stage')
@@ -236,7 +304,7 @@ if ($unsafe.Count -gt 0) {
 $safe = @($candidates | Where-Object { -not $_.install_or_after_evidence_present })
 if ($safe.Count -eq 0) {
     $result = [pscustomobject][ordered]@{
-        schema_version='sas-autologon-s4u-recovery-discovery/v2'
+        schema_version='sas-autologon-s4u-recovery-discovery/v3'
         status='COMPLETED'
         classification='NO_INTERRUPTED_PROBE_RUN_FOUND'
         target=$ComputerName
@@ -276,7 +344,7 @@ foreach ($item in $safe) {
 }
 
 $result = [pscustomobject][ordered]@{
-    schema_version='sas-autologon-s4u-recovery-discovery/v2'
+    schema_version='sas-autologon-s4u-recovery-discovery/v3'
     status='COMPLETED'
     classification='INTERRUPTED_PROBE_RUNS_RECOVERED'
     target=$ComputerName
