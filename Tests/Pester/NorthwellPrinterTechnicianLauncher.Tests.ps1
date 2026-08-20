@@ -19,7 +19,7 @@ Describe 'Northwell non-technical technician printer launcher' {
         $cmd | Should -Match 'SYSTEM-wide for all users'
         $cmd | Should -Match 'hardwire, WAB, or an'
         $cmd | Should -Match 'authenticated Northwell VPN'
-        $cmd | Should -Match 'Recent|recent'
+        $cmd | Should -Match 'Recent proven PCs and printers'
     }
 
     It 'delegates to the installed sas printer path before trusted bootstrap fallback' {
@@ -49,8 +49,8 @@ Describe 'Northwell non-technical technician printer launcher' {
 
     It 'is installed beside sas.cmd by the universal launcher installer' {
         $installer = Get-Content -LiteralPath $script:installerPath -Raw
-        $installer | Should -Match "\$sourcePrinterTechnicianCmd = Join-Path \$repoRoot 'Map-NorthwellPrinter\.cmd'"
-        $installer | Should -Match "\$printerTechnicianCmdDestination = Join-Path \$installRoot 'Map-NorthwellPrinter\.cmd'"
+        $installer | Should -Match '\$sourcePrinterTechnicianCmd = Join-Path \$repoRoot ''Map-NorthwellPrinter\.cmd'''
+        $installer | Should -Match '\$printerTechnicianCmdDestination = Join-Path \$installRoot ''Map-NorthwellPrinter\.cmd'''
         $installer | Should -Match 'Copy-Item -LiteralPath \$sourcePrinterTechnicianCmd -Destination \$printerTechnicianCmdDestination -Force'
         $installer | Should -Match 'Printer technician CMD:'
     }
