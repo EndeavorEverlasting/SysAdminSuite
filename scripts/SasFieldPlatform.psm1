@@ -115,7 +115,7 @@ function Get-SasMachineStateRoot {
 
 function Add-SasControllerCandidate {
     param(
-        [Parameter(Mandatory = $true)][System.Collections.Generic.List[string]]$List,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$List,
         [AllowNull()][string]$Path
     )
     if ([string]::IsNullOrWhiteSpace([string]$Path)) { return }
