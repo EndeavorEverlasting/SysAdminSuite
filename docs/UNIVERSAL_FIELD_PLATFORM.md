@@ -33,7 +33,7 @@ The installer prefers `%ProgramData%\SysAdminSuite\bin`. If Windows permissions 
 
 The SysAdminSuite runtime is **controller-local**. `Test-SasLocalControllerPath` rejects UNC paths and mapped network drives as runtime authority. The universal launcher records `LOCAL_MACHINE_ONLY` as the runtime scope.
 
-Authorized deployment workflows may move their own bounded, run-scoped installer payloads and collect run-scoped evidence. They must not copy `C:\SASAL`, a source checkout, the universal launcher, or the general SysAdminSuite repository onto target machines as a deployment mechanism.
+Authorized deployment workflows may move their own bounded, run-scoped installer payloads and collect run-scoped evidence. The SysAdminSuite controller runtime is **not copied to target machines**: workflows must not copy `C:\SASAL`, a source checkout, the universal launcher, or the general SysAdminSuite repository onto targets as a deployment mechanism.
 
 This keeps one controller copy authoritative instead of leaving drifting SysAdminSuite fragments distributed across workstations.
 
