@@ -9,11 +9,17 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $sourceLauncher = Join-Path $repoRoot 'scripts\Invoke-SasUniversalField.ps1'
 $sourcePlatform = Join-Path $repoRoot 'scripts\SasFieldPlatform.psm1'
 $sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
-foreach ($required in @($sourceLauncher,$sourcePlatform,$sourcePrinterBootstrap)) {
+$sourcePrinterTechnicianCmd = Join-Path $repoRoot 'Map-NorthwellPrinter.cmd'
+$sourceNetworkBatchProbe = Join-Path $repoRoot 'survey\sas-network-batch-probe.ps1'
+$sourceNetworkPreflight = Join-Path $repoRoot 'survey\sas-network-preflight.ps1'
+foreach ($required in @($sourceLauncher,$sourcePlatform,$sourcePrinterBootstrap,$sourceNetworkBatchProbe,$sourceNetworkPreflight)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required universal field file missing: $required" }
     $tokens = $null; $errors = $null
     [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$tokens,[ref]$errors)
     if (@($errors).Count -gt 0) { throw "PowerShell parse failure: $required :: $($errors[0].Message)" }
+}
+if (-not (Test-Path -LiteralPath $sourcePrinterTechnicianCmd -PathType Leaf)) {
+    throw "Required technician printer CMD missing: $sourcePrinterTechnicianCmd"
 }
 Import-Module $sourcePlatform -Force
 
@@ -31,6 +37,23 @@ function Test-SasDirectoryWritable {
 
 $canonicalRuntime = 'C:\SASAL'
 $canonicalReady = Test-SasControllerSurface -Root $canonicalRuntime
+if ($canonicalReady) {
+    $networkProbeRuntimeFiles = @(
+        'survey\sas-network-batch-probe.ps1',
+        'survey\sas-network-preflight.ps1',
+        'scripts\SasNetworkGuard.psm1',
+        'scripts\SasTargetIntake.psm1',
+        'scripts\SasLowNoisePolicy.psm1',
+        'scripts\SasPortFallbackDecision.psm1',
+        'scripts\Render-SasEnglishReport.ps1'
+    )
+    foreach ($relative in $networkProbeRuntimeFiles) {
+        if (-not (Test-Path -LiteralPath (Join-Path $canonicalRuntime $relative) -PathType Leaf)) {
+            throw "MACHINE_RUNTIME_REFRESH_REQUIRED: C:\SASAL is a valid legacy controller but does not contain the current batch network-probe surface ($relative). Run 'sas refresh' on Guest/Internet before installing the current universal launcher."
+        }
+    }
+}
+
 $userProfileRoot = $null
 if (-not [string]::IsNullOrWhiteSpace([string]$env:USERPROFILE)) {
     try { $userProfileRoot = ([IO.Path]::GetFullPath($env:USERPROFILE)).TrimEnd('\') + '\' } catch { $userProfileRoot = $null }
@@ -65,10 +88,12 @@ $installScope = if ($machineInstall) { 'MACHINE' } else { 'CURRENT_USER_SHIM_WIT
 $launcherDestination = Join-Path $installRoot 'Invoke-SasUniversalField.ps1'
 $platformDestination = Join-Path $installRoot 'SasFieldPlatform.psm1'
 $printerBootstrapDestination = Join-Path $installRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
+$printerTechnicianCmdDestination = Join-Path $installRoot 'Map-NorthwellPrinter.cmd'
 $cmdDestination = Join-Path $installRoot 'sas.cmd'
 Copy-Item -LiteralPath $sourceLauncher -Destination $launcherDestination -Force
 Copy-Item -LiteralPath $sourcePlatform -Destination $platformDestination -Force
 Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force
+Copy-Item -LiteralPath $sourcePrinterTechnicianCmd -Destination $printerTechnicianCmdDestination -Force
 
 # Machine cache is optional and never points at a user-profile checkout. The trusted installed
 # launcher still resolves C:\SASAL first, and cache write failures cannot break command execution.
@@ -110,6 +135,7 @@ if (-not (($env:Path -split ';') -contains $installRoot)) { $env:Path = $env:Pat
 Write-Host 'SysAdminSuite universal field command installed.' -ForegroundColor Green
 Write-Host "Install scope: $installScope"
 Write-Host "Launcher: $cmdDestination"
+Write-Host "Printer technician CMD: $printerTechnicianCmdDestination"
 Write-Host "Printer bootstrap: $printerBootstrapDestination"
 Write-Host 'Execution resolution: trusted installed shim -> validated SAS_RUNTIME_ROOT / C:\SASAL / local controller surface.'
 Write-Host 'Protected network authority: hardwire OR NSLIJHS-WAB OR authenticated DomainAuthenticated VPN.'
