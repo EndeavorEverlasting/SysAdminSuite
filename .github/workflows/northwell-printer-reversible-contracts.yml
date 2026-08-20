@@ -16,11 +16,13 @@ on:
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Start-NorthwellPrinterBatch.ps1'
       - 'mapping/Confirm-NorthwellPrinterActiveUserMaterialization.ps1'
+      - 'mapping/Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1'
       - 'mapping/Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Invoke-NorthwellPrinterState.ps1'
       - 'mapping/Invoke-NorthwellPrinterResilientQuick.ps1'
       - 'mapping/Invoke-NorthwellPrinterTaskRegistryFallback.ps1'
+      - 'mapping/Invoke-NorthwellPrinterSharelessActiveUser.ps1'
       - 'mapping/Invoke-NorthwellPrinterUnmapping.ps1'
       - 'mapping/Undo-NorthwellPrinterChange.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
@@ -47,11 +49,13 @@ on:
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Start-NorthwellPrinterBatch.ps1'
       - 'mapping/Confirm-NorthwellPrinterActiveUserMaterialization.ps1'
+      - 'mapping/Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1'
       - 'mapping/Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Invoke-NorthwellPrinterState.ps1'
       - 'mapping/Invoke-NorthwellPrinterResilientQuick.ps1'
       - 'mapping/Invoke-NorthwellPrinterTaskRegistryFallback.ps1'
+      - 'mapping/Invoke-NorthwellPrinterSharelessActiveUser.ps1'
       - 'mapping/Invoke-NorthwellPrinterUnmapping.ps1'
       - 'mapping/Undo-NorthwellPrinterChange.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
@@ -84,11 +88,13 @@ jobs:
             '.\mapping\Start-NorthwellPrinterMapping.ps1',
             '.\mapping\Start-NorthwellPrinterBatch.ps1',
             '.\mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
+            '.\mapping\Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1',
             '.\mapping\Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1',
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
             '.\mapping\Invoke-NorthwellPrinterState.ps1',
             '.\mapping\Invoke-NorthwellPrinterResilientQuick.ps1',
             '.\mapping\Invoke-NorthwellPrinterTaskRegistryFallback.ps1',
+            '.\mapping\Invoke-NorthwellPrinterSharelessActiveUser.ps1',
             '.\mapping\Invoke-NorthwellPrinterUnmapping.ps1',
             '.\mapping\Undo-NorthwellPrinterChange.ps1',
             '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
