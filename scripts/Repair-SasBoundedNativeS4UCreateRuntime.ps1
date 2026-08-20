@@ -44,17 +44,27 @@ function Assert-Parse([string]$Text) {
 }
 
 function Test-RepairPresent([string]$Text) {
-    return ($Text.Contains('function Invoke-SasBoundedNativeCore {') -and
-        $Text.Contains("`$timeoutPolicy = 's4u_task_create_minimum_60'") -and
-        $Text.Contains('reconciled_after_timeout') -and
+    $commonMarkersPresent = ($Text.Contains("`$timeoutPolicy = 's4u_task_create_minimum_60'") -and
         $Text.Contains("'^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$'") -and
         $Text.Contains("'/Query','/S',`$s4uCreateTarget,'/TN',`$s4uCreateTaskName"))
+    if (-not $commonMarkersPresent) { return $false }
+
+    # A refreshed runtime can already contain the direct integrated implementation from the repo.
+    # Older sealed runtimes repaired in place contain the wrapper/core layout. Both are terminally
+    # repaired states; only the known legacy layout should ever be wrapped.
+    $directIntegratedLayout = ($Text.Contains('function Invoke-SasBoundedNative {') -and
+        $Text.Contains('$result = Invoke-SasBoundedPowerShell -ScriptText $child -TimeoutSeconds $effectiveTimeoutSeconds') -and
+        $Text.Contains('reconciled_after_timeout = $true'))
+    $wrappedLegacyLayout = ($Text.Contains('function Invoke-SasBoundedNativeCore {') -and
+        $Text.Contains('NotePropertyName reconciled_after_timeout'))
+    return ($directIntegratedLayout -or $wrappedLegacyLayout)
 }
 
 $source = [IO.File]::ReadAllText($targetPath)
 $beforeSha = Get-RepairHash $targetPath
 $changed = $false
 $classification = 'AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_ALREADY_PRESENT'
+$repairStrategy = 'already_integrated_or_wrapped'
 
 if (-not (Test-RepairPresent $source)) {
     Copy-Item -LiteralPath $targetPath -Destination $backupPath -Force -ErrorAction Stop
@@ -164,6 +174,7 @@ function Invoke-SasBoundedNative {
         [IO.File]::WriteAllText($targetPath, $candidate, (New-Object Text.UTF8Encoding($false)))
         $changed = $true
         $classification = 'AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_APPLIED'
+        $repairStrategy = 'rename_core_and_insert_wrapper'
     }
     catch {
         Copy-Item -LiteralPath $backupPath -Destination $targetPath -Force -ErrorAction SilentlyContinue
@@ -188,7 +199,7 @@ $result = [pscustomobject][ordered]@{
     s4u_create_minimum_timeout_seconds = 60
     exact_task_name_pattern = '^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$'
     exact_query_reconciliation = $true
-    repair_strategy = 'rename_core_and_insert_wrapper'
+    repair_strategy = $repairStrategy
     powershell_parse_passed = $true
     semantic_verification = $true
     git_performed = $false
