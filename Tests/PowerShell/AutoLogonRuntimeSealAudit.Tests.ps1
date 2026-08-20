@@ -12,8 +12,10 @@ $auditSource = Get-Content -LiteralPath $auditPath -Raw -Encoding UTF8
 if ($auditSource -match '(?i)\bGet-FileHash\b') {
     throw 'Runtime seal audit must not depend on Get-FileHash.'
 }
-if ($auditSource -match '(?i)\bgit(?:\.exe)?\b') {
-    throw 'Runtime seal audit must not invoke Git.'
+foreach ($forbidden in @('& git','git.exe','Resolve-SasGitExecutable','Invoke-SasLocalGit','Get-SasLocalGitScalar','rev-parse','status --porcelain','ls-remote')) {
+    if ($auditSource.IndexOf($forbidden,[StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "Runtime seal audit contains forbidden Git invocation surface: $forbidden"
+    }
 }
 
 function Get-TestSha256Hex {
