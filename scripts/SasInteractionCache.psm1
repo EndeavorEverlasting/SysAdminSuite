@@ -6,6 +6,33 @@ $script:DefaultMaxEntries = 200
 $script:DefaultMaxEntriesPerKind = 75
 $script:DefaultLockTimeoutMilliseconds = 1500
 $script:MetricMaxBytes = 262144
+$script:PolicyPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'Config\interaction-cache-policy.json'
+
+if (Test-Path -LiteralPath $script:PolicyPath -PathType Leaf) {
+    try {
+        $policy = Get-Content -LiteralPath $script:PolicyPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if ([string]$policy.schemaVersion -ne 'sas-interaction-cache-policy/v1') { throw 'Unsupported interaction-cache policy schema.' }
+        if ([string]$policy.cacheSchemaVersion -ne $script:SchemaVersion) { throw 'Interaction-cache policy/cache schema mismatch.' }
+        $ttl = [int]$policy.freshness.ttlDays
+        $maxEntries = [int]$policy.capacity.maxEntries
+        $maxPerKind = [int]$policy.capacity.maxEntriesPerKind
+        $lockTimeout = [int]$policy.concurrency.lockTimeoutMilliseconds
+        $metricsMax = [int]$policy.observability.maxBytes
+        if ($ttl -lt 1 -or $ttl -gt 3650) { throw 'Interaction-cache TTL is outside the safe range.' }
+        if ($maxEntries -lt 10 -or $maxEntries -gt 2000) { throw 'Interaction-cache capacity is outside the safe range.' }
+        if ($maxPerKind -lt 5 -or $maxPerKind -gt $maxEntries) { throw 'Interaction-cache per-kind capacity is outside the safe range.' }
+        if ($lockTimeout -lt 1 -or $lockTimeout -gt 30000) { throw 'Interaction-cache lock timeout is outside the safe range.' }
+        if ($metricsMax -lt 16384 -or $metricsMax -gt 10485760) { throw 'Interaction-cache metrics bound is outside the safe range.' }
+        $script:DefaultTtlDays = $ttl
+        $script:DefaultMaxEntries = $maxEntries
+        $script:DefaultMaxEntriesPerKind = $maxPerKind
+        $script:DefaultLockTimeoutMilliseconds = $lockTimeout
+        $script:MetricMaxBytes = $metricsMax
+    }
+    catch {
+        # Cache configuration failure must not prevent field workflows; safe compiled defaults remain active.
+    }
+}
 
 function Get-SasInteractionCacheDefaultPath {
     [CmdletBinding()]
