@@ -6,9 +6,14 @@ on:
       - 'Install-SasOperatorCommand.cmd'
       - 'Reset-SysAdminSuiteClipboard.cmd'
       - 'Bootstrap-SysAdminSuitePrinter.ps1'
+      - 'Bootstrap-SysAdminSuiteAutoLogon.cmd'
+      - 'Bootstrap-SysAdminSuiteAutoLogon.ps1'
+      - 'Run-AutoLogonOnsite.cmd'
       - 'scripts/SasFieldPlatform.psm1'
       - 'scripts/Invoke-SasUniversalField.ps1'
       - 'scripts/Install-SasUniversalFieldLauncher.ps1'
+      - 'scripts/Invoke-SasAutoLogonOnsite.ps1'
+      - 'scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
       - 'scripts/Reset-SasClipboard.ps1'
       - 'Tests/PowerShell/UniversalFieldPlatform.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterUniversalEntryPoint.Tests.ps1'
@@ -52,9 +57,12 @@ jobs:
           $ErrorActionPreference = 'Stop'
           foreach ($relative in @(
             'Bootstrap-SysAdminSuitePrinter.ps1',
+            'Bootstrap-SysAdminSuiteAutoLogon.ps1',
             'scripts\SasFieldPlatform.psm1',
             'scripts\Invoke-SasUniversalField.ps1',
             'scripts\Install-SasUniversalFieldLauncher.ps1',
+            'scripts\Invoke-SasAutoLogonOnsite.ps1',
+            'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1',
             'scripts\Reset-SasClipboard.ps1',
             'Tests\PowerShell\UniversalFieldPlatform.Tests.ps1',
             'Tests\Pester\NorthwellPrinterUniversalEntryPoint.Tests.ps1'
