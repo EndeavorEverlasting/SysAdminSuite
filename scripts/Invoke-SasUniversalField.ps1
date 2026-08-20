@@ -61,6 +61,7 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
     Write-SasUniversalContext
     if ([string]::IsNullOrWhiteSpace($normalized)) {
         Write-Host 'Run the existing sas commands normally; the universal front door resolves controller/runtime/network context first.'
+        Write-Host 'Printer quick mapping is also available as: sas printer' -ForegroundColor Green
     }
     exit 0
 }
@@ -72,6 +73,17 @@ switch ($normalized) {
         $gate = Join-Path $runtimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
         if (-not (Test-Path -LiteralPath $gate -PathType Leaf)) { $gate = Join-Path $controllerRoot 'scripts\Confirm-SasNorthwellNetwork.ps1' }
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $gate -Purpose 'manual SysAdminSuite operator check' -NonInteractive
+        exit $LASTEXITCODE
+    }
+
+    'printer' {
+        if ($args.Count -ne 0) { Write-Host 'Usage: sas printer' -ForegroundColor Red; exit 2 }
+        [void](Assert-SasProtectedForAction -Purpose 'Northwell system-wide printer mapping')
+        $printerLauncher = Join-Path $controllerRoot 'Map-NorthwellPrinter-SystemWide.cmd'
+        if (-not (Test-Path -LiteralPath $printerLauncher -PathType Leaf)) {
+            throw "Canonical printer mapping launcher is missing: $printerLauncher"
+        }
+        & $printerLauncher
         exit $LASTEXITCODE
     }
 
