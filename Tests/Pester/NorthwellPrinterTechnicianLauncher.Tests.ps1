@@ -22,14 +22,14 @@ Describe 'Northwell non-technical technician printer launcher' {
         $cmd | Should -Match 'Recent proven PCs and printers'
     }
 
-    It 'prefers installed sibling sas, then sibling trusted bootstrap, before a PATH shim' {
+    It 'uses only installer-owned sibling sas or sibling trusted bootstrap authority' {
         $cmd = Get-Content -LiteralPath $script:launcherPath -Raw
         $siblingIndex = $cmd.IndexOf('call "%~dp0sas.cmd" printer',[System.StringComparison]::Ordinal)
         $bootstrapIndex = $cmd.IndexOf('Bootstrap-SysAdminSuitePrinter.cmd',[System.StringComparison]::Ordinal)
-        $pathIndex = $cmd.IndexOf('call sas.cmd printer',[System.StringComparison]::Ordinal)
         $siblingIndex | Should -BeGreaterThan -1
         $bootstrapIndex | Should -BeGreaterThan $siblingIndex
-        $pathIndex | Should -BeGreaterThan $bootstrapIndex
+        $cmd | Should -Not -Match '(?im)^\s*where\.exe\s+sas\.cmd'
+        $cmd | Should -Not -Match '(?im)^\s*call\s+sas\.cmd\s+printer\s*$'
     }
 
     It 'does not implement or bypass the canonical printer mapper' {
