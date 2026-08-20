@@ -7,6 +7,7 @@ on:
   push:
     branches: [main, 'feat/**', 'fix/**']
     paths:
+      - 'AGENTS.md'
       - 'Map-NorthwellPrinter.cmd'
       - 'scripts/Install-SasUniversalFieldLauncher.ps1'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
@@ -19,6 +20,7 @@ on:
       - '.github/workflows/northwell-printer-technician-launcher.yml'
   pull_request:
     paths:
+      - 'AGENTS.md'
       - 'Map-NorthwellPrinter.cmd'
       - 'scripts/Install-SasUniversalFieldLauncher.ps1'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
