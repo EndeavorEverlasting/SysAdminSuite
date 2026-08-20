@@ -5,10 +5,12 @@ title SysAdminSuite - Northwell Printer Operational Check
 
 set "SAS_QUEUE="
 set "SAS_PRINTER_IP="
+set "SAS_TARGET="
 set "SAS_EVIDENCE=%LOCALAPPDATA%\SysAdminSuite\field-runs\printer-queue-proof"
 
 if not "%~1"=="" set "SAS_QUEUE=%~1"
 if not "%~2"=="" set "SAS_PRINTER_IP=%~2"
+if not "%~3"=="" set "SAS_TARGET=%~3"
 
 if not defined SAS_QUEUE (
     echo ================================================================
@@ -17,6 +19,9 @@ if not defined SAS_QUEUE (
     echo  Enter the canonical shared queue as \\server\queue.
     echo  This launcher does NOT print a test page.
     echo  It does NOT map the printer by IP.
+    echo  Target context is recovered from the latest complete canonical mapping
+    echo  evidence when that evidence identifies one unambiguous target.
+    echo  If recovery is unavailable or ambiguous, enter the target PC explicitly.
     echo ================================================================
     echo.
     set /p "SAS_QUEUE=Shared printer queue: "
@@ -27,6 +32,13 @@ if not defined SAS_QUEUE (
     echo.
     set /p "SAS_DONE=Press Enter only when you are finished with this window: "
     exit /b 2
+)
+
+if not defined SAS_TARGET (
+    echo.
+    echo Optional: enter the mapped target PC hostname now.
+    echo Press Enter to recover one unambiguous target from the latest complete mapping evidence.
+    set /p "SAS_TARGET=Target PC hostname ^(recommended for multi-target batches^): "
 )
 
 if not defined SAS_PRINTER_IP (
@@ -59,10 +71,18 @@ echo Raw diagnostics and a stable latest summary will be preserved under:
 echo %SAS_EVIDENCE%
 echo.
 
-if defined SAS_PRINTER_IP (
-    "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_ENGINE%" -Printer "%SAS_QUEUE%" -PrinterIp "%SAS_PRINTER_IP%"
+if defined SAS_TARGET (
+    if defined SAS_PRINTER_IP (
+        "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_ENGINE%" -Printer "%SAS_QUEUE%" -PrinterIp "%SAS_PRINTER_IP%" -ComputerName "%SAS_TARGET%"
+    ) else (
+        "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_ENGINE%" -Printer "%SAS_QUEUE%" -ComputerName "%SAS_TARGET%"
+    )
 ) else (
-    "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_ENGINE%" -Printer "%SAS_QUEUE%"
+    if defined SAS_PRINTER_IP (
+        "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_ENGINE%" -Printer "%SAS_QUEUE%" -PrinterIp "%SAS_PRINTER_IP%"
+    ) else (
+        "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_ENGINE%" -Printer "%SAS_QUEUE%"
+    )
 )
 set "SAS_RC=%ERRORLEVEL%"
 
