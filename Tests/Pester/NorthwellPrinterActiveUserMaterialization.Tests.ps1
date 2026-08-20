@@ -25,9 +25,12 @@ Describe 'Northwell active-user printer materialization regression' {
         }
     }
 
-    It 'preserves durable /ga proof while adding immediate /in for the existing user token' {
+    It 'preserves durable /ga proof while adding quiet immediate /in for the existing user token' {
         $text = Get-Content -LiteralPath $script:agentPath -Raw
-        $text | Should -Match "'printui\.dll,PrintUIEntry' '/in'"
+        $text | Should -Match "'printui\.dll,PrintUIEntry' '/in' '/q'"
+        $text | Should -Match 'PrintUI native UI is advisory'
+        $text | Should -Match "ProofAuthority = 'CURRENT_USER_PRINTER_CONNECTION_REGISTRY'"
+        $text | Should -Match "NativePrintUi = 'QUIET_ADVISORY_ONLY'"
         $text | Should -Match 'TASK_LOGON_INTERACTIVE_TOKEN'
         $text | Should -Match 'RegisterTaskDefinition'
         $text | Should -Match 'LogonType = 3'
