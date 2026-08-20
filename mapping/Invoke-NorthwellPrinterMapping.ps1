@@ -216,21 +216,58 @@ function Write-AgentLog {
     ('[{0}] {1}' -f (Get-Date -Format s), $Message) | Add-Content -LiteralPath $logPath -Encoding UTF8
 }
 
-function Get-MachineWidePrinterConnections {
+function ConvertFrom-MachineWideConnectionKeyName {
+    param([AllowNull()][string]$Name)
+    if ([string]::IsNullOrWhiteSpace($Name)) { return $null }
+
+    $trimmed = $Name.Trim()
+    if ($trimmed -match '^,,([^,]+),(.+)$') {
+        return ('\\{0}\{1}' -f $Matches[1], $Matches[2]).ToLowerInvariant()
+    }
+    if ($trimmed -match '^\\\\[^\\]+\\[^\\]+$') {
+        return $trimmed.ToLowerInvariant()
+    }
+    return $null
+}
+
+function Get-RawMachineWidePrinterConnectionKeys {
     $key = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections'
     if (-not (Test-Path -LiteralPath $key)) { return @() }
 
     return @(
-        Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue | ForEach-Object {
-            try {
-                $item = Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction Stop
-                if ($item.Server -and $item.Printer) {
-                    ('\\{0}\{1}' -f ([string]$item.Server).TrimStart([char[]]'\'), [string]$item.Printer).ToLowerInvariant()
-                }
-            }
-            catch {}
-        } | Where-Object { $_ } | Sort-Object -Unique
+        Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue |
+            ForEach-Object { [string]$_.PSChildName } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Sort-Object -Unique
     )
+}
+
+function Get-MachineWidePrinterConnections {
+    $key = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections'
+    if (-not (Test-Path -LiteralPath $key)) { return @() }
+
+    $connections = New-Object System.Collections.Generic.List[string]
+    foreach ($subKey in @(Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue)) {
+        try {
+            $candidate = $null
+            $item = Get-ItemProperty -LiteralPath $subKey.PSPath -ErrorAction Stop
+            $serverProperty = $item.PSObject.Properties['Server']
+            $printerProperty = $item.PSObject.Properties['Printer']
+            if ($null -ne $serverProperty -and $null -ne $printerProperty -and
+                -not [string]::IsNullOrWhiteSpace([string]$serverProperty.Value) -and
+                -not [string]::IsNullOrWhiteSpace([string]$printerProperty.Value)) {
+                $candidate = ('\\{0}\{1}' -f ([string]$serverProperty.Value).TrimStart([char[]]'\'), [string]$printerProperty.Value).ToLowerInvariant()
+            }
+            if ([string]::IsNullOrWhiteSpace($candidate)) {
+                $candidate = ConvertFrom-MachineWideConnectionKeyName -Name ([string]$subKey.PSChildName)
+            }
+            if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                $connections.Add($candidate)
+            }
+        }
+        catch {}
+    }
+    return @($connections.ToArray() | Sort-Object -Unique)
 }
 
 try {
@@ -262,12 +299,19 @@ try {
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $verifyDeadline)
 
+    $rawConnectionKeys = @(Get-RawMachineWidePrinterConnectionKeys)
     $success = ($missing.Count -eq 0)
     if ($success) {
         Write-AgentLog 'Verified every requested queue under HKLM machine-wide printer connections.'
     }
     else {
         Write-AgentLog "VERIFY FAIL missing from HKLM after 30 seconds: $($missing -join ', ')"
+        if ($rawConnectionKeys.Count -gt 0) {
+            Write-AgentLog "HKLM connection subkeys observed: $($rawConnectionKeys -join ', ')"
+        }
+        else {
+            Write-AgentLog 'HKLM connection root contains no child connection keys.'
+        }
     }
 
     @{
@@ -279,6 +323,7 @@ try {
         Requested = $queues
         MachineWideUNC = $machineWide
         Missing = $missing
+        RawConnectionKeys = $rawConnectionKeys
         RuntimePrintObservedByEngine = $false
         TestPagesPrinted = $false
         Finished = (Get-Date).ToString('o')
