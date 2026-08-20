@@ -9,6 +9,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / "harness/api/operator-execution-route-registry.json"
 SCHEMA = ROOT / "schemas/harness/operator-execution-route-registry.schema.json"
+MANIFEST = ROOT / "harness/api/operational-harness-manifest.json"
+MANIFEST_SCHEMA = ROOT / "schemas/harness/operational-harness-manifest.schema.json"
+VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
 WORKFLOW = ROOT / "harness/workflows/operator-execution-route.yaml"
 SKILL = ROOT / "harness/skills/operator-execution-route/SKILL.md"
 MAP = ROOT / "harness/maps/OPERATOR_EXECUTION_ROUTE_MAP.md"
@@ -22,8 +25,8 @@ PRE_PUSH = ROOT / ".githooks/pre-push"
 CI = ROOT / ".github/workflows/operator-execution-route-harness.yml"
 
 COMPONENTS = (
-    REGISTRY, SCHEMA, WORKFLOW, SKILL, MAP, REPORT, FRESH_AGENT,
-    COMMANDS, TERMINAL, LAUNCHER, PRE_COMMIT, PRE_PUSH, CI,
+    REGISTRY, SCHEMA, MANIFEST, MANIFEST_SCHEMA, VALIDATORS, WORKFLOW, SKILL, MAP, REPORT,
+    FRESH_AGENT, COMMANDS, TERMINAL, LAUNCHER, PRE_COMMIT, PRE_PUSH, CI,
 )
 
 
@@ -110,6 +113,48 @@ def test_registry_and_schema() -> None:
     ):
         assert marker in template, f"route-and-run template missing: {marker}"
     assert "sas autologon Remote HOST" not in template, "operator template bypasses crash-safe front door"
+
+
+def test_central_harness_registration() -> None:
+    manifest = load(MANIFEST)
+    components = {item["id"]: item for item in manifest["components"]}
+    expected = {
+        "operator-execution-route-workflow": ("workflow", "harness/workflows/operator-execution-route.yaml"),
+        "operator-execution-route-registry": ("execution_route_registry", "harness/api/operator-execution-route-registry.json"),
+        "operator-execution-route-schema": ("schema", "schemas/harness/operator-execution-route-registry.schema.json"),
+        "operator-execution-route-validator": ("validator", "harness/validators/validate-operator-execution-route.py"),
+        "operator-execution-route-skill": ("skill", "harness/skills/operator-execution-route/SKILL.md"),
+        "operator-execution-route-map": ("codebase_map", "harness/maps/OPERATOR_EXECUTION_ROUTE_MAP.md"),
+        "operator-execution-route-report": ("operator_report", "harness/reports/OPERATOR_EXECUTION_ROUTE_STATUS.md"),
+        "operator-execution-route-ci": ("ci", ".github/workflows/operator-execution-route-harness.yml"),
+    }
+    for component_id, (kind, path) in expected.items():
+        assert component_id in components, f"operational manifest missing: {component_id}"
+        component = components[component_id]
+        assert component["kind"] == kind
+        assert component["path"] == path
+        assert component["required"] is True and component["tracked"] is True
+        assert component["validation"] == "python harness/validators/validate-operator-execution-route.py"
+    assert "python harness/validators/validate-operator-execution-route.py" in manifest["validation_commands"]
+
+    manifest_schema = load(MANIFEST_SCHEMA)
+    kind_enum = manifest_schema["properties"]["components"]["items"]["properties"]["kind"]["enum"]
+    assert "execution_route_registry" in kind_enum
+
+    validator_registry = load(VALIDATORS)
+    validator = one(validator_registry["validators"], "id", "operator-execution-route-contracts")
+    assert validator["blocking"] is True
+    assert validator["command"] == "python harness/validators/validate-operator-execution-route.py"
+    for path in (
+        "harness/api/operator-execution-route-registry.json",
+        "harness/api/operational-harness-manifest.json",
+        "harness/workflows/operator-execution-route.yaml",
+        "harness/workflows/fresh-agent-intake.yaml",
+        "Run-AutoLogonCrashSafe.cmd",
+        ".githooks/**",
+        ".github/workflows/operator-execution-route-harness.yml",
+    ):
+        assert path in validator["scope"], f"validator registry scope missing: {path}"
 
 
 def test_command_and_terminal_authorities_align() -> None:
@@ -209,6 +254,9 @@ def test_hooks_and_ci() -> None:
     ci = read(CI)
     for marker in (
         "Operator Execution Route Harness",
+        "harness/api/operational-harness-manifest.json",
+        "harness/api/harness-validator-registry.json",
+        "schemas/harness/operational-harness-manifest.schema.json",
         "python harness/validators/validate-operator-execution-route.py",
         "python harness/validators/validate-harness-registries.py",
         "python Tests/survey/test_operational_harness_completeness_contracts.py",
@@ -220,6 +268,7 @@ def test_hooks_and_ci() -> None:
 def main() -> int:
     test_components_exist_and_are_tracked()
     test_registry_and_schema()
+    test_central_harness_registration()
     test_command_and_terminal_authorities_align()
     test_launcher_is_location_independent_and_crash_safe()
     test_fresh_agent_workflow_requires_execution_route()
