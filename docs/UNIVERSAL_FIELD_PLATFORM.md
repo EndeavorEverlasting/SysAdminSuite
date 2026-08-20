@@ -41,9 +41,11 @@ Non-technical technicians get the same workflow through the installed one-click 
 Map-NorthwellPrinter.cmd
 ```
 
-The universal installer places that CMD beside `sas.cmd`. The CMD delegates to `sas printer` when the installed command is present and falls back to the trusted current-origin printer bootstrap when launched from a current SysAdminSuite runtime. It does **not** implement a second printer mapper.
+The universal installer places that CMD beside `sas.cmd`. The CMD trusts only that installer-owned sibling `sas.cmd` or a sibling trusted printer bootstrap when run from a current SysAdminSuite runtime. It intentionally does not run an arbitrary same-named command from the current directory or PATH, and it does **not** implement a second printer mapper.
 
-Both entrypoints therefore retain the same protected-network gate, current runtime selection, SYSTEM-wide HKLM proof, recent-PC/printer convenience cache, and active-user materialization behavior.
+Both entrypoints therefore retain the same protected-network gate, current runtime selection, SYSTEM-wide HKLM proof, recent-PC/printer convenience cache, resilient mapping/finalization chain, explicit operator outcomes, and bounded local admin-box run trail.
+
+The current operator layer reports outcomes including `MAPPED NOW`, `ALREADY MAPPED`, `NOT FOUND`, `FAILED`, `READY`, and `READY NEXT LOGON`. Its local trail is stored under `%LOCALAPPDATA%\SysAdminSuite\Cache\Printer` and remains per-user, local-only, best-effort, and optional to share.
 
 Technician tutorial: `docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md`.
 
@@ -96,8 +98,8 @@ The canonical product-level network gate still runs before target work. The plat
 
 ## Proof boundary
 
-Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, mapped-drive, sealed AutoLogon bootstrap, and stale-dispatcher-bypass fixtures. Printer technician-launcher contracts prove that `Map-NorthwellPrinter.cmd` remains a thin delegate to the same trusted printer bootstrap and is installed beside `sas.cmd`.
+Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, mapped-drive, sealed AutoLogon bootstrap, and stale-dispatcher-bypass fixtures. Printer technician-launcher contracts prove that `Map-NorthwellPrinter.cmd` remains a thin delegate to the trusted printer bootstrap, is installed beside `sas.cmd`, rejects an unqualified PATH shim, and stays aligned with repository governance/tutorial routing.
 
-On August 20, 2026, the current-main Northwell quick workflow was separately field-observed on a protected `DomainAuthenticated` wired route producing SYSTEM-wide HKLM registration proof and immediate active-user materialization proof. That does not claim physical document output without a separately observed real print.
+On August 20, 2026, SysAdminSuite commit `4c5f1252aae24269ac1e0ab28ef9366ea08fd33f` was separately field-observed through `sas printer` on a protected `DomainAuthenticated` wired route producing SYSTEM-wide HKLM registration proof and immediate active-user materialization proof. Later mainline work added the explicit operator outcome/journal layer while preserving that mapping/finalization authority. Repository validation proves the newer composition; the one-click technician CMD still needs post-refresh field acceptance before claiming that exact wrapper was observed live. The earlier field proof does not claim physical document output without a separately observed real print.
 
 Platform tests do not prove every specific hospital switch port, Wi-Fi access point, VPN session, target authorization, package execution, reboot, sign-in, or physical print. Live target work still owns its normal field evidence.
