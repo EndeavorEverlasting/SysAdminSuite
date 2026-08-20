@@ -274,7 +274,8 @@ function Assert-SasNorthwellPrinterStatusProof {
             throw [string]$errorProperty.Value
         }
         $missingProperty = $Status.PSObject.Properties['Missing']
-        $missing = if ($null -ne $missingProperty) { @($missingProperty.Value) } else { @() }
+        $missing = @()
+        if ($null -ne $missingProperty) { $missing = @($missingProperty.Value) }
         if ($missing.Count -gt 0) { throw ('Missing machine-wide queue(s): ' + ($missing -join ', ')) }
         throw 'Agent returned Success=false without a more specific error.'
     }
@@ -284,7 +285,8 @@ function Assert-SasNorthwellPrinterStatusProof {
     if ($identity -notmatch 'SYSTEM$') { throw "Remote worker did not run as SYSTEM (identity: $identity)." }
 
     $machineWideProperty = $Status.PSObject.Properties['MachineWideUNC']
-    $machineWide = if ($null -ne $machineWideProperty) { @($machineWideProperty.Value) } else { @() }
+    $machineWide = @()
+    if ($null -ne $machineWideProperty) { $machineWide = @($machineWideProperty.Value) }
     $verified = @(
         $machineWide |
             ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } |
