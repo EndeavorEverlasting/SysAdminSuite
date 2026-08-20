@@ -78,7 +78,7 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
     It 'binds an existing dedicated cache to that exact root rather than an enclosing repository' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         $text | Should -Match 'Test-SasDedicatedCacheRoot'
-        $text | Should -Match "Join-Path \$Root '\.git'"
+        $text.Contains("Join-Path `$Root '.git'") | Should -BeTrue
         $text | Should -Match "rev-parse','--is-inside-work-tree"
         $text | Should -Match 'not the dedicated Git worktree'
     }
