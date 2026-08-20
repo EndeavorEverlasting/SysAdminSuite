@@ -3,15 +3,19 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:enginePath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterState.ps1'
+    $script:diagnosticPath = Join-Path $script:repoRoot 'mapping\Diagnose-NorthwellPrinterEvidence.ps1'
     $script:engineText = Get-Content -LiteralPath $script:enginePath -Raw
+    $script:diagnosticText = Get-Content -LiteralPath $script:diagnosticPath -Raw
 }
 
 Describe 'Northwell printer administrative staging fallback' {
     It 'parses under Windows PowerShell-compatible syntax' {
-        $tokens = $null
-        $errors = $null
-        [void][System.Management.Automation.Language.Parser]::ParseFile($script:enginePath, [ref]$tokens, [ref]$errors)
-        @($errors).Count | Should -Be 0
+        foreach ($path in @($script:enginePath,$script:diagnosticPath)) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+            @($errors).Count | Should -Be 0
+        }
     }
 
     It 'prefers C$ and then tries ADMIN$ before declaring staging unavailable' {
@@ -58,6 +62,14 @@ Describe 'Northwell printer administrative staging fallback' {
         $script:engineText | Should -Match '\$remoteTaskAction = if \(\$staging\.Name -eq ''ADMIN\$''\)'
         $script:engineText | Should -Match 'cmd\.exe /d /s /c ""\{0\}""'
         $script:engineText | Should -Match 'New-SasNorthwellPrinterTaskCreateArguments.+-RemoteLauncherLocal \$remoteTaskAction'
+    }
+
+    It 'surfaces the selected staging route in read-only evidence diagnostics' {
+        $script:engineText | Should -Match 'StagingShare = \$null'
+        $script:engineText | Should -Match '\$hostResult\.StagingShare = \[string\]\$staging\.Name'
+        $script:diagnosticText | Should -Match "Get-SasStatusString -Status \$Result -Name 'StagingShare'"
+        $script:diagnosticText | Should -Match 'SUMMARY_STAGING_SHARE='
+        $script:diagnosticText | Should -Match 'staging_share = \$stagingShare'
     }
 
     It 'keeps SYSTEM task execution and no-print proof semantics' {
