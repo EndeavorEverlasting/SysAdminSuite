@@ -145,11 +145,12 @@ jobs:
           if ($policy.schemaVersion -ne 'sas-interaction-cache-policy/v1') { throw "Unexpected interaction cache policy schema: $($policy.schemaVersion)" }
           if ($policy.cacheSchemaVersion -ne 'sas-interaction-cache/v1') { throw "Unexpected interaction cache schema: $($policy.cacheSchemaVersion)" }
           if ([int]$policy.freshness.ttlDays -lt 1) { throw 'Interaction cache TTL must be positive.' }
+          if ([int]$policy.capacity.maxEntriesPerScope -gt [int]$policy.capacity.maxEntries) { throw 'Per-scope cache bound cannot exceed total capacity.' }
           if ([int]$policy.capacity.maxEntriesPerKind -gt [int]$policy.capacity.maxEntries) { throw 'Per-kind cache bound cannot exceed total capacity.' }
           if ([bool]$policy.storage.authoritative) { throw 'Interaction cache must remain non-authoritative.' }
           if ([bool]$policy.security.secretsAllowed) { throw 'Interaction cache policy must prohibit secrets.' }
           if ($policy.failureBehavior.cacheUnavailable -ne 'continue-to-authoritative-origin') { throw 'Cache outage must fail open to the authoritative path.' }
-          Write-Host 'PASS: interaction cache policy is bounded, non-authoritative, and fail-open.'
+          Write-Host 'PASS: interaction cache policy is bounded, scope-isolated, non-authoritative, and fail-open.'
 
       - name: Install Pester 5
         shell: pwsh
