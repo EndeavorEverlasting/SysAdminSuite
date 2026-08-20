@@ -103,6 +103,7 @@ try {
     $evidenceRoot | Set-Content -LiteralPath (Join-Path $logsRoot 'LATEST-PATH.txt') -Encoding UTF8
 
     $queue = '\\PRINTSRV01\QUEUE01'
+    $statusPath = Join-Path $hostRoot 'Status.json'
     [ordered]@{
         ComputerName = 'LPW003ASI163'
         Identity = 'NT AUTHORITY\SYSTEM'
@@ -111,7 +112,7 @@ try {
         MachineWideUNC = @($queue)
         Missing = @()
         Finished = '2026-08-20T01:00:00-04:00'
-    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $hostRoot 'Status.json') -Encoding UTF8
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statusPath -Encoding UTF8
 
     $recoveredTarget = Get-SasLatestMappedTargetForPrinter -RepoRoot $fixtureRoot -Printer $queue
     if ($recoveredTarget -ne 'LPW003ASI163') {
@@ -124,6 +125,24 @@ try {
     }
     if ($remoteProof.identity -notmatch 'SYSTEM$') {
         throw "Remote proof did not preserve SYSTEM identity: $($remoteProof.identity)"
+    }
+
+    [ordered]@{
+        ComputerName = 'LPW003ASI163'
+        Identity = 'NT AUTHORITY\SYSTEM'
+        Success = $false
+        Requested = $queue
+        MachineWideUNC = $queue
+        Missing = '\\PRINTSRV01\QUEUE01'
+        Finished = '2026-08-20T01:01:00-04:00'
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statusPath -Encoding UTF8
+
+    $singletonMissing = Get-SasRemoteMachineWideProof -RepoRoot $fixtureRoot -ComputerName 'lpw003asi163.nslijhs.net' -Printer $queue
+    if (-not $singletonMissing.found -or $singletonMissing.proven) {
+        throw 'A singleton Missing value must remain a bounded negative proof rather than throwing or becoming proven.'
+    }
+    if (@($singletonMissing.missing).Count -ne 1) {
+        throw "Singleton Missing evidence was not preserved as one item; count=$(@($singletonMissing.missing).Count)."
     }
 
     $wrongQueue = Get-SasRemoteMachineWideProof -RepoRoot $fixtureRoot -ComputerName 'lpw003asi163.nslijhs.net' -Printer '\\PRINTSRV01\OTHERQUEUE'
@@ -157,3 +176,4 @@ Write-Host 'PASS: remote status timeout is telemetry degradation, not a print fa
 Write-Host 'PASS: current hard transport failures still fail.'
 Write-Host 'PASS: remote target mapping proof outranks irrelevant controller-local queue absence.'
 Write-Host 'PASS: latest canonical mapping evidence can recover one unambiguous remote target.'
+Write-Host 'PASS: singleton remote Missing evidence remains strict-mode safe.'
