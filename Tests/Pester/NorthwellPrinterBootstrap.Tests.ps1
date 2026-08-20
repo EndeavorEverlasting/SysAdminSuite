@@ -50,7 +50,7 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
 
     It 'pins a safe printer baseline and accepts newer mainline by ancestry' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
-        $text | Should -Match "\[string\]\$RequiredCommit = '5463c0ed3fedc4f9c5fe8048ead3cfc6bf2c434f'"
+        $text.Contains("[string]`$RequiredCommit = '5463c0ed3fedc4f9c5fe8048ead3cfc6bf2c434f'") | Should -BeTrue
         $text | Should -Match "merge-base','--is-ancestor"
         $text | Should -Match 'Current origin/\$Branch does not contain required printer fix commit'
         $text | Should -Not -Match 'origin/main.*-ne.*RequiredCommit'
@@ -85,7 +85,7 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
 
     It 'does not expose a repository URL that conflicts with fixed origin validation' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
-        $text | Should -Match "\$repositoryUrl = 'https://github\.com/EndeavorEverlasting/SysAdminSuite\.git'"
+        $text.Contains("`$repositoryUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git'") | Should -BeTrue
         $text | Should -Not -Match '\[string\]\$RepositoryUrl'
     }
 
