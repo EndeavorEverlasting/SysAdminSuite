@@ -10,9 +10,7 @@ Target-capable features must accept any currently proven Northwell protected pat
 - **NSLIJHS-WAB** — the approved WAB Wi-Fi prefix with usable connectivity;
 - **authenticated VPN** — a usable non-Wi-Fi `DomainAuthenticated` virtual/VPN interface such as Citrix Secure Access.
 
-The physical uplink may coexist with another connection. The application evaluates the protected authority itself; it must not tell an operator to disconnect a harmless uplink merely because another approved protected path is active.
-
-Guest/Internet-only posture remains fail-closed for target operations.
+The physical uplink may coexist with another connection. The application evaluates the protected authority itself; it must not tell an operator to disconnect a harmless uplink merely because another approved protected path is active. Guest/Internet-only posture remains fail-closed for target operations.
 
 ## Machine-neutral execution
 
@@ -28,6 +26,14 @@ Controller/runtime resolution prefers:
 A username-specific path is not execution authority. The platform does not scan a named user's Desktop, OneDrive, backup tree, or development folder to decide whether field operations are allowed.
 
 The installer prefers `%ProgramData%\SysAdminSuite\bin`. If Windows permissions require a current-user shim, that shim is only a command-discovery fallback; protected runtime authority still resolves independently through the local controller/runtime rules above.
+
+## Crash-safe AutoLogon Remote
+
+`AutoLogon Remote` is target-mutating, so the universal `sas` command must not send it through the generic on-site deployment dispatcher. `scripts/Invoke-SasUniversalField.ps1` resolves `Bootstrap-SysAdminSuiteAutoLogon.cmd` from the machine-local runtime and invokes that sealed bootstrap for Remote. The bootstrap verifies the staged runtime/manifest and then enters `Invoke-SasAutoLogonCrashSafeFieldRun.ps1`, which creates the registered transcript, field-run result, and latest pointer under `%LOCALAPPDATA%\SysAdminSuite`.
+
+`AutoLogon Recover` remains recovery-only through `Run-AutoLogonOnsite.cmd Recover HOST`; it is not converted into a deployment action.
+
+The operator execution-route harness is stricter than the installed command-discovery shim: it uses `sas repo` only to locate the sealed runtime and calls `Bootstrap-SysAdminSuiteAutoLogon.cmd` directly. This protects field execution when an installed `sas` dispatcher is older than the currently sealed runtime.
 
 ## Local clipboard recovery
 
@@ -57,13 +63,13 @@ The universal front door owns machine/runtime discovery and protected-path admis
 - `sas network`
 - `sas printer` — launches the canonical system-wide Northwell printer mapper after the same protected-path authority gate;
 - `sas clipboard` — restarts the local Windows Clipboard User Service using the field-proven `cbdhsvc*` repair;
-- `sas autologon Remote HOST`
-- `sas autologon Recover HOST`
-- protected `sas cybernet ...` operations
-- existing non-network-sensitive `sas` commands through the prior dispatcher
+- `sas autologon Remote HOST` — sealed crash-safe bootstrap and durable field evidence;
+- `sas autologon Recover HOST` — recovery-only;
+- protected `sas cybernet ...` operations;
+- existing non-network-sensitive `sas` commands through the prior dispatcher.
 
-The canonical product-level network gate still runs before target work. The new platform resolver does not weaken that gate; it removes operator/path assumptions before the canonical gate runs. Local clipboard recovery is intentionally outside that network gate because it mutates only the controller's per-user clipboard service.
+The canonical product-level network gate still runs before target work. The platform resolver does not weaken that gate; it removes operator/path assumptions before the canonical gate runs. Local clipboard recovery is intentionally outside that network gate because it mutates only the controller's per-user clipboard service.
 
 ## Proof boundary
 
-Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, and mapped-drive fixtures. Clipboard contracts prove discoverability, the exact `cbdhsvc*` repair mechanism, narrow local scope, and parser validity; they do not intentionally restart the CI runner's live clipboard service. The platform tests do not prove a specific hospital switch port, Wi-Fi access point, VPN session, target authorization, printer queue, package execution, or reboot. Live target work still owns its normal field evidence.
+Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, mapped-drive, sealed AutoLogon bootstrap, and stale-dispatcher-bypass fixtures. Clipboard contracts prove discoverability, the exact `cbdhsvc*` repair mechanism, narrow local scope, and parser validity; they do not intentionally restart the CI runner's live clipboard service. Platform tests do not prove a specific hospital switch port, Wi-Fi access point, VPN session, target authorization, package execution, reboot, or sign-in. Live target work still owns its normal crash-safe field evidence.
