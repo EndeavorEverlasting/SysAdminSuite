@@ -286,8 +286,10 @@ function Assert-SasNorthwellPrinterStatusProof {
         }
         $missingProperty = $Status.PSObject.Properties['Missing']
         $stillProperty = $Status.PSObject.Properties['StillPresent']
-        $missing = if ($null -ne $missingProperty) { @($missingProperty.Value) } else { @() }
-        $stillPresent = if ($null -ne $stillProperty) { @($stillProperty.Value) } else { @() }
+        $missing = @()
+        $stillPresent = @()
+        if ($null -ne $missingProperty) { $missing = @($missingProperty.Value) }
+        if ($null -ne $stillProperty) { $stillPresent = @($stillProperty.Value) }
         if ($missing.Count -gt 0) { throw ('Missing machine-wide queue(s): ' + ($missing -join ', ')) }
         if ($stillPresent.Count -gt 0) { throw ('Still-present machine-wide queue(s): ' + ($stillPresent -join ', ')) }
         throw 'Agent returned Success=false without a more specific error.'
