@@ -118,7 +118,13 @@ Write-Host $machineMessage -ForegroundColor Green
 
 if ($Action -eq 'Map') {
     $finalizerError = $null
-    try { & $finalizer }
+    $powerShell51 = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    try {
+        if (-not (Test-Path -LiteralPath $powerShell51 -PathType Leaf)) { throw "Windows PowerShell 5.1 was not found: $powerShell51" }
+        & $powerShell51 -NoLogo -NoProfile -ExecutionPolicy Bypass -File $finalizer -EvidenceRoot $evidenceRoot
+        $finalizerExitCode = [int]$LASTEXITCODE
+        if ($finalizerExitCode -ne 0) { throw "Active-user finalizer exited with code $finalizerExitCode." }
+    }
     catch { $finalizerError = $_ }
 
     if ($null -ne $finalizerError) {
@@ -136,7 +142,15 @@ if ($Action -eq 'Map') {
         try { $active = Get-Content -LiteralPath $activePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop }
         catch { $active = $null }
     }
-    $pendingNextLogon = ($null -ne $active -and $null -ne $active.PSObject.Properties['PendingNextLogon'] -and [bool]$active.PendingNextLogon)
+    $pendingNextLogon = $false
+    if ($null -ne $active) {
+        if ($null -ne $active.PSObject.Properties['PendingNextLogonTargets']) {
+            $pendingNextLogon = ([int]$active.PendingNextLogonTargets -gt 0)
+        }
+        elseif ($null -ne $active.PSObject.Properties['Results']) {
+            $pendingNextLogon = (@($active.Results | Where-Object { $_.Success -and $_.PendingNextLogon }).Count -gt 0)
+        }
+    }
     if ($pendingNextLogon) {
         $finalOutcome = 'READY_NEXT_LOGON'
         $finalMessage = "RESULT: READY NEXT LOGON ($machineOutcome). Machine-wide registration is proven; no active user session required immediate materialization."
