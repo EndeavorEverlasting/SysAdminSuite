@@ -58,8 +58,6 @@ function Invoke-SasLegacyDispatcher {
 }
 
 function Resolve-SasInstalledPrinterBootstrap {
-    # A machine-wide/user shim owns its sibling printer bootstrap. Source-checkout invocation may
-    # fall back to the validated local runtime/controller, but never to the caller's current path.
     foreach ($candidate in @(
         (Join-Path $PSScriptRoot 'Bootstrap-SysAdminSuitePrinter.ps1'),
         (Join-Path $runtimeRoot 'Bootstrap-SysAdminSuitePrinter.ps1'),
@@ -71,9 +69,6 @@ function Resolve-SasInstalledPrinterBootstrap {
 }
 
 function Resolve-SasInstalledAutoLogonBootstrap {
-    # Target-mutating AutoLogon Remote must enter the sealed crash-safe bootstrap so every run gets
-    # the registered LOCALAPPDATA transcript/result/latest-pointer recovery surface. Prefer the
-    # execution runtime; the controller fallback supports source-checkout validation only.
     foreach ($candidate in @(
         (Join-Path $runtimeRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd'),
         (Join-Path $controllerRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd')
@@ -91,7 +86,7 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
         Write-Host 'Printer file/batch mapping: sas printer file' -ForegroundColor Green
         Write-Host 'Printer mapping when GitHub is intentionally unavailable: sas printer offline' -ForegroundColor DarkGray
         Write-Host 'Clipboard recovery is available as: sas clipboard' -ForegroundColor Green
-        Write-Host 'Batch network probing is available as: sas network probe HOST1 HOST2 ...' -ForegroundColor Green
+        Write-Host 'Batch network probing is available as: sas network probe HOST01 HOST02 ...' -ForegroundColor Green
     }
     exit 0
 }
@@ -102,10 +97,6 @@ switch ($normalized) {
         $refresh = Join-Path $controllerRoot 'scripts\Refresh-SasOperatorCommand.ps1'
         if (-not (Test-Path -LiteralPath $refresh -PathType Leaf)) { throw "Missing canonical refresh workflow: $refresh" }
 
-        # The existing refresh owns Guest/Internet Git synchronization and seals the next local
-        # C:\SASAL runtime. It currently installs the compatibility dispatcher as part of that flow.
-        # After it succeeds, reinstall the universal machine-neutral front door from the newly sealed
-        # runtime so refresh converges to this platform rather than silently regressing it.
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $refresh -RepositoryRoot $controllerRoot
         $refreshExit = $LASTEXITCODE
         if ($refreshExit -ne 0) { exit $refreshExit }
@@ -126,18 +117,18 @@ switch ($normalized) {
         if ($actualArgs.Count -gt 0 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -eq 'probe') {
             $targets = @($actualArgs | Select-Object -Skip 1)
             if ($targets.Count -eq 0) {
-                Write-Host 'Usage: sas network probe HOST1 [HOST2 ...]' -ForegroundColor Red
+                Write-Host 'Usage: sas network probe HOST01 [HOST02 ...]' -ForegroundColor Red
                 exit 2
             }
             [void](Assert-SasProtectedForAction -Purpose "Batch network probe for $($targets.Count) explicit targets")
             $batchProbe = Join-Path $controllerRoot 'survey\sas-network-batch-probe.ps1'
             if (-not (Test-Path -LiteralPath $batchProbe -PathType Leaf)) {
-                throw "Canonical batch network probe is missing: $batchProbe"
+                throw "Batch network probe runtime is not present in the active controller: $controllerRoot. Run 'sas refresh' on Guest/Internet to install the current sealed runtime."
             }
             & $batchProbe -Target $targets
             exit 0
         }
-        if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas network [HOST]  OR  sas network probe HOST1 [HOST2 ...]' -ForegroundColor Red; exit 2 }
+        if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas network [HOST]  OR  sas network probe HOST01 [HOST02 ...]' -ForegroundColor Red; exit 2 }
         if ($actualArgs.Count -eq 1) {
             [void](Assert-SasProtectedForAction -Purpose "Network readiness probe for $($actualArgs[0])")
             Invoke-SasLegacyDispatcher
@@ -211,7 +202,6 @@ switch ($normalized) {
                     exit $LASTEXITCODE
                 }
 
-                # Recovery stays recovery-only. Do not send Recover through the deployment bootstrap.
                 $recoveryLauncher = Join-Path $runtimeRoot 'Run-AutoLogonOnsite.cmd'
                 if (-not (Test-Path -LiteralPath $recoveryLauncher -PathType Leaf)) {
                     throw "Canonical local AutoLogon recovery launcher is missing from runtime: $recoveryLauncher"
