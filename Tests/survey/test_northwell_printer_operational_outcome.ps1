@@ -20,24 +20,19 @@ if ($errors.Count -gt 0) {
     throw ($errors | ForEach-Object { $_.Message } | Out-String)
 }
 
-function Import-FunctionFromAst {
-    param([Parameter(Mandatory)][string]$Name)
-    $functionAst = $ast.Find({
-        param($node)
-        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
-            $node.Name -eq $Name
-    }, $true)
-    if (-not $functionAst) { throw "$Name was not found in the operational engine." }
-    Invoke-Expression $functionAst.Extent.Text
-}
-
 foreach ($name in @(
     'ConvertTo-SasComputerKey',
     'Get-SasLatestMappedTargetForPrinter',
     'Get-SasRemoteMachineWideProof',
     'Get-SasOperationalOutcome'
 )) {
-    Import-FunctionFromAst -Name $name
+    $functionAst = $ast.Find({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq $name
+    }, $true)
+    if (-not $functionAst) { throw "$name was not found in the operational engine." }
+    Invoke-Expression $functionAst.Extent.Text
 }
 
 $raw = [pscustomobject]@{
