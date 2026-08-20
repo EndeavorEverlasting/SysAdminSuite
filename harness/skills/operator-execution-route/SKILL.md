@@ -2,70 +2,60 @@
 
 ## Trigger
 
-Load this skill after a canonical command has been selected when any of the following is true:
-
-- the command is repository-relative;
-- a registered crash-safe or technician front door exists;
-- the operator asks to get to the right path and run the command;
-- the current shell location is unknown;
-- the agent is about to hand a command to the operator rather than execute it;
-- AutoLogon `autologon-remote` is selected.
+Load this skill after a canonical command has been selected when the command is repository/runtime-relative, a crash-safe front door exists, the operator's current directory is unknown, or AutoLogon `autologon-remote` is selected.
 
 ## Required inputs
 
 - canonical `command_id`;
 - requested goal;
-- explicit target when the command requires one;
+- explicit target when required;
 - whether the current environment can execute on the operator workstation;
 - current repository/network authorization context.
 
 ## Procedure
 
-1. Read `harness/api/operator-execution-route-registry.json`.
-2. Resolve exactly one execution route for the selected `command_id`.
-3. Read `harness/workflows/operator-execution-route.yaml`.
-4. Verify the route `repository_freshness_dependency` is tracked; if current repository behavior matters, satisfy it before execution.
-5. Resolve the executable repository/runtime location. Do **not** assume the current directory.
-6. Prefer `sas repo` when the installed operator launcher is available; otherwise use the bounded `%LOCALAPPDATA%\SysAdminSuite\repo-root.txt` cache.
-7. Verify every route `required_files` entry beneath the resolved root before execution.
-8. When the route declares a target, validate it against `target_validation_pattern`, encode it exactly as `target_encoding` requires, and substitute only the encoded value into `target_placeholder`. Never interpolate the raw target into PowerShell source.
-9. Invoke the registered `operator_helper` via `powershell.exe -File`, passing the encoded target as a positional argument. The helper decodes and revalidates the target, re-reads the route registry, re-verifies every required dependency, and then invokes `operator_entrypoint`.
-10. When a registered `operator_front_door` exists, use it. The inner product command is implementation context, not operator handoff text.
-11. Set the shell location to the resolved root, run the route helper/front door, and propagate the child exit code exactly.
-12. If this environment cannot execute on the operator workstation, emit one copy-paste route-and-run command from the registry template. Do not split it into “cd here” plus a second command when the harness can do both.
-13. Report the durable artifact/pointer expected from the front door. Terminal text is not durable proof.
+1. Read `harness/api/operator-execution-route-registry.json` and `harness/workflows/operator-execution-route.yaml`.
+2. Resolve exactly one route and prove its repository freshness dependency is tracked.
+3. Do **not** assume the current directory or assume every valid runtime is a full repository.
+4. Validate the explicit target against `target_validation_pattern`, encode it according to `target_encoding`, and never interpolate raw target text into PowerShell source.
+5. For `autologon-remote`, if installed `sas` exists, use `sas repo` only to locate the sealed runtime. A valid result may be `C:\SASAL` and may intentionally omit the full `harness\` tree.
+6. Require `Bootstrap-SysAdminSuiteAutoLogon.cmd` beneath that sealed runtime and invoke it with the validated target. Do not delegate the target-mutating route to an arbitrary installed `sas autologon Remote` dispatcher.
+7. The sealed bootstrap must verify its local staging manifest and enter `Invoke-SasAutoLogonCrashSafeFieldRun.ps1`, which owns the registered transcript/result/latest-pointer evidence.
+8. If installed `sas` is unavailable, resolve the bounded full-repository fallback from `%LOCALAPPDATA%\SysAdminSuite\repo-root.txt`, prove every `required_files` dependency, and invoke `harness/scripts/Invoke-SasOperatorExecutionRoute.ps1` through `powershell.exe -File`.
+9. Preserve the child exit code and outer operator PowerShell on failure.
+10. If this environment cannot execute on the operator workstation, emit one copy-paste command that advances the first unproven field gate.
 
 ## AutoLogon rule
 
-For `autologon-remote`, the operator front door is:
+The durable crash-safe authority remains:
 
 `Run-AutoLogonCrashSafe.cmd HOST`
 
-Do not hand the operator only:
+The canonical product command remains:
 
 `sas autologon Remote HOST`
 
-The latter remains an inner product command. The registered harness helper carries the target as encoded argument data, while the crash-safe launcher owns persistent diagnostics, offline evidence recovery, and exit propagation.
+The installed universal command is implemented by `scripts/Invoke-SasUniversalField.ps1`. Current product code routes AutoLogon **Remote** into `Bootstrap-SysAdminSuiteAutoLogon.cmd`; **Recover** remains recovery-only through the on-site recovery launcher. The operator execution route is stricter still: it resolves the sealed runtime with `sas repo` and calls `Bootstrap-SysAdminSuiteAutoLogon.cmd` directly, so a stale installed dispatcher cannot bypass crash-safe evidence.
 
 ## Failure handling
 
-- Unresolved repository root: fail closed and route the operator to `sas refresh` on Guest/Internet when freshness/staging is required.
-- Resolved root missing any registered dependency: fail before helper/front-door execution and treat it as a repository freshness/path proof failure.
-- Invalid target or target encoding: fail before front-door execution; never weaken hostname validation to make a pasted command run.
-- Dirty or separately owned checkout: preserve it; use the repository-freshness workflow rather than reset/clean.
-- Missing workstation execution capability: state that exact external blocker and provide one copy-paste route-and-run command.
-- Command failure: preserve the registered crash-safe artifacts and latest pointer before considering any rerun.
+- `sas repo` resolves `C:\SASAL`: expected; do not require a harness registry there.
+- sealed runtime lacks `Bootstrap-SysAdminSuiteAutoLogon.cmd`: fail at that boundary; do not fall through to a weaker dispatcher.
+- installed `sas` absent: use the proven full-repository helper fallback.
+- invalid target/encoding: fail before either execution path.
+- dirty or separately owned checkout: preserve it; do not reset/clean.
+- failure after target mutation: classify the registered crash-safe evidence before any rerun.
 
 ## Expected outputs
 
 - selected route id;
-- resolved repository root or exact reason it could not be resolved;
-- selected operator front door;
+- selected execution adapter (`sealed crash-safe bootstrap` or full-repository fallback);
+- resolved runtime/repository root when known;
 - executed/not-executed disposition;
-- propagated exit code when executed;
-- durable success/failure artifact path;
-- one exact next action only when a real unproven gate remains.
+- propagated exit code;
+- durable result/latest-pointer path;
+- one exact next action only when an unproven gate remains.
 
 ## Proof ceiling
 
-This skill proves routing, target transport, dependency proof, and execution-location correctness only. Live target, deployment, reboot, automatic sign-in, and runtime acceptance require the registered product artifacts.
+This skill proves routing, safe target transport, sealed-runtime crash-safe delegation or fallback dependency proof, and exit disposition. Live target mutation, deployment, reboot, automatic sign-in, and runtime acceptance require the registered field artifacts.

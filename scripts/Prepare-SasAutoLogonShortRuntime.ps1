@@ -7,7 +7,8 @@ Stage the short AutoLogon runtime from an already-refreshed local checkout.
 This script is intentionally local-only. It never names or contacts GitHub and never contacts a field target.
 It must run while the operator is on Guest/Internet, copies the exact already-fetched commit into C:\SASAL
 through local Git object transfer, removes runtime remotes so protected-network code cannot accidentally fetch,
-and writes a local preparation manifest consumed by the protected AutoLogon bootstrap.
+writes a SHA-256 tracked-file seal using .NET cryptography, and refreshes the installed `sas` operator shim
+from the same sealed source before declaring the runtime ready.
 
 Existing dirty runtime content is never reset, cleaned, removed, or overwritten.
 #>
@@ -61,6 +62,8 @@ function Invoke-SasLocalGit {
 
     $stderrPath = Join-Path $env:TEMP ('sas-local-git-' + [guid]::NewGuid().ToString('N') + '.err')
     $previousPreference = $ErrorActionPreference
+    $stdout = @()
+    $exitCode = 0
     try {
         $ErrorActionPreference = 'Continue'
         $LASTEXITCODE = 0
@@ -74,12 +77,23 @@ function Invoke-SasLocalGit {
     $stderr = ''
     if (Test-Path -LiteralPath $stderrPath) {
         try {
-            $stderrRaw = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
-            $stderr = $stderrRaw.Trim()
+            # Windows PowerShell 5.1 can return $null for Get-Content -Raw on an empty
+            # redirected stderr file. Treat that as ordinary empty stderr instead of
+            # calling .Trim() on a null value after a successful native Git command.
+            $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+            if ($null -ne $stderrRaw) {
+                $stderr = ([string]$stderrRaw).Trim()
+            }
         }
         finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
     }
-    $stdoutText = (@($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+
+    $stdoutLines = @($stdout | ForEach-Object { [string]$_ })
+    $stdoutText = if ($stdoutLines.Count -gt 0) {
+        ($stdoutLines -join [Environment]::NewLine).Trim()
+    } else {
+        ''
+    }
 
     if ($exitCode -ne 0) {
         $detail = @($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine
@@ -90,7 +104,7 @@ function Invoke-SasLocalGit {
         if (-not [string]::IsNullOrWhiteSpace($stdoutText)) { Write-Host $stdoutText }
         if (-not [string]::IsNullOrWhiteSpace($stderr)) { Write-Host $stderr -ForegroundColor DarkGray }
     }
-    return @($stdout | ForEach-Object { [string]$_ })
+    return @($stdoutLines)
 }
 
 function Get-SasLocalGitScalar {
@@ -100,9 +114,31 @@ function Get-SasLocalGitScalar {
         [Parameter(Mandatory = $true)][string]$FailureMessage
     )
     $lines = @(Invoke-SasLocalGit -Root $Root -Arguments $Arguments -FailureMessage $FailureMessage -Quiet)
-    $value = [string]($lines | Select-Object -First 1)
-    if ([string]::IsNullOrWhiteSpace($value)) { throw "$FailureMessage (empty git output)" }
-    return $value.Trim()
+    $value = $lines | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace([string]$value)) { throw "$FailureMessage (empty git output)" }
+    return ([string]$value).Trim()
+}
+
+function Get-SasSha256Hex {
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [IO.File]::Open(
+            $LiteralPath,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        $bytes = $sha256.ComputeHash($stream)
+        return ([BitConverter]::ToString($bytes)).Replace('-','').ToLowerInvariant()
+    }
+    finally {
+        if ($null -ne $sha256) { $sha256.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
 }
 
 $networkModule = Join-Path $SourceRoot 'scripts\SasOperatorSession.psm1'
@@ -127,7 +163,8 @@ if (@($sourceDirty | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_
 if (-not (Test-Path -LiteralPath $RuntimeRoot)) {
     New-Item -ItemType Directory -Path $RuntimeRoot -Force | Out-Null
     [void](Invoke-SasLocalGit -Root $RuntimeRoot -Arguments @('init') -FailureMessage "Could not initialize short runtime: $RuntimeRoot")
-} elseif (-not (Test-Path -LiteralPath $RuntimeRoot -PathType Container)) {
+}
+elseif (-not (Test-Path -LiteralPath $RuntimeRoot -PathType Container)) {
     throw "Short runtime path exists but is not a directory: $RuntimeRoot"
 }
 
@@ -172,7 +209,9 @@ $required = @(
     'scripts\Invoke-SasAutoLogonOnsite.ps1',
     'scripts\Invoke-SasAutoLogonFieldDeployment.ps1',
     'scripts\Set-SasHostEligibilityLocalTarget.ps1',
-    'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1'
+    'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1',
+    'scripts\Install-SasPortableLauncher.ps1',
+    'scripts\SasPortableLauncher.ps1'
 )
 foreach ($relative in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $RuntimeRoot $relative) -PathType Leaf)) {
@@ -180,8 +219,52 @@ foreach ($relative in $required) {
     }
 }
 
+$trackedRelativePaths = @(
+    Invoke-SasLocalGit -Root $RuntimeRoot -Arguments @('ls-files') `
+        -FailureMessage 'Could not enumerate tracked runtime files for the protected-runtime seal.' -Quiet |
+        ForEach-Object { ([string]$_).Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Sort-Object -Unique
+)
+if ($trackedRelativePaths.Count -lt 1) {
+    throw 'Protected-runtime seal cannot be created because Git returned no tracked files.'
+}
+
+$runtimePrefix = $RuntimeRoot.TrimEnd('\') + '\'
+# Use an ordinary PowerShell object array here. Windows PowerShell 5.1 can throw
+# "Argument types do not match" when a generic List[object] is embedded through
+# an array subexpression inside a PSCustomObject/ordered manifest.
+$trackedFileHashes = @()
+foreach ($relative in $trackedRelativePaths) {
+    $canonicalRelative = ([string]$relative).Replace('\','/')
+    $relativeWindows = $canonicalRelative.Replace('/', '\')
+    $fullPath = [IO.Path]::GetFullPath((Join-Path $RuntimeRoot $relativeWindows))
+    if (-not $fullPath.StartsWith($runtimePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Tracked runtime path escapes the short runtime: $canonicalRelative"
+    }
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        throw "Tracked runtime file is missing while creating the seal: $canonicalRelative"
+    }
+    $hash = Get-SasSha256Hex -LiteralPath $fullPath
+    $trackedFileHashes += [pscustomobject][ordered]@{
+        path = $canonicalRelative
+        sha256 = $hash
+    }
+}
+$trackedFileHashCount = $trackedFileHashes.Count
+
+$operatorInstaller = Join-Path $SourceRoot 'scripts\Install-SasPortableLauncher.ps1'
+Write-Host ''
+Write-Host 'REFRESHING INSTALLED SAS OPERATOR SHIM FROM SEALED SOURCE' -ForegroundColor Cyan
+$LASTEXITCODE = 0
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $operatorInstaller
+if ($LASTEXITCODE -ne 0) {
+    throw "Installed sas operator shim refresh failed with exit code $LASTEXITCODE. Protected runtime was not declared operator-ready."
+}
+Write-Host 'PASS: installed sas operator shim refreshed from sealed source commit.' -ForegroundColor Green
+
 $manifest = [pscustomobject][ordered]@{
-    schema_version = 'sas-autologon-short-runtime/v1'
+    schema_version = 'sas-autologon-short-runtime/v2'
     runtime_root = $RuntimeRoot
     source_root = $SourceRoot
     prepared_commit = $runtimeHead
@@ -191,6 +274,9 @@ $manifest = [pscustomobject][ordered]@{
     runtime_git_transport = 'LOCAL_FILESYSTEM_ONLY'
     runtime_remotes_removed = $true
     protected_bootstrap_git_network_allowed = $false
+    tracked_file_hash_algorithm = 'SHA256'
+    tracked_file_count = $trackedFileHashCount
+    tracked_file_hashes = $trackedFileHashes
     target_contact_performed = $false
     target_mutation_performed = $false
 }
@@ -201,4 +287,5 @@ Write-Host 'SAS_AUTOLOGON_SHORT_RUNTIME_READY' -ForegroundColor Green
 Write-Host "Runtime:  $RuntimeRoot"
 Write-Host "HEAD:     $runtimeHead"
 Write-Host "Manifest: $statePath"
-Write-Host 'Protected-side Git network I/O: DISABLED' -ForegroundColor Green
+Write-Host "Tracked files sealed: $trackedFileHashCount" -ForegroundColor Green
+Write-Host 'Protected-side Git activity: NONE' -ForegroundColor Green

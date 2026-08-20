@@ -68,7 +68,7 @@ function Resolve-SasPreparedAutoLogonRuntime {
     }
     try { $state = Get-Content -LiteralPath $autoLogonRuntimeStatePath -Raw -Encoding UTF8 | ConvertFrom-Json }
     catch { throw "AutoLogon short-runtime manifest is unreadable. Run 'sas refresh' on Guest/Internet: $($_.Exception.Message)" }
-    if ([string]$state.schema_version -ne 'sas-autologon-short-runtime/v1') {
+    if ([string]$state.schema_version -ne 'sas-autologon-short-runtime/v2') {
         throw "AutoLogon short-runtime manifest schema is unsupported. Run 'sas refresh' on Guest/Internet."
     }
     $runtimeRoot = [IO.Path]::GetFullPath([string]$state.runtime_root)
@@ -81,8 +81,16 @@ function Resolve-SasPreparedAutoLogonRuntime {
     }
     if ([string]$state.preparation_network_classification -ne 'GUEST_INTERNET' -or
         [string]$state.runtime_git_transport -ne 'LOCAL_FILESYSTEM_ONLY' -or
+        -not [bool]$state.runtime_remotes_removed -or
         [bool]$state.protected_bootstrap_git_network_allowed) {
         throw "Prepared AutoLogon runtime does not satisfy the Guest-to-protected staging contract. Run 'sas refresh' on Guest/Internet."
+    }
+    $sealEntries = @($state.tracked_file_hashes)
+    $declaredSealCount = [int]$state.tracked_file_count
+    if ([string]$state.tracked_file_hash_algorithm -ne 'SHA256' -or
+        $declaredSealCount -lt 1 -or
+        $sealEntries.Count -ne $declaredSealCount) {
+        throw "Prepared AutoLogon runtime does not contain a complete SHA-256 tracked-file seal. Run 'sas refresh' on Guest/Internet."
     }
     $bootstrap = Join-Path $runtimeRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd'
     if (-not (Test-Path -LiteralPath $bootstrap -PathType Leaf)) {
@@ -122,9 +130,33 @@ function Invoke-SasPortableRepoCommand {
     return $commandExit
 }
 
-$repoRoot = Resolve-SasRepoRoot
 $normalized = if ($Command) { $Command.Trim().ToLowerInvariant() } else { '' }
 $actualCommandArgs = Get-SasActualArguments -Arguments $CommandArgs
+
+# The sealed AutoLogon Remote/Recover lanes are intentionally dispatched before general repository
+# discovery. On the protected network, the serialized C:\SASAL manifest is the authority and the
+# launcher must not invoke Git merely to locate an unrelated operator checkout.
+if ($normalized -eq 'autologon' -and $actualCommandArgs.Count -eq 2) {
+    $mode = ([string]$actualCommandArgs[0]).Trim().ToLowerInvariant()
+    $target = [string]$actualCommandArgs[1]
+    if ($mode -eq 'remote') {
+        $runtime = Resolve-SasPreparedAutoLogonRuntime
+        Write-Host "Using sealed AutoLogon runtime: $($runtime.root)" -ForegroundColor Cyan
+        Write-Host "Prepared commit: $($runtime.commit)" -ForegroundColor Cyan
+        Write-Host 'Protected-side Git activity: NONE' -ForegroundColor Green
+        & $runtime.bootstrap $target $runtime.commit
+        exit $LASTEXITCODE
+    }
+    if ($mode -eq 'recover') {
+        $runtime = Resolve-SasPreparedAutoLogonRuntime
+        $recoveryLauncher = Join-Path $runtime.root 'Run-AutoLogonOnsite.cmd'
+        Write-Host 'Protected-side Git activity: NONE' -ForegroundColor Green
+        & $recoveryLauncher 'Recover' $target
+        exit $LASTEXITCODE
+    }
+}
+
+$repoRoot = Resolve-SasRepoRoot
 $sessionModule = Join-Path -Path $repoRoot -ChildPath 'scripts\SasOperatorSession.psm1'
 if (Test-Path -LiteralPath $sessionModule -PathType Leaf) { Import-Module $sessionModule -Force }
 
@@ -204,24 +236,6 @@ switch ($normalized) {
         exit 2
     }
     'autologon' {
-        if ($actualCommandArgs.Count -eq 2) {
-            $mode = ([string]$actualCommandArgs[0]).Trim().ToLowerInvariant()
-            $target = [string]$actualCommandArgs[1]
-            if ($mode -eq 'remote') {
-                $runtime = Resolve-SasPreparedAutoLogonRuntime
-                Write-Host "Using sealed AutoLogon runtime: $($runtime.root)" -ForegroundColor Cyan
-                Write-Host "Prepared commit: $($runtime.commit)" -ForegroundColor Cyan
-                Write-Host 'Protected-side Git network I/O: NONE' -ForegroundColor Green
-                & $runtime.bootstrap $target $runtime.commit
-                exit $LASTEXITCODE
-            }
-            if ($mode -eq 'recover') {
-                $runtime = Resolve-SasPreparedAutoLogonRuntime
-                $recoveryLauncher = Join-Path $runtime.root 'Run-AutoLogonOnsite.cmd'
-                & $recoveryLauncher 'Recover' $target
-                exit $LASTEXITCODE
-            }
-        }
         exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Run-AutoLogonOnsite.cmd' -Arguments $actualCommandArgs)
     }
     'qualify' {
