@@ -19,8 +19,9 @@ if not defined SAS_QUEUE (
     echo  Enter the canonical shared queue as \\server\queue.
     echo  This launcher does NOT print a test page.
     echo  It does NOT map the printer by IP.
-    echo  Target context is recovered from the latest canonical mapping evidence
-    echo  when that evidence identifies one unambiguous target for this queue.
+    echo  Target context is recovered from the latest complete canonical mapping
+    echo  evidence when that evidence identifies one unambiguous target.
+    echo  If recovery is unavailable or ambiguous, enter the target PC explicitly.
     echo ================================================================
     echo.
     set /p "SAS_QUEUE=Shared printer queue: "
@@ -31,6 +32,13 @@ if not defined SAS_QUEUE (
     echo.
     set /p "SAS_DONE=Press Enter only when you are finished with this window: "
     exit /b 2
+)
+
+if not defined SAS_TARGET (
+    echo.
+    echo Optional: enter the mapped target PC hostname now.
+    echo Press Enter to recover one unambiguous target from the latest complete mapping evidence.
+    set /p "SAS_TARGET=Target PC hostname ^(recommended for multi-target batches^): "
 )
 
 if not defined SAS_PRINTER_IP (
