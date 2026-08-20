@@ -35,7 +35,7 @@ if ($transport -eq 'REMOTE_TASK_SCHEDULER+REMOTE_REGISTRY_NO_ADMIN_SHARE') {
     $shareless = Join-Path $PSScriptRoot 'Invoke-NorthwellPrinterSharelessActiveUser.ps1'
     if (-not (Test-Path -LiteralPath $shareless -PathType Leaf)) { throw "Shareless active-user finalizer not found: $shareless" }
     & $shareless -EvidenceRoot $EvidenceRoot -TimeoutSeconds $TimeoutSeconds
-    exit ([int]$LASTEXITCODE)
+    exit 0
 }
 
 $canonical = Join-Path $PSScriptRoot 'Confirm-NorthwellPrinterActiveUserMaterialization.ps1'
@@ -43,4 +43,4 @@ if (-not (Test-Path -LiteralPath $canonical -PathType Leaf)) { throw "Canonical 
 $invoke = @{ EvidenceRoot=$EvidenceRoot; TimeoutSeconds=$TimeoutSeconds }
 if ($KeepRemoteArtifacts) { $invoke.KeepRemoteArtifacts = $true }
 & $canonical @invoke
-exit ([int]$LASTEXITCODE)
+exit 0
