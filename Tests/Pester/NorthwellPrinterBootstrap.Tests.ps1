@@ -11,6 +11,7 @@ BeforeAll {
         'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
         'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
         'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1',
+        'scripts\SasNorthwellNetworkAuthority.psm1',
         'scripts\SasTargetNameResolution.psm1',
         'scripts\SasNetworkGuard.psm1',
         'scripts\SasInteractionCache.psm1',
@@ -60,12 +61,13 @@ Describe 'Northwell printer current-runtime bootstrap contract' {
         $text | Should -Not -Match 'Find-SasEligiblePrinterRuntime -Required \$RequiredCommit'
     }
 
-    It 'requires the current reversible state engine instead of the stale mapping-only engine as runtime authority' {
+    It 'requires every executable printer authority dependency including the reversible engine and network authority' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         $text | Should -Match 'mapping\\Invoke-NorthwellPrinterState\.ps1'
         $text | Should -Not -Match "'mapping\\Invoke-NorthwellPrinterMapping\.ps1'"
         $text | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
         $text | Should -Match 'Invoke-NorthwellPrinterActiveUserAgent\.ps1'
+        $text | Should -Match 'scripts\\SasNorthwellNetworkAuthority\.psm1'
     }
 
     It 'keeps operator checkout changes outside runtime authority and never destroys them' {
@@ -89,12 +91,30 @@ Describe 'Northwell printer current-runtime bootstrap contract' {
         $text | Should -Match 'latest-runtime\.txt'
     }
 
-    It 'keeps an explicit local-only escape hatch separate from normal sas printer currentness claims' {
+    It 'does not multiply an invalid exact-head runtime into GUID-suffixed worktrees' {
+        $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
+        $text | Should -Match 'Exact current printer runtime path exists but is invalid or modified'
+        $text | Should -Match 'no duplicate runtime was created'
+        $text | Should -Not -Match '\$remoteHead \+ ''-'' \+ \[guid\]'
+    }
+
+    It 'retires only clean bootstrap-owned superseded runtimes and preserves their evidence first' {
+        $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
+        $text | Should -Match 'Remove-SasSupersededPrinterRuntimes'
+        $text | Should -Match 'Test-SasPathInsideRoot'
+        $text | Should -Match 'Move-SasPrinterRuntimeEvidence'
+        $text | Should -Match "Join-Path \$StateRoot 'evidence'"
+        $text | Should -Match "worktree','remove','--force'"
+        $text | Should -Match "worktree','prune'"
+        $text | Should -Match 'Preserving superseded printer runtime because tracked printer files are modified'
+    }
+
+    It 'keeps explicit local-only mode separate from normal current-origin claims' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         $text | Should -Match '\[switch\]\$UseLocalRuntimeOnly'
         $text | Should -Match 'EXPLICIT_LOCAL_ONLY_NO_ORIGIN_CURRENTNESS_CLAIM'
         $text | Should -Match 'if \(\$UseLocalRuntimeOnly\)'
-        $text | Should -Match 'else \{\s*\$mutex = New-Object System\.Threading\.Mutex'
+        $text | Should -Match "use 'sas printer offline'"
     }
 
     It 'adds no reachability or test-page ritual before printer mapping' {
