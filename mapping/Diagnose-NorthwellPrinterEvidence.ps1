@@ -180,13 +180,31 @@ foreach ($statusFile in $statusFiles) {
     $diagnostics.Add((Get-SasPrinterProofDiagnostic -Status $status))
 }
 
+$summarySuccessProperty = $summary.PSObject.Properties['Success']
+$summarySuccess = ($null -ne $summarySuccessProperty -and [bool]$summarySuccessProperty.Value)
+$totalTargetsProperty = $summary.PSObject.Properties['TotalTargets']
+$completedTargetsProperty = $summary.PSObject.Properties['CompletedTargets']
+$computersProperty = $summary.PSObject.Properties['Computers']
+$totalTargets = if ($null -ne $totalTargetsProperty) { [int]$totalTargetsProperty.Value } else { 0 }
+$completedTargets = if ($null -ne $completedTargetsProperty) { [int]$completedTargetsProperty.Value } else { 0 }
+$expectedComputers = if ($null -ne $computersProperty) { @(ConvertTo-SasStringArray -Value $computersProperty.Value | ForEach-Object { $_.Split('.')[0].ToLowerInvariant() } | Sort-Object -Unique) } else { @() }
+$statusComputers = @($diagnostics.ToArray() | ForEach-Object { ([string]$_.computer).Split('.')[0].ToLowerInvariant() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+$computerCoverageComplete = ($expectedComputers.Count -eq $totalTargets -and @($expectedComputers | Where-Object { $statusComputers -notcontains $_ }).Count -eq 0 -and @($statusComputers | Where-Object { $expectedComputers -notcontains $_ }).Count -eq 0)
+$evidenceSetComplete = ($summarySuccess -and $totalTargets -gt 0 -and $completedTargets -eq $totalTargets -and $statusFiles.Count -eq $totalTargets -and $computerCoverageComplete)
+
 $failed = @($diagnostics.ToArray() | Where-Object { $_.classification -notin @('MACHINE_WIDE_REGISTRATION_PROVEN','MACHINE_WIDE_REMOVAL_PROVEN') })
-$overall = if ($failed.Count -eq 0) { 'AUTHORITATIVE_MACHINE_WIDE_PROOF_PRESENT' } else { 'AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT' }
+$overall = if ($evidenceSetComplete -and $failed.Count -eq 0) { 'AUTHORITATIVE_MACHINE_WIDE_PROOF_PRESENT' } else { 'AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT' }
+$evidenceSetClassification = if ($evidenceSetComplete) { 'COMPLETE' } else { 'INCOMPLETE_OR_FAILED' }
 
 Write-Host ''
 Write-Host '=== NORTHWELL PRINTER EVIDENCE DIAGNOSTIC ===' -ForegroundColor Cyan
-Write-Host "DIAGNOSTIC_STATUS=COMPLETED"
+Write-Host 'DIAGNOSTIC_STATUS=COMPLETED'
 Write-Host "MAPPING_PROOF=$overall"
+Write-Host "EVIDENCE_SET=$evidenceSetClassification"
+Write-Host "SUMMARY_SUCCESS=$summarySuccess"
+Write-Host "EXPECTED_TARGETS=$totalTargets"
+Write-Host "COMPLETED_TARGETS=$completedTargets"
+Write-Host "STATUS_FILES=$($statusFiles.Count)"
 Write-Host "EVIDENCE_ROOT=$resolvedEvidenceRoot"
 Write-Host 'TARGET_CONTACT_PERFORMED=False'
 Write-Host 'TARGET_MUTATION_PERFORMED=False'
@@ -211,8 +229,13 @@ if ($PassThru) {
         schema_version = 'sas-northwell-printer-evidence-diagnostic/v1'
         diagnostic_status = 'COMPLETED'
         mapping_proof = $overall
+        evidence_set = $evidenceSetClassification
+        evidence_set_complete = $evidenceSetComplete
         evidence_root = $resolvedEvidenceRoot
-        summary_success = [bool]$summary.Success
+        summary_success = $summarySuccess
+        expected_targets = $totalTargets
+        completed_targets = $completedTargets
+        status_files = $statusFiles.Count
         diagnostics = $diagnostics.ToArray()
         target_contact_performed = $false
         target_mutation_performed = $false
