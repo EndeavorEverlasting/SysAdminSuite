@@ -33,6 +33,12 @@ Describe 'Northwell printer administrative staging fallback' {
         $script:engineText | Should -Match 'StagingShare = if'
     }
 
+    It 'forces ADMIN$ environment expansion through target-side cmd.exe' {
+        $script:engineText | Should -Match '\$remoteTaskAction = if \(\$staging\.Name -eq ''ADMIN\$''\)'
+        $script:engineText | Should -Match 'cmd\.exe /d /s /c ""\{0\}""'
+        $script:engineText | Should -Match 'New-SasNorthwellPrinterTaskCreateArguments.+-RemoteLauncherLocal \$remoteTaskAction'
+    }
+
     It 'keeps SYSTEM task execution and no-print proof semantics' {
         $corePath = Join-Path $script:repoRoot 'mapping\Modules\NorthwellPrinterMapping.Core.psm1'
         $core = Get-Content -LiteralPath $corePath -Raw
