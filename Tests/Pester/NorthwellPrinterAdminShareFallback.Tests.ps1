@@ -25,12 +25,33 @@ Describe 'Northwell printer administrative staging fallback' {
         $script:engineText | Should -Match '\\\$computer\\ADMIN\$'
     }
 
-    It 'uses safe matching local paths for each administrative share' {
+    It 'uses a protected SYSTEM-profile path for ADMIN$ instead of Windows Temp' {
         $script:engineText | Should -Match 'AdminRelative = "ProgramData\\\$remoteSubPath"'
         $script:engineText | Should -Match "LocalRoot = 'C:\\ProgramData'"
-        $script:engineText | Should -Match 'AdminRelative = "Temp\\\$remoteSubPath"'
-        $script:engineText | Should -Match "LocalRoot = '%SystemRoot%\\Temp'"
-        $script:engineText | Should -Match 'StagingShare = if'
+        $script:engineText | Should -Match 'AdminRelative = "System32\\config\\systemprofile\\AppData\\Local\\\$remoteSubPath"'
+        $script:engineText | Should -Match "LocalRoot = '%SystemRoot%\\System32\\config\\systemprofile\\AppData\\Local'"
+        $script:engineText | Should -Not -Match "AdminRelative = \"Temp\\"
+        $script:engineText | Should -Not -Match "LocalRoot = '%SystemRoot%\\Temp'"
+    }
+
+    It 'proves full staging write/read/delete capability and falls through rejected candidates' {
+        $script:engineText | Should -Match 'foreach \(\$candidate in \$rootCandidates\.ToArray\(\)\)'
+        $script:engineText | Should -Match 'New-Item -ItemType Directory -Path \$candidateDir -Force -ErrorAction Stop'
+        $script:engineText | Should -Match "'SAS_STAGING_PROBE' \| Set-Content"
+        $script:engineText | Should -Match 'Get-Content -LiteralPath \$probePath -Raw -ErrorAction Stop'
+        $script:engineText | Should -Match 'Remove-Item -LiteralPath \$probePath -Force -ErrorAction Stop'
+        $script:engineText | Should -Match 'WARN staging candidate \$\(\$candidate\.Name\) rejected'
+        $script:engineText | Should -Match 'Admin share unavailable for staging:'
+    }
+
+    It 'contains errors from each root probe inside the per-target failure boundary' {
+        $tryIndex = $script:engineText.IndexOf('        Write-ControllerLog "[$computer] Preflight administrative staging shares and Task Scheduler."')
+        $candidateIndex = $script:engineText.IndexOf('        foreach ($candidate in $stagingCandidates) {')
+        $catchMarker = $script:engineText.IndexOf('$probeErrors.Add("$($candidate.Name): $($_.Exception.Message)")')
+        $tryIndex | Should -BeGreaterThan -1
+        $candidateIndex | Should -BeGreaterThan $tryIndex
+        $catchMarker | Should -BeGreaterThan $candidateIndex
+        $script:engineText | Should -Match 'Test-Path -LiteralPath \$candidate\.AdminRoot -PathType Container -ErrorAction Stop'
     }
 
     It 'forces ADMIN$ environment expansion through target-side cmd.exe' {
