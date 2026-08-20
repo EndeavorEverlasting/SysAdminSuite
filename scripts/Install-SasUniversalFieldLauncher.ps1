@@ -14,6 +14,7 @@ foreach ($required in @($sourceLauncher,$sourcePlatform)) {
     [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$tokens,[ref]$errors)
     if (@($errors).Count -gt 0) { throw "PowerShell parse failure: $required :: $($errors[0].Message)" }
 }
+Import-Module $sourcePlatform -Force
 
 function Test-SasDirectoryWritable {
     param([Parameter(Mandatory=$true)][string]$Path)
@@ -27,12 +28,38 @@ function Test-SasDirectoryWritable {
     catch { return $false }
 }
 
+$canonicalRuntime = 'C:\SASAL'
+$canonicalReady = Test-SasControllerSurface -Root $canonicalRuntime
+$userProfileRoot = $null
+if (-not [string]::IsNullOrWhiteSpace([string]$env:USERPROFILE)) {
+    try { $userProfileRoot = ([IO.Path]::GetFullPath($env:USERPROFILE)).TrimEnd('\') + '\' } catch { $userProfileRoot = $null }
+}
+$normalizedRepo = ([IO.Path]::GetFullPath($repoRoot)).TrimEnd('\') + '\'
+$repoIsUserScoped = (-not [string]::IsNullOrWhiteSpace($userProfileRoot) -and
+    $normalizedRepo.StartsWith($userProfileRoot,[StringComparison]::OrdinalIgnoreCase))
+
 $machineRoot = if ($env:ProgramData) { Join-Path $env:ProgramData 'SysAdminSuite' } else { 'C:\ProgramData\SysAdminSuite' }
 $machineBin = Join-Path $machineRoot 'bin'
 $userBin = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'SysAdminSuite\bin' } else { $null }
 $machineInstall = Test-SasDirectoryWritable -Path $machineBin
-$installRoot = if ($machineInstall) { $machineBin } elseif ($userBin -and (Test-SasDirectoryWritable -Path $userBin)) { $userBin } else { throw 'No writable local install directory is available.' }
-$installScope = if ($machineInstall) { 'MACHINE' } else { 'CURRENT_USER_FALLBACK' }
+
+# A user-profile checkout may bootstrap installation, but it cannot become shared execution authority.
+# If the canonical machine runtime is absent, require either a machine-neutral source root or its
+# preparation before claiming that the universal command is installed for arbitrary technicians.
+if (-not $canonicalReady -and $repoIsUserScoped) {
+    throw 'MACHINE_NEUTRAL_RUNTIME_REQUIRED: C:\SASAL is not prepared and the source checkout is under the current user profile. Prepare the canonical local runtime (normally via sas refresh on Guest/Internet) or install from a machine-neutral local checkout.'
+}
+
+$installRoot = if ($machineInstall) {
+    $machineBin
+}
+elseif ($userBin -and $canonicalReady -and (Test-SasDirectoryWritable -Path $userBin)) {
+    $userBin
+}
+else {
+    throw 'No safe universal launcher installation is available. A current-user shim requires an existing canonical machine-local C:\SASAL runtime.'
+}
+$installScope = if ($machineInstall) { 'MACHINE' } else { 'CURRENT_USER_SHIM_WITH_MACHINE_RUNTIME' }
 
 $launcherDestination = Join-Path $installRoot 'Invoke-SasUniversalField.ps1'
 $platformDestination = Join-Path $installRoot 'SasFieldPlatform.psm1'
@@ -40,19 +67,20 @@ $cmdDestination = Join-Path $installRoot 'sas.cmd'
 Copy-Item -LiteralPath $sourceLauncher -Destination $launcherDestination -Force
 Copy-Item -LiteralPath $sourcePlatform -Destination $platformDestination -Force
 
-# Machine state is a convenience cache only. Execution never depends on a username-specific repo path.
-if (Test-SasDirectoryWritable -Path $machineRoot) {
-    Set-Content -LiteralPath (Join-Path $machineRoot 'repo-root.txt') -Value $repoRoot -Encoding ASCII
+# Machine cache is optional and never points at a user-profile checkout. The trusted installed
+# launcher still resolves C:\SASAL first, and cache write failures cannot break command execution.
+$cacheRoot = if ($canonicalReady) { $canonicalRuntime } elseif (-not $repoIsUserScoped) { $repoRoot } else { $null }
+if (-not [string]::IsNullOrWhiteSpace([string]$cacheRoot) -and (Test-SasDirectoryWritable -Path $machineRoot)) {
+    try { Set-Content -LiteralPath (Join-Path $machineRoot 'repo-root.txt') -Value $cacheRoot -Encoding ASCII -ErrorAction Stop }
+    catch { Write-Warning "Machine controller cache could not be updated; continuing without it: $($_.Exception.Message)" }
 }
 
+# The CMD shim executes only the installer-owned PowerShell copy beside itself. Environment variables
+# are interpreted later by trusted PowerShell and must pass Test-SasLocalControllerPath before use.
 $cmd = @'
 @echo off
 setlocal EnableExtensions
-set "SAS_UNIVERSAL="
-if defined SAS_RUNTIME_ROOT if exist "%SAS_RUNTIME_ROOT%\scripts\Invoke-SasUniversalField.ps1" set "SAS_UNIVERSAL=%SAS_RUNTIME_ROOT%\scripts\Invoke-SasUniversalField.ps1"
-if not defined SAS_UNIVERSAL if exist "C:\SASAL\scripts\Invoke-SasUniversalField.ps1" set "SAS_UNIVERSAL=C:\SASAL\scripts\Invoke-SasUniversalField.ps1"
-if not defined SAS_UNIVERSAL set "SAS_UNIVERSAL=%~dp0Invoke-SasUniversalField.ps1"
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_UNIVERSAL%" %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasUniversalField.ps1" %*
 set "SAS_EXIT=%ERRORLEVEL%"
 endlocal & exit /b %SAS_EXIT%
 '@
@@ -79,6 +107,6 @@ if (-not (($env:Path -split ';') -contains $installRoot)) { $env:Path = $env:Pat
 Write-Host 'SysAdminSuite universal field command installed.' -ForegroundColor Green
 Write-Host "Install scope: $installScope"
 Write-Host "Launcher: $cmdDestination"
-Write-Host 'Execution resolution: SAS_RUNTIME_ROOT -> C:\SASAL -> local repo/controller surface.'
+Write-Host 'Execution resolution: trusted installed shim -> validated SAS_RUNTIME_ROOT / C:\SASAL / local controller surface.'
 Write-Host 'Protected network authority: hardwire OR NSLIJHS-WAB OR authenticated DomainAuthenticated VPN.'
 Write-Host 'Controller runtime distribution: LOCAL MACHINE ONLY; SysAdminSuite is not copied to target machines.' -ForegroundColor Green
