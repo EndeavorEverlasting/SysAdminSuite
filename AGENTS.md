@@ -50,7 +50,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 ## Technician execution doctrine
 - Field technicians use repository-owned CMD launchers instead of reconstructing PowerShell commands or individual script sequences whenever a tracked launcher covers the workflow.
 - The launcher owns target-name resolution, dry-run and live-cert gates, production confirmation, failure handling, artifact generation, and opening the operator handoff. PowerShell instructions are limited to pulling the current repository and revealing or selecting the launcher.
-- When a tracked assignment file or proven local interaction history already supplies approved hostnames, printers, or servers, technicians select/reuse it instead of reconstructing those values; any newly entered hostname still resolves and validates to exactly one canonical FQDN before mutation.
+- When a tracked assignment file or proven local interaction history already supplies approved hostnames, printers, or servers, technicians select/reuse it instead of reconstructing those values. Technicians enter the approved short hostname only when a reusable approved value is unavailable; it must resolve to exactly one canonical FQDN from approved local DNS context, and zero matches, alias mismatch, or multiple matches fail closed before mutation.
 - Where runtime eligibility or transport is uncertain, the launcher must complete live-cert dry run before live-cert production. Production cannot run unless dry run and harmless live certification pass.
 - Operator instructions name the one file to click and the one value to enter; implementation complexity remains inside repository-owned CMD and script surfaces.
 
