@@ -63,6 +63,8 @@ function Invoke-SasGit {
 
     $stderrPath = Join-Path $env:TEMP ('sas-printer-bootstrap-git-' + [guid]::NewGuid().ToString('N') + '.err')
     $previousPreference = $ErrorActionPreference
+    $stdout = @()
+    $exitCode = 1
     try {
         $ErrorActionPreference = 'Continue'
         $LASTEXITCODE = 0
@@ -82,15 +84,28 @@ function Invoke-SasGit {
     if (Test-Path -LiteralPath $stderrPath) {
         try {
             $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
-            $stderr = [string]$stderrRaw
-            $stderr = $stderr.Trim()
+            if ($null -ne $stderrRaw) { $stderr = [string]$stderrRaw }
         }
         finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
     }
-    $lines = @($stdout | ForEach-Object { [string]$_ })
-    $stdoutText = [string]($lines -join [Environment]::NewLine)
-    $stdoutText = $stdoutText.Trim()
-    $detail = [string](@($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine)
+
+    $lines = @()
+    foreach ($item in @($stdout)) {
+        if ($null -ne $item) { $lines += [string]$item }
+    }
+
+    $stdoutText = ''
+    if ($lines.Count -gt 0) {
+        $stdoutText = [string]::Join([Environment]::NewLine, [string[]]$lines)
+    }
+
+    $detailParts = @()
+    if (-not [string]::IsNullOrWhiteSpace($stdoutText)) { $detailParts += $stdoutText }
+    if (-not [string]::IsNullOrWhiteSpace($stderr)) { $detailParts += $stderr }
+    $detail = ''
+    if ($detailParts.Count -gt 0) {
+        $detail = [string]::Join([Environment]::NewLine, [string[]]$detailParts)
+    }
 
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         if ([string]::IsNullOrWhiteSpace($detail)) { $detail = '(git produced no diagnostic text)' }
