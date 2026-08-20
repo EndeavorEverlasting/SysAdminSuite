@@ -11,17 +11,17 @@ BeforeAll {
         $paths = @(
             'Map-NorthwellPrinter-SystemWide.cmd','Map-NorthwellPrinters-FromFile.cmd','Map-NorthwellPrinters-Batch.cmd',
             'mapping\Start-NorthwellPrinterMapping.ps1','mapping\Start-NorthwellPrinterBatch.ps1',
-            'mapping\Invoke-NorthwellPrinterMapping.ps1','mapping\Modules\NorthwellPrinterMapping.Core.psm1',
-            'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1','mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1',
-            'mapping\Examples\NorthwellPrinterBatch.example.csv','scripts\SasTargetNameResolution.psm1',
-            'scripts\SasNetworkGuard.psm1','scripts\SasInteractionCache.psm1','Config\interaction-cache-policy.json',
-            'scripts\UnrelatedFieldHotfix.ps1'
+            'mapping\Invoke-NorthwellPrinterState.ps1','mapping\Modules\NorthwellPrinterMapping.Core.psm1',
+            'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1','mapping\Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1',
+            'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1','mapping\Examples\NorthwellPrinterBatch.example.csv',
+            'scripts\SasTargetNameResolution.psm1','scripts\SasNetworkGuard.psm1','scripts\SasInteractionCache.psm1',
+            'Config\interaction-cache-policy.json','scripts\UnrelatedFieldHotfix.ps1'
         )
         foreach ($relative in $paths) {
             $path = Join-Path $Root $relative
             $parent = Split-Path -Parent $path
             if (-not (Test-Path -LiteralPath $parent -PathType Container)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
-            $value = if ($relative -like '*.json') { '{"schemaVersion":"fixture"}' } elseif ($relative -like '*.cmd') { '@echo off' } elseif ($relative -like '*.csv') { 'ComputerName,PrintServer,QueueName' } else { "# fixture $relative" }
+            $value = if ($relative -like '*.json') { '{"schemaVersion":"fixture"}' } elseif ($relative -like '*.cmd') { '@echo off' } elseif ($relative -like '*.csv') { 'Action,ComputerName,PrintServer,QueueName' } else { "# fixture $relative" }
             Set-Content -LiteralPath $path -Value $value -Encoding ASCII
         }
         & git.exe -C $Root init | Out-Null
@@ -34,7 +34,7 @@ BeforeAll {
 }
 
 Describe 'Universal sas printer entrypoint' {
-    It 'installs and routes a trusted sibling bootstrap instead of a controller-root mapper path' {
+    It 'installs and routes a trusted sibling bootstrap through the current-origin production path' {
         $launcherText = Get-Content -LiteralPath $script:launcher -Raw
         $installerText = Get-Content -LiteralPath $script:installer -Raw
         $launcherText | Should -Match 'Resolve-SasInstalledPrinterBootstrap'
@@ -44,12 +44,13 @@ Describe 'Universal sas printer entrypoint' {
         $launcherText | Should -Match "-RequiredCommit '66d38dd45881692303f77267e29e4fa44b4a9351'"
         $printerBlock = $launcherText.Split("    'printer' {")[1].Split("`n    'clipboard' {")[0]
         $printerBlock | Should -Not -Match 'Map-NorthwellPrinter-SystemWide\.cmd'
+        $printerBlock | Should -Not -Match 'UseLocalRuntimeOnly'
         $installerText | Should -Match 'sourcePrinterBootstrap'
         $installerText | Should -Match 'printerBootstrapDestination'
         $installerText | Should -Match 'Copy-Item -LiteralPath \$sourcePrinterBootstrap -Destination \$printerBootstrapDestination -Force'
     }
 
-    It 'reuses one machine-runtime state root even when unrelated tracked field work is dirty' {
+    It 'reuses one machine-runtime state root for explicit local fixtures even when unrelated tracked field work is dirty' {
         $fixture = Join-Path $TestDrive 'runtime'
         $localAppData = Join-Path $TestDrive 'localappdata'
         New-Item -ItemType Directory -Path $fixture,$localAppData -Force | Out-Null
@@ -61,11 +62,12 @@ Describe 'Universal sas printer entrypoint' {
             Remove-Item Env:SAS_REPO_ROOT -ErrorAction SilentlyContinue
             $env:LOCALAPPDATA = $localAppData
             foreach ($mode in @('Quick','File')) {
-                $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:bootstrap -RequiredCommit $head -Mode $mode -NoLaunch 2>&1)
+                $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:bootstrap -RequiredCommit $head -Mode $mode -UseLocalRuntimeOnly -NoLaunch 2>&1)
                 $rc = [int]$LASTEXITCODE
                 if ($rc -ne 0) { throw "Bootstrap $mode fixture exited $rc.`n$($output -join [Environment]::NewLine)" }
                 $outputText = $output -join "`n"
                 $outputText | Should -Match 'PASS: printer runtime resolved; launcher not executed'
+                $outputText | Should -Match 'EXPLICIT_LOCAL_ONLY_NO_ORIGIN_CURRENTNESS_CLAIM'
                 $outputText | Should -Match ("Mode: {0}" -f $mode)
                 $outputText.Contains($fixture) | Should -BeTrue
                 $outputText.Contains((Join-Path $fixture '.state\printer-bootstrap')) | Should -BeTrue
@@ -85,7 +87,9 @@ Describe 'Universal sas printer entrypoint' {
         $text | Should -Match '\$statusArguments \+= @\(\$script:requiredRuntimePaths\)'
         $text | Should -Match 'Resolve-SasPrinterStateRoot'
         $text | Should -Match '\.state\\printer-bootstrap'
+        $text | Should -Match 'Invoke-NorthwellPrinterState\.ps1'
         $text | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
+        $text | Should -Match 'Confirm-NorthwellPrinterBatchActiveUserMaterialization\.ps1'
         $text | Should -Match 'Invoke-NorthwellPrinterActiveUserAgent\.ps1'
         $text | Should -Match 'Map-NorthwellPrinters-FromFile\.cmd'
         $text.Contains('$launcherName = if ($Mode -eq ''File'')') | Should -BeTrue
