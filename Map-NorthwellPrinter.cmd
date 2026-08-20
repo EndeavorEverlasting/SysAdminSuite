@@ -19,14 +19,14 @@ echo.
 
 set "SAS_EXIT=1"
 
-rem Preferred installed path: the machine/user SysAdminSuite sas.cmd shim beside this launcher.
+rem Installed path: trust only the installer-owned sas.cmd beside this launcher.
 if exist "%~dp0sas.cmd" (
     call "%~dp0sas.cmd" printer
     set "SAS_EXIT=!ERRORLEVEL!"
     goto finish
 )
 
-rem Current repository/runtime path: prefer the sibling trusted bootstrap over an unrelated PATH shim.
+rem Current repository/runtime path: use only a sibling trusted printer bootstrap.
 if exist "%~dp0Bootstrap-SysAdminSuitePrinter.cmd" (
     call "%~dp0Bootstrap-SysAdminSuitePrinter.cmd"
     set "SAS_EXIT=!ERRORLEVEL!"
@@ -39,15 +39,7 @@ if exist "%~dp0Bootstrap-SysAdminSuitePrinter.ps1" (
     goto finish
 )
 
-rem Standalone copied CMD fallback: use the installed sas command when available through PATH.
-where.exe sas.cmd >nul 2>&1
-if not errorlevel 1 (
-    call sas.cmd printer
-    set "SAS_EXIT=!ERRORLEVEL!"
-    goto finish
-)
-
-echo ERROR: The SysAdminSuite printer launcher is not installed here.
+echo ERROR: No trusted SysAdminSuite printer runtime is beside this CMD.
 echo Ask your lead to install/refresh SysAdminSuite, or run this CMD from a current SysAdminSuite folder.
 set "SAS_EXIT=1"
 
