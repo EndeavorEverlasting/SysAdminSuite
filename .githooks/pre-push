@@ -30,12 +30,19 @@ cleanup_validation_worktrees() {
 }
 trap cleanup_validation_worktrees EXIT HUP INT TERM
 
-declare -A freshness_tip_checked=()
+declare -A pushed_tip_checked=()
+
+# Stable freshness hook API retained for existing contracts; the broadened pushed-tip validator
+# below also executes operator-route validation from the same immutable detached snapshot.
 validate_freshness_tip() {
+  validate_pushed_tip "$@"
+}
+
+validate_pushed_tip() {
   local commit="$1"
   [[ "$(git cat-file -t "$commit" 2>/dev/null || true)" == "commit" ]] || return 0
-  [[ -z "${freshness_tip_checked[$commit]+x}" ]] || return 0
-  freshness_tip_checked[$commit]=1
+  [[ -z "${pushed_tip_checked[$commit]+x}" ]] || return 0
+  pushed_tip_checked[$commit]=1
 
   local has_freshness=0
   local has_operator_route=0
