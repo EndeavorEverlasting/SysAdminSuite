@@ -32,6 +32,8 @@ $requiredRuntimePaths = @(
     'mapping\Start-NorthwellPrinterMapping.ps1',
     'mapping\Invoke-NorthwellPrinterMapping.ps1',
     'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
+    'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
+    'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1',
     'scripts\SasTargetNameResolution.psm1',
     'scripts\SasNetworkGuard.psm1',
     'scripts\SasInteractionCache.psm1',
