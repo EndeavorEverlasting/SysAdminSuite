@@ -13,6 +13,28 @@ This is the **canonical Northwell field path** for shared-printer mapping. North
 - The canonical mapper **does not print test pages**.
 - A real requested document printed after mapping is separate runtime acceptance evidence.
 
+## Start from any PowerShell directory
+
+Do **not** assume the current shell is already inside a SysAdminSuite checkout. `git rev-parse --show-toplevel` is not a field bootstrap.
+
+The standalone bootstrap is:
+
+```text
+Bootstrap-SysAdminSuitePrinter.ps1
+```
+
+Its clickable in-repository wrapper is:
+
+```text
+Bootstrap-SysAdminSuitePrinter.cmd
+```
+
+The bootstrap treats the caller's current directory as irrelevant. It first reuses an eligible local runtime from the explicit/canonical SysAdminSuite authorities (`SAS_RUNTIME_ROOT`, `C:\SASAL`, or `SAS_REPO_ROOT`). When a required fix commit is supplied, the local runtime must contain that commit by Git ancestry.
+
+If no eligible local runtime exists, the bootstrap uses a dedicated `%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap` Git cache, fetches `origin/main` without force, verifies that the required fix is an ancestor of the fetched mainline, and creates a persistent detached runtime keyed by the fetched commit. It does **not** reset, clean, or check out an arbitrary technician repository. The dedicated runtime remains after execution so normal `mapping\Logs` evidence is not destroyed.
+
+This ancestry rule deliberately allows `main` to advance after a validated printer fix. Do not require `origin/main` to equal an old exact SHA when the required fix is still contained in the newer mainline.
+
 ## Technician CMDs
 
 ### Quick mapping
@@ -210,6 +232,7 @@ Archived scripts under `mapping\Archive\` are historical/reference surfaces, not
 
 When Northwell is the selected proven printer use case:
 
+- if the operator may start outside a checkout, use `Bootstrap-SysAdminSuitePrinter.ps1` rather than assuming the current directory is a repository;
 - use `Map-NorthwellPrinter-SystemWide.cmd` for ad-hoc mapping;
 - use `Edit-NorthwellPrinter-Defaults.cmd` only to maintain a local approved default pair;
 - use `Edit-NorthwellPrinter-Batch.cmd` + `Map-NorthwellPrinters-Batch.cmd` for repeated/tabular assignments;
