@@ -55,7 +55,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - Operator instructions name the one file to click and the one value to enter; implementation complexity remains inside repository-owned CMD and script surfaces.
 
 ## Northwell printer mapping doctrine
-- Northwell printer requests route to the Field Workflow skill and repository-owned CMD front doors: `Map-NorthwellPrinter-SystemWide.cmd` for quick/recent selections and `Map-NorthwellPrinters-FromFile.cmd` for many targets/queues from the local batch file; mapping is system-wide/per-computer, cached values are advisory only, and printer/target IPs, IPP/HTTP URLs, guessed print servers, and per-user substitutes such as `Utilities/Map-Printer.ps1` or `Add-Printer -ConnectionName` remain forbidden.
+- Northwell printer requests route to the Field Workflow skill and repository-owned CMD front doors: `Map-NorthwellPrinter.cmd` is the routine human-facing quick/recent-selection technician entrypoint, while `Map-NorthwellPrinters-FromFile.cmd` is the file-driven many-target/queue front door. The quick technician wrapper must delegate only to an installer-owned sibling `sas.cmd printer` or a sibling trusted printer bootstrap; `Map-NorthwellPrinter-SystemWide.cmd` remains the trusted current-runtime quick launcher behind that routing. Mapping is system-wide/per-computer, cached values are advisory only, and printer/target IPs, IPP/HTTP URLs, guessed print servers, and per-user substitutes such as `Utilities/Map-Printer.ps1` or `Add-Printer -ConnectionName` remain forbidden.
 - The canonical engine runs as SYSTEM with `PrintUIEntry /ga`; success requires SYSTEM identity plus requested-queue proof from HKLM per-computer printer connections, while failures are diagnosed from local/untracked `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json`.
 
 ## SysAdminSuite virtual-machine doctrine
@@ -91,7 +91,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 
 ## Canonical repo authorities
 - `CODEBASE_MAP.md` — minimal context routing.
-- `START-HERE-NORTHWELL-PRINTER-MAPPING.md`, `Map-NorthwellPrinter-SystemWide.cmd`, and `Map-NorthwellPrinters-FromFile.cmd` — Northwell shared-printer operator contracts and canonical quick/file front doors.
+- `START-HERE-NORTHWELL-PRINTER-MAPPING.md`, `Map-NorthwellPrinter.cmd`, `Map-NorthwellPrinter-SystemWide.cmd`, and `Map-NorthwellPrinters-FromFile.cmd` — Northwell shared-printer operator contract, routine technician front door, trusted current-runtime quick launcher, and file-driven front door respectively.
 - `docs/AI_HARNESS_ENTRYPOINT.md` and `docs/HARNESS_DISCIPLINE.md` — fresh-agent, Git, branch, PR, worktree, and evidence discipline.
 - `docs/END_TO_END_TESTING_POSTURE.md` — validation and merge/release proof posture.
 - `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.
