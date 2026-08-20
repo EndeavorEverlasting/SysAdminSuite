@@ -15,6 +15,7 @@ on:
       - 'Edit-NorthwellPrinter-Defaults.cmd'
       - 'Edit-NorthwellPrinter-Batch.cmd'
       - 'Map-NorthwellPrinters-Batch.cmd'
+      - 'Config/interaction-cache-policy.json'
       - 'mapping/README.md'
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Start-NorthwellPrinterBatch.ps1'
@@ -46,6 +47,7 @@ on:
       - 'Edit-NorthwellPrinter-Defaults.cmd'
       - 'Edit-NorthwellPrinter-Batch.cmd'
       - 'Map-NorthwellPrinters-Batch.cmd'
+      - 'Config/interaction-cache-policy.json'
       - 'mapping/README.md'
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Start-NorthwellPrinterBatch.ps1'
@@ -134,6 +136,20 @@ jobs:
           $policy = Get-Content -LiteralPath '.\harness\api\northwell-printer-mapping-evidence-policy.json' -Raw | ConvertFrom-Json
           if ($policy.schema_version -ne 'sas-northwell-printer-mapping-evidence/v1') { throw "Unexpected printer mapping evidence schema: $($policy.schema_version)" }
           Write-Host 'PASS: printer mapping evidence policy parses.'
+
+      - name: Validate interaction cache policy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $policy = Get-Content -LiteralPath '.\Config\interaction-cache-policy.json' -Raw | ConvertFrom-Json
+          if ($policy.schemaVersion -ne 'sas-interaction-cache-policy/v1') { throw "Unexpected interaction cache policy schema: $($policy.schemaVersion)" }
+          if ($policy.cacheSchemaVersion -ne 'sas-interaction-cache/v1') { throw "Unexpected interaction cache schema: $($policy.cacheSchemaVersion)" }
+          if ([int]$policy.freshness.ttlDays -lt 1) { throw 'Interaction cache TTL must be positive.' }
+          if ([int]$policy.capacity.maxEntriesPerKind -gt [int]$policy.capacity.maxEntries) { throw 'Per-kind cache bound cannot exceed total capacity.' }
+          if ([bool]$policy.storage.authoritative) { throw 'Interaction cache must remain non-authoritative.' }
+          if ([bool]$policy.security.secretsAllowed) { throw 'Interaction cache policy must prohibit secrets.' }
+          if ($policy.failureBehavior.cacheUnavailable -ne 'continue-to-authoritative-origin') { throw 'Cache outage must fail open to the authoritative path.' }
+          Write-Host 'PASS: interaction cache policy is bounded, non-authoritative, and fail-open.'
 
       - name: Install Pester 5
         shell: pwsh
