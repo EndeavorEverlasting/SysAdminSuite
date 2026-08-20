@@ -18,7 +18,7 @@ Terminal users can run the exact same workflow with:
 sas printer
 ```
 
-Both routes enter the current trusted SysAdminSuite printer bootstrap and the same proven Northwell mapping workflow.
+Both routes enter the trusted SysAdminSuite printer bootstrap and the same Northwell machine-wide mapping workflow.
 
 ## Before you start
 
@@ -40,19 +40,38 @@ After the CMD starts:
 
 The recent lists are there to reduce typing and recollection. A remembered item is a convenience only; SysAdminSuite still performs the normal authoritative mapping and proof steps.
 
-## What success looks like
+## Read the result
 
-A successful run ends with messages equivalent to:
+The operator layer now uses explicit outcomes instead of making a technician infer what happened.
+
+A newly added machine-wide mapping can report:
 
 ```text
-PASS: requested printer map is proven SYSTEM-wide in HKLM.
-READY: <computer> - active user <user> has the requested printer connection now.
-Done. Machine-wide registration is proven; any active user session was finalized and verified.
+MAPPED NOW: <computer> -> <printer>. Machine-wide HKLM registration changed and is proven.
+RESULT: READY (MAPPED_NOW). Machine-wide registration and active-user readiness are proven.
 ```
 
-`PASS` means the requested shared queue is registered machine-wide for the PC under the proven Northwell SYSTEM/HKLM contract.
+If the requested mapping was already present, a successful no-op can report:
 
-`READY` means the user already signed in to that PC has the requested printer connection materialized now. If nobody is signed in, machine-wide registration can still be valid and the connection can appear at the next user logon.
+```text
+ALREADY MAPPED: <computer> -> <printer>. No machine-wide change was needed; HKLM registration is proven.
+RESULT: READY (ALREADY_MAPPED). Machine-wide registration and active-user readiness are proven.
+```
+
+If nobody is logged on and no immediate user-session materialization is required, success can end with:
+
+```text
+RESULT: READY NEXT LOGON (...). Machine-wide registration is proven; no active user session required immediate materialization.
+```
+
+What the words mean:
+
+- **MAPPED NOW** — this run changed the machine-wide printer registration and proved the new HKLM state.
+- **ALREADY MAPPED** — the correct machine-wide registration was already present, so no duplicate change was needed.
+- **READY** — machine-wide registration is proven and the active-user readiness step succeeded when applicable.
+- **READY NEXT LOGON** — machine-wide registration is proven; there was no active session that needed immediate materialization.
+- **NOT FOUND** — the requested print server/queue could not be authoritatively resolved or was invalid; the workflow does not guess.
+- **FAILED** — readiness was not proven. Treat the error and evidence as the next diagnostic input instead of repeatedly remapping.
 
 The mapper does **not** print a test page. If the user later prints the real requested document successfully, that is higher-level runtime acceptance for that observed case.
 
@@ -60,7 +79,12 @@ The mapper does **not** print a test page. If the user later prints the real req
 
 Do not repeatedly run the mapper against the same failure.
 
-Keep the error text and the evidence path shown in the window. Printer evidence includes a run summary and per-target proof, and the latest run can be traced through the printer evidence pointers maintained by SysAdminSuite.
+Keep the error text and the evidence locations shown in the window. The operator wrapper preserves two different kinds of evidence:
+
+1. **Authoritative run evidence** under the selected printer runtime's `mapping\Logs\NorthwellPrinterMap-...` directory, including the summary and per-target proof.
+2. **A bounded local admin-box trail** under `%LOCALAPPDATA%\SysAdminSuite\Cache\Printer`, including `runs.v1.jsonl` and `latest.v1.json`.
+
+The local trail is per-user, local to the admin box, and optional to share. It does not get copied to target PCs and it does not replace authoritative mapping proof.
 
 Useful failure behavior is intentional: the mapper fails closed instead of guessing a printer IP, silently changing to per-user mapping, or claiming success without authoritative proof.
 
@@ -82,12 +106,14 @@ See `START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md`.
 
 ## Proven field boundary
 
-On **August 20, 2026**, the current-main Northwell quick path was observed on a protected `DomainAuthenticated` wired connection completing both:
+On **August 20, 2026**, SysAdminSuite commit `4c5f1252aae24269ac1e0ab28ef9366ea08fd33f` was observed through `sas printer` on a protected `DomainAuthenticated` wired connection completing both:
 
 - SYSTEM-wide requested queue proof in HKLM; and
 - immediate active-user printer materialization.
 
-That field observation validates the mapping/materialization use case on that protected path. It does not by itself claim that a physical document was printed.
+That field observation validates the underlying Northwell mapping/materialization use case on that protected path. Later mainline work added the explicit operator outcomes and bounded local trail while preserving the same resilient mapper/finalizer chain; repository validation proves that composition, but the newer one-click technician wrapper still needs its own post-refresh field acceptance before claiming that exact wrapper was live-tested.
+
+The August 20 observation does not by itself claim that a physical document was printed.
 
 ## Organization boundary
 
