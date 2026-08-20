@@ -18,15 +18,23 @@ Do not reuse this workflow for Health & Hospitals or another organization unless
 4. Choose a recent proven PC/printer by number when offered, or enter the requested hostname/shared queue.
 5. Let the mapper finish and read the final result.
 
-Success is explicit:
+The operator-facing result is explicit. Common successful outcomes include:
 
 ```text
-PASS: requested printer map is proven SYSTEM-wide in HKLM.
-READY: <computer> - active user <user> has the requested printer connection now.
-Done. Machine-wide registration is proven; any active user session was finalized and verified.
+MAPPED NOW: <computer> -> <printer>. Machine-wide HKLM registration changed and is proven.
+RESULT: READY (MAPPED_NOW). Machine-wide registration and active-user readiness are proven.
 ```
 
-If the mapper fails, **do not remap blindly**. Preserve the displayed error and evidence path for diagnosis.
+or, when no duplicate change is required:
+
+```text
+ALREADY MAPPED: <computer> -> <printer>. No machine-wide change was needed; HKLM registration is proven.
+RESULT: READY (ALREADY_MAPPED). Machine-wide registration and active-user readiness are proven.
+```
+
+A machine-wide success with no active logged-on user can finish as `RESULT: READY NEXT LOGON (...)`. Resolution failures are labeled `NOT FOUND`; other unproven failures are labeled `FAILED`.
+
+If the mapper fails, **do not remap blindly**. Preserve the displayed error and evidence locations for diagnosis.
 
 ## Northwell contract
 
@@ -42,7 +50,7 @@ If the mapper fails, **do not remap blindly**. Preserve the displayed error and 
 
 ## Why `Map-NorthwellPrinter.cmd` is the technician front door
 
-The technician CMD does not implement printer mapping itself. It delegates to the same trusted installed `sas printer` path and current-origin bootstrap already used by technical operators.
+The technician CMD does not implement printer mapping itself. It delegates only to an installer-owned sibling `sas.cmd printer` or a sibling trusted printer bootstrap, which reaches the current runtime and canonical Northwell mapping chain.
 
 That means a non-technical technician does not need to know:
 
@@ -52,7 +60,7 @@ That means a non-technical technician does not need to know:
 - the bootstrap cache/runtime path; or
 - the underlying fallback transport.
 
-When installed by the universal SysAdminSuite launcher installer, `Map-NorthwellPrinter.cmd` is placed beside `sas.cmd`. A copy from a current repository/runtime can also fall back through `Bootstrap-SysAdminSuitePrinter.cmd`.
+When installed by the universal SysAdminSuite launcher installer, `Map-NorthwellPrinter.cmd` is placed beside `sas.cmd`. A copy from a current repository/runtime can use the sibling `Bootstrap-SysAdminSuitePrinter.cmd`/`.ps1` path. The launcher intentionally does **not** execute an arbitrary `sas.cmd` discovered through the current directory or PATH.
 
 ## Recent PCs and printers
 
@@ -103,11 +111,12 @@ The following surfaces are implementation or advanced-operator paths, not the pr
 Bootstrap-SysAdminSuitePrinter.cmd
 Bootstrap-SysAdminSuitePrinter.ps1
 Map-NorthwellPrinter-SystemWide.cmd
+mapping\Invoke-NorthwellPrinterOperatorRun.ps1
 mapping\Start-NorthwellPrinterMapping.ps1
 mapping\Invoke-NorthwellPrinterMapping.ps1
 ```
 
-`Map-NorthwellPrinter-SystemWide.cmd` remains the canonical quick **runtime launcher** registered by the Northwell use-case harness. `Map-NorthwellPrinter.cmd` is the human-facing distribution wrapper that gets the technician safely to that current runtime.
+`Map-NorthwellPrinter-SystemWide.cmd` remains the trusted current-runtime quick launcher registered by the Northwell use-case harness. It now routes through `mapping\Invoke-NorthwellPrinterOperatorRun.ps1`, which preserves the resilient mapper/finalizer chain while adding clear operator outcomes and a bounded local run trail. `Map-NorthwellPrinter.cmd` is the human-facing distribution wrapper that gets the technician safely to that runtime.
 
 ## Current-origin bootstrap behavior
 
@@ -119,13 +128,13 @@ Explicit offline/local-only mode remains separate and does not claim current-ori
 
 ## Evidence
 
-Quick evidence is written beneath the selected printer runtime's:
+Authoritative quick-run evidence is written beneath the selected printer runtime's:
 
 ```text
 mapping\Logs\NorthwellPrinterMap-...
 ```
 
-and includes authoritative run artifacts such as:
+and includes artifacts such as:
 
 ```text
 ResolvedPlan.json
@@ -137,7 +146,16 @@ UndoPlan.json
 ActiveUserMaterialization.json
 ```
 
-The active runtime also maintains `mapping\Logs\LATEST-PATH.txt`. Bootstrap state maintains the current runtime identity separately so evidence can survive runtime retirement.
+The active runtime maintains `mapping\Logs\LATEST-PATH.txt`. Bootstrap state maintains the current runtime identity separately so evidence can survive runtime retirement.
+
+The operator layer also writes a bounded **local-user trail on the admin box** under:
+
+```text
+%LOCALAPPDATA%\SysAdminSuite\Cache\Printer\runs.v1.jsonl
+%LOCALAPPDATA%\SysAdminSuite\Cache\Printer\latest.v1.json
+```
+
+That local trail records compact outcomes such as `MAPPED_NOW`, `ALREADY_MAPPED`, `NOT_FOUND`, `FAILED`, `READY`, and `READY_NEXT_LOGON`. It is best-effort convenience/history, is never copied to target PCs, and does not replace authoritative mapping proof. Sharing it remains the operator's decision.
 
 ## Proof precedence
 
@@ -157,12 +175,14 @@ harness\api\northwell-printer-mapping-evidence-policy.json
 
 ## Field-proven checkpoint
 
-On **August 20, 2026**, the current-main quick workflow was observed on an approved `DomainAuthenticated` wired Northwell path successfully producing:
+On **August 20, 2026**, SysAdminSuite commit `4c5f1252aae24269ac1e0ab28ef9366ea08fd33f` was observed through `sas printer` on an approved `DomainAuthenticated` wired Northwell path successfully producing:
 
 - requested printer SYSTEM-wide HKLM registration proof; and
 - immediate active-user materialization proof.
 
-That closes the mapping/materialization proof gap for this Northwell use case. It does **not** claim physical document output unless a real document is separately observed printing.
+That closes the underlying mapping/materialization proof gap for this Northwell use case on that observed path. Subsequent mainline work added the operator outcome/journal layer while preserving the same resilient mapping and active-user finalization authority. Repository validation proves that composition; the newer one-click technician wrapper still requires its own post-refresh field acceptance before claiming that exact wrapper was observed live.
+
+The August 20 field proof does **not** claim physical document output unless a real document is separately observed printing.
 
 ## Do not substitute these paths
 
