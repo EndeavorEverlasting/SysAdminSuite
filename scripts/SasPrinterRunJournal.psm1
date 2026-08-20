@@ -95,6 +95,36 @@ function Get-SasPrinterFriendlyFailure {
     }
 }
 
+function Get-SasPrinterCompactTargetResults {
+    [CmdletBinding()]
+    param([AllowNull()]$Summary)
+
+    if ($null -eq $Summary) { return @() }
+    $compact = New-Object System.Collections.Generic.List[object]
+    foreach ($result in @($Summary.Results)) {
+        if ($null -eq $result) { continue }
+        $stageProperty = $result.PSObject.Properties['Stage']
+        $messageProperty = $result.PSObject.Properties['Message']
+        $stateProperty = $result.PSObject.Properties['DesiredState']
+        $changedProperty = $result.PSObject.Properties['ChangedPrinters']
+        $alreadyProperty = $result.PSObject.Properties['AlreadyDesiredPrinters']
+        $stagingProperty = $result.PSObject.Properties['StagingShare']
+        $transportProperty = $result.PSObject.Properties['Transport']
+        $compact.Add([pscustomobject][ordered]@{
+            Computer = [string]$result.Computer
+            Success = [bool]$result.Success
+            Stage = if ($null -eq $stageProperty) { '' } else { [string]$stageProperty.Value }
+            Message = if ($null -eq $messageProperty) { '' } else { [string]$messageProperty.Value }
+            DesiredState = if ($null -eq $stateProperty) { '' } else { [string]$stateProperty.Value }
+            ChangedPrinters = if ($null -eq $changedProperty) { @() } else { @($changedProperty.Value) }
+            AlreadyDesiredPrinters = if ($null -eq $alreadyProperty) { @() } else { @($alreadyProperty.Value) }
+            StagingShare = if ($null -eq $stagingProperty) { $null } else { [string]$stagingProperty.Value }
+            Transport = if ($null -eq $transportProperty) { $null } else { [string]$transportProperty.Value }
+        })
+    }
+    return $compact.ToArray()
+}
+
 function Write-SasPrinterRunJournalEvent {
     [CmdletBinding()]
     param(
@@ -116,10 +146,17 @@ function Write-SasPrinterRunJournalEvent {
 
         $targets = @()
         $printers = @()
+        $operation = ''
+        $desiredState = ''
+        $proofLevel = ''
         if ($null -ne $Summary) {
             $targets = @($Summary.Computers | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
             $printers = @($Summary.Printers | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+            if ($null -ne $Summary.PSObject.Properties['Operation']) { $operation = [string]$Summary.Operation }
+            if ($null -ne $Summary.PSObject.Properties['DesiredState']) { $desiredState = [string]$Summary.DesiredState }
+            if ($null -ne $Summary.PSObject.Properties['ProofLevel']) { $proofLevel = [string]$Summary.ProofLevel }
         }
+        $targetResults = @(Get-SasPrinterCompactTargetResults -Summary $Summary)
         $userName = [string]$env:USERNAME
         if (-not [string]::IsNullOrWhiteSpace([string]$env:USERDOMAIN)) { $userName = "$($env:USERDOMAIN)\$userName" }
 
@@ -134,8 +171,12 @@ function Write-SasPrinterRunJournalEvent {
             Event = $Event
             Outcome = $Outcome
             Message = $Message
+            Operation = $operation
+            DesiredState = $desiredState
+            ProofLevel = $proofLevel
             Targets = $targets
             Printers = $printers
+            TargetResults = $targetResults
             EvidenceRoot = if ([string]::IsNullOrWhiteSpace($EvidenceRoot)) { $null } else { [IO.Path]::GetFullPath($EvidenceRoot) }
         }
         $json = $record | ConvertTo-Json -Depth 8 -Compress

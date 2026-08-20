@@ -26,9 +26,15 @@ Describe 'Northwell printer local operator trail and outcome UX' {
         $cacheRoot = Join-Path $TestDrive 'local-user-cache'
         $summary = [pscustomobject]@{
             Success = $true
+            Operation = 'Map'
+            DesiredState = 'Present'
+            ProofLevel = 'MACHINE_WIDE_REGISTRATION_PRESENT'
             Computers = @('PC001')
             Printers = @('\\PRINT01\QUEUE01')
-            Results = @([pscustomobject]@{ ChangedPrinters=@(); AlreadyDesiredPrinters=@('\\PRINT01\QUEUE01') })
+            Results = @([pscustomobject]@{
+                Computer='PC001';Success=$true;Stage='VerifiedPresent';Message='verified';DesiredState='Present'
+                ChangedPrinters=@();AlreadyDesiredPrinters=@('\\PRINT01\QUEUE01');StagingShare='NONE';Transport='REMOTE_TASK_SCHEDULER+REMOTE_REGISTRY_NO_ADMIN_SHARE'
+            })
         }
         $result = Write-SasPrinterRunJournalEvent -SessionId 'fixture-run' -Event 'RUN_COMPLETED' -Outcome 'READY' -Message 'fixture' -Summary $summary -CacheRoot $cacheRoot
         $result | Should -Not -BeNullOrEmpty
@@ -38,8 +44,14 @@ Describe 'Northwell printer local operator trail and outcome UX' {
         $latest = Get-Content -LiteralPath $result.LatestPath -Raw | ConvertFrom-Json
         $latest.StorageScope | Should -Be 'LOCAL_USER_CACHE_ONLY'
         $latest.Sharing | Should -Be 'OPERATOR_DECIDES'
+        $latest.Operation | Should -Be 'Map'
+        $latest.DesiredState | Should -Be 'Present'
         @($latest.Targets) | Should -Contain 'PC001'
         @($latest.Printers) | Should -Contain '\\PRINT01\QUEUE01'
+        @($latest.TargetResults).Count | Should -Be 1
+        $latest.TargetResults[0].Stage | Should -Be 'VerifiedPresent'
+        $latest.TargetResults[0].Transport | Should -Be 'REMOTE_TASK_SCHEDULER+REMOTE_REGISTRY_NO_ADMIN_SHARE'
+        @($latest.TargetResults[0].AlreadyDesiredPrinters) | Should -Contain '\\PRINT01\QUEUE01'
     }
 
     It 'keeps the local JSONL trail bounded instead of allowing unbounded field-log growth' {
@@ -93,6 +105,8 @@ Describe 'Northwell printer local operator trail and outcome UX' {
         $combined = $journalText + "`n" + $runnerText
         $journalText | Should -Match 'LocalApplicationData'
         $journalText | Should -Match 'SysAdminSuite\\Cache\\Printer'
+        $journalText | Should -Match 'LOCAL_USER_CACHE_ONLY'
+        $journalText | Should -Match 'OPERATOR_DECIDES'
         $journalText | Should -Not -Match '(?i)schtasks\.exe|rundll32\.exe|Invoke-Command|Test-Connection|PrintTestPage|Add-Printer'
         $combined | Should -Not -Match '(?i)Test-Connection|PrintTestPage|Add-Printer\s+-ConnectionName'
         $combined | Should -Not -Match '(?i)KeepRemoteArtifacts'
