@@ -19,6 +19,8 @@ def test_audit_is_full_set_git_free_and_pre_transaction() -> None:
         "foreach ($entry in $sealEntries)",
         "HASH_MISMATCH",
         "MISSING_FILE",
+        "SEAL_COUNT_INVALID",
+        "[int]::TryParse($declaredSealCountText, [ref]$parsedSealCount)",
         "AUTOLOGON_RUNTIME_SEAL_MISMATCH",
         "autologon-runtime-verification.json",
         "issue_count = $issues.Count",
@@ -35,6 +37,7 @@ def test_audit_is_full_set_git_free_and_pre_transaction() -> None:
     ):
         assert marker in text, marker
     assert "Get-FileHash" not in text
+    assert "$declaredSealCount = [int]$declaredSealCountValue" not in text
     for forbidden in (
         "& git",
         "git.exe",
@@ -66,7 +69,7 @@ def test_front_door_audits_before_bootstrap_and_propagates_failure() -> None:
     assert "exit /b %SAS_AUDIT_RC%" in text
 
 
-def test_windows_fixture_executes_multi_drift_and_pass_cases() -> None:
+def test_windows_fixture_executes_multi_drift_malformed_and_pass_cases() -> None:
     text = read(WINDOWS_FIXTURE)
     for marker in (
         "Expected seal mismatch exit 10",
@@ -75,6 +78,10 @@ def test_windows_fixture_executes_multi_drift_and_pass_cases() -> None:
         "scripts/one.ps1,scripts/two.ps1",
         "HASH_MISMATCH",
         "crash_safe_run_started",
+        "tracked_file_count = 'not-an-integer'",
+        "Expected malformed seal count exit 10",
+        "SEAL_COUNT_INVALID",
+        "Malformed seal count did not write its durable receipt",
         "Expected seal audit success",
         "AUTOLOGON_RUNTIME_SEAL_VERIFIED",
     ):
