@@ -9,11 +9,15 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $sourceLauncher = Join-Path $repoRoot 'scripts\Invoke-SasUniversalField.ps1'
 $sourcePlatform = Join-Path $repoRoot 'scripts\SasFieldPlatform.psm1'
 $sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
+$sourcePrinterTechnicianCmd = Join-Path $repoRoot 'Map-NorthwellPrinter.cmd'
 foreach ($required in @($sourceLauncher,$sourcePlatform,$sourcePrinterBootstrap)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required universal field file missing: $required" }
     $tokens = $null; $errors = $null
     [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$tokens,[ref]$errors)
     if (@($errors).Count -gt 0) { throw "PowerShell parse failure: $required :: $($errors[0].Message)" }
+}
+if (-not (Test-Path -LiteralPath $sourcePrinterTechnicianCmd -PathType Leaf)) {
+    throw "Required technician printer CMD missing: $sourcePrinterTechnicianCmd"
 }
 Import-Module $sourcePlatform -Force
 
@@ -65,10 +69,12 @@ $installScope = if ($machineInstall) { 'MACHINE' } else { 'CURRENT_USER_SHIM_WIT
 $launcherDestination = Join-Path $installRoot 'Invoke-SasUniversalField.ps1'
 $platformDestination = Join-Path $installRoot 'SasFieldPlatform.psm1'
 $printerBootstrapDestination = Join-Path $installRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
+$printerTechnicianCmdDestination = Join-Path $installRoot 'Map-NorthwellPrinter.cmd'
 $cmdDestination = Join-Path $installRoot 'sas.cmd'
 Copy-Item -LiteralPath $sourceLauncher -Destination $launcherDestination -Force
 Copy-Item -LiteralPath $sourcePlatform -Destination $platformDestination -Force
 Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force
+Copy-Item -LiteralPath $sourcePrinterTechnicianCmd -Destination $printerTechnicianCmdDestination -Force
 
 # Machine cache is optional and never points at a user-profile checkout. The trusted installed
 # launcher still resolves C:\SASAL first, and cache write failures cannot break command execution.
@@ -110,6 +116,7 @@ if (-not (($env:Path -split ';') -contains $installRoot)) { $env:Path = $env:Pat
 Write-Host 'SysAdminSuite universal field command installed.' -ForegroundColor Green
 Write-Host "Install scope: $installScope"
 Write-Host "Launcher: $cmdDestination"
+Write-Host "Printer technician CMD: $printerTechnicianCmdDestination"
 Write-Host "Printer bootstrap: $printerBootstrapDestination"
 Write-Host 'Execution resolution: trusted installed shim -> validated SAS_RUNTIME_ROOT / C:\SASAL / local controller surface.'
 Write-Host 'Protected network authority: hardwire OR NSLIJHS-WAB OR authenticated DomainAuthenticated VPN.'
