@@ -96,11 +96,12 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
         $text | Should -Not -Match '(?i)-Count\s+5\b'
     }
 
-    It 'keeps the clickable wrapper self-relative and exit-code preserving' {
+    It 'keeps the clickable wrapper self-relative, baseline-pinned, and exit-code preserving' {
         Test-Path -LiteralPath $script:bootstrapCmdPath | Should -BeTrue
         $cmd = Get-Content -LiteralPath $script:bootstrapCmdPath -Raw
         $cmd | Should -Match '%~dp0Bootstrap-SysAdminSuitePrinter\.ps1'
         $cmd | Should -Match '%SystemRoot%\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe'
+        $cmd | Should -Match '-RequiredCommit 5463c0ed3fedc4f9c5fe8048ead3cfc6bf2c434f'
         $cmd | Should -Match 'exit /b %ERRORLEVEL%'
     }
 
