@@ -17,7 +17,7 @@ Triggers route work only. They never authorize network activity, target mutation
 - **Bounded sprints with declared scope:** every writing sprint declares its lane, mission, owned scope, forbidden scope, artifacts, validation, and proof ceiling.
 - **One writer per branch:** parallel agents use isolated branches or worktrees and do not make competing writes.
 - **Reuse before replacing:** search for canonical authorities, helpers, scripts, schemas, validators, and naming patterns before inventing.
-- **No completion without proof:** plans, acknowledgments, summaries, generated text, and unexecuted commands are not completion.
+- **No completion without proof or convergence:** plans, acknowledgments, summaries, generated text, unexecuted commands, a merely green branch, and an unmerged mergeable PR are not completion when authorized integration into the current default branch remains safe.
 
 ## Instruction precedence
 When instructions conflict, use this order:
@@ -50,12 +50,12 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 ## Technician execution doctrine
 - Field technicians use repository-owned CMD launchers instead of reconstructing PowerShell commands or individual script sequences whenever a tracked launcher covers the workflow.
 - The launcher owns target-name resolution, dry-run and live-cert gates, production confirmation, failure handling, artifact generation, and opening the operator handoff. PowerShell instructions are limited to pulling the current repository and revealing or selecting the launcher.
-- Technicians enter the approved short hostname from the assignment or device label. The script resolves and validates exactly one canonical FQDN from approved local DNS context; zero matches, alias mismatch, or multiple matches fail closed before mutation.
+- When a tracked assignment file or proven local interaction history already supplies approved hostnames, printers, or servers, technicians select/reuse it instead of reconstructing those values. Technicians enter the approved short hostname only when a reusable approved value is unavailable; it must resolve to exactly one canonical FQDN from approved local DNS context, and zero matches, alias mismatch, or multiple matches fail closed before mutation.
 - Where runtime eligibility or transport is uncertain, the launcher must complete live-cert dry run before live-cert production. Production cannot run unless dry run and harmless live certification pass.
 - Operator instructions name the one file to click and the one value to enter; implementation complexity remains inside repository-owned CMD and script surfaces.
 
 ## Northwell printer mapping doctrine
-- Northwell printer requests route to the Field Workflow skill, `START-HERE-NORTHWELL-PRINTER-MAPPING.md`, and the self-elevating `Map-NorthwellPrinter-SystemWide.cmd`; mapping is system-wide/per-computer for multi-user PCs, accepts target hostnames plus `\\server\queue`, `//server/queue`, or uniquely resolvable queue names, and forbids printer/target IPs, IPP/HTTP URLs, guessed print servers, and per-user substitutes such as `Utilities/Map-Printer.ps1` or `Add-Printer -ConnectionName`.
+- Northwell printer requests route to the Field Workflow skill and repository-owned CMD front doors: `Map-NorthwellPrinter-SystemWide.cmd` for quick/recent selections and `Map-NorthwellPrinters-FromFile.cmd` for many targets/queues from the local batch file; mapping is system-wide/per-computer, cached values are advisory only, and printer/target IPs, IPP/HTTP URLs, guessed print servers, and per-user substitutes such as `Utilities/Map-Printer.ps1` or `Add-Printer -ConnectionName` remain forbidden.
 - The canonical engine runs as SYSTEM with `PrintUIEntry /ga`; success requires SYSTEM identity plus requested-queue proof from HKLM per-computer printer connections, while failures are diagnosed from local/untracked `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json`.
 
 ## SysAdminSuite virtual-machine doctrine
@@ -91,7 +91,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 
 ## Canonical repo authorities
 - `CODEBASE_MAP.md` — minimal context routing.
-- `START-HERE-NORTHWELL-PRINTER-MAPPING.md` and `Map-NorthwellPrinter-SystemWide.cmd` — Northwell shared-printer operator contract and canonical field front door.
+- `START-HERE-NORTHWELL-PRINTER-MAPPING.md`, `Map-NorthwellPrinter-SystemWide.cmd`, and `Map-NorthwellPrinters-FromFile.cmd` — Northwell shared-printer operator contracts and canonical quick/file front doors.
 - `docs/AI_HARNESS_ENTRYPOINT.md` and `docs/HARNESS_DISCIPLINE.md` — fresh-agent, Git, branch, PR, worktree, and evidence discipline.
 - `docs/END_TO_END_TESTING_POSTURE.md` — validation and merge/release proof posture.
 - `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.
@@ -105,7 +105,7 @@ A task is complete only when:
 1. changed files are named;
 2. validation commands were actually run and exact results reported;
 3. a commit SHA exists;
-4. push and PR state are reported;
+4. push and PR state are reported, and default-branch integration state is also reported; when the exact validated head is green, mergeable, authorized, dependency-satisfied, and unblocked, integrate it before completion rather than leaving it for a technician to request;
 5. one exact next command is given.
 
 Also report skipped checks, remaining gaps or risks, and the proof ceiling reached. A green static validator is not automatically runtime, target, deployment, or operator-acceptance proof.

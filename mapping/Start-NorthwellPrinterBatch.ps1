@@ -12,6 +12,10 @@
     network authority before any AD/DNS-backed queue resolution. Before live
     mutation it displays the complete resolved plan and requires an explicit MAP
     confirmation unless -ConfirmBatch was supplied by an advanced operator.
+
+    Only groups that return authoritative machine-wide registration proof are
+    recorded into the per-user interaction cache. Cache failure never changes the
+    batch result and cached values are suggestions only on later interactive runs.
 #>
 
 [CmdletBinding()]
@@ -25,6 +29,43 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$cacheScope = 'northwell'
+$cacheAvailable = $false
+$cacheModule = Join-Path $repoRoot 'scripts\SasInteractionCache.psm1'
+if (Test-Path -LiteralPath $cacheModule -PathType Leaf) {
+    try {
+        Import-Module $cacheModule -Force -ErrorAction Stop
+        $cacheAvailable = $true
+    }
+    catch {
+        $cacheAvailable = $false
+    }
+}
+
+function Save-SasBatchInteractionHistory {
+    param([Parameter(Mandatory)]$Group)
+
+    if (-not $cacheAvailable -or $WhatIf) { return }
+    try {
+        foreach ($computer in @($Group.Computers | Select-Object -Unique)) {
+            $null = Add-SasInteractionCacheEntry -Scope $cacheScope -Kind Host -Value ([string]$computer) -ErrorAction Stop
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$Group.PrintServer)) {
+            $null = Add-SasInteractionCacheEntry -Scope $cacheScope -Kind Server -Value ([string]$Group.PrintServer) -ErrorAction Stop
+        }
+        foreach ($printerValue in @($Group.Printers | Select-Object -Unique)) {
+            $printerText = ([string]$printerValue).Trim()
+            $null = Add-SasInteractionCacheEntry -Scope $cacheScope -Kind Printer -Value $printerText -ErrorAction Stop
+            if ($printerText -match '^\\\\([^\\]+)\\[^\\]+$') {
+                $null = Add-SasInteractionCacheEntry -Scope $cacheScope -Kind Server -Value $Matches[1] -ErrorAction Stop
+            }
+        }
+    }
+    catch {
+        # Interaction history is advisory and must never alter authoritative batch success/failure.
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($BatchFile)) {
     $BatchFile = Join-Path $PSScriptRoot 'NorthwellPrinterBatch.csv'
 }
@@ -132,6 +173,7 @@ foreach ($group in $groups) {
             $childSummary = Get-Content -LiteralPath $childSummaryPath -Raw | ConvertFrom-Json
             $success = [bool]$childSummary.Success
             $message = if ($success) { 'MACHINE_WIDE_REGISTRATION_PROVED' } else { 'ENGINE_SUMMARY_FAILED' }
+            if ($success) { Save-SasBatchInteractionHistory -Group $group }
         }
     }
     catch {
