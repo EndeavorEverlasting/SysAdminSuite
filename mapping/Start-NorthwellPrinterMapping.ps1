@@ -71,7 +71,7 @@ function Read-SasRecentNumberSelection {
 }
 
 function Show-SasRecentValues {
-    param([Parameter(Mandatory)][string]$Title,[Parameter(Mandatory)][string[]]$Values)
+    param([Parameter(Mandatory)][string]$Title,[Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Values)
     if ($Values.Count -eq 0) { return }
     Write-Host ''
     Write-Host $Title -ForegroundColor DarkCyan
