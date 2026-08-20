@@ -3,6 +3,7 @@ Set-StrictMode -Version Latest
 $script:SchemaVersion = 'sas-interaction-cache/v1'
 $script:DefaultTtlDays = 90
 $script:DefaultMaxEntries = 200
+$script:DefaultMaxEntriesPerScope = 100
 $script:DefaultMaxEntriesPerKind = 75
 $script:DefaultLockTimeoutMilliseconds = 1500
 $script:MetricMaxBytes = 262144
@@ -15,16 +16,19 @@ if (Test-Path -LiteralPath $script:PolicyPath -PathType Leaf) {
         if ([string]$policy.cacheSchemaVersion -ne $script:SchemaVersion) { throw 'Interaction-cache policy/cache schema mismatch.' }
         $ttl = [int]$policy.freshness.ttlDays
         $maxEntries = [int]$policy.capacity.maxEntries
+        $maxPerScope = [int]$policy.capacity.maxEntriesPerScope
         $maxPerKind = [int]$policy.capacity.maxEntriesPerKind
         $lockTimeout = [int]$policy.concurrency.lockTimeoutMilliseconds
         $metricsMax = [int]$policy.observability.maxBytes
         if ($ttl -lt 1 -or $ttl -gt 3650) { throw 'Interaction-cache TTL is outside the safe range.' }
         if ($maxEntries -lt 10 -or $maxEntries -gt 2000) { throw 'Interaction-cache capacity is outside the safe range.' }
+        if ($maxPerScope -lt 5 -or $maxPerScope -gt $maxEntries) { throw 'Interaction-cache per-scope capacity is outside the safe range.' }
         if ($maxPerKind -lt 5 -or $maxPerKind -gt $maxEntries) { throw 'Interaction-cache per-kind capacity is outside the safe range.' }
         if ($lockTimeout -lt 1 -or $lockTimeout -gt 30000) { throw 'Interaction-cache lock timeout is outside the safe range.' }
         if ($metricsMax -lt 16384 -or $metricsMax -gt 10485760) { throw 'Interaction-cache metrics bound is outside the safe range.' }
         $script:DefaultTtlDays = $ttl
         $script:DefaultMaxEntries = $maxEntries
+        $script:DefaultMaxEntriesPerScope = $maxPerScope
         $script:DefaultMaxEntriesPerKind = $maxPerKind
         $script:DefaultLockTimeoutMilliseconds = $lockTimeout
         $script:MetricMaxBytes = $metricsMax
@@ -270,9 +274,13 @@ function Add-SasInteractionCacheEntry {
         [datetime]$NowUtc = [datetime]::UtcNow,
         [ValidateRange(1,3650)][int]$TtlDays = $script:DefaultTtlDays,
         [ValidateRange(10,2000)][int]$MaxEntries = $script:DefaultMaxEntries,
+        [ValidateRange(5,2000)][int]$MaxEntriesPerScope = $script:DefaultMaxEntriesPerScope,
         [ValidateRange(5,1000)][int]$MaxEntriesPerKind = $script:DefaultMaxEntriesPerKind,
         [ValidateRange(1,30000)][int]$LockTimeoutMilliseconds = $script:DefaultLockTimeoutMilliseconds
     )
+
+    if ($MaxEntriesPerScope -gt $MaxEntries) { throw 'MaxEntriesPerScope cannot exceed MaxEntries.' }
+    if ($MaxEntriesPerKind -gt $MaxEntries) { throw 'MaxEntriesPerKind cannot exceed MaxEntries.' }
 
     $identity = Assert-SasInteractionCacheIdentity -Scope $Scope -Kind $Kind -Value $Value
     $lock = $null
@@ -308,12 +316,25 @@ function Add-SasInteractionCacheEntry {
             UseCount = $useCount
         })
 
-        $bounded = New-Object System.Collections.Generic.List[object]
-        foreach ($kindName in @('Host','Printer','Server')) {
-            @($entries | Where-Object { ([string]$_.Kind).Equals($kindName, [System.StringComparison]::OrdinalIgnoreCase) } | Sort-Object @{ Expression = { [datetime]$_.LastSuccessUtc }; Descending = $true } | Select-Object -First $MaxEntriesPerKind) |
-                ForEach-Object { $bounded.Add($_) }
+        $scopeBounded = New-Object System.Collections.Generic.List[object]
+        $scopeNames = @($entries | ForEach-Object { ([string]$_.Scope).ToLowerInvariant() } | Sort-Object -Unique)
+        foreach ($scopeName in $scopeNames) {
+            @($entries |
+                Where-Object { ([string]$_.Scope).Equals($scopeName, [System.StringComparison]::OrdinalIgnoreCase) } |
+                Sort-Object @{ Expression = { [datetime]$_.LastSuccessUtc }; Descending = $true } |
+                Select-Object -First $MaxEntriesPerScope) |
+                ForEach-Object { $scopeBounded.Add($_) }
         }
-        $finalEntries = @($bounded | Sort-Object @{ Expression = { [datetime]$_.LastSuccessUtc }; Descending = $true } | Select-Object -First $MaxEntries)
+
+        $kindBounded = New-Object System.Collections.Generic.List[object]
+        foreach ($kindName in @('Host','Printer','Server')) {
+            @($scopeBounded |
+                Where-Object { ([string]$_.Kind).Equals($kindName, [System.StringComparison]::OrdinalIgnoreCase) } |
+                Sort-Object @{ Expression = { [datetime]$_.LastSuccessUtc }; Descending = $true } |
+                Select-Object -First $MaxEntriesPerKind) |
+                ForEach-Object { $kindBounded.Add($_) }
+        }
+        $finalEntries = @($kindBounded | Sort-Object @{ Expression = { [datetime]$_.LastSuccessUtc }; Descending = $true } | Select-Object -First $MaxEntries)
         $document = [pscustomobject][ordered]@{
             SchemaVersion = $script:SchemaVersion
             UpdatedUtc = $nowText
