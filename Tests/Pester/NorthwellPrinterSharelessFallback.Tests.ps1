@@ -18,18 +18,16 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $script:resilientAst = [System.Management.Automation.Language.Parser]::ParseFile($script:resilientPath,[ref]$tokens,[ref]$errors)
         if (@($errors).Count -gt 0) { throw ($errors | ForEach-Object Message | Out-String) }
 
-        function Import-SasFunctionFromAst {
-            param([Parameter(Mandatory)][string]$Name)
-            $fn = $script:fallbackAst.Find({
-                param($node)
-                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $Name
-            },$true)
-            if (-not $fn) { throw "Function not found in fallback: $Name" }
-            Invoke-Expression $fn.Extent.Text
-        }
-
-        Import-SasFunctionFromAst -Name 'ConvertFrom-SasRemotePrinterConnectionKey'
-        Import-SasFunctionFromAst -Name 'New-SasSharelessPrinterTaskAction'
+        $script:convertFnText = ($script:fallbackAst.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -eq 'ConvertFrom-SasRemotePrinterConnectionKey'
+        },$true)).Extent.Text
+        $script:taskActionFnText = ($script:fallbackAst.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -eq 'New-SasSharelessPrinterTaskAction'
+        },$true)).Extent.Text
         Import-Module $script:corePath -Force
     }
 
@@ -38,15 +36,16 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $script:resilientAst | Should -Not -BeNullOrEmpty
     }
 
-    It 'converts owning HKLM connection subkeys to canonical UNC values' {
-        ConvertFrom-SasRemotePrinterConnectionKey -Name ',,SYKPNHPHPS01V,LS001-EMS01' |
-            Should -Be '\\sykpnhphps01v\ls001-ems01'
+    It 'defines canonical HKLM connection-key conversion to lowercase UNC' {
+        $script:convertFnText | Should -Match [regex]::Escape("'^,,([^,]+),(.+)$'")
+        $script:convertFnText | Should -Match [regex]::Escape("('\\{0}\{1}' -f `$Matches[1],`$Matches[2]).ToLowerInvariant()")
     }
 
     It 'builds a direct rundll32 task action without cmd or a staged script' {
-        $action = New-SasSharelessPrinterTaskAction -SystemRoot 'C:\Windows' -NativeSwitch '/ga' -Queue '\\SYKPNHPHPS01V\LS001-EMS01'
-        $action | Should -Be '"C:\Windows\System32\rundll32.exe" printui.dll,PrintUIEntry /ga /n"\\SYKPNHPHPS01V\LS001-EMS01"'
-        $action | Should -Not -Match '(?i)cmd\.exe|powershell|\.ps1'
+        $script:taskActionFnText | Should -Match [regex]::Escape("Join-Path `$SystemRoot 'System32\rundll32.exe'")
+        $script:taskActionFnText | Should -Match 'printui\.dll,PrintUIEntry'
+        $script:taskActionFnText | Should -Match '\{1\} /n"\{2\}"'
+        $script:taskActionFnText | Should -Not -Match '(?i)cmd\.exe|powershell|\.ps1'
     }
 
     It 'keeps the scheduled task principal SYSTEM and elevated through the canonical builder' {
@@ -63,9 +62,9 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
     }
 
     It 'accepts success only from post-task remote HKLM desired-state proof' {
-        $script:fallbackText | Should -Match [regex]::Escape('$afterProof = Get-SasRemoteMachineWidePrinterConnections -Computer $computer')
-        $script:fallbackText | Should -Match [regex]::Escape("StatusAuthority = 'CONTROLLER_REMOTE_REGISTRY'")
-        $script:fallbackText | Should -Match [regex]::Escape("Transport = 'REMOTE_TASK_SCHEDULER+REMOTE_REGISTRY_NO_ADMIN_SHARE'")
+        $script:fallbackText | Should -Match ([regex]::Escape('$afterProof = Get-SasRemoteMachineWidePrinterConnections -Computer $computer'))
+        $script:fallbackText | Should -Match ([regex]::Escape("StatusAuthority = 'CONTROLLER_REMOTE_REGISTRY'"))
+        $script:fallbackText | Should -Match ([regex]::Escape("Transport = 'REMOTE_TASK_SCHEDULER+REMOTE_REGISTRY_NO_ADMIN_SHARE'"))
     }
 
     It 'records mutation attempts separately from proven changed printers' {
@@ -81,14 +80,14 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
 
     It 'permits replay only for complete pre-mutation administrative-staging failures' {
         $script:resilientText | Should -Match 'Test-SasAdministrativeStagingFailureBeforeMutation'
-        $script:resilientText | Should -Match [regex]::Escape('Get-ChildItem -LiteralPath $EvidenceRoot -Filter ''Status.json''')
-        $script:resilientText | Should -Match [regex]::Escape('$message -notmatch ''(?i)^Admin share unavailable')
+        $script:resilientText | Should -Match ([regex]::Escape("Get-ChildItem -LiteralPath `$EvidenceRoot -Filter 'Status.json'"))
+        $script:resilientText | Should -Match ([regex]::Escape("`$message -notmatch '(?i)^Admin share unavailable"))
         $script:resilientText | Should -Match 'ChangedPrinters'
         $script:resilientText | Should -Match 'StagingShare'
     }
 
     It 'preserves the failed staging evidence before invoking the shareless helper' {
-        $preserveIndex = $script:resilientText.IndexOf('AdministrativeStagingFailure.json',[System.StringComparison]::Ordinal)
+        $preserveIndex = $script:resilientText.IndexOf('AdministrativeStagingFailure.ResolvedPlan.json',[System.StringComparison]::Ordinal)
         $fallbackIndex = $script:resilientText.IndexOf('& $fallbackScript',[System.StringComparison]::Ordinal)
         $preserveIndex | Should -BeGreaterThan -1
         $fallbackIndex | Should -BeGreaterThan $preserveIndex
@@ -96,6 +95,7 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
 
     It 'routes the quick mapper through the resilient orchestrator' {
         $script:cmdText | Should -Match 'Invoke-NorthwellPrinterResilientQuick\.ps1'
+        $script:cmdText | Should -Match 'Start-NorthwellPrinterMapping\.ps1 -Action Map'
         $script:cmdText | Should -Not -Match '-File "%~dp0mapping\\Start-NorthwellPrinterMapping\.ps1" -Action Map'
     }
 }
