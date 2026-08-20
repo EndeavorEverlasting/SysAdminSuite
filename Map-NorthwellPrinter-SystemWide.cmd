@@ -4,9 +4,10 @@ cd /d "%~dp0"
 title SysAdminSuite - Northwell Printer Mapping
 set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
-rem Low-noise Northwell quick mapper.
-rem No reachability sweep, no test page, no per-user fallback.
-rem The PowerShell front-end reports only the authoritative HKLM result and evidence path.
+rem Northwell quick mapper.
+rem Phase 1 registers the shared queue per-computer with SYSTEM /ga.
+rem Phase 2 materializes and verifies the connection for any user already logged on.
+rem No reachability sweep. No test page. No direct-IP fallback.
 
 "%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -Command "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 1 }"
 if not "%ERRORLEVEL%"=="0" (
@@ -21,11 +22,18 @@ echo Northwell system-wide printer mapping
 "%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0mapping\Start-NorthwellPrinterMapping.ps1"
 set "SAS_RC=%ERRORLEVEL%"
 
+if "%SAS_RC%"=="0" (
+    echo.
+    echo Verifying immediate availability for any user already logged on...
+    "%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1"
+    set "SAS_RC=!ERRORLEVEL!"
+)
+
 echo.
 if "%SAS_RC%"=="0" (
-    echo Done.
+    echo Done. Machine-wide registration is proven; any active user session was finalized and verified.
 ) else (
-    echo Mapping was not proven. Review the error above; if an evidence path was printed, use it. Do not remap blindly.
+    echo Mapping is NOT complete for the current session. Review the error and evidence above. Do not remap blindly.
 )
 echo.
 pause
