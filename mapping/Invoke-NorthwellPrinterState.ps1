@@ -186,7 +186,7 @@ function Invoke-RemoteTaskScheduler {
     DesiredState = $DesiredState
     Mode = 'MachineWidePerComputer'
     ProofLevel = $proofLevel
-    Transport = 'SMB+C$+RemoteTaskScheduler'
+    Transport = 'SMB+AdministrativeShareFallback+RemoteTaskScheduler'
     RemoteIdentity = 'SYSTEM'
     PrinterCommand = "rundll32 printui.dll,PrintUIEntry $nativeSwitch"
     RuntimePrintObservedByEngine = $false
@@ -439,17 +439,51 @@ foreach ($computer in $resolvedComputers) {
     $localHostDir = Join-Path $SessionRoot $safeComputer
     New-Item -ItemType Directory -Path $localHostDir -Force | Out-Null
 
-    $remoteRel = "ProgramData\SysAdminSuite\Mapping\NorthwellPrinterState\$runToken"
-    $remoteAdminDir = "\\$computer\C$\$remoteRel"
-    $remoteAgentAdmin = Join-Path $remoteAdminDir 'Agent.ps1'
-    $remoteConfigAdmin = Join-Path $remoteAdminDir 'Config.json'
-    $remoteLauncherAdmin = Join-Path $remoteAdminDir 'Start-Agent.cmd'
-    $remoteStatusAdmin = Join-Path $remoteAdminDir 'Status.json'
-    $remoteLogAdmin = Join-Path $remoteAdminDir 'Agent.log'
-    $remoteAgentLocal = "C:\$remoteRel\Agent.ps1"
-    $remoteConfigLocal = "C:\$remoteRel\Config.json"
-    $remoteWorkLocal = "C:\$remoteRel"
-    $remoteLauncherLocal = "C:\$remoteRel\Start-Agent.cmd"
+    $remoteSubPath = "SysAdminSuite\Mapping\NorthwellPrinterState\$runToken"
+    $stagingCandidates = @(
+        [pscustomobject][ordered]@{
+            Name = 'C$'
+            AdminRoot = "\\$computer\C$"
+            AdminRelative = "ProgramData\$remoteSubPath"
+            LocalRoot = 'C:\ProgramData'
+        },
+        [pscustomobject][ordered]@{
+            Name = 'ADMIN$'
+            AdminRoot = "\\$computer\ADMIN$"
+            AdminRelative = "Temp\$remoteSubPath"
+            LocalRoot = '%SystemRoot%\Temp'
+        }
+    )
+    $staging = $null
+    foreach ($candidate in $stagingCandidates) {
+        if (Test-Path -LiteralPath $candidate.AdminRoot) {
+            $staging = $candidate
+            break
+        }
+    }
+
+    $remoteAdminDir = $null
+    $remoteAgentAdmin = $null
+    $remoteConfigAdmin = $null
+    $remoteLauncherAdmin = $null
+    $remoteStatusAdmin = $null
+    $remoteLogAdmin = $null
+    $remoteAgentLocal = $null
+    $remoteConfigLocal = $null
+    $remoteWorkLocal = $null
+    $remoteLauncherLocal = $null
+    if ($null -ne $staging) {
+        $remoteAdminDir = Join-Path $staging.AdminRoot $staging.AdminRelative
+        $remoteAgentAdmin = Join-Path $remoteAdminDir 'Agent.ps1'
+        $remoteConfigAdmin = Join-Path $remoteAdminDir 'Config.json'
+        $remoteLauncherAdmin = Join-Path $remoteAdminDir 'Start-Agent.cmd'
+        $remoteStatusAdmin = Join-Path $remoteAdminDir 'Status.json'
+        $remoteLogAdmin = Join-Path $remoteAdminDir 'Agent.log'
+        $remoteWorkLocal = Join-Path $staging.LocalRoot $remoteSubPath
+        $remoteAgentLocal = Join-Path $remoteWorkLocal 'Agent.ps1'
+        $remoteConfigLocal = Join-Path $remoteWorkLocal 'Config.json'
+        $remoteLauncherLocal = Join-Path $remoteWorkLocal 'Start-Agent.cmd'
+    }
     $taskName = "SysAdminSuite_NorthwellPrinterState_$runToken"
     $taskCreated = $false
 
@@ -461,14 +495,16 @@ foreach ($computer in $resolvedComputers) {
         DesiredState = $DesiredState
         ChangedPrinters = @()
         AlreadyDesiredPrinters = @()
+        StagingShare = if ($null -ne $staging) { [string]$staging.Name } else { $null }
         Evidence = $localHostDir
     }
 
     try {
-        Write-ControllerLog "[$computer] Preflight C$ and Task Scheduler."
-        if (-not (Test-Path -LiteralPath "\\$computer\C$")) {
-            throw "Admin share unavailable: \\$computer\C$. Confirm an approved Northwell WAB, hardwire, or authenticated VPN route, DNS, credentials, firewall, and admin rights."
+        Write-ControllerLog "[$computer] Preflight administrative staging share and Task Scheduler."
+        if ($null -eq $staging) {
+            throw "Admin share unavailable: neither \\$computer\C$ nor \\$computer\ADMIN$ is accessible. Confirm an approved Northwell WAB, hardwire, or authenticated VPN route, DNS, credentials, firewall, and admin rights."
         }
+        Write-ControllerLog "[$computer] Staging share selected: $($staging.Name)."
         Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Query' -Arguments @('/Query','/S',$computer,'/FO','LIST')
 
         if (-not $PSCmdlet.ShouldProcess($computer, "$operation $($resolvedPrinters.Count) shared printer queue(s) machine-wide as SYSTEM")) {
@@ -483,7 +519,7 @@ foreach ($computer in $resolvedComputers) {
 
         $launcher = @(
             '@echo off',
-            ('"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File {0} -ConfigPath {1} -WorkDir {2}' -f $remoteAgentLocal,$remoteConfigLocal,$remoteWorkLocal),
+            ('"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "{0}" -ConfigPath "{1}" -WorkDir "{2}"' -f $remoteAgentLocal,$remoteConfigLocal,$remoteWorkLocal),
             'exit /b %ERRORLEVEL%'
         ) -join [Environment]::NewLine
         Set-Content -LiteralPath $remoteLauncherAdmin -Value $launcher -Encoding ASCII
@@ -525,7 +561,7 @@ foreach ($computer in $resolvedComputers) {
         Write-ControllerLog "[$computer] FAIL: $($_.Exception.Message)"
     }
     finally {
-        if (Test-Path -LiteralPath $remoteStatusAdmin) {
+        if ($null -ne $remoteStatusAdmin -and (Test-Path -LiteralPath $remoteStatusAdmin)) {
             try {
                 $finalStatus = Get-Content -LiteralPath $remoteStatusAdmin -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
                 $hostResult.ChangedPrinters = @($finalStatus.ChangedPrinters)
@@ -539,7 +575,7 @@ foreach ($computer in $resolvedComputers) {
             @{ Source = $remoteLogAdmin; Name = 'Agent.log' }
         )) {
             try {
-                if (Test-Path -LiteralPath $remoteEvidence.Source) {
+                if ($null -ne $remoteEvidence.Source -and (Test-Path -LiteralPath $remoteEvidence.Source)) {
                     Copy-Item -LiteralPath $remoteEvidence.Source -Destination (Join-Path $localHostDir $remoteEvidence.Name) -Force -ErrorAction Stop
                 }
             }
@@ -550,7 +586,7 @@ foreach ($computer in $resolvedComputers) {
             try { Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Delete' -Arguments @('/Delete','/S',$computer,'/TN',$taskName,'/F') }
             catch { Write-ControllerLog "[$computer] WARN task cleanup: $($_.Exception.Message)" }
         }
-        if (-not $KeepRemoteArtifacts) {
+        if (-not $KeepRemoteArtifacts -and $null -ne $remoteAdminDir) {
             try {
                 if (Test-Path -LiteralPath $remoteAdminDir) { Remove-Item -LiteralPath $remoteAdminDir -Recurse -Force -ErrorAction Stop }
             }
