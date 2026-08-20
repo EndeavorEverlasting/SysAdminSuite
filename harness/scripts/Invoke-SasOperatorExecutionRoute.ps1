@@ -20,7 +20,8 @@ try {
     $target = [Text.Encoding]::UTF8.GetString($targetBytes)
 }
 catch {
-    throw "Operator route target is not valid UTF-8 Base64: $($_.Exception.Message)"
+    [Console]::Error.WriteLine('SAS_OPERATOR_ROUTE_TARGET_ENCODING_INVALID')
+    exit 2
 }
 
 $registry = Get-Content -LiteralPath $registryPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -32,7 +33,8 @@ $route = $routes[0]
 
 $pattern = [string]$route.target_validation_pattern
 if ([string]::IsNullOrWhiteSpace($pattern) -or $target -notmatch $pattern) {
-    throw "Operator route target is not an approved hostname/FQDN: $target"
+    [Console]::Error.WriteLine('SAS_OPERATOR_ROUTE_TARGET_INVALID')
+    exit 2
 }
 
 foreach ($relative in @($route.path_resolution.required_files | ForEach-Object { [string]$_ })) {
