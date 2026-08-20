@@ -31,7 +31,7 @@ Load this skill after a canonical command has been selected when any of the foll
 8. When a registered `operator_front_door` exists, use it. The inner product command is implementation context, not operator handoff text.
 9. Set the shell location to the resolved root and run the front door.
 10. Propagate the child exit code exactly.
-11. If this environment cannot execute on the operator workstation, emit **one** copy-paste route-and-run command from the registry template. Do not split it into “cd here” plus a second command when the harness can do both.
+11. If this environment cannot execute on the operator workstation, emit one copy-paste route-and-run command from the registry template. Do not split it into “cd here” plus a second command when the harness can do both.
 12. Report the durable artifact/pointer expected from the front door. Terminal text is not durable proof.
 
 ## AutoLogon rule
@@ -51,7 +51,7 @@ The latter remains an inner product command. The registered crash-safe launcher 
 - Unresolved repository root: fail closed and route the operator to `sas refresh` on Guest/Internet when freshness/staging is required.
 - Resolved root missing a required front door: treat this as a repository freshness/path proof failure before inventing an alternate command.
 - Dirty or separately owned checkout: preserve it; use the repository-freshness workflow rather than reset/clean.
-- Missing workstation execution capability: state that exact external blocker and provide the single route-and-run command.
+- Missing workstation execution capability: state that exact external blocker and provide one copy-paste route-and-run command.
 - Command failure: preserve the registered crash-safe artifacts and latest pointer before considering any rerun.
 
 ## Expected outputs
