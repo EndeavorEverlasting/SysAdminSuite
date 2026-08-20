@@ -41,6 +41,7 @@ def main() -> None:
     # The universal front door handles protected actions before delegating compatibility commands.
     for marker in (
         'Assert-SasProtectedNetworkAuthority',
+        "'refresh'",
         "'printer'",
         "'autologon'",
         "'cybernet'",
@@ -54,6 +55,12 @@ def main() -> None:
     ):
         assert marker in launcher, marker
     assert '$args = @(' not in launcher
+
+    # Refresh may use the existing Guest-only synchronization implementation, but after sealing the
+    # new C:\SASAL it must restore the universal machine-neutral command from that sealed runtime.
+    assert "Refresh-SasOperatorCommand.ps1" in launcher
+    assert "C:\\SASAL\\scripts\\Install-SasUniversalFieldLauncher.ps1" in launcher
+    assert "UNIVERSAL_FIELD_PLATFORM_REFRESH_CONVERGED" in launcher
 
     # Canonical installation is machine-first. Current-user installation is only a shim fallback,
     # never controller/runtime authority.
