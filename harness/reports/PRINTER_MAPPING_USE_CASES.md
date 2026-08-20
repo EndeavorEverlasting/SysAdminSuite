@@ -7,9 +7,32 @@
 SysAdminSuite has a tracked, proven Northwell printer-mapping use case:
 `northwell.shared-printer.organization-default`.
 
-The use-case registry points to the existing Northwell runbook, launcher, engine, and evidence policy. Real requested document output observed after that canonical workflow is runtime acceptance for that Northwell use case only.
+The registered runtime authority remains the Northwell runbook, system-wide runtime launcher, canonical engine, and evidence policy. Routine technician distribution now adds `Map-NorthwellPrinter.cmd` as a thin one-click front door into the same trusted `sas printer` / bootstrap path; it does not introduce another mapping implementation.
 
-The harness now makes the boundary explicit: **Northwell behavior does not transfer** to another organization or hospital merely because the technology looks similar.
+### Current field checkpoint
+
+On **August 20, 2026**, the current-main Northwell quick workflow was observed on an approved `DomainAuthenticated` wired connection completing both:
+
+- SYSTEM-wide requested printer registration proof in HKLM; and
+- immediate active-user printer materialization proof.
+
+This is live mapping/materialization evidence for the current Northwell use case. It is intentionally narrower than physical print acceptance: a real requested document must still be separately observed printing before claiming document-output runtime acceptance.
+
+Technician path:
+
+```text
+Map-NorthwellPrinter.cmd
+```
+
+Terminal equivalent:
+
+```text
+sas printer
+```
+
+Tutorial: `docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md`.
+
+The harness keeps the organization boundary explicit: **Northwell behavior does not transfer** to another organization or hospital merely because the technology looks similar.
 
 ## DISCOVERY REQUIRED
 
@@ -34,18 +57,23 @@ No site silently inherits a different organization's rules, and no acquired hosp
 
 ## What is working
 
-- Northwell product mapping remains unchanged and registered as its own use case.
-- Organization/site context is now required before a printer implementation is selected.
+- Northwell system-wide mapping remains registered as its own organization-specific use case.
+- The current quick path has live SYSTEM/HKLM + active-user materialization evidence on a protected wired route.
+- `Map-NorthwellPrinter.cmd` gives non-technical technicians a one-click route into the same canonical workflow.
+- The universal installer distributes that CMD beside `sas.cmd` instead of requiring a technician checkout.
+- Recent proven PCs/printers reduce repeated typing without becoming authoritative cache state.
+- Organization/site context is required before a printer implementation is selected.
 - Cross-organization inheritance is forbidden.
 - Health & Hospitals is represented separately without fake product authority.
-- Runtime acceptance is scoped to the same registered use case and organization/site context.
+- Runtime acceptance remains scoped to the same registered use case and organization/site context.
 - Hooks and CI run the focused use-case validator.
 
 ## What is missing
 
+- Physical document output is not claimed by the August 20 mapping/materialization evidence alone.
 - Health & Hospitals mapping standards have not yet been discovered.
 - No hospital-specific site override is registered yet.
-- No Health & Hospitals product launcher or engine should exist until the field requirements justify one.
+- No Health & Hospitals product launcher or engine should exist until field requirements justify one.
 
 ## Validation
 
@@ -56,8 +84,14 @@ python Tests/survey/test_operational_harness_completeness_contracts.py
 git diff --check
 ```
 
-The focused authority is `harness/validators/validate-printer-mapping-use-cases.py`.
+Technician launcher validation:
+
+```text
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester/NorthwellPrinterTechnicianLauncher.Tests.ps1
+```
+
+The focused harness authority remains `harness/validators/validate-printer-mapping-use-cases.py`.
 
 ## Proof ceiling
 
-This report and its validators prove repository/harness isolation and routing contracts only. They do not prove Health & Hospitals printer behavior, any site-specific standard, target reachability, mapping success, or physical output.
+Repository/harness validation proves isolation, routing, thin-launcher delegation, installer distribution, and tutorial contracts. The supplied August 20 field evidence additionally proves the current Northwell quick path reached SYSTEM-wide HKLM registration and immediate active-user materialization on that approved protected wired path. It does not prove Health & Hospitals behavior, site-specific standards, every network path, or physical document output.
