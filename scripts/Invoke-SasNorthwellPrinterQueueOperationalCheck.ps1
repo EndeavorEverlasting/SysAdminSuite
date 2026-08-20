@@ -8,11 +8,12 @@
     the requested target is the local workstation. For a different target PC, it
     does not misclassify the controller workstation's local queue state as target
     state. Instead it reconciles the requested target and queue against preserved
-    canonical SYSTEM + HKLM mapping evidence.
+    canonical SYSTEM + HKLM mapping evidence from the latest complete mapping run.
 
-    When ComputerName is omitted, the engine first tries to recover one unambiguous
+    When ComputerName is omitted, the engine tries to recover one unambiguous
     target for the requested queue from the canonical mapping LATEST-PATH evidence.
-    If no target can be recovered, it intentionally falls back to the local machine.
+    If target context cannot be recovered safely, the check fails closed instead of
+    silently substituting the controller workstation.
 
     Durable prior physical-print evidence remains available for local operational
     checks. Raw diagnostic evidence is preserved unchanged when diagnostics run.
@@ -58,6 +59,55 @@ function ConvertTo-SasComputerKey {
     return ($trimmed -split '\.')[0].ToLowerInvariant()
 }
 
+function Get-SasLatestMappingEvidenceRoot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [ValidateRange(1, 40)][int]$RetryCount = 8,
+        [ValidateRange(0, 2000)][int]$RetryDelayMilliseconds = 250
+    )
+
+    $mappingLogs = Join-Path $RepoRoot 'mapping\Logs'
+    $latestPointer = Join-Path $mappingLogs 'LATEST-PATH.txt'
+    $mappingLogsFull = [System.IO.Path]::GetFullPath($mappingLogs).TrimEnd([char[]]'\') + '\'
+
+    for ($attempt = 1; $attempt -le $RetryCount; $attempt++) {
+        try {
+            if (Test-Path -LiteralPath $latestPointer -PathType Leaf) {
+                $rawRoot = [string](Get-Content -LiteralPath $latestPointer -Raw -ErrorAction Stop)
+                if (-not [string]::IsNullOrWhiteSpace($rawRoot)) {
+                    $candidateRoot = [System.IO.Path]::GetFullPath($rawRoot.Trim())
+                    if ($candidateRoot.StartsWith($mappingLogsFull, [System.StringComparison]::OrdinalIgnoreCase) -and
+                        (Test-Path -LiteralPath $candidateRoot -PathType Container)) {
+                        $summaryPath = Join-Path $candidateRoot 'Summary.json'
+                        if (Test-Path -LiteralPath $summaryPath -PathType Leaf) {
+                            $summary = Get-Content -LiteralPath $summaryPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+                            $completedProperty = $summary.PSObject.Properties['CompletedTargets']
+                            $totalProperty = $summary.PSObject.Properties['TotalTargets']
+                            if ($null -ne $completedProperty -and $null -ne $totalProperty) {
+                                $completedTargets = [int]$completedProperty.Value
+                                $totalTargets = [int]$totalProperty.Value
+                                if ($totalTargets -gt 0 -and $completedTargets -eq $totalTargets) {
+                                    return $candidateRoot
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch {
+            # A producer may still be publishing pointer/summary bytes. Retry boundedly.
+        }
+
+        if ($attempt -lt $RetryCount -and $RetryDelayMilliseconds -gt 0) {
+            Start-Sleep -Milliseconds $RetryDelayMilliseconds
+        }
+    }
+
+    return $null
+}
+
 function Get-SasLatestMappedTargetForPrinter {
     [CmdletBinding()]
     param(
@@ -65,13 +115,8 @@ function Get-SasLatestMappedTargetForPrinter {
         [Parameter(Mandatory)][string]$Printer
     )
 
-    $latestPointer = Join-Path $RepoRoot 'mapping\Logs\LATEST-PATH.txt'
-    if (-not (Test-Path -LiteralPath $latestPointer -PathType Leaf)) { return $null }
-
-    $evidenceRoot = [string](Get-Content -LiteralPath $latestPointer -Raw -ErrorAction SilentlyContinue)
+    $evidenceRoot = Get-SasLatestMappingEvidenceRoot -RepoRoot $RepoRoot
     if ([string]::IsNullOrWhiteSpace($evidenceRoot)) { return $null }
-    $evidenceRoot = $evidenceRoot.Trim()
-    if (-not (Test-Path -LiteralPath $evidenceRoot -PathType Container)) { return $null }
 
     $printerKey = $Printer.Trim().ToLowerInvariant()
     $targets = New-Object System.Collections.Generic.List[string]
@@ -107,14 +152,15 @@ function Get-SasRemoteMachineWideProof {
         [Parameter(Mandatory)][string]$Printer
     )
 
-    $mappingLogs = Join-Path $RepoRoot 'mapping\Logs'
     $targetKey = ConvertTo-SasComputerKey -Value $ComputerName
     $printerKey = $Printer.Trim().ToLowerInvariant()
+    $evidenceRoot = Get-SasLatestMappingEvidenceRoot -RepoRoot $RepoRoot
 
-    if ([string]::IsNullOrWhiteSpace($targetKey) -or -not (Test-Path -LiteralPath $mappingLogs -PathType Container)) {
+    if ([string]::IsNullOrWhiteSpace($targetKey) -or [string]::IsNullOrWhiteSpace($evidenceRoot)) {
         return [pscustomobject]([ordered]@{
             found = $false
             proven = $false
+            evidence_root = $evidenceRoot
             evidence_path = $null
             completed_utc = $null
             identity = $null
@@ -125,7 +171,7 @@ function Get-SasRemoteMachineWideProof {
     }
 
     $candidates = @(
-        Get-ChildItem -LiteralPath $mappingLogs -Filter 'Status.json' -File -Recurse -ErrorAction SilentlyContinue |
+        Get-ChildItem -LiteralPath $evidenceRoot -Filter 'Status.json' -File -Recurse -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTimeUtc -Descending
     )
 
@@ -170,6 +216,7 @@ function Get-SasRemoteMachineWideProof {
             return [pscustomobject]([ordered]@{
                 found = $true
                 proven = $proven
+                evidence_root = $evidenceRoot
                 evidence_path = $candidate.FullName
                 completed_utc = $finished
                 identity = $identity
@@ -186,6 +233,7 @@ function Get-SasRemoteMachineWideProof {
     return [pscustomobject]([ordered]@{
         found = $false
         proven = $false
+        evidence_root = $evidenceRoot
         evidence_path = $null
         completed_utc = $null
         identity = $null
@@ -356,15 +404,15 @@ else {
         $recoveredTarget
     }
     else {
-        $targetResolution = 'LOCAL_DEFAULT'
-        $env:COMPUTERNAME
+        $targetResolution = 'UNRESOLVED'
+        $null
     }
 }
 
-$targetKey = ConvertTo-SasComputerKey -Value $targetComputer
+$targetContextResolved = -not [string]::IsNullOrWhiteSpace([string]$targetComputer)
+$targetKey = if ($targetContextResolved) { ConvertTo-SasComputerKey -Value ([string]$targetComputer) } else { '' }
 $localKey = ConvertTo-SasComputerKey -Value $env:COMPUTERNAME
-if ([string]::IsNullOrWhiteSpace($targetKey)) { throw 'ComputerName cannot be blank.' }
-$remoteTarget = ($targetKey -ne $localKey)
+$remoteTarget = ($targetContextResolved -and $targetKey -ne $localKey)
 
 $base = if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot
@@ -389,11 +437,39 @@ $latestStdout = Join-Path $base 'latest-diagnostic.stdout.txt'
 $latestStderr = Join-Path $base 'latest-diagnostic.stderr.txt'
 $stdoutPath = Join-Path $runRoot 'diagnostic.stdout.txt'
 $stderrPath = Join-Path $runRoot 'diagnostic.stderr.txt'
+$diagnosticOutputRoot = Join-Path $runRoot 'diagnostic'
 $rawArtifact = $null
 $completed = $true
+$localDiagnosticRan = $false
 
-if ($remoteTarget) {
-    $remoteProof = Get-SasRemoteMachineWideProof -RepoRoot $repoRoot -ComputerName $targetComputer -Printer $unc
+if (-not $targetContextResolved) {
+    $result = [ordered]@{
+        schema_version = 'sas-northwell-printer-queue-operational/v1'
+        status = 'FAIL'
+        classification = 'TARGET_CONTEXT_UNRESOLVED'
+        proof_level = 'NO_TARGET_CONTEXT'
+        printer = $unc
+        target_computer = $null
+        target_resolution = $targetResolution
+        evaluation_mode = 'TARGET_CONTEXT_REQUIRED'
+        printer_ip_diagnostic_only = $PrinterIp
+        no_test_page_requested = $true
+        direct_ip_mapping_performed = $false
+        source_status = $null
+        source_classification = $null
+        source_result_path = $null
+        source_mapping_evidence = $null
+        prior_physical_proof = $null
+        diagnostic_warnings = @('TARGET_CONTEXT_NOT_PROVEN')
+        current = $null
+        diagnostic_stdout = $null
+        diagnostic_stderr = $null
+        evidence_path = $resultPath
+        completed_utc = [DateTime]::UtcNow.ToString('o')
+    }
+}
+elseif ($remoteTarget) {
+    $remoteProof = Get-SasRemoteMachineWideProof -RepoRoot $repoRoot -ComputerName ([string]$targetComputer) -Printer $unc
     if ($remoteProof.proven -eq $true) {
         $result = [ordered]@{
             schema_version = 'sas-northwell-printer-queue-operational/v1'
@@ -474,16 +550,18 @@ if ($remoteTarget) {
     }
 }
 else {
+    $localDiagnosticRan = $true
     $diagnosticEngine = Join-Path $PSScriptRoot 'Invoke-SasNorthwellPrinterQueueProof.ps1'
     if (-not (Test-Path -LiteralPath $diagnosticEngine)) {
         throw "Missing bounded diagnostic engine: $diagnosticEngine"
     }
 
+    New-Item -ItemType Directory -Path $diagnosticOutputRoot -Force | Out-Null
     $startedUtc = [DateTime]::UtcNow
     $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $command = "& " + (ConvertTo-SasPowerShellLiteral $diagnosticEngine) +
         " -Printer " + (ConvertTo-SasPowerShellLiteral $unc) +
-        " -TimeoutSeconds $TimeoutSeconds -NonInteractive -OutputRoot " + (ConvertTo-SasPowerShellLiteral $base)
+        " -TimeoutSeconds $TimeoutSeconds -NonInteractive -OutputRoot " + (ConvertTo-SasPowerShellLiteral $diagnosticOutputRoot)
     if (-not [string]::IsNullOrWhiteSpace($PrinterIp)) {
         $command += " -PrinterIp " + (ConvertTo-SasPowerShellLiteral $PrinterIp.Trim())
     }
@@ -503,7 +581,7 @@ else {
         try { [void]$process.WaitForExit(2000) } catch {}
     }
 
-    $rawArtifact = Get-ChildItem -LiteralPath $base -Filter 'printer-queue-proof-result.json' -File -Recurse -ErrorAction SilentlyContinue |
+    $rawArtifact = Get-ChildItem -LiteralPath $diagnosticOutputRoot -Filter 'printer-queue-proof-result.json' -File -Recurse -ErrorAction SilentlyContinue |
         Where-Object { $_.LastWriteTimeUtc -ge $startedUtc.AddSeconds(-2) } |
         Sort-Object LastWriteTimeUtc -Descending |
         Select-Object -First 1
@@ -532,6 +610,9 @@ else {
     }
     else {
         $raw = Get-Content -LiteralPath $rawArtifact.FullName -Raw | ConvertFrom-Json -ErrorAction Stop
+        if ([string]$raw.printer -ne $unc) {
+            throw "Isolated diagnostic artifact printer mismatch. Expected '$unc'; observed '$([string]$raw.printer)'."
+        }
         $priorPhysical = Get-SasPriorPhysicalProof -Base $base -Printer $unc -ExcludePath $rawArtifact.FullName
         $outcome = Get-SasOperationalOutcome -Raw $raw -PriorPhysicalProof $priorPhysical
 
@@ -572,23 +653,23 @@ else {
 
 $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $resultPath -Encoding UTF8
 Copy-Item -LiteralPath $resultPath -Destination $latestJson -Force
-if (Test-Path -LiteralPath $stdoutPath) { Copy-Item -LiteralPath $stdoutPath -Destination $latestStdout -Force }
-if (Test-Path -LiteralPath $stderrPath) { Copy-Item -LiteralPath $stderrPath -Destination $latestStderr -Force }
+if ($localDiagnosticRan -and (Test-Path -LiteralPath $stdoutPath)) { Copy-Item -LiteralPath $stdoutPath -Destination $latestStdout -Force }
+if ($localDiagnosticRan -and (Test-Path -LiteralPath $stderrPath)) { Copy-Item -LiteralPath $stderrPath -Destination $latestStderr -Force }
 
 $summary = @(
     'SysAdminSuite Northwell Printer Queue Operational Check'
     ('Status: ' + $result.status)
     ('Classification: ' + $result.classification)
     ('Proof level: ' + $result.proof_level)
-    ('Target computer: ' + $targetComputer)
+    ('Target computer: ' + $(if ($targetContextResolved) { [string]$targetComputer } else { '<unresolved>' }))
     ('Target resolution: ' + $targetResolution)
     ('Evaluation mode: ' + $result.evaluation_mode)
     ('Printer: ' + $unc)
     'Test page requested by this run: NO'
     ('Warnings: ' + ((@($result.diagnostic_warnings) -join ', ')))
     ('Result JSON: ' + $resultPath)
-    ('Raw diagnostic stdout: ' + $(if ($remoteTarget) { '<not run for remote target>' } else { $stdoutPath }))
-    ('Raw diagnostic stderr: ' + $(if ($remoteTarget) { '<not run for remote target>' } else { $stderrPath }))
+    ('Raw diagnostic stdout: ' + $(if ($localDiagnosticRan) { $stdoutPath } else { '<not run for remote/unresolved target>' }))
+    ('Raw diagnostic stderr: ' + $(if ($localDiagnosticRan) { $stderrPath } else { '<not run for remote/unresolved target>' }))
     ('Stable latest JSON: ' + $latestJson)
     ('Stable latest summary: ' + $latestText)
 )
