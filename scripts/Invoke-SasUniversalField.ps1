@@ -94,6 +94,12 @@ switch ($normalized) {
 
     'network' {
         if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas network [HOST]' -ForegroundColor Red; exit 2 }
+        if ($actualArgs.Count -eq 1) {
+            [void](Assert-SasProtectedForAction -Purpose "Network readiness probe for $($actualArgs[0])")
+            # Preserve the existing one-target readiness contract. The universal layer owns local
+            # protected-path admission; the established dispatcher continues to own the target probe.
+            Invoke-SasLegacyDispatcher
+        }
         Write-SasUniversalContext
         $gate = Join-Path $runtimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
         if (-not (Test-Path -LiteralPath $gate -PathType Leaf)) { $gate = Join-Path $controllerRoot 'scripts\Confirm-SasNorthwellNetwork.ps1' }
