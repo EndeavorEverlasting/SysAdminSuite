@@ -10,7 +10,7 @@ BeforeAll {
         param([Parameter(Mandatory)][string]$Root)
         $paths = @(
             'Map-NorthwellPrinter-SystemWide.cmd','Map-NorthwellPrinters-FromFile.cmd','Map-NorthwellPrinters-Batch.cmd',
-            'mapping\Start-NorthwellPrinterMapping.ps1','mapping\Start-NorthwellPrinterBatch.ps1',
+            'mapping\Diagnose-NorthwellPrinterEvidence.ps1','mapping\Start-NorthwellPrinterMapping.ps1','mapping\Start-NorthwellPrinterBatch.ps1',
             'mapping\Invoke-NorthwellPrinterState.ps1','mapping\Modules\NorthwellPrinterMapping.Core.psm1',
             'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1','mapping\Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1',
             'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1','mapping\Examples\NorthwellPrinterBatch.example.csv',
@@ -92,6 +92,7 @@ Describe 'Universal sas printer entrypoint' {
         $text | Should -Match '\$statusArguments \+= @\(\$script:requiredRuntimePaths\)'
         $text | Should -Match 'Resolve-SasPrinterStateRoot'
         $text | Should -Match '\.state\\printer-bootstrap'
+        $text | Should -Match 'Diagnose-NorthwellPrinterEvidence\.ps1'
         $text | Should -Match 'Invoke-NorthwellPrinterState\.ps1'
         $text | Should -Match 'SasNorthwellNetworkAuthority\.psm1'
         $text | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
