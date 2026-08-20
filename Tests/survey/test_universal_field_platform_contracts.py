@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PLATFORM = ROOT / 'scripts' / 'SasFieldPlatform.psm1'
 LAUNCHER = ROOT / 'scripts' / 'Invoke-SasUniversalField.ps1'
 INSTALLER = ROOT / 'scripts' / 'Install-SasUniversalFieldLauncher.ps1'
+PRINTER_BOOTSTRAP = ROOT / 'Bootstrap-SysAdminSuitePrinter.ps1'
 INSTALL_CMD = ROOT / 'Install-SasOperatorCommand.cmd'
 DOC = ROOT / 'docs' / 'UNIVERSAL_FIELD_PLATFORM.md'
 
@@ -19,6 +20,7 @@ def main() -> None:
     platform = read(PLATFORM)
     launcher = read(LAUNCHER)
     installer = read(INSTALLER)
+    printer_bootstrap = read(PRINTER_BOOTSTRAP)
     install_cmd = read(INSTALL_CMD)
     doc = read(DOC)
 
@@ -58,7 +60,7 @@ def main() -> None:
         "'clipboard'",
         "'autologon'",
         "'cybernet'",
-        'Map-NorthwellPrinter-SystemWide.cmd',
+        'Bootstrap-SysAdminSuitePrinter.ps1',
         'Reset-SasClipboard.ps1',
         'Run-AutoLogonOnsite.cmd',
         'Confirm-SasNorthwellNetwork.ps1',
@@ -69,6 +71,31 @@ def main() -> None:
     ):
         assert marker in launcher, marker
     assert '$args = @(' not in launcher
+
+    # Printer mapping must be a feature, not a repository-path ritual. The installed trusted bootstrap
+    # owns runtime discovery; quick mapping is the default and file/batch mapping is a pathless submode.
+    printer_block = launcher.split("    'printer' {", 1)[1].split("\n    'clipboard' {", 1)[0]
+    assert 'Resolve-SasInstalledPrinterBootstrap' in printer_block
+    assert 'Map-NorthwellPrinter-SystemWide.cmd' not in printer_block
+    assert 'Usage: sas printer [file]' in printer_block
+    assert "$printerMode = 'Quick'" in printer_block
+    assert "$printerMode = 'File'" in printer_block
+    assert '-Mode $printerMode' in printer_block
+
+    # The installer must carry the trusted bootstrap beside sas.cmd instead of depending on whichever
+    # printer files happen to exist in a controller checkout.
+    assert "$sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps1'" in installer
+    assert "$printerBootstrapDestination = Join-Path $installRoot 'Bootstrap-SysAdminSuitePrinter.ps1'" in installer
+    assert 'Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force' in installer
+
+    # Bootstrap runtime cleanliness is scoped to the printer-owned execution surface. Unrelated field
+    # hotfixes do not force a second runtime, while printer-owned edits still fail closed.
+    assert "[ValidateSet('Quick','File')][string]$Mode = 'Quick'" in printer_bootstrap
+    assert "Map-NorthwellPrinters-FromFile.cmd" in printer_bootstrap
+    assert "mapping\\Start-NorthwellPrinterBatch.ps1" in printer_bootstrap
+    assert "$statusArguments += @($script:requiredRuntimePaths)" in printer_bootstrap
+    assert "@('status','--porcelain','--untracked-files=no','--')" in printer_bootstrap
+    assert "$launcherName = if ($Mode -eq 'File')" in printer_bootstrap
 
     # Local clipboard recovery is intentionally outside the protected network gate.
     clipboard_block = launcher.split("    'clipboard' {", 1)[1].split("\n    'autologon' {", 1)[0]
@@ -101,7 +128,7 @@ def main() -> None:
     assert 'if defined SAS_RUNTIME_ROOT' not in installer
 
     # No operator identity or one user's filesystem is allowed into the new platform surfaces.
-    combined = '\n'.join((platform, launcher, installer, install_cmd))
+    combined = '\n'.join((platform, launcher, installer, printer_bootstrap, install_cmd))
     for forbidden in (
         'pa_rperez26', 'CheeksMcClappeth', 'Cheex', 'Richard Perez',
         'Desktop\\dev\\SysAdminSuite', 'OG Laptop Backup',
