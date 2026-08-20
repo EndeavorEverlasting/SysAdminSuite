@@ -215,10 +215,13 @@ function Write-SasInteractionCacheDocument {
     $directory = Split-Path -Parent $CachePath
     New-Item -ItemType Directory -Path $directory -Force -ErrorAction Stop | Out-Null
     $temporary = Join-Path $directory (([System.IO.Path]::GetFileName($CachePath)) + '.' + [guid]::NewGuid().ToString('N') + '.tmp')
+    $backup = "$CachePath.replace-backup"
     try {
         $Document | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $temporary -Encoding UTF8 -ErrorAction Stop
         if (Test-Path -LiteralPath $CachePath -PathType Leaf) {
-            [System.IO.File]::Replace($temporary, $CachePath, $null, $true)
+            if (Test-Path -LiteralPath $backup -PathType Leaf) { Remove-Item -LiteralPath $backup -Force -ErrorAction Stop }
+            [System.IO.File]::Replace($temporary, $CachePath, $backup, $true)
+            if (Test-Path -LiteralPath $backup -PathType Leaf) { Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue }
         }
         else {
             Move-Item -LiteralPath $temporary -Destination $CachePath -Force -ErrorAction Stop
@@ -226,6 +229,7 @@ function Write-SasInteractionCacheDocument {
     }
     finally {
         if (Test-Path -LiteralPath $temporary -PathType Leaf) { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $backup -PathType Leaf) { Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue }
     }
 }
 
