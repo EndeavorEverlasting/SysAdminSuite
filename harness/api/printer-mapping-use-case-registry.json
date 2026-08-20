@@ -33,7 +33,7 @@
       "parent_use_case_id": null,
       "inherited_fields": [],
       "product_workflow": "START-HERE-NORTHWELL-PRINTER-MAPPING.md",
-      "product_launcher": "Map-NorthwellPrinter.cmd",
+      "product_launcher": "Map-NorthwellPrinter-SystemWide.cmd",
       "product_engine": "mapping/Invoke-NorthwellPrinterMapping.ps1",
       "evidence_policy": "harness/api/northwell-printer-mapping-evidence-policy.json",
       "agent_skill": ".claude/skills/field-workflow/SKILL.md",
