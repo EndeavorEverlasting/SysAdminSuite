@@ -10,7 +10,11 @@ on:
       - 'AGENTS.md'
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
+      - 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
+      - 'Manage-NorthwellPrinters.cmd'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Unmap-NorthwellPrinter-SystemWide.cmd'
+      - 'Undo-LatestNorthwellPrinterChange.cmd'
       - 'Map-NorthwellPrinters-FromFile.cmd'
       - 'Edit-NorthwellPrinter-Defaults.cmd'
       - 'Edit-NorthwellPrinter-Batch.cmd'
@@ -22,13 +26,18 @@ on:
       - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
       - 'mapping/Examples/NorthwellPrinterDefaults.example.json'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
+      - 'mapping/Invoke-NorthwellPrinterState.ps1'
+      - 'mapping/Invoke-NorthwellPrinterUnmapping.ps1'
+      - 'mapping/Undo-NorthwellPrinterChange.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
+      - 'scripts/SasNorthwellNetworkAuthority.psm1'
       - 'scripts/Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1'
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterReversibility.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
       - 'Tests/Pester/SasInteractionCache.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterLowNoiseAcceptance.Tests.ps1'
@@ -42,7 +51,11 @@ on:
       - 'AGENTS.md'
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
+      - 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
+      - 'Manage-NorthwellPrinters.cmd'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Unmap-NorthwellPrinter-SystemWide.cmd'
+      - 'Undo-LatestNorthwellPrinterChange.cmd'
       - 'Map-NorthwellPrinters-FromFile.cmd'
       - 'Edit-NorthwellPrinter-Defaults.cmd'
       - 'Edit-NorthwellPrinter-Batch.cmd'
@@ -54,13 +67,18 @@ on:
       - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
       - 'mapping/Examples/NorthwellPrinterDefaults.example.json'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
+      - 'mapping/Invoke-NorthwellPrinterState.ps1'
+      - 'mapping/Invoke-NorthwellPrinterUnmapping.ps1'
+      - 'mapping/Undo-NorthwellPrinterChange.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
+      - 'scripts/SasNorthwellNetworkAuthority.psm1'
       - 'scripts/Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1'
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterReversibility.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
       - 'Tests/Pester/SasInteractionCache.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterLowNoiseAcceptance.Tests.ps1'
@@ -86,12 +104,17 @@ jobs:
             '.\mapping\Start-NorthwellPrinterMapping.ps1',
             '.\mapping\Start-NorthwellPrinterBatch.ps1',
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
+            '.\mapping\Invoke-NorthwellPrinterState.ps1',
+            '.\mapping\Invoke-NorthwellPrinterUnmapping.ps1',
+            '.\mapping\Undo-NorthwellPrinterChange.ps1',
             '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
             '.\scripts\SasInteractionCache.psm1',
             '.\scripts\SasNetworkGuard.psm1',
+            '.\scripts\SasNorthwellNetworkAuthority.psm1',
             '.\scripts\Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1',
             '.\Utilities\Map-Printer.ps1',
             '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterReversibility.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterInteractionCache.Tests.ps1',
             '.\Tests\Pester\SasInteractionCache.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterLowNoiseAcceptance.Tests.ps1',
@@ -115,13 +138,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $rows = @(Import-Csv -LiteralPath '.\mapping\Examples\NorthwellPrinterBatch.example.csv')
           if ($rows.Count -ne 1) { throw 'Tracked batch example must contain exactly one starter row.' }
-          foreach ($column in @('ComputerName','PrintServer','QueueName')) {
+          foreach ($column in @('Action','ComputerName','PrintServer','QueueName')) {
             if ($null -eq $rows[0].PSObject.Properties[$column]) { throw "Missing batch example column: $column" }
           }
-          if ($rows[0].ComputerName -ne 'REPLACE-WITH-PC-HOSTNAME' -or
+          if ($rows[0].Action -ne 'Map' -or
+              $rows[0].ComputerName -ne 'REPLACE-WITH-PC-HOSTNAME' -or
               $rows[0].PrintServer -ne 'REPLACE-WITH-PRINT-SERVER' -or
               $rows[0].QueueName -ne 'REPLACE-WITH-QUEUE-NAME') {
-            throw 'Tracked batch example must contain synthetic REPLACE-WITH-* values only.'
+            throw 'Tracked batch example must contain a synthetic Map REPLACE-WITH-* starter row only.'
           }
           $defaults = Get-Content -LiteralPath '.\mapping\Examples\NorthwellPrinterDefaults.example.json' -Raw | ConvertFrom-Json
           if ($defaults.PrintServer -ne 'REPLACE-WITH-PRINT-SERVER' -or $defaults.QueueName -ne 'REPLACE-WITH-QUEUE-NAME') {
@@ -165,6 +189,13 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File
           .\tools\Test-Pester5Suite.ps1
           -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+
+      - name: Run reversible printer contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterReversibility.Tests.ps1
 
       - name: Run interaction cache consistency contracts
         shell: pwsh
