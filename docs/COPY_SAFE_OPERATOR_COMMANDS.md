@@ -58,12 +58,25 @@ Despite the compatibility name, the normal launcher is now an **operational chec
 
 **The normal launcher never prints a test page.** It does not ask for one and does not pass the diagnostic engine's explicit `-PrintTestPage` switch. A prior successful physical print is durable evidence; follow-up status checks do not consume paper merely to prove the same thing again.
 
+Target identity is part of the proof. When the **latest complete** canonical mapping evidence identifies one unambiguous target for the requested queue, the operational engine recovers that target automatically. The latest mapping root is accepted only after its `Summary.json` reports `CompletedTargets == TotalTargets`, so a partially published pointer or status file cannot become proof. An explicit `-ComputerName` remains available for automation or deliberate override.
+
+If the target cannot be recovered unambiguously, the operational check fails closed as `TARGET_CONTEXT_UNRESOLVED`. It does **not** silently substitute the technician/controller workstation, and it does not fall back to an older successful mapping run. The launcher therefore allows the target hostname to be entered explicitly, which is recommended after multi-target batches.
+
+For a **remote mapped target**, the controller workstation's local `Get-Printer`/CIM state is not target state. The operational engine therefore does not run the local queue diagnostic and then call a missing controller-side queue a remote mapping failure. It evaluates only matching SYSTEM + HKLM mapping evidence inside the latest complete mapping evidence root for that target and queue. A successful result is classified `REMOTE_TARGET_MACHINE_WIDE_REGISTRATION_PROVEN` at proof level `MACHINE_WIDE_REGISTRATION`; it deliberately warns that remote runtime queue state was not observed.
+
+For the **local workstation**, the existing bounded operational diagnostics remain authoritative for current local state. Each local check gives its child diagnostic engine a unique run-scoped diagnostic directory and accepts the raw artifact only from that directory, with the requested printer identity revalidated before classification. Concurrent checks therefore cannot select each other's queue result merely because their timestamps are close.
+
 The default operational engine:
 
 - validates the shared `\\server\queue` workflow;
-- invokes the bounded diagnostic engine with `-NonInteractive` and no test-page switch;
-- records current local Spooler, queue, DNS, SMB/RPC transport, and optional TCP 9100 evidence;
-- treats remote administrative/status-query timeouts as telemetry degradation when current queue/transport evidence is healthy;
+- accepts one explicit target or recovers one unambiguous target from the latest complete canonical mapping `LATEST-PATH` evidence when `ComputerName` is omitted;
+- validates completion of the pointed mapping root before reading target proof;
+- fails closed with `TARGET_CONTEXT_UNRESOLVED` when target context is unavailable or ambiguous instead of defaulting to the controller workstation;
+- for a remote target, evaluates matching SYSTEM + HKLM target evidence only from the latest complete mapping run, never an older historical success;
+- for the local workstation, invokes the bounded diagnostic engine with `-NonInteractive` and no test-page switch;
+- isolates the local child artifact under a run-scoped diagnostic directory and verifies its printer identity before use;
+- records current local Spooler, queue, DNS, SMB/RPC transport, and optional TCP 9100 evidence only when the local workstation is the target;
+- treats remote administrative/status-query timeouts as telemetry degradation when current local queue/transport evidence is healthy;
 - preserves a previous `physical_output_observed=true` artifact for the same queue as prior physical proof instead of printing again;
 - never remaps the printer by IP;
 - never modifies Northwell firewall, RPC, or Group Policy;
@@ -137,14 +150,15 @@ That opens the evidence directory plus the stable latest summary/result in Explo
 Evidence is ranked by what it actually proves:
 
 1. A real document observed printing after canonical mapping is runtime acceptance of the mapped print path for that observed case.
-2. A previously observed physical page recorded in durable evidence remains end-to-end proof of successful printing at that time.
-3. Current local queue state, `WorkOffline`, SMB reachability, optional TCP 9100 reachability, and observed established RPC connections describe current health.
-4. A remote `Get-Printer` timeout is status/administrative telemetry. It does not by itself prove that printing is broken.
-5. A transient `SynSent` sample does not prove an RPC stall when an established dynamic RPC connection was also observed.
+2. Current canonical SYSTEM + HKLM machine-wide registration proof from the latest complete mapping run establishes that the requested queue was registered on the named target; controller-local queue absence cannot invalidate that remote-target proof.
+3. A previously observed physical page recorded in durable evidence remains end-to-end proof of successful printing at that time.
+4. Current local queue state, `WorkOffline`, SMB reachability, optional TCP 9100 reachability, and observed established RPC connections describe current health only for the machine where those diagnostics actually ran.
+5. A remote `Get-Printer` timeout is status/administrative telemetry. It does not by itself prove that printing is broken.
+6. A transient `SynSent` sample does not prove an RPC stall when an established dynamic RPC connection was also observed.
 
-Accordingly, a healthy current queue plus preserved physical proof is classified `QUEUE_OPERATIONAL_PHYSICAL_PROOF_PRESERVED`. A healthy current queue with established transport but a remote status timeout is `QUEUE_OPERATIONAL_STATUS_TELEMETRY_DEGRADED`, not a print failure.
+Accordingly, a remote target with current matching SYSTEM + HKLM proof is classified `REMOTE_TARGET_MACHINE_WIDE_REGISTRATION_PROVEN`, and the result does not pretend it observed runtime output on that target. If the current target cannot be identified or the latest mapping run is incomplete, the check stops at target-context/evidence failure instead of scavenging historical success. A healthy current local queue plus preserved physical proof is classified `QUEUE_OPERATIONAL_PHYSICAL_PROOF_PRESERVED`. A healthy current local queue with established transport but a remote status timeout is `QUEUE_OPERATIONAL_STATUS_TELEMETRY_DEGRADED`, not a print failure.
 
-Current hard failures still matter when they are current observed failures: missing local queue, stopped Spooler, unreachable SMB path, or an explicitly supplied printer IP whose TCP 9100 path is unreachable. They do not retroactively erase a previously observed successful print.
+Current hard failures still matter when they are current observed failures on the machine being checked: missing local queue, stopped Spooler, unreachable SMB path, or an explicitly supplied printer IP whose TCP 9100 path is unreachable. They do not retroactively erase a previously observed successful print, and they are never transplanted from the controller workstation onto a different remote target.
 
 ## Explicit physical test capability
 
