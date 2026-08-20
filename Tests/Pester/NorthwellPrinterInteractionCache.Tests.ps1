@@ -59,8 +59,8 @@ Describe 'Northwell printer low-rework interaction UX' {
         $cacheContent = Get-Content -LiteralPath $script:cacheModulePath -Raw
         $interactiveContent = Get-Content -LiteralPath $script:interactivePath -Raw
         $batchContent = Get-Content -LiteralPath $script:batchPath -Raw
-        $interactiveContent | Should -Match "\$cacheScope = 'northwell'"
-        $batchContent | Should -Match "\$cacheScope = 'northwell'"
+        $interactiveContent | Should -Match '\$cacheScope = ''northwell'''
+        $batchContent | Should -Match '\$cacheScope = ''northwell'''
         $cacheContent | Should -Match 'LocalApplicationData'
         $cacheContent | Should -Not -Match '(?i)HKEY_LOCAL_MACHINE|PrintUIEntry'
         $cacheContent | Should -Not -Match '(?i)health.?hospitals'
