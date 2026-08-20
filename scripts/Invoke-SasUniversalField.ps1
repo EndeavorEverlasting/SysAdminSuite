@@ -76,6 +76,7 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
         Write-Host 'Run the existing sas commands normally; the universal front door resolves controller/runtime/network context first.'
         Write-Host 'Printer quick mapping: sas printer' -ForegroundColor Green
         Write-Host 'Printer file/batch mapping: sas printer file' -ForegroundColor Green
+        Write-Host 'Printer mapping when GitHub is intentionally unavailable: sas printer offline' -ForegroundColor DarkGray
         Write-Host 'Clipboard recovery is available as: sas clipboard' -ForegroundColor Green
     }
     exit 0
@@ -111,8 +112,6 @@ switch ($normalized) {
         if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas network [HOST]' -ForegroundColor Red; exit 2 }
         if ($actualArgs.Count -eq 1) {
             [void](Assert-SasProtectedForAction -Purpose "Network readiness probe for $($actualArgs[0])")
-            # Preserve the existing one-target readiness contract. The universal layer owns local
-            # protected-path admission; the established dispatcher continues to own the target probe.
             Invoke-SasLegacyDispatcher
         }
         Write-SasUniversalContext
@@ -123,17 +122,35 @@ switch ($normalized) {
     }
 
     'printer' {
-        if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas printer [file]' -ForegroundColor Red; exit 2 }
+        if ($actualArgs.Count -gt 2) { Write-Host 'Usage: sas printer [file] [offline]' -ForegroundColor Red; exit 2 }
         $printerMode = 'Quick'
-        if ($actualArgs.Count -eq 1) {
-            $printerArg = ([string]$actualArgs[0]).Trim().ToLowerInvariant()
-            if ($printerArg -notin @('file','batch')) { Write-Host 'Usage: sas printer [file]' -ForegroundColor Red; exit 2 }
-            $printerMode = 'File'
+        $printerOffline = $false
+        foreach ($rawArg in $actualArgs) {
+            $printerArg = ([string]$rawArg).Trim().ToLowerInvariant()
+            switch ($printerArg) {
+                { $_ -in @('file','batch') } {
+                    if ($printerMode -eq 'File') { Write-Host 'Usage: sas printer [file] [offline]' -ForegroundColor Red; exit 2 }
+                    $printerMode = 'File'
+                    continue
+                }
+                'offline' {
+                    if ($printerOffline) { Write-Host 'Usage: sas printer [file] [offline]' -ForegroundColor Red; exit 2 }
+                    $printerOffline = $true
+                    continue
+                }
+                default { Write-Host 'Usage: sas printer [file] [offline]' -ForegroundColor Red; exit 2 }
+            }
         }
         [void](Assert-SasProtectedForAction -Purpose "Northwell printer mapping ($printerMode)")
         $printerBootstrap = Resolve-SasInstalledPrinterBootstrap
-        Write-Host "Printer entrypoint: trusted bootstrap ($printerMode); no repository path is required." -ForegroundColor Green
-        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $printerBootstrap -RequiredCommit '66d38dd45881692303f77267e29e4fa44b4a9351' -Mode $printerMode
+        if ($printerOffline) {
+            Write-Host "Printer entrypoint: explicit local-only bootstrap ($printerMode); current origin is NOT claimed." -ForegroundColor Yellow
+            & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $printerBootstrap -RequiredCommit '66d38dd45881692303f77267e29e4fa44b4a9351' -Mode $printerMode -UseLocalRuntimeOnly
+        }
+        else {
+            Write-Host "Printer entrypoint: current-origin bootstrap ($printerMode); no repository path is required." -ForegroundColor Green
+            & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $printerBootstrap -RequiredCommit '66d38dd45881692303f77267e29e4fa44b4a9351' -Mode $printerMode
+        }
         exit $LASTEXITCODE
     }
 
