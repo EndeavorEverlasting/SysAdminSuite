@@ -139,7 +139,7 @@ try {
     Set-Content -LiteralPath $missingDependency -Value '# fixture' -Encoding ASCII
     $hostileTarget = "server01'; Write-Output INJECTED; '"
     $fourth = Invoke-RouteTemplate -Route $route -Target $hostileTarget
-    Assert-True ([int]$fourth.exit_code -eq 2) "Invalid hostile target did not preserve helper exit 2; got $($fourth.exit_code)."
+    Assert-True ([int]$fourth.exit_code -eq 3) "Invalid hostile target did not preserve helper exit 3; got $($fourth.exit_code)."
     Assert-True ($null -ne $fourth.caught) 'Invalid hostile target did not surface a parent-shell route error.'
     Assert-True (-not (Test-Path -LiteralPath $marker)) 'Invalid hostile target reached the crash-safe launcher.'
     $hostileOutput = @($fourth.output) -join "`n"
