@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -22,6 +23,7 @@ FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
 COMMANDS = ROOT / "harness/api/harness-command-registry.json"
 TERMINAL = ROOT / "harness/api/terminal-evidence-survival-registry.json"
 LAUNCHER = ROOT / "Run-AutoLogonCrashSafe.cmd"
+HELPER = ROOT / "harness/scripts/Invoke-SasOperatorExecutionRoute.ps1"
 WINDOWS_TEST = ROOT / "Tests/PowerShell/OperatorExecutionRouteHarness.Tests.ps1"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
 PRE_PUSH = ROOT / ".githooks/pre-push"
@@ -29,7 +31,7 @@ CI = ROOT / ".github/workflows/operator-execution-route-harness.yml"
 
 COMPONENTS = (
     REGISTRY, SCHEMA, MANIFEST, MANIFEST_SCHEMA, VALIDATORS, WORKFLOW, SKILL, MAP, REPORT,
-    FRESH_AGENT, COMMANDS, TERMINAL, LAUNCHER, WINDOWS_TEST, PRE_COMMIT, PRE_PUSH, CI,
+    FRESH_AGENT, COMMANDS, TERMINAL, LAUNCHER, HELPER, WINDOWS_TEST, PRE_COMMIT, PRE_PUSH, CI,
 )
 
 
@@ -72,6 +74,20 @@ def validate_schema(instance: dict, schema: dict, label: str) -> None:
         raise AssertionError(f"{label} schema validation failed: {'; '.join(details)}")
 
 
+def resolve_tracked_repo_path(relative: str, label: str) -> Path:
+    rel = Path(relative)
+    assert not rel.is_absolute(), f"{label} must be repository-relative: {relative}"
+    candidate = (ROOT / rel).resolve()
+    root = ROOT.resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise AssertionError(f"{label} escapes repository root: {relative}") from exc
+    assert candidate.is_file(), f"{label} is missing: {relative}"
+    assert tracked(candidate), f"{label} is not tracked: {relative}"
+    return candidate
+
+
 def test_components_exist_and_are_tracked() -> None:
     for path in COMPONENTS:
         assert path.is_file(), f"missing operator-execution component: {path.relative_to(ROOT)}"
@@ -96,6 +112,7 @@ def test_registry_and_schema() -> None:
         "do_not_assume_current_directory",
         "do_not_require_operator_to_retype_repo_path",
         "propagate_child_exit_code",
+        "preserve_operator_shell_on_child_failure",
         "fail_closed_when_location_or_entrypoint_is_unproven",
     ):
         assert policy[key] is True, f"operator execution policy disabled: {key}"
@@ -103,45 +120,69 @@ def test_registry_and_schema() -> None:
     route = one(registry["routes"], "command_id", "autologon-remote")
     assert route["id"] == "autologon-remote-crash-safe"
     assert route["operator_front_door"] == "Run-AutoLogonCrashSafe.cmd HOST"
+    assert route["operator_entrypoint"] == "Run-AutoLogonCrashSafe.cmd"
+    assert route["operator_helper"] == "harness/scripts/Invoke-SasOperatorExecutionRoute.ps1"
     assert route["inner_product_command"] == "sas autologon Remote HOST"
+    assert route["target_placeholder"] == "HOST_B64"
+    assert route["target_encoding"] == "utf8-base64"
+    target_pattern = re.compile(route["target_validation_pattern"])
+    assert target_pattern.fullmatch("wpj075opr046.nslijhs.net")
+    assert not target_pattern.fullmatch("server01'; Write-Output INJECTED; '")
+
+    freshness = route["repository_freshness_dependency"]
+    resolve_tracked_repo_path(freshness, "repository freshness dependency")
+
     assert route["path_resolution"]["strategy_order"] == ["installed-sas-repo", "cached-repo-root"]
     assert route["path_resolution"]["installed_sas_probe"] == "sas repo"
     assert route["path_resolution"]["cache_path"] == r"%LOCALAPPDATA%\SysAdminSuite\repo-root.txt"
     assert route["path_resolution"]["fail_closed"] is True
     assert route["required_network"] == "PROTECTED_NORTHWELL"
-    assert route["repository_freshness_dependency"] == "harness/workflows/repository-freshness-before-launch.yaml"
 
     required_files = route["path_resolution"]["required_files"]
     for required in (
         "Run-AutoLogonCrashSafe.cmd",
         "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
         "scripts/Invoke-SasAutoLogonFieldDeployment.ps1",
+        "harness/scripts/Invoke-SasOperatorExecutionRoute.ps1",
     ):
         assert required in required_files
-        assert (ROOT / required).is_file(), f"registered required file missing: {required}"
+        resolve_tracked_repo_path(required, "registered route dependency")
+    assert route["operator_helper"] in required_files
+    assert route["operator_entrypoint"] in required_files
 
     template = route["operator_command_template"]
-    assert "-Command '& {" in template, "route template must single-quote the child PowerShell payload"
-    assert '-Command "' not in template, "route template permits parent-shell PowerShell variable expansion"
+    assert "-Command" not in template, "route template embeds a child PowerShell source command"
+    assert template.count(route["target_placeholder"]) == 1, "route target placeholder must appear exactly once"
+    assert "'HOST'" not in template, "route template interpolates the raw target placeholder"
     for marker in (
         "Get-Command sas",
         "sas repo",
         "repo-root.txt",
-        "$required=@(",
-        "foreach($relative in $required)",
+        "operator-execution-route-registry.json",
+        "$route.path_resolution.required_files",
+        "foreach($relative in",
         "Required operator route file missing:",
-        "Run-AutoLogonCrashSafe.cmd",
-        r"scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
-        r"scripts\Invoke-SasAutoLogonFieldDeployment.ps1",
+        "$route.operator_helper",
         "Set-Location -LiteralPath $repo",
-        "& $launcher ''HOST''",
-        "exit $LASTEXITCODE",
+        "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $helper 'HOST_B64'",
+        "$code=[int]$LASTEXITCODE",
+        "$global:LASTEXITCODE=$code",
+        "Operator route failed with exit code",
     ):
         assert marker in template, f"route-and-run template missing: {marker}"
-    for required in required_files:
-        windows_form = required.replace("/", "\\")
-        assert windows_form in template, f"route template does not prove registered dependency: {required}"
+    assert "exit $LASTEXITCODE" not in template, "operator route closes the caller shell to propagate child failure"
     assert "sas autologon Remote HOST" not in template, "operator template bypasses crash-safe front door"
+
+    helper = read(HELPER)
+    for marker in (
+        "FromBase64String($TargetBase64)",
+        "target_validation_pattern",
+        "path_resolution.required_files",
+        "operator_entrypoint",
+        "& $launcher $target",
+        "exit [int]$LASTEXITCODE",
+    ):
+        assert marker in helper, f"operator route helper missing: {marker}"
 
 
 def test_central_harness_registration() -> None:
@@ -230,10 +271,14 @@ def test_workflow_skill_map_and_report() -> None:
     workflow = read(WORKFLOW)
     for marker in (
         "workflow_id: operator-execution-route",
+        "verify repository_freshness_dependency resolves to a tracked file",
         "never assume the current shell is already inside the repository",
         "installed sas repo command",
         "repo-root.txt",
-        "Set-Location",
+        "target_validation_pattern",
+        "target_encoding",
+        "never interpolate the raw explicit_target into PowerShell command source",
+        "powershell.exe -File",
         "same turn",
         "never return only sas autologon Remote HOST",
     ):
@@ -247,6 +292,9 @@ def test_workflow_skill_map_and_report() -> None:
         "## AutoLogon rule",
         "Run-AutoLogonCrashSafe.cmd HOST",
         "sas autologon Remote HOST",
+        "target_validation_pattern",
+        "target_encoding",
+        "powershell.exe -File",
         "one copy-paste route-and-run command",
         "## Expected outputs",
         "## Proof ceiling",
@@ -298,6 +346,10 @@ def test_hooks_and_ci() -> None:
         "harness/api/operational-harness-manifest.json",
         "harness/api/harness-validator-registry.json",
         "schemas/harness/operational-harness-manifest.schema.json",
+        "harness/workflows/repository-freshness-before-launch.yaml",
+        "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
+        "scripts/Invoke-SasAutoLogonFieldDeployment.ps1",
+        "harness/scripts/Invoke-SasOperatorExecutionRoute.ps1",
         "Tests/PowerShell/OperatorExecutionRouteHarness.Tests.ps1",
         "fetch-depth: 0",
         "python harness/validators/validate-operator-execution-route.py",
