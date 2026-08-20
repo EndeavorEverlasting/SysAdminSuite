@@ -138,20 +138,23 @@ function Get-SasRemoteMachineWideProof {
             if ((ConvertTo-SasComputerKey -Value ([string]$computerProperty.Value)) -ne $targetKey) { continue }
 
             $requestedProperty = $status.PSObject.Properties['Requested']
-            $requested = if ($null -ne $requestedProperty) {
-                @($requestedProperty.Value | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
+            $requested = @()
+            if ($null -ne $requestedProperty) {
+                $requested = @($requestedProperty.Value | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
             }
-            else { @() }
             if ($requested -notcontains $printerKey) { continue }
 
             $verifiedProperty = $status.PSObject.Properties['MachineWideUNC']
-            $verified = if ($null -ne $verifiedProperty) {
-                @($verifiedProperty.Value | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
+            $verified = @()
+            if ($null -ne $verifiedProperty) {
+                $verified = @($verifiedProperty.Value | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
             }
-            else { @() }
 
             $missingProperty = $status.PSObject.Properties['Missing']
-            $missing = if ($null -ne $missingProperty) { @($missingProperty.Value) } else { @() }
+            $missing = @()
+            if ($null -ne $missingProperty) {
+                $missing = @($missingProperty.Value)
+            }
 
             $successProperty = $status.PSObject.Properties['Success']
             $success = ($null -ne $successProperty -and [bool]$successProperty.Value)
@@ -162,7 +165,7 @@ function Get-SasRemoteMachineWideProof {
             $finishedProperty = $status.PSObject.Properties['Finished']
             $finished = if ($null -ne $finishedProperty) { [string]$finishedProperty.Value } else { $null }
 
-            $proven = $success -and $identity -match 'SYSTEM$' -and $missing.Count -eq 0 -and $verified -contains $printerKey
+            $proven = $success -and $identity -match 'SYSTEM$' -and @($missing).Count -eq 0 -and $verified -contains $printerKey
 
             return [pscustomobject]([ordered]@{
                 found = $true
