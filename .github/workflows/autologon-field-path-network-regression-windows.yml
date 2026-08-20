@@ -15,7 +15,8 @@ jobs:
             'scripts\Prepare-SasAutoLogonShortRuntime.ps1',
             'scripts\Refresh-SasOperatorCommand.ps1',
             'scripts\SasPortableLauncher.ps1',
-            'scripts\Invoke-SasAutoLogonOnsite.ps1'
+            'scripts\Invoke-SasAutoLogonOnsite.ps1',
+            'scripts\Repair-SasBoundedNativeS4UCreateRuntime.ps1'
           )) {
             $path = Join-Path $PWD $relative
             $tokens = $null
@@ -27,6 +28,16 @@ jobs:
             }
             Write-Host "PASS: $relative parses under Windows PowerShell 5.1"
           }
+      - name: Validate bounded S4U task create timeout reconciliation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Tests\PowerShell\AutoLogonS4UTaskCreateTimeoutReconciliation.Tests.ps1
+      - name: Execute protected S4U task create runtime repair fixtures
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Tests\PowerShell\AutoLogonS4UTaskCreateRuntimeRepair.Tests.ps1
       - name: Resolve canonical FQDN under Windows PowerShell 5.1
         shell: powershell
         run: |
