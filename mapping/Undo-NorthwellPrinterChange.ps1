@@ -127,7 +127,7 @@ foreach ($entry in $entries) {
             $childUndo = Get-Content -LiteralPath $childUndoPath -Raw | ConvertFrom-Json
             foreach ($redo in @($childUndo.Entries)) { $redoEntries.Add($redo) }
         }
-        catch { Write-Host "WARN: could not aggregate redo transition for entry $index: $($_.Exception.Message)" -ForegroundColor Yellow }
+        catch { Write-Host "WARN: could not aggregate redo transition for entry ${index}: $($_.Exception.Message)" -ForegroundColor Yellow }
     }
 
     $results.Add([pscustomobject][ordered]@{

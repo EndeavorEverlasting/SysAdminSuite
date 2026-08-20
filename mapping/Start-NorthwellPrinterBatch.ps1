@@ -145,7 +145,7 @@ foreach ($group in $groups) {
             $childUndo = Get-Content -LiteralPath $childUndoPath -Raw | ConvertFrom-Json
             foreach ($entry in @($childUndo.Entries)) { $undoEntries.Add($entry) }
         }
-        catch { Write-Host "WARN: could not aggregate undo plan for group $groupIndex: $($_.Exception.Message)" -ForegroundColor Yellow }
+        catch { Write-Host "WARN: could not aggregate undo plan for group ${groupIndex}: $($_.Exception.Message)" -ForegroundColor Yellow }
     }
 
     $results.Add([pscustomobject][ordered]@{
