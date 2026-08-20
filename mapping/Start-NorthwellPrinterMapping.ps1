@@ -27,7 +27,6 @@ $ProgressPreference = 'SilentlyContinue'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $localDefaultsPath = Join-Path $repoRoot 'Config\northwell-printer-defaults.local.json'
-$latestPointer = Join-Path $PSScriptRoot 'Logs\LATEST-PATH.txt'
 $cacheScope = 'northwell'
 $cacheAvailable = $false
 $cacheModule = Join-Path $repoRoot 'scripts\SasInteractionCache.psm1'
@@ -151,15 +150,6 @@ function Read-SasNorthwellPrinterSets {
     return $collected.ToArray()
 }
 
-function Get-SasLatestPrinterEvidenceRoot {
-    if (-not (Test-Path -LiteralPath $latestPointer -PathType Leaf)) { return $null }
-    $value = [string](Get-Content -LiteralPath $latestPointer -Raw -ErrorAction SilentlyContinue)
-    if ([string]::IsNullOrWhiteSpace($value)) { return $null }
-    $value = $value.Trim()
-    if (-not (Test-Path -LiteralPath $value -PathType Container)) { return $null }
-    return $value
-}
-
 function Test-SasLatestAuthoritativePrinterProof {
     param([AllowNull()][string]$EvidenceRoot,[ValidateSet('Present','Absent')][string]$DesiredState = 'Present')
     if ([string]::IsNullOrWhiteSpace($EvidenceRoot)) { return $false }
@@ -169,6 +159,8 @@ function Test-SasLatestAuthoritativePrinterProof {
         $summary = Get-Content -LiteralPath $summaryPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         $expected = [int]$summary.TotalTargets
         if ($expected -lt 1) { return $false }
+        if (-not [bool]$summary.Success) { return $false }
+        if ([int]$summary.CompletedTargets -ne $expected) { return $false }
         if ($null -ne $summary.PSObject.Properties['DesiredState'] -and -not ([string]$summary.DesiredState).Equals($DesiredState,[System.StringComparison]::OrdinalIgnoreCase)) { return $false }
         $statuses = @(Get-ChildItem -LiteralPath $EvidenceRoot -Filter 'Status.json' -File -Recurse -ErrorAction Stop)
         if ($statuses.Count -ne $expected) { return $false }
@@ -274,34 +266,36 @@ if (-not $WhatIf) {
 $engine = Join-Path $PSScriptRoot 'Invoke-NorthwellPrinterState.ps1'
 if (-not (Test-Path -LiteralPath $engine -PathType Leaf)) { throw "Canonical reversible printer engine not found: $engine" }
 $desiredState = if ($Action -eq 'Map') { 'Present' } else { 'Absent' }
-$invokeParameters = @{ ComputerName=$ComputerName; Printer=$Printer; DesiredState=$desiredState }
+$evidencePrefix = if ($Action -eq 'Map') { 'NorthwellPrinterMap' } else { 'NorthwellPrinterUnmap' }
+$evidenceToken = '{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmssfff'),([guid]::NewGuid().ToString('N').Substring(0,12))
+$operationEvidenceRoot = Join-Path (Join-Path $PSScriptRoot 'Logs') "$evidencePrefix-$evidenceToken"
+$invokeParameters = @{ ComputerName=$ComputerName; Printer=$Printer; DesiredState=$desiredState; SessionRoot=$operationEvidenceRoot }
 if (-not [string]::IsNullOrWhiteSpace($PrintServer)) { $invokeParameters.PrintServer = $PrintServer }
 if ($WhatIf) { $invokeParameters.WhatIf = $true }
 
 $actionVerb = if ($Action -eq 'Map') { 'Mapping' } else { 'Unmapping' }
 Write-Host ("{0} {1} queue(s) on {2} target(s). SYSTEM-WIDE for all users. No reachability sweep. No test page." -f $actionVerb,@($Printer).Count,@($ComputerName).Count) -ForegroundColor Cyan
-$previousEvidenceRoot = Get-SasLatestPrinterEvidenceRoot
 $engineError = $null
 try { $null = @(& $engine @invokeParameters *>&1) }
 catch { $engineError = $_ }
 
-$evidenceRoot = Get-SasLatestPrinterEvidenceRoot
-$freshEvidence = -not [string]::IsNullOrWhiteSpace($evidenceRoot) -and ([string]::IsNullOrWhiteSpace($previousEvidenceRoot) -or -not $evidenceRoot.Equals($previousEvidenceRoot,[System.StringComparison]::OrdinalIgnoreCase))
+$evidenceRoot = if (Test-Path -LiteralPath $operationEvidenceRoot -PathType Container) { $operationEvidenceRoot } else { $null }
+$operationEvidenceAvailable = -not [string]::IsNullOrWhiteSpace($evidenceRoot) -and (Test-Path -LiteralPath (Join-Path $evidenceRoot 'Summary.json') -PathType Leaf)
 if ($WhatIf) {
     if ($null -ne $engineError) { throw $engineError.Exception.Message }
     Write-Host 'PLAN: preview complete; no printer changes were made.' -ForegroundColor Green
-    if ($freshEvidence) { Write-Host ("Evidence: {0}" -f $evidenceRoot) -ForegroundColor DarkGray }
+    if ($operationEvidenceAvailable) { Write-Host ("Evidence: {0}" -f $evidenceRoot) -ForegroundColor DarkGray }
     return
 }
 
-$authoritativeSuccess = $freshEvidence -and (Test-SasLatestAuthoritativePrinterProof -EvidenceRoot $evidenceRoot -DesiredState $desiredState)
+$authoritativeSuccess = $operationEvidenceAvailable -and (Test-SasLatestAuthoritativePrinterProof -EvidenceRoot $evidenceRoot -DesiredState $desiredState)
 if ($authoritativeSuccess) {
     if ($Action -eq 'Map') { Save-SasPrinterInteractionHistory -Computers @($ComputerName) -Printers @($Printer) -ExplicitPrintServer $explicitPrintServerForCache }
     Write-SasPrinterResult -Success $true -Action $Action -EvidenceRoot $evidenceRoot -RecoveredFromLowerLevelError:($null -ne $engineError)
     return
 }
-if ($null -ne $engineError -and -not $freshEvidence) { throw $engineError.Exception.Message }
-Write-SasPrinterResult -Success $false -Action $Action -EvidenceRoot $(if ($freshEvidence) { $evidenceRoot } else { $null })
-if ($freshEvidence) { Write-SasPrinterFailureDiagnostic -EvidenceRoot $evidenceRoot }
+if ($null -ne $engineError -and -not $operationEvidenceAvailable) { throw $engineError.Exception.Message }
+Write-SasPrinterResult -Success $false -Action $Action -EvidenceRoot $(if ($operationEvidenceAvailable) { $evidenceRoot } else { $null })
+if ($operationEvidenceAvailable) { Write-SasPrinterFailureDiagnostic -EvidenceRoot $evidenceRoot }
 if ($null -ne $engineError) { throw $engineError.Exception.Message }
-throw 'Printer management returned without fresh authoritative HKLM proof.'
+throw 'Printer management returned without operation-scoped authoritative HKLM proof.'
