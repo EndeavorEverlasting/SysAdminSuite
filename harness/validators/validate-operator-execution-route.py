@@ -131,7 +131,7 @@ def test_launcher_is_location_independent_and_crash_safe() -> None:
     for marker in (
         r"%~dp0scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
         '-RepositoryRoot "%~dp0"',
-        r"%LOCALAPPDATA%\SysAdminSuite\field-runs\autologon",
+        r"%%LOCALAPPDATA%%\SysAdminSuite\field-runs\autologon",
         "pause",
         "exit /b",
     ):
