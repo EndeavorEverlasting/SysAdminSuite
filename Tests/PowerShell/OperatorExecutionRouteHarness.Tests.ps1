@@ -65,6 +65,7 @@ $target = 'wpj075opr046.nslijhs.net'
 
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ('sas-operator-route-' + [guid]::NewGuid().ToString('N'))
 $fakeRepo = Join-Path $tempRoot 'repo with spaces'
+$fakeSealedRuntime = Join-Path $tempRoot 'sealed-runtime-C-SASAL'
 $fakeScripts = Join-Path $fakeRepo 'scripts'
 $fakeHarnessApi = Join-Path $fakeRepo 'harness\api'
 $fakeHarnessScripts = Join-Path $fakeRepo 'harness\scripts'
@@ -74,7 +75,7 @@ $marker = Join-Path $tempRoot 'launcher-target.txt'
 $originalPath = $env:PATH
 $originalLocalAppData = $env:LOCALAPPDATA
 
-New-Item -ItemType Directory -Path $fakeScripts,$fakeHarnessApi,$fakeHarnessScripts,$fakeBin,$fakeLocalAppData -Force | Out-Null
+New-Item -ItemType Directory -Path $fakeScripts,$fakeHarnessApi,$fakeHarnessScripts,$fakeBin,$fakeLocalAppData,$fakeSealedRuntime -Force | Out-Null
 try {
     Copy-Item -LiteralPath $registryPath -Destination (Join-Path $fakeHarnessApi 'operator-execution-route-registry.json') -Force
     Copy-Item -LiteralPath $helperPath -Destination (Join-Path $fakeHarnessScripts 'Invoke-SasOperatorExecutionRoute.ps1') -Force
@@ -96,24 +97,31 @@ try {
     @(
         '@echo off',
         'if /I "%~1"=="repo" (',
-        ('  echo {0}' -f $fakeRepo),
+        ('  echo {0}' -f $fakeSealedRuntime),
         '  exit /b 0',
+        ')',
+        'if /I "%~1"=="autologon" if /I "%~2"=="Remote" (',
+        ('  >"{0}" echo %~3' -f $marker),
+        '  exit /b 23',
         ')',
         'exit /b 2'
     ) | Set-Content -LiteralPath $sasPath -Encoding ASCII
 
-    # Case 1: the installed `sas repo` route resolves a path with spaces, carries the target as an
-    # encoded -File argument, reaches the crash-safe launcher, and preserves exit 23 without exiting
-    # this parent PowerShell process.
+    # Case 1: installed sas is the first-class protected front door. Its own `sas repo` may resolve
+    # a sealed runtime such as C:\SASAL that intentionally contains no harness registry. The route
+    # must still reach `sas autologon Remote HOST` and preserve the child disposition.
     $env:PATH = "$fakeBin;$originalPath"
     $env:LOCALAPPDATA = $fakeLocalAppData
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $fakeSealedRuntime 'harness\api\operator-execution-route-registry.json'))) 'Fixture sealed runtime unexpectedly contains a harness registry.'
     $first = Invoke-RouteTemplate -Route $route -Target $target
-    Assert-True ([int]$first.exit_code -eq 23) "sas repo route did not preserve launcher exit 23; got $($first.exit_code)."
-    Assert-True ($null -ne $first.caught) 'Nonzero launcher exit did not surface a parent-shell error.'
-    Assert-True (Test-Path -LiteralPath $marker -PathType Leaf) 'sas repo route did not reach the crash-safe launcher.'
-    Assert-True ((Get-Content -LiteralPath $marker -Raw).Trim() -eq $target) 'sas repo route changed the decoded target passed to the launcher.'
+    Assert-True ([int]$first.exit_code -eq 23) "installed sas route did not preserve exit 23; got $($first.exit_code)."
+    Assert-True ($null -ne $first.caught) 'Nonzero installed sas exit did not surface a parent-shell error.'
+    Assert-True (Test-Path -LiteralPath $marker -PathType Leaf) 'installed sas route did not reach sas autologon Remote.'
+    Assert-True ((Get-Content -LiteralPath $marker -Raw).Trim() -eq $target) 'installed sas route changed the decoded target.'
+    Assert-True ((@($first.output) -join "`n") -notmatch 'Operator execution route registry missing') 'sealed runtime was incorrectly treated as a full repository.'
 
-    # Case 2: without an installed sas command, the bounded LOCALAPPDATA cache resolves the same root.
+    # Case 2: without an installed sas command, the bounded LOCALAPPDATA cache still resolves a full
+    # repository and uses the tracked helper/crash-safe launcher fallback.
     Remove-Item -LiteralPath $marker -Force
     Remove-Item -LiteralPath $sasPath -Force
     $cacheDirectory = Join-Path $fakeLocalAppData 'SysAdminSuite'
@@ -121,11 +129,11 @@ try {
     Set-Content -LiteralPath (Join-Path $cacheDirectory 'repo-root.txt') -Value $fakeRepo -Encoding ASCII
     $env:PATH = $originalPath
     $second = Invoke-RouteTemplate -Route $route -Target $target
-    Assert-True ([int]$second.exit_code -eq 23) "cached-root route did not preserve launcher exit 23; got $($second.exit_code)."
-    Assert-True (Test-Path -LiteralPath $marker -PathType Leaf) 'cached-root route did not reach the crash-safe launcher.'
-    Assert-True ((Get-Content -LiteralPath $marker -Raw).Trim() -eq $target) 'cached-root route changed the decoded target passed to the launcher.'
+    Assert-True ([int]$second.exit_code -eq 23) "cached-root fallback did not preserve launcher exit 23; got $($second.exit_code)."
+    Assert-True (Test-Path -LiteralPath $marker -PathType Leaf) 'cached-root fallback did not reach the crash-safe launcher.'
+    Assert-True ((Get-Content -LiteralPath $marker -Raw).Trim() -eq $target) 'cached-root fallback changed the decoded target passed to the launcher.'
 
-    # Case 3: every registered dependency must be proved before helper/front-door execution.
+    # Case 3: every registered full-repository fallback dependency must still be proved before helper execution.
     Remove-Item -LiteralPath $marker -Force
     $missingDependency = Join-Path $fakeRepo 'scripts\Invoke-SasAutoLogonFieldDeployment.ps1'
     Remove-Item -LiteralPath $missingDependency -Force
@@ -134,19 +142,19 @@ try {
     Assert-True (-not (Test-Path -LiteralPath $marker)) 'Missing registered dependency still launched the crash-safe front door.'
     Assert-True ((@($third.output) -join "`n") -match 'Required operator route file missing') 'Missing dependency did not report the route-proof failure.'
 
-    # Case 4: hostile target text is encoded as argument data and rejected by the helper's hostname
-    # policy. It must never become executable PowerShell source and must never reach the launcher.
+    # Case 4: hostile target text is decoded only as argument data and rejected before either the
+    # installed-sas path or repository helper path can execute it as PowerShell source.
     Set-Content -LiteralPath $missingDependency -Value '# fixture' -Encoding ASCII
     $hostileTarget = "server01'; Write-Output INJECTED; '"
     $fourth = Invoke-RouteTemplate -Route $route -Target $hostileTarget
-    Assert-True ([int]$fourth.exit_code -eq 3) "Invalid hostile target did not preserve helper exit 3; got $($fourth.exit_code)."
+    Assert-True ([int]$fourth.exit_code -eq 3) "Invalid hostile target did not preserve route exit 3; got $($fourth.exit_code)."
     Assert-True ($null -ne $fourth.caught) 'Invalid hostile target did not surface a parent-shell route error.'
-    Assert-True (-not (Test-Path -LiteralPath $marker)) 'Invalid hostile target reached the crash-safe launcher.'
+    Assert-True (-not (Test-Path -LiteralPath $marker)) 'Invalid hostile target reached an execution front door.'
     $hostileOutput = @($fourth.output) -join "`n"
     Assert-True ($hostileOutput -match 'SAS_OPERATOR_ROUTE_TARGET_INVALID') 'Invalid target did not emit its stable rejection classification.'
     Assert-True ($hostileOutput -notmatch '(^|\r?\n)INJECTED(\r?\n|$)') 'Hostile target executed as PowerShell source.'
 
-    Write-Host 'PASS: Windows PowerShell route resolution, encoded target transport, dependency proof, shell preservation, and exit propagation'
+    Write-Host 'PASS: Windows PowerShell installed-sas sealed-runtime route, full-repository fallback, target transport, dependency proof, shell preservation, and exit propagation'
     $global:LASTEXITCODE = 0
 }
 finally {
