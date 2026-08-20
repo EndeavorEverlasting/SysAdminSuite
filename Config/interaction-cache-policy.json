@@ -13,6 +13,7 @@
   },
   "capacity": {
     "maxEntries": 200,
+    "maxEntriesPerScope": 100,
     "maxEntriesPerKind": 75,
     "eviction": "least-recent-success-first"
   },
