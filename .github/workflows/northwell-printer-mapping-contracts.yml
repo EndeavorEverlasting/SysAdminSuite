@@ -19,6 +19,7 @@ on:
       - 'Map-NorthwellPrinters-Batch.cmd'
       - 'Config/interaction-cache-policy.json'
       - 'mapping/README.md'
+      - 'mapping/Diagnose-NorthwellPrinterEvidence.ps1'
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Start-NorthwellPrinterBatch.ps1'
       - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
@@ -54,6 +55,7 @@ on:
       - 'Map-NorthwellPrinters-Batch.cmd'
       - 'Config/interaction-cache-policy.json'
       - 'mapping/README.md'
+      - 'mapping/Diagnose-NorthwellPrinterEvidence.ps1'
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Start-NorthwellPrinterBatch.ps1'
       - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
@@ -90,6 +92,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $files = @(
             '.\Bootstrap-SysAdminSuitePrinter.ps1',
+            '.\mapping\Diagnose-NorthwellPrinterEvidence.ps1',
             '.\mapping\Start-NorthwellPrinterMapping.ps1',
             '.\mapping\Start-NorthwellPrinterBatch.ps1',
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',

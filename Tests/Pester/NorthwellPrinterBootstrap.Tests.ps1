@@ -6,6 +6,7 @@ BeforeAll {
     $script:bootstrapCmdPath = Join-Path $script:repoRoot 'Bootstrap-SysAdminSuitePrinter.cmd'
     $script:requiredFixturePaths = @(
         'Map-NorthwellPrinter-SystemWide.cmd',
+        'mapping\Diagnose-NorthwellPrinterEvidence.ps1',
         'mapping\Start-NorthwellPrinterMapping.ps1',
         'mapping\Invoke-NorthwellPrinterState.ps1',
         'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
@@ -61,8 +62,9 @@ Describe 'Northwell printer current-runtime bootstrap contract' {
         $text | Should -Not -Match 'Find-SasEligiblePrinterRuntime -Required \$RequiredCommit'
     }
 
-    It 'requires every executable printer authority dependency including the reversible engine and network authority' {
+    It 'requires every executable printer authority dependency including diagnostics, reversible engine, and network authority' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
+        $text | Should -Match 'mapping\\Diagnose-NorthwellPrinterEvidence\.ps1'
         $text | Should -Match 'mapping\\Invoke-NorthwellPrinterState\.ps1'
         $text | Should -Not -Match "'mapping\\Invoke-NorthwellPrinterMapping\.ps1'"
         $text | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'

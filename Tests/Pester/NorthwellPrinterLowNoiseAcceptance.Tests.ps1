@@ -5,7 +5,18 @@ BeforeAll {
     $script:startPath = Join-Path $script:repoRoot 'mapping\Start-NorthwellPrinterMapping.ps1'
     $script:enginePath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterMapping.ps1'
     $script:statePath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterState.ps1'
+    $script:diagnosticPath = Join-Path $script:repoRoot 'mapping\Diagnose-NorthwellPrinterEvidence.ps1'
     $script:cmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
+
+    function Invoke-SasEvidenceDiagnosticFixture {
+        param([Parameter(Mandatory)][string]$Root)
+        $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:diagnosticPath -EvidenceRoot $Root 2>&1)
+        $exitCode = [int]$LASTEXITCODE
+        if ($exitCode -ne 0) {
+            throw "Printer evidence diagnostic fixture exited $exitCode.`n$($output -join [Environment]::NewLine)"
+        }
+        return $output
+    }
 }
 
 Describe 'Northwell quick mapping low-noise acceptance contract' {
@@ -20,12 +31,17 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text | Should -Not -Match '(?i)-Count\s+5\b'
     }
 
-    It 'captures lower-level engine chatter instead of dumping it into the technician terminal' {
+    It 'captures lower-level engine chatter but automatically summarizes a failed operation proof' {
         $text = Get-Content -LiteralPath $script:startPath -Raw
         $text | Should -Match '& \$engine @invokeParameters \*>&1'
-        $text | Should -Match '\{0\}ing \{1\} queue\(s\) on \{2\} target\(s\)'
+        $text | Should -Match '\$actionVerb = if \(\$Action -eq ''Map''\) \{ ''Mapping'' \} else \{ ''Unmapping'' \}'
+        $text | Should -Match '\{0\} \{1\} queue\(s\) on \{2\} target\(s\)'
+        $text | Should -Not -Match '\{0\}ing \{1\} queue\(s\)'
+        $text | Should -Not -Match '(?i)Maping'
         $text | Should -Match 'PASS: requested printer \{0\} is proven SYSTEM-wide in HKLM'
         $text | Should -Match 'FAIL: authoritative machine-wide printer proof was not obtained'
+        $text | Should -Match 'Write-SasPrinterFailureDiagnostic -EvidenceRoot \$evidenceRoot'
+        $text | Should -Match 'Diagnose-NorthwellPrinterEvidence\.ps1'
     }
 
     It 'allows final SYSTEM plus HKLM proof to supersede lower-level controller noise' {
@@ -39,27 +55,166 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text | Should -Match 'superseded by authoritative final printer-state proof'
     }
 
-    It 'requires fresh run-scoped evidence before lower-level errors can be superseded' {
+    It 'binds proof and diagnosis to the evidence root owned by this invocation' {
         $text = Get-Content -LiteralPath $script:startPath -Raw
-        $text | Should -Match '\$previousEvidenceRoot = Get-SasLatestPrinterEvidenceRoot'
-        $text | Should -Match '\$freshEvidence ='
-        $text | Should -Match '\$authoritativeSuccess = \$freshEvidence -and'
-        $text | Should -Match 'fresh evidence but did not prove the requested SYSTEM-wide HKLM state'
+        $text | Should -Match '\$operationEvidenceRoot = Join-Path'
+        $text | Should -Match 'SessionRoot=\$operationEvidenceRoot'
+        $text | Should -Match '\$operationEvidenceAvailable ='
+        $text | Should -Match '\$authoritativeSuccess = \$operationEvidenceAvailable -and'
+        $text | Should -Match 'if \(\$operationEvidenceAvailable\) \{ Write-SasPrinterFailureDiagnostic -EvidenceRoot \$evidenceRoot \}'
+        $text | Should -Match 'if \(\$null -ne \$engineError\) \{ throw \$engineError\.Exception\.Message \}'
+        $text | Should -Not -Match 'LATEST-PATH\.txt'
+        $text | Should -Not -Match '\$previousEvidenceRoot'
+        $text | Should -Not -Match 'fresh evidence but did not prove the requested SYSTEM-wide HKLM state'
+    }
+
+    It 'requires complete summary and status coverage before authoritative success' {
+        $text = Get-Content -LiteralPath $script:startPath -Raw
+        $text | Should -Match 'if \(-not \[bool\]\$summary\.Success\) \{ return \$false \}'
+        $text | Should -Match '\[int\]\$summary\.CompletedTargets -ne \$expected'
+        $text | Should -Match '\$statuses\.Count -ne \$expected'
     }
 
     It 'keeps WhatIf plan-only instead of demanding runtime status proof' {
         $text = Get-Content -LiteralPath $script:startPath -Raw
         $whatIfIndex = $text.IndexOf('if ($WhatIf) {')
-        $proofIndex = $text.IndexOf('$authoritativeSuccess = $freshEvidence -and')
+        $proofIndex = $text.IndexOf('$authoritativeSuccess = $operationEvidenceAvailable -and')
         $whatIfIndex | Should -BeGreaterThan -1
         $proofIndex | Should -BeGreaterThan $whatIfIndex
         $text | Should -Match 'PLAN: preview complete; no printer changes were made'
     }
 
-    It 'preserves actionable early engine errors when no new evidence exists' {
+    It 'preserves actionable early engine errors when its own evidence was not produced' {
         $text = Get-Content -LiteralPath $script:startPath -Raw
-        $text | Should -Match 'if \(\$null -ne \$engineError -and -not \$freshEvidence\)'
+        $text | Should -Match 'if \(\$null -ne \$engineError -and -not \$operationEvidenceAvailable\)'
         $text | Should -Match 'throw \$engineError\.Exception\.Message'
+    }
+
+    It 'does not infer machine-wide success when SYSTEM HKLM proof is missing' {
+        $root = Join-Path $TestDrive 'missing-machine-wide'
+        $target = Join-Path $root 'pc-vpn-001.example.invalid'
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        [ordered]@{
+            Success = $false
+            DesiredState = 'Present'
+            CompletedTargets = 1
+            TotalTargets = 1
+            Computers = @('PC-VPN-001')
+            Results = @([ordered]@{ Computer='PC-VPN-001';Success=$false;Stage='Failed';Message='Status proof did not verify requested state.';DesiredState='Present';Evidence=$target })
+            Mode = 'MachineWidePerComputer'
+        } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
+        [ordered]@{
+            ComputerName = 'PC-VPN-001'
+            Identity = 'NT AUTHORITY\SYSTEM'
+            DesiredState = 'Present'
+            Success = $false
+            Requested = @('\\PRINTSRV01\QUEUE01')
+            BeforeMachineWideUNC = @()
+            MachineWideUNC = @()
+            ChangedPrinters = @()
+            AlreadyDesiredPrinters = @()
+            Missing = @('\\PRINTSRV01\QUEUE01')
+            StillPresent = @()
+            RawConnectionKeys = @('{synthetic-guid}')
+        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $target 'Status.json') -Encoding UTF8
+
+        $output = @(Invoke-SasEvidenceDiagnosticFixture -Root $root)
+        $text = $output -join "`n"
+        $text | Should -Match 'DIAGNOSTIC_STATUS=COMPLETED'
+        $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
+        $text | Should -Match 'EVIDENCE_SET=FAILED_OR_INCONSISTENT'
+        $text | Should -Match 'FAILURE_CLASSIFICATION=MACHINE_WIDE_REGISTRATION_MISSING'
+        $text | Should -Match 'CLASSIFICATION=MACHINE_WIDE_REGISTRATION_MISSING'
+        $text | Should -Match 'MISSING_MACHINE_WIDE=\\\\PRINTSRV01\\QUEUE01'
+        $text | Should -Match 'TARGET_CONTACT_PERFORMED=False'
+        $text | Should -Match 'TARGET_MUTATION_PERFORMED=False'
+        $text | Should -Match 'TEST_PAGE_PRINTED=False'
+    }
+
+    It 'recognizes a true already-desired HKLM no-op as authoritative machine-wide proof' {
+        $root = Join-Path $TestDrive 'already-machine-wide'
+        $target = Join-Path $root 'pc001.example.invalid'
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        [ordered]@{
+            Success=$true;DesiredState='Present';CompletedTargets=1;TotalTargets=1
+            Computers=@('PC001');Results=@([ordered]@{ Computer='PC001';Success=$true;Stage='VerifiedPresent';Message='verified';DesiredState='Present';Evidence=$target });Mode='MachineWidePerComputer'
+        } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
+        [ordered]@{
+            ComputerName='PC001';Identity='NT AUTHORITY\SYSTEM';DesiredState='Present';Success=$true
+            Requested=@('\\PRINTSRV01\QUEUE01');BeforeMachineWideUNC=@('\\PRINTSRV01\QUEUE01')
+            MachineWideUNC=@('\\PRINTSRV01\QUEUE01');ChangedPrinters=@();AlreadyDesiredPrinters=@('\\PRINTSRV01\QUEUE01')
+            Missing=@();StillPresent=@();RawConnectionKeys=@(',,PRINTSRV01,QUEUE01')
+        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $target 'Status.json') -Encoding UTF8
+
+        $output = @(Invoke-SasEvidenceDiagnosticFixture -Root $root)
+        $text = $output -join "`n"
+        $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_PRESENT'
+        $text | Should -Match 'EVIDENCE_SET=COMPLETE'
+        $text | Should -Match 'FAILURE_CLASSIFICATION=NONE'
+        $text | Should -Match 'CLASSIFICATION=MACHINE_WIDE_REGISTRATION_PROVEN'
+        $text | Should -Match 'ALREADY_DESIRED_MACHINE_WIDE=\\\\PRINTSRV01\\QUEUE01'
+    }
+
+    It 'fails closed when a multi-target evidence set is only partially returned' {
+        $root = Join-Path $TestDrive 'partial-multi-target'
+        $target = Join-Path $root 'pc001.example.invalid'
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        [ordered]@{
+            Success=$false;DesiredState='Present';CompletedTargets=1;TotalTargets=2
+            Computers=@('PC001','PC002');Results=@([ordered]@{ Computer='PC001';Success=$true;Stage='VerifiedPresent';Message='verified';DesiredState='Present';Evidence=$target });Mode='MachineWidePerComputer'
+        } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
+        [ordered]@{
+            ComputerName='PC001';Identity='NT AUTHORITY\SYSTEM';DesiredState='Present';Success=$true
+            Requested=@('\\PRINTSRV01\QUEUE01');BeforeMachineWideUNC=@();MachineWideUNC=@('\\PRINTSRV01\QUEUE01')
+            ChangedPrinters=@('\\PRINTSRV01\QUEUE01');AlreadyDesiredPrinters=@();Missing=@();StillPresent=@();RawConnectionKeys=@(',,PRINTSRV01,QUEUE01')
+        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $target 'Status.json') -Encoding UTF8
+
+        $output = @(Invoke-SasEvidenceDiagnosticFixture -Root $root)
+        $text = $output -join "`n"
+        $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
+        $text | Should -Match 'EVIDENCE_SET=PARTIAL_STATUS_EVIDENCE'
+        $text | Should -Match 'FAILURE_CLASSIFICATION=REMOTE_STATUS_EVIDENCE_PARTIAL'
+        $text | Should -Match 'EXPECTED_TARGETS=2'
+        $text | Should -Match 'COMPLETED_TARGETS=1'
+        $text | Should -Match 'STATUS_FILES=1'
+    }
+
+    It 'classifies a completed failed target with zero Status.json as remote status evidence not returned' {
+        $root = Join-Path $TestDrive 'zero-status-files'
+        $target = Join-Path $root 'pc-vpn-002.example.invalid'
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        [ordered]@{
+            Success=$false;DesiredState='Present';CompletedTargets=1;TotalTargets=1;Computers=@('PC-VPN-002');Mode='MachineWidePerComputer'
+            Results=@([ordered]@{
+                Computer='PC-VPN-002';Success=$false;Stage='Failed';DesiredState='Present';Evidence=$target
+                Message='Timed out after 120 seconds waiting for Status.json. Remote evidence was not observed.'
+            })
+        } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
+
+        $output = @(Invoke-SasEvidenceDiagnosticFixture -Root $root)
+        $text = $output -join "`n"
+        $text | Should -Match 'DIAGNOSTIC_STATUS=COMPLETED'
+        $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
+        $text | Should -Match 'EVIDENCE_SET=NO_STATUS_EVIDENCE_RETURNED'
+        $text | Should -Match 'FAILURE_CLASSIFICATION=REMOTE_STATUS_EVIDENCE_NOT_RETURNED'
+        $text | Should -Match 'STATUS_FILES=0'
+        $text | Should -Match 'SUMMARY_RESULT_CLASSIFICATION=REMOTE_STATUS_EVIDENCE_TIMEOUT'
+        $text | Should -Match 'SUMMARY_STAGE=Failed'
+        $text | Should -Match 'SUMMARY_MESSAGE=Timed out after 120 seconds waiting for Status\.json'
+        $text | Should -Match 'TARGET_CONTACT_PERFORMED=False'
+        $text | Should -Match 'TARGET_MUTATION_PERFORMED=False'
+        $text | Should -Match 'TEST_PAGE_PRINTED=False'
+    }
+
+    It 'keeps the evidence diagnostic strictly local and read-only' {
+        $text = Get-Content -LiteralPath $script:diagnosticPath -Raw
+        $text | Should -Not -Match '(?i)Test-Connection'
+        $text | Should -Not -Match '(?i)schtasks\.exe'
+        $text | Should -Not -Match '(?i)rundll32\.exe'
+        $text | Should -Not -Match '(?i)Invoke-Command'
+        $text | Should -Match 'target_contact_performed = \$false'
+        $text | Should -Match 'target_mutation_performed = \$false'
+        $text | Should -Match 'test_page_printed = \$false'
     }
 
     It 'keeps the CMD front door short and avoids reparsing evidence paths' {
