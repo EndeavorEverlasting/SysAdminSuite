@@ -91,6 +91,7 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
         Write-Host 'Printer file/batch mapping: sas printer file' -ForegroundColor Green
         Write-Host 'Printer mapping when GitHub is intentionally unavailable: sas printer offline' -ForegroundColor DarkGray
         Write-Host 'Clipboard recovery is available as: sas clipboard' -ForegroundColor Green
+        Write-Host 'Batch network probing is available as: sas network probe HOST01 HOST02 ...' -ForegroundColor Green
     }
     exit 0
 }
@@ -122,7 +123,21 @@ switch ($normalized) {
     }
 
     'network' {
-        if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas network [HOST]' -ForegroundColor Red; exit 2 }
+        if ($actualArgs.Count -gt 0 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -eq 'probe') {
+            $targets = @($actualArgs | Select-Object -Skip 1)
+            if ($targets.Count -eq 0) {
+                Write-Host 'Usage: sas network probe HOST01 [HOST02 ...]' -ForegroundColor Red
+                exit 2
+            }
+            [void](Assert-SasProtectedForAction -Purpose "Batch network probe for $($targets.Count) explicit targets")
+            $batchProbe = Join-Path $controllerRoot 'survey\sas-network-batch-probe.ps1'
+            if (-not (Test-Path -LiteralPath $batchProbe -PathType Leaf)) {
+                throw "Batch network probe runtime is not present in the active controller: $controllerRoot. Run 'sas refresh' on Guest/Internet to install the current sealed runtime."
+            }
+            & $batchProbe -Target $targets
+            exit 0
+        }
+        if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas network [HOST]  OR  sas network probe HOST01 [HOST02 ...]' -ForegroundColor Red; exit 2 }
         if ($actualArgs.Count -eq 1) {
             [void](Assert-SasProtectedForAction -Purpose "Network readiness probe for $($actualArgs[0])")
             Invoke-SasLegacyDispatcher

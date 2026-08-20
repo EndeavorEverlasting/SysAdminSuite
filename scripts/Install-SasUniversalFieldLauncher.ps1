@@ -10,7 +10,9 @@ $sourceLauncher = Join-Path $repoRoot 'scripts\Invoke-SasUniversalField.ps1'
 $sourcePlatform = Join-Path $repoRoot 'scripts\SasFieldPlatform.psm1'
 $sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
 $sourcePrinterTechnicianCmd = Join-Path $repoRoot 'Map-NorthwellPrinter.cmd'
-foreach ($required in @($sourceLauncher,$sourcePlatform,$sourcePrinterBootstrap)) {
+$sourceNetworkBatchProbe = Join-Path $repoRoot 'survey\sas-network-batch-probe.ps1'
+$sourceNetworkPreflight = Join-Path $repoRoot 'survey\sas-network-preflight.ps1'
+foreach ($required in @($sourceLauncher,$sourcePlatform,$sourcePrinterBootstrap,$sourceNetworkBatchProbe,$sourceNetworkPreflight)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required universal field file missing: $required" }
     $tokens = $null; $errors = $null
     [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$tokens,[ref]$errors)
@@ -35,6 +37,23 @@ function Test-SasDirectoryWritable {
 
 $canonicalRuntime = 'C:\SASAL'
 $canonicalReady = Test-SasControllerSurface -Root $canonicalRuntime
+if ($canonicalReady) {
+    $networkProbeRuntimeFiles = @(
+        'survey\sas-network-batch-probe.ps1',
+        'survey\sas-network-preflight.ps1',
+        'scripts\SasNetworkGuard.psm1',
+        'scripts\SasTargetIntake.psm1',
+        'scripts\SasLowNoisePolicy.psm1',
+        'scripts\SasPortFallbackDecision.psm1',
+        'scripts\Render-SasEnglishReport.ps1'
+    )
+    foreach ($relative in $networkProbeRuntimeFiles) {
+        if (-not (Test-Path -LiteralPath (Join-Path $canonicalRuntime $relative) -PathType Leaf)) {
+            throw "MACHINE_RUNTIME_REFRESH_REQUIRED: C:\SASAL is a valid legacy controller but does not contain the current batch network-probe surface ($relative). Run 'sas refresh' on Guest/Internet before installing the current universal launcher."
+        }
+    }
+}
+
 $userProfileRoot = $null
 if (-not [string]::IsNullOrWhiteSpace([string]$env:USERPROFILE)) {
     try { $userProfileRoot = ([IO.Path]::GetFullPath($env:USERPROFILE)).TrimEnd('\') + '\' } catch { $userProfileRoot = $null }
