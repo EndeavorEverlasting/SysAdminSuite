@@ -9,7 +9,7 @@ from pathlib import Path
 
 try:
     import jsonschema  # type: ignore
-except ImportError:  # Local hooks stay dependency-free; CI installs jsonschema.
+except ImportError:  # Local hooks remain dependency-free; dedicated CI installs jsonschema.
     jsonschema = None
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -65,14 +65,6 @@ def load(path: Path) -> dict:
     return json.loads(read(path))
 
 
-def tracked(path: Path) -> bool:
-    result = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "--error-unmatch", path.relative_to(ROOT).as_posix()],
-        text=True, capture_output=True, check=False,
-    )
-    return result.returncode == 0
-
-
 def one(items: list[dict], key: str, value: str) -> dict:
     matches = [item for item in items if str(item.get(key, "")) == value]
     assert len(matches) == 1, f"expected one {key}={value}, found {len(matches)}"
@@ -82,6 +74,14 @@ def one(items: list[dict], key: str, value: str) -> dict:
 def exact_keys(value: dict, expected: set[str], label: str) -> None:
     actual = set(value)
     assert actual == expected, f"{label} key drift; missing={sorted(expected-actual)} unknown={sorted(actual-expected)}"
+
+
+def tracked(path: Path) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--error-unmatch", path.relative_to(ROOT).as_posix()],
+        text=True, capture_output=True, check=False,
+    )
+    return result.returncode == 0
 
 
 def tracked_repo_file(relative: str, label: str) -> Path:
@@ -135,6 +135,7 @@ def test_autologon_route_contract() -> None:
     assert route["inner_product_command"] == "sas autologon Remote HOST"
     assert route["target_placeholder"] == "HOST_B64"
     assert route["target_encoding"] == "utf8-base64"
+
     pattern = re.compile(route["target_validation_pattern"])
     assert pattern.fullmatch("wpj075opr046.nslijhs.net")
     assert not pattern.fullmatch("server01'; Write-Output INJECTED; '")
@@ -145,7 +146,6 @@ def test_autologon_route_contract() -> None:
     assert path["installed_sas_probe"] == "sas repo"
     assert path["cache_path"] == r"%LOCALAPPDATA%\SysAdminSuite\repo-root.txt"
     assert path["fail_closed"] is True
-    assert len(path["required_files"]) == len(set(path["required_files"]))
     expected_files = {
         "Run-AutoLogonCrashSafe.cmd",
         "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
@@ -153,13 +153,16 @@ def test_autologon_route_contract() -> None:
         "harness/scripts/Invoke-SasOperatorExecutionRoute.ps1",
     }
     assert set(path["required_files"]) == expected_files
+    assert len(path["required_files"]) == len(set(path["required_files"]))
     for relative in path["required_files"]:
         tracked_repo_file(relative, "registered route dependency")
     assert route["operator_entrypoint"] in path["required_files"]
     assert route["operator_helper"] in path["required_files"]
 
     template = route["operator_command_template"]
-    assert "-Command" not in template, "route template embeds child PowerShell source"
+    # Reject a nested child `powershell.exe ... -Command` source boundary without confusing
+    # the legitimate `Get-Command sas` cmdlet text with a command-line -Command argument.
+    assert "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command" not in template
     assert template.count("HOST_B64") == 1
     assert "'HOST'" not in template
     for marker in (
@@ -176,7 +179,8 @@ def test_autologon_route_contract() -> None:
 
     helper = read(HELPER)
     for marker in (
-        "FromBase64String($TargetBase64)", "target_validation_pattern", "path_resolution.required_files",
+        "FromBase64String($TargetBase64)", "SAS_OPERATOR_ROUTE_TARGET_ENCODING_INVALID",
+        "target_validation_pattern", "SAS_OPERATOR_ROUTE_TARGET_INVALID", "path_resolution.required_files",
         "operator_entrypoint", "& $launcher $target", "exit [int]$LASTEXITCODE",
     ):
         assert marker in helper, f"route helper missing: {marker}"
@@ -205,10 +209,10 @@ def test_central_registration() -> None:
     kinds = load(MANIFEST_SCHEMA)["properties"]["components"]["items"]["properties"]["kind"]["enum"]
     assert "execution_route_registry" in kinds
 
-    item = one(load(VALIDATORS)["validators"], "id", "operator-execution-route-contracts")
-    assert item["blocking"] is True
-    assert item["command"] == "python harness/validators/validate-operator-execution-route.py"
-    scope = " ".join(item["scope"])
+    entry = one(load(VALIDATORS)["validators"], "id", "operator-execution-route-contracts")
+    assert entry["blocking"] is True
+    assert entry["command"] == "python harness/validators/validate-operator-execution-route.py"
+    scope = " ".join(entry["scope"])
     for marker in ("operator-execution-route-registry", "fresh-agent-intake", "Run-AutoLogonCrashSafe.cmd", ".githooks"):
         assert marker in scope, f"validator registry scope missing: {marker}"
 
@@ -231,7 +235,7 @@ def test_existing_authorities_align() -> None:
 
 
 def test_workflow_skill_report_and_intake() -> None:
-    markers = {
+    required_by_file = {
         FRESH_AGENT: (
             "harness/api/operator-execution-route-registry.json", "harness/workflows/operator-execution-route.yaml",
             "harness/skills/operator-execution-route/SKILL.md", "resolve executable location before operator command handoff",
@@ -258,9 +262,9 @@ def test_workflow_skill_report_and_intake() -> None:
             "Run-AutoLogonCrashSafe.cmd HOST", "UTF-8 Base64", "operator shell",
         ),
     }
-    for path, required in markers.items():
+    for path, markers in required_by_file.items():
         text = read(path)
-        for marker in required:
+        for marker in markers:
             assert marker in text, f"{path.relative_to(ROOT)} missing: {marker}"
 
 
