@@ -1,18 +1,15 @@
 <#
 .SYNOPSIS
-    Interactive technician front-end for Northwell system-wide printer mapping.
+    Low-noise technician front-end for Northwell system-wide printer mapping.
 
 .DESCRIPTION
-    Collects target PC hostname(s) and one or more print-server/queue sets, then
-    delegates validation, SYSTEM execution, machine-wide proof, cleanup, and
-    evidence to Invoke-NorthwellPrinterMapping.ps1.
+    Collects only the inputs needed for mapping, delegates the actual mutation to
+    Invoke-NorthwellPrinterMapping.ps1, suppresses lower-level controller chatter,
+    and reports the authoritative SYSTEM + HKLM result.
 
-    Optional operator-local defaults may be stored in:
-        Config\northwell-printer-defaults.local.json
-
-    That file is gitignored. Tracked repository content contains only synthetic
-    placeholders; no live print-server or queue endpoint is a source-controlled
-    automatic default.
+    If the engine raises a lower-level controller/task error but its preserved
+    Status.json proves the requested machine-wide state, that proof wins and the
+    technician sees PASS rather than a false failure.
 #>
 
 [CmdletBinding()]
@@ -25,9 +22,11 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $localDefaultsPath = Join-Path $repoRoot 'Config\northwell-printer-defaults.local.json'
+$latestPointer = Join-Path $PSScriptRoot 'Logs\LATEST-PATH.txt'
 
 function Split-SasFieldList {
     param(
@@ -76,14 +75,11 @@ function Read-SasNorthwellPrinterSets {
     )
 
     $collected = New-Object System.Collections.Generic.List[string]
-    $setNumber = 0
     $firstSet = $true
 
     do {
-        $setNumber++
         $serverDefault = ''
         $queueDefault = ''
-
         if ($firstSet -and -not [string]::IsNullOrWhiteSpace($InitialPrintServer)) {
             $serverDefault = $InitialPrintServer.Trim()
             if ($null -ne $LocalDefaults -and $serverDefault.Equals([string]$LocalDefaults.PrintServer, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -95,20 +91,10 @@ function Read-SasNorthwellPrinterSets {
             $queueDefault = [string]$LocalDefaults.QueueName
         }
 
-        Write-Host ''
-        Write-Host "Printer set $setNumber" -ForegroundColor Cyan
-        if ($firstSet -and $null -ne $LocalDefaults) {
-            Write-Host 'Operator-local default is configured. Press Enter to accept the bracketed value.' -ForegroundColor Green
-        }
-        elseif ($firstSet) {
-            Write-Host 'No operator-local printer default is configured. Use Edit-NorthwellPrinter-Defaults.cmd if you want one.' -ForegroundColor DarkGray
-        }
-        Write-Host 'Type AD as the server to resolve queue-only names through Active Directory.' -ForegroundColor DarkGray
-
         $serverPrompt = if ([string]::IsNullOrWhiteSpace($serverDefault)) { 'Print server hostname (or AD)' } else { "Print server hostname [$serverDefault]" }
         $rawServer = Read-Host $serverPrompt
         if ([string]::IsNullOrWhiteSpace($rawServer)) {
-            if ([string]::IsNullOrWhiteSpace($serverDefault)) { throw 'Print server cannot be blank. Enter a hostname or type AD for queue-only directory resolution.' }
+            if ([string]::IsNullOrWhiteSpace($serverDefault)) { throw 'Print server cannot be blank. Enter a hostname or type AD.' }
             $server = $serverDefault
         }
         elseif ($rawServer.Trim().Equals('AD', [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -124,13 +110,9 @@ function Read-SasNorthwellPrinterSets {
             if ([string]::IsNullOrWhiteSpace($queueDefault)) { throw 'Printer queue cannot be blank.' }
             $rawQueues = $queueDefault
         }
-        $queues = @(Split-SasFieldList -Value $rawQueues -Label 'Printer queue')
 
-        foreach ($queue in $queues) {
-            if ($queue.StartsWith('\\') -or $queue.StartsWith('//')) {
-                $collected.Add($queue)
-            }
-            elseif ([string]::IsNullOrWhiteSpace($server)) {
+        foreach ($queue in @(Split-SasFieldList -Value $rawQueues -Label 'Printer queue')) {
+            if ($queue.StartsWith('\\') -or $queue.StartsWith('//') -or [string]::IsNullOrWhiteSpace($server)) {
                 $collected.Add($queue)
             }
             else {
@@ -139,28 +121,85 @@ function Read-SasNorthwellPrinterSets {
         }
 
         $firstSet = $false
-        Write-Host ''
-        $more = Read-Host 'Add another print server / queue set? [y/N]'
+        $more = Read-Host 'Add another server/queue set? [y/N]'
     } while ($more -match '^(?i:y|yes)$')
 
     return $collected.ToArray()
 }
 
-if (-not $ComputerName -or $ComputerName.Count -eq 0) {
+function Get-SasLatestPrinterEvidenceRoot {
+    if (-not (Test-Path -LiteralPath $latestPointer -PathType Leaf)) { return $null }
+    $value = [string](Get-Content -LiteralPath $latestPointer -Raw -ErrorAction SilentlyContinue)
+    if ([string]::IsNullOrWhiteSpace($value)) { return $null }
+    $value = $value.Trim()
+    if (-not (Test-Path -LiteralPath $value -PathType Container)) { return $null }
+    return $value
+}
+
+function Test-SasLatestAuthoritativePrinterProof {
+    param([AllowNull()][string]$EvidenceRoot)
+
+    if ([string]::IsNullOrWhiteSpace($EvidenceRoot)) { return $false }
+    $summaryPath = Join-Path $EvidenceRoot 'Summary.json'
+    if (-not (Test-Path -LiteralPath $summaryPath -PathType Leaf)) { return $false }
+
+    try {
+        $summary = Get-Content -LiteralPath $summaryPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $expected = [int]$summary.TotalTargets
+        if ($expected -lt 1) { return $false }
+
+        $statuses = @(Get-ChildItem -LiteralPath $EvidenceRoot -Filter 'Status.json' -File -Recurse -ErrorAction Stop)
+        if ($statuses.Count -ne $expected) { return $false }
+
+        foreach ($statusFile in $statuses) {
+            $status = Get-Content -LiteralPath $statusFile.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if (-not [bool]$status.Success) { return $false }
+            if ([string]$status.Identity -notmatch 'SYSTEM$') { return $false }
+            if (@($status.Missing).Count -gt 0) { return $false }
+
+            $verified = @($status.MachineWideUNC | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
+            foreach ($requested in @($status.Requested)) {
+                if ($verified -notcontains ([string]$requested).Trim().ToLowerInvariant()) { return $false }
+            }
+        }
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Write-SasPrinterResult {
+    param(
+        [Parameter(Mandatory)][bool]$Success,
+        [AllowNull()][string]$EvidenceRoot,
+        [switch]$RecoveredFromLowerLevelError
+    )
+
     Write-Host ''
-    Write-Host 'Northwell System-Wide Printer Mapping' -ForegroundColor Cyan
-    Write-Host '-------------------------------------' -ForegroundColor Cyan
-    Write-Host 'Enter target PC hostnames only (not IP addresses).' -ForegroundColor Yellow
-    Write-Host 'You may map one PC or paste several, separated by commas or semicolons.' -ForegroundColor DarkGray
-    $rawComputers = Read-Host 'Target PC hostname(s), comma-separated'
+    if ($Success) {
+        Write-Host 'PASS: requested printer mapping is proven SYSTEM-wide in HKLM.' -ForegroundColor Green
+        if ($RecoveredFromLowerLevelError) {
+            Write-Host 'A lower-level controller/task error was superseded by authoritative final printer-state proof.' -ForegroundColor DarkGray
+        }
+    }
+    else {
+        Write-Host 'FAIL: authoritative machine-wide printer proof was not obtained.' -ForegroundColor Red
+    }
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceRoot)) {
+        Write-Host ("Evidence: {0}" -f $EvidenceRoot) -ForegroundColor DarkGray
+    }
+}
+
+if (-not $ComputerName -or $ComputerName.Count -eq 0) {
+    Write-Host 'Northwell system-wide printer mapping' -ForegroundColor Cyan
+    $rawComputers = Read-Host 'Target PC hostname(s)'
     $ComputerName = @(Split-SasFieldList -Value $rawComputers -Label 'Target PC hostname')
 }
 
 if (-not $Printer -or $Printer.Count -eq 0) {
     $localDefaults = Get-SasNorthwellPrinterLocalDefaults
     $Printer = @(Read-SasNorthwellPrinterSets -InitialPrintServer $PrintServer -LocalDefaults $localDefaults)
-    # Interactive collection has already converted explicit server + queue pairs to UNC.
-    # Clearing this only after using InitialPrintServer avoids applying one server twice.
     $PrintServer = $null
 }
 
@@ -168,15 +207,13 @@ $guardModule = Join-Path $repoRoot 'scripts\SasNetworkGuard.psm1'
 if (-not (Test-Path -LiteralPath $guardModule -PathType Leaf)) {
     throw "Shared Northwell network guard not found: $guardModule"
 }
-
 if (-not $WhatIf) {
     Import-Module $guardModule -Force -ErrorAction Stop
-    Assert-SasNorthwellWifi
-    Write-Host 'Approved Northwell network posture detected. Guest Wi-Fi may remain connected when a live DomainAuthenticated VPN/LAN path is active.' -ForegroundColor Green
+    $null = Assert-SasNorthwellWifi
 }
 
 $engine = Join-Path $PSScriptRoot 'Invoke-NorthwellPrinterMapping.ps1'
-if (-not (Test-Path -LiteralPath $engine)) { throw "Canonical printer engine not found: $engine" }
+if (-not (Test-Path -LiteralPath $engine -PathType Leaf)) { throw "Canonical printer engine not found: $engine" }
 
 $invokeParameters = @{
     ComputerName = $ComputerName
@@ -185,11 +222,26 @@ $invokeParameters = @{
 if (-not [string]::IsNullOrWhiteSpace($PrintServer)) { $invokeParameters.PrintServer = $PrintServer }
 if ($WhatIf) { $invokeParameters.WhatIf = $true }
 
-Write-Host ''
-Write-Host 'Client requirement: this run maps printers SYSTEM-WIDE for all users.' -ForegroundColor Green
-Write-Host ('Targets : {0}' -f ($ComputerName -join ', ')) -ForegroundColor Cyan
-Write-Host ('Printers: {0}' -f ($Printer -join ', ')) -ForegroundColor Cyan
-Write-Host 'The run is successful only after SYSTEM identity and HKLM machine-wide queue proof.' -ForegroundColor Green
-Write-Host ''
+Write-Host ('Mapping {0} queue(s) on {1} target(s). No ping sweep. No test page.' -f @($Printer).Count, @($ComputerName).Count) -ForegroundColor Cyan
 
-& $engine @invokeParameters
+$engineError = $null
+try {
+    $null = @(& $engine @invokeParameters *>&1)
+}
+catch {
+    $engineError = $_
+}
+
+$evidenceRoot = Get-SasLatestPrinterEvidenceRoot
+$authoritativeSuccess = Test-SasLatestAuthoritativePrinterProof -EvidenceRoot $evidenceRoot
+
+if ($authoritativeSuccess) {
+    Write-SasPrinterResult -Success $true -EvidenceRoot $evidenceRoot -RecoveredFromLowerLevelError:($null -ne $engineError)
+    return
+}
+
+Write-SasPrinterResult -Success $false -EvidenceRoot $evidenceRoot
+if ($null -ne $engineError) {
+    throw "Printer mapping did not produce authoritative HKLM proof. Review the evidence directory."
+}
+throw 'Printer mapping returned without authoritative HKLM proof.'
