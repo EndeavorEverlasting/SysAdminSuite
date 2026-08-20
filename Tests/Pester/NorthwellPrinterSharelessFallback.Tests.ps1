@@ -81,8 +81,8 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
 
     It 'permits replay only for complete pre-mutation administrative-staging failures' {
         $script:resilientText | Should -Match 'Test-SasAdministrativeStagingFailureBeforeMutation'
-        $script:resilientText | Should -Match [regex]::Escape("Get-ChildItem -LiteralPath $EvidenceRoot -Filter 'Status.json'")
-        $script:resilientText | Should -Match [regex]::Escape("$message -notmatch '(?i)^Admin share unavailable")
+        $script:resilientText | Should -Match [regex]::Escape('Get-ChildItem -LiteralPath $EvidenceRoot -Filter ''Status.json''')
+        $script:resilientText | Should -Match [regex]::Escape('$message -notmatch ''(?i)^Admin share unavailable')
         $script:resilientText | Should -Match 'ChangedPrinters'
         $script:resilientText | Should -Match 'StagingShare'
     }
