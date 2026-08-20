@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/package-strong-name-verification-result.schema.json",
+  "title": "SysAdminSuite Package Strong-Name Verification Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "analyzer_version", "generated_at", "input", "base_result", "limits", "proof", "summary", "files", "errors"],
+  "properties": {
+    "schema_version": {"const": "sas-package-strong-name-verification/v1"},
+    "analyzer_version": {"type": "string", "minLength": 1, "maxLength": 32},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "display_name", "absolute_path_emitted"],
+      "properties": {
+        "kind": {"enum": ["file", "directory"]},
+        "display_name": {"type": "string", "minLength": 1, "maxLength": 260},
+        "absolute_path_emitted": {"const": false}
+      }
+    },
+    "base_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "sha256", "hash_verified_source_files"],
+      "properties": {
+        "schema_version": {"const": "sas-package-static-analysis/v1"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "hash_verified_source_files": {"type": "integer", "minimum": 0}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_files", "package_execution_allowed", "network_activity_allowed"],
+      "properties": {
+        "max_files": {"type": "integer", "minimum": 1},
+        "package_execution_allowed": {"const": false},
+        "network_activity_allowed": {"const": false}
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proof_level",
+        "file_execution_performed",
+        "archive_payload_extracted",
+        "network_activity_performed",
+        "target_mutation_performed",
+        "host_mutation_performed",
+        "authenticode_trust_evaluated",
+        "online_revocation_checked",
+        "strong_name_cryptographic_validation_performed",
+        "runtime_behavior_validated"
+      ],
+      "properties": {
+        "proof_level": {"const": "clr_strong_name_integrity"},
+        "file_execution_performed": {"const": false},
+        "archive_payload_extracted": {"const": false},
+        "network_activity_performed": {"const": false},
+        "target_mutation_performed": {"const": false},
+        "host_mutation_performed": {"const": false},
+        "authenticode_trust_evaluated": {"const": false},
+        "online_revocation_checked": {"const": false},
+        "strong_name_cryptographic_validation_performed": {"const": true},
+        "runtime_behavior_validated": {"const": false}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base_files",
+        "files_examined",
+        "managed_assemblies",
+        "verified_count",
+        "unsigned_count",
+        "delay_signed_count",
+        "invalid_count",
+        "unsupported_count",
+        "failed_count",
+        "not_applicable_count",
+        "error_count",
+        "overall_status"
+      ],
+      "properties": {
+        "base_files": {"type": "integer", "minimum": 0},
+        "files_examined": {"type": "integer", "minimum": 0},
+        "managed_assemblies": {"type": "integer", "minimum": 0},
+        "verified_count": {"type": "integer", "minimum": 0},
+        "unsigned_count": {"type": "integer", "minimum": 0},
+        "delay_signed_count": {"type": "integer", "minimum": 0},
+        "invalid_count": {"type": "integer", "minimum": 0},
+        "unsupported_count": {"type": "integer", "minimum": 0},
+        "failed_count": {"type": "integer", "minimum": 0},
+        "not_applicable_count": {"type": "integer", "minimum": 0},
+        "error_count": {"type": "integer", "minimum": 0},
+        "overall_status": {"enum": ["verified", "unproven", "invalid", "unsupported", "failed", "not_applicable"]}
+      }
+    },
+    "files": {"type": "array", "items": {"$ref": "#/$defs/fileRecord"}},
+    "errors": {"type": "array", "items": {"$ref": "#/$defs/errorRecord"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "fileRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_path",
+        "sha256",
+        "hash_verified",
+        "managed_clr_present",
+        "strong_name_flag_present",
+        "strong_name_blob_present",
+        "public_key_present",
+        "hash_algorithm",
+        "public_key_token",
+        "status",
+        "reasons",
+        "package_execution_performed"
+      ],
+      "properties": {
+        "relative_path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "hash_verified": {"const": true},
+        "managed_clr_present": {"type": "boolean"},
+        "strong_name_flag_present": {"type": "boolean"},
+        "strong_name_blob_present": {"type": "boolean"},
+        "public_key_present": {"type": "boolean"},
+        "hash_algorithm": {"oneOf": [{"enum": ["sha1", "sha256"]}, {"type": "null"}]},
+        "public_key_token": {"oneOf": [{"type": "string", "pattern": "^[0-9a-f]{16}$"}, {"type": "null"}]},
+        "status": {"enum": ["verified", "unsigned", "delay_signed", "invalid", "unsupported", "failed", "not_applicable"]},
+        "reasons": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_.:-]+$"}, "minItems": 1, "uniqueItems": true},
+        "package_execution_performed": {"const": false}
+      }
+    },
+    "errorRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_path", "error_type", "message"],
+      "properties": {
+        "relative_path": {"type": "string", "minLength": 1},
+        "error_type": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1, "maxLength": 300}
+      }
+    }
+  }
+}
