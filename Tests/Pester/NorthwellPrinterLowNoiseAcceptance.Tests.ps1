@@ -21,7 +21,7 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text | Should -Not -Match '(?i)-Count\s+5\b'
     }
 
-    It 'captures lower-level engine chatter but automatically summarizes a failed fresh proof' {
+    It 'captures lower-level engine chatter but automatically summarizes a failed operation proof' {
         $text = Get-Content -LiteralPath $script:startPath -Raw
         $text | Should -Match '& \$engine @invokeParameters \*>&1'
         $text | Should -Match '\$actionVerb = if \(\$Action -eq ''Map''\) \{ ''Mapping'' \} else \{ ''Unmapping'' \}'
@@ -90,8 +90,9 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
             CompletedTargets = 1
             TotalTargets = 1
             Computers = @('PC-VPN-001')
+            Results = @([ordered]@{ Computer='PC-VPN-001';Success=$false;Stage='Failed';Message='Status proof did not verify requested state.';DesiredState='Present';Evidence=$target })
             Mode = 'MachineWidePerComputer'
-        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
+        } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
         [ordered]@{
             ComputerName = 'PC-VPN-001'
             Identity = 'NT AUTHORITY\SYSTEM'
@@ -112,7 +113,8 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text = $output -join "`n"
         $text | Should -Match 'DIAGNOSTIC_STATUS=COMPLETED'
         $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
-        $text | Should -Match 'EVIDENCE_SET=INCOMPLETE_OR_FAILED'
+        $text | Should -Match 'EVIDENCE_SET=FAILED_OR_INCONSISTENT'
+        $text | Should -Match 'FAILURE_CLASSIFICATION=MACHINE_WIDE_REGISTRATION_MISSING'
         $text | Should -Match 'CLASSIFICATION=MACHINE_WIDE_REGISTRATION_MISSING'
         $text | Should -Match 'MISSING_MACHINE_WIDE=\\\\PRINTSRV01\\QUEUE01'
         $text | Should -Match 'TARGET_CONTACT_PERFORMED=False'
@@ -126,8 +128,8 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         New-Item -ItemType Directory -Path $target -Force | Out-Null
         [ordered]@{
             Success=$true;DesiredState='Present';CompletedTargets=1;TotalTargets=1
-            Computers=@('PC001');Mode='MachineWidePerComputer'
-        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
+            Computers=@('PC001');Results=@([ordered]@{ Computer='PC001';Success=$true;Stage='VerifiedPresent';Message='verified';DesiredState='Present';Evidence=$target });Mode='MachineWidePerComputer'
+        } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
         [ordered]@{
             ComputerName='PC001';Identity='NT AUTHORITY\SYSTEM';DesiredState='Present';Success=$true
             Requested=@('\\PRINTSRV01\QUEUE01');BeforeMachineWideUNC=@('\\PRINTSRV01\QUEUE01')
@@ -140,6 +142,7 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text = $output -join "`n"
         $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_PRESENT'
         $text | Should -Match 'EVIDENCE_SET=COMPLETE'
+        $text | Should -Match 'FAILURE_CLASSIFICATION=NONE'
         $text | Should -Match 'CLASSIFICATION=MACHINE_WIDE_REGISTRATION_PROVEN'
         $text | Should -Match 'ALREADY_DESIRED_MACHINE_WIDE=\\\\PRINTSRV01\\QUEUE01'
     }
@@ -150,8 +153,8 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         New-Item -ItemType Directory -Path $target -Force | Out-Null
         [ordered]@{
             Success=$false;DesiredState='Present';CompletedTargets=1;TotalTargets=2
-            Computers=@('PC001','PC002');Mode='MachineWidePerComputer'
-        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
+            Computers=@('PC001','PC002');Results=@([ordered]@{ Computer='PC001';Success=$true;Stage='VerifiedPresent';Message='verified';DesiredState='Present';Evidence=$target });Mode='MachineWidePerComputer'
+        } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
         [ordered]@{
             ComputerName='PC001';Identity='NT AUTHORITY\SYSTEM';DesiredState='Present';Success=$true
             Requested=@('\\PRINTSRV01\QUEUE01');BeforeMachineWideUNC=@();MachineWideUNC=@('\\PRINTSRV01\QUEUE01')
@@ -162,10 +165,39 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $LASTEXITCODE | Should -Be 0
         $text = $output -join "`n"
         $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
-        $text | Should -Match 'EVIDENCE_SET=INCOMPLETE_OR_FAILED'
+        $text | Should -Match 'EVIDENCE_SET=PARTIAL_STATUS_EVIDENCE'
+        $text | Should -Match 'FAILURE_CLASSIFICATION=REMOTE_STATUS_EVIDENCE_PARTIAL'
         $text | Should -Match 'EXPECTED_TARGETS=2'
         $text | Should -Match 'COMPLETED_TARGETS=1'
         $text | Should -Match 'STATUS_FILES=1'
+    }
+
+    It 'classifies a completed failed target with zero Status.json as remote status evidence not returned' {
+        $root = Join-Path $TestDrive 'zero-status-files'
+        $target = Join-Path $root 'pc-vpn-002.example.invalid'
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        [ordered]@{
+            Success=$false;DesiredState='Present';CompletedTargets=1;TotalTargets=1;Computers=@('PC-VPN-002');Mode='MachineWidePerComputer'
+            Results=@([ordered]@{
+                Computer='PC-VPN-002';Success=$false;Stage='Failed';DesiredState='Present';Evidence=$target
+                Message='Timed out after 120 seconds waiting for Status.json. Remote evidence was not observed.'
+            })
+        } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
+
+        $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:diagnosticPath -EvidenceRoot $root 2>&1)
+        $LASTEXITCODE | Should -Be 0
+        $text = $output -join "`n"
+        $text | Should -Match 'DIAGNOSTIC_STATUS=COMPLETED'
+        $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
+        $text | Should -Match 'EVIDENCE_SET=NO_STATUS_EVIDENCE_RETURNED'
+        $text | Should -Match 'FAILURE_CLASSIFICATION=REMOTE_STATUS_EVIDENCE_NOT_RETURNED'
+        $text | Should -Match 'STATUS_FILES=0'
+        $text | Should -Match 'SUMMARY_RESULT_CLASSIFICATION=REMOTE_STATUS_EVIDENCE_TIMEOUT'
+        $text | Should -Match 'SUMMARY_STAGE=Failed'
+        $text | Should -Match 'SUMMARY_MESSAGE=Timed out after 120 seconds waiting for Status\.json'
+        $text | Should -Match 'TARGET_CONTACT_PERFORMED=False'
+        $text | Should -Match 'TARGET_MUTATION_PERFORMED=False'
+        $text | Should -Match 'TEST_PAGE_PRINTED=False'
     }
 
     It 'keeps the evidence diagnostic strictly local and read-only' {
