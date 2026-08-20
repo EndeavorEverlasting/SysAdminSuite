@@ -5,9 +5,9 @@ network_activity: workflow_dependent
 target_mutation: workflow_dependent
 purpose: >-
   Convert a selected canonical command into an executable operator action without assuming the caller's
-  working directory or confusing a sealed field runtime with a full repository. Prefer an installed
-  product front door when it already owns runtime resolution; otherwise resolve and prove the tracked
-  repository helper/front door before execution.
+  working directory or confusing a sealed field runtime with a full repository. For AutoLogon Remote,
+  use installed sas only to resolve the sealed runtime, then invoke that runtime's crash-safe bootstrap
+  directly. Fall back to the tracked full-repository helper only when installed sas is unavailable.
 
 inputs:
   required:
@@ -27,7 +27,7 @@ stages:
       - read harness/api/operator-execution-route-registry.json
       - resolve exactly one route for command_id
       - retain operator_front_door and inner_product_command as route authorities
-      - for AutoLogon, recognize installed sas as an execution adapter that resolves the sealed runtime and enters the crash-safe field transaction
+      - for AutoLogon Remote, treat installed sas as a sealed-runtime locator, not as proof that its own dispatcher is crash-safe
     stop_conditions:
       - zero or multiple execution routes match the selected command
 
@@ -43,11 +43,12 @@ stages:
     order: 3
     actions:
       - never assume the current shell is already inside the repository
-      - when installed sas exists for autologon-remote, do not require sas repo to be a full repository; it may legitimately resolve the sealed C:\SASAL runtime
-      - let installed sas resolve its own prepared AutoLogon runtime and staging manifest
-      - only when installed sas is unavailable, resolve a full repository through sas repo or the bounded repo-root.txt cache
+      - when installed sas exists for autologon-remote, run sas repo and accept a sealed C:\SASAL runtime that intentionally lacks the full harness tree
+      - require Bootstrap-SysAdminSuiteAutoLogon.cmd inside that resolved sealed runtime
+      - do not fall through to sas autologon Remote when the sealed crash-safe bootstrap is missing
+      - only when installed sas is unavailable, resolve a full repository through the bounded repo-root.txt cache
       - for the full-repository fallback, normalize the root and verify every required_files entry beneath that exact root
-      - fail closed when neither installed sas nor a proven full-repository fallback is available
+      - fail closed when neither a sealed crash-safe runtime nor a proven full-repository fallback is available
       - do not ask the operator to retype a repository path that the harness can resolve
 
   - id: execute
@@ -58,15 +59,16 @@ stages:
       - encode explicit_target exactly as target_encoding declares; for utf8-base64, substitute only the encoded value into target_placeholder
       - never interpolate the raw explicit_target into PowerShell command source
       - decode and revalidate the target inside the rendered route before either execution path
-      - when installed sas is available for autologon-remote, invoke sas autologon Remote with the validated target and preserve its exit disposition
-      - the installed sas path must continue through Resolve-SasPreparedAutoLogonRuntime and the sealed AutoLogon bootstrap before the crash-safe field transaction
+      - when installed sas is available for autologon-remote, use sas repo to resolve the sealed runtime and invoke Bootstrap-SysAdminSuiteAutoLogon.cmd with the validated target
+      - never invoke an installed sas autologon Remote dispatcher from the operator route because installed dispatchers may lag the sealed runtime contract
+      - the sealed bootstrap must verify its staging manifest and enter Invoke-SasAutoLogonCrashSafeFieldRun.ps1 so durable field evidence is produced
       - when installed sas is unavailable, invoke the registered operator_helper through powershell.exe -File with the encoded target as a positional argument
       - the fallback helper must decode and revalidate the target, re-read the route registry, and re-prove every required_files dependency before invoking operator_entrypoint
       - when required_network is PROTECTED_NORTHWELL, treat an authenticated live Windows DomainAuthenticated VPN adapter or approved DomainAuthenticated hardwire/LAN as a protected path; the connection type alone is not a failure
       - when operator_execution_capable is true and authorization/dependencies are satisfied, execute in the same turn
       - propagate the child exit code exactly and preserve the operator shell on failure
       - when the current environment cannot execute on the operator workstation, emit one copy-paste route-and-run command
-      - never return only sas autologon Remote HOST as an unproven generic handoff; it is acceptable as the exact next field command only after installed sas and the prepared sealed-runtime contract are already proven
+      - a direct sas autologon Remote HOST command is acceptable only after the installed universal launcher itself is proven current and crash-safe; the route does not rely on that assumption
 
   - id: artifacts
     order: 5
@@ -78,7 +80,7 @@ stages:
   - id: handoff
     order: 6
     actions:
-      - report whether installed sas or the full-repository fallback was selected
+      - report whether the sealed-bootstrap path or the full-repository fallback was selected
       - report the resolved execution root when it is known
       - report whether execution happened or whether workstation execution is the external blocker
       - report the live network/transport classification when it is present in durable evidence
@@ -86,7 +88,7 @@ stages:
       - name the expected durable artifact and proof ceiling
 
 proof_ceiling: >-
-  Proves operator command selection, safe target transport, installed-sas sealed-runtime delegation or
-  full-repository fallback dependency proof, and exit propagation. It does not prove target reachability,
-  deployment, restart, sign-in, or runtime acceptance unless the selected product path emits the corresponding
-  registered live artifact.
+  Proves operator command selection, safe target transport, installed-sas sealed-runtime resolution into
+  the crash-safe AutoLogon bootstrap or full-repository fallback dependency proof, and exit propagation.
+  It does not prove target reachability, deployment, restart, sign-in, or runtime acceptance unless the
+  selected product path emits the corresponding registered live artifact.
