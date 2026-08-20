@@ -54,8 +54,11 @@ def test_pilot_uses_unique_s4u_task_names_and_consumes_bounded_result() -> None:
         "$create = Invoke-SasBoundedNative",
         "if ([bool]$create.timed_out)",
         "if ([int]$create.exit_code -ne 0)",
+        "$effectiveCreateTimeoutSeconds = [int]$create.timeout_seconds",
+        "task creation timed out after $effectiveCreateTimeoutSeconds seconds.",
     ):
         assert marker in text, marker
+    assert "task creation timed out after $NativeTimeoutSeconds seconds." not in text
 
 
 def test_runtime_repair_is_local_only_bounded_and_idempotent() -> None:
@@ -65,6 +68,9 @@ def test_runtime_repair_is_local_only_bounded_and_idempotent() -> None:
         "function Invoke-SasBoundedNative {",
         "function Test-SasBoundedPath {",
         "Assert-Parse $candidate",
+        "$directIntegratedLayout",
+        "$wrappedLegacyLayout",
+        "already_integrated_or_wrapped",
         "AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_APPLIED",
         "AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_ALREADY_PRESENT",
         "git_performed = $false",
