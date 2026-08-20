@@ -1,240 +1,173 @@
 # Northwell Printer Mapping — Start Here
 
-This is the **canonical Northwell field path** for shared-printer mapping. Northwell printer behavior is organization-specific; do not reuse these commands for Health & Hospitals or another organization unless that use case is separately registered and proven.
+This is the canonical **Northwell Health shared-printer mapping** path. It is for multi-user Windows PCs and approved shared print queues.
 
-## Non-negotiable Northwell contract
+> **Technician:** start with `Map-NorthwellPrinter.cmd`.
+>
+> **Terminal equivalent:** `sas printer`.
+>
+> **Detailed technician walkthrough:** `docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md`.
 
-- **System-wide / per-computer only.** These PCs may have multiple users.
-- **Shared queue names only.** Use `\\server\queue`, `//server/queue`, or a queue name.
+Do not reuse this workflow for Health & Hospitals or another organization unless that organization has its own separately registered and proven printer use case.
+
+## Fast technician path
+
+1. Connect to an approved Northwell protected path: hardwire/LAN, NSLIJHS-WAB, or authenticated Northwell VPN.
+2. Double-click `Map-NorthwellPrinter.cmd`.
+3. Approve the Administrator prompt if Windows displays one.
+4. Choose a recent proven PC/printer by number when offered, or enter the requested hostname/shared queue.
+5. Let the mapper finish and read the final result.
+
+Success is explicit:
+
+```text
+PASS: requested printer map is proven SYSTEM-wide in HKLM.
+READY: <computer> - active user <user> has the requested printer connection now.
+Done. Machine-wide registration is proven; any active user session was finalized and verified.
+```
+
+If the mapper fails, **do not remap blindly**. Preserve the displayed error and evidence path for diagnosis.
+
+## Northwell contract
+
+- **System-wide / per-computer mapping.** These PCs may have multiple users.
+- **Target PCs use hostnames/FQDNs, not IP addresses.**
+- **Printers use shared queue identity**, such as `\\server\queue`, `//server/queue`, or a uniquely resolvable queue name.
 - **Never map by printer IP address.**
-- **Target PCs are hostnames/FQDNs, not IP addresses.**
-- Endpoint mapping runs as **SYSTEM** with `rundll32 printui.dll,PrintUIEntry /ga`.
-- Success requires SYSTEM identity plus the requested queue under the machine-wide HKLM printer-connection registry location.
-- The canonical mapper **does not print test pages**.
-- A real requested document printed after mapping is separate runtime acceptance evidence.
+- Endpoint registration runs as **SYSTEM** with `PrintUIEntry /ga`.
+- Mapping success requires SYSTEM identity plus requested queue proof under the machine-wide HKLM printer-connection location.
+- An already logged-on user is materialized and verified after successful machine-wide registration.
+- The mapper **does not print test pages**.
+- A real requested document printed afterward is separate, higher-level runtime acceptance evidence.
 
-## Start from any PowerShell directory
+## Why `Map-NorthwellPrinter.cmd` is the technician front door
 
-Do **not** assume the current shell is already inside a SysAdminSuite checkout. `git rev-parse --show-toplevel` is not a field bootstrap.
+The technician CMD does not implement printer mapping itself. It delegates to the same trusted installed `sas printer` path and current-origin bootstrap already used by technical operators.
 
-The standalone bootstrap is:
+That means a non-technical technician does not need to know:
 
-```text
-Bootstrap-SysAdminSuitePrinter.ps1
-```
+- where SysAdminSuite is checked out;
+- which Git commit is current;
+- a PowerShell command;
+- the bootstrap cache/runtime path; or
+- the underlying fallback transport.
 
-Its clickable in-repository wrapper is:
+When installed by the universal SysAdminSuite launcher installer, `Map-NorthwellPrinter.cmd` is placed beside `sas.cmd`. A copy from a current repository/runtime can also fall back through `Bootstrap-SysAdminSuitePrinter.cmd`.
 
-```text
-Bootstrap-SysAdminSuitePrinter.cmd
-```
+## Recent PCs and printers
 
-The bootstrap treats the caller's current directory as irrelevant. It first reuses an eligible local runtime from the explicit/canonical SysAdminSuite authorities (`SAS_RUNTIME_ROOT`, `C:\SASAL`, or `SAS_REPO_ROOT`). When a required fix commit is supplied, the local runtime must contain that commit by Git ancestry.
+The quick mapper can show **Recent proven target PCs** and **Recent proven printer inputs**. Entering a displayed number reuses that input without forcing the technician to remember or retype it.
 
-If no eligible local runtime exists, the bootstrap uses a dedicated `%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap` Git cache, fetches `origin/main` without force, verifies that the required fix is an ancestor of the fetched mainline, and creates a persistent detached runtime keyed by the fetched commit. It does **not** reset, clean, or check out an arbitrary technician repository. The dedicated runtime remains after execution so normal `mapping\Logs` evidence is not destroyed.
+The interaction cache is convenience only. It does not replace authoritative network, queue, SYSTEM, or HKLM proof.
 
-This ancestry rule deliberately allows `main` to advance after a validated printer fix. Do not require `origin/main` to equal an old exact SHA when the required fix is still contained in the newer mainline.
+## One or many
 
-## Technician CMDs
+Quick mapping supports one or multiple target PCs and shared queues through its prompts.
 
-### Quick mapping
-
-Double-click:
+For larger prepared assignments, use the file/batch path:
 
 ```text
-Map-NorthwellPrinter-SystemWide.cmd
+Edit-NorthwellPrinter-Batch.cmd
+Map-NorthwellPrinters-Batch.cmd
 ```
 
-The launcher asks for target PC hostname(s), then one or more print-server/queue sets. It supports one computer or many computers and one printer or many printers. Add another server/queue set when prompted.
+The tracked template is synthetic. Local assignment data stays outside Git.
 
-Accepted forms:
+Batch mode validates the file, establishes Northwell network authority, displays the resolved plan, requires explicit confirmation, and delegates work to the same canonical printer engine. It is orchestration, not a second implementation.
 
-```text
-\\PRINTSERVER01\QUEUE01
-//PRINTSERVER01/QUEUE01
-PRINTSERVER01 + QUEUE01 via the prompts
-```
+## Defaults
 
-No live endpoint is committed as a repository default.
-
-### Optional local default
-
-Double-click:
-
-```text
-Edit-NorthwellPrinter-Defaults.cmd
-```
-
-It creates/opens the gitignored file:
+`Edit-NorthwellPrinter-Defaults.cmd` maintains one local approved server/queue default in:
 
 ```text
 Config\northwell-printer-defaults.local.json
 ```
 
-The repository ships only a synthetic template at `mapping\Examples\NorthwellPrinterDefaults.example.json`. Put one approved Northwell `PrintServer` and `QueueName` in the local file. Quick mapping then shows those values in brackets; pressing Enter explicitly accepts them. **The target computer is never defaulted.**
+The target PC is never defaulted. The repository template contains placeholders only.
 
-This gives technicians a convenient site/team default without putting live infrastructure into Git.
+## Advanced management
 
-### Edit a batch
-
-Double-click:
+For unmapping, undo, defaults, mixed map/unmap batches, and local evidence tools, use:
 
 ```text
-Edit-NorthwellPrinter-Batch.cmd
+Manage-NorthwellPrinters.cmd
 ```
 
-It creates/opens the local gitignored:
+See `START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md`.
+
+## Technical/runtime entrypoints
+
+The following surfaces are implementation or advanced-operator paths, not the preferred non-technical technician front door:
 
 ```text
-mapping\NorthwellPrinterBatch.csv
+Bootstrap-SysAdminSuitePrinter.cmd
+Bootstrap-SysAdminSuitePrinter.ps1
+Map-NorthwellPrinter-SystemWide.cmd
+mapping\Start-NorthwellPrinterMapping.ps1
+mapping\Invoke-NorthwellPrinterMapping.ps1
 ```
 
-Tracked synthetic template:
+`Map-NorthwellPrinter-SystemWide.cmd` remains the canonical quick **runtime launcher** registered by the Northwell use-case harness. `Map-NorthwellPrinter.cmd` is the human-facing distribution wrapper that gets the technician safely to that current runtime.
 
-```text
-mapping\Examples\NorthwellPrinterBatch.example.csv
-```
+## Current-origin bootstrap behavior
 
-CSV columns:
+The standard bootstrap treats the caller's current directory as irrelevant. It uses a dedicated machine-local printer state/cache, fetches current `origin/main` without force, proves the configured required printer baseline is contained in that mainline, and launches a clean detached runtime for the exact current branch head.
 
-```text
-ComputerName,PrintServer,QueueName
-```
+It does not reset, clean, stash, or check out an arbitrary technician repository. Superseded bootstrap-owned runtimes may be retired only under the bootstrap's preservation rules, with printer evidence preserved first.
 
-Use semicolons inside a cell for multiple values. One row means:
+Explicit offline/local-only mode remains separate and does not claim current-origin freshness.
 
-> map every queue in this row to every computer in this row.
+## Evidence
 
-Synthetic example:
-
-```text
-PC001;PC002,PRINTSERVER01,QUEUE01;QUEUE02
-```
-
-Every `REPLACE-WITH-*` placeholder is blocked from execution.
-
-### Run the batch
-
-After saving the CSV, double-click:
-
-```text
-Map-NorthwellPrinters-Batch.cmd
-```
-
-The batch path deliberately has two gates before mutation:
-
-1. **local-only shape validation** of columns, semicolon lists, and placeholders;
-2. **Northwell network-authority validation** before any AD/DNS-backed queue resolution.
-
-The wrapper then writes and displays the complete resolved plan. For live execution the technician must type:
-
-```text
-MAP
-```
-
-Anything else cancels with no printer mapping. Advanced automation may supply `-ConfirmBatch` explicitly.
-
-Batch mode delegates every row to the same `mapping\Invoke-NorthwellPrinterMapping.ps1` engine used by quick mapping. It does not create a second mapping mechanism.
-
-## PowerShell paths
-
-Quick wrapper:
-
-```powershell
-.\mapping\Start-NorthwellPrinterMapping.ps1
-```
-
-Batch wrapper:
-
-```powershell
-.\mapping\Start-NorthwellPrinterBatch.ps1
-```
-
-Canonical engine:
-
-```powershell
-.\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer '\\PRINTSERVER01\QUEUE01'
-```
-
-Multiple PCs and queues:
-
-```powershell
-.\mapping\Invoke-NorthwellPrinterMapping.ps1 `
-  -ComputerName PC001,PC002,PC003 `
-  -Printer '\\PRINTSERVER01\QUEUE01','\\PRINTSERVER01\QUEUE02'
-```
-
-Queue-only input can be resolved through AD, or paired with `-PrintServer`.
-
-## What the canonical engine proves
-
-For each target the engine:
-
-1. validates hostname and shared-queue input;
-2. rejects direct-IP/URL printer targets;
-3. resolves queue-only input through AD or an explicit print server;
-4. resolves print-server DNS before endpoint mutation;
-5. verifies `C$` and remote Task Scheduler access;
-6. stages a run-scoped worker;
-7. runs the worker as **SYSTEM**;
-8. adds each queue with **PrintUIEntry `/ga`**;
-9. verifies requested queues under `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections`;
-10. copies endpoint evidence back before cleanup;
-11. fails the engine run if any target lacks SYSTEM identity or machine-wide registration proof.
-
-## Evidence precedence: do not repair a working mapping
-
-Proof order:
-
-1. **Real requested document printed after mapping** → runtime acceptance.
-2. **SYSTEM + HKLM queue proof** → machine-wide registration proof.
-3. **PortName / WorkOffline / CIM / RPC / SMB / remote `Get-Printer` telemetry** → diagnostic context.
-
-If a real requested document actually printed after the canonical mapping workflow, do not demand another test page or rebuild a working printer only to make lower-ranked telemetry look cleaner.
-
-Machine-readable authority:
-
-```text
-harness\api\northwell-printer-mapping-evidence-policy.json
-```
-
-## Evidence locations
-
-Quick runs:
+Quick evidence is written beneath the selected printer runtime's:
 
 ```text
 mapping\Logs\NorthwellPrinterMap-...
 ```
 
-Batch runs:
+and includes authoritative run artifacts such as:
 
 ```text
-mapping\Logs\NorthwellPrinterBatch-...
+ResolvedPlan.json
+Controller.log
+Summary.json
+UndoPlan.json
+<target>\Status.json
+<target>\Agent.log
+ActiveUserMaterialization.json
 ```
 
-Latest pointer:
+The active runtime also maintains `mapping\Logs\LATEST-PATH.txt`. Bootstrap state maintains the current runtime identity separately so evidence can survive runtime retirement.
+
+## Proof precedence
+
+Use evidence in this order:
+
+1. **Real requested document printed after mapping** → runtime acceptance for that observed case.
+2. **SYSTEM + HKLM queue proof** → machine-wide registration proof.
+3. **Port/CIM/RPC/SMB/remote printer telemetry** → diagnostic context.
+
+Do not demand another test page or rebuild a working printer merely to make lower-ranked telemetry look cleaner.
+
+Machine-readable evidence authority:
 
 ```text
-mapping\Logs\LATEST-PATH.txt
+harness\api\northwell-printer-mapping-evidence-policy.json
 ```
 
-Quick artifacts include `ResolvedPlan.json`, `Controller.log`, per-target `Status.json` / `Agent.log`, and `Summary.json`.
+## Field-proven checkpoint
 
-Batch artifacts add parent `BatchPlan.json`, parent `Summary.json`, and `Group-NNN` child engine evidence.
+On **August 20, 2026**, the current-main quick workflow was observed on an approved `DomainAuthenticated` wired Northwell path successfully producing:
 
-## Do not use these as substitutes
+- requested printer SYSTEM-wide HKLM registration proof; and
+- immediate active-user materialization proof.
 
-`Utilities\Map-Printer.ps1` uses the per-user `Add-Printer -ConnectionName` path and does not satisfy the Northwell multi-user requirement.
+That closes the mapping/materialization proof gap for this Northwell use case. It does **not** claim physical document output unless a real document is separately observed printing.
 
-Archived scripts under `mapping\Archive\` are historical/reference surfaces, not technician entrypoints.
+## Do not substitute these paths
 
-## Agent routing rule
+`Utilities\Map-Printer.ps1` is a per-user connection helper and does not satisfy the Northwell multi-user contract.
 
-When Northwell is the selected proven printer use case:
+Archived printer scripts under `mapping\Archive\` are historical/reference surfaces, not technician entrypoints.
 
-- if the operator may start outside a checkout, use `Bootstrap-SysAdminSuitePrinter.ps1` rather than assuming the current directory is a repository;
-- use `Map-NorthwellPrinter-SystemWide.cmd` for ad-hoc mapping;
-- use `Edit-NorthwellPrinter-Defaults.cmd` only to maintain a local approved default pair;
-- use `Edit-NorthwellPrinter-Batch.cmd` + `Map-NorthwellPrinters-Batch.cmd` for repeated/tabular assignments;
-- never invent a direct-IP or per-user fallback;
-- never transfer these Northwell commands to Health & Hospitals without a separately proven H&H use case.
+Never invent a direct-IP fallback, a per-user fallback, or an organization crossover when the registered use case does not authorize it.
