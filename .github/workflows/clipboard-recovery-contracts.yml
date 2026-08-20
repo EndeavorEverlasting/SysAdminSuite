@@ -1,0 +1,91 @@
+name: Clipboard recovery contracts
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'repair/**']
+    paths:
+      - 'Repair-Clipboard.cmd'
+      - 'START-HERE-CLIPBOARD-RECOVERY.md'
+      - 'scripts/Repair-SasClipboard.ps1'
+      - 'Config/operator-recipes.json'
+      - 'docs/OPERATOR_RECIPES.md'
+      - 'Tests/clipboard/Test-ClipboardRecoveryContracts.ps1'
+      - 'Tests/survey/test_operator_recipe_registry_contracts.py'
+      - '.github/workflows/clipboard-recovery-contracts.yml'
+  pull_request:
+    paths:
+      - 'Repair-Clipboard.cmd'
+      - 'START-HERE-CLIPBOARD-RECOVERY.md'
+      - 'scripts/Repair-SasClipboard.ps1'
+      - 'Config/operator-recipes.json'
+      - 'docs/OPERATOR_RECIPES.md'
+      - 'Tests/clipboard/Test-ClipboardRecoveryContracts.ps1'
+      - 'Tests/survey/test_operator_recipe_registry_contracts.py'
+      - '.github/workflows/clipboard-recovery-contracts.yml'
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Parse clipboard PowerShell with Windows PowerShell
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path -LiteralPath '.\scripts\Repair-SasClipboard.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            throw ($errors | ForEach-Object Message | Out-String)
+          }
+          Write-Host 'PASS: clipboard recovery engine parses in Windows PowerShell.'
+
+      - name: Run clipboard static contracts in Windows PowerShell
+        shell: powershell
+        run: >-
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File
+          .\Tests\clipboard\Test-ClipboardRecoveryContracts.ps1
+
+      - name: Run clipboard static contracts in PowerShell 7
+        shell: pwsh
+        run: >-
+          pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File
+          .\Tests\clipboard\Test-ClipboardRecoveryContracts.ps1
+
+      - name: Validate operator recipe registry
+        shell: pwsh
+        run: python .\Tests\survey\test_operator_recipe_registry_contracts.py
+
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            git fetch origin "${{ github.sha }}" --depth=2
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              git diff --check HEAD^ HEAD
+            else
+              git show --check --oneline --no-renames HEAD
+            fi
+          else
+            git fetch origin "$before" "${{ github.sha }}" --depth=1
+            git diff --check "$before" "${{ github.sha }}"
+          fi
