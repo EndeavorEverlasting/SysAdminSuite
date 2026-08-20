@@ -6,6 +6,8 @@ import json
 import subprocess
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / "harness/api/operator-execution-route-registry.json"
 SCHEMA = ROOT / "schemas/harness/operator-execution-route-registry.schema.json"
@@ -55,6 +57,20 @@ def one(items: list[dict], key: str, value: str) -> dict:
     return matches[0]
 
 
+def validate_schema(instance: dict, schema: dict, label: str) -> None:
+    Draft202012Validator.check_schema(schema)
+    errors = sorted(
+        Draft202012Validator(schema).iter_errors(instance),
+        key=lambda error: [str(part) for part in error.absolute_path],
+    )
+    if errors:
+        details = []
+        for error in errors:
+            location = "/".join(str(part) for part in error.absolute_path) or "<root>"
+            details.append(f"{location}: {error.message}")
+        raise AssertionError(f"{label} schema validation failed: {'; '.join(details)}")
+
+
 def test_components_exist_and_are_tracked() -> None:
     for path in COMPONENTS:
         assert path.is_file(), f"missing operator-execution component: {path.relative_to(ROOT)}"
@@ -68,6 +84,7 @@ def test_registry_and_schema() -> None:
     assert registry["repository"] == "EndeavorEverlasting/SysAdminSuite"
     assert schema["$schema"].endswith("draft/2020-12/schema")
     assert schema["properties"]["schema_version"]["const"] == registry["schema_version"]
+    validate_schema(registry, schema, "operator execution route registry")
 
     policy = registry["policy"]
     for key in (
@@ -93,25 +110,36 @@ def test_registry_and_schema() -> None:
     assert route["required_network"] == "PROTECTED_NORTHWELL"
     assert route["repository_freshness_dependency"] == "harness/workflows/repository-freshness-before-launch.yaml"
 
+    required_files = route["path_resolution"]["required_files"]
     for required in (
         "Run-AutoLogonCrashSafe.cmd",
         "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
         "scripts/Invoke-SasAutoLogonFieldDeployment.ps1",
     ):
-        assert required in route["path_resolution"]["required_files"]
+        assert required in required_files
         assert (ROOT / required).is_file(), f"registered required file missing: {required}"
 
     template = route["operator_command_template"]
+    assert "-Command '& {" in template, "route template must single-quote the child PowerShell payload"
+    assert '-Command "' not in template, "route template permits parent-shell PowerShell variable expansion"
     for marker in (
         "Get-Command sas",
         "sas repo",
         "repo-root.txt",
+        "$required=@(",
+        "foreach($relative in $required)",
+        "Required operator route file missing:",
         "Run-AutoLogonCrashSafe.cmd",
+        r"scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
+        r"scripts\Invoke-SasAutoLogonFieldDeployment.ps1",
         "Set-Location -LiteralPath $repo",
-        "& $launcher 'HOST'",
+        "& $launcher ''HOST''",
         "exit $LASTEXITCODE",
     ):
         assert marker in template, f"route-and-run template missing: {marker}"
+    for required in required_files:
+        windows_form = required.replace("/", "\\")
+        assert windows_form in template, f"route template does not prove registered dependency: {required}"
     assert "sas autologon Remote HOST" not in template, "operator template bypasses crash-safe front door"
 
 
@@ -247,9 +275,21 @@ def test_workflow_skill_map_and_report() -> None:
 
 
 def test_hooks_and_ci() -> None:
-    for path in (PRE_COMMIT, PRE_PUSH):
-        text = read(path)
-        assert "validate-operator-execution-route.py" in text, f"hook missing operator route validator: {path.name}"
+    pre_commit = read(PRE_COMMIT)
+    assert "validate-operator-execution-route.py" in pre_commit, "pre-commit missing operator route validator"
+
+    pre_push = read(PRE_PUSH)
+    for marker in (
+        "validate_pushed_tip",
+        'git worktree add --detach --quiet "$wt" "$commit"',
+        'git cat-file -e "$commit:harness/validators/validate-operator-execution-route.py"',
+        "python3 harness/validators/validate-operator-execution-route.py",
+    ):
+        assert marker in pre_push, f"pre-push pushed-tip route validation missing: {marker}"
+    pre_push_prefix = pre_push.split("validate_pushed_tip()", 1)[0]
+    assert "python3 harness/validators/validate-operator-execution-route.py" not in pre_push_prefix, (
+        "pre-push validates operator route from mutable working tree before pushed-tip isolation"
+    )
 
     ci = read(CI)
     for marker in (
@@ -257,6 +297,7 @@ def test_hooks_and_ci() -> None:
         "harness/api/operational-harness-manifest.json",
         "harness/api/harness-validator-registry.json",
         "schemas/harness/operational-harness-manifest.schema.json",
+        "fetch-depth: 0",
         "python harness/validators/validate-operator-execution-route.py",
         "python harness/validators/validate-harness-registries.py",
         "python Tests/survey/test_operational_harness_completeness_contracts.py",
