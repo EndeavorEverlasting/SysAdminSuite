@@ -10,7 +10,8 @@
     If the engine raises a lower-level controller/task error but its new run-scoped
     Status.json proves the requested machine-wide state, that proof wins and the
     technician sees PASS rather than a false failure. Stale evidence from an older
-    run can never rescue a fresh failure.
+    run can never rescue a fresh failure. Preview runs remain plan-only and early
+    input/DNS failures retain their original actionable message.
 #>
 
 [CmdletBinding()]
@@ -216,7 +217,7 @@ $invokeParameters = @{
 if (-not [string]::IsNullOrWhiteSpace($PrintServer)) { $invokeParameters.PrintServer = $PrintServer }
 if ($WhatIf) { $invokeParameters.WhatIf = $true }
 
-Write-Host ('Mapping {0} queue(s) on {1} target(s). No ping sweep. No test page.' -f @($Printer).Count, @($ComputerName).Count) -ForegroundColor Cyan
+Write-Host ('Mapping {0} queue(s) on {1} target(s). No reachability sweep. No test page.' -f @($Printer).Count, @($ComputerName).Count) -ForegroundColor Cyan
 
 $previousEvidenceRoot = Get-SasLatestPrinterEvidenceRoot
 $engineError = $null
@@ -230,15 +231,27 @@ catch {
 $evidenceRoot = Get-SasLatestPrinterEvidenceRoot
 $freshEvidence = -not [string]::IsNullOrWhiteSpace($evidenceRoot) -and
     ([string]::IsNullOrWhiteSpace($previousEvidenceRoot) -or -not $evidenceRoot.Equals($previousEvidenceRoot, [System.StringComparison]::OrdinalIgnoreCase))
-$authoritativeSuccess = $freshEvidence -and (Test-SasLatestAuthoritativePrinterProof -EvidenceRoot $evidenceRoot)
 
+if ($WhatIf) {
+    if ($null -ne $engineError) { throw $engineError.Exception.Message }
+    Write-Host ''
+    Write-Host 'PLAN: preview complete; no printer changes were made.' -ForegroundColor Green
+    if ($freshEvidence) { Write-Host ("Evidence: {0}" -f $evidenceRoot) -ForegroundColor DarkGray }
+    return
+}
+
+$authoritativeSuccess = $freshEvidence -and (Test-SasLatestAuthoritativePrinterProof -EvidenceRoot $evidenceRoot)
 if ($authoritativeSuccess) {
     Write-SasPrinterResult -Success $true -EvidenceRoot $evidenceRoot -RecoveredFromLowerLevelError:($null -ne $engineError)
     return
 }
 
+if ($null -ne $engineError -and -not $freshEvidence) {
+    throw $engineError.Exception.Message
+}
+
 Write-SasPrinterResult -Success $false -EvidenceRoot $(if ($freshEvidence) { $evidenceRoot } else { $null })
 if ($null -ne $engineError) {
-    throw 'Printer mapping did not produce fresh authoritative HKLM proof. Review the current run evidence if one was created.'
+    throw 'Printer mapping produced fresh evidence but did not prove the requested SYSTEM-wide HKLM state. Review the evidence path above.'
 }
 throw 'Printer mapping returned without fresh authoritative HKLM proof.'
