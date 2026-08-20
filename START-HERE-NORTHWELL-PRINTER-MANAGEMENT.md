@@ -61,6 +61,8 @@ Current-runtime/internal launcher:
 Map-NorthwellPrinter-SystemWide.cmd
 ```
 
+The current runtime launcher uses the operator wrapper, which preserves the resilient mapper and active-user finalizer while reporting explicit outcomes such as `MAPPED NOW`, `ALREADY MAPPED`, `NOT FOUND`, `FAILED`, `READY`, and `READY NEXT LOGON`.
+
 Advanced PowerShell:
 
 ```powershell
@@ -135,7 +137,7 @@ Before live mutation the complete resolved plan is displayed and requires explic
 
 ## Evidence and failure handling
 
-A normal printer state run can produce:
+A normal printer state run can produce authoritative runtime evidence such as:
 
 ```text
 ResolvedPlan.json
@@ -147,7 +149,16 @@ UndoPlan.json
 ActiveUserMaterialization.json
 ```
 
-Do not infer success merely because a CMD launched. Do not repeatedly remap after an ambiguous failure. Use the run evidence to determine whether the requested state changed and whether another action is safe.
+The quick operator wrapper also maintains a bounded per-user admin-box trail at:
+
+```text
+%LOCALAPPDATA%\SysAdminSuite\Cache\Printer\runs.v1.jsonl
+%LOCALAPPDATA%\SysAdminSuite\Cache\Printer\latest.v1.json
+```
+
+That trail is local-only, best-effort, and optional to share. It summarizes outcomes and points back to the authoritative evidence root; it does not replace the runtime proof and is never copied to targets.
+
+Do not infer success merely because a CMD launched. Do not repeatedly remap after an ambiguous failure. Use the explicit outcome plus run evidence to determine whether the requested state changed and whether another action is safe.
 
 ## Hard client boundaries
 
@@ -163,6 +174,6 @@ Do not infer success merely because a CMD launched. Do not repeatedly remap afte
 
 ## Proof checkpoint
 
-On August 20, 2026, the current-main quick mapping path was field-observed on an approved `DomainAuthenticated` wired connection producing both SYSTEM-wide HKLM registration proof and immediate active-user materialization proof.
+On August 20, 2026, SysAdminSuite commit `4c5f1252aae24269ac1e0ab28ef9366ea08fd33f` was field-observed through `sas printer` on an approved `DomainAuthenticated` wired connection producing both SYSTEM-wide HKLM registration proof and immediate active-user materialization proof.
 
-That validates the Northwell mapping/materialization path; physical document output remains separate runtime acceptance evidence.
+Subsequent mainline work added the operator outcome/journal layer while preserving the same underlying resilient mapping/finalization authority. Repository validation covers that composition; the newer one-click technician wrapper still requires its own post-refresh field acceptance before claiming that exact wrapper was observed live. Physical document output remains separate runtime acceptance evidence.
