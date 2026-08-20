@@ -103,7 +103,7 @@ Describe 'Northwell printer current-runtime bootstrap contract' {
         $text | Should -Match 'Remove-SasSupersededPrinterRuntimes'
         $text | Should -Match 'Test-SasPathInsideRoot'
         $text | Should -Match 'Move-SasPrinterRuntimeEvidence'
-        $text | Should -Match "Join-Path \$StateRoot 'evidence'"
+        $text | Should -Match 'Join-Path \$StateRoot ''evidence'''
         $text | Should -Match "worktree','remove','--force'"
         $text | Should -Match "worktree','prune'"
         $text | Should -Match 'Preserving superseded printer runtime because tracked printer files are modified'
