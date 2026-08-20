@@ -26,6 +26,8 @@ on:
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterLowNoiseAcceptance.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterTimeoutRegression.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterNetworkGuard.Tests.ps1'
       - '.github/workflows/northwell-printer-mapping-contracts.yml'
@@ -51,6 +53,8 @@ on:
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterLowNoiseAcceptance.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterTimeoutRegression.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterNetworkGuard.Tests.ps1'
       - '.github/workflows/northwell-printer-mapping-contracts.yml'
@@ -77,6 +81,8 @@ jobs:
             '.\scripts\Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1',
             '.\Utilities\Map-Printer.ps1',
             '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterLowNoiseAcceptance.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterTimeoutRegression.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterMappingCollisionRepair.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterNetworkGuard.Tests.ps1'
           )
@@ -131,6 +137,20 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File
           .\tools\Test-Pester5Suite.ps1
           -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+
+      - name: Run low-noise field acceptance contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterLowNoiseAcceptance.Tests.ps1
+
+      - name: Run printer timeout regression contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterTimeoutRegression.Tests.ps1
 
       - name: Run printer mapping evidence precedence contracts
         shell: pwsh
