@@ -225,7 +225,14 @@ $completedTargetsProperty = $summary.PSObject.Properties['CompletedTargets']
 $computersProperty = $summary.PSObject.Properties['Computers']
 $totalTargets = if ($null -ne $totalTargetsProperty) { [int]$totalTargetsProperty.Value } else { 0 }
 $completedTargets = if ($null -ne $completedTargetsProperty) { [int]$completedTargetsProperty.Value } else { 0 }
-$expectedComputers = if ($null -ne $computersProperty) { @(ConvertTo-SasStringArray -Value $computersProperty.Value | ForEach-Object { $_.Split('.')[0].ToLowerInvariant() } | Sort-Object -Unique) } else { @() }
+$expectedComputers = @()
+if ($null -ne $computersProperty) {
+    $expectedComputers = @(
+        ConvertTo-SasStringArray -Value $computersProperty.Value |
+            ForEach-Object { $_.Split('.')[0].ToLowerInvariant() } |
+            Sort-Object -Unique
+    )
+}
 $statusComputers = @($diagnostics.ToArray() | ForEach-Object { ([string]$_.computer).Split('.')[0].ToLowerInvariant() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
 $computerCoverageComplete = ($expectedComputers.Count -eq $totalTargets -and @($expectedComputers | Where-Object { $statusComputers -notcontains $_ }).Count -eq 0 -and @($statusComputers | Where-Object { $expectedComputers -notcontains $_ }).Count -eq 0)
 $evidenceSetComplete = ($summarySuccess -and $totalTargets -gt 0 -and $completedTargets -eq $totalTargets -and $statusFiles.Count -eq $totalTargets -and $computerCoverageComplete)
