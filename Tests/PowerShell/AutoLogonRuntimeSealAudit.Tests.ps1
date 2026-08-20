@@ -66,6 +66,7 @@ $runtime = Join-Path $tempRoot 'runtime'
 $state = Join-Path $tempRoot 'state'
 $manifestPath = Join-Path $state 'autologon-short-runtime.json'
 $failedReceipt = Join-Path $state 'failed-verification.json'
+$invalidCountReceipt = Join-Path $state 'invalid-count-verification.json'
 $passedReceipt = Join-Path $state 'passed-verification.json'
 
 try {
@@ -129,6 +130,26 @@ try {
         throw 'Failed seal audit did not make the pre-transaction stop boundary explicit.'
     }
 
+    $manifest.tracked_file_count = 'not-an-integer'
+    $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+    $invalidCountRun = Invoke-AuditChild -RuntimeRoot $runtime -ManifestPath $manifestPath -ReceiptPath $invalidCountReceipt
+    if ($invalidCountRun.exit_code -ne 10) {
+        throw "Expected malformed seal count exit 10, got $($invalidCountRun.exit_code). STDOUT=$($invalidCountRun.stdout) STDERR=$($invalidCountRun.stderr)"
+    }
+    if (-not (Test-Path -LiteralPath $invalidCountReceipt -PathType Leaf)) {
+        throw 'Malformed seal count did not write its durable receipt.'
+    }
+    $invalidCount = Get-Content -LiteralPath $invalidCountReceipt -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string]$invalidCount.status -ne 'FAILED' -or [string]$invalidCount.classification -ne 'AUTOLOGON_RUNTIME_NOT_PREPARED' -or
+        [int]$invalidCount.issue_count -ne 1 -or [string]$invalidCount.issues[0].reason -ne 'SEAL_COUNT_INVALID') {
+        throw 'Malformed seal count was not converted into a durable structural verification issue.'
+    }
+    if ([bool]$invalidCount.crash_safe_run_started -or [bool]$invalidCount.target_contact_performed -or
+        [bool]$invalidCount.target_mutation_performed -or [bool]$invalidCount.network_activity_performed) {
+        throw 'Malformed seal count violated the pre-transaction evidence contract.'
+    }
+
+    $manifest.tracked_file_count = 2
     $manifest.tracked_file_hashes[0].sha256 = Get-TestSha256Hex -LiteralPath $firstPath
     $manifest.tracked_file_hashes[1].sha256 = Get-TestSha256Hex -LiteralPath $secondPath
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
@@ -147,4 +168,4 @@ finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host 'PASS: AutoLogon runtime seal audit aggregates all drift and remains pre-transaction under Windows PowerShell 5.1.'
+Write-Host 'PASS: AutoLogon runtime seal audit aggregates drift, receipts malformed counts, and remains pre-transaction under Windows PowerShell 5.1.'
