@@ -201,6 +201,22 @@ function Write-SasPrinterResult {
     if (-not [string]::IsNullOrWhiteSpace($EvidenceRoot)) { Write-Host ("Evidence: {0}" -f $EvidenceRoot) -ForegroundColor DarkGray }
 }
 
+function Write-SasPrinterFailureDiagnostic {
+    param([AllowNull()][string]$EvidenceRoot)
+    if ([string]::IsNullOrWhiteSpace($EvidenceRoot)) { return }
+    $diagnostic = Join-Path $PSScriptRoot 'Diagnose-NorthwellPrinterEvidence.ps1'
+    if (-not (Test-Path -LiteralPath $diagnostic -PathType Leaf)) {
+        Write-Warning "Fresh printer evidence exists but the read-only diagnostic is missing: $diagnostic"
+        return
+    }
+    try {
+        & $diagnostic -EvidenceRoot $EvidenceRoot
+    }
+    catch {
+        Write-Warning "Fresh printer evidence could not be summarized automatically: $($_.Exception.Message)"
+    }
+}
+
 if (-not $ComputerName -or $ComputerName.Count -eq 0) {
     Write-Host "Northwell system-wide printer $Action" -ForegroundColor Cyan
     Write-Host 'This controller may use WAB, hardwire, or authenticated VPN.' -ForegroundColor DarkGray
@@ -262,7 +278,8 @@ $invokeParameters = @{ ComputerName=$ComputerName; Printer=$Printer; DesiredStat
 if (-not [string]::IsNullOrWhiteSpace($PrintServer)) { $invokeParameters.PrintServer = $PrintServer }
 if ($WhatIf) { $invokeParameters.WhatIf = $true }
 
-Write-Host ("{0}ing {1} queue(s) on {2} target(s). SYSTEM-WIDE for all users. No reachability sweep. No test page." -f $Action,@($Printer).Count,@($ComputerName).Count) -ForegroundColor Cyan
+$actionVerb = if ($Action -eq 'Map') { 'Mapping' } else { 'Unmapping' }
+Write-Host ("{0} {1} queue(s) on {2} target(s). SYSTEM-WIDE for all users. No reachability sweep. No test page." -f $actionVerb,@($Printer).Count,@($ComputerName).Count) -ForegroundColor Cyan
 $previousEvidenceRoot = Get-SasLatestPrinterEvidenceRoot
 $engineError = $null
 try { $null = @(& $engine @invokeParameters *>&1) }
@@ -285,5 +302,6 @@ if ($authoritativeSuccess) {
 }
 if ($null -ne $engineError -and -not $freshEvidence) { throw $engineError.Exception.Message }
 Write-SasPrinterResult -Success $false -Action $Action -EvidenceRoot $(if ($freshEvidence) { $evidenceRoot } else { $null })
-if ($null -ne $engineError) { throw 'Printer management produced fresh evidence but did not prove the requested SYSTEM-wide HKLM state. Review the evidence path above.' }
+if ($freshEvidence) { Write-SasPrinterFailureDiagnostic -EvidenceRoot $evidenceRoot }
+if ($null -ne $engineError) { throw $engineError.Exception.Message }
 throw 'Printer management returned without fresh authoritative HKLM proof.'
