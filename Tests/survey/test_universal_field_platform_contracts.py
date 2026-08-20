@@ -33,6 +33,10 @@ def main() -> None:
     ):
         assert marker in platform, marker
 
+    # Resolve-SasControllerRoot intentionally starts with an empty List[string]. PowerShell 5.1 must
+    # be allowed to bind that accumulator before the first runtime/repo candidate is considered.
+    assert "[AllowEmptyCollection()][System.Collections.Generic.List[string]]$List" in platform
+
     # Controller authority is machine-local and must fail closed when locality cannot be proven.
     assert "Path -match '^(?:\\\\\\\\|//)'" in platform
     assert "return ($driveType -eq 3)" in platform
