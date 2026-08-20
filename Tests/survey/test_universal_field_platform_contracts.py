@@ -59,8 +59,6 @@ def main() -> None:
         assert marker in launcher, marker
     assert '$args = @(' not in launcher
 
-    # Printer mapping is an operator feature, never a checkout/path ritual. The installed sibling
-    # bootstrap owns runtime discovery and must require the active-user materialization floor.
     printer_block = launcher.split("    'printer' {", 1)[1].split("\n    'clipboard' {", 1)[0]
     assert 'Resolve-SasInstalledPrinterBootstrap' in printer_block
     assert 'Map-NorthwellPrinter-SystemWide.cmd' not in printer_block
@@ -92,13 +90,15 @@ def main() -> None:
 
     assert 'Bootstrap-SysAdminSuiteAutoLogon.ps1' in autologon_bootstrap_cmd
     assert '-ConfirmVpnPosture' in autologon_bootstrap_cmd
+    assert 'sas-autologon-short-runtime/v2' in autologon_bootstrap_ps1
+    assert 'function Get-SasSha256Hex' in autologon_bootstrap_ps1
+    assert '[Security.Cryptography.SHA256]::Create()' in autologon_bootstrap_ps1
+    assert 'Get-FileHash' not in autologon_bootstrap_ps1
     assert 'Invoke-SasAutoLogonCrashSafeFieldRun.ps1' in autologon_bootstrap_ps1
     assert 'PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION' in autologon_bootstrap_ps1
-    assert '-ComputerName $ComputerName -RepositoryRoot $RuntimeRoot -ConfirmDeployment' in autologon_bootstrap_ps1
+    assert '-RepositoryRoot $RuntimeRoot -RepositoryHead $preparedCommit -ConfirmDeployment' in autologon_bootstrap_ps1
     assert 'last-autologon-field-run.json' in autologon_bootstrap_ps1
 
-    # Bootstrap reuse is printer-scoped: unrelated field work does not create another SysAdminSuite
-    # runtime, but every current printer dependency—including active-user finalization—fails closed.
     assert "[string]$RequiredCommit = '66d38dd45881692303f77267e29e4fa44b4a9351'" in printer_bootstrap
     assert "[ValidateSet('Quick','File')][string]$Mode = 'Quick'" in printer_bootstrap
     for marker in (
