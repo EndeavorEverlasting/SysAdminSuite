@@ -22,7 +22,7 @@ $env:SAS_RUNTIME_ROOT = $runtimeRoot
 [void](Save-SasControllerRootCache -Root $controllerRoot)
 
 $normalized = if ([string]::IsNullOrWhiteSpace($Command)) { '' } else { $Command.Trim().ToLowerInvariant() }
-$args = @($CommandArgs | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+$actualArgs = @($CommandArgs | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
 
 function Write-SasUniversalContext {
     $authority = Get-SasProtectedNetworkAuthority -RepoRoot $controllerRoot
@@ -53,7 +53,7 @@ function Assert-SasProtectedForAction {
 function Invoke-SasLegacyDispatcher {
     $dispatcher = Join-Path $controllerRoot 'scripts\SasPortableLauncher.ps1'
     if (-not (Test-Path -LiteralPath $dispatcher -PathType Leaf)) { throw "Missing existing SysAdminSuite dispatcher: $dispatcher" }
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $dispatcher $Command @args
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $dispatcher $Command @actualArgs
     exit $LASTEXITCODE
 }
 
@@ -68,7 +68,7 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
 
 switch ($normalized) {
     'network' {
-        if ($args.Count -gt 1) { Write-Host 'Usage: sas network [HOST]' -ForegroundColor Red; exit 2 }
+        if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas network [HOST]' -ForegroundColor Red; exit 2 }
         Write-SasUniversalContext
         $gate = Join-Path $runtimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
         if (-not (Test-Path -LiteralPath $gate -PathType Leaf)) { $gate = Join-Path $controllerRoot 'scripts\Confirm-SasNorthwellNetwork.ps1' }
@@ -77,7 +77,7 @@ switch ($normalized) {
     }
 
     'printer' {
-        if ($args.Count -ne 0) { Write-Host 'Usage: sas printer' -ForegroundColor Red; exit 2 }
+        if ($actualArgs.Count -ne 0) { Write-Host 'Usage: sas printer' -ForegroundColor Red; exit 2 }
         [void](Assert-SasProtectedForAction -Purpose 'Northwell system-wide printer mapping')
         $printerLauncher = Join-Path $controllerRoot 'Map-NorthwellPrinter-SystemWide.cmd'
         if (-not (Test-Path -LiteralPath $printerLauncher -PathType Leaf)) {
@@ -88,9 +88,9 @@ switch ($normalized) {
     }
 
     'autologon' {
-        if ($args.Count -eq 2) {
-            $mode = ([string]$args[0]).Trim().ToLowerInvariant()
-            $target = ([string]$args[1]).Trim()
+        if ($actualArgs.Count -eq 2) {
+            $mode = ([string]$actualArgs[0]).Trim().ToLowerInvariant()
+            $target = ([string]$actualArgs[1]).Trim()
             if ($mode -in @('remote','recover')) {
                 [void](Assert-SasProtectedForAction -Purpose "AutoLogon $mode for $target")
                 $launcher = Join-Path $runtimeRoot 'Run-AutoLogonOnsite.cmd'
@@ -106,10 +106,10 @@ switch ($normalized) {
     }
 
     'cybernet' {
-        if ($args.Count -gt 0) {
-            $mode = ([string]$args[0]).Trim().ToLowerInvariant()
+        if ($actualArgs.Count -gt 0) {
+            $mode = ([string]$actualArgs[0]).Trim().ToLowerInvariant()
             if ($mode -in @('probe','deploy','core','profiled-core','recover')) {
-                $targetLabel = if ($args.Count -gt 1) { [string]$args[1] } else { '<target>' }
+                $targetLabel = if ($actualArgs.Count -gt 1) { [string]$actualArgs[1] } else { '<target>' }
                 [void](Assert-SasProtectedForAction -Purpose "Cybernet $mode for $targetLabel")
             }
         }
