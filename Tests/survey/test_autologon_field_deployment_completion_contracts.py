@@ -169,6 +169,8 @@ def test_runbook_is_sanitized_and_preserves_field_contract() -> None:
         "authorized-host.example.net",
         "NSLIJHS-WAB",
         "S4U_PROBE_CREATE_HANG_RECOVERED",
+        "S4U_PROBE_CREATE_TIMEOUT",
+        "only the exact safe terminal Probe-create timeout shape",
         "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
         "host_eligibility_proven = true",
         "do not manually reboot",
