@@ -450,18 +450,12 @@ foreach ($computer in $resolvedComputers) {
         [pscustomobject][ordered]@{
             Name = 'ADMIN$'
             AdminRoot = "\\$computer\ADMIN$"
-            AdminRelative = "Temp\$remoteSubPath"
-            LocalRoot = '%SystemRoot%\Temp'
+            AdminRelative = "System32\config\systemprofile\AppData\Local\$remoteSubPath"
+            LocalRoot = '%SystemRoot%\System32\config\systemprofile\AppData\Local'
         }
     )
-    $staging = $null
-    foreach ($candidate in $stagingCandidates) {
-        if (Test-Path -LiteralPath $candidate.AdminRoot) {
-            $staging = $candidate
-            break
-        }
-    }
 
+    $staging = $null
     $remoteAdminDir = $null
     $remoteAgentAdmin = $null
     $remoteConfigAdmin = $null
@@ -473,24 +467,6 @@ foreach ($computer in $resolvedComputers) {
     $remoteWorkLocal = $null
     $remoteLauncherLocal = $null
     $remoteTaskAction = $null
-    if ($null -ne $staging) {
-        $remoteAdminDir = Join-Path $staging.AdminRoot $staging.AdminRelative
-        $remoteAgentAdmin = Join-Path $remoteAdminDir 'Agent.ps1'
-        $remoteConfigAdmin = Join-Path $remoteAdminDir 'Config.json'
-        $remoteLauncherAdmin = Join-Path $remoteAdminDir 'Start-Agent.cmd'
-        $remoteStatusAdmin = Join-Path $remoteAdminDir 'Status.json'
-        $remoteLogAdmin = Join-Path $remoteAdminDir 'Agent.log'
-        $remoteWorkLocal = Join-Path $staging.LocalRoot $remoteSubPath
-        $remoteAgentLocal = Join-Path $remoteWorkLocal 'Agent.ps1'
-        $remoteConfigLocal = Join-Path $remoteWorkLocal 'Config.json'
-        $remoteLauncherLocal = Join-Path $remoteWorkLocal 'Start-Agent.cmd'
-        $remoteTaskAction = if ($staging.Name -eq 'ADMIN$') {
-            'cmd.exe /d /s /c ""{0}""' -f $remoteLauncherLocal
-        }
-        else {
-            $remoteLauncherLocal
-        }
-    }
     $taskName = "SysAdminSuite_NorthwellPrinterState_$runToken"
     $taskCreated = $false
 
@@ -502,16 +478,31 @@ foreach ($computer in $resolvedComputers) {
         DesiredState = $DesiredState
         ChangedPrinters = @()
         AlreadyDesiredPrinters = @()
-        StagingShare = if ($null -ne $staging) { [string]$staging.Name } else { $null }
+        StagingShare = $null
         Evidence = $localHostDir
     }
 
     try {
-        Write-ControllerLog "[$computer] Preflight administrative staging share and Task Scheduler."
-        if ($null -eq $staging) {
-            throw "Admin share unavailable: neither \\$computer\C$ nor \\$computer\ADMIN$ is accessible. Confirm an approved Northwell WAB, hardwire, or authenticated VPN route, DNS, credentials, firewall, and admin rights."
+        Write-ControllerLog "[$computer] Preflight administrative staging shares and Task Scheduler."
+        $rootCandidates = New-Object System.Collections.Generic.List[object]
+        $probeErrors = New-Object System.Collections.Generic.List[string]
+        foreach ($candidate in $stagingCandidates) {
+            try {
+                if (Test-Path -LiteralPath $candidate.AdminRoot -PathType Container -ErrorAction Stop) {
+                    $rootCandidates.Add($candidate)
+                }
+                else {
+                    $probeErrors.Add("$($candidate.Name): share root unavailable")
+                }
+            }
+            catch {
+                $probeErrors.Add("$($candidate.Name): $($_.Exception.Message)")
+            }
         }
-        Write-ControllerLog "[$computer] Staging share selected: $($staging.Name)."
+        if ($rootCandidates.Count -eq 0) {
+            throw "Admin share unavailable: neither \\$computer\C$ nor \\$computer\ADMIN$ is accessible. $($probeErrors -join ' | ')"
+        }
+
         Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Query' -Arguments @('/Query','/S',$computer,'/FO','LIST')
 
         if (-not $PSCmdlet.ShouldProcess($computer, "$operation $($resolvedPrinters.Count) shared printer queue(s) machine-wide as SYSTEM")) {
@@ -520,16 +511,70 @@ foreach ($computer in $resolvedComputers) {
             continue
         }
 
-        New-Item -ItemType Directory -Path $remoteAdminDir -Force | Out-Null
-        Set-Content -LiteralPath $remoteAgentAdmin -Value $agentCode -Encoding UTF8
-        [ordered]@{ Printers = $resolvedPrinters; DesiredState = $DesiredState } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $remoteConfigAdmin -Encoding UTF8
+        foreach ($candidate in $rootCandidates.ToArray()) {
+            $candidateDir = Join-Path $candidate.AdminRoot $candidate.AdminRelative
+            $probePath = Join-Path $candidateDir ('.sas-staging-probe-' + [guid]::NewGuid().ToString('N') + '.txt')
+            try {
+                New-Item -ItemType Directory -Path $candidateDir -Force -ErrorAction Stop | Out-Null
+                'SAS_STAGING_PROBE' | Set-Content -LiteralPath $probePath -Encoding ASCII -ErrorAction Stop
+                $probeValue = [string](Get-Content -LiteralPath $probePath -Raw -ErrorAction Stop)
+                if ($probeValue.Trim() -ne 'SAS_STAGING_PROBE') { throw 'staging write/read verification mismatch' }
+
+                $staging = $candidate
+                $remoteAdminDir = $candidateDir
+                $remoteAgentAdmin = Join-Path $remoteAdminDir 'Agent.ps1'
+                $remoteConfigAdmin = Join-Path $remoteAdminDir 'Config.json'
+                $remoteLauncherAdmin = Join-Path $remoteAdminDir 'Start-Agent.cmd'
+                $remoteStatusAdmin = Join-Path $remoteAdminDir 'Status.json'
+                $remoteLogAdmin = Join-Path $remoteAdminDir 'Agent.log'
+                $remoteWorkLocal = Join-Path $staging.LocalRoot $remoteSubPath
+                $remoteAgentLocal = Join-Path $remoteWorkLocal 'Agent.ps1'
+                $remoteConfigLocal = Join-Path $remoteWorkLocal 'Config.json'
+                $remoteLauncherLocal = Join-Path $remoteWorkLocal 'Start-Agent.cmd'
+                $remoteTaskAction = if ($staging.Name -eq 'ADMIN$') {
+                    'cmd.exe /d /s /c ""{0}""' -f $remoteLauncherLocal
+                }
+                else {
+                    $remoteLauncherLocal
+                }
+                $hostResult.StagingShare = [string]$staging.Name
+                Write-ControllerLog "[$computer] Staging share selected after write/read proof: $($staging.Name)."
+                break
+            }
+            catch {
+                $probeErrors.Add("$($candidate.Name) staging: $($_.Exception.Message)")
+                Write-ControllerLog "[$computer] WARN staging candidate $($candidate.Name) rejected: $($_.Exception.Message)"
+            }
+            finally {
+                try {
+                    if (Test-Path -LiteralPath $probePath -PathType Leaf -ErrorAction SilentlyContinue) {
+                        Remove-Item -LiteralPath $probePath -Force -ErrorAction Stop
+                    }
+                }
+                catch { Write-ControllerLog "[$computer] WARN staging probe cleanup on $($candidate.Name): $($_.Exception.Message)" }
+                if ($null -eq $staging -or $staging.Name -ne $candidate.Name) {
+                    try {
+                        if (Test-Path -LiteralPath $candidateDir -PathType Container -ErrorAction SilentlyContinue) {
+                            Remove-Item -LiteralPath $candidateDir -Force -ErrorAction Stop
+                        }
+                    }
+                    catch { Write-ControllerLog "[$computer] WARN empty rejected staging directory preserved on $($candidate.Name): $($_.Exception.Message)" }
+                }
+            }
+        }
+        if ($null -eq $staging) {
+            throw "Admin share unavailable for staging: C$ and ADMIN$ were reachable but neither accepted a verified create/write/read/delete staging probe. $($probeErrors -join ' | ')"
+        }
+
+        Set-Content -LiteralPath $remoteAgentAdmin -Value $agentCode -Encoding UTF8 -ErrorAction Stop
+        [ordered]@{ Printers = $resolvedPrinters; DesiredState = $DesiredState } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $remoteConfigAdmin -Encoding UTF8 -ErrorAction Stop
 
         $launcher = @(
             '@echo off',
             ('"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "{0}" -ConfigPath "{1}" -WorkDir "{2}"' -f $remoteAgentLocal,$remoteConfigLocal,$remoteWorkLocal),
             'exit /b %ERRORLEVEL%'
         ) -join [Environment]::NewLine
-        Set-Content -LiteralPath $remoteLauncherAdmin -Value $launcher -Encoding ASCII
+        Set-Content -LiteralPath $remoteLauncherAdmin -Value $launcher -Encoding ASCII -ErrorAction Stop
 
         $createArguments = New-SasNorthwellPrinterTaskCreateArguments -Computer $computer -TaskName $taskName -RemoteLauncherLocal $remoteTaskAction
         Invoke-RemoteTaskScheduler -Computer $computer -Stage 'Create' -Arguments $createArguments
