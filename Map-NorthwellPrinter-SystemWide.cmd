@@ -8,7 +8,7 @@ set "SAS_PRINTER_RUNTIME=%~dp0"
 rem Northwell quick mapper.
 rem SYSTEM-WIDE for ALL users. NO TEST PAGE. Reversible changes produce UndoPlan.json.
 rem The operator wrapper preserves the already-green resilient mapper and active-user finalizer.
-rem Invoke-NorthwellPrinterResilientQuick.ps1 delegates to Start-NorthwellPrinterMapping.ps1 first.
+rem Canonical Map chain remains relative-path only: Invoke-NorthwellPrinterOperatorRun.ps1 -Action Map -> Invoke-NorthwellPrinterResilientQuick.ps1 -> Start-NorthwellPrinterMapping.ps1 -Action Map.
 rem Durable run history is written only to the invoking user's LOCALAPPDATA on this admin box.
 rem Target-side transport artifacts remain transient and are cleaned by the owning mapper.
 rem No reachability sweep. No direct-IP fallback. No blind remap after ambiguous failure.
