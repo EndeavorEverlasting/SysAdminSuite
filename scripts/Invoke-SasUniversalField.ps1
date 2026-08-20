@@ -104,7 +104,7 @@ switch ($normalized) {
         Write-SasUniversalContext
         $gate = Join-Path $runtimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
         if (-not (Test-Path -LiteralPath $gate -PathType Leaf)) { $gate = Join-Path $controllerRoot 'scripts\Confirm-SasNorthwellNetwork.ps1' }
-        & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $gate -Purpose 'manual SysAdminSuite operator check' -NonInteractive
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $gate -Purpose 'manual SysAdminSuite operator check' -NonInteractive
         exit $LASTEXITCODE
     }
 
