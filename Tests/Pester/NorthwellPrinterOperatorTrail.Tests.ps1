@@ -89,14 +89,32 @@ Describe 'Northwell printer local operator trail and outcome UX' {
         $text = Get-Content -LiteralPath $script:operatorRunner -Raw
         $journalIndex = $text.IndexOf("-Event 'RUN_STARTED'")
         $mapperIndex = $text.IndexOf('& $mapper -Action $Action')
-        $finalizerIndex = $text.IndexOf('& $finalizer')
+        $finalizerIndex = $text.IndexOf('-File $finalizer -EvidenceRoot $evidenceRoot')
+        $completedIndex = $text.IndexOf("-Event 'RUN_COMPLETED'")
         $journalIndex | Should -BeGreaterThan -1
         $mapperIndex | Should -BeGreaterThan $journalIndex
         $finalizerIndex | Should -BeGreaterThan $mapperIndex
+        $completedIndex | Should -BeGreaterThan $finalizerIndex
         $text | Should -Match 'ALREADY MAPPED:'
         $text | Should -Match 'MAPPED NOW:'
         $text | Should -Match 'NOT FOUND:'
         $text | Should -Match 'RESULT: READY'
+    }
+
+    It 'runs the process-exiting resilient finalizer as a child and binds it to this exact evidence root' {
+        $text = Get-Content -LiteralPath $script:operatorRunner -Raw
+        $text | Should -Match 'WindowsPowerShell\\v1\.0\\powershell\.exe'
+        $text | Should -Match '& \$powerShell51 .* -File \$finalizer -EvidenceRoot \$evidenceRoot'
+        $text | Should -Match '\$finalizerExitCode = \[int\]\$LASTEXITCODE'
+        $text | Should -Match "-Event 'RUN_COMPLETED'"
+        $text | Should -Not -Match '(?m)^\s*& \$finalizer\s*$'
+    }
+
+    It 'recognizes aggregate pending-next-logon evidence instead of claiming immediate readiness' {
+        $text = Get-Content -LiteralPath $script:operatorRunner -Raw
+        $text | Should -Match "PSObject\.Properties\['PendingNextLogonTargets'\]"
+        $text | Should -Match '\[int\]\$active\.PendingNextLogonTargets -gt 0'
+        $text | Should -Match 'READY NEXT LOGON'
     }
 
     It 'keeps durable operator journaling local-only and does not add target probes or printer mutation primitives' {
