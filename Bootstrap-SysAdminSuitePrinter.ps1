@@ -8,7 +8,9 @@ The normal path is remote-authoritative: the bootstrap uses one dedicated machin
 
 The caller's current directory and dirty operator checkout are not repository authority. No arbitrary checkout is reset, cleaned, checked out, stashed, or committed. Unrelated local work therefore cannot block printer mapping and cannot be silently overwritten.
 
--UseLocalRuntimeOnly is an explicit offline/fixture escape hatch. It does not claim current-origin proof and is not used by `sas printer`.
+Superseded clean bootstrap-owned runtimes are retired after their mapping evidence is moved into the shared printer state root. Dirty or otherwise suspicious bootstrap-owned runtimes are preserved and reported instead of being destructively cleaned. The exact current runtime path never falls back to GUID-suffixed duplicates.
+
+-UseLocalRuntimeOnly is an explicit offline/fixture escape hatch. It does not claim current-origin proof and is used only when the launcher/operator explicitly requests offline mode.
 #>
 [CmdletBinding()]
 param(
@@ -32,6 +34,7 @@ $requiredRuntimePaths = @(
     'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
     'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
     'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1',
+    'scripts\SasNorthwellNetworkAuthority.psm1',
     'scripts\SasTargetNameResolution.psm1',
     'scripts\SasNetworkGuard.psm1',
     'scripts\SasInteractionCache.psm1',
@@ -251,6 +254,84 @@ function Resolve-SasPrinterStateRoot {
     return [IO.Path]::GetFullPath($fallback)
 }
 
+function Test-SasPathInsideRoot {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Root
+    )
+    $fullPath = ([IO.Path]::GetFullPath($Path)).TrimEnd('\')
+    $fullRoot = ([IO.Path]::GetFullPath($Root)).TrimEnd('\')
+    return $fullPath.StartsWith($fullRoot + '\',[System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Move-SasPrinterRuntimeEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$RuntimeRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot
+    )
+    $source = Join-Path $RuntimeRoot 'mapping\Logs'
+    if (-not (Test-Path -LiteralPath $source -PathType Container)) { return $null }
+    $items = @(Get-ChildItem -LiteralPath $source -Force -ErrorAction SilentlyContinue)
+    if ($items.Count -eq 0) { return $null }
+
+    $evidenceRoot = Join-Path $StateRoot 'evidence'
+    New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
+    $runtimeName = Split-Path -Leaf $RuntimeRoot
+    $destination = Join-Path $evidenceRoot ("{0}-{1}" -f $runtimeName,(Get-Date -Format 'yyyyMMdd-HHmmssfff'))
+    Move-Item -LiteralPath $source -Destination $destination -ErrorAction Stop
+    return $destination
+}
+
+function Remove-SasSupersededPrinterRuntime {
+    param(
+        [Parameter(Mandatory = $true)][string]$RuntimeRoot,
+        [Parameter(Mandatory = $true)][string]$RuntimeParent,
+        [Parameter(Mandatory = $true)][string]$CacheRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot
+    )
+    if (-not (Test-SasPathInsideRoot -Path $RuntimeRoot -Root $RuntimeParent)) {
+        Write-Warning "Refusing to retire printer runtime outside bootstrap-owned root: $RuntimeRoot"
+        return $false
+    }
+    if (-not (Test-SasTrackedRuntimeClean -Root $RuntimeRoot)) {
+        Write-Warning "Preserving superseded printer runtime because tracked printer files are modified: $RuntimeRoot"
+        return $false
+    }
+
+    $archive = $null
+    try { $archive = Move-SasPrinterRuntimeEvidence -RuntimeRoot $RuntimeRoot -StateRoot $StateRoot }
+    catch {
+        Write-Warning "Preserving superseded printer runtime because evidence could not be archived: $RuntimeRoot :: $($_.Exception.Message)"
+        return $false
+    }
+
+    $remove = Invoke-SasGit -Root $CacheRoot -Arguments @('worktree','remove','--force',$RuntimeRoot) -FailureMessage "Could not retire superseded bootstrap-owned printer runtime: $RuntimeRoot" -AllowFailure
+    if ($remove.ExitCode -ne 0) {
+        Write-Warning "Could not retire superseded printer runtime; it remains preserved: $RuntimeRoot :: $($remove.Text)"
+        return $false
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$archive)) { Write-Host "Preserved superseded printer evidence: $archive" -ForegroundColor DarkGray }
+    Write-Host "Retired superseded printer runtime: $RuntimeRoot" -ForegroundColor DarkGray
+    return $true
+}
+
+function Remove-SasSupersededPrinterRuntimes {
+    param(
+        [Parameter(Mandatory = $true)][string]$CurrentRuntime,
+        [Parameter(Mandatory = $true)][string]$RuntimeParent,
+        [Parameter(Mandatory = $true)][string]$CacheRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot
+    )
+    if (-not (Test-Path -LiteralPath $RuntimeParent -PathType Container)) { return }
+    $currentFull = [IO.Path]::GetFullPath($CurrentRuntime)
+    foreach ($directory in @(Get-ChildItem -LiteralPath $RuntimeParent -Directory -Force -ErrorAction SilentlyContinue)) {
+        $candidate = [IO.Path]::GetFullPath($directory.FullName)
+        if ($candidate.Equals($currentFull,[System.StringComparison]::OrdinalIgnoreCase)) { continue }
+        [void](Remove-SasSupersededPrinterRuntime -RuntimeRoot $candidate -RuntimeParent $RuntimeParent -CacheRoot $CacheRoot -StateRoot $StateRoot)
+    }
+    [void](Invoke-SasGit -Root $CacheRoot -Arguments @('worktree','prune') -FailureMessage 'Could not prune stale bootstrap-owned printer worktree metadata.' -AllowFailure)
+}
+
 $RequiredCommit = $RequiredCommit.Trim()
 if ([string]::IsNullOrWhiteSpace($RequiredCommit)) { throw 'RequiredCommit cannot be blank.' }
 $stateRoot = Resolve-SasPrinterStateRoot
@@ -297,7 +378,7 @@ else {
         }
 
         Write-Host "Fetching current origin/$Branch for printer runtime authority..." -ForegroundColor Cyan
-        Invoke-SasGit -Root $CacheRoot -Arguments @('fetch','--no-tags','--prune','origin',("refs/heads/{0}:refs/remotes/origin/{0}" -f $Branch)) -FailureMessage "Could not fetch current origin/$Branch. Stale local printer code will not be launched." | Out-Null
+        Invoke-SasGit -Root $CacheRoot -Arguments @('fetch','--no-tags','--prune','origin',("refs/heads/{0}:refs/remotes/origin/{0}" -f $Branch)) -FailureMessage "Could not fetch current origin/$Branch. Stale local printer code will not be launched. If GitHub is intentionally unavailable on the protected path, use 'sas printer offline'." | Out-Null
         $remoteRef = "refs/remotes/origin/$Branch"
         $remoteHead = Get-SasGitScalar -Root $CacheRoot -Arguments @('rev-parse',$remoteRef) -FailureMessage "Could not resolve current origin/$Branch."
 
@@ -313,10 +394,10 @@ else {
         if (Test-Path -LiteralPath $runtimeRoot) {
             $existingHead = Get-SasRuntimeHead -Root $runtimeRoot
             if ($existingHead -ne $remoteHead -or -not (Test-SasTrackedRuntimeClean -Root $runtimeRoot) -or -not (Test-SasPrinterRuntimeRoot -Root $runtimeRoot)) {
-                $runtimeRoot = Join-Path $runtimeParent ($remoteHead + '-' + [guid]::NewGuid().ToString('N'))
+                throw "Exact current printer runtime path exists but is invalid or modified. It was preserved and no duplicate runtime was created: $runtimeRoot"
             }
         }
-        if (-not (Test-Path -LiteralPath $runtimeRoot)) {
+        else {
             Invoke-SasGit -Root $CacheRoot -Arguments @('worktree','add','--detach',$runtimeRoot,$remoteHead) -FailureMessage 'Could not create the exact current printer runtime.' | Out-Null
         }
         if (-not (Test-SasPrinterRuntimeRoot -Root $runtimeRoot)) { throw "Current branch runtime is incomplete for canonical printer mapping: $runtimeRoot" }
@@ -324,6 +405,7 @@ else {
         $runtimeHead = Get-SasRuntimeHead -Root $runtimeRoot
         if ($runtimeHead -ne $remoteHead) { throw "Printer runtime HEAD mismatch. Expected current origin/$Branch $remoteHead; got $runtimeHead" }
         Set-Content -LiteralPath $script:latestPointer -Value $runtimeRoot -Encoding UTF8
+        Remove-SasSupersededPrinterRuntimes -CurrentRuntime $runtimeRoot -RuntimeParent $runtimeParent -CacheRoot $CacheRoot -StateRoot $stateRoot
         $authority = 'CURRENT_ORIGIN_BRANCH_HEAD_PROVEN'
     }
     finally {
