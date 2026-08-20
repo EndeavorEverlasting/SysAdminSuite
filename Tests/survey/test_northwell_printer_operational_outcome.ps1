@@ -22,6 +22,7 @@ if ($errors.Count -gt 0) {
 
 foreach ($name in @(
     'ConvertTo-SasComputerKey',
+    'Get-SasLatestMappingEvidenceRoot',
     'Get-SasLatestMappedTargetForPrinter',
     'Get-SasRemoteMachineWideProof',
     'Get-SasOperationalOutcome'
@@ -92,13 +93,30 @@ if ($hardFailure.status -ne 'FAIL' -or $hardFailure.classification -ne 'PRINT_SE
 $fixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('sas-printer-target-proof-' + [guid]::NewGuid().ToString('N'))
 try {
     $logsRoot = Join-Path $fixtureRoot 'mapping\Logs'
-    $evidenceRoot = Join-Path $logsRoot 'NorthwellPrinterMap-fixture'
-    $hostRoot = Join-Path $evidenceRoot 'lpw003asi163.nslijhs.net'
-    New-Item -ItemType Directory -Path $hostRoot -Force | Out-Null
-    $evidenceRoot | Set-Content -LiteralPath (Join-Path $logsRoot 'LATEST-PATH.txt') -Encoding UTF8
+    New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
 
     $queue = '\\PRINTSRV01\QUEUE01'
-    $statusPath = Join-Path $hostRoot 'Status.json'
+    $oldRoot = Join-Path $logsRoot 'NorthwellPrinterMap-old'
+    $oldHost = Join-Path $oldRoot 'lpw003asi163.nslijhs.net'
+    New-Item -ItemType Directory -Path $oldHost -Force | Out-Null
+    [ordered]@{ CompletedTargets=1; TotalTargets=1; Success=$true } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $oldRoot 'Summary.json') -Encoding UTF8
+    [ordered]@{
+        ComputerName = 'LPW003ASI163'
+        Identity = 'NT AUTHORITY\SYSTEM'
+        Success = $true
+        Requested = @($queue)
+        MachineWideUNC = @($queue)
+        Missing = @()
+        Finished = '2026-08-20T00:55:00-04:00'
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $oldHost 'Status.json') -Encoding UTF8
+
+    $latestRoot = Join-Path $logsRoot 'NorthwellPrinterMap-latest'
+    $latestHost = Join-Path $latestRoot 'lpw003asi163.nslijhs.net'
+    New-Item -ItemType Directory -Path $latestHost -Force | Out-Null
+    [ordered]@{ CompletedTargets=1; TotalTargets=1; Success=$true } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $latestRoot 'Summary.json') -Encoding UTF8
+    $latestStatusPath = Join-Path $latestHost 'Status.json'
     [ordered]@{
         ComputerName = 'LPW003ASI163'
         Identity = 'NT AUTHORITY\SYSTEM'
@@ -107,7 +125,13 @@ try {
         MachineWideUNC = @($queue)
         Missing = @()
         Finished = '2026-08-20T01:00:00-04:00'
-    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statusPath -Encoding UTF8
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $latestStatusPath -Encoding UTF8
+    $latestRoot | Set-Content -LiteralPath (Join-Path $logsRoot 'LATEST-PATH.txt') -Encoding UTF8
+
+    $resolvedRoot = Get-SasLatestMappingEvidenceRoot -RepoRoot $fixtureRoot -RetryCount 1 -RetryDelayMilliseconds 0
+    if ($resolvedRoot -ne $latestRoot) {
+        throw "Latest complete mapping root was not resolved; got '$resolvedRoot'."
+    }
 
     $recoveredTarget = Get-SasLatestMappedTargetForPrinter -RepoRoot $fixtureRoot -Printer $queue
     if ($recoveredTarget -ne 'LPW003ASI163') {
@@ -116,10 +140,10 @@ try {
 
     $remoteProof = Get-SasRemoteMachineWideProof -RepoRoot $fixtureRoot -ComputerName 'lpw003asi163.nslijhs.net' -Printer $queue
     if (-not $remoteProof.found -or -not $remoteProof.proven) {
-        throw 'Matching SYSTEM + HKLM evidence for the remote target must be recognized as proven.'
+        throw 'Matching SYSTEM + HKLM evidence for the latest complete remote target run must be recognized as proven.'
     }
-    if ($remoteProof.identity -notmatch 'SYSTEM$') {
-        throw "Remote proof did not preserve SYSTEM identity: $($remoteProof.identity)"
+    if ($remoteProof.evidence_root -ne $latestRoot) {
+        throw 'Remote proof must be scoped to the current LATEST-PATH evidence root.'
     }
 
     [ordered]@{
@@ -130,19 +154,32 @@ try {
         MachineWideUNC = $queue
         Missing = '\\PRINTSRV01\QUEUE01'
         Finished = '2026-08-20T01:01:00-04:00'
-    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statusPath -Encoding UTF8
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $latestStatusPath -Encoding UTF8
 
     $singletonMissing = Get-SasRemoteMachineWideProof -RepoRoot $fixtureRoot -ComputerName 'lpw003asi163.nslijhs.net' -Printer $queue
     if (-not $singletonMissing.found -or $singletonMissing.proven) {
-        throw 'A singleton Missing value must remain a bounded negative proof rather than throwing or becoming proven.'
+        throw 'A singleton Missing value in the latest run must remain a bounded negative proof rather than throwing or becoming proven.'
     }
     if (@($singletonMissing.missing).Count -ne 1) {
         throw "Singleton Missing evidence was not preserved as one item; count=$(@($singletonMissing.missing).Count)."
+    }
+    if ($singletonMissing.evidence_root -ne $latestRoot) {
+        throw 'An older successful run must not supersede the latest complete negative target proof.'
     }
 
     $wrongQueue = Get-SasRemoteMachineWideProof -RepoRoot $fixtureRoot -ComputerName 'lpw003asi163.nslijhs.net' -Printer '\\PRINTSRV01\OTHERQUEUE'
     if ($wrongQueue.found -or $wrongQueue.proven) {
         throw 'Evidence for a different queue must not be reused as remote target proof.'
+    }
+
+    $partialRoot = Join-Path $logsRoot 'NorthwellPrinterMap-partial'
+    New-Item -ItemType Directory -Path $partialRoot -Force | Out-Null
+    [ordered]@{ CompletedTargets=0; TotalTargets=1; Success=$false } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $partialRoot 'Summary.json') -Encoding UTF8
+    $partialRoot | Set-Content -LiteralPath (Join-Path $logsRoot 'LATEST-PATH.txt') -Encoding UTF8
+    $partialResolved = Get-SasLatestMappingEvidenceRoot -RepoRoot $fixtureRoot -RetryCount 1 -RetryDelayMilliseconds 0
+    if ($null -ne $partialResolved) {
+        throw 'An incompletely published latest mapping run must not be accepted as current proof context.'
     }
 }
 finally {
@@ -165,10 +202,18 @@ if ($engineText -notmatch 'LATEST_MAPPING_EVIDENCE') {
 if ($engineText -notmatch 'REMOTE_TARGET_RUNTIME_QUEUE_STATE_NOT_OBSERVED') {
     throw 'Remote target proof must not overstate runtime queue-state observation.'
 }
+if ($engineText -notmatch 'TARGET_CONTEXT_UNRESOLVED' -or $engineText -match "targetResolution = 'LOCAL_DEFAULT'") {
+    throw 'Unresolved target context must fail closed instead of defaulting to the controller workstation.'
+}
+if ($engineText -notmatch 'diagnosticOutputRoot' -or $engineText -notmatch "Get-ChildItem -LiteralPath \$diagnosticOutputRoot") {
+    throw 'Local bounded diagnostics must use an isolated run-scoped artifact root.'
+}
 
 Write-Host 'PASS: printer operational outcome preserves physical proof without reprinting.'
 Write-Host 'PASS: remote status timeout is telemetry degradation, not a print failure.'
 Write-Host 'PASS: current hard transport failures still fail.'
-Write-Host 'PASS: remote target mapping proof outranks irrelevant controller-local queue absence.'
-Write-Host 'PASS: latest canonical mapping evidence can recover one unambiguous remote target.'
+Write-Host 'PASS: remote target mapping proof is restricted to the latest complete mapping run.'
+Write-Host 'PASS: older successful proof cannot hide a latest negative target result.'
+Write-Host 'PASS: incomplete mapping publication fails closed.'
 Write-Host 'PASS: singleton remote Missing evidence remains strict-mode safe.'
+Write-Host 'PASS: local diagnostic artifacts are run-isolated.'
