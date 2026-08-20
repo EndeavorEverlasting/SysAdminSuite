@@ -205,7 +205,7 @@ if ($engineText -notmatch 'REMOTE_TARGET_RUNTIME_QUEUE_STATE_NOT_OBSERVED') {
 if ($engineText -notmatch 'TARGET_CONTEXT_UNRESOLVED' -or $engineText -match "targetResolution = 'LOCAL_DEFAULT'") {
     throw 'Unresolved target context must fail closed instead of defaulting to the controller workstation.'
 }
-if ($engineText -notmatch 'diagnosticOutputRoot' -or $engineText -notmatch "Get-ChildItem -LiteralPath \$diagnosticOutputRoot") {
+if ($engineText -notmatch 'diagnosticOutputRoot' -or $engineText -notmatch 'Get-ChildItem -LiteralPath \$diagnosticOutputRoot') {
     throw 'Local bounded diagnostics must use an isolated run-scoped artifact root.'
 }
 
