@@ -36,6 +36,14 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text | Should -Match 'superseded by authoritative final printer-state proof'
     }
 
+    It 'requires fresh run-scoped evidence before lower-level errors can be superseded' {
+        $text = Get-Content -LiteralPath $script:startPath -Raw
+        $text | Should -Match '\$previousEvidenceRoot = Get-SasLatestPrinterEvidenceRoot'
+        $text | Should -Match '\$freshEvidence ='
+        $text | Should -Match '\$authoritativeSuccess = \$freshEvidence -and'
+        $text | Should -Match 'without fresh authoritative HKLM proof'
+    }
+
     It 'keeps the CMD front door short and avoids reparsing evidence paths' {
         $text = Get-Content -LiteralPath $script:cmdPath -Raw
         $text | Should -Match '%SystemRoot%\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe'
