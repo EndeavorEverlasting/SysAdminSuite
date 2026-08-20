@@ -5,11 +5,13 @@ on:
     paths:
       - 'Install-SasOperatorCommand.cmd'
       - 'Reset-SysAdminSuiteClipboard.cmd'
+      - 'Bootstrap-SysAdminSuitePrinter.ps1'
       - 'scripts/SasFieldPlatform.psm1'
       - 'scripts/Invoke-SasUniversalField.ps1'
       - 'scripts/Install-SasUniversalFieldLauncher.ps1'
       - 'scripts/Reset-SasClipboard.ps1'
       - 'Tests/PowerShell/UniversalFieldPlatform.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterUniversalEntryPoint.Tests.ps1'
       - 'Tests/survey/test_universal_field_platform_contracts.py'
       - 'Tests/survey/test_clipboard_reset_contracts.py'
       - 'docs/UNIVERSAL_FIELD_PLATFORM.md'
@@ -49,11 +51,13 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           foreach ($relative in @(
+            'Bootstrap-SysAdminSuitePrinter.ps1',
             'scripts\SasFieldPlatform.psm1',
             'scripts\Invoke-SasUniversalField.ps1',
             'scripts\Install-SasUniversalFieldLauncher.ps1',
             'scripts\Reset-SasClipboard.ps1',
-            'Tests\PowerShell\UniversalFieldPlatform.Tests.ps1'
+            'Tests\PowerShell\UniversalFieldPlatform.Tests.ps1',
+            'Tests\Pester\NorthwellPrinterUniversalEntryPoint.Tests.ps1'
           )) {
             $tokens = $null
             $errors = $null
