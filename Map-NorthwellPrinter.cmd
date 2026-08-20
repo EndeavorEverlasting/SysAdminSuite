@@ -13,7 +13,6 @@ echo  Before you begin: connect to Northwell hardwire, WAB, or an
 echo  authenticated Northwell VPN. Approve the Administrator prompt if shown.
 echo.
 echo  Tip: proven PCs and printers are remembered. On repeat jobs, choose
-
 echo  the displayed number instead of retyping the hostname or printer path.
 echo ================================================================
 echo.
