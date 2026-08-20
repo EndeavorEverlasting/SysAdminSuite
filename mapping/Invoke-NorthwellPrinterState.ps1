@@ -233,26 +233,67 @@ $before = @()
 $after = @()
 $changed = @()
 $alreadyDesired = @()
+$missing = @()
+$stillPresent = @()
+$rawConnectionKeys = @()
 
 function Write-AgentLog {
     param([string]$Message)
     ('[{0}] {1}' -f (Get-Date -Format s), $Message) | Add-Content -LiteralPath $logPath -Encoding UTF8
 }
 
-function Get-MachineWidePrinterConnections {
+function ConvertFrom-MachineWideConnectionKeyName {
+    param([AllowNull()][string]$Name)
+    if ([string]::IsNullOrWhiteSpace($Name)) { return $null }
+    $trimmed = $Name.Trim()
+    if ($trimmed -match '^,,([^,]+),(.+)$') {
+        return ('\\{0}\{1}' -f $Matches[1], $Matches[2]).ToLowerInvariant()
+    }
+    if ($trimmed -match '^\\\\[^\\]+\\[^\\]+$') {
+        return $trimmed.ToLowerInvariant()
+    }
+    return $null
+}
+
+function Get-RawMachineWidePrinterConnectionKeys {
     $key = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections'
     if (-not (Test-Path -LiteralPath $key)) { return @() }
     return @(
-        Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue | ForEach-Object {
-            try {
-                $item = Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction Stop
-                if ($item.Server -and $item.Printer) {
-                    ('\\{0}\{1}' -f ([string]$item.Server).TrimStart([char[]]'\'), [string]$item.Printer).ToLowerInvariant()
-                }
-            }
-            catch {}
-        } | Where-Object { $_ } | Sort-Object -Unique
+        Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue |
+            ForEach-Object { [string]$_.PSChildName } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Sort-Object -Unique
     )
+}
+
+function Get-MachineWidePrinterConnections {
+    $key = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Connections'
+    if (-not (Test-Path -LiteralPath $key)) { return @() }
+
+    $connections = New-Object System.Collections.Generic.List[string]
+    foreach ($subKey in @(Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue)) {
+        try {
+            $candidate = $null
+            $item = Get-ItemProperty -LiteralPath $subKey.PSPath -ErrorAction Stop
+            $serverProperty = $item.PSObject.Properties['Server']
+            $printerProperty = $item.PSObject.Properties['Printer']
+            $serverValue = if ($null -ne $serverProperty) { ([string]$serverProperty.Value).Trim() } else { '' }
+            $printerValue = if ($null -ne $printerProperty) { ([string]$printerProperty.Value).Trim() } else { '' }
+
+            if ($printerValue -match '^\\\\[^\\]+\\[^\\]+$') {
+                $candidate = $printerValue.ToLowerInvariant()
+            }
+            elseif (-not [string]::IsNullOrWhiteSpace($serverValue) -and -not [string]::IsNullOrWhiteSpace($printerValue)) {
+                $candidate = ('\\{0}\{1}' -f $serverValue.TrimStart([char[]]'\'), $printerValue.TrimStart([char[]]'\')).ToLowerInvariant()
+            }
+            if ([string]::IsNullOrWhiteSpace($candidate)) {
+                $candidate = ConvertFrom-MachineWideConnectionKeyName -Name ([string]$subKey.PSChildName)
+            }
+            if (-not [string]::IsNullOrWhiteSpace($candidate)) { $connections.Add($candidate) }
+        }
+        catch {}
+    }
+    return @($connections.ToArray() | Sort-Object -Unique)
 }
 
 function Get-ChangedRequestedPrinters {
@@ -321,12 +362,21 @@ try {
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $verifyDeadline)
 
+    $rawConnectionKeys = @(Get-RawMachineWidePrinterConnectionKeys)
     $changed = @(Get-ChangedRequestedPrinters -Before $before -After $after -Requested $queues -State $desiredState)
     $success = if ($desiredState -eq 'Present') { $missing.Count -eq 0 } else { $stillPresent.Count -eq 0 }
     $agentProofLevel = if ($desiredState -eq 'Present') { 'MACHINE_WIDE_REGISTRATION_PRESENT' } else { 'MACHINE_WIDE_REGISTRATION_ABSENT' }
-    if ($success) { Write-AgentLog "Verified desired machine-wide state '$desiredState' for every requested queue." }
-    elseif ($desiredState -eq 'Present') { Write-AgentLog "VERIFY FAIL missing after 30 seconds: $($missing -join ', ')" }
-    else { Write-AgentLog "VERIFY FAIL still present after 30 seconds: $($stillPresent -join ', ')" }
+    if ($success) {
+        Write-AgentLog "Verified desired machine-wide state '$desiredState' for every requested queue."
+    }
+    elseif ($desiredState -eq 'Present') {
+        Write-AgentLog "VERIFY FAIL missing after 30 seconds: $($missing -join ', ')"
+        if ($rawConnectionKeys.Count -gt 0) { Write-AgentLog "HKLM connection subkeys observed: $($rawConnectionKeys -join ', ')" }
+    }
+    else {
+        Write-AgentLog "VERIFY FAIL still present after 30 seconds: $($stillPresent -join ', ')"
+        if ($rawConnectionKeys.Count -gt 0) { Write-AgentLog "HKLM connection subkeys observed: $($rawConnectionKeys -join ', ')" }
+    }
 
     [ordered]@{
         ComputerName = $env:COMPUTERNAME
@@ -342,6 +392,7 @@ try {
         AlreadyDesiredPrinters = @($alreadyDesired | Sort-Object -Unique)
         Missing = $missing
         StillPresent = $stillPresent
+        RawConnectionKeys = $rawConnectionKeys
         RuntimePrintObservedByEngine = $false
         TestPagesPrinted = $false
         Finished = (Get-Date).ToString('o')
@@ -349,7 +400,14 @@ try {
 }
 catch {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-    try { $after = @(Get-MachineWidePrinterConnections) } catch { $after = @() }
+    try {
+        $after = @(Get-MachineWidePrinterConnections)
+        $rawConnectionKeys = @(Get-RawMachineWidePrinterConnectionKeys)
+    }
+    catch {
+        $after = @()
+        $rawConnectionKeys = @()
+    }
     if ($desiredState -in @('Present','Absent') -and $queues.Count -gt 0) {
         $changed = @(Get-ChangedRequestedPrinters -Before $before -After $after -Requested $queues -State $desiredState)
     }
@@ -365,6 +423,9 @@ catch {
         MachineWideUNC = $after
         ChangedPrinters = $changed
         AlreadyDesiredPrinters = @($alreadyDesired | Sort-Object -Unique)
+        Missing = $missing
+        StillPresent = $stillPresent
+        RawConnectionKeys = $rawConnectionKeys
         RuntimePrintObservedByEngine = $false
         TestPagesPrinted = $false
         Error = $_.Exception.Message
