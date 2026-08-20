@@ -133,7 +133,7 @@ switch ($normalized) {
         [void](Assert-SasProtectedForAction -Purpose "Northwell printer mapping ($printerMode)")
         $printerBootstrap = Resolve-SasInstalledPrinterBootstrap
         Write-Host "Printer entrypoint: trusted bootstrap ($printerMode); no repository path is required." -ForegroundColor Green
-        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $printerBootstrap -Mode $printerMode
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $printerBootstrap -RequiredCommit '66d38dd45881692303f77267e29e4fa44b4a9351' -Mode $printerMode
         exit $LASTEXITCODE
     }
 
