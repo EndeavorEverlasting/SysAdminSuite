@@ -5,13 +5,14 @@ BeforeAll {
     $script:finalizerPath = Join-Path $script:repoRoot 'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1'
     $script:batchFinalizerPath = Join-Path $script:repoRoot 'mapping\Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1'
     $script:agentPath = Join-Path $script:repoRoot 'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1'
+    $script:operatorPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterOperatorRun.ps1'
     $script:quickCmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
     $script:batchCmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinters-Batch.cmd'
 }
 
 Describe 'Northwell active-user printer materialization regression' {
     It 'parses the Windows PowerShell 5.1 finalization surfaces' {
-        foreach ($path in @($script:finalizerPath, $script:batchFinalizerPath, $script:agentPath)) {
+        foreach ($path in @($script:finalizerPath, $script:batchFinalizerPath, $script:agentPath, $script:operatorPath)) {
             $tokens = $null
             $errors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile(
@@ -76,13 +77,17 @@ Describe 'Northwell active-user printer materialization regression' {
     }
 
     It 'keeps the quick mapper on resilient active-user finalization after resilient machine-wide mapping' {
-        $text = Get-Content -LiteralPath $script:quickCmdPath -Raw
-        $mapperIndex = $text.IndexOf('Invoke-NorthwellPrinterResilientQuick.ps1')
-        $finalizerIndex = $text.IndexOf('Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1')
+        $cmd = Get-Content -LiteralPath $script:quickCmdPath -Raw
+        $operator = Get-Content -LiteralPath $script:operatorPath -Raw
+        $mapperIndex = $operator.IndexOf('Invoke-NorthwellPrinterResilientQuick.ps1')
+        $finalizerIndex = $operator.IndexOf('Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1')
+        $cmd | Should -Match 'Invoke-NorthwellPrinterOperatorRun\.ps1.*-Action Map'
         $mapperIndex | Should -BeGreaterThan -1
         $finalizerIndex | Should -BeGreaterThan $mapperIndex
-        $text | Should -Not -Match '-File "%~dp0mapping\\Confirm-NorthwellPrinterActiveUserMaterialization\.ps1"'
-        $text | Should -Match 'Mapping is NOT complete|mapping is not complete'
+        $operator | Should -Match '-File \$finalizer -EvidenceRoot \$evidenceRoot'
+        $cmd | Should -Not -Match '-File "%~dp0mapping\\Confirm-NorthwellPrinterActiveUserMaterialization\.ps1"'
+        $cmd | Should -Match 'Printer run did not complete.*local admin trail'
+        $cmd | Should -Match '(?im)^pause\s*$'
     }
 
     It 'finalizes batch Map groups without reconnecting Unmap groups' {
