@@ -13,7 +13,7 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
 
-def test_prepare_is_guest_only_and_local_transport_only() -> None:
+def test_prepare_is_guest_only_local_transport_and_hash_sealed() -> None:
     text = read(PREPARE)
     assert "GUEST_INTERNET" in text
     assert "AUTOLOGON_RUNTIME_STAGE_BLOCKED" in text
@@ -23,6 +23,15 @@ def test_prepare_is_guest_only_and_local_transport_only() -> None:
     assert "target_contact_performed = $false" in text
     assert "target_mutation_performed = $false" in text
     assert "SAS_AUTOLOGON_SHORT_RUNTIME_READY" in text
+    assert "sas-autologon-short-runtime/v2" in text
+    assert "tracked_file_hash_algorithm = 'SHA256'" in text
+    assert "tracked_file_count = $trackedFileHashCount" in text
+    assert "tracked_file_hashes = $trackedFileHashes" in text
+    assert "@('ls-files')" in text
+    assert "function Get-SasSha256Hex" in text
+    assert "[Security.Cryptography.SHA256]::Create()" in text
+    assert "$hash = Get-SasSha256Hex -LiteralPath $fullPath" in text
+    assert "Get-FileHash" not in text
     lowered = text.lower()
     for forbidden in (
         "github.com",
@@ -36,6 +45,19 @@ def test_prepare_is_guest_only_and_local_transport_only() -> None:
         assert forbidden not in lowered, forbidden
 
 
+def test_prepare_refreshes_installed_sas_shim_before_ready_manifest() -> None:
+    text = read(PREPARE)
+    assert "scripts\\Install-SasPortableLauncher.ps1" in text
+    assert "$operatorInstaller = Join-Path $SourceRoot 'scripts\\Install-SasPortableLauncher.ps1'" in text
+    assert "REFRESHING INSTALLED SAS OPERATOR SHIM FROM SEALED SOURCE" in text
+    assert "PASS: installed sas operator shim refreshed from sealed source commit." in text
+    assert "Protected runtime was not declared operator-ready" in text
+    install = text.index("$operatorInstaller = Join-Path $SourceRoot")
+    manifest = text.index("$manifest = [pscustomobject][ordered]@{")
+    ready = text.index("SAS_AUTOLOGON_SHORT_RUNTIME_READY")
+    assert install < manifest < ready
+
+
 def test_prepare_preserves_dirty_runtime_and_removes_all_remotes() -> None:
     text = read(PREPARE)
     assert "Short runtime contains local work. Nothing was reset or cleaned" in text
@@ -45,23 +67,65 @@ def test_prepare_preserves_dirty_runtime_and_removes_all_remotes() -> None:
     assert "clean -fd" not in text
 
 
-def test_protected_bootstrap_is_verification_only_for_git() -> None:
+def test_guest_git_capture_treats_empty_stderr_as_empty_string() -> None:
+    text = read(PREPARE)
+    assert "$stdout = @()" in text
+    assert "$exitCode = 0" in text
+    assert "$stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue" in text
+    assert "if ($null -ne $stderrRaw)" in text
+    assert "$stderr = ([string]$stderrRaw).Trim()" in text
+    assert "$stderrRaw.Trim()" not in text
+    assert "$stdoutLines = @($stdout | ForEach-Object { [string]$_ })" in text
+    assert "if ($stdoutLines.Count -gt 0)" in text
+    assert "return @($stdoutLines)" in text
+    assert "return ([string]$value).Trim()" in text
+
+
+def test_winps_manifest_seal_avoids_generic_list_array_binding() -> None:
+    text = read(PREPARE)
+    assert "$trackedFileHashes = @()" in text
+    assert "$trackedFileHashes += [pscustomobject][ordered]@{" in text
+    assert "$trackedFileHashCount = $trackedFileHashes.Count" in text
+    assert "tracked_file_count = $trackedFileHashCount" in text
+    assert "tracked_file_hashes = $trackedFileHashes" in text
+    assert "System.Collections.Generic.List[object]" not in text
+    assert "tracked_file_hashes = @($trackedFileHashes)" not in text
+
+
+def test_protected_bootstrap_is_git_free_and_verifies_guest_seal() -> None:
     text = read(BOOTSTRAP)
     assert "autologon-short-runtime.json" in text
-    assert "Git network I/O: DISABLED" in text
+    assert "sas-autologon-short-runtime/v2" in text
+    assert "Git activity after protected-network transition: NONE" in text
     assert "Checkout mutation: DISABLED" in text
     assert "runtime_git_transport" in text
     assert "LOCAL_FILESYSTEM_ONLY" in text
     assert "runtime_remotes_removed" in text
     assert "protected_bootstrap_git_network_allowed" in text
+    assert "tracked_file_hash_algorithm" in text
+    assert "tracked_file_hashes" in text
+    assert "tracked_file_count" in text
+    assert "function Get-SasSha256Hex" in text
+    assert "[Security.Cryptography.SHA256]::Create()" in text
+    assert "$actualHash = Get-SasSha256Hex -LiteralPath $fullPath" in text
+    assert "Get-FileHash" not in text
     assert "AUTOLOGON_RUNTIME_NOT_PREPARED" in text
-    assert "AUTOLOGON_RUNTIME_UNSEALED" in text
+    assert "AUTOLOGON_RUNTIME_SEAL_INVALID" in text
+    assert "AUTOLOGON_RUNTIME_SEAL_MISMATCH" in text
+    assert "PASS: sealed tracked runtime content verified without Git" in text
+    assert "Protected-side Git activity: NONE" in text
+    assert "[StringComparison]::OrdinalIgnoreCase" in text
+    assert "$preparedCommit.Equals($ExpectedCommit.Trim(), [StringComparison]::OrdinalIgnoreCase)" in text
     assert "PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION" in text
 
-    for command in ("rev-parse", "status", "remote"):
-        assert command in text
-    lowered = text.lower()
     for forbidden in (
+        "Resolve-SasGitExecutable",
+        "Invoke-SasLocalGit",
+        "Get-SasLocalGitScalar",
+        "git.exe",
+        "rev-parse",
+        "@('status','--porcelain')",
+        "@('remote')",
         "git fetch",
         "git clone",
         "git pull",
@@ -71,7 +135,7 @@ def test_protected_bootstrap_is_verification_only_for_git() -> None:
         "ls-remote",
         "repo_url",
     ):
-        assert forbidden not in lowered, forbidden
+        assert forbidden not in text, forbidden
 
 
 def test_protected_bootstrap_legacy_evidence_fallback_is_explicit_only() -> None:
@@ -84,23 +148,38 @@ def test_protected_bootstrap_legacy_evidence_fallback_is_explicit_only() -> None
     assert "OG Laptop Backup" not in text
 
 
-def test_protected_bootstrap_does_not_merge_native_stderr_into_error_stream() -> None:
-    text = read(BOOTSTRAP)
+def test_native_git_stderr_handling_is_guest_side_only() -> None:
+    bootstrap = read(BOOTSTRAP)
     prepare = read(PREPARE)
-    assert "2> $stderrPath" in text
     assert "2> $stderrPath" in prepare
-    assert "2>&1" not in text
-    assert "2>&1" not in prepare
-    assert "$ErrorActionPreference = 'Continue'" in text
     assert "$ErrorActionPreference = 'Continue'" in prepare
+    assert "2>&1" not in prepare
+    assert "2> $stderrPath" not in bootstrap
+    assert "$ErrorActionPreference = 'Continue'" not in bootstrap
+    assert "Resolve-SasGitExecutable" not in bootstrap
+    assert "2>&1" not in bootstrap
 
 
-def test_sas_autologon_remote_consumes_sealed_runtime() -> None:
+def test_sas_autologon_remote_consumes_v2_sealed_runtime_before_repo_discovery() -> None:
     text = read(LAUNCHER)
     assert "autologon-short-runtime.json" in text
     assert "Resolve-SasPreparedAutoLogonRuntime" in text
+    assert "sas-autologon-short-runtime/v2" in text
+    assert "-not [bool]$state.runtime_remotes_removed" in text
+    assert "tracked_file_hash_algorithm" in text
+    assert "tracked_file_hashes" in text
+    assert "tracked_file_count" in text
+    assert "complete SHA-256 tracked-file seal" in text
     assert "& $runtime.bootstrap $target $runtime.commit" in text
-    assert "Protected-side Git network I/O: NONE" in text
+    assert "Protected-side Git activity: NONE" in text
+    assert text.count("& $runtime.bootstrap $target $runtime.commit") == 1
+
+    dispatch = text.index("if ($normalized -eq 'autologon' -and $actualCommandArgs.Count -eq 2)")
+    repo_discovery = text.index("$repoRoot = Resolve-SasRepoRoot")
+    remote_call = text.index("& $runtime.bootstrap $target $runtime.commit")
+    recover_call = text.index("& $recoveryLauncher 'Recover' $target")
+    assert dispatch < remote_call < repo_discovery
+    assert dispatch < recover_call < repo_discovery
 
 
 def test_runbook_declares_two_phase_network_boundary() -> None:
