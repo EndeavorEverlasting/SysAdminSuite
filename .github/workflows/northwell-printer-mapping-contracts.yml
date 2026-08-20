@@ -28,6 +28,8 @@ on:
       - 'mapping/Invoke-NorthwellPrinterState.ps1'
       - 'mapping/Invoke-NorthwellPrinterResilientQuick.ps1'
       - 'mapping/Invoke-NorthwellPrinterTaskRegistryFallback.ps1'
+      - 'mapping/Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1'
+      - 'mapping/Invoke-NorthwellPrinterSharelessActiveUser.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
@@ -69,6 +71,8 @@ on:
       - 'mapping/Invoke-NorthwellPrinterState.ps1'
       - 'mapping/Invoke-NorthwellPrinterResilientQuick.ps1'
       - 'mapping/Invoke-NorthwellPrinterTaskRegistryFallback.ps1'
+      - 'mapping/Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1'
+      - 'mapping/Invoke-NorthwellPrinterSharelessActiveUser.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
@@ -109,6 +113,8 @@ jobs:
             '.\mapping\Invoke-NorthwellPrinterState.ps1',
             '.\mapping\Invoke-NorthwellPrinterResilientQuick.ps1',
             '.\mapping\Invoke-NorthwellPrinterTaskRegistryFallback.ps1',
+            '.\mapping\Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1',
+            '.\mapping\Invoke-NorthwellPrinterSharelessActiveUser.ps1',
             '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
             '.\scripts\SasInteractionCache.psm1',
             '.\scripts\SasNetworkGuard.psm1',
@@ -168,7 +174,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $policy = Get-Content -LiteralPath '.\Config\interaction-cache-policy.json' -Raw | ConvertFrom-Json
-          if ($policy.schemaVersion -ne 'sas-interaction-cache-policy/v1') { throw "Unexpected interaction cache schema: $($policy.schemaVersion)" }
+          if ($policy.schemaVersion -ne 'sas-interaction-cache-policy/v1') { throw "Unexpected interaction cache policy schema: $($policy.schemaVersion)" }
           if ($policy.cacheSchemaVersion -ne 'sas-interaction-cache/v1') { throw "Unexpected interaction cache schema: $($policy.cacheSchemaVersion)" }
           if ([int]$policy.freshness.ttlDays -lt 1) { throw 'Interaction cache TTL must be positive.' }
           if ([int]$policy.capacity.maxEntriesPerScope -gt [int]$policy.capacity.maxEntries) { throw 'Per-scope cache bound cannot exceed total capacity.' }
