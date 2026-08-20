@@ -249,10 +249,7 @@ try {
         }
         Write-AgentLog "ADD /ga $queue"
         & "$env:SystemRoot\System32\rundll32.exe" 'printui.dll,PrintUIEntry' '/ga' "/n$queue"
-        $printUiExitCode = $LASTEXITCODE
-        if ($printUiExitCode -ne 0) {
-            throw "PrintUIEntry /ga failed for $queue with exit code $printUiExitCode."
-        }
+        Write-AgentLog "PrintUIEntry /ga invocation returned for $queue; registry proof will determine success."
     }
 
     Write-AgentLog 'PrintUIEntry /ga returned. Verifying the owning HKLM machine-wide registration directly; no synchronous gpupdate is required for this proof level.'
