@@ -110,6 +110,7 @@ if (-not (Test-Path -LiteralPath $planPath -PathType Leaf)) {
 }
 
 Copy-Item -LiteralPath $summaryPath -Destination (Join-Path $evidenceRoot 'AdministrativeStagingFailure.json') -Force -ErrorAction Stop
+Copy-Item -LiteralPath $planPath -Destination (Join-Path $evidenceRoot 'AdministrativeStagingFailure.ResolvedPlan.json') -Force -ErrorAction Stop
 $originalUndo = Join-Path $evidenceRoot 'UndoPlan.json'
 if (Test-Path -LiteralPath $originalUndo -PathType Leaf) {
     Copy-Item -LiteralPath $originalUndo -Destination (Join-Path $evidenceRoot 'AdministrativeStagingFailure.UndoPlan.json') -Force -ErrorAction Stop
