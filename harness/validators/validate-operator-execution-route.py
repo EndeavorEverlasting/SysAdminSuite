@@ -22,13 +22,14 @@ FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
 COMMANDS = ROOT / "harness/api/harness-command-registry.json"
 TERMINAL = ROOT / "harness/api/terminal-evidence-survival-registry.json"
 LAUNCHER = ROOT / "Run-AutoLogonCrashSafe.cmd"
+WINDOWS_TEST = ROOT / "Tests/PowerShell/OperatorExecutionRouteHarness.Tests.ps1"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
 PRE_PUSH = ROOT / ".githooks/pre-push"
 CI = ROOT / ".github/workflows/operator-execution-route-harness.yml"
 
 COMPONENTS = (
     REGISTRY, SCHEMA, MANIFEST, MANIFEST_SCHEMA, VALIDATORS, WORKFLOW, SKILL, MAP, REPORT,
-    FRESH_AGENT, COMMANDS, TERMINAL, LAUNCHER, PRE_COMMIT, PRE_PUSH, CI,
+    FRESH_AGENT, COMMANDS, TERMINAL, LAUNCHER, WINDOWS_TEST, PRE_COMMIT, PRE_PUSH, CI,
 )
 
 
@@ -297,11 +298,14 @@ def test_hooks_and_ci() -> None:
         "harness/api/operational-harness-manifest.json",
         "harness/api/harness-validator-registry.json",
         "schemas/harness/operational-harness-manifest.schema.json",
+        "Tests/PowerShell/OperatorExecutionRouteHarness.Tests.ps1",
         "fetch-depth: 0",
         "python harness/validators/validate-operator-execution-route.py",
         "python harness/validators/validate-harness-registries.py",
         "python Tests/survey/test_operational_harness_completeness_contracts.py",
         "git diff --check",
+        "runs-on: windows-latest",
+        "Execute route-and-run template under Windows PowerShell 5.1",
     ):
         assert marker in ci, f"operator execution CI missing: {marker}"
 
