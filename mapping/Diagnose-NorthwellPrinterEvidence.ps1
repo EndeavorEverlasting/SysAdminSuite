@@ -4,15 +4,14 @@
     Explains the latest Northwell printer mapping proof without contacting or mutating a target.
 
 .DESCRIPTION
-    Reads existing Summary.json and Status.json evidence only. It distinguishes a proven
-    SYSTEM/HKLM registration from a missing machine-wide registration, a remote-agent error,
-    an identity mismatch, or an otherwise inconclusive proof. A printer that already exists
-    for an interactive user is not promoted to SYSTEM-wide success unless the preserved HKLM
-    evidence proves that all-users registration.
+    Reads existing Summary.json, Status.json, and controller-owned summary result evidence only.
+    It distinguishes a proven SYSTEM/HKLM registration from a missing machine-wide registration,
+    a remote-agent error, an identity mismatch, a target that never returned Status.json, or an
+    otherwise inconclusive proof. A printer that already exists for an interactive user is not
+    promoted to SYSTEM-wide success unless the preserved HKLM evidence proves all-users registration.
 
-    This script performs no network probe, task operation, printer mutation, test page, or
-    target contact. It is safe to use after a failed field transaction instead of remapping
-    blindly.
+    This script performs no network probe, task operation, printer mutation, test page, or target
+    contact. It is safe to use after a failed field transaction instead of remapping blindly.
 #>
 
 [CmdletBinding()]
@@ -168,16 +167,55 @@ function Get-SasPrinterProofDiagnostic {
     }
 }
 
+function Get-SasSummaryTargetDiagnostic {
+    param([Parameter(Mandatory)]$Result)
+
+    $computer = Get-SasStatusString -Status $Result -Name 'Computer'
+    $stage = Get-SasStatusString -Status $Result -Name 'Stage'
+    $message = Get-SasStatusString -Status $Result -Name 'Message'
+    $desired = Get-SasStatusString -Status $Result -Name 'DesiredState'
+    $evidence = Get-SasStatusString -Status $Result -Name 'Evidence'
+    $successProperty = $Result.PSObject.Properties['Success']
+    $success = ($null -ne $successProperty -and [bool]$successProperty.Value)
+
+    $classification = if ($success) { 'SUMMARY_TARGET_REPORTED_SUCCESS' } else { 'REMOTE_OPERATION_FAILED_BEFORE_AUTHORITATIVE_STATUS' }
+    if (-not $success) {
+        if ($message -match '(?i)Timed out.*Status\.json|Remote evidence was not observed') { $classification = 'REMOTE_STATUS_EVIDENCE_TIMEOUT' }
+        elseif ($message -match '(?i)Admin share unavailable') { $classification = 'REMOTE_ADMIN_SHARE_UNAVAILABLE' }
+        elseif ($message -match '(?i)Remote Task Scheduler Query failed') { $classification = 'REMOTE_TASK_SCHEDULER_PREFLIGHT_FAILED' }
+        elseif ($message -match '(?i)Remote Task Scheduler Create failed') { $classification = 'REMOTE_TASK_CREATE_FAILED' }
+        elseif ($message -match '(?i)Remote Task Scheduler Run failed') { $classification = 'REMOTE_TASK_RUN_FAILED' }
+        elseif ($message -match '(?i)Missing machine-wide queue|did not prove requested machine-wide') { $classification = 'MACHINE_WIDE_STATUS_PROOF_FAILED' }
+    }
+
+    return [pscustomobject][ordered]@{
+        classification = $classification
+        computer = $computer
+        success = $success
+        stage = $stage
+        message = $message
+        desired_state = $desired
+        evidence = $evidence
+    }
+}
+
 $resolvedEvidenceRoot = Resolve-SasLatestPrinterEvidenceRoot
 $summaryPath = Join-Path $resolvedEvidenceRoot 'Summary.json'
 $summary = Get-Content -LiteralPath $summaryPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
 $statusFiles = @(Get-ChildItem -LiteralPath $resolvedEvidenceRoot -Filter 'Status.json' -File -Recurse -ErrorAction Stop)
-if ($statusFiles.Count -eq 0) { throw "No Status.json files were found under printer evidence root: $resolvedEvidenceRoot" }
 
 $diagnostics = New-Object 'System.Collections.Generic.List[object]'
 foreach ($statusFile in $statusFiles) {
     $status = Get-Content -LiteralPath $statusFile.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
     $diagnostics.Add((Get-SasPrinterProofDiagnostic -Status $status))
+}
+
+$summaryResultDiagnostics = New-Object 'System.Collections.Generic.List[object]'
+$summaryResultsProperty = $summary.PSObject.Properties['Results']
+if ($null -ne $summaryResultsProperty) {
+    foreach ($result in @($summaryResultsProperty.Value)) {
+        if ($null -ne $result) { $summaryResultDiagnostics.Add((Get-SasSummaryTargetDiagnostic -Result $result)) }
+    }
 }
 
 $summarySuccessProperty = $summary.PSObject.Properties['Success']
@@ -194,13 +232,30 @@ $evidenceSetComplete = ($summarySuccess -and $totalTargets -gt 0 -and $completed
 
 $failed = @($diagnostics.ToArray() | Where-Object { $_.classification -notin @('MACHINE_WIDE_REGISTRATION_PROVEN','MACHINE_WIDE_REMOVAL_PROVEN') })
 $overall = if ($evidenceSetComplete -and $failed.Count -eq 0) { 'AUTHORITATIVE_MACHINE_WIDE_PROOF_PRESENT' } else { 'AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT' }
-$evidenceSetClassification = if ($evidenceSetComplete) { 'COMPLETE' } else { 'INCOMPLETE_OR_FAILED' }
+$evidenceSetClassification = 'FAILED_OR_INCONSISTENT'
+$failureClassification = 'AUTHORITATIVE_STATUS_PROOF_NOT_COMPLETE'
+if ($evidenceSetComplete) {
+    $evidenceSetClassification = 'COMPLETE'
+    $failureClassification = 'NONE'
+}
+elseif ($totalTargets -gt 0 -and $statusFiles.Count -eq 0) {
+    $evidenceSetClassification = 'NO_STATUS_EVIDENCE_RETURNED'
+    $failureClassification = 'REMOTE_STATUS_EVIDENCE_NOT_RETURNED'
+}
+elseif ($totalTargets -gt 0 -and $statusFiles.Count -lt $totalTargets) {
+    $evidenceSetClassification = 'PARTIAL_STATUS_EVIDENCE'
+    $failureClassification = 'REMOTE_STATUS_EVIDENCE_PARTIAL'
+}
+elseif ($failed.Count -gt 0) {
+    $failureClassification = [string]$failed[0].classification
+}
 
 Write-Host ''
 Write-Host '=== NORTHWELL PRINTER EVIDENCE DIAGNOSTIC ===' -ForegroundColor Cyan
 Write-Host 'DIAGNOSTIC_STATUS=COMPLETED'
 Write-Host "MAPPING_PROOF=$overall"
 Write-Host "EVIDENCE_SET=$evidenceSetClassification"
+Write-Host "FAILURE_CLASSIFICATION=$failureClassification"
 Write-Host "SUMMARY_SUCCESS=$summarySuccess"
 Write-Host "EXPECTED_TARGETS=$totalTargets"
 Write-Host "COMPLETED_TARGETS=$completedTargets"
@@ -209,6 +264,17 @@ Write-Host "EVIDENCE_ROOT=$resolvedEvidenceRoot"
 Write-Host 'TARGET_CONTACT_PERFORMED=False'
 Write-Host 'TARGET_MUTATION_PERFORMED=False'
 Write-Host 'TEST_PAGE_PRINTED=False'
+
+foreach ($summaryDiagnostic in $summaryResultDiagnostics) {
+    Write-Host ''
+    Write-Host ("SUMMARY_RESULT_CLASSIFICATION={0}" -f $summaryDiagnostic.classification) -ForegroundColor $(if ($summaryDiagnostic.success) { 'DarkGray' } else { 'Yellow' })
+    Write-Host ("SUMMARY_COMPUTER={0}" -f $summaryDiagnostic.computer)
+    Write-Host ("SUMMARY_TARGET_SUCCESS={0}" -f $summaryDiagnostic.success)
+    Write-Host ("SUMMARY_STAGE={0}" -f $summaryDiagnostic.stage)
+    Write-Host ("SUMMARY_MESSAGE={0}" -f $summaryDiagnostic.message)
+    Write-Host ("SUMMARY_EVIDENCE={0}" -f $summaryDiagnostic.evidence)
+}
+
 foreach ($diagnostic in $diagnostics) {
     Write-Host ''
     Write-Host ("CLASSIFICATION={0}" -f $diagnostic.classification) -ForegroundColor $(if ($diagnostic.classification -match '_PROVEN$') { 'Green' } else { 'Yellow' })
@@ -230,12 +296,14 @@ if ($PassThru) {
         diagnostic_status = 'COMPLETED'
         mapping_proof = $overall
         evidence_set = $evidenceSetClassification
+        failure_classification = $failureClassification
         evidence_set_complete = $evidenceSetComplete
         evidence_root = $resolvedEvidenceRoot
         summary_success = $summarySuccess
         expected_targets = $totalTargets
         completed_targets = $completedTargets
         status_files = $statusFiles.Count
+        summary_results = $summaryResultDiagnostics.ToArray()
         diagnostics = $diagnostics.ToArray()
         target_contact_performed = $false
         target_mutation_performed = $false
