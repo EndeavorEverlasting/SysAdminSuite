@@ -57,11 +57,25 @@ function Invoke-SasLegacyDispatcher {
     exit $LASTEXITCODE
 }
 
+function Resolve-SasInstalledPrinterBootstrap {
+    # A machine-wide/user shim owns its sibling printer bootstrap. Source-checkout invocation may
+    # fall back to the validated local runtime/controller, but never to the caller's current path.
+    foreach ($candidate in @(
+        (Join-Path $PSScriptRoot 'Bootstrap-SysAdminSuitePrinter.ps1'),
+        (Join-Path $runtimeRoot 'Bootstrap-SysAdminSuitePrinter.ps1'),
+        (Join-Path $controllerRoot 'Bootstrap-SysAdminSuitePrinter.ps1')
+    )) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    throw 'Trusted Northwell printer bootstrap is missing. Reinstall the universal sas command from a current machine-local runtime.'
+}
+
 if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
     Write-SasUniversalContext
     if ([string]::IsNullOrWhiteSpace($normalized)) {
         Write-Host 'Run the existing sas commands normally; the universal front door resolves controller/runtime/network context first.'
-        Write-Host 'Printer quick mapping is also available as: sas printer' -ForegroundColor Green
+        Write-Host 'Printer quick mapping: sas printer' -ForegroundColor Green
+        Write-Host 'Printer file/batch mapping: sas printer file' -ForegroundColor Green
         Write-Host 'Clipboard recovery is available as: sas clipboard' -ForegroundColor Green
     }
     exit 0
@@ -109,13 +123,17 @@ switch ($normalized) {
     }
 
     'printer' {
-        if ($actualArgs.Count -ne 0) { Write-Host 'Usage: sas printer' -ForegroundColor Red; exit 2 }
-        [void](Assert-SasProtectedForAction -Purpose 'Northwell system-wide printer mapping')
-        $printerLauncher = Join-Path $controllerRoot 'Map-NorthwellPrinter-SystemWide.cmd'
-        if (-not (Test-Path -LiteralPath $printerLauncher -PathType Leaf)) {
-            throw "Canonical printer mapping launcher is missing: $printerLauncher"
+        if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas printer [file]' -ForegroundColor Red; exit 2 }
+        $printerMode = 'Quick'
+        if ($actualArgs.Count -eq 1) {
+            $printerArg = ([string]$actualArgs[0]).Trim().ToLowerInvariant()
+            if ($printerArg -notin @('file','batch')) { Write-Host 'Usage: sas printer [file]' -ForegroundColor Red; exit 2 }
+            $printerMode = 'File'
         }
-        & $printerLauncher
+        [void](Assert-SasProtectedForAction -Purpose "Northwell printer mapping ($printerMode)")
+        $printerBootstrap = Resolve-SasInstalledPrinterBootstrap
+        Write-Host "Printer entrypoint: trusted bootstrap ($printerMode); no repository path is required." -ForegroundColor Green
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $printerBootstrap -Mode $printerMode
         exit $LASTEXITCODE
     }
 
