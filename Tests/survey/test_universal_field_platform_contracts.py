@@ -41,15 +41,19 @@ def main() -> None:
     # The universal front door handles protected actions before delegating compatibility commands.
     for marker in (
         'Assert-SasProtectedNetworkAuthority',
+        "'printer'",
         "'autologon'",
         "'cybernet'",
+        'Map-NorthwellPrinter-SystemWide.cmd',
         'Run-AutoLogonOnsite.cmd',
         'Confirm-SasNorthwellNetwork.ps1',
         '$env:SAS_RUNTIME_ROOT = $runtimeRoot',
         '$env:SAS_REPO_ROOT = $controllerRoot',
+        '$actualArgs = @(',
         'LOCAL_MACHINE_ONLY',
     ):
         assert marker in launcher, marker
+    assert '$args = @(' not in launcher
 
     # Canonical installation is machine-first. Current-user installation is only a shim fallback,
     # never controller/runtime authority.
@@ -76,6 +80,7 @@ def main() -> None:
         'hardwire', 'NSLIJHS-WAB', 'authenticated VPN',
         'machine-local', 'not copied to target machines',
         'username-specific path is not execution authority',
+        'sas printer',
     ):
         assert marker.lower() in doc.lower(), marker
 
