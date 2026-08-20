@@ -130,7 +130,7 @@ function Test-SasCommitAncestor {
 
 function Add-SasCandidate {
     param(
-        [Parameter(Mandatory = $true)][System.Collections.Generic.List[string]]$List,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$List,
         [AllowNull()][string]$Value
     )
     if ([string]::IsNullOrWhiteSpace($Value)) { return }
