@@ -7,6 +7,7 @@ set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 rem Northwell quick mapper.
 rem SYSTEM-WIDE for ALL users. NO TEST PAGE. Reversible changes produce UndoPlan.json.
 rem Primary transport uses canonical administrative-share staging + SYSTEM Task Scheduler.
+rem The resilient wrapper delegates by relative path to Start-NorthwellPrinterMapping.ps1 -Action Map first.
 rem If fresh evidence proves staging failed before mutation, the resilient wrapper may
 rem use shareless SYSTEM Task Scheduler + Remote Registry HKLM proof instead.
 rem Phase 2 materializes and verifies the connection for any user already logged on.
