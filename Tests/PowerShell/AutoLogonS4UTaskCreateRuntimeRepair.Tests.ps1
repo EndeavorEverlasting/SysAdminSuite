@@ -4,8 +4,12 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $repairScript = Join-Path $repoRoot 'scripts\Repair-SasBoundedNativeS4UCreateRuntime.ps1'
+$integratedModulePath = Join-Path $repoRoot 'scripts\SasBoundedNative.psm1'
 if (-not (Test-Path -LiteralPath $repairScript -PathType Leaf)) {
     throw "Missing S4U create-timeout repair script: $repairScript"
+}
+if (-not (Test-Path -LiteralPath $integratedModulePath -PathType Leaf)) {
+    throw "Missing integrated bounded-native module: $integratedModulePath"
 }
 
 function Assert-True {
@@ -83,6 +87,34 @@ function Get-RepairObservedTimeouts {
     }
 }
 
+# A runtime refreshed from this repository already has direct reconciliation. Repair must recognize
+# that layout as terminally repaired and must not wrap it a second time.
+$integratedRoot = Join-Path ([IO.Path]::GetTempPath()) ('sas-s4u-create-integrated-' + [guid]::NewGuid().ToString('N'))
+$integratedScripts = Join-Path $integratedRoot 'scripts'
+$integratedEvidence = Join-Path $integratedRoot 'evidence'
+New-Item -ItemType Directory -Path $integratedScripts -Force | Out-Null
+try {
+    $integratedFixture = Join-Path $integratedScripts 'SasBoundedNative.psm1'
+    Copy-Item -LiteralPath $integratedModulePath -Destination $integratedFixture -Force
+    $beforeIntegrated = [IO.File]::ReadAllText($integratedFixture)
+    Assert-True (-not $beforeIntegrated.Contains('function Invoke-SasBoundedNativeCore {')) 'Repository-integrated module unexpectedly already uses the legacy repair wrapper layout.'
+
+    $integrated = & $repairScript -RuntimeRoot $integratedRoot -EvidenceRoot $integratedEvidence -ConfirmRepair -PassThru
+    $afterIntegrated = [IO.File]::ReadAllText($integratedFixture)
+    Assert-True ([string]$integrated.classification -eq 'AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_ALREADY_PRESENT') 'Integrated runtime was not recognized as already repaired.'
+    Assert-True (-not [bool]$integrated.changed) 'Integrated runtime was unexpectedly modified by the repair.'
+    Assert-True ([string]$integrated.before_sha256 -eq [string]$integrated.after_sha256) 'Integrated runtime hash changed despite already-repaired classification.'
+    Assert-True ([string]$integrated.repair_strategy -eq 'already_integrated_or_wrapped') 'Integrated runtime repair strategy was not recorded accurately.'
+    Assert-True ($beforeIntegrated -ceq $afterIntegrated) 'Integrated runtime content changed despite already-repaired classification.'
+    Assert-True (-not $afterIntegrated.Contains('function Invoke-SasBoundedNativeCore {')) 'Integrated runtime was double-wrapped by the repair.'
+    Write-Host 'PASS: integrated S4U create-timeout runtime is recognized without double wrapping'
+}
+finally {
+    if (Test-Path -LiteralPath $integratedRoot -PathType Container) {
+        Remove-Item -LiteralPath $integratedRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 foreach ($ending in @('crlf','lf')) {
     $root = Join-Path ([IO.Path]::GetTempPath()) ('sas-s4u-create-repair-' + $ending + '-' + [guid]::NewGuid().ToString('N'))
     $scripts = Join-Path $root 'scripts'
@@ -101,6 +133,7 @@ foreach ($ending in @('crlf','lf')) {
         Assert-True ([bool]$first.semantic_verification) "$ending repaired module lost semantic verification."
         Assert-True ([int]$first.s4u_create_minimum_timeout_seconds -eq 60) "$ending repair did not record the 60-second create floor."
         Assert-True ([bool]$first.exact_query_reconciliation) "$ending repair did not record exact-query reconciliation."
+        Assert-True ([string]$first.repair_strategy -eq 'rename_core_and_insert_wrapper') "$ending legacy repair strategy was not recorded accurately."
         Assert-True (-not [bool]$first.git_performed -and -not [bool]$first.network_activity_performed -and -not [bool]$first.target_contact_performed -and -not [bool]$first.target_mutation_performed) "$ending repair exceeded its local-only boundary."
         Assert-True (Test-Path -LiteralPath (Join-Path $evidenceOne 'SasBoundedNative.before.psm1') -PathType Leaf) "$ending repair backup is missing."
         Assert-True (Test-Path -LiteralPath (Join-Path $evidenceOne 's4u-create-timeout-runtime-repair-result.json') -PathType Leaf) "$ending repair evidence is missing."
@@ -135,6 +168,7 @@ foreach ($ending in @('crlf','lf')) {
         Assert-True ([string]$second.classification -eq 'AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_ALREADY_PRESENT') "$ending second repair was not idempotent."
         Assert-True (-not [bool]$second.changed) "$ending second repair reported an unexpected change."
         Assert-True ([bool]$second.semantic_verification) "$ending second repair lost semantic verification."
+        Assert-True ([string]$second.repair_strategy -eq 'already_integrated_or_wrapped') "$ending second repair strategy was not recorded accurately."
 
         Write-Host "PASS: $ending S4U create-timeout runtime repair, exact reconciliation, and idempotence"
     }
