@@ -5,6 +5,7 @@ BeforeAll {
     $script:launcherPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter.cmd'
     $script:installerPath = Join-Path $script:repoRoot 'scripts\Install-SasUniversalFieldLauncher.ps1'
     $script:startHerePath = Join-Path $script:repoRoot 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
+    $script:generalStartHerePath = Join-Path $script:repoRoot 'START-HERE-SysAdminSuite.md'
     $script:techTutorialPath = Join-Path $script:repoRoot 'docs\tutorials\NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md'
     $script:managementPath = Join-Path $script:repoRoot 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
     $script:useCaseMapPath = Join-Path $script:repoRoot 'harness\maps\PRINTER_MAPPING_USE_CASE_MAP.md'
@@ -58,13 +59,16 @@ Describe 'Northwell non-technical technician printer launcher' {
 
     It 'keeps technician and advanced tutorials routed to the correct surfaces' {
         $startHere = Get-Content -LiteralPath $script:startHerePath -Raw
+        $generalStartHere = Get-Content -LiteralPath $script:generalStartHerePath -Raw
         $tutorial = Get-Content -LiteralPath $script:techTutorialPath -Raw
         $management = Get-Content -LiteralPath $script:managementPath -Raw
 
-        foreach ($text in @($startHere,$tutorial,$management)) {
+        foreach ($text in @($startHere,$generalStartHere,$tutorial,$management)) {
             $text | Should -Match 'Map-NorthwellPrinter\.cmd'
         }
         $startHere | Should -Match 'sas printer'
+        $generalStartHere | Should -Match 'Where is the Northwell printer mapping tutorial'
+        $generalStartHere | Should -Match 'Technician walkthrough'
         $tutorial | Should -Match 'Recent proven target PCs'
         $tutorial | Should -Match 'PASS: requested printer map is proven SYSTEM-wide in HKLM'
         $tutorial | Should -Match 'Do not repeatedly run the mapper against the same failure'
