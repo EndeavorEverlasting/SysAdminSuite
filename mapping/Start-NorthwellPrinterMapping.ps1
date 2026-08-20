@@ -290,8 +290,12 @@ if (-not $ComputerName -or $ComputerName.Count -eq 0) {
     Write-Host 'Northwell system-wide printer mapping' -ForegroundColor Cyan
     $recentHosts = @(Get-SasRecentInteractionValues -Kind Host -Top 10)
     Show-SasRecentValues -Title 'Recent proven target PCs:' -Values $recentHosts
-    $hostPrompt = if ($recentHosts.Count -gt 0) { 'Target PC(s): recent number(s) or hostname(s)' } else { 'Target PC hostname(s)' }
-    $rawComputers = Read-Host $hostPrompt
+    if ($recentHosts.Count -gt 0) {
+        $rawComputers = Read-Host 'Target PC(s): recent number(s) or hostname(s)'
+    }
+    else {
+        $rawComputers = Read-Host 'Target PC hostname(s)'
+    }
     if ([string]::IsNullOrWhiteSpace($rawComputers)) { throw 'Target PC hostname cannot be blank.' }
     $selectedHosts = if ($recentHosts.Count -gt 0) { Read-SasRecentNumberSelection -RawValue $rawComputers -RecentValues $recentHosts -Label 'Target PC' } else { $null }
     if ($null -ne $selectedHosts) { $ComputerName = @($selectedHosts) }
@@ -319,12 +323,17 @@ if (-not $Printer -or $Printer.Count -eq 0) {
     }
     else {
         $localDefaults = Get-SasNorthwellPrinterLocalDefaults
-        $initialServer = $PrintServer
-        if ([string]::IsNullOrWhiteSpace($initialServer) -and $null -eq $localDefaults) {
-            $recentServers = @(Get-SasRecentInteractionValues -Kind Server -Top 1)
-            if ($recentServers.Count -gt 0) { $initialServer = $recentServers[0] }
+        if (-not [string]::IsNullOrWhiteSpace($PrintServer)) {
+            $Printer = @(Read-SasNorthwellPrinterSets -InitialPrintServer $PrintServer -LocalDefaults $localDefaults)
         }
-        $Printer = @(Read-SasNorthwellPrinterSets -InitialPrintServer $initialServer -LocalDefaults $localDefaults)
+        else {
+            $initialServer = $null
+            if ($null -eq $localDefaults) {
+                $recentServers = @(Get-SasRecentInteractionValues -Kind Server -Top 1)
+                if ($recentServers.Count -gt 0) { $initialServer = $recentServers[0] }
+            }
+            $Printer = @(Read-SasNorthwellPrinterSets -InitialPrintServer $initialServer -LocalDefaults $localDefaults)
+        }
         $PrintServer = $null
     }
 }
