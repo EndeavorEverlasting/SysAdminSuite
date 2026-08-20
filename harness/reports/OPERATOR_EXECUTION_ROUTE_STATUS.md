@@ -4,16 +4,20 @@
 
 - SysAdminSuite already has repository freshness, command, outcome, deployment-state, artifact, and terminal-evidence authorities.
 - AutoLogon already has a tracked crash-safe operator front door: `Run-AutoLogonCrashSafe.cmd HOST`.
-- Persistent operator state already exposes `sas repo`, and the launcher caches the resolved repo root under `%LOCALAPPDATA%\SysAdminSuite\repo-root.txt`.
-- The new operator-execution route contract requires path resolution before any repository-relative operator command.
+- Persistent operator state exposes `sas repo`, and the launcher caches the resolved repo root under `%LOCALAPPDATA%\SysAdminSuite\repo-root.txt`.
+- The operator-execution route contract requires path resolution before any repository-relative operator command.
+- The route freshness dependency and every declared `required_files` entry must be tracked/proven before execution.
+- Raw target text is validated, UTF-8 Base64 encoded, and passed as positional data to the tracked `powershell.exe -File` helper; it is not interpolated into PowerShell source.
+- The helper decodes/revalidates the target, re-reads the route registry, re-verifies dependencies, and only then invokes the crash-safe front door.
+- The outer operator shell is preserved on child failure; `$LASTEXITCODE` remains the launcher disposition and the route raises an error rather than calling `exit` in the operator shell.
 - When the current environment can execute on the operator workstation, safe authorized execution continues in the same turn.
-- When it cannot, the handoff is one copy-paste route-and-run command that resolves the path, verifies the front door, changes location, runs it, and propagates the exit code.
+- When it cannot, the handoff is one copy-paste route-and-run command that resolves the path, proves dependencies, invokes the helper/front door, and preserves the exit disposition.
 
 ## Repaired boundary
 
 Previously, a fresh agent could select the correct product command (`sas autologon Remote HOST`) yet still hand it to the operator without resolving where to run it. That forced the operator to reacquire repository context and bypassed the stronger crash-safe launcher already registered elsewhere in the harness.
 
-The operator-execution route makes the front door and execution location a mandatory step between command selection and handoff.
+Review also exposed three failure modes in the first route implementation: mutable working-tree state could affect pre-push proof, malformed registry documents were not fully schema-validated, and raw target interpolation/partial dependency checks could make the generated one-liner unsafe or late-failing. The current route makes pushed-tip validation, Draft 2020-12 schema enforcement, encoded target transport, complete dependency proof, and operator-shell preservation executable contracts.
 
 ## Missing / not proven
 
@@ -25,6 +29,8 @@ The operator-execution route makes the front door and execution location a manda
 
 - command id: `autologon-remote`
 - execution root: resolved at runtime via `sas repo`, then bounded cache fallback
+- operator helper: `harness/scripts/Invoke-SasOperatorExecutionRoute.ps1`
+- target transport: validated hostname/FQDN -> UTF-8 Base64 -> positional `-File` argument -> decode/revalidate
 - operator front door: `Run-AutoLogonCrashSafe.cmd HOST`
 - inner product command: `sas autologon Remote HOST`
 - durable result: `%LOCALAPPDATA%\SysAdminSuite\field-runs\autologon\<run_id>\field-run-result.json`
@@ -32,4 +38,4 @@ The operator-execution route makes the front door and execution location a manda
 
 ## Operator expectation
 
-A correct handoff does not say only “run this command.” It either runs the registered front door from the proven location, or gives one command that resolves the location and runs the front door without asking the operator to reconstruct the path.
+A correct handoff does not say only “run this command.” It either runs the registered route from the proven location, or gives one command that resolves the location and runs the tracked helper/front door without asking the operator to reconstruct the path. A failed child command leaves the operator shell available for evidence and recovery work.
