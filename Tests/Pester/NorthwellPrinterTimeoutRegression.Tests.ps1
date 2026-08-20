@@ -26,6 +26,13 @@ Describe 'Northwell printer proof-timeout regression contract' {
         $content | Should -Not -Match 'if\s*\(\$item\.Server\s+-and\s+\$item\.Printer\)'
     }
 
+    It 'uses the registry Printer value directly when it is already a complete UNC path' {
+        $content = Get-Content -LiteralPath $script:runnerPath -Raw
+        $content | Should -Match '\$printerValue\s+-match'
+        $content | Should -Match '\$candidate\s*=\s*\$printerValue\.ToLowerInvariant\(\)'
+        $content | Should -Match '\$printerValue\.TrimStart'
+    }
+
     It 'captures agent and scheduled-task diagnostics before classifying a proof timeout' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
         $content | Should -Match 'Get-Content -LiteralPath \$remoteLogAdmin -Tail 20'

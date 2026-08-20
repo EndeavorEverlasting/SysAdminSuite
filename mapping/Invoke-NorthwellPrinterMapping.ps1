@@ -253,10 +253,14 @@ function Get-MachineWidePrinterConnections {
             $item = Get-ItemProperty -LiteralPath $subKey.PSPath -ErrorAction Stop
             $serverProperty = $item.PSObject.Properties['Server']
             $printerProperty = $item.PSObject.Properties['Printer']
-            if ($null -ne $serverProperty -and $null -ne $printerProperty -and
-                -not [string]::IsNullOrWhiteSpace([string]$serverProperty.Value) -and
-                -not [string]::IsNullOrWhiteSpace([string]$printerProperty.Value)) {
-                $candidate = ('\\{0}\{1}' -f ([string]$serverProperty.Value).TrimStart([char[]]'\'), [string]$printerProperty.Value).ToLowerInvariant()
+            $serverValue = if ($null -ne $serverProperty) { ([string]$serverProperty.Value).Trim() } else { '' }
+            $printerValue = if ($null -ne $printerProperty) { ([string]$printerProperty.Value).Trim() } else { '' }
+
+            if ($printerValue -match '^\\\\[^\\]+\\[^\\]+$') {
+                $candidate = $printerValue.ToLowerInvariant()
+            }
+            elseif (-not [string]::IsNullOrWhiteSpace($serverValue) -and -not [string]::IsNullOrWhiteSpace($printerValue)) {
+                $candidate = ('\\{0}\{1}' -f $serverValue.TrimStart([char[]]'\'), $printerValue.TrimStart([char[]]'\')).ToLowerInvariant()
             }
             if ([string]::IsNullOrWhiteSpace($candidate)) {
                 $candidate = ConvertFrom-MachineWideConnectionKeyName -Name ([string]$subKey.PSChildName)
