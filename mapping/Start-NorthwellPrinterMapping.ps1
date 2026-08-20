@@ -7,6 +7,11 @@
     Invoke-NorthwellPrinterMapping.ps1, suppresses lower-level controller chatter,
     and reports the authoritative SYSTEM + HKLM result.
 
+    Successful interactions are remembered in a bounded per-user cache and offered
+    only as input suggestions on later runs. Cached values never bypass canonical
+    target/queue resolution and never count as printer-state proof. If cache state
+    is stale, malformed, locked, or unavailable, mapping continues without it.
+
     If the engine raises a lower-level controller/task error but its new run-scoped
     Status.json proves the requested machine-wide state, that proof wins and the
     technician sees PASS rather than a false failure. Stale evidence from an older
@@ -29,6 +34,18 @@ $ProgressPreference = 'SilentlyContinue'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $localDefaultsPath = Join-Path $repoRoot 'Config\northwell-printer-defaults.local.json'
 $latestPointer = Join-Path $PSScriptRoot 'Logs\LATEST-PATH.txt'
+$cacheScope = 'northwell'
+$cacheAvailable = $false
+$cacheModule = Join-Path $repoRoot 'scripts\SasInteractionCache.psm1'
+if (Test-Path -LiteralPath $cacheModule -PathType Leaf) {
+    try {
+        Import-Module $cacheModule -Force -ErrorAction Stop
+        $cacheAvailable = $true
+    }
+    catch {
+        $cacheAvailable = $false
+    }
+}
 
 function Split-SasFieldList {
     param(
@@ -42,6 +59,87 @@ function Split-SasFieldList {
     )
     if ($items.Count -eq 0) { throw "$Label cannot be blank." }
     return $items
+}
+
+function Get-SasRecentInteractionValues {
+    param(
+        [Parameter(Mandatory)][ValidateSet('Host','Printer','Server')][string]$Kind,
+        [ValidateRange(1,20)][int]$Top = 10
+    )
+
+    if (-not $cacheAvailable) { return @() }
+    try {
+        return @(
+            Get-SasInteractionCacheEntries -Scope $cacheScope -Kind $Kind -Top $Top -ErrorAction Stop |
+                ForEach-Object { [string]$_.DisplayValue } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )
+    }
+    catch {
+        return @()
+    }
+}
+
+function Read-SasRecentNumberSelection {
+    param(
+        [Parameter(Mandatory)][string]$RawValue,
+        [Parameter(Mandatory)][string[]]$RecentValues,
+        [Parameter(Mandatory)][string]$Label
+    )
+
+    $trimmed = $RawValue.Trim()
+    if ($trimmed -notmatch '^\d+(?:\s*[,;]\s*\d+)*$') { return $null }
+    $selected = New-Object System.Collections.Generic.List[string]
+    foreach ($rawIndex in @($trimmed -split '\s*[,;]\s*')) {
+        $index = [int]$rawIndex
+        if ($index -lt 1 -or $index -gt $RecentValues.Count) {
+            throw "$Label recent selection '$index' is outside the displayed range 1-$($RecentValues.Count)."
+        }
+        $selected.Add($RecentValues[$index - 1])
+    }
+    return @($selected.ToArray() | Select-Object -Unique)
+}
+
+function Show-SasRecentValues {
+    param(
+        [Parameter(Mandatory)][string]$Title,
+        [Parameter(Mandatory)][string[]]$Values
+    )
+
+    if ($Values.Count -eq 0) { return }
+    Write-Host ''
+    Write-Host $Title -ForegroundColor DarkCyan
+    for ($index = 0; $index -lt $Values.Count; $index++) {
+        Write-Host ('  {0}. {1}' -f ($index + 1), $Values[$index])
+    }
+}
+
+function Save-SasPrinterInteractionHistory {
+    param(
+        [Parameter(Mandatory)][string[]]$Computers,
+        [Parameter(Mandatory)][string[]]$Printers,
+        [AllowNull()][string]$ExplicitPrintServer
+    )
+
+    if (-not $cacheAvailable) { return }
+    try {
+        foreach ($computer in @($Computers | Select-Object -Unique)) {
+            $null = Add-SasInteractionCacheEntry -Scope $cacheScope -Kind Host -Value ([string]$computer) -ErrorAction Stop
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ExplicitPrintServer)) {
+            $null = Add-SasInteractionCacheEntry -Scope $cacheScope -Kind Server -Value $ExplicitPrintServer -ErrorAction Stop
+        }
+        foreach ($printerValue in @($Printers | Select-Object -Unique)) {
+            $printerText = ([string]$printerValue).Trim()
+            $null = Add-SasInteractionCacheEntry -Scope $cacheScope -Kind Printer -Value $printerText -ErrorAction Stop
+            if ($printerText -match '^\\\\([^\\]+)\\[^\\]+$') {
+                $null = Add-SasInteractionCacheEntry -Scope $cacheScope -Kind Server -Value $Matches[1] -ErrorAction Stop
+            }
+        }
+    }
+    catch {
+        # Cache persistence is advisory. Authoritative printer success must not be downgraded by cache failure.
+    }
 }
 
 function Get-SasNorthwellPrinterLocalDefaults {
@@ -190,14 +288,45 @@ function Write-SasPrinterResult {
 
 if (-not $ComputerName -or $ComputerName.Count -eq 0) {
     Write-Host 'Northwell system-wide printer mapping' -ForegroundColor Cyan
-    $rawComputers = Read-Host 'Target PC hostname(s)'
-    $ComputerName = @(Split-SasFieldList -Value $rawComputers -Label 'Target PC hostname')
+    $recentHosts = @(Get-SasRecentInteractionValues -Kind Host -Top 10)
+    Show-SasRecentValues -Title 'Recent proven target PCs:' -Values $recentHosts
+    $hostPrompt = if ($recentHosts.Count -gt 0) { 'Target PC(s): recent number(s) or hostname(s)' } else { 'Target PC hostname(s)' }
+    $rawComputers = Read-Host $hostPrompt
+    if ([string]::IsNullOrWhiteSpace($rawComputers)) { throw 'Target PC hostname cannot be blank.' }
+    $selectedHosts = if ($recentHosts.Count -gt 0) { Read-SasRecentNumberSelection -RawValue $rawComputers -RecentValues $recentHosts -Label 'Target PC' } else { $null }
+    if ($null -ne $selectedHosts) { $ComputerName = @($selectedHosts) }
+    else { $ComputerName = @(Split-SasFieldList -Value $rawComputers -Label 'Target PC hostname') }
 }
 
+$explicitPrintServerForCache = $PrintServer
 if (-not $Printer -or $Printer.Count -eq 0) {
-    $localDefaults = Get-SasNorthwellPrinterLocalDefaults
-    $Printer = @(Read-SasNorthwellPrinterSets -InitialPrintServer $PrintServer -LocalDefaults $localDefaults)
-    $PrintServer = $null
+    $recentPrinters = @(Get-SasRecentInteractionValues -Kind Printer -Top 10)
+    $selectedPrinters = $null
+    if ($recentPrinters.Count -gt 0) {
+        Show-SasRecentValues -Title 'Recent proven printer inputs:' -Values $recentPrinters
+        $rawRecentPrinter = Read-Host 'Printer number(s), or Enter to choose server/queue manually'
+        if (-not [string]::IsNullOrWhiteSpace($rawRecentPrinter)) {
+            $selectedPrinters = Read-SasRecentNumberSelection -RawValue $rawRecentPrinter -RecentValues $recentPrinters -Label 'Printer'
+            if ($null -eq $selectedPrinters) {
+                throw 'Choose displayed printer number(s), or press Enter for manual server/queue entry.'
+            }
+        }
+    }
+
+    if ($null -ne $selectedPrinters) {
+        $Printer = @($selectedPrinters)
+        $PrintServer = $null
+    }
+    else {
+        $localDefaults = Get-SasNorthwellPrinterLocalDefaults
+        $initialServer = $PrintServer
+        if ([string]::IsNullOrWhiteSpace($initialServer) -and $null -eq $localDefaults) {
+            $recentServers = @(Get-SasRecentInteractionValues -Kind Server -Top 1)
+            if ($recentServers.Count -gt 0) { $initialServer = $recentServers[0] }
+        }
+        $Printer = @(Read-SasNorthwellPrinterSets -InitialPrintServer $initialServer -LocalDefaults $localDefaults)
+        $PrintServer = $null
+    }
 }
 
 $guardModule = Join-Path $repoRoot 'scripts\SasNetworkGuard.psm1'
@@ -242,6 +371,7 @@ if ($WhatIf) {
 
 $authoritativeSuccess = $freshEvidence -and (Test-SasLatestAuthoritativePrinterProof -EvidenceRoot $evidenceRoot)
 if ($authoritativeSuccess) {
+    Save-SasPrinterInteractionHistory -Computers @($ComputerName) -Printers @($Printer) -ExplicitPrintServer $explicitPrintServerForCache
     Write-SasPrinterResult -Success $true -EvidenceRoot $evidenceRoot -RecoveredFromLowerLevelError:($null -ne $engineError)
     return
 }
