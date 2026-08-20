@@ -172,12 +172,13 @@ Describe 'Canonical Northwell system-wide runner contract' {
         $content | Should -Match '"/n\$queue"'
         $content | Should -Not -Match "Start-Process -FilePath 'rundll32\.exe'"
     }
-    It 'polls for requested HKLM machine-wide proof before failing' {
+    It 'proves requested HKLM state directly without ICMP reachability rituals' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
         $content | Should -Match 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Print\\Connections'
-        $content | Should -Match 'AddSeconds\(30\)'
         $content | Should -Match 'Missing'
         $content | Should -Match 'VerifiedMachineWide'
+        $content | Should -Not -Match '(?i)Test-Connection'
+        $content | Should -Not -Match '(?i)\bping(?:\.exe)?\b'
     }
     It 'does not use locale-dependent task dates' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
@@ -202,31 +203,31 @@ Describe 'Canonical Northwell system-wide runner contract' {
 }
 
 Describe 'Technician quick front-door contract' {
-    It 'self-elevates with trustworthy child exit propagation and delegates to the interactive wrapper' {
+    It 'self-elevates, propagates child status, and delegates without verbose evidence reparsing' {
         $content = Get-Content -LiteralPath $script:cmdPath -Raw
         $content | Should -Match 'EnableDelayedExpansion'
         $content | Should -Match 'Start-Process.*-Verb RunAs'
         $content | Should -Match '!ERRORLEVEL!'
         $content | Should -Match 'Start-NorthwellPrinterMapping\.ps1'
-        $content | Should -Match 'Accepted printer input: \\\\server\\queue'
-        $content | Should -Match 'ALL users'
-        $content | Should -Match 'NO TEST PAGE'
-        $content | Should -Match 'Edit-NorthwellPrinter-Defaults\.cmd'
+        $content | Should -Match '%SystemRoot%\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe'
+        $content | Should -Not -Match 'SAS_LATEST_DIR'
+        $content | Should -Not -Match 'set /p'
+        $content | Should -Not -Match 'Primary artifacts:'
         $content | Should -Not -Match 'Remove-Printer'
     }
     It 'uses operator-local defaults rather than tracked live endpoints' {
         $content = Get-Content -LiteralPath $script:interactivePath -Raw
         $content | Should -Match 'northwell-printer-defaults\.local\.json'
         $content | Should -Match 'Read-SasNorthwellPrinterSets -InitialPrintServer \$PrintServer'
-        $content | Should -Match 'No operator-local printer default is configured'
+        $content | Should -Match 'Get-SasNorthwellPrinterLocalDefaults'
         $content | Should -Not -Match 'SYKPNHPHPS01V'
     }
     It 'collects repeated server/queue sets and delegates to the canonical engine' {
         $content = Get-Content -LiteralPath $script:interactivePath -Raw
-        $content | Should -Match "Read-Host 'Target PC hostname\(s\), comma-separated'"
-        $content | Should -Match 'Add another print server / queue set\? \[y/N\]'
+        $content | Should -Match "Read-Host 'Target PC hostname\(s\)'"
+        $content | Should -Match 'Add another server/queue set\? \[y/N\]'
         $content | Should -Match 'Invoke-NorthwellPrinterMapping\.ps1'
-        $content | Should -Match 'SYSTEM-WIDE for all users'
+        $content | Should -Match 'PASS: requested printer mapping is proven SYSTEM-wide in HKLM'
     }
 }
 

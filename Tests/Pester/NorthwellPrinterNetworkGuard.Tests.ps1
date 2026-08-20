@@ -12,7 +12,6 @@ Describe 'Northwell printer VPN network authority contract' {
         $text | Should -Match 'scripts\\SasNetworkGuard\.psm1'
         $text | Should -Match 'Import-Module \$guardModule -Force'
         $text | Should -Match 'Assert-SasNorthwellWifi'
-        $text | Should -Match 'Guest Wi-Fi may remain connected when a live DomainAuthenticated VPN/LAN path is active'
 
         $guard = $text.IndexOf('Assert-SasNorthwellWifi', [StringComparison]::Ordinal)
         $engine = $text.IndexOf('& $engine @invokeParameters', [StringComparison]::Ordinal)
@@ -32,5 +31,6 @@ Describe 'Northwell printer VPN network authority contract' {
         $text | Should -Match 'NetworkCategory.*DomainAuthenticated'
         $text | Should -Match 'Live Windows domain authentication is stronger than the physical uplink label'
         $text | Should -Not -Match 'if \(@\(\$config\.allowedLocalIpCidrs\)\.Count -eq 0\) \{ return \$false \}'
+        $text | Should -Not -Match '(?i)Intel.*Ethernet|AnyConnect|GlobalProtect|FortiClient'
     }
 }
