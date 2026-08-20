@@ -105,7 +105,7 @@ A task is complete only when:
 1. changed files are named;
 2. validation commands were actually run and exact results reported;
 3. a commit SHA exists;
-4. push, PR, and default-branch integration state are reported; when the exact validated head is green, mergeable, authorized, dependency-satisfied, and unblocked, integrate it before completion rather than leaving it for a technician to request;
+4. push and PR state are reported, and default-branch integration state is also reported; when the exact validated head is green, mergeable, authorized, dependency-satisfied, and unblocked, integrate it before completion rather than leaving it for a technician to request;
 5. one exact next command is given.
 
 Also report skipped checks, remaining gaps or risks, and the proof ceiling reached. A green static validator is not automatically runtime, target, deployment, or operator-acceptance proof.
