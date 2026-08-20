@@ -6,9 +6,11 @@ set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 rem Northwell quick mapper.
 rem SYSTEM-WIDE for ALL users. NO TEST PAGE. Reversible changes produce UndoPlan.json.
-rem Phase 1 registers the shared queue per-computer with SYSTEM /ga.
+rem Primary transport uses canonical administrative-share staging + SYSTEM Task Scheduler.
+rem If fresh evidence proves staging failed before mutation, the resilient wrapper may
+rem use shareless SYSTEM Task Scheduler + Remote Registry HKLM proof instead.
 rem Phase 2 materializes and verifies the connection for any user already logged on.
-rem No reachability sweep. No direct-IP fallback.
+rem No reachability sweep. No direct-IP fallback. No blind remap after ambiguous failure.
 
 "%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -Command "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 1 }"
 if not "%ERRORLEVEL%"=="0" (
@@ -20,7 +22,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 
 echo Northwell system-wide printer mapping
-"%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0mapping\Start-NorthwellPrinterMapping.ps1" -Action Map
+"%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0mapping\Invoke-NorthwellPrinterResilientQuick.ps1" -Action Map
 set "SAS_RC=%ERRORLEVEL%"
 
 if "%SAS_RC%"=="0" (
