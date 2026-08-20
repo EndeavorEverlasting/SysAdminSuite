@@ -70,6 +70,19 @@ function Resolve-SasInstalledPrinterBootstrap {
     throw 'Trusted Northwell printer bootstrap is missing. Reinstall the universal sas command from a current machine-local runtime.'
 }
 
+function Resolve-SasInstalledAutoLogonBootstrap {
+    # Target-mutating AutoLogon Remote must enter the sealed crash-safe bootstrap so every run gets
+    # the registered LOCALAPPDATA transcript/result/latest-pointer recovery surface. Prefer the
+    # execution runtime; the controller fallback supports source-checkout validation only.
+    foreach ($candidate in @(
+        (Join-Path $runtimeRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd'),
+        (Join-Path $controllerRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd')
+    )) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    throw 'Trusted crash-safe AutoLogon bootstrap is missing. Refresh/reseal the machine-local runtime before Remote deployment.'
+}
+
 if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
     Write-SasUniversalContext
     if ([string]::IsNullOrWhiteSpace($normalized)) {
@@ -176,12 +189,19 @@ switch ($normalized) {
             $target = ([string]$actualArgs[1]).Trim()
             if ($mode -in @('remote','recover')) {
                 [void](Assert-SasProtectedForAction -Purpose "AutoLogon $mode for $target")
-                $launcher = Join-Path $runtimeRoot 'Run-AutoLogonOnsite.cmd'
-                if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
-                    throw "Canonical local AutoLogon launcher is missing from runtime: $launcher"
+                if ($mode -eq 'remote') {
+                    $bootstrap = Resolve-SasInstalledAutoLogonBootstrap
+                    Write-Host 'AutoLogon entrypoint: sealed crash-safe bootstrap; durable field evidence REQUIRED.' -ForegroundColor Green
+                    & $bootstrap $target
+                    exit $LASTEXITCODE
                 }
-                $action = if ($mode -eq 'remote') { 'Remote' } else { 'Recover' }
-                & $launcher $action $target
+
+                # Recovery stays recovery-only. Do not send Recover through the deployment bootstrap.
+                $recoveryLauncher = Join-Path $runtimeRoot 'Run-AutoLogonOnsite.cmd'
+                if (-not (Test-Path -LiteralPath $recoveryLauncher -PathType Leaf)) {
+                    throw "Canonical local AutoLogon recovery launcher is missing from runtime: $recoveryLauncher"
+                }
+                & $recoveryLauncher Recover $target
                 exit $LASTEXITCODE
             }
         }
