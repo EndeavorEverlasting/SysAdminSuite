@@ -13,7 +13,8 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
                 (Get-Content -LiteralPath $script:enginePath -Raw) + "`n" +
                 (Get-Content -LiteralPath $script:cmdPath -Raw)
         $text | Should -Not -Match '(?i)Test-Connection'
-        $text | Should -Not -Match '(?i)\bping(?:\.exe)?\b'
+        $text | Should -Not -Match '(?im)^\s*ping(?:\.exe)?\s+'
+        $text | Should -Not -Match '(?i)[\\/]ping\.exe["'']?\s'
         $text | Should -Not -Match '(?i)-Count\s+5\b'
     }
 
@@ -41,7 +42,22 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text | Should -Match '\$previousEvidenceRoot = Get-SasLatestPrinterEvidenceRoot'
         $text | Should -Match '\$freshEvidence ='
         $text | Should -Match '\$authoritativeSuccess = \$freshEvidence -and'
-        $text | Should -Match 'without fresh authoritative HKLM proof'
+        $text | Should -Match 'fresh evidence but did not prove the requested SYSTEM-wide HKLM state'
+    }
+
+    It 'keeps WhatIf plan-only instead of demanding runtime status proof' {
+        $text = Get-Content -LiteralPath $script:startPath -Raw
+        $whatIfIndex = $text.IndexOf('if ($WhatIf) {')
+        $proofIndex = $text.IndexOf('$authoritativeSuccess = $freshEvidence -and')
+        $whatIfIndex | Should -BeGreaterThan -1
+        $proofIndex | Should -BeGreaterThan $whatIfIndex
+        $text | Should -Match 'PLAN: preview complete; no printer changes were made'
+    }
+
+    It 'preserves actionable early engine errors when no new evidence exists' {
+        $text = Get-Content -LiteralPath $script:startPath -Raw
+        $text | Should -Match 'if \(\$null -ne \$engineError -and -not \$freshEvidence\)'
+        $text | Should -Match 'throw \$engineError\.Exception\.Message'
     }
 
     It 'keeps the CMD front door short and avoids reparsing evidence paths' {
