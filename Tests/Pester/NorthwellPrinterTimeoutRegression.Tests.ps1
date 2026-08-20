@@ -18,6 +18,14 @@ Describe 'Northwell printer proof-timeout regression contract' {
         $content | Should -Match 'registry proof will determine success'
     }
 
+    It 'recognizes the per-machine connection identity from the HKLM child key when Printer value metadata is absent' {
+        $content = Get-Content -LiteralPath $script:runnerPath -Raw
+        $content | Should -Match 'ConvertFrom-MachineWideConnectionKeyName'
+        $content | Should -Match 'PSChildName'
+        $content | Should -Match 'RawConnectionKeys'
+        $content | Should -Not -Match 'if\s*\(\$item\.Server\s+-and\s+\$item\.Printer\)'
+    }
+
     It 'captures agent and scheduled-task diagnostics before classifying a proof timeout' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
         $content | Should -Match 'Get-Content -LiteralPath \$remoteLogAdmin -Tail 20'
