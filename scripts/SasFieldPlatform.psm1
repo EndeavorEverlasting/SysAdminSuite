@@ -21,6 +21,31 @@ function Test-SasLocalControllerPath {
     if ($null -eq $DriveTypeResolver) {
         $DriveTypeResolver = {
             param($DeviceId)
+            $driveName = $DeviceId.TrimEnd(':')
+
+            # A mapped FileSystem PSDrive exposes its network root without requiring CIM.
+            try {
+                $psDrive = Get-PSDrive -Name $driveName -PSProvider FileSystem -ErrorAction Stop
+                if ($null -ne $psDrive -and
+                    -not [string]::IsNullOrWhiteSpace([string]$psDrive.DisplayRoot) -and
+                    [string]$psDrive.DisplayRoot -match '^(?:\\\\|//)') {
+                    return 4
+                }
+            }
+            catch { }
+
+            # DriveInfo is local and normally available even when WMI/CIM is restricted.
+            try {
+                $driveInfo = New-Object IO.DriveInfo ($DeviceId + '\')
+                switch ([string]$driveInfo.DriveType) {
+                    'Fixed' { return 3 }
+                    'Network' { return 4 }
+                    default { return 0 }
+                }
+            }
+            catch { }
+
+            # CIM is a final corroborating source, not the sole locality authority.
             try {
                 $disk = Get-CimInstance Win32_LogicalDisk -Filter ("DeviceID='{0}'" -f $DeviceId) -ErrorAction Stop
                 return [int]$disk.DriveType
@@ -31,10 +56,8 @@ function Test-SasLocalControllerPath {
 
     $driveType = 0
     try { $driveType = [int](& $DriveTypeResolver $drive) } catch { $driveType = 0 }
-    # 3 = local fixed disk. 0 means the platform could not query drive type; a rooted local-looking
-    # path is still accepted because some protected controllers restrict CIM. Explicit network drives
-    # (4) and removable/optical providers are never accepted as the controller runtime authority.
-    return ($driveType -eq 0 -or $driveType -eq 3)
+    # Fail closed: only a positively proven fixed local disk is controller/runtime authority.
+    return ($driveType -eq 3)
 }
 
 function Test-SasControllerSurface {
@@ -145,11 +168,18 @@ function Save-SasControllerRootCache {
     param([Parameter(Mandatory = $true)][string]$Root)
 
     if (-not (Test-SasControllerSurface -Root $Root)) { throw "Not a valid local controller surface: $Root" }
-    $stateRoot = Get-SasMachineStateRoot -Create
-    if ($null -eq $stateRoot) { return $null }
-    $path = Join-Path $stateRoot 'repo-root.txt'
-    Set-Content -LiteralPath $path -Value ([IO.Path]::GetFullPath($Root)) -Encoding ASCII
-    return $path
+    try {
+        $stateRoot = Get-SasMachineStateRoot -Create
+        if ($null -eq $stateRoot) { return $null }
+        $path = Join-Path $stateRoot 'repo-root.txt'
+        Set-Content -LiteralPath $path -Value ([IO.Path]::GetFullPath($Root)) -Encoding ASCII -ErrorAction Stop
+        return $path
+    }
+    catch {
+        # Cache persistence is an optimization only. A read/execute-only ProgramData installation must
+        # remain usable by other technicians when C:\SASAL or another valid controller is already found.
+        return $null
+    }
 }
 
 function Get-SasUsableConnectionProfiles {
