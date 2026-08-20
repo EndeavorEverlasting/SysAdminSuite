@@ -88,6 +88,6 @@ Describe 'Universal sas printer entrypoint' {
         $text | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
         $text | Should -Match 'Invoke-NorthwellPrinterActiveUserAgent\.ps1'
         $text | Should -Match 'Map-NorthwellPrinters-FromFile\.cmd'
-        $text | Should -Match "\$launcherName = if \(\$Mode -eq 'File'\)"
+        $text.Contains('$launcherName = if ($Mode -eq ''File'')') | Should -BeTrue
     }
 }
