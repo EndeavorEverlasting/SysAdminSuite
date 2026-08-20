@@ -167,6 +167,16 @@ function Test-SasTrackedRuntimeClean {
     return @($result.Lines | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0
 }
 
+function Test-SasDedicatedCacheRoot {
+    param([Parameter(Mandatory = $true)][string]$Root)
+    $gitMetadata = Join-Path $Root '.git'
+    if (-not (Test-Path -LiteralPath $gitMetadata -PathType Container)) { return $false }
+    $inside = Invoke-SasGit -Root $Root -Arguments @('rev-parse','--is-inside-work-tree') -FailureMessage 'Could not inspect dedicated printer bootstrap cache.' -AllowFailure
+    if ($inside.ExitCode -ne 0) { return $false }
+    $value = [string]($inside.Lines | Select-Object -First 1)
+    return (-not [string]::IsNullOrWhiteSpace($value) -and $value.Trim().Equals('true', [System.StringComparison]::OrdinalIgnoreCase))
+}
+
 function Add-SasCandidate {
     param(
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$List,
@@ -232,9 +242,8 @@ if ([string]::IsNullOrWhiteSpace($runtimeRoot)) {
         }
         else {
             if (Test-Path -LiteralPath $CacheRoot) {
-                $inside = Invoke-SasGit -Root $CacheRoot -Arguments @('rev-parse','--is-inside-work-tree') -FailureMessage 'Dedicated printer bootstrap cache is not a Git worktree.' -AllowFailure
-                if ($inside.ExitCode -ne 0) {
-                    throw "Printer bootstrap cache path already exists but is not a Git worktree. Nothing was changed: $CacheRoot"
+                if (-not (Test-SasDedicatedCacheRoot -Root $CacheRoot)) {
+                    throw "Printer bootstrap cache path already exists but is not the dedicated Git worktree. Nothing was changed: $CacheRoot"
                 }
                 $origin = Get-SasGitScalar -Root $CacheRoot -Arguments @('remote','get-url','origin') -FailureMessage 'Could not inspect dedicated printer bootstrap origin.'
                 if ($origin -notmatch '(?i)github\.com[:/]+EndeavorEverlasting/SysAdminSuite(?:\.git)?/?$') {
