@@ -11,6 +11,8 @@ on:
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
       - 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
+      - 'Bootstrap-SysAdminSuitePrinter.cmd'
+      - 'Bootstrap-SysAdminSuitePrinter.ps1'
       - 'Manage-NorthwellPrinters.cmd'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
       - 'Unmap-NorthwellPrinter-SystemWide.cmd'
@@ -37,6 +39,7 @@ on:
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterBootstrap.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterReversibility.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
       - 'Tests/Pester/SasInteractionCache.Tests.ps1'
@@ -52,6 +55,8 @@ on:
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
       - 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
+      - 'Bootstrap-SysAdminSuitePrinter.cmd'
+      - 'Bootstrap-SysAdminSuitePrinter.ps1'
       - 'Manage-NorthwellPrinters.cmd'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
       - 'Unmap-NorthwellPrinter-SystemWide.cmd'
@@ -78,6 +83,7 @@ on:
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterBootstrap.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterReversibility.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
       - 'Tests/Pester/SasInteractionCache.Tests.ps1'
@@ -101,6 +107,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $files = @(
+            '.\Bootstrap-SysAdminSuitePrinter.ps1',
             '.\mapping\Start-NorthwellPrinterMapping.ps1',
             '.\mapping\Start-NorthwellPrinterBatch.ps1',
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
@@ -114,6 +121,7 @@ jobs:
             '.\scripts\Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1',
             '.\Utilities\Map-Printer.ps1',
             '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterBootstrap.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterReversibility.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterInteractionCache.Tests.ps1',
             '.\Tests\Pester\SasInteractionCache.Tests.ps1',
@@ -189,6 +197,13 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File
           .\tools\Test-Pester5Suite.ps1
           -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+
+      - name: Run from-anywhere printer bootstrap contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterBootstrap.Tests.ps1
 
       - name: Run reversible printer contracts
         shell: pwsh
