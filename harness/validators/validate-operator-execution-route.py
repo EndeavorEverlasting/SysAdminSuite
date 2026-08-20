@@ -27,18 +27,23 @@ FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
 COMMANDS = ROOT / "harness/api/harness-command-registry.json"
 TERMINAL = ROOT / "harness/api/terminal-evidence-survival-registry.json"
 LAUNCHER = ROOT / "Run-AutoLogonCrashSafe.cmd"
-SAS_LAUNCHER = ROOT / "scripts/SasPortableLauncher.ps1"
+UNIVERSAL_LAUNCHER = ROOT / "scripts/Invoke-SasUniversalField.ps1"
+UNIVERSAL_INSTALLER = ROOT / "scripts/Install-SasUniversalFieldLauncher.ps1"
+SEALED_BOOTSTRAP_CMD = ROOT / "Bootstrap-SysAdminSuiteAutoLogon.cmd"
 SEALED_BOOTSTRAP = ROOT / "Bootstrap-SysAdminSuiteAutoLogon.ps1"
 HELPER = ROOT / "harness/scripts/Invoke-SasOperatorExecutionRoute.ps1"
 WINDOWS_TEST = ROOT / "Tests/PowerShell/OperatorExecutionRouteHarness.Tests.ps1"
+UNIVERSAL_CONTRACT = ROOT / "Tests/survey/test_universal_field_platform_contracts.py"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
 PRE_PUSH = ROOT / ".githooks/pre-push"
 CI = ROOT / ".github/workflows/operator-execution-route-harness.yml"
+UNIVERSAL_CI = ROOT / ".github/workflows/universal-field-platform.yml"
 
 COMPONENTS = (
     REGISTRY, SCHEMA, MANIFEST, MANIFEST_SCHEMA, VALIDATORS, WORKFLOW, SKILL, MAP, REPORT,
-    FRESH_AGENT, COMMANDS, TERMINAL, LAUNCHER, SAS_LAUNCHER, SEALED_BOOTSTRAP, HELPER,
-    WINDOWS_TEST, PRE_COMMIT, PRE_PUSH, CI,
+    FRESH_AGENT, COMMANDS, TERMINAL, LAUNCHER, UNIVERSAL_LAUNCHER, UNIVERSAL_INSTALLER,
+    SEALED_BOOTSTRAP_CMD, SEALED_BOOTSTRAP, HELPER, WINDOWS_TEST, UNIVERSAL_CONTRACT,
+    PRE_COMMIT, PRE_PUSH, CI, UNIVERSAL_CI,
 )
 POLICY_KEYS = {
     "resolve_execution_location_before_operator_command",
@@ -277,12 +282,30 @@ def test_autologon_route_contract() -> None:
 
 
 def test_installed_sas_reaches_sealed_crash_safe_path() -> None:
-    launcher = read(SAS_LAUNCHER)
+    installer = read(UNIVERSAL_INSTALLER)
+    require('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasUniversalField.ps1" %*' in installer,
+            "installed sas.cmd no longer enters the universal field launcher")
+
+    launcher = read(UNIVERSAL_LAUNCHER)
+    autologon_block = launcher.split("    'autologon' {", 1)[1].split("\n    'cybernet' {", 1)[0]
     for marker in (
-        "Resolve-SasPreparedAutoLogonRuntime", "autologon-short-runtime.json",
-        "Protected-side Git network I/O: NONE", "& $runtime.bootstrap $target $runtime.commit",
+        "Resolve-SasInstalledAutoLogonBootstrap",
+        "Join-Path $runtimeRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd'",
+        "if ($mode -eq 'remote')",
+        "& $bootstrap $target",
+        "durable field evidence REQUIRED",
+        "& $recoveryLauncher Recover $target",
     ):
-        require(marker in launcher, f"installed sas sealed-runtime contract missing: {marker}")
+        require(marker in launcher if marker.startswith("Resolve-SasInstalledAutoLogonBootstrap") or marker.startswith("Join-Path $runtimeRoot") else marker in autologon_block,
+                f"installed universal sas crash-safe contract missing: {marker}")
+    require("& $recoveryLauncher Remote $target" not in autologon_block,
+            "installed universal sas Remote must not use the recovery/on-site launcher")
+    require("& $launcher $action $target" not in autologon_block,
+            "installed universal sas Remote/Recover must not share a generic on-site dispatcher")
+
+    bootstrap_cmd = read(SEALED_BOOTSTRAP_CMD)
+    require("Bootstrap-SysAdminSuiteAutoLogon.ps1" in bootstrap_cmd, "sealed CMD bootstrap no longer invokes the PowerShell bootstrap")
+    require("-ConfirmVpnPosture" in bootstrap_cmd, "sealed CMD bootstrap no longer establishes protected transport authority")
 
     bootstrap = read(SEALED_BOOTSTRAP)
     for marker in (
@@ -360,14 +383,17 @@ def test_workflow_skill_report_and_intake() -> None:
             "## Trigger", "## Procedure", "## AutoLogon rule", "Run-AutoLogonCrashSafe.cmd HOST",
             "sas autologon Remote HOST", "target_validation_pattern", "target_encoding", "powershell.exe -File",
             "one copy-paste", "## Expected outputs", "## Proof ceiling", "C:\\SASAL",
+            "Invoke-SasUniversalField.ps1", "Bootstrap-SysAdminSuiteAutoLogon.cmd",
         ),
         MAP: (
             "Operator Execution Route Map", "operator-execution-route-registry.json", "Run-AutoLogonCrashSafe.cmd HOST",
             "Invoke-SasOperatorExecutionRoute.ps1", "UTF-8 Base64", "Known trap this prevents", "C:\\SASAL",
+            "Invoke-SasUniversalField.ps1", "Bootstrap-SysAdminSuiteAutoLogon.cmd",
         ),
         REPORT: (
             "## Working", "## Repaired boundary", "## Missing / not proven", "## Current AutoLogon route",
             "Run-AutoLogonCrashSafe.cmd HOST", "UTF-8 Base64", "operator shell", "C:\\SASAL",
+            "Invoke-SasUniversalField.ps1", "Bootstrap-SysAdminSuiteAutoLogon.cmd",
         ),
     }
     for path, markers in required_by_file.items():
@@ -391,14 +417,25 @@ def test_hooks_and_ci() -> None:
     ci = read(CI)
     for marker in (
         "Operator Execution Route Harness", "python -m pip install jsonschema",
-        "repository-freshness-before-launch.yaml", "scripts/SasPortableLauncher.ps1",
+        "repository-freshness-before-launch.yaml", "scripts/Invoke-SasUniversalField.ps1",
+        "scripts/Install-SasUniversalFieldLauncher.ps1", "Bootstrap-SysAdminSuiteAutoLogon.cmd",
         "Bootstrap-SysAdminSuiteAutoLogon.ps1", "Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
         "Invoke-SasAutoLogonFieldDeployment.ps1", "Invoke-SasOperatorExecutionRoute.ps1",
-        "OperatorExecutionRouteHarness.Tests.ps1", "fetch-depth: 0",
-        "python harness/validators/validate-operator-execution-route.py", "validate-harness-registries.py",
-        "test_operational_harness_completeness_contracts.py", "git diff --check", "runs-on: windows-latest",
+        "test_universal_field_platform_contracts.py", "OperatorExecutionRouteHarness.Tests.ps1",
+        "fetch-depth: 0", "python harness/validators/validate-operator-execution-route.py",
+        "validate-harness-registries.py", "test_operational_harness_completeness_contracts.py",
+        "git diff --check", "runs-on: windows-latest",
     ):
         require(marker in ci, f"operator execution CI missing: {marker}")
+
+    universal_ci = read(UNIVERSAL_CI)
+    for marker in (
+        "Universal Field Platform", "Bootstrap-SysAdminSuiteAutoLogon.cmd",
+        "Bootstrap-SysAdminSuiteAutoLogon.ps1", "scripts/Invoke-SasUniversalField.ps1",
+        "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1", "test_universal_field_platform_contracts.py",
+        "Run platform contract", "windows-powershell-51",
+    ):
+        require(marker in universal_ci, f"universal field CI missing crash-safe AutoLogon dependency: {marker}")
 
 
 def main() -> int:
