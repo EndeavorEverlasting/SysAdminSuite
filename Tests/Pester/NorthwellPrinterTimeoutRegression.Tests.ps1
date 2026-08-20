@@ -12,6 +12,12 @@ Describe 'Northwell printer proof-timeout regression contract' {
         $content | Should -Match 'Verifying the owning HKLM machine-wide registration directly'
     }
 
+    It 'does not depend on LASTEXITCODE after rundll32 PrintUIEntry under Windows PowerShell strict mode' {
+        $content = Get-Content -LiteralPath $script:runnerPath -Raw
+        $content | Should -Not -Match '\$printUiExitCode\s*=\s*\$LASTEXITCODE'
+        $content | Should -Match 'registry proof will determine success'
+    }
+
     It 'captures agent and scheduled-task diagnostics before classifying a proof timeout' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
         $content | Should -Match 'Get-Content -LiteralPath \$remoteLogAdmin -Tail 20'
