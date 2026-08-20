@@ -7,16 +7,18 @@
 SysAdminSuite has a tracked, proven Northwell printer-mapping use case:
 `northwell.shared-printer.organization-default`.
 
-The registered runtime authority remains the Northwell runbook, system-wide runtime launcher, canonical engine, and evidence policy. Routine technician distribution now adds `Map-NorthwellPrinter.cmd` as a thin one-click front door into the same trusted `sas printer` / bootstrap path; it does not introduce another mapping implementation.
+The registered runtime authority remains the Northwell runbook, system-wide runtime launcher, operator wrapper, canonical mapper/finalizer chain, and evidence policy. Routine technician distribution adds `Map-NorthwellPrinter.cmd` as a thin one-click front door into the same trusted `sas printer` / bootstrap path; it does not introduce another mapping implementation.
 
-### Current field checkpoint
+### Field checkpoint
 
-On **August 20, 2026**, the current-main Northwell quick workflow was observed on an approved `DomainAuthenticated` wired connection completing both:
+On **August 20, 2026**, SysAdminSuite commit `4c5f1252aae24269ac1e0ab28ef9366ea08fd33f` was observed through `sas printer` on an approved `DomainAuthenticated` wired connection completing both:
 
 - SYSTEM-wide requested printer registration proof in HKLM; and
 - immediate active-user printer materialization proof.
 
-This is live mapping/materialization evidence for the current Northwell use case. It is intentionally narrower than physical print acceptance: a real requested document must still be separately observed printing before claiming document-output runtime acceptance.
+This is live mapping/materialization evidence for the underlying Northwell use case on that observed protected path. It is intentionally narrower than physical print acceptance: a real requested document must still be separately observed printing before claiming document-output runtime acceptance.
+
+Subsequent mainline printer work added a bounded per-user local admin-box trail and explicit outcomes (`MAPPED_NOW`, `ALREADY_MAPPED`, `NOT_FOUND`, `FAILED`, `READY`, `READY_NEXT_LOGON`) while preserving the same resilient mapper/finalizer authority. Repository validation proves that composition. The new one-click technician CMD still needs post-refresh field acceptance before claiming that exact wrapper was observed live.
 
 Technician path:
 
@@ -58,8 +60,10 @@ No site silently inherits a different organization's rules, and no acquired hosp
 ## What is working
 
 - Northwell system-wide mapping remains registered as its own organization-specific use case.
-- The current quick path has live SYSTEM/HKLM + active-user materialization evidence on a protected wired route.
+- Commit `4c5f1252...` has live SYSTEM/HKLM + active-user materialization evidence on an approved protected wired route.
+- The current runtime operator layer adds clear `MAPPED NOW` / `ALREADY MAPPED` / `NOT FOUND` / `FAILED` / `READY` outcomes and a bounded local trail without replacing mapping authority.
 - `Map-NorthwellPrinter.cmd` gives non-technical technicians a one-click route into the same canonical workflow.
+- The technician CMD accepts only installer-owned sibling `sas.cmd` or sibling trusted bootstrap authority; an unqualified PATH shim is forbidden.
 - The universal installer distributes that CMD beside `sas.cmd` instead of requiring a technician checkout.
 - Recent proven PCs/printers reduce repeated typing without becoming authoritative cache state.
 - Organization/site context is required before a printer implementation is selected.
@@ -70,6 +74,7 @@ No site silently inherits a different organization's rules, and no acquired hosp
 
 ## What is missing
 
+- The new one-click `Map-NorthwellPrinter.cmd` wrapper has not yet been separately field-accepted after installation/refresh.
 - Physical document output is not claimed by the August 20 mapping/materialization evidence alone.
 - Health & Hospitals mapping standards have not yet been discovered.
 - No hospital-specific site override is registered yet.
@@ -94,4 +99,4 @@ The focused harness authority remains `harness/validators/validate-printer-mappi
 
 ## Proof ceiling
 
-Repository/harness validation proves isolation, routing, thin-launcher delegation, installer distribution, and tutorial contracts. The supplied August 20 field evidence additionally proves the current Northwell quick path reached SYSTEM-wide HKLM registration and immediate active-user materialization on that approved protected wired path. It does not prove Health & Hospitals behavior, site-specific standards, every network path, or physical document output.
+Repository/harness validation proves organization isolation, routing, operator-layer composition, thin-launcher delegation, trusted-launcher authority, installer distribution, and tutorial/governance contracts. The August 20 field evidence additionally proves commit `4c5f1252...` reached SYSTEM-wide HKLM registration and immediate active-user materialization on the observed protected wired path. It does not prove the newly distributed technician CMD has itself been field-run yet, Health & Hospitals behavior, site-specific standards, every network path, or physical document output.
