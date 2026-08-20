@@ -129,6 +129,22 @@ Output: `dist/SysAdminSuiteDashboard/SysAdminSuite Dashboard.exe` (gitignored, b
 
 Only when the dashboard tells you to copy a command, or a runbook explicitly asks for Bash survey or deployment steps. CLI commands are optional and specific — they are not the default front door.
 
+Northwell printer mapping is also available as a dedicated one-click field CMD for technicians, so it does not require reconstructing a terminal command.
+
+## Where is the Northwell printer mapping tutorial?
+
+For routine **Northwell** shared-printer mapping, double-click:
+
+`Map-NorthwellPrinter.cmd`
+
+The terminal equivalent is `sas printer`, but technicians do not need to use the terminal path. The mapper supports recent proven PC/printer selection, system-wide mapping for all users, and authoritative success/failure evidence without printing a test page.
+
+- Technician walkthrough: [`docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md`](docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md)
+- Mapping contract/reference: [`START-HERE-NORTHWELL-PRINTER-MAPPING.md`](START-HERE-NORTHWELL-PRINTER-MAPPING.md)
+- Advanced unmap/undo/batch management: [`START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md`](START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md)
+
+These paths are Northwell-specific. Do not reuse them for Health & Hospitals or another organization unless a separate printer use case is registered and proven.
+
 ## Where is the Cybernet / Neuron survey tutorial?
 
 - In the dashboard: click **Start Cybernet Survey** after the page opens.
