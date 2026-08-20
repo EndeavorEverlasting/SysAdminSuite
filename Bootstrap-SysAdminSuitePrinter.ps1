@@ -1,17 +1,14 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Launch the canonical Northwell printer mapper without requiring the current shell to be inside SysAdminSuite.
+Launch the canonical Northwell printer mapper from the current origin branch head without requiring the caller to be inside SysAdminSuite.
 
 .DESCRIPTION
-This bootstrap is intentionally independent of the caller's current directory. It reuses only a complete,
-printer-clean local SysAdminSuite runtime that contains the required printer fix by Git ancestry. Unrelated
-tracked edits outside the printer-owned surface do not force a second runtime. If no eligible local runtime
-exists, it uses a dedicated machine-local Git cache when possible, fetches main without force, proves the
-required fix is contained in main, and creates a persistent detached printer runtime keyed by the fetched commit.
+The normal path is remote-authoritative: the bootstrap uses one dedicated machine-local Git cache, fetches the requested branch without force, resolves the exact origin branch head, and launches only a clean detached runtime at that exact commit. A clean but older C:\SASAL or operator checkout is never treated as current merely because it descends from an older required baseline.
 
-The bootstrap never resets, cleans, or checks out an arbitrary operator repository. A dedicated runtime is
-left in one controller-local state root so the mapper's gitignored evidence remains available after the run.
+The caller's current directory and dirty operator checkout are not repository authority. No arbitrary checkout is reset, cleaned, checked out, stashed, or committed. Unrelated local work therefore cannot block printer mapping and cannot be silently overwritten.
+
+-UseLocalRuntimeOnly is an explicit offline/fixture escape hatch. It does not claim current-origin proof and is not used by `sas printer`.
 #>
 [CmdletBinding()]
 param(
@@ -19,7 +16,8 @@ param(
     [string]$RequiredCommit = '66d38dd45881692303f77267e29e4fa44b4a9351',
     [string]$CacheRoot,
     [ValidateSet('Quick','File')][string]$Mode = 'Quick',
-    [switch]$NoLaunch
+    [switch]$NoLaunch,
+    [switch]$UseLocalRuntimeOnly
 )
 
 Set-StrictMode -Version 2.0
@@ -30,7 +28,7 @@ $repositoryUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git'
 $requiredRuntimePaths = @(
     'Map-NorthwellPrinter-SystemWide.cmd',
     'mapping\Start-NorthwellPrinterMapping.ps1',
-    'mapping\Invoke-NorthwellPrinterMapping.ps1',
+    'mapping\Invoke-NorthwellPrinterState.ps1',
     'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
     'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
     'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1',
@@ -44,12 +42,14 @@ if ($Mode -eq 'File') {
         'Map-NorthwellPrinters-FromFile.cmd',
         'Map-NorthwellPrinters-Batch.cmd',
         'mapping\Start-NorthwellPrinterBatch.ps1',
+        'mapping\Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1',
         'mapping\Examples\NorthwellPrinterBatch.example.csv'
     )
 }
 
 function Resolve-SasGitExecutable {
     $command = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $command) { $command = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1 }
     if ($command -and $command.Source -and (Test-Path -LiteralPath $command.Source -PathType Leaf)) {
         return [IO.Path]::GetFullPath([string]$command.Source)
     }
@@ -62,7 +62,7 @@ function Resolve-SasGitExecutable {
             return [IO.Path]::GetFullPath([string]$candidate)
         }
     }
-    throw 'Git for Windows is required to prove printer runtime commit ancestry and printer-owned tracked state.'
+    throw 'Git for Windows is required to prove the current printer runtime.'
 }
 
 function Invoke-SasGit {
@@ -105,30 +105,14 @@ function Invoke-SasGit {
     foreach ($item in @($stdout)) {
         if ($null -ne $item) { $lines += [string]$item }
     }
-
-    $stdoutText = ''
-    if ($lines.Count -gt 0) {
-        $stdoutText = [string]::Join([Environment]::NewLine, [string[]]$lines)
-    }
-
-    $detailParts = @()
-    if (-not [string]::IsNullOrWhiteSpace($stdoutText)) { $detailParts += $stdoutText }
-    if (-not [string]::IsNullOrWhiteSpace($stderr)) { $detailParts += $stderr }
-    $detail = ''
-    if ($detailParts.Count -gt 0) {
-        $detail = [string]::Join([Environment]::NewLine, [string[]]$detailParts)
-    }
+    $stdoutText = if ($lines.Count -gt 0) { [string]::Join([Environment]::NewLine,[string[]]$lines) } else { '' }
+    $detail = (@($stdoutText,$stderr) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine
 
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         if ([string]::IsNullOrWhiteSpace($detail)) { $detail = '(git produced no diagnostic text)' }
         throw "$FailureMessage (git exit $exitCode)`n$detail"
     }
-
-    return [pscustomobject]@{
-        ExitCode = $exitCode
-        Lines = $lines
-        Text = $detail
-    }
+    return [pscustomobject]@{ ExitCode=$exitCode; Lines=$lines; Text=$detail }
 }
 
 function Get-SasGitScalar {
@@ -141,6 +125,16 @@ function Get-SasGitScalar {
     $value = [string]($result.Lines | Select-Object -First 1)
     if ([string]::IsNullOrWhiteSpace($value)) { throw "$FailureMessage (empty git output)" }
     return $value.Trim()
+}
+
+function Test-SasCommitAncestor {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Ancestor,
+        [Parameter(Mandatory = $true)][string]$Descendant
+    )
+    $result = Invoke-SasGit -Root $Root -Arguments @('merge-base','--is-ancestor',$Ancestor,$Descendant) -FailureMessage 'Could not compare SysAdminSuite commit ancestry.' -AllowFailure
+    return ($result.ExitCode -eq 0)
 }
 
 function Test-SasPrinterRuntimeRoot {
@@ -162,20 +156,8 @@ function Get-SasRuntimeHead {
     return $value.Trim()
 }
 
-function Test-SasCommitAncestor {
-    param(
-        [Parameter(Mandatory = $true)][string]$Root,
-        [Parameter(Mandatory = $true)][string]$Ancestor,
-        [Parameter(Mandatory = $true)][string]$Descendant
-    )
-    $result = Invoke-SasGit -Root $Root -Arguments @('merge-base','--is-ancestor',$Ancestor,$Descendant) -FailureMessage 'Could not compare SysAdminSuite commit ancestry.' -AllowFailure
-    return ($result.ExitCode -eq 0)
-}
-
 function Test-SasTrackedRuntimeClean {
     param([Parameter(Mandatory = $true)][string]$Root)
-    # Printer usability must not depend on unrelated local work. Scope tracked-state authority to
-    # exactly the printer files this mode will execute; edits to any of those files still fail closed.
     $statusArguments = @('status','--porcelain','--untracked-files=no','--')
     $statusArguments += @($script:requiredRuntimePaths)
     $result = Invoke-SasGit -Root $Root -Arguments $statusArguments -FailureMessage 'Could not inspect printer-owned runtime tracked state.' -AllowFailure
@@ -185,12 +167,21 @@ function Test-SasTrackedRuntimeClean {
 
 function Test-SasDedicatedCacheRoot {
     param([Parameter(Mandatory = $true)][string]$Root)
-    $gitMetadata = Join-Path $Root '.git'
-    if (-not (Test-Path -LiteralPath $gitMetadata -PathType Container)) { return $false }
+    if (-not (Test-Path -LiteralPath (Join-Path $Root '.git') -PathType Container)) { return $false }
     $inside = Invoke-SasGit -Root $Root -Arguments @('rev-parse','--is-inside-work-tree') -FailureMessage 'Could not inspect dedicated printer bootstrap cache.' -AllowFailure
     if ($inside.ExitCode -ne 0) { return $false }
     $value = [string]($inside.Lines | Select-Object -First 1)
-    return (-not [string]::IsNullOrWhiteSpace($value) -and $value.Trim().Equals('true', [System.StringComparison]::OrdinalIgnoreCase))
+    return (-not [string]::IsNullOrWhiteSpace($value) -and $value.Trim().Equals('true',[System.StringComparison]::OrdinalIgnoreCase))
+}
+
+function Test-SasExpectedOrigin {
+    param([Parameter(Mandatory = $true)][string]$Url)
+    $normalized = $Url.Trim().TrimEnd('/').ToLowerInvariant()
+    return $normalized -in @(
+        'https://github.com/endeavoreverlasting/sysadminsuite.git',
+        'https://github.com/endeavoreverlasting/sysadminsuite',
+        'git@github.com:endeavoreverlasting/sysadminsuite.git'
+    )
 }
 
 function Add-SasCandidate {
@@ -215,7 +206,7 @@ function Get-SasPrinterRuntimeCandidates {
     return $items.ToArray()
 }
 
-function Find-SasEligiblePrinterRuntime {
+function Find-SasEligibleLocalPrinterRuntime {
     param([Parameter(Mandatory = $true)][string]$Required)
     foreach ($candidate in @(Get-SasPrinterRuntimeCandidates)) {
         if (-not (Test-SasPrinterRuntimeRoot -Root $candidate)) { continue }
@@ -223,17 +214,14 @@ function Find-SasEligiblePrinterRuntime {
         $head = Get-SasRuntimeHead -Root $candidate
         if ([string]::IsNullOrWhiteSpace($head)) { continue }
         if (-not (Test-SasCommitAncestor -Root $candidate -Ancestor $Required -Descendant $head)) { continue }
-        return [pscustomobject]@{ Root = $candidate; Head = $head }
+        return [pscustomobject]@{ Root=$candidate; Head=$head }
     }
     return $null
 }
 
 function Resolve-SasPrinterStateRoot {
-    # Prefer one controller-local state root so multiple technicians on the same machine reuse the
-    # same printer runtime instead of growing per-user copies. LOCALAPPDATA is compatibility-only for
-    # standalone bootstrap use on a machine where no writable machine runtime/state root exists yet.
     $candidates = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($base in @($env:SAS_RUNTIME_ROOT, 'C:\SASAL')) {
+    foreach ($base in @($env:SAS_RUNTIME_ROOT,'C:\SASAL')) {
         if ([string]::IsNullOrWhiteSpace([string]$base)) { continue }
         try { $fullBase = [IO.Path]::GetFullPath([string]$base) } catch { continue }
         if ($fullBase -notmatch '^[A-Za-z]:\\' -or -not (Test-Path -LiteralPath $fullBase -PathType Container)) { continue }
@@ -244,7 +232,6 @@ function Resolve-SasPrinterStateRoot {
         $candidate = Join-Path $env:ProgramData 'SysAdminSuite\printer-bootstrap'
         if (-not $candidates.Contains($candidate)) { [void]$candidates.Add($candidate) }
     }
-
     foreach ($candidate in $candidates) {
         try {
             New-Item -ItemType Directory -Path $candidate -Force -ErrorAction Stop | Out-Null
@@ -253,9 +240,8 @@ function Resolve-SasPrinterStateRoot {
             Remove-Item -LiteralPath $probe -Force -ErrorAction Stop
             return [IO.Path]::GetFullPath($candidate)
         }
-        catch { }
+        catch {}
     }
-
     if ([string]::IsNullOrWhiteSpace([string]$env:LOCALAPPDATA)) {
         throw 'No writable machine-local printer state root is available, and LOCALAPPDATA fallback is unavailable.'
     }
@@ -273,70 +259,72 @@ $CacheRoot = [IO.Path]::GetFullPath($CacheRoot)
 $runtimeParent = Join-Path $stateRoot 'runtimes'
 $script:latestPointer = Join-Path $stateRoot 'latest-runtime.txt'
 $script:SasGitExe = Resolve-SasGitExecutable
+$runtimeRoot = $null
+$runtimeHead = $null
+$remoteHead = $null
+$authority = $null
 
-$selected = Find-SasEligiblePrinterRuntime -Required $RequiredCommit
-$runtimeRoot = if ($null -ne $selected) { [string]$selected.Root } else { $null }
-$runtimeHead = if ($null -ne $selected) { [string]$selected.Head } else { $null }
-
-if ([string]::IsNullOrWhiteSpace($runtimeRoot)) {
-    $mutex = New-Object System.Threading.Mutex($false, 'Local\SysAdminSuitePrinterBootstrapCache')
+if ($UseLocalRuntimeOnly) {
+    $selected = Find-SasEligibleLocalPrinterRuntime -Required $RequiredCommit
+    if ($null -eq $selected) {
+        throw 'No clean local printer runtime contains the required baseline. Local-only mode cannot continue.'
+    }
+    $runtimeRoot = [string]$selected.Root
+    $runtimeHead = [string]$selected.Head
+    $authority = 'EXPLICIT_LOCAL_ONLY_NO_ORIGIN_CURRENTNESS_CLAIM'
+}
+else {
+    $mutex = New-Object System.Threading.Mutex($false,'Local\SysAdminSuitePrinterBootstrapCache')
     $lockTaken = $false
     try {
-        try { $lockTaken = $mutex.WaitOne([TimeSpan]::FromSeconds(15)) }
+        try { $lockTaken = $mutex.WaitOne([TimeSpan]::FromSeconds(20)) }
         catch [System.Threading.AbandonedMutexException] { $lockTaken = $true }
         if (-not $lockTaken) { throw 'Printer bootstrap cache is busy in another local process. No mapper was launched.' }
 
-        $selected = Find-SasEligiblePrinterRuntime -Required $RequiredCommit
-        if ($null -ne $selected) {
-            $runtimeRoot = [string]$selected.Root
-            $runtimeHead = [string]$selected.Head
+        if (Test-Path -LiteralPath $CacheRoot) {
+            if (-not (Test-SasDedicatedCacheRoot -Root $CacheRoot)) {
+                throw "Printer bootstrap cache path already exists but is not the dedicated Git worktree. Nothing was changed: $CacheRoot"
+            }
+            $origin = Get-SasGitScalar -Root $CacheRoot -Arguments @('remote','get-url','origin') -FailureMessage 'Could not inspect dedicated printer bootstrap origin.'
+            if (-not (Test-SasExpectedOrigin -Url $origin)) {
+                throw "Printer bootstrap cache origin is unexpected. Nothing was changed: $origin"
+            }
         }
         else {
-            if (Test-Path -LiteralPath $CacheRoot) {
-                if (-not (Test-SasDedicatedCacheRoot -Root $CacheRoot)) {
-                    throw "Printer bootstrap cache path already exists but is not the dedicated Git worktree. Nothing was changed: $CacheRoot"
-                }
-                $origin = Get-SasGitScalar -Root $CacheRoot -Arguments @('remote','get-url','origin') -FailureMessage 'Could not inspect dedicated printer bootstrap origin.'
-                if ($origin -notmatch '(?i)github\.com[:/]+EndeavorEverlasting/SysAdminSuite(?:\.git)?/?$') {
-                    throw "Printer bootstrap cache origin is unexpected. Nothing was changed: $origin"
-                }
-            }
-            else {
-                $parent = Split-Path -Parent $CacheRoot
-                if (-not (Test-Path -LiteralPath $parent -PathType Container)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
-                Invoke-SasGit -Root $null -Arguments @('clone','--no-checkout','--origin','origin','--branch',$Branch,$repositoryUrl,$CacheRoot) -FailureMessage 'Could not create the dedicated SysAdminSuite printer bootstrap cache.' | Out-Null
-            }
-
-            Invoke-SasGit -Root $CacheRoot -Arguments @('fetch','--no-tags','origin',("refs/heads/{0}:refs/remotes/origin/{0}" -f $Branch)) -FailureMessage "Could not fetch origin/$Branch into the dedicated printer bootstrap cache." | Out-Null
-            $remoteRef = "refs/remotes/origin/$Branch"
-            $remoteHead = Get-SasGitScalar -Root $CacheRoot -Arguments @('rev-parse',$remoteRef) -FailureMessage "Could not resolve origin/$Branch."
-
-            if (-not (Test-SasCommitAncestor -Root $CacheRoot -Ancestor $RequiredCommit -Descendant $remoteHead)) {
-                Invoke-SasGit -Root $CacheRoot -Arguments @('fetch','--no-tags','origin',$RequiredCommit) -FailureMessage "Required printer fix commit $RequiredCommit is not available from origin." | Out-Null
-                if (-not (Test-SasCommitAncestor -Root $CacheRoot -Ancestor $RequiredCommit -Descendant $remoteHead)) {
-                    throw "Current origin/$Branch does not contain required printer fix commit $RequiredCommit. No mapper was launched."
-                }
-            }
-
-            if (-not (Test-Path -LiteralPath $runtimeParent -PathType Container)) { New-Item -ItemType Directory -Path $runtimeParent -Force | Out-Null }
-            $runtimeRoot = Join-Path $runtimeParent $remoteHead
-            if (Test-Path -LiteralPath $runtimeRoot) {
-                $existingHead = Get-SasRuntimeHead -Root $runtimeRoot
-                if ($existingHead -ne $remoteHead -or -not (Test-SasTrackedRuntimeClean -Root $runtimeRoot) -or -not (Test-SasPrinterRuntimeRoot -Root $runtimeRoot)) {
-                    $runtimeRoot = Join-Path $runtimeParent ($remoteHead + '-' + [guid]::NewGuid().ToString('N'))
-                }
-            }
-            if (-not (Test-Path -LiteralPath $runtimeRoot)) {
-                Invoke-SasGit -Root $CacheRoot -Arguments @('worktree','add','--detach',$runtimeRoot,$remoteHead) -FailureMessage 'Could not create the dedicated detached printer runtime.' | Out-Null
-            }
-            if (-not (Test-SasPrinterRuntimeRoot -Root $runtimeRoot)) { throw "Acquired runtime is incomplete for canonical printer mapping: $runtimeRoot" }
-            if (-not (Test-SasTrackedRuntimeClean -Root $runtimeRoot)) { throw "Acquired runtime contains tracked printer modifications and will not be used: $runtimeRoot" }
-            $runtimeHead = Get-SasRuntimeHead -Root $runtimeRoot
-            if (-not (Test-SasCommitAncestor -Root $runtimeRoot -Ancestor $RequiredCommit -Descendant $runtimeHead)) {
-                throw "Acquired runtime does not contain required printer fix commit $RequiredCommit."
-            }
-            Set-Content -LiteralPath $script:latestPointer -Value $runtimeRoot -Encoding UTF8
+            $parent = Split-Path -Parent $CacheRoot
+            if (-not (Test-Path -LiteralPath $parent -PathType Container)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
+            Invoke-SasGit -Root $null -Arguments @('clone','--no-checkout','--origin','origin','--branch',$Branch,$repositoryUrl,$CacheRoot) -FailureMessage 'Could not create the dedicated SysAdminSuite printer bootstrap cache.' | Out-Null
         }
+
+        Write-Host "Fetching current origin/$Branch for printer runtime authority..." -ForegroundColor Cyan
+        Invoke-SasGit -Root $CacheRoot -Arguments @('fetch','--no-tags','--prune','origin',("refs/heads/{0}:refs/remotes/origin/{0}" -f $Branch)) -FailureMessage "Could not fetch current origin/$Branch. Stale local printer code will not be launched." | Out-Null
+        $remoteRef = "refs/remotes/origin/$Branch"
+        $remoteHead = Get-SasGitScalar -Root $CacheRoot -Arguments @('rev-parse',$remoteRef) -FailureMessage "Could not resolve current origin/$Branch."
+
+        if (-not (Test-SasCommitAncestor -Root $CacheRoot -Ancestor $RequiredCommit -Descendant $remoteHead)) {
+            Invoke-SasGit -Root $CacheRoot -Arguments @('fetch','--no-tags','origin',$RequiredCommit) -FailureMessage "Required printer baseline $RequiredCommit is not available from origin." | Out-Null
+            if (-not (Test-SasCommitAncestor -Root $CacheRoot -Ancestor $RequiredCommit -Descendant $remoteHead)) {
+                throw "Current origin/$Branch does not contain required printer baseline $RequiredCommit. No mapper was launched."
+            }
+        }
+
+        if (-not (Test-Path -LiteralPath $runtimeParent -PathType Container)) { New-Item -ItemType Directory -Path $runtimeParent -Force | Out-Null }
+        $runtimeRoot = Join-Path $runtimeParent $remoteHead
+        if (Test-Path -LiteralPath $runtimeRoot) {
+            $existingHead = Get-SasRuntimeHead -Root $runtimeRoot
+            if ($existingHead -ne $remoteHead -or -not (Test-SasTrackedRuntimeClean -Root $runtimeRoot) -or -not (Test-SasPrinterRuntimeRoot -Root $runtimeRoot)) {
+                $runtimeRoot = Join-Path $runtimeParent ($remoteHead + '-' + [guid]::NewGuid().ToString('N'))
+            }
+        }
+        if (-not (Test-Path -LiteralPath $runtimeRoot)) {
+            Invoke-SasGit -Root $CacheRoot -Arguments @('worktree','add','--detach',$runtimeRoot,$remoteHead) -FailureMessage 'Could not create the exact current printer runtime.' | Out-Null
+        }
+        if (-not (Test-SasPrinterRuntimeRoot -Root $runtimeRoot)) { throw "Current branch runtime is incomplete for canonical printer mapping: $runtimeRoot" }
+        if (-not (Test-SasTrackedRuntimeClean -Root $runtimeRoot)) { throw "Current branch runtime contains tracked printer modifications and will not be used: $runtimeRoot" }
+        $runtimeHead = Get-SasRuntimeHead -Root $runtimeRoot
+        if ($runtimeHead -ne $remoteHead) { throw "Printer runtime HEAD mismatch. Expected current origin/$Branch $remoteHead; got $runtimeHead" }
+        Set-Content -LiteralPath $script:latestPointer -Value $runtimeRoot -Encoding UTF8
+        $authority = 'CURRENT_ORIGIN_BRANCH_HEAD_PROVEN'
     }
     finally {
         if ($lockTaken) { try { $mutex.ReleaseMutex() } catch {} }
@@ -347,10 +335,12 @@ if ([string]::IsNullOrWhiteSpace($runtimeRoot)) {
 Write-Host 'SysAdminSuite printer bootstrap' -ForegroundColor Cyan
 Write-Host ("Runtime: {0}" -f $runtimeRoot)
 Write-Host ("Commit:  {0}" -f $runtimeHead)
-Write-Host ("Required fix: {0}" -f $RequiredCommit)
+if (-not [string]::IsNullOrWhiteSpace([string]$remoteHead)) { Write-Host ("origin/{0}: {1}" -f $Branch,$remoteHead) }
+Write-Host ("Required baseline: {0}" -f $RequiredCommit)
+Write-Host ("Runtime authority: {0}" -f $authority)
 Write-Host ("Mode: {0}" -f $Mode)
 Write-Host ("State root: {0}" -f $stateRoot)
-Write-Host 'Current directory is not used as repository authority.' -ForegroundColor DarkGray
+Write-Host 'Current directory and dirty operator checkouts are not repository authority.' -ForegroundColor DarkGray
 
 if ($NoLaunch) {
     Write-Host 'PASS: printer runtime resolved; launcher not executed (-NoLaunch).' -ForegroundColor Green
@@ -359,7 +349,6 @@ if ($NoLaunch) {
 
 $launcherName = if ($Mode -eq 'File') { 'Map-NorthwellPrinters-FromFile.cmd' } else { 'Map-NorthwellPrinter-SystemWide.cmd' }
 $launcher = Join-Path $runtimeRoot $launcherName
-Write-Host ("Launching Northwell printer mapper: {0}" -f $Mode) -ForegroundColor Green
+Write-Host ("Launching Northwell printer mapper from {0}: {1}" -f $authority,$Mode) -ForegroundColor Green
 & $launcher
-$exitCode = [int]$LASTEXITCODE
-exit $exitCode
+exit ([int]$LASTEXITCODE)
