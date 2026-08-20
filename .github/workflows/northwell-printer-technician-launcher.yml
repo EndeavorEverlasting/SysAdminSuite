@@ -1,0 +1,113 @@
+name: Northwell printer technician launcher
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+    paths:
+      - 'AGENTS.md'
+      - 'Map-NorthwellPrinter.cmd'
+      - 'scripts/Install-SasUniversalFieldLauncher.ps1'
+      - 'START-HERE-SysAdminSuite.md'
+      - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
+      - 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
+      - 'docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md'
+      - 'docs/UNIVERSAL_FIELD_PLATFORM.md'
+      - 'harness/maps/PRINTER_MAPPING_USE_CASE_MAP.md'
+      - 'harness/reports/PRINTER_MAPPING_USE_CASES.md'
+      - 'Tests/Pester/NorthwellPrinterTechnicianLauncher.Tests.ps1'
+      - '.github/workflows/northwell-printer-technician-launcher.yml'
+  pull_request:
+    paths:
+      - 'AGENTS.md'
+      - 'Map-NorthwellPrinter.cmd'
+      - 'scripts/Install-SasUniversalFieldLauncher.ps1'
+      - 'START-HERE-SysAdminSuite.md'
+      - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
+      - 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
+      - 'docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md'
+      - 'docs/UNIVERSAL_FIELD_PLATFORM.md'
+      - 'harness/maps/PRINTER_MAPPING_USE_CASE_MAP.md'
+      - 'harness/reports/PRINTER_MAPPING_USE_CASES.md'
+      - 'Tests/Pester/NorthwellPrinterTechnicianLauncher.Tests.ps1'
+      - '.github/workflows/northwell-printer-technician-launcher.yml'
+  workflow_dispatch:
+
+jobs:
+  technician-launcher:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Parse installer under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($relative in @(
+            'scripts\Install-SasUniversalFieldLauncher.ps1',
+            'Tests\Pester\NorthwellPrinterTechnicianLauncher.Tests.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $relative),[ref]$tokens,[ref]$errors)
+            if (@($errors).Count -gt 0) {
+              $errors | Format-List * | Out-Host
+              throw "Windows PowerShell 5.1 parser rejected $relative"
+            }
+          }
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pester = Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version.Major -ge 5 } | Sort-Object Version -Descending | Select-Object -First 1
+          if (-not $pester) { Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.5.0 }
+
+      - name: Run technician launcher contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterTechnicianLauncher.Tests.ps1
+
+      - name: Run canonical bootstrap contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterBootstrap.Tests.ps1
+
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            git fetch origin "${{ github.sha }}" --depth=2
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then git diff --check HEAD^ HEAD; else git show --check --oneline --no-renames HEAD; fi
+          else
+            git fetch origin "$before" "${{ github.sha }}" --depth=1
+            git diff --check "$before" "${{ github.sha }}"
+          fi
+
+  harness-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate printer use-case harness
+        run: |
+          python harness/validators/validate-printer-mapping-use-cases.py
+          python Tests/survey/test_printer_mapping_use_case_contracts.py
+      - name: Check tracked text whitespace
+        run: git diff --check "origin/${{ github.base_ref || 'main' }}...HEAD"
