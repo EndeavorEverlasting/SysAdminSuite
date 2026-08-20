@@ -181,7 +181,7 @@ catch {
     foreach ($readPath in @($userAgentPath, $ConfigPath)) {
         $acl = Get-Acl -LiteralPath $readPath -ErrorAction Stop
         $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            $sid,
+            $sidObject,
             [System.Security.AccessControl.FileSystemRights]::ReadAndExecute,
             [System.Security.AccessControl.AccessControlType]::Allow
         )
@@ -194,7 +194,7 @@ catch {
     $taskFolder = $taskService.GetFolder('\')
     $taskDefinition = $taskService.NewTask(0)
     $taskDefinition.RegistrationInfo.Description = 'SysAdminSuite immediate printer materialization for the active user.'
-    $taskDefinition.Principal.UserId = $activeUser
+    $taskDefinition.Principal.UserId = $sid
     $taskDefinition.Principal.LogonType = 3 # TASK_LOGON_INTERACTIVE_TOKEN
     $taskDefinition.Principal.RunLevel = 0
     $taskDefinition.Settings.Enabled = $true
@@ -207,7 +207,7 @@ catch {
     $action.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -ConfigPath "{1}" -StatusPath "{2}"' -f $userAgentPath, $ConfigPath, $userStatusPath
 
     $userTaskName = "SysAdminSuite_NorthwellPrinterUser_$runToken"
-    $registeredTask = $taskFolder.RegisterTaskDefinition($userTaskName, $taskDefinition, 6, $activeUser, $null, 3, $null)
+    $registeredTask = $taskFolder.RegisterTaskDefinition($userTaskName, $taskDefinition, 6, $sid, $null, 3, $null)
     $null = $registeredTask.Run($null)
 
     $deadline = (Get-Date).AddSeconds(45)
