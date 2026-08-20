@@ -115,6 +115,12 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $script:activeRouterText | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
     }
 
+    It 'normalizes successful child finalizers to exit zero instead of leaking native command state' {
+        $script:activeRouterText | Should -Not -Match '\$LASTEXITCODE'
+        $script:activeRouterText | Should -Match '(?s)& \$shareless -EvidenceRoot \$EvidenceRoot -TimeoutSeconds \$TimeoutSeconds\s+exit 0'
+        $script:activeRouterText | Should -Match '(?s)& \$canonical @invoke\s+exit 0'
+    }
+
     It 'uses remote InteractiveToken tasks and HKU proof for loaded users without SMB staging' {
         $script:sharelessActiveText | Should -Match "New-Object -ComObject 'Schedule\.Service'"
         $script:sharelessActiveText | Should -Match '\.Connect\(\$Computer\)'
