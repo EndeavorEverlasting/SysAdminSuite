@@ -75,11 +75,13 @@ Describe 'Northwell active-user printer materialization regression' {
         $text | Should -Match 'New-SasNorthwellPrinterTaskCreateArguments'
     }
 
-    It 'keeps the quick mapper on the canonical active-user finalizer' {
+    It 'keeps the quick mapper on resilient active-user finalization after resilient machine-wide mapping' {
         $text = Get-Content -LiteralPath $script:quickCmdPath -Raw
-        $finalizerIndex = $text.IndexOf('Confirm-NorthwellPrinterActiveUserMaterialization.ps1')
-        $startIndex = $text.IndexOf('Start-NorthwellPrinterMapping.ps1')
-        $finalizerIndex | Should -BeGreaterThan $startIndex
+        $mapperIndex = $text.IndexOf('Invoke-NorthwellPrinterResilientQuick.ps1')
+        $finalizerIndex = $text.IndexOf('Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1')
+        $mapperIndex | Should -BeGreaterThan -1
+        $finalizerIndex | Should -BeGreaterThan $mapperIndex
+        $text | Should -Not -Match '-File "%~dp0mapping\\Confirm-NorthwellPrinterActiveUserMaterialization\.ps1"'
         $text | Should -Match 'Mapping is NOT complete|mapping is not complete'
     }
 

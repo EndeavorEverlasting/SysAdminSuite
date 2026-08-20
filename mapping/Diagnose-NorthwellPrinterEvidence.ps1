@@ -175,6 +175,7 @@ function Get-SasSummaryTargetDiagnostic {
     $message = Get-SasStatusString -Status $Result -Name 'Message'
     $desired = Get-SasStatusString -Status $Result -Name 'DesiredState'
     $evidence = Get-SasStatusString -Status $Result -Name 'Evidence'
+    $stagingShare = Get-SasStatusString -Status $Result -Name 'StagingShare'
     $successProperty = $Result.PSObject.Properties['Success']
     $success = ($null -ne $successProperty -and [bool]$successProperty.Value)
 
@@ -195,6 +196,7 @@ function Get-SasSummaryTargetDiagnostic {
         stage = $stage
         message = $message
         desired_state = $desired
+        staging_share = $stagingShare
         evidence = $evidence
     }
 }
@@ -278,6 +280,7 @@ foreach ($summaryDiagnostic in $summaryResultDiagnostics) {
     Write-Host ("SUMMARY_COMPUTER={0}" -f $summaryDiagnostic.computer)
     Write-Host ("SUMMARY_TARGET_SUCCESS={0}" -f $summaryDiagnostic.success)
     Write-Host ("SUMMARY_STAGE={0}" -f $summaryDiagnostic.stage)
+    Write-Host ("SUMMARY_STAGING_SHARE={0}" -f $(if ([string]::IsNullOrWhiteSpace([string]$summaryDiagnostic.staging_share)) { '<none>' } else { $summaryDiagnostic.staging_share }))
     Write-Host ("SUMMARY_MESSAGE={0}" -f $summaryDiagnostic.message)
     Write-Host ("SUMMARY_EVIDENCE={0}" -f $summaryDiagnostic.evidence)
 }

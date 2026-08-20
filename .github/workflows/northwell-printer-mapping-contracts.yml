@@ -25,6 +25,11 @@ on:
       - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
       - 'mapping/Examples/NorthwellPrinterDefaults.example.json'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
+      - 'mapping/Invoke-NorthwellPrinterState.ps1'
+      - 'mapping/Invoke-NorthwellPrinterResilientQuick.ps1'
+      - 'mapping/Invoke-NorthwellPrinterTaskRegistryFallback.ps1'
+      - 'mapping/Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1'
+      - 'mapping/Invoke-NorthwellPrinterSharelessActiveUser.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
@@ -32,6 +37,8 @@ on:
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterAdminShareFallback.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterSharelessFallback.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterBootstrap.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
       - 'Tests/Pester/SasInteractionCache.Tests.ps1'
@@ -61,6 +68,11 @@ on:
       - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
       - 'mapping/Examples/NorthwellPrinterDefaults.example.json'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
+      - 'mapping/Invoke-NorthwellPrinterState.ps1'
+      - 'mapping/Invoke-NorthwellPrinterResilientQuick.ps1'
+      - 'mapping/Invoke-NorthwellPrinterTaskRegistryFallback.ps1'
+      - 'mapping/Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1'
+      - 'mapping/Invoke-NorthwellPrinterSharelessActiveUser.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
       - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
@@ -68,6 +80,8 @@ on:
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterAdminShareFallback.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterSharelessFallback.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterBootstrap.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
       - 'Tests/Pester/SasInteractionCache.Tests.ps1'
@@ -96,12 +110,19 @@ jobs:
             '.\mapping\Start-NorthwellPrinterMapping.ps1',
             '.\mapping\Start-NorthwellPrinterBatch.ps1',
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
+            '.\mapping\Invoke-NorthwellPrinterState.ps1',
+            '.\mapping\Invoke-NorthwellPrinterResilientQuick.ps1',
+            '.\mapping\Invoke-NorthwellPrinterTaskRegistryFallback.ps1',
+            '.\mapping\Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1',
+            '.\mapping\Invoke-NorthwellPrinterSharelessActiveUser.ps1',
             '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
             '.\scripts\SasInteractionCache.psm1',
             '.\scripts\SasNetworkGuard.psm1',
             '.\scripts\Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1',
             '.\Utilities\Map-Printer.ps1',
             '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterAdminShareFallback.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterSharelessFallback.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterBootstrap.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterInteractionCache.Tests.ps1',
             '.\Tests\Pester\SasInteractionCache.Tests.ps1',
@@ -176,6 +197,20 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File
           .\tools\Test-Pester5Suite.ps1
           -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+
+      - name: Run administrative-share fallback contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterAdminShareFallback.Tests.ps1
+
+      - name: Run shareless transport fallback contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterSharelessFallback.Tests.ps1
 
       - name: Run from-anywhere printer bootstrap contracts
         shell: pwsh
