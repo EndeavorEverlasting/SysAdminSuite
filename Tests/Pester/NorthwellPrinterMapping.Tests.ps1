@@ -220,7 +220,7 @@ Describe 'Canonical Northwell reversible system-wide runner contract' {
     }
     It 'requires print-server DNS only for mapping so stale UNC entries remain removable' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
-        $content | Should -Match "if \(\$DesiredState -eq 'Present'\)"
+        $content | Should -Match 'if \(\$DesiredState -eq ''Present''\)'
         $content | Should -Match 'removing a stale machine-wide connection must remain possible'
         $content | Should -Match 'GetHostAddresses\(\$server\)'
     }

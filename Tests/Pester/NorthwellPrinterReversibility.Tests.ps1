@@ -87,9 +87,9 @@ Describe 'Canonical reversible printer engine contract' {
 
     It 'requires print-server DNS for mapping but not for known-UNC unmapping' {
         $text = Get-Content -LiteralPath $script:statePath -Raw
-        $text | Should -Match "if \(\$DesiredState -eq 'Present'\)"
+        $text | Should -Match 'if \(\$DesiredState -eq ''Present''\)'
         $text | Should -Match 'removing a stale machine-wide connection must remain possible'
-        $text | Should -Match "GetHostAddresses\(\$server\)"
+        $text | Should -Match 'GetHostAddresses\(\$server\)'
     }
 
     It 'records only observed transitions as inverse work' {
