@@ -1,0 +1,59 @@
+name: Operator Execution Route Harness
+
+on:
+  pull_request:
+    paths:
+      - 'harness/api/operator-execution-route-registry.json'
+      - 'schemas/harness/operator-execution-route-registry.schema.json'
+      - 'harness/workflows/operator-execution-route.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/skills/operator-execution-route/**'
+      - 'harness/maps/OPERATOR_EXECUTION_ROUTE_MAP.md'
+      - 'harness/reports/OPERATOR_EXECUTION_ROUTE_STATUS.md'
+      - 'harness/validators/validate-operator-execution-route.py'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/terminal-evidence-survival-registry.json'
+      - 'Run-AutoLogonCrashSafe.cmd'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - '.github/workflows/operator-execution-route-harness.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'harness/api/operator-execution-route-registry.json'
+      - 'schemas/harness/operator-execution-route-registry.schema.json'
+      - 'harness/workflows/operator-execution-route.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/skills/operator-execution-route/**'
+      - 'harness/maps/OPERATOR_EXECUTION_ROUTE_MAP.md'
+      - 'harness/reports/OPERATOR_EXECUTION_ROUTE_STATUS.md'
+      - 'harness/validators/validate-operator-execution-route.py'
+      - 'Run-AutoLogonCrashSafe.cmd'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - '.github/workflows/operator-execution-route-harness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate operator execution route
+        run: python harness/validators/validate-operator-execution-route.py
+      - name: Validate harness registries
+        run: python harness/validators/validate-harness-registries.py
+      - name: Validate operational harness completeness
+        run: python Tests/survey/test_operational_harness_completeness_contracts.py
+      - name: Validate patch whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+      - name: Validate commit whitespace
+        if: github.event_name != 'pull_request'
+        run: git diff --check HEAD^ HEAD

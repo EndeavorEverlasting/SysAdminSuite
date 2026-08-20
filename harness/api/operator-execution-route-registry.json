@@ -1,0 +1,43 @@
+{
+  "schema_version": "sas-operator-execution-route-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "policy": {
+    "resolve_execution_location_before_operator_command": true,
+    "registered_front_door_overrides_inner_command_for_operator": true,
+    "same_turn_execute_when_capability_exists": true,
+    "otherwise_emit_one_route_and_run_command": true,
+    "do_not_assume_current_directory": true,
+    "do_not_require_operator_to_retype_repo_path": true,
+    "propagate_child_exit_code": true,
+    "fail_closed_when_location_or_entrypoint_is_unproven": true
+  },
+  "routes": [
+    {
+      "id": "autologon-remote-crash-safe",
+      "command_id": "autologon-remote",
+      "platform": "windows-powershell",
+      "required_network": "PROTECTED_NORTHWELL",
+      "repository_freshness_dependency": "harness/workflows/repository-freshness-before-launch.yaml",
+      "path_resolution": {
+        "strategy_order": [
+          "installed-sas-repo",
+          "cached-repo-root"
+        ],
+        "installed_sas_probe": "sas repo",
+        "cache_path": "%LOCALAPPDATA%\\SysAdminSuite\\repo-root.txt",
+        "required_files": [
+          "Run-AutoLogonCrashSafe.cmd",
+          "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
+          "scripts/Invoke-SasAutoLogonFieldDeployment.ps1"
+        ],
+        "fail_closed": true
+      },
+      "operator_front_door": "Run-AutoLogonCrashSafe.cmd HOST",
+      "inner_product_command": "sas autologon Remote HOST",
+      "operator_command_template": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command \"$ErrorActionPreference='Stop'; $repo=$null; if(Get-Command sas -ErrorAction SilentlyContinue){$repo=(& sas repo 2>$null | Select-Object -First 1)}; if([string]::IsNullOrWhiteSpace([string]$repo)){$cache=Join-Path $env:LOCALAPPDATA 'SysAdminSuite\\repo-root.txt'; if(Test-Path -LiteralPath $cache -PathType Leaf){$repo=(Get-Content -LiteralPath $cache -Raw).Trim()}}; if([string]::IsNullOrWhiteSpace([string]$repo)){throw 'SysAdminSuite repo root is unresolved; run sas refresh on Guest/Internet first.'}; $repo=[IO.Path]::GetFullPath(([string]$repo).Trim()); $launcher=Join-Path $repo 'Run-AutoLogonCrashSafe.cmd'; if(-not(Test-Path -LiteralPath $launcher -PathType Leaf)){throw ('Crash-safe AutoLogon launcher missing from resolved repo: '+$repo)}; Set-Location -LiteralPath $repo; & $launcher 'HOST'; exit $LASTEXITCODE\"",
+      "success_artifact": "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\autologon\\<run_id>\\field-run-result.json",
+      "latest_pointer": "%LOCALAPPDATA%\\SysAdminSuite\\last-autologon-field-run.json",
+      "proof_ceiling": "Proves only that the operator command resolves a repository location, selects the registered crash-safe front door, and propagates its exit code. Live deployment proof comes only from the field-run artifacts."
+    }
+  ]
+}
