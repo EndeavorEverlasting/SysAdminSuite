@@ -34,6 +34,7 @@ stages:
   - id: prove-freshness
     order: 2
     actions:
+      - verify repository_freshness_dependency resolves to a tracked file beneath the repository root
       - when current repository behavior is required, apply harness/workflows/repository-freshness-before-launch.yaml
       - do not infer a missing launcher from a stale executing worktree
       - preserve dirty, diverged, default-branch, or separately owned work exactly as the freshness workflow requires
@@ -52,11 +53,16 @@ stages:
   - id: execute
     order: 4
     actions:
-      - set the shell location to the resolved repository root before invoking a repo-relative front door
-      - substitute only the explicit target into operator_command_template
+      - require explicit_target when the selected route declares a target_placeholder
+      - validate explicit_target against target_validation_pattern before command rendering
+      - encode explicit_target exactly as target_encoding declares; for utf8-base64, substitute only the encoded value into target_placeholder
+      - never interpolate the raw explicit_target into PowerShell command source
+      - invoke the registered operator_helper through powershell.exe -File with the encoded target as a positional argument
+      - the helper must decode and revalidate the target, re-read the route registry, and re-prove every required_files dependency before invoking operator_entrypoint
+      - set the shell location to the resolved repository root before invoking the repo-relative helper/front door
       - when operator_execution_capable is true and authorization/dependencies are satisfied, execute the resolved front door in the same turn
       - propagate the child exit code exactly
-      - when the current environment cannot execute on the operator workstation, emit one copy-paste route-and-run command that performs location resolution, front-door verification, Set-Location, invocation, and exit propagation
+      - when the current environment cannot execute on the operator workstation, emit one copy-paste route-and-run command that performs location resolution, dependency proof, Set-Location, -File helper invocation, and exit propagation
       - never return only sas autologon Remote HOST when the registered crash-safe front door is available
 
   - id: artifacts
@@ -76,6 +82,7 @@ stages:
       - name the expected durable artifact and proof ceiling
 
 proof_ceiling: >-
-  Proves operator command selection, execution-location resolution, registered front-door existence,
-  and exit propagation. It does not prove target reachability, deployment, restart, sign-in, or
-  runtime acceptance unless the selected front door emits the corresponding registered live artifact.
+  Proves operator command selection, execution-location resolution, target transport into the helper,
+  registered-front-door existence, dependency proof, and exit propagation. It does not prove target
+  reachability, deployment, restart, sign-in, or runtime acceptance unless the selected front door
+  emits the corresponding registered live artifact.
