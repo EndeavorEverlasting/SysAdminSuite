@@ -80,12 +80,17 @@ function Invoke-SasGit {
 
     $stderr = ''
     if (Test-Path -LiteralPath $stderrPath) {
-        try { $stderr = ([string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)).Trim() }
+        try {
+            $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+            $stderr = [string]$stderrRaw
+            $stderr = $stderr.Trim()
+        }
         finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
     }
     $lines = @($stdout | ForEach-Object { [string]$_ })
-    $stdoutText = ($lines -join [Environment]::NewLine).Trim()
-    $detail = @($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine
+    $stdoutText = [string]($lines -join [Environment]::NewLine)
+    $stdoutText = $stdoutText.Trim()
+    $detail = [string](@($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine)
 
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         if ([string]::IsNullOrWhiteSpace($detail)) { $detail = '(git produced no diagnostic text)' }
