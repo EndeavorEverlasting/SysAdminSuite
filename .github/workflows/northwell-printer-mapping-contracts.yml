@@ -11,9 +11,11 @@ on:
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Map-NorthwellPrinters-FromFile.cmd'
       - 'Edit-NorthwellPrinter-Defaults.cmd'
       - 'Edit-NorthwellPrinter-Batch.cmd'
       - 'Map-NorthwellPrinters-Batch.cmd'
+      - 'Config/interaction-cache-policy.json'
       - 'mapping/README.md'
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Start-NorthwellPrinterBatch.ps1'
@@ -21,11 +23,14 @@ on:
       - 'mapping/Examples/NorthwellPrinterDefaults.example.json'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
       - 'scripts/Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1'
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
+      - 'Tests/Pester/SasInteractionCache.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterLowNoiseAcceptance.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterTimeoutRegression.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
@@ -38,9 +43,11 @@ on:
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Map-NorthwellPrinters-FromFile.cmd'
       - 'Edit-NorthwellPrinter-Defaults.cmd'
       - 'Edit-NorthwellPrinter-Batch.cmd'
       - 'Map-NorthwellPrinters-Batch.cmd'
+      - 'Config/interaction-cache-policy.json'
       - 'mapping/README.md'
       - 'mapping/Start-NorthwellPrinterMapping.ps1'
       - 'mapping/Start-NorthwellPrinterBatch.ps1'
@@ -48,11 +55,14 @@ on:
       - 'mapping/Examples/NorthwellPrinterDefaults.example.json'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
       - 'scripts/Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1'
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
+      - 'Tests/Pester/SasInteractionCache.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterLowNoiseAcceptance.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterTimeoutRegression.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
@@ -77,10 +87,13 @@ jobs:
             '.\mapping\Start-NorthwellPrinterBatch.ps1',
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
             '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
+            '.\scripts\SasInteractionCache.psm1',
             '.\scripts\SasNetworkGuard.psm1',
             '.\scripts\Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1',
             '.\Utilities\Map-Printer.ps1',
             '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterInteractionCache.Tests.ps1',
+            '.\Tests\Pester\SasInteractionCache.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterLowNoiseAcceptance.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterTimeoutRegression.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterMappingCollisionRepair.Tests.ps1',
@@ -124,6 +137,21 @@ jobs:
           if ($policy.schema_version -ne 'sas-northwell-printer-mapping-evidence/v1') { throw "Unexpected printer mapping evidence schema: $($policy.schema_version)" }
           Write-Host 'PASS: printer mapping evidence policy parses.'
 
+      - name: Validate interaction cache policy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $policy = Get-Content -LiteralPath '.\Config\interaction-cache-policy.json' -Raw | ConvertFrom-Json
+          if ($policy.schemaVersion -ne 'sas-interaction-cache-policy/v1') { throw "Unexpected interaction cache policy schema: $($policy.schemaVersion)" }
+          if ($policy.cacheSchemaVersion -ne 'sas-interaction-cache/v1') { throw "Unexpected interaction cache schema: $($policy.cacheSchemaVersion)" }
+          if ([int]$policy.freshness.ttlDays -lt 1) { throw 'Interaction cache TTL must be positive.' }
+          if ([int]$policy.capacity.maxEntriesPerScope -gt [int]$policy.capacity.maxEntries) { throw 'Per-scope cache bound cannot exceed total capacity.' }
+          if ([int]$policy.capacity.maxEntriesPerKind -gt [int]$policy.capacity.maxEntries) { throw 'Per-kind cache bound cannot exceed total capacity.' }
+          if ([bool]$policy.storage.authoritative) { throw 'Interaction cache must remain non-authoritative.' }
+          if ([bool]$policy.security.secretsAllowed) { throw 'Interaction cache policy must prohibit secrets.' }
+          if ($policy.failureBehavior.cacheUnavailable -ne 'continue-to-authoritative-origin') { throw 'Cache outage must fail open to the authoritative path.' }
+          Write-Host 'PASS: interaction cache policy is bounded, scope-isolated, non-authoritative, and fail-open.'
+
       - name: Install Pester 5
         shell: pwsh
         run: |
@@ -137,6 +165,20 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File
           .\tools\Test-Pester5Suite.ps1
           -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+
+      - name: Run interaction cache consistency contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\SasInteractionCache.Tests.ps1
+
+      - name: Run printer cached UX contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterInteractionCache.Tests.ps1
 
       - name: Run low-noise field acceptance contracts
         shell: pwsh
