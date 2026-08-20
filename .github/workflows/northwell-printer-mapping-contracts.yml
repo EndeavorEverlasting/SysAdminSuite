@@ -11,6 +11,7 @@ on:
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Map-NorthwellPrinters-FromFile.cmd'
       - 'Edit-NorthwellPrinter-Defaults.cmd'
       - 'Edit-NorthwellPrinter-Batch.cmd'
       - 'Map-NorthwellPrinters-Batch.cmd'
@@ -21,11 +22,14 @@ on:
       - 'mapping/Examples/NorthwellPrinterDefaults.example.json'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
       - 'scripts/Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1'
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
+      - 'Tests/Pester/SasInteractionCache.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterLowNoiseAcceptance.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterTimeoutRegression.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
@@ -38,6 +42,7 @@ on:
       - '.claude/skills/field-workflow/**'
       - 'START-HERE-NORTHWELL-PRINTER-MAPPING.md'
       - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Map-NorthwellPrinters-FromFile.cmd'
       - 'Edit-NorthwellPrinter-Defaults.cmd'
       - 'Edit-NorthwellPrinter-Batch.cmd'
       - 'Map-NorthwellPrinters-Batch.cmd'
@@ -48,11 +53,14 @@ on:
       - 'mapping/Examples/NorthwellPrinterDefaults.example.json'
       - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
       - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'scripts/SasInteractionCache.psm1'
       - 'scripts/SasNetworkGuard.psm1'
       - 'scripts/Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1'
       - 'harness/api/northwell-printer-mapping-evidence-policy.json'
       - 'Utilities/Map-Printer.ps1'
       - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
+      - 'Tests/Pester/SasInteractionCache.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterLowNoiseAcceptance.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterTimeoutRegression.Tests.ps1'
       - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
@@ -77,10 +85,13 @@ jobs:
             '.\mapping\Start-NorthwellPrinterBatch.ps1',
             '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
             '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
+            '.\scripts\SasInteractionCache.psm1',
             '.\scripts\SasNetworkGuard.psm1',
             '.\scripts\Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1',
             '.\Utilities\Map-Printer.ps1',
             '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterInteractionCache.Tests.ps1',
+            '.\Tests\Pester\SasInteractionCache.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterLowNoiseAcceptance.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterTimeoutRegression.Tests.ps1',
             '.\Tests\Pester\NorthwellPrinterMappingCollisionRepair.Tests.ps1',
@@ -137,6 +148,20 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File
           .\tools\Test-Pester5Suite.ps1
           -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+
+      - name: Run interaction cache consistency contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\SasInteractionCache.Tests.ps1
+
+      - name: Run printer cached UX contracts
+        shell: pwsh
+        run: >-
+          pwsh -NoProfile -ExecutionPolicy Bypass -File
+          .\tools\Test-Pester5Suite.ps1
+          -TestPath .\Tests\Pester\NorthwellPrinterInteractionCache.Tests.ps1
 
       - name: Run low-noise field acceptance contracts
         shell: pwsh
