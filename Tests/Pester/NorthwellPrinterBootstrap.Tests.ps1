@@ -9,6 +9,8 @@ BeforeAll {
         'mapping\Start-NorthwellPrinterMapping.ps1',
         'mapping\Invoke-NorthwellPrinterMapping.ps1',
         'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
+        'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
+        'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1',
         'scripts\SasTargetNameResolution.psm1',
         'scripts\SasNetworkGuard.psm1',
         'scripts\SasInteractionCache.psm1',
@@ -48,25 +50,28 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
         $text | Should -Match 'LOCALAPPDATA'
     }
 
-    It 'pins a safe printer baseline and accepts newer mainline by ancestry' {
+    It 'pins the active-user printer baseline and accepts newer mainline by ancestry' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
-        $text.Contains("[string]`$RequiredCommit = '5463c0ed3fedc4f9c5fe8048ead3cfc6bf2c434f'") | Should -BeTrue
+        $text.Contains("[string]`$RequiredCommit = '66d38dd45881692303f77267e29e4fa44b4a9351'") | Should -BeTrue
         $text | Should -Match "merge-base','--is-ancestor"
         $text | Should -Match 'Current origin/\$Branch does not contain required printer fix commit'
         $text | Should -Not -Match 'origin/main.*-ne.*RequiredCommit'
     }
 
-    It 'requires complete clean runtime authority and preserves arbitrary operator work' {
+    It 'requires complete printer-owned runtime authority and preserves unrelated operator work' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         foreach ($path in @(
             'mapping\\Invoke-NorthwellPrinterMapping\.ps1',
             'NorthwellPrinterMapping\.Core\.psm1',
+            'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1',
+            'Invoke-NorthwellPrinterActiveUserAgent\.ps1',
             'SasTargetNameResolution\.psm1',
             'SasNetworkGuard\.psm1',
             'SasInteractionCache\.psm1',
             'interaction-cache-policy\.json'
         )) { $text | Should -Match $path }
-        $text | Should -Match "status','--porcelain','--untracked-files=no'"
+        $text | Should -Match "status','--porcelain','--untracked-files=no','--'"
+        $text | Should -Match '\$statusArguments \+= @\(\$script:requiredRuntimePaths\)'
         $text | Should -Match 'Test-SasTrackedRuntimeClean -Root \$candidate'
         $text | Should -Match "worktree','add','--detach'"
         $text | Should -Not -Match 'reset\s+--hard'
@@ -109,7 +114,7 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
         $cmd = Get-Content -LiteralPath $script:bootstrapCmdPath -Raw
         $cmd | Should -Match '%~dp0Bootstrap-SysAdminSuitePrinter\.ps1'
         $cmd | Should -Match '%SystemRoot%\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe'
-        $cmd | Should -Match '-RequiredCommit 5463c0ed3fedc4f9c5fe8048ead3cfc6bf2c434f'
+        $cmd | Should -Match '-RequiredCommit 66d38dd45881692303f77267e29e4fa44b4a9351'
         $cmd | Should -Match 'exit /b %ERRORLEVEL%'
     }
 
@@ -149,7 +154,7 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
         }
     }
 
-    It 'rejects a dirty reusable runtime instead of executing tracked local edits' {
+    It 'rejects a dirty printer-owned reusable runtime instead of executing tracked local edits' {
         $fixture = Join-Path $TestDrive 'dirty-runtime'
         $localAppData = Join-Path $TestDrive 'dirty-localappdata'
         $badCache = Join-Path $localAppData 'bad-cache'
