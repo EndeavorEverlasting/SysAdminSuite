@@ -5,7 +5,7 @@ title SysAdminSuite - Northwell Printer Mapping
 set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 rem Low-noise Northwell quick mapper.
-rem No ping sweep, no test page, no per-user fallback.
+rem No reachability sweep, no test page, no per-user fallback.
 rem The PowerShell front-end reports only the authoritative HKLM result and evidence path.
 
 "%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -Command "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 1 }"
@@ -25,7 +25,7 @@ echo.
 if "%SAS_RC%"=="0" (
     echo Done.
 ) else (
-    echo Mapping was not proven. Use the evidence path printed above; do not remap blindly.
+    echo Mapping was not proven. Review the error above; if an evidence path was printed, use it. Do not remap blindly.
 )
 echo.
 pause
