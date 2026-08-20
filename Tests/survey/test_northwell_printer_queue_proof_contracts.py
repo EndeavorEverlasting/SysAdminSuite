@@ -74,6 +74,9 @@ def test_remote_target_context_precedence_is_registered() -> None:
     assert "remote mapped PC" in meaning
     assert "controller workstation" in meaning
     assert "SYSTEM + HKLM" in meaning
+    assert "latest complete canonical mapping evidence" in meaning
+    assert "fail closed" in meaning
+    assert "historical proof" in meaning
 
     doc = read(DOC)
     assert "Target identity is part of the proof." in doc
@@ -89,7 +92,9 @@ def test_launcher_is_no_print_and_window_safe() -> None:
     assert "This launcher does NOT print a test page" in text
     assert "This window will NOT close automatically" in text
     assert r"Enter the canonical shared queue as \\server\queue." in text
-    assert "Target context is recovered from the latest canonical mapping evidence" in text
+    assert "latest complete canonical mapping" in text
+    assert "Target PC hostname" in text
+    assert "recommended for multi-target batches" in text
     assert 'set "SAS_TARGET="' in text
     assert "%~3" in text
     assert '-ComputerName "%SAS_TARGET%"' in text
@@ -118,14 +123,24 @@ def test_operational_engine_never_prints_and_preserves_evidence() -> None:
     assert "QUEUE_OPERATIONAL_PHYSICAL_PROOF_PRESERVED" in text
     assert "QUEUE_OPERATIONAL_STATUS_TELEMETRY_DEGRADED" in text
     assert "REMOTE_STATUS_TELEMETRY_DISAGREES_WITH_LOCAL_QUEUE" in text
+    assert "Get-SasLatestMappingEvidenceRoot" in text
     assert "Get-SasLatestMappedTargetForPrinter" in text
     assert "Get-SasRemoteMachineWideProof" in text
+    assert "CompletedTargets" in text
+    assert "TotalTargets" in text
     assert "REMOTE_TARGET_MACHINE_WIDE_REGISTRATION_PROVEN" in text
     assert "REMOTE_TARGET_RUNTIME_QUEUE_STATE_NOT_OBSERVED" in text
     assert "LATEST_MAPPING_EVIDENCE" in text
     assert "REMOTE_MAPPING_EVIDENCE" in text
     assert "LOCAL_OPERATIONAL_DIAGNOSTIC" in text
-    assert "if ($remoteTarget)" in text
+    assert "TARGET_CONTEXT_UNRESOLVED" in text
+    assert "TARGET_CONTEXT_REQUIRED" in text
+    assert "LOCAL_DEFAULT" not in text
+    assert "if (-not $targetContextResolved)" in text
+    assert "elseif ($remoteTarget)" in text
+    assert "diagnosticOutputRoot" in text
+    assert "Get-ChildItem -LiteralPath $diagnosticOutputRoot" in text
+    assert "Isolated diagnostic artifact printer mismatch" in text
 
 
 def test_repair_engine_counts_existing_physical_proof_without_reexecution() -> None:
@@ -195,6 +210,9 @@ def test_docs_forbid_stale_retry_repeat_print_and_parent_shell_exit() -> None:
     assert "not a reason to chase the old commit" in text
     assert "artifact reclassification only" in text
     assert "controller-local queue absence cannot invalidate that remote-target proof" in text
+    assert "latest complete" in text
+    assert "TARGET_CONTEXT_UNRESOLVED" in text
+    assert "run-scoped diagnostic directory" in text
 
 
 def main() -> None:
