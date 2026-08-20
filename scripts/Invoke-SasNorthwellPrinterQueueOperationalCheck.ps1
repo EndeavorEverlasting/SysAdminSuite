@@ -10,6 +10,10 @@
     state. Instead it reconciles the requested target and queue against preserved
     canonical SYSTEM + HKLM mapping evidence.
 
+    When ComputerName is omitted, the engine first tries to recover one unambiguous
+    target for the requested queue from the canonical mapping LATEST-PATH evidence.
+    If no target can be recovered, it intentionally falls back to the local machine.
+
     Durable prior physical-print evidence remains available for local operational
     checks. Raw diagnostic evidence is preserved unchanged when diagnostics run.
 
@@ -23,8 +27,7 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$Printer,
 
-    [ValidateNotNullOrEmpty()]
-    [string]$ComputerName = $env:COMPUTERNAME,
+    [string]$ComputerName,
 
     [string]$PrinterIp,
 
@@ -53,6 +56,47 @@ function ConvertTo-SasComputerKey {
     $trimmed = $Value.Trim().TrimEnd('.')
     if ([string]::IsNullOrWhiteSpace($trimmed)) { return '' }
     return ($trimmed -split '\.')[0].ToLowerInvariant()
+}
+
+function Get-SasLatestMappedTargetForPrinter {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [Parameter(Mandatory)][string]$Printer
+    )
+
+    $latestPointer = Join-Path $RepoRoot 'mapping\Logs\LATEST-PATH.txt'
+    if (-not (Test-Path -LiteralPath $latestPointer -PathType Leaf)) { return $null }
+
+    $evidenceRoot = [string](Get-Content -LiteralPath $latestPointer -Raw -ErrorAction SilentlyContinue)
+    if ([string]::IsNullOrWhiteSpace($evidenceRoot)) { return $null }
+    $evidenceRoot = $evidenceRoot.Trim()
+    if (-not (Test-Path -LiteralPath $evidenceRoot -PathType Container)) { return $null }
+
+    $printerKey = $Printer.Trim().ToLowerInvariant()
+    $targets = New-Object System.Collections.Generic.List[string]
+    foreach ($candidate in @(Get-ChildItem -LiteralPath $evidenceRoot -Filter 'Status.json' -File -Recurse -ErrorAction SilentlyContinue)) {
+        try {
+            $status = Get-Content -LiteralPath $candidate.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            $computerProperty = $status.PSObject.Properties['ComputerName']
+            $requestedProperty = $status.PSObject.Properties['Requested']
+            if ($null -eq $computerProperty -or $null -eq $requestedProperty) { continue }
+
+            $requested = @($requestedProperty.Value | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
+            if ($requested -notcontains $printerKey) { continue }
+
+            $candidateComputer = [string]$computerProperty.Value
+            if ([string]::IsNullOrWhiteSpace($candidateComputer)) { continue }
+            $targets.Add($candidateComputer.Trim())
+        }
+        catch {
+            continue
+        }
+    }
+
+    $uniqueTargets = @($targets.ToArray() | Sort-Object -Unique)
+    if ($uniqueTargets.Count -ne 1) { return $null }
+    return [string]$uniqueTargets[0]
 }
 
 function Get-SasRemoteMachineWideProof {
@@ -298,7 +342,22 @@ if ($unc -notmatch '^\\\\(?<server>[^\\\s]+)\\(?<queue>[^\\]+)$') {
     throw 'Printer must be one shared queue in UNC form: \\server\queue.'
 }
 
-$targetComputer = $ComputerName.Trim()
+$targetResolution = 'EXPLICIT'
+$targetComputer = if (-not [string]::IsNullOrWhiteSpace($ComputerName)) {
+    $ComputerName.Trim()
+}
+else {
+    $recoveredTarget = Get-SasLatestMappedTargetForPrinter -RepoRoot $repoRoot -Printer $unc
+    if (-not [string]::IsNullOrWhiteSpace($recoveredTarget)) {
+        $targetResolution = 'LATEST_MAPPING_EVIDENCE'
+        $recoveredTarget
+    }
+    else {
+        $targetResolution = 'LOCAL_DEFAULT'
+        $env:COMPUTERNAME
+    }
+}
+
 $targetKey = ConvertTo-SasComputerKey -Value $targetComputer
 $localKey = ConvertTo-SasComputerKey -Value $env:COMPUTERNAME
 if ([string]::IsNullOrWhiteSpace($targetKey)) { throw 'ComputerName cannot be blank.' }
@@ -340,6 +399,7 @@ if ($remoteTarget) {
             proof_level = 'MACHINE_WIDE_REGISTRATION'
             printer = $unc
             target_computer = $targetComputer
+            target_resolution = $targetResolution
             evaluation_mode = 'REMOTE_MAPPING_EVIDENCE'
             printer_ip_diagnostic_only = $PrinterIp
             no_test_page_requested = $true
@@ -365,6 +425,7 @@ if ($remoteTarget) {
             proof_level = 'MACHINE_WIDE_REGISTRATION_FAILED'
             printer = $unc
             target_computer = $targetComputer
+            target_resolution = $targetResolution
             evaluation_mode = 'REMOTE_MAPPING_EVIDENCE'
             printer_ip_diagnostic_only = $PrinterIp
             no_test_page_requested = $true
@@ -390,6 +451,7 @@ if ($remoteTarget) {
             proof_level = 'NO_MATCHING_MAPPING_EVIDENCE'
             printer = $unc
             target_computer = $targetComputer
+            target_resolution = $targetResolution
             evaluation_mode = 'REMOTE_MAPPING_EVIDENCE'
             printer_ip_diagnostic_only = $PrinterIp
             no_test_page_requested = $true
@@ -451,6 +513,7 @@ else {
             proof_level = 'NO_RESULT_ARTIFACT'
             printer = $unc
             target_computer = $targetComputer
+            target_resolution = $targetResolution
             evaluation_mode = 'LOCAL_OPERATIONAL_DIAGNOSTIC'
             printer_ip_diagnostic_only = $PrinterIp
             no_test_page_requested = $true
@@ -476,6 +539,7 @@ else {
             proof_level = [string]$outcome.proof_level
             printer = $unc
             target_computer = $targetComputer
+            target_resolution = $targetResolution
             evaluation_mode = 'LOCAL_OPERATIONAL_DIAGNOSTIC'
             printer_ip_diagnostic_only = $PrinterIp
             no_test_page_requested = $true
@@ -514,6 +578,7 @@ $summary = @(
     ('Classification: ' + $result.classification)
     ('Proof level: ' + $result.proof_level)
     ('Target computer: ' + $targetComputer)
+    ('Target resolution: ' + $targetResolution)
     ('Evaluation mode: ' + $result.evaluation_mode)
     ('Printer: ' + $unc)
     'Test page requested by this run: NO'
