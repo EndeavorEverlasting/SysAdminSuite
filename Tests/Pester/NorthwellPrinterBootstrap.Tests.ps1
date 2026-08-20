@@ -75,6 +75,14 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
         $text | Should -Match 'latest-runtime\.txt'
     }
 
+    It 'binds an existing dedicated cache to that exact root rather than an enclosing repository' {
+        $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
+        $text | Should -Match 'Test-SasDedicatedCacheRoot'
+        $text | Should -Match "Join-Path \$Root '\.git'"
+        $text | Should -Match "rev-parse','--is-inside-work-tree"
+        $text | Should -Match 'not the dedicated Git worktree'
+    }
+
     It 'serializes dedicated cache/runtime creation instead of racing shared worktree paths' {
         $text = Get-Content -LiteralPath $script:bootstrapPath -Raw
         $text | Should -Match 'System\.Threading\.Mutex'
@@ -130,8 +138,9 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
             }
             finally { Pop-Location }
 
-            ($output -join "`n") | Should -Match 'PASS: printer runtime resolved; launcher not executed'
-            ($output -join "`n") | Should -Match [regex]::Escape($fixture)
+            $outputText = $output -join "`n"
+            $outputText | Should -Match 'PASS: printer runtime resolved; launcher not executed'
+            $outputText.Contains($fixture) | Should -BeTrue
         }
         finally {
             if ($null -eq $oldRuntime) { Remove-Item Env:SAS_RUNTIME_ROOT -ErrorAction SilentlyContinue } else { $env:SAS_RUNTIME_ROOT = $oldRuntime }
@@ -158,7 +167,7 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
             $env:LOCALAPPDATA = $localAppData
             $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:bootstrapPath -RequiredCommit $head -CacheRoot $badCache -NoLaunch 2>&1)
             $LASTEXITCODE | Should -Not -Be 0
-            ($output -join "`n") | Should -Match 'cache path already exists but is not a Git worktree'
+            ($output -join "`n") | Should -Match 'cache path already exists but is not the dedicated Git worktree'
             ($output -join "`n") | Should -Not -Match 'PASS: printer runtime resolved'
         }
         finally {
