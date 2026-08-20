@@ -16,6 +16,8 @@ BeforeAll {
             'mapping\Start-NorthwellPrinterBatch.ps1',
             'mapping\Invoke-NorthwellPrinterMapping.ps1',
             'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
+            'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
+            'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1',
             'mapping\Examples\NorthwellPrinterBatch.example.csv',
             'scripts\SasTargetNameResolution.psm1',
             'scripts\SasNetworkGuard.psm1',
@@ -50,6 +52,7 @@ Describe 'Universal sas printer entrypoint' {
         $launcherText | Should -Match 'Bootstrap-SysAdminSuitePrinter\.ps1'
         $launcherText | Should -Match 'Usage: sas printer \[file\]'
         $launcherText | Should -Match '-Mode \$printerMode'
+        $launcherText | Should -Match "-RequiredCommit '66d38dd45881692303f77267e29e4fa44b4a9351'"
         $printerBlock = $launcherText.Split("    'printer' {")[1].Split("`n    'clipboard' {")[0]
         $printerBlock | Should -Not -Match 'Map-NorthwellPrinter-SystemWide\.cmd'
 
@@ -89,10 +92,12 @@ Describe 'Universal sas printer entrypoint' {
         }
     }
 
-    It 'keeps printer-owned tracked edits fail-closed' {
+    It 'keeps every current printer dependency fail-closed while ignoring unrelated tracked work' {
         $text = Get-Content -LiteralPath $script:bootstrap -Raw
         $text | Should -Match "@\('status','--porcelain','--untracked-files=no','--'\)"
         $text | Should -Match '\$statusArguments \+= @\(\$script:requiredRuntimePaths\)'
+        $text | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
+        $text | Should -Match 'Invoke-NorthwellPrinterActiveUserAgent\.ps1'
         $text | Should -Match 'Map-NorthwellPrinters-FromFile\.cmd'
         $text | Should -Match "\$launcherName = if \(\$Mode -eq 'File'\)"
     }
