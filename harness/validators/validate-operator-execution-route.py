@@ -26,6 +26,8 @@ FRESH_AGENT = ROOT / "harness/workflows/fresh-agent-intake.yaml"
 COMMANDS = ROOT / "harness/api/harness-command-registry.json"
 TERMINAL = ROOT / "harness/api/terminal-evidence-survival-registry.json"
 LAUNCHER = ROOT / "Run-AutoLogonCrashSafe.cmd"
+SAS_LAUNCHER = ROOT / "scripts/SasPortableLauncher.ps1"
+SEALED_BOOTSTRAP = ROOT / "Bootstrap-SysAdminSuiteAutoLogon.ps1"
 HELPER = ROOT / "harness/scripts/Invoke-SasOperatorExecutionRoute.ps1"
 WINDOWS_TEST = ROOT / "Tests/PowerShell/OperatorExecutionRouteHarness.Tests.ps1"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
@@ -34,7 +36,8 @@ CI = ROOT / ".github/workflows/operator-execution-route-harness.yml"
 
 COMPONENTS = (
     REGISTRY, SCHEMA, MANIFEST, MANIFEST_SCHEMA, VALIDATORS, WORKFLOW, SKILL, MAP, REPORT,
-    FRESH_AGENT, COMMANDS, TERMINAL, LAUNCHER, HELPER, WINDOWS_TEST, PRE_COMMIT, PRE_PUSH, CI,
+    FRESH_AGENT, COMMANDS, TERMINAL, LAUNCHER, SAS_LAUNCHER, SEALED_BOOTSTRAP, HELPER,
+    WINDOWS_TEST, PRE_COMMIT, PRE_PUSH, CI,
 )
 POLICY_KEYS = {
     "resolve_execution_location_before_operator_command",
@@ -147,7 +150,7 @@ def test_autologon_route_contract() -> None:
     tracked_repo_file(route["repository_freshness_dependency"], "freshness dependency")
 
     path = route["path_resolution"]
-    require(path["strategy_order"] == ["installed-sas-repo", "cached-repo-root"], "fallback path strategy drift")
+    require(path["strategy_order"] == ["installed-sas-repo", "cached-repo-root"], "full-repository fallback strategy drift")
     require(path["installed_sas_probe"] == "sas repo", "sas repo probe drift")
     require(path["cache_path"] == r"%LOCALAPPDATA%\SysAdminSuite\repo-root.txt", "repo-root cache drift")
     require(path["fail_closed"] is True, "fallback path must fail closed")
@@ -206,6 +209,27 @@ def test_autologon_route_contract() -> None:
         "exit [int]$LASTEXITCODE",
     ):
         require(marker in helper, f"route helper missing: {marker}")
+
+
+def test_installed_sas_reaches_sealed_crash_safe_path() -> None:
+    launcher = read(SAS_LAUNCHER)
+    for marker in (
+        "Resolve-SasPreparedAutoLogonRuntime",
+        "autologon-short-runtime.json",
+        "Protected-side Git network I/O: NONE",
+        "& $runtime.bootstrap $target $runtime.commit",
+    ):
+        require(marker in launcher, f"installed sas sealed-runtime contract missing: {marker}")
+
+    bootstrap = read(SEALED_BOOTSTRAP)
+    for marker in (
+        "C:\\SASAL",
+        "Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
+        "PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION",
+        "-ComputerName $ComputerName -RepositoryRoot $RuntimeRoot -ConfirmDeployment",
+        "last-autologon-field-run.json",
+    ):
+        require(marker in bootstrap, f"sealed bootstrap crash-safe contract missing: {marker}")
 
 
 def test_central_registration() -> None:
@@ -279,19 +303,20 @@ def test_workflow_skill_report_and_intake() -> None:
             "never interpolate the raw explicit_target into PowerShell command source",
             "powershell.exe -File",
             "never return only sas autologon Remote HOST",
+            "sealed C:\\SASAL runtime",
         ),
         SKILL: (
             "## Trigger", "## Procedure", "## AutoLogon rule", "Run-AutoLogonCrashSafe.cmd HOST",
             "sas autologon Remote HOST", "target_validation_pattern", "target_encoding", "powershell.exe -File",
-            "one copy-paste route-and-run command", "## Expected outputs", "## Proof ceiling",
+            "one copy-paste", "## Expected outputs", "## Proof ceiling", "C:\\SASAL",
         ),
         MAP: (
             "Operator Execution Route Map", "operator-execution-route-registry.json", "Run-AutoLogonCrashSafe.cmd HOST",
-            "Invoke-SasOperatorExecutionRoute.ps1", "UTF-8 Base64", "Known trap this prevents",
+            "Invoke-SasOperatorExecutionRoute.ps1", "UTF-8 Base64", "Known trap this prevents", "C:\\SASAL",
         ),
         REPORT: (
             "## Working", "## Repaired boundary", "## Missing / not proven", "## Current AutoLogon route",
-            "Run-AutoLogonCrashSafe.cmd HOST", "UTF-8 Base64", "operator shell",
+            "Run-AutoLogonCrashSafe.cmd HOST", "UTF-8 Base64", "operator shell", "C:\\SASAL",
         ),
     }
     for path, markers in required_by_file.items():
@@ -320,6 +345,8 @@ def test_hooks_and_ci() -> None:
         "Operator Execution Route Harness",
         "python -m pip install jsonschema",
         "repository-freshness-before-launch.yaml",
+        "scripts/SasPortableLauncher.ps1",
+        "Bootstrap-SysAdminSuiteAutoLogon.ps1",
         "Invoke-SasAutoLogonCrashSafeFieldRun.ps1",
         "Invoke-SasAutoLogonFieldDeployment.ps1",
         "Invoke-SasOperatorExecutionRoute.ps1",
