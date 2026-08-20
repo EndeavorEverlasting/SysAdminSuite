@@ -7,9 +7,10 @@
     Invoke-NorthwellPrinterMapping.ps1, suppresses lower-level controller chatter,
     and reports the authoritative SYSTEM + HKLM result.
 
-    If the engine raises a lower-level controller/task error but its preserved
+    If the engine raises a lower-level controller/task error but its new run-scoped
     Status.json proves the requested machine-wide state, that proof wins and the
-    technician sees PASS rather than a false failure.
+    technician sees PASS rather than a false failure. Stale evidence from an older
+    run can never rescue a fresh failure.
 #>
 
 [CmdletBinding()]
@@ -33,7 +34,6 @@ function Split-SasFieldList {
         [Parameter(Mandatory)][string]$Value,
         [Parameter(Mandatory)][string]$Label
     )
-
     $items = @(
         $Value -split '\s*[,;\r\n]+\s*' |
             ForEach-Object { $_.Trim() } |
@@ -45,7 +45,6 @@ function Split-SasFieldList {
 
 function Get-SasNorthwellPrinterLocalDefaults {
     if (-not (Test-Path -LiteralPath $localDefaultsPath -PathType Leaf)) { return $null }
-
     try {
         $data = Get-Content -LiteralPath $localDefaultsPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
     }
@@ -58,9 +57,7 @@ function Get-SasNorthwellPrinterLocalDefaults {
     if ([string]::IsNullOrWhiteSpace($server) -or [string]::IsNullOrWhiteSpace($queue)) {
         throw "Local Northwell printer defaults must contain nonblank PrintServer and QueueName values: $localDefaultsPath"
     }
-    if ($server -match '(?i)REPLACE-WITH|EXAMPLE' -or $queue -match '(?i)REPLACE-WITH|EXAMPLE') {
-        return $null
-    }
+    if ($server -match '(?i)REPLACE-WITH|EXAMPLE' -or $queue -match '(?i)REPLACE-WITH|EXAMPLE') { return $null }
 
     return [pscustomobject]@{
         PrintServer = $server.Trim()
@@ -76,7 +73,6 @@ function Read-SasNorthwellPrinterSets {
 
     $collected = New-Object System.Collections.Generic.List[string]
     $firstSet = $true
-
     do {
         $serverDefault = ''
         $queueDefault = ''
@@ -204,9 +200,7 @@ if (-not $Printer -or $Printer.Count -eq 0) {
 }
 
 $guardModule = Join-Path $repoRoot 'scripts\SasNetworkGuard.psm1'
-if (-not (Test-Path -LiteralPath $guardModule -PathType Leaf)) {
-    throw "Shared Northwell network guard not found: $guardModule"
-}
+if (-not (Test-Path -LiteralPath $guardModule -PathType Leaf)) { throw "Shared Northwell network guard not found: $guardModule" }
 if (-not $WhatIf) {
     Import-Module $guardModule -Force -ErrorAction Stop
     $null = Assert-SasNorthwellWifi
@@ -224,6 +218,7 @@ if ($WhatIf) { $invokeParameters.WhatIf = $true }
 
 Write-Host ('Mapping {0} queue(s) on {1} target(s). No ping sweep. No test page.' -f @($Printer).Count, @($ComputerName).Count) -ForegroundColor Cyan
 
+$previousEvidenceRoot = Get-SasLatestPrinterEvidenceRoot
 $engineError = $null
 try {
     $null = @(& $engine @invokeParameters *>&1)
@@ -233,15 +228,17 @@ catch {
 }
 
 $evidenceRoot = Get-SasLatestPrinterEvidenceRoot
-$authoritativeSuccess = Test-SasLatestAuthoritativePrinterProof -EvidenceRoot $evidenceRoot
+$freshEvidence = -not [string]::IsNullOrWhiteSpace($evidenceRoot) -and
+    ([string]::IsNullOrWhiteSpace($previousEvidenceRoot) -or -not $evidenceRoot.Equals($previousEvidenceRoot, [System.StringComparison]::OrdinalIgnoreCase))
+$authoritativeSuccess = $freshEvidence -and (Test-SasLatestAuthoritativePrinterProof -EvidenceRoot $evidenceRoot)
 
 if ($authoritativeSuccess) {
     Write-SasPrinterResult -Success $true -EvidenceRoot $evidenceRoot -RecoveredFromLowerLevelError:($null -ne $engineError)
     return
 }
 
-Write-SasPrinterResult -Success $false -EvidenceRoot $evidenceRoot
+Write-SasPrinterResult -Success $false -EvidenceRoot $(if ($freshEvidence) { $evidenceRoot } else { $null })
 if ($null -ne $engineError) {
-    throw "Printer mapping did not produce authoritative HKLM proof. Review the evidence directory."
+    throw 'Printer mapping did not produce fresh authoritative HKLM proof. Review the current run evidence if one was created.'
 }
-throw 'Printer mapping returned without authoritative HKLM proof.'
+throw 'Printer mapping returned without fresh authoritative HKLM proof.'
