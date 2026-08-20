@@ -62,6 +62,7 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
     if ([string]::IsNullOrWhiteSpace($normalized)) {
         Write-Host 'Run the existing sas commands normally; the universal front door resolves controller/runtime/network context first.'
         Write-Host 'Printer quick mapping is also available as: sas printer' -ForegroundColor Green
+        Write-Host 'Clipboard recovery is available as: sas clipboard' -ForegroundColor Green
     }
     exit 0
 }
@@ -103,7 +104,7 @@ switch ($normalized) {
         Write-SasUniversalContext
         $gate = Join-Path $runtimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
         if (-not (Test-Path -LiteralPath $gate -PathType Leaf)) { $gate = Join-Path $controllerRoot 'scripts\Confirm-SasNorthwellNetwork.ps1' }
-        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $gate -Purpose 'manual SysAdminSuite operator check' -NonInteractive
+        & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $gate -Purpose 'manual SysAdminSuite operator check' -NonInteractive
         exit $LASTEXITCODE
     }
 
@@ -115,6 +116,22 @@ switch ($normalized) {
             throw "Canonical printer mapping launcher is missing: $printerLauncher"
         }
         & $printerLauncher
+        exit $LASTEXITCODE
+    }
+
+    'clipboard' {
+        if ($actualArgs.Count -gt 1 -or ($actualArgs.Count -eq 1 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -ne 'reset')) {
+            Write-Host 'Usage: sas clipboard [reset]' -ForegroundColor Red
+            exit 2
+        }
+        $clipboardReset = Join-Path $runtimeRoot 'scripts\Reset-SasClipboard.ps1'
+        if (-not (Test-Path -LiteralPath $clipboardReset -PathType Leaf)) {
+            $clipboardReset = Join-Path $controllerRoot 'scripts\Reset-SasClipboard.ps1'
+        }
+        if (-not (Test-Path -LiteralPath $clipboardReset -PathType Leaf)) {
+            throw "Canonical clipboard reset script is missing: $clipboardReset"
+        }
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $clipboardReset
         exit $LASTEXITCODE
     }
 
