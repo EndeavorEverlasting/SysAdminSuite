@@ -33,10 +33,18 @@ def main() -> None:
     ):
         assert marker in platform, marker
 
-    # Controller authority is machine-local: UNC and mapped-network runtimes are rejected.
+    # Controller authority is machine-local and must fail closed when locality cannot be proven.
     assert "Path -match '^(?:\\\\\\\\|//)'" in platform
-    assert "$driveType -eq 0 -or $driveType -eq 3" in platform
+    assert "return ($driveType -eq 3)" in platform
+    assert "$driveType -eq 0 -or $driveType -eq 3" not in platform
+    assert "Get-PSDrive -Name $driveName -PSProvider FileSystem" in platform
+    assert "New-Object IO.DriveInfo" in platform
     assert "SysAdminSuite will not execute from a UNC share, mapped network drive, or target machine path" in platform
+
+    # Cache writes are optimization only; read/execute-only machine installs cannot be bricked by them.
+    assert "Cache persistence is an optimization only" in platform
+    assert "Set-Content -LiteralPath $path" in platform
+    assert "catch {" in platform
 
     # The universal front door handles protected actions before delegating compatibility commands.
     for marker in (
@@ -56,19 +64,30 @@ def main() -> None:
         assert marker in launcher, marker
     assert '$args = @(' not in launcher
 
+    # `sas network HOST` retains the established one-target readiness probe instead of collapsing to
+    # a local-only posture check.
+    assert 'Network readiness probe for $($actualArgs[0])' in launcher
+    assert 'Invoke-SasLegacyDispatcher' in launcher
+
     # Refresh may use the existing Guest-only synchronization implementation, but after sealing the
     # new C:\SASAL it must restore the universal machine-neutral command from that sealed runtime.
     assert "Refresh-SasOperatorCommand.ps1" in launcher
     assert "C:\\SASAL\\scripts\\Install-SasUniversalFieldLauncher.ps1" in launcher
     assert "UNIVERSAL_FIELD_PLATFORM_REFRESH_CONVERGED" in launcher
 
-    # Canonical installation is machine-first. Current-user installation is only a shim fallback,
-    # never controller/runtime authority.
+    # Canonical installation is machine-first. A current-user shim is allowed only when the canonical
+    # machine runtime already exists; a user-profile checkout cannot become shared execution authority.
     assert "$machineRoot = if ($env:ProgramData)" in installer
-    assert "CURRENT_USER_FALLBACK" in installer
-    assert "C:\\SASAL\\scripts\\Invoke-SasUniversalField.ps1" in installer
+    assert "CURRENT_USER_SHIM_WITH_MACHINE_RUNTIME" in installer
+    assert "MACHINE_NEUTRAL_RUNTIME_REQUIRED" in installer
+    assert "$repoIsUserScoped" in installer
     assert "Controller runtime distribution: LOCAL MACHINE ONLY" in installer
     assert 'Install-SasUniversalFieldLauncher.ps1' in install_cmd
+
+    # The CMD shim must execute only the installer-owned PowerShell copy. SAS_RUNTIME_ROOT is handled
+    # later by trusted PowerShell after local-controller validation.
+    assert 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasUniversalField.ps1" %*' in installer
+    assert 'if defined SAS_RUNTIME_ROOT' not in installer
 
     # No operator identity or one user's filesystem is allowed into the new platform surfaces.
     combined = '\n'.join((platform, launcher, installer, install_cmd))
