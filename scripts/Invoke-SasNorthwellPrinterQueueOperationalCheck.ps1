@@ -4,9 +4,14 @@
     Non-printing operational check for a mapped Northwell shared printer queue.
 
 .DESCRIPTION
-    Runs the bounded queue diagnostic engine without requesting a test page, then
-    reconciles its transport/status telemetry with durable prior physical-print
-    evidence for the same queue. Raw diagnostic evidence is preserved unchanged.
+    Runs the bounded queue diagnostic engine without requesting a test page when
+    the requested target is the local workstation. For a different target PC, it
+    does not misclassify the controller workstation's local queue state as target
+    state. Instead it reconciles the requested target and queue against preserved
+    canonical SYSTEM + HKLM mapping evidence.
+
+    Durable prior physical-print evidence remains available for local operational
+    checks. Raw diagnostic evidence is preserved unchanged when diagnostics run.
 
     The operator-facing result is written to stable latest.json/latest.txt aliases
     under LOCALAPPDATA so terminal closure never destroys the useful evidence.
@@ -17,6 +22,9 @@ param(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [string]$Printer,
+
+    [ValidateNotNullOrEmpty()]
+    [string]$ComputerName = $env:COMPUTERNAME,
 
     [string]$PrinterIp,
 
@@ -33,9 +41,111 @@ if ($env:OS -ne 'Windows_NT') {
     throw 'Northwell printer operational check must run from Windows.'
 }
 
+$repoRoot = Split-Path -Parent $PSScriptRoot
+
 function ConvertTo-SasPowerShellLiteral {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
     return "'" + $Value.Replace("'", "''") + "'"
+}
+
+function ConvertTo-SasComputerKey {
+    param([Parameter(Mandatory)][string]$Value)
+    $trimmed = $Value.Trim().TrimEnd('.')
+    if ([string]::IsNullOrWhiteSpace($trimmed)) { return '' }
+    return ($trimmed -split '\.')[0].ToLowerInvariant()
+}
+
+function Get-SasRemoteMachineWideProof {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [Parameter(Mandatory)][string]$ComputerName,
+        [Parameter(Mandatory)][string]$Printer
+    )
+
+    $mappingLogs = Join-Path $RepoRoot 'mapping\Logs'
+    $targetKey = ConvertTo-SasComputerKey -Value $ComputerName
+    $printerKey = $Printer.Trim().ToLowerInvariant()
+
+    if ([string]::IsNullOrWhiteSpace($targetKey) -or -not (Test-Path -LiteralPath $mappingLogs -PathType Container)) {
+        return [pscustomobject]([ordered]@{
+            found = $false
+            proven = $false
+            evidence_path = $null
+            completed_utc = $null
+            identity = $null
+            requested = @()
+            machine_wide_unc = @()
+            missing = @()
+        })
+    }
+
+    $candidates = @(
+        Get-ChildItem -LiteralPath $mappingLogs -Filter 'Status.json' -File -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending
+    )
+
+    foreach ($candidate in $candidates) {
+        try {
+            $status = Get-Content -LiteralPath $candidate.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+
+            $computerProperty = $status.PSObject.Properties['ComputerName']
+            if ($null -eq $computerProperty) { continue }
+            if ((ConvertTo-SasComputerKey -Value ([string]$computerProperty.Value)) -ne $targetKey) { continue }
+
+            $requestedProperty = $status.PSObject.Properties['Requested']
+            $requested = if ($null -ne $requestedProperty) {
+                @($requestedProperty.Value | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
+            }
+            else { @() }
+            if ($requested -notcontains $printerKey) { continue }
+
+            $verifiedProperty = $status.PSObject.Properties['MachineWideUNC']
+            $verified = if ($null -ne $verifiedProperty) {
+                @($verifiedProperty.Value | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
+            }
+            else { @() }
+
+            $missingProperty = $status.PSObject.Properties['Missing']
+            $missing = if ($null -ne $missingProperty) { @($missingProperty.Value) } else { @() }
+
+            $successProperty = $status.PSObject.Properties['Success']
+            $success = ($null -ne $successProperty -and [bool]$successProperty.Value)
+
+            $identityProperty = $status.PSObject.Properties['Identity']
+            $identity = if ($null -ne $identityProperty) { [string]$identityProperty.Value } else { '' }
+
+            $finishedProperty = $status.PSObject.Properties['Finished']
+            $finished = if ($null -ne $finishedProperty) { [string]$finishedProperty.Value } else { $null }
+
+            $proven = $success -and $identity -match 'SYSTEM$' -and $missing.Count -eq 0 -and $verified -contains $printerKey
+
+            return [pscustomobject]([ordered]@{
+                found = $true
+                proven = $proven
+                evidence_path = $candidate.FullName
+                completed_utc = $finished
+                identity = $identity
+                requested = $requested
+                machine_wide_unc = $verified
+                missing = $missing
+            })
+        }
+        catch {
+            continue
+        }
+    }
+
+    return [pscustomobject]([ordered]@{
+        found = $false
+        proven = $false
+        evidence_path = $null
+        completed_utc = $null
+        identity = $null
+        requested = @()
+        machine_wide_unc = @()
+        missing = @()
+    })
 }
 
 function Get-SasPriorPhysicalProof {
@@ -188,6 +298,12 @@ if ($unc -notmatch '^\\\\(?<server>[^\\\s]+)\\(?<queue>[^\\]+)$') {
     throw 'Printer must be one shared queue in UNC form: \\server\queue.'
 }
 
+$targetComputer = $ComputerName.Trim()
+$targetKey = ConvertTo-SasComputerKey -Value $targetComputer
+$localKey = ConvertTo-SasComputerKey -Value $env:COMPUTERNAME
+if ([string]::IsNullOrWhiteSpace($targetKey)) { throw 'ComputerName cannot be blank.' }
+$remoteTarget = ($targetKey -ne $localKey)
+
 $base = if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot
 }
@@ -202,42 +318,6 @@ New-Item -ItemType Directory -Path $base -Force | Out-Null
 $runRoot = Join-Path $base ('operational-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 
-$diagnosticEngine = Join-Path $PSScriptRoot 'Invoke-SasNorthwellPrinterQueueProof.ps1'
-if (-not (Test-Path -LiteralPath $diagnosticEngine)) {
-    throw "Missing bounded diagnostic engine: $diagnosticEngine"
-}
-
-$stdoutPath = Join-Path $runRoot 'diagnostic.stdout.txt'
-$stderrPath = Join-Path $runRoot 'diagnostic.stderr.txt'
-$startedUtc = [DateTime]::UtcNow
-$psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-$command = "& " + (ConvertTo-SasPowerShellLiteral $diagnosticEngine) +
-    " -Printer " + (ConvertTo-SasPowerShellLiteral $unc) +
-    " -TimeoutSeconds $TimeoutSeconds -NonInteractive -OutputRoot " + (ConvertTo-SasPowerShellLiteral $base)
-if (-not [string]::IsNullOrWhiteSpace($PrinterIp)) {
-    $command += " -PrinterIp " + (ConvertTo-SasPowerShellLiteral $PrinterIp.Trim())
-}
-$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-
-$process = Start-Process -FilePath $psExe `
-    -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand',$encoded) `
-    -RedirectStandardOutput $stdoutPath `
-    -RedirectStandardError $stderrPath `
-    -WindowStyle Hidden `
-    -PassThru
-
-$processTimeoutSeconds = ($TimeoutSeconds * 5) + 20
-$completed = $process.WaitForExit($processTimeoutSeconds * 1000)
-if (-not $completed) {
-    try { $process.Kill() } catch {}
-    try { [void]$process.WaitForExit(2000) } catch {}
-}
-
-$rawArtifact = Get-ChildItem -LiteralPath $base -Filter 'printer-queue-proof-result.json' -File -Recurse -ErrorAction SilentlyContinue |
-    Where-Object { $_.LastWriteTimeUtc -ge $startedUtc.AddSeconds(-2) } |
-    Sort-Object LastWriteTimeUtc -Descending |
-    Select-Object -First 1
-
 $resultPath = Join-Path $runRoot 'printer-queue-operational-result.json'
 $summaryPath = Join-Path $runRoot 'printer-queue-operational-summary.txt'
 $latestJson = Join-Path $base 'latest.json'
@@ -245,59 +325,181 @@ $latestText = Join-Path $base 'latest.txt'
 $latestPointer = Join-Path $base 'LATEST-PATH.txt'
 $latestStdout = Join-Path $base 'latest-diagnostic.stdout.txt'
 $latestStderr = Join-Path $base 'latest-diagnostic.stderr.txt'
+$stdoutPath = Join-Path $runRoot 'diagnostic.stdout.txt'
+$stderrPath = Join-Path $runRoot 'diagnostic.stderr.txt'
+$rawArtifact = $null
+$completed = $true
 
-if (-not $rawArtifact) {
-    $result = [ordered]@{
-        schema_version = 'sas-northwell-printer-queue-operational/v1'
-        status = 'FAIL'
-        classification = if ($completed) { 'DIAGNOSTIC_ENGINE_NO_RESULT' } else { 'DIAGNOSTIC_ENGINE_PROCESS_TIMEOUT' }
-        proof_level = 'NO_RESULT_ARTIFACT'
-        printer = $unc
-        printer_ip_diagnostic_only = $PrinterIp
-        no_test_page_requested = $true
-        direct_ip_mapping_performed = $false
-        source_result_path = $null
-        prior_physical_proof = $null
-        diagnostic_warnings = @()
-        diagnostic_stdout = $stdoutPath
-        diagnostic_stderr = $stderrPath
-        evidence_path = $resultPath
-        completed_utc = [DateTime]::UtcNow.ToString('o')
+if ($remoteTarget) {
+    $remoteProof = Get-SasRemoteMachineWideProof -RepoRoot $repoRoot -ComputerName $targetComputer -Printer $unc
+    if ($remoteProof.proven -eq $true) {
+        $result = [ordered]@{
+            schema_version = 'sas-northwell-printer-queue-operational/v1'
+            status = 'PASS'
+            classification = 'REMOTE_TARGET_MACHINE_WIDE_REGISTRATION_PROVEN'
+            proof_level = 'MACHINE_WIDE_REGISTRATION'
+            printer = $unc
+            target_computer = $targetComputer
+            evaluation_mode = 'REMOTE_MAPPING_EVIDENCE'
+            printer_ip_diagnostic_only = $PrinterIp
+            no_test_page_requested = $true
+            direct_ip_mapping_performed = $false
+            source_status = 'PASS'
+            source_classification = 'HKLM_MACHINE_WIDE_QUEUE_PROOF'
+            source_result_path = $remoteProof.evidence_path
+            source_mapping_evidence = $remoteProof
+            prior_physical_proof = $null
+            diagnostic_warnings = @('REMOTE_TARGET_RUNTIME_QUEUE_STATE_NOT_OBSERVED')
+            current = $null
+            diagnostic_stdout = $null
+            diagnostic_stderr = $null
+            evidence_path = $resultPath
+            completed_utc = [DateTime]::UtcNow.ToString('o')
+        }
+    }
+    elseif ($remoteProof.found -eq $true) {
+        $result = [ordered]@{
+            schema_version = 'sas-northwell-printer-queue-operational/v1'
+            status = 'FAIL'
+            classification = 'REMOTE_TARGET_MACHINE_WIDE_REGISTRATION_NOT_PROVEN'
+            proof_level = 'MACHINE_WIDE_REGISTRATION_FAILED'
+            printer = $unc
+            target_computer = $targetComputer
+            evaluation_mode = 'REMOTE_MAPPING_EVIDENCE'
+            printer_ip_diagnostic_only = $PrinterIp
+            no_test_page_requested = $true
+            direct_ip_mapping_performed = $false
+            source_status = 'FAIL'
+            source_classification = 'HKLM_MACHINE_WIDE_QUEUE_PROOF_MISMATCH'
+            source_result_path = $remoteProof.evidence_path
+            source_mapping_evidence = $remoteProof
+            prior_physical_proof = $null
+            diagnostic_warnings = @('REMOTE_TARGET_MAPPING_EVIDENCE_DID_NOT_PROVE_REQUESTED_QUEUE')
+            current = $null
+            diagnostic_stdout = $null
+            diagnostic_stderr = $null
+            evidence_path = $resultPath
+            completed_utc = [DateTime]::UtcNow.ToString('o')
+        }
+    }
+    else {
+        $result = [ordered]@{
+            schema_version = 'sas-northwell-printer-queue-operational/v1'
+            status = 'FAIL'
+            classification = 'REMOTE_TARGET_MACHINE_WIDE_EVIDENCE_NOT_FOUND'
+            proof_level = 'NO_MATCHING_MAPPING_EVIDENCE'
+            printer = $unc
+            target_computer = $targetComputer
+            evaluation_mode = 'REMOTE_MAPPING_EVIDENCE'
+            printer_ip_diagnostic_only = $PrinterIp
+            no_test_page_requested = $true
+            direct_ip_mapping_performed = $false
+            source_status = $null
+            source_classification = $null
+            source_result_path = $null
+            source_mapping_evidence = $remoteProof
+            prior_physical_proof = $null
+            diagnostic_warnings = @('NO_MATCHING_REMOTE_MAPPING_EVIDENCE')
+            current = $null
+            diagnostic_stdout = $null
+            diagnostic_stderr = $null
+            evidence_path = $resultPath
+            completed_utc = [DateTime]::UtcNow.ToString('o')
+        }
     }
 }
 else {
-    $raw = Get-Content -LiteralPath $rawArtifact.FullName -Raw | ConvertFrom-Json -ErrorAction Stop
-    $priorPhysical = Get-SasPriorPhysicalProof -Base $base -Printer $unc -ExcludePath $rawArtifact.FullName
-    $outcome = Get-SasOperationalOutcome -Raw $raw -PriorPhysicalProof $priorPhysical
+    $diagnosticEngine = Join-Path $PSScriptRoot 'Invoke-SasNorthwellPrinterQueueProof.ps1'
+    if (-not (Test-Path -LiteralPath $diagnosticEngine)) {
+        throw "Missing bounded diagnostic engine: $diagnosticEngine"
+    }
 
-    $result = [ordered]@{
-        schema_version = 'sas-northwell-printer-queue-operational/v1'
-        status = [string]$outcome.status
-        classification = [string]$outcome.classification
-        proof_level = [string]$outcome.proof_level
-        printer = $unc
-        printer_ip_diagnostic_only = $PrinterIp
-        no_test_page_requested = $true
-        direct_ip_mapping_performed = $false
-        source_status = [string]$raw.status
-        source_classification = [string]$raw.classification
-        source_result_path = $rawArtifact.FullName
-        prior_physical_proof = $priorPhysical
-        diagnostic_warnings = @($outcome.warnings)
-        current = [ordered]@{
-            spooler = $raw.spooler
-            dns = $raw.dns
-            tcp = $raw.tcp
-            local_queue = $raw.local_queue
-            cim_queue = $raw.cim_queue
-            remote_query = $raw.remote_query
-            observed_rpc_connections = $raw.observed_rpc_connections
-            printer_ip_probe_9100 = $raw.printer_ip_probe_9100
+    $startedUtc = [DateTime]::UtcNow
+    $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $command = "& " + (ConvertTo-SasPowerShellLiteral $diagnosticEngine) +
+        " -Printer " + (ConvertTo-SasPowerShellLiteral $unc) +
+        " -TimeoutSeconds $TimeoutSeconds -NonInteractive -OutputRoot " + (ConvertTo-SasPowerShellLiteral $base)
+    if (-not [string]::IsNullOrWhiteSpace($PrinterIp)) {
+        $command += " -PrinterIp " + (ConvertTo-SasPowerShellLiteral $PrinterIp.Trim())
+    }
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
+
+    $process = Start-Process -FilePath $psExe `
+        -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand',$encoded) `
+        -RedirectStandardOutput $stdoutPath `
+        -RedirectStandardError $stderrPath `
+        -WindowStyle Hidden `
+        -PassThru
+
+    $processTimeoutSeconds = ($TimeoutSeconds * 5) + 20
+    $completed = $process.WaitForExit($processTimeoutSeconds * 1000)
+    if (-not $completed) {
+        try { $process.Kill() } catch {}
+        try { [void]$process.WaitForExit(2000) } catch {}
+    }
+
+    $rawArtifact = Get-ChildItem -LiteralPath $base -Filter 'printer-queue-proof-result.json' -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTimeUtc -ge $startedUtc.AddSeconds(-2) } |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+
+    if (-not $rawArtifact) {
+        $result = [ordered]@{
+            schema_version = 'sas-northwell-printer-queue-operational/v1'
+            status = 'FAIL'
+            classification = if ($completed) { 'DIAGNOSTIC_ENGINE_NO_RESULT' } else { 'DIAGNOSTIC_ENGINE_PROCESS_TIMEOUT' }
+            proof_level = 'NO_RESULT_ARTIFACT'
+            printer = $unc
+            target_computer = $targetComputer
+            evaluation_mode = 'LOCAL_OPERATIONAL_DIAGNOSTIC'
+            printer_ip_diagnostic_only = $PrinterIp
+            no_test_page_requested = $true
+            direct_ip_mapping_performed = $false
+            source_result_path = $null
+            prior_physical_proof = $null
+            diagnostic_warnings = @()
+            diagnostic_stdout = $stdoutPath
+            diagnostic_stderr = $stderrPath
+            evidence_path = $resultPath
+            completed_utc = [DateTime]::UtcNow.ToString('o')
         }
-        diagnostic_stdout = $stdoutPath
-        diagnostic_stderr = $stderrPath
-        evidence_path = $resultPath
-        completed_utc = [DateTime]::UtcNow.ToString('o')
+    }
+    else {
+        $raw = Get-Content -LiteralPath $rawArtifact.FullName -Raw | ConvertFrom-Json -ErrorAction Stop
+        $priorPhysical = Get-SasPriorPhysicalProof -Base $base -Printer $unc -ExcludePath $rawArtifact.FullName
+        $outcome = Get-SasOperationalOutcome -Raw $raw -PriorPhysicalProof $priorPhysical
+
+        $result = [ordered]@{
+            schema_version = 'sas-northwell-printer-queue-operational/v1'
+            status = [string]$outcome.status
+            classification = [string]$outcome.classification
+            proof_level = [string]$outcome.proof_level
+            printer = $unc
+            target_computer = $targetComputer
+            evaluation_mode = 'LOCAL_OPERATIONAL_DIAGNOSTIC'
+            printer_ip_diagnostic_only = $PrinterIp
+            no_test_page_requested = $true
+            direct_ip_mapping_performed = $false
+            source_status = [string]$raw.status
+            source_classification = [string]$raw.classification
+            source_result_path = $rawArtifact.FullName
+            prior_physical_proof = $priorPhysical
+            diagnostic_warnings = @($outcome.warnings)
+            current = [ordered]@{
+                spooler = $raw.spooler
+                dns = $raw.dns
+                tcp = $raw.tcp
+                local_queue = $raw.local_queue
+                cim_queue = $raw.cim_queue
+                remote_query = $raw.remote_query
+                observed_rpc_connections = $raw.observed_rpc_connections
+                printer_ip_probe_9100 = $raw.printer_ip_probe_9100
+            }
+            diagnostic_stdout = $stdoutPath
+            diagnostic_stderr = $stderrPath
+            evidence_path = $resultPath
+            completed_utc = [DateTime]::UtcNow.ToString('o')
+        }
     }
 }
 
@@ -311,12 +513,14 @@ $summary = @(
     ('Status: ' + $result.status)
     ('Classification: ' + $result.classification)
     ('Proof level: ' + $result.proof_level)
+    ('Target computer: ' + $targetComputer)
+    ('Evaluation mode: ' + $result.evaluation_mode)
     ('Printer: ' + $unc)
     'Test page requested by this run: NO'
     ('Warnings: ' + ((@($result.diagnostic_warnings) -join ', ')))
     ('Result JSON: ' + $resultPath)
-    ('Raw diagnostic stdout: ' + $stdoutPath)
-    ('Raw diagnostic stderr: ' + $stderrPath)
+    ('Raw diagnostic stdout: ' + $(if ($remoteTarget) { '<not run for remote target>' } else { $stdoutPath }))
+    ('Raw diagnostic stderr: ' + $(if ($remoteTarget) { '<not run for remote target>' } else { $stderrPath }))
     ('Stable latest JSON: ' + $latestJson)
     ('Stable latest summary: ' + $latestText)
 )
@@ -327,6 +531,7 @@ $summary | Set-Content -LiteralPath $latestText -Encoding UTF8
     ('Summary: ' + $summaryPath)
     ('Result: ' + $resultPath)
     ('Raw diagnostic result: ' + $(if ($rawArtifact) { $rawArtifact.FullName } else { '<none>' }))
+    ('Mapping proof source: ' + $(if ($remoteTarget -and $result.source_result_path) { [string]$result.source_result_path } else { '<none>' }))
 ) | Set-Content -LiteralPath $latestPointer -Encoding UTF8
 
 Write-Host ''
