@@ -142,7 +142,8 @@ try {
     $queues = @($config.Printers | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
     foreach ($queue in $queues) {
         if ($queue -notmatch '^\\\\[^\\]+\\[^\\]+$') { throw "Unsafe/non-UNC queue reached user materializer: $queue" }
-        & "$env:SystemRoot\System32\rundll32.exe" 'printui.dll,PrintUIEntry' '/in' "/n$queue"
+        # PrintUI native UI is advisory. Run quietly and prove the actual result from HKCU/HKU below.
+        & "$env:SystemRoot\System32\rundll32.exe" 'printui.dll,PrintUIEntry' '/in' '/q' "/n$queue"
     }
 
     $deadline = (Get-Date).AddSeconds(30)
@@ -160,6 +161,8 @@ try {
         Requested = $queues
         UserConnections = $observed
         Missing = $missing
+        ProofAuthority = 'CURRENT_USER_PRINTER_CONNECTION_REGISTRY'
+        NativePrintUi = 'QUIET_ADVISORY_ONLY'
         Finished = (Get-Date).ToString('o')
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $StatusPath -Encoding UTF8
 

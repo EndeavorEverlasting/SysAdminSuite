@@ -9,8 +9,11 @@
     the requested /ga registration through Remote Registry HKLM. It discovers
     loaded interactive user hives through Remote Registry HKU, registers a bounded
     Task Scheduler InteractiveToken task directly through the remote Schedule.Service
-    COM API, runs PrintUIEntry /in in each existing user session, and accepts success
-    only after Remote Registry HKU proves the per-user connection.
+    COM API, runs PrintUIEntry /in quietly in each existing user session, and
+    accepts success only after Remote Registry HKU proves the per-user connection.
+
+    Native Windows printer-install dialogs are advisory only and are suppressed for
+    this unattended action. Remote Registry HKU state remains the authoritative proof.
 
     No password, SMB payload, WinRM, direct-IP printer mapping, or test page is used.
     If no interactive user hive is loaded, the durable /ga registration remains the
@@ -157,7 +160,7 @@ function Invoke-SasRemoteInteractivePrinterTask {
         if ($queue -match '["\r\n]') { throw "Unsafe queue reached interactive task action: $queue" }
         $action = $definition.Actions.Create(0)
         $action.Path = $rundll32
-        $action.Arguments = 'printui.dll,PrintUIEntry /in /n"{0}"' -f $queue
+        $action.Arguments = 'printui.dll,PrintUIEntry /in /q /n"{0}"' -f $queue
     }
 
     $taskName = 'SysAdminSuite_NorthwellPrinterUserDirect_' + [guid]::NewGuid().ToString('N')
