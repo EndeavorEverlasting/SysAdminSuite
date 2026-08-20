@@ -4,11 +4,14 @@ on:
   pull_request:
     paths:
       - 'Install-SasOperatorCommand.cmd'
+      - 'Reset-SysAdminSuiteClipboard.cmd'
       - 'scripts/SasFieldPlatform.psm1'
       - 'scripts/Invoke-SasUniversalField.ps1'
       - 'scripts/Install-SasUniversalFieldLauncher.ps1'
+      - 'scripts/Reset-SasClipboard.ps1'
       - 'Tests/PowerShell/UniversalFieldPlatform.Tests.ps1'
       - 'Tests/survey/test_universal_field_platform_contracts.py'
+      - 'Tests/survey/test_clipboard_reset_contracts.py'
       - 'docs/UNIVERSAL_FIELD_PLATFORM.md'
       - '.github/workflows/universal-field-platform.yml'
   workflow_dispatch:
@@ -26,10 +29,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Compile platform contract
-        run: python -m py_compile Tests/survey/test_universal_field_platform_contracts.py
+      - name: Compile platform contracts
+        run: |
+          python -m py_compile Tests/survey/test_universal_field_platform_contracts.py
+          python -m py_compile Tests/survey/test_clipboard_reset_contracts.py
       - name: Run platform contract
         run: python Tests/survey/test_universal_field_platform_contracts.py
+      - name: Run clipboard reset contract
+        run: python Tests/survey/test_clipboard_reset_contracts.py
       - name: Check patch whitespace
         run: git diff --check "origin/${{ github.base_ref }}...HEAD"
 
@@ -45,6 +52,7 @@ jobs:
             'scripts\SasFieldPlatform.psm1',
             'scripts\Invoke-SasUniversalField.ps1',
             'scripts\Install-SasUniversalFieldLauncher.ps1',
+            'scripts\Reset-SasClipboard.ps1',
             'Tests\PowerShell\UniversalFieldPlatform.Tests.ps1'
           )) {
             $tokens = $null

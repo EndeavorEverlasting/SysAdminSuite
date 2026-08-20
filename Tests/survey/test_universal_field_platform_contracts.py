@@ -55,9 +55,11 @@ def main() -> None:
         'Assert-SasProtectedNetworkAuthority',
         "'refresh'",
         "'printer'",
+        "'clipboard'",
         "'autologon'",
         "'cybernet'",
         'Map-NorthwellPrinter-SystemWide.cmd',
+        'Reset-SasClipboard.ps1',
         'Run-AutoLogonOnsite.cmd',
         'Confirm-SasNorthwellNetwork.ps1',
         '$env:SAS_RUNTIME_ROOT = $runtimeRoot',
@@ -67,6 +69,11 @@ def main() -> None:
     ):
         assert marker in launcher, marker
     assert '$args = @(' not in launcher
+
+    # Local clipboard recovery is intentionally outside the protected network gate.
+    clipboard_block = launcher.split("    'clipboard' {", 1)[1].split("\n    'autologon' {", 1)[0]
+    assert 'Assert-SasProtectedForAction' not in clipboard_block
+    assert 'Usage: sas clipboard [reset]' in clipboard_block
 
     # `sas network HOST` retains the established one-target readiness probe instead of collapsing to
     # a local-only posture check.
@@ -110,7 +117,7 @@ def main() -> None:
         'hardwire', 'NSLIJHS-WAB', 'authenticated VPN',
         'machine-local', 'not copied to target machines',
         'username-specific path is not execution authority',
-        'sas printer',
+        'sas printer', 'sas clipboard',
     ):
         assert marker.lower() in doc.lower(), marker
 

@@ -29,6 +29,19 @@ A username-specific path is not execution authority. The platform does not scan 
 
 The installer prefers `%ProgramData%\SysAdminSuite\bin`. If Windows permissions require a current-user shim, that shim is only a command-discovery fallback; protected runtime authority still resolves independently through the local controller/runtime rules above.
 
+## Local clipboard recovery
+
+The recurring Windows clipboard failure has a first-class local recovery path. The field-proven repair primitive is:
+
+`Get-Service cbdhsvc* | Restart-Service -Force`
+
+SysAdminSuite keeps that exact mechanism behind two easier entry points:
+
+- `sas clipboard` (or `sas clipboard reset`) from an installed SysAdminSuite command surface;
+- `Reset-SysAdminSuiteClipboard.cmd` from the repository/runtime root for a visible double-click fallback.
+
+The wrapper is local-only. It restarts only the current Windows Clipboard User Service instance(s) matching `cbdhsvc_*`, verifies they return to `Running`, and reports the instance names. It does not require Northwell protected-network authority and does not touch printers, AutoLogon, target hosts, or the Windows spooler.
+
 ## Do not distribute SysAdminSuite among targets
 
 The SysAdminSuite runtime is **controller-local**. `Test-SasLocalControllerPath` rejects UNC paths and mapped network drives as runtime authority. The universal launcher records `LOCAL_MACHINE_ONLY` as the runtime scope.
@@ -43,13 +56,14 @@ The universal front door owns machine/runtime discovery and protected-path admis
 
 - `sas network`
 - `sas printer` — launches the canonical system-wide Northwell printer mapper after the same protected-path authority gate;
+- `sas clipboard` — restarts the local Windows Clipboard User Service using the field-proven `cbdhsvc*` repair;
 - `sas autologon Remote HOST`
 - `sas autologon Recover HOST`
 - protected `sas cybernet ...` operations
 - existing non-network-sensitive `sas` commands through the prior dispatcher
 
-The canonical product-level network gate still runs before target work. The new platform resolver does not weaken that gate; it removes operator/path assumptions before the canonical gate runs.
+The canonical product-level network gate still runs before target work. The new platform resolver does not weaken that gate; it removes operator/path assumptions before the canonical gate runs. Local clipboard recovery is intentionally outside that network gate because it mutates only the controller's per-user clipboard service.
 
 ## Proof boundary
 
-Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, and mapped-drive fixtures. They do not prove a specific hospital switch port, Wi-Fi access point, VPN session, target authorization, printer queue, package execution, or reboot. Live target work still owns its normal field evidence.
+Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, and mapped-drive fixtures. Clipboard contracts prove discoverability, the exact `cbdhsvc*` repair mechanism, narrow local scope, and parser validity; they do not intentionally restart the CI runner's live clipboard service. The platform tests do not prove a specific hospital switch port, Wi-Fi access point, VPN session, target authorization, printer queue, package execution, or reboot. Live target work still owns its normal field evidence.
