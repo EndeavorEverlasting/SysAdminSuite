@@ -42,6 +42,7 @@ This keeps one controller copy authoritative instead of leaving drifting SysAdmi
 The universal front door owns machine/runtime discovery and protected-path admission for network-sensitive operations, then delegates existing product workflows rather than replacing them:
 
 - `sas network`
+- `sas printer` — launches the canonical system-wide Northwell printer mapper after the same protected-path authority gate;
 - `sas autologon Remote HOST`
 - `sas autologon Recover HOST`
 - protected `sas cybernet ...` operations
@@ -51,4 +52,4 @@ The canonical product-level network gate still runs before target work. The new 
 
 ## Proof boundary
 
-Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, and mapped-drive fixtures. They do not prove a specific hospital switch port, Wi-Fi access point, VPN session, target authorization, package execution, or reboot. Live target work still owns its normal field evidence.
+Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, and mapped-drive fixtures. They do not prove a specific hospital switch port, Wi-Fi access point, VPN session, target authorization, printer queue, package execution, or reboot. Live target work still owns its normal field evidence.
