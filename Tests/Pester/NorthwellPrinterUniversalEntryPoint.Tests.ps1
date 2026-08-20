@@ -14,8 +14,9 @@ BeforeAll {
             'mapping\Invoke-NorthwellPrinterState.ps1','mapping\Modules\NorthwellPrinterMapping.Core.psm1',
             'mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1','mapping\Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1',
             'mapping\Agents\Invoke-NorthwellPrinterActiveUserAgent.ps1','mapping\Examples\NorthwellPrinterBatch.example.csv',
-            'scripts\SasTargetNameResolution.psm1','scripts\SasNetworkGuard.psm1','scripts\SasInteractionCache.psm1',
-            'Config\interaction-cache-policy.json','scripts\UnrelatedFieldHotfix.ps1'
+            'scripts\SasNorthwellNetworkAuthority.psm1','scripts\SasTargetNameResolution.psm1',
+            'scripts\SasNetworkGuard.psm1','scripts\SasInteractionCache.psm1','Config\interaction-cache-policy.json',
+            'scripts\UnrelatedFieldHotfix.ps1'
         )
         foreach ($relative in $paths) {
             $path = Join-Path $Root $relative
@@ -34,17 +35,21 @@ BeforeAll {
 }
 
 Describe 'Universal sas printer entrypoint' {
-    It 'installs and routes a trusted sibling bootstrap through the current-origin production path' {
+    It 'installs and routes a trusted sibling bootstrap with current-origin default and explicit offline mode' {
         $launcherText = Get-Content -LiteralPath $script:launcher -Raw
         $installerText = Get-Content -LiteralPath $script:installer -Raw
         $launcherText | Should -Match 'Resolve-SasInstalledPrinterBootstrap'
         $launcherText | Should -Match 'Bootstrap-SysAdminSuitePrinter\.ps1'
-        $launcherText | Should -Match 'Usage: sas printer \[file\]'
+        $launcherText | Should -Match 'Usage: sas printer \[file\] \[offline\]'
         $launcherText | Should -Match '-Mode \$printerMode'
         $launcherText | Should -Match "-RequiredCommit '66d38dd45881692303f77267e29e4fa44b4a9351'"
         $printerBlock = $launcherText.Split("    'printer' {")[1].Split("`n    'clipboard' {")[0]
         $printerBlock | Should -Not -Match 'Map-NorthwellPrinter-SystemWide\.cmd'
-        $printerBlock | Should -Not -Match 'UseLocalRuntimeOnly'
+        $printerBlock | Should -Match '\$printerOffline = \$false'
+        $printerBlock | Should -Match "'offline'"
+        $printerBlock | Should -Match '-UseLocalRuntimeOnly'
+        $printerBlock | Should -Match 'current-origin bootstrap'
+        $printerBlock | Should -Match 'current origin is NOT claimed'
         $installerText | Should -Match 'sourcePrinterBootstrap'
         $installerText | Should -Match 'printerBootstrapDestination'
         $installerText | Should -Match 'Copy-Item -LiteralPath \$sourcePrinterBootstrap -Destination \$printerBootstrapDestination -Force'
@@ -88,6 +93,7 @@ Describe 'Universal sas printer entrypoint' {
         $text | Should -Match 'Resolve-SasPrinterStateRoot'
         $text | Should -Match '\.state\\printer-bootstrap'
         $text | Should -Match 'Invoke-NorthwellPrinterState\.ps1'
+        $text | Should -Match 'SasNorthwellNetworkAuthority\.psm1'
         $text | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterialization\.ps1'
         $text | Should -Match 'Confirm-NorthwellPrinterBatchActiveUserMaterialization\.ps1'
         $text | Should -Match 'Invoke-NorthwellPrinterActiveUserAgent\.ps1'
