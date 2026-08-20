@@ -34,7 +34,7 @@ $route = $routes[0]
 $pattern = [string]$route.target_validation_pattern
 if ([string]::IsNullOrWhiteSpace($pattern) -or $target -notmatch $pattern) {
     [Console]::Error.WriteLine('SAS_OPERATOR_ROUTE_TARGET_INVALID')
-    exit 2
+    exit 3
 }
 
 foreach ($relative in @($route.path_resolution.required_files | ForEach-Object { [string]$_ })) {
