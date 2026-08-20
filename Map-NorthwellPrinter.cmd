@@ -26,15 +26,7 @@ if exist "%~dp0sas.cmd" (
     goto finish
 )
 
-rem Secondary installed path: sas.cmd is available through PATH.
-where.exe sas.cmd >nul 2>&1
-if not errorlevel 1 (
-    call sas.cmd printer
-    set "SAS_EXIT=!ERRORLEVEL!"
-    goto finish
-)
-
-rem Repository/share fallback: use the same current-origin printer bootstrap as `sas printer`.
+rem Current repository/runtime path: prefer the sibling trusted bootstrap over an unrelated PATH shim.
 if exist "%~dp0Bootstrap-SysAdminSuitePrinter.cmd" (
     call "%~dp0Bootstrap-SysAdminSuitePrinter.cmd"
     set "SAS_EXIT=!ERRORLEVEL!"
@@ -43,6 +35,14 @@ if exist "%~dp0Bootstrap-SysAdminSuitePrinter.cmd" (
 
 if exist "%~dp0Bootstrap-SysAdminSuitePrinter.ps1" (
     "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Bootstrap-SysAdminSuitePrinter.ps1"
+    set "SAS_EXIT=!ERRORLEVEL!"
+    goto finish
+)
+
+rem Standalone copied CMD fallback: use the installed sas command when available through PATH.
+where.exe sas.cmd >nul 2>&1
+if not errorlevel 1 (
+    call sas.cmd printer
     set "SAS_EXIT=!ERRORLEVEL!"
     goto finish
 )
