@@ -44,7 +44,7 @@ Describe 'Northwell printer low-rework interaction UX' {
         ($output -join "`n") | Should -Match 'EMPTY_RECENT_VALUES_OK'
     }
 
-    It 'records history only after fresh authoritative SYSTEM plus HKLM proof succeeds' {
+    It 'records history only after operation-scoped authoritative SYSTEM plus HKLM proof succeeds' {
         $content = Get-Content -LiteralPath $script:interactivePath -Raw
         $successIndex = $content.IndexOf('$authoritativeSuccess =')
         $cacheWriteIndex = $content.IndexOf('Save-SasPrinterInteractionHistory -Computers')
@@ -52,9 +52,11 @@ Describe 'Northwell printer low-rework interaction UX' {
         $successIndex | Should -BeGreaterThan -1
         $cacheWriteIndex | Should -BeGreaterThan $successIndex
         $proofIndex | Should -BeGreaterThan -1
-        $content | Should -Match '\$freshEvidence -and \(Test-SasLatestAuthoritativePrinterProof'
+        $content | Should -Match '\$operationEvidenceAvailable -and \(Test-SasLatestAuthoritativePrinterProof'
+        $content | Should -Match 'SessionRoot=\$operationEvidenceRoot'
         $content | Should -Match 'if \(\$Action -eq ''Map''\) \{ Save-SasPrinterInteractionHistory'
         $content | Should -Not -Match '(?m)^\s*Save-SasPrinterInteractionHistory.*\$WhatIf'
+        $content | Should -Not -Match '\$freshEvidence\b'
     }
 
     It 'keeps cache failures advisory rather than downgrading proven printer success' {
