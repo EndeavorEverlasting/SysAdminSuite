@@ -46,8 +46,11 @@ function Test-SasBatchProbeTarget {
 
     $ip = $null
     if ([System.Net.IPAddress]::TryParse($candidate, [ref]$ip)) { return $true }
+    if ($candidate -match '^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z0-9.-]+$') { return $true }
+    if ($candidate -match '^[A-Za-z0-9]+[-_][A-Za-z0-9_-]+$') { return $true }
+    if ($candidate -match '^[A-Za-z]{2,6}[0-9]{2,}[A-Za-z0-9_-]*$') { return $true }
 
-    return $candidate -match '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+    return $false
 }
 
 $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -55,7 +58,7 @@ $targets = New-Object 'System.Collections.Generic.List[string]'
 foreach ($rawTarget in @($Target)) {
     $candidate = ([string]$rawTarget).Trim()
     if (-not (Test-SasBatchProbeTarget -Value $candidate)) {
-        throw "Invalid network probe target: '$rawTarget'. Use an explicit hostname, FQDN, or IP address."
+        throw "Invalid network probe target: '$rawTarget'. Use an explicit hostname/FQDN/IP accepted by the canonical network preflight (for example HOST01, HOST-NAME, or 10.0.0.10)."
     }
     if ($seen.Add($candidate)) { [void]$targets.Add($candidate) }
 }
