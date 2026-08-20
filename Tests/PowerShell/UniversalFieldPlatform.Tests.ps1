@@ -13,9 +13,11 @@ function Assert-Equal($Actual,$Expected,[string]$Message) { if ([string]$Actual 
 try {
     $fixedDrive = { param($drive) 3 }
     $networkDrive = { param($drive) 4 }
+    $unknownDrive = { param($drive) 0 }
     Assert-True (Test-SasLocalControllerPath -Path 'C:\SASAL' -DriveTypeResolver $fixedDrive) 'fixed local runtime should be accepted'
     Assert-True (-not (Test-SasLocalControllerPath -Path '\\server\share\SysAdminSuite' -DriveTypeResolver $fixedDrive)) 'UNC controller runtime must be rejected'
     Assert-True (-not (Test-SasLocalControllerPath -Path 'Z:\SysAdminSuite' -DriveTypeResolver $networkDrive)) 'mapped network drive controller runtime must be rejected'
+    Assert-True (-not (Test-SasLocalControllerPath -Path 'Z:\SysAdminSuite' -DriveTypeResolver $unknownDrive)) 'unknown drive type must fail closed'
 
     $addresses = { param($index) @([pscustomobject]@{ IPAddress='10.44.55.66' }) }
 
@@ -51,7 +53,7 @@ try {
     Assert-True (-not [bool]$guestResult.approved) 'guest-only path should remain blocked'
     Assert-Equal $guestResult.authority 'UNPROVEN' 'guest-only authority classification'
 
-    Write-Host 'PASS: universal field platform supports hardwire, WAB, VPN, and machine-local runtime isolation.'
+    Write-Host 'PASS: universal field platform supports hardwire, WAB, VPN, and fail-closed machine-local runtime isolation.'
 }
 finally {
     Remove-Module SasFieldPlatform -ErrorAction SilentlyContinue
