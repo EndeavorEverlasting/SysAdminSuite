@@ -147,6 +147,7 @@ try {
     Assert-True ($hostileOutput -notmatch '(^|\r?\n)INJECTED(\r?\n|$)') 'Hostile target executed as PowerShell source.'
 
     Write-Host 'PASS: Windows PowerShell route resolution, encoded target transport, dependency proof, shell preservation, and exit propagation'
+    $global:LASTEXITCODE = 0
 }
 finally {
     $env:PATH = $originalPath
