@@ -9,6 +9,9 @@ Invoke-SasAutoLogonOnsite.ps1 Remote lane in a child powershell.exe process, str
 then performs offline evidence recovery. Stable result and latest-run pointers are written below
 %LOCALAPPDATA%\SysAdminSuite even when the child exits nonzero or the deployment throws.
 
+Repository identity is supplied by the already-sealed runtime manifest/bootstrap. This runner does not invoke
+Git, so protected-network execution remains valid when Git commands are unavailable.
+
 This script does not weaken network, host-eligibility, recovery, baseline, final-step, cleanup, or restart gates.
 #>
 [CmdletBinding()]
@@ -18,6 +21,8 @@ param(
     [string]$ComputerName,
 
     [string]$RepositoryRoot,
+
+    [string]$RepositoryHead,
 
     [switch]$ConfirmDeployment
 )
@@ -57,11 +62,7 @@ $stableEvidenceIndex = Join-Path $stateRoot 'last-evidence.json'
 $copiedEvidenceIndex = Join-Path $runRoot 'last-evidence.json'
 New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 
-$repoHead = $null
-try {
-    $repoHead = (& git -C $RepositoryRoot rev-parse HEAD 2>$null | Select-Object -First 1).Trim()
-}
-catch { }
+$repoHead = if ([string]::IsNullOrWhiteSpace($RepositoryHead)) { $null } else { $RepositoryHead.Trim() }
 
 $result = [ordered]@{
     schema_version = 'sas-autologon-crash-safe-field-run/v1'
