@@ -1,0 +1,171 @@
+name: Northwell reversible printer contracts
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**', 'repair/**']
+    paths:
+      - 'Manage-NorthwellPrinters.cmd'
+      - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Map-NorthwellPrinters-Batch.cmd'
+      - 'Unmap-NorthwellPrinter-SystemWide.cmd'
+      - 'Undo-LatestNorthwellPrinterChange.cmd'
+      - 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
+      - 'mapping/Start-NorthwellPrinterMapping.ps1'
+      - 'mapping/Start-NorthwellPrinterBatch.ps1'
+      - 'mapping/Confirm-NorthwellPrinterActiveUserMaterialization.ps1'
+      - 'mapping/Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1'
+      - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
+      - 'mapping/Invoke-NorthwellPrinterState.ps1'
+      - 'mapping/Invoke-NorthwellPrinterUnmapping.ps1'
+      - 'mapping/Undo-NorthwellPrinterChange.ps1'
+      - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
+      - 'scripts/SasNorthwellNetworkAuthority.psm1'
+      - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterReversibility.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterActiveUserMaterialization.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterNetworkGuard.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterTimeoutRegression.Tests.ps1'
+      - '.github/workflows/northwell-printer-reversible-contracts.yml'
+  pull_request:
+    paths:
+      - 'Manage-NorthwellPrinters.cmd'
+      - 'Map-NorthwellPrinter-SystemWide.cmd'
+      - 'Map-NorthwellPrinters-Batch.cmd'
+      - 'Unmap-NorthwellPrinter-SystemWide.cmd'
+      - 'Undo-LatestNorthwellPrinterChange.cmd'
+      - 'START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md'
+      - 'mapping/Start-NorthwellPrinterMapping.ps1'
+      - 'mapping/Start-NorthwellPrinterBatch.ps1'
+      - 'mapping/Confirm-NorthwellPrinterActiveUserMaterialization.ps1'
+      - 'mapping/Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1'
+      - 'mapping/Invoke-NorthwellPrinterMapping.ps1'
+      - 'mapping/Invoke-NorthwellPrinterState.ps1'
+      - 'mapping/Invoke-NorthwellPrinterUnmapping.ps1'
+      - 'mapping/Undo-NorthwellPrinterChange.ps1'
+      - 'mapping/Modules/NorthwellPrinterMapping.Core.psm1'
+      - 'mapping/Examples/NorthwellPrinterBatch.example.csv'
+      - 'scripts/SasNorthwellNetworkAuthority.psm1'
+      - 'Tests/Pester/NorthwellPrinterMapping.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterReversibility.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterActiveUserMaterialization.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterInteractionCache.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterMappingCollisionRepair.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterNetworkGuard.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterTimeoutRegression.Tests.ps1'
+      - '.github/workflows/northwell-printer-reversible-contracts.yml'
+
+jobs:
+  reversible-printer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Parse printer PowerShell surfaces
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            '.\mapping\Start-NorthwellPrinterMapping.ps1',
+            '.\mapping\Start-NorthwellPrinterBatch.ps1',
+            '.\mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1',
+            '.\mapping\Confirm-NorthwellPrinterBatchActiveUserMaterialization.ps1',
+            '.\mapping\Invoke-NorthwellPrinterMapping.ps1',
+            '.\mapping\Invoke-NorthwellPrinterState.ps1',
+            '.\mapping\Invoke-NorthwellPrinterUnmapping.ps1',
+            '.\mapping\Undo-NorthwellPrinterChange.ps1',
+            '.\mapping\Modules\NorthwellPrinterMapping.Core.psm1',
+            '.\scripts\SasNorthwellNetworkAuthority.psm1',
+            '.\Tests\Pester\NorthwellPrinterMapping.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterReversibility.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterActiveUserMaterialization.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterInteractionCache.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterMappingCollisionRepair.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterNetworkGuard.Tests.ps1',
+            '.\Tests\Pester\NorthwellPrinterTimeoutRegression.Tests.ps1'
+          )
+          $allErrors = @()
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path -LiteralPath $file), [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) { $allErrors += $errors | ForEach-Object { "$file :: $($_.Message)" } }
+          }
+          if ($allErrors.Count -gt 0) { throw ($allErrors -join [Environment]::NewLine) }
+          Write-Host 'PASS: reversible Northwell printer surfaces parse.'
+
+      - name: Validate reversible batch example
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $rows = @(Import-Csv -LiteralPath '.\mapping\Examples\NorthwellPrinterBatch.example.csv')
+          if ($rows.Count -ne 1) { throw 'Tracked batch example must contain exactly one starter row.' }
+          foreach ($column in @('Action','ComputerName','PrintServer','QueueName')) {
+            if ($null -eq $rows[0].PSObject.Properties[$column]) { throw "Missing batch example column: $column" }
+          }
+          if ($rows[0].Action -ne 'Map' -or $rows[0].ComputerName -ne 'REPLACE-WITH-PC-HOSTNAME' -or $rows[0].PrintServer -ne 'REPLACE-WITH-PRINT-SERVER' -or $rows[0].QueueName -ne 'REPLACE-WITH-QUEUE-NAME') {
+            throw 'Tracked batch example must remain synthetic and map-only by default.'
+          }
+          Write-Host 'PASS: reversible batch example is synthetic.'
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pester = Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version.Major -ge 5 } | Sort-Object Version -Descending | Select-Object -First 1
+          if (-not $pester) { Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.5.0 }
+
+      - name: Run printer mapping contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+
+      - name: Run reversible printer contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterReversibility.Tests.ps1
+
+      - name: Run active-user materialization contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterActiveUserMaterialization.Tests.ps1
+
+      - name: Run cached UX contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterInteractionCache.Tests.ps1
+
+      - name: Run evidence precedence contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterMappingCollisionRepair.Tests.ps1
+
+      - name: Run network authority contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterNetworkGuard.Tests.ps1
+
+      - name: Run timeout regression contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterTimeoutRegression.Tests.ps1
+
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            git fetch origin "${{ github.sha }}" --depth=2
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then git diff --check HEAD^ HEAD; else git show --check --oneline --no-renames HEAD; fi
+          else
+            git fetch origin "$before" "${{ github.sha }}" --depth=1
+            git diff --check "$before" "${{ github.sha }}"
+          fi
