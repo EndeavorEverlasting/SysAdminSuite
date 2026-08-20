@@ -19,7 +19,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 
 echo Northwell system-wide printer mapping
-"%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0mapping\Start-NorthwellPrinterMapping.ps1"
+"%SAS_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0mapping\Start-NorthwellPrinterMapping.ps1" -Action Map
 set "SAS_RC=%ERRORLEVEL%"
 
 if "%SAS_RC%"=="0" (
