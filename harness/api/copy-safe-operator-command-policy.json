@@ -47,6 +47,10 @@
     {
       "id": "repair-launcher-requires-repairable-artifact",
       "meaning": "Evidence repair is eligible only when a preserved artifact explicitly needs reclassification. A reported successful real document print does not itself require the repair launcher."
+    },
+    {
+      "id": "remote-target-proof-context-precedence",
+      "meaning": "A follow-up printer check for a remote mapped PC must preserve that target identity from explicit input or canonical mapping evidence. Absence of the queue on the technician/controller workstation is not evidence that the remote target lost SYSTEM + HKLM machine-wide registration."
     }
   ],
   "registered_capsules": [
