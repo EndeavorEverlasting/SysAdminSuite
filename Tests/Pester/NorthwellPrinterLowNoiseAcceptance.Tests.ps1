@@ -70,9 +70,9 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text | Should -Match 'throw \$engineError\.Exception\.Message'
     }
 
-    It 'classifies an existing user-visible printer as machine-wide missing when HKLM proof is absent' {
+    It 'does not infer machine-wide success when SYSTEM HKLM proof is missing' {
         $root = Join-Path $TestDrive 'missing-machine-wide'
-        $target = Join-Path $root 'lpw003asi173.nslijhs.net'
+        $target = Join-Path $root 'pc-vpn-001.example.invalid'
         New-Item -ItemType Directory -Path $target -Force | Out-Null
         [ordered]@{
             Success = $false
@@ -81,16 +81,16 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
             Mode = 'MachineWidePerComputer'
         } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
         [ordered]@{
-            ComputerName = 'LPW003ASI173'
+            ComputerName = 'PC-VPN-001'
             Identity = 'NT AUTHORITY\SYSTEM'
             DesiredState = 'Present'
             Success = $false
-            Requested = @('\\SYKPNHPHPS01V\LS001-EMS01')
+            Requested = @('\\PRINTSRV01\QUEUE01')
             BeforeMachineWideUNC = @()
             MachineWideUNC = @()
             ChangedPrinters = @()
             AlreadyDesiredPrinters = @()
-            Missing = @('\\SYKPNHPHPS01V\LS001-EMS01')
+            Missing = @('\\PRINTSRV01\QUEUE01')
             StillPresent = @()
             RawConnectionKeys = @('{synthetic-guid}')
         } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $target 'Status.json') -Encoding UTF8
@@ -101,7 +101,7 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
         $text | Should -Match 'DIAGNOSTIC_STATUS=COMPLETED'
         $text | Should -Match 'MAPPING_PROOF=AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT'
         $text | Should -Match 'CLASSIFICATION=MACHINE_WIDE_REGISTRATION_MISSING'
-        $text | Should -Match 'MISSING_MACHINE_WIDE=\\\\SYKPNHPHPS01V\\LS001-EMS01'
+        $text | Should -Match 'MISSING_MACHINE_WIDE=\\\\PRINTSRV01\\QUEUE01'
         $text | Should -Match 'TARGET_CONTACT_PERFORMED=False'
         $text | Should -Match 'TARGET_MUTATION_PERFORMED=False'
         $text | Should -Match 'TEST_PAGE_PRINTED=False'
@@ -109,7 +109,7 @@ Describe 'Northwell quick mapping low-noise acceptance contract' {
 
     It 'recognizes a true already-desired HKLM no-op as authoritative machine-wide proof' {
         $root = Join-Path $TestDrive 'already-machine-wide'
-        $target = Join-Path $root 'pc001.nslijhs.net'
+        $target = Join-Path $root 'pc001.example.invalid'
         New-Item -ItemType Directory -Path $target -Force | Out-Null
         [ordered]@{ Success=$true;DesiredState='Present';TotalTargets=1;Mode='MachineWidePerComputer' } |
             ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'Summary.json') -Encoding UTF8
