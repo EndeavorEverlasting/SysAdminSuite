@@ -139,11 +139,12 @@ try {
     Set-Content -LiteralPath $missingDependency -Value '# fixture' -Encoding ASCII
     $hostileTarget = "server01'; Write-Output INJECTED; '"
     $fourth = Invoke-RouteTemplate -Route $route -Target $hostileTarget
-    Assert-True ([int]$fourth.exit_code -ne 0 -or $null -ne $fourth.caught) 'Invalid hostile target unexpectedly returned success.'
+    Assert-True ([int]$fourth.exit_code -eq 2) "Invalid hostile target did not preserve helper exit 2; got $($fourth.exit_code)."
+    Assert-True ($null -ne $fourth.caught) 'Invalid hostile target did not surface a parent-shell route error.'
     Assert-True (-not (Test-Path -LiteralPath $marker)) 'Invalid hostile target reached the crash-safe launcher.'
     $hostileOutput = @($fourth.output) -join "`n"
-    Assert-True ($hostileOutput -match 'not an approved hostname/FQDN') 'Invalid target did not fail at hostname validation.'
-    Assert-True ($hostileOutput -notmatch '^INJECTED$') 'Hostile target executed as PowerShell source.'
+    Assert-True ($hostileOutput -match 'SAS_OPERATOR_ROUTE_TARGET_INVALID') 'Invalid target did not emit its stable rejection classification.'
+    Assert-True ($hostileOutput -notmatch '(^|\r?\n)INJECTED(\r?\n|$)') 'Hostile target executed as PowerShell source.'
 
     Write-Host 'PASS: Windows PowerShell route resolution, encoded target transport, dependency proof, shell preservation, and exit propagation'
 }
