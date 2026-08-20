@@ -2,14 +2,20 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
     BeforeAll {
         $script:repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
         $script:fallbackPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterTaskRegistryFallback.ps1'
-        $script:startPath = Join-Path $script:repoRoot 'mapping\Start-NorthwellPrinterMapping.ps1'
+        $script:resilientPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterResilientQuick.ps1'
+        $script:cmdPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
         $script:corePath = Join-Path $script:repoRoot 'mapping\Modules\NorthwellPrinterMapping.Core.psm1'
         $script:fallbackText = Get-Content -LiteralPath $script:fallbackPath -Raw
-        $script:startText = Get-Content -LiteralPath $script:startPath -Raw
+        $script:resilientText = Get-Content -LiteralPath $script:resilientPath -Raw
+        $script:cmdText = Get-Content -LiteralPath $script:cmdPath -Raw
 
         $tokens = $null
         $errors = $null
         $script:fallbackAst = [System.Management.Automation.Language.Parser]::ParseFile($script:fallbackPath,[ref]$tokens,[ref]$errors)
+        if (@($errors).Count -gt 0) { throw ($errors | ForEach-Object Message | Out-String) }
+        $tokens = $null
+        $errors = $null
+        $script:resilientAst = [System.Management.Automation.Language.Parser]::ParseFile($script:resilientPath,[ref]$tokens,[ref]$errors)
         if (@($errors).Count -gt 0) { throw ($errors | ForEach-Object Message | Out-String) }
 
         function Import-SasFunctionFromAst {
@@ -27,8 +33,9 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         Import-Module $script:corePath -Force
     }
 
-    It 'parses under the current PowerShell parser' {
+    It 'parses both new PowerShell entrypoints' {
         $script:fallbackAst | Should -Not -BeNullOrEmpty
+        $script:resilientAst | Should -Not -BeNullOrEmpty
     }
 
     It 'converts owning HKLM connection subkeys to canonical UNC values' {
@@ -56,7 +63,7 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
     }
 
     It 'accepts success only from post-task remote HKLM desired-state proof' {
-        $script:fallbackText | Should -Match [regex]::Escape("$afterProof = Get-SasRemoteMachineWidePrinterConnections -Computer $computer")
+        $script:fallbackText | Should -Match [regex]::Escape('$afterProof = Get-SasRemoteMachineWidePrinterConnections -Computer $computer')
         $script:fallbackText | Should -Match [regex]::Escape("StatusAuthority = 'CONTROLLER_REMOTE_REGISTRY'")
         $script:fallbackText | Should -Match [regex]::Escape("Transport = 'REMOTE_TASK_SCHEDULER+REMOTE_REGISTRY_NO_ADMIN_SHARE'")
     }
@@ -72,10 +79,23 @@ Describe 'Northwell printer shareless Task Scheduler + Remote Registry fallback'
         $script:fallbackText | Should -Match 'TestPagesPrinted\s*=\s*\$false'
     }
 
-    It 'is wired only behind operation-scoped pre-mutation administrative-staging failure evidence' {
-        $script:startText | Should -Match 'Test-SasAdministrativeStagingFailureBeforeMutation'
-        $script:startText | Should -Match 'Invoke-NorthwellPrinterTaskRegistryFallback\.ps1'
-        $script:startText | Should -Match 'AdministrativeStagingFailure\.json'
-        $script:startText | Should -Match 'Status\.json'
+    It 'permits replay only for complete pre-mutation administrative-staging failures' {
+        $script:resilientText | Should -Match 'Test-SasAdministrativeStagingFailureBeforeMutation'
+        $script:resilientText | Should -Match [regex]::Escape("Get-ChildItem -LiteralPath $EvidenceRoot -Filter 'Status.json'")
+        $script:resilientText | Should -Match [regex]::Escape("$message -notmatch '(?i)^Admin share unavailable")
+        $script:resilientText | Should -Match 'ChangedPrinters'
+        $script:resilientText | Should -Match 'StagingShare'
+    }
+
+    It 'preserves the failed staging evidence before invoking the shareless helper' {
+        $preserveIndex = $script:resilientText.IndexOf('AdministrativeStagingFailure.json',[System.StringComparison]::Ordinal)
+        $fallbackIndex = $script:resilientText.IndexOf('& $fallbackScript',[System.StringComparison]::Ordinal)
+        $preserveIndex | Should -BeGreaterThan -1
+        $fallbackIndex | Should -BeGreaterThan $preserveIndex
+    }
+
+    It 'routes the quick mapper through the resilient orchestrator' {
+        $script:cmdText | Should -Match 'Invoke-NorthwellPrinterResilientQuick\.ps1'
+        $script:cmdText | Should -Not -Match '-File "%~dp0mapping\\Start-NorthwellPrinterMapping\.ps1" -Action Map'
     }
 }
