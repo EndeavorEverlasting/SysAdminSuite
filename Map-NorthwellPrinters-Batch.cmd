@@ -27,7 +27,9 @@ echo    PC001;PC002,PRINTSERVER01,QUEUE01;QUEUE02
 echo.
 echo  Each row maps every listed queue to every listed computer in that row.
 echo  You will see the resolved plan and must type MAP before live mutation.
-echo  Mapping remains SYSTEM-WIDE for ALL users. NO TEST PAGE is printed.
+echo  Phase 1 registers SYSTEM-wide for all users.
+echo  Phase 2 immediately connects and verifies any user already logged on.
+echo  NO TEST PAGE is printed.
 echo ================================================================
 echo.
 
@@ -55,11 +57,18 @@ if "%SAS_RC%"=="3" (
 
 if exist "%SAS_LATEST_POINTER%" set /p "SAS_LATEST_DIR="<"%SAS_LATEST_POINTER%"
 
+if "%SAS_RC%"=="0" (
+    echo.
+    echo Verifying immediate availability for any users already logged on...
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0mapping\Confirm-NorthwellPrinterActiveUserMaterialization.ps1"
+    set "SAS_RC=!ERRORLEVEL!"
+)
+
 echo.
 if "%SAS_RC%"=="0" (
-    echo PASS: the batch completed with the requested proof level.
+    echo PASS: machine-wide registration is proven and every active user session was finalized successfully.
 ) else (
-    echo FAIL: one or more batch groups did not complete successfully.
+    echo FAIL: printer mapping is not complete for one or more current sessions.
 )
 
 if defined SAS_LATEST_DIR (
@@ -70,6 +79,7 @@ if defined SAS_LATEST_DIR (
     echo Primary batch artifacts:
     echo   %SAS_LATEST_DIR%\BatchPlan.json
     echo   %SAS_LATEST_DIR%\Summary.json
+    echo   %SAS_LATEST_DIR%\ActiveUserMaterialization.json
     echo   %SAS_LATEST_DIR%\Group-001\Summary.json
     if exist "%SAS_LATEST_DIR%\Summary.json" start "" notepad.exe "%SAS_LATEST_DIR%\Summary.json"
 )
