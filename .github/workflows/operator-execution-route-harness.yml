@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - 'harness/api/operator-execution-route-registry.json'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-validator-registry.json'
       - 'schemas/harness/operator-execution-route-registry.schema.json'
+      - 'schemas/harness/operational-harness-manifest.schema.json'
       - 'harness/workflows/operator-execution-route.yaml'
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/skills/operator-execution-route/**'
@@ -21,7 +24,10 @@ on:
     branches: [main]
     paths:
       - 'harness/api/operator-execution-route-registry.json'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'harness/api/harness-validator-registry.json'
       - 'schemas/harness/operator-execution-route-registry.schema.json'
+      - 'schemas/harness/operational-harness-manifest.schema.json'
       - 'harness/workflows/operator-execution-route.yaml'
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/skills/operator-execution-route/**'
