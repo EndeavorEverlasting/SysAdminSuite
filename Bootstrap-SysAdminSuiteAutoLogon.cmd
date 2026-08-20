@@ -18,6 +18,7 @@ set "SAS_LEGACY=%~3"
 set "SAS_RUNTIME=%~dp0"
 if "%SAS_RUNTIME:~-1%"=="\" set "SAS_RUNTIME=%SAS_RUNTIME:~0,-1%"
 set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+set "SAS_AUDIT=%SAS_RUNTIME%\scripts\Test-SasAutoLogonRuntimeSeal.ps1"
 set "SAS_BOOTSTRAP=%SAS_RUNTIME%\Bootstrap-SysAdminSuiteAutoLogon.ps1"
 set "SAS_EXPLICIT_REMOTE_TARGET_REQUEST=%SAS_TARGET%"
 
@@ -27,9 +28,17 @@ if not exist "%SAS_PS%" (
   exit /b 3
 )
 
+if not exist "%SAS_AUDIT%" (
+  echo ERROR: AutoLogon runtime seal audit is missing:
+  echo   %SAS_AUDIT%
+  echo No crash-safe AutoLogon field transaction was started.
+  exit /b 4
+)
+
 if not exist "%SAS_BOOTSTRAP%" (
   echo ERROR: Canonical AutoLogon bootstrap is missing:
   echo   %SAS_BOOTSTRAP%
+  echo No crash-safe AutoLogon field transaction was started.
   exit /b 4
 )
 
@@ -43,6 +52,22 @@ echo Git network activity: NONE
 echo Target authority: explicit one-target operator command
 echo.
 
+echo === FULL SEALED RUNTIME AUDIT - NO TARGET CONTACT ===
+if defined SAS_EXPECTED (
+  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_AUDIT%" -RuntimeRoot "%SAS_RUNTIME%" -ExpectedCommit "%SAS_EXPECTED%"
+) else (
+  "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_AUDIT%" -RuntimeRoot "%SAS_RUNTIME%"
+)
+set "SAS_AUDIT_RC=%ERRORLEVEL%"
+if not "%SAS_AUDIT_RC%"=="0" (
+  echo.
+  echo AutoLogon runtime seal audit exit code: %SAS_AUDIT_RC%
+  echo Deployment blocked before crash-safe field transaction.
+  exit /b %SAS_AUDIT_RC%
+)
+
+echo.
+echo === SEALED RUNTIME AUDIT PASSED - ENTERING PROTECTED BOOTSTRAP ===
 if defined SAS_EXPECTED (
   "%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_BOOTSTRAP%" -ComputerName "%SAS_TARGET%" -RuntimeRoot "%SAS_RUNTIME%" -LegacyEvidenceRoot "%SAS_LEGACY%" -ExpectedCommit "%SAS_EXPECTED%" -ConfirmVpnPosture
 ) else (
