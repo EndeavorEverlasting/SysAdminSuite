@@ -165,10 +165,20 @@ if (-not $structuralFailure) {
 
     $sealEntries = @((Get-SasJsonPropertyValue -Object $runtimeState -Name 'tracked_file_hashes'))
     $declaredSealCountValue = Get-SasJsonPropertyValue -Object $runtimeState -Name 'tracked_file_count'
-    if ($null -ne $declaredSealCountValue) { $declaredSealCount = [int]$declaredSealCountValue }
-    if ($declaredSealCount -lt 1 -or $sealEntries.Count -ne $declaredSealCount) {
-        Add-SasSealIssue -Path '' -Reason 'SEAL_COUNT_MISMATCH' -Detail "Declared=$declaredSealCount Actual=$($sealEntries.Count)"
+    $parsedSealCount = 0
+    $declaredSealCountText = if ($null -eq $declaredSealCountValue) { '' } else { ([string]$declaredSealCountValue).Trim() }
+    if ([string]::IsNullOrWhiteSpace($declaredSealCountText) -or
+        -not [int]::TryParse($declaredSealCountText, [ref]$parsedSealCount) -or
+        $parsedSealCount -lt 1) {
+        Add-SasSealIssue -Path '' -Reason 'SEAL_COUNT_INVALID' -Detail "tracked_file_count is not a positive Int32: '$declaredSealCountText'"
         $structuralFailure = $true
+    }
+    else {
+        $declaredSealCount = $parsedSealCount
+        if ($sealEntries.Count -ne $declaredSealCount) {
+            Add-SasSealIssue -Path '' -Reason 'SEAL_COUNT_MISMATCH' -Detail "Declared=$declaredSealCount Actual=$($sealEntries.Count)"
+            $structuralFailure = $true
+        }
     }
 }
 
