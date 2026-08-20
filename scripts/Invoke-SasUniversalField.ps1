@@ -67,6 +67,31 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
 }
 
 switch ($normalized) {
+    'refresh' {
+        if ($actualArgs.Count -ne 0) { Write-Host 'Usage: sas refresh' -ForegroundColor Red; exit 2 }
+        $refresh = Join-Path $controllerRoot 'scripts\Refresh-SasOperatorCommand.ps1'
+        if (-not (Test-Path -LiteralPath $refresh -PathType Leaf)) { throw "Missing canonical refresh workflow: $refresh" }
+
+        # The existing refresh owns Guest/Internet Git synchronization and seals the next local
+        # C:\SASAL runtime. It currently installs the compatibility dispatcher as part of that flow.
+        # After it succeeds, reinstall the universal machine-neutral front door from the newly sealed
+        # runtime so refresh converges to this platform rather than silently regressing it.
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $refresh -RepositoryRoot $controllerRoot
+        $refreshExit = $LASTEXITCODE
+        if ($refreshExit -ne 0) { exit $refreshExit }
+
+        $sealedInstaller = 'C:\SASAL\scripts\Install-SasUniversalFieldLauncher.ps1'
+        if (-not (Test-Path -LiteralPath $sealedInstaller -PathType Leaf)) {
+            throw "Refreshed machine-local runtime is missing the universal installer: $sealedInstaller"
+        }
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $sealedInstaller
+        $installExit = $LASTEXITCODE
+        if ($installExit -ne 0) { exit $installExit }
+
+        Write-Host 'UNIVERSAL_FIELD_PLATFORM_REFRESH_CONVERGED' -ForegroundColor Green
+        exit 0
+    }
+
     'network' {
         if ($actualArgs.Count -gt 1) { Write-Host 'Usage: sas network [HOST]' -ForegroundColor Red; exit 2 }
         Write-SasUniversalContext
