@@ -29,6 +29,7 @@ $ProgressPreference = 'SilentlyContinue'
 $repositoryUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git'
 $requiredRuntimePaths = @(
     'Map-NorthwellPrinter-SystemWide.cmd',
+    'mapping\Diagnose-NorthwellPrinterEvidence.ps1',
     'mapping\Start-NorthwellPrinterMapping.ps1',
     'mapping\Invoke-NorthwellPrinterState.ps1',
     'mapping\Modules\NorthwellPrinterMapping.Core.psm1',
