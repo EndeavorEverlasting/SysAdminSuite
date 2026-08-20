@@ -1,111 +1,117 @@
-# Printer Mapping
+# Northwell Printer Management
 
-## Northwell field use: system-wide only
+Start with [`../START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md`](../START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md).
 
-For Northwell shared/multi-user Windows PCs, start with [`../START-HERE-NORTHWELL-PRINTER-MAPPING.md`](../START-HERE-NORTHWELL-PRINTER-MAPPING.md).
+## One technician hub
 
-Northwell technician-facing CMD entrypoints at the repository root:
+Double-click:
+
+```text
+Manage-NorthwellPrinters.cmd
+```
+
+From any current SysAdminSuite checkout, that menu exposes quick map, quick unmap, undo latest observed change, local defaults, batch editing/execution, and latest evidence. Launchers resolve the repository relative to themselves; no operator-specific `C:\Users\...` path or named technician PC is required.
+
+Live Northwell printer work accepts the shared guard's approved protected paths: WAB Wi-Fi, `DomainAuthenticated` hardwire/LAN, authenticated VPN/non-Wi-Fi, or an explicitly configured protected route.
+
+## Reversible quick state
+
+Map:
 
 ```text
 Map-NorthwellPrinter-SystemWide.cmd
-Edit-NorthwellPrinter-Defaults.cmd
-Edit-NorthwellPrinter-Batch.cmd
-Map-NorthwellPrinters-Batch.cmd
 ```
 
-### Quick mapping
+Unmap:
 
-Double-click `Map-NorthwellPrinter-SystemWide.cmd` for ad-hoc work. It requests elevation, asks for one or more target PC hostnames, then collects one or more print-server/queue sets.
+```text
+Unmap-NorthwellPrinter-SystemWide.cmd
+```
 
-Accepted printer forms are `\\server\queue`, `//server/queue`, or server + queue prompts. Direct printer IP addresses are rejected.
+Undo the latest observed transitions:
 
-Quick mapping supports one or many computers and one or many printers. Add another print-server/queue set when prompted to span multiple print servers.
+```text
+Undo-LatestNorthwellPrinterChange.cmd
+```
 
-### Operator-local default printer
+The canonical state engine is:
 
-Double-click `Edit-NorthwellPrinter-Defaults.cmd` to create/open:
+```powershell
+.\mapping\Invoke-NorthwellPrinterState.ps1 -ComputerName PC001 -Printer '\\PRINTSERVER01\QUEUE01' -DesiredState Present
+.\mapping\Invoke-NorthwellPrinterState.ps1 -ComputerName PC001 -Printer '\\PRINTSERVER01\QUEUE01' -DesiredState Absent
+```
+
+Compatibility wrappers remain:
+
+```powershell
+.\mapping\Invoke-NorthwellPrinterMapping.ps1   -ComputerName PC001 -Printer '\\PRINTSERVER01\QUEUE01'
+.\mapping\Invoke-NorthwellPrinterUnmapping.ps1 -ComputerName PC001 -Printer '\\PRINTSERVER01\QUEUE01'
+```
+
+`Present` uses SYSTEM + `PrintUIEntry /ga`; `Absent` uses SYSTEM + the paired `PrintUIEntry /gd`. Both prove the requested HKLM per-computer state. Neither prints a test page, uses direct-IP fallback, deletes printer ports, or falls back to per-user `Add-Printer -ConnectionName`.
+
+Every live state run captures before/after machine-wide state and writes `UndoPlan.json` containing only queues that actually changed. Already-present maps and already-absent unmaps are no-ops and do not create destructive inverse entries.
+
+## Local defaults
+
+Double-click `Edit-NorthwellPrinter-Defaults.cmd` to create/open the gitignored:
 
 ```text
 Config\northwell-printer-defaults.local.json
 ```
 
-That file is gitignored because it may contain live infrastructure. The repository ships only the synthetic template:
+Tracked defaults remain synthetic only. There is never a default target computer.
+
+## Mixed batch management
+
+Edit:
 
 ```text
-mapping\Examples\NorthwellPrinterDefaults.example.json
+Edit-NorthwellPrinter-Batch.cmd
 ```
 
-Once the local file contains an approved `PrintServer` and `QueueName`, quick mapping displays them in brackets. Pressing Enter explicitly accepts the local values. There is never a default target computer.
-
-### Batch mapping
-
-Double-click `Edit-NorthwellPrinter-Batch.cmd` to create/open the local gitignored:
+Run:
 
 ```text
-mapping\NorthwellPrinterBatch.csv
+Map-NorthwellPrinters-Batch.cmd
 ```
 
-It is copied from the tracked synthetic template:
+CSV columns:
 
 ```text
-mapping\Examples\NorthwellPrinterBatch.example.csv
+Action,ComputerName,PrintServer,QueueName
 ```
 
-Columns:
+`Action` is `Map` or `Unmap`; an older local CSV without `Action` defaults to `Map`. Semicolons inside a cell express multiple computers or queues. The complete mixed plan is displayed and requires exact `APPLY` confirmation before live mutation. Batch child inverse transitions are aggregated into a parent `UndoPlan.json`.
 
-```text
-ComputerName,PrintServer,QueueName
-```
+## Stale server removal
 
-Use semicolons inside a cell for multiple computers or queues. One row means: **map every queue in that row to every computer in that row**.
-
-Synthetic example:
-
-```text
-PC001;PC002,PRINTSERVER01,QUEUE01;QUEUE02
-```
-
-After saving the CSV, double-click `Map-NorthwellPrinters-Batch.cmd`. The wrapper performs local shape validation, requires Northwell network authority before AD/DNS-backed resolution, prints the complete resolved plan, and requires the technician to type `MAP` before live mutation.
-
-Each row delegates to `Invoke-NorthwellPrinterMapping.ps1`; batch mode is orchestration, not a second mapping implementation.
-
-## Canonical engine
-
-```powershell
-.\mapping\Invoke-NorthwellPrinterMapping.ps1 -ComputerName PC001 -Printer '\\PRINTSERVER01\QUEUE01'
-```
-
-The engine already accepts arrays:
-
-```powershell
-.\mapping\Invoke-NorthwellPrinterMapping.ps1 `
-  -ComputerName PC001,PC002 `
-  -Printer '\\PRINTSERVER01\QUEUE01','\\PRINTSERVER01\QUEUE02'
-```
-
-Queue-only input can be resolved from Active Directory, or paired with `-PrintServer`.
-
-**Northwell invariant:** mapping is per-computer/system-wide for all users. The runner stages a SYSTEM task, uses `PrintUIEntry /ga`, and requires HKLM machine-wide connection proof. It does not print test pages.
-
-Do not substitute `Utilities\Map-Printer.ps1` or `Add-Printer -ConnectionName`; those are per-user paths.
+Mapping requires the print server to resolve before mutation. Unmapping a known full `\\server\queue` deliberately does not require the old server to resolve: a stale machine-wide registration must remain removable after a server is retired or unavailable.
 
 ## Implementation surfaces
 
-- `../Map-NorthwellPrinter-SystemWide.cmd` — quick mapping launcher.
-- `../Edit-NorthwellPrinter-Defaults.cmd` — local approved default editor; no mapping.
-- `../Edit-NorthwellPrinter-Batch.cmd` — local batch editor; no mapping.
-- `../Map-NorthwellPrinters-Batch.cmd` — batch mapping launcher.
-- `Start-NorthwellPrinterMapping.ps1` — interactive wrapper.
+- `../Manage-NorthwellPrinters.cmd` — technician hub.
+- `../Map-NorthwellPrinter-SystemWide.cmd` — quick map.
+- `../Unmap-NorthwellPrinter-SystemWide.cmd` — quick unmap.
+- `../Undo-LatestNorthwellPrinterChange.cmd` — inverse of latest observed transitions.
+- `../Edit-NorthwellPrinter-Defaults.cmd` — local default editor.
+- `../Edit-NorthwellPrinter-Batch.cmd` — local batch editor.
+- `../Map-NorthwellPrinters-Batch.cmd` — mixed batch runner.
+- `Start-NorthwellPrinterMapping.ps1` — interactive map/unmap wrapper.
 - `Start-NorthwellPrinterBatch.ps1` — batch planner/orchestrator.
-- `Examples/NorthwellPrinterDefaults.example.json` — synthetic local-default template.
-- `Examples/NorthwellPrinterBatch.example.csv` — synthetic batch template.
-- `Invoke-NorthwellPrinterMapping.ps1` — canonical validated mapping/proof engine.
-- `Modules/NorthwellPrinterMapping.Core.psm1` — validation, queue resolution, and local batch parsing.
+- `Undo-NorthwellPrinterChange.ps1` — state-derived undo orchestration.
+- `Invoke-NorthwellPrinterState.ps1` — canonical reversible engine.
+- `Invoke-NorthwellPrinterMapping.ps1` — Present compatibility wrapper.
+- `Invoke-NorthwellPrinterUnmapping.ps1` — Absent wrapper.
+- `Modules/NorthwellPrinterMapping.Core.psm1` — validation, queue resolution, batch parsing, desired-state proof.
+- `../scripts/SasNorthwellNetworkAuthority.psm1` — printer-facing route classification over the shared Northwell network guard.
 
 ## Validation
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterMapping.Tests.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterReversibility.Tests.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterNetworkGuard.Tests.ps1
 ```
 
-A live client proof additionally requires an authorized Northwell Windows controller, approved target hostname(s), and approved shared queue(s).
+A live client proof additionally requires an authorized Northwell controller route, approved target hostname(s), and approved shared queue(s).

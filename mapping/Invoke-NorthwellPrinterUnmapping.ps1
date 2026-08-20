@@ -1,10 +1,12 @@
 <#
 .SYNOPSIS
-    Compatibility wrapper for Northwell system-wide printer mapping.
+    Northwell system-wide printer unmapping wrapper.
 
 .DESCRIPTION
-    Preserves the existing mapping command surface while delegating to the
-    reversible state engine with DesiredState=Present.
+    Delegates to the reversible state engine with DesiredState=Absent. Uses the
+    paired PrintUIEntry /gd per-computer operation and proves the requested
+    machine-wide registration is absent. Full UNC input can be removed even when
+    the old print server no longer resolves.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
@@ -26,7 +28,7 @@ if (-not (Test-Path -LiteralPath $engine -PathType Leaf)) { throw "Canonical rev
 $invoke = @{
     ComputerName = $ComputerName
     Printer = $Printer
-    DesiredState = 'Present'
+    DesiredState = 'Absent'
     DnsSuffix = $DnsSuffix
     TimeoutSeconds = $TimeoutSeconds
 }

@@ -131,19 +131,19 @@ function ConvertTo-SasNorthwellPrinterUnc {
         $server = $Matches[1]
         $queue = $Matches[2]
         if (Test-SasIpLiteral -Value $server) {
-            throw "Printer '$Printer' uses an IP address as the print server. Northwell printers must be mapped by shared queue name."
+            throw "Printer '$Printer' uses an IP address as the print server. Northwell printers must be managed by shared queue name."
         }
         if (-not (Test-SasHostnameValue -Value $server)) {
             throw "Printer '$Printer' contains an invalid print-server hostname. Use \\server\queue with a hostname/FQDN, never an IP or port."
         }
         if (Test-SasIpLiteral -Value $queue) {
-            throw "Printer '$Printer' looks like a direct-IP mapping. Northwell printers must be mapped by queue name."
+            throw "Printer '$Printer' looks like a direct-IP mapping. Northwell printers must be managed by queue name."
         }
         return "\\$server\$queue"
     }
     if ($value -match '[\\/]') { throw "Printer '$Printer' is ambiguous. Use a queue name only or \\server\queue." }
     if (Test-SasIpLiteral -Value $value) {
-        throw "Printer '$Printer' is an IP address. Northwell printers must be mapped by queue name."
+        throw "Printer '$Printer' is an IP address. Northwell printers must be managed by queue name."
     }
     if (-not [string]::IsNullOrWhiteSpace($PrintServer)) {
         $server = $PrintServer.Trim().TrimStart([char[]]'\/')
@@ -203,10 +203,18 @@ function ConvertTo-SasNorthwellPrinterBatchGroups {
         $computers = @(Split-SasNorthwellPrinterBatchField -Value ([string]$row.ComputerName) -Label "Row $rowNumber ComputerName")
         $queues = @(Split-SasNorthwellPrinterBatchField -Value ([string]$row.QueueName) -Label "Row $rowNumber QueueName")
         $server = ([string]$row.PrintServer).Trim()
+        $action = 'Map'
+        if ($null -ne $row.PSObject.Properties['Action'] -and -not [string]::IsNullOrWhiteSpace([string]$row.Action)) {
+            $action = ([string]$row.Action).Trim()
+        }
+        if ($action -notmatch '^(?i:map|unmap)$') {
+            throw "Row $rowNumber Action must be Map or Unmap. Got '$action'."
+        }
+        if ($action.Equals('unmap', [System.StringComparison]::OrdinalIgnoreCase)) { $action = 'Unmap' } else { $action = 'Map' }
 
         foreach ($computer in $computers) {
             if ($computer -match '(?i)(REPLACE-WITH|EXAMPLE|PC-HOSTNAME)') {
-                throw "Row $rowNumber still contains the example ComputerName '$computer'. Replace it with a real Northwell hostname before mapping."
+                throw "Row $rowNumber still contains the example ComputerName '$computer'. Replace it with a real Northwell hostname before printer management."
             }
         }
         if ($server -match '(?i)(REPLACE-WITH|EXAMPLE)') {
@@ -214,7 +222,7 @@ function ConvertTo-SasNorthwellPrinterBatchGroups {
         }
         foreach ($queue in $queues) {
             if ($queue -match '(?i)(REPLACE-WITH|EXAMPLE)') {
-                throw "Row $rowNumber still contains an example QueueName '$queue'. Replace it before mapping."
+                throw "Row $rowNumber still contains an example QueueName '$queue'. Replace it before printer management."
             }
         }
 
@@ -234,6 +242,7 @@ function ConvertTo-SasNorthwellPrinterBatchGroups {
 
         $groups.Add([pscustomobject][ordered]@{
             RowNumber = $rowNumber
+            Action = $action
             Computers = @($computers | Sort-Object -Unique)
             Printers = $resolvedPrinters
             PrintServer = if ([string]::IsNullOrWhiteSpace($server)) { $null } else { $server }
@@ -264,8 +273,10 @@ function Assert-SasNorthwellPrinterStatusProof {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]$Status,
-        [Parameter(Mandatory)][string[]]$RequestedPrinters
+        [Parameter(Mandatory)][string[]]$RequestedPrinters,
+        [ValidateSet('Present','Absent')][string]$DesiredState = 'Present'
     )
+
     $successProperty = $Status.PSObject.Properties['Success']
     $success = ($null -ne $successProperty -and [bool]$successProperty.Value)
     if (-not $success) {
@@ -274,14 +285,22 @@ function Assert-SasNorthwellPrinterStatusProof {
             throw [string]$errorProperty.Value
         }
         $missingProperty = $Status.PSObject.Properties['Missing']
+        $stillProperty = $Status.PSObject.Properties['StillPresent']
         $missing = if ($null -ne $missingProperty) { @($missingProperty.Value) } else { @() }
+        $stillPresent = if ($null -ne $stillProperty) { @($stillProperty.Value) } else { @() }
         if ($missing.Count -gt 0) { throw ('Missing machine-wide queue(s): ' + ($missing -join ', ')) }
+        if ($stillPresent.Count -gt 0) { throw ('Still-present machine-wide queue(s): ' + ($stillPresent -join ', ')) }
         throw 'Agent returned Success=false without a more specific error.'
     }
 
     $identityProperty = $Status.PSObject.Properties['Identity']
     $identity = if ($null -ne $identityProperty) { [string]$identityProperty.Value } else { '' }
     if ($identity -notmatch 'SYSTEM$') { throw "Remote worker did not run as SYSTEM (identity: $identity)." }
+
+    $stateProperty = $Status.PSObject.Properties['DesiredState']
+    if ($null -ne $stateProperty -and -not ([string]$stateProperty.Value).Equals($DesiredState, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Status.json desired state '$($stateProperty.Value)' does not match controller request '$DesiredState'."
+    }
 
     $machineWideProperty = $Status.PSObject.Properties['MachineWideUNC']
     $machineWide = if ($null -ne $machineWideProperty) { @($machineWideProperty.Value) } else { @() }
@@ -291,15 +310,31 @@ function Assert-SasNorthwellPrinterStatusProof {
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
             Sort-Object -Unique
     )
-    $missingControllerProof = @(
+    $requested = @(
         $RequestedPrinters |
             ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } |
-            Where-Object { $verified -notcontains $_ }
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Sort-Object -Unique
     )
-    if ($missingControllerProof.Count -gt 0) {
-        throw "Status.json did not prove requested machine-wide connection(s): $($missingControllerProof -join ', ')"
+
+    if ($DesiredState -eq 'Present') {
+        $missingControllerProof = @($requested | Where-Object { $verified -notcontains $_ })
+        if ($missingControllerProof.Count -gt 0) {
+            throw "Status.json did not prove requested machine-wide connection(s): $($missingControllerProof -join ', ')"
+        }
     }
-    return [pscustomobject]@{ Identity = $identity; VerifiedMachineWide = $verified }
+    else {
+        $stillPresentControllerProof = @($requested | Where-Object { $verified -contains $_ })
+        if ($stillPresentControllerProof.Count -gt 0) {
+            throw "Status.json did not prove requested machine-wide connection removal(s): $($stillPresentControllerProof -join ', ')"
+        }
+    }
+
+    return [pscustomobject]@{
+        Identity = $identity
+        DesiredState = $DesiredState
+        VerifiedMachineWide = $verified
+    }
 }
 
 Export-ModuleMember -Function @(

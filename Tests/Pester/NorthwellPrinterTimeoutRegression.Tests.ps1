@@ -2,14 +2,14 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:runnerPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterMapping.ps1'
+    $script:runnerPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterState.ps1'
 }
 
 Describe 'Northwell printer proof-timeout regression contract' {
-    It 'does not block Status.json proof behind a synchronous gpupdate' {
+    It 'does not block desired-state proof behind a synchronous gpupdate' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
         $content | Should -Not -Match "Start-Process\s+-FilePath\s+'gpupdate\.exe'.*-Wait"
-        $content | Should -Match 'Verifying the owning HKLM machine-wide registration directly'
+        $content | Should -Match 'Verifying the owning HKLM machine-wide desired state directly'
     }
 
     It 'does not depend on LASTEXITCODE after rundll32 PrintUIEntry under Windows PowerShell strict mode' {
