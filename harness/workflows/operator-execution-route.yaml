@@ -60,6 +60,8 @@ stages:
       - invoke the registered operator_helper through powershell.exe -File with the encoded target as a positional argument
       - the helper must decode and revalidate the target, re-read the route registry, and re-prove every required_files dependency before invoking operator_entrypoint
       - set the shell location to the resolved repository root before invoking the repo-relative helper/front door
+      - when required_network is PROTECTED_NORTHWELL, treat an authenticated live Windows DomainAuthenticated VPN adapter as an approved protected path; VPN presence alone is not a failure
+      - do not instruct a VPN-confined operator to disconnect VPN or seek Ethernet solely because feedback identifies VPN; rely on the live protected-network gate and transport classification
       - when operator_execution_capable is true and authorization/dependencies are satisfied, execute the resolved front door in the same turn
       - propagate the child exit code exactly
       - when the current environment cannot execute on the operator workstation, emit one copy-paste route-and-run command that performs location resolution, dependency proof, Set-Location, -File helper invocation, and exit propagation
@@ -78,6 +80,8 @@ stages:
       - report the resolved execution root when it is known
       - report the exact front door selected
       - report whether execution happened or whether workstation execution is the external blocker
+      - when field feedback identifies VPN, record VPN as the expected path type and interpret it through the DomainAuthenticated protected-network gate rather than treating VPN itself as a blocker
+      - report the live network/transport classification when it is present in durable evidence
       - if execution is blocked by workstation access, provide the single route-and-run command, not separate cd and inner-command fragments
       - name the expected durable artifact and proof ceiling
 
