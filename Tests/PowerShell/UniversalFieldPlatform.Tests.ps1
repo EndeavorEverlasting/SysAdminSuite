@@ -10,6 +10,10 @@ Import-Module $modulePath -Force
 function Assert-True([bool]$Condition,[string]$Message) { if (-not $Condition) { throw $Message } }
 function Assert-Equal($Actual,$Expected,[string]$Message) { if ([string]$Actual -ne [string]$Expected) { throw "$Message :: expected=$Expected actual=$Actual" } }
 
+$neutralFixture = $null
+$previousRuntimeRoot = $env:SAS_RUNTIME_ROOT
+$previousRepoRoot = $env:SAS_REPO_ROOT
+
 try {
     $fixedDrive = { param($drive) 3 }
     $networkDrive = { param($drive) 4 }
@@ -18,6 +22,32 @@ try {
     Assert-True (-not (Test-SasLocalControllerPath -Path '\\server\share\SysAdminSuite' -DriveTypeResolver $fixedDrive)) 'UNC controller runtime must be rejected'
     Assert-True (-not (Test-SasLocalControllerPath -Path 'Z:\SysAdminSuite' -DriveTypeResolver $networkDrive)) 'mapped network drive controller runtime must be rejected'
     Assert-True (-not (Test-SasLocalControllerPath -Path 'Z:\SysAdminSuite' -DriveTypeResolver $unknownDrive)) 'unknown drive type must fail closed'
+
+    # Field regression: the installed launcher starts with an empty List[string] of candidates. A
+    # mandatory collection parameter used to reject that empty list before C:\SASAL or any later
+    # candidate could even be evaluated. Resolve from a neutral working directory with the first
+    # environment candidates intentionally empty and prove a later local controller still resolves.
+    $neutralFixture = Join-Path $env:TEMP ('sas-neutral-controller-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path (Join-Path $neutralFixture 'scripts') -Force | Out-Null
+    foreach ($relative in @(
+        'scripts\SasNetworkGuard.psm1',
+        'scripts\Confirm-SasNorthwellNetwork.ps1',
+        'scripts\SasPortableLauncher.ps1',
+        'Run-AutoLogonOnsite.cmd'
+    )) {
+        New-Item -ItemType File -Path (Join-Path $neutralFixture $relative) -Force | Out-Null
+    }
+
+    $env:SAS_RUNTIME_ROOT = $null
+    $env:SAS_REPO_ROOT = $null
+    Push-Location $env:TEMP
+    try {
+        $resolvedNeutral = Resolve-SasControllerRoot -CallerRoot $neutralFixture
+    }
+    finally {
+        Pop-Location
+    }
+    Assert-Equal $resolvedNeutral ([IO.Path]::GetFullPath($neutralFixture)) 'neutral-directory controller resolution must accept an initially empty candidate list'
 
     $addresses = { param($index) @([pscustomobject]@{ IPAddress='10.44.55.66' }) }
 
@@ -53,8 +83,13 @@ try {
     Assert-True (-not [bool]$guestResult.approved) 'guest-only path should remain blocked'
     Assert-Equal $guestResult.authority 'UNPROVEN' 'guest-only authority classification'
 
-    Write-Host 'PASS: universal field platform supports hardwire, WAB, VPN, and fail-closed machine-local runtime isolation.'
+    Write-Host 'PASS: universal field platform supports neutral-directory resolution, hardwire, WAB, VPN, and fail-closed machine-local runtime isolation.'
 }
 finally {
+    $env:SAS_RUNTIME_ROOT = $previousRuntimeRoot
+    $env:SAS_REPO_ROOT = $previousRepoRoot
+    if ($neutralFixture -and (Test-Path -LiteralPath $neutralFixture)) {
+        Remove-Item -LiteralPath $neutralFixture -Recurse -Force -ErrorAction SilentlyContinue
+    }
     Remove-Module SasFieldPlatform -ErrorAction SilentlyContinue
 }
