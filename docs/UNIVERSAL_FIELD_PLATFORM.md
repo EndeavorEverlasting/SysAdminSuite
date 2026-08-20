@@ -27,6 +27,30 @@ A username-specific path is not execution authority. The platform does not scan 
 
 The installer prefers `%ProgramData%\SysAdminSuite\bin`. If Windows permissions require a current-user shim, that shim is only a command-discovery fallback; protected runtime authority still resolves independently through the local controller/runtime rules above.
 
+## Northwell printer mapping
+
+Technical operators can use:
+
+```text
+sas printer
+```
+
+Non-technical technicians get the same workflow through the installed one-click CMD:
+
+```text
+Map-NorthwellPrinter.cmd
+```
+
+The universal installer places that CMD beside `sas.cmd`. The CMD delegates to `sas printer` when the installed command is present and falls back to the trusted current-origin printer bootstrap when launched from a current SysAdminSuite runtime. It does **not** implement a second printer mapper.
+
+Both entrypoints therefore retain the same protected-network gate, current runtime selection, SYSTEM-wide HKLM proof, recent-PC/printer convenience cache, and active-user materialization behavior.
+
+Technician tutorial: `docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md`.
+
+Advanced printer management: `START-HERE-NORTHWELL-PRINTER-MANAGEMENT.md`.
+
+The mapper does not use printer IP fallback and does not print a test page.
+
 ## Crash-safe AutoLogon Remote
 
 `AutoLogon Remote` is target-mutating, so the universal `sas` command must not send it through the generic on-site deployment dispatcher. `scripts/Invoke-SasUniversalField.ps1` resolves `Bootstrap-SysAdminSuiteAutoLogon.cmd` from the machine-local runtime and invokes that sealed bootstrap for Remote. The bootstrap verifies the staged runtime/manifest and then enters `Invoke-SasAutoLogonCrashSafeFieldRun.ps1`, which creates the registered transcript, field-run result, and latest pointer under `%LOCALAPPDATA%\SysAdminSuite`.
@@ -61,8 +85,8 @@ This keeps one controller copy authoritative instead of leaving drifting SysAdmi
 The universal front door owns machine/runtime discovery and protected-path admission for network-sensitive operations, then delegates existing product workflows rather than replacing them:
 
 - `sas network`
-- `sas printer` — launches the canonical system-wide Northwell printer mapper after the same protected-path authority gate;
-- `sas clipboard` — restarts the local Windows Clipboard User Service using the field-proven `cbdhsvc*` repair;
+- `sas printer` / `Map-NorthwellPrinter.cmd` — canonical system-wide Northwell printer mapping after the same protected-path authority gate;
+- `sas clipboard` — local Windows Clipboard User Service recovery;
 - `sas autologon Remote HOST` — sealed crash-safe bootstrap and durable field evidence;
 - `sas autologon Recover HOST` — recovery-only;
 - protected `sas cybernet ...` operations;
@@ -72,4 +96,8 @@ The canonical product-level network gate still runs before target work. The plat
 
 ## Proof boundary
 
-Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, mapped-drive, sealed AutoLogon bootstrap, and stale-dispatcher-bypass fixtures. Clipboard contracts prove discoverability, the exact `cbdhsvc*` repair mechanism, narrow local scope, and parser validity; they do not intentionally restart the CI runner's live clipboard service. Platform tests do not prove a specific hospital switch port, Wi-Fi access point, VPN session, target authorization, package execution, reboot, or sign-in. Live target work still owns its normal crash-safe field evidence.
+Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, mapped-drive, sealed AutoLogon bootstrap, and stale-dispatcher-bypass fixtures. Printer technician-launcher contracts prove that `Map-NorthwellPrinter.cmd` remains a thin delegate to the same trusted printer bootstrap and is installed beside `sas.cmd`.
+
+On August 20, 2026, the current-main Northwell quick workflow was separately field-observed on a protected `DomainAuthenticated` wired route producing SYSTEM-wide HKLM registration proof and immediate active-user materialization proof. That does not claim physical document output without a separately observed real print.
+
+Platform tests do not prove every specific hospital switch port, Wi-Fi access point, VPN session, target authorization, package execution, reboot, sign-in, or physical print. Live target work still owns its normal field evidence.
