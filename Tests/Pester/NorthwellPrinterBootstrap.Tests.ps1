@@ -77,7 +77,10 @@ Describe 'Northwell printer from-anywhere bootstrap contract' {
             Push-Location $arbitraryCwd
             try {
                 $output = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script:bootstrapPath -RequiredCommit $head -NoLaunch 2>&1)
-                $LASTEXITCODE | Should -Be 0
+                $bootstrapExit = [int]$LASTEXITCODE
+                if ($bootstrapExit -ne 0) {
+                    throw "Bootstrap fixture exited $bootstrapExit.`n$($output -join [Environment]::NewLine)"
+                }
             }
             finally { Pop-Location }
 
