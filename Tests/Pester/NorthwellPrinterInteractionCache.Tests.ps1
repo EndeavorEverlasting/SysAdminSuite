@@ -28,6 +28,7 @@ Describe 'Northwell printer low-rework interaction UX' {
         $cacheWriteIndex | Should -BeGreaterThan $successIndex
         $proofIndex | Should -BeGreaterThan -1
         $content | Should -Match '\$freshEvidence -and \(Test-SasLatestAuthoritativePrinterProof'
+        $content | Should -Match "if \(\$Action -eq 'Map'\) \{ Save-SasPrinterInteractionHistory"
         $content | Should -Not -Match '(?m)^\s*Save-SasPrinterInteractionHistory.*\$WhatIf'
     }
 
@@ -38,11 +39,12 @@ Describe 'Northwell printer low-rework interaction UX' {
         $content | Should -Match 'Add-SasInteractionCacheEntry'
     }
 
-    It 'feeds the same history from successful file-driven batch groups but never from preview groups' {
+    It 'feeds history from successful Map batch groups but never preview or Unmap groups' {
         $content = Get-Content -LiteralPath $script:batchPath -Raw
         $content | Should -Match 'if \(-not \$cacheAvailable -or \$WhatIf\) \{ return \}'
-        $content | Should -Match 'if \(\$success\) \{ Save-SasBatchInteractionHistory -Group \$group \}'
-        $content | Should -Match 'MACHINE_WIDE_REGISTRATION_PROVED'
+        $content | Should -Match "if \(\$success -and \$group\.Action -eq 'Map'\) \{ Save-SasBatchInteractionHistory -Group \$group \}"
+        $content | Should -Match 'MACHINE_WIDE_\$\(\$desiredState\.ToUpperInvariant\(\)\)_PROVED'
+        $content | Should -Match "DesiredState = \$desiredState"
     }
 
     It 'provides one clearly named click launcher that delegates to the canonical batch file path' {
