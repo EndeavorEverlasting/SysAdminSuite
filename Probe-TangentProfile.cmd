@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 set "SCRIPT_DIR=%~dp0"
 title SysAdminSuite - Tangent Read-Only Hardware Profile
 
@@ -11,12 +11,25 @@ if /I not "%~1"=="Probe" goto help_error
 shift
 if "%~1"=="" goto help_error
 
+set "TARGETS="
+:collect_targets
+if "%~1"=="" goto run_probe
+if defined TARGETS (
+    set "TARGETS=!TARGETS!,%~1"
+) else (
+    set "TARGETS=%~1"
+)
+shift
+goto collect_targets
+
+:run_probe
 echo.
 echo Read-only Tangent candidate hardware profile collection.
+echo Targets: !TARGETS!
 echo No software install, configuration change, task creation, registry write, or restart will occur.
 echo A Tangent label is candidate context only; hardware classification requires observed model + serial evidence.
 echo.
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Invoke-SasReadOnlyWorkstationProfileProbe.ps1" -CandidateLabel "TangentCandidate" -ComputerName %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\Invoke-SasReadOnlyWorkstationProfileProbe.ps1" -CandidateLabel "TangentCandidate" -TargetsCsv "!TARGETS!"
 set "EXITCODE=%ERRORLEVEL%"
 if not "%EXITCODE%"=="0" echo Tangent profile probe stopped with exit code %EXITCODE%. Review the local comparison evidence before retrying.
 endlocal & exit /b %EXITCODE%
