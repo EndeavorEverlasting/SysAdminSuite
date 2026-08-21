@@ -87,7 +87,7 @@ function Test-SasAdOuShapeForNetworkTransition {
         'plan' {
             if ($values.Count -ne 4) { return $false }
             return (Test-SasAdHostNameForNetworkTransition -Value ([string]$values[2])) -and
-                (Test-SasAdManagedOuForNetworkTransition -Value ([string]$values[3])
+                (Test-SasAdManagedOuForNetworkTransition -Value ([string]$values[3]))
         }
         'apply' {
             if ($values.Count -ne 5) { return $false }
