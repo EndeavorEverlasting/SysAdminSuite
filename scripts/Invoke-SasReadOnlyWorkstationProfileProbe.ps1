@@ -9,7 +9,7 @@ hardware identity fields needed to compare candidate Tangent workstations with a
 Cybernet reference. It does not select a Cybernet profile, install software, change configuration,
 create tasks, write the remote registry, or reboot a target.
 
-Live evidence is written only below survey/output and must not be committed.
+Live evidence defaults to the operator-local SysAdminSuite evidence root outside the repository.
 #>
 
 [CmdletBinding()]
@@ -31,7 +31,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 if (-not $OutputRoot) {
-    $OutputRoot = Join-Path $repoRoot 'survey\output\workstation_profile_probe'
+    $OutputRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\Evidence\WorkstationProfile'
 }
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
@@ -65,7 +65,7 @@ function Convert-SasMacAddress {
 function Convert-SasWmiDate {
     param([AllowNull()][string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
-    try { return [Management.ManagementDateTimeConverter]::ToDateTime($Value).ToUniversalTime().ToString('o') }
+    try { return [System.Management.ManagementDateTimeConverter]::ToDateTime($Value).ToUniversalTime().ToString('o') }
     catch { return $null }
 }
 
