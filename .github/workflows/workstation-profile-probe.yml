@@ -47,9 +47,9 @@ jobs:
           fetch-depth: 2
       - name: Check whitespace
         run: git diff --check HEAD^
-      - name: Enforce local evidence path and non-deployment language
+      - name: Enforce operator-local evidence and non-deployment language
         run: |
-          grep -F "survey\\output\\workstation_profile_probe" scripts/Invoke-SasReadOnlyWorkstationProfileProbe.ps1
+          grep -F "SysAdminSuite\\Evidence\\WorkstationProfile" scripts/Invoke-SasReadOnlyWorkstationProfileProbe.ps1
           grep -F "NONE_READ_ONLY_DISCOVERY" scripts/Invoke-SasReadOnlyWorkstationProfileProbe.ps1
           grep -F "TargetMutationPerformed = \$false" scripts/Invoke-SasReadOnlyWorkstationProfileProbe.ps1
           ! grep -E "Set-WmiInstance|Invoke-WmiMethod|Set-CimInstance|Invoke-CimMethod|Restart-Computer|Stop-Computer" scripts/Invoke-SasReadOnlyWorkstationProfileProbe.ps1
