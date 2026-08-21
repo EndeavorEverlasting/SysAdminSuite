@@ -6,9 +6,11 @@ Resolve the sealed AutoLogon manifest without depending on one Windows user prof
 .DESCRIPTION
 The short runtime is machine-local at C:\SASAL, while older staging wrote its seal manifest only beneath
 one user's LOCALAPPDATA. This resolver accepts a runtime-local authority copy first, then the current-user
-legacy copy, then performs a bounded exact-path search beneath local Windows profiles. It validates candidate
-posture before use, rejects conflicting authorities, and hydrates both the runtime-local metadata copy and the
-current user's compatibility copy from one validated authority.
+legacy copy, then performs a bounded exact-path search beneath local Windows profiles. Candidate manifests
+must describe the runtime's current detached .git\HEAD when that identity is directly available. It validates
+manifest posture without verifying tracked-file contents, so the later full seal audit remains responsible for
+enumerating runtime drift. Conflicting authorities fail closed; one validated authority hydrates both the
+runtime-local metadata copy and the current user's compatibility copy.
 
 No Git command, network operation, target contact, tracked-runtime mutation, credential read, or reboot occurs.
 #>
@@ -44,6 +46,16 @@ function Get-SasJsonPropertyValue {
     $property = $Object.PSObject.Properties[$Name]
     if ($null -eq $property) { return $null }
     return $property.Value
+}
+
+function Get-SasRuntimeDetachedHeadCommit {
+    param([Parameter(Mandatory = $true)][string]$RuntimeRoot)
+    $headPath = Join-Path $RuntimeRoot '.git\HEAD'
+    if (-not (Test-Path -LiteralPath $headPath -PathType Leaf -ErrorAction SilentlyContinue)) { return '' }
+    try { $headText = ([IO.File]::ReadAllText($headPath,[Text.Encoding]::ASCII)).Trim() }
+    catch { return '' }
+    if ($headText -match '^(?:[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$') { return $headText.ToLowerInvariant() }
+    return ''
 }
 
 function Add-SasManifestCandidate {
@@ -110,6 +122,7 @@ else {
 $runtimeManifestPath = Join-Path $runtimeFullPath '.git\sas-autologon-short-runtime.json'
 $currentLegacyPath = Join-Path $CurrentStateRoot 'autologon-short-runtime.json'
 $receiptPath = Join-Path $CurrentStateRoot 'autologon-manifest-authority.json'
+$runtimeHeadCommit = Get-SasRuntimeDetachedHeadCommit -RuntimeRoot $runtimeFullPath
 $candidates = New-Object 'System.Collections.Generic.List[object]'
 Add-SasManifestCandidate -List $candidates -Path $runtimeManifestPath -Source 'RUNTIME_LOCAL'
 Add-SasManifestCandidate -List $candidates -Path $currentLegacyPath -Source 'CURRENT_USER_LEGACY'
@@ -136,6 +149,10 @@ foreach ($candidate in $candidates) {
         }
         $preparedCommit = ([string](Get-SasJsonPropertyValue -Object $state -Name 'prepared_commit')).Trim()
         if ([string]::IsNullOrWhiteSpace($preparedCommit)) { throw 'prepared commit missing' }
+        if (-not [string]::IsNullOrWhiteSpace($runtimeHeadCommit) -and
+            -not $preparedCommit.Equals($runtimeHeadCommit,[StringComparison]::OrdinalIgnoreCase)) {
+            throw "prepared commit does not match runtime detached HEAD $runtimeHeadCommit"
+        }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit) -and
             -not $preparedCommit.Equals($ExpectedCommit.Trim(),[StringComparison]::OrdinalIgnoreCase)) {
             throw "prepared commit mismatch $preparedCommit"
@@ -201,6 +218,7 @@ $receipt = [pscustomobject][ordered]@{
     created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
     classification = $classification
     runtime_root = $runtimeFullPath
+    runtime_head_commit = if ([string]::IsNullOrWhiteSpace($runtimeHeadCommit)) { $null } else { $runtimeHeadCommit }
     selected_manifest_path = if ($null -eq $selected) { $null } else { [string]$selected.path }
     selected_source = if ($null -eq $selected) { $null } else { [string]$selected.source }
     prepared_commit = if ($null -eq $selected) { $null } else { [string]$selected.prepared_commit }
@@ -230,6 +248,7 @@ catch {
 
 if ($classification -eq 'AUTOLOGON_MANIFEST_AUTHORITY_READY') {
     Write-Host "AutoLogon manifest authority: $($selected.source) :: $($selected.path)" -ForegroundColor Green
+    if (-not [string]::IsNullOrWhiteSpace($runtimeHeadCommit)) { Write-Host "Runtime detached HEAD: $runtimeHeadCommit" -ForegroundColor Green }
     if ($runtimeCopyWritten) { Write-Host "Runtime-local authority copy hydrated: $runtimeManifestPath" -ForegroundColor Green }
     if ($currentUserCopyWritten) { Write-Host "Current-user compatibility copy hydrated: $currentLegacyPath" -ForegroundColor Green }
     Write-Host 'Manifest resolution performed no Git, network, target contact, or tracked-runtime mutation.' -ForegroundColor Green
@@ -245,6 +264,7 @@ if ($classification -eq 'AUTOLOGON_MANIFEST_AMBIGUOUS') {
 
 if ($RequireManifest) {
     Write-Host "AUTOLOGON_MANIFEST_NOT_FOUND: no valid v2 manifest authority was found for $runtimeFullPath." -ForegroundColor Red
+    if (-not [string]::IsNullOrWhiteSpace($runtimeHeadCommit)) { Write-Host "Runtime detached HEAD: $runtimeHeadCommit" -ForegroundColor Yellow }
     Write-Host "Checked runtime-local authority: $runtimeManifestPath" -ForegroundColor Yellow
     Write-Host "Checked current-user legacy path: $currentLegacyPath" -ForegroundColor Yellow
     Write-Host "Bounded profile search root: $LegacySearchRoot" -ForegroundColor Yellow
