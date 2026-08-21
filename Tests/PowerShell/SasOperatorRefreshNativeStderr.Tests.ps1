@@ -42,6 +42,9 @@ if ($refreshText -match '(?m)^\s*\$LASTEXITCODE\s*=') {
 if ($refreshText -notmatch '\$global:LASTEXITCODE') {
     throw 'Refresh script must capture native exit codes from the global automatic variable.'
 }
+if ($refreshText -match '\-join\s+\[Environment\]::NewLine\)\.Trim\(') {
+    throw 'Refresh script must not call Trim directly on a possibly-null join result.'
+}
 
 $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $gitCommand) {
@@ -52,16 +55,26 @@ if (-not $gitCommand -or [string]::IsNullOrWhiteSpace([string]$gitCommand.Source
 }
 $script:SasGitExe = [IO.Path]::GetFullPath([string]$gitCommand.Source)
 
-# Reproduce the exact field primitive: `git check-ref-format --branch main` succeeds,
-# writes stdout, and leaves the redirected stderr file at zero bytes. Windows PowerShell
-# 5.1 returns $null for Get-Content -Raw on that empty file, so production code must not
-# call an instance method until the value has been normalized.
+# Reproduce the original field primitive: `git check-ref-format --branch main` succeeds.
+# Some Git/PowerShell combinations return stdout for this form and some do not, so production
+# must accept either shape without dereferencing a null join result.
 $result = @(Invoke-SasRefreshGit `
     -Arguments @('check-ref-format','--branch','main') `
     -FailureMessage 'Synthetic successful Git ref check failed.' `
     -Quiet)
-if (@($result).Count -ne 1 -or ([string]$result[0]).Trim() -ne 'main') {
+if (@($result).Count -gt 1 -or (@($result).Count -eq 1 -and ([string]$result[0]).Trim() -ne 'main')) {
     throw "Unexpected successful Git result: $($result -join '|')"
+}
+
+# Prove the exact missing case from field evidence: a successful native Git command may produce
+# neither stdout nor stderr. The helper must return an empty collection and must not call Trim()
+# on a null value under Windows PowerShell 5.1.
+$silentResult = @(Invoke-SasRefreshGit `
+    -Arguments @('check-ref-format','refs/heads/main') `
+    -FailureMessage 'Synthetic silent successful Git ref check failed.' `
+    -Quiet)
+if (@($silentResult).Count -ne 0) {
+    throw "Expected silent Git success to return no output; got: $($silentResult -join '|')"
 }
 
 # Preserve the other half of the helper contract: first prove the fixture itself really
@@ -107,5 +120,5 @@ if (-not $failureObserved) {
     throw 'Production helper did not surface the proven nonzero Git failure.'
 }
 
-Write-Host 'PASS: sas refresh Git stderr handling accepts zero-byte stderr and preserves nonzero exit handling under Windows PowerShell 5.1.' -ForegroundColor Green
+Write-Host 'PASS: sas refresh Git output handling accepts silent success/zero-byte stderr and preserves nonzero exit handling under Windows PowerShell 5.1.' -ForegroundColor Green
 exit 0
