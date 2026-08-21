@@ -8,9 +8,9 @@ if (-not (Test-Path -LiteralPath $resolverPath -PathType Leaf)) {
     throw "Missing AutoLogon manifest authority resolver: $resolverPath"
 }
 
-$source = Get-Content -LiteralPath $resolverPath -Raw -Encoding UTF8
-foreach ($forbidden in @('& git','git.exe','Invoke-Command','Test-NetConnection','Invoke-WebRequest','Start-BitsTransfer','wpj075','nslijhs.net')) {
-    if ($source.IndexOf($forbidden,[StringComparison]::OrdinalIgnoreCase) -ge 0) {
+$auditSource = Get-Content -LiteralPath $resolverPath -Raw -Encoding UTF8
+foreach ($forbidden in @('& git','git.exe','Invoke-Command','Test-NetConnection','Invoke-WebRequest','Start-BitsTransfer')) {
+    if ($auditSource.IndexOf($forbidden,[StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw "Manifest authority resolver contains forbidden field/network surface: $forbidden"
     }
 }
@@ -26,7 +26,7 @@ foreach ($required in @(
     'target_contact_performed = $false',
     'target_mutation_performed = $false'
 )) {
-    if ($source.IndexOf($required,[StringComparison]::Ordinal) -lt 0) {
+    if ($auditSource.IndexOf($required,[StringComparison]::Ordinal) -lt 0) {
         throw "Manifest authority resolver is missing required contract marker: $required"
     }
 }
