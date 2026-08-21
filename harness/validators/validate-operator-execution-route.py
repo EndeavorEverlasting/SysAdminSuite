@@ -33,6 +33,8 @@ SEALED_PS1 = ROOT / "Bootstrap-SysAdminSuiteAutoLogon.ps1"
 PREPARE = ROOT / "scripts/Prepare-SasAutoLogonShortRuntime.ps1"
 CRASH_SAFE_RUNNER = ROOT / "scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1"
 PORTABLE = ROOT / "scripts/SasPortableLauncher.ps1"
+NETWORK_INTENT = ROOT / "scripts/SasNetworkIntent.psm1"
+NETWORK_WRAPPER = ROOT / "scripts/Invoke-SasNetworkAwareField.ps1"
 UNIVERSAL = ROOT / "scripts/Invoke-SasUniversalField.ps1"
 UNIVERSAL_INSTALLER = ROOT / "scripts/Install-SasUniversalFieldLauncher.ps1"
 WINDOWS_ROUTE_TEST = ROOT / "Tests/PowerShell/OperatorExecutionRouteHarness.Tests.ps1"
@@ -50,10 +52,10 @@ CRASH_SAFE_CI = ROOT / ".github/workflows/autologon-crash-safe-field-runner.yml"
 COMPONENTS = (
     REGISTRY, SCHEMA, MANIFEST, MANIFEST_SCHEMA, VALIDATORS, COMMANDS, TERMINAL,
     WORKFLOW, SKILL, MAP, REPORT, FRESH_AGENT, HELPER, CRASH_SAFE_CMD, SEALED_CMD,
-    SEALED_PS1, PREPARE, CRASH_SAFE_RUNNER, PORTABLE, UNIVERSAL, UNIVERSAL_INSTALLER,
-    WINDOWS_ROUTE_TEST, WINDOWS_HASH_TEST, UNIVERSAL_CONTRACT, PROTECTED_CONTRACT,
-    CRASH_SAFE_CONTRACT, SHORT_RUNTIME_CONTRACT, PRE_COMMIT, PRE_PUSH, ROUTE_CI,
-    UNIVERSAL_CI, CRASH_SAFE_CI,
+    SEALED_PS1, PREPARE, CRASH_SAFE_RUNNER, PORTABLE, NETWORK_INTENT, NETWORK_WRAPPER,
+    UNIVERSAL, UNIVERSAL_INSTALLER, WINDOWS_ROUTE_TEST, WINDOWS_HASH_TEST,
+    UNIVERSAL_CONTRACT, PROTECTED_CONTRACT, CRASH_SAFE_CONTRACT, SHORT_RUNTIME_CONTRACT,
+    PRE_COMMIT, PRE_PUSH, ROUTE_CI, UNIVERSAL_CI, CRASH_SAFE_CI,
 )
 POLICY_KEYS = {
     "resolve_execution_location_before_operator_command",
@@ -256,10 +258,24 @@ def test_v2_sealed_runtime_is_git_free_and_get_file_hash_free() -> None:
     require("complete SHA-256 tracked-file seal" in portable, "portable launcher must reject incomplete v2 seals")
 
 
-def test_installed_universal_remote_converges_to_same_crash_safe_bootstrap() -> None:
+def test_installed_network_front_door_converges_to_same_crash_safe_bootstrap() -> None:
     installer = read(UNIVERSAL_INSTALLER)
-    require('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasUniversalField.ps1" %*' in installer,
-            "installed sas.cmd no longer enters universal field launcher")
+    require('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasNetworkAwareField.ps1" %*' in installer,
+            "installed sas.cmd no longer enters network-aware universal front door")
+
+    network_wrapper = read(NETWORK_WRAPPER)
+    require("SasNetworkIntent.psm1" in network_wrapper, "network-aware front door no longer imports network intent authority")
+    require("Invoke-SasUniversalField.ps1" in network_wrapper and "& powershell.exe @childArgs" in network_wrapper,
+            "network-aware front door no longer delegates to universal field launcher")
+    require("'autologon'" in network_wrapper and "'ProtectedNorthwell'" in network_wrapper,
+            "network-aware front door no longer classifies protected AutoLogon admission")
+
+    network_intent = read(NETWORK_INTENT)
+    require("NETWORK REQUIRED:" in network_intent and "CURRENT NETWORK:" in network_intent,
+            "network-aware front door lost its operator canary contract")
+    require("SAS_NETWORK_TRANSITION_PROTECTED_REQUIRED" in network_intent,
+            "protected AutoLogon admission no longer fails closed without authority")
+
     launcher = read(UNIVERSAL)
     block = launcher.split("    'autologon' {", 1)[1].split("\n    'cybernet' {", 1)[0]
     require("Resolve-SasInstalledAutoLogonBootstrap" in launcher, "universal launcher missing AutoLogon bootstrap resolver")
@@ -334,14 +350,19 @@ def test_ci_reexecutes_when_runtime_or_routing_surfaces_change() -> None:
     route_ci = read(ROUTE_CI)
     for marker in (
         "Operator Execution Route Harness", "Bootstrap-SysAdminSuiteAutoLogon.cmd",
-        "Bootstrap-SysAdminSuiteAutoLogon.ps1", "scripts/Invoke-SasUniversalField.ps1",
+        "Bootstrap-SysAdminSuiteAutoLogon.ps1", "scripts/SasNetworkIntent.psm1",
+        "scripts/Invoke-SasNetworkAwareField.ps1", "scripts/Invoke-SasUniversalField.ps1",
         "scripts/SasPortableLauncher.ps1", "OperatorExecutionRouteHarness.Tests.ps1",
         "python harness/validators/validate-operator-execution-route.py", "runs-on: windows-latest",
     ):
         require(marker in route_ci, f"route CI missing dependency: {marker}")
     universal_ci = read(UNIVERSAL_CI)
-    for marker in ("scripts/Invoke-SasUniversalField.ps1", "Bootstrap-SysAdminSuiteAutoLogon.cmd", "Bootstrap-SysAdminSuiteAutoLogon.ps1"):
-        require(marker in universal_ci, f"universal CI missing AutoLogon dependency: {marker}")
+    for marker in (
+        "scripts/SasNetworkIntent.psm1", "scripts/Invoke-SasNetworkAwareField.ps1",
+        "scripts/Invoke-SasUniversalField.ps1", "Bootstrap-SysAdminSuiteAutoLogon.cmd",
+        "Bootstrap-SysAdminSuiteAutoLogon.ps1",
+    ):
+        require(marker in universal_ci, f"universal CI missing AutoLogon/network-front-door dependency: {marker}")
     crash_ci = read(CRASH_SAFE_CI)
     for marker in (
         "Bootstrap-SysAdminSuiteAutoLogon.ps1", "scripts/Prepare-SasAutoLogonShortRuntime.ps1",
