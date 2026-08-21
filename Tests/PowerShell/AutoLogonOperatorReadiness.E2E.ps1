@@ -68,12 +68,12 @@ function Write-SasUtf8NoBom {
     [IO.File]::WriteAllText($Path,$Text,(New-Object Text.UTF8Encoding($false)))
 }
 
-$collisions = @(
+$collisions = @(@(
     $runtimeRoot,
     $programDataSuiteRoot,
     $publicEvidenceRoot,
     $publicDesktopDelegate
-) | Where-Object { Test-Path -LiteralPath $_ }
+) | Where-Object { Test-Path -LiteralPath $_ })
 if ($collisions.Count -gt 0) {
     throw ('AUTOLOGON_OPERATOR_READINESS_E2E_FIXTURE_COLLISION: refusing to replace pre-existing state: ' + ($collisions -join ', '))
 }
