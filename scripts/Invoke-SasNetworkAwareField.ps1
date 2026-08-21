@@ -54,6 +54,51 @@ function Test-SasPrinterShapeForNetworkTransition {
     return $true
 }
 
+function Test-SasAdHostNameForNetworkTransition {
+    param([AllowNull()][string]$Value)
+    return -not [string]::IsNullOrWhiteSpace($Value) -and $Value -match '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'
+}
+
+function Test-SasAdManagedOuForNetworkTransition {
+    param([AllowNull()][string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+    $forbiddenPattern = '(?i)(?:^|,)OU=(?:Workstations|Shared_Workstations),OU=_Workstations(?:,|$)'
+    if ($Value -match $forbiddenPattern) { return $false }
+    $managedPattern = '(?i)(?:^|,)OU=(?:Managed|Managed_Shared),OU=_Workstations(?:,|$)'
+    return [bool]($Value -match $managedPattern)
+}
+
+function Test-SasAdOuShapeForNetworkTransition {
+    [CmdletBinding()]
+    param([string[]]$Arguments)
+
+    $values = @($Arguments)
+    if ($values.Count -lt 3) { return $false }
+    if (([string]$values[0]).Trim().ToLowerInvariant() -ne 'ou') { return $false }
+    $mode = ([string]$values[1]).Trim().ToLowerInvariant()
+    switch ($mode) {
+        'probe' {
+            if ($values.Count -lt 3 -or $values.Count -gt 27) { return $false }
+            foreach ($value in @($values | Select-Object -Skip 2)) {
+                if (-not (Test-SasAdHostNameForNetworkTransition -Value ([string]$value))) { return $false }
+            }
+            return $true
+        }
+        'plan' {
+            if ($values.Count -ne 4) { return $false }
+            return (Test-SasAdHostNameForNetworkTransition -Value ([string]$values[2])) -and
+                (Test-SasAdManagedOuForNetworkTransition -Value ([string]$values[3]))
+        }
+        'apply' {
+            if ($values.Count -ne 5) { return $false }
+            return (Test-SasAdHostNameForNetworkTransition -Value ([string]$values[2])) -and
+                (Test-SasAdManagedOuForNetworkTransition -Value ([string]$values[3])) -and
+                (-not [string]::IsNullOrWhiteSpace([string]$values[4]))
+        }
+        default { return $false }
+    }
+}
+
 # Determine whether a command can actually reach a network-sensitive product path before any
 # WLAN transition is allowed. Invalid/incomplete shapes still flow to the canonical dispatcher for
 # its usage/error result, but they remain CommandSpecific so they cannot cause a disruptive switch.
@@ -70,6 +115,9 @@ switch ($normalized) {
     'network' {
         if ($actualArgs.Count -eq 0) { $intent = 'LocalOnly' }
         elseif ($actualArgs.Count -eq 1) { $intent = 'ProtectedNorthwell' }
+    }
+    'ad' {
+        if (Test-SasAdOuShapeForNetworkTransition -Arguments $actualArgs) { $intent = 'ProtectedNorthwell' }
     }
     'autologon' {
         if ($actualArgs.Count -eq 2 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -in @('remote','recover')) {
