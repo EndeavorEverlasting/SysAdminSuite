@@ -71,7 +71,8 @@ try {
     $json = Get-ChildItem -LiteralPath $tempRoot -Filter 'workstation_profile_*.json' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
     $csv = Get-ChildItem -LiteralPath $tempRoot -Filter 'workstation_profile_*.csv' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
     if (-not $json -or -not $csv) { throw 'Local fixture did not emit both CSV and structured JSON workstation profile evidence.' }
-    $rows = @(Get-Content -LiteralPath $json.FullName -Raw -Encoding UTF8 | ConvertFrom-Json)
+    $parsedJson = Get-Content -LiteralPath $json.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+    $rows = @($parsedJson | ForEach-Object { $_ })
     if ($rows.Count -ne 2) { throw "Expected two fixture rows from the CSV target boundary, got $($rows.Count)." }
     foreach ($row in $rows) {
         if ([string]$row.SchemaVersion -ne 'sas-readonly-workstation-profile/v1') { throw 'Unexpected workstation profile schema.' }
