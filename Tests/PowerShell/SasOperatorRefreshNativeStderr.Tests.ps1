@@ -35,42 +35,48 @@ if ($null -eq $functionAst) {
 
 . ([scriptblock]::Create($functionAst.Extent.Text))
 
-$script:SasGitExe = $env:ComSpec
-if ([string]::IsNullOrWhiteSpace($script:SasGitExe) -or -not (Test-Path -LiteralPath $script:SasGitExe -PathType Leaf)) {
-    throw "Windows command processor was not found: $script:SasGitExe"
+$gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $gitCommand) {
+    $gitCommand = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1
 }
+if (-not $gitCommand -or [string]::IsNullOrWhiteSpace([string]$gitCommand.Source)) {
+    throw 'Git executable was not found for the refresh regression fixture.'
+}
+$script:SasGitExe = [IO.Path]::GetFullPath([string]$gitCommand.Source)
 
-# Reproduce the field primitive deterministically: a successful native command writes
-# stdout while stderr is redirected to a real, zero-byte file. Windows PowerShell 5.1
-# returns $null for Get-Content -Raw on that empty file, so production code must not
+# Reproduce the exact field primitive: `git check-ref-format --branch main` succeeds,
+# writes stdout, and leaves the redirected stderr file at zero bytes. Windows PowerShell
+# 5.1 returns $null for Get-Content -Raw on that empty file, so production code must not
 # call an instance method until the value has been normalized.
 $result = @(Invoke-SasRefreshGit `
-    -Arguments @('/d','/c','echo main') `
-    -FailureMessage 'Synthetic successful native command failed.' `
+    -Arguments @('check-ref-format','--branch','main') `
+    -FailureMessage 'Synthetic successful Git ref check failed.' `
     -Quiet)
 if (@($result).Count -ne 1 -or ([string]$result[0]).Trim() -ne 'main') {
-    throw "Unexpected successful native-command result: $($result -join '|')"
+    throw "Unexpected successful Git result: $($result -join '|')"
 }
 
+# Preserve the other half of the helper contract: a real Git failure must still carry
+# its nonzero exit code and stderr diagnostics after the empty-stderr repair.
 $failureObserved = $false
 try {
     [void](Invoke-SasRefreshGit `
-        -Arguments @('/d','/c','echo synthetic-stderr 1>&2 & exit /b 7') `
-        -FailureMessage 'Synthetic native failure' `
+        -Arguments @('check-ref-format','--branch','bad ref') `
+        -FailureMessage 'Synthetic Git ref failure' `
         -Quiet)
 }
 catch {
     $failureObserved = $true
     $message = $_.Exception.Message
-    if ($message -notmatch 'Synthetic native failure \(git exit 7\)') {
-        throw "Native failure lost its exit-code diagnostic: $message"
+    if ($message -notmatch 'Synthetic Git ref failure \(git exit [1-9][0-9]*\)') {
+        throw "Git failure lost its exit-code diagnostic: $message"
     }
-    if ($message -notmatch 'synthetic-stderr') {
-        throw "Native failure lost its stderr diagnostic: $message"
+    if ($message -notmatch '(?i)valid branch name|valid ref') {
+        throw "Git failure lost its stderr diagnostic: $message"
     }
 }
 if (-not $failureObserved) {
-    throw 'Expected the synthetic nonzero native command to fail.'
+    throw 'Expected the invalid Git branch check to fail.'
 }
 
-Write-Host 'PASS: sas refresh native stderr handling accepts zero-byte stderr and preserves nonzero diagnostics under Windows PowerShell 5.1.' -ForegroundColor Green
+Write-Host 'PASS: sas refresh Git stderr handling accepts zero-byte stderr and preserves nonzero diagnostics under Windows PowerShell 5.1.' -ForegroundColor Green
