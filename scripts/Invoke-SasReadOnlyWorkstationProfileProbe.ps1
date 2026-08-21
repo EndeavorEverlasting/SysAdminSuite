@@ -170,17 +170,21 @@ foreach ($rawTarget in $ComputerName) {
     $result | Format-List RequestedTarget,ObservedHostName,Manufacturer,Model,BIOSSerial,OSCaption,OSBuild,ProcessorName,MemoryGB,COMPorts,MACs,ProbeStatus,ProfileSelection | Out-Host
 }
 
+# Windows PowerShell 5.1 can throw ArgumentException when a generic List[object]
+# is passed directly through some serialization cmdlets. Materialize ordinary
+# pipeline objects first so CSV/JSON evidence remains PS5.1-safe.
+$resultArray = @($results | ForEach-Object { $_ })
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss_fff'
 $csvPath = Join-Path $OutputRoot "workstation_profile_$stamp.csv"
 $jsonPath = Join-Path $OutputRoot "workstation_profile_$stamp.json"
-@($results) | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
-@($results) | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+$resultArray | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
+$resultArray | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 
 Write-Host "Comparison-ready CSV: $csvPath" -ForegroundColor Green
 Write-Host "Structured evidence: $jsonPath" -ForegroundColor Green
 Write-Host 'No deployment profile was selected and no target mutation was performed.' -ForegroundColor Green
 Write-Host 'To compare Tangent and Cybernet hardware, run this same read-only probe against the explicit Tangent candidates and a separately proven Cybernet reference host.' -ForegroundColor Cyan
 
-if (@($results | Where-Object { $_.ProbeStatus -eq 'QueryFailed' }).Count -gt 0) { exit 20 }
-if (@($results | Where-Object { $_.ProbeStatus -eq 'IdentityIncomplete' }).Count -gt 0) { exit 21 }
+if (@($resultArray | Where-Object { $_.ProbeStatus -eq 'QueryFailed' }).Count -gt 0) { exit 20 }
+if (@($resultArray | Where-Object { $_.ProbeStatus -eq 'IdentityIncomplete' }).Count -gt 0) { exit 21 }
 exit 0
