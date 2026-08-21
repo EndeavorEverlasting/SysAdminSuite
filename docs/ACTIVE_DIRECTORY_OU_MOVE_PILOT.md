@@ -9,8 +9,9 @@ This document is an administrator pilot runbook, **not** the eventual non-techni
 ## Safety contract
 
 - Default execution is plan-only; no `Move-ADObject` occurs unless `-Apply` is present.
-- `-Apply` requires an `-AuthorizationReference` such as the approved ticket/change/pilot reference.
-- The target must resolve to a real OU beneath `_Workstations\Managed` or `_Workstations\Managed_Shared`.
+- `-Apply` requires a `-ChangeReference` for audit/traceability. SysAdminSuite does **not** validate an external ticket/change system and that string is not an authorization boundary.
+- The operator must obtain approval through the real organizational change/authorization process before any `-Apply` or rollback action. AD delegation/permissions remain the technical privilege boundary.
+- The target must resolve to a real OU beneath `_Workstations\Managed` or `_Workstations\Managed_Shared`, matched on complete DN component boundaries.
 - Legacy `_Workstations\Workstations` and `_Workstations\Shared_Workstations` targets are rejected.
 - The default `-MaxChanges` is `1`.
 - More than one planned move requires both a deliberately raised `-MaxChanges` and `-ConfirmBatch`.
@@ -27,10 +28,10 @@ Do **not** reconstruct or guess the OU from memory. Obtain the approved distingu
 
 ```powershell
 $TargetOU = 'OU=ApprovedChild,OU=Managed,OU=_Workstations,DC=example,DC=com'
-$AuthorizationReference = 'CHANGE-OR-TICKET-REFERENCE'
+$ChangeReference = 'CHANGE-OR-TICKET-REFERENCE'
 ```
 
-The example is synthetic. Do not commit the real OU, ticket, hostname, or run artifacts.
+The example is synthetic. `ChangeReference` is recorded so the run can be reconciled to the real approval record; entering it does not cause SysAdminSuite to validate or grant that approval. Do not commit the real OU, ticket, hostname, or run artifacts.
 
 ## Gate 1 — read-only identity and source snapshot
 
@@ -68,13 +69,13 @@ Expected result: `OU MOVE PLAN: 1 change(s) would be attempted.` (or `0` if the 
   -ExpectedSourceOU $SourceOU `
   -TargetOU $TargetOU `
   -Apply `
-  -AuthorizationReference $AuthorizationReference `
+  -ChangeReference $ChangeReference `
   -WhatIf
 ```
 
 ## Gate 3 — one-computer apply
 
-Only after Gate 2 is correct:
+Only after Gate 2 is correct and organizational approval exists:
 
 ```powershell
 .\ActiveDirectory\Move-Computers-To-OU.ps1 `
@@ -82,22 +83,22 @@ Only after Gate 2 is correct:
   -ExpectedSourceOU $SourceOU `
   -TargetOU $TargetOU `
   -Apply `
-  -AuthorizationReference $AuthorizationReference `
+  -ChangeReference $ChangeReference `
   -Confirm:$false
 ```
 
 Acceptance requires all of the following:
 
 1. terminal result reports exactly one `Moved` and zero failed;
-2. `Results.json` records `moved_count = 1`;
+2. `Results.json` records `moved_count = 1` and the operator-supplied change reference;
 3. a fresh `Get-ADComputer` read places the same `ObjectGUID` in `$TargetOU`;
 4. `Undo-OUMove.ps1` exists in that run directory.
 
-A successful PowerShell process alone is not proof of OU placement.
+A successful PowerShell process or a populated change-reference field alone is not proof of approval or OU placement.
 
 ## Gate 4 — rollback the pilot
 
-An AD computer object cannot be left “outside an OU”; rollback means moving it back to the exact source OU captured before the pilot.
+An AD computer object cannot be left “outside an OU”; rollback means moving it back to the exact source OU captured before the pilot. Obtain any rollback approval required by the organization before executing the generated mutator.
 
 Locate the just-completed run directory and execute its generated undo:
 
@@ -107,9 +108,11 @@ $Run = Get-ChildItem "$env:LOCALAPPDATA\SysAdminSuite\Cache\ActiveDirectory\OUMo
   Select-Object -First 1
 
 & (Join-Path $Run.FullName 'Undo-OUMove.ps1') `
-  -AuthorizationReference $AuthorizationReference `
+  -ChangeReference $ChangeReference `
   -Confirm:$false
 ```
+
+The generated undo prints the supplied change reference for traceability; it does not validate an external approval system.
 
 Then independently verify:
 
@@ -140,7 +143,7 @@ Review every preflight row. Then apply with an explicit ceiling that exactly mat
   -HostListPath .\operator-local-hosts.txt `
   -TargetOU $TargetOU `
   -Apply `
-  -AuthorizationReference $AuthorizationReference `
+  -ChangeReference $ChangeReference `
   -MaxChanges 3 `
   -ConfirmBatch `
   -Confirm:$false
@@ -155,15 +158,15 @@ Only after the batch workflow is proven in the live environment should SysAdminS
 1. repository-owned CMD launcher;
 2. target/OU selection from approved local assignment or proven history instead of retyping;
 3. plan shown before mutation;
-4. explicit production confirmation;
+4. explicit production confirmation and a change reference for traceability;
 5. bounded local evidence and visible outcome;
 6. rollback front door;
 7. tutorial wired into SysAdminSuite discoverability;
-8. no weakening of the engine's managed-OU, authorization, change-ceiling, verification, or drift guards.
+8. no weakening of the engine's managed-OU, change-ceiling, verification, drift, or organizational-approval requirements.
 
 ## Proof ceilings
 
-- Repository/Pester/CI proof: syntax and safety contracts only; **no live AD mutation**.
+- Repository/Pester/CI proof: syntax and safety contracts only; **no live AD mutation and no external approval validation**.
 - Gate 2: live directory lookup + plan evidence; **no OU mutation**.
 - Gate 3: one-host forward OU placement proof.
 - Gate 4: one-host reversible move proof.
