@@ -8,7 +8,11 @@ if "%~1"=="" (
   exit /b 2
 )
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1" -ComputerName "%~1" -RepositoryRoot "%~dp0" -ConfirmDeployment
+rem %~dp0 always ends in a backslash. Normalize it through "." before the
+rem powershell.exe -File boundary so the closing quote cannot absorb the
+rem following -ConfirmDeployment switch on Windows command-line parsing.
+set "SAS_ROOT=%~dp0."
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1" -ComputerName "%~1" -RepositoryRoot "%SAS_ROOT%" -ConfirmDeployment
 set "SAS_EXIT=%ERRORLEVEL%"
 
 echo.
