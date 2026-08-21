@@ -4,6 +4,8 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 PLATFORM = ROOT / 'scripts' / 'SasFieldPlatform.psm1'
+NETWORK_INTENT = ROOT / 'scripts' / 'SasNetworkIntent.psm1'
+NETWORK_WRAPPER = ROOT / 'scripts' / 'Invoke-SasNetworkAwareField.ps1'
 LAUNCHER = ROOT / 'scripts' / 'Invoke-SasUniversalField.ps1'
 INSTALLER = ROOT / 'scripts' / 'Install-SasUniversalFieldLauncher.ps1'
 PRINTER_BOOTSTRAP = ROOT / 'Bootstrap-SysAdminSuitePrinter.ps1'
@@ -20,6 +22,8 @@ def read(path: Path) -> str:
 
 def main() -> None:
     platform = read(PLATFORM)
+    network_intent = read(NETWORK_INTENT)
+    network_wrapper = read(NETWORK_WRAPPER)
     launcher = read(LAUNCHER)
     installer = read(INSTALLER)
     printer_bootstrap = read(PRINTER_BOOTSTRAP)
@@ -50,6 +54,32 @@ def main() -> None:
     assert "Set-Content -LiteralPath $path" in platform
     assert "catch {" in platform
 
+    # The installed shim now owns only command-level network intent/canary and bounded saved-WLAN
+    # restoration. The existing universal dispatcher remains product authority underneath it.
+    for marker in (
+        "SasNetworkIntent.psm1",
+        "Invoke-SasUniversalField.ps1",
+        "'refresh' { $intent = 'InternetSync' }",
+        "'printer' { $intent = 'ProtectedNorthwell' }",
+        "'clipboard' { $intent = 'LocalOnly' }",
+        "Enter-SasNetworkIntent",
+        "Restore-SasNetworkIntent",
+        "& powershell.exe @childArgs",
+    ):
+        assert marker in network_wrapper, marker
+    assert network_wrapper.index('Enter-SasNetworkIntent') < network_wrapper.index('& powershell.exe @childArgs') < network_wrapper.index('Restore-SasNetworkIntent')
+
+    for marker in (
+        "NETWORK REQUIRED:",
+        "CURRENT NETWORK:",
+        "CURRENT AUTHORITY:",
+        "AUTO-SWITCH:",
+        "SAS_NETWORK_TRANSITION_MANUAL_VPN_REQUIRED",
+        "SAS_NETWORK_RESTORE_FAILED",
+        "SAVED_WLAN_PROFILE",
+    ):
+        assert marker in network_intent, marker
+
     for marker in (
         'Assert-SasProtectedNetworkAuthority', "'refresh'", "'printer'", "'clipboard'", "'autologon'", "'cybernet'",
         'Bootstrap-SysAdminSuitePrinter.ps1', 'Bootstrap-SysAdminSuiteAutoLogon.cmd', 'Reset-SasClipboard.ps1',
@@ -71,6 +101,10 @@ def main() -> None:
     assert "$sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps1'" in installer
     assert "$printerBootstrapDestination = Join-Path $installRoot 'Bootstrap-SysAdminSuitePrinter.ps1'" in installer
     assert 'Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force' in installer
+    assert "$sourceNetworkAwareLauncher = Join-Path $repoRoot 'scripts\\Invoke-SasNetworkAwareField.ps1'" in installer
+    assert "$sourceNetworkIntent = Join-Path $repoRoot 'scripts\\SasNetworkIntent.psm1'" in installer
+    assert 'Copy-Item -LiteralPath $sourceNetworkAwareLauncher -Destination $networkAwareLauncherDestination -Force' in installer
+    assert 'Copy-Item -LiteralPath $sourceNetworkIntent -Destination $networkIntentDestination -Force' in installer
 
     # AutoLogon Remote is target-mutating and must always enter the sealed crash-safe bootstrap.
     # Recover remains recovery-only and is intentionally not converted into deployment.
@@ -128,10 +162,11 @@ def main() -> None:
     assert "$repoIsUserScoped" in installer
     assert "Controller runtime distribution: LOCAL MACHINE ONLY" in installer
     assert 'Install-SasUniversalFieldLauncher.ps1' in install_cmd
-    assert 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasUniversalField.ps1" %*' in installer
+    assert 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasNetworkAwareField.ps1" %*' in installer
+    assert 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasUniversalField.ps1" %*' not in installer
     assert 'if defined SAS_RUNTIME_ROOT' not in installer
 
-    combined = '\n'.join((platform, launcher, installer, printer_bootstrap, autologon_bootstrap_cmd, autologon_bootstrap_ps1, install_cmd))
+    combined = '\n'.join((platform, network_intent, network_wrapper, launcher, installer, printer_bootstrap, autologon_bootstrap_cmd, autologon_bootstrap_ps1, install_cmd))
     for forbidden in (
         'pa_rperez26', 'CheeksMcClappeth', 'Cheex', 'Richard Perez',
         'Desktop\\dev\\SysAdminSuite', 'OG Laptop Backup',
@@ -144,6 +179,7 @@ def main() -> None:
     for marker in (
         'hardwire', 'NSLIJHS-WAB', 'authenticated VPN', 'machine-local', 'not copied to target machines',
         'username-specific path is not execution authority', 'sas printer', 'sas clipboard',
+        'NETWORK REQUIRED', 'automatic return', 'saved WLAN',
     ):
         assert marker.lower() in doc.lower(), marker
 
