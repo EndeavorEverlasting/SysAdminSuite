@@ -36,9 +36,11 @@ def main() -> None:
         "AUTOLOGON_OPERATOR_READINESS_ADMIN_REQUIRED",
         "SysAdminSuite\\bin",
         "C:\\SASAL",
+        "$runRoot = Join-Path $runtimeRoot 'runs'",
         "Machine",
         "S-1-5-32-545",
         "Invoke-SasIcacls -Path $runtimeRoot -Grant '*S-1-5-32-545:(OI)(CI)(RX)'",
+        "Invoke-SasIcacls -Path $runRoot -Grant '*S-1-5-32-545:(OI)(CI)(M)'",
         "CommonDesktopDirectory",
         "CommonDocuments",
         "Test-SasAutoLogonOperatorReadiness.ps1",
@@ -49,6 +51,7 @@ def main() -> None:
         "receipt is evidence only",
     ):
         assert marker.lower() in installer.lower(), marker
+    assert "Invoke-SasIcacls -Path $runtimeRoot -Grant '*S-1-5-32-545:(OI)(CI)(M)'" not in installer
 
     # Public Desktop entrypoint is one tracked canonical delegate, copied unchanged to ProgramData and Public Desktop.
     for marker in (
@@ -64,9 +67,16 @@ def main() -> None:
     for marker in (
         "[switch]$RequireStandardUser",
         "WindowsBuiltInRole]::Administrator",
+        "$localAdministratorsSid = 'S-1-5-32-544'",
+        "$isLocalAdministratorMember",
+        "LOCAL_ADMINISTRATOR_ACCOUNT_NOT_ALLOWED",
         "GetEnvironmentVariable('Path','Machine')",
         "Get-Command sas.cmd",
         "& $sasCmd platform",
+        "$runRoot = Join-Path $RuntimeRoot 'runs'",
+        "SAS_AUTOLOGON_OPERATOR_READINESS_WRITE_PROBE",
+        "AUTOLOGON_RUN_ROOT_WRITABLE",
+        "deployment_run_root_write_probe_passed",
         "SysAdminSuite - AutoLogon Remote.cmd",
         "SasAutoLogonPublicDesktop.cmd",
         "function Get-SasSha256Hex",
@@ -81,6 +91,7 @@ def main() -> None:
         "AUTOLOGON_RUNTIME_SEAL_VERIFIED",
         "sas-autologon-operator-readiness/v1",
         "AUTOLOGON_OPERATOR_READINESS_VERIFIED",
+        "current_account_is_local_administrator_member",
         "receipt_is_authority = $false",
         "network_activity_performed = $false",
         "target_contact_performed = $false",
@@ -107,16 +118,19 @@ def main() -> None:
         "Install-SasAutoLogonOperatorReadiness.ps1",
         "Test-SasAutoLogonOperatorReadiness.ps1",
         "scripts/SasAutoLogonPublicDesktop.cmd",
+        "github.event_name",
+        "HEAD^...HEAD",
         "git diff --check",
     ):
         assert marker in workflow, marker
 
     for marker in (
         "C:\\Users\\Public\\Documents\\SysAdminSuite",
+        "C:\\SASAL\\runs",
         "SysAdminSuite - AutoLogon Remote.cmd",
         "AUTOLOGON_OPERATOR_READINESS_VERIFIED",
         "repository/CI",
-        "standard-user",
+        "true standard-user",
         "does not deploy",
     ):
         assert marker.lower() in doc.lower(), marker

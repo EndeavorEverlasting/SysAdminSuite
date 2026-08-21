@@ -30,7 +30,13 @@ jobs:
       - name: Run readiness contract
         run: python Tests/survey/test_autologon_operator_readiness_contracts.py
       - name: Check patch whitespace
-        run: git diff --check "origin/${{ github.base_ref }}...HEAD"
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git diff --check "origin/${{ github.base_ref }}...HEAD"
+          else
+            git diff --check "HEAD^...HEAD"
+          fi
 
   windows-powershell-51:
     runs-on: windows-latest

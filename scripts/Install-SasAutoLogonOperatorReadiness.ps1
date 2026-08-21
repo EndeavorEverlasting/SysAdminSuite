@@ -10,7 +10,8 @@ and the already-prepared C:\SASAL sealed runtime. It does not contact a target o
 The installer:
 - requires an elevated administrator token;
 - requires the universal launcher under ProgramData and a machine PATH entry;
-- grants BUILTIN\Users read/execute on the installer-owned ProgramData bin;
+- grants BUILTIN\Users read/execute on the installer-owned ProgramData bin and sealed runtime;
+- prepares only the ignored C:\SASAL\runs subtree for standard-user deployment evidence writes;
 - installs the readiness verifier beside sas.cmd;
 - creates a Public Desktop AutoLogon Remote CMD that delegates to the existing network-aware dispatcher;
 - creates a Public Documents evidence directory that standard users may update.
@@ -73,6 +74,7 @@ foreach ($source in @($sourceVerifier,$sourceDesktopDelegate)) {
 $programData = if ([string]::IsNullOrWhiteSpace([string]$env:ProgramData)) { 'C:\ProgramData' } else { $env:ProgramData }
 $installRoot = Join-Path $programData 'SysAdminSuite\bin'
 $runtimeRoot = 'C:\SASAL'
+$runRoot = Join-Path $runtimeRoot 'runs'
 $requiredInstalled = @(
     (Join-Path $installRoot 'sas.cmd'),
     (Join-Path $installRoot 'Invoke-SasNetworkAwareField.ps1')
@@ -115,12 +117,16 @@ if ([string]::IsNullOrWhiteSpace($commonDocuments)) { $commonDocuments = 'C:\Use
 $evidenceRoot = Join-Path $commonDocuments 'SysAdminSuite'
 New-Item -ItemType Directory -Path $commonDesktop -Force | Out-Null
 New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
+# runs/ is repository-ignored runtime evidence. Create it explicitly so standard-user deployment never needs
+# write permission on tracked runtime content merely to create the run root.
+New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 
 # S-1-5-32-545 is BUILTIN\Users. Use the SID form so ACL setup is not tied to Windows display language.
 Invoke-SasIcacls -Path $installRoot -Grant '*S-1-5-32-545:(OI)(CI)(RX)'
-# The sealed controller runtime contains code/evidence authority but no credential material. Standard users need
-# read/execute only; this ACL changes no tracked bytes and grants no write permission.
+# The sealed controller runtime is read/execute only to standard users. Do not grant write on tracked runtime content.
 Invoke-SasIcacls -Path $runtimeRoot -Grant '*S-1-5-32-545:(OI)(CI)(RX)'
+# Deployment writes are bounded to the ignored runtime evidence subtree used by Invoke-SasAutoLogonOnsite.ps1.
+Invoke-SasIcacls -Path $runRoot -Grant '*S-1-5-32-545:(OI)(CI)(M)'
 # This directory contains public-safe, non-authoritative receipts; standard users need bounded update access.
 Invoke-SasIcacls -Path $evidenceRoot -Grant '*S-1-5-32-545:(OI)(CI)(M)'
 
@@ -131,6 +137,7 @@ Invoke-SasIcacls -Path $desktopCmdPath -Grant '*S-1-5-32-545:(RX)'
 Write-Host 'AutoLogon operator-readiness surfaces installed.' -ForegroundColor Green
 Write-Host "Machine launcher root: $installRoot"
 Write-Host "Readiness verifier: $verifierDestination"
+Write-Host "Bounded deployment run root: $runRoot"
 Write-Host "Public Desktop command: $desktopCmdPath"
 Write-Host "Public readiness evidence: $evidenceRoot"
 Write-Host 'No network activity, target contact, AutoLogon mutation, or deployment was performed by this installer.' -ForegroundColor Green

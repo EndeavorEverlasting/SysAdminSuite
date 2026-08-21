@@ -5,9 +5,10 @@ Verify that a sealed AutoLogon runtime is usable from the intended cross-user op
 
 .DESCRIPTION
 This verifier is local-only. It does not accept a target, contact a target, or start deployment.
-It proves the current token can discover and execute the machine-wide sas platform command, read the
-Public Desktop AutoLogon delegate, resolve the machine-portable sealed manifest, and pass the canonical
-full runtime seal audit.
+It proves the current account is a true non-administrator when requested, can discover and execute the
+machine-wide sas platform command, can use the bounded ignored runtime evidence root, can verify the exact
+Public Desktop AutoLogon delegate, can resolve the machine-portable sealed manifest, and can pass the
+canonical full runtime seal audit.
 
 The Public Documents receipts are intentionally non-authoritative. Deployment continues to trust only
 the existing sealed runtime, manifest authority, network gates, and crash-safe AutoLogon transaction.
@@ -78,6 +79,8 @@ if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
 else {
     $InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
 }
+$RuntimeRoot = [IO.Path]::GetFullPath($RuntimeRoot)
+$runRoot = Join-Path $RuntimeRoot 'runs'
 $commonDesktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
 if ([string]::IsNullOrWhiteSpace($commonDesktop)) { $commonDesktop = 'C:\Users\Public\Desktop' }
 $commonDocuments = [Environment]::GetFolderPath('CommonDocuments')
@@ -108,15 +111,24 @@ function Add-SasReadinessCheck {
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 $isAdministrator = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$localAdministratorsSid = 'S-1-5-32-544'
+$isLocalAdministratorMember = $false
+foreach ($group in @($identity.Groups)) {
+    if ($null -ne $group -and [string]$group.Value -eq $localAdministratorsSid) {
+        $isLocalAdministratorMember = $true
+        break
+    }
+}
 if ($RequireStandardUser) {
-    Add-SasReadinessCheck -Name 'standard_user_token' -Passed (-not $isAdministrator) `
-        -Classification $(if (-not $isAdministrator) { 'STANDARD_USER_TOKEN_CONFIRMED' } else { 'ELEVATED_TOKEN_NOT_ALLOWED' }) `
-        -Detail 'RequireStandardUser proves the verifier is running from a non-elevated token.'
+    $standardUserReady = (-not $isAdministrator -and -not $isLocalAdministratorMember)
+    Add-SasReadinessCheck -Name 'standard_user_token' -Passed $standardUserReady `
+        -Classification $(if ($standardUserReady) { 'STANDARD_USER_TOKEN_CONFIRMED' } else { 'LOCAL_ADMINISTRATOR_ACCOUNT_NOT_ALLOWED' }) `
+        -Detail 'RequireStandardUser rejects elevated tokens and UAC-filtered accounts that still belong to BUILTIN\Administrators.'
 }
 else {
     Add-SasReadinessCheck -Name 'token_posture_recorded' -Passed $true `
-        -Classification $(if ($isAdministrator) { 'ADMINISTRATOR_TOKEN' } else { 'STANDARD_USER_TOKEN' }) `
-        -Detail 'Token posture was recorded; use -RequireStandardUser for cross-user acceptance.'
+        -Classification $(if ($isAdministrator) { 'ADMINISTRATOR_TOKEN' } elseif ($isLocalAdministratorMember) { 'FILTERED_ADMINISTRATOR_TOKEN' } else { 'STANDARD_USER_TOKEN' }) `
+        -Detail 'Token posture was recorded; use -RequireStandardUser for true non-administrator cross-user acceptance.'
 }
 
 $machinePath = [Environment]::GetEnvironmentVariable('Path','Machine')
@@ -153,6 +165,39 @@ $platformReady = ($platformExit -eq 0)
 Add-SasReadinessCheck -Name 'standard_command_execution' -Passed $platformReady `
     -Classification $(if ($platformReady) { 'SAS_PLATFORM_EXECUTED' } else { 'SAS_PLATFORM_FAILED' }) `
     -Detail "Exact installed sas.cmd platform exit code: $platformExit"
+
+$runRootWritable = $false
+$runRootProbePath = ''
+$runRootDetail = 'Bounded deployment run root is missing or not writable by the current token.'
+try {
+    if (-not (Test-Path -LiteralPath $runRoot -PathType Container)) {
+        throw "Run root is missing: $runRoot"
+    }
+    $runRootProbePath = Join-Path $runRoot ('.sas-operator-readiness-' + [guid]::NewGuid().ToString('N') + '.tmp')
+    $probeText = 'SAS_AUTOLOGON_OPERATOR_READINESS_WRITE_PROBE'
+    [IO.File]::WriteAllText($runRootProbePath,$probeText,(New-Object Text.UTF8Encoding($false)))
+    $roundTrip = [IO.File]::ReadAllText($runRootProbePath,[Text.Encoding]::UTF8)
+    if ($roundTrip -ne $probeText) { throw 'Run-root write probe did not round-trip exactly.' }
+    Remove-Item -LiteralPath $runRootProbePath -Force -ErrorAction Stop
+    if (Test-Path -LiteralPath $runRootProbePath -PathType Leaf) { throw 'Run-root write probe could not be removed.' }
+    $runRootWritable = $true
+    $runRootDetail = 'Create/write/read/delete probe succeeded inside the ignored C:\SASAL\runs evidence subtree.'
+}
+catch {
+    $runRootDetail = "Run-root write probe failed: $($_.Exception.Message)"
+}
+finally {
+    if (-not [string]::IsNullOrWhiteSpace($runRootProbePath) -and (Test-Path -LiteralPath $runRootProbePath -PathType Leaf)) {
+        Remove-Item -LiteralPath $runRootProbePath -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $runRootProbePath -PathType Leaf) {
+            $runRootWritable = $false
+            $runRootDetail = 'Run-root write probe cleanup failed; readiness is blocked.'
+        }
+    }
+}
+Add-SasReadinessCheck -Name 'deployment_run_root' -Passed $runRootWritable `
+    -Classification $(if ($runRootWritable) { 'AUTOLOGON_RUN_ROOT_WRITABLE' } else { 'AUTOLOGON_RUN_ROOT_NOT_WRITABLE' }) `
+    -Detail $runRootDetail
 
 $desktopCmdPath = Join-Path $commonDesktop 'SysAdminSuite - AutoLogon Remote.cmd'
 $canonicalDesktopDelegate = Join-Path $InstallRoot 'SasAutoLogonPublicDesktop.cmd'
@@ -258,8 +303,11 @@ $receipt = [pscustomobject][ordered]@{
     classification = $classification
     require_standard_user = [bool]$RequireStandardUser
     current_token_is_administrator = [bool]$isAdministrator
+    current_account_is_local_administrator_member = [bool]$isLocalAdministratorMember
     install_root = $InstallRoot
     runtime_root = $RuntimeRoot
+    deployment_run_root = $runRoot
+    deployment_run_root_write_probe_passed = [bool]$runRootWritable
     public_desktop_command = $desktopCmdPath
     public_desktop_delegate_sha256 = if ([string]::IsNullOrWhiteSpace($desktopDelegateHash)) { $null } else { $desktopDelegateHash }
     seal_receipt_path = $sealReceiptPath
