@@ -180,6 +180,9 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
     Write-Host '  sas evidence Cybernet               OFFLINE: recover newest Cybernet evidence'
     Write-Host '  sas autologon Remote HOST           PROTECTED NORTHWELL: use sealed C:\SASAL; no Git network I/O; apply + restart'
     Write-Host '  sas autologon Recover HOST          PROTECTED NORTHWELL: recovery gate from sealed C:\SASAL'
+    Write-Host '  sas ad ou probe HOST [HOST...]      PROTECTED NORTHWELL: read-only OU + Imprivata GPO evidence and ticket notes'
+    Write-Host '  sas ad ou plan HOST "OU_DN"         PROTECTED NORTHWELL: existing OU engine, plan only'
+    Write-Host '  sas ad ou apply HOST "OU_DN" REF    PROTECTED NORTHWELL: guarded one-host OU apply; approval still external'
     Write-Host '  sas network                          Read-only Northwell network posture'
     Write-Host '  sas network HOST                     Optional one-target read-only readiness probe'
     Write-Host '  sas repo                             Print resolved repository path'
@@ -224,6 +227,12 @@ switch ($normalized) {
         exit $LASTEXITCODE
     }
     'evidence' { exit (Invoke-SasPortableRepoCommand -RepoRoot $repoRoot -RelativePath 'Find-SasEvidence.cmd' -Arguments $actualCommandArgs) }
+    'ad' {
+        $router = Join-Path -Path $repoRoot -ChildPath 'ActiveDirectory\Invoke-SasAdOu.ps1'
+        if (-not (Test-Path -LiteralPath $router -PathType Leaf)) { throw "Missing Active Directory SAS router: $router" }
+        & $router @actualCommandArgs
+        exit $LASTEXITCODE
+    }
     'network' {
         if ($actualCommandArgs.Count -eq 0) {
             & (Join-Path -Path $repoRoot -ChildPath 'scripts\Confirm-SasNorthwellNetwork.ps1') -Purpose 'manual SysAdminSuite operator check'
