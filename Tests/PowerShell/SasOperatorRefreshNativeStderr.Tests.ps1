@@ -35,6 +35,14 @@ if ($null -eq $functionAst) {
 
 . ([scriptblock]::Create($functionAst.Extent.Text))
 
+$refreshText = Get-Content -LiteralPath $refreshPath -Raw
+if ($refreshText -match '(?m)^\s*\$LASTEXITCODE\s*=') {
+    throw 'Refresh script must not create an unscoped LASTEXITCODE shadow before native execution.'
+}
+if ($refreshText -notmatch '\$global:LASTEXITCODE') {
+    throw 'Refresh script must capture native exit codes from the global automatic variable.'
+}
+
 $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $gitCommand) {
     $gitCommand = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -65,9 +73,8 @@ $rawStderrPath = Join-Path $env:TEMP ('sas-refresh-raw-git-' + [guid]::NewGuid()
 $previousPreference = $ErrorActionPreference
 try {
     $ErrorActionPreference = 'Continue'
-    $LASTEXITCODE = 0
     & $script:SasGitExe -C $repoRoot 'rev-parse' '--verify' $missingRef 2> $rawStderrPath | Out-Null
-    $rawExit = [int]$LASTEXITCODE
+    $rawExit = [int]$global:LASTEXITCODE
     $rawStderr = if (Test-Path -LiteralPath $rawStderrPath) {
         [string](Get-Content -LiteralPath $rawStderrPath -Raw -ErrorAction SilentlyContinue)
     } else { '' }
