@@ -113,6 +113,9 @@ New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
 
 # S-1-5-32-545 is BUILTIN\Users. Use the SID form so ACL setup is not tied to Windows display language.
 Invoke-SasIcacls -Path $installRoot -Grant '*S-1-5-32-545:(OI)(CI)(RX)'
+# The sealed controller runtime contains code/evidence authority but no credential material. Standard users need
+# read/execute only; this ACL changes no tracked bytes and grants no write permission.
+Invoke-SasIcacls -Path $runtimeRoot -Grant '*S-1-5-32-545:(OI)(CI)(RX)'
 # This directory contains public-safe, non-authoritative receipts; standard users need bounded update access.
 Invoke-SasIcacls -Path $evidenceRoot -Grant '*S-1-5-32-545:(OI)(CI)(M)'
 

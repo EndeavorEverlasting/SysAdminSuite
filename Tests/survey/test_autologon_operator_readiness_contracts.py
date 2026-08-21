@@ -36,6 +36,7 @@ def main() -> None:
         "C:\\SASAL",
         "Machine",
         "S-1-5-32-545",
+        "Invoke-SasIcacls -Path $runtimeRoot -Grant '*S-1-5-32-545:(OI)(CI)(RX)'",
         "CommonDesktopDirectory",
         "CommonDocuments",
         "Test-SasAutoLogonOperatorReadiness.ps1",

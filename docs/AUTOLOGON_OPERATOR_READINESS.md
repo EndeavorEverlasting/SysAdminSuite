@@ -26,7 +26,7 @@ C:\SASAL\Install-AutoLogonOperatorReadiness.cmd
 
 The installer requires the machine-wide ProgramData launcher and the runtime-local v2 manifest to already
 exist. It adds the ProgramData bin to **Machine PATH** when necessary, grants BUILTIN\Users read/execute on
-that installer-owned bin, installs the verifier, creates a Public Desktop delegate named
+that installer-owned bin **and on the sealed `C:\SASAL` runtime**, installs the verifier, creates a Public Desktop delegate named
 `SysAdminSuite - AutoLogon Remote.cmd`, and prepares:
 
 ```text
