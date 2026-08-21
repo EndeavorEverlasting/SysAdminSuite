@@ -154,7 +154,7 @@ def test_documentation_contains_network_matrix_and_canary_rule() -> None:
         "GUEST / INTERNET",
         "PROTECTED NORTHWELL",
         "LOCAL / ANY",
-        "DomainAuthenticated VPN",
+        "`DomainAuthenticated` VPN",
         "saved WLAN",
         "VPN",
         "restore",
