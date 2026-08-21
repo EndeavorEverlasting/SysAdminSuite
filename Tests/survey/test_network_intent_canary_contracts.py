@@ -54,6 +54,10 @@ def test_invalid_or_incomplete_shapes_cannot_trigger_protected_switch() -> None:
     text = read(WRAPPER)
     for marker in (
         "Test-SasPrinterShapeForNetworkTransition",
+        "$values = @($Arguments)",
+        "if ($values.Count -gt 2) { return $false }",
+        "if ($modeSeen) { return $false }",
+        "if ($offlineSeen) { return $false }",
         "if ($actualArgs.Count -eq 0) { $intent = 'InternetSync' }",
         "elseif ($actualArgs.Count -eq 1) { $intent = 'ProtectedNorthwell' }",
         "if ($actualArgs.Count -eq 2 -and",
@@ -61,9 +65,6 @@ def test_invalid_or_incomplete_shapes_cannot_trigger_protected_switch() -> None:
         "Invalid/incomplete shapes still flow to the canonical dispatcher",
     ):
         assert marker in text, marker
-    assert "if ($actualArgs.Count -gt 2) { return $false }" in text
-    assert "if ($modeSeen) { return $false }" in text
-    assert "if ($offlineSeen) { return $false }" in text
 
 
 def test_saved_wlan_switching_is_transactional_and_restored() -> None:
