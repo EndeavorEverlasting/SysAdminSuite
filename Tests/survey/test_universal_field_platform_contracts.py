@@ -59,8 +59,10 @@ def main() -> None:
     for marker in (
         "SasNetworkIntent.psm1",
         "Invoke-SasUniversalField.ps1",
-        "'refresh' { $intent = 'InternetSync' }",
-        "'printer' { $intent = 'ProtectedNorthwell' }",
+        "'refresh'",
+        "$intent = 'InternetSync'",
+        "'printer'",
+        "$intent = 'ProtectedNorthwell'",
         "'clipboard' { $intent = 'LocalOnly' }",
         "Enter-SasNetworkIntent",
         "Restore-SasNetworkIntent",
