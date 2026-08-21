@@ -54,10 +54,14 @@ def test_audit_is_full_set_git_free_and_pre_transaction() -> None:
         assert forbidden.lower() not in text.lower(), forbidden
 
 
-def test_manifest_authority_survives_user_profile_changes_without_target_contact() -> None:
+def test_manifest_authority_survives_profiles_and_tracks_runtime_identity_without_git() -> None:
     text = read(RESOLVER)
     for marker in (
         ".git\\sas-autologon-short-runtime.json",
+        ".git\\HEAD",
+        "Get-SasRuntimeDetachedHeadCommit",
+        "runtime_head_commit",
+        "prepared commit does not match runtime detached HEAD",
         "CURRENT_USER_LEGACY",
         "BOUNDED_PROFILE_LEGACY",
         "RUNTIME_LOCAL",
@@ -148,13 +152,17 @@ def test_windows_fixture_executes_multi_drift_malformed_and_pass_cases() -> None
     assert "Get-FileHash" in text  # fixture explicitly proves the production audit never depends on it
 
 
-def test_windows_authority_fixture_proves_migration_reuse_and_conflict_block() -> None:
+def test_windows_authority_fixture_proves_migration_profile_reuse_refresh_and_conflict_block() -> None:
     text = read(AUTHORITY_FIXTURE)
     for marker in (
         "BOUNDED_PROFILE_LEGACY",
         "Runtime-local authority copy was not created",
         "RUNTIME_LOCAL",
         "survive a simulated user-profile change",
+        "Refresh authority replacement failed",
+        "Runtime-local authority was not replaced with the newly staged commit",
+        "runtime_head_commit",
+        "CURRENT_USER_LEGACY",
         "Expected conflicting authorities to fail with exit 12",
         "AUTOLOGON_MANIFEST_AMBIGUOUS",
         "network_activity_performed",
