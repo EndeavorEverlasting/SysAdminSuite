@@ -88,26 +88,21 @@ function Write-SasNetworkCanary {
     return $state
 }
 
-function Get-SasSavedWlanProfiles {
+function Test-SasSavedWlanProfile {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$RepoRoot,
+        [Parameter(Mandatory=$true)][string]$ProfileName,
         [ValidateRange(3,30)][int]$NativeTimeoutSeconds=10
     )
 
     Import-SasNetworkIntentDependencies -RepoRoot $RepoRoot
     $netsh = Join-Path $env:WINDIR 'System32\netsh.exe'
-    $result = Invoke-SasBoundedNative -FilePath $netsh -Arguments @('wlan','show','profiles') -TimeoutSeconds $NativeTimeoutSeconds
-    if ($result.timed_out) { throw "Timed out listing saved WLAN profiles after $NativeTimeoutSeconds seconds." }
-    if ($result.exit_code -ne 0) { throw "Could not list saved WLAN profiles. Exit=$($result.exit_code) $($result.error)" }
-
-    $profiles = @()
-    foreach ($line in (([string]$result.output) -split "`r?`n")) {
-        if ($line -notmatch '^\s*(?:All User Profile|User Profile)\s*:\s*(.+?)\s*$') { continue }
-        $name = $Matches[1].Trim()
-        if ($name -and $profiles -notcontains $name) { $profiles += $name }
-    }
-    return @($profiles)
+    # Do not parse localized netsh labels. Ask Windows for the exact profile and use only
+    # the native exit code as profile-existence proof.
+    $result = Invoke-SasBoundedNative -FilePath $netsh -Arguments @('wlan','show','profile',("name={0}" -f $ProfileName)) -TimeoutSeconds $NativeTimeoutSeconds
+    if ($result.timed_out) { throw "Timed out validating saved WLAN profile after $NativeTimeoutSeconds seconds: $ProfileName" }
+    return ($result.exit_code -eq 0)
 }
 
 function Invoke-SasSavedWlanConnect {
@@ -120,8 +115,9 @@ function Invoke-SasSavedWlanConnect {
     )
 
     Import-SasNetworkIntentDependencies -RepoRoot $RepoRoot
-    $saved = @(Get-SasSavedWlanProfiles -RepoRoot $RepoRoot -NativeTimeoutSeconds $NativeTimeoutSeconds)
-    if ($saved -notcontains $ProfileName) { throw "Automatic WLAN transition refused: profile is not saved in Windows: $ProfileName" }
+    if (-not (Test-SasSavedWlanProfile -RepoRoot $RepoRoot -ProfileName $ProfileName -NativeTimeoutSeconds $NativeTimeoutSeconds)) {
+        throw "Automatic WLAN transition refused: exact saved profile is unavailable in Windows: $ProfileName"
+    }
 
     $netsh = Join-Path $env:WINDIR 'System32\netsh.exe'
     $result = Invoke-SasBoundedNative -FilePath $netsh -Arguments @('wlan','connect',("name={0}" -f $ProfileName)) -TimeoutSeconds $NativeTimeoutSeconds
@@ -353,4 +349,4 @@ function Restore-SasNetworkIntent {
     Write-Host "NETWORK RESTORED: $($after.classification) [$($after.label)] / $($after.authority)" -ForegroundColor Green
 }
 
-Export-ModuleMember -Function Get-SasNetworkIntentDefinition,Get-SasNetworkIntentState,Write-SasNetworkCanary,Get-SasSavedWlanProfiles,Invoke-SasSavedWlanConnect,Read-SasInternetReturnBookmark,Write-SasProtectedWlanBookmark,Read-SasProtectedWlanBookmark,Enter-SasNetworkIntent,Restore-SasNetworkIntent
+Export-ModuleMember -Function Get-SasNetworkIntentDefinition,Get-SasNetworkIntentState,Write-SasNetworkCanary,Test-SasSavedWlanProfile,Invoke-SasSavedWlanConnect,Read-SasInternetReturnBookmark,Write-SasProtectedWlanBookmark,Read-SasProtectedWlanBookmark,Enter-SasNetworkIntent,Restore-SasNetworkIntent
