@@ -1,0 +1,91 @@
+{
+  "schema_version": "sas-cybernet-hardware-identity-artifact-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "identity_policy": {
+    "confirmation_requires": [
+      "observed_serial",
+      "observed_model",
+      "approved_hardware_reference_match"
+    ],
+    "non_authoritative_signals": [
+      "hostname_convention",
+      "software_footprint",
+      "software_absence",
+      "active_directory_object",
+      "dns_resolution",
+      "icmp_reachability",
+      "open_tcp_port",
+      "subnet_or_site_inference"
+    ],
+    "software_absence_disqualifies": false,
+    "hostname_convention_confirms": false,
+    "reachability_confirms": false,
+    "missing_model_action": "IDENTITY_INCOMPLETE",
+    "missing_serial_action": "IDENTITY_INCOMPLETE",
+    "conflicting_identity_action": "BLOCK_PROFILE_SELECTION",
+    "confirmed_non_cybernet_action": "KEEP_AS_KNOWN_DEVICE_EXCLUDE_FROM_CYBERNET_TARGETS",
+    "live_reference_tracking": "local_untracked_or_approved_external_source"
+  },
+  "artifact_types": [
+    {
+      "id": "candidate-network-preflight",
+      "producer": "sas network probe <explicit-hosts> or survey/sas-network-preflight.ps1",
+      "canonical_path": "survey/output/network_preflight/",
+      "tracking": "untracked",
+      "proof": "candidate reachability, DNS resolution, and selected port posture only",
+      "identity_fields": {
+        "serial": false,
+        "model": false
+      },
+      "notes": "A response or open port never confirms Cybernet identity."
+    },
+    {
+      "id": "workstation-identity",
+      "producer": "bash/transport/sas-workstation-identity.sh with an approved read-only identity transport",
+      "canonical_path": "bash/transport/output/workstation_identity.csv",
+      "tracking": "untracked",
+      "proof": "observed hostname, serial, and MAC when an approved transport succeeds",
+      "identity_fields": {
+        "serial": true,
+        "model": false
+      },
+      "notes": "The current adapter can earn serial evidence but cannot by itself satisfy the model requirement."
+    },
+    {
+      "id": "local-model-identity",
+      "producer": "QRTasks/Get-ModelInfo.ps1 on the observed workstation or another approved read-only hardware source",
+      "canonical_path": "GetInfo/Output/QRTasks/ModelInfo_<host>.txt",
+      "tracking": "untracked",
+      "proof": "manufacturer, model, product identity, BIOS serial, BIOS version, and baseboard identity from local CIM",
+      "identity_fields": {
+        "serial": true,
+        "model": true
+      },
+      "notes": "Use only as evidence for the machine on which the hardware query actually ran."
+    },
+    {
+      "id": "cybernet-hardware-decision",
+      "producer": "harness/workflows/cybernet-hardware-identity-discovery.yaml after exact serial/model comparison",
+      "canonical_path": "survey/output/cybernet-hardware-identity/decision_<runid>.json",
+      "tracking": "untracked",
+      "proof": "classification plus evidence/reference pointers without embedding live inventory in Git",
+      "identity_fields": {
+        "serial": true,
+        "model": true
+      },
+      "notes": "Only CONFIRMED_CYBERNET may cross the device-profile gate."
+    },
+    {
+      "id": "cybernet-hardware-identity-status",
+      "producer": "tracked harness operator report",
+      "canonical_path": "harness/reports/CYBERNET_HARDWARE_IDENTITY_STATUS.md",
+      "tracking": "tracked",
+      "proof": "English summary of working paths, known traps, gaps, validation, and proof ceiling",
+      "identity_fields": {
+        "serial": false,
+        "model": false
+      },
+      "notes": "Contains no live hostnames, serials, model allowlists, or private deployment inventory."
+    }
+  ]
+}

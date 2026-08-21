@@ -1,0 +1,121 @@
+name: Cybernet hardware identity harness
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**', 'harness/**']
+    paths:
+      - 'harness/api/cybernet-hardware-identity-artifact-registry.json'
+      - 'schemas/harness/cybernet-hardware-identity-artifact-registry.schema.json'
+      - 'harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md'
+      - 'harness/workflows/cybernet-hardware-identity-discovery.yaml'
+      - 'harness/skills/cybernet-hardware-identity/SKILL.md'
+      - 'harness/reports/CYBERNET_HARDWARE_IDENTITY_STATUS.md'
+      - 'harness/validators/validate-cybernet-hardware-identity.py'
+      - 'Tests/survey/test_cybernet_hardware_identity_harness_completeness.py'
+      - 'harness/README.md'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - 'survey/sas-network-preflight.ps1'
+      - 'bash/transport/sas-network-preflight.sh'
+      - 'bash/transport/sas-workstation-identity.sh'
+      - 'bash/transport/sas-wmi-identity.sh'
+      - 'QRTasks/Get-ModelInfo.ps1'
+      - 'Config/cybernet-client-preferences.json'
+      - 'AGENTS.md'
+      - '.github/workflows/cybernet-hardware-identity-harness.yml'
+  pull_request:
+    paths:
+      - 'harness/api/cybernet-hardware-identity-artifact-registry.json'
+      - 'schemas/harness/cybernet-hardware-identity-artifact-registry.schema.json'
+      - 'harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md'
+      - 'harness/workflows/cybernet-hardware-identity-discovery.yaml'
+      - 'harness/skills/cybernet-hardware-identity/SKILL.md'
+      - 'harness/reports/CYBERNET_HARDWARE_IDENTITY_STATUS.md'
+      - 'harness/validators/validate-cybernet-hardware-identity.py'
+      - 'Tests/survey/test_cybernet_hardware_identity_harness_completeness.py'
+      - 'harness/README.md'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - 'survey/sas-network-preflight.ps1'
+      - 'bash/transport/sas-network-preflight.sh'
+      - 'bash/transport/sas-workstation-identity.sh'
+      - 'bash/transport/sas-wmi-identity.sh'
+      - 'QRTasks/Get-ModelInfo.ps1'
+      - 'Config/cybernet-client-preferences.json'
+      - 'AGENTS.md'
+      - '.github/workflows/cybernet-hardware-identity-harness.yml'
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install schema validator
+        run: python -m pip install --disable-pip-version-check jsonschema
+
+      - name: Compile harness validators
+        run: |
+          python -m py_compile harness/validators/validate-cybernet-hardware-identity.py
+          python -m py_compile Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
+
+      - name: Validate Cybernet hardware identity harness
+        run: |
+          python harness/validators/validate-cybernet-hardware-identity.py
+          python Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
+
+      - name: Validate hook syntax
+        run: |
+          bash -n .githooks/pre-commit
+          bash -n .githooks/pre-push
+
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            git show --check --oneline --no-renames HEAD
+          else
+            git fetch origin "$before" "${{ github.sha }}" --depth=1
+            git diff --check "$before" "${{ github.sha }}"
+          fi
+
+  windows-product-truth:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Parse local model identity source under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'QRTasks\Get-ModelInfo.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if (@($errors).Count -gt 0) {
+            $errors | Format-List * | Out-Host
+            throw 'Windows PowerShell 5.1 parser rejected QRTasks\Get-ModelInfo.ps1'
+          }

@@ -40,6 +40,8 @@ echo "[sas-harness] pre-commit: validating the exact staged snapshot"
   python3 harness/validators/validate-operator-execution-route.py
   python3 harness/validators/validate-terminal-evidence-survival.py
   python3 harness/validators/validate-printer-mapping-use-cases.py
+  python3 harness/validators/validate-cybernet-hardware-identity.py
+  python3 Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
   python3 Tests/survey/test_operational_harness_completeness_contracts.py
   python3 scripts/check-repo-text-policy.py --cached
   python3 Tests/survey/test_local_harness_contracts.py
