@@ -3,10 +3,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 REPAIR = ROOT / "scripts" / "Repair-SasAutoLogonShortRuntimeForRefresh.ps1"
+REFRESH = ROOT / "scripts" / "Refresh-SasOperatorCommand.ps1"
 
 
 def main() -> None:
     text = REPAIR.read_text(encoding="utf-8-sig")
+    refresh = REFRESH.read_text(encoding="utf-8-sig")
 
     required = (
         "[string]$RuntimeRoot = 'C:\\SASAL'",
@@ -51,6 +53,19 @@ def main() -> None:
     receipt = text.index("$receipt | ConvertTo-Json")
     ready = text.index("SAS_SHORT_RUNTIME_PRESERVED_FOR_REFRESH")
     assert move < verify < receipt < ready
+
+    for marker in (
+        "scripts\\Repair-SasAutoLogonShortRuntimeForRefresh.ps1",
+        "$runtimeRepair = Join-Path $fieldReady 'scripts\\Repair-SasAutoLogonShortRuntimeForRefresh.ps1'",
+        "PREPARING GENERATED SHORT AUTOLOGON RUNTIME FOR CLEAN REFRESH",
+        "-File $runtimeRepair -RuntimeRoot 'C:\\SASAL'",
+        "Short AutoLogon runtime preservation failed",
+    ):
+        assert marker in refresh, f"refresh lost runtime self-heal marker: {marker}"
+
+    repair_call = refresh.index("-File $runtimeRepair -RuntimeRoot 'C:\\SASAL'")
+    stage_call = refresh.index("-File $runtimePreparer")
+    assert repair_call < stage_call, "dirty generated runtime must be preserved before short-runtime staging"
 
     print("PASS: AutoLogon short-runtime preservation contracts")
 
