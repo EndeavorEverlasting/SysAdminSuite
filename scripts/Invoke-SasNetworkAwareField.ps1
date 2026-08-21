@@ -54,6 +54,22 @@ function Test-SasPrinterShapeForNetworkTransition {
     return $true
 }
 
+function Test-SasAdOuShapeForNetworkTransition {
+    [CmdletBinding()]
+    param([string[]]$Arguments)
+
+    $values = @($Arguments)
+    if ($values.Count -lt 3) { return $false }
+    if (([string]$values[0]).Trim().ToLowerInvariant() -ne 'ou') { return $false }
+    $mode = ([string]$values[1]).Trim().ToLowerInvariant()
+    switch ($mode) {
+        'probe' { return ($values.Count -ge 3 -and $values.Count -le 27) }
+        'plan' { return ($values.Count -eq 4) }
+        'apply' { return ($values.Count -eq 5) }
+        default { return $false }
+    }
+}
+
 # Determine whether a command can actually reach a network-sensitive product path before any
 # WLAN transition is allowed. Invalid/incomplete shapes still flow to the canonical dispatcher for
 # its usage/error result, but they remain CommandSpecific so they cannot cause a disruptive switch.
@@ -70,6 +86,9 @@ switch ($normalized) {
     'network' {
         if ($actualArgs.Count -eq 0) { $intent = 'LocalOnly' }
         elseif ($actualArgs.Count -eq 1) { $intent = 'ProtectedNorthwell' }
+    }
+    'ad' {
+        if (Test-SasAdOuShapeForNetworkTransition -Arguments $actualArgs) { $intent = 'ProtectedNorthwell' }
     }
     'autologon' {
         if ($actualArgs.Count -eq 2 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -in @('remote','recover')) {
