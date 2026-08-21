@@ -1,6 +1,5 @@
 # Agent Governance for SysAdminSuite
 `AGENTS.md` is the repository-root governance contract and the single source of truth for how agents operate in SysAdminSuite. Compact routing lives here; detailed procedures remain in task skills under `.claude/skills/`, reusable rules in `.claude/capabilities/`, and machine-readable execution contracts under `harness/`.
-
 ## Required loading sequence
 1. Read this governance contract.
 2. Inspect the current Git state and preserve existing work.
@@ -40,6 +39,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 
 ## Device-profile and deployment doctrine
 - Establish the equipment profile before configuration or package selection. Serial number, hostname, MAC address, model, subnet, or probe response is identity evidence, not permission to infer a profile.
+- **Organization boundaries are profile boundaries:** organization and site/hospital context are independent profile authorities. Resolve both the organization/site profile and the equipment profile before selecting mutation behavior. A shared device class does not make protocols portable across organizations, and one profile layer must not override the particulars of the other. Northwell, NYC Health + Hospitals (Health & Hospitals), Mount Sinai, and independently operated sites must not inherit one another's authentication, network, kiosk login/startup, update, deployment, launcher, or proof rules. Unknown, ambiguous, conflicting, or unsupported organization/site evidence fails closed to discovery or read-only review. Do not reuse another organization's defaults as a convenience fallback.
 - Profiles are separate authorities. Cybernet, shared/user-login workstation, Neuron, tablet, Kronos clock, and any other equipment class must never inherit one another's settings, packages, probes, validators, or completion claims.
 - Unknown, ambiguous, conflicting, or unsupported profile evidence fails closed to read-only review. A probe must report the mismatch and must not relabel the device, select a package set, or mutate it.
 - The current Cybernet clinical-workstation authority is `Config/cybernet-client-preferences.json`; its standards apply only after the target is proven eligible for that profile.

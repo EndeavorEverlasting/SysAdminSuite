@@ -52,6 +52,18 @@ REQUIRED_MARKERS = (
     "Secret, credential",
 )
 
+ORGANIZATION_PROFILE_MARKERS = (
+    "Organization boundaries are profile boundaries",
+    "organization and site/hospital context are independent profile authorities",
+    "Resolve both the organization/site profile and the equipment profile before selecting mutation behavior.",
+    "one profile layer must not override the particulars of the other",
+    "Northwell, NYC Health + Hospitals (Health & Hospitals), Mount Sinai",
+    "independently operated sites",
+    "must not inherit one another's authentication, network, kiosk login/startup, update, deployment, launcher, or proof rules",
+    "Unknown, ambiguous, conflicting, or unsupported organization/site evidence fails closed to discovery or read-only review.",
+    "Do not reuse another organization's defaults as a convenience fallback.",
+)
+
 PROFILE_MARKERS = (
     "Serial number, hostname, MAC address, model, subnet, or probe response is identity evidence, not permission to infer a profile.",
     "Cybernet, shared/user-login workstation, Neuron, tablet, Kronos clock",
@@ -126,6 +138,18 @@ def assert_headings_and_markers(text: str) -> None:
         assert marker in text, f"missing governance marker: {marker}"
 
 
+def assert_organization_profile_doctrine(text: str) -> None:
+    section = text.split("## Device-profile and deployment doctrine", 1)[1].split(
+        "## Technician execution doctrine", 1
+    )[0]
+    indexes = []
+    for marker in ORGANIZATION_PROFILE_MARKERS:
+        index = section.find(marker)
+        assert index >= 0, f"missing organization-profile doctrine marker: {marker}"
+        indexes.append(index)
+    assert indexes == sorted(indexes), "organization-profile doctrine markers are out of contract order"
+
+
 def assert_precedence_order(text: str) -> None:
     section = text.split("## Instruction precedence", 1)[1].split("## Mandatory sprint declaration", 1)[0]
     ordered = (
@@ -176,13 +200,15 @@ def main() -> int:
     text = read_governance()
     assert_tracked()
     assert_headings_and_markers(text)
+    assert_organization_profile_doctrine(text)
     assert_precedence_order(text)
     assert_cybernet_profile_contract()
     assert_compact_and_safe(text)
     print("[PASS] Governance, validator, and consumed profile authorities are tracked")
     print("[PASS] AGENTS.md is ordered, compact, safe, and governance-complete")
+    print("[PASS] Governance text contains ordered organization/site boundary markers for kiosk/update policy isolation")
     print("[PASS] Governance requires clickable CMD technician entrypoints, short-hostname resolution, and dry-run/live-cert gates")
-    print("[PASS] Governance text fails closed across profiles and forbids AutoLogon on shared/user-login profiles")
+    print("[PASS] Governance text fails closed across equipment profiles and forbids AutoLogon on shared/user-login profiles")
     print("[PASS] The current Cybernet profile selects AutoLogon exactly once and last")
     print("[PASS] Python-generated SysAdminSuite VM doctrine is explicit and fail-closed")
     return 0
