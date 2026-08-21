@@ -63,15 +63,14 @@ function Invoke-SasRefreshGit {
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        $LASTEXITCODE = 0
         $stdout = @()
         $exitCode = 0
         if ([string]::IsNullOrWhiteSpace($Root)) {
             $stdout = @(& $script:SasGitExe @Arguments 2> $stderrPath)
-            $exitCode = [int]$LASTEXITCODE
+            $exitCode = [int]$global:LASTEXITCODE
         } else {
             $stdout = @(& $script:SasGitExe -C $Root @Arguments 2> $stderrPath)
-            $exitCode = [int]$LASTEXITCODE
+            $exitCode = [int]$global:LASTEXITCODE
         }
     }
     finally {
@@ -238,17 +237,17 @@ if ([string]$currentNetwork.classification -ne 'GUEST_INTERNET' -or
 $runtimePreparer = Join-Path $fieldReady 'scripts\Prepare-SasAutoLogonShortRuntime.ps1'
 Write-Host ''
 Write-Host 'STAGING SHORT AUTOLOGON RUNTIME BEFORE LEAVING GUEST' -ForegroundColor Cyan
-$LASTEXITCODE = 0
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $runtimePreparer `
     -SourceRoot $fieldReady -RuntimeRoot 'C:\SASAL' -ExpectedCommit $head
-if ($LASTEXITCODE -ne 0) {
-    throw "Short AutoLogon runtime staging failed with exit code $LASTEXITCODE. Remain on Guest/Internet and repair before protected deployment."
+$runtimePreparerExitCode = [int]$global:LASTEXITCODE
+if ($runtimePreparerExitCode -ne 0) {
+    throw "Short AutoLogon runtime staging failed with exit code $runtimePreparerExitCode. Remain on Guest/Internet and repair before protected deployment."
 }
 
 $installer = Join-Path $fieldReady 'scripts\Install-SasPortableLauncher.ps1'
-$LASTEXITCODE = 0
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $installer
-if ($LASTEXITCODE -ne 0) { throw "Operator-command refresh installer failed with exit code $LASTEXITCODE" }
+$installerExitCode = [int]$global:LASTEXITCODE
+if ($installerExitCode -ne 0) { throw "Operator-command refresh installer failed with exit code $installerExitCode" }
 
 $returnBookmark = [pscustomobject][ordered]@{
     schema_version='sas-operator-return-network/v1'
