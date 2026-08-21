@@ -33,17 +33,18 @@ foreach ($forbidden in @(
     }
 }
 foreach ($required in @(
-    "Win32_ComputerSystem",
-    "Win32_ComputerSystemProduct",
-    "Win32_BIOS",
-    "Win32_BaseBoard",
-    "Win32_OperatingSystem",
-    "Win32_Processor",
-    "Win32_SerialPort",
-    "Win32_NetworkAdapterConfiguration",
-    "SerialAndModelRequiredForHardwareComparison",
-    "NONE_READ_ONLY_DISCOVERY",
-    "TargetMutationPerformed = $false"
+    'Win32_ComputerSystem',
+    'Win32_ComputerSystemProduct',
+    'Win32_BIOS',
+    'Win32_BaseBoard',
+    'Win32_OperatingSystem',
+    'Win32_Processor',
+    'Win32_SerialPort',
+    'Win32_NetworkAdapterConfiguration',
+    'SerialAndModelRequiredForHardwareComparison',
+    'NONE_READ_ONLY_DISCOVERY',
+    'TargetMutationPerformed = $false',
+    'SysAdminSuite\Evidence\WorkstationProfile'
 )) {
     if (-not $source.Contains($required)) { throw "Missing required comparison/read-only contract marker: $required" }
 }
@@ -55,7 +56,7 @@ if (-not $cmdSource.Contains('TangentCandidate')) { throw 'Tangent CMD does not 
 $tempRoot = Join-Path $env:TEMP ('sas-workstation-profile-' + [guid]::NewGuid().ToString('N'))
 try {
     New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $probePath -ComputerName $env:COMPUTERNAME -CandidateLabel 'FixtureCandidate' -OutputRoot $tempRoot -SkipNetworkGate
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $probePath -ComputerName '.' -CandidateLabel 'FixtureCandidate' -OutputRoot $tempRoot -SkipNetworkGate
     if ($LASTEXITCODE -notin @(0,21)) { throw "Local fixture returned unexpected exit code: $LASTEXITCODE" }
 
     $json = Get-ChildItem -LiteralPath $tempRoot -Filter 'workstation_profile_*.json' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
@@ -74,4 +75,4 @@ finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host 'PASS: Tangent front door routes to a PS5.1-compatible, local-evidence-only, read-only workstation identity probe.'
+Write-Host 'PASS: Tangent front door routes to a PS5.1-compatible, operator-local-evidence-only, read-only workstation identity probe.'
