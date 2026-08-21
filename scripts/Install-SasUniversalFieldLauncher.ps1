@@ -7,12 +7,14 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $sourceLauncher = Join-Path $repoRoot 'scripts\Invoke-SasUniversalField.ps1'
+$sourceNetworkAwareLauncher = Join-Path $repoRoot 'scripts\Invoke-SasNetworkAwareField.ps1'
 $sourcePlatform = Join-Path $repoRoot 'scripts\SasFieldPlatform.psm1'
+$sourceNetworkIntent = Join-Path $repoRoot 'scripts\SasNetworkIntent.psm1'
 $sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
 $sourcePrinterTechnicianCmd = Join-Path $repoRoot 'Map-NorthwellPrinter.cmd'
 $sourceNetworkBatchProbe = Join-Path $repoRoot 'survey\sas-network-batch-probe.ps1'
 $sourceNetworkPreflight = Join-Path $repoRoot 'survey\sas-network-preflight.ps1'
-foreach ($required in @($sourceLauncher,$sourcePlatform,$sourcePrinterBootstrap,$sourceNetworkBatchProbe,$sourceNetworkPreflight)) {
+foreach ($required in @($sourceLauncher,$sourceNetworkAwareLauncher,$sourcePlatform,$sourceNetworkIntent,$sourcePrinterBootstrap,$sourceNetworkBatchProbe,$sourceNetworkPreflight)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required universal field file missing: $required" }
     $tokens = $null; $errors = $null
     [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$tokens,[ref]$errors)
@@ -86,12 +88,16 @@ else {
 $installScope = if ($machineInstall) { 'MACHINE' } else { 'CURRENT_USER_SHIM_WITH_MACHINE_RUNTIME' }
 
 $launcherDestination = Join-Path $installRoot 'Invoke-SasUniversalField.ps1'
+$networkAwareLauncherDestination = Join-Path $installRoot 'Invoke-SasNetworkAwareField.ps1'
 $platformDestination = Join-Path $installRoot 'SasFieldPlatform.psm1'
+$networkIntentDestination = Join-Path $installRoot 'SasNetworkIntent.psm1'
 $printerBootstrapDestination = Join-Path $installRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
 $printerTechnicianCmdDestination = Join-Path $installRoot 'Map-NorthwellPrinter.cmd'
 $cmdDestination = Join-Path $installRoot 'sas.cmd'
 Copy-Item -LiteralPath $sourceLauncher -Destination $launcherDestination -Force
+Copy-Item -LiteralPath $sourceNetworkAwareLauncher -Destination $networkAwareLauncherDestination -Force
 Copy-Item -LiteralPath $sourcePlatform -Destination $platformDestination -Force
+Copy-Item -LiteralPath $sourceNetworkIntent -Destination $networkIntentDestination -Force
 Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force
 Copy-Item -LiteralPath $sourcePrinterTechnicianCmd -Destination $printerTechnicianCmdDestination -Force
 
@@ -103,12 +109,14 @@ if (-not [string]::IsNullOrWhiteSpace([string]$cacheRoot) -and (Test-SasDirector
     catch { Write-Warning "Machine controller cache could not be updated; continuing without it: $($_.Exception.Message)" }
 }
 
-# The CMD shim executes only the installer-owned PowerShell copy beside itself. Environment variables
-# are interpreted later by trusted PowerShell and must pass Test-SasLocalControllerPath before use.
+# The CMD shim executes only the installer-owned network-aware PowerShell copy beside itself. That
+# wrapper prints the network canary before delegating to the existing universal dispatcher and may
+# perform only bounded saved-WLAN transitions that it can prove and restore. VPN lifecycle remains
+# fail-closed until a repository-proven client adapter exists.
 $cmd = @'
 @echo off
 setlocal EnableExtensions
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasUniversalField.ps1" %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-SasNetworkAwareField.ps1" %*
 set "SAS_EXIT=%ERRORLEVEL%"
 endlocal & exit /b %SAS_EXIT%
 '@
@@ -135,8 +143,11 @@ if (-not (($env:Path -split ';') -contains $installRoot)) { $env:Path = $env:Pat
 Write-Host 'SysAdminSuite universal field command installed.' -ForegroundColor Green
 Write-Host "Install scope: $installScope"
 Write-Host "Launcher: $cmdDestination"
+Write-Host "Network-aware launcher: $networkAwareLauncherDestination"
+Write-Host "Network intent module: $networkIntentDestination"
 Write-Host "Printer technician CMD: $printerTechnicianCmdDestination"
 Write-Host "Printer bootstrap: $printerBootstrapDestination"
-Write-Host 'Execution resolution: trusted installed shim -> validated SAS_RUNTIME_ROOT / C:\SASAL / local controller surface.'
+Write-Host 'Execution resolution: trusted installed shim -> network canary/intent -> validated universal field dispatcher.'
 Write-Host 'Protected network authority: hardwire OR NSLIJHS-WAB OR authenticated DomainAuthenticated VPN.'
+Write-Host 'Automatic switching: saved WLAN profiles only, with exact-state proof and restoration; VPN lifecycle is not guessed.'
 Write-Host 'Controller runtime distribution: LOCAL MACHINE ONLY; SysAdminSuite is not copied to target machines.' -ForegroundColor Green
