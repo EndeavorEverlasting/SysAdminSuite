@@ -155,6 +155,7 @@ def main() -> None:
         "git diff --check",
     ):
         assert marker in workflow, marker
+    assert workflow.count("persist-credentials: false") == 3
     assert 'if [[ "${{ github.event_name }}"' not in workflow
 
     for marker in (

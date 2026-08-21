@@ -23,6 +23,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -46,6 +47,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Parse operator-readiness PowerShell under Windows PowerShell 5.1
         shell: powershell
         run: |
@@ -73,6 +76,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Run bounded true-standard-user readiness E2E
         shell: powershell
         run: .\Tests\PowerShell\AutoLogonOperatorReadiness.E2E.ps1
