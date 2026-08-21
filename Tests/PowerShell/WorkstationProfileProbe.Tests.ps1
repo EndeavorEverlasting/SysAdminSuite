@@ -44,7 +44,8 @@ foreach ($required in @(
     'SerialAndModelRequiredForHardwareComparison',
     'NONE_READ_ONLY_DISCOVERY',
     'TargetMutationPerformed = $false',
-    'SysAdminSuite\Evidence\WorkstationProfile'
+    'SysAdminSuite\Evidence\WorkstationProfile',
+    '$resultArray = @($results | ForEach-Object { $_ })'
 )) {
     if (-not $source.Contains($required)) { throw "Missing required comparison/read-only contract marker: $required" }
 }
@@ -60,7 +61,8 @@ try {
     if ($LASTEXITCODE -notin @(0,21)) { throw "Local fixture returned unexpected exit code: $LASTEXITCODE" }
 
     $json = Get-ChildItem -LiteralPath $tempRoot -Filter 'workstation_profile_*.json' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-    if (-not $json) { throw 'Local fixture did not emit structured workstation profile evidence.' }
+    $csv = Get-ChildItem -LiteralPath $tempRoot -Filter 'workstation_profile_*.csv' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+    if (-not $json -or -not $csv) { throw 'Local fixture did not emit both CSV and structured JSON workstation profile evidence.' }
     $rows = @(Get-Content -LiteralPath $json.FullName -Raw -Encoding UTF8 | ConvertFrom-Json)
     if ($rows.Count -ne 1) { throw "Expected one fixture row, got $($rows.Count)." }
     $row = $rows[0]
@@ -70,6 +72,10 @@ try {
     if ([string]::IsNullOrWhiteSpace([string]$row.ObservedHostName)) { throw 'Fixture did not observe a hostname.' }
     if ([string]::IsNullOrWhiteSpace([string]$row.Model)) { throw 'Fixture did not observe a model.' }
     if ([string]$row.ProfileSelection -ne 'NONE_READ_ONLY_DISCOVERY') { throw 'Fixture selected a deployment profile.' }
+    $csvRows = @(Import-Csv -LiteralPath $csv.FullName)
+    if ($csvRows.Count -ne 1 -or [string]$csvRows[0].ObservedHostName -ne [string]$row.ObservedHostName) {
+        throw 'CSV/JSON workstation profile evidence does not agree.'
+    }
 }
 finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
