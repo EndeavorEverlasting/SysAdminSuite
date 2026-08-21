@@ -118,7 +118,9 @@ def test_native_git_stderr_handling_remains_guest_side_only() -> None:
         text = read(path)
         assert "2> $stderrPath" in text
         assert "$ErrorActionPreference = 'Continue'" in text
-        assert "$exitCode = [int]$LASTEXITCODE" in text
+        assert "$exitCode = [int]$global:LASTEXITCODE" in text
+        assert "$exitCode = [int]$LASTEXITCODE" not in text
+        assert "$LASTEXITCODE = 0" not in text
         assert "2>&1" not in text
     bootstrap = read(BOOTSTRAP)
     assert "2> $stderrPath" not in bootstrap

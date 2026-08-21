@@ -66,9 +66,8 @@ function Invoke-SasLocalGit {
     $exitCode = 0
     try {
         $ErrorActionPreference = 'Continue'
-        $LASTEXITCODE = 0
         $stdout = @(& $script:SasGitExe -C $Root @Arguments 2> $stderrPath)
-        $exitCode = [int]$LASTEXITCODE
+        $exitCode = [int]$global:LASTEXITCODE
     }
     finally {
         $ErrorActionPreference = $previousPreference
@@ -256,10 +255,10 @@ $trackedFileHashCount = $trackedFileHashes.Count
 $operatorInstaller = Join-Path $SourceRoot 'scripts\Install-SasPortableLauncher.ps1'
 Write-Host ''
 Write-Host 'REFRESHING INSTALLED SAS OPERATOR SHIM FROM SEALED SOURCE' -ForegroundColor Cyan
-$LASTEXITCODE = 0
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $operatorInstaller
-if ($LASTEXITCODE -ne 0) {
-    throw "Installed sas operator shim refresh failed with exit code $LASTEXITCODE. Protected runtime was not declared operator-ready."
+$operatorInstallerExitCode = [int]$global:LASTEXITCODE
+if ($operatorInstallerExitCode -ne 0) {
+    throw "Installed sas operator shim refresh failed with exit code $operatorInstallerExitCode. Protected runtime was not declared operator-ready."
 }
 Write-Host 'PASS: installed sas operator shim refreshed from sealed source commit.' -ForegroundColor Green
 
