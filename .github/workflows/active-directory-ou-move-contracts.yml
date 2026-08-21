@@ -1,0 +1,54 @@
+name: Active Directory OU move contracts
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'repair/**']
+    paths:
+      - 'ActiveDirectory/Move-Computers-To-OU.ps1'
+      - 'ActiveDirectory/Add-Computers-To-PrintingGroup.ps1'
+      - 'Tests/Pester/ActiveDirectoryOuMove.Tests.ps1'
+      - 'docs/ACTIVE_DIRECTORY_OU_MOVE_PILOT.md'
+      - '.github/workflows/active-directory-ou-move-contracts.yml'
+  pull_request:
+    paths:
+      - 'ActiveDirectory/Move-Computers-To-OU.ps1'
+      - 'ActiveDirectory/Add-Computers-To-PrintingGroup.ps1'
+      - 'Tests/Pester/ActiveDirectoryOuMove.Tests.ps1'
+      - 'docs/ACTIVE_DIRECTORY_OU_MOVE_PILOT.md'
+      - '.github/workflows/active-directory-ou-move-contracts.yml'
+
+jobs:
+  offline-contracts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Parse OU move engine with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'ActiveDirectory/Move-Computers-To-OU.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List *
+            exit 1
+          }
+
+      - name: Run focused Pester contracts
+        shell: pwsh
+        run: |
+          $result = Invoke-Pester -Path Tests/Pester/ActiveDirectoryOuMove.Tests.ps1 -PassThru
+          if ($result.FailedCount -gt 0) { exit 1 }
+
+      - name: Whitespace check
+        shell: bash
+        run: git diff --check HEAD^
