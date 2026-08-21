@@ -1,0 +1,57 @@
+name: AutoLogon Operator Readiness
+
+on:
+  pull_request:
+    paths:
+      - 'Install-AutoLogonOperatorReadiness.cmd'
+      - 'scripts/Install-SasAutoLogonOperatorReadiness.ps1'
+      - 'scripts/Test-SasAutoLogonOperatorReadiness.ps1'
+      - 'Tests/survey/test_autologon_operator_readiness_contracts.py'
+      - 'docs/AUTOLOGON_OPERATOR_READINESS.md'
+      - '.github/workflows/autologon-operator-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Compile readiness contract
+        run: python -m py_compile Tests/survey/test_autologon_operator_readiness_contracts.py
+      - name: Run readiness contract
+        run: python Tests/survey/test_autologon_operator_readiness_contracts.py
+      - name: Check patch whitespace
+        run: git diff --check "origin/${{ github.base_ref }}...HEAD"
+
+  windows-powershell-51:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse operator-readiness PowerShell under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($relative in @(
+            'scripts\Install-SasAutoLogonOperatorReadiness.ps1',
+            'scripts\Test-SasAutoLogonOperatorReadiness.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $relative),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -gt 0) {
+              $errors | Format-List * | Out-Host
+              throw "Windows PowerShell 5.1 parser rejected $relative"
+            }
+          }
