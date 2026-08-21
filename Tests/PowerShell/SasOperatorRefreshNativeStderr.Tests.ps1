@@ -108,3 +108,4 @@ if (-not $failureObserved) {
 }
 
 Write-Host 'PASS: sas refresh Git stderr handling accepts zero-byte stderr and preserves nonzero exit handling under Windows PowerShell 5.1.' -ForegroundColor Green
+exit 0
