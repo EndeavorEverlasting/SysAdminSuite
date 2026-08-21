@@ -11,6 +11,8 @@ python3 harness/validators/validate-outcome-contracts.py
 python3 harness/validators/validate-deployment-state-contracts.py
 python3 harness/validators/validate-terminal-evidence-survival.py
 python3 harness/validators/validate-printer-mapping-use-cases.py
+python3 harness/validators/validate-cybernet-hardware-identity.py
+python3 Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
 bash tests/survey/run_offline_survey_tests.sh
 python3 Tests/survey/test_operational_harness_completeness_contracts.py
 python3 Tests/survey/test_local_harness_contracts.py

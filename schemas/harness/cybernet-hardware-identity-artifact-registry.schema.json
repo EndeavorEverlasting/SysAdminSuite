@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/EndeavorEverlasting/SysAdminSuite/schemas/harness/cybernet-hardware-identity-artifact-registry.schema.json",
+  "title": "SysAdminSuite Cybernet Hardware Identity Artifact Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "identity_policy",
+    "artifact_types"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-cybernet-hardware-identity-artifact-registry/v1"
+    },
+    "repository": {
+      "const": "EndeavorEverlasting/SysAdminSuite"
+    },
+    "identity_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmation_requires",
+        "non_authoritative_signals",
+        "software_absence_disqualifies",
+        "hostname_convention_confirms",
+        "reachability_confirms",
+        "missing_model_action",
+        "missing_serial_action",
+        "conflicting_identity_action",
+        "confirmed_non_cybernet_action",
+        "live_reference_tracking"
+      ],
+      "properties": {
+        "confirmation_requires": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "non_authoritative_signals": {
+          "type": "array",
+          "minItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "software_absence_disqualifies": {
+          "const": false
+        },
+        "hostname_convention_confirms": {
+          "const": false
+        },
+        "reachability_confirms": {
+          "const": false
+        },
+        "missing_model_action": {
+          "const": "IDENTITY_INCOMPLETE"
+        },
+        "missing_serial_action": {
+          "const": "IDENTITY_INCOMPLETE"
+        },
+        "conflicting_identity_action": {
+          "const": "BLOCK_PROFILE_SELECTION"
+        },
+        "confirmed_non_cybernet_action": {
+          "const": "KEEP_AS_KNOWN_DEVICE_EXCLUDE_FROM_CYBERNET_TARGETS"
+        },
+        "live_reference_tracking": {
+          "const": "local_untracked_or_approved_external_source"
+        }
+      }
+    },
+    "artifact_types": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "producer",
+          "canonical_path",
+          "tracking",
+          "proof",
+          "identity_fields",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "producer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "canonical_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tracking": {
+            "enum": [
+              "tracked",
+              "untracked"
+            ]
+          },
+          "proof": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identity_fields": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "serial",
+              "model"
+            ],
+            "properties": {
+              "serial": {
+                "type": "boolean"
+              },
+              "model": {
+                "type": "boolean"
+              }
+            }
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}
