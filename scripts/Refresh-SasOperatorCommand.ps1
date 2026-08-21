@@ -87,7 +87,11 @@ function Invoke-SasRefreshGit {
         }
         finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
     }
-    $stdoutText = (@($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+    $stdoutRaw = @($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+    $stdoutText = ''
+    if ($null -ne $stdoutRaw) {
+        $stdoutText = ([string]$stdoutRaw).Trim()
+    }
     if ($exitCode -ne 0) {
         $detail = @($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine
         if ([string]::IsNullOrWhiteSpace($detail)) { $detail = '(git produced no diagnostic text)' }
