@@ -176,7 +176,7 @@ $uniqueFingerprints = @($valid | Select-Object -ExpandProperty fingerprint -Uniq
 if ($valid.Count -eq 0) {
     $classification = 'AUTOLOGON_MANIFEST_NOT_FOUND'
 }
-elif ($uniqueFingerprints.Count -gt 1) {
+elseif ($uniqueFingerprints.Count -gt 1) {
     $classification = 'AUTOLOGON_MANIFEST_AMBIGUOUS'
 }
 else {
