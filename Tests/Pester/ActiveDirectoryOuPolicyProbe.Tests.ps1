@@ -50,21 +50,36 @@ Describe 'AD OU policy probe -- syntax and read-only boundary' {
         $script:probe | Should -Match 'SysAdminSuite\\Evidence\\ActiveDirectory\\OuPolicyProbe'
         $script:probe | Should -Match 'Probe\.json'
         $script:probe | Should -Match 'Computers\.csv'
+        $script:probe | Should -Match 'OuKeywordMatches\.csv'
         $script:probe | Should -Match 'PolicyLinks\.csv'
         $script:probe | Should -Match 'TicketNotes\.txt'
-        $script:probe | Should -Match 'sysadminsuite/ad-ou-policy-probe/v1'
+        $script:probe | Should -Match 'sysadminsuite/ad-ou-policy-probe/v2'
         $script:probe | Should -Match 'target_mutation_performed\s*=\s*\$false'
         $script:probe | Should -Match 'gpo_mutation_performed\s*=\s*\$false'
         $script:probe | Should -Match 'group_membership_mutation_performed\s*=\s*\$false'
     }
 
-    It 'treats a policy-linked managed OU as evidence rather than automatic move authority' {
+    It 'searches OU naming/description separately from matching GPO linkage' {
+        $script:probe | Should -Match 'matching_ou_keyword_count'
+        $script:probe | Should -Match 'matching_ou_keywords'
+        $script:probe | Should -Match 'OU name/description keyword evidence only; not authorization and not automatic move selection'
+        $script:probe | Should -Match 'matching_gpo_count'
+        $script:probe | Should -Match 'approved_managed_policy_link_targets'
+    }
+
+    It 'emits a plan hint only when unique OU-keyword and GPO-link evidence corroborate the same managed OU' {
+        $script:probe | Should -Match 'unique_managed_ou_keyword_target_dn'
         $script:probe | Should -Match 'unique_managed_policy_link_target_dn'
-        $script:probe | Should -Match 'read-only policy-link evidence only; not authorization and not automatic move selection'
-        $script:probe | Should -Match 'A policy-linked OU is evidence of GPO scope, not proof that OU placement alone installs/configures the application'
-        $script:probe | Should -Match 'managedPolicyTargets\.Count -eq 1'
+        $script:probe | Should -Match 'corroborated_managed_target_dn'
+        $script:probe | Should -Match '\$uniqueManagedPolicyTarget\.Equals\(\$uniqueManagedOuKeywordTarget'
+        $script:probe | Should -Match 'OU-name and GPO-link evidence must agree before the probe emits a plan command'
         $script:probe | Should -Match 'sas ad ou plan'
         $script:probe | Should -Not -Match 'sas ad ou apply'
+    }
+
+    It 'does not treat OU/GPO evidence as proof of application deployment behavior' {
+        $script:probe | Should -Match 'directory and policy-link evidence only; not authorization and not automatic move selection'
+        $script:probe | Should -Match 'not proof that OU placement alone installs/configures the application'
     }
 
     It 'reuses the current managed-workstation OU boundary and rejects legacy placement roots' {
