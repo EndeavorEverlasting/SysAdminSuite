@@ -29,30 +29,22 @@ function Get-SasNetworkIntentDefinition {
     switch ($Intent) {
         'InternetSync' {
             return [pscustomobject][ordered]@{
-                intent = $Intent
-                required = 'GUEST / INTERNET'
-                purpose = 'remote repository synchronization only'
+                intent=$Intent; required='GUEST / INTERNET'; purpose='remote repository synchronization only'
             }
         }
         'ProtectedNorthwell' {
             return [pscustomobject][ordered]@{
-                intent = $Intent
-                required = 'PROTECTED NORTHWELL'
-                purpose = 'Northwell target access: hardwire, NSLIJHS-WAB, or authenticated DomainAuthenticated VPN'
+                intent=$Intent; required='PROTECTED NORTHWELL'; purpose='Northwell target access: hardwire, NSLIJHS-WAB, or authenticated DomainAuthenticated VPN'
             }
         }
         'LocalOnly' {
             return [pscustomobject][ordered]@{
-                intent = $Intent
-                required = 'ANY / UNCHANGED'
-                purpose = 'local-only operation; SysAdminSuite must not change the network'
+                intent=$Intent; required='ANY / UNCHANGED'; purpose='local-only operation; SysAdminSuite must not change the network'
             }
         }
         default {
             return [pscustomobject][ordered]@{
-                intent = $Intent
-                required = 'COMMAND-SPECIFIC / UNCHANGED'
-                purpose = 'delegated command owns any additional network gate'
+                intent=$Intent; required='COMMAND-SPECIFIC / UNCHANGED'; purpose='delegated command owns any additional network gate'
             }
         }
     }
@@ -66,13 +58,13 @@ function Get-SasNetworkIntentState {
     $classification = Get-SasOperatorNetworkClassification -RepoRoot $RepoRoot
     $authority = Get-SasProtectedNetworkAuthority -RepoRoot $RepoRoot
     return [pscustomobject][ordered]@{
-        classification = [string]$classification.classification
-        label = [string]$classification.label
-        protected = [bool]$classification.protected
-        authority = [string]$authority.authority
-        authority_approved = [bool]$authority.approved
-        interface_alias = [string]$authority.interface_alias
-        network_label = [string]$authority.network_label
+        classification=[string]$classification.classification
+        label=[string]$classification.label
+        protected=[bool]$classification.protected
+        authority=[string]$authority.authority
+        authority_approved=[bool]$authority.approved
+        interface_alias=[string]$authority.interface_alias
+        network_label=[string]$authority.network_label
     }
 }
 
@@ -81,7 +73,7 @@ function Write-SasNetworkCanary {
     param(
         [Parameter(Mandatory=$true)][ValidateSet('InternetSync','ProtectedNorthwell','LocalOnly','CommandSpecific')][string]$Intent,
         [Parameter(Mandatory=$true)][string]$RepoRoot,
-        [string]$TransitionStatus = 'NOT_EVALUATED'
+        [string]$TransitionStatus='NOT_EVALUATED'
     )
 
     $definition = Get-SasNetworkIntentDefinition -Intent $Intent
@@ -100,7 +92,7 @@ function Get-SasSavedWlanProfiles {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][string]$RepoRoot,
-        [ValidateRange(3,30)][int]$NativeTimeoutSeconds = 10
+        [ValidateRange(3,30)][int]$NativeTimeoutSeconds=10
     )
 
     Import-SasNetworkIntentDependencies -RepoRoot $RepoRoot
@@ -108,6 +100,7 @@ function Get-SasSavedWlanProfiles {
     $result = Invoke-SasBoundedNative -FilePath $netsh -Arguments @('wlan','show','profiles') -TimeoutSeconds $NativeTimeoutSeconds
     if ($result.timed_out) { throw "Timed out listing saved WLAN profiles after $NativeTimeoutSeconds seconds." }
     if ($result.exit_code -ne 0) { throw "Could not list saved WLAN profiles. Exit=$($result.exit_code) $($result.error)" }
+
     $profiles = @()
     foreach ($line in (([string]$result.output) -split "`r?`n")) {
         if ($line -notmatch '^\s*(?:All User Profile|User Profile)\s*:\s*(.+?)\s*$') { continue }
@@ -122,15 +115,14 @@ function Invoke-SasSavedWlanConnect {
     param(
         [Parameter(Mandatory=$true)][string]$RepoRoot,
         [Parameter(Mandatory=$true)][string]$ProfileName,
-        [ValidateRange(10,90)][int]$TransitionTimeoutSeconds = 30,
-        [ValidateRange(3,30)][int]$NativeTimeoutSeconds = 10
+        [ValidateRange(10,90)][int]$TransitionTimeoutSeconds=30,
+        [ValidateRange(3,30)][int]$NativeTimeoutSeconds=10
     )
 
     Import-SasNetworkIntentDependencies -RepoRoot $RepoRoot
     $saved = @(Get-SasSavedWlanProfiles -RepoRoot $RepoRoot -NativeTimeoutSeconds $NativeTimeoutSeconds)
-    if ($saved -notcontains $ProfileName) {
-        throw "Automatic WLAN transition refused: profile is not saved in Windows: $ProfileName"
-    }
+    if ($saved -notcontains $ProfileName) { throw "Automatic WLAN transition refused: profile is not saved in Windows: $ProfileName" }
+
     $netsh = Join-Path $env:WINDIR 'System32\netsh.exe'
     $result = Invoke-SasBoundedNative -FilePath $netsh -Arguments @('wlan','connect',("name={0}" -f $ProfileName)) -TimeoutSeconds $NativeTimeoutSeconds
     if ($result.timed_out) { throw "Timed out asking Windows to connect to saved WLAN profile: $ProfileName" }
@@ -140,8 +132,8 @@ function Invoke-SasSavedWlanConnect {
     $observed = 'unknown'
     while ((Get-Date) -lt $deadline) {
         $observed = Get-SasCurrentWifiSsid
-        if (-not [string]::IsNullOrWhiteSpace($observed) -and $observed.Equals($ProfileName,[StringComparison]::OrdinalIgnoreCase)) {
-            return $observed
+        if (-not [string]::IsNullOrWhiteSpace([string]$observed)) {
+            if ([string]$observed -eq [string]$ProfileName) { return [string]$observed }
         }
         Start-Sleep -Seconds 2
     }
@@ -180,14 +172,14 @@ function Write-SasProtectedWlanBookmark {
     if (-not (Test-SasNorthwellWifiSsid -Ssid $Label)) { return $null }
     $path = Join-Path (Get-SasOperatorStateRoot) 'protected-network.json'
     [pscustomobject][ordered]@{
-        schema_version = $script:SasProtectedBookmarkSchema
-        classification = 'PROTECTED_NORTHWELL'
-        authority = 'WAB_WIFI'
-        label = $Label
-        recorded_utc = (Get-Date).ToUniversalTime().ToString('o')
-        target_contact_performed = $false
-        target_mutation_performed = $false
-        secret_material_collected = $false
+        schema_version=$script:SasProtectedBookmarkSchema
+        classification='PROTECTED_NORTHWELL'
+        authority='WAB_WIFI'
+        label=$Label
+        recorded_utc=(Get-Date).ToUniversalTime().ToString('o')
+        target_contact_performed=$false
+        target_mutation_performed=$false
+        secret_material_collected=$false
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $path -Encoding UTF8
     return $path
 }
@@ -203,7 +195,7 @@ function Read-SasProtectedWlanBookmark {
     catch { return $null }
     if ([string]$value.schema_version -ne $script:SasProtectedBookmarkSchema) { return $null }
     if ([string]$value.authority -ne 'WAB_WIFI') { return $null }
-    if (-not (Test-SasNorthwellWifiSsid -Ssid ([string]$value.label)) { return $null }
+    if (-not (Test-SasNorthwellWifiSsid -Ssid ([string]$value.label))) { return $null }
     return $value
 }
 
@@ -217,16 +209,16 @@ function Enter-SasNetworkIntent {
 
     $before = Write-SasNetworkCanary -Intent $Intent -RepoRoot $RepoRoot -TransitionStatus 'evaluating'
     $transition = [pscustomobject][ordered]@{
-        schema_version = $script:SasNetworkIntentSchema
-        intent = $Intent
-        before_classification = [string]$before.classification
-        before_label = [string]$before.label
-        before_authority = [string]$before.authority
-        switched = $false
-        switch_method = 'NONE'
-        restore_required = $false
-        restore_profile = $null
-        status = 'ALREADY_SATISFIED'
+        schema_version=$script:SasNetworkIntentSchema
+        intent=$Intent
+        before_classification=[string]$before.classification
+        before_label=[string]$before.label
+        before_authority=[string]$before.authority
+        switched=$false
+        switch_method='NONE'
+        restore_required=$false
+        restore_profile=$null
+        status='ALREADY_SATISFIED'
     }
 
     if ($Intent -in @('LocalOnly','CommandSpecific')) {
@@ -263,7 +255,7 @@ function Enter-SasNetworkIntent {
         try {
             [void](Invoke-SasSavedWlanConnect -RepoRoot $RepoRoot -ProfileName $guestLabel)
             $after = Get-SasNetworkIntentState -RepoRoot $RepoRoot
-            if ([string]$after.classification -ne 'GUEST_INTERNET' -or -not [string]$after.label.Equals($guestLabel,[StringComparison]::OrdinalIgnoreCase)) {
+            if ([string]$after.classification -ne 'GUEST_INTERNET' -or [string]$after.label -ne $guestLabel) {
                 throw "Guest/Internet transition was not proven. Observed: $($after.classification) [$($after.label)] / $($after.authority)"
             }
         }
@@ -292,7 +284,10 @@ function Enter-SasNetworkIntent {
         if ($AllowAutomaticWlanTransition -and [string]$before.classification -eq 'GUEST_INTERNET') {
             $return = Read-SasInternetReturnBookmark -RepoRoot $RepoRoot
             $protectedBookmark = Read-SasProtectedWlanBookmark -RepoRoot $RepoRoot
-            $sameGuest = $null -ne $return -and [string]$return.label -and [string]$before.label -and ([string]$return.label).Equals([string]$before.label,[StringComparison]::OrdinalIgnoreCase)
+            $sameGuest = $false
+            if ($null -ne $return -and -not [string]::IsNullOrWhiteSpace([string]$return.label) -and -not [string]::IsNullOrWhiteSpace([string]$before.label)) {
+                $sameGuest = ([string]$return.label -eq [string]$before.label)
+            }
             if ($sameGuest -and $null -ne $protectedBookmark) {
                 $protectedLabel = [string]$protectedBookmark.label
                 Write-Host "NETWORK AUTO-SWITCH: saved Guest/Internet -> saved WAB [$protectedLabel]" -ForegroundColor Cyan
@@ -334,23 +329,27 @@ function Restore-SasNetworkIntent {
         Write-Host 'NETWORK RESTORE: not required; original network posture was left unchanged.' -ForegroundColor DarkGray
         return
     }
+
     $profile = [string]$Transition.restore_profile
     if ([string]::IsNullOrWhiteSpace($profile)) {
         throw 'SAS_NETWORK_RESTORE_FAILED: transition requested restoration but no saved WLAN profile was recorded.'
     }
+
     Write-Host "NETWORK RESTORE: returning to saved WLAN profile [$profile]" -ForegroundColor Cyan
     [void](Invoke-SasSavedWlanConnect -RepoRoot $RepoRoot -ProfileName $profile)
     $after = Get-SasNetworkIntentState -RepoRoot $RepoRoot
+
     if ([string]$Transition.before_classification -eq 'GUEST_INTERNET') {
-        if ([string]$after.classification -ne 'GUEST_INTERNET' -or -not ([string]$after.label).Equals($profile,[StringComparison]::OrdinalIgnoreCase)) {
+        if ([string]$after.classification -ne 'GUEST_INTERNET' -or [string]$after.label -ne $profile) {
             throw "SAS_NETWORK_RESTORE_FAILED: expected Guest/Internet [$profile], observed $($after.classification) [$($after.label)] / $($after.authority)."
         }
     }
     elseif ([string]$Transition.before_authority -eq 'WAB_WIFI') {
-        if ([string]$after.authority -ne 'WAB_WIFI') {
+        if ([string]$after.authority -ne 'WAB_WIFI' -or [string]$after.network_label -ne $profile) {
             throw "SAS_NETWORK_RESTORE_FAILED: expected protected WAB [$profile], observed $($after.classification) [$($after.label)] / $($after.authority)."
         }
     }
+
     Write-Host "NETWORK RESTORED: $($after.classification) [$($after.label)] / $($after.authority)" -ForegroundColor Green
 }
 
