@@ -6,7 +6,7 @@ target_mutation: false
 purpose: >-
   Give a fresh agent one deterministic route from repository intake to the smallest authorized
   workflow, use-case contract, desired-state contract, validator set, artifact contract, outcome
-  contract, terminal-evidence contract, and handoff.
+  contract, operator execution route, terminal-evidence contract, and handoff.
 
 inputs:
   required:
@@ -26,6 +26,7 @@ inputs:
     - repository_network_authorized
     - branch_update_authorized
     - default_branch_update_authorized
+    - operator_execution_capable
 
 stages:
   - id: governance
@@ -55,6 +56,7 @@ stages:
       - read harness/api/harness-validator-registry.json for proof selection
       - read harness/api/harness-artifact-registry.json before producing or moving artifacts
       - read harness/api/harness-outcome-registry.json before treating any validator, dry run, plan, build, deploy, or runtime command as terminal
+      - read harness/api/operator-execution-route-registry.json before converting a selected command into operator instructions or repo-relative execution
       - read harness/api/terminal-evidence-survival-registry.json before executing or recovering a registered terminal-sensitive field command
       - for any printer-mapping request, read harness/api/printer-mapping-use-case-registry.json before selecting a launcher, engine, mapping mechanism, or proof policy
       - when AutoLogon, Cybernet, live cert, deployment, or runtime proof is involved, read harness/api/deployment-state-registry.json before selecting the command chain
@@ -65,6 +67,7 @@ stages:
       - use harness/api/agent-routing-manifest.json for normal task-signal routing
       - when the declared lane is harness infrastructure, load harness/skills/harness-maintenance/SKILL.md
       - when the requested goal extends beyond validation or planning, load harness/skills/outcome-driven-execution/SKILL.md after normal task routing
+      - when a selected command is repository-relative, has a registered front door, or is about to be handed to an operator, load harness/skills/operator-execution-route/SKILL.md
       - for any printer-mapping request, load harness/skills/printer-mapping-use-case-routing/SKILL.md and resolve organization/site use-case identity before the field-workflow implementation
       - for AutoLogon/Cybernet test, live-cert, deployment, or runtime-proof work, load harness/skills/cybernet-autologon-deployment-state/SKILL.md after the normal P00 route is selected
       - for a vanished, closed, crashed, interrupted, or terminal-sensitive registered field command, load harness/skills/terminal-evidence-survival/SKILL.md before choosing the operator entrypoint
@@ -82,7 +85,11 @@ stages:
       - for printer mapping, do not copy Northwell assumptions into another organization/site; only the selected proven use_case_id authorizes product behavior
       - treat validators, dry runs, plans, fixtures, and harmless transport live certs as admission gates when the requested goal remains unproven
       - for an authorized Cybernet AutoLogon apply/test/live-cert goal, do not substitute transport proof for the real autologon-remote state transition
-      - when command id autologon-remote is executed by an operator, use the registered Run-AutoLogonCrashSafe.cmd HOST front door rather than handing out the inner product command
+      - resolve executable location before operator command handoff through harness/workflows/operator-execution-route.yaml
+      - do not treat harness-command-registry command text as operator handoff until execution-route lookup is complete
+      - when command id autologon-remote is selected for operator execution, use the registered Run-AutoLogonCrashSafe.cmd HOST front door rather than handing out the inner product command
+      - when the execution environment can run the operator command and dependencies are satisfied, execute the resolved front door in the same turn
+      - when workstation execution is unavailable, provide one copy-paste route-and-run command that resolves the repo path, verifies the front door, changes location, invokes it, and propagates the exit code
       - when a terminal vanished, recover the stable latest pointer and local artifacts before any target re-contact or rerun
       - preserve already-proven Cybernet clinical-core installation/acceptance instead of blindly reinstalling it to reach AutoLogon
       - follow registered same-turn continuations instead of handing safe executable work back to the operator
@@ -94,6 +101,7 @@ stages:
       - python harness/validators/validate-repository-freshness-contracts.py
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
+      - python harness/validators/validate-operator-execution-route.py when command-to-operator routing, repo-relative front doors, execution-location handling, or AutoLogon crash-safe routing changes
       - python harness/validators/validate-printer-mapping-use-cases.py when printer-mapping routing, use cases, field skill, or organization/site contracts change
       - python harness/validators/validate-terminal-evidence-survival.py when terminal-evidence routing, artifacts, hooks, runner contracts, or front doors change
       - select additional validators from harness/api/harness-validator-registry.json by changed surface
@@ -109,6 +117,7 @@ stages:
     actions:
       - resolve output roles and naming through harness/api/harness-artifact-registry.json
       - resolve success and continuation behavior through harness/api/harness-outcome-registry.json
+      - resolve operator front door and execution-location behavior through harness/api/operator-execution-route-registry.json
       - resolve printer-mapping organization/site identity through harness/api/printer-mapping-use-case-registry.json
       - resolve terminal-sensitive stable evidence and offline recovery through harness/api/terminal-evidence-survival-registry.json
       - resolve AutoLogon/Cybernet critical state artifacts through harness/api/deployment-state-registry.json
@@ -123,6 +132,7 @@ stages:
       - report commit SHA, push state, PR state, skipped checks, gaps, risks, and proof ceiling
       - use tools/New-SasSprintCapsule.ps1 for compressed next-agent transfer when needed
       - provide one exact next command only when a real unproven gate remains
+      - when that next command is repository-relative or has a registered operator front door, route it through operator-execution-route so path resolution and execution are not left to the operator
       - when AutoLogon deployment is proven and runtime remains requested, identify the separately authorized attended reboot/direct sign-in gate rather than returning to more tests
       - when a terminal vanished, report the preserved latest pointer and run root before proposing any new target action
       - never stop at tests passed, transport live cert passed, status reported, command printed, or wait for next chat when a registered safe continuation remains executable
@@ -135,6 +145,12 @@ outputs:
     - harness/api/harness-validator-registry.json
     - harness/api/harness-artifact-registry.json
     - harness/api/harness-outcome-registry.json
+    - harness/api/operator-execution-route-registry.json
+    - schemas/harness/operator-execution-route-registry.schema.json
+    - harness/workflows/operator-execution-route.yaml
+    - harness/skills/operator-execution-route/SKILL.md
+    - harness/maps/OPERATOR_EXECUTION_ROUTE_MAP.md
+    - harness/reports/OPERATOR_EXECUTION_ROUTE_STATUS.md
     - harness/api/deployment-state-registry.json
     - harness/api/terminal-evidence-survival-registry.json
     - harness/api/printer-mapping-use-case-registry.json
@@ -153,7 +169,7 @@ outputs:
 
 proof_ceiling: >-
   Fresh-agent routing, authorized repository-freshness selection, printer-mapping organization/site
-  use-case selection, desired-state selection, canonical command and terminal-evidence front-door
-  selection, validator selection, artifact boundaries, outcome continuation, and handoff structure
-  only. Intake itself creates no product, target, deployment, reboot, application, printer-mapping,
-  or live-runtime proof.
+  use-case selection, desired-state selection, canonical command selection, executable-location and
+  operator-front-door selection, terminal-evidence selection, validator selection, artifact boundaries,
+  outcome continuation, and handoff structure only. Intake itself creates no product, target,
+  deployment, reboot, application, printer-mapping, or live-runtime proof.

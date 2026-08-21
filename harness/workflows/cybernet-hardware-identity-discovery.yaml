@@ -1,0 +1,112 @@
+schema_version: sas-cybernet-hardware-identity-workflow/v1
+workflow_id: cybernet-hardware-identity-discovery
+mode: read_only_identity_then_profile_gate
+network_activity: conditional_read_only
+target_mutation: false
+purpose: >-
+  Determine whether an explicit workstation candidate is eligible for the Cybernet
+  device profile without using software footprint, hostname convention, AD presence,
+  reachability, or subnet/site inference as hardware identity.
+
+inputs:
+  required:
+    - explicit_candidate_targets
+  optional:
+    - approved_hardware_reference
+    - prior_inventory_evidence
+    - ad_reconciliation_evidence
+    - network_preflight_evidence
+    - workstation_identity_evidence
+    - local_model_identity_evidence
+
+stages:
+  - id: candidate_intake
+    order: 1
+    actions:
+      - accept only explicit approved candidate targets; never broaden into subnet discovery from this workflow
+      - treat hostname convention, AD presence, prior inventory, site clues, and software footprint as nomination signals only
+      - software footprint is non-authoritative for both confirmation and disqualification
+      - do not load the Cybernet client profile during candidate intake
+
+  - id: network_preflight
+    order: 2
+    actions:
+      - when reachability evidence is needed, use the repository low-noise explicit-target preflight
+      - DNS resolution, ping response, and open TCP ports may earn a deeper identity query but never confirm Cybernet identity
+      - keep the preflight read-only and preserve its generated evidence outside Git
+      - a non-response is not proof that the candidate is not a Cybernet
+
+  - id: hardware_identity_collection
+    order: 3
+    actions:
+      - require observed serial and observed model before Cybernet confirmation is possible
+      - use bash/transport/sas-workstation-identity.sh only for the fields it actually returns
+      - treat the current workstation/WMI identity adapters as serial-capable but model-incomplete
+      - use QRTasks/Get-ModelInfo.ps1 when examining the machine locally, or another explicitly approved read-only hardware source, to obtain model evidence
+      - do not infer model from software, hostname, site, subnet, MAC vendor, or remembered deployment behavior
+
+  - id: reference_comparison
+    order: 4
+    actions:
+      - compare observed serial and observed model with an approved hardware reference
+      - keep live hardware reference data local/untracked or in another explicitly approved source
+      - never invent an approved model, serial pattern, manufacturer rule, or exception from memory
+      - require the reference authority to be named in the handoff
+      - if serial or model is missing, classify IDENTITY_INCOMPLETE
+      - if evidence sources conflict, classify CONFLICTING_IDENTITY and block profile selection
+
+  - id: classification
+    order: 5
+    actions:
+      - classify CONFIRMED_CYBERNET only when observed serial plus observed model satisfy the approved hardware reference
+      - classify CONFIRMED_NON_CYBERNET only when the approved reference establishes the observed serial/model identity belongs outside the Cybernet hardware class
+      - for CONFIRMED_NON_CYBERNET, preserve the record as a known device and mark KEEP_AS_KNOWN_DEVICE_EXCLUDE_FROM_CYBERNET_TARGETS
+      - keep unresolved candidates at IDENTITY_INCOMPLETE rather than guessing
+      - never upgrade candidate-only network or software evidence into a hardware classification
+
+  - id: profile_gate
+    order: 6
+    actions:
+      - load Config/cybernet-client-preferences.json only after CONFIRMED_CYBERNET
+      - do not select Cybernet software, AutoLogon, hardware configuration, or deployment validators for any other classification
+      - keep CONFLICTING_IDENTITY and IDENTITY_INCOMPLETE in read-only discovery
+      - keep CONFIRMED_NON_CYBERNET out of prime Cybernet target lists while preserving its known-device evidence
+
+  - id: failure
+    order: 7
+    actions:
+      - stop on missing serial, missing model, missing reference authority, conflicting evidence, or ambiguous source provenance
+      - report the exact missing identity field or reference dependency
+      - do not compensate by broadening scans, installing software, checking software footprint as a classifier, or mutating the target
+
+  - id: handoff
+    order: 8
+    actions:
+      - report candidate target count without embedding live target values in tracked files
+      - report classification per candidate in local evidence only
+      - report evidence artifact paths and reference authority
+      - report whether the Cybernet profile gate is open or closed
+      - report one exact next action: obtain the missing read-only identity field, resolve the reference, or enter the already-authorized Cybernet workflow for CONFIRMED_CYBERNET
+
+outputs:
+  local_identity_decision:
+    fields:
+      - target
+      - observed_serial
+      - observed_model
+      - observed_manufacturer
+      - reference_authority
+      - classification
+      - reason
+      - evidence_artifacts
+    tracking: untracked
+  classifications:
+    - IDENTITY_INCOMPLETE
+    - CONFLICTING_IDENTITY
+    - CONFIRMED_NON_CYBERNET
+    - CONFIRMED_CYBERNET
+
+proof_ceiling: >-
+  This workflow proves evidence ordering, read-only identity gating, and fail-closed
+  Cybernet profile selection. It does not prove that any live candidate is Cybernet,
+  supply the approved hardware reference, or authorize configuration/deployment.

@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ONSITE = ROOT / "scripts" / "Invoke-SasAutoLogonOnsite.ps1"
 FIELD = ROOT / "scripts" / "Invoke-SasAutoLogonFieldDeployment.ps1"
+STATE = ROOT / "scripts" / "SasAutoLogonOperatorState.psm1"
 S4U = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
 NETWORK_GUARD = ROOT / "scripts" / "SasNetworkGuard.psm1"
 VPN_REPAIR = ROOT / "scripts" / "Repair-SasVpnDomainAuthNetworkGuardRuntime.ps1"
@@ -15,6 +16,7 @@ GITIGNORE = ROOT / ".gitignore"
 def main() -> None:
     onsite = ONSITE.read_text(encoding="utf-8")
     field = FIELD.read_text(encoding="utf-8")
+    state = STATE.read_text(encoding="utf-8")
     s4u = S4U.read_text(encoding="utf-8")
     network_guard = NETWORK_GUARD.read_text(encoding="utf-8")
     vpn_repair = VPN_REPAIR.read_text(encoding="utf-8")
@@ -25,6 +27,24 @@ def main() -> None:
     assert "Confirm-SasNorthwellNetwork.ps1" in field
     assert "Enable-SasNorthwellVpnNetworkGuard.ps1" not in onsite
     assert "Assert-SasAutoLogonProtectedNetwork" not in onsite
+
+    # Refresh and field transactions import SasOperatorSession before AutoLogon state. The nested
+    # state module must not force-reload that dependency and erase caller-visible helpers such as
+    # Get-SasOperatorNetworkClassification, Read-SasOperatorSession, or Set-SasOperatorSessionValues.
+    assert "Import-Module $sessionModule -ErrorAction Stop" in state
+    assert "Import-Module $sessionModule -Force" not in state
+    assert "must not force-reload SasOperatorSession" in state
+
+    # Protected AutoLogon state bookkeeping consumes the Guest-staged seal identity rather than
+    # invoking Git after the network transition. Git availability is not deployment authority.
+    assert "function Get-SasAutoLogonPreparedRuntimeIdentity" in state
+    assert "autologon-short-runtime.json" in state
+    assert "prepared_commit" in state
+    assert "git_invoked = $false" in state
+    assert "repo_head=$runtimeIdentity.commit" in state
+    assert "repo_branch=$runtimeIdentity.branch" in state
+    assert "Get-SasRepoHead -RepoRoot $RepoRoot" not in state
+    assert "& git" not in state
 
     # Live Windows DomainAuthenticated non-Wi-Fi authority must outrank the visible physical uplink.
     # A guest Wi-Fi label must not block an authenticated VPN/LAN path, and a changed VPN address

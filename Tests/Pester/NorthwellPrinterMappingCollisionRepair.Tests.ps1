@@ -2,18 +2,18 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:runnerPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterMapping.ps1'
+    $script:runnerPath = Join-Path $script:repoRoot 'mapping\Invoke-NorthwellPrinterState.ps1'
     $script:launcherPath = Join-Path $script:repoRoot 'Map-NorthwellPrinter-SystemWide.cmd'
     $script:evidencePolicyPath = Join-Path $script:repoRoot 'harness\api\northwell-printer-mapping-evidence-policy.json'
     $script:fieldSkillPath = Join-Path $script:repoRoot '.claude\skills\field-workflow\SKILL.md'
 }
 
 Describe 'Northwell printer mapping evidence precedence contract' {
-    It 'keeps the canonical mapping engine bounded to SYSTEM /ga registration proof' {
+    It 'keeps mapping bounded to SYSTEM /ga registration proof inside the reversible engine' {
         $content = Get-Content -LiteralPath $script:runnerPath -Raw
 
         $content | Should -Match "'/ga'"
-        $content | Should -Match 'ProofLevel = ''MACHINE_WIDE_REGISTRATION'''
+        $content | Should -Match "'MACHINE_WIDE_REGISTRATION_PRESENT'"
         $content | Should -Match 'RuntimePrintObservedByEngine = \$false'
         $content | Should -Match 'TestPagesPrinted = \$false'
         $content | Should -Match 'HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Print\\Connections'
@@ -50,22 +50,23 @@ Describe 'Northwell printer mapping evidence precedence contract' {
         $policy.rules.per_user_mapping_fallback | Should -BeFalse
     }
 
-    It 'keeps operator evidence discoverable without another print test' {
+    It 'keeps operator evidence discoverable without bloating the quick launcher or printing another test page' {
         $runner = Get-Content -LiteralPath $script:runnerPath -Raw
         $launcher = Get-Content -LiteralPath $script:launcherPath -Raw
         $fieldSkill = Get-Content -LiteralPath $script:fieldSkillPath -Raw
 
         $runner | Should -Match 'LATEST-PATH\.txt'
         $runner | Should -Match 'SessionRoot = \$SessionRoot'
-        $launcher | Should -Match 'LATEST-PATH\.txt'
-        $launcher | Should -Match 'Summary\.json'
-        $launcher | Should -Match 'Controller\.log'
-        $launcher | Should -Match 'Status\.json'
-        $launcher | Should -Match 'Agent\.log'
-        $launcher | Should -Match 'notepad\.exe'
+        $runner | Should -Match 'Summary\.json'
+        $runner | Should -Match 'Controller\.log'
+        $runner | Should -Match 'Status\.json'
+        $runner | Should -Match 'Agent\.log'
+        $runner | Should -Match 'UndoPlan\.json'
+        $launcher | Should -Match 'Confirm-NorthwellPrinterActiveUserMaterializationResilient\.ps1'
+        $launcher | Should -Not -Match '-File "%~dp0mapping\\Confirm-NorthwellPrinterActiveUserMaterialization\.ps1"'
+        $launcher | Should -Not -Match 'SAS_LATEST_DIR|set /p|notepad\.exe'
         $launcher | Should -Match '(?i)pause'
         $launcher | Should -Match 'NO TEST PAGE'
-        $launcher.Contains('Accepted printer input: \\server\queue') | Should -BeTrue
         $fieldSkill | Should -Match 'runtime acceptance evidence that the mapped print path works'
         $fieldSkill | Should -Match 'Do not request another test page'
         $fieldSkill | Should -Match 'diagnostic context unless a later observed print failure reopens the incident'

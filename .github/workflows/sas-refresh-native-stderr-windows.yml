@@ -1,0 +1,89 @@
+name: SAS refresh native stderr regression
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/Refresh-SasOperatorCommand.ps1'
+      - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
+      - 'Tests/PowerShell/SasOperatorRefreshNativeStderr.Tests.ps1'
+      - 'Tests/survey/test_autologon_protected_bootstrap_contracts.py'
+      - '.github/workflows/sas-refresh-native-stderr-windows.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/Refresh-SasOperatorCommand.ps1'
+      - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
+      - 'Tests/PowerShell/SasOperatorRefreshNativeStderr.Tests.ps1'
+      - 'Tests/survey/test_autologon_protected_bootstrap_contracts.py'
+      - '.github/workflows/sas-refresh-native-stderr-windows.yml'
+  workflow_dispatch:
+
+jobs:
+  windows-powershell-51:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Reproduce successful native command with zero-byte stderr
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Tests\PowerShell\SasOperatorRefreshNativeStderr.Tests.ps1
+
+      - name: Parse refresh and staging scripts under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          foreach ($relative in @(
+            'scripts\Refresh-SasOperatorCommand.ps1',
+            'scripts\Prepare-SasAutoLogonShortRuntime.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $relative),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -gt 0) {
+              $errors | Format-List * | Out-Host
+              throw "Windows PowerShell 5.1 parser rejected $relative"
+            }
+          }
+
+      - name: Run operator refresh static contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_sas_operator_refresh_contracts.py
+
+      - name: Run protected bootstrap staging contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_autologon_protected_bootstrap_contracts.py
+
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Check pushed commit whitespace
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]]; then
+            git fetch origin "${{ github.sha }}" --depth=2
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then git diff --check HEAD^ HEAD; else git show --check --oneline --no-renames HEAD; fi
+          else
+            git fetch origin "$before" "${{ github.sha }}" --depth=1
+            git diff --check "$before" "${{ github.sha }}"
+          fi
+
+      - name: Check manual-dispatch commit whitespace
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: git show --check --oneline --no-renames HEAD

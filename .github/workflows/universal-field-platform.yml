@@ -1,0 +1,88 @@
+name: Universal Field Platform
+
+on:
+  pull_request:
+    paths:
+      - 'Install-SasOperatorCommand.cmd'
+      - 'Reset-SysAdminSuiteClipboard.cmd'
+      - 'Bootstrap-SysAdminSuitePrinter.ps1'
+      - 'Bootstrap-SysAdminSuiteAutoLogon.cmd'
+      - 'Bootstrap-SysAdminSuiteAutoLogon.ps1'
+      - 'Run-AutoLogonOnsite.cmd'
+      - 'scripts/SasFieldPlatform.psm1'
+      - 'scripts/SasNetworkIntent.psm1'
+      - 'scripts/Invoke-SasNetworkAwareField.ps1'
+      - 'scripts/Invoke-SasUniversalField.ps1'
+      - 'scripts/Install-SasUniversalFieldLauncher.ps1'
+      - 'scripts/Invoke-SasAutoLogonOnsite.ps1'
+      - 'scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
+      - 'scripts/Reset-SasClipboard.ps1'
+      - 'Tests/PowerShell/UniversalFieldPlatform.Tests.ps1'
+      - 'Tests/Pester/NorthwellPrinterUniversalEntryPoint.Tests.ps1'
+      - 'Tests/survey/test_universal_field_platform_contracts.py'
+      - 'Tests/survey/test_network_intent_canary_contracts.py'
+      - 'Tests/survey/test_clipboard_reset_contracts.py'
+      - 'docs/UNIVERSAL_FIELD_PLATFORM.md'
+      - '.github/workflows/universal-field-platform.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Compile platform contracts
+        run: |
+          python -m py_compile Tests/survey/test_universal_field_platform_contracts.py
+          python -m py_compile Tests/survey/test_network_intent_canary_contracts.py
+          python -m py_compile Tests/survey/test_clipboard_reset_contracts.py
+      - name: Run platform contract
+        run: python Tests/survey/test_universal_field_platform_contracts.py
+      - name: Run network intent canary contract
+        run: python Tests/survey/test_network_intent_canary_contracts.py
+      - name: Run clipboard reset contract
+        run: python Tests/survey/test_clipboard_reset_contracts.py
+      - name: Check patch whitespace
+        run: git diff --check "origin/${{ github.base_ref }}...HEAD"
+
+  windows-powershell-51:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse universal field PowerShell under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($relative in @(
+            'Bootstrap-SysAdminSuitePrinter.ps1',
+            'Bootstrap-SysAdminSuiteAutoLogon.ps1',
+            'scripts\SasFieldPlatform.psm1',
+            'scripts\SasNetworkIntent.psm1',
+            'scripts\Invoke-SasNetworkAwareField.ps1',
+            'scripts\Invoke-SasUniversalField.ps1',
+            'scripts\Install-SasUniversalFieldLauncher.ps1',
+            'scripts\Invoke-SasAutoLogonOnsite.ps1',
+            'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1',
+            'scripts\Reset-SasClipboard.ps1',
+            'Tests\PowerShell\UniversalFieldPlatform.Tests.ps1',
+            'Tests\Pester\NorthwellPrinterUniversalEntryPoint.Tests.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $relative),[ref]$tokens,[ref]$errors)
+            if (@($errors).Count -gt 0) {
+              $errors | Format-List * | Out-Host
+              throw "Windows PowerShell 5.1 parser rejected $relative"
+            }
+          }
+      - name: Run hardwire WAB VPN and runtime-isolation fixtures
+        shell: powershell
+        run: .\Tests\PowerShell\UniversalFieldPlatform.Tests.ps1

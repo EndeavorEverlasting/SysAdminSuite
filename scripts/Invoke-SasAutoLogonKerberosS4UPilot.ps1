@@ -455,7 +455,11 @@ function Invoke-SasS4UTask {
         $lifecycle.native.create = $create
         if ([bool]$create.timed_out) {
             $lifecycle.classification = "S4U_${modeUpper}_CREATE_TIMEOUT"
-            throw "S4U $Mode task creation timed out after $NativeTimeoutSeconds seconds."
+            $effectiveCreateTimeoutSeconds = $NativeTimeoutSeconds
+            if ($null -ne $create.PSObject.Properties['timeout_seconds']) {
+                $effectiveCreateTimeoutSeconds = [int]$create.timeout_seconds
+            }
+            throw "S4U $Mode task creation timed out after $effectiveCreateTimeoutSeconds seconds."
         }
         if ([int]$create.exit_code -ne 0) {
             $lifecycle.classification = "S4U_${modeUpper}_CREATE_FAILED"

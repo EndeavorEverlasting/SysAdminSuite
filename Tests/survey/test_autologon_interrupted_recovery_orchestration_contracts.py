@@ -73,6 +73,30 @@ def test_completed_recovery_is_terminal_and_never_rediscovered() -> None:
     assert "classification='NO_INTERRUPTED_PROBE_RUN_FOUND'" in text
 
 
+def test_terminal_probe_create_timeout_is_the_only_terminal_result_admitted_for_discovery() -> None:
+    text = read(DISCOVERY)
+    assert "function Test-SasTerminalProbeCreateTimeoutRecoverable" in text
+    for marker in (
+        "sas-autologon-kerberos-s4u-pilot-result/v2",
+        "S4U_PROBE_CREATE_TIMEOUT",
+        "staging_cleanup_verified",
+        "pre_reboot_autologon_ready",
+        "automatic_reboot_performed",
+        "automatic_sign_in_observed",
+        "installer_exit_code",
+        "after_snapshot_path",
+        "terminal_probe_timeout_accepted",
+        "sas-autologon-s4u-recovery-discovery/v3",
+    ):
+        assert marker in text, marker
+    assert "if (Test-Path -LiteralPath $terminal -PathType Leaf) { continue }" not in text
+    terminal_gate = text.index("if ($terminalPresent)")
+    accept = text.index("Test-SasTerminalProbeCreateTimeoutRecoverable", terminal_gate)
+    reject = text.index("if (-not $terminalProbeTimeoutAccepted) { continue }", accept)
+    candidate = text.index("$items +=", reject)
+    assert terminal_gate < accept < reject < candidate
+
+
 def test_discovery_recanonicalizes_legacy_short_identity_before_exact_cleanup() -> None:
     text = read(DISCOVERY)
     resolution = text.index("Resolve-SasCanonicalTargetFqdn -TargetName $Recorded")
@@ -110,6 +134,36 @@ def test_discovery_invokes_exact_recovery_with_recorded_identity_and_canonical_t
         assert marker in text[call:] or marker in text, marker
 
 
+def test_exact_recovery_accepts_only_exact_safe_terminal_probe_create_timeout() -> None:
+    text = read(EXACT)
+    assert "function Test-SasExactTerminalProbeCreateTimeoutRecoverable" in text
+    for marker in (
+        "sas-autologon-kerberos-s4u-pilot-result/v2",
+        "S4U_PROBE_CREATE_TIMEOUT",
+        "staging_cleanup_verified",
+        "pre_reboot_autologon_ready",
+        "automatic_reboot_performed",
+        "automatic_sign_in_observed",
+        "installer_exit_code",
+        "after_snapshot_path",
+        "-ExpectedRunId $RunId",
+        "-ExpectedTaskName $TaskName",
+        "-ExpectedTarget $ComputerName",
+        "Terminal probe-timeout result accepted for exact recovery",
+        "not the exact safe probe-create-timeout shape",
+        "sas-autologon-s4u-interrupted-recovery/v3",
+        "terminal_pilot_result_present = $terminalPilotResultPresent",
+        "terminal_probe_timeout_accepted = $terminalProbeTimeoutAccepted",
+    ):
+        assert marker in text, marker
+    assert "A terminal S4U pilot result already exists; use that result instead of interrupted recovery." not in text
+    gate = text.index("if ($terminalPilotResultPresent)")
+    accept = text.index("Test-SasExactTerminalProbeCreateTimeoutRecoverable", gate)
+    reject = text.index("if (-not $terminalProbeTimeoutAccepted)", accept)
+    network = text.index("Assert-SasNorthwellWifi", reject)
+    assert gate < accept < reject < network
+
+
 def test_exact_recovery_can_remove_only_recorded_task_then_probe_only_run_root() -> None:
     text = read(EXACT)
     query = text.index("@('/Query','/S',$ComputerName,'/TN',$TaskName)")
@@ -118,6 +172,28 @@ def test_exact_recovery_can_remove_only_recorded_task_then_probe_only_run_root()
     cleanup = text.index("& $cleanupScript -ComputerName $ComputerName -RunId $RunId", verify)
     assert query < delete < verify < cleanup
     assert "-AllowedArtifactProfile ProbeOnly" in text
+
+
+def test_terminal_timeout_recovery_still_refuses_install_after_or_restart_proof() -> None:
+    discovery = read(DISCOVERY)
+    exact = read(EXACT)
+    for text in (discovery, exact):
+        for marker in (
+            "installer_exit_code",
+            "after_snapshot_path",
+            "pre_reboot_autologon_ready",
+            "staging_cleanup_verified",
+            "automatic_reboot_performed",
+            "automatic_sign_in_observed",
+        ):
+            assert marker in text, marker
+    for marker in (
+        "s4u-install-worker.ps1",
+        "s4u_install_lifecycle.json",
+        "s4u_install_result.json",
+        "after_snapshot.json",
+    ):
+        assert marker in exact, marker
 
 
 def test_normal_remote_deployment_canonicalizes_then_recovers_then_applies_once() -> None:

@@ -6,9 +6,10 @@ Refresh the SysAdminSuite operator surface on Guest/Internet and seal the protec
 .DESCRIPTION
 The caller checkout is used only to locate the network classifier and this refresh entrypoint. All remote
 Git operations are isolated to %LOCALAPPDATA%\SysAdminSuite\sync-cache and are blocked unless the current
-network classifies as GUEST_INTERNET. A clean field-ready worktree is derived from that cache, the installed
-`sas` dispatcher is refreshed from field-ready, and C:\SASAL is then staged by local filesystem Git transfer
-and stripped of remotes for protected-network use.
+network classifies as GUEST_INTERNET. A clean field-ready worktree is derived from that cache, stale dirty
+generated C:\SASAL content is preserved intact before replacement, the installed `sas` dispatcher is refreshed
+from field-ready, and C:\SASAL is then staged by local filesystem Git transfer and stripped of remotes for
+protected-network use.
 
 No target contact or target mutation occurs in this script.
 #>
@@ -63,13 +64,15 @@ function Invoke-SasRefreshGit {
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        $LASTEXITCODE = 0
-        $stdout = if ([string]::IsNullOrWhiteSpace($Root)) {
-            @(& $script:SasGitExe @Arguments 2> $stderrPath)
+        $stdout = @()
+        $exitCode = 0
+        if ([string]::IsNullOrWhiteSpace($Root)) {
+            $stdout = @(& $script:SasGitExe @Arguments 2> $stderrPath)
+            $exitCode = [int]$global:LASTEXITCODE
         } else {
-            @(& $script:SasGitExe -C $Root @Arguments 2> $stderrPath)
+            $stdout = @(& $script:SasGitExe -C $Root @Arguments 2> $stderrPath)
+            $exitCode = [int]$global:LASTEXITCODE
         }
-        $exitCode = [int]$LASTEXITCODE
     }
     finally {
         $ErrorActionPreference = $previousPreference
@@ -78,12 +81,18 @@ function Invoke-SasRefreshGit {
     $stderr = ''
     if (Test-Path -LiteralPath $stderrPath) {
         try {
-            $stderrRaw = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
-            $stderr = $stderrRaw.Trim()
+            $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+            if ($null -ne $stderrRaw) {
+                $stderr = ([string]$stderrRaw).Trim()
+            }
         }
         finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
     }
-    $stdoutText = (@($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+    $stdoutRaw = @($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+    $stdoutText = ''
+    if ($null -ne $stdoutRaw) {
+        $stdoutText = ([string]$stdoutRaw).Trim()
+    }
     if ($exitCode -ne 0) {
         $detail = @($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine
         if ([string]::IsNullOrWhiteSpace($detail)) { $detail = '(git produced no diagnostic text)' }
@@ -190,6 +199,7 @@ $required = @(
     'Run-AutoLogonOnsite.cmd',
     'Bootstrap-SysAdminSuiteAutoLogon.cmd',
     'Bootstrap-SysAdminSuiteAutoLogon.ps1',
+    'scripts\Repair-SasAutoLogonShortRuntimeForRefresh.ps1',
     'scripts\Prepare-SasAutoLogonShortRuntime.ps1',
     'scripts\Install-SasPortableLauncher.ps1',
     'scripts\SasPortableLauncher.ps1',
@@ -230,20 +240,29 @@ if ([string]$currentNetwork.classification -ne 'GUEST_INTERNET' -or
     throw "Guest/Internet posture changed during refresh. Current classification: $($currentNetwork.classification); label: $($currentNetwork.label). Short AutoLogon runtime was not staged."
 }
 
+$runtimeRepair = Join-Path $fieldReady 'scripts\Repair-SasAutoLogonShortRuntimeForRefresh.ps1'
+Write-Host ''
+Write-Host 'PREPARING GENERATED SHORT AUTOLOGON RUNTIME FOR CLEAN REFRESH' -ForegroundColor Cyan
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $runtimeRepair -RuntimeRoot 'C:\SASAL'
+$runtimeRepairExitCode = [int]$global:LASTEXITCODE
+if ($runtimeRepairExitCode -ne 0) {
+    throw "Short AutoLogon runtime preservation failed with exit code $runtimeRepairExitCode. Nothing was reset or cleaned."
+}
+
 $runtimePreparer = Join-Path $fieldReady 'scripts\Prepare-SasAutoLogonShortRuntime.ps1'
 Write-Host ''
 Write-Host 'STAGING SHORT AUTOLOGON RUNTIME BEFORE LEAVING GUEST' -ForegroundColor Cyan
-$LASTEXITCODE = 0
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $runtimePreparer `
     -SourceRoot $fieldReady -RuntimeRoot 'C:\SASAL' -ExpectedCommit $head
-if ($LASTEXITCODE -ne 0) {
-    throw "Short AutoLogon runtime staging failed with exit code $LASTEXITCODE. Remain on Guest/Internet and repair before protected deployment."
+$runtimePreparerExitCode = [int]$global:LASTEXITCODE
+if ($runtimePreparerExitCode -ne 0) {
+    throw "Short AutoLogon runtime staging failed with exit code $runtimePreparerExitCode. Remain on Guest/Internet and repair before protected deployment."
 }
 
 $installer = Join-Path $fieldReady 'scripts\Install-SasPortableLauncher.ps1'
-$LASTEXITCODE = 0
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $installer
-if ($LASTEXITCODE -ne 0) { throw "Operator-command refresh installer failed with exit code $LASTEXITCODE" }
+$installerExitCode = [int]$global:LASTEXITCODE
+if ($installerExitCode -ne 0) { throw "Operator-command refresh installer failed with exit code $installerExitCode" }
 
 $returnBookmark = [pscustomobject][ordered]@{
     schema_version='sas-operator-return-network/v1'

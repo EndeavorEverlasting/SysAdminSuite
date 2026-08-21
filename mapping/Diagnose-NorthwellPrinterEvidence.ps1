@@ -1,0 +1,322 @@
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+    Explains the latest Northwell printer mapping proof without contacting or mutating a target.
+
+.DESCRIPTION
+    Reads existing Summary.json, Status.json, and controller-owned summary result evidence only.
+    It distinguishes a proven SYSTEM/HKLM registration from a missing machine-wide registration,
+    a remote-agent error, an identity mismatch, a target that never returned Status.json, or an
+    otherwise inconclusive proof. A printer that already exists for an interactive user is not
+    promoted to SYSTEM-wide success unless the preserved HKLM evidence proves all-users registration.
+
+    This script performs no network probe, task operation, printer mutation, test page, or target
+    contact. It is safe to use after a failed field transaction instead of remapping blindly.
+#>
+
+[CmdletBinding()]
+param(
+    [string]$EvidenceRoot,
+    [string]$StateRoot,
+    [switch]$PassThru
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+function ConvertTo-SasStringArray {
+    param([AllowNull()]$Value)
+    if ($null -eq $Value) { return @() }
+    return @(
+        @($Value) |
+            ForEach-Object { ([string]$_).Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+}
+
+function Get-SasStatusArray {
+    param([Parameter(Mandatory)]$Status,[Parameter(Mandatory)][string]$Name)
+    $property = $Status.PSObject.Properties[$Name]
+    if ($null -eq $property) { return @() }
+    return @(ConvertTo-SasStringArray -Value $property.Value)
+}
+
+function Get-SasStatusString {
+    param([Parameter(Mandatory)]$Status,[Parameter(Mandatory)][string]$Name)
+    $property = $Status.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) { return '' }
+    return ([string]$property.Value).Trim()
+}
+
+function Resolve-SasPrinterStateRoot {
+    if (-not [string]::IsNullOrWhiteSpace($StateRoot)) {
+        $candidate = [IO.Path]::GetFullPath($StateRoot)
+        if (Test-Path -LiteralPath $candidate -PathType Container) { return $candidate }
+        throw "Printer state root does not exist: $candidate"
+    }
+
+    foreach ($base in @($env:SAS_RUNTIME_ROOT,'C:\SASAL')) {
+        if ([string]::IsNullOrWhiteSpace([string]$base)) { continue }
+        try { $candidate = Join-Path ([IO.Path]::GetFullPath([string]$base)) '.state\printer-bootstrap' } catch { continue }
+        if (Test-Path -LiteralPath $candidate -PathType Container) { return $candidate }
+    }
+    return $null
+}
+
+function Resolve-SasLatestPrinterEvidenceRoot {
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceRoot)) {
+        $explicit = [IO.Path]::GetFullPath($EvidenceRoot)
+        if (-not (Test-Path -LiteralPath $explicit -PathType Container)) { throw "Printer evidence root does not exist: $explicit" }
+        if (-not (Test-Path -LiteralPath (Join-Path $explicit 'Summary.json') -PathType Leaf)) { throw "Summary.json not found under printer evidence root: $explicit" }
+        return $explicit
+    }
+
+    $pointerCandidates = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($base in @($env:SAS_RUNTIME_ROOT,'C:\SASAL')) {
+        if ([string]::IsNullOrWhiteSpace([string]$base)) { continue }
+        try { $fullBase = [IO.Path]::GetFullPath([string]$base) } catch { continue }
+        $direct = Join-Path $fullBase 'mapping\Logs\LATEST-PATH.txt'
+        if (-not $pointerCandidates.Contains($direct)) { [void]$pointerCandidates.Add($direct) }
+    }
+
+    $state = Resolve-SasPrinterStateRoot
+    if (-not [string]::IsNullOrWhiteSpace([string]$state)) {
+        foreach ($pointer in @(Get-ChildItem -LiteralPath $state -Filter 'LATEST-PATH.txt' -File -Recurse -ErrorAction SilentlyContinue)) {
+            if (-not $pointerCandidates.Contains($pointer.FullName)) { [void]$pointerCandidates.Add($pointer.FullName) }
+        }
+    }
+
+    $validPointerRoots = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($pointer in $pointerCandidates) {
+        if (-not (Test-Path -LiteralPath $pointer -PathType Leaf)) { continue }
+        try {
+            $value = ([string](Get-Content -LiteralPath $pointer -Raw -ErrorAction Stop)).Trim()
+            if ([string]::IsNullOrWhiteSpace($value)) { continue }
+            $root = [IO.Path]::GetFullPath($value)
+            $summary = Join-Path $root 'Summary.json'
+            if (Test-Path -LiteralPath $summary -PathType Leaf) {
+                $item = Get-Item -LiteralPath $summary -ErrorAction Stop
+                $validPointerRoots.Add([pscustomobject]@{ Root=$root; LastWriteTimeUtc=$item.LastWriteTimeUtc })
+            }
+        }
+        catch {}
+    }
+    if ($validPointerRoots.Count -gt 0) {
+        return [string](($validPointerRoots.ToArray() | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).Root)
+    }
+
+    $summaryCandidates = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($base in @($env:SAS_RUNTIME_ROOT,'C:\SASAL',$state)) {
+        if ([string]::IsNullOrWhiteSpace([string]$base)) { continue }
+        try { $fullBase = [IO.Path]::GetFullPath([string]$base) } catch { continue }
+        if (-not (Test-Path -LiteralPath $fullBase -PathType Container)) { continue }
+        foreach ($summary in @(Get-ChildItem -LiteralPath $fullBase -Filter 'Summary.json' -File -Recurse -ErrorAction SilentlyContinue)) {
+            if ($summary.FullName -notmatch '(?i)[\\/]mapping[\\/]Logs[\\/]|[\\/]printer-bootstrap[\\/]') { continue }
+            $summaryCandidates.Add([pscustomobject]@{ Root=$summary.Directory.FullName; LastWriteTimeUtc=$summary.LastWriteTimeUtc })
+        }
+    }
+    if ($summaryCandidates.Count -eq 0) { throw 'No existing Northwell printer mapping evidence was found. Run mapping before diagnosing it.' }
+    return [string](($summaryCandidates.ToArray() | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).Root)
+}
+
+function Get-SasPrinterProofDiagnostic {
+    param([Parameter(Mandatory)]$Status)
+
+    $requested = @(Get-SasStatusArray -Status $Status -Name 'Requested')
+    $before = @(Get-SasStatusArray -Status $Status -Name 'BeforeMachineWideUNC')
+    $after = @(Get-SasStatusArray -Status $Status -Name 'MachineWideUNC')
+    $already = @(Get-SasStatusArray -Status $Status -Name 'AlreadyDesiredPrinters')
+    $missing = @(Get-SasStatusArray -Status $Status -Name 'Missing')
+    $still = @(Get-SasStatusArray -Status $Status -Name 'StillPresent')
+    $rawKeys = @(Get-SasStatusArray -Status $Status -Name 'RawConnectionKeys')
+    $identity = Get-SasStatusString -Status $Status -Name 'Identity'
+    $desired = Get-SasStatusString -Status $Status -Name 'DesiredState'
+    $errorText = Get-SasStatusString -Status $Status -Name 'Error'
+    $successProperty = $Status.PSObject.Properties['Success']
+    $success = ($null -ne $successProperty -and [bool]$successProperty.Value)
+
+    $normalizedRequested = @($requested | ForEach-Object { $_.ToLowerInvariant() })
+    $normalizedAfter = @($after | ForEach-Object { $_.ToLowerInvariant() })
+    $presentProof = ($normalizedRequested.Count -gt 0 -and @($normalizedRequested | Where-Object { $normalizedAfter -notcontains $_ }).Count -eq 0)
+    $absentProof = ($normalizedRequested.Count -gt 0 -and @($normalizedRequested | Where-Object { $normalizedAfter -contains $_ }).Count -eq 0)
+
+    $classification = 'MACHINE_WIDE_PROOF_INCONCLUSIVE'
+    if (-not [string]::IsNullOrWhiteSpace($errorText)) { $classification = 'REMOTE_AGENT_ERROR' }
+    elseif ($identity -notmatch 'SYSTEM$') { $classification = 'SYSTEM_IDENTITY_NOT_PROVEN' }
+    elseif ($desired.Equals('Present',[System.StringComparison]::OrdinalIgnoreCase) -and $success -and $missing.Count -eq 0 -and $presentProof) { $classification = 'MACHINE_WIDE_REGISTRATION_PROVEN' }
+    elseif ($desired.Equals('Absent',[System.StringComparison]::OrdinalIgnoreCase) -and $success -and $still.Count -eq 0 -and $absentProof) { $classification = 'MACHINE_WIDE_REMOVAL_PROVEN' }
+    elseif ($missing.Count -gt 0) { $classification = 'MACHINE_WIDE_REGISTRATION_MISSING' }
+    elseif ($still.Count -gt 0) { $classification = 'MACHINE_WIDE_REGISTRATION_STILL_PRESENT' }
+
+    return [pscustomobject][ordered]@{
+        classification = $classification
+        computer = Get-SasStatusString -Status $Status -Name 'ComputerName'
+        identity = $identity
+        desired_state = $desired
+        requested = $requested
+        before_machine_wide = $before
+        after_machine_wide = $after
+        already_desired_machine_wide = $already
+        missing_machine_wide = $missing
+        still_present_machine_wide = $still
+        raw_hklm_connection_keys = $rawKeys
+        agent_error = $errorText
+        target_contact_performed = $false
+        target_mutation_performed = $false
+        test_page_printed = $false
+    }
+}
+
+function Get-SasSummaryTargetDiagnostic {
+    param([Parameter(Mandatory)]$Result)
+
+    $computer = Get-SasStatusString -Status $Result -Name 'Computer'
+    $stage = Get-SasStatusString -Status $Result -Name 'Stage'
+    $message = Get-SasStatusString -Status $Result -Name 'Message'
+    $desired = Get-SasStatusString -Status $Result -Name 'DesiredState'
+    $evidence = Get-SasStatusString -Status $Result -Name 'Evidence'
+    $stagingShare = Get-SasStatusString -Status $Result -Name 'StagingShare'
+    $successProperty = $Result.PSObject.Properties['Success']
+    $success = ($null -ne $successProperty -and [bool]$successProperty.Value)
+
+    $classification = if ($success) { 'SUMMARY_TARGET_REPORTED_SUCCESS' } else { 'REMOTE_OPERATION_FAILED_BEFORE_AUTHORITATIVE_STATUS' }
+    if (-not $success) {
+        if ($message -match '(?i)Timed out.*Status\.json|Remote evidence was not observed') { $classification = 'REMOTE_STATUS_EVIDENCE_TIMEOUT' }
+        elseif ($message -match '(?i)Admin share unavailable') { $classification = 'REMOTE_ADMIN_SHARE_UNAVAILABLE' }
+        elseif ($message -match '(?i)Remote Task Scheduler Query failed') { $classification = 'REMOTE_TASK_SCHEDULER_PREFLIGHT_FAILED' }
+        elseif ($message -match '(?i)Remote Task Scheduler Create failed') { $classification = 'REMOTE_TASK_CREATE_FAILED' }
+        elseif ($message -match '(?i)Remote Task Scheduler Run failed') { $classification = 'REMOTE_TASK_RUN_FAILED' }
+        elseif ($message -match '(?i)Missing machine-wide queue|did not prove requested machine-wide') { $classification = 'MACHINE_WIDE_STATUS_PROOF_FAILED' }
+    }
+
+    return [pscustomobject][ordered]@{
+        classification = $classification
+        computer = $computer
+        success = $success
+        stage = $stage
+        message = $message
+        desired_state = $desired
+        staging_share = $stagingShare
+        evidence = $evidence
+    }
+}
+
+$resolvedEvidenceRoot = Resolve-SasLatestPrinterEvidenceRoot
+$summaryPath = Join-Path $resolvedEvidenceRoot 'Summary.json'
+$summary = Get-Content -LiteralPath $summaryPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+$statusFiles = @(Get-ChildItem -LiteralPath $resolvedEvidenceRoot -Filter 'Status.json' -File -Recurse -ErrorAction Stop)
+
+$diagnostics = New-Object 'System.Collections.Generic.List[object]'
+foreach ($statusFile in $statusFiles) {
+    $status = Get-Content -LiteralPath $statusFile.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+    $diagnostics.Add((Get-SasPrinterProofDiagnostic -Status $status))
+}
+
+$summaryResultDiagnostics = New-Object 'System.Collections.Generic.List[object]'
+$summaryResultsProperty = $summary.PSObject.Properties['Results']
+if ($null -ne $summaryResultsProperty) {
+    foreach ($result in @($summaryResultsProperty.Value)) {
+        if ($null -ne $result) { $summaryResultDiagnostics.Add((Get-SasSummaryTargetDiagnostic -Result $result)) }
+    }
+}
+
+$summarySuccessProperty = $summary.PSObject.Properties['Success']
+$summarySuccess = ($null -ne $summarySuccessProperty -and [bool]$summarySuccessProperty.Value)
+$totalTargetsProperty = $summary.PSObject.Properties['TotalTargets']
+$completedTargetsProperty = $summary.PSObject.Properties['CompletedTargets']
+$computersProperty = $summary.PSObject.Properties['Computers']
+$totalTargets = if ($null -ne $totalTargetsProperty) { [int]$totalTargetsProperty.Value } else { 0 }
+$completedTargets = if ($null -ne $completedTargetsProperty) { [int]$completedTargetsProperty.Value } else { 0 }
+$expectedComputers = @()
+if ($null -ne $computersProperty) {
+    $expectedComputers = @(
+        ConvertTo-SasStringArray -Value $computersProperty.Value |
+            ForEach-Object { $_.Split('.')[0].ToLowerInvariant() } |
+            Sort-Object -Unique
+    )
+}
+$statusComputers = @($diagnostics.ToArray() | ForEach-Object { ([string]$_.computer).Split('.')[0].ToLowerInvariant() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+$computerCoverageComplete = ($expectedComputers.Count -eq $totalTargets -and @($expectedComputers | Where-Object { $statusComputers -notcontains $_ }).Count -eq 0 -and @($statusComputers | Where-Object { $expectedComputers -notcontains $_ }).Count -eq 0)
+$evidenceSetComplete = ($summarySuccess -and $totalTargets -gt 0 -and $completedTargets -eq $totalTargets -and $statusFiles.Count -eq $totalTargets -and $computerCoverageComplete)
+
+$failed = @($diagnostics.ToArray() | Where-Object { $_.classification -notin @('MACHINE_WIDE_REGISTRATION_PROVEN','MACHINE_WIDE_REMOVAL_PROVEN') })
+$overall = if ($evidenceSetComplete -and $failed.Count -eq 0) { 'AUTHORITATIVE_MACHINE_WIDE_PROOF_PRESENT' } else { 'AUTHORITATIVE_MACHINE_WIDE_PROOF_NOT_PRESENT' }
+$evidenceSetClassification = 'FAILED_OR_INCONSISTENT'
+$failureClassification = 'AUTHORITATIVE_STATUS_PROOF_NOT_COMPLETE'
+if ($evidenceSetComplete) {
+    $evidenceSetClassification = 'COMPLETE'
+    $failureClassification = 'NONE'
+}
+elseif ($totalTargets -gt 0 -and $statusFiles.Count -eq 0) {
+    $evidenceSetClassification = 'NO_STATUS_EVIDENCE_RETURNED'
+    $failureClassification = 'REMOTE_STATUS_EVIDENCE_NOT_RETURNED'
+}
+elseif ($totalTargets -gt 0 -and $statusFiles.Count -lt $totalTargets) {
+    $evidenceSetClassification = 'PARTIAL_STATUS_EVIDENCE'
+    $failureClassification = 'REMOTE_STATUS_EVIDENCE_PARTIAL'
+}
+elseif ($failed.Count -gt 0) {
+    $failureClassification = [string]$failed[0].classification
+}
+
+Write-Host ''
+Write-Host '=== NORTHWELL PRINTER EVIDENCE DIAGNOSTIC ===' -ForegroundColor Cyan
+Write-Host 'DIAGNOSTIC_STATUS=COMPLETED'
+Write-Host "MAPPING_PROOF=$overall"
+Write-Host "EVIDENCE_SET=$evidenceSetClassification"
+Write-Host "FAILURE_CLASSIFICATION=$failureClassification"
+Write-Host "SUMMARY_SUCCESS=$summarySuccess"
+Write-Host "EXPECTED_TARGETS=$totalTargets"
+Write-Host "COMPLETED_TARGETS=$completedTargets"
+Write-Host "STATUS_FILES=$($statusFiles.Count)"
+Write-Host "EVIDENCE_ROOT=$resolvedEvidenceRoot"
+Write-Host 'TARGET_CONTACT_PERFORMED=False'
+Write-Host 'TARGET_MUTATION_PERFORMED=False'
+Write-Host 'TEST_PAGE_PRINTED=False'
+
+foreach ($summaryDiagnostic in $summaryResultDiagnostics) {
+    Write-Host ''
+    Write-Host ("SUMMARY_RESULT_CLASSIFICATION={0}" -f $summaryDiagnostic.classification) -ForegroundColor $(if ($summaryDiagnostic.success) { 'DarkGray' } else { 'Yellow' })
+    Write-Host ("SUMMARY_COMPUTER={0}" -f $summaryDiagnostic.computer)
+    Write-Host ("SUMMARY_TARGET_SUCCESS={0}" -f $summaryDiagnostic.success)
+    Write-Host ("SUMMARY_STAGE={0}" -f $summaryDiagnostic.stage)
+    Write-Host ("SUMMARY_STAGING_SHARE={0}" -f $(if ([string]::IsNullOrWhiteSpace([string]$summaryDiagnostic.staging_share)) { '<none>' } else { $summaryDiagnostic.staging_share }))
+    Write-Host ("SUMMARY_MESSAGE={0}" -f $summaryDiagnostic.message)
+    Write-Host ("SUMMARY_EVIDENCE={0}" -f $summaryDiagnostic.evidence)
+}
+
+foreach ($diagnostic in $diagnostics) {
+    Write-Host ''
+    Write-Host ("CLASSIFICATION={0}" -f $diagnostic.classification) -ForegroundColor $(if ($diagnostic.classification -match '_PROVEN$') { 'Green' } else { 'Yellow' })
+    Write-Host ("COMPUTER={0}" -f $diagnostic.computer)
+    Write-Host ("IDENTITY={0}" -f $diagnostic.identity)
+    Write-Host ("DESIRED_STATE={0}" -f $diagnostic.desired_state)
+    Write-Host ("REQUESTED={0}" -f ($diagnostic.requested -join ';'))
+    Write-Host ("BEFORE_MACHINE_WIDE={0}" -f ($diagnostic.before_machine_wide -join ';'))
+    Write-Host ("AFTER_MACHINE_WIDE={0}" -f ($diagnostic.after_machine_wide -join ';'))
+    Write-Host ("ALREADY_DESIRED_MACHINE_WIDE={0}" -f ($diagnostic.already_desired_machine_wide -join ';'))
+    Write-Host ("MISSING_MACHINE_WIDE={0}" -f ($diagnostic.missing_machine_wide -join ';'))
+    Write-Host ("RAW_HKLM_KEYS={0}" -f ($diagnostic.raw_hklm_connection_keys -join ';'))
+    if (-not [string]::IsNullOrWhiteSpace([string]$diagnostic.agent_error)) { Write-Host ("AGENT_ERROR={0}" -f $diagnostic.agent_error) -ForegroundColor Yellow }
+}
+
+if ($PassThru) {
+    [pscustomobject][ordered]@{
+        schema_version = 'sas-northwell-printer-evidence-diagnostic/v1'
+        diagnostic_status = 'COMPLETED'
+        mapping_proof = $overall
+        evidence_set = $evidenceSetClassification
+        failure_classification = $failureClassification
+        evidence_set_complete = $evidenceSetComplete
+        evidence_root = $resolvedEvidenceRoot
+        summary_success = $summarySuccess
+        expected_targets = $totalTargets
+        completed_targets = $completedTargets
+        status_files = $statusFiles.Count
+        summary_results = $summaryResultDiagnostics.ToArray()
+        diagnostics = $diagnostics.ToArray()
+        target_contact_performed = $false
+        target_mutation_performed = $false
+        test_page_printed = $false
+    }
+}

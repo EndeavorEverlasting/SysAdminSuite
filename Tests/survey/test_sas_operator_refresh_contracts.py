@@ -90,20 +90,27 @@ def test_refresh_requires_complete_autologon_runtime_surface() -> None:
         assert marker in script, marker
 
 
-def test_installed_launcher_routes_remote_autologon_to_sealed_runtime() -> None:
+def test_installed_launcher_routes_remote_autologon_to_sealed_runtime_before_repo_discovery() -> None:
     launcher = read("scripts/SasPortableLauncher.ps1")
     for marker in (
         "sas refresh",
         "autologon-short-runtime.json",
         "Resolve-SasPreparedAutoLogonRuntime",
         "sas autologon Remote HOST",
-        "Protected-side Git network I/O: NONE",
+        "sas-autologon-short-runtime/v2",
+        "Protected-side Git activity: NONE",
         "& $runtime.bootstrap $target $runtime.commit",
     ):
         assert marker in launcher, marker
+    dispatch = launcher.index("if ($normalized -eq 'autologon' -and $actualCommandArgs.Count -eq 2)")
+    remote = launcher.index("& $runtime.bootstrap $target $runtime.commit")
+    recover = launcher.index("& $recoveryLauncher 'Recover' $target")
+    repo_discovery = launcher.index("$repoRoot = Resolve-SasRepoRoot")
     refresh_case = launcher.index("'refresh' {")
     autologon_case = launcher.index("'autologon' {")
     cybernet_case = launcher.index("'cybernet' {")
+    assert dispatch < remote < repo_discovery
+    assert dispatch < recover < repo_discovery
     assert refresh_case < autologon_case < cybernet_case
 
 

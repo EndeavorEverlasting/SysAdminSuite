@@ -4,22 +4,19 @@
 Launch the crash-safe AutoLogon field lane from a pre-staged short runtime.
 
 .DESCRIPTION
-Protected-network execution is deliberately local-only. This bootstrap never acquires repository data,
-never updates the checkout, and never performs Git network I/O. The exact C:\SASAL runtime must already
-have been staged by `sas refresh` while on Guest/Internet and sealed by
-scripts\Prepare-SasAutoLogonShortRuntime.ps1.
+Protected-network execution is deliberately Git-free. This bootstrap never invokes Git, never acquires
+repository data, and never mutates checkout state after the operator transitions to the protected network.
+The exact C:\SASAL runtime must already have been staged by `sas refresh` while on Guest/Internet and
+sealed by scripts\Prepare-SasAutoLogonShortRuntime.ps1.
 
-The bootstrap verifies the local staging manifest, exact commit, clean worktree, and absence of Git remotes
-before it establishes DomainAuthenticated VPN/LAN authority. It then runs the canonical protected-network
-gate, resolves the requested target to its canonical FQDN, writes only that exact FQDN into the gitignored
-operator-local host eligibility policy, and starts the crash-safe AutoLogon field transaction. The normal
-field transaction independently repeats network, canonical resolution, and eligibility validation before
-any target mutation.
+The bootstrap verifies the local staging manifest, exact prepared commit, and SHA-256 hashes for every
+tracked runtime file using ordinary filesystem APIs plus .NET cryptography. It then establishes
+DomainAuthenticated VPN/LAN authority, runs the canonical protected-network gate, and starts the crash-safe
+AutoLogon field transaction. The normal field transaction independently repeats network, canonical resolution,
+and eligibility validation before any target mutation.
 
 Legacy evidence fallback is opt-in only through -LegacyEvidenceRoot. The protected runtime never scans the
 operator Desktop/OneDrive tree to discover another checkout implicitly.
-
-Existing unexpected or dirty runtime content is never reset, cleaned, removed, or overwritten.
 #>
 [CmdletBinding()]
 param(
@@ -41,78 +38,26 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-function Resolve-SasGitExecutable {
-    $command = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($command -and $command.Source -and (Test-Path -LiteralPath $command.Source -PathType Leaf)) {
-        return [IO.Path]::GetFullPath([string]$command.Source)
-    }
-    foreach ($candidate in @(
-        (Join-Path $env:ProgramFiles 'Git\cmd\git.exe'),
-        (Join-Path $env:ProgramFiles 'Git\bin\git.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\Git\cmd\git.exe')
-    )) {
-        if (-not [string]::IsNullOrWhiteSpace([string]$candidate) -and
-            (Test-Path -LiteralPath $candidate -PathType Leaf)) {
-            return [IO.Path]::GetFullPath([string]$candidate)
-        }
-    }
-    throw 'Git for Windows could not be resolved for local runtime verification.'
-}
+function Get-SasSha256Hex {
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
 
-$script:SasGitExe = Resolve-SasGitExecutable
-
-function Invoke-SasLocalGit {
-    param(
-        [Parameter(Mandatory = $true)][string]$Root,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [Parameter(Mandatory = $true)][string]$FailureMessage,
-        [switch]$Quiet
-    )
-
-    $stderrPath = Join-Path $env:TEMP ('sas-local-git-' + [guid]::NewGuid().ToString('N') + '.err')
-    $previousPreference = $ErrorActionPreference
+    $stream = $null
+    $sha256 = $null
     try {
-        $ErrorActionPreference = 'Continue'
-        $LASTEXITCODE = 0
-        $stdout = @(& $script:SasGitExe -C $Root @Arguments 2> $stderrPath)
-        $exitCode = [int]$LASTEXITCODE
+        $stream = [IO.File]::Open(
+            $LiteralPath,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        $bytes = $sha256.ComputeHash($stream)
+        return ([BitConverter]::ToString($bytes)).Replace('-','').ToLowerInvariant()
     }
     finally {
-        $ErrorActionPreference = $previousPreference
+        if ($null -ne $sha256) { $sha256.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
     }
-
-    $stderr = ''
-    if (Test-Path -LiteralPath $stderrPath) {
-        try {
-            $stderrRaw = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
-            $stderr = $stderrRaw.Trim()
-        }
-        finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
-    }
-    $stdoutText = (@($stdout | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
-
-    if ($exitCode -ne 0) {
-        $detail = @($stdoutText,$stderr | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join [Environment]::NewLine
-        if ([string]::IsNullOrWhiteSpace($detail)) { $detail = '(git produced no diagnostic text)' }
-        throw "$FailureMessage (git exit $exitCode)`n$detail"
-    }
-    if (-not $Quiet) {
-        if (-not [string]::IsNullOrWhiteSpace($stdoutText)) { Write-Host $stdoutText }
-        if (-not [string]::IsNullOrWhiteSpace($stderr)) { Write-Host $stderr -ForegroundColor DarkGray }
-    }
-    return @($stdout | ForEach-Object { [string]$_ })
-}
-
-function Get-SasLocalGitScalar {
-    param(
-        [Parameter(Mandatory = $true)][string]$Root,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [Parameter(Mandatory = $true)][string]$FailureMessage
-    )
-    $lines = @(Invoke-SasLocalGit -Root $Root -Arguments $Arguments -FailureMessage $FailureMessage -Quiet)
-    $value = [string]($lines | Select-Object -First 1)
-    if ([string]::IsNullOrWhiteSpace($value)) { throw "$FailureMessage (empty git output)" }
-    return $value.Trim()
 }
 
 $RuntimeRoot = [IO.Path]::GetFullPath($RuntimeRoot)
@@ -120,7 +65,7 @@ $statePath = Join-Path (Join-Path $env:LOCALAPPDATA 'SysAdminSuite') 'autologon-
 
 Write-Host 'PROTECTED AUTOLOGON RUNTIME VERIFICATION' -ForegroundColor Cyan
 Write-Host "Short AutoLogon runtime: $RuntimeRoot"
-Write-Host 'Git network I/O: DISABLED' -ForegroundColor Green
+Write-Host 'Git activity after protected-network transition: NONE' -ForegroundColor Green
 Write-Host 'Checkout mutation: DISABLED' -ForegroundColor Green
 
 if (-not (Test-Path -LiteralPath $RuntimeRoot -PathType Container)) {
@@ -133,9 +78,10 @@ if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
 try { $runtimeState = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json }
 catch { throw "AUTOLOGON_RUNTIME_NOT_PREPARED: staging manifest is unreadable: $($_.Exception.Message)" }
 
-if ([string]$runtimeState.schema_version -ne 'sas-autologon-short-runtime/v1') {
-    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: unsupported staging manifest schema: $($runtimeState.schema_version)"
+if ([string]$runtimeState.schema_version -ne 'sas-autologon-short-runtime/v2') {
+    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: unsupported staging manifest schema: $($runtimeState.schema_version). Refresh on Guest/Internet to create a Git-free protected-runtime seal."
 }
+
 $manifestRoot = [IO.Path]::GetFullPath([string]$runtimeState.runtime_root)
 if (-not $manifestRoot.TrimEnd('\').Equals($RuntimeRoot.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
     throw "AUTOLOGON_RUNTIME_NOT_PREPARED: manifest runtime mismatch. Manifest=$manifestRoot Runtime=$RuntimeRoot"
@@ -149,31 +95,58 @@ if ([string]$runtimeState.runtime_git_transport -ne 'LOCAL_FILESYSTEM_ONLY' -or
     throw 'AUTOLOGON_RUNTIME_NOT_PREPARED: staging manifest does not prove local-only sealed runtime posture.'
 }
 
-$inside = Get-SasLocalGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','--is-inside-work-tree') -FailureMessage 'Could not verify short runtime Git state.'
-if ($inside -ne 'true') { throw "AUTOLOGON_RUNTIME_NOT_PREPARED: $RuntimeRoot is not a Git worktree." }
-
-$runtimeHead = Get-SasLocalGitScalar -Root $RuntimeRoot -Arguments @('rev-parse','HEAD') -FailureMessage 'Could not resolve short runtime HEAD.'
 $preparedCommit = ([string]$runtimeState.prepared_commit).Trim()
-if ([string]::IsNullOrWhiteSpace($preparedCommit) -or $runtimeHead -ne $preparedCommit) {
-    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: runtime HEAD differs from sealed commit. Runtime=$runtimeHead Prepared=$preparedCommit"
+if ([string]::IsNullOrWhiteSpace($preparedCommit)) {
+    throw 'AUTOLOGON_RUNTIME_NOT_PREPARED: staging manifest has no prepared commit.'
 }
-if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit) -and $runtimeHead -ne $ExpectedCommit.Trim()) {
-    throw "AUTOLOGON_RUNTIME_COMMIT_MISMATCH: expected $($ExpectedCommit.Trim()); staged runtime is $runtimeHead. Refresh on Guest/Internet before protected deployment."
-}
-
-$dirty = @(Invoke-SasLocalGit -Root $RuntimeRoot -Arguments @('status','--porcelain') -FailureMessage 'Could not inspect short runtime worktree state.' -Quiet)
-if (@($dirty | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) {
-    $dirty | Out-Host
-    throw "AUTOLOGON_RUNTIME_DIRTY: $RuntimeRoot contains local work. Nothing was reset or cleaned."
-}
-$remotes = @(Invoke-SasLocalGit -Root $RuntimeRoot -Arguments @('remote') -FailureMessage 'Could not inspect short runtime remotes.' -Quiet)
-if (@($remotes | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) {
-    throw 'AUTOLOGON_RUNTIME_UNSEALED: protected deployment requires a runtime with no Git remotes. Run sas refresh on Guest/Internet.'
+if (-not [string]::IsNullOrWhiteSpace($ExpectedCommit) -and
+    -not $preparedCommit.Equals($ExpectedCommit.Trim(), [StringComparison]::OrdinalIgnoreCase)) {
+    throw "AUTOLOGON_RUNTIME_COMMIT_MISMATCH: expected $($ExpectedCommit.Trim()); staged runtime is $preparedCommit. Refresh on Guest/Internet before protected deployment."
 }
 
-Write-Host "Prepared runtime HEAD: $runtimeHead" -ForegroundColor Green
+if ([string]$runtimeState.tracked_file_hash_algorithm -ne 'SHA256') {
+    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: unsupported tracked-file hash algorithm: $($runtimeState.tracked_file_hash_algorithm)"
+}
+$sealEntries = @($runtimeState.tracked_file_hashes)
+$declaredSealCount = [int]$runtimeState.tracked_file_count
+if ($declaredSealCount -lt 1 -or $sealEntries.Count -ne $declaredSealCount) {
+    throw "AUTOLOGON_RUNTIME_NOT_PREPARED: tracked-file seal count mismatch. Declared=$declaredSealCount Actual=$($sealEntries.Count)"
+}
+
+$runtimePrefix = $RuntimeRoot.TrimEnd('\') + '\'
+$verifiedCount = 0
+foreach ($entry in $sealEntries) {
+    $relative = [string]$entry.path
+    $expectedHash = ([string]$entry.sha256).Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($relative) -or [IO.Path]::IsPathRooted($relative)) {
+        throw "AUTOLOGON_RUNTIME_SEAL_INVALID: invalid tracked path '$relative'."
+    }
+    if ($expectedHash -notmatch '^[0-9a-f]{64}$') {
+        throw "AUTOLOGON_RUNTIME_SEAL_INVALID: invalid SHA-256 for '$relative'."
+    }
+
+    $relativeWindows = $relative.Replace('/', '\')
+    try { $fullPath = [IO.Path]::GetFullPath((Join-Path $RuntimeRoot $relativeWindows)) }
+    catch { throw "AUTOLOGON_RUNTIME_SEAL_INVALID: invalid tracked path '$relative': $($_.Exception.Message)" }
+
+    if (-not $fullPath.StartsWith($runtimePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "AUTOLOGON_RUNTIME_SEAL_INVALID: tracked path escapes runtime root: '$relative'."
+    }
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        throw "AUTOLOGON_RUNTIME_SEAL_MISMATCH: tracked runtime file is missing: $relative"
+    }
+
+    $actualHash = Get-SasSha256Hex -LiteralPath $fullPath
+    if ($actualHash -ne $expectedHash) {
+        throw "AUTOLOGON_RUNTIME_SEAL_MISMATCH: tracked runtime file changed after Guest staging: $relative"
+    }
+    $verifiedCount++
+}
+
+Write-Host "Prepared runtime commit: $preparedCommit" -ForegroundColor Green
 Write-Host "Prepared on: $($runtimeState.preparation_network_classification) [$($runtimeState.preparation_network_label)]" -ForegroundColor Green
-Write-Host 'PASS: no remote Git endpoint is configured in the protected runtime.' -ForegroundColor Green
+Write-Host "PASS: sealed tracked runtime content verified without Git ($verifiedCount files)." -ForegroundColor Green
+Write-Host 'PASS: staging manifest records runtime remotes removed before protected transition.' -ForegroundColor Green
 
 if (-not [string]::IsNullOrWhiteSpace($LegacyEvidenceRoot)) {
     try { $legacyRoot = [IO.Path]::GetFullPath($LegacyEvidenceRoot) }
@@ -186,7 +159,8 @@ if (-not [string]::IsNullOrWhiteSpace($LegacyEvidenceRoot)) {
     }
     $env:SAS_REPO_ROOT = $legacyRoot
     Write-Host "Legacy evidence fallback: $legacyRoot" -ForegroundColor Cyan
-} else {
+}
+else {
     Remove-Item Env:SAS_REPO_ROOT -ErrorAction SilentlyContinue
     Write-Host 'Legacy evidence fallback: disabled.' -ForegroundColor DarkGray
 }
@@ -198,7 +172,9 @@ $networkBootstrap = Join-Path $RuntimeRoot 'scripts\Enable-SasNorthwellVpnNetwor
 $targetModule = Join-Path $RuntimeRoot 'scripts\SasTargetNameResolution.psm1'
 $hostAuthorizer = Join-Path $RuntimeRoot 'scripts\Set-SasHostEligibilityLocalTarget.ps1'
 foreach ($required in @($crashSafeScript,$onsiteScript,$networkGate,$networkBootstrap,$targetModule,$hostAuthorizer)) {
-    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required field deployment surface is missing: $required" }
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Required field deployment surface is missing: $required"
+    }
 
     $tokens = $null
     $parseErrors = $null
@@ -227,7 +203,8 @@ if ($ConfirmVpnPosture) {
     $env:SAS_NETWORK_GUARD_CONFIG = $authorityConfig
     Write-Host "Exact current domain transport authority activated: $authorityConfig" -ForegroundColor Green
     Write-Host 'The canonical field guard will independently verify this posture before target contact.' -ForegroundColor Green
-} else {
+}
+else {
     Remove-Item Env:SAS_NETWORK_GUARD_CONFIG -ErrorAction SilentlyContinue
 }
 
@@ -270,18 +247,18 @@ if ($ConfirmLocalTargetAuthorization) {
 
 Write-Host ''
 Write-Host 'PRE-STAGED RUNTIME VERIFIED - STARTING CRASH-SAFE AUTOLOGON FIELD TRANSACTION' -ForegroundColor Green
-Write-Host "Runtime HEAD: $runtimeHead" -ForegroundColor Green
-Write-Host 'Protected-side repository network activity: NONE' -ForegroundColor Green
+Write-Host "Runtime commit: $preparedCommit" -ForegroundColor Green
+Write-Host 'Protected-side Git activity: NONE' -ForegroundColor Green
 
 $LASTEXITCODE = 0
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $crashSafeScript `
-    -ComputerName $ComputerName -RepositoryRoot $RuntimeRoot -ConfirmDeployment
+    -ComputerName $ComputerName -RepositoryRoot $RuntimeRoot -RepositoryHead $preparedCommit -ConfirmDeployment
 $deploymentExit = [int]$LASTEXITCODE
 
 $latestPointer = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\last-autologon-field-run.json'
 Write-Host ''
 Write-Host "Crash-safe latest pointer: $latestPointer" -ForegroundColor Cyan
 Write-Host "Short runtime retained:     $RuntimeRoot" -ForegroundColor Cyan
-Write-Host "Runtime commit:             $runtimeHead" -ForegroundColor Cyan
+Write-Host "Runtime commit:             $preparedCommit" -ForegroundColor Cyan
 
 exit $deploymentExit

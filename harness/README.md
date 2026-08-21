@@ -11,6 +11,7 @@ The repository-root governance authority remains `AGENTS.md`. This file does not
 3. Read `../CODEBASE_MAP.md` and this file to identify the smallest relevant harness surface.
 4. Use `api/agent-routing-manifest.json` for task routing. Unknown or conflicting task signals fail closed to the repository-sprint skill.
 5. For harness-only maintenance, use `skills/harness-maintenance/SKILL.md` and `workflows/operational-harness-maintenance.yaml`.
+   For Cybernet discovery/identity questions, use `maps/CYBERNET_HARDWARE_IDENTITY_MAP.md`, `skills/cybernet-hardware-identity/SKILL.md`, and `workflows/cybernet-hardware-identity-discovery.yaml` before selecting any Cybernet profile.
 6. Select validators from `api/harness-validator-registry.json`; do not substitute a convenient check for the validator that owns the changed contract.
 7. Resolve produced evidence through `api/harness-artifact-registry.json` and command success/continuation through `api/harness-outcome-registry.json`.
 8. Render the human-readable harness state with `reports/render-harness-status.py` when an operator summary is needed.
@@ -42,6 +43,10 @@ This rule is enforced by `validators/validate-repository-freshness-contracts.py`
 | Artifact locations/generators | `api/harness-artifact-registry.json` |
 | Success outcomes/continuations | `api/harness-outcome-registry.json` |
 | Deployment desired state | `api/deployment-state-registry.json` |
+| Cybernet hardware identity | `maps/CYBERNET_HARDWARE_IDENTITY_MAP.md` → `workflows/cybernet-hardware-identity-discovery.yaml` |
+| Cybernet identity artifacts | `api/cybernet-hardware-identity-artifact-registry.json` |
+| Cybernet identity validator | `validators/validate-cybernet-hardware-identity.py` |
+| Cybernet identity operator status | `reports/CYBERNET_HARDWARE_IDENTITY_STATUS.md` |
 | Fresh-agent intake | `workflows/fresh-agent-intake.yaml` |
 | Harness-only implementation | `workflows/operational-harness-maintenance.yaml` |
 | Safe publication | `workflows/operational-harness-publish.yaml` |
@@ -66,6 +71,8 @@ python harness/validators/validate-harness-registries.py
 python harness/validators/validate-repository-freshness-contracts.py
 python harness/validators/validate-outcome-contracts.py
 python harness/validators/validate-deployment-state-contracts.py
+python harness/validators/validate-cybernet-hardware-identity.py
+python Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
 python Tests/survey/test_operational_harness_completeness_contracts.py
 python Tests/survey/test_local_harness_contracts.py
 git diff --check
@@ -88,6 +95,7 @@ bash tests/survey/run_offline_survey_tests.sh
 - Do not run deployment or target-mutation commands merely to validate harness structure.
 - Do not commit generated run evidence or machine-local output.
 - Do not treat a dry run, fixture pass, parser pass, or successful validator as proof of live deployment/runtime behavior.
+- Software footprint, hostname convention, AD presence, and reachability are candidate signals for Cybernet discovery; they are not hardware identity. Require observed serial + model against an approved reference before selecting the Cybernet profile.
 - Do not force-push or clean/reset another agent's worktree. Use an isolated worktree when ownership or mutation authority is unclear.
 - Do not stop at a green admission gate when a safe, authorized continuation is still required by the requested outcome; follow the outcome registry.
 

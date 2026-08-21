@@ -20,7 +20,7 @@
         "CODEBASE_MAP.md",
         "docs/HARNESS_STATUS.md"
       ],
-      "proof": "Registry shape, path existence, fresh-agent wiring, command authority, deployment-state authority, and report renderer contract."
+      "proof": "Registry shape, path existence, fresh-agent wiring, command authority, deployment-state authority, execution-route authority, and report renderer contract."
     },
     {
       "id": "repository-freshness-contracts",
@@ -73,6 +73,29 @@
         "configs/software-packages/windows-native-package-sets.json"
       ],
       "proof": "AutoLogon/Cybernet intents resolve to current apply/runtime states, the five operator-confirmed package sources remain pinned, proven clinical-core state is preserved, and canonical S4U/runtime artifacts cannot be replaced by fixture or transport results."
+    },
+    {
+      "id": "operator-execution-route-contracts",
+      "category": "harness",
+      "platform": "python3+git",
+      "command": "python harness/validators/validate-operator-execution-route.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/operator-execution-route-registry.json",
+        "schemas/harness/operator-execution-route-registry.schema.json",
+        "harness/api/operational-harness-manifest.json",
+        "harness/api/harness-command-registry.json",
+        "harness/api/terminal-evidence-survival-registry.json",
+        "harness/workflows/operator-execution-route.yaml",
+        "harness/workflows/fresh-agent-intake.yaml",
+        "harness/skills/operator-execution-route/**",
+        "harness/maps/OPERATOR_EXECUTION_ROUTE_MAP.md",
+        "harness/reports/OPERATOR_EXECUTION_ROUTE_STATUS.md",
+        "Run-AutoLogonCrashSafe.cmd",
+        ".githooks/**",
+        ".github/workflows/operator-execution-route-harness.yml"
+      ],
+      "proof": "Repository-relative operator commands resolve an execution location, select the registered front door, avoid inner-command handoff, propagate the child exit code, and retain durable proof pointers."
     },
     {
       "id": "terminal-evidence-survival",

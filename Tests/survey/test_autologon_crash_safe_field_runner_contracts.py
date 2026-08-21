@@ -59,11 +59,32 @@ def test_explicit_deployment_confirmation_is_required() -> None:
     assert "Explicit -ConfirmDeployment is required" in text
 
 
+def test_repository_head_is_supplied_without_git() -> None:
+    text = read(SCRIPT)
+    assert "[string]$RepositoryHead" in text
+    assert "$repoHead = if ([string]::IsNullOrWhiteSpace($RepositoryHead))" in text
+    assert "Repository identity is supplied by the already-sealed runtime manifest/bootstrap" in text
+    for forbidden in (
+        "git -C",
+        "& git",
+        "git.exe",
+        "rev-parse HEAD",
+    ):
+        assert forbidden not in text, forbidden
+
+
 def test_cmd_keeps_visible_failure_boundary() -> None:
     text = read(CMD)
     assert "Invoke-SasAutoLogonCrashSafeFieldRun.ps1" in text
     assert "pause" in text.lower()
     assert "%%LOCALAPPDATA%%\\SysAdminSuite\\field-runs\\autologon" in text
+
+
+def test_cmd_preserves_confirmdeployment_across_native_boundary() -> None:
+    text = read(CMD)
+    assert 'set "SAS_ROOT=%~dp0."' in text
+    assert '-RepositoryRoot "%SAS_ROOT%" -ConfirmDeployment' in text
+    assert '-RepositoryRoot "%~dp0" -ConfirmDeployment' not in text
 
 
 def test_no_live_target_or_secret_literal() -> None:

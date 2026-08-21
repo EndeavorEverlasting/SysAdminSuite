@@ -102,6 +102,36 @@ function Invoke-SasBoundedNative {
         [ValidateRange(1,300)][int]$TimeoutSeconds = 30
     )
 
+    # S4U task creation is a remote RPC operation. A controller-side timeout does not prove that
+    # the exact GUID-unique task failed to commit remotely. Give only the AutoLogon S4U create
+    # operation a larger bounded window and, if it still times out, reconcile only that exact task.
+    $requestedTimeoutSeconds = $TimeoutSeconds
+    $effectiveTimeoutSeconds = $TimeoutSeconds
+    $timeoutPolicy = 'requested'
+    $s4uCreateTarget = $null
+    $s4uCreateTaskName = $null
+    $isExactS4UCreate = $false
+
+    if ([IO.Path]::GetFileName($FilePath).Equals('schtasks.exe', [StringComparison]::OrdinalIgnoreCase)) {
+        $hasCreate = @($Arguments | Where-Object { ([string]$_).Equals('/Create', [StringComparison]::OrdinalIgnoreCase) }).Count -eq 1
+        for ($i = 0; $i -lt $Arguments.Count - 1; $i++) {
+            if (([string]$Arguments[$i]).Equals('/S', [StringComparison]::OrdinalIgnoreCase)) {
+                $s4uCreateTarget = [string]$Arguments[$i + 1]
+            }
+            elseif (([string]$Arguments[$i]).Equals('/TN', [StringComparison]::OrdinalIgnoreCase)) {
+                $s4uCreateTaskName = [string]$Arguments[$i + 1]
+            }
+        }
+        $isExactS4UCreate = ($hasCreate -and
+            -not [string]::IsNullOrWhiteSpace($s4uCreateTarget) -and
+            [string]$s4uCreateTaskName -match '^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$')
+    }
+
+    if ($isExactS4UCreate -and $effectiveTimeoutSeconds -lt 60) {
+        $effectiveTimeoutSeconds = 60
+        $timeoutPolicy = 's4u_task_create_minimum_60'
+    }
+
     # Keep Windows PowerShell 5.1 string[] argument semantics without constructing a fragile
     # native command line. The isolated wrapper and its native child are killed as one tree.
     $payload = [pscustomobject]@{ file_path=$FilePath; arguments=@($Arguments) } | ConvertTo-Json -Depth 4 -Compress
@@ -120,18 +150,58 @@ catch {
 }
 '@.Replace('__PAYLOAD__', $payload64)
 
-    $result = Invoke-SasBoundedPowerShell -ScriptText $child -TimeoutSeconds $TimeoutSeconds
+    $result = Invoke-SasBoundedPowerShell -ScriptText $child -TimeoutSeconds $effectiveTimeoutSeconds
+    $initialTimedOut = [bool]$result.timed_out
+    $reconciledAfterTimeout = $false
+    $reconciliation = $null
+
+    if ($isExactS4UCreate -and $initialTimedOut) {
+        $reconciliation = Invoke-SasBoundedNative -FilePath $FilePath -Arguments @(
+            '/Query','/S',$s4uCreateTarget,'/TN',$s4uCreateTaskName
+        ) -TimeoutSeconds $requestedTimeoutSeconds
+        $reconciledAfterTimeout = (-not [bool]$reconciliation.timed_out -and [int]$reconciliation.exit_code -eq 0)
+    }
+
+    if ($reconciledAfterTimeout) {
+        return [pscustomobject][ordered]@{
+            file_path = $FilePath
+            arguments = @($Arguments)
+            process_id = $result.process_id
+            exit_code = 0
+            timed_out = $false
+            timeout_seconds = $effectiveTimeoutSeconds
+            requested_timeout_seconds = $requestedTimeoutSeconds
+            timeout_policy = $timeoutPolicy
+            initial_timed_out = $true
+            reconciled_after_timeout = $true
+            reconciliation = $reconciliation
+            child_tree_termination_attempted = $result.child_tree_termination_attempted
+            child_tree_terminated = $result.child_tree_terminated
+            output = [string]$reconciliation.output
+            error = ''
+            initial_error = [string]$result.error
+            started_utc = $result.started_utc
+            completed_utc = $reconciliation.completed_utc
+        }
+    }
+
     [pscustomobject][ordered]@{
         file_path = $FilePath
         arguments = @($Arguments)
         process_id = $result.process_id
         exit_code = $result.exit_code
         timed_out = $result.timed_out
-        timeout_seconds = $result.timeout_seconds
+        timeout_seconds = $effectiveTimeoutSeconds
+        requested_timeout_seconds = $requestedTimeoutSeconds
+        timeout_policy = $timeoutPolicy
+        initial_timed_out = $initialTimedOut
+        reconciled_after_timeout = $false
+        reconciliation = $reconciliation
         child_tree_termination_attempted = $result.child_tree_termination_attempted
         child_tree_terminated = $result.child_tree_terminated
         output = $result.output
         error = $result.error
+        initial_error = $null
         started_utc = $result.started_utc
         completed_utc = $result.completed_utc
     }

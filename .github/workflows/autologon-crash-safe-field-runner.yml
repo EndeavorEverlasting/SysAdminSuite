@@ -3,14 +3,23 @@ name: AutoLogon Crash-Safe Field Runner
 on:
   pull_request:
     paths:
+      - 'Bootstrap-SysAdminSuiteAutoLogon.cmd'
       - 'Bootstrap-SysAdminSuiteAutoLogon.ps1'
+      - 'scripts/Resolve-SasAutoLogonManifestAuthority.ps1'
+      - 'scripts/Test-SasAutoLogonRuntimeSeal.ps1'
       - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
+      - 'scripts/Install-SasPortableLauncher.ps1'
       - 'scripts/Refresh-SasOperatorCommand.ps1'
       - 'scripts/SasPortableLauncher.ps1'
       - 'scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
       - 'Run-AutoLogonCrashSafe.cmd'
       - 'Tests/survey/test_autologon_protected_bootstrap_contracts.py'
       - 'Tests/survey/test_autologon_crash_safe_field_runner_contracts.py'
+      - 'Tests/survey/test_autologon_runtime_seal_audit_contracts.py'
+      - 'Tests/PowerShell/AutoLogonCrashSafeCmdBinding.Tests.ps1'
+      - 'Tests/PowerShell/AutoLogonProtectedHashing.Tests.ps1'
+      - 'Tests/PowerShell/AutoLogonManifestAuthority.Tests.ps1'
+      - 'Tests/PowerShell/AutoLogonRuntimeSealAudit.Tests.ps1'
       - '.github/workflows/autologon-crash-safe-field-runner.yml'
   workflow_dispatch:
 
@@ -26,6 +35,8 @@ jobs:
         run: python3 Tests/survey/test_autologon_protected_bootstrap_contracts.py
       - name: Validate crash-safe field runner contracts
         run: python3 Tests/survey/test_autologon_crash_safe_field_runner_contracts.py
+      - name: Validate full runtime seal audit contracts
+        run: python3 Tests/survey/test_autologon_runtime_seal_audit_contracts.py
 
   powershell-parse:
     runs-on: windows-latest
@@ -36,10 +47,17 @@ jobs:
         run: |
           foreach ($relativePath in @(
             'Bootstrap-SysAdminSuiteAutoLogon.ps1',
+            'scripts\Resolve-SasAutoLogonManifestAuthority.ps1',
+            'scripts\Test-SasAutoLogonRuntimeSeal.ps1',
             'scripts\Prepare-SasAutoLogonShortRuntime.ps1',
+            'scripts\Install-SasPortableLauncher.ps1',
             'scripts\Refresh-SasOperatorCommand.ps1',
             'scripts\SasPortableLauncher.ps1',
-            'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
+            'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1',
+            'Tests\PowerShell\AutoLogonCrashSafeCmdBinding.Tests.ps1',
+            'Tests\PowerShell\AutoLogonProtectedHashing.Tests.ps1',
+            'Tests\PowerShell\AutoLogonManifestAuthority.Tests.ps1',
+            'Tests\PowerShell\AutoLogonRuntimeSealAudit.Tests.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -53,3 +71,15 @@ jobs:
               throw "$relativePath has PowerShell parse errors."
             }
           }
+      - name: Execute crash-safe CMD switch-binding fixture
+        shell: powershell
+        run: .\Tests\PowerShell\AutoLogonCrashSafeCmdBinding.Tests.ps1
+      - name: Execute protected SHA-256 compatibility fixture
+        shell: powershell
+        run: .\Tests\PowerShell\AutoLogonProtectedHashing.Tests.ps1
+      - name: Execute manifest authority portability fixture
+        shell: powershell
+        run: .\Tests\PowerShell\AutoLogonManifestAuthority.Tests.ps1
+      - name: Execute full runtime seal drift fixture
+        shell: powershell
+        run: .\Tests\PowerShell\AutoLogonRuntimeSealAudit.Tests.ps1
