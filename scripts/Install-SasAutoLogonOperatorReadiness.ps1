@@ -63,8 +63,11 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $sourceVerifier = Join-Path $repoRoot 'scripts\Test-SasAutoLogonOperatorReadiness.ps1'
-if (-not (Test-Path -LiteralPath $sourceVerifier -PathType Leaf)) {
-    throw "Readiness verifier is missing: $sourceVerifier"
+$sourceDesktopDelegate = Join-Path $repoRoot 'scripts\SasAutoLogonPublicDesktop.cmd'
+foreach ($source in @($sourceVerifier,$sourceDesktopDelegate)) {
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw "AutoLogon operator-readiness source is missing: $source"
+    }
 }
 
 $programData = if ([string]::IsNullOrWhiteSpace([string]$env:ProgramData)) { 'C:\ProgramData' } else { $env:ProgramData }
@@ -101,7 +104,9 @@ if (-not (Test-SasPathContains -PathValue $machinePath -Expected $installRoot)) 
 }
 
 $verifierDestination = Join-Path $installRoot 'Test-SasAutoLogonOperatorReadiness.ps1'
+$canonicalDesktopDelegate = Join-Path $installRoot 'SasAutoLogonPublicDesktop.cmd'
 Copy-Item -LiteralPath $sourceVerifier -Destination $verifierDestination -Force
+Copy-Item -LiteralPath $sourceDesktopDelegate -Destination $canonicalDesktopDelegate -Force
 
 $commonDesktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
 if ([string]::IsNullOrWhiteSpace($commonDesktop)) { $commonDesktop = 'C:\Users\Public\Desktop' }
@@ -120,50 +125,7 @@ Invoke-SasIcacls -Path $runtimeRoot -Grant '*S-1-5-32-545:(OI)(CI)(RX)'
 Invoke-SasIcacls -Path $evidenceRoot -Grant '*S-1-5-32-545:(OI)(CI)(M)'
 
 $desktopCmdPath = Join-Path $commonDesktop 'SysAdminSuite - AutoLogon Remote.cmd'
-$desktopCmd = @'
-@echo off
-setlocal EnableExtensions DisableDelayedExpansion
-title SysAdminSuite - AutoLogon Remote
-cls
-
-echo ================================================================
-echo  SYSADMINSUITE - AUTOLOGON REMOTE
-echo ================================================================
-echo  Uses the installed SysAdminSuite network-aware AutoLogon route.
-echo  No target is stored in this launcher. Enter one authorized host.
-echo ================================================================
-echo.
-
-set "SAS_AUTOLOGON_ENTRYPOINT=%ProgramData%\SysAdminSuite\bin\Invoke-SasNetworkAwareField.ps1"
-if not exist "%SAS_AUTOLOGON_ENTRYPOINT%" (
-  echo ERROR: Machine-wide SysAdminSuite launcher is missing.
-  echo Run the approved SysAdminSuite refresh/readiness installation first.
-  set "SAS_EXIT=10"
-  goto finish
-)
-
-set "SAS_AUTOLOGON_TARGET="
-set /p "SAS_AUTOLOGON_TARGET=Authorized hostname or FQDN: "
-if not defined SAS_AUTOLOGON_TARGET (
-  echo ERROR: No target entered.
-  set "SAS_EXIT=2"
-  goto finish
-)
-
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$t=[string]$env:SAS_AUTOLOGON_TARGET; if($t -notmatch '^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$'){Write-Host 'ERROR: Target must be a hostname or FQDN.' -ForegroundColor Red; exit 2}; & $env:SAS_AUTOLOGON_ENTRYPOINT 'autologon' 'Remote' $t; $e=$global:LASTEXITCODE; if($null -eq $e){$e=1}; exit [int]$e"
-set "SAS_EXIT=%ERRORLEVEL%"
-
-:finish
-if not "%SAS_EXIT%"=="0" (
-  echo.
-  echo AutoLogon Remote did not finish successfully.
-  echo Preserve the SysAdminSuite evidence shown by the command; do not retry blindly.
-  echo.
-  pause
-)
-endlocal & exit /b %SAS_EXIT%
-'@
-[IO.File]::WriteAllText($desktopCmdPath,$desktopCmd,(New-Object Text.UTF8Encoding($false)))
+Copy-Item -LiteralPath $canonicalDesktopDelegate -Destination $desktopCmdPath -Force
 Invoke-SasIcacls -Path $desktopCmdPath -Grant '*S-1-5-32-545:(RX)'
 
 Write-Host 'AutoLogon operator-readiness surfaces installed.' -ForegroundColor Green

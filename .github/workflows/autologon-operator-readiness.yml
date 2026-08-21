@@ -6,6 +6,7 @@ on:
       - 'Install-AutoLogonOperatorReadiness.cmd'
       - 'scripts/Install-SasAutoLogonOperatorReadiness.ps1'
       - 'scripts/Test-SasAutoLogonOperatorReadiness.ps1'
+      - 'scripts/SasAutoLogonPublicDesktop.cmd'
       - 'Tests/survey/test_autologon_operator_readiness_contracts.py'
       - 'docs/AUTOLOGON_OPERATOR_READINESS.md'
       - '.github/workflows/autologon-operator-readiness.yml'

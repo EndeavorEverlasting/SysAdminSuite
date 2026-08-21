@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INSTALL_CMD = ROOT / "Install-AutoLogonOperatorReadiness.cmd"
 INSTALLER = ROOT / "scripts" / "Install-SasAutoLogonOperatorReadiness.ps1"
 VERIFIER = ROOT / "scripts" / "Test-SasAutoLogonOperatorReadiness.ps1"
+DESKTOP_DELEGATE = ROOT / "scripts" / "SasAutoLogonPublicDesktop.cmd"
 WORKFLOW = ROOT / ".github" / "workflows" / "autologon-operator-readiness.yml"
 DOC = ROOT / "docs" / "AUTOLOGON_OPERATOR_READINESS.md"
 
@@ -23,6 +24,7 @@ def main() -> None:
     install_cmd = read(INSTALL_CMD)
     installer = read(INSTALLER)
     verifier = read(VERIFIER)
+    desktop_delegate = read(DESKTOP_DELEGATE)
     workflow = read(WORKFLOW)
     doc = read(DOC)
 
@@ -41,24 +43,23 @@ def main() -> None:
         "CommonDocuments",
         "Test-SasAutoLogonOperatorReadiness.ps1",
         "SysAdminSuite - AutoLogon Remote.cmd",
-        "Invoke-SasNetworkAwareField.ps1",
-        "set /p \"SAS_AUTOLOGON_TARGET=",
-        "$env:SAS_AUTOLOGON_TARGET",
-        "'autologon' 'Remote'",
+        "SasAutoLogonPublicDesktop.cmd",
+        "Copy-Item -LiteralPath $sourceDesktopDelegate -Destination $canonicalDesktopDelegate -Force",
+        "Copy-Item -LiteralPath $canonicalDesktopDelegate -Destination $desktopCmdPath -Force",
         "receipt is evidence only",
     ):
         assert marker.lower() in installer.lower(), marker
 
-    # Public Desktop entrypoint must delegate, never implement a second AutoLogon transaction.
-    desktop = installer.split("$desktopCmd = @'", 1)[1].split("\n'@", 1)[0]
-    assert "%~1" not in desktop
-    assert "-Confirm:$false" not in desktop
-    assert "Get-Credential" not in desktop
-    assert "Invoke-SasAutoLogonCrashSafeFieldRun.ps1" not in desktop
-    assert "Run-AutoLogonOnsite.cmd" not in desktop
-    assert "SAS_AUTOLOGON_ENTRYPOINT" in desktop
-    assert "Invoke-SasNetworkAwareField.ps1" in desktop
-    assert "$env:SAS_AUTOLOGON_TARGET" in desktop
+    # Public Desktop entrypoint is one tracked canonical delegate, copied unchanged to ProgramData and Public Desktop.
+    for marker in (
+        'set "SAS_AUTOLOGON_ENTRYPOINT=%ProgramData%\\SysAdminSuite\\bin\\Invoke-SasNetworkAwareField.ps1"',
+        'set /p "SAS_AUTOLOGON_TARGET=',
+        "$env:SAS_AUTOLOGON_TARGET",
+        "& $env:SAS_AUTOLOGON_ENTRYPOINT 'autologon' 'Remote' $t",
+    ):
+        assert marker in desktop_delegate, marker
+    for forbidden in ("%~1", "-Confirm:$false", "Get-Credential", "Invoke-SasAutoLogonCrashSafeFieldRun.ps1", "Run-AutoLogonOnsite.cmd"):
+        assert forbidden not in desktop_delegate, forbidden
 
     for marker in (
         "[switch]$RequireStandardUser",
@@ -67,6 +68,12 @@ def main() -> None:
         "Get-Command sas.cmd",
         "& $sasCmd platform",
         "SysAdminSuite - AutoLogon Remote.cmd",
+        "SasAutoLogonPublicDesktop.cmd",
+        "function Get-SasSha256Hex",
+        "Get-SasSha256Hex -LiteralPath $desktopCmdPath",
+        "Get-SasSha256Hex -LiteralPath $canonicalDesktopDelegate",
+        "PUBLIC_DESKTOP_DELEGATE_VERIFIED",
+        "Exact SHA-256 match to canonical installed delegate",
         "Resolve-SasAutoLogonManifestAuthority.ps1",
         "-RequireManifest",
         ".git\\sas-autologon-short-runtime.json",
@@ -92,13 +99,14 @@ def main() -> None:
         "WPJ075",
         "nslijhs.net",
     ):
-        assert forbidden.lower() not in (installer + verifier + install_cmd + doc).lower(), forbidden
+        assert forbidden.lower() not in (installer + desktop_delegate + install_cmd + doc).lower(), forbidden
 
     for marker in (
         "python Tests/survey/test_autologon_operator_readiness_contracts.py",
         "Windows PowerShell 5.1",
         "Install-SasAutoLogonOperatorReadiness.ps1",
         "Test-SasAutoLogonOperatorReadiness.ps1",
+        "scripts/SasAutoLogonPublicDesktop.cmd",
         "git diff --check",
     ):
         assert marker in workflow, marker

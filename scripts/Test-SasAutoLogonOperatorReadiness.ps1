@@ -50,6 +50,27 @@ function Test-SasReadableFile {
     finally { if ($null -ne $stream) { $stream.Dispose() } }
 }
 
+function Get-SasSha256Hex {
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [IO.File]::Open(
+            $LiteralPath,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::ReadWrite
+        )
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        $bytes = $sha256.ComputeHash($stream)
+        return ([BitConverter]::ToString($bytes)).Replace('-','').ToLowerInvariant()
+    }
+    finally {
+        if ($null -ne $sha256) { $sha256.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
+}
+
 $programData = if ([string]::IsNullOrWhiteSpace([string]$env:ProgramData)) { 'C:\ProgramData' } else { $env:ProgramData }
 if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
     $InstallRoot = Join-Path $programData 'SysAdminSuite\bin'
@@ -134,10 +155,45 @@ Add-SasReadinessCheck -Name 'standard_command_execution' -Passed $platformReady 
     -Detail "Exact installed sas.cmd platform exit code: $platformExit"
 
 $desktopCmdPath = Join-Path $commonDesktop 'SysAdminSuite - AutoLogon Remote.cmd'
-$desktopReadable = Test-SasReadableFile -Path $desktopCmdPath
-Add-SasReadinessCheck -Name 'public_desktop_delegate' -Passed $desktopReadable `
-    -Classification $(if ($desktopReadable) { 'PUBLIC_DESKTOP_DELEGATE_READABLE' } else { 'PUBLIC_DESKTOP_DELEGATE_UNREADABLE' }) `
-    -Detail 'Public Desktop CMD is a delegate to the existing network-aware AutoLogon Remote route.'
+$canonicalDesktopDelegate = Join-Path $InstallRoot 'SasAutoLogonPublicDesktop.cmd'
+$desktopDelegateHash = ''
+$canonicalDelegateHash = ''
+$desktopDelegateReady = $false
+$desktopDelegateDetail = 'Public Desktop delegate or canonical installed template is unreadable.'
+if ((Test-SasReadableFile -Path $desktopCmdPath) -and (Test-SasReadableFile -Path $canonicalDesktopDelegate)) {
+    try {
+        $desktopDelegateHash = Get-SasSha256Hex -LiteralPath $desktopCmdPath
+        $canonicalDelegateHash = Get-SasSha256Hex -LiteralPath $canonicalDesktopDelegate
+        $delegateText = [IO.File]::ReadAllText($canonicalDesktopDelegate,[Text.Encoding]::UTF8)
+        $delegateMarkersReady = (
+            $delegateText.Contains('set "SAS_AUTOLOGON_ENTRYPOINT=%ProgramData%\SysAdminSuite\bin\Invoke-SasNetworkAwareField.ps1"') -and
+            $delegateText.Contains('$env:SAS_AUTOLOGON_TARGET') -and
+            $delegateText.Contains("& `$env:SAS_AUTOLOGON_ENTRYPOINT 'autologon' 'Remote' `$t") -and
+            -not $delegateText.Contains('-Confirm:$false') -and
+            -not $delegateText.Contains('Get-Credential') -and
+            -not $delegateText.Contains('Invoke-SasAutoLogonCrashSafeFieldRun.ps1')
+        )
+        $desktopDelegateReady = (
+            $desktopDelegateHash.Equals($canonicalDelegateHash,[StringComparison]::OrdinalIgnoreCase) -and
+            $delegateMarkersReady
+        )
+        $desktopDelegateDetail = if ($desktopDelegateReady) {
+            "Exact SHA-256 match to canonical installed delegate: $desktopDelegateHash"
+        }
+        elseif (-not $delegateMarkersReady) {
+            'Canonical installed delegate is missing the fixed network-aware AutoLogon Remote routing contract.'
+        }
+        else {
+            "Public Desktop delegate hash mismatch. Expected=$canonicalDelegateHash Actual=$desktopDelegateHash"
+        }
+    }
+    catch {
+        $desktopDelegateDetail = "Delegate validation failed: $($_.Exception.Message)"
+    }
+}
+Add-SasReadinessCheck -Name 'public_desktop_delegate' -Passed $desktopDelegateReady `
+    -Classification $(if ($desktopDelegateReady) { 'PUBLIC_DESKTOP_DELEGATE_VERIFIED' } else { 'PUBLIC_DESKTOP_DELEGATE_INVALID' }) `
+    -Detail $desktopDelegateDetail
 
 $resolver = Join-Path $RuntimeRoot 'scripts\Resolve-SasAutoLogonManifestAuthority.ps1'
 $sealAuditor = Join-Path $RuntimeRoot 'scripts\Test-SasAutoLogonRuntimeSeal.ps1'
@@ -205,6 +261,7 @@ $receipt = [pscustomobject][ordered]@{
     install_root = $InstallRoot
     runtime_root = $RuntimeRoot
     public_desktop_command = $desktopCmdPath
+    public_desktop_delegate_sha256 = if ([string]::IsNullOrWhiteSpace($desktopDelegateHash)) { $null } else { $desktopDelegateHash }
     seal_receipt_path = $sealReceiptPath
     prepared_commit = $preparedCommit
     check_count = $checks.Count

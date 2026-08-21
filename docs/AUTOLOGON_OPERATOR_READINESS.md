@@ -52,7 +52,7 @@ A pass requires all of the following under that exact token:
 2. Machine PATH contains the ProgramData SysAdminSuite bin;
 3. `Get-Command sas.cmd` resolves to that ProgramData command in the new process;
 4. the exact installed `sas.cmd platform` command executes successfully;
-5. the Public Desktop AutoLogon delegate is readable;
+5. the Public Desktop AutoLogon delegate is an exact SHA-256 match to the canonical ProgramData copy and retains the fixed network-aware `autologon Remote` routing contract;
 6. the runtime-local manifest authority is readable and resolves without ambiguity;
 7. the canonical full tracked-file seal audit returns `AUTOLOGON_RUNTIME_SEAL_VERIFIED`.
 
@@ -73,7 +73,7 @@ Neither receipt is accepted by the deployment code as authority.
 
 ## Public Desktop deployment delegate
 
-`SysAdminSuite - AutoLogon Remote.cmd` asks the operator for one authorized hostname/FQDN. The target is
+`scripts/SasAutoLogonPublicDesktop.cmd` is the tracked canonical template. The installer copies it unchanged to ProgramData and to the Public Desktop as `SysAdminSuite - AutoLogon Remote.cmd`. The verifier requires an exact SHA-256 match before readiness can pass. The delegate asks the operator for one authorized hostname/FQDN. The target is
 held only in the process environment long enough to pass it as data to the installed
 `Invoke-SasNetworkAwareField.ps1` entrypoint. The CMD does not store a target, collect credentials, bypass
 confirmation, duplicate the AutoLogon transaction, or call the crash-safe engine directly.
