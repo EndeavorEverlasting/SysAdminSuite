@@ -63,6 +63,23 @@ function Read-SasAutoLogonJson {
     }
 }
 
+function Get-SasSha256Hex {
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [IO.File]::OpenRead($LiteralPath)
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        $digest = $sha256.ComputeHash($stream)
+        return ([BitConverter]::ToString($digest) -replace '-', '').ToLowerInvariant()
+    }
+    finally {
+        if ($sha256) { $sha256.Dispose() }
+        if ($stream) { $stream.Dispose() }
+    }
+}
+
 function Find-SasAutoLogonOptionalArtifact {
     param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$Name)
     $matches = @(Get-ChildItem -LiteralPath $Root -Filter $Name -File -Recurse -ErrorAction SilentlyContinue)
@@ -145,7 +162,7 @@ if ($receiptPath -eq '__AMBIGUOUS__' -or $sourcePath -eq '__AMBIGUOUS__') {
         $receiptClassification = [string](Get-SasAutoLogonProperty -Value $receipt -Name 'classification' -Default 'invalid')
         $expectedDigest = [string](Get-SasAutoLogonProperty -Value $receipt -Name 'source_evidence_sha256' -Default '')
         $expectedSize = [long](Get-SasAutoLogonProperty -Value $receipt -Name 'source_evidence_size_bytes' -Default 0)
-        $actualDigest = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $actualDigest = Get-SasSha256Hex -LiteralPath $sourcePath
         $actualSize = (Get-Item -LiteralPath $sourcePath).Length
         if ($expectedDigest -eq $actualDigest -and $expectedSize -eq $actualSize) {
             $digestContinuity = 'VERIFIED'
