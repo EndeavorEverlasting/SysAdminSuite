@@ -57,11 +57,14 @@ if (@($result).Count -ne 1 -or ([string]$result[0]).Trim() -ne 'main') {
 }
 
 # Preserve the other half of the helper contract: first prove the fixture itself really
-# produces a nonzero native Git result in this Windows PowerShell process, then run the
-# exact same arguments through the production helper and require the structured failure.
+# produces a nonzero native Git result in this Windows PowerShell process under the same
+# ErrorActionPreference policy used by production, then run the exact same arguments
+# through the production helper and require the structured failure.
 $missingRef = 'refs/heads/sas-refresh-native-stderr-fixture-missing-7d2c610b'
 $rawStderrPath = Join-Path $env:TEMP ('sas-refresh-raw-git-' + [guid]::NewGuid().ToString('N') + '.err')
+$previousPreference = $ErrorActionPreference
 try {
+    $ErrorActionPreference = 'Continue'
     $LASTEXITCODE = 0
     & $script:SasGitExe -C $repoRoot 'rev-parse' '--verify' $missingRef 2> $rawStderrPath | Out-Null
     $rawExit = [int]$LASTEXITCODE
@@ -70,6 +73,7 @@ try {
     } else { '' }
 }
 finally {
+    $ErrorActionPreference = $previousPreference
     Remove-Item -LiteralPath $rawStderrPath -Force -ErrorAction SilentlyContinue
 }
 if ($rawExit -eq 0) {
