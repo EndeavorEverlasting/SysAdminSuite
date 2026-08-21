@@ -34,8 +34,10 @@ def test_canary_names_required_and_current_network_before_execution() -> None:
 def test_network_intents_match_operator_workflows() -> None:
     text = read(WRAPPER)
     for marker in (
-        "'refresh' { $intent = 'InternetSync' }",
-        "'printer' { $intent = 'ProtectedNorthwell' }",
+        "'refresh'",
+        "$intent = 'InternetSync'",
+        "'printer'",
+        "$intent = 'ProtectedNorthwell'",
         "'clipboard' { $intent = 'LocalOnly' }",
         "'platform' { $intent = 'LocalOnly' }",
         "'network'",
@@ -46,6 +48,22 @@ def test_network_intents_match_operator_workflows() -> None:
     ):
         assert marker in text, marker
     assert text.index("Enter-SasNetworkIntent") < text.index("& powershell.exe @childArgs") < text.index("Restore-SasNetworkIntent")
+
+
+def test_invalid_or_incomplete_shapes_cannot_trigger_protected_switch() -> None:
+    text = read(WRAPPER)
+    for marker in (
+        "Test-SasPrinterShapeForNetworkTransition",
+        "if ($actualArgs.Count -eq 0) { $intent = 'InternetSync' }",
+        "elseif ($actualArgs.Count -eq 1) { $intent = 'ProtectedNorthwell' }",
+        "if ($actualArgs.Count -eq 2 -and",
+        "if ($actualArgs.Count -ge 2 -and",
+        "Invalid/incomplete shapes still flow to the canonical dispatcher",
+    ):
+        assert marker in text, marker
+    assert "if ($actualArgs.Count -gt 2) { return $false }" in text
+    assert "if ($modeSeen) { return $false }" in text
+    assert "if ($offlineSeen) { return $false }" in text
 
 
 def test_saved_wlan_switching_is_transactional_and_restored() -> None:
@@ -68,6 +86,24 @@ def test_saved_wlan_switching_is_transactional_and_restored() -> None:
     assert "try { [void](Invoke-SasSavedWlanConnect -RepoRoot $RepoRoot -ProfileName ([string]$before.label)) } catch { }" in text
 
 
+def test_saved_wlan_profile_proof_is_locale_independent() -> None:
+    text = read(INTENT)
+    for marker in (
+        "function Test-SasSavedWlanProfile",
+        "@('wlan','show','profile',",
+        "native exit code as profile-existence proof",
+        "Test-SasSavedWlanProfile -RepoRoot $RepoRoot -ProfileName $ProfileName",
+    ):
+        assert marker in text, marker
+    for forbidden in (
+        "All User Profile",
+        "User Profile",
+        "Get-SasSavedWlanProfiles",
+        "wlan','show','profiles",
+    ):
+        assert forbidden not in text, forbidden
+
+
 def test_protected_auto_entry_requires_paired_proven_wlan_bookmarks() -> None:
     text = read(INTENT)
     for marker in (
@@ -81,6 +117,27 @@ def test_protected_auto_entry_requires_paired_proven_wlan_bookmarks() -> None:
     paired = text.index("if ($sameGuest -and $null -ne $protectedBookmark)")
     connect = text.index("Invoke-SasSavedWlanConnect", paired)
     assert paired < connect
+
+
+def test_network_sensitive_transactions_are_serialized_through_restore() -> None:
+    text = read(WRAPPER)
+    for marker in (
+        "Global\\SysAdminSuite.NetworkIntent.v1",
+        "$serializedIntent = $intent -in @('InternetSync','ProtectedNorthwell')",
+        "$networkMutex.WaitOne(0)",
+        "SAS_NETWORK_TRANSITION_BUSY",
+        "BLOCKED_BY_CONCURRENT_NETWORK_TRANSACTION",
+        "Restore-SasNetworkIntent",
+        "$networkMutex.ReleaseMutex()",
+        "$networkMutex.Dispose()",
+    ):
+        assert marker in text, marker
+    lock = text.index("$networkMutex.WaitOne(0)")
+    enter = text.index("Enter-SasNetworkIntent", lock)
+    child = text.index("& powershell.exe @childArgs", enter)
+    restore = text.index("Restore-SasNetworkIntent", child)
+    release = text.index("$networkMutex.ReleaseMutex()", restore)
+    assert lock < enter < child < restore < release
 
 
 def test_vpn_and_hardwire_lifecycle_fail_closed_instead_of_guessing() -> None:
@@ -131,6 +188,22 @@ def test_restore_failure_prevents_false_green_result() -> None:
         assert marker in text, marker
 
 
+def test_installer_validates_controller_dependencies_before_shim_install() -> None:
+    text = read(INSTALLER)
+    for marker in (
+        "$sourceOperatorSession",
+        "$sourceNetworkGuard",
+        "$sourceBoundedNative",
+        "scripts\\SasFieldPlatform.psm1",
+        "scripts\\SasOperatorSession.psm1",
+        "scripts\\SasNetworkGuard.psm1",
+        "scripts\\SasBoundedNative.psm1",
+        "current network-aware runtime dependency",
+        "MACHINE_RUNTIME_REFRESH_REQUIRED",
+    ):
+        assert marker in text, marker
+
+
 def test_installed_sas_enters_network_aware_wrapper() -> None:
     text = read(INSTALLER)
     for marker in (
@@ -158,6 +231,8 @@ def test_documentation_contains_network_matrix_and_canary_rule() -> None:
         "saved WLAN",
         "VPN",
         "restore",
+        "concurrent",
+        "serialized",
     ):
         assert marker in text, marker
 
