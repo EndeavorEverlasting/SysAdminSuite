@@ -33,7 +33,7 @@ Describe 'AD OU policy probe -- syntax and read-only boundary' {
         foreach ($required in @('Get-ADComputer','Get-ADOrganizationalUnit','Get-GPO','Get-GPOReport','Get-GPInheritance')) {
             $script:probe | Should -Match ([regex]::Escape($required))
         }
-        $script:probe | Should -Match "\[string\]\$PolicyKeyword\s*=\s*'Imprivata'"
+        $script:probe | Should -Match '\[string\]\$PolicyKeyword\s*=\s*''Imprivata'''
     }
 
     It 'contains no AD, GPO, or group mutation primitive' {
@@ -124,10 +124,11 @@ Describe 'Network intent -- valid AD OU commands are protected' {
     It 'has an explicit AD OU shape guard' {
         $script:networkAware | Should -Match 'Test-SasAdOuShapeForNetworkTransition'
         $script:networkAware | Should -Match "'ad'"
-        $script:networkAware | Should -Match "\$intent\s*=\s*'ProtectedNorthwell'"
+        $script:networkAware | Should -Match '\$intent\s*=\s*''ProtectedNorthwell'''
     }
 
     It 'does not auto-switch for malformed AD commands' {
-        $script:networkAware | Should -Match 'Invalid/incomplete shapes.*CommandSpecific'
+        $script:networkAware | Should -Match 'Invalid/incomplete shapes still flow to the canonical dispatcher'
+        $script:networkAware | Should -Match 'remain CommandSpecific so they cannot cause a disruptive switch'
     }
 }
