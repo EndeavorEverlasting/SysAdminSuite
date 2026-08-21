@@ -2,6 +2,23 @@
 
 SysAdminSuite field execution is based on **approved network authority and a machine-local controller runtime**, not on a particular technician laptop, Windows username, checkout folder, or one exact network ritual.
 
+## Network canary and automatic return
+
+The installed `sas` front door now names the network requirement **before** it runs the requested command. Every run prints a network canary containing `NETWORK REQUIRED`, `NETWORK PURPOSE`, `CURRENT NETWORK`, `CURRENT AUTHORITY`, and `AUTO-SWITCH`. Operator instructions should use the same canary vocabulary so a pasted command is never ambiguous about its network posture.
+
+| Command class | Network canary | Automatic behavior |
+| --- | --- | --- |
+| `sas refresh` | **GUEST / INTERNET** | If the workstation is on a proven saved WAB profile and an exact Guest/Internet return bookmark exists, SysAdminSuite may switch to that saved WLAN profile for repository sync and then restore WAB. |
+| `sas printer`, target network probes, protected AutoLogon/Cybernet actions | **PROTECTED NORTHWELL** | Existing hardwire, WAB, or authenticated `DomainAuthenticated` VPN authority is accepted. A previously paired Guest/WAB WLAN pair may be switched and restored automatically. |
+| `sas clipboard`, `sas platform`, local status | **LOCAL / ANY** | The network is left unchanged. |
+| legacy/delegated commands without a universal network contract | **COMMAND-SPECIFIC / UNCHANGED** | The wrapper does not guess; the delegated workflow owns any additional gate. |
+
+Automatic switching is intentionally bounded to **saved WLAN profiles** that Windows already knows. The transition layer stores no Wi-Fi key material, does not inspect passwords, proves the exact destination profile, and records enough state to restore the starting WLAN after the command. If an automatic transition fails, it makes a best-effort return to the starting saved WLAN and fails rather than continuing on an unproven network. A failed post-command restore also converts an otherwise successful wrapper result to failure so the operator is not told the workflow is fully complete while the workstation is stranded on the wrong network.
+
+VPN lifecycle is different. An authenticated `DomainAuthenticated` VPN is valid protected authority when it is already connected, but SysAdminSuite does **not** currently connect or disconnect Citrix/other VPN clients automatically because the repository has no proven client-specific lifecycle adapter or credential contract. For example, when `sas refresh` is launched while an authenticated VPN is active, the canary says **GUEST / INTERNET** is required and instructs the operator to disconnect VPN while leaving ordinary Internet connected; it does not silently manipulate the VPN. After refresh, the operator reconnects VPN if protected work is next. This is a deliberate fail-closed boundary, not an assumption that all VPN clients behave like Windows native VPN profiles.
+
+The saved WLAN automation is most useful for an on-site pair such as Guest/Internet ↔ WAB. Off site, ordinary home/hotel/mobile Internet plus an authenticated Northwell VPN remains the expected pattern: Internet-only work is done with VPN disconnected, protected target work with VPN connected, and the canary makes that distinction explicit before execution.
+
 ## Supported protected network angles
 
 Target-capable features must accept any currently proven Northwell protected path:
@@ -14,7 +31,7 @@ The physical uplink may coexist with another connection. The application evaluat
 
 ## Machine-neutral execution
 
-The canonical field front door is `scripts/Invoke-SasUniversalField.ps1`, installed by `Install-SasOperatorCommand.cmd` through `scripts/Install-SasUniversalFieldLauncher.ps1`.
+The canonical field front door is installed by `Install-SasOperatorCommand.cmd` through `scripts/Install-SasUniversalFieldLauncher.ps1`. The installed `sas.cmd` first enters `scripts/Invoke-SasNetworkAwareField.ps1`, which owns the network canary and bounded transition/restore transaction, then delegates the actual product command to `scripts/Invoke-SasUniversalField.ps1`.
 
 Controller/runtime resolution prefers:
 
@@ -98,7 +115,7 @@ The canonical product-level network gate still runs before target work. The plat
 
 ## Proof boundary
 
-Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, mapped-drive, sealed AutoLogon bootstrap, and stale-dispatcher-bypass fixtures. Printer technician-launcher contracts prove that `Map-NorthwellPrinter.cmd` remains a thin delegate to the trusted printer bootstrap, is installed beside `sas.cmd`, rejects an unqualified PATH shim, and stays aligned with repository governance/tutorial routing.
+Repository tests prove classification and routing for sanitized hardwire, WAB, VPN, guest-only, local fixed-drive, UNC, mapped-drive, sealed AutoLogon bootstrap, and stale-dispatcher-bypass fixtures. Network-intent contracts additionally prove that the canary appears before product execution, saved-WLAN transitions are paired with restoration, VPN/hardwire lifecycle manipulation remains fail-closed, transition code is controller-local/target-free, and restore failure cannot become a false-green command result. Printer technician-launcher contracts prove that `Map-NorthwellPrinter.cmd` remains a thin delegate to the trusted printer bootstrap, is installed beside `sas.cmd`, rejects an unqualified PATH shim, and stays aligned with repository governance/tutorial routing.
 
 On August 20, 2026, SysAdminSuite commit `4c5f1252aae24269ac1e0ab28ef9366ea08fd33f` was separately field-observed through `sas printer` on a protected `DomainAuthenticated` wired route producing SYSTEM-wide HKLM registration proof and immediate active-user materialization proof. Later mainline work added the explicit operator outcome/journal layer while preserving that mapping/finalization authority. Repository validation proves the newer composition; the one-click technician CMD still needs post-refresh field acceptance before claiming that exact wrapper was observed live. The earlier field proof does not claim physical document output without a separately observed real print.
 
