@@ -7,13 +7,17 @@ on:
   pull_request:
     paths:
       - 'scripts/Refresh-SasOperatorCommand.ps1'
+      - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
       - 'Tests/PowerShell/SasOperatorRefreshNativeStderr.Tests.ps1'
+      - 'Tests/survey/test_autologon_protected_bootstrap_contracts.py'
       - '.github/workflows/sas-refresh-native-stderr-windows.yml'
   push:
     branches: [main]
     paths:
       - 'scripts/Refresh-SasOperatorCommand.ps1'
+      - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
       - 'Tests/PowerShell/SasOperatorRefreshNativeStderr.Tests.ps1'
+      - 'Tests/survey/test_autologon_protected_bootstrap_contracts.py'
       - '.github/workflows/sas-refresh-native-stderr-windows.yml'
   workflow_dispatch:
 
@@ -31,24 +35,33 @@ jobs:
           $ErrorActionPreference = 'Stop'
           & .\Tests\PowerShell\SasOperatorRefreshNativeStderr.Tests.ps1
 
-      - name: Parse refresh script under Windows PowerShell 5.1
+      - name: Parse refresh and staging scripts under Windows PowerShell 5.1
         shell: powershell
         run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $PWD 'scripts\Refresh-SasOperatorCommand.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          )
-          if (@($errors).Count -gt 0) {
-            $errors | Format-List * | Out-Host
-            throw 'Refresh script failed Windows PowerShell 5.1 parsing.'
+          foreach ($relative in @(
+            'scripts\Refresh-SasOperatorCommand.ps1',
+            'scripts\Prepare-SasAutoLogonShortRuntime.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $relative),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -gt 0) {
+              $errors | Format-List * | Out-Host
+              throw "Windows PowerShell 5.1 parser rejected $relative"
+            }
           }
 
-      - name: Run existing operator refresh static contracts
+      - name: Run operator refresh static contracts
         shell: pwsh
         run: python .\Tests\survey\test_sas_operator_refresh_contracts.py
+
+      - name: Run protected bootstrap staging contracts
+        shell: pwsh
+        run: python .\Tests\survey\test_autologon_protected_bootstrap_contracts.py
 
       - name: Check pull-request patch whitespace
         if: github.event_name == 'pull_request'
