@@ -182,7 +182,7 @@ Describe 'Network intent -- only valid AD OU commands are protected' {
     It 'does not auto-switch for malformed AD commands' {
         $script:networkAware | Should -Match 'Invalid/incomplete shapes still flow to the canonical dispatcher'
         $script:networkAware | Should -Match 'remain CommandSpecific so they cannot cause a disruptive switch'
-        $script:networkAware | Should -Match '^[A-Za-z0-9]'
+        $script:networkAware | Should -Match ([regex]::Escape("'^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'"))
         $script:networkAware | Should -Match 'Managed\|Managed_Shared'
     }
 }
