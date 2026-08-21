@@ -56,27 +56,29 @@ if (@($result).Count -ne 1 -or ([string]$result[0]).Trim() -ne 'main') {
     throw "Unexpected successful Git result: $($result -join '|')"
 }
 
-# Preserve the other half of the helper contract: a real Git failure must still carry
-# its nonzero exit code and stderr diagnostics after the empty-stderr repair.
+# Preserve the other half of the helper contract: a deterministic real Git failure must
+# still carry its nonzero exit code and stderr diagnostics after the empty-stderr repair.
+$missingRef = 'refs/heads/sas-refresh-native-stderr-fixture-missing-7d2c610b'
 $failureObserved = $false
 try {
     [void](Invoke-SasRefreshGit `
-        -Arguments @('check-ref-format','--branch','bad ref') `
-        -FailureMessage 'Synthetic Git ref failure' `
+        -Root $repoRoot `
+        -Arguments @('rev-parse','--verify',$missingRef) `
+        -FailureMessage 'Synthetic Git missing-ref failure' `
         -Quiet)
 }
 catch {
     $failureObserved = $true
     $message = $_.Exception.Message
-    if ($message -notmatch 'Synthetic Git ref failure \(git exit [1-9][0-9]*\)') {
+    if ($message -notmatch 'Synthetic Git missing-ref failure \(git exit [1-9][0-9]*\)') {
         throw "Git failure lost its exit-code diagnostic: $message"
     }
-    if ($message -notmatch '(?i)valid branch name|valid ref') {
+    if ($message -notmatch '(?i)needed a single revision|unknown revision|ambiguous argument|not a valid object name|fatal') {
         throw "Git failure lost its stderr diagnostic: $message"
     }
 }
 if (-not $failureObserved) {
-    throw 'Expected the invalid Git branch check to fail.'
+    throw 'Expected the missing Git ref verification to fail.'
 }
 
 Write-Host 'PASS: sas refresh Git stderr handling accepts zero-byte stderr and preserves nonzero diagnostics under Windows PowerShell 5.1.' -ForegroundColor Green
