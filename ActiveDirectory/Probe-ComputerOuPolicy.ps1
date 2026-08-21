@@ -4,11 +4,11 @@
 Read-only Active Directory OU and Group Policy evidence for explicit workstation targets.
 
 .DESCRIPTION
-Collects each explicit computer object's current parent OU/container and searches Group Policy for a
-policy keyword (default: Imprivata). Matching GPO reports are inspected for link scopes and each
-computer OU is checked for direct/inherited matching policy links. The probe writes local JSON/CSV
-and ticket-note evidence only. It never moves an AD object, edits a GPO, changes group membership,
-or selects/authorizes an OU move.
+Collects each explicit computer object's current parent OU/container, searches OU names/descriptions,
+and searches Group Policy names/descriptions for a policy keyword (default: Imprivata). Matching GPO
+reports are inspected for link scopes and each computer OU is checked for direct/inherited matching
+policy links. The probe writes local JSON/CSV and ticket-note evidence only. It never moves an AD
+object, edits a GPO, changes group membership, or selects/authorizes an OU move.
 #>
 
 [CmdletBinding()]
@@ -60,7 +60,7 @@ function Get-SasAdOu {
     param([Parameter(Mandatory = $true)][string]$Identity)
     $params = @{
         Identity = $Identity
-        Properties = @('DistinguishedName','CanonicalName','Description','ManagedBy')
+        Properties = @('Name','DistinguishedName','CanonicalName','Description','ManagedBy')
         ErrorAction = 'Stop'
     }
     if ($Server) { $params.Server = $Server }
@@ -70,7 +70,7 @@ function Get-SasAdOu {
 function Get-SasAllOus {
     $params = @{
         Filter = '*'
-        Properties = @('DistinguishedName','CanonicalName','Description')
+        Properties = @('Name','DistinguishedName','CanonicalName','Description')
         ErrorAction = 'Stop'
     }
     if ($Server) { $params.Server = $Server }
@@ -158,16 +158,35 @@ $runId = '{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().T
 $runDir = Join-Path ([IO.Path]::GetFullPath($OutputRoot)) $runId
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
-$gpos = @(Get-SasMatchingGpos -Keyword $PolicyKeyword)
-$gpoIdSet = @{}
-foreach ($gpo in $gpos) { $gpoIdSet[([string]$gpo.Id).Trim('{}').ToLowerInvariant()] = $true }
-
+$escapedKeyword = [regex]::Escape($PolicyKeyword)
 $allOus = @(Get-SasAllOus)
 $ouByCanonical = @{}
 foreach ($ou in $allOus) {
     $canonical = ([string]$ou.CanonicalName).Trim().TrimEnd('/')
     if (-not [string]::IsNullOrWhiteSpace($canonical)) { $ouByCanonical[$canonical.ToLowerInvariant()] = $ou }
 }
+
+$ouKeywordEvidence = @($allOus | Where-Object {
+    ([string]$_.Name -match $escapedKeyword) -or
+    ([string]$_.CanonicalName -match $escapedKeyword) -or
+    ([string]$_.Description -match $escapedKeyword)
+} | ForEach-Object {
+    $dn = [string]$_.DistinguishedName
+    [pscustomobject][ordered]@{
+        name = [string]$_.Name
+        distinguished_name = $dn
+        canonical_name = [string]$_.CanonicalName
+        description = [string]$_.Description
+        approved_managed_target = Test-SasApprovedManagedTargetOU -DistinguishedName $dn
+        candidate_role = 'OU name/description keyword evidence only; not authorization and not automatic move selection'
+    }
+})
+$managedOuKeywordTargets = @($ouKeywordEvidence | Where-Object { $_.approved_managed_target } | Select-Object -ExpandProperty distinguished_name -Unique)
+$uniqueManagedOuKeywordTarget = if ($managedOuKeywordTargets.Count -eq 1) { [string]$managedOuKeywordTargets[0] } else { $null }
+
+$gpos = @(Get-SasMatchingGpos -Keyword $PolicyKeyword)
+$gpoIdSet = @{}
+foreach ($gpo in $gpos) { $gpoIdSet[([string]$gpo.Id).Trim('{}').ToLowerInvariant()] = $true }
 
 $policyEvidence = New-Object System.Collections.Generic.List[object]
 $managedPolicyTargets = New-Object System.Collections.Generic.List[string]
@@ -242,19 +261,31 @@ foreach ($target in $targets) {
     $computerEvidence.Add([pscustomobject]$entry)
 }
 
-$uniqueManagedTarget = if ($managedPolicyTargets.Count -eq 1) { $managedPolicyTargets[0] } else { $null }
+$uniqueManagedPolicyTarget = if ($managedPolicyTargets.Count -eq 1) { [string]$managedPolicyTargets[0] } else { $null }
+$corroboratedManagedTarget = $null
+if (-not [string]::IsNullOrWhiteSpace($uniqueManagedPolicyTarget) -and
+    -not [string]::IsNullOrWhiteSpace($uniqueManagedOuKeywordTarget) -and
+    $uniqueManagedPolicyTarget.Equals($uniqueManagedOuKeywordTarget,[StringComparison]::OrdinalIgnoreCase)) {
+    $corroboratedManagedTarget = $uniqueManagedPolicyTarget
+}
+
 $probe = [pscustomobject][ordered]@{
-    schema = 'sysadminsuite/ad-ou-policy-probe/v1'
+    schema = 'sysadminsuite/ad-ou-policy-probe/v2'
     run_id = $runId
     generated_utc = (Get-Date).ToUniversalTime().ToString('o')
     policy_keyword = $PolicyKeyword
     target_count = $targets.Count
+    matching_ou_keyword_count = $ouKeywordEvidence.Count
+    matching_ou_keywords = @($ouKeywordEvidence | ForEach-Object { $_ })
     matching_gpo_count = $policyEvidence.Count
     matching_gpos = @($policyEvidence | ForEach-Object { $_ })
     computers = @($computerEvidence | ForEach-Object { $_ })
+    approved_managed_ou_keyword_targets = @($managedOuKeywordTargets)
+    unique_managed_ou_keyword_target_dn = $uniqueManagedOuKeywordTarget
     approved_managed_policy_link_targets = @($managedPolicyTargets | ForEach-Object { $_ })
-    unique_managed_policy_link_target_dn = $uniqueManagedTarget
-    candidate_role = 'read-only policy-link evidence only; not authorization and not automatic move selection'
+    unique_managed_policy_link_target_dn = $uniqueManagedPolicyTarget
+    corroborated_managed_target_dn = $corroboratedManagedTarget
+    candidate_role = 'directory and policy-link evidence only; not authorization and not automatic move selection'
     target_mutation_performed = $false
     gpo_mutation_performed = $false
     group_membership_mutation_performed = $false
@@ -262,10 +293,12 @@ $probe = [pscustomobject][ordered]@{
 
 $jsonPath = Join-Path $runDir 'Probe.json'
 $computerCsvPath = Join-Path $runDir 'Computers.csv'
+$ouCsvPath = Join-Path $runDir 'OuKeywordMatches.csv'
 $policyCsvPath = Join-Path $runDir 'PolicyLinks.csv'
 $ticketPath = Join-Path $runDir 'TicketNotes.txt'
 $probe | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 @($computerEvidence | ForEach-Object { $_ }) | Select-Object hostname,found,object_guid,current_parent_dn,current_parent_canonical,current_parent_is_ou,enabled,operating_system,error | Export-Csv -LiteralPath $computerCsvPath -NoTypeInformation -Encoding UTF8
+@($ouKeywordEvidence) | Export-Csv -LiteralPath $ouCsvPath -NoTypeInformation -Encoding UTF8
 @($policyEvidence | ForEach-Object {
     $gpo = $_
     foreach ($link in @($gpo.links)) {
@@ -288,7 +321,12 @@ $ticket.Add("SysAdminSuite AD OU / policy evidence - $PolicyKeyword")
 $ticket.Add("Generated UTC: $($probe.generated_utc)")
 $ticket.Add('Read-only probe: no AD object, GPO, or group membership mutation was performed.')
 $ticket.Add('')
-$ticket.Add("Matching GPOs: $($probe.matching_gpo_count)")
+$ticket.Add("OU name/description keyword matches: $($probe.matching_ou_keyword_count)")
+foreach ($ou in @($probe.matching_ou_keywords)) {
+    $ticket.Add("- $($ou.canonical_name) -> $($ou.distinguished_name); managed-target=$($ou.approved_managed_target)")
+}
+$ticket.Add('')
+$ticket.Add("Matching GPO names/descriptions: $($probe.matching_gpo_count)")
 foreach ($gpo in @($probe.matching_gpos)) {
     $ticket.Add("- $($gpo.display_name) [$($gpo.gpo_id)]")
     foreach ($link in @($gpo.links)) {
@@ -314,27 +352,32 @@ foreach ($computer in @($probe.computers)) {
     }
 }
 $ticket.Add('')
-if ($uniqueManagedTarget) {
-    $ticket.Add("Unique approved managed OU linked by matching policy evidence: $uniqueManagedTarget")
-    if ($targets.Count -eq 1) {
-        $ticket.Add("Plan-only SAS command: sas ad ou plan $($targets[0]) `"$uniqueManagedTarget`"")
-    }
-} elseif ($managedPolicyTargets.Count -gt 1) {
-    $ticket.Add("Multiple approved managed OU links match '$PolicyKeyword'; no automatic move target is selected.")
-} else {
-    $ticket.Add("No unique approved managed OU link was resolved for '$PolicyKeyword'; no automatic move target is selected.")
+if ($uniqueManagedOuKeywordTarget) {
+    $ticket.Add("Unique approved managed OU from OU keyword evidence: $uniqueManagedOuKeywordTarget")
 }
-$ticket.Add('A policy-linked OU is evidence of GPO scope, not proof that OU placement alone installs/configures the application. Validate the actual field effect before promotion.')
+if ($uniqueManagedPolicyTarget) {
+    $ticket.Add("Unique approved managed OU from matching GPO-link evidence: $uniqueManagedPolicyTarget")
+}
+if ($corroboratedManagedTarget) {
+    $ticket.Add("Corroborated managed OU candidate (OU keyword + GPO link agree): $corroboratedManagedTarget")
+    if ($targets.Count -eq 1) {
+        $ticket.Add("Plan-only SAS command: sas ad ou plan $($targets[0]) `"$corroboratedManagedTarget`"")
+    }
+} else {
+    $ticket.Add('No corroborated managed OU candidate was selected; OU-name and GPO-link evidence must agree before the probe emits a plan command.')
+}
+$ticket.Add('OU naming and GPO linkage are evidence of directory/policy intent, not proof that OU placement alone installs/configures the application. Validate the actual field effect before promotion.')
 $ticket | Set-Content -LiteralPath $ticketPath -Encoding UTF8
 
 Write-Host "AD OU / policy probe complete: $runDir" -ForegroundColor Green
 Write-Host "Structured evidence: $jsonPath"
+Write-Host "OU keyword evidence: $ouCsvPath"
 Write-Host "Ticket notes: $ticketPath"
-if ($uniqueManagedTarget) { Write-Host "Unique managed policy-linked OU candidate: $uniqueManagedTarget" -ForegroundColor Cyan }
-else { Write-Host 'No unique managed policy-linked OU candidate was selected.' -ForegroundColor Yellow }
+if ($corroboratedManagedTarget) { Write-Host "Corroborated managed OU candidate: $corroboratedManagedTarget" -ForegroundColor Cyan }
+else { Write-Host 'No corroborated managed OU candidate was selected.' -ForegroundColor Yellow }
 Write-Host 'TARGET MUTATION: NONE' -ForegroundColor Green
 Write-Host 'GPO MUTATION: NONE' -ForegroundColor Green
 
 if (@($computerEvidence | Where-Object { -not $_.found }).Count -gt 0) { exit 20 }
-if ($policyEvidence.Count -eq 0) { exit 21 }
+if ($policyEvidence.Count -eq 0 -and $ouKeywordEvidence.Count -eq 0) { exit 21 }
 exit 0
