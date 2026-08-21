@@ -6,9 +6,10 @@ Refresh the SysAdminSuite operator surface on Guest/Internet and seal the protec
 .DESCRIPTION
 The caller checkout is used only to locate the network classifier and this refresh entrypoint. All remote
 Git operations are isolated to %LOCALAPPDATA%\SysAdminSuite\sync-cache and are blocked unless the current
-network classifies as GUEST_INTERNET. A clean field-ready worktree is derived from that cache, the installed
-`sas` dispatcher is refreshed from field-ready, and C:\SASAL is then staged by local filesystem Git transfer
-and stripped of remotes for protected-network use.
+network classifies as GUEST_INTERNET. A clean field-ready worktree is derived from that cache, stale dirty
+generated C:\SASAL content is preserved intact before replacement, the installed `sas` dispatcher is refreshed
+from field-ready, and C:\SASAL is then staged by local filesystem Git transfer and stripped of remotes for
+protected-network use.
 
 No target contact or target mutation occurs in this script.
 #>
@@ -198,6 +199,7 @@ $required = @(
     'Run-AutoLogonOnsite.cmd',
     'Bootstrap-SysAdminSuiteAutoLogon.cmd',
     'Bootstrap-SysAdminSuiteAutoLogon.ps1',
+    'scripts\Repair-SasAutoLogonShortRuntimeForRefresh.ps1',
     'scripts\Prepare-SasAutoLogonShortRuntime.ps1',
     'scripts\Install-SasPortableLauncher.ps1',
     'scripts\SasPortableLauncher.ps1',
@@ -236,6 +238,15 @@ if ([string]$currentNetwork.classification -ne 'GUEST_INTERNET' -or
     [string]::IsNullOrWhiteSpace([string]$currentNetwork.label) -or
     [string]$currentNetwork.label -eq 'unknown') {
     throw "Guest/Internet posture changed during refresh. Current classification: $($currentNetwork.classification); label: $($currentNetwork.label). Short AutoLogon runtime was not staged."
+}
+
+$runtimeRepair = Join-Path $fieldReady 'scripts\Repair-SasAutoLogonShortRuntimeForRefresh.ps1'
+Write-Host ''
+Write-Host 'PREPARING GENERATED SHORT AUTOLOGON RUNTIME FOR CLEAN REFRESH' -ForegroundColor Cyan
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $runtimeRepair -RuntimeRoot 'C:\SASAL'
+$runtimeRepairExitCode = [int]$global:LASTEXITCODE
+if ($runtimeRepairExitCode -ne 0) {
+    throw "Short AutoLogon runtime preservation failed with exit code $runtimeRepairExitCode. Nothing was reset or cleaned."
 }
 
 $runtimePreparer = Join-Path $fieldReady 'scripts\Prepare-SasAutoLogonShortRuntime.ps1'
