@@ -48,7 +48,7 @@ function Get-SasJsonPropertyValue {
 
 function Add-SasManifestCandidate {
     param(
-        [Parameter(Mandatory = $true)][System.Collections.Generic.List[object]]$List,
+        [AllowEmptyCollection()][System.Collections.Generic.List[object]]$List,
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Source
     )
