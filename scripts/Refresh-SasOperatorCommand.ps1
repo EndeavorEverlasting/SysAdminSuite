@@ -64,12 +64,15 @@ function Invoke-SasRefreshGit {
     try {
         $ErrorActionPreference = 'Continue'
         $LASTEXITCODE = 0
-        $stdout = if ([string]::IsNullOrWhiteSpace($Root)) {
-            @(& $script:SasGitExe @Arguments 2> $stderrPath)
+        $stdout = @()
+        $exitCode = 0
+        if ([string]::IsNullOrWhiteSpace($Root)) {
+            $stdout = @(& $script:SasGitExe @Arguments 2> $stderrPath)
+            $exitCode = [int]$LASTEXITCODE
         } else {
-            @(& $script:SasGitExe -C $Root @Arguments 2> $stderrPath)
+            $stdout = @(& $script:SasGitExe -C $Root @Arguments 2> $stderrPath)
+            $exitCode = [int]$LASTEXITCODE
         }
-        $exitCode = [int]$LASTEXITCODE
     }
     finally {
         $ErrorActionPreference = $previousPreference
