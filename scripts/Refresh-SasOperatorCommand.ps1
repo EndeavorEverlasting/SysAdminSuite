@@ -78,8 +78,10 @@ function Invoke-SasRefreshGit {
     $stderr = ''
     if (Test-Path -LiteralPath $stderrPath) {
         try {
-            $stderrRaw = [string](Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
-            $stderr = $stderrRaw.Trim()
+            $stderrRaw = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+            if ($null -ne $stderrRaw) {
+                $stderr = ([string]$stderrRaw).Trim()
+            }
         }
         finally { Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue }
     }
