@@ -10,6 +10,7 @@ and the already-prepared C:\SASAL sealed runtime. It does not contact a target o
 The installer:
 - requires an elevated administrator token;
 - requires the universal launcher under ProgramData and a machine PATH entry;
+- broadcasts Machine PATH changes so Explorer-launched sessions can receive the refreshed environment;
 - grants BUILTIN\Users read/execute on the installer-owned ProgramData bin and sealed runtime;
 - prepares only the ignored C:\SASAL\runs subtree for standard-user deployment evidence writes;
 - installs the readiness verifier beside sas.cmd;
@@ -56,6 +57,43 @@ function Invoke-SasIcacls {
     }
 }
 
+function Publish-SasEnvironmentChange {
+    if (-not ('SasEnvironment.NativeMethods' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace SasEnvironment {
+    public static class NativeMethods {
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr SendMessageTimeout(
+            IntPtr hWnd,
+            uint Msg,
+            UIntPtr wParam,
+            string lParam,
+            uint fuFlags,
+            uint uTimeout,
+            out UIntPtr lpdwResult);
+    }
+}
+'@
+    }
+
+    $broadcastResult = [UIntPtr]::Zero
+    $sendResult = [SasEnvironment.NativeMethods]::SendMessageTimeout(
+        [IntPtr]0xffff,
+        [uint32]0x001A,
+        [UIntPtr]::Zero,
+        'Environment',
+        [uint32]0x0002,
+        [uint32]5000,
+        [ref]$broadcastResult
+    )
+    if ($sendResult -eq [IntPtr]::Zero) {
+        $win32 = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        throw "AUTOLOGON_OPERATOR_READINESS_ENVIRONMENT_BROADCAST_FAILED: WM_SETTINGCHANGE Environment broadcast failed (Win32=$win32)."
+    }
+}
+
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -91,6 +129,7 @@ foreach ($required in @($requiredInstalled + $requiredRuntime)) {
 }
 
 $machinePath = [Environment]::GetEnvironmentVariable('Path','Machine')
+$machinePathChanged = $false
 if (-not (Test-SasPathContains -PathValue $machinePath -Expected $installRoot)) {
     $newMachinePath = if ([string]::IsNullOrWhiteSpace([string]$machinePath)) {
         $installRoot
@@ -99,10 +138,14 @@ if (-not (Test-SasPathContains -PathValue $machinePath -Expected $installRoot)) 
         ([string]$machinePath).TrimEnd(';') + ';' + $installRoot
     }
     [Environment]::SetEnvironmentVariable('Path',$newMachinePath,'Machine')
+    $machinePathChanged = $true
     $machinePath = [Environment]::GetEnvironmentVariable('Path','Machine')
 }
 if (-not (Test-SasPathContains -PathValue $machinePath -Expected $installRoot)) {
     throw "AUTOLOGON_OPERATOR_READINESS_MACHINE_PATH_FAILED: $installRoot is not present in Machine PATH."
+}
+if ($machinePathChanged) {
+    Publish-SasEnvironmentChange
 }
 
 $verifierDestination = Join-Path $installRoot 'Test-SasAutoLogonOperatorReadiness.ps1'
@@ -136,6 +179,7 @@ Invoke-SasIcacls -Path $desktopCmdPath -Grant '*S-1-5-32-545:(RX)'
 
 Write-Host 'AutoLogon operator-readiness surfaces installed.' -ForegroundColor Green
 Write-Host "Machine launcher root: $installRoot"
+Write-Host "Machine PATH environment broadcast: $(if ($machinePathChanged) { 'UPDATED_AND_BROADCAST' } else { 'UNCHANGED' })"
 Write-Host "Readiness verifier: $verifierDestination"
 Write-Host "Bounded deployment run root: $runRoot"
 Write-Host "Public Desktop command: $desktopCmdPath"

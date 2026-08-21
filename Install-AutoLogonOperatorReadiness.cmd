@@ -9,8 +9,8 @@ set "EXITCODE=%ERRORLEVEL%"
 echo.
 if "%EXITCODE%"=="0" (
   echo AutoLogon operator-readiness surfaces installed.
-  echo Open a NEW NON-ELEVATED standard-user PowerShell window and run:
-  echo powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%%ProgramData%%\SysAdminSuite\bin\Test-SasAutoLogonOperatorReadiness.ps1" -RequireStandardUser
+  echo Open a NEW NON-ELEVATED true standard-user PowerShell window and run:
+  echo powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%ProgramData%\SysAdminSuite\bin\Test-SasAutoLogonOperatorReadiness.ps1" -RequireStandardUser
 ) else (
   echo Installation stopped with exit code %EXITCODE%.
 )

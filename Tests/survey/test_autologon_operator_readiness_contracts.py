@@ -11,6 +11,7 @@ INSTALL_CMD = ROOT / "Install-AutoLogonOperatorReadiness.cmd"
 INSTALLER = ROOT / "scripts" / "Install-SasAutoLogonOperatorReadiness.ps1"
 VERIFIER = ROOT / "scripts" / "Test-SasAutoLogonOperatorReadiness.ps1"
 DESKTOP_DELEGATE = ROOT / "scripts" / "SasAutoLogonPublicDesktop.cmd"
+E2E = ROOT / "Tests" / "PowerShell" / "AutoLogonOperatorReadiness.E2E.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "autologon-operator-readiness.yml"
 DOC = ROOT / "docs" / "AUTOLOGON_OPERATOR_READINESS.md"
 
@@ -25,11 +26,14 @@ def main() -> None:
     installer = read(INSTALLER)
     verifier = read(VERIFIER)
     desktop_delegate = read(DESKTOP_DELEGATE)
+    e2e = read(E2E)
     workflow = read(WORKFLOW)
     doc = read(DOC)
 
     assert "Install-SasAutoLogonOperatorReadiness.ps1" in install_cmd
     assert "-RequireStandardUser" in install_cmd
+    assert '"%ProgramData%\\SysAdminSuite\\bin\\Test-SasAutoLogonOperatorReadiness.ps1"' in install_cmd
+    assert '"%%ProgramData%%\\SysAdminSuite\\bin\\Test-SasAutoLogonOperatorReadiness.ps1"' not in install_cmd
 
     for marker in (
         "WindowsBuiltInRole]::Administrator",
@@ -39,6 +43,11 @@ def main() -> None:
         "$runRoot = Join-Path $runtimeRoot 'runs'",
         "Machine",
         "S-1-5-32-545",
+        "Publish-SasEnvironmentChange",
+        "SendMessageTimeout",
+        "WM_SETTINGCHANGE Environment broadcast failed",
+        "$machinePathChanged",
+        "'UPDATED_AND_BROADCAST'",
         "Invoke-SasIcacls -Path $runtimeRoot -Grant '*S-1-5-32-545:(OI)(CI)(RX)'",
         "Invoke-SasIcacls -Path $runRoot -Grant '*S-1-5-32-545:(OI)(CI)(M)'",
         "CommonDesktopDirectory",
@@ -102,9 +111,29 @@ def main() -> None:
     ):
         assert marker in verifier, marker
 
+    for marker in (
+        "Bounded local-only E2E",
+        "C:\\SASAL",
+        "sas-autologon-short-runtime/v2",
+        "New-LocalUser",
+        "S-1-5-32-545",
+        "S-1-5-32-544",
+        "Start-Process",
+        "-Credential $credential",
+        "-LoadUserProfile",
+        "-RequireStandardUser",
+        "AUTOLOGON_OPERATOR_READINESS_VERIFIED",
+        "deployment_run_root_write_probe_passed",
+        "target_contact_performed",
+        "deployment_started",
+        "Remove-LocalUser",
+        "Target contact: NONE; deployment started: NO.",
+    ):
+        assert marker in e2e, marker
+    assert "SAS_AUTOLOGON_ENTRYPOINT 'autologon' 'Remote'" not in e2e
+
     for forbidden in (
         "Get-Credential",
-        "ConvertTo-SecureString",
         "Password=",
         "-Confirm:$false",
         "WPJ075",
@@ -117,18 +146,24 @@ def main() -> None:
         "Windows PowerShell 5.1",
         "Install-SasAutoLogonOperatorReadiness.ps1",
         "Test-SasAutoLogonOperatorReadiness.ps1",
+        "AutoLogonOperatorReadiness.E2E.ps1",
         "scripts/SasAutoLogonPublicDesktop.cmd",
-        "github.event_name",
-        "HEAD^...HEAD",
+        "SAS_EVENT_NAME",
+        "SAS_BASE_REF",
+        "HEAD^1...HEAD",
+        "windows-standard-user-e2e",
         "git diff --check",
     ):
         assert marker in workflow, marker
+    assert 'if [[ "${{ github.event_name }}"' not in workflow
 
     for marker in (
         "C:\\Users\\Public\\Documents\\SysAdminSuite",
         "C:\\SASAL\\runs",
         "SysAdminSuite - AutoLogon Remote.cmd",
         "AUTOLOGON_OPERATOR_READINESS_VERIFIED",
+        "WM_SETTINGCHANGE",
+        "disposable local non-administrator",
         "repository/CI",
         "true standard-user",
         "does not deploy",

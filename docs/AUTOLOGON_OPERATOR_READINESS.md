@@ -25,9 +25,11 @@ C:\SASAL\Install-AutoLogonOperatorReadiness.cmd
 ```
 
 The installer requires the machine-wide ProgramData launcher and the runtime-local v2 manifest to already
-exist. It adds the ProgramData bin to **Machine PATH** when necessary, grants BUILTIN\Users read/execute on
-that installer-owned bin and on the sealed `C:\SASAL` runtime, installs the verifier, creates a Public Desktop
-delegate named `SysAdminSuite - AutoLogon Remote.cmd`, and prepares the two deliberately writable evidence roots:
+exist. It adds the ProgramData bin to **Machine PATH** when necessary and broadcasts `WM_SETTINGCHANGE` for
+`Environment` so Explorer/Start-launched sessions can receive that new machine environment. It then grants
+BUILTIN\Users read/execute on the installer-owned bin and on the sealed `C:\SASAL` runtime, installs the verifier,
+creates a Public Desktop delegate named `SysAdminSuite - AutoLogon Remote.cmd`, and prepares the two deliberately
+writable evidence roots:
 
 ```text
 C:\SASAL\runs
@@ -42,8 +44,8 @@ authorization source.
 
 ## True standard-user proof
 
-Open a **new, non-elevated PowerShell session from an account that is not a member of the local
-BUILTIN\Administrators group** and run:
+After installation, open a **new, non-elevated PowerShell session from Start/Explorer or a fresh sign-in** using an
+account that is not a member of the local BUILTIN\Administrators group, then run:
 
 ```powershell
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
@@ -89,12 +91,19 @@ confirmation, duplicate the AutoLogon transaction, or call the crash-safe engine
 The normal network canary, protected Northwell admission, sealed-runtime verification, recovery checks,
 and crash-safe evidence chain still own the deployment attempt.
 
-## Validation and proof ceiling
+## CI proof and proof ceiling
 
-Repository/CI proves the static delegate boundary, Windows PowerShell 5.1 parsing, Machine PATH/ACL intent,
-true-standard-user rejection contract, bounded run-root write-probe contract, receipt non-authority, canonical
-resolver/auditor reuse, and whitespace cleanliness.
+The owning workflow first compiles/contracts/parses the new surfaces under Windows PowerShell 5.1. It then runs a
+bounded local-only E2E on a disposable Windows runner. That E2E creates a synthetic sealed `C:\SASAL` fixture,
+installs the real readiness surfaces, creates a **disposable local non-administrator** account, runs the installed
+verifier under that account, requires `AUTOLOGON_OPERATOR_READINESS_VERIFIED`, verifies the receipt says no network
+activity, target contact, target mutation, or deployment started, and removes the local account and fixture state.
+It never invokes the Public Desktop Remote delegate.
 
-Only a live Admin Box run from a new true standard-user token can prove
-`AUTOLOGON_OPERATOR_READINESS_VERIFIED` on that workstation. A readiness pass still does not prove target
-reachability, AutoLogon mutation, restart, automatic sign-in, application behavior, or acceptance.
+Repository/CI therefore proves the static delegate boundary, Windows PowerShell 5.1 parsing, executable Machine
+PATH/ACL behavior on a disposable Windows host, true-standard-user rejection, bounded run-root write behavior,
+receipt non-authority, canonical resolver/auditor reuse, and whitespace cleanliness.
+
+Only a live Admin Box run from a new true standard-user token can prove those same properties on that workstation.
+A readiness pass still does not prove target reachability, AutoLogon mutation, restart, automatic sign-in,
+application behavior, or acceptance.

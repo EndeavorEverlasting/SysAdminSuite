@@ -7,6 +7,7 @@ on:
       - 'scripts/Install-SasAutoLogonOperatorReadiness.ps1'
       - 'scripts/Test-SasAutoLogonOperatorReadiness.ps1'
       - 'scripts/SasAutoLogonPublicDesktop.cmd'
+      - 'Tests/PowerShell/AutoLogonOperatorReadiness.E2E.ps1'
       - 'Tests/survey/test_autologon_operator_readiness_contracts.py'
       - 'docs/AUTOLOGON_OPERATOR_READINESS.md'
       - '.github/workflows/autologon-operator-readiness.yml'
@@ -31,11 +32,14 @@ jobs:
         run: python Tests/survey/test_autologon_operator_readiness_contracts.py
       - name: Check patch whitespace
         shell: bash
+        env:
+          SAS_EVENT_NAME: ${{ github.event_name }}
+          SAS_BASE_REF: ${{ github.base_ref }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git diff --check "origin/${{ github.base_ref }}...HEAD"
+          if [[ "$SAS_EVENT_NAME" == "pull_request" ]]; then
+            git diff --check "origin/${SAS_BASE_REF}...HEAD"
           else
-            git diff --check "HEAD^...HEAD"
+            git diff --check "HEAD^1...HEAD"
           fi
 
   windows-powershell-51:
@@ -48,7 +52,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           foreach ($relative in @(
             'scripts\Install-SasAutoLogonOperatorReadiness.ps1',
-            'scripts\Test-SasAutoLogonOperatorReadiness.ps1'
+            'scripts\Test-SasAutoLogonOperatorReadiness.ps1',
+            'Tests\PowerShell\AutoLogonOperatorReadiness.E2E.ps1'
           )) {
             $tokens = $null
             $errors = $null
@@ -62,3 +67,12 @@ jobs:
               throw "Windows PowerShell 5.1 parser rejected $relative"
             }
           }
+
+  windows-standard-user-e2e:
+    needs: windows-powershell-51
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run bounded true-standard-user readiness E2E
+        shell: powershell
+        run: .\Tests\PowerShell\AutoLogonOperatorReadiness.E2E.ps1
