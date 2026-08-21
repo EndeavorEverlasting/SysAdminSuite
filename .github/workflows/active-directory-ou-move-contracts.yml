@@ -8,17 +8,27 @@ on:
     branches: [main, 'feat/**', 'repair/**']
     paths:
       - 'ActiveDirectory/Move-Computers-To-OU.ps1'
+      - 'ActiveDirectory/Probe-ComputerOuPolicy.ps1'
+      - 'ActiveDirectory/Invoke-SasAdOu.ps1'
       - 'ActiveDirectory/Add-Computers-To-PrintingGroup.ps1'
       - 'ActiveDirectory/README.md'
+      - 'scripts/SasPortableLauncher.ps1'
+      - 'scripts/Invoke-SasNetworkAwareField.ps1'
       - 'Tests/Pester/ActiveDirectoryOuMove.Tests.ps1'
+      - 'Tests/Pester/ActiveDirectoryOuPolicyProbe.Tests.ps1'
       - 'docs/ACTIVE_DIRECTORY_OU_MOVE_PILOT.md'
       - '.github/workflows/active-directory-ou-move-contracts.yml'
   pull_request:
     paths:
       - 'ActiveDirectory/Move-Computers-To-OU.ps1'
+      - 'ActiveDirectory/Probe-ComputerOuPolicy.ps1'
+      - 'ActiveDirectory/Invoke-SasAdOu.ps1'
       - 'ActiveDirectory/Add-Computers-To-PrintingGroup.ps1'
       - 'ActiveDirectory/README.md'
+      - 'scripts/SasPortableLauncher.ps1'
+      - 'scripts/Invoke-SasNetworkAwareField.ps1'
       - 'Tests/Pester/ActiveDirectoryOuMove.Tests.ps1'
+      - 'Tests/Pester/ActiveDirectoryOuPolicyProbe.Tests.ps1'
       - 'docs/ACTIVE_DIRECTORY_OU_MOVE_PILOT.md'
       - '.github/workflows/active-directory-ou-move-contracts.yml'
 
@@ -31,25 +41,37 @@ jobs:
           persist-credentials: false
           fetch-depth: 2
 
-      - name: Parse OU move engine with Windows PowerShell 5.1
+      - name: Parse AD OU surfaces with Windows PowerShell 5.1
         shell: powershell
         run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path 'ActiveDirectory/Move-Computers-To-OU.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
-          if ($errors.Count -gt 0) {
-            $errors | Format-List *
-            exit 1
+          foreach ($path in @(
+            'ActiveDirectory/Move-Computers-To-OU.ps1',
+            'ActiveDirectory/Probe-ComputerOuPolicy.ps1',
+            'ActiveDirectory/Invoke-SasAdOu.ps1',
+            'scripts/SasPortableLauncher.ps1',
+            'scripts/Invoke-SasNetworkAwareField.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              Write-Host "Parse failed: $path"
+              $errors | Format-List *
+              exit 1
+            }
           }
 
       - name: Run focused Pester contracts
         shell: pwsh
         run: |
-          $result = Invoke-Pester -Path Tests/Pester/ActiveDirectoryOuMove.Tests.ps1 -PassThru
+          $result = Invoke-Pester -Path @(
+            'Tests/Pester/ActiveDirectoryOuMove.Tests.ps1',
+            'Tests/Pester/ActiveDirectoryOuPolicyProbe.Tests.ps1'
+          ) -PassThru
           if ($result.FailedCount -gt 0) { exit 1 }
 
       - name: Whitespace check
