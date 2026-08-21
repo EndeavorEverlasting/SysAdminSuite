@@ -46,6 +46,16 @@ Describe 'AD OU policy probe -- syntax and read-only boundary' {
         }
     }
 
+    It 'binds AD and Group Policy reads to the same optional server context' {
+        $script:probe | Should -Match 'if \(\$Server\) \{ \$params\.Server = \$Server \}'
+        $script:probe | Should -Match 'return Get-ADComputer @params'
+        $script:probe | Should -Match 'return @\(Get-ADOrganizationalUnit @params\)'
+        $script:probe | Should -Match 'return @\(Get-GPO @params'
+        $script:probe | Should -Match '\[xml\]\$xml = Get-GPOReport @params'
+        $script:probe | Should -Match '\$inheritance = Get-GPInheritance @params'
+        $script:probe | Should -Match 'query_server = if'
+    }
+
     It 'stores local ticket-ready evidence and explicit no-mutation markers' {
         $script:probe | Should -Match 'SysAdminSuite\\Evidence\\ActiveDirectory\\OuPolicyProbe'
         $script:probe | Should -Match 'Probe\.json'
@@ -53,7 +63,7 @@ Describe 'AD OU policy probe -- syntax and read-only boundary' {
         $script:probe | Should -Match 'OuKeywordMatches\.csv'
         $script:probe | Should -Match 'PolicyLinks\.csv'
         $script:probe | Should -Match 'TicketNotes\.txt'
-        $script:probe | Should -Match 'sysadminsuite/ad-ou-policy-probe/v2'
+        $script:probe | Should -Match 'sysadminsuite/ad-ou-policy-probe/v3'
         $script:probe | Should -Match 'target_mutation_performed\s*=\s*\$false'
         $script:probe | Should -Match 'gpo_mutation_performed\s*=\s*\$false'
         $script:probe | Should -Match 'group_membership_mutation_performed\s*=\s*\$false'
@@ -67,18 +77,34 @@ Describe 'AD OU policy probe -- syntax and read-only boundary' {
         $script:probe | Should -Match 'approved_managed_policy_link_targets'
     }
 
-    It 'emits a plan hint only when unique OU-keyword and GPO-link evidence corroborate the same managed OU' {
+    It 'excludes disabled GPO links from managed policy candidates' {
+        $script:probe | Should -Match 'Test-SasGpLinkEnabled'
+        $script:probe | Should -Match '\$linkActive = Test-SasGpLinkEnabled -Value \$link\.enabled'
+        $script:probe | Should -Match 'if \(\$managed -and \$linkActive'
+        $script:probe | Should -Match 'link_enabled_active = \$linkActive'
+    }
+
+    It 'fails closed when parent OU or inheritance evidence is unavailable' {
+        $script:probe | Should -Match 'New-SasInheritanceFailureRecord'
+        $script:probe | Should -Match 'INHERITANCE_QUERY_FAILED'
+        $script:probe | Should -Match 'UNKNOWN / QUERY FAILED'
+        $script:probe | Should -Match 'inheritance_query_failure_count'
+        $script:probe | Should -Match 'policy_evidence_complete = \(\$inheritanceFailures\.Count -eq 0\)'
+        $script:probe | Should -Match 'if \(\$inheritanceFailures\.Count -gt 0\) \{ exit 22 \}'
+    }
+
+    It 'emits a plan hint only when unique OU-keyword and active GPO-link evidence corroborate the same managed OU' {
         $script:probe | Should -Match 'unique_managed_ou_keyword_target_dn'
         $script:probe | Should -Match 'unique_managed_policy_link_target_dn'
         $script:probe | Should -Match 'corroborated_managed_target_dn'
         $script:probe | Should -Match '\$uniqueManagedPolicyTarget\.Equals\(\$uniqueManagedOuKeywordTarget'
-        $script:probe | Should -Match 'OU-name and GPO-link evidence must agree before the probe emits a plan command'
+        $script:probe | Should -Match 'OU-name and active GPO-link evidence must agree'
         $script:probe | Should -Match 'sas ad ou plan'
         $script:probe | Should -Not -Match 'sas ad ou apply'
     }
 
     It 'does not treat OU/GPO evidence as proof of application deployment behavior' {
-        $script:probe | Should -Match 'directory and policy-link evidence only; not authorization and not automatic move selection'
+        $script:probe | Should -Match 'directory and active-policy-link evidence only; not authorization and not automatic move selection'
         $script:probe | Should -Match 'not proof that OU placement alone installs/configures the application'
     }
 
@@ -96,7 +122,18 @@ Describe 'AD OU policy probe -- syntax and read-only boundary' {
 }
 
 Describe 'SAS AD OU router -- existing mutator remains authority' {
-    It 'requires the canonical protected-network gate before probe, plan, or apply' {
+    It 'validates complete command shape before the canonical protected-network gate' {
+        $script:router | Should -Match 'Test-SasAdHostName'
+        $script:router | Should -Match 'Test-SasApprovedManagedTargetOuText'
+        $script:router | Should -Match 'Plan requires one valid hostname and an approved managed workstation OU DN'
+        $script:router | Should -Match 'Apply requires one valid hostname, an approved managed workstation OU DN, and a non-empty change reference'
+        $validationIndex = $script:router.IndexOf('switch ($mode)')
+        $networkIndex = $script:router.IndexOf('& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $networkGate')
+        $validationIndex | Should -BeGreaterOrEqual 0
+        $networkIndex | Should -BeGreaterThan $validationIndex
+    }
+
+    It 'requires the canonical protected-network gate before probe, plan, or apply execution' {
         $script:router | Should -Match 'Confirm-SasNorthwellNetwork\.ps1'
         $script:router | Should -Match 'Active Directory OU \$mode'
         $script:router | Should -Match '-NonInteractive'
@@ -107,17 +144,15 @@ Describe 'SAS AD OU router -- existing mutator remains authority' {
         $script:router | Should -Match "-PolicyKeyword 'Imprivata'"
     }
 
-    It 'routes plan without Apply and apply through the existing guarded move engine' {
-        $script:router | Should -Match 'Move-Computers-To-OU\.ps1'
-        $script:router | Should -Match "'plan'"
-        $script:router | Should -Match '& \$movePath -ComputerName \$hostName -TargetOU \$targetOu'
-        $script:router | Should -Match "'apply'"
-        $script:router | Should -Match '-Apply -ChangeReference \$changeReference'
-        $script:router | Should -Not -Match '-ConfirmBatch'
-        $script:router | Should -Not -Match '-MaxChanges'
+    It 'propagates plan/apply exit status from the existing move engine' {
+        $script:router | Should -Match 'powershell\.exe.*-File \$movePath.*-ComputerName \$hostName.*-TargetOU \$targetOu'
+        $script:router | Should -Match 'exit \(\[int\]\$global:LASTEXITCODE\)'
+        $script:router | Should -Not -Match '& \$movePath -ComputerName \$hostName -TargetOU \$targetOu'
     }
 
-    It 'does not weaken the existing one-host move engine gates' {
+    It 'does not expose batch apply or weaken the existing one-host move engine gates' {
+        $script:router | Should -Not -Match '-ConfirmBatch'
+        $script:router | Should -Not -Match '-MaxChanges'
         $script:move | Should -Match '\[int\]\$MaxChanges\s*=\s*1'
         $script:move | Should -Match 'SupportsShouldProcess\s*=\s*\$true'
         $script:move | Should -Match "ConfirmImpact\s*=\s*'High'"
@@ -135,9 +170,11 @@ Describe 'SAS AD OU router -- existing mutator remains authority' {
     }
 }
 
-Describe 'Network intent -- valid AD OU commands are protected' {
-    It 'has an explicit AD OU shape guard' {
+Describe 'Network intent -- only valid AD OU commands are protected' {
+    It 'has an explicit AD OU shape guard with host and managed-OU validation' {
         $script:networkAware | Should -Match 'Test-SasAdOuShapeForNetworkTransition'
+        $script:networkAware | Should -Match 'Test-SasAdHostNameForNetworkTransition'
+        $script:networkAware | Should -Match 'Test-SasAdManagedOuForNetworkTransition'
         $script:networkAware | Should -Match "'ad'"
         $script:networkAware | Should -Match '\$intent\s*=\s*''ProtectedNorthwell'''
     }
@@ -145,5 +182,7 @@ Describe 'Network intent -- valid AD OU commands are protected' {
     It 'does not auto-switch for malformed AD commands' {
         $script:networkAware | Should -Match 'Invalid/incomplete shapes still flow to the canonical dispatcher'
         $script:networkAware | Should -Match 'remain CommandSpecific so they cannot cause a disruptive switch'
+        $script:networkAware | Should -Match '^[A-Za-z0-9]'
+        $script:networkAware | Should -Match 'Managed\|Managed_Shared'
     }
 }
