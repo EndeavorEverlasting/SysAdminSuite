@@ -37,5 +37,5 @@ echo   Probe-TangentProfile.cmd Probe HOST01 [HOST02 ...]
 echo.
 echo Collects comparison-ready manufacturer/model/product/BIOS serial/board/OS/CPU/RAM/COM/MAC evidence.
 echo Run the generic PowerShell probe against a separately proven Cybernet reference host to compare rows.
-echo Live evidence remains local under survey\output\workstation_profile_probe and must not be committed.
+echo Live evidence defaults to %%LOCALAPPDATA%%\SysAdminSuite\Evidence\WorkstationProfile and stays outside synced repositories.
 goto :eof
