@@ -4,22 +4,29 @@
 Collect a comparison-ready read-only hardware profile from explicit Windows workstation targets.
 
 .DESCRIPTION
-Uses the caller's current Windows authorization and read-only WMI queries to collect the same
-hardware identity fields needed to compare candidate Tangent workstations with a separately proven
-Cybernet reference. It does not select a Cybernet profile, install software, change configuration,
-create tasks, write the remote registry, or reboot a target.
+Uses the caller's current Windows authorization and bounded read-only WMI queries to collect the
+same hardware identity fields needed to compare candidate Tangent workstations with a separately
+proven Cybernet reference. It does not select a Cybernet profile, install software, change
+configuration, create tasks, write the remote registry, or reboot a target.
 
 Live evidence defaults to the operator-local SysAdminSuite evidence root outside the repository.
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'ComputerNames')]
 param(
-    [Parameter(Mandatory = $true, Position = 0)]
+    [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'ComputerNames')]
     [ValidateCount(1,25)]
     [string[]]$ComputerName,
 
+    [Parameter(Mandatory = $true, ParameterSetName = 'TargetsCsv')]
+    [ValidateNotNullOrEmpty()]
+    [string]$TargetsCsv,
+
     [ValidateNotNullOrEmpty()]
     [string]$CandidateLabel = 'UnclassifiedCandidate',
+
+    [ValidateRange(3,60)]
+    [int]$QueryTimeoutSeconds = 12,
 
     [string]$OutputRoot,
 
@@ -36,10 +43,25 @@ if (-not $OutputRoot) {
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 
+$targetList = if ($PSCmdlet.ParameterSetName -eq 'TargetsCsv') {
+    @($TargetsCsv -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+}
+else {
+    @($ComputerName | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+}
+if ($targetList.Count -lt 1 -or $targetList.Count -gt 25) {
+    throw 'Provide between 1 and 25 explicit workstation targets.'
+}
+foreach ($target in $targetList) {
+    if ($target -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$' -and $target -ne '.') {
+        throw "Invalid explicit target name: $target"
+    }
+}
+
 $localNames = @('.', 'localhost', $env:COMPUTERNAME) | Where-Object { $_ } | ForEach-Object { $_.ToLowerInvariant() }
 if ($SkipNetworkGate) {
-    foreach ($target in $ComputerName) {
-        if ($localNames -notcontains $target.Trim().ToLowerInvariant()) {
+    foreach ($target in $targetList) {
+        if ($localNames -notcontains $target.ToLowerInvariant()) {
             throw '-SkipNetworkGate is restricted to local fixture targets.'
         }
     }
@@ -69,21 +91,43 @@ function Convert-SasWmiDate {
     catch { return $null }
 }
 
-function Get-SasWmiFirst {
+function Invoke-SasReadOnlyWmiQuery {
     param(
         [Parameter(Mandatory = $true)][string]$Target,
-        [Parameter(Mandatory = $true)][string]$Class
+        [Parameter(Mandatory = $true)][string]$Query,
+        [Parameter(Mandatory = $true)][int]$TimeoutSeconds
     )
-    return Get-WmiObject -ComputerName $Target -Class $Class -ErrorAction Stop | Select-Object -First 1
+
+    $scopePath = "\\$Target\root\cimv2"
+    $connection = New-Object System.Management.ConnectionOptions
+    $connection.Timeout = [TimeSpan]::FromSeconds($TimeoutSeconds)
+    $scope = New-Object System.Management.ManagementScope($scopePath, $connection)
+    $scope.Connect()
+
+    $objectQuery = New-Object System.Management.ObjectQuery($Query)
+    $enumeration = New-Object System.Management.EnumerationOptions
+    $enumeration.Timeout = [TimeSpan]::FromSeconds($TimeoutSeconds)
+    $enumeration.ReturnImmediately = $true
+    $searcher = New-Object System.Management.ManagementObjectSearcher($scope, $objectQuery, $enumeration)
+    try {
+        return @($searcher.Get())
+    }
+    finally {
+        if ($searcher) { $searcher.Dispose() }
+    }
+}
+
+function Get-SasFirstWmiResult {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][string]$Query,
+        [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+    )
+    return Invoke-SasReadOnlyWmiQuery -Target $Target -Query $Query -TimeoutSeconds $TimeoutSeconds | Select-Object -First 1
 }
 
 $results = New-Object System.Collections.Generic.List[object]
-foreach ($rawTarget in $ComputerName) {
-    $target = $rawTarget.Trim()
-    if ($target -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$' -and $target -ne '.') {
-        throw "Invalid explicit target name: $target"
-    }
-
+foreach ($target in $targetList) {
     Write-Host "Read-only workstation profile probe: $target" -ForegroundColor Cyan
     $row = [ordered]@{
         SchemaVersion = 'sas-readonly-workstation-profile/v1'
@@ -114,18 +158,19 @@ foreach ($rawTarget in $ComputerName) {
         IdentityEvidence = 'SerialAndModelRequiredForHardwareComparison'
         ProfileSelection = 'NONE_READ_ONLY_DISCOVERY'
         TargetMutationPerformed = $false
+        QueryTimeoutSeconds = $QueryTimeoutSeconds
         Notes = $null
     }
 
     try {
-        $computer = Get-SasWmiFirst -Target $target -Class 'Win32_ComputerSystem'
-        $product = Get-SasWmiFirst -Target $target -Class 'Win32_ComputerSystemProduct'
-        $bios = Get-SasWmiFirst -Target $target -Class 'Win32_BIOS'
-        $board = Get-SasWmiFirst -Target $target -Class 'Win32_BaseBoard'
-        $os = Get-SasWmiFirst -Target $target -Class 'Win32_OperatingSystem'
-        $cpu = Get-SasWmiFirst -Target $target -Class 'Win32_Processor'
-        $serialPorts = @(Get-WmiObject -ComputerName $target -Class Win32_SerialPort -ErrorAction SilentlyContinue)
-        $nics = @(Get-WmiObject -ComputerName $target -Class Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True' -ErrorAction SilentlyContinue)
+        $computer = Get-SasFirstWmiResult -Target $target -Query 'SELECT Name,Manufacturer,Model,TotalPhysicalMemory FROM Win32_ComputerSystem' -TimeoutSeconds $QueryTimeoutSeconds
+        $product = Get-SasFirstWmiResult -Target $target -Query 'SELECT Vendor,Name,IdentifyingNumber FROM Win32_ComputerSystemProduct' -TimeoutSeconds $QueryTimeoutSeconds
+        $bios = Get-SasFirstWmiResult -Target $target -Query 'SELECT SerialNumber,SMBIOSBIOSVersion FROM Win32_BIOS' -TimeoutSeconds $QueryTimeoutSeconds
+        $board = Get-SasFirstWmiResult -Target $target -Query 'SELECT Manufacturer,Product,SerialNumber FROM Win32_BaseBoard' -TimeoutSeconds $QueryTimeoutSeconds
+        $os = Get-SasFirstWmiResult -Target $target -Query 'SELECT Caption,Version,BuildNumber,OSArchitecture,LastBootUpTime FROM Win32_OperatingSystem' -TimeoutSeconds $QueryTimeoutSeconds
+        $cpu = Get-SasFirstWmiResult -Target $target -Query 'SELECT Name FROM Win32_Processor' -TimeoutSeconds $QueryTimeoutSeconds
+        $serialPorts = @(Invoke-SasReadOnlyWmiQuery -Target $target -Query 'SELECT DeviceID FROM Win32_SerialPort' -TimeoutSeconds $QueryTimeoutSeconds)
+        $nics = @(Invoke-SasReadOnlyWmiQuery -Target $target -Query 'SELECT MACAddress FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled = TRUE' -TimeoutSeconds $QueryTimeoutSeconds)
 
         $row.ObservedHostName = [string]$computer.Name
         $row.Manufacturer = [string]$computer.Manufacturer
@@ -162,7 +207,7 @@ foreach ($rawTarget in $ComputerName) {
     catch {
         $message = $_.Exception.Message
         if ($message.Length -gt 240) { $message = $message.Substring(0,240) }
-        $row.Notes = $message
+        $row.Notes = "Bounded read-only WMI query failed: $message"
     }
 
     $result = [pscustomobject]$row
