@@ -29,23 +29,55 @@ $normalized = if ([string]::IsNullOrWhiteSpace($Command)) { '' } else { $Command
 $actualArgs = @($CommandArgs | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
 $intent = 'CommandSpecific'
 
+function Test-SasPrinterShapeForNetworkTransition {
+    [CmdletBinding()]
+    param([string[]]$Arguments)
+
+    $values = @($Arguments)
+    if ($values.Count -gt 2) { return $false }
+    $modeSeen = $false
+    $offlineSeen = $false
+    foreach ($raw in $values) {
+        $value = ([string]$raw).Trim().ToLowerInvariant()
+        if ($value -in @('file','batch')) {
+            if ($modeSeen) { return $false }
+            $modeSeen = $true
+            continue
+        }
+        if ($value -eq 'offline') {
+            if ($offlineSeen) { return $false }
+            $offlineSeen = $true
+            continue
+        }
+        return $false
+    }
+    return $true
+}
+
+# Determine whether a command can actually reach a network-sensitive product path before any
+# WLAN transition is allowed. Invalid/incomplete shapes still flow to the canonical dispatcher for
+# its usage/error result, but they remain CommandSpecific so they cannot cause a disruptive switch.
 switch ($normalized) {
     '' { $intent = 'LocalOnly' }
     'platform' { $intent = 'LocalOnly' }
     'clipboard' { $intent = 'LocalOnly' }
-    'refresh' { $intent = 'InternetSync' }
-    'printer' { $intent = 'ProtectedNorthwell' }
+    'refresh' {
+        if ($actualArgs.Count -eq 0) { $intent = 'InternetSync' }
+    }
+    'printer' {
+        if (Test-SasPrinterShapeForNetworkTransition -Arguments $actualArgs) { $intent = 'ProtectedNorthwell' }
+    }
     'network' {
         if ($actualArgs.Count -eq 0) { $intent = 'LocalOnly' }
-        else { $intent = 'ProtectedNorthwell' }
+        elseif ($actualArgs.Count -eq 1) { $intent = 'ProtectedNorthwell' }
     }
     'autologon' {
-        if ($actualArgs.Count -gt 0 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -in @('remote','recover')) {
+        if ($actualArgs.Count -eq 2 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -in @('remote','recover')) {
             $intent = 'ProtectedNorthwell'
         }
     }
     'cybernet' {
-        if ($actualArgs.Count -gt 0 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -in @('probe','deploy','core','profiled-core','recover')) {
+        if ($actualArgs.Count -ge 2 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -in @('probe','deploy','core','profiled-core','recover')) {
             $intent = 'ProtectedNorthwell'
         }
     }
@@ -54,7 +86,28 @@ switch ($normalized) {
 $transition = $null
 $childExit = 1
 $restoreFailed = $false
+$networkMutex = $null
+$networkLockTaken = $false
+$serializedIntent = $intent -in @('InternetSync','ProtectedNorthwell')
+
 try {
+    if ($serializedIntent) {
+        $networkMutex = New-Object System.Threading.Mutex($false, 'Global\SysAdminSuite.NetworkIntent.v1')
+        try {
+            $networkLockTaken = $networkMutex.WaitOne(0)
+        }
+        catch [System.Threading.AbandonedMutexException] {
+            # The previous owner exited without releasing the mutex. Windows grants ownership to
+            # this process, so continue from freshly observed network state under the acquired lock.
+            $networkLockTaken = $true
+            Write-Warning 'Recovered an abandoned SysAdminSuite network-intent lock; current network state will be re-proven before execution.'
+        }
+        if (-not $networkLockTaken) {
+            [void](Write-SasNetworkCanary -Intent $intent -RepoRoot $controllerRoot -TransitionStatus 'BLOCKED_BY_CONCURRENT_NETWORK_TRANSACTION')
+            throw 'SAS_NETWORK_TRANSITION_BUSY: another SysAdminSuite network-sensitive command owns the controller network transaction. No network change was made by this invocation.'
+        }
+    }
+
     $transition = Enter-SasNetworkIntent -Intent $intent -RepoRoot $controllerRoot -AllowAutomaticWlanTransition
     $childArgs = @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$universalPath)
     if (-not [string]::IsNullOrWhiteSpace($Command)) { $childArgs += $Command }
@@ -77,6 +130,11 @@ finally {
             Write-Host 'NETWORK RESTORE REQUIRES OPERATOR ATTENTION. The command result is not promoted to success until the requested return posture is restored.' -ForegroundColor Red
         }
     }
+
+    if ($networkLockTaken -and $null -ne $networkMutex) {
+        try { $networkMutex.ReleaseMutex() } catch { }
+    }
+    if ($null -ne $networkMutex) { $networkMutex.Dispose() }
 }
 
 if ($restoreFailed -and $childExit -eq 0) { $childExit = 1 }
