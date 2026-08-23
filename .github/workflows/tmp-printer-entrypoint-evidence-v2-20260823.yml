@@ -1,0 +1,214 @@
+name: Temporary printer technician entrypoint evidence v2
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: printer-technician-entrypoint-evidence-v2-20260823
+  cancel-in-progress: false
+
+jobs:
+  prove-and-commit:
+    if: github.event.pull_request.head.ref == 'fix/printer-technician-entrypoint-evidence-20260823'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/printer-technician-entrypoint-evidence-20260823
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pester = Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version.Major -ge 5 } | Sort-Object Version -Descending | Select-Object -First 1
+          if (-not $pester) { Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.5.0 }
+
+      - name: Patch bounded operator provenance surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --all --prune --tags
+          test "$(git merge-base origin/main HEAD)" = "$(git rev-parse origin/main)"
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{path}: expected one anchor, found {count}')
+              target.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'Map-NorthwellPrinter.cmd',
+              'set "SAS_EXIT=1"\n\nrem Installed path: trust only the installer-owned sas.cmd beside this launcher.\n',
+              'set "SAS_EXIT=1"\nset "SAS_PRINTER_ENTRYPOINT=TECHNICIAN_CMD"\n\nrem Installed path: trust only the installer-owned sas.cmd beside this launcher.\n',
+          )
+
+          operator = Path('mapping/Invoke-NorthwellPrinterOperatorRun.ps1')
+          operator_text = operator.read_text(encoding='utf-8')
+          anchor = 'Import-Module $journalModule -Force -ErrorAction Stop\n\n'
+          block = '''Import-Module $journalModule -Force -ErrorAction Stop\n\n$entryPoint = if ([string]$env:SAS_PRINTER_ENTRYPOINT -ceq 'TECHNICIAN_CMD') {\n    'TECHNICIAN_CMD'\n}\nelse {\n    'SAS_PRINTER'\n}\n\n'''
+          if '$entryPoint = if ([string]$env:SAS_PRINTER_ENTRYPOINT' not in operator_text:
+              if operator_text.count(anchor) != 1:
+                  raise RuntimeError(f'operator import anchor count={operator_text.count(anchor)}')
+              operator_text = operator_text.replace(anchor, block, 1)
+          old_call = 'Write-SasPrinterRunJournalEvent -SessionId $sessionId'
+          new_call = 'Write-SasPrinterRunJournalEvent -SessionId $sessionId -EntryPoint $entryPoint'
+          if new_call not in operator_text:
+              count = operator_text.count(old_call)
+              if count != 7:
+                  raise RuntimeError(f'operator journal call count={count}, expected 7')
+              operator_text = operator_text.replace(old_call, new_call)
+          operator.write_text(operator_text, encoding='utf-8')
+
+          replace_once(
+              'scripts/SasPrinterRunJournal.psm1',
+              "        [Parameter(Mandatory)][string]$Outcome,\n        [string]$Message = '',\n",
+              "        [Parameter(Mandatory)][string]$Outcome,\n        [ValidateSet('SAS_PRINTER','TECHNICIAN_CMD')][string]$EntryPoint = 'SAS_PRINTER',\n        [string]$Message = '',\n",
+          )
+          replace_once(
+              'scripts/SasPrinterRunJournal.psm1',
+              "            StorageScope = 'LOCAL_USER_CACHE_ONLY'\n            Sharing = 'OPERATOR_DECIDES'\n            Event = $Event\n",
+              "            StorageScope = 'LOCAL_USER_CACHE_ONLY'\n            Sharing = 'OPERATOR_DECIDES'\n            EntryPoint = $EntryPoint\n            Event = $Event\n",
+          )
+
+          trail = Path('Tests/Pester/NorthwellPrinterOperatorTrail.Tests.ps1')
+          text = trail.read_text(encoding='utf-8')
+          old = "Write-SasPrinterRunJournalEvent -SessionId 'fixture-run' -Event 'RUN_COMPLETED' -Outcome 'READY' -Message 'fixture' -Summary $summary -CacheRoot $cacheRoot"
+          new = "Write-SasPrinterRunJournalEvent -SessionId 'fixture-run' -Event 'RUN_COMPLETED' -Outcome 'READY' -EntryPoint 'TECHNICIAN_CMD' -Message 'fixture' -Summary $summary -CacheRoot $cacheRoot"
+          if new not in text:
+              if text.count(old) != 1: raise RuntimeError('operator trail fixture call anchor drifted')
+              text = text.replace(old,new,1)
+          anchor = "        $latest.Sharing | Should -Be 'OPERATOR_DECIDES'\n"
+          addition = "        $latest.EntryPoint | Should -Be 'TECHNICIAN_CMD'\n"
+          if addition not in text:
+              if text.count(anchor) != 1: raise RuntimeError('operator trail sharing anchor drifted')
+              text = text.replace(anchor,anchor+addition,1)
+          anchor = "        $text | Should -Match 'RESULT: READY'\n"
+          addition = "        $text | Should -Match 'SAS_PRINTER_ENTRYPOINT'\n        $text | Should -Match \"'TECHNICIAN_CMD'\"\n        ([regex]::Matches($text,'-EntryPoint \\$entryPoint')).Count | Should -Be 7\n"
+          if addition not in text:
+              if text.count(anchor) != 1: raise RuntimeError('operator trail order anchor drifted')
+              text = text.replace(anchor,anchor+addition,1)
+          trail.write_text(text,encoding='utf-8')
+
+          tech = Path('Tests/Pester/NorthwellPrinterTechnicianLauncher.Tests.ps1')
+          text = tech.read_text(encoding='utf-8')
+          anchor = "        $cmd | Should -Match 'Recent proven PCs and printers'\n"
+          addition = "        $cmd | Should -Match 'SAS_PRINTER_ENTRYPOINT=TECHNICIAN_CMD'\n"
+          if addition not in text:
+              if text.count(anchor) != 1: raise RuntimeError('technician marker anchor drifted')
+              text = text.replace(anchor,anchor+addition,1)
+          anchor = "        $siblingIndex = $cmd.IndexOf('call \"%~dp0sas.cmd\" printer',[System.StringComparison]::Ordinal)\n"
+          addition = "        $markerIndex = $cmd.IndexOf('set \"SAS_PRINTER_ENTRYPOINT=TECHNICIAN_CMD\"',[System.StringComparison]::Ordinal)\n"
+          if addition not in text:
+              if text.count(anchor) != 1: raise RuntimeError('technician sibling anchor drifted')
+              text = text.replace(anchor,addition+anchor,1)
+          anchor = "        $siblingIndex | Should -BeGreaterThan -1\n"
+          addition = "        $markerIndex | Should -BeGreaterThan -1\n        $siblingIndex | Should -BeGreaterThan $markerIndex\n"
+          if addition not in text:
+              if text.count(anchor) != 1: raise RuntimeError('technician authority anchor drifted')
+              text = text.replace(anchor,addition+anchor,1)
+          anchor = "        $tutorial | Should -Match 'newer one-click technician wrapper still needs its own post-refresh field acceptance'\n"
+          addition = "        $tutorial | Should -Match 'EntryPoint=TECHNICIAN_CMD'\n"
+          if addition not in text:
+              if text.count(anchor) != 1: raise RuntimeError('technician tutorial anchor drifted')
+              text = text.replace(anchor,anchor+addition,1)
+          anchor = "        $report | Should -Match 'new one-click `Map-NorthwellPrinter\\.cmd` wrapper has not yet been separately field-accepted'\n"
+          addition = "        $report | Should -Match 'EntryPoint=TECHNICIAN_CMD'\n"
+          if addition not in text:
+              if text.count(anchor) != 1: raise RuntimeError('technician report anchor drifted')
+              text = text.replace(anchor,anchor+addition,1)
+          tech.write_text(text,encoding='utf-8')
+
+          tutorial = Path('docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md')
+          text = tutorial.read_text(encoding='utf-8')
+          anchor = 'The local trail is per-user, local to the admin box, and optional to share. It does not get copied to target PCs and it does not replace authoritative mapping proof.\n'
+          addition = '\nWhen the one-click `Map-NorthwellPrinter.cmd` is the actual front door, `latest.v1.json` records `EntryPoint=TECHNICIAN_CMD`. A direct or otherwise unmarked `sas printer` run records `EntryPoint=SAS_PRINTER`. This field is local entrypoint provenance only; it does not replace the authoritative HKLM/HKCU/HKU printer proof.\n'
+          if 'EntryPoint=TECHNICIAN_CMD' not in text:
+              if text.count(anchor) != 1: raise RuntimeError('tutorial evidence anchor drifted')
+              text = text.replace(anchor,anchor+addition,1)
+          old = 'Later mainline work added the explicit operator outcomes and bounded local trail while preserving the same resilient mapper/finalizer chain; repository validation proves that composition, but the newer one-click technician wrapper still needs its own post-refresh field acceptance before claiming that exact wrapper was live-tested.'
+          new = 'Later mainline work added the explicit operator outcomes and bounded local trail while preserving the same resilient mapper/finalizer chain. The one-click wrapper now stamps `EntryPoint=TECHNICIAN_CMD` into that local trail, making the next protected field run attributable to the exact wrapper; repository validation proves the composition, but the newer one-click technician wrapper still needs its own post-refresh field acceptance before claiming that exact wrapper was live-tested.'
+          if old in text: text = text.replace(old,new,1)
+          elif new not in text: raise RuntimeError('tutorial field boundary anchor drifted')
+          tutorial.write_text(text,encoding='utf-8')
+
+          report = Path('harness/reports/PRINTER_MAPPING_USE_CASES.md')
+          text = report.read_text(encoding='utf-8')
+          old = 'The new one-click technician CMD still needs post-refresh field acceptance before claiming that exact wrapper was observed live.'
+          new = 'The one-click wrapper now stamps its process-local launch identity into the local operator trail as `EntryPoint=TECHNICIAN_CMD`, so the next field run can prove that exact front door was used without changing printer transport. It still needs post-refresh field acceptance before claiming that exact wrapper was observed live.'
+          if old in text: text=text.replace(old,new,1)
+          elif new not in text: raise RuntimeError('report field checkpoint anchor drifted')
+          anchor='- The universal installer distributes that CMD beside `sas.cmd` instead of requiring a technician checkout.\n'
+          addition='- Wrapper-originated runs can be attributed from the local `latest.v1.json` record through `EntryPoint=TECHNICIAN_CMD`; direct or otherwise unmarked `sas printer` runs remain `SAS_PRINTER`.\n'
+          if addition not in text:
+              if text.count(anchor)!=1: raise RuntimeError('report installer anchor drifted')
+              text=text.replace(anchor,anchor+addition,1)
+          old='- The new one-click `Map-NorthwellPrinter.cmd` wrapper has not yet been separately field-accepted after installation/refresh.'
+          new='- The new one-click `Map-NorthwellPrinter.cmd` wrapper has not yet been separately field-accepted after installation/refresh; close this gate only with a protected field run whose local latest record reports `EntryPoint=TECHNICIAN_CMD` and whose normal authoritative workflow reaches `READY` or `READY_NEXT_LOGON`.'
+          if old in text: text=text.replace(old,new,1)
+          elif new not in text: raise RuntimeError('report missing gate anchor drifted')
+          old='It does not prove the newly distributed technician CMD has itself been field-run yet, Health & Hospitals behavior, site-specific standards, every network path, or physical document output.'
+          new='It proves the technician CMD can stamp attributable local provenance, but it does not prove that CMD has itself been field-run yet, Health & Hospitals behavior, site-specific standards, every network path, or physical document output.'
+          if old in text: text=text.replace(old,new,1)
+          elif new not in text: raise RuntimeError('report proof ceiling anchor drifted')
+          report.write_text(text,encoding='utf-8')
+          PY
+
+      - name: Parse changed PowerShell under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($relative in @('mapping\Invoke-NorthwellPrinterOperatorRun.ps1','scripts\SasPrinterRunJournal.psm1','Tests\Pester\NorthwellPrinterTechnicianLauncher.Tests.ps1','Tests\Pester\NorthwellPrinterOperatorTrail.Tests.ps1')) {
+            $tokens=$null; $errors=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $relative),[ref]$tokens,[ref]$errors)
+            if (@($errors).Count -gt 0) { $errors | Format-List * | Out-Host; throw "Windows PowerShell 5.1 parser rejected $relative" }
+          }
+
+      - name: Run focused printer contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterTechnicianLauncher.Tests.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Technician launcher Pester failed: $LASTEXITCODE" }
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\NorthwellPrinterOperatorTrail.Tests.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Operator trail Pester failed: $LASTEXITCODE" }
+
+      - name: Run printer harness validators and patch hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          python harness/validators/validate-printer-mapping-use-cases.py
+          python Tests/survey/test_printer_mapping_use_case_contracts.py
+          python Tests/survey/test_operational_harness_completeness_contracts.py
+          git diff --check
+          python - <<'PY'
+          import subprocess
+          expected={'Map-NorthwellPrinter.cmd','mapping/Invoke-NorthwellPrinterOperatorRun.ps1','scripts/SasPrinterRunJournal.psm1','Tests/Pester/NorthwellPrinterTechnicianLauncher.Tests.ps1','Tests/Pester/NorthwellPrinterOperatorTrail.Tests.ps1','docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md','harness/reports/PRINTER_MAPPING_USE_CASES.md'}
+          changed=set(subprocess.check_output(['git','diff','--name-only'],text=True).splitlines())
+          if changed != expected: raise RuntimeError(f'unexpected durable delta: {sorted(changed)}')
+          PY
+
+      - name: Commit durable provenance repair and remove transports
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/tmp-printer-entrypoint-evidence-20260823.yml .github/workflows/tmp-printer-entrypoint-evidence-v2-20260823.yml
+          git add Map-NorthwellPrinter.cmd mapping/Invoke-NorthwellPrinterOperatorRun.ps1 scripts/SasPrinterRunJournal.psm1 Tests/Pester/NorthwellPrinterTechnicianLauncher.Tests.ps1 Tests/Pester/NorthwellPrinterOperatorTrail.Tests.ps1 docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md harness/reports/PRINTER_MAPPING_USE_CASES.md
+          git diff --cached --check
+          git commit -m 'fix(printer): record technician entrypoint provenance'
+          git push origin HEAD:fix/printer-technician-entrypoint-evidence-20260823
