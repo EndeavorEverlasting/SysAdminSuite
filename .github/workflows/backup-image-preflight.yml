@@ -1,0 +1,41 @@
+name: Backup image preflight contracts
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/SasBackupImagePreflight.psm1'
+      - 'scripts/Test-SasBackupImagePreflight.ps1'
+      - 'Tests/Pester/BackupImagePreflight.Tests.ps1'
+      - 'docs/BACKUP_IMAGE_PREFLIGHT.md'
+      - '.github/workflows/backup-image-preflight.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/SasBackupImagePreflight.psm1'
+      - 'scripts/Test-SasBackupImagePreflight.ps1'
+      - 'Tests/Pester/BackupImagePreflight.Tests.ps1'
+      - 'docs/BACKUP_IMAGE_PREFLIGHT.md'
+      - '.github/workflows/backup-image-preflight.yml'
+
+jobs:
+  contracts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force
+
+      - name: Run focused Pester contracts
+        shell: pwsh
+        run: Invoke-Pester -Path './Tests/Pester/BackupImagePreflight.Tests.ps1' -CI
+
+      - name: Check whitespace against main
+        shell: pwsh
+        run: git diff --check origin/main...HEAD
