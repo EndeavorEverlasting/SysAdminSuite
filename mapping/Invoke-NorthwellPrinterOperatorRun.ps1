@@ -35,9 +35,16 @@ if ($Action -eq 'Map' -and -not (Test-Path -LiteralPath $finalizer -PathType Lea
 }
 Import-Module $journalModule -Force -ErrorAction Stop
 
+$entryPoint = if ([string]$env:SAS_PRINTER_ENTRYPOINT -ceq 'TECHNICIAN_CMD') {
+    'TECHNICIAN_CMD'
+}
+else {
+    'SAS_PRINTER'
+}
+
 $sessionId = 'printer-{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmssfff'),([guid]::NewGuid().ToString('N').Substring(0,12))
 $startedUtc = [datetime]::UtcNow
-$journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -Event 'RUN_STARTED' -Outcome 'IN_PROGRESS' -Message "Northwell printer $Action started on the local admin box."
+$journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -EntryPoint $entryPoint -Event 'RUN_STARTED' -Outcome 'IN_PROGRESS' -Message "Northwell printer $Action started on the local admin box."
 
 function Resolve-SasFreshLocalPrinterEvidenceRoot {
     if (-not (Test-Path -LiteralPath $latestEvidencePointer -PathType Leaf)) { return $null }
@@ -85,7 +92,7 @@ $summary = Read-SasLocalPrinterSummary -EvidenceRoot $evidenceRoot
 
 if ($null -ne $mapperError) {
     $friendly = Get-SasPrinterFriendlyFailure -Message $mapperError.Exception.Message
-    $journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -Event 'MACHINE_WIDE_FAILED' -Outcome $friendly.Outcome -Message $friendly.Headline -EvidenceRoot $evidenceRoot -Summary $summary
+    $journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -EntryPoint $entryPoint -Event 'MACHINE_WIDE_FAILED' -Outcome $friendly.Outcome -Message $friendly.Headline -EvidenceRoot $evidenceRoot -Summary $summary
     Write-Host ''
     $failureColor = if ($friendly.Outcome -in @('NOT_FOUND','INVALID_PRINTER')) { 'Yellow' } else { 'Red' }
     Write-Host $friendly.Headline -ForegroundColor $failureColor
@@ -95,7 +102,7 @@ if ($null -ne $mapperError) {
 
 if ($null -eq $summary -or -not [bool]$summary.Success) {
     $message = 'FAILED: the mapper returned without a complete local Summary.json success proof.'
-    $journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -Event 'MACHINE_WIDE_FAILED' -Outcome 'FAILED' -Message $message -EvidenceRoot $evidenceRoot -Summary $summary
+    $journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -EntryPoint $entryPoint -Event 'MACHINE_WIDE_FAILED' -Outcome 'FAILED' -Message $message -EvidenceRoot $evidenceRoot -Summary $summary
     Write-Host ''
     Write-Host $message -ForegroundColor Red
     Write-SasLocalTrailLocation -JournalResult $journalWrite
@@ -112,7 +119,7 @@ switch ($machineOutcome) {
     'ALREADY_UNMAPPED' { $machineMessage = "ALREADY UNMAPPED: $scopeText. No machine-wide change was needed." }
     default { $machineMessage = "MACHINE-WIDE READY: $scopeText." }
 }
-$journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -Event 'MACHINE_WIDE_PROVEN' -Outcome $machineOutcome -Message $machineMessage -EvidenceRoot $evidenceRoot -Summary $summary
+$journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -EntryPoint $entryPoint -Event 'MACHINE_WIDE_PROVEN' -Outcome $machineOutcome -Message $machineMessage -EvidenceRoot $evidenceRoot -Summary $summary
 Write-Host ''
 Write-Host $machineMessage -ForegroundColor Green
 
@@ -129,7 +136,7 @@ if ($Action -eq 'Map') {
 
     if ($null -ne $finalizerError) {
         $message = "MACHINE-WIDE READY, ACTIVE USER NOT READY: $($finalizerError.Exception.Message)"
-        $journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -Event 'ACTIVE_USER_FAILED' -Outcome 'ACTIVE_USER_FAILED' -Message $message -EvidenceRoot $evidenceRoot -Summary $summary
+        $journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -EntryPoint $entryPoint -Event 'ACTIVE_USER_FAILED' -Outcome 'ACTIVE_USER_FAILED' -Message $message -EvidenceRoot $evidenceRoot -Summary $summary
         Write-Host ''
         Write-Host $message -ForegroundColor Red
         Write-SasLocalTrailLocation -JournalResult $journalWrite
@@ -159,7 +166,7 @@ if ($Action -eq 'Map') {
         $finalOutcome = 'READY'
         $finalMessage = "RESULT: READY ($machineOutcome). Machine-wide registration and active-user readiness are proven."
     }
-    $journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -Event 'RUN_COMPLETED' -Outcome $finalOutcome -Message $finalMessage -EvidenceRoot $evidenceRoot -Summary $summary
+    $journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -EntryPoint $entryPoint -Event 'RUN_COMPLETED' -Outcome $finalOutcome -Message $finalMessage -EvidenceRoot $evidenceRoot -Summary $summary
     Write-Host ''
     Write-Host $finalMessage -ForegroundColor Green
     Write-SasLocalTrailLocation -JournalResult $journalWrite
@@ -167,7 +174,7 @@ if ($Action -eq 'Map') {
 }
 
 $finalMessage = "RESULT: READY ($machineOutcome). Machine-wide absence is proven."
-$journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -Event 'RUN_COMPLETED' -Outcome 'READY' -Message $finalMessage -EvidenceRoot $evidenceRoot -Summary $summary
+$journalWrite = Write-SasPrinterRunJournalEvent -SessionId $sessionId -EntryPoint $entryPoint -Event 'RUN_COMPLETED' -Outcome 'READY' -Message $finalMessage -EvidenceRoot $evidenceRoot -Summary $summary
 Write-Host ''
 Write-Host $finalMessage -ForegroundColor Green
 Write-SasLocalTrailLocation -JournalResult $journalWrite

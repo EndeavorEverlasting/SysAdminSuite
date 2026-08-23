@@ -131,6 +131,7 @@ function Write-SasPrinterRunJournalEvent {
         [Parameter(Mandatory)][string]$SessionId,
         [Parameter(Mandatory)][string]$Event,
         [Parameter(Mandatory)][string]$Outcome,
+        [ValidateSet('SAS_PRINTER','TECHNICIAN_CMD')][string]$EntryPoint = 'SAS_PRINTER',
         [string]$Message = '',
         [AllowNull()][string]$EvidenceRoot,
         [AllowNull()]$Summary,
@@ -168,6 +169,7 @@ function Write-SasPrinterRunJournalEvent {
             User = $userName
             StorageScope = 'LOCAL_USER_CACHE_ONLY'
             Sharing = 'OPERATOR_DECIDES'
+            EntryPoint = $EntryPoint
             Event = $Event
             Outcome = $Outcome
             Message = $Message
