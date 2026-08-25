@@ -10,6 +10,8 @@ on:
       - 'Tests/survey/test_autologon_closeout_preparation_contracts.py'
       - 'docs/AUTOLOGON_CLOSEOUT_PREPARATION.md'
       - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/api/harness-outcome-registry.json'
       - '.github/workflows/autologon-closeout-preparation.yml'
   workflow_dispatch:
 
@@ -33,6 +35,8 @@ jobs:
         run: python Tests/survey/test_autologon_closeout_preparation_contracts.py
       - name: Validate harness registries
         run: python harness/validators/validate-harness-registries.py
+      - name: Validate outcome-driven command chain
+        run: python harness/validators/validate-outcome-contracts.py
       - name: Check patch whitespace
         run: git diff --check origin/${{ github.base_ref }}...HEAD
 
