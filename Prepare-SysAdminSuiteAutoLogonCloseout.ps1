@@ -18,13 +18,11 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$ComputerName,
 
-    [string]$RepoUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git',
-
-    [string]$RuntimeRoot = 'C:\SASAL',
-
     [switch]$ControllerMode,
 
     [string]$ExpectedCurrentHead,
+
+    [string]$ControllerToken,
 
     [ValidateRange(1, 5)]
     [int]$MaxFreshnessPasses = 3
@@ -33,14 +31,21 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
+$repoUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git'
 $ref = 'main'
+$runtimeFullPath = 'C:\SASAL'
 $stateRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite'
 $controllerRoot = Join-Path $stateRoot 'autologon-closeout-controller'
 $preservationRoot = Join-Path $stateRoot 'autologon-closeout-controller-preservation'
 $closeoutRoot = Join-Path $stateRoot 'autologon-closeout'
+$closeoutPreservationRoot = Join-Path $stateRoot 'autologon-closeout-preservation'
 $verificationReceipt = Join-Path $stateRoot 'autologon-runtime-verification.json'
 $manifestPath = Join-Path $stateRoot 'autologon-short-runtime.json'
+$handoffPath = Join-Path $closeoutRoot 'Run-Prepared-AutoLogon.cmd'
+$readinessReceipt = Join-Path $closeoutRoot 'autologon-closeout-readiness.json'
 $ps51 = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$mutexName = 'Global\SysAdminSuite-AutoLogonCloseoutPreparation'
+$parentTokenVariable = 'SAS_AUTOLOGON_CLOSEOUT_PARENT_TOKEN'
 
 function Assert-SasTargetShape {
     param([Parameter(Mandatory = $true)][string]$Target)
@@ -142,6 +147,25 @@ function Preserve-SasOwnedController {
     Write-Host "Preserved prior generated closeout controller: $destination" -ForegroundColor Yellow
 }
 
+function Disable-SasPriorCloseoutHandoff {
+    $existing = @($handoffPath, $readinessReceipt | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
+    if ($existing.Count -eq 0) { return }
+
+    $archiveRoot = Join-Path $closeoutPreservationRoot ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
+    New-Item -ItemType Directory -Path $archiveRoot -Force | Out-Null
+
+    if (Test-Path -LiteralPath $handoffPath -PathType Leaf) {
+        $disabledPath = Join-Path $archiveRoot 'Run-Prepared-AutoLogon.cmd.disabled'
+        Move-Item -LiteralPath $handoffPath -Destination $disabledPath
+        Write-Host "Disabled prior prepared deployment handoff: $disabledPath" -ForegroundColor Yellow
+    }
+    if (Test-Path -LiteralPath $readinessReceipt -PathType Leaf) {
+        $previousReceipt = Join-Path $archiveRoot 'autologon-closeout-readiness.previous.json'
+        Move-Item -LiteralPath $readinessReceipt -Destination $previousReceipt
+        Write-Host "Archived prior closeout readiness receipt: $previousReceipt" -ForegroundColor DarkGray
+    }
+}
+
 function Assert-SasControllerClean {
     param([Parameter(Mandatory = $true)][string]$Root)
     $status = @(Invoke-SasCloseoutGit -Root $Root -Arguments @('status','--porcelain=v1','--untracked-files=all') -FailureMessage 'Could not verify closeout-controller status.' -Quiet)
@@ -182,13 +206,13 @@ function Initialize-SasCurrentController {
 
     if (-not (Test-Path -LiteralPath $controllerRoot)) {
         Write-Host 'Creating dedicated AutoLogon closeout controller from the official repository...' -ForegroundColor Cyan
-        [void](Invoke-SasCloseoutGit -Root $null -Arguments @('clone','--branch','main','--single-branch',$RepoUrl,$controllerRoot) -FailureMessage 'Could not create the closeout controller.')
+        [void](Invoke-SasCloseoutGit -Root $null -Arguments @('clone','--branch','main','--single-branch',$repoUrl,$controllerRoot) -FailureMessage 'Could not create the closeout controller.')
     }
 
     $originAfter = Get-SasCloseoutGitScalar -Root $controllerRoot -Arguments @('remote','get-url','origin') -FailureMessage 'Could not read prepared controller origin.'
     if (-not (Test-SasOfficialOrigin -Url $originAfter)) {
         Preserve-SasOwnedController
-        [void](Invoke-SasCloseoutGit -Root $null -Arguments @('clone','--branch','main','--single-branch',$RepoUrl,$controllerRoot) -FailureMessage 'Could not recreate the closeout controller from the official repository.')
+        [void](Invoke-SasCloseoutGit -Root $null -Arguments @('clone','--branch','main','--single-branch',$repoUrl,$controllerRoot) -FailureMessage 'Could not recreate the closeout controller from the official repository.')
     }
 
     try {
@@ -197,7 +221,7 @@ function Initialize-SasCurrentController {
     catch {
         Write-Host 'Existing generated controller could not refresh; preserving it and cloning a clean replacement.' -ForegroundColor Yellow
         Preserve-SasOwnedController
-        [void](Invoke-SasCloseoutGit -Root $null -Arguments @('clone','--branch','main','--single-branch',$RepoUrl,$controllerRoot) -FailureMessage 'Could not recreate the closeout controller after refresh failure.')
+        [void](Invoke-SasCloseoutGit -Root $null -Arguments @('clone','--branch','main','--single-branch',$repoUrl,$controllerRoot) -FailureMessage 'Could not recreate the closeout controller after refresh failure.')
         return Sync-SasControllerToRemoteMain -Root $controllerRoot
     }
 }
@@ -222,37 +246,75 @@ function Assert-SasPreparedManifestPosture {
     }
 }
 
-$target = Assert-SasTargetShape -Target $ComputerName
-if (-not (Test-SasOfficialOrigin -Url $RepoUrl)) {
-    throw "AUTOLOGON_CLOSEOUT_REPOSITORY_INVALID: only the official EndeavorEverlasting/SysAdminSuite origin is accepted: $RepoUrl"
+function Assert-SasControllerModeLockProof {
+    if ([string]::IsNullOrWhiteSpace($ControllerToken)) {
+        throw 'AUTOLOGON_CLOSEOUT_INTERNAL_MODE_BLOCKED: controller mode requires the parent preparation token.'
+    }
+    $parentToken = [Environment]::GetEnvironmentVariable($parentTokenVariable, 'Process')
+    if ([string]::IsNullOrWhiteSpace($parentToken) -or $parentToken -ne $ControllerToken) {
+        throw 'AUTOLOGON_CLOSEOUT_INTERNAL_MODE_BLOCKED: parent preparation token mismatch.'
+    }
 }
+
+$target = Assert-SasTargetShape -Target $ComputerName
 if (-not (Test-Path -LiteralPath $ps51 -PathType Leaf)) {
     throw "Windows PowerShell 5.1 was not found: $ps51"
 }
 
 if (-not $ControllerMode) {
-    Write-Host ''
-    Write-Host '=== SYSADMINSUITE AUTOLOGON CLOSEOUT PREPARATION ===' -ForegroundColor Cyan
-    Write-Host "Target: $target"
-    Write-Host 'Required network: Guest / ordinary Internet'
-    Write-Host 'Repository authority: current origin/main only' -ForegroundColor Green
-    Write-Host 'Historical operator checkouts: PRESERVED / NOT USED AS AUTHORITY' -ForegroundColor Green
-    Write-Host 'Target contact during preparation: NONE' -ForegroundColor Green
-    Write-Host ''
+    $mutex = $null
+    $lockTaken = $false
+    $childExit = 1
+    $previousParentToken = [Environment]::GetEnvironmentVariable($parentTokenVariable, 'Process')
+    try {
+        $mutex = New-Object Threading.Mutex($false, $mutexName)
+        try { $lockTaken = $mutex.WaitOne(0) }
+        catch [Threading.AbandonedMutexException] { $lockTaken = $true }
+        if (-not $lockTaken) {
+            throw 'AUTOLOGON_CLOSEOUT_PREPARATION_ALREADY_RUNNING: another machine-wide closeout preparation owns the shared controller/runtime/handoff state.'
+        }
 
-    $currentHead = Initialize-SasCurrentController
-    $controllerScript = Join-Path $controllerRoot 'Prepare-SysAdminSuiteAutoLogonCloseout.ps1'
-    if (-not (Test-Path -LiteralPath $controllerScript -PathType Leaf)) {
-        throw "Current origin/main does not contain the AutoLogon closeout preparer: $controllerScript"
+        $parentToken = [guid]::NewGuid().ToString('N')
+        [Environment]::SetEnvironmentVariable($parentTokenVariable, $parentToken, 'Process')
+
+        Write-Host ''
+        Write-Host '=== SYSADMINSUITE AUTOLOGON CLOSEOUT PREPARATION ===' -ForegroundColor Cyan
+        Write-Host "Target: $target"
+        Write-Host 'Required network: Guest / ordinary Internet'
+        Write-Host 'Repository authority: current origin/main only' -ForegroundColor Green
+        Write-Host 'Runtime authority: canonical C:\SASAL only' -ForegroundColor Green
+        Write-Host 'Historical operator checkouts: PRESERVED / NOT USED AS AUTHORITY' -ForegroundColor Green
+        Write-Host 'Target contact during preparation: NONE' -ForegroundColor Green
+        Write-Host 'Preparation concurrency: MACHINE-WIDE SERIALIZED' -ForegroundColor Green
+        Write-Host ''
+
+        # The fixed handoff path must never survive into a new failed preparation attempt.
+        # Disable/archive it before any network/fetch/staging work so the documented path
+        # cannot accidentally deploy a previously prepared target.
+        Disable-SasPriorCloseoutHandoff
+
+        $currentHead = Initialize-SasCurrentController
+        $controllerScript = Join-Path $controllerRoot 'Prepare-SysAdminSuiteAutoLogonCloseout.ps1'
+        if (-not (Test-Path -LiteralPath $controllerScript -PathType Leaf)) {
+            throw "Current origin/main does not contain the AutoLogon closeout preparer: $controllerScript"
+        }
+
+        & $ps51 -NoLogo -NoProfile -ExecutionPolicy Bypass -File $controllerScript `
+            -ComputerName $target -ControllerMode -ExpectedCurrentHead $currentHead `
+            -ControllerToken $parentToken -MaxFreshnessPasses $MaxFreshnessPasses
+        $childExit = [int]$global:LASTEXITCODE
     }
-
-    & $ps51 -NoLogo -NoProfile -ExecutionPolicy Bypass -File $controllerScript `
-        -ComputerName $target -RepoUrl $RepoUrl -RuntimeRoot $RuntimeRoot `
-        -ControllerMode -ExpectedCurrentHead $currentHead -MaxFreshnessPasses $MaxFreshnessPasses
-    $childExit = [int]$global:LASTEXITCODE
+    finally {
+        [Environment]::SetEnvironmentVariable($parentTokenVariable, $previousParentToken, 'Process')
+        if ($lockTaken -and $null -ne $mutex) {
+            try { $mutex.ReleaseMutex() } catch { }
+        }
+        if ($null -ne $mutex) { $mutex.Dispose() }
+    }
     exit $childExit
 }
 
+Assert-SasControllerModeLockProof
 $repoRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 $origin = Get-SasCloseoutGitScalar -Root $repoRoot -Arguments @('remote','get-url','origin') -FailureMessage 'Could not read closeout-controller origin.'
 if (-not (Test-SasOfficialOrigin -Url $origin)) {
@@ -282,7 +344,7 @@ for ($pass = 1; $pass -le $MaxFreshnessPasses; $pass++) {
     Write-Host "HEAD before refresh: $preRefreshHead" -ForegroundColor Green
 
     & $ps51 -NoLogo -NoProfile -ExecutionPolicy Bypass -File $refresh `
-        -RepositoryRoot $repoRoot -Ref main -RepoUrl $RepoUrl
+        -RepositoryRoot $repoRoot -Ref main -RepoUrl $repoUrl
     $refreshExit = [int]$global:LASTEXITCODE
     if ($refreshExit -ne 0) {
         throw "AUTOLOGON_CLOSEOUT_REFRESH_FAILED: sas refresh exited $refreshExit. No protected deployment handoff was generated."
@@ -316,7 +378,6 @@ if (-not $converged) {
     throw "AUTOLOGON_CLOSEOUT_FRESHNESS_UNSTABLE: origin/main moved during all $MaxFreshnessPasses bounded preparation passes. Remain on Guest/Internet and rerun later; no protected deployment handoff was generated."
 }
 
-$runtimeFullPath = [IO.Path]::GetFullPath($RuntimeRoot)
 $audit = Join-Path $runtimeFullPath 'scripts\Test-SasAutoLogonRuntimeSeal.ps1'
 if (-not (Test-Path -LiteralPath $audit -PathType Leaf)) {
     throw "Canonical full runtime seal audit is missing: $audit"
@@ -346,15 +407,19 @@ if ($handoffExit -ne 0) {
     throw "AUTOLOGON_CLOSEOUT_HANDOFF_FAILED: handoff generator exited $handoffExit."
 }
 
-$readinessReceipt = Join-Path $closeoutRoot 'autologon-closeout-readiness.json'
 if (-not (Test-Path -LiteralPath $readinessReceipt -PathType Leaf)) {
     throw "AUTOLOGON_CLOSEOUT_HANDOFF_MISSING: $readinessReceipt"
 }
+if (-not (Test-Path -LiteralPath $handoffPath -PathType Leaf)) {
+    throw "AUTOLOGON_CLOSEOUT_HANDOFF_MISSING: $handoffPath"
+}
 $readiness = Get-Content -LiteralPath $readinessReceipt -Raw -Encoding UTF8 | ConvertFrom-Json
+$receiptHandoffPath = [IO.Path]::GetFullPath([string]$readiness.handoff_path)
 if ([string]$readiness.status -ne 'READY_FOR_PROTECTED_DEPLOYMENT' -or
     -not [bool]$readiness.runtime_seal_verified -or
     [string]$readiness.prepared_commit -ne $preparedCommit -or
     [string]$readiness.requested_target -ne $target -or
+    -not $receiptHandoffPath.Equals([IO.Path]::GetFullPath($handoffPath), [StringComparison]::OrdinalIgnoreCase) -or
     [bool]$readiness.target_contact_performed -or
     [bool]$readiness.target_mutation_performed -or
     [bool]$readiness.crash_safe_run_started) {
