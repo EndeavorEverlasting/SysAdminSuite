@@ -104,11 +104,30 @@ exit /b 0
     if ($observedLines -notcontains ('target=' + $target)) { throw 'Generated handoff changed target binding.' }
     if ($observedLines -notcontains ('commit=' + $commit)) { throw 'Generated handoff changed commit binding.' }
 
+    # Expected failure is isolated in a child process so stderr does not become a parent
+    # NativeCommandError under $ErrorActionPreference='Stop'.
     $invalidOutput = Join-Path $tempRoot 'invalid-output'
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $generator `
-        -ComputerName 'bad&target' -PreparedCommit $commit -RuntimeRoot $runtime `
-        -OutputRoot $invalidOutput -RuntimeVerificationReceipt $verification *> $null
-    if ([int]$global:LASTEXITCODE -eq 0) { throw 'Generator accepted a command-injection target shape.' }
+    $invalidStdout = Join-Path $tempRoot 'invalid.stdout.txt'
+    $invalidStderr = Join-Path $tempRoot 'invalid.stderr.txt'
+    $invalidArgs = @(
+        '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',('"' + $generator + '"'),
+        '-ComputerName','bad&target',
+        '-PreparedCommit',$commit,
+        '-RuntimeRoot',('"' + $runtime + '"'),
+        '-OutputRoot',('"' + $invalidOutput + '"'),
+        '-RuntimeVerificationReceipt',('"' + $verification + '"')
+    )
+    $invalidProcess = Start-Process -FilePath 'powershell.exe' -ArgumentList $invalidArgs `
+        -RedirectStandardOutput $invalidStdout -RedirectStandardError $invalidStderr `
+        -Wait -PassThru -NoNewWindow
+    if ([int]$invalidProcess.ExitCode -eq 0) { throw 'Generator accepted a command-injection target shape.' }
+    $invalidDiagnostic = ''
+    if (Test-Path -LiteralPath $invalidStderr -PathType Leaf) {
+        $invalidDiagnostic = Get-Content -LiteralPath $invalidStderr -Raw -ErrorAction SilentlyContinue
+    }
+    if ([string]$invalidDiagnostic -notmatch 'AUTOLOGON_CLOSEOUT_TARGET_INVALID') {
+        throw 'Invalid target failed without the expected closeout target classification.'
+    }
     if (Test-Path -LiteralPath (Join-Path $invalidOutput 'Run-Prepared-AutoLogon.cmd')) { throw 'Invalid target generated a handoff.' }
 }
 finally {
