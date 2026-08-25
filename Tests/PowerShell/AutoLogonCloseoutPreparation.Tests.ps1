@@ -98,9 +98,11 @@ exit /b 0
         else { $env:SAS_CLOSEOUT_FIXTURE_OBSERVED = $previousObserved }
     }
 
-    $observedText = Get-Content -LiteralPath $observed -Raw
-    if ($observedText -notmatch ('(?m)^target=' + [regex]::Escape($target) + '$')) { throw 'Generated handoff changed target binding.' }
-    if ($observedText -notmatch ('(?m)^commit=' + [regex]::Escape($commit) + '$')) { throw 'Generated handoff changed commit binding.' }
+    # cmd.exe writes CRLF. Normalize line boundaries before exact equality so this fixture
+    # validates argument binding rather than host newline convention.
+    $observedLines = @(Get-Content -LiteralPath $observed | ForEach-Object { ([string]$_).TrimEnd("`r") })
+    if ($observedLines -notcontains ('target=' + $target)) { throw 'Generated handoff changed target binding.' }
+    if ($observedLines -notcontains ('commit=' + $commit)) { throw 'Generated handoff changed commit binding.' }
 
     $invalidOutput = Join-Path $tempRoot 'invalid-output'
     & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $generator `
