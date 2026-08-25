@@ -33,8 +33,25 @@ def test_preparer_owns_current_controller_without_touching_historical_checkouts(
     assert "Repository authority: current origin/main only" in text
     assert "Historical operator checkouts: PRESERVED / NOT USED AS AUTHORITY" in text
     assert "$ref = 'main'" in text
+    assert "$repoUrl = 'https://github.com/EndeavorEverlasting/SysAdminSuite.git'" in text
+    assert "$runtimeFullPath = 'C:\\SASAL'" in text
+    assert "[string]$RepoUrl" not in text
+    assert "[string]$RuntimeRoot" not in text
     for forbidden in ("reset --hard", "clean -fd", "Remove-Item -LiteralPath $controllerRoot -Recurse"):
         assert forbidden not in text, forbidden
+
+
+def test_preparation_is_machine_serialized_and_invalidates_old_handoff_first() -> None:
+    text = read(PREP)
+    assert "Global\\SysAdminSuite-AutoLogonCloseoutPreparation" in text
+    assert "AUTOLOGON_CLOSEOUT_PREPARATION_ALREADY_RUNNING" in text
+    assert "Disable-SasPriorCloseoutHandoff" in text
+    assert "Run-Prepared-AutoLogon.cmd.disabled" in text
+    assert "autologon-closeout-readiness.previous.json" in text
+    assert "parent preparation token" in text
+    disable_call = text.index("Disable-SasPriorCloseoutHandoff", text.index("if (-not $ControllerMode)"))
+    controller_init = text.index("Initialize-SasCurrentController", disable_call)
+    assert disable_call < controller_init
 
 
 def test_git_output_is_empty_safe_under_windows_powershell() -> None:
@@ -84,7 +101,7 @@ def test_preparation_never_calls_deployment_engine_directly() -> None:
         assert forbidden not in text, forbidden
 
 
-def test_handoff_is_pinned_and_uses_only_canonical_protected_bootstrap() -> None:
+def test_handoff_is_pinned_atomic_and_uses_only_canonical_protected_bootstrap() -> None:
     text = read(HANDOFF)
     assert "AUTOLOGON_RUNTIME_SEAL_VERIFIED" in text
     assert "READY_FOR_PROTECTED_DEPLOYMENT" in text
@@ -94,6 +111,11 @@ def test_handoff_is_pinned_and_uses_only_canonical_protected_bootstrap() -> None
     assert "target_contact_performed = $false" in text
     assert "target_mutation_performed = $false" in text
     assert "authoritative_for_deployment = $false" in text
+    assert "AUTOLOGON_CLOSEOUT_EXISTING_HANDOFF" in text
+    assert ".cmd.pending" in text
+    assert ".json.pending" in text
+    assert "Publish the non-executable receipt first" in text
+    assert text.index("Move-Item -LiteralPath $pendingReceipt") < text.index("Move-Item -LiteralPath $pendingHandoff")
 
 
 def test_no_live_target_or_secret_literal() -> None:
