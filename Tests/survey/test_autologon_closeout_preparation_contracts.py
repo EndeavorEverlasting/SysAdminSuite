@@ -6,7 +6,9 @@ PREP = ROOT / "Prepare-SysAdminSuiteAutoLogonCloseout.ps1"
 CMD = ROOT / "Prepare-SysAdminSuiteAutoLogonCloseout.cmd"
 HANDOFF = ROOT / "scripts" / "New-SasAutoLogonDeploymentHandoff.ps1"
 RUNBOOK = ROOT / "docs" / "AUTOLOGON_CLOSEOUT_PREPARATION.md"
-REGISTRY = ROOT / "harness" / "api" / "harness-command-registry.json"
+COMMANDS = ROOT / "harness" / "api" / "harness-command-registry.json"
+OUTCOMES = ROOT / "harness" / "api" / "harness-outcome-registry.json"
+ARTIFACTS = ROOT / "harness" / "api" / "harness-artifact-registry.json"
 
 
 def read(path: Path) -> str:
@@ -28,9 +30,29 @@ def test_preparer_owns_current_controller_without_touching_historical_checkouts(
     assert "autologon-closeout-controller-preservation" in text
     assert "fetch','--all','--prune','--tags'" in text
     assert "checkout','--detach',$remoteHead" in text
+    assert "Repository authority: current origin/main only" in text
     assert "Historical operator checkouts: PRESERVED / NOT USED AS AUTHORITY" in text
+    assert "$ref = 'main'" in text
     for forbidden in ("reset --hard", "clean -fd", "Remove-Item -LiteralPath $controllerRoot -Recurse"):
         assert forbidden not in text, forbidden
+
+
+def test_git_output_is_empty_safe_under_windows_powershell() -> None:
+    text = read(PREP)
+    assert "$outputLines = @($output | ForEach-Object { [string]$_ })" in text
+    assert "$outputLines.Count -gt 0" in text
+    assert "($outputLines -join [Environment]::NewLine).Trim()" in text
+    assert "(@($output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()" not in text
+
+
+def test_preparer_reconverges_if_main_moves_during_staging() -> None:
+    text = read(PREP)
+    assert "MaxFreshnessPasses" in text
+    assert "FRESHNESS PASS" in text
+    assert "re-check origin/main after runtime staging" in text
+    assert "origin/main advanced during preparation" in text
+    assert "Re-running canonical Guest refresh so the protected handoff is not born stale." in text
+    assert "AUTOLOGON_CLOSEOUT_FRESHNESS_UNSTABLE" in text
 
 
 def test_preparer_delegates_to_canonical_refresh_and_full_seal_audit() -> None:
@@ -46,6 +68,7 @@ def test_preparer_delegates_to_canonical_refresh_and_full_seal_audit() -> None:
     assert "GUEST_INTERNET" in text
     assert "LOCAL_FILESYSTEM_ONLY" in text
     assert "runtime_remotes_removed" in text
+    assert "exact sealed runtime" in text
     assert "AUTOLOGON_CLOSEOUT_PREPARATION_COMPLETED" in text
 
 
@@ -79,13 +102,22 @@ def test_no_live_target_or_secret_literal() -> None:
         assert forbidden not in text, forbidden
 
 
-def test_runbook_and_command_registry_expose_preparation_front_door() -> None:
+def test_harness_binds_prepare_artifact_and_protected_deploy_continuation() -> None:
     runbook = read(RUNBOOK)
-    registry = read(REGISTRY)
+    commands = read(COMMANDS)
+    outcomes = read(OUTCOMES)
+    artifacts = read(ARTIFACTS)
     assert "Prepare-SysAdminSuiteAutoLogonCloseout.cmd HOST" in runbook
     assert "Run-Prepared-AutoLogon.cmd" in runbook
-    assert '"id":"autologon-closeout-prepare"' in registry
-    assert "Prepare-SysAdminSuiteAutoLogonCloseout.cmd HOST" in registry
+    assert '"id":"autologon-closeout-prepare"' in commands
+    assert '"id":"autologon-closeout-deploy"' in commands
+    assert "%LOCALAPPDATA%\\\\SysAdminSuite\\\\autologon-closeout\\\\Run-Prepared-AutoLogon.cmd" in commands
+    assert '"command_id":"autologon-closeout-prepare"' in outcomes
+    assert '"command_id":"autologon-closeout-deploy"' in outcomes
+    assert '"success_artifact_id":"autologon-closeout-readiness"' in outcomes
+    assert '"command_id":"autologon-closeout-deploy","same_turn":true' in outcomes
+    assert '"id":"autologon-closeout-readiness"' in artifacts
+    assert '"id":"autologon-closeout-deployment-handoff"' in artifacts
 
 
 def main() -> None:
