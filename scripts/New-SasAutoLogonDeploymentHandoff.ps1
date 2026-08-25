@@ -7,6 +7,10 @@ Create a machine-local one-command handoff for a prepared AutoLogon deployment.
 This generator performs no network activity and no target contact. It accepts an already verified sealed runtime,
 one explicit target, and the exact prepared commit. It writes a local CMD handoff that invokes only the canonical
 protected AutoLogon bootstrap from that runtime, plus a non-authoritative readiness receipt.
+
+The caller must invalidate any prior fixed-path handoff before invoking this generator. New output is built under
+unique pending paths; the readiness receipt is published first and the executable handoff is published last so a
+partial write cannot leave a newly executable fixed-path deployment command without its matching receipt.
 #>
 [CmdletBinding()]
 param(
@@ -95,6 +99,16 @@ if (-not (Test-Path -LiteralPath $output -PathType Container)) {
 
 $handoffPath = Join-Path $output 'Run-Prepared-AutoLogon.cmd'
 $receiptPath = Join-Path $output 'autologon-closeout-readiness.json'
+if (Test-Path -LiteralPath $handoffPath -PathType Leaf) {
+    throw "AUTOLOGON_CLOSEOUT_EXISTING_HANDOFF: prior fixed-path handoff must be disabled before generating a new one: $handoffPath"
+}
+if (Test-Path -LiteralPath $receiptPath -PathType Leaf) {
+    throw "AUTOLOGON_CLOSEOUT_EXISTING_RECEIPT: prior fixed-path readiness receipt must be archived before generating a new one: $receiptPath"
+}
+
+$pendingId = [guid]::NewGuid().ToString('N')
+$pendingHandoff = Join-Path $output ('.Run-Prepared-AutoLogon.' + $pendingId + '.cmd.pending')
+$pendingReceipt = Join-Path $output ('.autologon-closeout-readiness.' + $pendingId + '.json.pending')
 $bootstrapPathForCmd = $bootstrap
 
 $cmdLines = @(
@@ -120,7 +134,6 @@ $cmdLines = @(
     'set "SAS_RC=%ERRORLEVEL%"',
     'exit /b %SAS_RC%'
 )
-[IO.File]::WriteAllText($handoffPath, (($cmdLines -join "`r`n") + "`r`n"), [Text.Encoding]::ASCII)
 
 $receipt = [pscustomobject][ordered]@{
     schema_version = 'sas-autologon-closeout-readiness/v1'
@@ -141,7 +154,30 @@ $receipt = [pscustomobject][ordered]@{
     crash_safe_run_started = $false
     authoritative_for_deployment = $false
 }
-$receipt | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $receiptPath -Encoding UTF8
+
+try {
+    [IO.File]::WriteAllText($pendingHandoff, (($cmdLines -join "`r`n") + "`r`n"), [Text.Encoding]::ASCII)
+    $receipt | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $pendingReceipt -Encoding UTF8
+
+    if (-not (Test-Path -LiteralPath $pendingHandoff -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $pendingReceipt -PathType Leaf)) {
+        throw 'AUTOLOGON_CLOSEOUT_PENDING_OUTPUT_MISSING: pending handoff/receipt publication failed.'
+    }
+
+    # Publish the non-executable receipt first. The executable fixed path appears only as
+    # the final successful publication step.
+    Move-Item -LiteralPath $pendingReceipt -Destination $receiptPath
+    Move-Item -LiteralPath $pendingHandoff -Destination $handoffPath
+}
+finally {
+    Remove-Item -LiteralPath $pendingHandoff -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $pendingReceipt -Force -ErrorAction SilentlyContinue
+}
+
+if (-not (Test-Path -LiteralPath $handoffPath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+    throw 'AUTOLOGON_CLOSEOUT_PUBLICATION_INCOMPLETE: final handoff/receipt pair is incomplete.'
+}
 
 Write-Host 'AUTOLOGON_CLOSEOUT_HANDOFF_READY' -ForegroundColor Green
 Write-Host "Target: $target"
