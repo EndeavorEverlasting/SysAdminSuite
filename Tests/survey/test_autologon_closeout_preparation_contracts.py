@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "Prepare-SysAdminSuiteAutoLogonCloseout.ps1"
 CMD = ROOT / "Prepare-SysAdminSuiteAutoLogonCloseout.cmd"
 HANDOFF = ROOT / "scripts" / "New-SasAutoLogonDeploymentHandoff.ps1"
-RUNBOOK = ROOT / "docs" / "AUTOLOGON_FIELD_DEPLOYMENT_COMPLETION.md"
+RUNBOOK = ROOT / "docs" / "AUTOLOGON_CLOSEOUT_PREPARATION.md"
 REGISTRY = ROOT / "harness" / "api" / "harness-command-registry.json"
 
 
