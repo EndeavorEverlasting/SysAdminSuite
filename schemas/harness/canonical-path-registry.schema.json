@@ -4,7 +4,7 @@
   "title": "SysAdminSuite canonical path registry",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "repository", "default_profile", "policy", "proof_states", "profiles", "consumers", "operator_command_safety", "proof_ceiling"],
+  "required": ["schema_version", "repository", "default_profile", "policy", "profile_parameters", "proof_states", "profiles", "consumers", "operator_command_safety", "proof_ceiling"],
   "properties": {
     "schema_version": {"const": "sas-canonical-path-registry/v1"},
     "repository": {"const": "EndeavorEverlasting/SysAdminSuite"},
@@ -20,7 +20,11 @@
         "parallel_writers_use_isolated_worktrees",
         "ephemeral_acquisition_checkout_never_becomes_canonical_by_existence",
         "production_use_path_requires_independent_currentness_proof",
-        "operator_entrypoint_requires_independent_observation_proof"
+        "operator_entrypoint_requires_independent_observation_proof",
+        "profile_parameters_are_independent",
+        "onedrive_toggle_does_not_choose_desktop_location",
+        "desktop_dev_root_is_authoritative",
+        "user_identity_is_runtime_data_not_tracked_fixture"
       ],
       "properties": {
         "remote_main_contains_sha_is_not_workstation_deployment_proof": {"const": true},
@@ -30,7 +34,47 @@
         "parallel_writers_use_isolated_worktrees": {"const": true},
         "ephemeral_acquisition_checkout_never_becomes_canonical_by_existence": {"const": true},
         "production_use_path_requires_independent_currentness_proof": {"const": true},
-        "operator_entrypoint_requires_independent_observation_proof": {"const": true}
+        "operator_entrypoint_requires_independent_observation_proof": {"const": true},
+        "profile_parameters_are_independent": {"const": true},
+        "onedrive_toggle_does_not_choose_desktop_location": {"const": true},
+        "desktop_dev_root_is_authoritative": {"const": true},
+        "user_identity_is_runtime_data_not_tracked_fixture": {"const": true}
+      }
+    },
+    "profile_parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "resolution_order", "fields", "composition"],
+      "properties": {
+        "required": {
+          "type": "array",
+          "const": ["os", "user", "onedrive_enabled", "desktop_dev_root"]
+        },
+        "resolution_order": {
+          "type": "array",
+          "minItems": 3,
+          "items": {"type": "string", "minLength": 8}
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["os", "user", "onedrive_enabled", "desktop_dev_root"],
+          "properties": {
+            "os": {"$ref": "#/$defs/profileParameter"},
+            "user": {"$ref": "#/$defs/profileParameter"},
+            "onedrive_enabled": {"$ref": "#/$defs/profileParameter"},
+            "desktop_dev_root": {"$ref": "#/$defs/profileParameter"}
+          }
+        },
+        "composition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["canonical_development_checkout", "identity"],
+          "properties": {
+            "canonical_development_checkout": {"type": "string", "minLength": 8},
+            "identity": {"type": "string", "minLength": 12}
+          }
+        }
       }
     },
     "proof_states": {
@@ -53,11 +97,15 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "platform", "purpose", "canonical_development_checkout", "production_use_path", "temporary_worktree_root", "ephemeral_acquisition_patterns", "real_operator_entrypoint"],
+        "required": ["id", "platform", "purpose", "required_profile_parameters", "canonical_development_checkout", "production_use_path", "temporary_worktree_root", "ephemeral_acquisition_patterns", "real_operator_entrypoint"],
         "properties": {
           "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]+$"},
           "platform": {"enum": ["windows", "linux", "macos", "cross-platform"]},
           "purpose": {"type": "string", "minLength": 8},
+          "required_profile_parameters": {
+            "type": "array",
+            "const": ["os", "user", "onedrive_enabled", "desktop_dev_root"]
+          },
           "canonical_development_checkout": {"$ref": "#/$defs/pathRecord"},
           "production_use_path": {
             "oneOf": [
@@ -110,6 +158,17 @@
         "purpose": {"type": "string", "minLength": 8},
         "authority": {"type": "string", "minLength": 3},
         "currentness": {"type": "string", "minLength": 8}
+      }
+    },
+    "profileParameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "source", "purpose"],
+      "properties": {
+        "type": {"enum": ["enum", "string", "boolean", "path"]},
+        "allowed": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "source": {"type": "string", "minLength": 8},
+        "purpose": {"type": "string", "minLength": 8}
       }
     }
   }
