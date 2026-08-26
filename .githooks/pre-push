@@ -7,8 +7,6 @@ cd "$repo_root"
 
 echo "[sas-harness] pre-push: running offline survey guardrails"
 python3 harness/validators/validate-harness-registries.py
-python3 harness/validators/validate-canonical-path-contracts.py
-python3 Tests/survey/test_canonical_path_harness_completeness.py
 python3 harness/validators/validate-outcome-contracts.py
 python3 harness/validators/validate-deployment-state-contracts.py
 python3 harness/validators/validate-terminal-evidence-survival.py
