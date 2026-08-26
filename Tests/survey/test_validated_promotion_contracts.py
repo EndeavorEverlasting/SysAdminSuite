@@ -27,8 +27,19 @@ def main() -> int:
     require(policy["source_branch_prefix"] == "promote/", "promotion source prefix drift")
     require(policy["authorization_marker"] == "Promotion-Intent: validated-mainline", "authorization marker drift")
     require(policy["merge_method"] == "merge", "promotion must preserve source-head ancestry")
+    require(policy["promotion_transport"] == "exact-synthetic-merge-fast-forward", "promotion transport must preserve exact tested merge object")
+    require(policy["protected_branch_behavior"].startswith("fail-closed"), "protected branches must fail closed rather than bypass protection")
     require(policy["required_skip_is_failure"] is True, "required SKIP must fail closed")
     require(policy["base_movement_invalidates_promotion"] is True, "base movement must invalidate proof")
+    manual_only = set(policy["manual_only_paths"])
+    for protected_path in (
+        "Config/promotion-policy.json",
+        ".github/workflows/validated-promotion.yml",
+        "scripts/Resolve-SasPromotionCandidate.ps1",
+        "scripts/Invoke-SasEndToEndValidation.ps1",
+        "harness/e2e/e2e-profiles.json",
+    ):
+        require(protected_path in manual_only, f"control-plane/manual-validator path not protected: {protected_path}")
 
     require("pull_request_target:" in authority, "write authority must run from trusted base workflow code")
     require("pull_request:" not in authority, "write authority must not execute from candidate-owned pull_request workflow")
@@ -42,18 +53,23 @@ def main() -> int:
     require("Resolve-SasPromotionCandidate.ps1" in authority, "authority must compose canonical candidate resolver")
     require("Invoke-SasHarnessContracts.ps1" in authority, "authority must compose canonical harness contracts")
     require("validate-sysadmin-harness.ps1" in authority, "authority must run canonical harness E2E")
-    require("Invoke-SasEndToEndValidation.ps1" in authority and "-Profile default" in authority, "authority must run canonical application E2E profile")
+    require("Invoke-SasEndToEndValidation.ps1" in authority and "-Profile default" in authority, "authority must run canonical default application E2E profile")
+    require("-Profile autologon" in authority, "authority must run AutoLogon application E2E profile")
     require("git diff --check" in authority, "exact merge candidate diff check missing")
-    require("pulls/$prNumber/merge" in authority, "promotion must use provider PR merge endpoint")
+    require("git/refs/heads/$baseRef" in authority and "force=false" in authority, "promotion must fast-forward the exact tested synthetic merge object")
+    require("branch_protected" in authority and "ENVIRONMENT-BLOCKED" in authority, "protected branch must stop without bypass")
     require("merge-base --is-ancestor" in authority, "post-promotion ancestry containment proof missing")
     require("promotion-receipt.json" in authority, "machine-readable promotion receipt missing")
     require("continue-on-error" not in authority, "promotion-critical jobs may not continue on error")
+
     require("github-actions[bot]" in resolver, "recursive writer guard missing")
     require("ExpectedCandidateSha" in resolver and "Candidate moved" in resolver, "exact-head stale proof guard missing")
     require("ExpectedBaseSha" in resolver and "Base moved after validation" in resolver, "base stale proof guard missing")
-    require("Synthetic merge candidate" in resolver, "synthetic merge identity guard missing")
+    require("ExpectedMergeSha" in resolver and "Synthetic merge candidate moved after validation" in resolver, "exact synthetic merge stale proof guard missing")
+    require("Synthetic merge candidate" in resolver, "synthetic merge parent identity guard missing")
     require("Cross-repository promotion is forbidden" in resolver, "same-repository guard missing")
     require("Unauthorized promotion target" in resolver, "target allowlist guard missing")
+    require("Automated promotion may not self-certify control-plane changes" in resolver, "manual-only control-plane guard missing")
 
     require("pull_request:" in contracts, "unprivileged promotion contracts must run on candidate PRs")
     require("contents: read" in contracts, "contract workflow must be read-only")
