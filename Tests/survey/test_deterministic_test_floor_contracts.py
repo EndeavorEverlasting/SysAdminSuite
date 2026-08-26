@@ -30,6 +30,8 @@ def assert_runner_composes_existing_owners() -> None:
         "scripts/Invoke-SasEndToEndValidation.ps1",
         "-Profile', 'default'",
         "survey/output/e2e-validation",
+        "$floorRunId = 'dtf-{0}'",
+        "Substring(0, 8)",
         "e2e_validation_result.json",
         "sas-e2e-validation/v1",
         "result.counts.failed",
@@ -45,6 +47,7 @@ def assert_runner_composes_existing_owners() -> None:
     ):
         assert marker in text, f"deterministic runner missing required owner/control: {marker}"
 
+    assert "deterministic-test-floor-{0}-{1}" not in text, "E2E isolation segment is too verbose for Windows fixture path budgets"
     assert "Join-Path $outputPath 'e2e'" not in text, "E2E output must remain under its canonical survey/output owner"
     for forbidden in (
         "pip install",
@@ -132,7 +135,7 @@ def assert_workflow_is_thin_and_unattended_safe() -> None:
         "Install-SasDeterministicTestFloorDependencies.ps1",
         "Invoke-SasDeterministicTestFloor.ps1",
         "candidate_sha=${{ github.sha }}",
-        "survey/output/e2e-validation/deterministic-test-floor-*/**",
+        "survey/output/e2e-validation/dtf-*/**",
     ):
         assert marker in text, f"workflow missing deterministic/unattended contract: {marker}"
 
@@ -152,7 +155,7 @@ def main() -> int:
     print("[PASS] deterministic test floor composes existing repository owners")
     print("[PASS] dependency bootstrap pins Python/Node/pytest/Pester/E2E dependencies exactly")
     print("[PASS] Pester zero-test discovery fails closed with a dedicated nonzero result")
-    print("[PASS] E2E remains isolated under its canonical survey/output owner and validates its real receipt schema")
+    print("[PASS] E2E remains isolated under its canonical survey/output owner with a compact Windows-safe namespace")
     print("[PASS] GitHub Actions routing is push/PR/manual, read-only, action-SHA-pinned, unfiltered by path, and unscheduled")
     return 0
 
