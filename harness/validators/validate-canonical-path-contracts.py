@@ -86,7 +86,11 @@ def validate_profile_parameters(registry: dict) -> None:
         "profile_parameters",
     )
     assert contract["required"] == PROFILE_PARAMETERS
-    assert isinstance(contract["resolution_order"], list) and len(contract["resolution_order"]) >= 3
+    resolution_order = contract["resolution_order"]
+    assert isinstance(resolution_order, list) and len(resolution_order) >= 3
+    for index, value in enumerate(resolution_order):
+        string(value, f"profile_parameters.resolution_order[{index}]", 8)
+
     fields = exact_keys(contract["fields"], set(PROFILE_PARAMETERS), "profile_parameters.fields")
     expected_types = {"os": "enum", "user": "string", "onedrive_enabled": "boolean", "desktop_dev_root": "path"}
     for name, expected_type in expected_types.items():
@@ -94,8 +98,14 @@ def validate_profile_parameters(registry: dict) -> None:
         assert field["type"] == expected_type
         string(field["source"], f"{name}.source", 8)
         string(field["purpose"], f"{name}.purpose", 8)
+        if "allowed" in field:
+            assert isinstance(field["allowed"], list) and field["allowed"]
+            for index, value in enumerate(field["allowed"]):
+                string(value, f"profile_parameters.fields.{name}.allowed[{index}]")
     assert fields["os"]["allowed"] == ["windows", "linux", "macos"]
     composition = exact_keys(contract["composition"], {"canonical_development_checkout", "identity"}, "profile_parameters.composition")
+    string(composition["canonical_development_checkout"], "profile_parameters.composition.canonical_development_checkout", 2)
+    string(composition["identity"], "profile_parameters.composition.identity", 8)
     assert "{desktop_dev_root}" in composition["canonical_development_checkout"]
     for token in ("{os}", "{user}", "{onedrive_enabled}", "{desktop_dev_root}"):
         assert token in composition["identity"], f"profile identity missing {token}"
@@ -151,32 +161,47 @@ def validate_registry_shape(registry: dict, schema: dict) -> None:
     assert isinstance(profiles, list) and len(profiles) >= 4
     ids: set[str] = set()
     for index, profile in enumerate(profiles):
+        label = f"profiles[{index}]"
         item = exact_keys(
             profile,
             {"id", "platform", "purpose", "required_profile_parameters", "canonical_development_checkout",
              "production_use_path", "temporary_worktree_root", "ephemeral_acquisition_patterns", "real_operator_entrypoint"},
-            f"profiles[{index}]",
+            label,
         )
-        profile_id = string(item["id"], f"profiles[{index}].id")
+        profile_id = string(item["id"], f"{label}.id")
         assert re.fullmatch(r"[a-z0-9][a-z0-9-]+", profile_id)
         assert profile_id not in ids
         ids.add(profile_id)
         assert item["platform"] in PLATFORMS
+        string(item["purpose"], f"{label}.purpose", 8)
         assert item["required_profile_parameters"] == PROFILE_PARAMETERS
-        dev = validate_path_record(item["canonical_development_checkout"], f"profiles[{index}].canonical_development_checkout")
+        dev = validate_path_record(item["canonical_development_checkout"], f"{label}.canonical_development_checkout")
         assert "{desktop_dev_root}" in dev["template"]
-        temp = validate_path_record(item["temporary_worktree_root"], f"profiles[{index}].temporary_worktree_root")
+        temp = validate_path_record(item["temporary_worktree_root"], f"{label}.temporary_worktree_root")
         assert dev["template"] != temp["template"]
+
         production = item["production_use_path"]
         assert isinstance(production, dict) and isinstance(production.get("applicable"), bool)
         if production["applicable"]:
-            exact_keys(production, {"applicable", "template", "mutable", "purpose", "currentness"}, f"profiles[{index}].production_use_path")
+            production = exact_keys(production, {"applicable", "template", "mutable", "purpose", "currentness"}, f"{label}.production_use_path")
+            string(production["template"], f"{label}.production_use_path.template", 2)
+            assert isinstance(production["mutable"], bool), f"{label}.production_use_path.mutable must be boolean"
+            string(production["purpose"], f"{label}.production_use_path.purpose", 8)
+            string(production["currentness"], f"{label}.production_use_path.currentness", 8)
         else:
-            exact_keys(production, {"applicable", "reason"}, f"profiles[{index}].production_use_path")
+            production = exact_keys(production, {"applicable", "reason"}, f"{label}.production_use_path")
+            string(production["reason"], f"{label}.production_use_path.reason", 8)
+
         patterns = item["ephemeral_acquisition_patterns"]
         assert isinstance(patterns, list) and patterns
+        for pattern_index, pattern in enumerate(patterns):
+            string(pattern, f"{label}.ephemeral_acquisition_patterns[{pattern_index}]", 3)
+
         entrypoint = item["real_operator_entrypoint"]
         assert isinstance(entrypoint, dict) and len(entrypoint) >= 2
+        for key, value in entrypoint.items():
+            string(key, f"{label}.real_operator_entrypoint key")
+            string(value, f"{label}.real_operator_entrypoint.{key}")
 
     assert {"windows-development", "windows-admin-box", "linux-development", "macos-development"} <= ids
     assert registry["default_profile"] in ids
