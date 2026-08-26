@@ -117,6 +117,55 @@ function Get-SasRefreshGitScalar {
     return $value.Trim()
 }
 
+function Test-SasRefreshCommitObjectCompleteness {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Commit
+    )
+    try {
+        [void](Invoke-SasRefreshGit `
+            -Root $Root `
+            -Arguments @('fsck','--connectivity-only','--no-dangling',$Commit) `
+            -FailureMessage "Fetched commit object graph is incomplete: $Commit" `
+            -Quiet)
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Repair-SasRefreshCommitObjectCompleteness {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$RefreshBranch,
+        [Parameter(Mandatory = $true)][string]$RemoteTrackingRef,
+        [Parameter(Mandatory = $true)][string]$ExpectedCommit
+    )
+
+    if (Test-SasRefreshCommitObjectCompleteness -Root $Root -Commit $ExpectedCommit) { return }
+
+    Write-Host "SAS_REFRESH_OBJECT_GRAPH_INCOMPLETE: $ExpectedCommit; requesting a complete refetch before field-ready checkout." -ForegroundColor Yellow
+    [void](Invoke-SasRefreshGit `
+        -Root $Root `
+        -Arguments @('fetch','--no-tags','--prune','--refetch','origin',"refs/heads/${RefreshBranch}:${RemoteTrackingRef}") `
+        -FailureMessage "Could not repair incomplete Git objects for origin/$RefreshBranch")
+
+    $refetchedHead = Get-SasRefreshGitScalar `
+        -Root $Root `
+        -Arguments @('rev-parse',"origin/$RefreshBranch") `
+        -FailureMessage "Could not resolve origin/$RefreshBranch after object refetch."
+    if ($refetchedHead -ne $ExpectedCommit) {
+        throw "SAS_REFRESH_OBJECT_REPAIR_HEAD_MOVED: expected $ExpectedCommit but origin/$RefreshBranch became $refetchedHead during repair. Rerun refresh from the new remote floor."
+    }
+    if (-not (Test-SasRefreshCommitObjectCompleteness -Root $Root -Commit $ExpectedCommit)) {
+        throw "SAS_REFRESH_OBJECT_REPAIR_FAILED: refetch completed but reachable Git objects remain incomplete for $ExpectedCommit. No field-ready checkout was attempted."
+    }
+
+    Write-Host "SAS_REFRESH_OBJECT_GRAPH_REPAIRED: $ExpectedCommit is complete and checkout-ready." -ForegroundColor Green
+}
+
 function Test-SasExpectedOrigin {
     param([Parameter(Mandatory = $true)][string]$Url)
     $normalized = $Url.Trim().TrimEnd('/').ToLowerInvariant()
@@ -168,6 +217,7 @@ if (-not (Test-Path -LiteralPath $syncCache)) {
 Write-Host "Refreshing Guest-only sync cache from $remoteDisplay..." -ForegroundColor Cyan
 [void](Invoke-SasRefreshGit -Root $syncCache -Arguments @('fetch','--no-tags','--prune','origin',"refs/heads/${refreshBranch}:${remoteTrackingRef}") -FailureMessage "Fetching $remoteDisplay failed.")
 $remoteHead = Get-SasRefreshGitScalar -Root $syncCache -Arguments @('rev-parse',$remoteDisplay) -FailureMessage "Could not resolve $remoteDisplay after fetch."
+Repair-SasRefreshCommitObjectCompleteness -Root $syncCache -RefreshBranch $refreshBranch -RemoteTrackingRef $remoteTrackingRef -ExpectedCommit $remoteHead
 
 $fieldReady = $preferredFieldReady
 if (Test-Path -LiteralPath $fieldReady) {
