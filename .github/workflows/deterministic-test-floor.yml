@@ -74,5 +74,6 @@ jobs:
           path: |
             _out/deterministic-test-floor/**
             _out/pester-results.xml
+            survey/output/e2e-validation/deterministic-test-floor-*/**
           if-no-files-found: warn
           retention-days: 7
