@@ -1,0 +1,74 @@
+name: Validated Promotion Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'Config/promotion-policy.json'
+      - '.github/workflows/validated-promotion.yml'
+      - '.github/workflows/validated-promotion-contracts.yml'
+      - '.github/workflows/default-e2e-validation.yml'
+      - 'scripts/Resolve-SasPromotionCandidate.ps1'
+      - 'Tests/survey/test_validated_promotion_contracts.py'
+      - 'docs/VALIDATED_PROMOTION_PIPELINE.md'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Config/promotion-policy.json'
+      - '.github/workflows/validated-promotion.yml'
+      - '.github/workflows/validated-promotion-contracts.yml'
+      - '.github/workflows/default-e2e-validation.yml'
+      - 'scripts/Resolve-SasPromotionCandidate.ps1'
+      - 'Tests/survey/test_validated_promotion_contracts.py'
+      - 'docs/VALIDATED_PROMOTION_PIPELINE.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  promotion-contracts:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact workflow candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate promotion contracts
+        shell: pwsh
+        run: python Tests/survey/test_validated_promotion_contracts.py
+
+      - name: Parse promotion resolver
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\scripts\Resolve-SasPromotionCandidate.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "Promotion resolver reported $($errors.Count) parser error(s)."
+          }
+          Write-Host 'PASS: promotion resolver parses.'
+
+      - name: Validate promotion policy JSON
+        shell: pwsh
+        run: |
+          $policy = Get-Content .\Config\promotion-policy.json -Raw | ConvertFrom-Json
+          if ($policy.schema_version -ne 'sas-promotion-policy/v1') { throw 'Promotion policy schema mismatch.' }
+          if (@($policy.allowed_targets).Count -ne 1 -or $policy.allowed_targets[0] -ne 'main') { throw 'Promotion target allowlist drift.' }
+          Write-Host 'PASS: promotion policy JSON.'
+
+      - name: Diff check
+        shell: pwsh
+        run: git diff --check
