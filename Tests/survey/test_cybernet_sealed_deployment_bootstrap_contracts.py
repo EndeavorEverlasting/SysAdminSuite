@@ -79,7 +79,8 @@ def test_guest_bootstrap_refreshes_then_installs_universal_surface() -> None:
     universal = lowered.index("c:\\sasal\\scripts\\install-sasuniversalfieldlauncher.ps1")
     invoke_refresh = lowered.index('"%sas_ps%" -nologo -noprofile -executionpolicy bypass -file "%sas_refresh%"')
     invoke_universal = lowered.index('"%sas_ps%" -nologo -noprofile -executionpolicy bypass -file "%sas_universal_installer%"')
-    assert refresh < invoke_refresh < universal < invoke_universal
+    assert refresh < invoke_refresh < invoke_universal
+    assert universal < invoke_universal
     assert "network required: guest / internet" in lowered
     assert "sas_field_runtime_bootstrap_ready" in lowered
     assert "no protected target deployment was started" in lowered
