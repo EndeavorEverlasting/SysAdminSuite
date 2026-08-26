@@ -103,12 +103,30 @@ jobs:
             throw 'One-command validator did not emit harness_validation_result.json.'
           }
           $resultJson = Get-Content -LiteralPath $resultPath -Raw
-          if (-not (Test-Json -Json $resultJson -SchemaFile .\schemas\harness\harness-proof-result.schema.json)) {
-            throw 'Harness validation result did not satisfy harness-proof-result.schema.json.'
+          if (-not (Test-Json -Json $resultJson -SchemaFile .\schemas\harness\one-command-harness-proof-result.schema.json)) {
+            throw 'Harness validation result did not satisfy one-command-harness-proof-result.schema.json.'
           }
           $result = $resultJson | ConvertFrom-Json
           if ($result.final_status -ne 'PASS') {
             throw "One-command harness gate is not PASS: $($result.final_status)"
+          }
+          if (-not $result.profile) {
+            throw 'One-command harness PASS did not carry a resolved canonical profile.'
+          }
+          if ($result.prompt_owner.id -ne 'P11' -or $result.prompt_owner.registry_path -ne 'docs/prompts.json') {
+            throw 'One-command harness receipt did not carry canonical P11 ownership.'
+          }
+          foreach ($requiredValidator in @(
+            'harness/validators/validate-canonical-path-contracts.py',
+            'scripts/Test-SasVmDryRunReadiness.ps1',
+            'scripts/Invoke-SasVmDryRunHarnessProof.ps1'
+          )) {
+            if (@($result.validator_set) -notcontains $requiredValidator) {
+              throw "One-command harness receipt missing validator correlation: $requiredValidator"
+            }
+          }
+          if (@($result.checks | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.disposition) }).Count -gt 0) {
+            throw 'One-command harness receipt contains a check without disposition.'
           }
           if (@($result.checks | Where-Object { $_.required -and $_.status -eq 'SKIP' }).Count -gt 0) {
             throw 'One-command harness gate contains a required SKIP.'
@@ -116,10 +134,7 @@ jobs:
           if ($result.commit -notmatch '^[0-9a-f]{40}$') {
             throw "One-command harness receipt did not correlate a Git commit: $($result.commit)"
           }
-          if ($result.prompt_owner.id -ne 'P11' -or $result.prompt_owner.registry_path -ne 'docs/prompts.json') {
-            throw 'One-command harness receipt did not carry canonical P11 ownership.'
-          }
-          Write-Host "[PASS] schema-backed profile-aware harness proof result: $resultPath @ $($result.commit)"
+          Write-Host "[PASS] strict schema-backed profile-aware harness proof result: $resultPath @ $($result.commit)"
 
       - name: Upload synthetic proof artifacts
         if: always()
