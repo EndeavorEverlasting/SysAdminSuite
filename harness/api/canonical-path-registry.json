@@ -10,7 +10,51 @@
     "parallel_writers_use_isolated_worktrees": true,
     "ephemeral_acquisition_checkout_never_becomes_canonical_by_existence": true,
     "production_use_path_requires_independent_currentness_proof": true,
-    "operator_entrypoint_requires_independent_observation_proof": true
+    "operator_entrypoint_requires_independent_observation_proof": true,
+    "profile_parameters_are_independent": true,
+    "onedrive_toggle_does_not_choose_desktop_location": true,
+    "desktop_dev_root_is_authoritative": true,
+    "user_identity_is_runtime_data_not_tracked_fixture": true
+  },
+  "profile_parameters": {
+    "required": [
+      "os",
+      "user",
+      "onedrive_enabled",
+      "desktop_dev_root"
+    ],
+    "resolution_order": [
+      "explicit invocation value",
+      "local operating-system or environment observation",
+      "registered profile fallback"
+    ],
+    "fields": {
+      "os": {
+        "type": "enum",
+        "allowed": ["windows", "linux", "macos"],
+        "source": "Explicit override or local operating-system observation.",
+        "purpose": "Select path semantics and reject a machine-role profile that does not support the observed OS."
+      },
+      "user": {
+        "type": "string",
+        "source": "Explicit override or current local account identity.",
+        "purpose": "Bind path resolution to the actual user profile without committing a real username to tracked fixtures."
+      },
+      "onedrive_enabled": {
+        "type": "boolean",
+        "source": "Explicit override or presence of a local OneDrive root environment value.",
+        "purpose": "Record whether OneDrive participates in the user profile; this toggle never guesses or rewrites the Desktop location."
+      },
+      "desktop_dev_root": {
+        "type": "path",
+        "source": "Explicit override or the operating system's resolved Desktop known-folder plus Dev.",
+        "purpose": "Authoritative mutable development root for this user, regardless of whether Desktop is local or OneDrive-backed."
+      }
+    },
+    "composition": {
+      "canonical_development_checkout": "{desktop_dev_root}\\SysAdminSuite",
+      "identity": "{os}|{user}|onedrive={onedrive_enabled}|desktop_dev={desktop_dev_root}"
+    }
   },
   "proof_states": [
     {
@@ -38,13 +82,14 @@
     {
       "id": "windows-development",
       "platform": "windows",
-      "purpose": "Normal mutable development and repository maintenance.",
+      "purpose": "Normal mutable development and repository maintenance for a resolved Windows user profile.",
+      "required_profile_parameters": ["os", "user", "onedrive_enabled", "desktop_dev_root"],
       "canonical_development_checkout": {
-        "template": "%USERPROFILE%\\Desktop\\Dev\\SysAdminSuite",
+        "template": "{desktop_dev_root}\\SysAdminSuite",
         "mutable": true,
-        "purpose": "Canonical mutable SysAdminSuite development checkout for this profile.",
-        "authority": "developer checkout",
-        "currentness": "git identity plus refreshed remote comparison"
+        "purpose": "Canonical mutable SysAdminSuite development checkout composed from this user's resolved Desktop Dev root.",
+        "authority": "resolved user profile plus developer checkout",
+        "currentness": "profile identity plus Git identity plus refreshed remote comparison"
       },
       "production_use_path": {
         "applicable": false,
@@ -61,19 +106,20 @@
       ],
       "real_operator_entrypoint": {
         "authority": "harness/api/harness-command-registry.json",
-        "resolution": "Select the task's registered command/front door only after canonical-path and freshness proof."
+        "resolution": "Select the task's registered command/front door only after user-profile, canonical-path, and freshness proof."
       }
     },
     {
       "id": "windows-admin-box",
       "platform": "windows",
-      "purpose": "Admin workstation development plus sealed field-runtime use.",
+      "purpose": "Admin workstation development plus sealed field-runtime use for a resolved Windows user profile.",
+      "required_profile_parameters": ["os", "user", "onedrive_enabled", "desktop_dev_root"],
       "canonical_development_checkout": {
-        "template": "%USERPROFILE%\\Desktop\\Dev\\SysAdminSuite",
+        "template": "{desktop_dev_root}\\SysAdminSuite",
         "mutable": true,
-        "purpose": "Canonical mutable SysAdminSuite development checkout on an Admin Box.",
-        "authority": "developer checkout",
-        "currentness": "git identity plus refreshed remote comparison"
+        "purpose": "Canonical mutable SysAdminSuite development checkout composed from this Admin Box user's resolved Desktop Dev root.",
+        "authority": "resolved user profile plus developer checkout",
+        "currentness": "profile identity plus Git identity plus refreshed remote comparison"
       },
       "production_use_path": {
         "applicable": true,
@@ -104,11 +150,13 @@
     "harness/workflows/operator-execution-route.yaml",
     "harness/skills/canonical-path-resolution/SKILL.md",
     "harness/maps/CANONICAL_PATH_MAP.md",
-    "harness/reports/CANONICAL_PATH_STATUS.md"
+    "harness/reports/CANONICAL_PATH_STATUS.md",
+    "scripts/validate-sysadmin-harness.ps1",
+    ".github/workflows/one-command-harness-proof.yml"
   ],
   "operator_command_safety": {
     "powershell_if_else_must_be_one_paste_block": true,
     "reason": "PowerShell parses a separately submitted else as a new command; multi-line operator instructions must preserve complete control-flow blocks."
   },
-  "proof_ceiling": "Path identity and separation proof only. This registry does not prove repository freshness by itself, does not update a workstation, does not stage a field runtime, and does not prove a live deployment or target outcome."
+  "proof_ceiling": "Path and user-profile identity/separation proof only. This registry does not prove repository freshness by itself, does not update a workstation, does not stage a field runtime, and does not prove a live deployment or target outcome."
 }
