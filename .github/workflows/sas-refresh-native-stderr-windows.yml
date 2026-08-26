@@ -8,7 +8,10 @@ on:
     paths:
       - 'scripts/Refresh-SasOperatorCommand.ps1'
       - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
+      - 'Tests/PowerShell/Invoke-SasRefreshDeterministicTestFloor.ps1'
       - 'Tests/PowerShell/SasOperatorRefreshNativeStderr.Tests.ps1'
+      - 'Tests/PowerShell/SasOperatorRefreshObjectCompleteness.Tests.ps1'
+      - 'Tests/survey/test_sas_operator_refresh_contracts.py'
       - 'Tests/survey/test_autologon_protected_bootstrap_contracts.py'
       - '.github/workflows/sas-refresh-native-stderr-windows.yml'
   push:
@@ -16,7 +19,10 @@ on:
     paths:
       - 'scripts/Refresh-SasOperatorCommand.ps1'
       - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
+      - 'Tests/PowerShell/Invoke-SasRefreshDeterministicTestFloor.ps1'
       - 'Tests/PowerShell/SasOperatorRefreshNativeStderr.Tests.ps1'
+      - 'Tests/PowerShell/SasOperatorRefreshObjectCompleteness.Tests.ps1'
+      - 'Tests/survey/test_sas_operator_refresh_contracts.py'
       - 'Tests/survey/test_autologon_protected_bootstrap_contracts.py'
       - '.github/workflows/sas-refresh-native-stderr-windows.yml'
   workflow_dispatch:
@@ -29,11 +35,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Reproduce successful native command with zero-byte stderr
+      - name: Run deterministic SAS refresh Windows test floor
         shell: powershell
+        env:
+          SAS_REFRESH_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           $ErrorActionPreference = 'Stop'
-          & .\Tests\PowerShell\SasOperatorRefreshNativeStderr.Tests.ps1
+          & .\Tests\PowerShell\Invoke-SasRefreshDeterministicTestFloor.ps1
 
       - name: Parse refresh and staging scripts under Windows PowerShell 5.1
         shell: powershell
