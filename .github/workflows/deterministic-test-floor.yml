@@ -1,0 +1,78 @@
+name: Deterministic Test Floor
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'test/**'
+      - 'repair/**'
+      - 'refactor/**'
+      - 'harness/**'
+      - 'docs/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deterministic-test-floor-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  floor:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.11'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.4'
+
+      - name: Record exact candidate SHA
+        shell: pwsh
+        run: Write-Host 'candidate_sha=${{ github.sha }}'
+
+      - name: Install pinned test-floor dependencies
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Install-SasDeterministicTestFloorDependencies.ps1
+
+      - name: Run canonical deterministic test floor
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Invoke-SasDeterministicTestFloor.ps1 -OutputRoot .\_out\deterministic-test-floor
+
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: git diff --check '${{ github.event.pull_request.base.sha }}' '${{ github.sha }}'
+
+      - name: Check pushed candidate whitespace
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: git show --check --oneline --no-renames '${{ github.sha }}'
+
+      - name: Upload deterministic test-floor evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-test-floor-${{ github.sha }}
+          path: |
+            _out/deterministic-test-floor/**
+            _out/pester-results.xml
+          if-no-files-found: warn
+          retention-days: 7
