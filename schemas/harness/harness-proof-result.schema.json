@@ -22,50 +22,18 @@
     "artifacts"
   ],
   "properties": {
-    "schema_version": {
-      "type": "string",
-      "const": "sas-harness-proof/v1"
-    },
-    "generated_at": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "repo_root": {
-      "type": "string",
-      "minLength": 1
-    },
-    "branch": {
-      "type": "string",
-      "minLength": 1
-    },
-    "commit": {
-      "type": "string",
-      "pattern": "^(?:[0-9a-f]{40}|unknown)$"
-    },
-    "proof_level": {
-      "type": "string",
-      "const": "synthetic_offline"
-    },
-    "runtime_proof": {
-      "type": "boolean",
-      "const": false
-    },
-    "network_activity_performed": {
-      "type": "boolean",
-      "const": false
-    },
-    "launcher_execution_performed": {
-      "type": "boolean",
-      "const": false
-    },
-    "target_mutation_performed": {
-      "type": "boolean",
-      "const": false
-    },
-    "data_mutation_performed": {
-      "type": "boolean",
-      "const": false
-    },
+    "schema_version": {"type": "string", "const": "sas-harness-proof/v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "repo_root": {"type": "string", "minLength": 1},
+    "branch": {"type": "string", "minLength": 1},
+    "commit": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|unknown)$"},
+    "proof_level": {"type": "string", "const": "synthetic_offline"},
+    "final_status": {"type": "string", "enum": ["PASS", "FAIL"]},
+    "runtime_proof": {"type": "boolean", "const": false},
+    "network_activity_performed": {"type": "boolean", "const": false},
+    "launcher_execution_performed": {"type": "boolean", "const": false},
+    "target_mutation_performed": {"type": "boolean", "const": false},
+    "data_mutation_performed": {"type": "boolean", "const": false},
     "counts": {
       "type": "object",
       "additionalProperties": false,
@@ -78,8 +46,35 @@
     },
     "dependencies": {
       "type": "object",
-      "additionalProperties": {
-        "type": ["string", "null"]
+      "additionalProperties": {"type": ["string", "null"]}
+    },
+    "validator_set": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["machine_profile", "os", "user", "onedrive_enabled", "desktop_dev_root", "canonical_development_checkout"],
+      "properties": {
+        "machine_profile": {"type": "string", "minLength": 1},
+        "os": {"type": "string", "enum": ["windows", "linux", "macos"]},
+        "user": {"type": "string", "minLength": 1},
+        "onedrive_enabled": {"type": "boolean"},
+        "desktop_dev_root": {"type": "string", "minLength": 1},
+        "canonical_development_checkout": {"type": "string", "minLength": 1}
+      }
+    },
+    "prompt_owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "purpose", "registry_path"],
+      "properties": {
+        "id": {"type": "string", "const": "P11"},
+        "name": {"type": "string", "minLength": 1},
+        "purpose": {"type": "string", "minLength": 1},
+        "registry_path": {"type": "string", "const": "docs/prompts.json"}
       }
     },
     "checks": {
@@ -90,20 +85,11 @@
         "additionalProperties": false,
         "required": ["status", "name", "detail", "required"],
         "properties": {
-          "status": {
-            "type": "string",
-            "enum": ["PASS", "SKIP", "FAIL"]
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "detail": {
-            "type": "string"
-          },
-          "required": {
-            "type": "boolean"
-          }
+          "status": {"type": "string", "enum": ["PASS", "SKIP", "FAIL"]},
+          "name": {"type": "string", "minLength": 1},
+          "detail": {"type": "string"},
+          "required": {"type": "boolean"},
+          "disposition": {"type": "string", "enum": ["required", "optional", "environment_blocked", "inapplicable"]}
         }
       }
     },
