@@ -1,0 +1,42 @@
+{
+  "schema_version": "sas-promotion-policy/v1",
+  "allowed_targets": [
+    "main"
+  ],
+  "source_branch_prefix": "promote/",
+  "authorization_marker": "Promotion-Intent: validated-mainline",
+  "require_same_repository_head": true,
+  "require_repository_owner_pr_author": true,
+  "merge_method": "merge",
+  "candidate_model": "github-pr-synthetic-merge",
+  "control_plane_source": "trusted-base-revision",
+  "required_gates": {
+    "promotion_contracts": {
+      "classification": "REQUIRED",
+      "command": "python Tests/survey/test_validated_promotion_contracts.py"
+    },
+    "harness_contracts": {
+      "classification": "REQUIRED",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/Invoke-SasHarnessContracts.ps1"
+    },
+    "harness_e2e": {
+      "classification": "REQUIRED",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/validate-sysadmin-harness.ps1 -OutputRoot ./survey/output/promotion/harness"
+    },
+    "application_e2e": {
+      "classification": "REQUIRED",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/Invoke-SasEndToEndValidation.ps1 -Profile default -OutputRoot ./survey/output/promotion/application-e2e",
+      "profile": "default"
+    },
+    "diff_check": {
+      "classification": "REQUIRED",
+      "command": "git diff --check <base_sha>..<candidate_merge_sha>"
+    }
+  },
+  "required_skip_is_failure": true,
+  "stale_candidate_is_failure": true,
+  "base_movement_invalidates_promotion": true,
+  "concurrent_promotion_mode": "serialize-write-recheck-base",
+  "artifact_policy": "validate-and-promote-the-same-synthetic-merge-candidate",
+  "proof_ceiling": "fixture-loopback-e2e; no live target or production mutation is claimed by CI"
+}
