@@ -11,7 +11,9 @@ on:
       - 'Inspect-LatestValidatedSoftwareDeployment.cmd'
       - '.claude/skills/**'
       - '.claude/capabilities/**'
+      - 'Config/promotion-policy.json'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/VALIDATED_PROMOTION_PIPELINE.md'
       - 'docs/SOFTWARE_INSTALL_E2E.md'
       - 'docs/SOFTWARE_INSTALL_HARNESS.md'
       - 'docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md'
@@ -24,6 +26,7 @@ on:
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/sas-harness-api.json'
       - 'schemas/harness/**'
+      - 'scripts/Resolve-SasPromotionCandidate.ps1'
       - 'scripts/Invoke-SasEndToEndValidation.ps1'
       - 'scripts/Invoke-SasSoftwareInstall.ps1'
       - 'scripts/Invoke-SasSoftwareInstallE2E.ps1'
@@ -42,6 +45,7 @@ on:
       - 'dashboard/**'
       - 'Tests/fixtures/software-install/**'
       - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
+      - 'Tests/survey/test_validated_promotion_contracts.py'
       - 'Tests/survey/test_software_install_harness_contracts.py'
       - 'Tests/survey/test_software_install_result_inspector_contracts.py'
       - 'Tests/survey/test_software_install_finalization_contracts.py'
@@ -54,6 +58,8 @@ on:
       - 'survey/workflows/**'
       - 'mcp/local/servers.json'
       - '.githooks/**'
+      - '.github/workflows/validated-promotion.yml'
+      - '.github/workflows/validated-promotion-contracts.yml'
       - '.github/workflows/default-e2e-validation.yml'
   push:
     branches:
@@ -70,7 +76,9 @@ on:
       - 'Inspect-LatestValidatedSoftwareDeployment.cmd'
       - '.claude/skills/**'
       - '.claude/capabilities/**'
+      - 'Config/promotion-policy.json'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/VALIDATED_PROMOTION_PIPELINE.md'
       - 'docs/SOFTWARE_INSTALL_E2E.md'
       - 'docs/SOFTWARE_INSTALL_HARNESS.md'
       - 'docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md'
@@ -83,6 +91,7 @@ on:
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/sas-harness-api.json'
       - 'schemas/harness/**'
+      - 'scripts/Resolve-SasPromotionCandidate.ps1'
       - 'scripts/Invoke-SasEndToEndValidation.ps1'
       - 'scripts/Invoke-SasSoftwareInstall.ps1'
       - 'scripts/Invoke-SasSoftwareInstallE2E.ps1'
@@ -101,6 +110,7 @@ on:
       - 'dashboard/**'
       - 'Tests/fixtures/software-install/**'
       - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
+      - 'Tests/survey/test_validated_promotion_contracts.py'
       - 'Tests/survey/test_software_install_harness_contracts.py'
       - 'Tests/survey/test_software_install_result_inspector_contracts.py'
       - 'Tests/survey/test_software_install_finalization_contracts.py'
@@ -113,6 +123,8 @@ on:
       - 'survey/workflows/**'
       - 'mcp/local/servers.json'
       - '.githooks/**'
+      - '.github/workflows/validated-promotion.yml'
+      - '.github/workflows/validated-promotion-contracts.yml'
       - '.github/workflows/default-e2e-validation.yml'
   workflow_dispatch:
 
@@ -137,9 +149,10 @@ jobs:
         run: |
           pip install websockets jsonschema
           npm install --no-save --no-package-lock ws@8
-      - name: Validate E2E posture, tutorial, and software-install contracts
+      - name: Validate E2E posture, tutorial, promotion, and software-install contracts
         shell: pwsh
         run: |
+          python .\Tests\survey\test_validated_promotion_contracts.py
           python .\Tests\survey\test_software_install_harness_contracts.py
           python .\Tests\survey\test_software_install_result_inspector_contracts.py
           python .\Tests\survey\test_software_install_finalization_contracts.py
@@ -149,6 +162,7 @@ jobs:
         shell: pwsh
         run: |
           $paths = @(
+            '.\scripts\Resolve-SasPromotionCandidate.ps1',
             '.\scripts\SasSoftwareInstallFinalization.psm1',
             '.\scripts\Invoke-SasSoftwareInstallFinalization.ps1',
             '.\scripts\Invoke-SasValidatedSoftwareDeployment.ps1',
@@ -164,7 +178,7 @@ jobs:
               throw "$path reported $($errors.Count) parser error(s)."
             }
           }
-          Write-Host 'PASS: validated deployment PowerShell parser checks.'
+          Write-Host 'PASS: validated deployment and promotion PowerShell parser checks.'
       - name: Run default end-to-end gate
         shell: pwsh
         run: |

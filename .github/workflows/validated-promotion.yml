@@ -1,0 +1,541 @@
+name: Validated Promotion
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to validate/promote
+        required: true
+        type: string
+      candidate_sha:
+        description: Exact expected PR head SHA
+        required: true
+        type: string
+      target:
+        description: Promotion target (policy allowlist still applies)
+        required: true
+        default: main
+        type: string
+      mode:
+        description: Validate only or promote after all gates pass
+        required: true
+        default: promote
+        type: choice
+        options:
+          - validate-only
+          - promote
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  PROMOTION_MARKER: 'Promotion-Intent: validated-mainline'
+  PROMOTION_PREFIX: 'promote/'
+
+jobs:
+  resolve-candidate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.pull_request.draft == false &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        startsWith(github.event.pull_request.head.ref, 'promote/') &&
+        contains(github.event.pull_request.body, 'Promotion-Intent: validated-mainline')
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      base_ref: ${{ steps.resolve.outputs.base_ref }}
+      base_sha: ${{ steps.resolve.outputs.base_sha }}
+      source_head_sha: ${{ steps.resolve.outputs.source_head_sha }}
+      synthetic_merge_sha: ${{ steps.resolve.outputs.synthetic_merge_sha }}
+      merge_method: ${{ steps.resolve.outputs.merge_method }}
+      branch_protected: ${{ steps.resolve.outputs.branch_protected }}
+      policy_sha256: ${{ steps.resolve.outputs.policy_sha256 }}
+      proof_ceiling: ${{ steps.resolve.outputs.proof_ceiling }}
+      mode: ${{ steps.resolve.outputs.mode }}
+    steps:
+      - name: Checkout trusted promotion control plane
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.event.repository.default_branch }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Resolve exact candidate identity
+        id: resolve
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          INPUT_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          INPUT_TARGET: ${{ inputs.target }}
+          INPUT_MODE: ${{ inputs.mode }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $prNumber = [int]$env:INPUT_PR_NUMBER
+            $candidateSha = $env:INPUT_CANDIDATE_SHA
+            $target = $env:INPUT_TARGET
+            $mode = $env:INPUT_MODE
+          } else {
+            $prNumber = [int]$env:EVENT_PR_NUMBER
+            $candidateSha = $env:EVENT_HEAD_SHA
+            $target = $env:EVENT_BASE_REF
+            $mode = 'promote'
+          }
+
+          .\scripts\Resolve-SasPromotionCandidate.ps1 `
+            -Repository $env:GITHUB_REPOSITORY `
+            -PrNumber $prNumber `
+            -ExpectedCandidateSha $candidateSha `
+            -ExpectedTarget $target `
+            -Actor $env:GITHUB_ACTOR `
+            -EventName $env:GITHUB_EVENT_NAME `
+            -OutputPath .\promotion-candidate.json | Out-Host
+
+          $resolved = Get-Content .\promotion-candidate.json -Raw | ConvertFrom-Json
+          "pr_number=$($resolved.pr_number)" >> $env:GITHUB_OUTPUT
+          "base_ref=$($resolved.base_ref)" >> $env:GITHUB_OUTPUT
+          "base_sha=$($resolved.base_sha)" >> $env:GITHUB_OUTPUT
+          "source_head_sha=$($resolved.source_head_sha)" >> $env:GITHUB_OUTPUT
+          "synthetic_merge_sha=$($resolved.synthetic_merge_sha)" >> $env:GITHUB_OUTPUT
+          "merge_method=$($resolved.merge_method)" >> $env:GITHUB_OUTPUT
+          "branch_protected=$($resolved.branch_protected.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "policy_sha256=$($resolved.policy_sha256)" >> $env:GITHUB_OUTPUT
+          "proof_ceiling=$($resolved.proof_ceiling)" >> $env:GITHUB_OUTPUT
+          "mode=$mode" >> $env:GITHUB_OUTPUT
+
+      - name: Upload candidate identity
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-candidate
+          path: promotion-candidate.json
+          if-no-files-found: error
+
+  promotion-contracts:
+    needs: resolve-candidate
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact synthetic merge candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Prove candidate parents and diff hygiene
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne '${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}') { throw "Checked out '$actual', expected synthetic merge candidate." }
+          $parents = @((git show -s --format=%P HEAD).Trim() -split '\s+')
+          if ($parents -notcontains '${{ needs.resolve-candidate.outputs.base_sha }}') { throw 'Synthetic merge candidate is missing the recorded base parent.' }
+          if ($parents -notcontains '${{ needs.resolve-candidate.outputs.source_head_sha }}') { throw 'Synthetic merge candidate is missing the recorded source-head parent.' }
+          git diff --check '${{ needs.resolve-candidate.outputs.base_sha }}..${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}'
+          if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed.' }
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run repository promotion contracts
+        shell: pwsh
+        run: python Tests/survey/test_validated_promotion_contracts.py
+
+  harness-e2e:
+    needs: resolve-candidate
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact synthetic merge candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run canonical harness contracts
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasHarnessContracts.ps1
+
+      - name: Run canonical harness end-to-end proof
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-sysadmin-harness.ps1 `
+            -OutputRoot .\survey\output\promotion\harness
+          if ($LASTEXITCODE -ne 0) { throw 'Canonical harness E2E failed.' }
+
+      - name: Seal harness artifact identity
+        shell: pwsh
+        run: |
+          $root = Resolve-Path .\survey\output\promotion\harness
+          $manifest = @()
+          Get-ChildItem $root -File -Recurse | Sort-Object FullName | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath($root, $_.FullName).Replace('\\','/')
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $manifest += "$relative $hash"
+          }
+          if ($manifest.Count -eq 0) { throw 'Harness E2E emitted no proof artifacts.' }
+          $manifestPath = Join-Path $root 'promotion-harness-manifest.sha256'
+          Set-Content -LiteralPath $manifestPath -Value $manifest -Encoding utf8
+          $manifestHash = (Get-FileHash $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          [ordered]@{
+            schema_version = 'sas-promotion-harness-receipt/v1'
+            synthetic_merge_sha = '${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}'
+            base_sha = '${{ needs.resolve-candidate.outputs.base_sha }}'
+            source_head_sha = '${{ needs.resolve-candidate.outputs.source_head_sha }}'
+            harness_manifest_sha256 = $manifestHash
+            proof = 'harness-contracts-plus-one-command-e2e'
+          } | ConvertTo-Json -Depth 10 | Set-Content .\promotion-harness-receipt.json -Encoding utf8
+
+      - name: Upload harness proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-harness-proof
+          path: |
+            survey/output/promotion/harness/**
+            promotion-harness-receipt.json
+          if-no-files-found: error
+
+  application-e2e:
+    needs: resolve-candidate
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact synthetic merge candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install fixture-safe E2E dependencies
+        shell: pwsh
+        run: |
+          pip install websockets jsonschema
+          npm install --no-save --no-package-lock ws@8
+
+      - name: Run default application end-to-end profile
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasEndToEndValidation.ps1 `
+            -Profile default `
+            -OutputRoot .\survey\output\promotion\application-e2e
+          if ($LASTEXITCODE -ne 0) { throw 'Default application E2E failed.' }
+
+      - name: Run AutoLogon application end-to-end profile
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasEndToEndValidation.ps1 `
+            -Profile autologon `
+            -OutputRoot .\survey\output\promotion\autologon-e2e
+          if ($LASTEXITCODE -ne 0) { throw 'AutoLogon application E2E failed.' }
+
+      - name: Fail closed on required skip or proof downgrade
+        shell: pwsh
+        run: |
+          $results = @(
+            Get-ChildItem .\survey\output\promotion\application-e2e -Filter e2e_validation_result.json -File -Recurse,
+            Get-ChildItem .\survey\output\promotion\autologon-e2e -Filter e2e_validation_result.json -File -Recurse
+          )
+          if ($results.Count -ne 2) { throw "Expected exactly two application E2E result receipts; found $($results.Count)." }
+          $receiptRows = @()
+          foreach ($file in $results) {
+            $result = Get-Content $file.FullName -Raw | ConvertFrom-Json
+            if (-not $result.end_to_end_executed) { throw "E2E did not execute: $($file.FullName)" }
+            if ($result.live_target_e2e) { throw 'CI application E2E unexpectedly claimed live-target proof.' }
+            if ($result.external_network_activity_performed -or $result.target_mutation_performed) { throw 'CI application E2E exceeded fixture/loopback safety class.' }
+            $badRequired = @($result.journeys | Where-Object { $_.required -and $_.status -ne 'PASS' })
+            if ($badRequired.Count -gt 0) { throw "Required E2E journey was skipped or failed in profile '$($result.profile)'." }
+            $receiptRows += [ordered]@{
+              profile = $result.profile
+              proof_class = $result.proof_class
+              result_sha256 = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              result_path = $file.FullName
+            }
+          }
+          if (@($receiptRows | Where-Object profile -eq 'default').Count -ne 1) { throw 'Default application E2E receipt missing.' }
+          if (@($receiptRows | Where-Object profile -eq 'autologon').Count -ne 1) { throw 'AutoLogon application E2E receipt missing.' }
+          [ordered]@{
+            schema_version = 'sas-promotion-application-e2e-receipt/v1'
+            synthetic_merge_sha = '${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}'
+            profiles = $receiptRows
+            proof_ceiling = '${{ needs.resolve-candidate.outputs.proof_ceiling }}'
+          } | ConvertTo-Json -Depth 20 | Set-Content .\promotion-application-e2e-receipt.json -Encoding utf8
+
+      - name: Upload application E2E proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-application-e2e-proof
+          path: |
+            survey/output/promotion/application-e2e/**
+            survey/output/promotion/autologon-e2e/**
+            promotion-application-e2e-receipt.json
+          if-no-files-found: error
+
+  promote:
+    needs: [resolve-candidate, promotion-contracts, harness-e2e, application-e2e]
+    if: needs.resolve-candidate.outputs.mode == 'promote'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sas-validated-promotion-${{ needs.resolve-candidate.outputs.base_ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      promoted_sha: ${{ steps.promote.outputs.promoted_sha }}
+      resulting_default_sha: ${{ steps.promote.outputs.resulting_default_sha }}
+    steps:
+      - name: Checkout trusted promotion control plane
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.base_sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Re-resolve exact identity immediately before mutation
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          .\scripts\Resolve-SasPromotionCandidate.ps1 `
+            -Repository $env:GITHUB_REPOSITORY `
+            -PrNumber ${{ needs.resolve-candidate.outputs.pr_number }} `
+            -ExpectedCandidateSha '${{ needs.resolve-candidate.outputs.source_head_sha }}' `
+            -ExpectedBaseSha '${{ needs.resolve-candidate.outputs.base_sha }}' `
+            -ExpectedMergeSha '${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}' `
+            -ExpectedTarget '${{ needs.resolve-candidate.outputs.base_ref }}' `
+            -Actor $env:GITHUB_ACTOR `
+            -EventName $env:GITHUB_EVENT_NAME `
+            -OutputPath .\promotion-recheck.json | Out-Host
+          $recheck = Get-Content .\promotion-recheck.json -Raw | ConvertFrom-Json
+          if ($recheck.branch_protected) {
+            throw 'ENVIRONMENT-BLOCKED: protected default branch detected. Exact-ref promotion is intentionally fail-closed until a provider-managed protected-branch mode is configured; no bypass is attempted.'
+          }
+
+      - name: Promote the exact validated synthetic merge commit
+        id: promote
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $baseRef = '${{ needs.resolve-candidate.outputs.base_ref }}'
+          $baseSha = '${{ needs.resolve-candidate.outputs.base_sha }}'
+          $mergeSha = '${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}'
+
+          $before = (& gh api "repos/$env:GITHUB_REPOSITORY/git/ref/heads/$baseRef" | ConvertFrom-Json)
+          if ([string]$before.object.sha -ne $baseSha) {
+            throw "Base moved before atomic promotion: expected '$baseSha', found '$($before.object.sha)'."
+          }
+
+          $raw = @(& gh api -X PATCH "repos/$env:GITHUB_REPOSITORY/git/refs/heads/$baseRef" -f sha="$mergeSha" -F force=false 2>&1)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Exact synthetic merge promotion was rejected by GitHub: $($raw -join [Environment]::NewLine)"
+          }
+          $updated = (($raw -join [Environment]::NewLine) | ConvertFrom-Json)
+          if ([string]$updated.object.sha -ne $mergeSha) {
+            throw "Provider returned unexpected promoted SHA '$($updated.object.sha)'."
+          }
+
+          $after = (& gh api "repos/$env:GITHUB_REPOSITORY/git/ref/heads/$baseRef" | ConvertFrom-Json)
+          if ([string]$after.object.sha -ne $mergeSha) {
+            throw "Default branch did not resolve to exact promoted candidate '$mergeSha'."
+          }
+
+          [ordered]@{
+            schema_version = 'sas-promotion-mutation/v1'
+            repository = $env:GITHUB_REPOSITORY
+            pr_number = ${{ needs.resolve-candidate.outputs.pr_number }}
+            base_ref = $baseRef
+            pre_promotion_base_sha = $baseSha
+            source_head_sha = '${{ needs.resolve-candidate.outputs.source_head_sha }}'
+            promoted_synthetic_merge_sha = $mergeSha
+            resulting_default_sha = [string]$after.object.sha
+            provider_run_id = $env:GITHUB_RUN_ID
+            transport = 'exact-synthetic-merge-fast-forward'
+          } | ConvertTo-Json -Depth 20 | Set-Content .\promotion-mutation.json -Encoding utf8
+          "promoted_sha=$mergeSha" >> $env:GITHUB_OUTPUT
+          "resulting_default_sha=$($after.object.sha)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload mutation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-mutation
+          path: |
+            promotion-recheck.json
+            promotion-mutation.json
+          if-no-files-found: error
+
+  post-promotion:
+    needs: [resolve-candidate, promotion-contracts, harness-e2e, application-e2e, promote]
+    if: always() && needs.promote.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout trusted pre-promotion control plane
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.base_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Refresh provider truth and prove containment
+        id: contain
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git fetch origin '${{ needs.resolve-candidate.outputs.base_ref }}' --prune
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to refresh default branch.' }
+          $defaultHead = (git rev-parse 'origin/${{ needs.resolve-candidate.outputs.base_ref }}').Trim()
+
+          git merge-base --is-ancestor '${{ needs.resolve-candidate.outputs.source_head_sha }}' 'origin/${{ needs.resolve-candidate.outputs.base_ref }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Source head is not contained in refreshed default branch.' }
+          git merge-base --is-ancestor '${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}' 'origin/${{ needs.resolve-candidate.outputs.base_ref }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Validated synthetic merge candidate is not contained in refreshed default branch.' }
+
+          $pr = $null
+          for ($attempt = 1; $attempt -le 8; $attempt++) {
+            $pr = (& gh api "repos/$env:GITHUB_REPOSITORY/pulls/${{ needs.resolve-candidate.outputs.pr_number }}" | ConvertFrom-Json)
+            if ([bool]$pr.merged) { break }
+            if ($attempt -lt 8) { Start-Sleep -Seconds 2 }
+          }
+          if (-not [bool]$pr.merged) { throw 'Provider did not classify the integrated PR as merged after bounded retries.' }
+
+          "default_head=$defaultHead" >> $env:GITHUB_OUTPUT
+          "provider_merge_sha=$($pr.merge_commit_sha)" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: promotion-harness-proof
+          path: .promotion-artifacts/harness
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: promotion-application-e2e-proof
+          path: .promotion-artifacts/application
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: promotion-mutation
+          path: .promotion-artifacts/mutation
+
+      - name: Emit machine-readable promotion receipt
+        shell: pwsh
+        run: |
+          $harnessReceipt = Resolve-Path .\.promotion-artifacts\harness\promotion-harness-receipt.json
+          $applicationReceipt = Resolve-Path .\.promotion-artifacts\application\promotion-application-e2e-receipt.json
+          $mutationReceipt = Resolve-Path .\.promotion-artifacts\mutation\promotion-mutation.json
+          [ordered]@{
+            schema_version = 'sas-promotion-receipt/v1'
+            generated_at = (Get-Date).ToUniversalTime().ToString('o')
+            repository = $env:GITHUB_REPOSITORY
+            provider_run_id = $env:GITHUB_RUN_ID
+            event = $env:GITHUB_EVENT_NAME
+            actor = $env:GITHUB_ACTOR
+            pr_number = ${{ needs.resolve-candidate.outputs.pr_number }}
+            candidate = [ordered]@{
+              source_head_sha = '${{ needs.resolve-candidate.outputs.source_head_sha }}'
+              base_sha = '${{ needs.resolve-candidate.outputs.base_sha }}'
+              synthetic_merge_sha = '${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}'
+              policy_sha256 = '${{ needs.resolve-candidate.outputs.policy_sha256 }}'
+            }
+            required_jobs = [ordered]@{
+              promotion_contracts = '${{ needs.promotion-contracts.result }}'
+              harness_e2e = '${{ needs.harness-e2e.result }}'
+              application_e2e = '${{ needs.application-e2e.result }}'
+              promotion = '${{ needs.promote.result }}'
+            }
+            proof_artifacts = [ordered]@{
+              harness_receipt_sha256 = (Get-FileHash $harnessReceipt -Algorithm SHA256).Hash.ToLowerInvariant()
+              application_e2e_receipt_sha256 = (Get-FileHash $applicationReceipt -Algorithm SHA256).Hash.ToLowerInvariant()
+              mutation_receipt_sha256 = (Get-FileHash $mutationReceipt -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+            promotion = [ordered]@{
+              target = '${{ needs.resolve-candidate.outputs.base_ref }}'
+              transport = 'exact-synthetic-merge-fast-forward'
+              promoted_sha = '${{ needs.promote.outputs.promoted_sha }}'
+              provider_merge_sha = '${{ steps.contain.outputs.provider_merge_sha }}'
+              refreshed_default_head = '${{ steps.contain.outputs.default_head }}'
+              source_head_contained = $true
+              synthetic_merge_contained = $true
+            }
+            proof_ceiling = '${{ needs.resolve-candidate.outputs.proof_ceiling }}'
+          } | ConvertTo-Json -Depth 30 | Set-Content .\promotion-receipt.json -Encoding utf8
+
+          $receipt = Get-Content .\promotion-receipt.json -Raw | ConvertFrom-Json
+          foreach ($name in @('promotion_contracts','harness_e2e','application_e2e','promotion')) {
+            if ($receipt.required_jobs.$name -ne 'success') { throw "Required job '$name' was not successful." }
+          }
+          Write-Host (Get-Content .\promotion-receipt.json -Raw)
+
+      - name: Upload final promotion receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-receipt
+          path: promotion-receipt.json
+          if-no-files-found: error
+
+      - name: Comment provider receipt on PR
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $body = @"
+          Validated promotion completed.
+
+          - source head: `${{ needs.resolve-candidate.outputs.source_head_sha }}`
+          - validated synthetic merge: `${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}`
+          - target: `${{ needs.resolve-candidate.outputs.base_ref }}`
+          - refreshed default head: `${{ steps.contain.outputs.default_head }}`
+          - harness gate: `${{ needs.harness-e2e.result }}`
+          - application E2E gate: `${{ needs.application-e2e.result }}`
+          - provider run: https://github.com/${env:GITHUB_REPOSITORY}/actions/runs/${env:GITHUB_RUN_ID}
+          - proof ceiling: `${{ needs.resolve-candidate.outputs.proof_ceiling }}`
+          "@
+          $payload = @{ body = $body } | ConvertTo-Json
+          $payload | gh api -X POST "repos/$env:GITHUB_REPOSITORY/issues/${{ needs.resolve-candidate.outputs.pr_number }}/comments" --input - | Out-Null
+
+      - name: Publish workflow summary
+        shell: pwsh
+        run: |
+          @"
+          ## Validated promotion
+          - PR: #${{ needs.resolve-candidate.outputs.pr_number }}
+          - source head: `${{ needs.resolve-candidate.outputs.source_head_sha }}`
+          - validated merge candidate: `${{ needs.resolve-candidate.outputs.synthetic_merge_sha }}`
+          - target: `${{ needs.resolve-candidate.outputs.base_ref }}`
+          - refreshed default head: `${{ steps.contain.outputs.default_head }}`
+          - harness E2E: `${{ needs.harness-e2e.result }}`
+          - application E2E: `${{ needs.application-e2e.result }}`
+          - proof ceiling: `${{ needs.resolve-candidate.outputs.proof_ceiling }}`
+          "@ >> $env:GITHUB_STEP_SUMMARY
