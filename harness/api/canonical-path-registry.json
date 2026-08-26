@@ -17,12 +17,7 @@
     "user_identity_is_runtime_data_not_tracked_fixture": true
   },
   "profile_parameters": {
-    "required": [
-      "os",
-      "user",
-      "onedrive_enabled",
-      "desktop_dev_root"
-    ],
+    "required": ["os", "user", "onedrive_enabled", "desktop_dev_root"],
     "resolution_order": [
       "explicit invocation value",
       "local operating-system or environment observation",
@@ -52,7 +47,7 @@
       }
     },
     "composition": {
-      "canonical_development_checkout": "{desktop_dev_root}\\SysAdminSuite",
+      "canonical_development_checkout": "selected profile path template with {desktop_dev_root}",
       "identity": "{os}|{user}|onedrive={onedrive_enabled}|desktop_dev={desktop_dev_root}"
     }
   },
@@ -100,10 +95,7 @@
         "mutable": true,
         "purpose": "Collision-isolated branch/worktree execution without creating a second canonical clone."
       },
-      "ephemeral_acquisition_patterns": [
-        "%LOCALAPPDATA%\\SysAdminSuite\\closeout-entry-*",
-        "%TEMP%\\SysAdminSuite-*"
-      ],
+      "ephemeral_acquisition_patterns": ["%LOCALAPPDATA%\\SysAdminSuite\\closeout-entry-*", "%TEMP%\\SysAdminSuite-*"],
       "real_operator_entrypoint": {
         "authority": "harness/api/harness-command-registry.json",
         "resolution": "Select the task's registered command/front door only after user-profile, canonical-path, and freshness proof."
@@ -133,14 +125,66 @@
         "mutable": true,
         "purpose": "Isolated repository work only; never the installed field runtime."
       },
-      "ephemeral_acquisition_patterns": [
-        "%LOCALAPPDATA%\\SysAdminSuite\\closeout-entry-*"
-      ],
+      "ephemeral_acquisition_patterns": ["%LOCALAPPDATA%\\SysAdminSuite\\closeout-entry-*"],
       "real_operator_entrypoint": {
         "authority": "harness/api/operator-execution-route-registry.json",
         "installed_locator": "sas",
         "production_runtime_entrypoint": "C:\\SASAL\\Bootstrap-SysAdminSuiteAutoLogon.cmd",
         "resolution": "Operator execution routing selects the registered front door and proves the resolved path before execution."
+      }
+    },
+    {
+      "id": "linux-development",
+      "platform": "linux",
+      "purpose": "Normal mutable development and repository maintenance for a resolved Linux user profile.",
+      "required_profile_parameters": ["os", "user", "onedrive_enabled", "desktop_dev_root"],
+      "canonical_development_checkout": {
+        "template": "{desktop_dev_root}/SysAdminSuite",
+        "mutable": true,
+        "purpose": "Canonical mutable SysAdminSuite development checkout composed from this Linux user's resolved Desktop Dev root.",
+        "authority": "resolved user profile plus developer checkout",
+        "currentness": "profile identity plus Git identity plus refreshed remote comparison"
+      },
+      "production_use_path": {
+        "applicable": false,
+        "reason": "Development-only profile; product-specific installed or served runtimes require their own profile authority."
+      },
+      "temporary_worktree_root": {
+        "template": "$XDG_CACHE_HOME/SysAdminSuite/worktrees or $HOME/.cache/SysAdminSuite/worktrees",
+        "mutable": true,
+        "purpose": "Collision-isolated Git worktrees outside the canonical mutable checkout."
+      },
+      "ephemeral_acquisition_patterns": ["$TMPDIR/SysAdminSuite-*", "/tmp/SysAdminSuite-*"],
+      "real_operator_entrypoint": {
+        "authority": "harness/api/harness-command-registry.json",
+        "resolution": "Select a registered repository command only after user-profile, canonical-path, and freshness proof."
+      }
+    },
+    {
+      "id": "macos-development",
+      "platform": "macos",
+      "purpose": "Normal mutable development and repository maintenance for a resolved macOS user profile.",
+      "required_profile_parameters": ["os", "user", "onedrive_enabled", "desktop_dev_root"],
+      "canonical_development_checkout": {
+        "template": "{desktop_dev_root}/SysAdminSuite",
+        "mutable": true,
+        "purpose": "Canonical mutable SysAdminSuite development checkout composed from this macOS user's resolved Desktop Dev root.",
+        "authority": "resolved user profile plus developer checkout",
+        "currentness": "profile identity plus Git identity plus refreshed remote comparison"
+      },
+      "production_use_path": {
+        "applicable": false,
+        "reason": "Development-only profile; product-specific installed or served runtimes require their own profile authority."
+      },
+      "temporary_worktree_root": {
+        "template": "$HOME/Library/Caches/SysAdminSuite/worktrees",
+        "mutable": true,
+        "purpose": "Collision-isolated Git worktrees outside the canonical mutable checkout."
+      },
+      "ephemeral_acquisition_patterns": ["$TMPDIR/SysAdminSuite-*", "/tmp/SysAdminSuite-*"],
+      "real_operator_entrypoint": {
+        "authority": "harness/api/harness-command-registry.json",
+        "resolution": "Select a registered repository command only after user-profile, canonical-path, and freshness proof."
       }
     }
   ],
