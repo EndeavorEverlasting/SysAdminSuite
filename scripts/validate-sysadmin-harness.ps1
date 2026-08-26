@@ -12,7 +12,17 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$callerLocation = (Get-Location).Path
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$desktopDevRootOverride = $DesktopDevRoot
+if (-not [string]::IsNullOrWhiteSpace($desktopDevRootOverride)) {
+    if ([IO.Path]::IsPathRooted($desktopDevRootOverride)) {
+        $desktopDevRootOverride = [IO.Path]::GetFullPath($desktopDevRootOverride)
+    }
+    else {
+        $desktopDevRootOverride = [IO.Path]::GetFullPath((Join-Path $callerLocation $desktopDevRootOverride))
+    }
+}
 if (-not $OutputRoot) { $OutputRoot = Join-Path $repoRoot 'survey/output/harness-validator' }
 elseif (-not [IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot = Join-Path $repoRoot $OutputRoot }
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
@@ -95,7 +105,11 @@ function Resolve-CanonicalPathProfile {
     $registryPath = Join-Path $repoRoot 'harness/api/canonical-path-registry.json'
     $registry = Get-Content -LiteralPath $registryPath -Raw | ConvertFrom-Json
 
-    $os = if ($ProfileOs -ne 'auto') { $ProfileOs } else { Get-ObservedOs }
+    $observedOs = Get-ObservedOs
+    if ($ProfileOs -ne 'auto' -and $ProfileOs -ne $observedOs) {
+        throw "profile_os_override_must_match_host:$ProfileOs/$observedOs"
+    }
+    $os = $observedOs
     $user = if (-not [string]::IsNullOrWhiteSpace($ProfileUser)) { $ProfileUser } elseif ($env:USERNAME) { $env:USERNAME } elseif ($env:USER) { $env:USER } else { [Environment]::UserName }
     if ([string]::IsNullOrWhiteSpace($user)) { throw 'profile_user_unresolved' }
 
@@ -107,7 +121,7 @@ function Resolve-CanonicalPathProfile {
         -not [string]::IsNullOrWhiteSpace(($env:OneDrive, $env:OneDriveCommercial, $env:OneDriveConsumer | Where-Object { $_ } | Select-Object -First 1))
     }
 
-    $desktopDev = $DesktopDevRoot
+    $desktopDev = $desktopDevRootOverride
     if ([string]::IsNullOrWhiteSpace($desktopDev)) {
         $desktop = [Environment]::GetFolderPath('Desktop')
         if ([string]::IsNullOrWhiteSpace($desktop)) {
@@ -115,9 +129,8 @@ function Resolve-CanonicalPathProfile {
             elseif (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) { $desktop = Join-Path $env:USERPROFILE 'Desktop' }
         }
         if ([string]::IsNullOrWhiteSpace($desktop)) { throw 'desktop_known_folder_unresolved' }
-        $desktopDev = Join-Path $desktop 'Dev'
+        $desktopDev = [IO.Path]::GetFullPath((Join-Path $desktop 'Dev'))
     }
-    $desktopDev = [IO.Path]::GetFullPath($desktopDev)
 
     $profileId = $MachineProfile
     if ([string]::IsNullOrWhiteSpace($profileId)) {
@@ -285,7 +298,7 @@ try {
         else { Add-Check FAIL 'AI layer validator' "exit_$($ai.exit_code): $($ai.detail)" }
     } else { Add-Check FAIL 'AI layer validator' 'powershell_runtime_not_available' }
 
-    $python = Find-Command @('python','python3')
+    $python = Find-Command @('python3','python')
     $dependencies.python = $python
     if ($python) {
         $version = Invoke-Offline $python @('--version')
@@ -360,7 +373,9 @@ try {
     $matrix.Add("Branch: $branch")
     $matrix.Add("Commit: $commit")
     if ($promptOwner) { $matrix.Add("Prompt: $($promptOwner.id) | $($promptOwner.name) | $($promptOwner.purpose)") }
+    else { $matrix.Add('Prompt: unresolved') }
     if ($resolvedProfile) { $matrix.Add("Profile: $($resolvedProfile.machine_profile) | os=$($resolvedProfile.os) | user=$($resolvedProfile.user) | onedrive_enabled=$($resolvedProfile.onedrive_enabled) | desktop_dev_root=$($resolvedProfile.desktop_dev_root)") }
+    else { $matrix.Add('Profile: unresolved') }
     $matrix.Add('Proof: synthetic_offline (no runtime proof, network activity, launcher execution, or target mutation)')
     $matrix.Add('')
     foreach ($check in $checks) {
@@ -372,20 +387,13 @@ try {
     $matrix.Add("Final status: $finalStatus")
     $matrix.Add("JSON: $jsonPath")
 
-    $profileResult = if ($resolvedProfile) { $resolvedProfile } else { [pscustomobject]@{
-        machine_profile='unknown'; os='windows'; user='unknown'; onedrive_enabled=$false; desktop_dev_root='unknown'; canonical_development_checkout='unknown'
-    } }
-    $promptResult = if ($promptOwner) { $promptOwner } else { [pscustomobject]@{
-        id='P11'; name='unresolved'; purpose='unresolved'; registry_path='docs/prompts.json'
-    } }
-
     $result = [ordered]@{
         schema_version='sas-harness-proof/v1'; generated_at=(Get-Date).ToUniversalTime().ToString('o')
         repo_root=$repoRoot; branch=$branch; commit=$commit; proof_level='synthetic_offline'; final_status=$finalStatus
         runtime_proof=$false; network_activity_performed=$false; launcher_execution_performed=$false
         target_mutation_performed=$false; data_mutation_performed=$false
         counts=[ordered]@{passed=$passed; skipped=$skipped; failed=$failed}
-        dependencies=$dependencies; validator_set=@($validatorSet); profile=$profileResult; prompt_owner=$promptResult; checks=@($checks)
+        dependencies=$dependencies; validator_set=@($validatorSet); profile=$resolvedProfile; prompt_owner=$promptOwner; checks=@($checks)
         artifacts=[ordered]@{
             matrix=$matrixPath; json=$jsonPath
             run_root=$(if ($context) {$context.run_root} else {$null})
