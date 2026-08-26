@@ -24,7 +24,17 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$callerLocation = (Get-Location).Path
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$desktopDevRootOverride = $DesktopDevRoot
+if (-not [string]::IsNullOrWhiteSpace($desktopDevRootOverride)) {
+    if ([IO.Path]::IsPathRooted($desktopDevRootOverride)) {
+        $desktopDevRootOverride = [IO.Path]::GetFullPath($desktopDevRootOverride)
+    }
+    else {
+        $desktopDevRootOverride = [IO.Path]::GetFullPath((Join-Path $callerLocation $desktopDevRootOverride))
+    }
+}
 if (-not $OutputRoot) {
     $OutputRoot = Join-Path $repoRoot 'survey/output/vm-dry-run-harness-proof'
 }
@@ -102,7 +112,7 @@ foreach ($pair in @(
     @('-ProfileOs', $ProfileOs),
     @('-ProfileUser', $ProfileUser),
     @('-OneDriveEnabled', $OneDriveEnabled),
-    @('-DesktopDevRoot', $DesktopDevRoot)
+    @('-DesktopDevRoot', $desktopDevRootOverride)
 )) {
     if (-not [string]::IsNullOrWhiteSpace([string]$pair[1])) {
         $baseArguments.Add([string]$pair[0])
@@ -192,12 +202,8 @@ if ($baseResult -and @($baseResult.PSObject.Properties.Name) -contains 'validato
 }
 $validatorSet.Add('scripts/Test-SasVmDryRunReadiness.ps1')
 $validatorSet.Add('scripts/Invoke-SasVmDryRunHarnessProof.ps1')
-$profile = if ($baseResult -and @($baseResult.PSObject.Properties.Name) -contains 'profile') { $baseResult.profile } else { [pscustomobject]@{
-    machine_profile='unknown'; os='windows'; user='unknown'; onedrive_enabled=$false; desktop_dev_root='unknown'; canonical_development_checkout='unknown'
-} }
-$promptOwner = if ($baseResult -and @($baseResult.PSObject.Properties.Name) -contains 'prompt_owner') { $baseResult.prompt_owner } else { [pscustomobject]@{
-    id='P11'; name='unresolved'; purpose='unresolved'; registry_path='docs/prompts.json'
-} }
+$profile = if ($baseResult -and @($baseResult.PSObject.Properties.Name) -contains 'profile') { $baseResult.profile } else { $null }
+$promptOwner = if ($baseResult -and @($baseResult.PSObject.Properties.Name) -contains 'prompt_owner') { $baseResult.prompt_owner } else { $null }
 
 $passed = @($checks | Where-Object status -eq 'PASS').Count
 $skipped = @($checks | Where-Object status -eq 'SKIP').Count
@@ -209,8 +215,10 @@ $matrix.Add('APP HARNESS VALIDATION')
 $matrix.Add("Repo: $repoRoot")
 $matrix.Add("Branch: $branch")
 $matrix.Add("Commit: $commit")
-$matrix.Add("Prompt: $($promptOwner.id) | $($promptOwner.name) | $($promptOwner.purpose)")
-$matrix.Add("Profile: $($profile.machine_profile) | os=$($profile.os) | user=$($profile.user) | onedrive_enabled=$($profile.onedrive_enabled) | desktop_dev_root=$($profile.desktop_dev_root)")
+if ($promptOwner) { $matrix.Add("Prompt: $($promptOwner.id) | $($promptOwner.name) | $($promptOwner.purpose)") }
+else { $matrix.Add('Prompt: unresolved') }
+if ($profile) { $matrix.Add("Profile: $($profile.machine_profile) | os=$($profile.os) | user=$($profile.user) | onedrive_enabled=$($profile.onedrive_enabled) | desktop_dev_root=$($profile.desktop_dev_root)") }
+else { $matrix.Add('Profile: unresolved') }
 $matrix.Add('Proof: synthetic_offline (VM readiness only; no VM started, real package executed, network probe, launcher, or target mutation)')
 $matrix.Add('')
 foreach ($check in $checks) {
