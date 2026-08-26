@@ -29,24 +29,61 @@ def test_current_launcher_refuses_checkout_local_deployment_authority() -> None:
     assert 'powershell.exe -nologo -noprofile -executionpolicy bypass -file "%script_dir%scripts\\invoke-sascybernetsoftwaredeployment.ps1"' not in lowered
 
 
-def test_sealed_bootstrap_audits_before_any_deployment_engine_execution() -> None:
+def test_cmd_bootstrap_is_only_valid_from_fixed_canonical_runtime() -> None:
     bootstrap = read("Bootstrap-SysAdminSuiteCybernetSoftware.cmd")
     lowered = bootstrap.lower()
-    resolver = lowered.index("resolve-sasautologonmanifestauthority.ps1")
-    audit = lowered.index("test-sasautologonruntimeseal.ps1")
-    engine = lowered.index("invoke-sascybernetsoftwaredeployment.ps1")
-    execute = lowered.rindex('"%sas_ps%" -nologo -noprofile -executionpolicy bypass -file "%sas_engine%"')
-    assert resolver < audit < engine < execute
+    assert 'set "sas_canonical_runtime=c:\\sasal"' in lowered
+    assert 'if /i not "%sas_runtime%"=="%sas_canonical_runtime%"' in lowered
+    assert "cybernet_sealed_runtime_authority_invalid" in lowered
+    assert "no manifest resolution, target contact, or mutation was started" in lowered
+    assert "invoke-sascybernetsealedsoftwarebootstrap.ps1" in lowered
+    assert "$env:sas_cybernet_explicit_target" in lowered
+    assert "invoke-sascybernetsoftwaredeployment.ps1" not in lowered
+
+
+def test_sealed_admission_orders_actual_executable_gates_before_engine() -> None:
+    admission = read("scripts/Invoke-SasCybernetSealedSoftwareBootstrap.ps1")
+    lowered = admission.lower()
+    resolver_call = lowered.index(
+        "invoke-saschildpowershell -powershellexe $psexe -scriptpath $manifestresolver"
+    )
+    audit_call = lowered.index(
+        "invoke-saschildpowershell -powershellexe $psexe -scriptpath $auditscript"
+    )
+    lock_call = lowered.index(
+        "lock-sastrackedruntime -canonicalruntime $runtimefull -manifest $manifest"
+    )
+    engine_call = lowered.index(
+        "& $enginescript -computername $target -allowtargetmutation -confirmdeployment -passthru"
+    )
+    assert resolver_call < audit_call < lock_call < engine_call
     assert "-requiremanifest" in lowered
-    assert "-allowtargetmutation -confirmdeployment" in lowered
-    assert "target contact before seal audit: none" in lowered
-    assert "target mutation before seal audit: none" in lowered
-    assert "git network activity: none" in lowered
-    assert "sas evidence cybernet open" in lowered
+    assert "target = $computername.trim().trimend('.')" in lowered
+    assert "cybernet_sealed_target_invalid" in lowered
 
 
-def test_protected_bootstrap_contains_no_remote_git_fallback() -> None:
-    bootstrap = read("Bootstrap-SysAdminSuiteCybernetSoftware.cmd").lower()
+def test_tracked_runtime_is_rehashed_under_write_delete_exclusion_for_deployment_lifetime() -> None:
+    admission = read("scripts/Invoke-SasCybernetSealedSoftwareBootstrap.ps1")
+    lowered = admission.lower()
+    assert "[io.fileshare]::read" in lowered
+    assert "get-sassha256fromstream -stream $stream" in lowered
+    assert "cybernet_sealed_runtime_recheck_mismatch" in lowered
+    assert "cybernet_sealed_runtime_locked" in lowered
+    engine_call = lowered.index(
+        "& $enginescript -computername $target -allowtargetmutation -confirmdeployment -passthru"
+    )
+    finally_block = lowered.index("finally {", engine_call)
+    unlock_call = lowered.index("close-sasruntimelocks -locks $locks", finally_block)
+    assert engine_call < finally_block < unlock_call
+    assert "parent\n    # process therefore retains every tracked-file lock until the complete deployment call returns" in lowered
+
+
+def test_protected_admission_contains_no_remote_git_fallback() -> None:
+    combined = (
+        read("Bootstrap-SysAdminSuiteCybernetSoftware.cmd")
+        + "\n"
+        + read("scripts/Invoke-SasCybernetSealedSoftwareBootstrap.ps1")
+    ).lower()
     for forbidden in (
         "git fetch",
         "git pull",
@@ -55,7 +92,7 @@ def test_protected_bootstrap_contains_no_remote_git_fallback() -> None:
         "remote add",
         "remote set-url",
     ):
-        assert forbidden not in bootstrap, f"protected bootstrap contains remote Git fallback: {forbidden}"
+        assert forbidden not in combined, f"protected admission contains remote Git fallback: {forbidden}"
 
 
 def test_manifest_and_full_seal_are_pre_target_local_only_authorities() -> None:
@@ -72,28 +109,45 @@ def test_manifest_and_full_seal_are_pre_target_local_only_authorities() -> None:
     assert "runtime_remotes_removed" in audit
 
 
-def test_guest_bootstrap_refreshes_then_installs_universal_surface() -> None:
+def test_guest_bootstrap_refreshes_verifies_surface_then_installs_universal_surface() -> None:
     bootstrap = read("Bootstrap-SysAdminSuiteFieldRuntime.cmd")
     lowered = bootstrap.lower()
-    refresh = lowered.index("refresh-sasoperatorcommand.ps1")
-    universal = lowered.index("c:\\sasal\\scripts\\install-sasuniversalfieldlauncher.ps1")
-    invoke_refresh = lowered.index('"%sas_ps%" -nologo -noprofile -executionpolicy bypass -file "%sas_refresh%"')
-    invoke_universal = lowered.index('"%sas_ps%" -nologo -noprofile -executionpolicy bypass -file "%sas_universal_installer%"')
-    assert refresh < invoke_refresh < invoke_universal
-    assert universal < invoke_universal
+    invoke_refresh = lowered.index(
+        '"%sas_ps%" -nologo -noprofile -executionpolicy bypass -file "%sas_refresh%"'
+    )
+    surface_gate = lowered.index("=== verifying complete protected cybernet surface ===")
+    admission_required = lowered.index('"%sas_cybernet_admission%"', surface_gate)
+    invoke_universal = lowered.index(
+        '"%sas_ps%" -nologo -noprofile -executionpolicy bypass -file "%sas_universal_installer%"'
+    )
+    ready = lowered.index("sas_field_runtime_bootstrap_ready")
+    assert invoke_refresh < surface_gate < admission_required < invoke_universal < ready
+    for required in (
+        "c:\\sasal\\deploy-cybernetsoftware.cmd",
+        "c:\\sasal\\bootstrap-sysadminsuitecybernetsoftware.cmd",
+        "c:\\sasal\\scripts\\invoke-sascybernetsealedsoftwarebootstrap.ps1",
+        "c:\\sasal\\scripts\\invoke-sascybernetsoftwaredeployment.ps1",
+        "c:\\sasal\\scripts\\resolve-sasautologonmanifestauthority.ps1",
+        "c:\\sasal\\scripts\\test-sasautologonruntimeseal.ps1",
+    ):
+        assert required in lowered
     assert "network required: guest / internet" in lowered
-    assert "sas_field_runtime_bootstrap_ready" in lowered
+    assert "protected cybernet surface: verified" in lowered
     assert "no protected target deployment was started" in lowered
     assert "existing desktop/onedrive checkouts are not reset, cleaned, or reused as deployment authority" in lowered
 
 
-def test_admin_box_runbook_preserves_old_checkouts_and_splits_network_authority() -> None:
+def test_admin_box_runbook_contains_copy_safe_fresh_main_acquisition_and_recovery() -> None:
     runbook = read("START-HERE-ADMIN-BOX-SOFTWARE-DEPLOYMENT.md")
     lowered = runbook.lower()
     for marker in (
+        "git clone --branch main --single-branch https://github.com/endeavoreverlasting/sysadminsuite.git $dst",
+        "$env:localappdata",
         "bootstrap-sysadminsuitefieldruntime.cmd",
+        "sas_field_runtime_bootstrap_ready",
         "sas cybernet deploy <authorized-cybernet>",
         "c:\\sasal\\bootstrap-sysadminsuitecybernetsoftware.cmd",
+        "fileaccess.read",
         "cybernet_software_deployment_completed_restarted",
         "sas evidence cybernet open",
         "protected-side git network activity is `none`",
@@ -102,6 +156,8 @@ def test_admin_box_runbook_preserves_old_checkouts_and_splits_network_authority(
         assert marker in lowered, f"runbook missing: {marker}"
     assert "do not reset, clean, rebase, delete, or rehabilitate them" in lowered
     assert "guest / internet" in lowered and "protected northwell" in lowered
+    assert "second sha-256 verification" in lowered
+    assert "locks are released only after the deployment call returns" in lowered
 
 
 def test_current_sas_route_still_reaches_the_hardened_launcher() -> None:
@@ -112,9 +168,15 @@ def test_current_sas_route_still_reaches_the_hardened_launcher() -> None:
     assert "sas cybernet Deploy HOST" in portable
     assert "Deploy-CybernetSoftware.cmd" in portable
     assert "if ($mode -eq 'deploy')" in portable
-    assert portable_lower.index("if ($mode -eq 'deploy')") < portable_lower.index("deploy-cybernetsoftware.cmd", portable_lower.index("if ($mode -eq 'deploy')"))
-    runtime_candidate = resolve.index("Add-SasControllerCandidate -List $candidates -Path $script:SasDefaultRuntimeRoot")
-    repo_candidate = resolve.index("Add-SasControllerCandidate -List $candidates -Path $env:SAS_REPO_ROOT")
+    assert portable_lower.index("if ($mode -eq 'deploy')") < portable_lower.index(
+        "deploy-cybernetsoftware.cmd", portable_lower.index("if ($mode -eq 'deploy')")
+    )
+    runtime_candidate = resolve.index(
+        "Add-SasControllerCandidate -List $candidates -Path $script:SasDefaultRuntimeRoot"
+    )
+    repo_candidate = resolve.index(
+        "Add-SasControllerCandidate -List $candidates -Path $env:SAS_REPO_ROOT"
+    )
     assert runtime_candidate < repo_candidate, "C:\\SASAL must outrank an arbitrary checkout for the universal field controller"
 
 
