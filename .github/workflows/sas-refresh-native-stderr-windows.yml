@@ -37,6 +37,8 @@ jobs:
 
       - name: Run deterministic SAS refresh Windows test floor
         shell: powershell
+        env:
+          SAS_REFRESH_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           $ErrorActionPreference = 'Stop'
           & .\Tests\PowerShell\Invoke-SasRefreshDeterministicTestFloor.ps1

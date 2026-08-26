@@ -7,13 +7,19 @@ $env:GIT_CONFIG_NOSYSTEM = '1'
 $env:TZ = 'UTC'
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$sha = if (-not [string]::IsNullOrWhiteSpace([string]$env:GITHUB_SHA)) {
-    [string]$env:GITHUB_SHA
+$checkoutValue = @(& git -C $repoRoot rev-parse HEAD 2>$null | Select-Object -First 1)
+$checkoutSha = if ([int]$global:LASTEXITCODE -ne 0 -or $checkoutValue.Count -eq 0) {
+    'UNKNOWN'
 } else {
-    $value = @(& git -C $repoRoot rev-parse HEAD 2>$null | Select-Object -First 1)
-    if ([int]$global:LASTEXITCODE -ne 0 -or $value.Count -eq 0) { 'UNKNOWN' } else { ([string]$value[0]).Trim() }
+    ([string]$checkoutValue[0]).Trim()
 }
-Write-Host "SAS_REFRESH_TEST_FLOOR_CANDIDATE_SHA=$sha" -ForegroundColor Cyan
+$candidateSha = if (-not [string]::IsNullOrWhiteSpace([string]$env:SAS_REFRESH_CANDIDATE_SHA)) {
+    ([string]$env:SAS_REFRESH_CANDIDATE_SHA).Trim()
+} else {
+    $checkoutSha
+}
+Write-Host "SAS_REFRESH_TEST_FLOOR_CANDIDATE_SHA=$candidateSha" -ForegroundColor Cyan
+Write-Host "SAS_REFRESH_TEST_FLOOR_CHECKOUT_SHA=$checkoutSha" -ForegroundColor DarkCyan
 
 $tests = @(
     'SasOperatorRefreshNativeStderr.Tests.ps1',
@@ -32,5 +38,5 @@ foreach ($name in $tests) {
     }
 }
 
-Write-Host "PASS: deterministic SAS refresh Windows test floor at $sha" -ForegroundColor Green
+Write-Host "PASS: deterministic SAS refresh Windows test floor for candidate $candidateSha (checkout $checkoutSha)" -ForegroundColor Green
 exit 0

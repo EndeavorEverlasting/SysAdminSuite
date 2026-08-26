@@ -3,6 +3,7 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+REQUIRED_TEST_GROUPS = 9
 
 
 def read(relative: str) -> str:
@@ -62,6 +63,24 @@ def test_refresh_repairs_incomplete_fetched_object_graph_before_field_ready_chec
     checkout = script.index("@('checkout','--detach',$remoteHead")
     assert resolve < repair < worktree_add
     assert resolve < repair < checkout
+
+
+def test_refresh_workflow_tracks_canonical_floor_and_all_owning_test_surfaces() -> None:
+    workflow = read(".github/workflows/sas-refresh-native-stderr-windows.yml")
+    for marker in (
+        "pull_request:",
+        "push:",
+        "workflow_dispatch:",
+        "Tests/PowerShell/Invoke-SasRefreshDeterministicTestFloor.ps1",
+        "Tests/PowerShell/SasOperatorRefreshNativeStderr.Tests.ps1",
+        "Tests/PowerShell/SasOperatorRefreshObjectCompleteness.Tests.ps1",
+        "Tests/survey/test_sas_operator_refresh_contracts.py",
+        "Tests/survey/test_autologon_protected_bootstrap_contracts.py",
+        "SAS_REFRESH_CANDIDATE_SHA:",
+    ):
+        assert marker in workflow, marker
+    assert "& .\\Tests\\PowerShell\\Invoke-SasRefreshDeterministicTestFloor.ps1" in workflow
+    assert "& .\\Tests\\PowerShell\\SasOperatorRefreshNativeStderr.Tests.ps1" not in workflow
 
 
 def test_refresh_defaults_field_runtime_to_main_but_allows_explicit_ref() -> None:
@@ -158,9 +177,13 @@ def test_refresh_surfaces_contain_no_target_contact_or_live_operator_literals() 
 
 def main() -> None:
     tests = [value for name, value in sorted(globals().items()) if name.startswith("test_")]
+    if len(tests) < REQUIRED_TEST_GROUPS:
+        raise AssertionError(
+            f"refresh contract discovery fell below required floor: {len(tests)} < {REQUIRED_TEST_GROUPS}"
+        )
     for test in tests:
         test()
-    print(f"PASS: sas operator refresh contracts ({len(tests)} groups)")
+    print(f"PASS: sas operator refresh contracts ({len(tests)} groups; floor {REQUIRED_TEST_GROUPS})")
 
 
 if __name__ == "__main__":
