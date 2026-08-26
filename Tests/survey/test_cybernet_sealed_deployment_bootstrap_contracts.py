@@ -137,6 +137,15 @@ def test_guest_bootstrap_refreshes_verifies_surface_then_installs_universal_surf
     assert "existing desktop/onedrive checkouts are not reset, cleaned, or reused as deployment authority" in lowered
 
 
+def test_guest_bootstrap_never_passes_a_trailing_backslash_native_repository_root() -> None:
+    bootstrap = read("Bootstrap-SysAdminSuiteFieldRuntime.cmd")
+    lowered = bootstrap.lower()
+    assert 'set "script_dir=%~dp0"' in lowered
+    assert '-repositoryroot "%script_dir%."' in lowered
+    assert '-repositoryroot "%script_dir%"' not in lowered
+    assert "appending" in lowered and "does not end in \\" in lowered
+
+
 def test_admin_box_runbook_contains_copy_safe_fresh_main_acquisition_and_recovery() -> None:
     runbook = read("START-HERE-ADMIN-BOX-SOFTWARE-DEPLOYMENT.md")
     lowered = runbook.lower()
