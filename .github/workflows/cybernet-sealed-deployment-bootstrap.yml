@@ -1,0 +1,138 @@
+name: Cybernet Sealed Deployment Bootstrap
+
+on:
+  push:
+    branches: [main, 'fix/**', 'feat/**']
+    paths:
+      - 'Bootstrap-SysAdminSuiteCybernetSoftware.cmd'
+      - 'Bootstrap-SysAdminSuiteFieldRuntime.cmd'
+      - 'Deploy-CybernetSoftware.cmd'
+      - 'START-HERE-ADMIN-BOX-SOFTWARE-DEPLOYMENT.md'
+      - 'scripts/Invoke-SasCybernetSealedSoftwareBootstrap.ps1'
+      - 'scripts/Resolve-SasAutoLogonManifestAuthority.ps1'
+      - 'scripts/Test-SasAutoLogonRuntimeSeal.ps1'
+      - 'scripts/Invoke-SasCybernetSoftwareDeployment.ps1'
+      - 'scripts/SasPortableLauncher.ps1'
+      - 'scripts/SasFieldPlatform.psm1'
+      - 'Tests/survey/test_cybernet_sealed_deployment_bootstrap_contracts.py'
+      - 'Tests/survey/test_portable_onsite_operator_contracts.py'
+      - 'Tests/survey/test_cybernet_software_deployment_documentation_contracts.py'
+      - '.github/workflows/cybernet-sealed-deployment-bootstrap.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Bootstrap-SysAdminSuiteCybernetSoftware.cmd'
+      - 'Bootstrap-SysAdminSuiteFieldRuntime.cmd'
+      - 'Deploy-CybernetSoftware.cmd'
+      - 'START-HERE-ADMIN-BOX-SOFTWARE-DEPLOYMENT.md'
+      - 'scripts/Invoke-SasCybernetSealedSoftwareBootstrap.ps1'
+      - 'scripts/Resolve-SasAutoLogonManifestAuthority.ps1'
+      - 'scripts/Test-SasAutoLogonRuntimeSeal.ps1'
+      - 'scripts/Invoke-SasCybernetSoftwareDeployment.ps1'
+      - 'scripts/SasPortableLauncher.ps1'
+      - 'scripts/SasFieldPlatform.psm1'
+      - 'Tests/survey/test_cybernet_sealed_deployment_bootstrap_contracts.py'
+      - 'Tests/survey/test_portable_onsite_operator_contracts.py'
+      - 'Tests/survey/test_cybernet_software_deployment_documentation_contracts.py'
+      - '.github/workflows/cybernet-sealed-deployment-bootstrap.yml'
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Sealed deployment bootstrap contracts
+        run: python3 Tests/survey/test_cybernet_sealed_deployment_bootstrap_contracts.py
+
+      - name: Existing portable operator contracts
+        run: python3 Tests/survey/test_portable_onsite_operator_contracts.py
+
+      - name: Existing Cybernet deployment documentation contracts
+        run: python3 Tests/survey/test_cybernet_software_deployment_documentation_contracts.py
+
+      - name: Harness registry contracts
+        run: |
+          python3 harness/validators/validate-harness-registries.py
+          python3 harness/validators/validate-outcome-contracts.py
+          python3 harness/validators/validate-deployment-state-contracts.py
+
+      - name: Diff whitespace gate
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$BASE_SHA" && "$BASE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$BASE_SHA" HEAD
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  windows-entrypoints:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse protected PowerShell authorities
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($path in @(
+            'scripts/Invoke-SasCybernetSealedSoftwareBootstrap.ps1',
+            'scripts/Resolve-SasAutoLogonManifestAuthority.ps1',
+            'scripts/Test-SasAutoLogonRuntimeSeal.ps1',
+            'scripts/Invoke-SasCybernetSoftwareDeployment.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+          }
+
+      - name: Exercise launcher help without target contact
+        shell: cmd
+        run: |
+          call Bootstrap-SysAdminSuiteCybernetSoftware.cmd --help
+          if errorlevel 1 exit /b %errorlevel%
+          call Bootstrap-SysAdminSuiteFieldRuntime.cmd --help
+          if errorlevel 1 exit /b %errorlevel%
+          call Deploy-CybernetSoftware.cmd --help
+          if errorlevel 1 exit /b %errorlevel%
+
+      - name: Exercise repaired repository-root native argument
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fixture = Join-Path $env:RUNNER_TEMP 'Assert-RepositoryRoot.ps1'
+          @'
+          param(
+              [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+              [Parameter(Mandatory = $true)][string]$ExpectedRoot
+          )
+          if ($RepositoryRoot.IndexOf('"') -ge 0) {
+              throw "RepositoryRoot contains a stray quote: <$RepositoryRoot>"
+          }
+          $actual = (Resolve-Path -LiteralPath $RepositoryRoot).Path
+          $expected = (Resolve-Path -LiteralPath $ExpectedRoot).Path
+          if (-not $actual.Equals($expected, [StringComparison]::OrdinalIgnoreCase)) {
+              throw "RepositoryRoot mismatch: actual=<$actual> expected=<$expected>"
+          }
+          Write-Host "PASS: native RepositoryRoot resolved without a stray quote: $actual"
+          '@ | Set-Content -LiteralPath $fixture -Encoding ASCII
+
+          $cmdFixture = Join-Path $env:RUNNER_TEMP 'Invoke-RepositoryRootFixture.cmd'
+          $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          @"
+          @echo off
+          "$windowsPowerShell" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$fixture" -RepositoryRoot "%CD%\." -ExpectedRoot "%CD%"
+          exit /b %ERRORLEVEL%
+          "@ | Set-Content -LiteralPath $cmdFixture -Encoding ASCII
+
+          & $env:ComSpec /d /c $cmdFixture
+          if ($LASTEXITCODE -ne 0) { throw "RepositoryRoot native-argument fixture failed with exit code $LASTEXITCODE" }

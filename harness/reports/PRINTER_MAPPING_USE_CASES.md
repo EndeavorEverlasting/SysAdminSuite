@@ -18,7 +18,7 @@ On **August 20, 2026**, SysAdminSuite commit `4c5f1252aae24269ac1e0ab28ef9366ea0
 
 This is live mapping/materialization evidence for the underlying Northwell use case on that observed protected path. It is intentionally narrower than physical print acceptance: a real requested document must still be separately observed printing before claiming document-output runtime acceptance.
 
-Subsequent mainline printer work added a bounded per-user local admin-box trail and explicit outcomes (`MAPPED_NOW`, `ALREADY_MAPPED`, `NOT_FOUND`, `FAILED`, `READY`, `READY_NEXT_LOGON`) while preserving the same resilient mapper/finalizer authority. Repository validation proves that composition. The new one-click technician CMD still needs post-refresh field acceptance before claiming that exact wrapper was observed live.
+Subsequent mainline printer work added a bounded per-user local admin-box trail and explicit outcomes (`MAPPED_NOW`, `ALREADY_MAPPED`, `NOT_FOUND`, `FAILED`, `READY`, `READY_NEXT_LOGON`) while preserving the same resilient mapper/finalizer authority. Repository validation proves that composition. The one-click wrapper now stamps its process-local launch identity into the local operator trail as `EntryPoint=TECHNICIAN_CMD`, so the next field run can prove that exact front door was used without changing printer transport. It still needs post-refresh field acceptance before claiming that exact wrapper was observed live.
 
 Technician path:
 
@@ -65,6 +65,7 @@ No site silently inherits a different organization's rules, and no acquired hosp
 - `Map-NorthwellPrinter.cmd` gives non-technical technicians a one-click route into the same canonical workflow.
 - The technician CMD accepts only installer-owned sibling `sas.cmd` or sibling trusted bootstrap authority; an unqualified PATH shim is forbidden.
 - The universal installer distributes that CMD beside `sas.cmd` instead of requiring a technician checkout.
+- Wrapper-originated runs can be attributed from the local `latest.v1.json` record through `EntryPoint=TECHNICIAN_CMD`; direct or otherwise unmarked `sas printer` runs remain `SAS_PRINTER`.
 - Recent proven PCs/printers reduce repeated typing without becoming authoritative cache state.
 - Organization/site context is required before a printer implementation is selected.
 - Cross-organization inheritance is forbidden.
@@ -74,7 +75,7 @@ No site silently inherits a different organization's rules, and no acquired hosp
 
 ## What is missing
 
-- The new one-click `Map-NorthwellPrinter.cmd` wrapper has not yet been separately field-accepted after installation/refresh.
+- The new one-click `Map-NorthwellPrinter.cmd` wrapper has not yet been separately field-accepted after installation/refresh; close this gate only with a protected field run whose local latest record reports `EntryPoint=TECHNICIAN_CMD` and whose normal authoritative workflow reaches `READY` or `READY_NEXT_LOGON`.
 - Physical document output is not claimed by the August 20 mapping/materialization evidence alone.
 - Health & Hospitals mapping standards have not yet been discovered.
 - No hospital-specific site override is registered yet.
@@ -99,4 +100,4 @@ The focused harness authority remains `harness/validators/validate-printer-mappi
 
 ## Proof ceiling
 
-Repository/harness validation proves organization isolation, routing, operator-layer composition, thin-launcher delegation, trusted-launcher authority, installer distribution, and tutorial/governance contracts. The August 20 field evidence additionally proves commit `4c5f1252...` reached SYSTEM-wide HKLM registration and immediate active-user materialization on the observed protected wired path. It does not prove the newly distributed technician CMD has itself been field-run yet, Health & Hospitals behavior, site-specific standards, every network path, or physical document output.
+Repository/harness validation proves organization isolation, routing, operator-layer composition, thin-launcher delegation, trusted-launcher authority, installer distribution, and tutorial/governance contracts. The August 20 field evidence additionally proves commit `4c5f1252...` reached SYSTEM-wide HKLM registration and immediate active-user materialization on the observed protected wired path. It proves the technician CMD can stamp attributable local provenance, but it does not prove that CMD has itself been field-run yet, Health & Hospitals behavior, site-specific standards, every network path, or physical document output.

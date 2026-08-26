@@ -1,0 +1,112 @@
+name: Canonical Path Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'harness/api/canonical-path-registry.json'
+      - 'schemas/harness/canonical-path-registry.schema.json'
+      - 'harness/workflows/canonical-path-resolution.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/workflows/repository-freshness-before-launch.yaml'
+      - 'harness/workflows/operator-execution-route.yaml'
+      - 'harness/validators/validate-canonical-path-contracts.py'
+      - 'harness/skills/canonical-path-resolution/**'
+      - 'harness/maps/CANONICAL_PATH_MAP.md'
+      - 'harness/reports/CANONICAL_PATH_STATUS.md'
+      - 'Tests/survey/test_canonical_path_harness_completeness.py'
+      - 'CODEBASE_MAP.md'
+      - 'docs/HARNESS_STATUS.md'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - '.github/workflows/canonical-path-contracts.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'harness/api/canonical-path-registry.json'
+      - 'schemas/harness/canonical-path-registry.schema.json'
+      - 'harness/workflows/canonical-path-resolution.yaml'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/workflows/repository-freshness-before-launch.yaml'
+      - 'harness/workflows/operator-execution-route.yaml'
+      - 'harness/validators/validate-canonical-path-contracts.py'
+      - 'harness/skills/canonical-path-resolution/**'
+      - 'harness/maps/CANONICAL_PATH_MAP.md'
+      - 'harness/reports/CANONICAL_PATH_STATUS.md'
+      - 'Tests/survey/test_canonical_path_harness_completeness.py'
+      - 'CODEBASE_MAP.md'
+      - 'docs/HARNESS_STATUS.md'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - '.github/workflows/canonical-path-contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install schema validator
+        run: python -m pip install jsonschema
+
+      - name: Parse canonical path JSON
+        run: |
+          python -m json.tool harness/api/canonical-path-registry.json >/dev/null
+          python -m json.tool schemas/harness/canonical-path-registry.schema.json >/dev/null
+
+      - name: Validate canonical path published schema
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+          registry = json.loads(Path('harness/api/canonical-path-registry.json').read_text(encoding='utf-8'))
+          schema = json.loads(Path('schemas/harness/canonical-path-registry.schema.json').read_text(encoding='utf-8'))
+          Draft202012Validator.check_schema(schema)
+          Draft202012Validator(schema).validate(registry)
+          print('PASS: canonical path registry satisfies published Draft 2020-12 schema')
+          PY
+
+      - name: Run canonical path validator
+        run: python harness/validators/validate-canonical-path-contracts.py
+
+      - name: Run canonical path completeness
+        run: python Tests/survey/test_canonical_path_harness_completeness.py
+
+      - name: Run operational harness completeness
+        run: python Tests/survey/test_operational_harness_completeness_contracts.py
+
+      - name: Run central harness registry validation
+        run: python harness/validators/validate-harness-registries.py
+
+      - name: Parse repository hooks
+        run: bash -n .githooks/pre-commit .githooks/pre-push
+
+      - name: Check repository text policy
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            python scripts/check-repo-text-policy.py --range "origin/${{ github.base_ref }}" HEAD
+          else
+            python scripts/check-repo-text-policy.py --commit HEAD
+          fi
+
+      - name: Check patch whitespace
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git diff --check "origin/${{ github.base_ref }}"...HEAD
+          else
+            git diff --check HEAD^
+          fi

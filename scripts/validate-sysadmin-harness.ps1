@@ -2,29 +2,61 @@
 [CmdletBinding()]
 param(
     [string]$OutputRoot,
-    [string[]]$AdditionalRequiredPath = @()
+    [string[]]$AdditionalRequiredPath = @(),
+    [string]$MachineProfile,
+    [ValidateSet('auto','windows','linux','macos')][string]$ProfileOs = 'auto',
+    [string]$ProfileUser,
+    [ValidateSet('auto','true','false')][string]$OneDriveEnabled = 'auto',
+    [string]$DesktopDevRoot
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$callerLocation = (Get-Location).Path
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$desktopDevRootOverride = $DesktopDevRoot
+if (-not [string]::IsNullOrWhiteSpace($desktopDevRootOverride)) {
+    if ([IO.Path]::IsPathRooted($desktopDevRootOverride)) {
+        $desktopDevRootOverride = [IO.Path]::GetFullPath($desktopDevRootOverride)
+    }
+    else {
+        $desktopDevRootOverride = [IO.Path]::GetFullPath((Join-Path $callerLocation $desktopDevRootOverride))
+    }
+}
 if (-not $OutputRoot) { $OutputRoot = Join-Path $repoRoot 'survey/output/harness-validator' }
 elseif (-not [IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot = Join-Path $repoRoot $OutputRoot }
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 $checks = [Collections.Generic.List[object]]::new()
 $dependencies = [ordered]@{}
+$validatorSet = [Collections.Generic.List[string]]::new()
 $context = $null
+$resolvedProfile = $null
+$promptOwner = $null
 $runId = 'harness-proof-{0}-{1}' -f (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8))
 
 function Add-Check {
-    param([ValidateSet('PASS','SKIP','FAIL')][string]$Status, [string]$Name, [string]$Detail = '', [bool]$Required = $true)
-    $script:checks.Add([pscustomobject]@{ status=$Status; name=$Name; detail=$Detail; required=$Required })
+    param(
+        [ValidateSet('PASS','SKIP','FAIL')][string]$Status,
+        [string]$Name,
+        [string]$Detail = '',
+        [bool]$Required = $true,
+        [ValidateSet('required','optional','environment_blocked','inapplicable')][string]$Disposition = ''
+    )
+    if ([string]::IsNullOrWhiteSpace($Disposition)) {
+        $Disposition = if ($Required) { 'required' } else { 'optional' }
+    }
+    if ($Required -and $Disposition -ne 'required') {
+        throw "Required check '$Name' must use disposition=required."
+    }
+    $script:checks.Add([pscustomobject]@{
+        status=$Status; name=$Name; detail=$Detail; required=$Required; disposition=$Disposition
+    })
 }
 
 function Find-Command {
     param([string[]]$Names)
     foreach ($name in $Names) {
-        $command = Get-Command $name -ErrorAction SilentlyContinue
+        $command = Get-Command $name -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($command) { return $command.Source }
     }
     return $null
@@ -57,6 +89,100 @@ function Find-Bash {
     return $null
 }
 
+function Get-ObservedOs {
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { return 'windows' }
+    try {
+        $runtime = [Type]::GetType('System.Runtime.InteropServices.RuntimeInformation, System.Runtime.InteropServices.RuntimeInformation')
+        if (-not $runtime) { $runtime = [System.Runtime.InteropServices.RuntimeInformation] }
+        if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)) { return 'macos' }
+        if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)) { return 'linux' }
+    } catch { }
+    if ($env:HOME -and $env:HOME -match '^/Users/') { return 'macos' }
+    return 'linux'
+}
+
+function Resolve-CanonicalPathProfile {
+    $registryPath = Join-Path $repoRoot 'harness/api/canonical-path-registry.json'
+    $registry = Get-Content -LiteralPath $registryPath -Raw | ConvertFrom-Json
+
+    $observedOs = Get-ObservedOs
+    if ($ProfileOs -ne 'auto' -and $ProfileOs -ne $observedOs) {
+        throw "profile_os_override_must_match_host:$ProfileOs/$observedOs"
+    }
+    $os = $observedOs
+    $user = if (-not [string]::IsNullOrWhiteSpace($ProfileUser)) { $ProfileUser } elseif ($env:USERNAME) { $env:USERNAME } elseif ($env:USER) { $env:USER } else { [Environment]::UserName }
+    if ([string]::IsNullOrWhiteSpace($user)) { throw 'profile_user_unresolved' }
+
+    $oneDrive = if ($OneDriveEnabled -eq 'true') {
+        $true
+    } elseif ($OneDriveEnabled -eq 'false') {
+        $false
+    } else {
+        -not [string]::IsNullOrWhiteSpace(($env:OneDrive, $env:OneDriveCommercial, $env:OneDriveConsumer | Where-Object { $_ } | Select-Object -First 1))
+    }
+
+    $desktopDev = $desktopDevRootOverride
+    if ([string]::IsNullOrWhiteSpace($desktopDev)) {
+        $desktop = [Environment]::GetFolderPath('Desktop')
+        if ([string]::IsNullOrWhiteSpace($desktop)) {
+            if (-not [string]::IsNullOrWhiteSpace($env:HOME)) { $desktop = Join-Path $env:HOME 'Desktop' }
+            elseif (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) { $desktop = Join-Path $env:USERPROFILE 'Desktop' }
+        }
+        if ([string]::IsNullOrWhiteSpace($desktop)) { throw 'desktop_known_folder_unresolved' }
+        $desktopDev = [IO.Path]::GetFullPath((Join-Path $desktop 'Dev'))
+    }
+
+    $profileId = $MachineProfile
+    if ([string]::IsNullOrWhiteSpace($profileId)) {
+        $developmentId = "$os-development"
+        if (@($registry.profiles | Where-Object id -eq $developmentId).Count -eq 1) { $profileId = $developmentId }
+        else { $profileId = [string]$registry.default_profile }
+    }
+    $matches = @($registry.profiles | Where-Object id -eq $profileId)
+    if ($matches.Count -ne 1) { throw "machine_profile_resolution_failed:$profileId" }
+    $profile = $matches[0]
+    if ($profile.platform -ne 'cross-platform' -and $profile.platform -ne $os) {
+        throw "machine_profile_os_mismatch:$profileId/$os"
+    }
+
+    $expectedParameters = @('os','user','onedrive_enabled','desktop_dev_root')
+    if ((@($profile.required_profile_parameters) -join '|') -ne ($expectedParameters -join '|')) {
+        throw "machine_profile_parameter_contract_mismatch:$profileId"
+    }
+
+    $template = [string]$profile.canonical_development_checkout.template
+    $canonical = $template.Replace('{desktop_dev_root}', $desktopDev)
+    if ($os -eq 'windows') { $canonical = $canonical.Replace('/', '\') }
+    else { $canonical = $canonical.Replace('\', '/') }
+    $canonical = [IO.Path]::GetFullPath($canonical)
+
+    return [pscustomobject]@{
+        machine_profile = $profileId
+        os = $os
+        user = $user
+        onedrive_enabled = [bool]$oneDrive
+        desktop_dev_root = $desktopDev
+        canonical_development_checkout = $canonical
+    }
+}
+
+function Resolve-PromptOwner {
+    $registryPath = Join-Path $repoRoot 'docs/prompts.json'
+    $registry = @(Get-Content -LiteralPath $registryPath -Raw | ConvertFrom-Json)
+    $matches = @($registry | Where-Object id -eq 'P11')
+    if ($matches.Count -ne 1) { throw "prompt_owner_resolution_failed:P11:$($matches.Count)" }
+    $prompt = $matches[0]
+    foreach ($field in @('id','name','sprintRole')) {
+        if ([string]::IsNullOrWhiteSpace([string]$prompt.$field)) { throw "prompt_owner_missing_field:P11:$field" }
+    }
+    return [pscustomobject]@{
+        id = [string]$prompt.id
+        name = [string]$prompt.name
+        purpose = [string]$prompt.sprintRole
+        registry_path = 'docs/prompts.json'
+    }
+}
+
 function Test-Hooks {
     $failures = @()
     $preCommitPath = Join-Path $repoRoot '.githooks/pre-commit'
@@ -80,13 +206,15 @@ try {
     $branchValue = if ($git) { & $git -C $repoRoot branch --show-current | Select-Object -First 1 } else { $null }
     $commitValue = if ($git) { & $git -C $repoRoot rev-parse HEAD | Select-Object -First 1 } else { $null }
     $branch = if ([string]::IsNullOrWhiteSpace([string]$branchValue)) { 'detached' } else { ([string]$branchValue).Trim() }
-    $commit = if ([string]::IsNullOrWhiteSpace([string]$commitValue)) { 'unknown' } else { ([string]$commitValue).Trim() }
+    $commit = if ([string]::IsNullOrWhiteSpace([string]$commitValue)) { 'unknown' } else { ([string]$commitValue).Trim().ToLowerInvariant() }
     $dependencies.git = $git
 
     $required = @(
         'AGENTS.md','CLAUDE.md','CODEBASE_MAP.md','scripts/validate-sysadmin-harness.ps1',
         'scripts/Invoke-SasHarnessContracts.ps1','scripts/SasRunContext.psm1','scripts/Render-SasEnglishReport.ps1',
-        'schemas/harness/artifact-registry.schema.json','survey/fixtures/english-log/serial_preflight_summary.sample.json',
+        'schemas/harness/artifact-registry.schema.json','schemas/harness/canonical-path-registry.schema.json',
+        'harness/api/canonical-path-registry.json','harness/validators/validate-canonical-path-contracts.py','docs/prompts.json',
+        'survey/fixtures/english-log/serial_preflight_summary.sample.json',
         'survey/fixtures/english-log/serial_preflight_artifact_registry.sample.json','survey/workflows/serial-to-preflight.yaml',
         'survey/workflows/network-preflight.yaml','survey/workflows/serial-iteration.yaml','harness/api/sas-harness-api.json',
         'mcp/local/servers.json','.githooks/pre-commit','.githooks/pre-push'
@@ -94,6 +222,20 @@ try {
     $missing = @($required | Where-Object { -not (Test-Path (Join-Path $repoRoot $_)) })
     if ($missing.Count) { Add-Check FAIL 'required files' ('missing_required_path: ' + ($missing -join ', ')) }
     else { Add-Check PASS 'required files' "$($required.Count) required paths present" }
+
+    try {
+        $resolvedProfile = Resolve-CanonicalPathProfile
+        Add-Check PASS 'canonical path profile' ("$($resolvedProfile.machine_profile); os=$($resolvedProfile.os); onedrive_enabled=$($resolvedProfile.onedrive_enabled); desktop_dev_root=$($resolvedProfile.desktop_dev_root); canonical=$($resolvedProfile.canonical_development_checkout)")
+    } catch {
+        Add-Check FAIL 'canonical path profile' $_.Exception.Message
+    }
+
+    try {
+        $promptOwner = Resolve-PromptOwner
+        Add-Check PASS 'Prompt Kit owner' ("$($promptOwner.id) | $($promptOwner.name) | $($promptOwner.purpose)")
+    } catch {
+        Add-Check FAIL 'Prompt Kit owner' $_.Exception.Message
+    }
 
     try {
         Import-Module (Join-Path $repoRoot 'scripts/SasRunContext.psm1') -Force
@@ -126,8 +268,7 @@ try {
             if ($context) {
                 [void](Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role operator_report -Path $reportPath -Tracked $false -LiveData $false -Generated $true -Description 'Synthetic English report renderer proof.' -CreatedBy 'validate-sysadmin-harness')
             }
-        }
-        else { Add-Check FAIL 'report renderer' 'required synthetic sections missing' }
+        } else { Add-Check FAIL 'report renderer' 'required synthetic sections missing' }
     } catch { Add-Check FAIL 'report renderer' $_.Exception.Message }
 
     try {
@@ -151,60 +292,78 @@ try {
     $powershell = Find-Command @('pwsh','powershell.exe','powershell')
     $dependencies.powershell = $powershell
     if ($powershell) {
+        $validatorSet.Add('tools/validate-ai-layer.ps1')
         $ai = Invoke-Offline $powershell @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $repoRoot 'tools/validate-ai-layer.ps1'))
         if ($ai.exit_code -eq 0) { Add-Check PASS 'AI layer validator' $ai.detail }
         else { Add-Check FAIL 'AI layer validator' "exit_$($ai.exit_code): $($ai.detail)" }
     } else { Add-Check FAIL 'AI layer validator' 'powershell_runtime_not_available' }
 
-    $python = Find-Command @('python','python3')
+    $python = Find-Command @('python3','python')
     $dependencies.python = $python
     if ($python) {
         $version = Invoke-Offline $python @('--version')
         $dependencies.python_version = $version.detail
+
+        $canonicalValidator = 'harness/validators/validate-canonical-path-contracts.py'
+        $validatorSet.Add($canonicalValidator)
+        $canonical = Invoke-Offline $python @((Join-Path $repoRoot $canonicalValidator))
+        if ($canonical.exit_code -eq 0) { Add-Check PASS 'canonical path contracts' $canonical.detail }
+        else { Add-Check FAIL 'canonical path contracts' "exit_$($canonical.exit_code): $($canonical.detail)" }
+
         $pythonFailures = @()
         foreach ($test in @('Tests/survey/test_local_harness_contracts.py','Tests/survey/test_run_context_contracts.py')) {
+            $validatorSet.Add($test)
             $testResult = Invoke-Offline $python @((Join-Path $repoRoot $test))
             if ($testResult.exit_code -ne 0) { $pythonFailures += "$test exit_$($testResult.exit_code): $($testResult.detail)" }
         }
         if ($pythonFailures.Count) { Add-Check FAIL 'Python harness contracts' ($pythonFailures -join '; ') }
         else { Add-Check PASS 'Python harness contracts' $version.detail }
-    } else { Add-Check FAIL 'Python harness contracts' 'python_runtime_not_available' }
+    } else {
+        Add-Check FAIL 'canonical path contracts' 'python_runtime_not_available'
+        Add-Check FAIL 'Python harness contracts' 'python_runtime_not_available'
+    }
 
     $compatTest = Join-Path $repoRoot 'Tests/survey/test_windows_log_classifier_code.py'
     if (Test-Path $compatTest) {
         if ($python) {
             $compat = Invoke-Offline $python @($compatTest)
-            if ($compat.exit_code -eq 0) { Add-Check PASS 'optional Python module compatibility' $dependencies.python_version $false }
-            else { Add-Check FAIL 'optional Python module compatibility' "exit_$($compat.exit_code): $($compat.detail)" $false }
-        } else { Add-Check SKIP 'optional Python module compatibility' 'python_runtime_not_available' $false }
-    } else { Add-Check SKIP 'optional Python module compatibility' 'windows_log_lane_not_present' $false }
+            if ($compat.exit_code -eq 0) { Add-Check PASS 'optional Python module compatibility' $dependencies.python_version $false 'optional' }
+            else { Add-Check FAIL 'optional Python module compatibility' "exit_$($compat.exit_code): $($compat.detail)" $false 'optional' }
+        } else { Add-Check SKIP 'optional Python module compatibility' 'python_runtime_not_available' $false 'environment_blocked' }
+    } else { Add-Check SKIP 'optional Python module compatibility' 'windows_log_lane_not_present' $false 'inapplicable' }
 
     $bash = Find-Bash
     $dependencies.bash = $bash
     if ($bash) {
         $smoke = Invoke-Offline $bash @('-n',(Join-Path $repoRoot 'scripts/run-harness-validation.sh'),(Join-Path $repoRoot 'Tests/bash/test_sysadmin_harness_validator_contracts.sh'))
-        if ($smoke.exit_code -eq 0) { Add-Check PASS 'optional Bash syntax smoke' $bash $false }
-        else { Add-Check FAIL 'optional Bash syntax smoke' "exit_$($smoke.exit_code): $($smoke.detail)" $false }
-    } else { Add-Check SKIP 'optional Bash syntax smoke' 'git_bash_not_available' $false }
+        if ($smoke.exit_code -eq 0) { Add-Check PASS 'optional Bash syntax smoke' $bash $false 'optional' }
+        else { Add-Check FAIL 'optional Bash syntax smoke' "exit_$($smoke.exit_code): $($smoke.detail)" $false 'optional' }
+    } else { Add-Check SKIP 'optional Bash syntax smoke' 'git_bash_not_available' $false 'environment_blocked' }
 
     try {
         $catalog = Get-Content (Join-Path $repoRoot 'mcp/local/servers.json') -Raw | ConvertFrom-Json
         $safe = $catalog.posture.network_probe_execution_default -eq $false -and $catalog.posture.target_mutation_default -eq $false -and $catalog.posture.credential_collection_allowed -eq $false
         if ($safe) { Add-Check PASS 'MCP catalog posture' "$(@($catalog.servers).Count) local-only server definitions" }
         else { Add-Check FAIL 'MCP catalog posture' 'catalog safety posture incomplete' }
-        Add-Check SKIP 'optional MCP symbol smoke' 'lsp_project_not_loaded' $false
+        Add-Check SKIP 'optional MCP symbol smoke' 'lsp_project_not_loaded' $false 'environment_blocked'
     } catch {
         Add-Check FAIL 'MCP catalog posture' $_.Exception.Message
-        Add-Check SKIP 'optional MCP symbol smoke' 'mcp_catalog_unavailable' $false
+        Add-Check SKIP 'optional MCP symbol smoke' 'mcp_catalog_unavailable' $false 'environment_blocked'
     }
 
     $hookProblems = @(Test-Hooks)
     if ($hookProblems.Count) { Add-Check FAIL 'hook hygiene' ($hookProblems -join '; ') }
     else { Add-Check PASS 'hook hygiene' 'artifact blocklist and offline pre-push checks present' }
 
+    $requiredSkips = @($checks | Where-Object { $_.required -and $_.status -eq 'SKIP' })
+    if ($requiredSkips.Count -gt 0) {
+        Add-Check FAIL 'required proof unavailable' (($requiredSkips | ForEach-Object name) -join ', ')
+    }
+
     $passed = @($checks | Where-Object status -eq PASS).Count
     $skipped = @($checks | Where-Object status -eq SKIP).Count
     $failed = @($checks | Where-Object status -eq FAIL).Count
+    $finalStatus = if ($failed -eq 0) { 'PASS' } else { 'FAIL' }
     $artifactRoot = if ($context) { $context.directories.reports } else { $OutputRoot }
     $matrixPath = Join-Path $artifactRoot 'harness_validation_matrix.txt'
     $jsonPath = Join-Path $artifactRoot 'harness_validation_result.json'
@@ -213,6 +372,10 @@ try {
     $matrix.Add("Repo: $repoRoot")
     $matrix.Add("Branch: $branch")
     $matrix.Add("Commit: $commit")
+    if ($promptOwner) { $matrix.Add("Prompt: $($promptOwner.id) | $($promptOwner.name) | $($promptOwner.purpose)") }
+    else { $matrix.Add('Prompt: unresolved') }
+    if ($resolvedProfile) { $matrix.Add("Profile: $($resolvedProfile.machine_profile) | os=$($resolvedProfile.os) | user=$($resolvedProfile.user) | onedrive_enabled=$($resolvedProfile.onedrive_enabled) | desktop_dev_root=$($resolvedProfile.desktop_dev_root)") }
+    else { $matrix.Add('Profile: unresolved') }
     $matrix.Add('Proof: synthetic_offline (no runtime proof, network activity, launcher execution, or target mutation)')
     $matrix.Add('')
     foreach ($check in $checks) {
@@ -221,14 +384,16 @@ try {
     }
     $matrix.Add('')
     $matrix.Add("Result: $passed passed / $skipped skipped / $failed failed")
+    $matrix.Add("Final status: $finalStatus")
     $matrix.Add("JSON: $jsonPath")
+
     $result = [ordered]@{
         schema_version='sas-harness-proof/v1'; generated_at=(Get-Date).ToUniversalTime().ToString('o')
-        repo_root=$repoRoot; branch=$branch; commit=$commit; proof_level='synthetic_offline'
+        repo_root=$repoRoot; branch=$branch; commit=$commit; proof_level='synthetic_offline'; final_status=$finalStatus
         runtime_proof=$false; network_activity_performed=$false; launcher_execution_performed=$false
         target_mutation_performed=$false; data_mutation_performed=$false
         counts=[ordered]@{passed=$passed; skipped=$skipped; failed=$failed}
-        dependencies=$dependencies; checks=@($checks)
+        dependencies=$dependencies; validator_set=@($validatorSet); profile=$resolvedProfile; prompt_owner=$promptOwner; checks=@($checks)
         artifacts=[ordered]@{
             matrix=$matrixPath; json=$jsonPath
             run_root=$(if ($context) {$context.run_root} else {$null})
@@ -236,7 +401,7 @@ try {
         }
     }
     Set-Content $matrixPath -Value $matrix -Encoding UTF8
-    $result | ConvertTo-Json -Depth 10 | Set-Content $jsonPath -Encoding UTF8
+    $result | ConvertTo-Json -Depth 12 | Set-Content $jsonPath -Encoding UTF8
     if ($context) {
         [void](Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role validation_matrix -Path $matrixPath -Tracked $false -LiveData $false -Generated $true -Description 'English PASS/SKIP/FAIL matrix.' -CreatedBy 'validate-sysadmin-harness')
         [void](Register-SasArtifact -RegistryPath $context.artifact_registry_path -Role validation_result -Path $jsonPath -Tracked $false -LiveData $false -Generated $true -Description 'Machine-readable synthetic harness proof.' -CreatedBy 'validate-sysadmin-harness')

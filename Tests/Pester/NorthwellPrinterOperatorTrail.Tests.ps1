@@ -36,7 +36,7 @@ Describe 'Northwell printer local operator trail and outcome UX' {
                 ChangedPrinters=@();AlreadyDesiredPrinters=@('\\PRINT01\QUEUE01');StagingShare='NONE';Transport='REMOTE_TASK_SCHEDULER+REMOTE_REGISTRY_NO_ADMIN_SHARE'
             })
         }
-        $result = Write-SasPrinterRunJournalEvent -SessionId 'fixture-run' -Event 'RUN_COMPLETED' -Outcome 'READY' -Message 'fixture' -Summary $summary -CacheRoot $cacheRoot
+        $result = Write-SasPrinterRunJournalEvent -SessionId 'fixture-run' -Event 'RUN_COMPLETED' -Outcome 'READY' -EntryPoint 'TECHNICIAN_CMD' -Message 'fixture' -Summary $summary -CacheRoot $cacheRoot
         $result | Should -Not -BeNullOrEmpty
         $result.JournalPath.StartsWith([IO.Path]::GetFullPath($cacheRoot),[System.StringComparison]::OrdinalIgnoreCase) | Should -BeTrue
         Test-Path -LiteralPath $result.JournalPath -PathType Leaf | Should -BeTrue
@@ -44,6 +44,7 @@ Describe 'Northwell printer local operator trail and outcome UX' {
         $latest = Get-Content -LiteralPath $result.LatestPath -Raw | ConvertFrom-Json
         $latest.StorageScope | Should -Be 'LOCAL_USER_CACHE_ONLY'
         $latest.Sharing | Should -Be 'OPERATOR_DECIDES'
+        $latest.EntryPoint | Should -Be 'TECHNICIAN_CMD'
         $latest.Operation | Should -Be 'Map'
         $latest.DesiredState | Should -Be 'Present'
         @($latest.Targets) | Should -Contain 'PC001'
@@ -99,6 +100,9 @@ Describe 'Northwell printer local operator trail and outcome UX' {
         $text | Should -Match 'MAPPED NOW:'
         $text | Should -Match 'NOT FOUND:'
         $text | Should -Match 'RESULT: READY'
+        $text | Should -Match 'SAS_PRINTER_ENTRYPOINT'
+        $text | Should -Match "'TECHNICIAN_CMD'"
+        ([regex]::Matches($text,'-EntryPoint \$entryPoint')).Count | Should -Be 7
     }
 
     It 'runs the process-exiting resilient finalizer as a child and binds it to this exact evidence root' {

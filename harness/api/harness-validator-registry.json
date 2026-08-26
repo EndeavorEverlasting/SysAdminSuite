@@ -20,7 +20,7 @@
         "CODEBASE_MAP.md",
         "docs/HARNESS_STATUS.md"
       ],
-      "proof": "Registry shape, path existence, fresh-agent wiring, command authority, deployment-state authority, execution-route authority, and report renderer contract."
+      "proof": "Registry shape, path existence, fresh-agent wiring, command authority, deployment-state authority, execution-route authority, canonical-path authority, and report renderer contract."
     },
     {
       "id": "repository-freshness-contracts",
@@ -39,6 +39,28 @@
         ".github/workflows/harness-registry-integrity.yml"
       ],
       "proof": "Fetching a remote ref cannot be mistaken for updating the executing worktree; missing tracked paths are checked against refreshed repository truth and stale branches converge only by fast-forward-only update or preserved isolated worktree."
+    },
+    {
+      "id": "canonical-path-contracts",
+      "category": "harness",
+      "platform": "python3+git",
+      "command": "python harness/validators/validate-canonical-path-contracts.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/canonical-path-registry.json",
+        "schemas/harness/canonical-path-registry.schema.json",
+        "harness/workflows/canonical-path-resolution.yaml",
+        "harness/workflows/fresh-agent-intake.yaml",
+        "harness/workflows/repository-freshness-before-launch.yaml",
+        "harness/workflows/operator-execution-route.yaml",
+        "harness/skills/canonical-path-resolution/**",
+        "harness/maps/CANONICAL_PATH_MAP.md",
+        "harness/reports/CANONICAL_PATH_STATUS.md",
+        "Tests/survey/test_canonical_path_harness_completeness.py",
+        ".githooks/**",
+        ".github/workflows/canonical-path-contracts.yml"
+      ],
+      "proof": "Canonical development, production/use, temporary worktree, ephemeral acquisition, and real operator-entrypoint roles are machine/profile-owned; remote, development, production, and entrypoint currentness remain separate proof states, and PowerShell control-flow handoffs remain one parsed paste block."
     },
     {
       "id": "harness-outcome-contracts",
@@ -82,6 +104,7 @@
       "blocking": true,
       "scope": [
         "harness/api/operator-execution-route-registry.json",
+        "harness/api/canonical-path-registry.json",
         "schemas/harness/operator-execution-route-registry.schema.json",
         "harness/api/operational-harness-manifest.json",
         "harness/api/harness-command-registry.json",
@@ -95,7 +118,7 @@
         ".githooks/**",
         ".github/workflows/operator-execution-route-harness.yml"
       ],
-      "proof": "Repository-relative operator commands resolve an execution location, select the registered front door, avoid inner-command handoff, propagate the child exit code, and retain durable proof pointers."
+      "proof": "Repository-relative operator commands resolve an approved canonical/runtime location, select the registered front door, avoid inner-command handoff, omit ephemeral-clone promotion, propagate the child exit code, and retain durable proof pointers."
     },
     {
       "id": "terminal-evidence-survival",
@@ -174,7 +197,7 @@
         "CODEBASE_MAP.md",
         "docs/HARNESS_STATUS.md"
       ],
-      "proof": "Required operational harness components exist, are tracked, and are wired into hooks, CI, maps, and reports."
+      "proof": "Required operational harness components exist, are tracked, and are wired into hooks, CI, maps, reports, and canonical machine/profile path authority."
     },
     {
       "id": "local-harness-contracts",

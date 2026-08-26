@@ -46,6 +46,7 @@
               "deployment_state_registry",
               "execution_route_registry",
               "use_case_registry",
+              "path_registry",
               "validator",
               "hook",
               "hook_installer",

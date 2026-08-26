@@ -86,6 +86,8 @@ Keep the error text and the evidence locations shown in the window. The operator
 
 The local trail is per-user, local to the admin box, and optional to share. It does not get copied to target PCs and it does not replace authoritative mapping proof.
 
+When the one-click `Map-NorthwellPrinter.cmd` is the actual front door, `latest.v1.json` records `EntryPoint=TECHNICIAN_CMD`. A direct or otherwise unmarked `sas printer` run records `EntryPoint=SAS_PRINTER`. This field is local entrypoint provenance only; it does not replace the authoritative HKLM/HKCU/HKU printer proof.
+
 Useful failure behavior is intentional: the mapper fails closed instead of guessing a printer IP, silently changing to per-user mapping, or claiming success without authoritative proof.
 
 ## Many PCs or many printers
@@ -111,7 +113,7 @@ On **August 20, 2026**, SysAdminSuite commit `4c5f1252aae24269ac1e0ab28ef9366ea0
 - SYSTEM-wide requested queue proof in HKLM; and
 - immediate active-user printer materialization.
 
-That field observation validates the underlying Northwell mapping/materialization use case on that protected path. Later mainline work added the explicit operator outcomes and bounded local trail while preserving the same resilient mapper/finalizer chain; repository validation proves that composition, but the newer one-click technician wrapper still needs its own post-refresh field acceptance before claiming that exact wrapper was live-tested.
+That field observation validates the underlying Northwell mapping/materialization use case on that protected path. Later mainline work added the explicit operator outcomes and bounded local trail while preserving the same resilient mapper/finalizer chain. The one-click wrapper now stamps `EntryPoint=TECHNICIAN_CMD` into that local trail, making the next protected field run attributable to the exact wrapper; repository validation proves the composition, but the newer one-click technician wrapper still needs its own post-refresh field acceptance before claiming that exact wrapper was live-tested.
 
 The August 20 observation does not by itself claim that a physical document was printed.
 

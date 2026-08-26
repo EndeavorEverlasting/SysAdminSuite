@@ -25,12 +25,16 @@ Describe 'Northwell non-technical technician printer launcher' {
         $cmd | Should -Match 'hardwire, WAB, or an'
         $cmd | Should -Match 'authenticated Northwell VPN'
         $cmd | Should -Match 'Recent proven PCs and printers'
+        $cmd | Should -Match 'SAS_PRINTER_ENTRYPOINT=TECHNICIAN_CMD'
     }
 
     It 'uses only installer-owned sibling sas or sibling trusted bootstrap authority' {
         $cmd = Get-Content -LiteralPath $script:launcherPath -Raw
+        $markerIndex = $cmd.IndexOf('set "SAS_PRINTER_ENTRYPOINT=TECHNICIAN_CMD"',[System.StringComparison]::Ordinal)
         $siblingIndex = $cmd.IndexOf('call "%~dp0sas.cmd" printer',[System.StringComparison]::Ordinal)
         $bootstrapIndex = $cmd.IndexOf('Bootstrap-SysAdminSuitePrinter.cmd',[System.StringComparison]::Ordinal)
+        $markerIndex | Should -BeGreaterThan -1
+        $siblingIndex | Should -BeGreaterThan $markerIndex
         $siblingIndex | Should -BeGreaterThan -1
         $bootstrapIndex | Should -BeGreaterThan $siblingIndex
         $cmd | Should -Not -Match '(?im)^\s*where\.exe\s+sas\.cmd'
@@ -83,6 +87,7 @@ Describe 'Northwell non-technical technician printer launcher' {
         $tutorial | Should -Match '%LOCALAPPDATA%\\SysAdminSuite\\Cache\\Printer'
         $tutorial | Should -Match '4c5f1252aae24269ac1e0ab28ef9366ea08fd33f'
         $tutorial | Should -Match 'newer one-click technician wrapper still needs its own post-refresh field acceptance'
+        $tutorial | Should -Match 'EntryPoint=TECHNICIAN_CMD'
     }
 
     It 'keeps technician and advanced tutorials routed to the correct surfaces' {
@@ -126,6 +131,7 @@ Describe 'Northwell non-technical technician printer launcher' {
         $report | Should -Match 'SYSTEM-wide requested printer registration proof in HKLM'
         $report | Should -Match 'MAPPED_NOW'
         $report | Should -Match 'new one-click `Map-NorthwellPrinter\.cmd` wrapper has not yet been separately field-accepted'
+        $report | Should -Match 'EntryPoint=TECHNICIAN_CMD'
         $report | Should -Match 'Physical document output is not claimed'
     }
 }

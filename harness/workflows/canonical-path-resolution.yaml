@@ -1,0 +1,136 @@
+schema_version: sas-operational-harness-workflow/v1
+workflow_id: canonical-path-resolution
+mode: local_profile_then_path_classification_then_proof
+target_network_activity: false
+target_mutation: false
+purpose: >-
+  Resolve one user's profile parameters and one compatible machine-role path authority before
+  repository-relative execution, updater work, isolated worktree creation, installed-runtime use,
+  or operator handoff. Keep profile identity plus remote, canonical development, production/use,
+  and real-entrypoint proof states separate.
+
+inputs:
+  required:
+    - repository
+    - requested_operation
+  optional:
+    - machine_profile
+    - os
+    - user
+    - onedrive_enabled
+    - desktop_dev_root
+    - candidate_repository_root
+    - candidate_runtime_root
+    - current_head
+    - intended_commit
+    - current_status
+    - operator_entrypoint
+
+invariants:
+  - read harness/api/canonical-path-registry.json as the canonical owner
+  - resolve the four independent profile parameters os, user, onedrive_enabled, and desktop_dev_root before path composition
+  - explicit profile parameter values outrank local observation; local observation outranks registered fallback
+  - the OneDrive toggle never chooses, rewrites, or guesses the Desktop path
+  - desktop_dev_root is authoritative for the user's mutable development root whether Desktop is local or OneDrive-backed
+  - do not commit a real user identity merely to teach profile resolution
+  - do not choose a directory from model preference
+  - remote_default_contains_sha does not imply any local or production path is current
+  - canonical_development_checkout_current does not imply production_use_path_current
+  - production_use_path_current does not imply operator_entrypoint_observes_current
+  - an ephemeral acquisition checkout never becomes canonical merely because it exists or is current
+  - a second mutable clone is not a substitute for the canonical development checkout
+  - preserve unique or dirty work; parallel writers use the registered temporary worktree root
+  - product-specific launchers and updaters retain their own mutation authority; path resolution grants none
+
+stages:
+  - id: resolve-profile-parameters
+    order: 1
+    actions:
+      - load harness/api/canonical-path-registry.json
+      - resolve os from explicit input or local operating-system observation
+      - resolve user from explicit input or current local account identity
+      - resolve onedrive_enabled from explicit input or local OneDrive-root environment state
+      - resolve desktop_dev_root from explicit input or the operating system's Desktop known-folder plus Dev
+      - never derive desktop_dev_root from onedrive_enabled
+      - record each resolved value and whether its source was explicit, observed, or fallback
+    stop_conditions:
+      - a required profile parameter cannot be resolved
+
+  - id: select-profile
+    order: 2
+    actions:
+      - resolve the supplied machine_profile or the registry default_profile
+      - require exactly one matching machine-role profile
+      - require the selected profile platform to support the resolved os
+      - require the selected profile's required_profile_parameters to match the canonical profile parameter set
+      - compose canonical_development_checkout from {desktop_dev_root}\SysAdminSuite when that is the registered template
+      - record canonical_development_checkout, production_use_path, temporary_worktree_root, and real_operator_entrypoint
+    stop_conditions:
+      - zero or multiple profiles match
+      - selected profile is incompatible with the resolved os
+
+  - id: classify-candidate
+    order: 3
+    actions:
+      - normalize the candidate path without mutating it
+      - classify it as canonical_development, production_use, isolated_worktree, ephemeral_acquisition, or unknown
+      - reject ephemeral_acquisition or unknown as a replacement canonical development checkout
+      - preserve dirty or separately owned candidate state
+
+  - id: prove-remote
+    order: 4
+    actions:
+      - when current remote truth is required, delegate repository refresh to harness/workflows/repository-freshness-before-launch.yaml
+      - record remote_default_contains_sha independently
+      - do not promote this proof into workstation deployment proof
+
+  - id: prove-development
+    order: 5
+    actions:
+      - use the canonical development checkout composed from the resolved profile parameters
+      - compare its Git identity and preserved state with the intended commit
+      - when collision isolation is required, use a Git worktree beneath the registered temporary_worktree_root instead of creating another mutable clone
+      - record canonical_development_checkout_current only from local checkout evidence
+
+  - id: prove-production-use
+    order: 6
+    actions:
+      - when production_use_path.applicable is false, record not_applicable with the registry reason
+      - otherwise resolve only the registered production/use path
+      - require the owning installer, updater, seal, manifest, or runtime verifier to prove currentness
+      - never infer production currentness from GitHub merge success or canonical development checkout currentness
+
+  - id: prove-entrypoint
+    order: 7
+    actions:
+      - resolve the real operator entrypoint authority declared by the selected profile
+      - require the entrypoint to resolve or observe the registered production/use path when applicable
+      - record operator_entrypoint_observes_current independently
+      - do not convert entrypoint observation into product deployment proof
+
+  - id: handoff
+    order: 8
+    actions:
+      - report the four resolved profile parameters and their source provenance
+      - report all four proof states separately
+      - report the selected machine-role profile and classified candidate path
+      - when an operator command contains PowerShell if/else control flow, emit the complete if/else as one paste block; never submit else as a later standalone command
+      - name the first unproven path state and route the next action to its owning workflow
+
+outputs:
+  - selected_profile
+  - resolved_profile_parameters
+  - profile_parameter_sources
+  - candidate_path_classification
+  - canonical_development_checkout
+  - production_use_path
+  - temporary_worktree_root
+  - real_operator_entrypoint
+  - remote_default_contains_sha
+  - canonical_development_checkout_current
+  - production_use_path_current
+  - operator_entrypoint_observes_current
+
+proof_ceiling: >-
+  Proves user-profile and path authority, classification, and separation of repository/checkout/runtime/
+  entrypoint currentness. It grants no network, product mutation, deployment, restart, or live-runtime authority.

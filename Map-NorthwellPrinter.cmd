@@ -18,6 +18,7 @@ echo ================================================================
 echo.
 
 set "SAS_EXIT=1"
+set "SAS_PRINTER_ENTRYPOINT=TECHNICIAN_CMD"
 
 rem Installed path: trust only the installer-owned sas.cmd beside this launcher.
 if exist "%~dp0sas.cmd" (
