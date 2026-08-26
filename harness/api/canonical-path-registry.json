@@ -1,0 +1,114 @@
+{
+  "schema_version": "sas-canonical-path-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "default_profile": "windows-development",
+  "policy": {
+    "remote_main_contains_sha_is_not_workstation_deployment_proof": true,
+    "canonical_development_checkout_must_be_unique": true,
+    "second_mutable_clone_is_forbidden": true,
+    "preserve_unique_or_dirty_work": true,
+    "parallel_writers_use_isolated_worktrees": true,
+    "ephemeral_acquisition_checkout_never_becomes_canonical_by_existence": true,
+    "production_use_path_requires_independent_currentness_proof": true,
+    "operator_entrypoint_requires_independent_observation_proof": true
+  },
+  "proof_states": [
+    {
+      "id": "remote_default_contains_sha",
+      "proves": "The configured remote default branch contains the intended commit.",
+      "does_not_prove": "Any local checkout, production/use path, or operator entrypoint is current."
+    },
+    {
+      "id": "canonical_development_checkout_current",
+      "proves": "The registered canonical development checkout resolves to the intended commit with preserved local work.",
+      "does_not_prove": "The production/use path has been updated."
+    },
+    {
+      "id": "production_use_path_current",
+      "proves": "The registered installed/served/field runtime was derived or updated from the intended commit and its owning verification passed.",
+      "does_not_prove": "The real operator entrypoint is observing that runtime."
+    },
+    {
+      "id": "operator_entrypoint_observes_current",
+      "proves": "The real registered operator entrypoint resolves the intended production/use path and current identity.",
+      "does_not_prove": "A product deployment or live target outcome succeeded."
+    }
+  ],
+  "profiles": [
+    {
+      "id": "windows-development",
+      "platform": "windows",
+      "purpose": "Normal mutable development and repository maintenance.",
+      "canonical_development_checkout": {
+        "template": "%USERPROFILE%\\Desktop\\Dev\\SysAdminSuite",
+        "mutable": true,
+        "purpose": "Canonical mutable SysAdminSuite development checkout for this profile.",
+        "authority": "developer checkout",
+        "currentness": "git identity plus refreshed remote comparison"
+      },
+      "production_use_path": {
+        "applicable": false,
+        "reason": "Development-only profile; product-specific production/use paths are owned by a field or application profile."
+      },
+      "temporary_worktree_root": {
+        "template": "%LOCALAPPDATA%\\SysAdminSuite\\worktrees",
+        "mutable": true,
+        "purpose": "Collision-isolated branch/worktree execution without creating a second canonical clone."
+      },
+      "ephemeral_acquisition_patterns": [
+        "%LOCALAPPDATA%\\SysAdminSuite\\closeout-entry-*",
+        "%TEMP%\\SysAdminSuite-*"
+      ],
+      "real_operator_entrypoint": {
+        "authority": "harness/api/harness-command-registry.json",
+        "resolution": "Select the task's registered command/front door only after canonical-path and freshness proof."
+      }
+    },
+    {
+      "id": "windows-admin-box",
+      "platform": "windows",
+      "purpose": "Admin workstation development plus sealed field-runtime use.",
+      "canonical_development_checkout": {
+        "template": "%USERPROFILE%\\Desktop\\Dev\\SysAdminSuite",
+        "mutable": true,
+        "purpose": "Canonical mutable SysAdminSuite development checkout on an Admin Box.",
+        "authority": "developer checkout",
+        "currentness": "git identity plus refreshed remote comparison"
+      },
+      "production_use_path": {
+        "applicable": true,
+        "template": "C:\\SASAL",
+        "mutable": false,
+        "purpose": "Short sealed AutoLogon field runtime staged by the owning refresh/bootstrap workflow.",
+        "currentness": "sealed runtime manifest and owning runtime-seal verification"
+      },
+      "temporary_worktree_root": {
+        "template": "%LOCALAPPDATA%\\SysAdminSuite\\worktrees",
+        "mutable": true,
+        "purpose": "Isolated repository work only; never the installed field runtime."
+      },
+      "ephemeral_acquisition_patterns": [
+        "%LOCALAPPDATA%\\SysAdminSuite\\closeout-entry-*"
+      ],
+      "real_operator_entrypoint": {
+        "authority": "harness/api/operator-execution-route-registry.json",
+        "installed_locator": "sas",
+        "production_runtime_entrypoint": "C:\\SASAL\\Bootstrap-SysAdminSuiteAutoLogon.cmd",
+        "resolution": "Operator execution routing selects the registered front door and proves the resolved path before execution."
+      }
+    }
+  ],
+  "consumers": [
+    "harness/workflows/fresh-agent-intake.yaml",
+    "harness/workflows/repository-freshness-before-launch.yaml",
+    "harness/workflows/operator-execution-route.yaml",
+    "harness/skills/canonical-path-resolution/SKILL.md",
+    "harness/maps/CANONICAL_PATH_MAP.md",
+    "harness/reports/CANONICAL_PATH_STATUS.md"
+  ],
+  "operator_command_safety": {
+    "powershell_if_else_must_be_one_paste_block": true,
+    "reason": "PowerShell parses a separately submitted else as a new command; multi-line operator instructions must preserve complete control-flow blocks."
+  },
+  "proof_ceiling": "Path identity and separation proof only. This registry does not prove repository freshness by itself, does not update a workstation, does not stage a field runtime, and does not prove a live deployment or target outcome."
+}

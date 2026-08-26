@@ -35,7 +35,7 @@ trap cleanup_validation_worktrees EXIT HUP INT TERM
 declare -A pushed_tip_checked=()
 
 # Stable freshness hook API retained for existing contracts; the broadened pushed-tip validator
-# below also executes operator-route validation from the same immutable detached snapshot.
+# below executes freshness, canonical-path, and operator-route validation from the same immutable snapshot.
 validate_freshness_tip() {
   validate_pushed_tip "$@"
 }
@@ -47,14 +47,18 @@ validate_pushed_tip() {
   pushed_tip_checked[$commit]=1
 
   local has_freshness=0
+  local has_canonical_path=0
   local has_operator_route=0
   if git cat-file -e "$commit:harness/validators/validate-repository-freshness-contracts.py" 2>/dev/null; then
     has_freshness=1
   fi
+  if git cat-file -e "$commit:harness/validators/validate-canonical-path-contracts.py" 2>/dev/null; then
+    has_canonical_path=1
+  fi
   if git cat-file -e "$commit:harness/validators/validate-operator-execution-route.py" 2>/dev/null; then
     has_operator_route=1
   fi
-  if [[ "$has_freshness" -eq 0 && "$has_operator_route" -eq 0 ]]; then
+  if [[ "$has_freshness" -eq 0 && "$has_canonical_path" -eq 0 && "$has_operator_route" -eq 0 ]]; then
     return 0
   fi
 
@@ -69,6 +73,10 @@ validate_pushed_tip() {
     cd "$wt"
     if [[ "$has_freshness" -eq 1 ]]; then
       python3 harness/validators/validate-repository-freshness-contracts.py
+    fi
+    if [[ "$has_canonical_path" -eq 1 ]]; then
+      python3 harness/validators/validate-canonical-path-contracts.py
+      python3 Tests/survey/test_canonical_path_harness_completeness.py
     fi
     if [[ "$has_operator_route" -eq 1 ]]; then
       python3 harness/validators/validate-operator-execution-route.py

@@ -5,15 +5,17 @@ network_activity: workflow_dependent
 target_mutation: workflow_dependent
 purpose: >-
   Convert a selected canonical command into an executable operator action without assuming the caller's
-  working directory or confusing a sealed field runtime with a full repository. For AutoLogon Remote,
-  use installed sas only to resolve the sealed runtime, then invoke that runtime's crash-safe bootstrap
-  directly. Fall back to the tracked full-repository helper only when installed sas is unavailable.
+  working directory or confusing a sealed field runtime with a full repository. Resolve the canonical
+  machine/profile path contract before selecting either path. For AutoLogon Remote, use installed sas
+  only to resolve the sealed runtime, then invoke that runtime's crash-safe bootstrap directly. Fall
+  back to the tracked full-repository helper only when installed sas is unavailable.
 
 inputs:
   required:
     - command_id
     - requested_goal
   optional:
+    - machine_profile
     - explicit_target
     - repository_root
     - current_working_directory
@@ -24,11 +26,14 @@ stages:
   - id: select-route
     order: 1
     actions:
+      - read harness/api/canonical-path-registry.json before accepting any repository, runtime, or entrypoint path
+      - resolve exactly one machine profile; AutoLogon field execution on an Admin Box uses windows-admin-box
       - read harness/api/operator-execution-route-registry.json
       - resolve exactly one route for command_id
       - retain operator_front_door and inner_product_command as route authorities
       - for AutoLogon Remote, treat installed sas as a sealed-runtime locator, not as proof that its own dispatcher is crash-safe
     stop_conditions:
+      - zero or multiple canonical path profiles match
       - zero or multiple execution routes match the selected command
 
   - id: prove-freshness
@@ -36,6 +41,7 @@ stages:
     actions:
       - verify repository_freshness_dependency resolves to a tracked file beneath the repository root
       - when current repository behavior is required, apply harness/workflows/repository-freshness-before-launch.yaml
+      - keep remote_default_contains_sha and canonical_development_checkout_current separate
       - do not infer a missing launcher from a stale executing worktree
       - preserve dirty, diverged, default-branch, or separately owned work exactly as the freshness workflow requires
 
@@ -43,11 +49,17 @@ stages:
     order: 3
     actions:
       - never assume the current shell is already inside the repository
-      - when installed sas exists for autologon-remote, run sas repo and accept a sealed C:\SASAL runtime that intentionally lacks the full harness tree
+      - read the selected profile's production_use_path, canonical_development_checkout, temporary_worktree_root, and ephemeral_acquisition_patterns
+      - when installed sas exists for autologon-remote, run sas repo and require the resolved sealed runtime to equal the registered windows-admin-box production_use_path C:\SASAL
+      - treat that registered production path as the sealed C:\SASAL runtime, never as a full development checkout
       - require Bootstrap-SysAdminSuiteAutoLogon.cmd inside that resolved sealed runtime
+      - require the owning sealed-runtime manifest/audit before recording production_use_path_current
       - do not fall through to sas autologon Remote when the sealed crash-safe bootstrap is missing
       - only when installed sas is unavailable, resolve a full repository through the bounded repo-root.txt cache
-      - for the full-repository fallback, normalize the root and verify every required_files entry beneath that exact root
+      - for the full-repository fallback, normalize the root and classify it through the canonical path registry
+      - accept the full-repository fallback only when it is the registered canonical development checkout or an approved isolated worktree beneath temporary_worktree_root
+      - reject an ephemeral acquisition checkout such as closeout-entry-* or an unknown path as a durable fallback authority
+      - verify every required_files entry beneath the accepted exact root
       - fail closed when neither a sealed crash-safe runtime nor a proven full-repository fallback is available
       - do not ask the operator to retype a repository path that the harness can resolve
 
@@ -59,7 +71,7 @@ stages:
       - encode explicit_target exactly as target_encoding declares; for utf8-base64, substitute only the encoded value into target_placeholder
       - never interpolate the raw explicit_target into PowerShell command source
       - decode and revalidate the target inside the rendered route before either execution path
-      - when installed sas is available for autologon-remote, use sas repo to resolve the sealed runtime and invoke Bootstrap-SysAdminSuiteAutoLogon.cmd with the validated target
+      - when installed sas is available for autologon-remote, use sas repo to resolve the registered production/use runtime and invoke Bootstrap-SysAdminSuiteAutoLogon.cmd with the validated target
       - never invoke an installed sas autologon Remote dispatcher from the operator route because installed dispatchers may lag the sealed runtime contract
       - the sealed bootstrap must verify its staging manifest and enter Invoke-SasAutoLogonCrashSafeFieldRun.ps1 so durable field evidence is produced
       - when installed sas is unavailable, invoke the registered operator_helper through powershell.exe -File with the encoded target as a positional argument
@@ -68,11 +80,14 @@ stages:
       - when operator_execution_capable is true and authorization/dependencies are satisfied, execute in the same turn
       - propagate the child exit code exactly and preserve the operator shell on failure
       - when the current environment cannot execute on the operator workstation, emit one copy-paste route-and-run command
+      - if that PowerShell handoff uses if/else or another control-flow construct, emit the complete construct in one paste block; never emit else as a later standalone command
       - a direct sas autologon Remote HOST command is acceptable only after the installed universal launcher itself is proven current and crash-safe; the route does not rely on that assumption
 
   - id: artifacts
     order: 5
     actions:
+      - record remote_default_contains_sha, canonical_development_checkout_current, production_use_path_current, and operator_entrypoint_observes_current independently
+      - record operator_entrypoint_observes_current only when the registered real entrypoint resolves/uses the intended current production path
       - preserve the registered success artifact and latest pointer
       - for AutoLogon, use the crash-safe field-run result and last-autologon-field-run.json rather than terminal text as durable proof
       - do not claim live success from route resolution alone
@@ -81,14 +96,16 @@ stages:
     order: 6
     actions:
       - report whether the sealed-bootstrap path or the full-repository fallback was selected
-      - report the resolved execution root when it is known
+      - report the selected canonical path profile and resolved execution root when known
+      - report all four path/currentness states separately instead of collapsing GitHub, checkout, runtime, and entrypoint proof
       - report whether execution happened or whether workstation execution is the external blocker
       - report the live network/transport classification when it is present in durable evidence
       - if execution is blocked by workstation access, provide one executable command that advances the field gate
       - name the expected durable artifact and proof ceiling
 
 proof_ceiling: >-
-  Proves operator command selection, safe target transport, installed-sas sealed-runtime resolution into
-  the crash-safe AutoLogon bootstrap or full-repository fallback dependency proof, and exit propagation.
+  Proves canonical path selection, operator command selection, safe target transport, installed-sas
+  resolution of the registered sealed AutoLogon production/use path into its crash-safe bootstrap or
+  approved full-repository fallback dependency proof, entrypoint observation, and exit propagation.
   It does not prove target reachability, deployment, restart, sign-in, or runtime acceptance unless the
   selected product path emits the corresponding registered live artifact.
