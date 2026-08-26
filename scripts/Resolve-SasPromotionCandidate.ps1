@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory)][int]$PrNumber,
     [string]$ExpectedCandidateSha,
     [string]$ExpectedBaseSha,
+    [string]$ExpectedMergeSha,
     [string]$ExpectedTarget,
     [string]$Actor,
     [string]$EventName,
@@ -96,6 +97,9 @@ if ($ExpectedBaseSha -and $currentBaseSha -ne $ExpectedBaseSha) {
     throw "Base moved after validation: expected '$ExpectedBaseSha', found '$currentBaseSha'."
 }
 if (-not $mergeSha) { throw "PR #$PrNumber has no synthetic merge candidate SHA." }
+if ($ExpectedMergeSha -and $mergeSha -ne $ExpectedMergeSha) {
+    throw "Synthetic merge candidate moved after validation: expected '$ExpectedMergeSha', found '$mergeSha'."
+}
 
 $mergeCommit = Invoke-GhJson -Path "repos/$Repository/commits/$mergeSha"
 $parents = @($mergeCommit.parents | ForEach-Object { [string]$_.sha })
