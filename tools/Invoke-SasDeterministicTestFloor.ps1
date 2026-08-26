@@ -24,7 +24,9 @@ $outputPath = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
 else {
     [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputRoot))
 }
-$floorRunId = 'deterministic-test-floor-{0}-{1}' -f ([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')), ([guid]::NewGuid().ToString('N').Substring(0, 8))
+# Keep the isolation segment deliberately short: several fixture journeys exercise
+# Windows-native paths whose downstream children must remain below classic MAX_PATH.
+$floorRunId = 'dtf-{0}' -f ([guid]::NewGuid().ToString('N').Substring(0, 8))
 $e2eOutput = Join-Path (Join-Path $repoRoot 'survey/output/e2e-validation') $floorRunId
 $receiptPath = Join-Path $outputPath 'test_floor_receipt.json'
 $checks = [System.Collections.Generic.List[object]]::new()
@@ -92,6 +94,7 @@ function Write-Receipt {
             websockets = '15.0.1'
             jsonschema = '4.25.1'
             ws = '8.18.3'
+            e2e_isolation_segment = $floorRunId
         }
         checks = @($checks)
         e2e_output = $e2eOutput
