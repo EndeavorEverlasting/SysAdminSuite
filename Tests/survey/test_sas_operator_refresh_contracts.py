@@ -45,6 +45,25 @@ def test_refresh_uses_dedicated_guest_sync_cache_not_bootstrap_checkout_for_remo
     assert "clean -fd" not in script
 
 
+def test_refresh_repairs_incomplete_fetched_object_graph_before_field_ready_checkout() -> None:
+    script = read("scripts/Refresh-SasOperatorCommand.ps1")
+    for marker in (
+        "Test-SasRefreshCommitObjectCompleteness",
+        "Repair-SasRefreshCommitObjectCompleteness",
+        "fsck','--connectivity-only','--no-dangling'",
+        "--refetch",
+        "SAS_REFRESH_OBJECT_GRAPH_INCOMPLETE",
+        "SAS_REFRESH_OBJECT_GRAPH_REPAIRED",
+    ):
+        assert marker in script, marker
+    resolve = script.index("$remoteHead = Get-SasRefreshGitScalar")
+    repair = script.index("Repair-SasRefreshCommitObjectCompleteness -Root $syncCache")
+    worktree_add = script.index("@('worktree','add','--detach',$fieldReady,$remoteHead")
+    checkout = script.index("@('checkout','--detach',$remoteHead")
+    assert resolve < repair < worktree_add
+    assert resolve < repair < checkout
+
+
 def test_refresh_defaults_field_runtime_to_main_but_allows_explicit_ref() -> None:
     script = read("scripts/Refresh-SasOperatorCommand.ps1")
     assert "$refreshBranch = if ([string]::IsNullOrWhiteSpace($Ref)) { 'main' } else { $Ref.Trim() }" in script
