@@ -8,6 +8,7 @@ on:
       - 'Bootstrap-SysAdminSuiteFieldRuntime.cmd'
       - 'Deploy-CybernetSoftware.cmd'
       - 'START-HERE-ADMIN-BOX-SOFTWARE-DEPLOYMENT.md'
+      - 'scripts/Invoke-SasCybernetSealedSoftwareBootstrap.ps1'
       - 'scripts/Resolve-SasAutoLogonManifestAuthority.ps1'
       - 'scripts/Test-SasAutoLogonRuntimeSeal.ps1'
       - 'scripts/Invoke-SasCybernetSoftwareDeployment.ps1'
@@ -24,6 +25,7 @@ on:
       - 'Bootstrap-SysAdminSuiteFieldRuntime.cmd'
       - 'Deploy-CybernetSoftware.cmd'
       - 'START-HERE-ADMIN-BOX-SOFTWARE-DEPLOYMENT.md'
+      - 'scripts/Invoke-SasCybernetSealedSoftwareBootstrap.ps1'
       - 'scripts/Resolve-SasAutoLogonManifestAuthority.ps1'
       - 'scripts/Test-SasAutoLogonRuntimeSeal.ps1'
       - 'scripts/Invoke-SasCybernetSoftwareDeployment.ps1'
@@ -82,6 +84,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           foreach ($path in @(
+            'scripts/Invoke-SasCybernetSealedSoftwareBootstrap.ps1',
             'scripts/Resolve-SasAutoLogonManifestAuthority.ps1',
             'scripts/Test-SasAutoLogonRuntimeSeal.ps1',
             'scripts/Invoke-SasCybernetSoftwareDeployment.ps1'
