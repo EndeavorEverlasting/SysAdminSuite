@@ -29,16 +29,23 @@ def assert_runner_composes_existing_owners() -> None:
         "tools/Test-Pester5Suite.ps1",
         "scripts/Invoke-SasEndToEndValidation.ps1",
         "-Profile', 'default'",
+        "survey/output/e2e-validation",
         "e2e_validation_result.json",
+        "sas-e2e-validation/v1",
+        "result.counts.failed",
+        "requiredNonPass",
         "test_floor_receipt.json",
         "candidate_sha=",
         "PYTHONHASHSEED = '0'",
         "TZ = 'UTC'",
+        "python_runtime = '3.12.10'",
+        "node_runtime = '20.19.4'",
         "$script:commit = 'unknown'",
         "$script:branch = 'unknown'",
     ):
         assert marker in text, f"deterministic runner missing required owner/control: {marker}"
 
+    assert "Join-Path $outputPath 'e2e'" not in text, "E2E output must remain under its canonical survey/output owner"
     for forbidden in (
         "pip install",
         "npm install",
@@ -54,12 +61,15 @@ def assert_runner_composes_existing_owners() -> None:
 def assert_dependency_bootstrap_is_exact() -> None:
     text = read(BOOTSTRAP)
     for marker in (
+        "$requiredPythonVersion = '3.12.10'",
+        "$requiredNodeVersion = 'v20.19.4'",
         "pytest==8.4.1",
         "websockets==15.0.1",
         "jsonschema==4.25.1",
         "[version]'5.7.1'",
         "ws@8.18.3",
         "Install-Module Pester -RequiredVersion",
+        "from importlib.metadata import version",
         "--no-package-lock",
         "--ignore-scripts",
     ):
@@ -122,6 +132,7 @@ def assert_workflow_is_thin_and_unattended_safe() -> None:
         "Install-SasDeterministicTestFloorDependencies.ps1",
         "Invoke-SasDeterministicTestFloor.ps1",
         "candidate_sha=${{ github.sha }}",
+        "survey/output/e2e-validation/deterministic-test-floor-*/**",
     ):
         assert marker in text, f"workflow missing deterministic/unattended contract: {marker}"
 
@@ -139,8 +150,9 @@ def main() -> int:
     assert_pester_fails_closed_on_zero_tests()
     assert_workflow_is_thin_and_unattended_safe()
     print("[PASS] deterministic test floor composes existing repository owners")
-    print("[PASS] dependency bootstrap pins pytest/Pester/E2E dependencies exactly")
+    print("[PASS] dependency bootstrap pins Python/Node/pytest/Pester/E2E dependencies exactly")
     print("[PASS] Pester zero-test discovery fails closed with a dedicated nonzero result")
+    print("[PASS] E2E remains isolated under its canonical survey/output owner and validates its real receipt schema")
     print("[PASS] GitHub Actions routing is push/PR/manual, read-only, action-SHA-pinned, unfiltered by path, and unscheduled")
     return 0
 
