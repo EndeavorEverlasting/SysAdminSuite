@@ -15,11 +15,20 @@ canonical_profile="harness/api/canonical-path-registry.json"
 canonical_validator="harness/validators/validate-canonical-path-contracts.py"
 prompt_registry="docs/prompts.json"
 schema="schemas/harness/harness-proof-result.schema.json"
+composed_schema="schemas/harness/one-command-harness-proof-result.schema.json"
 vm_schema="schemas/harness/vm-dry-run-readiness.schema.json"
 workflow=".github/workflows/one-command-harness-proof.yml"
-for required in "$validator" "$base_validator" "$vm_validator" "$profile" "$canonical_profile" "$canonical_validator" "$prompt_registry" "$schema" "$vm_schema" "$workflow"; do
+for required in "$validator" "$base_validator" "$vm_validator" "$profile" "$canonical_profile" "$canonical_validator" "$prompt_registry" "$schema" "$composed_schema" "$vm_schema" "$workflow"; do
   [[ -f "$required" ]] || fail "required one-command proof file missing: $required"
 done
+
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python3)"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python)"
+else
+  fail "Python 3 interpreter unavailable (tried python3, then python)"
+fi
 
 for fragment in \
   "APP HARNESS VALIDATION" \
@@ -79,23 +88,26 @@ for fragment in \
 done
 pass "one command composes base harness, canonical user profile, and VM readiness matrices"
 
-python - "$schema" "$vm_schema" "$profile" "$canonical_profile" "$prompt_registry" <<'PY'
+"$PYTHON_BIN" - "$schema" "$composed_schema" "$vm_schema" "$profile" "$canonical_profile" "$prompt_registry" <<'PY'
 import json
 import pathlib
 import sys
 
 result_schema = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-vm_schema = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
-profile = json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8"))
-canonical = json.loads(pathlib.Path(sys.argv[4]).read_text(encoding="utf-8"))
-prompts = json.loads(pathlib.Path(sys.argv[5]).read_text(encoding="utf-8-sig"))
+composed_schema = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+vm_schema = json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8"))
+profile = json.loads(pathlib.Path(sys.argv[4]).read_text(encoding="utf-8"))
+canonical = json.loads(pathlib.Path(sys.argv[5]).read_text(encoding="utf-8"))
+prompts = json.loads(pathlib.Path(sys.argv[6]).read_text(encoding="utf-8-sig"))
 
 assert result_schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
-assert result_schema["additionalProperties"] is False
-assert result_schema["properties"]["schema_version"]["const"] == "sas-harness-proof/v1"
-assert result_schema["properties"]["proof_level"]["const"] == "synthetic_offline"
+assert composed_schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+assert composed_schema["additionalProperties"] is False
 for field in ("final_status", "validator_set", "profile", "prompt_owner"):
-    assert field in result_schema["properties"]
+    assert field in composed_schema["required"]
+assert "disposition" in composed_schema["properties"]["checks"]["items"]["required"]
+assert result_schema["properties"]["schema_version"]["const"] == "sas-harness-proof/v1"
+assert composed_schema["properties"]["proof_level"]["const"] == "synthetic_offline"
 for field in (
     "runtime_proof",
     "network_activity_performed",
@@ -103,7 +115,7 @@ for field in (
     "target_mutation_performed",
     "data_mutation_performed",
 ):
-    assert result_schema["properties"][field]["const"] is False
+    assert composed_schema["properties"][field]["const"] is False
 
 assert canonical["profile_parameters"]["required"] == ["os", "user", "onedrive_enabled", "desktop_dev_root"]
 assert canonical["policy"]["onedrive_toggle_does_not_choose_desktop_location"] is True
@@ -132,7 +144,7 @@ for fragment in \
   "harness/validators/validate-canonical-path-contracts.py" \
   "docs/prompts.json" \
   "test_vm_dry_run_readiness_contracts.py" \
-  "harness-proof-result.schema.json" \
+  "one-command-harness-proof-result.schema.json" \
   "vm-dry-run-readiness.schema.json" \
   "Test-Json"; do
   grep -Fq "$fragment" "$workflow" || fail "workflow missing proof dependency: $fragment"
