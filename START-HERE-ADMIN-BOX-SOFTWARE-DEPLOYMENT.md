@@ -14,15 +14,21 @@ When the installed `sas` command is already current, the normal command remains:
 sas refresh
 ```
 
-When `sas` may be stale or unavailable, do not choose an old Desktop/OneDrive checkout. Create a disposable bootstrap checkout of current `main` under `%LOCALAPPDATA%` and run its tracked field-runtime bootstrap. The bootstrap checkout is only an acquisition surface; `scripts\Refresh-SasOperatorCommand.ps1` still moves remote repository maintenance into the dedicated sync cache and stages the exact fetched commit into `C:\SASAL`.
+When `sas` may be stale or unavailable, do not choose an old Desktop/OneDrive checkout. Use this single PowerShell line on Guest/Internet. It creates a timestamped disposable checkout under `%LOCALAPPDATA%`, clones the official repository's current `main`, runs the tracked field-runtime bootstrap, and propagates either failure instead of falling through:
 
-The tracked bootstrap is:
+```powershell
+$ErrorActionPreference='Stop'; $dst=Join-Path $env:LOCALAPPDATA ('SysAdminSuite\field-bootstrap-' + (Get-Date -Format 'yyyyMMdd-HHmmss')); git clone --branch main --single-branch https://github.com/EndeavorEverlasting/SysAdminSuite.git $dst; if ($LASTEXITCODE -ne 0) { throw "SysAdminSuite current-main bootstrap clone failed with exit code $LASTEXITCODE" }; & (Join-Path $dst 'Bootstrap-SysAdminSuiteFieldRuntime.cmd'); if ($LASTEXITCODE -ne 0) { throw "SysAdminSuite field-runtime bootstrap failed with exit code $LASTEXITCODE" }
+```
+
+The disposable checkout is only an acquisition surface. `scripts\Refresh-SasOperatorCommand.ps1` independently refreshes the official `main` through the dedicated sync cache, stages the exact fetched commit into `C:\SASAL`, removes runtime remotes, creates the tracked-file seal, and preserves dirty/generated runtime material rather than resetting historical work.
+
+The tracked bootstrap invoked by that line is:
 
 ```text
 Bootstrap-SysAdminSuiteFieldRuntime.cmd
 ```
 
-It runs the Guest-only refresh, seals `C:\SASAL`, and installs the universal `sas` command from that sealed runtime. It performs no field-target contact or mutation.
+It runs the Guest-only refresh, verifies that the complete protected Cybernet deployment surface exists under `C:\SASAL`, and installs the universal `sas` command from that sealed runtime. It performs no field-target contact or mutation.
 
 Required terminal marker:
 
@@ -50,13 +56,17 @@ The current `Deploy-CybernetSoftware.cmd` is intentionally a thin delegate. It d
 C:\SASAL\Bootstrap-SysAdminSuiteCybernetSoftware.cmd
 ```
 
-That bootstrap performs, in order and before target contact:
+That bootstrap rejects direct execution from any directory other than canonical `C:\SASAL`. Its PowerShell admission layer then performs, in order and before target contact:
 
 1. sealed manifest authority resolution;
 2. complete SHA-256 tracked-runtime audit;
-3. only then, the canonical full Cybernet software deployment engine.
+3. acquisition of read-only handles for every tracked runtime file, denying write/delete access;
+4. a second SHA-256 verification of every tracked file while those handles are held;
+5. the canonical full Cybernet software deployment while every tracked-file lock remains open.
 
-Protected-side Git network activity is `NONE`. If the sealed runtime, manifest, commit identity, or tracked-file hashes are missing or inconsistent, deployment fails before target contact and instructs the operator to return to Guest/Internet and run `sas refresh`.
+The locks are released only after the deployment call returns. This prevents a tracked script/config from being replaced between its integrity check and target mutation.
+
+Protected-side Git network activity is `NONE`. If the runtime path, sealed manifest, commit identity, tracked-file hashes, lock acquisition, or required protected surface is inconsistent, deployment fails before target contact and instructs the operator to return to Guest/Internet and run `sas refresh`.
 
 ## Full deployment result
 
@@ -107,7 +117,7 @@ AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED
 
 ## Safety boundary
 
-- Guest phase: repository acquisition, local staging, seal creation, launcher installation; **no target contact**.
+- Guest phase: repository acquisition, local staging, seal creation, protected-surface verification, launcher installation; **no target contact**.
 - Protected phase: one explicitly authorized target; **no Git network I/O**.
 - Old admin-box checkouts: preserved evidence/development state; **never implicit deployment authority**.
 - Runtime proof of the interactive AutoLogon desktop remains a separate higher proof ceiling and is not required for deployment completion.
