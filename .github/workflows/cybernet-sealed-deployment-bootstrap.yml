@@ -104,3 +104,35 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           call Deploy-CybernetSoftware.cmd --help
           if errorlevel 1 exit /b %errorlevel%
+
+      - name: Exercise repaired repository-root native argument
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fixture = Join-Path $env:RUNNER_TEMP 'Assert-RepositoryRoot.ps1'
+          @'
+          param(
+              [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+              [Parameter(Mandatory = $true)][string]$ExpectedRoot
+          )
+          if ($RepositoryRoot.IndexOf('"') -ge 0) {
+              throw "RepositoryRoot contains a stray quote: <$RepositoryRoot>"
+          }
+          $actual = (Resolve-Path -LiteralPath $RepositoryRoot).Path
+          $expected = (Resolve-Path -LiteralPath $ExpectedRoot).Path
+          if (-not $actual.Equals($expected, [StringComparison]::OrdinalIgnoreCase)) {
+              throw "RepositoryRoot mismatch: actual=<$actual> expected=<$expected>"
+          }
+          Write-Host "PASS: native RepositoryRoot resolved without a stray quote: $actual"
+          '@ | Set-Content -LiteralPath $fixture -Encoding ASCII
+
+          $cmdFixture = Join-Path $env:RUNNER_TEMP 'Invoke-RepositoryRootFixture.cmd'
+          $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          @"
+          @echo off
+          "$windowsPowerShell" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$fixture" -RepositoryRoot "%CD%\." -ExpectedRoot "%CD%"
+          exit /b %ERRORLEVEL%
+          "@ | Set-Content -LiteralPath $cmdFixture -Encoding ASCII
+
+          & $env:ComSpec /d /c $cmdFixture
+          if ($LASTEXITCODE -ne 0) { throw "RepositoryRoot native-argument fixture failed with exit code $LASTEXITCODE" }
