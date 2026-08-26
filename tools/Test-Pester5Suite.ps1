@@ -4,27 +4,42 @@
 
 .DESCRIPTION
     Provides a single test entrypoint that fails fast with a clear action when
-    Pester 5 is unavailable. This avoids ambiguous failures under Pester 3.
+    Pester 5 is unavailable. When -RequiredPesterVersion is supplied, the exact
+    requested version must be installed. The runner also fails closed when
+    Pester discovers zero tests so an empty or misrouted test path cannot be
+    reported as a healthy test run.
 #>
 [CmdletBinding()]
 param(
-    [string]$TestPath = '.\Tests\Pester'
+    [string]$TestPath = '.\Tests\Pester',
+    [version]$RequiredPesterVersion
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$pesterModule = Get-Module -ListAvailable -Name Pester |
-    Sort-Object Version -Descending |
-    Select-Object -First 1
-
-if (-not $pesterModule -or $pesterModule.Version.Major -lt 5) {
-    throw @"
+$availablePester = @(Get-Module -ListAvailable -Name Pester | Sort-Object Version -Descending)
+if ($null -ne $RequiredPesterVersion) {
+    $pesterModule = $availablePester | Where-Object { $_.Version -eq $RequiredPesterVersion } | Select-Object -First 1
+    if (-not $pesterModule) {
+        throw @"
+Pester $RequiredPesterVersion is required to run this suite deterministically.
+Installed: $((@($availablePester | ForEach-Object { $_.Version.ToString() }) -join ', '))
+Install on a trusted build/test machine:
+  Install-Module Pester -RequiredVersion $RequiredPesterVersion -Scope CurrentUser -Force -SkipPublisherCheck
+"@
+    }
+}
+else {
+    $pesterModule = $availablePester | Select-Object -First 1
+    if (-not $pesterModule -or $pesterModule.Version.Major -lt 5) {
+        throw @"
 Pester 5.0+ is required to run this suite.
 Detected: $($pesterModule.Version)
 Install on a trusted build/test machine:
   Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck
 "@
+    }
 }
 
 Import-Module Pester -RequiredVersion $pesterModule.Version -Force
@@ -66,6 +81,23 @@ if ($null -ne $result -and $result.PSObject.Properties['FailedCount']) {
     $failed = @($result.Failed).Count
 } elseif ($null -eq $result) {
     $failed = 1
+}
+
+$total = 0
+if ($null -ne $result -and $result.PSObject.Properties['TotalCount']) {
+    $total = [int]$result.TotalCount
+}
+elseif ($null -ne $result) {
+    foreach ($propertyName in @('PassedCount', 'FailedCount', 'SkippedCount', 'NotRunCount')) {
+        if ($result.PSObject.Properties[$propertyName]) {
+            $total += [int]$result.$propertyName
+        }
+    }
+}
+
+if ($total -le 0) {
+    Write-Error "PESTER_ZERO_TESTS: required test path discovered zero tests: $TestPath"
+    exit 2
 }
 
 if ($failed -gt 0) {
