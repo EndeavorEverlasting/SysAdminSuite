@@ -147,7 +147,7 @@ def test_admin_box_runbook_contains_copy_safe_fresh_main_acquisition_and_recover
         "sas_field_runtime_bootstrap_ready",
         "sas cybernet deploy <authorized-cybernet>",
         "c:\\sasal\\bootstrap-sysadminsuitecybernetsoftware.cmd",
-        "fileaccess.read",
+        "read-only handles for every tracked runtime file",
         "cybernet_software_deployment_completed_restarted",
         "sas evidence cybernet open",
         "protected-side git network activity is `none`",
