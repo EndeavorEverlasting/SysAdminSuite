@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import platform
 import re
 import shutil
 import subprocess
@@ -18,7 +19,8 @@ VM_PROFILE = ROOT / "harness" / "e2e" / "vm-dry-run-readiness.json"
 CANONICAL_PATH = ROOT / "harness" / "api" / "canonical-path-registry.json"
 CANONICAL_VALIDATOR = ROOT / "harness" / "validators" / "validate-canonical-path-contracts.py"
 PROMPTS = ROOT / "docs" / "prompts.json"
-SCHEMA = ROOT / "schemas" / "harness" / "harness-proof-result.schema.json"
+GENERIC_SCHEMA = ROOT / "schemas" / "harness" / "harness-proof-result.schema.json"
+SCHEMA = ROOT / "schemas" / "harness" / "one-command-harness-proof-result.schema.json"
 VM_SCHEMA = ROOT / "schemas" / "harness" / "vm-dry-run-readiness.schema.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "one-command-harness-proof.yml"
 OUTPUT = ROOT / "survey" / "output" / "harness-proof-contract"
@@ -30,7 +32,7 @@ def powershell() -> str:
     return command
 
 
-def run_validator(*extra: str, output_name: str) -> subprocess.CompletedProcess[str]:
+def run_validator(*extra: str, output_name: str, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
     output_root = OUTPUT / output_name
     return subprocess.run(
         [
@@ -44,7 +46,7 @@ def run_validator(*extra: str, output_name: str) -> subprocess.CompletedProcess[
             str(output_root),
             *extra,
         ],
-        cwd=ROOT,
+        cwd=cwd,
         text=True,
         capture_output=True,
         check=False,
@@ -62,6 +64,15 @@ def prompt_p11() -> dict[str, Any]:
     matches = [item for item in prompts if item.get("id") == "P11"]
     assert len(matches) == 1, "canonical Prompt Kit registry must contain exactly one P11"
     return matches[0]
+
+
+def observed_os() -> str:
+    name = platform.system().lower()
+    if name == "windows":
+        return "windows"
+    if name == "darwin":
+        return "macos"
+    return "linux"
 
 
 def validate_result_contract(result: dict[str, Any], schema: dict[str, Any]) -> None:
@@ -113,27 +124,33 @@ def validate_result_contract(result: dict[str, Any], schema: dict[str, Any]) -> 
 
     validators = result["validator_set"]
     assert isinstance(validators, list) and validators
+    assert len(validators) == len(set(validators))
     assert "harness/validators/validate-canonical-path-contracts.py" in validators
     assert "scripts/Test-SasVmDryRunReadiness.ps1" in validators
     assert "scripts/Invoke-SasVmDryRunHarnessProof.ps1" in validators
 
     profile = result["profile"]
-    assert set(profile) == {
-        "machine_profile", "os", "user", "onedrive_enabled", "desktop_dev_root", "canonical_development_checkout"
-    }
-    assert profile["os"] in {"windows", "linux", "macos"}
-    assert isinstance(profile["onedrive_enabled"], bool)
-    assert profile["desktop_dev_root"]
-    assert profile["canonical_development_checkout"]
-
-    p11 = prompt_p11()
     prompt_owner = result["prompt_owner"]
-    assert prompt_owner == {
-        "id": p11["id"],
-        "name": p11["name"],
-        "purpose": p11["sprintRole"],
-        "registry_path": "docs/prompts.json",
-    }
+    if result["final_status"] == "PASS":
+        assert isinstance(profile, dict)
+        assert set(profile) == {
+            "machine_profile", "os", "user", "onedrive_enabled", "desktop_dev_root", "canonical_development_checkout"
+        }
+        assert profile["os"] == observed_os()
+        assert isinstance(profile["onedrive_enabled"], bool)
+        assert profile["desktop_dev_root"]
+        assert profile["canonical_development_checkout"]
+
+        p11 = prompt_p11()
+        assert prompt_owner == {
+            "id": p11["id"],
+            "name": p11["name"],
+            "purpose": p11["sprintRole"],
+            "registry_path": "docs/prompts.json",
+        }
+    else:
+        assert profile is None or isinstance(profile, dict)
+        assert prompt_owner is None or isinstance(prompt_owner, dict)
 
     artifacts = result["artifacts"]
     assert set(artifacts) == {"matrix", "json", "run_root", "artifact_registry"}
@@ -144,7 +161,10 @@ def validate_result_contract(result: dict[str, Any], schema: dict[str, Any]) -> 
 
 
 def test_validator_exists_parses_and_has_no_runtime_execution_surface() -> None:
-    for path in (VALIDATOR, BASE_VALIDATOR, VM_VALIDATOR, VM_PROFILE, CANONICAL_PATH, CANONICAL_VALIDATOR, PROMPTS, SCHEMA, VM_SCHEMA):
+    for path in (
+        VALIDATOR, BASE_VALIDATOR, VM_VALIDATOR, VM_PROFILE, CANONICAL_PATH, CANONICAL_VALIDATOR,
+        PROMPTS, GENERIC_SCHEMA, SCHEMA, VM_SCHEMA,
+    ):
         assert path.is_file(), f"missing one-command proof surface: {path.relative_to(ROOT)}"
 
     text = VALIDATOR.read_text(encoding="utf-8-sig")
@@ -167,6 +187,7 @@ def test_validator_exists_parses_and_has_no_runtime_execution_surface() -> None:
         "canonical path profile",
         "onedrive_enabled",
         "desktop_dev_root",
+        "profile_os_override_must_match_host",
         "docs/prompts.json",
         "P11",
     ):
@@ -180,7 +201,8 @@ def test_validator_exists_parses_and_has_no_runtime_execution_surface() -> None:
     assert schema["properties"]["proof_level"]["const"] == "synthetic_offline"
     assert schema["properties"]["runtime_proof"]["const"] is False
     for field in ("final_status", "validator_set", "profile", "prompt_owner"):
-        assert field in schema["properties"]
+        assert field in schema["required"]
+    assert "disposition" in schema["properties"]["checks"]["items"]["required"]
 
     vm_profile = json.loads(VM_PROFILE.read_text(encoding="utf-8"))
     assert vm_profile["proof_class"] == "synthetic_offline_vm_readiness"
@@ -220,7 +242,7 @@ def test_result_schemas_and_canonical_command_are_wired_into_ci() -> None:
     assert "harness/api/canonical-path-registry.json" in workflow
     assert "harness/validators/validate-canonical-path-contracts.py" in workflow
     assert "docs/prompts.json" in workflow
-    assert "harness-proof-result.schema.json" in workflow
+    assert "one-command-harness-proof-result.schema.json" in workflow
     assert "vm-dry-run-readiness.schema.json" in workflow
     assert "Test-Json" in workflow
     assert workflow.count("Invoke-SasVmDryRunHarnessProof.ps1 -OutputRoot") == 1, "CI must invoke one canonical composed validator command"
@@ -268,6 +290,45 @@ def test_onedrive_toggle_does_not_choose_desktop_dev_root() -> None:
     assert Path(profile["canonical_development_checkout"]).resolve() == (explicit_dev / "SysAdminSuite").resolve()
 
 
+def test_relative_desktop_dev_root_is_bound_to_callers_working_directory() -> None:
+    relative_root = Path("survey") / "output" / "caller-relative-desktop" / "Dev"
+    completed = run_validator(
+        "-DesktopDevRoot", str(relative_root),
+        output_name="relative-profile-override",
+        cwd=ROOT,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    result = newest_result("relative-profile-override")
+    expected = (ROOT / relative_root).resolve()
+    assert Path(result["profile"]["desktop_dev_root"]).resolve() == expected
+    assert Path(result["profile"]["canonical_development_checkout"]).resolve() == (expected / "SysAdminSuite").resolve()
+
+
+def test_cross_host_os_override_fails_without_fabricated_profile_identity() -> None:
+    foreign = "linux" if observed_os() == "windows" else "windows"
+    completed = run_validator("-ProfileOs", foreign, output_name="foreign-os")
+    assert completed.returncode != 0
+    assert "profile_os_override_must_match_host" in completed.stdout
+    result = newest_result("foreign-os")
+    assert result["final_status"] == "FAIL"
+    assert result["profile"] is None
+    assert result["prompt_owner"] == {
+        "id": prompt_p11()["id"],
+        "name": prompt_p11()["name"],
+        "purpose": prompt_p11()["sprintRole"],
+        "registry_path": "docs/prompts.json",
+    }
+
+
+def test_unknown_machine_profile_fails_without_fake_windows_metadata() -> None:
+    completed = run_validator("-MachineProfile", "__missing_profile__", output_name="missing-profile")
+    assert completed.returncode != 0
+    result = newest_result("missing-profile")
+    assert result["final_status"] == "FAIL"
+    assert result["profile"] is None
+    assert "machine_profile_resolution_failed" in completed.stdout
+
+
 def test_broken_required_path_fails_clearly_and_still_emits_valid_json() -> None:
     completed = run_validator(
         "-AdditionalRequiredPath", "__missing_required_validator__.ps1", output_name="required-failure"
@@ -288,6 +349,9 @@ if __name__ == "__main__":
         test_result_schemas_and_canonical_command_are_wired_into_ci()
         test_validator_prints_matrix_emits_json_and_states_proof_boundary()
         test_onedrive_toggle_does_not_choose_desktop_dev_root()
+        test_relative_desktop_dev_root_is_bound_to_callers_working_directory()
+        test_cross_host_os_override_fails_without_fabricated_profile_identity()
+        test_unknown_machine_profile_fails_without_fake_windows_metadata()
         test_broken_required_path_fails_clearly_and_still_emits_valid_json()
     finally:
         shutil.rmtree(OUTPUT, ignore_errors=True)
