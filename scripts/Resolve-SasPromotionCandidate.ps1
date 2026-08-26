@@ -26,6 +26,16 @@ function Invoke-GhJson {
     return (($raw -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100)
 }
 
+function Get-GhPrChangedFiles {
+    param([Parameter(Mandatory)][string]$Repo, [Parameter(Mandatory)][int]$Number)
+    $raw = @(& gh api --paginate --jq '.[].filename' "repos/$Repo/pulls/$Number/files?per_page=100" 2>&1)
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "Unable to enumerate changed files for PR #${Number}: $($raw -join [Environment]::NewLine)"
+    }
+    return @($raw | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ })
+}
+
 if (-not (Test-Path -LiteralPath $PolicyPath -PathType Leaf)) {
     throw "Promotion policy not found: $PolicyPath"
 }
@@ -88,6 +98,12 @@ if ($ExpectedCandidateSha -and $headSha -ne $ExpectedCandidateSha) {
     throw "Candidate moved: expected '$ExpectedCandidateSha', found '$headSha'."
 }
 
+$changedFiles = Get-GhPrChangedFiles -Repo $Repository -Number $PrNumber
+$manualOnlyHits = @($changedFiles | Where-Object { @($policy.manual_only_paths) -contains $_ })
+if ($manualOnlyHits.Count -gt 0) {
+    throw "Automated promotion may not self-certify control-plane changes. Manual-only path(s): $($manualOnlyHits -join ', ')."
+}
+
 $branch = Invoke-GhJson -Path "repos/$Repository/branches/$baseRef"
 $currentBaseSha = [string]$branch.commit.sha
 if ([string]$pr.base.sha -ne $currentBaseSha) {
@@ -122,7 +138,9 @@ $result = [ordered]@{
     source_head_sha = $headSha
     synthetic_merge_sha = $mergeSha
     merge_method = [string]$policy.merge_method
+    promotion_transport = [string]$policy.promotion_transport
     branch_protected = [bool]$branch.protected
+    changed_files = @($changedFiles)
     policy_sha256 = $policySha256
     proof_ceiling = [string]$policy.proof_ceiling
 }
