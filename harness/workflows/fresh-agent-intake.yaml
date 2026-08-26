@@ -6,7 +6,7 @@ target_mutation: false
 purpose: >-
   Give a fresh agent one deterministic route from repository intake to the smallest authorized
   workflow, use-case contract, desired-state contract, validator set, artifact contract, outcome
-  contract, operator execution route, terminal-evidence contract, and handoff.
+  contract, canonical path contract, operator execution route, terminal-evidence contract, and handoff.
 
 inputs:
   required:
@@ -20,6 +20,7 @@ inputs:
     - supplied_pull_request_metadata
     - explicit_target
     - target_profile
+    - machine_profile
     - organization_context
     - site_context
     - existing_state_evidence
@@ -52,6 +53,8 @@ stages:
     actions:
       - read CODEBASE_MAP.md
       - read harness/api/operational-harness-manifest.json
+      - read harness/api/canonical-path-registry.json before choosing a repository root, worktree root, installed/runtime path, updater destination, or operator entrypoint
+      - keep remote_default_contains_sha, canonical_development_checkout_current, production_use_path_current, and operator_entrypoint_observes_current as separate proof states
       - read harness/api/harness-command-registry.json for canonical build, test, run, and deploy surfaces
       - read harness/api/harness-validator-registry.json for proof selection
       - read harness/api/harness-artifact-registry.json before producing or moving artifacts
@@ -66,6 +69,7 @@ stages:
     actions:
       - use harness/api/agent-routing-manifest.json for normal task-signal routing
       - when the declared lane is harness infrastructure, load harness/skills/harness-maintenance/SKILL.md
+      - when repository location, worktree placement, installed/runtime location, updater destination, or real operator entrypoint matters, load harness/skills/canonical-path-resolution/SKILL.md and route through harness/workflows/canonical-path-resolution.yaml
       - when the requested goal extends beyond validation or planning, load harness/skills/outcome-driven-execution/SKILL.md after normal task routing
       - when a selected command is repository-relative, has a registered front door, or is about to be handed to an operator, load harness/skills/operator-execution-route/SKILL.md
       - for any printer-mapping request, load harness/skills/printer-mapping-use-case-routing/SKILL.md and resolve organization/site use-case identity before the field-workflow implementation
@@ -82,6 +86,9 @@ stages:
       - reuse existing maps, registries, schemas, validators, hooks, and skills before creating new authorities
       - keep product mutation outside harness-only sprints
       - keep live or operator-local evidence under ignored output roots
+      - never promote an ephemeral acquisition checkout such as a registered closeout-entry-* path into the canonical development checkout merely because it is current
+      - never use a second mutable clone as a substitute for the registered canonical development checkout; preserve unique work and use the registered isolated-worktree root for parallel writers
+      - never promote GitHub merge or remote SHA containment into production_use_path_current or operator_entrypoint_observes_current
       - for printer mapping, do not copy Northwell assumptions into another organization/site; only the selected proven use_case_id authorizes product behavior
       - treat validators, dry runs, plans, fixtures, and harmless transport live certs as admission gates when the requested goal remains unproven
       - for an authorized Cybernet AutoLogon apply/test/live-cert goal, do not substitute transport proof for the real autologon-remote state transition
@@ -90,6 +97,7 @@ stages:
       - when command id autologon-remote is selected for operator execution, use the registered Run-AutoLogonCrashSafe.cmd HOST front door rather than handing out the inner product command
       - when the execution environment can run the operator command and dependencies are satisfied, execute the resolved front door in the same turn
       - when workstation execution is unavailable, provide one copy-paste route-and-run command that resolves the repo path, verifies the front door, changes location, invokes it, and propagates the exit code
+      - when an operator command uses PowerShell if/else control flow, keep the complete if/else in one paste block; never emit else as a later standalone command
       - when a terminal vanished, recover the stable latest pointer and local artifacts before any target re-contact or rerun
       - preserve already-proven Cybernet clinical-core installation/acceptance instead of blindly reinstalling it to reach AutoLogon
       - follow registered same-turn continuations instead of handing safe executable work back to the operator
@@ -99,6 +107,8 @@ stages:
     actions:
       - python harness/validators/validate-harness-registries.py
       - python harness/validators/validate-repository-freshness-contracts.py
+      - python harness/validators/validate-canonical-path-contracts.py
+      - python Tests/survey/test_canonical_path_harness_completeness.py
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
       - python harness/validators/validate-operator-execution-route.py when command-to-operator routing, repo-relative front doors, execution-location handling, or AutoLogon crash-safe routing changes
@@ -115,6 +125,7 @@ stages:
   - id: artifacts
     order: 6
     actions:
+      - resolve path roles and machine/profile currentness through harness/api/canonical-path-registry.json
       - resolve output roles and naming through harness/api/harness-artifact-registry.json
       - resolve success and continuation behavior through harness/api/harness-outcome-registry.json
       - resolve operator front door and execution-location behavior through harness/api/operator-execution-route-registry.json
@@ -127,12 +138,13 @@ stages:
   - id: handoff
     order: 7
     actions:
-      - report requested goal, selected printer use case when applicable, desired state when applicable, and terminal outcome before intermediate validation details
+      - report requested goal, selected machine/path profile, selected printer use case when applicable, desired state when applicable, and terminal outcome before intermediate validation details
+      - report all applicable canonical path proof states separately instead of collapsing remote, checkout, installed runtime, and entrypoint currentness
       - name changed files and exact validation results
       - report commit SHA, push state, PR state, skipped checks, gaps, risks, and proof ceiling
       - use tools/New-SasSprintCapsule.ps1 for compressed next-agent transfer when needed
       - provide one exact next command only when a real unproven gate remains
-      - when that next command is repository-relative or has a registered operator front door, route it through operator-execution-route so path resolution and execution are not left to the operator
+      - when that next command is repository-relative or has a registered operator front door, route it through canonical-path-resolution and operator-execution-route so path selection and execution are not left to the operator
       - when AutoLogon deployment is proven and runtime remains requested, identify the separately authorized attended reboot/direct sign-in gate rather than returning to more tests
       - when a terminal vanished, report the preserved latest pointer and run root before proposing any new target action
       - never stop at tests passed, transport live cert passed, status reported, command printed, or wait for next chat when a registered safe continuation remains executable
@@ -141,6 +153,12 @@ outputs:
   tracked_authorities:
     - CODEBASE_MAP.md
     - harness/api/operational-harness-manifest.json
+    - harness/api/canonical-path-registry.json
+    - schemas/harness/canonical-path-registry.schema.json
+    - harness/workflows/canonical-path-resolution.yaml
+    - harness/skills/canonical-path-resolution/SKILL.md
+    - harness/maps/CANONICAL_PATH_MAP.md
+    - harness/reports/CANONICAL_PATH_STATUS.md
     - harness/api/harness-command-registry.json
     - harness/api/harness-validator-registry.json
     - harness/api/harness-artifact-registry.json
@@ -168,8 +186,8 @@ outputs:
     - '%LOCALAPPDATA%/SysAdminSuite/last-autologon-field-run.json'
 
 proof_ceiling: >-
-  Fresh-agent routing, authorized repository-freshness selection, printer-mapping organization/site
-  use-case selection, desired-state selection, canonical command selection, executable-location and
-  operator-front-door selection, terminal-evidence selection, validator selection, artifact boundaries,
-  outcome continuation, and handoff structure only. Intake itself creates no product, target,
-  deployment, reboot, application, printer-mapping, or live-runtime proof.
+  Fresh-agent routing, canonical machine/profile path selection, independent remote/development/production/entrypoint
+  currentness states, authorized repository-freshness selection, printer-mapping organization/site use-case selection,
+  desired-state selection, canonical command selection, executable-location and operator-front-door selection,
+  terminal-evidence selection, validator selection, artifact boundaries, outcome continuation, and handoff structure only.
+  Intake itself creates no product, target, deployment, reboot, application, printer-mapping, or live-runtime proof.
