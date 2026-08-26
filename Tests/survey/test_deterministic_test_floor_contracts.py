@@ -34,6 +34,8 @@ def assert_runner_composes_existing_owners() -> None:
         "candidate_sha=",
         "PYTHONHASHSEED = '0'",
         "TZ = 'UTC'",
+        "$script:commit = 'unknown'",
+        "$script:branch = 'unknown'",
     ):
         assert marker in text, f"deterministic runner missing required owner/control: {marker}"
 
@@ -111,12 +113,15 @@ def assert_workflow_is_thin_and_unattended_safe() -> None:
         "contents: read",
         "concurrency:",
         "cancel-in-progress: true",
-        "python-version: '3.12.11'",
+        "python-version: '3.12.10'",
         "node-version: '20.19.4'",
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
         "Install-SasDeterministicTestFloorDependencies.ps1",
         "Invoke-SasDeterministicTestFloor.ps1",
         "candidate_sha=${{ github.sha }}",
-        "actions/upload-artifact@v4",
     ):
         assert marker in text, f"workflow missing deterministic/unattended contract: {marker}"
 
@@ -136,7 +141,7 @@ def main() -> int:
     print("[PASS] deterministic test floor composes existing repository owners")
     print("[PASS] dependency bootstrap pins pytest/Pester/E2E dependencies exactly")
     print("[PASS] Pester zero-test discovery fails closed with a dedicated nonzero result")
-    print("[PASS] GitHub Actions routing is push/PR/manual, read-only, unfiltered by path, and unscheduled")
+    print("[PASS] GitHub Actions routing is push/PR/manual, read-only, action-SHA-pinned, unfiltered by path, and unscheduled")
     return 0
 
 
