@@ -16,9 +16,13 @@ ROUTE = ROOT / "harness/workflows/operator-execution-route.yaml"
 SKILL = ROOT / "harness/skills/canonical-path-resolution/SKILL.md"
 MAP = ROOT / "harness/maps/CANONICAL_PATH_MAP.md"
 REPORT = ROOT / "harness/reports/CANONICAL_PATH_STATUS.md"
+ONE_COMMAND = ROOT / "scripts/validate-sysadmin-harness.ps1"
+ONE_COMMAND_CI = ROOT / ".github/workflows/one-command-harness-proof.yml"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
 PRE_PUSH = ROOT / ".githooks/pre-push"
 CI = ROOT / ".github/workflows/canonical-path-contracts.yml"
+
+REQUIRED_PROFILE_PARAMETERS = ["os", "user", "onedrive_enabled", "desktop_dev_root"]
 
 REQUIRED_TRACKED = (
     REGISTRY,
@@ -30,6 +34,8 @@ REQUIRED_TRACKED = (
     SKILL,
     MAP,
     REPORT,
+    ONE_COMMAND,
+    ONE_COMMAND_CI,
     PRE_COMMIT,
     PRE_PUSH,
     CI,
@@ -85,6 +91,46 @@ def validate_path_record(record: dict, label: str) -> None:
         require_string(record["currentness"], f"{label}.currentness", 8)
 
 
+def validate_profile_parameter_contract(registry: dict) -> None:
+    contract = registry["profile_parameters"]
+    require_exact_keys(contract, {"required", "resolution_order", "fields", "composition"}, "profile_parameters")
+    assert contract["required"] == REQUIRED_PROFILE_PARAMETERS, "profile parameter order/identity drifted"
+    resolution_order = contract["resolution_order"]
+    assert isinstance(resolution_order, list) and len(resolution_order) >= 3
+    for index, item in enumerate(resolution_order):
+        require_string(item, f"profile_parameters.resolution_order[{index}]", 8)
+
+    fields = contract["fields"]
+    require_exact_keys(fields, set(REQUIRED_PROFILE_PARAMETERS), "profile_parameters.fields")
+    allowed_types = {"enum", "string", "boolean", "path"}
+    for name in REQUIRED_PROFILE_PARAMETERS:
+        field = fields[name]
+        allowed = {"type", "allowed", "source", "purpose"}
+        required = {"type", "source", "purpose"}
+        assert isinstance(field, dict)
+        assert required <= set(field), f"profile parameter missing fields: {name}"
+        assert set(field) <= allowed, f"profile parameter contains undeclared fields: {name}"
+        assert field["type"] in allowed_types
+        require_string(field["source"], f"profile_parameters.fields.{name}.source", 8)
+        require_string(field["purpose"], f"profile_parameters.fields.{name}.purpose", 8)
+        if "allowed" in field:
+            assert isinstance(field["allowed"], list) and field["allowed"]
+            for value in field["allowed"]:
+                require_string(value, f"profile_parameters.fields.{name}.allowed")
+
+    assert fields["os"]["type"] == "enum"
+    assert fields["os"]["allowed"] == ["windows", "linux", "macos"]
+    assert fields["user"]["type"] == "string"
+    assert fields["onedrive_enabled"]["type"] == "boolean"
+    assert fields["desktop_dev_root"]["type"] == "path"
+
+    composition = contract["composition"]
+    require_exact_keys(composition, {"canonical_development_checkout", "identity"}, "profile_parameters.composition")
+    assert "{desktop_dev_root}" in composition["canonical_development_checkout"]
+    for token in ("{os}", "{user}", "{onedrive_enabled}", "{desktop_dev_root}"):
+        assert token in composition["identity"], f"profile identity missing token: {token}"
+
+
 def validate_schema_equivalent(registry: dict, schema: dict) -> None:
     """Enforce the published schema shape without requiring third-party jsonschema."""
     assert schema["$schema"].endswith("draft/2020-12/schema")
@@ -97,6 +143,7 @@ def validate_schema_equivalent(registry: dict, schema: dict) -> None:
         "repository",
         "default_profile",
         "policy",
+        "profile_parameters",
         "proof_states",
         "profiles",
         "consumers",
@@ -119,10 +166,16 @@ def validate_schema_equivalent(registry: dict, schema: dict) -> None:
         "ephemeral_acquisition_checkout_never_becomes_canonical_by_existence",
         "production_use_path_requires_independent_currentness_proof",
         "operator_entrypoint_requires_independent_observation_proof",
+        "profile_parameters_are_independent",
+        "onedrive_toggle_does_not_choose_desktop_location",
+        "desktop_dev_root_is_authoritative",
+        "user_identity_is_runtime_data_not_tracked_fixture",
     }
     require_exact_keys(registry["policy"], policy_required, "policy")
     for key in policy_required:
         assert registry["policy"][key] is True, f"canonical path policy must fail closed: {key}"
+
+    validate_profile_parameter_contract(registry)
 
     proofs = registry["proof_states"]
     assert isinstance(proofs, list) and len(proofs) >= 4, "proof_states must contain at least four records"
@@ -138,6 +191,7 @@ def validate_schema_equivalent(registry: dict, schema: dict) -> None:
         "id",
         "platform",
         "purpose",
+        "required_profile_parameters",
         "canonical_development_checkout",
         "production_use_path",
         "temporary_worktree_root",
@@ -150,6 +204,7 @@ def validate_schema_equivalent(registry: dict, schema: dict) -> None:
         require_string(profile["id"], f"{label}.id")
         assert profile["platform"] in {"windows", "linux", "macos", "cross-platform"}
         require_string(profile["purpose"], f"{label}.purpose", 8)
+        assert profile["required_profile_parameters"] == REQUIRED_PROFILE_PARAMETERS
         validate_path_record(profile["canonical_development_checkout"], f"{label}.canonical_development_checkout")
         validate_path_record(profile["temporary_worktree_root"], f"{label}.temporary_worktree_root")
 
@@ -206,7 +261,8 @@ def main() -> int:
     assert {"windows-development", "windows-admin-box"} <= set(profiles)
     assert registry["default_profile"] in profiles
     for profile in profiles.values():
-        assert profile["canonical_development_checkout"]["template"] == "%USERPROFILE%\\Desktop\\Dev\\SysAdminSuite"
+        assert profile["canonical_development_checkout"]["template"] == "{desktop_dev_root}\\SysAdminSuite"
+        assert profile["required_profile_parameters"] == REQUIRED_PROFILE_PARAMETERS
         assert profile["temporary_worktree_root"]["template"] == "%LOCALAPPDATA%\\SysAdminSuite\\worktrees"
         assert profile["canonical_development_checkout"]["template"] != profile["temporary_worktree_root"]["template"]
         assert any("closeout-entry-*" in item for item in profile["ephemeral_acquisition_patterns"])
@@ -227,6 +283,8 @@ def main() -> int:
         "harness/skills/canonical-path-resolution/SKILL.md",
         "harness/maps/CANONICAL_PATH_MAP.md",
         "harness/reports/CANONICAL_PATH_STATUS.md",
+        "scripts/validate-sysadmin-harness.ps1",
+        ".github/workflows/one-command-harness-proof.yml",
     ):
         assert expected in consumers
         assert (ROOT / expected).is_file(), f"canonical path consumer missing: {expected}"
@@ -235,6 +293,9 @@ def main() -> int:
     for marker in (
         "workflow_id: canonical-path-resolution",
         "ephemeral acquisition checkout never becomes canonical",
+        "profile parameters",
+        "onedrive_enabled",
+        "desktop_dev_root",
         "remote_default_contains_sha",
         "canonical_development_checkout_current",
         "production_use_path_current",
@@ -258,6 +319,8 @@ def main() -> int:
     for marker in (
         "entire construct in one copy/paste block",
         "second submission attempts to invoke a command named `else`",
+        "`os`, `user`, `onedrive_enabled`, and `desktop_dev_root`",
+        "OneDrive toggle never chooses the Desktop path",
         "remote default contains SHA",
         "production/use path current",
     ):
@@ -266,7 +329,9 @@ def main() -> int:
     map_text = read(MAP)
     report = read(REPORT)
     for marker in (
-        "%USERPROFILE%\\Desktop\\Dev\\SysAdminSuite",
+        "desktop_dev_root",
+        "onedrive_enabled",
+        "{desktop_dev_root}\\SysAdminSuite",
         "%LOCALAPPDATA%\\SysAdminSuite\\worktrees",
         "C:\\SASAL",
         "closeout-entry-*",
@@ -275,11 +340,28 @@ def main() -> int:
         assert marker in map_text, f"canonical path map missing: {marker}"
     for marker in (
         "one machine-readable path owner",
+        "four independent user profile parameters",
         "four independent proof states",
         "standalone later `else`",
         "PASS: canonical path harness contracts",
     ):
         assert marker in report, f"canonical path report missing: {marker}"
+
+    one_command = read(ONE_COMMAND)
+    for marker in (
+        "harness/api/canonical-path-registry.json",
+        "onedrive_enabled",
+        "desktop_dev_root",
+        "canonical path profile",
+    ):
+        assert marker in one_command, f"one-command harness proof missing canonical profile seam: {marker}"
+    one_command_ci = read(ONE_COMMAND_CI)
+    for marker in (
+        "scripts/Invoke-SasVmDryRunHarnessProof.ps1",
+        "harness/api/canonical-path-registry.json",
+        "harness/validators/validate-canonical-path-contracts.py",
+    ):
+        assert marker in one_command_ci, f"one-command CI missing canonical path dependency: {marker}"
 
     pre_commit = read(PRE_COMMIT)
     assert "validate-canonical-path-contracts.py" in pre_commit
