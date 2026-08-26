@@ -8,8 +8,21 @@
   "require_same_repository_head": true,
   "require_repository_owner_pr_author": true,
   "merge_method": "merge",
+  "promotion_transport": "exact-synthetic-merge-fast-forward",
+  "protected_branch_behavior": "fail-closed-until-provider-managed-mode-is-configured",
   "candidate_model": "github-pr-synthetic-merge",
   "control_plane_source": "trusted-base-revision",
+  "manual_only_paths": [
+    "Config/promotion-policy.json",
+    ".github/workflows/validated-promotion.yml",
+    ".github/workflows/validated-promotion-contracts.yml",
+    "scripts/Resolve-SasPromotionCandidate.ps1",
+    "scripts/Invoke-SasHarnessContracts.ps1",
+    "scripts/validate-sysadmin-harness.ps1",
+    "scripts/Invoke-SasEndToEndValidation.ps1",
+    "harness/e2e/e2e-profiles.json",
+    "Tests/survey/test_validated_promotion_contracts.py"
+  ],
   "required_gates": {
     "promotion_contracts": {
       "classification": "REQUIRED",
@@ -27,6 +40,11 @@
       "classification": "REQUIRED",
       "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/Invoke-SasEndToEndValidation.ps1 -Profile default -OutputRoot ./survey/output/promotion/application-e2e",
       "profile": "default"
+    },
+    "autologon_application_e2e": {
+      "classification": "REQUIRED",
+      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/Invoke-SasEndToEndValidation.ps1 -Profile autologon -OutputRoot ./survey/output/promotion/autologon-e2e",
+      "profile": "autologon"
     },
     "diff_check": {
       "classification": "REQUIRED",
