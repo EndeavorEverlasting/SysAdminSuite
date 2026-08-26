@@ -36,7 +36,10 @@ echo Source checkout: %SCRIPT_DIR%
 echo Existing Desktop/OneDrive checkouts are not reset, cleaned, or reused as deployment authority.
 echo.
 
-"%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_REFRESH%" -RepositoryRoot "%SCRIPT_DIR%"
+rem %%~dp0 always ends in a backslash. Passing "%SCRIPT_DIR%" directly to a native
+rem process can preserve the closing quote as part of the argument on Windows. Appending
+rem a dot keeps the path equivalent while ensuring the quoted argument does not end in \.
+"%SAS_PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SAS_REFRESH%" -RepositoryRoot "%SCRIPT_DIR%."
 set "SAS_REFRESH_RC=%ERRORLEVEL%"
 if not "%SAS_REFRESH_RC%"=="0" (
   echo.
