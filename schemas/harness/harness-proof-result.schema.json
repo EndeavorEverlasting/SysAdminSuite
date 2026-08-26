@@ -54,7 +54,7 @@
       "items": {"type": "string", "minLength": 1}
     },
     "profile": {
-      "type": "object",
+      "type": ["object", "null"],
       "additionalProperties": false,
       "required": ["machine_profile", "os", "user", "onedrive_enabled", "desktop_dev_root", "canonical_development_checkout"],
       "properties": {
@@ -67,7 +67,7 @@
       }
     },
     "prompt_owner": {
-      "type": "object",
+      "type": ["object", "null"],
       "additionalProperties": false,
       "required": ["id", "name", "purpose", "registry_path"],
       "properties": {
