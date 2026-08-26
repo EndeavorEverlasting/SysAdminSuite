@@ -74,7 +74,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - Do not claim a higher proof level than the evidence supports. Static checks, launcher success, command acknowledgment, observed behavior, and live runtime proof are distinct.
 - Preserve active PowerShell tooling. Bash-first does not mean PowerShell is dead, deprecated, or safe to delete.
 - Use short technician entrypoints and hide composition complexity behind repository-owned scripts, launchers, profiles, and evidence summaries.
-
+`/teach` workspace protocol: `/teach <topic>` updates `.teach/MISSION.md`, grounds from `.teach/RESOURCES.md` plus current repository truth, creates/reuses `.teach/lessons/<number>_<topic>.md` (or `.html` only when a visual simulator materially helps), teaches from first principles without jumping to final production code, and ends with exactly one conceptual trade-off/mechanism question plus one code diagnostic or edge-case exercise; then stop for the learner response, evaluate it, and write `.teach/learning-records/<date>_<topic>.md` as VERIFIED/MASTERED only after demonstrated understanding. `/teach recap` reads learning records first, runs a roughly three-minute refresher quiz, then resumes at the first weak/unmastered frontier. Use only repository-local state; do not clone/install a separate teaching package or repository.
 ## Skill router
 | Task signal | Load this skill |
 |---|---|
