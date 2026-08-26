@@ -21,7 +21,7 @@ function Invoke-GhJson {
     $raw = @(& gh api $Path 2>&1)
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
-        throw "gh api failed for '$Path' with exit code $exitCode: $($raw -join [Environment]::NewLine)"
+        throw "gh api failed for '$Path' with exit code ${exitCode}: $($raw -join [Environment]::NewLine)"
     }
     return (($raw -join [Environment]::NewLine) | ConvertFrom-Json -Depth 100)
 }
