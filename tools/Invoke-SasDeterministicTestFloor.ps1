@@ -24,7 +24,8 @@ $outputPath = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
 else {
     [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputRoot))
 }
-$e2eOutput = Join-Path $outputPath 'e2e'
+$floorRunId = 'deterministic-test-floor-{0}-{1}' -f ([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')), ([guid]::NewGuid().ToString('N').Substring(0, 8))
+$e2eOutput = Join-Path (Join-Path $repoRoot 'survey/output/e2e-validation') $floorRunId
 $receiptPath = Join-Path $outputPath 'test_floor_receipt.json'
 $checks = [System.Collections.Generic.List[object]]::new()
 $script:commit = 'unknown'
@@ -81,6 +82,8 @@ function Write-Receipt {
         branch = $script:branch
         final_status = $FinalStatus
         deterministic_controls = [ordered]@{
+            python_runtime = '3.12.10'
+            node_runtime = '20.19.4'
             python_hash_seed = $env:PYTHONHASHSEED
             timezone = $env:TZ
             no_color = $env:NO_COLOR
@@ -122,13 +125,13 @@ try {
     }
     Write-Host "[TEST-FLOOR] candidate_sha=$script:commit branch=$script:branch"
 
-    Invoke-RequiredCommand -Name 'Pinned Python dependency versions' -Command 'python' -Arguments @(
+    Invoke-RequiredCommand -Name 'Pinned Python runtime and dependency versions' -Command 'python' -Arguments @(
         '-c',
-        "import jsonschema, pytest, websockets; assert pytest.__version__ == '8.4.1'; assert websockets.__version__ == '15.0.1'; assert jsonschema.__version__ == '4.25.1'; print('PASS: pinned Python test dependencies')"
+        'import sys; from importlib.metadata import version; assert sys.version.split()[0] == "3.12.10"; assert version("pytest") == "8.4.1"; assert version("websockets") == "15.0.1"; assert version("jsonschema") == "4.25.1"; print("PASS: pinned Python runtime and test dependencies")'
     )
-    Invoke-RequiredCommand -Name 'Pinned Node ws dependency version' -Command 'node' -Arguments @(
+    Invoke-RequiredCommand -Name 'Pinned Node runtime and ws dependency version' -Command 'node' -Arguments @(
         '-e',
-        "const v=require('ws/package.json').version; if(v!=='8.18.3'){throw new Error('unexpected ws '+v)}; console.log('PASS: ws='+v)"
+        "const w=require('ws/package.json').version; if(process.version!=='v20.19.4'||w!=='8.18.3'){throw new Error('unexpected Node/ws '+process.version+'/'+w)}; console.log('PASS: Node='+process.version+' ws='+w)"
     )
 
     Invoke-RequiredCommand -Name 'Deterministic floor contracts' -Command 'python' -Arguments @(
@@ -160,18 +163,27 @@ try {
     )
 
     $e2eResults = @(Get-ChildItem -LiteralPath $e2eOutput -Filter 'e2e_validation_result.json' -File -Recurse -ErrorAction SilentlyContinue)
-    if ($e2eResults.Count -eq 0) {
-        Add-Check -Name 'E2E machine-readable receipt' -Status 'FAIL' -ExitCode 3 -Detail 'zero e2e_validation_result.json artifacts discovered'
-        throw 'Default E2E exited successfully but emitted no e2e_validation_result.json artifact.'
+    if ($e2eResults.Count -ne 1) {
+        Add-Check -Name 'E2E machine-readable receipt' -Status 'FAIL' -ExitCode 3 -Detail "expected exactly one isolated E2E receipt; found $($e2eResults.Count)"
+        throw "Default E2E must emit exactly one e2e_validation_result.json under its isolated floor root; found $($e2eResults.Count)."
     }
-    foreach ($resultFile in $e2eResults) {
-        $result = Get-Content -LiteralPath $resultFile.FullName -Raw | ConvertFrom-Json
-        if (-not $result.PSObject.Properties['final_status'] -or $result.final_status -ne 'PASS') {
-            Add-Check -Name 'E2E machine-readable receipt' -Status 'FAIL' -ExitCode 4 -Detail "non-PASS E2E receipt: $($resultFile.FullName)"
-            throw "Default E2E receipt is not PASS: $($resultFile.FullName)"
-        }
+
+    $e2eResultPath = $e2eResults[0].FullName
+    $result = Get-Content -LiteralPath $e2eResultPath -Raw | ConvertFrom-Json
+    if (-not $result.PSObject.Properties['schema_version'] -or $result.schema_version -ne 'sas-e2e-validation/v1') {
+        Add-Check -Name 'E2E machine-readable receipt' -Status 'FAIL' -ExitCode 4 -Detail "unexpected E2E schema: $($result.schema_version)"
+        throw "Default E2E receipt has an unexpected schema: $e2eResultPath"
     }
-    Add-Check -Name 'E2E machine-readable receipt' -Status 'PASS' -ExitCode 0 -Detail "$($e2eResults.Count) PASS receipt(s)"
+    if (-not $result.PSObject.Properties['counts'] -or [int]$result.counts.failed -ne 0) {
+        Add-Check -Name 'E2E machine-readable receipt' -Status 'FAIL' -ExitCode 5 -Detail "E2E receipt reports failed=$($result.counts.failed)"
+        throw "Default E2E receipt reports failed journeys: $e2eResultPath"
+    }
+    $requiredNonPass = @($result.journeys | Where-Object { $_.required -and $_.status -ne 'PASS' })
+    if ($requiredNonPass.Count -ne 0) {
+        Add-Check -Name 'E2E machine-readable receipt' -Status 'FAIL' -ExitCode 6 -Detail "required non-PASS journeys=$($requiredNonPass.Count)"
+        throw "Default E2E receipt contains required non-PASS journeys: $e2eResultPath"
+    }
+    Add-Check -Name 'E2E machine-readable receipt' -Status 'PASS' -ExitCode 0 -Detail "passed=$($result.counts.passed); skipped=$($result.counts.skipped); failed=0"
 
     Write-Receipt -FinalStatus 'PASS' -Failure ''
     Write-Host "[PASS] deterministic SysAdminSuite test floor @ $script:commit"
