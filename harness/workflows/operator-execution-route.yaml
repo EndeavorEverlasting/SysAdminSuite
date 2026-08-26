@@ -51,6 +51,7 @@ stages:
       - never assume the current shell is already inside the repository
       - read the selected profile's production_use_path, canonical_development_checkout, temporary_worktree_root, and ephemeral_acquisition_patterns
       - when installed sas exists for autologon-remote, run sas repo and require the resolved sealed runtime to equal the registered windows-admin-box production_use_path C:\SASAL
+      - treat that registered production path as the sealed C:\SASAL runtime, never as a full development checkout
       - require Bootstrap-SysAdminSuiteAutoLogon.cmd inside that resolved sealed runtime
       - require the owning sealed-runtime manifest/audit before recording production_use_path_current
       - do not fall through to sas autologon Remote when the sealed crash-safe bootstrap is missing
