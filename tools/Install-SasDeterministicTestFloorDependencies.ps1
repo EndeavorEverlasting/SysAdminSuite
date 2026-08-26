@@ -48,7 +48,7 @@ try {
         throw "npm dependency bootstrap failed with exit code $LASTEXITCODE."
     }
 
-    $pythonVersions = & python -c "import jsonschema, pytest, websockets; print(f'pytest={pytest.__version__};websockets={websockets.__version__};jsonschema={jsonschema.__version__}')"
+    $pythonVersions = & python -c "from importlib.metadata import version; print(f'pytest={version(\"pytest\")};websockets={version(\"websockets\")};jsonschema={version(\"jsonschema\")}')"
     if ($LASTEXITCODE -ne 0) {
         throw 'Python dependency version verification failed.'
     }
