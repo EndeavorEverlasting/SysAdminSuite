@@ -42,6 +42,7 @@
       "canonical_development_checkout": {
         "template": "%USERPROFILE%\\Desktop\\Dev\\SysAdminSuite",
         "mutable": true,
+        "purpose": "Canonical mutable SysAdminSuite development checkout for this profile.",
         "authority": "developer checkout",
         "currentness": "git identity plus refreshed remote comparison"
       },
@@ -70,6 +71,7 @@
       "canonical_development_checkout": {
         "template": "%USERPROFILE%\\Desktop\\Dev\\SysAdminSuite",
         "mutable": true,
+        "purpose": "Canonical mutable SysAdminSuite development checkout on an Admin Box.",
         "authority": "developer checkout",
         "currentness": "git identity plus refreshed remote comparison"
       },
