@@ -27,6 +27,8 @@ else {
 $e2eOutput = Join-Path $outputPath 'e2e'
 $receiptPath = Join-Path $outputPath 'test_floor_receipt.json'
 $checks = [System.Collections.Generic.List[object]]::new()
+$script:commit = 'unknown'
+$script:branch = 'unknown'
 
 $env:PYTHONHASHSEED = '0'
 $env:TZ = 'UTC'
@@ -175,8 +177,6 @@ try {
     Write-Host "[PASS] deterministic SysAdminSuite test floor @ $script:commit"
 }
 catch {
-    if (-not $script:commit) { $script:commit = 'unknown' }
-    if (-not $script:branch) { $script:branch = 'unknown' }
     Write-Receipt -FinalStatus 'FAIL' -Failure $_.Exception.Message
     Write-Error $_
     exit 1
