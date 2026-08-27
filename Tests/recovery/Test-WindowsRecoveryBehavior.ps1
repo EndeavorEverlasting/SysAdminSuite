@@ -3,11 +3,11 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '../../recovery/windows/SasWindowsRecovery.Common.psm1') -Force
 
 function Assert-Equal($Expected, $Actual, $Label) {
-    if ($Expected -ne $Actual) { throw "$Label: expected '$Expected', got '$Actual'" }
+    if ($Expected -ne $Actual) { throw "${Label}: expected '$Expected', got '$Actual'" }
 }
 
 function Assert-True($Actual, $Label) {
-    if (-not $Actual) { throw "$Label: expected true" }
+    if (-not $Actual) { throw "${Label}: expected true" }
 }
 
 $system = [pscustomobject]@{ disk_number = 0; label = 'OS'; bus_type = 'NVMe'; disk_model = 'System NVMe' }
