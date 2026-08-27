@@ -39,6 +39,12 @@ if ([string]$profile.platform -ne 'windows') {
 $user = if (-not [string]::IsNullOrWhiteSpace($env:USERNAME)) { [string]$env:USERNAME } else { [Environment]::UserName }
 if ([string]::IsNullOrWhiteSpace($user)) { throw 'Unable to resolve current Windows user identity.' }
 
+$desktopKnownFolder = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
+if ([string]::IsNullOrWhiteSpace($desktopKnownFolder)) {
+    throw 'Windows Desktop Known Folder could not be resolved. Canonical development location is UNKNOWN; no fallback clone is authorized.'
+}
+try { $desktopKnownFolder = [IO.Path]::GetFullPath($desktopKnownFolder) } catch { throw "Windows Desktop Known Folder is invalid: $desktopKnownFolder" }
+
 $oneDriveRoots = New-Object 'System.Collections.Generic.List[string]'
 foreach ($raw in @($env:OneDrive, $env:OneDriveCommercial, $env:OneDriveConsumer)) {
     if ([string]::IsNullOrWhiteSpace([string]$raw)) { continue }
@@ -60,19 +66,13 @@ $desktopSource = 'os_known_folder'
 if (-not [string]::IsNullOrWhiteSpace($DesktopDevRoot)) {
     try { $desktopDev = [IO.Path]::GetFullPath($DesktopDevRoot.Trim()) } catch { throw "Invalid explicit Desktop Dev root: $DesktopDevRoot" }
     $desktopSource = 'explicit_desktop_dev_root'
-    $desktop = Split-Path -Parent $desktopDev
 } else {
-    $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
-    if ([string]::IsNullOrWhiteSpace($desktop)) {
-        throw 'Windows Desktop Known Folder could not be resolved. Canonical development location is UNKNOWN; no fallback clone is authorized.'
-    }
-    try { $desktop = [IO.Path]::GetFullPath($desktop) } catch { throw "Windows Desktop Known Folder is invalid: $desktop" }
-    $desktopDev = Join-Path $desktop 'Dev'
+    $desktopDev = Join-Path $desktopKnownFolder 'Dev'
 }
 
 foreach ($root in $availableOneDriveRoots) {
     $prefix = $root.TrimEnd('\') + '\'
-    if ($desktop.Equals($root, [StringComparison]::OrdinalIgnoreCase) -or $desktop.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+    if ($desktopKnownFolder.Equals($root, [StringComparison]::OrdinalIgnoreCase) -or $desktopKnownFolder.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
         $oneDriveState = 'TARGET_FOLDER_REDIRECTED'
         break
     }
@@ -184,7 +184,7 @@ $receipt = [ordered]@{
     os = 'windows'
     path_semantics = 'WINDOWS_CASE_INSENSITIVE_NORMALIZED_FULL_PATH'
     user = $user
-    desktop_known_folder = $desktop
+    desktop_known_folder = $desktopKnownFolder
     desktop_dev_root = $desktopDev
     desktop_source = $desktopSource
     onedrive_state = $oneDriveState
@@ -218,7 +218,7 @@ if ($AsJson) {
     $receipt | ConvertTo-Json -Depth 5
 } else {
     Write-Host "Profile: $selectedProfileId"
-    Write-Host "Desktop Known Folder: $desktop"
+    Write-Host "Desktop Known Folder: $desktopKnownFolder"
     Write-Host "Desktop Dev root: $desktopDev"
     Write-Host "OneDrive state: $oneDriveState"
     Write-Host "Canonical development: $canonicalDev"
