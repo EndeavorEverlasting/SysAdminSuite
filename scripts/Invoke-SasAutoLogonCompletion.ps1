@@ -7,8 +7,8 @@ Complete one AutoLogon deployment only after a fresh read-only transport admissi
 Runs entirely from the already sealed machine-local AutoLogon runtime. Before any target contact it
 resolves the runtime-local manifest authority and performs the canonical full SHA-256 seal audit. It
 then establishes the exact active DomainAuthenticated VPN/LAN authority, proves the protected network,
-canonicalizes the one explicit target, and runs one bounded read-only kerberos_smb_task preflight with
-a VPN-tolerant 15-second per-observation budget.
+canonicalizes and validates the one explicit target, and runs one bounded read-only kerberos_smb_task
+preflight with a VPN-tolerant 15-second per-observation budget.
 
 Only a fresh kerberos_smb_task_ready result with no timeout and no target mutation may advance into the
 existing sealed crash-safe AutoLogon bootstrap. The completion gate does not implement staging, package
@@ -37,11 +37,12 @@ $sealAuditor = Join-Path $RuntimeRoot 'scripts\Test-SasAutoLogonRuntimeSeal.ps1'
 $networkBootstrap = Join-Path $RuntimeRoot 'scripts\Enable-SasNorthwellVpnNetworkGuard.ps1'
 $networkGate = Join-Path $RuntimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
 $targetModule = Join-Path $RuntimeRoot 'scripts\SasTargetNameResolution.psm1'
+$hostEligibility = Join-Path $RuntimeRoot 'scripts\Test-SasHostEligibility.ps1'
 $transportPreflight = Join-Path $RuntimeRoot 'scripts\Test-SasSoftwareDeploymentTransport.ps1'
 $deploymentBootstrap = Join-Path $RuntimeRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd'
 
 foreach ($required in @(
-    $manifestResolver,$sealAuditor,$networkBootstrap,$networkGate,$targetModule,$transportPreflight,$deploymentBootstrap
+    $manifestResolver,$sealAuditor,$networkBootstrap,$networkGate,$targetModule,$hostEligibility,$transportPreflight,$deploymentBootstrap
 )) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "AUTOLOGON_COMPLETION_RUNTIME_INCOMPLETE: required sealed-runtime surface is missing: $required"
@@ -103,12 +104,25 @@ if ($LASTEXITCODE -ne 0) {
     throw "AUTOLOGON_COMPLETION_NETWORK_BLOCKED: canonical protected-network gate exited $LASTEXITCODE."
 }
 
+# The explicit operator argument is the only remote-target authority for this process tree. The
+# read-only admission uses the same exact-host rule as the downstream deployment; no machine-local
+# policy write is required or permitted here.
+$env:SAS_EXPLICIT_REMOTE_TARGET_REQUEST = $ComputerName
 Import-Module $targetModule -Force
 $resolution = Resolve-SasCanonicalTargetFqdn -TargetName $ComputerName
 if (@($resolution.addresses).Count -lt 1 -or [string]::IsNullOrWhiteSpace([string]$resolution.fqdn)) {
     throw 'AUTOLOGON_COMPLETION_TARGET_BLOCKED: canonical target resolution returned no usable FQDN/address.'
 }
 $resolvedTarget = [string]$resolution.fqdn
+$eligibility = & $hostEligibility -Target $resolvedTarget -ExecContext remote -RepoRoot $RuntimeRoot
+if ($null -eq $eligibility -or -not [bool]$eligibility.eligible -or [string]$eligibility.decision -ne 'allowed') {
+    $reasonCode = if ($null -eq $eligibility) { 'NO_RESULT' } else { [string]$eligibility.reason_code }
+    throw "AUTOLOGON_COMPLETION_TARGET_BLOCKED: exact host eligibility denied the canonical target. reason_code=$reasonCode"
+}
+if ([string]$eligibility.reason_code -ne 'EXPLICIT_REMOTE_TARGET_AUTHORIZED') {
+    throw "AUTOLOGON_COMPLETION_TARGET_BLOCKED: completion requires exact explicit-target authority; observed reason_code=$($eligibility.reason_code)"
+}
+Write-Host "Exact host eligibility: PASS [$($eligibility.reason_code)]" -ForegroundColor Green
 
 Write-Host ''
 Write-Host '=== AUTOLOGON COMPLETION: FRESH READ-ONLY TRANSPORT ADMISSION ===' -ForegroundColor Cyan
@@ -151,10 +165,9 @@ Write-Host 'AUTOLOGON_COMPLETION_PREFLIGHT_READY' -ForegroundColor Green
 Write-Host 'Fresh read-only Kerberos SMB + Task Scheduler admission passed; entering the existing sealed crash-safe deployment.' -ForegroundColor Green
 Write-Host "Prepared runtime commit: $preparedCommit" -ForegroundColor Green
 
-# Carry the exact current network-guard file into the existing bootstrap process tree. The bootstrap
-# still re-resolves manifest/seal/network/target authority and its field transaction independently
-# repeats transport admission before any mutation.
-$env:SAS_EXPLICIT_REMOTE_TARGET_REQUEST = $ComputerName
+# Carry the exact current network-guard and exact-target authority into the existing bootstrap process
+# tree. The bootstrap still re-resolves manifest/seal/network/target authority and its field
+# transaction independently repeats transport admission before any mutation.
 & $deploymentBootstrap $ComputerName $preparedCommit
 $deploymentExit = [int]$LASTEXITCODE
 
