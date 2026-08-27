@@ -1,0 +1,71 @@
+name: Windows workstation recovery proof
+
+on:
+  pull_request:
+    paths:
+      - 'recovery/windows/**'
+      - 'schemas/harness/windows-workstation-recovery-evidence.schema.json'
+      - 'Tests/Fixtures/windows-recovery/**'
+      - 'Tests/recovery/test_windows_workstation_recovery_contracts.py'
+      - 'Inspect-WindowsWorkstationRecovery.cmd'
+      - 'START-HERE-WINDOWS-WORKSTATION-RECOVERY.md'
+      - '.github/workflows/windows-workstation-recovery-proof.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'recovery/windows/**'
+      - 'schemas/harness/windows-workstation-recovery-evidence.schema.json'
+      - 'Tests/Fixtures/windows-recovery/**'
+      - 'Tests/recovery/test_windows_workstation_recovery_contracts.py'
+      - 'Inspect-WindowsWorkstationRecovery.cmd'
+      - 'START-HERE-WINDOWS-WORKSTATION-RECOVERY.md'
+      - '.github/workflows/windows-workstation-recovery-proof.yml'
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install jsonschema pytest
+      - run: python -m pytest -q Tests/recovery/test_windows_workstation_recovery_contracts.py
+
+  powershell-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell surfaces
+        shell: pwsh
+        run: |
+          $paths = @(
+            'recovery/windows/Get-SasWindowsRecoveryEvidence.ps1',
+            'recovery/windows/Test-SasDismActivity.ps1',
+            'recovery/windows/Repair-SasWindowsIntegrity.ps1'
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) {
+              $errors | Format-List | Out-String | Write-Error
+              exit 1
+            }
+          }
+      - name: Prove sanitized fixture output
+        shell: pwsh
+        run: |
+          $json = & ./recovery/windows/Get-SasWindowsRecoveryEvidence.ps1 -FixturePath ./Tests/Fixtures/windows-recovery/healthy.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $value = $json | ConvertFrom-Json
+          if ($value.schema_version -ne '1.0') { throw 'Unexpected schema version.' }
+          if ($value.proof.destructive_actions_performed -ne $false) { throw 'Fixture must remain read-only evidence.' }
+      - name: Prove repair script defaults to plan only
+        shell: pwsh
+        run: |
+          $json = & ./recovery/windows/Repair-SasWindowsIntegrity.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $value = $json | ConvertFrom-Json
+          if ($value.status -ne 'plan_only') { throw 'Repair script must not mutate without -Apply.' }
