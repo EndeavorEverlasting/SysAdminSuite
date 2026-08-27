@@ -30,25 +30,28 @@ Quick mode records disk/volume identity, storage health where the driver exposes
 
 ## Verify a Windows system image
 
-Pass the target explicitly; do not guess which USB drive is the backup disk:
+Pass the target explicitly and pin the stable facts you know; do not guess which USB drive is the backup disk:
 
 ```powershell
 pwsh -NoProfile -File .\recovery\windows\Get-SasWindowsRecoveryEvidence.ps1 `
   -BackupTarget D: `
+  -ExpectedBackupLabel LaptopBackup `
+  -ExpectedBackupBusType USB `
   -BackupVersion '01/02/2026-03:04' `
   -OutputPath .\runs\windows-recovery\backup-proof.json
 ```
 
-The collector queries `wbadmin get versions`, optionally `wbadmin get items` for the exact version, and measures the physical `WindowsImageBackup` tree. The proof is stronger than a displayed `100%` progress value, but it is **not** a bare-metal restore test. Preserve the source until the recovery requirement is independently satisfied.
+Before querying the catalog, the collector proves that the target is on a different physical disk than the system volume and can pin expected label, bus type, and model. Identity mismatch fails closed. It then queries `wbadmin get versions`, optionally `wbadmin get items` for the exact version, and measures the physical `WindowsImageBackup` tree. The proof is stronger than a displayed `100%` progress value, but it is **not** a bare-metal restore test. Preserve the source until the recovery requirement is independently satisfied.
 
 A useful backup gate is:
 
 1. imaging command returned success;
-2. the version is registered in the backup catalog;
-3. the exact version enumerates expected critical volumes/items;
-4. `WindowsImageBackup` physically exists on the confirmed target;
-5. WinRE or other bootable recovery media is available;
-6. destructive cleanup begins only after those facts are captured.
+2. the target maps to the expected physical disk identity and is distinct from the system disk;
+3. the version is registered in the backup catalog;
+4. the exact version enumerates expected critical volumes/items;
+5. `WindowsImageBackup` physically exists on the confirmed target;
+6. WinRE or other bootable recovery media is available;
+7. destructive cleanup begins only after those facts are captured.
 
 ## Storage-pressure triage
 
@@ -108,6 +111,7 @@ Use current manufacturer/service documentation or a compatibility database as a 
 ## Proof levels
 
 - **Observed:** local metadata or native command output was captured.
+- **Identity pinned:** a backup target is distinct from the system disk and matches supplied stable expectations.
 - **Catalog verified:** Windows backup catalog/artifact is visible on the confirmed target.
 - **Integrity verified:** the exact health commands completed and their final text is recorded.
 - **Not proven here:** successful bare-metal restore, external boot-media acceptance, firmware correctness, vendor RAM/SSD compatibility, application performance, or destructive-cleanup correctness.
