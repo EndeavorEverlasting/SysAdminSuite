@@ -80,6 +80,12 @@ TECHNICIAN_MARKERS = (
     "Field technicians use repository-owned CMD launchers instead of reconstructing PowerShell commands or individual script sequences",
     "target-name resolution, dry-run and live-cert gates, production confirmation, failure handling, artifact generation, and opening the operator handoff",
     "PowerShell instructions are limited to pulling the current repository and revealing or selecting the launcher",
+    "Before executing or handing any repository-owned command or launcher to an operator",
+    "prove refreshed remote truth and canonical-development-checkout currentness",
+    "git pull --ff-only",
+    "missing, dirty, diverged, unhealthy, or unproved checkout must fail closed",
+    "harness/workflows/repository-freshness-before-launch.yaml",
+    "stale installed `sas` or repo-relative command",
     "Technicians enter the approved short hostname",
     "exactly one canonical FQDN from approved local DNS context",
     "zero matches, alias mismatch, or multiple matches fail closed before mutation",
@@ -207,6 +213,7 @@ def main() -> int:
     print("[PASS] Governance, validator, and consumed profile authorities are tracked")
     print("[PASS] AGENTS.md is ordered, compact, safe, and governance-complete")
     print("[PASS] Governance text contains ordered organization/site boundary markers for kiosk/update policy isolation")
+    print("[PASS] Governance requires pull-first freshness proof before any repository-owned operator command")
     print("[PASS] Governance requires clickable CMD technician entrypoints, short-hostname resolution, and dry-run/live-cert gates")
     print("[PASS] Governance text fails closed across equipment profiles and forbids AutoLogon on shared/user-login profiles")
     print("[PASS] The current Cybernet profile selects AutoLogon exactly once and last")
