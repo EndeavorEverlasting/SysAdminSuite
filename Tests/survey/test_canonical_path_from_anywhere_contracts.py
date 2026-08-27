@@ -30,13 +30,18 @@ def assert_registry_owns_resolver() -> None:
     assert registry["repository"] == "EndeavorEverlasting/SysAdminSuite"
     assert "scripts/Resolve-SasCanonicalDevelopmentPath.ps1" in registry["consumers"]
     assert registry["policy"]["canonical_development_checkout_must_be_unique"] is True
+    assert registry["policy"]["canonical_development_checkout_requires_git_io_health"] is True
     assert registry["policy"]["second_mutable_clone_is_forbidden"] is True
     assert registry["policy"]["desktop_dev_root_is_authoritative"] is True
     assert registry["policy"]["onedrive_toggle_does_not_choose_desktop_location"] is True
+    safety = registry["operator_command_safety"]
+    assert safety["powershell_if_else_must_be_one_paste_block"] is True
+    assert safety["powershell_native_failure_must_abort_single_paste_block"] is True
+    assert safety["next_command_must_not_require_unmerged_default_branch_artifact"] is True
 
 
 def assert_resolver_fails_closed_without_cwd_authority() -> None:
-    """Require Known Folder/profile evidence and reject cwd or fallback-clone authority."""
+    """Require Known Folder/profile evidence, Git I/O health, and no fallback authority."""
     text = read(RESOLVER)
     required = (
         "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)",
@@ -55,6 +60,9 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
         "CONFLICT_WRONG_REPOSITORY",
         "CONFLICT_NESTED_OR_WRONG_ROOT",
         "CONFLICT_REPARSE_POINT_UNINSPECTED",
+        "CONFLICT_GIT_IO_UNHEALTHY",
+        "status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty",
+        "canonical_git_io_health = $canonicalGitIoHealth",
         "CANONICAL_PROVED",
         "current_directory_is_authority = $false",
         "path_semantics = 'WINDOWS_CASE_INSENSITIVE_NORMALIZED_FULL_PATH'",
@@ -67,6 +75,7 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
     for marker in required:
         assert marker in text, f"resolver missing fail-closed/path-input marker: {marker}"
     assert "do not create a fallback clone elsewhere" in text.lower()
+    assert "evilgithub.com" not in text
 
     for disposition in (
         "'CANONICAL + PROVED'",
@@ -90,26 +99,30 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
         assert marker not in text, f"resolver contains forbidden machine-specific/destructive behavior: {marker}"
 
 
-def assert_workflow_and_skill_block_the_original_failure() -> None:
-    """Freeze the from-anywhere bootstrap and the original git-rev-parse regression."""
+def assert_workflow_and_skill_block_the_recurrence() -> None:
+    """Freeze the original cwd failure plus native-continuation and unmerged-helper recurrence."""
     workflow = read(WORKFLOW)
     skill = read(SKILL)
     for text, label in ((workflow, "workflow"), (skill, "skill")):
         assert "current working directory" in text.lower(), f"{label} must classify CWD as evidence only"
         assert "git rev-parse --show-toplevel" in text, f"{label} must name the original bad bootstrap"
-        assert "Resolve-SasCanonicalDevelopmentPath.ps1" in text, f"{label} must route to the tracked resolver"
         assert "fallback clone" in text.lower(), f"{label} must forbid fallback checkout creation"
+        assert "git i/o" in text.lower(), f"{label} must require Git I/O health"
+        assert "unmerged" in text.lower(), f"{label} must forbid default-branch dependence on unmerged helpers"
 
     for marker in (
         "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)",
-        "Join-Path (Join-Path $desktop 'Dev') 'SysAdminSuite'",
-        "-RequireCheckout",
+        "& {",
+        "$LASTEXITCODE",
+        "status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty",
+        "native-command failures do not honor `$ErrorActionPreference`",
+        "Never make an unmerged helper a prerequisite",
     ):
-        assert marker in skill, f"skill is missing executable from-anywhere bootstrap: {marker}"
+        assert marker.lower() in skill.lower(), f"skill is missing atomic recurrence-prevention marker: {marker}"
 
 
 def assert_provider_fixture_is_wired() -> None:
-    """Require real Windows CI proof for missing, wrong-repo, and valid checkout states."""
+    """Require real Windows CI proof for missing, wrong-repo, broken-I/O, and valid checkout states."""
     ci = read(CI)
     for marker in (
         "scripts/Resolve-SasCanonicalDevelopmentPath.ps1",
@@ -118,8 +131,10 @@ def assert_provider_fixture_is_wired() -> None:
         "Start outside any Git repository",
         "Prove missing canonical checkout fails closed",
         "Prove wrong repository checkout fails closed",
+        "Prove Git I/O unhealthy checkout fails closed",
         "Prove explicit canonical checkout succeeds",
-        "$global:LASTEXITCODE = 0",
+        "CONFLICT_GIT_IO_UNHEALTHY",
+        "canonical_git_io_health",
         "CONFLICT_WRONG_REPOSITORY",
         "Explicit DesktopDevRoot incorrectly replaced real Desktop Known Folder",
     ):
@@ -130,14 +145,13 @@ def main() -> int:
     """Execute the complete canonical path from-anywhere contract floor."""
     assert_registry_owns_resolver()
     assert_resolver_fails_closed_without_cwd_authority()
-    assert_workflow_and_skill_block_the_original_failure()
+    assert_workflow_and_skill_block_the_recurrence()
     assert_provider_fixture_is_wired()
-    print("[PASS] canonical path registry remains the sole path authority and owns the executable resolver as a consumer")
+    print("[PASS] canonical path registry owns uniqueness, Git I/O health, and atomic/default-branch-safe handoffs")
     print("[PASS] resolver keeps actual Windows Desktop Known Folder distinct from an explicit Desktop Dev override")
-    print("[PASS] resolver uses profile evidence and forbids cwd/fallback-clone authority")
-    print("[PASS] receipt exposes role relation, entrypoint authority, reparse state, and fail-closed path disposition")
-    print("[PASS] workflow and skill explicitly block the original git-rev-parse bootstrap failure")
-    print("[PASS] Windows provider fixtures prove from-anywhere missing, wrong-repository, and canonical checkout states")
+    print("[PASS] resolver fails closed on cwd, OneDrive conflicts, wrong origin, reparse state, and Git I/O failure")
+    print("[PASS] workflow and skill block the repeated native-continuation and unmerged-helper handoff defect")
+    print("[PASS] Windows provider fixtures cover missing, wrong-repository, unhealthy-I/O, and canonical checkout states")
     return 0
 
 
