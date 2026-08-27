@@ -43,7 +43,7 @@ stages:
       - treat a working installed sas shim, remembered command, or previously successful launcher as command evidence only, never as repository freshness proof
       - remember that fetching origin/main alone does not update local main or the current worktree
       - remember that freshness routing does not grant target-network or product-mutation authority
-      - an explicit request to run or use a repository-owned command authorizes only the configured Git-remote freshness fetch and bounded git pull --ff-only convergence of a clean owned healthy canonical default branch that is strictly behind
+      - an explicit request to run or use a repository-owned command authorizes only the configured Git-remote freshness fetch and bounded git pull --ff-only <intended_remote> <intended_remote_ref> convergence of a clean owned healthy canonical default branch that is strictly behind, followed by proof that git rev-parse HEAD equals selected_repository_commit before product invocation
       - preserve the default branch instead of switching, resetting, or overwriting when that bounded fast-forward case is not proven
       - preserve dirty, diverged, unhealthy, missing, or separately owned work in an approved isolated worktree for agent-side repository analysis when safe, but fail closed before product-command handoff until canonical currentness is proven
       - allow a clean owned non-default branch to use fast-forward-only convergence only when branch-update authority is explicit
@@ -100,7 +100,7 @@ stages:
       - do not treat harness-command-registry command text or installed sas availability as operator handoff until freshness and execution-route lookup are complete
       - when command id autologon-remote is selected for operator execution, use the registered Run-AutoLogonCrashSafe.cmd HOST front door rather than handing out the inner product command
       - when the execution environment can run the operator command and dependencies are satisfied, execute the refreshed resolved front door in the same turn
-      - when workstation execution is unavailable, provide one atomic copy-paste route-and-run command that resolves the canonical repo path, fetches refreshed remote truth, applies git pull --ff-only only for the proven clean owned healthy canonical default-branch behind case, verifies the front door, changes location, invokes it, and propagates the exit code; if currentness cannot be proven safely, stop before the product command
+      - when workstation execution is unavailable, provide one atomic copy-paste route-and-run command that resolves the canonical repo path, fetches refreshed remote truth, proves the clean owned healthy canonical default-branch strictly-behind case, runs git pull --ff-only <intended_remote> <intended_remote_ref>, requires git rev-parse HEAD to equal selected_repository_commit, verifies the front door, changes location, invokes it, and propagates the exit code; if currentness cannot be proven safely, stop before the product command
       - when an operator command uses PowerShell if/else control flow, keep the complete if/else in one paste block; never emit else as a later standalone command
       - when a terminal vanished, recover the stable latest pointer and local artifacts before any target re-contact or rerun
       - preserve already-proven Cybernet clinical-core installation/acceptance instead of blindly reinstalling it to reach AutoLogon
@@ -148,7 +148,7 @@ stages:
       - report commit SHA, push state, PR state, skipped checks, gaps, risks, and proof ceiling
       - use tools/New-SasSprintCapsule.ps1 for compressed next-agent transfer when needed
       - provide one exact next command only when a real unproven gate remains
-      - when that next command is repository-owned, repository-relative, or has a registered operator front door, freshness proof must precede command handoff; if the workstation must perform the refresh, emit one atomic pull-first route-and-run command rather than a bare product command
+      - when that next command is repository-owned, repository-relative, or has a registered operator front door, freshness proof must precede command handoff; if the workstation must perform the refresh, emit one atomic pull-first route-and-run command bound to intended_remote and intended_remote_ref and require post-pull HEAD equality with selected_repository_commit rather than a bare product command
       - when AutoLogon deployment is proven and runtime remains requested, identify the separately authorized attended reboot/direct sign-in gate rather than returning to more tests
       - when a terminal vanished, report the preserved latest pointer and run root before proposing any new target action
       - never stop at tests passed, transport live cert passed, status reported, command printed, or wait for next chat when a registered safe continuation remains executable
