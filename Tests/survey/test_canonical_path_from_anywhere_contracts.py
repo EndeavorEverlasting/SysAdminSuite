@@ -14,15 +14,18 @@ CI = ROOT / ".github/workflows/canonical-path-contracts.yml"
 
 
 def read(path: Path) -> str:
+    """Read a tracked contract surface using its repository encoding."""
     assert path.is_file(), f"missing from-anywhere path surface: {path.relative_to(ROOT)}"
     return path.read_text(encoding="utf-8-sig")
 
 
 def load(path: Path) -> dict:
+    """Load a tracked JSON contract after proving the file exists."""
     return json.loads(read(path))
 
 
 def assert_registry_owns_resolver() -> None:
+    """Keep the canonical-path registry as the sole durable path authority."""
     registry = load(REGISTRY)
     assert registry["repository"] == "EndeavorEverlasting/SysAdminSuite"
     assert "scripts/Resolve-SasCanonicalDevelopmentPath.ps1" in registry["consumers"]
@@ -33,6 +36,7 @@ def assert_registry_owns_resolver() -> None:
 
 
 def assert_resolver_fails_closed_without_cwd_authority() -> None:
+    """Require Known Folder/profile evidence and reject cwd or fallback-clone authority."""
     text = read(RESOLVER)
     required = (
         "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)",
@@ -87,6 +91,7 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
 
 
 def assert_workflow_and_skill_block_the_original_failure() -> None:
+    """Freeze the from-anywhere bootstrap and the original git-rev-parse regression."""
     workflow = read(WORKFLOW)
     skill = read(SKILL)
     for text, label in ((workflow, "workflow"), (skill, "skill")):
@@ -104,6 +109,7 @@ def assert_workflow_and_skill_block_the_original_failure() -> None:
 
 
 def assert_provider_fixture_is_wired() -> None:
+    """Require real Windows CI proof for missing, wrong-repo, and valid checkout states."""
     ci = read(CI)
     for marker in (
         "scripts/Resolve-SasCanonicalDevelopmentPath.ps1",
@@ -121,6 +127,7 @@ def assert_provider_fixture_is_wired() -> None:
 
 
 def main() -> int:
+    """Execute the complete canonical path from-anywhere contract floor."""
     assert_registry_owns_resolver()
     assert_resolver_fails_closed_without_cwd_authority()
     assert_workflow_and_skill_block_the_original_failure()
