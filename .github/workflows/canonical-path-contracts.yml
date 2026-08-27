@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - 'harness/api/canonical-path-registry.json'
-      - 'harness/api/harness-command-registry.json'
       - 'schemas/harness/canonical-path-registry.schema.json'
       - 'harness/workflows/canonical-path-resolution.yaml'
       - 'harness/workflows/fresh-agent-intake.yaml'
@@ -27,7 +26,6 @@ on:
       - main
     paths:
       - 'harness/api/canonical-path-registry.json'
-      - 'harness/api/harness-command-registry.json'
       - 'schemas/harness/canonical-path-registry.schema.json'
       - 'harness/workflows/canonical-path-resolution.yaml'
       - 'harness/workflows/fresh-agent-intake.yaml'
