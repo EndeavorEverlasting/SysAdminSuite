@@ -4,6 +4,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 HARD = ROOT / "scripts" / "SasSoftwareDeploymentKerberosSmbHardBounded.psm1"
+TRANSPORT = ROOT / "scripts" / "Test-SasSoftwareDeploymentTransport.ps1"
 REPAIR = ROOT / "scripts" / "Repair-SasKerberosSmbTransportPreflightRuntime.ps1"
 REPAIR_TEST = ROOT / "Tests" / "PowerShell" / "KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1"
 DEPLOY = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
@@ -19,6 +20,7 @@ def read(path: Path) -> str:
 
 def main() -> None:
     hard = read(HARD)
+    transport = read(TRANSPORT)
     repair = read(REPAIR)
     repair_test = read(REPAIR_TEST)
     deploy = read(DEPLOY)
@@ -35,6 +37,21 @@ def main() -> None:
         "target_mutation_performed = $false",
     ):
         assert marker in hard, marker
+
+    # Ordinary callers retain the historical five-second default. The completion process tree may
+    # inherit the timeout that already passed the fresh admission, but only when TimeoutSeconds was
+    # not explicitly bound. Explicit callers therefore remain authoritative and malformed inherited
+    # state fails closed instead of silently changing probe behavior.
+    for marker in (
+        "[int]$TimeoutSeconds = 5",
+        "$completionTimeoutVariable = 'SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS'",
+        "if (-not $PSBoundParameters.ContainsKey('TimeoutSeconds'))",
+        "[Environment]::GetEnvironmentVariable($completionTimeoutVariable, 'Process')",
+        "[int]::TryParse($completionTimeoutText.Trim(), [ref]$completionTimeout)",
+        "$completionTimeout -lt 5 -or $completionTimeout -gt 30",
+        "$TimeoutSeconds = $completionTimeout",
+    ):
+        assert marker in transport, marker
 
     for marker in (
         "KERBEROS_SMB_HARD_BOUNDED_RUNTIME_REPAIR_APPLIED",
@@ -97,7 +114,9 @@ def main() -> None:
     # Completion is an admission/composition layer, never a second deployment implementation. It
     # must prove the sealed runtime before target contact, establish exact protected authority,
     # enforce the same exact-host rule as deployment, use one VPN-tolerant but still hard-bounded
-    # read-only preflight, and enter the existing bootstrap only after a fresh ready result.
+    # read-only preflight, and enter the existing bootstrap only after a fresh ready result. The
+    # admitted timeout is set process-scoped only after readiness so the mandatory downstream
+    # S4U stage-1 recheck uses the same budget instead of reverting to five seconds.
     for marker in (
         "Resolve-SasAutoLogonManifestAuthority.ps1",
         "Test-SasAutoLogonRuntimeSeal.ps1",
@@ -117,6 +136,8 @@ def main() -> None:
         "AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED",
         "No AutoLogon deployment bootstrap was started by the completion gate.",
         "AUTOLOGON_COMPLETION_PREFLIGHT_READY",
+        "$env:SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS = [string]$PreflightTimeoutSeconds",
+        "Deployment stage-1 transport timeout: $PreflightTimeoutSeconds seconds",
         "& $deploymentBootstrap $ComputerName $preparedCommit",
     ):
         assert marker in complete, marker
@@ -127,8 +148,9 @@ def main() -> None:
     eligibility_call = complete.index("$eligibility = & $hostEligibility -Target $resolvedTarget -ExecContext remote -RepoRoot $RuntimeRoot")
     preflight_call = complete.index("$preflight = & $transportPreflight")
     ready_gate = complete.index("$classification -ne 'kerberos_smb_task_ready'")
+    timeout_handoff = complete.index("$env:SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS = [string]$PreflightTimeoutSeconds")
     bootstrap_call = complete.index("& $deploymentBootstrap $ComputerName $preparedCommit")
-    assert manifest_call < seal_call < authority_call < eligibility_call < preflight_call < ready_gate < bootstrap_call
+    assert manifest_call < seal_call < authority_call < eligibility_call < preflight_call < ready_gate < timeout_handoff < bootstrap_call
 
     for forbidden in (
         r"(?im)^\s*&\s*git(?:\.exe)?\b",
@@ -161,7 +183,8 @@ def main() -> None:
 
     # The exact later VPN evidence is now known: 445 was reachable and the bounded ADMIN$ read hit
     # the five-second historical budget. The controlled retry stays consumed, but the repository now
-    # owns an atomic completion gate that first retries only the read-only admission with 15 seconds.
+    # owns an atomic completion gate that retries only the read-only admission with 15 seconds and,
+    # after admission, carries that same timeout into the deployment's mandatory stage-1 recheck.
     for marker in (
         "The controlled canonical retry has now been consumed",
         "Probe timeout stage: `admin_share`",
@@ -171,6 +194,7 @@ def main() -> None:
         "Complete-SysAdminSuiteAutoLogon.cmd HOST",
         "exact explicit-host eligibility",
         "15-second",
+        "same 15-second bounded budget",
         "AUTOLOGON_COMPLETION_PREFLIGHT_READY",
         "AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED",
         "classification = kerberos_smb_task_ready",
