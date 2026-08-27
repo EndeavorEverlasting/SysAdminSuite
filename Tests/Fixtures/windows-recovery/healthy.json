@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "captured_at_utc": "2026-01-02T03:04:05Z",
+  "host": {"computer_name": "FIXTURE-WORKSTATION", "system_drive": "C:", "administrator": true},
+  "storage": {
+    "drive_mappings": [
+      {"drive":"C:","disk_number":0,"disk_model":"Example NVMe","disk_serial":null,"bus_type":"NVMe","disk_size_bytes":1024000000000,"partition_number":3,"partition_size_bytes":998000000000,"filesystem":"NTFS","label":"OS","free_bytes":250000000000,"volume_health":"Healthy"},
+      {"drive":"D:","disk_number":1,"disk_model":"Example USB Bridge","disk_serial":null,"bus_type":"USB","disk_size_bytes":1024000000000,"partition_number":1,"partition_size_bytes":1023000000000,"filesystem":"NTFS","label":"LaptopBackup","free_bytes":64000000000,"volume_health":"Healthy"}
+    ],
+    "physical_disks": [],
+    "pressure": {"status":"not_requested","paths":[]}
+  },
+  "backup": {"status":"catalog_observed","target":"D:","versions":{"exit_code":0,"output":["Version identifier: 01/02/2026-03:04"]},"items":{"exit_code":0,"output":["Can recover = Full volume"]},"artifact":{"path":"D:\\WindowsImageBackup","exists":true,"file_count":19,"total_bytes":955000000000}},
+  "windows_health": {"depth":"Quick","administrator":true,"winre":{"exit_code":0,"output":["Windows RE status: Enabled"]},"dism":{"exit_code":0,"output":["No component store corruption detected."]},"chkdsk":null,"sfc":null},
+  "hardware": {
+    "system":{"vendor":"Example Vendor","model":"Example Workstation","version":"1.0","bios_version":"EXAMPLE.100","bios_release_date":"2025-01-01T00:00:00Z"},
+    "cpu":{"name":"Example CPU","cores":8,"logical_processors":16},
+    "memory":{"total_visible_bytes":17179869184,"free_physical_bytes":4294967296,"modules":[{"slot":"DIMM0","manufacturer":"Example","part_number":"EXAMPLE-8G-4800","capacity_bytes":8589934592,"rated_speed_mts":4800,"configured_speed_mts":4800,"configured_voltage_mv":1100},{"slot":"DIMM1","manufacturer":"Example","part_number":"EXAMPLE-8G-4800","capacity_bytes":8589934592,"rated_speed_mts":4800,"configured_speed_mts":4800,"configured_voltage_mv":1100}]},
+    "gpu":[{"name":"Example GPU","driver_version":"1.2.3"}]
+  },
+  "proof":{"destructive_actions_performed":false,"serials_included":false,"proof_ceiling":"Fixture evidence only; no restore test.","warnings":["Drive letters are locators, not identities."]}
+}
