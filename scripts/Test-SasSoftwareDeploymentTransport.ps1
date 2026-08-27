@@ -20,7 +20,11 @@ both supported transports is justified.
 .PARAMETER Credential
 Optional runtime-only credential. It is never prompted for or serialized.
 .PARAMETER TimeoutSeconds
-Per-observation timeout from 1 through 30 seconds.
+Per-observation timeout from 1 through 30 seconds. Explicit callers always win.
+When this parameter is omitted, the normal default is five seconds. The sealed
+AutoLogon completion lane may carry its already-admitted timeout through child
+processes in SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS; that scoped
+value is accepted only when this parameter was not explicitly supplied.
 .PARAMETER FixtureMode
 Selects offline fixture execution. Cannot be combined with live parameters.
 .PARAMETER FixturePath
@@ -63,6 +67,26 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
+# The completion lane has already proved the same bounded read-only transport with its selected
+# timeout before it starts the crash-safe deployment. Preserve that exact admission budget across
+# the child-process boundary for the mandatory S4U stage-1 recheck. This is deliberately scoped:
+# an explicitly bound -TimeoutSeconds always wins, ordinary callers retain the five-second default,
+# and malformed/out-of-range inherited state fails closed instead of silently changing probe policy.
+$completionTimeoutVariable = 'SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS'
+if (-not $PSBoundParameters.ContainsKey('TimeoutSeconds')) {
+    $completionTimeoutText = [string][Environment]::GetEnvironmentVariable($completionTimeoutVariable, 'Process')
+    if (-not [string]::IsNullOrWhiteSpace($completionTimeoutText)) {
+        $completionTimeout = 0
+        if (-not [int]::TryParse($completionTimeoutText.Trim(), [ref]$completionTimeout)) {
+            throw "$completionTimeoutVariable must be an integer from 5 through 30."
+        }
+        if ($completionTimeout -lt 5 -or $completionTimeout -gt 30) {
+            throw "$completionTimeoutVariable must be from 5 through 30 seconds."
+        }
+        $TimeoutSeconds = $completionTimeout
+    }
+}
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $transportModulePath = Join-Path $PSScriptRoot 'SasSoftwareDeploymentTransport.psm1'
