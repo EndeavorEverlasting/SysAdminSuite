@@ -198,6 +198,33 @@ Describe 'Software deployment transport preflight' {
         }
     }
 
+    It 'inherits the admitted completion timeout only when no explicit timeout is bound' {
+        $fixturePath = Join-Path $script:fixtureRoot 'kerberos-smb-task-ready.fixture.json'
+        $rootDefault = Join-Path $repoRoot ('survey/output/pester-transport-timeout-default-' + [guid]::NewGuid().ToString('N'))
+        $rootInherited = Join-Path $repoRoot ('survey/output/pester-transport-timeout-inherited-' + [guid]::NewGuid().ToString('N'))
+        $rootExplicit = Join-Path $repoRoot ('survey/output/pester-transport-timeout-explicit-' + [guid]::NewGuid().ToString('N'))
+        $variable = 'SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS'
+        $prior = [Environment]::GetEnvironmentVariable($variable, 'Process')
+        try {
+            [Environment]::SetEnvironmentVariable($variable, $null, 'Process')
+            $normal = & $script:entrypoint -FixtureMode -FixturePath $fixturePath -OutputRoot $rootDefault -PassThru
+            $normal.probe_diagnostic.per_operation_timeout_seconds | Should -Be 5
+
+            [Environment]::SetEnvironmentVariable($variable, '15', 'Process')
+            $inherited = & $script:entrypoint -FixtureMode -FixturePath $fixturePath -OutputRoot $rootInherited -PassThru
+            $inherited.probe_diagnostic.per_operation_timeout_seconds | Should -Be 15
+
+            $explicit = & $script:entrypoint -FixtureMode -FixturePath $fixturePath -TimeoutSeconds 7 -OutputRoot $rootExplicit -PassThru
+            $explicit.probe_diagnostic.per_operation_timeout_seconds | Should -Be 7
+        }
+        finally {
+            [Environment]::SetEnvironmentVariable($variable, $prior, 'Process')
+            foreach ($root in @($rootDefault,$rootInherited,$rootExplicit)) {
+                if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
+            }
+        }
+    }
+
     It 'does not leak ticket bytes, target identifiers, usernames, credentials, or raw faults' {
         $fixture = Read-TransportFixture 'kerberos-smb-task-ready.fixture.json'
         $result = New-SasSoftwareDeploymentTransportResult -Observations $fixture.observations -EvidenceClass sanitized_fixture -NetworkActivityPerformed $false
