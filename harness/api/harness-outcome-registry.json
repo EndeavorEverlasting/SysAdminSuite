@@ -32,6 +32,7 @@
     {"command_id":"cybernet-software-deploy","success_outcome":"product_deployed","success_artifact_id":"cybernet-software-deployment-result","terminal_goals":["deploy","software-deploy","cybernet-software-ready"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {"command_id":"autologon-recover","success_outcome":"artifact_created","success_artifact_id":"autologon-field-deployment-result","terminal_goals":["recover","autologon-recovery"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {"command_id":"autologon-remote","success_outcome":"product_deployed","success_artifact_id":"autologon-field-deployment-result","terminal_goals":["deploy","autologon-deploy","autologon-restart-complete"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"autologon-complete","success_outcome":"product_deployed","success_artifact_id":"autologon-field-deployment-result","terminal_goals":["deploy","autologon-deploy","autologon-restart-complete","autologon-complete"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {"command_id":"autologon-runtime-proof","success_outcome":"runtime_proven","success_artifact_id":"autologon-technician-runtime-proof","terminal_goals":["runtime-proof","acceptance"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"}
   ]
 }
