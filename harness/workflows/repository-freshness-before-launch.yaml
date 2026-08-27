@@ -6,14 +6,15 @@ target_network_activity: false
 target_mutation: false
 purpose: >-
   Prevent agents from treating a stale local checkout as current repository truth. Before an agent
-  concludes that a launcher, validator, workflow, or artifact authority is missing, resolve the
-  canonical machine/profile path contract, refresh the Git remote only with repository-network
-  authority, compare the executing worktree to the intended remote ref, and preserve the existing
-  branch unless branch-update authority is explicit.
+  concludes that a launcher, validator, workflow, or artifact authority is missing, or executes or
+  hands any repository-owned command to an operator, resolve the canonical machine/profile path
+  contract, refresh the configured Git remote with repository-network authority, compare the
+  executing worktree to the intended remote ref, and preserve unrelated work.
 
 triggers:
   - an expected tracked launcher, script, validator, workflow, registry, or report is missing locally
   - the task depends on latest or current repository behavior
+  - any repository-owned command, launcher, installed sas subcommand, or repo-relative front door is about to be executed or handed to an operator
   - origin/main or another intended remote ref has been fetched but the executing worktree was not updated
   - local HEAD predates repository evidence supplied by the operator, PR, release, or remote branch
   - deployment or runtime guidance would otherwise be reconstructed because a canonical tracked entrypoint appears absent
@@ -26,25 +27,31 @@ inputs:
     - current_head
     - current_branch
     - default_branch
-    - repository_network_authorized
   optional:
     - machine_profile
     - expected_path
     - expected_commit
     - current_status
     - current_worktree_ownership
+    - repository_network_authorized
     - branch_update_authorized
     - default_branch_update_authorized
+    - operator_command_requested
 
 invariants:
   - read harness/api/canonical-path-registry.json before selecting or creating a repository/worktree path
-  - routing into this workflow does not grant repository-network or branch-mutation authority
+  - routing into this workflow does not grant target-network or product-mutation authority
+  - repository_network_authorized may be satisfied by explicit repository-network authority or by operator_command_requested being explicitly true
+  - operator_command_requested authorizes only the configured Git-remote freshness fetch and, for a clean owned healthy canonical default-branch checkout that is strictly behind, git pull --ff-only before product invocation
+  - operator_command_requested never authorizes branch switching, dirty or diverged overwrite, reset, clean, force update, target-network activity, or product mutation
   - fetching a remote ref does not update the checked-out branch or worktree
   - remote_default_contains_sha is independent from canonical_development_checkout_current
+  - a working installed sas shim is not repository freshness proof
   - a missing path in a stale worktree is not evidence that the path is absent from the intended remote ref
+  - operator handoff is not freshness proof; prove the executing tree current before product invocation or include the authorized refresh and safe fast-forward before that invocation in one atomic handoff
   - never reset, clean, checkout-overwrite, or force-update unrelated or separately owned work
   - never switch or fast-forward a dirty worktree unless the sprint explicitly owns those edits
-  - never fast-forward the default branch unless default_branch_update_authorized is explicitly true
+  - never fast-forward the default branch unless default_branch_update_authorized is explicitly true or operator_command_requested authorizes the bounded clean canonical default-branch case
   - a clean owned non-default branch may fast-forward only when branch_update_authorized is explicitly true
   - otherwise preserve the current branch and use an isolated worktree beneath the registered temporary_worktree_root at the fetched remote commit
   - an ephemeral acquisition checkout never becomes canonical merely because it exists, is clean, or is current
@@ -77,10 +84,11 @@ stages:
   - id: authorize-refresh
     order: 3
     actions:
-      - require repository_network_authorized to be explicitly true before contacting the configured Git remote
-      - when authority is absent, stop with the exact fetch command as the blocked operator action without executing it
+      - accept repository-network authority only when repository_network_authorized is explicitly true or operator_command_requested is explicitly true
+      - when operator_command_requested supplies authority, constrain network activity to the configured Git remote freshness fetch
+      - when neither authority is present, stop with the exact fetch command as the blocked operator action without executing it
     stop_conditions:
-      - repository_network_authorized is not explicitly true
+      - repository_network_authorized is not explicitly true and operator_command_requested is not explicitly true
 
   - id: refresh-remote
     order: 4
@@ -104,6 +112,7 @@ stages:
       equal:
         - continue in the current worktree only when it is the registered canonical development checkout or an approved isolated worktree
       strictly-behind-clean-owned-default-branch:
+        - when path classification is canonical_development and operator_command_requested is explicitly true, fast-forward only with git pull --ff-only before product invocation
         - when default_branch_update_authorized is explicitly true and the path is canonical_development, fast-forward only with a fast-forward-only operation
         - otherwise preserve the default branch and create an isolated detached or feature worktree beneath temporary_worktree_root at the fetched remote commit
       strictly-behind-clean-owned-non-default-branch:
@@ -114,21 +123,23 @@ stages:
       ahead-or-diverged:
         - preserve the current branch and use an isolated worktree beneath temporary_worktree_root unless the sprint explicitly owns integration
       unresolved:
-        - stop before command reconstruction or deployment guidance
+        - stop before command reconstruction, operator handoff, or deployment guidance
 
   - id: prove-executing-tree
     order: 6
     actions:
       - resolve HEAD again in the worktree that will execute the task
-      - require that executing HEAD equals the selected refreshed commit when current repository behavior is required
+      - require that executing HEAD equals the selected refreshed commit when current repository behavior is required or an operator command is requested
       - verify expected_path exists in that executing tree when supplied
       - record canonical_development_checkout_current only when the registered canonical development checkout itself is proven current
       - when execution uses an approved isolated worktree, record that proof separately without relabeling it canonical development
-      - only after freshness proof, load command, workflow, validator, artifact, and deployment-state authorities
+      - only after freshness proof, load command, workflow, validator, artifact, deployment-state, and operator-execution authorities
     forbidden_outcomes:
       - fetched origin/main but continued executing an older local main
-      - remote fetch executed without repository-network authority
-      - default branch fast-forwarded without explicit default-branch update authority
+      - remote fetch executed without repository-network authority or explicit operator_command_requested authority
+      - default branch fast-forwarded outside the bounded explicit authority cases
+      - repository-owned operator command issued before freshness proof or before an atomic authorized refresh-and-fast-forward handoff
+      - installed sas availability treated as repository freshness proof
       - missing launcher inferred from an unrefreshed or stale worktree
       - alternate direct script invented before checking the expected path at the refreshed commit
       - dirty work discarded to make the branch current
@@ -140,7 +151,8 @@ stages:
     actions:
       - return to fresh-agent-intake routing using the refreshed executing worktree
       - use the canonical tracked entrypoint now present at the selected commit
-      - preserve the path profile, path classification, freshness classification, selected commit, worktree path, authorization basis, and expected-path proof in the handoff
+      - execute or emit a repository-owned operator command only after currentness proof; when operator handoff itself must perform the update, keep path resolution, fetch, git pull --ff-only, entrypoint verification, product invocation, and exit propagation in one atomic command
+      - preserve the path profile, path classification, freshness classification, selected commit, worktree path, authorization basis, expected-path proof, and operator-command freshness disposition in the handoff
       - route installed/runtime or real-entrypoint currentness through harness/workflows/canonical-path-resolution.yaml rather than inferring it here
 
 outputs:
@@ -155,10 +167,11 @@ outputs:
   - preservation_decision
   - repository_network_authorization_basis
   - branch_update_authorization_basis
+  - operator_command_freshness_disposition
 
 proof_ceiling: >-
   Proves only that the executing repository tree is intentionally selected from authorized refreshed
-  Git evidence, that canonical/isolated/ephemeral path roles remain distinct, and that unrelated/default-
-  branch work was preserved unless separate update authority was explicit. It does not prove the
-  production/use path, operator entrypoint, target reachability, deployment, restart, application
-  behavior, or runtime acceptance.
+  Git evidence, that repo-owned operator commands cannot bypass currentness selection, that canonical/
+  isolated/ephemeral path roles remain distinct, and that unrelated work is preserved. It does not
+  prove the production/use path, operator entrypoint runtime, target reachability, deployment, restart,
+  application behavior, or runtime acceptance.
