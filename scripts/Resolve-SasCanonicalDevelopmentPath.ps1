@@ -93,6 +93,17 @@ if ($productionApplicable) {
     $productionUse = [Environment]::ExpandEnvironmentVariables([string]$profile.production_use_path.template)
     $productionUse = [IO.Path]::GetFullPath($productionUse)
 }
+$pathRelation = if ($productionApplicable) {
+    'SEPARATE_EXPLICIT_SYNC_INSTALL_PROMOTION_REQUIRED'
+} else {
+    'DEVELOPMENT_PROFILE_ONLY_PRODUCTION_NOT_APPLICABLE'
+}
+$entrypointAuthority = [string]$profile.real_operator_entrypoint.authority
+$canonicalEntrypoint = $null
+$entrypointProperty = $profile.real_operator_entrypoint.PSObject.Properties['production_runtime_entrypoint']
+if ($null -ne $entrypointProperty -and -not [string]::IsNullOrWhiteSpace([string]$entrypointProperty.Value)) {
+    $canonicalEntrypoint = [Environment]::ExpandEnvironmentVariables([string]$entrypointProperty.Value)
+}
 
 $currentCandidate = if ([string]::IsNullOrWhiteSpace($CandidatePath)) { (Get-Location).Path } else { $CandidatePath.Trim() }
 try { $currentCandidate = [IO.Path]::GetFullPath($currentCandidate) } catch { $currentCandidate = $null }
@@ -112,38 +123,58 @@ if ($null -ne $currentCandidate) {
 $checkoutStatus = 'MISSING'
 $checkoutHead = $null
 $checkoutRemote = $null
+$canonicalReparseState = 'NOT_INSPECTED_MISSING'
 if (Test-Path -LiteralPath $canonicalDev -PathType Container) {
-    $git = Get-Command git -ErrorAction SilentlyContinue
-    if ($null -eq $git) {
-        $checkoutStatus = 'UNKNOWN_GIT_UNAVAILABLE'
+    $canonicalItem = Get-Item -LiteralPath $canonicalDev -Force
+    if (($canonicalItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        $canonicalReparseState = 'REPARSE_POINT_PRESENT'
+        $checkoutStatus = 'CONFLICT_REPARSE_POINT_UNINSPECTED'
     } else {
-        $top = (& git -C $canonicalDev rev-parse --show-toplevel 2>$null)
-        $topExit = $LASTEXITCODE
-        if ($topExit -ne 0 -or [string]::IsNullOrWhiteSpace([string]$top)) {
-            $checkoutStatus = 'CONFLICT_NOT_GIT_CHECKOUT'
+        $canonicalReparseState = 'NORMAL_DIRECTORY'
+        $git = Get-Command git -ErrorAction SilentlyContinue
+        if ($null -eq $git) {
+            $checkoutStatus = 'UNKNOWN_GIT_UNAVAILABLE'
         } else {
-            try { $topFull = [IO.Path]::GetFullPath(([string]$top).Trim()) } catch { $topFull = '' }
-            if (-not $topFull.Equals($canonicalDev, [StringComparison]::OrdinalIgnoreCase)) {
-                $checkoutStatus = 'CONFLICT_NESTED_OR_WRONG_ROOT'
+            $top = (& git -C $canonicalDev rev-parse --show-toplevel 2>$null)
+            $topExit = $LASTEXITCODE
+            if ($topExit -ne 0 -or [string]::IsNullOrWhiteSpace([string]$top)) {
+                $checkoutStatus = 'CONFLICT_NOT_GIT_CHECKOUT'
             } else {
-                $checkoutRemote = (& git -C $canonicalDev config --get remote.origin.url 2>$null)
-                $remoteExit = $LASTEXITCODE
-                $checkoutHead = (& git -C $canonicalDev rev-parse HEAD 2>$null)
-                $headExit = $LASTEXITCODE
-                $remoteText = ([string]$checkoutRemote).Trim()
-                $remoteMatches = $remoteExit -eq 0 -and $remoteText -match '(?i)(?:github\.com[:/])EndeavorEverlasting/SysAdminSuite(?:\.git)?$'
-                if (-not $remoteMatches) {
-                    $checkoutStatus = 'CONFLICT_WRONG_REPOSITORY'
-                } elseif ($headExit -ne 0 -or ([string]$checkoutHead).Trim() -notmatch '^[0-9a-fA-F]{40}$') {
-                    $checkoutStatus = 'UNKNOWN_GIT_IDENTITY'
+                try { $topFull = [IO.Path]::GetFullPath(([string]$top).Trim()) } catch { $topFull = '' }
+                if (-not $topFull.Equals($canonicalDev, [StringComparison]::OrdinalIgnoreCase)) {
+                    $checkoutStatus = 'CONFLICT_NESTED_OR_WRONG_ROOT'
                 } else {
-                    $checkoutStatus = 'CANONICAL_PROVED'
-                    $checkoutHead = ([string]$checkoutHead).Trim().ToLowerInvariant()
-                    $checkoutRemote = $remoteText
+                    $checkoutRemote = (& git -C $canonicalDev config --get remote.origin.url 2>$null)
+                    $remoteExit = $LASTEXITCODE
+                    $checkoutHead = (& git -C $canonicalDev rev-parse HEAD 2>$null)
+                    $headExit = $LASTEXITCODE
+                    $remoteText = ([string]$checkoutRemote).Trim()
+                    $remoteMatches = $remoteExit -eq 0 -and $remoteText -match '(?i)(?:github\.com[:/])EndeavorEverlasting/SysAdminSuite(?:\.git)?$'
+                    if (-not $remoteMatches) {
+                        $checkoutStatus = 'CONFLICT_WRONG_REPOSITORY'
+                    } elseif ($headExit -ne 0 -or ([string]$checkoutHead).Trim() -notmatch '^[0-9a-fA-F]{40}$') {
+                        $checkoutStatus = 'UNKNOWN_GIT_IDENTITY'
+                    } else {
+                        $checkoutStatus = 'CANONICAL_PROVED'
+                        $checkoutHead = ([string]$checkoutHead).Trim().ToLowerInvariant()
+                        $checkoutRemote = $remoteText
+                    }
                 }
             }
         }
     }
+}
+
+$pathDisposition = if ($checkoutStatus -eq 'CANONICAL_PROVED' -and $candidateClassification -eq 'CANONICAL_DEVELOPMENT') {
+    'CANONICAL + PROVED'
+} elseif ($checkoutStatus -eq 'MISSING') {
+    'MISSING'
+} elseif ($checkoutStatus.StartsWith('CONFLICT', [StringComparison]::OrdinalIgnoreCase)) {
+    'CONFLICT'
+} elseif ($candidateClassification -eq 'ISOLATED_WORKTREE' -or $candidateClassification -eq 'EPHEMERAL_ACQUISITION') {
+    'NONCANONICAL + PRESERVE'
+} else {
+    'UNKNOWN'
 }
 
 $receipt = [ordered]@{
@@ -151,6 +182,7 @@ $receipt = [ordered]@{
     repository = 'EndeavorEverlasting/SysAdminSuite'
     selected_profile = $selectedProfileId
     os = 'windows'
+    path_semantics = 'WINDOWS_CASE_INSENSITIVE_NORMALIZED_FULL_PATH'
     user = $user
     desktop_known_folder = $desktop
     desktop_dev_root = $desktopDev
@@ -161,9 +193,14 @@ $receipt = [ordered]@{
     canonical_worktree_root = $worktreeRoot
     production_use_applicable = $productionApplicable
     production_use_path = $productionUse
+    path_relation = $pathRelation
+    canonical_entrypoint_authority = $entrypointAuthority
+    canonical_entrypoint = $canonicalEntrypoint
     candidate_path = $currentCandidate
     candidate_classification = $candidateClassification
+    path_disposition = $pathDisposition
     canonical_checkout_status = $checkoutStatus
+    canonical_checkout_reparse_state = $canonicalReparseState
     canonical_checkout_head = $checkoutHead
     canonical_checkout_remote = $checkoutRemote
     current_directory_is_authority = $false
@@ -187,8 +224,12 @@ if ($AsJson) {
     Write-Host "Canonical development: $canonicalDev"
     Write-Host "Canonical worktrees: $worktreeRoot"
     Write-Host "Production/use: $(if ($productionApplicable) { $productionUse } else { 'NOT_APPLICABLE' })"
+    Write-Host "Path relation: $pathRelation"
+    Write-Host "Entrypoint authority: $entrypointAuthority"
+    Write-Host "Entrypoint: $(if ($null -ne $canonicalEntrypoint) { $canonicalEntrypoint } else { 'PROFILE_ROUTED' })"
     Write-Host "Observed candidate: $currentCandidate [$candidateClassification]"
-    Write-Host "Canonical checkout: $checkoutStatus"
+    Write-Host "Disposition: $pathDisposition"
+    Write-Host "Canonical checkout: $checkoutStatus [$canonicalReparseState]"
     Write-Host "Next: $($receipt.next_action)"
 }
 
