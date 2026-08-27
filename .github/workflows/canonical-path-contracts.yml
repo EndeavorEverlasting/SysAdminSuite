@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'harness/api/canonical-path-registry.json'
+      - 'harness/api/harness-command-registry.json'
       - 'schemas/harness/canonical-path-registry.schema.json'
       - 'harness/workflows/canonical-path-resolution.yaml'
       - 'harness/workflows/fresh-agent-intake.yaml'
@@ -13,7 +14,9 @@ on:
       - 'harness/skills/canonical-path-resolution/**'
       - 'harness/maps/CANONICAL_PATH_MAP.md'
       - 'harness/reports/CANONICAL_PATH_STATUS.md'
+      - 'scripts/Resolve-SasCanonicalDevelopmentPath.ps1'
       - 'Tests/survey/test_canonical_path_harness_completeness.py'
+      - 'Tests/survey/test_canonical_path_from_anywhere_contracts.py'
       - 'CODEBASE_MAP.md'
       - 'docs/HARNESS_STATUS.md'
       - '.githooks/pre-commit'
@@ -24,6 +27,7 @@ on:
       - main
     paths:
       - 'harness/api/canonical-path-registry.json'
+      - 'harness/api/harness-command-registry.json'
       - 'schemas/harness/canonical-path-registry.schema.json'
       - 'harness/workflows/canonical-path-resolution.yaml'
       - 'harness/workflows/fresh-agent-intake.yaml'
@@ -33,7 +37,9 @@ on:
       - 'harness/skills/canonical-path-resolution/**'
       - 'harness/maps/CANONICAL_PATH_MAP.md'
       - 'harness/reports/CANONICAL_PATH_STATUS.md'
+      - 'scripts/Resolve-SasCanonicalDevelopmentPath.ps1'
       - 'Tests/survey/test_canonical_path_harness_completeness.py'
+      - 'Tests/survey/test_canonical_path_from_anywhere_contracts.py'
       - 'CODEBASE_MAP.md'
       - 'docs/HARNESS_STATUS.md'
       - '.githooks/pre-commit'
@@ -84,6 +90,9 @@ jobs:
       - name: Run canonical path completeness
         run: python Tests/survey/test_canonical_path_harness_completeness.py
 
+      - name: Run from-anywhere canonical path contracts
+        run: python Tests/survey/test_canonical_path_from_anywhere_contracts.py
+
       - name: Run operational harness completeness
         run: python Tests/survey/test_operational_harness_completeness_contracts.py
 
@@ -110,3 +119,98 @@ jobs:
           else
             git diff --check HEAD^
           fi
+
+  windows-resolution:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Parse resolver under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\scripts\Resolve-SasCanonicalDevelopmentPath.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if (@($errors).Count -ne 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host 'PASS: resolver parses under Windows PowerShell 5.1'
+
+      - name: Start outside any Git repository
+        shell: powershell
+        run: |
+          $resolver = (Resolve-Path '.\scripts\Resolve-SasCanonicalDevelopmentPath.ps1').Path
+          Push-Location $HOME
+          try {
+            $raw = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver -AsJson
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $receipt = $raw | ConvertFrom-Json
+            $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
+            $expected = [IO.Path]::GetFullPath((Join-Path (Join-Path $desktop 'Dev') 'SysAdminSuite'))
+            if ($receipt.canonical_development_checkout -ne $expected) {
+              throw "Expected Known Folder path '$expected', got '$($receipt.canonical_development_checkout)'"
+            }
+            if ([bool]$receipt.current_directory_is_authority) {
+              throw 'Current directory was incorrectly promoted to canonical authority.'
+            }
+            Write-Host "PASS: arbitrary cwd is evidence only; canonical=$expected"
+          }
+          finally { Pop-Location }
+
+      - name: Prove missing canonical checkout fails closed
+        shell: powershell
+        run: |
+          $resolver = (Resolve-Path '.\scripts\Resolve-SasCanonicalDevelopmentPath.ps1').Path
+          $missingDev = Join-Path $env:RUNNER_TEMP ('missing-dev-' + [guid]::NewGuid().ToString('N'))
+          Push-Location $HOME
+          try {
+            & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver -DesktopDevRoot $missingDev -RequireCheckout -AsJson
+            $code = $LASTEXITCODE
+          }
+          finally { Pop-Location }
+          if ($code -eq 0) { throw 'Missing canonical checkout incorrectly returned success.' }
+          Write-Host "PASS: missing canonical checkout failed closed with exit $code"
+
+      - name: Prove explicit canonical checkout succeeds
+        shell: powershell
+        run: |
+          $resolver = (Resolve-Path '.\scripts\Resolve-SasCanonicalDevelopmentPath.ps1').Path
+          $devRoot = Join-Path $env:RUNNER_TEMP ('canonical-dev-' + [guid]::NewGuid().ToString('N'))
+          $fixture = Join-Path $devRoot 'SysAdminSuite'
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          git -C $fixture init
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $fixture config user.name 'SysAdminSuite CI'
+          git -C $fixture config user.email 'sysadminsuite-ci@example.invalid'
+          git -C $fixture remote add origin https://github.com/EndeavorEverlasting/SysAdminSuite.git
+          Set-Content -LiteralPath (Join-Path $fixture 'fixture.txt') -Value 'canonical path fixture' -Encoding ASCII
+          git -C $fixture add fixture.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $fixture commit -m 'test: canonical path fixture'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          Push-Location $HOME
+          try {
+            $raw = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver -DesktopDevRoot $devRoot -CandidatePath $HOME -RequireCheckout -AsJson
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $receipt = $raw | ConvertFrom-Json
+            if ($receipt.canonical_checkout_status -ne 'CANONICAL_PROVED') {
+              throw "Expected CANONICAL_PROVED, got $($receipt.canonical_checkout_status)"
+            }
+            if ($receipt.candidate_classification -ne 'UNKNOWN') {
+              throw "Expected arbitrary HOME candidate to remain UNKNOWN, got $($receipt.candidate_classification)"
+            }
+            if ([bool]$receipt.current_directory_is_authority) {
+              throw 'Current directory was incorrectly promoted to canonical authority.'
+            }
+            Write-Host "PASS: exact canonical checkout proved from arbitrary cwd at $fixture"
+          }
+          finally { Pop-Location }
