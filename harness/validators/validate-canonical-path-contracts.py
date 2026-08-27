@@ -129,6 +129,7 @@ def validate_registry_shape(registry: dict, schema: dict) -> None:
     policy_keys = {
         "remote_main_contains_sha_is_not_workstation_deployment_proof",
         "canonical_development_checkout_must_be_unique",
+        "canonical_development_checkout_requires_git_io_health",
         "second_mutable_clone_is_forbidden",
         "preserve_unique_or_dirty_work",
         "parallel_writers_use_isolated_worktrees",
@@ -142,6 +143,18 @@ def validate_registry_shape(registry: dict, schema: dict) -> None:
     }
     policy = exact_keys(registry["policy"], policy_keys, "policy")
     assert all(policy[key] is True for key in policy_keys)
+
+    safety_keys = {
+        "powershell_if_else_must_be_one_paste_block",
+        "powershell_native_failure_must_abort_single_paste_block",
+        "next_command_must_not_require_unmerged_default_branch_artifact",
+        "reason",
+    }
+    safety = exact_keys(registry["operator_command_safety"], safety_keys, "operator_command_safety")
+    for key in safety_keys - {"reason"}:
+        assert safety[key] is True, f"operator_command_safety.{key} must be true"
+    string(safety["reason"], "operator_command_safety.reason", 16)
+
     validate_profile_parameters(registry)
 
     proofs = registry["proof_states"]
@@ -177,6 +190,7 @@ def validate_registry_shape(registry: dict, schema: dict) -> None:
         assert item["required_profile_parameters"] == PROFILE_PARAMETERS
         dev = validate_path_record(item["canonical_development_checkout"], f"{label}.canonical_development_checkout")
         assert "{desktop_dev_root}" in dev["template"]
+        assert "Git I/O health" in dev.get("currentness", ""), f"{label} currentness must require Git I/O health"
         temp = validate_path_record(item["temporary_worktree_root"], f"{label}.temporary_worktree_root")
         assert dev["template"] != temp["template"]
 
@@ -240,6 +254,7 @@ def main() -> int:
         "harness/reports/CANONICAL_PATH_STATUS.md",
         "scripts/validate-sysadmin-harness.ps1",
         ".github/workflows/one-command-harness-proof.yml",
+        "scripts/Resolve-SasCanonicalDevelopmentPath.ps1",
     }
     assert expected_consumers <= consumers
     for relative in expected_consumers:
@@ -249,8 +264,9 @@ def main() -> int:
     for marker in (
         "workflow_id: canonical-path-resolution", "profile parameters", "onedrive_enabled", "desktop_dev_root",
         "never derive desktop_dev_root from onedrive_enabled", "ephemeral acquisition checkout never becomes canonical",
+        "CONFLICT_GIT_IO_UNHEALTHY", "unmerged feature-branch artifact", "one outer scriptblock",
         "remote_default_contains_sha", "canonical_development_checkout_current", "production_use_path_current",
-        "operator_entrypoint_observes_current", "one paste block",
+        "operator_entrypoint_observes_current",
     ):
         assert marker in workflow, f"canonical path workflow missing: {marker}"
 
@@ -266,11 +282,13 @@ def main() -> int:
     for marker in (
         "`os`, `user`, `onedrive_enabled`, and `desktop_dev_root`",
         "OneDrive toggle never chooses the Desktop path",
-        "entire construct in one copy/paste block",
-        "second submission attempts to invoke a command named `else`",
+        "one outer scriptblock",
+        "native-command failures do not honor `$ErrorActionPreference`",
+        "Never make an unmerged helper a prerequisite",
+        "CONFLICT_GIT_IO_UNHEALTHY",
         "remote default contains SHA", "production/use path current",
     ):
-        assert marker in skill, f"canonical path skill missing: {marker}"
+        assert marker.lower() in skill.lower(), f"canonical path skill missing: {marker}"
 
     map_text = read(MAP)
     for marker in (
@@ -305,7 +323,11 @@ def main() -> int:
     assert "test_canonical_path_harness_completeness.py" not in prefix
 
     ci = read(CI)
-    for marker in ("Canonical Path Contracts", "validate-canonical-path-contracts.py", "test_canonical_path_harness_completeness.py", "test_operational_harness_completeness_contracts.py", "git diff --check"):
+    for marker in (
+        "Canonical Path Contracts", "validate-canonical-path-contracts.py",
+        "test_canonical_path_harness_completeness.py", "test_operational_harness_completeness_contracts.py",
+        "Prove Git I/O unhealthy checkout fails closed", "git diff --check",
+    ):
         assert marker in ci, f"canonical path CI missing: {marker}"
 
     combined = "\n".join(read(path) for path in (REGISTRY, WORKFLOW, SKILL, MAP, REPORT)).lower()

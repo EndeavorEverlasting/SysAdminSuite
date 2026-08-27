@@ -32,6 +32,14 @@ invariants:
   - explicit profile parameter values outrank local observation; local observation outranks registered fallback
   - the OneDrive toggle never chooses, rewrites, or guesses the Desktop path
   - desktop_dev_root is authoritative for the user's mutable development root whether Desktop is local or OneDrive-backed
+  - current working directory is candidate evidence only and never canonical path authority
+  - do not use git rev-parse --show-toplevel as the first repository-location step from an arbitrary shell
+  - a canonical-looking checkout is not CANONICAL + PROVED until repository identity and Git I/O health both pass
+  - on Windows, require git status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty to return zero before fetch, log, status reporting, reconciliation, or worktree creation
+  - a missing canonical checkout is MISSING and never authorizes a fallback clone in another directory
+  - a Git-I/O-unhealthy checkout is CONFLICT_GIT_IO_UNHEALTHY and must be preserved until unique work and storage state are reconciled
+  - workstation NEXT COMMAND artifacts must already exist on refreshed remote default; never require an unmerged helper from a default-branch checkout
+  - multi-command PowerShell handoffs must run as one outer scriptblock and check every material native exit code before dependent commands continue
   - do not commit a real user identity merely to teach profile resolution
   - do not choose a directory from model preference
   - remote_default_contains_sha does not imply any local or production path is current
@@ -88,9 +96,16 @@ stages:
     order: 5
     actions:
       - use the canonical development checkout composed from the resolved profile parameters
-      - compare its Git identity and preserved state with the intended commit
+      - require repository identity to match EndeavorEverlasting/SysAdminSuite
+      - require a bounded Git I/O health probe before the checkout can become CANONICAL + PROVED
+      - on Windows use git status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty as that health probe
+      - when the health probe is nonzero, record CONFLICT_GIT_IO_UNHEALTHY and stop before fetch, log, status, reset, clean, worktree creation, or checkout-owned script execution
+      - use scripts/Resolve-SasCanonicalDevelopmentPath.ps1 -RequireCheckout only when that resolver is already contained in refreshed remote default or comes from another already-trusted source
+      - compare the checkout Git identity and preserved state with the intended commit only after health proof
       - when collision isolation is required, use a Git worktree beneath the registered temporary_worktree_root instead of creating another mutable clone
       - record canonical_development_checkout_current only from local checkout evidence
+    stop_conditions:
+      - canonical development checkout is missing, wrong-repository, nested under another checkout, Git-I/O-unhealthy, or otherwise unproved
 
   - id: prove-production-use
     order: 6
@@ -114,7 +129,10 @@ stages:
       - report the four resolved profile parameters and their source provenance
       - report all four proof states separately
       - report the selected machine-role profile and classified candidate path
-      - when an operator command contains PowerShell if/else control flow, emit the complete if/else as one paste block; never submit else as a later standalone command
+      - for Windows repo-relative next commands from an arbitrary shell, resolve Environment.GetFolderPath(Desktop) -> Dev -> SysAdminSuite, prove exact repository identity, then prove Git I/O health before any broader Git or checkout-owned command
+      - never begin a from-anywhere handoff with git rev-parse --show-toplevel
+      - never make an unmerged feature-branch artifact a prerequisite for an operator who is on the refreshed default branch
+      - wrap dependent multi-command PowerShell handoffs in one outer scriptblock and propagate every nonzero native exit code before later commands execute
       - name the first unproven path state and route the next action to its owning workflow
 
 outputs:
@@ -123,6 +141,7 @@ outputs:
   - profile_parameter_sources
   - candidate_path_classification
   - canonical_development_checkout
+  - canonical_git_io_health
   - production_use_path
   - temporary_worktree_root
   - real_operator_entrypoint
@@ -132,5 +151,6 @@ outputs:
   - operator_entrypoint_observes_current
 
 proof_ceiling: >-
-  Proves user-profile and path authority, classification, and separation of repository/checkout/runtime/
-  entrypoint currentness. It grants no network, product mutation, deployment, restart, or live-runtime authority.
+  Proves user-profile and path authority, classification, Git checkout usability, and separation of
+  repository/checkout/runtime/entrypoint currentness. It grants no network, product mutation,
+  deployment, restart, or live-runtime authority.

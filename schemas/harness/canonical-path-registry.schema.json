@@ -15,6 +15,7 @@
       "required": [
         "remote_main_contains_sha_is_not_workstation_deployment_proof",
         "canonical_development_checkout_must_be_unique",
+        "canonical_development_checkout_requires_git_io_health",
         "second_mutable_clone_is_forbidden",
         "preserve_unique_or_dirty_work",
         "parallel_writers_use_isolated_worktrees",
@@ -29,6 +30,7 @@
       "properties": {
         "remote_main_contains_sha_is_not_workstation_deployment_proof": {"const": true},
         "canonical_development_checkout_must_be_unique": {"const": true},
+        "canonical_development_checkout_requires_git_io_health": {"const": true},
         "second_mutable_clone_is_forbidden": {"const": true},
         "preserve_unique_or_dirty_work": {"const": true},
         "parallel_writers_use_isolated_worktrees": {"const": true},
@@ -139,9 +141,16 @@
     "operator_command_safety": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["powershell_if_else_must_be_one_paste_block", "reason"],
+      "required": [
+        "powershell_if_else_must_be_one_paste_block",
+        "powershell_native_failure_must_abort_single_paste_block",
+        "next_command_must_not_require_unmerged_default_branch_artifact",
+        "reason"
+      ],
       "properties": {
         "powershell_if_else_must_be_one_paste_block": {"const": true},
+        "powershell_native_failure_must_abort_single_paste_block": {"const": true},
+        "next_command_must_not_require_unmerged_default_branch_artifact": {"const": true},
         "reason": {"type": "string", "minLength": 16}
       }
     },

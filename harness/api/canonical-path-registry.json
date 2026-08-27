@@ -5,6 +5,7 @@
   "policy": {
     "remote_main_contains_sha_is_not_workstation_deployment_proof": true,
     "canonical_development_checkout_must_be_unique": true,
+    "canonical_development_checkout_requires_git_io_health": true,
     "second_mutable_clone_is_forbidden": true,
     "preserve_unique_or_dirty_work": true,
     "parallel_writers_use_isolated_worktrees": true,
@@ -59,7 +60,7 @@
     },
     {
       "id": "canonical_development_checkout_current",
-      "proves": "The registered canonical development checkout resolves to the intended commit with preserved local work.",
+      "proves": "The registered canonical development checkout resolves to the intended commit with preserved local work and a successful Git I/O health probe.",
       "does_not_prove": "The production/use path has been updated."
     },
     {
@@ -84,7 +85,7 @@
         "mutable": true,
         "purpose": "Canonical mutable SysAdminSuite development checkout composed from this user's resolved Desktop Dev root.",
         "authority": "resolved user profile plus developer checkout",
-        "currentness": "profile identity plus Git identity plus refreshed remote comparison"
+        "currentness": "profile identity plus Git identity plus Git I/O health plus refreshed remote comparison"
       },
       "production_use_path": {
         "applicable": false,
@@ -111,7 +112,7 @@
         "mutable": true,
         "purpose": "Canonical mutable SysAdminSuite development checkout composed from this Admin Box user's resolved Desktop Dev root.",
         "authority": "resolved user profile plus developer checkout",
-        "currentness": "profile identity plus Git identity plus refreshed remote comparison"
+        "currentness": "profile identity plus Git identity plus Git I/O health plus refreshed remote comparison"
       },
       "production_use_path": {
         "applicable": true,
@@ -143,7 +144,7 @@
         "mutable": true,
         "purpose": "Canonical mutable SysAdminSuite development checkout composed from this Linux user's resolved Desktop Dev root.",
         "authority": "resolved user profile plus developer checkout",
-        "currentness": "profile identity plus Git identity plus refreshed remote comparison"
+        "currentness": "profile identity plus Git identity plus Git I/O health plus refreshed remote comparison"
       },
       "production_use_path": {
         "applicable": false,
@@ -170,7 +171,7 @@
         "mutable": true,
         "purpose": "Canonical mutable SysAdminSuite development checkout composed from this macOS user's resolved Desktop Dev root.",
         "authority": "resolved user profile plus developer checkout",
-        "currentness": "profile identity plus Git identity plus refreshed remote comparison"
+        "currentness": "profile identity plus Git identity plus Git I/O health plus refreshed remote comparison"
       },
       "production_use_path": {
         "applicable": false,
@@ -195,12 +196,15 @@
     "harness/skills/canonical-path-resolution/SKILL.md",
     "harness/maps/CANONICAL_PATH_MAP.md",
     "harness/reports/CANONICAL_PATH_STATUS.md",
+    "scripts/Resolve-SasCanonicalDevelopmentPath.ps1",
     "scripts/validate-sysadmin-harness.ps1",
     ".github/workflows/one-command-harness-proof.yml"
   ],
   "operator_command_safety": {
     "powershell_if_else_must_be_one_paste_block": true,
-    "reason": "PowerShell parses a separately submitted else as a new command; multi-line operator instructions must preserve complete control-flow blocks."
+    "powershell_native_failure_must_abort_single_paste_block": true,
+    "next_command_must_not_require_unmerged_default_branch_artifact": true,
+    "reason": "PowerShell parses separately submitted control flow independently, native command failures do not honor ErrorActionPreference automatically, and a workstation default-branch handoff cannot depend on an artifact that exists only in an unmerged PR."
   },
   "proof_ceiling": "Path and user-profile identity/separation proof only. This registry does not prove repository freshness by itself, does not update a workstation, does not stage a field runtime, and does not prove a live deployment or target outcome."
 }
