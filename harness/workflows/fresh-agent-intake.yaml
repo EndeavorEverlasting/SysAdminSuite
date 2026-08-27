@@ -45,7 +45,7 @@ stages:
       - remember that freshness routing does not grant target-network or product-mutation authority
       - an explicit request to run or use a repository-owned command authorizes only the configured Git-remote freshness fetch and bounded git pull --ff-only convergence of a clean owned healthy canonical default branch that is strictly behind
       - preserve the default branch instead of switching, resetting, or overwriting when that bounded fast-forward case is not proven
-      - preserve dirty, diverged, unhealthy, missing, or separately owned work and fail closed before product-command handoff when canonical currentness cannot be proved
+      - preserve dirty, diverged, unhealthy, missing, or separately owned work in an approved isolated worktree for agent-side repository analysis when safe, but fail closed before product-command handoff until canonical currentness is proven
       - allow a clean owned non-default branch to use fast-forward-only convergence only when branch-update authority is explicit
     stop_conditions:
       - repository cannot be resolved
