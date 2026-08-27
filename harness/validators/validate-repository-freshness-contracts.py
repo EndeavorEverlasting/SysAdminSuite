@@ -40,6 +40,14 @@ def tracked(path: Path) -> bool:
     return result.returncode == 0
 
 
+def workflow_stage(text: str, stage_id: str, next_stage_id: str | None = None) -> str:
+    start = text.index(f"  - id: {stage_id}")
+    if next_stage_id is None:
+        return text[start:]
+    end = text.index(f"  - id: {next_stage_id}", start)
+    return text[start:end]
+
+
 def test_freshness_workflow() -> None:
     text = read(WORKFLOW).lower()
     for marker in (
@@ -50,6 +58,7 @@ def test_freshness_workflow() -> None:
         "git pull --ff-only before product invocation",
         "working installed sas shim is not repository freshness proof",
         "operator handoff is not freshness proof",
+        "isolated worktree may prove refreshed repository content for agent-side analysis but never substitutes",
         "fetching a remote ref does not update the checked-out branch or worktree",
         "missing path in a stale worktree is not evidence",
         "repository_network_authorized",
@@ -58,7 +67,8 @@ def test_freshness_workflow() -> None:
         "fast-forward-only",
         "isolated worktree",
         "fetched origin/main but continued executing an older local main",
-        "repository-owned operator command issued before freshness proof",
+        "repository-owned operator command issued before canonical-development currentness proof",
+        "isolated worktree accepted as operator-command currentness proof",
         "installed sas availability treated as repository freshness proof",
         "alternate direct script invented",
         "target_network_activity: false",
@@ -69,19 +79,63 @@ def test_freshness_workflow() -> None:
 
 def test_fresh_agent_routes_before_reconstruction_and_operator_handoff() -> None:
     text = read(FRESH).lower()
+    governance = workflow_stage(text, "governance", "orient")
+    execute = workflow_stage(text, "execute", "validate")
+    handoff = workflow_stage(text, "handoff")
+
     freshness = "harness/workflows/repository-freshness-before-launch.yaml"
+    trigger = "before any repository-owned command or launcher is executed or handed to an operator"
     canonical = "use the canonical command or workflow instead of reconstructing implementation details"
-    assert freshness in text
-    assert "missing locally" in text
-    assert "before any repository-owned command or launcher is executed or handed to an operator" in text
-    assert "working installed sas shim" in text
-    assert "git pull --ff-only" in text
-    assert "stop before the product command" in text
-    assert "fetching origin/main alone does not update local main" in text
-    assert "freshness routing does not grant target-network or product-mutation authority" in text
-    assert "default branch" in text and "isolated worktree" in text
-    assert "fast-forward-only" in text
-    assert text.index(freshness) < text.index(canonical)
+    execution_gate = "do not execute or hand out a repository-owned operator command until repository-freshness-before-launch proves"
+    route_lookup = "resolve executable location before operator command handoff"
+    execute_front_door = "when the execution environment can run the operator command"
+    atomic_handoff = "one atomic copy-paste route-and-run command"
+
+    assert freshness in governance
+    assert "missing locally" in governance
+    assert trigger in governance
+    assert "working installed sas shim" in governance
+    assert "git pull --ff-only" in governance
+    assert "fetching origin/main alone does not update local main" in governance
+    assert "freshness routing does not grant target-network or product-mutation authority" in governance
+    assert "default branch" in governance and "isolated worktree" in governance
+    assert "fast-forward-only" in governance
+
+    assert canonical in execute
+    assert execution_gate in execute
+    assert "stop before the product command" in execute
+    assert atomic_handoff in execute
+    assert execute.index(execution_gate) < execute.index(route_lookup) < execute.index(execute_front_door)
+    assert execute.index(execution_gate) < execute.index(atomic_handoff)
+
+    assert "freshness proof must precede command handoff" in handoff
+    assert "atomic pull-first route-and-run command" in handoff
+
+    # The unconditional operator trigger must be established in governance before command execution/handoff stages.
+    assert text.index(trigger) < text.index(canonical) < text.index(execution_gate)
+
+
+def test_operator_handoff_requires_canonical_currentness_or_atomic_canonical_pull() -> None:
+    workflow = read(WORKFLOW).lower()
+    prove = workflow_stage(workflow, "prove-executing-tree", "continue")
+    continuation = workflow_stage(workflow, "continue")
+
+    canonical_gate = "canonical_development_checkout_current=true before any bare product invocation or operator-command handoff"
+    isolated_reject = "never allow an isolated_worktree, ephemeral_acquisition, or unknown path classification to satisfy operator-command currentness"
+    bare_gate = "execute or emit a bare repository-owned operator command only when canonical_development_checkout_current=true"
+    atomic_gate = "emit one atomic canonical pull-first command"
+    blocked_gate = "stop before emitting the product command even if an isolated worktree is current"
+
+    assert canonical_gate in prove
+    assert isolated_reject in prove
+    assert prove.index(canonical_gate) < prove.index("only after the applicable freshness proof")
+
+    assert bare_gate in continuation
+    assert atomic_gate in continuation
+    assert blocked_gate in continuation
+    assert continuation.index(bare_gate) < continuation.index(atomic_gate) < continuation.index(blocked_gate)
+    assert "proves clean/owned/healthy/default-branch/strictly-behind state" in continuation
+    assert "re-proves canonical_development_checkout_current" in continuation
 
 
 def test_operator_handoff_is_pull_first_or_fail_closed() -> None:
@@ -89,14 +143,20 @@ def test_operator_handoff_is_pull_first_or_fail_closed() -> None:
     fresh = read(FRESH).lower()
     workflow = read(WORKFLOW).lower()
 
+    technician = governance.split("## technician execution doctrine", 1)[1].split(
+        "## northwell printer mapping doctrine", 1
+    )[0]
+    rule = next(
+        line for line in technician.splitlines()
+        if "before executing or handing any repository-owned command or launcher to an operator" in line
+    )
     for marker in (
-        "before executing or handing any repository-owned command or launcher to an operator",
         "git pull --ff-only",
         "missing, dirty, diverged, unhealthy, or unproved checkout",
         "stale installed `sas` or repo-relative command",
         "harness/workflows/repository-freshness-before-launch.yaml",
     ):
-        assert marker in governance, marker
+        assert marker in rule, marker
 
     for text, label in ((fresh, "fresh-agent"), (workflow, "freshness-workflow")):
         assert "repository-owned" in text, label
@@ -108,7 +168,7 @@ def test_operator_handoff_is_pull_first_or_fail_closed() -> None:
     # Regression for the incident class: a familiar local-only command such as `sas clipboard`
     # is still a repository-owned operator command and therefore cannot bypass the generic gate.
     assert "any repository-owned command" in workflow
-    assert "bare product command" in fresh or "stop before the product command" in fresh
+    assert "stop before the product command" in fresh
 
 
 def test_front_door_and_skill_repeat_the_rule_and_authority_boundary() -> None:
