@@ -27,13 +27,13 @@ inputs:
     - current_head
     - current_branch
     - default_branch
+    - repository_network_authorized
   optional:
     - machine_profile
     - expected_path
     - expected_commit
     - current_status
     - current_worktree_ownership
-    - repository_network_authorized
     - branch_update_authorized
     - default_branch_update_authorized
     - operator_command_requested
