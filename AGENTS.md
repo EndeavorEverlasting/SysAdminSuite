@@ -9,7 +9,6 @@
 6. Read deeper product or harness documentation only when the selected route points to it.
 
 Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims. Progressive disclosure is a repository requirement; do not preload every skill, capability, plan, or handoff.
-
 ## Agent operating principles
 - **Evidence before action:** inspect repository, branch, PR, worktree, contracts, and existing evidence before mutation.
 - **Floor before furniture:** establish governance, safety boundaries, validation, and rollback before convenience features.
