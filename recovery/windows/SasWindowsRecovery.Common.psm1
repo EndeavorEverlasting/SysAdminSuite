@@ -74,7 +74,11 @@ function Get-SasDeepStoragePaths {
         [Parameter(Mandatory)][string]$UserProfile
     )
 
+    # Construct Windows paths lexically. Join-Path consults the active
+    # PowerShell provider and would make a synthetic X: fixture depend on
+    # whether that drive happens to be mounted on the test runner.
     $root = $SystemDrive.Substring(0, 1).ToUpperInvariant() + ':\'
+    $profileRoot = $UserProfile.TrimEnd([char[]]'\/')
     @(
         "${root}Users",
         "${root}Windows",
@@ -82,12 +86,12 @@ function Get-SasDeepStoragePaths {
         "${root}Program Files (x86)",
         "${root}ProgramData",
         "${root}`$Recycle.Bin",
-        (Join-Path $UserProfile 'Downloads'),
-        (Join-Path $UserProfile 'Desktop'),
-        (Join-Path $UserProfile 'Documents'),
-        (Join-Path $UserProfile 'AppData\Local\Temp'),
-        (Join-Path $UserProfile 'AppData\Local\Docker'),
-        (Join-Path $UserProfile '.cache')
+        "${profileRoot}\Downloads",
+        "${profileRoot}\Desktop",
+        "${profileRoot}\Documents",
+        "${profileRoot}\AppData\Local\Temp",
+        "${profileRoot}\AppData\Local\Docker",
+        "${profileRoot}\.cache"
     ) | Select-Object -Unique
 }
 
