@@ -48,7 +48,8 @@ def main() -> None:
 
     # A fail-closed S4U transport block must preserve the hard-bounded observer's already-sanitized
     # diagnostic boundary instead of collapsing operator output to only the public "inconclusive"
-    # classification. The deployment wrapper reads only local durable preflight artifacts.
+    # classification. The deployment wrapper reads only local durable preflight artifacts and must
+    # distinguish missing/invalid evidence from an actual unknown transport value.
     for marker in (
         "Get-SasAutoLogonTransportDiagnostic",
         "preflight_result_path",
@@ -56,6 +57,18 @@ def main() -> None:
         "^Probe engine:\\s*(.+)$",
         "^Hard child-process isolation:\\s*(.+)$",
         "^Probe timeout stage:\\s*(.+)$",
+        "preflight_result_read = $false",
+        "english_summary_read = $false",
+        "evidence_status = 'unavailable'",
+        "evidence_issues = @()",
+        "S4U result did not provide preflight_result_path.",
+        "S4U result provided an empty preflight_result_path.",
+        "Preflight result artifact is unreadable or schema-incompatible.",
+        "Preflight result artifact is missing.",
+        "Preflight English summary artifact is missing.",
+        "Preflight English summary artifact could not be resolved or read.",
+        "$diagnostic.evidence_status = 'complete'",
+        "$diagnostic.evidence_status = 'partial'",
         "transport_preflight = $null",
         "$result.transport_preflight = Get-SasAutoLogonTransportDiagnostic -S4UResult $s4u.result",
         "KERBEROS_S4U_TRANSPORT_BLOCKED",
@@ -63,6 +76,8 @@ def main() -> None:
         "Transport reason codes:",
         "Transport probe engine:",
         "Transport timeout stage:",
+        "Transport diagnostic evidence:",
+        "Transport diagnostic evidence issues:",
         "Transport preflight: $renderedTransport",
     ):
         assert marker in deploy, marker
