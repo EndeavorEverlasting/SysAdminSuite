@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[2]
 HARD = ROOT / "scripts" / "SasSoftwareDeploymentKerberosSmbHardBounded.psm1"
 REPAIR = ROOT / "scripts" / "Repair-SasKerberosSmbTransportPreflightRuntime.ps1"
 REPAIR_TEST = ROOT / "Tests" / "PowerShell" / "KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1"
+DEPLOY = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
 HANDOFF = ROOT / "docs" / "handoff" / "autologon-vpn-transport-preflight-timeout.md"
 
 
@@ -17,6 +18,7 @@ def main() -> None:
     hard = read(HARD)
     repair = read(REPAIR)
     repair_test = read(REPAIR_TEST)
+    deploy = read(DEPLOY)
     handoff = read(HANDOFF)
 
     for marker in (
@@ -43,6 +45,34 @@ def main() -> None:
     # fixture carries those markers into the runtime and proves the surgical repair preserves them.
     assert "TRANSPORT_OUTPUT_ROOT_COMPACTED" in repair_test
     assert "$transportWindowsPathBudget = 240" in repair_test
+
+    # A fail-closed S4U transport block must preserve the hard-bounded observer's already-sanitized
+    # diagnostic boundary instead of collapsing operator output to only the public "inconclusive"
+    # classification. The deployment wrapper reads only local durable preflight artifacts.
+    for marker in (
+        "Get-SasAutoLogonTransportDiagnostic",
+        "preflight_result_path",
+        "reports\\english_summary.txt",
+        "^Probe engine:\\s*(.+)$",
+        "^Hard child-process isolation:\\s*(.+)$",
+        "^Probe timeout stage:\\s*(.+)$",
+        "transport_preflight = $null",
+        "$result.transport_preflight = Get-SasAutoLogonTransportDiagnostic -S4UResult $s4u.result",
+        "KERBEROS_S4U_TRANSPORT_BLOCKED",
+        "Transport preflight classification:",
+        "Transport reason codes:",
+        "Transport probe engine:",
+        "Transport timeout stage:",
+        "Transport preflight: $renderedTransport",
+    ):
+        assert marker in deploy, marker
+
+    invoke = deploy.index("$s4u = & $s4uScript")
+    capture = deploy.index("$result.transport_preflight = Get-SasAutoLogonTransportDiagnostic -S4UResult $s4u.result")
+    transport_render = deploy.index("if ([string]$s4u.classification -eq 'KERBEROS_S4U_TRANSPORT_BLOCKED')")
+    clean_gate = deploy.index("if ([string]$s4u.classification -ne 'KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING'")
+    mutation = deploy.index("$result.autologon_applied = $true")
+    assert invoke < capture < transport_render < clean_gate < mutation
 
     # Protected-network authority is transport-agnostic at this layer: a live DomainAuthenticated
     # Ethernet/LAN path is sufficient; VPN is not required when that stronger path already exists.
