@@ -8,7 +8,7 @@ The original field failure stopped at AutoLogon S4U stage 1 (`transport prefligh
 
 ## Repair
 
-The default no-credential `kerberos_smb_task` preflight now routes potentially blocking Windows operations through killable child processes. Each operation retains the existing per-observation timeout and fails closed. A hard timeout records a sanitized timeout stage and maps the public transport result to `inconclusive` with `observation_timeout` plus `required_observation_missing`; it never authorizes target mutation.
+The default no-credential `kerberos_smb_task` preflight now routes potentially blocking Windows operations through killable child processes. Each operation retains the caller-selected per-observation timeout and fails closed. A hard timeout records a sanitized timeout stage and maps the public transport result to `inconclusive` with `observation_timeout` plus `required_observation_missing`; it never authorizes target mutation.
 
 The protected-runtime repair is `scripts/Repair-SasKerberosSmbTransportPreflightRuntime.ps1`. It is intentionally surgical: it installs the hard-bounded observer and patches only the transport observer/diagnostic wiring in the existing runtime entrypoint. It does not replace unrelated field repairs such as transport output path compaction.
 
@@ -37,15 +37,36 @@ The controlled canonical retry has now been consumed. A later protected field ru
 - exact local-host eligibility; and
 - interrupted-probe recovery.
 
-The transaction then stopped at S4U stage 1 with `KERBEROS_S4U_TRANSPORT_BLOCKED` and public transport classification `inconclusive`. It stopped before stage-8 remote staging, AutoLogon application, restart handoff, or reboot. The durable result therefore remains a pre-apply failure with no target mutation authorized by this run.
+The transaction then stopped at S4U stage 1 with `KERBEROS_S4U_TRANSPORT_BLOCKED`. Recovery of the already-written sanitized transport artifacts narrowed that failure to this exact boundary:
 
-The hard-bounded preflight already records a sanitized diagnostic boundary—classification, selected transport, reason codes, probe engine, child-process isolation, and exact timeout stage—but the deployment wrapper previously exposed only `inconclusive`. The repository now treats preservation of those local diagnostics as part of the protected-transport failure contract.
+- `classification = inconclusive`
+- `selected_transport = none`
+- reason codes: `observation_timeout`, `required_observation_missing`
+- probe engine: `hard_process_bounded`
+- hard child-process isolation: `True`
+- Probe timeout stage: `admin_share`
+- Ports actually tested: `445`
+- target mutation performed: `False`
 
-## Current gate
+This means the Kerberos/SMB path had advanced through identity/ticket prerequisites and TCP 445 reachability, then the bounded ADMIN$ authorization observation did not finish inside the historical five-second caller budget. The run stopped before stage-8 remote staging, AutoLogon application, restart handoff, or reboot. The evidence does not establish whether ADMIN$ would succeed with a slightly larger bounded observation window, so another full deployment is not justified directly from this result.
 
-Do **not** run another full AutoLogon `Remote` transaction from this state. First recover the already-written local preflight result and English summary from the failed S4U result and identify the exact bounded transport boundary.
+## Current completion gate
 
-A new controlled AutoLogon retry becomes eligible only after a fresh **read-only** preflight on the intended current protected path proves all of the following in the same session:
+Do **not** issue another bare AutoLogon `Remote` transaction from this state. The repository-owned continuation is now:
+
+`Complete-SysAdminSuiteAutoLogon.cmd HOST`
+
+The completion command is an admission/composition layer, not a second deployment implementation. In order it:
+
+1. resolves the machine-local sealed manifest authority with no target contact;
+2. runs the canonical full SHA-256 runtime seal audit with no target contact;
+3. establishes the exact current `DomainAuthenticated` VPN/LAN network-guard authority;
+4. re-proves the canonical protected-network gate;
+5. canonicalizes the one explicit target;
+6. runs one fresh **read-only** `kerberos_smb_task` transport preflight with a 15-second per-observation timeout; and
+7. only after `AUTOLOGON_COMPLETION_PREFLIGHT_READY`, enters the existing sealed crash-safe AutoLogon bootstrap pinned to the prepared runtime commit.
+
+If that fresh read-only admission is anything other than the following, the completion command emits `AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED` and starts no deployment bootstrap:
 
 - `classification = kerberos_smb_task_ready`
 - `selected_transport = kerberos_smb_task`
@@ -55,7 +76,7 @@ A new controlled AutoLogon retry becomes eligible only after a fresh **read-only
 - `transport_authorization_proven = True`
 - `target_mutation_performed = False`
 
-The canonical deployment will perform its own bounded transport preflight again immediately before apply. That repeat is part of the owned deployment transaction and is not permission for broad or repeated manual probing.
+The 15-second admission window is still hard process bounded; it does not restore the old unbounded runspace behavior. It gives the first VPN SMB authorization handshake more time than the historical five-second caller budget while keeping the target read-only. A successful read-only admission does not itself prove deployment. The existing canonical deployment will perform its own bounded transport preflight again immediately before apply and retains ownership of target locking, recovery, single apply invocation, restart observation, and cleanup evidence.
 
 If a future transaction reaches target mutation and then fails or becomes ambiguous, stop and continue from its durable field result. Do not blindly rerun.
 
