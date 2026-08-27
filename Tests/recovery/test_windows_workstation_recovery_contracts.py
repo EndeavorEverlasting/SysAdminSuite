@@ -120,8 +120,7 @@ def test_dism_sampler_never_terminates_servicing():
 def test_canonical_runner_prevents_silent_skip_and_emits_candidate_sha():
     text = read(RUNNER).lower()
     assert "candidate_sha=" in text
-    assert "git rev-parse" not in text  # command is passed as structured arguments, not duplicated shell text
-    assert "rev-parse" in text and "head" in text
+    assert "@('-c', $reporoot, 'rev-parse', 'head')" in text
     assert "pytest" in text
     assert "test-windowsrecoverybehavior.ps1" in text
     assert "blocked_profile_authority_unavailable" in text
@@ -146,6 +145,7 @@ def test_workflow_only_orchestrates_the_canonical_floor():
 def test_entrypoints_docs_and_floor_are_discoverable():
     assert FRONT.exists() and START.exists() and RUNNER.exists() and BEHAVIOR.exists()
     front = read(FRONT).lower()
+    assert "get-saswindowsworkstationrecoveryevidence.ps1" not in front
     assert "get-saswindowsrecoveryevidence.ps1" in front
     doc = read(DOC).lower()
     for required in (
