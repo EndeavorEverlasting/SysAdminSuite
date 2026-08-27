@@ -32,6 +32,10 @@ invariants:
   - explicit profile parameter values outrank local observation; local observation outranks registered fallback
   - the OneDrive toggle never chooses, rewrites, or guesses the Desktop path
   - desktop_dev_root is authoritative for the user's mutable development root whether Desktop is local or OneDrive-backed
+  - current working directory is candidate evidence only and never canonical path authority
+  - do not use git rev-parse --show-toplevel as the first repository-location step from an arbitrary shell
+  - on Windows, use the operating system Desktop Known Folder plus Dev and then scripts/Resolve-SasCanonicalDevelopmentPath.ps1 to verify the tracked rule before repository-relative Git work
+  - a missing canonical checkout is MISSING and never authorizes a fallback clone in another directory
   - do not commit a real user identity merely to teach profile resolution
   - do not choose a directory from model preference
   - remote_default_contains_sha does not imply any local or production path is current
@@ -88,9 +92,13 @@ stages:
     order: 5
     actions:
       - use the canonical development checkout composed from the resolved profile parameters
+      - on Windows run scripts/Resolve-SasCanonicalDevelopmentPath.ps1 -RequireCheckout before repo-relative Git commands when the shell did not begin in a proved canonical checkout
+      - require repository identity to match EndeavorEverlasting/SysAdminSuite
       - compare its Git identity and preserved state with the intended commit
       - when collision isolation is required, use a Git worktree beneath the registered temporary_worktree_root instead of creating another mutable clone
       - record canonical_development_checkout_current only from local checkout evidence
+    stop_conditions:
+      - canonical development checkout is missing, wrong-repository, nested under another checkout, or otherwise unproved
 
   - id: prove-production-use
     order: 6
@@ -114,6 +122,8 @@ stages:
       - report the four resolved profile parameters and their source provenance
       - report all four proof states separately
       - report the selected machine-role profile and classified candidate path
+      - for Windows repo-relative next commands from an arbitrary shell, begin with Environment.GetFolderPath(Desktop) -> Dev -> SysAdminSuite, fail closed if missing, then invoke the tracked resolver before Git work
+      - never begin a from-anywhere handoff with git rev-parse --show-toplevel
       - when an operator command contains PowerShell if/else control flow, emit the complete if/else as one paste block; never submit else as a later standalone command
       - name the first unproven path state and route the next action to its owning workflow
 
