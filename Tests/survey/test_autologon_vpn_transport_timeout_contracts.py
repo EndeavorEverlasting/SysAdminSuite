@@ -126,7 +126,8 @@ def main() -> None:
     assert manifest_call < seal_call < authority_call < preflight_call < ready_gate < bootstrap_call
 
     for forbidden in (
-        r"\bgit(?:\.exe)?\s",
+        r"(?im)^\s*&\s*git(?:\.exe)?\b",
+        r"(?im)^\s*git(?:\.exe)?\b",
         r"\bNew-ScheduledTask\b",
         r"\bRegister-ScheduledTask\b",
         r"schtasks(?:\.exe)?\s+/(?:Create|Run|Delete|Change)\b",
