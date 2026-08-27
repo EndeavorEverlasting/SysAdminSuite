@@ -20,19 +20,45 @@ Every user profile resolves four independent parameters: `os`, `user`, `onedrive
 
 The OneDrive toggle never chooses the Desktop path. A user can have OneDrive enabled without Desktop redirection, or have a redirected Desktop whose exact location must come from the OS/explicit `desktop_dev_root`. The canonical checkout is composed from `desktop_dev_root`, not inferred from the toggle.
 
+## From-anywhere Windows bootstrap
+
+The current working directory is candidate evidence only. A fresh PowerShell session may start in the user profile, System32, a terminal default directory, or another repository. Do **not** start location discovery with `git rev-parse --show-toplevel`; that command requires the shell to already be inside a Git worktree and therefore cannot own repository location.
+
+Resolve the Windows Desktop Known Folder first, compose `Desktop\Dev\SysAdminSuite`, require that one path to exist, then run the tracked resolver before repository-relative Git work. Missing canonical state is `MISSING`; it does not authorize cloning SysAdminSuite into another convenient directory.
+
+Use one complete paste block:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
+if ([string]::IsNullOrWhiteSpace($desktop)) {
+    throw 'Desktop Known Folder unresolved; canonical SysAdminSuite development path is UNKNOWN.'
+}
+$repo = Join-Path (Join-Path $desktop 'Dev') 'SysAdminSuite'
+if (-not (Test-Path -LiteralPath $repo -PathType Container)) {
+    throw "MISSING canonical SysAdminSuite checkout: $repo. Do not create a fallback clone elsewhere."
+}
+Set-Location -LiteralPath $repo
+& pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Resolve-SasCanonicalDevelopmentPath.ps1 -RequireCheckout
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+```
+
+Only after that proof may the continuation use `git fetch`, inspect status, reconcile the canonical checkout, or create an isolated worktree beneath the registered worktree root.
+
 ## Procedure
 
 1. Read `harness/api/canonical-path-registry.json`.
 2. Resolve all four profile parameters and record their sources before choosing a machine-role profile.
 3. Resolve one compatible machine-role profile; do not choose a directory from model preference.
 4. Compose the canonical development checkout from `{desktop_dev_root}\SysAdminSuite` for the Windows profiles instead of assuming `%USERPROFILE%\Desktop\Dev`.
-5. Classify the candidate as canonical development, production/use, isolated worktree, ephemeral acquisition, or unknown.
-6. Keep these proofs separate: remote default contains SHA; canonical development checkout current; production/use path current; real operator entrypoint observes current.
-7. For remote freshness, delegate to `harness/workflows/repository-freshness-before-launch.yaml`.
-8. Preserve dirty or unique work. Use a Git worktree under the registered temporary root for parallel writers instead of making another mutable clone.
-9. For an installed/field runtime, require its owning updater/seal/manifest proof. A GitHub merge or fresh clone is insufficient.
-10. For operator execution, delegate to `harness/workflows/operator-execution-route.yaml` and require the registered entrypoint to observe the intended runtime.
-11. Report the first unproven state and its owning continuation; do not claim workstation deployment from repository evidence.
+5. On Windows, use `scripts/Resolve-SasCanonicalDevelopmentPath.ps1` to prove the composed checkout when repository identity matters; current directory never overrides the tracked rule.
+6. Classify the candidate as canonical development, production/use, isolated worktree, ephemeral acquisition, or unknown.
+7. Keep these proofs separate: remote default contains SHA; canonical development checkout current; production/use path current; real operator entrypoint observes current.
+8. For remote freshness, delegate to `harness/workflows/repository-freshness-before-launch.yaml`.
+9. Preserve dirty or unique work. Use a Git worktree under the registered temporary root for parallel writers instead of making another mutable clone.
+10. For an installed/field runtime, require its owning updater/seal/manifest proof. A GitHub merge or fresh clone is insufficient.
+11. For operator execution, delegate to `harness/workflows/operator-execution-route.yaml` and require the registered entrypoint to observe the intended runtime.
+12. Report the first unproven state and its owning continuation; do not claim workstation deployment from repository evidence.
 
 ## PowerShell operator-block integrity
 
