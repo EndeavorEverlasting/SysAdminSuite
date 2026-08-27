@@ -156,6 +156,9 @@ jobs:
             if ($receipt.canonical_development_checkout -ne $expected) {
               throw "Expected Known Folder path '$expected', got '$($receipt.canonical_development_checkout)'"
             }
+            if ($receipt.desktop_known_folder -ne [IO.Path]::GetFullPath($desktop)) {
+              throw "Expected real Desktop Known Folder '$desktop', got '$($receipt.desktop_known_folder)'"
+            }
             if ([bool]$receipt.current_directory_is_authority) {
               throw 'Current directory was incorrectly promoted to canonical authority.'
             }
@@ -170,17 +173,58 @@ jobs:
           $missingDev = Join-Path $env:RUNNER_TEMP ('missing-dev-' + [guid]::NewGuid().ToString('N'))
           Push-Location $HOME
           try {
-            & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver -DesktopDevRoot $missingDev -RequireCheckout -AsJson
+            $raw = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver -DesktopDevRoot $missingDev -RequireCheckout -AsJson
             $code = $LASTEXITCODE
+            $global:LASTEXITCODE = 0
           }
           finally { Pop-Location }
           if ($code -eq 0) { throw 'Missing canonical checkout incorrectly returned success.' }
+          $receipt = $raw | ConvertFrom-Json
+          if ($receipt.canonical_checkout_status -ne 'MISSING' -or $receipt.path_disposition -ne 'MISSING') {
+            throw "Expected MISSING/MISSING, got $($receipt.canonical_checkout_status)/$($receipt.path_disposition)"
+          }
           Write-Host "PASS: missing canonical checkout failed closed with exit $code"
+
+      - name: Prove wrong repository checkout fails closed
+        shell: powershell
+        run: |
+          $resolver = (Resolve-Path '.\scripts\Resolve-SasCanonicalDevelopmentPath.ps1').Path
+          $wrongDev = Join-Path $env:RUNNER_TEMP ('wrong-dev-' + [guid]::NewGuid().ToString('N'))
+          $fixture = Join-Path $wrongDev 'SysAdminSuite'
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          git -C $fixture init
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $fixture config user.name 'SysAdminSuite CI'
+          git -C $fixture config user.email 'sysadminsuite-ci@example.invalid'
+          git -C $fixture remote add origin https://github.com/example/OtherRepo.git
+          Set-Content -LiteralPath (Join-Path $fixture 'fixture.txt') -Value 'wrong repository fixture' -Encoding ASCII
+          git -C $fixture add fixture.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $fixture commit -m 'test: wrong repository fixture'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          Push-Location $HOME
+          try {
+            $raw = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver -DesktopDevRoot $wrongDev -CandidatePath $HOME -RequireCheckout -AsJson
+            $code = $LASTEXITCODE
+            $global:LASTEXITCODE = 0
+          }
+          finally { Pop-Location }
+          if ($code -eq 0) { throw 'Wrong-repository canonical path incorrectly returned success.' }
+          $receipt = $raw | ConvertFrom-Json
+          if ($receipt.canonical_checkout_status -ne 'CONFLICT_WRONG_REPOSITORY') {
+            throw "Expected CONFLICT_WRONG_REPOSITORY, got $($receipt.canonical_checkout_status)"
+          }
+          if ($receipt.path_disposition -ne 'CONFLICT') {
+            throw "Expected CONFLICT disposition, got $($receipt.path_disposition)"
+          }
+          Write-Host "PASS: wrong repository at canonical path failed closed with exit $code"
 
       - name: Prove explicit canonical checkout succeeds
         shell: powershell
         run: |
           $resolver = (Resolve-Path '.\scripts\Resolve-SasCanonicalDevelopmentPath.ps1').Path
+          $knownDesktop = [IO.Path]::GetFullPath([Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop))
           $devRoot = Join-Path $env:RUNNER_TEMP ('canonical-dev-' + [guid]::NewGuid().ToString('N'))
           $fixture = Join-Path $devRoot 'SysAdminSuite'
           New-Item -ItemType Directory -Path $fixture -Force | Out-Null
@@ -205,6 +249,18 @@ jobs:
             }
             if ($receipt.candidate_classification -ne 'UNKNOWN') {
               throw "Expected arbitrary HOME candidate to remain UNKNOWN, got $($receipt.candidate_classification)"
+            }
+            if ($receipt.desktop_known_folder -ne $knownDesktop) {
+              throw "Explicit DesktopDevRoot incorrectly replaced real Desktop Known Folder: $($receipt.desktop_known_folder)"
+            }
+            if ($receipt.desktop_source -ne 'explicit_desktop_dev_root') {
+              throw "Expected explicit_desktop_dev_root source, got $($receipt.desktop_source)"
+            }
+            if ($receipt.path_relation -ne 'DEVELOPMENT_PROFILE_ONLY_PRODUCTION_NOT_APPLICABLE') {
+              throw "Unexpected development-profile path relation: $($receipt.path_relation)"
+            }
+            if ([bool]$receipt.production_use_applicable) {
+              throw 'windows-development must not claim a production/use path.'
             }
             if ([bool]$receipt.current_directory_is_authority) {
               throw 'Current directory was incorrectly promoted to canonical authority.'
