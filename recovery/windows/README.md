@@ -41,7 +41,7 @@ pwsh -NoProfile -File .\recovery\windows\Get-SasWindowsRecoveryEvidence.ps1 `
   -OutputPath .\runs\windows-recovery\backup-proof.json
 ```
 
-Before querying the catalog, the collector proves that the target is on a different physical disk than the system volume and can pin expected label, bus type, and model. Identity mismatch fails closed. It then queries `wbadmin get versions`, optionally `wbadmin get items` for the exact version, and measures the physical `WindowsImageBackup` tree. The proof is stronger than a displayed `100%` progress value, but it is **not** a bare-metal restore test. Preserve the source until the recovery requirement is independently satisfied.
+Before querying the catalog, the collector proves that the target is on a different physical disk than the system volume and can pin expected label, bus type, and model. A missing system-volume mapping now degrades to `identity_unresolved` rather than throwing; unresolved identity, same-disk selection, or an expectation mismatch fails closed before `wbadmin` is called. The collector then queries `wbadmin get versions`, optionally `wbadmin get items` for the exact version, and measures the physical `WindowsImageBackup` tree. This is stronger than a displayed `100%` progress value, but it is **not** a bare-metal restore test. Preserve the source until the recovery requirement is independently satisfied.
 
 A useful backup gate is:
 
@@ -61,7 +61,7 @@ Use deep storage measurement only when needed; recursive enumeration can take mi
 pwsh -NoProfile -File .\recovery\windows\Get-SasWindowsRecoveryEvidence.ps1 -HealthDepth None -DeepStorage -OutputPath .\runs\windows-recovery\pressure.json
 ```
 
-Prioritize large, evidence-backed disposable payloads before risky system tuning. Treat reparse points/junctions carefully so `All Users`/`ProgramData`-style aliases are not silently counted as independent data. Protect active repositories and irreplaceable files before deletion. This harness intentionally does **not** provide a bulk-delete command.
+System directories are derived from the detected Windows system drive rather than assuming `C:`. Prioritize large, evidence-backed disposable payloads before risky system tuning. Treat reparse points/junctions carefully so `All Users`/`ProgramData`-style aliases are not silently counted as independent data. Protect active repositories and irreplaceable files before deletion. This harness intentionally does **not** provide a bulk-delete command.
 
 ## Windows integrity checks
 
@@ -79,28 +79,33 @@ pwsh -NoProfile -File .\recovery\windows\Test-SasDismActivity.ps1 -Seconds 90 -O
 
 The sampler observes DISM/DISMHost/TiWorker/TrustedInstaller CPU time and DISM/CBS log growth. It never kills servicing processes. No activity in one sample is still not proof of a dead process; combine prolonged stagnation with logs before using a single graceful `Ctrl+C`.
 
-## Opt-in Windows integrity repair
+## Repair planning and authorization boundary
 
-See the exact sequence without mutation:
+See the intended integrity-repair sequence without mutation:
 
 ```powershell
 pwsh -NoProfile -File .\recovery\windows\Repair-SasWindowsIntegrity.ps1
 ```
 
-Run it only from an elevated shell when repair is intended:
+The generic Windows recovery lane does **not** currently own a canonical organization/site plus equipment-profile authority for repair mutation. Repository governance requires both profile layers before mutation, so `-Apply` intentionally fails closed, writes the requested report, attempts no network access, and executes no DISM/SFC repair command:
 
 ```powershell
-pwsh -NoProfile -File .\recovery\windows\Repair-SasWindowsIntegrity.ps1 -Apply -ReportPath .\runs\windows-recovery\integrity-repair.json
+pwsh -NoProfile -File .\recovery\windows\Repair-SasWindowsIntegrity.ps1 `
+  -Apply `
+  -ReportPath .\runs\windows-recovery\repair-blocked.json
 ```
 
-The sequence is intentionally ordered:
+The future authorized sequence is constrained to:
 
-1. `DISM /Online /Cleanup-Image /RestoreHealth`
-2. `SFC /scannow`
-3. `DISM /Online /Cleanup-Image /ScanHealth`
-4. `SFC /verifyonly`
+1. prove repository-owned organization/site profile authority;
+2. prove repository-owned equipment profile authority;
+3. prove an approved local Windows repair source;
+4. run `DISM /Online /Cleanup-Image /RestoreHealth /Source:<approved-local-source> /LimitAccess`;
+5. run `SFC /scannow`;
+6. obtain locale-stable DISM health through `Repair-WindowsImage -Online -ScanHealth`;
+7. run `SFC /verifyonly` and retain its raw output without pretending localized text has been normalized.
 
-The script stops before SFC if `RestoreHealth` fails. It also treats a final `ScanHealth` result of **component store is repairable** as unresolved even when the DISM process returned exit code 0. A clean SFC result does not silently promote a still-repairable component store to clean.
+`/LimitAccess` is part of the mutation contract so RestoreHealth cannot silently fall back to Windows Update or WSUS. A profile-specific sprint must add and validate the missing profile authority before this generic lane may execute the sequence.
 
 ## Hardware-upgrade evidence
 
@@ -108,18 +113,29 @@ For RAM decisions, capture the exact module count, capacity, manufacturer, part 
 
 Use current manufacturer/service documentation or a compatibility database as a separate purchasing gate; this repository collector proves only what the current machine reports.
 
+## Deterministic automated test floor
+
+Install the pinned test-only dependencies once in a clean Python 3.12 environment:
+
+```powershell
+python -m pip install -r .\requirements-test.txt
+```
+
+Then run the same canonical command used by CI:
+
+```powershell
+pwsh -NoProfile -File .\scripts\Test-SasWindowsRecoveryFloor.ps1 -Phase All
+```
+
+The runner emits the exact Git candidate SHA, fails if pytest or a behavior phase returns nonzero, parses the PowerShell surfaces, exercises backup identity and non-`C:` path helpers, proves native stderr/exit-code capture, executes the sanitized collector fixture, verifies the repair plan-only default, and proves that `-Apply` returns the profile-authority blocker with a durable JSON report. GitHub Actions runs the contract phase on Ubuntu and the full behavior phase on Windows under both PowerShell 7 and Windows PowerShell 5.1.
+
+The workflow has `pull_request`, `push` to `main`, and `workflow_dispatch` triggers. It intentionally has no cron schedule: repeating unchanged offline source tests while the repository is idle adds cost but no new evidence. Schedule-triggered revalidation can be added later if a time-varying dependency or environment risk appears.
+
 ## Proof levels
 
 - **Observed:** local metadata or native command output was captured.
 - **Identity pinned:** a backup target is distinct from the system disk and matches supplied stable expectations.
 - **Catalog verified:** Windows backup catalog/artifact is visible on the confirmed target.
-- **Integrity verified:** the exact health commands completed and their final text is recorded.
-- **Not proven here:** successful bare-metal restore, external boot-media acceptance, firmware correctness, vendor RAM/SSD compatibility, application performance, or destructive-cleanup correctness.
-
-## Validation
-
-```bash
-python -m pytest -q Tests/recovery/test_windows_workstation_recovery_contracts.py
-```
-
-Windows CI also parses all PowerShell files and executes the sanitized fixture path through the collector.
+- **Integrity observation:** read-only DISM/SFC/CHKDSK checks completed and their raw command results were recorded.
+- **Test-floor verified:** the canonical offline test command passed for an exact candidate SHA in the real CI provider.
+- **Not proven here:** successful bare-metal restore, external boot-media acceptance, firmware correctness, vendor RAM/SSD compatibility, application performance, profile-authorized integrity mutation, or destructive-cleanup correctness.
