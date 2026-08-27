@@ -25,6 +25,8 @@ def test_fixture_matches_schema():
     jsonschema.Draft202012Validator(schema).validate(fixture)
     assert fixture["proof"]["destructive_actions_performed"] is False
     assert all(m.get("disk_serial") is None for m in fixture["storage"]["drive_mappings"])
+    assert fixture["backup"]["identity"]["distinct_physical_disk"] is True
+    assert fixture["backup"]["identity"]["expectations_pinned"] is True
 
 
 def test_collector_is_evidence_first_and_identity_aware():
@@ -35,7 +37,8 @@ def test_collector_is_evidence_first_and_identity_aware():
         "get-storagereliabilitycounter", "wbadmin.exe", "'get', 'versions'", "'get', 'items'",
         "windowsimagebackup", "reagentc.exe", "win32_physicalmemory",
         "configuredclockspeed", "partnumber", "win32_bios", "checkhealth",
-        "scanhealth", "/verifyonly", "deepstorage"
+        "scanhealth", "/verifyonly", "deepstorage", "expectedbackuplabel",
+        "expectedbackupbustype", "unsafe_same_physical_disk", "identity_mismatch"
     ):
         assert required in lowered, required
     for forbidden in (
@@ -46,6 +49,7 @@ def test_collector_is_evidence_first_and_identity_aware():
     assert ".adapterram" not in lowered
     assert "adapterram =" not in lowered
     assert "includeserials" in lowered
+    assert "distinct_physical_disk" in lowered
 
 
 def test_dism_sampler_never_terminates_servicing():
@@ -78,6 +82,8 @@ def test_docs_capture_field_lessons_and_proof_ceiling():
         "component store is repairable", "exact module count", "proof levels"
     ):
         assert required in text, required
+    assert "expectedbackuplabel" in text
+    assert "expectedbackupbustype" in text
     assert "recovery/systemrescue" in text
 
 
