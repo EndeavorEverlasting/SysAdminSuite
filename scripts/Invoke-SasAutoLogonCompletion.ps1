@@ -11,8 +11,10 @@ canonicalizes and validates the one explicit target, and runs one bounded read-o
 preflight with a VPN-tolerant 15-second per-observation budget.
 
 Only a fresh kerberos_smb_task_ready result with no timeout and no target mutation may advance into the
-existing sealed crash-safe AutoLogon bootstrap. The completion gate does not implement staging, package
-installation, registry mutation, task creation, restart, or recovery itself.
+existing sealed crash-safe AutoLogon bootstrap. That already-admitted timeout is then carried through
+the completion process tree so the deployment's mandatory S4U stage-1 preflight uses the same bounded
+budget instead of reverting to the ordinary five-second default. The completion gate does not implement
+staging, package installation, registry mutation, task creation, restart, or recovery itself.
 #>
 [CmdletBinding()]
 param(
@@ -165,9 +167,16 @@ Write-Host 'AUTOLOGON_COMPLETION_PREFLIGHT_READY' -ForegroundColor Green
 Write-Host 'Fresh read-only Kerberos SMB + Task Scheduler admission passed; entering the existing sealed crash-safe deployment.' -ForegroundColor Green
 Write-Host "Prepared runtime commit: $preparedCommit" -ForegroundColor Green
 
-# Carry the exact current network-guard and exact-target authority into the existing bootstrap process
-# tree. The bootstrap still re-resolves manifest/seal/network/target authority and its field
-# transaction independently repeats transport admission before any mutation.
+# The same bounded timeout that earned admission must govern the deployment engine's mandatory
+# stage-1 transport recheck. This process-scoped value is deliberately set only after the fresh
+# read-only admission passes. Test-SasSoftwareDeploymentTransport honors it only when a caller did
+# not explicitly bind -TimeoutSeconds, so normal Remote callers retain the five-second default.
+$env:SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS = [string]$PreflightTimeoutSeconds
+Write-Host "Deployment stage-1 transport timeout: $PreflightTimeoutSeconds seconds" -ForegroundColor Green
+
+# Carry the exact current network-guard, exact-target authority, and admitted transport timeout into
+# the existing bootstrap process tree. The bootstrap still re-resolves manifest/seal/network/target
+# authority and its field transaction independently repeats transport admission before any mutation.
 & $deploymentBootstrap $ComputerName $preparedCommit
 $deploymentExit = [int]$LASTEXITCODE
 
