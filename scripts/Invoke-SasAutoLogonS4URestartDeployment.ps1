@@ -67,6 +67,124 @@ function Save-SasAutoLogonDeploymentResult {
     $Value | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $resultPath -Encoding UTF8
 }
 
+function Get-SasAutoLogonTransportDiagnostic {
+    param([AllowNull()]$S4UResult)
+
+    $diagnostic = [ordered]@{
+        classification = $null
+        selected_transport = $null
+        reason_codes = @()
+        probe_engine = $null
+        timeout_stage = $null
+        child_process_isolation = $null
+        preflight_result_path = $null
+        english_summary_path = $null
+        preflight_result_read = $false
+        english_summary_read = $false
+        evidence_status = 'unavailable'
+        evidence_issues = @()
+    }
+
+    if ($null -eq $S4UResult -or $null -eq $S4UResult.PSObject.Properties['preflight_result_path']) {
+        $diagnostic.evidence_issues = @('S4U result did not provide preflight_result_path.')
+        return [pscustomobject]$diagnostic
+    }
+
+    $preflightPath = [string]$S4UResult.preflight_result_path
+    if ([string]::IsNullOrWhiteSpace($preflightPath)) {
+        $diagnostic.evidence_issues = @('S4U result provided an empty preflight_result_path.')
+        return [pscustomobject]$diagnostic
+    }
+    $diagnostic.preflight_result_path = $preflightPath
+
+    if (Test-Path -LiteralPath $preflightPath -PathType Leaf) {
+        try {
+            $preflightResult = Get-Content -LiteralPath $preflightPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($null -eq $preflightResult.decision) {
+                throw 'missing decision object'
+            }
+            $diagnostic.classification = [string]$preflightResult.decision.classification
+            $diagnostic.selected_transport = [string]$preflightResult.decision.selected_transport
+            $diagnostic.reason_codes = @($preflightResult.decision.reason_codes | ForEach-Object { [string]$_ })
+            $diagnostic.preflight_result_read = $true
+        }
+        catch {
+            $diagnostic.evidence_issues = @($diagnostic.evidence_issues) + 'Preflight result artifact is unreadable or schema-incompatible.'
+        }
+    }
+    else {
+        $diagnostic.evidence_issues = @($diagnostic.evidence_issues) + 'Preflight result artifact is missing.'
+    }
+
+    try {
+        $artifactsRoot = Split-Path -Parent $preflightPath
+        $preflightRunRoot = Split-Path -Parent $artifactsRoot
+        $summaryPath = Join-Path -Path $preflightRunRoot -ChildPath 'reports\english_summary.txt'
+        $diagnostic.english_summary_path = $summaryPath
+        if (Test-Path -LiteralPath $summaryPath -PathType Leaf) {
+            foreach ($line in @(Get-Content -LiteralPath $summaryPath -Encoding UTF8)) {
+                if ([string]$line -match '^Probe engine:\s*(.+)$') {
+                    $diagnostic.probe_engine = $Matches[1].Trim()
+                }
+                elseif ([string]$line -match '^Hard child-process isolation:\s*(.+)$') {
+                    $diagnostic.child_process_isolation = $Matches[1].Trim().Equals('True', [StringComparison]::OrdinalIgnoreCase)
+                }
+                elseif ([string]$line -match '^Probe timeout stage:\s*(.+)$') {
+                    $diagnostic.timeout_stage = $Matches[1].Trim()
+                }
+            }
+            $diagnostic.english_summary_read = $true
+        }
+        else {
+            $diagnostic.evidence_issues = @($diagnostic.evidence_issues) + 'Preflight English summary artifact is missing.'
+        }
+    }
+    catch {
+        $diagnostic.evidence_issues = @($diagnostic.evidence_issues) + 'Preflight English summary artifact could not be resolved or read.'
+    }
+
+    if ([bool]$diagnostic.preflight_result_read -and [bool]$diagnostic.english_summary_read) {
+        $diagnostic.evidence_status = 'complete'
+    }
+    elseif ([bool]$diagnostic.preflight_result_read -or [bool]$diagnostic.english_summary_read) {
+        $diagnostic.evidence_status = 'partial'
+    }
+
+    return [pscustomobject]$diagnostic
+}
+
+function Write-SasAutoLogonTransportDiagnostic {
+    param([AllowNull()]$Diagnostic)
+
+    if ($null -eq $Diagnostic) { return '' }
+
+    $classificationText = if ([string]::IsNullOrWhiteSpace([string]$Diagnostic.classification)) { 'unknown' } else { [string]$Diagnostic.classification }
+    $selectedTransportText = if ([string]::IsNullOrWhiteSpace([string]$Diagnostic.selected_transport)) { 'unknown' } else { [string]$Diagnostic.selected_transport }
+    $reasonText = @($Diagnostic.reason_codes | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join ', '
+    if ([string]::IsNullOrWhiteSpace($reasonText)) { $reasonText = 'none recorded' }
+    $engineText = if ([string]::IsNullOrWhiteSpace([string]$Diagnostic.probe_engine)) { 'unknown' } else { [string]$Diagnostic.probe_engine }
+    $timeoutText = if ([string]::IsNullOrWhiteSpace([string]$Diagnostic.timeout_stage)) { 'unknown' } else { [string]$Diagnostic.timeout_stage }
+    $evidenceStatusText = if ([string]::IsNullOrWhiteSpace([string]$Diagnostic.evidence_status)) { 'unavailable' } else { [string]$Diagnostic.evidence_status }
+    $evidenceIssueText = @($Diagnostic.evidence_issues | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join '; '
+    if ([string]::IsNullOrWhiteSpace($evidenceIssueText)) { $evidenceIssueText = 'none' }
+
+    Write-Host "Transport preflight classification: $classificationText" -ForegroundColor Yellow
+    Write-Host "Transport selected transport: $selectedTransportText" -ForegroundColor Yellow
+    Write-Host "Transport reason codes: $reasonText" -ForegroundColor Yellow
+    Write-Host "Transport probe engine: $engineText" -ForegroundColor Yellow
+    Write-Host "Transport timeout stage: $timeoutText" -ForegroundColor Yellow
+    Write-Host "Transport diagnostic evidence: $evidenceStatusText" -ForegroundColor Yellow
+    Write-Host "Transport diagnostic evidence issues: $evidenceIssueText" -ForegroundColor Yellow
+    if (-not [string]::IsNullOrWhiteSpace([string]$Diagnostic.preflight_result_path)) {
+        Write-Host "Transport result: $($Diagnostic.preflight_result_path)"
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$Diagnostic.english_summary_path)) {
+        Write-Host "Transport summary: $($Diagnostic.english_summary_path)"
+    }
+
+    return "classification=$classificationText; selected_transport=$selectedTransportText; reason_codes=$reasonText; probe_engine=$engineText; timeout_stage=$timeoutText; evidence_status=$evidenceStatusText; evidence_issues=$evidenceIssueText"
+}
+
 function Write-SasAutoLogonRestartStage {
     param(
         [Parameter(Mandatory = $true)][ValidateRange(19,22)][int]$Number,
@@ -201,6 +319,7 @@ $result = [ordered]@{
     autologon_was_last_software_step = $true
     s4u_result_path = $null
     s4u_classification = $null
+    transport_preflight = $null
     pre_reboot_autologon_ready = $false
     restart_task_name = $null
     restart_task_created = $false
@@ -231,6 +350,7 @@ try {
 
     $result.s4u_result_path = [string]$s4u.result_path
     $result.s4u_classification = [string]$s4u.classification
+    $result.transport_preflight = Get-SasAutoLogonTransportDiagnostic -S4UResult $s4u.result
     $result.pre_reboot_autologon_ready = [bool]$s4u.result.pre_reboot_autologon_ready
     $result.target_mutation_performed = [bool]$s4u.result.target_mutation_performed
     if (-not [string]::IsNullOrWhiteSpace([string]$s4u.result.target)) {
@@ -239,10 +359,18 @@ try {
     }
     Save-SasAutoLogonDeploymentResult -Value $result
 
+    $transportBlockDetail = ''
+    if ([string]$s4u.classification -eq 'KERBEROS_S4U_TRANSPORT_BLOCKED') {
+        $renderedTransport = Write-SasAutoLogonTransportDiagnostic -Diagnostic $result.transport_preflight
+        if (-not [string]::IsNullOrWhiteSpace($renderedTransport)) {
+            $transportBlockDetail = " Transport preflight: $renderedTransport."
+        }
+    }
+
     if ([string]$s4u.classification -ne 'KERBEROS_S4U_AUTOLOGON_CONFIGURED_REBOOT_PROOF_PENDING' -or
         -not [bool]$s4u.result.pre_reboot_autologon_ready -or
         -not [bool]$s4u.result.staging_cleanup_verified) {
-        throw "AutoLogon apply did not reach the required clean pre-reboot state: $($s4u.classification)"
+        throw "AutoLogon apply did not reach the required clean pre-reboot state: $($s4u.classification).$transportBlockDetail"
     }
 
     $result.autologon_applied = $true

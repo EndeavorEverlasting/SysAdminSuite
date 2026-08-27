@@ -6,6 +6,7 @@ on:
       - '.github/workflows/kerberos-smb-hard-bounded-preflight.yml'
       - 'scripts/SasSoftwareDeploymentKerberosSmbHardBounded.psm1'
       - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
+      - 'scripts/Invoke-SasAutoLogonS4URestartDeployment.ps1'
       - 'scripts/Repair-SasKerberosSmbTransportPreflightRuntime.ps1'
       - 'Tests/Pester/SoftwareDeploymentTransport.Tests.ps1'
       - 'Tests/PowerShell/KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1'
@@ -57,6 +58,7 @@ jobs:
           foreach ($relative in @(
             'scripts\SasSoftwareDeploymentKerberosSmbHardBounded.psm1',
             'scripts\Test-SasSoftwareDeploymentTransport.ps1',
+            'scripts\Invoke-SasAutoLogonS4URestartDeployment.ps1',
             'scripts\Repair-SasKerberosSmbTransportPreflightRuntime.ps1',
             'Tests\PowerShell\KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1',
             'Tests\PowerShell\KerberosSmbTransportPreflightPathBudgetRuntimeRepair.Tests.ps1'
