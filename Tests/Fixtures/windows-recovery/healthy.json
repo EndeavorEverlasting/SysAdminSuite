@@ -18,5 +18,5 @@
     "memory":{"total_visible_bytes":17179869184,"free_physical_bytes":4294967296,"modules":[{"slot":"DIMM0","manufacturer":"Example","part_number":"EXAMPLE-8G-4800","capacity_bytes":8589934592,"rated_speed_mts":4800,"configured_speed_mts":4800,"configured_voltage_mv":1100},{"slot":"DIMM1","manufacturer":"Example","part_number":"EXAMPLE-8G-4800","capacity_bytes":8589934592,"rated_speed_mts":4800,"configured_speed_mts":4800,"configured_voltage_mv":1100}]},
     "gpu":[{"name":"Example GPU","driver_version":"1.2.3"}]
   },
-  "proof":{"destructive_actions_performed":true,"serials_included":false,"proof_ceiling":"Fixture evidence only; no restore test.","warnings":["Drive letters are locators, not identities."]}
+  "proof":{"destructive_actions_performed":false,"serials_included":false,"proof_ceiling":"Fixture evidence only; no restore test.","warnings":["Drive letters are locators, not identities."]}
 }
