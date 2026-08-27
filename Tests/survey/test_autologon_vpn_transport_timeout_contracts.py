@@ -95,18 +95,22 @@ def main() -> None:
     assert invoke < capture < transport_render < clean_gate < mutation
 
     # Completion is an admission/composition layer, never a second deployment implementation. It
-    # must prove the sealed runtime before target contact, establish exact protected authority, use
-    # one VPN-tolerant but still hard-bounded read-only preflight, and enter the existing bootstrap
-    # only after a fresh ready result with no timeout or mutation.
+    # must prove the sealed runtime before target contact, establish exact protected authority,
+    # enforce the same exact-host rule as deployment, use one VPN-tolerant but still hard-bounded
+    # read-only preflight, and enter the existing bootstrap only after a fresh ready result.
     for marker in (
         "Resolve-SasAutoLogonManifestAuthority.ps1",
         "Test-SasAutoLogonRuntimeSeal.ps1",
         "Enable-SasNorthwellVpnNetworkGuard.ps1",
         "Confirm-SasNorthwellNetwork.ps1",
         "SasTargetNameResolution.psm1",
+        "Test-SasHostEligibility.ps1",
         "Test-SasSoftwareDeploymentTransport.ps1",
         "Bootstrap-SysAdminSuiteAutoLogon.cmd",
         "[int]$PreflightTimeoutSeconds = 15",
+        "$env:SAS_EXPLICIT_REMOTE_TARGET_REQUEST = $ComputerName",
+        "$eligibility = & $hostEligibility -Target $resolvedTarget -ExecContext remote -RepoRoot $RuntimeRoot",
+        "EXPLICIT_REMOTE_TARGET_AUTHORIZED",
         "-TransportIntent kerberos_smb_task -TimeoutSeconds $PreflightTimeoutSeconds",
         "if ([bool]$preflight.result.target_mutation_performed)",
         "$classification -ne 'kerberos_smb_task_ready'",
@@ -120,10 +124,11 @@ def main() -> None:
     manifest_call = complete.index("& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $manifestResolver")
     seal_call = complete.index("& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $sealAuditor")
     authority_call = complete.index("$authority = @(& $networkBootstrap -ConfirmVpnPosture)")
+    eligibility_call = complete.index("$eligibility = & $hostEligibility -Target $resolvedTarget -ExecContext remote -RepoRoot $RuntimeRoot")
     preflight_call = complete.index("$preflight = & $transportPreflight")
     ready_gate = complete.index("$classification -ne 'kerberos_smb_task_ready'")
     bootstrap_call = complete.index("& $deploymentBootstrap $ComputerName $preparedCommit")
-    assert manifest_call < seal_call < authority_call < preflight_call < ready_gate < bootstrap_call
+    assert manifest_call < seal_call < authority_call < eligibility_call < preflight_call < ready_gate < bootstrap_call
 
     for forbidden in (
         r"(?im)^\s*&\s*git(?:\.exe)?\b",
@@ -164,6 +169,7 @@ def main() -> None:
         "reason codes: `observation_timeout`, `required_observation_missing`",
         "target mutation performed: `False`",
         "Complete-SysAdminSuiteAutoLogon.cmd HOST",
+        "exact explicit-host eligibility",
         "15-second",
         "AUTOLOGON_COMPLETION_PREFLIGHT_READY",
         "AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED",
