@@ -18,6 +18,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'SasWindowsRecovery.Common.psm1') -Force
 
 function Convert-ToDriveRoot {
     param([Parameter(Mandatory)][string]$Drive)
@@ -31,13 +32,6 @@ function Test-IsAdministrator {
         return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     }
     catch { return $false }
-}
-
-function Invoke-NativeCapture {
-    param([Parameter(Mandatory)][string]$FilePath, [Parameter()][string[]]$ArgumentList = @())
-    $lines = @(& $FilePath @ArgumentList 2>&1 | ForEach-Object { "$_" })
-    $code = $LASTEXITCODE
-    [pscustomobject]@{ exit_code = $code; output = $lines }
 }
 
 function Measure-PathBytes {
@@ -126,59 +120,43 @@ if ($BackupTarget) {
     $backup.target = $target
     $targetVolume = $storageMappings | Where-Object { $_.drive -eq $target } | Select-Object -First 1
     $systemVolume = $storageMappings | Where-Object { $_.drive -eq $systemDrive } | Select-Object -First 1
-    if (-not $targetVolume) {
-        $backup.status = 'target_not_mounted'
+    $identity = Test-SasBackupTargetIdentity -SystemVolume $systemVolume -TargetVolume $targetVolume -ExpectedLabel $ExpectedBackupLabel -ExpectedBusType $ExpectedBackupBusType -ExpectedDiskModel $ExpectedBackupDiskModel
+    $backup.identity = $identity
+
+    if ($identity.status -notin @('safe_pinned', 'safe_unpinned')) {
+        $backup.status = $identity.status
+    }
+    elseif (-not (Get-Command wbadmin.exe -ErrorAction SilentlyContinue)) {
+        $backup.status = 'wbadmin_unavailable'
     }
     else {
-        $samePhysicalDisk = $null -ne $systemVolume.disk_number -and $null -ne $targetVolume.disk_number -and $systemVolume.disk_number -eq $targetVolume.disk_number
-        $labelMatch = -not $ExpectedBackupLabel -or $targetVolume.label -eq $ExpectedBackupLabel
-        $busMatch = -not $ExpectedBackupBusType -or $targetVolume.bus_type -eq $ExpectedBackupBusType
-        $modelMatch = -not $ExpectedBackupDiskModel -or $targetVolume.disk_model -eq $ExpectedBackupDiskModel
-        $pinned = [bool]($ExpectedBackupLabel -or $ExpectedBackupBusType -or $ExpectedBackupDiskModel)
-        $backup.identity = [pscustomobject]@{
-            system_disk_number = $systemVolume.disk_number; target_disk_number = $targetVolume.disk_number
-            distinct_physical_disk = -not $samePhysicalDisk
-            expected_label = $ExpectedBackupLabel; label_match = $labelMatch
-            expected_bus_type = $ExpectedBackupBusType; bus_type_match = $busMatch
-            expected_disk_model = $ExpectedBackupDiskModel; disk_model_match = $modelMatch
-            expectations_pinned = $pinned
+        if ($identity.status -eq 'safe_unpinned') {
+            $warnings.Add('Backup target was observed but no expected label, bus type, or model was pinned; catalog proof is weaker than identity-pinned proof.')
         }
-        if ($samePhysicalDisk) {
-            $backup.status = 'unsafe_same_physical_disk'
+        $versions = Invoke-SasNativeCapture -FilePath 'wbadmin.exe' -ArgumentList @('get', 'versions', "-backupTarget:$target")
+        $backup.versions = $versions
+        $backup.status = if ($versions.exit_code -eq 0) { 'catalog_observed' } else { 'catalog_query_failed' }
+        if ($BackupVersion) { $backup.items = Invoke-SasNativeCapture -FilePath 'wbadmin.exe' -ArgumentList @('get', 'items', "-version:$BackupVersion", "-backupTarget:$target") }
+        $imageRoot = "$target\WindowsImageBackup"
+        if (Test-Path -LiteralPath $imageRoot -PathType Container) {
+            $files = @(Get-ChildItem -LiteralPath $imageRoot -Force -File -Recurse -ErrorAction SilentlyContinue)
+            $backup.artifact = [pscustomobject]@{ path = $imageRoot; exists = $true; file_count = $files.Count; total_bytes = [int64](($files | Measure-Object Length -Sum).Sum) }
         }
-        elseif (-not ($labelMatch -and $busMatch -and $modelMatch)) {
-            $backup.status = 'identity_mismatch'
-        }
-        elseif (-not (Get-Command wbadmin.exe -ErrorAction SilentlyContinue)) {
-            $backup.status = 'wbadmin_unavailable'
-        }
-        else {
-            if (-not $pinned) { $warnings.Add('Backup target was observed but no expected label, bus type, or model was pinned; catalog proof is weaker than identity-pinned proof.') }
-            $versions = Invoke-NativeCapture -FilePath 'wbadmin.exe' -ArgumentList @('get', 'versions', "-backupTarget:$target")
-            $backup.versions = $versions
-            $backup.status = if ($versions.exit_code -eq 0) { 'catalog_observed' } else { 'catalog_query_failed' }
-            if ($BackupVersion) { $backup.items = Invoke-NativeCapture -FilePath 'wbadmin.exe' -ArgumentList @('get', 'items', "-version:$BackupVersion", "-backupTarget:$target") }
-            $imageRoot = "$target\WindowsImageBackup"
-            if (Test-Path -LiteralPath $imageRoot -PathType Container) {
-                $files = @(Get-ChildItem -LiteralPath $imageRoot -Force -File -Recurse -ErrorAction SilentlyContinue)
-                $backup.artifact = [pscustomobject]@{ path = $imageRoot; exists = $true; file_count = $files.Count; total_bytes = [int64](($files | Measure-Object Length -Sum).Sum) }
-            }
-            else { $backup.artifact = [pscustomobject]@{ path = $imageRoot; exists = $false; file_count = 0; total_bytes = 0 } }
-        }
+        else { $backup.artifact = [pscustomobject]@{ path = $imageRoot; exists = $false; file_count = 0; total_bytes = 0 } }
     }
 }
 
-$winre = if (Get-Command reagentc.exe -ErrorAction SilentlyContinue) { Invoke-NativeCapture -FilePath 'reagentc.exe' -ArgumentList @('/info') } else { $null }
+$winre = if (Get-Command reagentc.exe -ErrorAction SilentlyContinue) { Invoke-SasNativeCapture -FilePath 'reagentc.exe' -ArgumentList @('/info') } else { $null }
 $health = [ordered]@{ depth = $HealthDepth; administrator = $isAdmin; winre = $winre; dism = $null; chkdsk = $null; sfc = $null }
 if ($HealthDepth -ne 'None') {
     if (-not $isAdmin) { $warnings.Add("Health depth '$HealthDepth' requested without elevation; DISM/SFC/CHKDSK checks were skipped.") }
     else {
-        if ($HealthDepth -eq 'Quick') { $health.dism = Invoke-NativeCapture -FilePath 'DISM.exe' -ArgumentList @('/Online', '/Cleanup-Image', '/CheckHealth') }
+        if ($HealthDepth -eq 'Quick') { $health.dism = Invoke-SasNativeCapture -FilePath 'DISM.exe' -ArgumentList @('/Online', '/Cleanup-Image', '/CheckHealth') }
         elseif ($HealthDepth -eq 'Full') {
             $warnings.Add('Full health checks can remain at one displayed percentage for a long time. A static DISM percentage alone does not prove a stall.')
-            $health.chkdsk = Invoke-NativeCapture -FilePath 'chkdsk.exe' -ArgumentList @($systemDrive, '/scan')
-            $health.dism = Invoke-NativeCapture -FilePath 'DISM.exe' -ArgumentList @('/Online', '/Cleanup-Image', '/ScanHealth')
-            $health.sfc = Invoke-NativeCapture -FilePath 'sfc.exe' -ArgumentList @('/verifyonly')
+            $health.chkdsk = Invoke-SasNativeCapture -FilePath 'chkdsk.exe' -ArgumentList @($systemDrive, '/scan')
+            $health.dism = Invoke-SasNativeCapture -FilePath 'DISM.exe' -ArgumentList @('/Online', '/Cleanup-Image', '/ScanHealth')
+            $health.sfc = Invoke-SasNativeCapture -FilePath 'sfc.exe' -ArgumentList @('/verifyonly')
         }
     }
 }
@@ -204,8 +182,7 @@ $hardware = [pscustomobject]@{
 
 $storagePressure = [ordered]@{ status = if ($DeepStorage) { 'observed' } else { 'not_requested' }; paths = @() }
 if ($DeepStorage) {
-    $profile = $env:USERPROFILE
-    $paths = @('C:\Users','C:\Windows','C:\Program Files','C:\Program Files (x86)','C:\ProgramData','C:\$Recycle.Bin',(Join-Path $profile 'Downloads'),(Join-Path $profile 'Desktop'),(Join-Path $profile 'Documents'),(Join-Path $profile 'AppData\Local\Temp'),(Join-Path $profile 'AppData\Local\Docker'),(Join-Path $profile '.cache')) | Select-Object -Unique
+    $paths = Get-SasDeepStoragePaths -SystemDrive $systemDrive -UserProfile $env:USERPROFILE
     foreach ($path in $paths) {
         if (Test-Path -LiteralPath $path) { $storagePressure.paths += [pscustomobject]@{ path = $path; bytes = (Measure-PathBytes -Path $path) } }
     }
