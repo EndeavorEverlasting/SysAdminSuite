@@ -83,9 +83,19 @@ def main() -> None:
     ):
         assert marker in handoff, marker
 
-    # The field handoff must advance monotonically from diagnosis to one controlled retry only after
-    # the hard-bounded read-only transport proof reached the exact ready classification without mutation.
+    # The earlier Ethernet proof is historical evidence only; its one controlled retry has now been
+    # consumed by a later fail-closed VPN attempt. Another full deployment must remain blocked until
+    # a fresh read-only proof reaches the exact ready classification on the intended current path.
     for marker in (
+        "That proof authorized one controlled canonical retry on the then-proven transport floor",
+        "The controlled canonical retry has now been consumed",
+        "KERBEROS_S4U_TRANSPORT_BLOCKED",
+        "public transport classification `inconclusive`",
+        "stopped before stage-8 remote staging",
+        "no target mutation authorized by this run",
+        "Do **not** run another full AutoLogon `Remote` transaction from this state",
+        "First recover the already-written local preflight result and English summary",
+        "fresh **read-only** preflight",
         "classification = kerberos_smb_task_ready",
         "selected_transport = kerberos_smb_task",
         "reason_codes = all_kerberos_smb_task_prerequisites_satisfied",
@@ -93,16 +103,13 @@ def main() -> None:
         "timeout stage = none",
         "transport_authorization_proven = True",
         "target_mutation_performed = False",
-        "Exactly one new canonical AutoLogon `Remote` transaction is appropriate",
-        "autologon_applied = false",
-        "pre_reboot_autologon_ready = false",
-        "automatic_reboot_performed = false",
         "Do not blindly rerun",
     ):
         assert marker in handoff, marker
 
     assert "The canonical deployment will perform its own bounded transport preflight again" in handoff
     assert "not permission to disconnect an approved protected path" in handoff
+    assert "Exactly one new canonical AutoLogon `Remote` transaction is appropriate" not in handoff
     print("PASS: AutoLogon protected transport timeout/retry contracts")
 
 
