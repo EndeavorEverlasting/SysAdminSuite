@@ -196,7 +196,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git -C $fixture config user.name 'SysAdminSuite CI'
           git -C $fixture config user.email 'sysadminsuite-ci@example.invalid'
-          git -C $fixture remote add origin https://github.com/example/OtherRepo.git
+          git -C $fixture remote add origin https://evilgithub.com/EndeavorEverlasting/SysAdminSuite.git
           Set-Content -LiteralPath (Join-Path $fixture 'fixture.txt') -Value 'wrong repository fixture' -Encoding ASCII
           git -C $fixture add fixture.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -218,7 +218,43 @@ jobs:
           if ($receipt.path_disposition -ne 'CONFLICT') {
             throw "Expected CONFLICT disposition, got $($receipt.path_disposition)"
           }
-          Write-Host "PASS: wrong repository at canonical path failed closed with exit $code"
+          Write-Host "PASS: lookalike GitHub host failed closed with exit $code"
+
+      - name: Prove Git I/O unhealthy checkout fails closed
+        shell: powershell
+        run: |
+          $resolver = (Resolve-Path '.\scripts\Resolve-SasCanonicalDevelopmentPath.ps1').Path
+          $brokenDev = Join-Path $env:RUNNER_TEMP ('broken-dev-' + [guid]::NewGuid().ToString('N'))
+          $fixture = Join-Path $brokenDev 'SysAdminSuite'
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          git -C $fixture init
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $fixture config user.name 'SysAdminSuite CI'
+          git -C $fixture config user.email 'sysadminsuite-ci@example.invalid'
+          git -C $fixture remote add origin https://github.com/EndeavorEverlasting/SysAdminSuite.git
+          Set-Content -LiteralPath (Join-Path $fixture 'fixture.txt') -Value 'broken index fixture' -Encoding ASCII
+          git -C $fixture add fixture.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $fixture commit -m 'test: broken Git I/O fixture'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          [IO.File]::WriteAllBytes((Join-Path $fixture '.git\index'), [byte[]](0,1,2,3,4,5,6,7))
+
+          Push-Location $HOME
+          try {
+            $raw = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver -DesktopDevRoot $brokenDev -CandidatePath $HOME -RequireCheckout -AsJson
+            $code = $LASTEXITCODE
+            $global:LASTEXITCODE = 0
+          }
+          finally { Pop-Location }
+          if ($code -eq 0) { throw 'Git-I/O-unhealthy canonical path incorrectly returned success.' }
+          $receipt = $raw | ConvertFrom-Json
+          if ($receipt.canonical_checkout_status -ne 'CONFLICT_GIT_IO_UNHEALTHY') {
+            throw "Expected CONFLICT_GIT_IO_UNHEALTHY, got $($receipt.canonical_checkout_status)"
+          }
+          if ($receipt.canonical_git_io_health -ne 'UNHEALTHY' -or $receipt.path_disposition -ne 'CONFLICT') {
+            throw "Expected UNHEALTHY/CONFLICT, got $($receipt.canonical_git_io_health)/$($receipt.path_disposition)"
+          }
+          Write-Host "PASS: broken Git I/O failed closed with exit $code"
 
       - name: Prove explicit canonical checkout succeeds
         shell: powershell
@@ -247,6 +283,9 @@ jobs:
             if ($receipt.canonical_checkout_status -ne 'CANONICAL_PROVED') {
               throw "Expected CANONICAL_PROVED, got $($receipt.canonical_checkout_status)"
             }
+            if ($receipt.canonical_git_io_health -ne 'HEALTHY') {
+              throw "Expected HEALTHY Git I/O, got $($receipt.canonical_git_io_health)"
+            }
             if ($receipt.candidate_classification -ne 'UNKNOWN') {
               throw "Expected arbitrary HOME candidate to remain UNKNOWN, got $($receipt.candidate_classification)"
             }
@@ -265,6 +304,6 @@ jobs:
             if ([bool]$receipt.current_directory_is_authority) {
               throw 'Current directory was incorrectly promoted to canonical authority.'
             }
-            Write-Host "PASS: exact canonical checkout proved from arbitrary cwd at $fixture"
+            Write-Host "PASS: exact canonical checkout with healthy Git I/O proved from arbitrary cwd at $fixture"
           }
           finally { Pop-Location }
