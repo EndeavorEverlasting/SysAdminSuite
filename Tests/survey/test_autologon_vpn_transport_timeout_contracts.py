@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 HARD = ROOT / "scripts" / "SasSoftwareDeploymentKerberosSmbHardBounded.psm1"
 REPAIR = ROOT / "scripts" / "Repair-SasKerberosSmbTransportPreflightRuntime.ps1"
 REPAIR_TEST = ROOT / "Tests" / "PowerShell" / "KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1"
 DEPLOY = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
+COMPLETE = ROOT / "scripts" / "Invoke-SasAutoLogonCompletion.ps1"
+COMPLETE_CMD = ROOT / "Complete-SysAdminSuiteAutoLogon.cmd"
 HANDOFF = ROOT / "docs" / "handoff" / "autologon-vpn-transport-preflight-timeout.md"
 
 
@@ -19,6 +22,8 @@ def main() -> None:
     repair = read(REPAIR)
     repair_test = read(REPAIR_TEST)
     deploy = read(DEPLOY)
+    complete = read(COMPLETE)
+    complete_cmd = read(COMPLETE_CMD)
     handoff = read(HANDOFF)
 
     for marker in (
@@ -89,6 +94,56 @@ def main() -> None:
     mutation = deploy.index("$result.autologon_applied = $true")
     assert invoke < capture < transport_render < clean_gate < mutation
 
+    # Completion is an admission/composition layer, never a second deployment implementation. It
+    # must prove the sealed runtime before target contact, establish exact protected authority, use
+    # one VPN-tolerant but still hard-bounded read-only preflight, and enter the existing bootstrap
+    # only after a fresh ready result with no timeout or mutation.
+    for marker in (
+        "Resolve-SasAutoLogonManifestAuthority.ps1",
+        "Test-SasAutoLogonRuntimeSeal.ps1",
+        "Enable-SasNorthwellVpnNetworkGuard.ps1",
+        "Confirm-SasNorthwellNetwork.ps1",
+        "SasTargetNameResolution.psm1",
+        "Test-SasSoftwareDeploymentTransport.ps1",
+        "Bootstrap-SysAdminSuiteAutoLogon.cmd",
+        "[int]$PreflightTimeoutSeconds = 15",
+        "-TransportIntent kerberos_smb_task -TimeoutSeconds $PreflightTimeoutSeconds",
+        "if ([bool]$preflight.result.target_mutation_performed)",
+        "$classification -ne 'kerberos_smb_task_ready'",
+        "AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED",
+        "No AutoLogon deployment bootstrap was started by the completion gate.",
+        "AUTOLOGON_COMPLETION_PREFLIGHT_READY",
+        "& $deploymentBootstrap $ComputerName $preparedCommit",
+    ):
+        assert marker in complete, marker
+
+    manifest_call = complete.index("& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $manifestResolver")
+    seal_call = complete.index("& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $sealAuditor")
+    authority_call = complete.index("$authority = @(& $networkBootstrap -ConfirmVpnPosture)")
+    preflight_call = complete.index("$preflight = & $transportPreflight")
+    ready_gate = complete.index("$classification -ne 'kerberos_smb_task_ready'")
+    bootstrap_call = complete.index("& $deploymentBootstrap $ComputerName $preparedCommit")
+    assert manifest_call < seal_call < authority_call < preflight_call < ready_gate < bootstrap_call
+
+    for forbidden in (
+        r"\bgit(?:\.exe)?\s",
+        r"\bNew-ScheduledTask\b",
+        r"\bRegister-ScheduledTask\b",
+        r"schtasks(?:\.exe)?\s+/(?:Create|Run|Delete|Change)\b",
+        r"\bSet-ItemProperty\b",
+        r"\bNew-ItemProperty\b",
+        r"\bGet-Credential\b",
+        r"ConvertFrom-SecureString|ConvertTo-SecureString",
+    ):
+        assert not re.search(forbidden, complete, re.I), forbidden
+
+    for marker in (
+        "Usage: Complete-SysAdminSuiteAutoLogon.cmd HOST",
+        "-File \"%SAS_COMPLETION%\" -ComputerName \"%SAS_TARGET%\" -RuntimeRoot \"%SAS_RUNTIME%\" -PreflightTimeoutSeconds 15",
+        "Preflight mutation authority: NONE",
+    ):
+        assert marker in complete_cmd, marker
+
     # Protected-network authority is transport-agnostic at this layer: a live DomainAuthenticated
     # Ethernet/LAN path is sufficient; VPN is not required when that stronger path already exists.
     for marker in (
@@ -98,19 +153,19 @@ def main() -> None:
     ):
         assert marker in handoff, marker
 
-    # The earlier Ethernet proof is historical evidence only; its one controlled retry has now been
-    # consumed by a later fail-closed VPN attempt. Another full deployment must remain blocked until
-    # a fresh read-only proof reaches the exact ready classification on the intended current path.
+    # The exact later VPN evidence is now known: 445 was reachable and the bounded ADMIN$ read hit
+    # the five-second historical budget. The controlled retry stays consumed, but the repository now
+    # owns an atomic completion gate that first retries only the read-only admission with 15 seconds.
     for marker in (
-        "That proof authorized one controlled canonical retry on the then-proven transport floor",
         "The controlled canonical retry has now been consumed",
-        "KERBEROS_S4U_TRANSPORT_BLOCKED",
-        "public transport classification `inconclusive`",
-        "stopped before stage-8 remote staging",
-        "no target mutation authorized by this run",
-        "Do **not** run another full AutoLogon `Remote` transaction from this state",
-        "First recover the already-written local preflight result and English summary",
-        "fresh **read-only** preflight",
+        "Probe timeout stage: `admin_share`",
+        "Ports actually tested: `445`",
+        "reason codes: `observation_timeout`, `required_observation_missing`",
+        "target mutation performed: `False`",
+        "Complete-SysAdminSuiteAutoLogon.cmd HOST",
+        "15-second",
+        "AUTOLOGON_COMPLETION_PREFLIGHT_READY",
+        "AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED",
         "classification = kerberos_smb_task_ready",
         "selected_transport = kerberos_smb_task",
         "reason_codes = all_kerberos_smb_task_prerequisites_satisfied",
