@@ -65,7 +65,7 @@ The completion command is an admission/composition layer, not a second deploymen
 5. canonicalizes the one explicit target;
 6. proves **exact explicit-host eligibility** from the process-scoped operator target using the read-only host validator, with no local policy write;
 7. runs one fresh **read-only** `kerberos_smb_task` transport preflight with a 15-second per-observation timeout; and
-8. only after `AUTOLOGON_COMPLETION_PREFLIGHT_READY`, enters the existing sealed crash-safe AutoLogon bootstrap pinned to the prepared runtime commit.
+8. only after `AUTOLOGON_COMPLETION_PREFLIGHT_READY`, carries that same 15-second bounded budget through the crash-safe process tree and enters the existing sealed AutoLogon bootstrap pinned to the prepared runtime commit.
 
 If exact explicit-host eligibility fails, the command stops before the transport preflight. If the fresh read-only transport admission is anything other than the following, the completion command emits `AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED` and starts no deployment bootstrap:
 
@@ -77,7 +77,7 @@ If exact explicit-host eligibility fails, the command stops before the transport
 - `transport_authorization_proven = True`
 - `target_mutation_performed = False`
 
-The 15-second admission window is still hard process bounded; it does not restore the old unbounded runspace behavior. It gives the first VPN SMB authorization handshake more time than the historical five-second caller budget while keeping the target read-only. A successful read-only admission does not itself prove deployment. The canonical deployment will perform its own bounded transport preflight again immediately before apply and retains ownership of target locking, recovery, single apply invocation, restart observation, and cleanup evidence.
+The 15-second admission window is still hard process bounded; it does not restore the old unbounded runspace behavior. It gives the first VPN SMB authorization handshake more time than the historical five-second caller budget while keeping the target read-only. A successful read-only admission does not itself prove deployment. The canonical deployment will perform its own bounded transport preflight again immediately before apply using the **same 15-second bounded budget** carried process-scoped from the admitted completion gate. An explicitly supplied `-TimeoutSeconds` remains authoritative, and ordinary non-completion callers retain the five-second default. The canonical deployment still owns target locking, recovery, single apply invocation, restart observation, and cleanup evidence.
 
 If a future transaction reaches target mutation and then fails or becomes ambiguous, stop and continue from its durable field result. Do not blindly rerun.
 
