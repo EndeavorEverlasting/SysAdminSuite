@@ -48,13 +48,28 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
         "EPHEMERAL_ACQUISITION",
         "CONFLICT_WRONG_REPOSITORY",
         "CONFLICT_NESTED_OR_WRONG_ROOT",
+        "CONFLICT_REPARSE_POINT_UNINSPECTED",
         "CANONICAL_PROVED",
         "current_directory_is_authority = $false",
-        "Do not create a fallback clone elsewhere",
+        "path_semantics = 'WINDOWS_CASE_INSENSITIVE_NORMALIZED_FULL_PATH'",
+        "path_disposition = $pathDisposition",
+        "canonical_checkout_reparse_state = $canonicalReparseState",
+        "canonical_entrypoint_authority = $entrypointAuthority",
+        "path_relation = $pathRelation",
         "exit 3",
     )
     for marker in required:
         assert marker in text, f"resolver missing fail-closed/path-input marker: {marker}"
+    assert "do not create a fallback clone elsewhere" in text.lower()
+
+    for disposition in (
+        "'CANONICAL + PROVED'",
+        "'NONCANONICAL + PRESERVE'",
+        "'MISSING'",
+        "'CONFLICT'",
+        "'UNKNOWN'",
+    ):
+        assert disposition in text, f"resolver missing path disposition: {disposition}"
 
     forbidden = (
         "pa_rperez26",
@@ -105,6 +120,7 @@ def main() -> int:
     assert_provider_fixture_is_wired()
     print("[PASS] canonical path registry remains the sole path authority and owns the executable resolver as a consumer")
     print("[PASS] resolver uses Windows Known Folder/profile evidence and forbids cwd/fallback-clone authority")
+    print("[PASS] receipt exposes role relation, entrypoint authority, reparse state, and fail-closed path disposition")
     print("[PASS] workflow and skill explicitly block the original git-rev-parse bootstrap failure")
     print("[PASS] Windows provider fixtures prove from-anywhere missing and canonical checkout states")
     return 0
