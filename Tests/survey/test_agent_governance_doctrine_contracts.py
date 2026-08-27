@@ -156,6 +156,48 @@ def assert_organization_profile_doctrine(text: str) -> None:
     assert indexes == sorted(indexes), "organization-profile doctrine markers are out of contract order"
 
 
+def assert_technician_freshness_doctrine(text: str) -> None:
+    section = text.split("## Technician execution doctrine", 1)[1].split(
+        "## Northwell printer mapping doctrine", 1
+    )[0]
+    bullets = [line for line in section.splitlines() if line.startswith("- ")]
+    freshness = [
+        bullet for bullet in bullets
+        if "Before executing or handing any repository-owned command or launcher to an operator" in bullet
+    ]
+    assert len(freshness) == 1, "technician freshness rule must be exactly one authoritative bullet"
+    rule = freshness[0]
+    for marker in (
+        "prove refreshed remote truth and canonical-development-checkout currentness",
+        "git pull --ff-only",
+        "missing, dirty, diverged, unhealthy, or unproved checkout must fail closed",
+        "harness/workflows/repository-freshness-before-launch.yaml",
+        "stale installed `sas` or repo-relative command",
+    ):
+        assert marker in rule, f"freshness rule is missing required meaning: {marker}"
+
+    launcher_index = next(
+        index for index, bullet in enumerate(bullets)
+        if "The launcher owns target-name resolution" in bullet
+    )
+    freshness_index = bullets.index(rule)
+    instruction_index = next(
+        index for index, bullet in enumerate(bullets)
+        if "Operator instructions name the one file to click and the one value to enter" in bullet
+    )
+    assert launcher_index < freshness_index < instruction_index, (
+        "pull-first freshness rule must govern operator command selection before handoff instructions"
+    )
+
+    for contradiction in (
+        "installed sas is freshness proof",
+        "installed sas may bypass freshness",
+        "skip repository freshness",
+        "run the product command before pulling",
+    ):
+        assert contradiction not in section.lower(), f"contradictory technician freshness rule: {contradiction}"
+
+
 def assert_precedence_order(text: str) -> None:
     section = text.split("## Instruction precedence", 1)[1].split("## Mandatory sprint declaration", 1)[0]
     ordered = (
@@ -207,13 +249,14 @@ def main() -> int:
     assert_tracked()
     assert_headings_and_markers(text)
     assert_organization_profile_doctrine(text)
+    assert_technician_freshness_doctrine(text)
     assert_precedence_order(text)
     assert_cybernet_profile_contract()
     assert_compact_and_safe(text)
     print("[PASS] Governance, validator, and consumed profile authorities are tracked")
     print("[PASS] AGENTS.md is ordered, compact, safe, and governance-complete")
     print("[PASS] Governance text contains ordered organization/site boundary markers for kiosk/update policy isolation")
-    print("[PASS] Governance requires pull-first freshness proof before any repository-owned operator command")
+    print("[PASS] Governance pull-first freshness rule is authoritative, ordered before operator handoff, and fail-closed")
     print("[PASS] Governance requires clickable CMD technician entrypoints, short-hostname resolution, and dry-run/live-cert gates")
     print("[PASS] Governance text fails closed across equipment profiles and forbids AutoLogon on shared/user-login profiles")
     print("[PASS] The current Cybernet profile selects AutoLogon exactly once and last")
