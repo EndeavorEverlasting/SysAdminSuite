@@ -55,7 +55,8 @@ def test_freshness_workflow() -> None:
         "any repository-owned command",
         "operator_command_requested",
         "configured git-remote freshness fetch",
-        "git pull --ff-only before product invocation",
+        "git pull --ff-only <intended_remote> <intended_remote_ref>",
+        "git rev-parse head equals selected_repository_commit",
         "working installed sas shim is not repository freshness proof",
         "operator handoff is not freshness proof",
         "isolated worktree may prove refreshed repository content for agent-side analysis but never substitutes",
@@ -68,6 +69,8 @@ def test_freshness_workflow() -> None:
         "isolated worktree",
         "fetched origin/main but continued executing an older local main",
         "repository-owned operator command issued before canonical-development currentness proof",
+        "atomic operator refresh followed an unqualified configured upstream instead of intended_remote and intended_remote_ref",
+        "post-pull head was not proven equal to selected_repository_commit before product invocation",
         "isolated worktree accepted as operator-command currentness proof",
         "installed sas availability treated as repository freshness proof",
         "alternate direct script invented",
@@ -90,12 +93,14 @@ def test_fresh_agent_routes_before_reconstruction_and_operator_handoff() -> None
     route_lookup = "resolve executable location before operator command handoff"
     execute_front_door = "when the execution environment can run the operator command"
     atomic_handoff = "one atomic copy-paste route-and-run command"
+    bound_pull = "git pull --ff-only <intended_remote> <intended_remote_ref>"
 
     assert freshness in governance
     assert "missing locally" in governance
     assert trigger in governance
     assert "working installed sas shim" in governance
-    assert "git pull --ff-only" in governance
+    assert bound_pull in governance
+    assert "git rev-parse head equals selected_repository_commit" in governance
     assert "fetching origin/main alone does not update local main" in governance
     assert "freshness routing does not grant target-network or product-mutation authority" in governance
     assert "default branch" in governance and "isolated worktree" in governance
@@ -105,11 +110,15 @@ def test_fresh_agent_routes_before_reconstruction_and_operator_handoff() -> None
     assert execution_gate in execute
     assert "stop before the product command" in execute
     assert atomic_handoff in execute
+    assert bound_pull in execute
+    assert "git rev-parse head to equal selected_repository_commit" in execute
     assert execute.index(execution_gate) < execute.index(route_lookup) < execute.index(execute_front_door)
     assert execute.index(execution_gate) < execute.index(atomic_handoff)
 
     assert "freshness proof must precede command handoff" in handoff
     assert "atomic pull-first route-and-run command" in handoff
+    assert "bound to intended_remote and intended_remote_ref" in handoff
+    assert "post-pull head equality with selected_repository_commit" in handoff
 
     # The unconditional operator trigger must be established in governance before command execution/handoff stages.
     assert text.index(trigger) < text.index(canonical) < text.index(execution_gate)
@@ -125,17 +134,21 @@ def test_operator_handoff_requires_canonical_currentness_or_atomic_canonical_pul
     bare_gate = "execute or emit a bare repository-owned operator command only when canonical_development_checkout_current=true"
     atomic_gate = "emit one atomic canonical pull-first command"
     blocked_gate = "stop before emitting the product command even if an isolated worktree is current"
+    bound_pull = "git pull --ff-only <intended_remote> <intended_remote_ref>"
 
     assert canonical_gate in prove
     assert isolated_reject in prove
+    assert bound_pull in prove
+    assert "requires git rev-parse head to equal selected_repository_commit" in prove
     assert prove.index(canonical_gate) < prove.index("only after the applicable freshness proof")
 
     assert bare_gate in continuation
     assert atomic_gate in continuation
     assert blocked_gate in continuation
+    assert bound_pull in continuation
+    assert "requires git rev-parse head to equal selected_repository_commit" in continuation
     assert continuation.index(bare_gate) < continuation.index(atomic_gate) < continuation.index(blocked_gate)
     assert "proves clean/owned/healthy/default-branch/strictly-behind state" in continuation
-    assert "re-proves canonical_development_checkout_current" in continuation
 
 
 def test_operator_handoff_is_pull_first_or_fail_closed() -> None:
@@ -151,7 +164,11 @@ def test_operator_handoff_is_pull_first_or_fail_closed() -> None:
         if "before executing or handing any repository-owned command or launcher to an operator" in line
     )
     for marker in (
-        "git pull --ff-only",
+        "prove that the tree which will execute the command is current at the selected refreshed commit",
+        "canonical default-branch checkout is clean, owned, healthy, and strictly behind",
+        "git pull --ff-only <intended_remote> <intended_remote_ref>",
+        "git rev-parse head` equality check against the selected refreshed commit",
+        "must remain one atomic handoff",
         "missing, dirty, diverged, unhealthy, or unproved checkout",
         "stale installed `sas` or repo-relative command",
         "harness/workflows/repository-freshness-before-launch.yaml",
@@ -161,7 +178,8 @@ def test_operator_handoff_is_pull_first_or_fail_closed() -> None:
     for text, label in ((fresh, "fresh-agent"), (workflow, "freshness-workflow")):
         assert "repository-owned" in text, label
         assert "operator" in text, label
-        assert "git pull --ff-only" in text, label
+        assert "git pull --ff-only <intended_remote> <intended_remote_ref>" in text, label
+        assert "selected_repository_commit" in text, label
         assert "installed sas" in text, label
         assert "freshness" in text, label
 
@@ -169,6 +187,23 @@ def test_operator_handoff_is_pull_first_or_fail_closed() -> None:
     # is still a repository-owned operator command and therefore cannot bypass the generic gate.
     assert "any repository-owned command" in workflow
     assert "stop before the product command" in fresh
+
+
+def test_atomic_pull_is_bound_to_selected_remote_identity() -> None:
+    workflow = read(WORKFLOW).lower()
+    fresh = read(FRESH).lower()
+    bound_pull = "git pull --ff-only <intended_remote> <intended_remote_ref>"
+
+    for text, label in ((workflow, "freshness-workflow"), (fresh, "fresh-agent")):
+        assert bound_pull in text, label
+        assert "selected_repository_commit" in text, label
+
+    compare = workflow_stage(workflow, "compare", "prove-executing-tree")
+    prove = workflow_stage(workflow, "prove-executing-tree", "continue")
+    continuation = workflow_stage(workflow, "continue")
+    assert bound_pull in compare and "git rev-parse head to equal selected_repository_commit" in compare
+    assert bound_pull in prove and "git rev-parse head to equal selected_repository_commit" in prove
+    assert bound_pull in continuation and "git rev-parse head to equal selected_repository_commit" in continuation
 
 
 def test_front_door_and_skill_repeat_the_rule_and_authority_boundary() -> None:
