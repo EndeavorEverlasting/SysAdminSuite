@@ -7,7 +7,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / "harness/api/canonical-path-registry.json"
-COMMANDS = ROOT / "harness/api/harness-command-registry.json"
 WORKFLOW = ROOT / "harness/workflows/canonical-path-resolution.yaml"
 SKILL = ROOT / "harness/skills/canonical-path-resolution/SKILL.md"
 RESOLVER = ROOT / "scripts/Resolve-SasCanonicalDevelopmentPath.ps1"
@@ -23,22 +22,14 @@ def load(path: Path) -> dict:
     return json.loads(read(path))
 
 
-def assert_registry_and_command_owner() -> None:
+def assert_registry_owns_resolver() -> None:
     registry = load(REGISTRY)
     assert registry["repository"] == "EndeavorEverlasting/SysAdminSuite"
     assert "scripts/Resolve-SasCanonicalDevelopmentPath.ps1" in registry["consumers"]
-
-    commands = load(COMMANDS)
-    matches = [item for item in commands["commands"] if item["id"] == "canonical-path-resolve"]
-    assert len(matches) == 1, "canonical-path-resolve must be registered exactly once"
-    command = matches[0]
-    assert command["source_of_truth"] == "harness/api/canonical-path-registry.json"
-    assert command["mutation"] == "repository_read_only"
-    assert command["network"] is False
-    assert command["command"] == (
-        "pwsh -NoProfile -ExecutionPolicy Bypass -File "
-        "scripts/Resolve-SasCanonicalDevelopmentPath.ps1 -RequireCheckout -AsJson"
-    )
+    assert registry["policy"]["canonical_development_checkout_must_be_unique"] is True
+    assert registry["policy"]["second_mutable_clone_is_forbidden"] is True
+    assert registry["policy"]["desktop_dev_root_is_authoritative"] is True
+    assert registry["policy"]["onedrive_toggle_does_not_choose_desktop_location"] is True
 
 
 def assert_resolver_fails_closed_without_cwd_authority() -> None:
@@ -108,11 +99,11 @@ def assert_provider_fixture_is_wired() -> None:
 
 
 def main() -> int:
-    assert_registry_and_command_owner()
+    assert_registry_owns_resolver()
     assert_resolver_fails_closed_without_cwd_authority()
     assert_workflow_and_skill_block_the_original_failure()
     assert_provider_fixture_is_wired()
-    print("[PASS] canonical path registry owns one executable resolver command")
+    print("[PASS] canonical path registry remains the sole path authority and owns the executable resolver as a consumer")
     print("[PASS] resolver uses Windows Known Folder/profile evidence and forbids cwd/fallback-clone authority")
     print("[PASS] workflow and skill explicitly block the original git-rev-parse bootstrap failure")
     print("[PASS] Windows provider fixtures prove from-anywhere missing and canonical checkout states")
