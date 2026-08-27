@@ -76,7 +76,7 @@ If that fresh read-only admission is anything other than the following, the comp
 - `transport_authorization_proven = True`
 - `target_mutation_performed = False`
 
-The 15-second admission window is still hard process bounded; it does not restore the old unbounded runspace behavior. It gives the first VPN SMB authorization handshake more time than the historical five-second caller budget while keeping the target read-only. A successful read-only admission does not itself prove deployment. The existing canonical deployment will perform its own bounded transport preflight again immediately before apply and retains ownership of target locking, recovery, single apply invocation, restart observation, and cleanup evidence.
+The 15-second admission window is still hard process bounded; it does not restore the old unbounded runspace behavior. It gives the first VPN SMB authorization handshake more time than the historical five-second caller budget while keeping the target read-only. A successful read-only admission does not itself prove deployment. The canonical deployment will perform its own bounded transport preflight again immediately before apply and retains ownership of target locking, recovery, single apply invocation, restart observation, and cleanup evidence.
 
 If a future transaction reaches target mutation and then fails or becomes ambiguous, stop and continue from its durable field result. Do not blindly rerun.
 
