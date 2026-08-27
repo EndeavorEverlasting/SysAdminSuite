@@ -137,7 +137,7 @@ def test_workflow_only_orchestrates_the_canonical_floor():
     assert "requirements-test.txt" in workflow
     assert "test-saswindowsrecoveryfloor.ps1" in workflow
     assert "3.12.8" in workflow
-    assert "powershell.exe" in workflow
+    assert "shell: powershell" in workflow
     assert "parser]::parsefile" not in workflow
     assert "convertfrom-json" not in workflow
 
