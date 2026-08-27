@@ -132,6 +132,7 @@ $checkoutStatus = if ($oneDriveState -eq 'MULTIPLE_ROOTS') {
 $checkoutHead = $null
 $checkoutRemote = $null
 $canonicalReparseState = 'NOT_INSPECTED_MISSING'
+$canonicalGitIoHealth = 'NOT_RUN'
 if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -PathType Container)) {
     $canonicalItem = Get-Item -LiteralPath $canonicalDev -Force
     if (($canonicalItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
@@ -171,9 +172,17 @@ if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -Pa
                     } elseif ($headExit -ne 0 -or ([string]$checkoutHead).Trim() -notmatch '^[0-9a-fA-F]{40}$') {
                         $checkoutStatus = 'UNKNOWN_GIT_IDENTITY'
                     } else {
-                        $checkoutStatus = 'CANONICAL_PROVED'
-                        $checkoutHead = ([string]$checkoutHead).Trim().ToLowerInvariant()
-                        $checkoutRemote = $remoteText
+                        & git -C $canonicalDev status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty *> $null
+                        $gitIoExit = $LASTEXITCODE
+                        if ($gitIoExit -ne 0) {
+                            $canonicalGitIoHealth = 'UNHEALTHY'
+                            $checkoutStatus = 'CONFLICT_GIT_IO_UNHEALTHY'
+                        } else {
+                            $canonicalGitIoHealth = 'HEALTHY'
+                            $checkoutStatus = 'CANONICAL_PROVED'
+                            $checkoutHead = ([string]$checkoutHead).Trim().ToLowerInvariant()
+                            $checkoutRemote = $remoteText
+                        }
                     }
                 }
             }
@@ -218,6 +227,7 @@ $receipt = [ordered]@{
     path_disposition = $pathDisposition
     canonical_checkout_status = $checkoutStatus
     canonical_checkout_reparse_state = $canonicalReparseState
+    canonical_git_io_health = $canonicalGitIoHealth
     canonical_checkout_head = $checkoutHead
     canonical_checkout_remote = $checkoutRemote
     current_directory_is_authority = $false
@@ -225,12 +235,14 @@ $receipt = [ordered]@{
         "Set-Location -LiteralPath '$canonicalDev'"
     } elseif ($checkoutStatus -eq 'MISSING') {
         "MISSING: create or recover the one canonical checkout at '$canonicalDev'; do not create a fallback clone elsewhere."
+    } elseif ($checkoutStatus -eq 'CONFLICT_GIT_IO_UNHEALTHY') {
+        "PRESERVE_AND_RECONCILE: Git cannot safely read the canonical checkout at '$canonicalDev'; inventory and repair/hydrate that checkout before fetch, status, log, worktree creation, or cleanup."
     } elseif ($profileEvidenceConflict) {
         "PRESERVE_AND_RECONCILE: OneDrive profile evidence is $oneDriveState; resolve the conflicting/unavailable roots before trusting '$canonicalDev'."
     } else {
         "PRESERVE_AND_RECONCILE: '$canonicalDev' is not a proved canonical checkout ($checkoutStatus); inspect before mutation."
     }
-    proof_ceiling = 'Local path/profile/checkout identity only; no remote freshness, production runtime currentness, entrypoint observation, or deployment proof.'
+    proof_ceiling = 'Local path/profile/checkout identity and Git I/O health only; no remote freshness, production runtime currentness, entrypoint observation, or deployment proof.'
 }
 
 if ($AsJson) {
@@ -249,6 +261,7 @@ if ($AsJson) {
     Write-Host "Observed candidate: $currentCandidate [$candidateClassification]"
     Write-Host "Disposition: $pathDisposition"
     Write-Host "Canonical checkout: $checkoutStatus [$canonicalReparseState]"
+    Write-Host "Git I/O health: $canonicalGitIoHealth"
     Write-Host "Next: $($receipt.next_action)"
 }
 
