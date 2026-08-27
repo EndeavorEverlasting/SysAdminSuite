@@ -63,7 +63,7 @@ if ($Phase -in @('All', 'Behavior')) {
         [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
         if (@($errors).Count -ne 0) {
             $message = ($errors | ForEach-Object { $_.Message }) -join '; '
-            throw "PowerShell parse failed for $relativePath: $message"
+            throw "PowerShell parse failed for ${relativePath}: $message"
         }
     }
 
