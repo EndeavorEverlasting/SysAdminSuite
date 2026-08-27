@@ -195,6 +195,7 @@
     "harness/skills/canonical-path-resolution/SKILL.md",
     "harness/maps/CANONICAL_PATH_MAP.md",
     "harness/reports/CANONICAL_PATH_STATUS.md",
+    "scripts/Resolve-SasCanonicalDevelopmentPath.ps1",
     "scripts/validate-sysadmin-harness.ps1",
     ".github/workflows/one-command-harness-proof.yml"
   ],
