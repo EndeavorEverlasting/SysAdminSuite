@@ -172,8 +172,15 @@ if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -Pa
                     } elseif ($headExit -ne 0 -or ([string]$checkoutHead).Trim() -notmatch '^[0-9a-fA-F]{40}$') {
                         $checkoutStatus = 'UNKNOWN_GIT_IDENTITY'
                     } else {
-                        & git -C $canonicalDev status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty *> $null
-                        $gitIoExit = $LASTEXITCODE
+                        $previousErrorActionPreference = $ErrorActionPreference
+                        try {
+                            $ErrorActionPreference = 'Continue'
+                            & git -C $canonicalDev status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty 1>$null 2>$null
+                            $gitIoExit = $LASTEXITCODE
+                        }
+                        finally {
+                            $ErrorActionPreference = $previousErrorActionPreference
+                        }
                         if ($gitIoExit -ne 0) {
                             $canonicalGitIoHealth = 'UNHEALTHY'
                             $checkoutStatus = 'CONFLICT_GIT_IO_UNHEALTHY'
