@@ -1,0 +1,70 @@
+name: Windows workstation recovery proof
+
+on:
+  pull_request:
+    paths:
+      - 'recovery/windows/**'
+      - 'schemas/harness/windows-workstation-recovery-evidence.schema.json'
+      - 'Tests/Fixtures/windows-recovery/**'
+      - 'Tests/recovery/**'
+      - 'scripts/Test-SasWindowsRecoveryFloor.ps1'
+      - 'requirements-test.txt'
+      - 'Inspect-WindowsWorkstationRecovery.cmd'
+      - 'START-HERE-WINDOWS-WORKSTATION-RECOVERY.md'
+      - '.github/workflows/windows-workstation-recovery-proof.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'recovery/windows/**'
+      - 'schemas/harness/windows-workstation-recovery-evidence.schema.json'
+      - 'Tests/Fixtures/windows-recovery/**'
+      - 'Tests/recovery/**'
+      - 'scripts/Test-SasWindowsRecoveryFloor.ps1'
+      - 'requirements-test.txt'
+      - 'Inspect-WindowsWorkstationRecovery.cmd'
+      - 'START-HERE-WINDOWS-WORKSTATION-RECOVERY.md'
+      - '.github/workflows/windows-workstation-recovery-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-workstation-recovery-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.8'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+      - name: Install pinned test dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-test.txt
+      - name: Run canonical contract floor
+        shell: pwsh
+        run: ./scripts/Test-SasWindowsRecoveryFloor.ps1 -Phase Contracts
+
+  windows-behavior:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.8'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.txt
+      - name: Install pinned test dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-test.txt
+      - name: Run canonical floor in PowerShell 7
+        shell: pwsh
+        run: ./scripts/Test-SasWindowsRecoveryFloor.ps1 -Phase All
+      - name: Prove Windows PowerShell 5.1 compatibility
+        shell: powershell
+        run: .\scripts\Test-SasWindowsRecoveryFloor.ps1 -Phase Behavior

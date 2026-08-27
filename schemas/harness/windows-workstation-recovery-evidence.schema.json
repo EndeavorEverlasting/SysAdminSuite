@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.local/schemas/harness/windows-workstation-recovery-evidence.schema.json",
+  "title": "SysAdminSuite Windows workstation recovery evidence",
+  "type": "object",
+  "required": ["schema_version", "captured_at_utc", "host", "storage", "backup", "windows_health", "hardware", "proof"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "captured_at_utc": { "type": "string" },
+    "host": {"type":"object","required":["computer_name","system_drive","administrator"],"properties":{"computer_name":{"type":["string","null"]},"system_drive":{"type":"string"},"administrator":{"type":"boolean"}},"additionalProperties":true},
+    "storage": {"type":"object","required":["drive_mappings","physical_disks","pressure"],"properties":{"drive_mappings":{"type":"array"},"physical_disks":{"type":"array"},"pressure":{"type":"object"}},"additionalProperties":true},
+    "backup": {"type":"object","required":["status","target","versions","items","artifact","identity"],"additionalProperties":true},
+    "windows_health": {"type":"object","required":["depth","administrator","winre","dism","chkdsk","sfc"],"additionalProperties":true},
+    "hardware": {"type":"object","required":["system","cpu","memory","gpu"],"properties":{"memory":{"type":"object","required":["total_visible_bytes","free_physical_bytes","modules"],"properties":{"modules":{"type":"array"}},"additionalProperties":true}},"additionalProperties":true},
+    "proof": {"type":"object","required":["destructive_actions_performed","serials_included","proof_ceiling","warnings"],"properties":{"destructive_actions_performed":{"const":false},"serials_included":{"type":"boolean"},"proof_ceiling":{"type":"string","minLength":1},"warnings":{"type":"array","items":{"type":"string"}}},"additionalProperties":true}
+  },
+  "additionalProperties": false
+}
