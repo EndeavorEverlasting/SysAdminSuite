@@ -36,8 +36,10 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
     text = read(RESOLVER)
     required = (
         "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)",
-        "Join-Path $desktop 'Dev'",
+        "Join-Path $desktopKnownFolder 'Dev'",
         "Join-Path $desktopDev 'SysAdminSuite'",
+        "desktop_known_folder = $desktopKnownFolder",
+        "desktop_source = $desktopSource",
         "OneDriveCommercial",
         "OneDriveConsumer",
         "TARGET_FOLDER_REDIRECTED",
@@ -78,6 +80,7 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
         "reset --hard",
         "Remove-Item",
         "%USERPROFILE%\\Desktop\\Dev\\SysAdminSuite",
+        "$desktop = Split-Path -Parent $desktopDev",
     )
     for marker in forbidden:
         assert marker not in text, f"resolver contains forbidden machine-specific/destructive behavior: {marker}"
@@ -108,7 +111,11 @@ def assert_provider_fixture_is_wired() -> None:
         "windows-resolution:",
         "Start outside any Git repository",
         "Prove missing canonical checkout fails closed",
+        "Prove wrong repository checkout fails closed",
         "Prove explicit canonical checkout succeeds",
+        "$global:LASTEXITCODE = 0",
+        "CONFLICT_WRONG_REPOSITORY",
+        "Explicit DesktopDevRoot incorrectly replaced real Desktop Known Folder",
     ):
         assert marker in ci, f"canonical path CI missing provider proof marker: {marker}"
 
@@ -119,10 +126,11 @@ def main() -> int:
     assert_workflow_and_skill_block_the_original_failure()
     assert_provider_fixture_is_wired()
     print("[PASS] canonical path registry remains the sole path authority and owns the executable resolver as a consumer")
-    print("[PASS] resolver uses Windows Known Folder/profile evidence and forbids cwd/fallback-clone authority")
+    print("[PASS] resolver keeps actual Windows Desktop Known Folder distinct from an explicit Desktop Dev override")
+    print("[PASS] resolver uses profile evidence and forbids cwd/fallback-clone authority")
     print("[PASS] receipt exposes role relation, entrypoint authority, reparse state, and fail-closed path disposition")
     print("[PASS] workflow and skill explicitly block the original git-rev-parse bootstrap failure")
-    print("[PASS] Windows provider fixtures prove from-anywhere missing and canonical checkout states")
+    print("[PASS] Windows provider fixtures prove from-anywhere missing, wrong-repository, and canonical checkout states")
     return 0
 
 
