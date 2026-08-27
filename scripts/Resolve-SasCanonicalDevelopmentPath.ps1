@@ -78,6 +78,8 @@ foreach ($root in $availableOneDriveRoots) {
     }
 }
 
+$profileEvidenceConflict = $oneDriveState -eq 'ROOT_UNAVAILABLE' -or $oneDriveState -eq 'MULTIPLE_ROOTS'
+
 $template = [string]$profile.canonical_development_checkout.template
 if ($template -ne '{desktop_dev_root}\SysAdminSuite') {
     throw "Unsupported Windows canonical development template: $template"
@@ -120,11 +122,17 @@ if ($null -ne $currentCandidate) {
     }
 }
 
-$checkoutStatus = 'MISSING'
+$checkoutStatus = if ($oneDriveState -eq 'MULTIPLE_ROOTS') {
+    'CONFLICT_ONEDRIVE_MULTIPLE_ROOTS'
+} elseif ($oneDriveState -eq 'ROOT_UNAVAILABLE') {
+    'CONFLICT_ONEDRIVE_ROOT_UNAVAILABLE'
+} else {
+    'MISSING'
+}
 $checkoutHead = $null
 $checkoutRemote = $null
 $canonicalReparseState = 'NOT_INSPECTED_MISSING'
-if (Test-Path -LiteralPath $canonicalDev -PathType Container) {
+if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -PathType Container)) {
     $canonicalItem = Get-Item -LiteralPath $canonicalDev -Force
     if (($canonicalItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         $canonicalReparseState = 'REPARSE_POINT_PRESENT'
@@ -148,8 +156,16 @@ if (Test-Path -LiteralPath $canonicalDev -PathType Container) {
                     $remoteExit = $LASTEXITCODE
                     $checkoutHead = (& git -C $canonicalDev rev-parse HEAD 2>$null)
                     $headExit = $LASTEXITCODE
-                    $remoteText = ([string]$checkoutRemote).Trim()
-                    $remoteMatches = $remoteExit -eq 0 -and $remoteText -match '(?i)(?:github\.com[:/])EndeavorEverlasting/SysAdminSuite(?:\.git)?$'
+                    $remoteText = ([string]$checkoutRemote).Trim().TrimEnd('/')
+                    $allowedRemotes = @(
+                        'https://github.com/EndeavorEverlasting/SysAdminSuite',
+                        'https://github.com/EndeavorEverlasting/SysAdminSuite.git',
+                        'git@github.com:EndeavorEverlasting/SysAdminSuite',
+                        'git@github.com:EndeavorEverlasting/SysAdminSuite.git',
+                        'ssh://git@github.com/EndeavorEverlasting/SysAdminSuite',
+                        'ssh://git@github.com/EndeavorEverlasting/SysAdminSuite.git'
+                    )
+                    $remoteMatches = $remoteExit -eq 0 -and ($allowedRemotes -contains $remoteText)
                     if (-not $remoteMatches) {
                         $checkoutStatus = 'CONFLICT_WRONG_REPOSITORY'
                     } elseif ($headExit -ne 0 -or ([string]$checkoutHead).Trim() -notmatch '^[0-9a-fA-F]{40}$') {
@@ -189,6 +205,7 @@ $receipt = [ordered]@{
     desktop_source = $desktopSource
     onedrive_state = $oneDriveState
     onedrive_enabled = ($oneDriveRoots.Count -gt 0)
+    profile_evidence_conflict = $profileEvidenceConflict
     canonical_development_checkout = $canonicalDev
     canonical_worktree_root = $worktreeRoot
     production_use_applicable = $productionApplicable
@@ -208,6 +225,8 @@ $receipt = [ordered]@{
         "Set-Location -LiteralPath '$canonicalDev'"
     } elseif ($checkoutStatus -eq 'MISSING') {
         "MISSING: create or recover the one canonical checkout at '$canonicalDev'; do not create a fallback clone elsewhere."
+    } elseif ($profileEvidenceConflict) {
+        "PRESERVE_AND_RECONCILE: OneDrive profile evidence is $oneDriveState; resolve the conflicting/unavailable roots before trusting '$canonicalDev'."
     } else {
         "PRESERVE_AND_RECONCILE: '$canonicalDev' is not a proved canonical checkout ($checkoutStatus); inspect before mutation."
     }
