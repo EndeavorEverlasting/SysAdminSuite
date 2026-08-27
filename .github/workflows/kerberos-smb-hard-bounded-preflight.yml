@@ -4,8 +4,10 @@ on:
   pull_request:
     paths:
       - '.github/workflows/kerberos-smb-hard-bounded-preflight.yml'
+      - 'Complete-SysAdminSuiteAutoLogon.cmd'
       - 'scripts/SasSoftwareDeploymentKerberosSmbHardBounded.psm1'
       - 'scripts/Test-SasSoftwareDeploymentTransport.ps1'
+      - 'scripts/Invoke-SasAutoLogonCompletion.ps1'
       - 'scripts/Invoke-SasAutoLogonS4URestartDeployment.ps1'
       - 'scripts/Repair-SasKerberosSmbTransportPreflightRuntime.ps1'
       - 'Tests/Pester/SoftwareDeploymentTransport.Tests.ps1'
@@ -58,6 +60,7 @@ jobs:
           foreach ($relative in @(
             'scripts\SasSoftwareDeploymentKerberosSmbHardBounded.psm1',
             'scripts\Test-SasSoftwareDeploymentTransport.ps1',
+            'scripts\Invoke-SasAutoLogonCompletion.ps1',
             'scripts\Invoke-SasAutoLogonS4URestartDeployment.ps1',
             'scripts\Repair-SasKerberosSmbTransportPreflightRuntime.ps1',
             'Tests\PowerShell\KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1',
@@ -76,6 +79,10 @@ jobs:
             }
             Write-Host "PASS: $relative parses"
           }
+
+      - name: Parse completion command through cmd.exe
+        shell: cmd
+        run: Complete-SysAdminSuiteAutoLogon.cmd >NUL 2>&1 && exit /b 1 || exit /b 0
 
       - name: Execute CRLF and LF protected-runtime repair fixtures
         shell: powershell
