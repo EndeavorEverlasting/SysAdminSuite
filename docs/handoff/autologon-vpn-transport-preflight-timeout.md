@@ -63,10 +63,11 @@ The completion command is an admission/composition layer, not a second deploymen
 3. establishes the exact current `DomainAuthenticated` VPN/LAN network-guard authority;
 4. re-proves the canonical protected-network gate;
 5. canonicalizes the one explicit target;
-6. runs one fresh **read-only** `kerberos_smb_task` transport preflight with a 15-second per-observation timeout; and
-7. only after `AUTOLOGON_COMPLETION_PREFLIGHT_READY`, enters the existing sealed crash-safe AutoLogon bootstrap pinned to the prepared runtime commit.
+6. proves **exact explicit-host eligibility** from the process-scoped operator target using the read-only host validator, with no local policy write;
+7. runs one fresh **read-only** `kerberos_smb_task` transport preflight with a 15-second per-observation timeout; and
+8. only after `AUTOLOGON_COMPLETION_PREFLIGHT_READY`, enters the existing sealed crash-safe AutoLogon bootstrap pinned to the prepared runtime commit.
 
-If that fresh read-only admission is anything other than the following, the completion command emits `AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED` and starts no deployment bootstrap:
+If exact explicit-host eligibility fails, the command stops before the transport preflight. If the fresh read-only transport admission is anything other than the following, the completion command emits `AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED` and starts no deployment bootstrap:
 
 - `classification = kerberos_smb_task_ready`
 - `selected_transport = kerberos_smb_task`
