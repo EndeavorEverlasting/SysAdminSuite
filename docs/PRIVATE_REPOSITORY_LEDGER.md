@@ -44,7 +44,7 @@ python3 scripts/sas-private-ledger.py append decision "reuse the existing P11 on
 python3 scripts/sas-private-ledger.py append plan "wire local commit capture into hook hygiene validation"
 ```
 
-Agents operating the repository sprint lane should use this command after a durable decision or plan is made when that information is useful for later resumption.
+Agents operating the repository sprint lane should use this command after a durable decision or plan is made when that information is useful for later resumption. Explicit summaries and commit trailers must not contain secrets, credentials, live target identifiers, personal data, or raw private evidence.
 
 Read-only status:
 
