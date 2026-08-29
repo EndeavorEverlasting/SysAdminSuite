@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Executable contracts for the local-only repository ledger and commit hook."""
+"""Executable contracts for the local-only repository ledger and commit/agent hooks."""
 from __future__ import annotations
 
 import json
@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WRITER = ROOT / "scripts" / "sas-private-ledger.py"
 HOOK = ROOT / ".githooks" / "post-commit"
 DOC = ROOT / "docs" / "PRIVATE_REPOSITORY_LEDGER.md"
+SPRINT_SKILL = ROOT / ".claude" / "skills" / "repository-sprint" / "SKILL.md"
 COMPOSED = ROOT / "scripts" / "Invoke-SasVmDryRunHarnessProof.ps1"
 LEDGER_VALIDATOR = ROOT / "harness" / "validators" / "validate-private-repository-ledger.py"
 WORKFLOW = ROOT / ".github" / "workflows" / "one-command-harness-proof.yml"
@@ -27,12 +28,13 @@ def run(*args: str, cwd: Path, check: bool = True) -> subprocess.CompletedProces
 
 
 def test_tracked_contract_surfaces_and_privacy_boundary() -> None:
-    for path in (WRITER, HOOK, DOC, COMPOSED, LEDGER_VALIDATOR, WORKFLOW):
+    for path in (WRITER, HOOK, DOC, SPRINT_SKILL, COMPOSED, LEDGER_VALIDATOR, WORKFLOW):
         assert path.is_file(), f"missing private-ledger contract surface: {path.relative_to(ROOT)}"
 
     writer = WRITER.read_text(encoding="utf-8")
     hook = HOOK.read_text(encoding="utf-8")
     doc = DOC.read_text(encoding="utf-8")
+    skill = SPRINT_SKILL.read_text(encoding="utf-8")
 
     assert "runs/private-ledger/ledger.jsonl" in doc
     assert "scripts/sas-private-ledger.py commit-hook" in hook
@@ -41,6 +43,9 @@ def test_tracked_contract_surfaces_and_privacy_boundary() -> None:
     assert "diff bodies" in doc
     assert "does not create or mutate the ledger" in doc
     assert "must not contain secrets" in doc
+    assert "scripts/sas-private-ledger.py append decision" in skill
+    assert "append plan" in skill
+    assert "local continuity write does not replace tracked docs" in skill
 
     for forbidden in (
         r"requests\.", r"urllib\.", r"http://", r"https://", r"Invoke-WebRequest",
