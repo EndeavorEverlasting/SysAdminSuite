@@ -92,7 +92,8 @@ def test_post_commit_hook_and_explicit_decision_plan_capture() -> None:
             "-m", "SAS-Decision: keep private continuity out of source control\nSAS-Plan: validate hook hygiene through P11",
             cwd=repo,
         )
-        assert "PRIVATE LEDGER: captured commit metadata" in commit.stdout
+        commit_output = commit.stdout + commit.stderr
+        assert "PRIVATE LEDGER: captured commit metadata" in commit_output
 
         ledger = repo / "runs" / "private-ledger" / "ledger.jsonl"
         rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines() if line.strip()]
