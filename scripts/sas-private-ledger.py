@@ -111,7 +111,16 @@ def append_commit(repo_root: Path) -> list[Path]:
     message = run_git(repo_root, "show", "-s", "--format=%B", "HEAD")
     files = [
         line.strip()
-        for line in run_git(repo_root, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD", check=False).splitlines()
+        for line in run_git(
+            repo_root,
+            "diff-tree",
+            "--root",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            "HEAD",
+            check=False,
+        ).splitlines()
         if line.strip()
     ]
     event = {
