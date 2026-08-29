@@ -15,8 +15,11 @@ on:
       - 'scripts/SasRunContext.psm1'
       - 'scripts/Render-SasEnglishReport.ps1'
       - 'scripts/Invoke-SasHarnessContracts.ps1'
+      - 'scripts/sas-private-ledger.py'
+      - 'docs/PRIVATE_REPOSITORY_LEDGER.md'
       - 'harness/api/canonical-path-registry.json'
       - 'harness/validators/validate-canonical-path-contracts.py'
+      - 'harness/validators/validate-private-repository-ledger.py'
       - 'harness/workflows/canonical-path-resolution.yaml'
       - 'harness/e2e/vm-dry-run-readiness.json'
       - 'harness/e2e/e2e-profiles.json'
@@ -25,6 +28,7 @@ on:
       - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
       - 'Tests/bash/test_sysadmin_harness_validator_contracts.sh'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
+      - 'Tests/survey/test_private_repository_ledger_contracts.py'
       - 'Tests/survey/test_vm_dry_run_readiness_contracts.py'
       - 'Tests/survey/test_run_context_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -48,8 +52,11 @@ on:
       - 'scripts/SasRunContext.psm1'
       - 'scripts/Render-SasEnglishReport.ps1'
       - 'scripts/Invoke-SasHarnessContracts.ps1'
+      - 'scripts/sas-private-ledger.py'
+      - 'docs/PRIVATE_REPOSITORY_LEDGER.md'
       - 'harness/api/canonical-path-registry.json'
       - 'harness/validators/validate-canonical-path-contracts.py'
+      - 'harness/validators/validate-private-repository-ledger.py'
       - 'harness/workflows/canonical-path-resolution.yaml'
       - 'harness/e2e/vm-dry-run-readiness.json'
       - 'harness/e2e/e2e-profiles.json'
@@ -58,6 +65,7 @@ on:
       - 'Tests/Pester/SoftwareInstallHarness.Tests.ps1'
       - 'Tests/bash/test_sysadmin_harness_validator_contracts.sh'
       - 'Tests/survey/test_one_command_harness_proof_contracts.py'
+      - 'Tests/survey/test_private_repository_ledger_contracts.py'
       - 'Tests/survey/test_vm_dry_run_readiness_contracts.py'
       - 'Tests/survey/test_run_context_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
@@ -78,12 +86,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Run executable proof contracts
         shell: pwsh
         run: |
           python .\Tests\survey\test_vm_dry_run_readiness_contracts.py
           python .\Tests\survey\test_one_command_harness_proof_contracts.py
+          python .\Tests\survey\test_private_repository_ledger_contracts.py
 
       - name: Run one-command synthetic validator
         shell: pwsh
@@ -118,12 +129,17 @@ jobs:
           }
           foreach ($requiredValidator in @(
             'harness/validators/validate-canonical-path-contracts.py',
+            'harness/validators/validate-private-repository-ledger.py',
             'scripts/Test-SasVmDryRunReadiness.ps1',
             'scripts/Invoke-SasVmDryRunHarnessProof.ps1'
           )) {
             if (@($result.validator_set) -notcontains $requiredValidator) {
               throw "One-command harness receipt missing validator correlation: $requiredValidator"
             }
+          }
+          $ledgerCheck = @($result.checks | Where-Object { $_.name -eq 'private repository ledger' })
+          if ($ledgerCheck.Count -ne 1 -or $ledgerCheck[0].status -ne 'PASS' -or -not $ledgerCheck[0].required) {
+            throw 'One-command harness receipt did not prove the required private repository ledger contract.'
           }
           if (@($result.checks | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.disposition) }).Count -gt 0) {
             throw 'One-command harness receipt contains a check without disposition.'
@@ -134,7 +150,14 @@ jobs:
           if ($result.commit -notmatch '^[0-9a-f]{40}$') {
             throw "One-command harness receipt did not correlate a Git commit: $($result.commit)"
           }
+          if ($result.runtime_proof -or $result.network_activity_performed -or $result.launcher_execution_performed -or $result.target_mutation_performed -or $result.data_mutation_performed) {
+            throw 'Synthetic one-command harness receipt overclaimed runtime/network/launcher/mutation proof.'
+          }
           Write-Host "[PASS] strict schema-backed profile-aware harness proof result: $resultPath @ $($result.commit)"
+
+      - name: Check hook syntax
+        shell: bash
+        run: bash -n .githooks/pre-commit .githooks/pre-push .githooks/post-commit
 
       - name: Upload synthetic proof artifacts
         if: always()
