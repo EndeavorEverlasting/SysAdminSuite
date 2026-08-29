@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 WRITER = ROOT / "scripts" / "sas-private-ledger.py"
 HOOK = ROOT / ".githooks" / "post-commit"
 DOC = ROOT / "docs" / "PRIVATE_REPOSITORY_LEDGER.md"
-VALIDATOR = ROOT / "scripts" / "validate-sysadmin-harness.ps1"
+COMPOSED = ROOT / "scripts" / "Invoke-SasVmDryRunHarnessProof.ps1"
+LEDGER_VALIDATOR = ROOT / "harness" / "validators" / "validate-private-repository-ledger.py"
 WORKFLOW = ROOT / ".github" / "workflows" / "one-command-harness-proof.yml"
 
 
@@ -26,7 +27,7 @@ def run(*args: str, cwd: Path, check: bool = True) -> subprocess.CompletedProces
 
 
 def test_tracked_contract_surfaces_and_privacy_boundary() -> None:
-    for path in (WRITER, HOOK, DOC, VALIDATOR, WORKFLOW):
+    for path in (WRITER, HOOK, DOC, COMPOSED, LEDGER_VALIDATOR, WORKFLOW):
         assert path.is_file(), f"missing private-ledger contract surface: {path.relative_to(ROOT)}"
 
     writer = WRITER.read_text(encoding="utf-8")
@@ -92,7 +93,7 @@ def test_post_commit_hook_and_explicit_decision_plan_capture() -> None:
         assert [row["kind"] for row in rows] == ["commit", "decision", "plan"]
         assert re.fullmatch(r"[0-9a-f]{40}", rows[0]["commit"])
         assert rows[0]["summary"] == "synthetic ledger commit"
-        assert rows[0]["files"]
+        assert rows[0]["files"], "root commit must report changed tracked paths"
         assert all("content" not in row and "diff" not in row for row in rows)
 
         explicit = run(
@@ -111,17 +112,21 @@ def test_post_commit_hook_and_explicit_decision_plan_capture() -> None:
 
 
 def test_one_command_proof_owns_ledger_hygiene_gate() -> None:
-    validator = VALIDATOR.read_text(encoding="utf-8-sig")
+    composed = COMPOSED.read_text(encoding="utf-8-sig")
     workflow = WORKFLOW.read_text(encoding="utf-8")
     for marker in (
         "private repository ledger",
-        "scripts/sas-private-ledger.py",
-        ".githooks/post-commit",
-        "runs/private-ledger/ledger.jsonl",
+        "harness/validators/validate-private-repository-ledger.py",
+        "private_ledger_validator",
+        "private_ledger_python",
     ):
-        assert marker in validator, f"one-command validator missing ledger contract: {marker}"
-    assert "test_private_repository_ledger_contracts.py" in workflow
-    assert "scripts/sas-private-ledger.py" in workflow
+        assert marker in composed, f"one-command proof missing ledger contract: {marker}"
+    for marker in (
+        "test_private_repository_ledger_contracts.py",
+        "validate-private-repository-ledger.py",
+        "scripts/sas-private-ledger.py",
+    ):
+        assert marker in workflow, f"one-command workflow missing ledger surface: {marker}"
 
 
 def main() -> int:
