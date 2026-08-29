@@ -39,7 +39,8 @@ def test_tracked_contract_surfaces_and_privacy_boundary() -> None:
     assert "SAS-Decision" in doc and "SAS-Plan" in doc
     assert "append decision" in doc and "append plan" in doc
     assert "diff bodies" in doc
-    assert "status does not create or mutate" in doc
+    assert "does not create or mutate the ledger" in doc
+    assert "must not contain secrets" in doc
 
     for forbidden in (
         r"requests\.", r"urllib\.", r"http://", r"https://", r"Invoke-WebRequest",
