@@ -28,7 +28,7 @@ def rendered_command(item: dict) -> str:
     return command.replace("{drive}", "C")
 
 
-def test_qrfy_catalog_is_short_read_only_and_shell_specific() -> None:
+def test_qrfy_catalog_is_short_shell_specific_and_never_explicitly_writes() -> None:
     catalog = load_catalog()
     assert catalog["transport"]["name"] == "QRFY"
     assert catalog["transport"]["default_max_chars"] == 240
@@ -36,20 +36,37 @@ def test_qrfy_catalog_is_short_read_only_and_shell_specific() -> None:
     assert catalog["environment_contract"]["detect_shell_before_command_selection"] is True
     assert catalog["environment_contract"]["cross_shell_command_reuse"] is False
 
+    preservation = catalog["preservation_contract"]
+    assert preservation["linux_blockdev_ro_persists_across_reboot"] is False
+    assert preservation["winre_commands_are_media_write_blocker"] is False
+    assert preservation["default_winre_claim"] == "no_explicit_write_command"
+    assert preservation["device_presence_before_volume_access"] is True
+    assert "hardware/controller write protection" in preservation["strict_preservation_requires"]
+
     commands = catalog["commands"]
     assert {item["id"] for item in commands} >= {
         "shell_identity",
         "firmware_identity",
         "volume_inventory",
-        "windows_hive_probe",
-        "bitlocker_volume_probe",
         "device_presence_probe",
+        "bitlocker_status_probe",
+        "volume_guid_probe",
+        "windows_hive_probe",
+        "directory_probe",
     }
     for item in commands:
         command = rendered_command(item)
         assert item["shell"] == "cmd.exe"
-        assert item["risk"] == "read_only"
+        assert item["risk"] in {"metadata_only", "volume_access_gated", "filesystem_access_gated"}
         assert len(command) <= catalog["transport"]["default_max_chars"], (item["id"], len(command))
+        if item["risk"] != "metadata_only":
+            assert item.get("requires_source_write_protection") is True, item["id"]
+
+    metadata_commands = "\n".join(
+        rendered_command(item).lower() for item in commands if item["risk"] == "metadata_only"
+    )
+    for forbidden in ("dir ", "manage-bde", "mountvol", "fsutil", "chkdsk"):
+        assert forbidden not in metadata_commands, forbidden
 
     command_text = "\n".join(rendered_command(item).lower() for item in commands)
     for forbidden in (
@@ -66,16 +83,16 @@ def test_qrfy_catalog_is_short_read_only_and_shell_specific() -> None:
         assert forbidden not in command_text, forbidden
 
 
-def test_transition_blocks_repair_when_unlocked_volume_loses_backing_device() -> None:
+def test_retained_volume_without_physical_disk_blocks_volume_access_and_repair() -> None:
     catalog = load_catalog()
     rules = {item["id"]: item for item in catalog["transition_rules"]}
-    rule = rules["unlocked_volume_backing_device_missing"]
-    assert rule["when"]["bitlocker_lock_status"] == "Unlocked"
-    assert rule["when"]["directory_probe"] == "A device which does not exist was specified."
+    rule = rules["retained_volume_without_physical_disk"]
     assert rule["when"]["diskpart_physical_disk_rows"] == 0
+    assert rule["when"]["diskpart_volume_rows_minimum"] == 1
     assert rule["classification"] == "backing_device_unavailable"
     assert rule["safe_next_command_id"] == "device_presence_probe"
     assert set(rule["forbidden_until_resolved"]) >= {
+        "source_volume_access",
         "chkdsk",
         "startup_repair",
         "reset_this_pc",
@@ -85,16 +102,25 @@ def test_transition_blocks_repair_when_unlocked_volume_loses_backing_device() ->
     }
     assert "not proof" in rule["proof_boundary"].lower()
 
+    supporting = rules["unlocked_volume_device_missing_supporting_evidence"]
+    assert supporting["when"]["bitlocker_lock_status"] == "Unlocked"
+    assert supporting["when"]["directory_probe_result"] == "A device which does not exist was specified."
+    assert "do not reproduce" in supporting["collection_gate"].lower()
+    assert "write protection" in supporting["collection_gate"].lower()
 
-def test_systemrescue_handoff_preserves_source_and_backup_before_winre() -> None:
-    handoff = load_catalog()["systemrescue_handoff"]
+
+def test_systemrescue_handoff_preserves_backup_and_does_not_overclaim_winre_ro() -> None:
+    catalog = load_catalog()
+    handoff = catalog["systemrescue_handoff"]
     assert "blockdev --setro" in handoff["source_ro_semantics"]
     assert "not by itself proof" in handoff["source_ro_semantics"].lower()
     required = "\n".join(handoff["required_before_winre"]).lower()
     for marker in ("image artifacts verified", "cleanly detached", "read-only state", "destination disconnected"):
         assert marker in required, marker
+    assert "does not survive reboot" in handoff["winre_preservation_limit"].lower()
+    assert "not a media write blocker" in handoff["winre_preservation_limit"].lower()
     gate = handoff["winre_write_gate"].lower()
-    for marker in ("chkdsk", "startup repair", "reset", "formatting", "reinstall", "physical-device presence"):
+    for marker in ("source-volume access", "physical-device presence", "hardware/controller protection"):
         assert marker in gate, marker
 
 
@@ -130,6 +156,9 @@ def test_owner_docs_and_canonical_floor_route_through_transition_contract() -> N
         "blockdev --setro",
         "not by itself proof",
         "terminal photo",
+        "does not survive",
+        "not the same thing as a media write blocker",
+        "requires_source_write_protection=true",
     ):
         assert marker in transition, marker
     assert "winre_qrfy_transition.md" in start
