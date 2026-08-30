@@ -1,0 +1,172 @@
+{
+  "schema_version": "1.2",
+  "purpose": "Privacy-safe QRFY command catalog for non-mutating-intent Windows Recovery Environment diagnosis after a failing-disk preservation workflow.",
+  "transport": {
+    "name": "QRFY",
+    "default_max_chars": 240,
+    "operator_return": ["photo", "text"],
+    "runtime_output_tracking": "ignored_only",
+    "commit_runtime_output": false
+  },
+  "environment_contract": {
+    "winre_shell": "cmd.exe",
+    "systemrescue_shell": "bash",
+    "detect_shell_before_command_selection": true,
+    "cross_shell_command_reuse": false
+  },
+  "preservation_contract": {
+    "linux_blockdev_ro_persists_across_reboot": false,
+    "winre_commands_are_media_write_blocker": false,
+    "default_winre_claim": "no_explicit_write_command",
+    "strict_preservation_requires": "hardware/controller write protection or another independently proven Windows-side read-only mechanism before volume/filesystem access",
+    "device_presence_before_volume_access": true,
+    "disk_numbers_are_session_locators_not_identity": true
+  },
+  "privacy_contract": {
+    "commit_personal_data": false,
+    "commit_serial_numbers": false,
+    "commit_product_keys": false,
+    "commit_bitlocker_recovery_keys": false,
+    "commit_usernames_or_email_addresses": false,
+    "commit_private_storage_urls": false,
+    "notes": "Repository commands and classifications are reusable; machine-specific output stays local or in the operator's private evidence store."
+  },
+  "commands": [
+    {
+      "id": "shell_identity",
+      "shell": "cmd.exe",
+      "risk": "metadata_only",
+      "command": "ver & echo COMSPEC=%COMSPEC%",
+      "purpose": "Confirm that the current recovery shell is Windows cmd.exe before sending Windows-native probes."
+    },
+    {
+      "id": "firmware_identity",
+      "shell": "cmd.exe",
+      "risk": "metadata_only",
+      "command": "reg query HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS",
+      "purpose": "Read volatile firmware/baseboard identity exposed by WinRE without traversing the source filesystem."
+    },
+    {
+      "id": "volume_inventory",
+      "shell": "cmd.exe",
+      "risk": "metadata_only",
+      "command": "(echo list disk&echo list vol&echo exit)|diskpart",
+      "purpose": "Inventory current physical-disk rows and retained volume objects before any source-volume access."
+    },
+    {
+      "id": "volume_disk_binding_probe",
+      "shell": "cmd.exe",
+      "risk": "metadata_only",
+      "command_template": "(echo select volume {drive}&echo detail volume&echo exit)|diskpart",
+      "purpose": "Resolve the intended volume to its current-session DiskPart backing-disk number without filesystem traversal."
+    },
+    {
+      "id": "source_disk_presence_probe",
+      "shell": "cmd.exe",
+      "risk": "metadata_only",
+      "command_template": "(echo select disk {disk_number}&echo detail disk&echo exit)|diskpart",
+      "purpose": "Re-query the exact current-session disk number resolved from the intended source volume; failure to select/detail it is source-specific absence evidence."
+    },
+    {
+      "id": "device_presence_probe",
+      "shell": "cmd.exe",
+      "risk": "metadata_only",
+      "command": "pnputil /enum-devices /connected /class DiskDrive",
+      "purpose": "Supplement DiskPart with currently connected disk-class PnP devices without intentionally traversing a source filesystem."
+    },
+    {
+      "id": "bitlocker_status_probe",
+      "shell": "cmd.exe",
+      "risk": "volume_access_gated",
+      "requires_source_write_protection": true,
+      "command_template": "manage-bde -status {drive}:",
+      "purpose": "Inspect BitLocker state only after hardware/controller or independently proven Windows-side source write protection exists."
+    },
+    {
+      "id": "volume_guid_probe",
+      "shell": "cmd.exe",
+      "risk": "volume_access_gated",
+      "requires_source_write_protection": true,
+      "command_template": "mountvol {drive}: /L",
+      "purpose": "Inspect the assigned volume GUID only after source write protection is independently proven."
+    },
+    {
+      "id": "windows_hive_probe",
+      "shell": "cmd.exe",
+      "risk": "filesystem_access_gated",
+      "requires_source_write_protection": true,
+      "command": "for %d in (C D E F G H) do @if exist %d:\\Windows\\System32\\config\\SYSTEM echo WIN=%d:",
+      "purpose": "Look for an accessible offline Windows SYSTEM hive only after source write protection is independently proven."
+    },
+    {
+      "id": "directory_probe",
+      "shell": "cmd.exe",
+      "risk": "filesystem_access_gated",
+      "requires_source_write_protection": true,
+      "command_template": "dir {drive}:\\",
+      "purpose": "Traverse the source filesystem only after source write protection is independently proven."
+    }
+  ],
+  "transition_rules": [
+    {
+      "id": "source_disk_binding_unresolved",
+      "when": {
+        "source_volume_present": true,
+        "source_volume_disk_number_resolved": false
+      },
+      "classification": "source_disk_identity_unresolved",
+      "safe_next_command_id": "device_presence_probe",
+      "forbidden_until_resolved": [
+        "source_volume_access",
+        "chkdsk",
+        "startup_repair",
+        "reset_this_pc",
+        "format",
+        "diskpart_clean",
+        "reinstall"
+      ],
+      "proof_boundary": "A retained source-volume object without a current backing-disk association cannot authorize source-volume access or repair."
+    },
+    {
+      "id": "source_disk_missing_from_current_inventory",
+      "when": {
+        "source_volume_present": true,
+        "source_volume_disk_number_resolved": true,
+        "source_disk_number_in_diskpart_inventory": false
+      },
+      "classification": "backing_device_unavailable",
+      "safe_next_command_id": "device_presence_probe",
+      "forbidden_until_resolved": [
+        "source_volume_access",
+        "chkdsk",
+        "startup_repair",
+        "reset_this_pc",
+        "format",
+        "diskpart_clean",
+        "reinstall"
+      ],
+      "proof_boundary": "Other WinRE or USB disks may remain present; only the intended source volume's resolved backing-disk locator controls this classification."
+    },
+    {
+      "id": "unlocked_volume_device_missing_supporting_evidence",
+      "when": {
+        "bitlocker_lock_status": "Unlocked",
+        "directory_probe_result": "A device which does not exist was specified."
+      },
+      "classification": "backing_device_unavailable_supporting_evidence",
+      "collection_gate": "Do not reproduce this symptom by directory traversal unless source write protection is independently proven; treat it as supporting evidence only when already observed."
+    }
+  ],
+  "systemrescue_handoff": {
+    "source_ro_semantics": "If the recovery workflow intentionally used blockdev --setro, a later Linux RO=1 observation is expected host protection and is not by itself proof of a controller-enforced read-only failure.",
+    "required_before_winre": [
+      "recovery destination and image artifacts verified",
+      "read-only image mount stack cleanly detached",
+      "source returned to protected read-only state before SystemRescue shutdown",
+      "recovery destination disconnected before Windows repair"
+    ],
+    "winre_preservation_limit": "Linux block-layer read-only state does not survive reboot. The WinRE QRFY catalog avoids explicit write commands but is not a media write blocker.",
+    "winre_identity_rule": "Re-resolve the intended source volume to a current-session DiskPart disk number on every WinRE boot; never carry disk numbers across boots and never let unrelated recovery-media disks satisfy source presence.",
+    "winre_write_gate": "Do not authorize source-volume access or write-capable repair until the intended source disk is currently present through the source-volume binding and strict preservation, when required, is enforced by hardware/controller protection or another independently proven Windows-side read-only mechanism."
+  }
+}
