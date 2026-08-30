@@ -54,7 +54,7 @@ The Linux block-layer `setro` flag is host state and does **not** survive the re
 Therefore:
 
 - metadata-only WinRE probes may establish shell and physical-device presence;
-- do **not** traverse the source filesystem or query source-volume internals merely to diagnose disappearance;
+- do **not** traverse the source filesystem or run source-volume probes other than the metadata-only `volume_disk_binding_probe` merely to diagnose disappearance;
 - if strict source preservation must continue in WinRE, establish hardware/controller write protection or another independently proven Windows-side read-only mechanism first;
 - when no such WinRE protection exists and strict preservation remains mandatory, return to the SystemRescue/image lane rather than lowering the preservation guarantee.
 
