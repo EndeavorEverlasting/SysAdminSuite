@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "purpose": "Privacy-safe QRFY command catalog for non-mutating-intent Windows Recovery Environment diagnosis after a failing-disk preservation workflow.",
   "transport": {
     "name": "QRFY",
@@ -19,7 +19,8 @@
     "winre_commands_are_media_write_blocker": false,
     "default_winre_claim": "no_explicit_write_command",
     "strict_preservation_requires": "hardware/controller write protection or another independently proven Windows-side read-only mechanism before volume/filesystem access",
-    "device_presence_before_volume_access": true
+    "device_presence_before_volume_access": true,
+    "disk_numbers_are_session_locators_not_identity": true
   },
   "privacy_contract": {
     "commit_personal_data": false,
@@ -50,14 +51,28 @@
       "shell": "cmd.exe",
       "risk": "metadata_only",
       "command": "(echo list disk&echo list vol&echo exit)|diskpart",
-      "purpose": "Compare current physical-disk enumeration with retained volume objects before any source-volume access."
+      "purpose": "Inventory current physical-disk rows and retained volume objects before any source-volume access."
+    },
+    {
+      "id": "volume_disk_binding_probe",
+      "shell": "cmd.exe",
+      "risk": "metadata_only",
+      "command_template": "(echo select volume {drive}&echo detail volume&echo exit)|diskpart",
+      "purpose": "Resolve the intended volume to its current-session DiskPart backing-disk number without filesystem traversal."
+    },
+    {
+      "id": "source_disk_presence_probe",
+      "shell": "cmd.exe",
+      "risk": "metadata_only",
+      "command_template": "(echo select disk {disk_number}&echo detail disk&echo exit)|diskpart",
+      "purpose": "Re-query the exact current-session disk number resolved from the intended source volume; failure to select/detail it is source-specific absence evidence."
     },
     {
       "id": "device_presence_probe",
       "shell": "cmd.exe",
       "risk": "metadata_only",
       "command": "pnputil /enum-devices /connected /class DiskDrive",
-      "purpose": "Confirm currently connected disk-class devices without intentionally traversing a source filesystem."
+      "purpose": "Supplement DiskPart with currently connected disk-class PnP devices without intentionally traversing a source filesystem."
     },
     {
       "id": "bitlocker_status_probe",
@@ -94,10 +109,30 @@
   ],
   "transition_rules": [
     {
-      "id": "retained_volume_without_physical_disk",
+      "id": "source_disk_binding_unresolved",
       "when": {
-        "diskpart_physical_disk_rows": 0,
-        "diskpart_volume_rows_minimum": 1
+        "source_volume_present": true,
+        "source_volume_disk_number_resolved": false
+      },
+      "classification": "source_disk_identity_unresolved",
+      "safe_next_command_id": "device_presence_probe",
+      "forbidden_until_resolved": [
+        "source_volume_access",
+        "chkdsk",
+        "startup_repair",
+        "reset_this_pc",
+        "format",
+        "diskpart_clean",
+        "reinstall"
+      ],
+      "proof_boundary": "A retained source-volume object without a current backing-disk association cannot authorize source-volume access or repair."
+    },
+    {
+      "id": "source_disk_missing_from_current_inventory",
+      "when": {
+        "source_volume_present": true,
+        "source_volume_disk_number_resolved": true,
+        "source_disk_number_in_diskpart_inventory": false
       },
       "classification": "backing_device_unavailable",
       "safe_next_command_id": "device_presence_probe",
@@ -110,7 +145,7 @@
         "diskpart_clean",
         "reinstall"
       ],
-      "proof_boundary": "Retained volume-manager objects are not proof that their physical backing disk is currently enumerated or addressable."
+      "proof_boundary": "Other WinRE or USB disks may remain present; only the intended source volume's resolved backing-disk locator controls this classification."
     },
     {
       "id": "unlocked_volume_device_missing_supporting_evidence",
@@ -131,6 +166,7 @@
       "recovery destination disconnected before Windows repair"
     ],
     "winre_preservation_limit": "Linux block-layer read-only state does not survive reboot. The WinRE QRFY catalog avoids explicit write commands but is not a media write blocker.",
-    "winre_write_gate": "Do not authorize source-volume access or write-capable repair until current physical-device presence is proven and strict preservation, when required, is enforced by hardware/controller protection or another independently proven Windows-side read-only mechanism."
+    "winre_identity_rule": "Re-resolve the intended source volume to a current-session DiskPart disk number on every WinRE boot; never carry disk numbers across boots and never let unrelated recovery-media disks satisfy source presence.",
+    "winre_write_gate": "Do not authorize source-volume access or write-capable repair until the intended source disk is currently present through the source-volume binding and strict preservation, when required, is enforced by hardware/controller protection or another independently proven Windows-side read-only mechanism."
   }
 }
