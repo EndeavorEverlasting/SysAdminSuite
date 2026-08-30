@@ -8,8 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "recovery" / "windows" / "winre-qrfy-catalog.json"
-WINDOWS_DOC = ROOT / "recovery" / "windows" / "README.md"
-SYSTEMRESCUE_DOC = ROOT / "recovery" / "systemrescue" / "README.md"
+TRANSITION_DOC = ROOT / "recovery" / "windows" / "WINRE_QRFY_TRANSITION.md"
 START = ROOT / "START-HERE-WINDOWS-WORKSTATION-RECOVERY.md"
 RUNNER = ROOT / "scripts" / "Test-SasWindowsRecoveryFloor.ps1"
 
@@ -117,18 +116,23 @@ def test_catalog_contains_no_personal_or_secret_runtime_evidence() -> None:
 
 
 def test_owner_docs_and_canonical_floor_route_through_transition_contract() -> None:
-    windows_doc = read(WINDOWS_DOC).lower()
-    systemrescue_doc = read(SYSTEMRESCUE_DOC).lower()
+    transition = read(TRANSITION_DOC).lower()
     start = read(START).lower()
     runner = read(RUNNER).lower()
 
-    for text in (windows_doc, systemrescue_doc, start):
+    for text in (transition, start):
         assert "qrfy" in text
         assert "winre-qrfy-catalog.json" in text
-    for marker in ("backing_device_unavailable", "a device which does not exist was specified", "do not run chkdsk"):
-        assert marker in windows_doc, marker
-    for marker in ("blockdev --setro", "not" , "controller"):
-        assert marker in systemrescue_doc, marker
+    for marker in (
+        "backing_device_unavailable",
+        "a device which does not exist was specified",
+        "do not run chkdsk",
+        "blockdev --setro",
+        "not by itself proof",
+        "terminal photo",
+    ):
+        assert marker in transition, marker
+    assert "winre_qrfy_transition.md" in start
     assert "test_winre_qrfy_transition_contracts.py" in runner
 
 
