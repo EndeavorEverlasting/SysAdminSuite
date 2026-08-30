@@ -25,11 +25,12 @@ def load_catalog() -> dict:
 def rendered_command(item: dict) -> str:
     command = item.get("command") or item.get("command_template")
     assert isinstance(command, str) and command.strip(), item.get("id")
-    return command.replace("{drive}", "C")
+    return command.replace("{drive}", "C").replace("{disk_number}", "0")
 
 
 def test_qrfy_catalog_is_short_shell_specific_and_never_explicitly_writes() -> None:
     catalog = load_catalog()
+    assert catalog["schema_version"] == "1.2"
     assert catalog["transport"]["name"] == "QRFY"
     assert catalog["transport"]["default_max_chars"] == 240
     assert catalog["transport"]["commit_runtime_output"] is False
@@ -41,6 +42,7 @@ def test_qrfy_catalog_is_short_shell_specific_and_never_explicitly_writes() -> N
     assert preservation["winre_commands_are_media_write_blocker"] is False
     assert preservation["default_winre_claim"] == "no_explicit_write_command"
     assert preservation["device_presence_before_volume_access"] is True
+    assert preservation["disk_numbers_are_session_locators_not_identity"] is True
     assert "hardware/controller write protection" in preservation["strict_preservation_requires"]
 
     commands = catalog["commands"]
@@ -48,6 +50,8 @@ def test_qrfy_catalog_is_short_shell_specific_and_never_explicitly_writes() -> N
         "shell_identity",
         "firmware_identity",
         "volume_inventory",
+        "volume_disk_binding_probe",
+        "source_disk_presence_probe",
         "device_presence_probe",
         "bitlocker_status_probe",
         "volume_guid_probe",
@@ -65,6 +69,8 @@ def test_qrfy_catalog_is_short_shell_specific_and_never_explicitly_writes() -> N
     metadata_commands = "\n".join(
         rendered_command(item).lower() for item in commands if item["risk"] == "metadata_only"
     )
+    for required in ("detail volume", "detail disk", "pnputil"):
+        assert required in metadata_commands, required
     for forbidden in ("dir ", "manage-bde", "mountvol", "fsutil", "chkdsk"):
         assert forbidden not in metadata_commands, forbidden
 
@@ -83,15 +89,27 @@ def test_qrfy_catalog_is_short_shell_specific_and_never_explicitly_writes() -> N
         assert forbidden not in command_text, forbidden
 
 
-def test_retained_volume_without_physical_disk_blocks_volume_access_and_repair() -> None:
+def test_source_specific_binding_controls_disappearance_and_fail_closed_state() -> None:
     catalog = load_catalog()
     rules = {item["id"]: item for item in catalog["transition_rules"]}
-    rule = rules["retained_volume_without_physical_disk"]
-    assert rule["when"]["diskpart_physical_disk_rows"] == 0
-    assert rule["when"]["diskpart_volume_rows_minimum"] == 1
-    assert rule["classification"] == "backing_device_unavailable"
-    assert rule["safe_next_command_id"] == "device_presence_probe"
-    assert set(rule["forbidden_until_resolved"]) >= {
+
+    unresolved = rules["source_disk_binding_unresolved"]
+    assert unresolved["when"] == {
+        "source_volume_present": True,
+        "source_volume_disk_number_resolved": False,
+    }
+    assert unresolved["classification"] == "source_disk_identity_unresolved"
+    assert "source_volume_access" in unresolved["forbidden_until_resolved"]
+
+    missing = rules["source_disk_missing_from_current_inventory"]
+    assert missing["when"] == {
+        "source_volume_present": True,
+        "source_volume_disk_number_resolved": True,
+        "source_disk_number_in_diskpart_inventory": False,
+    }
+    assert missing["classification"] == "backing_device_unavailable"
+    assert missing["safe_next_command_id"] == "device_presence_probe"
+    assert set(missing["forbidden_until_resolved"]) >= {
         "source_volume_access",
         "chkdsk",
         "startup_repair",
@@ -100,7 +118,11 @@ def test_retained_volume_without_physical_disk_blocks_volume_access_and_repair()
         "diskpart_clean",
         "reinstall",
     }
-    assert "not proof" in rule["proof_boundary"].lower()
+    assert "other winre or usb disks" in missing["proof_boundary"].lower()
+    assert "intended source volume" in missing["proof_boundary"].lower()
+
+    catalog_text = read(CATALOG)
+    assert '"diskpart_physical_disk_rows"' not in catalog_text
 
     supporting = rules["unlocked_volume_device_missing_supporting_evidence"]
     assert supporting["when"]["bitlocker_lock_status"] == "Unlocked"
@@ -119,8 +141,11 @@ def test_systemrescue_handoff_preserves_backup_and_does_not_overclaim_winre_ro()
         assert marker in required, marker
     assert "does not survive reboot" in handoff["winre_preservation_limit"].lower()
     assert "not a media write blocker" in handoff["winre_preservation_limit"].lower()
+    identity_rule = handoff["winre_identity_rule"].lower()
+    for marker in ("current-session diskpart disk number", "every winre boot", "unrelated recovery-media disks"):
+        assert marker in identity_rule, marker
     gate = handoff["winre_write_gate"].lower()
-    for marker in ("source-volume access", "physical-device presence", "hardware/controller protection"):
+    for marker in ("intended source disk", "source-volume binding", "hardware/controller protection"):
         assert marker in gate, marker
 
 
@@ -152,6 +177,7 @@ def test_owner_docs_and_canonical_floor_route_through_transition_contract() -> N
         assert "winre-qrfy-catalog.json" in text
     for marker in (
         "backing_device_unavailable",
+        "source_disk_identity_unresolved",
         "a device which does not exist was specified",
         "do not run chkdsk",
         "blockdev --setro",
@@ -160,8 +186,14 @@ def test_owner_docs_and_canonical_floor_route_through_transition_contract() -> N
         "does not survive",
         "not the same thing as a media write blocker",
         "requires_source_write_protection=true",
+        "disk numbers are session locators",
+        "unrelated recovery usb",
+        "volume_disk_binding_probe",
+        "source_disk_presence_probe",
     ):
         assert marker in normalized_transition, marker
+    assert "intended source" in start
+    assert "recovery usb" in start
     assert "winre_qrfy_transition.md" in start
     assert "test_winre_qrfy_transition_contracts.py" in runner
 
