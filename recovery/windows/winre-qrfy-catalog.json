@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Privacy-safe QRFY command catalog for read-only Windows Recovery Environment diagnosis after a failing-disk preservation workflow.",
+  "transport": {
+    "name": "QRFY",
+    "default_max_chars": 240,
+    "operator_return": ["photo", "text"],
+    "runtime_output_tracking": "ignored_only",
+    "commit_runtime_output": false
+  },
+  "environment_contract": {
+    "winre_shell": "cmd.exe",
+    "systemrescue_shell": "bash",
+    "detect_shell_before_command_selection": true,
+    "cross_shell_command_reuse": false
+  },
+  "privacy_contract": {
+    "commit_personal_data": false,
+    "commit_serial_numbers": false,
+    "commit_product_keys": false,
+    "commit_bitlocker_recovery_keys": false,
+    "commit_usernames_or_email_addresses": false,
+    "commit_private_storage_urls": false,
+    "notes": "Repository commands and classifications are reusable; machine-specific output stays local or in the operator's private evidence store."
+  },
+  "commands": [
+    {
+      "id": "shell_identity",
+      "shell": "cmd.exe",
+      "risk": "read_only",
+      "command": "ver & echo COMSPEC=%COMSPEC%",
+      "purpose": "Confirm that the current recovery shell is Windows cmd.exe before sending Windows-native probes."
+    },
+    {
+      "id": "firmware_identity",
+      "shell": "cmd.exe",
+      "risk": "read_only",
+      "command": "reg query HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS",
+      "purpose": "Read firmware and baseboard identity exposed by WinRE without touching the source filesystem."
+    },
+    {
+      "id": "volume_inventory",
+      "shell": "cmd.exe",
+      "risk": "read_only",
+      "command": "(echo list disk&echo list vol&echo exit)|diskpart",
+      "purpose": "Compare physical-disk enumeration with retained volume objects before any filesystem repair."
+    },
+    {
+      "id": "windows_hive_probe",
+      "shell": "cmd.exe",
+      "risk": "read_only",
+      "command": "for %d in (C D E F G H) do @if exist %d:\\Windows\\System32\\config\\SYSTEM echo WIN=%d:",
+      "purpose": "Look for an accessible offline Windows SYSTEM hive; no output is inconclusive and must not be treated as proof that Windows is absent."
+    },
+    {
+      "id": "bitlocker_volume_probe",
+      "shell": "cmd.exe",
+      "risk": "read_only",
+      "command_template": "manage-bde -status {drive}: & dir {drive}:\\",
+      "purpose": "Distinguish a BitLocker lock from an unlocked volume whose backing device or filesystem is unavailable."
+    },
+    {
+      "id": "device_presence_probe",
+      "shell": "cmd.exe",
+      "risk": "read_only",
+      "command_template": "pnputil /enum-devices /connected /class DiskDrive & mountvol {drive}: /L & fsutil fsinfo volumeinfo {drive}:",
+      "purpose": "Check current disk-device presence and volume mapping before permitting repair writes."
+    }
+  ],
+  "transition_rules": [
+    {
+      "id": "unlocked_volume_backing_device_missing",
+      "when": {
+        "bitlocker_lock_status": "Unlocked",
+        "directory_probe": "A device which does not exist was specified.",
+        "diskpart_physical_disk_rows": 0
+      },
+      "classification": "backing_device_unavailable",
+      "safe_next_command_id": "device_presence_probe",
+      "forbidden_until_resolved": [
+        "chkdsk",
+        "startup_repair",
+        "reset_this_pc",
+        "format",
+        "diskpart_clean",
+        "reinstall"
+      ],
+      "proof_boundary": "An unlocked BitLocker volume object is not proof that the physical disk or filesystem backing it is currently available."
+    }
+  ],
+  "systemrescue_handoff": {
+    "source_ro_semantics": "If the recovery workflow intentionally used blockdev --setro, a later Linux RO=1 observation is expected host protection and is not by itself proof of a controller-enforced read-only failure.",
+    "required_before_winre": [
+      "recovery destination and image artifacts verified",
+      "read-only image mount stack cleanly detached",
+      "source returned to protected read-only state",
+      "recovery destination disconnected before Windows repair"
+    ],
+    "winre_write_gate": "Do not authorize CHKDSK, Startup Repair, Reset, formatting, partition mutation, or reinstall until WinRE proves current physical-device presence and the intended volume is addressable."
+  }
+}
