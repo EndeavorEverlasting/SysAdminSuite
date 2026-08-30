@@ -1,6 +1,6 @@
 {
-  "schema_version": "1.0",
-  "purpose": "Privacy-safe QRFY command catalog for read-only Windows Recovery Environment diagnosis after a failing-disk preservation workflow.",
+  "schema_version": "1.1",
+  "purpose": "Privacy-safe QRFY command catalog for non-mutating-intent Windows Recovery Environment diagnosis after a failing-disk preservation workflow.",
   "transport": {
     "name": "QRFY",
     "default_max_chars": 240,
@@ -13,6 +13,13 @@
     "systemrescue_shell": "bash",
     "detect_shell_before_command_selection": true,
     "cross_shell_command_reuse": false
+  },
+  "preservation_contract": {
+    "linux_blockdev_ro_persists_across_reboot": false,
+    "winre_commands_are_media_write_blocker": false,
+    "default_winre_claim": "no_explicit_write_command",
+    "strict_preservation_requires": "hardware/controller write protection or another independently proven Windows-side read-only mechanism before volume/filesystem access",
+    "device_presence_before_volume_access": true
   },
   "privacy_contract": {
     "commit_personal_data": false,
@@ -27,57 +34,75 @@
     {
       "id": "shell_identity",
       "shell": "cmd.exe",
-      "risk": "read_only",
+      "risk": "metadata_only",
       "command": "ver & echo COMSPEC=%COMSPEC%",
       "purpose": "Confirm that the current recovery shell is Windows cmd.exe before sending Windows-native probes."
     },
     {
       "id": "firmware_identity",
       "shell": "cmd.exe",
-      "risk": "read_only",
+      "risk": "metadata_only",
       "command": "reg query HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS",
-      "purpose": "Read firmware and baseboard identity exposed by WinRE without touching the source filesystem."
+      "purpose": "Read volatile firmware/baseboard identity exposed by WinRE without traversing the source filesystem."
     },
     {
       "id": "volume_inventory",
       "shell": "cmd.exe",
-      "risk": "read_only",
+      "risk": "metadata_only",
       "command": "(echo list disk&echo list vol&echo exit)|diskpart",
-      "purpose": "Compare physical-disk enumeration with retained volume objects before any filesystem repair."
-    },
-    {
-      "id": "windows_hive_probe",
-      "shell": "cmd.exe",
-      "risk": "read_only",
-      "command": "for %d in (C D E F G H) do @if exist %d:\\Windows\\System32\\config\\SYSTEM echo WIN=%d:",
-      "purpose": "Look for an accessible offline Windows SYSTEM hive; no output is inconclusive and must not be treated as proof that Windows is absent."
-    },
-    {
-      "id": "bitlocker_volume_probe",
-      "shell": "cmd.exe",
-      "risk": "read_only",
-      "command_template": "manage-bde -status {drive}: & dir {drive}:\\",
-      "purpose": "Distinguish a BitLocker lock from an unlocked volume whose backing device or filesystem is unavailable."
+      "purpose": "Compare current physical-disk enumeration with retained volume objects before any source-volume access."
     },
     {
       "id": "device_presence_probe",
       "shell": "cmd.exe",
-      "risk": "read_only",
-      "command_template": "pnputil /enum-devices /connected /class DiskDrive & mountvol {drive}: /L & fsutil fsinfo volumeinfo {drive}:",
-      "purpose": "Check current disk-device presence and volume mapping before permitting repair writes."
+      "risk": "metadata_only",
+      "command": "pnputil /enum-devices /connected /class DiskDrive",
+      "purpose": "Confirm currently connected disk-class devices without intentionally traversing a source filesystem."
+    },
+    {
+      "id": "bitlocker_status_probe",
+      "shell": "cmd.exe",
+      "risk": "volume_access_gated",
+      "requires_source_write_protection": true,
+      "command_template": "manage-bde -status {drive}:",
+      "purpose": "Inspect BitLocker state only after hardware/controller or independently proven Windows-side source write protection exists."
+    },
+    {
+      "id": "volume_guid_probe",
+      "shell": "cmd.exe",
+      "risk": "volume_access_gated",
+      "requires_source_write_protection": true,
+      "command_template": "mountvol {drive}: /L",
+      "purpose": "Inspect the assigned volume GUID only after source write protection is independently proven."
+    },
+    {
+      "id": "windows_hive_probe",
+      "shell": "cmd.exe",
+      "risk": "filesystem_access_gated",
+      "requires_source_write_protection": true,
+      "command": "for %d in (C D E F G H) do @if exist %d:\\Windows\\System32\\config\\SYSTEM echo WIN=%d:",
+      "purpose": "Look for an accessible offline Windows SYSTEM hive only after source write protection is independently proven."
+    },
+    {
+      "id": "directory_probe",
+      "shell": "cmd.exe",
+      "risk": "filesystem_access_gated",
+      "requires_source_write_protection": true,
+      "command_template": "dir {drive}:\\",
+      "purpose": "Traverse the source filesystem only after source write protection is independently proven."
     }
   ],
   "transition_rules": [
     {
-      "id": "unlocked_volume_backing_device_missing",
+      "id": "retained_volume_without_physical_disk",
       "when": {
-        "bitlocker_lock_status": "Unlocked",
-        "directory_probe": "A device which does not exist was specified.",
-        "diskpart_physical_disk_rows": 0
+        "diskpart_physical_disk_rows": 0,
+        "diskpart_volume_rows_minimum": 1
       },
       "classification": "backing_device_unavailable",
       "safe_next_command_id": "device_presence_probe",
       "forbidden_until_resolved": [
+        "source_volume_access",
         "chkdsk",
         "startup_repair",
         "reset_this_pc",
@@ -85,7 +110,16 @@
         "diskpart_clean",
         "reinstall"
       ],
-      "proof_boundary": "An unlocked BitLocker volume object is not proof that the physical disk or filesystem backing it is currently available."
+      "proof_boundary": "Retained volume-manager objects are not proof that their physical backing disk is currently enumerated or addressable."
+    },
+    {
+      "id": "unlocked_volume_device_missing_supporting_evidence",
+      "when": {
+        "bitlocker_lock_status": "Unlocked",
+        "directory_probe_result": "A device which does not exist was specified."
+      },
+      "classification": "backing_device_unavailable_supporting_evidence",
+      "collection_gate": "Do not reproduce this symptom by directory traversal unless source write protection is independently proven; treat it as supporting evidence only when already observed."
     }
   ],
   "systemrescue_handoff": {
@@ -93,9 +127,10 @@
     "required_before_winre": [
       "recovery destination and image artifacts verified",
       "read-only image mount stack cleanly detached",
-      "source returned to protected read-only state",
+      "source returned to protected read-only state before SystemRescue shutdown",
       "recovery destination disconnected before Windows repair"
     ],
-    "winre_write_gate": "Do not authorize CHKDSK, Startup Repair, Reset, formatting, partition mutation, or reinstall until WinRE proves current physical-device presence and the intended volume is addressable."
+    "winre_preservation_limit": "Linux block-layer read-only state does not survive reboot. The WinRE QRFY catalog avoids explicit write commands but is not a media write blocker.",
+    "winre_write_gate": "Do not authorize source-volume access or write-capable repair until current physical-device presence is proven and strict preservation, when required, is enforced by hardware/controller protection or another independently proven Windows-side read-only mechanism."
   }
 }
