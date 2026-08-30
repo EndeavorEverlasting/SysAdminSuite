@@ -143,6 +143,7 @@ def test_catalog_contains_no_personal_or_secret_runtime_evidence() -> None:
 
 def test_owner_docs_and_canonical_floor_route_through_transition_contract() -> None:
     transition = read(TRANSITION_DOC).lower()
+    normalized_transition = transition.replace("**", "")
     start = read(START).lower()
     runner = read(RUNNER).lower()
 
@@ -160,7 +161,7 @@ def test_owner_docs_and_canonical_floor_route_through_transition_contract() -> N
         "not the same thing as a media write blocker",
         "requires_source_write_protection=true",
     ):
-        assert marker in transition, marker
+        assert marker in normalized_transition, marker
     assert "winre_qrfy_transition.md" in start
     assert "test_winre_qrfy_transition_contracts.py" in runner
 
