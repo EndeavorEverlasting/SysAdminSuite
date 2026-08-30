@@ -11,7 +11,8 @@ This contract preserves the useful recovery method without carrying private fiel
 - shell detection before command selection;
 - QRFY-sized WinRE probes with no explicit write commands;
 - the preservation-to-diagnosis handoff;
-- classification of retained volume objects whose backing disk disappears;
+- source-specific binding between the intended source volume and its current-session DiskPart disk locator;
+- classification of retained volume objects whose intended backing disk disappears even when unrelated recovery-media disks remain present;
 - the source-volume-access and write gate before CHKDSK, Startup Repair, Reset, formatting, partition mutation, or reinstall.
 
 It does **not** own personal machine profiles, serial-number ledgers, BitLocker recovery keys, product keys, usernames, private cloud-storage links, raw terminal photos, or recovered-file paths. Keep those in an operator-controlled private evidence store. Runtime output must remain ignored/untracked.
@@ -63,6 +64,8 @@ Prefer built-in Automatic Repair or known-good Windows recovery media. On system
 
 Once WinRE Command Prompt is open, start with metadata-only probes. Do not claim the source remains read-only merely because the previous SystemRescue session ended at `RO=1`.
 
+Disk numbers are session locators, not durable identity. Re-resolve the intended source-volume-to-disk relationship on every WinRE boot. A recovery USB or other attached disk must never stand in for the intended source merely because some disk row remains visible.
+
 ## Non-mutating-intent WinRE sequence
 
 The catalog intentionally starts with primitive metadata probes rather than CHKDSK or source-volume traversal.
@@ -75,51 +78,64 @@ Catalog command: `shell_identity`.
 
 Catalog command: `volume_inventory`.
 
-Do not treat a drive letter as a disk identity. Record whether DiskPart enumerates physical-disk rows separately from the volume rows it retains.
+Do not treat a drive letter as a disk identity. Record current physical-disk rows and retained volume rows independently.
 
-### 3. Confirm connected disk-class devices
+### 3. Bind the intended source volume to its current-session DiskPart disk
 
-Catalog command: `device_presence_probe`.
+Catalog command: `volume_disk_binding_probe` with the intended source volume's observed drive letter.
 
-This is the next safe probe when DiskPart retains volume rows but returns no physical-disk rows. It does not intentionally traverse the source filesystem.
+`detail volume` can expose the disk number associated with the selected volume without traversing filesystem contents. Treat that disk number only as a locator for the current WinRE session.
 
-### 4. Classify backing-device disappearance before source-volume access
+If the intended source volume is present but no backing-disk number can be resolved, classify:
 
-If both observations are present:
+`source_disk_identity_unresolved`
 
-- DiskPart `list disk` returns zero physical-disk rows; and
-- DiskPart `list vol` still returns one or more volume objects;
+Fail closed. Do not access the source volume or run repair commands merely because the volume object exists.
 
-classify the state as:
+### 4. Re-query that exact backing disk
+
+Catalog command: `source_disk_presence_probe` with the disk number resolved in step 3.
+
+Compare the resolved source disk number with the current DiskPart disk inventory. Unrelated recovery USB or other disks do not satisfy this gate.
+
+If the intended source volume resolves to a disk number but that disk number is absent from current DiskPart inventory or cannot be selected/detailed, classify:
 
 `backing_device_unavailable`
 
-This is a device-presence/storage-stack problem until contrary evidence is obtained. **Do not run CHKDSK**, Startup Repair, Reset this PC, formatting, DiskPart clean, reinstall, or source-volume traversal merely because a retained volume's filesystem column looks Unknown/RAW.
+This is a source-specific device-presence/storage-stack problem until contrary evidence is obtained. **Do not run CHKDSK**, Startup Repair, Reset this PC, formatting, DiskPart clean, reinstall, or source-volume traversal merely because a retained volume's filesystem column looks Unknown/RAW.
 
-An already-observed combination of BitLocker `Lock Status: Unlocked` plus `dir <drive>:\` returning `A device which does not exist was specified.` is supporting evidence for the same classification. Do **not** reproduce that symptom with a fresh directory probe unless source write protection is independently proven in the current WinRE session.
+Catalog command `device_presence_probe` can supplement that diagnosis by enumerating currently connected disk-class PnP devices. It is not a substitute for the source-volume-to-disk binding.
 
-### 5. Gate volume-level probes
+### 5. Treat already-observed filesystem symptoms as supporting evidence only
+
+An already-observed combination of BitLocker `Lock Status: Unlocked` plus `dir <drive>:\` returning `A device which does not exist was specified.` supports `backing_device_unavailable` when source-specific presence evidence also points there.
+
+Do **not** reproduce that symptom with a fresh directory probe unless source write protection is independently proven in the current WinRE session.
+
+### 6. Gate volume-level probes
 
 Catalog commands `bitlocker_status_probe`, `volume_guid_probe`, `windows_hive_probe`, and `directory_probe` are marked `requires_source_write_protection=true`.
 
 Use them only after hardware/controller write protection or another independently proven Windows-side read-only mechanism protects the source. Their presence in the catalog is not authorization to run them on an unprotected failing disk.
 
-## Why the RAW/Unknown display is not enough
+## Why RAW/Unknown and generic disk counts are not enough
 
-Recovery environments can retain partition or volume objects even when the backing device becomes unavailable. Likewise, an encrypted volume can display as Unknown until the relevant layer is available. Therefore:
+Recovery environments can retain partition or volume objects even when the intended backing device becomes unavailable. Recovery media can also remain as an unrelated physical disk. Therefore:
 
 - `RAW` or `Unknown` is diagnostic evidence, not a corruption verdict;
 - `Healthy` is a volume-manager status, not proof that the underlying SSD is healthy;
-- an unlocked BitLocker status is not proof of current device presence;
+- an unlocked BitLocker status is not proof of current source-device presence;
+- `list disk` showing one or more rows is not proof that the intended source disk is among them;
+- a zero-row `list disk` result with retained source-volume objects is one obvious special case, not the generic rule;
 - CHKDSK requires an addressable filesystem and should not be used to diagnose a disappearing controller/device.
 
 ## Write gate
 
 Write-capable repair may be considered only after current evidence proves:
 
-1. the intended physical disk is enumerated and stable;
-2. the intended volume maps to that disk;
-3. BitLocker state is understood and the volume is accessible;
+1. the intended source volume has a current-session binding to the intended physical disk;
+2. that exact backing disk is enumerated and stable in the current session;
+3. BitLocker state is understood and the volume is accessible under an authorized source-protection posture;
 4. preserved recovery artifacts remain independently available;
 5. the operator has explicitly entered a repair/reinstall lane with its own mutation authorization.
 
@@ -148,6 +164,6 @@ Sanitized fixtures may use obviously synthetic placeholders when executable test
 
 ## Proof ceiling
 
-This contract can prove that SysAdminSuite routes a preserved failing disk into a privacy-safe, non-mutating-intent WinRE diagnostic sequence, distinguishes physical-device presence from retained volume state, and refuses source-volume access or common write-capable repair actions when the backing physical disk is unavailable.
+This contract can prove that SysAdminSuite routes a preserved failing disk into a privacy-safe, non-mutating-intent WinRE diagnostic sequence, binds retained source-volume state to the intended current-session backing disk, ignores unrelated recovery-media disks when deciding source presence, and refuses source-volume access or common write-capable repair actions when source identity/presence is unresolved.
 
 It does **not** prove WinRE itself write-blocks the source. It cannot prove a specific SSD is healthy, that a disappeared device will return after power cycling, that CHKDSK/Startup Repair would succeed, that Windows will reactivate after reinstall, or that a particular backup image is restorable. Those remain field/runtime gates.
