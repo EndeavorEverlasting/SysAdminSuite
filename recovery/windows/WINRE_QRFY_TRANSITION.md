@@ -1,6 +1,6 @@
 # SystemRescue to WinRE QRFY transition
 
-Use this boundary when a failing Windows disk has already been preserved from SystemRescue and the operator is ready to diagnose or repair the original disk from Windows Recovery Environment (WinRE).
+Use this boundary when a failing Windows disk has already been preserved from SystemRescue and the operator is ready to diagnose the original disk from Windows Recovery Environment (WinRE).
 
 The machine-readable companion is `recovery/windows/winre-qrfy-catalog.json`.
 
@@ -9,10 +9,10 @@ The machine-readable companion is `recovery/windows/winre-qrfy-catalog.json`.
 This contract preserves the useful recovery method without carrying private field evidence into source control. It owns:
 
 - shell detection before command selection;
-- QRFY-sized read-only WinRE probes;
-- the preservation-to-repair handoff;
+- QRFY-sized WinRE probes with no explicit write commands;
+- the preservation-to-diagnosis handoff;
 - classification of retained volume objects whose backing disk disappears;
-- the write gate before CHKDSK, Startup Repair, Reset, formatting, partition mutation, or reinstall.
+- the source-volume-access and write gate before CHKDSK, Startup Repair, Reset, formatting, partition mutation, or reinstall.
 
 It does **not** own personal machine profiles, serial-number ledgers, BitLocker recovery keys, product keys, usernames, private cloud-storage links, raw terminal photos, or recovered-file paths. Keep those in an operator-controlled private evidence store. Runtime output must remain ignored/untracked.
 
@@ -27,36 +27,45 @@ Use the repository catalog instead of improvising command bodies:
 Rules:
 
 1. Detect the current shell before selecting commands. `root@sysrescue` means Bash/SystemRescue; `X:\Windows\System32>` means WinRE `cmd.exe`.
-2. Never send Windows `reg`, DiskPart, `manage-bde`, `pnputil`, or `fsutil` syntax to SystemRescue.
+2. Never send Windows `reg`, DiskPart, `manage-bde`, `pnputil`, or `mountvol` syntax to SystemRescue.
 3. Never send Bash/Linux commands to WinRE.
 4. Keep each rendered command at or below the catalog's practical 240-character QRFY limit.
-5. Bundle closely related read-only checks when that reduces scans without producing a fragile oversized payload.
+5. Bundle closely related metadata checks when that reduces scans without producing a fragile oversized payload.
 6. A legible terminal photo is valid field evidence. Do not force manual transcription merely because the result arrived as an image.
 7. Do not commit returned terminal output or machine-specific values.
 
 ## Preservation gate before leaving SystemRescue
 
-Before Windows repair begins, prove all of these facts:
+Before Windows diagnosis begins, prove all of these facts:
 
 1. the destination disk identity is current and distinct from the failing source;
 2. the whole-device image and map/checkpoint artifacts exist on that destination;
 3. any read-only image filesystem, BitLocker mapper, and loop device are cleanly detached;
-4. the failing source has been returned to the intended protected read-only state;
+4. the failing source has been returned to the intended protected read-only state before SystemRescue shutdown;
 5. the recovery destination is unmounted and physically disconnected before Windows repair.
 
-If `protect-source` or an equivalent operator-approved preservation step previously ran `blockdev --setro`, then a later Linux `RO=1` observation is expected host-side protection. It is **not by itself proof** that the SSD controller permanently forced the device read-only. Do not clear the protection merely to satisfy curiosity; controller health and kernel evidence are separate diagnostic inputs.
+If `protect-source` or an equivalent operator-approved preservation step previously ran `blockdev --setro`, then a later Linux `RO=1` observation is expected host-side protection. It is **not by itself proof** that the SSD controller permanently forced the device read-only. Controller health and kernel evidence are separate diagnostic inputs.
 
-The Linux block-layer flag is host state. Rebooting into WinRE starts a new storage stack; do not assume Linux `setro` persists into Windows.
+### Preservation limit across reboot
+
+The Linux block-layer `setro` flag is host state and does **not** survive the reboot into WinRE. The QRFY WinRE catalog contains no explicit write command, but that is not the same thing as a media write blocker. Windows can mount or otherwise touch a volume while servicing a seemingly read-only query.
+
+Therefore:
+
+- metadata-only WinRE probes may establish shell and physical-device presence;
+- do **not** traverse the source filesystem or query source-volume internals merely to diagnose disappearance;
+- if strict source preservation must continue in WinRE, establish hardware/controller write protection or another independently proven Windows-side read-only mechanism first;
+- when no such WinRE protection exists and strict preservation remains mandatory, return to the SystemRescue/image lane rather than lowering the preservation guarantee.
 
 ## Entering WinRE
 
 Prefer built-in Automatic Repair or known-good Windows recovery media. On systems where firmware exposes a boot menu, use the board/vendor-specific boot-menu key only to select recovery media; do not describe that key as a universal WinRE hotkey.
 
-Once WinRE Command Prompt is open, remain read-only until physical-device presence, volume mapping, and BitLocker state are reconciled.
+Once WinRE Command Prompt is open, start with metadata-only probes. Do not claim the source remains read-only merely because the previous SystemRescue session ended at `RO=1`.
 
-## Read-only WinRE sequence
+## Non-mutating-intent WinRE sequence
 
-The catalog intentionally starts with primitive probes rather than CHKDSK.
+The catalog intentionally starts with primitive metadata probes rather than CHKDSK or source-volume traversal.
 
 ### 1. Confirm shell
 
@@ -68,27 +77,32 @@ Catalog command: `volume_inventory`.
 
 Do not treat a drive letter as a disk identity. Record whether DiskPart enumerates physical-disk rows separately from the volume rows it retains.
 
-### 3. Probe BitLocker and directory access together
+### 3. Confirm connected disk-class devices
 
-Catalog command: `bitlocker_volume_probe` with the observed drive letter.
+Catalog command: `device_presence_probe`.
 
-BitLocker `Lock Status: Unlocked` proves only that BitLocker is not currently blocking access. It does **not** prove that the backing physical disk or filesystem remains addressable.
+This is the next safe probe when DiskPart retains volume rows but returns no physical-disk rows. It does not intentionally traverse the source filesystem.
 
-### 4. Classify backing-device disappearance before filesystem repair
+### 4. Classify backing-device disappearance before source-volume access
 
-If all three observations are present:
+If both observations are present:
 
-- BitLocker reports `Lock Status: Unlocked`;
-- `dir <drive>:\` returns `A device which does not exist was specified.`;
-- DiskPart `list disk` returns zero physical-disk rows while volume objects still exist;
+- DiskPart `list disk` returns zero physical-disk rows; and
+- DiskPart `list vol` still returns one or more volume objects;
 
 classify the state as:
 
 `backing_device_unavailable`
 
-This is a device-presence/storage-stack problem until contrary evidence is obtained. **Do not run CHKDSK**, Startup Repair, Reset this PC, formatting, DiskPart clean, or reinstall merely because the volume's filesystem column looks Unknown/RAW.
+This is a device-presence/storage-stack problem until contrary evidence is obtained. **Do not run CHKDSK**, Startup Repair, Reset this PC, formatting, DiskPart clean, reinstall, or source-volume traversal merely because a retained volume's filesystem column looks Unknown/RAW.
 
-The next safe catalog command is `device_presence_probe`, which checks connected DiskDrive devices, the volume GUID mapping, and filesystem metadata without intentionally writing to the target.
+An already-observed combination of BitLocker `Lock Status: Unlocked` plus `dir <drive>:\` returning `A device which does not exist was specified.` is supporting evidence for the same classification. Do **not** reproduce that symptom with a fresh directory probe unless source write protection is independently proven in the current WinRE session.
+
+### 5. Gate volume-level probes
+
+Catalog commands `bitlocker_status_probe`, `volume_guid_probe`, `windows_hive_probe`, and `directory_probe` are marked `requires_source_write_protection=true`.
+
+Use them only after hardware/controller write protection or another independently proven Windows-side read-only mechanism protects the source. Their presence in the catalog is not authorization to run them on an unprotected failing disk.
 
 ## Why the RAW/Unknown display is not enough
 
@@ -111,6 +125,7 @@ Write-capable repair may be considered only after current evidence proves:
 
 Until then, keep these actions blocked:
 
+- source-volume traversal when strict preservation lacks a current write blocker;
 - CHKDSK repair modes;
 - Startup Repair;
 - Reset this PC;
@@ -133,6 +148,6 @@ Sanitized fixtures may use obviously synthetic placeholders when executable test
 
 ## Proof ceiling
 
-This contract can prove that SysAdminSuite routes a preserved failing disk into a privacy-safe, read-only WinRE diagnostic sequence and refuses common write-capable repair actions when the physical backing device is unavailable.
+This contract can prove that SysAdminSuite routes a preserved failing disk into a privacy-safe, non-mutating-intent WinRE diagnostic sequence, distinguishes physical-device presence from retained volume state, and refuses source-volume access or common write-capable repair actions when the backing physical disk is unavailable.
 
-It cannot prove a specific SSD is healthy, that a disappeared device will return after power cycling, that CHKDSK/Startup Repair would succeed, that Windows will reactivate after reinstall, or that a particular backup image is restorable. Those remain field/runtime gates.
+It does **not** prove WinRE itself write-blocks the source. It cannot prove a specific SSD is healthy, that a disappeared device will return after power cycling, that CHKDSK/Startup Repair would succeed, that Windows will reactivate after reinstall, or that a particular backup image is restorable. Those remain field/runtime gates.
