@@ -14,21 +14,25 @@ RUNNER = ROOT / "scripts" / "Test-SasWindowsRecoveryFloor.ps1"
 
 
 def read(path: Path) -> str:
+    """Read a required UTF-8 repository file."""
     assert path.is_file(), f"missing required file: {path.relative_to(ROOT)}"
     return path.read_text(encoding="utf-8")
 
 
 def load_catalog() -> dict:
+    """Load the machine-readable WinRE QRFY catalog."""
     return json.loads(read(CATALOG))
 
 
 def rendered_command(item: dict) -> str:
+    """Render catalog placeholders with synthetic non-secret test values."""
     command = item.get("command") or item.get("command_template")
     assert isinstance(command, str) and command.strip(), item.get("id")
     return command.replace("{drive}", "C").replace("{disk_number}", "0")
 
 
 def test_qrfy_catalog_is_short_shell_specific_and_never_explicitly_writes() -> None:
+    """Keep default QRFY probes bounded, shell-specific, and free of explicit writes."""
     catalog = load_catalog()
     assert catalog["schema_version"] == "1.2"
     assert catalog["transport"]["name"] == "QRFY"
@@ -90,6 +94,7 @@ def test_qrfy_catalog_is_short_shell_specific_and_never_explicitly_writes() -> N
 
 
 def test_source_specific_binding_controls_disappearance_and_fail_closed_state() -> None:
+    """Require source-specific disk binding so unrelated recovery media cannot satisfy presence."""
     catalog = load_catalog()
     rules = {item["id"]: item for item in catalog["transition_rules"]}
 
@@ -132,6 +137,7 @@ def test_source_specific_binding_controls_disappearance_and_fail_closed_state() 
 
 
 def test_systemrescue_handoff_preserves_backup_and_does_not_overclaim_winre_ro() -> None:
+    """Keep the SystemRescue handoff explicit about reboot and WinRE preservation limits."""
     catalog = load_catalog()
     handoff = catalog["systemrescue_handoff"]
     assert "blockdev --setro" in handoff["source_ro_semantics"]
@@ -150,6 +156,7 @@ def test_systemrescue_handoff_preserves_backup_and_does_not_overclaim_winre_ro()
 
 
 def test_catalog_contains_no_personal_or_secret_runtime_evidence() -> None:
+    """Reject private evidence, account paths, and key-shaped values from the tracked catalog."""
     text = read(CATALOG)
     lowered = text.lower()
     for forbidden in (
@@ -167,6 +174,7 @@ def test_catalog_contains_no_personal_or_secret_runtime_evidence() -> None:
 
 
 def test_owner_docs_and_canonical_floor_route_through_transition_contract() -> None:
+    """Bind operator docs and the canonical Windows recovery floor to the transition contract."""
     transition = read(TRANSITION_DOC).lower()
     normalized_transition = transition.replace("**", "")
     start = read(START).lower()
@@ -199,6 +207,7 @@ def test_owner_docs_and_canonical_floor_route_through_transition_contract() -> N
 
 
 def main() -> None:
+    """Run the contract groups directly when the file is invoked outside pytest."""
     tests = [value for name, value in sorted(globals().items()) if name.startswith("test_")]
     for test in tests:
         test()
