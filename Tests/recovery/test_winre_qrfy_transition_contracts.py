@@ -198,6 +198,7 @@ def test_owner_docs_and_canonical_floor_route_through_transition_contract() -> N
         "unrelated recovery usb",
         "volume_disk_binding_probe",
         "source_disk_presence_probe",
+        "other than the metadata-only `volume_disk_binding_probe`",
     ):
         assert marker in normalized_transition, marker
     assert "intended source" in start
