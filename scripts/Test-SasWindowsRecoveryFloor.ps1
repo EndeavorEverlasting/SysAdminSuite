@@ -41,8 +41,12 @@ if ($Phase -in @('All', 'Contracts')) {
     if (-not $pythonCommand) { $pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
     if (-not $pythonCommand) { throw 'Python is required for the Windows recovery contract floor.' }
 
-    $contractPath = Join-Path $repoRoot 'Tests/recovery/test_windows_workstation_recovery_contracts.py'
-    $pytest = Invoke-SasNativeCapture -FilePath $pythonCommand.Source -ArgumentList @('-m', 'pytest', '-q', $contractPath)
+    $contractPaths = @(
+        (Join-Path $repoRoot 'Tests/recovery/test_windows_workstation_recovery_contracts.py'),
+        (Join-Path $repoRoot 'Tests/recovery/test_winre_qrfy_transition_contracts.py')
+    )
+    $pytestArguments = @('-m', 'pytest', '-q') + $contractPaths
+    $pytest = Invoke-SasNativeCapture -FilePath $pythonCommand.Source -ArgumentList $pytestArguments
     Write-CapturedOutput -Capture $pytest
     Assert-ExitCode -Expected 0 -Actual $pytest.exit_code -Label 'pytest recovery contracts'
 }
