@@ -3,7 +3,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 PROGRAM="sas-recovery"
-VERSION="0.2.0"
+VERSION="0.3.0"
 QR_LIMIT_DEFAULT=240
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 
@@ -13,6 +13,8 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/imaging.sh"
 # shellcheck source=recovery/systemrescue/lib/extraction.sh
 source "$SCRIPT_DIR/lib/extraction.sh"
+# shellcheck source=recovery/systemrescue/lib/forensics.sh
+source "$SCRIPT_DIR/lib/forensics.sh"
 # shellcheck source=recovery/systemrescue/lib/qr.sh
 source "$SCRIPT_DIR/lib/qr.sh"
 
@@ -35,13 +37,18 @@ Usage:
   sas-recovery.sh audit-user-data --source-root DIR --destination-partition DEV --destination-mount DIR --report FILE [--include-appdata]
   sas-recovery.sh copy-user-data --source-root DIR --destination-partition DEV --destination-mount DIR --destination-root DIR --log FILE [--include-appdata]
   sas-recovery.sh cleanup --mount DIR --mapper-name NAME --loop-state-file FILE --image FILE
+  sas-recovery.sh nvme-baseline --source DEV --workdir DIR [--expect-model TEXT] [--expect-serial TEXT]
+  sas-recovery.sh nvme-read-repro --source DEV --workdir DIR [--expect-model TEXT] [--expect-serial TEXT]
   sas-recovery.sh qr-catalog --repo-mount DIR [--max-chars N]
+  sas-recovery.sh forensics-qr-catalog --repo-mount DIR --source DEV --expect-model TEXT --expect-serial TEXT --workdir DIR [--max-chars N]
 
 Safety contract:
   * Never repairs or mounts the failing source read-write.
   * Resumes only with an existing image and mapfile.
   * Image, BitLocker mapper, and NTFS filesystem are attached read-only.
+  * NVMe reproduction reads only from an unmounted source forced host-read-only and writes evidence outside the source.
   * User-data copy writes only to the explicit destination root.
+  * Diagnostic terminal summaries are viewport-bounded; verbose evidence goes to files.
 USAGE
 }
 
@@ -63,7 +70,10 @@ main() {
     audit-user-data) cmd_audit_user_data "$@";;
     copy-user-data) cmd_copy_user_data "$@";;
     cleanup) cmd_cleanup "$@";;
+    nvme-baseline) cmd_nvme_baseline "$@";;
+    nvme-read-repro) cmd_nvme_read_repro "$@";;
     qr-catalog) cmd_qr_catalog "$@";;
+    forensics-qr-catalog) cmd_forensics_qr_catalog "$@";;
     help|-h|--help) usage;;
     version|--version) printf '%s %s\n' "$PROGRAM" "$VERSION";;
     *) die "unknown command: $command";;
