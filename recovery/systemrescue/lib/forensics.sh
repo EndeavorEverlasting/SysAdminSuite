@@ -2,6 +2,7 @@
 # Read-only NVMe diagnostics and unattended reproduction/postmortem helpers.
 
 FORENSIC_VIEWPORT_LINES=20
+FORENSIC_VIEWPORT_COLUMNS=100
 
 forensic_prepare_workdir() {
   local workdir=$1
@@ -69,11 +70,73 @@ forensic_sysfs_value() {
   printf '\n'
 }
 
+forensic_visible_rows() {
+  local file=$1
+  awk -v cols="$FORENSIC_VIEWPORT_COLUMNS" '
+    {
+      n = length($0)
+      rows += (n == 0 ? 1 : int((n - 1) / cols) + 1)
+    }
+    END { print rows + 0 }
+  ' "$file"
+}
+
 forensic_print_summary() {
-  local file=$1 lines
+  local file=$1 lines rows
   lines=$(wc -l < "$file")
-  [ "$lines" -le "$FORENSIC_VIEWPORT_LINES" ] || die "forensic summary has $lines lines; viewport limit is $FORENSIC_VIEWPORT_LINES (full evidence remains in files)"
+  rows=$(forensic_visible_rows "$file")
+  [ "$lines" -le "$FORENSIC_VIEWPORT_LINES" ] || die "forensic summary has $lines logical lines; limit is $FORENSIC_VIEWPORT_LINES"
+  [ "$rows" -le "$FORENSIC_VIEWPORT_LINES" ] || die "forensic summary needs $rows visible rows at ${FORENSIC_VIEWPORT_COLUMNS} columns; limit is $FORENSIC_VIEWPORT_LINES (full evidence remains in files)"
   cat "$file"
+}
+
+forensic_first_io_block() {
+  grep -E 'Buffer I/O error on dev .*nvme' "$1" | sed -n 's/.*logical block \([0-9][0-9]*\).*/\1/p' | head -n 1 || true
+}
+
+forensic_last_io_block() {
+  grep -E 'Buffer I/O error on dev .*nvme' "$1" | sed -n 's/.*logical block \([0-9][0-9]*\).*/\1/p' | tail -n 1 || true
+}
+
+forensic_analyze_kernel_file() {
+  local file=$1 rc=$2
+  FORENSIC_TIMEOUTS=$(grep -Eci 'nvme .*I/O .*timeout|nvme .*timeout' "$file" || true)
+  FORENSIC_RESET_CONTROLLER=$(grep -Eci 'reset controller' "$file" || true)
+  FORENSIC_NOT_READY=$(grep -Eci 'Device not ready; aborting reset' "$file" || true)
+  FORENSIC_DISABLED=$(grep -Eci 'Disabling device after reset failure' "$file" || true)
+  FORENSIC_BUFFER_ERRORS=$(grep -Eci 'Buffer I/O error on dev .*nvme' "$file" || true)
+  FORENSIC_FIRST_IO_BLOCK=$(forensic_first_io_block "$file")
+  FORENSIC_LAST_IO_BLOCK=$(forensic_last_io_block "$file")
+
+  if [ "$FORENSIC_DISABLED" -gt 0 ]; then
+    FORENSIC_OUTCOME=NVME_RESET_FAILURE_REPRODUCED
+  elif [ "$FORENSIC_NOT_READY" -gt 0 ]; then
+    FORENSIC_OUTCOME=NVME_RESET_NOT_READY
+  elif [ "$FORENSIC_TIMEOUTS" -gt 0 ] || [ "$FORENSIC_RESET_CONTROLLER" -gt 0 ]; then
+    FORENSIC_OUTCOME=NVME_TIMEOUT_OR_RESET
+  elif [ "$FORENSIC_BUFFER_ERRORS" -gt 0 ]; then
+    FORENSIC_OUTCOME=BLOCK_IO_FAILURE_WITHOUT_RESET
+  elif [ "$rc" -eq 0 ]; then
+    FORENSIC_OUTCOME=SEQUENTIAL_READ_COMPLETED
+  else
+    FORENSIC_OUTCOME=DDRESCUE_EXIT_UNCLASSIFIED
+  fi
+}
+
+forensic_write_analysis_summary() {
+  local file=$1 rc=$2 output=$3
+  forensic_analyze_kernel_file "$file" "$rc"
+  {
+    printf 'OUTCOME=%s\n' "$FORENSIC_OUTCOME"
+    printf 'DDRESCUE_RC=%s\n' "$rc"
+    printf 'TIMEOUT_EVENTS=%s\n' "$FORENSIC_TIMEOUTS"
+    printf 'RESET_CONTROLLER_EVENTS=%s\n' "$FORENSIC_RESET_CONTROLLER"
+    printf 'RESET_NOT_READY_EVENTS=%s\n' "$FORENSIC_NOT_READY"
+    printf 'DISABLE_AFTER_RESET_EVENTS=%s\n' "$FORENSIC_DISABLED"
+    printf 'BUFFER_IO_ERRORS=%s\n' "$FORENSIC_BUFFER_ERRORS"
+    printf 'FIRST_IO_BLOCK=%s\n' "${FORENSIC_FIRST_IO_BLOCK:-NONE}"
+    printf 'LAST_IO_BLOCK=%s\n' "${FORENSIC_LAST_IO_BLOCK:-NONE}"
+  } > "$output"
 }
 
 forensic_capture_baseline() {
@@ -136,6 +199,28 @@ forensic_capture_baseline() {
     printf 'AER_TOTAL_NONFATAL=%s\n' "${aer_nonfatal:-UNKNOWN}"
     printf 'EVIDENCE_DIR=%s\n' "$workdir"
   } > "$workdir/summary.txt"
+}
+
+cmd_nvme_classify_log() {
+  need grep; need sed; need awk
+  local kernel_log='' rc=''
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --kernel-log) kernel_log=${2:-}; shift 2;;
+      --ddrescue-rc) rc=${2:-}; shift 2;;
+      *) die "unknown nvme-classify-log argument: $1";;
+    esac
+  done
+  [ -n "$kernel_log" ] && [ -n "$rc" ] || die "--kernel-log and --ddrescue-rc are required"
+  require_file "$kernel_log"
+  [[ "$rc" =~ ^[0-9]+$ ]] || die "--ddrescue-rc must be a non-negative integer"
+  local summary
+  summary=$(mktemp)
+  trap 'rm -f "$summary"' RETURN
+  forensic_write_analysis_summary "$kernel_log" "$rc" "$summary"
+  forensic_print_summary "$summary"
+  rm -f "$summary"
+  trap - RETURN
 }
 
 cmd_nvme_baseline() {
@@ -212,42 +297,19 @@ cmd_nvme_read_repro() {
     fi
   fi
 
-  local timeouts reset_controller not_ready disabled buffer_errors outcome
-  timeouts=$(grep -Eci 'nvme .*I/O .*timeout|nvme .*timeout' "$workdir/kernel-delta.txt" || true)
-  reset_controller=$(grep -Eci 'reset controller' "$workdir/kernel-delta.txt" || true)
-  not_ready=$(grep -Eci 'Device not ready; aborting reset' "$workdir/kernel-delta.txt" || true)
-  disabled=$(grep -Eci 'Disabling device after reset failure' "$workdir/kernel-delta.txt" || true)
-  buffer_errors=$(grep -Eci 'Buffer I/O error on dev .*nvme' "$workdir/kernel-delta.txt" || true)
-
-  if [ "$disabled" -gt 0 ]; then
-    outcome=NVME_RESET_FAILURE_REPRODUCED
-  elif [ "$not_ready" -gt 0 ]; then
-    outcome=NVME_RESET_NOT_READY
-  elif [ "$timeouts" -gt 0 ] || [ "$reset_controller" -gt 0 ]; then
-    outcome=NVME_TIMEOUT_OR_RESET
-  elif [ "$buffer_errors" -gt 0 ]; then
-    outcome=BLOCK_IO_FAILURE_WITHOUT_RESET
-  elif [ "$rc" -eq 0 ]; then
-    outcome=SEQUENTIAL_READ_COMPLETED
-  else
-    outcome=DDRESCUE_EXIT_UNCLASSIFIED
-  fi
-
-  local first_io last_io
-  first_io=$(grep -E 'Buffer I/O error on dev .*nvme' "$workdir/kernel-delta.txt" | head -n 1 || true)
-  last_io=$(grep -E 'Buffer I/O error on dev .*nvme' "$workdir/kernel-delta.txt" | tail -n 1 || true)
+  forensic_analyze_kernel_file "$workdir/kernel-delta.txt" "$rc"
   {
-    printf 'OUTCOME=%s\n' "$outcome"
+    printf 'OUTCOME=%s\n' "$FORENSIC_OUTCOME"
     printf 'DDRESCUE_RC=%s\n' "$rc"
     printf 'DEVICE_NODE_PRESENT_AFTER=%s\n' "$device_node_present"
     printf 'DEVICE_SIZE_QUERY_AFTER=%s\n' "$size_query_after"
-    printf 'TIMEOUT_EVENTS=%s\n' "$timeouts"
-    printf 'RESET_CONTROLLER_EVENTS=%s\n' "$reset_controller"
-    printf 'RESET_NOT_READY_EVENTS=%s\n' "$not_ready"
-    printf 'DISABLE_AFTER_RESET_EVENTS=%s\n' "$disabled"
-    printf 'BUFFER_IO_ERRORS=%s\n' "$buffer_errors"
-    printf 'FIRST_IO_ERROR=%s\n' "${first_io:-NONE}"
-    printf 'LAST_IO_ERROR=%s\n' "${last_io:-NONE}"
+    printf 'TIMEOUT_EVENTS=%s\n' "$FORENSIC_TIMEOUTS"
+    printf 'RESET_CONTROLLER_EVENTS=%s\n' "$FORENSIC_RESET_CONTROLLER"
+    printf 'RESET_NOT_READY_EVENTS=%s\n' "$FORENSIC_NOT_READY"
+    printf 'DISABLE_AFTER_RESET_EVENTS=%s\n' "$FORENSIC_DISABLED"
+    printf 'BUFFER_IO_ERRORS=%s\n' "$FORENSIC_BUFFER_ERRORS"
+    printf 'FIRST_IO_BLOCK=%s\n' "${FORENSIC_FIRST_IO_BLOCK:-NONE}"
+    printf 'LAST_IO_BLOCK=%s\n' "${FORENSIC_LAST_IO_BLOCK:-NONE}"
     printf 'MAP=%s\n' "$workdir/read-repro.map"
     printf 'DDRESCUE_LOG=%s\n' "$workdir/ddrescue.log"
     printf 'KERNEL_DELTA=%s\n' "$workdir/kernel-delta.txt"
