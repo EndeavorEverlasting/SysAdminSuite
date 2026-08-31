@@ -6,7 +6,7 @@ Runtime machine identifiers, serials, terminal photos, recovery keys, private cl
 
 ## What the automation owns
 
-The runner exposes `nvme-baseline`, `nvme-read-repro`, and `forensics-qr-catalog`. Show the canonical syntax with:
+The runner exposes `nvme-baseline`, `nvme-classify-log`, `nvme-read-repro`, and `forensics-qr-catalog`. Show the canonical syntax with:
 
 ```bash
 bash recovery/systemrescue/sas-recovery.sh --help
@@ -20,7 +20,7 @@ The command:
 - refuses a mounted source;
 - sets and verifies the Linux host block-layer source flag `RO=1`;
 - records `lsblk`, `nvme list`, SMART, endpoint/root-path PCIe state, AER counters, and full current `dmesg` to evidence files;
-- prints only a fixed, viewport-bounded summary.
+- prints only a viewport-bounded summary.
 
 Example:
 
@@ -31,6 +31,18 @@ bash /mnt/sas/recovery/systemrescue/sas-recovery.sh nvme-baseline \
   --expect-serial 'CONFIRMED SERIAL' \
   --workdir /tmp/sas-nvme-case/baseline
 ```
+
+### `nvme-classify-log`
+
+Use this to analyze a **preserved kernel log without touching the source device**. It is useful when the failure already happened and the operator has a saved `dmesg` artifact.
+
+```bash
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh nvme-classify-log \
+  --kernel-log /path/to/preserved-dmesg.txt \
+  --ddrescue-rc 1
+```
+
+The classifier counts NVMe timeouts, controller-reset requests, reset-not-ready events, device-disable-after-reset events, and NVMe buffer-I/O errors. When block errors expose logical-block numbers, it reports only the first and last block identifiers rather than printing long raw log lines.
 
 ### `nvme-read-repro`
 
@@ -44,7 +56,7 @@ The command:
 4. captures a before-baseline;
 5. performs a sequential GNU ddrescue read of the physical source to `/dev/null`;
 6. captures ddrescue exit status and the kernel-message delta;
-7. captures an after-baseline when the source still exists;
+7. probes for source presence after failure with a bounded timeout before attempting an after-baseline;
 8. emits a bounded postmortem classification.
 
 It never retries automatically, never writes to the source, never mounts it, and never repairs a filesystem.
@@ -106,7 +118,9 @@ A field command has two independent budgets:
 1. **transport budget** — the pointer command must fit the QR/QRFY transport;
 2. **observable viewport budget** — the evidence needed for the next decision must fit on the terminal screen or be written to a file.
 
-The forensic commands therefore print bounded summaries rather than raw `dmesg`, SMART, AER, or ddrescue logs. Default to one diagnostic question per screen/photo; verbose evidence stays in files.
+The forensic summary gate assumes a 100-column field terminal and limits the output to at most 20 **visible rows after wrapping**, not merely 20 newline-delimited records. A long line therefore consumes multiple viewport rows. This prevents the prior failure mode where technically short output still scrolled required evidence off-screen.
+
+The forensic commands print bounded summaries rather than raw `dmesg`, SMART, AER, or ddrescue logs. Default to one diagnostic question per screen/photo; verbose evidence stays in files.
 
 Generate pointer commands with:
 
