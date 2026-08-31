@@ -4,13 +4,25 @@
 FORENSIC_VIEWPORT_LINES=20
 FORENSIC_VIEWPORT_COLUMNS=100
 
+forensic_assert_no_symlink_components() {
+  local path=$1 current='/' part
+  local -a parts=()
+  IFS='/' read -r -a parts <<< "${path#/}"
+  for part in "${parts[@]}"; do
+    [ -n "$part" ] || continue
+    current="${current%/}/$part"
+    [ ! -L "$current" ] || die "forensic workdir path contains symlink component: $current"
+  done
+}
+
 forensic_prepare_workdir() {
   local workdir=$1
   [ -n "$workdir" ] || die "--workdir is required"
   [[ "$workdir" = /* ]] || die "forensic workdir must be absolute: $workdir"
   assert_safe_path "$workdir"
-  [ ! -L "$workdir" ] || die "forensic workdir must not be a symlink: $workdir"
+  forensic_assert_no_symlink_components "$workdir"
   mkdir -p "$workdir"
+  forensic_assert_no_symlink_components "$workdir"
   [ -d "$workdir" ] && [ ! -L "$workdir" ] || die "could not create safe forensic workdir: $workdir"
 }
 
@@ -202,7 +214,7 @@ forensic_capture_baseline() {
 }
 
 cmd_nvme_classify_log() {
-  need grep; need sed; need awk
+  need grep; need sed; need awk; need mktemp
   local kernel_log='' rc=''
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -216,11 +228,9 @@ cmd_nvme_classify_log() {
   [[ "$rc" =~ ^[0-9]+$ ]] || die "--ddrescue-rc must be a non-negative integer"
   local summary
   summary=$(mktemp)
-  trap 'rm -f "$summary"' RETURN
   forensic_write_analysis_summary "$kernel_log" "$rc" "$summary"
   forensic_print_summary "$summary"
   rm -f "$summary"
-  trap - RETURN
 }
 
 cmd_nvme_baseline() {
@@ -237,17 +247,17 @@ cmd_nvme_baseline() {
     esac
   done
   [ -n "$source" ] || die "--source is required"
-  forensic_prepare_workdir "$workdir"
   forensic_require_source "$source" "$expect_model" "$expect_serial"
   blockdev --setro "$source"
   require_ro_block "$source"
+  forensic_prepare_workdir "$workdir"
   forensic_capture_baseline "$source" "$workdir"
   forensic_print_summary "$workdir/summary.txt"
 }
 
 cmd_nvme_read_repro() {
   require_root
-  need lsblk; need blockdev; need nvme; need lspci; need dmesg; need readlink; need awk; need ddrescue; need timeout
+  need lsblk; need blockdev; need nvme; need lspci; need dmesg; need readlink; need awk; need ddrescue; need timeout; need stdbuf
   local source='' expect_model='' expect_serial='' workdir=''
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -259,19 +269,27 @@ cmd_nvme_read_repro() {
     esac
   done
   [ -n "$source" ] || die "--source is required"
-  forensic_prepare_workdir "$workdir"
   forensic_require_source "$source" "$expect_model" "$expect_serial"
   blockdev --setro "$source"
   require_ro_block "$source"
+  forensic_prepare_workdir "$workdir"
 
   [ ! -e "$workdir/read-repro.map" ] || die "reproduction map already exists; choose a fresh --workdir"
   [ ! -e "$workdir/ddrescue.log" ] || die "reproduction log already exists; choose a fresh --workdir"
 
   mkdir -p "$workdir/before"
   forensic_capture_baseline "$source" "$workdir/before"
-  local pre_lines
-  pre_lines=$(dmesg | wc -l)
-  printf '%s\n' "$pre_lines" > "$workdir/dmesg-pre-lines.txt"
+  : > "$workdir/kernel-delta.txt"
+
+  local kernel_pid
+  stdbuf -oL dmesg --follow-new --human > "$workdir/kernel-delta.txt" 2>&1 &
+  kernel_pid=$!
+  sleep 0.2
+  if ! kill -0 "$kernel_pid" 2>/dev/null; then
+    wait "$kernel_pid" 2>/dev/null || true
+    die "could not start stable dmesg --follow-new capture"
+  fi
+  trap 'kill "$kernel_pid" 2>/dev/null || true' EXIT
 
   local rc
   set +e
@@ -280,12 +298,10 @@ cmd_nvme_read_repro() {
   set -e
   printf '%s\n' "$rc" > "$workdir/ddrescue.exit"
 
+  kill "$kernel_pid" 2>/dev/null || true
+  wait "$kernel_pid" 2>/dev/null || true
+  trap - EXIT
   dmesg -T > "$workdir/dmesg-after.txt" 2>&1 || true
-  if [ "$(wc -l < "$workdir/dmesg-after.txt")" -gt "$pre_lines" ]; then
-    tail -n "+$((pre_lines + 1))" "$workdir/dmesg-after.txt" > "$workdir/kernel-delta.txt"
-  else
-    cp "$workdir/dmesg-after.txt" "$workdir/kernel-delta.txt"
-  fi
 
   local device_node_present=0 size_query_after=0
   if [ -b "$source" ]; then
@@ -301,6 +317,7 @@ cmd_nvme_read_repro() {
   {
     printf 'OUTCOME=%s\n' "$FORENSIC_OUTCOME"
     printf 'DDRESCUE_RC=%s\n' "$rc"
+    printf 'KERNEL_CAPTURE=follow-new\n'
     printf 'DEVICE_NODE_PRESENT_AFTER=%s\n' "$device_node_present"
     printf 'DEVICE_SIZE_QUERY_AFTER=%s\n' "$size_query_after"
     printf 'TIMEOUT_EVENTS=%s\n' "$FORENSIC_TIMEOUTS"
