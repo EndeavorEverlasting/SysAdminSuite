@@ -13,9 +13,10 @@ QR = ROOT / "recovery" / "systemrescue" / "lib" / "qr.sh"
 EXPORT = ROOT / "recovery" / "systemrescue" / "export-field-kit.sh"
 VERIFY = ROOT / "recovery" / "systemrescue" / "verify-field-kit.sh"
 DOC = ROOT / "recovery" / "systemrescue" / "NVME_FORENSICS.md"
+README = ROOT / "recovery" / "systemrescue" / "README.md"
 START = ROOT / "START-HERE-SYSTEMRESCUE-RECOVERY.md"
 
-FILES = (RUNNER, FORENSICS, QR, EXPORT, VERIFY, DOC, START)
+FILES = (RUNNER, FORENSICS, QR, EXPORT, VERIFY, DOC, README, START)
 
 
 def read(path: Path) -> str:
@@ -33,6 +34,13 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def visible_rows(text: str, columns: int = 100) -> int:
+    rows = 0
+    for line in text.splitlines():
+        rows += max(1, (len(line) + columns - 1) // columns)
+    return rows
+
+
 def test_shell_files_parse_and_runner_exposes_forensics() -> None:
     for path in (RUNNER, FORENSICS, QR, EXPORT, VERIFY):
         result = run("bash", "-n", str(path))
@@ -40,7 +48,7 @@ def test_shell_files_parse_and_runner_exposes_forensics() -> None:
 
     help_result = run("bash", str(RUNNER), "--help")
     assert help_result.returncode == 0, help_result.stderr
-    for command in ("nvme-baseline", "nvme-read-repro", "forensics-qr-catalog"):
+    for command in ("nvme-baseline", "nvme-classify-log", "nvme-read-repro", "forensics-qr-catalog"):
         assert command in help_result.stdout, command
 
 
@@ -92,11 +100,53 @@ def test_reproduction_classifies_controller_loss_without_automatic_retry() -> No
     assert "poweroff" not in text.lower()
 
 
-def test_forensic_terminal_output_has_an_executable_viewport_gate() -> None:
+def test_preserved_kernel_log_classifier_behaves_on_reset_failure_fixture() -> None:
+    fixture = "\n".join(
+        (
+            "nvme nvme0: I/O tag 7 opcode 0x2 (Read) QID 4 timeout, aborting req_op:READ(0)",
+            "nvme nvme0: I/O tag 8 opcode 0x2 (Read) QID 4 timeout, reset controller",
+            "nvme nvme0: Device not ready; aborting reset, CSTS=0x1",
+            "nvme nvme0: Disabling device after reset failure: -19",
+            "Buffer I/O error on dev nvme0n1, logical block 1234, async page read",
+            "Buffer I/O error on dev nvme0n1, logical block 1235, async page read",
+        )
+    )
+    with tempfile.TemporaryDirectory() as temp:
+        log = Path(temp) / "kernel.log"
+        log.write_text(fixture + "\n", encoding="utf-8")
+        result = run(
+            "bash",
+            str(RUNNER),
+            "nvme-classify-log",
+            "--kernel-log",
+            str(log),
+            "--ddrescue-rc",
+            "1",
+        )
+    assert result.returncode == 0, result.stderr
+    assert "OUTCOME=NVME_RESET_FAILURE_REPRODUCED" in result.stdout
+    assert "DDRESCUE_RC=1" in result.stdout
+    assert "TIMEOUT_EVENTS=2" in result.stdout
+    assert "RESET_CONTROLLER_EVENTS=1" in result.stdout
+    assert "RESET_NOT_READY_EVENTS=1" in result.stdout
+    assert "DISABLE_AFTER_RESET_EVENTS=1" in result.stdout
+    assert "BUFFER_IO_ERRORS=2" in result.stdout
+    assert "FIRST_IO_BLOCK=1234" in result.stdout
+    assert "LAST_IO_BLOCK=1235" in result.stdout
+    assert visible_rows(result.stdout) <= 20, result.stdout
+
+
+def test_forensic_terminal_output_has_wrapped_viewport_gate() -> None:
     text = read(FORENSICS)
     assert "FORENSIC_VIEWPORT_LINES=20" in text
-    assert 'lines=$(wc -l < "$file")' in text
-    assert 'forensic summary has $lines lines; viewport limit is $FORENSIC_VIEWPORT_LINES' in text
+    assert "FORENSIC_VIEWPORT_COLUMNS=100" in text
+    assert "forensic_visible_rows" in text
+    assert 'rows=$(forensic_visible_rows "$file")' in text
+    assert "visible rows at ${FORENSIC_VIEWPORT_COLUMNS} columns" in text
+    assert "FIRST_IO_BLOCK=" in text
+    assert "LAST_IO_BLOCK=" in text
+    assert "FIRST_IO_ERROR=" not in text
+    assert "LAST_IO_ERROR=" not in text
     assert text.count('forensic_print_summary "$workdir/') >= 2
     assert 'cat "$workdir/dmesg' not in text
     assert 'cat "$workdir/kernel-delta' not in text
