@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# Read-only NVMe diagnostics and unattended reproduction/postmortem helpers.
+
+FORENSIC_VIEWPORT_LINES=20
+
+forensic_prepare_workdir() {
+  local workdir=$1
+  [ -n "$workdir" ] || die "--workdir is required"
+  [[ "$workdir" = /* ]] || die "forensic workdir must be absolute: $workdir"
+  assert_safe_path "$workdir"
+  [ ! -L "$workdir" ] || die "forensic workdir must not be a symlink: $workdir"
+  mkdir -p "$workdir"
+  [ -d "$workdir" ] && [ ! -L "$workdir" ] || die "could not create safe forensic workdir: $workdir"
+}
+
+forensic_require_source() {
+  local source=$1 expect_model=$2 expect_serial=$3
+  require_block "$source"
+  require_source_not_mounted "$source"
+  FORENSIC_MODEL=$(lsblk -dn -o MODEL "$source" | sed 's/[[:space:]]*$//')
+  FORENSIC_SERIAL=$(lsblk -dn -o SERIAL "$source" | sed 's/[[:space:]]*$//')
+  [ -z "$expect_model" ] || [ "$FORENSIC_MODEL" = "$expect_model" ] || die "model mismatch: expected '$expect_model', got '$FORENSIC_MODEL'"
+  [ -z "$expect_serial" ] || [ "$FORENSIC_SERIAL" = "$expect_serial" ] || die "serial mismatch: expected '$expect_serial', got '$FORENSIC_SERIAL'"
+}
+
+forensic_controller_for_namespace() {
+  local source_real base
+  source_real=$(canonical_path "$1")
+  base=$(basename "$source_real")
+  [[ "$base" =~ ^nvme([0-9]+)n[0-9]+$ ]] || die "expected an NVMe namespace device, got: $source_real"
+  printf '/dev/nvme%s\n' "${BASH_REMATCH[1]}"
+}
+
+forensic_bdf_for_controller() {
+  local controller_name
+  controller_name=$(basename "$1")
+  [ -e "/sys/class/nvme/$controller_name/device" ] || return 1
+  basename "$(readlink -f "/sys/class/nvme/$controller_name/device")"
+}
+
+forensic_parent_bdf() {
+  local bdf=$1 parent_path
+  [ -e "/sys/bus/pci/devices/$bdf" ] || return 1
+  parent_path=$(dirname "$(readlink -f "/sys/bus/pci/devices/$bdf")")
+  basename "$parent_path"
+}
+
+forensic_smart_value() {
+  local key=$1 file=$2
+  awk -F: -v k="$key" '
+    $1 ~ ("^" k "[[:space:]]*$") {
+      sub(/^[[:space:]]+/, "", $2)
+      sub(/[[:space:]]+$/, "", $2)
+      print $2
+      exit
+    }' "$file"
+}
+
+forensic_aer_total() {
+  local key=$1 file=$2
+  [ -f "$file" ] || return 0
+  awk -v k="$key" '$1 == k {print $2; exit}' "$file"
+}
+
+forensic_sysfs_value() {
+  local file=$1
+  [ -r "$file" ] || { printf 'UNKNOWN\n'; return; }
+  tr ' ' '_' < "$file" | tr -d '\n'
+  printf '\n'
+}
+
+forensic_print_summary() {
+  local file=$1 lines
+  lines=$(wc -l < "$file")
+  [ "$lines" -le "$FORENSIC_VIEWPORT_LINES" ] || die "forensic summary has $lines lines; viewport limit is $FORENSIC_VIEWPORT_LINES (full evidence remains in files)"
+  cat "$file"
+}
+
+forensic_capture_baseline() {
+  local source=$1 workdir=$2
+  local controller controller_name bdf parent smart aer_cor aer_fatal aer_nonfatal
+  controller=$(forensic_controller_for_namespace "$source")
+  controller_name=$(basename "$controller")
+  bdf=$(forensic_bdf_for_controller "$controller" || true)
+  parent=''
+  [ -z "$bdf" ] || parent=$(forensic_parent_bdf "$bdf" || true)
+
+  mkdir -p "$workdir"
+  lsblk -dn -o NAME,MODEL,SERIAL,SIZE,RO,TRAN "$source" > "$workdir/source.txt"
+  nvme list > "$workdir/nvme-list.txt" 2>&1 || true
+  nvme smart-log "$controller" > "$workdir/smart.txt" 2>&1 || true
+  dmesg -T > "$workdir/dmesg.txt" 2>&1 || true
+
+  if [ -n "$bdf" ]; then
+    lspci -s "${bdf#0000:}" -vv > "$workdir/pci-endpoint.txt" 2>&1 || true
+    grep -h . "/sys/bus/pci/devices/$bdf"/aer_dev_* > "$workdir/aer-endpoint.txt" 2>/dev/null || true
+  else
+    : > "$workdir/pci-endpoint.txt"
+    : > "$workdir/aer-endpoint.txt"
+  fi
+  if [ -n "$parent" ]; then
+    lspci -s "${parent#0000:}" -vv > "$workdir/pci-parent.txt" 2>&1 || true
+  else
+    : > "$workdir/pci-parent.txt"
+  fi
+
+  smart=$workdir/smart.txt
+  aer_cor=$(forensic_aer_total TOTAL_ERR_COR "$workdir/aer-endpoint.txt")
+  aer_fatal=$(forensic_aer_total TOTAL_ERR_FATAL "$workdir/aer-endpoint.txt")
+  aer_nonfatal=$(forensic_aer_total TOTAL_ERR_NONFATAL "$workdir/aer-endpoint.txt")
+  {
+    printf 'SOURCE=%s\n' "$source"
+    printf 'MODEL=%s\n' "$FORENSIC_MODEL"
+    printf 'SERIAL=%s\n' "$FORENSIC_SERIAL"
+    printf 'RO=%s\n' "$(blockdev --getro "$source" 2>/dev/null || printf UNKNOWN)"
+    printf 'CONTROLLER=%s\n' "$controller"
+    printf 'NVME_BDF=%s\n' "${bdf:-UNKNOWN}"
+    if [ -n "$bdf" ]; then
+      printf 'LINK_CURRENT=%s_x%s\n' \
+        "$(forensic_sysfs_value "/sys/bus/pci/devices/$bdf/current_link_speed")" \
+        "$(forensic_sysfs_value "/sys/bus/pci/devices/$bdf/current_link_width")"
+      printf 'LINK_MAX=%s_x%s\n' \
+        "$(forensic_sysfs_value "/sys/bus/pci/devices/$bdf/max_link_speed")" \
+        "$(forensic_sysfs_value "/sys/bus/pci/devices/$bdf/max_link_width")"
+    else
+      printf 'LINK_CURRENT=UNKNOWN\nLINK_MAX=UNKNOWN\n'
+    fi
+    printf 'PARENT_BDF=%s\n' "${parent:-UNKNOWN}"
+    printf 'SMART_CRITICAL_WARNING=%s\n' "$(forensic_smart_value critical_warning "$smart")"
+    printf 'SMART_TEMPERATURE=%s\n' "$(forensic_smart_value temperature "$smart")"
+    printf 'SMART_UNSAFE_SHUTDOWNS=%s\n' "$(forensic_smart_value unsafe_shutdowns "$smart")"
+    printf 'SMART_MEDIA_ERRORS=%s\n' "$(forensic_smart_value media_errors "$smart")"
+    printf 'SMART_ERROR_LOG_ENTRIES=%s\n' "$(forensic_smart_value num_err_log_entries "$smart")"
+    printf 'AER_TOTAL_COR=%s\n' "${aer_cor:-UNKNOWN}"
+    printf 'AER_TOTAL_FATAL=%s\n' "${aer_fatal:-UNKNOWN}"
+    printf 'AER_TOTAL_NONFATAL=%s\n' "${aer_nonfatal:-UNKNOWN}"
+    printf 'EVIDENCE_DIR=%s\n' "$workdir"
+  } > "$workdir/summary.txt"
+}
+
+cmd_nvme_baseline() {
+  require_root
+  need lsblk; need blockdev; need nvme; need lspci; need dmesg; need readlink; need awk
+  local source='' expect_model='' expect_serial='' workdir=''
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --source) source=${2:-}; shift 2;;
+      --expect-model) expect_model=${2:-}; shift 2;;
+      --expect-serial) expect_serial=${2:-}; shift 2;;
+      --workdir) workdir=${2:-}; shift 2;;
+      *) die "unknown nvme-baseline argument: $1";;
+    esac
+  done
+  [ -n "$source" ] || die "--source is required"
+  forensic_prepare_workdir "$workdir"
+  forensic_require_source "$source" "$expect_model" "$expect_serial"
+  blockdev --setro "$source"
+  require_ro_block "$source"
+  forensic_capture_baseline "$source" "$workdir"
+  forensic_print_summary "$workdir/summary.txt"
+}
+
+cmd_nvme_read_repro() {
+  require_root
+  need lsblk; need blockdev; need nvme; need lspci; need dmesg; need readlink; need awk; need ddrescue; need timeout
+  local source='' expect_model='' expect_serial='' workdir=''
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --source) source=${2:-}; shift 2;;
+      --expect-model) expect_model=${2:-}; shift 2;;
+      --expect-serial) expect_serial=${2:-}; shift 2;;
+      --workdir) workdir=${2:-}; shift 2;;
+      *) die "unknown nvme-read-repro argument: $1";;
+    esac
+  done
+  [ -n "$source" ] || die "--source is required"
+  forensic_prepare_workdir "$workdir"
+  forensic_require_source "$source" "$expect_model" "$expect_serial"
+  blockdev --setro "$source"
+  require_ro_block "$source"
+
+  [ ! -e "$workdir/read-repro.map" ] || die "reproduction map already exists; choose a fresh --workdir"
+  [ ! -e "$workdir/ddrescue.log" ] || die "reproduction log already exists; choose a fresh --workdir"
+
+  mkdir -p "$workdir/before"
+  forensic_capture_baseline "$source" "$workdir/before"
+  local pre_lines
+  pre_lines=$(dmesg | wc -l)
+  printf '%s\n' "$pre_lines" > "$workdir/dmesg-pre-lines.txt"
+
+  local rc
+  set +e
+  ddrescue -f -n "$source" /dev/null "$workdir/read-repro.map" > "$workdir/ddrescue.log" 2>&1
+  rc=$?
+  set -e
+  printf '%s\n' "$rc" > "$workdir/ddrescue.exit"
+
+  dmesg -T > "$workdir/dmesg-after.txt" 2>&1 || true
+  if [ "$(wc -l < "$workdir/dmesg-after.txt")" -gt "$pre_lines" ]; then
+    tail -n "+$((pre_lines + 1))" "$workdir/dmesg-after.txt" > "$workdir/kernel-delta.txt"
+  else
+    cp "$workdir/dmesg-after.txt" "$workdir/kernel-delta.txt"
+  fi
+
+  local device_node_present=0 size_query_after=0
+  if [ -b "$source" ]; then
+    device_node_present=1
+    if timeout 5 blockdev --getsize64 "$source" >/dev/null 2>&1; then
+      size_query_after=1
+      mkdir -p "$workdir/after"
+      forensic_capture_baseline "$source" "$workdir/after" || true
+    fi
+  fi
+
+  local timeouts reset_controller not_ready disabled buffer_errors outcome
+  timeouts=$(grep -Eci 'nvme .*I/O .*timeout|nvme .*timeout' "$workdir/kernel-delta.txt" || true)
+  reset_controller=$(grep -Eci 'reset controller' "$workdir/kernel-delta.txt" || true)
+  not_ready=$(grep -Eci 'Device not ready; aborting reset' "$workdir/kernel-delta.txt" || true)
+  disabled=$(grep -Eci 'Disabling device after reset failure' "$workdir/kernel-delta.txt" || true)
+  buffer_errors=$(grep -Eci 'Buffer I/O error on dev .*nvme' "$workdir/kernel-delta.txt" || true)
+
+  if [ "$disabled" -gt 0 ]; then
+    outcome=NVME_RESET_FAILURE_REPRODUCED
+  elif [ "$not_ready" -gt 0 ]; then
+    outcome=NVME_RESET_NOT_READY
+  elif [ "$timeouts" -gt 0 ] || [ "$reset_controller" -gt 0 ]; then
+    outcome=NVME_TIMEOUT_OR_RESET
+  elif [ "$buffer_errors" -gt 0 ]; then
+    outcome=BLOCK_IO_FAILURE_WITHOUT_RESET
+  elif [ "$rc" -eq 0 ]; then
+    outcome=SEQUENTIAL_READ_COMPLETED
+  else
+    outcome=DDRESCUE_EXIT_UNCLASSIFIED
+  fi
+
+  local first_io last_io
+  first_io=$(grep -E 'Buffer I/O error on dev .*nvme' "$workdir/kernel-delta.txt" | head -n 1 || true)
+  last_io=$(grep -E 'Buffer I/O error on dev .*nvme' "$workdir/kernel-delta.txt" | tail -n 1 || true)
+  {
+    printf 'OUTCOME=%s\n' "$outcome"
+    printf 'DDRESCUE_RC=%s\n' "$rc"
+    printf 'DEVICE_NODE_PRESENT_AFTER=%s\n' "$device_node_present"
+    printf 'DEVICE_SIZE_QUERY_AFTER=%s\n' "$size_query_after"
+    printf 'TIMEOUT_EVENTS=%s\n' "$timeouts"
+    printf 'RESET_CONTROLLER_EVENTS=%s\n' "$reset_controller"
+    printf 'RESET_NOT_READY_EVENTS=%s\n' "$not_ready"
+    printf 'DISABLE_AFTER_RESET_EVENTS=%s\n' "$disabled"
+    printf 'BUFFER_IO_ERRORS=%s\n' "$buffer_errors"
+    printf 'FIRST_IO_ERROR=%s\n' "${first_io:-NONE}"
+    printf 'LAST_IO_ERROR=%s\n' "${last_io:-NONE}"
+    printf 'MAP=%s\n' "$workdir/read-repro.map"
+    printf 'DDRESCUE_LOG=%s\n' "$workdir/ddrescue.log"
+    printf 'KERNEL_DELTA=%s\n' "$workdir/kernel-delta.txt"
+    printf 'RESULT_CAPTURED=YES\n'
+  } > "$workdir/repro-summary.txt"
+  forensic_print_summary "$workdir/repro-summary.txt"
+}
