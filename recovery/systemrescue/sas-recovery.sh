@@ -38,6 +38,7 @@ Usage:
   sas-recovery.sh copy-user-data --source-root DIR --destination-partition DEV --destination-mount DIR --destination-root DIR --log FILE [--include-appdata]
   sas-recovery.sh cleanup --mount DIR --mapper-name NAME --loop-state-file FILE --image FILE
   sas-recovery.sh nvme-baseline --source DEV --workdir DIR [--expect-model TEXT] [--expect-serial TEXT]
+  sas-recovery.sh nvme-classify-log --kernel-log FILE --ddrescue-rc N
   sas-recovery.sh nvme-read-repro --source DEV --workdir DIR [--expect-model TEXT] [--expect-serial TEXT]
   sas-recovery.sh qr-catalog --repo-mount DIR [--max-chars N]
   sas-recovery.sh forensics-qr-catalog --repo-mount DIR --source DEV --expect-model TEXT --expect-serial TEXT --workdir DIR [--max-chars N]
@@ -47,6 +48,7 @@ Safety contract:
   * Resumes only with an existing image and mapfile.
   * Image, BitLocker mapper, and NTFS filesystem are attached read-only.
   * NVMe reproduction reads only from an unmounted source forced host-read-only and writes evidence outside the source.
+  * Preserved kernel logs can be classified without touching the source device.
   * User-data copy writes only to the explicit destination root.
   * Diagnostic terminal summaries are viewport-bounded; verbose evidence goes to files.
 USAGE
@@ -71,6 +73,7 @@ main() {
     copy-user-data) cmd_copy_user_data "$@";;
     cleanup) cmd_cleanup "$@";;
     nvme-baseline) cmd_nvme_baseline "$@";;
+    nvme-classify-log) cmd_nvme_classify_log "$@";;
     nvme-read-repro) cmd_nvme_read_repro "$@";;
     qr-catalog) cmd_qr_catalog "$@";;
     forensics-qr-catalog) cmd_forensics_qr_catalog "$@";;
