@@ -32,7 +32,7 @@ No global environment variable, profile, registry, package, credential, target p
 
 ## Regression proof
 
-`Tests/Pester/AutoLogonWindowsPowerShellCompatibility.Tests.ps1` deliberately replaces `PSModulePath` with a nonexistent path, applies the same canonical inbox-module prepend, launches Windows PowerShell 5.1 with `-NoProfile`, and requires `Get-FileHash|Cmdlet` with exit code 0. It also pins ordering so module-path normalization and the hash-command proof happen before manifest resolution and before the protected bootstrap can reach target-capable work.
+`Tests/Pester/AutoLogonWindowsPowerShellCompatibility.Tests.ps1` deliberately replaces `PSModulePath` with a nonexistent path, prepends the canonical Windows PowerShell inbox-module root, and requires Windows PowerShell 5.1 with `-NoProfile` to successfully compute a SHA-256 digest using `Get-FileHash`. A second test executes the real `Bootstrap-SysAdminSuiteAutoLogon.cmd` with isolated operator-local state, requires the compatibility PASS marker, and then requires the launcher to stop at missing sealed-manifest authority before target-capable bootstrap. The tests also pin ordering so module-path normalization and the hash-command proof happen before manifest resolution.
 
 ## Field continuation gate
 
@@ -40,6 +40,8 @@ Do not rerun the failed `f3bed6a` runtime. After this repair is integrated into 
 
 Then use only:
 
-`C:\SASAL\Complete-SysAdminSuiteAutoLogon.cmd WPJ075OPR046`
+`C:\SASAL\Complete-SysAdminSuiteAutoLogon.cmd HOST`
+
+where `HOST` is the exact operator-authorized target from machine-local field evidence. Live target identifiers remain operator-local and are not tracked in this handoff.
 
 A subsequent pre-apply failure remains a stop-and-inspect state. Deployment completion is not proven until durable evidence reaches `AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED`, followed by field confirmation that the target returns and automatic sign-in behaves as intended.
