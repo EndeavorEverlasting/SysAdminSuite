@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 HARD = ROOT / "scripts" / "SasSoftwareDeploymentKerberosSmbHardBounded.psm1"
+TRANSPORT = ROOT / "scripts" / "Test-SasSoftwareDeploymentTransport.ps1"
 REPAIR = ROOT / "scripts" / "Repair-SasKerberosSmbTransportPreflightRuntime.ps1"
 REPAIR_TEST = ROOT / "Tests" / "PowerShell" / "KerberosSmbTransportPreflightRuntimeRepair.Tests.ps1"
 DEPLOY = ROOT / "scripts" / "Invoke-SasAutoLogonS4URestartDeployment.ps1"
+COMPLETE = ROOT / "scripts" / "Invoke-SasAutoLogonCompletion.ps1"
+COMPLETE_CMD = ROOT / "Complete-SysAdminSuiteAutoLogon.cmd"
 HANDOFF = ROOT / "docs" / "handoff" / "autologon-vpn-transport-preflight-timeout.md"
 
 
@@ -16,9 +20,12 @@ def read(path: Path) -> str:
 
 def main() -> None:
     hard = read(HARD)
+    transport = read(TRANSPORT)
     repair = read(REPAIR)
     repair_test = read(REPAIR_TEST)
     deploy = read(DEPLOY)
+    complete = read(COMPLETE)
+    complete_cmd = read(COMPLETE_CMD)
     handoff = read(HANDOFF)
 
     for marker in (
@@ -30,6 +37,21 @@ def main() -> None:
         "target_mutation_performed = $false",
     ):
         assert marker in hard, marker
+
+    # Ordinary callers retain the historical five-second default. The completion process tree may
+    # inherit the timeout that already passed the fresh admission, but only when TimeoutSeconds was
+    # not explicitly bound. Explicit callers therefore remain authoritative and malformed inherited
+    # state fails closed instead of silently changing probe behavior.
+    for marker in (
+        "[int]$TimeoutSeconds = 5",
+        "$completionTimeoutVariable = 'SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS'",
+        "if (-not $PSBoundParameters.ContainsKey('TimeoutSeconds'))",
+        "[Environment]::GetEnvironmentVariable($completionTimeoutVariable, 'Process')",
+        "[int]::TryParse($completionTimeoutText.Trim(), [ref]$completionTimeout)",
+        "$completionTimeout -lt 5 -or $completionTimeout -gt 30",
+        "$TimeoutSeconds = $completionTimeout",
+    ):
+        assert marker in transport, marker
 
     for marker in (
         "KERBEROS_SMB_HARD_BOUNDED_RUNTIME_REPAIR_APPLIED",
@@ -89,6 +111,67 @@ def main() -> None:
     mutation = deploy.index("$result.autologon_applied = $true")
     assert invoke < capture < transport_render < clean_gate < mutation
 
+    # Completion is an admission/composition layer, never a second deployment implementation. It
+    # must prove the sealed runtime before target contact, establish exact protected authority,
+    # enforce the same exact-host rule as deployment, use one VPN-tolerant but still hard-bounded
+    # read-only preflight, and enter the existing bootstrap only after a fresh ready result. The
+    # admitted timeout is set process-scoped only after readiness so the mandatory downstream
+    # S4U stage-1 recheck uses the same budget instead of reverting to five seconds.
+    for marker in (
+        "Resolve-SasAutoLogonManifestAuthority.ps1",
+        "Test-SasAutoLogonRuntimeSeal.ps1",
+        "Enable-SasNorthwellVpnNetworkGuard.ps1",
+        "Confirm-SasNorthwellNetwork.ps1",
+        "SasTargetNameResolution.psm1",
+        "Test-SasHostEligibility.ps1",
+        "Test-SasSoftwareDeploymentTransport.ps1",
+        "Bootstrap-SysAdminSuiteAutoLogon.cmd",
+        "[int]$PreflightTimeoutSeconds = 15",
+        "$env:SAS_EXPLICIT_REMOTE_TARGET_REQUEST = $ComputerName",
+        "$eligibility = & $hostEligibility -Target $resolvedTarget -ExecContext remote -RepoRoot $RuntimeRoot",
+        "EXPLICIT_REMOTE_TARGET_AUTHORIZED",
+        "-TransportIntent kerberos_smb_task -TimeoutSeconds $PreflightTimeoutSeconds",
+        "if ([bool]$preflight.result.target_mutation_performed)",
+        "$classification -ne 'kerberos_smb_task_ready'",
+        "AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED",
+        "No AutoLogon deployment bootstrap was started by the completion gate.",
+        "AUTOLOGON_COMPLETION_PREFLIGHT_READY",
+        "$env:SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS = [string]$PreflightTimeoutSeconds",
+        "Deployment stage-1 transport timeout: $PreflightTimeoutSeconds seconds",
+        "& $deploymentBootstrap $ComputerName $preparedCommit",
+    ):
+        assert marker in complete, marker
+
+    manifest_call = complete.index("& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $manifestResolver")
+    seal_call = complete.index("& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $sealAuditor")
+    authority_call = complete.index("$authority = @(& $networkBootstrap -ConfirmVpnPosture)")
+    eligibility_call = complete.index("$eligibility = & $hostEligibility -Target $resolvedTarget -ExecContext remote -RepoRoot $RuntimeRoot")
+    preflight_call = complete.index("$preflight = & $transportPreflight")
+    ready_gate = complete.index("$classification -ne 'kerberos_smb_task_ready'")
+    timeout_handoff = complete.index("$env:SAS_AUTOLOGON_COMPLETION_TRANSPORT_TIMEOUT_SECONDS = [string]$PreflightTimeoutSeconds")
+    bootstrap_call = complete.index("& $deploymentBootstrap $ComputerName $preparedCommit")
+    assert manifest_call < seal_call < authority_call < eligibility_call < preflight_call < ready_gate < timeout_handoff < bootstrap_call
+
+    for forbidden in (
+        r"(?im)^\s*&\s*git(?:\.exe)?\b",
+        r"(?im)^\s*git(?:\.exe)?\b",
+        r"\bNew-ScheduledTask\b",
+        r"\bRegister-ScheduledTask\b",
+        r"schtasks(?:\.exe)?\s+/(?:Create|Run|Delete|Change)\b",
+        r"\bSet-ItemProperty\b",
+        r"\bNew-ItemProperty\b",
+        r"\bGet-Credential\b",
+        r"ConvertFrom-SecureString|ConvertTo-SecureString",
+    ):
+        assert not re.search(forbidden, complete, re.I), forbidden
+
+    for marker in (
+        "Usage: Complete-SysAdminSuiteAutoLogon.cmd HOST",
+        "-File \"%SAS_COMPLETION%\" -ComputerName \"%SAS_TARGET%\" -RuntimeRoot \"%SAS_RUNTIME%\" -PreflightTimeoutSeconds 15",
+        "Preflight mutation authority: NONE",
+    ):
+        assert marker in complete_cmd, marker
+
     # Protected-network authority is transport-agnostic at this layer: a live DomainAuthenticated
     # Ethernet/LAN path is sufficient; VPN is not required when that stronger path already exists.
     for marker in (
@@ -98,19 +181,22 @@ def main() -> None:
     ):
         assert marker in handoff, marker
 
-    # The earlier Ethernet proof is historical evidence only; its one controlled retry has now been
-    # consumed by a later fail-closed VPN attempt. Another full deployment must remain blocked until
-    # a fresh read-only proof reaches the exact ready classification on the intended current path.
+    # The exact later VPN evidence is now known: 445 was reachable and the bounded ADMIN$ read hit
+    # the five-second historical budget. The controlled retry stays consumed, but the repository now
+    # owns an atomic completion gate that retries only the read-only admission with 15 seconds and,
+    # after admission, carries that same timeout into the deployment's mandatory stage-1 recheck.
     for marker in (
-        "That proof authorized one controlled canonical retry on the then-proven transport floor",
         "The controlled canonical retry has now been consumed",
-        "KERBEROS_S4U_TRANSPORT_BLOCKED",
-        "public transport classification `inconclusive`",
-        "stopped before stage-8 remote staging",
-        "no target mutation authorized by this run",
-        "Do **not** run another full AutoLogon `Remote` transaction from this state",
-        "First recover the already-written local preflight result and English summary",
-        "fresh **read-only** preflight",
+        "Probe timeout stage: `admin_share`",
+        "Ports actually tested: `445`",
+        "reason codes: `observation_timeout`, `required_observation_missing`",
+        "target mutation performed: `False`",
+        "Complete-SysAdminSuiteAutoLogon.cmd HOST",
+        "exact explicit-host eligibility",
+        "15-second",
+        "same 15-second bounded budget",
+        "AUTOLOGON_COMPLETION_PREFLIGHT_READY",
+        "AUTOLOGON_COMPLETION_TRANSPORT_BLOCKED",
         "classification = kerberos_smb_task_ready",
         "selected_transport = kerberos_smb_task",
         "reason_codes = all_kerberos_smb_task_prerequisites_satisfied",
