@@ -18,6 +18,7 @@ set "SAS_LEGACY=%~3"
 set "SAS_RUNTIME=%~dp0"
 if "%SAS_RUNTIME:~-1%"=="\" set "SAS_RUNTIME=%SAS_RUNTIME:~0,-1%"
 set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+set "SAS_PS_SYSTEM_MODULES=%SystemRoot%\System32\WindowsPowerShell\v1.0\Modules"
 set "SAS_MANIFEST_RESOLVER=%SAS_RUNTIME%\scripts\Resolve-SasAutoLogonManifestAuthority.ps1"
 set "SAS_AUDIT=%SAS_RUNTIME%\scripts\Test-SasAutoLogonRuntimeSeal.ps1"
 set "SAS_BOOTSTRAP=%SAS_RUNTIME%\Bootstrap-SysAdminSuiteAutoLogon.ps1"
@@ -28,6 +29,26 @@ if not exist "%SAS_PS%" (
   echo   %SAS_PS%
   exit /b 3
 )
+
+if not exist "%SAS_PS_SYSTEM_MODULES%\Microsoft.PowerShell.Utility" (
+  echo ERROR: Windows PowerShell inbox utility module path was not found at:
+  echo   %SAS_PS_SYSTEM_MODULES%\Microsoft.PowerShell.Utility
+  echo No target contact or AutoLogon field transaction was started.
+  exit /b 3
+)
+
+rem PowerShell 7 can pass a PSModulePath that omits Windows PowerShell's inbox modules.
+rem Prepend the canonical Windows PowerShell 5.1 module root for this protected process tree only.
+set "PSModulePath=%SAS_PS_SYSTEM_MODULES%;%PSModulePath%"
+"%SAS_PS%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$hash = Get-FileHash -LiteralPath (Join-Path $env:SAS_RUNTIME 'Bootstrap-SysAdminSuiteAutoLogon.cmd') -Algorithm SHA256 -ErrorAction Stop; if ([string]$hash.Algorithm -ne 'SHA256' -or [string]$hash.Hash -notmatch '^[0-9A-Fa-f]{64}$') { throw 'Get-FileHash SHA256 capability proof returned an invalid result.' }"
+set "SAS_PS_UTILITY_RC=%ERRORLEVEL%"
+if not "%SAS_PS_UTILITY_RC%"=="0" (
+  echo ERROR: Windows PowerShell 5.1 could not execute the Get-FileHash SHA-256 capability proof after inbox module-path normalization.
+  echo No target contact or AutoLogon field transaction was started.
+  exit /b %SAS_PS_UTILITY_RC%
+)
+
+echo PASS: Windows PowerShell 5.1 inbox utility commands are available for the protected process tree.
 
 if not exist "%SAS_MANIFEST_RESOLVER%" (
   echo ERROR: AutoLogon manifest authority resolver is missing:
