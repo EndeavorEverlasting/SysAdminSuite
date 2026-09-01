@@ -9,6 +9,7 @@ Describe 'AutoLogon Windows PowerShell 5.1 compatibility' {
         $script:bootstrapText = Get-Content -LiteralPath $script:bootstrapCmd -Raw
         $script:windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $script:systemModules = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules'
+        $script:cmdExe = Join-Path $env:SystemRoot 'System32\cmd.exe'
     }
 
     It 'normalizes the inbox module root before any manifest or target-capable bootstrap work' {
@@ -51,6 +52,33 @@ $hash = Get-FileHash -LiteralPath $env:SAS_HASH_FIXTURE_PATH -Algorithm SHA256 -
         finally {
             $env:PSModulePath = $previousModulePath
             $env:SAS_HASH_FIXTURE_PATH = $previousFixturePath
+        }
+    }
+
+    It 'executes the real CMD compatibility gate before failing locally on absent sealed manifest authority' {
+        Test-Path -LiteralPath $cmdExe -PathType Leaf | Should -BeTrue
+        $isolatedLocalAppData = Join-Path $TestDrive 'isolated-localappdata'
+        New-Item -ItemType Directory -Path $isolatedLocalAppData -Force | Out-Null
+        $previousModulePath = $env:PSModulePath
+        $previousLocalAppData = $env:LOCALAPPDATA
+        try {
+            $env:PSModulePath = 'C:\__sas_intentionally_missing_modules__'
+            $env:LOCALAPPDATA = $isolatedLocalAppData
+            $commandLine = '"{0}" fixture.autologon.invalid' -f $bootstrapCmd
+            $output = @(& $cmdExe /d /c $commandLine 2>&1)
+            $exitCode = [int]$LASTEXITCODE
+            $text = ($output | ForEach-Object { [string]$_ }) -join "`n"
+
+            $exitCode | Should -Not -Be 0
+            $text | Should -Match 'PASS: Windows PowerShell 5\.1 inbox utility commands are available for the protected process tree\.'
+            $text | Should -Match '=== RESOLVING SEALED MANIFEST AUTHORITY - NO TARGET CONTACT ==='
+            $text | Should -Match 'Deployment blocked before runtime audit and crash-safe field transaction\.'
+            $text | Should -Not -Match 'could not resolve Get-FileHash'
+            $text | Should -Not -Match '=== SEALED RUNTIME AUDIT PASSED - ENTERING PROTECTED BOOTSTRAP ==='
+        }
+        finally {
+            $env:PSModulePath = $previousModulePath
+            $env:LOCALAPPDATA = $previousLocalAppData
         }
     }
 
