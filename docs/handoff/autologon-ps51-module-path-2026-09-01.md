@@ -24,15 +24,15 @@ The field command was initiated from PowerShell 7.6.3, while the protected AutoL
 1. resolve `%SystemRoot%\System32\WindowsPowerShell\v1.0\Modules`;
 2. require the inbox `Microsoft.PowerShell.Utility` module directory;
 3. prepend that Windows PowerShell module root to the process-scoped `PSModulePath`;
-4. execute a local `Get-Command Get-FileHash -ErrorAction Stop` proof under Windows PowerShell 5.1;
-5. fail before target contact if utility command discovery is still unavailable;
+4. execute `Get-FileHash -Algorithm SHA256 -ErrorAction Stop` under Windows PowerShell 5.1 against the local bootstrap file and require a valid SHA-256 result;
+5. fail before manifest resolution or target contact if executable SHA-256 capability is unavailable;
 6. otherwise continue into the unchanged sealed manifest, runtime audit, network, target, S4U, apply, restart, and evidence owners.
 
 No global environment variable, profile, registry, package, credential, target policy, S4U principal, or network rule is changed by this repair.
 
 ## Regression proof
 
-`Tests/Pester/AutoLogonWindowsPowerShellCompatibility.Tests.ps1` deliberately replaces `PSModulePath` with a nonexistent path, prepends the canonical Windows PowerShell inbox-module root, and requires Windows PowerShell 5.1 with `-NoProfile` to successfully compute a SHA-256 digest using `Get-FileHash`. A second test executes the real `Bootstrap-SysAdminSuiteAutoLogon.cmd` with isolated operator-local state, requires the compatibility PASS marker, and then requires the launcher to stop at missing sealed-manifest authority before target-capable bootstrap. The tests also pin ordering so module-path normalization and the hash-command proof happen before manifest resolution.
+`Tests/Pester/AutoLogonWindowsPowerShellCompatibility.Tests.ps1` deliberately replaces `PSModulePath` with a nonexistent path, prepends the canonical Windows PowerShell inbox-module root, and requires Windows PowerShell 5.1 with `-NoProfile` to successfully compute a SHA-256 digest using `Get-FileHash`. A second test executes the real `Bootstrap-SysAdminSuiteAutoLogon.cmd` from an isolated temporary runtime with isolated operator-local state and an intentionally non-matching expected commit; it requires the executable SHA-256 PASS marker and then requires manifest authority to fail closed before target-capable bootstrap. The tests pin ordering so module-path normalization and executable SHA-256 proof happen before manifest resolution.
 
 ## Field continuation gate
 
