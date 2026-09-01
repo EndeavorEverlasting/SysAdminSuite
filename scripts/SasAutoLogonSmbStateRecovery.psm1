@@ -19,11 +19,33 @@ function Test-SasAutoLogonRecoveryFqdn {
 
 function Invoke-SasAutoLogonRecoverySchtasksCommand {
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string[]]$Arguments)
-    $output = @(& "$env:WINDIR\System32\schtasks.exe" @Arguments 2>&1 | ForEach-Object { [string]$_ })
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [ValidateRange(5,120)][int]$TimeoutSeconds = 30
+    )
+
+    # Expected schtasks absence responses are written to stderr. Run the native
+    # command through the bounded child-process adapter so module-level
+    # ErrorActionPreference=Stop cannot convert expected native stderr into a
+    # terminating PowerShell error before its exit code can be classified.
+    $boundedModule = Join-Path $PSScriptRoot 'SasBoundedNative.psm1'
+    Import-Module $boundedModule -ErrorAction Stop
+    $schtasksPath = Join-Path $env:WINDIR 'System32\schtasks.exe'
+    $run = Invoke-SasBoundedNative -FilePath $schtasksPath -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds
+
+    $lines = @()
+    if (-not [string]::IsNullOrWhiteSpace([string]$run.output)) {
+        $lines += ([string]$run.output).Trim()
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$run.error)) {
+        $lines += ([string]$run.error).Trim()
+    }
+
     [pscustomobject]@{
-        exit_code = [int]$LASTEXITCODE
-        output = ($output -join [Environment]::NewLine)
+        exit_code = [int]$run.exit_code
+        timed_out = [bool]$run.timed_out
+        timeout_seconds = [int]$run.timeout_seconds
+        output = ($lines -join [Environment]::NewLine)
     }
 }
 
