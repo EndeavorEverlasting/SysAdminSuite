@@ -1,13 +1,13 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Runs the canonical synthetic harness validator and the offline VM dry-run readiness validator as one proof.
+Runs the canonical synthetic harness validator, private-ledger contract validator, and offline VM dry-run readiness validator as one proof.
 
 .DESCRIPTION
-This composition layer executes repository-owned validators only. It does not start a VM, execute a real
-package, launch an application or browser, contact a target, probe a network, or mutate host configuration.
-It flattens both child PASS/SKIP/FAIL matrices into one schema-backed harness result, preserving the exact
-repository head, canonical user/machine profile, validator set, Prompt Kit owner, and honest skip disposition.
+This composition layer executes repository-owned validators only. It does not write private ledger history, start a VM,
+execute a real package, launch an application or browser, contact a target, probe a network, or mutate host configuration.
+It flattens child PASS/SKIP/FAIL evidence into one schema-backed harness result, preserving the exact repository head,
+canonical user/machine profile, validator set, Prompt Kit owner, and honest skip disposition.
 #>
 [CmdletBinding()]
 param(
@@ -55,6 +55,7 @@ $baseOutput = Join-Path $OutputRoot 'base-harness'
 $vmOutput = Join-Path $OutputRoot 'vm-readiness'
 $matrixPath = Join-Path $OutputRoot 'harness_validation_matrix.txt'
 $jsonPath = Join-Path $OutputRoot 'harness_validation_result.json'
+$privateLedgerValidator = 'harness/validators/validate-private-repository-ledger.py'
 
 function Resolve-SasPowerShellCommand {
     $currentPwsh = Join-Path $PSHOME 'pwsh.exe'
@@ -68,9 +69,30 @@ function Resolve-SasPowerShellCommand {
     throw 'PowerShell runtime not found.'
 }
 
+function Resolve-SasPythonCommand {
+    foreach ($name in @('python3', 'python')) {
+        $command = Get-Command $name -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($command) { return $command.Source }
+    }
+    return $null
+}
+
 function Invoke-SasValidatorChild {
     param([string]$PowerShell, [string]$Script, [string[]]$Arguments)
     $lines = @(& $PowerShell -NoProfile -ExecutionPolicy Bypass -File $Script @Arguments 2>&1 | ForEach-Object { $_.ToString() })
+    return [pscustomobject]@{
+        exit_code = $LASTEXITCODE
+        output = $lines
+        detail = $(if ($lines.Count -gt 0) { $lines[-1] } else { 'completed without console output' })
+    }
+}
+
+function Invoke-SasPythonValidatorChild {
+    param([AllowNull()][string]$Python, [string]$Script)
+    if ([string]::IsNullOrWhiteSpace($Python)) {
+        return [pscustomobject]@{ exit_code = 127; output = @(); detail = 'python_runtime_not_available' }
+    }
+    $lines = @(& $Python $Script 2>&1 | ForEach-Object { $_.ToString() })
     return [pscustomobject]@{
         exit_code = $LASTEXITCODE
         output = $lines
@@ -100,6 +122,7 @@ function Get-CheckDisposition {
 }
 
 $powerShell = Resolve-SasPowerShellCommand
+$python = Resolve-SasPythonCommand
 $baseArguments = [Collections.Generic.List[string]]::new()
 $baseArguments.Add('-OutputRoot')
 $baseArguments.Add($baseOutput)
@@ -120,6 +143,7 @@ foreach ($pair in @(
     }
 }
 $baseRun = Invoke-SasValidatorChild -PowerShell $powerShell -Script (Join-Path $repoRoot 'scripts/validate-sysadmin-harness.ps1') -Arguments @($baseArguments)
+$privateLedgerRun = Invoke-SasPythonValidatorChild -Python $python -Script (Join-Path $repoRoot $privateLedgerValidator)
 $vmRun = Invoke-SasValidatorChild -PowerShell $powerShell -Script (Join-Path $repoRoot 'scripts/Test-SasVmDryRunReadiness.ps1') -Arguments @(
     '-OutputRoot', $vmOutput,
     '-ProfilePath', $VmProfilePath
@@ -147,6 +171,17 @@ if ($baseResult) {
 else {
     $checks.Add([pscustomobject]@{
         status = 'FAIL'; name = 'base harness result'; detail = "result_missing; child_exit_$($baseRun.exit_code): $($baseRun.detail)"; required = $true; disposition = 'required'
+    })
+}
+
+if ($privateLedgerRun.exit_code -eq 0) {
+    $checks.Add([pscustomobject]@{
+        status = 'PASS'; name = 'private repository ledger'; detail = $privateLedgerRun.detail; required = $true; disposition = 'required'
+    })
+}
+else {
+    $checks.Add([pscustomobject]@{
+        status = 'FAIL'; name = 'private repository ledger'; detail = "child_exit_$($privateLedgerRun.exit_code): $($privateLedgerRun.detail)"; required = $true; disposition = 'required'
     })
 }
 
@@ -191,6 +226,8 @@ if ($baseResult) {
         $dependencies[$property.Name] = $property.Value
     }
 }
+$dependencies.private_ledger_validator = $privateLedgerValidator
+$dependencies.private_ledger_python = $python
 $dependencies.vm_readiness_validator = 'scripts/Test-SasVmDryRunReadiness.ps1'
 $dependencies.vm_provider = if ($vmResult) { $vmResult.dependencies.vm_provider } else { $null }
 
@@ -200,6 +237,7 @@ $validatorSet = [Collections.Generic.List[string]]::new()
 if ($baseResult -and @($baseResult.PSObject.Properties.Name) -contains 'validator_set') {
     foreach ($validator in @($baseResult.validator_set)) { $validatorSet.Add([string]$validator) }
 }
+$validatorSet.Add($privateLedgerValidator)
 $validatorSet.Add('scripts/Test-SasVmDryRunReadiness.ps1')
 $validatorSet.Add('scripts/Invoke-SasVmDryRunHarnessProof.ps1')
 $profile = if ($baseResult -and @($baseResult.PSObject.Properties.Name) -contains 'profile') { $baseResult.profile } else { $null }
@@ -219,7 +257,7 @@ if ($promptOwner) { $matrix.Add("Prompt: $($promptOwner.id) | $($promptOwner.nam
 else { $matrix.Add('Prompt: unresolved') }
 if ($profile) { $matrix.Add("Profile: $($profile.machine_profile) | os=$($profile.os) | user=$($profile.user) | onedrive_enabled=$($profile.onedrive_enabled) | desktop_dev_root=$($profile.desktop_dev_root)") }
 else { $matrix.Add('Profile: unresolved') }
-$matrix.Add('Proof: synthetic_offline (VM readiness only; no VM started, real package executed, network probe, launcher, or target mutation)')
+$matrix.Add('Proof: synthetic_offline (private ledger contract + VM readiness only; no ledger history write, VM start, real package execution, network probe, launcher, or target mutation)')
 $matrix.Add('')
 foreach ($check in $checks) {
     $suffix = if ($check.detail) { " - $($check.detail)" } else { '' }
@@ -263,8 +301,8 @@ $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $jsonPath -Encodin
 if ($baseResult -and $baseResult.artifacts.artifact_registry -and
     (Test-Path -LiteralPath ([string]$baseResult.artifacts.artifact_registry) -PathType Leaf)) {
     Import-Module (Join-Path $repoRoot 'scripts/SasRunContext.psm1') -Force
-    [void](Register-SasArtifact -RegistryPath ([string]$baseResult.artifacts.artifact_registry) -Role validation_matrix -Path $matrixPath -Tracked $false -LiveData $false -Generated $true -Description 'Combined harness and VM dry-run readiness matrix.' -CreatedBy 'Invoke-SasVmDryRunHarnessProof')
-    [void](Register-SasArtifact -RegistryPath ([string]$baseResult.artifacts.artifact_registry) -Role validation_result -Path $jsonPath -Tracked $false -LiveData $false -Generated $true -Description 'Combined machine-readable harness and VM dry-run readiness proof.' -CreatedBy 'Invoke-SasVmDryRunHarnessProof')
+    [void](Register-SasArtifact -RegistryPath ([string]$baseResult.artifacts.artifact_registry) -Role validation_matrix -Path $matrixPath -Tracked $false -LiveData $false -Generated $true -Description 'Combined harness, private-ledger contract, and VM dry-run readiness matrix.' -CreatedBy 'Invoke-SasVmDryRunHarnessProof')
+    [void](Register-SasArtifact -RegistryPath ([string]$baseResult.artifacts.artifact_registry) -Role validation_result -Path $jsonPath -Tracked $false -LiveData $false -Generated $true -Description 'Combined machine-readable harness, private-ledger contract, and VM dry-run readiness proof.' -CreatedBy 'Invoke-SasVmDryRunHarnessProof')
 }
 
 $matrix | ForEach-Object { Write-Host $_ }

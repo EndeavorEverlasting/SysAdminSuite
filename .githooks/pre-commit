@@ -8,7 +8,7 @@ cd "$repo_root"
 blocked=0
 while IFS= read -r path; do
   case "$path" in
-    logs/*|survey/output/*|survey/artifacts/*|survey/input/serial_network_preflight/*|survey/output/serial_network_preflight/*|survey/output/target_reduction/*|*.pcap|*.pcapng|*.evtx)
+    logs/*|runs/private-ledger/*|survey/output/*|survey/artifacts/*|survey/input/serial_network_preflight/*|survey/output/serial_network_preflight/*|survey/output/target_reduction/*|*.pcap|*.pcapng|*.evtx)
       echo "[sas-harness] refusing staged generated/operator artifact: $path" >&2
       blocked=1
       ;;
@@ -44,6 +44,8 @@ echo "[sas-harness] pre-commit: validating the exact staged snapshot"
   python3 harness/validators/validate-printer-mapping-use-cases.py
   python3 harness/validators/validate-cybernet-hardware-identity.py
   python3 Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
+  python3 harness/validators/validate-private-repository-ledger.py
+  python3 Tests/survey/test_private_repository_ledger_contracts.py
   python3 Tests/survey/test_operational_harness_completeness_contracts.py
   python3 scripts/check-repo-text-policy.py --cached
   python3 Tests/survey/test_local_harness_contracts.py

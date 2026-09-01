@@ -15,10 +15,11 @@ Use this skill for repository intake, sprint ranking, Git/PR lifecycle work, int
 3. Read `AGENTS.md`, `CODEBASE_MAP.md`, and only the product/harness files relevant to the task.
 4. Build a compact evidence ledger: identity, center of gravity, workstreams, harness/product inventory, validation, unresolved signals, risks, and important paths.
 5. Rank bounded sprint candidates by unblock value, size, risk, proof ceiling, and collision risk.
-6. Execute the highest-value safe slice; do not stop at a plan when a useful tracked change is available.
-7. Checkpoint before broad validation or runtime proof.
-8. Validate, review the diff, commit, push, and open/update the PR when the environment allows.
-9. Report exact Git state, proof level, gaps, and one next command.
+6. When a durable repository decision or plan is reached and `scripts/sas-private-ledger.py` is present, append it immediately with `python3 scripts/sas-private-ledger.py append decision "..."` or `append plan "..."`; keep secrets, credentials, personal data, live targets, and raw private evidence out of summaries. This local continuity write does not replace tracked docs, commits, tests, or proof artifacts.
+7. Execute the highest-value safe slice; do not stop at a plan when a useful tracked change is available.
+8. Checkpoint before broad validation or runtime proof.
+9. Validate, review the diff, commit, push, and open/update the PR when the environment allows.
+10. Report exact Git state, proof level, gaps, and one next command.
 
 ## Guardrails
 
