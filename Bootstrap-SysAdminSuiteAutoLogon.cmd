@@ -40,7 +40,7 @@ if not exist "%SAS_PS_SYSTEM_MODULES%\Microsoft.PowerShell.Utility" (
 rem PowerShell 7 can pass a PSModulePath that omits Windows PowerShell's inbox modules.
 rem Prepend the canonical Windows PowerShell 5.1 module root for this protected process tree only.
 set "PSModulePath=%SAS_PS_SYSTEM_MODULES%;%PSModulePath%"
-"%SAS_PS%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Command Get-FileHash -ErrorAction Stop ^| Out-Null"
+"%SAS_PS%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$null = Get-Command Get-FileHash -ErrorAction Stop"
 set "SAS_PS_UTILITY_RC=%ERRORLEVEL%"
 if not "%SAS_PS_UTILITY_RC%"=="0" (
   echo ERROR: Windows PowerShell 5.1 could not resolve Get-FileHash after inbox module-path normalization.
