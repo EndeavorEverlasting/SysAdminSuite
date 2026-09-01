@@ -27,24 +27,30 @@ Describe 'AutoLogon Windows PowerShell 5.1 compatibility' {
         $protectedBootstrap | Should -BeGreaterThan $manifest
     }
 
-    It 'recovers Get-FileHash when a PowerShell 7 style inherited module path omits Windows PowerShell inbox modules' {
+    It 'recovers working Get-FileHash when a PowerShell 7 style inherited module path omits Windows PowerShell inbox modules' {
         Test-Path -LiteralPath $windowsPowerShell -PathType Leaf | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $systemModules 'Microsoft.PowerShell.Utility') -PathType Container | Should -BeTrue
 
-        $previous = $env:PSModulePath
+        $fixturePath = Join-Path $TestDrive 'ps51-hash-fixture.txt'
+        [IO.File]::WriteAllText($fixturePath, 'sas-ps51-hash-fixture', [Text.UTF8Encoding]::new($false))
+        $previousModulePath = $env:PSModulePath
+        $previousFixturePath = $env:SAS_HASH_FIXTURE_PATH
         try {
             $env:PSModulePath = 'C:\__sas_intentionally_missing_modules__'
             $env:PSModulePath = "$systemModules;$env:PSModulePath"
+            $env:SAS_HASH_FIXTURE_PATH = $fixturePath
             $output = & $windowsPowerShell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command @'
 $ErrorActionPreference = 'Stop'
-$command = Get-Command Get-FileHash -ErrorAction Stop
-[Console]::Out.Write($command.Name + '|' + $command.CommandType)
+Get-Command Get-FileHash -ErrorAction Stop | Out-Null
+$hash = Get-FileHash -LiteralPath $env:SAS_HASH_FIXTURE_PATH -Algorithm SHA256 -ErrorAction Stop
+[Console]::Out.Write($hash.Algorithm + '|' + $hash.Hash)
 '@
             $LASTEXITCODE | Should -Be 0
-            ([string]$output).Trim() | Should -Match '^Get-FileHash\|Cmdlet$'
+            ([string]$output).Trim() | Should -Match '^SHA256\|[0-9A-Fa-f]{64}$'
         }
         finally {
-            $env:PSModulePath = $previous
+            $env:PSModulePath = $previousModulePath
+            $env:SAS_HASH_FIXTURE_PATH = $previousFixturePath
         }
     }
 
