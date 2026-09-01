@@ -15,14 +15,16 @@ Describe 'AutoLogon Windows PowerShell 5.1 compatibility' {
         $script:cmdExe = Join-Path $env:SystemRoot 'System32\cmd.exe'
     }
 
-    It 'normalizes the inbox module root before any manifest or target-capable bootstrap work' {
+    It 'normalizes the inbox module root and executes SHA256 before any manifest or target-capable bootstrap work' {
         $bootstrapText | Should -Match 'set "SAS_PS_SYSTEM_MODULES=%SystemRoot%\\System32\\WindowsPowerShell\\v1\.0\\Modules"'
         $bootstrapText | Should -Match 'set "PSModulePath=%SAS_PS_SYSTEM_MODULES%;%PSModulePath%"'
-        $bootstrapText | Should -Match 'Get-Command Get-FileHash -ErrorAction Stop'
+        $bootstrapText | Should -Match 'Get-FileHash -LiteralPath'
+        $bootstrapText | Should -Match '-Algorithm SHA256 -ErrorAction Stop'
+        $bootstrapText | Should -Match 'Get-FileHash SHA-256 capability proof'
         $bootstrapText | Should -Match 'No target contact or AutoLogon field transaction was started\.'
 
         $normalize = $bootstrapText.IndexOf('set "PSModulePath=%SAS_PS_SYSTEM_MODULES%;%PSModulePath%"', [StringComparison]::Ordinal)
-        $hashProbe = $bootstrapText.IndexOf('Get-Command Get-FileHash -ErrorAction Stop', [StringComparison]::Ordinal)
+        $hashProbe = $bootstrapText.IndexOf('$hash = Get-FileHash', [StringComparison]::Ordinal)
         $manifest = $bootstrapText.IndexOf('=== RESOLVING SEALED MANIFEST AUTHORITY - NO TARGET CONTACT ===', [StringComparison]::Ordinal)
         $protectedBootstrap = $bootstrapText.IndexOf('=== SEALED RUNTIME AUDIT PASSED - ENTERING PROTECTED BOOTSTRAP ===', [StringComparison]::Ordinal)
         $normalize | Should -BeGreaterThan -1
@@ -58,7 +60,7 @@ $hash = Get-FileHash -LiteralPath $env:SAS_HASH_FIXTURE_PATH -Algorithm SHA256 -
         }
     }
 
-    It 'executes the real CMD compatibility gate in an isolated runtime before failing locally on absent sealed manifest authority' {
+    It 'executes the real CMD SHA256 gate in an isolated runtime before deterministically rejecting manifest authority' {
         Test-Path -LiteralPath $cmdExe -PathType Leaf | Should -BeTrue
         $isolatedRuntime = Join-Path $TestDrive 'isolated-runtime'
         $isolatedScripts = Join-Path $isolatedRuntime 'scripts'
@@ -69,13 +71,14 @@ $hash = Get-FileHash -LiteralPath $env:SAS_HASH_FIXTURE_PATH -Algorithm SHA256 -
         Copy-Item -LiteralPath $manifestResolver -Destination (Join-Path $isolatedScripts 'Resolve-SasAutoLogonManifestAuthority.ps1')
         Copy-Item -LiteralPath $sealAuditor -Destination (Join-Path $isolatedScripts 'Test-SasAutoLogonRuntimeSeal.ps1')
         $isolatedBootstrapCmd = Join-Path $isolatedRuntime 'Bootstrap-SysAdminSuiteAutoLogon.cmd'
+        $impossiblePreparedCommit = '1111111111111111111111111111111111111111'
 
         $previousModulePath = $env:PSModulePath
         $previousLocalAppData = $env:LOCALAPPDATA
         try {
             $env:PSModulePath = 'C:\__sas_intentionally_missing_modules__'
             $env:LOCALAPPDATA = $isolatedLocalAppData
-            $commandLine = '"{0}" fixture.autologon.invalid' -f $isolatedBootstrapCmd
+            $commandLine = '"{0}" fixture.autologon.invalid {1}' -f $isolatedBootstrapCmd,$impossiblePreparedCommit
             $output = @(& $cmdExe /d /c $commandLine 2>&1)
             $exitCode = [int]$LASTEXITCODE
             $text = ($output | ForEach-Object { [string]$_ }) -join "`n"
@@ -85,7 +88,7 @@ $hash = Get-FileHash -LiteralPath $env:SAS_HASH_FIXTURE_PATH -Algorithm SHA256 -
             $text | Should -Match '=== RESOLVING SEALED MANIFEST AUTHORITY - NO TARGET CONTACT ==='
             $text | Should -Match 'AUTOLOGON_MANIFEST_NOT_FOUND'
             $text | Should -Match 'Deployment blocked before runtime audit and crash-safe field transaction\.'
-            $text | Should -Not -Match 'could not resolve Get-FileHash'
+            $text | Should -Not -Match 'could not execute the Get-FileHash SHA-256 capability proof'
             $text | Should -Not -Match '=== SEALED RUNTIME AUDIT PASSED - ENTERING PROTECTED BOOTSTRAP ==='
         }
         finally {
