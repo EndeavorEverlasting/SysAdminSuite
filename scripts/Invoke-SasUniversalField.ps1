@@ -58,8 +58,6 @@ function Invoke-SasLegacyDispatcher {
 }
 
 function Resolve-SasInstalledPrinterBootstrap {
-    # A machine-wide/user shim owns its sibling printer bootstrap. Source-checkout invocation may
-    # fall back to the validated local runtime/controller, but never to the caller's current path.
     foreach ($candidate in @(
         (Join-Path $PSScriptRoot 'Bootstrap-SysAdminSuitePrinter.ps1'),
         (Join-Path $runtimeRoot 'Bootstrap-SysAdminSuitePrinter.ps1'),
@@ -71,9 +69,6 @@ function Resolve-SasInstalledPrinterBootstrap {
 }
 
 function Resolve-SasInstalledAutoLogonBootstrap {
-    # Target-mutating AutoLogon Remote must enter the sealed crash-safe bootstrap so every run gets
-    # the registered LOCALAPPDATA transcript/result/latest-pointer recovery surface. Prefer the
-    # execution runtime; the controller fallback supports source-checkout validation only.
     foreach ($candidate in @(
         (Join-Path $runtimeRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd'),
         (Join-Path $controllerRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd')
@@ -92,6 +87,7 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
         Write-Host 'Printer mapping when GitHub is intentionally unavailable: sas printer offline' -ForegroundColor DarkGray
         Write-Host 'Clipboard recovery is available as: sas clipboard' -ForegroundColor Green
         Write-Host 'Batch network probing is available as: sas network probe HOST01 HOST02 ...' -ForegroundColor Green
+        Write-Host 'Cybernet model+serial canary is available as: sas cybernet canary HOST01 HOST02 ...' -ForegroundColor Green
     }
     exit 0
 }
@@ -101,11 +97,6 @@ switch ($normalized) {
         if ($actualArgs.Count -ne 0) { Write-Host 'Usage: sas refresh' -ForegroundColor Red; exit 2 }
         $refresh = Join-Path $controllerRoot 'scripts\Refresh-SasOperatorCommand.ps1'
         if (-not (Test-Path -LiteralPath $refresh -PathType Leaf)) { throw "Missing canonical refresh workflow: $refresh" }
-
-        # The existing refresh owns Guest/Internet Git synchronization and seals the next local
-        # C:\SASAL runtime. It currently installs the compatibility dispatcher as part of that flow.
-        # After it succeeds, reinstall the universal machine-neutral front door from the newly sealed
-        # runtime so refresh converges to this platform rather than silently regressing it.
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $refresh -RepositoryRoot $controllerRoot
         $refreshExit = $LASTEXITCODE
         if ($refreshExit -ne 0) { exit $refreshExit }
@@ -117,7 +108,6 @@ switch ($normalized) {
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $sealedInstaller
         $installExit = $LASTEXITCODE
         if ($installExit -ne 0) { exit $installExit }
-
         Write-Host 'UNIVERSAL_FIELD_PLATFORM_REFRESH_CONVERGED' -ForegroundColor Green
         exit 0
     }
@@ -210,8 +200,6 @@ switch ($normalized) {
                     & $bootstrap $target
                     exit $LASTEXITCODE
                 }
-
-                # Recovery stays recovery-only. Do not send Recover through the deployment bootstrap.
                 $recoveryLauncher = Join-Path $runtimeRoot 'Run-AutoLogonOnsite.cmd'
                 if (-not (Test-Path -LiteralPath $recoveryLauncher -PathType Leaf)) {
                     throw "Canonical local AutoLogon recovery launcher is missing from runtime: $recoveryLauncher"
@@ -226,6 +214,20 @@ switch ($normalized) {
     'cybernet' {
         if ($actualArgs.Count -gt 0) {
             $mode = ([string]$actualArgs[0]).Trim().ToLowerInvariant()
+            if ($mode -eq 'canary') {
+                $targets = @($actualArgs | Select-Object -Skip 1)
+                if ($targets.Count -eq 0) {
+                    Write-Host 'Usage: sas cybernet canary HOST01 [HOST02 ...]' -ForegroundColor Red
+                    exit 2
+                }
+                [void](Assert-SasProtectedForAction -Purpose "Cybernet low-noise canary for $($targets.Count) explicit targets")
+                $canary = Join-Path $controllerRoot 'survey\sas-cybernet-canary.ps1'
+                if (-not (Test-Path -LiteralPath $canary -PathType Leaf)) {
+                    throw "Cybernet canary runtime is not present in the active controller: $controllerRoot. Run 'sas refresh' on Guest/Internet to install the current sealed runtime."
+                }
+                & $canary -Target $targets
+                exit 0
+            }
             if ($mode -in @('probe','deploy','core','profiled-core','recover')) {
                 $targetLabel = if ($actualArgs.Count -gt 1) { [string]$actualArgs[1] } else { '<target>' }
                 [void](Assert-SasProtectedForAction -Purpose "Cybernet $mode for $targetLabel")
