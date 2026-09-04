@@ -12,6 +12,7 @@ Use this skill for technician commands, launchers, menus, QR command capsules, o
 
 Load only the references that match the selected field lane:
 
+- Composed operator command handoff: [`harness/skills/operator-command-handoff/SKILL.md`](../../../harness/skills/operator-command-handoff/SKILL.md)
 - Printer mapping use-case registry: [`harness/api/printer-mapping-use-case-registry.json`](../../../harness/api/printer-mapping-use-case-registry.json)
 - Printer mapping use-case workflow: [`harness/workflows/printer-mapping-use-case-routing.yaml`](../../../harness/workflows/printer-mapping-use-case-routing.yaml)
 - Printer mapping use-case skill: [`harness/skills/printer-mapping-use-case-routing/SKILL.md`](../../../harness/skills/printer-mapping-use-case-routing/SKILL.md)
@@ -29,6 +30,20 @@ Load only the references that match the selected field lane:
 - Executable fixture proof: [`docs/SOFTWARE_INSTALL_E2E.md`](../../../docs/SOFTWARE_INSTALL_E2E.md)
 - Software-install result presentation: [`docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md`](../../../docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md)
 
+## Operator command composition gate
+
+Before this skill emits, executes, or asks a technician to run **any SysAdminSuite-owned command or snippet**, load `harness/skills/operator-command-handoff/SKILL.md` and satisfy its transaction in order:
+
+1. canonical path;
+2. repository freshness (`git fetch --all --prune --tags`, then only a proven-safe `git pull --ff-only` when needed);
+3. capture the starting network and resolve the command's required network intent;
+4. run the canonical registered front door;
+5. restore the starting network when the repository-owned workflow changed it, and treat a failed required restore as command failure.
+
+Do not give a bare `sas ...`, CMD, or PowerShell product command merely because it is familiar. Path, freshness, and network posture are prerequisites to the handoff, not troubleshooting steps to add after the snippet fails.
+
+For network-sensitive commands, preserve `scripts/Invoke-SasNetworkAwareField.ps1` and `scripts/SasNetworkIntent.psm1` as the implementation owners. Do not hand-code Wi-Fi or VPN switching in an agent response. Automatic switching is limited to repository-proven saved WLAN transitions; manual VPN/hardwire transitions remain explicit operator gates, and the required return posture must be stated. When eligible, the repository-owned return surface is `%LOCALAPPDATA%\SysAdminSuite\bin\sas-leave.cmd` / `Switch-Back-To-Previous-Network.cmd`.
+
 ## Source freshness before field continuation
 
 Before emitting a next command for a registered field capsule, **reconcile current repository truth** rather than reusing a branch/SHA from an earlier handoff.
@@ -37,6 +52,7 @@ Before emitting a next command for a registered field capsule, **reconcile curre
 - A historical PR branch or pinned SHA may be used to review or reproduce that exact old state, but it is not an operator retry source after merge.
 - If a branch no longer equals a previously expected SHA, treat the mismatch as a supersession/reconciliation signal. Do not ask the technician to chase the old commit, force the branch backward, or create a detached worktree for a superseded implementation.
 - Resolve the current tracked launcher from the capsule policy and use the current canonical implementation.
+- Freshness alone does not authorize a product command; continue through the composed operator-command handoff network-intent and restoration gates.
 
 ## Printer mapping context gate
 
@@ -78,21 +94,23 @@ Only after `northwell.shared-printer.organization-default` is selected, when a t
 
 ## Workflow
 
-1. Identify the field user, organization, site/hospital when relevant, target environment, and mutation posture.
+1. Identify the field user, organization, site/hospital when relevant, target environment, mutation posture, and starting network posture when a command may be network-sensitive.
 2. For printer mapping, resolve the registered organization/site use case before selecting any launcher or implementation.
 3. Reconcile the current repository floor before reusing any branch, SHA, worktree, or next-command from a prior chat/handoff.
-4. Prefer an existing launcher, profile, menu, or wrapper.
-5. Reduce the technician action to one short entrypoint when practical.
-6. Put target validation, elevation, retries, teardown, progress, evidence, and classification inside the repo-owned workflow.
-7. For software-install results, use `Inspect-LatestSoftwareInstall.cmd` as the field front door. Agents invoke `scripts/Show-SasSoftwareInstallResult.ps1` immediately after the install, when recovering an interrupted run, and before saying deployment succeeded.
-8. Keep developer diagnostics separate from the field front door.
-9. Provide a dry-run or review mode before mutation when the operation supports it.
-10. Validate the launcher contract and the delegated workflow separately.
+4. Before operator command handoff, route through `harness/skills/operator-command-handoff/SKILL.md`; do not skip canonical relocation, currentness proof, network intent, or required restoration.
+5. Prefer an existing launcher, profile, menu, or wrapper.
+6. Reduce the technician action to one short entrypoint when practical, but keep all prerequisite gates in the same atomic handoff.
+7. Put target validation, elevation, retries, teardown, network restoration, progress, evidence, and classification inside the repo-owned workflow.
+8. For software-install results, use `Inspect-LatestSoftwareInstall.cmd` as the field front door. Agents invoke `scripts/Show-SasSoftwareInstallResult.ps1` immediately after the install, when recovering an interrupted run, and before saying deployment succeeded.
+9. Keep developer diagnostics separate from the field front door.
+10. Provide a dry-run or review mode before mutation when the operation supports it.
+11. Validate the launcher contract and the delegated workflow separately.
 
 ## Guardrails
 
 - Do not require technicians to memorize run IDs or reconstruct long commands when state can be stored locally and safely.
-- Do not hide scope, mutation, or failure classifications.
+- Do not ask a technician to repair a missing canonical-path/freshness/network prerequisite in a later snippet when the original handoff should have contained it.
+- Do not hide scope, mutation, network transition/restore, or failure classifications.
 - A launcher ACK is not proof that the intended behavior occurred.
 - Installer completion is not package-level post-install acceptance; present the remaining verification gate.
 - For merged registered capsules, do not emit historical PR branches or pinned SHAs as normal operator retry sources.
