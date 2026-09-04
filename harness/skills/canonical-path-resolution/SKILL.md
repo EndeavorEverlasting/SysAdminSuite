@@ -24,7 +24,7 @@ The OneDrive toggle never chooses the Desktop path. A user can have OneDrive ena
 
 ## From-anywhere Windows bootstrap
 
-The current working directory is candidate evidence only. A fresh PowerShell session may start in the user profile, System32, a terminal default directory, or another repository. Do **not** start location discovery with `git rev-parse --show-toplevel`; that command requires the shell to already be inside a Git worktree and therefore cannot own repository location.
+The current working directory is candidate evidence only. A fresh PowerShell session may start in the user profile, System32, a terminal default directory, another repository, or a non-filesystem provider such as `HKLM:` or `Cert:`. Do **not** start location discovery with `git rev-parse --show-toplevel`; that command requires the shell to already be inside a Git worktree and therefore cannot own repository location. A non-filesystem provider location is valid execution context but is never normalized into a filesystem candidate path.
 
 A handoff/NEXT COMMAND for a workstation default-branch checkout may depend only on artifacts already contained in refreshed remote default. If a resolver, validator, or helper exists only in an unmerged PR, integrate it first or use provider-side proof; do not tell the operator to expect that artifact locally.
 
@@ -77,24 +77,49 @@ After the resolver is integrated into refreshed default branch, the same atomic 
 
 Only after checkout identity **and Git I/O health** are proved may the continuation use `git fetch`, inspect status/log, reconcile the canonical checkout, or create an isolated worktree beneath the registered worktree root.
 
+## Execution context and production/use safety
+
+Before a path-sensitive command, record the actual terminal host, shell/interpreter process, PowerShell edition/version, current provider/location, OS/runtime boundary, and execution target. A terminal application is not the shell, and a Windows process is not proof that the operator-to-target relation is `LOCAL`. Native indicators may prove CI, PowerShell remoting, or SSH; an authorized invocation may explicitly scope the execution target. Otherwise record the target as `UNKNOWN` and do not guess a target-specific mutation command.
+
+The production/use path is a **consumer path**, not a convenient second checkout. Resolve `PROD_USE_STATE` independently as `ACTIVE`, `QUIESCED`, `OFFLINE`, `UNKNOWN`, or `NOT_APPLICABLE`. `UNKNOWN` is not idle. An existing production directory without bounded consumer/quiescence evidence remains `UNKNOWN`, and ad-hoc pull/reset/rebuild/copy/edit/regeneration there is blocked.
+
+For `windows-admin-box`, the registry owns these roles:
+
+- development: OS-resolved Desktop Known Folder -> `Dev\SysAdminSuite`;
+- worktrees: `%LOCALAPPDATA%\SysAdminSuite\worktrees`;
+- updater sync clone: `%LOCALAPPDATA%\SysAdminSuite\sync-cache`;
+- updater field-ready worktrees: `%LOCALAPPDATA%\SysAdminSuite\field-ready` and `field-ready-*`;
+- production/use: `C:\SASAL`;
+- production entrypoint: `C:\SASAL\Bootstrap-SysAdminSuiteAutoLogon.cmd`;
+- production update authority: `scripts/Refresh-SasOperatorCommand.ps1` through its tracked refresh/bootstrap boundary.
+
+The updater-owned sync-cache and field-ready copies are bounded implementation locations, not alternate canonical development checkouts. Inventory and preserve them; do not promote them to development authority or clean them merely because a different path is canonical.
+
+If development and production resolve to the same physical path, every development write is production-impacting. `ACTIVE` or `UNKNOWN` blocks mutation until the tracked contract proves quiescence/in-place safety. If either path is a junction, symlink, mount, or other unresolved reparse point, record `UNKNOWN_REPARSE_POINT_RELATION` and block mutation until physical relation is proved; lexical path inequality is not enough. When paths are proved separate, normal edits/builds/tests stay in canonical development or an approved worktree, then cross the registered updater/promotion boundary; never copy a partial tree into production.
+
+Classify bounded observed locations as `CLONE`, `WORKTREE`, `INSTALL`, `MIRROR`, `CACHE`, `OUTPUT`, `BACKUP`, or `UNKNOWN`. Inventory before cleanup. Nothing becomes disposable merely because it is noncanonical; preserve dirty, unpushed, unique, separately owned, or not-yet-inspected state.
+
 ## Procedure
 
 1. Read `harness/api/canonical-path-registry.json`.
-2. Resolve all four profile parameters and record their sources before choosing a machine-role profile.
-3. Resolve one compatible machine-role profile; do not choose a directory from model preference.
-4. Compose the canonical development checkout from `{desktop_dev_root}\SysAdminSuite` for the Windows profiles instead of assuming `%USERPROFILE%\Desktop\Dev`.
-5. Before any checkout-owned executable is trusted, prove the composed directory with non-executing Git top-level and exact-origin checks, then require `git status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty` to return zero. A path is not canonical-proved merely because `rev-parse` and `config` work.
-6. Treat `ROOT_UNAVAILABLE` and `MULTIPLE_ROOTS` as conflicting OneDrive profile evidence; do not continue to canonical checkout proof until reconciled.
-7. If Git read/index/file access fails, classify the checkout `CONFLICT_GIT_IO_UNHEALTHY`, preserve it, and stop before fetch/reset/clean/worktree creation.
-8. Use `scripts/Resolve-SasCanonicalDevelopmentPath.ps1` only after that artifact is present on the refreshed default branch or from another already-trusted source; current directory never overrides the tracked rule.
-9. Classify the candidate as canonical development, production/use, isolated worktree, ephemeral acquisition, or unknown.
-10. Keep these proofs separate: remote default contains SHA; canonical development checkout current; production/use path current; real operator entrypoint observes current.
-11. For remote freshness, delegate to `harness/workflows/repository-freshness-before-launch.yaml`.
-12. Preserve dirty or unique work. Use a Git worktree under the registered temporary root for parallel writers instead of making another mutable clone.
-13. For an installed/field runtime, require its owning updater/seal/manifest proof. A GitHub merge or fresh clone is insufficient.
-14. For operator execution, delegate to `harness/workflows/operator-execution-route.yaml` and require the registered entrypoint to observe the intended runtime.
-15. Before emitting or executing any SysAdminSuite-owned operator command, load `harness/skills/operator-command-handoff/SKILL.md`; canonical path proof must be followed by repository freshness, starting-network/required-intent handling, canonical command execution, and required network restoration in one composed handoff.
-16. Report the first unproven state and its owning continuation; do not claim workstation deployment from repository evidence.
+2. Record execution context before path-sensitive mutation. A Windows process alone leaves execution target `UNKNOWN`; use native remote/CI evidence or an explicit authorized target scope before target-sensitive mutation.
+3. Treat a non-filesystem PowerShell provider location as execution context only; do not force it through filesystem normalization.
+4. Resolve all four profile parameters and record their sources before choosing a machine-role profile.
+5. Resolve one compatible machine-role profile; do not choose a directory from model preference.
+6. Compose the canonical development checkout from `{desktop_dev_root}\SysAdminSuite` for the Windows profiles instead of assuming `%USERPROFILE%\Desktop\Dev`.
+7. Before any checkout-owned executable is trusted, prove the composed directory with non-executing Git top-level and exact-origin checks, then require `git status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty` to return zero. A path is not canonical-proved merely because `rev-parse` and `config` work.
+8. Treat `ROOT_UNAVAILABLE` and `MULTIPLE_ROOTS` as conflicting OneDrive profile evidence; do not continue to canonical checkout proof until reconciled.
+9. If Git read/index/file access fails, classify the checkout `CONFLICT_GIT_IO_UNHEALTHY`, preserve it, and stop before fetch/reset/clean/worktree creation.
+10. Use `scripts/Resolve-SasCanonicalDevelopmentPath.ps1` only after that artifact is present on the refreshed default branch or from another already-trusted source; current directory never overrides the tracked rule.
+11. Classify the candidate and bounded known copies as CLONE/WORKTREE/INSTALL/MIRROR/CACHE/OUTPUT/BACKUP/UNKNOWN, including refresh-owned `sync-cache` and `field-ready*`; no cleanup is authorized by path identity alone.
+12. Resolve `PROD_USE_STATE` and physical path relation before any production-path write. ACTIVE/UNKNOWN blocks ad-hoc mutation; unresolved reparse semantics block any mutation that assumes path separation.
+13. Keep these proofs separate: remote default contains SHA; canonical development checkout current; production/use path current; real operator entrypoint observes current.
+14. For remote freshness, delegate to `harness/workflows/repository-freshness-before-launch.yaml`.
+15. Preserve dirty or unique work. Use a Git worktree under the registered temporary root for parallel writers instead of making another mutable clone.
+16. For an installed/field runtime, require its owning updater/seal/manifest proof. A GitHub merge or fresh clone is insufficient.
+17. For operator execution, delegate to `harness/workflows/operator-execution-route.yaml` and require the registered entrypoint to observe the intended runtime.
+18. Before emitting or executing any SysAdminSuite-owned operator command, load `harness/skills/operator-command-handoff/SKILL.md`; canonical path proof must be followed by repository freshness, starting-network/required-intent handling, canonical command execution, and required network restoration in one composed handoff.
+19. Report the first unproven state and its owning continuation; do not claim workstation deployment from repository evidence.
 
 ## PowerShell operator-block integrity
 
@@ -110,17 +135,19 @@ Also forbidden: a NEXT COMMAND that requires a helper that exists only on an unm
 
 ## Expected outputs
 
+- execution-context receipt: terminal host, shell/interpreter, PowerShell edition/version, current provider/location, runtime boundary, execution target, and target evidence source;
 - selected machine-role profile;
 - resolved `os`, `user`, `onedrive_enabled`, and `desktop_dev_root` with source provenance;
-- path classification;
-- canonical development checkout composed from the resolved Desktop Dev root;
+- canonical development checkout and worktree root;
+- candidate role plus CLONE/WORKTREE/INSTALL/MIRROR/CACHE/OUTPUT/BACKUP/UNKNOWN class;
+- bounded known-location inventory including updater-owned sync-cache/field-ready copies and `cleanup_authorized=false`;
 - Git I/O health disposition;
-- production/use path or not-applicable reason;
-- temporary worktree root;
+- production/use path, `PROD_USE_STATE`, physical path relation/evidence, and mutation guard;
+- registered production update authority/boundary when applicable;
 - real operator entrypoint authority;
 - all four proof-state dispositions;
 - one exact continuation when a state remains unproven.
 
 ## Proof ceiling
 
-This skill proves user-profile/path authority, Git checkout usability, and routing only. It does not mutate a product target or prove deployment/runtime success. A command handoff is incomplete until the composed operator-command handoff skill has also proved freshness and network/restore routing.
+This skill proves execution-context evidence, user-profile/path authority, bounded copy classification, Git checkout usability, conservative production-use state, and routing only. It does not prove production quiescence, mutate a product target, or prove deployment/runtime success. A command handoff is incomplete until the composed operator-command handoff skill has also proved freshness and network/restore routing.

@@ -118,8 +118,8 @@
         "applicable": true,
         "template": "C:\\SASAL",
         "mutable": false,
-        "purpose": "Short sealed AutoLogon field runtime staged by the owning refresh/bootstrap workflow.",
-        "currentness": "sealed runtime manifest and owning runtime-seal verification"
+        "purpose": "Consumer-only sealed AutoLogon field runtime. Ordinary development never mutates this path; only its tracked refresh/bootstrap owner may replace or stage it.",
+        "currentness": "sealed runtime manifest and owning runtime-seal verification; remote integration or development-checkout currentness alone is insufficient"
       },
       "temporary_worktree_root": {
         "template": "%LOCALAPPDATA%\\SysAdminSuite\\worktrees",
@@ -131,7 +131,9 @@
         "authority": "harness/api/operator-execution-route-registry.json",
         "installed_locator": "sas",
         "production_runtime_entrypoint": "C:\\SASAL\\Bootstrap-SysAdminSuiteAutoLogon.cmd",
-        "resolution": "Operator execution routing selects the registered front door and proves the resolved path before execution."
+        "production_update_authority": "scripts/Refresh-SasOperatorCommand.ps1",
+        "production_update_boundary": "Use the tracked Guest/Internet refresh/bootstrap boundary; never ad-hoc copy, pull, reset, rebuild, or edit C:\\SASAL in place.",
+        "resolution": "Operator execution routing selects the registered front door and proves the resolved production path before execution."
       }
     },
     {
@@ -204,7 +206,7 @@
     "powershell_if_else_must_be_one_paste_block": true,
     "powershell_native_failure_must_abort_single_paste_block": true,
     "next_command_must_not_require_unmerged_default_branch_artifact": true,
-    "reason": "PowerShell parses separately submitted control flow independently, native command failures do not honor ErrorActionPreference automatically, and a workstation default-branch handoff cannot depend on an artifact that exists only in an unmerged PR."
+    "reason": "PowerShell control flow must be one parsed block, native failures must stop dependent commands, arbitrary-shell handoffs must resolve the OS-owned canonical path before Git, and production/use paths must be treated as consumers rather than convenient development roots."
   },
   "proof_ceiling": "Path and user-profile identity/separation proof only. This registry does not prove repository freshness by itself, does not update a workstation, does not stage a field runtime, and does not prove a live deployment or target outcome."
 }
