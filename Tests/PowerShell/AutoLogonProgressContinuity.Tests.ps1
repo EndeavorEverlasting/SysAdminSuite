@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $modulePath = Join-Path $repoRoot 'scripts\SasAutoLogonProgress.psm1'
 $wrapperPath = Join-Path $repoRoot 'scripts\Invoke-SasAutoLogonWithContiguousProgress.ps1'
+$cmdPath = Join-Path $repoRoot 'Run-AutoLogon-ContiguousProgress.cmd'
 Import-Module $modulePath -Force
 
 function Assert-True {
@@ -74,6 +75,13 @@ for ($i = 0; $i -lt $healthyShape.Count; $i++) {
     Assert-True -Condition ([string]$normalizedHealthy[$i] -eq [string]$healthyShape[$i]) -Message "Healthy output changed at index $i."
 }
 
+# The double-click launcher must preserve the handoff instead of immediately disappearing. The
+# explicit --no-pause switch remains available for automation while the saved exit code is returned.
+$cmdText = Get-Content -LiteralPath $cmdPath -Raw -Encoding UTF8
+foreach ($requiredMarker in @('pause','--no-pause','SAS_RC','AutoLogon command exit code')) {
+    Assert-True -Condition ($cmdText -match [regex]::Escape($requiredMarker)) -Message "Operator CMD is missing required handoff marker: $requiredMarker"
+}
+
 # Execute the real wrapper against a fake launcher placed only at the canonical current-user install
 # location. Never PATH-inject a launcher. If a real machine-wide launcher exists, skip this fixture
 # rather than risk dispatching an actual field command from a developer workstation.
@@ -88,6 +96,7 @@ if (-not (Test-Path -LiteralPath $machineLauncher -PathType Leaf)) {
 @echo off
 echo [8/22] staging/hash verification: PASS
 echo [9/22] Probe task create: START
+echo synthetic canonical stderr 1>&2
 echo [9/22] Probe task: FAIL - synthetic create timeout
 echo [11/22] Probe result: FAIL - synthetic legacy failure attribution
 echo [12/22] Probe cleanup: START
@@ -102,6 +111,7 @@ exit /b 37
         $wrapperExit = [int]$LASTEXITCODE
         Assert-True -Condition ($wrapperExit -eq 37) -Message "Wrapper failed to preserve canonical sas.cmd exit code 37; got $wrapperExit."
         Assert-NoForwardGap -Lines $wrapperOutput
+        Assert-True -Condition (@($wrapperOutput | Where-Object { [string]$_ -match 'synthetic canonical stderr' }).Count -ge 1) -Message 'Canonical stderr disappeared instead of remaining visible presentation data.'
         $skipIndex = -1
         $laterIndex = -1
         for ($i = 0; $i -lt $wrapperOutput.Count; $i++) {
@@ -119,4 +129,4 @@ exit /b 37
     Write-Host 'SKIP: wrapper fake-launcher fixture not executed because a real machine-wide sas.cmd is installed.' -ForegroundColor Yellow
 }
 
-Write-Host 'PASS: AutoLogon operator-facing progress cannot jump forward across an unrendered numbered stage, and the isolated wrapper fixture preserves exit semantics.' -ForegroundColor Green
+Write-Host 'PASS: AutoLogon operator-facing progress cannot jump forward across an unrendered numbered stage, stderr/exit semantics are preserved, and the double-click handoff remains visible.' -ForegroundColor Green
