@@ -74,13 +74,17 @@ for ($i = 0; $i -lt $healthyShape.Count; $i++) {
     Assert-True -Condition ([string]$normalizedHealthy[$i] -eq [string]$healthyShape[$i]) -Message "Healthy output changed at index $i."
 }
 
-# Execute the real wrapper against a PATH-injected fake sas.cmd. This proves the operator front door
-# fills a gap without network/target contact and propagates the canonical command's nonzero exit code.
-$fixtureRoot = Join-Path $env:TEMP ('sas-autologon-progress-' + [guid]::NewGuid().ToString('N'))
-$fixtureBin = Join-Path $fixtureRoot 'bin'
-New-Item -ItemType Directory -Path $fixtureBin -Force | Out-Null
-$fakeSas = Join-Path $fixtureBin 'sas.cmd'
-@'
+# Execute the real wrapper against a fake launcher placed only at the canonical current-user install
+# location. Never PATH-inject a launcher. If a real machine-wide launcher exists, skip this fixture
+# rather than risk dispatching an actual field command from a developer workstation.
+$machineLauncher = 'C:\ProgramData\SysAdminSuite\bin\sas.cmd'
+if (-not (Test-Path -LiteralPath $machineLauncher -PathType Leaf)) {
+    $fixtureRoot = Join-Path $env:TEMP ('sas-autologon-progress-' + [guid]::NewGuid().ToString('N'))
+    $fixtureLocalAppData = Join-Path $fixtureRoot 'LocalAppData'
+    $fixtureBin = Join-Path $fixtureLocalAppData 'SysAdminSuite\bin'
+    New-Item -ItemType Directory -Path $fixtureBin -Force | Out-Null
+    $fakeSas = Join-Path $fixtureBin 'sas.cmd'
+    @'
 @echo off
 echo [8/22] staging/hash verification: PASS
 echo [9/22] Probe task create: START
@@ -90,26 +94,29 @@ echo [12/22] Probe cleanup: START
 exit /b 37
 '@ | Set-Content -LiteralPath $fakeSas -Encoding ASCII
 
-$originalPath = $env:PATH
-try {
-    $env:PATH = "$fixtureBin;$originalPath"
-    $powershellExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $wrapperOutput = @(& $powershellExe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $wrapperPath -ComputerName 'fixture.example.invalid' 2>&1)
-    $wrapperExit = [int]$LASTEXITCODE
-    Assert-True -Condition ($wrapperExit -eq 37) -Message "Wrapper failed to preserve canonical sas.cmd exit code 37; got $wrapperExit."
-    Assert-NoForwardGap -Lines $wrapperOutput
-    $skipIndex = -1
-    $laterIndex = -1
-    for ($i = 0; $i -lt $wrapperOutput.Count; $i++) {
-        if ([string]$wrapperOutput[$i] -match '^\[10/22\] Probe task run: SKIP ') { $skipIndex = $i }
-        if ([string]$wrapperOutput[$i] -match '^\[11/22\] Probe result: FAIL ') { $laterIndex = $i }
+    $originalLocalAppData = $env:LOCALAPPDATA
+    try {
+        $env:LOCALAPPDATA = $fixtureLocalAppData
+        $powershellExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $wrapperOutput = @(& $powershellExe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $wrapperPath -ComputerName 'fixture.example.invalid' 2>&1)
+        $wrapperExit = [int]$LASTEXITCODE
+        Assert-True -Condition ($wrapperExit -eq 37) -Message "Wrapper failed to preserve canonical sas.cmd exit code 37; got $wrapperExit."
+        Assert-NoForwardGap -Lines $wrapperOutput
+        $skipIndex = -1
+        $laterIndex = -1
+        for ($i = 0; $i -lt $wrapperOutput.Count; $i++) {
+            if ([string]$wrapperOutput[$i] -match '^\[10/22\] Probe task run: SKIP ') { $skipIndex = $i }
+            if ([string]$wrapperOutput[$i] -match '^\[11/22\] Probe result: FAIL ') { $laterIndex = $i }
+        }
+        Assert-True -Condition ($skipIndex -ge 0) -Message 'Operator wrapper did not emit the missing middle stage.'
+        Assert-True -Condition ($laterIndex -gt $skipIndex) -Message 'Operator wrapper did not emit the missing stage before the later stage.'
     }
-    Assert-True -Condition ($skipIndex -ge 0) -Message 'Operator wrapper did not emit the missing middle stage.'
-    Assert-True -Condition ($laterIndex -gt $skipIndex) -Message 'Operator wrapper did not emit the missing stage before the later stage.'
-}
-finally {
-    $env:PATH = $originalPath
-    Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+    finally {
+        $env:LOCALAPPDATA = $originalLocalAppData
+        Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+} else {
+    Write-Host 'SKIP: wrapper fake-launcher fixture not executed because a real machine-wide sas.cmd is installed.' -ForegroundColor Yellow
 }
 
-Write-Host 'PASS: AutoLogon operator-facing progress cannot jump forward across an unrendered numbered stage, and wrapper exit semantics are preserved.' -ForegroundColor Green
+Write-Host 'PASS: AutoLogon operator-facing progress cannot jump forward across an unrendered numbered stage, and the isolated wrapper fixture preserves exit semantics.' -ForegroundColor Green
