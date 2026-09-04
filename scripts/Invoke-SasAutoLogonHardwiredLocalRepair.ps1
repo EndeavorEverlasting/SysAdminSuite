@@ -10,10 +10,11 @@ remote repository acquisition. Local Git is used only to prove the source checko
 from the local source path into the existing sealed C:\SASAL repository, verify the complete tracked tree, and
 remove runtime remotes before the existing crash-safe AutoLogon transaction starts.
 
-Ordinary `sas refresh` remains Guest/Internet-only. This script does not make GitHub, origin, pull, clone, or
-remote fetch legal on the protected network. It fails closed unless the prior runtime proves remotes removed,
-the source and runtime are clean, the source is exactly ExpectedCommit, and the current network has an active
-DomainAuthenticated non-Wi-Fi authority. No target is contacted before those gates complete.
+Ordinary `sas refresh` and the ordinary `sas autologon` sealed-runtime route remain Guest/Internet-staged.
+This hardwired lane writes a separate hardwired seal/receipt instead of masquerading as a Guest-prepared v2
+manifest. When local repair changes the runtime commit, the now-stale Guest v2 manifests are removed before
+any READY receipt is published. No target is contacted before local source, prior seal, network authority,
+runtime convergence, dependency validation, and launcher installation gates complete.
 #>
 [CmdletBinding()]
 param(
@@ -47,8 +48,7 @@ else {
 }
 $SourceRoot = [IO.Path]::GetFullPath($SourceRoot)
 $ExpectedCommit = $ExpectedCommit.Trim().ToLowerInvariant()
-$RuntimeRoot = 'C:\SASAL'
-$RuntimeRoot = [IO.Path]::GetFullPath($RuntimeRoot)
+$RuntimeRoot = [IO.Path]::GetFullPath('C:\SASAL')
 
 if ($SourceRoot -notmatch '^[A-Za-z]:\\') {
     throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: source must be an already-local drive path, not UNC/network storage: $SourceRoot"
@@ -188,9 +188,9 @@ if ($sourceTracked.Count -lt 1) { throw 'HARDWIRED_LOCAL_REPAIR_BLOCKED: exact l
 Write-Host "PASS: exact local source checkout is clean at $sourceHead ($($sourceTracked.Count) tracked files)." -ForegroundColor Green
 
 $runtimeGitMetadata = Join-Path $RuntimeRoot '.git'
-$runtimeManifestPath = Join-Path $runtimeGitMetadata 'sas-autologon-short-runtime.json'
-$currentManifestPath = Join-Path (Join-Path $env:LOCALAPPDATA 'SysAdminSuite') 'autologon-short-runtime.json'
-$priorManifestPath = if (Test-Path -LiteralPath $runtimeManifestPath -PathType Leaf) { $runtimeManifestPath } elseif (Test-Path -LiteralPath $currentManifestPath -PathType Leaf) { $currentManifestPath } else { $null }
+$runtimeStandardManifestPath = Join-Path $runtimeGitMetadata 'sas-autologon-short-runtime.json'
+$currentStandardManifestPath = Join-Path (Join-Path $env:LOCALAPPDATA 'SysAdminSuite') 'autologon-short-runtime.json'
+$priorManifestPath = if (Test-Path -LiteralPath $runtimeStandardManifestPath -PathType Leaf) { $runtimeStandardManifestPath } elseif (Test-Path -LiteralPath $currentStandardManifestPath -PathType Leaf) { $currentStandardManifestPath } else { $null }
 if ($null -eq $priorManifestPath) {
     throw 'HARDWIRED_LOCAL_REPAIR_BLOCKED: a prior sealed AutoLogon v2 manifest is required before protected-network local repair.'
 }
@@ -200,6 +200,14 @@ if ([string]$prior.schema_version -ne 'sas-autologon-short-runtime/v2' -or
     -not [bool]$prior.runtime_remotes_removed -or
     [bool]$prior.protected_bootstrap_git_network_allowed) {
     throw 'HARDWIRED_LOCAL_REPAIR_BLOCKED: prior runtime does not prove v2 seal, remotes removed, and protected Git network disabled.'
+}
+$priorRuntimeRoot = [IO.Path]::GetFullPath([string]$prior.runtime_root)
+if (-not $priorRuntimeRoot.TrimEnd('\').Equals($RuntimeRoot.TrimEnd('\'),[StringComparison]::OrdinalIgnoreCase)) {
+    throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: prior manifest runtime mismatch. Manifest=$priorRuntimeRoot Runtime=$RuntimeRoot"
+}
+$priorPreparedCommit = ([string]$prior.prepared_commit).Trim().ToLowerInvariant()
+if ([string]::IsNullOrWhiteSpace($priorPreparedCommit)) {
+    throw 'HARDWIRED_LOCAL_REPAIR_BLOCKED: prior sealed runtime has no prepared commit.'
 }
 if (-not (Test-Path -LiteralPath $runtimeGitMetadata -PathType Container)) {
     throw 'HARDWIRED_LOCAL_REPAIR_BLOCKED: C:\SASAL must be the standalone sealed runtime with a local .git metadata directory.'
@@ -243,6 +251,17 @@ if (@($runtimeDirtyAfter | Where-Object { -not [string]::IsNullOrWhiteSpace([str
     throw 'HARDWIRED_LOCAL_REPAIR_BLOCKED: runtime became dirty during local-only convergence.'
 }
 
+$standardGuestSealPreserved = $priorPreparedCommit -eq $ExpectedCommit
+if (-not $standardGuestSealPreserved) {
+    foreach ($stalePath in @($runtimeStandardManifestPath,$currentStandardManifestPath)) {
+        if (Test-Path -LiteralPath $stalePath -PathType Leaf) {
+            Remove-Item -LiteralPath $stalePath -Force
+        }
+    }
+    Write-Host 'STALE GUEST SEAL INVALIDATED: runtime commit changed under hardwired local-only repair.' -ForegroundColor Yellow
+    Write-Host "Ordinary 'sas autologon' remains unavailable until the next Guest/Internet refresh; use this dedicated hardwired lane for the current transaction." -ForegroundColor Yellow
+}
+
 $remotes = @(Invoke-SasHardwiredLocalGit -Root $RuntimeRoot -Arguments @('remote') -FailureMessage 'Could not inspect runtime remotes.' -Quiet)
 foreach ($remote in @($remotes | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })) {
     [void](Invoke-SasHardwiredLocalGit -Root $RuntimeRoot -Arguments @('remote','remove',[string]$remote) -FailureMessage "Could not remove runtime remote '$remote'.")
@@ -275,62 +294,17 @@ foreach ($relative in $runtimeTracked) {
     $hashes += [pscustomobject][ordered]@{ path=$relative; sha256=(Get-SasSha256Hex -LiteralPath $fullPath) }
 }
 
-$manifest = [pscustomobject][ordered]@{
-    schema_version = 'sas-autologon-short-runtime/v2'
-    runtime_root = $RuntimeRoot
-    source_root = $SourceRoot
-    prepared_commit = $ExpectedCommit
-    prepared_at_utc = (Get-Date).ToUniversalTime().ToString('o')
-    preparation_network_classification = 'PROTECTED_NORTHWELL'
-    preparation_network_label = 'DomainAuthenticated non-Wi-Fi hardwired local reseal'
-    preparation_mode = 'HARDWIRED_LOCAL_RESEAL'
-    preparation_git_transport = 'LOCAL_FILESYSTEM_ONLY'
-    preparation_remote_git_performed = $false
-    runtime_git_transport = 'LOCAL_FILESYSTEM_ONLY'
-    runtime_remotes_removed = $true
-    protected_bootstrap_git_network_allowed = $false
-    tracked_file_hash_algorithm = 'SHA256'
-    tracked_file_count = $hashes.Count
-    tracked_file_hashes = $hashes
-    target_contact_performed = $false
-    target_mutation_performed = $false
-}
-Write-SasUtf8Json -Path $runtimeManifestPath -Value $manifest
-Write-SasUtf8Json -Path $currentManifestPath -Value $manifest
-
-foreach ($entry in $hashes) {
-    $fullPath = [IO.Path]::GetFullPath((Join-Path $RuntimeRoot ([string]$entry.path).Replace('/','\')))
-    $actual = Get-SasSha256Hex -LiteralPath $fullPath
-    if ($actual -ne [string]$entry.sha256) {
-        throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: post-seal SHA-256 mismatch: $($entry.path)"
-    }
-}
-
-$stateRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite'
-$receiptPath = Join-Path $stateRoot 'autologon-hardwired-local-reseal.json'
-$receipt = [pscustomobject][ordered]@{
-    schema_version = 'sas-autologon-hardwired-local-reseal/v1'
-    created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
-    status = 'READY_FOR_CRASH_SAFE_AUTOLOGON'
-    source_root = $SourceRoot
-    runtime_root = $RuntimeRoot
-    prepared_commit = $ExpectedCommit
-    tracked_file_count = $hashes.Count
-    preparation_network_classification = 'PROTECTED_NORTHWELL'
-    preparation_mode = 'HARDWIRED_LOCAL_RESEAL'
-    preparation_git_transport = 'LOCAL_FILESYSTEM_ONLY'
-    preparation_remote_git_performed = $false
-    runtime_remotes_removed = $true
-    target_contact_performed = $false
-    target_mutation_performed = $false
-}
-Write-SasUtf8Json -Path $receiptPath -Value $receipt
-
 $operatorInstaller = Join-Path $RuntimeRoot 'scripts\Install-SasPortableLauncher.ps1'
 $crashSafeScript = Join-Path $RuntimeRoot 'scripts\Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
 foreach ($required in @($operatorInstaller,$crashSafeScript)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: resealed runtime dependency missing: $required"
+    }
+    $parseTokens = $null
+    $parseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$parseTokens,[ref]$parseErrors)
+    if (@($parseErrors).Count -gt 0) {
+        throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: resealed runtime dependency does not parse under Windows PowerShell 5.1: $required :: $($parseErrors[0].Message)"
     }
 }
 
@@ -340,6 +314,43 @@ if ([int]$LASTEXITCODE -ne 0) {
     throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: installed sas shim refresh failed with exit code $LASTEXITCODE"
 }
 
+foreach ($entry in $hashes) {
+    $fullPath = [IO.Path]::GetFullPath((Join-Path $RuntimeRoot ([string]$entry.path).Replace('/','\')))
+    $actual = Get-SasSha256Hex -LiteralPath $fullPath
+    if ($actual -ne [string]$entry.sha256) {
+        throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: post-launcher SHA-256 mismatch: $($entry.path)"
+    }
+}
+
+$hardwiredSealPath = Join-Path $runtimeGitMetadata 'sas-autologon-hardwired-local-reseal.json'
+$receiptPath = Join-Path (Join-Path $env:LOCALAPPDATA 'SysAdminSuite') 'autologon-hardwired-local-reseal.json'
+$hardwiredSeal = [pscustomobject][ordered]@{
+    schema_version = 'sas-autologon-hardwired-local-reseal/v1'
+    created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+    status = 'READY_FOR_CRASH_SAFE_AUTOLOGON'
+    source_root = $SourceRoot
+    runtime_root = $RuntimeRoot
+    prepared_commit = $ExpectedCommit
+    prior_guest_prepared_commit = $priorPreparedCommit
+    standard_guest_seal_preserved = [bool]$standardGuestSealPreserved
+    preparation_network_classification = 'PROTECTED_NORTHWELL'
+    preparation_mode = 'HARDWIRED_LOCAL_RESEAL'
+    preparation_git_transport = 'LOCAL_FILESYSTEM_ONLY'
+    preparation_remote_git_performed = $false
+    runtime_git_transport = 'LOCAL_FILESYSTEM_ONLY'
+    runtime_remotes_removed = $true
+    protected_bootstrap_git_network_allowed = $false
+    tracked_file_hash_algorithm = 'SHA256'
+    tracked_file_count = $hashes.Count
+    tracked_file_hashes = $hashes
+    dependencies_validated = $true
+    operator_launcher_installed = $true
+    target_contact_performed = $false
+    target_mutation_performed = $false
+}
+Write-SasUtf8Json -Path $hardwiredSealPath -Value $hardwiredSeal
+Write-SasUtf8Json -Path $receiptPath -Value $hardwiredSeal
+
 Write-Host ''
 Write-Host 'PASS: HARDWIRED LOCAL RUNTIME RESEAL COMPLETE' -ForegroundColor Green
 Write-Host "Runtime commit: $ExpectedCommit"
@@ -347,6 +358,7 @@ Write-Host "Tracked files sealed: $($hashes.Count)"
 Write-Host 'Remote repository acquisition: NONE' -ForegroundColor Green
 Write-Host 'Runtime Git remotes: NONE' -ForegroundColor Green
 Write-Host 'Target contact during reseal: NONE' -ForegroundColor Green
+Write-Host "Hardwired seal: $hardwiredSealPath"
 Write-Host "Receipt: $receiptPath"
 
 Write-Host ''
