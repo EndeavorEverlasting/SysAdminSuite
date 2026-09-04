@@ -19,7 +19,9 @@ jobs:
             'scripts\SasAutoLogonOperatorState.psm1',
             'scripts\Invoke-SasAutoLogonFieldDeployment.ps1',
             'scripts\SasBoundedNative.psm1',
-            'scripts\Repair-SasBoundedNativeS4UCreateRuntime.ps1'
+            'scripts\Repair-SasBoundedNativeS4UCreateRuntime.ps1',
+            'scripts\SasAutoLogonProgress.psm1',
+            'scripts\Invoke-SasAutoLogonWithContiguousProgress.ps1'
           )) {
             $path = Join-Path $PWD $relative
             $tokens = $null
@@ -31,6 +33,11 @@ jobs:
             }
             Write-Host "PASS: $relative parses under Windows PowerShell 5.1"
           }
+      - name: Prove AutoLogon operator progress numbering is contiguous
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\Tests\PowerShell\AutoLogonProgressContinuity.Tests.ps1
       - name: Validate bounded S4U task create timeout reconciliation
         shell: powershell
         run: |
