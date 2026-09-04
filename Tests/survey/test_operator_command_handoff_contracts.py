@@ -12,6 +12,7 @@ CANONICAL = ROOT / "harness/skills/canonical-path-resolution/SKILL.md"
 ROUTE = ROOT / "harness/skills/operator-execution-route/SKILL.md"
 FIELD = ROOT / ".claude/skills/field-workflow/SKILL.md"
 REPO_SPRINT = ROOT / ".claude/skills/repository-sprint/SKILL.md"
+CI = ROOT / ".github/workflows/operator-command-handoff-contracts.yml"
 
 
 def read(path: Path) -> str:
@@ -115,6 +116,16 @@ def test_fresh_agent_retains_existing_freshness_handoff_contract() -> None:
         assert marker in handoff
 
 
+def test_focused_workflow_tracks_all_composed_authorities() -> None:
+    text = read(CI)
+    for authority in (
+        "harness/api/canonical-path-registry.json",
+        "harness/workflows/repository-freshness-before-launch.yaml",
+        "harness/api/operator-execution-route-registry.json",
+    ):
+        assert text.count(f"      - '{authority}'") == 2, f"focused handoff CI must watch {authority} for both push and pull_request"
+
+
 def main() -> int:
     test_focused_validator()
     test_agent_surfaces_cannot_skip_composed_handoff()
@@ -123,6 +134,7 @@ def main() -> int:
     test_fresh_agent_execute_stage_orders_real_gates_once()
     test_sealed_runtime_does_not_use_git_as_currentness_proof()
     test_fresh_agent_retains_existing_freshness_handoff_contract()
+    test_focused_workflow_tracks_all_composed_authorities()
     print("PASS: operator command handoff regression contracts")
     return 0
 
