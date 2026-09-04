@@ -34,10 +34,17 @@ def assert_registry_owns_resolver() -> None:
     assert registry["policy"]["second_mutable_clone_is_forbidden"] is True
     assert registry["policy"]["desktop_dev_root_is_authoritative"] is True
     assert registry["policy"]["onedrive_toggle_does_not_choose_desktop_location"] is True
+    admin = next(item for item in registry["profiles"] if item["id"] == "windows-admin-box")
+    assert admin["production_use_path"]["template"] == "C:\\SASAL"
+    assert admin["production_use_path"]["mutable"] is False
+    assert admin["real_operator_entrypoint"]["production_update_authority"] == "scripts/Refresh-SasOperatorCommand.ps1"
+    assert "never ad-hoc" in admin["real_operator_entrypoint"]["production_update_boundary"].lower()
     safety = registry["operator_command_safety"]
     assert safety["powershell_if_else_must_be_one_paste_block"] is True
     assert safety["powershell_native_failure_must_abort_single_paste_block"] is True
     assert safety["next_command_must_not_require_unmerged_default_branch_artifact"] is True
+    assert "arbitrary-shell" in safety["reason"]
+    assert "production/use paths" in safety["reason"]
 
 
 def assert_resolver_fails_closed_without_cwd_authority() -> None:
@@ -99,8 +106,62 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
         assert marker not in text, f"resolver contains forbidden machine-specific/destructive behavior: {marker}"
 
 
+def assert_execution_context_and_production_use_state_are_explicit() -> None:
+    """Prevent a fresh agent from treating a prompt, path existence, or remote merge as mutation authority."""
+    text = read(RESOLVER)
+    for marker in (
+        "execution_context_status = $executionContextStatus",
+        "terminal_host = $terminalHost",
+        "terminal_application = $terminalApplication",
+        "shell_interpreter = $processPath",
+        "powershell_edition = $powershellEdition",
+        "powershell_version = $powershellVersion",
+        "runtime_boundary = $runtimeBoundary",
+        "execution_target = $executionTarget",
+        "current_working_directory = $currentWorkingDirectory",
+        "PROVED_LOCAL_WINDOWS_PROCESS",
+        "UNKNOWN_NOT_PROBED",
+        "production_use_state = $productionUseState",
+        "production_use_state_evidence = $productionUseStateEvidence",
+        "production_use_reparse_state = $productionReparseState",
+        "production_ad_hoc_mutation_allowed = $productionAdHocMutationAllowed",
+        "production_update_authority = $productionUpdateAuthority",
+        "production_update_boundary = $productionUpdateBoundary",
+        "development_mutation_guard = $developmentMutationGuard",
+        "remote_integration_is_local_deployment = $false",
+        "cleanup_authorized = $false",
+    ):
+        assert marker in text, f"execution/production receipt missing: {marker}"
+
+    assert "Registered production/use path exists, but this read-only resolver does not infer quiescence" in text
+    assert "$productionUseState = 'UNKNOWN'" in text
+    assert "$productionUseState = 'OFFLINE'" in text
+    assert "$productionUseState = 'NOT_APPLICABLE'" in text
+    assert "$productionAdHocMutationAllowed = $false" in text
+    assert "SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING" in text
+    assert "BLOCK_UNTIL_PRODUCTION_QUIESCED_OR_TRACKED_IN_PLACE_SAFETY_PROVED" in text
+
+
+def assert_bounded_copy_inventory_prevents_path_sprawl() -> None:
+    """Require explicit copy classes without broad-disk cleanup or silent disposable claims."""
+    text = read(RESOLVER)
+    for marker in (
+        "candidate_location_class = $candidateLocationClass",
+        "location_class_vocabulary = @('CLONE','WORKTREE','INSTALL','MIRROR','CACHE','OUTPUT','BACKUP','UNKNOWN')",
+        "known_location_inventory = $knownLocations",
+        "PRESERVE_UNTIL_PROVED_DISPOSABLE",
+        "short-runtime-preservation",
+        "closeout-entry-*",
+        "RUNTIME_OUTPUT_ROOT",
+        "PRESERVED_RUNTIME_BACKUP",
+    ):
+        assert marker in text, f"copy classification/inventory missing: {marker}"
+    assert "Get-PSDrive" not in text, "resolver must not broaden bounded copy inventory into arbitrary drive scanning"
+    assert "DISPOSABLE'" not in text, "resolver must not declare a copy disposable without content/ownership proof"
+
+
 def assert_workflow_and_skill_block_the_recurrence() -> None:
-    """Freeze the original cwd failure plus native-continuation and unmerged-helper recurrence."""
+    """Freeze cwd, production-state, native-continuation, and unmerged-helper recurrence."""
     workflow = read(WORKFLOW)
     skill = read(SKILL)
     for text, label in ((workflow, "workflow"), (skill, "skill")):
@@ -109,6 +170,18 @@ def assert_workflow_and_skill_block_the_recurrence() -> None:
         assert "fallback clone" in text.lower(), f"{label} must forbid fallback checkout creation"
         assert "git i/o" in text.lower(), f"{label} must require Git I/O health"
         assert "unmerged" in text.lower(), f"{label} must forbid default-branch dependence on unmerged helpers"
+
+    for marker in (
+        "resolve-execution-context",
+        "PROD_USE_STATE",
+        "UNKNOWN is not idle",
+        "ACTIVE or UNKNOWN production/use state blocks ad-hoc production-path mutation",
+        "SAME_PHYSICAL_PATH",
+        "CLONE, WORKTREE, INSTALL, MIRROR, CACHE, OUTPUT, BACKUP, or UNKNOWN",
+        "production_update_authority",
+        "cleanup_authorized",
+    ):
+        assert marker.lower() in workflow.lower(), f"workflow missing execution/use safety marker: {marker}"
 
     for marker in (
         "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)",
@@ -145,12 +218,16 @@ def main() -> int:
     """Execute the complete canonical path from-anywhere contract floor."""
     assert_registry_owns_resolver()
     assert_resolver_fails_closed_without_cwd_authority()
+    assert_execution_context_and_production_use_state_are_explicit()
+    assert_bounded_copy_inventory_prevents_path_sprawl()
     assert_workflow_and_skill_block_the_recurrence()
     assert_provider_fixture_is_wired()
     print("[PASS] canonical path registry owns uniqueness, Git I/O health, and atomic/default-branch-safe handoffs")
     print("[PASS] resolver keeps actual Windows Desktop Known Folder distinct from an explicit Desktop Dev override")
     print("[PASS] resolver fails closed on cwd, OneDrive conflicts, wrong origin, reparse state, and Git I/O failure")
-    print("[PASS] workflow and skill block the repeated native-continuation and unmerged-helper handoff defect")
+    print("[PASS] execution context, PROD_USE_STATE, same-path safety, and registered production update authority are explicit")
+    print("[PASS] bounded CLONE/WORKTREE/INSTALL/MIRROR/CACHE/OUTPUT/BACKUP classification forbids silent cleanup")
+    print("[PASS] workflow blocks repeated native-continuation, production-mutation, and unmerged-helper handoff defects")
     print("[PASS] Windows provider fixtures cover missing, wrong-repository, unhealthy-I/O, and canonical checkout states")
     return 0
 
