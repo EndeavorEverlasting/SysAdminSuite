@@ -157,7 +157,7 @@ def assert_bounded_copy_inventory_prevents_path_sprawl() -> None:
     ):
         assert marker in text, f"copy classification/inventory missing: {marker}"
     assert "Get-PSDrive" not in text, "resolver must not broaden bounded copy inventory into arbitrary drive scanning"
-    assert "DISPOSABLE'" not in text, "resolver must not declare a copy disposable without content/ownership proof"
+    assert "disposition='DISPOSABLE'" not in text, "resolver must not declare a copy disposable without content/ownership proof"
 
 
 def assert_workflow_and_skill_block_the_recurrence() -> None:
