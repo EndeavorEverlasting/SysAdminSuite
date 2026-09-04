@@ -105,6 +105,7 @@ function Invoke-SasBoundedNative {
     # S4U task creation is a remote RPC operation. A controller-side timeout does not prove that
     # the exact GUID-unique task failed to commit remotely. Give only the AutoLogon S4U create
     # operation a larger bounded window and, if it still times out, reconcile only that exact task.
+    # Reconciliation is read-only and finite; the exact /Create mutation is never replayed here.
     $requestedTimeoutSeconds = $TimeoutSeconds
     $effectiveTimeoutSeconds = $TimeoutSeconds
     $timeoutPolicy = 'requested'
@@ -127,9 +128,9 @@ function Invoke-SasBoundedNative {
             [string]$s4uCreateTaskName -match '^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$')
     }
 
-    if ($isExactS4UCreate -and $effectiveTimeoutSeconds -lt 60) {
-        $effectiveTimeoutSeconds = 60
-        $timeoutPolicy = 's4u_task_create_minimum_60'
+    if ($isExactS4UCreate -and $effectiveTimeoutSeconds -lt 120) {
+        $effectiveTimeoutSeconds = 120
+        $timeoutPolicy = 's4u_task_create_minimum_120'
     }
 
     # Keep Windows PowerShell 5.1 string[] argument semantics without constructing a fragile
@@ -154,12 +155,23 @@ catch {
     $initialTimedOut = [bool]$result.timed_out
     $reconciledAfterTimeout = $false
     $reconciliation = $null
+    $reconciliationAttempts = @()
+    $reconciliationAttemptLimit = 3
+    $reconciliationTimeoutSeconds = [Math]::Max(1, [Math]::Min(30, $requestedTimeoutSeconds))
 
     if ($isExactS4UCreate -and $initialTimedOut) {
-        $reconciliation = Invoke-SasBoundedNative -FilePath $FilePath -Arguments @(
-            '/Query','/S',$s4uCreateTarget,'/TN',$s4uCreateTaskName
-        ) -TimeoutSeconds $requestedTimeoutSeconds
-        $reconciledAfterTimeout = (-not [bool]$reconciliation.timed_out -and [int]$reconciliation.exit_code -eq 0)
+        for ($attempt = 1; $attempt -le $reconciliationAttemptLimit; $attempt++) {
+            if ($attempt -gt 1) { Start-Sleep -Seconds 2 }
+            $attemptResult = Invoke-SasBoundedNative -FilePath $FilePath -Arguments @(
+                '/Query','/S',$s4uCreateTarget,'/TN',$s4uCreateTaskName
+            ) -TimeoutSeconds $reconciliationTimeoutSeconds
+            $reconciliationAttempts += $attemptResult
+            $reconciliation = $attemptResult
+            if (-not [bool]$attemptResult.timed_out -and [int]$attemptResult.exit_code -eq 0) {
+                $reconciledAfterTimeout = $true
+                break
+            }
+        }
     }
 
     if ($reconciledAfterTimeout) {
@@ -174,6 +186,10 @@ catch {
             timeout_policy = $timeoutPolicy
             initial_timed_out = $true
             reconciled_after_timeout = $true
+            reconciliation_attempt_limit = $reconciliationAttemptLimit
+            reconciliation_attempt_count = @($reconciliationAttempts).Count
+            reconciliation_timeout_seconds = $reconciliationTimeoutSeconds
+            reconciliation_attempts = @($reconciliationAttempts)
             reconciliation = $reconciliation
             child_tree_termination_attempted = $result.child_tree_termination_attempted
             child_tree_terminated = $result.child_tree_terminated
@@ -196,12 +212,16 @@ catch {
         timeout_policy = $timeoutPolicy
         initial_timed_out = $initialTimedOut
         reconciled_after_timeout = $false
+        reconciliation_attempt_limit = $(if ($isExactS4UCreate) { $reconciliationAttemptLimit } else { 0 })
+        reconciliation_attempt_count = @($reconciliationAttempts).Count
+        reconciliation_timeout_seconds = $(if ($isExactS4UCreate) { $reconciliationTimeoutSeconds } else { 0 })
+        reconciliation_attempts = @($reconciliationAttempts)
         reconciliation = $reconciliation
         child_tree_termination_attempted = $result.child_tree_termination_attempted
         child_tree_terminated = $result.child_tree_terminated
         output = $result.output
         error = $result.error
-        initial_error = $null
+        initial_error = $(if ($initialTimedOut) { [string]$result.error } else { $null })
         started_utc = $result.started_utc
         completed_utc = $result.completed_utc
     }
