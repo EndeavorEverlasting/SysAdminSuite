@@ -20,23 +20,33 @@ if [[ "$blocked" -ne 0 ]]; then
   exit 1
 fi
 
-snapshot="$(mktemp -d "${TMPDIR:-/tmp}/sas-harness-index.XXXXXX")"
+# Freeze one coherent staged tree and derive both the worktree snapshot and the validator index
+# from that same immutable tree. Validators must never read a concurrently changing live index.
+snapshot_root="$(mktemp -d "${TMPDIR:-/tmp}/sas-harness-index.XXXXXX")"
+snapshot="$snapshot_root/worktree"
+snapshot_index="$snapshot_root/index"
+mkdir -p "$snapshot"
 cleanup() {
-  rm -rf "$snapshot"
+  rm -rf "$snapshot_root"
 }
 trap cleanup EXIT HUP INT TERM
 
-git checkout-index --all --force --prefix="$snapshot/"
+snapshot_tree="$(git write-tree)"
+GIT_INDEX_FILE="$snapshot_index" git read-tree "$snapshot_tree"
+GIT_INDEX_FILE="$snapshot_index" git checkout-index --all --force --prefix="$snapshot/"
 
-echo "[sas-harness] pre-commit: validating the exact staged snapshot"
+echo "[sas-harness] pre-commit: validating the exact staged snapshot $snapshot_tree"
 (
   export GIT_DIR="$git_dir"
   export GIT_WORK_TREE="$snapshot"
+  export GIT_INDEX_FILE="$snapshot_index"
   cd "$snapshot"
   python3 harness/validators/validate-harness-registries.py
   python3 harness/validators/validate-repository-freshness-contracts.py
   python3 harness/validators/validate-canonical-path-contracts.py
   python3 Tests/survey/test_canonical_path_harness_completeness.py
+  python3 harness/validators/validate-operator-command-handoff.py
+  python3 Tests/survey/test_operator_command_handoff_contracts.py
   python3 harness/validators/validate-outcome-contracts.py
   python3 harness/validators/validate-deployment-state-contracts.py
   python3 harness/validators/validate-operator-execution-route.py
