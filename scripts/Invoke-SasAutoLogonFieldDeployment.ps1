@@ -458,7 +458,7 @@ catch {
     if ($_.Exception.Message -like 'Another AutoLogon field transaction already owns canonical target*') {
         $result.classification = 'AUTOLOGON_FIELD_TARGET_LOCKED'
     }
-    elseif ($mustStop -or $recoveryReviewRequired) {
+    elseif ($mustStop -or $evidenceReviewRequired -or $recoveryReviewRequired) {
         $result.classification = 'AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED'
     }
     elseif ([bool]$result.autologon_deployment_started) {
