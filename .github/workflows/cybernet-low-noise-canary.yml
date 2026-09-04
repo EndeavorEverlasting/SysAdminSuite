@@ -18,6 +18,9 @@ on:
       - '.github/workflows/cybernet-low-noise-canary.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   contract:
     runs-on: windows-latest
@@ -47,7 +50,9 @@ jobs:
           fetch-depth: 0
       - name: Check pull-request whitespace
         if: github.event_name == 'pull_request'
-        run: git diff --check origin/${{ github.base_ref }}...HEAD
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git diff --check "origin/$BASE_REF...HEAD"
       - name: Check manual-run tip whitespace
         if: github.event_name == 'workflow_dispatch'
         run: git diff --check HEAD^..HEAD
