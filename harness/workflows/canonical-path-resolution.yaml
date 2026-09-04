@@ -55,7 +55,8 @@ invariants:
   - production/use is a consumer path, not the default development mutation target
   - PROD_USE_STATE is ACTIVE, QUIESCED, OFFLINE, UNKNOWN, or NOT_APPLICABLE; UNKNOWN is not idle
   - ACTIVE or UNKNOWN production/use state blocks ad-hoc production-path mutation
-  - when development and production resolve to the same physical path, every development write is production-impacting
+  - path_relation=SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING means every development write is production-impacting
+  - path_relation=UNKNOWN_REPARSE_POINT_RELATION blocks mutation until the junction, symlink, mount, or other reparse target relation is proved
   - when development and production are separate, edit/build/test only in canonical development or an approved worktree and cross the registered update boundary afterward
   - product-specific launchers and updaters retain their own mutation authority; path resolution grants none
 
@@ -99,8 +100,9 @@ stages:
     order: 4
     actions:
       - normalize the candidate path without mutating it
-      - classify the candidate role as canonical_development, production_use, isolated_worktree, ephemeral_acquisition, runtime_output, preserved_backup, or unknown
+      - classify the candidate path role as canonical_development, production_use, isolated_worktree, ephemeral_acquisition, runtime_output, preserved_backup, or unknown
       - classify bounded known locations as CLONE, WORKTREE, INSTALL, MIRROR, CACHE, OUTPUT, BACKUP, or UNKNOWN
+      - enumerate child worktrees only beneath the registered temporary_worktree_root; do not scan arbitrary drives for convenient clones
       - reject ephemeral_acquisition, output, backup, or unknown as a replacement canonical development checkout
       - preserve dirty, unpushed, unique, separately owned, or not-yet-inspected candidate state
       - never delete or reset merely to make the machine tidy
@@ -119,13 +121,14 @@ stages:
       - require repository identity to match EndeavorEverlasting/SysAdminSuite
       - require a bounded Git I/O health probe before the checkout can become CANONICAL + PROVED
       - on Windows use git status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty as that health probe
+      - inspect reparse-point state before treating normalized string equality as physical-path equality
       - when the health probe is nonzero, record CONFLICT_GIT_IO_UNHEALTHY and stop before fetch, log, status, reset, clean, worktree creation, or checkout-owned script execution
       - use scripts/Resolve-SasCanonicalDevelopmentPath.ps1 -RequireCheckout only when that resolver is already contained in refreshed remote default or comes from another already-trusted source
       - compare the checkout Git identity and preserved state with the intended commit only after health proof
       - when collision isolation is required, use a Git worktree beneath the registered temporary_worktree_root instead of creating another mutable clone
       - record canonical_development_checkout_current only from local checkout evidence
     stop_conditions:
-      - canonical development checkout is missing, wrong-repository, nested under another checkout, Git-I/O-unhealthy, or otherwise unproved
+      - canonical development checkout is missing, wrong-repository, nested under another checkout, Git-I/O-unhealthy, reparse-ambiguous, or otherwise unproved
 
   - id: classify-production-use-state
     order: 7
@@ -134,10 +137,14 @@ stages:
       - when the registered production/use path is absent, record PROD_USE_STATE=OFFLINE with that exact evidence
       - when the production/use path exists but active-consumer/quiescence evidence was not collected, record PROD_USE_STATE=UNKNOWN
       - never convert existence of an installed launcher, path, manifest, process hint, or stale receipt into QUIESCED
+      - record path_relation=SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING when canonical development and production normalize to the same path and neither side is an unresolved reparse point
+      - record path_relation=UNKNOWN_REPARSE_POINT_RELATION when either observed path is a junction, symlink, mount, or other unresolved reparse point; block mutation until physical relation is proved
+      - record path_relation=SEPARATE_EXPLICIT_SYNC_INSTALL_PROMOTION_REQUIRED only when normalized paths differ and neither side has unresolved reparse semantics
       - record production_ad_hoc_mutation_allowed=false for the resolver; only the registered updater/promotion boundary can own production mutation
       - if development and production resolve to one physical path and PROD_USE_STATE is ACTIVE or UNKNOWN, block development mutation until quiescence or tracked in-place safety is proved
     stop_conditions:
       - an ad-hoc production-path write, pull, reset, rebuild, overwrite, or regeneration is requested while state is ACTIVE or UNKNOWN
+      - path_relation is UNKNOWN_REPARSE_POINT_RELATION and a mutation depends on physical path separation
 
   - id: prove-production-use
     order: 8
@@ -160,7 +167,7 @@ stages:
     order: 10
     actions:
       - report the execution-context receipt and four resolved profile parameters with source provenance
-      - report PROD_USE_STATE, physical path relation, mutation guards, bounded known-location inventory, and cleanup_authorized=false
+      - report PROD_USE_STATE, physical path relation and evidence, mutation guards, bounded known-location inventory, and cleanup_authorized=false
       - report all four currentness proof states separately
       - report the selected machine-role profile and classified candidate path
       - for Windows repo-relative next commands from an arbitrary shell, resolve Environment.GetFolderPath(Desktop) -> Dev -> SysAdminSuite, prove exact repository identity, then prove Git I/O health before any broader Git or checkout-owned command
@@ -190,6 +197,7 @@ outputs:
   - production_update_authority
   - development_mutation_guard
   - path_relation
+  - path_relation_evidence
   - temporary_worktree_root
   - real_operator_entrypoint
   - remote_default_contains_sha
