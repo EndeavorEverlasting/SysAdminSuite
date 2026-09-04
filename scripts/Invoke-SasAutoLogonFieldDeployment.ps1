@@ -187,6 +187,7 @@ Save-SasAutoLogonFieldResult -Value $result
 
 $targetMutex = $null
 $targetMutexAcquired = $false
+$priorPostApplyReviewRequired = $false
 try {
     Write-Host "`n=== PROTECTED NETWORK GATE ===" -ForegroundColor Cyan
     & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $networkGate `
@@ -300,7 +301,8 @@ try {
             $priorClassification -eq 'AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED'
         )
         $priorAmbiguousStarted = ($priorStatus -eq 'STARTED' -and $priorStarted)
-        if ($Action -eq 'Remote' -and ($priorPostApply -or $priorAmbiguousStarted)) {
+        $priorPostApplyReviewRequired = ($priorPostApply -or $priorAmbiguousStarted)
+        if ($Action -eq 'Remote' -and $priorPostApplyReviewRequired) {
             throw "Prior AutoLogon field evidence requires evidence-led review before any new apply: $($priorField[0].path)"
         }
     }
@@ -333,6 +335,10 @@ try {
         'INTERRUPTED_PROBE_RUNS_RECOVERED'
     )) {
         throw "Interrupted-run gate returned an unsupported classification: $recoveryClassification"
+    }
+    if ($Action -eq 'Recover' -and $priorPostApplyReviewRequired -and
+        $recoveryClassification -ne 'INTERRUPTED_PROBE_RUNS_RECOVERED') {
+        throw 'Prior AutoLogon post-apply review remains unresolved because exact interrupted Probe recovery did not recover the recorded run.'
     }
 
     $result.recovery_status = 'COMPLETED'
@@ -448,10 +454,11 @@ catch {
         [bool]$result.restart_offline_observed -or
         [bool]$result.restart_online_observed)
     $evidenceReviewRequired = ($_.Exception.Message -like 'Prior AutoLogon field evidence requires evidence-led review*')
+    $recoveryReviewRequired = ($_.Exception.Message -like 'Prior AutoLogon post-apply review remains unresolved*')
     if ($_.Exception.Message -like 'Another AutoLogon field transaction already owns canonical target*') {
         $result.classification = 'AUTOLOGON_FIELD_TARGET_LOCKED'
     }
-    elseif ($mustStop) {
+    elseif ($mustStop -or $recoveryReviewRequired) {
         $result.classification = 'AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED'
     }
     elseif ([bool]$result.autologon_deployment_started) {
@@ -467,7 +474,7 @@ catch {
 
     $result.next_action = if ($result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') {
         'STOP - another AutoLogon transaction owns this canonical target; do not start a second transaction.'
-    } elseif ($mustStop -or $evidenceReviewRequired) {
+    } elseif ($mustStop -or $evidenceReviewRequired -or $recoveryReviewRequired) {
         "STOP - inspect durable evidence at $resultPath; do not rerun."
     } else {
         "Fix the pre-apply defect, then rerun once: sas autologon Remote $requestedTarget"
@@ -478,11 +485,11 @@ catch {
         autologon_deployment_started=[bool]$result.autologon_deployment_started
         autologon_deployment_completed=$false
         latest_status='ACTION_REQUIRED'
-        latest_phase=$(if ($mustStop -or $evidenceReviewRequired) { 'post_apply_review' } else { 'pre_apply_blocked' })
+        latest_phase=$(if ($mustStop -or $evidenceReviewRequired -or $recoveryReviewRequired) { 'post_apply_review' } else { 'pre_apply_blocked' })
         latest_checkpoint=[string]$result.classification
         target_mutation_performed=[bool]$result.target_mutation_performed
         evidence_path=$resultPath
-        next_required_network=$(if ($mustStop -or $evidenceReviewRequired -or $result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') { 'NONE' } else { 'PROTECTED NORTHWELL' })
+        next_required_network=$(if ($mustStop -or $evidenceReviewRequired -or $recoveryReviewRequired -or $result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') { 'NONE' } else { 'PROTECTED NORTHWELL' })
         next_command=[string]$result.next_action
     })
 
