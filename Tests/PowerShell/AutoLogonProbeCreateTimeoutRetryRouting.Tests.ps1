@@ -69,15 +69,25 @@ Assert-True ($field.Contains('Test-SasAutoLogonProbeCreateTimeoutRecoveryCandida
 Assert-True ($field.Contains('elseif ($recoverableProbeCreateTimeout)')) 'Catch path does not route the exact recoverable failure to one Remote continuation.'
 Assert-True ($field.Contains('"sas autologon Remote $requestedTarget"')) 'Recoverable failure does not advertise the canonical Remote continuation.'
 
+# Assert the recovery authority by semantic gates rather than error-message wording. It must admit
+# only the exact v2 terminal Probe timeout, reject any Install/after-state/reboot/sign-in evidence,
+# and use the exact cleanup authority rather than broad task discovery/removal.
 $recovery = [IO.File]::ReadAllText($recoveryScript)
 foreach ($marker in @(
+    "'sas-autologon-kerberos-s4u-pilot-result/v2'",
     "'S4U_PROBE_CREATE_TIMEOUT'",
-    'Install task identity is present',
-    'AutoLogon after-state or pre-reboot readiness is present',
-    'Reboot evidence is present',
-    'Record-SasExactS4UTaskCleanupEvidence'
+    '$null -eq $installProperty -or $null -ne $installProperty.Value',
+    '$null -eq $installerExitProperty -or $null -ne $installerExitProperty.Value',
+    '$null -eq $afterPathProperty -or -not [string]::IsNullOrWhiteSpace([string]$afterPathProperty.Value)',
+    '$null -eq $preRebootProperty -or [bool]$preRebootProperty.Value',
+    '$null -eq $rebootProperty -or [bool]$rebootProperty.Value',
+    '$null -eq $signInProperty -or [bool]$signInProperty.Value',
+    'install_or_after_evidence_present',
+    'Complete-SasInterruptedAutoLogonS4URecovery.ps1'
 )) {
-    Assert-True ($recovery.Contains($marker)) "Recovery authority lost fail-closed marker: $marker"
+    Assert-True ($recovery.Contains($marker)) "Recovery authority lost fail-closed semantic gate: $marker"
 }
+Assert-True ($recovery.Contains("throw \"Interrupted AutoLogon evidence includes install/after-state activity.")) 'Recovery authority no longer fails closed when install/after-state evidence is discovered.'
+Assert-True (-not $recovery.Contains("Get-ScheduledTask")) 'Recovery authority must not broaden into local/global task discovery.'
 
 Write-Host 'PASS: exact probe-create timeout routes through bounded recovery before one new AutoLogon apply'
