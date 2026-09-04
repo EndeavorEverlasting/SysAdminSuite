@@ -10,10 +10,16 @@ SKILL = ROOT / "harness/skills/operator-command-handoff/SKILL.md"
 CANONICAL = ROOT / "harness/skills/canonical-path-resolution/SKILL.md"
 ROUTE = ROOT / "harness/skills/operator-execution-route/SKILL.md"
 FIELD = ROOT / ".claude/skills/field-workflow/SKILL.md"
+REPO_SPRINT = ROOT / ".claude/skills/repository-sprint/SKILL.md"
 INTAKE = ROOT / "harness/workflows/fresh-agent-intake.yaml"
 NETWORK = ROOT / "scripts/SasNetworkIntent.psm1"
 WRAPPER = ROOT / "scripts/Invoke-SasNetworkAwareField.ps1"
+DOC = ROOT / "docs/OPERATOR_COMMAND_HANDOFF.md"
+MAP = ROOT / "harness/maps/OPERATOR_COMMAND_HANDOFF_MAP.md"
+PRE_COMMIT = ROOT / ".githooks/pre-commit"
+PRE_PUSH = ROOT / ".githooks/pre-push"
 CI = ROOT / ".github/workflows/operator-command-handoff-contracts.yml"
+TEST = ROOT / "Tests/survey/test_operator_command_handoff_contracts.py"
 
 
 def read(path: Path) -> str:
@@ -36,7 +42,22 @@ def require(text: str, marker: str, owner: str) -> None:
 
 
 def main() -> int:
-    paths = (SKILL, CANONICAL, ROUTE, FIELD, INTAKE, NETWORK, WRAPPER, CI)
+    paths = (
+        SKILL,
+        CANONICAL,
+        ROUTE,
+        FIELD,
+        REPO_SPRINT,
+        INTAKE,
+        NETWORK,
+        WRAPPER,
+        DOC,
+        MAP,
+        PRE_COMMIT,
+        PRE_PUSH,
+        CI,
+        TEST,
+    )
     for path in paths:
         assert tracked(path), f"operator handoff component not tracked: {path.relative_to(ROOT)}"
 
@@ -73,16 +94,20 @@ def main() -> int:
     canonical = read(CANONICAL)
     route = read(ROUTE)
     field = read(FIELD)
+    repo_sprint = read(REPO_SPRINT)
     intake = read(INTAKE)
     for text, owner in (
         (canonical, "canonical path skill"),
         (route, "operator execution route skill"),
         (field, "field workflow skill"),
+        (repo_sprint, "repository sprint skill"),
         (intake, "fresh-agent intake"),
     ):
         require(text, "harness/skills/operator-command-handoff/SKILL.md", owner)
 
+    require(repo_sprint, "path -> freshness -> network intent -> command -> restoration", "repository sprint skill")
     require(intake, "python harness/validators/validate-operator-command-handoff.py", "fresh-agent intake")
+    require(intake, "python Tests/survey/test_operator_command_handoff_contracts.py", "fresh-agent intake")
     require(intake, "path -> freshness -> network intent -> command -> restoration", "fresh-agent intake")
 
     network = read(NETWORK)
@@ -109,6 +134,22 @@ def main() -> int:
     ):
         require(wrapper, marker, "network-aware wrapper")
     assert wrapper.index("Enter-SasNetworkIntent") < wrapper.index("& powershell.exe @childArgs") < wrapper.index("Restore-SasNetworkIntent"), "network wrapper transaction ordering drift"
+
+    doc = read(DOC)
+    map_text = read(MAP)
+    for text, owner in ((doc, "operator handoff documentation"), (map_text, "operator handoff map")):
+        require(text, "canonical path", owner)
+        require(text, "freshness", owner)
+        require(text, "network", owner)
+        require(text, "restor", owner)
+    require(map_text, "path -> freshness -> network intent -> command -> restoration", "operator handoff map")
+
+    pre_commit = read(PRE_COMMIT)
+    pre_push = read(PRE_PUSH)
+    for text, owner in ((pre_commit, "pre-commit hook"), (pre_push, "pre-push hook")):
+        require(text, "validate-operator-command-handoff.py", owner)
+        require(text, "test_operator_command_handoff_contracts.py", owner)
+    require(pre_push, "has_operator_handoff", "pre-push hook")
 
     ci = read(CI)
     require(ci, "python harness/validators/validate-operator-command-handoff.py", "focused CI")
