@@ -162,6 +162,31 @@ def test_operator_state_stops_rerun_after_completion_or_mutation() -> None:
     assert "sas autologon Remote $requested" in text
 
 
+def test_probe_create_timeout_runbook_routes_recovery_before_single_retry() -> None:
+    text = read(DOC)
+    start = text.index("### Exact Probe-create timeout continuation")
+    end = text.index("## Transaction behavior", start)
+    section = text[start:end]
+    for marker in (
+        "S4U_PROBE_CREATE_TIMEOUT",
+        "AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED",
+        "sas autologon Recover AUTHORIZED_SHORT_HOST",
+        "INTERRUPTED_PROBE_RUNS_RECOVERED",
+        "NO_INTERRUPTED_PROBE_RUN_FOUND",
+        "exactly one supported AutoLogon retry",
+        "sas autologon Remote AUTHORIZED_SHORT_HOST",
+        "must never launch the AutoLogon installer",
+    ):
+        assert marker.lower() in section.lower(), marker
+
+    recover = section.index("sas autologon Recover AUTHORIZED_SHORT_HOST")
+    retry = section.index("sas autologon Remote AUTHORIZED_SHORT_HOST", recover)
+    assert recover < retry
+    assert "blind rerun" in section.lower()
+    assert "second ad-hoc task" in section.lower()
+    assert "second Admin Box" in section
+
+
 def test_runbook_is_sanitized_and_preserves_field_contract() -> None:
     text = read(DOC)
     for marker in (
@@ -171,6 +196,9 @@ def test_runbook_is_sanitized_and_preserves_field_contract() -> None:
         "S4U_PROBE_CREATE_HANG_RECOVERED",
         "S4U_PROBE_CREATE_TIMEOUT",
         "only the exact safe terminal Probe-create timeout shape",
+        "AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED",
+        "sas autologon Recover AUTHORIZED_SHORT_HOST",
+        "exactly one supported AutoLogon retry",
         "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
         "host_eligibility_proven = true",
         "do not manually reboot",
