@@ -16,6 +16,7 @@ jobs:
             'scripts\Refresh-SasOperatorCommand.ps1',
             'scripts\SasPortableLauncher.ps1',
             'scripts\Invoke-SasAutoLogonOnsite.ps1',
+            'scripts\Invoke-SasAutoLogonHardwiredLocalRepair.ps1',
             'scripts\Repair-SasBoundedNativeS4UCreateRuntime.ps1'
           )) {
             $path = Join-Path $PWD $relative
