@@ -99,7 +99,7 @@ foreach ($marker in @(
 )) {
     Assert-True ($recovery.Contains($marker)) "Recovery authority lost fail-closed semantic gate: $marker"
 }
-Assert-True ($recovery.Contains("throw \"Interrupted AutoLogon evidence includes install/after-state activity.")) 'Recovery authority no longer fails closed when install/after-state evidence is discovered.'
-Assert-True (-not $recovery.Contains("Get-ScheduledTask")) 'Recovery authority must not broaden into local/global task discovery.'
+Assert-True ($recovery.Contains('throw "Interrupted AutoLogon evidence includes install/after-state activity.')) 'Recovery authority no longer fails closed when install/after-state evidence is discovered.'
+Assert-True (-not $recovery.Contains('Get-ScheduledTask')) 'Recovery authority must not broaden into local/global task discovery.'
 
 Write-Host 'PASS: exact probe-create timeout routes through bounded recovery before one new AutoLogon apply'
