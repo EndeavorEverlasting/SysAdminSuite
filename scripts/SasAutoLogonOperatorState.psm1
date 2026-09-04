@@ -54,6 +54,34 @@ function Test-SasAutoLogonSameTarget {
     return ($a.Split('.')[0] -eq $b.Split('.')[0])
 }
 
+function Test-SasAutoLogonProbeCreateTimeoutRecoveryCandidate {
+    [CmdletBinding()]
+    param([AllowNull()]$Value)
+
+    if ($null -eq $Value) { return $false }
+    $status = [string](Get-SasObjectPropertyValue $Value 'status' '')
+    $classification = [string](Get-SasObjectPropertyValue $Value 'classification' '')
+    $deploymentClassification = [string](Get-SasObjectPropertyValue $Value 'deployment_classification' '')
+    $started = [bool](Get-SasObjectPropertyValue $Value 'autologon_deployment_started' $false)
+    $completed = [bool](Get-SasObjectPropertyValue $Value 'autologon_deployment_completed' $false)
+    $applied = [bool](Get-SasObjectPropertyValue $Value 'autologon_applied' $false)
+    $preRebootReady = [bool](Get-SasObjectPropertyValue $Value 'pre_reboot_autologon_ready' $false)
+    $rebooted = [bool](Get-SasObjectPropertyValue $Value 'automatic_reboot_performed' $false)
+    $offlineObserved = [bool](Get-SasObjectPropertyValue $Value 'restart_offline_observed' $false)
+    $onlineObserved = [bool](Get-SasObjectPropertyValue $Value 'restart_online_observed' $false)
+
+    return ($status -eq 'ACTION_REQUIRED' -and
+        $classification -eq 'AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED' -and
+        $deploymentClassification -eq 'S4U_PROBE_CREATE_TIMEOUT' -and
+        $started -and
+        -not $completed -and
+        -not $applied -and
+        -not $preRebootReady -and
+        -not $rebooted -and
+        -not $offlineObserved -and
+        -not $onlineObserved)
+}
+
 function Get-SasAutoLogonRepoBranch {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$RepoRoot)
@@ -263,6 +291,7 @@ function Sync-SasAutoLogonOperatorState {
         $completed = ($status -eq 'COMPLETED' -and
             $classification -eq 'AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED')
         $mutated = [bool](Get-SasObjectPropertyValue $value 'target_mutation_performed' $false)
+        $recoverableProbeCreateTimeout = [bool](Test-SasAutoLogonProbeCreateTimeoutRecoveryCandidate -Value $value)
         $eligibilityProven = [bool](Get-SasObjectPropertyValue $value 'host_eligibility_proven' $false)
         $eligibilityEvidence = [string](Get-SasObjectPropertyValue $value 'host_eligibility_evidence_path' '')
 
@@ -310,6 +339,8 @@ function Sync-SasAutoLogonOperatorState {
         $updates['latest_status'] = $status
         $updates['latest_phase'] = $(if ($completed) {
             'terminal'
+        } elseif ($recoverableProbeCreateTimeout) {
+            'recovery_required'
         } elseif ($started) {
             'apply_or_restart'
         } else {
@@ -326,6 +357,10 @@ function Sync-SasAutoLogonOperatorState {
         elseif ($classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') {
             $updates['next_required_network'] = 'NONE'
             $updates['next_command'] = 'STOP - another AutoLogon transaction owns this target; inspect sas context after it finishes.'
+        }
+        elseif ($recoverableProbeCreateTimeout -and $requested) {
+            $updates['next_required_network'] = 'PROTECTED NORTHWELL'
+            $updates['next_command'] = "sas autologon Remote $requested"
         }
         elseif ($started -or $mutated) {
             $updates['next_required_network'] = 'NONE'
@@ -350,4 +385,4 @@ function Sync-SasAutoLogonOperatorState {
     return (Read-SasOperatorSession)
 }
 
-Export-ModuleMember -Function Get-SasAutoLogonPreparedRuntimeIdentity,Test-SasAutoLogonSameTarget,Get-SasAutoLogonRepoBranch,Set-SasAutoLogonOperatorStateValues,Initialize-SasAutoLogonOperatorState,Find-SasLatestAutoLogonFieldResult,Find-SasLatestCompletedAutoLogonRecovery,Sync-SasAutoLogonOperatorState
+Export-ModuleMember -Function Get-SasAutoLogonPreparedRuntimeIdentity,Test-SasAutoLogonSameTarget,Test-SasAutoLogonProbeCreateTimeoutRecoveryCandidate,Get-SasAutoLogonRepoBranch,Set-SasAutoLogonOperatorStateValues,Initialize-SasAutoLogonOperatorState,Find-SasLatestAutoLogonFieldResult,Find-SasLatestCompletedAutoLogonRecovery,Sync-SasAutoLogonOperatorState
