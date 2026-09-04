@@ -25,16 +25,19 @@ inputs:
     - intended_commit
     - current_status
     - operator_entrypoint
+    - execution_target_override
 
 invariants:
   - read harness/api/canonical-path-registry.json as the canonical owner
   - resolve execution context before a path-sensitive command; terminal application is not shell identity and a prompt is not target proof
+  - a Windows process proves the Windows runtime boundary but does not by itself prove LOCAL execution target
   - when execution context is materially unknown, emit EXECUTION_CONTEXT=UNKNOWN and do not guess shell-specific or target-specific mutation syntax
   - resolve the four independent profile parameters os, user, onedrive_enabled, and desktop_dev_root before path composition
   - explicit profile parameter values outrank local observation; local observation outranks registered fallback
   - the OneDrive toggle never chooses, rewrites, or guesses the Desktop path
   - desktop_dev_root is authoritative for the user's mutable development root whether Desktop is local or OneDrive-backed
   - current working directory is candidate evidence only and never canonical path authority
+  - a non-filesystem PowerShell provider location is valid execution context and must not be forced through filesystem normalization
   - do not use git rev-parse --show-toplevel as the first repository-location step from an arbitrary shell
   - a canonical-looking checkout is not CANONICAL + PROVED until repository identity and Git I/O health both pass
   - on Windows, require git status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty to return zero before fetch, log, status reporting, reconciliation, or worktree creation
@@ -51,6 +54,7 @@ invariants:
   - a second mutable clone is not a substitute for the canonical development checkout
   - preserve unique or dirty work; parallel writers use the registered temporary worktree root
   - classify bounded observed locations as CLONE, WORKTREE, INSTALL, MIRROR, CACHE, OUTPUT, BACKUP, or UNKNOWN before cleanup decisions
+  - include updater-owned sync-cache and field-ready worktrees in bounded known-location inventory
   - an UNKNOWN location is never disposable by assumption
   - production/use is a consumer path, not the default development mutation target
   - PROD_USE_STATE is ACTIVE, QUIESCED, OFFLINE, UNKNOWN, or NOT_APPLICABLE; UNKNOWN is not idle
@@ -64,9 +68,11 @@ stages:
   - id: resolve-execution-context
     order: 1
     actions:
-      - record terminal host, actual shell/interpreter process, OS/runtime boundary, execution target, current working directory, and path semantics
-      - distinguish local Windows execution from WSL, container, VM, SSH/remote, or CI when evidence is available
-      - record UNKNOWN instead of inferring a terminal application, shell, kernel, or execution target from appearance
+      - record terminal host, actual shell/interpreter process, PowerShell edition/version, current provider/location, OS/runtime boundary, and execution target
+      - accept an explicit execution_target_override as higher-precedence target evidence when supplied by an authorized invocation
+      - identify GitHub Actions CI, PowerShell remoting, or SSH remote context from their native indicators when present
+      - otherwise record execution_target=UNKNOWN instead of treating a native Windows process as proof of LOCAL operator execution
+      - record non-filesystem provider locations without filesystem normalization; only FileSystem provider paths become filesystem candidates
     stop_conditions:
       - a material path-sensitive mutation depends on an execution-context fact that remains UNKNOWN
 
@@ -99,9 +105,11 @@ stages:
   - id: classify-candidate-and-known-locations
     order: 4
     actions:
-      - normalize the candidate path without mutating it
-      - classify the candidate path role as canonical_development, production_use, isolated_worktree, ephemeral_acquisition, runtime_output, preserved_backup, or unknown
+      - normalize the candidate path without mutating it only when it is a filesystem path
+      - classify a non-filesystem current provider as execution context, not a filesystem candidate
+      - classify the candidate path role as canonical_development, production_use, updater_sync_cache, updater_field_ready_worktree, isolated_worktree, ephemeral_acquisition, runtime_output, preserved_backup, or unknown
       - classify bounded known locations as CLONE, WORKTREE, INSTALL, MIRROR, CACHE, OUTPUT, BACKUP, or UNKNOWN
+      - inventory %LOCALAPPDATA%\SysAdminSuite\sync-cache as updater-owned CLONE and field-ready/field-ready-* as updater-owned WORKTREE locations
       - enumerate child worktrees only beneath the registered temporary_worktree_root; do not scan arbitrary drives for convenient clones
       - reject ephemeral_acquisition, output, backup, or unknown as a replacement canonical development checkout
       - preserve dirty, unpushed, unique, separately owned, or not-yet-inspected candidate state
@@ -166,11 +174,11 @@ stages:
   - id: handoff
     order: 10
     actions:
-      - report the execution-context receipt and four resolved profile parameters with source provenance
+      - report the complete execution-context receipt, including target evidence source and current provider, plus the four resolved profile parameters with source provenance
       - report PROD_USE_STATE, physical path relation and evidence, mutation guards, bounded known-location inventory, and cleanup_authorized=false
       - report all four currentness proof states separately
       - report the selected machine-role profile and classified candidate path
-      - for Windows repo-relative next commands from an arbitrary shell, resolve Environment.GetFolderPath(Desktop) -> Dev -> SysAdminSuite, prove exact repository identity, then prove Git I/O health before any broader Git or checkout-owned command
+      - for Windows repo-relative next commands from an arbitrary filesystem shell, resolve Environment.GetFolderPath(Desktop) -> Dev -> SysAdminSuite, prove exact repository identity, then prove Git I/O health before any broader Git or checkout-owned command
       - never begin a from-anywhere handoff with git rev-parse --show-toplevel
       - never make an unmerged feature-branch artifact a prerequisite for an operator who is on the refreshed default branch
       - wrap dependent multi-command PowerShell handoffs in one outer scriptblock and propagate every nonzero native exit code before later commands execute
@@ -178,10 +186,17 @@ stages:
 
 outputs:
   - execution_context_status
+  - execution_target_source
   - terminal_host
+  - terminal_application
   - shell_interpreter
+  - powershell_edition
+  - powershell_version
   - runtime_boundary
   - execution_target
+  - current_location_provider
+  - current_working_directory
+  - current_working_directory_filesystem
   - selected_profile
   - resolved_profile_parameters
   - profile_parameter_sources
