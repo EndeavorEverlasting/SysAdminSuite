@@ -129,4 +129,7 @@ exit /b 37
     Write-Host 'SKIP: wrapper fake-launcher fixture not executed because a real machine-wide sas.cmd is installed.' -ForegroundColor Yellow
 }
 
+# The fixture intentionally exercised a nonzero native child. Clear only the synthetic test process
+# state after every assertion above has passed so the parent test runner sees this test itself as green.
+$global:LASTEXITCODE = 0
 Write-Host 'PASS: AutoLogon operator-facing progress cannot jump forward across an unrendered numbered stage, stderr/exit semantics are preserved, and the double-click handoff remains visible.' -ForegroundColor Green
