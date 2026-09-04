@@ -54,6 +54,59 @@ function Test-SasAutoLogonSameTarget {
     return ($a.Split('.')[0] -eq $b.Split('.')[0])
 }
 
+function Get-SasAutoLogonStrictEvidenceBoolean {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]$Value,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    if ($null -eq $Value) {
+        return [pscustomobject]@{ valid=$false; value=$false; present=$false }
+    }
+    $property = $Value.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return [pscustomobject]@{ valid=$false; value=$false; present=$false }
+    }
+    if ($property.Value -isnot [bool]) {
+        return [pscustomobject]@{ valid=$false; value=$false; present=$true }
+    }
+    return [pscustomobject]@{ valid=$true; value=[bool]$property.Value; present=$true }
+}
+
+function Get-SasAutoLogonRecordedS4UClassification {
+    [CmdletBinding()]
+    param([AllowNull()]$Value)
+
+    if ($null -eq $Value) { return '' }
+    $direct = [string](Get-SasObjectPropertyValue $Value 's4u_classification' '')
+    if (-not [string]::IsNullOrWhiteSpace($direct)) { return $direct.Trim() }
+
+    $deploymentPath = [string](Get-SasObjectPropertyValue $Value 'deployment_result_path' '')
+    if ([string]::IsNullOrWhiteSpace($deploymentPath) -or
+        -not (Test-Path -LiteralPath $deploymentPath -PathType Leaf)) {
+        return ''
+    }
+
+    try {
+        $inner = Get-Content -LiteralPath $deploymentPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string](Get-SasObjectPropertyValue $inner 'schema_version' '') -ne 'sas-autologon-s4u-deployment-result/v2') {
+            return ''
+        }
+        $innerTarget = [string](Get-SasObjectPropertyValue $inner 'target' '')
+        $outerTarget = [string](Get-SasObjectPropertyValue $Value 'resolved_target_fqdn' (
+            Get-SasObjectPropertyValue $Value 'final_target' ''
+        ))
+        if (-not [string]::IsNullOrWhiteSpace($innerTarget) -and
+            -not [string]::IsNullOrWhiteSpace($outerTarget) -and
+            -not (Test-SasAutoLogonSameTarget -Left $innerTarget -Right $outerTarget)) {
+            return ''
+        }
+        return ([string](Get-SasObjectPropertyValue $inner 's4u_classification' '')).Trim()
+    }
+    catch { return '' }
+}
+
 function Test-SasAutoLogonProbeCreateTimeoutRecoveryCandidate {
     [CmdletBinding()]
     param([AllowNull()]$Value)
@@ -61,25 +114,45 @@ function Test-SasAutoLogonProbeCreateTimeoutRecoveryCandidate {
     if ($null -eq $Value) { return $false }
     $status = [string](Get-SasObjectPropertyValue $Value 'status' '')
     $classification = [string](Get-SasObjectPropertyValue $Value 'classification' '')
-    $deploymentClassification = [string](Get-SasObjectPropertyValue $Value 'deployment_classification' '')
-    $started = [bool](Get-SasObjectPropertyValue $Value 'autologon_deployment_started' $false)
-    $completed = [bool](Get-SasObjectPropertyValue $Value 'autologon_deployment_completed' $false)
-    $applied = [bool](Get-SasObjectPropertyValue $Value 'autologon_applied' $false)
-    $preRebootReady = [bool](Get-SasObjectPropertyValue $Value 'pre_reboot_autologon_ready' $false)
-    $rebooted = [bool](Get-SasObjectPropertyValue $Value 'automatic_reboot_performed' $false)
-    $offlineObserved = [bool](Get-SasObjectPropertyValue $Value 'restart_offline_observed' $false)
-    $onlineObserved = [bool](Get-SasObjectPropertyValue $Value 'restart_online_observed' $false)
 
-    return ($status -eq 'ACTION_REQUIRED' -and
-        $classification -eq 'AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED' -and
-        $deploymentClassification -eq 'S4U_PROBE_CREATE_TIMEOUT' -and
-        $started -and
-        -not $completed -and
-        -not $applied -and
-        -not $preRebootReady -and
-        -not $rebooted -and
-        -not $offlineObserved -and
-        -not $onlineObserved)
+    $startedEvidence = Get-SasAutoLogonStrictEvidenceBoolean -Value $Value -Name 'autologon_deployment_started'
+    $completedEvidence = Get-SasAutoLogonStrictEvidenceBoolean -Value $Value -Name 'autologon_deployment_completed'
+    $appliedEvidence = Get-SasAutoLogonStrictEvidenceBoolean -Value $Value -Name 'autologon_applied'
+    $preRebootEvidence = Get-SasAutoLogonStrictEvidenceBoolean -Value $Value -Name 'pre_reboot_autologon_ready'
+    $rebootEvidence = Get-SasAutoLogonStrictEvidenceBoolean -Value $Value -Name 'automatic_reboot_performed'
+    $offlineEvidence = Get-SasAutoLogonStrictEvidenceBoolean -Value $Value -Name 'restart_offline_observed'
+    $onlineEvidence = Get-SasAutoLogonStrictEvidenceBoolean -Value $Value -Name 'restart_online_observed'
+    foreach ($evidence in @(
+        $startedEvidence,$completedEvidence,$appliedEvidence,$preRebootEvidence,
+        $rebootEvidence,$offlineEvidence,$onlineEvidence
+    )) {
+        if (-not [bool]$evidence.valid) { return $false }
+    }
+
+    $carry = $false
+    $carryProperty = $Value.PSObject.Properties['recoverable_probe_create_timeout']
+    if ($null -ne $carryProperty) {
+        if ($carryProperty.Value -isnot [bool]) { return $false }
+        $carry = [bool]$carryProperty.Value
+    }
+
+    if ($status -ne 'ACTION_REQUIRED' -or
+        [bool]$completedEvidence.value -or
+        [bool]$appliedEvidence.value -or
+        [bool]$preRebootEvidence.value -or
+        [bool]$rebootEvidence.value -or
+        [bool]$offlineEvidence.value -or
+        [bool]$onlineEvidence.value) {
+        return $false
+    }
+
+    $originalFailure = ($classification -eq 'AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED' -and
+        [bool]$startedEvidence.value -and
+        (Get-SasAutoLogonRecordedS4UClassification -Value $Value) -eq 'S4U_PROBE_CREATE_TIMEOUT')
+    $recoveryCarryForward = ($carry -and -not [bool]$startedEvidence.value -and
+        $classification -in @('AUTOLOGON_FIELD_PREFLIGHT_BLOCKED','AUTOLOGON_FIELD_RECOVERY_GATE_BLOCKED'))
+
+    return ($originalFailure -or $recoveryCarryForward)
 }
 
 function Get-SasAutoLogonRepoBranch {
