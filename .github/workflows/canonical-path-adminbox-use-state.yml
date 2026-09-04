@@ -1,0 +1,92 @@
+name: Canonical Path Admin Box Use State
+on:
+  pull_request:
+    paths:
+      - 'harness/api/canonical-path-registry.json'
+      - 'harness/workflows/canonical-path-resolution.yaml'
+      - 'harness/skills/canonical-path-resolution/SKILL.md'
+      - 'scripts/Resolve-SasCanonicalDevelopmentPath.ps1'
+      - 'Tests/survey/test_canonical_path_adminbox_use_state_contracts.py'
+      - '.github/workflows/canonical-path-adminbox-use-state.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python Tests/survey/test_canonical_path_adminbox_use_state_contracts.py
+      - run: git diff --check
+
+  windows-admin-box:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse resolver under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts\Resolve-SasCanonicalDevelopmentPath.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if (@($errors).Count -gt 0) {
+            $errors | Format-List * | Out-Host
+            throw 'Canonical path resolver does not parse under Windows PowerShell 5.1.'
+          }
+
+      - name: Prove Admin Box roles from outside any Git repository
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $resolver = Join-Path $env:GITHUB_WORKSPACE 'scripts\Resolve-SasCanonicalDevelopmentPath.ps1'
+          $fixtureDev = Join-Path $env:RUNNER_TEMP 'CanonicalPathAdminBox\Dev'
+          New-Item -ItemType Directory -Path $fixtureDev -Force | Out-Null
+          Push-Location $env:RUNNER_TEMP
+          try {
+            $receipt = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver `
+              -MachineProfile windows-admin-box -DesktopDevRoot $fixtureDev -AsJson | ConvertFrom-Json)
+          }
+          finally { Pop-Location }
+          if ($receipt.selected_profile -ne 'windows-admin-box') { throw "Unexpected profile: $($receipt.selected_profile)" }
+          if ($receipt.current_directory_is_authority) { throw 'Current working directory became path authority.' }
+          if ([IO.Path]::GetFullPath([string]$receipt.canonical_development_checkout) -ne [IO.Path]::GetFullPath((Join-Path $fixtureDev 'SysAdminSuite'))) { throw 'Admin Box development path did not derive from DesktopDevRoot.' }
+          if ([IO.Path]::GetFullPath([string]$receipt.production_use_path) -ne [IO.Path]::GetFullPath('C:\SASAL')) { throw "Unexpected production/use path: $($receipt.production_use_path)" }
+          if ([IO.Path]::GetFullPath([string]$receipt.canonical_worktree_root) -ne [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'SysAdminSuite\worktrees'))) { throw 'Unexpected canonical worktree root.' }
+          if ($receipt.canonical_entrypoint -ne 'C:\SASAL\Bootstrap-SysAdminSuiteAutoLogon.cmd') { throw "Unexpected production entrypoint: $($receipt.canonical_entrypoint)" }
+          if ($receipt.production_update_authority -ne 'scripts/Refresh-SasOperatorCommand.ps1') { throw "Unexpected production updater: $($receipt.production_update_authority)" }
+          if ($receipt.production_ad_hoc_mutation_allowed) { throw 'Resolver authorized ad-hoc production mutation.' }
+          if ($receipt.cleanup_authorized) { throw 'Resolver authorized cleanup from path identity alone.' }
+          if ($receipt.remote_integration_is_local_deployment) { throw 'Resolver confused remote integration with local deployment.' }
+          if ($receipt.path_relation -notin @('SEPARATE_EXPLICIT_SYNC_INSTALL_PROMOTION_REQUIRED','UNKNOWN_REPARSE_POINT_RELATION')) { throw "Unexpected path relation: $($receipt.path_relation)" }
+          if ($receipt.execution_target -ne 'LOCAL' -or $receipt.runtime_boundary -ne 'WINDOWS_NATIVE') { throw 'Execution-context receipt did not identify local native Windows execution.' }
+          if ($receipt.production_use_state -notin @('OFFLINE','UNKNOWN')) { throw "Unexpected conservative production state: $($receipt.production_use_state)" }
+          Write-Host "PASS: Admin Box role receipt from arbitrary working directory; PROD_USE_STATE=$($receipt.production_use_state)"
+
+      - name: Prove existing production path remains UNKNOWN not idle
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $resolver = Join-Path $env:GITHUB_WORKSPACE 'scripts\Resolve-SasCanonicalDevelopmentPath.ps1'
+          $fixtureDev = Join-Path $env:RUNNER_TEMP 'CanonicalPathAdminBox\Dev'
+          $createdFixture = $false
+          if (-not (Test-Path -LiteralPath 'C:\SASAL' -PathType Container)) {
+            New-Item -ItemType Directory -Path 'C:\SASAL' -Force | Out-Null
+            $createdFixture = $true
+          }
+          try {
+            $receipt = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver `
+              -MachineProfile windows-admin-box -DesktopDevRoot $fixtureDev -AsJson | ConvertFrom-Json)
+            if ($receipt.production_use_state -ne 'UNKNOWN') { throw "Existing C:\SASAL must remain UNKNOWN without quiescence evidence; got $($receipt.production_use_state)" }
+            if ($receipt.production_ad_hoc_mutation_allowed) { throw 'UNKNOWN production state authorized mutation.' }
+            if ($receipt.development_mutation_guard -eq 'PRODUCTION_IMPACTING_USE_TRACKED_BOUNDARY' -and $receipt.path_relation -eq 'SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING') { throw 'UNKNOWN same-path production state failed to block mutation.' }
+            Write-Host 'PASS: existing production/use path is conservatively UNKNOWN and ad-hoc mutation remains blocked.'
+          }
+          finally {
+            if ($createdFixture) { Remove-Item -LiteralPath 'C:\SASAL' -Force }
+          }
