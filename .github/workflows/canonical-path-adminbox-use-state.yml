@@ -64,9 +64,26 @@ jobs:
           if ($receipt.cleanup_authorized) { throw 'Resolver authorized cleanup from path identity alone.' }
           if ($receipt.remote_integration_is_local_deployment) { throw 'Resolver confused remote integration with local deployment.' }
           if ($receipt.path_relation -notin @('SEPARATE_EXPLICIT_SYNC_INSTALL_PROMOTION_REQUIRED','UNKNOWN_REPARSE_POINT_RELATION')) { throw "Unexpected path relation: $($receipt.path_relation)" }
-          if ($receipt.execution_target -ne 'LOCAL' -or $receipt.runtime_boundary -ne 'WINDOWS_NATIVE') { throw 'Execution-context receipt did not identify local native Windows execution.' }
+          if ($receipt.execution_target -ne 'CI' -or $receipt.execution_target_source -ne 'GITHUB_ACTIONS' -or $receipt.runtime_boundary -ne 'WINDOWS_NATIVE') { throw "Execution-context receipt over/under-classified Windows CI: $($receipt.execution_target) / $($receipt.execution_target_source)" }
           if ($receipt.production_use_state -notin @('OFFLINE','UNKNOWN')) { throw "Unexpected conservative production state: $($receipt.production_use_state)" }
           Write-Host "PASS: Admin Box role receipt from arbitrary working directory; PROD_USE_STATE=$($receipt.production_use_state)"
+
+      - name: Prove Registry provider location does not become a filesystem path
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $resolver = Join-Path $env:GITHUB_WORKSPACE 'scripts\Resolve-SasCanonicalDevelopmentPath.ps1'
+          $fixtureDev = Join-Path $env:RUNNER_TEMP 'CanonicalPathAdminBox\Dev'
+          Push-Location 'HKLM:\Software'
+          try {
+            $receipt = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command `
+              "Set-Location 'HKLM:\Software'; & '$resolver' -MachineProfile windows-admin-box -DesktopDevRoot '$fixtureDev' -AsJson" | ConvertFrom-Json)
+          }
+          finally { Pop-Location }
+          if ($receipt.current_location_provider -ne 'Registry') { throw "Expected Registry provider, got $($receipt.current_location_provider)" }
+          if ($null -ne $receipt.current_working_directory_filesystem) { throw 'Registry location was incorrectly normalized as a filesystem directory.' }
+          if ($receipt.candidate_classification -ne 'UNKNOWN_NON_FILESYSTEM_CURRENT_LOCATION') { throw "Unexpected Registry-provider candidate classification: $($receipt.candidate_classification)" }
+          Write-Host 'PASS: non-filesystem PowerShell location remains valid execution context and is not promoted to path authority.'
 
       - name: Prove existing production path remains UNKNOWN not idle
         shell: powershell
@@ -90,3 +107,48 @@ jobs:
           finally {
             if ($createdFixture) { Remove-Item -LiteralPath 'C:\SASAL' -Force }
           }
+
+      - name: Prove production junction relation fails closed
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $resolver = Join-Path $env:GITHUB_WORKSPACE 'scripts\Resolve-SasCanonicalDevelopmentPath.ps1'
+          $fixtureDev = Join-Path $env:RUNNER_TEMP 'CanonicalPathAdminBox\ReparseDev'
+          $canonicalDev = Join-Path $fixtureDev 'SysAdminSuite'
+          New-Item -ItemType Directory -Path $canonicalDev -Force | Out-Null
+          if (Test-Path -LiteralPath 'C:\SASAL') { throw 'Hosted runner unexpectedly already has C:\SASAL before junction fixture.' }
+          & cmd.exe /d /c "mklink /J C:\SASAL `"$canonicalDev`""
+          if ($LASTEXITCODE -ne 0) { throw "Could not create C:\SASAL junction fixture (exit $LASTEXITCODE)." }
+          try {
+            $receipt = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver `
+              -MachineProfile windows-admin-box -DesktopDevRoot $fixtureDev -AsJson | ConvertFrom-Json)
+            if ($receipt.production_use_reparse_state -ne 'REPARSE_POINT_PRESENT') { throw "Production junction was not detected: $($receipt.production_use_reparse_state)" }
+            if ($receipt.path_relation -ne 'UNKNOWN_REPARSE_POINT_RELATION') { throw "Junction was incorrectly classified as physically separate: $($receipt.path_relation)" }
+            if ($receipt.development_mutation_guard -ne 'BLOCK_UNTIL_PHYSICAL_PATH_RELATION_PROVED') { throw "Junction ambiguity did not block mutation: $($receipt.development_mutation_guard)" }
+            Write-Host 'PASS: production junction cannot masquerade as a separate safe path.'
+          }
+          finally {
+            & cmd.exe /d /c 'rmdir C:\SASAL'
+            if ($LASTEXITCODE -ne 0) { throw "Could not remove junction fixture (exit $LASTEXITCODE)." }
+          }
+
+      - name: Prove refresh-owned cache and field-ready copies are inventoried
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $resolver = Join-Path $env:GITHUB_WORKSPACE 'scripts\Resolve-SasCanonicalDevelopmentPath.ps1'
+          $fixtureDev = Join-Path $env:RUNNER_TEMP 'CanonicalPathAdminBox\Dev'
+          $stateRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite'
+          $syncCache = Join-Path $stateRoot 'sync-cache'
+          $fieldReady = Join-Path $stateRoot 'field-ready-fixture'
+          New-Item -ItemType Directory -Path $syncCache -Force | Out-Null
+          New-Item -ItemType Directory -Path $fieldReady -Force | Out-Null
+          $receipt = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver `
+            -MachineProfile windows-admin-box -DesktopDevRoot $fixtureDev -CandidatePath $syncCache -AsJson | ConvertFrom-Json)
+          if ($receipt.candidate_classification -ne 'UPDATER_SYNC_CACHE' -or $receipt.candidate_location_class -ne 'CLONE') { throw 'sync-cache candidate was not classified as updater-owned clone.' }
+          $syncEntry = @($receipt.known_location_inventory | Where-Object { $_.role -eq 'UPDATER_SYNC_CACHE' })
+          $fieldEntries = @($receipt.known_location_inventory | Where-Object { $_.role -eq 'UPDATER_FIELD_READY_WORKTREE' })
+          if ($syncEntry.Count -ne 1 -or $syncEntry[0].class -ne 'CLONE') { throw 'sync-cache missing from bounded known-copy inventory.' }
+          if ($fieldEntries.Count -lt 1 -or @($fieldEntries | Where-Object { $_.path -eq $fieldReady -and $_.class -eq 'WORKTREE' }).Count -ne 1) { throw 'field-ready-* worktree missing from bounded known-copy inventory.' }
+          if ($receipt.cleanup_authorized) { throw 'Inventory proof unexpectedly authorized cleanup.' }
+          Write-Host 'PASS: tracked refresh authority copies are inventoried and preserved without disk-wide search.'
