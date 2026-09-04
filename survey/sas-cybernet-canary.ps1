@@ -6,9 +6,9 @@ Run a bounded, read-only Cybernet identity canary against explicit approved cand
 .DESCRIPTION
 The canary reduces unnecessary network traffic; it is not a monitoring-evasion feature.
 It accepts at most five explicit hostname/FQDN/IP candidates, rejects ranges/CIDRs/wildcards,
-reuses only completed model+serial evidence from the previous 24 hours, performs one canonical
-network preflight narrowed to TCP 135 for remaining candidates, and attempts one DCOM/CIM identity
-session only when TCP 135 is open. It never mutates a target and never accepts credentials on the command line.
+reuses completed canary evidence from the previous 24 hours, performs one canonical network
+preflight narrowed to TCP 135 for remaining candidates, and attempts one DCOM/CIM identity session
+only when TCP 135 is open. It never mutates a target and never accepts credentials on the command line.
 
 The result records manufacturer, model, and BIOS serial when the current operator context is allowed
 to read them. Model + serial are identity evidence only; this command does not classify a device as Cybernet.
@@ -55,7 +55,7 @@ function Test-SasExplicitCanaryTarget {
     return $false
 }
 
-function Get-SasFreshIdentityEvidence {
+function Get-SasFreshCanaryEvidence {
     param(
         [Parameter(Mandatory = $true)][string]$TargetName,
         [Parameter(Mandatory = $true)][datetime]$Cutoff
@@ -74,8 +74,6 @@ function Get-SasFreshIdentityEvidence {
 
         foreach ($row in @(Import-Csv -LiteralPath $resultPath -ErrorAction SilentlyContinue)) {
             if ([string]::IsNullOrWhiteSpace([string]$row.Target) -or -not ([string]$row.Target).Equals($TargetName, [StringComparison]::OrdinalIgnoreCase)) { continue }
-            if ([string]::IsNullOrWhiteSpace([string]$row.ObservedModel) -or [string]::IsNullOrWhiteSpace([string]$row.ObservedSerial)) { continue }
-            if ([string]$row.IdentityStatus -ne 'IDENTITY_COLLECTED') { continue }
             if ([string]::IsNullOrWhiteSpace([string]$row.ObservationTimestamp)) { continue }
             try { $observedAt = [datetime]$row.ObservationTimestamp } catch { continue }
             if ($observedAt.ToUniversalTime() -lt $Cutoff.ToUniversalTime()) { continue }
@@ -116,7 +114,7 @@ $results = New-Object 'System.Collections.Generic.List[object]'
 $liveTargets = New-Object 'System.Collections.Generic.List[string]'
 
 foreach ($candidate in $targets) {
-    $fresh = Get-SasFreshIdentityEvidence -TargetName $candidate -Cutoff $cutoff
+    $fresh = Get-SasFreshCanaryEvidence -TargetName $candidate -Cutoff $cutoff
     if ($null -ne $fresh) {
         $results.Add([pscustomobject]@{
             Timestamp = (Get-Date).ToString('o')
@@ -129,10 +127,10 @@ foreach ($candidate in $targets) {
             ObservedManufacturer = [string]$fresh.ObservedManufacturer
             ObservedModel = [string]$fresh.ObservedModel
             ObservedSerial = [string]$fresh.ObservedSerial
-            IdentityStatus = 'IDENTITY_COLLECTED'
+            IdentityStatus = [string]$fresh.IdentityStatus
             EvidenceSource = 'FreshLocalReuse'
             NetworkActivityPerformed = $false
-            Notes = "Reused completed identity evidence observed within $ReuseWithinHours hours; no live probe performed."
+            Notes = "Reused completed canary evidence observed within $ReuseWithinHours hours (source status: $([string]$fresh.IdentityStatus)); no live probe performed."
         })
     } else {
         [void]$liveTargets.Add($candidate)

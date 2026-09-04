@@ -10,16 +10,16 @@ Use the installed `sas` command from any directory. Do not paste Bash backslash-
 sas cybernet canary HOST01 HOST02
 ```
 
-Up to five explicit approved hostnames/FQDNs/IPs may be supplied in one canary. CIDRs, IP ranges, wildcard patterns, and subnet-discovery inputs are rejected.
+Up to five explicit approved hostnames/FQDNs/IPs may be supplied in one canary. CIDRs, IP ranges, wildcard patterns, and subnet-discovery inputs are rejected before the network-aware wrapper changes network posture.
 
 ## What the canary does
 
-1. Reuses only **completed** model+serial evidence whose original `ObservationTimestamp` is within the last 24 hours; reuse does not refresh that observation clock.
+1. Reuses only **completed** canary evidence whose original `ObservationTimestamp` is within the last 24 hours. This includes partial/failed attempts so an immediate rerun does not hammer the same host; reuse never refreshes the observation clock.
 2. For candidates still needing evidence, performs one canonical preflight pass: DNS resolution, one ICMP attempt, and **TCP 135 only**.
 3. Only when TCP 135 is open, attempts one read-only DCOM/CIM session to the exact endpoint that the preflight resolved.
 4. Reads `Win32_ComputerSystem` for hostname/manufacturer/model and `Win32_BIOS` for BIOS serial, retaining whichever query succeeds even if the other fails.
 5. Performs no canary-level retry of a failed identity query.
-6. Writes results only under ignored `survey/output/cybernet_canary/` state and publishes a completion marker only after the result CSV and summary are finished.
+6. Writes results only under ignored `survey/output/cybernet_canary/` state and publishes a hash-bound completion marker only after the result CSV and summary are finished.
 7. Never mutates a target and never accepts credentials in the command line.
 
 This is **not a stealth feature**. It reduces unnecessary packets by shrinking scope, reusing fresh completed evidence, limiting the preflight to one relevant port, and refusing automatic canary retries. Normal enterprise monitoring still sees the traffic and this workflow does not guarantee that monitoring will not alert.
@@ -35,7 +35,7 @@ Then use canaries in small explicit batches. A responder is still only a candida
 1. Reduce the candidate population offline/passively.
 2. Run one canary of no more than five candidates.
 3. Remove confirmed non-Cybernet hardware from the prime hunt list.
-4. Preserve complete model+serial evidence so subsequent runs can reuse it until the original observation becomes stale.
+4. Preserve all completed evidence so subsequent runs stay quiet until the original observation becomes stale.
 5. Only after exhausting approved candidate sources should a separately approved subnet-confirmation workflow be considered.
 
 ## Example
@@ -60,7 +60,7 @@ Useful columns include `ObservationTimestamp`, `ObservedManufacturer`, `Observed
 - `IDENTITY_PARTIAL` — some hardware identity was retained, but model and/or serial is missing.
 - `IDENTITY_QUERY_FAILED` — RPC was open but the read-only identity session produced no hardware identity; no retry occurred.
 - `RPC_NOT_OPEN_IDENTITY_SKIPPED` — the canary did not earn a WMI/CIM query.
-- `FreshLocalReuse` — completed recent evidence was reused and no live probe was performed for that target.
+- `FreshLocalReuse` — a completed result within the cooldown window was reused and no live probe was performed for that target.
 
 ## Proof ceiling
 

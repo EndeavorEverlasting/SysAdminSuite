@@ -31,14 +31,16 @@ Describe 'Cybernet low-noise identity canary' {
         $content | Should -Not -Match 'naabu'
     }
 
-    It 'reuses only completed fresh evidence and preserves original observation time' {
+    It 'reuses only completed fresh attempts and preserves original observation time' {
         $content = Get-Content -LiteralPath $script:canary -Raw
         $content | Should -Match 'ReuseWithinHours = 24'
+        $content | Should -Match 'Get-SasFreshCanaryEvidence'
         $content | Should -Match 'cybernet_canary_complete.json'
         $content | Should -Match 'result_sha256'
         $content | Should -Match 'Get-FileHash'
         $content | Should -Match 'ObservationTimestamp'
         $content | Should -Match ([regex]::Escape('ObservationTimestamp = [string]$fresh.ObservationTimestamp'))
+        $content | Should -Match ([regex]::Escape('IdentityStatus = [string]$fresh.IdentityStatus'))
         $content | Should -Match 'FreshLocalReuse'
         $content | Should -Match 'NetworkActivityPerformed = \$false'
     }
@@ -66,14 +68,20 @@ Describe 'Cybernet low-noise identity canary' {
         $content | Should -Not -Match 'CONFIRMED_CYBERNET'
     }
 
-    It 'routes through the network-aware mutex and cwd-independent universal front door' {
-        $launcher = Get-Content -LiteralPath $script:launcher -Raw
+    It 'validates the canary shape before any network transition and uses the protected mutex' {
         $networkAware = Get-Content -LiteralPath $script:networkAware -Raw
+        $networkAware | Should -Match 'Test-SasCybernetShapeForNetworkTransition'
+        $networkAware | Should -Match 'Test-SasCanaryTargetForNetworkTransition'
+        $networkAware | Should -Match ([regex]::Escape('$values.Count -gt 6'))
+        $networkAware | Should -Match ([regex]::Escape("if ($mode -eq 'canary')"))
+        $networkAware | Should -Match 'Global\\SysAdminSuite.NetworkIntent.v1'
+    }
+
+    It 'routes through the cwd-independent universal front door and guards stale runtimes' {
+        $launcher = Get-Content -LiteralPath $script:launcher -Raw
         $installer = Get-Content -LiteralPath $script:installer -Raw
         $launcher | Should -Match ([regex]::Escape('sas cybernet canary HOST01 HOST02 ...'))
         $launcher | Should -Match ([regex]::Escape('Join-Path $controllerRoot ''survey\sas-cybernet-canary.ps1'''))
-        $networkAware | Should -Match ([regex]::Escape("@('probe','deploy','core','profiled-core','recover','canary')"))
-        $networkAware | Should -Match 'Global\\SysAdminSuite.NetworkIntent.v1'
         $installer | Should -Match ([regex]::Escape("'survey\sas-cybernet-canary.ps1'"))
         $installer | Should -Match 'sourceCanaryHash'
         $installer | Should -Match 'canonicalCanaryHash'

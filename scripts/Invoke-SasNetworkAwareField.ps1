@@ -99,6 +99,33 @@ function Test-SasAdOuShapeForNetworkTransition {
     }
 }
 
+function Test-SasCanaryTargetForNetworkTransition {
+    param([AllowNull()][string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+    $candidate = $Value.Trim()
+    if ($candidate -match '[/*?\[\]]' -or $candidate -match '\.\.') { return $false }
+    $ip = $null
+    if ([System.Net.IPAddress]::TryParse($candidate, [ref]$ip)) { return $true }
+    return $candidate -match '^[A-Za-z0-9][A-Za-z0-9._-]{1,254}$'
+}
+
+function Test-SasCybernetShapeForNetworkTransition {
+    [CmdletBinding()]
+    param([string[]]$Arguments)
+
+    $values = @($Arguments)
+    if ($values.Count -lt 2) { return $false }
+    $mode = ([string]$values[0]).Trim().ToLowerInvariant()
+    if ($mode -eq 'canary') {
+        if ($values.Count -gt 6) { return $false }
+        foreach ($value in @($values | Select-Object -Skip 1)) {
+            if (-not (Test-SasCanaryTargetForNetworkTransition -Value ([string]$value)) { return $false }
+        }
+        return $true
+    }
+    return $mode -in @('probe','deploy','core','profiled-core','recover')
+}
+
 # Determine whether a command can actually reach a network-sensitive product path before any
 # WLAN transition is allowed. Invalid/incomplete shapes still flow to the canonical dispatcher for
 # its usage/error result, but they remain CommandSpecific so they cannot cause a disruptive switch.
@@ -125,7 +152,7 @@ switch ($normalized) {
         }
     }
     'cybernet' {
-        if ($actualArgs.Count -ge 2 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -in @('probe','deploy','core','profiled-core','recover','canary')) {
+        if (Test-SasCybernetShapeForNetworkTransition -Arguments $actualArgs) {
             $intent = 'ProtectedNorthwell'
         }
     }
