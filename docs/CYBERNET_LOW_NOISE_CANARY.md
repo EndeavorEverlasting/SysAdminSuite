@@ -2,7 +2,7 @@
 
 ## Operator contract
 
-**Operator terminal: Windows PowerShell.**
+Operator terminal: **Windows PowerShell**.
 
 Use the installed `sas` command from any directory. Do not paste Bash backslash-continuation syntax into CMD or PowerShell, and do not depend on the repository being your current directory.
 
