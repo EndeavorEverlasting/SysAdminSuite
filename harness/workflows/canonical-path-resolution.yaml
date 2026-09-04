@@ -6,7 +6,7 @@ target_mutation: false
 purpose: >-
   Resolve one user's profile parameters and one compatible machine-role path authority before
   repository-relative execution, updater work, isolated worktree creation, installed-runtime use,
-  or operator handoff. Keep profile identity plus remote, canonical development, production/use,
+  or operator handoff. Keep execution context plus remote, canonical development, production/use,
   and real-entrypoint proof states separate.
 
 inputs:
@@ -28,6 +28,8 @@ inputs:
 
 invariants:
   - read harness/api/canonical-path-registry.json as the canonical owner
+  - resolve execution context before a path-sensitive command; terminal application is not shell identity and a prompt is not target proof
+  - when execution context is materially unknown, emit EXECUTION_CONTEXT=UNKNOWN and do not guess shell-specific or target-specific mutation syntax
   - resolve the four independent profile parameters os, user, onedrive_enabled, and desktop_dev_root before path composition
   - explicit profile parameter values outrank local observation; local observation outranks registered fallback
   - the OneDrive toggle never chooses, rewrites, or guesses the Desktop path
@@ -38,7 +40,7 @@ invariants:
   - on Windows, require git status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty to return zero before fetch, log, status reporting, reconciliation, or worktree creation
   - a missing canonical checkout is MISSING and never authorizes a fallback clone in another directory
   - a Git-I/O-unhealthy checkout is CONFLICT_GIT_IO_UNHEALTHY and must be preserved until unique work and storage state are reconciled
-  - workstation NEXT COMMAND artifacts must already exist on refreshed remote default; never require an unmerged helper from a default-branch checkout
+  - workstation NEXT COMMAND artifacts must already exist on refreshed remote default; never require an unmerged feature-branch artifact
   - multi-command PowerShell handoffs must run as one outer scriptblock and check every material native exit code before dependent commands continue
   - do not commit a real user identity merely to teach profile resolution
   - do not choose a directory from model preference
@@ -48,11 +50,27 @@ invariants:
   - an ephemeral acquisition checkout never becomes canonical merely because it exists or is current
   - a second mutable clone is not a substitute for the canonical development checkout
   - preserve unique or dirty work; parallel writers use the registered temporary worktree root
+  - classify bounded observed locations as CLONE, WORKTREE, INSTALL, MIRROR, CACHE, OUTPUT, BACKUP, or UNKNOWN before cleanup decisions
+  - an UNKNOWN location is never disposable by assumption
+  - production/use is a consumer path, not the default development mutation target
+  - PROD_USE_STATE is ACTIVE, QUIESCED, OFFLINE, UNKNOWN, or NOT_APPLICABLE; UNKNOWN is not idle
+  - ACTIVE or UNKNOWN production/use state blocks ad-hoc production-path mutation
+  - when development and production resolve to the same physical path, every development write is production-impacting
+  - when development and production are separate, edit/build/test only in canonical development or an approved worktree and cross the registered update boundary afterward
   - product-specific launchers and updaters retain their own mutation authority; path resolution grants none
 
 stages:
-  - id: resolve-profile-parameters
+  - id: resolve-execution-context
     order: 1
+    actions:
+      - record terminal host, actual shell/interpreter process, OS/runtime boundary, execution target, current working directory, and path semantics
+      - distinguish local Windows execution from WSL, container, VM, SSH/remote, or CI when evidence is available
+      - record UNKNOWN instead of inferring a terminal application, shell, kernel, or execution target from appearance
+    stop_conditions:
+      - a material path-sensitive mutation depends on an execution-context fact that remains UNKNOWN
+
+  - id: resolve-profile-parameters
+    order: 2
     actions:
       - load harness/api/canonical-path-registry.json
       - resolve os from explicit input or local operating-system observation
@@ -65,35 +83,37 @@ stages:
       - a required profile parameter cannot be resolved
 
   - id: select-profile
-    order: 2
+    order: 3
     actions:
       - resolve the supplied machine_profile or the registry default_profile
       - require exactly one matching machine-role profile
       - require the selected profile platform to support the resolved os
       - require the selected profile's required_profile_parameters to match the canonical profile parameter set
       - compose canonical_development_checkout from {desktop_dev_root}\SysAdminSuite when that is the registered template
-      - record canonical_development_checkout, production_use_path, temporary_worktree_root, and real_operator_entrypoint
+      - record canonical_development_checkout, production_use_path, temporary_worktree_root, real_operator_entrypoint, and registered production update authority when applicable
     stop_conditions:
       - zero or multiple profiles match
       - selected profile is incompatible with the resolved os
 
-  - id: classify-candidate
-    order: 3
+  - id: classify-candidate-and-known-locations
+    order: 4
     actions:
       - normalize the candidate path without mutating it
-      - classify it as canonical_development, production_use, isolated_worktree, ephemeral_acquisition, or unknown
-      - reject ephemeral_acquisition or unknown as a replacement canonical development checkout
-      - preserve dirty or separately owned candidate state
+      - classify the candidate role as canonical_development, production_use, isolated_worktree, ephemeral_acquisition, runtime_output, preserved_backup, or unknown
+      - classify bounded known locations as CLONE, WORKTREE, INSTALL, MIRROR, CACHE, OUTPUT, BACKUP, or UNKNOWN
+      - reject ephemeral_acquisition, output, backup, or unknown as a replacement canonical development checkout
+      - preserve dirty, unpushed, unique, separately owned, or not-yet-inspected candidate state
+      - never delete or reset merely to make the machine tidy
 
   - id: prove-remote
-    order: 4
+    order: 5
     actions:
       - when current remote truth is required, delegate repository refresh to harness/workflows/repository-freshness-before-launch.yaml
       - record remote_default_contains_sha independently
       - do not promote this proof into workstation deployment proof
 
   - id: prove-development
-    order: 5
+    order: 6
     actions:
       - use the canonical development checkout composed from the resolved profile parameters
       - require repository identity to match EndeavorEverlasting/SysAdminSuite
@@ -107,16 +127,29 @@ stages:
     stop_conditions:
       - canonical development checkout is missing, wrong-repository, nested under another checkout, Git-I/O-unhealthy, or otherwise unproved
 
+  - id: classify-production-use-state
+    order: 7
+    actions:
+      - when production_use_path.applicable is false, record PROD_USE_STATE=NOT_APPLICABLE
+      - when the registered production/use path is absent, record PROD_USE_STATE=OFFLINE with that exact evidence
+      - when the production/use path exists but active-consumer/quiescence evidence was not collected, record PROD_USE_STATE=UNKNOWN
+      - never convert existence of an installed launcher, path, manifest, process hint, or stale receipt into QUIESCED
+      - record production_ad_hoc_mutation_allowed=false for the resolver; only the registered updater/promotion boundary can own production mutation
+      - if development and production resolve to one physical path and PROD_USE_STATE is ACTIVE or UNKNOWN, block development mutation until quiescence or tracked in-place safety is proved
+    stop_conditions:
+      - an ad-hoc production-path write, pull, reset, rebuild, overwrite, or regeneration is requested while state is ACTIVE or UNKNOWN
+
   - id: prove-production-use
-    order: 6
+    order: 8
     actions:
       - when production_use_path.applicable is false, record not_applicable with the registry reason
       - otherwise resolve only the registered production/use path
       - require the owning installer, updater, seal, manifest, or runtime verifier to prove currentness
+      - use the registered production update authority rather than ad-hoc file copies or in-place Git commands
       - never infer production currentness from GitHub merge success or canonical development checkout currentness
 
   - id: prove-entrypoint
-    order: 7
+    order: 9
     actions:
       - resolve the real operator entrypoint authority declared by the selected profile
       - require the entrypoint to resolve or observe the registered production/use path when applicable
@@ -124,10 +157,11 @@ stages:
       - do not convert entrypoint observation into product deployment proof
 
   - id: handoff
-    order: 8
+    order: 10
     actions:
-      - report the four resolved profile parameters and their source provenance
-      - report all four proof states separately
+      - report the execution-context receipt and four resolved profile parameters with source provenance
+      - report PROD_USE_STATE, physical path relation, mutation guards, bounded known-location inventory, and cleanup_authorized=false
+      - report all four currentness proof states separately
       - report the selected machine-role profile and classified candidate path
       - for Windows repo-relative next commands from an arbitrary shell, resolve Environment.GetFolderPath(Desktop) -> Dev -> SysAdminSuite, prove exact repository identity, then prove Git I/O health before any broader Git or checkout-owned command
       - never begin a from-anywhere handoff with git rev-parse --show-toplevel
@@ -136,13 +170,26 @@ stages:
       - name the first unproven path state and route the next action to its owning workflow
 
 outputs:
+  - execution_context_status
+  - terminal_host
+  - shell_interpreter
+  - runtime_boundary
+  - execution_target
   - selected_profile
   - resolved_profile_parameters
   - profile_parameter_sources
   - candidate_path_classification
+  - candidate_location_class
+  - known_location_inventory
+  - cleanup_authorized
   - canonical_development_checkout
   - canonical_git_io_health
   - production_use_path
+  - production_use_state
+  - production_ad_hoc_mutation_allowed
+  - production_update_authority
+  - development_mutation_guard
+  - path_relation
   - temporary_worktree_root
   - real_operator_entrypoint
   - remote_default_contains_sha
@@ -151,6 +198,7 @@ outputs:
   - operator_entrypoint_observes_current
 
 proof_ceiling: >-
-  Proves user-profile and path authority, classification, Git checkout usability, and separation of
-  repository/checkout/runtime/entrypoint currentness. It grants no network, product mutation,
-  deployment, restart, or live-runtime authority.
+  Proves local execution-context evidence, user-profile and path authority, bounded location classification,
+  Git checkout usability, conservative production-use state, and separation of repository/checkout/runtime/
+  entrypoint currentness. It grants no network, product mutation, production quiescence, deployment, restart,
+  or live-runtime authority.
