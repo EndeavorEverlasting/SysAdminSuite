@@ -55,11 +55,22 @@ Write-Host "Installed launcher: $sasCommand" -ForegroundColor Cyan
 Write-Host 'Missing numbered stages, if any, will be printed explicitly as SKIP; deployment semantics are unchanged.' -ForegroundColor Cyan
 Write-Host ''
 
-$global:LASTEXITCODE = 0
-& $sasCommand autologon Remote $target 2>&1 | ConvertTo-SasAutoLogonContiguousProgress | ForEach-Object {
-    Write-Host ([string]$_)
+$previousPreference = $ErrorActionPreference
+$exitCode = 1
+try {
+    # Windows PowerShell 5.1 can promote redirected native stderr to ErrorRecord objects. Keep those
+    # records as presentation data instead of allowing Stop preference to abort before LASTEXITCODE
+    # is captured from the canonical sas.cmd process.
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = 0
+    & $sasCommand autologon Remote $target 2>&1 | ConvertTo-SasAutoLogonContiguousProgress | ForEach-Object {
+        Write-Host ([string]$_)
+    }
+    $exitCode = [int]$global:LASTEXITCODE
 }
-$exitCode = [int]$global:LASTEXITCODE
+finally {
+    $ErrorActionPreference = $previousPreference
+}
 if ($exitCode -ne 0) {
     Write-Host "AUTOLOGON COMMAND EXIT: $exitCode" -ForegroundColor Yellow
 }
