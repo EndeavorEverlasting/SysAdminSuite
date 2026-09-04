@@ -4,6 +4,8 @@
 
 Load this skill when a task needs to locate SysAdminSuite, create or select a worktree, update a checkout, resolve an installed/served/field runtime, choose a real operator entrypoint, or diagnose a command that is present remotely but missing at the path being used.
 
+When path resolution is being performed so that an agent can **emit, execute, or ask an operator to run a SysAdminSuite-owned command**, this skill is only the first gate. Load `harness/skills/operator-command-handoff/SKILL.md` and complete its path -> freshness -> network intent -> command -> restoration sequence before handing over the product command.
+
 ## Required inputs
 
 Every user profile resolves four independent parameters: `os`, `user`, `onedrive_enabled`, and `desktop_dev_root`.
@@ -91,7 +93,8 @@ Only after checkout identity **and Git I/O health** are proved may the continuat
 12. Preserve dirty or unique work. Use a Git worktree under the registered temporary root for parallel writers instead of making another mutable clone.
 13. For an installed/field runtime, require its owning updater/seal/manifest proof. A GitHub merge or fresh clone is insufficient.
 14. For operator execution, delegate to `harness/workflows/operator-execution-route.yaml` and require the registered entrypoint to observe the intended runtime.
-15. Report the first unproven state and its owning continuation; do not claim workstation deployment from repository evidence.
+15. Before emitting or executing any SysAdminSuite-owned operator command, load `harness/skills/operator-command-handoff/SKILL.md`; canonical path proof must be followed by repository freshness, starting-network/required-intent handling, canonical command execution, and required network restoration in one composed handoff.
+16. Report the first unproven state and its owning continuation; do not claim workstation deployment from repository evidence.
 
 ## PowerShell operator-block integrity
 
@@ -120,4 +123,4 @@ Also forbidden: a NEXT COMMAND that requires a helper that exists only on an unm
 
 ## Proof ceiling
 
-This skill proves user-profile/path authority, Git checkout usability, and routing only. It does not mutate a product target or prove deployment/runtime success.
+This skill proves user-profile/path authority, Git checkout usability, and routing only. It does not mutate a product target or prove deployment/runtime success. A command handoff is incomplete until the composed operator-command handoff skill has also proved freshness and network/restore routing.
