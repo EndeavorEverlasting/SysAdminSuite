@@ -227,6 +227,29 @@ if ($null -ne $currentCandidate) {
     }
 }
 
+function Invoke-SasCanonicalGitProbe {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $stdout = @(& git -C $Root @Arguments 2>$null)
+        $exitCode = [int]$global:LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    return [pscustomobject][ordered]@{
+        exit_code = $exitCode
+        output = @($stdout | ForEach-Object { [string]$_ })
+    }
+}
+
 $checkoutStatus = if ($oneDriveState -eq 'MULTIPLE_ROOTS') {
     'CONFLICT_ONEDRIVE_MULTIPLE_ROOTS'
 } elseif ($oneDriveState -eq 'ROOT_UNAVAILABLE') {
@@ -249,8 +272,9 @@ if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -Pa
         if ($null -eq $git) {
             $checkoutStatus = 'UNKNOWN_GIT_UNAVAILABLE'
         } else {
-            $top = (& git -C $canonicalDev rev-parse --show-toplevel 2>$null)
-            $topExit = $LASTEXITCODE
+            $topProbe = Invoke-SasCanonicalGitProbe -Root $canonicalDev -Arguments @('rev-parse','--show-toplevel')
+            $topExit = [int]$topProbe.exit_code
+            $top = (@($topProbe.output) -join [Environment]::NewLine).Trim()
             if ($topExit -ne 0 -or [string]::IsNullOrWhiteSpace([string]$top)) {
                 $checkoutStatus = 'CONFLICT_NOT_GIT_CHECKOUT'
             } else {
@@ -258,10 +282,12 @@ if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -Pa
                 if (-not $topFull.Equals($canonicalDev, [StringComparison]::OrdinalIgnoreCase)) {
                     $checkoutStatus = 'CONFLICT_NESTED_OR_WRONG_ROOT'
                 } else {
-                    $checkoutRemote = (& git -C $canonicalDev config --get remote.origin.url 2>$null)
-                    $remoteExit = $LASTEXITCODE
-                    $checkoutHead = (& git -C $canonicalDev rev-parse HEAD 2>$null)
-                    $headExit = $LASTEXITCODE
+                    $remoteProbe = Invoke-SasCanonicalGitProbe -Root $canonicalDev -Arguments @('config','--get','remote.origin.url')
+                    $remoteExit = [int]$remoteProbe.exit_code
+                    $checkoutRemote = (@($remoteProbe.output) -join [Environment]::NewLine).Trim()
+                    $headProbe = Invoke-SasCanonicalGitProbe -Root $canonicalDev -Arguments @('rev-parse','HEAD')
+                    $headExit = [int]$headProbe.exit_code
+                    $checkoutHead = (@($headProbe.output) -join [Environment]::NewLine).Trim()
                     $remoteText = ([string]$checkoutRemote).Trim().TrimEnd('/')
                     $allowedRemotes = @(
                         'https://github.com/EndeavorEverlasting/SysAdminSuite',
@@ -277,15 +303,8 @@ if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -Pa
                     } elseif ($headExit -ne 0 -or ([string]$checkoutHead).Trim() -notmatch '^[0-9a-fA-F]{40}$') {
                         $checkoutStatus = 'UNKNOWN_GIT_IDENTITY'
                     } else {
-                        $previousErrorActionPreference = $ErrorActionPreference
-                        try {
-                            $ErrorActionPreference = 'Continue'
-                            & git -C $canonicalDev status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty 1>$null 2>$null
-                            $gitIoExit = $LASTEXITCODE
-                        }
-                        finally {
-                            $ErrorActionPreference = $previousErrorActionPreference
-                        }
+                        $statusProbe = Invoke-SasCanonicalGitProbe -Root $canonicalDev -Arguments @('status','--porcelain=v1','--untracked-files=no','--ignore-submodules=dirty')
+                        $gitIoExit = [int]$statusProbe.exit_code
                         if ($gitIoExit -ne 0) {
                             $canonicalGitIoHealth = 'UNHEALTHY'
                             $checkoutStatus = 'CONFLICT_GIT_IO_UNHEALTHY'
