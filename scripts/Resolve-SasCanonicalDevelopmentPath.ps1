@@ -140,6 +140,7 @@ $pathRelation = if (-not $productionApplicable) {
 } else {
     'SEPARATE_EXPLICIT_SYNC_INSTALL_PROMOTION_REQUIRED'
 }
+$pathRelationEvidence = 'Normalized path comparison; reparse-point state will be reconciled after canonical checkout inspection.'
 
 $entrypointAuthority = [string]$profile.real_operator_entrypoint.authority
 $canonicalEntrypoint = $null
@@ -260,6 +261,20 @@ if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -Pa
     }
 }
 
+if ($productionApplicable -and (
+    $canonicalReparseState -eq 'REPARSE_POINT_PRESENT' -or
+    $productionReparseState -eq 'REPARSE_POINT_PRESENT' -or
+    $productionReparseState -eq 'UNKNOWN')) {
+    $pathRelation = 'UNKNOWN_REPARSE_POINT_RELATION'
+    $pathRelationEvidence = "Physical relation is not trusted because canonical_reparse=$canonicalReparseState production_reparse=$productionReparseState."
+} elseif ($pathRelation -eq 'SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING') {
+    $pathRelationEvidence = 'Canonical development and production/use normalize to the same path and neither observed path is an unresolved reparse point.'
+} elseif ($productionApplicable) {
+    $pathRelationEvidence = 'Canonical development and production/use normalize to different paths and neither observed path is an unresolved reparse point.'
+} else {
+    $pathRelationEvidence = 'Selected profile has no production/use path.'
+}
+
 $pathDisposition = if ($checkoutStatus -eq 'CANONICAL_PROVED' -and $candidateClassification -eq 'CANONICAL_DEVELOPMENT') {
     'CANONICAL + PROVED'
 } elseif ($checkoutStatus -eq 'MISSING') {
@@ -280,6 +295,11 @@ if ($productionApplicable) {
     $knownLocations += [pscustomobject][ordered]@{ path=$productionUse; class='INSTALL'; role='PRODUCTION_USE'; exists=(Test-Path -LiteralPath $productionUse -PathType Container); disposition='PRESERVE' }
 }
 $knownLocations += [pscustomobject][ordered]@{ path=$worktreeRoot; class='WORKTREE'; role='WORKTREE_ROOT'; exists=(Test-Path -LiteralPath $worktreeRoot -PathType Container); disposition='PRESERVE' }
+if (Test-Path -LiteralPath $worktreeRoot -PathType Container) {
+    foreach ($item in @(Get-ChildItem -LiteralPath $worktreeRoot -Directory -ErrorAction SilentlyContinue)) {
+        $knownLocations += [pscustomobject][ordered]@{ path=$item.FullName; class='WORKTREE'; role='APPROVED_ISOLATED_WORKTREE'; exists=$true; disposition='PRESERVE_UNTIL_PROVED_DISPOSABLE' }
+    }
+}
 if (Test-Path -LiteralPath $localStateRoot -PathType Container) {
     foreach ($item in @(Get-ChildItem -LiteralPath $localStateRoot -Directory -Filter 'closeout-entry-*' -ErrorAction SilentlyContinue)) {
         $knownLocations += [pscustomobject][ordered]@{ path=$item.FullName; class='CACHE'; role='EPHEMERAL_ACQUISITION'; exists=$true; disposition='PRESERVE_UNTIL_PROVED_DISPOSABLE' }
@@ -299,7 +319,9 @@ if (Test-Path -LiteralPath $localStateRoot -PathType Container) {
 }
 
 $productionAdHocMutationAllowed = $false
-$developmentMutationGuard = if ($pathRelation -eq 'SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING' -and $productionUseState -in @('ACTIVE','UNKNOWN')) {
+$developmentMutationGuard = if ($pathRelation -eq 'UNKNOWN_REPARSE_POINT_RELATION') {
+    'BLOCK_UNTIL_PHYSICAL_PATH_RELATION_PROVED'
+} elseif ($pathRelation -eq 'SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING' -and $productionUseState -in @('ACTIVE','UNKNOWN')) {
     'BLOCK_UNTIL_PRODUCTION_QUIESCED_OR_TRACKED_IN_PLACE_SAFETY_PROVED'
 } elseif ($pathRelation -eq 'SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING') {
     'PRODUCTION_IMPACTING_USE_TRACKED_BOUNDARY'
@@ -341,6 +363,7 @@ $receipt = [ordered]@{
     production_update_boundary = $productionUpdateBoundary
     development_mutation_guard = $developmentMutationGuard
     path_relation = $pathRelation
+    path_relation_evidence = $pathRelationEvidence
     canonical_entrypoint_authority = $entrypointAuthority
     canonical_entrypoint = $canonicalEntrypoint
     candidate_path = $currentCandidate
@@ -387,6 +410,7 @@ if ($AsJson) {
     Write-Host "Production ad-hoc mutation: BLOCKED"
     Write-Host "Production update authority: $(if ($productionUpdateAuthority) { $productionUpdateAuthority } else { 'NOT_APPLICABLE' })"
     Write-Host "Path relation: $pathRelation"
+    Write-Host "Path relation evidence: $pathRelationEvidence"
     Write-Host "Entrypoint authority: $entrypointAuthority"
     Write-Host "Entrypoint: $(if ($null -ne $canonicalEntrypoint) { $canonicalEntrypoint } else { 'PROFILE_ROUTED' })"
     Write-Host "Observed candidate: $currentCandidate [$candidateClassification / $candidateLocationClass]"
