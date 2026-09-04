@@ -12,7 +12,9 @@ Use this skill for repository intake, sprint ranking, Git/PR lifecycle work, int
 
 When this skill is about to emit, execute, or ask an operator to run a SysAdminSuite-owned next command, load [`harness/skills/operator-command-handoff/SKILL.md`](../../../harness/skills/operator-command-handoff/SKILL.md) first. A repository sprint does not get to bypass workstation prerequisites merely because repository implementation is complete.
 
-The operator handoff must compose **path -> freshness -> network intent -> command -> restoration**. In particular, relocate to the canonical machine/profile path, refresh and safely converge repository truth, capture the starting network and resolve the command's required intent, execute the registered front door, and restore/return the network posture when required. Do not emit a bare product command and defer those prerequisites to a later corrective snippet.
+The operator handoff must compose **path -> freshness -> network intent -> command -> restoration**. In particular: relocate to the canonical machine/profile development path and capture the starting network **before any transition**; perform repository freshness under `InternetSync` and return to that captured posture; prove any separate sealed/runtime currentness; resolve the product command's own network intent; execute the registered front door; and restore/return the network posture when required. Do not emit a bare product command and defer those prerequisites to a later corrective snippet.
+
+For sealed `C:\SASAL` execution, pull-latest/currentness proof belongs to the canonical development/freshness surface first, followed by the repository-owned `sas refresh` seal path. Do not run remote Git in the sealed runtime.
 
 ## Workflow
 
@@ -32,4 +34,4 @@ The operator handoff must compose **path -> freshness -> network intent -> comma
 - Shared contracts before duplicated reports, dashboards, or adapters.
 - Do not merge, close, delete, force-push, or remove worktrees without current evidence.
 - Do not turn an evidence harvest into a tracked census document unless downstream workflows require it.
-- Do not use sprint completion as a reason to skip canonical relocation, pull-latest/currentness proof, network-intent selection, or required network restoration in an operator handoff.
+- Do not use sprint completion as a reason to skip canonical relocation, pre-freshness starting-network capture, pull-latest/currentness proof, sealed/runtime currentness when applicable, product network-intent selection, or required network restoration in an operator handoff.
