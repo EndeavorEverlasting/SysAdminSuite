@@ -66,7 +66,7 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
         "CONFLICT_NESTED_OR_WRONG_ROOT",
         "CONFLICT_REPARSE_POINT_UNINSPECTED",
         "CONFLICT_GIT_IO_UNHEALTHY",
-        "status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty",
+        "Invoke-SasCanonicalGitProbe",
         "canonical_git_io_health = $canonicalGitIoHealth",
         "CANONICAL_PROVED",
         "current_directory_is_authority = $false",
@@ -79,6 +79,8 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
     )
     for marker in required:
         assert marker in text, f"resolver missing fail-closed/path-input marker: {marker}"
+    for git_arg in ("'status'", "'--porcelain=v1'", "'--untracked-files=no'", "'--ignore-submodules=dirty'"):
+        assert git_arg in text, f"resolver missing Git I/O health argument: {git_arg}"
     assert "do not create a fallback clone elsewhere" in text.lower()
     assert "evilgithub.com" not in text
 
