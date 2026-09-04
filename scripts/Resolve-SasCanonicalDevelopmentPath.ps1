@@ -4,6 +4,8 @@ param(
     [string]$MachineProfile,
     [string]$DesktopDevRoot,
     [string]$CandidatePath,
+    [ValidateSet('LOCAL','CI','POWERSHELL_REMOTE','SSH_REMOTE','CONTAINER','VM','WSL')]
+    [string]$ExecutionTargetOverride,
     [switch]$RequireCheckout,
     [switch]$AsJson
 )
@@ -36,9 +38,8 @@ if ([string]$profile.platform -ne 'windows') {
     throw "Profile '$selectedProfileId' is not compatible with this Windows resolver."
 }
 
-# Execution context is evidence, not path authority. Record the actual process boundary before any
-# path-sensitive recommendation so a terminal application, shell prompt, container, VM, or remote
-# session cannot be inferred from appearance alone.
+# Execution context is evidence, not path authority. A Windows process proves the runtime boundary,
+# not whether the operator is local, remoted, in CI, or inside another isolation boundary.
 $processPath = 'UNKNOWN'
 try {
     $process = Get-Process -Id $PID -ErrorAction Stop
@@ -46,14 +47,39 @@ try {
         $processPath = [IO.Path]::GetFullPath([string]$process.Path)
     }
 } catch { }
-$executionContextStatus = 'PROVED_LOCAL_WINDOWS_PROCESS'
-$executionTarget = 'LOCAL'
 $runtimeBoundary = 'WINDOWS_NATIVE'
 $terminalHost = [string]$Host.Name
 $terminalApplication = 'UNKNOWN_NOT_PROBED'
 $powershellEdition = if ($PSVersionTable.PSObject.Properties['PSEdition']) { [string]$PSVersionTable.PSEdition } else { 'Desktop' }
 $powershellVersion = [string]$PSVersionTable.PSVersion
-$currentWorkingDirectory = [IO.Path]::GetFullPath((Get-Location).Path)
+$executionTarget = 'UNKNOWN'
+$executionContextStatus = 'WINDOWS_PROCESS_CONTEXT_PARTIAL'
+$executionTargetSource = 'unprobed'
+if (-not [string]::IsNullOrWhiteSpace($ExecutionTargetOverride)) {
+    $executionTarget = $ExecutionTargetOverride
+    $executionContextStatus = 'EXPLICIT_EXECUTION_TARGET'
+    $executionTargetSource = 'explicit_invocation'
+} elseif ([string]$env:GITHUB_ACTIONS -eq 'true') {
+    $executionTarget = 'CI'
+    $executionContextStatus = 'PROVED_WINDOWS_CI'
+    $executionTargetSource = 'GITHUB_ACTIONS'
+} elseif ($null -ne (Get-Variable -Name PSSenderInfo -Scope Global -ErrorAction SilentlyContinue)) {
+    $executionTarget = 'POWERSHELL_REMOTE'
+    $executionContextStatus = 'PROVED_POWERSHELL_REMOTE'
+    $executionTargetSource = 'PSSenderInfo'
+} elseif (-not [string]::IsNullOrWhiteSpace([string]$env:SSH_CONNECTION)) {
+    $executionTarget = 'SSH_REMOTE'
+    $executionContextStatus = 'PROVED_SSH_REMOTE'
+    $executionTargetSource = 'SSH_CONNECTION'
+}
+
+$currentLocation = Get-Location
+$currentLocationProvider = if ($null -ne $currentLocation.Provider) { [string]$currentLocation.Provider.Name } else { 'UNKNOWN' }
+$currentWorkingDirectory = [string]$currentLocation.Path
+$currentWorkingDirectoryFileSystem = $null
+if ($currentLocationProvider -eq 'FileSystem') {
+    try { $currentWorkingDirectoryFileSystem = [IO.Path]::GetFullPath([string]$currentLocation.Path) } catch { $currentWorkingDirectoryFileSystem = $null }
+}
 
 $user = if (-not [string]::IsNullOrWhiteSpace($env:USERNAME)) { [string]$env:USERNAME } else { [Environment]::UserName }
 if ([string]::IsNullOrWhiteSpace($user)) { throw 'Unable to resolve current Windows user identity.' }
@@ -108,6 +134,8 @@ $canonicalDev = [IO.Path]::GetFullPath((Join-Path $desktopDev 'SysAdminSuite'))
 if (-not $env:LOCALAPPDATA) { throw 'LOCALAPPDATA is required to resolve the canonical worktree root.' }
 $localStateRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'SysAdminSuite'))
 $worktreeRoot = [IO.Path]::GetFullPath((Join-Path $localStateRoot 'worktrees'))
+$syncCache = [IO.Path]::GetFullPath((Join-Path $localStateRoot 'sync-cache'))
+$preferredFieldReady = [IO.Path]::GetFullPath((Join-Path $localStateRoot 'field-ready'))
 
 $productionApplicable = [bool]$profile.production_use_path.applicable
 $productionUse = $null
@@ -159,10 +187,16 @@ if ($null -ne $updateBoundaryProperty -and -not [string]::IsNullOrWhiteSpace([st
     $productionUpdateBoundary = [string]$updateBoundaryProperty.Value
 }
 
-$currentCandidate = if ([string]::IsNullOrWhiteSpace($CandidatePath)) { (Get-Location).Path } else { $CandidatePath.Trim() }
-try { $currentCandidate = [IO.Path]::GetFullPath($currentCandidate) } catch { $currentCandidate = $null }
+$currentCandidate = $null
 $candidateClassification = 'UNKNOWN'
 $candidateLocationClass = 'UNKNOWN'
+if (-not [string]::IsNullOrWhiteSpace($CandidatePath)) {
+    try { $currentCandidate = [IO.Path]::GetFullPath($CandidatePath.Trim()) } catch { $currentCandidate = $null }
+} elseif ($currentLocationProvider -eq 'FileSystem' -and $null -ne $currentWorkingDirectoryFileSystem) {
+    $currentCandidate = $currentWorkingDirectoryFileSystem
+} else {
+    $candidateClassification = 'UNKNOWN_NON_FILESYSTEM_CURRENT_LOCATION'
+}
 if ($null -ne $currentCandidate) {
     if ($currentCandidate.Equals($canonicalDev, [StringComparison]::OrdinalIgnoreCase)) {
         $candidateClassification = 'CANONICAL_DEVELOPMENT'
@@ -170,6 +204,13 @@ if ($null -ne $currentCandidate) {
     } elseif ($productionApplicable -and $currentCandidate.Equals($productionUse, [StringComparison]::OrdinalIgnoreCase)) {
         $candidateClassification = 'PRODUCTION_USE'
         $candidateLocationClass = 'INSTALL'
+    } elseif ($currentCandidate.Equals($syncCache, [StringComparison]::OrdinalIgnoreCase)) {
+        $candidateClassification = 'UPDATER_SYNC_CACHE'
+        $candidateLocationClass = 'CLONE'
+    } elseif ($currentCandidate.Equals($preferredFieldReady, [StringComparison]::OrdinalIgnoreCase) -or
+              $currentCandidate.StartsWith(($preferredFieldReady + '-'), [StringComparison]::OrdinalIgnoreCase)) {
+        $candidateClassification = 'UPDATER_FIELD_READY_WORKTREE'
+        $candidateLocationClass = 'WORKTREE'
     } elseif ($currentCandidate.StartsWith($worktreeRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
         $candidateClassification = 'ISOLATED_WORKTREE'
         $candidateLocationClass = 'WORKTREE'
@@ -295,12 +336,16 @@ if ($productionApplicable) {
     $knownLocations += [pscustomobject][ordered]@{ path=$productionUse; class='INSTALL'; role='PRODUCTION_USE'; exists=(Test-Path -LiteralPath $productionUse -PathType Container); disposition='PRESERVE' }
 }
 $knownLocations += [pscustomobject][ordered]@{ path=$worktreeRoot; class='WORKTREE'; role='WORKTREE_ROOT'; exists=(Test-Path -LiteralPath $worktreeRoot -PathType Container); disposition='PRESERVE' }
+$knownLocations += [pscustomobject][ordered]@{ path=$syncCache; class='CLONE'; role='UPDATER_SYNC_CACHE'; exists=(Test-Path -LiteralPath $syncCache -PathType Container); disposition='PRESERVE' }
 if (Test-Path -LiteralPath $worktreeRoot -PathType Container) {
     foreach ($item in @(Get-ChildItem -LiteralPath $worktreeRoot -Directory -ErrorAction SilentlyContinue)) {
         $knownLocations += [pscustomobject][ordered]@{ path=$item.FullName; class='WORKTREE'; role='APPROVED_ISOLATED_WORKTREE'; exists=$true; disposition='PRESERVE_UNTIL_PROVED_DISPOSABLE' }
     }
 }
 if (Test-Path -LiteralPath $localStateRoot -PathType Container) {
+    foreach ($item in @(Get-ChildItem -LiteralPath $localStateRoot -Directory -Filter 'field-ready*' -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'field-ready' -or $_.Name -like 'field-ready-*' })) {
+        $knownLocations += [pscustomobject][ordered]@{ path=$item.FullName; class='WORKTREE'; role='UPDATER_FIELD_READY_WORKTREE'; exists=$true; disposition='PRESERVE_UNTIL_PROVED_DISPOSABLE' }
+    }
     foreach ($item in @(Get-ChildItem -LiteralPath $localStateRoot -Directory -Filter 'closeout-entry-*' -ErrorAction SilentlyContinue)) {
         $knownLocations += [pscustomobject][ordered]@{ path=$item.FullName; class='CACHE'; role='EPHEMERAL_ACQUISITION'; exists=$true; disposition='PRESERVE_UNTIL_PROVED_DISPOSABLE' }
     }
@@ -334,6 +379,7 @@ $receipt = [ordered]@{
     repository = 'EndeavorEverlasting/SysAdminSuite'
     selected_profile = $selectedProfileId
     execution_context_status = $executionContextStatus
+    execution_target_source = $executionTargetSource
     terminal_host = $terminalHost
     terminal_application = $terminalApplication
     shell_interpreter = $processPath
@@ -341,7 +387,9 @@ $receipt = [ordered]@{
     powershell_version = $powershellVersion
     runtime_boundary = $runtimeBoundary
     execution_target = $executionTarget
+    current_location_provider = $currentLocationProvider
     current_working_directory = $currentWorkingDirectory
+    current_working_directory_filesystem = $currentWorkingDirectoryFileSystem
     os = 'windows'
     path_semantics = 'WINDOWS_CASE_INSENSITIVE_NORMALIZED_FULL_PATH'
     user = $user
@@ -398,7 +446,8 @@ if ($AsJson) {
     $receipt | ConvertTo-Json -Depth 7
 } else {
     Write-Host "Execution: $executionContextStatus [$powershellEdition $powershellVersion] $processPath"
-    Write-Host "Execution target: $executionTarget / $runtimeBoundary"
+    Write-Host "Execution target: $executionTarget ($executionTargetSource) / $runtimeBoundary"
+    Write-Host "Current location: $currentLocationProvider :: $currentWorkingDirectory"
     Write-Host "Profile: $selectedProfileId"
     Write-Host "Desktop Known Folder: $desktopKnownFolder"
     Write-Host "Desktop Dev root: $desktopDev"
@@ -413,7 +462,7 @@ if ($AsJson) {
     Write-Host "Path relation evidence: $pathRelationEvidence"
     Write-Host "Entrypoint authority: $entrypointAuthority"
     Write-Host "Entrypoint: $(if ($null -ne $canonicalEntrypoint) { $canonicalEntrypoint } else { 'PROFILE_ROUTED' })"
-    Write-Host "Observed candidate: $currentCandidate [$candidateClassification / $candidateLocationClass]"
+    Write-Host "Observed candidate: $(if ($null -ne $currentCandidate) { $currentCandidate } else { 'NON_FILESYSTEM_OR_INVALID' }) [$candidateClassification / $candidateLocationClass]"
     Write-Host "Disposition: $pathDisposition"
     Write-Host "Canonical checkout: $checkoutStatus [$canonicalReparseState]"
     Write-Host "Git I/O health: $canonicalGitIoHealth"
