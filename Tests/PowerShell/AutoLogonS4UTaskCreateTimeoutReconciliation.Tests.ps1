@@ -30,8 +30,8 @@ function New-FixtureNativeResult {
         child_tree_terminated = $TimedOut
         output = $Output
         error = $Error
-        started_utc = '2026-08-18T19:55:00.0000000Z'
-        completed_utc = '2026-08-18T19:56:00.0000000Z'
+        started_utc = '2026-09-04T22:00:00.0000000Z'
+        completed_utc = '2026-09-04T22:02:00.0000000Z'
     }
 }
 
@@ -78,25 +78,27 @@ $target = 'sample001.example.invalid'
 $probeTask = 'SysAdminSuite-AutoLogonS4UProbe-0123456789abcdef0123456789abcdef'
 $installTask = 'SysAdminSuite-AutoLogonS4UInstall-fedcba9876543210fedcba9876543210'
 
-# 1. Exact S4U task create gets a dedicated minimum 60-second bound.
+# 1. Exact S4U task create gets a dedicated 120-second minimum bound.
 Set-FixtureQueue -Module $module -Results @(
-    (New-FixtureNativeResult -TimedOut:$false -ExitCode 0 -TimeoutSeconds 60 -Output 'SUCCESS')
+    (New-FixtureNativeResult -TimedOut:$false -ExitCode 0 -TimeoutSeconds 120 -Output 'SUCCESS')
 )
 $normal = Invoke-SasBoundedNative -FilePath $fakeSchtasks -Arguments @(
     '/Create','/S',$target,'/RU','EXAMPLE\operator','/NP','/SC','ONCE','/ST','23:59',
     '/TN',$probeTask,'/TR','powershell.exe -File C:\probe.ps1','/RL','HIGHEST','/F'
 ) -TimeoutSeconds 30
 Assert-True (-not [bool]$normal.timed_out) 'Normal S4U create unexpectedly timed out.'
-Assert-True ([int]$normal.timeout_seconds -eq 60) 'S4U create did not receive the 60-second effective bound.'
+Assert-True ([int]$normal.timeout_seconds -eq 120) 'S4U create did not receive the 120-second effective bound.'
 Assert-True ([int]$normal.requested_timeout_seconds -eq 30) 'S4U create lost the caller-requested timeout.'
-Assert-True ([string]$normal.timeout_policy -eq 's4u_task_create_minimum_60') 'S4U create timeout policy was not recorded.'
+Assert-True ([string]$normal.timeout_policy -eq 's4u_task_create_minimum_120') 'S4U create timeout policy was not recorded.'
 Assert-True (-not [bool]$normal.reconciled_after_timeout) 'Normal S4U create was incorrectly marked reconciled.'
 $normalObserved = Get-FixtureObservedTimeouts -Module $module
-Assert-True ([int]$normalObserved.count -eq 1 -and [int]$normalObserved.values[0] -eq 60) 'Normal S4U create did not invoke the bounded child with 60 seconds.'
+Assert-True ([int]$normalObserved.count -eq 1 -and [int]$normalObserved.values[0] -eq 120) 'Normal S4U create did not invoke the bounded child with 120 seconds.'
 
-# 2. A controller timeout may be reconciled only by querying the exact unique task identity.
+# 2. A controller timeout may be reconciled by a finite read-only window over the exact task.
+# The first exact query deliberately misses the late commit; the second proves it exists.
 Set-FixtureQueue -Module $module -Results @(
-    (New-FixtureNativeResult -TimedOut:$true -ExitCode -1 -TimeoutSeconds 60 -Error 'Timed out after 60 seconds.'),
+    (New-FixtureNativeResult -TimedOut:$true -ExitCode -1 -TimeoutSeconds 120 -Error 'Timed out after 120 seconds.'),
+    (New-FixtureNativeResult -TimedOut:$false -ExitCode 1 -TimeoutSeconds 30 -Error 'ERROR: The system cannot find the file specified.'),
     (New-FixtureNativeResult -TimedOut:$false -ExitCode 0 -TimeoutSeconds 30 -Output 'TaskName: exact S4U task')
 )
 $reconciled = Invoke-SasBoundedNative -FilePath $fakeSchtasks -Arguments @(
@@ -107,17 +109,25 @@ Assert-True (-not [bool]$reconciled.timed_out) 'Exact-task reconciliation did no
 Assert-True ([int]$reconciled.exit_code -eq 0) 'Reconciled S4U create did not return success.'
 Assert-True ([bool]$reconciled.initial_timed_out) 'Reconciled S4U create lost the initial timeout fact.'
 Assert-True ([bool]$reconciled.reconciled_after_timeout) 'Reconciled S4U create did not record reconciliation.'
-Assert-True ($null -ne $reconciled.reconciliation) 'Reconciled S4U create did not preserve the exact query result.'
+Assert-True ([int]$reconciled.reconciliation_attempt_limit -eq 3) 'Reconciliation attempt limit drifted.'
+Assert-True ([int]$reconciled.reconciliation_attempt_count -eq 2) 'Late commit was not proved on the expected second exact query.'
+Assert-True (@($reconciled.reconciliation_attempts).Count -eq 2) 'Reconciliation attempt evidence was not preserved.'
+Assert-True ($null -ne $reconciled.reconciliation) 'Reconciled S4U create did not preserve the final exact query result.'
 Assert-True ([string]$reconciled.reconciliation.arguments[0] -eq '/Query') 'Reconciliation did not use Task Scheduler query.'
 Assert-True ([string]$reconciled.reconciliation.arguments[2] -eq $target) 'Reconciliation changed the target identity.'
 Assert-True ([string]$reconciled.reconciliation.arguments[4] -eq $installTask) 'Reconciliation changed the exact task identity.'
 $reconcileObserved = Get-FixtureObservedTimeouts -Module $module
-Assert-True ([int]$reconcileObserved.count -eq 2) 'Reconciled create did not perform exactly one create and one query native call.'
-Assert-True ([int]$reconcileObserved.values[0] -eq 60 -and [int]$reconcileObserved.values[1] -eq 30) 'Reconciliation bounds were not 60 seconds for create and 30 seconds for exact query.'
+Assert-True ([int]$reconcileObserved.count -eq 3) 'Reconciled create did not perform exactly one create and two read-only exact queries.'
+Assert-True ([int]$reconcileObserved.values[0] -eq 120) 'Reconciled create did not use the 120-second create bound.'
+Assert-True ([int]$reconcileObserved.values[1] -eq 30 -and [int]$reconcileObserved.values[2] -eq 30) 'Exact reconciliation queries did not preserve the 30-second read-only bound.'
+Assert-True (@($reconciled.arguments | Where-Object { ([string]$_).Equals('/Create',[StringComparison]::OrdinalIgnoreCase) }).Count -eq 1) 'Reconciled result no longer represents exactly one create mutation.'
 
-# 3. If exact task existence is not proven, the original timeout remains a hard failure signal.
+# 3. If exact task existence is not proven by the finite three-query window, the original
+# timeout remains a hard failure. No second /Create may occur.
 Set-FixtureQueue -Module $module -Results @(
-    (New-FixtureNativeResult -TimedOut:$true -ExitCode -1 -TimeoutSeconds 60 -Error 'Timed out after 60 seconds.'),
+    (New-FixtureNativeResult -TimedOut:$true -ExitCode -1 -TimeoutSeconds 120 -Error 'Timed out after 120 seconds.'),
+    (New-FixtureNativeResult -TimedOut:$false -ExitCode 1 -TimeoutSeconds 30 -Error 'ERROR: The system cannot find the file specified.'),
+    (New-FixtureNativeResult -TimedOut:$false -ExitCode 1 -TimeoutSeconds 30 -Error 'ERROR: The system cannot find the file specified.'),
     (New-FixtureNativeResult -TimedOut:$false -ExitCode 1 -TimeoutSeconds 30 -Error 'ERROR: The system cannot find the file specified.')
 )
 $absent = Invoke-SasBoundedNative -FilePath $fakeSchtasks -Arguments @(
@@ -127,7 +137,13 @@ $absent = Invoke-SasBoundedNative -FilePath $fakeSchtasks -Arguments @(
 Assert-True ([bool]$absent.timed_out) 'Unproven S4U create was incorrectly converted to success.'
 Assert-True ([int]$absent.exit_code -eq -1) 'Unproven S4U create lost the original timeout exit code.'
 Assert-True (-not [bool]$absent.reconciled_after_timeout) 'Absent exact task was incorrectly marked reconciled.'
-Assert-True ($null -ne $absent.reconciliation -and [int]$absent.reconciliation.exit_code -eq 1) 'Unproven S4U create did not preserve reconciliation evidence.'
+Assert-True ([int]$absent.reconciliation_attempt_count -eq 3) 'Unproven S4U create did not exhaust the finite reconciliation window.'
+Assert-True (@($absent.reconciliation_attempts).Count -eq 3) 'Unproven S4U create did not preserve every reconciliation attempt.'
+Assert-True ($null -ne $absent.reconciliation -and [int]$absent.reconciliation.exit_code -eq 1) 'Unproven S4U create did not preserve final reconciliation evidence.'
+Assert-True ([string]$absent.initial_error -like 'Timed out after 120 seconds*') 'Unproven S4U create lost the initial timeout diagnostic.'
+$absentObserved = Get-FixtureObservedTimeouts -Module $module
+Assert-True ([int]$absentObserved.count -eq 4) 'Unproven S4U create did not remain one create plus three read-only exact queries.'
+Assert-True (@($absent.arguments | Where-Object { ([string]$_).Equals('/Create',[StringComparison]::OrdinalIgnoreCase) }).Count -eq 1) 'Unproven result no longer represents exactly one create mutation.'
 
 # 4. The policy must not expand generic scheduler creates or S4U non-create operations.
 Set-FixtureQueue -Module $module -Results @(
@@ -148,4 +164,4 @@ $delete = Invoke-SasBoundedNative -FilePath $fakeSchtasks -Arguments @(
 Assert-True ([int]$delete.timeout_seconds -eq 30) 'S4U delete was incorrectly expanded to the create-only bound.'
 Assert-True ([string]$delete.timeout_policy -eq 'requested') 'S4U delete received the create-only timeout policy.'
 
-Write-Host 'PASS: bounded S4U task create timeout and exact-task reconciliation contracts'
+Write-Host 'PASS: bounded S4U task create timeout and finite exact-task late-commit reconciliation contracts'

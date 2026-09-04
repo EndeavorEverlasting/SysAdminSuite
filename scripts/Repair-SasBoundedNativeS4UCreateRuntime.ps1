@@ -44,20 +44,29 @@ function Assert-Parse([string]$Text) {
 }
 
 function Test-RepairPresent([string]$Text) {
-    $commonMarkersPresent = ($Text.Contains("`$timeoutPolicy = 's4u_task_create_minimum_60'") -and
-        $Text.Contains("'^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$'") -and
+    $exactIdentityMarkers = ($Text.Contains("'^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$'") -and
         $Text.Contains("'/Query','/S',`$s4uCreateTarget,'/TN',`$s4uCreateTaskName"))
-    if (-not $commonMarkersPresent) { return $false }
+    if (-not $exactIdentityMarkers) { return $false }
 
-    # A refreshed runtime can already contain the direct integrated implementation from the repo.
-    # Older sealed runtimes repaired in place contain the wrapper/core layout. Both are terminally
-    # repaired states; only the known legacy layout should ever be wrapped.
-    $directIntegratedLayout = ($Text.Contains('function Invoke-SasBoundedNative {') -and
+    # Fresh runtimes carry the repository-integrated one-shot policy: one 120-second create mutation
+    # plus a finite exact read-only reconciliation window. Never wrap that implementation again.
+    $newIntegratedLayout = ($Text.Contains('function Invoke-SasBoundedNative {') -and
+        $Text.Contains("`$timeoutPolicy = 's4u_task_create_minimum_120'") -and
+        $Text.Contains('$reconciliationAttemptLimit = 3') -and
+        $Text.Contains('reconciliation_attempt_limit = $reconciliationAttemptLimit') -and
+        $Text.Contains('reconciliation_attempts = @($reconciliationAttempts)'))
+
+    # Compatibility: a previously sealed runtime may already contain the August 60-second direct
+    # implementation or the local wrapper repair. This script remains idempotent for those layouts;
+    # canonical upgrade to the new one-shot policy is performed by Guest/Internet `sas refresh`.
+    $legacyIntegratedLayout = ($Text.Contains('function Invoke-SasBoundedNative {') -and
+        $Text.Contains("`$timeoutPolicy = 's4u_task_create_minimum_60'") -and
         $Text.Contains('$result = Invoke-SasBoundedPowerShell -ScriptText $child -TimeoutSeconds $effectiveTimeoutSeconds') -and
         $Text.Contains('reconciled_after_timeout = $true'))
     $wrappedLegacyLayout = ($Text.Contains('function Invoke-SasBoundedNativeCore {') -and
+        $Text.Contains("`$timeoutPolicy = 's4u_task_create_minimum_60'") -and
         $Text.Contains('NotePropertyName reconciled_after_timeout'))
-    return ($directIntegratedLayout -or $wrappedLegacyLayout)
+    return ($newIntegratedLayout -or $legacyIntegratedLayout -or $wrappedLegacyLayout)
 }
 
 $source = [IO.File]::ReadAllText($targetPath)
@@ -89,6 +98,8 @@ if (-not (Test-RepairPresent $source)) {
     )
     $nextFunctionIndex = $text.IndexOf($nextFunctionMarker, [StringComparison]::Ordinal)
 
+    # Legacy local-only fallback retained for already-sealed older runtimes. The canonical field
+    # path is refresh/reseal; this wrapper is deliberately not broadened into a second updater.
     $wrapper = @'
 function Invoke-SasBoundedNative {
     [CmdletBinding()]
@@ -188,17 +199,21 @@ if (-not (Test-RepairPresent $final)) {
     throw 'S4U create-timeout repair markers are absent after repair.'
 }
 $afterSha = Get-RepairHash $targetPath
+$isOneShotPolicy = ($final.Contains("`$timeoutPolicy = 's4u_task_create_minimum_120'") -and
+    $final.Contains('$reconciliationAttemptLimit = 3'))
 $result = [pscustomobject][ordered]@{
-    schema_version = 'sas-autologon-s4u-create-timeout-runtime-repair/v2'
+    schema_version = 'sas-autologon-s4u-create-timeout-runtime-repair/v3'
     classification = $classification
     runtime_root = $RuntimeRoot
     target_path = $targetPath
     changed = $changed
     before_sha256 = $beforeSha
     after_sha256 = $afterSha
-    s4u_create_minimum_timeout_seconds = 60
+    s4u_create_minimum_timeout_seconds = $(if ($isOneShotPolicy) { 120 } else { 60 })
+    reconciliation_attempt_limit = $(if ($isOneShotPolicy) { 3 } else { 1 })
     exact_task_name_pattern = '^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$'
     exact_query_reconciliation = $true
+    canonical_upgrade_path = 'sas refresh on Guest/Internet'
     repair_strategy = $repairStrategy
     powershell_parse_passed = $true
     semantic_verification = $true
