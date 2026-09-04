@@ -25,10 +25,12 @@ function Get-VisibleStageNumbers {
 function Assert-NoForwardGap {
     param([Parameter(Mandatory = $true)][object[]]$Lines)
     $numbers = @(Get-VisibleStageNumbers -Lines $Lines)
-    $last = 0
+    $last = $null
     foreach ($number in $numbers) {
-        if ($number -gt $last) {
+        if ($null -ne $last -and $number -gt $last) {
             Assert-True -Condition (($number - $last) -le 1) -Message "Forward progress gap remained visible: $last -> $number"
+        }
+        if ($null -eq $last -or $number -gt $last) {
             $last = $number
         }
     }
