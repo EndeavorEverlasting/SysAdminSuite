@@ -86,9 +86,9 @@ sas autologon Recover AUTHORIZED_SHORT_HOST
 
 The recovery must remain bound to the recorded run, target, and GUID-unique Probe task. It may query the exact task, delete it only when necessary, verify exact task absence, clean only the recorded Probe-only remote run root, and verify that installer, after-state, reboot, and automatic-sign-in evidence are absent. It must never launch the AutoLogon installer.
 
-Accept only a completed recovery result. A fresh terminal Probe-create timeout normally converges as `INTERRUPTED_PROBE_RUNS_RECOVERED`; an already-closed safe recovery may surface as `NO_INTERRUPTED_PROBE_RUN_FOUND`. Any other recovery classification is a stop-and-inspect state.
+For this post-apply-review continuation, accept only `status=COMPLETED` with `classification=INTERRUPTED_PROBE_RUNS_RECOVERED`. `NO_INTERRUPTED_PROBE_RUN_FOUND` is a stop-and-inspect result here: it proves no candidate was admitted for recovery, not that the recorded post-apply run was safely closed, because an incompatible terminal candidate can be filtered out before recovery. The field wrapper preserves `AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED` until exact interrupted Probe recovery succeeds.
 
-Only after completed exact recovery may the operator make **exactly one supported AutoLogon retry**:
+Only after that completed exact recovery may the operator make **exactly one supported AutoLogon retry**:
 
 ```powershell
 sas autologon Remote AUTHORIZED_SHORT_HOST
