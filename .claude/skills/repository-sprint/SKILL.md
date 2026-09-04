@@ -8,6 +8,14 @@ Use this skill for repository intake, sprint ranking, Git/PR lifecycle work, int
 - [Proof and Checkpointing](../../capabilities/proof-and-checkpointing.md)
 - [Mutation and Evidence Boundaries](../../capabilities/mutation-and-evidence-boundaries.md)
 
+## Operator next-command dependency
+
+When this skill is about to emit, execute, or ask an operator to run a SysAdminSuite-owned next command, load [`harness/skills/operator-command-handoff/SKILL.md`](../../../harness/skills/operator-command-handoff/SKILL.md) first. A repository sprint does not get to bypass workstation prerequisites merely because repository implementation is complete.
+
+The operator handoff must compose **path -> freshness -> network intent -> command -> restoration**. In particular: relocate to the canonical machine/profile development path and capture the starting network **before any transition**; perform repository freshness under `InternetSync` and return to that captured posture; prove any separate sealed/runtime currentness; resolve the product command's own network intent; execute the registered front door; and restore/return the network posture when required. Do not emit a bare product command and defer those prerequisites to a later corrective snippet.
+
+For sealed `C:\SASAL` execution, pull-latest/currentness proof belongs to the canonical development/freshness surface first, followed by the repository-owned `sas refresh` seal path. Do not run remote Git in the sealed runtime.
+
 ## Workflow
 
 1. Run compact Git and PR preflight using available tools.
@@ -18,7 +26,7 @@ Use this skill for repository intake, sprint ranking, Git/PR lifecycle work, int
 6. Execute the highest-value safe slice; do not stop at a plan when a useful tracked change is available.
 7. Checkpoint before broad validation or runtime proof.
 8. Validate, review the diff, commit, push, and open/update the PR when the environment allows.
-9. Report exact Git state, proof level, gaps, and one next command.
+9. Report exact Git state and proof level. If one next command is still required and it is SysAdminSuite-owned, route it through `harness/skills/operator-command-handoff/SKILL.md` before emitting it; otherwise report the exact external/user-only gate.
 
 ## Guardrails
 
@@ -26,3 +34,4 @@ Use this skill for repository intake, sprint ranking, Git/PR lifecycle work, int
 - Shared contracts before duplicated reports, dashboards, or adapters.
 - Do not merge, close, delete, force-push, or remove worktrees without current evidence.
 - Do not turn an evidence harvest into a tracked census document unless downstream workflows require it.
+- Do not use sprint completion as a reason to skip canonical relocation, pre-freshness starting-network capture, pull-latest/currentness proof, sealed/runtime currentness when applicable, product network-intent selection, or required network restoration in an operator handoff.
