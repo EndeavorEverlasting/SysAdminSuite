@@ -32,6 +32,7 @@ $intent = 'CommandSpecific'
 function Test-SasPrinterShapeForNetworkTransition {
     [CmdletBinding()]
     param([string[]]$Arguments)
+
     $values = @($Arguments)
     if ($values.Count -gt 2) { return $false }
     $modeSeen = $false
@@ -70,6 +71,7 @@ function Test-SasAdManagedOuForNetworkTransition {
 function Test-SasAdOuShapeForNetworkTransition {
     [CmdletBinding()]
     param([string[]]$Arguments)
+
     $values = @($Arguments)
     if ($values.Count -lt 3) { return $false }
     if (([string]$values[0]).Trim().ToLowerInvariant() -ne 'ou') { return $false }
@@ -143,6 +145,8 @@ try {
             $networkLockTaken = $networkMutex.WaitOne(0)
         }
         catch [System.Threading.AbandonedMutexException] {
+            # The previous owner exited without releasing the mutex. Windows grants ownership to
+            # this process, so continue from freshly observed network state under the acquired lock.
             $networkLockTaken = $true
             Write-Warning 'Recovered an abandoned SysAdminSuite network-intent lock; current network state will be re-proven before execution.'
         }
@@ -174,6 +178,7 @@ finally {
             Write-Host 'NETWORK RESTORE REQUIRES OPERATOR ATTENTION. The command result is not promoted to success until the requested return posture is restored.' -ForegroundColor Red
         }
     }
+
     if ($networkLockTaken -and $null -ne $networkMutex) {
         try { $networkMutex.ReleaseMutex() } catch { }
     }
