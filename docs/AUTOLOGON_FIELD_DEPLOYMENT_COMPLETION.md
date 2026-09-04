@@ -74,6 +74,28 @@ The exact historical run/task identifiers and recovery path remain in ignored ma
 
 A terminal pilot result is not automatically equivalent to a completed or safe-to-ignore transaction. Recovery v3 admits **only the exact safe terminal Probe-create timeout shape**: terminal and nested Probe classifications must both be `S4U_PROBE_CREATE_TIMEOUT`, run/target/task identity must match, outer staging cleanup must already be verified, and installer/after-state/reboot proof must be absent. Every other terminal pilot result remains excluded from discovery and refused by exact interrupted recovery.
 
+### Exact Probe-create timeout continuation
+
+A field transaction that has already passed transport, source resolution, source ticketing, baseline capture/eligibility, final-step admission, source hashing, and staging/hash verification can still stop at the bounded Probe Task Scheduler create. When the nested S4U result is exactly `S4U_PROBE_CREATE_TIMEOUT` and the outer field result reports `AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED`, that state is **recovery-required, not deployment-complete and not permission for a blind rerun**.
+
+Stay on the same approved protected Northwell authority and run the existing recovery-only lane first:
+
+```powershell
+sas autologon Recover AUTHORIZED_SHORT_HOST
+```
+
+The recovery must remain bound to the recorded run, target, and GUID-unique Probe task. It may query the exact task, delete it only when necessary, verify exact task absence, clean only the recorded Probe-only remote run root, and verify that installer, after-state, reboot, and automatic-sign-in evidence are absent. It must never launch the AutoLogon installer.
+
+For this post-apply-review continuation, accept only `status=COMPLETED` with `classification=INTERRUPTED_PROBE_RUNS_RECOVERED`. `NO_INTERRUPTED_PROBE_RUN_FOUND` is a stop-and-inspect result here: it proves no candidate was admitted for recovery, not that the recorded post-apply run was safely closed, because an incompatible terminal candidate can be filtered out before recovery. The field wrapper preserves `AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED` until exact interrupted Probe recovery succeeds.
+
+Only after that completed exact recovery may the operator make **exactly one supported AutoLogon retry**:
+
+```powershell
+sas autologon Remote AUTHORIZED_SHORT_HOST
+```
+
+Do not inflate the S4U create timeout, create a second ad-hoc task, reinstall the clinical core, manually reboot, switch to a second Admin Box, or replay inner S4U/task fragments merely because the bounded create call timed out. The supported continuation is durable-evidence recovery first, then one normal product retry.
+
 ## Transaction behavior
 
 `sas autologon Remote HOST` performs one transaction:
