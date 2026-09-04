@@ -88,13 +88,17 @@ Describe 'Cybernet low-noise identity canary' {
         $installer | Should -Match 'MACHINE_RUNTIME_REFRESH_REQUIRED'
     }
 
-    It 'reruns when directly owned dependencies change and handles manual whitespace validation' {
+    It 'reruns when directly owned dependencies change and hardens whitespace validation' {
         $workflow = Get-Content -LiteralPath $script:workflow -Raw
         foreach ($marker in @('survey/sas-network-preflight.ps1','scripts/Invoke-SasNetworkAwareField.ps1','Config/low-noise-policy.json','scripts/SasLowNoisePolicy.psm1')) {
             $workflow | Should -Match ([regex]::Escape($marker))
         }
+        $workflow | Should -Match 'permissions:\s*\r?\n\s*contents: read'
         $workflow | Should -Match "github.event_name == 'pull_request'"
         $workflow | Should -Match "github.event_name == 'workflow_dispatch'"
+        $workflow | Should -Match ([regex]::Escape('BASE_REF: ${{ github.base_ref }}'))
+        $workflow | Should -Match ([regex]::Escape('git diff --check "origin/$BASE_REF...HEAD"'))
+        $workflow | Should -Not -Match ([regex]::Escape('origin/${{ github.base_ref }}'))
         $workflow | Should -Match 'HEAD\^\.\.HEAD'
     }
 
