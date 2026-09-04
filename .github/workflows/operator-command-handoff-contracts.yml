@@ -1,0 +1,67 @@
+name: Operator command handoff contracts
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'fix/**', 'feat/**', 'repair/**']
+    paths:
+      - 'harness/skills/operator-command-handoff/SKILL.md'
+      - 'harness/skills/canonical-path-resolution/SKILL.md'
+      - 'harness/skills/operator-execution-route/SKILL.md'
+      - '.claude/skills/field-workflow/SKILL.md'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/validators/validate-operator-command-handoff.py'
+      - 'Tests/survey/test_operator_command_handoff_contracts.py'
+      - 'scripts/SasNetworkIntent.psm1'
+      - 'scripts/Invoke-SasNetworkAwareField.ps1'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - '.github/workflows/operator-command-handoff-contracts.yml'
+  pull_request:
+    paths:
+      - 'harness/skills/operator-command-handoff/SKILL.md'
+      - 'harness/skills/canonical-path-resolution/SKILL.md'
+      - 'harness/skills/operator-execution-route/SKILL.md'
+      - '.claude/skills/field-workflow/SKILL.md'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'harness/validators/validate-operator-command-handoff.py'
+      - 'Tests/survey/test_operator_command_handoff_contracts.py'
+      - 'scripts/SasNetworkIntent.psm1'
+      - 'scripts/Invoke-SasNetworkAwareField.ps1'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - '.github/workflows/operator-command-handoff-contracts.yml'
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Validate composed handoff
+        run: python harness/validators/validate-operator-command-handoff.py
+
+      - name: Run focused regression contracts
+        run: python Tests/survey/test_operator_command_handoff_contracts.py
+
+      - name: Validate existing freshness contracts
+        run: python harness/validators/validate-repository-freshness-contracts.py
+
+      - name: Validate existing canonical path contracts
+        run: |
+          python harness/validators/validate-canonical-path-contracts.py
+          python Tests/survey/test_canonical_path_harness_completeness.py
+
+      - name: Validate existing operator route contracts
+        run: python harness/validators/validate-operator-execution-route.py
+
+      - name: Validate harness registries
+        run: python harness/validators/validate-harness-registries.py
+
+      - name: Check whitespace
+        run: git diff --check HEAD^
