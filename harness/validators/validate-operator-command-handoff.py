@@ -14,6 +14,8 @@ REPO_SPRINT = ROOT / ".claude/skills/repository-sprint/SKILL.md"
 INTAKE = ROOT / "harness/workflows/fresh-agent-intake.yaml"
 NETWORK = ROOT / "scripts/SasNetworkIntent.psm1"
 WRAPPER = ROOT / "scripts/Invoke-SasNetworkAwareField.ps1"
+PORTABLE = ROOT / "scripts/SasPortableLauncher.ps1"
+REFRESH = ROOT / "scripts/Refresh-SasOperatorCommand.ps1"
 DOC = ROOT / "docs/OPERATOR_COMMAND_HANDOFF.md"
 MAP = ROOT / "harness/maps/OPERATOR_COMMAND_HANDOFF_MAP.md"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
@@ -60,6 +62,8 @@ def main() -> int:
         INTAKE,
         NETWORK,
         WRAPPER,
+        PORTABLE,
+        REFRESH,
         DOC,
         MAP,
         PRE_COMMIT,
@@ -77,6 +81,9 @@ def main() -> int:
         "3. **Starting network + required intent**",
         "4. **Execute the canonical front door**",
         "5. **Restore the starting network",
+        "capture the starting network posture before any transition",
+        "Repository synchronization is an `InternetSync` subtransaction",
+        "return to the recorded starting network posture",
         "git fetch --all --prune --tags",
         "git pull --ff-only",
         "Set-Location",
@@ -87,12 +94,13 @@ def main() -> int:
         "Restore-SasNetworkIntent",
         "finally",
         "sas-leave.cmd",
+        "autologon-short-runtime.json",
+        "prepared_commit",
+        "scripts/Refresh-SasOperatorCommand.ps1",
         "A bare product snippet that starts at step 4 is invalid.",
     ):
         require(skill, marker, "operator command handoff skill")
 
-    # The skill headings document the contract; the fresh-agent execute-stage markers below prove
-    # the operational route itself keeps those gates ordered exactly once.
     heading_positions = [
         skill.index("1. **Canonical path**"),
         skill.index("2. **Repository freshness**"),
@@ -101,6 +109,7 @@ def main() -> int:
         skill.index("5. **Restore the starting network"),
     ]
     assert heading_positions == sorted(heading_positions), "operator handoff skill heading order drift"
+    assert skill.index("capture the starting network posture before any transition") < skill.index("git fetch --all --prune --tags"), "skill must capture starting network before fetch"
 
     canonical = read(CANONICAL)
     route = read(ROUTE)
@@ -123,19 +132,37 @@ def main() -> int:
 
     assert "  - id: execute\n" in intake and "\n  - id: validate\n" in intake, "fresh-agent intake stage boundaries missing"
     execute_stage = intake.split("  - id: execute\n", 1)[1].split("\n  - id: validate\n", 1)[0]
-    require_ordered_once(
-        execute_stage,
-        (
-            "operator handoff gate 1 canonical path",
-            "operator handoff gate 2 repository freshness",
-            "operator handoff gate 3 network intent",
-            "operator handoff gate 4 canonical command",
-            "operator handoff gate 5 restoration",
-        ),
-        "fresh-agent execute stage",
+    gate_markers = (
+        "operator handoff gate 1 canonical path",
+        "operator handoff gate 2 repository freshness",
+        "operator handoff gate 3 network intent",
+        "operator handoff gate 4 canonical command",
+        "operator handoff gate 5 restoration",
     )
-    require(execute_stage, "gate 4 canonical command resolves the registered execution route/front door and executes it only after gates 1 through 3 are proven", "fresh-agent execute stage")
-    require(execute_stage, "gate 5 restoration restores an automatically changed WLAN through Restore-SasNetworkIntent", "fresh-agent execute stage")
+    require_ordered_once(execute_stage, gate_markers, "fresh-agent execute stage")
+    gate1 = next(line for line in execute_stage.splitlines() if gate_markers[0] in line)
+    gate2 = next(line for line in execute_stage.splitlines() if gate_markers[1] in line)
+    gate3 = next(line for line in execute_stage.splitlines() if gate_markers[2] in line)
+    gate4 = next(line for line in execute_stage.splitlines() if gate_markers[3] in line)
+    gate5 = next(line for line in execute_stage.splitlines() if gate_markers[4] in line)
+    require(gate1, "captures the starting network", "fresh-agent gate 1")
+    require(gate1, "before any freshness or product transition", "fresh-agent gate 1")
+    require(gate2, "InternetSync", "fresh-agent gate 2")
+    require(gate2, "returns to the captured starting network posture", "fresh-agent gate 2")
+    require(gate3, "recorded/restored starting posture", "fresh-agent gate 3")
+    require(gate4, "after gates 1 through 3 plus any separate production/runtime currentness proof are proven", "fresh-agent gate 4")
+    require(gate5, "Restore-SasNetworkIntent", "fresh-agent gate 5")
+    require(execute_stage, "for sealed C:\\SASAL AutoLogon routes, do not run Git in the sealed runtime", "fresh-agent sealed runtime")
+    require(execute_stage, "autologon-short-runtime.json prepared_commit plus SHA-256 seal to match the selected_repository_commit", "fresh-agent sealed runtime")
+
+    handoff_stage = intake.split("  - id: handoff\n", 1)[1]
+    for marker in (
+        "freshness proof must precede command handoff",
+        "atomic pull-first route-and-run command",
+        "bound to intended_remote and intended_remote_ref",
+        "post-pull head equality with selected_repository_commit",
+    ):
+        require(handoff_stage, marker, "fresh-agent freshness compatibility")
 
     network = read(NETWORK)
     for marker in (
@@ -163,6 +190,39 @@ def main() -> int:
     assert wrapper.index("Enter-SasNetworkIntent") < wrapper.index("& powershell.exe @childArgs") < wrapper.index("Restore-SasNetworkIntent"), "network wrapper transaction ordering drift"
     finally_section = wrapper.split("finally {", 1)[1]
     require(finally_section, "Restore-SasNetworkIntent", "network-aware wrapper finally block")
+
+    refresh = read(REFRESH)
+    for marker in (
+        "GUEST_INTERNET",
+        "sync-cache",
+        "field-ready",
+        "C:\\SASAL",
+        "prepared_commit",
+    ):
+        require(refresh, marker, "refresh/seal authority")
+    require(refresh, "No target contact or target mutation occurs in this script.", "refresh/seal authority")
+
+    portable = read(PORTABLE)
+    for marker in (
+        "autologon-short-runtime.json",
+        "sas-autologon-short-runtime/v2",
+        "prepared_commit",
+        "LOCAL_FILESYSTEM_ONLY",
+        "runtime_remotes_removed",
+        "tracked_file_hash_algorithm",
+        "SHA256",
+        "Protected-side Git activity: NONE",
+    ):
+        require(portable, marker, "sealed runtime authority")
+
+    for marker in (
+        "one copy-paste",
+        "C:\\SASAL",
+        "prepared_commit",
+        "scripts/Refresh-SasOperatorCommand.ps1",
+        "do not run remote Git inside `C:\\SASAL`",
+    ):
+        require(route, marker, "operator execution route skill")
 
     doc = read(DOC)
     map_text = read(MAP)
