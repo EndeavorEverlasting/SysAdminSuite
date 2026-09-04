@@ -41,6 +41,15 @@ def require(text: str, marker: str, owner: str) -> None:
     assert marker in text, f"{owner} missing: {marker}"
 
 
+def require_ordered_once(text: str, markers: tuple[str, ...], owner: str) -> None:
+    positions: list[int] = []
+    for marker in markers:
+        count = text.count(marker)
+        assert count == 1, f"{owner} must contain exactly one executable marker {marker!r}; found {count}"
+        positions.append(text.index(marker))
+    assert positions == sorted(positions), f"{owner} gate order drift: {markers}"
+
+
 def main() -> int:
     paths = (
         SKILL,
@@ -82,14 +91,16 @@ def main() -> int:
     ):
         require(skill, marker, "operator command handoff skill")
 
-    ordering = [
+    # The skill headings document the contract; the fresh-agent execute-stage markers below prove
+    # the operational route itself keeps those gates ordered exactly once.
+    heading_positions = [
         skill.index("1. **Canonical path**"),
         skill.index("2. **Repository freshness**"),
         skill.index("3. **Starting network + required intent**"),
         skill.index("4. **Execute the canonical front door**"),
         skill.index("5. **Restore the starting network"),
     ]
-    assert ordering == sorted(ordering), "operator handoff gate order drift"
+    assert heading_positions == sorted(heading_positions), "operator handoff skill heading order drift"
 
     canonical = read(CANONICAL)
     route = read(ROUTE)
@@ -109,6 +120,22 @@ def main() -> int:
     require(intake, "python harness/validators/validate-operator-command-handoff.py", "fresh-agent intake")
     require(intake, "python Tests/survey/test_operator_command_handoff_contracts.py", "fresh-agent intake")
     require(intake, "path -> freshness -> network intent -> command -> restoration", "fresh-agent intake")
+
+    assert "  - id: execute\n" in intake and "\n  - id: validate\n" in intake, "fresh-agent intake stage boundaries missing"
+    execute_stage = intake.split("  - id: execute\n", 1)[1].split("\n  - id: validate\n", 1)[0]
+    require_ordered_once(
+        execute_stage,
+        (
+            "operator handoff gate 1 canonical path",
+            "operator handoff gate 2 repository freshness",
+            "operator handoff gate 3 network intent",
+            "operator handoff gate 4 canonical command",
+            "operator handoff gate 5 restoration",
+        ),
+        "fresh-agent execute stage",
+    )
+    require(execute_stage, "gate 4 canonical command resolves the registered execution route/front door and executes it only after gates 1 through 3 are proven", "fresh-agent execute stage")
+    require(execute_stage, "gate 5 restoration restores an automatically changed WLAN through Restore-SasNetworkIntent", "fresh-agent execute stage")
 
     network = read(NETWORK)
     for marker in (
@@ -134,6 +161,8 @@ def main() -> int:
     ):
         require(wrapper, marker, "network-aware wrapper")
     assert wrapper.index("Enter-SasNetworkIntent") < wrapper.index("& powershell.exe @childArgs") < wrapper.index("Restore-SasNetworkIntent"), "network wrapper transaction ordering drift"
+    finally_section = wrapper.split("finally {", 1)[1]
+    require(finally_section, "Restore-SasNetworkIntent", "network-aware wrapper finally block")
 
     doc = read(DOC)
     map_text = read(MAP)
@@ -149,6 +178,13 @@ def main() -> int:
     for text, owner in ((pre_commit, "pre-commit hook"), (pre_push, "pre-push hook")):
         require(text, "validate-operator-command-handoff.py", owner)
         require(text, "test_operator_command_handoff_contracts.py", owner)
+    for marker in (
+        "snapshot_tree=\"$(git write-tree)\"",
+        "GIT_INDEX_FILE=\"$snapshot_index\" git read-tree \"$snapshot_tree\"",
+        "GIT_INDEX_FILE=\"$snapshot_index\" git checkout-index",
+        "export GIT_INDEX_FILE=\"$snapshot_index\"",
+    ):
+        require(pre_commit, marker, "pre-commit frozen-index snapshot")
     require(pre_push, "has_operator_handoff", "pre-push hook")
 
     ci = read(CI)
