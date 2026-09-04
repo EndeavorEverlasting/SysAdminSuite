@@ -91,7 +91,7 @@ function Invoke-SasHardwiredLocalGit {
         throw "HARDWIRED_LOCAL_REPAIR_BLOCKED: local Git verb is not allowlisted: $verb"
     }
     if ($verb -eq 'fetch') {
-        if ($Arguments.Count -lt 5 -or [string]$Arguments[4] -ne $SourceRoot) {
+        if ($Arguments.Count -lt 5 -or [string]$Arguments[3] -ne $SourceRoot) {
             throw 'HARDWIRED_LOCAL_REPAIR_BLOCKED: hardwired Git fetch must name the already-local SourceRoot explicitly.'
         }
         if ([string]$Arguments[-1] -ne $ExpectedCommit) {
