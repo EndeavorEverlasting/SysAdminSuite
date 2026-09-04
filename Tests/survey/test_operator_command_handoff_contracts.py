@@ -58,11 +58,29 @@ def test_repository_sprint_next_command_uses_composed_handoff() -> None:
     assert "operator-command-handoff/SKILL.md" in text
 
 
+def test_fresh_agent_execute_stage_orders_real_gates_once() -> None:
+    text = read(INTAKE)
+    execute = text.split("  - id: execute\n", 1)[1].split("\n  - id: validate\n", 1)[0]
+    markers = (
+        "operator handoff gate 1 canonical path",
+        "operator handoff gate 2 repository freshness",
+        "operator handoff gate 3 network intent",
+        "operator handoff gate 4 canonical command",
+        "operator handoff gate 5 restoration",
+    )
+    positions = []
+    for marker in markers:
+        assert execute.count(marker) == 1, marker
+        positions.append(execute.index(marker))
+    assert positions == sorted(positions)
+
+
 def main() -> int:
     test_focused_validator()
     test_agent_surfaces_cannot_skip_composed_handoff()
     test_skill_names_all_three_recurrence_guards_and_restore()
     test_repository_sprint_next_command_uses_composed_handoff()
+    test_fresh_agent_execute_stage_orders_real_gates_once()
     print("PASS: operator command handoff regression contracts")
     return 0
 
