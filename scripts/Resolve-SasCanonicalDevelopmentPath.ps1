@@ -36,6 +36,25 @@ if ([string]$profile.platform -ne 'windows') {
     throw "Profile '$selectedProfileId' is not compatible with this Windows resolver."
 }
 
+# Execution context is evidence, not path authority. Record the actual process boundary before any
+# path-sensitive recommendation so a terminal application, shell prompt, container, VM, or remote
+# session cannot be inferred from appearance alone.
+$processPath = 'UNKNOWN'
+try {
+    $process = Get-Process -Id $PID -ErrorAction Stop
+    if ($null -ne $process -and -not [string]::IsNullOrWhiteSpace([string]$process.Path)) {
+        $processPath = [IO.Path]::GetFullPath([string]$process.Path)
+    }
+} catch { }
+$executionContextStatus = 'PROVED_LOCAL_WINDOWS_PROCESS'
+$executionTarget = 'LOCAL'
+$runtimeBoundary = 'WINDOWS_NATIVE'
+$terminalHost = [string]$Host.Name
+$terminalApplication = 'UNKNOWN_NOT_PROBED'
+$powershellEdition = if ($PSVersionTable.PSObject.Properties['PSEdition']) { [string]$PSVersionTable.PSEdition } else { 'Desktop' }
+$powershellVersion = [string]$PSVersionTable.PSVersion
+$currentWorkingDirectory = [IO.Path]::GetFullPath((Get-Location).Path)
+
 $user = if (-not [string]::IsNullOrWhiteSpace($env:USERNAME)) { [string]$env:USERNAME } else { [Environment]::UserName }
 if ([string]::IsNullOrWhiteSpace($user)) { throw 'Unable to resolve current Windows user identity.' }
 
@@ -87,38 +106,82 @@ if ($template -ne '{desktop_dev_root}\SysAdminSuite') {
 $canonicalDev = [IO.Path]::GetFullPath((Join-Path $desktopDev 'SysAdminSuite'))
 
 if (-not $env:LOCALAPPDATA) { throw 'LOCALAPPDATA is required to resolve the canonical worktree root.' }
-$worktreeRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'SysAdminSuite\worktrees'))
+$localStateRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'SysAdminSuite'))
+$worktreeRoot = [IO.Path]::GetFullPath((Join-Path $localStateRoot 'worktrees'))
 
 $productionApplicable = [bool]$profile.production_use_path.applicable
 $productionUse = $null
+$productionUseState = 'NOT_APPLICABLE'
+$productionUseStateEvidence = 'Selected profile has no production/use path.'
+$productionReparseState = 'NOT_APPLICABLE'
 if ($productionApplicable) {
     $productionUse = [Environment]::ExpandEnvironmentVariables([string]$profile.production_use_path.template)
     $productionUse = [IO.Path]::GetFullPath($productionUse)
+    if (-not (Test-Path -LiteralPath $productionUse -PathType Container)) {
+        $productionUseState = 'OFFLINE'
+        $productionUseStateEvidence = 'Registered production/use path does not currently exist.'
+        $productionReparseState = 'NOT_INSPECTED_MISSING'
+    } else {
+        $productionUseState = 'UNKNOWN'
+        $productionUseStateEvidence = 'Registered production/use path exists, but this read-only resolver does not infer quiescence from existence or from an installed launcher.'
+        try {
+            $productionItem = Get-Item -LiteralPath $productionUse -Force
+            $productionReparseState = if (($productionItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { 'REPARSE_POINT_PRESENT' } else { 'NORMAL_DIRECTORY' }
+        } catch {
+            $productionReparseState = 'UNKNOWN'
+        }
+    }
 }
-$pathRelation = if ($productionApplicable) {
-    'SEPARATE_EXPLICIT_SYNC_INSTALL_PROMOTION_REQUIRED'
-} else {
+
+$pathRelation = if (-not $productionApplicable) {
     'DEVELOPMENT_PROFILE_ONLY_PRODUCTION_NOT_APPLICABLE'
+} elseif ($canonicalDev.TrimEnd('\').Equals($productionUse.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+    'SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING'
+} else {
+    'SEPARATE_EXPLICIT_SYNC_INSTALL_PROMOTION_REQUIRED'
 }
+
 $entrypointAuthority = [string]$profile.real_operator_entrypoint.authority
 $canonicalEntrypoint = $null
 $entrypointProperty = $profile.real_operator_entrypoint.PSObject.Properties['production_runtime_entrypoint']
 if ($null -ne $entrypointProperty -and -not [string]::IsNullOrWhiteSpace([string]$entrypointProperty.Value)) {
     $canonicalEntrypoint = [Environment]::ExpandEnvironmentVariables([string]$entrypointProperty.Value)
 }
+$productionUpdateAuthority = $null
+$updateAuthorityProperty = $profile.real_operator_entrypoint.PSObject.Properties['production_update_authority']
+if ($null -ne $updateAuthorityProperty -and -not [string]::IsNullOrWhiteSpace([string]$updateAuthorityProperty.Value)) {
+    $productionUpdateAuthority = [string]$updateAuthorityProperty.Value
+}
+$productionUpdateBoundary = $null
+$updateBoundaryProperty = $profile.real_operator_entrypoint.PSObject.Properties['production_update_boundary']
+if ($null -ne $updateBoundaryProperty -and -not [string]::IsNullOrWhiteSpace([string]$updateBoundaryProperty.Value)) {
+    $productionUpdateBoundary = [string]$updateBoundaryProperty.Value
+}
 
 $currentCandidate = if ([string]::IsNullOrWhiteSpace($CandidatePath)) { (Get-Location).Path } else { $CandidatePath.Trim() }
 try { $currentCandidate = [IO.Path]::GetFullPath($currentCandidate) } catch { $currentCandidate = $null }
 $candidateClassification = 'UNKNOWN'
+$candidateLocationClass = 'UNKNOWN'
 if ($null -ne $currentCandidate) {
     if ($currentCandidate.Equals($canonicalDev, [StringComparison]::OrdinalIgnoreCase)) {
         $candidateClassification = 'CANONICAL_DEVELOPMENT'
+        $candidateLocationClass = 'CLONE'
     } elseif ($productionApplicable -and $currentCandidate.Equals($productionUse, [StringComparison]::OrdinalIgnoreCase)) {
         $candidateClassification = 'PRODUCTION_USE'
+        $candidateLocationClass = 'INSTALL'
     } elseif ($currentCandidate.StartsWith($worktreeRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
         $candidateClassification = 'ISOLATED_WORKTREE'
-    } elseif ($env:LOCALAPPDATA -and $currentCandidate.StartsWith(([IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'SysAdminSuite\closeout-entry-'))), [StringComparison]::OrdinalIgnoreCase)) {
+        $candidateLocationClass = 'WORKTREE'
+    } elseif ($currentCandidate.StartsWith(([IO.Path]::GetFullPath((Join-Path $localStateRoot 'closeout-entry-'))), [StringComparison]::OrdinalIgnoreCase)) {
         $candidateClassification = 'EPHEMERAL_ACQUISITION'
+        $candidateLocationClass = 'CACHE'
+    } elseif ($currentCandidate.StartsWith(([IO.Path]::GetFullPath((Join-Path $localStateRoot 'short-runtime-preservation'))).TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        $candidateClassification = 'PRESERVED_RUNTIME_BACKUP'
+        $candidateLocationClass = 'BACKUP'
+    } elseif ($currentCandidate.StartsWith(([IO.Path]::GetFullPath((Join-Path $localStateRoot 'Evidence'))).TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase) -or
+              $currentCandidate.StartsWith(([IO.Path]::GetFullPath((Join-Path $localStateRoot 'field-runs'))).TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        $candidateClassification = 'RUNTIME_OUTPUT'
+        $candidateLocationClass = 'OUTPUT'
     }
 }
 
@@ -203,16 +266,60 @@ $pathDisposition = if ($checkoutStatus -eq 'CANONICAL_PROVED' -and $candidateCla
     'MISSING'
 } elseif ($checkoutStatus.StartsWith('CONFLICT', [StringComparison]::OrdinalIgnoreCase)) {
     'CONFLICT'
-} elseif ($candidateClassification -eq 'ISOLATED_WORKTREE' -or $candidateClassification -eq 'EPHEMERAL_ACQUISITION') {
+} elseif ($candidateLocationClass -in @('WORKTREE','CACHE','BACKUP','OUTPUT')) {
     'NONCANONICAL + PRESERVE'
 } else {
     'UNKNOWN'
+}
+
+# Bounded known-location inventory only. Do not search arbitrary disks and do not declare anything
+# disposable without proving it contains no unique, dirty, unpushed, or separately owned work.
+$knownLocations = @()
+$knownLocations += [pscustomobject][ordered]@{ path=$canonicalDev; class='CLONE'; role='CANONICAL_DEVELOPMENT'; exists=(Test-Path -LiteralPath $canonicalDev -PathType Container); disposition='PRESERVE' }
+if ($productionApplicable) {
+    $knownLocations += [pscustomobject][ordered]@{ path=$productionUse; class='INSTALL'; role='PRODUCTION_USE'; exists=(Test-Path -LiteralPath $productionUse -PathType Container); disposition='PRESERVE' }
+}
+$knownLocations += [pscustomobject][ordered]@{ path=$worktreeRoot; class='WORKTREE'; role='WORKTREE_ROOT'; exists=(Test-Path -LiteralPath $worktreeRoot -PathType Container); disposition='PRESERVE' }
+if (Test-Path -LiteralPath $localStateRoot -PathType Container) {
+    foreach ($item in @(Get-ChildItem -LiteralPath $localStateRoot -Directory -Filter 'closeout-entry-*' -ErrorAction SilentlyContinue)) {
+        $knownLocations += [pscustomobject][ordered]@{ path=$item.FullName; class='CACHE'; role='EPHEMERAL_ACQUISITION'; exists=$true; disposition='PRESERVE_UNTIL_PROVED_DISPOSABLE' }
+    }
+    $preservationRoot = Join-Path $localStateRoot 'short-runtime-preservation'
+    if (Test-Path -LiteralPath $preservationRoot -PathType Container) {
+        foreach ($item in @(Get-ChildItem -LiteralPath $preservationRoot -Directory -ErrorAction SilentlyContinue)) {
+            $knownLocations += [pscustomobject][ordered]@{ path=$item.FullName; class='BACKUP'; role='PRESERVED_RUNTIME'; exists=$true; disposition='PRESERVE' }
+        }
+    }
+    foreach ($outputName in @('Evidence','field-runs')) {
+        $outputRoot = Join-Path $localStateRoot $outputName
+        if (Test-Path -LiteralPath $outputRoot -PathType Container) {
+            $knownLocations += [pscustomobject][ordered]@{ path=$outputRoot; class='OUTPUT'; role='RUNTIME_OUTPUT_ROOT'; exists=$true; disposition='PRESERVE' }
+        }
+    }
+}
+
+$productionAdHocMutationAllowed = $false
+$developmentMutationGuard = if ($pathRelation -eq 'SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING' -and $productionUseState -in @('ACTIVE','UNKNOWN')) {
+    'BLOCK_UNTIL_PRODUCTION_QUIESCED_OR_TRACKED_IN_PLACE_SAFETY_PROVED'
+} elseif ($pathRelation -eq 'SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING') {
+    'PRODUCTION_IMPACTING_USE_TRACKED_BOUNDARY'
+} else {
+    'CANONICAL_DEVELOPMENT_OR_APPROVED_WORKTREE_ONLY'
 }
 
 $receipt = [ordered]@{
     schema_version = 'sas-canonical-path-input-receipt/v1'
     repository = 'EndeavorEverlasting/SysAdminSuite'
     selected_profile = $selectedProfileId
+    execution_context_status = $executionContextStatus
+    terminal_host = $terminalHost
+    terminal_application = $terminalApplication
+    shell_interpreter = $processPath
+    powershell_edition = $powershellEdition
+    powershell_version = $powershellVersion
+    runtime_boundary = $runtimeBoundary
+    execution_target = $executionTarget
+    current_working_directory = $currentWorkingDirectory
     os = 'windows'
     path_semantics = 'WINDOWS_CASE_INSENSITIVE_NORMALIZED_FULL_PATH'
     user = $user
@@ -226,11 +333,22 @@ $receipt = [ordered]@{
     canonical_worktree_root = $worktreeRoot
     production_use_applicable = $productionApplicable
     production_use_path = $productionUse
+    production_use_state = $productionUseState
+    production_use_state_evidence = $productionUseStateEvidence
+    production_use_reparse_state = $productionReparseState
+    production_ad_hoc_mutation_allowed = $productionAdHocMutationAllowed
+    production_update_authority = $productionUpdateAuthority
+    production_update_boundary = $productionUpdateBoundary
+    development_mutation_guard = $developmentMutationGuard
     path_relation = $pathRelation
     canonical_entrypoint_authority = $entrypointAuthority
     canonical_entrypoint = $canonicalEntrypoint
     candidate_path = $currentCandidate
     candidate_classification = $candidateClassification
+    candidate_location_class = $candidateLocationClass
+    location_class_vocabulary = @('CLONE','WORKTREE','INSTALL','MIRROR','CACHE','OUTPUT','BACKUP','UNKNOWN')
+    known_location_inventory = $knownLocations
+    cleanup_authorized = $false
     path_disposition = $pathDisposition
     canonical_checkout_status = $checkoutStatus
     canonical_checkout_reparse_state = $canonicalReparseState
@@ -238,6 +356,7 @@ $receipt = [ordered]@{
     canonical_checkout_head = $checkoutHead
     canonical_checkout_remote = $checkoutRemote
     current_directory_is_authority = $false
+    remote_integration_is_local_deployment = $false
     next_action = if ($checkoutStatus -eq 'CANONICAL_PROVED') {
         "Set-Location -LiteralPath '$canonicalDev'"
     } elseif ($checkoutStatus -eq 'MISSING') {
@@ -249,12 +368,14 @@ $receipt = [ordered]@{
     } else {
         "PRESERVE_AND_RECONCILE: '$canonicalDev' is not a proved canonical checkout ($checkoutStatus); inspect before mutation."
     }
-    proof_ceiling = 'Local path/profile/checkout identity and Git I/O health only; no remote freshness, production runtime currentness, entrypoint observation, or deployment proof.'
+    proof_ceiling = 'Local execution-context, path/profile/checkout identity, bounded known-copy inventory, Git I/O health, and conservative production-use state only; no remote freshness, production runtime currentness, entrypoint observation, quiescence, or deployment proof.'
 }
 
 if ($AsJson) {
-    $receipt | ConvertTo-Json -Depth 5
+    $receipt | ConvertTo-Json -Depth 7
 } else {
+    Write-Host "Execution: $executionContextStatus [$powershellEdition $powershellVersion] $processPath"
+    Write-Host "Execution target: $executionTarget / $runtimeBoundary"
     Write-Host "Profile: $selectedProfileId"
     Write-Host "Desktop Known Folder: $desktopKnownFolder"
     Write-Host "Desktop Dev root: $desktopDev"
@@ -262,13 +383,17 @@ if ($AsJson) {
     Write-Host "Canonical development: $canonicalDev"
     Write-Host "Canonical worktrees: $worktreeRoot"
     Write-Host "Production/use: $(if ($productionApplicable) { $productionUse } else { 'NOT_APPLICABLE' })"
+    Write-Host "PROD_USE_STATE: $productionUseState"
+    Write-Host "Production ad-hoc mutation: BLOCKED"
+    Write-Host "Production update authority: $(if ($productionUpdateAuthority) { $productionUpdateAuthority } else { 'NOT_APPLICABLE' })"
     Write-Host "Path relation: $pathRelation"
     Write-Host "Entrypoint authority: $entrypointAuthority"
     Write-Host "Entrypoint: $(if ($null -ne $canonicalEntrypoint) { $canonicalEntrypoint } else { 'PROFILE_ROUTED' })"
-    Write-Host "Observed candidate: $currentCandidate [$candidateClassification]"
+    Write-Host "Observed candidate: $currentCandidate [$candidateClassification / $candidateLocationClass]"
     Write-Host "Disposition: $pathDisposition"
     Write-Host "Canonical checkout: $checkoutStatus [$canonicalReparseState]"
     Write-Host "Git I/O health: $canonicalGitIoHealth"
+    Write-Host "Known locations inventoried: $($knownLocations.Count); cleanup authorized: NO"
     Write-Host "Next: $($receipt.next_action)"
 }
 
