@@ -16,6 +16,7 @@ NETWORK = ROOT / "scripts/SasNetworkIntent.psm1"
 WRAPPER = ROOT / "scripts/Invoke-SasNetworkAwareField.ps1"
 PORTABLE = ROOT / "scripts/SasPortableLauncher.ps1"
 REFRESH = ROOT / "scripts/Refresh-SasOperatorCommand.ps1"
+PREPARE = ROOT / "scripts/Prepare-SasAutoLogonShortRuntime.ps1"
 DOC = ROOT / "docs/OPERATOR_COMMAND_HANDOFF.md"
 MAP = ROOT / "harness/maps/OPERATOR_COMMAND_HANDOFF_MAP.md"
 PRE_COMMIT = ROOT / ".githooks/pre-commit"
@@ -64,6 +65,7 @@ def main() -> int:
         WRAPPER,
         PORTABLE,
         REFRESH,
+        PREPARE,
         DOC,
         MAP,
         PRE_COMMIT,
@@ -197,10 +199,23 @@ def main() -> int:
         "sync-cache",
         "field-ready",
         "C:\\SASAL",
-        "prepared_commit",
+        "Prepare-SasAutoLogonShortRuntime.ps1",
     ):
-        require(refresh, marker, "refresh/seal authority")
-    require(refresh, "No target contact or target mutation occurs in this script.", "refresh/seal authority")
+        require(refresh, marker, "refresh orchestrator")
+    require(refresh, "No target contact or target mutation occurs in this script.", "refresh orchestrator")
+
+    prepare = read(PREPARE)
+    for marker in (
+        "schema_version = 'sas-autologon-short-runtime/v2'",
+        "prepared_commit = $runtimeHead",
+        "runtime_git_transport = 'LOCAL_FILESYSTEM_ONLY'",
+        "runtime_remotes_removed = $true",
+        "tracked_file_hash_algorithm = 'SHA256'",
+        "tracked_file_hashes = $trackedFileHashes",
+        "target_contact_performed = $false",
+        "target_mutation_performed = $false",
+    ):
+        require(prepare, marker, "sealed runtime manifest owner")
 
     portable = read(PORTABLE)
     for marker in (
@@ -250,6 +265,7 @@ def main() -> int:
     ci = read(CI)
     require(ci, "python harness/validators/validate-operator-command-handoff.py", "focused CI")
     require(ci, "python Tests/survey/test_operator_command_handoff_contracts.py", "focused CI")
+    require(ci, "scripts/Prepare-SasAutoLogonShortRuntime.ps1", "focused CI path coverage")
     require(ci, "git diff --check", "focused CI")
 
     print("PASS: operator command handoff composition")
