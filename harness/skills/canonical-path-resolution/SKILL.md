@@ -75,23 +75,43 @@ After the resolver is integrated into refreshed default branch, the same atomic 
 
 Only after checkout identity **and Git I/O health** are proved may the continuation use `git fetch`, inspect status/log, reconcile the canonical checkout, or create an isolated worktree beneath the registered worktree root.
 
+## Execution context and production/use safety
+
+Before a path-sensitive command, record the actual terminal host, shell/interpreter process, OS/runtime boundary, execution target, current working directory, and path semantics. A terminal application is not the shell, and a prompt is not proof of the kernel/runtime or target. If a material fact remains unknown, record `EXECUTION_CONTEXT=UNKNOWN` and do not guess a shell-specific or target-specific mutation command.
+
+The production/use path is a **consumer path**, not a convenient second checkout. Resolve `PROD_USE_STATE` independently as `ACTIVE`, `QUIESCED`, `OFFLINE`, `UNKNOWN`, or `NOT_APPLICABLE`. `UNKNOWN` is not idle. An existing production directory without bounded consumer/quiescence evidence remains `UNKNOWN`, and ad-hoc pull/reset/rebuild/copy/edit/regeneration there is blocked.
+
+For `windows-admin-box`, the registry owns these roles:
+
+- development: OS-resolved Desktop Known Folder -> `Dev\SysAdminSuite`;
+- worktrees: `%LOCALAPPDATA%\SysAdminSuite\worktrees`;
+- production/use: `C:\SASAL`;
+- production entrypoint: `C:\SASAL\Bootstrap-SysAdminSuiteAutoLogon.cmd`;
+- production update authority: `scripts/Refresh-SasOperatorCommand.ps1` through its tracked refresh/bootstrap boundary.
+
+If development and production resolve to the same physical path, every development write is production-impacting. `ACTIVE` or `UNKNOWN` blocks mutation until the tracked contract proves quiescence/in-place safety. When they are separate, normal edits/builds/tests stay in canonical development or an approved worktree, then cross the registered updater/promotion boundary; never copy a partial tree into production.
+
+Classify bounded observed locations as `CLONE`, `WORKTREE`, `INSTALL`, `MIRROR`, `CACHE`, `OUTPUT`, `BACKUP`, or `UNKNOWN`. Inventory before cleanup. Nothing becomes disposable merely because it is noncanonical; preserve dirty, unpushed, unique, separately owned, or not-yet-inspected state.
+
 ## Procedure
 
 1. Read `harness/api/canonical-path-registry.json`.
-2. Resolve all four profile parameters and record their sources before choosing a machine-role profile.
-3. Resolve one compatible machine-role profile; do not choose a directory from model preference.
-4. Compose the canonical development checkout from `{desktop_dev_root}\SysAdminSuite` for the Windows profiles instead of assuming `%USERPROFILE%\Desktop\Dev`.
-5. Before any checkout-owned executable is trusted, prove the composed directory with non-executing Git top-level and exact-origin checks, then require `git status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty` to return zero. A path is not canonical-proved merely because `rev-parse` and `config` work.
-6. Treat `ROOT_UNAVAILABLE` and `MULTIPLE_ROOTS` as conflicting OneDrive profile evidence; do not continue to canonical checkout proof until reconciled.
-7. If Git read/index/file access fails, classify the checkout `CONFLICT_GIT_IO_UNHEALTHY`, preserve it, and stop before fetch/reset/clean/worktree creation.
-8. Use `scripts/Resolve-SasCanonicalDevelopmentPath.ps1` only after that artifact is present on the refreshed default branch or from another already-trusted source; current directory never overrides the tracked rule.
-9. Classify the candidate as canonical development, production/use, isolated worktree, ephemeral acquisition, or unknown.
-10. Keep these proofs separate: remote default contains SHA; canonical development checkout current; production/use path current; real operator entrypoint observes current.
-11. For remote freshness, delegate to `harness/workflows/repository-freshness-before-launch.yaml`.
-12. Preserve dirty or unique work. Use a Git worktree under the registered temporary root for parallel writers instead of making another mutable clone.
-13. For an installed/field runtime, require its owning updater/seal/manifest proof. A GitHub merge or fresh clone is insufficient.
-14. For operator execution, delegate to `harness/workflows/operator-execution-route.yaml` and require the registered entrypoint to observe the intended runtime.
-15. Report the first unproven state and its owning continuation; do not claim workstation deployment from repository evidence.
+2. Record execution context before path-sensitive mutation; unknown material context fails closed.
+3. Resolve all four profile parameters and record their sources before choosing a machine-role profile.
+4. Resolve one compatible machine-role profile; do not choose a directory from model preference.
+5. Compose the canonical development checkout from `{desktop_dev_root}\SysAdminSuite` for the Windows profiles instead of assuming `%USERPROFILE%\Desktop\Dev`.
+6. Before any checkout-owned executable is trusted, prove the composed directory with non-executing Git top-level and exact-origin checks, then require `git status --porcelain=v1 --untracked-files=no --ignore-submodules=dirty` to return zero. A path is not canonical-proved merely because `rev-parse` and `config` work.
+7. Treat `ROOT_UNAVAILABLE` and `MULTIPLE_ROOTS` as conflicting OneDrive profile evidence; do not continue to canonical checkout proof until reconciled.
+8. If Git read/index/file access fails, classify the checkout `CONFLICT_GIT_IO_UNHEALTHY`, preserve it, and stop before fetch/reset/clean/worktree creation.
+9. Use `scripts/Resolve-SasCanonicalDevelopmentPath.ps1` only after that artifact is present on the refreshed default branch or from another already-trusted source; current directory never overrides the tracked rule.
+10. Classify the candidate and bounded known copies as CLONE/WORKTREE/INSTALL/MIRROR/CACHE/OUTPUT/BACKUP/UNKNOWN; no cleanup is authorized by path identity alone.
+11. Resolve `PROD_USE_STATE` and physical path relation before any production-path write. ACTIVE/UNKNOWN blocks ad-hoc mutation.
+12. Keep these proofs separate: remote default contains SHA; canonical development checkout current; production/use path current; real operator entrypoint observes current.
+13. For remote freshness, delegate to `harness/workflows/repository-freshness-before-launch.yaml`.
+14. Preserve dirty or unique work. Use a Git worktree under the registered temporary root for parallel writers instead of making another mutable clone.
+15. For an installed/field runtime, require its owning updater/seal/manifest proof. A GitHub merge or fresh clone is insufficient.
+16. For operator execution, delegate to `harness/workflows/operator-execution-route.yaml` and require the registered entrypoint to observe the intended runtime.
+17. Report the first unproven state and its owning continuation; do not claim workstation deployment from repository evidence.
 
 ## PowerShell operator-block integrity
 
@@ -107,17 +127,19 @@ Also forbidden: a NEXT COMMAND that requires a helper that exists only on an unm
 
 ## Expected outputs
 
+- execution-context receipt: terminal host, shell/interpreter, runtime boundary, execution target, and current working directory;
 - selected machine-role profile;
 - resolved `os`, `user`, `onedrive_enabled`, and `desktop_dev_root` with source provenance;
-- path classification;
-- canonical development checkout composed from the resolved Desktop Dev root;
+- canonical development checkout and worktree root;
+- candidate role plus CLONE/WORKTREE/INSTALL/MIRROR/CACHE/OUTPUT/BACKUP/UNKNOWN class;
+- bounded known-location inventory and `cleanup_authorized=false`;
 - Git I/O health disposition;
-- production/use path or not-applicable reason;
-- temporary worktree root;
+- production/use path, `PROD_USE_STATE`, physical path relation, and mutation guard;
+- registered production update authority/boundary when applicable;
 - real operator entrypoint authority;
 - all four proof-state dispositions;
 - one exact continuation when a state remains unproven.
 
 ## Proof ceiling
 
-This skill proves user-profile/path authority, Git checkout usability, and routing only. It does not mutate a product target or prove deployment/runtime success.
+This skill proves local execution-context evidence, user-profile/path authority, bounded copy classification, Git checkout usability, conservative production-use state, and routing only. It does not prove production quiescence, mutate a product target, or prove deployment/runtime success.
