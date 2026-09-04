@@ -6,7 +6,8 @@ target_mutation: false
 purpose: >-
   Give a fresh agent one deterministic route from repository intake to the smallest authorized
   workflow, use-case contract, desired-state contract, validator set, artifact contract, outcome
-  contract, canonical path contract, operator execution route, terminal-evidence contract, and handoff.
+  contract, canonical path contract, operator command handoff, operator execution route,
+  terminal-evidence contract, and handoff.
 
 inputs:
   required:
@@ -39,7 +40,7 @@ stages:
       - preserve unrelated or separately owned work
       - when an expected tracked launcher, validator, workflow, registry, or report is missing locally, route through harness/workflows/repository-freshness-before-launch.yaml before command reconstruction
       - when the task depends on current remote repository behavior, route through harness/workflows/repository-freshness-before-launch.yaml before interpreting the executing worktree as repository truth
-      - before any repository-owned command or launcher is executed or handed to an operator, set operator_command_requested explicitly and route through harness/workflows/repository-freshness-before-launch.yaml before command selection or handoff
+      - before any repository-owned command or launcher is executed or handed to an operator, set operator_command_requested explicitly and require the composed operator command handoff rather than selecting a bare product command
       - treat a working installed sas shim, remembered command, or previously successful launcher as command evidence only, never as repository freshness proof
       - remember that fetching origin/main alone does not update local main or the current worktree
       - remember that freshness routing does not grant target-network or product-mutation authority
@@ -74,7 +75,8 @@ stages:
       - when the declared lane is harness infrastructure, load harness/skills/harness-maintenance/SKILL.md
       - when repository location, worktree placement, installed/runtime location, updater destination, or real operator entrypoint matters, load harness/skills/canonical-path-resolution/SKILL.md and route through harness/workflows/canonical-path-resolution.yaml
       - when the requested goal extends beyond validation or planning, load harness/skills/outcome-driven-execution/SKILL.md after normal task routing
-      - when a selected command is repository-relative, has a registered front door, or is about to be handed to an operator, load harness/skills/operator-execution-route/SKILL.md
+      - before any selected SysAdminSuite-owned command is executed, emitted, or handed to an operator, load harness/skills/operator-command-handoff/SKILL.md; this composes path -> freshness -> network intent -> command -> restoration
+      - when a selected command is repository-relative, has a registered front door, or is about to be handed to an operator, load harness/skills/operator-execution-route/SKILL.md inside that composed handoff
       - for any printer-mapping request, load harness/skills/printer-mapping-use-case-routing/SKILL.md and resolve organization/site use-case identity before the field-workflow implementation
       - for AutoLogon/Cybernet test, live-cert, deployment, or runtime-proof work, load harness/skills/cybernet-autologon-deployment-state/SKILL.md after the normal P00 route is selected
       - for a vanished, closed, crashed, interrupted, or terminal-sensitive registered field command, load harness/skills/terminal-evidence-survival/SKILL.md before choosing the operator entrypoint
@@ -95,12 +97,17 @@ stages:
       - for printer mapping, do not copy Northwell assumptions into another organization/site; only the selected proven use_case_id authorizes product behavior
       - treat validators, dry runs, plans, fixtures, and harmless transport live certs as admission gates when the requested goal remains unproven
       - for an authorized Cybernet AutoLogon apply/test/live-cert goal, do not substitute transport proof for the real autologon-remote state transition
+      - for every operator command use the composed path -> freshness -> network intent -> command -> restoration sequence; a familiar bare sas/CMD/PowerShell product command is not a valid handoff
+      - resolve and enter the canonical machine/profile path before repository freshness or product-command selection; current directory is candidate evidence only
       - do not execute or hand out a repository-owned operator command until repository-freshness-before-launch proves the selected executing tree current or an atomic handoff will perform the authorized refresh and safe fast-forward before product invocation
+      - capture the starting network posture before any network transition and resolve the selected command's intent through scripts/SasNetworkIntent.psm1; use scripts/Invoke-SasNetworkAwareField.ps1 or the registered installed network-aware front door instead of ad-hoc Wi-Fi/VPN commands
+      - automatic network switching is saved-WLAN-profile-only; do not invent VPN lifecycle control or disable protected hardwire to satisfy InternetSync
+      - when the repository-owned network workflow changes WLANs, require Restore-SasNetworkIntent in the same transaction and treat restore failure as overall command failure; when VPN/hardwire transition is manual, state the required return posture explicitly
       - resolve executable location before operator command handoff through harness/workflows/operator-execution-route.yaml
-      - do not treat harness-command-registry command text or installed sas availability as operator handoff until freshness and execution-route lookup are complete
+      - do not treat harness-command-registry command text or installed sas availability as operator handoff until canonical path, freshness, network intent, and execution-route lookup are complete
       - when command id autologon-remote is selected for operator execution, use the registered Run-AutoLogonCrashSafe.cmd HOST front door rather than handing out the inner product command
       - when the execution environment can run the operator command and dependencies are satisfied, execute the refreshed resolved front door in the same turn
-      - when workstation execution is unavailable, provide one atomic copy-paste route-and-run command that resolves the canonical repo path, fetches refreshed remote truth, proves the clean owned healthy canonical default-branch strictly-behind case, runs git pull --ff-only <intended_remote> <intended_remote_ref>, requires git rev-parse HEAD to equal selected_repository_commit, verifies the front door, changes location, invokes it, and propagates the exit code; if currentness cannot be proven safely, stop before the product command
+      - when workstation execution is unavailable, provide one atomic copy-paste route-and-run command that resolves and enters the canonical repo path, fetches refreshed remote truth, proves the clean owned healthy canonical default-branch strictly-behind case, runs git pull --ff-only <intended_remote> <intended_remote_ref>, requires git rev-parse HEAD to equal selected_repository_commit, resolves the command's network intent, verifies the registered front door, invokes it through the repository-owned network-aware route, preserves its exit code, and includes required network restoration/return posture; if any prerequisite cannot be proven safely, stop before the product command
       - when an operator command uses PowerShell if/else control flow, keep the complete if/else in one paste block; never emit else as a later standalone command
       - when a terminal vanished, recover the stable latest pointer and local artifacts before any target re-contact or rerun
       - preserve already-proven Cybernet clinical-core installation/acceptance instead of blindly reinstalling it to reach AutoLogon
@@ -113,9 +120,11 @@ stages:
       - python harness/validators/validate-repository-freshness-contracts.py
       - python harness/validators/validate-canonical-path-contracts.py
       - python Tests/survey/test_canonical_path_harness_completeness.py
+      - python harness/validators/validate-operator-command-handoff.py
+      - python Tests/survey/test_operator_command_handoff_contracts.py
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
-      - python harness/validators/validate-operator-execution-route.py when command-to-operator routing, repo-relative front doors, execution-location handling, or AutoLogon crash-safe routing changes
+      - python harness/validators/validate-operator-execution-route.py when command-to-operator routing, repo-relative front doors, execution-location handling, network-intent handoff, or AutoLogon crash-safe routing changes
       - python harness/validators/validate-printer-mapping-use-cases.py when printer-mapping routing, use cases, field skill, or organization/site contracts change
       - python harness/validators/validate-terminal-evidence-survival.py when terminal-evidence routing, artifacts, hooks, runner contracts, or front doors change
       - select additional validators from harness/api/harness-validator-registry.json by changed surface
@@ -144,11 +153,12 @@ stages:
     actions:
       - report requested goal, selected machine/path profile, selected printer use case when applicable, desired state when applicable, and terminal outcome before intermediate validation details
       - report all applicable canonical path proof states separately instead of collapsing remote, checkout, installed runtime, and entrypoint currentness
+      - for any operator-command handoff, report starting network posture, required intent, transition method/manual gate, and restore/return disposition in addition to command outcome
       - name changed files and exact validation results
       - report commit SHA, push state, PR state, skipped checks, gaps, risks, and proof ceiling
       - use tools/New-SasSprintCapsule.ps1 for compressed next-agent transfer when needed
       - provide one exact next command only when a real unproven gate remains
-      - when that next command is repository-owned, repository-relative, or has a registered operator front door, freshness proof must precede command handoff; if the workstation must perform the refresh, emit one atomic pull-first route-and-run command bound to intended_remote and intended_remote_ref and require post-pull HEAD equality with selected_repository_commit rather than a bare product command
+      - when that next command is repository-owned, repository-relative, or has a registered operator front door, route it through harness/skills/operator-command-handoff/SKILL.md; do not emit a bare product command or separate prerequisite snippets
       - when AutoLogon deployment is proven and runtime remains requested, identify the separately authorized attended reboot/direct sign-in gate rather than returning to more tests
       - when a terminal vanished, report the preserved latest pointer and run root before proposing any new target action
       - never stop at tests passed, transport live cert passed, status reported, command printed, or wait for next chat when a registered safe continuation remains executable
@@ -161,6 +171,8 @@ outputs:
     - schemas/harness/canonical-path-registry.schema.json
     - harness/workflows/canonical-path-resolution.yaml
     - harness/skills/canonical-path-resolution/SKILL.md
+    - harness/skills/operator-command-handoff/SKILL.md
+    - harness/validators/validate-operator-command-handoff.py
     - harness/maps/CANONICAL_PATH_MAP.md
     - harness/reports/CANONICAL_PATH_STATUS.md
     - harness/api/harness-command-registry.json
@@ -191,8 +203,8 @@ outputs:
 
 proof_ceiling: >-
   Fresh-agent routing, canonical machine/profile path selection, independent remote/development/production/entrypoint
-  currentness states, authorized repository-freshness selection, pull-first operator-command gating, printer-mapping
-  organization/site use-case selection, desired-state selection, canonical command selection, executable-location and
-  operator-front-door selection, terminal-evidence selection, validator selection, artifact boundaries, outcome
-  continuation, and handoff structure only. Intake itself creates no product, target, deployment, reboot,
-  application, printer-mapping, or live-runtime proof.
+  currentness states, authorized repository-freshness selection, pull-first operator-command gating, composed starting-network
+  intent/restore routing, printer-mapping organization/site use-case selection, desired-state selection, canonical command
+  selection, executable-location and operator-front-door selection, terminal-evidence selection, validator selection,
+  artifact boundaries, outcome continuation, and handoff structure only. Intake itself creates no product, target,
+  deployment, reboot, application, printer-mapping, network-transition, or live-runtime proof.
