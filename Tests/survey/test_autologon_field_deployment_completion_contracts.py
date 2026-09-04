@@ -192,7 +192,8 @@ def test_probe_create_timeout_runbook_routes_recovery_before_single_retry() -> N
         "AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED",
         "sas autologon Recover AUTHORIZED_SHORT_HOST",
         "INTERRUPTED_PROBE_RUNS_RECOVERED",
-        "NO_INTERRUPTED_PROBE_RUN_FOUND is a stop-and-inspect result here",
+        "NO_INTERRUPTED_PROBE_RUN_FOUND",
+        "is a stop-and-inspect result here",
         "exactly one supported AutoLogon retry",
         "sas autologon Remote AUTHORIZED_SHORT_HOST",
         "must never launch the AutoLogon installer",
@@ -205,7 +206,7 @@ def test_probe_create_timeout_runbook_routes_recovery_before_single_retry() -> N
 
     recover = section.index("sas autologon Recover AUTHORIZED_SHORT_HOST")
     accepted = section.index("INTERRUPTED_PROBE_RUNS_RECOVERED", recover)
-    rejected = section.index("NO_INTERRUPTED_PROBE_RUN_FOUND is a stop-and-inspect result here", accepted)
+    rejected = section.index("NO_INTERRUPTED_PROBE_RUN_FOUND", accepted)
     retry = section.index("sas autologon Remote AUTHORIZED_SHORT_HOST", rejected)
     assert recover < accepted < rejected < retry
     assert section.count("sas autologon Remote AUTHORIZED_SHORT_HOST") == 1
@@ -225,7 +226,8 @@ def test_runbook_is_sanitized_and_preserves_field_contract() -> None:
         "only the exact safe terminal Probe-create timeout shape",
         "AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED",
         "sas autologon Recover AUTHORIZED_SHORT_HOST",
-        "NO_INTERRUPTED_PROBE_RUN_FOUND is a stop-and-inspect result here",
+        "NO_INTERRUPTED_PROBE_RUN_FOUND",
+        "is a stop-and-inspect result here",
         "exactly one supported AutoLogon retry",
         "AUTOLOGON_DEPLOYMENT_RESTART_COMPLETED",
         "host_eligibility_proven = true",
