@@ -76,25 +76,29 @@ def test_runtime_repair_is_local_only_bounded_and_idempotent() -> None:
         "function Invoke-SasBoundedNative {",
         "function Test-SasBoundedPath {",
         "Assert-Parse $candidate",
-        "$directIntegratedLayout",
+        "$newIntegratedLayout",
+        "$legacyIntegratedLayout",
         "$wrappedLegacyLayout",
-        "already_integrated_or_wrapped",
         "AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_APPLIED",
         "AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_ALREADY_PRESENT",
         "s4u_task_create_minimum_120",
         "reconciliation_attempt_limit",
+        "canonical_upgrade_path = 'sas refresh on Guest/Internet'",
         "git_performed = $false",
         "network_activity_performed = $false",
         "target_contact_performed = $false",
         "target_mutation_performed = $false",
     ):
         assert marker in text, marker
+    assert "return ($newIntegratedLayout -or $legacyIntegratedLayout -or $wrappedLegacyLayout)" in text
 
 
 def test_windows_workflow_executes_behavior_and_repair_fixtures() -> None:
     text = read(WINDOWS_WORKFLOW)
     assert "AutoLogonS4UTaskCreateTimeoutReconciliation.Tests.ps1" in text
     assert "AutoLogonS4UTaskCreateRuntimeRepair.Tests.ps1" in text
+    assert "AutoLogonProbeCreateTimeoutRetryRouting.Tests.ps1" in text
+    assert "test_autologon_s4u_create_timeout_contracts.py" in text
     assert "Repair-SasBoundedNativeS4UCreateRuntime.ps1" in text
 
 
