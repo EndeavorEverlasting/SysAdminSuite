@@ -69,6 +69,18 @@ Assert-True ($field.Contains('Test-SasAutoLogonProbeCreateTimeoutRecoveryCandida
 Assert-True ($field.Contains('elseif ($recoverableProbeCreateTimeout)')) 'Catch path does not route the exact recoverable failure to one Remote continuation.'
 Assert-True ($field.Contains('"sas autologon Remote $requestedTarget"')) 'Recoverable failure does not advertise the canonical Remote continuation.'
 
+# The recovery predicate consumes deployment_classification. Prove that a real inner deployment
+# failure is copied into that outer persisted field before the catch-path predicate evaluates it.
+$classificationMap = "'classification' { `$Destination.deployment_classification = `$value }"
+$innerRead = '$inner = Get-SasLatestInnerDeploymentResult'
+$innerCopy = 'Copy-SasDeploymentState -Destination $result -Source $inner.value'
+$catchPredicate = '$recoverableProbeCreateTimeout = [bool](Test-SasAutoLogonProbeCreateTimeoutRecoveryCandidate -Value ([pscustomobject]$result))'
+Assert-True ($field.Contains('deployment_classification = $null')) 'Outer field result no longer owns deployment_classification.'
+Assert-True ($field.Contains($classificationMap)) 'Inner deployment classification is not mapped to the outer persisted field.'
+Assert-True ($field.Contains($innerRead) -and $field.Contains($innerCopy) -and $field.Contains($catchPredicate)) 'Catch path lost inner-result classification propagation.'
+Assert-True ($field.IndexOf($innerRead, [StringComparison]::Ordinal) -lt $field.IndexOf($innerCopy, [StringComparison]::Ordinal)) 'Inner result must be read before deployment state is copied.'
+Assert-True ($field.IndexOf($innerCopy, [StringComparison]::Ordinal) -lt $field.IndexOf($catchPredicate, [StringComparison]::Ordinal)) 'Inner deployment classification must be copied before recoverability is classified.'
+
 # Assert the recovery authority by semantic gates rather than error-message wording. It must admit
 # only the exact v2 terminal Probe timeout, reject any Install/after-state/reboot/sign-in evidence,
 # and use the exact cleanup authority rather than broad task discovery/removal.
