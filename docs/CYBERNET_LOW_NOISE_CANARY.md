@@ -14,15 +14,15 @@ Up to five explicit approved hostnames/FQDNs/IPs may be supplied in one canary. 
 
 ## What the canary does
 
-1. Looks for complete model+serial identity evidence from the last 24 hours and reuses it without network activity.
-2. For candidates still needing evidence, performs one canonical preflight pass: DNS resolution, one ICMP attempt, and TCP 135/445 checks.
-3. Only when TCP 135 is open, attempts one read-only DCOM/CIM session with the current Windows security context.
-4. Reads `Win32_ComputerSystem` for hostname/manufacturer/model and `Win32_BIOS` for BIOS serial.
+1. Reuses only **completed** model+serial evidence whose original `ObservationTimestamp` is within the last 24 hours; reuse does not refresh that observation clock.
+2. For candidates still needing evidence, performs one canonical preflight pass: DNS resolution, one ICMP attempt, and **TCP 135 only**.
+3. Only when TCP 135 is open, attempts one read-only DCOM/CIM session to the exact endpoint that the preflight resolved.
+4. Reads `Win32_ComputerSystem` for hostname/manufacturer/model and `Win32_BIOS` for BIOS serial, retaining whichever query succeeds even if the other fails.
 5. Performs no canary-level retry of a failed identity query.
-6. Writes results only under ignored `survey/output/cybernet_canary/` state.
+6. Writes results only under ignored `survey/output/cybernet_canary/` state and publishes a completion marker only after the result CSV and summary are finished.
 7. Never mutates a target and never accepts credentials in the command line.
 
-This is **not a stealth feature**. It reduces unnecessary packets by shrinking scope, reusing fresh evidence, limiting ports, and refusing automatic canary retries. Normal enterprise monitoring still sees the traffic and this workflow does not guarantee that monitoring will not alert.
+This is **not a stealth feature**. It reduces unnecessary packets by shrinking scope, reusing fresh completed evidence, limiting the preflight to one relevant port, and refusing automatic canary retries. Normal enterprise monitoring still sees the traffic and this workflow does not guarantee that monitoring will not alert.
 
 ## Why this is the preferred hunt loop
 
@@ -35,7 +35,7 @@ Then use canaries in small explicit batches. A responder is still only a candida
 1. Reduce the candidate population offline/passively.
 2. Run one canary of no more than five candidates.
 3. Remove confirmed non-Cybernet hardware from the prime hunt list.
-4. Preserve complete model+serial evidence so the next run can reuse it without packets.
+4. Preserve complete model+serial evidence so subsequent runs can reuse it until the original observation becomes stale.
 5. Only after exhausting approved candidate sources should a separately approved subnet-confirmation workflow be considered.
 
 ## Example
@@ -44,21 +44,23 @@ Then use canaries in small explicit batches. A responder is still only a candida
 sas cybernet canary WNH270OPR470 WNH270OPR472 WNH270OPR484 WNH270OPR486
 ```
 
-Expected local artifact:
+Expected local artifacts:
 
 ```text
 survey/output/cybernet_canary/<run>/cybernet_canary_identity.csv
+survey/output/cybernet_canary/<run>/cybernet_canary_summary.json
+survey/output/cybernet_canary/<run>/cybernet_canary_complete.json
 ```
 
-Useful columns include `ObservedManufacturer`, `ObservedModel`, `ObservedSerial`, `IdentityStatus`, `EvidenceSource`, and `NetworkActivityPerformed`.
+Useful columns include `ObservationTimestamp`, `ObservedManufacturer`, `ObservedModel`, `ObservedSerial`, `IdentityStatus`, `EvidenceSource`, and `NetworkActivityPerformed`.
 
 ## Interpretation
 
 - `IDENTITY_COLLECTED` — model and BIOS serial were read. Compare them to the approved hardware reference; do not classify from the canary alone.
-- `IDENTITY_PARTIAL` — the read-only query returned incomplete identity.
-- `IDENTITY_QUERY_FAILED` — RPC was open but the one identity attempt failed or was denied; no retry occurred.
+- `IDENTITY_PARTIAL` — some hardware identity was retained, but model and/or serial is missing.
+- `IDENTITY_QUERY_FAILED` — RPC was open but the read-only identity session produced no hardware identity; no retry occurred.
 - `RPC_NOT_OPEN_IDENTITY_SKIPPED` — the canary did not earn a WMI/CIM query.
-- `FreshLocalReuse` — complete recent evidence was reused and no live probe was performed for that target.
+- `FreshLocalReuse` — completed recent evidence was reused and no live probe was performed for that target.
 
 ## Proof ceiling
 

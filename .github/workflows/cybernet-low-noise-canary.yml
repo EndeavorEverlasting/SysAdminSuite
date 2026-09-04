@@ -4,7 +4,13 @@ on:
   pull_request:
     paths:
       - 'survey/sas-cybernet-canary.ps1'
+      - 'survey/sas-network-preflight.ps1'
+      - 'Config/low-noise-policy.json'
+      - 'scripts/SasLowNoisePolicy.psm1'
+      - 'scripts/SasNetworkGuard.psm1'
+      - 'scripts/SasTargetIntake.psm1'
       - 'scripts/Invoke-SasUniversalField.ps1'
+      - 'scripts/Invoke-SasNetworkAwareField.ps1'
       - 'scripts/Install-SasUniversalFieldLauncher.ps1'
       - 'Tests/Pester/CybernetLowNoiseCanary.Tests.ps1'
       - 'docs/CYBERNET_LOW_NOISE_CANARY.md'
@@ -26,7 +32,7 @@ jobs:
       - name: Parse canary and launcher surfaces under Windows PowerShell
         shell: powershell
         run: |
-          $paths = @('.\survey\sas-cybernet-canary.ps1','.\scripts\Invoke-SasUniversalField.ps1','.\scripts\Install-SasUniversalFieldLauncher.ps1')
+          $paths = @('.\survey\sas-cybernet-canary.ps1','.\scripts\Invoke-SasUniversalField.ps1','.\scripts\Invoke-SasNetworkAwareField.ps1','.\scripts\Install-SasUniversalFieldLauncher.ps1')
           foreach ($path in $paths) {
             $tokens=$null; $errors=$null
             [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path),[ref]$tokens,[ref]$errors)
@@ -39,5 +45,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Check PR whitespace
+      - name: Check pull-request whitespace
+        if: github.event_name == 'pull_request'
         run: git diff --check origin/${{ github.base_ref }}...HEAD
+      - name: Check manual-run tip whitespace
+        if: github.event_name == 'workflow_dispatch'
+        run: git diff --check HEAD^..HEAD

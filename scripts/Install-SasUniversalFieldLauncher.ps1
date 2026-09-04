@@ -69,6 +69,13 @@ if ($canonicalReady) {
             throw "MACHINE_RUNTIME_REFRESH_REQUIRED: C:\SASAL is a valid legacy controller but does not contain the current network-aware runtime dependency ($relative). Run 'sas refresh' on Guest/Internet before installing the current universal launcher."
         }
     }
+
+    $canonicalCanary = Join-Path $canonicalRuntime 'survey\sas-cybernet-canary.ps1'
+    $sourceCanaryHash = (Get-FileHash -LiteralPath $sourceCybernetCanary -Algorithm SHA256).Hash
+    $canonicalCanaryHash = (Get-FileHash -LiteralPath $canonicalCanary -Algorithm SHA256).Hash
+    if (-not $sourceCanaryHash.Equals($canonicalCanaryHash, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "MACHINE_RUNTIME_REFRESH_REQUIRED: C:\SASAL contains a stale Cybernet canary. Run 'sas refresh' on Guest/Internet so the installed sas command cannot route to older canary behavior."
+    }
 }
 
 $userProfileRoot = $null
