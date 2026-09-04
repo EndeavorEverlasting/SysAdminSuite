@@ -97,21 +97,23 @@ stages:
       - for printer mapping, do not copy Northwell assumptions into another organization/site; only the selected proven use_case_id authorizes product behavior
       - treat validators, dry runs, plans, fixtures, and harmless transport live certs as admission gates when the requested goal remains unproven
       - for an authorized Cybernet AutoLogon apply/test/live-cert goal, do not substitute transport proof for the real autologon-remote state transition
-      - operator handoff gate 1 canonical path resolves and enters the canonical machine/profile development or registered runtime authority before any repository-owned product command is selected
-      - operator handoff gate 2 repository freshness runs repository-freshness-before-launch, refreshes remote truth, safely fast-forwards only the proven eligible checkout, and proves the selected executing commit before product invocation
-      - operator handoff gate 3 network intent captures the starting network posture and resolves the selected command through scripts/SasNetworkIntent.psm1 before any automatic or manual transition
-      - operator handoff gate 4 canonical command resolves the registered execution route/front door and executes it only after gates 1 through 3 are proven
-      - operator handoff gate 5 restoration restores an automatically changed WLAN through Restore-SasNetworkIntent in the same transaction or states the explicit manual return posture; required restore failure prevents success
+      - operator handoff gate 1 canonical path resolves and enters the canonical machine/profile development authority and captures the starting network classification/label/authority before any freshness or product transition
+      - operator handoff gate 2 repository freshness runs repository-freshness-before-launch under the InternetSync contract, refreshes remote truth, safely fast-forwards only the proven eligible checkout, proves the selected executing commit, and returns to the captured starting network posture before product-intent selection
+      - operator handoff gate 3 network intent resolves the selected product command from the recorded/restored starting posture through scripts/SasNetworkIntent.psm1 before any product transition
+      - operator handoff gate 4 canonical command resolves the registered execution route/front door and executes it only after gates 1 through 3 plus any separate production/runtime currentness proof are proven
+      - operator handoff gate 5 restoration restores an automatically changed WLAN through Restore-SasNetworkIntent in the same product transaction or states the explicit manual return posture; required restore failure prevents success
       - for every operator command use the composed path -> freshness -> network intent -> command -> restoration sequence; a familiar bare sas/CMD/PowerShell product command is not a valid handoff
       - current directory is candidate evidence only; never skip gate 1 because the shell appears to be inside a repository
       - do not execute or hand out a repository-owned operator command until repository-freshness-before-launch proves the selected executing tree current or an atomic handoff will perform the authorized refresh and safe fast-forward before product invocation
+      - stop before the product command when canonical checkout freshness, freshness-network return, required production/runtime currentness, or product network admission cannot be proven
+      - for sealed C:\SASAL AutoLogon routes, do not run Git in the sealed runtime; after canonical repository freshness, use sas refresh / scripts/Refresh-SasOperatorCommand.ps1 on Guest/Internet and require the resulting autologon-short-runtime.json prepared_commit plus SHA-256 seal to match the selected_repository_commit before protected execution
       - automatic network switching is saved-WLAN-profile-only; do not invent VPN lifecycle control or disable protected hardwire to satisfy InternetSync
       - use scripts/Invoke-SasNetworkAwareField.ps1 or the registered installed network-aware front door instead of ad-hoc Wi-Fi/VPN commands
       - resolve executable location before operator command handoff through harness/workflows/operator-execution-route.yaml
-      - do not treat harness-command-registry command text or installed sas availability as operator handoff until canonical path, freshness, network intent, and execution-route lookup are complete
+      - do not treat harness-command-registry command text or installed sas availability as operator handoff until canonical path, freshness, applicable production/runtime currentness, network intent, and execution-route lookup are complete
       - when command id autologon-remote is selected for operator execution, use the registered Run-AutoLogonCrashSafe.cmd HOST front door rather than handing out the inner product command
       - when the execution environment can run the operator command and dependencies are satisfied, execute the refreshed resolved front door in the same turn
-      - when workstation execution is unavailable, provide one atomic copy-paste route-and-run command that resolves and enters the canonical repo path, fetches refreshed remote truth, proves the clean owned healthy canonical default-branch strictly-behind case, runs git pull --ff-only <intended_remote> <intended_remote_ref>, requires git rev-parse HEAD to equal selected_repository_commit, resolves the command's network intent, verifies the registered front door, invokes it through the repository-owned network-aware route, preserves its exit code, and includes required network restoration/return posture; if any prerequisite cannot be proven safely, stop before the product command
+      - when workstation execution is unavailable, provide one atomic copy-paste route-and-run command that resolves and enters the canonical repo path, captures the starting network before any transition, enters/proves InternetSync before remote Git I/O, fetches refreshed remote truth, proves the clean owned healthy canonical default-branch strictly-behind case, runs git pull --ff-only <intended_remote> <intended_remote_ref>, requires git rev-parse HEAD to equal selected_repository_commit, returns to the captured starting posture after freshness, proves any separate production/runtime currentness, resolves the product command's network intent, verifies the registered front door, invokes it through the repository-owned network-aware route, preserves its exit code, and includes required final network restoration/return posture; if any prerequisite cannot be proven safely, stop before the product command
       - when an operator command uses PowerShell if/else control flow, keep the complete if/else in one paste block; never emit else as a later standalone command
       - when a terminal vanished, recover the stable latest pointer and local artifacts before any target re-contact or rerun
       - preserve already-proven Cybernet clinical-core installation/acceptance instead of blindly reinstalling it to reach AutoLogon
@@ -157,7 +159,8 @@ stages:
     actions:
       - report requested goal, selected machine/path profile, selected printer use case when applicable, desired state when applicable, and terminal outcome before intermediate validation details
       - report all applicable canonical path proof states separately instead of collapsing remote, checkout, installed runtime, and entrypoint currentness
-      - for any operator-command handoff, report starting network posture, required intent, transition method/manual gate, and restore/return disposition in addition to command outcome
+      - freshness proof must precede command handoff; when workstation refresh is required, the composed handoff contains an atomic pull-first route-and-run command bound to intended_remote and intended_remote_ref with post-pull head equality with selected_repository_commit before product invocation
+      - for any operator-command handoff, report starting network posture captured before freshness, the InternetSync freshness transition/return disposition, separate production/runtime currentness when applicable, product intent, product transition/manual gate, and final restore/return disposition in addition to command outcome
       - name changed files and exact validation results
       - report commit SHA, push state, PR state, skipped checks, gaps, risks, and proof ceiling
       - use tools/New-SasSprintCapsule.ps1 for compressed next-agent transfer when needed
@@ -207,8 +210,8 @@ outputs:
 
 proof_ceiling: >-
   Fresh-agent routing, canonical machine/profile path selection, independent remote/development/production/entrypoint
-  currentness states, authorized repository-freshness selection, pull-first operator-command gating, composed starting-network
-  intent/restore routing, printer-mapping organization/site use-case selection, desired-state selection, canonical command
-  selection, executable-location and operator-front-door selection, terminal-evidence selection, validator selection,
-  artifact boundaries, outcome continuation, and handoff structure only. Intake itself creates no product, target,
-  deployment, reboot, application, printer-mapping, network-transition, or live-runtime proof.
+  currentness states, authorized repository-freshness selection, pull-first operator-command gating, pre-freshness starting-network
+  capture, InternetSync freshness-return routing, composed product network-intent/restore routing, printer-mapping organization/site
+  use-case selection, desired-state selection, canonical command selection, executable-location and operator-front-door selection,
+  terminal-evidence selection, validator selection, artifact boundaries, outcome continuation, and handoff structure only. Intake itself
+  creates no product, target, deployment, reboot, application, printer-mapping, network-transition, or live-runtime proof.
