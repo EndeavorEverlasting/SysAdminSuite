@@ -17,22 +17,27 @@ def read(path: Path) -> str:
 def test_only_guid_unique_autologon_s4u_creates_get_special_policy() -> None:
     text = read(BOUNDED)
     for marker in (
-        "s4u_task_create_minimum_60",
+        "s4u_task_create_minimum_120",
         "^SysAdminSuite-AutoLogonS4U(?:Probe|Install)-[0-9a-fA-F]{32}$",
-        "$effectiveTimeoutSeconds = 60",
+        "$effectiveTimeoutSeconds = 120",
         "$requestedTimeoutSeconds = $TimeoutSeconds",
+        "$reconciliationAttemptLimit = 3",
+        "$reconciliationTimeoutSeconds = [Math]::Max(1, [Math]::Min(30, $requestedTimeoutSeconds))",
     ):
         assert marker in text, marker
     assert "UnrelatedTask" not in text
 
 
-def test_timeout_reconciliation_is_exact_target_and_task_query_only() -> None:
+def test_timeout_reconciliation_is_finite_exact_target_and_task_query_only() -> None:
     text = read(BOUNDED)
     query = "'/Query','/S',$s4uCreateTarget,'/TN',$s4uCreateTaskName"
     assert query in text
-    assert "reconciled_after_timeout = $true" in text
-    assert "$reconciledAfterTimeout = (-not [bool]$reconciliation.timed_out -and [int]$reconciliation.exit_code -eq 0)" in text
-    assert text.index("$result = Invoke-SasBoundedPowerShell") < text.index(query) < text.index("reconciled_after_timeout = $true")
+    assert "for ($attempt = 1; $attempt -le $reconciliationAttemptLimit; $attempt++)" in text
+    assert "reconciliation_attempts = @($reconciliationAttempts)" in text
+    assert "$reconciledAfterTimeout = $true" in text
+    assert text.index("$result = Invoke-SasBoundedPowerShell") < text.index(query) < text.index("if ($reconciledAfterTimeout)")
+    bounded_create = text[text.index("function Invoke-SasBoundedNative {"):text.index("function Test-SasBoundedPath {")]
+    assert bounded_create.count("'/Create'") == 1, "bounded helper must never issue a second S4U /Create during reconciliation"
 
 
 def test_unproven_timeout_remains_failure_signal() -> None:
@@ -42,7 +47,10 @@ def test_unproven_timeout_remains_failure_signal() -> None:
     tail = text[ordinary_return:]
     assert "timed_out = $result.timed_out" in tail
     assert "exit_code = $result.exit_code" in tail
+    assert "reconciliation_attempt_count = @($reconciliationAttempts).Count" in tail
+    assert "reconciliation_attempts = @($reconciliationAttempts)" in tail
     assert "reconciliation = $reconciliation" in tail
+    assert "initial_error = $(if ($initialTimedOut)" in tail
 
 
 def test_pilot_uses_unique_s4u_task_names_and_consumes_bounded_result() -> None:
@@ -73,6 +81,8 @@ def test_runtime_repair_is_local_only_bounded_and_idempotent() -> None:
         "already_integrated_or_wrapped",
         "AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_APPLIED",
         "AUTOLOGON_S4U_CREATE_TIMEOUT_RUNTIME_REPAIR_ALREADY_PRESENT",
+        "s4u_task_create_minimum_120",
+        "reconciliation_attempt_limit",
         "git_performed = $false",
         "network_activity_performed = $false",
         "target_contact_performed = $false",
