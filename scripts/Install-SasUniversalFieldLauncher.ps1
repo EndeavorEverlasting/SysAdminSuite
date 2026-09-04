@@ -48,6 +48,9 @@ function Test-SasDirectoryWritable {
 $canonicalRuntime = 'C:\SASAL'
 $canonicalReady = Test-SasControllerSurface -Root $canonicalRuntime
 if ($canonicalReady) {
+    # The installed network-intent module resolves these dependencies from the controller root.
+    # A legacy C:\SASAL that lacks any one of them must be refreshed before we install a shim
+    # that would otherwise fail on its first network canary.
     $networkProbeRuntimeFiles = @(
         'survey\sas-network-batch-probe.ps1',
         'survey\sas-network-preflight.ps1',
@@ -81,6 +84,9 @@ $machineBin = Join-Path $machineRoot 'bin'
 $userBin = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'SysAdminSuite\bin' } else { $null }
 $machineInstall = Test-SasDirectoryWritable -Path $machineBin
 
+# A user-profile checkout may bootstrap installation, but it cannot become shared execution authority.
+# If the canonical machine runtime is absent, require either a machine-neutral source root or its
+# preparation before claiming that the universal command is installed for arbitrary technicians.
 if (-not $canonicalReady -and $repoIsUserScoped) {
     throw 'MACHINE_NEUTRAL_RUNTIME_REQUIRED: C:\SASAL is not prepared and the source checkout is under the current user profile. Prepare the canonical local runtime (normally via sas refresh on Guest/Internet) or install from a machine-neutral local checkout.'
 }
@@ -110,12 +116,18 @@ Copy-Item -LiteralPath $sourceNetworkIntent -Destination $networkIntentDestinati
 Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force
 Copy-Item -LiteralPath $sourcePrinterTechnicianCmd -Destination $printerTechnicianCmdDestination -Force
 
+# Machine cache is optional and never points at a user-profile checkout. The trusted installed
+# launcher still resolves C:\SASAL first, and cache write failures cannot break command execution.
 $cacheRoot = if ($canonicalReady) { $canonicalRuntime } elseif (-not $repoIsUserScoped) { $repoRoot } else { $null }
 if (-not [string]::IsNullOrWhiteSpace([string]$cacheRoot) -and (Test-SasDirectoryWritable -Path $machineRoot)) {
     try { Set-Content -LiteralPath (Join-Path $machineRoot 'repo-root.txt') -Value $cacheRoot -Encoding ASCII -ErrorAction Stop }
     catch { Write-Warning "Machine controller cache could not be updated; continuing without it: $($_.Exception.Message)" }
 }
 
+# The CMD shim executes only the installer-owned network-aware PowerShell copy beside itself. That
+# wrapper prints the network canary before delegating to the existing universal dispatcher and may
+# perform only bounded saved-WLAN transitions that it can prove and restore. VPN lifecycle remains
+# fail-closed until a repository-proven client adapter exists.
 $cmd = @'
 @echo off
 setlocal EnableExtensions

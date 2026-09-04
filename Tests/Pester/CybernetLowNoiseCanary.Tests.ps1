@@ -24,7 +24,7 @@ Describe 'Cybernet low-noise identity canary' {
         $content | Should -Match ([regex]::Escape('$MaxTargets = 5'))
         $content | Should -Match 'CYBERNET_CANARY_SCOPE_EXCEEDED'
         $content | Should -Match 'CIDRs, ranges, wildcards, and subnet discovery are refused'
-        $content | Should -Match ([regex]::Escape("$candidate -match '[/*?\[\]]'"))
+        $content | Should -Match ([regex]::Escape('$candidate -match ''[/*?\[\]]'''))
         $content | Should -Not -Match 'nmap\s+-s'
         $content | Should -Not -Match 'naabu'
     }
@@ -41,7 +41,7 @@ Describe 'Cybernet low-noise identity canary' {
         $content = Get-Content -LiteralPath $script:canary -Raw
         $content | Should -Match ([regex]::Escape("'survey\sas-network-preflight.ps1'"))
         $content | Should -Match ([regex]::Escape("-Ports @(135, 445) -PolicyProfile 'network_preflight'"))
-        $content | Should -Match ([regex]::Escape("if ($port135 -eq 'Open')"))
+        $content | Should -Match ([regex]::Escape('if ($port135 -eq ''Open'')'))
         $content | Should -Match ([regex]::Escape('New-CimSessionOption -Protocol Dcom'))
         $content | Should -Match 'no retry performed'
         $content | Should -Not -Match '-Credential'
@@ -62,7 +62,7 @@ Describe 'Cybernet low-noise identity canary' {
         $launcher = Get-Content -LiteralPath $script:launcher -Raw
         $installer = Get-Content -LiteralPath $script:installer -Raw
         $launcher | Should -Match ([regex]::Escape('sas cybernet canary HOST01 HOST02 ...'))
-        $launcher | Should -Match ([regex]::Escape("Join-Path $controllerRoot 'survey\sas-cybernet-canary.ps1'"))
+        $launcher | Should -Match ([regex]::Escape('Join-Path $controllerRoot ''survey\sas-cybernet-canary.ps1'''))
         $launcher | Should -Match 'Cybernet low-noise canary for'
         $installer | Should -Match ([regex]::Escape("'survey\sas-cybernet-canary.ps1'"))
         $installer | Should -Match 'MACHINE_RUNTIME_REFRESH_REQUIRED'

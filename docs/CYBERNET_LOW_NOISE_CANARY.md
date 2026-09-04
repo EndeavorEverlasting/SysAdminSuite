@@ -15,14 +15,14 @@ Up to five explicit approved hostnames/FQDNs/IPs may be supplied in one canary. 
 ## What the canary does
 
 1. Looks for complete model+serial identity evidence from the last 24 hours and reuses it without network activity.
-2. For candidates still needing evidence, runs one canonical read-only preflight using only TCP 135 and 445.
+2. For candidates still needing evidence, performs one canonical preflight pass: DNS resolution, one ICMP attempt, and TCP 135/445 checks.
 3. Only when TCP 135 is open, attempts one read-only DCOM/CIM session with the current Windows security context.
 4. Reads `Win32_ComputerSystem` for hostname/manufacturer/model and `Win32_BIOS` for BIOS serial.
-5. Performs no retry of a failed identity query.
+5. Performs no canary-level retry of a failed identity query.
 6. Writes results only under ignored `survey/output/cybernet_canary/` state.
 7. Never mutates a target and never accepts credentials in the command line.
 
-This is **not a stealth feature**. It reduces unnecessary packets by shrinking scope, reusing fresh evidence, limiting ports, and refusing automatic retries. Normal enterprise monitoring still sees the traffic and this workflow does not guarantee that monitoring will not alert.
+This is **not a stealth feature**. It reduces unnecessary packets by shrinking scope, reusing fresh evidence, limiting ports, and refusing automatic canary retries. Normal enterprise monitoring still sees the traffic and this workflow does not guarantee that monitoring will not alert.
 
 ## Why this is the preferred hunt loop
 
