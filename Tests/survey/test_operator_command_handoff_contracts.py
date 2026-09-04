@@ -58,11 +58,12 @@ def test_skill_names_all_three_recurrence_guards_and_restore() -> None:
 
 def test_repository_sprint_next_command_uses_composed_handoff() -> None:
     text = read(REPO_SPRINT)
+    lower = text.lower()
     assert "path -> freshness -> network intent -> command -> restoration" in text
-    assert "one next command" in text.lower()
-    assert "operator-command-handoff/SKILL.md" in text
-    assert "capture the starting network **before any transition**" in text
-    assert "do not run remote Git in the sealed runtime" in text
+    assert "one next command" in lower
+    assert "operator-command-handoff/skill.md" in lower
+    assert "capture the starting network **before any transition**" in lower
+    assert "do not run remote git in the sealed runtime" in lower
 
 
 def test_fresh_agent_execute_stage_orders_real_gates_once() -> None:
