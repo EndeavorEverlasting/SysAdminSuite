@@ -97,12 +97,16 @@ stages:
       - for printer mapping, do not copy Northwell assumptions into another organization/site; only the selected proven use_case_id authorizes product behavior
       - treat validators, dry runs, plans, fixtures, and harmless transport live certs as admission gates when the requested goal remains unproven
       - for an authorized Cybernet AutoLogon apply/test/live-cert goal, do not substitute transport proof for the real autologon-remote state transition
+      - operator handoff gate 1 canonical path resolves and enters the canonical machine/profile development or registered runtime authority before any repository-owned product command is selected
+      - operator handoff gate 2 repository freshness runs repository-freshness-before-launch, refreshes remote truth, safely fast-forwards only the proven eligible checkout, and proves the selected executing commit before product invocation
+      - operator handoff gate 3 network intent captures the starting network posture and resolves the selected command through scripts/SasNetworkIntent.psm1 before any automatic or manual transition
+      - operator handoff gate 4 canonical command resolves the registered execution route/front door and executes it only after gates 1 through 3 are proven
+      - operator handoff gate 5 restoration restores an automatically changed WLAN through Restore-SasNetworkIntent in the same transaction or states the explicit manual return posture; required restore failure prevents success
       - for every operator command use the composed path -> freshness -> network intent -> command -> restoration sequence; a familiar bare sas/CMD/PowerShell product command is not a valid handoff
-      - resolve and enter the canonical machine/profile path before repository freshness or product-command selection; current directory is candidate evidence only
+      - current directory is candidate evidence only; never skip gate 1 because the shell appears to be inside a repository
       - do not execute or hand out a repository-owned operator command until repository-freshness-before-launch proves the selected executing tree current or an atomic handoff will perform the authorized refresh and safe fast-forward before product invocation
-      - capture the starting network posture before any network transition and resolve the selected command's intent through scripts/SasNetworkIntent.psm1; use scripts/Invoke-SasNetworkAwareField.ps1 or the registered installed network-aware front door instead of ad-hoc Wi-Fi/VPN commands
       - automatic network switching is saved-WLAN-profile-only; do not invent VPN lifecycle control or disable protected hardwire to satisfy InternetSync
-      - when the repository-owned network workflow changes WLANs, require Restore-SasNetworkIntent in the same transaction and treat restore failure as overall command failure; when VPN/hardwire transition is manual, state the required return posture explicitly
+      - use scripts/Invoke-SasNetworkAwareField.ps1 or the registered installed network-aware front door instead of ad-hoc Wi-Fi/VPN commands
       - resolve executable location before operator command handoff through harness/workflows/operator-execution-route.yaml
       - do not treat harness-command-registry command text or installed sas availability as operator handoff until canonical path, freshness, network intent, and execution-route lookup are complete
       - when command id autologon-remote is selected for operator execution, use the registered Run-AutoLogonCrashSafe.cmd HOST front door rather than handing out the inner product command
