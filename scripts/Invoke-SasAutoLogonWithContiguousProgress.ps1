@@ -6,8 +6,9 @@ Run the canonical AutoLogon-only deployment while guaranteeing contiguous operat
 .DESCRIPTION
 This is a presentation wrapper around the registered `sas autologon Remote HOST` command. It does
 not implement AutoLogon, change network policy, alter target state directly, or reinterpret success.
-It streams the canonical command's output through SasAutoLogonProgress.psm1 so a forward stage jump
-is made explicit with truthful SKIP records. The canonical command's exit code is propagated unchanged.
+It invokes only the tracked installed `sas.cmd` launcher locations, streams that canonical route's
+output through SasAutoLogonProgress.psm1, and propagates the canonical command's exit code unchanged.
+Checkout/cache/PATH fallbacks are intentionally not execution authority for protected field deployment.
 #>
 [CmdletBinding()]
 param(
@@ -30,34 +31,27 @@ if (-not (Test-Path -LiteralPath $progressModule -PathType Leaf)) {
 }
 Import-Module $progressModule -Force
 
-$candidates = New-Object 'System.Collections.Generic.List[string]'
-$resolved = Get-Command sas.cmd -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($resolved -and -not [string]::IsNullOrWhiteSpace([string]$resolved.Source)) {
-    [void]$candidates.Add([IO.Path]::GetFullPath([string]$resolved.Source))
-}
-foreach ($candidate in @(
-    'C:\ProgramData\SysAdminSuite\bin\sas.cmd',
-    (Join-Path $env:LOCALAPPDATA 'SysAdminSuite\bin\sas.cmd')
-)) {
-    if (-not [string]::IsNullOrWhiteSpace([string]$candidate)) {
-        try { $full = [IO.Path]::GetFullPath([string]$candidate) } catch { continue }
-        if (-not $candidates.Contains($full)) { [void]$candidates.Add($full) }
-    }
+$machineLauncher = [IO.Path]::GetFullPath('C:\ProgramData\SysAdminSuite\bin\sas.cmd')
+$userLauncher = $null
+if (-not [string]::IsNullOrWhiteSpace([string]$env:LOCALAPPDATA)) {
+    $userLauncher = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'SysAdminSuite\bin\sas.cmd'))
 }
 
 $sasCommand = $null
-foreach ($candidate in $candidates) {
-    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-        $sasCommand = $candidate
+foreach ($candidate in @($machineLauncher,$userLauncher)) {
+    if (-not [string]::IsNullOrWhiteSpace([string]$candidate) -and
+        (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        $sasCommand = [string]$candidate
         break
     }
 }
 if ([string]::IsNullOrWhiteSpace($sasCommand)) {
-    throw 'Canonical sas.cmd launcher was not found. Refresh/install the tracked SysAdminSuite launcher before deployment.'
+    throw 'Canonical installed sas.cmd launcher was not found. Refresh/install the tracked SysAdminSuite launcher before deployment; checkout, cache, and PATH fallbacks are not accepted.'
 }
 
 Write-Host 'AUTOLOGON PROGRESS CONTINUITY: ENABLED' -ForegroundColor Cyan
 Write-Host "Canonical command: sas autologon Remote $target" -ForegroundColor Cyan
+Write-Host "Installed launcher: $sasCommand" -ForegroundColor Cyan
 Write-Host 'Missing numbered stages, if any, will be printed explicitly as SKIP; deployment semantics are unchanged.' -ForegroundColor Cyan
 Write-Host ''
 
