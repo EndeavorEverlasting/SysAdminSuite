@@ -7,11 +7,14 @@ Run a bounded, read-only Cybernet identity canary against explicit approved cand
 The canary reduces unnecessary network traffic; it is not a monitoring-evasion feature.
 It accepts at most five explicit hostname/FQDN/IP candidates, rejects ranges/CIDRs/wildcards,
 reuses completed canary evidence from the previous 24 hours, performs one canonical network
-preflight narrowed to TCP 135 for remaining candidates, and attempts one DCOM/CIM identity session
-only when TCP 135 is open. It never mutates a target and never accepts credentials on the command line.
+preflight narrowed to TCP 135 and 445 for remaining candidates, and attempts one DCOM/CIM
+session only when both ports are open. That session first proves Windows client-workstation
+class from Win32_OperatingSystem ProductType. Manufacturer/model/BIOS serial are queried only
+for a confirmed client workstation. It never mutates a target and never accepts credentials
+on the command line.
 
-The result records manufacturer, model, and BIOS serial when the current operator context is allowed
-to read them. Model + serial are identity evidence only; this command does not classify a device as Cybernet.
+The two-port posture is a Windows-PC candidate signature, not Cybernet identity. Model + serial
+remain evidence for comparison with the approved Cybernet hardware reference.
 #>
 [CmdletBinding()]
 param(
@@ -74,6 +77,7 @@ function Get-SasFreshCanaryEvidence {
 
         foreach ($row in @(Import-Csv -LiteralPath $resultPath -ErrorAction SilentlyContinue)) {
             if ([string]::IsNullOrWhiteSpace([string]$row.Target) -or -not ([string]$row.Target).Equals($TargetName, [StringComparison]::OrdinalIgnoreCase)) { continue }
+            if (-not $row.PSObject.Properties['Port445'] -or -not $row.PSObject.Properties['PcSignatureStatus']) { continue }
             if ([string]::IsNullOrWhiteSpace([string]$row.ObservationTimestamp)) { continue }
             try { $observedAt = [datetime]$row.ObservationTimestamp } catch { continue }
             if ($observedAt.ToUniversalTime() -lt $Cutoff.ToUniversalTime()) { continue }
@@ -123,6 +127,10 @@ foreach ($candidate in $targets) {
             ResolvedAddress = [string]$fresh.ResolvedAddress
             PingStatus = [string]$fresh.PingStatus
             Port135 = [string]$fresh.Port135
+            Port445 = [string]$fresh.Port445
+            PcSignatureStatus = [string]$fresh.PcSignatureStatus
+            WorkstationStatus = [string]$fresh.WorkstationStatus
+            ObservedOperatingSystem = [string]$fresh.ObservedOperatingSystem
             ObservedHostName = [string]$fresh.ObservedHostName
             ObservedManufacturer = [string]$fresh.ObservedManufacturer
             ObservedModel = [string]$fresh.ObservedModel
@@ -142,7 +150,7 @@ try {
     if ($liveTargets.Count -gt 0) {
         $liveTargets | Set-Content -LiteralPath $targetFile -Encoding UTF8
         $preflightRoot = Join-Path $runRoot 'preflight'
-        & $preflight -TargetFile $targetFile -Ports @(135) -PolicyProfile 'network_preflight' -OutputDirectory $preflightRoot
+        & $preflight -TargetFile $targetFile -Ports @(135,445) -PolicyProfile 'network_preflight' -OutputDirectory $preflightRoot
         $preflightCsv = @(Get-ChildItem -LiteralPath $preflightRoot -Filter 'network_preflight_*.csv' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1)
         if ($preflightCsv.Count -ne 1) { throw 'Canary preflight did not produce exactly one network_preflight CSV.' }
         $preflightRows = @(Import-Csv -LiteralPath $preflightCsv[0].FullName)
@@ -154,57 +162,84 @@ try {
         $resolved = if ($null -ne $firstRow) { [string]$firstRow.ResolvedAddress } else { '' }
         $pingStatus = if ($null -ne $firstRow) { [string]$firstRow.PingStatus } else { '' }
         $port135Row = $rows | Where-Object { [int]$_.Port -eq 135 } | Select-Object -First 1
+        $port445Row = $rows | Where-Object { [int]$_.Port -eq 445 } | Select-Object -First 1
         $port135 = if ($null -ne $port135Row) { [string]$port135Row.PortStatus } else { 'NotChecked' }
+        $port445 = if ($null -ne $port445Row) { [string]$port445Row.PortStatus } else { 'NotChecked' }
+        $pcSignatureStatus = if ($port135 -eq 'Open' -and $port445 -eq 'Open') { 'WINDOWS_PC_SIGNATURE_MATCH' } else { 'WINDOWS_PC_SIGNATURE_NOT_MATCHED' }
         $identityEndpoint = if (-not [string]::IsNullOrWhiteSpace($resolved)) { $resolved } else { $candidate }
 
         $observationTimestamp = (Get-Date).ToString('o')
+        $observedOs = ''
         $observedHost = ''
         $manufacturer = ''
         $model = ''
         $serial = ''
-        $identityStatus = 'RPC_NOT_OPEN_IDENTITY_SKIPPED'
+        $workstationStatus = 'NOT_EVALUATED'
+        $identityStatus = 'PC_SIGNATURE_NOT_MATCHED_METADATA_SKIPPED'
         $noteParts = New-Object 'System.Collections.Generic.List[string]'
-        [void]$noteParts.Add('TCP 135 did not earn a DCOM/CIM identity query.')
+        [void]$noteParts.Add('Both TCP 135 and 445 are required before any DCOM/CIM metadata query.')
 
-        if ($port135 -eq 'Open') {
+        if ($pcSignatureStatus -eq 'WINDOWS_PC_SIGNATURE_MATCH') {
             $noteParts.Clear()
             $session = $null
             try {
                 $sessionOption = New-CimSessionOption -Protocol Dcom
                 $session = New-CimSession -ComputerName $identityEndpoint -SessionOption $sessionOption -ErrorAction Stop
             } catch {
-                [void]$noteParts.Add('Read-only DCOM/CIM session creation failed or was denied; no retry performed.')
+                $identityStatus = 'IDENTITY_SESSION_FAILED'
+                [void]$noteParts.Add('Dual-port PC signature matched, but the single read-only DCOM/CIM session failed or was denied; no retry performed.')
             }
 
             if ($null -ne $session) {
                 try {
-                    $computer = Get-CimInstance -CimSession $session -ClassName Win32_ComputerSystem -Property Name,Manufacturer,Model -OperationTimeoutSec 8 -ErrorAction Stop | Select-Object -First 1
-                    if ($null -ne $computer) {
-                        $observedHost = [string]$computer.Name
-                        $manufacturer = [string]$computer.Manufacturer
-                        $model = [string]$computer.Model
+                    $os = Get-CimInstance -CimSession $session -ClassName Win32_OperatingSystem -Property Caption,ProductType -OperationTimeoutSec 8 -ErrorAction Stop | Select-Object -First 1
+                    if ($null -ne $os) {
+                        $observedOs = [string]$os.Caption
+                        if ([int]$os.ProductType -eq 1) {
+                            $workstationStatus = 'WINDOWS_CLIENT_WORKSTATION_CONFIRMED'
+                        } else {
+                            $workstationStatus = 'NON_CLIENT_WINDOWS_OS'
+                            $identityStatus = 'NON_WORKSTATION_OS_METADATA_SKIPPED'
+                            [void]$noteParts.Add("Windows ProductType $([int]$os.ProductType) is not a client workstation; manufacturer/model/serial queries were skipped.")
+                        }
                     }
                 } catch {
-                    [void]$noteParts.Add('Win32_ComputerSystem identity query failed or was denied.')
+                    $workstationStatus = 'WORKSTATION_CLASS_UNRESOLVED'
+                    $identityStatus = 'WORKSTATION_CLASS_UNRESOLVED_METADATA_SKIPPED'
+                    [void]$noteParts.Add('Windows workstation class could not be proven; manufacturer/model/serial queries were skipped.')
                 }
 
-                try {
-                    $bios = Get-CimInstance -CimSession $session -ClassName Win32_BIOS -Property SerialNumber -OperationTimeoutSec 8 -ErrorAction Stop | Select-Object -First 1
-                    if ($null -ne $bios) { $serial = [string]$bios.SerialNumber }
-                } catch {
-                    [void]$noteParts.Add('Win32_BIOS serial query failed or was denied.')
+                if ($workstationStatus -eq 'WINDOWS_CLIENT_WORKSTATION_CONFIRMED') {
+                    try {
+                        $computer = Get-CimInstance -CimSession $session -ClassName Win32_ComputerSystem -Property Name,Manufacturer,Model -OperationTimeoutSec 8 -ErrorAction Stop | Select-Object -First 1
+                        if ($null -ne $computer) {
+                            $observedHost = [string]$computer.Name
+                            $manufacturer = [string]$computer.Manufacturer
+                            $model = [string]$computer.Model
+                        }
+                    } catch {
+                        [void]$noteParts.Add('Win32_ComputerSystem hardware query failed or was denied.')
+                    }
+
+                    try {
+                        $bios = Get-CimInstance -CimSession $session -ClassName Win32_BIOS -Property SerialNumber -OperationTimeoutSec 8 -ErrorAction Stop | Select-Object -First 1
+                        if ($null -ne $bios) { $serial = [string]$bios.SerialNumber }
+                    } catch {
+                        [void]$noteParts.Add('Win32_BIOS serial query failed or was denied.')
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace($model) -and -not [string]::IsNullOrWhiteSpace($serial)) {
+                        $identityStatus = 'IDENTITY_COLLECTED'
+                        [void]$noteParts.Add('Confirmed client workstation returned model and BIOS serial in the single DCOM/CIM session.')
+                    } elseif (-not [string]::IsNullOrWhiteSpace($observedHost) -or -not [string]::IsNullOrWhiteSpace($manufacturer) -or -not [string]::IsNullOrWhiteSpace($model) -or -not [string]::IsNullOrWhiteSpace($serial)) {
+                        $identityStatus = 'IDENTITY_PARTIAL'
+                        [void]$noteParts.Add('Partial hardware identity was retained; no retry performed.')
+                    } else {
+                        $identityStatus = 'IDENTITY_QUERY_FAILED'
+                    }
                 }
+
                 Remove-CimSession -CimSession $session -ErrorAction SilentlyContinue
-            }
-
-            if (-not [string]::IsNullOrWhiteSpace($model) -and -not [string]::IsNullOrWhiteSpace($serial)) {
-                $identityStatus = 'IDENTITY_COLLECTED'
-                [void]$noteParts.Add('One read-only DCOM/CIM session returned model and BIOS serial.')
-            } elseif (-not [string]::IsNullOrWhiteSpace($observedHost) -or -not [string]::IsNullOrWhiteSpace($manufacturer) -or -not [string]::IsNullOrWhiteSpace($model) -or -not [string]::IsNullOrWhiteSpace($serial)) {
-                $identityStatus = 'IDENTITY_PARTIAL'
-                [void]$noteParts.Add('Partial hardware identity was retained; no retry performed.')
-            } else {
-                $identityStatus = 'IDENTITY_QUERY_FAILED'
             }
         }
 
@@ -215,6 +250,10 @@ try {
             ResolvedAddress = $resolved
             PingStatus = $pingStatus
             Port135 = $port135
+            Port445 = $port445
+            PcSignatureStatus = $pcSignatureStatus
+            WorkstationStatus = $workstationStatus
+            ObservedOperatingSystem = $observedOs
             ObservedHostName = $observedHost
             ObservedManufacturer = $manufacturer
             ObservedModel = $model
@@ -238,13 +277,15 @@ $ordered = @($targets | ForEach-Object {
 $ordered | Export-Csv -LiteralPath $resultCsv -NoTypeInformation -Encoding UTF8
 
 $summary = [pscustomobject]@{
-    schema_version = 'sas-cybernet-canary-summary/v1'
+    schema_version = 'sas-cybernet-canary-summary/v2'
     generated_at = (Get-Date).ToString('o')
     target_count = $targets.Count
     fresh_reuse_count = @($ordered | Where-Object { $_.EvidenceSource -eq 'FreshLocalReuse' }).Count
     live_canary_count = @($ordered | Where-Object { $_.EvidenceSource -eq 'LiveBoundedCanary' }).Count
+    pc_signature_match_count = @($ordered | Where-Object { $_.PcSignatureStatus -eq 'WINDOWS_PC_SIGNATURE_MATCH' }).Count
+    workstation_confirmed_count = @($ordered | Where-Object { $_.WorkstationStatus -eq 'WINDOWS_CLIENT_WORKSTATION_CONFIRMED' }).Count
     identity_collected_count = @($ordered | Where-Object { $_.IdentityStatus -eq 'IDENTITY_COLLECTED' }).Count
-    identity_incomplete_count = @($ordered | Where-Object { $_.IdentityStatus -ne 'IDENTITY_COLLECTED' }).Count
+    metadata_skipped_count = @($ordered | Where-Object { $_.IdentityStatus -like '*METADATA_SKIPPED' }).Count
     target_mutation_performed = $false
     stealth_or_evasion_claim = $false
     result_csv = $resultCsv
@@ -253,7 +294,7 @@ $summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $summaryJson -Enco
 
 $resultHash = (Get-FileHash -LiteralPath $resultCsv -Algorithm SHA256).Hash
 $completion = [pscustomobject]@{
-    schema_version = 'sas-cybernet-canary-completion/v1'
+    schema_version = 'sas-cybernet-canary-completion/v2'
     completed = $true
     completed_at = (Get-Date).ToString('o')
     result_sha256 = $resultHash
@@ -268,9 +309,11 @@ Write-Host 'Terminal contract: invoke through the installed sas command from Win
 Write-Host "Targets: $($targets.Count) (hard cap: $MaxTargets)"
 Write-Host "Fresh completed evidence reused without packets: $($summary.fresh_reuse_count)"
 Write-Host "Live bounded canaries: $($summary.live_canary_count)"
-Write-Host 'Traffic contract: explicit candidates only; DNS + one ICMP attempt + TCP 135; no canary retry; one DCOM/CIM session only after 135 opens.'
+Write-Host "Dual-port Windows-PC signature matches: $($summary.pc_signature_match_count)"
+Write-Host "Confirmed Windows client workstations: $($summary.workstation_confirmed_count)"
+Write-Host 'Traffic contract: explicit candidates only; DNS + one ICMP attempt + TCP 135 and 445; no canary retry; one DCOM/CIM session only after both ports open; hardware metadata only after ProductType=1.'
 Write-Host 'Monitoring contract: this reduces unnecessary traffic but does not hide activity or guarantee that normal monitoring will not alert.' -ForegroundColor Yellow
 Write-Host "Result: $resultCsv" -ForegroundColor Green
 Write-Host "Summary: $summaryJson"
 Write-Host "Completion marker: $completionPath"
-$ordered | Select-Object Target,ObservedManufacturer,ObservedModel,ObservedSerial,IdentityStatus,EvidenceSource | Format-Table -AutoSize
+$ordered | Select-Object Target,PcSignatureStatus,WorkstationStatus,ObservedManufacturer,ObservedModel,ObservedSerial,IdentityStatus,EvidenceSource | Format-Table -AutoSize
