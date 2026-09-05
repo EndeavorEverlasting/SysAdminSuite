@@ -16,9 +16,9 @@ This is **not a stealth feature**. It minimizes unnecessary packets and unnecess
 
 ## Lane A — professional candidate survey
 
-**Operator terminal: Git Bash / Bash-on-Windows.** This lane performs network signature collection only; it performs no endpoint metadata query.
+Operator terminal: **Git Bash / Bash-on-Windows**.
 
-Start from an approved **computer** host/IP list. Do not feed it printers, access points, arbitrary subnet discoveries, CIDRs, ranges, or wildcards.
+This lane performs network signature collection only; it performs no endpoint metadata query. Start from an approved **computer** host/IP list. Do not feed it printers, access points, arbitrary subnet discoveries, CIDRs, ranges, or wildcards.
 
 ```bash
 bash survey/sas-run-windows-pc-signature.sh --list targets/local/approved_computers.txt
@@ -48,7 +48,7 @@ A device can still expose both 135 and 445 without being a user workstation. Tha
 
 ## Lane B — bounded metadata canary
 
-**Operator terminal: Windows PowerShell.**
+Operator terminal: **Windows PowerShell**.
 
 Use the installed `sas` command from any directory:
 
