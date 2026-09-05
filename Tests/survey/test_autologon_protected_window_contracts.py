@@ -64,7 +64,7 @@ def test_route_has_provider_fresh_floor_before_local_fast_path() -> None:
     assert provider < fast < refresh, "provider freshness must precede local protected-window admission, which must precede workstation refresh"
     for marker in (
         "exact equality between `prepared_commit` and the provider-selected accepted immutable deployment floor",
-        "do not run workstation remote Git",
+        "Do not run workstation remote Git",
         "do not invoke `sas refresh`",
         "do not disconnect/reconnect VPN",
         "Run-AutoLogon-ContiguousProgress.cmd",
