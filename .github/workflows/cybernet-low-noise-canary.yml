@@ -21,6 +21,7 @@ on:
       - 'Tests/Pester/CybernetLowNoiseCanary.Tests.ps1'
       - 'Tests/survey/test_windows_pc_signature_filter.py'
       - 'docs/CYBERNET_LOW_NOISE_CANARY.md'
+      - 'docs/CYBERNET_IDENTIFIER_POLICY.md'
       - 'harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md'
       - '.github/workflows/cybernet-low-noise-canary.yml'
   workflow_dispatch:
