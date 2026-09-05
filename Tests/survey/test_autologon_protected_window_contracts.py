@@ -101,7 +101,8 @@ def test_crash_safe_runner_owns_contiguous_progress() -> None:
         "ConvertTo-SasAutoLogonContiguousProgress",
         "Tee-Object -FilePath $childOutputPath -ErrorAction Stop",
         "$ErrorActionPreference = 'Continue'",
-        "$result.child_exit_code = [int]$LASTEXITCODE",
+        "$result.child_exit_code = [int]$global:LASTEXITCODE",
+        "$result.evidence_recovery_exit_code = [int]$global:LASTEXITCODE",
     ):
         require(text, marker, "crash-safe continuity seam")
     assert text.index("ConvertTo-SasAutoLogonContiguousProgress") < text.index("Tee-Object -FilePath $childOutputPath"), "durable child output must contain normalized stages"
