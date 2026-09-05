@@ -20,6 +20,7 @@ on:
       - 'harness/validators/validate-operator-command-handoff.py'
       - 'Tests/survey/test_operator_command_handoff_contracts.py'
       - 'Tests/survey/test_autologon_protected_window_contracts.py'
+      - 'Tests/PowerShell/AutoLogonCrashSafeProgress.Tests.ps1'
       - 'docs/OPERATOR_COMMAND_HANDOFF.md'
       - 'harness/maps/OPERATOR_COMMAND_HANDOFF_MAP.md'
       - 'scripts/SasNetworkIntent.psm1'
@@ -49,6 +50,7 @@ on:
       - 'harness/validators/validate-operator-command-handoff.py'
       - 'Tests/survey/test_operator_command_handoff_contracts.py'
       - 'Tests/survey/test_autologon_protected_window_contracts.py'
+      - 'Tests/PowerShell/AutoLogonCrashSafeProgress.Tests.ps1'
       - 'docs/OPERATOR_COMMAND_HANDOFF.md'
       - 'harness/maps/OPERATOR_COMMAND_HANDOFF_MAP.md'
       - 'scripts/SasNetworkIntent.psm1'
@@ -97,3 +99,13 @@ jobs:
 
       - name: Check whitespace
         run: git diff --check HEAD^
+
+  windows-crash-safe-e2e:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Execute crash-safe progress and stderr fixture under Windows PowerShell 5.1
+        shell: powershell
+        run: .\Tests\PowerShell\AutoLogonCrashSafeProgress.Tests.ps1
