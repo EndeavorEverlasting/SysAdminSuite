@@ -60,7 +60,8 @@ def test_portable_remote_dispatch_precedes_repo_discovery() -> None:
     assert sealed_dispatch < repo_discovery, "portable AutoLogon Remote must not require checkout discovery"
     sealed_block = text[sealed_dispatch:repo_discovery]
     require(sealed_block, "Protected-side Git activity: NONE", "portable protected lane")
-    assert "git " not in sealed_block.lower(), "portable protected lane must not invoke Git"
+    for forbidden in ("& git", "git.exe", "Invoke-SasRefreshGit", "Resolve-SasGitExecutable"):
+        assert forbidden.lower() not in sealed_block.lower(), f"portable protected lane invokes Git through: {forbidden}"
 
 
 def test_universal_route_accepts_all_protected_authorities_without_refresh() -> None:
