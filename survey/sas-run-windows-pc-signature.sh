@@ -134,7 +134,9 @@ retries="${profile_values[1]}"
 rate="${profile_values[2]}"
 exclude_cdn="${profile_values[3]}"
 
-naabu_bin="$(bash "$ENSURE_SCRIPT" $([[ "$DRY_RUN" -eq 1 ]] && printf '%s' '--dry-run'))"
+ensure_args=()
+[[ "$DRY_RUN" -eq 1 ]] && ensure_args+=(--dry-run)
+naabu_bin="$(bash "$ENSURE_SCRIPT" "${ensure_args[@]}")"
 [[ -n "$naabu_bin" ]] || fail 'Naabu bootstrap returned no executable path.'
 args=(-list "$LIST" -p "$ports" -silent -duc -retries "$retries" -rate "$rate" -json -o "$OUT")
 [[ "$exclude_cdn" == '1' ]] && args+=(-ec)
