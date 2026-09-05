@@ -32,7 +32,7 @@ For repository-backed commands and for AutoLogon when the protected-window fast 
 4. **Execute the canonical front door** — after path, freshness/runtime-currentness, and product-network admission are proven, execute the registered launcher/command and preserve its exit code and durable evidence.
 5. **Restore the starting network when the workflow changed it** — restoration is part of the transaction, not an optional cleanup note. A failed required restore prevents promotion of the command to success.
 
-A bare product snippet that starts at step 4 is invalid unless it is the explicitly admitted protected AutoLogon window fast path above.
+A bare product snippet that starts at step 4 is invalid. The only exception is the explicitly admitted protected AutoLogon window fast path above.
 
 ## Canonical path gate
 
