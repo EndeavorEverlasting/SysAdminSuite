@@ -4,14 +4,29 @@ This is the field-facing entrypoint for Cybernet / Neuron network survey work.
 
 Use it when you need to validate network posture from an approved target population using a local admin workstation. The dashboard guides the workflow. The operator runs approved commands outside the dashboard and loads the resulting local files back into **Load Evidence**.
 
+## Finding missing Cybernets specifically
+
+When the mission is **find deployed Cybernet workstations**, do not use the generic mixed-device port example on this page as the first-pass hunt. TCP 9100 is printer-oriented, and broad web/remote-management port sets can surface access points, printers, servers, and other infrastructure that should never become Cybernet hardware-metadata targets.
+
+Use [`docs/CYBERNET_LOW_NOISE_CANARY.md`](docs/CYBERNET_LOW_NOISE_CANARY.md) and [`harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md`](harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md):
+
+1. approved **computer** population first;
+2. professional signature scan on TCP **135 + 445 only**, zero retries, rate 50;
+3. promote only dual-port matches;
+4. one read-only DCOM/CIM session only after both ports pass;
+5. prove Windows client `ProductType=1` before manufacturer/model/serial;
+6. compare model + serial with the approved Cybernet hardware reference.
+
+The professional signature-scan lane intentionally uses the tracked Bash wrapper because Naabu is the scanner there; the bounded metadata canary uses Windows PowerShell. The PowerShell-first rules below remain the generic field-tech preflight path, not an instruction to bypass the professional Cybernet-hunt funnel.
+
 ## Field shell doctrine
 
-**PowerShell first.**
+**PowerShell first for the generic field-tech preflight below.**
 
 - Run PowerShell command blocks in **Windows PowerShell**.
-- Do not use Git Bash / MINGW64 for the field-tech path.
+- Do not use Git Bash / MINGW64 for PowerShell blocks.
 - Do not use CMD for PowerShell blocks.
-- Do not paste Bash commands into the field workflow.
+- Do not paste Bash commands into the PowerShell field workflow.
 - Do not type demo hostnames manually for live work.
 - Do not use `C:\Temp` as the live workflow.
 
@@ -67,7 +82,9 @@ With no `-TargetFile`, the script lists candidate `.txt` and `.csv` files from:
 
 Then it stops without probing. This is deliberate. The operator must select the approved target file.
 
-## Run network preflight
+## Run generic mixed-purpose network preflight
+
+The examples below are for a **mixed-purpose** network preflight where the operator deliberately needs workstation/RDP/printer posture. They are **not** the professional first-pass Cybernet hunt.
 
 Run in Windows PowerShell:
 
@@ -153,5 +170,6 @@ Preferred field flow:
 - Do not run broad scans without approved scope.
 - Do not use spoofing, decoys, stealth flags, vuln scripts, brute force, or credential attacks.
 - Do not claim network preflight found a serial unless an approved serial evidence source actually produced it.
+- Do not use the generic mixed-purpose 9100/RDP preflight as the default way to hunt missing Cybernets.
 
 This workflow is boring on purpose. Boring survives the field.
