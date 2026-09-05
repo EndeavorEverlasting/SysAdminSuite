@@ -149,7 +149,7 @@ def test_progressive_disclosure_and_incident_doctrine() -> None:
         "reboot Windows",
         "Verify -ExpectedState Absent",
         "Verify -ExpectedState System",
-        "before restoring settings, extensions, settings sync",
+        "restoring settings, extensions, settings sync",
         "do not derail the operator into server-status speculation",
         "RecoveryPurge",
         "-PurgeUserState",
