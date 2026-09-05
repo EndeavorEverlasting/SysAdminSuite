@@ -4,8 +4,8 @@
 #
 # Doctrine is the single source of truth. The runtime config is a deterministic,
 # generated representation consumed by survey/sas-run-naabu-pipeline.sh. Do not
-# hand-edit Config/cybernet-naabu-profiles.json; edit survey/naabu_profiles.json
-# and re-run this generator. See docs/LOW_NOISE_SURVEY_DOCTRINE.md.
+# hand-edit Config/cybernet-naabu-profiles.json; edit the doctrine contract and re-run the generator.
+# See docs/LOW_NOISE_SURVEY_DOCTRINE.md.
 #
 # Read-only doctrine input. No network, no targets.
 set -euo pipefail
@@ -62,11 +62,8 @@ import json, sys
 with open(sys.argv[1], encoding="utf-8") as fh:
     doc = json.load(fh)
 
-# Runtime-only constants. Keep deterministic.
 NAABU_VERSION = "2.6.1"
 INSTALL_DIR = "bin"
-
-# Backward-compatible runtime aliases -> doctrine profile ids.
 ALIASES = {
     "keyports_cdn": "web_reachability_only",
     "keyports_cdn_json": "web_reachability_only_json",
@@ -133,6 +130,10 @@ for name, prof in doc.get("profiles", {}).items():
     entry["maxTargets"] = max_targets(prof, flags, mode)
     entry["allowFullPorts"] = ports == "-"
     entry["pipelineFollowup"] = bool(prof.get("pipelineFollowup", False))
+    if "retries" in prof:
+        entry["retries"] = int(prof["retries"])
+    if "defaultRate" in prof:
+        entry["defaultRate"] = int(prof["defaultRate"])
     if prof.get("requiresHostnameInput"):
         entry["requiresHost"] = True
     if prof.get("requiresApprovedSubnetScope"):
