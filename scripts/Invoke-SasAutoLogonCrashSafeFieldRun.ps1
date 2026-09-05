@@ -112,14 +112,15 @@ try {
 
     # Windows PowerShell 5.1 can surface merged native stderr as ErrorRecord objects. Keep that
     # diagnostic stream visible/non-terminating while the canonical child runs, then restore the
-    # caller preference and preserve the child's real exit code.
+    # caller preference and preserve the child's real exit code. Durable output writes stay
+    # terminating so a transcript/result cannot report success without its child-output artifact.
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
         $LASTEXITCODE = 0
         & powershell.exe @childArguments 2>&1 |
             ConvertTo-SasAutoLogonContiguousProgress |
-            Tee-Object -FilePath $childOutputPath |
+            Tee-Object -FilePath $childOutputPath -ErrorAction Stop |
             Out-Host
         $result.child_exit_code = [int]$LASTEXITCODE
     }
