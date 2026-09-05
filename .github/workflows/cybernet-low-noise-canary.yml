@@ -1,0 +1,76 @@
+name: Cybernet Low-Noise Canary
+
+on:
+  pull_request:
+    paths:
+      - 'survey/sas-cybernet-canary.ps1'
+      - 'survey/sas-network-preflight.ps1'
+      - 'survey/sas-run-windows-pc-signature.sh'
+      - 'survey/sas-filter-windows-pc-signature.py'
+      - 'survey/naabu_profiles.json'
+      - 'survey/sas-generate-naabu-runtime-profiles.sh'
+      - 'Config/cybernet-naabu-profiles.json'
+      - 'Config/low-noise-policy.json'
+      - 'scripts/Confirm-SasNorthwellNetwork.ps1'
+      - 'scripts/SasLowNoisePolicy.psm1'
+      - 'scripts/SasNetworkGuard.psm1'
+      - 'scripts/SasTargetIntake.psm1'
+      - 'scripts/Invoke-SasUniversalField.ps1'
+      - 'scripts/Invoke-SasNetworkAwareField.ps1'
+      - 'scripts/Install-SasUniversalFieldLauncher.ps1'
+      - 'Tests/Pester/CybernetLowNoiseCanary.Tests.ps1'
+      - 'Tests/survey/test_windows_pc_signature_filter.py'
+      - 'START-HERE-CYBERNET-NEURON-SURVEY.md'
+      - 'docs/CYBERNET_LOW_NOISE_CANARY.md'
+      - 'docs/CYBERNET_IDENTIFIER_POLICY.md'
+      - 'harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md'
+      - '.github/workflows/cybernet-low-noise-canary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Pester 5
+        shell: powershell
+        run: Install-Module Pester -MinimumVersion 5.5.0 -Force -Scope CurrentUser -SkipPublisherCheck
+      - name: Run canary contracts
+        shell: powershell
+        run: .\tools\Test-Pester5Suite.ps1 -TestPath .\Tests\Pester\CybernetLowNoiseCanary.Tests.ps1
+      - name: Parse canary and launcher surfaces under Windows PowerShell
+        shell: powershell
+        run: |
+          $paths = @('.\survey\sas-cybernet-canary.ps1','.\scripts\Confirm-SasNorthwellNetwork.ps1','.\scripts\Invoke-SasUniversalField.ps1','.\scripts\Invoke-SasNetworkAwareField.ps1','.\scripts\Install-SasUniversalFieldLauncher.ps1')
+          foreach ($path in $paths) {
+            $tokens=$null; $errors=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path),[ref]$tokens,[ref]$errors)
+            if (@($errors).Count) { throw "$path parse errors: $($errors[0].Message)" }
+          }
+
+  offline-professional-survey:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate generated Naabu profile parity
+        run: bash survey/sas-generate-naabu-runtime-profiles.sh --check
+      - name: Validate PC-signature filter
+        run: python Tests/survey/test_windows_pc_signature_filter.py
+      - name: Parse dedicated signature wrapper
+        run: bash -n survey/sas-run-windows-pc-signature.sh
+      - name: Check pull-request whitespace
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git diff --check "origin/$BASE_REF...HEAD"
+      - name: Check manual-run tip whitespace
+        if: github.event_name == 'workflow_dispatch'
+        run: git diff --check HEAD^..HEAD

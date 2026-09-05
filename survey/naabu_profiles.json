@@ -18,6 +18,15 @@
       "output": "txt",
       "pipelineFollowup": true
     },
+    "windows_pc_signature_json": {
+      "description": "Minimal Windows-PC candidate gate for Cybernet hunting. Probe TCP 135 and 445 only; both must be observed before any metadata follow-up. This is candidate evidence, not Cybernet identity.",
+      "ports": "135,445",
+      "flags": ["-json", "-silent", "-ec"],
+      "output": "json",
+      "pipelineFollowup": false,
+      "retries": 0,
+      "defaultRate": 50
+    },
     "web_reachability_only_json": {
       "description": "Narrow web reachability (80,443) JSON evidence. CDN-safe key ports only.",
       "ports": "80,443",

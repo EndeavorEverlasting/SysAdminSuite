@@ -92,6 +92,7 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
         Write-Host 'Printer mapping when GitHub is intentionally unavailable: sas printer offline' -ForegroundColor DarkGray
         Write-Host 'Clipboard recovery is available as: sas clipboard' -ForegroundColor Green
         Write-Host 'Batch network probing is available as: sas network probe HOST01 HOST02 ...' -ForegroundColor Green
+        Write-Host 'Cybernet model+serial canary is available as: sas cybernet canary HOST01 HOST02 ...' -ForegroundColor Green
     }
     exit 0
 }
@@ -226,6 +227,20 @@ switch ($normalized) {
     'cybernet' {
         if ($actualArgs.Count -gt 0) {
             $mode = ([string]$actualArgs[0]).Trim().ToLowerInvariant()
+            if ($mode -eq 'canary') {
+                $targets = @($actualArgs | Select-Object -Skip 1)
+                if ($targets.Count -eq 0) {
+                    Write-Host 'Usage: sas cybernet canary HOST01 [HOST02 ...]' -ForegroundColor Red
+                    exit 2
+                }
+                [void](Assert-SasProtectedForAction -Purpose "Cybernet low-noise canary for $($targets.Count) explicit targets")
+                $canary = Join-Path $controllerRoot 'survey\sas-cybernet-canary.ps1'
+                if (-not (Test-Path -LiteralPath $canary -PathType Leaf)) {
+                    throw "Cybernet canary runtime is not present in the active controller: $controllerRoot. Run 'sas refresh' on Guest/Internet to install the current sealed runtime."
+                }
+                & $canary -Target $targets
+                exit 0
+            }
             if ($mode -in @('probe','deploy','core','profiled-core','recover')) {
                 $targetLabel = if ($actualArgs.Count -gt 1) { [string]$actualArgs[1] } else { '<target>' }
                 [void](Assert-SasProtectedForAction -Purpose "Cybernet $mode for $targetLabel")

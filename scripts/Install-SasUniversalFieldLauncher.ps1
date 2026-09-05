@@ -17,10 +17,11 @@ $sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps
 $sourcePrinterTechnicianCmd = Join-Path $repoRoot 'Map-NorthwellPrinter.cmd'
 $sourceNetworkBatchProbe = Join-Path $repoRoot 'survey\sas-network-batch-probe.ps1'
 $sourceNetworkPreflight = Join-Path $repoRoot 'survey\sas-network-preflight.ps1'
+$sourceCybernetCanary = Join-Path $repoRoot 'survey\sas-cybernet-canary.ps1'
 foreach ($required in @(
     $sourceLauncher,$sourceNetworkAwareLauncher,$sourcePlatform,$sourceNetworkIntent,
     $sourceOperatorSession,$sourceNetworkGuard,$sourceBoundedNative,$sourcePrinterBootstrap,
-    $sourceNetworkBatchProbe,$sourceNetworkPreflight
+    $sourceNetworkBatchProbe,$sourceNetworkPreflight,$sourceCybernetCanary
 )) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required universal field file missing: $required" }
     $tokens = $null; $errors = $null
@@ -53,6 +54,7 @@ if ($canonicalReady) {
     $networkProbeRuntimeFiles = @(
         'survey\sas-network-batch-probe.ps1',
         'survey\sas-network-preflight.ps1',
+        'survey\sas-cybernet-canary.ps1',
         'scripts\SasFieldPlatform.psm1',
         'scripts\SasOperatorSession.psm1',
         'scripts\SasNetworkGuard.psm1',
@@ -66,6 +68,13 @@ if ($canonicalReady) {
         if (-not (Test-Path -LiteralPath (Join-Path $canonicalRuntime $relative) -PathType Leaf)) {
             throw "MACHINE_RUNTIME_REFRESH_REQUIRED: C:\SASAL is a valid legacy controller but does not contain the current network-aware runtime dependency ($relative). Run 'sas refresh' on Guest/Internet before installing the current universal launcher."
         }
+    }
+
+    $canonicalCanary = Join-Path $canonicalRuntime 'survey\sas-cybernet-canary.ps1'
+    $sourceCanaryHash = (Get-FileHash -LiteralPath $sourceCybernetCanary -Algorithm SHA256).Hash
+    $canonicalCanaryHash = (Get-FileHash -LiteralPath $canonicalCanary -Algorithm SHA256).Hash
+    if (-not $sourceCanaryHash.Equals($canonicalCanaryHash, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "MACHINE_RUNTIME_REFRESH_REQUIRED: C:\SASAL contains a stale Cybernet canary. Run 'sas refresh' on Guest/Internet so the installed sas command cannot route to older canary behavior."
     }
 }
 
