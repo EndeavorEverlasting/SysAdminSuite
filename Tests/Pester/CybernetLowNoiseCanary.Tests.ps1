@@ -4,6 +4,7 @@ BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:canary = Join-Path $script:repoRoot 'survey\sas-cybernet-canary.ps1'
     $script:filter = Join-Path $script:repoRoot 'survey\sas-filter-windows-pc-signature.py'
+    $script:signatureRunner = Join-Path $script:repoRoot 'survey\sas-run-windows-pc-signature.sh'
     $script:profiles = Join-Path $script:repoRoot 'survey\naabu_profiles.json'
     $script:runtimeProfiles = Join-Path $script:repoRoot 'Config\cybernet-naabu-profiles.json'
     $script:launcher = Join-Path $script:repoRoot 'scripts\Invoke-SasUniversalField.ps1'
@@ -42,8 +43,8 @@ Describe 'Cybernet low-noise identity canary' {
         $content | Should -Match 'result_sha256'
         $content | Should -Match 'Get-FileHash'
         $content | Should -Match 'ObservationTimestamp'
-        $content | Should -Match ([regex]::Escape("$row.PSObject.Properties['Port445']"))
-        $content | Should -Match ([regex]::Escape("$row.PSObject.Properties['PcSignatureStatus']"))
+        $content | Should -Match ([regex]::Escape('$row.PSObject.Properties[''Port445'']'))
+        $content | Should -Match ([regex]::Escape('$row.PSObject.Properties[''PcSignatureStatus'']'))
         $content | Should -Match ([regex]::Escape('ObservationTimestamp = [string]$fresh.ObservationTimestamp'))
         $content | Should -Match 'FreshLocalReuse'
         $content | Should -Match 'NetworkActivityPerformed = \$false'
@@ -53,10 +54,10 @@ Describe 'Cybernet low-noise identity canary' {
         $content = Get-Content -LiteralPath $script:canary -Raw
         $content | Should -Match ([regex]::Escape("'survey\sas-network-preflight.ps1'"))
         $content | Should -Match ([regex]::Escape("-Ports @(135,445) -PolicyProfile 'network_preflight'"))
-        $content | Should -Match ([regex]::Escape("$port135 -eq 'Open' -and $port445 -eq 'Open'"))
+        $content | Should -Match ([regex]::Escape('$port135 -eq ''Open'' -and $port445 -eq ''Open'''))
         $content | Should -Match 'WINDOWS_PC_SIGNATURE_MATCH'
         $content | Should -Match 'WINDOWS_PC_SIGNATURE_NOT_MATCHED'
-        $signature = $content.IndexOf("$pcSignatureStatus -eq 'WINDOWS_PC_SIGNATURE_MATCH'")
+        $signature = $content.IndexOf('$pcSignatureStatus -eq ''WINDOWS_PC_SIGNATURE_MATCH''')
         $session = $content.IndexOf('New-CimSession -ComputerName $identityEndpoint')
         $signature | Should -BeGreaterThan -1
         $session | Should -BeGreaterThan $signature
@@ -94,17 +95,28 @@ Describe 'Cybernet low-noise identity canary' {
         $content | Should -Not -Match 'CONFIRMED_CYBERNET'
     }
 
-    It 'ships a local-only two-port scanner evidence filter and matching generated profile' {
+    It 'ships a local-only two-port filter and zero-retry bounded signature profile' {
         $script:filter | Should -Exist
+        $script:signatureRunner | Should -Exist
         $filter = Get-Content -LiteralPath $script:filter -Raw
+        $runner = Get-Content -LiteralPath $script:signatureRunner -Raw
         $filter | Should -Match ([regex]::Escape('REQUIRED_PORTS = {135, 445}'))
         $filter | Should -Match 'performs no network activity'
+        $runner | Should -Match ([regex]::Escape('-retries "$retries"'))
+        $runner | Should -Match ([regex]::Escape('-rate "$rate"'))
+        $runner | Should -Match 'Metadata collection: NONE'
+        $runner | Should -Match 'CIDR is not allowed'
+        $runner | Should -Match 'professional PC-signature cap is 256'
 
         $doctrine = Get-Content -LiteralPath $script:profiles -Raw | ConvertFrom-Json
         $runtime = Get-Content -LiteralPath $script:runtimeProfiles -Raw | ConvertFrom-Json
         $doctrine.profiles.windows_pc_signature_json.ports | Should -Be '135,445'
+        $doctrine.profiles.windows_pc_signature_json.retries | Should -Be 0
+        $doctrine.profiles.windows_pc_signature_json.defaultRate | Should -Be 50
         $doctrine.profiles.windows_pc_signature_json.pipelineFollowup | Should -BeFalse
         $runtime.profiles.windows_pc_signature_json.ports | Should -Be '135,445'
+        $runtime.profiles.windows_pc_signature_json.retries | Should -Be 0
+        $runtime.profiles.windows_pc_signature_json.defaultRate | Should -Be 50
         $runtime.profiles.windows_pc_signature_json.outputFormat | Should -Be 'json'
         $runtime.profiles.windows_pc_signature_json.pipelineFollowup | Should -BeFalse
     }
@@ -138,6 +150,7 @@ Describe 'Cybernet low-noise identity canary' {
             'scripts/SasLowNoisePolicy.psm1',
             'survey/naabu_profiles.json',
             'Config/cybernet-naabu-profiles.json',
+            'survey/sas-run-windows-pc-signature.sh',
             'survey/sas-filter-windows-pc-signature.py',
             'Tests/survey/test_windows_pc_signature_filter.py'
         )) {
@@ -152,11 +165,13 @@ Describe 'Cybernet low-noise identity canary' {
         $workflow | Should -Match 'HEAD\^\.\.HEAD'
         $workflow | Should -Match 'sas-generate-naabu-runtime-profiles.sh --check'
         $workflow | Should -Match 'test_windows_pc_signature_filter.py'
+        $workflow | Should -Match 'bash -n survey/sas-run-windows-pc-signature.sh'
     }
 
     It 'documents a professional staged funnel without live identifiers or stealth claims' {
         $docs = Get-Content -LiteralPath $script:docs -Raw
         $docs | Should -Match 'Operator terminal: \*\*Windows PowerShell\*\*\.'
+        $docs | Should -Match 'Operator terminal: Git Bash / Bash-on-Windows'
         $docs | Should -Match 'sas cybernet canary HOST01 HOST02'
         $docs | Should -Match 'windows_pc_signature_json'
         $docs | Should -Match 'sas-filter-windows-pc-signature.py'
