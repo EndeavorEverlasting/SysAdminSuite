@@ -23,7 +23,9 @@
       "ports": "135,445",
       "flags": ["-json", "-silent", "-ec"],
       "output": "json",
-      "pipelineFollowup": false
+      "pipelineFollowup": false,
+      "retries": 0,
+      "defaultRate": 50
     },
     "web_reachability_only_json": {
       "description": "Narrow web reachability (80,443) JSON evidence. CDN-safe key ports only.",
