@@ -1,6 +1,6 @@
 # Survey Tools
 
-This directory contains Bash-first survey tooling for SysAdminSuite.
+This directory contains survey tooling for SysAdminSuite. Network scanner/orchestrator lanes are Bash-first; bounded Windows metadata identity may use repository-owned Windows PowerShell when that is the canonical surface for the use case.
 
 ## Primary Field Tutorial: Cybernet / Neuron Network Survey
 
@@ -10,22 +10,60 @@ The current priority tutorial for field technicians is:
 
 - [`../START-HERE-SysAdminSuite.md`](../START-HERE-SysAdminSuite.md) — what to double-click and what opens
 - [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SURVEY.md) — advanced CLI orchestrator path
+- [`../docs/CYBERNET_LOW_NOISE_CANARY.md`](../docs/CYBERNET_LOW_NOISE_CANARY.md) — professional missing-Cybernet population → PC-signature → metadata funnel
 - [`../docs/SURVEY_LANES.md`](../docs/SURVEY_LANES.md) — manifest lane vs subnet lane; serial vs hostname vs MAC
 - [`../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md`](../docs/tutorials/CYBERNET_NEURON_NETWORK_SURVEY.md) — full step-by-step runbook
 
-Use the CLI path below only when the dashboard or a lead explicitly asks for Bash orchestration. Start with the workflow diagram in `../START-HERE-CYBERNET-NEURON-SURVEY.md` when you need the one-page field path before the command details. Mermaid source: [`../docs/diagrams/cybernet-neuron-survey-flow.mmd`](../docs/diagrams/cybernet-neuron-survey-flow.mmd). The workflow is:
+Use the CLI path below only when the dashboard or a lead explicitly asks for orchestration. Start with the workflow diagram in `../START-HERE-CYBERNET-NEURON-SURVEY.md` when you need the one-page field path before the command details. Mermaid source: [`../docs/diagrams/cybernet-neuron-survey-flow.mmd`](../docs/diagrams/cybernet-neuron-survey-flow.mmd). The generic orchestration workflow is:
 
 1. Copy approved local target CSVs into `survey/input/`.
-2. Run the Bash runtime smoke test.
-3. Run `sas-cybernet-subnet-survey.sh` modes (or individual scripts below).
+2. Run the Bash runtime smoke test when using a Bash scanner lane.
+3. Run `sas-cybernet-subnet-survey.sh` modes (or individual scripts below) only when that broader lane is actually required.
 4. Normalize targets with `sas-survey-targets.sh`.
 5. Package local evidence from `survey/artifacts/` and `logs/nmap/`.
 
 Field rule: this is read-only asset discovery. Do not commit live CSVs, scan output, dashboards, ZIPs, hostnames, MACs, serials, or site evidence.
 
+## Professional missing-Cybernet hunt
+
+Do **not** start a missing-Cybernet hunt with the generic seven-port profile or a mixed subnet scan merely because those tools exist. Prefer an approved computer population from AD, tracker/inventory, prior evidence, DNS/DHCP correlation, CMDB/SCCM, or endpoint inventory.
+
+### Stage 1 — minimal PC-signature scan
+
+Operator terminal: **Git Bash / Bash-on-Windows**.
+
+```bash
+bash survey/sas-run-windows-pc-signature.sh --list targets/local/approved_computers.txt
+```
+
+This dedicated wrapper:
+
+- uses only TCP 135 and 445;
+- sets Naabu retries to `0` and default rate to `50`;
+- delegates protected-network admission to the canonical PowerShell gate, including supported DomainAuthenticated non-Wi-Fi VPN/LAN;
+- performs no metadata query;
+- promotes only hosts where both 135 and 445 were observed;
+- keeps evidence local and ignored.
+
+Web-only access points, printers exposing HTTP/HTTPS/9100, RPC-only responders, and SMB-only responders do not graduate to metadata candidacy.
+
+### Stage 2 — bounded workstation metadata canary
+
+Operator terminal: **Windows PowerShell**.
+
+```powershell
+sas cybernet canary HOST01 HOST02
+```
+
+The canary accepts at most five explicit candidates. It requires both 135 and 445, then creates at most one read-only DCOM/CIM session. `Win32_OperatingSystem.ProductType` must equal `1` before manufacturer/model/BIOS serial are queried. A server/DC or unresolved OS class stops before hardware metadata.
+
+This PowerShell canary is a current Northwell survey/identity surface. It is **not** a deprecated equivalent of a Bash scanner. Bash owns the packet-oriented signature lane; Windows PowerShell owns the bounded metadata identity lane.
+
+Model + serial still require comparison with the approved Cybernet hardware reference before `CONFIRMED_CYBERNET` may be claimed.
+
 ## Cybernet Subnet Survey Runner
 
-Bash-first orchestrator for the urgent field path. Read-only. No endpoint mutation.
+Bash-first orchestrator for an explicitly approved subnet-discovery field path. Read-only. No endpoint mutation. It is a broader fallback when approved computer population sources are incomplete; it is not the preferred first-pass missing-Cybernet hunt.
 
 ```bash
 bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode local-context-only
@@ -97,7 +135,7 @@ bash survey/sas-cybernet-subnet-survey.sh --site nsuh --mode confirm-windows \
   --pipe-followup
 ```
 
-Profiles are doctrine-defined in [`survey/naabu_profiles.json`](naabu_profiles.json) and generated into the runtime config [`Config/cybernet-naabu-profiles.json`](../Config/cybernet-naabu-profiles.json) via [`survey/sas-generate-naabu-runtime-profiles.sh`](sas-generate-naabu-runtime-profiles.sh). Default profile: `keyports_cybernet_json`. Field guide: [`docs/NAABU_CYBERNET_PROFILES.md`](../docs/NAABU_CYBERNET_PROFILES.md). Doctrine: [`docs/LOW_NOISE_SURVEY_DOCTRINE.md`](../docs/LOW_NOISE_SURVEY_DOCTRINE.md). Go normalizer: [`probe/packet-expenditure/README.md`](../probe/packet-expenditure/README.md).
+Profiles are doctrine-defined in [`survey/naabu_profiles.json`](naabu_profiles.json) and generated into the runtime config [`Config/cybernet-naabu-profiles.json`](../Config/cybernet-naabu-profiles.json) via [`survey/sas-generate-naabu-runtime-profiles.sh`](sas-generate-naabu-runtime-profiles.sh). Default generic profile: `keyports_cybernet_json`. Professional missing-Cybernet hunting deliberately selects `windows_pc_signature_json` instead. Field guide: [`docs/NAABU_CYBERNET_PROFILES.md`](../docs/NAABU_CYBERNET_PROFILES.md). Doctrine: [`docs/LOW_NOISE_SURVEY_DOCTRINE.md`](../docs/LOW_NOISE_SURVEY_DOCTRINE.md). Go normalizer: [`probe/packet-expenditure/README.md`](../probe/packet-expenditure/README.md).
 
 ## Cybernet-detect enrichment
 
@@ -115,14 +153,14 @@ See [`../START-HERE-CYBERNET-NEURON-SURVEY.md`](../START-HERE-CYBERNET-NEURON-SU
 
 ## Status
 
-- **Northwell workflows:** Bash-first.
-- **Expected shell:** Bash on Windows, usually Git Bash or MSYS2 Bash.
-- **PowerShell equivalents:** deprecated for Northwell, preserved elsewhere as legacy/reference tooling.
-- **Default agent behavior:** add new survey functionality here or in another Bash-oriented path, not under `GetInfo/*.ps1`.
+- **Network scanner/orchestrator lanes:** Bash-first on Windows, usually Git Bash or MSYS2 Bash.
+- **Professional Cybernet hardware-metadata canary:** Windows PowerShell through the installed `sas cybernet canary` front door.
+- **PowerShell posture:** active where it is the repository-owned identity/preflight surface; do not globally label PowerShell deprecated.
+- **Default agent behavior:** select the tracked runtime by use case. Do not recreate scanner behavior ad hoc in PowerShell, and do not replace the current metadata canary with an unrelated Bash probe.
 
 ## Runtime Smoke Test
 
-Run this first on a new workstation:
+Run this first on a new workstation before a Bash scanner/orchestrator lane:
 
 ```bash
 bash tests/bash/smoke-bash-windows-runtime.sh
@@ -341,19 +379,17 @@ bash survey/sas-resolve-nmap-evidence.sh \
 
 ## Field Rule
 
-Do not replace these with ad hoc PowerShell or Linux commands during field work.
+Do not replace tracked scanner or identity surfaces with ad hoc PowerShell, Bash, or Linux commands during field work. Use the repository-owned runtime for the lane:
+
+- Bash wrapper/profile for packet-oriented network survey;
+- Windows PowerShell `sas cybernet canary` for bounded workstation hardware metadata.
 
 If a new probe is needed, add it to:
 
 - `docs/COMMAND_CATALOG.md`
-- the relevant Bash script
-- a smoke test when applicable
+- the relevant tracked script/launcher
+- a smoke or contract test when applicable
 
 ## Next Build Direction
 
-This script currently normalizes and resolves targets. The next Bash layer should perform the actual survey/probe behavior behind clear subcommands, for example:
-
-```bash
-sas-survey collect --manifest ./survey/output/neuron_targets_resolved.csv
-sas-survey report  --manifest ./survey/output/neuron_targets_resolved.csv
-```
+Future survey composition should continue to hide packet and identity complexity behind clear registered subcommands rather than asking technicians to reconstruct probes by hand.
