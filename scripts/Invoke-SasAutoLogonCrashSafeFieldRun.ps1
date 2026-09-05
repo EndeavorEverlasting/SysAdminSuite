@@ -112,17 +112,18 @@ try {
 
     # Windows PowerShell 5.1 can surface merged native stderr as ErrorRecord objects. Keep that
     # diagnostic stream visible/non-terminating while the canonical child runs, then restore the
-    # caller preference and preserve the child's real exit code. Durable output writes stay
-    # terminating so a transcript/result cannot report success without its child-output artifact.
+    # caller preference and preserve the child's real exit code. A native executable inside a
+    # PowerShell pipeline updates the global LASTEXITCODE state, so capture that exact scope.
+    # Durable output writes stay terminating so success cannot be reported without child evidence.
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        $LASTEXITCODE = 0
+        $global:LASTEXITCODE = 0
         & powershell.exe @childArguments 2>&1 |
             ConvertTo-SasAutoLogonContiguousProgress |
             Tee-Object -FilePath $childOutputPath -ErrorAction Stop |
             Out-Host
-        $result.child_exit_code = [int]$LASTEXITCODE
+        $result.child_exit_code = [int]$global:LASTEXITCODE
     }
     finally {
         $ErrorActionPreference = $previousPreference
@@ -135,11 +136,11 @@ try {
         '-File', $evidenceScript,
         'AutoLogon', '20'
     )
-    $LASTEXITCODE = 0
+    $global:LASTEXITCODE = 0
     & powershell.exe @evidenceArguments 2>&1 |
-        Tee-Object -FilePath $evidenceOutputPath |
+        Tee-Object -FilePath $evidenceOutputPath -ErrorAction Stop |
         Out-Host
-    $result.evidence_recovery_exit_code = [int]$LASTEXITCODE
+    $result.evidence_recovery_exit_code = [int]$global:LASTEXITCODE
 
     if (Test-Path -LiteralPath $stableEvidenceIndex -PathType Leaf) {
         Copy-Item -LiteralPath $stableEvidenceIndex -Destination $copiedEvidenceIndex -Force
