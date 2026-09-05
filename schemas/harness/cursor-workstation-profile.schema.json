@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/cursor-workstation-profile.schema.json",
+  "title": "SysAdminSuite Cursor Workstation Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "application",
+    "installation",
+    "state",
+    "evidence",
+    "posture"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-cursor-workstation-profile/v1"
+    },
+    "schema_path": {
+      "const": "schemas/harness/cursor-workstation-profile.schema.json"
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "publisher",
+        "official_download_url",
+        "display_name_regex",
+        "process_names"
+      ],
+      "properties": {
+        "name": {"const": "Cursor"},
+        "publisher": {"const": "Anysphere"},
+        "official_download_url": {"const": "https://cursor.com/download"},
+        "display_name_regex": {"type": "string", "minLength": 1},
+        "process_names": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "contains": {"const": "Cursor.exe"},
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "installation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "machine_install_roots",
+        "user_install_roots",
+        "uninstall_registry_roots",
+        "cli_path_templates",
+        "system_installer_filename_regex",
+        "user_installer_filename_regex",
+        "authenticode_subject_regex"
+      ],
+      "properties": {
+        "machine_install_roots": {"$ref": "#/$defs/tokenizedPathList"},
+        "user_install_roots": {"$ref": "#/$defs/tokenizedPathList"},
+        "uninstall_registry_roots": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["scope", "path"],
+            "properties": {
+              "scope": {"enum": ["user", "machine64", "machine32"]},
+              "path": {
+                "type": "string",
+                "pattern": "^HK(?:CU|LM):\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall"
+              }
+            }
+          }
+        },
+        "cli_path_templates": {"$ref": "#/$defs/tokenizedPathList"},
+        "system_installer_filename_regex": {"type": "string", "minLength": 1},
+        "user_installer_filename_regex": {"type": "string", "minLength": 1},
+        "authenticode_subject_regex": {"type": "string", "minLength": 1}
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user_state_roots", "startup_registry_roots", "shortcut_roots"],
+      "properties": {
+        "user_state_roots": {"$ref": "#/$defs/tokenizedPathList"},
+        "startup_registry_roots": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^HK(?:CU|LM):\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run$"
+          }
+        },
+        "shortcut_roots": {"$ref": "#/$defs/tokenizedPathList"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["local_output_root", "tracked_runtime_evidence_allowed"],
+      "properties": {
+        "local_output_root": {"$ref": "#/$defs/tokenizedPath"},
+        "tracked_runtime_evidence_allowed": {"const": false}
+      }
+    },
+    "posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system_install_required",
+        "normal_uninstall_preserves_user_state",
+        "recovery_purge_requires_explicit_mutation",
+        "state_purge_requires_explicit_switch",
+        "settings_restore_after_smoke_test_only",
+        "local_audit_precedes_external_outage_assumption",
+        "package_manager_required"
+      ],
+      "properties": {
+        "system_install_required": {"const": true},
+        "normal_uninstall_preserves_user_state": {"const": true},
+        "recovery_purge_requires_explicit_mutation": {"const": true},
+        "state_purge_requires_explicit_switch": {"const": true},
+        "settings_restore_after_smoke_test_only": {"const": true},
+        "local_audit_precedes_external_outage_assumption": {"const": true},
+        "package_manager_required": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "tokenizedPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?:\\{(?:LOCALAPPDATA|APPDATA|USERPROFILE|PROGRAMFILES|PROGRAMFILESX86|PROGRAMDATA|PUBLIC)\\}|[A-Za-z]:\\\\).+"
+    },
+    "tokenizedPathList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/tokenizedPath"}
+    }
+  }
+}
