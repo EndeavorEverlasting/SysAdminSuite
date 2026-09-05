@@ -7,6 +7,7 @@ on:
   push:
     branches: [main, 'fix/**', 'feat/**', 'repair/**']
     paths:
+      - 'AGENTS.md'
       - 'harness/skills/operator-command-handoff/SKILL.md'
       - 'harness/skills/canonical-path-resolution/SKILL.md'
       - 'harness/skills/operator-execution-route/SKILL.md'
@@ -35,6 +36,7 @@ on:
       - '.github/workflows/operator-command-handoff-contracts.yml'
   pull_request:
     paths:
+      - 'AGENTS.md'
       - 'harness/skills/operator-command-handoff/SKILL.md'
       - 'harness/skills/canonical-path-resolution/SKILL.md'
       - 'harness/skills/operator-execution-route/SKILL.md'
