@@ -1,0 +1,72 @@
+name: AutoLogon Closeout Preparation
+
+on:
+  pull_request:
+    paths:
+      - 'Prepare-SysAdminSuiteAutoLogonCloseout.cmd'
+      - 'Prepare-SysAdminSuiteAutoLogonCloseout.ps1'
+      - 'scripts/New-SasAutoLogonDeploymentHandoff.ps1'
+      - 'Tests/PowerShell/AutoLogonCloseoutPreparation.Tests.ps1'
+      - 'Tests/survey/test_autologon_closeout_preparation_contracts.py'
+      - 'docs/AUTOLOGON_CLOSEOUT_PREPARATION.md'
+      - 'harness/api/harness-command-registry.json'
+      - 'harness/api/harness-artifact-registry.json'
+      - 'harness/api/harness-outcome-registry.json'
+      - '.github/workflows/autologon-closeout-preparation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Compile closeout preparation contract
+        run: python -m py_compile Tests/survey/test_autologon_closeout_preparation_contracts.py
+      - name: Run closeout preparation contract
+        run: python Tests/survey/test_autologon_closeout_preparation_contracts.py
+      - name: Validate harness registries
+        run: python harness/validators/validate-harness-registries.py
+      - name: Validate outcome-driven command chain
+        run: python harness/validators/validate-outcome-contracts.py
+      - name: Check patch whitespace
+        run: git diff --check origin/${{ github.base_ref }}...HEAD
+
+  windows-powershell-51:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Parse closeout preparation surfaces under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($relative in @(
+            'Prepare-SysAdminSuiteAutoLogonCloseout.ps1',
+            'scripts\New-SasAutoLogonDeploymentHandoff.ps1',
+            'Tests\PowerShell\AutoLogonCloseoutPreparation.Tests.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $relative),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -gt 0) {
+              $errors | Format-List * | Out-Host
+              throw "$relative has Windows PowerShell 5.1 parse errors."
+            }
+          }
+      - name: Execute local-only pinned handoff fixture
+        shell: powershell
+        run: .\Tests\PowerShell\AutoLogonCloseoutPreparation.Tests.ps1
