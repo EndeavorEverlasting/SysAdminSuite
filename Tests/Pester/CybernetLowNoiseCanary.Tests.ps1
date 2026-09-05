@@ -11,6 +11,7 @@ BeforeAll {
     $script:networkAware = Join-Path $script:repoRoot 'scripts\Invoke-SasNetworkAwareField.ps1'
     $script:installer = Join-Path $script:repoRoot 'scripts\Install-SasUniversalFieldLauncher.ps1'
     $script:docs = Join-Path $script:repoRoot 'docs\CYBERNET_LOW_NOISE_CANARY.md'
+    $script:identifierPolicy = Join-Path $script:repoRoot 'docs\CYBERNET_IDENTIFIER_POLICY.md'
     $script:workflow = Join-Path $script:repoRoot '.github\workflows\cybernet-low-noise-canary.yml'
 }
 
@@ -182,7 +183,8 @@ Describe 'Cybernet low-noise identity canary' {
             'Config/cybernet-naabu-profiles.json',
             'survey/sas-run-windows-pc-signature.sh',
             'survey/sas-filter-windows-pc-signature.py',
-            'Tests/survey/test_windows_pc_signature_filter.py'
+            'Tests/survey/test_windows_pc_signature_filter.py',
+            'docs/CYBERNET_IDENTIFIER_POLICY.md'
         )) {
             $workflow | Should -Match ([regex]::Escape($marker))
         }
@@ -214,5 +216,15 @@ Describe 'Cybernet low-noise identity canary' {
         $docs | Should -Match 'does not guarantee that monitoring will not alert'
         $docs | Should -Not -Match 'WNH\d+OPR\d+'
         $docs | Should -Not -Match 'WPJ\d+OPR\d+'
+    }
+
+    It 'supersedes stale Nmap-first Cybernet identity doctrine' {
+        $policy = Get-Content -LiteralPath $script:identifierPolicy -Raw
+        $policy | Should -Match 'population-first, signature-gated, and hardware-confirmed'
+        $policy | Should -Match 'windows_pc_signature_json'
+        $policy | Should -Match 'ProductType=1'
+        $policy | Should -Match 'Future agents must not resurrect broad Nmap/Naabu service discovery'
+        $policy | Should -Not -Match 'Use Nmap-derived evidence as the primary identity source'
+        $policy | Should -Not -Match 'Future agents must not default Cybernet identity discovery back to PowerShell'
     }
 }
