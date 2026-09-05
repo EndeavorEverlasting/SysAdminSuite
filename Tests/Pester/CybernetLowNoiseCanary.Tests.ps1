@@ -121,6 +121,18 @@ Describe 'Cybernet low-noise identity canary' {
         $runtime.profiles.windows_pc_signature_json.pipelineFollowup | Should -BeFalse
     }
 
+    It 'uses the canonical VPN-aware protected network gate before the live signature scan' {
+        $runner = Get-Content -LiteralPath $script:signatureRunner -Raw
+        $runner | Should -Match 'scripts/Confirm-SasNorthwellNetwork.ps1'
+        $runner | Should -Match 'DomainAuthenticated non-Wi-Fi VPN/LAN'
+        $runner | Should -Match ([regex]::Escape("-NonInteractive -NoOpenWifiSettings"))
+        $runner | Should -Not -Match 'sas_require_northwell_wifi'
+        $networkGate = $runner.IndexOf('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$NETWORK_GATE"')
+        $liveScan = $runner.IndexOf('"$naabu_bin" "${args[@]}"', $networkGate)
+        $networkGate | Should -BeGreaterThan -1
+        $liveScan | Should -BeGreaterThan $networkGate
+    }
+
     It 'validates the canary shape before any network transition and uses the protected mutex' {
         $networkAware = Get-Content -LiteralPath $script:networkAware -Raw
         $networkAware | Should -Match 'Test-SasCybernetShapeForNetworkTransition'
@@ -161,9 +173,11 @@ Describe 'Cybernet low-noise identity canary' {
         $workflow = Get-Content -LiteralPath $script:workflow -Raw
         foreach ($marker in @(
             'survey/sas-network-preflight.ps1',
+            'scripts/Confirm-SasNorthwellNetwork.ps1',
             'scripts/Invoke-SasNetworkAwareField.ps1',
             'Config/low-noise-policy.json',
             'scripts/SasLowNoisePolicy.psm1',
+            'scripts/SasNetworkGuard.psm1',
             'survey/naabu_profiles.json',
             'Config/cybernet-naabu-profiles.json',
             'survey/sas-run-windows-pc-signature.sh',
@@ -188,6 +202,7 @@ Describe 'Cybernet low-noise identity canary' {
         $docs = Get-Content -LiteralPath $script:docs -Raw
         $docs | Should -Match 'Operator terminal: \*\*Windows PowerShell\*\*\.'
         $docs | Should -Match 'Operator terminal: Git Bash / Bash-on-Windows'
+        $docs | Should -Match 'DomainAuthenticated non-Wi-Fi VPN/LAN'
         $docs | Should -Match 'sas cybernet canary HOST01 HOST02'
         $docs | Should -Match 'windows_pc_signature_json'
         $docs | Should -Match 'sas-filter-windows-pc-signature.py'
