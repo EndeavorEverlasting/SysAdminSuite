@@ -5,6 +5,11 @@ on:
     paths:
       - 'survey/sas-cybernet-canary.ps1'
       - 'survey/sas-network-preflight.ps1'
+      - 'survey/sas-run-windows-pc-signature.sh'
+      - 'survey/sas-filter-windows-pc-signature.py'
+      - 'survey/naabu_profiles.json'
+      - 'survey/sas-generate-naabu-runtime-profiles.sh'
+      - 'Config/cybernet-naabu-profiles.json'
       - 'Config/low-noise-policy.json'
       - 'scripts/SasLowNoisePolicy.psm1'
       - 'scripts/SasNetworkGuard.psm1'
@@ -13,6 +18,7 @@ on:
       - 'scripts/Invoke-SasNetworkAwareField.ps1'
       - 'scripts/Install-SasUniversalFieldLauncher.ps1'
       - 'Tests/Pester/CybernetLowNoiseCanary.Tests.ps1'
+      - 'Tests/survey/test_windows_pc_signature_filter.py'
       - 'docs/CYBERNET_LOW_NOISE_CANARY.md'
       - 'harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md'
       - '.github/workflows/cybernet-low-noise-canary.yml'
@@ -42,12 +48,21 @@ jobs:
             if (@($errors).Count) { throw "$path parse errors: $($errors[0].Message)" }
           }
 
-  whitespace:
+  offline-professional-survey:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate generated Naabu profile parity
+        run: bash survey/sas-generate-naabu-runtime-profiles.sh --check
+      - name: Validate PC-signature filter
+        run: python Tests/survey/test_windows_pc_signature_filter.py
+      - name: Parse dedicated signature wrapper
+        run: bash -n survey/sas-run-windows-pc-signature.sh
       - name: Check pull-request whitespace
         if: github.event_name == 'pull_request'
         env:
