@@ -31,6 +31,8 @@ phases:
     action: Run scripts/Invoke-SasPackageSemanticAnalysis.ps1 or scripts/invoke-sas-package-semantic-analysis.sh against the static result.
   - id: offline-trust
     action: On Windows, run scripts/Invoke-SasPackageTrust.ps1 in observation mode, then apply a reviewed local policy when available.
+  - id: strong-name-verification
+    action: When managed code is present, run scripts/Invoke-SasPackageStrongNameVerification.ps1 or scripts/invoke-sas-package-strong-name-verification.sh against the static result.
   - id: evidence-gate-binding
     action: Bind managed-code, MSI, SAPIEN, and revocation status to canonical ignored result references; missing or incomplete evidence must produce derived blockers.
   - id: vm-qualification
@@ -58,7 +60,8 @@ artifacts:
   - package_trust_verification.json
   - package_trust_verification.txt
   - package_trust_policy.starter.json
-  - optional package_strong_name_verification.json
+  - package_strong_name_verification.json
+  - package_strong_name_verification.txt
   - optional package_deep_analysis.json
   - optional package_revocation_verification.json
   - package_vm_qualification validation result
@@ -67,11 +70,12 @@ artifacts:
 validation:
   - python3 Tests/survey/test_package_static_analysis_contracts.py
   - python3 Tests/survey/test_package_semantic_analysis_contracts.py
+  - python3 Tests/survey/test_package_strong_name_verification_contracts.py
   - python3 Tests/survey/test_package_vm_qualification_profile_contracts.py
   - pwsh -NoProfile -File Tests/survey/Test-PackageTrustVerificationContracts.ps1
   - python3 Tests/survey/test_agent_routing_manifest_contracts.py
   - python3 Tests/survey/test_agent_capability_manifest_contracts.py
 next_actions:
   - Keep private package evidence under ignored run roots.
-  - Implement registered strong-name, deep-analysis, and authorized revocation producers before satisfying their v2 evidence states.
+  - Implement registered deep-analysis and authorized revocation producers before satisfying their v2 evidence states.
   - Enter disposable-VM runtime only after a READY_FOR_VM qualification profile and explicit authorization.
