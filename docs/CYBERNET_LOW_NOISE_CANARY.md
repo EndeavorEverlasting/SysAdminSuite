@@ -16,7 +16,7 @@ This is **not a stealth feature**. It minimizes unnecessary packets and unnecess
 
 ## Lane A — professional candidate survey
 
-Operator terminal: **Git Bash / Bash-on-Windows**.
+Operator terminal: Git Bash / Bash-on-Windows.
 
 This lane performs network signature collection only; it performs no endpoint metadata query. Start from an approved **computer** host/IP list. Do not feed it printers, access points, arbitrary subnet discoveries, CIDRs, ranges, or wildcards.
 
