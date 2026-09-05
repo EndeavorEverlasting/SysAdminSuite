@@ -17,6 +17,9 @@ on:
       - 'docs/AI_LAYER.md'
       - 'docs/AI_HARNESS_ENTRYPOINT.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/prompts.json'
+      - 'docs/prompt-kit.html'
+      - 'Tests/survey/test_prompt_registry_contracts.py'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
       - 'harness/api/sas-harness-api.json'
@@ -56,6 +59,9 @@ on:
       - 'docs/AI_LAYER.md'
       - 'docs/AI_HARNESS_ENTRYPOINT.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/prompts.json'
+      - 'docs/prompt-kit.html'
+      - 'Tests/survey/test_prompt_registry_contracts.py'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
       - 'harness/api/sas-harness-api.json'
@@ -101,6 +107,7 @@ jobs:
           python -m py_compile
           Tests/survey/test_agent_governance_doctrine_contracts.py
           Tests/survey/test_agent_instruction_factoring_contracts.py
+          Tests/survey/test_prompt_registry_contracts.py
           Tests/survey/test_agent_capability_manifest_contracts.py
           Tests/survey/test_agent_routing_manifest_contracts.py
           Tests/survey/test_autologon_agent_harness_contracts.py
@@ -109,6 +116,7 @@ jobs:
         run: |
           python3 Tests/survey/test_agent_governance_doctrine_contracts.py
           python3 Tests/survey/test_agent_instruction_factoring_contracts.py
+          python3 Tests/survey/test_prompt_registry_contracts.py
           python3 Tests/survey/test_agent_capability_manifest_contracts.py
           python3 Tests/survey/test_agent_routing_manifest_contracts.py
           python3 Tests/survey/test_autologon_agent_harness_contracts.py
