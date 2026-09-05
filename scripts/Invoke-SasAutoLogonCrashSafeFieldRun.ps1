@@ -6,8 +6,9 @@ Runs the supported AutoLogon Remote lane in a child PowerShell while preserving 
 .DESCRIPTION
 The interactive operator shell must survive deployment failure. This runner therefore launches the existing
 Invoke-SasAutoLogonOnsite.ps1 Remote lane in a child powershell.exe process, streams and persists its output,
-then performs offline evidence recovery. Stable result and latest-run pointers are written below
-%LOCALAPPDATA%\SysAdminSuite even when the child exits nonzero or the deployment throws.
+normalizes any forward numbered-stage gap into an explicit SKIP record, then performs offline evidence recovery.
+Stable result and latest-run pointers are written below %LOCALAPPDATA%\SysAdminSuite even when the child exits
+nonzero or the deployment throws.
 
 Repository identity is supplied by the already-sealed runtime manifest/bootstrap. This runner does not invoke
 Git, so protected-network execution remains valid when Git commands are unavailable.
@@ -43,11 +44,13 @@ else {
 
 $autoLogonScript = Join-Path $RepositoryRoot 'scripts\Invoke-SasAutoLogonOnsite.ps1'
 $evidenceScript = Join-Path $RepositoryRoot 'scripts\Show-SasOperatorEvidence.ps1'
-foreach ($required in @($autoLogonScript, $evidenceScript)) {
+$progressModule = Join-Path $RepositoryRoot 'scripts\SasAutoLogonProgress.psm1'
+foreach ($required in @($autoLogonScript, $evidenceScript, $progressModule)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Required crash-safe field dependency is missing: $required"
     }
 }
+Import-Module $progressModule -Force
 
 $stateRoot = Join-Path $env:LOCALAPPDATA 'SysAdminSuite'
 $fieldRoot = Join-Path $stateRoot 'field-runs\autologon'
@@ -98,6 +101,7 @@ try {
     Write-Host "HEAD: $repoHead"
     Write-Host "Stable run root: $runRoot"
     Write-Host 'The AutoLogon transaction runs in a child PowerShell. Child exit cannot close this operator shell.' -ForegroundColor Green
+    Write-Host 'Operator progress continuity: ENABLED; a bypassed numbered stage is rendered as SKIP before any later stage.' -ForegroundColor Green
 
     $childArguments = @(
         '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
@@ -106,14 +110,22 @@ try {
         '-ComputerName', [string]$result.target
     )
 
-    # StrictMode treats an unread automatic variable as an error. Prime LASTEXITCODE
-    # before each native child PowerShell so the result envelope is deterministic even
-    # in a fresh operator session where no prior native process initialized the variable.
-    $LASTEXITCODE = 0
-    & powershell.exe @childArguments 2>&1 |
-        Tee-Object -FilePath $childOutputPath |
-        Out-Host
-    $result.child_exit_code = [int]$LASTEXITCODE
+    # Windows PowerShell 5.1 can surface merged native stderr as ErrorRecord objects. Keep that
+    # diagnostic stream visible/non-terminating while the canonical child runs, then restore the
+    # caller preference and preserve the child's real exit code.
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $LASTEXITCODE = 0
+        & powershell.exe @childArguments 2>&1 |
+            ConvertTo-SasAutoLogonContiguousProgress |
+            Tee-Object -FilePath $childOutputPath |
+            Out-Host
+        $result.child_exit_code = [int]$LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
 
     Write-Host ''
     Write-Host '=== OFFLINE EVIDENCE RECOVERY ===' -ForegroundColor Cyan
