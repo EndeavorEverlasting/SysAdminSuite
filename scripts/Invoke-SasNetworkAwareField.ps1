@@ -101,12 +101,20 @@ function Test-SasAdOuShapeForNetworkTransition {
 
 function Test-SasCanaryTargetForNetworkTransition {
     param([AllowNull()][string]$Value)
+
     if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
     $candidate = $Value.Trim()
-    if ($candidate -match '[/*?\[\]]' -or $candidate -match '\.\.') { return $false }
+    if ($candidate -match '[/*?\[\]]') { return $false }
+    if ($candidate -match '^\d{1,3}(?:\.\d{1,3}){3}\s*-\s*\d') { return $false }
+    if ($candidate -match '^\d{1,3}(?:\.\d{1,3}){3}\s*-\s*\d{1,3}(?:\.\d{1,3}){3}$') { return $false }
+    if ($candidate -match '\.\.') { return $false }
+
     $ip = $null
     if ([System.Net.IPAddress]::TryParse($candidate, [ref]$ip)) { return $true }
-    return $candidate -match '^[A-Za-z0-9][A-Za-z0-9._-]{1,254}$'
+    if ($candidate -match '^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z0-9.-]+$') { return $true }
+    if ($candidate -match '^[A-Za-z0-9]+[-_][A-Za-z0-9_-]+$') { return $true }
+    if ($candidate -match '^[A-Za-z]{2,6}[0-9]{2,}[A-Za-z0-9_-]*$') { return $true }
+    return $false
 }
 
 function Test-SasCybernetShapeForNetworkTransition {
@@ -119,7 +127,7 @@ function Test-SasCybernetShapeForNetworkTransition {
     if ($mode -eq 'canary') {
         if ($values.Count -gt 6) { return $false }
         foreach ($value in @($values | Select-Object -Skip 1)) {
-            if (-not (Test-SasCanaryTargetForNetworkTransition -Value ([string]$value)) { return $false }
+            if (-not (Test-SasCanaryTargetForNetworkTransition -Value ([string]$value))) { return $false }
         }
         return $true
     }
