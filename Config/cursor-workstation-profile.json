@@ -1,0 +1,75 @@
+{
+  "schema_version": "sas-cursor-workstation-profile/v1",
+  "schema_path": "schemas/harness/cursor-workstation-profile.schema.json",
+  "application": {
+    "name": "Cursor",
+    "publisher": "Anysphere",
+    "official_download_url": "https://cursor.com/download",
+    "display_name_regex": "^Cursor(?:\\s+\\(User\\)|\\s+\\d+(?:\\.\\d+)*.*)?$",
+    "process_names": [
+      "Cursor.exe"
+    ]
+  },
+  "installation": {
+    "machine_install_roots": [
+      "{PROGRAMFILES}\\Cursor",
+      "{PROGRAMFILESX86}\\Cursor"
+    ],
+    "user_install_roots": [
+      "{LOCALAPPDATA}\\Programs\\cursor"
+    ],
+    "uninstall_registry_roots": [
+      {
+        "scope": "user",
+        "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
+      },
+      {
+        "scope": "machine64",
+        "path": "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
+      },
+      {
+        "scope": "machine32",
+        "path": "HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
+      }
+    ],
+    "cli_path_templates": [
+      "{LOCALAPPDATA}\\Programs\\cursor\\resources\\app\\bin",
+      "{PROGRAMFILES}\\Cursor\\resources\\app\\bin",
+      "{PROGRAMFILESX86}\\Cursor\\resources\\app\\bin"
+    ],
+    "system_installer_filename_regex": "^Cursor(?!UserSetup).*\\.exe$",
+    "user_installer_filename_regex": "^CursorUserSetup.*\\.exe$",
+    "authenticode_subject_regex": "Anysphere"
+  },
+  "state": {
+    "user_state_roots": [
+      "{LOCALAPPDATA}\\Cursor",
+      "{APPDATA}\\Cursor",
+      "{USERPROFILE}\\.cursor",
+      "{USERPROFILE}\\.cursor-server"
+    ],
+    "startup_registry_roots": [
+      "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+    ],
+    "shortcut_roots": [
+      "{APPDATA}\\Microsoft\\Windows\\Start Menu\\Programs",
+      "{PROGRAMDATA}\\Microsoft\\Windows\\Start Menu\\Programs",
+      "{USERPROFILE}\\Desktop",
+      "{PUBLIC}\\Desktop"
+    ]
+  },
+  "evidence": {
+    "local_output_root": "{LOCALAPPDATA}\\SysAdminSuite\\field-runs\\cursor",
+    "tracked_runtime_evidence_allowed": false
+  },
+  "posture": {
+    "system_install_required": true,
+    "normal_uninstall_preserves_user_state": true,
+    "recovery_purge_requires_explicit_mutation": true,
+    "state_purge_requires_explicit_switch": true,
+    "settings_restore_after_smoke_test_only": true,
+    "local_audit_precedes_external_outage_assumption": true,
+    "package_manager_required": false
+  }
+}
