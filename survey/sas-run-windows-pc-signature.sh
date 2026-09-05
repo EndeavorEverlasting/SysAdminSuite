@@ -9,7 +9,7 @@ PROFILE_JSON="$REPO_ROOT/Config/cybernet-naabu-profiles.json"
 ENSURE_SCRIPT="$SCRIPT_DIR/sas-ensure-naabu.sh"
 FILTER_SCRIPT="$SCRIPT_DIR/sas-filter-windows-pc-signature.py"
 TARGET_HELPER="$SCRIPT_DIR/lib/sas-target-intake.sh"
-NETWORK_GUARD="$SCRIPT_DIR/lib/sas-network-guard.sh"
+NETWORK_GATE="$REPO_ROOT/scripts/Confirm-SasNorthwellNetwork.ps1"
 
 LIST=""
 OUT=""
@@ -43,7 +43,9 @@ Options:
   --dry-run             Print the exact bounded Naabu command; send no packets
   -h, --help            Show help
 
-The profile contract is Config/cybernet-naabu-profiles.json -> windows_pc_signature_json.
+Protected network authority is the canonical PowerShell network gate, including an
+approved DomainAuthenticated non-Wi-Fi VPN/LAN interface. The profile contract is
+Config/cybernet-naabu-profiles.json -> windows_pc_signature_json.
 Generated output may contain operational network details. Do not commit it.
 USAGE
 }
@@ -59,11 +61,9 @@ find_python() {
 }
 
 [[ -f "$TARGET_HELPER" ]] || fail "Missing target intake helper: $TARGET_HELPER"
-[[ -f "$NETWORK_GUARD" ]] || fail "Missing network guard: $NETWORK_GUARD"
+[[ -f "$NETWORK_GATE" ]] || fail "Missing canonical protected-network gate: $NETWORK_GATE"
 # shellcheck source=survey/lib/sas-target-intake.sh
 source "$TARGET_HELPER"
-# shellcheck source=survey/lib/sas-network-guard.sh
-source "$NETWORK_GUARD"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -152,7 +152,12 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-sas_require_northwell_wifi
+if ! command -v powershell.exe >/dev/null 2>&1; then
+  fail 'Windows PowerShell is required for the canonical protected-network gate.'
+fi
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$NETWORK_GATE" \
+  -Purpose 'Cybernet professional PC signature survey' -NonInteractive -NoOpenWifiSettings
+
 "$naabu_bin" "${args[@]}"
 $py "$FILTER_SCRIPT" --input "$OUT" --candidates-out "$CANDIDATES_OUT" --report-out "$REPORT_OUT"
 
