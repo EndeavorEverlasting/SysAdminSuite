@@ -1,0 +1,77 @@
+name: Cursor Workstation Lifecycle
+
+on:
+  pull_request:
+    paths:
+      - 'Config/cursor-workstation-profile.json'
+      - 'schemas/harness/cursor-workstation-profile.schema.json'
+      - 'scripts/Invoke-SasCursorWorkstation.ps1'
+      - 'Manage-Cursor.cmd'
+      - 'docs/CURSOR_WORKSTATION_LIFECYCLE.md'
+      - '.claude/skills/developer-workstation/SKILL.md'
+      - 'Tests/survey/test_cursor_workstation_lifecycle_contracts.py'
+      - '.github/workflows/cursor-workstation-lifecycle.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Config/cursor-workstation-profile.json'
+      - 'schemas/harness/cursor-workstation-profile.schema.json'
+      - 'scripts/Invoke-SasCursorWorkstation.ps1'
+      - 'Manage-Cursor.cmd'
+      - 'docs/CURSOR_WORKSTATION_LIFECYCLE.md'
+      - '.claude/skills/developer-workstation/SKILL.md'
+      - 'Tests/survey/test_cursor_workstation_lifecycle_contracts.py'
+      - '.github/workflows/cursor-workstation-lifecycle.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Cursor lifecycle contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse JSON
+        run: |
+          python -m json.tool Config/cursor-workstation-profile.json >/dev/null
+          python -m json.tool schemas/harness/cursor-workstation-profile.schema.json >/dev/null
+      - name: Run Cursor contracts
+        run: python Tests/survey/test_cursor_workstation_lifecycle_contracts.py
+
+  windows-read-only:
+    name: Windows PowerShell read-only proof
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse lifecycle engine with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'scripts/Invoke-SasCursorWorkstation.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List -Force
+            exit 1
+          }
+      - name: Audit clean runner without application mutation
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasCursorWorkstation.ps1 `
+            -Action Audit `
+            -OutputRoot (Join-Path $env:RUNNER_TEMP 'cursor-audit')
+      - name: Verify absent state without application mutation
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasCursorWorkstation.ps1 `
+            -Action Verify `
+            -ExpectedState Absent `
+            -OutputRoot (Join-Path $env:RUNNER_TEMP 'cursor-verify')
+      - name: Run Cursor contracts on Windows
+        shell: powershell
+        run: python Tests/survey/test_cursor_workstation_lifecycle_contracts.py
