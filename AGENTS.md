@@ -25,7 +25,6 @@ When instructions conflict, use this order:
 4. Generic defaults.
 
 At the same level, stop expansion, identify the conflicting authorities, and make the smallest safe correction that restores one source of truth.
-
 ## Mandatory sprint declaration
 Before every writing sprint, state:
 - repo and branch;
