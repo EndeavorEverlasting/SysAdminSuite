@@ -130,6 +130,22 @@ Describe 'Cybernet low-noise identity canary' {
         $networkAware | Should -Match 'Global\\SysAdminSuite.NetworkIntent.v1'
     }
 
+    It 'rejects invalid canary target shapes before protected network intent' {
+        $networkAware = Get-Content -LiteralPath $script:networkAware -Raw
+        $start = $networkAware.IndexOf('function Test-SasCanaryTargetForNetworkTransition')
+        $end = $networkAware.IndexOf('function Test-SasCybernetShapeForNetworkTransition', $start)
+        $start | Should -BeGreaterThan -1
+        $end | Should -BeGreaterThan $start
+        $functionText = $networkAware.Substring($start, $end - $start)
+        . ([scriptblock]::Create($functionText))
+
+        (Test-SasCanaryTargetForNetworkTransition -Value '10.1.1.1-10.1.1.9') | Should -BeFalse
+        (Test-SasCanaryTargetForNetworkTransition -Value 'abc') | Should -BeFalse
+        (Test-SasCanaryTargetForNetworkTransition -Value 'HOST01') | Should -BeTrue
+        (Test-SasCanaryTargetForNetworkTransition -Value 'host01.example.invalid') | Should -BeTrue
+        (Test-SasCanaryTargetForNetworkTransition -Value '10.1.1.10') | Should -BeTrue
+    }
+
     It 'routes through the cwd-independent universal front door and guards stale runtimes' {
         $launcher = Get-Content -LiteralPath $script:launcher -Raw
         $installer = Get-Content -LiteralPath $script:installer -Raw
