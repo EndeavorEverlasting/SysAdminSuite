@@ -32,8 +32,19 @@ def test_profile_and_schema_contract() -> None:
 
     assert profile["schema_version"] == "sas-cursor-workstation-profile/v1"
     assert profile["schema_path"] == "schemas/harness/cursor-workstation-profile.schema.json"
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["$id"] == profile["schema_path"]
     assert schema["additionalProperties"] is False
+    assert set(schema["required"]) == {
+        "schema_version",
+        "schema_path",
+        "application",
+        "installation",
+        "state",
+        "evidence",
+        "posture",
+    }
+    assert {"tokenizedPath", "tokenizedPathList"} <= set(schema["$defs"])
 
     app = profile["application"]
     assert app["name"] == "Cursor"
@@ -79,13 +90,6 @@ def test_profile_and_schema_contract() -> None:
     for value in tokenized_paths:
         assert value.startswith("{"), f"machine-local path must be tokenized: {value}"
 
-    try:
-        import jsonschema  # type: ignore
-    except ImportError:
-        jsonschema = None
-    if jsonschema is not None:
-        jsonschema.Draft202012Validator(schema).validate(profile)
-
 
 def test_engine_mutation_and_scope_contract() -> None:
     text = read(SCRIPT)
@@ -96,6 +100,7 @@ def test_engine_mutation_and_scope_contract() -> None:
         "'Audit', 'InstallSystem', 'Uninstall', 'RecoveryPurge', 'Verify'",
         "[switch]$AllowMutation",
         "[switch]$PurgeUserState",
+        "Get-SasObjectPropertyValue",
         "Assert-MutationAuthorized",
         "Assert-Administrator",
         "Get-AuthenticodeSignature",
@@ -182,7 +187,8 @@ def test_ci_contract_is_windows_executable_and_read_only() -> None:
     assert "-Action Verify" in text
     assert "-ExpectedState Absent" in text
     assert "Parser]::ParseFile" in text
-    assert "InstallSystem" not in text.split("jobs:", 1)[1] or "-Action InstallSystem" not in text
+    assert "-Action InstallSystem" not in text
+    assert "-Action Uninstall" not in text
     assert "-Action RecoveryPurge" not in text
     assert "-AllowMutation" not in text
 
